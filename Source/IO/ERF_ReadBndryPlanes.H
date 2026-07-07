@@ -25,8 +25,8 @@ public:
 
     void read_time_file ();
 
-    void read_input_files (amrex::Real time,
-                           amrex::Real dt,
+    void read_input_files (double time,
+                           double dt,
                            amrex::Array<amrex::Array<amrex::Real, AMREX_SPACEDIM*2>, AMREX_SPACEDIM+NBCVAR_max> m_bc_extdir_vals);
 
     void read_file (int idx,
@@ -34,12 +34,12 @@ public:
                     amrex::Array<amrex::Array<amrex::Real, AMREX_SPACEDIM*2>, AMREX_SPACEDIM+NBCVAR_max> m_bc_extdir_vals);
 
     // Return the pointer to PlaneVectors at time "time"
-    amrex::Vector<std::unique_ptr<PlaneVector>>& interp_in_time (const amrex::Real& time);
+    amrex::Vector<std::unique_ptr<PlaneVector>>& interp_in_time (const double& time);
 
     // Return the pointer to PlaneVectors that have the tendency
-    amrex::Vector<std::unique_ptr<PlaneVector>>& get_tendency (const amrex::Real& time);
+    amrex::Vector<std::unique_ptr<PlaneVector>>& get_tendency (const double& time);
 
-    [[nodiscard]] amrex::Real tinterp() const { return m_tinterp; }
+    [[nodiscard]] double tinterp() const { return m_tinterp; }
 
     [[nodiscard]] int ingested_velocity() const {return is_velocity_read;}
     [[nodiscard]] int ingested_theta()    const {return (is_temperature_read || is_theta_read);}
@@ -52,9 +52,9 @@ public:
 private:
 
     //! The times for which we currently have data
-    amrex::Real m_tn;
-    amrex::Real m_tnp1;
-    amrex::Real m_tnp2;
+    double m_tn;
+    double m_tnp1;
+    double m_tnp2;
 
     //! Data at time m_tn
     amrex::Vector<std::unique_ptr<PlaneVector>> m_data_n;
@@ -72,7 +72,7 @@ private:
     amrex::Vector<std::unique_ptr<PlaneVector>> m_data_tendency;
 
     //! Time for plane at interpolation
-    amrex::Real m_tinterp{-one};
+    double m_tinterp{-1.0};
 
     //! Geometry at level 0
     amrex::Geometry m_geom;
@@ -84,7 +84,7 @@ private:
     std::string m_time_file{""};
 
     //! The timesteps / times that we read from time.dat
-    amrex::Vector<amrex::Real> m_in_times;
+    amrex::Vector<double> m_in_times;
     amrex::Vector<int> m_in_timesteps;
 
     //! Variables to be read in

@@ -6,8 +6,8 @@ using namespace amrex;
  * Accumulate time averaged velocity fields
  */
 void
-Time_Avg_Vel_atCC (const Real& dt,
-                   Real& t_avg_cnt,
+Time_Avg_Vel_atCC (double dt,
+                   double& t_avg_cnt,
                    MultiFab* vel_t_avg,
                    MultiFab& xvel,
                    MultiFab& yvel,

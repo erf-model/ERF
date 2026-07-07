@@ -40,7 +40,7 @@ T erf_get_single_value (std::istream& is, int n)
 void
 init_my_custom_terrain (const amrex::Geometry& geom,
                         amrex::FArrayBox& terrain_fab,
-                        const amrex::Real& time);
+                        const double& time);
 
 /**
  * Class to hold problem-specific routines
@@ -181,7 +181,7 @@ public:
      * @param[in]  z_phys_cc        height coordinate at cell centers
     */
     virtual void
-    update_rhotheta_sources (const amrex::Real& /*time*/,
+    update_rhotheta_sources (const double& /*time*/,
                              amrex::MultiFab* src,
                              const amrex::Geometry& /*geom*/,
                              std::unique_ptr<amrex::MultiFab>& /*z_phys_cc*/)
@@ -213,7 +213,7 @@ public:
      * @param[in]  z_phys_cc        height coordinate at cell centers
     */
     virtual void
-    update_rhoqt_sources (const amrex::Real& /*time*/,
+    update_rhoqt_sources (const double& /*time*/,
                              amrex::MultiFab* qsrc,
                              const amrex::Geometry& /*geom*/,
                              std::unique_ptr<amrex::MultiFab>& /*z_phys_cc*/)
@@ -248,7 +248,7 @@ public:
      * @param[in]  z_phys_cc        height coordinate at cell centers
     */
     virtual void
-    update_w_subsidence (const amrex::Real& /*time*/,
+    update_w_subsidence (const double& /*time*/,
                          amrex::Vector<amrex::Real>& wbar,
                          amrex::Gpu::DeviceVector<amrex::Real>& d_wbar,
                          const amrex::MultiFab& /*state*/,
@@ -283,7 +283,7 @@ public:
      * @param[in]  z_phys_cc        height coordinate at cell centers
     */
     virtual void
-    update_geostrophic_profile (const amrex::Real& /*time*/,
+    update_geostrophic_profile (const double& /*time*/,
                          amrex::Vector<amrex::Real>& u_geos,
                          amrex::Gpu::DeviceVector<amrex::Real>& d_u_geos,
                          amrex::Vector<amrex::Real>& v_geos,
@@ -321,7 +321,7 @@ public:
     void
     init_buildings_surface (const amrex::Geometry& geom,
                           amrex::FArrayBox& buildings_fab,
-                          const amrex::Real& time)
+                          const double& time)
     {
         // Check if a valid text file exists for the buildings
         std::string fname;
@@ -346,7 +346,7 @@ public:
     void
     init_terrain_surface (const amrex::Geometry& geom,
                           amrex::FArrayBox& terrain_fab,
-                          const amrex::Real& time)
+                          const double& time)
     {
         // Check if a valid text file exists for the terrain
         std::string fname, fname_usgs;
@@ -374,7 +374,7 @@ public:
                          const bool is_usgs,
                          const amrex::Geometry& geom,
                          amrex::FArrayBox& terrain_fab,
-                         const amrex::Real& /*time*/)
+                         const double& /*time*/)
     {
         amrex::Vector<amrex::Real> m_xterrain,m_yterrain,m_zterrain;
 
@@ -636,7 +636,7 @@ public:
     virtual void
     init_custom_terrain (const amrex::Geometry& geom,
                          amrex::FArrayBox& terrain_fab,
-                         const amrex::Real& time)
+                         const double& time)
     {
         std::string custom_terrain_type = "None";
         amrex::ParmParse pp_prob("prob"); pp_prob.query("custom_terrain_type",custom_terrain_type);
@@ -658,7 +658,7 @@ public:
     }
 
 #ifdef ERF_USE_TERRAIN_VELOCITY
-    virtual amrex::Real compute_terrain_velocity(const amrex::Real /*time*/)
+    virtual amrex::Real compute_terrain_velocity(const double /*time*/)
     {
         amrex::Error("Should never call compute_terrain_velocity for "+name()+" problem");
     }

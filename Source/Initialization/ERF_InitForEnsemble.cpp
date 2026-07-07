@@ -488,7 +488,8 @@ MakeFinalMultiFabs (const MultiFab& mf_cc_fine,
 
 void
 AddPertToBckgnd(MultiFab& mf_cc_fine,
-                const MultiFab& mf_cc_pert)
+                const MultiFab& mf_cc_pert,
+                const Real& ens_pert_amplitude)
 {
     const int ncomp = mf_cc_fine.nComp();
 
@@ -505,7 +506,7 @@ AddPertToBckgnd(MultiFab& mf_cc_fine,
         amrex::ParallelFor(bx, ncomp,
         [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
         {
-            Real ens_amp = Real(0.02)*std::abs(bg(i,j,k,n));
+            Real ens_amp = ens_pert_amplitude*std::abs(bg(i,j,k,n));
             bg(i,j,k,n) += ens_amp*pert(i,j,k,n);
         });
     }
@@ -553,7 +554,7 @@ ERF::create_background_state_for_ensemble (int lev,
 
      // Add pertubrations stored in the "pert" variables in the function arguments
     // (multiplied by the corresponding amplitude)
-    AddPertToBckgnd(mf_cc_fine, mf_cc_pert);
+    AddPertToBckgnd(mf_cc_fine, mf_cc_pert, solverChoice.ens_pert_amplitude);
     ApplyNeumannBCs(geom_fine, mf_cc_fine);
     //WriteSingleLevelPlotfile("1_plt_final", mf_cc_fine, varnames, geom_fine, zero, 0);
 

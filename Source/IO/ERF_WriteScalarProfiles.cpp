@@ -525,7 +525,7 @@ ERF::cloud_fraction (double /*time*/)
  * @param mf MultiFab from which we wish to sample data
  */
 void
-ERF::sample_points (int /*lev*/, Real time, IntVect cell, MultiFab& mf)
+ERF::sample_points (int /*lev*/, double time, IntVect cell, MultiFab& mf)
 {
     int ifile = 0;
 
@@ -561,7 +561,7 @@ ERF::sample_points (int /*lev*/, Real time, IntVect cell, MultiFab& mf)
  * @param mf MultiFab from which we sample the data
  */
 void
-ERF::sample_lines (int lev, Real time, IntVect cell, MultiFab& mf)
+ERF::sample_lines (int lev, double time, IntVect cell, MultiFab& mf)
 {
     int ifile = 0;
 
@@ -651,7 +651,7 @@ ERF::sample_lines (int lev, Real time, IntVect cell, MultiFab& mf)
  * @param action_per Interval in simulation time for taking action
  */
 bool
-ERF::is_it_time_for_action (int nstep, double time, Real dtlev, int action_interval, Real action_per)
+ERF::is_it_time_for_action (int nstep, double time, double dtlev, int action_interval, double action_per)
 {
   bool int_test = (action_interval > 0 && nstep % action_interval == 0);
 

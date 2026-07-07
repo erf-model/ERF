@@ -51,7 +51,7 @@ jobs:
     - name: Setup Spack
       uses: spack/setup-spack@v3
       with:
-        path: ${{ github.workspace }}/spack_install_dir
+        spack_path: ${{ github.workspace }}/spack_install_dir
 
     - name: Install CA certificates
       run: |

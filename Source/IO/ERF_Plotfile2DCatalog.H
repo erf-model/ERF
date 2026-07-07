@@ -29,7 +29,17 @@ enum class DiagnosticID
     LatenFlux,
     SurfPres,
     IntegratedQv,
-    SurfaceDiagnosticSource
+    IntegratedQc,
+    IntegratedQi,
+    IntegratedQr,
+    IntegratedQs,
+    IntegratedQg,
+    SurfaceDiagnosticSource,
+    SensibleHeatFlux,
+    LatentHeatFlux,
+    ShocUStar,
+    ShocOlen,
+    ShocWthvSfc
 };
 
 enum class DiagnosticCategory
@@ -38,8 +48,10 @@ enum class DiagnosticCategory
     SurfaceLayer,
     Radiation,
     SurfaceFlux,
+    PBL,
     SurfaceState,
-    ColumnIntegral
+    ColumnIntegral,
+    SampledLevel
 };
 
 enum class MissingPolicy

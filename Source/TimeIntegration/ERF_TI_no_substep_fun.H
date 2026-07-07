@@ -4,7 +4,7 @@
     auto no_substep_fun = [&](Vector<MultiFab>& S_sum,
                               Vector<MultiFab>& S_old,
                               Vector<MultiFab>& F_slow,
-                              const Real time_for_fp, const Real slow_dt,
+                              const double time_for_fp, const double slow_dt,
                               const int nrk)
     {
         BL_PROFILE("no_substep_fun");

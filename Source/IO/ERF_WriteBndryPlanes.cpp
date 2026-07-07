@@ -121,7 +121,7 @@ WriteBndryPlanes::WriteBndryPlanes (Vector<BoxArray>& grids,
  * @param time Current time
  * @param vars_new Grid data for all variables across the AMR hierarchy
  */
-void WriteBndryPlanes::write_planes (const int t_step, const Real time,
+void WriteBndryPlanes::write_planes (const int t_step, const double time,
                                      Vector<Vector<MultiFab>>& vars_new,
                                      bool is_moist)
 {

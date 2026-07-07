@@ -6,6 +6,7 @@ To build with SHOC using gmake:
    source /path/to/ERF/Build/GNU_Ekat/ekat_build_commands.sh
 
 Then type "make" here in ERF/.Exec_dev/Shoc, after verifying that the GNUmakfile
-contains the line 
+does not enable EAMxx SHOC by default.
 
-   USE_SHOC = TRUE
+Native SHOC is built in-tree and selected at runtime with `erf.pbl_type = NATIVE_SHOC`.
+Set `USE_EAMXX_SHOC = TRUE` only if you also need the optional EAMxx SHOC path.

@@ -171,10 +171,15 @@ ERF::compute_max_pressure_gradient_diagnostic(int lev)
         }
     }
 
+    Real tol;
 #ifdef AMREX_USE_FLOAT
-    Real tol = 1.e-4;
+    tol = 1.e-4;
 #else
-    Real tol = 1.e-8;
+    if (solverChoice.terrain_type == TerrainType::EB) {
+        tol = 1.e-4;
+    } else {
+        tol = 1.e-8;
+    }
 #endif
 
     Real min_gpz = gradp_temp[2].min(zface_domain,comp);

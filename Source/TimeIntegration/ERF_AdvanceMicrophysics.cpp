@@ -4,9 +4,9 @@ using namespace amrex;
 
 void ERF::advance_microphysics (int lev,
                                 MultiFab& cons,
-                                const Real& dt_advance,
+                                const double& dt_advance,
                                 const int& iteration,
-                                const Real& time )
+                                const double& time )
 {
     if (solverChoice.moisture_type != MoistureType::None) {
         if (lev > 0) {

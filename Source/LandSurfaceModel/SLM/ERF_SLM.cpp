@@ -111,7 +111,7 @@ void
 SLM::AdvanceSLM ()
 {
     // Expose for GPU copy
-    Real dt = m_dt;
+    double dt = m_dt;
     Real dzInv = m_lsm_geom.InvCellSize(2);
 
     for ( MFIter mfi(*(lsm_fab_vars[LsmVar_SLM::theta])); mfi.isValid(); ++mfi) {

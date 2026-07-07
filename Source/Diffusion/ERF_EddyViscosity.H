@@ -11,12 +11,16 @@
 #include "ERF_EOS.H"
 #include "ERF_EB.H"
 
-#ifdef ERF_USE_SHOC
+#ifdef ERF_USE_EAMXX_SHOC
 #include "ERF_ShocInterface.H"
 #endif
 
+#ifdef ERF_USE_NATIVE_SHOC
+#include "ERF_ShocDriver.H"
+#endif
+
 void
-ComputeTurbulentViscosity (amrex::Real dt,
+ComputeTurbulentViscosity (double dt,
                            const amrex::MultiFab& xvel ,
                            const amrex::MultiFab& yvel ,
                            amrex::Vector<std::unique_ptr<amrex::MultiFab>>& Tau_lev,

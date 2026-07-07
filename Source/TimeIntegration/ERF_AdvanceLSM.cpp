@@ -6,8 +6,8 @@ void ERF::advance_lsm (int lev,
                        MultiFab& cons_in,
                        MultiFab& xvel_in,
                        MultiFab& yvel_in,
-                       const Real& time,
-                       const Real& dt_advance)
+                       const double& time,
+                       const double& dt_advance)
 {
     if (solverChoice.lsm_type != LandSurfaceType::None) {
         if (solverChoice.lsm_type == LandSurfaceType::NOAHMP) {

@@ -111,7 +111,7 @@ void
 MM5::AdvanceMM5 ()
 {
     // Expose for GPU copy
-    Real dt = m_dt;
+    double dt = m_dt;
     Real dzInv = m_lsm_geom.InvCellSize(2);
 
     for ( MFIter mfi(*(lsm_fab_vars[LsmVar_MM5::theta])); mfi.isValid(); ++mfi) {

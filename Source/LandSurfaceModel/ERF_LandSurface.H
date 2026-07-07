@@ -73,7 +73,7 @@ public:
     }
 
     void
-    Advance (const int& lev, const amrex::Real& dt_advance)
+    Advance (const int& lev, const double& dt_advance)
     {
         m_lsm_model[lev]->Advance(dt_advance);
     }
@@ -174,7 +174,7 @@ public:
     Read_Lsm_Restart (const int& lev, const std::string& dir) { m_lsm_model[lev]->Read_Lsm_Restart(dir); }
 
     void
-    Plot_Lsm_Data (amrex::Real time,
+    Plot_Lsm_Data (double time,
                    const amrex::Vector<int> &level_steps,
                    const amrex::Vector<amrex::IntVect> &ref_ratio)
     {
