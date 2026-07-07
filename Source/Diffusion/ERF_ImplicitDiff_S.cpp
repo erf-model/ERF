@@ -360,7 +360,7 @@ ImplicitDiffForMomLU_S (const Box& bx,
                   RHS_a(i,j,klo) += Fact * dz_inv * tau(i,j,klo);
               } else {
                   // NOTE: FOEXTRAP has zero lower flux (nothing to add to RHS)
-                  RHS_a(i,j,klo) += Fact * gfac * (tau_corr(i,j,klo+1) - tau_corr(i,j,klo));
+                  RHS_a(i,j,klo) += Fact * gfac * (tau_corr(i,j,klo+1) - tau_corr(i,j,klo)) * dz_inv;
               }
 
               b_tmp      = rhoface - a_tmp - c_tmp;
