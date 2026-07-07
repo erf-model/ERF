@@ -1,12 +1,12 @@
 # Fire Model Tests
 
-This directory contains test cases for the 2D fire model implementation in ERF.
+This directory contains organized test cases for the 2D fire model implementation in ERF, grouped by physical features and behavior being tested.
 
 ## Fire Model Overview
 
 The fire model implements a 2D wildfire propagation solver using:
 - **Rothermel Fire Spread Model**: Computes rate of fire spread based on fuel characteristics, weather, and topography
-- **FARSITE Elliptical Expansion**: Models fire expansion as an ellipse with orientation based on wind and slope
+- **FARSITE Elliptical Propagation**: Models fire expansion as an ellipse with orientation based on wind and slope
 
 ## Rothermel C Coefficient Correction (Critical Fix)
 
@@ -42,64 +42,103 @@ These match published BEHAVE/BehavePlus reference values.
 
 ### Run Python Unit Tests (No ERF Required)
 ```bash
-cd Exec/CanonicalTests/Fire/
+cd Exec/CanonicalTests/Fire/Unit_Tests
 python3 test_rothermel_unit.py              # Pure Python physics check (~1 sec)
 python3 test_fire_ros_regression.py         # Reference value regression check (~1 sec)
 ```
 
 ### Run Integration Test (Requires Compiled ERF)
 ```bash
-cd Exec/CanonicalTests/Fire/
-python3 test_rothermel_ros.py --erf_exe ./erf --input_file inputs_fire_flat_uniform
+cd Exec/CanonicalTests/Fire/Core_Physics/ROS_Uniform_Grid
+python3 ../../test_rothermel_ros.py --erf_exe ./erf --input_file inputs_fire_flat_uniform
 ```
 
-## Test Cases
+## Test Directory Organization
 
-### Existing Test Cases
+### Unit_Tests/
+Pure Python tests requiring no compiled ERF binary:
+- `test_rothermel_unit.py`: Physics equation validation
+- `test_fire_ros_regression.py`: Reference value checks
 
-#### inputs_fire_dummy
-Dummy test case that verifies fire model initialization and basic function calls.
+### Core_Physics/
+Basic fire rate-of-spread calculations and fundamental fire physics:
+- **ROS_Uniform_Grid/**: Rate of spread on flat uniform mesh
+- **ROS_Basic_Calculation/**: Basic ROS computation on flat domain
+- **ROS_Slope_Effects/**: ROS computation with terrain slope effects
+- **Fuel_Moisture_Sensitivity/**: Fire spread at different fuel moisture levels (dry/wet conditions)
+- **Wind_Speed_Variation/**: Fire spread at low and high wind speeds
+- **Multiple_Fuel_Models/**: Different Anderson FBFM13 fuel types
 
-#### inputs_fire_phase2
-Phase 2 implementation test on a flat domain using:
-- GR1 fuel model (short grass) from Anderson FBFM13
-- 5 m/s uniform wind
-- 8% fuel moisture content
-- Rothermel fire spread rate computation
+### FARSITE_Propagation/
+FARSITE elliptical fire expansion method:
+- **Elliptical_Propagation/**: FARSITE elliptical fire front advancement
 
-#### inputs_fire_phase2_slope
-Phase 2 test case with terrain effects:
-- 30-degree slope
-- 3 m/s upslope wind
-- Terrain wind corrections enabled (ridges, valleys, sheltering)
-- Demonstrates fire spread on sloped terrain
+### Heat_Flux_Diagnostics/
+Heat output and fuel depletion calculations:
+- **Heat_Flux_and_Intensity/**: Heat flux, fuel depletion, fireline intensity, and flame length
 
-#### inputs_fire_phase3
-Phase 3 test case with FARSITE level-set propagation:
-- Elliptical fire expansion
-- Level-set method for fire front advancement
-- Wind and slope-based propagation direction
+### Fire_Atmosphere_Coupling/
+Fire-to-atmosphere interactions and feedback:
+- **Lagged_Coupling/**: Lagged fire-atmosphere feedback mode
+- **Synchronous_Coupling/**: Synchronous fire-atmosphere feedback mode
+- **Passive_Baseline/**: Passive mode (no fire-atmosphere feedback)
 
-#### inputs_fire_abl_mrf_unstable
-Atmospheric Boundary Layer test case with Mesoscale Radiation Framework (MRF):
-- Couples MRF boundary layer physics with fire model
-- Uses realistic atmospheric initialization from input sounding
-- Includes Coriolis effects and geostrophic wind forcing
-- Flat terrain for clean fire-atmosphere coupling testing
-- Uses MRF turbulence closure for stable boundary layer conditions
+### Atmospheric_Boundary_Layer/
+Atmospheric boundary layer physics with fire:
+- **ABL_with_MRF/**: Atmospheric coupling with MRF turbulence model
+- **Atmospheric_Stability/**: Tests in stable and unstable boundary layers
 
-### New Regression Test Cases
+### Mesh_Refinement/
+Grid refinement and mesh structure tests:
+- **Vertical_Refinement/**: Stretched vertical grid fire spread
 
-#### inputs_fire_flat_uniform
-Minimal flat uniform mesh regression test:
-- FM1 (Short Grass) fuel
-- Flat terrain, uniform atmospheric grid
-- 5 m/s nominal wind
-- 8% fuel moisture
-- **Expected ROS**: 0.1-1.0 m/s over 1800s simulation
-- **Purpose**: Baseline regression test for flat domain fire spread
+### Fire_Behavior/
+Advanced fire behavior patterns:
+- **Ignition_Patterns/**: Multiple ignition sources and fire interaction
 
-#### inputs_fire_vertical_refinement
+### Supporting_Files/
+Documentation and utility scripts:
+- `README.md`: This documentation
+- `ANIMATION_GUIDE.md`: Guide for creating fire animations
+- `plot_fire_animation.py`: Plotting utility
+
+## Test Cases by Feature
+
+### ROS Computation Tests
+- **ROS_Uniform_Grid**: Minimal flat uniform mesh regression test with FM1 (Short Grass) fuel
+- **ROS_Basic_Calculation**: Basic ROS computation on flat domain with GR1 fuel
+- **ROS_Slope_Effects**: ROS with 30-degree slope and terrain wind corrections
+
+### Fuel and Weather Variation Tests
+- **Fuel_Moisture_Sensitivity/inputs_fire_moisture_dry**: Dry condition (3% moisture)
+- **Fuel_Moisture_Sensitivity/inputs_fire_moisture_wet**: Wet condition (15% moisture)
+- **Wind_Speed_Variation/inputs_fire_wind_low**: Low wind (1 m/s)
+- **Wind_Speed_Variation/inputs_fire_wind_high**: High wind (10 m/s)
+- **Multiple_Fuel_Models/inputs_fire_fuel_fm4_chaparral**: FM4 (Chaparral) fuel model
+
+### Fire Propagation Tests
+- **Elliptical_Propagation/**: FARSITE elliptical fire expansion method
+
+### Heat Output Tests
+- **Heat_Flux_and_Intensity/**: Heat flux computation, fuel depletion, Byram fireline intensity, Thomas flame length
+
+### Atmospheric Coupling Tests
+- **Lagged_Coupling/**: Fire heat flux injected one step lagged into atmospheric equations
+- **Synchronous_Coupling/**: Fire advances using post-dycore wind with synchronized coupling
+- **Passive_Baseline/**: Fire spreads under prescribed atmospheric conditions (no feedback)
+
+### Boundary Layer Tests
+- **ABL_with_MRF/**: Couples MRF boundary layer physics with fire model
+- **Atmospheric_Stability/inputs_fire_stable_atmosphere**: Stable stratification conditions
+- **Atmospheric_Stability/inputs_fire_unstable_atmosphere**: Unstable/convective conditions
+
+### Mesh Tests
+- **Vertical_Refinement/**: Stretched vertical grid with wind interpolation verification
+
+### Fire Behavior Tests
+- **Ignition_Patterns/inputs_fire_multiple_ignitions/**: Multiple ignition source interactions
+
+#### inputs_fire_vertical_refinement (Vertical_Refinement/)
 Vertical grid stretching regression test:
 - FM1 (Short Grass) fuel
 - Stretched vertical grid (grid_stretching_ratio=1.08)
@@ -107,8 +146,8 @@ Vertical grid stretching regression test:
 - **Expected ROS**: 0.1-1.0 m/s
 - **Purpose**: Verify wind extraction and ROS computation with stretched grids
 
-#### inputs_fire_phase5
-Phase 5 test case with heat flux and diagnostics:
+#### inputs_fire_heat_flux (Heat_Flux_and_Intensity/)
+Heat flux computation test with diagnostics:
 - FM1 (Short Grass) fuel
 - 5 m/s nominal wind
 - 8% fuel moisture
@@ -119,12 +158,12 @@ Phase 5 test case with heat flux and diagnostics:
 - **Expected outputs**: fire_heat_flux > 0 in burned cells, fuel_load decreasing, flame length consistent with Byram
 - **Purpose**: Regression test for heat flux, fuel depletion, fireline intensity, and flame length
 
-#### inputs_fire_phase6
-Phase 6 test case with lagged fire-to-atmosphere coupling:
+#### inputs_fire_lagged_coupling (Lagged_Coupling/)
+Lagged fire-to-atmosphere coupling test:
 - FM1 (Short Grass) fuel
 - 5 m/s nominal wind
 - 8% fuel moisture
-- Heat flux computation and fuel depletion (Phase 5)
+- Heat flux computation and fuel depletion
 - Fire heat flux distributed through atmospheric column via exponential decay profile (WRF-Fire approach)
 - Latent heat flux injection alongside sensible heat
 - Lagged coupling: fire flux from step n enters dycore at step n+1 via RK source term
@@ -133,8 +172,8 @@ Phase 6 test case with lagged fire-to-atmosphere coupling:
 - **Expected outputs**: theta anomaly above burned area; qv increase if moisture is active; heat flux decays with altitude per exp(-z/alfg)
 - **Purpose**: Regression test for WRF-Fire-parity fire-atmosphere coupling (lagged mode)
 
-#### inputs_fire_phase7
-Phase 7 test case with synchronous fire-to-atmosphere coupling:
+#### inputs_fire_synchronous_coupling (Synchronous_Coupling/)
+Synchronous fire-to-atmosphere coupling test:
 - FM1 (Short Grass) fuel
 - 5 m/s nominal wind
 - 8% fuel moisture
@@ -147,9 +186,9 @@ Phase 7 test case with synchronous fire-to-atmosphere coupling:
 - **Expected outputs**: similar theta anomaly as phase6 but with different fire spread pattern reflecting post-dycore wind feedback
 - **Purpose**: Regression test for synchronous fire-atmosphere coupling
 
-#### inputs_fire_phase7_passive
-Phase 7 baseline test with passive fire-to-atmosphere coupling:
-- Identical configuration to inputs_fire_phase7 except with passive coupling mode
+#### inputs_fire_passive_coupling (Passive_Baseline/)
+Passive fire-to-atmosphere coupling baseline test:
+- Identical configuration to synchronous coupling except with passive coupling mode
 - Fire spreads and heat flux is computed but NOT injected into atmosphere
 - Fire uses pre-dycore wind (unchanged from initial state in absence of coupling)
 - 30-minute simulation
@@ -158,34 +197,51 @@ Phase 7 baseline test with passive fire-to-atmosphere coupling:
 
 ## Test Summary Table
 
-| Test Name | Type | Fuel | Wind | Purpose | Command |
-|-----------|------|------|------|---------|---------|
-| test_rothermel_unit.py | Unit | FM1, FM4 | Various | Physics equations validation (no ERF) | `python3 test_rothermel_unit.py` |
-| test_fire_ros_regression.py | Regression | FM1, FM4 | Various | Reference value checks (no ERF) | `python3 test_fire_ros_regression.py` |
-| test_rothermel_ros.py | Integration | FM1 | Uniform | ERF ROS magnitude check | `python3 test_rothermel_ros.py --erf_exe ./erf --input_file inputs_fire_flat_uniform` |
-| inputs_fire_flat_uniform | Regression | FM1 | 5 m/s | Flat uniform mesh fire spread | `./erf inputs_fire_flat_uniform` |
-| inputs_fire_vertical_refinement | Regression | FM1 | 5 m/s | Stretched vertical grid fire spread | `./erf inputs_fire_vertical_refinement` |
-| inputs_fire_phase5 | Regression | FM1 | 5 m/s | Heat flux and diagnostics | `./erf inputs_fire_phase5` |
-| inputs_fire_phase6 | Regression | FM1 | 5 m/s | Fire-atmosphere coupling (lagged mode) | `./erf inputs_fire_phase6` |
-| inputs_fire_phase7 | Regression | FM1 | 5 m/s | Fire-atmosphere coupling (synchronous mode) | `./erf inputs_fire_phase7` |
-| inputs_fire_phase7_passive | Regression | FM1 | 5 m/s | Fire-atmosphere coupling (passive mode) | `./erf inputs_fire_phase7_passive` |
-| inputs_fire_dummy | Smoke | FM1 | Dummy | Initialization and basic calls | `./erf inputs_fire_dummy` |
+| Test Category | Test Name | Fuel | Wind | Purpose |
+|---------------|-----------|------|------|---------|
+| Unit Tests | test_rothermel_unit.py | FM1, FM4 | Various | Physics equations validation (no ERF) |
+| Unit Tests | test_fire_ros_regression.py | FM1, FM4 | Various | Reference value checks (no ERF) |
+| ROS Uniform Grid | ROS_Flat_Uniform | FM1 | 5 m/s | Flat uniform mesh fire spread |
+| ROS Basic | ROS_Basic_Calculation | GR1 | 5 m/s | Basic ROS computation |
+| ROS with Terrain | ROS_Slope_Effects | GR1 | 3 m/s | Fire spread on sloped terrain |
+| Fuel Moisture | Dry conditions | FM1 | 5 m/s | Fire spread at low moisture |
+| Fuel Moisture | Wet conditions | FM1 | 5 m/s | Fire spread at high moisture |
+| Wind Variation | Low wind | FM1 | 1 m/s | Fire spread at low wind speed |
+| Wind Variation | High wind | FM1 | 10 m/s | Fire spread at high wind speed |
+| Multiple Fuels | FM4 Chaparral | FM4 | 5 m/s | Dense, fast-burning fuel model |
+| FARSITE Propagation | Elliptical propagation | GR1 | 5 m/s | FARSITE elliptical fire expansion |
+| Heat Flux | Heat and diagnostics | FM1 | 5 m/s | Heat flux, fuel depletion, intensity |
+| Lagged Coupling | Fire-atmosphere (lagged) | FM1 | 5 m/s | Fire-atmosphere coupling (lagged mode) |
+| Synchronous Coupling | Fire-atmosphere (sync) | FM1 | 5 m/s | Fire-atmosphere coupling (synchronous mode) |
+| Passive Baseline | Fire-atmosphere (passive) | FM1 | 5 m/s | Fire-atmosphere coupling (passive mode) |
+| ABL with MRF | ABL with MRF physics | FM1 | Realistic | MRF boundary layer with fire |
+| Stable Atmosphere | Stable conditions | FM1 | 5 m/s | Fire spread in stable stratification |
+| Unstable Atmosphere | Unstable conditions | FM1 | 5 m/s | Fire spread in convective conditions |
+| Mesh Refinement | Vertical refinement | FM1 | 5 m/s | Stretched vertical grid |
+| Fire Behavior | Multiple ignitions | FM1 | 5 m/s | Multiple ignition source interaction |
 
 ## Output Variables
 
 All fire test cases output 2D fire-specific variables at each time step:
-- `fire_phi`: Level-set function (<0 burned, >0 unburned)
+- `fire_phi`: Fire front representation (burned/unburned status)
 - `fire_ros`: Rate of spread [m/s]
 - `fire_wind_eff`: Effective wind after WAF and terrain corrections [m/s]
 - `fire_wind_ref`: Reference height wind (6.1 m) [m/s]
 - `fire_slopes`: Terrain slope components (dz/dx, dz/dy)
-- `fire_fuel_mc`: Fuel moisture content (1hr, 10hr, 100hr)
+- `fire_fuel_mc`: Fuel moisture content (1hr, 10hr, 100hr) [fraction]
+- `fire_tsurf`: Surface temperature on fire grid [K]
+- `fire_fuel_burned`: Cumulative fuel burned [kg/m²]
+- `fire_ignition_mask`: Ignition state on fire grid (0=unburned, 1=burning, 2=burned)
 
-Phase 5 additionally outputs:
+Heat flux tests additionally output:
 - `fire_heat_flux`: Sensible heat flux [W/m²]
 - `fire_fuel_load`: Remaining fuel load [kg/m²]
 - `fire_fireline_intensity`: Byram fireline intensity [kW/m]
 - `fire_flame_length`: Thomas flame length [m]
+
+Fire-atmosphere coupling tests additionally output:
+- `fire_heating_rate`: Heating rate induced by fire [K/s]
+- `fire_moisture_flux`: Moisture flux from fire [kg/(m²·s)]
 
 Output is written to `plt2d_fire*` directories at intervals specified by `erf.plot2d_int_1`.
 

@@ -1,5 +1,6 @@
-# Phase 2 ERF-Fire Regression Test
+# Phase 3 ERF-Fire Regression Test
 # Flat domain, GR1 fuel, 5 m/s wind, 8% moisture
+# Tests FARSITE elliptical propagation with level-set advancement
 
 geometry.prob_lo = 0.0 0.0 0.0
 geometry.prob_hi = 2000.0 2000.0 500.0
@@ -52,14 +53,14 @@ erf.check_int = -1
 # Plot files (2D fire variables only)
 erf.plot2d_file_1 = plt2d_fire
 erf.plot2d_int_1 = 100
-erf.plot2d_vars_1 = fire_phi fire_ros fire_wind_eff fire_wind_ref fire_slopes fire_fuel_mc
+erf.plot2d_vars_1 = fire_phi fire_ros fire_wind_eff fire_wind_ref fire_slopes fire_fuel_mc fire_tsurf fire_fuel_burned fire_ignition_mask
 
 # Plot files (3D atmospheric variables)
 erf.plot_file = plt3d_atm
 erf.plot_int = 100
 erf.plot_vars = theta qv u v w
 
-# Fire module parameters (Phase 2)
+# Fire module parameters (Phase 3)
 erf.fire.enable = true
 erf.fire.fire_debug = true
 erf.fire.grid_ratio = 5              # 10 m × 10 m fire cells (5 times finer than 50 m atm)
@@ -79,3 +80,9 @@ erf.fire.k_ridge = 1.5
 erf.fire.k_shelter = 0.6
 erf.fire.k_valley = 0.8
 erf.fire.k_deflect = 0.3
+
+# FARSITE parameters (Phase 3)
+erf.fire.farsite.phi_threshold = 0.0
+erf.fire.farsite.use_anderson_lw = 1
+erf.fire.farsite.gaussian_sigma = -1.0     # Single-cell stamping
+erf.fire.farsite.cfl_fire = 0.5

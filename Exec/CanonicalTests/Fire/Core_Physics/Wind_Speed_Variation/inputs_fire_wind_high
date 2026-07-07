@@ -1,0 +1,84 @@
+# Wind Speed Variation Test - High Wind
+# Flat domain, GR1 fuel, 10 m/s wind, 8% moisture
+# Tests fire spread behavior at high wind speeds
+
+geometry.prob_lo = 0.0 0.0 0.0
+geometry.prob_hi = 2000.0 2000.0 500.0
+amr.n_cell = 40 40 50
+
+# Domain periodicity
+geometry.is_periodic = 0 0 0
+
+# No AMR
+amr.max_level = 0
+
+# Max grid size (REQUIRED for fire: no z-decomposition)
+amr.max_grid_size = 100
+amr.max_grid_size_z = 50
+
+# Surface layer boundary condition (REQUIRED for fire)
+xlo.type = "Outflow"
+xhi.type = "Outflow"
+ylo.type = "Outflow"
+yhi.type = "Outflow"
+zlo.type = "surface_layer"
+zhi.type = "SlipWall"
+
+# MOST parameters (REQUIRED for fire wind extraction)
+erf.most.z0 = 0.1
+
+# Physics
+erf.molec_diff_type = "ConstantAlpha"
+erf.les_type = "None"
+erf.rans_type = "None"
+
+# Initial conditions
+erf.init_type = "uniform"
+erf.theta_ref = 300.0
+erf.geostrophic_wind_x = 10.0        # High geostrophic wind
+erf.geostrophic_wind_y = 0.0
+
+# Time stepping
+erf.fixed_dt = 1.0
+stop_time = 1800.0
+max_step = 2000
+
+# Diagnostics
+erf.sum_interval = 100
+erf.v = 1
+amr.v = 1
+
+# Checkpoints/Plots
+erf.check_file = fire_chk
+erf.check_int = -1
+
+# Plot files (2D fire variables only)
+erf.plot2d_file_1 = plt2d_fire
+erf.plot2d_int_1 = 100
+erf.plot2d_vars_1 = fire_phi fire_ros fire_wind_eff fire_wind_ref fire_slopes fire_fuel_mc fire_tsurf fire_fuel_burned fire_ignition_mask
+
+# Plot files (3D atmospheric variables)
+erf.plot_file = plt3d_atm
+erf.plot_int = 100
+erf.plot_vars = theta qv u v w
+
+# Fire module parameters - High wind scenario
+erf.fire.enable = true
+erf.fire.fire_debug = true
+erf.fire.grid_ratio = 5              # 10 m × 10 m fire cells
+erf.fire.fuel_model_id = 1            # GR1 (Short grass)
+erf.fire.moisture_1hr = 0.08
+erf.fire.moisture_10hr = 0.08
+erf.fire.moisture_100hr = 0.10
+erf.fire.ignition_x = 1000.0
+erf.fire.ignition_y = 1000.0
+erf.fire.ignition_r = 20.0
+erf.fire.wind_ref_ht = 6.1
+erf.fire.use_waf = true
+erf.fire.waf_formula = "andrews"
+erf.fire.use_wind_limit = true
+erf.fire.use_terrain_wind = false
+erf.fire.k_ridge = 1.5
+erf.fire.k_shelter = 0.6
+erf.fire.k_valley = 0.8
+erf.fire.k_deflect = 0.3
