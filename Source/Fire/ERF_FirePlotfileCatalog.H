@@ -32,20 +32,26 @@
  *  17. fire_flame_length  (Thomas flame length [m])
  *  18. fire_arrival_time  (fire arrival time [s])
  *
- * Phase 8 spotting diagnostics (4 additional components, indices 19–22,
- * appended when spotting.enable = true):
- *  19. fire_lofting_height   (Albini lofting height H_z [m] at source cells)
- *  20. fire_spot_brand_count (firebrand count launched per source cell)
- *  21. fire_spot_max_dist    (maximum landing distance [m] from source cell)
- *  22. fire_spot_active      (1.0 at cells that received a spot ignition)
+ * Phase 8 spotting diagnostics append 4 components when spotting.enable = true:
+ *   fire_lofting_height, fire_spot_brand_count, fire_spot_max_dist, fire_spot_active
+ *
+ * Phase 9 crown-fire diagnostics append 4 or 5 components when crown fire output
+ * is enabled:
+ *   fire_crown_active, fire_crown_load, fire_crown_fraction_burned,
+ *   [optional] fire_flame_tilt, fire_flame_temp
  */
 
 /**
  * @brief Get the canonical fire plotfile variable names.
- * @param[in] include_spotting  Append 4 Albini spotting components when true.
+ * @param[in] include_spotting   Append 4 Albini spotting components when true.
+ * @param[in] include_crown      Append crown-fire diagnostics when true.
+ * @param[in] include_flame_tilt Append fire_flame_tilt within the crown block when true.
  * @return Vector of variable name strings in canonical write order.
  */
-inline amrex::Vector<std::string> fire_plotfile_var_names(bool include_spotting = false)
+inline amrex::Vector<std::string> fire_plotfile_var_names(
+    bool include_spotting,
+    bool include_crown,
+    bool include_flame_tilt)
 {
     amrex::Vector<std::string> names{
         "fire_phi",
@@ -74,17 +80,49 @@ inline amrex::Vector<std::string> fire_plotfile_var_names(bool include_spotting 
         names.push_back("fire_spot_max_dist");
         names.push_back("fire_spot_active");
     }
+    if (include_crown) {
+        names.push_back("fire_crown_active");
+        names.push_back("fire_crown_load");
+        names.push_back("fire_crown_fraction_burned");
+        if (include_flame_tilt) {
+            names.push_back("fire_flame_tilt");
+        }
+        names.push_back("fire_flame_temp");
+    }
     return names;
+}
+
+
+inline amrex::Vector<std::string> fire_plotfile_var_names(
+    bool include_spotting = false,
+    bool include_crown = false)
+{
+    return fire_plotfile_var_names(include_spotting, include_crown, false);
 }
 
 /**
  * @brief Get the total number of fire plotfile components.
- * @param[in] include_spotting  Count 4 additional Albini spotting components when true.
+ * @param[in] include_spotting   Count 4 additional Albini spotting components when true.
+ * @param[in] include_crown      Count crown-fire diagnostics when true.
+ * @param[in] include_flame_tilt Count fire_flame_tilt within the crown block when true.
  * @return Number of scalar fire output variables.
  */
-inline int fire_plotfile_ncomp(bool include_spotting = false)
+inline int fire_plotfile_ncomp(
+    bool include_spotting,
+    bool include_crown,
+    bool include_flame_tilt)
 {
-    return include_spotting ? 23 : 19;
+    return 19
+        + (include_spotting ? 4 : 0)
+        + (include_crown ? (include_flame_tilt ? 5 : 4) : 0);
+}
+
+
+inline int fire_plotfile_ncomp(
+    bool include_spotting = false,
+    bool include_crown = false)
+{
+    return fire_plotfile_ncomp(include_spotting, include_crown, false);
 }
 
 #endif

@@ -43,9 +43,13 @@ WriteFirePlotfile(const std::string& plotfile_prefix,
 
     bool has_spotting = (fire_layer.get_params().spotting.enable &&
                          fire_layer.get_albini_data() != nullptr);
+    bool has_crown = (fire_layer.get_params().crown.enable &&
+                      fire_layer.get_crown_active() != nullptr);
+    bool has_flame_tilt = (fire_layer.get_params().compute_flame_tilt &&
+                           fire_layer.get_flame_tilt() != nullptr);
 
-    Vector<std::string> varnames = fire_plotfile_var_names(has_spotting);
-    int ncomp = fire_plotfile_ncomp(has_spotting);
+    Vector<std::string> varnames = fire_plotfile_var_names(has_spotting, has_crown, has_flame_tilt);
+    int ncomp = fire_plotfile_ncomp(has_spotting, has_crown, has_flame_tilt);
 
     MultiFab mf(fg.ba, fg.dm, ncomp, 0);
     
@@ -78,9 +82,27 @@ WriteFirePlotfile(const std::string& plotfile_prefix,
     // Component 18: fire_arrival_time
     MultiFab::Copy(mf, *fire_layer.get_arrival_time(), 0, 18, 1, 0);
 
-    // Phase 8: Albini spotting diagnostics (components 19–22, when enabled)
+    int comp = 19;
+
+    // Phase 8: Albini spotting diagnostics
     if (has_spotting) {
-        MultiFab::Copy(mf, *fire_layer.get_albini_data(), 0, 19, 4, 0);
+        MultiFab::Copy(mf, *fire_layer.get_albini_data(), 0, comp, 4, 0);
+        comp += 4;
+    }
+
+    // Phase 9: Crown-fire diagnostics
+    if (has_crown) {
+        MultiFab::Copy(mf, *fire_layer.get_crown_active(), 0, comp, 1, 0);
+        ++comp;
+        MultiFab::Copy(mf, *fire_layer.get_crown_load(), 0, comp, 1, 0);
+        ++comp;
+        MultiFab::Copy(mf, *fire_layer.get_crown_fraction_burned(), 0, comp, 1, 0);
+        ++comp;
+        if (has_flame_tilt) {
+            MultiFab::Copy(mf, *fire_layer.get_flame_tilt(), 0, comp, 1, 0);
+            ++comp;
+        }
+        MultiFab::Copy(mf, *fire_layer.get_flame_temp(), 0, comp, 1, 0);
     }
 
     std::string plotfilename = Concatenate(plotfile_prefix, step, 5);

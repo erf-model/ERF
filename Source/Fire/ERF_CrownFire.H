@@ -38,15 +38,17 @@
 /**
  * @brief Van Wagner (1977) critical fireline intensity for crown fire initiation
  *
- * Formula: I_B_crit = 0.010 * C_BH * (460 + 25.9 * FMC_pct)
+ * Formula used here:
+ *   I_B_crit = 0.010 * C_BH * (460 + 25.9 * FMC_excess_pct)
+ * where FMC_excess_pct = 100 * (foliar_moisture - M_c).
  *
- * Note: foliar_moisture is converted from fraction to percent before applying formula.
- * e.g., foliar_moisture=1.0 (100%) converts to FMC_pct=100.0 for the formula.
+ * If foliar_moisture <= M_c the transition is treated as unattainable and a
+ * large sentinel value is returned.
  *
  * @param[in] C_BH              Canopy base height [m]
  * @param[in] foliar_moisture   Foliar moisture [fraction, 0-1]
- * @param[in] M_c               Critical foliar moisture [fraction] (unused here, kept for interface)
- * @return Critical intensity [kW/m], or 1.0e12 kW/m when foliar_moisture=0
+ * @param[in] M_c               Critical foliar moisture [fraction]
+ * @return Critical intensity [kW/m], or 1.0e12 kW/m when foliar_moisture <= M_c
  *
  * Reference: Van Wagner, C.E. (1977). Conditions for the start and spread of
  *   crown fire. Canadian Journal of Forest Research, 7(1), 23–34.
@@ -55,17 +57,15 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 amrex::Real van_wagner_critical_intensity(amrex::Real C_BH, amrex::Real foliar_moisture,
                                            amrex::Real M_c) noexcept
 {
-    // Convert foliar moisture from fraction to percent
-    // foliar_moisture=1.0 (100%) → FMC_pct=100.0
-    amrex::Real FMC_pct = foliar_moisture * 100.0_rt;
-    
-    // Ensure minimum values for stability
+    constexpr amrex::Real LARGE_INTENSITY = 1.0e12_rt;
+
+    if (foliar_moisture <= M_c) {
+        return LARGE_INTENSITY;
+    }
+
     C_BH = amrex::max(C_BH, 0.1_rt);
-    FMC_pct = amrex::max(FMC_pct, 50.0_rt);
-    
-    // Van Wagner's critical intensity equation: I_o = 0.010 * CBH * (460 + 25.9 * FMC)
-    amrex::Real I_B_crit = 0.010_rt * C_BH * (460.0_rt + 25.9_rt * FMC_pct);
-    return I_B_crit;
+    amrex::Real FMC_excess_pct = amrex::max((foliar_moisture - M_c) * 100.0_rt, 0.0_rt);
+    return 0.010_rt * C_BH * (460.0_rt + 25.9_rt * FMC_excess_pct);
 }
 
 /**
@@ -173,8 +173,7 @@ amrex::Real compute_van_wagner_proxy_ros(amrex::Real C_BD, amrex::Real foliar_mo
 /**
  * @brief Van Wagner (1977) passive-to-active crown fire blending
  *
- * When I_B > I_o, a continuous crowning fraction CF blends between surface and
- * active crown ROS:
+ * A continuous crowning fraction CF blends between surface and active crown ROS:
  *   CF = min((I_B / I_o)^(2/3), 1.0)
  *   R_total = R_surface * (1 - CF) + R_crown_active * CF
  *
@@ -194,17 +193,10 @@ amrex::Real compute_van_wagner_passive_blend(
     amrex::Real I_B_kwm,
     amrex::Real I_o_kwm) noexcept
 {
-    // Guard against zero critical intensity
-    if (I_o_kwm < 1.0e-6_rt) return R_surface_ms;
-    
-    // Return surface ROS if below critical intensity
-    if (I_B_kwm < I_o_kwm) return R_surface_ms;
-    
-    // Compute crowning fraction: CF = min((I_B / I_o)^(2/3), 1.0)
-    amrex::Real ratio = I_B_kwm / I_o_kwm;
+    if (I_o_kwm < 1.0e-6_rt || I_B_kwm <= 0.0_rt) return R_surface_ms;
+
+    amrex::Real ratio = amrex::max(I_B_kwm / I_o_kwm, 0.0_rt);
     amrex::Real CF = amrex::min(std::pow(ratio, 2.0_rt / 3.0_rt), 1.0_rt);
-    
-    // Blend: R_total = R_surface * (1 - CF) + R_crown_active * CF
     return R_surface_ms * (1.0_rt - CF) + amrex::max(R_crown_active_ms, R_surface_ms) * CF;
 }
 

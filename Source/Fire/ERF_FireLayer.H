@@ -206,6 +206,52 @@ public:
         return fire_flame_length.get();
     }
 
+
+    /**
+     * @brief Get flame temperature for diagnostics and plotfile output.
+     * @return Pointer to fire_flame_temp MultiFab [K].
+     */
+    const amrex::MultiFab* get_flame_temp() const
+    {
+        return fire_flame_temp.get();
+    }
+
+    /**
+     * @brief Get flame tilt angle for diagnostics and plotfile output.
+     * @return Pointer to fire_flame_tilt MultiFab [deg from vertical], or nullptr when disabled.
+     */
+    const amrex::MultiFab* get_flame_tilt() const
+    {
+        return fire_flame_tilt.get();
+    }
+
+    /**
+     * @brief Get crown fire activation field for diagnostics and plotfile output.
+     * @return Pointer to fire_crown_active MultiFab, or nullptr when crown fire is disabled.
+     */
+    const amrex::MultiFab* get_crown_active() const
+    {
+        return fire_crown_active.get();
+    }
+
+    /**
+     * @brief Get remaining crown fuel load for diagnostics and plotfile output.
+     * @return Pointer to fire_crown_load MultiFab [kg/m²], or nullptr when crown fire is disabled.
+     */
+    const amrex::MultiFab* get_crown_load() const
+    {
+        return fire_crown_load.get();
+    }
+
+    /**
+     * @brief Get crown fraction burned diagnostic for plotfile output.
+     * @return Pointer to fire_crown_fraction_burned MultiFab [0-1].
+     */
+    const amrex::MultiFab* get_crown_fraction_burned() const
+    {
+        return fire_crown_fraction_burned.get();
+    }
+
     /**
      * @brief Get Albini spotting diagnostics for plotfile output.
      * @return Pointer to fire_albini_data MultiFab (nullptr when spotting disabled).

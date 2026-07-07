@@ -1,0 +1,435 @@
+# ============================================================================
+# ERF Fire Module: Master Inputs Configuration Reference
+# ============================================================================
+# This file documents all available fire model parameters with default values,
+# allowed options, and descriptions. Use this as a reference when configuring
+# fire simulations. Uncomment and modify parameters as needed.
+#
+# File organization:
+#   - Core geometry and domain setup
+#   - Fire module control flags
+#   - Fuel model and moisture parameters
+#   - Wind and terrain parameters
+#   - Heat flux and coupling parameters
+#   - Phase 5+: Advanced features (spotting, crown fire, diagnostics)
+# ============================================================================
+
+# ============================================================================
+# CORE GEOMETRY AND ATMOSPHERIC SETUP
+# ============================================================================
+
+geometry.prob_lo = 0.0 0.0 0.0
+geometry.prob_hi = 2000.0 2000.0 500.0
+amr.n_cell = 40 40 50
+
+geometry.is_periodic = 0 0 0
+amr.max_level = 0
+amr.max_grid_size = 100
+amr.max_grid_size_z = 50
+
+xlo.type = "Outflow"
+xhi.type = "Outflow"
+ylo.type = "Outflow"
+yhi.type = "Outflow"
+zlo.type = "surface_layer"
+zhi.type = "SlipWall"
+
+# Surface layer (MOST) parameters
+erf.most.z0 = 0.1
+
+# Molecular diffusion and LES
+erf.molec_diff_type = "ConstantAlpha"
+erf.les_type = "None"
+
+# Initial atmospheric conditions
+erf.init_type = "uniform"
+erf.theta_ref = 300.0
+
+# Time stepping
+erf.fixed_dt = 1.0
+stop_time = 900.0
+max_step = 1000
+
+# Output control
+erf.sum_interval = 50
+erf.v = 1
+amr.v = 1
+erf.check_int = -1
+erf.plot_int = 100
+erf.plot_vars = theta u v
+
+# ============================================================================
+# FIRE MODULE: MASTER CONTROL FLAGS
+# ============================================================================
+
+# Enable/disable fire simulation
+erf.fire.enable = true
+
+# Debug output for fire calculations (verbose logging of intermediate values)
+erf.fire.fire_debug = false
+
+# Fire grid refinement factor relative to atmospheric grid
+# Typical: 5 (fire grid is 5x finer in x,y)
+erf.fire.grid_ratio = 5
+
+# ============================================================================
+# FUEL MODEL SELECTION
+# ============================================================================
+
+# Anderson FBFM13 fuel model ID (1-13)
+# Options and representative vegetation:
+#   1: Short Grass (grassland, prairie)
+#   2: Timber Grass and Understory (forest with grass understory)
+#   3: Tall Grass (tall grass, light shrub, cleared areas)
+#   4: Chaparral (dense shrub, brush)
+#   5: Shrub (moderate density shrub)
+#   6: Dormant Brush (dormant shrub, sparse trees)
+#   7: Southern Rough (rough pine-hardwood mix)
+#   8: Closed Timber Litter (dense forest with litter)
+#   9: Hardwood Litter (hardwood forest litter)
+#  10: Timber Grass (evergreen forest with grass)
+#  11: Light Logging Slash (recently cut forest)
+#  12: Medium Logging Slash (moderately decayed logging waste)
+#  13: Heavy Logging Slash (dense, heavy logging debris)
+erf.fire.fuel_model_id = 8
+
+# ============================================================================
+# FUEL MOISTURE: STATIC MOISTURE (DEFAULT, Phase 2)
+# ============================================================================
+# Set to static values when moisture_dynamic = false
+# Units: fraction (0.0 to 1.0, where 0.08 = 8% moisture)
+
+# 1-hour dead fuel moisture content [fraction]
+# Typical range: 0.04 (dry) to 0.15 (wet)
+erf.fire.moisture_1hr = 0.08
+
+# 10-hour dead fuel moisture content [fraction]
+# Typically increases more slowly than 1-hour
+erf.fire.moisture_10hr = 0.08
+
+# 100-hour dead fuel moisture content [fraction]
+# Changes most slowly; represents deeper fuel bed
+erf.fire.moisture_100hr = 0.10
+
+# Live herbaceous fuel moisture [fraction] (Phase 4)
+# Only used when moisture_dynamic = true
+erf.fire.moisture_live = 0.60
+
+# Precipitation rate [mm/hr] (Phase 4, affects moisture dynamics)
+# 0.0 = no precipitation
+erf.fire.precip_rate_mm_hr = 0.0
+
+# ============================================================================
+# FUEL MOISTURE: DYNAMIC MOISTURE (Phase 4)
+# ============================================================================
+
+# Enable dynamic fuel moisture evolution based on atmospheric humidity/precipitation
+# false: use static moisture values above
+# true: advance moisture each timestep via ODEs based on RH, T, precipitation
+erf.fire.moisture_dynamic = false
+
+# Compute moisture of extinction dynamically from fuel SAV (Phase 4)
+# false: use default extinction moisture for fuel model
+# true: calculate from surface-area-to-volume ratio
+erf.fire.use_dynamic_mext = true
+
+# ============================================================================
+# IGNITION PARAMETERS
+# ============================================================================
+
+# Ignition source: center location [m]
+erf.fire.ignition_x = 500.0
+erf.fire.ignition_y = 1000.0
+
+# Ignition source: circular patch radius [m]
+erf.fire.ignition_r = 30.0
+
+# ============================================================================
+# WIND AND TERRAIN ADJUSTMENT FACTORS
+# ============================================================================
+
+# Wind measurement reference height [m] (typical MOST: 6.1 m)
+# Fire model extracts wind at this height and adjusts to 10 m canopy height
+erf.fire.wind_ref_ht = 6.1
+
+# Apply Wind Adjustment Factor (WAF) for canopy screening
+# true: reduce wind for forest canopy using Andrews formula
+# false: use wind as-is
+erf.fire.use_waf = true
+
+# WAF formula selection
+# Options: "andrews" (default), "behaviorplus"
+erf.fire.waf_formula = "andrews"
+
+# Apply MEWS (Maximum Energy Release) wind speed cap
+# true: cap wind to avoid unrealistic ROS
+# false: allow uncapped wind
+erf.fire.use_wind_limit = true
+
+# Apply terrain-based wind corrections (FARSITE model)
+# true: modify wind based on slope aspect/elevation
+# false: use extracted wind as-is
+erf.fire.use_terrain_wind = false
+
+# Terrain wind adjustment factors (used when use_terrain_wind = true)
+erf.fire.k_ridge = 1.5      # Ridge speed-up factor (wind accelerates over ridges)
+erf.fire.k_shelter = 0.6    # Sheltered wind reduction (wind slows in valleys/ravines)
+erf.fire.k_valley = 0.8     # Valley channeling factor (wind alignment in valleys)
+erf.fire.k_deflect = 0.3    # Wind deflection factor (affects wind direction change)
+
+# ============================================================================
+# FIRE PROPAGATION: ROTHERMEL MODEL (Phases 1-3)
+# ============================================================================
+
+# Residence time [s] for fuel burnout
+# 0.0: derive from fuel SAV (recommended)
+# >0: use this fixed value
+erf.fire.tau_residence_s = 0.0
+
+# Combustion fraction bounds for heat flux calculation
+# Fraction of fuel consumed: typically 0.2 (minimum) to 0.9 (maximum)
+erf.fire.f_c_min = 0.2
+erf.fire.f_c_max = 0.9
+
+# ============================================================================
+# LEVEL-SET ADVECTION (FARSITE Model, Phase 3)
+# ============================================================================
+
+# Fire front detection threshold for phi level-set
+# Unburned: phi > farsite_phi_threshold
+# Burned: phi < -threshold
+# Front: near-zero phi
+erf.fire.farsite.phi_threshold = 0.1
+
+# Use Anderson fuel L/W ratio to set FARSITE head/flank/backing ellipse coefficients
+# true: derive coeff_a/b/c from fuel model (default)
+# false: use explicit values below
+erf.fire.farsite.use_anderson_lw = 1
+
+# Explicit ellipse coefficients (used only when use_anderson_lw = 0)
+# Approximate fire spread ellipse shape
+# Higher a → more head-fire dominance
+erf.fire.farsite.coeff_a = 0.5   # Head fire coefficient (0 to 1)
+erf.fire.farsite.coeff_b = 0.25  # Flank fire coefficient
+erf.fire.farsite.coeff_c = 0.1   # Backing fire coefficient
+
+# Gaussian stamping radius for fire front [m]
+# < 0: auto-compute from grid resolution
+# > 0: manual override (use for tuning)
+erf.fire.farsite.gaussian_sigma = -1.0
+
+# CFL number for fire advection (stability)
+# Typical: 0.3 to 0.6; smaller = more stable but slower
+erf.fire.farsite.cfl_fire = 0.5
+
+# ============================================================================
+# HEAT FLUX AND DIAGNOSTICS (Phase 5)
+# ============================================================================
+
+# Write CSV file with burned area, perimeter, and fire statistics
+erf.fire.write_fire_stats_csv = true
+
+# CSV output filename for fire statistics
+erf.fire.fire_stats_csv_file = "fire_stats.csv"
+
+# ============================================================================
+# FIRE-ATMOSPHERE COUPLING (Phase 6)
+# ============================================================================
+
+# Coupling mode between fire and atmospheric heat/moisture injection
+# Options:
+#   "passive"    — fire heat computed but NOT injected into atmosphere
+#   "lagged"     — lagged coupling (default): heat from step n → atmosphere at step n+1
+#   "synchronous"— synchronous: fire uses post-dycore wind (step n), heat still enters at n+1
+erf.fire.coupling_type = "lagged"
+
+# E-folding height for vertical distribution of sensible heat [m]
+# Heat decays exponentially with height; controls heating depth
+erf.fire.heat_flux_alfg = 45.0
+
+# Multiplier on fire heat flux (for sensitivity studies)
+# 0.0 = one-way atmosphere→fire (no feedback)
+# 1.0 = full two-way coupling
+erf.fire.fire_atm_feedback = 1.0
+
+# Inject latent heat alongside sensible heat (WRF-Fire parity)
+# true: add moisture to domain (realistic evaporation)
+# false: sensible heat only
+erf.fire.inject_latent = true
+
+# ============================================================================
+# TERRAIN FILE (Optional)
+# ============================================================================
+# Path to fine-grid terrain data for interpolation onto fire grid
+# Leave empty for no fine-grid terrain
+erf.terrain_file_name = ""
+
+# ============================================================================
+# PHASE 8: ALBINI SPOTTING DIAGNOSTICS (Ember spotting)
+# ============================================================================
+
+# Enable ember spotting (lofting of firebrands above the fire)
+erf.fire.spotting.enable = false
+
+# Minimum Byram intensity to launch firebrands [kW/m]
+# Firebrands only generated from cells with I_B >= this value
+erf.fire.spotting.I_B_min = 100.0
+
+# Base launch probability per front cell per timestep [0-1]
+# Typical: 0.01 to 0.1 (probability each fire-front cell emits a firebrand per step)
+erf.fire.spotting.P_base = 0.05
+
+# Firebrand terminal fall velocity [m/s]
+# Typical: 0.2 to 1.0 m/s (higher = less horizontal transport)
+erf.fire.spotting.terminal_velocity = 0.5
+
+# Trajectory integration sub-steps per atmospheric timestep
+# Higher = more accurate landing position, more computationally expensive
+# Typical: 10 to 50
+erf.fire.spotting.n_traj_steps = 20
+
+# Ignition disk radius at landing [m]
+# Area where a landed firebrand can ignite new fire
+erf.fire.spotting.spot_radius = 15.0
+
+# Catching probability at landing [0-1]
+# Probability that landing spot successfully ignites
+erf.fire.spotting.P_catch = 1.0
+
+# Minimum residual fuel fraction for re-entry [0-1]
+# Firebrands can only ignite if fuel consumption < (1 - reentry_threshold)
+erf.fire.spotting.reentry_fuel_thresh = 0.05
+
+# Random seed for firebrand trajectory stochasticity
+# 0 = time-based seed (non-reproducible)
+# >0 = fixed seed (reproducible)
+erf.fire.spotting.random_seed = 42
+
+# Apply spotting every N fire subcycles (to reduce computational cost)
+erf.fire.spotting.spotting_interval = 5
+
+# Fuel system for spotting analysis
+# Options: "13" (Anderson FBFM13), "40" (Scott-Burgan 40-class)
+erf.fire.spotting.fuel_system = "13"
+
+# ============================================================================
+# PHASE 9: CROWN FIRE INITIATION (Van Wagner + Cruz models)
+# ============================================================================
+
+# Enable crown fire initiation and active crown fire spread
+erf.fire.crown.enable = false
+
+# Canopy base height (height to bottom of live canopy) [m]
+# Lower values = more exposed canopy to fire heat
+# Typical: 3-10 m (conifers), 5-15 m (hardwoods)
+erf.fire.crown.canopy_base_ht = 5.0
+
+# Canopy bulk density (total canopy fuel mass per volume) [kg/m³]
+# Higher values = denser, more flammable canopy
+# Typical: 0.05-0.30 kg/m³ (sparse to dense conifer)
+erf.fire.crown.canopy_bulk_den = 0.2
+
+# Canopy depth (vertical extent of canopy) [m]
+# Height from base to top of canopy
+# Typical: 10-30 m
+erf.fire.crown.canopy_depth = 10.0
+
+# Foliar moisture content (canopy water content) [fraction 0-1]
+# 1.0 = 100% moisture (saturated, hard to burn)
+# 0.5 = 50% moisture (typical moist condition)
+erf.fire.crown.foliar_moisture = 1.0
+
+# Critical foliar moisture (Van Wagner 1977 threshold) [fraction]
+# Below this, crown fire impossible due to moisture
+# Typical: 0.30 (30%)
+erf.fire.crown.M_c = 0.30
+
+# Canopy heat content (energy released when canopy burns) [BTU/lb]
+# Typical: 8000 BTU/lb (slightly lower than surface fuels due to moisture)
+erf.fire.crown.h_crown_BTU_lb = 8000.0
+
+# 10-m wind speed for crown ROS calculations [km/h]
+# 0.0 = auto-derive from fire_wind_eff
+# >0 = use this fixed value (for testing/sensitivity)
+erf.fire.crown.wind_10m_kmh = 0.0
+
+# Crown fire ROS model selection
+# Options:
+#   "cruz"           — Cruz et al. (2005) empirical wind/CBD/moisture regression
+#   "rothermel1991"  — Rothermel (1991): R_crown = 3.34 × R_surface
+#   "van_wagner_proxy"— Van Wagner (1977) proxy: R = (3/CBD) × moisture_factor
+erf.fire.crown.ros_model = "cruz"
+
+# Use Van Wagner passive-to-active crown ROS blending
+# false: hard override (R_crown replaces R_surface when active)
+# true: smooth transition via crowning fraction CF = (I_B/I_o)^(2/3)
+erf.fire.crown.use_passive_blend = false
+
+# ============================================================================
+# PHASE 9: FLAME TEMPERATURE DIAGNOSTICS
+# ============================================================================
+
+# Flame temperature estimation method
+# Options:
+#   "byram_radiant"     — Byram (1959): T = T_amb + 800 × (I_B/1000)^0.25
+#   "mcalpine_heat"     — McAlpine & Xanthopoulos (1989): adiabatic flame temp
+#   "nelson_emissivity" — Nelson (1980): Stefan-Boltzmann law with emissivity
+erf.fire.flame_temp_method = "byram_radiant"
+
+# Ambient temperature for flame temperature formula [K]
+# Used in Byram and McAlpine formulas
+erf.fire.flame_temp_T_amb = 300.0
+
+# ============================================================================
+# PHASE 9: FLAME TILT ANGLE DIAGNOSTICS
+# ============================================================================
+
+# Compute flame tilt angle (diagnostic, no impact on fire spread)
+# false: do not compute (saves memory/computation)
+# true: compute tilt angle [degrees from vertical]
+erf.fire.compute_flame_tilt = false
+
+# Ambient temperature for flame tilt formula [K]
+# Used in buoyancy velocity calculation
+erf.fire.flame_tilt_T_amb = 300.0
+
+# Air density for flame tilt formula [kg/m³]
+# Standard sea level: 1.225 kg/m³
+# Adjust for altitude or temperature as needed
+erf.fire.flame_tilt_rho_air = 1.2
+
+# ============================================================================
+# FIRE PLOTFILE OUTPUT CONFIGURATION
+# ============================================================================
+# These are auto-included based on feature enablement above.
+# No explicit configuration needed, but noted for reference:
+#
+# Base fire variables (always written when fire enabled):
+#   fire_phi, fire_ros, fire_wind_eff_u, fire_wind_eff_v, fire_wind_ref_u/v,
+#   fire_extract_z, fire_slope_x/y, fire_fuel_mc_1hr/10hr/100hr, fire_surface_temp_K,
+#   fire_surface_rh, fire_heat_flux, fire_fuel_load, fire_fireline_intensity,
+#   fire_flame_length, fire_arrival_time (19 components)
+#
+# Phase 8 spotting additions (when spotting.enable = true):
+#   fire_lofting_height, fire_spot_brand_count, fire_spot_max_dist, fire_spot_active
+#   (4 additional components)
+#
+# Phase 9 crown additions (when crown.enable = true):
+#   fire_crown_active, fire_crown_load, fire_crown_fraction_burned
+#   (3 additional components)
+#
+# Phase 9 flame tilt (when compute_flame_tilt = true):
+#   fire_flame_tilt (1 additional component)
+#
+# Phase 9 flame temp (always written):
+#   fire_flame_temp (1 additional component)
+
+# ============================================================================
+# END OF MASTER FIRE CONFIGURATION FILE
+# ============================================================================
+# For more information on fire model parameters and formulas, see:
+#   - ERF_FireParams.H: parameter definitions and defaults
+#   - Source/Fire/ERF_CrownFire.H: crown fire model equations
+#   - Source/Fire/ERF_FireDiagnostics.H: diagnostic computations
+#   - Documentation: Docs/sphinx/fire/
+# ============================================================================

@@ -18,6 +18,7 @@
 
 #include <AMReX_MultiFab.H>
 #include <cmath>
+#include <string>
 
 /**
  * @brief Compute Byram (1959) fireline intensity [kW/m].
@@ -263,6 +264,13 @@ inline void fill_flame_temperature(amrex::MultiFab& fire_flame_temp,
 {
     using namespace amrex;
 
+    int method_id = 0;
+    if (method == "mcalpine_heat") {
+        method_id = 1;
+    } else if (method == "nelson_emissivity") {
+        method_id = 2;
+    }
+
     for (MFIter mfi(fire_phi); mfi.isValid(); ++mfi) {
         const Box& bx = mfi.validbox();
 
@@ -271,7 +279,6 @@ inline void fill_flame_temperature(amrex::MultiFab& fire_flame_temp,
         auto T_flame_arr = fire_flame_temp.array(mfi);
 
         ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-            // Skip unburned cells
             if (phi_arr(i, j, k) >= 0.0_rt) {
                 T_flame_arr(i, j, k) = 0.0_rt;
                 return;
@@ -280,18 +287,95 @@ inline void fill_flame_temperature(amrex::MultiFab& fire_flame_temp,
             Real I_B = I_B_arr(i, j, k);
             Real T_flame = 0.0_rt;
 
-            if (method == "byram_radiant") {
-                T_flame = compute_flame_temp_byram(I_B, T_amb);
-            } else if (method == "mcalpine_heat") {
+            if (method_id == 1) {
                 T_flame = compute_flame_temp_mcalpine(I_B, h_fuel_Jkg, M_f, T_amb);
-            } else if (method == "nelson_emissivity") {
+            } else if (method_id == 2) {
                 T_flame = compute_flame_temp_nelson(I_B);
             } else {
-                // default to byram_radiant
                 T_flame = compute_flame_temp_byram(I_B, T_amb);
             }
 
             T_flame_arr(i, j, k) = T_flame;
+        });
+    }
+}
+
+/**
+ * @brief Compute a Balbi-style flame tilt angle diagnostic [degrees from vertical].
+ *
+ * Uses the local effective 2-D wind speed and a buoyancy velocity estimated
+ * from Byram fireline intensity, Thomas flame length, and Stefan-Boltzmann
+ * radiative flux. Returns 0 for unburned or zero-intensity cells.
+ */
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+amrex::Real compute_flame_tilt_angle_deg(
+    amrex::Real I_B_kWm,
+    amrex::Real wind_u,
+    amrex::Real wind_v,
+    amrex::Real rho_air,
+    amrex::Real T_amb) noexcept
+{
+    if (I_B_kWm <= 0.0_rt || rho_air <= 0.0_rt || T_amb <= 0.0_rt) {
+        return 0.0_rt;
+    }
+
+    constexpr amrex::Real g       = 9.81_rt;
+    constexpr amrex::Real PI      = 3.14159265358979323846_rt;
+    constexpr amrex::Real sigma   = 5.67e-8_rt;
+    constexpr amrex::Real Cp_air  = 1005.0_rt;
+
+    amrex::Real wind_speed = std::sqrt(wind_u * wind_u + wind_v * wind_v);
+    if (wind_speed <= 0.0_rt) {
+        return 0.0_rt;
+    }
+
+    amrex::Real flame_length = compute_flame_length_m(I_B_kWm);
+    amrex::Real T_flame = compute_flame_temp_byram(I_B_kWm, T_amb);
+    amrex::Real q_rad = sigma * (std::pow(T_flame, 4.0_rt) - std::pow(T_amb, 4.0_rt));
+    q_rad = amrex::max(q_rad, 0.0_rt);
+
+    if (flame_length <= 0.0_rt || q_rad <= 0.0_rt) {
+        return 0.0_rt;
+    }
+
+    amrex::Real buoyancy = std::sqrt(g * q_rad * flame_length / (rho_air * Cp_air * T_amb));
+    if (buoyancy <= 0.0_rt) {
+        return 90.0_rt;
+    }
+
+    amrex::Real tilt_rad = std::atan(wind_speed / buoyancy);
+    return amrex::min(tilt_rad * 180.0_rt / PI, 90.0_rt);
+}
+
+/**
+ * @brief Fill flame tilt angle [degrees from vertical].
+ *
+ * Uses Byram fireline intensity and the local 2-component effective wind to
+ * estimate a Balbi-style flame tilt angle diagnostic.
+ */
+inline void fill_flame_tilt_angle(
+    amrex::MultiFab& fire_flame_tilt,
+    const amrex::MultiFab& fireline_intensity,
+    const amrex::MultiFab& fire_wind_eff,
+    amrex::Real rho_air,
+    amrex::Real T_amb)
+{
+    using namespace amrex;
+
+    for (MFIter mfi(fire_flame_tilt); mfi.isValid(); ++mfi) {
+        const Box& bx = mfi.validbox();
+
+        auto const I_B_arr = fireline_intensity.const_array(mfi);
+        auto const wind_arr = fire_wind_eff.const_array(mfi);
+        auto tilt_arr = fire_flame_tilt.array(mfi);
+
+        ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+            tilt_arr(i, j, k) = compute_flame_tilt_angle_deg(
+                I_B_arr(i, j, k),
+                wind_arr(i, j, k, 0),
+                wind_arr(i, j, k, 1),
+                rho_air,
+                T_amb);
         });
     }
 }
