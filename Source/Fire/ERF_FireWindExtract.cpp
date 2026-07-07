@@ -3,61 +3,6 @@
 
 using namespace amrex;
 
-void fill_fire_wind_from_most(
-    MultiFab& fire_wind_ref,
-    const MultiFab& ustar_mf,
-    const MultiFab& z0_mf,
-    const MultiFab& olen_mf,
-    const MultiFab& uavg_mf,
-    const MultiFab& vavg_mf,
-    const FireGrid& fg,
-    Real z_target)
-{
-    // Per-cell kernel: map atmospheric wind to fire grid
-    int C = fg.C;
-
-    for (MFIter mfi(fire_wind_ref, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
-        const Box& bx = mfi.tilebox();
-        Array4<Real> fire_wind = fire_wind_ref.array(mfi);
-        Array4<const Real> ustar = ustar_mf.array(mfi);
-        Array4<const Real> z0 = z0_mf.array(mfi);
-        Array4<const Real> olen = olen_mf.array(mfi);
-        Array4<const Real> uavg = uavg_mf.array(mfi);
-        Array4<const Real> vavg = vavg_mf.array(mfi);
-
-        amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (const IntVect& iv) {
-            int i_f = iv[0];
-            int j_f = iv[1];
-
-            // Map to atmospheric column via integer division
-            int i_a = i_f / C;
-            int j_a = j_f / C;
-
-            // Read MOST diagnostics
-            Real u_star = ustar(i_a, j_a, 0);
-            Real z0_val = z0(i_a, j_a, 0);
-            Real olen_val = olen(i_a, j_a, 0);
-
-            // Reconstruct wind at z_target
-            Real U_ref = most_wind_at_height(u_star, z0_val, olen_val, z_target);
-
-            // Read wind direction from averages
-            Real u_avg = uavg(i_a, j_a, 0);
-            Real v_avg = vavg(i_a, j_a, 0);
-            Real wind_mag = std::sqrt(u_avg*u_avg + v_avg*v_avg);
-
-            // Set fire grid wind
-            if (wind_mag > 1.0e-6) {
-                fire_wind(i_f, j_f, 0, 0) = U_ref * (u_avg / wind_mag);
-                fire_wind(i_f, j_f, 0, 1) = U_ref * (v_avg / wind_mag);
-            } else {
-                fire_wind(i_f, j_f, 0, 0) = 0.0;
-                fire_wind(i_f, j_f, 0, 1) = 0.0;
-            }
-        });
-    }
-}
-
 void compute_terrain_curvature(
     MultiFab& curvature,
     const MultiFab& fire_slopes,
