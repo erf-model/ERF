@@ -10,7 +10,7 @@ using namespace amrex;
 void
 ERF::ComputeDt (int step, double cur_time_d)
 {
-    Vector<Real> dt_tmp(finest_level+1);
+    Vector<double> dt_tmp(finest_level+1);
 
     for (int lev = 0; lev <= finest_level; ++lev)
     {
@@ -19,10 +19,10 @@ ERF::ComputeDt (int step, double cur_time_d)
 
     ParallelDescriptor::ReduceRealMin(&dt_tmp[0], dt_tmp.size());
 
-    double dt_0 = static_cast<double>(dt_tmp[0]);
+    double dt_0 = dt_tmp[0];
     int n_factor = 1;
     for (int lev = 0; lev <= finest_level; ++lev) {
-        dt_tmp[lev] = amrex::min(dt_tmp[lev], static_cast<Real>(change_max*dt[lev]));
+        dt_tmp[lev] = amrex::min(dt_tmp[lev], static_cast<double>(change_max*dt[lev]));
         n_factor *= nsubsteps[lev];
         dt_0 = std::min(dt_0, static_cast<double>(n_factor*dt_tmp[lev]));
 

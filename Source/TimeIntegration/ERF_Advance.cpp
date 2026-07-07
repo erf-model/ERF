@@ -402,7 +402,9 @@ ERF::Advance (int lev, double time, double dt_lev, int iteration, int /*ncycle*/
             InterpFromCoarseLevel(zmom_crse_rhs[lev+1],  IntVect{0}, IntVect{0}, state_new[IntVars::zmom], 0, 0, 1,
                                   geom[lev], geom[lev+1], refRatio(lev), mapper_f, domain_bcs_type, BCVars::zvel_bc);
             MultiFab::Subtract(zmom_crse_rhs[lev+1],temp_state,0,0,1,IntVect{0});
-            zmom_crse_rhs[lev+1].mult(one/dt_lev,0,1,0);
+
+            Real inv_dt = static_cast<Real>(one/dt_lev);
+            zmom_crse_rhs[lev+1].mult(inv_dt,0,1,0);
     }
 
     // ***********************************************************************************************

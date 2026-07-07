@@ -149,7 +149,7 @@ ERF::Evolve ()
     for (int step = istep[0]; (step < max_step) && (start_time+cur_time < stop_time); ++step)
     {
         if (use_datetime) {
-            Print() << "\n" << getTimestamp(start_time+cur_time, datetime_format)
+            Print() << "\n" << getTimestamp(static_cast<Real>(start_time+cur_time), datetime_format)
                     << " (" << cur_time << " s elapsed)" << std::endl;
         }
         Print() << "\nCoarse STEP " << step+1 << " starts ..." << std::endl;
@@ -1638,7 +1638,7 @@ ERF::Interp2DArrays (int lev, const BoxArray& my_ba2d, const DistributionMapping
         }
     }
 
-    double time_for_fp = 0.0; // This is not actually used
+    Real time_for_fp = 0.0; // This is not actually used
     Vector<Real> ftime    = {static_cast<Real>(time_for_fp), static_cast<Real>(time_for_fp)};
     Vector<Real> ctime    = {static_cast<Real>(time_for_fp), static_cast<Real>(time_for_fp)};
     if (lat_m[lev]) {
@@ -1806,7 +1806,7 @@ ERF::restart ()
 
         if (new_ba != grids[0]) {
             DistributionMapping new_dm(new_ba);
-            RemakeLevel(0,t_new[0],new_ba,new_dm);
+            RemakeLevel(0,static_cast<Real>(t_new[0]),new_ba,new_dm);
         }
     }
 

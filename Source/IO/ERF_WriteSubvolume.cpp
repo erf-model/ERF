@@ -292,7 +292,8 @@ ERF::WriteSubvolume (int isub,Vector<std::string> subvol_var_names)
                 auto& dfab = dmf[mfi];
                 auto& sfab = src_mf[mfi];
                 auto& zfab = (*z_phys_cc[lev_for_sub])[mfi];
-                der_function(tbx, dfab, 0, 1, sfab, zfab, Geom(lev_for_sub), t_new[0], nullptr, lev_for_sub);
+                der_function(tbx, dfab, 0, 1, sfab, zfab, Geom(lev_for_sub),
+                             static_cast<Real>(t_new[0]), nullptr, lev_for_sub);
             }
             mf.ParallelCopy(dmf,0,mf_comp,1,0,0);
             mf_comp++;
@@ -327,7 +328,7 @@ ERF::WriteSubvolume (int isub,Vector<std::string> subvol_var_names)
 
     if (use_real_time_in_pltname) {
         const std::string dt_format = "%Y-%m-%d_%H:%M:%S"; // ISO 8601 standard
-        subvol_filename = sf + getTimestamp(start_time+time, dt_format);
+        subvol_filename = sf + getTimestamp(static_cast<Real>(start_time+time), dt_format);
     } else {
        subvol_filename = Concatenate(sf + "_", istep[0], file_name_digits);
     }
