@@ -261,6 +261,25 @@ ERF::derive_diag_profiles(double /*time*/,
     MultiFab p_hse (base_state[lev], make_alias, BaseState::p0_comp, 1);
 
     bool use_moisture = (solverChoice.moisture_type != MoistureType::None);
+    const MultiFab* eta_src = nullptr;
+    const bool have_native_shoc_diagnostics =
+#ifdef ERF_USE_NATIVE_SHOC
+        solverChoice.turbChoice[lev].uses_native_shoc() &&
+        native_shoc_driver[lev] &&
+        native_shoc_driver[lev]->has_native_diagnostics();
+#else
+        false;
+#endif
+    if (l_use_kturb) {
+#ifdef ERF_USE_NATIVE_SHOC
+        if (have_native_shoc_diagnostics) {
+            eta_src = &native_shoc_driver[lev]->native_diagnostics();
+        } else
+#endif
+        {
+            eta_src = eddyDiffs_lev[lev].get();
+        }
+    }
 
     for ( MFIter mfi(mf_cons,TilingIfNotGPU()); mfi.isValid(); ++mfi)
     {
@@ -271,8 +290,8 @@ ERF::derive_diag_profiles(double /*time*/,
         const Array4<Real>& w_cc_arr =  w_cc.array(mfi);
         const Array4<Real>& cons_arr = mf_cons.array(mfi);
         const Array4<Real>&   p0_arr = p_hse.array(mfi);
-        const Array4<const Real>& eta_arr = (l_use_kturb) ? eddyDiffs_lev[lev]->const_array(mfi) :
-                                                            Array4<const Real>{};
+        const Array4<const Real>& eta_arr = (eta_src) ? eta_src->const_array(mfi) :
+                                                        Array4<const Real>{};
 
         ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {

@@ -15,7 +15,7 @@ using namespace amrex;
 
 void ERFPhysBCFunct_cons::operator() (MultiFab& mf, MultiFab& xvel, MultiFab& yvel,
                                       int icomp, int ncomp,
-                                      IntVect const& nghost, const Real time, int /*bccomp*/,
+                                      IntVect const& nghost, const double time, int /*bccomp*/,
                                       bool do_fb, bool do_terrain_adjustment)
 {
     BL_PROFILE("ERFPhysBCFunct_cons::()");
@@ -85,7 +85,7 @@ void ERFPhysBCFunct_cons::operator() (MultiFab& mf, MultiFab& xvel, MultiFab& yv
 } // operator()
 
 void ERFPhysBCFunct_u::operator() (MultiFab& mf, MultiFab& xvel, MultiFab& yvel,
-                                   IntVect const& nghost, const Real time, int bccomp,
+                                   IntVect const& nghost, const double time, int bccomp,
                                    bool do_fb)
 {
     BL_PROFILE("ERFPhysBCFunct_u::()");
@@ -154,7 +154,7 @@ void ERFPhysBCFunct_u::operator() (MultiFab& mf, MultiFab& xvel, MultiFab& yvel,
 } // operator()
 
 void ERFPhysBCFunct_v::operator() (MultiFab& mf, MultiFab& xvel, MultiFab& yvel,
-                                   IntVect const& nghost, const Real time, int bccomp,
+                                   IntVect const& nghost, const double time, int bccomp,
                                    bool do_fb)
 {
     BL_PROFILE("ERFPhysBCFunct_v::()");
@@ -224,7 +224,7 @@ void ERFPhysBCFunct_v::operator() (MultiFab& mf, MultiFab& xvel, MultiFab& yvel,
 } // operator()
 
 void ERFPhysBCFunct_w::operator() (MultiFab& mf, MultiFab& xvel, MultiFab& yvel,
-                                   IntVect const& nghost, const Real time,
+                                   IntVect const& nghost, const double time,
                                    const int bccomp_w, bool do_fb)
 {
     BL_PROFILE("ERFPhysBCFunct_w::()");

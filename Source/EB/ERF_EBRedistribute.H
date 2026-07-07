@@ -15,7 +15,7 @@ void redistribute_term (int ncomp,
                         amrex::MultiFab const& state,
                         amrex::EBFArrayBoxFactory const& ebfact,
                         amrex::BCRec const* bc,
-                        amrex::Real const dt);
+                        double dt);
 
 void redistribute_term (int ncomp,
                         const amrex::Geometry& geom,
@@ -24,7 +24,7 @@ void redistribute_term (int ncomp,
                         amrex::MultiFab const& state,
                         eb_aux_ const& ebfact,
                         amrex::BCRec const* bc,
-                        amrex::Real const dt,
+                        double dt,
                         int const igrid);
 
 #endif

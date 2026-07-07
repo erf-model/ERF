@@ -8,11 +8,11 @@ auto acoustic_substepping_fun = [&](int fast_step, int n_sub, int nrk,
                                     const Vector<MultiFab>& S_old,
                                     Vector<MultiFab>& S_stage,
                                     Vector<MultiFab>& S_data,
-                                    const Real dtau,
-                                    const Real slow_dt,
+                                    const double dtau,
+                                    const double slow_dt,
                                     const Real inv_fac,
-                                    const Real old_substep_time,
-                                    const Real new_substep_time)
+                                    const double old_substep_time,
+                                    const double new_substep_time)
 {
         BL_PROFILE("acoustic_substepping_fun");
         if (verbose) amrex::Print() << "Fast time integration at level " << level

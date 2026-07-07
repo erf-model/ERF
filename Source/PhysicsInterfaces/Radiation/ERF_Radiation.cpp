@@ -157,8 +157,8 @@ Radiation::Radiation (const int& lev,
 void
 Radiation::set_grids (int& level,
                       int& step,
-                      Real& time,
-                      const Real& dt,
+                      double& time,
+                      const double& dt,
                       const BoxArray& ba,
                       Geometry& geom,
                       MultiFab* cons_in,
@@ -794,7 +794,7 @@ Radiation::write_rrtmgp_fluxes ()
    std::string plotfilename = amrex::Concatenate("plt_rad", m_step, 5);
    Vector<std::string> flux_names = {"sw_flux_up", "sw_flux_dn", "sw_flux_dir",
                                      "lw_flux_up", "lw_flux_dn"};
-   WriteSingleLevelPlotfile(plotfilename, mf_flux, flux_names, m_geom, m_time, m_step);
+   WriteSingleLevelPlotfile(plotfilename, mf_flux, flux_names, m_geom, static_cast<Real>(m_time), m_step);
 }
 
 void Radiation::populateDatalogMF ()
@@ -903,7 +903,7 @@ void Radiation::populateDatalogMF ()
    }
 }
 
-void Radiation::WriteDataLog (const Real &time)
+void Radiation::WriteDataLog (const double &time)
 {
     constexpr int datwidth = 14;
     constexpr int datprecision = 9;

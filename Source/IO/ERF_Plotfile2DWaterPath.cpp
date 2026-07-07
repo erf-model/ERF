@@ -1,0 +1,186 @@
+#include "ERF_Plotfile2DWaterPath.H"
+
+#include <AMReX.H>
+#include <AMReX_Gpu.H>
+#include <AMReX_Geometry.H>
+
+#include "ERF_IndexDefines.H"
+
+using namespace amrex;
+
+namespace plotfile2d
+{
+
+namespace
+{
+
+struct CondensedWaterPathSpec
+{
+    DiagnosticID id;
+    const char* name;
+};
+
+constexpr amrex::GpuArray<CondensedWaterPathSpec, MaxCondensedWaterPathComponents> condensed_specs{{
+    {DiagnosticID::IntegratedQc, "integrated_qc"},
+    {DiagnosticID::IntegratedQi, "integrated_qi"},
+    {DiagnosticID::IntegratedQr, "integrated_qr"},
+    {DiagnosticID::IntegratedQs, "integrated_qs"},
+    {DiagnosticID::IntegratedQg, "integrated_qg"},
+}};
+
+int source_component_for (DiagnosticID id, const MoistureComponentIndices& moisture_indices) noexcept
+{
+    switch (id) {
+    case DiagnosticID::IntegratedQc: return moisture_indices.qc;
+    case DiagnosticID::IntegratedQi: return moisture_indices.qi;
+    case DiagnosticID::IntegratedQr: return moisture_indices.qr;
+    case DiagnosticID::IntegratedQs: return moisture_indices.qs;
+    case DiagnosticID::IntegratedQg: return moisture_indices.qg;
+    default:                         return -1;
+    }
+}
+
+} // namespace
+
+bool
+is_condensed_water_path (DiagnosticID id) noexcept
+{
+    switch (id) {
+    case DiagnosticID::IntegratedQc:
+    case DiagnosticID::IntegratedQi:
+    case DiagnosticID::IntegratedQr:
+    case DiagnosticID::IntegratedQs:
+    case DiagnosticID::IntegratedQg:
+        return true;
+    default:
+        return false;
+    }
+}
+
+amrex::Vector<WaterPathDescriptor>
+active_condensed_water_path_descriptors (const SolverChoice& solver_choice)
+{
+    amrex::Vector<WaterPathDescriptor> descriptors;
+    descriptors.reserve(MaxCondensedWaterPathComponents);
+
+    for (const auto& spec : condensed_specs) {
+        const int source_component = source_component_for(spec.id, solver_choice.moisture_indices);
+        if (source_component >= 0) {
+            descriptors.push_back({spec.id, spec.name, source_component});
+        }
+    }
+
+    return descriptors;
+}
+
+bool
+is_condensed_water_path_name (const std::string& name)
+{
+    const auto* descriptor = find_diagnostic(name);
+    return descriptor && is_condensed_water_path(descriptor->id);
+}
+
+amrex::Vector<std::string>
+available_diagnostic_names (const SolverChoice& solver_choice)
+{
+    amrex::Vector<std::string> names;
+    names.reserve(diagnostic_catalog().size());
+
+    for (const auto& descriptor : diagnostic_catalog()) {
+        if (!is_condensed_water_path(descriptor.id) ||
+            source_component_for(descriptor.id, solver_choice.moisture_indices) >= 0) {
+            names.push_back(descriptor.name);
+        }
+    }
+
+    return names;
+}
+
+SelectedWaterPathComponents
+selected_condensed_water_path_components (const amrex::Vector<std::string>& plot_var_names,
+                                          const SolverChoice& solver_choice)
+{
+    SelectedWaterPathComponents selected;
+
+    for (int dst_comp = 0; dst_comp < static_cast<int>(plot_var_names.size()); ++dst_comp) {
+        const auto* descriptor = find_diagnostic(plot_var_names[dst_comp]);
+        if (!descriptor || !is_condensed_water_path(descriptor->id)) {
+            continue;
+        }
+
+        const int src_comp = source_component_for(descriptor->id, solver_choice.moisture_indices);
+        if (src_comp < 0) {
+            continue;
+        }
+
+        selected.dst_comp[selected.n] = dst_comp;
+        selected.src_comp[selected.n] = src_comp;
+        ++selected.n;
+    }
+
+    return selected;
+}
+
+void
+fill_condensed_water_paths (MultiFab& dst,
+                            const MultiFab& cons,
+                            const SelectedWaterPathComponents& selected,
+                            const Geometry& geom,
+                            const MultiFab& detJ)
+{
+    if (selected.n == 0) {
+        return;
+    }
+
+    // Validate selected components on the host before device kernels use them.
+    AMREX_ALWAYS_ASSERT(selected.n >= 0);
+    AMREX_ALWAYS_ASSERT(selected.n <= MaxCondensedWaterPathComponents);
+    for (int n = 0; n < selected.n; ++n) {
+        AMREX_ALWAYS_ASSERT(selected.dst_comp[n] >= 0);
+        AMREX_ALWAYS_ASSERT(selected.dst_comp[n] < dst.nComp());
+        AMREX_ALWAYS_ASSERT(selected.src_comp[n] >= 0);
+        AMREX_ALWAYS_ASSERT(selected.src_comp[n] < cons.nComp());
+    }
+
+    for (int n = 0; n < selected.n; ++n) {
+        dst.setVal(0., selected.dst_comp[n], 1, 0);
+    }
+
+    const auto& dx = geom.CellSizeArray();
+
+#ifdef _OPENMP
+#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#endif
+    for (MFIter mfi(cons, TilingIfNotGPU()); mfi.isValid(); ++mfi)
+    {
+        const Box& bx = mfi.tilebox();
+        const auto dst_arr = dst.array(mfi);
+        const auto src_arr = cons.const_array(mfi);
+
+        if (SolverChoice::mesh_type == MeshType::ConstantDz) {
+            ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                for (int n = 0; n < selected.n; ++n) {
+                    amrex::HostDevice::Atomic::Add(
+                        &dst_arr(i, j, 0, selected.dst_comp[n]),
+                        src_arr(i, j, k, selected.src_comp[n]));
+                }
+            });
+        } else {
+            const auto& detJ_arr = detJ.const_array(mfi);
+            ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                const amrex::Real metric = detJ_arr(i, j, k);
+                for (int n = 0; n < selected.n; ++n) {
+                    amrex::HostDevice::Atomic::Add(
+                        &dst_arr(i, j, 0, selected.dst_comp[n]),
+                        src_arr(i, j, k, selected.src_comp[n]) * metric);
+                }
+            });
+        }
+    }
+
+    for (int n = 0; n < selected.n; ++n) {
+        dst.mult(dx[2], selected.dst_comp[n], 1, 0);
+    }
+}
+
+} // namespace plotfile2d

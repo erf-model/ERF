@@ -107,7 +107,7 @@ tag_on_distance_from_eye(const Geometry& cgeom, TagBoxArray* tags,
 
 void
 ERF::HurricaneTracker(int levc,
-                      Real time,
+                      double time,
                       const MultiFab& mf_cc_vel,
                       const Real velmag_threshold,
                       TagBoxArray* tags)

@@ -17,7 +17,7 @@ public:
     explicit WriteBndryPlanes (amrex::Vector<amrex::BoxArray>& grids,
                                amrex::Vector<amrex::Geometry>& geom);
 
-    void write_planes (int t_step, amrex::Real time,
+    void write_planes (int t_step, double time,
                        amrex::Vector<amrex::Vector<amrex::MultiFab>>& vars_new,
                        bool is_moist);
 
@@ -39,7 +39,7 @@ private:
     amrex::Vector<std::string> m_var_names;
 
     //! Timestep and times to be stored in time.dat
-    amrex::Vector<amrex::Real> m_in_times;
+    amrex::Vector<double> m_in_times;
     amrex::Vector<int> m_in_timesteps;
 
     // This defaults to level 0, but if we can fit the whole target_box

@@ -6,9 +6,9 @@
     auto slow_rhs_fun_pre = [&](Vector<MultiFab>& S_rhs,
                                 Vector<MultiFab>& S_old,
                                 Vector<MultiFab>& S_data,
-                                const Real old_step_time,
-                                const Real old_stage_time,
-                                const Real new_stage_time,
+                                const double old_step_time,
+                                const double old_stage_time,
+                                const double new_stage_time,
                                 const int nrk)
     {
         BL_PROFILE("slow_rhs_fun_pre");
@@ -29,7 +29,7 @@
                              << " for fast variables advancing from " << old_step_time
                              << " to " << new_stage_time << std::endl;
 
-        Real slow_dt = new_stage_time - old_step_time;
+        double slow_dt = new_stage_time - old_step_time;
 
         const GpuArray<Real, AMREX_SPACEDIM> dxInv = fine_geom.InvCellSizeArray();
 
@@ -190,8 +190,11 @@
                          *zpn_to_use, *zpc_to_use, *ax_to_use, *ay_to_use, *az_to_use, *dJ_to_use,
                          stretched_dz_d[level], gradp[level],
                          mapfac[level], get_eb(level),
-#ifdef ERF_USE_SHOC
-                         shoc_interface[level],
+#ifdef ERF_USE_EAMXX_SHOC
+                         eamxx_shoc_interface[level].get(),
+#endif
+#ifdef ERF_USE_NATIVE_SHOC
+                         native_shoc_driver[level].get(),
 #endif
                          fr_as_crse, fr_as_fine);
 
@@ -254,9 +257,15 @@
             }
         }
 
-#ifdef ERF_USE_SHOC
-        if (solverChoice.use_shoc) {
-            shoc_interface[level]->add_fast_tend(S_rhs);
+#ifdef ERF_USE_EAMXX_SHOC
+        if (solverChoice.turbChoice[level].uses_eamxx_shoc() && eamxx_shoc_interface[level]) {
+            eamxx_shoc_interface[level]->add_fast_tend(S_rhs);
+        }
+#endif
+#ifdef ERF_USE_NATIVE_SHOC
+        if (solverChoice.turbChoice[level].uses_native_shoc() && native_shoc_driver[level]) {
+            // Native SHOC applies its increment directly to state; ERF no
+            // longer adds a separate fast RHS contribution.
         }
 #endif
 
@@ -287,7 +296,7 @@
             AMREX_ALWAYS_ASSERT(solverChoice.advChoice.dycore_horiz_adv_type == AdvType::Centered_2nd);
             AMREX_ALWAYS_ASSERT(solverChoice.advChoice.dycore_vert_adv_type  == AdvType::Centered_2nd);
 
-            Real dt_base  = (new_stage_time - old_step_time);
+            double dt_base = new_stage_time - old_step_time;
 
             const Real l_rdOcp   = solverChoice.rdOcp;
 
@@ -361,7 +370,7 @@
                 // Note that old_stage_time is elapsed time, but (start_time+old_stage_time) is total time
                 //           start_bdy_time and final_bdy_time are total time
                 //
-                Real total_time = start_time + old_stage_time;
+                double total_time = start_time + old_stage_time;
                 Real l_rdOcp    = solverChoice.rdOcp;
                 Real l_c_p      = solverChoice.c_p;
                 realbdy_compute_interior_ghost_rhs(total_time, slow_dt,

@@ -12,7 +12,7 @@ using namespace amrex;
 
 /*! Evolve particles for one time step */
 void ERFPC::EvolveParticles ( int                                        a_lev,
-                              Real                                       a_dt_lev,
+                              double                                     a_dt_lev,
                               Vector<Vector<MultiFab>>&                  a_flow_vars,
                               const Vector<std::unique_ptr<MultiFab>>&   a_z_phys_nd )
 {
@@ -59,10 +59,10 @@ void ERFPC::EvolveParticles ( int                                        a_lev,
 }
 
 /*! Uses midpoint method to advance particles using flow velocity. */
-void ERFPC::AdvectWithFlow ( MultiFab*                           a_umac,
-                             int                                 a_lev,
-                             Real                                a_dt,
-                             const std::unique_ptr<MultiFab>&    a_z_height )
+void ERFPC::AdvectWithFlow ( MultiFab*                        a_umac,
+                             int                              a_lev,
+                             double                           a_dt,
+                             const std::unique_ptr<MultiFab>& a_z_height )
 {
     BL_PROFILE("ERFPCPC::AdvectWithUmac()");
     AMREX_ASSERT(OK(a_lev, a_lev, a_umac[0].nGrow()-1));
@@ -219,9 +219,9 @@ void ERFPC::AdvectWithFlow ( MultiFab*                           a_umac,
     }
 }
 
-void ERFPC::AdvectWithGravity (  int                                 a_lev,
-                                 Real                                a_dt,
-                                 const std::unique_ptr<MultiFab>&    a_z_height )
+void ERFPC::AdvectWithGravity (int                              a_lev,
+                               double                           a_dt,
+                               const std::unique_ptr<MultiFab>& a_z_height)
 {
     BL_PROFILE("ERFPC::AdvectWithGravity()");
     AMREX_ASSERT(a_lev >= 0 && a_lev < GetParticles().size());
@@ -301,10 +301,10 @@ void ERFPC::AdvectWithGravity (  int                                 a_lev,
 }
 
 /*! Uses midpoint method to advance particles using flow velocity. */
-void ERFPC::ComputeTemperature (const MultiFab&                     a_ucons,
-                                int                                 a_lev,
-                                Real                                /*a_dt*/,
-                                const std::unique_ptr<MultiFab>&    a_z_height )
+void ERFPC::ComputeTemperature (const MultiFab&                  a_ucons,
+                                int                              a_lev,
+                                double                           /*a_dt*/,
+                                const std::unique_ptr<MultiFab>& a_z_height )
 {
     BL_PROFILE("ERFPCPC::ComputeTemperature()");
     AMREX_ASSERT(a_lev >= 0 && a_lev < GetParticles().size());

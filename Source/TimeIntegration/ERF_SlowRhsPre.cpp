@@ -64,7 +64,7 @@ using namespace amrex;
 
 void erf_slow_rhs_pre (int level, int finest_level,
                        int nrk,
-                       Real dt,
+                       double dt,
                        Vector<MultiFab>& S_rhs,
                        Vector<MultiFab>& S_old,
                        Vector<MultiFab>& S_data,
@@ -106,8 +106,11 @@ void erf_slow_rhs_pre (int level, int finest_level,
                        Vector<MultiFab>& gradp,
                        Vector<std::unique_ptr<MultiFab>>& mapfac,
                        const eb_& ebfact,
-#ifdef ERF_USE_SHOC
-                       std::unique_ptr<SHOCInterface>& shoc_lev,
+#ifdef ERF_USE_EAMXX_SHOC
+                       SHOCInterface* eamxx_shoc_lev,
+#endif
+#ifdef ERF_USE_NATIVE_SHOC
+                       ShocDriver* native_shoc_lev,
 #endif
                        YAFluxRegister* fr_as_crse,
                        YAFluxRegister* fr_as_fine)
@@ -154,6 +157,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
 
     const bool l_use_moisture  = (solverChoice.moisture_type != MoistureType::None);
     const bool l_use_SurfLayer = (SurfLayer != nullptr);
+    bool l_apply_surface_layer_fluxes_in_diffusion = l_use_SurfLayer;
     const bool l_rotate        = (solverChoice.use_rotate_surface_flux);
 
     const bool l_anelastic = (solverChoice.anelastic[level]     == 1);
@@ -198,10 +202,21 @@ void erf_slow_rhs_pre (int level, int finest_level,
     std::unique_ptr<MultiFab> dflux_z;
 
     if (l_use_diff) {
-#ifdef ERF_USE_SHOC
-        if (solverChoice.use_shoc) {
-            // Populate vertical component of eddyDiffs
-            shoc_lev->set_eddy_diffs();
+#ifdef ERF_USE_EAMXX_SHOC
+        if (tc.uses_eamxx_shoc()) {
+            AMREX_ALWAYS_ASSERT(eamxx_shoc_lev != nullptr);
+            // SHOC either supplies host-applied vertical SGS coefficients or
+            // clears them so the host does not re-apply SHOC transport.
+            eamxx_shoc_lev->set_eddy_diffs();
+        }
+#endif
+#ifdef ERF_USE_NATIVE_SHOC
+        if (tc.uses_native_shoc()) {
+            AMREX_ALWAYS_ASSERT(native_shoc_lev != nullptr);
+            // Native SHOC always owns the scalar fluxes in state_update mode.
+            // When it also owns momentum stresses, we skip the generic
+            // SurfaceLayer call entirely so the host does not re-apply them.
+            native_shoc_lev->set_eddy_diffs();
         }
 #endif
 
@@ -216,42 +231,50 @@ void erf_slow_rhs_pre (int level, int finest_level,
         dflux_y = std::make_unique<MultiFab>(convert(ba,IntVect(0,1,0)), dm, nvars, ng);
         dflux_z = std::make_unique<MultiFab>(convert(ba,IntVect(0,0,1)), dm, nvars, 0);
 
-#ifdef ERF_USE_SHOC
-        if (solverChoice.use_shoc) {
-            // Zero out the surface stresses of tau13/tau23/hfx/qfx
-            shoc_lev->set_diff_stresses();
-        } else if (l_use_SurfLayer) {
-            // Set surface shear stresses, update heat and moisture fluxes
-            // (fluxes will be later applied in the diffusion source update)
-            Vector<const MultiFab*> mfs = {&S_data[IntVars::cons], &xvel, &yvel, &zvel};
-            SurfLayer->impose_SurfaceLayer_bcs(level, mfs, Tau_lev,
-                                               Hfx1, Hfx2, Hfx3,
-                                               Q1fx1, Q1fx2, Q1fx3,
-                                               &z_phys_nd);
+        bool surface_layer_handled = false;
+#ifdef ERF_USE_EAMXX_SHOC
+        if (tc.uses_eamxx_shoc()) {
+            AMREX_ALWAYS_ASSERT(eamxx_shoc_lev != nullptr);
+            // EAMxx SHOC owns the overlapping lower-boundary fluxes here, so
+            // do not fall through to the generic SurfaceLayer path.
+            eamxx_shoc_lev->set_diff_stresses();
+            surface_layer_handled = true;
         }
-#else
-        // This is computed pre step in Advance if we use SHOC
-        if (l_use_SurfLayer) {
+#endif
+#ifdef ERF_USE_NATIVE_SHOC
+        if (tc.uses_native_shoc()) {
+            AMREX_ALWAYS_ASSERT(native_shoc_lev != nullptr);
+            if (native_shoc_lev->owns_scalar_surface_fluxes()) {
+                l_apply_surface_layer_fluxes_in_diffusion = false;
+            }
+            if (!native_shoc_lev->needs_host_surface_momentum_stresses()) {
+                surface_layer_handled = true;
+            }
+        }
+#endif
+        if (!surface_layer_handled && l_use_SurfLayer) {
+            Vector<const MultiFab*> mfs = {&S_data[IntVars::cons], &xvel, &yvel, &zvel};
             if (!l_use_eb) {
-                // Set surface shear stresses, update heat and moisture fluxes
-                // (fluxes will be later applied in the diffusion source update)
-                Vector<const MultiFab*> mfs = {&S_data[IntVars::cons], &xvel, &yvel, &zvel};
                 SurfLayer->impose_SurfaceLayer_bcs(level, mfs, Tau_lev,
-                                                Hfx1, Hfx2, Hfx3,
-                                                Q1fx1, Q1fx2, Q1fx3,
-                                                &z_phys_nd);
+                                                   Hfx1, Hfx2, Hfx3,
+                                                   Q1fx1, Q1fx2, Q1fx3,
+                                                   &z_phys_nd);
 
                 //if (l_vert_implicit_fac > 0 && solverChoice.implicit_momentum_diffusion) {
                 //    copy_surface_tau_for_implicit(Tau_lev, Tau_corr_lev);
                 //}
             } else {
-                Vector<const MultiFab*> mfs = {&S_data[IntVars::cons], &xvel, &yvel, &zvel};
                 SurfLayer->impose_SurfaceLayer_bcs_EB(level, mfs, Tau_EB,
-                                                   Hfx1, Hfx2, Hfx3_EB,
-                                                   Q1fx1, Q1fx2, Q1fx3);
+                                                      Hfx1, Hfx2, Hfx3_EB,
+                                                      Q1fx1, Q1fx2, Q1fx3);
             }
         }
-#endif
+        if (tc.uses_native_shoc() && native_shoc_lev && native_shoc_lev->owns_scalar_surface_fluxes()) {
+            // SHOC-owned scalar fluxes must not be reused by the host
+            // diffusion source, even if the host SurfaceLayer path was also
+            // evaluated for momentum stress ownership.
+            native_shoc_lev->set_diff_stresses();
+        }
     } // l_use_diff
 
     // This is just cautionary to deal with grid boundaries that aren't domain boundaries

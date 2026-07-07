@@ -105,7 +105,7 @@ public:
     Init (const int& lev,
           const amrex::MultiFab& cons_in,
           const amrex::Geometry& geom,
-          const amrex::Real& dt) override;
+          const double& dt) override;
 
     // Wrapper to do all the updating
     void
@@ -115,8 +115,8 @@ public:
                         amrex::MultiFab& yvel_in,
                         amrex::MultiFab* hfx3_out,
                         amrex::MultiFab* qfx3_out,
-                        const amrex::Real& elapsed_time,
-                        const amrex::Real& dt,
+                        const double& elapsed_time,
+                        const double& dt,
                         const int& nstep) override;
 
     void
@@ -262,7 +262,7 @@ private:
     amrex::Geometry m_lsm_geom;
 
     // timestep
-    amrex::Real m_dt;
+    double m_dt;
 
     // Authoritative NoahMP substep counter, kept on the class so the firing
     // decision in Advance_With_State is identical on every rank (including
@@ -271,7 +271,7 @@ private:
 
     // NoahMP timestep (DTBL), broadcast to all ranks in Init so the firing
     // decision is well-defined on land-free ranks too.
-    amrex::Real m_dtbl = std::numeric_limits<amrex::Real>::max();
+    double m_dtbl = std::numeric_limits<amrex::Real>::max();
 
     // domain klo-1 or lsm khi
     int khi_lsm;

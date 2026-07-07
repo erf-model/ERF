@@ -71,7 +71,7 @@ public:
     Define (SolverChoice& sc) override
     {
         m_rdOcp    = sc.rdOcp;
-        m_do_cond  = (!sc.use_shoc && !sc.macrophysics_acoustic_coupling);
+        m_do_cond  = (!sc.use_shoc_family() && !sc.macrophysics_acoustic_coupling);
     }
 
     // init

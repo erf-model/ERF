@@ -248,7 +248,7 @@ struct TurbulentPerturbation {
     // At each timestep a total buoyant force sanity check is made to ensure
     // that the sum of the buoyant force introduced into the system is net-zero
     void calc_tpi_update (const int lev,
-                          const amrex::Real dt,
+                          const double dt,
                           amrex::MultiFab& mf_xvel,
                           amrex::MultiFab& mf_yvel,
                           amrex::MultiFab& mf_cons)
@@ -291,7 +291,7 @@ struct TurbulentPerturbation {
                 // Only the rank owning the box will be able to access the storage location
                 // Done for parallelism to avoid Inf being stored in array
                 if (pb_mag[lev][boxIdx] !=zero) {
-                    amrex::Real interval = zero;
+                    double interval = 0.0;
                     if (pt_type[lev] == 2) {
                         //  Wind direction correction for angled wind
                         amrex::Real wind_direction = pb_dir[lev][boxIdx];
@@ -301,7 +301,8 @@ struct TurbulentPerturbation {
                     } else {
                         interval = tpi_lref[lev] / pb_mag[lev][boxIdx];
                     }
-                    pb_interval[lev][boxIdx] = RandomReal(amrex::Real(0.9)*interval,amrex::Real(1.1)*interval); // 10% variation
+                    pb_interval[lev][boxIdx] = RandomReal(static_cast<amrex::Real>(0.9*interval),
+                                                          static_cast<amrex::Real>(1.1*interval)); // 10% variation
 
                     // Reset local elapsed time
                     pb_local_etime[lev][boxIdx] = zero;
@@ -374,7 +375,7 @@ struct TurbulentPerturbation {
     // Perturbation amplitude calculation
     void calc_tpi_amp (const int& lev,
                        const int& boxIdx,
-                       const amrex::Real& interval)
+                       const double& interval)
     {
         pb_amp[lev][boxIdx] = zero; // Safety step
         if (pt_type[lev] == 2) { // CPM
@@ -637,7 +638,7 @@ struct TurbulentPerturbation {
     }
 
     // Output debug message into a file
-    void debug (amrex::Real /*time*/)
+    void debug (double /*time*/)
     {
         /*
         amrex::PrintToFile("BoxPerturbationOutput") << "#################### PB output at time = "
@@ -693,8 +694,8 @@ struct TurbulentPerturbation {
     amrex::Real input_Ug;                     // input geostrophic wind speed to scale perturbations when using CPM
 
     // Perturbation data arrays
-    amrex::Vector<amrex::Vector<amrex::Real>> pb_interval;    // PB update time [s]
-    amrex::Vector<amrex::Vector<amrex::Real>> pb_local_etime; // PB local elapsed time [s]
+    amrex::Vector<amrex::Vector<double>> pb_interval;         // PB update time [s]
+    amrex::Vector<amrex::Vector<double>> pb_local_etime;      // PB local elapsed time [s]
     amrex::Vector<amrex::Vector<amrex::Real>> pb_amp;         // PB perturbation amplitude Ri:[K]
     amrex::Vector<amrex::Vector<amrex::Real>> pb_netZero;     // PB array used for net zero sum calculation
 

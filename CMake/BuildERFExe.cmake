@@ -19,6 +19,106 @@ function(target_link_libraries_includes_only target visibility lib)
   endif()
 endfunction()
 
+function(erf_add_native_shoc_sources target)
+  set(SRC_DIR ${PROJECT_SOURCE_DIR}/Source)
+
+  target_sources(${target} PRIVATE
+    ${SRC_DIR}/PBL/Shoc/ERF_ShocStructure.cpp
+    ${SRC_DIR}/PBL/Shoc/ERF_ShocTKE.cpp
+    ${SRC_DIR}/PBL/Shoc/ERF_ShocMoments.cpp
+    ${SRC_DIR}/PBL/Shoc/ERF_ShocPDF.cpp
+    ${SRC_DIR}/PBL/Shoc/ERF_ShocEnergyFixer.cpp
+    ${SRC_DIR}/PBL/Shoc/ERF_ShocImplicit.cpp
+    ${SRC_DIR}/PBL/Shoc/ERF_ShocDriver.cpp
+    ${SRC_DIR}/PBL/Shoc/ERF_ShocPreprocess.cpp
+    ${SRC_DIR}/PBL/Shoc/ERF_ShocDiagnostics.cpp
+    ${SRC_DIR}/PBL/Shoc/ERF_ShocCoupling.cpp
+  )
+
+  target_include_directories(${target} PUBLIC
+    $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/Source/PBL/Shoc>)
+endfunction()
+
+function(erf_add_eamxx_shoc_sources target)
+  set(EAMXX_SRC ${PROJECT_SOURCE_DIR}/external/E3SM/components/eamxx/src)
+  set(ERF_EAMXX_IFACE ${PROJECT_SOURCE_DIR}/Source/PhysicsInterfaces/Shoc)
+
+  target_include_directories(${target} PUBLIC
+    $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/Source/PhysicsInterfaces>
+    $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/Source/PhysicsInterfaces/Shoc>
+    $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/Submodules/ekat/src/pack>
+    $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/Submodules/ekat/src/algorithm>
+    $<BUILD_INTERFACE:${EAMXX_SRC}>
+    $<BUILD_INTERFACE:${EAMXX_SRC}/physics>
+    $<BUILD_INTERFACE:${EAMXX_SRC}/physics/share>
+    $<BUILD_INTERFACE:${EAMXX_SRC}/physics/shoc>
+    $<BUILD_INTERFACE:${EAMXX_SRC}/physics/shoc/eti>
+    $<BUILD_INTERFACE:${EAMXX_SRC}/physics/shoc/impl>
+  )
+
+  target_sources(${target} PRIVATE
+    ${ERF_EAMXX_IFACE}/ERF_ShocInterface.cpp
+    ${EAMXX_SRC}/physics/share/physics_saturation.cpp
+    ${EAMXX_SRC}/physics/shoc/disp/shoc_assumed_pdf_disp.cpp
+    ${EAMXX_SRC}/physics/shoc/disp/shoc_check_tke_disp.cpp
+    ${EAMXX_SRC}/physics/shoc/disp/shoc_compute_shoc_temperature_disp.cpp
+    ${EAMXX_SRC}/physics/shoc/disp/shoc_compute_shoc_vapor_disp.cpp
+    ${EAMXX_SRC}/physics/shoc/disp/shoc_diag_obklen_disp.cpp
+    ${EAMXX_SRC}/physics/shoc/disp/shoc_diag_second_shoc_moments_disp.cpp
+    ${EAMXX_SRC}/physics/shoc/disp/shoc_diag_third_shoc_moments_disp.cpp
+    ${EAMXX_SRC}/physics/shoc/disp/shoc_energy_fixer_disp.cpp
+    ${EAMXX_SRC}/physics/shoc/disp/shoc_energy_integrals_disp.cpp
+    ${EAMXX_SRC}/physics/shoc/disp/shoc_grid_disp.cpp
+    ${EAMXX_SRC}/physics/shoc/disp/shoc_length_disp.cpp
+    ${EAMXX_SRC}/physics/shoc/disp/shoc_pblintd_disp.cpp
+    ${EAMXX_SRC}/physics/shoc/disp/shoc_tke_disp.cpp
+    ${EAMXX_SRC}/physics/shoc/disp/shoc_update_host_dse_disp.cpp
+    ${EAMXX_SRC}/physics/shoc/disp/shoc_update_prognostics_implicit_disp.cpp
+    ${EAMXX_SRC}/physics/shoc/eti/shoc_adv_sgs_tke.cpp
+    ${EAMXX_SRC}/physics/shoc/eti/shoc_assumed_pdf.cpp
+    ${EAMXX_SRC}/physics/shoc/eti/shoc_calc_shoc_varorcovar.cpp
+    ${EAMXX_SRC}/physics/shoc/eti/shoc_calc_shoc_vertflux.cpp
+    ${EAMXX_SRC}/physics/shoc/eti/shoc_check_length_scale_shoc_length.cpp
+    ${EAMXX_SRC}/physics/shoc/eti/shoc_check_tke.cpp
+    ${EAMXX_SRC}/physics/shoc/eti/shoc_clipping_diag_third_shoc_moments.cpp
+    ${EAMXX_SRC}/physics/shoc/eti/shoc_compute_brunt_shoc_length.cpp
+    ${EAMXX_SRC}/physics/shoc/eti/shoc_compute_diag_third_shoc_moment.cpp
+    ${EAMXX_SRC}/physics/shoc/eti/shoc_compute_l_inf_shoc_length.cpp
+    ${EAMXX_SRC}/physics/shoc/eti/shoc_compute_shoc_mix_shoc_length.cpp
+    ${EAMXX_SRC}/physics/shoc/eti/shoc_compute_shoc_temperature.cpp
+    ${EAMXX_SRC}/physics/shoc/eti/shoc_compute_shoc_vapor.cpp
+    ${EAMXX_SRC}/physics/shoc/eti/shoc_compute_shr_prod.cpp
+    ${EAMXX_SRC}/physics/shoc/eti/shoc_compute_tmpi.cpp
+    ${EAMXX_SRC}/physics/shoc/eti/shoc_diag_obklen.cpp
+    ${EAMXX_SRC}/physics/shoc/eti/shoc_diag_second_moments.cpp
+    ${EAMXX_SRC}/physics/shoc/eti/shoc_diag_second_moments_lbycond.cpp
+    ${EAMXX_SRC}/physics/shoc/eti/shoc_diag_second_moments_srf.cpp
+    ${EAMXX_SRC}/physics/shoc/eti/shoc_diag_second_moments_ubycond.cpp
+    ${EAMXX_SRC}/physics/shoc/eti/shoc_diag_second_shoc_moments.cpp
+    ${EAMXX_SRC}/physics/shoc/eti/shoc_diag_third_shoc_moments.cpp
+    ${EAMXX_SRC}/physics/shoc/eti/shoc_dp_inverse.cpp
+    ${EAMXX_SRC}/physics/shoc/eti/shoc_eddy_diffusivities.cpp
+    ${EAMXX_SRC}/physics/shoc/eti/shoc_energy_fixer.cpp
+    ${EAMXX_SRC}/physics/shoc/eti/shoc_energy_integrals.cpp
+    ${EAMXX_SRC}/physics/shoc/eti/shoc_grid.cpp
+    ${EAMXX_SRC}/physics/shoc/eti/shoc_integ_column_stability.cpp
+    ${EAMXX_SRC}/physics/shoc/eti/shoc_isotropic_ts.cpp
+    ${EAMXX_SRC}/physics/shoc/eti/shoc_linear_interp.cpp
+    ${EAMXX_SRC}/physics/shoc/eti/shoc_length.cpp
+    ${EAMXX_SRC}/physics/shoc/eti/shoc_main.cpp
+    ${EAMXX_SRC}/physics/shoc/eti/shoc_pblintd.cpp
+    ${EAMXX_SRC}/physics/shoc/eti/shoc_pblintd_check_pblh.cpp
+    ${EAMXX_SRC}/physics/shoc/eti/shoc_pblintd_cldcheck.cpp
+    ${EAMXX_SRC}/physics/shoc/eti/shoc_pblintd_height.cpp
+    ${EAMXX_SRC}/physics/shoc/eti/shoc_pblintd_init_pot.cpp
+    ${EAMXX_SRC}/physics/shoc/eti/shoc_pblintd_surf_temp.cpp
+    ${EAMXX_SRC}/physics/shoc/eti/shoc_tridiag_solver.cpp
+    ${EAMXX_SRC}/physics/shoc/eti/shoc_tke.cpp
+    ${EAMXX_SRC}/physics/shoc/eti/shoc_update_host_dse.cpp
+    ${EAMXX_SRC}/physics/shoc/eti/shoc_update_prognostics_implicit.cpp
+  )
+endfunction()
+
 function(build_erf_lib erf_lib_name)
 
   set(SRC_DIR ${PROJECT_SOURCE_DIR}/Source)
@@ -147,79 +247,13 @@ function(build_erf_lib erf_lib_name)
     target_compile_definitions(${erf_lib_name} PUBLIC RRTMGP_ENABLE_KOKKOS)
   endif()
 
-  ########################### SHOC #################################
-  if(ERF_ENABLE_SHOC)
-    target_include_directories(${erf_lib_name} PUBLIC
-                               $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/Source/PhysicsInterfaces/Shoc>
-                               $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/external/E3SM/components/eamxx/src>
-                               $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/external/E3SM/components/eamxx/src/physics>
-                               $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/external/E3SM/components/eamxx/src/physics/share>
-                               $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/external/E3SM/components/eamxx/src/physics/shoc>
-                               $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/external/E3SM/components/eamxx/src/physics/shoc/eti>
-                               $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/external/E3SM/components/eamxx/src/physics/shoc/impl>
-                              )
-    target_sources(${erf_lib_name} PRIVATE
-                   ${SRC_DIR}/PhysicsInterfaces/Shoc/ERF_ShocInterface.cpp
-                   $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/external/E3SM/components/eamxx/src/physics/share/physics_saturation.cpp>
-                   $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/external/E3SM/components/eamxx/src/physics/shoc/disp/shoc_assumed_pdf_disp.cpp>
-                   $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/external/E3SM/components/eamxx/src/physics/shoc/disp/shoc_check_tke_disp.cpp>
-                   $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/external/E3SM/components/eamxx/src/physics/shoc/disp/shoc_compute_shoc_temperature_disp.cpp>
-                   $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/external/E3SM/components/eamxx/src/physics/shoc/disp/shoc_compute_shoc_vapor_disp.cpp>
-                   $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/external/E3SM/components/eamxx/src/physics/shoc/disp/shoc_diag_obklen_disp.cpp>
-                   $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/external/E3SM/components/eamxx/src/physics/shoc/disp/shoc_diag_second_shoc_moments_disp.cpp>
-                   $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/external/E3SM/components/eamxx/src/physics/shoc/disp/shoc_diag_third_shoc_moments_disp.cpp>
-                   $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/external/E3SM/components/eamxx/src/physics/shoc/disp/shoc_energy_fixer_disp.cpp>
-                   $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/external/E3SM/components/eamxx/src/physics/shoc/disp/shoc_energy_integrals_disp.cpp>
-                   $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/external/E3SM/components/eamxx/src/physics/shoc/disp/shoc_grid_disp.cpp>
-                   $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/external/E3SM/components/eamxx/src/physics/shoc/disp/shoc_length_disp.cpp>
-                   $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/external/E3SM/components/eamxx/src/physics/shoc/disp/shoc_pblintd_disp.cpp>
-                   $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/external/E3SM/components/eamxx/src/physics/shoc/disp/shoc_tke_disp.cpp>
-                   $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/external/E3SM/components/eamxx/src/physics/shoc/disp/shoc_update_host_dse_disp.cpp>
-                   $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/external/E3SM/components/eamxx/src/physics/shoc/disp/shoc_update_prognostics_implicit_disp.cpp>
-                   $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/external/E3SM/components/eamxx/src/physics/shoc/eti/shoc_adv_sgs_tke.cpp>
-                   $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/external/E3SM/components/eamxx/src/physics/shoc/eti/shoc_assumed_pdf.cpp>
-                   $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/external/E3SM/components/eamxx/src/physics/shoc/eti/shoc_calc_shoc_varorcovar.cpp>
-                   $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/external/E3SM/components/eamxx/src/physics/shoc/eti/shoc_calc_shoc_vertflux.cpp>
-                   $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/external/E3SM/components/eamxx/src/physics/shoc/eti/shoc_check_length_scale_shoc_length.cpp>
-                   $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/external/E3SM/components/eamxx/src/physics/shoc/eti/shoc_check_tke.cpp>
-                   $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/external/E3SM/components/eamxx/src/physics/shoc/eti/shoc_clipping_diag_third_shoc_moments.cpp>
-                   $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/external/E3SM/components/eamxx/src/physics/shoc/eti/shoc_compute_brunt_shoc_length.cpp>
-                   $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/external/E3SM/components/eamxx/src/physics/shoc/eti/shoc_compute_diag_third_shoc_moment.cpp>
-                   $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/external/E3SM/components/eamxx/src/physics/shoc/eti/shoc_compute_l_inf_shoc_length.cpp>
-                   $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/external/E3SM/components/eamxx/src/physics/shoc/eti/shoc_compute_shoc_mix_shoc_length.cpp>
-                   $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/external/E3SM/components/eamxx/src/physics/shoc/eti/shoc_compute_shoc_temperature.cpp>
-                   $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/external/E3SM/components/eamxx/src/physics/shoc/eti/shoc_compute_shoc_vapor.cpp>
-                   $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/external/E3SM/components/eamxx/src/physics/shoc/eti/shoc_compute_shr_prod.cpp>
-                   $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/external/E3SM/components/eamxx/src/physics/shoc/eti/shoc_compute_tmpi.cpp>
-                   $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/external/E3SM/components/eamxx/src/physics/shoc/eti/shoc_diag_obklen.cpp>
-                   $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/external/E3SM/components/eamxx/src/physics/shoc/eti/shoc_diag_second_moments.cpp>
-                   $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/external/E3SM/components/eamxx/src/physics/shoc/eti/shoc_diag_second_moments_lbycond.cpp>
-                   $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/external/E3SM/components/eamxx/src/physics/shoc/eti/shoc_diag_second_moments_srf.cpp>
-                   $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/external/E3SM/components/eamxx/src/physics/shoc/eti/shoc_diag_second_moments_ubycond.cpp>
-                   $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/external/E3SM/components/eamxx/src/physics/shoc/eti/shoc_diag_second_shoc_moments.cpp>
-                   $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/external/E3SM/components/eamxx/src/physics/shoc/eti/shoc_diag_third_shoc_moments.cpp>
-                   $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/external/E3SM/components/eamxx/src/physics/shoc/eti/shoc_dp_inverse.cpp>
-                   $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/external/E3SM/components/eamxx/src/physics/shoc/eti/shoc_eddy_diffusivities.cpp>
-                   $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/external/E3SM/components/eamxx/src/physics/shoc/eti/shoc_energy_fixer.cpp>
-                   $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/external/E3SM/components/eamxx/src/physics/shoc/eti/shoc_energy_integrals.cpp>
-                   $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/external/E3SM/components/eamxx/src/physics/shoc/eti/shoc_grid.cpp>
-                   $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/external/E3SM/components/eamxx/src/physics/shoc/eti/shoc_integ_column_stability.cpp>
-                   $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/external/E3SM/components/eamxx/src/physics/shoc/eti/shoc_isotropic_ts.cpp>
-                   $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/external/E3SM/components/eamxx/src/physics/shoc/eti/shoc_linear_interp.cpp>
-                   $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/external/E3SM/components/eamxx/src/physics/shoc/eti/shoc_length.cpp>
-                   $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/external/E3SM/components/eamxx/src/physics/shoc/eti/shoc_main.cpp>
-                   $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/external/E3SM/components/eamxx/src/physics/shoc/eti/shoc_pblintd.cpp>
-                   $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/external/E3SM/components/eamxx/src/physics/shoc/eti/shoc_pblintd_check_pblh.cpp>
-                   $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/external/E3SM/components/eamxx/src/physics/shoc/eti/shoc_pblintd_cldcheck.cpp>
-                   $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/external/E3SM/components/eamxx/src/physics/shoc/eti/shoc_pblintd_height.cpp>
-                   $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/external/E3SM/components/eamxx/src/physics/shoc/eti/shoc_pblintd_init_pot.cpp>
-                   $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/external/E3SM/components/eamxx/src/physics/shoc/eti/shoc_pblintd_surf_temp.cpp>
-                   $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/external/E3SM/components/eamxx/src/physics/shoc/eti/shoc_tridiag_solver.cpp>
-                   $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/external/E3SM/components/eamxx/src/physics/shoc/eti/shoc_tke.cpp>
-                   $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/external/E3SM/components/eamxx/src/physics/shoc/eti/shoc_update_host_dse.cpp>
-                   $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/external/E3SM/components/eamxx/src/physics/shoc/eti/shoc_update_prognostics_implicit.cpp>
-                  )
-    target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_SHOC)
+  erf_add_native_shoc_sources(${erf_lib_name})
+  target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_NATIVE_SHOC)
+  target_compile_definitions(${erf_lib_name} PUBLIC ERF_HAS_SHOC_FAMILY)
+
+  if(ERF_ENABLE_EAMXX_SHOC)
+    erf_add_eamxx_shoc_sources(${erf_lib_name})
+    target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_EAMXX_SHOC)
     target_compile_definitions(${erf_lib_name} PUBLIC SCREAM_SHOC_SMALL_KERNELS)
   endif()
 
@@ -281,6 +315,7 @@ function(build_erf_lib erf_lib_name)
      PRIVATE
        ${SRC_DIR}/ERF_Derive.cpp
        ${SRC_DIR}/ERF.cpp
+       ${SRC_DIR}/ERF_Constructors.cpp
        ${SRC_DIR}/ERF_Diagnostics.cpp
        ${SRC_DIR}/ERF_MakeNewArrays.cpp
        ${SRC_DIR}/ERF_MakeNewLevel.cpp
@@ -352,10 +387,18 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/IO/ERF_Plotfile.cpp
        ${SRC_DIR}/IO/ERF_Plotfile2DCatalog.cpp
        ${SRC_DIR}/IO/ERF_Plotfile2D.cpp
+       ${SRC_DIR}/IO/ERF_Plotfile2DFill.cpp
+       ${SRC_DIR}/IO/ERF_Plotfile2DMetadata.cpp
+       ${SRC_DIR}/IO/ERF_Plotfile2DWaterPath.cpp
+       ${SRC_DIR}/IO/ERF_Plotfile2DSampledField.cpp
+       ${SRC_DIR}/IO/ERF_Plotfile2DSampledLevel.cpp
+       ${SRC_DIR}/IO/ERF_Plotfile2DInterpolator.cpp
        ${SRC_DIR}/IO/ERF_Plotfile2DUtils.cpp
        ${SRC_DIR}/IO/ERF_WriteSubvolume.cpp
        ${SRC_DIR}/IO/ERF_WriteJobInfo.cpp
        ${SRC_DIR}/IO/ERF_ConsoleIO.cpp
+       ${SRC_DIR}/IO/ERF_ReadFromERFBdy.cpp
+       ${SRC_DIR}/IO/ERF_WriteERFBdy.cpp
        ${SRC_DIR}/LinearSolvers/ERF_PoissonSolve.cpp
        ${SRC_DIR}/LinearSolvers/ERF_PoissonSolve_tb.cpp
        ${SRC_DIR}/LinearSolvers/ERF_PoissonWallDist.cpp

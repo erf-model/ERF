@@ -27,8 +27,8 @@ AMREX_ENUM(InterpFieldsAdv, density, pressure, temperature, NUM_FIELDS);
  * \param[in] a_recycle Flag to enable particle recycling
  */
 void SuperDropletPC::AdvectParticles ( int                   a_lev,
-                                       Real                  a_time,
-                                       Real                  a_dt,
+                                       double                 a_time,
+                                       double                               a_dt,
                                        const MultiFab* const a_flow_vel,
                                        const MultiFab&       a_density,
                                        const MultiFab&       a_pressure,
@@ -50,7 +50,7 @@ void SuperDropletPC::AdvectParticles ( int                   a_lev,
                  AMREX_ASSERT(!a_flow_vel[1].contains_nan());,
                  AMREX_ASSERT(!a_flow_vel[2].contains_nan()););
 
-    const auto ctx = buildProcessContext(a_lev);
+    const auto proc_ctx = buildProcessContext(a_lev);
     const Geometry& geom = m_gdb->Geom(a_lev);
     const Box& dom = geom.Domain();
     const int  k_max = dom.bigEnd(AMREX_SPACEDIM-1) - dom.smallEnd(AMREX_SPACEDIM-1);
@@ -62,9 +62,9 @@ void SuperDropletPC::AdvectParticles ( int                   a_lev,
     const auto vterm_type_w = m_term_vel_type_w;
 
     // Terminal velocity calculator (shared across tiles)
-    TerminalVelocity<ParticleReal> term_vel { ctx.rho_water };
+    TerminalVelocity<ParticleReal> term_vel { proc_ctx.rho_water };
 
-    forEachParticleTile(a_lev, ctx,
+    forEachParticleTile(a_lev, proc_ctx,
         [&](ParIterType& /*pti*/, int grid, ParticleType* p_pbox,
             const SDProcess::ParticlePointers& ptrs,
             const SDProcess::ProcessContext& ctx)

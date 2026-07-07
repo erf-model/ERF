@@ -375,10 +375,11 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
         FillBdyCCVels(mf_cc_vel[0],geom[0]);
         for (int lev = 1; lev <= finest_level; ++lev)
         {
+            Real new_time = t_new[lev];
             Vector<MultiFab*> fmf = {&(mf_cc_vel[lev]), &(mf_cc_vel[lev])};
-            Vector<Real> ftime    = {t_new[lev], t_new[lev]};
+            Vector<Real> ftime    = {new_time,new_time};
             Vector<MultiFab*> cmf = {&mf_cc_vel[lev-1], &mf_cc_vel[lev-1]};
-            Vector<Real> ctime    = {t_new[lev], t_new[lev]};
+            Vector<Real> ctime    = {new_time,new_time};
 
             // Call FillPatch which ASSUMES that all ghost cells at lev-1 have already been filled
             FillPatchTwoLevels(mf_cc_vel[lev], mf_cc_vel[lev].nGrowVect(), IntVect(0,0,0),
@@ -535,7 +536,7 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
                 solverChoice.moisture_type == MoistureType::SAM) {
                 calculate_derived("reflectivity",      vars_new[lev][Vars::cons], derived::erf_derreflectivity);
             } else {
-                mf[lev].setVal(zero);
+                mf[lev].setVal(zero, mf_comp, 1, 0);
                 mf_comp++;
             }
         }
@@ -547,7 +548,7 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
                 solverChoice.moisture_type == MoistureType::SAM) {
                 calculate_derived("max_reflectivity",  vars_new[lev][Vars::cons], derived::erf_dermaxreflectivity);
             } else {
-                mf[lev].setVal(zero);
+                mf[lev].setVal(zero, mf_comp, 1, 0);
                 mf_comp++;
             }
         }
@@ -936,7 +937,7 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
                     const Box& bx = mfi.tilebox();
                     const Array4<Real>& derdat = mf[lev].array(mfi);
                     const Array4<Real>& data   = vel_t_avg[lev]->array(mfi);
-                    const Real norm = t_avg_cnt[lev];
+                    const Real norm = static_cast<Real>(t_avg_cnt[lev]);
                     ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
                     {
                         derdat(i ,j ,k, mf_comp) = data(i,j,k,0) / norm;
@@ -954,7 +955,7 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
                     const Box& bx = mfi.tilebox();
                     const Array4<Real>& derdat = mf[lev].array(mfi);
                     const Array4<Real>& data   = vel_t_avg[lev]->array(mfi);
-                    const Real norm = t_avg_cnt[lev];
+                    const Real norm = static_cast<Real>(t_avg_cnt[lev]);
                     ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
                     {
                         derdat(i ,j ,k, mf_comp) = data(i,j,k,1) / norm;
@@ -972,7 +973,7 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
                     const Box& bx = mfi.tilebox();
                     const Array4<Real>& derdat = mf[lev].array(mfi);
                     const Array4<Real>& data   = vel_t_avg[lev]->array(mfi);
-                    const Real norm = t_avg_cnt[lev];
+                    const Real norm = static_cast<Real>(t_avg_cnt[lev]);
                     ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
                     {
                         derdat(i ,j ,k, mf_comp) = data(i,j,k,2) / norm;
@@ -990,13 +991,33 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
                     const Box& bx = mfi.tilebox();
                     const Array4<Real>& derdat = mf[lev].array(mfi);
                     const Array4<Real>& data   = vel_t_avg[lev]->array(mfi);
-                    const Real norm = t_avg_cnt[lev];
+                    const Real norm = static_cast<Real>(t_avg_cnt[lev]);
                     ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
                     {
                         derdat(i ,j ,k, mf_comp) = data(i,j,k,3) / norm;
                     });
                 }
                 mf_comp ++;
+            }
+        }
+
+        const MultiFab* eta_src = nullptr;
+        const bool have_native_shoc_diagnostics =
+#ifdef ERF_USE_NATIVE_SHOC
+            solverChoice.turbChoice[lev].uses_native_shoc() &&
+            native_shoc_driver[lev] &&
+            native_shoc_driver[lev]->has_native_diagnostics();
+#else
+            false;
+#endif
+        if (solverChoice.turbChoice[lev].use_kturb) {
+#ifdef ERF_USE_NATIVE_SHOC
+            if (have_native_shoc_diagnostics) {
+                eta_src = &native_shoc_driver[lev]->native_diagnostics();
+            } else
+#endif
+            {
+                eta_src = eddyDiffs_lev[lev].get();
             }
         }
 
@@ -1011,7 +1032,8 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
                 const Box& bx = mfi.tilebox();
                 auto       prim = dmf[mfi].array();
                 auto const cons = cmf[mfi].const_array();
-                auto const diff = (*eddyDiffs_lev[lev])[mfi].const_array();
+                auto const diff = (eta_src) ? eta_src->const_array(mfi) :
+                                              Array4<const Real>{};
                 ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
                 {
                     const Real rho = cons(i, j, k, Rho_comp);
@@ -1023,8 +1045,18 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
             mf_comp++;
         }
 
+        const MultiFab* shoc_or_host_eddy = nullptr;
+#ifdef ERF_USE_NATIVE_SHOC
+        if (have_native_shoc_diagnostics) {
+            shoc_or_host_eddy = &native_shoc_driver[lev]->native_diagnostics();
+        } else
+#endif
+        {
+            shoc_or_host_eddy = eddyDiffs_lev[lev].get();
+        }
+
         if (containerHasElement(plot_var_names, "Kmv")) {
-            MultiFab::Copy(mf[lev],*eddyDiffs_lev[lev],EddyDiff::Mom_v,mf_comp,1,0);
+            MultiFab::Copy(mf[lev],*shoc_or_host_eddy,EddyDiff::Mom_v,mf_comp,1,0);
             mf_comp ++;
         }
         if (containerHasElement(plot_var_names, "Kmh")) {
@@ -1032,7 +1064,7 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
             mf_comp ++;
         }
         if (containerHasElement(plot_var_names, "Khv")) {
-            MultiFab::Copy(mf[lev],*eddyDiffs_lev[lev],EddyDiff::Theta_v,mf_comp,1,0);
+            MultiFab::Copy(mf[lev],*shoc_or_host_eddy,EddyDiff::Theta_v,mf_comp,1,0);
             mf_comp ++;
         }
         if (containerHasElement(plot_var_names, "Khh")) {
@@ -1040,8 +1072,113 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
             mf_comp ++;
         }
         if (containerHasElement(plot_var_names, "Lturb")) {
-            MultiFab::Copy(mf[lev],*eddyDiffs_lev[lev],EddyDiff::Turb_lengthscale,mf_comp,1,0);
+            MultiFab::Copy(mf[lev],*shoc_or_host_eddy,EddyDiff::Turb_lengthscale,mf_comp,1,0);
             mf_comp ++;
+        }
+        auto copy_native_shoc_diagnostic = [&](const MultiFab* src) {
+            if (src != nullptr) {
+                MultiFab::Copy(mf[lev], *src, 0, mf_comp, 1, 0);
+            } else {
+                mf[lev].setVal(-999, mf_comp, 1, 0);
+            }
+            mf_comp ++;
+        };
+        // Native SHOC pblh is diagnosed in meters AGL and is copied through
+        // unchanged into the plotfile diagnostic field.
+        if (containerHasElement(plot_var_names, "pblh")) {
+            copy_native_shoc_diagnostic(have_native_shoc_diagnostics
+                                        ? &native_shoc_driver[lev]->pblh_diagnostics()
+                                        : nullptr);
+        }
+        if (containerHasElement(plot_var_names, "shoc_cldfrac")) {
+            copy_native_shoc_diagnostic(have_native_shoc_diagnostics
+                                        ? &native_shoc_driver[lev]->shoc_cldfrac_diagnostics()
+                                        : nullptr);
+        }
+        if (containerHasElement(plot_var_names, "shoc_ql")) {
+            copy_native_shoc_diagnostic(have_native_shoc_diagnostics
+                                        ? &native_shoc_driver[lev]->shoc_ql_diagnostics()
+                                        : nullptr);
+        }
+        if (containerHasElement(plot_var_names, "shoc_ql2")) {
+            copy_native_shoc_diagnostic(have_native_shoc_diagnostics
+                                        ? &native_shoc_driver[lev]->shoc_ql2_diagnostics()
+                                        : nullptr);
+        }
+        if (containerHasElement(plot_var_names, "shoc_cond")) {
+            copy_native_shoc_diagnostic(have_native_shoc_diagnostics
+                                        ? &native_shoc_driver[lev]->shoc_cond_diagnostics()
+                                        : nullptr);
+        }
+        if (containerHasElement(plot_var_names, "wqls_sec")) {
+            copy_native_shoc_diagnostic(have_native_shoc_diagnostics
+                                        ? &native_shoc_driver[lev]->wqls_sec_diagnostics()
+                                        : nullptr);
+        }
+        if (containerHasElement(plot_var_names, "wthv_sec")) {
+            copy_native_shoc_diagnostic(have_native_shoc_diagnostics
+                                        ? &native_shoc_driver[lev]->wthv_sec_diagnostics()
+                                        : nullptr);
+        }
+        if (containerHasElement(plot_var_names, "w_sec")) {
+            copy_native_shoc_diagnostic(have_native_shoc_diagnostics
+                                        ? &native_shoc_driver[lev]->w_sec_diagnostics()
+                                        : nullptr);
+        }
+        if (containerHasElement(plot_var_names, "thl_sec")) {
+            copy_native_shoc_diagnostic(have_native_shoc_diagnostics
+                                        ? &native_shoc_driver[lev]->thl_sec_diagnostics()
+                                        : nullptr);
+        }
+        if (containerHasElement(plot_var_names, "qw_sec")) {
+            copy_native_shoc_diagnostic(have_native_shoc_diagnostics
+                                        ? &native_shoc_driver[lev]->qw_sec_diagnostics()
+                                        : nullptr);
+        }
+        if (containerHasElement(plot_var_names, "qwthl_sec")) {
+            copy_native_shoc_diagnostic(have_native_shoc_diagnostics
+                                        ? &native_shoc_driver[lev]->qwthl_sec_diagnostics()
+                                        : nullptr);
+        }
+        if (containerHasElement(plot_var_names, "wthl_sec")) {
+            copy_native_shoc_diagnostic(have_native_shoc_diagnostics
+                                        ? &native_shoc_driver[lev]->wthl_sec_diagnostics()
+                                        : nullptr);
+        }
+        if (containerHasElement(plot_var_names, "wqw_sec")) {
+            copy_native_shoc_diagnostic(have_native_shoc_diagnostics
+                                        ? &native_shoc_driver[lev]->wqw_sec_diagnostics()
+                                        : nullptr);
+        }
+        if (containerHasElement(plot_var_names, "w3")) {
+            copy_native_shoc_diagnostic(have_native_shoc_diagnostics
+                                        ? &native_shoc_driver[lev]->w3_diagnostics()
+                                        : nullptr);
+        }
+        if (containerHasElement(plot_var_names, "brunt")) {
+            copy_native_shoc_diagnostic(have_native_shoc_diagnostics
+                                        ? &native_shoc_driver[lev]->brunt_diagnostics()
+                                        : nullptr);
+        }
+        if (containerHasElement(plot_var_names, "isotropy")) {
+            copy_native_shoc_diagnostic(have_native_shoc_diagnostics
+                                        ? &native_shoc_driver[lev]->isotropy_diagnostics()
+                                        : nullptr);
+        }
+        if (containerHasElement(plot_var_names, "shear_prod")) {
+            copy_native_shoc_diagnostic(have_native_shoc_diagnostics
+                                        ? &native_shoc_driver[lev]->shear_prod_diagnostics()
+                                        : nullptr);
+        }
+        if (containerHasElement(plot_var_names, "buoy_prod")) {
+            copy_native_shoc_diagnostic(have_native_shoc_diagnostics
+                                        ? &native_shoc_driver[lev]->buoy_prod_diagnostics()
+                                        : nullptr);
+        }
+        if (containerHasElement(plot_var_names, "diss_tke")) {
+            copy_native_shoc_diagnostic(have_native_shoc_diagnostics
+                                        ? &native_shoc_driver[lev]->diss_tke_diagnostics()
+                                        : nullptr);
         }
         if (containerHasElement(plot_var_names, "walldist")) {
             MultiFab::Copy(mf[lev],*walldist[lev],0,mf_comp,1,0);
@@ -1810,7 +1947,7 @@ ERF::WriteMultiLevelPlotfileWithTerrain (const std::string& plotfilename, int nl
                                          const Vector<const MultiFab*>& mf_nd,
                                          const Vector<std::string>& varnames,
                                          const Vector<Geometry>& my_geom,
-                                         Real time,
+                                         double time,
                                          const Vector<int>& level_steps,
                                          const Vector<IntVect>& rr,
                                          const std::string &versionName,
@@ -1897,7 +2034,7 @@ ERF::WriteGenericPlotfileHeaderWithTerrain (std::ostream &HeaderFile,
                                             const Vector<BoxArray> &bArray,
                                             const Vector<std::string> &varnames,
                                             const Vector<Geometry>& my_geom,
-                                            Real my_time,
+                                            double my_time,
                                             const Vector<int>& level_steps,
                                             const Vector<IntVect>& my_ref_ratio,
                                             const std::string &versionName,

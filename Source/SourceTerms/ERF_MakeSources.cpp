@@ -33,8 +33,8 @@ using namespace amrex;
 
 void make_sources (int level,
                    int /*nrk*/,
-                   Real dt,
-                   Real time,
+                   double dt,
+                   double time,
                    const Vector<MultiFab>& S_data,
                    const  MultiFab & S_prim,
                           MultiFab & source,
