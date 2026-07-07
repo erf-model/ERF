@@ -221,7 +221,7 @@ compute_albini_spotting(amrex::MultiFab&                  phi,
                         int                               fuel_model_id = 1,
                         bool                              fire_debug = false,
                         amrex::MultiFab*                  fire_fuel_load_ptr = nullptr,
-                        amrex::Real                       fuel_load_initial_kg_m2 = 0.0_rt)
+                        amrex::Real                       fuel_load_initial_kg_m2 = 0.0)
 {
     using namespace amrex;
 
@@ -431,8 +431,8 @@ compute_albini_spotting(amrex::MultiFab&                  phi,
                     
                     // Initialize fuel load at newly-ignited spot to a small fraction
                     // to represent early burning stage before steady state
-                    if (fire_fuel_load_ptr != nullptr && fuel_load_initial_kg_m2 > 0.0_rt) {
-                        fuel_arr(i, j, 0, 0) = amrex::min(fuel_arr(i, j, 0, 0), 0.05_rt * fuel_load_initial_kg_m2);
+                    if (fire_fuel_load_ptr != nullptr && fuel_load_initial_kg_m2 > 0.0) {
+                        fuel_arr(i, j, 0, 0) = amrex::min(fuel_arr(i, j, 0, 0), 0.05 * fuel_load_initial_kg_m2);
                     }
                 }
 
@@ -469,7 +469,7 @@ compute_albini_spotting(amrex::MultiFab&                  phi,
     for (amrex::MFIter mfi(phi); mfi.isValid(); ++mfi) {
         auto p = phi.array(mfi);
         amrex::ParallelFor(mfi.validbox(), [=] AMREX_GPU_DEVICE (const amrex::IntVect& iv) noexcept {
-            p(iv) = amrex::max(-1.0_rt, amrex::min(p(iv), 1.0_rt));
+            p(iv) = amrex::max(-1.0, amrex::min(p(iv), 1.0));
         });
     }
 
