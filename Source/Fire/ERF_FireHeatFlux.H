@@ -184,6 +184,9 @@ amrex::Real deplete_fuel_load(
  *
  * dt_fire_s corresponds to the full atmospheric dt, not the CFL substep.
  *
+ * Phase 10: When fuel_model_mf != nullptr, reads per-cell fuel code and computes
+ * per-cell heat content. When nullptr, uses global fp.heat_content.
+ *
  * @param[out] fire_heat_flux     Heat flux [W/m²]
  * @param[in,out] fire_fuel_load  Fuel load [kg/m²], modified in-place
  * @param[in] fire_phi            Level-set field
@@ -192,6 +195,7 @@ amrex::Real deplete_fuel_load(
  * @param[in] dx_fire             Fire grid cell size [m]
  * @param[in] tau_sav_floor       SAV-based residence time floor [s]
  * @param[in] dt_fire_s           Atmospheric timestep [s]
+ * @param[in] fuel_model_mf       Optional per-cell fuel model codes (nullptr = uniform)
  */
 inline void fill_fire_heat_flux(
     amrex::MultiFab& fire_heat_flux,
@@ -201,12 +205,21 @@ inline void fill_fire_heat_flux(
     const FuelModelParams& fp,
     amrex::Real dx_fire,
     amrex::Real tau_sav_floor,
-    amrex::Real dt_fire_s)
+    amrex::Real dt_fire_s,
+    const amrex::MultiFab* fuel_model_mf = nullptr)
 {
     using namespace amrex;
 
     // 1 BTU/lb = 2326 J/kg
-    Real h_fuel_J_per_kg = fp.heat_content * 2326.0;
+    // Compute heat content based on whether spatial fuel map is used
+    Real h_fuel_J_per_kg;
+
+    if (fuel_model_mf == nullptr) {
+        // Uniform fuel: use global parameters
+        h_fuel_J_per_kg = fp.heat_content * 2326.0;
+    } else {
+        h_fuel_J_per_kg = 0.0;  // Will be set per-cell
+    }
 
     for (MFIter mfi(fire_phi); mfi.isValid(); ++mfi) {
         const Box& bx = mfi.validbox();
@@ -216,19 +229,42 @@ inline void fill_fire_heat_flux(
         auto Q_arr          = fire_heat_flux.array(mfi);
         auto fuel_arr       = fire_fuel_load.array(mfi);
 
-        amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE(const IntVect& iv) {
-            int i = iv[0], j = iv[1], k = iv[2];
+        if (fuel_model_mf != nullptr) {
+            auto const fuel_code_arr = fuel_model_mf->const_array(mfi);
 
-            Real phi_val = phi_arr(i, j, k);
-            Real w_cur   = fuel_arr(i, j, k);
+            amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE(const IntVect& iv) {
+                int i = iv[0], j = iv[1], k = iv[2];
 
-            // Per-cell residence time: floor ROS at 1e-6 m/s to avoid divide-by-zero
-            Real ros_cell  = amrex::max(ros_arr(i, j, k), 1.0e-6_rt);
-            Real tau_cell  = amrex::max(dx_fire / ros_cell, tau_sav_floor);
+                Real phi_val = phi_arr(i, j, k);
+                Real w_cur   = fuel_arr(i, j, k);
 
-            Q_arr(i, j, k)    = compute_heat_flux_cell(phi_val, w_cur, h_fuel_J_per_kg, tau_cell);
-            fuel_arr(i, j, k) = deplete_fuel_load(phi_val, w_cur, tau_cell, dt_fire_s);
-        });
+                // Get per-cell fuel code and look up heat content
+                int fuel_code = static_cast<int>(fuel_code_arr(i, j, k) + 0.5_rt);
+                FuelModelParams fp_cell = get_anderson_fuel_params(fuel_code);
+                Real h_fuel_cell = fp_cell.heat_content * 2326.0_rt;
+
+                // Per-cell residence time: floor ROS at 1e-6 m/s to avoid divide-by-zero
+                Real ros_cell  = amrex::max(ros_arr(i, j, k), 1.0e-6_rt);
+                Real tau_cell  = amrex::max(dx_fire / ros_cell, tau_sav_floor);
+
+                Q_arr(i, j, k)    = compute_heat_flux_cell(phi_val, w_cur, h_fuel_cell, tau_cell);
+                fuel_arr(i, j, k) = deplete_fuel_load(phi_val, w_cur, tau_cell, dt_fire_s);
+            });
+        } else {
+            amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE(const IntVect& iv) {
+                int i = iv[0], j = iv[1], k = iv[2];
+
+                Real phi_val = phi_arr(i, j, k);
+                Real w_cur   = fuel_arr(i, j, k);
+
+                // Per-cell residence time: floor ROS at 1e-6 m/s to avoid divide-by-zero
+                Real ros_cell  = amrex::max(ros_arr(i, j, k), 1.0e-6_rt);
+                Real tau_cell  = amrex::max(dx_fire / ros_cell, tau_sav_floor);
+
+                Q_arr(i, j, k)    = compute_heat_flux_cell(phi_val, w_cur, h_fuel_J_per_kg, tau_cell);
+                fuel_arr(i, j, k) = deplete_fuel_load(phi_val, w_cur, tau_cell, dt_fire_s);
+            });
+        }
     }
 }
 

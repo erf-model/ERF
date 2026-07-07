@@ -18,6 +18,9 @@
 #include <ERF_AlbiniSpotting.H>
 #include <ERF_ScottSpottingTable.H>
 #include <ERF_CrownFire.H>
+#include <ERF_FuelMap.H>
+#include <ERF_FireBreak.H>
+#include <ERF_FuelBlending.H>
 
 // Forward declarations
 class SurfaceLayer;
@@ -334,6 +337,18 @@ public:
      * @return Const reference to the FireParams.
      */
     const FireParams& get_params() const { return m_params; }
+
+    /**
+     * @brief Get the per-cell fuel model MultiFab (Phase 10).
+     * @return Const pointer to fire_fuel_model MultiFab (nullptr if uniform fuel).
+     */
+    const amrex::MultiFab* get_fuel_model() const { return fire_fuel_model.get(); }
+
+    /**
+     * @brief Check if spatial fuel map is active (Phase 10).
+     * @return true if per-cell fuel model is loaded and active.
+     */
+    bool has_spatial_fuel() const { return m_has_spatial_fuel; }
 
 private:
 

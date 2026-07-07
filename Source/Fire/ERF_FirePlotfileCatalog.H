@@ -45,12 +45,14 @@
  * @brief Get the canonical fire plotfile variable names.
  * @param[in] include_spotting   Append 4 Albini spotting components when true.
  * @param[in] include_crown      Append crown-fire diagnostics when true.
+ * @param[in] include_fuel_map   Append fire_fuel_model_code when true (Phase 10).
  * @param[in] include_flame_tilt Append fire_flame_tilt within the crown block when true.
  * @return Vector of variable name strings in canonical write order.
  */
 inline amrex::Vector<std::string> fire_plotfile_var_names(
     bool include_spotting,
     bool include_crown,
+    bool include_fuel_map,
     bool include_flame_tilt)
 {
     amrex::Vector<std::string> names{
@@ -89,40 +91,48 @@ inline amrex::Vector<std::string> fire_plotfile_var_names(
         }
         names.push_back("fire_flame_temp");
     }
+    if (include_fuel_map) {
+        names.push_back("fire_fuel_model_code");
+    }
     return names;
 }
 
 
 inline amrex::Vector<std::string> fire_plotfile_var_names(
     bool include_spotting = false,
-    bool include_crown = false)
+    bool include_crown = false,
+    bool include_fuel_map = false)
 {
-    return fire_plotfile_var_names(include_spotting, include_crown, false);
+    return fire_plotfile_var_names(include_spotting, include_crown, include_fuel_map, false);
 }
 
 /**
  * @brief Get the total number of fire plotfile components.
  * @param[in] include_spotting   Count 4 additional Albini spotting components when true.
  * @param[in] include_crown      Count crown-fire diagnostics when true.
+ * @param[in] include_fuel_map   Count fire_fuel_model_code when true (Phase 10).
  * @param[in] include_flame_tilt Count fire_flame_tilt within the crown block when true.
  * @return Number of scalar fire output variables.
  */
 inline int fire_plotfile_ncomp(
     bool include_spotting,
     bool include_crown,
+    bool include_fuel_map,
     bool include_flame_tilt)
 {
     return 19
         + (include_spotting ? 4 : 0)
-        + (include_crown ? (include_flame_tilt ? 5 : 4) : 0);
+        + (include_crown ? (include_flame_tilt ? 5 : 4) : 0)
+        + (include_fuel_map ? 1 : 0);
 }
 
 
 inline int fire_plotfile_ncomp(
     bool include_spotting = false,
-    bool include_crown = false)
+    bool include_crown = false,
+    bool include_fuel_map = false)
 {
-    return fire_plotfile_ncomp(include_spotting, include_crown, false);
+    return fire_plotfile_ncomp(include_spotting, include_crown, include_fuel_map, false);
 }
 
 #endif

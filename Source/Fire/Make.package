@@ -32,5 +32,9 @@ ifeq ($(USE_FIRE), TRUE)
   CEXE_headers += Fire/ERF_AlbiniSpotting.H
   CEXE_headers += Fire/ERF_ScottSpottingTable.H
   CEXE_headers += Fire/ERF_CrownFire.H
+  CEXE_headers += Fire/ERF_FuelMap.H
+  CEXE_headers += Fire/ERF_LcpReader.H
+  CEXE_headers += Fire/ERF_FireBreak.H
+  CEXE_headers += Fire/ERF_FuelBlending.H
 endif
 

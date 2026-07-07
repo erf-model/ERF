@@ -47,9 +47,11 @@ WriteFirePlotfile(const std::string& plotfile_prefix,
                       fire_layer.get_crown_active() != nullptr);
     bool has_flame_tilt = (fire_layer.get_params().compute_flame_tilt &&
                            fire_layer.get_flame_tilt() != nullptr);
+    bool has_fuel_map = (fire_layer.has_spatial_fuel() &&
+                         fire_layer.get_fuel_model() != nullptr);
 
-    Vector<std::string> varnames = fire_plotfile_var_names(has_spotting, has_crown, has_flame_tilt);
-    int ncomp = fire_plotfile_ncomp(has_spotting, has_crown, has_flame_tilt);
+    Vector<std::string> varnames = fire_plotfile_var_names(has_spotting, has_crown, has_fuel_map, has_flame_tilt);
+    int ncomp = fire_plotfile_ncomp(has_spotting, has_crown, has_fuel_map, has_flame_tilt);
 
     MultiFab mf(fg.ba, fg.dm, ncomp, 0);
     
@@ -103,6 +105,13 @@ WriteFirePlotfile(const std::string& plotfile_prefix,
             ++comp;
         }
         MultiFab::Copy(mf, *fire_layer.get_flame_temp(), 0, comp, 1, 0);
+        ++comp;
+    }
+
+    // Phase 10: Spatial fuel map
+    if (has_fuel_map) {
+        MultiFab::Copy(mf, *fire_layer.get_fuel_model(), 0, comp, 1, 0);
+        ++comp;
     }
 
     std::string plotfilename = Concatenate(plotfile_prefix, step, 5);

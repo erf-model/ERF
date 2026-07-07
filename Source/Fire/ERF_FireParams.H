@@ -2,6 +2,7 @@
 #define ERF_FIRE_PARAMS_H
 
 #include <AMReX_ParmParse.H>
+#include <ERF_FireBreak.H>
 
 /**
  * @file ERF_FireParams.H
@@ -116,6 +117,17 @@ struct FireParams
     amrex::Real       flame_tilt_T_amb    = 300.0;           ///< Ambient temperature for flame tilt [K]
     amrex::Real       flame_tilt_rho_air  = 1.2;             ///< Air density for flame tilt [kg/m³]
 
+    // Phase 10: Spatial fuel map parameters.
+    struct FuelMapParams {
+        std::string   fuel_map_file       = "";        ///< Path to fuel map file; empty = uniform
+        std::string   fuel_map_format     = "ascii";   ///< "ascii" or "lcp"
+        amrex::Real   blending_fraction   = 0.0;       ///< ROS blending at fuel boundaries [0-1]
+    } fuel_map;
+
+    // Phase 10: Firebreak barriers (up to 10, indexed by N=0..9)
+    int n_firebreaks = 0;
+    std::vector<FireBreak> firebreaks;
+
     /**
      * @brief Construct FireParams from ParmParse
      *
@@ -210,11 +222,36 @@ struct FireParams
        // Phase 9: Flame temperature diagnostic
        pp.query("flame_temp_method", flame_temp_method);
        pp.query("flame_temp_T_amb",  flame_temp_T_amb);
-        
+         
        // Phase 9: Flame tilt angle diagnostic
        pp.query("compute_flame_tilt", compute_flame_tilt);
        pp.query("flame_tilt_T_amb",   flame_tilt_T_amb);
        pp.query("flame_tilt_rho_air", flame_tilt_rho_air);
+
+       // Phase 10: fuel map
+       auto& fm = fuel_map;
+       pp.query("fuel_map.file",               fm.fuel_map_file);
+       pp.query("fuel_map.format",             fm.fuel_map_format);
+       pp.query("fuel_map.blending_fraction",  fm.blending_fraction);
+
+       // Phase 10: firebreaks (indexed, stop at first missing)
+       for (int nb = 0; nb < 10; ++nb) {
+           std::string type_key = "firebreak." + std::to_string(nb) + ".type";
+           std::string type_val;
+           if (!pp.query(type_key.c_str(), type_val)) break;
+           FireBreak fb;
+           fb.type = type_val;
+           std::string pfx = "firebreak." + std::to_string(nb) + ".";
+           pp.query((pfx + "x_lo").c_str(),   fb.x_lo);
+           pp.query((pfx + "y_lo").c_str(),   fb.y_lo);
+           pp.query((pfx + "x_hi").c_str(),   fb.x_hi);
+           pp.query((pfx + "y_hi").c_str(),   fb.y_hi);
+           pp.query((pfx + "cx").c_str(),     fb.cx);
+           pp.query((pfx + "cy").c_str(),     fb.cy);
+           pp.query((pfx + "radius").c_str(), fb.radius);
+           firebreaks.push_back(fb);
+       }
+       n_firebreaks = static_cast<int>(firebreaks.size());
     }
 
     // Convenience accessors for coupling mode

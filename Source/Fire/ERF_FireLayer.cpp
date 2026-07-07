@@ -425,7 +425,8 @@ void FireLayer::compute_heat_flux_and_diagnostics(Real dt_fire_s)
 
     fill_fire_heat_flux(*fire_heat_flux, *fire_fuel_load,
                         *fire_phi, *fire_ros, fp,
-                        m_fg.geom.CellSize(0), tau_sav_floor, dt_fire_s);
+                        m_fg.geom.CellSize(0), tau_sav_floor, dt_fire_s,
+                        m_has_spatial_fuel ? fire_fuel_model.get() : nullptr);
 
     const Real h_kJ_per_kg = fp.heat_content * 2.326_rt;
     const Real h_fuel_Jkg = fp.heat_content * 2326.0_rt;
