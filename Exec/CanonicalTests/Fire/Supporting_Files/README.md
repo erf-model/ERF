@@ -220,9 +220,23 @@ Passive fire-to-atmosphere coupling baseline test:
 | Mesh Refinement | Vertical refinement | FM1 | 5 m/s | Stretched vertical grid |
 | Fire Behavior | Multiple ignitions | FM1 | 5 m/s | Multiple ignition source interaction |
 
-## Output Variables
+## Output Files
 
-All fire test cases output 2D fire-specific variables at each time step:
+ERF writes separate plot files for atmospheric and fire variables due to their different grid structures:
+
+**Atmospheric 3D Variables** (atmospheric grid - 50m spacing):
+- Directory: `plt3d_atm*` 
+- Variables: theta, qv, u, v, w
+- Specified by: `erf.plot_int = 100`
+
+**Fire 2D Variables** (fire grid - 10m spacing, 5× refined):
+- Interval output: `plt2d_fire*` directories (every 100 timesteps)
+- Final timestep: `plt2d_fire_final*` directory (at end of simulation)
+- Specified by: `erf.plot2d_int_1 = 100` and `erf.plot2d_int_2 = -1`
+
+**Important**: Fire variables are written to separate 2D plot files because the fire grid is 5× finer than the atmospheric grid. Fire variables cannot share files with atmospheric variables due to incompatible grid structures.
+
+## Fire Output Variables
 - `fire_phi`: Fire front representation (burned/unburned status)
 - `fire_ros`: Rate of spread [m/s]
 - `fire_wind_eff`: Effective wind after WAF and terrain corrections [m/s]
@@ -243,7 +257,7 @@ Fire-atmosphere coupling tests additionally output:
 - `fire_heating_rate`: Heating rate induced by fire [K/s]
 - `fire_moisture_flux`: Moisture flux from fire [kg/(m²·s)]
 
-Output is written to `plt2d_fire*` directories at intervals specified by `erf.plot2d_int_1`.
+Output is written to separate `plt2d_fire*` directories (intervals) and `plt2d_fire_final*` (final timestep) on the fire grid (10m cells).
 
 ## Running Tests
 
