@@ -202,10 +202,38 @@ void FireLayer::advance(Real time, Real dt, SurfaceLayer& surface_layer,
 
     // 6. ROS
     compute_ros_field(*fire_ros, *fire_wind_eff, *fire_slopes, m_rc);
-    if (m_params.fire_debug)
-        amrex::Print() << "[FIRE DEBUG] Rate-of-spread computed. Max: " << fire_ros->max(0)
-                       << " m/s, Mean: " << fire_ros->sum(0)/fire_ros->boxArray().numPts()
+    if (m_params.fire_debug) {
+        // Compute masked ROS diagnostics (only for burning cells where phi < 0)
+        amrex::Real ros_max_burning = 0.0_rt;
+        amrex::Real ros_sum_burning = 0.0_rt;
+        long n_burning_cells = 0;
+
+        for (amrex::MFIter mfi(*fire_ros); mfi.isValid(); ++mfi) {
+            const amrex::Box& bx = mfi.tilebox();
+            auto ros_arr = fire_ros->const_array(mfi);
+            auto phi_arr = fire_phi->const_array(mfi);
+            
+            amrex::LoopOnCpu(bx, [&](int i, int j, int k) {
+                if (phi_arr(i, j, k, 0) < 0.0_rt) {
+                    amrex::Real ros_val = ros_arr(i, j, k, 0);
+                    if (ros_val > ros_max_burning) {
+                        ros_max_burning = ros_val;
+                    }
+                    ros_sum_burning += ros_val;
+                    ++n_burning_cells;
+                }
+            });
+        }
+
+        amrex::ParallelDescriptor::ReduceRealMax(ros_max_burning);
+        amrex::ParallelDescriptor::ReduceRealSum(ros_sum_burning);
+        amrex::ParallelDescriptor::ReduceLongSum(n_burning_cells);
+
+        amrex::Real ros_mean_burning = (n_burning_cells > 0) ? ros_sum_burning / static_cast<amrex::Real>(n_burning_cells) : 0.0_rt;
+        amrex::Print() << "[FIRE DEBUG] Rate-of-spread computed. Max: " << ros_max_burning
+                       << " m/s, Mean: " << ros_mean_burning
                        << " m/s" << std::endl;
+    }
 
     // 7. FARSITE subcycle
     // The subcycle resets phi to 0 then stamps the propagated front ring.
@@ -364,9 +392,35 @@ void FireLayer::compute_heat_flux_and_diagnostics(Real dt_fire_s)
     Real tau_sav_floor = (m_params.tau_residence_s > 0.0_rt) ? m_params.tau_residence_s : tau_sav;
 
     if (m_params.fire_debug) {
+        // Compute masked ROS diagnostics (only for burning cells where phi < 0)
+        amrex::Real ros_max_burning = 0.0_rt;
+        amrex::Real ros_sum_burning = 0.0_rt;
+        long n_burning_cells = 0;
+
+        for (amrex::MFIter mfi(*fire_ros); mfi.isValid(); ++mfi) {
+            const amrex::Box& bx = mfi.tilebox();
+            auto ros_arr = fire_ros->const_array(mfi);
+            auto phi_arr = fire_phi->const_array(mfi);
+            
+            amrex::LoopOnCpu(bx, [&](int i, int j, int k) {
+                if (phi_arr(i, j, k, 0) < 0.0_rt) {
+                    amrex::Real ros_val = ros_arr(i, j, k, 0);
+                    if (ros_val > ros_max_burning) {
+                        ros_max_burning = ros_val;
+                    }
+                    ros_sum_burning += ros_val;
+                    ++n_burning_cells;
+                }
+            });
+        }
+
+        amrex::ParallelDescriptor::ReduceRealMax(ros_max_burning);
+        amrex::ParallelDescriptor::ReduceRealSum(ros_sum_burning);
+        amrex::ParallelDescriptor::ReduceLongSum(n_burning_cells);
+
         amrex::Print() << "[FIRE DEBUG] tau_sav=" << tau_sav
                        << " s  (dx_fire=" << m_fg.geom.CellSize(0)
-                       << " m, max_ROS=" << fire_ros->max(0) << " m/s)" << std::endl;
+                       << " m, max_ROS=" << ros_max_burning << " m/s)" << std::endl;
     }
 
     fill_fire_heat_flux(*fire_heat_flux, *fire_fuel_load,
