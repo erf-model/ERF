@@ -243,7 +243,7 @@ NOAHMP::Init (const int& lev,
         AMREX_ALWAYS_ASSERT(m_dt <= m_dtbl);
 
         Print() << "Noah-MP initialization completed" << std::endl;
-    } // lev 0
+    } // has nc_init_file
 
 };
 
@@ -268,6 +268,8 @@ NOAHMP::Advance_With_State (const int& lev,
                             const bool updated_lev0)
 {
     if (!m_has_nc_file) {
+        // NOTE: Do not try to interpolate if lev 0 was just updated. Since Noah is
+        //       called post-step the fluxes & data will contain lsm_undefined values.
         if (!updated_lev0) {
             Print () << "Noah-MP interpolation at level " << lev << " started at time step: " << nstep+1 << std::endl;
             m_updated = true;
