@@ -22,7 +22,8 @@ NOAHMP::Init (const int& lev,
               const Geometry& geom0,
               Vector<BCRec>& domain_bcs_type,
               IntVect& refRatio,
-              const Real& dt)
+              const Real& dt,
+              Vector<Vector<std::string>> nc_init_file)
 {
     // Install Noah-MP's fatal-error handler once (thread-safe, runs on the first
     // Init across all levels). Noah-MP carries no MPI/AMReX dependency of its own
@@ -111,7 +112,8 @@ NOAHMP::Init (const int& lev,
         lsm_fab_flux[ivar]->setVal(lsm_undefined);
     }
 
-    if (lev==0) {
+    m_has_nc_file = (!nc_init_file[lev].empty());
+    if (m_has_nc_file) {
         Print() << "Noah-MP initialization started" << std::endl;
 
         // Size noahmpio_vect to the local blocks (boxes). A rank owning no boxes
@@ -265,7 +267,7 @@ NOAHMP::Advance_With_State (const int& lev,
                             const int& nstep,
                             const bool updated_lev0)
 {
-    if (lev>0) {
+    if (!m_has_nc_file) {
         if (!updated_lev0) {
             Print () << "Noah-MP interpolation at level " << lev << " started at time step: " << nstep+1 << std::endl;
             m_updated = true;

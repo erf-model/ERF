@@ -36,7 +36,8 @@ public:
           const amrex::Geometry& /*geom0*/,
           amrex::Vector<amrex::BCRec>& /*domain_bcs_type*/,
           amrex::IntVect& /*refRatio*/,
-          const amrex::Real& dt) override
+          const amrex::Real& dt,
+          amrex::Vector<amrex::Vector<std::string>>& /*nc_init_file*/) override
     {
         m_dt = dt;
         m_lsm_geom = geom;

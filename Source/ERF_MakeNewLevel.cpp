@@ -107,7 +107,7 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
     if (solverChoice.lsm_type != LandSurfaceType::None) {
         IntVect RefRatio = (lev>0) ? refRatio(lev-1) : IntVect(1);
         lsm.Init(lev, vars_new[lev][Vars::cons], Geom(lev), Geom(0),
-                 domain_bcs_type, RefRatio, zero); // dummy dt value
+                 domain_bcs_type, RefRatio, zero, nc_init_file); // dummy dt value
     }
     for (int mvar(0); mvar<lsm_data[lev].size(); ++mvar) {
         lsm_data[lev][mvar] = lsm.Get_Data_Ptr(lev,mvar);
@@ -495,7 +495,7 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
     if (solverChoice.lsm_type != LandSurfaceType::None) {
         IntVect RefRatio = (lev>0) ? refRatio(lev-1) : IntVect(1);
         lsm.Init(lev, vars_new[lev][Vars::cons], Geom(lev), Geom(0),
-                 domain_bcs_type, RefRatio, zero); // dummy dt value
+                 domain_bcs_type, RefRatio, zero, nc_init_file); // dummy dt value
     }
     for (int mvar(0); mvar<lsm_data[lev].size(); ++mvar) {
         lsm_data[lev][mvar] = lsm.Get_Data_Ptr(lev,mvar);

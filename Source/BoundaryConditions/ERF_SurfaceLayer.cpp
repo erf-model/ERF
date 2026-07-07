@@ -576,7 +576,10 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
             // open water); fall back to MOST there instead of applying garbage.
             Real Tflux;
             int is_land = (lmask_arr) ? lmask_arr(i,j,0) : 1;
-            if (lsm_t_flux_arr && is_land && lsm_t_flux_arr(i,j,0) < lsm_undefined) {
+            const bool lsm_flux_is_valid = (lsm_t_flux_arr) ? (lsm_t_flux_arr(i,j,0) < lsm_undefined) :
+                                                              false;
+            const bool has_land_and_flux = (static_cast<bool>(is_land) && lsm_flux_is_valid);
+            if (lsm_t_flux_arr && has_land_and_flux) {
                 // LSM flux MultiFabs store kinematic fluxes for MOST parameter
                 // updates. The applied hfx array stores the conservative RHS flux.
                 Tflux = cons_arr(i,j,k,Rho_comp) * lsm_t_flux_arr(i,j,0);
@@ -612,7 +615,10 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
                 // Valid qv flux from LSM and over land (sentinel -> fall back to MOST)
                 Real Qflux;
                 int is_land = (lmask_arr) ? lmask_arr(i,j,0) : 1;
-                if (lsm_q_flux_arr && is_land && lsm_q_flux_arr(i,j,0) < lsm_undefined) {
+                const bool lsm_flux_is_valid = (lsm_q_flux_arr) ? (lsm_q_flux_arr(i,j,0) < lsm_undefined) :
+                                                                  false;
+                const bool has_land_and_flux = (static_cast<bool>(is_land) && lsm_flux_is_valid);
+                if (lsm_q_flux_arr && has_land_and_flux) {
                     // LSM flux MultiFabs store kinematic fluxes for MOST parameter
                     // updates. The applied qfx array stores the conservative RHS flux.
                     Qflux = cons_arr(i,j,k,Rho_comp) * lsm_q_flux_arr(i,j,0);
@@ -646,29 +652,33 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
                 // whose LSM flux is the sentinel (sea-ice / open water) is treated
                 // as non-LSM so that side uses the MOST stress instead.
                 Real stressx;
-                int is_land_hi = ((lmask_arr) ? lmask_arr(i  ,j,0) : 1)
-                               && (!lsm_tau13_arr || lsm_tau13_arr(i  ,j,0) < lsm_undefined);
-                int is_land_lo = ((lmask_arr) ? lmask_arr(i-1,j,0) : 1)
-                               && (!lsm_tau13_arr || lsm_tau13_arr(i-1,j,0) < lsm_undefined);
-                if (lsm_tau13_arr && (is_land_hi || is_land_lo)) {
+                int is_land_hi = (lmask_arr) ? lmask_arr(i  ,j,0) : 1;
+                int is_land_lo = (lmask_arr) ? lmask_arr(i-1,j,0) : 1;
+                const bool lsm_hi_flux_is_valid = (lsm_tau13_arr) ? (lsm_tau13_arr(i  ,j,0) < lsm_undefined) :
+                                                                    false;
+                const bool lsm_lo_flux_is_valid = (lsm_tau13_arr) ? (lsm_tau13_arr(i-1,j,0) < lsm_undefined) :
+                                                                    false;
+                const bool has_land_and_flux_hi = (static_cast<bool>(is_land_hi) && lsm_hi_flux_is_valid);
+                const bool has_land_and_flux_lo = (static_cast<bool>(is_land_lo) && lsm_lo_flux_is_valid);
+                if (lsm_tau13_arr && (has_land_and_flux_hi || has_land_and_flux_lo)) {
                     stressx = zero;
-                    if (!is_land_hi || !is_land_lo) {
+                    if (!has_land_and_flux_hi || !has_land_and_flux_lo) {
                         stressx += myhalf * flux_comp.compute_u_flux(i, j, k,
                                                                      cons_arr, velx_arr, vely_arr,
                                                                      umm_arr, um_arr, u_star_arr);
-                        if (!is_land_hi) {
+                        if (!has_land_and_flux_hi) {
                             lsm_tau13_arr(i  ,j,0) = two * stressx;
                         }
-                        if (!is_land_lo) {
+                        if (!has_land_and_flux_lo) {
                             lsm_tau13_arr(i-1,j,0) = two * stressx;
                         }
                     }
-                    if (is_land_hi) {
+                    if (has_land_and_flux_hi) {
                         const Real rho_hi = cons_arr(i  ,j,k,Rho_comp);
                         // LSM tau13 is kinematic for u_star; Tau stores conservative stress.
                         stressx += myhalf * rho_hi * lsm_tau13_arr(i  ,j,0);
                     }
-                    if (is_land_lo) {
+                    if (has_land_and_flux_lo) {
                         const Real rho_lo = cons_arr(i-1,j,k,Rho_comp);
                         // LSM tau13 is kinematic for u_star; Tau stores conservative stress.
                         stressx += myhalf * rho_lo * lsm_tau13_arr(i-1,j,0);
@@ -694,29 +704,33 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
             {
                 // Valid tau23 from LSM and over land (sentinel side -> MOST stress)
                 Real stressy;
-                int is_land_hi = ((lmask_arr) ? lmask_arr(i,j  ,0) : 1)
-                               && (!lsm_tau23_arr || lsm_tau23_arr(i,j  ,0) < lsm_undefined);
-                int is_land_lo = ((lmask_arr) ? lmask_arr(i,j-1,0) : 1)
-                               && (!lsm_tau23_arr || lsm_tau23_arr(i,j-1,0) < lsm_undefined);
-                if (lsm_tau23_arr && (is_land_hi || is_land_lo)) {
+                int is_land_hi = (lmask_arr) ? lmask_arr(i,j  ,0) : 1;
+                int is_land_lo = (lmask_arr) ? lmask_arr(i,j-1,0) : 1;
+                const bool lsm_hi_flux_is_valid = (lsm_tau13_arr) ? (lsm_tau23_arr(i,j  ,0) < lsm_undefined) :
+                                                                    false;
+                const bool lsm_lo_flux_is_valid = (lsm_tau13_arr) ? (lsm_tau23_arr(i,j-1,0) < lsm_undefined) :
+                                                                    false;
+                const bool has_land_and_flux_hi = (static_cast<bool>(is_land_hi) && lsm_hi_flux_is_valid);
+                const bool has_land_and_flux_lo = (static_cast<bool>(is_land_lo) && lsm_lo_flux_is_valid);
+                if (lsm_tau23_arr && (has_land_and_flux_hi || has_land_and_flux_lo)) {
                     stressy = zero;
-                    if (!is_land_hi || !is_land_lo) {
+                    if (!has_land_and_flux_hi || !has_land_and_flux_lo) {
                         stressy += myhalf * flux_comp.compute_v_flux(i, j, k,
                                                                   cons_arr, velx_arr, vely_arr,
                                                                   umm_arr, vm_arr, u_star_arr);
-                        if (!is_land_hi) {
+                        if (!has_land_and_flux_hi) {
                             lsm_tau23_arr(i,j  ,0) = two * stressy;
                         }
-                        if (!is_land_lo) {
+                        if (!has_land_and_flux_lo) {
                             lsm_tau23_arr(i,j-1,0) = two * stressy;
                         }
                     }
-                    if (is_land_hi) {
+                    if (has_land_and_flux_hi) {
                         const Real rho_hi = cons_arr(i,j  ,k,Rho_comp);
                         // LSM tau23 is kinematic for u_star; Tau stores conservative stress.
                         stressy += myhalf * rho_hi * lsm_tau23_arr(i,j  ,0);
                     }
-                    if (is_land_lo) {
+                    if (has_land_and_flux_lo) {
                         const Real rho_lo = cons_arr(i,j-1,k,Rho_comp);
                         // LSM tau23 is kinematic for u_star; Tau stores conservative stress.
                         stressy += myhalf * rho_lo * lsm_tau23_arr(i,j-1,0);

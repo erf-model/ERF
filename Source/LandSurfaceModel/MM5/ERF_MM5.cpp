@@ -10,7 +10,8 @@ MM5::Init (const int& /*lev*/,
            const Geometry& /*geom0*/,
            Vector<BCRec>& /*domain_bcs_type*/,
            IntVect& /*refRatio*/,
-           const Real& dt)
+           const Real& dt,
+           Vector<Vector<std::string>>& /*nc_init_file*/)
 {
     m_dt = dt;
     m_geom = geom;

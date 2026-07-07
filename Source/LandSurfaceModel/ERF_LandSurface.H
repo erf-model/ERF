@@ -49,10 +49,12 @@ public:
           const amrex::Geometry& geom0,
           amrex::Vector<amrex::BCRec>& domain_bcs_type,
           amrex::IntVect& refRatio,
-          const amrex::Real& dt_advance)
+          const amrex::Real& dt_advance,
+          amrex::Vector<amrex::Vector<std::string>>& nc_init_file)
     {
         m_lsm_model[lev]->Init(lev, cons_in, geom, geom0,
-                               domain_bcs_type, refRatio, dt_advance);
+                               domain_bcs_type, refRatio,
+                               dt_advance, nc_init_file);
     }
 
     void
