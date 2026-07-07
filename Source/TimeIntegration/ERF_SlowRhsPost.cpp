@@ -483,11 +483,6 @@ void erf_slow_rhs_post (int level, int finest_level,
             eamxx_shoc_lev->add_slow_tend(mfi,tbx,cell_rhs);
         }
 #endif
-        if (tc.uses_native_shoc() && native_shoc_lev) {
-            // Native SHOC now applies its coupled increment directly to the
-            // state before the dycore; it does not add a post-RHS tendency.
-        }
-
         // This updates just the "slow" conserved variables
         {
         BL_PROFILE("rhs_post_8");
