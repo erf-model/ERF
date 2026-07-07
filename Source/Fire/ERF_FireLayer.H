@@ -17,6 +17,7 @@
 #include <ERF_FireAtmCoupling.H>
 #include <ERF_AlbiniSpotting.H>
 #include <ERF_ScottSpottingTable.H>
+#include <ERF_CrownFire.H>
 
 // Forward declarations
 class SurfaceLayer;

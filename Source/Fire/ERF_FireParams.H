@@ -91,6 +91,24 @@ struct FireParams
         std::string       fuel_system         = "13";    ///< "13" (FBFM13) or "40" (Scott-Burgan 40)
     } spotting;
 
+    // Phase 9: Crown fire initiation parameters.
+    // Van Wagner (1977) surface-to-crown criterion + Cruz et al. (2005) active crown ROS.
+    // Applicable to conifer forest stands. Not appropriate for grass or shrub fuels.
+    struct CrownFireParams {
+        bool          enable          = false;   ///< Enable crown fire initiation
+        amrex::Real   canopy_base_ht  = 5.0;    ///< Canopy base height C_BH [m]
+        amrex::Real   canopy_bulk_den = 0.2;    ///< Canopy bulk density C_BD [kg/m³]
+        amrex::Real   canopy_depth    = 10.0;   ///< Canopy depth [m]
+        amrex::Real   foliar_moisture = 1.0;    ///< Foliar moisture M_fold [fraction]
+        amrex::Real   M_c             = 0.30;   ///< Critical foliar moisture [fraction] (Van Wagner 1977)
+        amrex::Real   h_crown_BTU_lb  = 8000.0; ///< Canopy heat content [BTU/lb]
+        amrex::Real   wind_10m_kmh    = 0.0;    ///< 10-m wind speed [km/h]; 0 = derive from fire_wind_eff
+    } crown;
+
+    // Phase 9: Flame temperature diagnostic
+    std::string       flame_temp_method   = "byram_radiant"; ///< "byram_radiant", "mcalpine_heat", "nelson_emissivity"
+    amrex::Real       flame_temp_T_amb    = 300.0;           ///< Ambient temperature for flame temp formula [K]
+
     /**
      * @brief Construct FireParams from ParmParse
      *
@@ -168,6 +186,21 @@ struct FireParams
        pp.query("spotting.random_seed",         sp.random_seed);
        pp.query("spotting.spotting_interval",   sp.spotting_interval);
        pp.query("spotting.fuel_system",         sp.fuel_system);
+
+       // Phase 9: Crown fire initiation parameters
+       auto& cr = crown;
+       pp.query("crown.enable",          cr.enable);
+       pp.query("crown.canopy_base_ht",  cr.canopy_base_ht);
+       pp.query("crown.canopy_bulk_den", cr.canopy_bulk_den);
+       pp.query("crown.canopy_depth",    cr.canopy_depth);
+       pp.query("crown.foliar_moisture", cr.foliar_moisture);
+       pp.query("crown.M_c",             cr.M_c);
+       pp.query("crown.h_crown_BTU_lb",  cr.h_crown_BTU_lb);
+       pp.query("crown.wind_10m_kmh",    cr.wind_10m_kmh);
+
+       // Phase 9: Flame temperature diagnostic
+       pp.query("flame_temp_method", flame_temp_method);
+       pp.query("flame_temp_T_amb",  flame_temp_T_amb);
     }
 
     // Convenience accessors for coupling mode
