@@ -464,21 +464,30 @@ NOAHMP::Advance_With_State (const int& lev,
             //       so the surface layer can average them.
             Real hfx_lsm = noah_output_arr(ii,jj,0,NoahmpOutputComp::hfx);
             if (hfx_lsm > Real(-9990.0)) {
-                // Convert Noah-MP surface fluxes to the DENSITY-WEIGHTED form that
-                // ERF's surface layer / diffusion operators expect (the LSM value is
-                // interchanged with the MOST value rho*<x'w'> in the same array, and
-                // the diffusion flux is rho*alpha*d/dz). Do NOT divide by rho.
-                //   HFX,LH  [W/m2];  TAU_EW/NS  [N/m2] (rho already included by Noah-MP).
-                // Heat additionally needs the Exner factor to become a POTENTIAL-
-                // temperature flux (ERF's energy var is RhoTheta): theta-flux =
-                // T-flux * (p0/p)^(Rd/Cp).  rho here is dry-air density (~1.14 kg/m3).
-                Real qv_l   = (is_moist) ? CONS(ii,jj,k,RhoQ1_comp)/CONS(ii,jj,k,Rho_comp) : zero;
+                // Convert Noah-MP surface fluxes to the KINEMATIC form that ERF's
+                // surface layer / PBL / diffusion operators expect (the LSM value is
+                // interchanged with the MOST value <x'w'> in the same array, and
+                // ERF's surface-layer / PBL convention is the KINEMATIC MOST form (no rho):
+                //   t_flux = <theta' w'>   [K m/s]   (ERF_MOSTStress.H:18, surf_temp_flux)
+                //   q_flux = <qv' w'>      [kg/kg m/s]
+                //   tau13/23 = u*^2 comps  [m2/s2]   (SurfaceLayer.cpp:959 does u*=sqrt(tau))
+                // Noah-MP returns HFX,LH [W/m2] and TAU_EW/NS [N/m2] (rho INCLUDED), so we
+                // divide by rho to get the kinematic values ERF consumes; heat additionally
+                // needs the Exner factor T->theta because ERF's energy var is potential temp:
+                //   theta-flux = HFX/(rho*Cp) * (p0/p)^(Rd/Cp).
+                // rho here is dry-air density (~1.14 kg/m3). (The interior diffusion flux is
+                // -rho*alpha*dtheta/dz, but the surface-layer hfx_z slot is filled with the
+                // SAME kinematic value the MOST path produces -- verified against the non-LSM
+                // t_star/olen path and MYNN/YSU/MRF ComputeDiffusivity, which all use no-rho
+                // kinematic fluxes.)
+                Real rho_l  = CONS(ii,jj,k,Rho_comp);
+                Real qv_l   = (is_moist) ? CONS(ii,jj,k,RhoQ1_comp)/rho_l : zero;
                 Real p_l    = getPgivenRTh(CONS(ii,jj,k,RhoTheta_comp), qv_l);
                 Real exner  = std::pow(p_0/p_l, R_d/Cp_d);
-                t_flux_arr(i,j,k) = (hfx_lsm/Cp_d) * exner;
-                q_flux_arr(i,j,k) = noah_output_arr(ii,jj,0,NoahmpOutputComp::lh)/L_v;
-                tau13_arr(i,j,k)  = noah_output_arr(ii,jj,0,NoahmpOutputComp::tau_ew);
-                tau23_arr(i,j,k)  = noah_output_arr(ii,jj,0,NoahmpOutputComp::tau_ns);
+                t_flux_arr(i,j,k) = (hfx_lsm/(rho_l*Cp_d)) * exner;
+                q_flux_arr(i,j,k) = noah_output_arr(ii,jj,0,NoahmpOutputComp::lh)/(rho_l*L_v);
+                tau13_arr(i,j,k)  = noah_output_arr(ii,jj,0,NoahmpOutputComp::tau_ew)/rho_l;
+                tau23_arr(i,j,k)  = noah_output_arr(ii,jj,0,NoahmpOutputComp::tau_ns)/rho_l;
             } else {
                 t_flux_arr(i,j,k) = lsm_flux_undefined;
                 q_flux_arr(i,j,k) = lsm_flux_undefined;
