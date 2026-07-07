@@ -80,7 +80,7 @@ ERF::PerformDataAssimilation(int da_iter)
     // Compute the ensemble mean
     MultiFab xf_bar = compute_ensemble_mean(Nens, last_pf_name, varnames);
 
-    
+
    // Construct perturbation plotfile name
    std::string pltname = "plt_ens_mean";
    WriteSingleLevelPlotfile(pltname,
