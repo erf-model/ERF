@@ -1,5 +1,9 @@
 #include "ERF_SrcHeaders.H"
 
+#ifdef ERF_ENABLE_FIRE
+#include <ERF_FireLayer.H>
+#endif
+
 /**
  *  Wrapper for calling the routine that creates the slow RHS
  */
@@ -111,6 +115,23 @@
                      dptr_wbar_sub, d_rayleigh_ptrs_at_lev, d_sinesq_at_lev,
                       (solverChoice.hindcast_surface_bcs? &surface_state_interp[level] : nullptr),
                      input_sounding_data, turbPert, true);
+
+        // *****************************************************************************
+        // Re-inject fire-to-atmosphere heat flux AFTER make_sources, which resets
+        // cc_src at every RK stage. The lagged fire flux (m_Q_atm_prev) is constant
+        // across all RK stages and must be added here to survive the integrator.
+        // *****************************************************************************
+#ifdef ERF_ENABLE_FIRE
+        if (level == 0 && m_fire_layer && m_fire_layer->get_Q_atm_prev()) {
+            bool has_moisture = (solverChoice.moisture_type != MoistureType::None);
+            m_fire_layer->apply_fire_coupling_to_cc_source(
+                cc_src,
+                S_data[IntVars::cons],
+                *zpc_to_use,
+                fine_geom,
+                has_moisture);
+        }
+#endif
 
         // *****************************************************************************
         // Add nudging terms on moist variables if we have a non-zero relaxation region
