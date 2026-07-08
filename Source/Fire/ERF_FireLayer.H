@@ -21,6 +21,8 @@
 #include <ERF_FuelMap.H>
 #include <ERF_FireBreak.H>
 #include <ERF_FuelBlending.H>
+#include <ERF_IgnitionSchedule.H>
+#include <ERF_PolygonIgnition.H>
 
 // Forward declarations
 class SurfaceLayer;

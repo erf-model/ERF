@@ -1,0 +1,7 @@
+# Phase 11 polyline ignition test file.
+# A line fire (east-west ignition line) at y=1000 m from x=400 to x=1600 m.
+400.0  1000.0
+700.0  1000.0
+1000.0 1000.0
+1300.0 1000.0
+1600.0 1000.0

@@ -1,0 +1,7 @@
+# Phase 11 ignition schedule test file.
+# Format: time_s  cx  cy  radius  [source_type]  [priority]
+# source_type: 0=sphere, 1=polyline
+# Primary ignition at t=0, secondary at t=300 s, tertiary at t=600 s
+0      500.0  1000.0  30.0  0  10
+300    1400.0 1000.0  20.0  0   5
+600    1000.0  400.0  15.0  0   5

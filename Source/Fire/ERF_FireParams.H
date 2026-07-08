@@ -3,6 +3,8 @@
 
 #include <AMReX_ParmParse.H>
 #include <ERF_FireBreak.H>
+#include <string>
+#include <vector>
 
 /**
  * @file ERF_FireParams.H
@@ -124,6 +126,27 @@ struct FireParams
         amrex::Real   blending_fraction   = 0.0;       ///< ROS blending at fuel boundaries [0-1]
     } fuel_map;
 
+    // Phase 11: Multi-ignition schedule parameters.
+    // When ignition_schedule_file is non-empty, a CSV schedule of timed ignition
+    // events is loaded and applied during advance(). The primary ignition from
+    // ignition_x/y/r is always applied at t=0 regardless of this setting.
+    //
+    // CSV format: time_s  cx  cy  radius  [source_type]  [priority]
+    //   source_type: "sphere" (default) or "polyline"
+    //   priority: integer; higher priority events fire first within the same timestep
+    //   Comment lines start with # or !
+    //
+    // Polygon ignition (initial perimeter from a vertex file):
+    //   polygon_file: path to CSV of polygon vertices (x y per line)
+    //   polygon_type: "polygon" (closed) or "polyline" (open line fire)
+    //   polyline_width: half-width of line ignition zone [m]
+    struct IgnitionParams {
+        std::string   ignition_schedule_file  = "";         ///< Path to ignition schedule CSV; empty = disabled
+        std::string   polygon_file            = "";         ///< Path to polygon vertex CSV; empty = disabled
+        std::string   polygon_type            = "polygon";  ///< "polygon" or "polyline"
+        amrex::Real   polyline_width          = 10.0;       ///< Half-width of polyline ignition zone [m]
+    } ignition;
+
     // Phase 10: Firebreak barriers (up to 10, indexed by N=0..9)
     int n_firebreaks = 0;
     std::vector<FireBreak> firebreaks;
@@ -233,6 +256,13 @@ struct FireParams
        pp.query("fuel_map.file",               fm.fuel_map_file);
        pp.query("fuel_map.format",             fm.fuel_map_format);
        pp.query("fuel_map.blending_fraction",  fm.blending_fraction);
+
+       // Phase 11: multi-ignition schedule and polygon ignition
+       auto& ig = ignition;
+       pp.query("ignition.schedule_file", ig.ignition_schedule_file);
+       pp.query("ignition.polygon_file",  ig.polygon_file);
+       pp.query("ignition.polygon_type",  ig.polygon_type);
+       pp.query("ignition.polyline_width", ig.polyline_width);
 
        // Phase 10: firebreaks (indexed, stop at first missing)
        for (int nb = 0; nb < 10; ++nb) {
