@@ -1269,6 +1269,67 @@ Isentropic levels, vorticity, potential vorticity, and staggered velocity fields
 need additional sampling rules. They are not part of this sampled-level output
 mode.
 
+2D Surface Precipitation Accumulation Diagnostics
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+ERF can write cumulative surface precipitation accumulations from the active
+microphysics scheme in 2D plotfiles. These diagnostics report the liquid-water
+equivalent mass that has reached the lower boundary since model start or the
+most recent restart. The public fields use ``kg/m^2`` because downstream land
+surface forcing consumes precipitation as mass over area, even though
+``1 kg/m^2`` is numerically equal to ``1 mm`` of liquid water equivalent.
+
++-----------------------------+--------------------------------------------------+----------+
+| Field                       | Meaning                                          | Units    |
++=============================+==================================================+==========+
+| ``precip_total_accum``      | Accumulated surface precipitation, liquid-water  | kg/m^2   |
+|                             | equivalent                                       |          |
++-----------------------------+--------------------------------------------------+----------+
+| ``precip_rain_accum``       | Accumulated surface rain precipitation,          | kg/m^2   |
+|                             | liquid-water equivalent                          |          |
++-----------------------------+--------------------------------------------------+----------+
+| ``precip_snow_accum``       | Accumulated surface snow precipitation,          | kg/m^2   |
+|                             | liquid-water equivalent                          |          |
++-----------------------------+--------------------------------------------------+----------+
+| ``precip_graupel_accum``    | Accumulated surface graupel precipitation,       | kg/m^2   |
+|                             | liquid-water equivalent                          |          |
++-----------------------------+--------------------------------------------------+----------+
+| ``precip_hail_accum``       | Accumulated surface hail precipitation,          | kg/m^2   |
+|                             | liquid-water equivalent                          |          |
++-----------------------------+--------------------------------------------------+----------+
+| ``precip_frozen_accum``     | Accumulated frozen surface precipitation,        | kg/m^2   |
+|                             | liquid-water equivalent                          |          |
++-----------------------------+--------------------------------------------------+----------+
+
+``precip_total_accum`` is the sum of the normalized species accumulations and
+``precip_frozen_accum`` is the sum of the frozen species accumulations. Species
+that are not available in the active microphysics scheme contribute zero to the
+derived totals. ``precip_hail_accum`` is reserved for a future scheme that
+exposes a distinct hail accumulator.
+
+To diagnose the frozen fraction over a coupling interval, use accumulation
+differences rather than a ratio of cumulative values:
+
+.. math::
+
+   f_{frozen} =
+   \begin{cases}
+   \dfrac{\Delta P_{frozen}}{\Delta P_{total}}, & \Delta P_{total} > 0 \\
+   0, & \text{otherwise}
+   \end{cases}
+
+with
+
+.. math::
+
+   \Delta P_{total} = P_{total}(t_1) - P_{total}(t_0),
+
+and
+
+.. math::
+
+   \Delta P_{frozen} = P_{frozen}(t_1) - P_{frozen}(t_0).
+
 2D Water-Path Diagnostics
 ^^^^^^^^^^^^^^^^^^^^^^^^^
 

@@ -10,6 +10,7 @@
 #include <AMReX_MultiFab.H>
 #include "ERF_DataStruct.H"
 #include "ERF_IndexDefines.H"
+#include "ERF_SurfacePrecipitation.H"
 
 /*! \brief Base class for microphysics interface */
 class Microphysics {
@@ -57,6 +58,13 @@ public:
 
     /*! \brief average down moisture multifabs from finest_level to 0 (AMR coverage); no-op for non-Lagrangian models */
     virtual void AverageDownMicroVars (const int /*finest_level*/) { }
+
+    /*! \brief get scheme-native surface precipitation accumulators and their kg/m^2 conversion factors */
+    virtual SurfacePrecipAccumulationSources
+    Get_Surface_Precip_Accumulation_Ptrs (const int&) const
+    {
+        return {};
+    }
 
     /*! \brief get pointer to a moisture variable */
     virtual amrex::MultiFab* Get_Qmoist_Ptr (const int&, const int&) = 0;

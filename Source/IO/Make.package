@@ -5,6 +5,7 @@ CEXE_sources += ERF_Plotfile2D.cpp
 CEXE_sources += ERF_Plotfile2DFill.cpp
 CEXE_sources += ERF_Plotfile2DMetadata.cpp
 CEXE_sources += ERF_Plotfile2DWaterPath.cpp
+CEXE_sources += ERF_Plotfile2DPrecip.cpp
 CEXE_sources += ERF_Plotfile2DSampledField.cpp
 CEXE_sources += ERF_Plotfile2DSampledLevel.cpp
 CEXE_sources += ERF_Plotfile2DInterpolator.cpp
@@ -32,6 +33,7 @@ CEXE_sources += ERF_ReadFromERFBdy.cpp
 
 CEXE_headers += ERF_SampleData.H
 CEXE_headers += ERF_Plotfile2DSampledField.H
+CEXE_headers += ERF_Plotfile2DPrecip.H
 CEXE_headers += ERF_Plotfile2DSampledLevel.H
 CEXE_headers += ERF_Plotfile2DInterpolator.H
 

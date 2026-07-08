@@ -2,6 +2,7 @@
 #include <cmath>
 #include <string>
 #include <unordered_set>
+#include <utility>
 #include <vector>
 
 #include <AMReX_Box.H>
@@ -33,6 +34,11 @@ namespace
 bool contains (const std::string& haystack, const std::string& needle)
 {
     return haystack.find(needle) != std::string::npos;
+}
+
+bool has_name (const amrex::Vector<std::string>& names, const std::string& target)
+{
+    return std::find(names.begin(), names.end(), target) != names.end();
 }
 
 amrex::Box make_test_domain ()
@@ -213,7 +219,10 @@ TEST(Plotfile2D, CatalogNamesMatchCanonicalOrder)
         "z_surf", "landmask", "mapfac", "lat_m", "lon_m",
         "u_star", "w_star", "t_star", "q_star", "Olen", "pblh",
         "t_surf", "q_surf", "z0", "OLR", "sens_flux", "laten_flux",
-        "surf_pres", "integrated_qv", "integrated_qc", "integrated_qi",
+        "surf_pres",
+        "precip_total_accum", "precip_rain_accum", "precip_snow_accum",
+        "precip_graupel_accum", "precip_hail_accum", "precip_frozen_accum",
+        "integrated_qv", "integrated_qc", "integrated_qi",
         "integrated_qr", "integrated_qs", "integrated_qg",
         "surface_diagnostic_source",
         "sensible_heat_flux", "latent_heat_flux",
@@ -221,6 +230,45 @@ TEST(Plotfile2D, CatalogNamesMatchCanonicalOrder)
     };
 
     EXPECT_EQ(plotfile2d::diagnostic_names(), expected);
+}
+
+// Motivation: Surface precipitation accumulations are part of the canonical 2D
+// layout and should sit between surf_pres and the column-integrated water paths.
+TEST(Plotfile2D, PrecipitationDiagnosticsFollowSurfacePressure)
+{
+    const auto* total = plotfile2d::find_diagnostic("precip_total_accum");
+    const auto* rain = plotfile2d::find_diagnostic("precip_rain_accum");
+    const auto* snow = plotfile2d::find_diagnostic("precip_snow_accum");
+    const auto* graupel = plotfile2d::find_diagnostic("precip_graupel_accum");
+    const auto* hail = plotfile2d::find_diagnostic("precip_hail_accum");
+    const auto* frozen = plotfile2d::find_diagnostic("precip_frozen_accum");
+    const auto* qv = plotfile2d::find_diagnostic("integrated_qv");
+    const auto* surface_source = plotfile2d::find_diagnostic("surface_diagnostic_source");
+
+    ASSERT_NE(total, nullptr);
+    ASSERT_NE(rain, nullptr);
+    ASSERT_NE(snow, nullptr);
+    ASSERT_NE(graupel, nullptr);
+    ASSERT_NE(hail, nullptr);
+    ASSERT_NE(frozen, nullptr);
+    ASSERT_NE(qv, nullptr);
+    ASSERT_NE(surface_source, nullptr);
+
+    for (const auto* descriptor : {total, rain, snow, graupel, hail, frozen}) {
+        EXPECT_EQ(descriptor->category, plotfile2d::DiagnosticCategory::Precipitation);
+        EXPECT_STREQ(descriptor->units, "kg/m^2");
+        EXPECT_EQ(descriptor->missing_policy, plotfile2d::MissingPolicy::FillZeroWhenUnavailable);
+        EXPECT_FALSE(std::string(descriptor->long_name).empty());
+    }
+
+    EXPECT_EQ(total->id, plotfile2d::DiagnosticID::PrecipTotalAccum);
+    EXPECT_EQ(rain->id, plotfile2d::DiagnosticID::PrecipRainAccum);
+    EXPECT_EQ(snow->id, plotfile2d::DiagnosticID::PrecipSnowAccum);
+    EXPECT_EQ(graupel->id, plotfile2d::DiagnosticID::PrecipGraupelAccum);
+    EXPECT_EQ(hail->id, plotfile2d::DiagnosticID::PrecipHailAccum);
+    EXPECT_EQ(frozen->id, plotfile2d::DiagnosticID::PrecipFrozenAccum);
+    EXPECT_EQ(qv->id, plotfile2d::DiagnosticID::IntegratedQv);
+    EXPECT_EQ(surface_source->id, plotfile2d::DiagnosticID::SurfaceDiagnosticSource);
 }
 
 // Motivation: The condensed water-path catalog must stay ordered after
@@ -255,6 +303,113 @@ TEST(Plotfile2D, WaterPathDiagnosticsFollowIntegratedQv)
         EXPECT_EQ(descriptor->category, plotfile2d::DiagnosticCategory::ColumnIntegral);
         EXPECT_STREQ(descriptor->units, "kg/m^2");
         EXPECT_EQ(descriptor->missing_policy, plotfile2d::MissingPolicy::FillZeroWhenUnavailable);
+    }
+}
+
+// Motivation: The precipitation fields disappear for schemes that do not
+// predict or accumulate surface precipitation.
+TEST(Plotfile2DWaterPath, NoPrecipitationSchemesExcludeAccumulations)
+{
+    const std::vector<std::pair<MoistureType, MoistureComponentIndices>> cases{
+        {MoistureType::None, MoistureComponentIndices(RhoQ1_comp, RhoQ2_comp)},
+        {MoistureType::SatAdj, MoistureComponentIndices(RhoQ1_comp, RhoQ2_comp)},
+        {MoistureType::MoistNoCondensation, MoistureComponentIndices(RhoQ1_comp, RhoQ2_comp)},
+        {MoistureType::Kessler_NoRain, MoistureComponentIndices(RhoQ1_comp, RhoQ2_comp)},
+        {MoistureType::SAM_NoPrecip_NoIce, MoistureComponentIndices(RhoQ1_comp, RhoQ2_comp)},
+    };
+
+    for (const auto& [moisture_type, moisture_indices] : cases) {
+        SolverChoice sc;
+        sc.moisture_type = moisture_type;
+        sc.moisture_indices = moisture_indices;
+
+        const auto available = plotfile2d::available_diagnostic_names(sc);
+        for (const char* name : {"precip_total_accum", "precip_rain_accum", "precip_snow_accum",
+                                 "precip_graupel_accum", "precip_hail_accum", "precip_frozen_accum"}) {
+            EXPECT_EQ(std::find(available.begin(), available.end(), name), available.end())
+                << "unexpected field " << name;
+        }
+    }
+}
+
+// Motivation: Warm-rain and no-ice schemes should expose only the accumulators
+// they actually carry, plus the derived total and frozen fields.
+TEST(Plotfile2DWaterPath, SchemeSpecificPrecipitationAvailabilityMatchesCurrentSupport)
+{
+    struct Case {
+        MoistureType moisture_type;
+        MoistureComponentIndices moisture_indices;
+        amrex::Vector<std::string> expected_present;
+    };
+
+    const std::vector<Case> cases{
+        {MoistureType::Kessler,
+         MoistureComponentIndices(RhoQ1_comp, RhoQ2_comp, -1, RhoQ3_comp),
+         {"precip_total_accum", "precip_rain_accum", "precip_frozen_accum"}},
+        {MoistureType::SAM_NoIce,
+         MoistureComponentIndices(RhoQ1_comp, RhoQ2_comp, -1, RhoQ4_comp),
+         {"precip_total_accum", "precip_rain_accum", "precip_frozen_accum"}},
+        {MoistureType::Morrison_NoIce,
+         MoistureComponentIndices(RhoQ1_comp, RhoQ2_comp, -1, RhoQ4_comp),
+         {"precip_total_accum", "precip_rain_accum", "precip_frozen_accum"}},
+    };
+
+    for (const auto& c : cases) {
+        SolverChoice sc;
+        sc.moisture_type = c.moisture_type;
+        sc.moisture_indices = c.moisture_indices;
+
+        const auto available = plotfile2d::available_diagnostic_names(sc);
+
+        for (const auto& name : c.expected_present) {
+            EXPECT_TRUE(has_name(available, name)) << "missing field " << name;
+        }
+
+        for (const char* name : {"precip_snow_accum", "precip_graupel_accum", "precip_hail_accum"}) {
+            EXPECT_FALSE(has_name(available, name)) << "unexpected field " << name;
+        }
+    }
+}
+
+// Motivation: The mixed-phase schemes expose all current species accumulators
+// and the derived total/frozen fields, but not the reserved hail slot.
+TEST(Plotfile2DWaterPath, MixedPhasePrecipitationAvailabilityMatchesCurrentSupport)
+{
+    struct Case {
+        MoistureType moisture_type;
+        MoistureComponentIndices moisture_indices;
+    };
+
+    const std::vector<Case> cases{
+        {MoistureType::SAM,
+         MoistureComponentIndices(RhoQ1_comp, RhoQ2_comp, RhoQ3_comp,
+                                  RhoQ4_comp, RhoQ5_comp, RhoQ6_comp,
+                                  RhoQ7_comp, RhoQ8_comp, RhoQ9_comp,
+                                  RhoQ10_comp, RhoQ11_comp)},
+        {MoistureType::Morrison,
+         MoistureComponentIndices(RhoQ1_comp, RhoQ2_comp, RhoQ3_comp,
+                                  RhoQ4_comp, RhoQ5_comp, RhoQ6_comp,
+                                  RhoQ7_comp, RhoQ8_comp, RhoQ9_comp,
+                                  RhoQ10_comp, RhoQ11_comp)},
+        {MoistureType::WSM6,
+         MoistureComponentIndices(RhoQ1_comp, RhoQ2_comp, RhoQ3_comp,
+                                  RhoQ4_comp, RhoQ5_comp, RhoQ6_comp)},
+    };
+
+    for (const auto& c : cases) {
+        SolverChoice sc;
+        sc.moisture_type = c.moisture_type;
+        sc.moisture_indices = c.moisture_indices;
+
+        const auto available = plotfile2d::available_diagnostic_names(sc);
+
+        for (const char* name : {"precip_total_accum", "precip_rain_accum",
+                                 "precip_snow_accum", "precip_graupel_accum",
+                                 "precip_frozen_accum"}) {
+            EXPECT_TRUE(has_name(available, name)) << "missing field " << name;
+        }
+
+        EXPECT_FALSE(has_name(available, "precip_hail_accum"));
     }
 }
 
@@ -300,6 +455,7 @@ TEST(Plotfile2D, CatalogDescriptorsHaveRequiredMetadata)
         case plotfile2d::DiagnosticCategory::SurfaceFlux:
         case plotfile2d::DiagnosticCategory::PBL:
         case plotfile2d::DiagnosticCategory::SurfaceState:
+        case plotfile2d::DiagnosticCategory::Precipitation:
         case plotfile2d::DiagnosticCategory::ColumnIntegral:
         case plotfile2d::DiagnosticCategory::SampledLevel:
             valid_category = true;
@@ -360,6 +516,24 @@ TEST(Plotfile2D, FindDiagnosticReturnsDescriptorForSurfaceDiagnosticSource)
     EXPECT_FALSE(std::string(descriptor->long_name).empty());
     EXPECT_FALSE(std::string(descriptor->units).empty());
     EXPECT_EQ(descriptor->missing_policy, plotfile2d::MissingPolicy::FillMinus999WhenUnavailable);
+}
+
+// Motivation: The public precipitation fields must carry the documented
+// category, units, and missing-value policy in the catalog.
+TEST(Plotfile2D, FindDiagnosticReturnsDescriptorForPrecipitationAccumulations)
+{
+    for (const char* name : {"precip_total_accum", "precip_rain_accum",
+                             "precip_snow_accum", "precip_graupel_accum",
+                             "precip_hail_accum", "precip_frozen_accum"}) {
+        const auto* descriptor = plotfile2d::find_diagnostic(name);
+
+        ASSERT_NE(descriptor, nullptr) << name;
+        EXPECT_STREQ(descriptor->name, name);
+        EXPECT_EQ(descriptor->category, plotfile2d::DiagnosticCategory::Precipitation);
+        EXPECT_STREQ(descriptor->units, "kg/m^2");
+        EXPECT_EQ(descriptor->missing_policy, plotfile2d::MissingPolicy::FillZeroWhenUnavailable);
+        EXPECT_FALSE(std::string(descriptor->long_name).empty());
+    }
 }
 
 // Motivation: Pressure sampled-level definitions must parse with the provided
@@ -1445,6 +1619,22 @@ TEST(Plotfile2DMetadata, FormatsWaterPathDiagnostics)
     EXPECT_NE(json.find("\"missing_value\": 0"), std::string::npos);
 }
 
+// Motivation: The metadata sidecar must serialize precipitation diagnostics
+// with the public category and kg/m^2 units expected by downstream tools.
+TEST(Plotfile2DMetadata, FormatsPrecipitationDiagnostics)
+{
+    const amrex::Vector<std::string> varnames{"precip_total_accum"};
+    const std::string json = plotfile2d::format_2d_metadata_json(varnames);
+
+    EXPECT_NE(json.find("\"name\": \"precip_total_accum\""), std::string::npos);
+    EXPECT_NE(json.find("\"long_name\": \"Accumulated surface precipitation, liquid-water equivalent\""),
+              std::string::npos);
+    EXPECT_NE(json.find("\"units\": \"kg/m^2\""), std::string::npos);
+    EXPECT_NE(json.find("\"category\": \"Precipitation\""), std::string::npos);
+    EXPECT_NE(json.find("\"missing_policy\": \"FillZeroWhenUnavailable\""), std::string::npos);
+    EXPECT_NE(json.find("\"missing_value\": 0"), std::string::npos);
+}
+
 // Motivation: The W m^-2 diagnostics are public 2D outputs, so their catalog
 // entries must expose the intended units, category, and missing-value policy.
 TEST(Plotfile2D, FindDiagnosticReturnsDescriptorForSurfaceFluxComposition)
@@ -1735,6 +1925,7 @@ TEST(Plotfile2DMetadata, CategoryStringsMatchPublicMetadataSchema)
     EXPECT_STREQ(diagnostic_category_to_string(DiagnosticCategory::SurfaceFlux), "SurfaceFlux");
     EXPECT_STREQ(diagnostic_category_to_string(DiagnosticCategory::PBL), "PBL");
     EXPECT_STREQ(diagnostic_category_to_string(DiagnosticCategory::SurfaceState), "SurfaceState");
+    EXPECT_STREQ(diagnostic_category_to_string(DiagnosticCategory::Precipitation), "Precipitation");
     EXPECT_STREQ(diagnostic_category_to_string(DiagnosticCategory::ColumnIntegral), "ColumnIntegral");
     EXPECT_STREQ(diagnostic_category_to_string(DiagnosticCategory::SampledLevel), "SampledLevel");
 }
