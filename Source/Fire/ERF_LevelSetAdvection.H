@@ -52,16 +52,14 @@ amrex::Real weno5z_reconstruct(amrex::Real v0, amrex::Real v1, amrex::Real v2,
     amrex::Real w_sum = w0 + w1 + w2;
     
     w0 /= w_sum;
+    w0 /= w_sum;
     w1 /= w_sum;
     w2 /= w_sum;
     
     // ENO stencils
     amrex::Real u0 = v0/60.0 - v1*7.0/60.0 + v2*37.0/60.0;
-    amrex::Real u1 = v1*(-1.0/60.0) + v2*37.0/60.0 + v3*37.0/60.0 - v3*1.0/60.0;
+    amrex::Real u1 = (-1.0/60.0)*v1 + (37.0/60.0)*v2 + (37.0/60.0)*v3 - (1.0/60.0)*v4;
     amrex::Real u2 = v2*37.0/60.0 - v3*7.0/60.0 + v4/60.0;
-    
-    // Fix the stencil averaging
-    u1 = (-1.0/60.0)*v1 + (37.0/60.0)*v2 + (37.0/60.0)*v3 - (1.0/60.0)*v4;
     
     return w0 * u0 + w1 * u1 + w2 * u2;
 }
