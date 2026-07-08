@@ -108,6 +108,56 @@ void FireLayer::initialize(const ERF& erf,
                                     fire_params.moisture_10hr,
                                     fire_params.moisture_100hr);
 
+    // Phase 13A: Build per-fuel wind height tables and copy to device.
+    // When use_per_fuel_wind_ht = false, all entries equal wind_ref_ht (no-op).
+    m_use_per_fuel_wind_ht = m_params.use_per_fuel_wind_ht;
+    {
+        auto h_fcwh = build_fcwh_table(m_params.wind_ref_ht, m_params.use_per_fuel_wind_ht);
+        auto h_fcz0 = build_fcz0_table();
+        m_d_fcwh.resize(h_fcwh.size());
+        m_d_fcz0.resize(h_fcz0.size());
+        amrex::Gpu::copy(amrex::Gpu::hostToDevice, h_fcwh.begin(), h_fcwh.end(), m_d_fcwh.begin());
+        amrex::Gpu::copy(amrex::Gpu::hostToDevice, h_fcz0.begin(), h_fcz0.end(), m_d_fcz0.begin());
+        if (m_params.fire_debug && m_params.use_per_fuel_wind_ht) {
+            amrex::Print() << "[FIRE DEBUG] Per-fuel wind height enabled. "
+                           << "FM1 fcwh=" << h_fcwh[1] << " m, FM4 fcwh=" << h_fcwh[4] << " m\n";
+        }
+    }
+
+    // Phase 13B: Pre-compute alternative ROS model coefficients.
+    {
+        FuelModelParams fp_ros = get_anderson_fuel_params(m_params.fuel_model_id);
+        if (m_params.ros_model == "balbi") {
+            m_bc_default = compute_balbi_params(fp_ros, m_params.balbi);
+            // Build per-fuel Balbi table when spatial fuel map is active
+            if (m_has_spatial_fuel) {
+                // TODO: Implement build_fuel_balbi_table if per-fuel variation is needed
+                // For now, just use default for all cells
+            }
+            if (m_params.fire_debug) {
+                amrex::Print() << "[FIRE DEBUG] ROS model: Balbi (2009), A_coeff="
+                               << m_bc_default.A_coeff << " m/s, v_b="
+                               << m_bc_default.v_b << " m/s\n";
+            }
+        } else if (m_params.ros_model == "cheney_gould") {
+            m_cgc = compute_cheney_gould_params(m_params.cheney_gould);
+            if (m_params.fire_debug) {
+                amrex::Print() << "[FIRE DEBUG] ROS model: Cheney-Gould (1998), "
+                               << "moisture=" << m_params.cheney_gould.moisture
+                               << "%, curing=" << m_params.cheney_gould.curing << "\n";
+            }
+        } else if (m_params.ros_model == "macarthur") {
+            if (m_params.fire_debug) {
+                amrex::Print() << "[FIRE DEBUG] ROS model: MacArthur (1966) Australian formula\n";
+            }
+        } else {
+            // Default: Rothermel — already initialised above via m_rc
+            if (m_params.fire_debug) {
+                amrex::Print() << "[FIRE DEBUG] ROS model: Rothermel (1972)\n";
+            }
+        }
+    }
+
     amrex::Print() << "[FIRE] FireLayer initialized: C=" << m_fg.C
                    << ", fuel_model=" << fire_params.fuel_model_id
                    << ", grid=" << m_fg.ba.size() << " boxes" << std::endl;

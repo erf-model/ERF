@@ -26,9 +26,10 @@
 #include <ERF_FireAcceleration.H>
 // Phase 13A: Per-fuel wind height
 #include <ERF_FuelWindHeight.H>
-// Phase 13B: ROS models (forward declarations for now; defined later)
-// #include <ERF_BalbiModel.H>
-// #include <ERF_CheneyGouldModel.H>
+// Phase 13B: ROS models
+#include <ERF_BalbiModel.H>
+#include <ERF_CheneyGouldModel.H>
+#include <ERF_MacArthurModel.H>
 
 // Forward declarations
 class SurfaceLayer;

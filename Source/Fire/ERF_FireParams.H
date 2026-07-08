@@ -6,9 +6,6 @@
 #include <ERF_FireAcceleration.H>
 #include <string>
 #include <vector>
-// Forward declarations for Phase 13 nested structs
-struct BalbiParams;
-struct CheneyGouldParams;
 
 /**
  * @file ERF_FireParams.H
