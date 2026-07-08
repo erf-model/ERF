@@ -4,6 +4,7 @@
 #include <AMReX_MultiFabUtil.H>
 #include <AMReX_Geometry.H>
 #include <ERF_DataStruct.H>
+#include "ERF_SurfacePrecipitation.H"
 
 class NullMoist {
 
@@ -113,6 +114,13 @@ public:
     virtual
     void
     Set_dzmin (const amrex::Real /*dz_min*/) { }
+
+    virtual
+    SurfacePrecipAccumulationSources
+    Get_Surface_Precip_Accumulation_Ptrs (const int&) const
+    {
+        return {};
+    }
 
     virtual
     void
