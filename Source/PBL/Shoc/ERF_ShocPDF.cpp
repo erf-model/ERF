@@ -28,7 +28,7 @@ namespace
 #ifdef AMREX_USE_FLOAT
     Real eps = static_cast<Real>(1.e-6);
 #else
-    Real tol = 1.e-6;
+    Real eps = 1.e-12;
 #endif
 
     AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
