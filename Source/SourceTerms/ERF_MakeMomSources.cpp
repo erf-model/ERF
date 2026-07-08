@@ -34,7 +34,7 @@ using namespace amrex;
  * @param[in] d_sinesq_stag_at_lev  sin( (pi/2) (z-z_t)/(damping depth)) at z-faces
  */
 
-void make_mom_sources (double time,
+void make_mom_sources (double time_d,
                        double /*dt*/,
                        const Vector<MultiFab>& S_data,
                        const MultiFab* z_phys_nd,
@@ -68,6 +68,8 @@ void make_mom_sources (double time,
                              bool is_slow_step)
 {
     BL_PROFILE_REGION("erf_make_mom_sources()");
+
+    Real time = static_cast<Real>(time_d);
 
     Box domain(geom.Domain());
     const GpuArray<Real, AMREX_SPACEDIM> dxInv = geom.InvCellSizeArray();
