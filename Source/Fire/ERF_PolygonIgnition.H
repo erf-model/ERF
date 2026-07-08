@@ -145,7 +145,7 @@ int polygon_winding_number(amrex::Real px, amrex::Real py,
             if (y2 > py) {
                 // Upward crossing: check if crossing is to the right of point
                 amrex::Real cross = (x2 - x1) * (py - y1) - (px - x1) * (y2 - y1);
-                if (cross > 0.0_rt) {
+                if (cross > 0.0) {
                     ++winding;
                 }
             }
@@ -153,7 +153,7 @@ int polygon_winding_number(amrex::Real px, amrex::Real py,
             if (y2 <= py) {
                 // Downward crossing: check if crossing is to the left of point
                 amrex::Real cross = (x2 - x1) * (py - y1) - (px - x1) * (y2 - y1);
-                if (cross < 0.0_rt) {
+                if (cross < 0.0) {
                     --winding;
                 }
             }
@@ -182,7 +182,7 @@ amrex::Real segment_dist_sq(amrex::Real px, amrex::Real py,
     amrex::Real dy = by - ay;
     amrex::Real len_sq = dx * dx + dy * dy;
 
-    if (len_sq < 1.0e-14_rt) {
+    if (len_sq < 1.0e-14) {
         // Segment is degenerate (point)
         amrex::Real dpx = px - ax;
         amrex::Real dpy = py - ay;
@@ -191,7 +191,7 @@ amrex::Real segment_dist_sq(amrex::Real px, amrex::Real py,
 
     // Parameter t of closest point on segment
     amrex::Real t = ((px - ax) * dx + (py - ay) * dy) / len_sq;
-    t = amrex::max(0.0_rt, amrex::min(1.0_rt, t));
+    t = amrex::max(0.0, amrex::min(1.0, t));
 
     amrex::Real cx = ax + t * dx;
     amrex::Real cy = ay + t * dy;
@@ -247,15 +247,15 @@ void init_phi_from_polygon(
         auto p = phi.array(mfi);
 
         ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-            Real x = prob_lo[0] + (i + 0.5_rt) * dx[0];
-            Real y = prob_lo[1] + (j + 0.5_rt) * dx[1];
+            Real x = prob_lo[0] + (i + 0.5) * dx[0];
+            Real y = prob_lo[1] + (j + 0.5) * dx[1];
 
             // Compute winding number
             int winding = polygon_winding_number(x, y, p_xs, p_ys, n_verts);
             bool inside = (winding != 0);
 
             // Compute distance to nearest boundary segment
-            Real min_dist = 1.0e10_rt;
+            Real min_dist = 1.0e10;
             for (int seg = 0; seg < n_verts; ++seg) {
                 int seg_next = (seg + 1) % n_verts;
                 Real dist_sq = segment_dist_sq(x, y,
@@ -324,11 +324,11 @@ void init_phi_from_polyline(
         auto p = phi.array(mfi);
 
         ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-            Real x = prob_lo[0] + (i + 0.5_rt) * dx[0];
-            Real y = prob_lo[1] + (j + 0.5_rt) * dx[1];
+            Real x = prob_lo[0] + (i + 0.5) * dx[0];
+            Real y = prob_lo[1] + (j + 0.5) * dx[1];
 
             // Compute distance to nearest segment
-            Real min_dist = 1.0e10_rt;
+            Real min_dist = 1.0e10;
             for (int seg = 0; seg < n_verts - 1; ++seg) {
                 Real dist_sq = segment_dist_sq(x, y,
                                                p_xs[seg], p_ys[seg],
