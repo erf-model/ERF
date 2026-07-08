@@ -139,7 +139,6 @@ ERF::Advance (int lev, double time, double dt_lev, int iteration, int /*ncycle*/
     // **************************************************************************************
     advance_radiation(lev, S_old, dt_lev);
 
-#if defined(ERF_USE_EAMXX_SHOC) || defined(ERF_USE_NATIVE_SHOC)
     // **************************************************************************************
     // Update the "old" state using SHOC
     // **************************************************************************************
@@ -164,7 +163,6 @@ ERF::Advance (int lev, double time, double dt_lev, int iteration, int /*ncycle*/
                                     dt_lev);
 #endif
         } else if (solverChoice.turbChoice[lev].uses_native_shoc()) {
-#ifdef ERF_USE_NATIVE_SHOC
             compute_native_shoc_tendencies(lev, &S_old, &U_old, &V_old, &W_old, w_sub,
                                            Tau[lev][TauType::tau13].get(), Tau[lev][TauType::tau23].get(),
                                            SFS_hfx3_lev[lev].get()       , SFS_q1fx3_lev[lev].get()      ,
@@ -191,10 +189,8 @@ ERF::Advance (int lev, double time, double dt_lev, int iteration, int /*ncycle*/
                                        true, false);
                 }
             }
-#endif
         }
     }
-#endif
 
     const BoxArray&            ba = S_old.boxArray();
     const DistributionMapping& dm = S_old.DistributionMap();

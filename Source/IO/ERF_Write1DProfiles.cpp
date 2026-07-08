@@ -263,19 +263,13 @@ ERF::derive_diag_profiles(double /*time*/,
     bool use_moisture = (solverChoice.moisture_type != MoistureType::None);
     const MultiFab* eta_src = nullptr;
     const bool have_native_shoc_diagnostics =
-#ifdef ERF_USE_NATIVE_SHOC
         solverChoice.turbChoice[lev].uses_native_shoc() &&
         native_shoc_driver[lev] &&
         native_shoc_driver[lev]->has_native_diagnostics();
-#else
-        false;
-#endif
     if (l_use_kturb) {
-#ifdef ERF_USE_NATIVE_SHOC
         if (have_native_shoc_diagnostics) {
             eta_src = &native_shoc_driver[lev]->native_diagnostics();
         } else
-#endif
         {
             eta_src = eddyDiffs_lev[lev].get();
         }

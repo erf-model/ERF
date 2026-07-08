@@ -1003,19 +1003,13 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
 
         const MultiFab* eta_src = nullptr;
         const bool have_native_shoc_diagnostics =
-#ifdef ERF_USE_NATIVE_SHOC
             solverChoice.turbChoice[lev].uses_native_shoc() &&
             native_shoc_driver[lev] &&
             native_shoc_driver[lev]->has_native_diagnostics();
-#else
-            false;
-#endif
         if (solverChoice.turbChoice[lev].use_kturb) {
-#ifdef ERF_USE_NATIVE_SHOC
             if (have_native_shoc_diagnostics) {
                 eta_src = &native_shoc_driver[lev]->native_diagnostics();
             } else
-#endif
             {
                 eta_src = eddyDiffs_lev[lev].get();
             }
@@ -1045,15 +1039,9 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
             mf_comp++;
         }
 
-        const MultiFab* shoc_or_host_eddy = nullptr;
-#ifdef ERF_USE_NATIVE_SHOC
-        if (have_native_shoc_diagnostics) {
-            shoc_or_host_eddy = &native_shoc_driver[lev]->native_diagnostics();
-        } else
-#endif
-        {
-            shoc_or_host_eddy = eddyDiffs_lev[lev].get();
-        }
+        const MultiFab* shoc_or_host_eddy = have_native_shoc_diagnostics
+            ? &native_shoc_driver[lev]->native_diagnostics()
+            : eddyDiffs_lev[lev].get();
 
         if (containerHasElement(plot_var_names, "Kmv")) {
             MultiFab::Copy(mf[lev],*shoc_or_host_eddy,EddyDiff::Mom_v,mf_comp,1,0);
