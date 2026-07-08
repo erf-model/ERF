@@ -7,6 +7,7 @@
 #include "AMReX_GpuPrint.H"
 
 #include "ERF_TI_slow_headers.H"
+#include "ERF_ShocDriver.H"
 #include "ERF_EOS.H"
 #include "ERF_Utils.H"
 #include "ERF_Diffusion.H"
@@ -109,9 +110,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
 #ifdef ERF_USE_EAMXX_SHOC
                        SHOCInterface* eamxx_shoc_lev,
 #endif
-#ifdef ERF_USE_NATIVE_SHOC
                        ShocDriver* native_shoc_lev,
-#endif
                        YAFluxRegister* fr_as_crse,
                        YAFluxRegister* fr_as_fine)
 {
@@ -204,7 +203,6 @@ void erf_slow_rhs_pre (int level, int finest_level,
             eamxx_shoc_lev->set_eddy_diffs();
         }
 #endif
-#ifdef ERF_USE_NATIVE_SHOC
         if (tc.uses_native_shoc()) {
             AMREX_ALWAYS_ASSERT(native_shoc_lev != nullptr);
             // Native SHOC always owns the scalar fluxes in state_update mode.
@@ -212,7 +210,6 @@ void erf_slow_rhs_pre (int level, int finest_level,
             // SurfaceLayer call entirely so the host does not re-apply them.
             native_shoc_lev->set_eddy_diffs();
         }
-#endif
 
         erf_make_tau_terms(level,nrk,domain_bcs_type_h,z_phys_nd,
                            S_data,xvel,yvel,zvel,
@@ -235,7 +232,6 @@ void erf_slow_rhs_pre (int level, int finest_level,
             surface_layer_handled = true;
         }
 #endif
-#ifdef ERF_USE_NATIVE_SHOC
         if (tc.uses_native_shoc()) {
             AMREX_ALWAYS_ASSERT(native_shoc_lev != nullptr);
             if (native_shoc_lev->owns_scalar_surface_fluxes()) {
@@ -245,7 +241,6 @@ void erf_slow_rhs_pre (int level, int finest_level,
                 surface_layer_handled = true;
             }
         }
-#endif
         if (!surface_layer_handled && l_use_SurfLayer) {
             Vector<const MultiFab*> mfs = {&S_data[IntVars::cons], &xvel, &yvel, &zvel};
             if (!l_use_eb) {

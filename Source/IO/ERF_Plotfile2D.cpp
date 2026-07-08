@@ -181,7 +181,6 @@ ERF::Write2DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
         const MultiFab* shoc_ustar_source = nullptr;
         const MultiFab* shoc_olen_source = nullptr;
         const MultiFab* shoc_wthv_source = nullptr;
-#ifdef ERF_USE_NATIVE_SHOC
         const ShocDriver* native_shoc = native_shoc_driver[lev].get();
         const bool native_shoc_owns_scalar_fluxes =
             native_shoc && native_shoc->owns_scalar_surface_fluxes();
@@ -211,7 +210,6 @@ ERF::Write2DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
             shoc_olen_source = &native_shoc->shoc_olen_diagnostics();
             shoc_wthv_source = &native_shoc->wthv_sec_diagnostics();
         }
-#endif
         // pblh should follow the active PBL diagnostic provider. Native SHOC
         // diagnoses its own PBL height in state_update mode; SurfaceLayer
         // remains the fallback for non-SHOC configurations.

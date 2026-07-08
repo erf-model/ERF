@@ -15,10 +15,6 @@
 #include "ERF_ShocInterface.H"
 #endif
 
-#ifdef ERF_USE_NATIVE_SHOC
-#include "ERF_ShocDriver.H"
-#endif
-
 void
 ComputeTurbulentViscosity (double dt,
                            const amrex::MultiFab& xvel ,
