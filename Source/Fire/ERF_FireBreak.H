@@ -28,7 +28,7 @@
  * (typically φ ∈ [-large, +large]) and larger than farsite_phi_threshold
  * (default 0.1).
  */
-constexpr amrex::Real FIREBREAK_PHI_SENTINEL = 1.0e6_rt;
+constexpr amrex::Real FIREBREAK_PHI_SENTINEL = 1.0e6;
 
 /**
  * @brief A firebreak is a rectangular or circular non-burnable zone.
@@ -80,7 +80,9 @@ inline void apply_firebreaks(amrex::MultiFab& fire_phi,
     int n_breaks = static_cast<int>(breaks.size());
 
     // Allocate device vectors for barrier parameters
-    amrex::Gpu::DeviceVector<std::string> d_types(n_breaks);
+    // Note: use char instead of std::string — PODVector requires trivially copyable types,
+    // and only the first character ('r' or 'c') is needed in the GPU kernel.
+    amrex::Gpu::DeviceVector<char>        d_types(n_breaks);
     amrex::Gpu::DeviceVector<amrex::Real> d_x_lo(n_breaks);
     amrex::Gpu::DeviceVector<amrex::Real> d_y_lo(n_breaks);
     amrex::Gpu::DeviceVector<amrex::Real> d_x_hi(n_breaks);
@@ -90,7 +92,7 @@ inline void apply_firebreaks(amrex::MultiFab& fire_phi,
     amrex::Gpu::DeviceVector<amrex::Real> d_radius(n_breaks);
 
     // Host copies for MPI transfer
-    std::vector<std::string> h_types(n_breaks);
+    std::vector<char>        h_types(n_breaks);
     std::vector<amrex::Real> h_x_lo(n_breaks);
     std::vector<amrex::Real> h_y_lo(n_breaks);
     std::vector<amrex::Real> h_x_hi(n_breaks);
@@ -101,13 +103,13 @@ inline void apply_firebreaks(amrex::MultiFab& fire_phi,
 
     // Copy data to host vectors
     for (int nb = 0; nb < n_breaks; ++nb) {
-        h_types[nb] = breaks[nb].type;
-        h_x_lo[nb] = breaks[nb].x_lo;
-        h_y_lo[nb] = breaks[nb].y_lo;
-        h_x_hi[nb] = breaks[nb].x_hi;
-        h_y_hi[nb] = breaks[nb].y_hi;
-        h_cx[nb] = breaks[nb].cx;
-        h_cy[nb] = breaks[nb].cy;
+        h_types[nb]  = breaks[nb].type[0];  // store first char only: 'r' or 'c'
+        h_x_lo[nb]   = breaks[nb].x_lo;
+        h_y_lo[nb]   = breaks[nb].y_lo;
+        h_x_hi[nb]   = breaks[nb].x_hi;
+        h_y_hi[nb]   = breaks[nb].y_hi;
+        h_cx[nb]     = breaks[nb].cx;
+        h_cy[nb]     = breaks[nb].cy;
         h_radius[nb] = breaks[nb].radius;
     }
 
@@ -131,37 +133,37 @@ inline void apply_firebreaks(amrex::MultiFab& fire_phi,
                      h_radius.begin(), h_radius.end(), d_radius.begin());
 
     const amrex::Real* prob_lo = geom.ProbLo();
-    const amrex::Real* dx = geom.CellSize();
+    const amrex::Real* dx      = geom.CellSize();
 
-    const auto& d_types_p = d_types.data();
-    const auto& d_x_lo_p = d_x_lo.data();
-    const auto& d_y_lo_p = d_y_lo.data();
-    const auto& d_x_hi_p = d_x_hi.data();
-    const auto& d_y_hi_p = d_y_hi.data();
-    const auto& d_cx_p = d_cx.data();
-    const auto& d_cy_p = d_cy.data();
-    const auto& d_radius_p = d_radius.data();
+    const auto* d_types_p  = d_types.data();
+    const auto* d_x_lo_p   = d_x_lo.data();
+    const auto* d_y_lo_p   = d_y_lo.data();
+    const auto* d_x_hi_p   = d_x_hi.data();
+    const auto* d_y_hi_p   = d_y_hi.data();
+    const auto* d_cx_p     = d_cx.data();
+    const auto* d_cy_p     = d_cy.data();
+    const auto* d_radius_p = d_radius.data();
 
     // ParallelFor over fire grid
     for (amrex::MFIter mfi(fire_phi); mfi.isValid(); ++mfi) {
         const amrex::Box& bx = mfi.validbox();
-        auto& phi_arr = fire_phi.array(mfi);
+        auto phi_arr = fire_phi.array(mfi);  // Array4 by value — required for GPU lambda capture
 
         amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-            amrex::Real x = prob_lo[0] + (i + 0.5_rt) * dx[0];
-            amrex::Real y = prob_lo[1] + (j + 0.5_rt) * dx[1];
+            amrex::Real x = prob_lo[0] + (i + 0.5) * dx[0];
+            amrex::Real y = prob_lo[1] + (j + 0.5) * dx[1];
 
             // Check all barriers
             for (int nb = 0; nb < n_breaks; ++nb) {
                 bool in_barrier = false;
 
-                // Check barrier type
-                if (d_types_p[nb][0] == 'r') {  // "rect"
+                // Check barrier type using first char: 'r' = rect, 'c' = circle
+                if (d_types_p[nb] == 'r') {
                     in_barrier = (x >= d_x_lo_p[nb] && x <= d_x_hi_p[nb] &&
-                                 y >= d_y_lo_p[nb] && y <= d_y_hi_p[nb]);
-                } else if (d_types_p[nb][0] == 'c') {  // "circle"
-                    amrex::Real dx_c = x - d_cx_p[nb];
-                    amrex::Real dy_c = y - d_cy_p[nb];
+                                  y >= d_y_lo_p[nb] && y <= d_y_hi_p[nb]);
+                } else if (d_types_p[nb] == 'c') {
+                    amrex::Real dx_c   = x - d_cx_p[nb];
+                    amrex::Real dy_c   = y - d_cy_p[nb];
                     amrex::Real dist_sq = dx_c * dx_c + dy_c * dy_c;
                     in_barrier = (dist_sq <= d_radius_p[nb] * d_radius_p[nb]);
                 }

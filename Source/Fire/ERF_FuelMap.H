@@ -158,7 +158,7 @@ inline void fill_fuel_model_mf(amrex::MultiFab& fire_fuel_model,
     // ParallelFor over the fire grid
     for (amrex::MFIter mfi(fire_fuel_model); mfi.isValid(); ++mfi) {
         const amrex::Box& bx = mfi.validbox();
-        auto& fuel_arr = fire_fuel_model.array(mfi);
+        auto fuel_arr = fire_fuel_model.array(mfi);  // Array4 by value — required for GPU lambda capture
 
         amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
             int idx = j * fire_nx + i;

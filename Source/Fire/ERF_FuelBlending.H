@@ -44,50 +44,50 @@ inline void apply_fuel_boundary_blending(amrex::MultiFab& fire_ros,
                                           amrex::Real blending_fraction)
 {
     // No-op if blending is disabled
-    if (blending_fraction <= 0.0_rt) { return; }
+    if (blending_fraction <= 0.0) { return; }
 
     // Clamp blending fraction to [0, 1]
-    blending_fraction = amrex::min(blending_fraction, 1.0_rt);
+    blending_fraction = amrex::min(blending_fraction, 1.0);
 
     // ParallelFor over ROS field
     for (amrex::MFIter mfi(fire_ros); mfi.isValid(); ++mfi) {
         const amrex::Box& bx = mfi.validbox();
         const amrex::Box& valid_box = bx;
 
-        auto& ros_arr = fire_ros.array(mfi);
-        const auto& fuel_arr = fire_fuel_model.const_array(mfi);
+        auto ros_arr        = fire_ros.array(mfi);          // Array4 by value — required for GPU lambda capture
+        auto fuel_arr       = fire_fuel_model.const_array(mfi);  // Array4 by value
 
         amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
             // Get fuel code at this cell
-            int fuel_c = static_cast<int>(fuel_arr(i, j, k) + 0.5_rt);
+            int fuel_c = static_cast<int>(fuel_arr(i, j, k) + 0.5);
 
             // Check 4 neighbours: (i-1,j), (i+1,j), (i,j-1), (i,j+1)
             bool is_boundary = false;
             int fuel_i_minus = fuel_c;
-            int fuel_i_plus = fuel_c;
+            int fuel_i_plus  = fuel_c;
             int fuel_j_minus = fuel_c;
-            int fuel_j_plus = fuel_c;
+            int fuel_j_plus  = fuel_c;
 
             if (valid_box.contains(amrex::IntVect(i - 1, j, k))) {
-                fuel_i_minus = static_cast<int>(fuel_arr(i - 1, j, k) + 0.5_rt);
+                fuel_i_minus = static_cast<int>(fuel_arr(i - 1, j, k) + 0.5);
                 if (fuel_i_minus != fuel_c) { is_boundary = true; }
             }
             if (valid_box.contains(amrex::IntVect(i + 1, j, k))) {
-                fuel_i_plus = static_cast<int>(fuel_arr(i + 1, j, k) + 0.5_rt);
+                fuel_i_plus = static_cast<int>(fuel_arr(i + 1, j, k) + 0.5);
                 if (fuel_i_plus != fuel_c) { is_boundary = true; }
             }
             if (valid_box.contains(amrex::IntVect(i, j - 1, k))) {
-                fuel_j_minus = static_cast<int>(fuel_arr(i, j - 1, k) + 0.5_rt);
+                fuel_j_minus = static_cast<int>(fuel_arr(i, j - 1, k) + 0.5);
                 if (fuel_j_minus != fuel_c) { is_boundary = true; }
             }
             if (valid_box.contains(amrex::IntVect(i, j + 1, k))) {
-                fuel_j_plus = static_cast<int>(fuel_arr(i, j + 1, k) + 0.5_rt);
+                fuel_j_plus = static_cast<int>(fuel_arr(i, j + 1, k) + 0.5);
                 if (fuel_j_plus != fuel_c) { is_boundary = true; }
             }
 
             // If at a boundary, blend ROS with differently-coded neighbours
             if (is_boundary) {
-                amrex::Real ros_blend = 0.0_rt;
+                amrex::Real ros_blend = 0.0;
                 int n_diff = 0;
 
                 if (valid_box.contains(amrex::IntVect(i - 1, j, k)) && fuel_i_minus != fuel_c) {
@@ -110,7 +110,7 @@ inline void apply_fuel_boundary_blending(amrex::MultiFab& fire_ros,
                 if (n_diff > 0) {
                     ros_blend /= static_cast<amrex::Real>(n_diff);
                     amrex::Real ros_orig = ros_arr(i, j, k);
-                    ros_arr(i, j, k) = (1.0_rt - blending_fraction) * ros_orig +
+                    ros_arr(i, j, k) = (1.0 - blending_fraction) * ros_orig +
                                        blending_fraction * ros_blend;
                 }
             }
