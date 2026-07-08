@@ -1,0 +1,70 @@
+# Level-set propagation regression test
+# 1 km × 1 km flat terrain domain, 5x fire grid refinement, 10 m fire resolution
+# 120 s simulation with constant 5 m/s wind in x-direction
+
+# Problem setup
+max_step = 1200
+stop_time = 120.0
+
+# Domain: 1 km x 1 km x 0.5 km
+geometry.prob_lo = 0.0 0.0 0.0
+geometry.prob_hi = 1000.0 1000.0 500.0
+amr.n_cell = 20 20 16
+
+# Grid and time stepping
+amr.max_level = 0
+amr.blocking_factor = 8
+amr.n_error_buf = 1
+
+# Time stepping
+amr.dt_fixed = 0.5
+amr.use_fixed_dt = true
+amr.use_subcycling = false
+
+# Atmospheric setup: flat terrain, uniform wind
+erf.init_type = "bubble"
+erf.advection_type = "mono_ppm"
+erf.diffusion_type = "fourth_order"
+erf.perturbation_scales = 0.0 0.0 0.0
+
+# Constant wind field: 5 m/s in x, 0 in y, 0 in z
+erf.sounding_file = "sounding_neutral"
+
+# Surface layer: flat, no heat flux
+erf.surface_type = "fixed_height"
+erf.surface_z0 = 0.1
+
+# Fire module
+erf.fire.enable = true
+erf.fire.propagation_method = levelset
+erf.fire.grid_ratio = 5
+erf.fire.fuel_model_id = 1
+erf.fire.ignition_x = 500.0
+erf.fire.ignition_y = 500.0
+erf.fire.ignition_r = 30.0
+erf.fire.wind_ref_ht = 6.1
+erf.fire.use_waf = true
+erf.fire.use_terrain_wind = false
+erf.fire.moisture_1hr = 0.08
+erf.fire.moisture_10hr = 0.08
+erf.fire.moisture_100hr = 0.10
+
+# Level-set specific parameters
+erf.fire.propagation_method = levelset
+erf.fire.levelset.cfl = 0.4
+erf.fire.levelset.eps_visc = 0.4
+erf.fire.levelset.reinit_every = 5
+erf.fire.levelset.reinit_iters = 10
+erf.fire.levelset.reinit_dtau = -1.0
+
+# Fire coupling
+erf.fire.coupling_type = passive
+
+# Output
+amr.plot_int = 240
+amr.checkpoint_int = 0
+amr.restart = ""
+
+# Verbosity
+amr.v = 1
+erf.fire_debug = false
