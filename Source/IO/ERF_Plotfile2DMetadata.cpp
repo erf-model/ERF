@@ -103,6 +103,7 @@ diagnostic_category_to_string (DiagnosticCategory category) noexcept
     case DiagnosticCategory::SurfaceFlux:      return "SurfaceFlux";
     case DiagnosticCategory::PBL:              return "PBL";
     case DiagnosticCategory::SurfaceState:     return "SurfaceState";
+    case DiagnosticCategory::Precipitation:    return "Precipitation";
     case DiagnosticCategory::ColumnIntegral:   return "ColumnIntegral";
     case DiagnosticCategory::SampledLevel:     return "SampledLevel";
     }
