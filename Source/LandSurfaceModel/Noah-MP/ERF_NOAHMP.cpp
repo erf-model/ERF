@@ -55,7 +55,7 @@ NOAHMP::Init (const int& lev,
     // is the same value the parent already used to size lsm_data in MakeNewLevel
     // (it calls Lsm_Data_Size() before Init). The namelist NSOIL is asserted to
     // agree below, so a mismatch fails loudly. m_lsm_data_size is set here too.
-    ensure_nsoil_resolved();
+    m_ensure_nsoil_resolved();
 
     // The fixed 2D fields are identity-mapped; their names mirror the enum order.
     LsmDataMap.resize(m_lsm_data_size);

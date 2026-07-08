@@ -200,7 +200,7 @@ public:
     // NOAHMP::Init runs (to size its lsm_data array in MakeNewLevel), so resolve
     // the soil-layer count here on first use rather than relying on Init.
     int
-    Lsm_Data_Size () override { ensure_nsoil_resolved(); return NOAHMP::m_lsm_data_size; }
+    Lsm_Data_Size () override { m_ensure_nsoil_resolved(); return NOAHMP::m_lsm_data_size; }
 
     // Get number of fluxes lsm class contains
     int
@@ -400,7 +400,7 @@ private:
     // the parent (ERF_MakeNewLevel) queries Lsm_Data_Size() to size its lsm_data
     // array first; Init later asserts m_nsoil matches the namelist NSOIL.
     bool m_nsoil_resolved = false;
-    void ensure_nsoil_resolved () {
+    void m_ensure_nsoil_resolved () {
         if (m_nsoil_resolved) { return; }
         amrex::ParmParse pp_nsoil("erf");
         pp_nsoil.query("lsm_nsoil", m_nsoil);
