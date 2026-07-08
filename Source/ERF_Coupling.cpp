@@ -9,7 +9,6 @@
 #include <AMReX_MultiFabUtil.H>
 #include <AMReX_ParallelDescriptor.H>
 #include <AMReX_Print.H>
-#include <AMReX_ParmParse.H>
 
 double
 ERF::EvolveOneStep (double /*time*/, double /*dt_request*/)
@@ -130,8 +129,10 @@ ERF::PackAtmosphericStates (amrex::Vector<amrex::MultiFab*>& states,
                 });
             }
         }
-        IntVect ratio = ba2d_lev.minimalBox().length() / states[iPatm]->boxArray().minimalBox().length();
-        amrex::average_down(tmp, *states[iPatm], 0, 1, ratio);
+        amrex::MultiFab tmp_dst(states[iPatm]->boxArray(),
+                                states[iPatm]->DistributionMap(), 1, 0);
+        tmp_dst.ParallelCopy(tmp, 0, 0, 1);
+        states[iPatm]->ParallelCopy(tmp_dst, 0, 0, 1);
     }
 
     // --- Tair: getTgivenRandRTh(rho, RhoTheta, qv) at k=0 [K] ---
@@ -152,8 +153,10 @@ ERF::PackAtmosphericStates (amrex::Vector<amrex::MultiFab*>& states,
                 });
             }
         }
-        IntVect ratio = ba2d_lev.minimalBox().length() / states[iTair]->boxArray().minimalBox().length();
-        amrex::average_down(tmp, *states[iTair], 0, 1, ratio);
+        amrex::MultiFab tmp_dst(states[iTair]->boxArray(),
+                                states[iTair]->DistributionMap(), 1, 0);
+        tmp_dst.ParallelCopy(tmp, 0, 0, 1);
+        states[iTair]->ParallelCopy(tmp_dst, 0, 0, 1);
     }
 
     // --- Humidity lane: export relative humidity [0-1] for REMORA bulk fluxes ---
@@ -264,24 +267,16 @@ ERF::ApplyOceanSurfaceState (const amrex::Vector<amrex::MultiFab*>& state,
 
     if (!state.empty() && state[0] != nullptr && lsm.Get_Data_Ptr(0, 0) != nullptr) {
         auto* dst = lsm.Get_Data_Ptr(0, 0);
+        amrex::MultiFab src_remapped(dst->boxArray(), dst->DistributionMap(), 1, 0);
+        src_remapped.ParallelCopy(*state[0], 0, 0, 1);
         const auto lsm_geom = lsm.Get_Lsm_Geom(0);
         AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
             lsm_geom.isPeriodic(0) == Geom(0).isPeriodic(0) &&
             lsm_geom.isPeriodic(1) == Geom(0).isPeriodic(1) &&
             lsm_geom.isPeriodic(2) == Geom(0).isPeriodic(2),
             "OceanSurf t_surf geometry lost ERF periodic flags.");
-        const int dst_k = dst->boxArray().minimalBox().smallEnd(2);
-        const int src_k = state[0]->boxArray().minimalBox().bigEnd(2);
-        for (amrex::MFIter mfi(*dst, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
-            amrex::Box bx = amrex::makeSlab(mfi.validbox(), 2, dst_k);
-            auto dst_arr = dst->array(mfi);
-            auto src_arr = state[0]->const_array(mfi);
-            amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int) {
-                dst_arr(i,j,dst_k) = src_arr(i,j,src_k);
-            });
-        }
+        dst->ParallelCopy(src_remapped, 0, 0, 1);
         dst->FillBoundary(lsm_geom.periodicity());
-        amrex::Gpu::streamSynchronize();
 
         const amrex::Real src_min = state[0]->min(0);
         const amrex::Real src_max = state[0]->max(0);
