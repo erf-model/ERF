@@ -169,6 +169,12 @@ public:
         m_moist_model[a_lev]->Set_dzmin(dz_min);
     }
 
+    SurfacePrecipAccumulationSources
+    Get_Surface_Precip_Accumulation_Ptrs (const int& lev) const override
+    {
+        return m_moist_model[lev]->Get_Surface_Precip_Accumulation_Ptrs(lev);
+    }
+
 protected:
 
     /*! \brief Create and set the specified moisture model */

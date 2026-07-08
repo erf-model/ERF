@@ -186,12 +186,6 @@ public:
 #endif
       }
 
-      if (uses_native_shoc()) {
-#ifndef ERF_USE_NATIVE_SHOC
-          amrex::Abort("PBLType::NATIVE_SHOC requested, but ERF was not built with native SHOC enabled");
-#endif
-      }
-
       if (pbl_requires_surface_layer()) {
           std::string zlo_bc = "none";
           amrex::ParmParse pp_bc("zlo");

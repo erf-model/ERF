@@ -440,7 +440,7 @@ ERF::HurricaneEyeTracker_WRF (const SolverChoice& sc)
 void
 ERF::HurricaneMaxVelTracker_WRF(const Geometry& geom,
                                 const MultiFab& mf_cc_vel,
-                                const Real& time)
+                                const double& time)
 {
     const int ncomp = AMREX_SPACEDIM;
 
@@ -488,15 +488,15 @@ ERF::HurricaneMaxVelTracker_WRF(const Geometry& geom,
         h_val_max_global = h_val_max_local;
     #endif
 
-    Real time_in_hrs = time / Real(3600.0);
-    hurricane_maxvel_vs_time.push_back({time_in_hrs, h_val_max_global});
+    double time_in_hrs = time / 3600.0;
+    hurricane_maxvel_vs_time.push_back({static_cast<Real>(time_in_hrs), h_val_max_global});
 }
 
 void
 ERF::HurricaneMinPressureTracker_WRF(MoistureType moisture_type,
                                  const Geometry& geom,
                                  const MultiFab& mf_cons_var,
-                                 const Real& time)
+                                 const double& time)
 {
 
 
@@ -542,7 +542,7 @@ ERF::HurricaneMinPressureTracker_WRF(MoistureType moisture_type,
         h_val_min_global = h_val_min_local;
     #endif
 
-    Real time_in_hrs = time / Real(3600.0);
-    hurricane_minpressure_vs_time.push_back({time_in_hrs, h_val_min_global});
+    double time_in_hrs = time / 3600.0;
+    hurricane_minpressure_vs_time.push_back({static_cast<Real>(time_in_hrs), h_val_min_global});
 }
 #endif

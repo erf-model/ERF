@@ -8,7 +8,7 @@
 // Initialize erfbdy file and write header.
 void InitERFBdyFile(const std::string& bdy_file_name,
                     int ntimes,
-                    const amrex::Vector<amrex::Real>& bdy_times,
+                    const amrex::Vector<double>& bdy_times,
                     const amrex::Box& domain,
                     int nvars,
                     int real_width);

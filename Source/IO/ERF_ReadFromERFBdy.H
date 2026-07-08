@@ -6,14 +6,14 @@
 
 // Read metadata and time values from erfbdy Header.
 // Returns bdy_time_interval.
-amrex::Real
+double
 read_times_from_erfbdy(const std::string& bdy_file_name,
                        int& ntimes,
                        int& nvars,
                        int& real_width,
-                       amrex::Vector<amrex::Real>& bdy_times,
-                       amrex::Real& start_bdy_time,
-                       amrex::Real& final_bdy_time);
+                       amrex::Vector<double>& bdy_times,
+                       double& start_bdy_time,
+                       double& final_bdy_time);
 
 // Read a single time index from erfbdy file.
 void

@@ -158,11 +158,11 @@ realbdy_bc_bxs_xy (const Box& bx,
  * @param[in] bdy_data_yhi boundary data on interior of high y-face
  */
 void
-realbdy_compute_interior_ghost_rhs (const Real& time,
-                                    const Real& delta_t,
-                                    const Real& start_bdy_time,
-                                    const Real& final_bdy_time,
-                                    const Real& bdy_time_interval,
+realbdy_compute_interior_ghost_rhs (const double& time,
+                                    const double& delta_t,
+                                    const double& start_bdy_time,
+                                    const double& final_bdy_time,
+                                    const double& bdy_time_interval,
                                     const Real& nudge_factor,
                                     int width,
                                     const Geometry& geom,
@@ -206,11 +206,11 @@ realbdy_compute_interior_ghost_rhs (const Real& time,
     Real F1 = one/(nudge_factor*delta_t);
 
     // Time interpolation
-    Real dT = bdy_time_interval;
+    double dT = bdy_time_interval;
 
     int n_time    = static_cast<int>( (time-start_bdy_time) /  dT);
     int n_time_p1 = n_time + 1;
-    Real alpha    = ((time-start_bdy_time) - n_time * dT) / dT;
+    double alpha  = ((time-start_bdy_time) - n_time * dT) / dT;
 
     // Do not over run the last bdy file
     if (time >= final_bdy_time) {
@@ -629,8 +629,8 @@ realbdy_compute_interior_ghost_rhs (const Real& time,
  * @param[in]  S_data    current value of the solution
  */
 void
-fine_compute_interior_ghost_rhs (const Real& time,
-                                 const Real& delta_t,
+fine_compute_interior_ghost_rhs (const double& time,
+                                 const double& delta_t,
                                  const int& width,
                                  const int& set_width,
                                  const Geometry& geom,

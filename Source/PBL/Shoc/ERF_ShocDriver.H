@@ -67,7 +67,7 @@ public:
                   amrex::MultiFab* eddy_diffs,
                   amrex::MultiFab& z_phys_nd,
                   const amrex::Geometry& geom,
-                  amrex::Real dt);
+                  double dt);
 
     void set_eddy_diffs () const;
     void set_diff_stresses () const;
@@ -191,7 +191,7 @@ private:
     void apply_state_update (amrex::MultiFab& cons,
                              amrex::MultiFab& xvel,
                              amrex::MultiFab& yvel,
-                             amrex::Real dt) const;
+                             double dt) const;
     void debug_check_bad_column (const ShocColumnData& col,
                                  const amrex::MFIter& mfi,
                                  const amrex::MultiFab& z_phys_nd,
@@ -200,7 +200,7 @@ private:
                                  const amrex::MultiFab* tau13,
                                  const amrex::MultiFab* tau23,
                                  const amrex::Geometry& geom,
-                                 amrex::Real dt) const;
-    void print_debug_summary (amrex::Real dt) const;
+                                 double dt) const;
+    void print_debug_summary (double dt) const;
 };
 #endif

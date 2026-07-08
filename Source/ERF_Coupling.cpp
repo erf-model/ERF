@@ -10,14 +10,14 @@
 #include <AMReX_ParallelDescriptor.H>
 #include <AMReX_Print.H>
 
-amrex::Real
-ERF::EvolveOneStep (amrex::Real /*time*/, amrex::Real /*dt_request*/)
+double
+ERF::EvolveOneStep (double /*time*/, double /*dt_request*/)
 {
-    amrex::Real cur_time = t_new[0];
+    double cur_time = t_new[0];
     const int step = istep[0];
 
     if (start_time + cur_time >= stop_time) {
-        return amrex::Real(0.0);
+        return 0.0;
     }
 
     ComputeDt(step);
@@ -58,7 +58,7 @@ ERF::EvolveOneStep (amrex::Real /*time*/, amrex::Real /*dt_request*/)
 
 void
 ERF::PackAtmosphericStates (amrex::Vector<amrex::MultiFab*>& states,
-                            amrex::Real /*time*/)
+                            double /*time*/)
 {
     using namespace amrex;
 
@@ -259,7 +259,7 @@ ERF::PackAtmosphericStates (amrex::Vector<amrex::MultiFab*>& states,
 
 void
 ERF::ApplyOceanSurfaceState (const amrex::Vector<amrex::MultiFab*>& state,
-                             amrex::Real time)
+                             double time)
 {
     if (solverChoice.lsm_type != LandSurfaceType::OceanSurf) {
         return;

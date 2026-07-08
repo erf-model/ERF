@@ -30,7 +30,7 @@ ImplicitDiffForStateLU_T (const Box& bx,
                           const Box& domain,
                           const int level,
                           const int n,
-                          const Real dt,
+                          const double dt,
                           const GpuArray<Real, AMREX_SPACEDIM*2>& bc_neumann_vals,
                           const Array4<      Real>& cell_data,
                           const Array4<const Real>& z_nd,
@@ -222,7 +222,7 @@ void
 ImplicitDiffForMomLU_T (const Box& bx,
                         const Box& /*domain*/,
                         const int level,
-                        const Real dt,
+                        const double dt,
                         const Array4<const Real>& cell_data,
                         const Array4<      Real>& face_data,
                         const Array4<const Real>& tau,
@@ -350,9 +350,9 @@ ImplicitDiffForMomLU_T (const Box& bx,
                                   l_consA, l_turb);
 
               met_h_zeta_lo = myhalf * ( Compute_h_zeta_AtKface(i     ,j     ,klo  ,cellSizeInv,z_nd)
-                                     + Compute_h_zeta_AtKface(i-ioff,j-joff,klo  ,cellSizeInv,z_nd) );
+                                       + Compute_h_zeta_AtKface(i-ioff,j-joff,klo  ,cellSizeInv,z_nd) );
               met_h_zeta_hi = myhalf * ( Compute_h_zeta_AtKface(i     ,j     ,klo+1,cellSizeInv,z_nd)
-                                     + Compute_h_zeta_AtKface(i-ioff,j-joff,klo+1,cellSizeInv,z_nd) );
+                                       + Compute_h_zeta_AtKface(i-ioff,j-joff,klo+1,cellSizeInv,z_nd) );
 
               a_tmp = zero;
               c_tmp = -Fact * gfac * rhoAlpha_hi * dz_inv / met_h_zeta_hi;
@@ -396,9 +396,9 @@ ImplicitDiffForMomLU_T (const Box& bx,
                                   l_consA, l_turb);
 
               met_h_zeta_lo = myhalf * ( Compute_h_zeta_AtKface(i     ,j     ,k  ,cellSizeInv,z_nd)
-                                    + Compute_h_zeta_AtKface(i-ioff,j-joff,k  ,cellSizeInv,z_nd) );
+                                       + Compute_h_zeta_AtKface(i-ioff,j-joff,k  ,cellSizeInv,z_nd) );
               met_h_zeta_hi = myhalf * ( Compute_h_zeta_AtKface(i     ,j     ,k+1,cellSizeInv,z_nd)
-                                    + Compute_h_zeta_AtKface(i-ioff,j-joff,k+1,cellSizeInv,z_nd) );
+                                       + Compute_h_zeta_AtKface(i-ioff,j-joff,k+1,cellSizeInv,z_nd) );
 
               a_tmp      = -Fact * rhoAlpha_lo * dz_inv / met_h_zeta_lo;
               c_tmp      = -Fact * rhoAlpha_hi * dz_inv / met_h_zeta_hi;
@@ -422,9 +422,9 @@ ImplicitDiffForMomLU_T (const Box& bx,
                                   l_consA, l_turb);
 
               met_h_zeta_lo = myhalf * ( Compute_h_zeta_AtKface(i     ,j     ,khi  ,cellSizeInv,z_nd)
-                                    + Compute_h_zeta_AtKface(i-ioff,j-joff,khi  ,cellSizeInv,z_nd) );
+                                       + Compute_h_zeta_AtKface(i-ioff,j-joff,khi  ,cellSizeInv,z_nd) );
               met_h_zeta_hi = myhalf * ( Compute_h_zeta_AtKface(i     ,j     ,khi+1,cellSizeInv,z_nd)
-                                    + Compute_h_zeta_AtKface(i-ioff,j-joff,khi+1,cellSizeInv,z_nd) );
+                                       + Compute_h_zeta_AtKface(i-ioff,j-joff,khi+1,cellSizeInv,z_nd) );
 
               a_tmp = -Fact * gfac * rhoAlpha_lo * dz_inv / met_h_zeta_lo;
               c_tmp = zero;
@@ -477,7 +477,7 @@ ImplicitDiffForMomLU_T (const Box& bx,
         const Box&, \
         const Box&, \
         const int, \
-        const Real, \
+        const double, \
         const Array4<const Real>&, \
         const Array4<      Real>&, \
         const Array4<const Real>&, \

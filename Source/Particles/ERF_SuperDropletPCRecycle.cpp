@@ -15,7 +15,7 @@ using namespace SDPCDefn;
 void SuperDropletPC::Recycle ( const int             a_lev,
                                const Vector<MFPtr>&  a_z_phys_nd,
                                const int             a_iter,
-                               const Real            a_dt,
+                               const double                               a_dt,
                                const bool            a_recycle )
 {
     BL_PROFILE("SuperDropletPC::Recycle()");

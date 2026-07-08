@@ -55,19 +55,19 @@ public:
     */
     void operator() (amrex::MultiFab& mf, amrex::MultiFab& xvel, amrex::MultiFab& yvel,
                      int icomp, int ncomp, amrex::IntVect const& nghost,
-                     const amrex::Real time, int bccomp_cons, bool do_fb = true, bool do_terrain_adjustment = true);
+                     const double time, int bccomp_cons, bool do_fb = true, bool do_terrain_adjustment = true);
 
     void impose_lateral_cons_bcs (const amrex::Array4<amrex::Real>& dest_arr,
                                   const amrex::Array4<amrex::Real const>& xvel_arr,
                                   const amrex::Array4<amrex::Real const>& yvel_arr,
                                   const amrex::Box& bx, const amrex::Box& domain,
                                   int icomp, int ncomp, amrex::IntVect ng,
-                                  const amrex::Real time);
+                                  const double time);
     void impose_vertical_cons_bcs (const amrex::Array4<amrex::Real>& dest_arr,
                                    const amrex::Box& bx, const amrex::Box& domain,
                                    const amrex::Array4<amrex::Real const>& z_nd,
                                    const amrex::GpuArray<amrex::Real,AMREX_SPACEDIM> dxInv,
-                                   int icomp, int ncomp, const amrex::Real time,
+                                   int icomp, int ncomp, const double time,
                                    bool do_terrain_adjustment = true);
 
 private:
@@ -114,20 +114,20 @@ public:
     * @param[in] use_real_bcs if true then we fill boundary conditions for interior locations
     */
     void operator() (amrex::MultiFab& mf, amrex::MultiFab& xvel, amrex::MultiFab& yvel,
-                     amrex::IntVect const& nghost, const amrex::Real time, int bccomp, bool do_fb);
+                     amrex::IntVect const& nghost, const double time, int bccomp, bool do_fb);
 
     void impose_lateral_xvel_bcs (const amrex::Array4<amrex::Real>& dest_arr,
                                   const amrex::Array4<amrex::Real const>& xvel_arr,
                                   const amrex::Array4<amrex::Real const>& yvel_arr,
                                   const amrex::Box& bx, const amrex::Box& domain,
                                   int bccomp,
-                                  const amrex::Real time);
+                                  const double time);
     void impose_vertical_xvel_bcs (const amrex::Array4<amrex::Real>& dest_arr,
                                    const amrex::Box& bx, const amrex::Box& domain,
                                    const amrex::Array4<amrex::Real const>& z_nd,
                                    const amrex::GpuArray<amrex::Real,AMREX_SPACEDIM> dxInv,
                                    int bccomp,
-                                   const amrex::Real time);
+                                   const double time);
 
 private:
     int                  m_lev;
@@ -175,20 +175,20 @@ public:
     * @param[in] use_real_bcs if true then we fill boundary conditions for interior locations
     */
     void operator() (amrex::MultiFab& mf, amrex::MultiFab& xvel, amrex::MultiFab& yvel,
-                     amrex::IntVect const& nghost, const amrex::Real time, int bccomp, bool do_fb);
+                     amrex::IntVect const& nghost, const double time, int bccomp, bool do_fb);
 
     void impose_lateral_yvel_bcs (const amrex::Array4<amrex::Real>& dest_arr,
                                   const amrex::Array4<amrex::Real const>& xvel_arr,
                                   const amrex::Array4<amrex::Real const>& yvel_arr,
                                   const amrex::Box& bx, const amrex::Box& domain,
                                   int bccomp,
-                                  const amrex::Real time);
+                                  const double time);
     void impose_vertical_yvel_bcs (const amrex::Array4<amrex::Real>& dest_arr,
                                    const amrex::Box& bx, const amrex::Box& domain,
                                    const amrex::Array4<amrex::Real const>& z_nd,
                                    const amrex::GpuArray<amrex::Real,AMREX_SPACEDIM> dxInv,
                                    int bccomp,
-                                   const amrex::Real time);
+                                   const double time);
 
 private:
     int                  m_lev;
@@ -242,7 +242,7 @@ public:
     * @param[in] use_real_bcs if true then we fill boundary conditions for interior locations
     */
     void operator() (amrex::MultiFab& mf, amrex::MultiFab& xvel, amrex::MultiFab& yvel,
-                     amrex::IntVect const& nghost, const amrex::Real time, int bccomp,
+                     amrex::IntVect const& nghost, const double time, int bccomp,
                      bool do_fb);
 
     void impose_lateral_zvel_bcs (const amrex::Array4<amrex::Real>& dest_arr,
@@ -254,7 +254,7 @@ public:
                                   const amrex::Array4<amrex::Real const>& z_nd,
                                   const amrex::GpuArray<amrex::Real,AMREX_SPACEDIM> dxInv,
                                   TerrainType terrain_type, int bccomp,
-                                  const amrex::Real time);
+                                  const double time);
     void impose_vertical_zvel_bcs (const amrex::Array4<amrex::Real>& dest_arr,
                                    const amrex::Array4<amrex::Real const>& xvel_arr,
                                    const amrex::Array4<amrex::Real const>& yvel_arr,
@@ -265,7 +265,7 @@ public:
                                    const amrex::GpuArray<amrex::Real,AMREX_SPACEDIM> dxInv,
                                    int bccomp_u, int bccomp_v, int bccomp_w,
                                    TerrainType terrain_type,
-                                   const amrex::Real time);
+                                   const double time);
 
 private:
     int                  m_lev;

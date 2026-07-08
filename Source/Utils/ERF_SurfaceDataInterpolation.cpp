@@ -140,13 +140,13 @@ ERF::FillSurfaceStateMultiFabs(const int lev,
 
 void
 ERF::SurfaceDataInterpolation(const int lev,
-                              const Real time,
+                              const double time,
                               amrex::Vector<std::unique_ptr<amrex::MultiFab>>& a_z_phys_nd,
                               bool regrid_forces_file_read)
 {
 
-    static amrex::Vector<Real> next_read_forecast_time;
-    static amrex::Vector<Real> last_read_forecast_time;
+    static amrex::Vector<double> next_read_forecast_time;
+    static amrex::Vector<double> last_read_forecast_time;
 
     const int nlevs = a_z_phys_nd.size();
 
@@ -218,8 +218,8 @@ ERF::SurfaceDataInterpolation(const int lev,
         }
     }
 
-    Real prev_read_time = last_read_forecast_time[lev];
-    Real alpha1 = one - (time - prev_read_time)/hindcast_data_interval;
+    double prev_read_time = last_read_forecast_time[lev];
+    Real alpha1 = static_cast<Real>(1.0 - (time - prev_read_time)/hindcast_data_interval);
     Real alpha2 = one - alpha1;
 
     amrex::Print()<< "The values of alpha1 and alpha2 are " << alpha1 << " "<< alpha2 <<std::endl;

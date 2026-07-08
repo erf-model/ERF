@@ -17,7 +17,7 @@ using namespace amrex;
  */
 
 void
-ERF::Advance (int lev, Real time, Real dt_lev, int iteration, int /*ncycle*/)
+ERF::Advance (int lev, double time, double dt_lev, int iteration, int /*ncycle*/)
 {
     BL_PROFILE("ERF::Advance()");
 
@@ -113,9 +113,9 @@ ERF::Advance (int lev, Real time, Real dt_lev, int iteration, int /*ncycle*/)
                                         solverChoice.moisture_indices);
 
 #ifdef ERF_USE_NETCDF
-            Real elapsed_time_since_start_low = time + (start_time - start_low_time);
+            double elapsed_time_since_start_low = time + (start_time - start_low_time);
 #else
-            Real elapsed_time_since_start_low = time;
+            double elapsed_time_since_start_low = time;
 #endif
             m_SurfaceLayer->update_fluxes(lev, time, elapsed_time_since_start_low,
                                           S_old, z_phys_nd[lev], walldist[lev]);
@@ -139,7 +139,6 @@ ERF::Advance (int lev, Real time, Real dt_lev, int iteration, int /*ncycle*/)
     // **************************************************************************************
     advance_radiation(lev, S_old, dt_lev);
 
-#if defined(ERF_USE_EAMXX_SHOC) || defined(ERF_USE_NATIVE_SHOC)
     // **************************************************************************************
     // Update the "old" state using SHOC
     // **************************************************************************************
@@ -164,7 +163,6 @@ ERF::Advance (int lev, Real time, Real dt_lev, int iteration, int /*ncycle*/)
                                     dt_lev);
 #endif
         } else if (solverChoice.turbChoice[lev].uses_native_shoc()) {
-#ifdef ERF_USE_NATIVE_SHOC
             compute_native_shoc_tendencies(lev, &S_old, &U_old, &V_old, &W_old, w_sub,
                                            Tau[lev][TauType::tau13].get(), Tau[lev][TauType::tau23].get(),
                                            SFS_hfx3_lev[lev].get()       , SFS_q1fx3_lev[lev].get()      ,
@@ -191,10 +189,8 @@ ERF::Advance (int lev, Real time, Real dt_lev, int iteration, int /*ncycle*/)
                                        true, false);
                 }
             }
-#endif
         }
     }
-#endif
 
     const BoxArray&            ba = S_old.boxArray();
     const DistributionMapping& dm = S_old.DistributionMap();
@@ -316,7 +312,7 @@ ERF::Advance (int lev, Real time, Real dt_lev, int iteration, int /*ncycle*/)
     // **************************************************************************************
     // Update the land surface model
     // **************************************************************************************
-    Real time_at_end_of_step = time+dt_lev;
+    double time_at_end_of_step = time+dt_lev;
     advance_lsm(lev, S_new, U_new, V_new, time_at_end_of_step, dt_lev);
 
 #ifdef ERF_USE_PARTICLES

@@ -150,6 +150,12 @@ public:
         return m_moist_model->Qstate_NonMoist_Size();
     }
 
+    SurfacePrecipAccumulationSources
+    Get_Surface_Precip_Accumulation_Ptrs (const int&) const override
+    {
+        return {};
+    }
+
     /*! \brief initialize particles in particle container at level a_lev */
     inline void initParticles ( const int a_lev, /*!< AMR level */
                                 std::unique_ptr<amrex::MultiFab>& z_phys_nd /*!< Nodal z heights at level a_lev */ )

@@ -14,6 +14,7 @@
 #include "ERF_IndexDefines.H"
 #include "ERF_MicrophysicsUtils.H"
 #include "ERF_NullMoist.H"
+#include "ERF_SurfacePrecipitation.H"
 
 namespace MicVar_WSM6 {
    enum {
@@ -43,6 +44,7 @@ public:
 
     void Define(SolverChoice& sc) override
     {
+        m_moisture_type = sc.moisture_type;
         m_axis = sc.ave_plane;
         m_do_cond = (!sc.uses_shoc_family());
     }
@@ -116,6 +118,16 @@ public:
         a_names = {"RainAccum", "SnowAccum", "GraupAccum"};
     }
 
+    SurfacePrecipAccumulationSources
+    Get_Surface_Precip_Accumulation_Ptrs (const int&) const override
+    {
+        SurfacePrecipAccumulationSources sources;
+        sources.total   = {mic_fab_vars[MicVar_WSM6::rain_accum].get(), rhoh2o / amrex::Real(1000.0)};
+        sources.snow    = {mic_fab_vars[MicVar_WSM6::snow_accum].get(), rhoh2o / amrex::Real(1000.0)};
+        sources.graupel = {mic_fab_vars[MicVar_WSM6::graup_accum].get(), rhoh2o / amrex::Real(1000.0)};
+        return sources;
+    }
+
 private:
     int m_qmoist_size = 3;
     int n_qstate_moist_size = 6;
@@ -129,6 +141,7 @@ private:
     int nlev{0}, zlo{0}, zhi{0};
     int m_axis{2};
     bool m_do_cond{true};
+    MoistureType m_moisture_type{MoistureType::None};
 
     amrex::MultiFab* m_z_phys_nd{nullptr};
     amrex::MultiFab* m_detJ_cc{nullptr};

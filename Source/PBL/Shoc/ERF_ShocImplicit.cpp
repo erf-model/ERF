@@ -118,7 +118,7 @@ ShocImplicit::cache_baseline_state (ShocColumnData& col)
 void
 ShocImplicit::compute_tmpi (const ShocColumnData& col,
                             int ic,
-                            Real dt,
+                            double dt,
                             const Vector<Real>& rho_zi,
     Vector<Real>& tmpi)
 {
@@ -165,7 +165,7 @@ ShocImplicit::compute_vapor (Real qw,
 void
 ShocImplicit::advance_implicit_state (ShocColumnData& col,
                                       const ShocRuntimeOptions& opts,
-                                      Real dt)
+                                      double dt)
 {
     AMREX_ALWAYS_ASSERT(dt > 0.0);
     static_cast<void>(opts);
@@ -318,7 +318,7 @@ ShocImplicit::advance_implicit_state (ShocColumnData& col,
 void
 ShocImplicit::finalize_from_pdf (ShocColumnData& col,
                                  const ShocRuntimeOptions& opts,
-                                 Real dt)
+                                 double dt)
 {
     AMREX_ALWAYS_ASSERT(dt > 0.0);
 
@@ -413,7 +413,7 @@ ShocImplicit::finalize_from_pdf (ShocColumnData& col,
 void
 ShocImplicit::update_prognostics (ShocColumnData& col,
                                   const ShocRuntimeOptions& opts,
-                                  Real dt)
+                                  double dt)
 {
     cache_baseline_state(col);
     advance_implicit_state(col, opts, dt);

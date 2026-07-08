@@ -153,7 +153,7 @@ ShocTKE::integrate_column_stability (const ShocColumnData& col,
 void
 ShocTKE::diagnose_tke_and_diffusivities (ShocColumnData& col,
                                          const ShocRuntimeOptions& opts,
-                                         Real dt)
+                                         double dt)
 {
     AMREX_ALWAYS_ASSERT(dt > 0.0);
 
@@ -207,7 +207,7 @@ ShocTKE::diagnose_tke_and_diffusivities (ShocColumnData& col,
             const Real net_prod = opts.signed_tke_production
                 ? (shear_prod + buoy_prod)
                 : amrex::max(0.0_rt, shear_prod + buoy_prod);
-            const Real raw_new_tke = shoc_clamp(old_tke + dt * (net_prod - diss),
+            const Real raw_new_tke = shoc_clamp(static_cast<Real>(old_tke + dt * (net_prod - diss)),
                                                 shoc_min_tke(), shoc_max_tke());
             const Real top_factor = top_taper_factor(zt, zi, layout, opts, ic, k);
             const Real new_tke = shoc_clamp(shoc_min_tke() +

@@ -8,9 +8,9 @@
 
     if (init_type == InitType::Uniform)
     {
-        Real rot_time_period;
+        double rot_time_period;
         pp_for_pert_vels.get("rotational_time_period", rot_time_period);
-        Real coriolis_factor = amrex::Real(4.0) * PI / rot_time_period;
+        Real coriolis_factor = static_cast<Real>(4.0 * PI / rot_time_period);
 
         Real Az;
         pp_for_pert_vels.get("dynamic_viscosity", Az); // dynamic viscosity [kg-m/s]

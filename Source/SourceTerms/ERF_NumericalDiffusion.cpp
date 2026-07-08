@@ -18,7 +18,7 @@ void
 NumericalDiffusion_Scal (const Box& bx,
                          const int  start_comp,
                          const int  num_comp,
-                         const Real dt,
+                         const double dt,
                          const Real num_diff_coeff,
                          const Array4<const Real>& prim_data,
                          const Array4<const Real>& cell_data,
@@ -83,7 +83,7 @@ NumericalDiffusion_Scal (const Box& bx,
  */
 void
 NumericalDiffusion_Xmom (const Box& bx,
-                         const Real dt,
+                         const double dt,
                          const Real num_diff_coeff,
                          const Array4<const Real>& prim_data,
                          const Array4<const Real>& cell_data,
@@ -149,7 +149,7 @@ NumericalDiffusion_Xmom (const Box& bx,
  */
 void
 NumericalDiffusion_Ymom (const Box& bx,
-                         const Real dt,
+                         const double dt,
                          const Real num_diff_coeff,
                          const Array4<const Real>& prim_data,
                          const Array4<const Real>& cell_data,

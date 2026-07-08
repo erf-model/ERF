@@ -1011,9 +1011,10 @@ struct SolverChoice {
         }
 
         for (int lev = 0; lev <= max_level; lev++) {
-            amrex::Print() << "vert_implicit_fac at level  : " << lev << " " << vert_implicit_fac[lev][0] << " "
-                                                                             << vert_implicit_fac[lev][1] << " "
-                                                                             << vert_implicit_fac[lev][2];
+            amrex::Print() << "vert_implicit_fac at level " << lev << " : "
+                           << vert_implicit_fac[lev][0] << " "
+                           << vert_implicit_fac[lev][1] << " "
+                           << vert_implicit_fac[lev][2];
             if (vert_implicit_fac[lev][0] > zero ||
                 vert_implicit_fac[lev][1] > zero ||
                 vert_implicit_fac[lev][2] > zero)
@@ -1132,10 +1133,10 @@ struct SolverChoice {
         amrex::ParmParse pp(pp_prefix);
 
         // Read the rotational time period (in seconds)
-        amrex::Real rot_time_period = amrex::Real(86400.0);
+        double rot_time_period = 86400.0;
         pp.query("rotational_time_period", rot_time_period);
 
-        coriolis_factor = two * two * PI / rot_time_period;
+        coriolis_factor = static_cast<amrex::Real>(4.0 * PI / rot_time_period);
 
         pp.query("coriolis_3d", coriolis_3d);
 
