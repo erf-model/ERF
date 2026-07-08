@@ -122,7 +122,7 @@ public:
     Get_Surface_Precip_Accumulation_Ptrs (const int&) const override
     {
         SurfacePrecipAccumulationSources sources;
-        sources.rain    = {mic_fab_vars[MicVar_WSM6::rain_accum].get(), rhoh2o / amrex::Real(1000.0)};
+        sources.total   = {mic_fab_vars[MicVar_WSM6::rain_accum].get(), rhoh2o / amrex::Real(1000.0)};
         sources.snow    = {mic_fab_vars[MicVar_WSM6::snow_accum].get(), rhoh2o / amrex::Real(1000.0)};
         sources.graupel = {mic_fab_vars[MicVar_WSM6::graup_accum].get(), rhoh2o / amrex::Real(1000.0)};
         return sources;

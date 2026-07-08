@@ -35,6 +35,7 @@ bool has_any_precip_component (const MoistureComponentIndices& moisture_indices)
 
 const SurfacePrecipAccumulationSource* first_available_source (const SurfacePrecipAccumulationSources& sources) noexcept
 {
+    if (surface_precip_has_source(sources.total))   return &sources.total;
     if (surface_precip_has_source(sources.rain))    return &sources.rain;
     if (surface_precip_has_source(sources.snow))    return &sources.snow;
     if (surface_precip_has_source(sources.graupel)) return &sources.graupel;
@@ -111,14 +112,23 @@ selected_precipitation_accumulation_components (const amrex::Vector<std::string>
             continue;
         }
 
+        const bool has_total = surface_precip_has_total_source(sources);
+        const bool has_explicit_rain = surface_precip_has_explicit_rain_source(sources);
+
         const bool source_available =
-            (descriptor->id == DiagnosticID::PrecipTotalAccum || descriptor->id == DiagnosticID::PrecipFrozenAccum)
+            (descriptor->id == DiagnosticID::PrecipTotalAccum)
                 ? surface_precip_has_any_source(sources)
-                : (descriptor->id == DiagnosticID::PrecipRainAccum)    ? surface_precip_has_source(sources.rain)
-                : (descriptor->id == DiagnosticID::PrecipSnowAccum)    ? surface_precip_has_source(sources.snow)
-                : (descriptor->id == DiagnosticID::PrecipGraupelAccum) ? surface_precip_has_source(sources.graupel)
-                : (descriptor->id == DiagnosticID::PrecipHailAccum)    ? surface_precip_has_source(sources.hail)
-                : false;
+                : (descriptor->id == DiagnosticID::PrecipRainAccum)
+                    ? (has_explicit_rain || has_total)
+                    : (descriptor->id == DiagnosticID::PrecipSnowAccum)
+                        ? surface_precip_has_source(sources.snow)
+                        : (descriptor->id == DiagnosticID::PrecipGraupelAccum)
+                            ? surface_precip_has_source(sources.graupel)
+                            : (descriptor->id == DiagnosticID::PrecipHailAccum)
+                                ? surface_precip_has_source(sources.hail)
+                                : (descriptor->id == DiagnosticID::PrecipFrozenAccum)
+                                    ? surface_precip_has_any_frozen_source(sources)
+                                    : false;
 
         if (!source_available) {
             continue;
@@ -166,6 +176,7 @@ fill_precipitation_accumulations (MultiFab& dst,
     {
         const Box& bx = mfi.tilebox();
         const auto dst_arr = dst.array(mfi);
+        const auto total_arr = surface_precip_has_total_source(sources) ? sources.total.accum->const_array(mfi) : Array4<const Real>{};
         const auto rain_arr = surface_precip_has_source(sources.rain) ? sources.rain.accum->const_array(mfi) : Array4<const Real>{};
         const auto snow_arr = surface_precip_has_source(sources.snow) ? sources.snow.accum->const_array(mfi) : Array4<const Real>{};
         const auto graupel_arr = surface_precip_has_source(sources.graupel) ? sources.graupel.accum->const_array(mfi) : Array4<const Real>{};
@@ -177,12 +188,20 @@ fill_precipitation_accumulations (MultiFab& dst,
                 return;
             }
 
-            const amrex::Real rain = normalized_source_value(sources.rain, rain_arr, i, j, k);
+            const amrex::Real total_source = normalized_source_value(sources.total, total_arr, i, j, k);
+            const amrex::Real rain_source = normalized_source_value(sources.rain, rain_arr, i, j, k);
             const amrex::Real snow = normalized_source_value(sources.snow, snow_arr, i, j, k);
             const amrex::Real graupel = normalized_source_value(sources.graupel, graupel_arr, i, j, k);
             const amrex::Real hail = normalized_source_value(sources.hail, hail_arr, i, j, k);
-            const amrex::Real total = rain + snow + graupel + hail;
             const amrex::Real frozen = snow + graupel + hail;
+            const bool has_total = surface_precip_has_total_source(sources);
+            const bool has_explicit_rain = surface_precip_has_explicit_rain_source(sources);
+            const amrex::Real total = has_total ? total_source : rain_source + frozen;
+            // Total-plus-frozen-subset schemes derive rain as total - frozen.
+            // Clamp to zero to avoid negative output from roundoff or small
+            // scheme inconsistencies.
+            const amrex::Real rain = has_explicit_rain ? rain_source
+                                                       : amrex::max(amrex::Real(0.0), total - frozen);
 
             for (int n = 0; n < selected.n; ++n) {
                 switch (selected.id[n]) {

@@ -154,7 +154,7 @@ public:
     Get_Surface_Precip_Accumulation_Ptrs (const int&) const override
     {
         SurfacePrecipAccumulationSources sources;
-        sources.rain = {mic_fab_vars[MicVar_Morr::rain_accum].get(), rhor / amrex::Real(1000.0)};
+        sources.total = {mic_fab_vars[MicVar_Morr::rain_accum].get(), rhor / amrex::Real(1000.0)};
 
         if (m_moisture_type == MoistureType::Morrison) {
             sources.snow    = {mic_fab_vars[MicVar_Morr::snow_accum].get(), rhor / amrex::Real(1000.0)};

@@ -58,6 +58,12 @@ species depend on the scheme: warm-rain configurations expose rain only, while
 mixed-phase schemes may expose rain, snow, and graupel. Hail remains reserved
 for a future scheme that carries a distinct hail accumulator.
 
+The internal accumulator names are scheme-native. In some schemes, a historical
+``rain`` accumulator actually represents total precipitation rather than
+rain-only precipitation. The 2D output interface therefore treats precipitation
+sources as typed total/species inputs and derives the public
+liquid-water-equivalent fields from the normalized sources.
+
 ERF's user-facing 2D precipitation diagnostics normalize those scheme-native
 accumulators to a common liquid-water-equivalent basis with units of
 ``kg/m^2``. That lets downstream code compare schemes and diagnose coupling

@@ -17,6 +17,7 @@
 #include "ERF_Plotfile2DCatalog.H"
 #include "ERF_Plotfile2DInterpolator.H"
 #include "ERF_Plotfile2DFill.H"
+#include "ERF_Plotfile2DPrecip.H"
 #include "ERF_Plotfile2DMetadata.H"
 #include "ERF_Plotfile2DSampledField.H"
 #include "ERF_Plotfile2DSampledLevel.H"
@@ -534,6 +535,204 @@ TEST(Plotfile2D, FindDiagnosticReturnsDescriptorForPrecipitationAccumulations)
         EXPECT_EQ(descriptor->missing_policy, plotfile2d::MissingPolicy::FillZeroWhenUnavailable);
         EXPECT_FALSE(std::string(descriptor->long_name).empty());
     }
+}
+
+// Motivation: Species-native schemes such as SAM provide explicit rain, snow,
+// and graupel accumulators; the 2D helper should sum those normalized species
+// without double-counting.
+TEST(Plotfile2DPrecip, SpeciesModeFillsNormalizedSpeciesAndDerivedTotals)
+{
+    const auto ba3d = make_test_boxarray();
+    const auto ba2d = make_test_slab_boxarray();
+    amrex::DistributionMapping dm(ba3d);
+    amrex::MultiFab rain(ba3d, dm, 1, 0);
+    amrex::MultiFab snow(ba3d, dm, 1, 0);
+    amrex::MultiFab graupel(ba3d, dm, 1, 0);
+    amrex::MultiFab dst(ba2d, dm, 6, 0);
+
+    rain.setVal(amrex::Real(0.0));
+    snow.setVal(amrex::Real(0.0));
+    graupel.setVal(amrex::Real(0.0));
+    dst.setVal(amrex::Real(-7.0));
+
+    set_component_value_at_k(rain, 0, 0, amrex::Real(5.0));
+    set_component_value_at_k(snow, 0, 0, amrex::Real(3.0));
+    set_component_value_at_k(graupel, 0, 0, amrex::Real(2.0));
+
+    SurfacePrecipAccumulationSources sources;
+    sources.rain = {&rain, amrex::Real(1.0)};
+    sources.snow = {&snow, amrex::Real(1.0)};
+    sources.graupel = {&graupel, amrex::Real(1.0)};
+
+    const amrex::Vector<std::string> plot_var_names{
+        "precip_total_accum",
+        "precip_rain_accum",
+        "precip_snow_accum",
+        "precip_graupel_accum",
+        "precip_frozen_accum"
+    };
+    const auto selected =
+        plotfile2d::selected_precipitation_accumulation_components(plot_var_names, sources);
+
+    ASSERT_EQ(selected.n, 5);
+    EXPECT_EQ(selected.id[0], plotfile2d::DiagnosticID::PrecipTotalAccum);
+    EXPECT_EQ(selected.id[1], plotfile2d::DiagnosticID::PrecipRainAccum);
+    EXPECT_EQ(selected.id[2], plotfile2d::DiagnosticID::PrecipSnowAccum);
+    EXPECT_EQ(selected.id[3], plotfile2d::DiagnosticID::PrecipGraupelAccum);
+    EXPECT_EQ(selected.id[4], plotfile2d::DiagnosticID::PrecipFrozenAccum);
+
+    plotfile2d::fill_precipitation_accumulations(dst, sources, selected, 0);
+    amrex::Gpu::streamSynchronize();
+
+    EXPECT_DOUBLE_EQ(dst.min(0), amrex::Real(10.0));
+    EXPECT_DOUBLE_EQ(dst.min(1), amrex::Real(5.0));
+    EXPECT_DOUBLE_EQ(dst.min(2), amrex::Real(3.0));
+    EXPECT_DOUBLE_EQ(dst.min(3), amrex::Real(2.0));
+    EXPECT_DOUBLE_EQ(dst.min(4), amrex::Real(5.0));
+    EXPECT_DOUBLE_EQ(dst.min(5), amrex::Real(-7.0));
+}
+
+// Motivation: Morrison and WSM6 expose a total accumulator plus frozen subset
+// accumulators, so precip_rain_accum must be derived as total minus frozen
+// rather than treating the total accumulator as rain and double-counting it.
+TEST(Plotfile2DPrecip, TotalPlusFrozenSubsetModeDerivesRainFromTotalMinusFrozen)
+{
+    const auto ba3d = make_test_boxarray();
+    const auto ba2d = make_test_slab_boxarray();
+    amrex::DistributionMapping dm(ba3d);
+    amrex::MultiFab total(ba3d, dm, 1, 0);
+    amrex::MultiFab snow(ba3d, dm, 1, 0);
+    amrex::MultiFab graupel(ba3d, dm, 1, 0);
+    amrex::MultiFab dst(ba2d, dm, 6, 0);
+
+    total.setVal(amrex::Real(0.0));
+    snow.setVal(amrex::Real(0.0));
+    graupel.setVal(amrex::Real(0.0));
+    dst.setVal(amrex::Real(-7.0));
+
+    set_component_value_at_k(total, 0, 0, amrex::Real(10.0));
+    set_component_value_at_k(snow, 0, 0, amrex::Real(3.0));
+    set_component_value_at_k(graupel, 0, 0, amrex::Real(2.0));
+
+    SurfacePrecipAccumulationSources sources;
+    sources.total = {&total, amrex::Real(1.0)};
+    sources.snow = {&snow, amrex::Real(1.0)};
+    sources.graupel = {&graupel, amrex::Real(1.0)};
+
+    const amrex::Vector<std::string> plot_var_names{
+        "precip_total_accum",
+        "precip_rain_accum",
+        "precip_snow_accum",
+        "precip_graupel_accum",
+        "precip_frozen_accum"
+    };
+    const auto selected =
+        plotfile2d::selected_precipitation_accumulation_components(plot_var_names, sources);
+
+    ASSERT_EQ(selected.n, 5);
+    EXPECT_EQ(selected.id[0], plotfile2d::DiagnosticID::PrecipTotalAccum);
+    EXPECT_EQ(selected.id[1], plotfile2d::DiagnosticID::PrecipRainAccum);
+    EXPECT_EQ(selected.id[2], plotfile2d::DiagnosticID::PrecipSnowAccum);
+    EXPECT_EQ(selected.id[3], plotfile2d::DiagnosticID::PrecipGraupelAccum);
+    EXPECT_EQ(selected.id[4], plotfile2d::DiagnosticID::PrecipFrozenAccum);
+
+    plotfile2d::fill_precipitation_accumulations(dst, sources, selected, 0);
+    amrex::Gpu::streamSynchronize();
+
+    EXPECT_DOUBLE_EQ(dst.min(0), amrex::Real(10.0));
+    EXPECT_DOUBLE_EQ(dst.min(1), amrex::Real(5.0));
+    EXPECT_DOUBLE_EQ(dst.min(2), amrex::Real(3.0));
+    EXPECT_DOUBLE_EQ(dst.min(3), amrex::Real(2.0));
+    EXPECT_DOUBLE_EQ(dst.min(4), amrex::Real(5.0));
+    EXPECT_DOUBLE_EQ(dst.min(5), amrex::Real(-7.0));
+}
+
+// Motivation: Scheme-native accumulators may use depth-like units, so each
+// source must be normalized to kg/m^2 before total and frozen fields are built.
+TEST(Plotfile2DPrecip, ConversionFactorsApplyBeforeDerivedSums)
+{
+    const auto ba3d = make_test_boxarray();
+    const auto ba2d = make_test_slab_boxarray();
+    amrex::DistributionMapping dm(ba3d);
+    amrex::MultiFab rain(ba3d, dm, 1, 0);
+    amrex::MultiFab snow(ba3d, dm, 1, 0);
+    amrex::MultiFab graupel(ba3d, dm, 1, 0);
+    amrex::MultiFab dst(ba2d, dm, 6, 0);
+
+    rain.setVal(amrex::Real(0.0));
+    snow.setVal(amrex::Real(0.0));
+    graupel.setVal(amrex::Real(0.0));
+    dst.setVal(amrex::Real(-7.0));
+
+    set_component_value_at_k(rain, 0, 0, amrex::Real(2.0));
+    set_component_value_at_k(snow, 0, 0, amrex::Real(3.0));
+    set_component_value_at_k(graupel, 0, 0, amrex::Real(4.0));
+
+    SurfacePrecipAccumulationSources sources;
+    sources.rain = {&rain, amrex::Real(10.0)};
+    sources.snow = {&snow, amrex::Real(100.0)};
+    sources.graupel = {&graupel, amrex::Real(1000.0)};
+
+    const amrex::Vector<std::string> plot_var_names{
+        "precip_total_accum",
+        "precip_rain_accum",
+        "precip_snow_accum",
+        "precip_graupel_accum",
+        "precip_frozen_accum"
+    };
+    const auto selected =
+        plotfile2d::selected_precipitation_accumulation_components(plot_var_names, sources);
+
+    ASSERT_EQ(selected.n, 5);
+
+    plotfile2d::fill_precipitation_accumulations(dst, sources, selected, 0);
+    amrex::Gpu::streamSynchronize();
+
+    EXPECT_DOUBLE_EQ(dst.min(0), amrex::Real(4320.0));
+    EXPECT_DOUBLE_EQ(dst.min(1), amrex::Real(20.0));
+    EXPECT_DOUBLE_EQ(dst.min(2), amrex::Real(300.0));
+    EXPECT_DOUBLE_EQ(dst.min(3), amrex::Real(4000.0));
+    EXPECT_DOUBLE_EQ(dst.min(4), amrex::Real(4300.0));
+}
+
+// Motivation: Total-plus-frozen-subset schemes can still provide public rain
+// accumulation as total minus frozen, so availability should not hide
+// precip_rain_accum for Morrison or WSM6.
+TEST(Plotfile2DPrecip, TotalDerivedRainIsAvailableForCurrentSchemes)
+{
+    SolverChoice sc;
+    sc.moisture_type = MoistureType::WSM6;
+    sc.moisture_indices = MoistureComponentIndices(RhoQ1_comp, RhoQ2_comp,
+                                                   RhoQ3_comp, RhoQ4_comp,
+                                                   RhoQ5_comp, RhoQ6_comp);
+
+    const auto available = plotfile2d::available_diagnostic_names(sc);
+
+    for (const char* name : {"precip_total_accum", "precip_rain_accum",
+                             "precip_snow_accum", "precip_graupel_accum",
+                             "precip_frozen_accum"}) {
+        EXPECT_NE(std::find(available.begin(), available.end(), name), available.end())
+            << "missing field " << name;
+    }
+    EXPECT_EQ(std::find(available.begin(), available.end(), "precip_hail_accum"), available.end());
+}
+
+// Motivation: The public hail slot is reserved for schemes with a true hail
+// source, so current schemes should not advertise hail by default.
+TEST(Plotfile2DPrecip, HailRemainsUnavailableWithoutSource)
+{
+    SolverChoice sc;
+    sc.moisture_type = MoistureType::Morrison;
+    sc.moisture_indices = MoistureComponentIndices(RhoQ1_comp, RhoQ2_comp,
+                                                   RhoQ3_comp, RhoQ4_comp,
+                                                   RhoQ5_comp, RhoQ6_comp,
+                                                   RhoQ7_comp, RhoQ8_comp,
+                                                   RhoQ9_comp, RhoQ10_comp,
+                                                   RhoQ11_comp);
+
+    const auto available = plotfile2d::available_diagnostic_names(sc);
+
+    EXPECT_EQ(std::find(available.begin(), available.end(), "precip_hail_accum"), available.end());
 }
 
 // Motivation: Pressure sampled-level definitions must parse with the provided

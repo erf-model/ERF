@@ -6,8 +6,10 @@
 #include <AMReX_REAL.H>
 
 // Shared microphysics-to-IO contract for surface precipitation accumulation.
-// Scheme-native accumulators may be stored in depth-like restart units, so the
-// output layer applies the conversion factor to a common kg/m^2 basis.
+// Scheme-native precipitation accumulators do not all have the same semantics.
+// Some schemes store explicit species accumulations; others store total
+// precipitation plus frozen-species subset accumulations. The IO layer uses
+// these typed slots to build public kg/m^2 fields without double-counting.
 
 struct SurfacePrecipAccumulationSource
 {
@@ -17,6 +19,7 @@ struct SurfacePrecipAccumulationSource
 
 struct SurfacePrecipAccumulationSources
 {
+    SurfacePrecipAccumulationSource total{};
     SurfacePrecipAccumulationSource rain{};
     SurfacePrecipAccumulationSource snow{};
     SurfacePrecipAccumulationSource graupel{};
@@ -30,9 +33,22 @@ bool surface_precip_has_source (const SurfacePrecipAccumulationSource& src) noex
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+bool surface_precip_has_total_source (const SurfacePrecipAccumulationSources& src) noexcept
+{
+    return surface_precip_has_source(src.total);
+}
+
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+bool surface_precip_has_explicit_rain_source (const SurfacePrecipAccumulationSources& src) noexcept
+{
+    return surface_precip_has_source(src.rain);
+}
+
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 bool surface_precip_has_any_source (const SurfacePrecipAccumulationSources& src) noexcept
 {
-    return surface_precip_has_source(src.rain)
+    return surface_precip_has_source(src.total)
+        || surface_precip_has_source(src.rain)
         || surface_precip_has_source(src.snow)
         || surface_precip_has_source(src.graupel)
         || surface_precip_has_source(src.hail);
@@ -41,9 +57,10 @@ bool surface_precip_has_any_source (const SurfacePrecipAccumulationSources& src)
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 bool surface_precip_has_any_frozen_source (const SurfacePrecipAccumulationSources& src) noexcept
 {
-    return surface_precip_has_source(src.snow)
-        || surface_precip_has_source(src.graupel)
-        || surface_precip_has_source(src.hail);
+    // Public frozen precipitation is available whenever the scheme has any
+    // precipitation source, because the IO layer can derive the frozen field
+    // from the total or species accumulators and fill zero for warm-rain cases.
+    return surface_precip_has_any_source(src);
 }
 
 #endif

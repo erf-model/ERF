@@ -1275,9 +1275,15 @@ mode.
 ERF can write cumulative surface precipitation accumulations from the active
 microphysics scheme in 2D plotfiles. These diagnostics report the liquid-water
 equivalent mass that has reached the lower boundary since model start or the
-most recent restart. The public fields use ``kg/m^2`` because downstream land
-surface forcing consumes precipitation as mass over area, even though
-``1 kg/m^2`` is numerically equal to ``1 mm`` of liquid water equivalent.
+most recent restart. Some schemes store explicit rain/snow/graupel species
+accumulators, while others store a total accumulator plus frozen-species
+subsets. ERF normalizes each available scheme-native source to ``kg/m^2``
+before deriving the public 2D fields. When a scheme provides a total source
+but no explicit rain source, ERF computes ``precip_rain_accum`` as
+``precip_total_accum - precip_frozen_accum`` and clips small negative residuals
+to zero. The public fields use ``kg/m^2`` because downstream land surface
+forcing consumes precipitation as mass over area, even though ``1 kg/m^2`` is
+numerically equal to ``1 mm`` of liquid water equivalent.
 
 +-----------------------------+--------------------------------------------------+----------+
 | Field                       | Meaning                                          | Units    |
@@ -1301,11 +1307,12 @@ surface forcing consumes precipitation as mass over area, even though
 |                             | liquid-water equivalent                          |          |
 +-----------------------------+--------------------------------------------------+----------+
 
-``precip_total_accum`` is the sum of the normalized species accumulations and
-``precip_frozen_accum`` is the sum of the frozen species accumulations. Species
-that are not available in the active microphysics scheme contribute zero to the
-derived totals. ``precip_hail_accum`` is reserved for a future scheme that
-exposes a distinct hail accumulator.
+``precip_total_accum`` is the normalized total accumulation when the scheme
+stores one, or the sum of the normalized species accumulations otherwise.
+``precip_frozen_accum`` is the sum of the normalized frozen species
+accumulations. Species that are not available in the active microphysics
+scheme contribute zero to the derived totals. ``precip_hail_accum`` is reserved
+for a future scheme that exposes a distinct hail accumulator.
 
 To diagnose the frozen fraction over a coupling interval, use accumulation
 differences rather than a ratio of cumulative values:

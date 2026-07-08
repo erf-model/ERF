@@ -14,6 +14,9 @@
 // Scheme-aware helpers for 2D surface precipitation accumulation diagnostics.
 // The output layer normalizes scheme-native precipitation accumulators to the
 // public liquid-water-equivalent kg/m^2 basis before writing plotfile slabs.
+// Some schemes provide explicit rain/snow/graupel sources, while others
+// provide a total source plus frozen subsets. The helper layer preserves both
+// contracts and derives the public fields without double-counting.
 
 namespace plotfile2d
 {
