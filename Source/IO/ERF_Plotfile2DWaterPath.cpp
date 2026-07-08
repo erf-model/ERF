@@ -1,4 +1,5 @@
 #include "ERF_Plotfile2DWaterPath.H"
+#include "ERF_Plotfile2DPrecip.H"
 
 #include <AMReX.H>
 #include <AMReX_Gpu.H>
@@ -87,10 +88,21 @@ available_diagnostic_names (const SolverChoice& solver_choice)
     names.reserve(diagnostic_catalog().size());
 
     for (const auto& descriptor : diagnostic_catalog()) {
-        if (!is_condensed_water_path(descriptor.id) ||
-            source_component_for(descriptor.id, solver_choice.moisture_indices) >= 0) {
-            names.push_back(descriptor.name);
+        if (is_condensed_water_path(descriptor.id)) {
+            if (source_component_for(descriptor.id, solver_choice.moisture_indices) >= 0) {
+                names.push_back(descriptor.name);
+            }
+            continue;
         }
+
+        if (is_precipitation_accumulation(descriptor.id)) {
+            if (precipitation_diagnostic_available(descriptor.id, solver_choice.moisture_indices)) {
+                names.push_back(descriptor.name);
+            }
+            continue;
+        }
+
+        names.push_back(descriptor.name);
     }
 
     return names;

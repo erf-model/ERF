@@ -316,6 +316,8 @@ ERF::ReadStormTrackerRestart ()
 {
     hurricane_eye_track_xy.clear();
     hurricane_eye_track_latlon.clear();
+    hurricane_maxvel_vs_time.clear();
+    hurricane_minpressure_vs_time.clear();
 
     const fs::path base_dir("Output_StormTracker");
 
@@ -371,6 +373,64 @@ ERF::ReadStormTrackerRestart ()
             while (ifs >> lat >> lon)
             {
                 hurricane_eye_track_latlon.push_back({lat, lon});
+            }
+        }
+    }
+
+    //==========================================================
+    // Read maxvel tracker file
+    //==========================================================
+
+    {
+        fs::path file = last_file(base_dir / "maxvel");
+
+        if (!file.empty())
+        {
+            std::ifstream ifs(file);
+
+            if (!ifs.is_open()) {
+                Abort("Could not open " + file.string());
+            }
+
+            std::string line;
+
+            // Skip the header line.
+            std::getline(ifs, line);
+
+            amrex::Real val1, val2;
+
+            while (ifs >> val1 >> val2)
+            {
+                hurricane_maxvel_vs_time.push_back({val1, val2});
+            }
+        }
+    }
+
+    //==========================================================
+    // Read minpressure tracker file
+    //==========================================================
+
+    {
+        fs::path file = last_file(base_dir / "minpressure");
+
+        if (!file.empty())
+        {
+            std::ifstream ifs(file);
+
+            if (!ifs.is_open()) {
+                Abort("Could not open " + file.string());
+            }
+
+            std::string line;
+
+            // Skip the header line.
+            std::getline(ifs, line);
+
+            amrex::Real val1, val2;
+
+            while (ifs >> val1 >> val2)
+            {
+                hurricane_minpressure_vs_time.push_back({val1, val2});
             }
         }
     }

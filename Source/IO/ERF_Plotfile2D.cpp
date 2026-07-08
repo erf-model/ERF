@@ -3,6 +3,7 @@
 #include "ERF_Plotfile2DFill.H"
 #include "ERF_Plotfile2DMetadata.H"
 #include "ERF_Plotfile2DInterpolator.H"
+#include "ERF_Plotfile2DPrecip.H"
 #include "ERF_Plotfile2DWaterPath.H"
 #include "ERF_NCPlotFile.H"
 #include "ERF_Plotfile2DUtils.H"
@@ -411,6 +412,26 @@ ERF::Write2DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
             }
             mf_comp++;
         } // surf_pres
+
+        const auto precip_sources =
+            micro ? micro->Get_Surface_Precip_Accumulation_Ptrs(lev)
+                  : SurfacePrecipAccumulationSources{};
+        const auto selected_precipitation =
+            plotfile2d::selected_precipitation_accumulation_components(varnames,
+                                                                       precip_sources);
+        if (selected_precipitation.n > 0) {
+            plotfile2d::fill_precipitation_accumulations(mf[lev],
+                                                         precip_sources,
+                                                         selected_precipitation,
+                                                         klo);
+        }
+
+        if (containerHasElement(plot_var_names, "precip_total_accum"))   { mf_comp++; }
+        if (containerHasElement(plot_var_names, "precip_rain_accum"))    { mf_comp++; }
+        if (containerHasElement(plot_var_names, "precip_snow_accum"))    { mf_comp++; }
+        if (containerHasElement(plot_var_names, "precip_graupel_accum")) { mf_comp++; }
+        if (containerHasElement(plot_var_names, "precip_hail_accum"))    { mf_comp++; }
+        if (containerHasElement(plot_var_names, "precip_frozen_accum"))  { mf_comp++; }
 
         if (containerHasElement(plot_var_names, "integrated_qv")) {
             // integrated_qv remains the legacy column-reduction example.

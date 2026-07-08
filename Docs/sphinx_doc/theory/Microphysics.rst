@@ -49,6 +49,52 @@ Model overview and transported quantities in ERF
 +--------------------+-------------------------+-------------+-------------+-----------------+-------------+
 
 
+Surface precipitation accumulations
+-----------------------------------
+
+Each microphysics scheme that sediments precipitation keeps internal surface
+accumulator fields for the mass that reaches the lower boundary. The available
+species depend on the scheme: warm-rain configurations expose rain only, while
+mixed-phase schemes may expose rain, snow, and graupel. Hail remains reserved
+for a future scheme that carries a distinct hail accumulator.
+
+The internal accumulator names are scheme-native. In some schemes, a historical
+``rain`` accumulator actually represents total precipitation rather than
+rain-only precipitation. The 2D output interface therefore treats precipitation
+sources as typed total/species inputs and derives the public
+liquid-water-equivalent fields from the normalized sources.
+
+ERF's user-facing 2D precipitation diagnostics normalize those scheme-native
+accumulators to a common liquid-water-equivalent basis with units of
+``kg/m^2``. That lets downstream code compare schemes and diagnose coupling
+interval totals without depending on a scheme's internal depth convention.
+
+For an output interval from :math:`t_0` to :math:`t_1`, a frozen fraction can
+be computed from the accumulation deltas:
+
+.. math::
+
+   f_{frozen} =
+   \begin{cases}
+   \dfrac{\Delta P_{frozen}}{\Delta P_{total}}, & \Delta P_{total} > 0 \\
+   0, & \text{otherwise}
+   \end{cases}
+
+with
+
+.. math::
+
+   \Delta P_{total} = P_{total}(t_1) - P_{total}(t_0)
+
+and
+
+.. math::
+
+   \Delta P_{frozen} = P_{snow}(t_1) - P_{snow}(t_0)
+   + P_{graupel}(t_1) - P_{graupel}(t_0)
+   + P_{hail}(t_1) - P_{hail}(t_0).
+
+
 Kessler Microphysics model
 ---------------------------
 The Kessler microphysics model is a simple version of cloud microphysics which has precipitation only in the form of rain. Hence :math:`q_p = q_r`.
