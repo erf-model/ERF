@@ -25,8 +25,8 @@ public:
     void
     Run (int& level,
          int& step,
-         amrex::Real& time,
-         const amrex::Real& dt,
+         double& time,
+         const double& dt,
          const amrex::BoxArray& ba,
          amrex::Geometry& geom,
          amrex::MultiFab* cons_in,
@@ -38,11 +38,12 @@ public:
          amrex::MultiFab* rad_fluxes,
          amrex::MultiFab* z_phys,
          amrex::MultiFab* lat,
-         amrex::MultiFab* lon) = 0;
+         amrex::MultiFab* lon,
+         const bool updated_lsm) = 0;
 
     virtual
     void
-    WriteDataLog (const amrex::Real& time) = 0;
+    WriteDataLog (const double& time) = 0;
 
     // Get names input varnames for lsm
     virtual

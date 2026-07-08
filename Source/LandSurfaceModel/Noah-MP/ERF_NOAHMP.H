@@ -6,6 +6,8 @@
 #include <memory>
 #include <limits>
 
+#include <AMReX_Interpolater.H>
+#include <AMReX_FillPatchUtil.H>
 #include <AMReX_FArrayBox.H>
 #include <AMReX_Geometry.H>
 #include <AMReX_MultiFabUtil.H>
@@ -110,7 +112,11 @@ public:
     Init (const int& lev,
           const amrex::MultiFab& cons_in,
           const amrex::Geometry& geom,
-          const amrex::Real& dt) override;
+          const amrex::Geometry& geom0,
+          amrex::Vector<amrex::BCRec>& domain_bcs_type,
+          amrex::IntVect& refRatio,
+          const amrex::Real& dt,
+          amrex::Vector<amrex::Vector<std::string>>& nc_init_file) override;
 
     // Wrapper to do all the updating
     void
@@ -125,7 +131,8 @@ public:
                         const amrex::MultiFab* graup_accum_in,
                         const amrex::Real& elapsed_time,
                         const amrex::Real& dt,
-                        const int& nstep) override;
+                        const int& nstep,
+                        const bool updated_lev0) override;
 
     void
     Plot_Landfile (const int& nstep) override;
@@ -206,6 +213,23 @@ public:
         return varIdx;
     }
 
+    void
+    Lsm_Set_Lev0_Data_Ptr (const int& varIdx,
+                           amrex::MultiFab* lev0_data_ptr) override
+    {
+        lsm_lev0_data[varIdx] = lev0_data_ptr;
+    }
+
+    void
+    Lsm_Set_Lev0_Flux_Ptr (const int& varIdx,
+                           amrex::MultiFab* lev0_flux_ptr) override
+    {
+        lsm_lev0_flux[varIdx] = lev0_flux_ptr;
+    }
+
+    bool
+    Get_Update_Status () override { return m_updated; }
+
     // Checkpoint/restore the NoahMP substep counter. Uses the class member
     // m_itimestep (valid on every rank) rather than noahmpio_vect[0] (absent on
     // land-free ranks).
@@ -266,11 +290,20 @@ private:
     // geometry for atmosphere
     amrex::Geometry m_geom;
 
+    // geometry for atmosphere at lev==0
+    amrex::Geometry m_geom0;
+
     // geometry for lsm
     amrex::Geometry m_lsm_geom;
 
+    // refinement ratio
+    amrex::IntVect m_refRatio;
+
+    // domain bc types
+    amrex::Vector<amrex::BCRec> m_domain_bcs_type;
+
     // timestep
-    amrex::Real m_dt;
+    double m_dt;
 
     // Authoritative NoahMP substep counter, kept on the class so the firing
     // decision in Advance_With_State is identical on every rank (including
@@ -279,7 +312,7 @@ private:
 
     // NoahMP timestep (DTBL), broadcast to all ranks in Init so the firing
     // decision is well-defined on land-free ranks too.
-    amrex::Real m_dtbl = std::numeric_limits<amrex::Real>::max();
+    double m_dtbl = std::numeric_limits<amrex::Real>::max();
 
     // domain klo-1 or lsm khi
     int khi_lsm;
@@ -293,8 +326,14 @@ private:
     // LSM data variables
     amrex::Array<FabPtr, LsmData_NOAHMP::NumVars> lsm_fab_data;
 
-    // LSM data variables
+    // LSM flux variables
     amrex::Array<FabPtr, LsmFlux_NOAHMP::NumVars> lsm_fab_flux;
+
+    // LSM data variables at level 0
+    amrex::Array<amrex::MultiFab*, LsmData_NOAHMP::NumVars> lsm_lev0_data;
+
+    // LSM flux variables at level 0
+    amrex::Array<amrex::MultiFab*, LsmFlux_NOAHMP::NumVars> lsm_lev0_flux;
 
     // Vector to store NoahmpIO objects at a level
     NoahmpIO_vector noahmpio_vect;
@@ -313,5 +352,11 @@ private:
 
     // Plot frequency
     int m_plot_int_1 = -1;
+
+    // Update status
+    bool m_updated = false;
+
+    // Do we have a nc init file?
+    bool m_has_nc_file = false;
 };
 #endif

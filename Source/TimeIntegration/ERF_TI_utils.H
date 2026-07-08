@@ -32,7 +32,7 @@
  *  This routine is called after the scalars are updated for each RK stage
  */
     auto apply_bcs = [&](Vector<MultiFab>& S_data,
-                         const Real time_for_fp, int ng_cons, int ng_vel,
+                         const double time_for_fp, int ng_cons, int ng_vel,
                          bool fast_only, bool vel_and_mom_synced)
     {
         BL_PROFILE("apply_bcs()");
@@ -122,7 +122,7 @@
                               ng_cons_to_use, ng_vel, cons_only, scomp_cons, ncomp_cons);
     };
 
-    auto update_terrain_stage = [&](int lev, Real old_step_time, Real old_stage_time, Real new_stage_time, Real slow_dt)
+    auto update_terrain_stage = [&](int lev, const double old_step_time, const double old_stage_time, const double new_stage_time, const double slow_dt)
     {
             // Note that the "old" and "new" metric terms correspond to
             // t^n and the RK stage (either t^*, t^** or t^{n+1} that this source
@@ -196,7 +196,7 @@
             } // mfi
     };
 
-    auto update_terrain_substep = [&](int lev, Real old_substep_time, Real new_substep_time, Real dtau,
+    auto update_terrain_substep = [&](int lev, const double old_substep_time, const double new_substep_time, const double dtau,
                                       Vector<MultiFab>& S_data, std::unique_ptr<MultiFab>& z_t_pert)
     {
         // Make "old" fast geom -- store in z_phys_nd for convenience

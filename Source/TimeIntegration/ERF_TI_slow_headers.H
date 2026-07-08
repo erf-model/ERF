@@ -18,6 +18,8 @@
 #include "ERF_EB.H"
 #include "ERF_ReadBndryPlanes.H"
 
+class ShocDriver;
+
 void erf_make_tau_terms (int level, int nrk,
                          const amrex::Vector<amrex::BCRec>& domain_bcs_type,
                          const amrex::MultiFab& z_phys_nd,
@@ -48,7 +50,7 @@ void copy_surface_tau_for_implicit (amrex::Vector<std::unique_ptr<amrex::MultiFa
  *
  */
 void erf_slow_rhs_pre (int level, int finest_level, int nrk,
-                      amrex::Real dt,
+                      double dt,
                       amrex::Vector<amrex::MultiFab>& S_rhs,
                       amrex::Vector<amrex::MultiFab>& S_old,
                       amrex::Vector<amrex::MultiFab>& S_data,
@@ -99,9 +101,7 @@ void erf_slow_rhs_pre (int level, int finest_level, int nrk,
 #ifdef ERF_USE_EAMXX_SHOC
                       SHOCInterface* eamxx_shoc_lev,
 #endif
-#ifdef ERF_USE_NATIVE_SHOC
                       ShocDriver* native_shoc_lev,
-#endif
                       amrex::YAFluxRegister* fr_as_crse,
                       amrex::YAFluxRegister* fr_as_fine);
 
@@ -110,7 +110,7 @@ void erf_slow_rhs_pre (int level, int finest_level, int nrk,
  *
  */
 void erf_slow_rhs_post (int level, int finest_level, int nrk,
-                       amrex::Real dt,
+                       double dt,
                        int n_qstate,
                        amrex::Vector<amrex::MultiFab>& S_rhs,
                        amrex::Vector<amrex::MultiFab>& S_old,
@@ -152,9 +152,7 @@ void erf_slow_rhs_post (int level, int finest_level, int nrk,
 #ifdef ERF_USE_EAMXX_SHOC
                        SHOCInterface* eamxx_shoc_lev,
 #endif
-#ifdef ERF_USE_NATIVE_SHOC
                        ShocDriver* native_shoc_lev,
-#endif
                        amrex::YAFluxRegister* fr_as_crse,
                        amrex::YAFluxRegister* fr_as_fine,
                        std::unique_ptr<ReadBndryPlanes>& m_r2d);

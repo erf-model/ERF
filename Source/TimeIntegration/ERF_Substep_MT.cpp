@@ -76,7 +76,7 @@ void erf_substep_MT (int step, int /*nrk*/,
                      std::unique_ptr<MultiFab>& detJ_cc_old,        // at previous substep time (tau)
                      std::unique_ptr<MultiFab>& detJ_cc_new,        // at      new substep time (tau + delta tau)
                      std::unique_ptr<MultiFab>& detJ_cc_stg,        // at last RK stg
-                     const Real dtau, const Real beta_s,
+                     const double dtau, const Real beta_s,
                      const Real facinv,
                      Vector<std::unique_ptr<MultiFab>>& mapfac,
                      YAFluxRegister* fr_as_crse,

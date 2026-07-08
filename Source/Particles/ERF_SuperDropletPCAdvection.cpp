@@ -27,8 +27,8 @@ AMREX_ENUM(InterpFieldsAdv, density, pressure, temperature, NUM_FIELDS);
  * \param[in] a_recycle Flag to enable particle recycling
  */
 void SuperDropletPC::AdvectParticles ( int                   a_lev,
-                                       Real                  a_time,
-                                       Real                  a_dt,
+                                       double                 a_time,
+                                       double                               a_dt,
                                        const MultiFab* const a_flow_vel,
                                        const MultiFab&       a_density,
                                        const MultiFab&       a_pressure,

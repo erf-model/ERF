@@ -21,7 +21,7 @@ class SuperDropletPC : public ERFPC
         SuperDropletPC (  amrex::ParGDBBase* a_gdb,
                           const std::vector<Species::Name>& a_species_mat,
                           const std::vector<Species::Name>& a_aerosol_mat,
-                          const amrex::Real a_dt,
+                          const double a_dt,
                           const std::string& a_name = "super_droplets" )
                       : ERFPC (a_gdb, a_name)
         {
@@ -38,7 +38,7 @@ class SuperDropletPC : public ERFPC
                           const amrex::BoxArray& a_ba,
                           const std::vector<Species::Name>& a_species_mat,
                           const std::vector<Species::Name>& a_aerosol_mat,
-                          const amrex::Real a_dt,
+                          const double a_dt,
                           const std::string& a_name = "super_droplets" )
                       : ERFPC (a_geom, a_dmap, a_ba, a_name)
         {
@@ -154,12 +154,12 @@ class SuperDropletPC : public ERFPC
                                      const int ) const override;
 
         /*! \brief Initialize super-droplets in domain at AMR level a_lev */
-        void InitializeParticles (const int a_lev, const amrex::Real a_t, const MFPtr& a_ptr);
+        void InitializeParticles (const int a_lev, const double a_t, const MFPtr& a_ptr);
 
         using ERFPC::InitializeParticles;
 
         /*! \brief Inject super-droplets in domain */
-        virtual void InjectParticles (const amrex::Real, const MFPtr& a_ptr, const amrex::Real);
+        virtual void InjectParticles (const double, const MFPtr& a_ptr, const double);
 
         /*! \brief add particles for a given set of initialization parameters */
         void addParticles ( int a_lev, const MFPtr&, const SDInitProperties& );
@@ -192,7 +192,7 @@ class SuperDropletPC : public ERFPC
 
         /*! \brief Evolve particles for one time step */
         virtual void EvolveParticles ( int,
-                                       amrex::Real,
+                                       double,
                                        amrex::Vector<amrex::Vector<amrex::MultiFab>>&,
                                        const amrex::Vector<MFPtr>& ) override
         {
@@ -201,8 +201,8 @@ class SuperDropletPC : public ERFPC
 
         /*! \brief Advect particles for one time step */
         virtual void AdvectParticles (   int a_lev,
-                                         amrex::Real a_time,
-                                         amrex::Real a_dt,
+                                         double a_time,
+                                         double a_dt,
                                          const amrex::MultiFab* const a_flow_vel,
                                          const amrex::MultiFab& a_density,
                                          const amrex::MultiFab& a_pressure,
@@ -213,7 +213,7 @@ class SuperDropletPC : public ERFPC
 
         /*! \brief Grow/shrink particles for one time step */
         virtual void MassChange (   int a_lev,
-                                    amrex::Real a_dt,
+                                    double a_dt,
                                     const Species::Name& a_vap_name,
                                     const amrex::MultiFab& a_temperature,
                                     const amrex::MultiFab& a_pressure,
@@ -224,7 +224,7 @@ class SuperDropletPC : public ERFPC
 
         /*! \brief Coalescence of super-droplets */
         virtual void Coalescence (  int a_lev,
-                                    amrex::Real a_dt,
+                                    double a_dt,
                                     const amrex::MultiFab& a_pressure,
                                     const amrex::MultiFab& a_temperature);
 
@@ -232,7 +232,7 @@ class SuperDropletPC : public ERFPC
         virtual void Recycle ( const int a_lev,
                                const amrex::Vector<MFPtr>& a_z_phys_nd,
                                const int a_iter,
-                               const amrex::Real a_dt,
+                               const double a_dt,
                                const bool a_recycle);
 
         /*! \brief Return the number of super-droplets
@@ -249,7 +249,7 @@ class SuperDropletPC : public ERFPC
         [[nodiscard]] virtual amrex::Long NumSDDeactivated ();
 
         /*! \brief Compute and print diagnostics */
-        virtual void Diagnostics (int, int, amrex::Real, bool);
+        virtual void Diagnostics (int, int, double, bool);
         /*! \brief Compute mass density distribution */
         virtual void ComputeDistributions (  int, int,
                                              amrex::ParticleReal,
@@ -534,7 +534,7 @@ class SuperDropletPC : public ERFPC
         }
 
         /*! \brief read inputs from file */
-        virtual void readInputs (const amrex::Real);
+        virtual void readInputs (const double);
 
         /*! \brief Particle initialization - null (no particles are initialized) */
         void initializeParticlesNull (const MFPtr&) { }
@@ -546,7 +546,7 @@ class SuperDropletPC : public ERFPC
                       const std::vector<Species::Name>&,
                       const amrex::BoxArray&,
                       const amrex::DistributionMapping&,
-                      const amrex::Real );
+                      const double );
 
         /*! \brief add super-droplet method-specific particle attributes */
         void add_superdroplet_attributes();

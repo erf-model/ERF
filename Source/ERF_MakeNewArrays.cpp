@@ -683,7 +683,7 @@ ERF::update_diffusive_arrays (int lev, const BoxArray& ba, const DistributionMap
 }
 
 void
-ERF::init_zphys (int lev, Real elapsed_time)
+ERF::init_zphys (int lev, double elapsed_time)
 {
     // For EB, z_phys_nd was already initialized with the correct z_offset by init_default_zphys.
     // The terrain-fitting (BTF) done below is irrelevant for a flat EB mesh and would clobber

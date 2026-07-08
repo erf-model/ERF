@@ -11,7 +11,7 @@ using namespace amrex;
 void
 init_my_custom_terrain ( const Geometry& geom,
                          FArrayBox& terrain_fab,
-                         const Real& time )
+                         const double& time )
 {
     //
     // We put this here as a convenience for testing the map factor implementation

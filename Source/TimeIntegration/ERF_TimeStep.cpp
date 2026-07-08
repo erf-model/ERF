@@ -91,7 +91,7 @@ ERF::timeStep (int lev, double time, int /*iteration*/)
     if (!nc_low_file.empty() && (lev==0))
     {
         int ntimes = low_data_zlo.size();
-        Real time_since_start_low = time + start_time - start_low_time;
+        double time_since_start_low = time + start_time - start_low_time;
         int n_time_old = std::min(static_cast<int>( (time_since_start_low        ) /  low_time_interval), ntimes-1);
         int n_time_new = std::min(static_cast<int>( (time_since_start_low+dt[lev]) /  low_time_interval), ntimes-1);
 
@@ -179,7 +179,7 @@ ERF::timeStep (int lev, double time, int /*iteration*/)
 
                 // if there are newly created levels, set the time step
                 for (int k = old_finest+1; k <= finest_level; ++k) {
-                    dt[k] = dt[k-1] / static_cast<Real>(nsubsteps[k]);
+                    dt[k] = dt[k-1] / static_cast<double>(nsubsteps[k]);
                 }
             } // if
         } // lev
@@ -221,7 +221,7 @@ ERF::timeStep (int lev, double time, int /*iteration*/)
         // recursive call for next-finer level
         for (int i = 1; i <= nsubsteps[lev+1]; ++i)
         {
-            Real strt_time_for_fine = time + (i-1)*dt[lev+1];
+            double strt_time_for_fine = time + (i-1)*dt[lev+1];
             timeStep(lev+1, strt_time_for_fine, i);
         }
     }

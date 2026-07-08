@@ -28,28 +28,28 @@
 
 using namespace amrex;
 
-Real ERF::startCPUTime        = zero;
-Real ERF::previousCPUTimeUsed = zero;
+double ERF::startCPUTime        = 0.0;
+double ERF::previousCPUTimeUsed = 0.0;
 
 Vector<AMRErrorTag> ERF::ref_tags;
 
 SolverChoice ERF::solverChoice;
 
-Real ERF::start_time    = zero;
+double ERF::start_time    = 0.0;
 //
 // Note: stop_time is total time, NOT elapsed time
 //
-Real ERF::stop_time     = std::numeric_limits<amrex::Real>::max();
+double ERF::stop_time     = std::numeric_limits<double>::max();
 
 #ifdef ERF_USE_NETCDF
-double ERF::start_bdy_time     =  zero;
-double ERF::final_bdy_time     = -one;
+double ERF::start_bdy_time     =  0.0;
+double ERF::final_bdy_time     = -1.0;
 
-double ERF::start_low_time     =  zero;
-double ERF::final_low_time     = -one;
+double ERF::start_low_time     =  0.0;
+double ERF::final_low_time     = -1.0;
 
-double ERF::bdy_time_interval  = std::numeric_limits<amrex::Real>::max();
-double ERF::low_time_interval  = std::numeric_limits<amrex::Real>::max();
+double ERF::bdy_time_interval  = std::numeric_limits<double>::max();
+double ERF::low_time_interval  = std::numeric_limits<double>::max();
 #endif
 
 // Time step control
@@ -57,8 +57,8 @@ Real ERF::cfl            = Real(0.8);
 Real ERF::sub_cfl        = one;
 Real ERF::init_shrink    = one;
 Real ERF::change_max     = Real(1.1);
-Real ERF::dt_max_initial = bogus_large_value;
-Real ERF:: dt_max        = Real(1.0e9);
+double ERF::dt_max_initial = static_cast<double>(bogus_large_value);
+double ERF:: dt_max        = 1.0e9;
 
 int  ERF::fixed_mri_dt_ratio = 0;
 
@@ -74,7 +74,7 @@ int ERF::check_for_nans = 0;
 
 // Frequency of diagnostic output
 int  ERF::sum_interval  = -1;
-Real ERF::sum_per       = -one;
+double ERF::sum_per       = -1.0;
 
 int  ERF::pert_interval = -1;
 
@@ -84,11 +84,11 @@ int ERF::last_plot2d_file_step_1 = -1;
 int ERF::last_plot2d_file_step_2 = -1;
 int ERF::last_check_file_step    = -1;
 
-Real ERF::last_plot3d_file_time_1 = zero;
-Real ERF::last_plot3d_file_time_2 = zero;
-Real ERF::last_plot2d_file_time_1 = zero;
-Real ERF::last_plot2d_file_time_2 = zero;
-Real ERF::last_check_file_time    = zero;
+double ERF::last_plot3d_file_time_1 = 0.0;
+double ERF::last_plot3d_file_time_2 = 0.0;
+double ERF::last_plot2d_file_time_1 = 0.0;
+double ERF::last_plot2d_file_time_2 = 0.0;
+double ERF::last_check_file_time    = 0.0;
 
 bool ERF::plot_file_on_restart = true;
 
@@ -113,7 +113,7 @@ std::string ERF::nc_low_file; // Must provide via input
 // 1D NetCDF output (for ingestion by AMR-Wind)
 int  ERF::output_1d_column = 0;
 int  ERF::column_interval  = -1;
-Real ERF::column_per       = -one;
+double ERF::column_per       = -1.0;
 Real ERF::column_loc_x     = zero;
 Real ERF::column_loc_y     = zero;
 std::string ERF::column_file_name = "column_data.nc";
@@ -121,15 +121,15 @@ std::string ERF::column_file_name = "column_data.nc";
 // 2D BndryRegister output (for ingestion by AMR-Wind)
 int  ERF::output_bndry_planes            = 0;
 int  ERF::bndry_output_planes_interval   = -1;
-Real ERF::bndry_output_planes_per        = -one;
-Real ERF::bndry_output_planes_start_time =  zero;
+double ERF::bndry_output_planes_per        = -1.0;
+double ERF::bndry_output_planes_start_time =  0.0;
 
 // 2D BndryRegister input
 int  ERF::input_bndry_planes             = 0;
 
 #ifdef ERF_USE_NETCDF
-Real read_start_time_from_wrfinput (int lev, const std::string& fname);
-Real read_start_time_from_metgrid  (int lev, const std::string& fname);
+double read_start_time_from_wrfinput (int lev, const std::string& fname);
+double read_start_time_from_metgrid  (int lev, const std::string& fname);
 #endif
 
 // advance solution to final time
@@ -190,8 +190,7 @@ ERF::Evolve ()
         timeStep(0, cur_time, iteration);
 
         cur_time += static_cast<double>(dt[0]);
-        // Sync t_new[0] from accurate double to prevent float32 accumulation drift in SP builds.
-        t_new[0] = static_cast<Real>(cur_time);
+        t_new[0] = cur_time;
 
         Print() << "Coarse STEP " << step+1 << " ends." << " TIME = " << cur_time
                 << " DT = " << dt[0]  << std::endl;
@@ -223,7 +222,7 @@ ERF::Evolve ()
         }
 #endif
 
-        if (start_time+cur_time >= stop_time - Real(1.e-6)*dt[0]) break;
+        if (start_time+cur_time >= stop_time - 1.e-6*dt[0]) break;
     }
 
     WriteAtFinalTime();
@@ -310,7 +309,7 @@ ERF::WriteAtFinalTime()
 
 // Called after every coarse timestep
 void
-ERF::post_timestep (int nstep, double time, Real dt_lev0)
+ERF::post_timestep (int nstep, double time, double dt_lev0)
 {
     BL_PROFILE("ERF::post_timestep()");
 
@@ -410,7 +409,7 @@ ERF::post_timestep (int nstep, double time, Real dt_lev0)
         if ( rad_datalog_int > 0 &&
              (((nstep+1) % rad_datalog_int == 0) || (nstep==0)) ) {
             if (rad[0]->hasDatalog()) {
-                rad[0]->WriteDataLog(static_cast<Real>(time+start_time));
+                rad[0]->WriteDataLog(time + start_time);
             }
         }
     }
@@ -575,7 +574,7 @@ void
 ERF::InitData_pre ()
 {
     // Initialize the start time for our CPU-time tracker
-    startCPUTime = Real(ParallelDescriptor::second());
+    startCPUTime = ParallelDescriptor::second();
 
     // Create the ReadBndryPlanes object so we can read boundary plane data
     // m_r2d is used by init_bcs so we must instantiate this class before
@@ -804,7 +803,7 @@ ERF::InitData_post ()
         m_r2d->read_time_file();
 
         // We haven't populated dt yet, set to 0 to ensure assert doesn't crash
-        Real dt_dummy = zero;
+        double dt_dummy = 0.0;
         m_r2d->read_input_files(t_new[0]+start_time,dt_dummy,m_bc_extdir_vals);
     }
 
@@ -932,7 +931,7 @@ ERF::InitData_post ()
         // Create the WriteBndryPlanes object so we can handle writing of boundary plane data
         m_w2d = std::make_unique<WriteBndryPlanes>(grids,geom);
 
-        Real tot_time = t_new[0]+start_time;
+        double tot_time = t_new[0]+start_time;
         if (tot_time >= bndry_output_planes_start_time) {
             bool is_moist = (micro->Get_Qstate_Moist_Size() > 0);
             m_w2d->write_planes(0, tot_time, vars_new, is_moist);
@@ -985,7 +984,7 @@ ERF::InitData_post ()
         for (int lev = 0; lev <= finest_level; ++lev)
         {
             if (solverChoice.project_initial_velocity[lev] == 1) {
-                Real dummy_dt = one;
+                double dummy_dt = 1.0;
                 if (verbose > 0) {
                     amrex::Print() << "Projecting initial velocity field at level " << lev << std::endl;
                 }
@@ -1232,9 +1231,9 @@ ERF::InitData_post ()
                 // we don't want to call update_fluxes multiple times because
                 // it will change u* and theta* from their previous values
 #ifdef ERF_USE_NETCDF
-                Real elapsed_time_since_start_low = t_new[lev] + (start_time - start_low_time);
+                double elapsed_time_since_start_low = t_new[lev] + (start_time - start_low_time);
 #else
-                Real elapsed_time_since_start_low = t_new[lev] + start_time;
+                double elapsed_time_since_start_low = t_new[lev] + start_time;
 #endif
                 m_SurfaceLayer->update_fluxes(lev, t_new[lev], elapsed_time_since_start_low,
                                               vars_new[lev][Vars::cons],
@@ -1652,9 +1651,9 @@ ERF::Interp2DArrays (int lev, const BoxArray& my_ba2d, const DistributionMapping
         }
     }
 
-    Real time_for_fp = zero; // This is not actually used
-    Vector<Real> ftime    = {time_for_fp, time_for_fp};
-    Vector<Real> ctime    = {time_for_fp, time_for_fp};
+    double time_for_fp = 0.0; // This is not actually used
+    Vector<Real> ftime    = {static_cast<Real>(time_for_fp), static_cast<Real>(time_for_fp)};
+    Vector<Real> ctime    = {static_cast<Real>(time_for_fp), static_cast<Real>(time_for_fp)};
     if (lat_m[lev]) {
         // Call FillPatchTwoLevels which ASSUMES that all ghost cells at lev-1 have already been filled
         Vector<MultiFab*> fmf = {lat_m[lev  ].get(), lat_m[lev  ].get()};
@@ -1829,7 +1828,7 @@ ERF::restart ()
     initializeTracers((ParGDBBase*)GetParGDB(),z_phys_nd,t_new[0]);
 #endif
 
-    Real cur_time = t_new[0];
+    double cur_time = t_new[0];
     if (m_check_per    > zero) {last_check_file_time    = cur_time;}
     if (m_plot2d_per_1 > zero) {last_plot2d_file_time_1 = std::floor(cur_time/m_plot2d_per_1) * m_plot2d_per_1;}
     if (m_plot2d_per_2 > zero) {last_plot2d_file_time_2 = std::floor(cur_time/m_plot2d_per_2) * m_plot2d_per_2;}
@@ -1855,7 +1854,7 @@ ERF::restart ()
 // If we are restarting, the base state is read from the restart file, including
 // ghost cell data.
 void
-ERF::init_only (int lev, Real elapsed_time)
+ERF::init_only (int lev, double elapsed_time)
 {
     t_new[lev] = elapsed_time;
     t_old[lev] = elapsed_time - bogus_large_value;
@@ -2391,12 +2390,12 @@ ERF::ReadParameters ()
                     << "\", format should be " << datetime_format << std::endl;
                 exit(0);
             }
-            start_time = static_cast<amrex::Real>(getEpochTime(start_datetime, datetime_format));
+            start_time = static_cast<double>(getEpochTime(start_datetime, datetime_format));
 
 #ifdef ERF_USE_NETCDF
             if (solverChoice.init_type == InitType::WRFInput) {
                 // This is the start time as written in the wrfinput file
-                Real start_time_from_wrfinput = read_start_time_from_wrfinput(0, nc_init_file[0][0]);
+                double start_time_from_wrfinput = read_start_time_from_wrfinput(0, nc_init_file[0][0]);
                 if (start_time != start_time_from_wrfinput) {
                     amrex::Print() << "start_datetime from inputs file = "       << start_time <<
                                       " does not match SIMULATION START DATE from wrfinput = " <<
@@ -2405,7 +2404,7 @@ ERF::ReadParameters ()
                 }
             } else if (solverChoice.init_type == InitType::Metgrid) {
                 // This is the start time as written in the metgrid file
-                Real start_time_from_metgrid = read_start_time_from_metgrid(0, nc_init_file[0][0]);
+                double start_time_from_metgrid = read_start_time_from_metgrid(0, nc_init_file[0][0]);
                 if (start_time != start_time_from_metgrid) {
                     amrex::Print() << "start_datetime from inputs file = "       << start_time <<
                                       " does not match SIMULATION START DATE from metgrid = " <<
@@ -2423,7 +2422,7 @@ ERF::ReadParameters ()
 #ifdef ERF_USE_NETCDF
             if (solverChoice.init_type == InitType::WRFInput) {
                 // This is the start time as written in the wrfinput file
-                Real start_time_from_wrfinput = read_start_time_from_wrfinput(0, nc_init_file[0][0]);
+                double start_time_from_wrfinput = read_start_time_from_wrfinput(0, nc_init_file[0][0]);
                 start_time = start_time_from_wrfinput;
 
                 use_datetime = true;
@@ -2434,7 +2433,7 @@ ERF::ReadParameters ()
                 }
             } else if (solverChoice.init_type == InitType::Metgrid) {
                 // This is the start time as written in the metgrid file
-                Real start_time_from_metgrid = read_start_time_from_metgrid(0, nc_init_file[0][0]);
+                double start_time_from_metgrid = read_start_time_from_metgrid(0, nc_init_file[0][0]);
                 start_time = start_time_from_metgrid;
 
                 use_datetime = true;
@@ -2457,7 +2456,7 @@ ERF::ReadParameters ()
                 exit(0);
             }
 
-            stop_time = static_cast<amrex::Real>(getEpochTime(stop_datetime, datetime_format));
+            stop_time = static_cast<double>(getEpochTime(stop_datetime, datetime_format));
             Print() << "Stop  datetime : " << start_datetime << std::endl;
 
         } else {
@@ -2802,8 +2801,8 @@ ERF::Define_ERFFillPatchers (int lev)
 }
 
 bool
-ERF::writeNow(double cur_time, const int nstep, const int plot_int, const Real plot_per,
-              const Real dt_0, Real& next_file_time)
+ERF::writeNow(double cur_time, const int nstep, const int plot_int, const double plot_per,
+              const double dt_0, double& next_file_time)
 {
     bool write_now = false;
 
@@ -2816,7 +2815,7 @@ ERF::writeNow(double cur_time, const int nstep, const int plot_int, const Real p
         amrex::Print() << "CUR NEXT PER " << cur_time << " " << next_file_time << " " << plot_per << std::endl;
 
         // Only write now if nstep newly matches the number of elapsed periods
-        write_now = (cur_time > (next_file_time - Real(0.1)*dt_0));
+        write_now = (cur_time > (next_file_time - 0.1*dt_0));
     }
 
     return write_now;

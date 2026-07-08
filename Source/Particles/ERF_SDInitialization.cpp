@@ -225,7 +225,7 @@ void SDInjection::readInputs ( const std::string& a_prefix,
                                const amrex::Geometry& a_geom,
                                const MatVec& a_species_mat,
                                const MatVec& a_aerosol_mat,
-                               const amrex::Real a_dt )
+                               const double a_dt )
 {
     BL_PROFILE("SDInjection::readInputs");
 
@@ -242,7 +242,7 @@ void SDInjection::readInputs ( const std::string& a_prefix,
     pp.queryarr("domain_velocity", m_domain_vel);
 
     this->m_numdens = m_inj_rate * a_dt;
-    m_numdens_sd = (m_sd_inj_rate > 0 ? std::max(m_sd_inj_rate*a_dt, one) : -1);
+    m_numdens_sd = (m_sd_inj_rate > 0 ? std::max(m_sd_inj_rate*a_dt, 1.) : -1);
 }
 
 void SDInitProperties::printParameters ( const MatVec& a_species_mat,

@@ -157,8 +157,8 @@ Radiation::Radiation (const int& lev,
 void
 Radiation::set_grids (int& level,
                       int& step,
-                      Real& time,
-                      const Real& dt,
+                      double& time,
+                      const double& dt,
                       const BoxArray& ba,
                       Geometry& geom,
                       MultiFab* cons_in,
@@ -169,7 +169,8 @@ Radiation::set_grids (int& level,
                       MultiFab* rad_fluxes,
                       MultiFab* z_phys,
                       MultiFab* lat,
-                      MultiFab* lon)
+                      MultiFab* lon,
+                      const bool updated_lsm)
 
 {
     // Set data members that may change
@@ -201,7 +202,7 @@ Radiation::set_grids (int& level,
 
     // Only allocate and proceed if we are going to update radiation
     m_update_rad = false;
-    if (m_rad_freq_in_steps > 0) { m_update_rad = ( (m_step == 0) || (m_step % m_rad_freq_in_steps == 0) ); }
+    if (m_rad_freq_in_steps > 0) { m_update_rad = ( (m_step == 0) || (m_step % m_rad_freq_in_steps == 0) || updated_lsm); }
 
     if (m_update_rad) {
         // Call to Init() has set the dimensions: ncol & nlay
@@ -622,7 +623,7 @@ Radiation::mf_to_kokkos_buffers (iMultiFab* lmask,
                                             Real(0.06), Real(0.06)};
         for (int ivar(0); ivar<lsm_input_ptrs.size(); ivar++) {
             auto rrtmgp_default_val = rrtmgp_default_vals[ivar];
-            auto rrtmgp_to_fill_k = rrtmgp_in_vars[ivar];
+            auto rrtmgp_to_fill_k   = rrtmgp_in_vars[ivar];
             amrex::Table1D<amrex::Real> rrtmgp_to_fill(rrtmgp_to_fill_k.data(),
                                                        0, rrtmgp_to_fill_k.extent(0));
             for (MFIter mfi(*m_cons_in); mfi.isValid(); ++mfi) {
@@ -632,12 +633,12 @@ Radiation::mf_to_kokkos_buffers (iMultiFab* lmask,
                 const int imin   = vbx.smallEnd(0);
                 const int jmin   = vbx.smallEnd(1);
                 const int offset = m_col_offsets[mfi.index()];
-                const Array4<const int>& lmask_arr  = (lmask)   ? lmask->const_array(mfi) :
-                                                                  Array4<const int> {};
+                const Array4<const int>& lmask_arr   = (lmask)   ? lmask->const_array(mfi) :
+                                                                   Array4<const int> {};
                 const Array4<const Real>& tsurf_arr  = (t_surf) ? t_surf->const_array(mfi) :
                                                                   Array4<const Real> {};
-                const Array4<const Real>& lsm_in_arr = (lsm_input_ptrs[ivar]) ? lsm_input_ptrs[ivar]->const_array(mfi) :
-                                                                                Array4<const Real> {};
+                const Array4<      Real>& lsm_in_arr = (lsm_input_ptrs[ivar]) ? lsm_input_ptrs[ivar]->array(mfi) :
+                                                                                Array4<      Real> {};
                 ParallelFor(sbx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
                 {
                     // map [i,j,k] 0-based to [icol, ilay] 0-based
@@ -647,8 +648,7 @@ Radiation::mf_to_kokkos_buffers (iMultiFab* lmask,
                     bool is_land = (lmask_arr) ? lmask_arr(i,j,k) : 1;
 
                     // Check if valid LSM data
-                    bool valid_lsm_data{false};
-                    if (lsm_in_arr) { valid_lsm_data = (lsm_in_arr(i,j,k) >= Real(0.)); }
+                    bool valid_lsm_data = (lsm_in_arr && (lsm_in_arr(i,j,k) < lsm_undefined));
 
                     // Have LSM and are over land
                     if (is_land && valid_lsm_data) {
@@ -657,10 +657,12 @@ Radiation::mf_to_kokkos_buffers (iMultiFab* lmask,
                     // We have a SurfLayer (enforce consistency with temperature)
                     else if (tsurf_arr && (ivar==0)) {
                         rrtmgp_to_fill(icol) = tsurf_arr(i,j,k);
+                        if (lsm_in_arr) { lsm_in_arr(i,j,k) = tsurf_arr(i,j,k); }
                     }
                     // Use the default value
                     else {
                         rrtmgp_to_fill(icol) = rrtmgp_default_val;
+                        if (lsm_in_arr) { lsm_in_arr(i,j,k) = rrtmgp_default_val; }
                     }
                 });
             } //mfi
@@ -794,7 +796,7 @@ Radiation::write_rrtmgp_fluxes ()
    std::string plotfilename = amrex::Concatenate("plt_rad", m_step, 5);
    Vector<std::string> flux_names = {"sw_flux_up", "sw_flux_dn", "sw_flux_dir",
                                      "lw_flux_up", "lw_flux_dn"};
-   WriteSingleLevelPlotfile(plotfilename, mf_flux, flux_names, m_geom, m_time, m_step);
+   WriteSingleLevelPlotfile(plotfilename, mf_flux, flux_names, m_geom, static_cast<Real>(m_time), m_step);
 }
 
 void Radiation::populateDatalogMF ()
@@ -903,7 +905,7 @@ void Radiation::populateDatalogMF ()
    }
 }
 
-void Radiation::WriteDataLog (const Real &time)
+void Radiation::WriteDataLog (const double &time)
 {
     constexpr int datwidth = 14;
     constexpr int datprecision = 9;

@@ -91,7 +91,7 @@ public:
                                    const amrex::Real& sampling_distance_by_D);
 
     void advance (const amrex::Geometry& a_geom,
-                  const amrex::Real& dt_advance,
+                  const double& dt_advance,
                   amrex::MultiFab& cons_in,
                   amrex::MultiFab& mf_vars_windfarm,
                   amrex::MultiFab& U_old,
@@ -99,7 +99,7 @@ public:
                   amrex::MultiFab& W_old,
                   const amrex::MultiFab& mf_Nturb,
                   const amrex::MultiFab& mf_SMark,
-                  const amrex::Real& time) override
+                  const double& time) override
     {
         m_windfarm_model[0]->advance(a_geom, dt_advance, cons_in, mf_vars_windfarm,
                                      U_old, V_old, W_old, mf_Nturb, mf_SMark, time);

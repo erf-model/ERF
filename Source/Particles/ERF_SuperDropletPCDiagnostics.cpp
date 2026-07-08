@@ -69,7 +69,7 @@ Vector<std::string> SuperDropletPC::meshPlotVarNames () const
 /*! Compute diagnostics (max, min, avg radius, mass, etc) */
 void SuperDropletPC::Diagnostics( const int a_iter,
                                   const int a_lev,
-                                  const Real a_time,
+                                  const double a_time,
                                   const bool a_flag )
 {
     BL_PROFILE("SuperDropletPC::Diagnostics()");
@@ -622,7 +622,7 @@ void SuperDropletPC::ComputeBinnedDistributions( const int a_iter, const int a_l
     R, g_mass(ln R), g_n(ln R) */
 void SuperDropletPC::ComputeBinnedDistributionsCell( const int a_iter,
                                                      const int a_lev,
-                                                     const Real a_time )
+                                                     const double a_time )
 {
     BL_PROFILE("SuperDropletPC::ComputeBinnedDistributionsCell()");
     AMREX_ASSERT(OK());

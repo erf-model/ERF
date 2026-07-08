@@ -249,7 +249,7 @@ protected:
     //--------------------------------------------
     bool m_t_avg{false};                                             // Flag to do moving average in time
     amrex::Vector<int> m_t_init;                                     // Flag to specify if averages are initialized
-    amrex::Real m_time_window{amrex::Real(1.0e-16)};                              // Width of the exp filter function
+    double m_time_window{1.0e-16};                                                // Width of the exp filter function
     amrex::Real m_fact_new, m_fact_old;                              // Time average factors for new and old means
 
     // Surface velocity correction
