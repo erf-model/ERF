@@ -64,14 +64,18 @@ public:
              amrex::MultiFab& yvel_in,
              amrex::MultiFab* hfx3_out,
              amrex::MultiFab* qfx3_out,
+             const amrex::MultiFab* rain_accum_in,
+             const amrex::MultiFab* snow_accum_in,
+             const amrex::MultiFab* graup_accum_in,
              const amrex::Real& time,
              const amrex::Real& dt_advance,
              const int& nstep,
              const bool updated_lev0)
     {
         m_lsm_model[lev]->Advance_With_State(lev, cons_in, xvel_in, yvel_in,
-                                             hfx3_out, qfx3_out, time, dt_advance,
-                                             nstep, updated_lev0);
+                                             hfx3_out, qfx3_out,
+                                             rain_accum_in, snow_accum_in, graup_accum_in,
+                                             time, dt_advance, nstep, updated_lev0);
     }
 
     void

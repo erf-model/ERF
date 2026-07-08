@@ -38,6 +38,18 @@ namespace LsmData_NOAHMP {
          sw_flux_dn_dif_vis,
          sw_flux_dn_dif_nir,
          lw_flux_dn,
+         // 2D land return-term diagnostics (read from Noah-MP, output only -- NOT
+         // fed back into ERF dynamics; matches how WRF carries these). Auto-written
+         // to the LSM plotfile + checkpoint via Plot_Lsm_Data / lsm_data checkpoint.
+         grdflx,          // ground/snow heat flux [W m-2]
+         fira,            // total net longwave radiation [W m-2] (FIRAXY)
+         sav,             // solar radiation absorbed by vegetation [W m-2] (SAVXY)
+         sag,             // solar radiation absorbed by ground [W m-2] (SAGXY)
+         albedo,          // total grid surface albedo [-] (ALBEDO)
+         sfcrunoff,       // accumulated surface runoff [m] (SFCRUNOFF)
+         udrunoff,        // accumulated sub-surface runoff [m] (UDRUNOFF)
+         smstav,          // soil moisture availability [-] (SMSTAV; not computed by core -> 0)
+         smstot,          // total soil moisture [mm] (SMSTOT; not computed by core -> 0)
          NumVars
   };
 }
@@ -64,6 +76,11 @@ namespace NoahmpInputComp {
         swdown,
         glw,
         coszen,
+        rainbl,      // accumulated precip into land model over the interval [mm]
+        sr_in,       // frozen fraction of precip [-]
+        mp_rainnc,   // total non-convective precip this interval [mm] (WRF MP_RAINNC)
+        mp_snow,     // snow (+ice) subset of mp_rainnc [mm] (WRF MP_SNOW)
+        mp_graup,    // graupel subset of mp_rainnc [mm] (WRF MP_GRAUP)
         NumComps
     };
 }
@@ -80,6 +97,16 @@ namespace NoahmpOutputComp {
         albsfcdir_nir,
         albsfcdif_vis,
         albsfcdif_nir,
+        // land return-term diagnostics (output only)
+        o_grdflx,
+        o_fira,
+        o_sav,
+        o_sag,
+        o_albedo,
+        o_sfcrunoff,
+        o_udrunoff,
+        o_smstav,
+        o_smstot,
         NumComps
     };
 }
@@ -121,6 +148,9 @@ public:
                         amrex::MultiFab& yvel_in,
                         amrex::MultiFab* hfx3_out,
                         amrex::MultiFab* qfx3_out,
+                        const amrex::MultiFab* rain_accum_in,
+                        const amrex::MultiFab* snow_accum_in,
+                        const amrex::MultiFab* graup_accum_in,
                         const amrex::Real& elapsed_time,
                         const amrex::Real& dt,
                         const int& nstep,
@@ -295,7 +325,7 @@ private:
     amrex::Vector<amrex::BCRec> m_domain_bcs_type;
 
     // timestep
-    double m_dt;
+    amrex::Real m_dt;
 
     // Authoritative NoahMP substep counter, kept on the class so the firing
     // decision in Advance_With_State is identical on every rank (including
@@ -304,7 +334,7 @@ private:
 
     // NoahMP timestep (DTBL), broadcast to all ranks in Init so the firing
     // decision is well-defined on land-free ranks too.
-    double m_dtbl = std::numeric_limits<amrex::Real>::max();
+    amrex::Real m_dtbl = std::numeric_limits<amrex::Real>::max();
 
     // domain klo-1 or lsm khi
     int khi_lsm;
@@ -333,6 +363,14 @@ private:
     // Pinned memory buffers for host/device coupling to Noah-MP
     amrex::Vector<std::unique_ptr<amrex::FArrayBox>> noahmp_input_tmp;
     amrex::Vector<std::unique_ptr<amrex::FArrayBox>> noahmp_output_tmp;
+
+    // Previous cumulative surface precip (mm) at the last land-model call, per level.
+    // RAINBL fed to Noah-MP = current cumulative rain_accum minus this (WRF supplies
+    // accumulated mm per land-call interval). Synced to current on the first call and
+    // on restart so a restored accumulation does not produce a spurious precip spike.
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> m_rain_accum_prev;
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> m_snow_accum_prev;
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> m_graup_accum_prev;
 
     // Plot frequency
     int m_plot_int_1 = -1;
