@@ -68,6 +68,19 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
        - Uses YSU stability functions (Hong et al. 2006)
        - Ri-dependent diffusivity above PBL
 
+    FIRE COUPLING (ERF extension):
+    --------------------------------
+    Fire heat flux augments the convective velocity scale w* used in the
+    K-profile amplitude: K = rho * w*_eff * kappa * z * (1 - z/h)^2.
+    The PBLH itself (corrector) is NOT modified by fire — only w* is boosted.
+    This correctly represents fire as increasing turbulent mixing intensity
+    within the existing PBL depth, consistent with Deardorff (1970).
+
+    w*_fire = (g/theta * kbfs_total * h_corr)^(1/3)
+    w*_eff  = max(w*_fire, w*_MOST)
+
+    where kbfs_total = kbfs_MOST + Q_fire/(rho*Cp)
+
     ENHANCEMENTS IN ERF IMPLEMENTATION:
     -----------------------------------
 
@@ -182,6 +195,7 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
         // Pass 1 (predictor): PBLH with base surface temperature, no VPERT
         // Pass 2 (wstar/VPERT): compute wstar, HGAMT, HGAMQ, VPERT from predictor height
         // Pass 3 (corrector): PBLH with VPERT-enhanced surface temperature (WRF-consistent)
+        // Pass 4 (wstar recompute): recompute wstar using corrected PBLH; augment with fire
         //   WRF reference (module_bl_mrf.F lines 813-964):
         //   https://github.com/wrf-model/WRF/blob/master/phys/module_bl_mrf.F#L813-L964
         FArrayBox pbl_height_predictor(xybx, 1, The_Async_Arena());  // Pass 1: base t_layer_v
@@ -190,9 +204,9 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
         IArrayBox pbl_index_zero_ri(xybx, 1, The_Async_Arena());  // Index for zero-Ri diagnostic pass
         FArrayBox hgamt_fab(xybx, 1, The_Async_Arena());  // Store HGAMT/h (normalized countergradient)
         FArrayBox hgamq_fab(xybx, 1, The_Async_Arena());  // Store HGAMQ/h (normalized countergradient)
-        FArrayBox wstar_fab(xybx, 1, The_Async_Arena());  // Convective velocity scale
+        FArrayBox wstar_fab(xybx, 1, The_Async_Arena());  // Convective velocity scale (fire-augmented in Pass 4)
         FArrayBox vpert_fab(xybx, 1, The_Async_Arena());  // Virtual temperature perturbation VPERT
-        FArrayBox thermal_excess_fab(xybx, 1, The_Async_Arena());  // Fire-aware thermal excess
+        FArrayBox kbfs_fire_fab(xybx, 1, The_Async_Arena());  // Fire kinematic buoyancy flux [K m/s] per column
         const auto& pblh_pred_arr   = pbl_height_predictor.array();  // predictor (base t_layer_v)
         const auto& pblh_corr_arr   = pbl_height_corrector.array();  // corrector (VPERT-enhanced)
         const auto& pbli_arr        = pbl_index.array();
@@ -201,7 +215,7 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
         const auto& hgamq_arr       = hgamq_fab.array();
         const auto& wstar_arr       = wstar_fab.array();
         const auto& vpert_arr       = vpert_fab.array();
-        const auto& thermal_excess_arr = thermal_excess_fab.array();  // Fire-aware thermal excess
+        const auto& kbfs_fire_arr   = kbfs_fire_fab.array();  // Fire kinematic buoyancy flux
 
         // Get some data in arrays
         const auto& cell_data = cons_in.const_array(mfi);
@@ -229,7 +243,6 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
         const bool use_fire_correction = (Q_fire_atm != nullptr) &&
                                          turbChoice.mrf_fire_thermal_excess;
         const Real mrf_fire_q_thresh   = turbChoice.mrf_fire_q_threshold;
-        const Real mrf_fire_t_cap      = turbChoice.mrf_fire_t_excess_cap;
 
         //
         // PASS 1 (PREDICTOR): Compute PBL height using base surface virtual temperature.
@@ -329,6 +342,7 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
         // PASS 2 (WSTAR / VPERT): Compute wstar, HGAMT, HGAMQ, VPERT using the
         // predictor PBL height (pblh_pred_arr). VPERT will be fed into the corrector
         // Rib search in Pass 3 to raise the effective surface temperature.
+        // Also compute and store kbfs_fire per column for use in Pass 4.
         // WRF reference (module_bl_mrf.F lines 857-880):
         // https://github.com/wrf-model/WRF/blob/master/phys/module_bl_mrf.F#L857-L880
         //
@@ -646,19 +660,15 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
             const Real phiM_safe = amrex::max(phiM, Real(0.01));
 
             // wstar = u* / phi_m
-            // Absolute bounds [0.01, 5.0] m/s: prevent division-by-zero (floor) and
-            // free-convection blow-up (ceiling), independent of u* for u*->0 safety.
+            // Absolute bounds [0.01, 5.0] m/s
             Real wstar = u_star_arr(i, j, 0) / phiM_safe;
             wstar = amrex::max(wstar, Real(0.01));
             wstar = amrex::min(wstar, Real(5.0));
 
-            // Fire-aware thermal excess computation
-            // Base MOST kinematic buoyancy flux [K m/s]: kbfs_most = -u* t*
-            constexpr Real Cp_d = Real(1004.64);  // Specific heat at constant pressure [J/(kg K)]
-            const Real kbfs_most = -u_star_arr(i, j, 0) * t_star_arr(i, j, 0);
-
-            // Fire kinematic buoyancy flux [K m/s]: only when fire correction enabled
-            // and fire flux exceeds threshold
+            // Compute and store fire kinematic buoyancy flux [K m/s] for Pass 4.
+            // kbfs_fire = Q_fire / (rho_sfc * Cp_d)
+            // Fire does NOT affect PBLH (corrector) — only wstar in Pass 4.
+            constexpr Real Cp_d = Real(1004.64);
             Real kbfs_fire = Real(0.0);
             if (use_fire_correction && Q_fire_arr) {
                 const Real rho_sfc = cell_data(i, j, klo, Rho_comp);
@@ -667,28 +677,7 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
                     kbfs_fire = q_fire / (rho_sfc * Cp_d);
                 }
             }
-
-            // Total kinematic buoyancy flux
-            const Real kbfs_total = kbfs_most + kbfs_fire;
-
-            // Fire-augmented convective velocity scale w* from total buoyancy flux
-            // w*_fire = (g/theta * kbfs_total * pblh_pred)^(1/3)   [Deardorff 1970]
-            // Use max(w*_fire, w*_MOST) so fire only increases w*
-            Real wstar_fire = Real(0.0);
-            if (kbfs_total > Real(0.0)) {
-                wstar_fire = std::cbrt(CONST_GRAV / t_layer * kbfs_total * pblh_pred_arr(i, j, 0));
-            }
-            const Real wstar_eff = amrex::max(wstar_fire, wstar);
-
-            // Thermal excess from total buoyancy flux (Hong & Pan 1996, Eq. 8)
-            Real t_excess_total = Real(0.0);
-            if (wstar_eff > Real(1.0e-4)) {
-                t_excess_total = const_b * kbfs_total / wstar_eff;
-            }
-
-            // Thermal excess cap: 3 K for ambient, mrf_fire_t_cap when fire is active
-            const Real t_cap = (kbfs_fire > Real(0.0)) ? mrf_fire_t_cap : Real(3.0);
-            thermal_excess_arr(i, j, 0) = amrex::max(amrex::min(t_excess_total, t_cap), Real(0.0));
+            kbfs_fire_arr(i, j, 0) = kbfs_fire;
 
             bool SFCFLG = (obuk_val <= zero);
             const Real HGAMT = (SFCFLG && enable_mrf_countergradient)
@@ -735,23 +724,13 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
             }
         });
 
-        // Debug: fire thermal excess diagnostics
-        // Runs on host after GPU kernel completes.
-        // Prints per-MFIter only when fire correction is enabled.
-        if (use_fire_correction && turbChoice.mrf_fire_thermal_excess) {
-           Real pblh_max_corr = pbl_height_corrector.max<RunOn::Device>(0);
-           Real pblh_max_pred = pbl_height_predictor.max<RunOn::Device>(0);
-           amrex::Print() << "[MRF FIRE] fire_thermal_excess active"
-                          << "  pblh_predictor_max=" << pblh_max_pred << " m"
-                          << "  pblh_corrector_max=" << pblh_max_corr << " m"
-                          << "  (corrector should be deeper over fire columns)\n";
-        }
-
         //
         // PASS 3 (CORRECTOR): Recompute PBL height with VPERT-enhanced surface temperature.
         // θ_s = θ_va + VPERT  (Hong & Pan 1996, Eq. 4)
-        // This is the WRF-consistent corrector pass. pblh_corr_arr is used for the
-        // K-profile shape function K = ρ*wstar*κ*z*(1-z/h)².
+        // NOTE: Fire flux does NOT enter here. Fire only affects wstar (Pass 4),
+        //       not PBLH. Adding a large thermal excess to t_layer_v here would
+        //       make Rib < 0 everywhere in neutral/shear-driven ABLs, causing
+        //       the corrector to return pblh_min instead of a deeper PBL.
         // WRF reference (module_bl_mrf.F lines 932-964):
         // https://github.com/wrf-model/WRF/blob/master/phys/module_bl_mrf.F#L932-L964
         //
@@ -759,11 +738,9 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
         {
             const Real t_layer  = t10av_arr(i, j, 0);
             const Real moisture_fraction = use_moisture ? q10av_arr(i, j, 0) : zero;
-            // VPERT-enhanced and fire-enhanced surface virtual temperature
-            // θ_s = θ_va + VPERT + t_excess  (Hong & Pan 1996, Eq. 4, with fire correction)
+            // VPERT-enhanced surface virtual temperature (standard MRF corrector, no fire)
             const Real t_layer_v = t_layer * (one + amrex::Real(0.61) * moisture_fraction)
-                                 + vpert_arr(i, j, 0)
-                                 + thermal_excess_arr(i, j, 0);
+                                 + vpert_arr(i, j, 0);
 
             Real obuk_val = l_obuk_arr(i, j, 0);
             if (std::abs(obuk_val) < amrex::Real(1.0e-10)) {
@@ -825,16 +802,36 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
             }
         });
 
+        // Debug: fire diagnostics — printed AFTER Pass 3 so corrector is populated.
+        if (use_fire_correction && turbChoice.mrf_fire_thermal_excess) {
+           Real pblh_max_corr = pbl_height_corrector.max<RunOn::Device>(0);
+           Real pblh_max_pred = pbl_height_predictor.max<RunOn::Device>(0);
+           Real kbfs_fire_max = kbfs_fire_fab.max<RunOn::Device>(0);
+           amrex::Print() << "[MRF FIRE] fire wstar-boost active"
+                          << "  pblh_predictor_max=" << pblh_max_pred << " m"
+                          << "  pblh_corrector_max=" << pblh_max_corr << " m"
+                          << "  kbfs_fire_max=" << kbfs_fire_max << " K m/s"
+                          << "  (fire boosts wstar/K within PBL, not PBLH)\n";
+        }
+        if (use_fire_correction && turbChoice.mrf_fire_thermal_excess) {
+            Real wstar_max = wstar_fab.max<RunOn::Device>(0);
+            Real kbfs_fire_max = kbfs_fire_fab.max<RunOn::Device>(0);
+            amrex::Print() << "[MRF FIRE] wstar_max=" << wstar_max << " m/s"
+                        << "  kbfs_fire_max=" << kbfs_fire_max << " K m/s\n";
+        }
         //
-        // PASS 4 (WSTAR RECOMPUTE): Recompute wstar, HGAMT, HGAMQ using the corrected
-        // PBL height (pblh_corr_arr) to ensure internal consistency between the K-profile
-        // amplitude and the countergradient fluxes. HOL = sf*h/L uses pblh_corr_arr.
+        // PASS 4 (WSTAR RECOMPUTE): Recompute wstar using the corrected PBL height.
+        // Fire augments wstar via total kinematic buoyancy flux:
+        //   kbfs_total = kbfs_MOST + kbfs_fire
+        //   wstar_fire = (g/theta * kbfs_total * h_corr)^(1/3)   [Deardorff 1970]
+        //   wstar_eff  = max(wstar_fire, wstar_MOST)
+        // This fire-augmented wstar_eff is stored and used in the K-profile (Pass 6).
         // WRF reference (module_bl_mrf.F lines 857-880):
         // https://github.com/wrf-model/WRF/blob/master/phys/module_bl_mrf.F#L857-L880
         //
         ParallelFor(xybx, [=] AMREX_GPU_DEVICE(int i, int j, int) noexcept
         {
-            //const Real t_layer  = t10av_arr(i, j, 0);
+            const Real t_layer  = t10av_arr(i, j, 0);
             Real obuk_val = l_obuk_arr(i, j, 0);
             if (std::abs(obuk_val) < amrex::Real(1.0e-10)) {
                 obuk_val = (obuk_val >= zero) ? amrex::Real(1.0e-10) : amrex::Real(-1.0e-10);
@@ -849,11 +846,24 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
                             : std::pow(amrex::max(1 - 16 * HOL_bounded, Real(0.01)), -one_quarter);
             const Real phiM_safe = amrex::max(phiM, Real(0.01));
 
-            // Absolute bounds [0.01, 5.0] m/s
+            // MOST-derived wstar (bounds [0.01, 5.0] m/s)
             Real wstar = u_star_arr(i, j, 0) / phiM_safe;
             wstar = amrex::max(wstar, Real(0.01));
             wstar = amrex::min(wstar, Real(5.0));
-            wstar_arr(i, j, 0) = wstar;
+
+            // Fire augmentation of wstar using corrected PBLH
+            // w*_fire = (g/theta * kbfs_total * h_corr)^(1/3)
+            const Real kbfs_most  = -u_star_arr(i, j, 0) * t_star_arr(i, j, 0);
+            const Real kbfs_fire  = kbfs_fire_arr(i, j, 0);  // computed in Pass 2
+            const Real kbfs_total = kbfs_most + kbfs_fire;
+
+            Real wstar_fire = Real(0.0);
+            if (kbfs_total > Real(0.0)) {
+                wstar_fire = std::cbrt(CONST_GRAV / t_layer * kbfs_total * pblh_corr_arr(i, j, 0));
+            }
+            // Fire only increases wstar, never decreases it
+            const Real wstar_eff = amrex::max(wstar_fire, wstar);
+            wstar_arr(i, j, 0) = wstar_eff;
 
             bool SFCFLG = (obuk_val <= zero);
             const Real HGAMT = (SFCFLG && enable_mrf_countergradient)
@@ -1040,10 +1050,12 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
                 Real Prt_base = phit_eff / phiM_eff;
                 const Real Prt = amrex::min(amrex::max(Prt_base + const_b * KAPPA * sf, prmin), prmax);
 
+                // wstar_arr now holds fire-augmented wstar_eff (set in Pass 4)
                 const Real wstar = wstar_arr(i, j, 0);
 
                 if (SFCFLG) {
-                    // K-profile: K = rho * wstar * kappa * zrel * (1 - zrel/pblh_rel)^2
+                    // K-profile: K = rho * wstar_eff * kappa * zrel * (1 - zrel/pblh_rel)^2
+                    // Fire enters here via the boosted wstar_eff — larger K over fire columns.
                     // WRF Reference: module_bl_mrf.F L976-978
                     const Real z_sfc = (use_terrain_fitted_coords)
                                      ? Compute_Zrel_AtCellCenter(i, j, klo, z_nd_arr)

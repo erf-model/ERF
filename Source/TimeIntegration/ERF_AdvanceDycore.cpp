@@ -254,7 +254,7 @@ void ERF::advance_dycore (int level,
 #ifdef ERF_ENABLE_FIRE
         if (m_fire_layer && m_fire_params.enable &&
             m_fire_params.injects_flux() &&
-            turbChoice[level].mrf_fire_thermal_excess) {
+            tc.mrf_fire_thermal_excess) {
             Q_fire_for_pbl = m_fire_layer->get_Q_atm_prev();
         }
 #endif

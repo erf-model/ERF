@@ -807,7 +807,7 @@ void ComputeTurbulentViscosity (double dt,
                                 const BCRec* bc_ptr,
                                 const eb_& ebfact,
                                 bool vert_only,
-                                const MultiFab* Q_fire_atm = nullptr)
+                                const MultiFab* Q_fire_atm)
 {
     BL_PROFILE_VAR("ComputeTurbulentViscosity()",ComputeTurbulentViscosity);
     //
