@@ -68,9 +68,9 @@ erf.pbl_type = SHOC
 
 is a deprecated alias for `EAMXX_SHOC`. It does not select native SHOC.
 
-Do not add new build workflows that use `ERF_ENABLE_NATIVE_SHOC` or
-`USE_NATIVE_SHOC`. Native SHOC is an in-tree ERF implementation. Runtime
-selection controls whether it runs.
+Do not add new build workflows that pretend native SHOC is optional. Native
+SHOC is an in-tree ERF implementation. Runtime selection controls whether it
+runs.
 
 ## Surface fluxes
 
