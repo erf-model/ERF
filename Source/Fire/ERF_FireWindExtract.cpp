@@ -133,7 +133,10 @@ void fill_fire_wind_from_interpolation(
     const MultiFab& z_phys_cc_mf,
     const FireGrid&        fg,
     Real            z_ref,
-    int             nz)
+    int             nz,
+    const MultiFab* fuel_model_mf,
+    const Real*     d_fcwh,
+    int             nfuelcats)
 {
     // Direct vertical interpolation from atmospheric grid to fire grid
     int C = fg.C;
@@ -145,6 +148,12 @@ void fill_fire_wind_from_interpolation(
         Array4<const Real> xvel = xvel_mf.array(mfi);
         Array4<const Real> yvel = yvel_mf.array(mfi);
         Array4<const Real> z_phys_cc = z_phys_cc_mf.array(mfi);
+        
+        // Phase 13A: Per-fuel wind height support
+        Array4<const Real> fuel_model;
+        if (fuel_model_mf != nullptr) {
+            fuel_model = fuel_model_mf->array(mfi);
+        }
 
         amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (const IntVect& iv) {
             int i_f = iv[0];
@@ -154,9 +163,21 @@ void fill_fire_wind_from_interpolation(
             int i_a = i_f / C;
             int j_a = j_f / C;
 
-            // Get surface height and compute target height
+            // Get surface height
             Real z_surf = z_phys_cc(i_a, j_a, 0);
-            Real z_target = z_surf + z_ref;
+            
+            // Phase 13A: Determine wind reference height for this cell
+            Real z_ref_cell = z_ref;  // default: global fallback
+            if (fuel_model_mf != nullptr && d_fcwh != nullptr) {
+                // Per-fuel height lookup
+                int fuel_code = static_cast<int>(fuel_model(i_f, j_f, 0));
+                // Clamp to valid range [1, nfuelcats]
+                fuel_code = amrex::max(1, amrex::min(fuel_code, nfuelcats));
+                z_ref_cell = d_fcwh[fuel_code];
+            }
+            
+            // Compute target height
+            Real z_target = z_surf + z_ref_cell;
 
             // Store the extraction height for plotfile output
             extract_z(i_f, j_f, 0) = z_target;

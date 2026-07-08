@@ -6,6 +6,9 @@
 #include <ERF_FireAcceleration.H>
 #include <string>
 #include <vector>
+// Forward declarations for Phase 13 nested structs
+struct BalbiParams;
+struct CheneyGouldParams;
 
 /**
  * @file ERF_FireParams.H
@@ -30,6 +33,9 @@ struct FireParams
     amrex::Real       ignition_y          = 0.0;         ///< Ignition center y [m]
     amrex::Real       ignition_r          = 20.0;        ///< Ignition radius [m]
     amrex::Real       wind_ref_ht         = 6.1;         ///< MOST wind reference height [m]
+    // Phase 13A: Per-fuel wind height
+    bool              use_per_fuel_wind_ht = false; ///< Use per-fuel fcwh table for wind height
+    amrex::Real       waf_fcz0_scale       = 1.0;   ///< Scale factor on fcz0 roughness for WAF [dimensionless]
     bool              use_waf             = true;        ///< Apply Wind Adjustment Factor
     std::string       waf_formula         = "andrews";   ///< "andrews" or "behaviorplus"
     bool              use_wind_limit      = true;        ///< Apply MEWS cap to wind
@@ -170,6 +176,35 @@ struct FireParams
     // allocated and the call in advance() returns immediately.
     AccelerationParams accel;
 
+    // Phase 13B: Rate-of-spread model selection and parameters
+    
+    // Phase 13B: Rate-of-spread model selection.
+    // "rothermel"    — Rothermel (1972) single-class model (default, Phases 1-12)
+    // "macarthur"    — MacArthur (1966) Australian formula R = 0.18*exp(0.8424*U)
+    // "balbi"        — Balbi (2009) physical model R = A*(1+sin α − cos α)
+    // "cheney_gould" — Cheney & Gould (1998) empirical grassland model
+    std::string       ros_model = "rothermel";  ///< ROS model selector
+
+    // Phase 13B: Balbi (2009) physical fire spread model parameters.
+    // Only used when ros_model = "balbi".
+    // Defaults from Balbi (2009) Table 1.
+    struct BalbiParams {
+        amrex::Real T_a      = 300.0;    ///< Ambient temperature [K]
+        amrex::Real T_f      = 1000.0;   ///< Mean flame temperature [K]
+        amrex::Real T_i      = 600.0;    ///< Ignition temperature [K]
+        amrex::Real delta_H  = 2.26e6;   ///< Latent heat of vaporisation [J/kg]
+        amrex::Real C_pf     = 1800.0;   ///< Specific heat of dry fuel [J/(kg·K)]
+        amrex::Real r_00     = 2.5e-4;   ///< Radiation length scale [m]
+        amrex::Real tau_0    = 75591.0;  ///< Residence time coefficient [s/m]
+    } balbi;
+
+    // Phase 13B: Cheney-Gould (1998) grassland model parameters.
+    // Only used when ros_model = "cheney_gould".
+    struct CheneyGouldParams {
+        amrex::Real moisture = 10.0;  ///< Dead fine fuel moisture [%]
+        amrex::Real curing   = 1.0;   ///< Degree of curing [0-1]; 1 = fully cured
+    } cheney_gould;
+
     // Phase 10: Firebreak barriers (up to 10, indexed by N=0..9)
     int n_firebreaks = 0;
     std::vector<FireBreak> firebreaks;
@@ -193,6 +228,9 @@ struct FireParams
        pp.query("ignition_y", ignition_y);
        pp.query("ignition_r", ignition_r);
        pp.query("wind_ref_ht", wind_ref_ht);
+       // Phase 13A: Per-fuel wind height
+       pp.query("use_per_fuel_wind_ht", use_per_fuel_wind_ht);
+       pp.query("waf_fcz0_scale", waf_fcz0_scale);
        pp.query("use_waf", use_waf);
        pp.query("waf_formula", waf_formula);
        pp.query("use_wind_limit", use_wind_limit);
@@ -297,6 +335,24 @@ struct FireParams
        pp.query("accel.perim_limit",     ac.perim_limit);
        pp.query("accel.enable_wind_lag", ac.enable_wind_lag);
        pp.query("accel.tau_wind",        ac.tau_wind);
+
+       // Phase 13B: ROS model selection
+       pp.query("ros_model", ros_model);
+
+       // Balbi parameters
+       auto& bl = balbi;
+       pp.query("balbi.T_a",     bl.T_a);
+       pp.query("balbi.T_f",     bl.T_f);
+       pp.query("balbi.T_i",     bl.T_i);
+       pp.query("balbi.delta_H", bl.delta_H);
+       pp.query("balbi.C_pf",    bl.C_pf);
+       pp.query("balbi.r_00",    bl.r_00);
+       pp.query("balbi.tau_0",   bl.tau_0);
+
+       // Cheney-Gould parameters
+       auto& cg = cheney_gould;
+       pp.query("cheney_gould.moisture", cg.moisture);
+       pp.query("cheney_gould.curing",   cg.curing);
 
        // Phase 10: firebreaks (indexed, stop at first missing)
        for (int nb = 0; nb < 10; ++nb) {

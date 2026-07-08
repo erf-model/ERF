@@ -24,6 +24,11 @@
 #include <ERF_IgnitionSchedule.H>
 #include <ERF_PolygonIgnition.H>
 #include <ERF_FireAcceleration.H>
+// Phase 13A: Per-fuel wind height
+#include <ERF_FuelWindHeight.H>
+// Phase 13B: ROS models (forward declarations for now; defined later)
+// #include <ERF_BalbiModel.H>
+// #include <ERF_CheneyGouldModel.H>
 
 // Forward declarations
 class SurfaceLayer;

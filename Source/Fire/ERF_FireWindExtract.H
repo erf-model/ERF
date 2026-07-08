@@ -31,32 +31,47 @@
  * Uses cell-center wind values (averaged from face-staggered data) and
  * linearly interpolates to the target height above terrain.
  *
+ * When fuel_model_mf is non-null and per-fuel-specific heights are available,
+ * each fire cell looks up its fuel model ID and uses the corresponding per-fuel
+ * wind height (following WRF-SFIRE fcwh convention) instead of the global z_ref.
+ *
  * @param[out] fire_wind_ref   u,v at z_ref on fire grid [m/s]
  * @param[out] fire_wind_extract_z_mf  Wind extraction height z_target [m]
  * @param[in]  xvel_mf         x-velocity (face-staggered at i+1/2, j, k)
  * @param[in]  yvel_mf         y-velocity (face-staggered at i, j+1/2, k)
  * @param[in]  z_phys_cc_mf    Cell-center terrain height z_phys_cc[0] on atm grid
  * @param[in]  fg              Fire grid
- * @param[in]  z_ref           Target height above local terrain [m]
+ * @param[in]  z_ref           Global fallback wind reference height [m]
  * @param[in]  nz              Number of vertical levels
+ * @param[in]  fuel_model_mf   Per-cell fuel model ID; nullptr = uniform fuel
+ * @param[in]  d_fcwh          Device array of per-fuel wind heights [m];
+ *                             size must be nfuelcats+1 with index 0 unused.
+ *                             nullptr = use global z_ref
+ * @param[in]  nfuelcats       Number of fuel categories (13 for Anderson FBFM13);
+ *                             0 if d_fcwh is nullptr
  *
  * Algorithm per fire cell (i_f, j_f):
  * 1. Map to atmospheric column: i_a = i_f / C, j_a = j_f / C
  * 2. Get surface height: z_surf = z_phys_cc(i_a, j_a, 0)
- * 3. Compute target height: z_target = z_surf + z_ref
- * 4. Walk k from 0 to nz-2: find k_lo such that
+ * 3. Lookup wind height:
+ *    - If fuel_model_mf != nullptr and d_fcwh != nullptr:
+ *      fuel_code = clamp(fuel_model_mf(i_f,j_f,0), 1, nfuelcats)
+ *      z_ref_cell = d_fcwh[fuel_code]
+ *    - Otherwise: z_ref_cell = z_ref (global)
+ * 4. Compute target height: z_target = z_surf + z_ref_cell
+ * 5. Walk k from 0 to nz-2: find k_lo such that
  *    z_phys_cc(i_a, j_a, k_lo) <= z_target < z_phys_cc(i_a, j_a, k_lo+1)
  *    Clamp to k_lo = nz-2 if z_target exceeds column top
- * 5. Compute interpolation weight:
+ * 6. Compute interpolation weight:
  *    alpha = (z_target - z_phys_cc(i_a, j_a, k_lo)) /
  *            (z_phys_cc(i_a, j_a, k_lo+1) - z_phys_cc(i_a, j_a, k_lo))
  *    Clamp alpha to [0, 1]
- * 6. Average u/v from bracketing face values to get cell centers:
+ * 7. Average u/v from bracketing face values to get cell centers:
  *    u_cc(i,j,k) = 0.5 * (xvel(i,j,k) + xvel(i+1,j,k))
  *    v_cc(i,j,k) = 0.5 * (yvel(i,j,k) + yvel(i,j+1,k))
- * 7. Interpolate: fw(i_f,j_f,0,0) = u_cc(k_lo) + alpha*(u_cc(k_lo+1) - u_cc(k_lo))
+ * 8. Interpolate: fw(i_f,j_f,0,0) = u_cc(k_lo) + alpha*(u_cc(k_lo+1) - u_cc(k_lo))
  *                fw(i_f,j_f,0,1) = v_cc(k_lo) + alpha*(v_cc(k_lo+1) - v_cc(k_lo))
- * 8. Store z_target in fire_wind_extract_z_mf
+ * 9. Store z_target in fire_wind_extract_z_mf
  */
 void fill_fire_wind_from_interpolation(
     amrex::MultiFab&       fire_wind_ref,
@@ -66,7 +81,10 @@ void fill_fire_wind_from_interpolation(
     const amrex::MultiFab& z_phys_cc_mf,
     const FireGrid&        fg,
     amrex::Real            z_ref,
-    int                    nz);
+    int                    nz,
+    const amrex::MultiFab* fuel_model_mf = nullptr,
+    const amrex::Real*     d_fcwh         = nullptr,
+    int                    nfuelcats      = 0);
 
 /**
  * @brief Compute unsheltered Wind Adjustment Factor (Andrews/Albini & Baughman 1979)
