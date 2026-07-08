@@ -49,9 +49,13 @@ WriteFirePlotfile(const std::string& plotfile_prefix,
                            fire_layer.get_flame_tilt() != nullptr);
     bool has_fuel_map = (fire_layer.has_spatial_fuel() &&
                          fire_layer.get_fuel_model() != nullptr);
+    bool has_live_moisture = (fire_layer.get_fuel_mc() != nullptr &&
+                              fire_layer.get_fuel_mc()->nComp() >= 5);
 
-    Vector<std::string> varnames = fire_plotfile_var_names(has_spotting, has_crown, has_fuel_map, has_flame_tilt);
-    int ncomp = fire_plotfile_ncomp(has_spotting, has_crown, has_fuel_map, has_flame_tilt);
+    Vector<std::string> varnames = fire_plotfile_var_names(has_spotting, has_crown, has_fuel_map, has_flame_tilt, has_live_moisture);
+    int ncomp = fire_plotfile_ncomp(has_spotting, has_crown, has_fuel_map, has_flame_tilt, has_live_moisture);
+    // Vector<std::string> varnames = fire_plotfile_var_names(has_spotting, has_crown, has_fuel_map, has_flame_tilt);
+    // int ncomp = fire_plotfile_ncomp(has_spotting, has_crown, has_fuel_map, has_flame_tilt);
 
     MultiFab mf(fg.ba, fg.dm, ncomp, 0);
     

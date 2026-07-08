@@ -302,7 +302,7 @@ inline void fill_flame_temperature(amrex::MultiFab& fire_flame_temp,
 
     if (fire_debug) {
         amrex::Real T_max = fire_flame_temp.max(0);
-        amrex::Real T_min_nonzero = 0.0;  // informational only
+        //amrex::Real T_min_nonzero = 0.0;  // informational only
         amrex::Print() << "[FIRE FLAME TEMP] method=" << method
                        << "  T_flame_max=" << T_max << " K"
                        << "  T_amb=" << T_amb << " K\n";

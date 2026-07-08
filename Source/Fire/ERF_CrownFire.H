@@ -92,29 +92,29 @@ amrex::Real cruz_crown_ros(amrex::Real U_10_ms, amrex::Real C_BD, amrex::Real mo
     if (U_10_ms <= 0.0) {
         return 0.0;
     }
-    
+
     // Convert wind from m/s to km/h
     amrex::Real U_kmh = U_10_ms * 3.6;
     U_kmh = amrex::max(U_kmh, 1.0);  // Minimum 1 km/h (model not calibrated at calm)
-    
+
     // Convert moisture from fraction to percent
     amrex::Real MC10_pct = moisture_10hr * 100.0;
-    
+
     // Clamp inputs to valid ranges
     C_BD = amrex::max(C_BD, 0.01);
     MC10_pct = amrex::max(MC10_pct, 0.0);
-    
+
     // Cruz formula: R [m/min] = 11.02 * U^0.90 * CBD^0.19 * exp(-0.17 * MC10)
-    constexpr amrex::Real A_COEFF = 11.02;     // leading coefficient
-    constexpr amrex::Real W_EXP = 0.90;        // wind exponent
-    constexpr amrex::Real CBD_EXP = 0.19;      // CBD exponent
-    constexpr amrex::Real MC_COEFF = 0.17;     // moisture coefficient
-    
+    constexpr amrex::Real A_COEFF  = 11.02;   // leading coefficient
+    constexpr amrex::Real W_EXP    = 0.90;    // wind exponent
+    constexpr amrex::Real CBD_EXP  = 0.19;    // CBD exponent
+    constexpr amrex::Real MC_COEFF = 0.17;    // moisture coefficient
+
     amrex::Real R_m_min = A_COEFF
                         * std::pow(U_kmh, W_EXP)
                         * std::pow(C_BD, CBD_EXP)
                         * std::exp(-MC_COEFF * MC10_pct);
-    
+
     // Convert m/min to m/s
     amrex::Real R_m_s = R_m_min / 60.0;
     return amrex::max(0.0, R_m_s);
@@ -153,19 +153,19 @@ amrex::Real compute_van_wagner_proxy_ros(amrex::Real C_BD, amrex::Real foliar_mo
 {
     // Convert moisture to percent
     amrex::Real FMC_pct = foliar_moisture * 100.0;
-    
+
     // Clamp CBD
     C_BD = amrex::max(C_BD, 0.01);
-    
+
     // Base crown ROS [m/min] = 3.0 / CBD
     amrex::Real R_m_min = 3.0 / C_BD;
-    
+
     // Moisture factor (reduction for higher moisture)
     amrex::Real mf = 1.0 - (FMC_pct - 100.0) / 200.0;
     mf = amrex::max(0.3, amrex::min(1.0, mf));
-    
+
     R_m_min *= mf;
-    
+
     // Convert m/min to m/s
     return amrex::max(0.0, R_m_min / 60.0);
 }
@@ -225,21 +225,21 @@ amrex::Real compute_crown_fraction_burned(
     amrex::Real R_active_crown) noexcept
 {
     // Ensure positive rates
-    R_total = amrex::max(R_total, 0.0);
-    R_surface = amrex::max(R_surface, 0.0);
+    R_total       = amrex::max(R_total,       0.0);
+    R_surface     = amrex::max(R_surface,     0.0);
     R_active_crown = amrex::max(R_active_crown, 0.0);
-    
+
     // If active crown ROS not greater than surface, no crown fire
     if (R_active_crown <= R_surface + 1.0e-8) {
         return 0.0;
     }
-    
+
     // Scott & Reinhardt (2001) CFB formula
     amrex::Real CFB = (R_total - R_surface) / (R_active_crown - R_surface);
-    
+
     // Clamp to valid range [0, 1]
     CFB = amrex::max(0.0, amrex::min(1.0, CFB));
-    
+
     return CFB;
 }
 
@@ -252,11 +252,12 @@ amrex::Real compute_crown_fraction_burned(
  *   - Once activated, the flag is never reset to 0.0
  *
  * @param[out] fire_crown_active  Crown fire status: 1.0=active, 0.0=surface
- * @param[out] fire_ros            Rate of spread field [m/s]
- * @param[in]  fire_phi            Level-set field (<0 = burned)
- * @param[in]  fireline_intensity  Byram intensity [kW/m]
- * @param[in]  I_B_crit            Critical intensity for initiation [kW/m]
- * @param[in]  R_crown_ms          Crown fire ROS [m/s]
+ * @param[out] fire_ros           Rate of spread field [m/s]
+ * @param[in]  fire_phi           Level-set field (<0 = burned)
+ * @param[in]  fireline_intensity Byram intensity [kW/m]
+ * @param[in]  I_B_crit           Critical intensity for initiation [kW/m]
+ * @param[in]  R_crown_ms         Crown fire ROS [m/s]
+ * @param[in]  fire_debug         Print debug diagnostics if true
  */
 inline void update_crown_fire_status(amrex::MultiFab& fire_crown_active,
                                       amrex::MultiFab& fire_ros,
@@ -273,7 +274,6 @@ inline void update_crown_fire_status(amrex::MultiFab& fire_crown_active,
 #endif
     for (MFIter mfi(fire_crown_active); mfi.isValid(); ++mfi) {
         const Box& bx = mfi.tilebox();
-        // Extract Array4 views — copyable and GPU-safe
         auto ca  = fire_crown_active[mfi].array();
         auto ros = fire_ros[mfi].array();
         auto phi = fire_phi[mfi].const_array();
@@ -309,17 +309,18 @@ inline void update_crown_fire_status(amrex::MultiFab& fire_crown_active,
  *
  * GPU kernel. For each cell where crown fire is active (crown_active = 1.0) and
  * cell is burned (phi < 0):
+ *   - On first activation, initialize crown load: w = C_BD * canopy_depth [kg/m²]
  *   - Compute crown fuel burnout residence time: tau = canopy_depth / max(R_crown, 1e-10)
  *   - Heat flux from crown: Q = crown_load * h_crown / tau
  *   - Accumulate crown flux into existing surface flux
  *   - Deplete crown load exponentially: w_new = w * exp(-dt / tau)
  *
  * @param[out] fire_heat_flux       Heat flux field [W/m²] (accumulated)
- * @param[out] fire_crown_load      Crown fuel load [kg/m²] (depleted)
+ * @param[out] fire_crown_load      Crown fuel load [kg/m²] (initialized on first call, then depleted)
  * @param[in]  fire_crown_active    Crown fire status (1.0 = active)
  * @param[in]  fire_phi             Level-set field (<0 = burned)
  * @param[in]  canopy_depth         Canopy depth [m]
- * @param[in]  C_BD                 Canopy bulk density [kg/m³]
+ * @param[in]  C_BD                 Canopy bulk density [kg/m³]; used to initialize crown load
  * @param[in]  h_crown_J_per_kg     Crown heat content [J/kg]
  * @param[in]  R_crown_ms           Crown fire ROS [m/s]
  * @param[in]  dt_s                 Timestep [s]
@@ -341,7 +342,6 @@ inline void fill_crown_heat_flux(amrex::MultiFab& fire_heat_flux,
 #endif
     for (MFIter mfi(fire_heat_flux); mfi.isValid(); ++mfi) {
         const Box& bx = mfi.tilebox();
-        // Extract Array4 views — copyable and GPU-safe
         auto Q       = fire_heat_flux[mfi].array();
         auto w_crown = fire_crown_load[mfi].array();
         auto ca      = fire_crown_active[mfi].const_array();
@@ -350,8 +350,15 @@ inline void fill_crown_heat_flux(amrex::MultiFab& fire_heat_flux,
         ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
             // Only process cells where crown fire is active and burned
             if (ca(i, j, k) >= 0.5 && phi(i, j, k) < 0.0) {
+
+                // Initialize crown load on first activation:
+                // load [kg/m²] = bulk density [kg/m³] × canopy depth [m]
+                if (w_crown(i, j, k) <= 0.0) {
+                    w_crown(i, j, k) = C_BD * canopy_depth;
+                }
+
                 // Crown burnout residence time [s]
-                amrex::Real R_safe = amrex::max(R_crown_ms, 1.0e-10);
+                amrex::Real R_safe    = amrex::max(R_crown_ms, 1.0e-10);
                 amrex::Real tau_crown = amrex::max(canopy_depth / R_safe, 1.0);
 
                 // Heat flux from crown fuel [W/m²]
@@ -369,4 +376,4 @@ inline void fill_crown_heat_flux(amrex::MultiFab& fire_heat_flux,
     }
 }
 
-#endif
+#endif  // ERF_CROWN_FIRE_H

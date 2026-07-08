@@ -106,7 +106,7 @@ struct BehaveState
  *
  * Reference: Andrews (2018) GTR-RMRS-371 pp. 16–38.
  */
-BehaveState compute_behave_state(
+inline BehaveState compute_behave_state(
     const FuelModelParams& fp,
     amrex::Real mc_1hr,
     amrex::Real mc_10hr,
@@ -124,8 +124,8 @@ BehaveState compute_behave_state(
     const Real FT_MIN_TO_M_S = 0.00508;
 
     // Fixed SAV values for standard fuel classes [1/ft]
-    const Real sigma_d10 = 109.0_rt;
-    const Real sigma_d100 = 30.0_rt;
+    const Real sigma_d10 = 109.0;
+    const Real sigma_d100 = 30.0;
 
     // =====================================================================
     // Step 1: Dynamic load transfer (live herbaceous to dead)
@@ -134,16 +134,16 @@ BehaveState compute_behave_state(
     // When 0.30 <= fmc_herba < 1.20: partial transfer
     // Reference: WRF-SFIRE fire_ros_behave, lines ~384–396
 
-    Real fuelload_herba_dead = 0.0_rt;
+    Real fuelload_herba_dead = 0.0;
     Real fuelload_herba_live = fp.w_lh;  // [lb/ft²]
 
-    if (mc_herba < 0.30_rt) {
+    if (mc_herba < 0.30) {
         fuelload_herba_dead = fuelload_herba_live;
-        fuelload_herba_live = 0.0_rt;
-    } else if (mc_herba < 1.20_rt) {
+        fuelload_herba_live = 0.0;
+    } else if (mc_herba < 1.20) {
         // Linear interpolation: transfer decreases from 100% to 0%
         // as moisture goes from 0.30 to 1.20
-        Real transferred = fuelload_herba_live * (1.333_rt - 1.11_rt * mc_herba);
+        Real transferred = fuelload_herba_live * (1.333 - 1.11 * mc_herba);
         fuelload_herba_dead = transferred;
         fuelload_herba_live -= transferred;
     }
@@ -166,12 +166,12 @@ BehaveState compute_behave_state(
     Real A_l_total = A_lh + A_lw;
 
     // Weighting factors
-    Real f_d1 = (A_d_total > 1.0e-12) ? A_d1 / A_d_total : 0.0_rt;
-    Real f_d10 = (A_d_total > 1.0e-12) ? A_d10 / A_d_total : 0.0_rt;
-    Real f_d100 = (A_d_total > 1.0e-12) ? A_d100 / A_d_total : 0.0_rt;
-    Real f_dh = (A_d_total > 1.0e-12) ? A_dh / A_d_total : 0.0_rt;
-    Real f_lh = (A_l_total > 1.0e-12) ? A_lh / A_l_total : 0.0_rt;
-    Real f_lw = (A_l_total > 1.0e-12) ? A_lw / A_l_total : 0.0_rt;
+    Real f_d1 = (A_d_total > 1.0e-12) ? A_d1 / A_d_total : 0.0;
+    Real f_d10 = (A_d_total > 1.0e-12) ? A_d10 / A_d_total : 0.0;
+    Real f_d100 = (A_d_total > 1.0e-12) ? A_d100 / A_d_total : 0.0;
+    Real f_dh = (A_d_total > 1.0e-12) ? A_dh / A_d_total : 0.0;
+    Real f_lh = (A_l_total > 1.0e-12) ? A_lh / A_l_total : 0.0;
+    Real f_lw = (A_l_total > 1.0e-12) ? A_lw / A_l_total : 0.0;
 
     // Area-weighted SAV
     Real sigma_dead = f_d1 * fp.sigma_d1 + f_d10 * sigma_d10 + f_d100 * sigma_d100 + f_dh * fp.sigma_lh;
@@ -182,8 +182,8 @@ BehaveState compute_behave_state(
     Real w_live = fuelload_herba_live + fp.w_lw;
     Real w_0 = w_dead + w_live;
 
-    Real f_dead = (w_0 > 1.0e-12) ? w_dead / w_0 : 0.0_rt;
-    Real f_live = (w_0 > 1.0e-12) ? w_live / w_0 : 0.0_rt;
+    Real f_dead = (w_0 > 1.0e-12) ? w_dead / w_0 : 0.0;
+    Real f_live = (w_0 > 1.0e-12) ? w_live / w_0 : 0.0;
 
     // =====================================================================
     // Step 3: Live moisture of extinction
@@ -194,17 +194,17 @@ BehaveState compute_behave_state(
     Real fuelmce = fp.Mx;  // Dead fuel moisture of extinction (from FuelModelParams)
 
     // Effective heating number weighting: exp(-138/sigma)
-    Real exp_dead = w_dead * std::exp(-138.0_rt / amrex::max(sigma_dead, 1.0_rt));
-    Real exp_live = w_live * std::exp(-138.0_rt / amrex::max(sigma_live, 1.0_rt));
+    Real exp_dead = w_dead * std::exp(-138.0 / amrex::max(sigma_dead, 1.0));
+    Real exp_live = w_live * std::exp(-138.0 / amrex::max(sigma_live, 1.0));
 
-    Real W_prima = (exp_live > 1.0e-12) ? (exp_dead / exp_live) : 0.0_rt;
+    Real W_prima = (exp_live > 1.0e-12) ? (exp_dead / exp_live) : 0.0;
 
     // Weighted dead fuel moisture
-    Real fmc_dead = f_d1 * mc_1hr + f_d10 * mc_10hr + f_d100 * mc_100hr + f_dh * 0.15_rt;
+    Real fmc_dead = f_d1 * mc_1hr + f_d10 * mc_10hr + f_d100 * mc_100hr + f_dh * 0.15;
     Real M_prima_f = fmc_dead;
 
     // Live moisture of extinction from Rothermel live fuel path
-    Real fuelmce_live = 2.9_rt * W_prima * (1.0_rt - M_prima_f / fuelmce) - 0.226_rt;
+    Real fuelmce_live = 2.9 * W_prima * (1.0 - M_prima_f / fuelmce) - 0.226;
     fuelmce_live = amrex::max(fuelmce_live, fuelmce);  // Ensure ≥ dead fuel Mx
 
     // =====================================================================
@@ -214,29 +214,29 @@ BehaveState compute_behave_state(
     //   where r = min(1, M / M_x)
     // Reference: WRF-SFIRE lines ~431–445
 
-    fmc_dead = f_d1 * mc_1hr + f_d10 * mc_10hr + f_d100 * mc_100hr + f_dh * 0.15_rt;
+    fmc_dead = f_d1 * mc_1hr + f_d10 * mc_10hr + f_d100 * mc_100hr + f_dh * 0.15;
     Real fmc_live = f_lh * mc_herba + f_lw * mc_woody;
 
-    Real r_dead = amrex::min(1.0_rt, fmc_dead / fuelmce);
-    Real r_live = amrex::min(1.0_rt, fmc_live / fuelmce_live);
+    Real r_dead = amrex::min(1.0, fmc_dead / fuelmce);
+    Real r_live = amrex::min(1.0, fmc_live / fuelmce_live);
 
     // Moisture damping coefficients
     auto etam_poly = [](Real r) -> Real {
-        return amrex::max(0.0_rt, 1.0_rt - 2.59_rt*r + 5.11_rt*r*r - 3.52_rt*r*r*r);
+        return amrex::max(0.0, 1.0 - 2.59*r + 5.11*r*r - 3.52*r*r*r);
     };
     bs.etam_dead = etam_poly(r_dead);
     bs.etam_live = etam_poly(r_live);
 
     // Mineral damping (Rothermel Eq. 30)
-    bs.etas_dead = 0.174_rt * std::pow(S_e, -0.19_rt);
-    bs.etas_live = 0.174_rt * std::pow(S_e, -0.19_rt);
+    bs.etas_dead = 0.174 * std::pow(S_e, -0.19);
+    bs.etas_live = 0.174 * std::pow(S_e, -0.19);
 
     // =====================================================================
     // Step 5: Net fuel loads and heat content
     // =====================================================================
 
-    bs.wn_dead = w_dead * (1.0_rt - S_T);
-    bs.wn_live = w_live * (1.0_rt - S_T);
+    bs.wn_dead = w_dead * (1.0 - S_T);
+    bs.wn_live = w_live * (1.0 - S_T);
 
     bs.fuelheat_dead = fp.heat_content;  // Dead heat content per Anderson
     bs.fuelheat_live = fp.heat_content;  // Live heat content assumed same
@@ -253,14 +253,14 @@ BehaveState compute_behave_state(
     // =====================================================================
     // Use dead fuel SAV as characteristic value (weighted across dead classes)
     Real sigma = sigma_dead;
-    sigma = amrex::max(sigma, 100.0_rt);  // Minimum SAV guard
+    sigma = amrex::max(sigma, 100.0);  // Minimum SAV guard
 
-    Real beta_op = 3.348_rt * std::pow(sigma, -0.8189_rt);
-    Real sigma_1p5 = std::pow(sigma, 1.5_rt);
-    Real Gamma_max = sigma_1p5 / (495.0_rt + 0.0594_rt * sigma_1p5);
-    Real A = 133.0_rt * std::pow(sigma, -0.7913_rt);
+    Real beta_op = 3.348 * std::pow(sigma, -0.8189);
+    Real sigma_1p5 = std::pow(sigma, 1.5);
+    Real Gamma_max = sigma_1p5 / (495.0 + 0.0594 * sigma_1p5);
+    Real A = 133.0 * std::pow(sigma, -0.7913);
     Real beta_ratio = beta / beta_op;
-    Real Gamma_prime = Gamma_max * std::pow(beta_ratio, A) * std::exp(A * (1.0_rt - beta_ratio));
+    Real Gamma_prime = Gamma_max * std::pow(beta_ratio, A) * std::exp(A * (1.0 - beta_ratio));
 
     bs.gamma = Gamma_prime;
 
@@ -269,12 +269,12 @@ BehaveState compute_behave_state(
     // =====================================================================
     // Rothermel Eq. 42 and Eq. 12
 
-    bs.xifr = std::exp((0.792_rt + 0.681_rt * std::sqrt(sigma)) * (beta + 0.1_rt))
-              / (192.0_rt + 0.2595_rt * sigma);
+    bs.xifr = std::exp((0.792 + 0.681 * std::sqrt(sigma)) * (beta + 0.1))
+              / (192.0 + 0.2595 * sigma);
 
     // Weighted moisture for heat of preignition
     Real M_weighted = f_dead * fmc_dead + f_live * fmc_live;
-    Real Q_ig = 250.0_rt + 1116.0_rt * M_weighted;
+    Real Q_ig = 250.0 + 1116.0 * M_weighted;
 
     // =====================================================================
     // Step 9: Heat sink
@@ -283,7 +283,7 @@ BehaveState compute_behave_state(
     // heat_sink = ρ_b * ε_h * (Σ(ε_k * q_ig_k))
     // Simplified: use constant ε_h and q_ig
 
-    Real eps_h = std::exp(-138.0_rt / sigma);
+    Real eps_h = std::exp(-138.0 / sigma);
     bs.heat_sink = rho_b * eps_h * Q_ig;
 
     // =====================================================================
@@ -295,9 +295,9 @@ BehaveState compute_behave_state(
 
     Real I_R = bs.gamma * (bs.wn_dead * bs.fuelheat_dead * bs.etam_dead * bs.etas_dead
                           + bs.wn_live * bs.fuelheat_live * bs.etam_live * bs.etas_live);
-    I_R = amrex::max(I_R, 0.01_rt);
+    I_R = amrex::max(I_R, 0.01);
 
-    Real R0_ft_min = (I_R * bs.xifr) / amrex::max(bs.heat_sink, 1.0_rt);
+    Real R0_ft_min = (I_R * bs.xifr) / amrex::max(bs.heat_sink, 1.0);
 
     // =====================================================================
     // Step 11: Wind and slope factor coefficients
@@ -306,16 +306,16 @@ BehaveState compute_behave_state(
 
     bs.r_0 = R0_ft_min * FT_MIN_TO_M_S;  // Convert ft/min → m/s
 
-    bs.C = 7.47_rt * std::exp(-0.133_rt * std::pow(sigma, 0.55_rt));
-    bs.B = 0.02526_rt * std::pow(sigma, 0.54_rt);
-    Real E = 0.715_rt * std::exp(-3.59e-4_rt * sigma);
+    bs.C = 7.47 * std::exp(-0.133 * std::pow(sigma, 0.55));
+    bs.B = 0.02526 * std::pow(sigma, 0.54);
+    Real E = 0.715 * std::exp(-3.59e-4 * sigma);
 
     bs.beta_ratio_E = std::pow(beta_ratio, -E);
-    bs.phi_s_const = 5.275_rt * std::pow(beta, -0.3_rt);
+    bs.phi_s_const = 5.275 * std::pow(beta, -0.3);
 
     // MEWS wind speed cap (Andrews 2018)
-    bs.U_max_ftmin = (sigma > 1000.0_rt) ? 300.0_rt : 500.0_rt;
-    bs.wind_conv = 196.85_rt;  // m/s → ft/min
+    bs.U_max_ftmin = (sigma > 1000.0) ? 300.0 : 500.0;
+    bs.wind_conv = 196.85;  // m/s → ft/min
 
     return bs;
 }
@@ -357,7 +357,7 @@ amrex::Real behave_ros_cell(
     Real tan_slope_sq = sx*sx + sy*sy;
 
     // Cap at tan²(80°) ≈ 32.16
-    tan_slope_sq = amrex::min(tan_slope_sq, 32.0_rt);
+    tan_slope_sq = amrex::min(tan_slope_sq, 32.0);
 
     // Slope factor (Rothermel Eq. 51)
     Real phi_s = bs.phi_s_const * tan_slope_sq;
@@ -366,9 +366,9 @@ amrex::Real behave_ros_cell(
     Real phi_w = bs.C * std::pow(U_eff_ftmin, bs.B) * bs.beta_ratio_E;
 
     // Rate of spread: R = R0 * (1 + φ_w + φ_s)
-    Real ROS = bs.r_0 * (1.0_rt + phi_w + phi_s);
+    Real ROS = bs.r_0 * (1.0 + phi_w + phi_s);
 
-    return amrex::max(ROS, 0.0_rt);
+    return amrex::max(ROS, 0.0);
 }
 
 /**

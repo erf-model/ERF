@@ -53,7 +53,7 @@
  * @return true if file read successfully, false if file cannot be opened
  */
 inline bool read_ascii_fuel_map(const std::string& filename,
-                                int fire_nx, int fire_ny,
+                                int /*fire_nx*/, int /*fire_ny*/,
                                 std::vector<int>& fuel_codes,
                                 int& nodata_val)
 {
@@ -152,7 +152,7 @@ inline bool read_ascii_fuel_map(const std::string& filename,
  */
 inline void fill_fuel_model_mf(amrex::MultiFab& fire_fuel_model,
                                 const int* d_fuel_codes,
-                                const amrex::Geometry& geom,
+                                const amrex::Geometry& /*geom*/,
                                 int fire_nx)
 {
     // ParallelFor over the fire grid

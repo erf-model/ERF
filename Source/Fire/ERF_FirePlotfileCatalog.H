@@ -105,7 +105,7 @@ inline amrex::Vector<std::string> fire_plotfile_var_names(
 }
 
 
-inline amrex::Vector<std::string> fire_plotfile_var_names(
+/*inline amrex::Vector<std::string> fire_plotfile_var_names(
     bool include_spotting = false,
     bool include_crown = false,
     bool include_fuel_map = false,
@@ -113,7 +113,7 @@ inline amrex::Vector<std::string> fire_plotfile_var_names(
     bool include_live_moisture = false)
 {
     return fire_plotfile_var_names(include_spotting, include_crown, include_fuel_map, include_flame_tilt, include_live_moisture);
-}
+}*/
 
 /**
  * @brief Get the total number of fire plotfile components.
@@ -139,7 +139,7 @@ inline int fire_plotfile_ncomp(
 }
 
 
-inline int fire_plotfile_ncomp(
+/*inline int fire_plotfile_ncomp(
     bool include_spotting = false,
     bool include_crown = false,
     bool include_fuel_map = false,
@@ -147,6 +147,6 @@ inline int fire_plotfile_ncomp(
     bool include_live_moisture = false)
 {
     return fire_plotfile_ncomp(include_spotting, include_crown, include_fuel_map, include_flame_tilt, include_live_moisture);
-}
+}*/
 
 #endif
