@@ -813,12 +813,6 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
                           << "  kbfs_fire_max=" << kbfs_fire_max << " K m/s"
                           << "  (fire boosts wstar/K within PBL, not PBLH)\n";
         }
-        if (use_fire_correction && turbChoice.mrf_fire_thermal_excess) {
-            Real wstar_max = wstar_fab.max<RunOn::Device>(0);
-            Real kbfs_fire_max = kbfs_fire_fab.max<RunOn::Device>(0);
-            amrex::Print() << "[MRF FIRE] wstar_max=" << wstar_max << " m/s"
-                        << "  kbfs_fire_max=" << kbfs_fire_max << " K m/s\n";
-        }
         //
         // PASS 4 (WSTAR RECOMPUTE): Recompute wstar using the corrected PBL height.
         // Fire augments wstar via total kinematic buoyancy flux:
@@ -905,7 +899,12 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
                 hgamq_arr(i, j, 0) = (enable_mrf_countergradient && use_moisture) ? HGAMQ / pblh : zero;
             }
         });
-
+       if (use_fire_correction && turbChoice.mrf_fire_thermal_excess) {
+            Real wstar_max = wstar_fab.max<RunOn::Device>(0);
+            Real kbfs_fire_max = kbfs_fire_fab.max<RunOn::Device>(0);
+            amrex::Print() << "[MRF FIRE] wstar_max=" << wstar_max << " m/s"
+                        << "  kbfs_fire_max=" << kbfs_fire_max << " K m/s\n";
+        }
         //
         // PASS 5 (ZERO-RI): Diagnostic PBL height with Ribcr=0, VPERT-enhanced surface temp.
         // Used optionally (pbl_mrf_use_zero_ri_extent) to extend the nonlocal mixing region.
