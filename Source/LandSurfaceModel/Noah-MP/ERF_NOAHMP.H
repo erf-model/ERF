@@ -303,7 +303,7 @@ private:
     amrex::Vector<amrex::BCRec> m_domain_bcs_type;
 
     // timestep
-    double m_dt;
+    amrex::Real m_dt;
 
     // Authoritative NoahMP substep counter, kept on the class so the firing
     // decision in Advance_With_State is identical on every rank (including
@@ -312,7 +312,7 @@ private:
 
     // NoahMP timestep (DTBL), broadcast to all ranks in Init so the firing
     // decision is well-defined on land-free ranks too.
-    double m_dtbl = std::numeric_limits<amrex::Real>::max();
+    amrex::Real m_dtbl = std::numeric_limits<amrex::Real>::max();
 
     // domain klo-1 or lsm khi
     int khi_lsm;
