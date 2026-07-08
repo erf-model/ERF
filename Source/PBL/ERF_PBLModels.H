@@ -166,7 +166,8 @@ ComputeDiffusivityMRF (const amrex::MultiFab& xvel,
                        const amrex::BCRec* bc_ptr,
                        bool /*vert_only*/,
                        const std::unique_ptr<amrex::MultiFab>& z_phys_nd,
-                       const MoistureComponentIndices& moisture_indices);
+                       const MoistureComponentIndices& moisture_indices,
+                       const amrex::MultiFab* Q_fire_atm = nullptr);
 
 /**
  * Function for computing vertical derivatives for use in PBL model

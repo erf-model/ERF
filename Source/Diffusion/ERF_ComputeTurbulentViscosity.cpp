@@ -806,7 +806,8 @@ void ComputeTurbulentViscosity (double dt,
                                 int level,
                                 const BCRec* bc_ptr,
                                 const eb_& ebfact,
-                                bool vert_only)
+                                bool vert_only,
+                                const MultiFab* Q_fire_atm = nullptr)
 {
     BL_PROFILE_VAR("ComputeTurbulentViscosity()",ComputeTurbulentViscosity);
     //
@@ -892,7 +893,7 @@ void ComputeTurbulentViscosity (double dt,
                               geom, turbChoice, SurfLayer,
                               use_terrain_fitted_coords, use_moisture,
                               level, bc_ptr, vert_only, z_phys_nd,
-                              solverChoice.moisture_indices);
+                              solverChoice.moisture_indices, Q_fire_atm);
     } else if (turbChoice.uses_shoc_family()) {
         // NOTE: Nothing to do here. The SHOC class handles setting the vertical
         //       components of eddyDiffs in slow RHS pre.

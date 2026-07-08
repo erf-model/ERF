@@ -248,6 +248,17 @@ void ERF::advance_dycore (int level,
         // NOTE: state_new transfers to state_old for PBL (due to ptr swap in advance)
         bool l_use_moisture = ( solverChoice.moisture_type != MoistureType::None );
         const BCRec* bc_ptr_h = domain_bcs_type.data();
+
+        // Prepare fire heat flux for PBL if needed
+        const MultiFab* Q_fire_for_pbl = nullptr;
+#ifdef ERF_ENABLE_FIRE
+        if (m_fire_layer && m_fire_params.enable &&
+            m_fire_params.injects_flux() &&
+            turbChoice[level].mrf_fire_thermal_excess) {
+            Q_fire_for_pbl = m_fire_layer->get_Q_atm_prev();
+        }
+#endif
+
         ComputeTurbulentViscosity(dt_advance, xvel_old, yvel_old,Tau[level],
                                   state_old[IntVars::cons],
                                   *walldist[level].get(),
@@ -257,7 +268,7 @@ void ERF::advance_dycore (int level,
                                   m_SurfaceLayer, z_0, l_use_terrain_fitted_coords,
                                   l_use_moisture, level,
                                   bc_ptr_h,
-                                  get_eb(level));
+                                  get_eb(level), false, Q_fire_for_pbl);
     }
 
     // ***********************************************************************************************

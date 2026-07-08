@@ -23,7 +23,8 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
                        const BCRec* bc_ptr,
                        bool /*vert_only*/,
                        const std::unique_ptr<MultiFab>& z_phys_nd,
-                       const MoistureComponentIndices& moisture_indices)
+                       const MoistureComponentIndices& moisture_indices,
+                       const MultiFab* Q_fire_atm)
 {
     /*
     ============================================================================
@@ -191,6 +192,7 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
         FArrayBox hgamq_fab(xybx, 1, The_Async_Arena());  // Store HGAMQ/h (normalized countergradient)
         FArrayBox wstar_fab(xybx, 1, The_Async_Arena());  // Convective velocity scale
         FArrayBox vpert_fab(xybx, 1, The_Async_Arena());  // Virtual temperature perturbation VPERT
+        FArrayBox thermal_excess_fab(xybx, 1, The_Async_Arena());  // Fire-aware thermal excess
         const auto& pblh_pred_arr   = pbl_height_predictor.array();  // predictor (base t_layer_v)
         const auto& pblh_corr_arr   = pbl_height_corrector.array();  // corrector (VPERT-enhanced)
         const auto& pbli_arr        = pbl_index.array();
@@ -199,6 +201,7 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
         const auto& hgamq_arr       = hgamq_fab.array();
         const auto& wstar_arr       = wstar_fab.array();
         const auto& vpert_arr       = vpert_fab.array();
+        const auto& thermal_excess_arr = thermal_excess_fab.array();  // Fire-aware thermal excess
 
         // Get some data in arrays
         const auto& cell_data = cons_in.const_array(mfi);
@@ -217,6 +220,16 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
         // Only retrieve z_phys_nd array if terrain-fitted coordinates are in use
         const Array4<Real const> z_nd_arr = use_terrain_fitted_coords ? z_phys_nd->array(mfi)
                                                                 : Array4<Real const>{};
+
+        // Fire heat flux array and flags
+        const Array4<Real const> Q_fire_arr =
+           (Q_fire_atm && turbChoice.mrf_fire_thermal_excess)
+           ? Q_fire_atm->const_array(mfi)
+           : Array4<Real const>{};
+        const bool use_fire_correction = (Q_fire_atm != nullptr) &&
+                                         turbChoice.mrf_fire_thermal_excess;
+        const Real mrf_fire_q_thresh   = turbChoice.mrf_fire_q_threshold;
+        const Real mrf_fire_t_cap      = turbChoice.mrf_fire_t_excess_cap;
 
         //
         // PASS 1 (PREDICTOR): Compute PBL height using base surface virtual temperature.
@@ -639,6 +652,44 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
             wstar = amrex::max(wstar, Real(0.01));
             wstar = amrex::min(wstar, Real(5.0));
 
+            // Fire-aware thermal excess computation
+            // Base MOST kinematic buoyancy flux [K m/s]: kbfs_most = -u* t*
+            constexpr Real Cp_d = Real(1004.64);  // Specific heat at constant pressure [J/(kg K)]
+            const Real kbfs_most = -u_star_arr(i, j, 0) * t_star_arr(i, j, 0);
+
+            // Fire kinematic buoyancy flux [K m/s]: only when fire correction enabled
+            // and fire flux exceeds threshold
+            Real kbfs_fire = Real(0.0);
+            if (use_fire_correction && Q_fire_arr) {
+                const Real rho_sfc = cell_data(i, j, klo, Rho_comp);
+                const Real q_fire  = Q_fire_arr(i, j, 0);
+                if (q_fire > mrf_fire_q_thresh && rho_sfc > Real(0.0)) {
+                    kbfs_fire = q_fire / (rho_sfc * Cp_d);
+                }
+            }
+
+            // Total kinematic buoyancy flux
+            const Real kbfs_total = kbfs_most + kbfs_fire;
+
+            // Fire-augmented convective velocity scale w* from total buoyancy flux
+            // w*_fire = (g/theta * kbfs_total * pblh_pred)^(1/3)   [Deardorff 1970]
+            // Use max(w*_fire, w*_MOST) so fire only increases w*
+            Real wstar_fire = Real(0.0);
+            if (kbfs_total > Real(0.0)) {
+                wstar_fire = std::cbrt(CONST_GRAV / t_layer * kbfs_total * pblh_pred_arr(i, j, 0));
+            }
+            const Real wstar_eff = amrex::max(wstar_fire, wstar);
+
+            // Thermal excess from total buoyancy flux (Hong & Pan 1996, Eq. 8)
+            Real t_excess_total = Real(0.0);
+            if (wstar_eff > Real(1.0e-4)) {
+                t_excess_total = const_b * kbfs_total / wstar_eff;
+            }
+
+            // Thermal excess cap: 3 K for ambient, mrf_fire_t_cap when fire is active
+            const Real t_cap = (kbfs_fire > Real(0.0)) ? mrf_fire_t_cap : Real(3.0);
+            thermal_excess_arr(i, j, 0) = amrex::max(amrex::min(t_excess_total, t_cap), Real(0.0));
+
             bool SFCFLG = (obuk_val <= zero);
             const Real HGAMT = (SFCFLG && enable_mrf_countergradient)
                              ? amrex::min(-const_b * u_star_arr(i, j, 0) * t_star_arr(i, j, 0) / wstar, GAMCRT)
@@ -684,6 +735,18 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
             }
         });
 
+        // Debug: fire thermal excess diagnostics
+        // Runs on host after GPU kernel completes.
+        // Prints per-MFIter only when fire correction is enabled.
+        if (use_fire_correction && turbChoice.mrf_fire_thermal_excess) {
+           Real pblh_max_corr = pbl_height_corrector.max<RunOn::Device>(0);
+           Real pblh_max_pred = pbl_height_predictor.max<RunOn::Device>(0);
+           amrex::Print() << "[MRF FIRE] fire_thermal_excess active"
+                          << "  pblh_predictor_max=" << pblh_max_pred << " m"
+                          << "  pblh_corrector_max=" << pblh_max_corr << " m"
+                          << "  (corrector should be deeper over fire columns)\n";
+        }
+
         //
         // PASS 3 (CORRECTOR): Recompute PBL height with VPERT-enhanced surface temperature.
         // θ_s = θ_va + VPERT  (Hong & Pan 1996, Eq. 4)
@@ -696,9 +759,11 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
         {
             const Real t_layer  = t10av_arr(i, j, 0);
             const Real moisture_fraction = use_moisture ? q10av_arr(i, j, 0) : zero;
-            // VPERT-enhanced surface virtual temperature (WRF THERMAL variable)
+            // VPERT-enhanced and fire-enhanced surface virtual temperature
+            // θ_s = θ_va + VPERT + t_excess  (Hong & Pan 1996, Eq. 4, with fire correction)
             const Real t_layer_v = t_layer * (one + amrex::Real(0.61) * moisture_fraction)
-                                 + vpert_arr(i, j, 0);
+                                 + vpert_arr(i, j, 0)
+                                 + thermal_excess_arr(i, j, 0);
 
             Real obuk_val = l_obuk_arr(i, j, 0);
             if (std::abs(obuk_val) < amrex::Real(1.0e-10)) {

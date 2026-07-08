@@ -186,6 +186,12 @@ public:
           pp, "enable_mrf_unbounded_vpert", enable_mrf_unbounded_vpert, lev, max_level);
         query_one_or_per_level(
           pp, "pbl_mrf_use_zero_ri_extent", pbl_mrf_use_zero_ri_extent, lev, max_level);
+        query_one_or_per_level(
+          pp, "pbl_mrf_fire_thermal_excess", mrf_fire_thermal_excess, lev, max_level);
+        query_one_or_per_level(
+          pp, "mrf_fire_q_threshold", mrf_fire_q_threshold, lev, max_level);
+        query_one_or_per_level(
+          pp, "mrf_fire_t_excess_cap", mrf_fire_t_excess_cap, lev, max_level);
       } else if (pbl_type == PBLType::SHOC) {
 #ifndef ERF_USE_SHOC
           amrex::Abort("You set use_shoc to true but didn't build with SHOC; you must rebuild the executable");
@@ -578,6 +584,9 @@ public:
   bool pbl_mrf_highres_bounds = false; // if true, apply high-resolution grid-dependent diffusivity bounds instead of global forecast bounds
   bool enable_mrf_unbounded_vpert = false; // if true, does not limit VPERT to GAMCRT
   bool pbl_mrf_use_zero_ri_extent = false; // if true, use Ri=0 (pbli_zero_arr) for K-profile extent; default false uses Ri=0.5 corrector (pbli_arr) for WRF compatibility
+  bool mrf_fire_thermal_excess = false; ///< if true, add fire surface flux to MRF thermal excess
+  amrex::Real mrf_fire_q_threshold = amrex::Real(50.0); ///< minimum fire heat flux [W/m2] to activate correction
+  amrex::Real mrf_fire_t_excess_cap = amrex::Real(50.0); ///< maximum thermal excess [K] when fire is active
   // MYNN2.5 PBL model
   // TKE/QKE stuff
   bool advect_tke = true; // if MYNN2.5 PBL is used default is turb transport in
