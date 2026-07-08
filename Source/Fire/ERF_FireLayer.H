@@ -32,6 +32,10 @@
 #include <ERF_MacArthurModel.H>
 // Phase 15: BEHAVE multi-class Rothermel
 #include <ERF_BehaveModel.H>
+// Level-set propagation headers
+#include <ERF_NumericalSchemes.H>
+#include <ERF_Reinitialize.H>
+#include <ERF_LevelSetAdvection.H>
 
 // Forward declarations
 class SurfaceLayer;

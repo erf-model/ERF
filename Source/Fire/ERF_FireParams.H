@@ -64,6 +64,14 @@ struct FireParams
     amrex::Real       farsite_gaussian_sigma  = -1.0; ///< phi stamping radius [m]
     amrex::Real       farsite_cfl_fire        = 0.5;  ///< fire CFL number
 
+    // Level-set propagation parameters
+    std::string       propagation_method      = "farsite";   ///< "farsite" (default, Lagrangian) or "levelset" (PDE-based)
+    amrex::Real       levelset_cfl            = 0.4;   ///< CFL for level-set subcycle
+    amrex::Real       levelset_eps_visc       = 0.4;   ///< Artificial viscosity coefficient ε
+    int               levelset_reinit_every   = 5;     ///< Reinitialize φ every N fire subcycles
+    int               levelset_reinit_iters   = 10;    ///< Sussman reinitialization iterations
+    amrex::Real       levelset_reinit_dtau    = -1.0;  ///< Reinitialization pseudo-dt (<0 = auto = 0.5*min(dx,dy))
+
     // Terrain file for fine-grid terrain data
     std::string       terrain_file_name       = "";   ///< Path to terrain file for fine-grid interpolation
     
@@ -267,6 +275,14 @@ struct FireParams
        pp.query("farsite.coeff_c", farsite_coeff_c);
        pp.query("farsite.gaussian_sigma", farsite_gaussian_sigma);
        pp.query("farsite.cfl_fire", farsite_cfl_fire);
+
+       // Level-set propagation parameters
+       pp.query("propagation_method", propagation_method);
+       pp.query("levelset.cfl", levelset_cfl);
+       pp.query("levelset.eps_visc", levelset_eps_visc);
+       pp.query("levelset.reinit_every", levelset_reinit_every);
+       pp.query("levelset.reinit_iters", levelset_reinit_iters);
+       pp.query("levelset.reinit_dtau", levelset_reinit_dtau);
 
        // Terrain file
        amrex::ParmParse pp_erf("erf");
