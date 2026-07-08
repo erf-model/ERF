@@ -43,15 +43,6 @@ const SurfacePrecipAccumulationSource* first_available_source (const SurfacePrec
     return nullptr;
 }
 
-amrex::Real normalized_source_value (const SurfacePrecipAccumulationSource& source,
-                                     const Array4<const Real>& array,
-                                     const int i,
-                                     const int j,
-                                     const int k) noexcept
-{
-    return surface_precip_has_source(source) ? array(i, j, k, 0) * source.native_to_kg_m2 : amrex::Real(0.0);
-}
-
 } // namespace
 
 bool
@@ -113,13 +104,13 @@ selected_precipitation_accumulation_components (const amrex::Vector<std::string>
         }
 
         const bool has_total = surface_precip_has_total_source(sources);
-        const bool has_explicit_rain = surface_precip_has_explicit_rain_source(sources);
+        const bool has_rain = surface_precip_has_source(sources.rain);
 
         const bool source_available =
             (descriptor->id == DiagnosticID::PrecipTotalAccum)
                 ? surface_precip_has_any_source(sources)
                 : (descriptor->id == DiagnosticID::PrecipRainAccum)
-                    ? (has_explicit_rain || has_total)
+                    ? (has_rain || has_total)
                     : (descriptor->id == DiagnosticID::PrecipSnowAccum)
                         ? surface_precip_has_source(sources.snow)
                         : (descriptor->id == DiagnosticID::PrecipGraupelAccum)
@@ -171,16 +162,26 @@ fill_precipitation_accumulations (MultiFab& dst,
     const SurfacePrecipAccumulationSource* anchor = first_available_source(sources);
     AMREX_ALWAYS_ASSERT(anchor != nullptr);
     const MultiFab& anchor_mf = *anchor->accum;
+    const bool has_total_source = surface_precip_has_source(sources.total);
+    const bool has_rain_source = surface_precip_has_source(sources.rain);
+    const bool has_snow_source = surface_precip_has_source(sources.snow);
+    const bool has_graupel_source = surface_precip_has_source(sources.graupel);
+    const bool has_hail_source = surface_precip_has_source(sources.hail);
+    const amrex::Real total_factor = sources.total.native_to_kg_m2;
+    const amrex::Real rain_factor = sources.rain.native_to_kg_m2;
+    const amrex::Real snow_factor = sources.snow.native_to_kg_m2;
+    const amrex::Real graupel_factor = sources.graupel.native_to_kg_m2;
+    const amrex::Real hail_factor = sources.hail.native_to_kg_m2;
 
     for (MFIter mfi(anchor_mf, TilingIfNotGPU()); mfi.isValid(); ++mfi)
     {
         const Box& bx = mfi.tilebox();
         const auto dst_arr = dst.array(mfi);
-        const auto total_arr = surface_precip_has_total_source(sources) ? sources.total.accum->const_array(mfi) : Array4<const Real>{};
-        const auto rain_arr = surface_precip_has_source(sources.rain) ? sources.rain.accum->const_array(mfi) : Array4<const Real>{};
-        const auto snow_arr = surface_precip_has_source(sources.snow) ? sources.snow.accum->const_array(mfi) : Array4<const Real>{};
-        const auto graupel_arr = surface_precip_has_source(sources.graupel) ? sources.graupel.accum->const_array(mfi) : Array4<const Real>{};
-        const auto hail_arr = surface_precip_has_source(sources.hail) ? sources.hail.accum->const_array(mfi) : Array4<const Real>{};
+        const auto total_arr = has_total_source ? sources.total.accum->const_array(mfi) : Array4<const Real>{};
+        const auto rain_arr = has_rain_source ? sources.rain.accum->const_array(mfi) : Array4<const Real>{};
+        const auto snow_arr = has_snow_source ? sources.snow.accum->const_array(mfi) : Array4<const Real>{};
+        const auto graupel_arr = has_graupel_source ? sources.graupel.accum->const_array(mfi) : Array4<const Real>{};
+        const auto hail_arr = has_hail_source ? sources.hail.accum->const_array(mfi) : Array4<const Real>{};
 
         ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {
@@ -188,20 +189,23 @@ fill_precipitation_accumulations (MultiFab& dst,
                 return;
             }
 
-            const amrex::Real total_source = normalized_source_value(sources.total, total_arr, i, j, k);
-            const amrex::Real rain_source = normalized_source_value(sources.rain, rain_arr, i, j, k);
-            const amrex::Real snow = normalized_source_value(sources.snow, snow_arr, i, j, k);
-            const amrex::Real graupel = normalized_source_value(sources.graupel, graupel_arr, i, j, k);
-            const amrex::Real hail = normalized_source_value(sources.hail, hail_arr, i, j, k);
+            const amrex::Real total_source =
+                has_total_source ? total_arr(i, j, k, 0) * total_factor : amrex::Real(0.0);
+            const amrex::Real rain_source =
+                has_rain_source ? rain_arr(i, j, k, 0) * rain_factor : amrex::Real(0.0);
+            const amrex::Real snow =
+                has_snow_source ? snow_arr(i, j, k, 0) * snow_factor : amrex::Real(0.0);
+            const amrex::Real graupel =
+                has_graupel_source ? graupel_arr(i, j, k, 0) * graupel_factor : amrex::Real(0.0);
+            const amrex::Real hail =
+                has_hail_source ? hail_arr(i, j, k, 0) * hail_factor : amrex::Real(0.0);
             const amrex::Real frozen = snow + graupel + hail;
-            const bool has_total = surface_precip_has_total_source(sources);
-            const bool has_explicit_rain = surface_precip_has_explicit_rain_source(sources);
-            const amrex::Real total = has_total ? total_source : rain_source + frozen;
+            const amrex::Real total = has_total_source ? total_source : rain_source + frozen;
             // Total-plus-frozen-subset schemes derive rain as total - frozen.
             // Clamp to zero to avoid negative output from roundoff or small
             // scheme inconsistencies.
-            const amrex::Real rain = has_explicit_rain ? rain_source
-                                                       : amrex::max(amrex::Real(0.0), total - frozen);
+            const amrex::Real rain = has_rain_source ? rain_source
+                                                     : amrex::max(amrex::Real(0.0), total - frozen);
 
             for (int n = 0; n < selected.n; ++n) {
                 switch (selected.id[n]) {
