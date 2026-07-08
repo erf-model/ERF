@@ -64,9 +64,7 @@ public:
              amrex::MultiFab& yvel_in,
              amrex::MultiFab* hfx3_out,
              amrex::MultiFab* qfx3_out,
-             const amrex::MultiFab* rain_accum_in,
-             const amrex::MultiFab* snow_accum_in,
-             const amrex::MultiFab* graup_accum_in,
+             const SurfacePrecipAccumulationSources& precip_sources,
              const amrex::Real& time,
              const amrex::Real& dt_advance,
              const int& nstep,
@@ -74,7 +72,7 @@ public:
     {
         m_lsm_model[lev]->Advance_With_State(lev, cons_in, xvel_in, yvel_in,
                                              hfx3_out, qfx3_out,
-                                             rain_accum_in, snow_accum_in, graup_accum_in,
+                                             precip_sources,
                                              time, dt_advance, nstep, updated_lev0);
     }
 

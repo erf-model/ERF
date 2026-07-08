@@ -5,6 +5,7 @@
 #include "AMReX_MultiFabUtil.H"
 #include "AMReX_Geometry.H"
 #include "ERF_DataStruct.H"
+#include "ERF_SurfacePrecipitation.H"
 
 class NullSurf {
 
@@ -39,9 +40,7 @@ class NullSurf {
                         amrex::MultiFab& /*yvel_in*/,
                         amrex::MultiFab* /*hfx3_out*/,
                         amrex::MultiFab* /*qfx3_out*/,
-                        const amrex::MultiFab* /*rain_accum_in*/,
-                        const amrex::MultiFab* /*snow_accum_in*/,
-                        const amrex::MultiFab* /*graup_accum_in*/,
+                        const SurfacePrecipAccumulationSources& /*precip_sources*/,
                         const amrex::Real& /*elapsed_time*/,
                         const amrex::Real& /*dt_advance*/,
                         const int& /*nstep*/,

@@ -302,9 +302,7 @@ NOAHMP::Advance_With_State (const int& lev,
                             MultiFab& yvel_in,
                             MultiFab* /*hfx3_out*/,
                             MultiFab* /*qfx3_out*/,
-                            const MultiFab* rain_accum_in,
-                            const MultiFab* snow_accum_in,
-                            const MultiFab* graup_accum_in,
+                            const SurfacePrecipAccumulationSources& precip_sources,
                             const Real& elapsed_time,
                             const Real& dt,
                             const int& nstep,
@@ -367,46 +365,49 @@ NOAHMP::Advance_With_State (const int& lev,
         int klo = domain.smallEnd(2);
 
         // -------------------------------------------------------------------------
-        // Precipitation forcing into Noah-MP (RAINBL). Works for ANY microphysics
-        // scheme: rain_accum_in is qmoist[lev][0] (cumulative surface precip, mm) when
-        // the active scheme provides it, else nullptr (e.g. SatAdj / moisture off) in
-        // which case RAINBL is left at 0 and the land model runs precip-free (unchanged
-        // legacy behavior for those schemes). RAINBL is supplied as accumulated mm over
-        // the land-call interval = current cumulative accum minus the value at the last
-        // land call (WRF convention; Noah-MP divides by DTBL internally). SR (frozen
-        // fraction) is derived from the frozen accums when the scheme exposes them
-        // (snow_accum/graup_accum are the frozen subset of rain_accum in Morrison/SAM/
-        // WSM6, cf. WRF RAINNC/SNOWNC/GRAUPELNC); warm-rain schemes (Kessler) leave SR=0.
-        const bool have_precip = (rain_accum_in != nullptr);
+        // Precipitation forcing into Noah-MP (RAINBL / MP_RAINNC / MP_SNOW / MP_GRAUP /
+        // SR). Works for ANY microphysics scheme through the typed source interface:
+        // precip_sources carries a borrowed const view of each scheme-native cumulative
+        // accumulator plus its native->kg/m^2 (== water-equivalent mm) factor. Slots are
+        // scheme-specific -- some expose a `total` accumulator with `snow`/`graupel`
+        // subsets (Morrison, WSM6), others expose an explicit `rain` accumulator with
+        // density-scaled frozen species (SAM), and warm-rain schemes expose `rain` only
+        // (Kessler). Empty sources (moisture/precip off) -> RAINBL stays 0, land runs
+        // precip-free. The interval precip = (current - snapshot)*factor over the land-
+        // call interval (WRF convention; Noah-MP divides by DTBL internally).
+        //
+        // Collect the five typed slots into a fixed-index array (NoahmpPrecipSlot order)
+        // so the snapshot bookkeeping and the device delta kernel can loop generically.
+        const SurfacePrecipAccumulationSource slot_src[NoahmpPrecipSlot::NumSlots] = {
+            precip_sources.total, precip_sources.rain, precip_sources.snow,
+            precip_sources.graupel, precip_sources.hail };
+        const MultiFab* slot_accum[NoahmpPrecipSlot::NumSlots];
+        Real            slot_factor[NoahmpPrecipSlot::NumSlots];
+        bool            slot_has[NoahmpPrecipSlot::NumSlots];
+        for (int s(0); s < NoahmpPrecipSlot::NumSlots; ++s) {
+            slot_accum[s]  = slot_src[s].accum;
+            slot_factor[s] = slot_src[s].native_to_kg_m2;
+            slot_has[s]    = (slot_src[s].accum != nullptr);
+        }
+        const bool have_precip = surface_precip_has_any_source(precip_sources);
         if (have_precip) {
-            // Lazily allocate the per-level "previous cumulative accum" snapshot. On the
-            // first call (cold start OR restart) seed it to the current accumulation so
-            // the first interval's delta is 0 (no spurious precip spike from a restored
-            // or non-zero initial rain_accum).
-            if (int(m_rain_accum_prev.size()) <= lev) { m_rain_accum_prev.resize(lev+1); }
-            if (int(m_snow_accum_prev.size()) <= lev) { m_snow_accum_prev.resize(lev+1); }
-            if (int(m_graup_accum_prev.size()) <= lev) { m_graup_accum_prev.resize(lev+1); }
-            if (m_rain_accum_prev[lev] == nullptr) {
-                // NOTE: allocate with ZERO ghost cells and setVal(0) first so no cell is
-                // ever uninitialized (an uninitialized prev-snapshot produced garbage
-                // ~1e25 deltas -> Noah-MP water-balance abort). We only ever read the
-                // valid region (surface slab), so 0 ghost cells is sufficient and avoids
-                // any ghost/nGrow mismatch in the Copy.
-                m_rain_accum_prev[lev] = std::make_unique<MultiFab>(
-                    rain_accum_in->boxArray(), rain_accum_in->DistributionMap(), 1, 0);
-                m_rain_accum_prev[lev]->setVal(0.0);
-                MultiFab::Copy(*m_rain_accum_prev[lev], *rain_accum_in, 0, 0, 1, 0);
-                if (snow_accum_in) {
-                    m_snow_accum_prev[lev] = std::make_unique<MultiFab>(
-                        snow_accum_in->boxArray(), snow_accum_in->DistributionMap(), 1, 0);
-                    m_snow_accum_prev[lev]->setVal(0.0);
-                    MultiFab::Copy(*m_snow_accum_prev[lev], *snow_accum_in, 0, 0, 1, 0);
-                }
-                if (graup_accum_in) {
-                    m_graup_accum_prev[lev] = std::make_unique<MultiFab>(
-                        graup_accum_in->boxArray(), graup_accum_in->DistributionMap(), 1, 0);
-                    m_graup_accum_prev[lev]->setVal(0.0);
-                    MultiFab::Copy(*m_graup_accum_prev[lev], *graup_accum_in, 0, 0, 1, 0);
+            // Lazily allocate the per-level, per-slot "previous cumulative accum" snapshot.
+            // On the first call (cold start OR restart) seed each present slot to its
+            // current accumulation so the first interval's delta is 0 (no spurious precip
+            // spike from a restored or non-zero initial accumulation).
+            if (int(m_precip_accum_prev.size()) <= lev) { m_precip_accum_prev.resize(lev+1); }
+            auto& prev = m_precip_accum_prev[lev];
+            for (int s(0); s < NoahmpPrecipSlot::NumSlots; ++s) {
+                if (slot_has[s] && prev[s] == nullptr) {
+                    // NOTE: allocate with ZERO ghost cells and setVal(0) first so no cell is
+                    // ever uninitialized (an uninitialized prev-snapshot produced garbage
+                    // ~1e25 deltas -> Noah-MP water-balance abort). We only ever read the
+                    // valid region (surface slab), so 0 ghost cells is sufficient and avoids
+                    // any ghost/nGrow mismatch in the Copy.
+                    prev[s] = std::make_unique<MultiFab>(
+                        slot_accum[s]->boxArray(), slot_accum[s]->DistributionMap(), 1, 0);
+                    prev[s]->setVal(0.0);
+                    MultiFab::Copy(*prev[s], *slot_accum[s], 0, 0, 1, 0);
                 }
             }
         }
@@ -488,21 +489,25 @@ NOAHMP::Advance_With_State (const int& lev,
             Array4<Real> noah_input_arr  =  noahmp_input_tmp[idb]->array();
             Array4<Real> noah_output_arr =  noahmp_output_tmp[idb]->array();
 
-            // Precipitation accumulations (mm) and their previous-call snapshots, for
-            // building RAINBL. These MultiFabs live in the (device) default arena, so
-            // they are read ONLY inside the device ParallelFor below and staged into the
-            // pinned noah_input_arr — never dereferenced on the host (that segfaults on
-            // GPU). have_precip is false for schemes with no precip (RAINBL stays 0).
+            // Per-slot precip accumulation views (current + previous-call snapshot) and
+            // their native->kg/m^2 factors, for building the water-equivalent interval
+            // precip. These MultiFabs live in the (device) default arena, so they are read
+            // ONLY inside the device ParallelFor below and staged into the pinned
+            // noah_input_arr — never dereferenced on the host (that segfaults on GPU).
+            // have_precip is false for schemes with no precip (RAINBL stays 0). GpuArrays
+            // are captured by value into the device kernel; absent slots keep null Array4s
+            // that are guarded by slot_present before any dereference.
             const bool hp = have_precip;
-            Array4<const Real> rain_now, snow_now, graup_now;
-            Array4<const Real> rain_prv, snow_prv, graup_prv;
-            const bool has_snow  = hp && (snow_accum_in  != nullptr);
-            const bool has_graup = hp && (graup_accum_in != nullptr);
-            if (hp) {
-                rain_now = rain_accum_in->const_array(mfi);
-                rain_prv = m_rain_accum_prev[lev]->const_array(mfi);
-                if (has_snow)  { snow_now  = snow_accum_in->const_array(mfi);  snow_prv  = m_snow_accum_prev[lev]->const_array(mfi);  }
-                if (has_graup) { graup_now = graup_accum_in->const_array(mfi); graup_prv = m_graup_accum_prev[lev]->const_array(mfi); }
+            GpuArray<Array4<const Real>, NoahmpPrecipSlot::NumSlots> accum_now, accum_prv;
+            GpuArray<Real, NoahmpPrecipSlot::NumSlots> accum_fac;
+            GpuArray<int,  NoahmpPrecipSlot::NumSlots> slot_present;
+            for (int s(0); s < NoahmpPrecipSlot::NumSlots; ++s) {
+                slot_present[s] = (hp && slot_has[s]) ? 1 : 0;
+                accum_fac[s]    = slot_factor[s];
+                if (slot_present[s]) {
+                    accum_now[s] = slot_accum[s]->const_array(mfi);
+                    accum_prv[s] = m_precip_accum_prev[lev][s]->const_array(mfi);
+                }
             }
             const int kklo = klo;
 
@@ -519,23 +524,32 @@ NOAHMP::Advance_With_State (const int& lev,
                 noah_input_arr(i,j,0,NoahmpInputComp::glw)     = GLW(i,j,0);
                 noah_input_arr(i,j,0,NoahmpInputComp::coszen)  = COSZEN(i,j,0);
 
-                // RAINBL = accumulated precip [mm] this land-call interval (WRF convention;
-                // Noah-MP divides by DTBL -> mm/s). rain_accum is on the surface slab kklo.
+                // Water-equivalent interval precip [mm] for this land call (WRF convention;
+                // Noah-MP divides by DTBL -> mm/s). Per slot: d = (current - snapshot) *
+                // native_to_kg_m2, so each species is converted to water-equivalent mm
+                // BEFORE it is combined (kg/m^2 == mm of water). Accumulators are on the
+                // surface slab kklo.
                 Real drain = zero, sr = zero, dsnow = zero, dgraup = zero;
                 if (hp) {
-                    drain = amrex::max(zero, rain_now(i,j,kklo) - rain_prv(i,j,kklo));
-                    // Physical guard: precip accumulated over one land interval cannot
-                    // exceed a sane ceiling. Protects Noah-MP's water-balance check from
-                    // any corrupt prev-snapshot delta (belt-and-suspenders with the
-                    // zero-init above). 500 mm/interval is far above any real 10-min rate.
-                    drain = amrex::min(drain, Real(500.0));
-                    // Frozen sub-components. rain_accum(=precrt) is the TOTAL surface precip
-                    // and snow_accum(=snowprt: ice+snow), graup_accum(=grplprt) are SUBSETS,
-                    // exactly the WRF MP_RAINNC / MP_SNOW / MP_GRAUP convention
-                    // (drivers/wrf/NoahmpWRFmainMod.F90:563-568).
-                    if (has_snow)  { dsnow  = amrex::max(zero, snow_now (i,j,kklo) - snow_prv (i,j,kklo)); }
-                    if (has_graup) { dgraup = amrex::max(zero, graup_now(i,j,kklo) - graup_prv(i,j,kklo)); }
-                    Real dfroz = dsnow + dgraup;
+                    Real dd[NoahmpPrecipSlot::NumSlots];
+                    for (int s(0); s < NoahmpPrecipSlot::NumSlots; ++s) {
+                        dd[s] = slot_present[s]
+                              ? amrex::max(zero, (accum_now[s](i,j,kklo) - accum_prv[s](i,j,kklo)) * accum_fac[s])
+                              : zero;
+                    }
+                    // Frozen species -> MP_SNOW / MP_GRAUP (hail folded into graupel;
+                    // Noah-MP has no hail input). Matches WRF MP_SNOW / MP_GRAUP.
+                    dsnow  = dd[NoahmpPrecipSlot::snow];
+                    dgraup = dd[NoahmpPrecipSlot::graupel] + dd[NoahmpPrecipSlot::hail];
+                    const Real dfroz = dsnow + dgraup;
+                    // Total non-convective precip -> RAINBL / MP_RAINNC. Prefer the scheme's
+                    // `total` accumulator; otherwise reconstruct from explicit species
+                    // (rain + frozen), mirroring the IO layer's derivation. This is the
+                    // correct total for SAM/Kessler (rain slot, no total), where the old
+                    // "rain_accum is total" assumption undercounted frozen precip.
+                    drain = slot_present[NoahmpPrecipSlot::total]
+                          ? dd[NoahmpPrecipSlot::total]
+                          : (dd[NoahmpPrecipSlot::rain] + dfroz);
                     sr = (drain > zero) ? amrex::min(Real(1.0), dfroz/drain) : zero;
                 }
                 noah_input_arr(i,j,0,NoahmpInputComp::rainbl)    = drain;
@@ -599,8 +613,9 @@ NOAHMP::Advance_With_State (const int& lev,
                 noah_output_arr(i,j,0,NoahmpOutputComp::o_albedo)      = noahmpio->ALBEDO(i,j);
                 noah_output_arr(i,j,0,NoahmpOutputComp::o_sfcrunoff)   = noahmpio->SFCRUNOFF(i,j);
                 noah_output_arr(i,j,0,NoahmpOutputComp::o_udrunoff)    = noahmpio->UDRUNOFF(i,j);
-                noah_output_arr(i,j,0,NoahmpOutputComp::o_smstav)      = noahmpio->SMSTAV(i,j);
-                noah_output_arr(i,j,0,NoahmpOutputComp::o_smstot)      = noahmpio->SMSTOT(i,j);
+                // SMSTAV/SMSTOT are intentionally NOT staged here: this Noah-MP core does
+                // not compute them, so they are emitted as lsm_undefined downstream rather
+                // than as a misleading physical 0 (see the scatter kernel below).
                 // 3D soil-profile state, one 2D component per soil layer, for any NSOIL.
                 // Fortran layer index is 1-based; output components are laid out as
                 // [NumComps .. +nsoil) smois, [+nsoil .. +2*nsoil) sh2o, [+2*nsoil ..) tslb.
@@ -646,11 +661,15 @@ NOAHMP::Advance_With_State (const int& lev,
                     // Exner factor:  theta-flux = HFX/(rho*Cp) * (p0/p)^(Rd/Cp).
                     // We deliberately OMIT it here to match WRF, which applies HFX/(rho*Cp)
                     // directly into its potential-temperature PBL equation (WRF
-                    // module_pbl_driver.F: b_t = hfx/rho/CP, no Exner). Near the surface
-                    // p ~= p0 so Exner ~= 1.00-1.01 (<~1% effect); reinstate by multiplying
-                    // t_flux by std::pow(p_0/getPgivenRTh(CONS(ii,jj,k,RhoTheta_comp),
+                    // module_pbl_driver.F: b_t = hfx/rho/CP, no Exner). This is an
+                    // approximation relative to ERF's exact potential-temperature flux, not
+                    // an identity: the error scales with (p0/p)^(Rd/Cp)-1, which is small
+                    // near sea level (p ~= p0 -> Exner ~= 1.00-1.01, <~1%) but grows over
+                    // low-pressure / elevated terrain (e.g. p ~ 800 hPa -> ~6-7%). Reinstate
+                    // by multiplying t_flux by std::pow(p_0/getPgivenRTh(
+                    // CONS(ii,jj,k,RhoTheta_comp),
                     // (is_moist)?CONS(ii,jj,k,RhoQ1_comp)/CONS(ii,jj,k,Rho_comp):zero),
-                    // R_d/Cp_d) if the small bias ever matters.
+                    // R_d/Cp_d) if that bias matters for the case.
                     Real rho_l  = CONS(ii,jj,k,Rho_comp);
                     t_flux_arr(i,j,k) = hfx_lsm/(rho_l*Cp_d);
                     q_flux_arr(i,j,k) = noah_output_arr(ii,jj,0,NoahmpOutputComp::lh)/(rho_l*L_v);
@@ -679,8 +698,11 @@ NOAHMP::Advance_With_State (const int& lev,
                     ALBEDO_o(i,j,0)      = noah_output_arr(ii,jj,0,NoahmpOutputComp::o_albedo);
                     SFCRUNOFF_o(i,j,0)   = noah_output_arr(ii,jj,0,NoahmpOutputComp::o_sfcrunoff);
                     UDRUNOFF_o(i,j,0)    = noah_output_arr(ii,jj,0,NoahmpOutputComp::o_udrunoff);
-                    SMSTAV_o(i,j,0)      = noah_output_arr(ii,jj,0,NoahmpOutputComp::o_smstav);
-                    SMSTOT_o(i,j,0)      = noah_output_arr(ii,jj,0,NoahmpOutputComp::o_smstot);
+                    // SMSTAV/SMSTOT are not computed by this Noah-MP core, so emit the
+                    // lsm_undefined sentinel rather than the uncomputed core value: a
+                    // physical-looking 0 would misrepresent them as valid diagnostics.
+                    SMSTAV_o(i,j,0)      = lsm_undefined;
+                    SMSTOT_o(i,j,0)      = lsm_undefined;
                     // Per-layer soil profile (any NSOIL): copy each output component
                     // into its dedicated 2D fab (soil_arr laid out group-major).
                     for (int s(0); s < n_soil_fld; ++s) {

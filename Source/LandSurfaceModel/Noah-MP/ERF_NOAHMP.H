@@ -19,6 +19,7 @@
 #include <ERF_Constants.H>
 #include <ERF_IndexDefines.H>
 #include <ERF_DataStruct.H>
+#include <ERF_SurfacePrecipitation.H>
 
 // External include from the noahmp library
 #include <NoahmpIO.H>
@@ -49,8 +50,10 @@ namespace LsmData_NOAHMP {
          albedo,          // total grid surface albedo [-] (ALBEDO)
          sfcrunoff,       // accumulated surface runoff [m] (SFCRUNOFF)
          udrunoff,        // accumulated sub-surface runoff [m] (UDRUNOFF)
-         smstav,          // soil moisture availability [-] (SMSTAV; not computed by core -> 0)
-         smstot,          // total soil moisture [mm] (SMSTOT; not computed by core -> 0)
+         smstav,          // soil moisture availability [-] (SMSTAV; NOT computed by this
+                          // Noah-MP core -> emitted as lsm_undefined placeholder, not 0)
+         smstot,          // total soil moisture [mm] (SMSTOT; NOT computed by this
+                          // Noah-MP core -> emitted as lsm_undefined placeholder, not 0)
          NumVars
          // NOTE: the 3D soil-profile state (SMOIS/SH2O/TSLB) is NOT enumerated here.
          // It is appended at RUNTIME, one 2D field per soil layer, in three
@@ -74,6 +77,20 @@ namespace LsmFlux_NOAHMP {
   };
 }
 
+
+// Fixed index for each typed surface-precip source slot, in the field order of
+// SurfacePrecipAccumulationSources. Used to key the per-slot previous-accumulation
+// snapshots and the water-equivalent interval deltas fed to Noah-MP.
+namespace NoahmpPrecipSlot {
+    enum {
+        total = 0,   // total non-convective precip accumulator (if the scheme exposes one)
+        rain,        // explicit rain accumulator (schemes without a total slot)
+        snow,        // snow (+ice) accumulator
+        graupel,     // graupel accumulator
+        hail,        // hail accumulator (folded into MP_GRAUP; Noah-MP has no hail input)
+        NumSlots
+    };
+}
 
 namespace NoahmpInputComp {
     enum {
@@ -163,9 +180,7 @@ public:
                         amrex::MultiFab& yvel_in,
                         amrex::MultiFab* hfx3_out,
                         amrex::MultiFab* qfx3_out,
-                        const amrex::MultiFab* rain_accum_in,
-                        const amrex::MultiFab* snow_accum_in,
-                        const amrex::MultiFab* graup_accum_in,
+                        const SurfacePrecipAccumulationSources& precip_sources,
                         const amrex::Real& elapsed_time,
                         const amrex::Real& dt,
                         const int& nstep,
@@ -416,13 +431,15 @@ private:
     amrex::Vector<std::unique_ptr<amrex::FArrayBox>> noahmp_input_tmp;
     amrex::Vector<std::unique_ptr<amrex::FArrayBox>> noahmp_output_tmp;
 
-    // Previous cumulative surface precip (mm) at the last land-model call, per level.
-    // RAINBL fed to Noah-MP = current cumulative rain_accum minus this (WRF supplies
-    // accumulated mm per land-call interval). Synced to current on the first call and
-    // on restart so a restored accumulation does not produce a spurious precip spike.
-    amrex::Vector<std::unique_ptr<amrex::MultiFab>> m_rain_accum_prev;
-    amrex::Vector<std::unique_ptr<amrex::MultiFab>> m_snow_accum_prev;
-    amrex::Vector<std::unique_ptr<amrex::MultiFab>> m_graup_accum_prev;
+    // Previous cumulative surface precip accumulator (scheme-native units) at the last
+    // land-model call, one snapshot per typed source slot (NoahmpPrecipSlot), per level.
+    // The interval precip fed to Noah-MP is (current - this) * native_to_kg_m2, i.e. the
+    // native->kg/m^2 (water-equivalent mm) factor is applied when the delta is formed.
+    // Only slots the active scheme provides are allocated; the rest stay null. Synced to
+    // current on the first call and on restart so a restored accumulation does not
+    // produce a spurious precip spike.
+    amrex::Vector<amrex::Array<std::unique_ptr<amrex::MultiFab>, NoahmpPrecipSlot::NumSlots>>
+        m_precip_accum_prev;
 
     // Plot frequency
     int m_plot_int_1 = -1;
