@@ -1,4 +1,6 @@
 #include "ERF_SurfaceLayer.H"
+#include "ERF_StormDiagnostics.H"
+#include "ERF_EOS.H"
 
 using namespace amrex;
 
@@ -1182,8 +1184,31 @@ SurfaceLayer::update_pblh (const int& lev,
     if (pblh_type == PBLHeightCalcType::MYNN25) {
         MYNNPBLH estimator;
         compute_pblh(lev, vars, z_phys_cc, estimator, moisture_indices);
-    } else if (pblh_type == PBLHeightCalcType::YSU || pblh_type == PBLHeightCalcType::MRF) {
-        amrex::Error("YSU/MRF PBLH calc not implemented yet");
+    } else if (pblh_type == PBLHeightCalcType::YSU) {
+        // Scheme-native YSU bulk-Ri PBL height. Needs the MOST surface-layer
+        // state (t_surf, the reference-height averages, z0) plus the horizontal
+        // velocities. zref is the actual MOST reference height for this grid
+        // (get_zref -> the snapped lowest-cell-center height, NOT hard-coded to
+        // 10 m); the bulk-Ri reconstruction is self-consistent at that height.
+        YSUPBLH estimator(m_pbl_ysu_land_Ribcr, m_pbl_ysu_coriolis_freq,
+                          m_pbl_ysu_force_over_water, get_zref(lev));
+        estimator.compute_pblh(m_geom[lev], z_phys_cc, pblh[lev].get(),
+                               vars[lev][Vars::cons],
+                               vars[lev][Vars::xvel], vars[lev][Vars::yvel],
+                               *t_surf[lev],
+                               *get_mac_avg(lev,2),   // t10av
+                               *get_mac_avg(lev,5),   // ws10av
+                               z_0[lev],
+                               m_lmask_lev[lev][0]);
+    } else if (pblh_type == PBLHeightCalcType::MRF) {
+        // Scheme-native MRF bulk-Ri PBL height (predictor + thermal-excess
+        // corrector). Needs u*, t*, Obukhov length and the 10 m temperature.
+        MRFPBLH estimator(m_pbl_mrf_Ribcr, m_pbl_mrf_const_b, m_pbl_mrf_sf);
+        estimator.compute_pblh(m_geom[lev], z_phys_cc, pblh[lev].get(),
+                               vars[lev][Vars::cons],
+                               vars[lev][Vars::xvel], vars[lev][Vars::yvel],
+                               *u_star[lev], *t_star[lev], *olen[lev],
+                               *get_mac_avg(lev,2));   // t10av
     }
 }
 
@@ -1198,6 +1223,185 @@ SurfaceLayer::compute_pblh (const int& lev,
     est.compute_pblh(m_geom[lev],z_phys_cc, pblh[lev].get(),
                      vars[lev][Vars::cons],m_lmask_lev[lev][0],
                      moisture_indices);
+}
+
+void
+SurfaceLayer::update_surf_diagnostics (const int& lev,
+                                       const MultiFab& cons,
+                                       bool do_reflectivity)
+{
+    //
+    // Diagnose ASOS-comparable surface fields from the MOST surface-layer state
+    // using the Monin-Obukhov log-law (the same form and stability functions
+    // ERF uses to compute the surface fluxes, so the diagnostic is consistent
+    // with the model's own surface layer):
+    //
+    //   U(z)      = (u*/kappa) * [ ln(z/z0)  - psi_m(z/L) ]      (z = 10 m)
+    //   theta(z)  = t_surf + (t*_th/kappa) * [ ln(z/z0) - psi_h(z/L) ]  (z = 2 m)
+    //   q(z)      = q_surf + (q*_th/kappa) * [ ln(z/z0) - psi_h(z/L) ]  (z = 2 m)
+    //
+    // where t*_th, q*_th are the gradient scales consistent with ERF's stored
+    // t_star/q_star (t_star = -surf_temp_flux/u*; the MOST profile gives the
+    // value at the reference height zref, which we use to back out the scale).
+    // We reconstruct the 2 m value by log-interpolating between the surface
+    // (t_surf at z0) and the reference-height value (at zref) -- this is
+    // sign-robust and matches whatever zref MOST snapped to.
+    //
+    // The 10 m wind direction is taken from the reference-height MOST wind so
+    // u10/v10 share the column's near-surface flow direction.
+    //
+    // wspd10max accumulates the running event maximum of wspd10 (never reset),
+    // giving the storm peak-wind swath for comparison with ASOS peak winds.
+    //
+    constexpr Real z_wind = Real(10.0); // ASOS anemometer height [m]
+    constexpr Real z_temp = Real(2.0);  // ASOS thermometer height [m]
+    const Real zref = get_zref(lev);
+
+    similarity_funs sfuns;
+
+    const auto* U_ma   = m_ma.get_average(lev, 0); // U at zref
+    const auto* V_ma   = m_ma.get_average(lev, 1); // V at zref
+    const auto* T_ma   = m_ma.get_average(lev, 2); // theta at zref
+    const auto* Qv_ma  = m_ma.get_average(lev, 3); // qv at zref
+
+    for (MFIter mfi(*u10[lev]); mfi.isValid(); ++mfi)
+    {
+        const Box& bx = mfi.growntilebox();
+
+        const auto ustar = u_star[lev]->const_array(mfi);
+        const auto olenA = olen[lev]->const_array(mfi);
+        const auto z0A   = z_0[lev].const_array(mfi);
+        const auto tsrf  = t_surf[lev]->const_array(mfi);
+        const auto qsrf  = q_surf[lev]->const_array(mfi);
+
+        const auto Uz    = U_ma->const_array(mfi);
+        const auto Vz    = V_ma->const_array(mfi);
+        const auto Tz    = T_ma->const_array(mfi);
+        const auto Qvz   = Qv_ma->const_array(mfi);
+
+        auto u10A   = u10[lev]->array(mfi);
+        auto v10A   = v10[lev]->array(mfi);
+        auto ws10A  = wspd10[lev]->array(mfi);
+        auto t2A    = t2[lev]->array(mfi);
+        auto q2A    = q2[lev]->array(mfi);
+        auto ws10mA = wspd10max[lev]->array(mfi);
+
+        ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+        {
+            const Real us = ustar(i,j,k);
+            // Skip cells where MOST hasn't produced a valid u* yet (first call
+            // before update_fluxes, or masked cells): leave prior values.
+            if (!(us > Real(0.0)) || us >= bogus_large_value) { return; }
+
+            const Real z0   = amrex::max(z0A(i,j,k), Real(1.0e-6));
+            // Obukhov length: guard against the bogus init and a near-zero L.
+            Real Lo = olenA(i,j,k);
+            if (Lo >= bogus_large_value || Lo <= -bogus_large_value || Lo == Real(0.0)) {
+                Lo = Real(1.0e10); // effectively neutral
+            }
+
+            // Bounded stability parameter zeta = z/L (secondary guard).
+            const Real ZETA_MAX = Real(5.0);
+            auto zeta = [&](Real z){ return amrex::min(amrex::max(z/Lo, -ZETA_MAX), ZETA_MAX); };
+
+            // =================================================================
+            // *** IMPORTANT — DO NOT replace this with the forward log-law ***
+            // *** U(z) = (u*/kappa)*[ln(z/z0) - psi_m(z/L)] from STORED u*. ***
+            //
+            // That forward form EXPLODED to ~1000 m/s here: in stable/near-calm
+            // cells G=ln(z/z0)-psi_m gets huge (psi_m=-5*zeta unbounded as zeta>0
+            // grows) and the true converged u* is tiny; their product is fine
+            // ONLY if u* is exactly consistent. But ERF FLOORS u* (most.u_star_min,
+            // bogus-init), so the cancellation breaks -> huge G * floored u* blows
+            // up. (Verified: forward(converged u*) == this ratio EXACTLY; the
+            // floor is what breaks it. Upstream ERF never hits this because its
+            // flux solver iterates u*/L/psi to self-consistency; a diagnostic that
+            // reads STORED u*/L cannot rely on that.)
+            //
+            // FIX: scale the model's own bounded reference wind down the profile,
+            //   U(z) = U(zref) * G(z)/G(zref),   G(z)=ln(z/z0)-psi_m(z/L)
+            // Bounded by construction (z_wind <= zref, G monotonic -> ratio in
+            // [0,1]); cannot exceed the real model wind. t2/q2 use the same trick.
+            // =================================================================
+            const Real uref = Uz(i,j,k);
+            const Real vref = Vz(i,j,k);
+            const Real umag_ref = std::sqrt(uref*uref + vref*vref);
+            const Real Gw_z    = std::log(z_wind / z0) - sfuns.calc_psi_m(zeta(z_wind));
+            const Real Gw_zref = std::log(zref   / z0) - sfuns.calc_psi_m(zeta(zref));
+            Real wfrac = (Gw_zref > Real(1.0e-6)) ?
+                         amrex::min(amrex::max(Gw_z / Gw_zref, Real(0.0)), Real(1.0)) : Real(1.0);
+            Real ws10 = umag_ref * wfrac;
+
+            if (umag_ref > Real(1.0e-8)) {
+                u10A(i,j,k) = ws10 * (uref / umag_ref);
+                v10A(i,j,k) = ws10 * (vref / umag_ref);
+            } else {
+                u10A(i,j,k) = Real(0.0);
+                v10A(i,j,k) = Real(0.0);
+            }
+            ws10A(i,j,k) = ws10;
+
+            // --- 2 m theta / qv by log-interpolation between surface and zref ---
+            // f(z) = f_surf + [f(zref) - f_surf] * G(z)/G(zref),
+            //   G(z) = ln(z/z0) - psi_h(z/L)
+            const Real psih_2    = sfuns.calc_psi_h(zeta(z_temp));
+            const Real psih_zref = sfuns.calc_psi_h(zeta(zref));
+            const Real G2   = std::log(z_temp / z0) - psih_2;
+            const Real Gref = std::log(zref   / z0) - psih_zref;
+            const Real frac = (std::abs(Gref) > Real(1.0e-12)) ?
+                              amrex::min(amrex::max(G2 / Gref, Real(0.0)), Real(1.0)) : Real(1.0);
+
+            t2A(i,j,k) = tsrf(i,j,k) + (Tz(i,j,k)  - tsrf(i,j,k)) * frac;
+            q2A(i,j,k) = qsrf(i,j,k) + (Qvz(i,j,k) - qsrf(i,j,k)) * frac;
+
+            // --- cumulative event-maximum 10 m wind speed ---
+            ws10mA(i,j,k) = amrex::max(ws10mA(i,j,k), ws10);
+        });
+    }
+
+    //
+    // Running event-maximum composite (column-max) reflectivity [dBZ].
+    // Composite reflectivity = max over the vertical column of the per-cell
+    // reflectivity (same definition as MRMS MergedReflectivityQCComposite and a
+    // NEXRAD composite). We accumulate the running max in time so the final
+    // field is the storm max-reflectivity swath -- cadence-independent, unlike
+    // sampling the per-plotfile max_reflectivity every 30 min.
+    // Only meaningful with a microphysics scheme carrying rain/snow/graupel
+    // (Morrison/SAM); gated by do_reflectivity from the caller.
+    //
+    if (do_reflectivity) {
+        for (MFIter mfi(*cmpref_max[lev]); mfi.isValid(); ++mfi)
+        {
+            // 2D valid box for this tile, plus the full column range from cons
+            Box vbx = mfi.validbox();
+            const Box& cbx = cons[mfi].box();
+            const int klo = cbx.smallEnd(2);
+            const int khi = cbx.bigEnd(2);
+            Box xybx(IntVect(vbx.smallEnd(0),vbx.smallEnd(1),0),
+                     IntVect(vbx.bigEnd(0)  ,vbx.bigEnd(1)  ,0));
+
+            const auto cons_arr = cons.const_array(mfi);
+            auto       cref     = cmpref_max[lev]->array(mfi);
+
+            ParallelFor(xybx, [=] AMREX_GPU_DEVICE(int i, int j, int) noexcept
+            {
+                Real colmax = Real(-35.0); // dBZ floor (no echo)
+                for (int k = klo; k <= khi; ++k) {
+                    const Real rho = cons_arr(i,j,k,Rho_comp);
+                    if (!(rho > Real(0.0))) { continue; }
+                    const Real qv  = amrex::max(Real(0.0), cons_arr(i,j,k,RhoQ1_comp)/rho);
+                    const Real qpr = amrex::max(Real(0.0), cons_arr(i,j,k,RhoQ4_comp)/rho);
+                    const Real qps = amrex::max(Real(0.0), cons_arr(i,j,k,RhoQ5_comp)/rho);
+                    const Real qpg = amrex::max(Real(0.0), cons_arr(i,j,k,RhoQ6_comp)/rho);
+                    const Real temp = getTgivenRandRTh(rho, cons_arr(i,j,k,RhoTheta_comp), qv);
+                    const Real dbz = compute_max_reflectivity_dbz(rho, temp, qpr, qps, qpg,
+                                                                  1, 1, 1, 1);
+                    colmax = amrex::max(colmax, dbz);
+                }
+                cref(i,j,0) = amrex::max(cref(i,j,0), colmax);
+            });
+        }
+    }
 }
 
 void

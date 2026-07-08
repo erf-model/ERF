@@ -1231,8 +1231,6 @@ ERF::InitData_post ()
                 // Only do this if starting from scratch; if restarting, then
                 // we don't want to call update_fluxes multiple times because
                 // it will change u* and theta* from their previous values
-                m_SurfaceLayer->update_pblh(lev, vars_new, z_phys_cc[lev].get(),
-                                            solverChoice.moisture_indices);
 #ifdef ERF_USE_NETCDF
                 Real elapsed_time_since_start_low = t_new[lev] + (start_time - start_low_time);
 #else
@@ -1255,6 +1253,21 @@ ERF::InitData_post ()
                     }
                     m_SurfaceLayer->init_tke_from_ustar(lev, vars_new[lev][Vars::cons], z_phys_nd[lev], qkefac);
                 }
+
+                // PBL height AFTER fluxes: the YSU/MRF estimators read the MOST
+                // surface-layer state (u*, t*, Obukhov length, t_surf, 10 m
+                // averages) which update_fluxes populates. MYNN only needs cons
+                // (incl. the TKE just initialized above), so this order is safe
+                // for it too.
+                m_SurfaceLayer->update_pblh(lev, vars_new, z_phys_cc[lev].get(),
+                                            solverChoice.moisture_indices);
+
+                // Surface diagnostics (10 m wind, 2 m T/q, peak-wind swath,
+                // running composite-reflectivity max). Reflectivity needs precip
+                // species (Morrison/SAM).
+                bool do_refl_init = (solverChoice.moisture_type == MoistureType::Morrison ||
+                                     solverChoice.moisture_type == MoistureType::SAM);
+                m_SurfaceLayer->update_surf_diagnostics(lev, vars_new[lev][Vars::cons], do_refl_init);
             }
         }
     } // end if (phys_bc_type[Orientation(Direction::z,Orientation::low)] == ERF_BC::surface_layer)

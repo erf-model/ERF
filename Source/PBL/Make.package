@@ -6,6 +6,7 @@ CEXE_sources += ERF_ComputeDiffusivityMRF.cpp
 
 CEXE_headers += ERF_PBLModels.H
 CEXE_headers += ERF_PBLHeight.H
+CEXE_headers += ERF_PBLHeightYSU_MRF.H
 CEXE_headers += ERF_MYNNStruct.H
 
 include $(ERF_PBL_DIR)/Shoc/Make.package

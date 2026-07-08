@@ -50,6 +50,13 @@ const amrex::Vector<DiagnosticDescriptor>& catalog_storage ()
         {DiagnosticID::ShocUStar,      "shoc_u_star",  "Native SHOC friction velocity diagnostic",        "m/s",       DiagnosticCategory::PBL,             MissingPolicy::FillMinus999WhenUnavailable},
         {DiagnosticID::ShocOlen,       "shoc_Olen",    "Native SHOC Obukhov length diagnostic",            "m",         DiagnosticCategory::PBL,             MissingPolicy::FillMinus999WhenUnavailable},
         {DiagnosticID::ShocWthvSfc,    "shoc_wthv_sfc","Native SHOC surface virtual potential temperature flux", "K m s^-1", DiagnosticCategory::PBL,             MissingPolicy::FillMinus999WhenUnavailable},
+        {DiagnosticID::U10,            "u10",          "10 m eastward wind (obs-validation diagnostic)",  "m/s",       DiagnosticCategory::SurfaceState,    MissingPolicy::FillMinus999WhenUnavailable},
+        {DiagnosticID::V10,            "v10",          "10 m northward wind (obs-validation diagnostic)", "m/s",       DiagnosticCategory::SurfaceState,    MissingPolicy::FillMinus999WhenUnavailable},
+        {DiagnosticID::Wspd10,         "wspd10",       "10 m wind speed (obs-validation diagnostic)",     "m/s",       DiagnosticCategory::SurfaceState,    MissingPolicy::FillMinus999WhenUnavailable},
+        {DiagnosticID::Wspd10Max,      "wspd10max",    "Event-maximum 10 m wind speed swath",             "m/s",       DiagnosticCategory::SurfaceState,    MissingPolicy::FillMinus999WhenUnavailable},
+        {DiagnosticID::T2,             "t2",           "2 m temperature (obs-validation diagnostic)",     "K",         DiagnosticCategory::SurfaceState,    MissingPolicy::FillMinus999WhenUnavailable},
+        {DiagnosticID::Q2,             "q2",           "2 m specific humidity (obs-validation diagnostic)","kg/kg",     DiagnosticCategory::SurfaceState,    MissingPolicy::FillMinus999WhenUnavailable},
+        {DiagnosticID::CmpRefMax,      "cmpref_max",   "Event-maximum composite reflectivity swath",      "dBZ",       DiagnosticCategory::SurfaceState,    MissingPolicy::FillMinus999WhenUnavailable},
     };
 
     return catalog;

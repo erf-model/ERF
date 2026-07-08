@@ -16,6 +16,7 @@
 #include "ERF_SurfaceDiagnosticSource.H"
 #include "ERF_TerrainMetrics.H"
 #include "ERF_PBLHeight.H"
+#include "ERF_PBLHeightYSU_MRF.H"
 #include "ERF_MicrophysicsUtils.H"
 #include "ERF_EB.H"
 
@@ -270,6 +271,15 @@ public:
           theta_ref = a_turb_choice.theta_ref;
       }
 
+      // Stash the YSU/MRF PBL-height tunables so update_pblh (which has no
+      // TurbChoice access) can build the scheme-native PBLH estimators.
+      m_pbl_ysu_land_Ribcr      = a_turb_choice.pbl_ysu_land_Ribcr;
+      m_pbl_ysu_coriolis_freq   = a_turb_choice.pbl_ysu_coriolis_freq;
+      m_pbl_ysu_force_over_water= a_turb_choice.pbl_ysu_force_over_water;
+      m_pbl_mrf_Ribcr           = a_turb_choice.pbl_mrf_Ribcr;
+      m_pbl_mrf_const_b         = a_turb_choice.pbl_mrf_const_b;
+      m_pbl_mrf_sf              = a_turb_choice.pbl_mrf_sf;
+
   } // constructor
 
   void make_SurfaceLayer_at_level (const int& lev,
@@ -338,6 +348,13 @@ public:
           surface_diagnostic_source.resize(nlevs);
           olen.resize(nlevs);
           pblh.resize(nlevs);
+          u10.resize(nlevs);
+          v10.resize(nlevs);
+          wspd10.resize(nlevs);
+          t2.resize(nlevs);
+          q2.resize(nlevs);
+          wspd10max.resize(nlevs);
+          cmpref_max.resize(nlevs);
       }
 
       // Get pointers to SST,TSK and LANDMASK data
@@ -469,6 +486,30 @@ public:
       surface_diagnostic_source[lev]->setVal(
           surface_diagnostics::to_plot_value(surface_diagnostics::SurfaceDiagnosticSource::Missing));
 
+      // Surface diagnostics for obs validation (ASOS-comparable heights):
+      // 10 m wind (u10/v10/wspd10), 2 m temperature/moisture (t2/q2), and the
+      // running event-maximum 10 m wind speed (wspd10max). Diagnosed each step
+      // from the MOST surface-layer state; see update_surf_diagnostics().
+      u10[lev] = std::make_unique<amrex::MultiFab>(ba_flux, dm, ncomp, ng);
+      u10[lev]->setVal(zero);
+      v10[lev] = std::make_unique<amrex::MultiFab>(ba_flux, dm, ncomp, ng);
+      v10[lev]->setVal(zero);
+      wspd10[lev] = std::make_unique<amrex::MultiFab>(ba_flux, dm, ncomp, ng);
+      wspd10[lev]->setVal(zero);
+      t2[lev] = std::make_unique<amrex::MultiFab>(ba_flux, dm, ncomp, ng);
+      t2[lev]->setVal(default_land_surf_temp);
+      q2[lev] = std::make_unique<amrex::MultiFab>(ba_flux, dm, ncomp, ng);
+      q2[lev]->setVal(zero);
+      // Cumulative peak-wind swath: initialized to 0 and never reset, so the
+      // field is the event-maximum 10 m wind by run end.
+      wspd10max[lev] = std::make_unique<amrex::MultiFab>(ba_flux, dm, ncomp, ng);
+      wspd10max[lev]->setVal(zero);
+      // Cumulative event-maximum composite (column-max) reflectivity [dBZ].
+      // Initialized to a large-negative floor (no echo) and never reset; the
+      // final field is the storm max-reflectivity swath (vs MRMS/NEXRAD).
+      cmpref_max[lev] = std::make_unique<amrex::MultiFab>(ba_flux, dm, ncomp, ng);
+      cmpref_max[lev]->setVal(amrex::Real(-35.0));
+
       // TODO: Do we want an enum struct for indexing?
 
       bool use_sst = (!m_sst_lev[lev].empty() && m_sst_lev[lev][0]);
@@ -588,6 +629,15 @@ public:
                     amrex::MultiFab* z_phys_cc,
                     const MoistureComponentIndices& moisture_indices);
 
+  // Diagnose ASOS-comparable surface fields (10 m wind, 2 m T/q) from the MOST
+  // surface-layer state via the log-law, and update the running event-maximum
+  // 10 m wind speed. Call AFTER update_fluxes so ustar/tstar/Obukhov are current.
+  // If do_reflectivity is true, also update the running event-maximum composite
+  // (column-max) reflectivity from the 3D conserved state.
+  void update_surf_diagnostics (const int& lev,
+                                const amrex::MultiFab& cons,
+                                bool do_reflectivity);
+
   template <typename PBLHeightEstimator>
   void compute_pblh (const int& lev,
                      amrex::Vector<amrex::Vector<amrex::MultiFab>>& vars,
@@ -633,6 +683,14 @@ public:
   amrex::MultiFab* get_olen (const int& lev) { return olen[lev].get(); }
 
   amrex::MultiFab* get_pblh (const int& lev) { return pblh[lev].get(); }
+
+  amrex::MultiFab* get_u10 (const int& lev) { return u10[lev].get(); }
+  amrex::MultiFab* get_v10 (const int& lev) { return v10[lev].get(); }
+  amrex::MultiFab* get_wspd10 (const int& lev) { return wspd10[lev].get(); }
+  amrex::MultiFab* get_t2 (const int& lev) { return t2[lev].get(); }
+  amrex::MultiFab* get_q2 (const int& lev) { return q2[lev].get(); }
+  amrex::MultiFab* get_wspd10max (const int& lev) { return wspd10max[lev].get(); }
+  amrex::MultiFab* get_cmpref_max (const int& lev) { return cmpref_max[lev].get(); }
 
   const amrex::MultiFab* get_mac_avg (const int& lev, int comp)
   {
@@ -779,6 +837,14 @@ private:
   // path used by the SurfaceLayer scalar diagnostic path. It must not feed
   // back into flux calculations, boundary conditions, or model state.
   amrex::Vector<std::unique_ptr<amrex::MultiFab>> surface_diagnostic_source;
+  // Surface diagnostics for obs validation (see update_surf_diagnostics)
+  amrex::Vector<std::unique_ptr<amrex::MultiFab>> u10;
+  amrex::Vector<std::unique_ptr<amrex::MultiFab>> v10;
+  amrex::Vector<std::unique_ptr<amrex::MultiFab>> wspd10;
+  amrex::Vector<std::unique_ptr<amrex::MultiFab>> t2;
+  amrex::Vector<std::unique_ptr<amrex::MultiFab>> q2;
+  amrex::Vector<std::unique_ptr<amrex::MultiFab>> wspd10max;
+  amrex::Vector<std::unique_ptr<amrex::MultiFab>> cmpref_max; // event-max composite reflectivity [dBZ]
 
   amrex::Vector<amrex::Vector<amrex::MultiFab*>>  m_sst_lev;
   amrex::Vector<amrex::Vector<amrex::MultiFab*>>  m_tsk_lev;
@@ -794,6 +860,14 @@ private:
   bool m_update_k_rans = false;
   amrex::Real inv_Cmu2 = zero;
   amrex::Real theta_ref = zero;
+
+  // YSU/MRF PBL-height diagnostic tunables (mirrored from TurbChoice at level 0)
+  amrex::Real m_pbl_ysu_land_Ribcr      = amrex::Real(0.25);
+  amrex::Real m_pbl_ysu_coriolis_freq   = amrex::Real(1.0e-4);
+  bool        m_pbl_ysu_force_over_water= false;
+  amrex::Real m_pbl_mrf_Ribcr           = amrex::Real(0.5);
+  amrex::Real m_pbl_mrf_const_b         = amrex::Real(7.8);
+  amrex::Real m_pbl_mrf_sf              = amrex::Real(0.1);
 };
 
 #endif /* SURFACELAYER_H */

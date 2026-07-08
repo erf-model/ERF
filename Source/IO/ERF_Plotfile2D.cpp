@@ -484,6 +484,57 @@ ERF::Write2DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
             mf_comp++;
         } // shoc_wthv_sfc
 
+        // Obs-validation surface diagnostics (ASOS-comparable heights). These are
+        // surface (k=0) fields diagnosed in SurfaceLayer::update_surf_diagnostics.
+        if (containerHasElement(plot_var_names, "u10")) {
+            plotfile2d::fill_component_from_klevel_or_value(
+                mf[lev], mf_comp, m_SurfaceLayer ? m_SurfaceLayer->get_u10(lev) : nullptr,
+                0, -999);
+            mf_comp++;
+        } // u10
+
+        if (containerHasElement(plot_var_names, "v10")) {
+            plotfile2d::fill_component_from_klevel_or_value(
+                mf[lev], mf_comp, m_SurfaceLayer ? m_SurfaceLayer->get_v10(lev) : nullptr,
+                0, -999);
+            mf_comp++;
+        } // v10
+
+        if (containerHasElement(plot_var_names, "wspd10")) {
+            plotfile2d::fill_component_from_klevel_or_value(
+                mf[lev], mf_comp, m_SurfaceLayer ? m_SurfaceLayer->get_wspd10(lev) : nullptr,
+                0, -999);
+            mf_comp++;
+        } // wspd10
+
+        if (containerHasElement(plot_var_names, "wspd10max")) {
+            plotfile2d::fill_component_from_klevel_or_value(
+                mf[lev], mf_comp, m_SurfaceLayer ? m_SurfaceLayer->get_wspd10max(lev) : nullptr,
+                0, -999);
+            mf_comp++;
+        } // wspd10max
+
+        if (containerHasElement(plot_var_names, "t2")) {
+            plotfile2d::fill_component_from_klevel_or_value(
+                mf[lev], mf_comp, m_SurfaceLayer ? m_SurfaceLayer->get_t2(lev) : nullptr,
+                0, -999);
+            mf_comp++;
+        } // t2
+
+        if (containerHasElement(plot_var_names, "q2")) {
+            plotfile2d::fill_component_from_klevel_or_value(
+                mf[lev], mf_comp, m_SurfaceLayer ? m_SurfaceLayer->get_q2(lev) : nullptr,
+                0, -999);
+            mf_comp++;
+        } // q2
+
+        if (containerHasElement(plot_var_names, "cmpref_max")) {
+            plotfile2d::fill_component_from_klevel_or_value(
+                mf[lev], mf_comp, m_SurfaceLayer ? m_SurfaceLayer->get_cmpref_max(lev) : nullptr,
+                0, -999);
+            mf_comp++;
+        } // cmpref_max
+
         const int static_output_count = static_cast<int>(plot_var_names.size());
         for (int out_idx = static_output_count; out_idx < static_cast<int>(output_descriptors.size()); ++out_idx) {
             const auto& descriptor = output_descriptors[out_idx];

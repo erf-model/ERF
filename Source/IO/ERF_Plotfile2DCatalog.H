@@ -39,7 +39,14 @@ enum class DiagnosticID
     LatentHeatFlux,
     ShocUStar,
     ShocOlen,
-    ShocWthvSfc
+    ShocWthvSfc,
+    U10,
+    V10,
+    Wspd10,
+    Wspd10Max,
+    T2,
+    Q2,
+    CmpRefMax
 };
 
 enum class DiagnosticCategory

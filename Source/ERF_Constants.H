@@ -17,9 +17,11 @@ constexpr amrex::Real eightthirds  = amrex::Real(8.0/3.0);
 
 // Safe overly large value to fill data so that it is not uninitialized
 //      but we can easily identify if the value is used in a computation
-// Would like to use the following but std::sqrt will not be allowable
-//       in constexpr until C++26
-// const amrex::Real bogus_large_value = std::sqrt(std::numeric_limits<amrex::Real>::max());
+// Must be constexpr (constant-initialized): this value is read inside SYCL
+// device kernels (e.g. ERF_MOSTStress.H, ERF_NOAHMP.cpp), and SYCL forbids
+// using a const global that is only runtime-initialized. std::sqrt is not
+// constexpr until C++26, so use a per-precision literal (float build must not
+// overflow).
 #ifdef AMREX_USE_FLOAT
 constexpr amrex::Real bogus_large_value = 1.e18;
 #else
