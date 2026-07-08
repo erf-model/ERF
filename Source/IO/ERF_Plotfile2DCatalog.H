@@ -28,6 +28,12 @@ enum class DiagnosticID
     SensFlux,
     LatenFlux,
     SurfPres,
+    PrecipTotalAccum,
+    PrecipRainAccum,
+    PrecipSnowAccum,
+    PrecipGraupelAccum,
+    PrecipHailAccum,
+    PrecipFrozenAccum,
     IntegratedQv,
     IntegratedQc,
     IntegratedQi,
@@ -50,6 +56,7 @@ enum class DiagnosticCategory
     SurfaceFlux,
     PBL,
     SurfaceState,
+    Precipitation,
     ColumnIntegral,
     SampledLevel
 };
