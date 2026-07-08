@@ -38,9 +38,6 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
     {
         // We only decompose in z if max_grid_size_z indicates we should
         bool decompose_in_z = (max_grid_size[0][2] < domain.length(2));
-        int refine_grid_layout_z = 1;
-        ParmParse().query("refine_grid_layout_z", refine_grid_layout_z);
-        decompose_in_z = decompose_in_z && (refine_grid_layout_z != 0);
 
         ba = ERFPostProcessBaseGrids(Geom(0).Domain(),decompose_in_z);
         dm = DistributionMapping(ba);
