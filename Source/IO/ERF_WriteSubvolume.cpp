@@ -328,7 +328,7 @@ ERF::WriteSubvolume (int isub,Vector<std::string> subvol_var_names)
 
     if (use_real_time_in_pltname) {
         const std::string dt_format = "%Y-%m-%d_%H:%M:%S"; // ISO 8601 standard
-        subvol_filename = sf + getTimestamp(static_cast<Real>(start_time+time), dt_format);
+        subvol_filename = sf + getTimestamp(start_time+time, dt_format);
     } else {
        subvol_filename = Concatenate(sf + "_", istep[0], file_name_digits);
     }

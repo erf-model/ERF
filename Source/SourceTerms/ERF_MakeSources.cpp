@@ -34,7 +34,7 @@ using namespace amrex;
 void make_sources (int level,
                    int /*nrk*/,
                    double dt,
-                   double time,
+                   double time_d,
                    const Vector<MultiFab>& S_data,
                    const  MultiFab & S_prim,
                           MultiFab & source,
@@ -58,6 +58,8 @@ void make_sources (int level,
                    bool is_slow_step)
 {
     BL_PROFILE_REGION("erf_make_sources()");
+
+    Real time = static_cast<Real>(time_d);
 
     // *****************************************************************************
     // Initialize source to zero since we re-compute it every RK stage

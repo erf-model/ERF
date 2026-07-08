@@ -149,7 +149,7 @@ ERF::Evolve ()
     for (int step = istep[0]; (step < max_step) && (start_time+cur_time < stop_time); ++step)
     {
         if (use_datetime) {
-            Print() << "\n" << getTimestamp(static_cast<Real>(start_time+cur_time), datetime_format)
+            Print() << "\n" << getTimestamp(start_time+cur_time, datetime_format)
                     << " (" << cur_time << " s elapsed)" << std::endl;
         }
         Print() << "\nCoarse STEP " << step+1 << " starts ..." << std::endl;
