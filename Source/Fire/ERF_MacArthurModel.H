@@ -39,8 +39,8 @@
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 amrex::Real macarthur_ros(amrex::Real wind_speed_ms) noexcept
 {
-    constexpr amrex::Real backing = 0.18_rt;
-    const amrex::Real wind_contribution = backing * (std::exp(0.8424_rt * amrex::max(wind_speed_ms, 0.0_rt)) - 1.0_rt);
+    constexpr amrex::Real backing = 0.18;
+    const amrex::Real wind_contribution = backing * (std::exp(0.8424 * amrex::max(wind_speed_ms, 0.0)) - 1.0);
     return backing + wind_contribution;
 }
 

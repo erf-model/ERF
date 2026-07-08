@@ -59,25 +59,25 @@ inline CheneyGouldComputed compute_cheney_gould_params(
     CheneyGouldComputed cgc;
     
     // Clamp inputs to valid ranges
-    amrex::Real moisture = amrex::max(1.0_rt, amrex::min(cgp.moisture, 40.0_rt));  // [%]
-    amrex::Real curing   = amrex::max(0.0_rt, amrex::min(cgp.curing, 1.0_rt));      // [0-1]
+    amrex::Real moisture = amrex::max(1.0, amrex::min(cgp.moisture, 40.0));  // [%]
+    amrex::Real curing   = amrex::max(0.0, amrex::min(cgp.curing, 1.0));      // [0-1]
 
     // CSIRO grassfire relations for backing ROS
     // Simplified empirical fit: ros_backing increases with curing, decreases with moisture
     // Base backing rate at full curing: ~0.08 m/s
-    arMrex::Real base_backing = 0.08_rt * curing;
-    cgc.ros_backing = base_backing * std::exp(-0.01_rt * moisture);  // Exponential moisture decay
-    cgc.ros_backing = amrex::max(cgc.ros_backing, 0.001_rt);  // Minimum backing
+    amrex::Real base_backing = 0.08 * curing;
+    cgc.ros_backing = base_backing * std::exp(-0.01 * moisture);  // Exponential moisture decay
+    cgc.ros_backing = amrex::max(cgc.ros_backing, 0.001);  // Minimum backing
 
     // Flank ROS (perpendicular to fire spread)
     // Typically 0.3 of forward ROS; CSIRO gives empirical relations
     // Simplified: flank ≈ 0.5 × backing
-    cgc.ros_flank = 0.5_rt * cgc.ros_backing;
+    cgc.ros_flank = 0.5 * cgc.ros_backing;
 
     // Gamma factor for slope enhancement (CSIRO formula)
     // gamma ≈ 1 + a × tan(slope) for gentle slopes
     // Used downstream in fill_cheney_gould_ros()
-    cgc.gamma = 1.0_rt;
+    cgc.gamma = 1.0;
 
     return cgc;
 }
@@ -104,14 +104,14 @@ amrex::Real cheney_gould_ros(
     // Empirical Cheney-Gould relation:
     // ROS_forward ≈ ROS_backing × (1 + wind_factor)
     // where wind_factor grows with wind speed and curing
-    amrex::Real wind_factor = 0.15_rt * u_wind * (curing + 0.2_rt);
+    amrex::Real wind_factor = 0.15 * u_wind * (curing + 0.2);
     
     // Moisture attenuation factor (inverse relationship)
-    constexpr amrex::Real moisture_scale = 20.0_rt;  // Reference moisture [%]
-    amrex::Real moisture_factor = moisture_scale / (moisture + 1.0_rt);
+    constexpr amrex::Real moisture_scale = 20.0;  // Reference moisture [%]
+    amrex::Real moisture_factor = moisture_scale / (moisture + 1.0);
     
-    amrex::Real ros_forward = ros_backing * (1.0_rt + wind_factor) * moisture_factor;
-    return amrex::max(ros_forward, 0.0_rt);
+    amrex::Real ros_forward = ros_backing * (1.0 + wind_factor) * moisture_factor;
+    return amrex::max(ros_forward, 0.0);
 }
 
 /**
@@ -132,11 +132,11 @@ amrex::Real csiro_grassfire_acceleration(
     amrex::Real curing) noexcept
 {
     // Wind effect on forward ROS (log scale)
-    amrex::Real wind_accel = 1.0_rt + 0.2_rt * std::log1p(u_wind);
+    amrex::Real wind_accel = 1.0 + 0.2 * std::log1p(u_wind);
     
     // Slope effect (upslope enhancement)
     amrex::Real slope_mag = std::abs(slope);
-    amrex::Real slope_accel = 1.0_rt + 5.0_rt * slope_mag * (curing + 0.1_rt);
+    amrex::Real slope_accel = 1.0 + 5.0 * slope_mag * (curing + 0.1);
     
     // Combined effect
     return wind_accel * slope_accel;
@@ -166,8 +166,8 @@ amrex::Real cheney_gould_ros_with_acceleration(
     amrex::Real ros_wind = cheney_gould_ros(u_wind, ros_backing, moisture, curing);
     
     // Additional slope acceleration (upslope only)
-    amrex::Real slope_accel = 1.0_rt;
-    if (slope > 0.0_rt) {  // upslope
+    amrex::Real slope_accel = 1.0;
+    if (slope > 0.0) {  // upslope
         slope_accel = csiro_grassfire_acceleration(u_wind, slope, curing);
     }
     
@@ -216,10 +216,10 @@ inline void fill_cheney_gould_ros(
             amrex::Real ros = cheney_gould_ros(
                 wind_mag,
                 cgc.ros_backing,
-                10.0_rt,   // placeholder: default moisture [%]
-                1.0_rt);   // placeholder: default curing [0-1]
+                10.0,   // placeholder: default moisture [%]
+                1.0);   // placeholder: default curing [0-1]
             
-            ros = amrex::max(ros, 0.0_rt);
+            ros = amrex::max(ros, 0.0);
             ros_arr(i, j, k, 0) = ros;
         });
     }
@@ -274,10 +274,10 @@ inline void fill_cheney_gould_ros_with_slope(
                 wind_mag,
                 slope_proj,
                 cgc.ros_backing,
-                10.0_rt,   // placeholder: default moisture [%]
-                1.0_rt);   // placeholder: default curing [0-1]
+                10.0,   // placeholder: default moisture [%]
+                1.0);   // placeholder: default curing [0-1]
             
-            ros = amrex::max(ros, 0.0_rt);
+            ros = amrex::max(ros, 0.0);
             ros_arr(i, j, k, 0) = ros;
         });
     }

@@ -84,7 +84,7 @@ inline void apply_fire_acceleration_size_based(amrex::MultiFab&       R_mf,
         const amrex::Box& bx = mfi.validbox();
         auto const p         = phi.const_array(mfi);
         amrex::LoopOnCpu(bx, [&](int i, int j, int k) {
-            if (p(i, j, k) < 0.0_rt) ++n_burned;
+            if (p(i, j, k) < 0.0) ++n_burned;
         });
     }
     amrex::ParallelDescriptor::ReduceLongSum(n_burned);
@@ -94,11 +94,11 @@ inline void apply_fire_acceleration_size_based(amrex::MultiFab&       R_mf,
     // Burned area and effective fire radius
     const amrex::Real A_fire     = static_cast<amrex::Real>(n_burned) * dx[0] * dx[1];
     const amrex::Real r_fire     = std::sqrt(A_fire / amrex::Math::pi<amrex::Real>());
-    const amrex::Real L_acc_safe = amrex::max(L_acc, 1.0_rt);  // floor prevents divide-by-zero
-    const amrex::Real alpha      = 1.0_rt - std::exp(-r_fire / L_acc_safe);
+    const amrex::Real L_acc_safe = amrex::max(L_acc, 1.0);  // floor prevents divide-by-zero
+    const amrex::Real alpha      = 1.0 - std::exp(-r_fire / L_acc_safe);
 
     // Nothing to do when essentially at full speed (saves a kernel launch)
-    if (alpha >= 1.0_rt - 1.0e-4_rt) return;
+    if (alpha >= 1.0 - 1.0e-4) return;
 
     if (fire_debug) {
         amrex::Print() << "[FIRE DEBUG] Fire acceleration (size-based): r_fire=" << r_fire
@@ -163,14 +163,14 @@ inline void apply_fire_acceleration_temporal(amrex::MultiFab&       R_mf,
         const auto hi        = amrex::ubound(bx);
         
         amrex::LoopOnCpu(bx, [&](int i, int j, int k) {
-            if (p(i, j, k) < 0.0_rt) {
+            if (p(i, j, k) < 0.0) {
                 // Check if this is a perimeter cell (has unburned neighbor)
                 // Guard all stencil accesses with validbox bounds
                 bool is_perimeter = false;
-                if (i+1 <= hi.x && p(i+1, j, k) >= 0.0_rt) is_perimeter = true;
-                if (i-1 >= lo.x && p(i-1, j, k) >= 0.0_rt) is_perimeter = true;
-                if (j+1 <= hi.y && p(i, j+1, k) >= 0.0_rt) is_perimeter = true;
-                if (j-1 >= lo.y && p(i, j-1, k) >= 0.0_rt) is_perimeter = true;
+                if (i+1 <= hi.x && p(i+1, j, k) >= 0.0) is_perimeter = true;
+                if (i-1 >= lo.x && p(i-1, j, k) >= 0.0) is_perimeter = true;
+                if (j+1 <= hi.y && p(i, j+1, k) >= 0.0) is_perimeter = true;
+                if (j-1 >= lo.y && p(i, j-1, k) >= 0.0) is_perimeter = true;
                 if (is_perimeter) ++n_perimeter;
             }
         });
@@ -185,7 +185,7 @@ inline void apply_fire_acceleration_temporal(amrex::MultiFab&       R_mf,
     const amrex::Real A = (perim_length > params.perim_limit) ? params.A_line : params.A_point;
     
     // Convert A from [1/min] to [1/s]
-    const amrex::Real A_per_sec = A / 60.0_rt;
+    const amrex::Real A_per_sec = A / 60.0;
 
     if (fire_debug) {
         amrex::Print() << "[FIRE DEBUG] Fire acceleration (temporal): perim=" << perim_length 
@@ -209,10 +209,10 @@ inline void apply_fire_acceleration_temporal(amrex::MultiFab&       R_mf,
 
         amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
             // Only accelerate burned cells
-            if (p(i, j, k) >= 0.0_rt) {
-                state(i, j, k, 0) = 0.0_rt;  // ROS_current
-                state(i, j, k, 1) = 0.0_rt;  // elapsed_time
-                state(i, j, k, 2) = 0.0_rt;  // ROS_equilibrium
+            if (p(i, j, k) >= 0.0) {
+                state(i, j, k, 0) = 0.0;  // ROS_current
+                state(i, j, k, 1) = 0.0;  // elapsed_time
+                state(i, j, k, 2) = 0.0;  // ROS_equilibrium
                 return;
             }
 
@@ -222,10 +222,10 @@ inline void apply_fire_acceleration_temporal(amrex::MultiFab&       R_mf,
             amrex::Real R_prev_eq = state(i, j, k, 2);
 
             // Detect equilibrium ROS change (wind change or fuel change)
-            const amrex::Real EQUILIBRIUM_CHANGE_THRESHOLD = 1.0e-6_rt;
+            const amrex::Real EQUILIBRIUM_CHANGE_THRESHOLD = 1.0e-6;
             const amrex::Real dR_eq = amrex::Math::abs(R_E - R_prev_eq);
             const bool eq_changed = (dR_eq > EQUILIBRIUM_CHANGE_THRESHOLD * 
-                                     amrex::max(R_E, R_prev_eq, 1.0_rt));
+                                     amrex::max(R_E, R_prev_eq, 1.0));
 
             if (eq_changed) {
                 // Equilibrium changed — apply wind-lag or reset
@@ -233,22 +233,22 @@ inline void apply_fire_acceleration_temporal(amrex::MultiFab&       R_mf,
                     // Wind increase: apply exponential lag
                     // New target approaches R_E with time constant tau_wind
                     // R_target(t) = R_prev + (R_E - R_prev) × (1 - exp(-dt/tau_wind))
-                    const amrex::Real lag_factor = 1.0_rt - std::exp(-dt_loc / tau_wind_loc);
+                    const amrex::Real lag_factor = 1.0 - std::exp(-dt_loc / tau_wind_loc);
                     const amrex::Real R_target = R_prev_eq + (R_E - R_prev_eq) * lag_factor;
                     
                     // Start new acceleration towards lagged target
                     R_prev_eq = R_target;
-                    t_elapsed = 0.0_rt;
+                    t_elapsed = 0.0;
                 } else {
                     // Wind decrease or lag disabled: reset immediately to new equilibrium
                     R_prev_eq = R_E;
-                    t_elapsed = 0.0_rt;
+                    t_elapsed = 0.0;
                 }
             }
 
             // VanWagner acceleration equation: R(t) = R_E × (1 - exp(-A × t))
             t_elapsed += dt_loc;
-            R_curr = R_prev_eq * (1.0_rt - std::exp(-A_loc * t_elapsed));
+            R_curr = R_prev_eq * (1.0 - std::exp(-A_loc * t_elapsed));
 
             // Clamp to equilibrium (avoid overshoot due to numerical error)
             if (R_curr > R_prev_eq) R_curr = R_prev_eq;
