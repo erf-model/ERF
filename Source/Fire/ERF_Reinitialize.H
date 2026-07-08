@@ -13,7 +13,7 @@
  * Resets φ to be a signed-distance function via Sussman's method.
  */
 
-namespace ERF {
+namespace fire_levelset {
 
 /**
  * @brief Reinitialize φ to be a signed-distance function
@@ -40,8 +40,8 @@ inline void reinitialize_phi(amrex::MultiFab& phi,
     const Real dyi = 1.0 / dx[1];
     
     // Make a working copy for pseudo-time iteration
-    MultiFab phi_work(phi.boxArray(), phi.DistributionMapping(), 1, 3);
-    phi_work.copy(phi);
+    MultiFab phi_work(phi.boxArray(), phi.DistributionMap(), 1, 3);
+    phi_work.ParallelCopy(phi);
     
     for (int iter = 0; iter < n_iters; ++iter) {
         // Fill boundary ghosts
@@ -81,9 +81,9 @@ inline void reinitialize_phi(amrex::MultiFab& phi,
     }
     
     // Copy result back to phi
-    phi.copy(phi_work);
+    phi.ParallelCopy(phi_work);
 }
 
-} // namespace ERF
+} // namespace fire_levelset
 
 #endif

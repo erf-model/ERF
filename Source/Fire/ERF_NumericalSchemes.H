@@ -12,7 +12,7 @@
  * Ported from wildfire_levelset/src/numerical_schemes.H
  */
 
-namespace ERF {
+namespace fire_levelset {
 
 /**
  * @brief WENO-3 reconstruction on grid point (i,j) from left stencil (i-2,i-1,i,i+1)
@@ -24,7 +24,7 @@ namespace ERF {
  * @return Reconstructed value on the right of i-1 (left of i)
  */
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-amrex::Real weno3_reconstruct(amrex::Real v0, amrex::Real v1, 
+amrex::Real weno3_reconstruct(amrex::Real [[maybe_unused]] v0, amrex::Real v1, 
                                amrex::Real v2, amrex::Real v3) noexcept
 {
     constexpr amrex::Real eps = 1.0e-6;
@@ -93,6 +93,6 @@ amrex::Real godunov_norm_grad_phi(const amrex::Array4<const amrex::Real>& phi,
     return std::sqrt(amrex::max(norm_sq, 1.0e-14));
 }
 
-} // namespace ERF
+} // namespace fire_levelset
 
 #endif

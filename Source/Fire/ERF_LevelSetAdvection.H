@@ -17,7 +17,7 @@
  *   - 3-stage Strong Stability Preserving RK3 for time integration
  */
 
-namespace ERF {
+namespace fire_levelset {
 
 /**
  * @brief WENO5-Z reconstruction for level-set advection
@@ -99,7 +99,7 @@ inline void compute_levelset_rhs(amrex::MultiFab& rhs,
             int i = iv[0], j = iv[1], k = iv[2];
             
             // Compute |∇φ| via Godunov norm
-            Real norm_grad = ERF::godunov_norm_grad_phi(phi_arr, dx, dy, i, j, k);
+            Real norm_grad = fire_levelset::godunov_norm_grad_phi(phi_arr, dx, dy, i, j, k);
             
             // Compute Δφ = ∂²φ/∂x² + ∂²φ/∂y²
             Real laplacian = (phi_arr(i+1, j, k) - 2.0*phi_arr(i, j, k) + phi_arr(i-1, j, k)) * dx2i
@@ -125,7 +125,7 @@ inline void compute_levelset_rhs(amrex::MultiFab& rhs,
  * @param[in]     dt        Timestep
  */
 inline void advect_levelset_weno5z_rk3(amrex::MultiFab& phi,
-                                        const amrex::MultiFab& vel_eff,
+                                        const amrex::MultiFab& [[maybe_unused]] vel_eff,
                                         const amrex::MultiFab& R_mf,
                                         const amrex::Geometry& geom,
                                         amrex::Real dt)
@@ -137,17 +137,17 @@ inline void advect_levelset_weno5z_rk3(amrex::MultiFab& phi,
     
     // Allocate stage MultiFabs with 3 ghost cells for WENO5-Z
     const int nghost = 3;
-    MultiFab phi_n(phi.boxArray(), phi.DistributionMapping(), 1, nghost);
-    MultiFab phi_star(phi.boxArray(), phi.DistributionMapping(), 1, nghost);
-    MultiFab phi_hat(phi.boxArray(), phi.DistributionMapping(), 1, nghost);
-    MultiFab rhs(phi.boxArray(), phi.DistributionMapping(), 1, 0);
+    MultiFab phi_n(phi.boxArray(), phi.DistributionMap(), 1, nghost);
+    MultiFab phi_star(phi.boxArray(), phi.DistributionMap(), 1, nghost);
+    MultiFab phi_hat(phi.boxArray(), phi.DistributionMap(), 1, nghost);
+    MultiFab rhs(phi.boxArray(), phi.DistributionMap(), 1, 0);
     
     // Save initial phi (input)
-    phi_n.copy(phi);
+    phi_n.ParallelCopy(phi);
     phi_n.FillBoundary(geom.periodicity());
     
     // Stage 1: φ* = φ^n + Δt L(φ^n)
-    phi_star.copy(phi_n);
+    phi_star.ParallelCopy(phi_n);
     compute_levelset_rhs(rhs, phi_star, R_mf, dx[0], dx[1], eps_visc);
     for (MFIter mfi(phi_star); mfi.isValid(); ++mfi) {
         const Box& bx = mfi.validbox();
@@ -161,7 +161,7 @@ inline void advect_levelset_weno5z_rk3(amrex::MultiFab& phi,
     
     // Stage 2: φ** = (3/4)φ^n + (1/4)(φ* + Δt L(φ*))
     compute_levelset_rhs(rhs, phi_star, R_mf, dx[0], dx[1], eps_visc);
-    phi_hat.copy(phi_n);
+    phi_hat.ParallelCopy(phi_n);
     for (MFIter mfi(phi_hat); mfi.isValid(); ++mfi) {
         const Box& bx = mfi.validbox();
         auto ph = phi_hat.array(mfi);
@@ -187,6 +187,6 @@ inline void advect_levelset_weno5z_rk3(amrex::MultiFab& phi,
     }
 }
 
-} // namespace ERF
+} // namespace fire_levelset
 
 #endif
