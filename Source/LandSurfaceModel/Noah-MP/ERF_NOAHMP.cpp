@@ -48,21 +48,22 @@ NOAHMP::Init (const int& lev,
     Box domain = geom.Domain();
     khi_lsm    = domain.smallEnd(2) - 1;
 
+    // Number of Noah-MP soil layers. Sizing must be known on EVERY rank and level
+    // before the (collective) LSM data fabs are built, but the authoritative NSOIL
+    // lives in the Fortran namelist.erf, which is only read later, per land box.
+    // Resolve it from ParmParse (erf.lsm_nsoil, default 4 = standard config); this
+    // is the same value the parent already used to size lsm_data in MakeNewLevel
+    // (it calls Lsm_Data_Size() before Init). The namelist NSOIL is asserted to
+    // agree below, so a mismatch fails loudly. m_lsm_data_size is set here too.
+    ensure_nsoil_resolved();
+
+    // The fixed 2D fields are identity-mapped; their names mirror the enum order.
     LsmDataMap.resize(m_lsm_data_size);
-    LsmDataMap = {LsmData_NOAHMP::t_sfc             , LsmData_NOAHMP::sfc_emis          ,
-                  LsmData_NOAHMP::sfc_alb_dir_vis   , LsmData_NOAHMP::sfc_alb_dir_nir   ,
-                  LsmData_NOAHMP::sfc_alb_dif_vis   , LsmData_NOAHMP::sfc_alb_dif_nir   ,
-                  LsmData_NOAHMP::cos_zenith_angle  , LsmData_NOAHMP::sw_flux_dn        ,
-                  LsmData_NOAHMP::sw_flux_dn_dir_vis, LsmData_NOAHMP::sw_flux_dn_dir_nir,
-                  LsmData_NOAHMP::sw_flux_dn_dif_vis, LsmData_NOAHMP::sw_flux_dn_dif_nir,
-                  LsmData_NOAHMP::lw_flux_dn         ,
-                  LsmData_NOAHMP::grdflx            , LsmData_NOAHMP::fira              ,
-                  LsmData_NOAHMP::sav               , LsmData_NOAHMP::sag               ,
-                  LsmData_NOAHMP::albedo            , LsmData_NOAHMP::sfcrunoff         ,
-                  LsmData_NOAHMP::udrunoff          , LsmData_NOAHMP::smstav            ,
-                  LsmData_NOAHMP::smstot            };
     LsmDataName.resize(m_lsm_data_size);
-    LsmDataName = {"t_sfc"             , "sfc_emis"          ,
+    for (int i(0); i < LsmData_NOAHMP::NumVars; ++i) { LsmDataMap[i] = i; }
+    {
+        const std::vector<std::string> fixed_names = {
+                   "t_sfc"             , "sfc_emis"          ,
                    "sfc_alb_dir_vis"   , "sfc_alb_dir_nir"   ,
                    "sfc_alb_dif_vis"   , "sfc_alb_dif_nir"   ,
                    "cos_zenith_angle"  , "sw_flux_dn"        ,
@@ -74,6 +75,21 @@ NOAHMP::Init (const int& lev,
                    "albedo"            , "sfcrunoff"         ,
                    "udrunoff"          , "smstav"            ,
                    "smstot"            };
+        AMREX_ALWAYS_ASSERT(int(fixed_names.size()) == LsmData_NOAHMP::NumVars);
+        for (int i(0); i < LsmData_NOAHMP::NumVars; ++i) { LsmDataName[i] = fixed_names[i]; }
+    }
+    // Append the per-layer soil profile: 3 contiguous groups of m_nsoil, layer index
+    // 1-based in the field name to match the Noah-MP / WRF SMOIS_k convention.
+    {
+        const char* group[3] = {"smois", "sh2o", "tslb"};
+        for (int g(0); g < 3; ++g) {
+            for (int k(0); k < m_nsoil; ++k) {
+                int idx = soil_data_idx(g,k);
+                LsmDataMap[idx]  = idx;
+                LsmDataName[idx] = std::string(group[g]) + "_" + std::to_string(k+1);
+            }
+        }
+    }
 
 
     LsmFluxMap.resize(m_lsm_flux_size);
@@ -108,8 +124,13 @@ NOAHMP::Init (const int& lev,
     lsm_rb.setHi(2,lsm_z_hi); lsm_rb.setLo(2,lsm_z_lo);
     m_lsm_geom.define( ba_lsm.minimalBox(), lsm_rb, m_geom.Coord(), m_geom.isPeriodic() );
 
-    // Create the data
-    for (auto ivar = 0; ivar < LsmData_NOAHMP::NumVars; ++ivar) {
+    // Create the data. lsm_fab_data / lsm_lev0_data are runtime-sized (fixed 2D
+    // fields + 3*m_nsoil soil-layer fields) rather than a compile-time Array, so
+    // the soil profile scales with NSOIL. lsm_lev0_data pointers are populated
+    // later by the parent via Lsm_Set_Lev0_Data_Ptr.
+    lsm_fab_data.resize(m_lsm_data_size);
+    lsm_lev0_data.resize(m_lsm_data_size, nullptr);
+    for (auto ivar = 0; ivar < m_lsm_data_size; ++ivar) {
         // State vars are CC
         lsm_fab_data[ivar] = std::make_shared<MultiFab>(ba_lsm, dm, 1, ng);
         lsm_fab_data[ivar]->setVal(lsm_undefined);
@@ -153,8 +174,9 @@ NOAHMP::Init (const int& lev,
             bx.makeSlab(2,klo);
 
             // Allocate pinned buffers for each box
+            // Output buffer carries the fixed 2D outputs plus 3 soil groups of m_nsoil.
             noahmp_input_tmp[idb]  = std::make_unique<FArrayBox>(bx, NoahmpInputComp::NumComps , The_Pinned_Arena());
-            noahmp_output_tmp[idb] = std::make_unique<FArrayBox>(bx, NoahmpOutputComp::NumComps, The_Pinned_Arena());
+            noahmp_output_tmp[idb] = std::make_unique<FArrayBox>(bx, NoahmpOutputComp::NumComps + 3*m_nsoil, The_Pinned_Arena());
 
             // Get reference to the noahmpio object
             NoahmpIO_type* noahmpio = &noahmpio_vect[idb];
@@ -178,6 +200,14 @@ NOAHMP::Init (const int& lev,
             // noahmpio specific parameters and is read by
             // the Fortran side of the implementation.
             noahmpio->ReadNamelist();
+
+            // The LSM data fabs were sized above from erf.lsm_nsoil (default 4).
+            // Assert the authoritative namelist NSOIL agrees, so a non-standard soil
+            // discretization that forgot to set erf.lsm_nsoil fails loudly here
+            // rather than silently truncating / overrunning the soil diagnostics.
+            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(noahmpio->nsoil == m_nsoil,
+                "namelist.erf NSOIL does not match erf.lsm_nsoil (default 4); "
+                "set erf.lsm_nsoil to the Noah-MP soil-layer count");
 
             // Read the headers from the NetCDF land file. This is also
             // implemented on the Fortran side of things currently.
@@ -286,7 +316,7 @@ NOAHMP::Advance_With_State (const int& lev,
         if (!updated_lev0) {
             Print () << "Noah-MP interpolation at level " << lev << " started at time step: " << nstep+1 << std::endl;
             m_updated = true;
-            for (int ivar(0); ivar<LsmData_NOAHMP::NumVars; ++ivar) {
+            for (int ivar(0); ivar<m_lsm_data_size; ++ivar) {
                 // Interpolate from lev 0 to obtain the lsm data
                 InterpFromCoarseLevel(*lsm_fab_data[ivar], lsm_fab_data[ivar]->nGrowVect(),
                                       IntVect(0,0,0), // do NOT fill ghost cells outside the domain
@@ -428,6 +458,26 @@ NOAHMP::Advance_With_State (const int& lev,
             Array4<Real> SMSTAV_o    = lsm_fab_data[LsmData_NOAHMP::smstav]->array(mfi);
             Array4<Real> SMSTOT_o    = lsm_fab_data[LsmData_NOAHMP::smstot]->array(mfi);
 
+            // Per-layer soil output fabs (3 groups x m_nsoil). Gather their Array4s
+            // into a device-visible vector so the scatter kernel below can loop over
+            // an arbitrary NSOIL. Layout matches soil_data_idx / soil_out_idx:
+            // group g in {0:smois,1:sh2o,2:tslb}, layer k in [0,nsoil).
+            const int nsoil = m_nsoil;
+            const int n_soil_fld = 3*nsoil;
+            Gpu::DeviceVector<Array4<Real>> soil_arr_d(n_soil_fld);
+            {
+                Vector<Array4<Real>> soil_arr_h(n_soil_fld);
+                for (int g(0); g < 3; ++g) {
+                    for (int k(0); k < nsoil; ++k) {
+                        soil_arr_h[g*nsoil+k] = lsm_fab_data[soil_data_idx(g,k)]->array(mfi);
+                    }
+                }
+                Gpu::copyAsync(Gpu::hostToDevice, soil_arr_h.begin(), soil_arr_h.end(), soil_arr_d.begin());
+                Gpu::streamSynchronize();
+            }
+            Array4<Real>* soil_arr = soil_arr_d.data();
+            const int soil_out_base = NoahmpOutputComp::NumComps; // soil outputs start here
+
             // NOTE: Need to expose stresses and get stresses from NOAHMP
             Array4<Real> q_flux_arr    = lsm_fab_flux[LsmFlux_NOAHMP::q_flux]->array(mfi);
             Array4<Real> t_flux_arr    = lsm_fab_flux[LsmFlux_NOAHMP::t_flux]->array(mfi);
@@ -524,6 +574,9 @@ NOAHMP::Advance_With_State (const int& lev,
             noahmpio->itimestep = m_itimestep;
             noahmpio->DriverMain();
 
+            // The soil-layer count was fixed in Init (erf.lsm_nsoil, asserted to match
+            // the namelist NSOIL there), so the per-layer reads below are always in range.
+
             // Copy results from NoahmpIO back to temporary arrays
             LoopOnCpu(bx, [&] (int i, int j, int ) noexcept
             {
@@ -548,6 +601,14 @@ NOAHMP::Advance_With_State (const int& lev,
                 noah_output_arr(i,j,0,NoahmpOutputComp::o_udrunoff)    = noahmpio->UDRUNOFF(i,j);
                 noah_output_arr(i,j,0,NoahmpOutputComp::o_smstav)      = noahmpio->SMSTAV(i,j);
                 noah_output_arr(i,j,0,NoahmpOutputComp::o_smstot)      = noahmpio->SMSTOT(i,j);
+                // 3D soil-profile state, one 2D component per soil layer, for any NSOIL.
+                // Fortran layer index is 1-based; output components are laid out as
+                // [NumComps .. +nsoil) smois, [+nsoil .. +2*nsoil) sh2o, [+2*nsoil ..) tslb.
+                for (int k(0); k < nsoil; ++k) {
+                    noah_output_arr(i,j,0,soil_out_base + 0*nsoil + k) = noahmpio->SMOIS(i,k+1,j);
+                    noah_output_arr(i,j,0,soil_out_base + 1*nsoil + k) = noahmpio->SH2O (i,k+1,j);
+                    noah_output_arr(i,j,0,soil_out_base + 2*nsoil + k) = noahmpio->TSLB (i,k+1,j);
+                }
             });
 
             // Copy forcing data from Noahmp to ERF
@@ -620,6 +681,11 @@ NOAHMP::Advance_With_State (const int& lev,
                     UDRUNOFF_o(i,j,0)    = noah_output_arr(ii,jj,0,NoahmpOutputComp::o_udrunoff);
                     SMSTAV_o(i,j,0)      = noah_output_arr(ii,jj,0,NoahmpOutputComp::o_smstav);
                     SMSTOT_o(i,j,0)      = noah_output_arr(ii,jj,0,NoahmpOutputComp::o_smstot);
+                    // Per-layer soil profile (any NSOIL): copy each output component
+                    // into its dedicated 2D fab (soil_arr laid out group-major).
+                    for (int s(0); s < n_soil_fld; ++s) {
+                        soil_arr[s](i,j,0) = noah_output_arr(ii,jj,0,soil_out_base + s);
+                    }
                 } else {
                     TSK(i,j,0)           = lsm_undefined;
                     EMISS(i,j,0)         = lsm_undefined;
@@ -636,8 +702,15 @@ NOAHMP::Advance_With_State (const int& lev,
                     UDRUNOFF_o(i,j,0)    = lsm_undefined;
                     SMSTAV_o(i,j,0)      = lsm_undefined;
                     SMSTOT_o(i,j,0)      = lsm_undefined;
+                    // Per-layer soil profile: undefined sentinel on non-land cells.
+                    for (int s(0); s < n_soil_fld; ++s) {
+                        soil_arr[s](i,j,0) = lsm_undefined;
+                    }
                 }
             });
+            // The scatter kernel reads soil_arr_d (a per-iteration DeviceVector);
+            // synchronize before it is destroyed at the end of this MFIter body.
+            Gpu::streamSynchronize();
         }
 
         // Advance the precip "previous cumulative accum" snapshot to the current values

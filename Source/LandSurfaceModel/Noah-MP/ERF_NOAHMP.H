@@ -6,6 +6,7 @@
 #include <memory>
 #include <limits>
 
+#include <AMReX_ParmParse.H>
 #include <AMReX_Interpolater.H>
 #include <AMReX_FillPatchUtil.H>
 #include <AMReX_FArrayBox.H>
@@ -51,6 +52,14 @@ namespace LsmData_NOAHMP {
          smstav,          // soil moisture availability [-] (SMSTAV; not computed by core -> 0)
          smstot,          // total soil moisture [mm] (SMSTOT; not computed by core -> 0)
          NumVars
+         // NOTE: the 3D soil-profile state (SMOIS/SH2O/TSLB) is NOT enumerated here.
+         // It is appended at RUNTIME, one 2D field per soil layer, in three
+         // contiguous groups of m_nsoil starting at index NumVars:
+         //   [NumVars           .. NumVars +   nsoil) -> smois_1..smois_nsoil
+         //   [NumVars +   nsoil .. NumVars + 2*nsoil) -> sh2o_1 ..sh2o_nsoil
+         //   [NumVars + 2*nsoil .. NumVars + 3*nsoil) -> tslb_1 ..tslb_nsoil
+         // so the diagnostics work for any Noah-MP soil-layer count, not just 4.
+         // See NOAHMP::soil_data_idx / NOAHMP::soil_out_idx.
   };
 }
 
@@ -108,6 +117,12 @@ namespace NoahmpOutputComp {
         o_smstav,
         o_smstot,
         NumComps
+        // NOTE: the per-layer soil outputs (SMOIS/SH2O/TSLB) are appended at
+        // RUNTIME after NumComps, mirroring the LsmData_NOAHMP layout above:
+        //   [NumComps           .. NumComps +   nsoil) -> smois layers
+        //   [NumComps +   nsoil .. NumComps + 2*nsoil) -> sh2o  layers
+        //   [NumComps + 2*nsoil .. NumComps + 3*nsoil) -> tslb  layers
+        // The pinned host output buffer is sized NumComps + 3*nsoil to match.
     };
 }
 
@@ -181,9 +196,11 @@ public:
     amrex::Geometry
     Lsm_Geom ( ) override { return m_lsm_geom; }
 
-    // Get number of vars lsm class contains
+    // Get number of vars lsm class contains. The parent queries this BEFORE
+    // NOAHMP::Init runs (to size its lsm_data array in MakeNewLevel), so resolve
+    // the soil-layer count here on first use rather than relying on Init.
     int
-    Lsm_Data_Size () override { return NOAHMP::m_lsm_data_size; }
+    Lsm_Data_Size () override { ensure_nsoil_resolved(); return NOAHMP::m_lsm_data_size; }
 
     // Get number of fluxes lsm class contains
     int
@@ -204,7 +221,7 @@ public:
     {
         int varIdx = -1;
         std::string lc_varname = amrex::toLower(varname);
-        for (int idx(0); idx<LsmData_NOAHMP::NumVars; ++idx) {
+        for (int idx(0); idx<m_lsm_data_size; ++idx) {
             if (lc_varname == amrex::toLower(LsmDataName[idx])) {
                 varIdx = idx;
             }
@@ -291,7 +308,9 @@ public:
     }
 
 private:
-    // number of lsm data variables
+    // number of lsm data variables = fixed 2D fields (LsmData_NOAHMP::NumVars) plus
+    // the runtime soil profile (3 groups x m_nsoil layers). Finalized in Init once
+    // m_nsoil is known; the fixed-field count is a safe lower bound before then.
     int m_lsm_data_size = LsmData_NOAHMP::NumVars;
 
     // number of lsm flux variables
@@ -345,17 +364,50 @@ private:
     // Size of grid spacing in z
     amrex::Real m_dz_lsm = one;
 
-    // LSM data variables
-    amrex::Array<FabPtr, LsmData_NOAHMP::NumVars> lsm_fab_data;
+    // LSM data variables. Sized at runtime to LsmData_NOAHMP::NumVars + 3*m_nsoil
+    // (the fixed 2D fields plus the per-layer SMOIS/SH2O/TSLB soil profile), so the
+    // soil diagnostics work for any Noah-MP soil-layer count. A Vector (not a
+    // fixed-size Array) is required because m_nsoil is only known after the
+    // namelist is read in Init.
+    amrex::Vector<FabPtr> lsm_fab_data;
 
     // LSM flux variables
     amrex::Array<FabPtr, LsmFlux_NOAHMP::NumVars> lsm_fab_flux;
 
-    // LSM data variables at level 0
-    amrex::Array<amrex::MultiFab*, LsmData_NOAHMP::NumVars> lsm_lev0_data;
+    // LSM data variables at level 0 (runtime-sized, see lsm_fab_data)
+    amrex::Vector<amrex::MultiFab*> lsm_lev0_data;
 
     // LSM flux variables at level 0
     amrex::Array<amrex::MultiFab*, LsmFlux_NOAHMP::NumVars> lsm_lev0_flux;
+
+    // Number of Noah-MP soil layers (NSOIL). Set in Init from erf.lsm_nsoil, which
+    // is identical on every rank (including land-free ranks) so all agree on the LSM
+    // data size without a broadcast -- required because the plotfile/checkpoint
+    // writes are collective. Asserted against the namelist NSOIL on land ranks.
+    // Default 4 = the standard Noah-MP configuration.
+    int m_nsoil = 4;
+
+    // Index of soil field (group g in {0:smois,1:sh2o,2:tslb}, layer k in [0,nsoil))
+    // within lsm_fab_data / LsmDataName. The matching pinned-output-buffer index is
+    // NoahmpOutputComp::NumComps + g*m_nsoil + k (computed inline in the scatter
+    // kernel, since that runs on the device where this host member is not callable).
+    int soil_data_idx (int g, int k) const {
+        return LsmData_NOAHMP::NumVars + g*m_nsoil + k;
+    }
+
+    // Resolve the soil-layer count (erf.lsm_nsoil, default 4) and the total LSM data
+    // size exactly once, independent of Init. Must be callable before Init because
+    // the parent (ERF_MakeNewLevel) queries Lsm_Data_Size() to size its lsm_data
+    // array first; Init later asserts m_nsoil matches the namelist NSOIL.
+    bool m_nsoil_resolved = false;
+    void ensure_nsoil_resolved () {
+        if (m_nsoil_resolved) { return; }
+        amrex::ParmParse pp_nsoil("erf");
+        pp_nsoil.query("lsm_nsoil", m_nsoil);
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(m_nsoil >= 1, "erf.lsm_nsoil must be >= 1");
+        m_lsm_data_size = LsmData_NOAHMP::NumVars + 3*m_nsoil;
+        m_nsoil_resolved = true;
+    }
 
     // Vector to store NoahmpIO objects at a level
     NoahmpIO_vector noahmpio_vect;
