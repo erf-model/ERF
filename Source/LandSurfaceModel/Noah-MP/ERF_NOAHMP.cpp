@@ -550,6 +550,11 @@ NOAHMP::Advance_With_State (const int& lev,
                     drain = slot_present[NoahmpPrecipSlot::total]
                           ? dd[NoahmpPrecipSlot::total]
                           : (dd[NoahmpPrecipSlot::rain] + dfroz);
+                    // Physical guard: precip accumulated over one land interval cannot
+                    // exceed a sane ceiling (lsm_max_precip_interval). Protects Noah-MP's
+                    // water-balance check from any corrupt prev-snapshot delta -- a larger
+                    // value can only come from noisy IC/BC, never real precip.
+                    drain = amrex::min(drain, lsm_max_precip_interval);
                     sr = (drain > zero) ? amrex::min(Real(1.0), dfroz/drain) : zero;
                 }
                 noah_input_arr(i,j,0,NoahmpInputComp::rainbl)    = drain;
@@ -740,9 +745,11 @@ NOAHMP::Advance_With_State (const int& lev,
         // differences against this step. Device-safe whole-MultiFab copy (these live in
         // the device arena; never touch them on the host).
         if (have_precip) {
-            MultiFab::Copy(*m_rain_accum_prev[lev], *rain_accum_in, 0, 0, 1, 0);
-            if (snow_accum_in)  { MultiFab::Copy(*m_snow_accum_prev[lev],  *snow_accum_in,  0, 0, 1, 0); }
-            if (graup_accum_in) { MultiFab::Copy(*m_graup_accum_prev[lev], *graup_accum_in, 0, 0, 1, 0); }
+            for (int s(0); s < NoahmpPrecipSlot::NumSlots; ++s) {
+                if (slot_has[s]) {
+                    MultiFab::Copy(*m_precip_accum_prev[lev][s], *slot_accum[s], 0, 0, 1, 0);
+                }
+            }
         }
 
         // Fill the ghost cells
