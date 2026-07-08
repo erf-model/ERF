@@ -6,7 +6,7 @@ geometry.prob_hi = 2000.0 2000.0 500.0
 amr.n_cell = 40 40 50
 
 # Domain periodicity
-geometry.is_periodic = 0 0 0
+geometry.is_periodic = 1 1 0
 
 # No AMR
 amr.max_level = 0
@@ -16,10 +16,6 @@ amr.max_grid_size = 100
 amr.max_grid_size_z = 50
 
 # Surface layer boundary condition (REQUIRED for fire)
-xlo.type = "Outflow"
-xhi.type = "Outflow"
-ylo.type = "Outflow"
-yhi.type = "Outflow"
 zlo.type = "surface_layer"
 zhi.type = "SlipWall"
 
