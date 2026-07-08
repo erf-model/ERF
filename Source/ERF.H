@@ -69,9 +69,7 @@
 #include "ERF_ShocInterface.H"
 #endif
 
-#ifdef ERF_USE_NATIVE_SHOC
 #include "ERF_ShocDriver.H"
-#endif
 
 #ifdef ERF_USE_P3
 #include "ERF_P3Interface.H"
@@ -470,7 +468,6 @@ public:
                                   const double& dt_advance);
 #endif
 
-#ifdef ERF_USE_NATIVE_SHOC
     void compute_native_shoc_tendencies (int lev,
                                          amrex::MultiFab* cons,
                                          amrex::MultiFab* xvel,
@@ -484,7 +481,6 @@ public:
                                          amrex::MultiFab* eddyDiffs,
                                          amrex::MultiFab* z_phys_nd,
                                          const double& dt_advance);
-#endif
 
 #ifdef ERF_USE_P3
     void compute_p3_tendencies (int lev,
@@ -986,9 +982,7 @@ private:
     amrex::Vector<std::unique_ptr<SHOCInterface>> eamxx_shoc_interface; // EAMxx SHOC model at each level
 #endif
 
-#ifdef ERF_USE_NATIVE_SHOC
     amrex::Vector<std::unique_ptr<ShocDriver>> native_shoc_driver; // Native SHOC model at each level
-#endif
 
 #ifdef ERF_USE_P3
     amrex::Vector<std::unique_ptr<P3Interface>> p3_interface; // P3 model at each level

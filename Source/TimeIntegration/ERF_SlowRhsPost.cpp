@@ -1,6 +1,7 @@
 #include <AMReX.H>
 #include <ERF_SrcHeaders.H>
 #include <ERF_TI_slow_headers.H>
+#include <ERF_ShocDriver.H>
 #include <ERF_EBAdvection.H>
 #include <ERF_EBRedistribute.H>
 
@@ -84,9 +85,7 @@ void erf_slow_rhs_post (int level, int finest_level,
 #ifdef ERF_USE_EAMXX_SHOC
                         SHOCInterface* eamxx_shoc_lev,
 #endif
-#ifdef ERF_USE_NATIVE_SHOC
                         ShocDriver* native_shoc_lev,
-#endif
                         YAFluxRegister* fr_as_crse,
                         YAFluxRegister* fr_as_fine,
                         std::unique_ptr<ReadBndryPlanes>& m_r2d)
@@ -131,14 +130,12 @@ void erf_slow_rhs_post (int level, int finest_level,
         l_apply_surface_layer_fluxes_in_diffusion = false;
     }
 #endif
-#ifdef ERF_USE_NATIVE_SHOC
     if (tc.uses_native_shoc()) {
         AMREX_ALWAYS_ASSERT(native_shoc_lev != nullptr);
         l_apply_surface_layer_fluxes_in_diffusion =
             l_apply_surface_layer_fluxes_in_diffusion &&
             native_shoc_lev->uses_host_diffusion();
     }
-#endif
 
     const GpuArray<Real, AMREX_SPACEDIM> dxInv = geom.InvCellSizeArray();
     const Real* dx = geom.CellSize();
@@ -486,13 +483,6 @@ void erf_slow_rhs_post (int level, int finest_level,
             eamxx_shoc_lev->add_slow_tend(mfi,tbx,cell_rhs);
         }
 #endif
-#ifdef ERF_USE_NATIVE_SHOC
-        if (tc.uses_native_shoc() && native_shoc_lev) {
-            // Native SHOC now applies its coupled increment directly to the
-            // state before the dycore; it does not add a post-RHS tendency.
-        }
-#endif
-
         // This updates just the "slow" conserved variables
         {
         BL_PROFILE("rhs_post_8");

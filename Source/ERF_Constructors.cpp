@@ -119,14 +119,12 @@ ERF::ERF_shared ()
     }
 #endif
 
-#ifdef ERF_USE_NATIVE_SHOC
     native_shoc_driver.resize(nlevs_max);
     for (int lev = 0; lev <= max_level; ++lev) {
         if (solverChoice.turbChoice[lev].uses_native_shoc()) {
             native_shoc_driver[lev] = std::make_unique<ShocDriver>(lev, solverChoice);
         }
     }
-#endif
 
     rad.resize(nlevs_max);
     for (int lev = 0; lev <= max_level; ++lev) {
