@@ -23,6 +23,7 @@
 #include <ERF_FuelBlending.H>
 #include <ERF_IgnitionSchedule.H>
 #include <ERF_PolygonIgnition.H>
+#include <ERF_FireAcceleration.H>
 
 // Forward declarations
 class SurfaceLayer;

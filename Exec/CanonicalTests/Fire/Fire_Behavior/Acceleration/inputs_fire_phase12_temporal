@@ -1,0 +1,80 @@
+# Phase 12 regression test: temporal fire acceleration (per-cell VanWagner).
+# Same domain as phase 9 crown test: 2 km x 2 km, flat, FM1, 5 m/s wind, passive coupling.
+# Ignition at (1000, 1000), radius 30 m.
+# Acceleration: temporal model, per-cell R(t) = R_E × (1 - exp(-A × t)).
+# For a point ignition (~30 m perimeter), uses A_point = 0.115 1/min.
+# As perimeter grows, may transition to A_line = 0.886 1/min if it exceeds perim_limit = 500 m.
+#
+# Expected checks:
+#   1. [FIRE DEBUG] output shows acceleration constant selection (point vs line based on perimeter).
+#   2. R(t) in fire_stats increases from t=0 over first 5 minutes.
+#   3. At t=900 s, head ROS approaches quasi-steady-state FM1 value.
+#   4. No NaN or abort.
+#
+geometry.prob_lo = 0.0 0.0 0.0
+geometry.prob_hi = 2000.0 2000.0 500.0
+amr.n_cell = 40 40 50
+
+geometry.is_periodic = 0 0 0
+amr.max_level = 0
+amr.max_grid_size = 100
+amr.max_grid_size_z = 50
+
+xlo.type = "Outflow"
+xhi.type = "Outflow"
+ylo.type = "Outflow"
+yhi.type = "Outflow"
+zlo.type = "surface_layer"
+zhi.type = "SlipWall"
+
+erf.most.z0 = 0.1
+erf.molec_diff_type = "ConstantAlpha"
+erf.les_type = "None"
+erf.rans_type = "None"
+erf.init_type = "uniform"
+erf.theta_ref = 300.0
+erf.geostrophic_wind_x = 5.0
+erf.geostrophic_wind_y = 0.0
+
+erf.fixed_dt = 1.0
+stop_time = 900.0
+max_step = 1000
+
+erf.sum_interval = 50
+erf.v = 1
+amr.v = 1
+erf.check_int = -1
+erf.plot_int = 100
+erf.plot_vars = theta qv u v w
+erf.fire_plot_file = plt_fire_
+erf.fire_plot_int = 100
+
+erf.fire.enable = true
+erf.fire.fire_debug = true
+erf.fire.grid_ratio = 5
+erf.fire.fuel_model_id = 1
+erf.fire.moisture_1hr = 0.08
+erf.fire.moisture_10hr = 0.10
+erf.fire.moisture_100hr = 0.12
+erf.fire.moisture_dynamic = false
+erf.fire.ignition_x = 1000.0
+erf.fire.ignition_y = 1000.0
+erf.fire.ignition_r = 30.0
+erf.fire.wind_ref_ht = 6.1
+erf.fire.use_waf = true
+erf.fire.waf_formula = "andrews"
+erf.fire.use_wind_limit = true
+erf.fire.use_terrain_wind = false
+erf.fire.farsite.cfl_fire = 0.5
+erf.fire.coupling_type = "passive"
+erf.fire.write_fire_stats_csv = true
+erf.fire.flame_temp_method = "byram_radiant"
+erf.fire.compute_flame_tilt = false
+
+erf.fire.accel.enable = true
+erf.fire.accel.use_temporal = true
+erf.fire.accel.A_point = 0.115
+erf.fire.accel.A_line = 0.886
+erf.fire.accel.perim_limit = 500.0
+erf.fire.accel.enable_wind_lag = false
+erf.fire.fire_stats_csv_file = "fire_stats_phase12_temporal.csv"

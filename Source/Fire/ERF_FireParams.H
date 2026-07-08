@@ -3,6 +3,7 @@
 
 #include <AMReX_ParmParse.H>
 #include <ERF_FireBreak.H>
+#include <ERF_FireAcceleration.H>
 #include <string>
 #include <vector>
 
@@ -147,6 +148,28 @@ struct FireParams
         amrex::Real   polyline_width          = 10.0;       ///< Half-width of polyline ignition zone [m]
     } ignition;
 
+    // Phase 12: Fire acceleration at startup.
+    // Small fires do not immediately achieve their quasi-steady-state (QSS) ROS.
+    // Two models are available, selected by use_temporal:
+    //
+    //   Size-based (use_temporal = false, default):
+    //     alpha = 1 - exp(-r_fire / L_acc)
+    //     R_effective = alpha * R_Rothermel
+    //   where r_fire is the effective radius from burned area and L_acc is the
+    //   acceleration length scale [m].
+    //   Reference: Rothermel (1983) GTR INT-143.
+    //
+    //   Temporal (use_temporal = true):
+    //     R(t) = R_E * (1 - exp(-A * t))
+    //   where t is elapsed time since ignition [s] and A [1/min] is the
+    //   acceleration constant, selected based on perimeter length relative to
+    //   perim_limit (point vs line fire).
+    //   Reference: McAlpine & Wakimoto (1991) Forest Science 37(5).
+    //
+    // Disabled by default (enable = false). When disabled, no MultiFab is
+    // allocated and the call in advance() returns immediately.
+    AccelerationParams accel;
+
     // Phase 10: Firebreak barriers (up to 10, indexed by N=0..9)
     int n_firebreaks = 0;
     std::vector<FireBreak> firebreaks;
@@ -263,6 +286,17 @@ struct FireParams
        pp.query("ignition.polygon_file",  ig.polygon_file);
        pp.query("ignition.polygon_type",  ig.polygon_type);
        pp.query("ignition.polyline_width", ig.polyline_width);
+
+       // Phase 12: fire acceleration
+       auto& ac = accel;
+       pp.query("accel.enable",          ac.enable);
+       pp.query("accel.use_temporal",    ac.use_temporal);
+       pp.query("accel.L_acc",           ac.L_acc);
+       pp.query("accel.A_point",         ac.A_point);
+       pp.query("accel.A_line",          ac.A_line);
+       pp.query("accel.perim_limit",     ac.perim_limit);
+       pp.query("accel.enable_wind_lag", ac.enable_wind_lag);
+       pp.query("accel.tau_wind",        ac.tau_wind);
 
        // Phase 10: firebreaks (indexed, stop at first missing)
        for (int nb = 0; nb < 10; ++nb) {

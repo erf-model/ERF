@@ -1,0 +1,77 @@
+# Phase 12 regression test: size-based fire acceleration.
+# Same domain as phase 9 crown test: 2 km x 2 km, flat, FM1, 5 m/s wind, passive coupling.
+# Ignition at (1000, 1000), radius 30 m.
+# Acceleration: size-based model, L_acc = 100 m.
+# At ignition the effective fire radius is ~30 m << L_acc = 100 m, so alpha << 1.
+# As the fire grows, alpha approaches 1 and full ROS is reached.
+#
+# Expected checks:
+#   1. fire_ros at t=10 s is less than fire_ros at t=300 s (acceleration effect visible).
+#   2. At t=900 s, head ROS in fire_stats.csv approaches the quasi-steady-state FM1 value.
+#   3. [FIRE DEBUG] shows alpha < 1.0 at early steps when fire_debug = true.
+#   4. No NaN or abort.
+#
+geometry.prob_lo = 0.0 0.0 0.0
+geometry.prob_hi = 2000.0 2000.0 500.0
+amr.n_cell = 40 40 50
+
+geometry.is_periodic = 0 0 0
+amr.max_level = 0
+amr.max_grid_size = 100
+amr.max_grid_size_z = 50
+
+xlo.type = "Outflow"
+xhi.type = "Outflow"
+ylo.type = "Outflow"
+yhi.type = "Outflow"
+zlo.type = "surface_layer"
+zhi.type = "SlipWall"
+
+erf.most.z0 = 0.1
+erf.molec_diff_type = "ConstantAlpha"
+erf.les_type = "None"
+erf.rans_type = "None"
+erf.init_type = "uniform"
+erf.theta_ref = 300.0
+erf.geostrophic_wind_x = 5.0
+erf.geostrophic_wind_y = 0.0
+
+erf.fixed_dt = 1.0
+stop_time = 900.0
+max_step = 1000
+
+erf.sum_interval = 50
+erf.v = 1
+amr.v = 1
+erf.check_int = -1
+erf.plot_int = 100
+erf.plot_vars = theta qv u v w
+erf.fire_plot_file = plt_fire_
+erf.fire_plot_int = 100
+
+erf.fire.enable = true
+erf.fire.fire_debug = true
+erf.fire.grid_ratio = 5
+erf.fire.fuel_model_id = 1
+erf.fire.moisture_1hr = 0.08
+erf.fire.moisture_10hr = 0.10
+erf.fire.moisture_100hr = 0.12
+erf.fire.moisture_dynamic = false
+erf.fire.ignition_x = 1000.0
+erf.fire.ignition_y = 1000.0
+erf.fire.ignition_r = 30.0
+erf.fire.wind_ref_ht = 6.1
+erf.fire.use_waf = true
+erf.fire.waf_formula = "andrews"
+erf.fire.use_wind_limit = true
+erf.fire.use_terrain_wind = false
+erf.fire.farsite.cfl_fire = 0.5
+erf.fire.coupling_type = "passive"
+erf.fire.write_fire_stats_csv = true
+erf.fire.flame_temp_method = "byram_radiant"
+erf.fire.compute_flame_tilt = false
+
+erf.fire.accel.enable = true
+erf.fire.accel.use_temporal = false
+erf.fire.accel.L_acc = 100.0
+erf.fire.fire_stats_csv_file = "fire_stats_phase12_size.csv"
