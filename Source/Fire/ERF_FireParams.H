@@ -202,6 +202,15 @@ struct FireParams
         amrex::Real curing   = 1.0;   ///< Degree of curing [0-1]; 1 = fully cured
     } cheney_gould;
 
+    // Phase 15: BEHAVE multi-class Rothermel parameters.
+    // Only used when ros_model = "behave".
+    // Controls the dynamic live-to-dead load transfer threshold.
+    // All other fuel properties come from FuelModelParams via get_anderson_fuel_params().
+    struct BehaveParams {
+        amrex::Real dynamic_transfer_lo  = 0.30;  ///< Live herba moisture [fraction] below which full transfer occurs
+        amrex::Real dynamic_transfer_hi  = 1.20;  ///< Live herba moisture [fraction] above which no transfer occurs
+    } behave;
+
     // Phase 10: Firebreak barriers (up to 10, indexed by N=0..9)
     int n_firebreaks = 0;
     std::vector<FireBreak> firebreaks;
@@ -350,6 +359,11 @@ struct FireParams
        auto& cg = cheney_gould;
        pp.query("cheney_gould.moisture", cg.moisture);
        pp.query("cheney_gould.curing",   cg.curing);
+
+       // Phase 15: BEHAVE parameters
+       auto& bh = behave;
+       pp.query("behave.dynamic_transfer_lo", bh.dynamic_transfer_lo);
+       pp.query("behave.dynamic_transfer_hi", bh.dynamic_transfer_hi);
 
        // Phase 10: firebreaks (indexed, stop at first missing)
        for (int nb = 0; nb < 10; ++nb) {

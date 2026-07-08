@@ -30,6 +30,8 @@
 #include <ERF_BalbiModel.H>
 #include <ERF_CheneyGouldModel.H>
 #include <ERF_MacArthurModel.H>
+// Phase 15: BEHAVE multi-class Rothermel
+#include <ERF_BehaveModel.H>
 
 // Forward declarations
 class SurfaceLayer;

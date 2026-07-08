@@ -42,6 +42,7 @@ ifeq ($(USE_FIRE), TRUE)
   CEXE_headers += Fire/ERF_BalbiModel.H
   CEXE_headers += Fire/ERF_CheneyGouldModel.H
   CEXE_headers += Fire/ERF_MacArthurModel.H
+  CEXE_headers += Fire/ERF_BehaveModel.H
   CEXE_headers += Fire/ERF_FuelWindHeight.H
 endif
 

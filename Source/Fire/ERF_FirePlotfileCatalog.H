@@ -47,13 +47,15 @@
  * @param[in] include_crown      Append crown-fire diagnostics when true.
  * @param[in] include_fuel_map   Append fire_fuel_model_code when true (Phase 10).
  * @param[in] include_flame_tilt Append fire_flame_tilt within the crown block when true.
+ * @param[in] include_live_moisture Append fire_fuel_mc_lh and fire_fuel_mc_lw when true (Phase 15).
  * @return Vector of variable name strings in canonical write order.
  */
 inline amrex::Vector<std::string> fire_plotfile_var_names(
     bool include_spotting,
     bool include_crown,
     bool include_fuel_map,
-    bool include_flame_tilt)
+    bool include_flame_tilt,
+    bool include_live_moisture)
 {
     amrex::Vector<std::string> names{
         "fire_phi",
@@ -76,6 +78,11 @@ inline amrex::Vector<std::string> fire_plotfile_var_names(
         "fire_flame_length",
         "fire_arrival_time"
     };
+    // Phase 15: Live fuel moisture components (components 3 and 4 of fire_fuel_mc)
+    if (include_live_moisture) {
+        names.push_back("fire_fuel_mc_lh");    // Live herbaceous moisture
+        names.push_back("fire_fuel_mc_lw");    // Live woody moisture
+    }
     if (include_spotting) {
         names.push_back("fire_lofting_height");
         names.push_back("fire_spot_brand_count");
@@ -101,9 +108,11 @@ inline amrex::Vector<std::string> fire_plotfile_var_names(
 inline amrex::Vector<std::string> fire_plotfile_var_names(
     bool include_spotting = false,
     bool include_crown = false,
-    bool include_fuel_map = false)
+    bool include_fuel_map = false,
+    bool include_flame_tilt = false,
+    bool include_live_moisture = false)
 {
-    return fire_plotfile_var_names(include_spotting, include_crown, include_fuel_map, false);
+    return fire_plotfile_var_names(include_spotting, include_crown, include_fuel_map, include_flame_tilt, include_live_moisture);
 }
 
 /**
@@ -112,15 +121,18 @@ inline amrex::Vector<std::string> fire_plotfile_var_names(
  * @param[in] include_crown      Count crown-fire diagnostics when true.
  * @param[in] include_fuel_map   Count fire_fuel_model_code when true (Phase 10).
  * @param[in] include_flame_tilt Count fire_flame_tilt within the crown block when true.
+ * @param[in] include_live_moisture Count fire_fuel_mc_lh and fire_fuel_mc_lw when true (Phase 15).
  * @return Number of scalar fire output variables.
  */
 inline int fire_plotfile_ncomp(
     bool include_spotting,
     bool include_crown,
     bool include_fuel_map,
-    bool include_flame_tilt)
+    bool include_flame_tilt,
+    bool include_live_moisture)
 {
     return 19
+        + (include_live_moisture ? 2 : 0)
         + (include_spotting ? 4 : 0)
         + (include_crown ? (include_flame_tilt ? 5 : 4) : 0)
         + (include_fuel_map ? 1 : 0);
@@ -130,9 +142,11 @@ inline int fire_plotfile_ncomp(
 inline int fire_plotfile_ncomp(
     bool include_spotting = false,
     bool include_crown = false,
-    bool include_fuel_map = false)
+    bool include_fuel_map = false,
+    bool include_flame_tilt = false,
+    bool include_live_moisture = false)
 {
-    return fire_plotfile_ncomp(include_spotting, include_crown, include_fuel_map, false);
+    return fire_plotfile_ncomp(include_spotting, include_crown, include_fuel_map, include_flame_tilt, include_live_moisture);
 }
 
 #endif

@@ -63,6 +63,8 @@ void FireLayer::initialize(const ERF& erf,
             mc(iv,0) = fire_params.moisture_1hr;
             mc(iv,1) = fire_params.moisture_10hr;
             mc(iv,2) = fire_params.moisture_100hr;
+            mc(iv,3) = fire_params.moisture_live;  // live herbaceous (Phase 15, new component)
+            mc(iv,4) = fire_params.moisture_live;  // live woody      (Phase 15, new component)
         });
     }
 
@@ -145,6 +147,19 @@ void FireLayer::initialize(const ERF& erf,
                 amrex::Print() << "[FIRE DEBUG] ROS model: Cheney-Gould (1998), "
                                << "moisture=" << m_params.cheney_gould.moisture
                                << "%, curing=" << m_params.cheney_gould.curing << "\n";
+            }
+        } else if (m_params.ros_model == "behave") {
+            // Phase 15: Pre-compute BEHAVE multi-class coefficients.
+            FuelModelParams fp_bh = get_anderson_fuel_params(m_params.fuel_model_id);
+            m_bs_default = compute_behave_state(fp_bh,
+                                                m_params.moisture_1hr,
+                                                m_params.moisture_10hr,
+                                                m_params.moisture_100hr,
+                                                m_params.moisture_live,
+                                                m_params.moisture_live);
+            if (m_params.fire_debug) {
+                amrex::Print() << "[FIRE DEBUG] ROS model: BEHAVE multi-class Rothermel, "
+                               << "R0=" << m_bs_default.r_0 * 0.00508_rt << " m/s\n";
             }
         } else if (m_params.ros_model == "macarthur") {
             if (m_params.fire_debug) {
