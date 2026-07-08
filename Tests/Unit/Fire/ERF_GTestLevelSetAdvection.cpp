@@ -12,6 +12,9 @@
 #include "ERF_Reinitialize.H"
 #include "ERF_LevelSetAdvection.H"
 
+using namespace amrex;
+using namespace ERF;
+
 /**
  * @file ERF_GTestLevelSetAdvection.cpp
  * @brief Unit tests for level-set advection and reinitialization
@@ -19,8 +22,6 @@
  * Tests the WENO5-Z advection scheme with SSP-RK3 time integration
  * and the Sussman reinitialization method.
  */
-
-using namespace amrex;
 
 class LevelSetAdvectionTest : public ::testing::Test
 {
