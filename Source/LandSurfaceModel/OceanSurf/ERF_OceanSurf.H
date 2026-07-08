@@ -33,7 +33,11 @@ public:
     Init (const int& /*lev*/,
           const amrex::MultiFab& cons_in,
           const amrex::Geometry& geom,
-          const double& dt) override
+          const amrex::Geometry& /*geom0*/,
+          amrex::Vector<amrex::BCRec>& /*domain_bcs_type*/,
+          amrex::IntVect& /*refRatio*/,
+          const amrex::Real& dt,
+          amrex::Vector<amrex::Vector<std::string>>& /*nc_init_file*/) override
     {
         m_dt = dt;
         m_lsm_geom = geom;

@@ -372,9 +372,9 @@ ImplicitDiffForMomLU_T (const Box& bx,
                                   l_consA, l_turb);
 
               met_h_zeta_lo = myhalf * ( Compute_h_zeta_AtKface(i     ,j     ,klo  ,cellSizeInv,z_nd)
-                                     + Compute_h_zeta_AtKface(i-ioff,j-joff,klo  ,cellSizeInv,z_nd) );
+                                       + Compute_h_zeta_AtKface(i-ioff,j-joff,klo  ,cellSizeInv,z_nd) );
               met_h_zeta_hi = myhalf * ( Compute_h_zeta_AtKface(i     ,j     ,klo+1,cellSizeInv,z_nd)
-                                     + Compute_h_zeta_AtKface(i-ioff,j-joff,klo+1,cellSizeInv,z_nd) );
+                                       + Compute_h_zeta_AtKface(i-ioff,j-joff,klo+1,cellSizeInv,z_nd) );
 
               a_tmp = zero;
               c_tmp = -Fact * gfac * rhoAlpha_hi * dz_inv / met_h_zeta_hi;
@@ -418,9 +418,9 @@ ImplicitDiffForMomLU_T (const Box& bx,
                                   l_consA, l_turb);
 
               met_h_zeta_lo = myhalf * ( Compute_h_zeta_AtKface(i     ,j     ,k  ,cellSizeInv,z_nd)
-                                    + Compute_h_zeta_AtKface(i-ioff,j-joff,k  ,cellSizeInv,z_nd) );
+                                       + Compute_h_zeta_AtKface(i-ioff,j-joff,k  ,cellSizeInv,z_nd) );
               met_h_zeta_hi = myhalf * ( Compute_h_zeta_AtKface(i     ,j     ,k+1,cellSizeInv,z_nd)
-                                    + Compute_h_zeta_AtKface(i-ioff,j-joff,k+1,cellSizeInv,z_nd) );
+                                       + Compute_h_zeta_AtKface(i-ioff,j-joff,k+1,cellSizeInv,z_nd) );
 
               a_tmp      = -Fact * rhoAlpha_lo * dz_inv / met_h_zeta_lo;
               c_tmp      = -Fact * rhoAlpha_hi * dz_inv / met_h_zeta_hi;
@@ -444,9 +444,9 @@ ImplicitDiffForMomLU_T (const Box& bx,
                                   l_consA, l_turb);
 
               met_h_zeta_lo = myhalf * ( Compute_h_zeta_AtKface(i     ,j     ,khi  ,cellSizeInv,z_nd)
-                                    + Compute_h_zeta_AtKface(i-ioff,j-joff,khi  ,cellSizeInv,z_nd) );
+                                       + Compute_h_zeta_AtKface(i-ioff,j-joff,khi  ,cellSizeInv,z_nd) );
               met_h_zeta_hi = myhalf * ( Compute_h_zeta_AtKface(i     ,j     ,khi+1,cellSizeInv,z_nd)
-                                    + Compute_h_zeta_AtKface(i-ioff,j-joff,khi+1,cellSizeInv,z_nd) );
+                                       + Compute_h_zeta_AtKface(i-ioff,j-joff,khi+1,cellSizeInv,z_nd) );
 
               a_tmp = -Fact * gfac * rhoAlpha_lo * dz_inv / met_h_zeta_lo;
               c_tmp = zero;

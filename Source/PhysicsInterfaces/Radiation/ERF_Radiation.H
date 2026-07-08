@@ -108,12 +108,14 @@ public:
          amrex::MultiFab* rad_fluxes,
          amrex::MultiFab* z_phys,
          amrex::MultiFab* lat_ptr,
-         amrex::MultiFab* lon_ptr) override
+         amrex::MultiFab* lon_ptr,
+         const bool updated_lsm) override
     {
         set_grids(level, step, time, dt, ba, geom,
                   cons_in, lmask, t_surf,
                   lsm_input_ptrs, qheating_rates,
-                  rad_fluxes, z_phys, lat_ptr, lon_ptr);
+                  rad_fluxes, z_phys, lat_ptr, lon_ptr,
+                  updated_lsm);
         rad_run_impl(lsm_output_ptrs);
     }
 
@@ -133,7 +135,8 @@ public:
                amrex::MultiFab* rad_fluxes,
                amrex::MultiFab* z_phys,
                amrex::MultiFab* lat,
-               amrex::MultiFab* lon);
+               amrex::MultiFab* lon,
+               const bool updated_lsm);
 
     // Initialize the temporary variables
     void

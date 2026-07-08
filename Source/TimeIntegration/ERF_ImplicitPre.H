@@ -7,7 +7,7 @@
             if (l_vert_implicit_fac > zero) {
 
                 const bool l_do_implicit_theta = solverChoice.implicit_thermal_diffusion;
-                const bool l_do_implicit_mom = solverChoice.implicit_momentum_diffusion;
+                const bool l_do_implicit_mom   = solverChoice.implicit_momentum_diffusion;
 
                 // If we're doing an implicit solve for momenta (u and v only),
                 // then we use the explicit solution at this point to derive

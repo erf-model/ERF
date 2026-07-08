@@ -50,9 +50,7 @@
 #ifdef ERF_USE_EAMXX_SHOC
                           eamxx_shoc_interface[level].get(),
 #endif
-#ifdef ERF_USE_NATIVE_SHOC
                           native_shoc_driver[level].get(),
-#endif
                           fr_as_crse, fr_as_fine,
                           m_r2d);
 
