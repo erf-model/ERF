@@ -38,7 +38,7 @@ erf.most.surf_heating_rate = 1.0  # Dynamic heating rate [K/h] to trigger transi
 
 zhi.type = "SlipWall"
 zhi.theta_grad = 0.003  # adiabatic upper boundary
-zhi.theta_grad = 0.003  # adiabatic upper boundary
+
 
 # TIME STEP CONTROL
 erf.fixed_dt = 0.1  # fixed time step depending on grid resolution
