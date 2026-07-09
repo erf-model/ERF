@@ -5,7 +5,7 @@
 
 /**
  * Compute eddy diffusivities of momentum (eddy viscosity) and heat using the
- * Mellor-Yamada-Janjic scheme (Janjic (2002), NCEP Office Note 437)
+ * Medium Range Forecast (MRF) scheme (Janjic (2002), NCEP Office Note 437)
  *
  * @param[in] xvel Velocity in x-dir
  * @param[in] yvel Velocity in y-dir
