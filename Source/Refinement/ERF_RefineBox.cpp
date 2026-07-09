@@ -376,8 +376,8 @@ ERF::update_box_for_refinement (std::string& ref_prefix, int& lev_for_box, RealB
 
     for (int i = 0; i < ni; i++) {
         if (time > move_start_time[i]) {
-            offset_x += move_speed_x[i] * (std::min(time,move_stop_time[i]) - move_start_time[i]);
-            offset_y += move_speed_y[i] * (std::min(time,move_stop_time[i]) - move_start_time[i]);
+            offset_x += move_speed_x[i] * static_cast<Real>(std::min(time,move_stop_time[i]) - move_start_time[i]);
+            offset_y += move_speed_y[i] * static_cast<Real>(std::min(time,move_stop_time[i]) - move_start_time[i]);
         }
     }
 

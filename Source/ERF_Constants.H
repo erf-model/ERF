@@ -21,9 +21,9 @@ constexpr amrex::Real eightthirds  = amrex::Real(8.0/3.0);
 //       in constexpr until C++26
 // const amrex::Real bogus_large_value = std::sqrt(std::numeric_limits<amrex::Real>::max());
 #ifdef AMREX_USE_FLOAT
-constexpr amrex::Real bogus_large_value = 1.e18;
+constexpr amrex::Real bogus_large_value = amrex::Real(1.e18);
 #else
-constexpr amrex::Real bogus_large_value = 1.e150;
+constexpr amrex::Real bogus_large_value = amrex::Real(1.e150);
 #endif
 
 // lsm_undefined: sentinel written into the LSM MultiFabs for cells

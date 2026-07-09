@@ -65,11 +65,13 @@ public:
              amrex::MultiFab* hfx3_out,
              amrex::MultiFab* qfx3_out,
              const SurfacePrecipAccumulationSources& precip_sources,
-             const amrex::Real& time,
-             const amrex::Real& dt_advance,
+             const double& time_d,
+             const double& dt_advance_d,
              const int& nstep,
              const bool updated_lev0)
     {
+        amrex::Real time = static_cast<amrex::Real>(time_d);
+        amrex::Real dt_advance = static_cast<amrex::Real>(dt_advance_d);
         m_lsm_model[lev]->Advance_With_State(lev, cons_in, xvel_in, yvel_in,
                                              hfx3_out, qfx3_out,
                                              precip_sources,
@@ -77,8 +79,9 @@ public:
     }
 
     void
-    Advance (const int& lev, const double& dt_advance)
+    Advance (const int& lev, const double& dt_advance_d)
     {
+        amrex::Real dt_advance = static_cast<amrex::Real>(dt_advance_d);
         m_lsm_model[lev]->Advance(dt_advance);
     }
 
@@ -207,7 +210,8 @@ public:
                 }
             }
             WriteMultiLevelPlotfile (plotfilename, nlev, GetVecOfConstPtrs(m_lsm_data_lev),
-                                     varnames, m_lsm_geom_lev, time, level_steps, ref_ratio);
+                                     varnames, m_lsm_geom_lev, static_cast<amrex::Real>(time),
+                                     level_steps, ref_ratio);
             m_lsm_geom_lev.clear();
             m_lsm_data_lev.clear();
         }

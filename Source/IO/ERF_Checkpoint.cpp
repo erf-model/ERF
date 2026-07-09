@@ -587,7 +587,7 @@ ERF::ReadCheckpointFile ()
         // create a distribution mapping
         DistributionMapping dm { ba, ParallelDescriptor::NProcs() };
 
-        MakeNewLevelFromScratch (lev, t_new[lev], ba, dm);
+        MakeNewLevelFromScratch (lev, static_cast<Real>(t_new[lev]), ba, dm);
     }
 
     // ncomp is only valid after we MakeNewLevelFromScratch (asks micro how many vars)

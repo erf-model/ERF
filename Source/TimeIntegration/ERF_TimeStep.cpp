@@ -166,7 +166,7 @@ ERF::timeStep (int lev, double time, int /*iteration*/)
                     }
                 }
 
-                regrid(lev, time);
+                regrid(lev, static_cast<Real>(time));
 
 #ifdef ERF_USE_PARTICLES
                 particleData.Redistribute(z_phys_nd);

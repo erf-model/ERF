@@ -94,7 +94,7 @@ void add_moist_nudging_terms (const MultiFab& S_data,
     Array4<Real> bdatxlo, bdatxhi, bdatylo, bdatyhi;
 
     // Relaxation constants
-    Real F1 = one/(nudge_factor*dt);
+    Real F1 = one/(nudge_factor*static_cast<Real>(dt));
 
     // Domain bounds
     const auto& dom_hi = ubound(domain);
@@ -104,7 +104,8 @@ void add_moist_nudging_terms (const MultiFab& S_data,
     auto ProbLo = geom.ProbLoArray();
 
     // Time interpolation
-    double dT = bdy_time_interval;
+    double dT_d = bdy_time_interval;
+    Real   dT   = static_cast<Real>(dT_d);
 
     //
     // Note that time (= start_time+old_stage_time)  is measured as total time
@@ -113,7 +114,7 @@ void add_moist_nudging_terms (const MultiFab& S_data,
 
     int n_time    = static_cast<int>( (time-start_bdy_time) /  dT);
     int n_time_p1 = n_time + 1;
-    double alpha  = ((time-start_bdy_time) - n_time * dT) / dT;
+    Real alpha    = static_cast<Real>(((time-start_bdy_time) - n_time * dT) / dT);
 
     // Do not over run the last bdy file
     if (time >= final_bdy_time) {

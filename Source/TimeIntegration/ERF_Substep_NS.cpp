@@ -60,7 +60,7 @@ void erf_substep_NS (int step, int nrk,
                      const Geometry geom,
                      const Real gravity,
                      amrex::Gpu::DeviceVector<amrex::Real>& stretched_dz_d,
-                     const double dtau, const Real beta_s,
+                     const double dtau_d, const Real beta_s,
                      const Real facinv,
                      Vector<std::unique_ptr<MultiFab>>& mapfac,
                      YAFluxRegister* fr_as_crse,
@@ -75,7 +75,9 @@ void erf_substep_NS (int step, int nrk,
     // NOTE: for step > 0, S_data and S_prev point to the same MultiFab data!!
     //
 
-    BL_PROFILE_REGION("erf_substep_S()");
+    BL_PROFILE_REGION("erf_substep_NS()");
+
+    Real dtau = static_cast<Real>(dtau_d);
 
     const Box& domain = geom.Domain();
     auto const domlo = lbound(domain);

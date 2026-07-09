@@ -14,7 +14,7 @@ Real load_q (const Array4<const Real>& cons_arr,
              int i, int j, int k,
              int comp, Real rho, int ncomp)
 {
-    return shoc_valid_comp(comp, ncomp) ? cons_arr(i,j,k,comp) / rho : 0.0;
+    return shoc_valid_comp(comp, ncomp) ? cons_arr(i,j,k,comp) / rho : Real(0);
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE

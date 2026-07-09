@@ -537,7 +537,7 @@ ERF::Write2DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
         Print() << "Writing 2D native plotfile " << plotfilename << "\n";
         WriteMultiLevelPlotfile(plotfilename, finest_level+1,
                                 GetVecOfConstPtrs(mf),
-                                varnames, my_geom, t_new[0], istep, refRatio());
+                                varnames, my_geom, static_cast<Real>(t_new[0]), istep, refRatio());
         // Native AMReX 2D plotfiles write a JSON sidecar with catalog
         // metadata for the selected output variables only.
         plotfile2d::write_2d_metadata_json(plotfilename, output_descriptors);
@@ -552,7 +552,8 @@ ERF::Write2DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
          const auto dx    = my_geom[lev].CellSize();
          writeNCPlotFile(lev, l_which, plotfilename, GetVecOfConstPtrs(mf), varnames, istep,
                          {p_lo[0],p_lo[1],p_lo[2]},{p_hi[0],p_hi[1],dx[2]}, {dx[0],dx[1],dx[2]},
-                         my_geom[lev].Domain(), t_new[0], start_bdy_time, solverChoice, zlevels_stag[lev]);
+                         my_geom[lev].Domain(), static_cast<Real>(t_new[0]),
+                         static_cast<Real>(start_bdy_time), solverChoice, zlevels_stag[lev]);
 #endif
     } else {
         // Here we assume the plotfile_type is PlotFileType::None

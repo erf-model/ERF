@@ -62,7 +62,7 @@ void erf_substep_T (int step, int /*nrk*/,
                     const Real gravity,
                     std::unique_ptr<MultiFab>& z_phys_nd,
                     std::unique_ptr<MultiFab>& detJ_cc,
-                    const double dtau, const Real beta_s,
+                    const double dtau_d, const Real beta_s,
                     const Real facinv,
                     Vector<std::unique_ptr<MultiFab>>& mapfac,
                     YAFluxRegister* fr_as_crse,
@@ -74,6 +74,8 @@ void erf_substep_T (int step, int /*nrk*/,
                     const Real l_damp_coef)
 {
     BL_PROFILE_REGION("erf_substep_T()");
+
+    Real dtau = static_cast<Real>(dtau_d);
 
     const Box& domain = geom.Domain();
     auto const domlo = lbound(domain);
