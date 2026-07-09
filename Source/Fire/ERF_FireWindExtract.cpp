@@ -41,86 +41,95 @@ void compute_terrain_curvature(
 }
 
 void apply_farsite_terrain_wind(
-    MultiFab& fire_wind,
+    MultiFab& fire_wind_eff,
     const MultiFab& fire_slopes,
-    const MultiFab& curvature,
+    const MultiFab& fire_curvature,
     Real k_ridge, Real k_shelter,
-    Real k_valley, Real k_deflect,
-    Real min_curv)
+    Real k_valley, Real k_deflect)
 {
-    // Apply terrain corrections to wind field in-place
-    // Ridge speed-up, lee sheltering, valley channeling, deflection
-
-    for (MFIter mfi(fire_wind, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+    // Apply FARSITE terrain wind corrections per Finney (1998)
+    // Ridge speed-up, lee sheltering, valley channeling, directional deflection
+    
+    for (MFIter mfi(fire_wind_eff, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
         const Box& bx = mfi.tilebox();
-        Array4<Real> wind = fire_wind.array(mfi);
+        Array4<Real> wind = fire_wind_eff.array(mfi);
         Array4<const Real> slopes = fire_slopes.array(mfi);
-        Array4<const Real> curv = curvature.array(mfi);
+        Array4<const Real> curv = fire_curvature.array(mfi);
 
         amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (const IntVect& iv) {
             int i = iv[0];
             int j = iv[1];
             int k = 0;
 
-            Real u = wind(i, j, k, 0);
-            Real v = wind(i, j, k, 1);
-            Real wind_mag = std::sqrt(u*u + v*v);
+            // Read terrain properties
+            Real sx = slopes(i, j, k, 0);  // dz/dx
+            Real sy = slopes(i, j, k, 1);  // dz/dy
+            Real curv_val = curv(i, j, k);
+            Real ux = wind(i, j, k, 0);
+            Real uy = wind(i, j, k, 1);
 
-            if (wind_mag < 1.0e-6) {
-                // No wind, no correction
-                return;
+            // Compute magnitudes
+            Real slope_mag = std::sqrt(sx*sx + sy*sy);
+            Real wind_mag = std::sqrt(ux*ux + uy*uy);
+
+            // Compute wind-upslope alignment: cos(angle between wind and slope gradient)
+            // cos_upslope > 0 means wind pointing upslope (against gravity, climbing)
+            Real cos_upslope = 0.0;
+            if (slope_mag * wind_mag > 1.0e-10) {
+                cos_upslope = (sx*ux + sy*uy) / (slope_mag * wind_mag);
             }
 
-            // Terrain properties
-            Real dzdx = slopes(i, j, k, 0);
-            Real dzdy = slopes(i, j, k, 1);
-            Real slope_mag = std::sqrt(dzdx*dzdx + dzdy*dzdy);
-            Real terrain_curv = curv(i, j, k);
+            // Classify terrain position and compute speed factor
+            Real factor = 1.0;
 
-            // Ridge/valley detection
-            Real speed_factor = 1.0;
-            if (std::abs(terrain_curv) > min_curv) {
-                if (terrain_curv > 0.0) {
-                    // Ridge (convex)
-                    speed_factor = 1.0 + (k_ridge - 1.0) * amrex::min(1.0, terrain_curv / 0.1);
-                } else {
-                    // Valley (concave)
-                    speed_factor = 1.0 - (1.0 - k_valley) * amrex::min(1.0, std::abs(terrain_curv) / 0.1);
-                }
+            // Ridge: convex, windward slope
+            if (curv_val > 0.01 && slope_mag > 0.05 && cos_upslope > 0.0) {
+                factor = 1.0 + (k_ridge - 1.0) * amrex::min(slope_mag, 1.0_rt);
+            }
+            // Shelter: lee-side slope (wind blowing downslope)
+            else if (cos_upslope < -0.5 && curv_val > 0.01) {
+                factor = k_shelter;
+            }
+            // Valley: concave terrain (negative curvature)
+            else if (curv_val < -0.01) {
+                factor = k_valley + (1.0_rt - k_valley) * (1.0_rt - amrex::min(slope_mag, 1.0_rt));
+            }
+            // Flat/other: no correction
+            else {
+                factor = 1.0;
             }
 
-            // Sheltering on lee side
-            // Wind direction
-            Real wind_dir = std::atan2(v, u);
-            // Slope aspect (direction of maximum slope)
-            Real slope_aspect = std::atan2(-dzdy, -dzdx);
-            // Angle between wind and slope
-            Real angle_diff = wind_dir - slope_aspect;
+            // Clamp factor to reasonable range
+            factor = amrex::max(0.1_rt, amrex::min(factor, 3.0_rt));
 
-            // Normalize to [-π, π]
-            const Real pi = 3.14159265358979323846;
-            while (angle_diff > pi) angle_diff -= 2.0*pi;
-            while (angle_diff < -pi) angle_diff += 2.0*pi;
+            // Apply speed scaling: scale wind magnitude
+            ux *= factor;
+            uy *= factor;
+            Real wind_mag_new = wind_mag * factor;
 
-            // Lee side sheltering: reduce wind on downwind side
-            Real cos_angle = std::cos(angle_diff);
-            if (cos_angle < -0.5) {
-                // Lee side
-                speed_factor *= k_shelter;
+            // Apply valley wind deflection toward slope aspect
+            // Only when in valley (curv < -0.01) and on sloped terrain (slope_mag > 0.05)
+            if (curv_val < -0.01 && slope_mag > 0.05) {
+                // Compute z-component of slope × wind cross product
+                Real sin_cross = sx * uy - sy * ux;
+                
+                // Compute deflection angle
+                Real denom = amrex::max(slope_mag * wind_mag_new * factor, 1.0e-10);
+                Real sin_cross_norm = amrex::max(-1.0_rt, amrex::min(1.0_rt, sin_cross / denom));
+                Real deflect_angle = k_deflect * std::asin(sin_cross_norm);
+
+                // Apply 2D rotation matrix to deflect wind direction
+                Real cos_angle = std::cos(deflect_angle);
+                Real sin_angle = std::sin(deflect_angle);
+                Real ux_new = cos_angle * ux - sin_angle * uy;
+                Real uy_new = sin_angle * ux + cos_angle * uy;
+                ux = ux_new;
+                uy = uy_new;
             }
 
-            // Deflection: wind turns on slopes (up to ±45°)
-            Real max_deflect = 45.0 * pi / 180.0;  // Convert to radians
-            Real deflect_rad = k_deflect * std::sin(angle_diff) * slope_mag;
-            deflect_rad = amrex::max(-max_deflect, amrex::min(max_deflect, deflect_rad));
-
-            // Apply speed factor
-            Real new_mag = wind_mag * speed_factor;
-
-            // Apply deflection by rotating wind
-            Real new_dir = wind_dir + deflect_rad;
-            wind(i, j, k, 0) = new_mag * std::cos(new_dir);
-            wind(i, j, k, 1) = new_mag * std::sin(new_dir);
+            // Write back
+            wind(i, j, k, 0) = ux;
+            wind(i, j, k, 1) = uy;
         });
     }
 }

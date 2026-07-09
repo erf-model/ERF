@@ -210,21 +210,31 @@ void compute_terrain_curvature(
  * - Valley channeling: wind is deflected into valleys
  * - Directional deflection: wind can turn up to ±45° on slopes
  *
- * @param[in,out] fire_wind    u, v on fire grid (modified in-place)
- * @param[in]     fire_slopes  dz/dx, dz/dy
- * @param[in]     curvature    Terrain curvature
- * @param[in]     k_ridge      Ridge speed-up factor (≈ 1.5)
- * @param[in]     k_shelter    Lee-side shelter factor (≈ 0.6)
- * @param[in]     k_valley     Valley channeling factor (≈ 0.8)
- * @param[in]     k_deflect    Wind deflection factor (≈ 0.3)
- * @param[in]     min_curv     Curvature threshold for ridge/valley detection
+ * @param[in,out] fire_wind_eff  u, v on fire grid (modified in-place)
+ * @param[in]     fire_slopes    dz/dx, dz/dy
+ * @param[in]     fire_curvature Terrain curvature
+ * @param[in]     k_ridge        Ridge speed-up factor (≈ 1.5)
+ * @param[in]     k_shelter      Lee-side shelter factor (≈ 0.6)
+ * @param[in]     k_valley       Valley channeling factor (≈ 0.8)
+ * @param[in]     k_deflect      Wind deflection factor (≈ 0.3)
+ *
+ * Algorithm (per cell):
+ * 1. Compute slope magnitude |∇z| and wind magnitude |U|
+ * 2. Compute wind-upslope alignment: cos_upslope = (∇z · U) / (|∇z| |U|)
+ * 3. Classify terrain:
+ *    - Ridge (curv > 0.01, |∇z| > 0.05, cos_upslope > 0): factor = 1 + (k_ridge-1)*min(|∇z|,1)
+ *    - Shelter (cos_upslope < -0.5, curv > 0.01): factor = k_shelter
+ *    - Valley (curv < -0.01): factor = k_valley + (1-k_valley)*(1-min(|∇z|,1))
+ *    - Flat/other: factor = 1
+ * 4. Clamp: factor = clamp(factor, 0.1, 3.0)
+ * 5. Apply speed scaling: U *= factor
+ * 6. For valleys: apply deflection using 2D rotation by angle k_deflect*asin(sin_cross/|U||∇z|*factor)
  */
 void apply_farsite_terrain_wind(
-    amrex::MultiFab& fire_wind,
+    amrex::MultiFab& fire_wind_eff,
     const amrex::MultiFab& fire_slopes,
-    const amrex::MultiFab& curvature,
+    const amrex::MultiFab& fire_curvature,
     amrex::Real k_ridge, amrex::Real k_shelter,
-    amrex::Real k_valley, amrex::Real k_deflect,
-    amrex::Real min_curv = 1.0e-4);
+    amrex::Real k_valley, amrex::Real k_deflect);
 
 #endif
