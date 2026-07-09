@@ -23,14 +23,14 @@ namespace HSEutils
 
     /**
      * Function to calculate the hydrostatic density and pressure
-     * from Newton-Raphson iterations
+     * from Newton-Raphson iterations at constant Th & Qv
      *
      * @param[in]  m_tol     iteration tolerance
      * @param[in]  RdOCp     Rd/Cp
      * @param[out] dz        change in vertical height
      * @param[out] g         magnitude of gravity
      * @param[in]  C         sum of known terms in HSE balance
-     * @param[in]  T         theta at the current cell center
+     * @param[in]  Th        theta at the current cell center
      * @param[in] qt         total moisture (non-precip and precip)
      * @param[in] qv         water vapor
      * @param[in] P          pressure at cell center
@@ -40,27 +40,25 @@ namespace HSEutils
     AMREX_GPU_HOST_DEVICE
     AMREX_FORCE_INLINE
     void
-    Newton_Raphson_hse (const Real& m_tol,
-                        const Real& RdOCp,
-                        const Real& dz,
-                        const Real& g,
-                        const Real& C,
-                        const Real& Th,
-                        const Real& qt,
-                        const Real& qv,
-                        Real& P,
-                        Real& rd,
-                        Real& F)
+    Newton_Raphson_hse_Th (const Real& m_tol,
+                           const Real& RdOCp,
+                           const Real& dz,
+                           const Real& g,
+                           const Real& C,
+                           const Real& Th,
+                           const Real& qt,
+                           const Real& qv,
+                           Real& P,
+                           Real& rd,
+                           Real& F)
     {
         int iter=0;
         int max_iter=20;
-        Real eps  = Real(1.e-6);
-        Real ieps = Real(1.e6);
         while (std::abs(F)>m_tol && iter<max_iter) {
             // Compute change in pressure
-            Real hi   = getRhogivenThetaPress(Th, P + eps, RdOCp, qv);
-            Real lo   = getRhogivenThetaPress(Th, P - eps, RdOCp, qv);
-            Real dFdp = one + fourth*ieps*(hi - lo)*g*dz;
+            rd        = getRhogivenThetaPress(Th, P, RdOCp, qv);
+            Real dRdP = iGamma * rd / P;
+            Real dFdp = one + myhalf*dRdP*g*dz;
             P -= F/dFdp;
             if (P < Real(1.e3)) amrex::Warning("P < 1000 [Pa]; Domain height may be too large...");
             AMREX_ALWAYS_ASSERT(P > amrex::Real(0));
@@ -78,6 +76,59 @@ namespace HSEutils
         }
     }
 
+    /**
+     * Function to calculate the hydrostatic density and pressure
+     * from Newton-Raphson iterations at constant T & Qv
+     *
+     * @param[in]  m_tol     iteration tolerance
+     * @param[in]  RdOCp     Rd/Cp
+     * @param[out] dz        change in vertical height
+     * @param[out] g         magnitude of gravity
+     * @param[in]  C         sum of known terms in HSE balance
+     * @param[in]  T         temperature at the current cell center
+     * @param[in] qt         total moisture (non-precip and precip)
+     * @param[in] qv         water vapor
+     * @param[in] P          pressure at cell center
+     * @param[in] rd         dry density at cell center
+     * @param[in] F          starting residual of non-linear eq
+    */
+    AMREX_GPU_HOST_DEVICE
+    AMREX_FORCE_INLINE
+    void
+    Newton_Raphson_hse_T (const Real& m_tol,
+                          const Real& /*RdOCp*/,
+                          const Real& dz,
+                          const Real& g,
+                          const Real& C,
+                          const Real& T,
+                          const Real& qt,
+                          const Real& qv,
+                          Real& P,
+                          Real& rd,
+                          Real& F)
+    {
+        int iter=0;
+        int max_iter=20;
+        while (std::abs(F)>m_tol && iter<max_iter) {
+            // Compute change in pressure
+            Real dRdP = rd / P;
+            Real dFdp = one + myhalf*dRdP*g*dz;
+            P -= F/dFdp;
+            if (P < Real(1.e3)) amrex::Warning("P < 1000 [Pa]; Domain height may be too large...");
+            AMREX_ALWAYS_ASSERT(P > amrex::Real(0));
+
+            // Diagnose density and residual
+            rd = getRhogivenTandPress(T, P, qv);
+            AMREX_ALWAYS_ASSERT(rd > amrex::Real(0));
+            Real r_tot = rd * (one + qt);
+            F = P + myhalf*r_tot*g*dz + C;
+            ++iter;
+        }
+        if (iter>=max_iter) {
+            AMREX_DEVICE_PRINTF("WARNING: HSE T Newton iterations did not converge to tolerance!\n%s", "");
+            AMREX_DEVICE_PRINTF("HSE Newton tol: %e %e\n",F,m_tol);
+        }
+    }
 
     /**
      * Function to calculate the hydrostatic density and pressure with constant dz

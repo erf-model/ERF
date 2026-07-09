@@ -304,10 +304,10 @@ ERF::init_from_ncfile (int lev)
                     F = P_hi + myhalf*rho_tot_hi*grav*dz + C;
 
                     // Do iterations
-                    HSEutils::Newton_Raphson_hse(tol, R_d/Cp_d, dz,
-                                                 grav, C, Th_hi,
-                                                 qv_hi, qv_hi,
-                                                 P_hi, R_hi, F);
+                    HSEutils::Newton_Raphson_hse_Th(tol, R_d/Cp_d, dz,
+                                                    grav, C, Th_hi,
+                                                    qv_hi, qv_hi,
+                                                    P_hi, R_hi, F);
 
                     // Assign data
                      r_hse_arr(i,j,klo) = R_hi;
@@ -340,10 +340,10 @@ ERF::init_from_ncfile (int lev)
                   F = P_hi + myhalf*rho_tot_hi*grav*dz + C;
 
                   // Do iterations
-                  HSEutils::Newton_Raphson_hse(tol, R_d/Cp_d, dz,
-                                               grav, C, Th_hi,
-                                               qv_hi, qv_hi,
-                                               P_hi, R_hi, F);
+                  HSEutils::Newton_Raphson_hse_Th(tol, R_d/Cp_d, dz,
+                                                  grav, C, Th_hi,
+                                                  qv_hi, qv_hi,
+                                                  P_hi, R_hi, F);
 
                   // Assign data
                    r_hse_arr(i,j,k) = R_hi;

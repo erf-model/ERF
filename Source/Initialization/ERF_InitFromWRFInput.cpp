@@ -1048,8 +1048,7 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev)
         int n_qstate_into_total = micro->Get_Qstate_Moist_Size() - micro->Get_Qstate_Moist_NumConc_Size();
         make_qt(lev_new[Vars::cons], qt, n_qstate_into_total);
 
-        bool use_existing_sfc_density = false;
-        rebalance_columns(rho, theta, qv, qt, z_phys_nd[lev].get(), geom[lev], use_existing_sfc_density);
+        rebalance_columns(rho, theta, qv, qt, z_phys_nd[lev].get(), geom[lev]);
 
         // Update (rho qv) in the state
         MultiFab::Multiply(qv, rho, 0, 0, 1, 1);
@@ -1411,10 +1410,10 @@ init_base_state_from_wrfinput (const Box& subdomain,
                     F = P_hi + myhalf*rho_tot_hi*grav*dz + C;
 
                     // Do iterations
-                    HSEutils::Newton_Raphson_hse(tol, R_d/Cp_d, dz,
-                                                 grav, C, Th_hi,
-                                                 qv_hi, qv_hi,
-                                                 P_hi, R_hi, F);
+                    HSEutils::Newton_Raphson_hse_Th(tol, R_d/Cp_d, dz,
+                                                    grav, C, Th_hi,
+                                                    qv_hi, qv_hi,
+                                                    P_hi, R_hi, F);
 
                     // At first cell center
                      r_hse_arr(i,j,klo) = R_hi;
@@ -1444,10 +1443,10 @@ init_base_state_from_wrfinput (const Box& subdomain,
                   F = P_hi + myhalf*rho_tot_hi*grav*dz + C;
 
                   // Do iterations
-                  HSEutils::Newton_Raphson_hse(tol, R_d/Cp_d, dz,
-                                               grav, C, Th_hi,
-                                               qv_hi, qv_hi,
-                                               P_hi, R_hi, F);
+                  HSEutils::Newton_Raphson_hse_Th(tol, R_d/Cp_d, dz,
+                                                  grav, C, Th_hi,
+                                                  qv_hi, qv_hi,
+                                                  P_hi, R_hi, F);
 
                   // Assign data
                    r_hse_arr(i,j,k) = R_hi;

@@ -1507,10 +1507,10 @@ init_base_state_from_metgrid (const bool use_moisture,
                 Real F = p_hi + myhalf*rho_tot_hi*grav*dz + C;
 
                 // Do iterations
-                if (std::abs(F)>tol) HSEutils::Newton_Raphson_hse(tol, R_d/Cp_d, dz,
-                                                                  grav, C, thetad_hi,
-                                                                  qv_hi, qv_hi, p_hi,
-                                                                  rd_hi, F);
+                if (std::abs(F)>tol) HSEutils::Newton_Raphson_hse_Th(tol, R_d/Cp_d, dz,
+                                                                     grav, C, thetad_hi,
+                                                                     qv_hi, qv_hi, p_hi,
+                                                                     rd_hi, F);
 
                 // Copy solution to state
                 new_data(i,j,k,Rho_comp)       = rd_hi;

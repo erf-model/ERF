@@ -239,10 +239,10 @@ public:
             F = pm_integ[k] + myhalf*rho_tot_hi*CONST_GRAV*dz + C;
 
             // Do iterations
-            if (std::abs(F)>tol) HSEutils::Newton_Raphson_hse(tol, R_d/Cp_d, dz,
-                                                              CONST_GRAV, C, theta_inp_sound[itime][k],
-                                                              qv_inp_sound[itime][k], qv_inp_sound[itime][k],
-                                                              pm_integ[k], rhod_integ[k], F);
+            if (std::abs(F)>tol) HSEutils::Newton_Raphson_hse_Th(tol, R_d/Cp_d, dz,
+                                                                 CONST_GRAV, C, theta_inp_sound[itime][k],
+                                                                 qv_inp_sound[itime][k], qv_inp_sound[itime][k],
+                                                                 pm_integ[k], rhod_integ[k], F);
 #if 0       // Printing
             amrex::Print() << z_inp_sound[itime][k]
                            << " " << pm_integ[k]
