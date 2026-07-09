@@ -396,7 +396,7 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
             }
 
             int kpbl = klo;
-            Real zval0, zval, Rib0, Rib;
+            Real zval, Rib;                        // FIX: removed uninitialized zval0, Rib0
             {
                 zval = (use_terrain_fitted_coords)
                      ? Compute_Zrel_AtCellCenter(i, j, kpbl, z_nd_arr)
@@ -410,6 +410,7 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
                 const Real ws2 = amrex::max(ws2_raw, Real(1.0));
                 Rib = CONST_GRAV * zval * (theta_v - t_layer_v) / (ws2 * theta_v_klo);
             }
+            Real zval0 = zval, Rib0 = Rib;         // FIX: initialize here, mirrors Pass 1
 
             bool above_critical = false;
             while (!above_critical && ((kpbl + 1) <= khi)) {
