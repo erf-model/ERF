@@ -650,7 +650,7 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
                                   ? Compute_h_zeta_AtCellCenter(i, j, k, dxInv, z_nd_arr) : Real(1);
             const Real dz_terrain = met_h_zeta / dz_inv;
 
-            constexpr Real qc_threshold = Real(1.0e-5);
+            constexpr Real qc_threshold = Real(1.0e-4);  // Cloud water/ice threshold (kg/kg)
             Real qc_mix = Real(0);
             Real qi_mix = Real(0);
             if (use_moisture) {
@@ -662,7 +662,7 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
                 }
             }
             const Real total_qcloud = qc_mix + qi_mix;
-            const bool has_cloud = (total_qcloud > qc_threshold);
+            const bool has_cloud = turbChoice.enable_mrf_cloud_adjustment && (total_qcloud > qc_threshold);
 
             const int pbli_extent = turbChoice.pbl_mrf_use_zero_ri_extent ? pbli_zero_arr(i, j, 0) : pbli_arr(i, j, 0);
 
