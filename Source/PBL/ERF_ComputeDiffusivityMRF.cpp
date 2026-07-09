@@ -216,7 +216,7 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
         //const Array4<Real const> z_nd_arr = z_phys_nd->array(mfi);
         // Only retrieve z_phys_nd array if terrain-fitted coordinates are in use
         const Array4<Real const> z_nd_arr = use_terrain_fitted_coords ? z_phys_nd->array(mfi)
-                                                                : Array4<Real const>{};        
+                                                                : Array4<Real const>{};
 
         //
         // PASS 1 (PREDICTOR): Compute PBL height using base surface virtual temperature.
