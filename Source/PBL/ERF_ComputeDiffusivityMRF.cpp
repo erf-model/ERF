@@ -911,7 +911,8 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
         // WRF reference (module_bl_mrf.F lines 932-964):
         // https://github.com/wrf-model/WRF/blob/master/phys/module_bl_mrf.F#L932-L964
         //
-        constexpr Real Ribcr_zero = zero;
+        // Ribcr_zero is the critical Richardson number for zero-Ri diagnostics
+        //constexpr Real Ribcr_zero = zero;
         ParallelFor(xybx, [=] AMREX_GPU_DEVICE(int i, int j, int) noexcept
         {
             const Real t_layer  = t10av_arr(i, j, 0);

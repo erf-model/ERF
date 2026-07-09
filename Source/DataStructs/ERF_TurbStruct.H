@@ -192,6 +192,20 @@ public:
           pp, "mrf_fire_q_threshold", mrf_fire_q_threshold, lev, max_level);
         query_one_or_per_level(
           pp, "mrf_fire_t_excess_cap", mrf_fire_t_excess_cap, lev, max_level);
+        query_one_or_per_level(
+          pp, "enable_mrf_iterative_thermal_excess", enable_mrf_iterative_thermal_excess, lev, max_level);
+        query_one_or_per_level(
+          pp, "mrf_thermal_excess_iterations", mrf_thermal_excess_iterations, lev, max_level);
+        query_one_or_per_level(
+          pp, "enable_mrf_cloudy_layers", enable_mrf_cloudy_layers, lev, max_level);
+        query_one_or_per_level(
+          pp, "mrf_cloud_diffusivity_factor", mrf_cloud_diffusivity_factor, lev, max_level);
+        query_one_or_per_level(
+          pp, "enable_mrf_countergradient_bounds", enable_mrf_countergradient_bounds, lev, max_level);
+        query_one_or_per_level(
+          pp, "mrf_countergradient_max_theta", mrf_countergradient_max_theta, lev, max_level);
+        query_one_or_per_level(
+          pp, "mrf_countergradient_max_q", mrf_countergradient_max_q, lev, max_level);
       } else if (pbl_type == PBLType::SHOC) {
 #ifndef ERF_USE_SHOC
           amrex::Abort("You set use_shoc to true but didn't build with SHOC; you must rebuild the executable");
@@ -574,6 +588,7 @@ public:
     fourth; // Critical Bulk Richardson number of Land for stable conditions
   amrex::Real pbl_ysu_unst_Ribcr =
     zero; // Critical Bulk Richardson number for unstable conditions
+
   // Model coefficients - MRF
   amrex::Real pbl_mrf_coriolis_freq = amrex::Real(1.0e-4);
   amrex::Real pbl_mrf_Ribcr   = amrex::Real(0.5); // Critical Bulk Richardson number for MRF PBL model
@@ -587,6 +602,14 @@ public:
   bool mrf_fire_thermal_excess = false; ///< if true, add fire surface flux to MRF thermal excess
   amrex::Real mrf_fire_q_threshold = amrex::Real(50.0); ///< minimum fire heat flux [W/m2] to activate correction
   amrex::Real mrf_fire_t_excess_cap = amrex::Real(50.0); ///< maximum thermal excess [K] when fire is active
+  bool enable_mrf_iterative_thermal_excess = false; ///< if true, use iterative method to compute MRF thermal excess
+  int  mrf_thermal_excess_iterations = 5;           ///< number of iterations for iterative thermal excess calculation
+  bool enable_mrf_cloudy_layers = false;             ///< if true, apply enhanced diffusivity in cloudy layers
+  amrex::Real mrf_cloud_diffusivity_factor = amrex::Real(2.0); ///< factor to scale diffusivity in cloudy layers
+  bool enable_mrf_countergradient_bounds = false;    ///< if true, limit countergradient terms by max values
+  amrex::Real mrf_countergradient_max_theta = amrex::Real(0.05); ///< max countergradient correction for theta [K/m]
+  amrex::Real mrf_countergradient_max_q = amrex::Real(1.0e-5);   ///< max countergradient correction for q [kg/kg/m]
+
   // MYNN2.5 PBL model
   // TKE/QKE stuff
   bool advect_tke = true; // if MYNN2.5 PBL is used default is turb transport in

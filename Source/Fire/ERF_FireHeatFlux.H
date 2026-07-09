@@ -128,20 +128,10 @@ amrex::Real compute_heat_flux_cell(
     amrex::Real h_fuel_J_per_kg,
     amrex::Real tau_res_s) noexcept
 {
-    // Only burned cells contribute to heat flux
-    if (phi >= 0.0) return 0.0;
-
-    // Heat flux is zero if fuel or combustion is negligible
-    if (fuel_load_remain <= 0.0_rt || f_c <= 0.0_rt) {
-        return 0.0_rt;
-    }
-
-    // Guard against zero or negative tau_res
-    if (tau_res_s <= 0.0) return 0.0;
-
-    // Q = fuel_load * h_fuel * f_c / tau_res
-    amrex::Real Q = fuel_load_remain * h_fuel_J_per_kg * f_c / tau_res_s;
-    return amrex::max(0.0_rt, Q);
+    if (phi >= 0.0)              return 0.0;
+    if (fuel_load_remain <= 0.0) return 0.0;
+    if (tau_res_s <= 0.0)        return 0.0;
+    return amrex::max(0.0, fuel_load_remain * h_fuel_J_per_kg / tau_res_s);
 }
 
 /**

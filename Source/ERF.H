@@ -58,7 +58,9 @@
 #include "ERF_EulerianMicrophysics.H"
 #include "ERF_LagrangianMicrophysics.H"
 #include "ERF_LandSurface.H"
+#ifdef ERF_ENABLE_FIRE
 #include "ERF_Fire.H"
+#endif
 
 #ifdef ERF_USE_WINDFARM
 #include "ERF_WindFarm.H"
@@ -1466,6 +1468,7 @@ private:
     std::string m_fire_plot_file {"plt_fire_"};
     int         m_fire_plot_int  = -1;
     amrex::Real m_fire_plot_per  = -1.0;
+    void ReadCheckpointFileFire (); 
 #endif
 
 

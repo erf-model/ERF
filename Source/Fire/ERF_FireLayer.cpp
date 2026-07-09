@@ -19,18 +19,18 @@ void FireLayer::initialize(const ERF& erf,
                             erf.Geom(0), fire_params.grid_ratio);
     m_nz = erf.Geom(0).Domain().length(2);
 
-    // Allocate MultiFabs (fire_phi needs 1 ghost cell for gradient stencils)
-    fire_phi          = std::make_unique<MultiFab>(m_fg.ba, m_fg.dm, 1, 1);
-    fire_wind_ref     = std::make_unique<MultiFab>(m_fg.ba, m_fg.dm, 2, 0);
-    fire_wind_eff     = std::make_unique<MultiFab>(m_fg.ba, m_fg.dm, 2, 0);
-    fire_slopes       = std::make_unique<MultiFab>(m_fg.ba, m_fg.dm, 2, 1);
-    fire_curvature    = std::make_unique<MultiFab>(m_fg.ba, m_fg.dm, 1, 0);
-    fire_ros          = std::make_unique<MultiFab>(m_fg.ba, m_fg.dm, 1, 0);
-    fire_fuel_load    = std::make_unique<MultiFab>(m_fg.ba, m_fg.dm, 1, 0);
-    fire_fuel_mc      = std::make_unique<MultiFab>(m_fg.ba, m_fg.dm, 3, 0);
-    fire_mext         = std::make_unique<MultiFab>(m_fg.ba, m_fg.dm, 1, 0);
-    fire_heat_flux    = std::make_unique<MultiFab>(m_fg.ba, m_fg.dm, 1, 0);
-    fire_spread_vec   = std::make_unique<MultiFab>(m_fg.ba, m_fg.dm, 2, 0);
+    fire_phi        = std::make_unique<MultiFab>(m_fg.ba, m_fg.dm, 1, 3);
+    fire_wind_ref   = std::make_unique<MultiFab>(m_fg.ba, m_fg.dm, 2, 0);
+    fire_wind_eff   = std::make_unique<MultiFab>(m_fg.ba, m_fg.dm, 2, 0);
+    fire_wind_extract_z = std::make_unique<MultiFab>(m_fg.ba, m_fg.dm, 1, 0);
+    fire_slopes     = std::make_unique<MultiFab>(m_fg.ba, m_fg.dm, 2, 1);
+    fire_curvature  = std::make_unique<MultiFab>(m_fg.ba, m_fg.dm, 1, 0);
+    fire_ros        = std::make_unique<MultiFab>(m_fg.ba, m_fg.dm, 1, 0);
+    fire_fuel_load  = std::make_unique<MultiFab>(m_fg.ba, m_fg.dm, 1, 0);
+    fire_fuel_mc    = std::make_unique<MultiFab>(m_fg.ba, m_fg.dm, 5, 0);
+    fire_mext       = std::make_unique<MultiFab>(m_fg.ba, m_fg.dm, 1, 0);
+    fire_heat_flux  = std::make_unique<MultiFab>(m_fg.ba, m_fg.dm, 1, 0);
+    fire_spread_vec = std::make_unique<MultiFab>(m_fg.ba, m_fg.dm, 2, 0);
     fire_arrival_time = std::make_unique<MultiFab>(m_fg.ba, m_fg.dm, 1, 0);
     fire_disp_accum   = std::make_unique<MultiFab>(m_fg.ba, m_fg.dm, 2, 0);
     fire_surface_temp = std::make_unique<MultiFab>(m_fg.ba, m_fg.dm, 1, 0);
@@ -40,23 +40,91 @@ void FireLayer::initialize(const ERF& erf,
     fire_fireline_intensity = std::make_unique<MultiFab>(m_fg.ba, m_fg.dm, 1, 0);
     fire_flame_length = std::make_unique<MultiFab>(m_fg.ba, m_fg.dm, 1, 0);
 
-    fire_phi->setVal(1.0_rt);
-    fire_wind_ref->setVal(0.0_rt);
-    fire_wind_eff->setVal(0.0_rt);
-    fire_slopes->setVal(0.0_rt);
-    fire_curvature->setVal(0.0_rt);
-    fire_ros->setVal(0.0_rt);
-    fire_arrival_time->setVal(-1.0_rt);  // -1 = unburned
-    fire_disp_accum->setVal(0.0_rt);     // zero accumulated displacement
+    // Phase 9 diagnostics
+    fire_flame_temp = std::make_unique<MultiFab>(m_fg.ba, m_fg.dm, 1, 0);
+    fire_crown_fraction_burned = std::make_unique<MultiFab>(m_fg.ba, m_fg.dm, 1, 0);
+    if (m_params.compute_flame_tilt) {
+        fire_flame_tilt = std::make_unique<MultiFab>(m_fg.ba, m_fg.dm, 1, 0);
+    }
+    if (m_params.crown.enable) {
+        fire_crown_active = std::make_unique<MultiFab>(m_fg.ba, m_fg.dm, 1, 0);
+        fire_crown_load = std::make_unique<MultiFab>(m_fg.ba, m_fg.dm, 1, 0);
+    }
 
-    // Fuel load
+    fire_phi->setVal(1.0);
+    fire_spread_vec->setVal(0.0_rt);
+    fire_wind_ref->setVal(0.0);
+    fire_wind_eff->setVal(0.0);
+    fire_wind_extract_z->setVal(0.0);
+    fire_slopes->setVal(0.0);
+    fire_curvature->setVal(0.0);
+    fire_ros->setVal(0.0);
+    fire_arrival_time->setVal(-1.0_rt);
+    fire_disp_accum->setVal(0.0_rt);
+    fire_surface_temp->setVal(0.0);
+    fire_surface_rh->setVal(0.0);
+    fire_fireline_intensity->setVal(0.0_rt);
+    fire_flame_length->setVal(0.0_rt);
+    fire_flame_temp->setVal(0.0_rt);
+    fire_crown_fraction_burned->setVal(0.0_rt);
+    if (fire_flame_tilt) {
+        fire_flame_tilt->setVal(0.0_rt);
+    }
+    if (fire_crown_active) {
+        fire_crown_active->setVal(0.0_rt);
+    }
+    if (fire_crown_load) {
+        fire_crown_load->setVal(m_params.crown.canopy_bulk_den * m_params.crown.canopy_depth);
+    }
+
+    // Phase 6: fire-atmosphere coupling MultiFabs
+    const BoxArray& ba_atm = erf.boxArray(0);
+    const DistributionMapping& dm_atm = erf.DistributionMap(0);
+    BoxArray ba_atm_2d = ba_atm;
+    ba_atm_2d.coarsen(IntVect(1, 1, erf.Geom(0).Domain().length(2)));
+    m_Q_atm_prev = std::make_unique<MultiFab>(ba_atm_2d, dm_atm, 1, 0);
+    m_Q_lat_atm_prev = std::make_unique<MultiFab>(ba_atm_2d, dm_atm, 1, 0);
+    m_Q_atm_prev->setVal(0.0_rt);
+    m_Q_lat_atm_prev->setVal(0.0_rt);
+
+    fire_latent_flux = std::make_unique<MultiFab>(m_fg.ba, m_fg.dm, 1, 0);
+    fire_latent_flux->setVal(0.0_rt);
+
+    // Phase 8: Albini spotting diagnostics
+    if (m_params.spotting.enable) {
+        fire_albini_data = std::make_unique<MultiFab>(m_fg.ba, m_fg.dm, 4, 0);
+        fire_albini_data->setVal(0.0_rt);
+        if (m_params.fire_debug) {
+            amrex::Print() << "[FIRE DEBUG] Albini spotting enabled: "
+                           << "I_B_min=" << m_params.spotting.I_B_min << " kW/m, "
+                           << "P_base=" << m_params.spotting.P_base << "\n";
+        }
+    }
+
+    // Phase 12: Allocate per-cell acceleration state for temporal model.
+    // Only allocated when both enable and use_temporal are true.
+    // When disabled or size-based, fire_accel_state stays nullptr.
+    if (m_params.accel.enable && m_params.accel.use_temporal) {
+        fire_accel_state = std::make_unique<MultiFab>(m_fg.ba, m_fg.dm, 3, 0);
+        fire_accel_state->setVal(0.0_rt);
+        if (m_params.fire_debug) {
+            amrex::Print() << "[FIRE DEBUG] Fire acceleration enabled (temporal model): "
+                           << "A_point=" << m_params.accel.A_point << " 1/min, "
+                           << "A_line=" << m_params.accel.A_line << " 1/min\n";
+        }
+    } else if (m_params.accel.enable) {
+        if (m_params.fire_debug) {
+            amrex::Print() << "[FIRE DEBUG] Fire acceleration enabled (size-based model): "
+                           << "L_acc=" << m_params.accel.L_acc << " m\n";
+        }
+    }
+
     FuelModelParams fp = get_anderson_fuel_params(fire_params.fuel_model_id);
     fire_fuel_load->setVal((fp.w_d1+fp.w_d10+fp.w_d100+fp.w_lh+fp.w_lw)*4.88243);
     m_fuel_load_initial_kg_m2 = (fp.w_d1+fp.w_d10+fp.w_d100+fp.w_lh+fp.w_lw)*4.88243_rt;
     m_fuel_bed_depth_ft = fp.delta;
 
-    // Fuel moisture
-    fire_fuel_mc->setVal(0.0_rt);
+    fire_fuel_mc->setVal(0.0);
     for (MFIter mfi(*fire_fuel_mc); mfi.isValid(); ++mfi) {
         Array4<Real> mc = fire_fuel_mc->array(mfi);
         amrex::ParallelFor(mfi.tilebox(), [=] AMREX_GPU_DEVICE (const IntVect& iv) {
@@ -68,44 +136,117 @@ void FireLayer::initialize(const ERF& erf,
         });
     }
 
-    // Moisture of extinction
-    Real dead_load = fp.w_d1 + fp.w_d10 + fp.w_d100;
-    Real sigma_weighted = dead_load > 0.0_rt
-        ? (fp.w_d1 * fp.sigma_d1) / dead_load : fp.sigma_d1;
+    Real dead_load = fp.w_d1+fp.w_d10+fp.w_d100;
+    Real sigma_weighted = dead_load > 0.0_rt ? (fp.w_d1*fp.sigma_d1)/dead_load : fp.sigma_d1;
     fire_mext->setVal(compute_moisture_of_extinction(sigma_weighted));
 
-    // Terrain slopes and curvature
-    compute_terrain_slopes(*fire_slopes, z_phys_nd_atm, erf.Geom(0), m_fg,
-                           m_params.terrain_file_name);
+    compute_terrain_slopes(*fire_slopes, z_phys_nd_atm, erf.Geom(0), m_fg, m_params.terrain_file_name);
     fire_slopes->FillBoundary(m_fg.geom.periodicity());
     compute_terrain_curvature(*fire_curvature, *fire_slopes, m_fg.geom);
 
-    // Ignition
     m_ignition_x = fire_params.ignition_x;
     m_ignition_y = fire_params.ignition_y;
     m_ignition_r = fire_params.ignition_r;
+
     initialize_ignition(*fire_phi, m_fg.geom, m_ignition_x, m_ignition_y, m_ignition_r);
     fire_phi->FillBoundary(m_fg.geom.periodicity());
 
-    // Mark ignition cells in arrival time (t=0)
     for (MFIter mfi(*fire_phi); mfi.isValid(); ++mfi) {
-        Array4<const Real> phi_arr = fire_phi->const_array(mfi);
-        Array4<Real>       at_arr  = fire_arrival_time->array(mfi);
-        amrex::ParallelFor(mfi.tilebox(), [=] AMREX_GPU_DEVICE (const IntVect& iv) {
+        auto phi_arr = fire_phi->const_array(mfi);
+        auto at_arr  = fire_arrival_time->array(mfi);
+        ParallelFor(mfi.tilebox(), [=] AMREX_GPU_DEVICE (const IntVect& iv) {
             if (phi_arr(iv) < 0.0_rt) at_arr(iv) = 0.0_rt;
         });
     }
 
-    // FARSITE parameters
-    m_fp.phi_threshold   = fire_params.farsite_phi_threshold;
-    m_fp.coeff_a         = fire_params.farsite_coeff_a;
-    m_fp.coeff_b         = fire_params.farsite_coeff_b;
-    m_fp.coeff_c         = fire_params.farsite_coeff_c;
-    m_fp.use_anderson_lw = fire_params.farsite_use_anderson_lw;
-    m_fp.gaussian_sigma  = fire_params.farsite_gaussian_sigma;
-    m_fp.cfl_fire        = fire_params.farsite_cfl_fire;
+    // Phase 10: Load spatial fuel map from file when specified.
+    // File reading is CPU-only on rank 0; broadcast to all ranks; copy to device.
+    if (!m_params.fuel_map.fuel_map_file.empty()) {
+        const int fire_nx = m_fg.ba.minimalBox().length(0);
+        const int fire_ny = m_fg.ba.minimalBox().length(1);
+        std::vector<int> h_fuel_codes;
+        int nodata_val = -9999;
+        bool ok = false;
+        if (m_params.fuel_map.fuel_map_format == "lcp") {
+            ok = read_lcp_fuel_map(m_params.fuel_map.fuel_map_file,
+                                   fire_nx, fire_ny, h_fuel_codes);
+        } else {
+            ok = read_ascii_fuel_map(m_params.fuel_map.fuel_map_file,
+                                     fire_nx, fire_ny, h_fuel_codes, nodata_val);
+        }
+        if (ok) {
+            m_d_fuel_codes.resize(h_fuel_codes.size());
+            amrex::Gpu::copy(amrex::Gpu::hostToDevice,
+                             h_fuel_codes.begin(), h_fuel_codes.end(),
+                             m_d_fuel_codes.begin());
+            fire_fuel_model = std::make_unique<amrex::MultiFab>(m_fg.ba, m_fg.dm, 1, 0);
+            fill_fuel_model_mf(*fire_fuel_model, m_d_fuel_codes.data(),
+                               m_fg.geom, fire_nx);
+            m_has_spatial_fuel = true;
+            if (m_params.fire_debug) {
+                amrex::Print() << "[FIRE DEBUG] Loaded spatial fuel map '"
+                               << m_params.fuel_map.fuel_map_file << "': "
+                               << fire_nx << "x" << fire_ny << " cells\n";
+            }
+        } else {
+            amrex::Print() << "[FIRE] WARNING: Cannot read fuel map '"
+                           << m_params.fuel_map.fuel_map_file
+                           << "'; using uniform fuel_model_id="
+                           << m_params.fuel_model_id << "\n";
+        }
+    }
 
-    // Rothermel coefficients
+    // Phase 10: Apply firebreak barriers after ignition stamp.
+    if (!m_params.firebreaks.empty() && fire_phi) {
+        apply_firebreaks(*fire_phi, m_params.firebreaks, m_fg.geom);
+        if (m_params.fire_debug) {
+            amrex::Print() << "[FIRE DEBUG] Applied "
+                           << m_params.n_firebreaks << " firebreak(s)\n";
+        }
+    }
+
+    // Phase 11: Polygon ignition (initial fire perimeter from vertex file).
+    // Applied at t=0 as part of initialization, before the schedule.
+    if (!m_params.ignition.polygon_file.empty()) {
+        std::vector<amrex::Real> xs, ys;
+        // Vertex file is read on rank 0 only; broadcast to all ranks inside
+        // read_polygon_vertices() before returning.
+        read_polygon_vertices(m_params.ignition.polygon_file, xs, ys);
+        if (m_params.ignition.polygon_type == "polyline") {
+            init_phi_from_polyline(*fire_phi, m_fg.geom, xs, ys,
+                                   m_params.ignition.polyline_width);
+        } else {
+            init_phi_from_polygon(*fire_phi, m_fg.geom, xs, ys);
+        }
+        fire_phi->FillBoundary(m_fg.geom.periodicity());
+        if (m_params.fire_debug) {
+            amrex::Print() << "[FIRE DEBUG] Polygon ignition applied from '"
+                           << m_params.ignition.polygon_file << "' ("
+                           << m_params.ignition.polygon_type << ")\n";
+        }
+    }
+
+    // Phase 11: Load ignition schedule if specified.
+    // File reading and broadcast are handled inside load_ignition_schedule().
+    if (!m_params.ignition.ignition_schedule_file.empty()) {
+        load_ignition_schedule(m_params.ignition.ignition_schedule_file,
+                               m_ignition_schedule);
+        m_has_schedule = true;
+        if (m_params.fire_debug) {
+            amrex::Print() << "[FIRE DEBUG] Loaded ignition schedule: "
+                           << m_ignition_schedule.events.size()
+                           << " events\n";
+        }
+    }
+
+    m_fp.phi_threshold      = fire_params.farsite_phi_threshold;
+    m_fp.coeff_a            = fire_params.farsite_coeff_a;
+    m_fp.coeff_b            = fire_params.farsite_coeff_b;
+    m_fp.coeff_c            = fire_params.farsite_coeff_c;
+    m_fp.use_anderson_lw    = fire_params.farsite_use_anderson_lw;
+    m_fp.gaussian_sigma     = fire_params.farsite_gaussian_sigma;
+    m_fp.cfl_fire           = fire_params.farsite_cfl_fire;
+
     m_rc = compute_rothermel_params(fp, fire_params.moisture_1hr,
                                     fire_params.moisture_10hr,
                                     fire_params.moisture_100hr);
@@ -178,14 +319,22 @@ void FireLayer::initialize(const ERF& erf,
                    << ", grid=" << m_fg.ba.size() << " boxes" << std::endl;
 
     if (m_params.fire_debug) {
-        IntVect max_extent  = m_fg.geom.Domain().size();
+        IntVect max_extent = m_fg.geom.Domain().size();
         RealBox prob_domain = m_fg.geom.ProbDomain();
-        Real dx_fire = (prob_domain.hi(0) - prob_domain.lo(0)) / max_extent[0];
-        Real dy_fire = (prob_domain.hi(1) - prob_domain.lo(1)) / max_extent[1];
-        amrex::Print() << "[FIRE DEBUG] Fire grid: dx=" << dx_fire
-                       << " m, dy=" << dy_fire << " m, "
-                       << max_extent[0] << " x " << max_extent[1]
-                       << " cells, grid_ratio=" << m_fg.C << std::endl;
+        Real dx_fire = (prob_domain.hi(0)-prob_domain.lo(0))/max_extent[0];
+        Real dy_fire = (prob_domain.hi(1)-prob_domain.lo(1))/max_extent[1];
+        amrex::Print() << "[FIRE DEBUG] Fire grid: dx=" << dx_fire << " m, dy=" << dy_fire
+                       << " m, extent=" << max_extent[0] << "x" << max_extent[1]
+                       << ", grid_ratio=" << m_fg.C << std::endl;
+        amrex::Print() << "[FIRE DEBUG] Coupling type: " << fire_params.coupling_type
+                       << " (passive=" << fire_params.is_passive()
+                       << ", lagged=" << fire_params.is_lagged()
+                       << ", synchronous=" << fire_params.is_synchronous() << ")" << std::endl;
+        amrex::Print() << "[FIRE DEBUG] Fire-atmosphere feedback multiplier: "
+                       << fire_params.fire_atm_feedback << std::endl;
+        amrex::Print() << "[FIRE DEBUG] Heat flux alfg (e-folding height): "
+                       << fire_params.heat_flux_alfg << " m" << std::endl;
+        amrex::Print() << "[FIRE DEBUG] Inject latent heat: " << fire_params.inject_latent << std::endl;
     }
 }
 
@@ -201,9 +350,11 @@ void FireLayer::advance(Real time, Real dt, SurfaceLayer& surface_layer,
     if (m_params.fire_debug)
         amrex::Print() << "[FIRE DEBUG] Starting fire advance step with dt=" << dt << std::endl;
 
-    // 1. Wind extraction
-    fill_fire_wind_from_interpolation(*fire_wind_ref, xvel, yvel, z_phys_cc,
-                                      m_fg, m_params.wind_ref_ht, m_nz);
+    fill_fire_wind_from_interpolation(*fire_wind_ref, *fire_wind_extract_z, xvel, yvel, z_phys_cc,
+                                      m_fg, m_params.wind_ref_ht, m_nz,
+                                      m_use_per_fuel_wind_ht ? fire_fuel_model.get() : nullptr,
+                                      m_use_per_fuel_wind_ht ? m_d_fcwh.data() : nullptr,
+                                      m_use_per_fuel_wind_ht ? 13 : 0);
     if (m_params.fire_debug) {
         amrex::Print() << "[FIRE DEBUG] Wind extraction completed. Max reference wind: "
                        << fire_wind_ref->max(0) << " m/s" << std::endl;
@@ -213,10 +364,8 @@ void FireLayer::advance(Real time, Real dt, SurfaceLayer& surface_layer,
                            << fire_wind_extract_z->max(0) << " m" << std::endl;
     }
 
-    // 2. Copy to effective wind
     MultiFab::Copy(*fire_wind_eff, *fire_wind_ref, 0, 0, 2, 0);
 
-    // 3. WAF
     if (m_params.use_waf) {
         if (m_params.fire_debug)
             amrex::Print() << "[FIRE DEBUG] Applying Wind Adjustment Factor (formula: "
@@ -224,7 +373,6 @@ void FireLayer::advance(Real time, Real dt, SurfaceLayer& surface_layer,
         apply_waf_to_wind();
     }
 
-    // 4. Terrain wind
     if (m_params.use_terrain_wind) {
         if (m_params.fire_debug)
             amrex::Print() << "[FIRE DEBUG] Applying FARSITE terrain wind corrections" << std::endl;
@@ -237,7 +385,6 @@ void FireLayer::advance(Real time, Real dt, SurfaceLayer& surface_layer,
         amrex::Print() << "[FIRE DEBUG] Effective wind computed. Max effective wind: "
                        << fire_wind_eff->max(0) << " m/s" << std::endl;
 
-    // 5. Fuel moisture
     if (m_params.fire_debug)
         amrex::Print() << "[FIRE DEBUG] Updating fuel moisture from atmospheric state" << std::endl;
     advance_fuel_moisture(dt, T_atm_k0, RH_atm_k0);
@@ -252,21 +399,85 @@ void FireLayer::advance(Real time, Real dt, SurfaceLayer& surface_layer,
                        << fire_surface_rh->max(0) << std::endl;
     }
 
-    // 5b. Dynamic Rothermel update
     if (m_params.moisture_dynamic) {
-        long num_cells   = fire_fuel_mc->boxArray().numPts();
-        Real avg_mc_1hr   = (num_cells > 0) ? fire_fuel_mc->sum(0) / Real(num_cells) : m_params.moisture_1hr;
-        Real avg_mc_10hr  = (num_cells > 0) ? fire_fuel_mc->sum(1) / Real(num_cells) : m_params.moisture_10hr;
-        Real avg_mc_100hr = (num_cells > 0) ? fire_fuel_mc->sum(2) / Real(num_cells) : m_params.moisture_100hr;
-        avg_mc_1hr   = amrex::max(0.01_rt, amrex::min(avg_mc_1hr,   0.40_rt));
-        avg_mc_10hr  = amrex::max(0.01_rt, amrex::min(avg_mc_10hr,  0.40_rt));
-        avg_mc_100hr = amrex::max(0.01_rt, amrex::min(avg_mc_100hr, 0.40_rt));
+        long nc = fire_fuel_mc->boxArray().numPts();
+        Real avg1   = (nc>0) ? fire_fuel_mc->sum(0)/Real(nc) : m_params.moisture_1hr;
+        Real avg10  = (nc>0) ? fire_fuel_mc->sum(1)/Real(nc) : m_params.moisture_10hr;
+        Real avg100 = (nc>0) ? fire_fuel_mc->sum(2)/Real(nc) : m_params.moisture_100hr;
+        avg1   = amrex::max(0.01_rt, amrex::min(avg1,   0.40_rt));
+        avg10  = amrex::max(0.01_rt, amrex::min(avg10,  0.40_rt));
+        avg100 = amrex::max(0.01_rt, amrex::min(avg100, 0.40_rt));
         FuelModelParams fp_cur = get_anderson_fuel_params(m_params.fuel_model_id);
-        m_rc = compute_rothermel_params(fp_cur, avg_mc_1hr, avg_mc_10hr, avg_mc_100hr);
+        m_rc = compute_rothermel_params(fp_cur, avg1, avg10, avg100);
+        if (m_params.fire_debug)
+            amrex::Print() << "[FIRE DEBUG] Updated Rothermel coefficients with avg moisture: "
+                           << "M_1hr=" << avg1 << " M_10hr=" << avg10
+                           << " M_100hr=" << avg100 << " R0=" << m_rc.R0 << " m/s" << std::endl;
+        
+        // Phase 13B: Moisture coupling for Balbi and Cheney-Gould models
+        if (m_params.moisture_dynamic && m_params.ros_model == "balbi") {
+            // Recompute Balbi coefficients with updated moisture
+            FuelModelParams fp_balbi = get_anderson_fuel_params(m_params.fuel_model_id);
+            fp_balbi.Mx = avg1;  // Use 1-hr moisture as representative
+            m_bc_default = compute_balbi_params(fp_balbi, m_params.balbi);
+        }
+        if (m_params.moisture_dynamic && m_params.ros_model == "cheney_gould") {
+            // Update Cheney-Gould with current 1-hr moisture converted to percent
+            FireParams::CheneyGouldParams cgp_cur = m_params.cheney_gould;
+            cgp_cur.moisture = avg1 * 100.0_rt;  // fraction → percent
+            m_cgc = compute_cheney_gould_params(cgp_cur);
+        }
+        // Phase 15: Update BEHAVE state when dynamic moisture is enabled.
+        if (m_params.moisture_dynamic && m_params.ros_model == "behave") {
+            FuelModelParams fp_bh = get_anderson_fuel_params(m_params.fuel_model_id);
+            // Domain-average live moisture from components 3 and 4
+            long nc_live = fire_fuel_mc->boxArray().numPts();
+            Real avg_lh  = (nc_live > 0) ? fire_fuel_mc->sum(3) / Real(nc_live) : m_params.moisture_live;
+            Real avg_lw  = (nc_live > 0) ? fire_fuel_mc->sum(4) / Real(nc_live) : m_params.moisture_live;
+            avg_lh = amrex::max(0.30_rt, amrex::min(avg_lh, 2.50_rt));
+            avg_lw = amrex::max(0.30_rt, amrex::min(avg_lw, 2.50_rt));
+            m_bs_default = compute_behave_state(fp_bh, avg1, avg10, avg100, avg_lh, avg_lw);
+        }
     }
 
-    // 6. ROS
-    compute_ros_field(*fire_ros, *fire_wind_eff, *fire_slopes, m_rc);
+    // Phase 11: Apply any scheduled ignition events due this timestep.
+    // Time window: (m_current_time - dt, m_current_time].
+    if (m_has_schedule && fire_phi) {
+        apply_scheduled_ignitions(*fire_phi, m_fg.geom,
+                                  m_ignition_schedule,
+                                  m_current_time,
+                                  m_current_time - dt);
+        // fill_boundary after any phi modification to propagate ghost cells
+        //amrex::FillBoundary(*fire_phi, m_fg.geom);
+        fire_phi->FillBoundary(m_fg.geom.periodicity());        
+    }
+
+    // Phase 13B: ROS model dispatch.
+    // All models write into fire_ros [m/s].
+    // Rothermel is the default (ros_model = "rothermel" or unrecognised string).
+    if (m_params.ros_model == "balbi") {
+        const BalbiComputed* d_tbl_ptr = m_d_balbi_table.empty() ? nullptr : m_d_balbi_table.data();
+        int tbl_sz = static_cast<int>(m_d_balbi_table.size());
+        fill_balbi_ros(*fire_ros, *fire_wind_eff, *fire_slopes,
+                       m_bc_default,
+                       m_has_spatial_fuel ? fire_fuel_model.get() : nullptr,
+                       d_tbl_ptr, tbl_sz);
+    } else if (m_params.ros_model == "cheney_gould") {
+        fill_cheney_gould_ros(*fire_ros, *fire_wind_eff, m_cgc);
+    } else if (m_params.ros_model == "behave") {
+        // Phase 15: BEHAVE multi-class Rothermel model
+        FuelModelParams fp_behave = get_anderson_fuel_params(m_params.fuel_model_id);
+        fill_behave_ros(*fire_ros, *fire_wind_eff, *fire_slopes,
+                        fp_behave,
+                        m_bs_default,
+                        m_params.moisture_dynamic ? fire_fuel_mc.get() : nullptr,
+                        m_params.moisture_dynamic);
+    } else if (m_params.ros_model == "macarthur") {
+        fill_macarthur_ros(*fire_ros, *fire_wind_eff);
+    } else {
+        // Default: Rothermel (1972) — existing code path, unchanged
+        compute_ros_field(*fire_ros, *fire_wind_eff, *fire_slopes, m_rc);
+    }
     if (m_params.fire_debug) {
         // Compute masked ROS diagnostics (only for burning cells where phi < 0)
         amrex::Real ros_max_burning = 0.0_rt;
@@ -300,50 +511,90 @@ void FireLayer::advance(Real time, Real dt, SurfaceLayer& surface_layer,
                        << " m/s" << std::endl;
     }
 
-    // 7. FARSITE subcycle
-    // The subcycle resets phi to 0 then stamps the propagated front ring.
-    // Displacement is accumulated across atmospheric steps in fire_disp_accum.
-    // A cell is only stamped when accum magnitude >= 0.5 * dx_fire.
-    int n_substeps = advance_fire_subcycle(*fire_phi, *fire_spread_vec,
-                                           *fire_disp_accum,
-                                           *fire_arrival_time,
-                                           *fire_wind_eff, *fire_ros,
-                                           m_fg.geom, dt, m_fp);
-
-    if (m_params.fire_debug)
-        amrex::Print() << "[FIRE DEBUG] Level-set propagation completed with "
-                       << n_substeps << " fire subcycles" << std::endl;
-
-    // 8. Re-apply burned interior from arrival time.
-    // The FARSITE subcycle only stamps newly propagated front cells.
-    // Restore all previously burned cells from arrival_time here.
-    for (MFIter mfi(*fire_phi); mfi.isValid(); ++mfi) {
-        Array4<Real>       p  = fire_phi->array(mfi);
-        Array4<const Real> at = fire_arrival_time->const_array(mfi);
-        amrex::ParallelFor(mfi.tilebox(), [=] AMREX_GPU_DEVICE (const IntVect& iv) {
-            if (at(iv) >= 0.0_rt) p(iv) = -1.0_rt;
-        });
+    // Phase 10: Fuel boundary blending when spatial fuel map is active.
+    if (m_has_spatial_fuel &&
+        m_params.fuel_map.blending_fraction > 0.0_rt &&
+        fire_fuel_model && fire_ros) {
+        apply_fuel_boundary_blending(*fire_ros, *fire_fuel_model,
+                                      m_params.fuel_map.blending_fraction);
     }
 
-    // 9. Record arrival time for cells newly burned this step.
-    Real cur_time = m_current_time + dt;
-    for (MFIter mfi(*fire_phi); mfi.isValid(); ++mfi) {
-        Array4<const Real> p  = fire_phi->const_array(mfi);
-        Array4<Real>       at = fire_arrival_time->array(mfi);
-        amrex::ParallelFor(mfi.tilebox(), [=] AMREX_GPU_DEVICE (const IntVect& iv) {
-            if (p(iv) < 0.0_rt && at(iv) < 0.0_rt) at(iv) = cur_time;
-        });
+    fire_phi->FillBoundary(m_fg.geom.periodicity());
+
+    // Phase 12: Apply fire acceleration scaling to ROS.
+    // Reduces ROS for small fires not yet at quasi-steady-state.
+    // Returns immediately when accel.enable = false (zero cost when disabled).
+    if (m_params.accel.enable && fire_ros && fire_phi) {
+        apply_fire_acceleration(*fire_ros, *fire_phi, m_fg.geom,
+                                m_params.accel, dt,
+                                fire_accel_state.get(),
+                                m_params.fire_debug);
+    }
+
+    int n_substeps = 0;
+    
+    if (m_params.propagation_method == "levelset") {
+        // --- Level-set path ---
+        // CFL-based subcycling (same structure as FARSITE)
+        amrex::Real time_remaining = dt;
+        while (time_remaining > 1.0e-14) {
+            amrex::Real max_ros = fire_ros->max(0);
+            amrex::Real dt_ls   = (max_ros > 1.0e-10)
+                ? m_params.levelset_cfl * std::min(m_fg.geom.CellSize()[0],
+                                                   m_fg.geom.CellSize()[1]) / max_ros
+                : time_remaining;
+            dt_ls = std::min(dt_ls, time_remaining);
+
+            fire_levelset::advect_levelset_weno5z_rk3(*fire_phi, *fire_wind_eff,
+                                            *fire_ros, m_fg.geom, dt_ls);
+            fire_phi->FillBoundary(m_fg.geom.periodicity());
+
+            ++m_levelset_subcycle_count;
+            if (m_levelset_subcycle_count % m_params.levelset_reinit_every == 0) {
+                amrex::Real dtau = (m_params.levelset_reinit_dtau > 0.0)
+                    ? m_params.levelset_reinit_dtau
+                    : 0.5 * std::min(m_fg.geom.CellSize()[0], m_fg.geom.CellSize()[1]);
+                fire_levelset::reinitialize_phi(*fire_phi, m_fg.geom,
+                                      m_params.levelset_reinit_iters, dtau);
+                fire_phi->FillBoundary(m_fg.geom.periodicity());
+            }
+
+            // Update arrival time for newly burned cells (phi < 0)
+            {
+                const amrex::Real t_now = m_current_time + (dt - time_remaining);
+                for (amrex::MFIter mfi(*fire_phi); mfi.isValid(); ++mfi) {
+                    auto p  = fire_phi->const_array(mfi);
+                    auto at = fire_arrival_time->array(mfi);
+                    amrex::ParallelFor(mfi.tilebox(), [=] AMREX_GPU_DEVICE (const amrex::IntVect& iv) noexcept {
+                        if (p(iv) < 0.0_rt && at(iv) < 0.0_rt) at(iv) = t_now;
+                    });
+                }
+            }
+            time_remaining -= dt_ls;
+        }
+        n_substeps = m_levelset_subcycle_count;
+    } else {
+        // --- Default: FARSITE Lagrangian path (unchanged) ---
+        n_substeps = advance_fire_subcycle(*fire_phi, *fire_spread_vec,
+                                          *fire_disp_accum,
+                                          *fire_arrival_time,
+                                          *fire_wind_eff, *fire_ros,
+                                          m_fg.geom, dt,
+                                          m_current_time,
+                                          m_fp);
     }
 
     if (m_params.fire_debug) {
+        amrex::Print() << "[FIRE DEBUG] Fire front propagation completed with "
+                       << n_substeps << " fire subcycles" << std::endl;
         long num_fire_cells = 0;
         for (MFIter mfi(*fire_phi); mfi.isValid(); ++mfi) {
             const Box& bx = mfi.tilebox();
-            Array4<const Real> phi = fire_phi->array(mfi);
-            for (int k = bx.smallEnd(2); k <= bx.bigEnd(2); ++k)
-                for (int j = bx.smallEnd(1); j <= bx.bigEnd(1); ++j)
-                    for (int i = bx.smallEnd(0); i <= bx.bigEnd(0); ++i)
-                        if (phi(i,j,k) < 0.0_rt) num_fire_cells++;
+            Array4<const Real> phi_arr = fire_phi->array(mfi);
+            for (int k=bx.smallEnd(2); k<=bx.bigEnd(2); ++k)
+                for (int j=bx.smallEnd(1); j<=bx.bigEnd(1); ++j)
+                    for (int i=bx.smallEnd(0); i<=bx.bigEnd(0); ++i)
+                        if (phi_arr(i,j,k) < 0.0_rt) ++num_fire_cells;
         }
         amrex::ParallelDescriptor::ReduceLongSum(num_fire_cells);
         amrex::Print() << "[FIRE DEBUG] Number of active fire cells: " << num_fire_cells << std::endl;
@@ -351,19 +602,81 @@ void FireLayer::advance(Real time, Real dt, SurfaceLayer& surface_layer,
 
     fire_phi->FillBoundary(m_fg.geom.periodicity());
 
-    Real max_ros  = fire_ros->max(0);
-    Real mean_ros = fire_ros->sum(0) / fire_ros->boxArray().numPts();
-    Real phi_min  = fire_phi->min(0);
-    amrex::Print() << "[FIRE] t=" << m_current_time
-                   << "  substeps=" << n_substeps
-                   << "  phi_min=" << fire_phi->min(0)
-                   << "  max_ROS=" << fire_ros->max(0) << " m/s"
-                   << "  mean_ROS=" << fire_ros->sum(0)/fire_ros->boxArray().numPts()
-                   << " m/s"
-                   << "  Q_max=" << fire_heat_flux->max(0) << " W/m2"
-                   << "  I_B_max=" << fire_fireline_intensity->max(0) << " kW/m"
-                   << "  L_max=" << fire_flame_length->max(0) << " m"
-                   << std::endl;
+    compute_heat_flux_and_diagnostics(dt);
+
+    // Phase 8: Albini ember spotting
+    // Apply stochastic spotting at the specified interval.
+    // fire_wind_eff provides the 2-D wind field for trajectory integration.
+    // fire_fuel_load provides residual fuel for re-entry filtering.
+    if (m_params.spotting.enable && fire_albini_data && fire_wind_eff) {
+        if (m_step % m_params.spotting.spotting_interval == 0) {
+            fire_albini_data->setVal(0.0_rt);
+            FuelModelParams fp_sp = get_anderson_fuel_params(m_params.fuel_model_id);
+            std::string fuel_sys  = m_params.spotting.fuel_system;
+            compute_albini_spotting(
+                *fire_phi,
+                *fire_albini_data,
+                *fire_wind_eff,
+                *fire_ros,
+                m_fg.geom,
+                fp_sp,
+                m_params.spotting,
+                m_step,
+                fire_fuel_load.get(),
+                &fuel_sys,
+                m_params.fuel_model_id,
+                m_params.fire_debug,
+                fire_fuel_load.get(),
+                m_fuel_load_initial_kg_m2);
+        }
+    }
+
+    if (m_params.fire_debug) {
+        amrex::Real phi_min  = fire_phi->min(0, 0);   // nghost=0
+        amrex::Real phi_max  = fire_phi->max(0, 0);
+        
+        // Compute masked ROS diagnostics (only for burning cells where phi < 0)
+        amrex::Real ros_max_burning = 0.0_rt;
+        amrex::Real ros_sum_burning = 0.0_rt;
+        long n_burning_cells = 0;
+
+        for (amrex::MFIter mfi(*fire_ros); mfi.isValid(); ++mfi) {
+            const amrex::Box& bx = mfi.tilebox();
+            auto ros_arr = fire_ros->const_array(mfi);
+            auto phi_arr = fire_phi->const_array(mfi);
+            
+            amrex::LoopOnCpu(bx, [&](int i, int j, int k) {
+                if (phi_arr(i, j, k, 0) < 0.0_rt) {
+                    amrex::Real ros_val = ros_arr(i, j, k, 0);
+                    if (ros_val > ros_max_burning) {
+                        ros_max_burning = ros_val;
+                    }
+                    ros_sum_burning += ros_val;
+                    ++n_burning_cells;
+                }
+            });
+        }
+
+        amrex::ParallelDescriptor::ReduceRealMax(ros_max_burning);
+        amrex::ParallelDescriptor::ReduceRealSum(ros_sum_burning);
+        amrex::ParallelDescriptor::ReduceLongSum(n_burning_cells);
+
+        amrex::Real ros_max = ros_max_burning;
+        amrex::Real ros_mean = (n_burning_cells > 0) ? ros_sum_burning / static_cast<amrex::Real>(n_burning_cells) : 0.0_rt;
+        
+        amrex::Real Q_max    = fire_heat_flux ? fire_heat_flux->max(0) : 0.0;
+        amrex::Real I_B_max  = fire_fireline_intensity ? fire_fireline_intensity->max(0) : 0.0;
+        amrex::Real L_max    = fire_flame_length ? fire_flame_length->max(0) : 0.0;
+        amrex::Print() << "[FIRE] t=" << m_current_time
+                       << "  substeps=" << n_substeps
+                       << "  phi_min=" << phi_min
+                       << "  phi_max=" << phi_max
+                       << "  max_ROS=" << ros_max << " m/s"
+                       << "  mean_ROS=" << ros_mean << " m/s"
+                       << "  Q_max=" << Q_max << " W/m2"
+                       << "  I_B_max=" << I_B_max << " kW/m"
+                       << "  L_max=" << L_max << " m\n";
+    }
 
     if (m_params.write_fire_stats_csv) {
         static bool csv_header_written = false;
@@ -392,27 +705,20 @@ void FireLayer::advance_fuel_moisture(Real dt_s,
                                       const MultiFab& T_atm_k0,
                                       const MultiFab& RH_atm_k0)
 {
-    if (!m_params.moisture_dynamic) return;
+    int C = m_fg.C;
 
-    Real dt_hours     = dt_s / 3600.0_rt;
-    Real precip_mm_hr = m_params.precip_rate_mm_hr;
-    int  C            = m_fg.C;
-
-    FuelModelParams fp = get_anderson_fuel_params(m_params.fuel_model_id);
-
-    MultiFab T_fire (fire_fuel_mc->boxArray(), fire_fuel_mc->DistributionMap(), 1, 0);
-    MultiFab RH_fire(fire_fuel_mc->boxArray(), fire_fuel_mc->DistributionMap(), 1, 0);
-
-    for (MFIter mfi(T_fire, false); mfi.isValid(); ++mfi) {
-        Array4<Real>       T_f  = T_fire.array(mfi);
-        Array4<Real>       RH_f = RH_fire.array(mfi);
-        Array4<const Real> T_a  = T_atm_k0.const_array(mfi);
-        Array4<const Real> RH_a = RH_atm_k0.const_array(mfi);
+    // Map atmospheric T and RH to fire grid and store persistently.
+    // This operation runs every timestep to ensure
+    // fire_surface_temp and fire_surface_rh are available for plotfile output.
+    for (MFIter mfi(*fire_surface_temp, false); mfi.isValid(); ++mfi) {
+        Array4<Real> T_f  = fire_surface_temp->array(mfi);
+        Array4<Real> RH_f = fire_surface_rh->array(mfi);
+        Array4<const Real> T_atm  = T_atm_k0.const_array(mfi);
+        Array4<const Real> RH_atm = RH_atm_k0.const_array(mfi);
         amrex::ParallelFor(mfi.tilebox(), [=] AMREX_GPU_DEVICE (const IntVect& iv_f) {
-            int i_a = iv_f[0] / C;
-            int j_a = iv_f[1] / C;
-            T_f (iv_f[0], iv_f[1], 0) = T_a (i_a, j_a, 0);
-            RH_f(iv_f[0], iv_f[1], 0) = RH_a(i_a, j_a, 0);
+            int ia = iv_f[0]/C, ja = iv_f[1]/C;
+            T_f(iv_f[0],iv_f[1],0)  = T_atm(ia,ja,0);
+            RH_f(iv_f[0],iv_f[1],0) = RH_atm(ia,ja,0);
         });
     }
 
@@ -422,24 +728,30 @@ void FireLayer::advance_fuel_moisture(Real dt_s,
     Real precip_mm_hr = m_params.precip_rate_mm_hr;
 
     for (MFIter mfi(*fire_fuel_mc); mfi.isValid(); ++mfi) {
-        Array4<Real>       mc   = fire_fuel_mc->array(mfi);
-        Array4<Real>       mext = fire_mext->array(mfi);
-        Array4<const Real> T_f  = T_fire.array(mfi);
-        Array4<const Real> RH_f = RH_fire.array(mfi);
+        Array4<Real> mc   = fire_fuel_mc->array(mfi);
+        Array4<Real> mext = fire_mext->array(mfi);
+        Array4<const Real> T_f  = fire_surface_temp->const_array(mfi);
+        Array4<const Real> RH_f = fire_surface_rh->const_array(mfi);
         amrex::ParallelFor(mfi.tilebox(), [=] AMREX_GPU_DEVICE (const IntVect& iv_f) {
-            int i_f = iv_f[0], j_f = iv_f[1];
-            Real T_C = T_f(i_f, j_f, 0) - 273.15_rt;
-            Real RH  = RH_f(i_f, j_f, 0) * 100.0_rt;
-            mc(i_f,j_f,0,0) = advance_fuel_moisture_one_class(
-                mc(i_f,j_f,0,0), RH, T_C, precip_mm_hr, dt_hours, FuelMoistureConst::TAU_1HR);
-            mc(i_f,j_f,0,1) = advance_fuel_moisture_one_class(
-                mc(i_f,j_f,0,1), RH, T_C, precip_mm_hr, dt_hours, FuelMoistureConst::TAU_10HR);
-            mc(i_f,j_f,0,2) = advance_fuel_moisture_one_class(
-                mc(i_f,j_f,0,2), RH, T_C, precip_mm_hr, dt_hours, FuelMoistureConst::TAU_100HR);
-            Real dead_load       = fp.w_d1 + fp.w_d10 + fp.w_d100;
-            Real sigma_weighted  = dead_load > 0.0_rt
-                ? (fp.w_d1 * fp.sigma_d1) / dead_load : fp.sigma_d1;
-            mext(i_f,j_f,0) = compute_moisture_of_extinction(sigma_weighted);
+            int i = iv_f[0], j = iv_f[1];
+            Real T_C = T_f(i,j,0) - 273.15_rt;
+            Real RH  = RH_f(i,j,0) * 100.0_rt;
+            // Existing 3 dead fuel classes (unchanged)
+            mc(i,j,0,0) = advance_fuel_moisture_one_class(mc(i,j,0,0),RH,T_C,precip_mm_hr,dt_hours,FuelMoistureConst::TAU_1HR);
+            mc(i,j,0,1) = advance_fuel_moisture_one_class(mc(i,j,0,1),RH,T_C,precip_mm_hr,dt_hours,FuelMoistureConst::TAU_10HR);
+            mc(i,j,0,2) = advance_fuel_moisture_one_class(mc(i,j,0,2),RH,T_C,precip_mm_hr,dt_hours,FuelMoistureConst::TAU_100HR);
+            // Phase 15: live fuel moisture (components 3 and 4)
+            // Live fuels respond slowly to atmospheric conditions.
+            // Use TAU_100HR as a lower bound; live moisture is bounded [0.30, 2.50].
+            if (mc.nComp() >= 5) {
+                Real lh_new = advance_fuel_moisture_one_class(mc(i,j,0,3),RH,T_C,0.0_rt,dt_hours,FuelMoistureConst::TAU_100HR);
+                Real lw_new = advance_fuel_moisture_one_class(mc(i,j,0,4),RH,T_C,0.0_rt,dt_hours,FuelMoistureConst::TAU_100HR);
+                mc(i,j,0,3) = amrex::max(0.30_rt, amrex::min(lh_new, 2.50_rt));  // live herba: 30%–250%
+                mc(i,j,0,4) = amrex::max(0.30_rt, amrex::min(lw_new, 2.50_rt));  // live woody: 30%–250%
+            }
+            Real dead_load = fp.w_d1+fp.w_d10+fp.w_d100;
+            Real sw = dead_load>0.0_rt ? (fp.w_d1*fp.sigma_d1)/dead_load : fp.sigma_d1;
+            mext(i,j,0) = compute_moisture_of_extinction(sw);
         });
     }
 }

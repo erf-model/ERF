@@ -25,7 +25,7 @@ struct FarsiteParams
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 amrex::Real anderson_LW_ratio(amrex::Real wind_speed_mph) noexcept
 {
-    if (wind_speed_mph < 1.0) return 1.0;
+    if (wind_speed_mph < 1.0) { return 1.0; }
     amrex::Real lw = 0.936 * std::exp(0.2566 * wind_speed_mph)
                    - 0.397 * std::sqrt(wind_speed_mph);
     return amrex::max(1.0, amrex::min(lw, 8.0));
@@ -40,14 +40,6 @@ void LW_ratio_to_richards_coefficients(amrex::Real LW_ratio,
     coeff_b = (coeff_a + coeff_c) / (2.0 * LW_ratio);
 }
 
-/**
- * @brief Advance fire front by one fire substep.
- *
- * Spread vectors are accumulated into disp_accum across atmospheric steps.
- * A cell is stamped burned only when its accumulated displacement magnitude
- * reaches stamp_thresh = 0.5 * min(dx, dy), i.e. when the front has
- * genuinely crossed into a neighbouring cell.
- */
 inline
 void advance_farsite_one_step(
     amrex::MultiFab& phi,
@@ -65,25 +57,20 @@ void advance_farsite_one_step(
 
     const auto* prob_lo = geom_fire.ProbLo();
     const auto* dx      = geom_fire.CellSize();
-    const Real dxi = 1.0_rt / dx[0];
-    const Real dyi = 1.0_rt / dx[1];
-    const Real stamp_thresh = 0.5_rt * std::min(dx[0], dx[1]);
-
-    // Stamp threshold: fire front stamps a new cell once accumulated
-    // displacement reaches one cell width in either direction.
-    // Using min(dx,dy) ensures we stamp before skipping a cell.
+    const Real dxi = 1.0 / dx[0];
+    const Real dyi = 1.0 / dx[1];
     const Real stamp_threshold = amrex::min(dx[0], dx[1]);
 
     farsite_work.setVal(0.0_rt);
 
     // -------------------------------------------------------------------------
-    // Pass 1 (GPU): compute spread vector and accumulate into disp_accum
+    // Pass 1: accumulate displacement; stamp absolute target when threshold met
     // -------------------------------------------------------------------------
     for (MFIter mfi(R_mf, false); mfi.isValid(); ++mfi) {
         const Box& bx   = mfi.validbox();
         auto phi_arr    = phi.array(mfi);
         auto spread_arr = farsite_work.array(mfi);
-        auto accum_arr  = disp_accum.array(mfi);
+        auto disp_arr   = disp_accum.array(mfi);
         auto vel_arr    = vel_eff.const_array(mfi);
         auto ros_arr    = R_mf.const_array(mfi);
 
@@ -91,23 +78,12 @@ void advance_farsite_one_step(
         {
             int i = iv[0], j = iv[1], k = iv[2];
 
-            // Only process cells on or inside the fire front
-            if (phi_val > fp.phi_threshold) {
-                spread_arr(iv, 0) = 0.0_rt;
-                spread_arr(iv, 1) = 0.0_rt;
-                return;
-            }
+            if (phi_arr(iv) > fp.phi_threshold) { return; }
 
-            // Centered-difference gradient of phi
-            Real dphi_dx = (phi_arr(i+1,j,k) - phi_arr(i-1,j,k)) * dxi * 0.5_rt;
-            Real dphi_dy = (phi_arr(i,j+1,k) - phi_arr(i,j-1,k)) * dyi * 0.5_rt;
+            Real dphi_dx = (phi_arr(i+1,j,k) - phi_arr(i-1,j,k)) * dxi * 0.5;
+            Real dphi_dy = (phi_arr(i,j+1,k) - phi_arr(i,j-1,k)) * dyi * 0.5;
             Real grad_mag = std::sqrt(dphi_dx*dphi_dx + dphi_dy*dphi_dy);
-
-            if (grad_mag < 1.0e-50) {
-                spread_arr(iv, 0) = 0.0_rt;
-                spread_arr(iv, 1) = 0.0_rt;
-                return;
-            }
+            if (grad_mag < 1.0e-10) { return; }
 
             Real nx = dphi_dx / grad_mag;
             Real ny = dphi_dy / grad_mag;
@@ -116,69 +92,81 @@ void advance_farsite_one_step(
             Real uy = vel_arr(iv, 1);
             Real wind_mag = std::sqrt(ux*ux + uy*uy);
 
-            Real scale = 1.0_rt;
+            Real scale = 1.0;
             if (wind_mag > 1.0e-10) {
                 Real wx = ux / wind_mag;
                 Real wy = uy / wind_mag;
-                Real cos_theta = amrex::max(-1.0_rt, amrex::min(nx*wx + ny*wy, 1.0_rt));
-                Real sin_theta = std::sqrt(1.0_rt - cos_theta*cos_theta);
-
+                Real cos_t = amrex::max(-1.0, amrex::min(nx*wx + ny*wy, 1.0));
+                Real sin_t = std::sqrt(1.0 - cos_t*cos_t);
                 Real a = fp.coeff_a, b = fp.coeff_b, c = fp.coeff_c;
                 if (fp.use_anderson_lw != 0) {
                     LW_ratio_to_richards_coefficients(
-                        anderson_LW_ratio(wind_mag * 2.237_rt), a, b, c);
+                        anderson_LW_ratio(wind_mag * 2.237), a, b, c);
                 }
-                scale = (cos_theta > 0.0_rt)
-                        ? a * cos_theta + b * sin_theta
-                        : b * sin_theta - c * cos_theta;
+                scale = (cos_t > 0.0)
+                    ? a * cos_t + b * sin_t
+                    : b * sin_t - c * cos_t;
             }
 
-            Real spread_dist = amrex::max(scale, 0.0_rt) * ros_arr(iv) * dt_fire;
-            spread_arr(iv, 0) = spread_dist * nx;
-            spread_arr(iv, 1) = spread_dist * ny;
+            Real ds = amrex::max(scale, 0.0) * ros_arr(iv) * dt_fire;
+            disp_arr(iv, 0) += ds * nx;
+            disp_arr(iv, 1) += ds * ny;
 
-            // Accumulate displacement
-            accum_arr(iv, 0) += spread_dist * nx;
-            accum_arr(iv, 1) += spread_dist * ny;
+            Real accum_mag = std::sqrt(disp_arr(iv,0)*disp_arr(iv,0)
+                                     + disp_arr(iv,1)*disp_arr(iv,1));
+            if (accum_mag >= stamp_threshold) {
+                Real x_src = prob_lo[0] + (i + 0.5) * dx[0];
+                Real y_src = prob_lo[1] + (j + 0.5) * dx[1];
+                spread_arr(iv, 0) = x_src + disp_arr(iv, 0);
+                spread_arr(iv, 1) = y_src + disp_arr(iv, 1);
+                disp_arr(iv, 0) = 0.0;
+                disp_arr(iv, 1) = 0.0;
+            }
         });
     }
 
     amrex::Gpu::streamSynchronize();
 
     // -------------------------------------------------------------------------
-    // Pass 2 (host): collect cells whose accumulated displacement >= stamp_thresh
+    // Pass 2: collect stamped positions on host
     // -------------------------------------------------------------------------
     std::vector<Real> xarray, yarray;
 
-    for (MFIter mfi(disp_accum); mfi.isValid(); ++mfi) {
-        const Box& bx  = mfi.tilebox();
-        auto accum_arr = disp_accum.array(mfi);
-
-        for (int k = bx.smallEnd()[2]; k <= bx.bigEnd()[2]; ++k) {
-            for (int j = bx.smallEnd()[1]; j <= bx.bigEnd()[1]; ++j) {
+    for (MFIter mfi(farsite_work, false); mfi.isValid(); ++mfi) {
+        const Box& bx   = mfi.validbox();
+        auto spread_arr = farsite_work.const_array(mfi);
+        for (int k = bx.smallEnd()[2]; k <= bx.bigEnd()[2]; ++k)
+            for (int j = bx.smallEnd()[1]; j <= bx.bigEnd()[1]; ++j)
                 for (int i = bx.smallEnd()[0]; i <= bx.bigEnd()[0]; ++i) {
-                    Real ax = accum_arr(i, j, k, 0);
-                    Real ay = accum_arr(i, j, k, 1);
-
-                    if (std::sqrt(ax*ax + ay*ay) >= stamp_thresh) {
-                        Real x = prob_lo[0] + (i + 0.5_rt) * dx[0];
-                        Real y = prob_lo[1] + (j + 0.5_rt) * dx[1];
-                        xarray.push_back(x + ax);
-                        yarray.push_back(y + ay);
-                        // Reset accumulator — displacement has been "spent"
-                        accum_arr(i, j, k, 0) = 0.0_rt;
-                        accum_arr(i, j, k, 1) = 0.0_rt;
+                    Real sx = spread_arr(i,j,k,0);
+                    Real sy = spread_arr(i,j,k,1);
+                    if (sx != 0.0_rt || sy != 0.0_rt) {
+                        xarray.push_back(sx);
+                        yarray.push_back(sy);
                     }
                 }
     }
 
-    // MPI gather
+    // -------------------------------------------------------------------------
+    // MPI all-gather: use MPI_Allgather directly to avoid AMReX wrapper issues.
+    // Falls back to a simple copy on non-MPI builds.
+    // -------------------------------------------------------------------------
     int npts_local = static_cast<int>(xarray.size());
-    std::vector<int> npts_all(ParallelDescriptor::NProcs());
-    ParallelAllGather::AllGather(&npts_local, 1, npts_all.data(),
-                                 ParallelDescriptor::Communicator());
-    std::vector<int> displs(ParallelDescriptor::NProcs() + 1, 0);
-    for (int r = 0; r < ParallelDescriptor::NProcs(); ++r)
+    int nranks     = ParallelDescriptor::NProcs();
+
+    std::vector<int> npts_all(nranks, 0);
+    std::vector<int> displs(nranks + 1, 0);
+
+#ifdef AMREX_USE_MPI
+    // Gather per-rank counts
+    MPI_Allgather(&npts_local, 1, MPI_INT,
+                  npts_all.data(), 1, MPI_INT,
+                  ParallelDescriptor::Communicator());
+#else
+    npts_all[0] = npts_local;
+#endif
+
+    for (int r = 0; r < nranks; ++r)
         displs[r+1] = displs[r] + npts_all[r];
     int npts_global = displs[nranks];
 
@@ -200,18 +188,26 @@ void advance_farsite_one_step(
     yarray_all = yarray;
 #endif
 
-    // Reset phi to unburned, then stamp propagated positions
+    amrex::Print() << "[FIRE] Stamping " << npts_global << " new perimeter points\n";
+
+    // -------------------------------------------------------------------------
+    // Step A: reset phi to 0
+    // Step B: restore burned interior from arrival_time
+    // Step C: stamp new perimeter positions
+    // Step D: update arrival_time for newly burned cells
+    // -------------------------------------------------------------------------
     phi.setVal(0.0_rt);
 
+    for (MFIter mfi(phi, false); mfi.isValid(); ++mfi) {
+        auto p  = phi.array(mfi);
+        auto at = arrival_time.const_array(mfi);
+        amrex::ParallelFor(mfi.validbox(), [=] AMREX_GPU_DEVICE (const IntVect& iv) noexcept {
+            if (at(iv) >= 0.0_rt) p(iv) = -1.0_rt;
+        });
+    }
+    amrex::Gpu::streamSynchronize();
+
     if (npts_global > 0) {
-        Gpu::DeviceVector<Real> d_x(npts_global), d_y(npts_global);
-        Gpu::copy(Gpu::hostToDevice, xarray_all.begin(), xarray_all.end(), d_x.begin());
-        Gpu::copy(Gpu::hostToDevice, yarray_all.begin(), yarray_all.end(), d_y.begin());
-
-        const Real* xp = d_x.data();
-        const Real* yp = d_y.data();
-        int npts = npts_global;
-
         if (fp.gaussian_sigma < 0.0) {
             amrex::Gpu::DeviceVector<Real> d_x(npts_global), d_y(npts_global);
             amrex::Gpu::copy(amrex::Gpu::hostToDevice,
@@ -278,10 +274,11 @@ amrex::Real compute_fire_dt(
     amrex::Real dt_atm,
     amrex::Real cfl_fire)
 {
-    amrex::Real max_ros = R_mf.max(0);
-    if (max_ros < 1.0e-10) return dt_atm;
+    using namespace amrex;
+    Real max_ros = R_mf.max(0);
+    if (max_ros < 1.0e-10) { return dt_atm; }
     const auto* dx = geom_fire.CellSize();
-    return cfl_fire * std::min(dx[0], dx[1]) / max_ros;
+    return cfl_fire * amrex::min(dx[0], dx[1]) / max_ros;
 }
 
 inline
@@ -297,22 +294,31 @@ int advance_fire_subcycle(
     amrex::Real current_time,
     const FarsiteParams& fp)
 {
-    amrex::Real time_remaining = dt_atm;
+    using namespace amrex;
+
+    Real time_remaining = dt_atm;
     int n_substeps = 0;
 
     while (time_remaining > 1.0e-14) {
-        amrex::Real dt_fire = std::min(
+        Real dt_fire = amrex::min(
             compute_fire_dt(R_mf, geom_fire, time_remaining, fp.cfl_fire),
             time_remaining);
 
-        advance_farsite_one_step(phi, farsite_work, disp_accum, vel_eff, R_mf,
-                                 geom_fire, dt_fire, fp);
+        advance_farsite_one_step(phi, farsite_work, disp_accum,
+                                 arrival_time,
+                                 vel_eff, R_mf,
+                                 geom_fire, dt_fire,
+                                 current_time + (dt_atm - time_remaining),
+                                 fp);
+
         time_remaining -= dt_fire;
         ++n_substeps;
 
-        if (n_substeps > 1000)
+        if (n_substeps > 1000) {
             amrex::Abort("advance_fire_subcycle: too many substeps");
+        }
     }
+
     return n_substeps;
 }
 
