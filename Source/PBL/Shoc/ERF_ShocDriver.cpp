@@ -271,20 +271,20 @@ namespace
                 if (!opts.debug_disable_moisture_state_update) {
                     if (has_qv) {
                         cc(i,j,k,qv_comp) = amrex::max(
-                            cc(i,j,k,qv_comp) + rho_val * dt * qv_tend(i,j,k), zero);
+                            cc(i,j,k,qv_comp) + rho_val * dt * qv_tend(i,j,k), Real(0.));
                     }
                     if (has_qc) {
                         cc(i,j,k,qc_comp) = amrex::max(
-                            cc(i,j,k,qc_comp) + rho_val * dt * qc_tend(i,j,k), zero);
+                            cc(i,j,k,qc_comp) + rho_val * dt * qc_tend(i,j,k), Real(0.));
                     }
                     if (has_qi) {
                         cc(i,j,k,qi_comp) = amrex::max(
-                            cc(i,j,k,qi_comp) + rho_val * dt * qi_tend(i,j,k), zero);
+                            cc(i,j,k,qi_comp) + rho_val * dt * qi_tend(i,j,k), Real(0.));
                     }
                 }
                 if (!opts.debug_disable_tke_state_update) {
                     cc(i,j,k,RhoKE_comp) = amrex::max(
-                        cc(i,j,k,RhoKE_comp) + rho_val * dt * tke_tend(i,j,k), zero);
+                        cc(i,j,k,RhoKE_comp) + rho_val * dt * tke_tend(i,j,k), Real(0.));
                 }
             });
         }
