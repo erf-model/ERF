@@ -412,6 +412,10 @@ NOAHMP::Advance_With_State (const int& lev,
             }
         }
 
+        // Cells the precip guard clamped this call (per rank); reported after the box loop.
+        struct ClampedPrecipCell { int i; int j; amrex::Real raw_mm; };
+        amrex::Vector<ClampedPrecipCell> clamped_cells;
+
         // Loop over blocks to copy forcing data to Noahmp, drive the land model,
         // and copy data back to ERF Multifabs.
         int idb = 0;
@@ -524,12 +528,10 @@ NOAHMP::Advance_With_State (const int& lev,
                 noah_input_arr(i,j,0,NoahmpInputComp::glw)     = GLW(i,j,0);
                 noah_input_arr(i,j,0,NoahmpInputComp::coszen)  = COSZEN(i,j,0);
 
-                // Water-equivalent interval precip [mm] for this land call (WRF convention;
-                // Noah-MP divides by DTBL -> mm/s). Per slot: d = (current - snapshot) *
-                // native_to_kg_m2, so each species is converted to water-equivalent mm
-                // BEFORE it is combined (kg/m^2 == mm of water). Accumulators are on the
-                // surface slab kklo.
-                Real drain = zero, sr = zero, dsnow = zero, dgraup = zero;
+                // RAW water-equivalent interval precip [mm]: per slot d = (now - prev) *
+                // native_to_kg_m2 (kg/m^2 == mm water). Host applies the guard and derives
+                // SR / MP_RAINNC so clamped cells can be reported.
+                Real drain = zero, dsnow = zero, dgraup = zero;
                 if (hp) {
                     Real dd[NoahmpPrecipSlot::NumSlots];
                     for (int s(0); s < NoahmpPrecipSlot::NumSlots; ++s) {
@@ -537,33 +539,18 @@ NOAHMP::Advance_With_State (const int& lev,
                               ? amrex::max(zero, (accum_now[s](i,j,kklo) - accum_prv[s](i,j,kklo)) * accum_fac[s])
                               : zero;
                     }
-                    // Frozen species -> MP_SNOW / MP_GRAUP (hail folded into graupel;
-                    // Noah-MP has no hail input). Matches WRF MP_SNOW / MP_GRAUP.
+                    // Frozen -> MP_SNOW / MP_GRAUP (hail folded into graupel; no hail input).
                     dsnow  = dd[NoahmpPrecipSlot::snow];
                     dgraup = dd[NoahmpPrecipSlot::graupel] + dd[NoahmpPrecipSlot::hail];
                     const Real dfroz = dsnow + dgraup;
-                    // Total non-convective precip -> RAINBL / MP_RAINNC. Prefer the scheme's
-                    // `total` accumulator; otherwise reconstruct from explicit species
-                    // (rain + frozen), mirroring the IO layer's derivation. This is the
-                    // correct total for SAM/Kessler (rain slot, no total), where the old
-                    // "rain_accum is total" assumption undercounted frozen precip.
+                    // Total: scheme's `total` slot, else rain + frozen (SAM/Kessler have no total).
                     drain = slot_present[NoahmpPrecipSlot::total]
                           ? dd[NoahmpPrecipSlot::total]
                           : (dd[NoahmpPrecipSlot::rain] + dfroz);
-                    // Physical guard: precip accumulated over one land interval cannot
-                    // exceed a sane ceiling (lsm_max_precip_interval). Protects Noah-MP's
-                    // water-balance check from any corrupt prev-snapshot delta -- a larger
-                    // value can only come from noisy IC/BC, never real precip.
-                    drain = amrex::min(drain, lsm_max_precip_interval);
-                    sr = (drain > zero) ? amrex::min(Real(1.0), dfroz/drain) : zero;
                 }
-                noah_input_arr(i,j,0,NoahmpInputComp::rainbl)    = drain;
-                noah_input_arr(i,j,0,NoahmpInputComp::sr_in)     = sr;
-                // WRF-faithful precip breakdown fed straight to NoahMP's MP_* forcing so the
-                // rain/snow partition (opt_snf=4) matches WRF; opt_snf=1 ignores MP_*.
-                noah_input_arr(i,j,0,NoahmpInputComp::mp_rainnc) = drain;
-                noah_input_arr(i,j,0,NoahmpInputComp::mp_snow)   = dsnow;
-                noah_input_arr(i,j,0,NoahmpInputComp::mp_graup)  = dgraup;
+                noah_input_arr(i,j,0,NoahmpInputComp::rainbl)   = drain;
+                noah_input_arr(i,j,0,NoahmpInputComp::mp_snow)  = dsnow;
+                noah_input_arr(i,j,0,NoahmpInputComp::mp_graup) = dgraup;
             });
 
             // Synchronize to ensure GPU kernel is complete before host access
@@ -580,11 +567,21 @@ NOAHMP::Advance_With_State (const int& lev,
                 noahmpio->SWDOWN(i,j)    = noah_input_arr(i,j,0,NoahmpInputComp::swdown);
                 noahmpio->GLW(i,j)       = noah_input_arr(i,j,0,NoahmpInputComp::glw);
                 noahmpio->COSZEN(i,j)    = noah_input_arr(i,j,0,NoahmpInputComp::coszen);
-                noahmpio->RAINBL(i,j)    = noah_input_arr(i,j,0,NoahmpInputComp::rainbl);  // [mm]
-                noahmpio->SR(i,j)        = noah_input_arr(i,j,0,NoahmpInputComp::sr_in);   // [-]
-                noahmpio->MP_RAINNC(i,j) = noah_input_arr(i,j,0,NoahmpInputComp::mp_rainnc); // [mm]
-                noahmpio->MP_SNOW(i,j)   = noah_input_arr(i,j,0,NoahmpInputComp::mp_snow);   // [mm]
-                noahmpio->MP_GRAUP(i,j)  = noah_input_arr(i,j,0,NoahmpInputComp::mp_graup);  // [mm]
+                // Guard the RAW total against non-physical values, then derive SR / MP_RAINNC.
+                // Clamped cells are recorded and reported after the box loop (never silent).
+                const Real dsnow_h  = noah_input_arr(i,j,0,NoahmpInputComp::mp_snow);
+                const Real dgraup_h = noah_input_arr(i,j,0,NoahmpInputComp::mp_graup);
+                Real drain_h        = noah_input_arr(i,j,0,NoahmpInputComp::rainbl);
+                if (drain_h > lsm_max_precip_interval) {
+                    clamped_cells.push_back(ClampedPrecipCell{i, j, drain_h});
+                    drain_h = lsm_max_precip_interval;
+                }
+                const Real dfroz_h = dsnow_h + dgraup_h;
+                noahmpio->RAINBL(i,j)    = drain_h;                                       // [mm]
+                noahmpio->SR(i,j)        = (drain_h > zero) ? amrex::min(Real(1.0), dfroz_h/drain_h) : zero; // [-]
+                noahmpio->MP_RAINNC(i,j) = drain_h;                                       // [mm]
+                noahmpio->MP_SNOW(i,j)   = dsnow_h;                                       // [mm]
+                noahmpio->MP_GRAUP(i,j)  = dgraup_h;                                      // [mm]
             });
 
             // Call the noahmpio driver code. This runs the land model forcing for
@@ -749,6 +746,22 @@ NOAHMP::Advance_With_State (const int& lev,
                 if (slot_has[s]) {
                     MultiFab::Copy(*m_precip_accum_prev[lev][s], *slot_accum[s], 0, 0, 1, 0);
                 }
+            }
+        }
+
+        // Report any cells the precip guard clamped (per rank; never silent).
+        if (!clamped_cells.empty()) {
+            const int nshow = amrex::min(int(clamped_cells.size()), 50);
+            amrex::AllPrint aprint;
+            aprint << "WARNING: NOAHMP precip guard (level " << lev << "): clamped "
+                   << clamped_cells.size() << " non-physical interval-precip cell(s) (> "
+                   << lsm_max_precip_interval << " mm):\n";
+            for (int c(0); c < nshow; ++c) {
+                aprint << "    (i,j)=(" << clamped_cells[c].i << "," << clamped_cells[c].j
+                       << ") raw=" << clamped_cells[c].raw_mm << " mm\n";
+            }
+            if (int(clamped_cells.size()) > nshow) {
+                aprint << "    ... and " << (int(clamped_cells.size()) - nshow) << " more\n";
             }
         }
 

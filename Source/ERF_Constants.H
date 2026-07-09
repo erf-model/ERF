@@ -34,12 +34,9 @@ constexpr amrex::Real bogus_large_value = 1.e150;
 // the surface-layer scheme rather than taking an undefined LSM flux.
 constexpr amrex::Real lsm_undefined = bogus_large_value;
 
-// lsm_max_precip_interval: physical sanity ceiling [mm] on the water-equivalent
-// precipitation handed to Noah-MP over a single land-call interval. 500 mm in a
-// ~10-min interval is far above any observed rate ("the mother of all floods"), so
-// a larger value can only come from noisy IC/BC or a corrupt accumulator snapshot.
-// The coupling clamps the interval precip to this bound to protect Noah-MP's
-// water-balance check from such garbage deltas (see ERF_NOAHMP.cpp).
+// Physical ceiling [mm] on interval precip handed to Noah-MP over one land call.
+// 500 mm is far above any real rate, so a larger value signals noisy IC/BC or a
+// corrupt accumulator snapshot; the coupling clamps to this and warns (ERF_NOAHMP.cpp).
 constexpr amrex::Real lsm_max_precip_interval = amrex::Real(500.0);
 
 constexpr amrex::Real PI           = amrex::Real(3.14159265358979323846264338327950288);
