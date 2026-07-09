@@ -266,6 +266,8 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
 {
     auto dPlotTime0 = amrex::second();
 
+    Real tnew = static_cast<Real>(t_new[0]);
+
     const Vector<std::string> varnames = PlotFileVarNames(plot_var_names);
     const int ncomp_mf = static_cast<int>(varnames.size());
 
@@ -375,7 +377,7 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
         FillBdyCCVels(mf_cc_vel[0],geom[0]);
         for (int lev = 1; lev <= finest_level; ++lev)
         {
-            Real new_time = t_new[lev];
+            Real new_time = static_cast<Real>(t_new[lev]);
             Vector<MultiFab*> fmf = {&(mf_cc_vel[lev]), &(mf_cc_vel[lev])};
             Vector<Real> ftime    = {new_time,new_time};
             Vector<MultiFab*> cmf = {&mf_cc_vel[lev-1], &mf_cc_vel[lev-1]};
@@ -383,7 +385,7 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
 
             // Call FillPatch which ASSUMES that all ghost cells at lev-1 have already been filled
             FillPatchTwoLevels(mf_cc_vel[lev], mf_cc_vel[lev].nGrowVect(), IntVect(0,0,0),
-                               t_new[lev], cmf, ctime, fmf, ftime,
+                               static_cast<Real>(t_new[lev]), cmf, ctime, fmf, ftime,
                                0, 0, mf_cc_vel[lev].nComp(), geom[lev-1], geom[lev],
                                refRatio(lev-1), mapper, domain_bcs_type,
                                BaseBCVars::rho0_bc_comp);
@@ -506,7 +508,7 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
                     auto& dfab = dmf[mfi];
                     auto& sfab = src_mf[mfi];
                     auto& zfab = (*z_phys_cc[lev])[mfi];
-                    der_function(bx, dfab, 0, 1, sfab, zfab, Geom(lev), t_new[0], nullptr, lev);
+                    der_function(bx, dfab, 0, 1, sfab, zfab, Geom(lev), tnew, nullptr, lev);
                 }
 
                 mf_comp++;
@@ -1689,7 +1691,7 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
     if (which == 1) {
        if (use_real_time_in_pltname) {
            const std::string dt_format = "%Y-%m-%d_%H:%M:%S"; // ISO 8601 standard
-           plotfilename = plot3d_file_1+"_"+getTimestamp(start_time+t_new[0], dt_format,false);
+           plotfilename = plot3d_file_1+"_"+getTimestamp(start_time+tnew, dt_format,false);
        } else {
            plotfilename  = Concatenate(plot3d_file_1, istep[0], file_name_digits);
        }
@@ -1699,7 +1701,7 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
     } else if (which == 2) {
        if (use_real_time_in_pltname) {
            const std::string dt_format = "%Y-%m-%d_%H:%M:%S"; // ISO 8601 standard
-           plotfilename = plot3d_file_2+"_"+getTimestamp(start_time+t_new[0], dt_format,false);
+           plotfilename = plot3d_file_2+"_"+getTimestamp(start_time+tnew, dt_format,false);
        } else {
            plotfilename  = Concatenate(plot3d_file_2, istep[0], file_name_digits);
        }
@@ -1710,7 +1712,7 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
 
     // LSM writes it's own data
     if (which==1 && plot_lsm) {
-        lsm.Plot_Lsm_Data(t_new[0], istep, refRatio());
+        lsm.Plot_Lsm_Data(tnew, istep, refRatio());
     }
 
 #ifdef ERF_USE_RRTMGP
@@ -1718,7 +1720,7 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
     // write additional RRTMGP data
     // TODO: currently single level only
     if (which==1 && plot_rad) {
-        rad[0]->writePlotfile(plot_file_1, t_new[0], istep[0]);
+        rad[0]->writePlotfile(plot_file_1, tnew, istep[0]);
     }
     */
 #endif
@@ -1734,12 +1736,12 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
                                                    GetVecOfConstPtrs(mf),
                                                    GetVecOfConstPtrs(mf_nd),
                                                    varnames,
-                                                   Geom(), t_new[0], istep, refRatio());
+                                                   Geom(), tnew, istep, refRatio());
             } else {
                 WriteMultiLevelPlotfile(plotfilename, finest_level+1,
                                         GetVecOfConstPtrs(mf),
                                         varnames,
-                                        Geom(), t_new[0], istep, refRatio());
+                                        Geom(), tnew, istep, refRatio());
             }
             writeJobInfo(plotfilename);
 
@@ -1748,15 +1750,15 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
                 WriteMultiLevelPlotfile(plotfilenameU, finest_level+1,
                                         GetVecOfConstPtrs(mf_u),
                                         {"x_velocity_stag"},
-                                        Geom(), t_new[0], istep, refRatio());
+                                        Geom(), tnew, istep, refRatio());
                 WriteMultiLevelPlotfile(plotfilenameV, finest_level+1,
                                         GetVecOfConstPtrs(mf_v),
                                         {"y_velocity_stag"},
-                                        Geom(), t_new[0], istep, refRatio());
+                                        Geom(), tnew, istep, refRatio());
                 WriteMultiLevelPlotfile(plotfilenameW, finest_level+1,
                                         GetVecOfConstPtrs(mf_w),
                                         {"z_velocity_stag"},
-                                        Geom(), t_new[0], istep, refRatio());
+                                        Geom(), tnew, istep, refRatio());
             }
 
 #ifdef ERF_USE_PARTICLES
@@ -1772,7 +1774,7 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
              const auto dx    = geom[lev].CellSize();
              writeNCPlotFile(lev, l_which, plotfilename, GetVecOfConstPtrs(mf), varnames, istep,
                              {p_lo[0],p_lo[1],p_lo[2]},{p_hi[0],p_hi[1],p_hi[2]}, {dx[0],dx[1],dx[2]},
-                             geom[lev].Domain(), t_new[0], start_bdy_time, solverChoice, zlevels_stag[lev]);
+                             geom[lev].Domain(), tnew, start_bdy_time, solverChoice, zlevels_stag[lev]);
 #endif
         } else {
             // Here we assume the plotfile_type is PlotFileType::None
@@ -1842,7 +1844,7 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
                 //
                 for (int lev = 1; lev <= finest_level; ++lev) {
                     Interpolater* mapper_c = &pc_interp;
-                    InterpFromCoarseLevel(mf2[lev], t_new[lev], mf[lev],
+                    InterpFromCoarseLevel(mf2[lev], static_cast<Real>(t_new[lev]), mf[lev],
                                           0, 0, ncomp_mf,
                                           geom[lev], g2[lev],
                                           null_bc_for_fill, 0, null_bc_for_fill, 0,
@@ -1861,11 +1863,11 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
                                                       GetVecOfConstPtrs(mf2),
                                                       GetVecOfConstPtrs(mf_nd),
                                                       varnames,
-                                                      g2, t_new[0], istep, rr);
+                                                      g2, tnew, istep, rr);
                } else {
                    WriteMultiLevelPlotfile(plotfilename, finest_level+1,
                                            GetVecOfConstPtrs(mf2), varnames,
-                                           g2, t_new[0], istep, rr);
+                                           g2, tnew, istep, rr);
                }
 
             } else {
@@ -1874,26 +1876,26 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
                                                        GetVecOfConstPtrs(mf),
                                                        GetVecOfConstPtrs(mf_nd),
                                                        varnames,
-                                                       geom, t_new[0], istep, ref_ratio);
+                                                       geom, tnew, istep, ref_ratio);
                 } else {
                     WriteMultiLevelPlotfile(plotfilename, finest_level+1,
                                             GetVecOfConstPtrs(mf), varnames,
-                                            geom, t_new[0], istep, ref_ratio);
+                                            geom, tnew, istep, ref_ratio);
                 }
                 if (m_plot_face_vels) {
                     Print() << "Writing face velocities" << std::endl;
                     WriteMultiLevelPlotfile(plotfilenameU, finest_level+1,
                                             GetVecOfConstPtrs(mf_u),
                                             {"x_velocity_stag"},
-                                            geom, t_new[0], istep, ref_ratio);
+                                            geom, tnew, istep, ref_ratio);
                     WriteMultiLevelPlotfile(plotfilenameV, finest_level+1,
                                             GetVecOfConstPtrs(mf_v),
                                             {"y_velocity_stag"},
-                                            geom, t_new[0], istep, ref_ratio);
+                                            geom, tnew, istep, ref_ratio);
                     WriteMultiLevelPlotfile(plotfilenameW, finest_level+1,
                                             GetVecOfConstPtrs(mf_w),
                                             {"z_velocity_stag"},
-                                            geom, t_new[0], istep, ref_ratio);
+                                            geom, tnew, istep, ref_ratio);
                 }
             } // ref_ratio test
 
@@ -1914,7 +1916,7 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
                      const auto dx    = geom[lev].CellSizeArray();
                      writeNCPlotFile(lev, which_box, plotfilename, GetVecOfConstPtrs(mf), varnames, istep,
                                      {p_lo[0],p_lo[1],p_lo[2]},{p_hi[0],p_hi[1],p_hi[2]}, {dx[0],dx[1],dx[2]},
-                                     bounding_region, t_new[0], start_bdy_time, solverChoice, zlevels_stag[lev]);
+                                     bounding_region, tnew, start_bdy_time, solverChoice, zlevels_stag[lev]);
                  }
              }
 #endif

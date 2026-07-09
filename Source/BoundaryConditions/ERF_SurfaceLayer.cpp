@@ -1048,11 +1048,11 @@ SurfaceLayer::fill_tsurf_with_sst_and_tsk (const int& lev,
     double dT = m_low_time_interval;
 
     int n_time_lo, n_time_hi;
-    double alpha;
+    Real alpha;
 
     if (n_times_in_sst > 1) {
         n_time_lo = static_cast<int>( elapsed_time_since_start_low /  dT);
-        alpha = (elapsed_time_since_start_low - n_time_lo * dT) / dT;
+        alpha = static_cast<Real>((elapsed_time_since_start_low - n_time_lo * dT) / dT);
 
         AMREX_ALWAYS_ASSERT( alpha >= zero && alpha <= one);
 

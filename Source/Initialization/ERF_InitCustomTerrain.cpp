@@ -11,7 +11,7 @@ using namespace amrex;
 void
 init_my_custom_terrain ( const Geometry& geom,
                          FArrayBox& terrain_fab,
-                         const double& time )
+                         const double& time_d)
 {
     //
     // We put this here as a convenience for testing the map factor implementation
@@ -196,6 +196,8 @@ init_my_custom_terrain ( const Geometry& geom,
             Real kp          = two * PI / wavelength;
             Real g           = CONST_GRAV;
             Real omega       = std::sqrt(g * kp);
+
+            Real time = static_cast<Real>(time_d);
 
             ParallelFor(zbx, [=] AMREX_GPU_DEVICE (int i, int j, int)
             {
