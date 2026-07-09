@@ -227,8 +227,8 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
         ParallelFor(xybx, [=] AMREX_GPU_DEVICE(int i, int j, int) noexcept
         {
             const Real t_layer = t10av_arr(i, j, 0);
-            const Real moisture_fraction = use_moisture ? q10av_arr(i, j, 0) : zero;
-            const Real t_layer_v = t_layer * (one + amrex::Real(0.61) * moisture_fraction);
+            const Real moisture_fraction = use_moisture ? q10av_arr(i, j, 0) : Real(0);
+            const Real t_layer_v = t_layer * (Real(1) + amrex::Real(0.61) * moisture_fraction);
 
             Real zval, Rib;
             int kpbl = klo;
@@ -324,13 +324,13 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
             const Real t_layer  = t10av_arr(i, j, 0);
             Real obuk_val = l_obuk_arr(i, j, 0);
             if (std::abs(obuk_val) < amrex::Real(1.0e-10)) {
-                obuk_val = (obuk_val >= zero) ? amrex::Real(1.0e-10) : amrex::Real(-1.0e-10);
+                obuk_val = (obuk_val >= Real(0)) ? amrex::Real(1.0e-10) : amrex::Real(-1.0e-10);
             }
 
             // HOL computed from predictor height (WRF uses predictor height for wstar/VPERT)
             const Real HOL = sf * pblh_pred_arr(i, j, 0) / obuk_val;
             const Real HOL_bounded = amrex::max(amrex::min(HOL, Real(100.0)), Real(-100.0));
-            const Real one_quarter = Real(1.0) / Real(4.0);
+            const Real one_quarter = Real(0.25);
             const Real phiM = (obuk_val > 0)
                             ? (1 + 5 * HOL_bounded)
                             : std::pow(amrex::max(1 - 16 * HOL_bounded, Real(0.01)), -one_quarter);
@@ -343,20 +343,20 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
             wstar = amrex::max(wstar, Real(0.01));
             wstar = amrex::min(wstar, Real(5.0));
 
-            bool SFCFLG = (obuk_val <= zero);
+            bool SFCFLG = (obuk_val <= Real(0));
             const Real HGAMT = (SFCFLG && enable_mrf_countergradient)
                              ? amrex::min(-const_b * u_star_arr(i, j, 0) * t_star_arr(i, j, 0) / wstar, GAMCRT)
-                             : zero;
+                             : Real(0);
 
-            Real HGAMQ = zero;
+            Real HGAMQ = Real(0);
             if (SFCFLG && use_moisture && enable_mrf_countergradient) {
                 const Real q_star = q_star_arr(i, j, 0);
                 const Real HGAMQ_calc = -const_b * u_star_arr(i, j, 0) * q_star / wstar;
-                HGAMQ = amrex::max(amrex::min(HGAMQ_calc, GAMCRQ), zero);
+                HGAMQ = amrex::max(amrex::min(HGAMQ_calc, GAMCRQ), Real(0));
 
                 if (lmask_arr) {
                     bool is_land = (lmask_arr(i,j,0) == 1);
-                    if (!is_land) HGAMQ = zero;
+                    if (!is_land) HGAMQ = Real(0);
                 }
 
                 if (moisture_indices.qv >= 0) {
@@ -364,11 +364,11 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
                     Real T_klo = getTgivenRandRTh(cell_data(i, j, klo, Rho_comp),
                                                   cell_data(i, j, klo, RhoTheta_comp), qv_klo);
                     Real p_klo = getPgivenRTh(cell_data(i, j, klo, RhoTheta_comp), qv_klo) * Real(0.01);
-                    Real qsat_klo = zero;
+                    Real qsat_klo = Real(0);
                     erf_qsatw(T_klo, p_klo, qsat_klo);
-                    Real rh_klo = (qsat_klo > Real(1.0e-10)) ? (qv_klo / qsat_klo) : zero;
+                    Real rh_klo = (qsat_klo > Real(1.0e-10)) ? (qv_klo / qsat_klo) : Real(0);
                     if (rh_klo > Real(0.95)) {
-                        Real rh_scaling = amrex::max(zero, (one - rh_klo) / Real(0.05));
+                        Real rh_scaling = amrex::max(Real(0), (Real(1) - rh_klo) / Real(0.05));
                         HGAMQ *= rh_scaling;
                     }
                 }
@@ -378,13 +378,13 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
             // This will be added to the surface temperature in the corrector Rib search.
             // WRF Reference: module_bl_mrf.F lines 879-880
             if (pbli_arr(i, j, 0) <= klo + 1 || !enable_mrf_countergradient) {
-                vpert_arr(i, j, 0) = zero;
+                vpert_arr(i, j, 0) = Real(0);
             } else {
                 const Real VPERT_raw = HGAMT + amrex::Real(0.61) * t_layer * HGAMQ;
                 const Real VPERT_capped = enable_mrf_unbounded_vpert
                                         ? VPERT_raw
                                         : amrex::min(VPERT_raw, GAMCRT);
-                vpert_arr(i, j, 0) = amrex::max(VPERT_capped, zero);
+                vpert_arr(i, j, 0) = amrex::max(VPERT_capped, Real(0));
             }
         });
 
@@ -399,14 +399,14 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
         ParallelFor(xybx, [=] AMREX_GPU_DEVICE(int i, int j, int) noexcept
         {
             const Real t_layer  = t10av_arr(i, j, 0);
-            const Real moisture_fraction = use_moisture ? q10av_arr(i, j, 0) : zero;
+            const Real moisture_fraction = use_moisture ? q10av_arr(i, j, 0) : Real(0);
             // VPERT-enhanced surface virtual temperature (WRF THERMAL variable)
-            const Real t_layer_v = t_layer * (one + amrex::Real(0.61) * moisture_fraction)
+            const Real t_layer_v = t_layer * (Real(1) + amrex::Real(0.61) * moisture_fraction)
                                  + vpert_arr(i, j, 0);
 
             Real obuk_val = l_obuk_arr(i, j, 0);
             if (std::abs(obuk_val) < amrex::Real(1.0e-10)) {
-                obuk_val = (obuk_val >= zero) ? amrex::Real(1.0e-10) : amrex::Real(-1.0e-10);
+                obuk_val = (obuk_val >= Real(0)) ? amrex::Real(1.0e-10) : amrex::Real(-1.0e-10);
             }
 
             int kpbl = klo;
@@ -487,13 +487,13 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
             //const Real t_layer  = t10av_arr(i, j, 0);
             Real obuk_val = l_obuk_arr(i, j, 0);
             if (std::abs(obuk_val) < amrex::Real(1.0e-10)) {
-                obuk_val = (obuk_val >= zero) ? amrex::Real(1.0e-10) : amrex::Real(-1.0e-10);
+                obuk_val = (obuk_val >= Real(0)) ? amrex::Real(1.0e-10) : amrex::Real(-1.0e-10);
             }
 
             // HOL now uses corrected PBLH for full internal consistency
             const Real HOL = sf * pblh_corr_arr(i, j, 0) / obuk_val;
             const Real HOL_bounded = amrex::max(amrex::min(HOL, Real(100.0)), Real(-100.0));
-            const Real one_quarter = Real(1.0) / Real(4.0);
+            const Real one_quarter = Real(0.25);
             const Real phiM = (obuk_val > 0)
                             ? (1 + 5 * HOL_bounded)
                             : std::pow(amrex::max(1 - 16 * HOL_bounded, Real(0.01)), -one_quarter);
@@ -505,20 +505,20 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
             wstar = amrex::min(wstar, Real(5.0));
             wstar_arr(i, j, 0) = wstar;
 
-            bool SFCFLG = (obuk_val <= zero);
+            bool SFCFLG = (obuk_val <= Real(0));
             const Real HGAMT = (SFCFLG && enable_mrf_countergradient)
                              ? amrex::min(-const_b * u_star_arr(i, j, 0) * t_star_arr(i, j, 0) / wstar, GAMCRT)
-                             : zero;
+                             : Real(0);
 
-            Real HGAMQ = zero;
+            Real HGAMQ = Real(0);
             if (SFCFLG && use_moisture && enable_mrf_countergradient) {
                 const Real q_star = q_star_arr(i, j, 0);
                 const Real HGAMQ_calc = -const_b * u_star_arr(i, j, 0) * q_star / wstar;
-                HGAMQ = amrex::max(amrex::min(HGAMQ_calc, GAMCRQ), zero);
+                HGAMQ = amrex::max(amrex::min(HGAMQ_calc, GAMCRQ), Real(0));
 
                 if (lmask_arr) {
                     bool is_land = (lmask_arr(i,j,0) == 1);
-                    if (!is_land) HGAMQ = zero;
+                    if (!is_land) HGAMQ = Real(0);
                 }
 
                 if (moisture_indices.qv >= 0) {
@@ -526,28 +526,28 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
                     Real T_klo = getTgivenRandRTh(cell_data(i, j, klo, Rho_comp),
                                                   cell_data(i, j, klo, RhoTheta_comp), qv_klo);
                     Real p_klo = getPgivenRTh(cell_data(i, j, klo, RhoTheta_comp), qv_klo) * Real(0.01);
-                    Real qsat_klo = zero;
+                    Real qsat_klo = Real(0);
                     erf_qsatw(T_klo, p_klo, qsat_klo);
-                    Real rh_klo = (qsat_klo > Real(1.0e-10)) ? (qv_klo / qsat_klo) : zero;
+                    Real rh_klo = (qsat_klo > Real(1.0e-10)) ? (qv_klo / qsat_klo) : Real(0);
                     if (rh_klo > Real(0.95)) {
-                        Real rh_scaling = amrex::max(zero, (one - rh_klo) / Real(0.05));
+                        Real rh_scaling = amrex::max(Real(0), (Real(1) - rh_klo) / Real(0.05));
                         HGAMQ *= rh_scaling;
                     }
                 }
             }
 
             if (pbli_arr(i, j, 0) <= klo + 1) {
-                hgamt_arr(i, j, 0) = zero;
-                hgamq_arr(i, j, 0) = zero;
+                hgamt_arr(i, j, 0) = Real(0);
+                hgamq_arr(i, j, 0) = Real(0);
             } else {
                 const Real pblh = pblh_corr_arr(i, j, 0);
                 // FIX: guard against division by zero when pblh is extremely small
                 if (pblh > Real(1.0e-10)) {
-                    hgamt_arr(i, j, 0) = (enable_mrf_countergradient) ? HGAMT / pblh : zero;
-                    hgamq_arr(i, j, 0) = (enable_mrf_countergradient && use_moisture) ? HGAMQ / pblh : zero;
+                    hgamt_arr(i, j, 0) = (enable_mrf_countergradient) ? HGAMT / pblh : Real(0);
+                    hgamq_arr(i, j, 0) = (enable_mrf_countergradient && use_moisture) ? HGAMQ / pblh : Real(0);
                 } else {
-                    hgamt_arr(i, j, 0) = zero;
-                    hgamq_arr(i, j, 0) = zero;
+                    hgamt_arr(i, j, 0) = Real(0);
+                    hgamq_arr(i, j, 0) = Real(0);
                 }
             }
         });
@@ -558,12 +558,12 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
         // WRF reference (module_bl_mrf.F lines 932-964):
         // https://github.com/wrf-model/WRF/blob/master/phys/module_bl_mrf.F#L932-L964
         //
-        constexpr Real Ribcr_zero = zero;
+        constexpr Real Ribcr_zero = Real(0);
         ParallelFor(xybx, [=] AMREX_GPU_DEVICE(int i, int j, int) noexcept
         {
             const Real t_layer  = t10av_arr(i, j, 0);
-            const Real moisture_fraction = use_moisture ? q10av_arr(i, j, 0) : zero;
-            const Real t_layer_v = t_layer * (one + amrex::Real(0.61) * moisture_fraction);
+            const Real moisture_fraction = use_moisture ? q10av_arr(i, j, 0) : Real(0);
+            const Real t_layer_v = t_layer * (Real(1) + amrex::Real(0.61) * moisture_fraction);
             const Real t_layer_v_enhanced = t_layer_v + vpert_arr(i, j, 0);
 
             int kpbl_zero = klo;
@@ -576,9 +576,9 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
                 // FIX: guard theta_v_klo against zero to prevent NaN in Rib
                 const Real theta_v_klo = amrex::max(GetThetav(i, j, klo, cell_data, moisture_indices), Real(1.0));
                 const Real ws2_raw = fourth * ( (uvel(i, j, kpbl_zero) + uvel(i + 1, j, kpbl_zero)) *
-                                              (uvel(i, j, kpbl_zero) + uvel(i + 1, j, kpbl_zero)) +
-                                              (vvel(i, j, kpbl_zero) + vvel(i, j + 1, kpbl_zero)) *
-                                              (vvel(i, j, kpbl_zero) + vvel(i, j + 1, kpbl_zero)) );
+                                                (uvel(i, j, kpbl_zero) + uvel(i + 1, j, kpbl_zero)) +
+                                                (vvel(i, j, kpbl_zero) + vvel(i, j + 1, kpbl_zero)) *
+                                                (vvel(i, j, kpbl_zero) + vvel(i, j + 1, kpbl_zero)) );
                 const Real ws2 = amrex::max(ws2_raw, Real(1.0));
                 Rib_zero = CONST_GRAV * zval_zero * (theta_v - t_layer_v_enhanced) / (ws2 * theta_v_klo);
             }
@@ -593,9 +593,9 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
                 // FIX: guard theta_v_klo against zero to prevent NaN in Rib
                 const Real theta_v_klo = amrex::max(GetThetav(i, j, klo, cell_data, moisture_indices), Real(1.0));
                 const Real ws2_raw = fourth * ( (uvel(i, j, kpbl_zero) + uvel(i + 1, j, kpbl_zero)) *
-                                              (uvel(i, j, kpbl_zero) + uvel(i + 1, j, kpbl_zero)) +
-                                              (vvel(i, j, kpbl_zero) + vvel(i, j + 1, kpbl_zero)) *
-                                              (vvel(i, j, kpbl_zero) + vvel(i, j + 1, kpbl_zero)) );
+                                                (uvel(i, j, kpbl_zero) + uvel(i + 1, j, kpbl_zero)) +
+                                                (vvel(i, j, kpbl_zero) + vvel(i, j + 1, kpbl_zero)) *
+                                                (vvel(i, j, kpbl_zero) + vvel(i, j + 1, kpbl_zero)) );
                 const Real ws2 = amrex::max(ws2_raw, Real(1.0));
                 Rib_zero = CONST_GRAV * zval_zero * (theta_v - t_layer_v_enhanced) / (ws2 * theta_v_klo);
                 above_critical_zero = (Rib_zero >= Ribcr_zero);
@@ -628,7 +628,7 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
         {
             Real obuk_val = l_obuk_arr(i, j, 0);
             if (std::abs(obuk_val) < amrex::Real(1.0e-10)) {
-                obuk_val = (obuk_val >= zero) ? amrex::Real(1.0e-10) : amrex::Real(-1.0e-10);
+                obuk_val = (obuk_val >= Real(0)) ? amrex::Real(1.0e-10) : amrex::Real(-1.0e-10);
             }
 
             const Real zval = (use_terrain_fitted_coords)
@@ -637,22 +637,22 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
             const Real rho = cell_data(i, j, k, Rho_comp);
             // FIX: skip ghost cells with uninitialized (zero) density — prevents
             // division-by-zero inside GetThetav at lateral ghost cells of gbx
-            if (rho <= zero) {
-                K_turb(i, j, k, EddyDiff::Mom_v)   = zero;
-                K_turb(i, j, k, EddyDiff::Theta_v) = zero;
-                K_turb(i, j, k, EddyDiff::Q_v)     = zero;
-                K_turb(i, j, k, EddyDiff::HGAMT_v) = zero;
-                K_turb(i, j, k, EddyDiff::HGAMQ_v) = zero;
-                K_turb(i, j, k, EddyDiff::Turb_lengthscale) = zero;
+            if (rho <= Real(0)) {
+                K_turb(i, j, k, EddyDiff::Mom_v)   = Real(0);
+                K_turb(i, j, k, EddyDiff::Theta_v) = Real(0);
+                K_turb(i, j, k, EddyDiff::Q_v)     = Real(0);
+                K_turb(i, j, k, EddyDiff::HGAMT_v) = Real(0);
+                K_turb(i, j, k, EddyDiff::HGAMQ_v) = Real(0);
+                K_turb(i, j, k, EddyDiff::Turb_lengthscale) = Real(0);
                 return;
             }
             const Real met_h_zeta = (use_terrain_fitted_coords)
-                                  ? Compute_h_zeta_AtCellCenter(i, j, k, dxInv, z_nd_arr) : one;
+                                  ? Compute_h_zeta_AtCellCenter(i, j, k, dxInv, z_nd_arr) : Real(1);
             const Real dz_terrain = met_h_zeta / dz_inv;
 
             constexpr Real qc_threshold = Real(1.0e-5);
-            Real qc_mix = zero;
-            Real qi_mix = zero;
+            Real qc_mix = Real(0);
+            Real qi_mix = Real(0);
             if (use_moisture) {
                 if (moisture_indices.qc >= 0) {
                     qc_mix = cell_data(i, j, k, moisture_indices.qc) / rho;
@@ -667,29 +667,29 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
             const int pbli_extent = turbChoice.pbl_mrf_use_zero_ri_extent ? pbli_zero_arr(i, j, 0) : pbli_arr(i, j, 0);
 
             if (k < pbli_extent) {
-                bool SFCFLG = (obuk_val <= zero);
+                bool SFCFLG = (obuk_val <= Real(0));
 
                 const Real HOL = sf * pblh_corr_arr(i, j, 0) / obuk_val;
                 const Real HOL_bounded = amrex::max(amrex::min(HOL, Real(100.0)), Real(-100.0));
 
-                const Real one_quarter = Real(1.0) / Real(4.0);
+                const Real one_quarter = Real(0.25);
                 const Real phiM = (obuk_val > 0)
                                 ? (1 + 5 * HOL_bounded)
                                 : std::pow(amrex::max(1 - 16 * HOL_bounded, Real(0.01)), -one_quarter);
                 const Real phit = (obuk_val > 0)
                                 ? (1 + 5 * HOL_bounded)
-                                : std::pow(amrex::max(1 - 16 * HOL_bounded, Real(0.01)), -one / two);
+                                : std::pow(amrex::max(1 - 16 * HOL_bounded, Real(0.01)), -Real(0.5));
 
                 Real phit_cloud = phit;
                 Real phiM_cloud = phiM;
-                if (has_cloud && obuk_val > zero) {
-                    Real reduction_factor = one - Real(0.15) * amrex::min(total_qcloud / qc_threshold, one);
-                    phiM_cloud = one + Real(5.0) * reduction_factor * sf * pblh_corr_arr(i, j, 0) / obuk_val;
-                    phit_cloud = one + Real(5.0) * reduction_factor * sf * pblh_corr_arr(i, j, 0) / obuk_val;
-                } else if (has_cloud && obuk_val <= zero) {
-                    Real cloud_boost = Real(1.0) + Real(0.05) * amrex::min(total_qcloud / qc_threshold, one);
-                    phiM_cloud = std::pow(amrex::max(one - Real(16.0) * HOL_bounded / cloud_boost, Real(0.01)), -one_quarter);
-                    phit_cloud = std::pow(amrex::max(one - Real(16.0) * HOL_bounded / cloud_boost, Real(0.01)), -one / two);
+                if (has_cloud && obuk_val > Real(0)) {
+                    Real reduction_factor = Real(1) - Real(0.15) * amrex::min(total_qcloud / qc_threshold, Real(1));
+                    phiM_cloud = Real(1) + Real(5.0) * reduction_factor * sf * pblh_corr_arr(i, j, 0) / obuk_val;
+                    phit_cloud = Real(1) + Real(5.0) * reduction_factor * sf * pblh_corr_arr(i, j, 0) / obuk_val;
+                } else if (has_cloud && obuk_val <= Real(0)) {
+                    Real cloud_boost = Real(1.0) + Real(0.05) * amrex::min(total_qcloud / qc_threshold, Real(1));
+                    phiM_cloud = std::pow(amrex::max(Real(1) - Real(16.0) * HOL_bounded / cloud_boost, Real(0.01)), -one_quarter);
+                    phit_cloud = std::pow(amrex::max(Real(1) - Real(16.0) * HOL_bounded / cloud_boost, Real(0.01)), -Real(0.5));
                 }
 
                 const Real phiM_eff = phiM_cloud;
@@ -705,11 +705,11 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
                     // WRF Reference: module_bl_mrf.F L976-978
                     const Real z_sfc = (use_terrain_fitted_coords)
                                      ? Compute_Zrel_AtCellCenter(i, j, klo, z_nd_arr)
-                                     : zero;
+                                     : Real(0);
                     const Real zrel = zval - z_sfc;
                     const Real pblh = pblh_corr_arr(i, j, 0);
                     const Real pblh_rel = pblh - z_sfc;
-                    const Real zfac = amrex::max(one - zrel / pblh_rel, Real(1.0e-8));
+                    const Real zfac = amrex::max(Real(1) - zrel / pblh_rel, Real(1.0e-8));
 
                     K_turb(i, j, k, EddyDiff::Mom_v)   = rho * wstar * KAPPA * zrel * zfac * zfac;
                     K_turb(i, j, k, EddyDiff::Theta_v) = K_turb(i, j, k, EddyDiff::Mom_v) / Prt;
@@ -725,13 +725,13 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
                     const Real lambda = Real(150.0);
                     const Real lscale = (KAPPA * zval * lambda) / (KAPPA * zval + lambda);
                     Real dthetadz, dudz, dvdz;
-                    ComputeVerticalDerivativesPBL(i, j, k, uvel, vvel, cell_data, izmin, izmax, one / dz_terrain,
+                    ComputeVerticalDerivativesPBL(i, j, k, uvel, vvel, cell_data, izmin, izmax, Real(1) / dz_terrain,
                                                   c_ext_dir_on_zlo, c_ext_dir_on_zhi, u_ext_dir_on_zlo,
                                                   u_ext_dir_on_zhi, v_ext_dir_on_zlo, v_ext_dir_on_zhi, dthetadz,
                                                   dudz, dvdz, moisture_indices);
 
-                    const Real dudz_safe = (k < izmax) ? dudz : zero;
-                    const Real dvdz_safe = (k < izmax) ? dvdz : zero;
+                    const Real dudz_safe = (k < izmax) ? dudz : Real(0);
+                    const Real dvdz_safe = (k < izmax) ? dvdz : Real(0);
                     const Real wind_shear = dudz_safe * dudz_safe + dvdz_safe * dvdz_safe;
                     const Real wind_shear_safe = std::max(wind_shear, Real(1.0e-8));
 
@@ -739,19 +739,19 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
                     const Real theta_v     = amrex::max(GetThetav(i, j, k,   cell_data, moisture_indices), Real(1.0));
                     const Real theta_v_kp1 = (k < izmax) ? GetThetav(i, j, k+1, cell_data, moisture_indices) : theta_v;
                     const Real theta_v_km1 = (k > izmin) ? GetThetav(i, j, k-1, cell_data, moisture_indices) : theta_v;
-                    const Real dtheta_v_dz = myhalf * (theta_v_kp1 - theta_v_km1) * (one / dz_terrain);
+                    const Real dtheta_v_dz = myhalf * (theta_v_kp1 - theta_v_km1) * (Real(1) / dz_terrain);
 
                     Real grad_Ri = CONST_GRAV / theta_v * dtheta_v_dz / wind_shear_safe;
                     grad_Ri = std::max(std::min(grad_Ri, Real(100.0)), -Real(100.0));
 
                     const Real grad_Ri_safe = amrex::max(grad_Ri, -Real(100.0));
-                    Real Pr_rich = one + Real(2.1) * grad_Ri;
+                    Real Pr_rich = Real(1) + Real(2.1) * grad_Ri;
                     const Real fm = (grad_Ri_safe > 0)
-                                  ? one / ((one + Real(5.0) * grad_Ri_safe) * (one + Real(5.0) * grad_Ri_safe))
-                                  : 1 - 8 * grad_Ri_safe / (1 + Real(1.746) * std::sqrt(amrex::max(-grad_Ri_safe, zero)));
+                                  ? Real(1) / ((Real(1) + Real(5.0) * grad_Ri_safe) * (Real(1) + Real(5.0) * grad_Ri_safe))
+                                  : 1 - 8 * grad_Ri_safe / (1 + Real(1.746) * std::sqrt(amrex::max(-grad_Ri_safe, Real(0))));
                     const Real ft = (grad_Ri_safe > 0)
-                                  ? one / ((one + Real(5.0) * grad_Ri_safe) * (one + Real(5.0) * grad_Ri_safe))
-                                  : 1 - 8 * grad_Ri_safe / (1 + Real(1.286) * std::sqrt(amrex::max(-grad_Ri_safe, zero)));
+                                  ? Real(1) / ((Real(1) + Real(5.0) * grad_Ri_safe) * (Real(1) + Real(5.0) * grad_Ri_safe))
+                                  : 1 - 8 * grad_Ri_safe / (1 + Real(1.286) * std::sqrt(amrex::max(-grad_Ri_safe, Real(0))));
                     const Real rl2wsp = rho * lscale * lscale * std::sqrt(wind_shear);
 
                     Pr_rich = std::max(amrex::Real(0.25), std::min(Pr_rich, Real(4.0)));
@@ -768,13 +768,13 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
                 const Real lambda = Real(150.0);
                 const Real lscale = (KAPPA * zval * lambda) / (KAPPA * zval + lambda);
                 Real dthetadz, dudz, dvdz;
-                ComputeVerticalDerivativesPBL(i, j, k, uvel, vvel, cell_data, izmin, izmax, one / dz_terrain,
+                ComputeVerticalDerivativesPBL(i, j, k, uvel, vvel, cell_data, izmin, izmax, Real(1) / dz_terrain,
                                               c_ext_dir_on_zlo, c_ext_dir_on_zhi, u_ext_dir_on_zlo,
                                               u_ext_dir_on_zhi, v_ext_dir_on_zlo, v_ext_dir_on_zhi, dthetadz,
                                               dudz, dvdz, moisture_indices);
 
-                const Real dudz_safe = (k < izmax) ? dudz : zero;
-                const Real dvdz_safe = (k < izmax) ? dvdz : zero;
+                const Real dudz_safe = (k < izmax) ? dudz : Real(0);
+                const Real dvdz_safe = (k < izmax) ? dvdz : Real(0);
                 const Real wind_shear = dudz_safe * dudz_safe + dvdz_safe * dvdz_safe;
                 const Real wind_shear_safe = std::max(wind_shear, Real(1.0e-8));
 
@@ -782,19 +782,19 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
                 const Real theta_v     = amrex::max(GetThetav(i, j, k,   cell_data, moisture_indices), Real(1.0));
                 const Real theta_v_kp1 = (k < izmax) ? GetThetav(i, j, k+1, cell_data, moisture_indices) : theta_v;
                 const Real theta_v_km1 = (k > izmin) ? GetThetav(i, j, k-1, cell_data, moisture_indices) : theta_v;
-                const Real dtheta_v_dz = myhalf * (theta_v_kp1 - theta_v_km1) * (one / dz_terrain);
+                const Real dtheta_v_dz = myhalf * (theta_v_kp1 - theta_v_km1) * (Real(1) / dz_terrain);
 
                 Real grad_Ri = CONST_GRAV / theta_v * dtheta_v_dz / wind_shear_safe;
                 grad_Ri = std::max(std::min(grad_Ri, Real(100.0)), -Real(100.0));
 
                 const Real grad_Ri_safe = amrex::max(grad_Ri, -Real(100.0));
-                Real Pr = one + Real(2.1) * grad_Ri;
+                Real Pr = Real(1) + Real(2.1) * grad_Ri;
                 const Real fm = (grad_Ri_safe > 0)
-                              ? one / ((one + Real(5.0) * grad_Ri_safe) * (one + Real(5.0) * grad_Ri_safe))
-                              : 1 - 8 * grad_Ri_safe / (1 + Real(1.746) * std::sqrt(amrex::max(-grad_Ri_safe, zero)));
+                              ? Real(1) / ((Real(1) + Real(5.0) * grad_Ri_safe) * (Real(1) + Real(5.0) * grad_Ri_safe))
+                              : 1 - 8 * grad_Ri_safe / (1 + Real(1.746) * std::sqrt(amrex::max(-grad_Ri_safe, Real(0))));
                 const Real ft = (grad_Ri_safe > 0)
-                              ? one / ((one + Real(5.0) * grad_Ri_safe) * (one + Real(5.0) * grad_Ri_safe))
-                              : 1 - 8 * grad_Ri_safe / (1 + Real(1.286) * std::sqrt(amrex::max(-grad_Ri_safe, zero)));
+                              ? Real(1) / ((Real(1) + Real(5.0) * grad_Ri_safe) * (Real(1) + Real(5.0) * grad_Ri_safe))
+                              : 1 - 8 * grad_Ri_safe / (1 + Real(1.286) * std::sqrt(amrex::max(-grad_Ri_safe, Real(0))));
                 const Real rl2wsp = rho * lscale * lscale * std::sqrt(wind_shear);
 
                 Pr = std::max(amrex::Real(0.25), std::min(Pr, Real(4.0)));
@@ -836,8 +836,8 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
                 K_turb(i, j, k, EddyDiff::HGAMT_v) = hgamt_arr(i, j, 0);
                 K_turb(i, j, k, EddyDiff::HGAMQ_v) = hgamq_arr(i, j, 0);
             } else {
-                K_turb(i, j, k, EddyDiff::HGAMT_v) = zero;
-                K_turb(i, j, k, EddyDiff::HGAMQ_v) = zero;
+                K_turb(i, j, k, EddyDiff::HGAMT_v) = Real(0);
+                K_turb(i, j, k, EddyDiff::HGAMQ_v) = Real(0);
             }
         });
 
