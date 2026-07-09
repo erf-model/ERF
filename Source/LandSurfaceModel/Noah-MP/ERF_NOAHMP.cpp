@@ -39,6 +39,7 @@ NOAHMP::Init (const int& lev,
     }();
     amrex::ignore_unused(noahmp_fatal_installed);
 
+    m_lev   = lev;
     m_dt    = dt;
     m_geom  = geom;
     m_geom0 = geom0;
@@ -392,9 +393,9 @@ NOAHMP::Advance_With_State (const int& lev,
         const bool have_precip = surface_precip_has_any_source(precip_sources);
         if (have_precip) {
             // Lazily allocate the per-level, per-slot "previous cumulative accum" snapshot.
-            // On the first call (cold start OR restart) seed each present slot to its
-            // current accumulation so the first interval's delta is 0 (no spurious precip
-            // spike from a restored or non-zero initial accumulation).
+            // On restart, seed from the checkpointed snapshot (m_precip_accum_restored) so
+            // the first interval differences against what Noah-MP last consumed; on a cold
+            // start, seed from the current accumulation so the first interval's delta is 0.
             if (int(m_precip_accum_prev.size()) <= lev) { m_precip_accum_prev.resize(lev+1); }
             auto& prev = m_precip_accum_prev[lev];
             for (int s(0); s < NoahmpPrecipSlot::NumSlots; ++s) {
@@ -407,7 +408,13 @@ NOAHMP::Advance_With_State (const int& lev,
                     prev[s] = std::make_unique<MultiFab>(
                         slot_accum[s]->boxArray(), slot_accum[s]->DistributionMap(), 1, 0);
                     prev[s]->setVal(0.0);
-                    MultiFab::Copy(*prev[s], *slot_accum[s], 0, 0, 1, 0);
+                    if (m_precip_accum_restored[s]) {
+                        // Restart: ParallelCopy handles a changed decomposition; consume once.
+                        prev[s]->ParallelCopy(*m_precip_accum_restored[s], 0, 0, 1);
+                        m_precip_accum_restored[s].reset();
+                    } else {
+                        MultiFab::Copy(*prev[s], *slot_accum[s], 0, 0, 1, 0);
+                    }
                 }
             }
         }
@@ -415,6 +422,11 @@ NOAHMP::Advance_With_State (const int& lev,
         // Cells the precip guard clamped this call (per rank); reported after the box loop.
         struct ClampedPrecipCell { int i; int j; amrex::Real raw_mm; };
         amrex::Vector<ClampedPrecipCell> clamped_cells;
+
+        // Cells where the frozen components violated MP_SNOW+MP_GRAUP <= MP_RAINNC and were
+        // rescaled to restore the invariant (per rank); reported after the box loop.
+        struct InvariantPrecipCell { int i; int j; amrex::Real froz_mm; amrex::Real total_mm; };
+        amrex::Vector<InvariantPrecipCell> invariant_cells;
 
         // Loop over blocks to copy forcing data to Noahmp, drive the land model,
         // and copy data back to ERF Multifabs.
@@ -539,7 +551,10 @@ NOAHMP::Advance_With_State (const int& lev,
                               ? amrex::max(zero, (accum_now[s](i,j,kklo) - accum_prv[s](i,j,kklo)) * accum_fac[s])
                               : zero;
                     }
-                    // Frozen -> MP_SNOW / MP_GRAUP (hail folded into graupel; no hail input).
+                    // Frozen -> MP_SNOW / MP_GRAUP. Intentional fallback: this Noah-MP core
+                    // has no hail input, so the hail slot is folded into MP_GRAUP rather than
+                    // carried separately as WRF's MP_HAIL. No current ERF scheme fills the
+                    // hail slot (no-op today); add an explicit MP_HAIL path if one does.
                     dsnow  = dd[NoahmpPrecipSlot::snow];
                     dgraup = dd[NoahmpPrecipSlot::graupel] + dd[NoahmpPrecipSlot::hail];
                     const Real dfroz = dsnow + dgraup;
@@ -569,14 +584,29 @@ NOAHMP::Advance_With_State (const int& lev,
                 noahmpio->COSZEN(i,j)    = noah_input_arr(i,j,0,NoahmpInputComp::coszen);
                 // Guard the RAW total against non-physical values, then derive SR / MP_RAINNC.
                 // Clamped cells are recorded and reported after the box loop (never silent).
-                const Real dsnow_h  = noah_input_arr(i,j,0,NoahmpInputComp::mp_snow);
-                const Real dgraup_h = noah_input_arr(i,j,0,NoahmpInputComp::mp_graup);
-                Real drain_h        = noah_input_arr(i,j,0,NoahmpInputComp::rainbl);
+                Real dsnow_h  = noah_input_arr(i,j,0,NoahmpInputComp::mp_snow);
+                Real dgraup_h = noah_input_arr(i,j,0,NoahmpInputComp::mp_graup);
+                Real drain_h  = noah_input_arr(i,j,0,NoahmpInputComp::rainbl);
                 if (drain_h > lsm_max_precip_interval) {
                     clamped_cells.push_back(ClampedPrecipCell{i, j, drain_h});
                     drain_h = lsm_max_precip_interval;
                 }
-                const Real dfroz_h = dsnow_h + dgraup_h;
+                // Enforce the frozen/total invariant AFTER the clamp: MP_SNOW and MP_GRAUP
+                // are subsets of MP_RAINNC, so their sum must not exceed it (violated by an
+                // inconsistent accumulator, or by the clamp lowering drain_h below the frozen
+                // sum). Rescale the frozen components to the total to keep the breakdown
+                // self-consistent, and record the cell so a bad source stays diagnosable.
+                Real dfroz_h = dsnow_h + dgraup_h;
+                const Real inv_tol = Real(1.0e-6) * (Real(1.0) + drain_h);
+                if (dfroz_h > drain_h + inv_tol) {
+                    invariant_cells.push_back(InvariantPrecipCell{i, j, dfroz_h, drain_h});
+                    if (dfroz_h > zero) {
+                        const Real scale = drain_h / dfroz_h;   // <= 1
+                        dsnow_h  *= scale;
+                        dgraup_h *= scale;
+                        dfroz_h   = dsnow_h + dgraup_h;         // == drain_h (to round-off)
+                    }
+                }
                 noahmpio->RAINBL(i,j)    = drain_h;                                       // [mm]
                 noahmpio->SR(i,j)        = (drain_h > zero) ? amrex::min(Real(1.0), dfroz_h/drain_h) : zero; // [-]
                 noahmpio->MP_RAINNC(i,j) = drain_h;                                       // [mm]
@@ -762,6 +792,24 @@ NOAHMP::Advance_With_State (const int& lev,
             }
             if (int(clamped_cells.size()) > nshow) {
                 aprint << "    ... and " << (int(clamped_cells.size()) - nshow) << " more\n";
+            }
+        }
+
+        // Report cells whose frozen components were rescaled to restore
+        // MP_SNOW+MP_GRAUP <= MP_RAINNC (per rank; never silent).
+        if (!invariant_cells.empty()) {
+            const int nshow = amrex::min(int(invariant_cells.size()), 50);
+            amrex::AllPrint aprint;
+            aprint << "WARNING: NOAHMP precip invariant (level " << lev << "): rescaled frozen "
+                   << "components in " << invariant_cells.size() << " cell(s) where "
+                   << "MP_SNOW+MP_GRAUP exceeded MP_RAINNC:\n";
+            for (int c(0); c < nshow; ++c) {
+                aprint << "    (i,j)=(" << invariant_cells[c].i << "," << invariant_cells[c].j
+                       << ") frozen=" << invariant_cells[c].froz_mm
+                       << " mm > total=" << invariant_cells[c].total_mm << " mm\n";
+            }
+            if (int(invariant_cells.size()) > nshow) {
+                aprint << "    ... and " << (int(invariant_cells.size()) - nshow) << " more\n";
             }
         }
 

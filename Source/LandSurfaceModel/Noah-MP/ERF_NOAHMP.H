@@ -14,6 +14,8 @@
 #include <AMReX_MultiFabUtil.H>
 #include <AMReX_Vector.H>
 #include <AMReX_MFIter.H>
+#include <AMReX_VisMF.H>
+#include <AMReX_Utility.H>
 
 #include <ERF_NullSurf.H>
 #include <ERF_Constants.H>
@@ -87,7 +89,8 @@ namespace NoahmpPrecipSlot {
         rain,        // explicit rain accumulator (schemes without a total slot)
         snow,        // snow (+ice) accumulator
         graupel,     // graupel accumulator
-        hail,        // hail accumulator (folded into MP_GRAUP; Noah-MP has no hail input)
+        hail,        // hail accumulator: intentionally folded into MP_GRAUP (this Noah-MP
+                     // core has no hail input; not exact WRF MP_HAIL parity -- see ERF_NOAHMP.cpp)
         NumSlots
     };
 }
@@ -312,6 +315,18 @@ public:
         for (const NoahmpIO_type& noahmpio : noahmpio_vect) {
             const_cast<NoahmpIO_type&>(noahmpio).WriteRestart(dir);
         }
+
+        // Also save the precip snapshots (the cumulative precip Noah-MP last consumed).
+        // Restoring these on restart lets the next land call difference against the same
+        // baseline, so no precip is dropped or double-counted across the restart.
+        if (m_lev < int(m_precip_accum_prev.size())) {
+            for (int s(0); s < NoahmpPrecipSlot::NumSlots; ++s) {
+                if (m_precip_accum_prev[m_lev][s]) {
+                    amrex::VisMF::Write(*m_precip_accum_prev[m_lev][s],
+                                        m_precip_snapshot_name(dir, m_lev, s));
+                }
+            }
+        }
     }
 
     void
@@ -319,6 +334,18 @@ public:
     {
         for (NoahmpIO_type& noahmpio : noahmpio_vect) {
             noahmpio.ReadRestart(dir);
+        }
+
+        // Read the saved precip snapshots into a staging store (the live snapshots are
+        // not allocated until the first Advance, which then copies these in). Legacy
+        // checkpoints have no such files -> store stays empty -> Advance cold-seeds.
+        for (int s(0); s < NoahmpPrecipSlot::NumSlots; ++s) {
+            const std::string name = m_precip_snapshot_name(dir, m_lev, s);
+            if (amrex::FileExists(name + "_H")) {
+                auto mf = std::make_unique<amrex::MultiFab>();
+                amrex::VisMF::Read(*mf, name);
+                m_precip_accum_restored[s] = std::move(mf);
+            }
         }
     }
 
@@ -440,6 +467,21 @@ private:
     // produce a spurious precip spike.
     amrex::Vector<amrex::Array<std::unique_ptr<amrex::MultiFab>, NoahmpPrecipSlot::NumSlots>>
         m_precip_accum_prev;
+
+    // Checkpointed previous-accumulation snapshots staged by Read_Lsm_Restart, consumed
+    // (reset) by the first Advance. Empty on a cold start or legacy checkpoint.
+    amrex::Array<std::unique_ptr<amrex::MultiFab>, NoahmpPrecipSlot::NumSlots>
+        m_precip_accum_restored;
+
+    // This instance's AMR level (set in Init); keys the per-level snapshot filenames.
+    int m_lev = 0;
+
+    // VisMF file prefix for the level-l, slot-s previous-accumulation snapshot.
+    static std::string
+    m_precip_snapshot_name (const std::string& dir, int l, int s) {
+        return dir + "/precip_accum_prev_Level_" + std::to_string(l)
+                   + "_slot_" + std::to_string(s);
+    }
 
     // Plot frequency
     int m_plot_int_1 = -1;
