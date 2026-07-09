@@ -1,0 +1,92 @@
+# ------------------  INPUTS TO MAIN PROGRAM  -------------------
+# Strong Wind / High Shear Neutral Boundary Layer Test Case
+#
+# A shear-dominated neutral boundary layer under storm conditions with extremely high
+# geostrophic winds (e.g., 30-40 m/s).
+#
+# Why it is needed:
+# This evaluates the performance of the stability-corrected turbulent Prandtl number
+# bounds (0.5 <= Pr_t <= 4.0) under shear-driven, extremely high turbulent energy
+# conditions. It ensures that the Prandtl number bounds and the division by zero guards
+# behave correctly under massive wind shear.
+#
+# This test validates MRF's robustness under extreme atmospheric dynamics and storm-like conditions.
+
+erf.prob_name = "ABL"
+
+max_step = 20
+
+amrex.fpe_trap_invalid = 0
+
+fabarray.mfiter_tile_size = 1024 1024 1024
+
+# PROBLEM SIZE & GEOMETRY
+geometry.prob_extent = 8000  8000  2048
+amr.n_cell           =  8   8   64
+geometry.is_periodic = 1 1 0
+
+# MOST BOUNDARY
+zlo.type = "surface_layer"
+erf.most.z0   = 0.1
+erf.most.zref = 48.0
+
+# Neutral, adiabatic conditions
+erf.most.surf_temp_flux = 0.0
+
+zhi.type = "SlipWall"
+
+# TIME STEP CONTROL
+erf.fixed_dt = 0.01  # very short timestep for extremely high velocities
+
+# DIAGNOSTICS & VERBOSITY
+erf.sum_interval   = 1
+erf.v              = 1
+amr.v              = 1
+
+# REFINEMENT / REGRIDDING
+amr.max_level       = 0
+
+# CHECKPOINT FILES
+erf.check_file      = chk_high_shear
+erf.check_int       = 100
+
+# DATA COLLECTION
+erf.data_log    = unstable_hist.dat unstable_profiles.dat
+erf.profile_int = 10
+
+# PLOTFILES
+erf.plot_file_1     = plt_unstable      # prefix of plotfile name
+erf.plot_int_1      = 15                # number of timesteps between plotfiles
+erf.plot_vars_1     = density rhoadv_0 rhoadv_1 x_velocity y_velocity z_velocity pressure temp theta
+
+# SOLVER CHOICE
+erf.use_gravity = true
+
+erf.molec_diff_type = "None"
+# When using a PBL model, LES closure should be disabled
+erf.les_type        = "None"
+erf.theta_ref = 300.0
+
+# INITIALIZATION - from sounding file
+erf.init_type = "input_sounding"
+erf.sounding_type = Ideal
+erf.input_sounding_file = "input_sounding_MRF_high_shear"
+
+# PROBLEM PARAMETERS - High wind speeds
+
+
+# Perturbations
+
+# PBL CONFIGURATION - MRF PBL under high shear
+erf.pbl_type = "MRF"
+erf.pbl_mrf_Ribcr = 0.5
+erf.pbl_mrf_const_b = 7.8
+erf.pbl_mrf_sf = 0.1
+erf.enable_mrf_countergradient = false
+erf.mrf_moistvars = false
+
+erf.use_coriolis = true
+
+erf.abl_driver_type = "GeostrophicWind"
+
+erf.abl_geo_wind = 35.0 0.0 0.0

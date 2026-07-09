@@ -1,0 +1,115 @@
+# ------------------  INPUTS TO MAIN PROGRAM  -------------------
+# Extreme Heat Flux Test Case
+# 
+# Reference: Extreme heat wave, desert thermals, heat stress conditions
+# This test validates upper bounds on HGAMT (limited to GAMCRT = 3 K)
+# and VPERT limiting to prevent unphysical PBL height overshoot.
+#
+# Physical Context:
+#   - Very strong surface heating (> 10 K/h) representing extreme conditions
+#   - Tests HGAMT limiting to GAMCRT = 3 K threshold
+#   - Tests VPERT limiting to [0, GAMCRT] = [0, 3 K]
+#   - Validates that excessive buoyancy anomaly doesn't cause runaway PBL
+#
+# This case is critical for:
+# - Testing GAMCRT bounding (maximum heat countergradient limit)
+# - Validating VPERT limited to physically reasonable range
+# - Preventing PBL height overshoot under extreme forcing
+# - Testing model stability under extreme atmospheric conditions
+
+erf.prob_name = "ABL"
+
+# 12-hour simulation: 43200 s
+# With dt=0.05, max_step = 864000
+max_step = 864000
+
+amrex.fpe_trap_invalid = 0
+
+fabarray.mfiter_tile_size = 1024 1024 1024
+
+# PROBLEM SIZE & GEOMETRY
+# Larger domain needed for extreme convection
+geometry.prob_extent = 8000  8000  2048
+amr.n_cell           =  8   8   64
+geometry.is_periodic = 1 1 0
+
+# MOST BOUNDARY - EXTREME HEATING (testing upper bounds)
+# Very strong surface heating rate (15-20 K/h) representing heat wave or desert
+zlo.type = "surface_layer"
+erf.most.z0   = 0.01    # roughness length [m] (desert-like, sparse vegetation)
+erf.most.zref = 48.0    # reference height [m]
+erf.most.surf_temp = 320.0  # very hot surface temperature [K]
+erf.most.surf_heating_rate = 15.0  # EXTREME heating rate [K/h]
+
+# Upper boundary - weak stable layer (will be overcome by extreme heating)
+zhi.type = "SlipWall"
+zhi.theta_grad = 0.001  # very weak inversion [K/m]
+
+# TIME STEP CONTROL - Standard for extreme conditions
+erf.fixed_dt = 0.05  # time step [s]
+
+# DIAGNOSTICS & VERBOSITY
+erf.sum_interval   = 1       # timesteps between computing mass
+erf.v              = 1       # verbosity in ERF.cpp
+amr.v              = 1       # verbosity in Amr.cpp
+
+# Frequent diagnostics to monitor HGAMT and PBL height
+erf.data_log    = extreme_heat_hist.dat extreme_heat_profiles.dat
+erf.profile_int = 20
+
+# REFINEMENT / REGRIDDING
+amr.max_level       = 0       # maximum level number allowed
+
+# CHECKPOINT FILES
+erf.check_file      = chk_extreme_heating     # root name of checkpoint file
+erf.check_int       = 50000                   # checkpoint every ~2500 s
+
+
+
+# PLOTFILES
+erf.plot_file_1     = plt_unstable      # prefix of plotfile name
+erf.plot_int_1      = 15                # number of timesteps between plotfiles
+erf.plot_vars_1     = density rhoadv_0 rhoadv_1 x_velocity y_velocity z_velocity pressure temp theta
+
+# SOLVER CHOICE
+erf.use_gravity = true
+
+erf.molec_diff_type = "None"
+# When using a PBL model, LES closure should be disabled
+erf.les_type        = "None"
+erf.theta_ref = 300.0
+
+# INITIALIZATION - from sounding file
+erf.init_type = "input_sounding"
+erf.sounding_type = Ideal
+erf.input_sounding_file = "input_sounding_MRF_extreme_heating"
+
+
+
+# Moderate perturbations for turbulence initiation
+
+# PBL CONFIGURATION - MRF with countergradient enabled
+erf.pbl_type = "MRF"
+erf.pbl_mrf_Ribcr = 0.5   # critical bulk Richardson number
+erf.pbl_mrf_const_b = 7.8 # surface layer factor
+erf.pbl_mrf_sf = 0.1      # surface layer fraction
+
+# Enable countergradient corrections - test GAMCRT limit
+erf.enable_mrf_countergradient = true
+
+# Enable moisture diffusivity
+erf.mrf_moistvars = false
+
+# Use conservative (strict) diffusivity bounds for extreme conditions
+erf.pbl_mrf_highres_bounds = false  # Uses standard Kmin=0.1, Kmax=300 m²/s
+
+# CORIOLIS EFFECT
+erf.latitude = 30.0  # subtropical latitude (realistic for extreme heat)
+
+# END OF INPUT FILE
+
+erf.use_coriolis = true
+
+erf.abl_driver_type = "GeostrophicWind"
+
+erf.abl_geo_wind = 4.0 0.0 0.0

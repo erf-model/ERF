@@ -1,0 +1,99 @@
+# ------------------  INPUTS TO MAIN PROGRAM  -------------------
+# Marine Boundary Layer (MBL) / RICO or DYCOMS-II Test Case
+#
+# A test representing marine conditions characterized by weak sensible heat flux
+# but high latent heat flux (evaporation) over a water surface.
+#
+# Why it is needed:
+# This directly exercises the land/water mask discrimination switch (lmask_arr).
+# Over water, the moisture countergradient term HGAMQ is forced to zero, but moisture
+# effects on buoyancy (theta_v) remain active. This validates the physical correctness
+# of suppressing the nonlocal moisture flux over water bodies while retaining virtual
+# temperature buoyancy corrections.
+#
+# This test validates MRF's land/water surface physics discrimination.
+
+erf.prob_name = "ABL"
+
+max_step = 20
+
+amrex.fpe_trap_invalid = 0
+
+fabarray.mfiter_tile_size = 1024 1024 1024
+
+# PROBLEM SIZE & GEOMETRY
+geometry.prob_extent = 8000  8000  2048
+amr.n_cell           =  8   8   64
+geometry.is_periodic = 1 1 0
+
+# MOST BOUNDARY WITH WATER SURFACE DISCRIMINATION
+zlo.type = "surface_layer"
+erf.most.z0   = 0.0001     # smooth sea surface roughness
+erf.most.zref = 48.0
+#erf.most.surf_temp = 298.0 # warm sea surface temperature
+erf.most.surf_temp_flux = 0.01 # weak sensible heat flux over marine layer
+
+# To force sea classification, we can utilize roughness types or landmask configurations
+# consistent with ocean/water body parameterizations.
+# In the test, HGAMQ is zeroed over water surfaces if lmask_arr is 0 (water).
+erf.most.roughness_type_sea = charnock
+
+zhi.type = "SlipWall"
+
+# TIME STEP CONTROL
+erf.fixed_dt = 0.1
+
+# DIAGNOSTICS & VERBOSITY
+erf.sum_interval   = 1
+erf.v              = 1
+amr.v              = 1
+
+# REFINEMENT / REGRIDDING
+amr.max_level       = 0
+
+# CHECKPOINT FILES
+erf.check_file      = chk_marine
+erf.check_int       = 100
+
+
+
+# PLOTFILES
+erf.plot_file_1     = plt_unstable      # prefix of plotfile name
+erf.plot_int_1      = 15                # number of timesteps between plotfiles
+erf.plot_vars_1     = density rhoadv_0 rhoadv_1 x_velocity y_velocity z_velocity pressure temp theta
+
+# SOLVER CHOICE
+erf.use_gravity = true
+
+erf.molec_diff_type = "None"
+# When using a PBL model, LES closure should be disabled
+erf.les_type        = "None"
+erf.theta_ref = 300.0
+
+# INITIALIZATION - from sounding file
+erf.init_type = "input_sounding"
+erf.sounding_type = Ideal
+erf.input_sounding_file = "input_sounding_MRF_marine"
+
+# MOISTURE CONFIGURATION
+
+
+# Active moisture with high humidity
+erf.active_moisture_vars = qv qc qi
+erf.moisture_model = "Kessler"
+
+# PBL CONFIGURATION - MRF PBL with water/land-aware moisture diffusivity
+erf.pbl_type = "MRF"
+erf.pbl_mrf_Ribcr = 0.5
+erf.pbl_mrf_const_b = 7.8
+erf.pbl_mrf_sf = 0.1
+erf.enable_mrf_countergradient = true
+erf.mrf_moistvars = true
+
+# Weak perturbations
+
+erf.use_coriolis = true
+
+erf.abl_driver_type = "GeostrophicWind"
+
+erf.abl_geo_wind = 6.0 0.0 0.0

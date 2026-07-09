@@ -1,0 +1,118 @@
+# ------------------  INPUTS TO MAIN PROGRAM  -------------------
+# Very Low Wind Speed / Calm Conditions Test Case
+# 
+# Reference: Tropical calm-air mornings, mountain valleys, weak wind regimes
+# This test validates numerical stability in very weak wind conditions where
+# division-by-zero can occur in diffusivity and Richardson number calculations.
+#
+# Physical Context:
+#   - Very weak geostrophic wind (< 0.5 m/s) with convective heating
+#   - Tests wind shear safety threshold (minimum 1.0e-8)
+#   - Tests fallback to minimum Kmin = 0.1 m²/s
+#   - Critical for tropical ocean and mountain applications
+#
+# This case is critical for:
+# - Detecting NaN/Inf in diffusivity coefficients (K_m, K_h, K_q)
+# - Validating wind shear threshold in Richardson number
+# - Testing proper minimum diffusivity bounds (Kmin)
+# - Ensuring model doesn't crash in calm conditions
+
+erf.prob_name = "ABL"
+
+# 12-hour simulation
+# With dt=0.1, max_step = 432000
+max_step = 432000
+
+amrex.fpe_trap_invalid = 0
+
+fabarray.mfiter_tile_size = 1024 1024 1024
+
+# PROBLEM SIZE & GEOMETRY
+# Smaller domain acceptable for calm weak-wind conditions
+geometry.prob_extent = 8000  8000  2048
+amr.n_cell           =  8   8   64
+geometry.is_periodic = 1 1 0
+
+# MOST BOUNDARY - Moderate heating with weak wind
+zlo.type = "surface_layer"
+erf.most.z0   = 0.1      # roughness length [m]
+erf.most.zref = 48.0     # reference height [m]
+erf.most.surf_temp = 303.0  # warm surface (tropical conditions)
+erf.most.surf_heating_rate = 5.0  # strong heating but very weak wind
+
+# Upper boundary - stable layer
+zhi.type = "SlipWall"
+zhi.theta_grad = 0.008   # stable layer [K/m]
+
+# TIME STEP CONTROL
+erf.fixed_dt = 0.1  # standard time step
+
+# DIAGNOSTICS & VERBOSITY
+erf.sum_interval   = 1       # timesteps between computing mass
+erf.v              = 1       # verbosity in ERF.cpp
+amr.v              = 1       # verbosity in Amr.cpp
+
+# Planar averaging
+erf.data_log    = calm_hist.dat calm_profiles.dat
+erf.profile_int = 30
+
+# REFINEMENT / REGRIDDING
+amr.max_level       = 0       # maximum level number allowed
+
+# CHECKPOINT FILES
+erf.check_file      = chk_calm      # root name of checkpoint file
+erf.check_int       = 100000         # checkpoint every ~10000 s
+
+
+
+# PLOTFILES
+erf.plot_file_1     = plt_unstable      # prefix of plotfile name
+erf.plot_int_1      = 15                # number of timesteps between plotfiles
+erf.plot_vars_1     = density rhoadv_0 rhoadv_1 x_velocity y_velocity z_velocity pressure temp theta
+
+# SOLVER CHOICE
+erf.use_gravity = true
+
+erf.molec_diff_type = "None"
+# When using a PBL model, LES closure should be disabled
+erf.les_type        = "None"
+erf.theta_ref = 300.0
+
+# INITIALIZATION - from sounding file
+erf.init_type = "input_sounding"
+erf.sounding_type = Ideal
+erf.input_sounding_file = "input_sounding_MRF_calm_conditions"
+
+# INITIALIZATION - VERY LOW WIND CONDITIONS
+# Key: Start with extremely weak winds (0.1-0.5 m/s)
+# This tests the wind shear safety threshold
+
+
+# Small perturbations to trigger turbulence despite weak wind
+
+# PBL CONFIGURATION - MRF with countergradient
+erf.pbl_type = "MRF"
+erf.pbl_mrf_Ribcr = 0.5   # critical bulk Richardson number
+erf.pbl_mrf_const_b = 7.8 # surface layer factor
+erf.pbl_mrf_sf = 0.1      # surface layer fraction
+
+# Enable countergradient corrections
+erf.enable_mrf_countergradient = true
+
+# Enable moisture diffusivity
+erf.mrf_moistvars = false
+
+# Use HIGH-RESOLUTION diffusivity bounds for calm conditions
+# Allows smaller minimum K to adapt to low wind shear
+erf.pbl_mrf_highres_bounds = true  # Uses Kmin = ckz*dz instead of 0.1 m²/s
+
+# CORIOLIS EFFECT
+erf.latitude = 5.0   # tropical latitude for realistic calm conditions
+
+# END OF INPUT FILE
+
+erf.use_coriolis = true
+
+erf.abl_driver_type = "GeostrophicWind"
+
+erf.abl_geo_wind = 0.2 0.0 0.0

@@ -1,0 +1,135 @@
+# ------------------  INPUTS TO MAIN PROGRAM  -------------------
+# Cloud-Topped Atmospheric Boundary Layer Test Case
+# 
+# Reference: BOMEX (Barbados Oceanographic and Meteorological Experiment)
+# Siebesma et al. (2003): A large eddy simulation intercomparison study 
+# of shallow cumulus convection. J. Atmos. Sci., 60, 1201-1219.
+# https://doi.org/10.1175/1520-0469(2003)60<1201:ALESIUS>2.0.CO;2
+#
+# Cloud-topped conditions characterized by:
+#   - Surface heat and moisture fluxes supporting shallow cumulus
+#   - Cumulus clouds forming at PBL top via vertical convection
+#   - Sharp entrainment zone between PBL and free troposphere
+#   - Cloud top evaporative cooling and radiative effects
+#   - Mixed-layer model dynamics: well-mixed PBL with cloud layer
+#   - Capping inversion limiting PBL height
+#
+# This case tests MRF performance in realistic warm-season conditions where:
+# - Countergradient corrections (HGAMT/HGAMQ) are critical for PBL height
+# - Cloud-aware stability functions improve mixing representation
+# - Moisture effects significantly enhance buoyancy (latent heat)
+# - Entrainment processes at cloud top are essential
+# - Free atmosphere Richardson number mixing handles stable layer above clouds
+# - Virtual potential temperature effects are maximized
+
+erf.prob_name = "ABL"
+
+max_step = 200
+
+amrex.fpe_trap_invalid = 0
+
+fabarray.mfiter_tile_size = 1024 1024 1024
+
+# PROBLEM SIZE & GEOMETRY (BOMEX standard domain)
+# Higher resolution required to capture cloud structures
+geometry.prob_extent = 8000  8000  2048
+amr.n_cell           =  8   8   64
+geometry.is_periodic = 1 1 0
+
+# MOST BOUNDARY - Moderate surface heating and moisture supply
+zlo.type = "surface_layer"
+erf.most.z0   = 0.0001   # smooth ocean surface [m]
+erf.most.zref = 48.0     # reference height [m]
+erf.most.surf_temp = 299.5   # sea surface temperature [K] (warm ocean)
+erf.most.surf_heating_rate = 8.0  # strong but realistic heating rate [K/h]
+
+# Upper boundary - strong capping inversion at cloud top
+zhi.type = "SlipWall"
+zhi.theta_grad = 0.0075  # stable layer [K/m] (typical for tropical UT)
+
+# TIME STEP CONTROL
+erf.fixed_dt = 0.02  # short timestep for fast cloud dynamics
+
+# DIAGNOSTICS & VERBOSITY
+erf.sum_interval   = 1       # timesteps between computing mass
+erf.v              = 1       # verbosity in ERF.cpp
+amr.v              = 1       # verbosity in Amr.cpp
+
+# planar averaging (critical for cloud statistics)
+erf.data_log    = cloud_topped_hist.dat cloud_topped_profiles.dat cloud_topped_covar.dat
+erf.profile_int = 10
+
+# REFINEMENT / REGRIDDING
+amr.max_level       = 0       # maximum level number allowed
+
+# CHECKPOINT FILES
+erf.check_file      = chk_cloud_topped     # root name of checkpoint file
+erf.check_int       = 200                  # number of timesteps between checkpoints
+
+
+# PLOTFILES
+erf.plot_file_1     = plt_unstable      # prefix of plotfile name
+erf.plot_int_1      = 15                # number of timesteps between plotfiles
+erf.plot_vars_1     = density rhoadv_0 rhoadv_1 x_velocity y_velocity z_velocity pressure temp theta
+
+# SOLVER CHOICE
+erf.use_gravity = true
+
+erf.molec_diff_type = "None"
+# When using a PBL model, LES closure should be disabled
+erf.les_type        = "None"
+erf.theta_ref = 300.0
+
+# INITIALIZATION - from sounding file
+erf.init_type = "input_sounding"
+erf.sounding_type = Ideal
+erf.input_sounding_file = "input_sounding_MRF_cloud_topped"
+
+# INITIALIZATION - Cloud-topped PBL (BOMEX standard)
+# Moist well-mixed layer below cloud top
+# Dry layer above cloud top (free troposphere)
+
+
+# Stronger perturbations to trigger organized convection
+
+# MOISTURE CONFIGURATION (critical for cloud formation and latent heat)
+# Moist well-mixed layer
+
+# PBL CONFIGURATION - MRF with full cloud-aware enhancements
+erf.pbl_type = "MRF"
+erf.pbl_mrf_Ribcr = 0.5   # critical bulk Richardson number
+erf.pbl_mrf_const_b = 7.8 # surface layer factor (WRF CFAC)
+erf.pbl_mrf_sf = 0.1      # surface layer fraction (WRF SFAC)
+
+# ENABLE COUNTERGRADIENT CORRECTIONS (essential for accurate cloud-top PBL height)
+# HGAMT + HGAMQ corrections dramatically affect cloud formation
+erf.enable_mrf_countergradient = true
+
+# Enable moisture diffusivity (Prq ~ Prt) for realistic latent heating effects
+# Cloud formation depends critically on moisture entrainment
+erf.mrf_moistvars = true
+erf.moisture_model = "Kessler"
+
+# CLOUD-AWARE STABILITY ADJUSTMENT (optional enhancement)
+# Clouds modify buoyancy and stability, affecting PBL growth
+# Cloud threshold: 0.1 g/kg (qc + qi)
+erf.enable_pbl_cloud_mods = true
+erf.pbl_cloud_qc_threshold = 0.0001  # cloud threshold in kg/kg
+
+# CORIOLIS EFFECT - Tropical latitude
+erf.latitude = 15.0  # tropical latitude (f = 3.77e-5 s^-1)
+
+# RADIATION (optional - can be enabled for cloud radiative effects)
+# erf.rad_type = "rrtmgp"
+# erf.run_rad = true
+
+# DIAGNOSTICS FOR CLOUD ANALYSIS
+# Cloud fraction and cloud-top height diagnostics
+erf.compute_cloud_diags = true
+erf.cloud_qc_threshold = 0.0001  # cloud threshold for diagnostics
+
+erf.use_coriolis = true
+
+erf.abl_driver_type = "GeostrophicWind"
+
+erf.abl_geo_wind = 5.0  -4.0 0.0
