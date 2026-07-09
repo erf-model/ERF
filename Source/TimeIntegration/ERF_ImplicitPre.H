@@ -62,11 +62,11 @@
                     const Array4<const Real> tau23  = Tau[level][TauType::tau23]->array(mfi);
                     [[maybe_unused]] const Array4<const Real> tau33  = Tau[level][TauType::tau33]->array(mfi);
                     const Array4<const Real>& hfx_z = Hfx3->const_array(mfi);
-
+                    const bool l_use_mrf_cg = solverChoice.turbChoice[level].enable_mrf_countergradient
+                                            && (solverChoice.turbChoice[level].pbl_type == PBLType::MRF);
                     if (l_use_stretched_dz) {
                         if (l_do_implicit_theta) {
-                            const bool l_use_mrf_cg = solverChoice.turbChoice[level].enable_mrf_countergradient
-                                                      && (solverChoice.turbChoice[level].pbl_type == PBLType::MRF);
+
                             ImplicitDiffForStateLU_S(bx, fine_geom.Domain(), level, RhoTheta_comp,
                                                      slow_dt, l_bc_neumann_vals_d, cell_data,
                                                      stretched_dz_d[level], hfx_z,
@@ -96,8 +96,6 @@
                         }
                     } else if (l_use_terrain_fitted_coords) {
                         if (l_do_implicit_theta) {
-                            const bool l_use_mrf_cg = solverChoice.turbChoice[level].enable_mrf_countergradient
-                                                      && (solverChoice.turbChoice[level].pbl_type == PBLType::MRF);
                             ImplicitDiffForStateLU_T(bx, fine_geom.Domain(), level, RhoTheta_comp,
                                                      slow_dt, l_bc_neumann_vals_d, cell_data,
                                                      z_nd_arr, detJ_arr, dxInv, hfx_z,
@@ -127,8 +125,6 @@
                         }
                     } else { // no terrain
                         if (l_do_implicit_theta) {
-                            const bool l_use_mrf_cg = solverChoice.turbChoice[level].enable_mrf_countergradient
-                                                      && (solverChoice.turbChoice[level].pbl_type == PBLType::MRF);
                             ImplicitDiffForStateLU_N(bx, fine_geom.Domain(), level, RhoTheta_comp,
                                                      slow_dt, l_bc_neumann_vals_d, cell_data,
                                                      dxInv, hfx_z, mu_turb, solverChoice,
