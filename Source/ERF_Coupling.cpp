@@ -2,6 +2,7 @@
 #include <ERF_EOS.H>
 #include <ERF_IndexDefines.H>
 #include <ERF_MicrophysicsUtils.H>
+#include <Diagnostics/ERF_SurfaceFluxDiagnostics.H>
 
 #include <AMReX_Box.H>
 #include <AMReX_MFIter.H>
@@ -53,7 +54,10 @@ ERF::EvolveOneStep (double /*time*/, double /*dt_request*/)
        - Master/mct_roms_wrf.h
        - ROMS/Nonlinear/atm2ocn_flux.F
        - ROMS/Nonlinear/bulk_flux.F
-     This file currently implements the legacy state-passing test path only.
+     This file uses one pack entrypoint for both contract modes. The driver
+     passes either the 9-lane state view or the 8-lane flux view; this routine
+     branches on the active view shape so the coupling boundary keeps one
+     stable solver-facing API.
 */
 
 void
@@ -66,6 +70,7 @@ ERF::PackAtmosphericStates (amrex::Vector<amrex::MultiFab*>& states,
     // to avoid a driver→submodule header dependency).
     constexpr int iUwind = 0, iVwind = 1, iPatm = 2, iRH = 3, iTair = 4;
     constexpr int iCloud = 5, iRain  = 6, iSWrad = 7, iLWrad = 8;
+    constexpr int nFluxLanes = 8;
 
     const int lev   = 0;
 
@@ -81,6 +86,127 @@ ERF::PackAtmosphericStates (amrex::Vector<amrex::MultiFab*>& states,
     const auto& ba = cons.boxArray();
     const auto& dm = cons.DistributionMap();
     const auto& ba2d_lev = ba2d[lev];
+    const int klo = ba.minimalBox().smallEnd(2);
+
+    const bool flux_mode = (states.size() == nFluxLanes);
+    if (flux_mode) {
+        constexpr int iTauX = 0, iTauY = 1, iSHflux = 2, iLHflux = 3;
+        constexpr int iFluxSWrad = 4, iFluxLWrad = 5, iFluxRain = 6, iFluxEvap = 7;
+
+        if (iTauX < static_cast<int>(states.size()) && states[iTauX] != nullptr) {
+            MultiFab tmp(ba2d_lev, dm, 1, 0);
+            for (MFIter mfi(tmp, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+                Box bx = mfi.tilebox();
+                auto const& tau13 = Tau[lev][TauType::tau13]->const_array(mfi);
+                auto const& c = cons.const_array(mfi);
+                auto t = tmp.array(mfi);
+                ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+                    const Real tau_x_kinematic = Real(0.5) * (tau13(i,j,klo) + tau13(i+1,j,klo));
+                    // ERF tau13/tau23 are kinematic stresses [m^2/s^2]. Export
+                    // dynamic stress [N/m^2] so REMORA can reuse its existing
+                    // bulk_fluxes-style 1/rho0 stress application path.
+                    t(i,j,k) = c(i,j,klo,Rho_comp) * tau_x_kinematic;
+                });
+            }
+            const IntVect ratio = ba2d_lev.minimalBox().length()
+                                / states[iTauX]->boxArray().minimalBox().length();
+            amrex::average_down(tmp, *states[iTauX], 0, 1, ratio);
+        }
+
+        if (iTauY < static_cast<int>(states.size()) && states[iTauY] != nullptr) {
+            MultiFab tmp(ba2d_lev, dm, 1, 0);
+            for (MFIter mfi(tmp, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+                Box bx = mfi.tilebox();
+                auto const& tau23 = Tau[lev][TauType::tau23]->const_array(mfi);
+                auto const& c = cons.const_array(mfi);
+                auto t = tmp.array(mfi);
+                ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+                    const Real tau_y_kinematic = Real(0.5) * (tau23(i,j,klo) + tau23(i,j+1,klo));
+                    t(i,j,k) = c(i,j,klo,Rho_comp) * tau_y_kinematic;
+                });
+            }
+            const IntVect ratio = ba2d_lev.minimalBox().length()
+                                / states[iTauY]->boxArray().minimalBox().length();
+            amrex::average_down(tmp, *states[iTauY], 0, 1, ratio);
+        }
+
+        if (iSHflux < static_cast<int>(states.size()) && states[iSHflux] != nullptr &&
+            !SFS_hfx3_lev.empty() && SFS_hfx3_lev[lev] != nullptr) {
+            MultiFab tmp(ba2d_lev, dm, 1, 0);
+            for (MFIter mfi(tmp, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+                Box bx = mfi.tilebox();
+                auto const& hfx = SFS_hfx3_lev[lev]->const_array(mfi);
+                auto t = tmp.array(mfi);
+                ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+                    t(i,j,k) = surface_flux_diagnostics::sensible_heat_flux_wm2_from_rhotheta_flux(
+                        hfx(i,j,klo));
+                });
+            }
+            const IntVect ratio = ba2d_lev.minimalBox().length()
+                                / states[iSHflux]->boxArray().minimalBox().length();
+            amrex::average_down(tmp, *states[iSHflux], 0, 1, ratio);
+        }
+
+        if (iLHflux < static_cast<int>(states.size()) && states[iLHflux] != nullptr &&
+            !SFS_q1fx3_lev.empty() && SFS_q1fx3_lev[lev] != nullptr) {
+            MultiFab tmp(ba2d_lev, dm, 1, 0);
+            for (MFIter mfi(tmp, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+                Box bx = mfi.tilebox();
+                auto const& qfx = SFS_q1fx3_lev[lev]->const_array(mfi);
+                auto t = tmp.array(mfi);
+                ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+                    t(i,j,k) = surface_flux_diagnostics::latent_heat_flux_wm2_from_rhoqv_flux(
+                        qfx(i,j,klo));
+                });
+            }
+            const IntVect ratio = ba2d_lev.minimalBox().length()
+                                / states[iLHflux]->boxArray().minimalBox().length();
+            amrex::average_down(tmp, *states[iLHflux], 0, 1, ratio);
+        }
+
+        if (has_radiation) {
+            if (iFluxSWrad < static_cast<int>(states.size()) && states[iFluxSWrad] != nullptr) {
+                MultiFab tmp(ba2d_lev, dm, 1, 0);
+                tmp.ParallelCopy(*rad_fluxes[lev], 1, 0, 1);
+                const IntVect ratio = ba2d_lev.minimalBox().length()
+                                    / states[iFluxSWrad]->boxArray().minimalBox().length();
+                amrex::average_down(tmp, *states[iFluxSWrad], 0, 1, ratio);
+            }
+            if (iFluxLWrad < static_cast<int>(states.size()) && states[iFluxLWrad] != nullptr) {
+                MultiFab tmp(ba2d_lev, dm, 1, 0);
+                for (MFIter mfi(tmp, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+                    Box bx = mfi.tilebox();
+                    auto const& rad = rad_fluxes[lev]->const_array(mfi);
+                    auto t = tmp.array(mfi);
+                    ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+                        t(i,j,k) = rad(i,j,k,3) - rad(i,j,k,2);
+                    });
+                }
+                const IntVect ratio = ba2d_lev.minimalBox().length()
+                                    / states[iFluxLWrad]->boxArray().minimalBox().length();
+                amrex::average_down(tmp, *states[iFluxLWrad], 0, 1, ratio);
+            }
+        }
+
+        if (iFluxEvap < static_cast<int>(states.size()) && states[iFluxEvap] != nullptr &&
+            !SFS_q1fx3_lev.empty() && SFS_q1fx3_lev[lev] != nullptr) {
+            MultiFab tmp(ba2d_lev, dm, 1, 0);
+            for (MFIter mfi(tmp, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+                Box bx = mfi.tilebox();
+                auto const& qfx = SFS_q1fx3_lev[lev]->const_array(mfi);
+                auto t = tmp.array(mfi);
+                ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+                    t(i,j,k) = qfx(i,j,klo);
+                });
+            }
+            const IntVect ratio = ba2d_lev.minimalBox().length()
+                                / states[iFluxEvap]->boxArray().minimalBox().length();
+            amrex::average_down(tmp, *states[iFluxEvap], 0, 1, ratio);
+        }
+
+        amrex::ignore_unused(iFluxRain);
+        return;
+    }
 
     // --- Uwind + Vwind: use AMReX's average_face_to_cellcenter which correctly
     // handles tile boundaries via growntilebox(1) internally. ---
@@ -197,7 +323,6 @@ ERF::PackAtmosphericStates (amrex::Vector<amrex::MultiFab*>& states,
                     Box bx = mfi.tilebox();
                     auto const& c = cons.const_array(mfi);
                     auto t = tmp.array(mfi);
-                    const int klo = ba.minimalBox().smallEnd(2);
                     const int khi = ba.minimalBox().bigEnd(2);
                     ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
                         int cloudy = 0;
