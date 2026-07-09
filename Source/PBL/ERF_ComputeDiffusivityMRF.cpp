@@ -280,7 +280,15 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
             const Real pblh_min = amrex::max(pblh_emp, Real(10.0));
 
             if (above_critical) {
-                Real pblh_interp = zval0 + (zval - zval0) / (Rib - Rib0) * (Ribcr - Rib0);
+                // FIX: guard against division by zero when Rib == Rib0
+                Real pblh_interp;
+                const Real rib_diff = Rib - Rib0;
+                if (std::abs(rib_diff) > Real(1.0e-10)) {
+                    pblh_interp = zval0 + (zval - zval0) / rib_diff * (Ribcr - Rib0);
+                } else {
+                    // If Rib not changing, use zval0 as PBL height
+                    pblh_interp = zval0;
+                }
                 pblh_pred_arr(i, j, 0) = amrex::max(amrex::min(pblh_interp, pblh_max), pblh_min);
                 pbli_arr(i, j, 0) = kpbl;
             } else {
@@ -289,7 +297,11 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
             }
         });
 
-        const auto& q_star_arr = SurfLayer->get_q_star(level)->const_array(mfi);
+        // FIX: guard against null dereference of q_star when use_moisture is false (dry case)
+        // get_q_star can return null pointer when the field is not allocated
+        amrex::MultiFab* q_star_mf = SurfLayer->get_q_star(level);
+        Array4<Real const> q_star_arr = (q_star_mf != nullptr) ? q_star_mf->const_array(mfi)
+                                                               : Array4<Real const>{};
 
         const Real const_b = turbChoice.pbl_mrf_const_b;
         const Real sf = turbChoice.pbl_mrf_sf;
@@ -446,7 +458,15 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
             const Real pblh_min = amrex::max(pblh_emp, Real(10.0));
 
             if (above_critical) {
-                Real pblh_interp = zval0 + (zval - zval0) / (Rib - Rib0) * (Ribcr - Rib0);
+                // FIX: guard against division by zero when Rib == Rib0
+                Real pblh_interp;
+                const Real rib_diff = Rib - Rib0;
+                if (std::abs(rib_diff) > Real(1.0e-10)) {
+                    pblh_interp = zval0 + (zval - zval0) / rib_diff * (Ribcr - Rib0);
+                } else {
+                    // If Rib not changing, use zval0 as PBL height
+                    pblh_interp = zval0;
+                }
                 pblh_corr_arr(i, j, 0) = amrex::max(amrex::min(pblh_interp, pblh_max), pblh_min);
                 pbli_arr(i, j, 0) = kpbl;
             } else {
@@ -521,8 +541,14 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
                 hgamq_arr(i, j, 0) = zero;
             } else {
                 const Real pblh = pblh_corr_arr(i, j, 0);
-                hgamt_arr(i, j, 0) = (enable_mrf_countergradient) ? HGAMT / pblh : zero;
-                hgamq_arr(i, j, 0) = (enable_mrf_countergradient && use_moisture) ? HGAMQ / pblh : zero;
+                // FIX: guard against division by zero when pblh is extremely small
+                if (pblh > Real(1.0e-10)) {
+                    hgamt_arr(i, j, 0) = (enable_mrf_countergradient) ? HGAMT / pblh : zero;
+                    hgamq_arr(i, j, 0) = (enable_mrf_countergradient && use_moisture) ? HGAMQ / pblh : zero;
+                } else {
+                    hgamt_arr(i, j, 0) = zero;
+                    hgamq_arr(i, j, 0) = zero;
+                }
             }
         });
 
