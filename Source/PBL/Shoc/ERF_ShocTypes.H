@@ -79,22 +79,22 @@ shoc_disables_momentum_transport (ShocMomentumTransport mode)
 
 struct ShocRuntimeOptions
 {
-    amrex::Real lambda_low = 0.001;
-    amrex::Real lambda_high = 0.04;
-    amrex::Real lambda_slope = 2.65;
-    amrex::Real lambda_thresh = 0.02;
+    amrex::Real lambda_low    = amrex::Real(0.001);
+    amrex::Real lambda_high   = amrex::Real(0.04);
+    amrex::Real lambda_slope  = amrex::Real(2.65);
+    amrex::Real lambda_thresh = amrex::Real(0.02);
 
-    amrex::Real thl2tune = 1.0;
-    amrex::Real qw2tune = 1.0;
-    amrex::Real qwthl2tune = 1.0;
-    amrex::Real w2tune = 1.0;
+    amrex::Real thl2tune   = amrex::Real(1);
+    amrex::Real qw2tune    = amrex::Real(1);
+    amrex::Real qwthl2tune = amrex::Real(1);
+    amrex::Real w2tune     = amrex::Real(1);
 
-    amrex::Real length_fac = 0.5;
-    amrex::Real c_diag_3rd_mom = 7.0;
-    amrex::Real coeff_kh = 0.1;
-    amrex::Real coeff_km = 0.1;
-    amrex::Real top_taper_depth = 0.0;
-    amrex::Real top_taper_min_factor = 0.0;
+    amrex::Real length_fac           = amrex::Real(0.5);
+    amrex::Real c_diag_3rd_mom       = amrex::Real(7.0);
+    amrex::Real coeff_kh             = amrex::Real(0.1);
+    amrex::Real coeff_km             = amrex::Real(0.1);
+    amrex::Real top_taper_depth      = amrex::Real(0.0);
+    amrex::Real top_taper_min_factor = amrex::Real(0.0);
 
     bool shoc_1p5tke = false;
     bool extra_shoc_diags = false;
@@ -109,11 +109,11 @@ struct ShocRuntimeOptions
     bool debug_bad_column = false;
     bool debug_bad_column_abort = true;
     int debug_bad_column_max_reports = 8;
-    amrex::Real debug_bad_column_theta_tend_threshold = 10.0;
-    amrex::Real debug_bad_column_q_tend_threshold = 1.0e-2;
-    amrex::Real debug_bad_column_brunt_threshold = 1.0;
-    amrex::Real debug_bad_column_min_dz = 1.0;
-    amrex::Real debug_bad_column_scalar_moment_threshold = 1.0e4;
+    amrex::Real debug_bad_column_theta_tend_threshold    = amrex::Real(10.0);
+    amrex::Real debug_bad_column_q_tend_threshold        = amrex::Real(1.0e-2);
+    amrex::Real debug_bad_column_brunt_threshold         = amrex::Real(1.0);
+    amrex::Real debug_bad_column_min_dz                  = amrex::Real(1.0);
+    amrex::Real debug_bad_column_scalar_moment_threshold = amrex::Real(1.0e4);
     bool debug_disable_pdf_cloud_increment = false;
     bool debug_disable_theta_state_update = false;
     bool debug_disable_moisture_state_update = false;

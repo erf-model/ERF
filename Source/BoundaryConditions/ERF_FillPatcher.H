@@ -119,19 +119,21 @@ ERFFillPatcher::FillRelax (amrex::MultiFab& mf, double time,
  */
 template <typename BC>
 void
-ERFFillPatcher::Fill (amrex::MultiFab& mf, double time,
+ERFFillPatcher::Fill (amrex::MultiFab& mf, double time_d,
                       BC& cbc, amrex::Vector<amrex::BCRec> const& bcs, int mask_val)
 {
     constexpr double eps = std::numeric_limits<float>::epsilon();
 
-    AMREX_ALWAYS_ASSERT((time >= m_crse_times[0]-eps) && (time <= m_crse_times[1]+eps));
+    AMREX_ALWAYS_ASSERT((time_d >= m_crse_times[0]-eps) && (time_d <= m_crse_times[1]+eps));
+
+    amrex::Real time = static_cast<amrex::Real>(time_d);
 
     // Time interpolation factors
-    amrex::Real fac_new = amrex::Real(0.0);
-    amrex::Real fac_old = amrex::Real(1.0);
+    amrex::Real fac_new = amrex::Real(0);
+    amrex::Real fac_old = amrex::Real(1);
     if (amrex::Math::abs(m_dt_crse) > eps) {
-        fac_new = static_cast<amrex::Real>((time - m_crse_times[0]) / m_dt_crse);
-        fac_old = amrex::Real(1.0) - fac_new;
+        fac_new = static_cast<amrex::Real>((time_d - m_crse_times[0]) / m_dt_crse);
+        fac_old = amrex::Real(1) - fac_new;
     }
 
     // Boundary condition operator

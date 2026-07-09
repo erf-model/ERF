@@ -30,7 +30,7 @@ ImplicitDiffForStateLU_N (const Box& bx,
                           const Box& domain,
                           const int level,
                           const int n,
-                          const double dt,
+                          const double dt_d,
                           const GpuArray<Real, AMREX_SPACEDIM*2>& bc_neumann_vals,
                           const Array4<      Real>& cell_data,
                           const GpuArray<Real, AMREX_SPACEDIM>& cellSizeInv,
@@ -42,6 +42,8 @@ ImplicitDiffForStateLU_N (const Box& bx,
                           const Real implicit_fac)
 {
     BL_PROFILE_VAR("ImplicitDiffForState_N()",ImplicitDiffForState_N);
+
+    Real dt = static_cast<Real>(dt_d);
 
     // setup quantities for getRhoAlpha()
 #include "ERF_SetupVertDiff.H"
@@ -204,7 +206,7 @@ void
 ImplicitDiffForMomLU_N (const Box& bx,
                         const Box& /*domain*/,
                         const int level,
-                        const double dt,
+                        const double dt_d,
                         const Array4<const Real>& cell_data,
                         const Array4<      Real>& face_data,
                         const Array4<const Real>& tau,
@@ -217,6 +219,8 @@ ImplicitDiffForMomLU_N (const Box& bx,
                         const Real implicit_fac)
 {
     BL_PROFILE_VAR("ImplicitDiffForMom_N()",ImplicitDiffForMom_N);
+
+    Real dt = static_cast<Real>(dt_d);
 
     // setup quantities for getRhoAlphaAtFaces()
     DiffChoice dc = solverChoice.diffChoice;

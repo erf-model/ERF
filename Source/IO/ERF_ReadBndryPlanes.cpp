@@ -109,7 +109,8 @@ ReadBndryPlanes::interp_in_time (const double& time)
                         const auto& datnp1 = (*m_data_np1[ori])[lev];
                         auto& dati = (*m_data_interp[ori])[lev];
                         dati.linInterp<RunOn::Device>(datn, 0, datnp1, 0,
-                                                      m_tn, m_tnp1, m_tinterp,
+                                                      static_cast<Real>(m_tn), static_cast<Real>(m_tnp1),
+                                                      static_cast<Real>(m_tinterp),
                                                       datn.box(), 0, dati.nComp());
                     }
                 }
@@ -124,7 +125,8 @@ ReadBndryPlanes::interp_in_time (const double& time)
                         const auto& datnp2 = (*m_data_np2[ori])[lev];
                         auto& dati = (*m_data_interp[ori])[lev];
                         dati.linInterp<RunOn::Device>(datnp1, 0, datnp2, 0,
-                                                      m_tnp1, m_tnp2, m_tinterp,
+                                                      static_cast<Real>(m_tnp1), static_cast<Real>(m_tnp2),
+                                                      static_cast<Real>(m_tinterp),
                                                       datnp1.box(), 0, dati.nComp());
                     }
                 }

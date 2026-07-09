@@ -122,11 +122,12 @@
                         } else if (ivar == RhoScalar_comp) {
                             num_comp = NSCALARS;
                         }
+                        Real sdt = static_cast<Real>(slow_dt);
                         ParallelFor(tbx, num_comp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int nn)
                         {
                             if (detJ_arr(i,j,k) > zero) {
                                 const int n = start_comp + nn;
-                                snew(i,j,k,n) = sold(i,j,k,n) + slow_dt * srhs(i,j,k,n);
+                                snew(i,j,k,n) = sold(i,j,k,n) + sdt * srhs(i,j,k,n);
                             }
                         });
                     }
