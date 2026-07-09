@@ -230,26 +230,27 @@ auto acoustic_substepping_fun = [&](int fast_step, int n_sub, int nrk,
                         dzInv = dxInv[2];
                     }
 
-                    Real dampcoef = (w_damping_const > 0)
-                                  ? w_damping_const
-                                  : w_damping_coeff / (dzInv * dt_advance * dt_advance);
+                    Real dt_adv = static_cast<Real>(dt_advance);
+
+                    Real dampcoef = (w_damping_const > 0) ? w_damping_const
+                                  : w_damping_coeff / (dzInv * dt_adv * dt_adv);
 
                     Real rho_on_w_face = myhalf * ( cell_data(i,j,k,Rho_comp) + cell_data(i,j,k-1,Rho_comp) );
                     Real wmag = std::abs(rho_w(i,j,k) / rho_on_w_face);
 
                     // This is the dynamics timestep, not the slow or fast dt
-                    Real cflw = wmag * dt_advance * dzInv;
+                    Real cflw = wmag * dt_adv * dzInv;
 
                     if (cflw > cflw_lim) {
                         Real sgn_w = (rho_w(i,j,k) > 0) ? one : -one;
-                        rho_w(i, j, k) -= rho_on_w_face * sgn_w * dampcoef * (cflw - cflw_lim) * dt_advance;
+                        rho_w(i, j, k) -= rho_on_w_face * sgn_w * dampcoef * (cflw - cflw_lim) * dt_adv;
                         // Note: These prints are not immediately flushed to screen
 #ifdef AMREX_USE_GPU
                         AMREX_DEVICE_PRINTF("t=%f w-damping applied at (%d,%d,%d) for w-CFL = %f > %f : %f --> %f\n",
-                               old_time+dt_advance, i,j,k, cflw, cflw_lim, sgn_w*wmag, rho_w(i,j,k)/rho_on_w_face);
+                               old_time+dt_adv, i,j,k, cflw, cflw_lim, sgn_w*wmag, rho_w(i,j,k)/rho_on_w_face);
 #else
                         printf("t=%f w-damping applied at (%d,%d,%d) for w-CFL = %f > %f : %f --> %f\n",
-                               old_time+dt_advance, i,j,k, cflw, cflw_lim, sgn_w*wmag, rho_w(i,j,k)/rho_on_w_face);
+                               old_time+dt_adv, i,j,k, cflw, cflw_lim, sgn_w*wmag, rho_w(i,j,k)/rho_on_w_face);
 #endif
                     }
                 });

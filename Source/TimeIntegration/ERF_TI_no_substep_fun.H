@@ -4,12 +4,14 @@
     auto no_substep_fun = [&](Vector<MultiFab>& S_sum,
                               Vector<MultiFab>& S_old,
                               Vector<MultiFab>& F_slow,
-                              const double time_for_fp, const double slow_dt,
+                              const double time_for_fp, const double slow_dt_d,
                               const int nrk)
     {
         BL_PROFILE("no_substep_fun");
         amrex::ignore_unused(nrk);
         int n_data = IntVars::NumTypes;
+
+        amrex::Real slow_dt = static_cast<Real>(slow_dt_d);
 
         const auto& dxInv = fine_geom.InvCellSizeArray();
 

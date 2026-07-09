@@ -47,7 +47,7 @@ using namespace amrex;
 
 void erf_slow_rhs_post (int level, int finest_level,
                         int nrk,
-                        double dt,
+                        double dt_d,
                         int n_qstate,
                         Vector<MultiFab>& S_rhs,
                         Vector<MultiFab>& S_old,
@@ -91,6 +91,8 @@ void erf_slow_rhs_post (int level, int finest_level,
                         std::unique_ptr<ReadBndryPlanes>& m_r2d)
 {
     BL_PROFILE_REGION("erf_slow_rhs_post()");
+
+    Real dt = static_cast<Real>(dt_d);
 
     const BCRec* bc_ptr_d = domain_bcs_type_d.data();
     const BCRec* bc_ptr_h = domain_bcs_type_h.data();
