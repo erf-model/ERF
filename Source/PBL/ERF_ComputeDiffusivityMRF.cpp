@@ -123,22 +123,22 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
     STABILITY FUNCTIONS:
     --------------------
     Unstable (L < 0, HOL < 0):
-      φ_m = (1 - 8 * sf * h/L)^(-1/3)
-      φ_t = (1 - 16 * sf * h/L)^(-1/2)
+      phi_m = (1 - 8 * sf * h/L)^(-1/3)
+      phi_t = (1 - 16 * sf * h/L)^(-1/2)
 
     Stable (L > 0, HOL > 0):
-      φ_m = φ_t = 1 + 5 * sf * h/L
+      phi_m = phi_t = 1 + 5 * sf * h/L
 
     MIXING ABOVE PBL (Free Atmosphere):
     -----------------------------------
     Uses YSU scheme (Hong et al. 2006, Appendix A) for Richardson number
     dependent mixing. This avoids MRF oscillations in stable conditions.
 
-    Gradient Richardson number: Ri_g = (g/θ_v) * (dθ_v/dz) / ((du/dz)² + (dv/dz)²)
+    Gradient Richardson number: Ri_g = (g/theta_v) * (dtheta_v/dz) / ((du/dz)^2 + (dv/dz)^2)
 
     For Ri_g > 0 (stable):
-      f_m = 1 / ((1 + 5*Ri_g)²)
-      f_t = 1 / ((1 + 5*Ri_g)²)
+      f_m = 1 / ((1 + 5*Ri_g)^2)
+      f_t = 1 / ((1 + 5*Ri_g)^2)
       Pr_t = 1 + 2.1*Ri_g, bounded to [0.25, 4.0]
 
     For Ri_g < 0 (unstable):
@@ -149,8 +149,9 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
     -------------------------
     - GPU-optimized with parallel_for loops
     - Safe bounds on shear and vertical derivatives
-    - Gradient Richardson number limited: -100 ≤ Ri_g ≤ 100
+    - Gradient Richardson number limited: -100 <= Ri_g <= 100
     - Avoids division by zero with minimum shear threshold (1e-10)
+    - theta_v_klo and theta_v guarded against zero/negative values
 
     TESTING & VALIDATION:
     ---------------------
@@ -213,7 +214,6 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
         const auto& lmask_arr = (SurfLayer->get_lmask(level)) ?
                                 SurfLayer->get_lmask(level)->const_array(mfi) :
                                 Array4<int>{};
-        //const Array4<Real const> z_nd_arr = z_phys_nd->array(mfi);
         // Only retrieve z_phys_nd array if terrain-fitted coordinates are in use
         const Array4<Real const> z_nd_arr = use_terrain_fitted_coords ? z_phys_nd->array(mfi)
                                                                 : Array4<Real const>{};
@@ -237,8 +237,9 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
                 zval = (use_terrain_fitted_coords)
                      ? Compute_Zrel_AtCellCenter(i, j, kpbl, z_nd_arr)
                      : (kpbl + myhalf) * gdata.CellSize(2);
-                const Real theta_v    = GetThetav(i, j, kpbl, cell_data, moisture_indices);
-                const Real theta_v_klo = GetThetav(i, j, klo,  cell_data, moisture_indices);
+                const Real theta_v     = GetThetav(i, j, kpbl, cell_data, moisture_indices);
+                // FIX: guard theta_v_klo against zero to prevent NaN in Rib
+                const Real theta_v_klo = amrex::max(GetThetav(i, j, klo, cell_data, moisture_indices), Real(1.0));
                 const Real ws2_raw = fourth * ( (uvel(i, j, kpbl) + uvel(i + 1, j, kpbl)) *
                                               (uvel(i, j, kpbl) + uvel(i + 1, j, kpbl)) +
                                               (vvel(i, j, kpbl) + vvel(i, j + 1, kpbl)) *
@@ -257,8 +258,9 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
                 zval = (use_terrain_fitted_coords)
                      ? Compute_Zrel_AtCellCenter(i, j, kpbl, z_nd_arr)
                      : (kpbl + myhalf) * gdata.CellSize(2);
-                const Real theta_v    = GetThetav(i, j, kpbl, cell_data, moisture_indices);
-                const Real theta_v_klo = GetThetav(i, j, klo,  cell_data, moisture_indices);
+                const Real theta_v     = GetThetav(i, j, kpbl, cell_data, moisture_indices);
+                // FIX: guard theta_v_klo against zero to prevent NaN in Rib
+                const Real theta_v_klo = amrex::max(GetThetav(i, j, klo, cell_data, moisture_indices), Real(1.0));
                 const Real ws2_raw = fourth * ( (uvel(i, j, kpbl) + uvel(i + 1, j, kpbl)) *
                                               (uvel(i, j, kpbl) + uvel(i + 1, j, kpbl)) +
                                               (vvel(i, j, kpbl) + vvel(i, j + 1, kpbl)) *
@@ -360,7 +362,7 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
                 }
             }
 
-            // Compute VPERT = HGAMT + 0.61*θ*HGAMQ (virtual temperature perturbation)
+            // Compute VPERT = HGAMT + 0.61*theta*HGAMQ (virtual temperature perturbation)
             // This will be added to the surface temperature in the corrector Rib search.
             // WRF Reference: module_bl_mrf.F lines 879-880
             if (pbli_arr(i, j, 0) <= klo + 1 || !enable_mrf_countergradient) {
@@ -376,9 +378,9 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
 
         //
         // PASS 3 (CORRECTOR): Recompute PBL height with VPERT-enhanced surface temperature.
-        // θ_s = θ_va + VPERT  (Hong & Pan 1996, Eq. 4)
+        // theta_s = theta_va + VPERT  (Hong & Pan 1996, Eq. 4)
         // This is the WRF-consistent corrector pass. pblh_corr_arr is used for the
-        // K-profile shape function K = ρ*wstar*κ*z*(1-z/h)².
+        // K-profile shape function K = rho*wstar*kappa*z*(1-z/h)^2.
         // WRF reference (module_bl_mrf.F lines 932-964):
         // https://github.com/wrf-model/WRF/blob/master/phys/module_bl_mrf.F#L932-L964
         //
@@ -401,8 +403,9 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
                 zval = (use_terrain_fitted_coords)
                      ? Compute_Zrel_AtCellCenter(i, j, kpbl, z_nd_arr)
                      : (kpbl + myhalf) * gdata.CellSize(2);
-                const Real theta_v    = GetThetav(i, j, kpbl, cell_data, moisture_indices);
-                const Real theta_v_klo = GetThetav(i, j, klo,  cell_data, moisture_indices);
+                const Real theta_v     = GetThetav(i, j, kpbl, cell_data, moisture_indices);
+                // FIX: guard theta_v_klo against zero to prevent NaN in Rib
+                const Real theta_v_klo = amrex::max(GetThetav(i, j, klo, cell_data, moisture_indices), Real(1.0));
                 const Real ws2_raw = fourth * ( (uvel(i, j, kpbl) + uvel(i + 1, j, kpbl)) *
                                               (uvel(i, j, kpbl) + uvel(i + 1, j, kpbl)) +
                                               (vvel(i, j, kpbl) + vvel(i, j + 1, kpbl)) *
@@ -421,8 +424,9 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
                 zval = (use_terrain_fitted_coords)
                      ? Compute_Zrel_AtCellCenter(i, j, kpbl, z_nd_arr)
                      : (kpbl + myhalf) * gdata.CellSize(2);
-                const Real theta_v    = GetThetav(i, j, kpbl, cell_data, moisture_indices);
-                const Real theta_v_klo = GetThetav(i, j, klo,  cell_data, moisture_indices);
+                const Real theta_v     = GetThetav(i, j, kpbl, cell_data, moisture_indices);
+                // FIX: guard theta_v_klo against zero to prevent NaN in Rib
+                const Real theta_v_klo = amrex::max(GetThetav(i, j, klo, cell_data, moisture_indices), Real(1.0));
                 const Real ws2_raw = fourth * ( (uvel(i, j, kpbl) + uvel(i + 1, j, kpbl)) *
                                               (uvel(i, j, kpbl) + uvel(i + 1, j, kpbl)) +
                                               (vvel(i, j, kpbl) + vvel(i, j + 1, kpbl)) *
@@ -542,8 +546,9 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
                 zval_zero = (use_terrain_fitted_coords)
                           ? Compute_Zrel_AtCellCenter(i, j, kpbl_zero, z_nd_arr)
                           : (kpbl_zero + myhalf) * gdata.CellSize(2);
-                const Real theta_v    = GetThetav(i, j, kpbl_zero, cell_data, moisture_indices);
-                const Real theta_v_klo = GetThetav(i, j, klo,      cell_data, moisture_indices);
+                const Real theta_v     = GetThetav(i, j, kpbl_zero, cell_data, moisture_indices);
+                // FIX: guard theta_v_klo against zero to prevent NaN in Rib
+                const Real theta_v_klo = amrex::max(GetThetav(i, j, klo, cell_data, moisture_indices), Real(1.0));
                 const Real ws2_raw = fourth * ( (uvel(i, j, kpbl_zero) + uvel(i + 1, j, kpbl_zero)) *
                                               (uvel(i, j, kpbl_zero) + uvel(i + 1, j, kpbl_zero)) +
                                               (vvel(i, j, kpbl_zero) + vvel(i, j + 1, kpbl_zero)) *
@@ -558,8 +563,9 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
                 zval_zero = (use_terrain_fitted_coords)
                           ? Compute_Zrel_AtCellCenter(i, j, kpbl_zero, z_nd_arr)
                           : (kpbl_zero + myhalf) * gdata.CellSize(2);
-                const Real theta_v    = GetThetav(i, j, kpbl_zero, cell_data, moisture_indices);
-                const Real theta_v_klo = GetThetav(i, j, klo,      cell_data, moisture_indices);
+                const Real theta_v     = GetThetav(i, j, kpbl_zero, cell_data, moisture_indices);
+                // FIX: guard theta_v_klo against zero to prevent NaN in Rib
+                const Real theta_v_klo = amrex::max(GetThetav(i, j, klo, cell_data, moisture_indices), Real(1.0));
                 const Real ws2_raw = fourth * ( (uvel(i, j, kpbl_zero) + uvel(i + 1, j, kpbl_zero)) *
                                               (uvel(i, j, kpbl_zero) + uvel(i + 1, j, kpbl_zero)) +
                                               (vvel(i, j, kpbl_zero) + vvel(i, j + 1, kpbl_zero)) *
@@ -603,6 +609,17 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
                             ? Compute_Zrel_AtCellCenter(i, j, k, z_nd_arr)
                             : (k + myhalf) * gdata.CellSize(2);
             const Real rho = cell_data(i, j, k, Rho_comp);
+            // FIX: skip ghost cells with uninitialized (zero) density — prevents
+            // division-by-zero inside GetThetav at lateral ghost cells of gbx
+            if (rho <= zero) {
+                K_turb(i, j, k, EddyDiff::Mom_v)   = zero;
+                K_turb(i, j, k, EddyDiff::Theta_v) = zero;
+                K_turb(i, j, k, EddyDiff::Q_v)     = zero;
+                K_turb(i, j, k, EddyDiff::HGAMT_v) = zero;
+                K_turb(i, j, k, EddyDiff::HGAMQ_v) = zero;
+                K_turb(i, j, k, EddyDiff::Turb_lengthscale) = zero;
+                return;
+            }
             const Real met_h_zeta = (use_terrain_fitted_coords)
                                   ? Compute_h_zeta_AtCellCenter(i, j, k, dxInv, z_nd_arr) : one;
             const Real dz_terrain = met_h_zeta / dz_inv;
@@ -692,7 +709,8 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
                     const Real wind_shear = dudz_safe * dudz_safe + dvdz_safe * dvdz_safe;
                     const Real wind_shear_safe = std::max(wind_shear, Real(1.0e-8));
 
-                    const Real theta_v    = GetThetav(i, j, k,   cell_data, moisture_indices);
+                    // FIX: guard theta_v against zero/negative in grad_Ri denominator
+                    const Real theta_v     = amrex::max(GetThetav(i, j, k,   cell_data, moisture_indices), Real(1.0));
                     const Real theta_v_kp1 = (k < izmax) ? GetThetav(i, j, k+1, cell_data, moisture_indices) : theta_v;
                     const Real theta_v_km1 = (k > izmin) ? GetThetav(i, j, k-1, cell_data, moisture_indices) : theta_v;
                     const Real dtheta_v_dz = myhalf * (theta_v_kp1 - theta_v_km1) * (one / dz_terrain);
@@ -734,7 +752,8 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
                 const Real wind_shear = dudz_safe * dudz_safe + dvdz_safe * dvdz_safe;
                 const Real wind_shear_safe = std::max(wind_shear, Real(1.0e-8));
 
-                const Real theta_v    = GetThetav(i, j, k,   cell_data, moisture_indices);
+                // FIX: guard theta_v against zero/negative in grad_Ri denominator
+                const Real theta_v     = amrex::max(GetThetav(i, j, k,   cell_data, moisture_indices), Real(1.0));
                 const Real theta_v_kp1 = (k < izmax) ? GetThetav(i, j, k+1, cell_data, moisture_indices) : theta_v;
                 const Real theta_v_km1 = (k > izmin) ? GetThetav(i, j, k-1, cell_data, moisture_indices) : theta_v;
                 const Real dtheta_v_dz = myhalf * (theta_v_kp1 - theta_v_km1) * (one / dz_terrain);
@@ -764,8 +783,8 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
             }
 
             // Limit diffusion coefficients to physical bounds
-            // Hong & Pan (1996): Kmin=0.1, Kmax=300 m²/s (module_bl_mrf.F lines 1014-1025)
-            // Hong et al. (2006): Kmin=ckz*dz*rho, Kmax=1000 m²/s (high-res option)
+            // Hong & Pan (1996): Kmin=0.1, Kmax=300 m^2/s (module_bl_mrf.F lines 1014-1025)
+            // Hong et al. (2006): Kmin=ckz*dz*rho, Kmax=1000 m^2/s (high-res option)
             Real rhoKmin, rhoKmax;
             if (turbChoice.pbl_mrf_highres_bounds) {
                 constexpr Real ckz  = Real(0.001);
