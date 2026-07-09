@@ -33,7 +33,7 @@ ERF::fill_from_realbdy (const Vector<MultiFab*>& mfs,
     double time_since_start_bdy = time_tot - start_bdy_time;
     int n_time    = static_cast<int>( time_since_start_bdy /  dT);
     int n_time_p1 = n_time + 1;
-    double alpha  = (time_since_start_bdy - n_time * dT) / dT;
+    Real alpha  = static_cast<Real>((time_since_start_bdy - n_time * dT) / dT);
 
     // Do not over run the last bdy file
     if (time_tot >= final_bdy_time) {

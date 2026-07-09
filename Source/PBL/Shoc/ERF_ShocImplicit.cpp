@@ -127,7 +127,7 @@ ShocImplicit::compute_tmpi (const ShocColumnData& col,
     const auto zi = col.zi.const_array();
     const auto layout = col.layout;
     for (int k = 0; k <= col.layout.nlev; ++k) {
-        tmpi[k] = dt * CONST_GRAV * amrex::max(rho_zi[k], 1.0e-12_rt) /
+        tmpi[k] = static_cast<amrex::Real>(dt) * CONST_GRAV * amrex::max(rho_zi[k], 1.0e-12_rt) /
                   interface_spacing(zt, zi, layout, ic, k);
     }
 }
@@ -165,10 +165,13 @@ ShocImplicit::compute_vapor (Real qw,
 void
 ShocImplicit::advance_implicit_state (ShocColumnData& col,
                                       const ShocRuntimeOptions& opts,
-                                      double dt)
+                                      double dt_d)
 {
-    AMREX_ALWAYS_ASSERT(dt > 0.0);
     static_cast<void>(opts);
+
+    Real dt = static_cast<Real>(dt_d);
+
+    AMREX_ALWAYS_ASSERT(dt > zero);
 
     const int nlev = col.layout.nlev;
     if (nlev == 0) {
@@ -318,9 +321,11 @@ ShocImplicit::advance_implicit_state (ShocColumnData& col,
 void
 ShocImplicit::finalize_from_pdf (ShocColumnData& col,
                                  const ShocRuntimeOptions& opts,
-                                 double dt)
+                                 double dt_d)
 {
-    AMREX_ALWAYS_ASSERT(dt > 0.0);
+    Real dt = static_cast<Real>(dt_d);
+
+    AMREX_ALWAYS_ASSERT(dt > zero);
 
     const int nlev = col.layout.nlev;
     if (nlev == 0) {

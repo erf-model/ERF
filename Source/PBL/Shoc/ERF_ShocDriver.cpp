@@ -1,6 +1,7 @@
 #include "ERF_ShocDriver.H"
 #include "ERF_ShocImplicit.H"
 
+#include "ERF_Constants.H"
 #include "ERF_IndexDefines.H"
 
 #include <AMReX_BLProfiler.H>
@@ -245,8 +246,10 @@ namespace
                                        int qc_comp,
                                        int qi_comp,
                                        const ShocRuntimeOptions& opts,
-                                       double dt)
+                                       double dt_d)
     {
+        Real dt = static_cast<Real>(dt_d);
+
         const bool has_qv = shoc_valid_comp(qv_comp, cons.nComp());
         const bool has_qc = shoc_valid_comp(qc_comp, cons.nComp());
         const bool has_qi = shoc_valid_comp(qi_comp, cons.nComp());
@@ -268,20 +271,20 @@ namespace
                 if (!opts.debug_disable_moisture_state_update) {
                     if (has_qv) {
                         cc(i,j,k,qv_comp) = amrex::max(
-                            cc(i,j,k,qv_comp) + rho_val * dt * qv_tend(i,j,k), 0.);
+                            cc(i,j,k,qv_comp) + rho_val * dt * qv_tend(i,j,k), zero);
                     }
                     if (has_qc) {
                         cc(i,j,k,qc_comp) = amrex::max(
-                            cc(i,j,k,qc_comp) + rho_val * dt * qc_tend(i,j,k), 0.);
+                            cc(i,j,k,qc_comp) + rho_val * dt * qc_tend(i,j,k), zero);
                     }
                     if (has_qi) {
                         cc(i,j,k,qi_comp) = amrex::max(
-                            cc(i,j,k,qi_comp) + rho_val * dt * qi_tend(i,j,k), 0.);
+                            cc(i,j,k,qi_comp) + rho_val * dt * qi_tend(i,j,k), zero);
                     }
                 }
                 if (!opts.debug_disable_tke_state_update) {
                     cc(i,j,k,RhoKE_comp) = amrex::max(
-                        cc(i,j,k,RhoKE_comp) + rho_val * dt * tke_tend(i,j,k), 0.);
+                        cc(i,j,k,RhoKE_comp) + rho_val * dt * tke_tend(i,j,k), zero);
                 }
             });
         }
@@ -289,8 +292,9 @@ namespace
 
     void apply_state_update_face_velocity_impl (MultiFab& vel,
                                                 const MultiFab& vel_tend,
-                                                double dt)
+                                                double dt_d)
     {
+        Real dt = static_cast<Real>(dt_d);
         for (MFIter mfi(vel_tend, false); mfi.isValid(); ++mfi) {
             auto v = vel.array(mfi);
             const auto tend = vel_tend.const_array(mfi);
@@ -944,9 +948,9 @@ ShocDriver::debug_check_bad_column (const ShocColumnData& col,
                                     const MultiFab* tau13,
                                     const MultiFab* tau23,
                                     const Geometry& geom,
-                                    double dt) const
+                                    double dt_d) const
 {
-    amrex::ignore_unused(geom, dt);
+    amrex::ignore_unused(geom, dt_d);
 
     if (!m_opts.debug_bad_column) {
         return;
@@ -1241,9 +1245,9 @@ ShocDriver::debug_check_bad_column (const ShocColumnData& col,
         const int kk = rep.kk;
         const int ic = rep.ic;
 
-        const auto node_value = [&] (int ii, int jj, int kk) -> Real {
-            const IntVect iv(ii, jj, kk);
-            return z_host.box().contains(iv) ? z_arr(ii, jj, kk) : std::numeric_limits<Real>::quiet_NaN();
+        const auto node_value = [&] (int iii, int jjj, int kkk) -> Real {
+            const IntVect iv(iii, jjj, kkk);
+            return z_host.box().contains(iv) ? z_arr(iii, jjj, kkk) : std::numeric_limits<Real>::quiet_NaN();
         };
 
         const Real z_nd_ijk = node_value(i, j, k);
@@ -1278,6 +1282,9 @@ ShocDriver::debug_check_bad_column (const ShocColumnData& col,
         const Real delta_qi = qi_new_val - qi_base_val;
         const Real delta_ql = ql_new - ql_base;
         const Real delta_qw = qw_new - qw_base;
+
+        const Real dt = static_cast<Real>(dt_d);
+
         const Real dt_theta_tend = theta_tend_arr(ic, kk, 0) * dt;
         const Real dt_qv_tend = qv_tend_arr(ic, kk, 0) * dt;
         const Real dt_qc_tend = qc_tend_arr(ic, kk, 0) * dt;

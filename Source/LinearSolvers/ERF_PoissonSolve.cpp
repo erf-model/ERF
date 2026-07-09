@@ -99,9 +99,10 @@ void ERF::project_initial_velocity (int lev, double time, double l_dt)
  * Project the single-level momenta to enforce the anelastic constraint
  * Note that the level may or may not be level zero
  */
-void ERF::project_momenta (int lev, double l_time, double l_dt, Vector<MultiFab>& mom_mf)
+void ERF::project_momenta (int lev, double l_time, double l_dt_d, Vector<MultiFab>& mom_mf)
 {
     BL_PROFILE("ERF::project_momenta()");
+    Real l_dt = static_cast<Real>(l_dt_d);
     //
     // If at lev > 0 we must first fill the momenta at the c/f interface with interpolated coarse values
     //

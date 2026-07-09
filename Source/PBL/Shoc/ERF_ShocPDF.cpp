@@ -25,23 +25,29 @@ namespace
     AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE bool shoc_do_thetal_skew () noexcept { return false; }
     AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE Real inv_sqrt_two_pi () noexcept { return 0.39894228040143267794_rt; }
 
+#ifdef AMREX_USE_FLOAT
+    Real eps = static_cast<Real>(1.e-6);
+#else
+    Real eps = 1.e-12;
+#endif
+
     AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
     Real clamp01 (Real x) { return shoc_clamp(x, 0.0_rt, 1.0_rt); }
 
     AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-    Real signed_denominator (Real value, Real eps = 1.0e-12_rt)
+    Real signed_denominator (Real value, Real eps_in = eps)
     {
-        if (amrex::Math::abs(value) >= eps) {
+        if (amrex::Math::abs(value) >= eps_in) {
             return value;
         }
-        return std::copysign(eps, value == 0.0_rt ? 1.0_rt : value);
+        return std::copysign(eps_in, value == 0.0_rt ? 1.0_rt : value);
     }
 
     AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
     Real weighted_linear_interp (Real x0, Real x1, Real y0, Real y1, Real x)
     {
         const Real denom = x1 - x0;
-        if (amrex::Math::abs(denom) <= 1.0e-12_rt) {
+        if (amrex::Math::abs(denom) <= eps) {
             return 0.5_rt * (y0 + y1);
         }
         return y0 + (y1 - y0) * (x - x0) / denom;
@@ -211,7 +217,7 @@ namespace
     AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
     Real compute_temperature (Real thl1, Real pval)
     {
-        const Real pressure_ratio = p_0 / amrex::max(pval, 1.0e-12_rt);
+        const Real pressure_ratio = p_0 / amrex::max(pval, eps);
         return thl1 / std::exp((R_d / Cp_d) * std::log(pressure_ratio));
     }
 
@@ -263,7 +269,7 @@ namespace
     Real compute_buoyancy_flux (Real wthlsec, Real wqwsec, Real pval, Real wqls)
     {
         const Real epsterm = R_d / R_v;
-        const Real pressure_ratio = p_0 / amrex::max(pval, 1.0e-12_rt);
+        const Real pressure_ratio = p_0 / amrex::max(pval, eps);
         const Real pressure_term = std::exp((R_d / Cp_d) * std::log(pressure_ratio));
         return wthlsec
                  + ((1.0_rt - epsterm) / epsterm) * shoc_base_temp() * wqwsec
@@ -275,7 +281,7 @@ namespace
 void
 ShocPDF::diagnose_pdf (ShocColumnData& col,
                        const ShocRuntimeOptions& opts,
-                       double dt)
+                       double dt_d)
 {
     // Interim native-SHOC contract: this PDF remains liquid-cloud
     // macrophysics. It may carry pre-existing ice through the thermodynamic
@@ -394,10 +400,10 @@ ShocPDF::diagnose_pdf (ShocColumnData& col,
                                                      p_mid(ic,k,0), wqls);
 
             if (opts.extra_shoc_diags) {
-                const Real real_dt = dt;
+                const Real dt = static_cast<Real>(dt_d);
                 const Real ql_change = ql - old_ql;
-                shoc_cond(ic,k,0) = amrex::max(0.0_rt, ql_change / amrex::max(real_dt, 1.0e-12_rt));
-                shoc_evap(ic,k,0) = amrex::max(0.0_rt, -ql_change / amrex::max(real_dt, 1.0e-12_rt));
+                shoc_cond(ic,k,0) = amrex::max(0.0_rt, ql_change / amrex::max(dt, eps));
+                shoc_evap(ic,k,0) = amrex::max(0.0_rt, -ql_change / amrex::max(dt, eps));
             } else {
                 shoc_cond(ic,k,0) = 0.0_rt;
                 shoc_evap(ic,k,0) = 0.0_rt;
