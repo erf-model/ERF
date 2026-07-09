@@ -34,6 +34,7 @@ erf.most.zref = 48.0
 erf.most.surf_temp_flux = 0.0
 
 zhi.type = "SlipWall"
+zhi.theta_grad = 0.003  # adiabatic upper boundary
 
 # TIME STEP CONTROL
 erf.fixed_dt = 0.01  # very short timestep for extremely high velocities
@@ -65,6 +66,7 @@ erf.use_gravity = true
 erf.molec_diff_type = "None"
 # When using a PBL model, LES closure should be disabled
 erf.les_type        = "None"
+erf.Cs = 0.11
 erf.theta_ref = 300.0
 
 # INITIALIZATION - from sounding file
@@ -84,6 +86,9 @@ erf.pbl_mrf_const_b = 7.8
 erf.pbl_mrf_sf = 0.1
 erf.enable_mrf_countergradient = false
 erf.mrf_moistvars = false
+
+# CORIOLIS EFFECT
+erf.latitude = 45.0  # mid-latitude (f = 1.0e-4 s^-1)
 
 erf.use_coriolis = true
 

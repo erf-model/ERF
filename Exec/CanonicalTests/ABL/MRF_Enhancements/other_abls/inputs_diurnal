@@ -37,6 +37,8 @@ erf.most.surf_temp = 295.0
 erf.most.surf_heating_rate = 1.0  # Dynamic heating rate [K/h] to trigger transition
 
 zhi.type = "SlipWall"
+zhi.theta_grad = 0.003  # adiabatic upper boundary
+zhi.theta_grad = 0.003  # adiabatic upper boundary
 
 # TIME STEP CONTROL
 erf.fixed_dt = 0.1  # fixed time step depending on grid resolution
@@ -65,6 +67,7 @@ erf.use_gravity = true
 erf.molec_diff_type = "None"
 # When using a PBL model, LES closure should be disabled
 erf.les_type        = "None"
+erf.Cs = 0.11
 erf.theta_ref = 300.0
 
 # INITIALIZATION - from sounding file
@@ -84,6 +87,9 @@ erf.mrf_moistvars = true
 
 
 # Perturbations to trigger transition turbulence
+
+# CORIOLIS EFFECT
+erf.latitude = 45.0  # mid-latitude (f = 1.0e-4 s^-1)
 
 erf.use_coriolis = true
 

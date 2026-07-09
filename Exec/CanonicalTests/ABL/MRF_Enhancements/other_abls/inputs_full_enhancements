@@ -16,8 +16,10 @@ geometry.is_periodic = 1 1 0
 zlo.type = "surface_layer"
 erf.most.z0   = 0.1
 erf.most.zref = 48.0
+erf.most.surf_temp_flux = 0.24  # sensible heat flux [K m/s]
 
 zhi.type = "SlipWall"
+zhi.theta_grad = 0.003  # adiabatic upper boundary
 
 # TIME STEP CONTROL
 erf.fixed_dt = 0.1  # fixed time step depending on grid resolution
@@ -47,6 +49,7 @@ erf.use_gravity = true
 erf.molec_diff_type = "None"
 # When using a PBL model, LES closure should be disabled
 erf.les_type        = "None"
+erf.Cs = 0.11
 erf.theta_ref = 300.0
 
 # INITIALIZATION - from sounding file
@@ -75,6 +78,9 @@ erf.mrf_moistvars = true
 
 # Higher values of perturbations lead to instability
 # Instability seems to be coming from BC
+
+# CORIOLIS EFFECT
+erf.latitude = 45.0  # mid-latitude (f = 1.0e-4 s^-1)
 
 erf.use_coriolis = true
 
