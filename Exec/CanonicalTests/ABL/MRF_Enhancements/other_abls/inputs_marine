@@ -39,6 +39,7 @@ erf.most.surf_temp_flux = 0.01 # weak sensible heat flux over marine layer
 erf.most.roughness_type_sea = charnock
 
 zhi.type = "SlipWall"
+zhi.theta_grad = 0.003  # adiabatic upper boundary
 
 # TIME STEP CONTROL
 erf.fixed_dt = 0.1

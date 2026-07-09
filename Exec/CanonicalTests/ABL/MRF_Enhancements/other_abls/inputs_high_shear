@@ -34,6 +34,7 @@ erf.most.zref = 48.0
 erf.most.surf_temp_flux = 0.0
 
 zhi.type = "SlipWall"
+zhi.theta_grad = 0.003  # adiabatic upper boundary
 
 # TIME STEP CONTROL
 erf.fixed_dt = 0.01  # very short timestep for extremely high velocities
