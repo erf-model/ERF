@@ -96,8 +96,6 @@
                         }
                     } else if (l_use_terrain_fitted_coords) {
                         if (l_do_implicit_theta) {
-                            const bool l_use_mrf_cg = solverChoice.turbChoice[level].enable_mrf_countergradient
-                                                      && (solverChoice.turbChoice[level].pbl_type == PBLType::MRF);
                             ImplicitDiffForStateLU_T(bx, fine_geom.Domain(), level, RhoTheta_comp,
                                                      slow_dt, l_bc_neumann_vals_d, cell_data,
                                                      z_nd_arr, detJ_arr, dxInv, hfx_z,
@@ -127,8 +125,6 @@
                         }
                     } else { // no terrain
                         if (l_do_implicit_theta) {
-                            const bool l_use_mrf_cg = solverChoice.turbChoice[level].enable_mrf_countergradient
-                                                      && (solverChoice.turbChoice[level].pbl_type == PBLType::MRF);
                             ImplicitDiffForStateLU_N(bx, fine_geom.Domain(), level, RhoTheta_comp,
                                                      slow_dt, l_bc_neumann_vals_d, cell_data,
                                                      dxInv, hfx_z, mu_turb, solverChoice,
