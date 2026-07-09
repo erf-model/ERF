@@ -192,40 +192,26 @@ public:
           pp, "mrf_fire_q_threshold", mrf_fire_q_threshold, lev, max_level);
         query_one_or_per_level(
           pp, "mrf_fire_t_excess_cap", mrf_fire_t_excess_cap, lev, max_level);
-        query_one_or_per_level(
-          pp, "enable_mrf_iterative_thermal_excess", enable_mrf_iterative_thermal_excess, lev, max_level);
-        query_one_or_per_level(
-          pp, "mrf_thermal_excess_iterations", mrf_thermal_excess_iterations, lev, max_level);
-        query_one_or_per_level(
-          pp, "enable_mrf_cloudy_layers", enable_mrf_cloudy_layers, lev, max_level);
-        query_one_or_per_level(
-          pp, "mrf_cloud_diffusivity_factor", mrf_cloud_diffusivity_factor, lev, max_level);
-        query_one_or_per_level(
-          pp, "enable_mrf_countergradient_bounds", enable_mrf_countergradient_bounds, lev, max_level);
-        query_one_or_per_level(
-          pp, "mrf_countergradient_max_theta", mrf_countergradient_max_theta, lev, max_level);
-        query_one_or_per_level(
-          pp, "mrf_countergradient_max_q", mrf_countergradient_max_q, lev, max_level);
       } else if (pbl_type == PBLType::SHOC) {
 #ifndef ERF_USE_SHOC
-          amrex::Abort("You set use_shoc to true but didn't build with SHOC; you must rebuild the executable");
-      }
+           amrex::Abort("You set use_shoc to true but didn't build with SHOC; you must rebuild the executable");
+       }
 #endif
-      if (uses_eamxx_shoc()) {
+       if (uses_eamxx_shoc()) {
 #ifndef ERF_USE_EAMXX_SHOC
-          amrex::Abort("PBLType::EAMXX_SHOC requested, but ERF was not built with ERF_ENABLE_EAMXX_SHOC=ON");
+           amrex::Abort("PBLType::EAMXX_SHOC requested, but ERF was not built with ERF_ENABLE_EAMXX_SHOC=ON");
 #endif
-      }
+       }
 
-      if (pbl_requires_surface_layer()) {
-          std::string zlo_bc = "none";
-          amrex::ParmParse pp_bc("zlo");
-          pp_bc.get("type",zlo_bc);
-          if (amrex::toLower(zlo_bc) != "surface_layer") {
-               amrex::Abort("You must use the surface_layer BC at zlo with the selected PBL.");
-          }
-      }
-    }
+       if (pbl_requires_surface_layer()) {
+           std::string zlo_bc = "none";
+           amrex::ParmParse pp_bc("zlo");
+           pp_bc.get("type",zlo_bc);
+           if (amrex::toLower(zlo_bc) != "surface_layer") {
+                amrex::Abort("You must use the surface_layer BC at zlo with the selected PBL.");
+           }
+       }
+     }
 
     // Flags for QKE/TKE equation
     if (pbl_type == PBLType::MYJ || pbl_type == PBLType::MYNN25 || pbl_type == PBLType::MYNNEDMF) {
@@ -457,19 +443,11 @@ public:
                      << std::endl;
       amrex::Print() << "    pbl_mrf_use_zero_ri_extent : " << pbl_mrf_use_zero_ri_extent
                      << std::endl;
-      amrex::Print() << "    enable_mrf_iterative_thermal_excess : " << enable_mrf_iterative_thermal_excess
+      amrex::Print() << "    pbl_mrf_fire_thermal_excess : " << mrf_fire_thermal_excess
                      << std::endl;
-      amrex::Print() << "    mrf_thermal_excess_iterations : " << mrf_thermal_excess_iterations
+      amrex::Print() << "    mrf_fire_q_threshold        : " << mrf_fire_q_threshold
                      << std::endl;
-      amrex::Print() << "    enable_mrf_cloudy_layers : " << enable_mrf_cloudy_layers
-                     << std::endl;
-      amrex::Print() << "    mrf_cloud_diffusivity_factor : " << mrf_cloud_diffusivity_factor
-                     << std::endl;
-      amrex::Print() << "    enable_mrf_countergradient_bounds : " << enable_mrf_countergradient_bounds
-                     << std::endl;
-      amrex::Print() << "    mrf_countergradient_max_theta : " << mrf_countergradient_max_theta
-                     << std::endl;
-      amrex::Print() << "    mrf_countergradient_max_q : " << mrf_countergradient_max_q
+      amrex::Print() << "    mrf_fire_t_excess_cap       : " << mrf_fire_t_excess_cap
                      << std::endl;
     }
   }
@@ -602,13 +580,6 @@ public:
   bool mrf_fire_thermal_excess = false; ///< if true, add fire surface flux to MRF thermal excess
   amrex::Real mrf_fire_q_threshold = amrex::Real(50.0); ///< minimum fire heat flux [W/m2] to activate correction
   amrex::Real mrf_fire_t_excess_cap = amrex::Real(50.0); ///< maximum thermal excess [K] when fire is active
-  bool enable_mrf_iterative_thermal_excess = false; ///< if true, use iterative method to compute MRF thermal excess
-  int  mrf_thermal_excess_iterations = 5;           ///< number of iterations for iterative thermal excess calculation
-  bool enable_mrf_cloudy_layers = false;             ///< if true, apply enhanced diffusivity in cloudy layers
-  amrex::Real mrf_cloud_diffusivity_factor = amrex::Real(2.0); ///< factor to scale diffusivity in cloudy layers
-  bool enable_mrf_countergradient_bounds = false;    ///< if true, limit countergradient terms by max values
-  amrex::Real mrf_countergradient_max_theta = amrex::Real(0.05); ///< max countergradient correction for theta [K/m]
-  amrex::Real mrf_countergradient_max_q = amrex::Real(1.0e-5);   ///< max countergradient correction for q [kg/kg/m]
 
   // MYNN2.5 PBL model
   // TKE/QKE stuff
