@@ -808,7 +808,7 @@ void ComputeTurbulentViscosity (double dt,
                                 const BCRec* bc_ptr,
                                 const eb_& ebfact,
                                 bool vert_only,
-                                const MultiFab* qheating_rates = nullptr)
+                                const MultiFab* qheating_rates)
 {
     BL_PROFILE_VAR("ComputeTurbulentViscosity()",ComputeTurbulentViscosity);
     //

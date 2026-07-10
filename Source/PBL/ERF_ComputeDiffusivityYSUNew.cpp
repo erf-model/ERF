@@ -28,7 +28,7 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
                        bool /*vert_only*/,
                        const std::unique_ptr<MultiFab>& z_phys_nd,
                        const MoistureComponentIndices& moisture_indices,
-                       const MultiFab* qheating_rates = nullptr)
+                       const MultiFab* qheating_rates)
 {
     /*
     ============================================================================
@@ -922,6 +922,10 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
         // cloud-topped boundary layers. Triggered when enable_ysu_topdown and
         // use_moisture are both true.
         //
+        const auto& dxInv = geom.InvCellSizeArray();
+        const Real dz_inv = geom.InvCellSize(2);
+        const int izmin   = geom.Domain().smallEnd(2);
+        const int izmax   = geom.Domain().bigEnd(2);
         if (enable_ysu_topdown && use_moisture) {
             ParallelFor(xybx, [=] AMREX_GPU_DEVICE(int i, int j, int) noexcept
             {
