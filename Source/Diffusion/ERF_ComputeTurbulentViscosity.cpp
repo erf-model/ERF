@@ -300,8 +300,8 @@ void ComputeTurbulentViscosityLES (Vector<std::unique_ptr<MultiFab>>& Tau_lev,
 
         const Array4<Real>& mu_turb = eddyViscosity.array(mfi);
 
-        for (auto n = 1; n < (EddyDiff::NumDiffs-1)/2; ++n) {
-            int offset = (EddyDiff::NumDiffs-1)/2;
+        for (auto n = 1; n < EddyDiff::Mom_v; ++n) {
+            int offset = EddyDiff::Mom_v;
             switch (n)
             {
              case EddyDiff::KE_h:
@@ -519,8 +519,8 @@ void ComputeTurbulentViscosityLES_EB (Vector<std::unique_ptr<MultiFab>>& Tau_lev
 
         const Array4<Real>& mu_turb = eddyViscosity.array(mfi);
 
-        for (auto n = 1; n < (EddyDiff::NumDiffs-1)/2; ++n) {
-            int offset = (EddyDiff::NumDiffs-1)/2;
+        for (auto n = 1; n < EddyDiff::Mom_v; ++n) {
+            int offset = EddyDiff::Mom_v;
             switch (n)
             {
              case EddyDiff::KE_h:
@@ -736,8 +736,8 @@ void ComputeTurbulentViscosityRANS (Vector<std::unique_ptr<MultiFab>>& /*Tau_lev
 
         const Array4<Real>& mu_turb = eddyViscosity.array(mfi);
 
-        for (auto n = 1; n < (EddyDiff::NumDiffs-1)/2; ++n) {
-            int offset = (EddyDiff::NumDiffs-1)/2;
+        for (auto n = 1; n < EddyDiff::Mom_v; ++n) {
+            int offset = EddyDiff::Mom_v;
             switch (n)
             {
              case EddyDiff::KE_h:

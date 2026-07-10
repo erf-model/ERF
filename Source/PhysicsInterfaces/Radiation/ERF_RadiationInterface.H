@@ -38,7 +38,8 @@ public:
          amrex::MultiFab* rad_fluxes,
          amrex::MultiFab* z_phys,
          amrex::MultiFab* lat,
-         amrex::MultiFab* lon) = 0;
+         amrex::MultiFab* lon,
+         const bool updated_lsm) = 0;
 
     virtual
     void

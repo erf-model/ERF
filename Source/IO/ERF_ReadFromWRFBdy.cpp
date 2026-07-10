@@ -878,10 +878,11 @@ read_and_convert_from_wrfbdy (const int itime, const std::string& nc_bdy_file,
         for (int i = 0; i < n_per_time; i++)
         {
             // Multiply the tendency bdy_tend_prev (stored in bdy_data at itime) by dt to get difference between old and new
-            bdy_data_xlo[itime][i].template mult<RunOn::Device>(bdy_time_interval,0,1);
-            bdy_data_xhi[itime][i].template mult<RunOn::Device>(bdy_time_interval,0,1);
-            bdy_data_ylo[itime][i].template mult<RunOn::Device>(bdy_time_interval,0,1);
-            bdy_data_yhi[itime][i].template mult<RunOn::Device>(bdy_time_interval,0,1);
+            Real dT = static_cast<Real>(bdy_time_interval);
+            bdy_data_xlo[itime][i].template mult<RunOn::Device>(dT,0,1);
+            bdy_data_xhi[itime][i].template mult<RunOn::Device>(dT,0,1);
+            bdy_data_ylo[itime][i].template mult<RunOn::Device>(dT,0,1);
+            bdy_data_yhi[itime][i].template mult<RunOn::Device>(dT,0,1);
 
             // Add bdy_prev to dt*bdy_tend_prev to get bdy_current
             bdy_data_xlo[itime][i].template plus<RunOn::Device>(bdy_data_xlo[itime-1][i], 0, 0, 1);

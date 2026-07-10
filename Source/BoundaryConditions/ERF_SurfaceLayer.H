@@ -606,7 +606,7 @@ public:
       if (surf_heating_rate != 0) {
           int nlevs = static_cast<int>(m_geom.size());
           for (int lev = 0; lev < nlevs; lev++) {
-              t_surf[lev]->setVal(surf_temp + surf_heating_rate * time);
+              t_surf[lev]->setVal(surf_temp + surf_heating_rate * static_cast<amrex::Real>(time));
               amrex::Print() << "Surface temp at t=" << time << ": "
                              << surf_temp + surf_heating_rate * time << std::endl;
           }

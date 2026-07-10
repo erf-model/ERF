@@ -28,7 +28,7 @@ ERF::FillPatchFineLevel (int lev, double time_d,
 
     AMREX_ALWAYS_ASSERT(lev > 0);
 
-    Real time = time_d;
+    Real time = static_cast<Real>(time_d);
 
     Interpolater* mapper = nullptr;
 
@@ -295,7 +295,7 @@ ERF::FillPatchCrseLevel (int lev, double time_d,
 
     AMREX_ALWAYS_ASSERT(lev == 0);
 
-    Real time = time_d;
+    Real time = static_cast<Real>(time_d);
 
     IntVect ngvect_cons = mfs_vel[Vars::cons]->nGrowVect();
     IntVect ngvect_vels = mfs_vel[Vars::xvel]->nGrowVect();

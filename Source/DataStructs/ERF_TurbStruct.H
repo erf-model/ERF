@@ -7,7 +7,7 @@ AMREX_ENUM(LESType, None, Smagorinsky, Smagorinsky2D, Deardorff);
 
 AMREX_ENUM(RANSType, None, kEqn);
 
-AMREX_ENUM(PBLType, None, MYJ, MYNN25, MYNNEDMF, YSU, MRF, YSUNew, SHOC, EAMXX_SHOC, NATIVE_SHOC);
+AMREX_ENUM(PBLType, None, MYJ, MYNN25, MYNNEDMF, YSU, MRF, SHOC, EAMXX_SHOC, NATIVE_SHOC);
 
 AMREX_ENUM(StratType, theta, thetav, thetal);
 
@@ -186,52 +186,6 @@ public:
           pp, "enable_mrf_unbounded_vpert", enable_mrf_unbounded_vpert, lev, max_level);
         query_one_or_per_level(
           pp, "pbl_mrf_use_zero_ri_extent", pbl_mrf_use_zero_ri_extent, lev, max_level);
-      } else if (pbl_type == PBLType::YSUNew) {
-        query_one_or_per_level(
-          pp, "pbl_ysu_coriolis_freq", pbl_ysu_coriolis_freq, lev, max_level);
-        query_one_or_per_level(
-          pp, "pbl_ysu_force_over_water", pbl_ysu_force_over_water, lev,
-          max_level);
-        query_one_or_per_level(
-          pp, "pbl_ysu_land_Ribcr", pbl_ysu_land_Ribcr, lev, max_level);
-        query_one_or_per_level(
-          pp, "pbl_ysu_unst_Ribcr", pbl_ysu_unst_Ribcr, lev, max_level);
-        query_one_or_per_level(
-          pp, "pbl_ysunew_phifac", pbl_ysunew_phifac, lev, max_level);
-        query_one_or_per_level(
-          pp, "pbl_ysunew_pfac", pbl_ysunew_pfac, lev, max_level);
-        query_one_or_per_level(
-          pp, "ysu_moistvars", ysu_moistvars, lev, max_level);
-        query_one_or_per_level(
-          pp, "enable_ysu_countergradient", enable_ysu_countergradient, lev, max_level);
-        query_one_or_per_level(
-          pp, "pbl_ysunew_highres_bounds", pbl_ysunew_highres_bounds, lev, max_level);
-        query_one_or_per_level(
-          pp, "enable_ysu_entrainment", enable_ysu_entrainment, lev, max_level);
-        query_one_or_per_level(
-          pp, "pbl_ysunew_entr_A", pbl_ysunew_entr_A, lev, max_level);
-        query_one_or_per_level(
-          pp, "pbl_ysunew_entr_B", pbl_ysunew_entr_B, lev, max_level);
-        query_one_or_per_level(
-          pp, "enable_ysu_liquid_theta", enable_ysu_liquid_theta, lev, max_level);
-        query_one_or_per_level(
-          pp, "enable_ysu_sat_limiter", enable_ysu_sat_limiter, lev, max_level);
-        query_one_or_per_level(
-          pp, "enable_ysu_cloud_pblh", enable_ysu_cloud_pblh, lev, max_level);
-        query_one_or_per_level(
-          pp, "ysu_qcloud_threshold", ysu_qcloud_threshold, lev, max_level);
-        query_one_or_per_level(
-          pp, "enable_ysu_terrain_pblh_floor", enable_ysu_terrain_pblh_floor, lev, max_level);
-        query_one_or_per_level(
-          pp, "enable_ysu_topdown", enable_ysu_topdown, lev, max_level);
-        query_one_or_per_level(
-          pp, "pbl_ysunew_topdown_phifac", pbl_ysunew_topdown_phifac, lev, max_level);
-        query_one_or_per_level(
-          pp, "enable_ysu_windfarm_coupling", enable_ysu_windfarm_coupling, lev, max_level);
-        query_one_or_per_level(
-          pp, "pbl_ysu_mol_fallback_threshold", pbl_ysu_mol_fallback_threshold, lev, max_level);
-        query_one_or_per_level(
-          pp, "pbl_ysu_pblh_floor_wscale", pbl_ysu_pblh_floor_wscale, lev, max_level);
       } else if (pbl_type == PBLType::SHOC) {
 #ifndef ERF_USE_SHOC
           amrex::Abort("You set use_shoc to true but didn't build with SHOC; you must rebuild the executable");
@@ -240,12 +194,6 @@ public:
       if (uses_eamxx_shoc()) {
 #ifndef ERF_USE_EAMXX_SHOC
           amrex::Abort("PBLType::EAMXX_SHOC requested, but ERF was not built with ERF_ENABLE_EAMXX_SHOC=ON");
-#endif
-      }
-
-      if (uses_native_shoc()) {
-#ifndef ERF_USE_NATIVE_SHOC
-          amrex::Abort("PBLType::NATIVE_SHOC requested, but ERF was not built with native SHOC enabled");
 #endif
       }
 
@@ -397,8 +345,6 @@ public:
       amrex::Print() << "    Using YSU PBL model at level " << lev << std::endl;
     } else if (pbl_type == PBLType::MRF) {
       amrex::Print() << "    Using MRF PBL model at level " << lev << std::endl;
-    } else if (pbl_type == PBLType::YSUNew) {
-      amrex::Print() << "    Using YSUNew PBL model at level " << lev << std::endl;
     } else if (pbl_type == PBLType::EAMXX_SHOC) {
       amrex::Print() << "    Using EAMxx SHOC PBL model at level " << lev << std::endl;
     } else if (pbl_type == PBLType::NATIVE_SHOC) {
@@ -491,51 +437,6 @@ public:
                      << std::endl;
       amrex::Print() << "    pbl_mrf_use_zero_ri_extent : " << pbl_mrf_use_zero_ri_extent
                      << std::endl;
-    } else if (pbl_type == PBLType::YSUNew) {
-      amrex::Print() << "    pbl_ysu_coriolis_freq           : "
-                     << pbl_ysu_coriolis_freq << std::endl;
-      amrex::Print() << "    pbl_ysu_force_over_water        : "
-                     << pbl_ysu_force_over_water << std::endl;
-      amrex::Print() << "    pbl_ysu_land_Ribcr              : "
-                     << pbl_ysu_land_Ribcr << std::endl;
-      amrex::Print() << "    pbl_ysu_unst_Ribcr              : "
-                     << pbl_ysu_unst_Ribcr << std::endl;
-      amrex::Print() << "    pbl_ysunew_phifac (PHIFAC)      : "
-                     << pbl_ysunew_phifac << std::endl;
-      amrex::Print() << "    pbl_ysunew_pfac (profile shape) : "
-                     << pbl_ysunew_pfac << std::endl;
-      amrex::Print() << "    ysu_moistvars                   : "
-                     << ysu_moistvars << std::endl;
-      amrex::Print() << "    enable_ysu_countergradient      : "
-                     << enable_ysu_countergradient << std::endl;
-      amrex::Print() << "    pbl_ysunew_highres_bounds       : "
-                     << pbl_ysunew_highres_bounds << std::endl;
-      amrex::Print() << "    enable_ysu_entrainment          : "
-                     << enable_ysu_entrainment << std::endl;
-      amrex::Print() << "    pbl_ysunew_entr_A (ENTFAC_M)    : "
-                     << pbl_ysunew_entr_A << std::endl;
-      amrex::Print() << "    pbl_ysunew_entr_B               : "
-                     << pbl_ysunew_entr_B << std::endl;
-      amrex::Print() << "    enable_ysu_liquid_theta         : "
-                     << enable_ysu_liquid_theta << std::endl;
-      amrex::Print() << "    enable_ysu_sat_limiter          : "
-                     << enable_ysu_sat_limiter << std::endl;
-      amrex::Print() << "    enable_ysu_cloud_pblh           : "
-                     << enable_ysu_cloud_pblh << std::endl;
-      amrex::Print() << "    ysu_qcloud_threshold (kg/kg)    : "
-                     << ysu_qcloud_threshold << std::endl;
-      amrex::Print() << "    enable_ysu_terrain_pblh_floor   : "
-                     << enable_ysu_terrain_pblh_floor << std::endl;
-      amrex::Print() << "    enable_ysu_topdown              : "
-                     << enable_ysu_topdown << std::endl;
-      amrex::Print() << "    pbl_ysunew_topdown_phifac       : "
-                     << pbl_ysunew_topdown_phifac << std::endl;
-      amrex::Print() << "    enable_ysu_windfarm_coupling    : "
-                     << enable_ysu_windfarm_coupling << std::endl;
-      amrex::Print() << "    pbl_ysu_mol_fallback_threshold  : "
-                     << pbl_ysu_mol_fallback_threshold << std::endl;
-      amrex::Print() << "    pbl_ysu_pblh_floor_wscale       : "
-                     << pbl_ysu_pblh_floor_wscale << std::endl;
     }
   }
 
@@ -609,8 +510,7 @@ public:
       return (pbl_type == PBLType::MYNN25)   ||
              (pbl_type == PBLType::MYNNEDMF) ||
              (pbl_type == PBLType::YSU)      ||
-             (pbl_type == PBLType::YSUNew)   ||
-             (pbl_type == PBLType::MRF)      ||
+             (pbl_type == PBLType::MRF)       ||
              uses_shoc_family();
   }
 
@@ -664,30 +564,6 @@ public:
   bool pbl_mrf_highres_bounds = false; // if true, apply high-resolution grid-dependent diffusivity bounds instead of global forecast bounds
   bool enable_mrf_unbounded_vpert = false; // if true, does not limit VPERT to GAMCRT
   bool pbl_mrf_use_zero_ri_extent = false; // if true, use Ri=0 (pbli_zero_arr) for K-profile extent; default false uses Ri=0.5 corrector (pbli_arr) for WRF compatibility
-  // YSUNew parameters
-  amrex::Real pbl_ysunew_phifac = amrex::Real(8.0);   // WRF PHIFAC: weight of convective term in wscale
-  amrex::Real pbl_ysunew_pfac   = amrex::Real(2.0);   // Profile shape exponent (power law)
-  bool ysu_moistvars             = false;              // if true, apply turbulence to moisture variables
-  bool enable_ysu_countergradient = true;              // if true, apply nonlocal HGAMT/HGAMQ corrections
-  bool pbl_ysunew_highres_bounds  = false;             // if true, use high-res diffusivity bounds
-  bool enable_ysu_entrainment     = true;              // if true, add entrainment K at PBL top
-  amrex::Real pbl_ysunew_entr_A   = amrex::Real(0.2);  // entrainment coefficient for momentum (WRF ENTFAC_M)
-  amrex::Real pbl_ysunew_entr_B   = amrex::Real(5.0);  // denominator weight of wstar3 in entrainment velocity
-  bool enable_ysu_liquid_theta    = false;             // use liquid-water virtual pot. temp. in Rib
-  bool enable_ysu_sat_limiter     = false;             // scale HGAMQ to zero as RH approaches 1
-  bool enable_ysu_cloud_pblh      = false;             // extend entrainment zone top by 1 cell if cloud present at kpbl
-  amrex::Real ysu_qcloud_threshold = amrex::Real(1.0e-5);  // cloud detection threshold (kg/kg)
-  bool enable_ysu_terrain_pblh_floor = true;           // use terrain-aware pblh_min floor
-  bool enable_ysu_topdown        = false;          // enable top-down cloud-driven mixing
-  amrex::Real pbl_ysunew_topdown_phifac = amrex::Real(8.0);  // weight for top-down wstar (H10 Eq. 12)
-  bool enable_ysu_windfarm_coupling = false;      // if true, optionally couple YSUNew TKE to wind farm parameterizations
-  // Strongly-unstable (|L| < threshold) fallback parameters for wscale/HGAMT stability.
-  // WRF module_bl_ysu.F lines 664-680: WRF avoids wscale collapse by anchoring wstar3 to
-  // a fixed pblh_guess=500m for the initial wscale used in HGAMT/VPERT computation.
-  // When MOL < pbl_ysu_mol_fallback_threshold (strongly unstable), use pbl_ysu_pblh_floor_wscale
-  // as a minimum PBLH for the wscale/wstar3 computation that feeds HGAMT and VPERT only.
-  amrex::Real pbl_ysu_mol_fallback_threshold = amrex::Real(-10.0);  // Obukhov length threshold [m] for fallback
-  amrex::Real pbl_ysu_pblh_floor_wscale      = amrex::Real(200.0);  // Minimum PBLH [m] for wscale computation only
   // MYNN2.5 PBL model
   // TKE/QKE stuff
   bool advect_tke = true; // if MYNN2.5 PBL is used default is turb transport in

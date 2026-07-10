@@ -219,10 +219,12 @@ ERF::sum_derived_quantities (double time)
 
         auto& dest1_fab = unwted_magvelsq[mfi];
         // NOTE: we send in src_fab where we should
-        derived::erf_dermagvelsq(bx, dest1_fab, 0, 1, src_fab, (*z_phys_cc[lev])[mfi], Geom(lev), t_new[0], nullptr, lev);
+        derived::erf_dermagvelsq(bx, dest1_fab, 0, 1, src_fab, (*z_phys_cc[lev])[mfi], Geom(lev),
+                                 static_cast<Real>(t_new[0]), nullptr, lev);
 
         auto& dest2_fab = enstrophysq[mfi];
-        derived::erf_derenstrophysq(bx, dest2_fab, 0, 1, src_fab, (*z_phys_cc[lev])[mfi], Geom(lev), t_new[0], nullptr, lev);
+        derived::erf_derenstrophysq(bx, dest2_fab, 0, 1, src_fab, (*z_phys_cc[lev])[mfi], Geom(lev),
+                                    static_cast<Real>(t_new[0]), nullptr, lev);
     }
 
     // Copy the MF holding 1/2(u^2 + v^2 + w^2) into the MF that will hold 1/2 rho (u^2 + v^2 + w^2)d

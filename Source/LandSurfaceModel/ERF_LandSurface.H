@@ -1,6 +1,8 @@
 #ifndef ERF_LANDSURFACE_H
 #define ERF_LANDSURFACE_H
 
+#include <typeinfo>
+
 #include <AMReX_PlotFileUtil.H>
 #include <AMReX_MultiFabUtil.H>
 
@@ -44,9 +46,15 @@ public:
     Init (const int& lev,
           const amrex::MultiFab& cons_in,
           const amrex::Geometry& geom,
-          const double& dt_advance)
+          const amrex::Geometry& geom0,
+          amrex::Vector<amrex::BCRec>& domain_bcs_type,
+          amrex::IntVect& refRatio,
+          const amrex::Real& dt_advance,
+          amrex::Vector<amrex::Vector<std::string>>& nc_init_file)
     {
-        m_lsm_model[lev]->Init(lev, cons_in, geom, dt_advance);
+        m_lsm_model[lev]->Init(lev, cons_in, geom, geom0,
+                               domain_bcs_type, refRatio,
+                               dt_advance, nc_init_file);
     }
 
     void
@@ -56,17 +64,22 @@ public:
              amrex::MultiFab& yvel_in,
              amrex::MultiFab* hfx3_out,
              amrex::MultiFab* qfx3_out,
-             const double& time,
-             const double& dt_advance,
-             const int& nstep)
+             const double& time_d,
+             const double& dt_advance_d,
+             const int& nstep,
+             const bool updated_lev0)
     {
+        amrex::Real time = static_cast<amrex::Real>(time_d);
+        amrex::Real dt_advance = static_cast<amrex::Real>(dt_advance_d);
         m_lsm_model[lev]->Advance_With_State(lev, cons_in, xvel_in, yvel_in,
-                                             hfx3_out, qfx3_out, time, dt_advance, nstep);
+                                             hfx3_out, qfx3_out, time, dt_advance,
+                                             nstep, updated_lev0);
     }
 
     void
-    Advance (const int& lev, const double& dt_advance)
+    Advance (const int& lev, const double& dt_advance_d)
     {
+        amrex::Real dt_advance = static_cast<amrex::Real>(dt_advance_d);
         m_lsm_model[lev]->Advance(dt_advance);
     }
 
@@ -109,11 +122,42 @@ public:
     int
     Get_DataIdx (const int& lev, std::string& varname) { return m_lsm_model[lev]->Lsm_DataIndex(varname); }
 
+    void
+    Set_Lev0_Data_Ptr (const int& lev) {
+        // Ensure the same type of model for copy in place of flux data
+        if ( (lev > 0) && typeid(m_lsm_model[lev]) == typeid(m_lsm_model[0]) ) {
+            int ndata = this->Get_Data_Size();
+            for (int varIdx(0); varIdx<ndata; ++varIdx) {
+                amrex::MultiFab* Lev0_Data_Ptr = this->Get_Data_Ptr(0, varIdx);
+                m_lsm_model[lev]->Lsm_Set_Lev0_Data_Ptr(varIdx, Lev0_Data_Ptr);
+            }
+        } else {
+            amrex::Abort("Differing types of land surface models across levels is not supported!");
+        }
+    }
+
     std::string
     Get_FluxName (const int& varIdx) { return m_lsm_model[0]->Lsm_FluxName(varIdx); }
 
     int
     Get_FluxIdx (const int& lev, std::string& varname) { return m_lsm_model[lev]->Lsm_FluxIndex(varname); }
+
+    void
+    Set_Lev0_Flux_Ptr (const int& lev) {
+        // Ensure the same type of model for copy in place of flux data
+        if ( (lev > 0) && typeid(m_lsm_model[lev]) == typeid(m_lsm_model[0]) ) {
+            int nflux = this->Get_Flux_Size();
+            for (int varIdx(0); varIdx<nflux; ++varIdx) {
+                amrex::MultiFab* Lev0_Flux_Ptr = this->Get_Flux_Ptr(0, varIdx);
+                m_lsm_model[lev]->Lsm_Set_Lev0_Flux_Ptr(varIdx, Lev0_Flux_Ptr);
+            }
+        } else {
+            amrex::Abort("Differing types of land surface models across levels is not supported!");
+        }
+    }
+
+    bool
+    Get_LSM_Update_Status (const int& lev) { return m_lsm_model[lev]->Get_Update_Status(); }
 
     std::unordered_map<std::string,std::string>&
     Get_WRFInputNames() { return m_lsm_model[0]->Lsm_WRFInputNames(); }
@@ -164,7 +208,8 @@ public:
                 }
             }
             WriteMultiLevelPlotfile (plotfilename, nlev, GetVecOfConstPtrs(m_lsm_data_lev),
-                                     varnames, m_lsm_geom_lev, time, level_steps, ref_ratio);
+                                     varnames, m_lsm_geom_lev, static_cast<amrex::Real>(time),
+                                     level_steps, ref_ratio);
             m_lsm_geom_lev.clear();
             m_lsm_data_lev.clear();
         }

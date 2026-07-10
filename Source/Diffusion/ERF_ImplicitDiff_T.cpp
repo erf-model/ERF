@@ -31,7 +31,7 @@ ImplicitDiffForStateLU_T (const Box& bx,
                           const Box& domain,
                           const int level,
                           const int n,
-                          const double dt,
+                          const double dt_d,
                           const GpuArray<Real, AMREX_SPACEDIM*2>& bc_neumann_vals,
                           const Array4<      Real>& cell_data,
                           const Array4<const Real>& z_nd,
@@ -46,6 +46,8 @@ ImplicitDiffForStateLU_T (const Box& bx,
                           const bool use_mrf_countergradient)
 {
     BL_PROFILE_VAR("ImplicitDiffForState_T()",ImplicitDiffForState_T);
+
+    Real dt = static_cast<Real>(dt_d);
 
     // setup quantities for getRhoAlpha()
 #include "ERF_SetupVertDiff.H"
@@ -244,7 +246,7 @@ void
 ImplicitDiffForMomLU_T (const Box& bx,
                         const Box& /*domain*/,
                         const int level,
-                        const double dt,
+                        const double dt_d,
                         const Array4<const Real>& cell_data,
                         const Array4<      Real>& face_data,
                         const Array4<const Real>& tau,
@@ -260,6 +262,8 @@ ImplicitDiffForMomLU_T (const Box& bx,
                         const bool use_ysu_mom_countergradient)
 {
     BL_PROFILE_VAR("ImplicitDiffForMom_T()",ImplicitDiffForMom_T);
+
+    Real dt = static_cast<Real>(dt_d);
 
     // setup quantities for getRhoAlphaAtFaces()
     DiffChoice dc = solverChoice.diffChoice;
@@ -373,9 +377,9 @@ ImplicitDiffForMomLU_T (const Box& bx,
                                   l_consA, l_turb);
 
               met_h_zeta_lo = myhalf * ( Compute_h_zeta_AtKface(i     ,j     ,klo  ,cellSizeInv,z_nd)
-                                     + Compute_h_zeta_AtKface(i-ioff,j-joff,klo  ,cellSizeInv,z_nd) );
+                                       + Compute_h_zeta_AtKface(i-ioff,j-joff,klo  ,cellSizeInv,z_nd) );
               met_h_zeta_hi = myhalf * ( Compute_h_zeta_AtKface(i     ,j     ,klo+1,cellSizeInv,z_nd)
-                                     + Compute_h_zeta_AtKface(i-ioff,j-joff,klo+1,cellSizeInv,z_nd) );
+                                       + Compute_h_zeta_AtKface(i-ioff,j-joff,klo+1,cellSizeInv,z_nd) );
 
               a_tmp = zero;
               c_tmp = -Fact * gfac * rhoAlpha_hi * dz_inv / met_h_zeta_hi;
@@ -426,9 +430,9 @@ ImplicitDiffForMomLU_T (const Box& bx,
                                   l_consA, l_turb);
 
               met_h_zeta_lo = myhalf * ( Compute_h_zeta_AtKface(i     ,j     ,k  ,cellSizeInv,z_nd)
-                                    + Compute_h_zeta_AtKface(i-ioff,j-joff,k  ,cellSizeInv,z_nd) );
+                                       + Compute_h_zeta_AtKface(i-ioff,j-joff,k  ,cellSizeInv,z_nd) );
               met_h_zeta_hi = myhalf * ( Compute_h_zeta_AtKface(i     ,j     ,k+1,cellSizeInv,z_nd)
-                                    + Compute_h_zeta_AtKface(i-ioff,j-joff,k+1,cellSizeInv,z_nd) );
+                                       + Compute_h_zeta_AtKface(i-ioff,j-joff,k+1,cellSizeInv,z_nd) );
 
               a_tmp      = -Fact * rhoAlpha_lo * dz_inv / met_h_zeta_lo;
               c_tmp      = -Fact * rhoAlpha_hi * dz_inv / met_h_zeta_hi;
@@ -463,9 +467,9 @@ ImplicitDiffForMomLU_T (const Box& bx,
                                   l_consA, l_turb);
 
               met_h_zeta_lo = myhalf * ( Compute_h_zeta_AtKface(i     ,j     ,khi  ,cellSizeInv,z_nd)
-                                    + Compute_h_zeta_AtKface(i-ioff,j-joff,khi  ,cellSizeInv,z_nd) );
+                                       + Compute_h_zeta_AtKface(i-ioff,j-joff,khi  ,cellSizeInv,z_nd) );
               met_h_zeta_hi = myhalf * ( Compute_h_zeta_AtKface(i     ,j     ,khi+1,cellSizeInv,z_nd)
-                                    + Compute_h_zeta_AtKface(i-ioff,j-joff,khi+1,cellSizeInv,z_nd) );
+                                       + Compute_h_zeta_AtKface(i-ioff,j-joff,khi+1,cellSizeInv,z_nd) );
 
               a_tmp = -Fact * gfac * rhoAlpha_lo * dz_inv / met_h_zeta_lo;
               c_tmp = zero;
