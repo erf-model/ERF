@@ -5,14 +5,14 @@ Noah-MP**: the `NOAHMP` C++ class that plugs the Noah-MP land-surface model into
 ERF's land-surface-model interface and drives the per-step state exchange between
 the two. The driver is split by concern across several files:
 
-| File | Role |
-|------|------|
-| `ERF_NOAHMP.H` | the `NOAHMP` class declaration (members, accessors, helper decls) |
-| `ERF_NOAHMP_Fields.H` | the coupling-field enums + the X-macro field registry |
-| `ERF_NOAHMP_Init.cpp` | `Init` (lifecycle) |
-| `ERF_NOAHMP_Advance.cpp` | `Advance_With_State` + the per-step pipeline helpers |
-| `ERF_NOAHMP_Precip.cpp` | precip source collection, snapshots, guard reporting |
-| `ERF_NOAHMP_IO.cpp` | land plotfile + checkpoint/restart |
+| File                     | Role                                                          |
+|--------------------------|---------------------------------------------------------------|
+| `ERF_NOAHMP.H`           | The `NOAHMP` class declaration: members, accessors, helpers.   |
+| `ERF_NOAHMP_Fields.H`    | The coupling-field enums and the X-macro field registry.       |
+| `ERF_NOAHMP_Init.cpp`    | `Init` and the run lifecycle.                                  |
+| `ERF_NOAHMP_Advance.cpp` | `Advance_With_State` and the per-step pipeline helpers.        |
+| `ERF_NOAHMP_Precip.cpp`  | Precip source collection, snapshots, and guard reporting.     |
+| `ERF_NOAHMP_IO.cpp`      | The land plotfile and checkpoint/restart.                     |
 
 These are *living design documents* for contributors, not a user manual. They
 describe what the driver does, why it is built the way it is, and the invariants
@@ -28,12 +28,12 @@ a change must not break. Public, user-facing documentation lives at
 
 ## Index
 
-| File | What it covers |
+| Spec | What it covers |
 |------|----------------|
-| [`spec-noahmp-api.md`](spec-noahmp-api.md) | The `NOAHMP` class, its `NullSurf` contract, the `LsmData`/`LsmFlux` coupling fields, the run lifecycle, time subcycling, and the workflow for exposing a new coupled variable. **Start here.** |
-| [`spec-noahmp-gpu.md`](spec-noahmp-gpu.md) | The GPU-aware, component-indexed state exchange: pinned staging buffers, the `ParallelFor` (device) / `LoopOnCpu` (host) dataflow, synchronization points, the slab/ghost-cell handling, and the flux fill-value guard. |
-| [`spec-noahmp-io.md`](spec-noahmp-io.md) | I/O owned by the driver: checkpoint/restart (the substep counter and the full prognostic state), the per-step land plotfile, and the static-input reads (`namelist.erf`, `NoahmpTable.TBL`, the NetCDF land file). |
-| [`spec-noahmp-reorg.md`](spec-noahmp-reorg.md) | The driver's **source layout** and the X-macro field registry (why the code is split the way it is, and how the enum/name/copy sync is collapsed). |
+| [<code>spec&#8209;noahmp&#8209;api.md</code>](spec-noahmp-api.md) | The `NOAHMP` class, the `NullSurf` contract, the `LsmData`/`LsmFlux` coupling fields, the run lifecycle and time subcycling, and adding a coupled variable. **Start here.** |
+| [<code>spec&#8209;noahmp&#8209;gpu.md</code>](spec-noahmp-gpu.md) | The GPU-aware, component-indexed state exchange: staging buffers, the `ParallelFor`/`LoopOnCpu` dataflow, sync points, slab/ghost-cell handling, and the flux fill-value guard. |
+| [<code>spec&#8209;noahmp&#8209;io.md</code>](spec-noahmp-io.md) | Driver-owned I/O: checkpoint/restart, the per-step land plotfile, and static-input reads (`namelist.erf`, `NoahmpTable.TBL`, the NetCDF land file). |
+| [<code>spec&#8209;noahmp&#8209;reorg.md</code>](spec-noahmp-reorg.md) | The driver's **source layout** and the X-macro field registry: why the code is split as it is, and how the enum/name/copy sync is collapsed. |
 
 ## Conventions used across these docs
 
