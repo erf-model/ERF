@@ -568,7 +568,6 @@ struct surface_flux
             psi_m = sfuns.calc_psi_m(zeta);
             psi_h = sfuns.calc_psi_h(zeta);
         }
-         amrex::Real denom_h = amrex::Real(1.0);
         do {
             ustar = u_star_arr(i,j,k);
             qflux = (spec_qflux) ? mdata.surf_moist_flux :
@@ -586,22 +585,15 @@ struct surface_flux
             zeta  = zref / Olen;
             psi_m = sfuns.calc_psi_m(zeta);
             psi_h = sfuns.calc_psi_h(zeta);
-            // Floor the denominator to prevent u_star blow-up in free convection.
-            // With Businger-Dyer psi_m, at zeta=-100: psi_m≈4.36 ≈ log(z/z0)=4.38
-            // → denominator≈0.02 → u_star→∞. This matches surface_temp's approach
-            // (line 1186: num = max(C - psi_m, 1.0)) and WRF sfclay's effective floor.
-            const amrex::Real denom_m = std::max(std::log(zref / z0_arr(i,j,k)) - psi_m, amrex::Real(1.0));
-            denom_h = std::max(std::log(zref / z0_arr(i,j,k)) - psi_h, amrex::Real(1.0));
-            u_star_arr(i,j,k) = mdata.kappa * umm / denom_m;            
-            //u_star_arr(i,j,k) = mdata.kappa * umm / (std::log(zref / z0_arr(i,j,k)) - psi_m);
+            u_star_arr(i,j,k) = mdata.kappa * umm / (std::log(zref / z0_arr(i,j,k)) - psi_m);
             ++iter;
         } while ((std::abs(u_star_arr(i,j,k) - ustar) > tol) && iter <= max_iters);
-        /*AMREX_ALWAYS_ASSERT_WITH_MESSAGE(iter < max_iters,
-                                         "Maximum number of MOST iterations reached."); */
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(iter < max_iters,
+                                         "Maximum number of MOST iterations reached.");
 
         // Populate the stored MOST arrays
         olen_arr(i,j,k)   = Olen;
-        t_surf_arr(i,j,k) = mdata.surf_temp_flux * denom_h /
+        t_surf_arr(i,j,k) = mdata.surf_temp_flux * (std::log(zref / z0_arr(i,j,k)) - psi_h) /
                             (u_star_arr(i,j,k) * mdata.kappa) + tm_arr(i,j,k);
         t_star_arr(i,j,k) = -mdata.surf_temp_flux / u_star_arr(i,j,k);
         if (spec_qflux) {
@@ -609,7 +601,8 @@ struct surface_flux
                                 (u_star_arr(i,j,k) * mdata.kappa) + qvm_arr(i,j,k);
             q_star_arr(i,j,k) = -mdata.surf_moist_flux / u_star_arr(i,j,k);
         } else {
-          q_star_arr(i,j,k) = mdata.kappa * (qvm_arr(i,j,k) - q_surf_arr(i,j,k)) / denom_h;
+            q_star_arr(i,j,k) = mdata.kappa * (qvm_arr(i,j,k) - q_surf_arr(i,j,k)) /
+                                (std::log(zref / z0_arr(i,j,k)) - psi_h);
         }
     }
 

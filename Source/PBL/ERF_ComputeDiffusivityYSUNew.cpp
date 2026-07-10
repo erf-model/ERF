@@ -692,11 +692,27 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
             wstar3_arr(i, j, 0) = wstar3_corr;
 
             // Recompute wscale with floored pblh:
+            /*const Real ust3 = u_star_arr(i,j,0) * u_star_arr(i,j,0) * u_star_arr(i,j,0);
+            Real wscale_corr = std::cbrt(ust3 + amrex::Real(8.0) * KAPPA * wstar3_corr * amrex::Real(0.5));
+            wscale_corr = amrex::min(wscale_corr, u_star_arr(i,j,0) * amrex::Real(16.0));
+            wscale_corr = amrex::max(wscale_corr, u_star_arr(i,j,0) / amrex::Real(5.0));
+            wstar_arr(i, j, 0) = wscale_corr;*/
+
+            // Recompute wscale with floored pblh:
             const Real ust3 = u_star_arr(i,j,0) * u_star_arr(i,j,0) * u_star_arr(i,j,0);
             Real wscale_corr = std::cbrt(ust3 + amrex::Real(8.0) * KAPPA * wstar3_corr * amrex::Real(0.5));
             wscale_corr = amrex::min(wscale_corr, u_star_arr(i,j,0) * amrex::Real(16.0));
             wscale_corr = amrex::max(wscale_corr, u_star_arr(i,j,0) / amrex::Real(5.0));
+            // MRF-style absolute bounds when MOL < mol_fallback_threshold:
+            // When u_star collapses (calm winds + large heat flux), relative bounds
+            // u*/5 → 0 give no protection. MRF PASS 2/4 uses absolute [0.01, 5.0] m/s
+            // bounds independent of u_star, which kept MRF stable in your tests.
+            if (strongly_unstable) {
+                wscale_corr = amrex::max(wscale_corr, amrex::Real(0.01));
+                wscale_corr = amrex::min(wscale_corr, amrex::Real(5.0));
+            }
             wstar_arr(i, j, 0) = wscale_corr;
+
 
             // Compute HGAMT with corrected wscale and WRF convention
             // WRF bl_ysu.F90 line 687: gamfac = bfac/rhox/wscale
