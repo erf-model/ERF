@@ -947,8 +947,6 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
         //
         const auto& dxInv = geom.InvCellSizeArray();
         const Real dz_inv = geom.InvCellSize(2);
-        const int izmin   = geom.Domain().smallEnd(2);
-        const int izmax   = geom.Domain().bigEnd(2);
         if (enable_ysu_topdown && use_moisture) {
             ParallelFor(xybx, [=] AMREX_GPU_DEVICE(int i, int j, int) noexcept
             {
@@ -1040,8 +1038,6 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
         });
         BL_PROFILE_VAR_STOP(prof_pblh);
 
-        const auto& dxInv = geom.InvCellSizeArray();
-        const Real dz_inv = geom.InvCellSize(2);
         // Compute entrainment diffusivity at PBL top cell (WRF bl_ysu.F90 lines 831-925)
         // Uses WRF's buoyancy-flux-based entrainment velocity (we), which accounts for
         // the actual inversion strength (dthvx) at the PBL top.
