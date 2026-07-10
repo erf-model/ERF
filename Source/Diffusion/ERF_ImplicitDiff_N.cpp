@@ -123,7 +123,7 @@ ImplicitDiffForStateLU_N (const Box& bx,
                 // Only upper face contributes (no flux below surface)
                 if (use_mrf_countergradient && (n == RhoTheta_comp || n == RhoQ1_comp)) {
                     const int gam_comp = (n == RhoTheta_comp) ? EddyDiff::HGAMT_v : EddyDiff::HGAMQ_v;
-                    const Real gam_hi = myhalf * (mu_turb(i, j, klo, gam_comp) + mu_turb(i, j, klo+1, gam_comp));               
+                    const Real gam_hi = myhalf * (mu_turb(i, j, klo, gam_comp) + mu_turb(i, j, klo+1, gam_comp));
                     RHS_a(i,j,klo) -= Fact * rhoAlpha_hi * gam_hi;
                 }
 
