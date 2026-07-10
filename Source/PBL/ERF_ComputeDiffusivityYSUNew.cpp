@@ -862,35 +862,7 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
         // we need to re-scan for the PBL height using the corrector Ribcr criterion.
         // This corrects the earlier Pass 2 which used zero-VPERT Rib values.
         //
-        // ========================================================================
-        // CLAMP pblh_corr_arr WHEN STRONGLY UNSTABLE (free-convection fallback)
-        // ========================================================================
-        // When |L| < |mol_fallback_threshold| (L between threshold and 0),
-        // the Rib scan cannot find a valid crossing — the entire profile is
-        // unstable and pblh_corr collapses to pblh_min (~8m).
-        // This causes prnumfac, zfac, pblh_rel, and sfclayer to all use a
-        // degenerate 8m PBLH, blowing up K_theta via Prt → 0.
-        // Apply a floor to pblh_corr_arr itself so all downstream uses are
-        // consistent. This matches WRF's approach of anchoring wstar3 to
-        // pblh_guess=500m (module_bl_ysu.F lines 664-680).
-        // Note: pbli_arr is NOT changed — the mixing extent index stays at klo.
-        // Note: Turb_lengthscale output will reflect the floored value.
-        {
-            const Real mol_thresh = mol_fallback_threshold;
-            const Real pblh_floor = pblh_floor_wscale;
-            ParallelFor(xybx, [=] AMREX_GPU_DEVICE(int i, int j, int) noexcept
-            {
-                Real obuk = l_obuk_arr(i, j, 0);
-                if (std::abs(obuk) < amrex::Real(1.0e-10))
-                    obuk = (obuk >= zero) ? amrex::Real(1.0e-10) : amrex::Real(-1.0e-10);
-                // Strongly unstable: L is negative and |L| < |threshold|
-                // i.e., L is between mol_thresh (-10m) and 0
-                const bool strongly_unstable = (obuk > mol_thresh) && (obuk < zero);
-                if (strongly_unstable) {
-                    pblh_corr_arr(i, j, 0) = amrex::max(pblh_corr_arr(i, j, 0), pblh_floor);
-                }
-            });
-        }
+
         ParallelFor(xybx, [=] AMREX_GPU_DEVICE(int i, int j, int) noexcept
         {
             // Determine surface-type-dependent critical Richardson number (same as before)
@@ -965,7 +937,35 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
             }
             pbli_arr(i, j, 0) = kpbl;
         });
-
+        // ========================================================================
+        // CLAMP pblh_corr_arr WHEN STRONGLY UNSTABLE (free-convection fallback)
+        // ========================================================================
+        // When |L| < |mol_fallback_threshold| (L between threshold and 0),
+        // the Rib scan cannot find a valid crossing — the entire profile is
+        // unstable and pblh_corr collapses to pblh_min (~8m).
+        // This causes prnumfac, zfac, pblh_rel, and sfclayer to all use a
+        // degenerate 8m PBLH, blowing up K_theta via Prt → 0.
+        // Apply a floor to pblh_corr_arr itself so all downstream uses are
+        // consistent. This matches WRF's approach of anchoring wstar3 to
+        // pblh_guess=500m (module_bl_ysu.F lines 664-680).
+        // Note: pbli_arr is NOT changed — the mixing extent index stays at klo.
+        // Note: Turb_lengthscale output will reflect the floored value.
+        {
+            const Real mol_thresh = mol_fallback_threshold;
+            const Real pblh_floor = pblh_floor_wscale;
+            ParallelFor(xybx, [=] AMREX_GPU_DEVICE(int i, int j, int) noexcept
+            {
+                Real obuk = l_obuk_arr(i, j, 0);
+                if (std::abs(obuk) < amrex::Real(1.0e-10))
+                    obuk = (obuk >= zero) ? amrex::Real(1.0e-10) : amrex::Real(-1.0e-10);
+                // Strongly unstable: L is negative and |L| < |threshold|
+                // i.e., L is between mol_thresh (-10m) and 0
+                const bool strongly_unstable = (obuk > mol_thresh) && (obuk < zero);
+                if (strongly_unstable) {
+                    pblh_corr_arr(i, j, 0) = amrex::max(pblh_corr_arr(i, j, 0), pblh_floor);
+                }
+            });
+        }
         // ========================================================================
         // Extension scan using liquid potential temperature (WRF bl_ysu.F90 lines 733-769)
         // ========================================================================
