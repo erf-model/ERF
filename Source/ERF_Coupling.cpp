@@ -11,6 +11,17 @@
 #include <AMReX_ParallelDescriptor.H>
 #include <AMReX_Print.H>
 
+namespace
+{
+void
+PrintFluxLaneStats (const char* label, const amrex::MultiFab& mf, int comp = 0)
+{
+    amrex::Print() << "ERF flux-pack " << label
+                   << ": min=" << mf.min(comp)
+                   << " max=" << mf.max(comp) << "\n";
+}
+}
+
 double
 ERF::EvolveOneStep (double /*time*/, double /*dt_request*/)
 {
@@ -92,6 +103,37 @@ ERF::PackAtmosphericStates (amrex::Vector<amrex::MultiFab*>& states,
     if (flux_mode) {
         constexpr int iTauX = 0, iTauY = 1, iSHflux = 2, iLHflux = 3;
         constexpr int iFluxSWrad = 4, iFluxLWrad = 5, iFluxRain = 6, iFluxEvap = 7;
+        if (verbose) {
+            amrex::Print() << "ERF flux-pack: states.size()=" << states.size()
+                           << " has_radiation=" << has_radiation
+                           << " tau13_ptr=" << (Tau[lev][TauType::tau13] != nullptr)
+                           << " tau23_ptr=" << (Tau[lev][TauType::tau23] != nullptr)
+                           << " sfs_hfx3_ptr="
+                           << (!SFS_hfx3_lev.empty() && SFS_hfx3_lev[lev] != nullptr)
+                           << " sfs_q1fx3_ptr="
+                           << (!SFS_q1fx3_lev.empty() && SFS_q1fx3_lev[lev] != nullptr)
+                           << " rad_fluxes_ptr="
+                           << (!rad_fluxes.empty() && rad_fluxes[lev] != nullptr)
+                           << "\n";
+            if (Tau[lev][TauType::tau13] != nullptr) {
+                PrintFluxLaneStats("tau13_src", *Tau[lev][TauType::tau13]);
+            }
+            if (Tau[lev][TauType::tau23] != nullptr) {
+                PrintFluxLaneStats("tau23_src", *Tau[lev][TauType::tau23]);
+            }
+            if (!SFS_hfx3_lev.empty() && SFS_hfx3_lev[lev] != nullptr) {
+                PrintFluxLaneStats("SFS_hfx3_src", *SFS_hfx3_lev[lev]);
+            }
+            if (!SFS_q1fx3_lev.empty() && SFS_q1fx3_lev[lev] != nullptr) {
+                PrintFluxLaneStats("SFS_q1fx3_src", *SFS_q1fx3_lev[lev]);
+            }
+            if (has_radiation) {
+                PrintFluxLaneStats("rad_fluxes_swup_src", *rad_fluxes[lev], 0);
+                PrintFluxLaneStats("rad_fluxes_swdn_src", *rad_fluxes[lev], 1);
+                PrintFluxLaneStats("rad_fluxes_lwup_src", *rad_fluxes[lev], 2);
+                PrintFluxLaneStats("rad_fluxes_lwdn_src", *rad_fluxes[lev], 3);
+            }
+        }
 
         if (iTauX < static_cast<int>(states.size()) && states[iTauX] != nullptr) {
             MultiFab tmp(ba2d_lev, dm, 1, 0);
@@ -111,6 +153,7 @@ ERF::PackAtmosphericStates (amrex::Vector<amrex::MultiFab*>& states,
             const IntVect ratio = ba2d_lev.minimalBox().length()
                                 / states[iTauX]->boxArray().minimalBox().length();
             amrex::average_down(tmp, *states[iTauX], 0, 1, ratio);
+            if (verbose) { PrintFluxLaneStats("tau_x_lane", *states[iTauX]); }
         }
 
         if (iTauY < static_cast<int>(states.size()) && states[iTauY] != nullptr) {
@@ -128,6 +171,7 @@ ERF::PackAtmosphericStates (amrex::Vector<amrex::MultiFab*>& states,
             const IntVect ratio = ba2d_lev.minimalBox().length()
                                 / states[iTauY]->boxArray().minimalBox().length();
             amrex::average_down(tmp, *states[iTauY], 0, 1, ratio);
+            if (verbose) { PrintFluxLaneStats("tau_y_lane", *states[iTauY]); }
         }
 
         if (iSHflux < static_cast<int>(states.size()) && states[iSHflux] != nullptr &&
@@ -145,6 +189,7 @@ ERF::PackAtmosphericStates (amrex::Vector<amrex::MultiFab*>& states,
             const IntVect ratio = ba2d_lev.minimalBox().length()
                                 / states[iSHflux]->boxArray().minimalBox().length();
             amrex::average_down(tmp, *states[iSHflux], 0, 1, ratio);
+            if (verbose) { PrintFluxLaneStats("SHflux_lane", *states[iSHflux]); }
         }
 
         if (iLHflux < static_cast<int>(states.size()) && states[iLHflux] != nullptr &&
@@ -162,6 +207,7 @@ ERF::PackAtmosphericStates (amrex::Vector<amrex::MultiFab*>& states,
             const IntVect ratio = ba2d_lev.minimalBox().length()
                                 / states[iLHflux]->boxArray().minimalBox().length();
             amrex::average_down(tmp, *states[iLHflux], 0, 1, ratio);
+            if (verbose) { PrintFluxLaneStats("LHflux_lane", *states[iLHflux]); }
         }
 
         if (has_radiation) {
@@ -171,6 +217,7 @@ ERF::PackAtmosphericStates (amrex::Vector<amrex::MultiFab*>& states,
                 const IntVect ratio = ba2d_lev.minimalBox().length()
                                     / states[iFluxSWrad]->boxArray().minimalBox().length();
                 amrex::average_down(tmp, *states[iFluxSWrad], 0, 1, ratio);
+                if (verbose) { PrintFluxLaneStats("SWrad_lane", *states[iFluxSWrad]); }
             }
             if (iFluxLWrad < static_cast<int>(states.size()) && states[iFluxLWrad] != nullptr) {
                 MultiFab tmp(ba2d_lev, dm, 1, 0);
@@ -185,6 +232,7 @@ ERF::PackAtmosphericStates (amrex::Vector<amrex::MultiFab*>& states,
                 const IntVect ratio = ba2d_lev.minimalBox().length()
                                     / states[iFluxLWrad]->boxArray().minimalBox().length();
                 amrex::average_down(tmp, *states[iFluxLWrad], 0, 1, ratio);
+                if (verbose) { PrintFluxLaneStats("LWrad_lane", *states[iFluxLWrad]); }
             }
         }
 
@@ -202,6 +250,7 @@ ERF::PackAtmosphericStates (amrex::Vector<amrex::MultiFab*>& states,
             const IntVect ratio = ba2d_lev.minimalBox().length()
                                 / states[iFluxEvap]->boxArray().minimalBox().length();
             amrex::average_down(tmp, *states[iFluxEvap], 0, 1, ratio);
+            if (verbose) { PrintFluxLaneStats("evap_lane", *states[iFluxEvap]); }
         }
 
         amrex::ignore_unused(iFluxRain);
