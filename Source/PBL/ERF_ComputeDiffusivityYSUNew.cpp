@@ -253,7 +253,6 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
         {
             const Real rho_sfc  = cell_data(i, j, klo, Rho_comp);
             const Real t_layer  = t10av_arr(i, j, 0);      // Dry potential temperature at z1
-            const Real q_layer  = use_moisture ? q10av_arr(i, j, 0) : zero;
 
             // WRF: rhox = psfc/(rd*tx(1)*tvcon), approximate with cell-bottom density
             const Real rhox = rho_sfc;
@@ -449,8 +448,6 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
         //
         const Real const_b = turbChoice.pbl_mrf_const_b;
         const Real sf = turbChoice.pbl_mrf_sf;
-        constexpr Real prmin = Real(0.5);
-        constexpr Real prmax = Real(4.0);
         constexpr Real GAMCRT = Real(3.0);    // WRF GAMCRT: max heat countergradient (K)
         constexpr Real GAMCRQ = Real(2.e-3);  // WRF GAMCRQ: max moisture countergradient (kg/kg)
         const bool enable_ysu_countergradient = turbChoice.enable_ysu_countergradient;
@@ -471,11 +468,6 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
                     Ribcr = amrex::min(Real(0.16) * std::pow(Real(1.0e-7) * Rossby, -Real(0.18)), Real(0.3));
                 }
             }
-
-            const Real t_layer  = t10av_arr(i, j, 0);
-            const Real moisture_fraction = use_moisture ? q10av_arr(i, j, 0) : zero;
-            const Real t_layer_v = t_layer * (one + amrex::Real(0.61) * moisture_fraction);
-            const Real t_layer_v_enhanced = t_layer_v + vpert_arr(i, j, 0);
 
             const amrex::Real z_sfc_col = (use_terrain_fitted_coords)
                                          ? Compute_Zrel_AtCellCenter(i, j, klo, z_nd_arr)
@@ -584,6 +576,9 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
         const bool enable_ysu_topdown = turbChoice.enable_ysu_topdown;
         const amrex::Real ysu_qcloud_threshold = turbChoice.ysu_qcloud_threshold;
           
+        const int izmin   = geom.Domain().smallEnd(2);
+        const int izmax   = geom.Domain().bigEnd(2);
+
         if (enable_ysu_topdown && use_moisture) {
             ParallelFor(xybx, [=] AMREX_GPU_DEVICE(int i, int j, int) noexcept
             {
@@ -950,9 +945,6 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
                     const Real zval_kk = (use_terrain_fitted_coords)
                                        ? Compute_Zrel_AtCellCenter(i, j, kk, z_nd_arr)
                                        : (kk + myhalf) * gdata.CellSize(2);
-                    const Real zval_klo = (use_terrain_fitted_coords)
-                                        ? Compute_Zrel_AtCellCenter(i, j, klo, z_nd_arr)
-                                        : (klo + myhalf) * gdata.CellSize(2);
                     const Real zrel_kk = amrex::max(zval_kk - z_sfc, amrex::Real(1.0e-4));
                     
                     // Liquid-theta virtual potential temperature at current level and surface
@@ -1023,8 +1015,6 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
 
         const auto& dxInv = geom.InvCellSizeArray();
         const Real dz_inv = geom.InvCellSize(2);
-        const int izmin   = geom.Domain().smallEnd(2);
-        const int izmax   = geom.Domain().bigEnd(2);
         // Compute entrainment diffusivity at PBL top cell (WRF bl_ysu.F90 lines 831-925)
         // Uses WRF's buoyancy-flux-based entrainment velocity (we), which accounts for
         // the actual inversion strength (dthvx) at the PBL top.
@@ -1077,9 +1067,8 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
                                    ? Compute_h_zeta_AtCellCenter(i, j, kpbl, dxInv, z_nd_arr) : one;
                 const Real dz_kpbl = met_h / dz_inv;
 
-                // Apply entrainment only when we < 0 (downward entrainment occurring)
-                // K_entr_raw = rho_kpbl * |we| * dz_kpbl
-                const Real K_entr_raw = (we < zero) ? rho_kpbl * (-we) * dz_kpbl : zero;
+                // Apply entrainment only when we < 0 (downward entrainment occurring):
+                // K_entr = rho_kpbl * |we| * dz_kpbl
                 const Real K_cap      = Real(5.0) * rho_kpbl * wscale * KAPPA * pblh * Real(0.01);
                 
                 // Cloudy entrainment correction (WRF bl_ysu.F90 lines 840-875)
@@ -1213,7 +1202,7 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
 
 
         BL_PROFILE_VAR("YSUNew_Kprofile", prof_kprof);
-        ParallelFor(gbx, [=, sflux_arr_cap=sflux_arr, wstar3_arr_cap=wstar3_arr, zol1_arr_cap=zol1_arr, sfcflg_arr_cap=sfcflg_arr] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+        ParallelFor(gbx, [=, wstar3_arr_cap=wstar3_arr, zol1_arr_cap=zol1_arr, sfcflg_arr_cap=sfcflg_arr] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {
             Real obuk_val = l_obuk_arr(i, j, 0);
             if (std::abs(obuk_val) < amrex::Real(1.0e-10)) {
@@ -1415,8 +1404,6 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
                 // Use pre-computed wstar from the dedicated recomputation loop (lines 465-545).
                 // wstar_arr was computed with pblh_corr_arr to ensure consistency
                 // between countergradient diagnostics and K-profile calculations.
-                const Real wstar = wstar_arr(i, j, 0);
-
                 // SFCFLG gating: WRF skips nonlocal mixing in stable PBL (SFCFLG=.FALSE., BR>0, obuk_val>0)
                 // In stable conditions, use free-atmosphere Richardson mixing instead.
                 // WRF Reference: module_bl_ysu.F lines 200, 220-260
@@ -1457,7 +1444,8 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
                     constexpr Real ckz_pbl = Real(0.001);
                     const Real K_base = ckz_pbl * dz_terrain * rho;
                     constexpr Real pfac = amrex::Real(2.0);
-                    K_turb(i, j, k, EddyDiff::Mom_v) = K_base + rho * wscalek_val * KAPPA * zq_kp1 * std::pow(zfac, pfac);
+                    const Real zq_kp1_agl = zq_kp1 - z_sfc;
+                    K_turb(i, j, k, EddyDiff::Mom_v) = K_base + rho * wscalek_val * KAPPA * zq_kp1_agl * std::pow(zfac, pfac);
                     
                     // Apply Prandtl number to get heat and moisture diffusivity
                     K_turb(i, j, k, EddyDiff::Theta_v) = K_turb(i, j, k, EddyDiff::Mom_v) / Prt;
@@ -1480,6 +1468,9 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
                     
                     // Step 1: Compute zq_kp1 (top interface of cell k)
                     const Real zq_kp1_stable = zval + myhalf * dz_terrain;
+                    const Real z_sfc_stable = (use_terrain_fitted_coords)
+                                            ? Compute_Zrel_AtCellCenter(i, j, klo, z_nd_arr)
+                                            : zero;
                     
                     // Step 2: Get first-level height (zl1)
                     const Real zl1_stable = (use_terrain_fitted_coords)
@@ -1506,7 +1497,8 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
                     constexpr Real ckz_pbl_stable = Real(0.001);
                     const Real K_base_stable = ckz_pbl_stable * dz_terrain * rho;
                     constexpr Real pfac_stable = amrex::Real(2.0);
-                    K_turb(i, j, k, EddyDiff::Mom_v) = K_base_stable + rho * wscalek_stable * KAPPA * zq_kp1_stable * std::pow(zfac_stable, pfac_stable);
+                    const Real zq_kp1_stable_agl = zq_kp1_stable - z_sfc_stable;
+                    K_turb(i, j, k, EddyDiff::Mom_v) = K_base_stable + rho * wscalek_stable * KAPPA * zq_kp1_stable_agl * std::pow(zfac_stable, pfac_stable);
                     
                     // Step 6: Apply Prandtl number for stable PBL
                     // For stable, prfac=0 (from step 3 of SECTION A)
@@ -1747,7 +1739,6 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
             }
         });
         BL_PROFILE_VAR_STOP(prof_kprof);
-        amrex::Print()<<" Turbulent Viscosity at cell "<<K_turb(2, 2, 2, EddyDiff::Mom_v)<<" "<<pblh_corr_arr(2, 2, 0)<<std::endl;
         // FOEXTRAP top and bottom ghost cells
         ParallelFor(xybx, [=] AMREX_GPU_DEVICE(int i, int j, int ) noexcept
         {
