@@ -3,7 +3,9 @@
 > Status: living document · Owns: the per-step movement of data across the
 > ERF (GPU) ↔ Noah-MP (host) boundary inside `Advance_With_State`. · Companion:
 > [`spec-noahmp-api.md`](spec-noahmp-api.md) (the field enums & lifecycle),
-> [`spec-noahmp-io.md`](spec-noahmp-io.md). · File: `ERF_NOAHMP.cpp`.
+> [`spec-noahmp-io.md`](spec-noahmp-io.md). · Files: `ERF_NOAHMP_Advance.cpp`
+> (`stage_forcing` = steps 1-3, `read_results` = steps 5-6), `ERF_NOAHMP_Init.cpp`
+> (buffer allocation).
 
 ## 1. The problem
 
