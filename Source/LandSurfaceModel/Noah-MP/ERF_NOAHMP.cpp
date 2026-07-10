@@ -685,7 +685,8 @@ NOAHMP::Advance_With_State (const int& lev,
                     // MOST form (no rho):
                     //   t_flux = <theta' w'>   [K m/s]   (ERF_MOSTStress.H, surf_temp_flux)
                     //   q_flux = <qv' w'>      [kg/kg m/s]
-                    //   tau13/23 = u*^2 comps  [m2/s2]   (SurfaceLayer.cpp: u*=sqrt(tau))
+                    //   tau13/23 = signed kinematic velocity-covariance components [m2/s2]
+                    //              whose vector magnitude determines u_star^2
                     // Noah-MP returns HFX,LH [W/m2] and TAU_EW/NS [N/m2] (rho INCLUDED),
                     // so we divide by rho. rho is dry-air density (~1.14 kg/m3).
                     //
