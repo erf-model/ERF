@@ -64,6 +64,7 @@ public:
              amrex::MultiFab& yvel_in,
              amrex::MultiFab* hfx3_out,
              amrex::MultiFab* qfx3_out,
+             const SurfacePrecipAccumulationSources& precip_sources,
              const double& time_d,
              const double& dt_advance_d,
              const int& nstep,
@@ -72,8 +73,9 @@ public:
         amrex::Real time = static_cast<amrex::Real>(time_d);
         amrex::Real dt_advance = static_cast<amrex::Real>(dt_advance_d);
         m_lsm_model[lev]->Advance_With_State(lev, cons_in, xvel_in, yvel_in,
-                                             hfx3_out, qfx3_out, time, dt_advance,
-                                             nstep, updated_lev0);
+                                             hfx3_out, qfx3_out,
+                                             precip_sources,
+                                             time, dt_advance, nstep, updated_lev0);
     }
 
     void

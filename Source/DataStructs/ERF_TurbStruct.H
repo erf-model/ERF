@@ -181,6 +181,8 @@ public:
         query_one_or_per_level(
           pp, "enable_mrf_countergradient", enable_mrf_countergradient, lev, max_level);
         query_one_or_per_level(
+          pp, "enable_mrf_cloud_adjustment", enable_mrf_cloud_adjustment, lev, max_level);
+        query_one_or_per_level(
           pp, "pbl_mrf_highres_bounds", pbl_mrf_highres_bounds, lev, max_level);
         query_one_or_per_level(
           pp, "enable_mrf_unbounded_vpert", enable_mrf_unbounded_vpert, lev, max_level);
@@ -431,6 +433,8 @@ public:
                      << std::endl;
       amrex::Print() << "    enable_mrf_countergradient : " << enable_mrf_countergradient
                      << std::endl;
+      amrex::Print() << "    enable_mrf_cloud_adjustment : " << enable_mrf_cloud_adjustment
+                     << std::endl;
       amrex::Print() << "    pbl_mrf_highres_bounds     : " << pbl_mrf_highres_bounds
                      << std::endl;
       amrex::Print() << "    enable_mrf_unbounded_vpert : " << enable_mrf_unbounded_vpert
@@ -561,6 +565,7 @@ public:
   amrex::Real pbl_mrf_sf      = amrex::Real(0.1); // MRF surface flux, used to compute the PBL height
   bool mrf_moistvars = false; // if true, adds turbulence to moisture
   bool enable_mrf_countergradient = false; // if true, apply WRF-style HGAMT/HGAMQ correction to PBL height
+  bool enable_mrf_cloud_adjustment = false; // if true, apply cloud-aware stability function adjustments in MRF scheme
   bool pbl_mrf_highres_bounds = false; // if true, apply high-resolution grid-dependent diffusivity bounds instead of global forecast bounds
   bool enable_mrf_unbounded_vpert = false; // if true, does not limit VPERT to GAMCRT
   bool pbl_mrf_use_zero_ri_extent = false; // if true, use Ri=0 (pbli_zero_arr) for K-profile extent; default false uses Ri=0.5 corrector (pbli_arr) for WRF compatibility
