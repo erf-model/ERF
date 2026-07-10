@@ -681,7 +681,7 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
             // When MOL is very small (|L| < |mol_fallback_threshold|), pblh_corr may collapse to pblh_min;
             // use a floor for the wstar3 computation feeding wscale_corr/HGAMT/VPERT only.
             // Do NOT change pblh_corr_arr itself — the K-profile still uses the diagnosed value.
-            const bool strongly_unstable = (obuk_val < mol_fallback_threshold);
+            bool strongly_unstable = (obuk_val > mol_fallback_threshold && obuk_val < zero);
             const Real bfx0_corr = amrex::max(sflux_arr(i, j, 0), zero);
             const Real t_dry = t10av_arr(i, j, 0);
             const Real pblh_for_wscale = strongly_unstable
@@ -1279,7 +1279,8 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
             //   This matches WRF behavior for better comparability
             // - Alternative (pbl_mrf_use_zero_ri_extent=true): use pbli_zero_arr (Ri=0)
             //   This provides a ~30-60% taller mixing region for convective ABL cases
-            const int pbli_extent = turbChoice.pbl_mrf_use_zero_ri_extent ? pbli_zero_arr(i, j, 0) : pbli_arr(i, j, 0);
+            //const int pbli_extent = turbChoice.pbl_mrf_use_zero_ri_extent ? pbli_zero_arr(i, j, 0) : pbli_arr(i, j, 0);
+            const int pbli_extent = pbli_arr(i, j, 0);             
 
             if (k < pbli_extent) {
                 // Within PBL: use nonlocal mixing with diagnostic stability functions
