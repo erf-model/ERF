@@ -3,8 +3,10 @@
 > Status: living document · Owns: the `NOAHMP` C++ class, the ERF-side coupling
 > contract, and the lifecycle. · Companion:
 > [`spec-noahmp-gpu.md`](spec-noahmp-gpu.md) (the per-step data movement),
-> [`spec-noahmp-io.md`](spec-noahmp-io.md) (restart & output). · Files:
-> `ERF_NOAHMP.H`, `ERF_NOAHMP.cpp`.
+> [`spec-noahmp-io.md`](spec-noahmp-io.md) (restart & output),
+> [`spec-noahmp-reorg.md`](spec-noahmp-reorg.md) (source layout & field registry).
+> · Files: `ERF_NOAHMP.H`, `ERF_NOAHMP_Fields.H`, `ERF_NOAHMP_Init.cpp`,
+> `ERF_NOAHMP_Advance.cpp`.
 
 ## 1. What this layer is
 
@@ -148,17 +150,26 @@ out to every box) so a restart resumes the schedule exactly — see
 
 ## 6. Adding a coupled variable
 
-To thread a new field through the coupling, follow the memory flow used for
-existing fields (`TSK`, `EMISS`, `HFX`, …). Preserve the loop structure, the
-component-indexed buffer layout, the CPU↔GPU dataflow, and the existing variable
-naming. The mechanics differ by direction:
+**First: is the field mechanical (a pure 1:1 copy) or computed?** A field that is
+just moved between an ERF `Array4` and a named `NoahmpIO` member — no averaging,
+EOS, guard, or band index — is *mechanical*: add it to the matching X-macro list
+in `ERF_NOAHMP_Fields.H` (`NOAHMP_INPUT_3D`/`NOAHMP_INPUT_2D`/`NOAHMP_OUTPUT_2D`)
+and it is generated into the enum **and** the host copy loop from one line. A
+field with per-field math (winds, EOS, precip, banded albedos, fluxes, soil) is
+*computed* and follows the explicit steps below. See
+[`spec-noahmp-reorg.md`](spec-noahmp-reorg.md) §4 for the exact boundary.
+
+To thread a new **computed** field through the coupling, follow the memory flow
+used for existing fields (`TSK`, `EMISS`, `HFX`, …). Preserve the loop structure,
+the component-indexed buffer layout, the CPU↔GPU dataflow, and the existing
+variable naming. The mechanics differ by direction:
 
 **A. Forcing field (ERF → Noah-MP):**
 
-1. Add an entry to `NoahmpInputComp` (`ERF_NOAHMP.H`) before `NumComps`. The
-   buffers size off `NumComps`, so no buffer edit is needed.
-2. In the device `ParallelFor` over `bx`, write the ERF source expression into
-   that input component.
+1. Add an entry to `NoahmpInputComp` (`ERF_NOAHMP_Fields.H`) before `NumComps`.
+   The buffers size off `NumComps`, so no buffer edit is needed.
+2. In `stage_forcing` (`ERF_NOAHMP_Advance.cpp`), in the device `ParallelFor`
+   over `bx`, write the ERF source expression into that input component.
 3. After `Gpu::streamSynchronize()`, in the host `LoopOnCpu` over `bx`, copy the
    component into the matching `noahmpio->FIELD(...)`, using the correct index
    rank (3-D atmospheric `(i,1,j)`; 2-D surface `(i,j)`; banded radiation
@@ -166,9 +177,9 @@ naming. The mechanics differ by direction:
 
 **B. Result field (Noah-MP → ERF):**
 
-1. Add an entry to `NoahmpOutputComp` before `NumComps`.
-2. In the post-`DriverMain()` host `LoopOnCpu`, read `noahmpio->FIELD(...)` into
-   that output component.
+1. Add an entry to `NoahmpOutputComp` (`ERF_NOAHMP_Fields.H`) before `NumComps`.
+2. In `read_results` (`ERF_NOAHMP_Advance.cpp`), in the host `LoopOnCpu`, read
+   `noahmpio->FIELD(...)` into that output component.
 3. In the device `ParallelFor` over `gbx`, assign the component into the
    destination ERF field, using the clamped `(ii,jj)` indices. A surface-layer
    flux divided by a state factor must follow the `t_flux`/`q_flux`/`tau13`/
@@ -196,6 +207,6 @@ steps above assume the `noahmpio->FIELD` member already exists.
 - `noahmpio_vect` indexing (`idb`), the `bx.smallEnd(2) != klo` slab guard, and
   the `(ii,jj)` clamping are untouched.
 
-> `ERF_NOAHMP.cpp`/`.H` can optionally be updated with **CodeScribe**
+> The `ERF_NOAHMP_*.cpp`/`.H` files can optionally be updated with **CodeScribe**
 > (<https://github.com/akashdhruv/CodeScribe>), an LLM-based code-update tool.
 > This section is the interface contract such a prompt must respect.

@@ -1,9 +1,18 @@
 # ERF Noah-MP driver — developer specs (`dev/`)
 
 This directory holds the design specifications for the **ERF-side driver of
-Noah-MP**: the `NOAHMP` C++ class in `ERF_NOAHMP.H` / `ERF_NOAHMP.cpp` that
-plugs the Noah-MP land-surface model into ERF's land-surface-model interface and
-drives the per-step state exchange between the two.
+Noah-MP**: the `NOAHMP` C++ class that plugs the Noah-MP land-surface model into
+ERF's land-surface-model interface and drives the per-step state exchange between
+the two. The driver is split by concern across several files:
+
+| File | Role |
+|------|------|
+| `ERF_NOAHMP.H` | the `NOAHMP` class declaration (members, accessors, helper decls) |
+| `ERF_NOAHMP_Fields.H` | the coupling-field enums + the X-macro field registry |
+| `ERF_NOAHMP_Init.cpp` | `Init` (lifecycle) |
+| `ERF_NOAHMP_Advance.cpp` | `Advance_With_State` + the per-step pipeline helpers |
+| `ERF_NOAHMP_Precip.cpp` | precip source collection, snapshots, guard reporting |
+| `ERF_NOAHMP_IO.cpp` | land plotfile + checkpoint/restart |
 
 These are *living design documents* for contributors, not a user manual. They
 describe what the driver does, why it is built the way it is, and the invariants
@@ -24,6 +33,7 @@ a change must not break. Public, user-facing documentation lives at
 | [`spec-noahmp-api.md`](spec-noahmp-api.md) | The `NOAHMP` class, its `NullSurf` contract, the `LsmData`/`LsmFlux` coupling fields, the run lifecycle, time subcycling, and the workflow for exposing a new coupled variable. **Start here.** |
 | [`spec-noahmp-gpu.md`](spec-noahmp-gpu.md) | The GPU-aware, component-indexed state exchange: pinned staging buffers, the `ParallelFor` (device) / `LoopOnCpu` (host) dataflow, synchronization points, the slab/ghost-cell handling, and the flux fill-value guard. |
 | [`spec-noahmp-io.md`](spec-noahmp-io.md) | I/O owned by the driver: checkpoint/restart (the substep counter and the full prognostic state), the per-step land plotfile, and the static-input reads (`namelist.erf`, `NoahmpTable.TBL`, the NetCDF land file). |
+| [`spec-noahmp-reorg.md`](spec-noahmp-reorg.md) | The driver's **source layout** and the X-macro field registry (why the code is split the way it is, and how the enum/name/copy sync is collapsed). |
 
 ## Conventions used across these docs
 
@@ -44,7 +54,7 @@ a change must not break. Public, user-facing documentation lives at
   a run-time check (on the submodule side) aborts the run if the C++ and Fortran
   sides were compiled with different precision. The coupling precision follows
   `amrex::Real`, so never hardcode `double` in coupling code.
-- **CodeScribe.** `ERF_NOAHMP.cpp`/`.H` may optionally be updated with the
+- **CodeScribe.** The `ERF_NOAHMP_*.cpp`/`.H` files may optionally be updated with the
   LLM-based CodeScribe tool. The interface contract that prompt encodes is now
   captured in [`spec-noahmp-api.md`](spec-noahmp-api.md) §"Adding a coupled
   variable".
