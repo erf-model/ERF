@@ -28,7 +28,7 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
                        bool /*vert_only*/,
                        const std::unique_ptr<MultiFab>& z_phys_nd,
                        const MoistureComponentIndices& moisture_indices,
-                       const MultiFab* qheating_rates = nullptr)
+                       const MultiFab* qheating_rates)
 {
     /*
     ============================================================================

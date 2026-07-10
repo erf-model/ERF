@@ -7,7 +7,7 @@ AMREX_ENUM(LESType, None, Smagorinsky, Smagorinsky2D, Deardorff);
 
 AMREX_ENUM(RANSType, None, kEqn);
 
-AMREX_ENUM(PBLType, None, MYJ, MYNN25, MYNNEDMF, YSU, MRF, SHOC, EAMXX_SHOC, NATIVE_SHOC);
+AMREX_ENUM(PBLType, None, MYJ, MYNN25, MYNNEDMF, YSU, YSUNew, MRF, SHOC, EAMXX_SHOC, NATIVE_SHOC);
 
 AMREX_ENUM(StratType, theta, thetav, thetal);
 
@@ -155,7 +155,7 @@ public:
           pp, "pbl_mynn_SHmax", pbl_mynn.SHmax, lev, max_level);
         query_one_or_per_level(
           pp, "pbl_mynn_SQfactor", pbl_mynn.SQfac, lev, max_level);
-      } else if (pbl_type == PBLType::YSU) {
+      } else if (pbl_type == PBLType::YSU || pbl_type == PBLType::YSUNew) {
         query_one_or_per_level(
           pp, "pbl_ysu_coriolis_freq", pbl_ysu_coriolis_freq, lev, max_level);
         query_one_or_per_level(
@@ -361,6 +361,8 @@ public:
       amrex::Print() << "    Using MYNNEDMF PBL model at level " << lev << std::endl;
     } else if (pbl_type == PBLType::YSU) {
       amrex::Print() << "    Using YSU PBL model at level " << lev << std::endl;
+    } else if (pbl_type == PBLType::YSUNew) {
+      amrex::Print() << "    Using YSU PBL model at level " << lev << std::endl;
     } else if (pbl_type == PBLType::MRF) {
       amrex::Print() << "    Using MRF PBL model at level " << lev << std::endl;
     } else if (pbl_type == PBLType::EAMXX_SHOC) {
@@ -425,7 +427,7 @@ public:
       amrex::Print() << "    pbl_mynn_C3 : " << pbl_mynn.C3 << std::endl;
       amrex::Print() << "    pbl_mynn_C4 : " << pbl_mynn.C4 << std::endl;
       amrex::Print() << "    pbl_mynn_C5 : " << pbl_mynn.C5 << std::endl;
-    } else if (pbl_type == PBLType::YSU) {
+    } else if (pbl_type == PBLType::YSU || pbl_type == PBLType::YSUNew) {
       amrex::Print() << "    pbl_ysu_coriolis_freq              : "
                      << pbl_ysu_coriolis_freq << std::endl;
       amrex::Print() << "    pbl_ysu_use_consistent_coriolis    : "
@@ -546,6 +548,7 @@ public:
       return (pbl_type == PBLType::MYNN25)   ||
              (pbl_type == PBLType::MYNNEDMF) ||
              (pbl_type == PBLType::YSU)      ||
+             (pbl_type == PBLType::YSUNew)      ||
              (pbl_type == PBLType::MRF)       ||
              uses_shoc_family();
   }
