@@ -30,6 +30,9 @@ expect_result(
 
 } // namespace
 
+// Motivation: LSM stress caches are kinematic, while MOST and Tau_lev use
+// conservative stresses. The conversion must preserve both stress sign and
+// the conservative value reconstructed with the destination-cell density.
 TEST(SurfaceLayerStress, ConservativeToKinematicRoundTripHandlesSignedStress)
 {
   for (const Real conservative : {Real(2.4), Real(-2.4)}) {
@@ -40,6 +43,8 @@ TEST(SurfaceLayerStress, ConservativeToKinematicRoundTripHandlesSignedStress)
   }
 }
 
+// Motivation: When both neighboring LSM values are valid, the face stress
+// must be the density-weighted average of the two kinematic contributions.
 TEST(SurfaceLayerStress, BothValidUsesDensityWeightedFaceAverage)
 {
   const auto result = surface_layer_stress::combine_lsm_and_most_stress(
@@ -48,6 +53,8 @@ TEST(SurfaceLayerStress, BothValidUsesDensityWeightedFaceAverage)
     result, Real(0.5) * (rho_low * k_low + rho_high * k_high), k_low, k_high);
 }
 
+// Motivation: A missing low-side LSM value is populated from the conservative
+// MOST stress, but the cache must be divided by the low cell's own density.
 TEST(SurfaceLayerStress, HighValidCachesMostStressInLowCellUnits)
 {
   const auto result = surface_layer_stress::combine_lsm_and_most_stress(
@@ -56,6 +63,8 @@ TEST(SurfaceLayerStress, HighValidCachesMostStressInLowCellUnits)
     result, Real(0.5) * (rho_high * k_high + most), most / rho_low, k_high);
 }
 
+// Motivation: The opposite mixed branch must use the high cell's density when
+// converting the same conservative MOST stress back to a kinematic cache.
 TEST(SurfaceLayerStress, LowValidCachesMostStressInHighCellUnits)
 {
   const auto result = surface_layer_stress::combine_lsm_and_most_stress(
@@ -64,6 +73,8 @@ TEST(SurfaceLayerStress, LowValidCachesMostStressInHighCellUnits)
     result, Real(0.5) * (rho_low * k_low + most), k_low, most / rho_high);
 }
 
+// Motivation: With no valid LSM side, the applied face stress remains the
+// conservative MOST result while each neighboring cache remains kinematic.
 TEST(SurfaceLayerStress, NeitherValidKeepsMostFaceStressAndConvertsBothCaches)
 {
   const auto result = surface_layer_stress::combine_lsm_and_most_stress(
@@ -73,6 +84,9 @@ TEST(SurfaceLayerStress, NeitherValidKeepsMostFaceStressAndConvertsBothCaches)
   EXPECT_NEAR(rho_high * result.high_kinematic_cache, most, Real(1.e-12));
 }
 
+// Motivation: tau13 and tau23 represent equivalent directional momentum
+// covariances; a unit correction in one staggered branch must apply identically
+// to the other.
 TEST(SurfaceLayerStress, XAndYComponentsUseIdenticalBranchAlgebra)
 {
   const auto x_result = surface_layer_stress::combine_lsm_and_most_stress(
@@ -84,6 +98,8 @@ TEST(SurfaceLayerStress, XAndYComponentsUseIdenticalBranchAlgebra)
     x_result.high_kinematic_cache);
 }
 
+// Motivation: The tau23 fallback decision must depend on the tau23 MultiFab,
+// otherwise an absent tau13 field can incorrectly disable valid tau23 data.
 TEST(SurfaceLayerStress, Tau23ValidityUsesItsOwnHandle)
 {
   const bool has_tau13 = false;
@@ -96,6 +112,8 @@ TEST(SurfaceLayerStress, Tau23ValidityUsesItsOwnHandle)
     has_tau23, false, Real(-0.4), Real(9999.0)));
 }
 
+// Motivation: Fallback caches are reused on later calls. Storing a conservative
+// value in a kinematic field would multiply the reconstructed stress by rho.
 TEST(SurfaceLayerStress, ReusingFallbackCacheReconstructsMostStress)
 {
   const auto fallback = surface_layer_stress::combine_lsm_and_most_stress(
@@ -106,6 +124,10 @@ TEST(SurfaceLayerStress, ReusingFallbackCacheReconstructsMostStress)
   EXPECT_NEAR(reused.face_stress, most, Real(1.e-12));
 }
 
+// Motivation: Surface stresses reach the prognostic face momenta through the
+// diffusion RHS. Negative upward momentum fluxes at the lower boundary must
+// produce negative u- and v-momentum tendencies and the expected explicit
+// update.
 TEST(SurfaceLayerStress, DiffusionSrcForMomAppliesSignedBottomStresses)
 {
   const Box cell_box(IntVect(0), IntVect(1, 1, 0));
