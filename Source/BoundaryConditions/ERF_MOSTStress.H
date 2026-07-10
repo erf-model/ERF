@@ -485,8 +485,8 @@ struct adiabatic_wave_coupled
             u_star_arr(i,j,k) = mdata.kappa * umm / std::log(zref / z0);
             ++iter;
         } while ((std::abs(u_star_arr(i,j,k) - ustar) > tol) && iter <= max_iters);
-        /*AMREX_ALWAYS_ASSERT_WITH_MESSAGE(iter < max_iters,
-                                         "Maximum number of MOST iterations reached.");*/
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(iter < max_iters,
+                                         "Maximum number of MOST iterations reached.");
 
         // Populate the stored MOST arrays
         z0_arr(i,j,k)     = z0;

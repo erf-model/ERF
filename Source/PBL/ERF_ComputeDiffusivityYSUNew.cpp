@@ -964,6 +964,12 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
                 if (strongly_unstable) {
                     pblh_corr_arr(i, j, 0) = amrex::max(pblh_corr_arr(i, j, 0), pblh_floor);
                 }
+if (strongly_unstable && i == 0 && j == 0) {
+    amrex::Print() << "PBLH CLAMP triggered: obuk=" << obuk 
+                   << " pblh before=" << pblh_corr_arr(i,j,0)
+                   << " floor=" << pblh_floor << "\n";
+}
+
             });
         }
         // ========================================================================
