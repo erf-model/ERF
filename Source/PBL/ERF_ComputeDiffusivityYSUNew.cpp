@@ -687,15 +687,13 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
             const Real pblh_for_wscale = strongly_unstable
                 ? amrex::max(pblh_corr_arr(i, j, 0), pblh_floor_wscale)
                 : pblh_corr_arr(i, j, 0);
-            // Store true (non-floored) wstar3 for K-profile use
-//            wstar3_arr(i, j, 0) = (CONST_GRAV / t_dry) * bfx0_corr * pblh_corr_arr(i, j, 0);
-            wstar3_arr(i, j, 0) = (CONST_GRAV / t_dry) * bfx0_corr * pblh_for_wscale;
-            // Use pblh_for_wscale only for wscale_corr (feeds HGAMT/VPERT)
-            const Real wstar3_for_wscale = (CONST_GRAV / t_dry) * bfx0_corr * pblh_for_wscale;
+            // Store floored wstar3 for BOTH HGAMT/VPERT and K-profile use
+            const Real wstar3_corr = (CONST_GRAV / t_dry) * bfx0_corr * pblh_for_wscale;
+            wstar3_arr(i, j, 0) = wstar3_corr;
 
-            // Recompute wscale with corrected pblh:
+            // Recompute wscale with floored pblh:
             const Real ust3 = u_star_arr(i,j,0) * u_star_arr(i,j,0) * u_star_arr(i,j,0);
-            Real wscale_corr = std::cbrt(ust3 + amrex::Real(8.0) * KAPPA * wstar3_for_wscale * amrex::Real(0.5));
+            Real wscale_corr = std::cbrt(ust3 + amrex::Real(8.0) * KAPPA * wstar3_corr * amrex::Real(0.5));
             wscale_corr = amrex::min(wscale_corr, u_star_arr(i,j,0) * amrex::Real(16.0));
             wscale_corr = amrex::max(wscale_corr, u_star_arr(i,j,0) / amrex::Real(5.0));
             wstar_arr(i, j, 0) = wscale_corr;
