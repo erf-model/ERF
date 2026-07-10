@@ -1368,9 +1368,8 @@ private:
     std::unique_ptr<amrex::MultiFab> wrf_C1H;
     std::unique_ptr<amrex::MultiFab> wrf_C2H;
     std::unique_ptr<amrex::MultiFab> wrf_MUB;
-
-    // Base geopotential
-    std::unique_ptr<amrex::MultiFab> wrf_PHB;
+    std::unique_ptr<amrex::MultiFab> wrf_RDNW;
+    std::unique_ptr<amrex::MultiFab> wrf_PHB; // Base geopotential
 
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> mf_PSFC;
 

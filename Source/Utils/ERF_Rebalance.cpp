@@ -41,7 +41,6 @@ rebalance_columns (MultiFab& rho,
         ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int /*k*/) noexcept
         {
             // integrate from surface to domain top
-            // Real Factor;
             Real dz, F, C;
             Real rho_tot_hi, rho_tot_lo;
             Real z_lo, z_hi;
