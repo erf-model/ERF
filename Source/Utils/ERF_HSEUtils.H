@@ -16,7 +16,7 @@ namespace HSEutils
     // to control Newton iterations in init_isentropic_hse*
     const int MAX_ITER = 10;
 #ifdef AMREX_USE_FLOAT
-    const amrex::Real TOL = Real(1.e-6);
+    const amrex::Real TOL = Real(1.e-4);
 #else
     const amrex::Real TOL = Real(1.e-8);
 #endif
@@ -532,7 +532,7 @@ Real compute_temperature (const Real p_b, const Real q_t, const Real eq_pot_temp
     Real T_b = Real(200.0), delta_T; // Initial guess
 
 #ifdef AMREX_USE_FLOAT
-    Real eps = Real(1.e-6) * T_b;
+    Real eps = Real(1.e-4) * T_b;
 #else
     Real eps = Real(1.e-10) * T_b;
 #endif
@@ -646,7 +646,7 @@ Real compute_p_k_in_zone (Real &p_k, const Real p_k_minus_1, Real &theta_k, Real
     Real delta_p_k;
 
 #ifdef AMREX_USE_FLOAT
-    Real eps = Real(1e-6);
+    Real eps = Real(1e-4);
 #else
     Real eps = Real(1e-10);
 #endif
