@@ -398,12 +398,12 @@ convert_wrfbdy_data (const int itime,
                     Real dz_rat = (z_dst - z_lo_src) / (z_hi_src - z_lo_src);
                     bdy_t_int(i,j,k)  = (  bdy_t_tmp(i,j,kend) -  bdy_t_tmp(i,j,kstart) ) * dz_rat +  bdy_t_tmp(i,j,kstart);
                     bdy_qv_int(i,j,k) = ( bdy_qv_tmp(i,j,kend) - bdy_qv_tmp(i,j,kstart) ) * dz_rat + bdy_qv_tmp(i,j,kstart);
-                    bdy_r_int(i,j,k)  = (  bdy_r_tmp(i,j,kend) -  bdy_r_tmp(i,j,kstart) ) * dz_rat +  bdy_r_tmp(i,j,kstart);
                 } else {
                     bdy_t_int(i,j,k)  =  bdy_t_tmp(i,j,k);
                     bdy_qv_int(i,j,k) = bdy_qv_tmp(i,j,k);
-                    bdy_r_int(i,j,k)  =  bdy_r_tmp(i,j,k);
                 }
+                // NOTE: always copy rho for rebalance
+                bdy_r_int(i,j,k)  =  bdy_r_tmp(i,j,k);
             }
         });
 
@@ -522,7 +522,7 @@ convert_wrfbdy_data (const int itime,
 
               // Do iterations
               HSEutils::Newton_Raphson_hse_T(tol, R_d/Cp_d, dz,
-                                             grav, C, Th_hi,
+                                             grav, C, T_hi,
                                              qt_hi, qv_hi,
                                              P_hi, R_hi, F);
 
