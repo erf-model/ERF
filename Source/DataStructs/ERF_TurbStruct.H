@@ -184,6 +184,12 @@ public:
           pp, "enable_ysu_cloud_pblh", enable_ysu_cloud_pblh, lev, max_level);
         query_one_or_per_level(
           pp, "enable_mrf_unbounded_vpert", enable_mrf_unbounded_vpert, lev, max_level);
+        query_one_or_per_level(
+          pp, "ysu_qcloud_threshold", ysu_qcloud_threshold, lev, max_level);
+        query_one_or_per_level(
+          pp, "ysu_moistvars", ysu_moistvars, lev, max_level);
+        query_one_or_per_level(
+          pp, "pbl_ysunew_highres_bounds", pbl_ysunew_highres_bounds, lev, max_level);
       } else if (pbl_type == PBLType::MRF) {
         query_one_or_per_level(
           pp, "pbl_mrf_coriolis_freq", pbl_mrf_coriolis_freq, lev, max_level);
@@ -452,6 +458,12 @@ public:
                      << enable_ysu_entrainment << std::endl;
       amrex::Print() << "    enable_ysu_cloud_pblh              : "
                      << enable_ysu_cloud_pblh << std::endl;
+      amrex::Print() << "    ysu_qcloud_threshold               : "
+                     << ysu_qcloud_threshold << std::endl;
+      amrex::Print() << "    ysu_moistvars                      : "
+                     << ysu_moistvars << std::endl;
+      amrex::Print() << "    pbl_ysunew_highres_bounds          : "
+                     << pbl_ysunew_highres_bounds << std::endl;
       amrex::Print() << "    enable_mrf_unbounded_vpert         : "
                      << enable_mrf_unbounded_vpert << std::endl;
     } else if (pbl_type == PBLType::MRF) {
@@ -607,6 +619,10 @@ public:
     true; // if true, enable entrainment layer parameterization
   bool enable_ysu_cloud_pblh =
     true; // if true, enable cloud-based PBL height detection
+  amrex::Real ysu_qcloud_threshold =
+    amrex::Real(1.0e-4); // Cloud liquid water threshold for YSUNew (kg/kg)
+  bool ysu_moistvars = false; // if true, adds turbulence to moisture
+  bool pbl_ysunew_highres_bounds = false; // if true, apply high-resolution grid-dependent diffusivity bounds
   // Model coefficients - MRF
   amrex::Real pbl_mrf_coriolis_freq = amrex::Real(1.0e-4);
   amrex::Real pbl_mrf_Ribcr   = amrex::Real(0.5); // Critical Bulk Richardson number for MRF PBL model

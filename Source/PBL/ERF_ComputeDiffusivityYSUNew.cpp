@@ -90,6 +90,8 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
     // Domain extent in z-dir
     int klo = geom.Domain().smallEnd(2);
     int khi = geom.Domain().bigEnd(2);
+    const int izmin = klo;
+    const int izmax = khi;
 
 #ifdef _OPENMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())
@@ -253,7 +255,6 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
         {
             const Real rho_sfc  = cell_data(i, j, klo, Rho_comp);
             const Real t_layer  = t10av_arr(i, j, 0);      // Dry potential temperature at z1
-            const Real q_layer  = use_moisture ? q10av_arr(i, j, 0) : zero;
 
             // WRF: rhox = psfc/(rd*tx(1)*tvcon), approximate with cell-bottom density
             const Real rhox = rho_sfc;
@@ -475,7 +476,6 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
             const Real t_layer  = t10av_arr(i, j, 0);
             const Real moisture_fraction = use_moisture ? q10av_arr(i, j, 0) : zero;
             const Real t_layer_v = t_layer * (one + amrex::Real(0.61) * moisture_fraction);
-            const Real t_layer_v_enhanced = t_layer_v + vpert_arr(i, j, 0);
 
             const amrex::Real z_sfc_col = (use_terrain_fitted_coords)
                                          ? Compute_Zrel_AtCellCenter(i, j, klo, z_nd_arr)
@@ -950,9 +950,6 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
                     const Real zval_kk = (use_terrain_fitted_coords)
                                        ? Compute_Zrel_AtCellCenter(i, j, kk, z_nd_arr)
                                        : (kk + myhalf) * gdata.CellSize(2);
-                    const Real zval_klo = (use_terrain_fitted_coords)
-                                        ? Compute_Zrel_AtCellCenter(i, j, klo, z_nd_arr)
-                                        : (klo + myhalf) * gdata.CellSize(2);
                     const Real zrel_kk = amrex::max(zval_kk - z_sfc, amrex::Real(1.0e-4));
                     
                     // Liquid-theta virtual potential temperature at current level and surface
@@ -1023,8 +1020,6 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
 
         const auto& dxInv = geom.InvCellSizeArray();
         const Real dz_inv = geom.InvCellSize(2);
-        const int izmin   = geom.Domain().smallEnd(2);
-        const int izmax   = geom.Domain().bigEnd(2);
         // Compute entrainment diffusivity at PBL top cell (WRF bl_ysu.F90 lines 831-925)
         // Uses WRF's buoyancy-flux-based entrainment velocity (we), which accounts for
         // the actual inversion strength (dthvx) at the PBL top.
@@ -1078,8 +1073,6 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
                 const Real dz_kpbl = met_h / dz_inv;
 
                 // Apply entrainment only when we < 0 (downward entrainment occurring)
-                // K_entr_raw = rho_kpbl * |we| * dz_kpbl
-                const Real K_entr_raw = (we < zero) ? rho_kpbl * (-we) * dz_kpbl : zero;
                 const Real K_cap      = Real(5.0) * rho_kpbl * wscale * KAPPA * pblh * Real(0.01);
                 
                 // Cloudy entrainment correction (WRF bl_ysu.F90 lines 840-875)
@@ -1213,7 +1206,7 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
 
 
         BL_PROFILE_VAR("YSUNew_Kprofile", prof_kprof);
-        ParallelFor(gbx, [=, sflux_arr_cap=sflux_arr, wstar3_arr_cap=wstar3_arr, zol1_arr_cap=zol1_arr, sfcflg_arr_cap=sfcflg_arr] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+        ParallelFor(gbx, [=, wstar3_arr_cap=wstar3_arr, zol1_arr_cap=zol1_arr, sfcflg_arr_cap=sfcflg_arr] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {
             Real obuk_val = l_obuk_arr(i, j, 0);
             if (std::abs(obuk_val) < amrex::Real(1.0e-10)) {
