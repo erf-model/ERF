@@ -21,7 +21,8 @@ void ERF::advance_microphysics (int lev,
             cons.FillBoundary(geom[lev].periodicity());
         }
         micro->Update_Micro_Vars_Lev(lev, cons);
-        micro->Advance(lev, dt_advance, iteration, time, solverChoice, vars_new, z_phys_nd, phys_bc_type);
+        micro->Advance(lev, static_cast<Real>(dt_advance), iteration,
+                       static_cast<Real>(time), solverChoice, vars_new, z_phys_nd, phys_bc_type);
         micro->Update_State_Vars_Lev(lev, cons, *z_phys_nd[lev]);
 
         // Sync cons[lev-1] covered cells with the moist state just written

@@ -1,0 +1,79 @@
+# Moeng-Sullivan Unstable ABL
+# u* ~ 0.56 m/s
+# L ~ -56 m 
+# MRF
+# u* ~ 0.54 m/s
+# L ~  -50 m 
+
+erf.prob_name = "ABL"
+
+stop_time = 9000
+amrex.fpe_trap_invalid = 0
+
+fabarray.mfiter_tile_size = 1024 1024 1024
+
+geometry.prob_extent = 4800 4800 2048 
+amr.n_cell           =  8   8   128
+amrex.max_grid_size_z = 256
+geometry.is_periodic = 1 1 0
+
+
+zlo.type = "surface_layer"
+erf.most.z0   = 0.1      # roughness length [m]
+erf.most.zref = 24.0     # reference height [m]
+erf.most.surf_temp_flux    = 0.24
+zhi.type = "SlipWall"
+zhi.theta_grad = 0.003  # adiabatic upper boundary
+erf.fixed_dt = 0.5  # time step [s]
+
+# DIAGNOSTICS & VERBOSITY
+erf.sum_interval   = 1       # timesteps between computing mass
+erf.v              = 1       # verbosity in ERF.cpp
+amr.v              = 1       # verbosity in Amr.cpp
+
+# REFINEMENT / REGRIDDING
+amr.max_level       = 0       # maximum level number allowed
+
+# CHECKPOINT FILES
+erf.check_file      = chk_unstable     # root name of checkpoint file
+erf.check_int       = -1             # number of timesteps between checkpoints
+
+# DATA COLLECTION
+erf.data_log    = unstable_hist.dat unstable_profiles.dat
+erf.profile_int = 10
+
+# PLOTFILES
+erf.plot_file_1     = plt_unstable      # prefix of plotfile name
+erf.plot_int_1      = 1000             # number of timesteps between plotfiles
+erf.plot_vars_1     = x_velocity y_velocity z_velocity theta
+
+# SOLVER CHOICE
+erf.use_gravity = true
+
+erf.molec_diff_type = "None"
+# When using a PBL model, LES closure should be disabled
+erf.les_type        = "None"
+erf.Cs = 0.11
+erf.theta_ref = 300.0
+
+# INITIALIZATION - from sounding file
+erf.init_type = "input_sounding"
+erf.sounding_type = Ideal
+erf.input_sounding_file = "sounding_unstable_abl"
+
+# PBL CONFIGURATION - Baseline MRF (unstable case)
+erf.pbl_type = "MRF"
+erf.pbl_mrf_Ribcr = 0.5   # critical bulk Richardson number
+erf.pbl_mrf_const_b = 7.8 # surface layer factor (WRF CFAC)
+erf.pbl_mrf_sf = 0.1      # surface layer fraction (WRF SFAC)
+erf.enable_mrf_countergradient = true
+erf.mrf_moistvars = false
+
+# CORIOLIS EFFECT
+erf.latitude = 45.0  # mid-latitude (f = 1.0e-4 s^-1)
+
+erf.use_coriolis = true
+
+erf.abl_driver_type = "GeostrophicWind"
+
+erf.abl_geo_wind = 10.0 0.0 0.0

@@ -403,7 +403,7 @@ struct TurbulentPerturbation {
                 // Performing this step converts the perturbation proportionality into
                 // the forcing term
                 // Ma & Senocak (2023) Eq. 7
-                pb_amp[lev][boxIdx] /= interval;
+                pb_amp[lev][boxIdx] /= static_cast<amrex::Real>(interval);
             }
         }
     }

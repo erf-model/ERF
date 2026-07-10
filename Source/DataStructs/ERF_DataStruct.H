@@ -986,6 +986,25 @@ struct SolverChoice {
             }
         }
 
+        // Countergradient validation: ensure required implicit diffusion is enabled
+        for (int lev = 0; lev <= max_level; lev++) {
+            if (turbChoice[lev].enable_mrf_countergradient) {
+                AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+                    vert_implicit_fac[lev][0] > zero ||
+                    vert_implicit_fac[lev][1] > zero ||
+                    vert_implicit_fac[lev][2] > zero,
+                    "enable_mrf_countergradient requires vert_implicit_fac > 0");
+                AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+                    implicit_thermal_diffusion,
+                    "enable_mrf_countergradient requires implicit_thermal_diffusion = true");
+                if (moisture_type != MoistureType::None) {
+                    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+                        implicit_moisture_diffusion,
+                        "enable_mrf_countergradient with moisture requires implicit_moisture_diffusion = true");
+                }
+            }
+        }
+
         for (int lev = 0; lev <= max_level; lev++) {
             turbChoice[lev].check_params(phys_bc_type);
         }
