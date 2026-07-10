@@ -228,6 +228,10 @@ public:
           pp, "pbl_ysunew_topdown_phifac", pbl_ysunew_topdown_phifac, lev, max_level);
         query_one_or_per_level(
           pp, "enable_ysu_windfarm_coupling", enable_ysu_windfarm_coupling, lev, max_level);
+        query_one_or_per_level(
+          pp, "pbl_ysu_mol_fallback_threshold", pbl_ysu_mol_fallback_threshold, lev, max_level);
+        query_one_or_per_level(
+          pp, "pbl_ysu_pblh_floor_wscale", pbl_ysu_pblh_floor_wscale, lev, max_level);
       } else if (pbl_type == PBLType::SHOC) {
 #ifndef ERF_USE_SHOC
           amrex::Abort("You set use_shoc to true but didn't build with SHOC; you must rebuild the executable");
@@ -528,6 +532,10 @@ public:
                      << pbl_ysunew_topdown_phifac << std::endl;
       amrex::Print() << "    enable_ysu_windfarm_coupling    : "
                      << enable_ysu_windfarm_coupling << std::endl;
+      amrex::Print() << "    pbl_ysu_mol_fallback_threshold  : "
+                     << pbl_ysu_mol_fallback_threshold << std::endl;
+      amrex::Print() << "    pbl_ysu_pblh_floor_wscale       : "
+                     << pbl_ysu_pblh_floor_wscale << std::endl;
     }
   }
 
@@ -673,6 +681,13 @@ public:
   bool enable_ysu_topdown        = false;          // enable top-down cloud-driven mixing
   amrex::Real pbl_ysunew_topdown_phifac = amrex::Real(8.0);  // weight for top-down wstar (H10 Eq. 12)
   bool enable_ysu_windfarm_coupling = false;      // if true, optionally couple YSUNew TKE to wind farm parameterizations
+  // Strongly-unstable (|L| < threshold) fallback parameters for wscale/HGAMT stability.
+  // WRF module_bl_ysu.F lines 664-680: WRF avoids wscale collapse by anchoring wstar3 to
+  // a fixed pblh_guess=500m for the initial wscale used in HGAMT/VPERT computation.
+  // When MOL < pbl_ysu_mol_fallback_threshold (strongly unstable), use pbl_ysu_pblh_floor_wscale
+  // as a minimum PBLH for the wscale/wstar3 computation that feeds HGAMT and VPERT only.
+  amrex::Real pbl_ysu_mol_fallback_threshold = amrex::Real(-10.0);  // Obukhov length threshold [m] for fallback
+  amrex::Real pbl_ysu_pblh_floor_wscale      = amrex::Real(200.0);  // Minimum PBLH [m] for wscale computation only
   // MYNN2.5 PBL model
   // TKE/QKE stuff
   bool advect_tke = true; // if MYNN2.5 PBL is used default is turb transport in
