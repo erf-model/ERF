@@ -51,11 +51,49 @@ rebalance_columns (MultiFab& rho,
             Real T_hi;
             Real P_lo, P_hi;
 
+            // Integrate from z=0
+            if (false) {
+                z_lo = zero; // corresponding to p_0
+                z_hi = Real(0.125) * (z_arr(i,j,klo  ) + z_arr(i+1,j,klo  ) + z_arr(i,j+1,klo  ) + z_arr(i+1,j+1,klo  )
+                                     +z_arr(i,j,klo+1) + z_arr(i+1,j,klo+1) + z_arr(i,j+1,klo+1) + z_arr(i+1,j+1,klo+1));
+                dz = z_hi - z_lo;
+
+                // Establish known constant
+                qt_lo = qt_arr(i,j,klo);
+                qv_lo = qv_arr(i,j,klo);
+                Th_lo = th_arr(i,j,klo);
+                P_lo  = p_0;
+                R_lo  = getRhogivenThetaPress(Th_lo, P_lo, R_d/Cp_d, qv_lo);
+                rho_tot_lo = R_lo * (one + qt_lo);
+                C  = -P_lo + myhalf*rho_tot_lo*grav*dz;
+
+                // Initial guess and residual
+                qt_hi = qt_arr(i,j,klo);
+                qv_hi = qv_arr(i,j,klo);
+                Th_hi = th_arr(i,j,klo);
+                P_hi  = p_0;
+                R_hi  = getRhogivenThetaPress(Th_hi, P_hi, R_d/Cp_d, qv_hi);
+                rho_tot_hi = R_hi * (one + qt_hi);
+                F = P_hi + myhalf*rho_tot_hi*grav*dz + C;
+
+                // Do iterations
+                HSEutils::Newton_Raphson_hse(tol, R_d/Cp_d, dz,
+                                             grav, C, Th_hi,
+                                             qt_hi, qv_hi,
+                                             P_hi, R_hi, F);
+
+                // Assign data
+                rho_arr(i,j,klo) = R_hi;
+                P_lo = P_hi;
+                z_lo = z_hi;
+
             // Use SFC state at first CC
-            z_lo = Real(0.125) * (z_arr(i,j,klo  ) + z_arr(i+1,j,klo  ) + z_arr(i,j+1,klo  ) + z_arr(i+1,j+1,klo  )
-                                 +z_arr(i,j,klo+1) + z_arr(i+1,j,klo+1) + z_arr(i,j+1,klo+1) + z_arr(i+1,j+1,klo+1));
-            P_lo = getPgivenRTh(rho_arr(i,j,klo)*th_arr(i,j,klo),qv_arr(i,j,klo));
-            P_hi = P_lo;
+            } else {
+                z_lo = Real(0.125) * (z_arr(i,j,klo  ) + z_arr(i+1,j,klo  ) + z_arr(i,j+1,klo  ) + z_arr(i+1,j+1,klo  )
+                                      +z_arr(i,j,klo+1) + z_arr(i+1,j,klo+1) + z_arr(i,j+1,klo+1) + z_arr(i+1,j+1,klo+1));
+                P_lo = getPgivenRTh(rho_arr(i,j,klo)*th_arr(i,j,klo),qv_arr(i,j,klo));
+                P_hi = P_lo;
+            }
 
             for (int k(klo+1); k<=khi; ++k)
             {
