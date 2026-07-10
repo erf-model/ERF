@@ -3,7 +3,7 @@
 > Status: living document · Owns: checkpoint/restart, the per-step land
 > plotfile, and the static-input reads, as seen from the ERF driver. · Companion:
 > [`spec-noahmp-api.md`](spec-noahmp-api.md),
-> [`spec-noahmp-gpu.md`](spec-noahmp-gpu.md). · Files: `ERF_NOAHMP.cpp`,
+> [`spec-noahmp-gpu.md`](spec-noahmp-gpu.md). · Files: `ERF_NOAHMP_IO.cpp`,
 > `ERF_NOAHMP.H`. · User-facing docs:
 > <https://erf.readthedocs.io/en/latest/CouplingToNoahMP.html#checkpoint-and-restart>.
 

@@ -26,123 +26,32 @@
 // External include from the noahmp library
 #include <NoahmpIO.H>
 
-namespace LsmData_NOAHMP {
-   enum {
-         // 2D RRTMGP coupling vars
-         t_sfc = 0,
-         sfc_emis,
-         sfc_alb_dir_vis,
-         sfc_alb_dir_nir,
-         sfc_alb_dif_vis,
-         sfc_alb_dif_nir,
-         cos_zenith_angle,
-         sw_flux_dn,
-         sw_flux_dn_dir_vis,
-         sw_flux_dn_dir_nir,
-         sw_flux_dn_dif_vis,
-         sw_flux_dn_dif_nir,
-         lw_flux_dn,
-         // 2D land return-term diagnostics (read from Noah-MP, output only -- NOT
-         // fed back into ERF dynamics; matches how WRF carries these). Auto-written
-         // to the LSM plotfile + checkpoint via Plot_Lsm_Data / lsm_data checkpoint.
-         grdflx,          // ground/snow heat flux [W m-2]
-         fira,            // total net longwave radiation [W m-2] (FIRAXY)
-         sav,             // solar radiation absorbed by vegetation [W m-2] (SAVXY)
-         sag,             // solar radiation absorbed by ground [W m-2] (SAGXY)
-         albedo,          // total grid surface albedo [-] (ALBEDO)
-         sfcrunoff,       // accumulated surface runoff [m] (SFCRUNOFF)
-         udrunoff,        // accumulated sub-surface runoff [m] (UDRUNOFF)
-         smstav,          // soil moisture availability [-] (SMSTAV; NOT computed by this
-                          // Noah-MP core -> emitted as lsm_undefined placeholder, not 0)
-         smstot,          // total soil moisture [mm] (SMSTOT; NOT computed by this
-                          // Noah-MP core -> emitted as lsm_undefined placeholder, not 0)
-         NumVars
-         // NOTE: the 3D soil-profile state (SMOIS/SH2O/TSLB) is NOT enumerated here.
-         // It is appended at RUNTIME, one 2D field per soil layer, in three
-         // contiguous groups of m_nsoil starting at index NumVars:
-         //   [NumVars           .. NumVars +   nsoil) -> smois_1..smois_nsoil
-         //   [NumVars +   nsoil .. NumVars + 2*nsoil) -> sh2o_1 ..sh2o_nsoil
-         //   [NumVars + 2*nsoil .. NumVars + 3*nsoil) -> tslb_1 ..tslb_nsoil
-         // so the diagnostics work for any Noah-MP soil-layer count, not just 4.
-         // See NOAHMP::soil_data_idx / NOAHMP::soil_out_idx.
-  };
-}
+// The ERF <-> Noah-MP coupling field enums (LsmData_NOAHMP, LsmFlux_NOAHMP,
+// NoahmpPrecipSlot, NoahmpInputComp, NoahmpOutputComp) and the X-macro field
+// registry that generates them and the mechanical copy loops. This header is
+// the single declaration of what crosses the coupling boundary.
+#include <ERF_NOAHMP_Fields.H>
 
-namespace LsmFlux_NOAHMP {
-   enum {
-         // 2D SurfaceLayer flux vars
-         t_flux = 0,
-         q_flux,
-         tau13,
-         tau23,
-         NumVars
-  };
-}
-
-
-// Fixed index for each typed surface-precip source slot, in the field order of
-// SurfacePrecipAccumulationSources. Used to key the per-slot previous-accumulation
-// snapshots and the water-equivalent interval deltas fed to Noah-MP.
-namespace NoahmpPrecipSlot {
-    enum {
-        total = 0,   // total non-convective precip accumulator (if the scheme exposes one)
-        rain,        // explicit rain accumulator (schemes without a total slot)
-        snow,        // snow (+ice) accumulator
-        graupel,     // graupel accumulator
-        hail,        // hail accumulator: folded into MP_GRAUP (coupled MP_HAIL set to 0) -- see ERF_NOAHMP.cpp
-        NumSlots
+// Small POD helpers used by the Advance_With_State pipeline (see
+// ERF_NOAHMP_Advance.cpp / ERF_NOAHMP_Precip.cpp).
+namespace noahmp_detail {
+    // The typed precip accumulator views collected once per Advance: for each
+    // NoahmpPrecipSlot, the scheme-native cumulative accumulator (borrowed), its
+    // native->kg/m^2 (water-equivalent mm) factor, and whether the active scheme
+    // fills it. have_any mirrors surface_precip_has_any_source().
+    struct PrecipSlots {
+        const amrex::MultiFab* accum [NoahmpPrecipSlot::NumSlots] = {};
+        amrex::Real            factor[NoahmpPrecipSlot::NumSlots] = {};
+        bool                   has   [NoahmpPrecipSlot::NumSlots] = {};
+        bool                   have_any = false;
     };
-}
 
-namespace NoahmpInputComp {
-    enum {
-        u_phy = 0,
-        v_phy,
-        t_phy,
-        qv_curr,
-        p8w,
-        swdown,
-        glw,
-        coszen,
-        rainbl,      // accumulated precip into land model over the interval [mm]
-        sr_in,       // frozen fraction of precip [-]
-        mp_rainnc,   // total non-convective precip this interval [mm] (WRF MP_RAINNC)
-        mp_snow,     // snow (+ice) subset of mp_rainnc [mm] (WRF MP_SNOW)
-        mp_graup,    // graupel subset of mp_rainnc [mm] (WRF MP_GRAUP)
-        NumComps
-    };
-}
+    // Cells the precip guard clamped this call (per rank); reported after the box loop.
+    struct ClampedPrecipCell { int i; int j; amrex::Real raw_mm; };
 
-namespace NoahmpOutputComp {
-    enum {
-        hfx = 0,
-        lh,
-        tau_ew,
-        tau_ns,
-        tsk,
-        emiss,
-        albsfcdir_vis,
-        albsfcdir_nir,
-        albsfcdif_vis,
-        albsfcdif_nir,
-        // land return-term diagnostics (output only)
-        o_grdflx,
-        o_fira,
-        o_sav,
-        o_sag,
-        o_albedo,
-        o_sfcrunoff,
-        o_udrunoff,
-        o_smstav,
-        o_smstot,
-        NumComps
-        // NOTE: the per-layer soil outputs (SMOIS/SH2O/TSLB) are appended at
-        // RUNTIME after NumComps, mirroring the LsmData_NOAHMP layout above:
-        //   [NumComps           .. NumComps +   nsoil) -> smois layers
-        //   [NumComps +   nsoil .. NumComps + 2*nsoil) -> sh2o  layers
-        //   [NumComps + 2*nsoil .. NumComps + 3*nsoil) -> tslb  layers
-        // The pinned host output buffer is sized NumComps + 3*nsoil to match.
-    };
+    // Cells where the frozen components violated MP_SNOW+MP_GRAUP <= MP_RAINNC and
+    // were rescaled to restore the invariant (per rank); reported after the loop.
+    struct InvariantPrecipCell { int i; int j; amrex::Real froz_mm; amrex::Real total_mm; };
 }
 
 class NOAHMP : public NullSurf {
@@ -308,47 +217,79 @@ public:
     // canopy, aquifer, albedo history, ...) to/from a NetCDF restart directory
     // so a restart reproduces a cold-start trajectory bitwise (issue #3255).
     // Each local block writes its tile into the global-domain file collectively.
+    // Defined in ERF_NOAHMP_IO.cpp.
     void
-    Write_Lsm_Restart (const std::string& dir) const override
-    {
-        for (const NoahmpIO_type& noahmpio : noahmpio_vect) {
-            const_cast<NoahmpIO_type&>(noahmpio).WriteRestart(dir);
-        }
-
-        // Also save the precip snapshots (the cumulative precip Noah-MP last consumed).
-        // Restoring these on restart lets the next land call difference against the same
-        // baseline, so no precip is dropped or double-counted across the restart.
-        if (m_lev < int(m_precip_accum_prev.size())) {
-            for (int s(0); s < NoahmpPrecipSlot::NumSlots; ++s) {
-                if (m_precip_accum_prev[m_lev][s]) {
-                    amrex::VisMF::Write(*m_precip_accum_prev[m_lev][s],
-                                        m_precip_snapshot_name(dir, m_lev, s));
-                }
-            }
-        }
-    }
+    Write_Lsm_Restart (const std::string& dir) const override;
 
     void
-    Read_Lsm_Restart (const std::string& dir) override
-    {
-        for (NoahmpIO_type& noahmpio : noahmpio_vect) {
-            noahmpio.ReadRestart(dir);
-        }
-
-        // Read the saved precip snapshots into a staging store (the live snapshots are
-        // not allocated until the first Advance, which then copies these in). Legacy
-        // checkpoints have no such files -> store stays empty -> Advance cold-seeds.
-        for (int s(0); s < NoahmpPrecipSlot::NumSlots; ++s) {
-            const std::string name = m_precip_snapshot_name(dir, m_lev, s);
-            if (amrex::FileExists(name + "_H")) {
-                auto mf = std::make_unique<amrex::MultiFab>();
-                amrex::VisMF::Read(*mf, name);
-                m_precip_accum_restored[s] = std::move(mf);
-            }
-        }
-    }
+    Read_Lsm_Restart (const std::string& dir) override;
 
 private:
+    // --- Advance_With_State pipeline helpers (ERF_NOAHMP_Advance.cpp) ---------
+
+    // Fine-level (lev>0) coupling data/flux fill by interpolation from level 0,
+    // taken when there is no per-level NetCDF land file. Sets m_updated.
+    void
+    interp_from_lev0 (const int& lev,
+                      amrex::MultiFab& cons_in,
+                      const int& nstep);
+
+    // The Noah-MP subcycling gate. Returns true if the model should fire this
+    // ERF step (and advances the lockstep counter + sets m_updated); false to
+    // skip. Identical on every rank -- see dev/spec-noahmp-api.md §5.
+    bool
+    time_to_fire (const amrex::Real& elapsed_time);
+
+    // Per surface box: stage ERF forcing into the pinned input buffer and copy
+    // it into the NoahmpIO arrays (gpu-spec steps 1-3). idb is the box index in
+    // noahmpio_vect / the pinned buffers.
+    void
+    stage_forcing (const amrex::MFIter& mfi,
+                   const int& idb,
+                   const amrex::Box& bx,
+                   const int& klo,
+                   const int& lev,
+                   const bool is_moist,
+                   amrex::MultiFab& cons_in,
+                   amrex::MultiFab& xvel_in,
+                   amrex::MultiFab& yvel_in,
+                   const noahmp_detail::PrecipSlots& precip,
+                   amrex::Vector<noahmp_detail::ClampedPrecipCell>& clamped_cells,
+                   amrex::Vector<noahmp_detail::InvariantPrecipCell>& invariant_cells);
+
+    // Per surface box: read NoahmpIO results into the pinned output buffer and
+    // scatter them into the ERF coupling data/flux fields (gpu-spec steps 5-6),
+    // applying the -9999 fill-value guard.
+    void
+    read_results (const amrex::MFIter& mfi,
+                  const int& idb,
+                  const amrex::Box& bx,
+                  const amrex::Box& gbx,
+                  amrex::MultiFab& cons_in);
+
+    // --- Precip bookkeeping (ERF_NOAHMP_Precip.cpp) --------------------------
+
+    // Collect the typed precip accumulator views for this Advance.
+    noahmp_detail::PrecipSlots
+    collect_precip_sources (const SurfacePrecipAccumulationSources& precip_sources);
+
+    // Lazily allocate + seed the per-level "previous cumulative accum" snapshots
+    // (cold start seeds from current; restart consumes m_precip_accum_restored).
+    void
+    prepare_precip_snapshots (const int& lev,
+                              const noahmp_detail::PrecipSlots& precip);
+
+    // Advance the snapshots to the current accumulation after the land call.
+    void
+    advance_precip_snapshots (const int& lev,
+                              const noahmp_detail::PrecipSlots& precip);
+
+    // Report (per rank, never silent) any cells clamped or rescaled by the guard.
+    void
+    report_precip_diagnostics (const int& lev,
+                               const amrex::Vector<noahmp_detail::ClampedPrecipCell>& clamped_cells,
+                               const amrex::Vector<noahmp_detail::InvariantPrecipCell>& invariant_cells);
+
     // number of lsm data variables = fixed 2D fields (LsmData_NOAHMP::NumVars) plus
     // the runtime soil profile (3 groups x m_nsoil layers). Finalized in Init once
     // m_nsoil is known; the fixed-field count is a safe lower bound before then.
