@@ -569,6 +569,8 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
         // Countergradient: HGAMT = min(CFAC * u* * θ*, GAMCRT), where CFAC=7.8, GAMCRT=3K
         // WRF Reference: module_bl_ysu.F lines 220-250
         const bool enable_ysu_sat_limiter = turbChoice.enable_ysu_sat_limiter;
+        const Real mol_fallback_threshold  = turbChoice.pbl_ysu_mol_fallback_threshold;
+        const Real pblh_floor_wscale       = turbChoice.pbl_ysu_pblh_floor_wscale;
          
         // ========================================================================
         // Cloud-top detection for top-down mixing (H10 Section 3b)
@@ -674,14 +676,25 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
             wstar3_down_arr(i, j, 0) = wstar3_down;
              
             // Recompute wstar3 and wscale with corrected pblh_corr_arr
+            // Part 1: Anchor wscale to a minimum pblh for HGAMT computation when strongly unstable.
+            // WRF avoids wscale collapse by using pblh_guess=500m for initial wscale (module_bl_ysu.F lines 664-680).
+            // When MOL is very small (|L| < |mol_fallback_threshold|), pblh_corr may collapse to pblh_min;
+            // use a floor for the wstar3 computation feeding wscale_corr/HGAMT/VPERT only.
+            // Do NOT change pblh_corr_arr itself — the K-profile still uses the diagnosed value.
+            const bool strongly_unstable = (obuk_val < mol_fallback_threshold);
             const Real bfx0_corr = amrex::max(sflux_arr(i, j, 0), zero);
             const Real t_dry = t10av_arr(i, j, 0);
-            const Real wstar3_corr = (CONST_GRAV / t_dry) * bfx0_corr * pblh_corr_arr(i, j, 0);
-            wstar3_arr(i, j, 0) = wstar3_corr;
-            
+            const Real pblh_for_wscale = strongly_unstable
+                ? amrex::max(pblh_corr_arr(i, j, 0), pblh_floor_wscale)
+                : pblh_corr_arr(i, j, 0);
+            // Store true (non-floored) wstar3 for K-profile use
+            wstar3_arr(i, j, 0) = (CONST_GRAV / t_dry) * bfx0_corr * pblh_corr_arr(i, j, 0);
+            // Use pblh_for_wscale only for wscale_corr (feeds HGAMT/VPERT)
+            const Real wstar3_for_wscale = (CONST_GRAV / t_dry) * bfx0_corr * pblh_for_wscale;
+
             // Recompute wscale with corrected pblh:
             const Real ust3 = u_star_arr(i,j,0) * u_star_arr(i,j,0) * u_star_arr(i,j,0);
-            Real wscale_corr = std::cbrt(ust3 + amrex::Real(8.0) * KAPPA * wstar3_corr * amrex::Real(0.5));
+            Real wscale_corr = std::cbrt(ust3 + amrex::Real(8.0) * KAPPA * wstar3_for_wscale * amrex::Real(0.5));
             wscale_corr = amrex::min(wscale_corr, u_star_arr(i,j,0) * amrex::Real(16.0));
             wscale_corr = amrex::max(wscale_corr, u_star_arr(i,j,0) / amrex::Real(5.0));
             wstar_arr(i, j, 0) = wscale_corr;
@@ -694,8 +707,18 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
             const Real rho_sfc = cell_data(i, j, klo, Rho_comp);
             const Real hfx_col = -rho_sfc * amrex::Real(1004.0) * u_star_arr(i,j,0) * t_star_arr(i,j,0);
             const Real gamfac = const_b / (rho_sfc * wscale_corr);
+            // Part 2: MRF-style HGAMT fallback when strongly unstable.
+            // When MOL < threshold, the gamfac*hfx form can be numerically unstable (hfx large,
+            // rho*wscale small). Fall back to the MRF formula: -const_b * u* * t* / wscale,
+            // which is algebraically equivalent but numerically more stable since wscale_corr
+            // has been stabilized via pblh_for_wscale. This matches MRF's robustness under
+            // extreme free convection. Reference: WRF module_bl_ysu.F lines 664-680.
+            const Real HGAMT_std = amrex::min(gamfac * hfx_col / amrex::Real(1004.0), GAMCRT);
+            const Real HGAMT_mrf = amrex::min(
+                -const_b * u_star_arr(i,j,0) * t_star_arr(i,j,0) / wscale_corr,
+                GAMCRT);
             const Real HGAMT = (SFCFLG && enable_ysu_countergradient)
-                             ? amrex::min(gamfac * hfx_col / amrex::Real(1004.0), GAMCRT)
+                             ? (strongly_unstable ? HGAMT_mrf : HGAMT_std)
                              : zero;
 
             // Compute HGAMQ with corrected wscale and WRF convention
