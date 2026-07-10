@@ -39,6 +39,7 @@ NOAHMP::Init (const int& lev,
     }();
     amrex::ignore_unused(noahmp_fatal_installed);
 
+    m_lev   = lev;
     m_dt    = dt;
     m_geom  = geom;
     m_geom0 = geom0;
@@ -48,22 +49,48 @@ NOAHMP::Init (const int& lev,
     Box domain = geom.Domain();
     khi_lsm    = domain.smallEnd(2) - 1;
 
+    // Number of Noah-MP soil layers. Sizing must be known on EVERY rank and level
+    // before the (collective) LSM data fabs are built, but the authoritative NSOIL
+    // lives in the Fortran namelist.erf, which is only read later, per land box.
+    // Resolve it from ParmParse (erf.lsm_nsoil, default 4 = standard config); this
+    // is the same value the parent already used to size lsm_data in MakeNewLevel
+    // (it calls Lsm_Data_Size() before Init). The namelist NSOIL is asserted to
+    // agree below, so a mismatch fails loudly. m_lsm_data_size is set here too.
+    m_ensure_nsoil_resolved();
+
+    // The fixed 2D fields are identity-mapped; their names mirror the enum order.
     LsmDataMap.resize(m_lsm_data_size);
-    LsmDataMap = {LsmData_NOAHMP::t_sfc             , LsmData_NOAHMP::sfc_emis          ,
-                  LsmData_NOAHMP::sfc_alb_dir_vis   , LsmData_NOAHMP::sfc_alb_dir_nir   ,
-                  LsmData_NOAHMP::sfc_alb_dif_vis   , LsmData_NOAHMP::sfc_alb_dif_nir   ,
-                  LsmData_NOAHMP::cos_zenith_angle  , LsmData_NOAHMP::sw_flux_dn        ,
-                  LsmData_NOAHMP::sw_flux_dn_dir_vis, LsmData_NOAHMP::sw_flux_dn_dir_nir,
-                  LsmData_NOAHMP::sw_flux_dn_dif_vis, LsmData_NOAHMP::sw_flux_dn_dif_nir,
-                  LsmData_NOAHMP::lw_flux_dn        };
     LsmDataName.resize(m_lsm_data_size);
-    LsmDataName = {"t_sfc"             , "sfc_emis"          ,
+    for (int i(0); i < LsmData_NOAHMP::NumVars; ++i) { LsmDataMap[i] = i; }
+    {
+        const std::vector<std::string> fixed_names = {
+                   "t_sfc"             , "sfc_emis"          ,
                    "sfc_alb_dir_vis"   , "sfc_alb_dir_nir"   ,
                    "sfc_alb_dif_vis"   , "sfc_alb_dif_nir"   ,
                    "cos_zenith_angle"  , "sw_flux_dn"        ,
                    "sw_flux_dn_dir_vis", "sw_flux_dn_dir_nir",
                    "sw_flux_dn_dif_vis", "sw_flux_dn_dif_nir",
-                   "lw_flux_dn"        };
+                   "lw_flux_dn"        ,
+                   "grdflx"            , "fira"              ,
+                   "sav"               , "sag"               ,
+                   "albedo"            , "sfcrunoff"         ,
+                   "udrunoff"          , "smstav"            ,
+                   "smstot"            };
+        AMREX_ALWAYS_ASSERT(int(fixed_names.size()) == LsmData_NOAHMP::NumVars);
+        for (int i(0); i < LsmData_NOAHMP::NumVars; ++i) { LsmDataName[i] = fixed_names[i]; }
+    }
+    // Append the per-layer soil profile: 3 contiguous groups of m_nsoil, layer index
+    // 1-based in the field name to match the Noah-MP / WRF SMOIS_k convention.
+    {
+        const char* group[3] = {"smois", "sh2o", "tslb"};
+        for (int g(0); g < 3; ++g) {
+            for (int k(0); k < m_nsoil; ++k) {
+                int idx = soil_data_idx(g,k);
+                LsmDataMap[idx]  = idx;
+                LsmDataName[idx] = std::string(group[g]) + "_" + std::to_string(k+1);
+            }
+        }
+    }
 
 
     LsmFluxMap.resize(m_lsm_flux_size);
@@ -98,8 +125,13 @@ NOAHMP::Init (const int& lev,
     lsm_rb.setHi(2,lsm_z_hi); lsm_rb.setLo(2,lsm_z_lo);
     m_lsm_geom.define( ba_lsm.minimalBox(), lsm_rb, m_geom.Coord(), m_geom.isPeriodic() );
 
-    // Create the data
-    for (auto ivar = 0; ivar < LsmData_NOAHMP::NumVars; ++ivar) {
+    // Create the data. lsm_fab_data / lsm_lev0_data are runtime-sized (fixed 2D
+    // fields + 3*m_nsoil soil-layer fields) rather than a compile-time Array, so
+    // the soil profile scales with NSOIL. lsm_lev0_data pointers are populated
+    // later by the parent via Lsm_Set_Lev0_Data_Ptr.
+    lsm_fab_data.resize(m_lsm_data_size);
+    lsm_lev0_data.resize(m_lsm_data_size, nullptr);
+    for (auto ivar = 0; ivar < m_lsm_data_size; ++ivar) {
         // State vars are CC
         lsm_fab_data[ivar] = std::make_shared<MultiFab>(ba_lsm, dm, 1, ng);
         lsm_fab_data[ivar]->setVal(lsm_undefined);
@@ -143,8 +175,9 @@ NOAHMP::Init (const int& lev,
             bx.makeSlab(2,klo);
 
             // Allocate pinned buffers for each box
+            // Output buffer carries the fixed 2D outputs plus 3 soil groups of m_nsoil.
             noahmp_input_tmp[idb]  = std::make_unique<FArrayBox>(bx, NoahmpInputComp::NumComps , The_Pinned_Arena());
-            noahmp_output_tmp[idb] = std::make_unique<FArrayBox>(bx, NoahmpOutputComp::NumComps, The_Pinned_Arena());
+            noahmp_output_tmp[idb] = std::make_unique<FArrayBox>(bx, NoahmpOutputComp::NumComps + 3*m_nsoil, The_Pinned_Arena());
 
             // Get reference to the noahmpio object
             NoahmpIO_type* noahmpio = &noahmpio_vect[idb];
@@ -168,6 +201,14 @@ NOAHMP::Init (const int& lev,
             // noahmpio specific parameters and is read by
             // the Fortran side of the implementation.
             noahmpio->ReadNamelist();
+
+            // The LSM data fabs were sized above from erf.lsm_nsoil (default 4).
+            // Assert the authoritative namelist NSOIL agrees, so a non-standard soil
+            // discretization that forgot to set erf.lsm_nsoil fails loudly here
+            // rather than silently truncating / overrunning the soil diagnostics.
+            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(noahmpio->nsoil == m_nsoil,
+                "namelist.erf NSOIL does not match erf.lsm_nsoil (default 4); "
+                "set erf.lsm_nsoil to the Noah-MP soil-layer count");
 
             // Read the headers from the NetCDF land file. This is also
             // implemented on the Fortran side of things currently.
@@ -262,6 +303,7 @@ NOAHMP::Advance_With_State (const int& lev,
                             MultiFab& yvel_in,
                             MultiFab* /*hfx3_out*/,
                             MultiFab* /*qfx3_out*/,
+                            const SurfacePrecipAccumulationSources& precip_sources,
                             const Real& elapsed_time,
                             const Real& dt,
                             const int& nstep,
@@ -273,7 +315,7 @@ NOAHMP::Advance_With_State (const int& lev,
         if (!updated_lev0) {
             Print () << "Noah-MP interpolation at level " << lev << " started at time step: " << nstep+1 << std::endl;
             m_updated = true;
-            for (int ivar(0); ivar<LsmData_NOAHMP::NumVars; ++ivar) {
+            for (int ivar(0); ivar<m_lsm_data_size; ++ivar) {
                 // Interpolate from lev 0 to obtain the lsm data
                 InterpFromCoarseLevel(*lsm_fab_data[ivar], lsm_fab_data[ivar]->nGrowVect(),
                                       IntVect(0,0,0), // do NOT fill ghost cells outside the domain
@@ -323,6 +365,69 @@ NOAHMP::Advance_With_State (const int& lev,
 
         int klo = domain.smallEnd(2);
 
+        // -------------------------------------------------------------------------
+        // Precipitation forcing into Noah-MP (RAINBL / MP_RAINNC / MP_SNOW / MP_GRAUP /
+        // SR). Works for ANY microphysics scheme through the typed source interface:
+        // precip_sources carries a borrowed const view of each scheme-native cumulative
+        // accumulator plus its native->kg/m^2 (== water-equivalent mm) factor. Slots are
+        // scheme-specific -- some expose a `total` accumulator with `snow`/`graupel`
+        // subsets (Morrison, WSM6), others expose an explicit `rain` accumulator with
+        // density-scaled frozen species (SAM), and warm-rain schemes expose `rain` only
+        // (Kessler). Empty sources (moisture/precip off) -> RAINBL stays 0, land runs
+        // precip-free. The interval precip = (current - snapshot)*factor over the land-
+        // call interval (WRF convention; Noah-MP divides by DTBL internally).
+        //
+        // Collect the five typed slots into a fixed-index array (NoahmpPrecipSlot order)
+        // so the snapshot bookkeeping and the device delta kernel can loop generically.
+        const SurfacePrecipAccumulationSource slot_src[NoahmpPrecipSlot::NumSlots] = {
+            precip_sources.total, precip_sources.rain, precip_sources.snow,
+            precip_sources.graupel, precip_sources.hail };
+        const MultiFab* slot_accum[NoahmpPrecipSlot::NumSlots];
+        Real            slot_factor[NoahmpPrecipSlot::NumSlots];
+        bool            slot_has[NoahmpPrecipSlot::NumSlots];
+        for (int s(0); s < NoahmpPrecipSlot::NumSlots; ++s) {
+            slot_accum[s]  = slot_src[s].accum;
+            slot_factor[s] = slot_src[s].native_to_kg_m2;
+            slot_has[s]    = (slot_src[s].accum != nullptr);
+        }
+        const bool have_precip = surface_precip_has_any_source(precip_sources);
+        if (have_precip) {
+            // Lazily allocate the per-level, per-slot "previous cumulative accum" snapshot.
+            // On restart, seed from the checkpointed snapshot (m_precip_accum_restored) so
+            // the first interval differences against what Noah-MP last consumed; on a cold
+            // start, seed from the current accumulation so the first interval's delta is 0.
+            if (int(m_precip_accum_prev.size()) <= lev) { m_precip_accum_prev.resize(lev+1); }
+            auto& prev = m_precip_accum_prev[lev];
+            for (int s(0); s < NoahmpPrecipSlot::NumSlots; ++s) {
+                if (slot_has[s] && prev[s] == nullptr) {
+                    // NOTE: allocate with ZERO ghost cells and setVal(0) first so no cell is
+                    // ever uninitialized (an uninitialized prev-snapshot produced garbage
+                    // ~1e25 deltas -> Noah-MP water-balance abort). We only ever read the
+                    // valid region (surface slab), so 0 ghost cells is sufficient and avoids
+                    // any ghost/nGrow mismatch in the Copy.
+                    prev[s] = std::make_unique<MultiFab>(
+                        slot_accum[s]->boxArray(), slot_accum[s]->DistributionMap(), 1, 0);
+                    prev[s]->setVal(0.0);
+                    if (m_precip_accum_restored[s]) {
+                        // Restart: ParallelCopy handles a changed decomposition; consume once.
+                        prev[s]->ParallelCopy(*m_precip_accum_restored[s], 0, 0, 1);
+                        m_precip_accum_restored[s].reset();
+                    } else {
+                        MultiFab::Copy(*prev[s], *slot_accum[s], 0, 0, 1, 0);
+                    }
+                }
+            }
+        }
+
+        // Cells the precip guard clamped this call (per rank); reported after the box loop.
+        struct ClampedPrecipCell { int i; int j; amrex::Real raw_mm; };
+        amrex::Vector<ClampedPrecipCell> clamped_cells;
+
+        // Cells where the frozen components violated MP_SNOW+MP_GRAUP <= MP_RAINNC and were
+        // rescaled to restore the invariant (per rank); reported after the box loop.
+        struct InvariantPrecipCell { int i; int j; amrex::Real froz_mm; amrex::Real total_mm; };
+        amrex::Vector<InvariantPrecipCell> invariant_cells;
+
         // Loop over blocks to copy forcing data to Noahmp, drive the land model,
         // and copy data back to ERF Multifabs.
         int idb = 0;
@@ -359,6 +464,36 @@ NOAHMP::Advance_With_State (const int& lev,
             Array4<Real> ALBSFCDIR_NIR = lsm_fab_data[LsmData_NOAHMP::sfc_alb_dir_nir]->array(mfi);
             Array4<Real> ALBSFCDIF_VIS = lsm_fab_data[LsmData_NOAHMP::sfc_alb_dif_vis]->array(mfi);
             Array4<Real> ALBSFCDIF_NIR = lsm_fab_data[LsmData_NOAHMP::sfc_alb_dif_nir]->array(mfi);
+            // Land return-term diagnostic destinations (output only)
+            Array4<Real> GRDFLX_o    = lsm_fab_data[LsmData_NOAHMP::grdflx]->array(mfi);
+            Array4<Real> FIRA_o      = lsm_fab_data[LsmData_NOAHMP::fira]->array(mfi);
+            Array4<Real> SAV_o       = lsm_fab_data[LsmData_NOAHMP::sav]->array(mfi);
+            Array4<Real> SAG_o       = lsm_fab_data[LsmData_NOAHMP::sag]->array(mfi);
+            Array4<Real> ALBEDO_o    = lsm_fab_data[LsmData_NOAHMP::albedo]->array(mfi);
+            Array4<Real> SFCRUNOFF_o = lsm_fab_data[LsmData_NOAHMP::sfcrunoff]->array(mfi);
+            Array4<Real> UDRUNOFF_o  = lsm_fab_data[LsmData_NOAHMP::udrunoff]->array(mfi);
+            Array4<Real> SMSTAV_o    = lsm_fab_data[LsmData_NOAHMP::smstav]->array(mfi);
+            Array4<Real> SMSTOT_o    = lsm_fab_data[LsmData_NOAHMP::smstot]->array(mfi);
+
+            // Per-layer soil output fabs (3 groups x m_nsoil). Gather their Array4s
+            // into a device-visible vector so the scatter kernel below can loop over
+            // an arbitrary NSOIL. Layout matches soil_data_idx / soil_out_idx:
+            // group g in {0:smois,1:sh2o,2:tslb}, layer k in [0,nsoil).
+            const int nsoil = m_nsoil;
+            const int n_soil_fld = 3*nsoil;
+            Gpu::DeviceVector<Array4<Real>> soil_arr_d(n_soil_fld);
+            {
+                Vector<Array4<Real>> soil_arr_h(n_soil_fld);
+                for (int g(0); g < 3; ++g) {
+                    for (int k(0); k < nsoil; ++k) {
+                        soil_arr_h[g*nsoil+k] = lsm_fab_data[soil_data_idx(g,k)]->array(mfi);
+                    }
+                }
+                Gpu::copyAsync(Gpu::hostToDevice, soil_arr_h.begin(), soil_arr_h.end(), soil_arr_d.begin());
+                Gpu::streamSynchronize();
+            }
+            Array4<Real>* soil_arr = soil_arr_d.data();
+            const int soil_out_base = NoahmpOutputComp::NumComps; // soil outputs start here
 
             // NOTE: Need to expose stresses and get stresses from NOAHMP
             Array4<Real> q_flux_arr    = lsm_fab_flux[LsmFlux_NOAHMP::q_flux]->array(mfi);
@@ -370,7 +505,29 @@ NOAHMP::Advance_With_State (const int& lev,
             Array4<Real> noah_input_arr  =  noahmp_input_tmp[idb]->array();
             Array4<Real> noah_output_arr =  noahmp_output_tmp[idb]->array();
 
-            // Copy forcing data from ERF to Noahmp.
+            // Per-slot precip accumulation views (current + previous-call snapshot) and
+            // their native->kg/m^2 factors, for building the water-equivalent interval
+            // precip. These MultiFabs live in the (device) default arena, so they are read
+            // ONLY inside the device ParallelFor below and staged into the pinned
+            // noah_input_arr — never dereferenced on the host (that segfaults on GPU).
+            // have_precip is false for schemes with no precip (RAINBL stays 0). GpuArrays
+            // are captured by value into the device kernel; absent slots keep null Array4s
+            // that are guarded by slot_present before any dereference.
+            const bool hp = have_precip;
+            GpuArray<Array4<const Real>, NoahmpPrecipSlot::NumSlots> accum_now, accum_prv;
+            GpuArray<Real, NoahmpPrecipSlot::NumSlots> accum_fac;
+            GpuArray<int,  NoahmpPrecipSlot::NumSlots> slot_present;
+            for (int s(0); s < NoahmpPrecipSlot::NumSlots; ++s) {
+                slot_present[s] = (hp && slot_has[s]) ? 1 : 0;
+                accum_fac[s]    = slot_factor[s];
+                if (slot_present[s]) {
+                    accum_now[s] = slot_accum[s]->const_array(mfi);
+                    accum_prv[s] = m_precip_accum_prev[lev][s]->const_array(mfi);
+                }
+            }
+            const int kklo = klo;
+
+            // Copy forcing data from ERF to Noahmp (device; stage into pinned buffer).
             ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
                 Real qv = (is_moist) ? CONS(i,j,k,RhoQ1_comp)/CONS(i,j,k,Rho_comp) : zero;
@@ -382,12 +539,38 @@ NOAHMP::Advance_With_State (const int& lev,
                 noah_input_arr(i,j,0,NoahmpInputComp::swdown)  = SWDOWN(i,j,0);
                 noah_input_arr(i,j,0,NoahmpInputComp::glw)     = GLW(i,j,0);
                 noah_input_arr(i,j,0,NoahmpInputComp::coszen)  = COSZEN(i,j,0);
+
+                // RAW water-equivalent interval precip [mm]: per slot d = (now - prev) *
+                // native_to_kg_m2 (kg/m^2 == mm water). Host applies the guard and derives
+                // SR / MP_RAINNC so clamped cells can be reported.
+                Real drain = zero, dsnow = zero, dgraup = zero;
+                if (hp) {
+                    Real dd[NoahmpPrecipSlot::NumSlots];
+                    for (int s(0); s < NoahmpPrecipSlot::NumSlots; ++s) {
+                        dd[s] = slot_present[s]
+                              ? amrex::max(zero, (accum_now[s](i,j,kklo) - accum_prv[s](i,j,kklo)) * accum_fac[s])
+                              : zero;
+                    }
+                    // Hail folded into MP_GRAUP (mass kept in the frozen total); no ERF scheme
+                    // fills the hail slot today. MP_HAIL is coupled but ERF sets it 0 below --
+                    // to feed hail separately, stage dd[hail] into MP_HAIL instead.
+                    dsnow  = dd[NoahmpPrecipSlot::snow];
+                    dgraup = dd[NoahmpPrecipSlot::graupel] + dd[NoahmpPrecipSlot::hail];
+                    const Real dfroz = dsnow + dgraup;
+                    // Total: scheme's `total` slot, else rain + frozen (SAM/Kessler have no total).
+                    drain = slot_present[NoahmpPrecipSlot::total]
+                          ? dd[NoahmpPrecipSlot::total]
+                          : (dd[NoahmpPrecipSlot::rain] + dfroz);
+                }
+                noah_input_arr(i,j,0,NoahmpInputComp::rainbl)   = drain;
+                noah_input_arr(i,j,0,NoahmpInputComp::mp_snow)  = dsnow;
+                noah_input_arr(i,j,0,NoahmpInputComp::mp_graup) = dgraup;
             });
 
             // Synchronize to ensure GPU kernel is complete before host access
             Gpu::streamSynchronize();
 
-            // Now on the host, copy data to NoahmpIO arrays
+            // Now on the host, copy the pinned staged data to NoahmpIO arrays
             LoopOnCpu(bx, [&] (int i, int j, int ) noexcept
             {
                 noahmpio->U_PHY(i,1,j)   = noah_input_arr(i,j,0,NoahmpInputComp::u_phy);
@@ -398,6 +581,39 @@ NOAHMP::Advance_With_State (const int& lev,
                 noahmpio->SWDOWN(i,j)    = noah_input_arr(i,j,0,NoahmpInputComp::swdown);
                 noahmpio->GLW(i,j)       = noah_input_arr(i,j,0,NoahmpInputComp::glw);
                 noahmpio->COSZEN(i,j)    = noah_input_arr(i,j,0,NoahmpInputComp::coszen);
+                // Guard the RAW total against non-physical values, then derive SR / MP_RAINNC.
+                // Clamped cells are recorded and reported after the box loop (never silent).
+                Real dsnow_h  = noah_input_arr(i,j,0,NoahmpInputComp::mp_snow);
+                Real dgraup_h = noah_input_arr(i,j,0,NoahmpInputComp::mp_graup);
+                Real drain_h  = noah_input_arr(i,j,0,NoahmpInputComp::rainbl);
+                if (drain_h > lsm_max_precip_interval) {
+                    clamped_cells.push_back(ClampedPrecipCell{i, j, drain_h});
+                    drain_h = lsm_max_precip_interval;
+                }
+                // Enforce the frozen/total invariant AFTER the clamp: MP_SNOW and MP_GRAUP
+                // are subsets of MP_RAINNC, so their sum must not exceed it (violated by an
+                // inconsistent accumulator, or by the clamp lowering drain_h below the frozen
+                // sum). Rescale the frozen components to the total to keep the breakdown
+                // self-consistent, and record the cell so a bad source stays diagnosable.
+                Real dfroz_h = dsnow_h + dgraup_h;
+                const Real inv_tol = Real(1.0e-6) * (Real(1.0) + drain_h);
+                if (dfroz_h > drain_h + inv_tol) {
+                    invariant_cells.push_back(InvariantPrecipCell{i, j, dfroz_h, drain_h});
+                    if (dfroz_h > zero) {
+                        const Real scale = drain_h / dfroz_h;   // <= 1
+                        dsnow_h  *= scale;
+                        dgraup_h *= scale;
+                        dfroz_h   = dsnow_h + dgraup_h;         // == drain_h (to round-off)
+                    }
+                }
+                noahmpio->RAINBL(i,j)    = drain_h;                                       // [mm]
+                noahmpio->SR(i,j)        = (drain_h > zero) ? amrex::min(Real(1.0), dfroz_h/drain_h) : zero; // [-]
+                noahmpio->MP_RAINNC(i,j) = drain_h;                                       // [mm]
+                noahmpio->MP_SNOW(i,j)   = dsnow_h;                                       // [mm]
+                noahmpio->MP_GRAUP(i,j)  = dgraup_h;                                      // [mm] (includes folded hail)
+                // MP_HAIL is a consumed forcing input; 0 = "no hail" (correct value, not a
+                // placeholder). Not lsm_undefined -- a sentinel would corrupt opt_snf=4.
+                noahmpio->MP_HAIL(i,j)   = zero;                                          // [mm] ERF-owned; hail folded into MP_GRAUP
             });
 
             // Call the noahmpio driver code. This runs the land model forcing for
@@ -405,6 +621,9 @@ NOAHMP::Advance_With_State (const int& lev,
             // Mirror the authoritative counter into each block.
             noahmpio->itimestep = m_itimestep;
             noahmpio->DriverMain();
+
+            // The soil-layer count was fixed in Init (erf.lsm_nsoil, asserted to match
+            // the namelist NSOIL there), so the per-layer reads below are always in range.
 
             // Copy results from NoahmpIO back to temporary arrays
             LoopOnCpu(bx, [&] (int i, int j, int ) noexcept
@@ -419,6 +638,26 @@ NOAHMP::Advance_With_State (const int& lev,
                 noah_output_arr(i,j,0,NoahmpOutputComp::albsfcdir_nir) = noahmpio->ALBSFCDIRXY(i,2,j);
                 noah_output_arr(i,j,0,NoahmpOutputComp::albsfcdif_vis) = noahmpio->ALBSFCDIFXY(i,1,j);
                 noah_output_arr(i,j,0,NoahmpOutputComp::albsfcdif_nir) = noahmpio->ALBSFCDIFXY(i,2,j);
+                // Land return-term diagnostics (output only). SMSTAV/SMSTOT are not
+                // computed by the Noah-MP core in this driver (read back 0).
+                noah_output_arr(i,j,0,NoahmpOutputComp::o_grdflx)      = noahmpio->GRDFLX(i,j);
+                noah_output_arr(i,j,0,NoahmpOutputComp::o_fira)        = noahmpio->FIRAXY(i,j);
+                noah_output_arr(i,j,0,NoahmpOutputComp::o_sav)         = noahmpio->SAVXY(i,j);
+                noah_output_arr(i,j,0,NoahmpOutputComp::o_sag)         = noahmpio->SAGXY(i,j);
+                noah_output_arr(i,j,0,NoahmpOutputComp::o_albedo)      = noahmpio->ALBEDO(i,j);
+                noah_output_arr(i,j,0,NoahmpOutputComp::o_sfcrunoff)   = noahmpio->SFCRUNOFF(i,j);
+                noah_output_arr(i,j,0,NoahmpOutputComp::o_udrunoff)    = noahmpio->UDRUNOFF(i,j);
+                // SMSTAV/SMSTOT are intentionally NOT staged here: this Noah-MP core does
+                // not compute them, so they are emitted as lsm_undefined downstream rather
+                // than as a misleading physical 0 (see the scatter kernel below).
+                // 3D soil-profile state, one 2D component per soil layer, for any NSOIL.
+                // Fortran layer index is 1-based; output components are laid out as
+                // [NumComps .. +nsoil) smois, [+nsoil .. +2*nsoil) sh2o, [+2*nsoil ..) tslb.
+                for (int k(0); k < nsoil; ++k) {
+                    noah_output_arr(i,j,0,soil_out_base + 0*nsoil + k) = noahmpio->SMOIS(i,k+1,j);
+                    noah_output_arr(i,j,0,soil_out_base + 1*nsoil + k) = noahmpio->SH2O (i,k+1,j);
+                    noah_output_arr(i,j,0,soil_out_base + 2*nsoil + k) = noahmpio->TSLB (i,k+1,j);
+                }
             });
 
             // Copy forcing data from Noahmp to ERF
@@ -431,17 +670,45 @@ NOAHMP::Advance_With_State (const int& lev,
                 // SurfaceLayer fluxes at CC.
                 // Noah-MP returns the -9999 fill value for cells it does NOT process
                 // (sea-ice / open-water points, which still have LANDMASK=1). Applying
-                // Detect the fill and instead write the lsm_undefined sentinel;
-                // the surface layer then falls back to the MOST flux for those cells
-                // (see ERF_SurfaceLayer.cpp).
+                // that as a flux gives -9999/(rho*Cp) ~ -7.6 K*m/s and crashes the
+                // lowest cell to ~200 K. Detect the fill and instead write the
+                // lsm_undefined sentinel; the surface layer then falls back to
+                // the MOST flux for those cells (see ERF_SurfaceLayer.cpp).
                 // NOTE: tau13/tau23 are nodal in xz/yz; the 2D MFs have 1 ghost cell
                 //       so the surface layer can average them.
                 Real hfx_lsm = noah_output_arr(ii,jj,0,NoahmpOutputComp::hfx);
                 if (hfx_lsm > Real(-9990.0)) {
-                    t_flux_arr(i,j,k) = hfx_lsm/(CONS(ii,jj,k,Rho_comp)*Cp_d);
-                    q_flux_arr(i,j,k) = noah_output_arr(ii,jj,0,NoahmpOutputComp::lh)/(CONS(ii,jj,k,Rho_comp)*L_v);
-                    tau13_arr(i,j,k)  = noah_output_arr(ii,jj,0,NoahmpOutputComp::tau_ew)/CONS(ii,jj,k,Rho_comp);
-                    tau23_arr(i,j,k)  = noah_output_arr(ii,jj,0,NoahmpOutputComp::tau_ns)/CONS(ii,jj,k,Rho_comp);
+                    // Convert Noah-MP surface fluxes to the KINEMATIC form ERF's
+                    // surface layer stores for its MOST parameter updates (u*, t*, L).
+                    // The LSM value is interchanged with the MOST value <x'w'> in the
+                    // same array; ERF's surface-layer/PBL convention is the KINEMATIC
+                    // MOST form (no rho):
+                    //   t_flux = <theta' w'>   [K m/s]   (ERF_MOSTStress.H, surf_temp_flux)
+                    //   q_flux = <qv' w'>      [kg/kg m/s]
+                    //   tau13/23 = u*^2 comps  [m2/s2]   (SurfaceLayer.cpp: u*=sqrt(tau))
+                    // Noah-MP returns HFX,LH [W/m2] and TAU_EW/NS [N/m2] (rho INCLUDED),
+                    // so we divide by rho. rho is dry-air density (~1.14 kg/m3).
+                    //
+                    // NOTE on Exner: strictly, ERF's energy variable is POTENTIAL
+                    // temperature, so the exact conversion of the Noah-MP sensible-heat
+                    // flux (built from ACTUAL temperatures) to a theta-flux would carry an
+                    // Exner factor:  theta-flux = HFX/(rho*Cp) * (p0/p)^(Rd/Cp).
+                    // We deliberately OMIT it here to match WRF, which applies HFX/(rho*Cp)
+                    // directly into its potential-temperature PBL equation (WRF
+                    // module_pbl_driver.F: b_t = hfx/rho/CP, no Exner). This is an
+                    // approximation relative to ERF's exact potential-temperature flux, not
+                    // an identity: the error scales with (p0/p)^(Rd/Cp)-1, which is small
+                    // near sea level (p ~= p0 -> Exner ~= 1.00-1.01, <~1%) but grows over
+                    // low-pressure / elevated terrain (e.g. p ~ 800 hPa -> ~6-7%). Reinstate
+                    // by multiplying t_flux by std::pow(p_0/getPgivenRTh(
+                    // CONS(ii,jj,k,RhoTheta_comp),
+                    // (is_moist)?CONS(ii,jj,k,RhoQ1_comp)/CONS(ii,jj,k,Rho_comp):zero),
+                    // R_d/Cp_d) if that bias matters for the case.
+                    Real rho_l  = CONS(ii,jj,k,Rho_comp);
+                    t_flux_arr(i,j,k) = hfx_lsm/(rho_l*Cp_d);
+                    q_flux_arr(i,j,k) = noah_output_arr(ii,jj,0,NoahmpOutputComp::lh)/(rho_l*L_v);
+                    tau13_arr(i,j,k)  = noah_output_arr(ii,jj,0,NoahmpOutputComp::tau_ew)/rho_l;
+                    tau23_arr(i,j,k)  = noah_output_arr(ii,jj,0,NoahmpOutputComp::tau_ns)/rho_l;
                 } else {
                     t_flux_arr(i,j,k) = lsm_undefined;
                     q_flux_arr(i,j,k) = lsm_undefined;
@@ -457,6 +724,24 @@ NOAHMP::Advance_With_State (const int& lev,
                     ALBSFCDIR_NIR(i,j,0) = noah_output_arr(ii,jj,0,NoahmpOutputComp::albsfcdir_nir);
                     ALBSFCDIF_VIS(i,j,0) = noah_output_arr(ii,jj,0,NoahmpOutputComp::albsfcdif_vis);
                     ALBSFCDIF_NIR(i,j,0) = noah_output_arr(ii,jj,0,NoahmpOutputComp::albsfcdif_nir);
+                    // Land return-term diagnostics (output only; not fed to dynamics)
+                    GRDFLX_o(i,j,0)      = noah_output_arr(ii,jj,0,NoahmpOutputComp::o_grdflx);
+                    FIRA_o(i,j,0)        = noah_output_arr(ii,jj,0,NoahmpOutputComp::o_fira);
+                    SAV_o(i,j,0)         = noah_output_arr(ii,jj,0,NoahmpOutputComp::o_sav);
+                    SAG_o(i,j,0)         = noah_output_arr(ii,jj,0,NoahmpOutputComp::o_sag);
+                    ALBEDO_o(i,j,0)      = noah_output_arr(ii,jj,0,NoahmpOutputComp::o_albedo);
+                    SFCRUNOFF_o(i,j,0)   = noah_output_arr(ii,jj,0,NoahmpOutputComp::o_sfcrunoff);
+                    UDRUNOFF_o(i,j,0)    = noah_output_arr(ii,jj,0,NoahmpOutputComp::o_udrunoff);
+                    // SMSTAV/SMSTOT are not computed by this Noah-MP core, so emit the
+                    // lsm_undefined sentinel rather than the uncomputed core value: a
+                    // physical-looking 0 would misrepresent them as valid diagnostics.
+                    SMSTAV_o(i,j,0)      = lsm_undefined;
+                    SMSTOT_o(i,j,0)      = lsm_undefined;
+                    // Per-layer soil profile (any NSOIL): copy each output component
+                    // into its dedicated 2D fab (soil_arr laid out group-major).
+                    for (int s(0); s < n_soil_fld; ++s) {
+                        soil_arr[s](i,j,0) = noah_output_arr(ii,jj,0,soil_out_base + s);
+                    }
                 } else {
                     TSK(i,j,0)           = lsm_undefined;
                     EMISS(i,j,0)         = lsm_undefined;
@@ -464,8 +749,70 @@ NOAHMP::Advance_With_State (const int& lev,
                     ALBSFCDIR_NIR(i,j,0) = lsm_undefined;
                     ALBSFCDIF_VIS(i,j,0) = lsm_undefined;
                     ALBSFCDIF_NIR(i,j,0) = lsm_undefined;
+                    GRDFLX_o(i,j,0)      = lsm_undefined;
+                    FIRA_o(i,j,0)        = lsm_undefined;
+                    SAV_o(i,j,0)         = lsm_undefined;
+                    SAG_o(i,j,0)         = lsm_undefined;
+                    ALBEDO_o(i,j,0)      = lsm_undefined;
+                    SFCRUNOFF_o(i,j,0)   = lsm_undefined;
+                    UDRUNOFF_o(i,j,0)    = lsm_undefined;
+                    SMSTAV_o(i,j,0)      = lsm_undefined;
+                    SMSTOT_o(i,j,0)      = lsm_undefined;
+                    // Per-layer soil profile: undefined sentinel on non-land cells.
+                    for (int s(0); s < n_soil_fld; ++s) {
+                        soil_arr[s](i,j,0) = lsm_undefined;
+                    }
                 }
             });
+            // The scatter kernel reads soil_arr_d (a per-iteration DeviceVector);
+            // synchronize before it is destroyed at the end of this MFIter body.
+            Gpu::streamSynchronize();
+        }
+
+        // Advance the precip "previous cumulative accum" snapshot to the current values
+        // now that this land call's RAINBL/SR have been consumed, so the next call
+        // differences against this step. Device-safe whole-MultiFab copy (these live in
+        // the device arena; never touch them on the host).
+        if (have_precip) {
+            for (int s(0); s < NoahmpPrecipSlot::NumSlots; ++s) {
+                if (slot_has[s]) {
+                    MultiFab::Copy(*m_precip_accum_prev[lev][s], *slot_accum[s], 0, 0, 1, 0);
+                }
+            }
+        }
+
+        // Report any cells the precip guard clamped (per rank; never silent).
+        if (!clamped_cells.empty()) {
+            const int nshow = amrex::min(int(clamped_cells.size()), 50);
+            amrex::AllPrint aprint;
+            aprint << "WARNING: NOAHMP precip guard (level " << lev << "): clamped "
+                   << clamped_cells.size() << " non-physical interval-precip cell(s) (> "
+                   << lsm_max_precip_interval << " mm):\n";
+            for (int c(0); c < nshow; ++c) {
+                aprint << "    (i,j)=(" << clamped_cells[c].i << "," << clamped_cells[c].j
+                       << ") raw=" << clamped_cells[c].raw_mm << " mm\n";
+            }
+            if (int(clamped_cells.size()) > nshow) {
+                aprint << "    ... and " << (int(clamped_cells.size()) - nshow) << " more\n";
+            }
+        }
+
+        // Report cells whose frozen components were rescaled to restore
+        // MP_SNOW+MP_GRAUP <= MP_RAINNC (per rank; never silent).
+        if (!invariant_cells.empty()) {
+            const int nshow = amrex::min(int(invariant_cells.size()), 50);
+            amrex::AllPrint aprint;
+            aprint << "WARNING: NOAHMP precip invariant (level " << lev << "): rescaled frozen "
+                   << "components in " << invariant_cells.size() << " cell(s) where "
+                   << "MP_SNOW+MP_GRAUP exceeded MP_RAINNC:\n";
+            for (int c(0); c < nshow; ++c) {
+                aprint << "    (i,j)=(" << invariant_cells[c].i << "," << invariant_cells[c].j
+                       << ") frozen=" << invariant_cells[c].froz_mm
+                       << " mm > total=" << invariant_cells[c].total_mm << " mm\n";
+            }
+            if (int(invariant_cells.size()) > nshow) {
+                aprint << "    ... and " << (int(invariant_cells.size()) - nshow) << " more\n";
+            }
         }
 
         // Fill the ghost cells
