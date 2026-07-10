@@ -1301,8 +1301,7 @@ init_base_state_from_metgrid (const bool use_moisture,
             // Surface values and constants
             Real dz, F, C;
             Real z_hi, Pd_hi, Td_hi, Rd_hi;
-            Real z_lo  = Real(0.25)  * ( z_arr(i,j  ,klo  ) + z_arr(i+1,j  ,klo  )
-                                       + z_arr(i,j+1,klo  ) + z_arr(i+1,j+1,klo  ) );
+            Real z_lo  = Real(0.25) * ( z_arr(i,j,klo  ) + z_arr(i+1,j,klo  ) + z_arr(i,j+1,klo  ) + z_arr(i+1,j+1,klo  ) );
             Real Pd_lo = p_0 * std::exp( -T00/TLP + std::sqrt( (T00/TLP)*(T00/TLP) - two * grav * z_lo / (TLP * R_d) ) );
             Real Td_lo = std::max(TISO, T00 + TLP * std::log(Pd_lo/p_0));
 

@@ -72,15 +72,23 @@ rebalance_columns (MultiFab& rho,
                 qv_hi = qv_arr(i,j,klo);
                 Th_hi = th_arr(i,j,klo);
                 P_hi  = p_0;
+                T_hi  = getTgivenPandTh(P_hi, Th_hi, R_d/Cp_d);
                 R_hi  = getRhogivenThetaPress(Th_hi, P_hi, R_d/Cp_d, qv_hi);
                 rho_tot_hi = R_hi * (one + qt_hi);
                 F = P_hi + myhalf*rho_tot_hi*grav*dz + C;
 
                 // Do iterations
-                HSEutils::Newton_Raphson_hse(tol, R_d/Cp_d, dz,
-                                             grav, C, Th_hi,
-                                             qt_hi, qv_hi,
-                                             P_hi, R_hi, F);
+                if (const_th) {
+                    HSEutils::Newton_Raphson_hse_Th(tol, R_d/Cp_d, dz,
+                                                    grav, C, Th_hi,
+                                                    qt_hi, qv_hi,
+                                                    P_hi, R_hi, F);
+                } else {
+                    HSEutils::Newton_Raphson_hse_T(tol, R_d/Cp_d, dz,
+                                                   grav, C, T_hi,
+                                                   qt_hi, qv_hi,
+                                                   P_hi, R_hi, F);
+                }
 
                 // Assign data
                 rho_arr(i,j,klo) = R_hi;
