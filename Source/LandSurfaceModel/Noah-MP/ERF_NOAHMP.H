@@ -89,8 +89,7 @@ namespace NoahmpPrecipSlot {
         rain,        // explicit rain accumulator (schemes without a total slot)
         snow,        // snow (+ice) accumulator
         graupel,     // graupel accumulator
-        hail,        // hail accumulator: intentionally folded into MP_GRAUP (this Noah-MP
-                     // core has no hail input; not exact WRF MP_HAIL parity -- see ERF_NOAHMP.cpp)
+        hail,        // hail accumulator: folded into MP_GRAUP (coupled MP_HAIL set to 0) -- see ERF_NOAHMP.cpp
         NumSlots
     };
 }

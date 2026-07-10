@@ -551,10 +551,9 @@ NOAHMP::Advance_With_State (const int& lev,
                               ? amrex::max(zero, (accum_now[s](i,j,kklo) - accum_prv[s](i,j,kklo)) * accum_fac[s])
                               : zero;
                     }
-                    // Frozen -> MP_SNOW / MP_GRAUP. Intentional fallback: this Noah-MP core
-                    // has no hail input, so the hail slot is folded into MP_GRAUP rather than
-                    // carried separately as WRF's MP_HAIL. No current ERF scheme fills the
-                    // hail slot (no-op today); add an explicit MP_HAIL path if one does.
+                    // Hail folded into MP_GRAUP (mass kept in the frozen total); no ERF scheme
+                    // fills the hail slot today. MP_HAIL is coupled but ERF sets it 0 below --
+                    // to feed hail separately, stage dd[hail] into MP_HAIL instead.
                     dsnow  = dd[NoahmpPrecipSlot::snow];
                     dgraup = dd[NoahmpPrecipSlot::graupel] + dd[NoahmpPrecipSlot::hail];
                     const Real dfroz = dsnow + dgraup;
@@ -611,7 +610,10 @@ NOAHMP::Advance_With_State (const int& lev,
                 noahmpio->SR(i,j)        = (drain_h > zero) ? amrex::min(Real(1.0), dfroz_h/drain_h) : zero; // [-]
                 noahmpio->MP_RAINNC(i,j) = drain_h;                                       // [mm]
                 noahmpio->MP_SNOW(i,j)   = dsnow_h;                                       // [mm]
-                noahmpio->MP_GRAUP(i,j)  = dgraup_h;                                      // [mm]
+                noahmpio->MP_GRAUP(i,j)  = dgraup_h;                                      // [mm] (includes folded hail)
+                // MP_HAIL is a consumed forcing input; 0 = "no hail" (correct value, not a
+                // placeholder). Not lsm_undefined -- a sentinel would corrupt opt_snf=4.
+                noahmpio->MP_HAIL(i,j)   = zero;                                          // [mm] ERF-owned; hail folded into MP_GRAUP
             });
 
             // Call the noahmpio driver code. This runs the land model forcing for
