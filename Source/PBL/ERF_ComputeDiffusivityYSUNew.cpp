@@ -688,7 +688,8 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
                 ? amrex::max(pblh_corr_arr(i, j, 0), pblh_floor_wscale)
                 : pblh_corr_arr(i, j, 0);
             // Store true (non-floored) wstar3 for K-profile use
-            wstar3_arr(i, j, 0) = (CONST_GRAV / t_dry) * bfx0_corr * pblh_corr_arr(i, j, 0);
+//            wstar3_arr(i, j, 0) = (CONST_GRAV / t_dry) * bfx0_corr * pblh_corr_arr(i, j, 0);
+            wstar3_arr(i, j, 0) = (CONST_GRAV / t_dry) * bfx0_corr * pblh_for_wscale;
             // Use pblh_for_wscale only for wscale_corr (feeds HGAMT/VPERT)
             const Real wstar3_for_wscale = (CONST_GRAV / t_dry) * bfx0_corr * pblh_for_wscale;
 
