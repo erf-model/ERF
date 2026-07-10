@@ -133,7 +133,7 @@ ImplicitDiffForStateLU_T (const Box& bx,
                 if (use_mrf_countergradient && (n == RhoTheta_comp || n == RhoQ1_comp)) {
                     const int gam_comp = (n == RhoTheta_comp) ? EddyDiff::HGAMT_v : EddyDiff::HGAMQ_v;
                     const Real gam_hi = myhalf * (mu_turb(i, j, klo, gam_comp) + mu_turb(i, j, klo+1, gam_comp));
-                    RHS_a(i,j,klo) += Fact * dz_inv * rhoAlpha_hi * gam_hi / met_h_zeta_hi;
+                    RHS_a(i,j,klo) -= Fact * rhoAlpha_hi * gam_hi / met_h_zeta_hi;
                 }
 
                 RHS_a(i,j,klo)    /= b_tmp;         // NOTE: this is now "rho"
@@ -165,9 +165,9 @@ ImplicitDiffForStateLU_T (const Box& bx,
                     const Real gam_kp1 = mu_turb(i, j, k+1, gam_comp);
                     const Real gam_hi  = myhalf * (gam_k + gam_kp1); // at k+½
                     const Real gam_lo  = myhalf * (gam_k + gam_km1); // at k-½
-                    // Countergradient flux divergence (explicit, added to RHS):
-                    //   d/dz[K_h * γ] ≈ (K_h_{k+½}·γ_{k+½} - K_h_{k-½}·γ_{k-½}) * dz_inv
-                    RHS_a(i,j,k) += Fact * dz_inv * (rhoAlpha_hi * gam_hi / met_h_zeta_hi - rhoAlpha_lo * gam_lo / met_h_zeta_lo);
+                    // Countergradient flux divergence (implicit contribution to RHS):
+                    //   -Fact * [ρα_{k+½}·γ_{k+½} - ρα_{k-½}·γ_{k-½}] / h_ζ
+                    RHS_a(i,j,k) -= Fact * (rhoAlpha_hi * gam_hi / met_h_zeta_hi - rhoAlpha_lo * gam_lo / met_h_zeta_lo);
                 }
 
                 RHS_a(i,j,k)    = (RHS_a(i,j,k) - a_tmp * RHS_a(i,j,k-1)) * inv_b2_tmp; // NOTE: This is now "rho"
