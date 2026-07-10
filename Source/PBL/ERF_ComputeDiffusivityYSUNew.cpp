@@ -28,7 +28,7 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
                        bool /*vert_only*/,
                        const std::unique_ptr<MultiFab>& z_phys_nd,
                        const MoistureComponentIndices& moisture_indices,
-                       const MultiFab* qheating_rates)
+                       const MultiFab* qheating_rates = nullptr)
 {
     /*
     ============================================================================
@@ -253,6 +253,7 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
         {
             const Real rho_sfc  = cell_data(i, j, klo, Rho_comp);
             const Real t_layer  = t10av_arr(i, j, 0);      // Dry potential temperature at z1
+            const Real q_layer  = use_moisture ? q10av_arr(i, j, 0) : zero;
 
             // WRF: rhox = psfc/(rd*tx(1)*tvcon), approximate with cell-bottom density
             const Real rhox = rho_sfc;
@@ -448,6 +449,8 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
         //
         const Real const_b = turbChoice.pbl_mrf_const_b;
         const Real sf = turbChoice.pbl_mrf_sf;
+        constexpr Real prmin = Real(0.5);
+        constexpr Real prmax = Real(4.0);
         constexpr Real GAMCRT = Real(3.0);    // WRF GAMCRT: max heat countergradient (K)
         constexpr Real GAMCRQ = Real(2.e-3);  // WRF GAMCRQ: max moisture countergradient (kg/kg)
         const bool enable_ysu_countergradient = turbChoice.enable_ysu_countergradient;
@@ -468,6 +471,11 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
                     Ribcr = amrex::min(Real(0.16) * std::pow(Real(1.0e-7) * Rossby, -Real(0.18)), Real(0.3));
                 }
             }
+
+            const Real t_layer  = t10av_arr(i, j, 0);
+            const Real moisture_fraction = use_moisture ? q10av_arr(i, j, 0) : zero;
+            const Real t_layer_v = t_layer * (one + amrex::Real(0.61) * moisture_fraction);
+            const Real t_layer_v_enhanced = t_layer_v + vpert_arr(i, j, 0);
 
             const amrex::Real z_sfc_col = (use_terrain_fitted_coords)
                                          ? Compute_Zrel_AtCellCenter(i, j, klo, z_nd_arr)
@@ -569,8 +577,6 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
         // Countergradient: HGAMT = min(CFAC * u* * θ*, GAMCRT), where CFAC=7.8, GAMCRT=3K
         // WRF Reference: module_bl_ysu.F lines 220-250
         const bool enable_ysu_sat_limiter = turbChoice.enable_ysu_sat_limiter;
-        const Real mol_fallback_threshold  = turbChoice.pbl_ysu_mol_fallback_threshold;
-        const Real pblh_floor_wscale       = turbChoice.pbl_ysu_pblh_floor_wscale;
          
         // ========================================================================
         // Cloud-top detection for top-down mixing (H10 Section 3b)
@@ -578,9 +584,6 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
         const bool enable_ysu_topdown = turbChoice.enable_ysu_topdown;
         const amrex::Real ysu_qcloud_threshold = turbChoice.ysu_qcloud_threshold;
           
-        const int izmin   = geom.Domain().smallEnd(2);
-        const int izmax   = geom.Domain().bigEnd(2);
-
         if (enable_ysu_topdown && use_moisture) {
             ParallelFor(xybx, [=] AMREX_GPU_DEVICE(int i, int j, int) noexcept
             {
@@ -676,43 +679,17 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
             wstar3_down_arr(i, j, 0) = wstar3_down;
              
             // Recompute wstar3 and wscale with corrected pblh_corr_arr
-            // Part 1: Anchor wscale to a minimum pblh for HGAMT computation when strongly unstable.
-            // WRF avoids wscale collapse by using pblh_guess=500m for initial wscale (module_bl_ysu.F lines 664-680).
-            // When MOL is very small (|L| < |mol_fallback_threshold|), pblh_corr may collapse to pblh_min;
-            // use a floor for the wstar3 computation feeding wscale_corr/HGAMT/VPERT only.
-            // Do NOT change pblh_corr_arr itself — the K-profile still uses the diagnosed value.
-            bool strongly_unstable = (obuk_val > mol_fallback_threshold && obuk_val < zero);
             const Real bfx0_corr = amrex::max(sflux_arr(i, j, 0), zero);
             const Real t_dry = t10av_arr(i, j, 0);
-            const Real pblh_for_wscale = strongly_unstable
-                ? amrex::max(pblh_corr_arr(i, j, 0), pblh_floor_wscale)
-                : pblh_corr_arr(i, j, 0);
-            // Store floored wstar3 for BOTH HGAMT/VPERT and K-profile use
-            const Real wstar3_corr = (CONST_GRAV / t_dry) * bfx0_corr * pblh_for_wscale;
+            const Real wstar3_corr = (CONST_GRAV / t_dry) * bfx0_corr * pblh_corr_arr(i, j, 0);
             wstar3_arr(i, j, 0) = wstar3_corr;
-
-            // Recompute wscale with floored pblh:
-            /*const Real ust3 = u_star_arr(i,j,0) * u_star_arr(i,j,0) * u_star_arr(i,j,0);
-            Real wscale_corr = std::cbrt(ust3 + amrex::Real(8.0) * KAPPA * wstar3_corr * amrex::Real(0.5));
-            wscale_corr = amrex::min(wscale_corr, u_star_arr(i,j,0) * amrex::Real(16.0));
-            wscale_corr = amrex::max(wscale_corr, u_star_arr(i,j,0) / amrex::Real(5.0));
-            wstar_arr(i, j, 0) = wscale_corr;*/
-
-            // Recompute wscale with floored pblh:
+            
+            // Recompute wscale with corrected pblh:
             const Real ust3 = u_star_arr(i,j,0) * u_star_arr(i,j,0) * u_star_arr(i,j,0);
             Real wscale_corr = std::cbrt(ust3 + amrex::Real(8.0) * KAPPA * wstar3_corr * amrex::Real(0.5));
             wscale_corr = amrex::min(wscale_corr, u_star_arr(i,j,0) * amrex::Real(16.0));
             wscale_corr = amrex::max(wscale_corr, u_star_arr(i,j,0) / amrex::Real(5.0));
-            // MRF-style absolute bounds when MOL < mol_fallback_threshold:
-            // When u_star collapses (calm winds + large heat flux), relative bounds
-            // u*/5 → 0 give no protection. MRF PASS 2/4 uses absolute [0.01, 5.0] m/s
-            // bounds independent of u_star, which kept MRF stable in your tests.
-            if (strongly_unstable) {
-                wscale_corr = amrex::max(wscale_corr, amrex::Real(0.01));
-                wscale_corr = amrex::min(wscale_corr, amrex::Real(5.0));
-            }
             wstar_arr(i, j, 0) = wscale_corr;
-
 
             // Compute HGAMT with corrected wscale and WRF convention
             // WRF bl_ysu.F90 line 687: gamfac = bfac/rhox/wscale
@@ -722,18 +699,8 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
             const Real rho_sfc = cell_data(i, j, klo, Rho_comp);
             const Real hfx_col = -rho_sfc * amrex::Real(1004.0) * u_star_arr(i,j,0) * t_star_arr(i,j,0);
             const Real gamfac = const_b / (rho_sfc * wscale_corr);
-            // Part 2: MRF-style HGAMT fallback when strongly unstable.
-            // When MOL < threshold, the gamfac*hfx form can be numerically unstable (hfx large,
-            // rho*wscale small). Fall back to the MRF formula: -const_b * u* * t* / wscale,
-            // which is algebraically equivalent but numerically more stable since wscale_corr
-            // has been stabilized via pblh_for_wscale. This matches MRF's robustness under
-            // extreme free convection. Reference: WRF module_bl_ysu.F lines 664-680.
-            const Real HGAMT_std = amrex::min(gamfac * hfx_col / amrex::Real(1004.0), GAMCRT);
-            const Real HGAMT_mrf = amrex::min(
-                -const_b * u_star_arr(i,j,0) * t_star_arr(i,j,0) / wscale_corr,
-                GAMCRT);
             const Real HGAMT = (SFCFLG && enable_ysu_countergradient)
-                             ? (strongly_unstable ? HGAMT_mrf : HGAMT_std)
+                             ? amrex::min(gamfac * hfx_col / amrex::Real(1004.0), GAMCRT)
                              : zero;
 
             // Compute HGAMQ with corrected wscale and WRF convention
@@ -878,7 +845,6 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
         // we need to re-scan for the PBL height using the corrector Ribcr criterion.
         // This corrects the earlier Pass 2 which used zero-VPERT Rib values.
         //
-
         ParallelFor(xybx, [=] AMREX_GPU_DEVICE(int i, int j, int) noexcept
         {
             // Determine surface-type-dependent critical Richardson number (same as before)
@@ -953,41 +919,7 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
             }
             pbli_arr(i, j, 0) = kpbl;
         });
-        // ========================================================================
-        // CLAMP pblh_corr_arr WHEN STRONGLY UNSTABLE (free-convection fallback)
-        // ========================================================================
-        // When |L| < |mol_fallback_threshold| (L between threshold and 0),
-        // the Rib scan cannot find a valid crossing — the entire profile is
-        // unstable and pblh_corr collapses to pblh_min (~8m).
-        // This causes prnumfac, zfac, pblh_rel, and sfclayer to all use a
-        // degenerate 8m PBLH, blowing up K_theta via Prt → 0.
-        // Apply a floor to pblh_corr_arr itself so all downstream uses are
-        // consistent. This matches WRF's approach of anchoring wstar3 to
-        // pblh_guess=500m (module_bl_ysu.F lines 664-680).
-        // Note: pbli_arr is NOT changed — the mixing extent index stays at klo.
-        // Note: Turb_lengthscale output will reflect the floored value.
-        {
-            const Real mol_thresh = mol_fallback_threshold;
-            const Real pblh_floor = pblh_floor_wscale;
-            ParallelFor(xybx, [=] AMREX_GPU_DEVICE(int i, int j, int) noexcept
-            {
-                Real obuk = l_obuk_arr(i, j, 0);
-                if (std::abs(obuk) < amrex::Real(1.0e-10))
-                    obuk = (obuk >= zero) ? amrex::Real(1.0e-10) : amrex::Real(-1.0e-10);
-                // Strongly unstable: L is negative and |L| < |threshold|
-                // i.e., L is between mol_thresh (-10m) and 0
-                const bool strongly_unstable = (obuk > mol_thresh) && (obuk < zero);
-                if (strongly_unstable) {
-                    pblh_corr_arr(i, j, 0) = amrex::max(pblh_corr_arr(i, j, 0), pblh_floor);
-                }
-if (strongly_unstable && i == 0 && j == 0) {
-    amrex::Print() << "PBLH CLAMP triggered: obuk=" << obuk 
-                   << " pblh before=" << pblh_corr_arr(i,j,0)
-                   << " floor=" << pblh_floor << "\n";
-}
 
-            });
-        }
         // ========================================================================
         // Extension scan using liquid potential temperature (WRF bl_ysu.F90 lines 733-769)
         // ========================================================================
@@ -995,8 +927,6 @@ if (strongly_unstable && i == 0 && j == 0) {
         // cloud-topped boundary layers. Triggered when enable_ysu_topdown and
         // use_moisture are both true.
         //
-        const auto& dxInv = geom.InvCellSizeArray();
-        const Real dz_inv = geom.InvCellSize(2);
         if (enable_ysu_topdown && use_moisture) {
             ParallelFor(xybx, [=] AMREX_GPU_DEVICE(int i, int j, int) noexcept
             {
@@ -1020,6 +950,9 @@ if (strongly_unstable && i == 0 && j == 0) {
                     const Real zval_kk = (use_terrain_fitted_coords)
                                        ? Compute_Zrel_AtCellCenter(i, j, kk, z_nd_arr)
                                        : (kk + myhalf) * gdata.CellSize(2);
+                    const Real zval_klo = (use_terrain_fitted_coords)
+                                        ? Compute_Zrel_AtCellCenter(i, j, klo, z_nd_arr)
+                                        : (klo + myhalf) * gdata.CellSize(2);
                     const Real zrel_kk = amrex::max(zval_kk - z_sfc, amrex::Real(1.0e-4));
                     
                     // Liquid-theta virtual potential temperature at current level and surface
@@ -1088,6 +1021,10 @@ if (strongly_unstable && i == 0 && j == 0) {
         });
         BL_PROFILE_VAR_STOP(prof_pblh);
 
+        const auto& dxInv = geom.InvCellSizeArray();
+        const Real dz_inv = geom.InvCellSize(2);
+        const int izmin   = geom.Domain().smallEnd(2);
+        const int izmax   = geom.Domain().bigEnd(2);
         // Compute entrainment diffusivity at PBL top cell (WRF bl_ysu.F90 lines 831-925)
         // Uses WRF's buoyancy-flux-based entrainment velocity (we), which accounts for
         // the actual inversion strength (dthvx) at the PBL top.
@@ -1140,8 +1077,9 @@ if (strongly_unstable && i == 0 && j == 0) {
                                    ? Compute_h_zeta_AtCellCenter(i, j, kpbl, dxInv, z_nd_arr) : one;
                 const Real dz_kpbl = met_h / dz_inv;
 
-                // Apply entrainment only when we < 0 (downward entrainment occurring):
-                // K_entr = rho_kpbl * |we| * dz_kpbl
+                // Apply entrainment only when we < 0 (downward entrainment occurring)
+                // K_entr_raw = rho_kpbl * |we| * dz_kpbl
+                const Real K_entr_raw = (we < zero) ? rho_kpbl * (-we) * dz_kpbl : zero;
                 const Real K_cap      = Real(5.0) * rho_kpbl * wscale * KAPPA * pblh * Real(0.01);
                 
                 // Cloudy entrainment correction (WRF bl_ysu.F90 lines 840-875)
@@ -1275,7 +1213,7 @@ if (strongly_unstable && i == 0 && j == 0) {
 
 
         BL_PROFILE_VAR("YSUNew_Kprofile", prof_kprof);
-        ParallelFor(gbx, [=, wstar3_arr_cap=wstar3_arr, zol1_arr_cap=zol1_arr, sfcflg_arr_cap=sfcflg_arr] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+        ParallelFor(gbx, [=, sflux_arr_cap=sflux_arr, wstar3_arr_cap=wstar3_arr, zol1_arr_cap=zol1_arr, sfcflg_arr_cap=sfcflg_arr] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {
             Real obuk_val = l_obuk_arr(i, j, 0);
             if (std::abs(obuk_val) < amrex::Real(1.0e-10)) {
@@ -1329,8 +1267,7 @@ if (strongly_unstable && i == 0 && j == 0) {
             //   This matches WRF behavior for better comparability
             // - Alternative (pbl_mrf_use_zero_ri_extent=true): use pbli_zero_arr (Ri=0)
             //   This provides a ~30-60% taller mixing region for convective ABL cases
-            //const int pbli_extent = turbChoice.pbl_mrf_use_zero_ri_extent ? pbli_zero_arr(i, j, 0) : pbli_arr(i, j, 0);
-            const int pbli_extent = pbli_arr(i, j, 0);             
+            const int pbli_extent = turbChoice.pbl_mrf_use_zero_ri_extent ? pbli_zero_arr(i, j, 0) : pbli_arr(i, j, 0);
 
             if (k < pbli_extent) {
                 // Within PBL: use nonlocal mixing with diagnostic stability functions
@@ -1478,6 +1415,8 @@ if (strongly_unstable && i == 0 && j == 0) {
                 // Use pre-computed wstar from the dedicated recomputation loop (lines 465-545).
                 // wstar_arr was computed with pblh_corr_arr to ensure consistency
                 // between countergradient diagnostics and K-profile calculations.
+                const Real wstar = wstar_arr(i, j, 0);
+
                 // SFCFLG gating: WRF skips nonlocal mixing in stable PBL (SFCFLG=.FALSE., BR>0, obuk_val>0)
                 // In stable conditions, use free-atmosphere Richardson mixing instead.
                 // WRF Reference: module_bl_ysu.F lines 200, 220-260
@@ -1518,8 +1457,7 @@ if (strongly_unstable && i == 0 && j == 0) {
                     constexpr Real ckz_pbl = Real(0.001);
                     const Real K_base = ckz_pbl * dz_terrain * rho;
                     constexpr Real pfac = amrex::Real(2.0);
-                    const Real zq_kp1_agl = zq_kp1 - z_sfc;
-                    K_turb(i, j, k, EddyDiff::Mom_v) = K_base + rho * wscalek_val * KAPPA * zq_kp1_agl * std::pow(zfac, pfac);
+                    K_turb(i, j, k, EddyDiff::Mom_v) = K_base + rho * wscalek_val * KAPPA * zq_kp1 * std::pow(zfac, pfac);
                     
                     // Apply Prandtl number to get heat and moisture diffusivity
                     K_turb(i, j, k, EddyDiff::Theta_v) = K_turb(i, j, k, EddyDiff::Mom_v) / Prt;
@@ -1542,9 +1480,6 @@ if (strongly_unstable && i == 0 && j == 0) {
                     
                     // Step 1: Compute zq_kp1 (top interface of cell k)
                     const Real zq_kp1_stable = zval + myhalf * dz_terrain;
-                    const Real z_sfc_stable = (use_terrain_fitted_coords)
-                                            ? Compute_Zrel_AtCellCenter(i, j, klo, z_nd_arr)
-                                            : zero;
                     
                     // Step 2: Get first-level height (zl1)
                     const Real zl1_stable = (use_terrain_fitted_coords)
@@ -1571,8 +1506,7 @@ if (strongly_unstable && i == 0 && j == 0) {
                     constexpr Real ckz_pbl_stable = Real(0.001);
                     const Real K_base_stable = ckz_pbl_stable * dz_terrain * rho;
                     constexpr Real pfac_stable = amrex::Real(2.0);
-                    const Real zq_kp1_stable_agl = zq_kp1_stable - z_sfc_stable;
-                    K_turb(i, j, k, EddyDiff::Mom_v) = K_base_stable + rho * wscalek_stable * KAPPA * zq_kp1_stable_agl * std::pow(zfac_stable, pfac_stable);
+                    K_turb(i, j, k, EddyDiff::Mom_v) = K_base_stable + rho * wscalek_stable * KAPPA * zq_kp1_stable * std::pow(zfac_stable, pfac_stable);
                     
                     // Step 6: Apply Prandtl number for stable PBL
                     // For stable, prfac=0 (from step 3 of SECTION A)
@@ -1813,6 +1747,7 @@ if (strongly_unstable && i == 0 && j == 0) {
             }
         });
         BL_PROFILE_VAR_STOP(prof_kprof);
+        amrex::Print()<<" Turbulent Viscosity at cell "<<K_turb(2, 2, 2, EddyDiff::Mom_v)<<" "<<pblh_corr_arr(2, 2, 0)<<std::endl;
         // FOEXTRAP top and bottom ghost cells
         ParallelFor(xybx, [=] AMREX_GPU_DEVICE(int i, int j, int ) noexcept
         {
