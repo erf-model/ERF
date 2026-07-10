@@ -220,10 +220,10 @@ ERF::PackAtmosphericStates (amrex::Vector<amrex::MultiFab*>& states,
                 MultiFab tmp(ba2d_lev, dm, 1, 0);
                 for (MFIter mfi(tmp, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
                     Box bx = mfi.tilebox();
-                    auto const& rad = rad_fluxes[lev]->const_array(mfi);
+                    auto const& rad_flux = rad_fluxes[lev]->const_array(mfi);
                     auto t = tmp.array(mfi);
                     ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-                        t(i,j,k) = rad(i,j,k,3) - rad(i,j,k,2);
+                        t(i,j,k) = rad_flux(i,j,k,3) - rad_flux(i,j,k,2);
                     });
                 }
                 const IntVect ratio = ba2d_lev.minimalBox().length()
