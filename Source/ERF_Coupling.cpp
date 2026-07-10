@@ -140,15 +140,12 @@ ERF::PackAtmosphericStates (amrex::Vector<amrex::MultiFab*>& states,
             for (MFIter mfi(tmp, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
                 Box bx = mfi.tilebox();
                 auto const& tau13 = Tau[lev][TauType::tau13]->const_array(mfi);
-                auto const& c = cons.const_array(mfi);
                 auto t = tmp.array(mfi);
-                ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-                    const Real tau_x_kinematic = Real(0.5) * (tau13(i,j,klo) + tau13(i+1,j,klo));
-                    // ERF tau13/tau23 are kinematic stresses [m^2/s^2]. Export
-                    // dynamic stress [N/m^2] so REMORA can reuse its existing
-                    // bulk_fluxes-style 1/rho0 stress application path.
-                    t(i,j,k) = c(i,j,klo,Rho_comp) * tau_x_kinematic;
-                });
+                 ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+                     // Tau stores conservative stress already, so export the
+                     // surface-face average directly without another rho factor.
+                     t(i,j,k) = Real(0.5) * (tau13(i,j,klo) + tau13(i+1,j,klo));
+                 });
             }
             const IntVect ratio = ba2d_lev.minimalBox().length()
                                 / states[iTauX]->boxArray().minimalBox().length();
@@ -161,12 +158,12 @@ ERF::PackAtmosphericStates (amrex::Vector<amrex::MultiFab*>& states,
             for (MFIter mfi(tmp, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
                 Box bx = mfi.tilebox();
                 auto const& tau23 = Tau[lev][TauType::tau23]->const_array(mfi);
-                auto const& c = cons.const_array(mfi);
                 auto t = tmp.array(mfi);
-                ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-                    const Real tau_y_kinematic = Real(0.5) * (tau23(i,j,klo) + tau23(i,j+1,klo));
-                    t(i,j,k) = c(i,j,klo,Rho_comp) * tau_y_kinematic;
-                });
+                 ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+                     // Tau stores conservative stress already, so export the
+                     // surface-face average directly without another rho factor.
+                     t(i,j,k) = Real(0.5) * (tau23(i,j,klo) + tau23(i,j+1,klo));
+                 });
             }
             const IntVect ratio = ba2d_lev.minimalBox().length()
                                 / states[iTauY]->boxArray().minimalBox().length();
