@@ -681,7 +681,7 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
             // When MOL is very small (|L| < |mol_fallback_threshold|), pblh_corr may collapse to pblh_min;
             // use a floor for the wstar3 computation feeding wscale_corr/HGAMT/VPERT only.
             // Do NOT change pblh_corr_arr itself — the K-profile still uses the diagnosed value.
-            /*bool strongly_unstable = (obuk_val > mol_fallback_threshold && obuk_val < zero);
+            bool strongly_unstable = (obuk_val > mol_fallback_threshold && obuk_val < zero);
             const Real bfx0_corr = amrex::max(sflux_arr(i, j, 0), zero);
             const Real t_dry = t10av_arr(i, j, 0);
             const Real pblh_for_wscale = strongly_unstable
@@ -696,7 +696,7 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
             Real wscale_corr = std::cbrt(ust3 + amrex::Real(8.0) * KAPPA * wstar3_corr * amrex::Real(0.5));
             wscale_corr = amrex::min(wscale_corr, u_star_arr(i,j,0) * amrex::Real(16.0));
             wscale_corr = amrex::max(wscale_corr, u_star_arr(i,j,0) / amrex::Real(5.0));
-            wstar_arr(i, j, 0) = wscale_corr;*/
+            wstar_arr(i, j, 0) = wscale_corr;
 
             // Compute HGAMT with corrected wscale and WRF convention
             // WRF bl_ysu.F90 line 687: gamfac = bfac/rhox/wscale
