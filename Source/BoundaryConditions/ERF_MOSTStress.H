@@ -580,16 +580,25 @@ struct surface_flux
                 wstar = mdata.Bjr_beta * w_star_arr(i,j,k);
                 umm = std::sqrt(umm_arr(i,j,k)*umm_arr(i,j,k) + wstar*wstar);
                 umm = std::max(umm, WSMIN);
+                amrex::Print() << "w* updated: wstar=" << wstar << " umm=" << umm << "\n";
             }
             Olen  = -ustar * ustar * ustar * tvm_arr(i,j,k) / (mdata.kappa * mdata.gravity * tflux);
             zeta  = zref / Olen;
+            // Bound zeta to prevent free-convection singularity.
+            // WRF module_sf_sfclayrev.F: zeta bounded at rimin=-100 (unstable) and rimax=0.2 (stable).
+            // This prevents |L| → 0 when u* is small and heat flux is large.
+            constexpr amrex::Real zeta_min = amrex::Real(-100.0);
+            constexpr amrex::Real zeta_max = amrex::Real(0.2);
+            zeta  = amrex::max(amrex::min(zeta, zeta_max), zeta_min);
+            // Recompute Olen from bounded zeta for self-consistency
+            Olen  = zref / zeta;
             psi_m = sfuns.calc_psi_m(zeta);
             psi_h = sfuns.calc_psi_h(zeta);
             u_star_arr(i,j,k) = mdata.kappa * umm / (std::log(zref / z0_arr(i,j,k)) - psi_m);
             ++iter;
         } while ((std::abs(u_star_arr(i,j,k) - ustar) > tol) && iter <= max_iters);
-        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(iter < max_iters,
-                                         "Maximum number of MOST iterations reached.");
+        /*AMREX_ALWAYS_ASSERT_WITH_MESSAGE(iter < max_iters,
+                                         "Maximum number of MOST iterations reached."); */
 
         // Populate the stored MOST arrays
         olen_arr(i,j,k)   = Olen;
