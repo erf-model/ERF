@@ -207,6 +207,8 @@ steps above assume the `noahmpio->FIELD` member already exists.
 - `noahmpio_vect` indexing (`idb`), the `bx.smallEnd(2) != klo` slab guard, and
   the `(ii,jj)` clamping are untouched.
 
-> The `ERF_NOAHMP_*.cpp`/`.H` files can optionally be updated with **CodeScribe**
-> (<https://github.com/akashdhruv/CodeScribe>), an LLM-based code-update tool.
-> This section is the interface contract such a prompt must respect.
+> This section is the interface contract a coding agent must respect when it
+> updates the `ERF_NOAHMP_*.cpp`/`.H` files: the checklist above is the acceptance
+> criteria for the change. Keeping this contract in `dev/` beside the code — so a
+> human or an agent works from the same spec — is part of ongoing AI-for-HPC
+> research using [CodeScribe](https://github.com/akashdhruv/CodeScribe).
