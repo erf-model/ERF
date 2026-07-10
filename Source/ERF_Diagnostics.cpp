@@ -173,7 +173,7 @@ ERF::compute_max_pressure_gradient_diagnostic(int lev)
 
     Real tol;
 #ifdef AMREX_USE_FLOAT
-    tol = 1.e-4;
+    tol = Real(1.e-4);
 #else
     if (solverChoice.terrain_type == TerrainType::EB) {
         tol = 1.e-4;

@@ -16,23 +16,29 @@ namespace
     AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE Real shoc_base_temp () noexcept { return 300.0_rt; }
     AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE Real shoc_ufmin () noexcept { return 0.01_rt; }
 
+#ifdef AMREX_USE_FLOAT
+Real eps = Real(1.e-6);
+#else
+Real eps = 1.e-12;
+#endif
+
     AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
     Real weighted_linear_interp (Real x0, Real x1, Real y0, Real y1, Real x)
     {
         const Real denom = x1 - x0;
-        if (amrex::Math::abs(denom) <= 1.0e-12_rt) {
+        if (amrex::Math::abs(denom) <= eps) {
             return 0.5_rt * (y0 + y1);
         }
         return y0 + (y1 - y0) * (x - x0) / denom;
     }
 
     AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-    Real signed_denominator (Real value, Real eps = 1.0e-12)
+    Real signed_denominator (Real value, Real eps_in = eps)
     {
-        if (amrex::Math::abs(value) >= eps) {
+        if (amrex::Math::abs(value) >= eps_in) {
             return value;
         }
-        return std::copysign(eps, value == 0.0_rt ? 1.0_rt : value);
+        return std::copysign(eps_in, value == zero ? one : value);
     }
 
     void interpolate_cc_to_iface (const ShocColumnData& col,
@@ -81,12 +87,12 @@ namespace
                                 int ic, int k)
     {
         if (k <= 0) {
-            return amrex::max(zt(ic,0,0) - zi(ic,0,0), 1.0e-12_rt);
+            return amrex::max(zt(ic,0,0) - zi(ic,0,0), eps);
         }
         if (k >= layout.nlev) {
-            return amrex::max(zi(ic,layout.nlev,0) - zt(ic,layout.nlev-1,0), 1.0e-12_rt);
+            return amrex::max(zi(ic,layout.nlev,0) - zt(ic,layout.nlev-1,0), eps);
         }
-        return amrex::max(zt(ic,k,0) - zt(ic,k-1,0), 1.0e-12_rt);
+        return amrex::max(zt(ic,k,0) - zt(ic,k-1,0), eps);
     }
 
     AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
@@ -410,15 +416,15 @@ ShocMoments::diagnose_third_moments (ShocColumnData& col,
                 continue;
             }
 
-            const Real dz_zt_k = amrex::max(dz(ic,k,0), 1.0e-12_rt);
-            const Real dz_zt_km1 = amrex::max(dz(ic,k-1,0), 1.0e-12_rt);
+            const Real dz_zt_k = amrex::max(dz(ic,k,0), eps);
+            const Real dz_zt_km1 = amrex::max(dz(ic,k-1,0), eps);
             const Real dz_zi = cell_spacing_at_iface(zt, zi, layout, ic, k);
             const Real thedz = 1.0_rt / dz_zi;
             const Real thedz2 = 1.0_rt / (dz_zt_k + dz_zt_km1);
             const Real iso = isotropy_i(ic,k,0);
             const Real isosq = iso * iso;
             const Real buoy_sgs2 = isosq * brunt_i(ic,k,0);
-            const Real bet2 = CONST_GRAV / amrex::max(thetal_i(ic,k,0), 1.0e-12_rt);
+            const Real bet2 = CONST_GRAV / amrex::max(thetal_i(ic,k,0), eps);
 
             // E3SM's top-down indexing forms above-minus-below centered
             // differences here. In ERF's bottom-up ordering, the upper
@@ -430,10 +436,10 @@ ShocMoments::diagnose_third_moments (ShocColumnData& col,
             const Real tke_diff = tke(ic,k,0) - tke(ic,k-1,0);
 
             const Real c = opts.c_diag_3rd_mom;
-            const Real a0 = (0.52_rt / (c * c)) / amrex::max(c - 2.0_rt, 1.0e-12_rt);
+            const Real a0 = (0.52_rt / (c * c)) / amrex::max(c - 2.0_rt, eps);
             const Real a1 = 0.87_rt / (c * c);
             const Real a2 = 0.5_rt / c;
-            const Real a3 = 0.6_rt / (c * amrex::max(c - 2.0_rt, 1.0e-12_rt));
+            const Real a3 = 0.6_rt / (c * amrex::max(c - 2.0_rt, eps));
             const Real a4 = 2.4_rt / (3.0_rt * c + 5.0_rt);
             const Real a5 = 0.6_rt / (c * (3.0_rt + 5.0_rt * c));
             const Real bet2_sq = bet2 * bet2;
@@ -459,7 +465,7 @@ ShocMoments::diagnose_third_moments (ShocColumnData& col,
             const Real x0 = (a2 * buoy_sgs2 * (1.0_rt - a3 * buoy_sgs2)) / denom0;
             const Real y0 = (2.0_rt * a2 * buoy_sgs2 * x0) / signed_denominator(1.0_rt - a3 * buoy_sgs2);
             const Real x1 = (a0 * f0 + a1 * f1 + a2 * (1.0_rt - a3 * buoy_sgs2) * f2) / denom0;
-            const Real y1 = (2.0_rt * a2 * (buoy_sgs2 * x1 + (a0 / amrex::max(a1, 1.0e-12_rt)) * f0 + f1)) /
+            const Real y1 = (2.0_rt * a2 * (buoy_sgs2 * x1 + (a0 / amrex::max(a1, eps)) * f0 + f1)) /
                             signed_denominator(1.0_rt - a3 * buoy_sgs2);
             const Real aa0 = omega0 * x0 + omega1 * y0;
             const Real aa1 = omega0 * x1 + omega1 * y1 + omega2;

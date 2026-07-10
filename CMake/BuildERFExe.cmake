@@ -248,7 +248,6 @@ function(build_erf_lib erf_lib_name)
   endif()
 
   erf_add_native_shoc_sources(${erf_lib_name})
-  target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_NATIVE_SHOC)
   target_compile_definitions(${erf_lib_name} PUBLIC ERF_HAS_SHOC_FAMILY)
 
   if(ERF_ENABLE_EAMXX_SHOC)
@@ -390,6 +389,7 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/IO/ERF_Plotfile2DFill.cpp
        ${SRC_DIR}/IO/ERF_Plotfile2DMetadata.cpp
        ${SRC_DIR}/IO/ERF_Plotfile2DWaterPath.cpp
+       ${SRC_DIR}/IO/ERF_Plotfile2DPrecip.cpp
        ${SRC_DIR}/IO/ERF_Plotfile2DSampledField.cpp
        ${SRC_DIR}/IO/ERF_Plotfile2DSampledLevel.cpp
        ${SRC_DIR}/IO/ERF_Plotfile2DInterpolator.cpp

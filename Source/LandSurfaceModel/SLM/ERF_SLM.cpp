@@ -7,7 +7,11 @@ void
 SLM::Init (const int& /*lev*/,
            const MultiFab& cons_in,
            const Geometry& geom,
-           const double& dt)
+           const Geometry& /*geom0*/,
+           Vector<BCRec>& /*domain_bcs_type*/,
+           IntVect& /*refRatio*/,
+           const Real& dt,
+           Vector<Vector<std::string>>& /*nc_init_file*/)
 {
     m_dt = dt;
     m_geom = geom;
@@ -108,7 +112,7 @@ void
 SLM::AdvanceSLM ()
 {
     // Expose for GPU copy
-    double dt = m_dt;
+    Real dt = static_cast<Real>(m_dt);
     Real dzInv = m_lsm_geom.InvCellSize(2);
 
     for ( MFIter mfi(*(lsm_fab_vars[LsmVar_SLM::theta])); mfi.isValid(); ++mfi) {

@@ -159,7 +159,7 @@ realbdy_bc_bxs_xy (const Box& bx,
  */
 void
 realbdy_compute_interior_ghost_rhs (const double& time,
-                                    const double& delta_t,
+                                    const double& delta_t_d,
                                     const double& start_bdy_time,
                                     const double& final_bdy_time,
                                     const double& bdy_time_interval,
@@ -177,6 +177,8 @@ realbdy_compute_interior_ghost_rhs (const double& time,
                                     const Real& rdOcp)
 {
     BL_PROFILE_REGION("realbdy_compute_interior_ghost_RHS()");
+
+    Real delta_t = static_cast<Real>(delta_t_d);
 
     //
     // Note that time (= start_time+old_stage_time)  is measured as total time
@@ -206,15 +208,15 @@ realbdy_compute_interior_ghost_rhs (const double& time,
     Real F1 = one/(nudge_factor*delta_t);
 
     // Time interpolation
-    double dT = bdy_time_interval;
+    double dT_d = bdy_time_interval;
 
-    int n_time    = static_cast<int>( (time-start_bdy_time) /  dT);
+    int n_time    = static_cast<int>( (time-start_bdy_time) /  dT_d);
     int n_time_p1 = n_time + 1;
-    double alpha  = ((time-start_bdy_time) - n_time * dT) / dT;
+    Real alpha  = static_cast<Real>(((time-start_bdy_time) - n_time * dT_d) / dT_d);
 
     // Do not over run the last bdy file
     if (time >= final_bdy_time) {
-        n_time    = static_cast<int>( (final_bdy_time - start_bdy_time)/ dT);
+        n_time    = static_cast<int>( (final_bdy_time - start_bdy_time)/ dT_d);
         n_time_p1 = n_time;
         alpha     = zero;
     }
@@ -550,6 +552,8 @@ realbdy_compute_interior_ghost_rhs (const double& time,
         const auto& bdatyhi_n   = bdy_data_yhi[n_time   ][ivarV].const_array();
         const auto& bdatyhi_np1 = bdy_data_yhi[n_time_p1][ivarV].const_array();
 
+        Real dT = static_cast<Real>(bdy_time_interval);
+
         ParallelFor(tbx_lo, tbx_hi,
         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
@@ -560,7 +564,7 @@ realbdy_compute_interior_ghost_rhs (const double& time,
                 u_tend   = btenxlo(i,j,k,BCVars::xvel_bc);
                 u_val    = bdatxlo(i,j,k,BCVars::xvel_bc);
             } else {
-                u_tend   = (bdatxlo_np1(i,j,k) - bdatxlo_n(i,j,k)) / bdy_time_interval;
+                u_tend   = (bdatxlo_np1(i,j,k) - bdatxlo_n(i,j,k)) / dT;
                 u_val    = oma * bdatxlo_n(i,j,k) + alpha * bdatxlo_np1(i,j,k);
             }
                 rhs_xmom(i,j,k) = rho_val * u_tend + u_val * rho_tend;
@@ -574,7 +578,7 @@ realbdy_compute_interior_ghost_rhs (const double& time,
                 u_tend   = btenxhi(i,j,k,BCVars::xvel_bc);
                 u_val    = bdatxhi(i,j,k,BCVars::xvel_bc);
             } else {
-                u_tend   = (bdatxhi_np1(i,j,k) - bdatxhi_n(i,j,k)) / bdy_time_interval;
+                u_tend   = (bdatxhi_np1(i,j,k) - bdatxhi_n(i,j,k)) / dT;
                 u_val    = oma * bdatxhi_n(i,j,k) + alpha * bdatxhi_np1(i,j,k);
             }
             rhs_xmom(i,j,k) = rho_val * u_tend + u_val * rho_tend;
@@ -590,7 +594,7 @@ realbdy_compute_interior_ghost_rhs (const double& time,
                 v_tend   = btenylo(i,j,k,BCVars::yvel_bc);
                 v_val    = bdatylo(i,j,k,BCVars::yvel_bc);
             } else {
-                v_tend   = (bdatylo_np1(i,j,k) - bdatylo_n(i,j,k)) / bdy_time_interval;
+                v_tend   = (bdatylo_np1(i,j,k) - bdatylo_n(i,j,k)) / dT;
                 v_val    = oma * bdatylo_n(i,j,k) + alpha * bdatylo_np1(i,j,k);
             }
             rhs_ymom(i,j,k) = rho_val * v_tend + v_val * rho_tend;
@@ -604,7 +608,7 @@ realbdy_compute_interior_ghost_rhs (const double& time,
                 v_tend   = btenyhi(i,j,k,BCVars::yvel_bc);
                 v_val    = bdatyhi(i,j,k,BCVars::yvel_bc);
             } else {
-                v_tend   = (bdatyhi_np1(i,j,k) - bdatyhi_n(i,j,k)) / bdy_time_interval;
+                v_tend   = (bdatyhi_np1(i,j,k) - bdatyhi_n(i,j,k)) / dT;
                 v_val    = oma * bdatyhi_n(i,j,k) + alpha * bdatyhi_np1(i,j,k);
             }
             rhs_ymom(i,j,k) = rho_val * v_tend + v_val * rho_tend;
@@ -630,7 +634,7 @@ realbdy_compute_interior_ghost_rhs (const double& time,
  */
 void
 fine_compute_interior_ghost_rhs (const double& time,
-                                 const double& delta_t,
+                                 const double& delta_t_d,
                                  const int& width,
                                  const int& set_width,
                                  const Geometry& geom,
@@ -643,6 +647,8 @@ fine_compute_interior_ghost_rhs (const double& time,
                                  Vector<MultiFab>& S_data_f)
 {
     BL_PROFILE_REGION("fine_compute_interior_ghost_RHS()");
+
+    Real delta_t = static_cast<Real>(delta_t_d);
 
     // Relaxation constants
     Real F1 = one/(Real(10.)*delta_t);

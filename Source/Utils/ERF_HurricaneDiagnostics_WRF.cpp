@@ -316,6 +316,8 @@ ERF::ReadStormTrackerRestart ()
 {
     hurricane_eye_track_xy.clear();
     hurricane_eye_track_latlon.clear();
+    hurricane_maxvel_vs_time.clear();
+    hurricane_minpressure_vs_time.clear();
 
     const fs::path base_dir("Output_StormTracker");
 
@@ -371,6 +373,64 @@ ERF::ReadStormTrackerRestart ()
             while (ifs >> lat >> lon)
             {
                 hurricane_eye_track_latlon.push_back({lat, lon});
+            }
+        }
+    }
+
+    //==========================================================
+    // Read maxvel tracker file
+    //==========================================================
+
+    {
+        fs::path file = last_file(base_dir / "maxvel");
+
+        if (!file.empty())
+        {
+            std::ifstream ifs(file);
+
+            if (!ifs.is_open()) {
+                Abort("Could not open " + file.string());
+            }
+
+            std::string line;
+
+            // Skip the header line.
+            std::getline(ifs, line);
+
+            amrex::Real val1, val2;
+
+            while (ifs >> val1 >> val2)
+            {
+                hurricane_maxvel_vs_time.push_back({val1, val2});
+            }
+        }
+    }
+
+    //==========================================================
+    // Read minpressure tracker file
+    //==========================================================
+
+    {
+        fs::path file = last_file(base_dir / "minpressure");
+
+        if (!file.empty())
+        {
+            std::ifstream ifs(file);
+
+            if (!ifs.is_open()) {
+                Abort("Could not open " + file.string());
+            }
+
+            std::string line;
+
+            // Skip the header line.
+            std::getline(ifs, line);
+
+            amrex::Real val1, val2;
+
+            while (ifs >> val1 >> val2)
+            {
+                hurricane_minpressure_vs_time.push_back({val1, val2});
             }
         }
     }
@@ -438,7 +498,7 @@ ERF::HurricaneEyeTracker_WRF (const SolverChoice& sc)
 }
 
 void
-ERF::HurricaneMaxVelTracker_WRF(const Geometry& geom,
+ERF::HurricaneMaxVelTracker_WRF(const Geometry& lev_geom,
                                 const MultiFab& mf_cc_vel,
                                 const double& time)
 {
@@ -449,8 +509,8 @@ ERF::HurricaneMaxVelTracker_WRF(const Geometry& geom,
     d_val_max_ptr = d_val_max.data();
 
     const auto [x_last, y_last] = hurricane_eye_track_xy.back();
-    const auto dx = geom.CellSizeArray();
-    const auto prob_lo = geom.ProbLoArray();
+    const auto dx = lev_geom.CellSizeArray();
+    const auto prob_lo = lev_geom.ProbLoArray();
 
     Real x_eye = x_last;
     Real y_eye = y_last;
@@ -494,7 +554,7 @@ ERF::HurricaneMaxVelTracker_WRF(const Geometry& geom,
 
 void
 ERF::HurricaneMinPressureTracker_WRF(MoistureType moisture_type,
-                                 const Geometry& geom,
+                                 const Geometry& lev_geom,
                                  const MultiFab& mf_cons_var,
                                  const double& time)
 {
@@ -506,8 +566,8 @@ ERF::HurricaneMinPressureTracker_WRF(MoistureType moisture_type,
 
     const Real x_last = hurricane_eye_track_xy.back()[0];
     const Real y_last = hurricane_eye_track_xy.back()[1];
-    const auto dx = geom.CellSizeArray();
-    const auto prob_lo = geom.ProbLoArray();
+    const auto dx = lev_geom.CellSizeArray();
+    const auto prob_lo = lev_geom.ProbLoArray();
 
     const int ncomp = mf_cons_var.nComp();
     bool use_moisture = (moisture_type != MoistureType::None);

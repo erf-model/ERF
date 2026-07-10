@@ -1011,9 +1011,10 @@ struct SolverChoice {
         }
 
         for (int lev = 0; lev <= max_level; lev++) {
-            amrex::Print() << "vert_implicit_fac at level  : " << lev << " " << vert_implicit_fac[lev][0] << " "
-                                                                             << vert_implicit_fac[lev][1] << " "
-                                                                             << vert_implicit_fac[lev][2];
+            amrex::Print() << "vert_implicit_fac at level " << lev << " : "
+                           << vert_implicit_fac[lev][0] << " "
+                           << vert_implicit_fac[lev][1] << " "
+                           << vert_implicit_fac[lev][2];
             if (vert_implicit_fac[lev][0] > zero ||
                 vert_implicit_fac[lev][1] > zero ||
                 vert_implicit_fac[lev][2] > zero)

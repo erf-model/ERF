@@ -1,0 +1,92 @@
+# ------------------  INPUTS TO MAIN PROGRAM  -------------------
+# Arctic Polar Stable Boundary Layer (GABLS3 Style) Test Case
+#
+# An extremely stable boundary layer under intense surface radiative cooling (e.g., -1 K/h).
+#
+# Why it is needed:
+# This evaluates the Richardson-number-dependent free-atmosphere mixing formulation
+# and the minimum conservative diffusivity limit (K_min = 0.1 m²/s) under conditions
+# of completely collapsed boundary layer turbulence. This exercises the upper bound
+# of the gradient Richardson number above the PBL and the stable mixing routines.
+#
+# This test validates MRF's numerical stability and bounds in extremely stable regimes.
+
+erf.prob_name = "ABL"
+
+max_step = 20
+
+amrex.fpe_trap_invalid = 0
+
+fabarray.mfiter_tile_size = 1024 1024 1024
+
+# PROBLEM SIZE & GEOMETRY
+geometry.prob_extent = 8000  8000  2048
+amr.n_cell           =  8   8   64
+geometry.is_periodic = 1 1 0
+
+# MOST BOUNDARY WITH INTENSE COOLING
+zlo.type = "surface_layer"
+erf.most.z0   = 0.1
+erf.most.zref = 48.0
+erf.most.surf_temp = 260.0 # very cold Arctic surface
+erf.most.surf_heating_rate = -1.0 # intense radiative surface cooling (-1.0 K/h)
+
+zhi.type = "SlipWall"
+zhi.theta_grad = 0.01
+
+# TIME STEP CONTROL
+erf.fixed_dt = 0.05
+
+# DIAGNOSTICS & VERBOSITY
+erf.sum_interval   = 1
+erf.v              = 1
+amr.v              = 1
+
+# REFINEMENT / REGRIDDING
+amr.max_level       = 0
+
+# CHECKPOINT FILES
+erf.check_file      = chk_arctic
+erf.check_int       = 100
+
+# DATA COLLECTION
+erf.data_log    = unstable_hist.dat unstable_profiles.dat
+erf.profile_int = 10
+
+# PLOTFILES
+erf.plot_file_1     = plt_unstable      # prefix of plotfile name
+erf.plot_int_1      = 15                # number of timesteps between plotfiles
+erf.plot_vars_1     = density rhoadv_0 rhoadv_1 x_velocity y_velocity z_velocity pressure temp theta
+
+# SOLVER CHOICE
+erf.use_gravity = true
+
+erf.molec_diff_type = "None"
+# When using a PBL model, LES closure should be disabled
+erf.les_type        = "None"
+erf.Cs = 0.11
+erf.theta_ref = 300.0
+
+# INITIALIZATION - from sounding file
+erf.init_type = "input_sounding"
+erf.sounding_type = Ideal
+erf.input_sounding_file = "input_sounding_MRF_arctic"
+
+# INITIALIZATION - extremely cold stable atmosphere
+
+
+# Extremely weak perturbations (quickly suppressed)
+
+# PBL CONFIGURATION - MRF under extreme polar cooling
+erf.pbl_type = "MRF"
+erf.pbl_mrf_Ribcr = 0.5
+erf.pbl_mrf_const_b = 7.8
+erf.pbl_mrf_sf = 0.1
+erf.enable_mrf_countergradient = false
+erf.mrf_moistvars = false
+
+erf.use_coriolis = true
+
+erf.abl_driver_type = "GeostrophicWind"
+
+erf.abl_geo_wind = 5.0 0.0 0.0

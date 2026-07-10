@@ -24,6 +24,7 @@
 #include "ERF_DataStruct.H"
 #include "ERF_NullMoist.H"
 #include "ERF_SAMUtils.H"
+#include "ERF_SurfacePrecipitation.H"
 
 namespace MicVar {
    enum {
@@ -78,6 +79,7 @@ public:
     void
     Define (SolverChoice& sc) override
     {
+        m_moisture_type = sc.moisture_type;
         m_fac_cond = lcond / sc.c_p;
         m_fac_fus  = lfus / sc.c_p;
         m_fac_sub  = lsub / sc.c_p;
@@ -178,6 +180,24 @@ public:
         a_idx.push_back(0); a_names.push_back("RainAccum");
         a_idx.push_back(1); a_names.push_back("SnowAccum");
         a_idx.push_back(2); a_names.push_back("GraupAccum");
+    }
+
+    SurfacePrecipAccumulationSources
+    Get_Surface_Precip_Accumulation_Ptrs (const int&) const override
+    {
+        if (m_moisture_type == MoistureType::SAM_NoPrecip_NoIce) {
+            return {};
+        }
+
+        SurfacePrecipAccumulationSources sources;
+        sources.rain = {mic_fab_vars[MicVar::rain_accum].get(), rhor / amrex::Real(1000.0)};
+
+        if (m_moisture_type == MoistureType::SAM) {
+            sources.snow    = {mic_fab_vars[MicVar::snow_accum].get(), rhos / amrex::Real(1000.0)};
+            sources.graupel = {mic_fab_vars[MicVar::graup_accum].get(), rhog / amrex::Real(1000.0)};
+        }
+
+        return sources;
     }
 
     AMREX_GPU_HOST_DEVICE
@@ -329,6 +349,7 @@ private:
     amrex::Real m_fac_sub;
     amrex::Real m_rdOcp;
     bool m_do_cond;
+    MoistureType m_moisture_type = MoistureType::None;
 
     // Minimum dz at this level
     amrex::Real m_dzmin;
