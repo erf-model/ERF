@@ -152,9 +152,11 @@ out to every box) so a restart resumes the schedule exactly — see
 
 **First: is the field mechanical (a pure 1:1 copy) or computed?** A field that is
 just moved between an ERF `Array4` and a named `NoahmpIO` member — no averaging,
-EOS, guard, or band index — is *mechanical*: add it to the matching X-macro list
-in `ERF_NOAHMP_Fields.H` (`NOAHMP_INPUT_3D`/`NOAHMP_INPUT_2D`/`NOAHMP_OUTPUT_2D`)
-and it is generated into the enum **and** the host copy loop from one line. A
+EOS, guard, or band index — is *mechanical*: add it to the matching field
+registry in `ERF_NOAHMP_Fields.H` (`NOAHMP_INPUT_3D_FIELDS` /
+`NOAHMP_INPUT_2D_FIELDS` / `NOAHMP_OUTPUT_2D_FIELDS`, or `NOAHMP_RESULT_FIELDS`
+for a Noah-MP→ERF result) and it is generated into the enum **and** the host
+copy loop from one line. A
 field with per-field math (winds, EOS, precip, banded albedos, fluxes, soil) is
 *computed* and follows the explicit steps below. See
 [`spec-noahmp-reorg.md`](spec-noahmp-reorg.md) §4 for the exact boundary.
