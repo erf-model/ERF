@@ -40,7 +40,10 @@ These are the fields ERF's other components read from / write to the LSM, via th
   temperature `t_sfc`, emissivity `sfc_emis`, the four albedos
   (`sfc_alb_{dir,dif}_{vis,nir}`), `cos_zenith_angle`, and the downwelling
   short/long-wave fluxes that radiation produces and Noah-MP consumes
-  (`sw_flux_dn*`, `lw_flux_dn`). Stored in `lsm_fab_data[]`.
+  (`sw_flux_dn*`, `lw_flux_dn`). The same enum also carries Noah-MP's land
+  return-term diagnostics (`grdflx`…`smstot`) and, appended at runtime after
+  `NumVars`, the soil profile (`SMOIS`/`SH2O`/`TSLB`). All are stored in
+  `lsm_fab_data[]`.
 - **`LsmFlux_NOAHMP`** — turbulent fluxes handed to the **surface layer**:
   `t_flux`, `q_flux`, and the momentum stresses `tau13`/`tau23`. Stored in
   `lsm_fab_flux[]` with one ghost cell — a one-wide halo of copied neighbor
@@ -49,11 +52,10 @@ These are the fields ERF's other components read from / write to the LSM, via th
 
 Direction matters: some `LsmData` entries flow *into* Noah-MP as forcing
 (`sw_flux_dn`, `lw_flux_dn`, `cos_zenith_angle`), the rest flow *out* of Noah-MP
-as results (`t_sfc`, `sfc_emis`, albedos). Radiation runs first each step and
-reads the *result* fields before Noah-MP has produced them, so those are
-pre-seeded to sane values in `Init()` (`t_sfc = 300 K`, `sfc_emis = 0.9`,
-albedos `= 0.06`); the remaining fields, including the forcing fields, are left
-at zero.
+as results (`t_sfc`, `sfc_emis`, albedos). `Init()` initializes every
+`lsm_fab_data` (and `lsm_fab_flux`) field to the `lsm_undefined` sentinel; each
+is overwritten with a real value once radiation (the forcing fields) and Noah-MP
+(the result fields) have run.
 
 Each enum has a `NumVars` sentinel. `Init()` builds parallel
 `LsmDataMap`/`LsmDataName` (and the flux equivalents) so ERF can look fields up
@@ -67,12 +69,17 @@ to move data to/from Noah-MP each step. They are an implementation detail of the
 exchange, **not** ERF-visible fields:
 
 - **`NoahmpInputComp`** — forcing ERF → Noah-MP: `u_phy`, `v_phy`, `t_phy`,
-  `qv_curr`, `p8w`, `swdown`, `glw`, `coszen`.
+  `qv_curr`, `p8w`, `swdown`, `glw`, `coszen`, plus the computed precip-staging
+  components `rainbl`, `sr_in`, `mp_rainnc`, `mp_snow`, `mp_graup`.
 - **`NoahmpOutputComp`** — results Noah-MP → ERF: `hfx`, `lh`, `tau_ew`,
-  `tau_ns`, `tsk`, `emiss`, and the four albedos.
+  `tau_ns`, `tsk`, `emiss`, the four banded albedos, the land return-term
+  outputs `o_grdflx`, `o_fira`, `o_sav`, `o_sag`, `o_albedo`, `o_sfcrunoff`,
+  `o_udrunoff`, and the sentinels `o_smstav`, `o_smstot`.
 
-Both end in `NumComps`, which sizes the staging buffers. The full mechanics of
-how these components are written and read live in
+Both end in `NumComps`. The input buffer is sized to `NumComps`; the output
+buffer additionally carries the runtime soil profile (`SMOIS`/`SH2O`/`TSLB`),
+so it is sized `NumComps + 3*m_nsoil`. The full mechanics of how these
+components are written and read live in
 [`spec-noahmp-gpu.md`](spec-noahmp-gpu.md).
 
 ## 3. The `NullSurf` contract this class implements
@@ -101,8 +108,8 @@ how these components are written and read live in
    atmosphere's lowest level (`khi_lsm = domain.smallEnd(2) - 1`), with the same
    x/y decomposition as `cons_in` (every box ranged to `k = 0`).
 3. **Registers the coupling fields** — fills `LsmDataMap`/`LsmDataName` and the
-   flux equivalents, allocates `lsm_fab_data[]` / `lsm_fab_flux[]`, and seeds the
-   result fields radiation reads before Noah-MP has produced them (§2a).
+   flux equivalents, allocates `lsm_fab_data[]` / `lsm_fab_flux[]`, and
+   initializes every one to the `lsm_undefined` sentinel (§2a).
 4. **Sizes the per-box state** — `noahmpio_vect.resize(local_size, lev)` (a rank
    owning no boxes leaves it empty), and allocates the pinned staging buffers
    `noahmp_input_tmp[]` / `noahmp_output_tmp[]` (one per box; see

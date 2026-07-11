@@ -48,8 +48,9 @@ editing **both**.
 - `interp_from_lev0(...)` — the `!m_has_nc_file` fine-level interpolation branch.
 - `time_to_fire(elapsed_time)` — the firing-schedule gate + lockstep counter
   advance (identical on every rank; see api spec §5).
-- `prepare_precip_sources(...)` / `advance_precip_snapshots(...)` /
-  `report_precip_diagnostics(...)` — precip bookkeeping (`_Precip.cpp`).
+- `collect_precip_sources(...)` / `prepare_precip_snapshots(...)` /
+  `advance_precip_snapshots(...)` / `report_precip_diagnostics(...)` — precip
+  bookkeeping (`_Precip.cpp`).
 - per box: `stage_forcing(...)` (gpu-spec steps 1–3) then `DriverMain()` (step 4)
   then `read_results(...)` (steps 5–6).
 
