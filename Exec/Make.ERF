@@ -295,7 +295,7 @@ ifeq ($(USE_NOAHMP), TRUE)
     INCLUDE_LOCATIONS += $(ERF_LSM_NOAHMP_DIR)
 
     LIBRARY_LOCATIONS += $(NOAHMP_HOME)/drivers/erf/lib
-    LIBRARIES += -lnoahmp
+    LIBRARIES += -lnoahmp -lgfortran -lquadmath -lnetcdff
   endif
 endif
 
@@ -537,6 +537,11 @@ include $(AMREX_HOME)/Tools/GNUMake/Make.rules
 build_noahmp:
 ifeq ($(USE_NOAHMP), TRUE)
 	$(MAKE) -C $(NOAHMP_HOME)/drivers/erf -f Makefile all_noahmp NOAHMP_PRECISION_FLAG="$(NOAHMP_PRECISION_FLAG)"
+
+# Build Noah-MP (codegen + libnoahmp.a) before any ERF object; -j ignores the
+# `all` prereq order, so an order-only (|) dep is needed to enforce it.
+
+$(objForExecs): | build_noahmp
 endif
 
 all: build_noahmp $(executable)
