@@ -80,7 +80,7 @@ NOAHMP::time_to_fire (const Real& elapsed_time)
 // ---------------------------------------------------------------------------
 void
 NOAHMP::stage_forcing (const MFIter& mfi,
-                       const int& idb,
+                       const erf_noahmp::NoahmpBlockViews& blk,
                        const Box& bx,
                        const int& klo,
                        const int& lev,
@@ -88,11 +88,11 @@ NOAHMP::stage_forcing (const MFIter& mfi,
                        MultiFab& cons_in,
                        MultiFab& xvel_in,
                        MultiFab& yvel_in,
-                       const noahmp_detail::PrecipSlots& precip,
-                       Vector<noahmp_detail::ClampedPrecipCell>& clamped_cells,
-                       Vector<noahmp_detail::InvariantPrecipCell>& invariant_cells)
+                       const erf_noahmp::PrecipSlots& precip,
+                       Vector<erf_noahmp::ClampedPrecipCell>& clamped_cells,
+                       Vector<erf_noahmp::InvariantPrecipCell>& invariant_cells)
 {
-    NoahmpIO_type* noahmpio = &noahmpio_vect[idb];
+    NoahmpIO_type* noahmpio = blk.io;
 
     const Array4<const Real>& U_PHY  = xvel_in.const_array(mfi);
     const Array4<const Real>& V_PHY  = yvel_in.const_array(mfi);
@@ -104,7 +104,7 @@ NOAHMP::stage_forcing (const MFIter& mfi,
     const Array4<const Real>& COSZEN = lsm_fab_data[LsmData_NOAHMP::cos_zenith_angle]->const_array(mfi);
 
     // Pinned (host-accessible, GPU-usable) staging buffer
-    Array4<Real> noah_input_arr = noahmp_input_tmp[idb]->array();
+    Array4<Real> noah_input_arr = blk.input;
 
     // Per-slot precip accumulation views (current + previous-call snapshot) and
     // their native->kg/m^2 factors, for the water-equivalent interval precip.
@@ -183,7 +183,7 @@ NOAHMP::stage_forcing (const MFIter& mfi,
         Real dgraup_h = noah_input_arr(i,j,0,NoahmpInputComp::mp_graup);
         Real drain_h  = noah_input_arr(i,j,0,NoahmpInputComp::rainbl);
         if (drain_h > lsm_max_precip_interval) {
-            clamped_cells.push_back(noahmp_detail::ClampedPrecipCell{i, j, drain_h});
+            clamped_cells.push_back(erf_noahmp::ClampedPrecipCell{i, j, drain_h});
             drain_h = lsm_max_precip_interval;
         }
         // Frozen/total invariant: MP_SNOW+MP_GRAUP are subsets of MP_RAINNC, so
@@ -192,7 +192,7 @@ NOAHMP::stage_forcing (const MFIter& mfi,
         Real dfroz_h = dsnow_h + dgraup_h;
         const Real inv_tol = Real(1.0e-6) * (Real(1.0) + drain_h);
         if (dfroz_h > drain_h + inv_tol) {
-            invariant_cells.push_back(noahmp_detail::InvariantPrecipCell{i, j, dfroz_h, drain_h});
+            invariant_cells.push_back(erf_noahmp::InvariantPrecipCell{i, j, dfroz_h, drain_h});
             if (dfroz_h > zero) {
                 const Real scale = drain_h / dfroz_h;   // <= 1
                 dsnow_h  *= scale;
@@ -215,12 +215,12 @@ NOAHMP::stage_forcing (const MFIter& mfi,
 // ---------------------------------------------------------------------------
 void
 NOAHMP::read_results (const MFIter& mfi,
-                      const int& idb,
+                      const erf_noahmp::NoahmpBlockViews& blk,
                       const Box& bx,
                       const Box& gbx,
                       MultiFab& cons_in)
 {
-    NoahmpIO_type* noahmpio = &noahmpio_vect[idb];
+    NoahmpIO_type* noahmpio = blk.io;
 
     // For limiting when populating ghost cells
     int i_lo = bx.smallEnd(0); int i_hi = bx.bigEnd(0);
@@ -263,7 +263,7 @@ NOAHMP::read_results (const MFIter& mfi,
     Array4<Real> tau13_arr     = lsm_fab_flux[LsmFlux_NOAHMP::tau13]->array(mfi);
     Array4<Real> tau23_arr     = lsm_fab_flux[LsmFlux_NOAHMP::tau23]->array(mfi);
 
-    Array4<Real> noah_output_arr = noahmp_output_tmp[idb]->array();
+    Array4<Real> noah_output_arr = blk.output;
 
     // (5) Copy NoahmpIO results into the pinned output buffer. Mechanical 2D
     // reads are generated from the registry; banded albedos and the soil profile
@@ -397,12 +397,12 @@ NOAHMP::Advance_With_State (const int& lev,
         // microphysics scheme via the typed source interface (ERF_NOAHMP_Precip.cpp).
         // Collect the slots, then seed the per-level previous-accumulation snapshots
         // the delta kernel differences against.
-        const noahmp_detail::PrecipSlots precip = collect_precip_sources(precip_sources);
+        const erf_noahmp::PrecipSlots precip = collect_precip_sources(precip_sources);
         prepare_precip_snapshots(lev, precip);
 
         // Cells the guards touched this call; reported after the box loop.
-        Vector<noahmp_detail::ClampedPrecipCell>   clamped_cells;
-        Vector<noahmp_detail::InvariantPrecipCell> invariant_cells;
+        Vector<erf_noahmp::ClampedPrecipCell>   clamped_cells;
+        Vector<erf_noahmp::InvariantPrecipCell> invariant_cells;
 
         // Loop over blocks: ERF -> Noahmp, drive the land model, Noahmp -> ERF.
         int idb = 0;
@@ -417,19 +417,25 @@ NOAHMP::Advance_With_State (const int& lev,
             bx.makeSlab(2,klo);
             gbx.makeSlab(2,klo);
 
-            NoahmpIO_type* noahmpio = &noahmpio_vect[idb];
+            // The NoahmpIO block and its pinned staging buffers for this box,
+            // all co-indexed by idb, bundled into one handle.
+            const erf_noahmp::NoahmpBlockViews blk {
+                &noahmpio_vect[idb],
+                noahmp_input_tmp[idb]->array(),
+                noahmp_output_tmp[idb]->array()
+            };
 
             // (1-3) ERF forcing -> pinned input -> NoahmpIO arrays.
-            stage_forcing(mfi, idb, bx, klo, lev, is_moist,
+            stage_forcing(mfi, blk, bx, klo, lev, is_moist,
                           cons_in, xvel_in, yvel_in,
                           precip, clamped_cells, invariant_cells);
 
             // (4) Drive Noah-MP. Mirror the authoritative counter into the block first.
-            noahmpio->itimestep = m_itimestep;
-            noahmpio->DriverMain();
+            blk.io->itimestep = m_itimestep;
+            blk.io->DriverMain();
 
             // (5-6) NoahmpIO results -> pinned output -> ERF coupling fields.
-            read_results(mfi, idb, bx, gbx, cons_in);
+            read_results(mfi, blk, bx, gbx, cons_in);
         }
 
         // Advance the snapshots now that this call's RAINBL/SR have been consumed.

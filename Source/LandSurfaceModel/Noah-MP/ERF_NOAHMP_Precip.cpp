@@ -22,10 +22,10 @@ using namespace amrex;
 // Collect the five typed slots (NoahmpPrecipSlot order) into a fixed-index bundle
 // so the snapshot bookkeeping and the device delta kernel can loop generically.
 // Slots the active scheme does not provide keep a null accum.
-noahmp_detail::PrecipSlots
+erf_noahmp::PrecipSlots
 NOAHMP::collect_precip_sources (const SurfacePrecipAccumulationSources& precip_sources)
 {
-    noahmp_detail::PrecipSlots p;
+    erf_noahmp::PrecipSlots p;
     const SurfacePrecipAccumulationSource slot_src[NoahmpPrecipSlot::NumSlots] = {
         precip_sources.total, precip_sources.rain, precip_sources.snow,
         precip_sources.graupel, precip_sources.hail };
@@ -44,7 +44,7 @@ NOAHMP::collect_precip_sources (const SurfacePrecipAccumulationSources& precip_s
 // start, seed from the current accumulation so the first interval's delta is 0.
 void
 NOAHMP::prepare_precip_snapshots (const int& lev,
-                                  const noahmp_detail::PrecipSlots& precip)
+                                  const erf_noahmp::PrecipSlots& precip)
 {
     if (!precip.have_any) { return; }
 
@@ -77,7 +77,7 @@ NOAHMP::prepare_precip_snapshots (const int& lev,
 // the device arena; never touch them on the host).
 void
 NOAHMP::advance_precip_snapshots (const int& lev,
-                                  const noahmp_detail::PrecipSlots& precip)
+                                  const erf_noahmp::PrecipSlots& precip)
 {
     if (!precip.have_any) { return; }
     for (int s(0); s < NoahmpPrecipSlot::NumSlots; ++s) {
@@ -91,8 +91,8 @@ NOAHMP::advance_precip_snapshots (const int& lev,
 // whose frozen components were rescaled to restore MP_SNOW+MP_GRAUP <= MP_RAINNC.
 void
 NOAHMP::report_precip_diagnostics (const int& lev,
-                                   const Vector<noahmp_detail::ClampedPrecipCell>& clamped_cells,
-                                   const Vector<noahmp_detail::InvariantPrecipCell>& invariant_cells)
+                                   const Vector<erf_noahmp::ClampedPrecipCell>& clamped_cells,
+                                   const Vector<erf_noahmp::InvariantPrecipCell>& invariant_cells)
 {
     if (!clamped_cells.empty()) {
         const int nshow = amrex::min(int(clamped_cells.size()), 50);

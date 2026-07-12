@@ -23,18 +23,11 @@
 #include <ERF_DataStruct.H>
 #include <ERF_SurfacePrecipitation.H>
 
-// External include from the noahmp library
 #include <NoahmpIO.H>
-
-// The ERF <-> Noah-MP coupling field enums (LsmData_NOAHMP, LsmFlux_NOAHMP,
-// NoahmpPrecipSlot, NoahmpInputComp, NoahmpOutputComp) and the X-macro field
-// registry that generates them and the mechanical copy loops. This header is
-// the single declaration of what crosses the coupling boundary.
 #include <ERF_NOAHMP_Fields.H>
 
-// Small POD helpers used by the Advance_With_State pipeline (see
-// ERF_NOAHMP_Advance.cpp / ERF_NOAHMP_Precip.cpp).
-namespace noahmp_detail {
+// Small POD helpers used by the Advance_With_State
+namespace erf_noahmp {
     // The typed precip accumulator views collected once per Advance: for each
     // NoahmpPrecipSlot, the scheme-native cumulative accumulator (borrowed), its
     // native->kg/m^2 (water-equivalent mm) factor, and whether the active scheme
@@ -52,6 +45,14 @@ namespace noahmp_detail {
     // Cells where the frozen components violated MP_SNOW+MP_GRAUP <= MP_RAINNC and
     // were rescaled to restore the invariant (per rank); reported after the loop.
     struct InvariantPrecipCell { int i; int j; amrex::Real froz_mm; amrex::Real total_mm; };
+
+    // The per-surface-box handles co-indexed by the box counter idb: the NoahmpIO
+    // block plus its pinned input/output staging buffers.
+    struct NoahmpBlockViews {
+        NoahmpIO_type*             io;      // &noahmpio_vect[idb]
+        amrex::Array4<amrex::Real> input;   // noahmp_input_tmp[idb]->array()
+        amrex::Array4<amrex::Real> output;  // noahmp_output_tmp[idb]->array()
+    };
 }
 
 class NOAHMP : public NullSurf {
@@ -241,11 +242,11 @@ private:
     time_to_fire (const amrex::Real& elapsed_time);
 
     // Per surface box: stage ERF forcing into the pinned input buffer and copy
-    // it into the NoahmpIO arrays (gpu-spec steps 1-3). idb is the box index in
-    // noahmpio_vect / the pinned buffers.
+    // it into the NoahmpIO arrays (gpu-spec steps 1-3). blk bundles the NoahmpIO
+    // block and its pinned staging buffers for this box.
     void
     stage_forcing (const amrex::MFIter& mfi,
-                   const int& idb,
+                   const erf_noahmp::NoahmpBlockViews& blk,
                    const amrex::Box& bx,
                    const int& klo,
                    const int& lev,
@@ -253,16 +254,16 @@ private:
                    amrex::MultiFab& cons_in,
                    amrex::MultiFab& xvel_in,
                    amrex::MultiFab& yvel_in,
-                   const noahmp_detail::PrecipSlots& precip,
-                   amrex::Vector<noahmp_detail::ClampedPrecipCell>& clamped_cells,
-                   amrex::Vector<noahmp_detail::InvariantPrecipCell>& invariant_cells);
+                   const erf_noahmp::PrecipSlots& precip,
+                   amrex::Vector<erf_noahmp::ClampedPrecipCell>& clamped_cells,
+                   amrex::Vector<erf_noahmp::InvariantPrecipCell>& invariant_cells);
 
     // Per surface box: read NoahmpIO results into the pinned output buffer and
     // scatter them into the ERF coupling data/flux fields (gpu-spec steps 5-6),
     // applying the -9999 fill-value guard.
     void
     read_results (const amrex::MFIter& mfi,
-                  const int& idb,
+                  const erf_noahmp::NoahmpBlockViews& blk,
                   const amrex::Box& bx,
                   const amrex::Box& gbx,
                   amrex::MultiFab& cons_in);
@@ -270,25 +271,25 @@ private:
     // --- Precip bookkeeping (ERF_NOAHMP_Precip.cpp) --------------------------
 
     // Collect the typed precip accumulator views for this Advance.
-    noahmp_detail::PrecipSlots
+    erf_noahmp::PrecipSlots
     collect_precip_sources (const SurfacePrecipAccumulationSources& precip_sources);
 
     // Lazily allocate + seed the per-level "previous cumulative accum" snapshots
     // (cold start seeds from current; restart consumes m_precip_accum_restored).
     void
     prepare_precip_snapshots (const int& lev,
-                              const noahmp_detail::PrecipSlots& precip);
+                              const erf_noahmp::PrecipSlots& precip);
 
     // Advance the snapshots to the current accumulation after the land call.
     void
     advance_precip_snapshots (const int& lev,
-                              const noahmp_detail::PrecipSlots& precip);
+                              const erf_noahmp::PrecipSlots& precip);
 
     // Report (per rank, never silent) any cells clamped or rescaled by the guard.
     void
     report_precip_diagnostics (const int& lev,
-                               const amrex::Vector<noahmp_detail::ClampedPrecipCell>& clamped_cells,
-                               const amrex::Vector<noahmp_detail::InvariantPrecipCell>& invariant_cells);
+                               const amrex::Vector<erf_noahmp::ClampedPrecipCell>& clamped_cells,
+                               const amrex::Vector<erf_noahmp::InvariantPrecipCell>& invariant_cells);
 
     // number of lsm data variables = fixed 2D fields (LsmData_NOAHMP::NumVars) plus
     // the runtime soil profile (3 groups x m_nsoil layers). Finalized in Init once
