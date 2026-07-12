@@ -373,17 +373,43 @@ std::string serialize_provenance_block (const ProvenanceRecord& record)
 
 ProvenanceParseResult parse_provenance_block (std::string_view text)
 {
-    const std::size_t begin = text.find(provenance_begin);
-    const std::size_t end = text.find(provenance_end);
-    if (begin == std::string_view::npos) {
-        return failure(ProvenanceReadStatus::MissingProvenanceBlock,
-                       "job_info has no ERF provenance block");
+    enum class BlockState { BeforeBlock, InsideBlock, AfterBlock };
+    BlockState state = BlockState::BeforeBlock;
+    std::vector<std::string> block_lines;
+    std::istringstream input{std::string(text)};
+    std::string line;
+    while (std::getline(input, line)) {
+        line = strip_cr(std::move(line));
+        const bool is_begin = line == provenance_begin;
+        const bool is_end = line == provenance_end;
+        if (state == BlockState::BeforeBlock) {
+            if (is_end) {
+                return failure(ProvenanceReadStatus::MalformedProvenance,
+                               "provenance end marker precedes begin marker");
+            }
+            if (is_begin) state = BlockState::InsideBlock;
+        } else if (state == BlockState::InsideBlock) {
+            if (is_begin) {
+                return failure(ProvenanceReadStatus::MalformedProvenance,
+                               "provenance block has a nested begin marker");
+            }
+            if (is_end) {
+                state = BlockState::AfterBlock;
+            } else {
+                block_lines.push_back(line);
+            }
+        } else if (is_begin || is_end) {
+            return failure(ProvenanceReadStatus::MalformedProvenance,
+                           "job_info has multiple provenance blocks");
+        }
     }
-    if (end == std::string_view::npos || end < begin ||
-        text.find(provenance_begin, begin + 1) != std::string_view::npos ||
-        text.find(provenance_end, end + 1) != std::string_view::npos) {
+    if (state == BlockState::BeforeBlock) {
+        return failure(ProvenanceReadStatus::MissingProvenanceBlock,
+                       "job_info has no exact ERF provenance block");
+    }
+    if (state == BlockState::InsideBlock) {
         return failure(ProvenanceReadStatus::MalformedProvenance,
-                       "job_info has multiple or unterminated provenance blocks");
+                       "provenance block has no matching end marker");
     }
 
     std::unordered_map<std::string, std::string> fields;
@@ -394,11 +420,7 @@ ProvenanceParseResult parse_provenance_block (std::string_view text)
         "artifact_uuid", "artifact_type", "artifact_step", "artifact_time_seconds",
         "artifact_created_utc"
     };
-    std::istringstream lines(std::string(text.substr(begin + std::string(provenance_begin).size(),
-                                                     end - begin - std::string(provenance_begin).size())));
-    std::string line;
-    while (std::getline(lines, line)) {
-        line = strip_cr(std::move(line));
+    for (const auto& line : block_lines) {
         if (line.empty()) continue;
         const std::size_t equals = line.find('=');
         if (equals == std::string::npos || equals == 0) {

@@ -7,6 +7,7 @@
 #include <fstream>
 #include <sstream>
 #include <string>
+#include <vector>
 
 namespace
 {
@@ -41,6 +42,20 @@ std::string replace_once (std::string text, const std::string& from, const std::
     EXPECT_NE(position, std::string::npos);
     if (position != std::string::npos) text.replace(position, from.size(), to);
     return text;
+}
+
+std::string reorder_schema_keys (const std::string& serialized)
+{
+    std::istringstream input(serialized);
+    std::vector<std::string> lines;
+    std::string line;
+    while (std::getline(input, line)) lines.push_back(line);
+    EXPECT_EQ(lines.size(), 18u);
+    if (lines.size() == 18u) std::swap(lines[1], lines[12]);
+
+    std::ostringstream output;
+    for (const auto& value : lines) output << value << '\n';
+    return output.str();
 }
 
 } // namespace
@@ -188,6 +203,50 @@ TEST(ERFProvenance, HumanTextAroundBlock)
                              "build hash=" + uuid_c + "\n";
     const auto parsed = parse_provenance_block(text);
     ASSERT_TRUE(parsed.valid()) << parsed.diagnostic;
+    EXPECT_EQ(parsed.record.artifact.artifact_uuid, artifact_a);
+}
+
+TEST(ERFProvenance, ExactMarkersIgnoreSurroundingText)
+{
+    // Motivation: Parameter values and human-readable job_info text may contain marker tokens, so only exact marker lines may delimit provenance.
+    auto execution = make_cold_start_provenance(uuid_a, "2026-07-11T18:42:17Z");
+    execution.source_checkpoint_path = "/scratch/ERF_PROVENANCE_BEGIN/run=one/chk00010";
+    const auto record = checkpoint_record(execution, artifact_a);
+    const std::string text = "note=ERF_PROVENANCE_BEGIN\n"
+                             "prefix ERF_PROVENANCE_END suffix\n" +
+                             serialize_provenance_block(record) +
+                             "after=ERF_PROVENANCE_BEGIN\n";
+    const auto parsed = parse_provenance_block(text);
+    ASSERT_TRUE(parsed.valid()) << parsed.diagnostic;
+    EXPECT_EQ(parsed.record.execution.source_checkpoint_path,
+              "/scratch/ERF_PROVENANCE_BEGIN/run=one/chk00010");
+}
+
+TEST(ERFProvenance, MarkerSubstringsDoNotCreateABlock)
+{
+    // Motivation: A marker token inside ordinary text must not be mistaken for an exact provenance delimiter.
+    const auto parsed = parse_provenance_block(
+        "note=ERF_PROVENANCE_BEGIN\nprefix ERF_PROVENANCE_END suffix\n");
+    EXPECT_EQ(parsed.status, ProvenanceReadStatus::MissingProvenanceBlock);
+}
+
+TEST(ERFProvenance, UnterminatedAndUnexpectedEndMarkersAreMalformed)
+{
+    // Motivation: An incomplete or incorrectly ordered exact marker pair must never produce a partially trusted provenance record.
+    EXPECT_EQ(parse_provenance_block("ERF_PROVENANCE_BEGIN\n").status,
+              ProvenanceReadStatus::MalformedProvenance);
+    EXPECT_EQ(parse_provenance_block("ERF_PROVENANCE_END\n").status,
+              ProvenanceReadStatus::MalformedProvenance);
+}
+
+TEST(ERFProvenance, ReorderedKeysRemainValid)
+{
+    // Motivation: External tools may preserve schema-1 keys in a different order, so the reader must identify required fields by key rather than position.
+    const auto record = checkpoint_record(
+        make_cold_start_provenance(uuid_a, "2026-07-11T18:42:17Z"), artifact_a);
+    const auto parsed = parse_provenance_block(reorder_schema_keys(serialize_provenance_block(record)));
+    ASSERT_TRUE(parsed.valid()) << parsed.diagnostic;
+    EXPECT_EQ(parsed.record.execution.execution_uuid, uuid_a);
     EXPECT_EQ(parsed.record.artifact.artifact_uuid, artifact_a);
 }
 

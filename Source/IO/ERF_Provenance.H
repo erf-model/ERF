@@ -50,12 +50,14 @@ enum class ProvenanceReadStatus
 /**
  * Identity and known ancestry for one ERF process invocation.
  *
- * Simulation identity names one restart lineage. Execution identity names one
- * invocation. Artifact identity is kept separate because one invocation can
- * write many checkpoints and plotfiles. The complete known lineage is stored
- * in every artifact so old artifact directories are not needed to reconstruct
- * repeated restarts. These UUIDs identify records; they do not authenticate
- * their contents and are not cryptographic proof.
+ * Simulation identity names one rooted restart family, which may branch.
+ * Execution identity names one invocation. Artifact identity is kept separate
+ * because one invocation can write many checkpoints and plotfiles. The known
+ * ancestry path is stored in every artifact so old directories are not needed
+ * to reconstruct repeated restarts. The parent UUID gives the immediate edge;
+ * the source checkpoint UUID selects the exact checkpoint artifact. These UUIDs
+ * identify records; they do not authenticate contents or provide cryptographic
+ * proof.
  */
 struct ExecutionProvenance
 {

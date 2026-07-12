@@ -530,11 +530,14 @@ ERF::ReadCheckpointFile ()
         if (ParallelDescriptor::IOProcessor() && !provenance_warning_emitted) {
             provenance_warning_emitted = true;
             const std::string reason = provenance_result.valid()
-                ? "a non-checkpoint artifact type"
+                ? "the provenance record has artifact_type=" +
+                  std::string(erf_provenance::artifact_type_token(
+                      provenance_result.record.artifact.artifact_type)) +
+                  ", not checkpoint"
                 : provenance_result.diagnostic;
-            Warning("Native checkpoint " + restart_chkfile + " has " +
-                    reason +
-                    "; ERF will continue with incomplete provenance.");
+            Warning("Cannot recover provenance from native checkpoint '" +
+                    restart_chkfile + "': " + reason +
+                    ". ERF will continue with incomplete provenance.");
         }
         const auto failure_status = provenance_result.valid()
             ? erf_provenance::ProvenanceReadStatus::ArtifactTypeMismatch
