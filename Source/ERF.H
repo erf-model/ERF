@@ -50,6 +50,7 @@
 #include <ERF_FillPatcher.H>
 #include <ERF_SampleData.H>
 #include <ERF_ForestDrag.H>
+#include <ERF_Provenance.H>
 
 #ifdef ERF_USE_PARTICLES
 #include "ERF_ParticleData.H"
@@ -1150,6 +1151,10 @@ private:
     // if >= 0 we restart from a checkpoint
     std::string restart_chkfile = "";
 
+    // Host-only metadata shared by all native output paths. It never enters
+    // device code or changes the model state read from a checkpoint.
+    erf_provenance::ExecutionProvenance execution_provenance;
+
     // Time step controls
     static amrex::Real cfl;
     static amrex::Real sub_cfl;
@@ -1761,7 +1766,10 @@ private:
 #endif
 
 public:
-    void writeJobInfo (const std::string& dir) const;
+    void writeJobInfo (const std::string& dir,
+                       erf_provenance::ArtifactType artifact_type,
+                       int artifact_step,
+                       double artifact_time_seconds) const;
     static void writeBuildInfo (std::ostream& os);
 
     static void print_banner(MPI_Comm /*comm*/, std::ostream& /*out*/);

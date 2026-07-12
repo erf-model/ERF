@@ -1,2 +1,7 @@
-CEXE_sources += ERF_NOAHMP.cpp
+CEXE_sources += ERF_NOAHMP_Init.cpp
+CEXE_sources += ERF_NOAHMP_Advance.cpp
+CEXE_sources += ERF_NOAHMP_Precip.cpp
+CEXE_sources += ERF_NOAHMP_IO.cpp
+
 CEXE_headers += ERF_NOAHMP.H
+CEXE_headers += ERF_NOAHMP_Fields.H

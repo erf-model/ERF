@@ -7,8 +7,16 @@
 #include "ERF.H"
 #include "AMReX_PlotFileUtil.H"
 #include "ERF_ReadFromERFBdy.H"
+#include "ERF_Provenance.H"
 
 using namespace amrex;
+
+namespace
+{
+
+bool provenance_warning_emitted = false;
+
+} // namespace
 
 /**
  * Utility to skip to next line in Header file input stream.
@@ -492,6 +500,11 @@ ERF::WriteCheckpointFile () const
 #endif
 #endif
 
+    // Write job_info after checkpoint state so the provenance record describes
+    // the completed output attempt and can seed a later restart lineage.
+    writeJobInfo(checkpointname, erf_provenance::ArtifactType::Checkpoint,
+                 istep[0], t_new[0]);
+
     if (verbose > 0)
     {
         auto dCheckTime = amrex::second() - dCheckTime0;
@@ -507,6 +520,34 @@ void
 ERF::ReadCheckpointFile ()
 {
     Print() << "Restart from native checkpoint " << restart_chkfile << "\n";
+
+    const auto provenance_result =
+        erf_provenance::read_job_info_file(restart_chkfile + "/job_info");
+    if (provenance_result.valid() &&
+        provenance_result.record.artifact.artifact_type == erf_provenance::ArtifactType::Checkpoint) {
+        execution_provenance = erf_provenance::make_restart_provenance(
+            execution_provenance, provenance_result.record, restart_chkfile);
+    } else {
+        // Provenance is auxiliary metadata. A missing or invalid record must not make
+        // a valid physical checkpoint unreadable.
+        if (ParallelDescriptor::IOProcessor() && !provenance_warning_emitted) {
+            provenance_warning_emitted = true;
+            const std::string reason = provenance_result.valid()
+                ? "the provenance record has artifact_type=" +
+                  std::string(erf_provenance::artifact_type_token(
+                      provenance_result.record.artifact.artifact_type)) +
+                  ", not checkpoint"
+                : provenance_result.diagnostic;
+            Warning("Cannot recover provenance from native checkpoint '" +
+                    restart_chkfile + "': " + reason +
+                    ". ERF will continue with incomplete provenance.");
+        }
+        const auto failure_status = provenance_result.valid()
+            ? erf_provenance::ProvenanceReadStatus::ArtifactTypeMismatch
+            : provenance_result.status;
+        execution_provenance = erf_provenance::make_incomplete_restart_provenance(
+            execution_provenance, failure_status, restart_chkfile);
+    }
 
     // Header
     std::string File(restart_chkfile + "/Header");

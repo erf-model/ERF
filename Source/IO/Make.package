@@ -11,7 +11,9 @@ CEXE_sources += ERF_Plotfile2DSampledLevel.cpp
 CEXE_sources += ERF_Plotfile2DInterpolator.cpp
 CEXE_sources += ERF_Plotfile2DUtils.cpp
 CEXE_sources += ERF_Checkpoint.cpp
+CEXE_sources += ERF_Provenance.cpp
 CEXE_sources += ERF_WriteJobInfo.cpp
+CEXE_headers += ERF_Provenance.H
 
 CEXE_headers += ERF_WriteBndryPlanes.H
 CEXE_headers += ERF_ReadBndryPlanes.H

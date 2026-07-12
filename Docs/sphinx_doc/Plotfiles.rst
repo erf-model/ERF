@@ -20,6 +20,10 @@ diagnostics, selected surface fluxes, surface pressure, and column-integrated
 water vapor.
 
 The subvolume plotfile writes 3D data from one selected region of the domain.
+Primary native 2D and 3D AMReX plotfiles contain the same execution and
+ancestry record in ``job_info``, with a distinct artifact UUID for each
+output. NetCDF output does not yet contain this metadata. See
+:ref:`sec:Provenance`.
 
 Controlling PlotFile Generation
 ===============================
