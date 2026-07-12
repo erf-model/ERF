@@ -43,13 +43,6 @@ bool is_canonical_uuid_layout (std::string_view uuid)
     return true;
 }
 
-int hex_value (char c)
-{
-    if (c >= '0' && c <= '9') return c - '0';
-    if (c >= 'a' && c <= 'f') return c - 'a' + 10;
-    return c - 'A' + 10;
-}
-
 std::vector<std::string> split_lineage (std::string_view value)
 {
     std::vector<std::string> result;
