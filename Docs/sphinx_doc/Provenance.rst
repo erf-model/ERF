@@ -212,12 +212,16 @@ needed on non-I/O ranks. UUID generation does not use AMReX's scientific
 random-number stream. UUIDs identify records but do not authenticate their
 contents; they are not signatures or cryptographic evidence.
 
-Scope and Limits
-================
+What Provenance Covers
+=====================
 
-The checkpoint ``Header`` remains unchanged. NetCDF output, NetCDF column
-files, 2D diagnostic JSON, subvolumes, staggered velocity plotfiles,
-boundary-plane files, and particle-only files are outside this implementation.
-This feature does not compute configuration hashes, digest input files or
-executables, export W3C PROV or RO-Crate records, sign metadata, or reject a
-restart based on provenance.
+Provenance is available for native checkpoints and primary native 2D and 3D
+AMReX plotfiles. It is stored in each output's ``job_info`` file and helps
+identify the output and trace the restart history that produced it.
+
+It is not currently included in NetCDF output, NetCDF column files, 2D
+diagnostic JSON, subvolume or staggered-velocity plotfiles, boundary-plane
+files, or particle-only files. Provenance is supplemental metadata: it does
+not change the physical checkpoint state or the checkpoint ``Header``. If the
+metadata is missing or invalid, ERF continues the restart and records the
+lineage as incomplete rather than refusing to read the checkpoint.
