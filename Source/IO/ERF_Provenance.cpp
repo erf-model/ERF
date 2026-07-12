@@ -420,19 +420,19 @@ ProvenanceParseResult parse_provenance_block (std::string_view text)
         "artifact_uuid", "artifact_type", "artifact_step", "artifact_time_seconds",
         "artifact_created_utc"
     };
-    for (const auto& line : block_lines) {
-        if (line.empty()) continue;
-        const std::size_t equals = line.find('=');
+    for (const auto& block_line : block_lines) {
+        if (block_line.empty()) continue;
+        const std::size_t equals = block_line.find('=');
         if (equals == std::string::npos || equals == 0) {
             return failure(ProvenanceReadStatus::MalformedProvenance,
                            "provenance line is not a key=value pair");
         }
-        const std::string key = line.substr(0, equals);
+        const std::string key = block_line.substr(0, equals);
         if (required.count(key) != 0 && fields.count(key) != 0) {
             return failure(ProvenanceReadStatus::MalformedProvenance,
                            "duplicate required provenance key: " + key);
         }
-        if (required.count(key) != 0) fields.emplace(key, line.substr(equals + 1));
+        if (required.count(key) != 0) fields.emplace(key, block_line.substr(equals + 1));
     }
     ProvenanceParseResult result;
     int schema = 0;
