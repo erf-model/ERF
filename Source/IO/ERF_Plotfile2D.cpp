@@ -541,7 +541,8 @@ ERF::Write2DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
         // Native AMReX 2D plotfiles write a JSON sidecar with catalog
         // metadata for the selected output variables only.
         plotfile2d::write_2d_metadata_json(plotfilename, output_descriptors);
-        writeJobInfo(plotfilename);
+        writeJobInfo(plotfilename, erf_provenance::ArtifactType::Plotfile2D,
+                     istep[0], t_new[0]);
 
 #ifdef ERF_USE_NETCDF
     } else if (plotfile_type == PlotFileType::Netcdf) {

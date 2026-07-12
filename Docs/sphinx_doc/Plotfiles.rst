@@ -20,6 +20,9 @@ diagnostics, selected surface fluxes, surface pressure, and column-integrated
 water vapor.
 
 The subvolume plotfile writes 3D data from one selected region of the domain.
+Primary native 2D and 3D plotfiles contain provenance in their existing
+``job_info`` files. The provenance block does not alter the diagnostic JSON
+file or NetCDF output. See :ref:`sec:Provenance` for the schema.
 
 Controlling PlotFile Generation
 ===============================

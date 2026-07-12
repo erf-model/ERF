@@ -11,6 +11,8 @@ Checkpoint / Restart
 
 ERF has a standard sort of checkpointing and restarting capability and
 uses the native AMReX format for reading and writing checkpoints.
+Each native checkpoint also contains a provenance block in its ``job_info``
+file. See :ref:`sec:Provenance` for the execution and restart-lineage fields.
 In the inputs file, the following options control the generation of
 checkpoint files (which are really directories):
 
@@ -84,4 +86,3 @@ Examples of Usage
 To restart from *chk_run00061*,for example, then set
 
 -  **amr.restart** = *chk_run00061*
-
