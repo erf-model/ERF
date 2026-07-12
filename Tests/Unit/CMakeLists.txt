@@ -26,7 +26,14 @@ include(GoogleTest)
 
 function(erf_register_gtest_suite target)
   set(options)
-  set(oneValueArgs WORKING_DIRECTORY)
+  set(oneValueArgs
+      DISCOVERY_TIMEOUT
+      EXECUTION_TIMEOUT
+      SKIP_RETURN_CODE
+      TEST_PREFIX
+      TEST_SUFFIX
+      WORKING_DIRECTORY
+      XML_OUTPUT_DIR)
   set(multiValueArgs LABELS)
   cmake_parse_arguments(ERF_GTEST "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
 
@@ -42,14 +49,47 @@ function(erf_register_gtest_suite target)
     set(ERF_GTEST_LABELS unit)
   endif()
 
+  if(NOT ERF_GTEST_DISCOVERY_TIMEOUT)
+    set(ERF_GTEST_DISCOVERY_TIMEOUT 60)
+  endif()
+
+  if(NOT ERF_GTEST_EXECUTION_TIMEOUT)
+    set(ERF_GTEST_EXECUTION_TIMEOUT 900)
+  endif()
+
+  if(NOT DEFINED ERF_GTEST_SKIP_RETURN_CODE)
+    set(ERF_GTEST_SKIP_RETURN_CODE 77)
+  endif()
+
+  if(NOT ERF_GTEST_XML_OUTPUT_DIR)
+    set(ERF_GTEST_XML_OUTPUT_DIR
+        "${CMAKE_CURRENT_BINARY_DIR}/test-results/gtest/${target}")
+  endif()
+
+  file(MAKE_DIRECTORY "${ERF_GTEST_XML_OUTPUT_DIR}")
+
   list(JOIN ERF_GTEST_LABELS ";" _erf_gtest_labels)
+
+  set(_erf_gtest_discover_extra_args)
+  if(DEFINED ERF_GTEST_TEST_PREFIX AND NOT "${ERF_GTEST_TEST_PREFIX}" STREQUAL "")
+    list(APPEND _erf_gtest_discover_extra_args
+      TEST_PREFIX "${ERF_GTEST_TEST_PREFIX}")
+  endif()
+  if(DEFINED ERF_GTEST_TEST_SUFFIX AND NOT "${ERF_GTEST_TEST_SUFFIX}" STREQUAL "")
+    list(APPEND _erf_gtest_discover_extra_args
+      TEST_SUFFIX "${ERF_GTEST_TEST_SUFFIX}")
+  endif()
 
   gtest_discover_tests(${target}
     DISCOVERY_MODE POST_BUILD
     WORKING_DIRECTORY ${ERF_GTEST_WORKING_DIRECTORY}
+    DISCOVERY_TIMEOUT ${ERF_GTEST_DISCOVERY_TIMEOUT}
+    XML_OUTPUT_DIR "${ERF_GTEST_XML_OUTPUT_DIR}"
+    ${_erf_gtest_discover_extra_args}
     PROPERTIES
       LABELS "${_erf_gtest_labels}"
-      SKIP_RETURN_CODE 77
+      TIMEOUT ${ERF_GTEST_EXECUTION_TIMEOUT}
+      SKIP_RETURN_CODE ${ERF_GTEST_SKIP_RETURN_CODE}
   )
 endfunction()
 set(erf_lib_name erf_srclib)
@@ -92,12 +132,23 @@ target_sources(${erf_exe_name}
 build_erf_exe(${erf_exe_name} NO_ERF_MAIN)
 target_link_libraries(${erf_exe_name} PRIVATE GTest::gtest)
 
-include(GoogleTest)
-gtest_discover_tests(${erf_exe_name}
-  DISCOVERY_MODE POST_BUILD
-  DISCOVERY_TIMEOUT 30
+erf_register_gtest_suite(${erf_exe_name}
+  LABELS unit
+  DISCOVERY_TIMEOUT 60
+  EXECUTION_TIMEOUT 900
+)
+
+add_test(NAME erf_unit_tests_shuffle_repeat
+  COMMAND ${CMAKE_CURRENT_BINARY_DIR}/${erf_exe_name}
+    --gtest_shuffle
+    --gtest_repeat=3
+    --gtest_output=xml:${CMAKE_CURRENT_BINARY_DIR}/test-results/gtest/${erf_exe_name}/shuffle-repeat.xml
+)
+set_tests_properties(erf_unit_tests_shuffle_repeat
   PROPERTIES
-    LABELS "unit"
+    LABELS "stress"
+    TIMEOUT 2700
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
 )
 
 add_subdirectory(Shoc)
@@ -178,36 +229,62 @@ if(ERF_ENABLE_MPI)
       MPI::MPI_CXX
   )
 
-  foreach(erf_parallel_nprocs IN LISTS ERF_PARALLEL_TEST_NRANKS)
-    if("${erf_parallel_nprocs}" STREQUAL "")
-      message(FATAL_ERROR
-        "ERF_PARALLEL_TEST_NRANKS contains an empty rank count")
-    endif()
+  set(erf_parallel_ctest_file
+      "${CMAKE_CURRENT_BINARY_DIR}/${erf_parallel_exe_name}_tests.cmake")
 
-    if(NOT "${erf_parallel_nprocs}" MATCHES "^[1-9][0-9]*$")
-      message(FATAL_ERROR
-        "ERF_PARALLEL_TEST_NRANKS entries must be positive integers; got '${erf_parallel_nprocs}'")
-    endif()
+  # Encode CMake lists as comma-separated values for the -D arguments below.
+  # COMMAND_EXPAND_LISTS would otherwise split a single -D value into several
+  # unrelated command-line arguments.
+  string(REPLACE ";" "," erf_parallel_test_mpiexec_preflags_arg
+         "${erf_parallel_test_mpiexec_preflags}")
+  string(REPLACE ";" "," erf_parallel_test_ranks_arg
+         "${ERF_PARALLEL_TEST_NRANKS}")
+  string(REPLACE ";" "," erf_mpiexec_preflags_arg "${MPIEXEC_PREFLAGS}")
+  string(REPLACE ";" "," erf_mpiexec_postflags_arg "${MPIEXEC_POSTFLAGS}")
 
-    set(erf_parallel_test_name
-        "${erf_parallel_exe_name}_np${erf_parallel_nprocs}")
+  add_custom_command(TARGET ${erf_parallel_exe_name} POST_BUILD
+    COMMAND ${CMAKE_COMMAND}
+      -DTEST_EXECUTABLE=$<TARGET_FILE:${erf_parallel_exe_name}>
+      -DOUTPUT_FILE=${erf_parallel_ctest_file}
+      -DREPORT_DIRECTORY=${CMAKE_CURRENT_BINARY_DIR}/test-results/gtest/${erf_parallel_exe_name}
+      -DMPIEXEC_EXECUTABLE=${MPIEXEC_EXECUTABLE}
+      -DMPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}
+      -DMPIEXEC_PREFLAGS=${erf_mpiexec_preflags_arg}
+      -DMPIEXEC_POSTFLAGS=${erf_mpiexec_postflags_arg}
+      -DERF_MPI_PREFLAGS=${erf_parallel_test_mpiexec_preflags_arg}
+      -DERF_MPI_RANKS=${erf_parallel_test_ranks_arg}
+      -DTEST_TIMEOUT=1800
+      -P ${CMAKE_CURRENT_LIST_DIR}/GenerateERFParallelCTest.cmake
+    COMMAND_EXPAND_LISTS
+    VERBATIM
+  )
 
-    add_test(NAME ${erf_parallel_test_name}
-      COMMAND
-        ${erf_mpiexec_executable}
-        ${erf_mpiexec_numproc_flag} ${erf_parallel_nprocs}
-        ${erf_mpiexec_preflags}
-        ${erf_parallel_test_mpiexec_preflags}
-        $<TARGET_FILE:${erf_parallel_exe_name}>
-        ${erf_mpiexec_postflags}
-      COMMAND_EXPAND_LISTS
-    )
+  set_property(DIRECTORY APPEND PROPERTY TEST_INCLUDE_FILES
+    "${erf_parallel_ctest_file}")
 
-    set_tests_properties(${erf_parallel_test_name}
-      PROPERTIES
-        LABELS "parallel"
-        PROCESSORS ${erf_parallel_nprocs}
-        ENVIRONMENT "ERF_PARALLEL_TEST_NPROCS=${erf_parallel_nprocs}"
-    )
-  endforeach()
+  add_executable(erf_mpi_gtest_listener_self_test
+    ERF_GTestMPIListenerSelfTest.cpp
+  )
+  target_link_libraries(erf_mpi_gtest_listener_self_test
+    PRIVATE
+      GTest::gtest
+      MPI::MPI_CXX
+  )
+
+  add_test(NAME erf_mpi_gtest_listener_self_test
+    COMMAND ${CMAKE_COMMAND}
+      -DMPIEXEC_EXECUTABLE=${MPIEXEC_EXECUTABLE}
+      -DMPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}
+      -DMPIEXEC_PREFLAGS=${erf_mpiexec_preflags_arg}
+      -DMPIEXEC_POSTFLAGS=${erf_mpiexec_postflags_arg}
+      -DERF_MPI_PREFLAGS=${erf_parallel_test_mpiexec_preflags_arg}
+      -DTEST_EXECUTABLE=$<TARGET_FILE:erf_mpi_gtest_listener_self_test>
+      -P ${CMAKE_CURRENT_LIST_DIR}/RunERFMPIListenerSelfTest.cmake
+  )
+  set_tests_properties(erf_mpi_gtest_listener_self_test
+    PROPERTIES
+      LABELS "infrastructure"
+      PROCESSORS 2
+      TIMEOUT 120
+  )
 endif()
