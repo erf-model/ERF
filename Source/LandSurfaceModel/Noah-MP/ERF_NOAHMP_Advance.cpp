@@ -1,15 +1,7 @@
 /*
- * Per-step ERF <-> Noah-MP state exchange.
- *
- *   Advance_With_State  -- orchestrator (firing gate, box loop, ghost fill)
- *   interp_from_lev0    -- fine-level fill from level 0
- *   time_to_fire        -- subcycling gate
- *   stage_forcing       -- ERF -> pinned input -> NoahmpIO
- *   read_results        -- NoahmpIO -> pinned output -> ERF
- *
- * Mechanical 1:1 host<->NoahmpIO copies are generated from the X-macro registry
- * in ERF_NOAHMP_Fields.H. Computed forcing, precip, banded albedos, flux math,
- * and soil-layer loops stay explicit.
+ * Per-step ERF <-> Noah-MP state exchange: Advance_With_State drives the box loop
+ * via interp_from_lev0/time_to_fire/stage_forcing/read_results. Mechanical
+ * host<->NoahmpIO copies come from the X-macros in ERF_NOAHMP_Fields.H.
  */
 
 #include <iostream>
@@ -106,11 +98,8 @@ NOAHMP::stage_forcing (const MFIter& mfi,
     // Pinned (host-accessible, GPU-usable) staging buffer
     Array4<Real> noah_input_arr = blk.input;
 
-    // Per-slot precip accumulation views (current + previous-call snapshot) and
-    // their native->kg/m^2 factors, for the water-equivalent interval precip.
-    // These live in the device arena, so they are read ONLY inside the device
-    // kernel below -- never dereferenced on the host. GpuArrays are captured by
-    // value; absent slots keep null Array4s guarded by slot_present.
+    // Per-slot precip views (current + previous snapshot) and their native->kg/m^2
+    // factors. Read only inside the device kernel; absent slots guarded by slot_present.
     const bool hp = precip.have_any;
     GpuArray<Array4<const Real>, NoahmpPrecipSlot::NumSlots> accum_now, accum_prv;
     GpuArray<Real, NoahmpPrecipSlot::NumSlots> accum_fac;
@@ -166,9 +155,8 @@ NOAHMP::stage_forcing (const MFIter& mfi,
     // (2) Wait for the kernel before host access.
     Gpu::streamSynchronize();
 
-    // (3) Copy the pinned staged data to NoahmpIO arrays on the host. Mechanical
-    // copies are generated from the registry (3D members take the k/j transpose
-    // (i,1,j); 2D members take (i,j)); precip is derived below.
+    // (3) Copy pinned staged data to NoahmpIO on the host (3D members take the k/j
+    // transpose (i,1,j), 2D take (i,j)); precip is derived below.
     LoopOnCpu(bx, [&] (int i, int j, int ) noexcept
     {
 #define NOAHMP_STAGE_IN_3D(comp,member) noahmpio->member(i,1,j) = noah_input_arr(i,j,0,NoahmpInputComp::comp);
@@ -186,9 +174,8 @@ NOAHMP::stage_forcing (const MFIter& mfi,
             clamped_cells.push_back(erf_noahmp::ClampedPrecipCell{i, j, drain_h});
             drain_h = lsm_max_precip_interval;
         }
-        // Frozen/total invariant: MP_SNOW+MP_GRAUP are subsets of MP_RAINNC, so
-        // their sum must not exceed it (a bad accumulator or the clamp can violate
-        // this). Rescale the frozen components to the total and record the cell.
+        // Frozen/total invariant: MP_SNOW+MP_GRAUP are subsets of MP_RAINNC; if
+        // their sum exceeds it, rescale the frozen components down and record the cell.
         Real dfroz_h = dsnow_h + dgraup_h;
         const Real inv_tol = Real(1.0e-6) * (Real(1.0) + drain_h);
         if (dfroz_h > drain_h + inv_tol) {
@@ -228,9 +215,8 @@ NOAHMP::read_results (const MFIter& mfi,
 
     const Array4<const Real>& CONS = cons_in.const_array(mfi);
 
-    // Mechanical result destinations (RRTMGP coupling + land return-term
-    // diagnostics), bound from NOAHMP_RESULT_FIELDS so the alias/LsmData/output
-    // triple stays in sync with the copy/sentinel scatter below.
+    // Mechanical result destinations (RRTMGP coupling + return-term diagnostics),
+    // bound from NOAHMP_RESULT_FIELDS to stay in sync with the scatter below.
 #define NOAHMP_BIND_RESULT(alias,lsm,out) Array4<Real> alias = lsm_fab_data[LsmData_NOAHMP::lsm]->array(mfi);
     NOAHMP_RESULT_FIELDS(NOAHMP_BIND_RESULT)
 #undef NOAHMP_BIND_RESULT
@@ -238,9 +224,8 @@ NOAHMP::read_results (const MFIter& mfi,
     Array4<Real> SMSTAV_o    = lsm_fab_data[LsmData_NOAHMP::smstav]->array(mfi);
     Array4<Real> SMSTOT_o    = lsm_fab_data[LsmData_NOAHMP::smstot]->array(mfi);
 
-    // Per-layer soil output fabs (3 groups x m_nsoil) gathered into a
-    // device-visible vector so the scatter kernel can loop over any NSOIL.
-    // Layout: group g in {0:smois,1:sh2o,2:tslb}, layer k in [0,nsoil).
+    // Per-layer soil output fabs (3 groups x m_nsoil) in a device-visible vector so
+    // the scatter loops over any NSOIL. Layout: g in {0:smois,1:sh2o,2:tslb}, k in [0,nsoil).
     const int nsoil = m_nsoil;
     const int n_soil_fld = 3*nsoil;
     Gpu::DeviceVector<Array4<Real>> soil_arr_d(n_soil_fld);
@@ -265,10 +250,8 @@ NOAHMP::read_results (const MFIter& mfi,
 
     Array4<Real> noah_output_arr = blk.output;
 
-    // (5) Copy NoahmpIO results into the pinned output buffer. Mechanical 2D
-    // reads are generated from the registry; banded albedos and the soil profile
-    // are read explicitly. SMSTAV/SMSTOT are not staged (emitted lsm_undefined
-    // downstream rather than a misleading physical 0).
+    // (5) Copy NoahmpIO results into the pinned output buffer; banded albedos and
+    // the soil profile are read explicitly. SMSTAV/SMSTOT are emitted lsm_undefined.
     LoopOnCpu(bx, [&] (int i, int j, int ) noexcept
     {
 #define NOAHMP_READ_OUT_2D(comp,member) noah_output_arr(i,j,0,NoahmpOutputComp::comp) = noahmpio->member(i,j);
@@ -287,34 +270,22 @@ NOAHMP::read_results (const MFIter& mfi,
         }
     });
 
-    // (6) Copy Noahmp results to ERF (device; from pinned buffer). Carries the
-    // per-field math (flux ÷rho, -9999 fill guard, sentinels, soil loop) and is
-    // deliberately NOT table-driven.
+    // (6) Copy Noahmp results to ERF (device; from pinned buffer): per-field math
+    // (flux ÷rho, -9999 fill guard, sentinels, soil loop), deliberately not table-driven.
     ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
         // Limit indices to the valid box. FillBoundary will pick these up below.
         int ii = std::min(std::max(i,i_lo),i_hi);
         int jj = std::min(std::max(j,j_lo),j_hi);
 
-        // SurfaceLayer fluxes at CC. Noah-MP returns the -9999 fill value for
-        // cells it does NOT process (sea-ice / open-water, still LANDMASK=1);
-        // applied as a flux that crashes the lowest cell to ~200 K. Detect the
-        // fill and write the lsm_undefined sentinel instead, so the surface layer
-        // falls back to the MOST flux (see ERF_SurfaceLayer.cpp).
-        // NOTE: tau13/tau23 are nodal in xz/yz; the 2D MFs have 1 ghost cell for
-        //       the surface layer to average them.
+        // Noah-MP returns -9999 for cells it does not process (sea-ice/open-water);
+        // detect it and write lsm_undefined so the surface layer falls back to MOST.
+        // tau13/tau23 are nodal in xz/yz; the 2D MFs carry 1 ghost cell for averaging.
         Real hfx_lsm = noah_output_arr(ii,jj,0,NoahmpOutputComp::hfx);
         if (hfx_lsm > Real(-9990.0)) {
-            // Convert Noah-MP fluxes to the KINEMATIC MOST form ERF stores (no rho):
-            //   t_flux = <theta' w'> [K m/s], q_flux = <qv' w'> [kg/kg m/s],
-            //   tau13/23 = kinematic velocity covariances [m2/s2].
-            // Noah-MP returns HFX,LH [W/m2] and TAU_EW/NS [N/m2] (rho included),
-            // so divide by rho (dry-air density).
-            // Exner factor (p0/p)^(Rd/Cp) on t_flux is deliberately OMITTED to
-            // match WRF (module_pbl_driver.F: b_t = hfx/rho/CP). The error is
-            // <~1% near sea level, ~6-7% at p~800 hPa. To reinstate, multiply
-            // t_flux by std::pow(p_0/getPgivenRTh(CONS(ii,jj,k,RhoTheta_comp),
-            // (is_moist)?CONS(ii,jj,k,RhoQ1_comp)/CONS(ii,jj,k,Rho_comp):zero), R_d/Cp_d).
+            // Noah-MP returns HFX,LH [W/m2] and TAU [N/m2] (rho included); divide by
+            // rho for the kinematic MOST form ERF stores. Exner factor on t_flux is
+            // omitted to match WRF (<~1% error near surface, ~6-7% at p~800 hPa).
             Real rho_l  = CONS(ii,jj,k,Rho_comp);
             t_flux_arr(i,j,k) = hfx_lsm/(rho_l*Cp_d);
             q_flux_arr(i,j,k) = noah_output_arr(ii,jj,0,NoahmpOutputComp::lh)/(rho_l*L_v);
@@ -393,10 +364,8 @@ NOAHMP::Advance_With_State (const int& lev,
 
         int klo = domain.smallEnd(2);
 
-        // Precip forcing (RAINBL / MP_RAINNC / MP_SNOW / MP_GRAUP / SR), for any
-        // microphysics scheme via the typed source interface (ERF_NOAHMP_Precip.cpp).
-        // Collect the slots, then seed the per-level previous-accumulation snapshots
-        // the delta kernel differences against.
+        // Collect the typed precip slots, then seed the per-level previous-accumulation
+        // snapshots the delta kernel differences against (ERF_NOAHMP_Precip.cpp).
         const erf_noahmp::PrecipSlots precip = collect_precip_sources(precip_sources);
         prepare_precip_snapshots(lev, precip);
 

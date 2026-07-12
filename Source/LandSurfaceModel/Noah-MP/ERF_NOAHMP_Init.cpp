@@ -29,10 +29,8 @@ NOAHMP::Init (const int& lev,
               const Real& dt,
               Vector<Vector<std::string>>& nc_init_file)
 {
-    // Install Noah-MP's fatal-error handler once. Noah-MP has no MPI/AMReX
-    // dependency and calls NoahmpIO_fatal(); routing that through amrex::Abort
-    // makes a fatal error on any rank propagate via MPI_Abort rather than
-    // deadlocking peers in the next collective. See NoahmpFatal.H.
+    // Install Noah-MP's fatal-error handler once: route NoahmpIO_fatal() through
+    // amrex::Abort so a fatal error propagates via MPI_Abort. See NoahmpFatal.H.
     static const bool noahmp_fatal_installed = []() {
         NoahmpIO_set_fatal_handler([](const char* msg){
             amrex::Abort(msg ? msg : "Noah-MP fatal error");
@@ -51,12 +49,8 @@ NOAHMP::Init (const int& lev,
     Box domain = geom.Domain();
     khi_lsm    = domain.smallEnd(2) - 1;
 
-    // Number of Noah-MP soil layers. Must be known on every rank/level before the
-    // collective LSM fabs are built, but the authoritative NSOIL lives in
-    // namelist.erf (read later, per box). Resolve it from ParmParse
-    // (erf.lsm_nsoil, default 4) -- the same value the parent used to size
-    // lsm_data via Lsm_Data_Size() in MakeNewLevel (called before Init). The
-    // namelist NSOIL is asserted to agree below. Sets m_lsm_data_size.
+    // Resolve NSOIL from erf.lsm_nsoil before building the collective LSM fabs (same
+    // value the parent used via Lsm_Data_Size()); namelist NSOIL asserted below.
     m_ensure_nsoil_resolved();
 
     // The fixed 2D fields are identity-mapped; their names mirror the enum order.
@@ -64,16 +58,14 @@ NOAHMP::Init (const int& lev,
     LsmDataName.resize(m_lsm_data_size);
     for (int i(0); i < LsmData_NOAHMP::NumVars; ++i) { LsmDataMap[i] = i; }
     {
-        // Names generated from the same registry as the LsmData_NOAHMP enum, so
-        // they cannot drift from the enum order.
+        // Names from the same registry as the enum, so they cannot drift.
         const std::vector<std::string> fixed_names = {
             NOAHMP_LSMDATA_FIELDS(NOAHMP_QUOTE)
         };
         AMREX_ALWAYS_ASSERT(int(fixed_names.size()) == LsmData_NOAHMP::NumVars);
         for (int i(0); i < LsmData_NOAHMP::NumVars; ++i) { LsmDataName[i] = fixed_names[i]; }
     }
-    // Per-layer soil profile: 3 contiguous groups of m_nsoil, layer index 1-based
-    // to match the Noah-MP / WRF SMOIS_k convention.
+    // Per-layer soil profile: 3 groups of m_nsoil, layer index 1-based (WRF SMOIS_k).
     {
         const char* group[3] = {"smois", "sh2o", "tslb"};
         for (int g(0); g < 3; ++g) {
@@ -116,9 +108,8 @@ NOAHMP::Init (const int& lev,
     lsm_rb.setHi(2,lsm_z_hi); lsm_rb.setLo(2,lsm_z_lo);
     m_lsm_geom.define( ba_lsm.minimalBox(), lsm_rb, m_geom.Coord(), m_geom.isPeriodic() );
 
-    // Create the data (CC). Runtime-sized (fixed 2D fields + 3*m_nsoil soil
-    // layers) so the soil profile scales with NSOIL. lsm_lev0_data pointers are
-    // populated later by the parent via Lsm_Set_Lev0_Data_Ptr.
+    // Create the data (CC), runtime-sized (fixed 2D fields + 3*m_nsoil) so soil scales
+    // with NSOIL. lsm_lev0_data pointers are populated later by the parent.
     lsm_fab_data.resize(m_lsm_data_size);
     lsm_lev0_data.resize(m_lsm_data_size, nullptr);
     for (auto ivar = 0; ivar < m_lsm_data_size; ++ivar) {
@@ -175,9 +166,8 @@ NOAHMP::Init (const int& lev,
             // namelist.erf holds noahmpio-specific parameters, read Fortran-side.
             noahmpio->ReadNamelist();
 
-            // Assert the authoritative namelist NSOIL matches erf.lsm_nsoil (used
-            // to size the fabs above), so a mismatch fails loudly rather than
-            // silently truncating / overrunning the soil diagnostics.
+            // Assert namelist NSOIL matches erf.lsm_nsoil (used to size the fabs) so a
+            // mismatch fails loudly rather than truncating the soil diagnostics.
             AMREX_ALWAYS_ASSERT_WITH_MESSAGE(noahmpio->nsoil == m_nsoil,
                 "namelist.erf NSOIL does not match erf.lsm_nsoil (default 4); "
                 "set erf.lsm_nsoil to the Noah-MP soil-layer count");
@@ -233,9 +223,8 @@ NOAHMP::Init (const int& lev,
             noahmpio->WriteLand(0);
         }
 
-        // Broadcast DTBL and the initial substep counter so the firing decision in
-        // Advance_With_State is identical on every rank. Land-free ranks use
-        // sentinels that lose the max-reduction to any real value.
+        // Broadcast DTBL and the initial substep counter so the firing decision is
+        // identical on every rank. Land-free ranks use max-reduction-losing sentinels.
         m_dtbl      = noahmpio_vect.empty() ? std::numeric_limits<Real>::lowest()
                                             : static_cast<Real>(noahmpio_vect[0].DTBL);
         m_itimestep = noahmpio_vect.empty() ? std::numeric_limits<int>::lowest()
