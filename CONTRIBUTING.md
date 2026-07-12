@@ -205,6 +205,12 @@ commits have been saved in `new_branch` branch.
 
 ## ERF Coding Style Guide
 
+## Unit-test development
+
+The supported GoogleTest and CTest patterns, MPI safety rules, and copyable
+build and rerun commands are documented in
+[Tests/Unit/README.md](Tests/Unit/README.md).
+
 ### Code Guidelines
 
 ERF developers should adhere to the following coding guidelines:
