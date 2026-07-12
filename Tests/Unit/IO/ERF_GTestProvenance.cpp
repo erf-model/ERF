@@ -20,7 +20,6 @@ const std::string uuid_c = "33333333-3333-4333-8333-333333333333";
 const std::string uuid_d = "44444444-4444-4444-8444-444444444444";
 const std::string artifact_a = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const std::string artifact_b = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
-const std::string artifact_c = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
 
 ProvenanceRecord checkpoint_record (const ExecutionProvenance& execution,
                                     const std::string& artifact_uuid,
