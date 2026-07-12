@@ -1743,7 +1743,8 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
                                         varnames,
                                         Geom(), tnew, istep, refRatio());
             }
-            writeJobInfo(plotfilename);
+            writeJobInfo(plotfilename, erf_provenance::ArtifactType::Plotfile3D,
+                         istep[0], t_new[0]);
 
             if (m_plot_face_vels) {
                 Print() << "Writing face velocities" << std::endl;
@@ -1899,7 +1900,8 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
                 }
             } // ref_ratio test
 
-            writeJobInfo(plotfilename);
+            writeJobInfo(plotfilename, erf_provenance::ArtifactType::Plotfile3D,
+                         istep[0], t_new[0]);
 
 #ifdef ERF_USE_PARTICLES
             particleData.writePlotFile(plotfilename, z_phys_nd);
