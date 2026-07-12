@@ -14,8 +14,8 @@
 
 using namespace amrex;
 
-// Per-step NetCDF land output. The cadence is owned by the caller (ERF's time
-// loop); this simply fans out over the local boxes. See dev/spec-noahmp-io.md §2.
+// Per-step NetCDF land output; cadence owned by the caller. Fans out over the local
+// boxes. See dev/spec-noahmp-io.md §2.
 void
 NOAHMP::Plot_Landfile (const int& nstep)
 {
@@ -24,11 +24,8 @@ NOAHMP::Plot_Landfile (const int& nstep)
     }
 }
 
-// Write/read the full NoahMP prognostic state (soil, snow incl. layers, canopy,
-// aquifer, albedo history, ...) to/from a NetCDF restart directory so a restart
-// reproduces a cold-start trajectory bitwise (issue #3255). Each local block
-// writes its tile into the global-domain file collectively.
-// See dev/spec-noahmp-io.md §1.
+// Write/read the full NoahMP prognostic state to/from a NetCDF restart dir so a
+// restart reproduces a cold-start trajectory bitwise (#3255). dev/spec-noahmp-io.md §1.
 void
 NOAHMP::Write_Lsm_Restart (const std::string& dir) const
 {
@@ -36,9 +33,8 @@ NOAHMP::Write_Lsm_Restart (const std::string& dir) const
         const_cast<NoahmpIO_type&>(noahmpio).WriteRestart(dir);
     }
 
-    // Also save the precip snapshots (the cumulative precip Noah-MP last consumed).
-    // Restoring these on restart lets the next land call difference against the same
-    // baseline, so no precip is dropped or double-counted across the restart.
+    // Also save the precip snapshots so the next land call after restart differences
+    // against the same baseline (no precip dropped or double-counted).
     if (m_lev < int(m_precip_accum_prev.size())) {
         for (int s(0); s < NoahmpPrecipSlot::NumSlots; ++s) {
             if (m_precip_accum_prev[m_lev][s]) {
@@ -56,9 +52,8 @@ NOAHMP::Read_Lsm_Restart (const std::string& dir)
         noahmpio.ReadRestart(dir);
     }
 
-    // Read the saved precip snapshots into a staging store (the live snapshots are
-    // not allocated until the first Advance, which then copies these in). Legacy
-    // checkpoints have no such files -> store stays empty -> Advance cold-seeds.
+    // Read saved precip snapshots into a staging store; the first Advance copies them
+    // into the live snapshots. Legacy checkpoints lack the files -> Advance cold-seeds.
     for (int s(0); s < NoahmpPrecipSlot::NumSlots; ++s) {
         const std::string name = m_precip_snapshot_name(dir, m_lev, s);
         if (amrex::FileExists(name + "_H")) {
