@@ -1,0 +1,3 @@
+ifeq ($(USE_DUST), TRUE)
+  CEXE_headers += Dust/ERF_DustParams.H
+endif
