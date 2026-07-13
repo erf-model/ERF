@@ -25,6 +25,7 @@
  * | dust_emission_flux   | n_size_bins     | Emission flux per size bin [kg/m^2/s]  |
  * | dust_efflor          | 1               | Efflorescence fraction [0,1]            |
  * | dust_ustar_base      | 1               | Base u*_t before chemistry [m/s]        |
+ * | dust_ustar_in        | 1               | Friction velocity u* [m/s]              |
  *
  * dust_soil_type stores an integer code as amrex::Real. Codes follow the
  * STATSGO classification for natural soils (1-16) and reserve codes
@@ -96,6 +97,7 @@ public:
     const amrex::MultiFab* get_efflor()           const { return dust_efflor.get(); }
     const amrex::MultiFab* get_emission_flux()    const { return dust_emission_flux.get(); }
     const amrex::MultiFab* get_surf_moist()       const { return dust_surf_moist.get(); }
+    const amrex::MultiFab* get_ustar_in()         const { return dust_ustar_in.get(); }
     const DustGrid&        get_dust_grid()        const { return m_dg; }
     const amrex::Geometry& get_dust_geom()        const { return m_dg.geom; }
     const DustParams&      get_params()           const { return m_params; }
@@ -113,6 +115,9 @@ private:
     std::unique_ptr<amrex::MultiFab>      dust_efflor;          ///< Efflorescence fraction [0,1]. Updated by PHREEQC reader.
     std::unique_ptr<amrex::MultiFab>      dust_ustar_base;      ///< Base threshold friction velocity before chemistry [m/s]. Set at init, not modified.
     std::unique_ptr<amrex::MultiFab>      dust_surf_moist;      ///< Surface wetness [0,1]. Set to 0 at init. Driven by ERF surface layer in Phase 9.
+    std::unique_ptr<amrex::MultiFab>      dust_ustar_in;        ///< Friction velocity u* [m/s].
+                                                                  ///<   Phase 6: uniform value from DustParams.
+                                                                  ///<   Phase 9: extracted from MRF surface layer.
 
     DustParams                            m_params;
     int                                   m_step = 0;           ///< Timestep counter

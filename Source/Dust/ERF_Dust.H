@@ -18,6 +18,7 @@
 #include <ERF_DustSurfaceReader.H>
 #include <ERF_PhreeqcReader.H>
 #include <ERF_DustThreshold.H>
+#include <ERF_DustEmission.H>
 
 #endif // ERF_USE_DUST
 

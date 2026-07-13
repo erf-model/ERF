@@ -79,6 +79,12 @@ struct DustParams {
     amrex::Real alpha_efflor    = 0.3;  ///< Efflorescence reduction coefficient for u*_t [-].
     amrex::Real ustar_t_base    = -1.0; ///< Base u*_t before chemistry [m/s].
                                          ///<   Negative means compute from Bagnold at init.
+    amrex::Real test_ustar      = 0.0;   ///< Placeholder u* [m/s] used in Phase 6 before
+                                         ///<   Phase 9 extracts u* from the MRF surface layer.
+                                         ///<   Set > 0 to test emission physics.
+                                         ///<   0 = no emission (all cells below threshold).
+    amrex::Real rho_air         = 1.225; ///< Air density used in emission flux [kg/m^3].
+                                         ///<   Standard atmosphere default.
     std::string phreeqc_crust_var    = "crust_index";    ///< Variable/column name for crust index.
     std::string phreeqc_silt_var     = "silt_fraction";  ///< Variable/column name for silt fraction.
     std::string phreeqc_efflor_var   = "efflorescence";  ///< Variable/column name for efflorescence.
@@ -123,6 +129,8 @@ struct DustParams {
         pp.query("alpha_crust", alpha_crust);
         pp.query("alpha_efflor", alpha_efflor);
         pp.query("ustar_t_base", ustar_t_base);
+        pp.query("test_ustar", test_ustar);
+        pp.query("rho_air", rho_air);
         pp.query("phreeqc_crust_var", phreeqc_crust_var);
         pp.query("phreeqc_silt_var", phreeqc_silt_var);
         pp.query("phreeqc_efflor_var", phreeqc_efflor_var);
