@@ -192,41 +192,41 @@ public:
     void WriteLinePlot(const std::string& filename,
                        amrex::Vector<std::array<amrex::Real, 2>>& points_xy);
 
-    void HurricaneEyeTracker_WRF (const SolverChoice& solverChoice);
+    void HurricaneEyeTracker(const SolverChoice& solverChoice);
 
-    void HurricaneEyeTrackerInitial_WRF (const SolverChoice& sc,
-                                         const amrex::Geometry& geom,
-                                         const amrex::Vector<amrex::MultiFab>& S_data,
-                                         const amrex::Real& hurricane_eye_latitude,
-                                         const amrex::Real& hurricane_eye_longitude);
+    void HurricaneEyeTrackerInitial(const SolverChoice& sc,
+                                    const amrex::Geometry& geom,
+                                    const amrex::Vector<amrex::MultiFab>& S_data,
+                                    const amrex::Real& hurricane_eye_latitude,
+                                    const amrex::Real& hurricane_eye_longitude);
 
-    void HurricaneEyeTrackerNotInitial_WRF (const SolverChoice& sc,
-                                            const amrex::Geometry& geom,
-                                            const amrex::Vector<amrex::MultiFab>& S_data,
-                                            MoistureType moisture_type);
-
-    void ComputeGlobalMinLocation_WRF (const SolverChoice& sc,
+    void HurricaneEyeTrackerNotInitial(const SolverChoice& sc,
                                        const amrex::Geometry& geom,
                                        const amrex::Vector<amrex::MultiFab>& S_data,
-                                       amrex::Real* d_val_min_ptr,
-                                       int* d_i_min_ptr,
-                                       int* d_j_min_ptr,
-                                       amrex::Real& global_val_min,
-                                       int& global_i_min,
-                                       int& global_j_min);
+                                       MoistureType moisture_type);
 
-    void HurricaneMaxVelTracker_WRF(const amrex::Geometry& geom,
+    void ComputeGlobalMinLocation(const SolverChoice& sc,
+                                  const amrex::Geometry& geom,
+                                  const amrex::Vector<amrex::MultiFab>& S_data,
+                                  amrex::Real* d_val_min_ptr,
+                                  int* d_i_min_ptr,
+                                  int* d_j_min_ptr,
+                                  amrex::Real& global_val_min,
+                                  int& global_i_min,
+                                  int& global_j_min);
+
+    void HurricaneMaxVelTracker(const amrex::Geometry& geom,
                                 const amrex::MultiFab& mf_cc_vel,
                                 const double& time);
 
-    void HurricaneMinPressureTracker_WRF(MoistureType moisture_type,
+    void HurricaneMinPressureTracker(MoistureType moisture_type,
                                      const amrex::Geometry& geom,
                                      const amrex::MultiFab& mf_cons_var,
                                      const double& time);
 
-    void HurricaneTrackerCircle_WRF ();
+    void HurricaneTrackerCircle();
 
-    void ReadStormTrackerRestart ();
+    void ReadStormTrackerRestart();
 
     // Initialize multilevel data
     void InitData ();
