@@ -45,7 +45,7 @@
 
 #include <AMReX_MultiFab.H>
 #include <AMReX_MFIter.H>
-#include <AMReX_ParallelFor.H>
+//#include <AMReX_ParallelFor.H>
 #include <cmath>
 
 namespace DustSuppressionConst {
