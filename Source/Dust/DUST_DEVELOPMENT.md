@@ -8,9 +8,9 @@ No phase references or progress notes appear in source files.
 
 | Phase | Title | Status | Date | Notes |
 |-------|-------|--------|------|-------|
-| 1 | Directory scaffold and CMake integration | Complete | 2026-07-13 | |
-| 2 | 2D dust grid definition | Complete | 2026-07-13 | |
-| 3 | Surface property map reader | Not started | | |
+| 1 | Directory scaffold and CMake integration | Complete | 2026-07-13 | All `#ifdef ERF_USE_DUST` guards in place. PR #131. |
+| 2 | 2D dust grid definition | Complete | 2026-07-13 | `ERF.H` includes `ERF_Dust.H` under `#ifdef ERF_USE_DUST`. `ERF.cpp` calls `m_DustLayer->initialize()` from `InitData_post()` and `m_DustLayer->advance()` from `Advance()` under `#ifdef ERF_USE_DUST`. PR #131. |
+| 3 | Surface property map reader | Complete | 2026-07-13 | Implements `ERF_DustSurfaceReader.H/cpp` with ESRI ASCII reader, MPI broadcast, and bilinear GPU interpolation. Row reversal convention matches `ERF_FuelMap.H`. Regression test added with test rasters and inputs file. |
 | 4 | PHREEQC output file reader and u*t mapper | Not started | | |
 | 5 | Threshold friction velocity computation | Not started | | |
 | 6 | Saltation and vertical dust emission flux | Not started | | |
