@@ -16,7 +16,7 @@ No phase references or progress notes appear in source files.
 | 6 | Saltation and vertical dust emission flux | Complete | 2026-07-13 | PR #137. |
 | 7 | Blasting schedule emission source | Complete | 2026-07-13 | PR #138. |
 | 8 | Suppression agent degradation model | Complete | 2026-07-13 | PR #139. ERF_DustSuppression.H. Retreat flag. amrex.fpe_trap_invalid=0 applied to all tests. AMReX_ParallelFor.H bug fixed (commit 6054023). |
-| 9 | Wind extraction from ERF-Atm to ERF-Dust | Not started | | |
+| 9 | Wind extraction from ERF-Atm to ERF-Dust | In progress | 2026-07-13 | ERF_DustWindExtract.H/.cpp. Wind interpolation from FireWindExtract. SurfaceLayer accessors. DustParams zref parameter. |
 | 10 | ERF-Dust to ERF-Atm aerosol injection | Not started | | |
 | 11 | Multi-size-bin scalar advection and Stokes settling | Not started | | |
 | 12 | Dry deposition lower boundary condition | Not started | | |

@@ -85,11 +85,21 @@ public:
      * In Phase 2 this function is a stub and returns without computation.
      * Phases 5-13 replace it with emission, coupling, and deposition physics.
      *
-     * @param[in] dt          Atmospheric timestep [s].
-     * @param[in] dust_params Dust configuration parameters.
+     * @param[in] dt                 Atmospheric timestep [s].
+     * @param[in] dust_params        Dust configuration parameters.
+     * @param[in] surface_layer      Pointer to SurfaceLayer (nullptr = placeholder fallback).
+     * @param[in] xvel_mf            3D u velocity field (nullptr = placeholder fallback).
+     * @param[in] yvel_mf            3D v velocity field (nullptr = placeholder fallback).
+     * @param[in] z_phys_cc_mf       3D terrain height field (nullptr = placeholder fallback).
+     * @param[in] nz                 Number of vertical levels (0 = placeholder fallback).
      */
-    void advance(amrex::Real     dt,
-                 const DustParams& dust_params);
+    void advance(amrex::Real             dt,
+                 const DustParams&       dust_params,
+                 const SurfaceLayer*     surface_layer = nullptr,
+                 const amrex::MultiFab*  xvel_mf = nullptr,
+                 const amrex::MultiFab*  yvel_mf = nullptr,
+                 const amrex::MultiFab*  z_phys_cc_mf = nullptr,
+                 int                     nz = 0);
 
     // Const accessors for plotfile and diagnostic output
     const amrex::MultiFab* get_ustar_t()         const { return dust_ustar_t.get(); }
@@ -103,6 +113,9 @@ public:
     const amrex::MultiFab* get_surf_moist()       const { return dust_surf_moist.get(); }
     const amrex::MultiFab* get_ustar_in()         const { return dust_ustar_in.get(); }
     const amrex::MultiFab* get_retreat_flag()     const { return dust_retreat_flag.get(); }
+    const amrex::MultiFab* get_wind_ref()         const { return dust_wind_ref.get(); }
+    const amrex::MultiFab* get_pblh()             const { return dust_pblh.get(); }
+    const amrex::MultiFab* get_tsfc()             const { return dust_tsfc.get(); }
     const DustGrid&        get_dust_grid()        const { return m_dg; }
     const amrex::Geometry& get_dust_geom()        const { return m_dg.geom; }
     const DustParams&      get_params()           const { return m_params; }
@@ -126,6 +139,11 @@ private:
     std::unique_ptr<amrex::MultiFab>      dust_retreat_flag;    ///< Re-treatment flag [0=ok, 1=retreat needed].
                                                                   ///<   Set each timestep by advance_dust_suppression.
                                                                   ///<   Phase 17 exports this for operational use.
+
+    // Phase 9: atmospheric fields extracted each timestep
+    std::unique_ptr<amrex::MultiFab>      dust_wind_ref;        ///< u,v at zref [m/s] (ncomp=2)
+    std::unique_ptr<amrex::MultiFab>      dust_pblh;            ///< MRF PBL height [m]
+    std::unique_ptr<amrex::MultiFab>      dust_tsfc;            ///< Surface temperature [K]
 
     DustParams                            m_params;
     int                                   m_step = 0;           ///< Timestep counter

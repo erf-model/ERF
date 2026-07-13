@@ -1,0 +1,126 @@
+# DustWindExtract regression test
+#
+# Tests Phase 9 wind extraction: fill_dust_wind_from_interpolation and
+# fill_dust_ustar_from_surface_layer, called from DustLayer::advance via
+# the updated ERF.cpp Evolve() which now passes SurfaceLayer and velocity fields.
+#
+# Algorithm reference: Source/Fire/ERF_FireWindExtract.cpp.
+# SurfaceLayer accessors: get_u_star(0), get_t_surf(0), get_pblh(0).
+#
+# Configuration:
+#   Geostrophic wind = 10 m/s in x. MRF surface layer diagnoses non-zero u*.
+#   erf.dust.zref = 50.0 must equal erf.most.zref = 50.0 (extraction height
+#   must be consistent with the height used by MOST to diagnose u*).
+#   max_step = 5, dt = 1.0 s.
+#
+# Expected results:
+#   (1) [DUST DEBUG] Phase 9 line printed each step with u*_max > 0.
+#   (2) dust_ustar_in max > 0 after step 1 (MRF diagnoses u* from 10 m/s wind).
+#   (3) dust_ustar_in max <= 10 m/s (u* is a fraction of the geostrophic wind).
+#   (4) dust_wind_ref comp 0 max > 0 and <= 10 m/s.
+#   (5) All [DUST DEBUG] Phase 2-8 prints appear confirming debug coverage.
+#   (6) Run exits with code 0.
+#
+# References:
+#   Source/Fire/ERF_FireWindExtract.H (algorithm):
+#     https://github.com/hgopalan/ERF/blob/a2ca3d1a7cea08a480c9d10e93ffdfab1b24b24e/
+#     Source/Fire/ERF_FireWindExtract.H
+#   Hong & Pan (1996). Mon. Wea. Rev., 124, 2322.
+#     https://doi.org/10.1175/1520-0493(1996)124<2322:NBLVDI>2.0.CO;2
+#   Marticorena & Bergametti (1995). J. Geophys. Res., 100, 16415.
+#     https://doi.org/10.1029/95JD00690
+
+erf.prob_name = "ABL"
+
+max_step = 5
+amr.max_level = 0
+amrex.fpe_trap_invalid = 0
+
+stop_time = 100000
+erf.fixed_dt = 1.0
+
+fabarray.mfiter_tile_size = 1024 1024 1024
+
+geometry.prob_extent = 4800 4800 2048
+amr.n_cell           =  8   8   128
+amrex.max_grid_size_z = 256
+geometry.is_periodic = 1 1 0
+
+zlo.type = "surface_layer"
+erf.most.zref = 50.0
+erf.most.z0   = 0.1
+zhi.type = "SlipWall"
+zhi.theta_grad = 0.003
+
+# DIAGNOSTICS & VERBOSITY
+erf.sum_interval   = 1
+erf.v              = 1
+amr.v              = 1
+
+# CHECKPOINT FILES
+erf.check_file      = chk_dustwindextract
+erf.check_int       = -1
+
+# PLOTFILES
+erf.plot_file_1     = plt_dustwindextract
+erf.plot_int_1      = 1
+erf.plot_vars_1     = x_velocity y_velocity z_velocity theta
+
+# SOLVER CHOICE
+erf.use_gravity = false
+
+erf.molec_diff_type = "None"
+erf.les_type        = "None"
+erf.Cs = 0.11
+erf.theta_ref = 300.0
+
+# INITIALIZATION
+erf.init_type = "uniform"
+erf.theta_mean_sounding = 300.0
+erf.initial_u_profile = 10.0 0.0 0.0
+
+# PBL CONFIGURATION - MRF
+erf.pbl_type = "MRF"
+erf.pbl_mrf_Ribcr = 0.5
+erf.pbl_mrf_const_b = 7.8
+erf.pbl_mrf_sf = 0.1
+erf.enable_mrf_countergradient = true
+erf.mrf_moistvars = false
+
+# CORIOLIS EFFECT
+erf.latitude = 45.0
+erf.use_coriolis = true
+
+erf.abl_driver_type  = "GeostrophicWind"
+erf.abl_geo_wind     = 10.0 0.0 0.0
+
+# DUST MODULE CONFIGURATION
+erf.dust.enable                    = true
+erf.dust.dust_debug                = true
+erf.dust.n_size_bins               = 3
+erf.dust.grid_ratio                = 1
+erf.dust.particle_density          = 2650.0
+erf.dust.z0_dust                   = 0.01
+erf.dust.silt_fraction             = 0.10
+erf.dust.threshold_A_coeff         = 0.0123
+erf.dust.crust_index               = 0.0
+erf.dust.alpha_crust               = 0.5
+erf.dust.alpha_efflor              = 0.3
+# test_ustar = 0: Phase 9 uses actual u* from MRF surface layer.
+erf.dust.test_ustar                = 0.0
+erf.dust.rho_air                   = 1.225
+# zref must equal erf.most.zref for extraction height consistency.
+erf.dust.zref                      = 50.0
+erf.dust.supp_tau_base_s           = 3600.0
+erf.dust.test_surf_temp_K          = 293.15
+erf.dust.test_wind_speed           = 0.0
+erf.dust.phreeqc_update_interval_s = 86400.0
+erf.dust.phreeqc_output_file       = ""
+erf.dust.blast_schedule_file       = ""
+erf.dust.blast_reactivity          = 2.0
+erf.dust.soil_type_file            = ""
+erf.dust.silt_fraction_file        = ""
+erf.dust.crust_index_file          = ""
+erf.dust.moisture_flag_file        = ""
+erf.dust.suppression_file          = ""
+erf.dust.surface_map_file          = ""

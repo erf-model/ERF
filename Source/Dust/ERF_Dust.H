@@ -21,6 +21,7 @@
 #include <ERF_DustEmission.H>
 #include <ERF_DustBlastSchedule.H>
 #include <ERF_DustSuppression.H>
+#include <ERF_DustWindExtract.H>
 
 #endif // ERF_USE_DUST
 
