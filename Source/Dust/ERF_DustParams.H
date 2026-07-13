@@ -74,6 +74,22 @@ struct DustParams {
                                                  ///<   much slower than the atmospheric timestep.
     std::string surface_map_file    = "";      ///< Path to NetCDF surface property map; empty = uniform
     std::string phreeqc_output_file = "";      ///< Path to PHREEQC output NetCDF; empty = disabled
+    std::string soil_type_file      = "";      ///< Path to soil type raster (.asc or .nc).
+                                                 ///<   Code 0 = undefined; 1-16 = STATSGO natural soils;
+                                                 ///<   100 = mine tailings; 101 = Li brine pond;
+                                                 ///<   102 = REE tailings; 103 = Cu tailings;
+                                                 ///<   104 = unpaved haul road.
+                                                 ///<   STATSGO: https://www.nrcs.usda.gov/resources/
+                                                 ///<     data-and-reports/ssurgo/statsgo2-data
+                                                 ///<   AP-42 road emission: https://www.epa.gov/
+                                                 ///<     air-emissions-factors-and-quantification/
+                                                 ///<     ap-42-compilation-air-emission-factors
+    std::string silt_fraction_file  = "";      ///< Path to silt fraction raster. Empty = uniform silt_fraction.
+    std::string crust_index_file    = "";      ///< Path to crust index raster. Empty = uniform crust_index.
+    std::string moisture_flag_file  = "";      ///< Path to moisture inhibition flag raster. Empty = uniform 0.
+    std::string suppression_file    = "";      ///< Path to suppression coverage raster. Empty = uniform 0.
+                                                 ///<   Supported formats: ESRI ASCII (.asc), NetCDF (.nc).
+                                                 ///<   NetCDF requires ERF_ENABLE_NETCDF=ON.
 
     /**
      * Constructor that reads all parameters from ParmParse.
@@ -94,6 +110,11 @@ struct DustParams {
         pp.query("phreeqc_update_interval_s", phreeqc_update_interval_s);
         pp.query("surface_map_file", surface_map_file);
         pp.query("phreeqc_output_file", phreeqc_output_file);
+        pp.query("soil_type_file",     soil_type_file);
+        pp.query("silt_fraction_file", silt_fraction_file);
+        pp.query("crust_index_file",   crust_index_file);
+        pp.query("moisture_flag_file", moisture_flag_file);
+        pp.query("suppression_file",   suppression_file);
     }
 };
 

@@ -1,0 +1,91 @@
+# DustSurfaceReader regression test
+#
+# Tests read_ascii_surface_map and populate_dust_surface_maps.
+# Pattern follows ERF_FireTerrainReader.cpp and ERF_FuelMap.H.
+#
+# Domain: 8x8x16 cells, 1000x1000x1000 m.
+# erf.dust.grid_ratio = 1: dust grid is 8x8x1 (125 m x 125 m per cell).
+# Rasters are 8x8 at 125 m cellsize: bilinear interpolation = direct lookup.
+# max_step = 0: only DustLayer::initialize is exercised.
+#
+# Expected results:
+#   (1) verify_dust_prerequisites passes all 8 checks.
+#   (2) populate_dust_surface_maps prints:
+#         [DUST] Loaded soil_type from: test_soil_type.asc
+#         [DUST] Loaded silt_fraction from: test_silt_fraction.asc
+#   (3) dust_soil_type row reversal check:
+#         File row 0 (northernmost, all 100s) -> domain j=7: value 100.0
+#         File row 2 (100 104...104 100) -> domain j=5:
+#           (i=0,j=5)=100.0, (i=1,j=5)=104.0
+#   (4) dust_silt_fraction: outer ring = 0.10, interior = 0.05.
+#   (5) dust_crust_index, dust_moisture_flag, dust_suppression: uniform 0.0.
+#   (6) Exit code 0.
+#
+# Row reversal reference: ERF_FuelMap.H and ERF_FireTerrainReader.cpp.
+# ESRI ASCII format: https://desktop.arcgis.com/en/arcmap/latest/
+#   manage-data/raster-and-images/esri-ascii-raster-format.htm
+# Surface codes 100/104: EPA AP-42 Ch. 13.2.2,
+#   https://www.epa.gov/air-emissions-factors-and-quantification/
+#   ap-42-compilation-air-emission-factors
+# MRF PBL: Hong & Pan (1996), https://doi.org/10.1175/
+#   1520-0493(1996)124<2322:NBLVDI>2.0.CO;2
+
+erf.prob_name = "ABL"
+max_step = 0
+amrex.fpe_trap_invalid = 1
+fabarray.mfiter_tile_size = 1024 1024 1024
+
+geometry.prob_extent = 1000.0 1000.0 1000.0
+amr.n_cell           =   8     8      16
+geometry.is_periodic = 1 1 0
+
+zlo.type = "surface_layer"
+erf.most.z0   = 0.01
+erf.most.zref = 10.0
+erf.most.surf_temp_flux = 0.0
+zhi.type = "SlipWall"
+zhi.theta_grad = 0.003
+
+# Prevent z-decomposition (verify_dust_prerequisites check 3).
+amrex.max_grid_size_z = 16
+
+erf.fixed_dt     = 1.0
+erf.sum_interval = 1
+erf.v            = 1
+amr.v            = 1
+erf.check_int    = -1
+erf.plot_int_1   = -1
+erf.plot_vars_1  = density x_velocity y_velocity z_velocity theta
+
+erf.use_gravity     = true
+erf.molec_diff_type = "None"
+erf.les_type        = "None"
+erf.theta_ref       = 300.0
+erf.init_type         = "uniform"
+erf.density_init_pert = 0.0
+erf.theta_init_pert   = 0.0
+
+erf.pbl_type         = "MRF"
+erf.pbl_mrf_Ribcr    = 0.5
+erf.pbl_mrf_const_b  = 7.8
+erf.pbl_mrf_sf       = 0.1
+erf.enable_mrf_countergradient = false
+erf.mrf_moistvars    = false
+erf.use_coriolis     = false
+
+erf.dust.enable                    = true
+erf.dust.n_size_bins               = 3
+erf.dust.grid_ratio                = 1
+erf.dust.particle_density          = 2650.0
+erf.dust.z0_dust                   = 0.01
+erf.dust.silt_fraction             = 0.10
+erf.dust.threshold_A_coeff         = 0.0123
+erf.dust.crust_index               = 0.0
+erf.dust.phreeqc_update_interval_s = 86400.0
+erf.dust.surface_map_file          = ""
+erf.dust.phreeqc_output_file       = ""
+erf.dust.soil_type_file            = "test_soil_type.asc"
+erf.dust.silt_fraction_file        = "test_silt_fraction.asc"
+erf.dust.crust_index_file          = ""
+erf.dust.moisture_flag_file        = ""
+erf.dust.suppression_file          = ""

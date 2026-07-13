@@ -161,6 +161,26 @@ All parameters are read from the ``erf.dust`` ParmParse prefix.
      - string
      - ""
      - Path to PHREEQC output NetCDF
+   * - ``erf.dust.soil_type_file``
+     - string
+     - ""
+     - Path to soil type raster (.asc or .nc)
+   * - ``erf.dust.silt_fraction_file``
+     - string
+     - ""
+     - Path to silt fraction raster. Empty = uniform silt_fraction.
+   * - ``erf.dust.crust_index_file``
+     - string
+     - ""
+     - Path to crust index raster. Empty = uniform crust_index.
+   * - ``erf.dust.moisture_flag_file``
+     - string
+     - ""
+     - Path to moisture inhibition flag raster. Empty = uniform 0.
+   * - ``erf.dust.suppression_file``
+     - string
+     - ""
+     - Path to suppression coverage raster. Empty = uniform 0.
 
 2D Dust Grid
 ------------
@@ -240,6 +260,125 @@ number of components in ``dust_emission_flux`` equals ``erf.dust.n_size_bins``.
      - ``n_size_bins``
      - Vertical dust emission flux per size bin [kg/m²/s]. Set to 0 at
        initialization. Computed by emission model in Phase 6.
+
+Surface Property Maps
+---------------------
+
+Phase 3 adds support for reading spatial heterogeneity in surface properties
+from raster files. Maps are read during ``DustLayer::initialize`` and
+interpolated onto the 2D dust grid via bilinear interpolation.
+
+Supported File Formats
+~~~~~~~~~~~~~~~~~~~~~~
+
+**ESRI ASCII Grid** (.asc)
+
+- Simple ASCII format with 6-line header followed by data rows.
+- Header format (case-insensitive keys):
+
+  .. code-block:: text
+
+     ncols <integer>
+     nrows <integer>
+     xllcorner <real>
+     yllcorner <real>
+     cellsize <real>
+     nodata_value <real>
+
+- Data rows are arranged northernmost-to-southernmost (row 0 is at y_max).
+  The reader automatically reverses rows to match the ERF domain convention
+  (row 0 is at y_min), following the pattern in ``ERF_FuelMap.H``.
+- Reference: `ESRI ASCII Raster Format
+  <https://desktop.arcgis.com/en/arcmap/latest/manage-data/raster-and-images/
+  esri-ascii-raster-format.htm>`_
+
+**NetCDF** (.nc)
+
+- Requires ``ERF_ENABLE_NETCDF=ON`` at CMake configure time.
+- Implementation deferred to Phase 4; currently aborts if requested.
+- Variable naming convention to be determined.
+
+Row Reversal Convention
+~~~~~~~~~~~~~~~~~~~~~~~
+
+The ESRI ASCII format stores the northernmost row first (row 0 in file = y_max).
+The reader reverses rows during I/O so that row 0 in memory = y_min, consistent
+with the ERF domain layout and the ``ERF_FuelMap.H`` convention.
+
+Surface Type Codes
+~~~~~~~~~~~~~~~~~~~
+
+The ``soil_type`` field uses integer codes to identify surface categories:
+
++----------+-------------------------------------------------------------+
+| Code     | Category                                                    |
++==========+=============================================================+
+| 0        | Undefined (default, no emissions)                           |
++----------+-------------------------------------------------------------+
+| 1--16    | STATSGO natural soil types. Reference:                      |
+|          | `STATSGO2 Data                                              |
+|          | <https://www.nrcs.usda.gov/resources/data-and-reports/      |
+|          | ssurgo/statsgo2-data>`_                                    |
++----------+-------------------------------------------------------------+
+| 100      | Mine tailings (general)                                     |
++----------+-------------------------------------------------------------+
+| 101      | Lithium brine pond                                          |
++----------+-------------------------------------------------------------+
+| 102      | Rare-earth-elements (REE) tailings                          |
++----------+-------------------------------------------------------------+
+| 103      | Copper tailings                                             |
++----------+-------------------------------------------------------------+
+| 104      | Unpaved haul road. Reference: `EPA AP-42 Chapter 13.2.2     |
+|          | <https://www.epa.gov/air-emissions-factors-and-             |
+|          | quantification/ap-42-compilation-air-emission-factors>`_   |
++----------+-------------------------------------------------------------+
+
+Surface Property Map Parameters
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Maps are specified via five optional file path parameters, all under the
+``erf.dust`` ParmParse prefix. If a path is empty (default), the corresponding
+MultiFab retains its uniform default value set during initialization.
+
+.. list-table::
+   :header-rows: 1
+   :widths: 25 10 65
+
+   * - Parameter
+    - Type
+    - Description
+   * - ``erf.dust.soil_type_file``
+    - string
+    - Path to soil type raster (.asc or .nc). Code values as above.
+   * - ``erf.dust.silt_fraction_file``
+    - string
+    - Path to silt fraction raster. Values should be in [0,1]. Empty =
+      uniform ``erf.dust.silt_fraction``.
+   * - ``erf.dust.crust_index_file``
+    - string
+    - Path to crust strength index raster. Values in [0,1] where 0 = uncrusted,
+      1 = fully crusted. Empty = uniform ``erf.dust.crust_index``.
+   * - ``erf.dust.moisture_flag_file``
+    - string
+    - Path to surface moisture inhibition flag raster. Values in [0,1].
+      Empty = uniform 0.0 (dry surface).
+   * - ``erf.dust.suppression_file``
+    - string
+    - Path to suppression agent coverage fraction raster. Values in [0,1].
+      Empty = uniform 0.0 (no suppression).
+
+I/O Pattern
+~~~~~~~~~~~
+
+Reading follows the ``ERF_FireTerrainReader.cpp`` and ``ERF_FuelMap.H`` pattern:
+
+1. **Rank-0 I/O**: The MPI rank with ``ParallelDescriptor::IOProcessor() == true``
+   opens and reads the file.
+2. **Broadcast**: Grid dimensions (``ncols``, ``nrows``, corner coordinates,
+   cellsize) are broadcast to all ranks via ``ParallelDescriptor::Bcast``.
+3. **GPU Copy**: Data is copied to device via ``Gpu::copy(Gpu::hostToDevice, ...)``.
+4. **Bilinear Interpolation**: A GPU kernel loops over MultiFab tiles and
+   computes values at dust-grid cell centers using bilinear interpolation.
 
 Development Phases
 ------------------

@@ -6,6 +6,7 @@
 #include <ERF_DustLayer.H>
 #include <ERF_DustPrerequisites.H>
 #include <ERF_DustGrid.H>
+#include <ERF_DustSurfaceReader.H>
 #include <ERF.H>
 #include <ERF_SurfaceLayer.H>
 #include <AMReX_Print.H>
@@ -66,6 +67,12 @@ void DustLayer::initialize(const ERF&          erf,
 
     // dust_emission_flux: 0.0 (zero emission at initialization)
     dust_emission_flux->setVal(0.0);
+
+    // Populate surface MultiFabs from external rasters if paths are given in dust_params.
+    // MultiFabs retain their setVal defaults above if paths are empty.
+    populate_dust_surface_maps(*dust_soil_type, *dust_silt_fraction,
+                               *dust_crust_index, *dust_moisture_flag,
+                               *dust_suppression, m_dg, dust_params);
 
     // Step 6: Print status message
     amrex::Box dust_domain = m_dg.ba.minimalBox();
