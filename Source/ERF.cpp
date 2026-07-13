@@ -17,7 +17,6 @@
 #include "ERF_EpochTime.H"
 #include "ERF_Utils.H"
 #include "ERF_TerrainMetrics.H"
-#include "ERF_HurricaneDiagnostics.H"
 #include "ERF_SrcHeaders.H"
 //#include "ERF_BuoyancyUtils.H"
 
