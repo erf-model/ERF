@@ -1,1 +1,1 @@
-PR reviewer agent card maintined by ERF developers.
+PR reviewer agent card maintained by ERF developers.
