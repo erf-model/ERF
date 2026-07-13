@@ -207,6 +207,17 @@ function(build_erf_lib erf_lib_name)
     target_link_libraries_system(${erf_lib_name} PUBLIC NoahMP::noahmp)
   endif()
 
+  ########################## DUST ##################################
+  if(ERF_ENABLE_DUST)
+    target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_DUST)
+    target_sources(${erf_lib_name} PRIVATE
+                   ${SRC_DIR}/Dust/ERF_DustParams.H
+    )
+    target_include_directories(${erf_lib_name} PUBLIC
+                               $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/Source/Dust>)
+    message(STATUS "ERF-Dust module enabled")
+  endif()
+
   ########################### GPU defs for KOKKOS #################################
   if(ERF_ENABLE_CUDA)
       target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_CUDA)

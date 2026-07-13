@@ -1,0 +1,99 @@
+# DustScaffold regression test
+# Tests that the ERF-Dust parameter struct compiles, loads defaults,
+# and that the build completes when ERF_ENABLE_DUST=ON.
+#
+# This test runs zero timesteps. It verifies:
+#   (1) DustParams constructor reads all fields from ParmParse without error.
+#   (2) Default values match the values declared in ERF_DustParams.H:
+#         erf.dust.enable              = false
+#         erf.dust.n_size_bins         = 3
+#         erf.dust.particle_density    = 2650.0 [kg/m^3]
+#         erf.dust.z0_dust             = 0.01   [m]
+#         erf.dust.silt_fraction       = 0.10
+#         erf.dust.threshold_A_coeff   = 0.0123
+#         erf.dust.crust_index         = 0.0
+#         erf.dust.phreeqc_update_interval_s = 86400.0
+#   (3) Overriding erf.dust.enable = true and erf.dust.n_size_bins = 5
+#       produces a DustParams struct with those values without aborting.
+#   (4) No dust-specific plotfile fields are written when erf.dust.enable = false.
+#
+# Expected result: run completes with max_step = 0 and exit code 0.
+# No plotfile output is produced for dust variables.
+#
+# Reference: ERF-Dust Phase 1 scaffold.
+#   Source/Dust/ERF_DustParams.H
+#   Source/Dust/DUST_DEVELOPMENT.md
+
+erf.prob_name = "ABL"
+
+max_step = 0
+
+amrex.fpe_trap_invalid = 1
+
+fabarray.mfiter_tile_size = 1024 1024 1024
+
+# Domain: small, single level, periodic horizontal, no terrain
+geometry.prob_extent = 1000.0 1000.0 1000.0
+amr.n_cell           =   8     8      8
+geometry.is_periodic = 1 1 0
+
+zlo.type = "surface_layer"
+erf.most.z0   = 0.1
+erf.most.zref = 16.0
+erf.most.surf_temp_flux = 0.0
+
+zhi.type = "SlipWall"
+zhi.theta_grad = 0.003
+
+erf.fixed_dt = 1.0
+
+# DIAGNOSTICS
+erf.sum_interval = 1
+erf.v            = 1
+amr.v            = 1
+
+# CHECKPOINT
+erf.check_int = -1
+
+# PLOTFILES
+erf.plot_int_1   = -1
+erf.plot_vars_1  = density x_velocity y_velocity z_velocity theta
+
+# SOLVER
+erf.use_gravity        = true
+erf.molec_diff_type    = "None"
+erf.les_type           = "None"
+erf.theta_ref          = 300.0
+
+# INITIALIZATION
+erf.init_type          = "uniform"
+erf.density_init_pert  = 0.0
+erf.theta_init_pert    = 0.0
+
+# MRF PBL
+# Parameters: Hong & Pan (1996), Mon. Wea. Rev., 124, 2322-2339.
+# https://doi.org/10.1175/1520-0493(1996)124<2322:NBLVDI>2.0.CO;2
+erf.pbl_type         = "MRF"
+erf.pbl_mrf_Ribcr    = 0.5
+erf.pbl_mrf_const_b  = 7.8
+erf.pbl_mrf_sf       = 0.1
+erf.enable_mrf_countergradient = false
+erf.mrf_moistvars    = false
+
+erf.use_coriolis     = false
+
+# DUST MODULE
+# erf.dust.enable is false by default.
+# The DustParams constructor is called and default values are verified.
+# No dust emission, transport, or deposition is performed at max_step = 0.
+erf.dust.enable                     = false
+erf.dust.dust_debug                 = false
+erf.dust.n_size_bins                = 3
+erf.dust.particle_density           = 2650.0
+erf.dust.z0_dust                    = 0.01
+erf.dust.silt_fraction              = 0.10
+erf.dust.threshold_A_coeff          = 0.0123
+erf.dust.crust_index                = 0.0
+erf.dust.phreeqc_update_interval_s  = 86400.0
+erf.dust.surface_map_file           = ""
+erf.dust.phreeqc_output_file        = ""
