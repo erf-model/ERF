@@ -148,6 +148,19 @@ void DustLayer::initialize(const ERF&          erf,
                        << "suppression_file=\"" << dust_params.suppression_file << "\"\n";
     }
 
+    // Load blast schedule if a file is specified.
+    // ERF_DustBlastSchedule.H adapts ERF_IgnitionSchedule.H from Source/Fire/.
+#ifdef ERF_USE_DUST
+    if (!dust_params.blast_schedule_file.empty()) {
+        load_blast_schedule(dust_params.blast_schedule_file, m_blast_schedule);
+        m_has_blast_schedule = !m_blast_schedule.empty();
+        if (m_has_blast_schedule) {
+            amrex::Print() << "[DUST] Blast schedule loaded from: "
+                           << dust_params.blast_schedule_file << "\n";
+        }
+    }
+#endif
+
     // Phase 5: Compute initial u*_t. At startup all modifiers are zero so u*_t equals
     // dust_ustar_base where crust_index is also zero, floored to USTAR_T_MIN.
     recompute_dust_ustar_t(*dust_ustar_t, *dust_ustar_base, *dust_crust_index,
@@ -231,4 +244,20 @@ void DustLayer::advance(amrex::Real     dt,
                                *dust_silt_fraction,
                                m_params.n_size_bins,
                                m_params.rho_air);
+
+    // Apply any blast events scheduled in this timestep.
+    // Blast injection adds to emission flux computed above.
+    // ERF_DustBlastSchedule.H documents the CSV format and injection formula.
+#ifdef ERF_USE_DUST
+    if (m_has_blast_schedule && dt > 0.0) {
+        apply_blast_schedule(*dust_emission_flux,
+                             m_dg,
+                             m_blast_schedule,
+                             m_time,
+                             m_time - dt,
+                             dt,
+                             m_params.n_size_bins,
+                             m_params.blast_reactivity);
+    }
+#endif
 }

@@ -1,0 +1,132 @@
+# DustBlast regression test
+#
+# Tests ERF_DustBlastSchedule.H: load_blast_schedule and apply_blast_schedule
+# as called from DustLayer::advance. Adapted from the fire module's
+# ERF_IgnitionSchedule.H test pattern.
+#
+# Applies fixes from PR #135 (hgopalan/ERF/pull/135):
+#   amr.max_level = 0, erf.use_gravity = false,
+#   erf.most.zref = 50.0 m, erf.most.z0 = 0.1 m
+#
+# Configuration:
+#   - 8x8x16 atmospheric cells, 1000x1000x1000 m domain.
+#   - erf.dust.grid_ratio = 1: dust grid is 8x8x1 (125 m cells).
+#   - erf.dust.test_ustar = 0.0: background emission is zero (only blast events).
+#   - Blast event 1 at t=1.0 s: center (500,500) m, radius 200 m, mass=5e-4 kg/m^2.
+#   - Blast event 2 at t=2.0 s: center (300,300) m, radius 100 m, mass=2e-4 kg/m^2.
+#   - max_step = 2, dt = 1.0 s.
+#
+# Expected results:
+#
+# After initialization (max_step = 0 check):
+#   (1) load_blast_schedule reads test_blast_schedule.csv; 2 events loaded.
+#   (2) [DUST] Blast schedule loaded from: test_blast_schedule.csv printed.
+#   (3) dust_emission_flux initialized to 0 (test_ustar = 0).
+#
+# After step 1 (t advances from 0 to 1.0 s; event 1 fires):
+#   (4) apply_blast_schedule applies event 1 (t=1.0 in (0, 1.0]).
+#   (5) blast_flux_per_bin = 5e-4 * 2.0 / (1.0 * 3) = 3.33e-4 kg/m^2/s.
+#       (mass * reactivity / (dt * n_bins))
+#   (6) Dust grid center cell (i=4, j=4) is 35.4 m from (500,500) m
+#       in a 1000x1000 m domain with 125 m cells. Cell center at (562.5, 562.5) m.
+#       dist = sqrt((562.5-500)^2 + (562.5-500)^2) = sqrt(2*62.5^2) = 88.4 m < 200 m.
+#       dust_emission_flux at (i=4,j=4) for all bins > 0 after step 1.
+#   (7) Corner cell (i=0, j=0) has center at (62.5, 62.5) m.
+#       dist = sqrt((62.5-500)^2 + (62.5-500)^2) = 619 m > 200 m.
+#       dust_emission_flux at (i=0,j=0) = 0 (outside blast radius).
+#   (8) dust_emission_flux < DustBlastConst::BLAST_FLUX_MAX = 1e-2 kg/m^2/s.
+#   (9) Event 1 fired flag set; event 2 not yet fired.
+#
+# After step 2 (t advances from 1.0 to 2.0 s; event 2 fires):
+#  (10) apply_blast_schedule applies event 2 (t=2.0 in (1.0, 2.0]).
+#  (11) blast_flux_per_bin for event 2 = 2e-4 * 2.0 / (1.0 * 3) = 1.33e-4 kg/m^2/s.
+#  (12) Cell (i=2, j=2) center at (312.5, 312.5) m.
+#       dist = sqrt((312.5-300)^2 + (312.5-300)^2) = 17.7 m < 100 m.
+#       dust_emission_flux at (i=2,j=2) > 0.
+#  (13) Run exits with code 0.
+#
+# Geometry note:
+#   With 8 cells over 1000 m, each cell is 125 m wide.
+#   Cell center (i,j) is at ((i+0.5)*125, (j+0.5)*125) m.
+#
+# References:
+#   ERF_IgnitionSchedule.H (source pattern for blast schedule):
+#     https://github.com/hgopalan/ERF/blob/a2ca3d1a7cea08a480c9d10e93ffdfab1b24b24e/
+#     Source/Fire/ERF_IgnitionSchedule.H
+#   U.S. EPA AP-42 Chapter 13.2.3 (Heavy Construction Operations):
+#     https://www.epa.gov/air-emissions-factors-and-quantification/
+#     ap-42-compilation-air-emission-factors
+#   MSHA 30 CFR Part 70:
+#     https://www.ecfr.gov/current/title-30/chapter-I/subchapter-O/part-70
+#   MRF PBL: Hong & Pan (1996):
+#     https://doi.org/10.1175/1520-0493(1996)124<2322:NBLVDI>2.0.CO;2
+#   PR #135: https://github.com/hgopalan/ERF/pull/135
+#   PR #136: https://github.com/hgopalan/ERF/pull/136
+#   PR #137: https://github.com/hgopalan/ERF/pull/137
+
+erf.prob_name = "ABL"
+max_step = 2
+amr.max_level = 0
+amrex.fpe_trap_invalid = 1
+fabarray.mfiter_tile_size = 1024 1024 1024
+
+geometry.prob_extent = 1000.0 1000.0 1000.0
+amr.n_cell           =   8     8      16
+geometry.is_periodic = 1 1 0
+
+zlo.type = "surface_layer"
+erf.most.z0   = 0.1
+erf.most.zref = 50.0
+erf.most.surf_temp_flux = 0.0
+zhi.type = "SlipWall"
+zhi.theta_grad = 0.003
+
+amrex.max_grid_size_z = 16
+
+erf.fixed_dt     = 1.0
+erf.sum_interval = 1
+erf.v            = 1
+amr.v            = 1
+erf.check_int    = -1
+erf.plot_int_1   = -1
+erf.plot_vars_1  = density x_velocity y_velocity z_velocity theta
+
+erf.use_gravity     = false
+erf.molec_diff_type = "None"
+erf.les_type        = "None"
+erf.theta_ref       = 300.0
+erf.init_type         = "uniform"
+erf.density_init_pert = 0.0
+erf.theta_init_pert   = 0.0
+
+erf.pbl_type         = "MRF"
+erf.pbl_mrf_Ribcr    = 0.5
+erf.pbl_mrf_const_b  = 7.8
+erf.pbl_mrf_sf       = 0.1
+erf.enable_mrf_countergradient = false
+erf.mrf_moistvars    = false
+erf.use_coriolis     = false
+
+erf.dust.enable                    = true
+erf.dust.n_size_bins               = 3
+erf.dust.grid_ratio                = 1
+erf.dust.particle_density          = 2650.0
+erf.dust.z0_dust                   = 0.01
+erf.dust.silt_fraction             = 0.10
+erf.dust.threshold_A_coeff         = 0.0123
+erf.dust.crust_index               = 0.0
+erf.dust.alpha_crust               = 0.5
+erf.dust.alpha_efflor              = 0.3
+# test_ustar = 0: background wind emission is zero; only blast events inject mass.
+erf.dust.test_ustar                = 0.0
+erf.dust.rho_air                   = 1.225
+erf.dust.blast_schedule_file       = "test_blast_schedule.csv"
+erf.dust.blast_reactivity          = 2.0
+erf.dust.phreeqc_update_interval_s = 86400.0
+erf.dust.phreeqc_output_file       = ""
+erf.dust.soil_type_file            = ""
+erf.dust.silt_fraction_file        = ""
+erf.dust.crust_index_file          = ""
+erf.dust.moisture_flag_file        = ""
+erf.dust.suppression_file          = ""
+erf.dust.surface_map_file          = ""

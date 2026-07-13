@@ -48,6 +48,10 @@
 #include <memory>
 #include <AMReX_MultiFab.H>
 
+#ifdef ERF_USE_DUST
+#include <ERF_DustBlastSchedule.H>
+#endif
+
 // Forward declarations
 class SurfaceLayer;
 class ERF;
@@ -123,6 +127,10 @@ private:
     int                                   m_step = 0;           ///< Timestep counter
     amrex::Real                           m_time = 0.0;         ///< Simulation time [s]
     amrex::Real                           m_last_phreeqc_update = -1.0e30;  ///< Time of last PHREEQC update [s]
+#ifdef ERF_USE_DUST
+    BlastSchedule                         m_blast_schedule;     ///< Loaded at init if blast_schedule_file is non-empty.
+    bool                                  m_has_blast_schedule = false; ///< True if blast schedule was loaded.
+#endif
 };
 
 #endif // ERF_DUST_LAYER_H
