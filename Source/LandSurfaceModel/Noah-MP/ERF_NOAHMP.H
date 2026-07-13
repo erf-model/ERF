@@ -218,7 +218,6 @@ public:
     void
     Read_Lsm_Restart (const std::string& dir) override;
 
-private:
     // --- Advance_With_State pipeline helpers (ERF_NOAHMP_Advance.cpp) ---------
 
     // Fine-level (lev>0) coupling data/flux fill by interpolation from level 0,
@@ -280,6 +279,33 @@ private:
     report_precip_diagnostics (const int& lev,
                                const amrex::Vector<erf_noahmp::ClampedPrecipCell>& clamped_cells,
                                const amrex::Vector<erf_noahmp::InvariantPrecipCell>& invariant_cells);
+
+    // Index of soil field (g in {0:smois,1:sh2o,2:tslb}, k in [0,nsoil)) within
+    // lsm_fab_data. Output-buffer index is NoahmpOutputComp::NumComps + g*m_nsoil + k.
+    int soil_data_idx (int g, int k) const {
+        return LsmData_NOAHMP::NumVars + g*m_nsoil + k;
+    }
+
+    // Resolve the soil-layer count and total LSM data size exactly once, before Init
+    // (the parent queries Lsm_Data_Size() first). Init later asserts vs namelist NSOIL.
+    bool m_nsoil_resolved = false;
+    void m_ensure_nsoil_resolved () {
+        if (m_nsoil_resolved) { return; }
+        amrex::ParmParse pp_nsoil("erf");
+        pp_nsoil.query("lsm_nsoil", m_nsoil);
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(m_nsoil >= 1, "erf.lsm_nsoil must be >= 1");
+        m_lsm_data_size = LsmData_NOAHMP::NumVars + 3*m_nsoil;
+        m_nsoil_resolved = true;
+    }
+
+    // VisMF file prefix for the level-l, slot-s previous-accumulation snapshot.
+    static std::string
+    m_precip_snapshot_name (const std::string& dir, int l, int s) {
+        return dir + "/precip_accum_prev_Level_" + std::to_string(l)
+                   + "_slot_" + std::to_string(s);
+    }
+
+private:
 
     // lsm data var count = fixed 2D fields + runtime soil profile (3 x m_nsoil).
     // Finalized once m_nsoil is known; the fixed-field count is a safe lower bound.
@@ -352,24 +378,6 @@ private:
     // so no broadcast needed for the collective writes). Asserted vs namelist NSOIL.
     int m_nsoil = 4;
 
-    // Index of soil field (g in {0:smois,1:sh2o,2:tslb}, k in [0,nsoil)) within
-    // lsm_fab_data. Output-buffer index is NoahmpOutputComp::NumComps + g*m_nsoil + k.
-    int soil_data_idx (int g, int k) const {
-        return LsmData_NOAHMP::NumVars + g*m_nsoil + k;
-    }
-
-    // Resolve the soil-layer count and total LSM data size exactly once, before Init
-    // (the parent queries Lsm_Data_Size() first). Init later asserts vs namelist NSOIL.
-    bool m_nsoil_resolved = false;
-    void m_ensure_nsoil_resolved () {
-        if (m_nsoil_resolved) { return; }
-        amrex::ParmParse pp_nsoil("erf");
-        pp_nsoil.query("lsm_nsoil", m_nsoil);
-        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(m_nsoil >= 1, "erf.lsm_nsoil must be >= 1");
-        m_lsm_data_size = LsmData_NOAHMP::NumVars + 3*m_nsoil;
-        m_nsoil_resolved = true;
-    }
-
     // Vector to store NoahmpIO objects at a level
     NoahmpIO_vector noahmpio_vect;
 
@@ -384,18 +392,10 @@ private:
 
     // Checkpointed previous-accumulation snapshots staged by Read_Lsm_Restart, consumed
     // (reset) by the first Advance. Empty on a cold start or legacy checkpoint.
-    amrex::Array<std::unique_ptr<amrex::MultiFab>, NoahmpPrecipSlot::NumSlots>
-        m_precip_accum_restored;
+    amrex::Array<std::unique_ptr<amrex::MultiFab>, NoahmpPrecipSlot::NumSlots> m_precip_accum_restored;
 
     // This instance's AMR level (set in Init); keys the per-level snapshot filenames.
     int m_lev = 0;
-
-    // VisMF file prefix for the level-l, slot-s previous-accumulation snapshot.
-    static std::string
-    m_precip_snapshot_name (const std::string& dir, int l, int s) {
-        return dir + "/precip_accum_prev_Level_" + std::to_string(l)
-                   + "_slot_" + std::to_string(s);
-    }
 
     // Plot frequency
     int m_plot_int_1 = -1;
