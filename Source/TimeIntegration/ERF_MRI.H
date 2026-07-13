@@ -176,7 +176,7 @@ public:
         // *******************************************************************************
         // !no_substepping: we only update the fast variables every fast timestep, then update
         //                  the slow variables after the acoustic sub-stepping.  This has
-        //                  two calls to slow_rhs so that we can update the slow variables
+        //                  2 calls to slow_rhs so that we can update the slow variables
         //                  with the velocity field after the acoustic substepping using
         //                  the time-averaged velocity from the substepping
         // no_substepping:  we don't do any acoustic subcycling so we only make one call per RK

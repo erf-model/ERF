@@ -346,6 +346,17 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
         }
     }
 
+    if (solverChoice.nudging_from_input_sounding) {
+        nudge_data[lev] = std::make_unique<MultiFab>(ba, dm, 4, ngrow_state);
+        nudge_data[lev]->setVal(0.0);
+    }
+
+    if (solverChoice.large_scale_forcing) {
+        lsf_data[lev] = std::make_unique<MultiFab>(ba, dm, 8, ngrow_state);
+        lsf_data[lev]->setVal(0.0);
+    }
+
+
     // ********************************************************************************************
     // Build WRF data structures
     // ********************************************************************************************
@@ -549,9 +560,9 @@ ERF::update_diffusive_arrays (int lev, const BoxArray& ba, const DistributionMap
     bool l_Surf_Y      = phys_bc_type[1] == ERF_BC::surface_layer || phys_bc_type[4] == ERF_BC::surface_layer;
 
 
-    bool l_implicit_diff = (solverChoice.vert_implicit_fac[0] > 0 ||
-                            solverChoice.vert_implicit_fac[1] > 0 ||
-                            solverChoice.vert_implicit_fac[2] > 0);
+    bool l_implicit_diff = (solverChoice.vert_implicit_fac[lev][0] > 0 ||
+                            solverChoice.vert_implicit_fac[lev][1] > 0 ||
+                            solverChoice.vert_implicit_fac[lev][2] > 0);
 
     bool l_eb_surface_layer = (l_use_eb && solverChoice.ebChoice.eb_boundary_type == EBBoundaryType::SurfaceLayer);
 
@@ -829,8 +840,9 @@ ERF::remake_zphys (int lev, std::unique_ptr<MultiFab>& temp_zphys_nd)
 {
     if (solverChoice.init_type != InitType::WRFInput && solverChoice.init_type != InitType::Metgrid)
     {
-        if (lev > 0)
-        {
+        if (lev == 0) {
+            temp_zphys_nd->ParallelCopy(*z_phys_nd[lev], 0, 0, 1, z_phys_nd[lev]->nGrowVect(), z_phys_nd[lev]->nGrowVect());
+        } else {
             //
             // First interpolate from coarser level
             // NOTE: this interpolater assumes that ALL ghost cells of the coarse MultiFab
@@ -848,11 +860,14 @@ ERF::remake_zphys (int lev, std::unique_ptr<MultiFab>& temp_zphys_nd)
             //    and also fills values of z_phys_nd outside the domain
             make_terrain_fitted_coords(lev,geom[lev],*temp_zphys_nd,zlevels_stag[lev],phys_bc_type);
 
-            std::swap(temp_zphys_nd, z_phys_nd[lev]);
         } // lev > 0
+
+        std::swap(temp_zphys_nd, z_phys_nd[lev]);
+
     } else {
-        if (lev > 0)
-        {
+        if (lev == 0) {
+            temp_zphys_nd->ParallelCopy(*z_phys_nd[lev], 0, 0, 1, z_phys_nd[lev]->nGrowVect(), z_phys_nd[lev]->nGrowVect());
+        } else {
             //
             // First interpolate from coarser level
             // NOTE: this interpolater assumes that ALL ghost cells of the coarse MultiFab
@@ -866,8 +881,9 @@ ERF::remake_zphys (int lev, std::unique_ptr<MultiFab>& temp_zphys_nd)
                                   refRatio(lev-1), &node_bilinear_interp,
                                   domain_bcs_type, BCVars::cons_bc);
 
-            std::swap(temp_zphys_nd, z_phys_nd[lev]);
         } // lev > 0
+
+        std::swap(temp_zphys_nd, z_phys_nd[lev]);
     }
 
     if (solverChoice.terrain_type == TerrainType::ImmersedForcing ||

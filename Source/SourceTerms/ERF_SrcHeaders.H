@@ -6,6 +6,7 @@
 
 #include "ERF_DataStruct.H"
 #include "ERF_InputSoundingData.H"
+#include "ERF_LargeScaleForcingData.H"
 #include "ERF_TurbPertStruct.H"
 #include "ERF_EB.H"
 #include "ERF_ReadBndryPlanes.H"
@@ -91,6 +92,7 @@ void make_sources (int level, int nrk,
                    const amrex::Real* sinesq_at_lev_d,
                    const amrex::MultiFab* surface_state_at_lev,
                    InputSoundingData& input_sounding_data,
+                   LargeScaleForcingData &lsf_data,
                    TurbulentPerturbation& turbPert,
                    bool is_slow_step);
 
@@ -98,19 +100,23 @@ void make_sources (int level, int nrk,
 void
 add_moist_nudging_terms (const amrex::MultiFab& S_data,
                                amrex::MultiFab& source,
+                         const int n_qstate,
                          const amrex::Real& dt,
                          const amrex::Real& old_stage_time_total,
                          const amrex::Real& start_bdy_time,
                          const amrex::Real& final_bdy_time,
                          const amrex::Real& bdy_time_interval,
                          const amrex::Real& bdy_factor,
-                         int  width,
+                         const int width,
                          const amrex::Geometry& geom,
                          amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_xlo,
                          amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_xhi,
                          amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_ylo,
                          amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_yhi,
-                         std::unique_ptr<ReadBndryPlanes>& m_r2d);
+                         std::unique_ptr<ReadBndryPlanes>& m_r2d,
+                         const amrex::Real& c_p,
+                         const amrex::Real& rdOcp,
+                         const int bdy_moist_nudge_type);
 #endif
 
 void make_mom_sources (amrex::Real time,
@@ -143,8 +149,11 @@ void make_mom_sources (amrex::Real time,
                        const amrex::Vector<amrex::MultiFab>* forecast_state_at_lev,
                        const amrex::MultiFab* surface_state_at_lev,
                              InputSoundingData& input_sounding_data,
+                             LargeScaleForcingData &lsf_data,
+                       std::unique_ptr<amrex::MultiFab>& lsf_tendencies,
+                       std::unique_ptr<amrex::MultiFab>& nudge_data,
                        const eb_& ebfact,
-                             bool is_slow_step);
+                       bool is_slow_step);
 
 void add_thin_body_sources (amrex::MultiFab& xmom_source,
                             amrex::MultiFab& ymom_source,
@@ -162,13 +171,14 @@ moist_set_rhs (const amrex::Geometry& geom,
                const amrex::Box& tbx,
                const amrex::Array4<amrex::Real const>& new_cons,
                const amrex::Array4<amrex::Real      >& cell_rhs,
+               const int n_qstate,
                const amrex::Real& time,
                const amrex::Real& dt,
                const amrex::Real& start_bdy_time,
                const amrex::Real& final_bdy_time,
                const amrex::Real& bdy_time_interval,
                const amrex::Real& nudge_factor,
-               int width,
+               const int width,
                const amrex::Box& domain,
                amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_xlo,
                amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_xhi,

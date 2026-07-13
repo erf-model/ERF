@@ -800,17 +800,18 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
         if (containerHasElement(plot_var_names, "buoyancy"))
         {
             MultiFab     qt(mf[lev].boxArray(), mf[lev].DistributionMap(), 1, 1);
-            MultiFab      b(mf[lev].boxArray(), mf[lev].DistributionMap(), 1, 1);
+            MultiFab      b(mf[lev].boxArray(), mf[lev].DistributionMap(), 1, 0);
             MultiFab S_prim(mf[lev].boxArray(), mf[lev].DistributionMap(),
                              vars_new[lev][Vars::cons].nComp()-1, 1);
 
-            int n_qstate_into_total = micro->Get_Qstate_Moist_Size() - micro->Get_Qstate_Moist_NumConc_Size();
             qt.setVal(0.);
+            int n_qstate_into_total = micro->Get_Qstate_Moist_Size() - micro->Get_Qstate_Moist_NumConc_Size();
             if (solverChoice.moisture_type != MoistureType::None) {
                 make_qt(vars_new[lev][Vars::cons], qt, n_qstate_into_total);
             }
-            cons_to_prim(vars_new[lev][Vars::cons], S_prim, 1);
+            cons_to_prim(vars_new[lev][Vars::cons], S_prim, 0);
 
+            b.setVal(0.); // Need to initialize to zero because buoyancy not defined on faces at top and bottom of domain
             make_buoyancy(lev, vars_new[lev], S_prim, qt, b, geom[lev], solverChoice, base_state[lev], n_qstate_into_total,
                           get_eb(lev), solverChoice.anelastic[lev]);
             MultiFab::Copy(mf[lev], b, 0, mf_comp, 1, 0);
@@ -1426,11 +1427,19 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
             else if(solverChoice.moisture_type == MoistureType::SuperDroplets)
             {
                 if (containerHasElement(plot_var_names, "rain_accum")) {
-                    MultiFab::Copy(mf[lev],*(qmoist[lev][6]),0,mf_comp,1,0);
+                    MultiFab::Copy(mf[lev],*(qmoist[lev][8]),0,mf_comp,1,0);
+                    mf_comp += 1;
+                }
+                if (containerHasElement(plot_var_names, "graup_accum")) {
+                    MultiFab::Copy(mf[lev],*(qmoist[lev][9]),0,mf_comp,1,0);
+                    mf_comp += 1;
+                }
+                if (containerHasElement(plot_var_names, "snow_accum")) {
+                    MultiFab::Copy(mf[lev],*(qmoist[lev][10]),0,mf_comp,1,0);
                     mf_comp += 1;
                 }
                 if (containerHasElement(plot_var_names, "rel_humidity")) {
-                    MultiFab::Copy(mf[lev],*(qmoist[lev][5]),0,mf_comp,1,0);
+                    MultiFab::Copy(mf[lev],*(qmoist[lev][7]),0,mf_comp,1,0);
                     mf_comp += 1;
                 }
                 if (containerHasElement(plot_var_names, "condensation_rate")) {

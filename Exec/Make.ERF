@@ -82,15 +82,20 @@ include $(ERF_SOLVERS_DIR)/Make.package
 VPATH_LOCATIONS   += $(ERF_SOLVERS_DIR)
 INCLUDE_LOCATIONS += $(ERF_SOLVERS_DIR)
 
-ERF_UTIL_DIR = $(ERF_SOURCE_DIR)/Utils
-include $(ERF_UTIL_DIR)/Make.package
-VPATH_LOCATIONS   += $(ERF_UTIL_DIR)
-INCLUDE_LOCATIONS += $(ERF_UTIL_DIR)
+ERF_REFINE_DIR = $(ERF_SOURCE_DIR)/Refinement
+include $(ERF_REFINE_DIR)/Make.package
+VPATH_LOCATIONS   += $(ERF_REFINE_DIR)
+INCLUDE_LOCATIONS += $(ERF_REFINE_DIR)
 
 ERF_PHYSICS_DIR = $(ERF_SOURCE_DIR)/PhysicsInterfaces
 include $(ERF_PHYSICS_DIR)/Make.package
 VPATH_LOCATIONS   += $(ERF_PHYSICS_DIR)
 INCLUDE_LOCATIONS += $(ERF_PHYSICS_DIR)
+
+ERF_UTIL_DIR = $(ERF_SOURCE_DIR)/Utils
+include $(ERF_UTIL_DIR)/Make.package
+VPATH_LOCATIONS   += $(ERF_UTIL_DIR)
+INCLUDE_LOCATIONS += $(ERF_UTIL_DIR)
 
 ifeq ($(USE_PARTICLES),TRUE)
 ERF_PARTICLES_DIR = $(ERF_SOURCE_DIR)/Particles
@@ -250,6 +255,13 @@ ifeq ($(USE_NOAHMP), TRUE)
   else
     DEFINES   += -DERF_USE_NOAHMP
 
+    ifneq ($(PRECISION),FLOAT)
+      DEFINES               += -DDOUBLE_PREC
+      NOAHMP_PRECISION_FLAG := -DDOUBLE_PREC
+    else
+      NOAHMP_PRECISION_FLAG :=
+    endif
+
     # Try netcdf-fortran => netcdf-fortran_parallel
     has_netcdf_fortran := $(shell if [ -n "$$MPICH_DIR" ]; then export PKG_CONFIG_PATH="$$MPICH_DIR/lib/pkgconfig:$$PKG_CONFIG_PATH"; fi; pkg-config --exists netcdf-fortran 2>/dev/null; echo $$?)
     ifeq ($(has_netcdf_fortran),0)
@@ -402,11 +414,16 @@ ifeq ($(USE_P3), TRUE)
     INCLUDE_LOCATIONS += $(EAMXX_HOME)/physics/share
 endif
 
+ERF_RAD_SIMPLE_DIR = $(ERF_SOURCE_DIR)/PhysicsInterfaces/Radiation/Simple
+include $(ERF_RAD_SIMPLE_DIR)/Make.package
+VPATH_LOCATIONS   += $(ERF_RAD_SIMPLE_DIR)
+INCLUDE_LOCATIONS += $(ERF_RAD_SIMPLE_DIR)
+
 # ---- LAPACK support ----
 USE_LAPACK ?= FALSE
 
 ifeq ($(USE_LAPACK), TRUE)
-  DEFINES += -DUSE_LAPACK  
+  DEFINES += -DUSE_LAPACK
   # Try pkg-config first (works on many systems)
   has_lapack := $(shell pkg-config --exists lapack 2>/dev/null; echo $$?)
   ifeq ($(has_lapack),0)
@@ -420,6 +437,7 @@ ifeq ($(USE_LAPACK), TRUE)
 
 endif
 # ------------------------
+
 
 
 include $(AMREX_HOME)/Src/Base/Make.package
@@ -515,7 +533,7 @@ include $(AMREX_HOME)/Tools/GNUMake/Make.rules
 
 build_noahmp:
 ifeq ($(USE_NOAHMP), TRUE)
-	$(MAKE) -C $(NOAHMP_HOME)/drivers/erf -f Makefile all_noahmp
+	$(MAKE) -C $(NOAHMP_HOME)/drivers/erf -f Makefile all_noahmp NOAHMP_PRECISION_FLAG="$(NOAHMP_PRECISION_FLAG)"
 endif
 
 all: build_noahmp $(executable)

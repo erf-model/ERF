@@ -22,7 +22,7 @@ void SuperDropletPC::Recycle ( const int             a_lev,
 
     const auto num_sd_deactivated = NumSDDeactivated();
     const auto num_sd = NumSuperDroplets();
-    const auto deac_frac = (num_sd > 0 ? static_cast<Real>(num_sd_deactivated)/static_cast<Real>(num_sd) : 0.0);
+    const auto deac_frac = (num_sd > 0 ? static_cast<Real>(num_sd_deactivated)/static_cast<Real>(num_sd) : Real(0));
 
     int flag = 0;
     if (deac_frac > m_deac_threshold) { flag = 1; }
@@ -215,6 +215,12 @@ void SuperDropletPC::Recycle ( const int             a_lev,
                 auto water_mass = four_thirds_pi
                                  * water_radius*water_radius*water_radius*ctx.rho_water;
                 ptrs.sp_mass_ptrs[ctx.idx_water][i] = water_mass;
+
+                // Reset ice attributes
+                ptrs.a_ptr[i] = zero;
+                ptrs.c_ptr[i] = zero;
+                ptrs.mrime_ptr[i] = zero;
+                ptrs.nmono_ptr[i] = zero;
 
                 // choose a random index
                 auto j = Random_int(np, rnd_engine);

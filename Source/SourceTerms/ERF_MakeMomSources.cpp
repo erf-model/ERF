@@ -64,8 +64,11 @@ void make_mom_sources (Real time,
                        const Vector<MultiFab>* forecast_state_at_lev,
                        const MultiFab* surface_state_at_lev,
                              InputSoundingData& input_sounding_data,
+                             LargeScaleForcingData &lsf_data,
+                       std::unique_ptr<amrex::MultiFab>& lsf_tendencies,
+                       std::unique_ptr<amrex::MultiFab>& nudge_data,
                        const eb_& ebfact,
-                             bool is_slow_step)
+                       bool is_slow_step)
 {
     BL_PROFILE_REGION("erf_make_mom_sources()");
 
@@ -88,17 +91,17 @@ void make_mom_sources (Real time,
 
     // *****************************************************************************
     // Define source term for all three components of momenta from
-    //    one Coriolis forcing for (xmom,ymom,zmom)
-    //    two Rayleigh damping for (xmom,ymom,zmom)
-    //    three Constant / height-dependent geostrophic forcing
-    //    Real(4.) Subsidence
-    //    Real(5.) Nudging towards input sounding data
-    //    Real(6.) Numerical diffusion for (xmom,ymom,zmom)
-    //    Real(7.) Sponge
-    //    Real(8.) Forest canopy
+    //    1. Coriolis forcing for (xmom,ymom,zmom)
+    //    2. Rayleigh damping for (xmom,ymom,zmom)
+    //    3. Constant / height-dependent geostrophic forcing
+    //    4. Subsidence
+    //    5. Nudging towards input sounding data
+    //    6. Numerical diffusion for (xmom,ymom,zmom)
+    //    7. Sponge
+    //    8. Forest canopy
     //    9a. Immersed forcing for terrain
     //    9b. Immersed forcing for buildings
-    //   Real(10.) Constant mass flux
+    //   10. Constant mass flux
     // *****************************************************************************
     // NOTE: buoyancy is now computed in a separate routine - it should not appear here
     // *****************************************************************************
@@ -323,7 +326,7 @@ void make_mom_sources (Real time,
 
 
         // *****************************************************************************
-        // one Add CORIOLIS forcing (this assumes east is +x, north is +y)
+        // 1. Add CORIOLIS forcing (this assumes east is +x, north is +y)
         // *****************************************************************************
         if (use_coriolis && is_slow_step) {
             if(solverChoice.init_type == InitType::HindCast) {
@@ -429,7 +432,7 @@ void make_mom_sources (Real time,
         } // use_coriolis
 
         // *****************************************************************************
-        // two Add RAYLEIGH damping
+        // 2. Add RAYLEIGH damping
         // *****************************************************************************
         Real dampcoef = solverChoice.dampingChoice.rayleigh_dampcoef;
 
@@ -507,7 +510,7 @@ void make_mom_sources (Real time,
         } // geo_wind_profile
 
         // *****************************************************************************
-        // Real(4.) Add custom SUBSIDENCE terms
+        // 4. Add custom SUBSIDENCE terms
         // *****************************************************************************
         if (solverChoice.custom_w_subsidence && is_slow_step && solverChoice.do_mom_advection) {
             if (solverChoice.custom_forcing_prim_vars) {
@@ -580,55 +583,125 @@ void make_mom_sources (Real time,
             }
         }
 
-        // *************************************************************************************
-        // Real(5.) Add nudging towards value specified in input sounding
-        // *************************************************************************************
+        if (solverChoice.large_scale_forcing && is_slow_step)
+        {
+            // subsidence terms for U and V
+            auto lsf_arr = lsf_tendencies->const_array(mfi);
+
+            const int kmin = domain.smallEnd(2) + 1; // minimum k for vertical subsidence
+            const int kmax = domain.bigEnd(2) - 2;   // maximum k for vertical subsidence
+
+            ParallelFor(tbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            {
+                if (k > kmin && k < kmax) {
+                    int k1, k2;
+                    if (lsf_arr(i, j, k, 2) >= 0.0)
+                    {
+                        k1 = k;
+                        k2 = k-1;
+                    } else {
+                        k1 = k+1;
+                        k2 = k;
+                    }
+
+                    Real dzInv = myhalf*dxInv[2];
+                    if (z_nd_arr) {
+                        Real z_xf_lo = fourth * ( z_nd_arr(i,j,k  ) + z_nd_arr(i,j+1,k  )
+                                                + z_nd_arr(i,j,k-1) + z_nd_arr(i,j+1,k-1) );
+                        Real z_xf_hi = fourth * ( z_nd_arr(i,j,k+1) + z_nd_arr(i,j+1,k+1)
+                                                + z_nd_arr(i,j,k+2) + z_nd_arr(i,j+1,k+2) );
+                        dzInv = one / (z_xf_hi - z_xf_lo);
+                    }
+                    Real rho_on_u_face = myhalf * ( cell_data(i,j,k,Rho_comp) + cell_data(i-1,j,k,Rho_comp) );
+                    amrex::Real utend = -(dzInv * lsf_arr(i, j, k, 2)) * ( u(i, j, k1) - u(i, j, k2) );
+                    xmom_src_arr(i, j, k) += utend * rho_on_u_face;
+                }
+            });
+
+            ParallelFor(tby, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            {
+                if (k > kmin && k < kmax) {
+                    int k1, k2;
+                    if (lsf_arr(i, j, k, 2) >= 0.0)
+                    {
+                        k1 = k;
+                        k2 = k-1;
+                    } else {
+                        k1 = k+1;
+                        k2 = k;
+                    }
+
+                    Real dzInv = 0.5*dxInv[2];
+                    if (z_nd_arr) {
+                        Real z_yf_lo = 0.25 * ( z_nd_arr(i,j,k  ) + z_nd_arr(i+1,j,k  )
+                                                + z_nd_arr(i,j,k-1) + z_nd_arr(i+1,j,k-1) );
+                        Real z_yf_hi = 0.25 * ( z_nd_arr(i,j,k+1) + z_nd_arr(i+1,j,k+1)
+                                                + z_nd_arr(i,j,k+2) + z_nd_arr(i+1,j,k+2) );
+                        dzInv = 1.0 / (z_yf_hi - z_yf_lo);
+                    }
+                    Real rho_on_v_face = 0.5 * ( cell_data(i,j,k,Rho_comp) + cell_data(i,j-1,k,Rho_comp) );
+                    amrex::Real vtend = -(dzInv * lsf_arr(i, j, k, 2)) * ( v(i, j, k1) - v(i, j, k2) );
+                    ymom_src_arr(i, j, k) += vtend * rho_on_v_face;
+                }
+            });
+        }
+
         if (solverChoice.nudging_from_input_sounding && is_slow_step)
         {
-            int itime_n    = 0;
-            int itime_np1  = 0;
-            Real coeff_n   = one;
-            Real coeff_np1 = zero;
+            Real uv_coeff_n = 1.0;
+            Real uv_coeff_np1 = 0.0;
+            Real tau = Real(1.0) / input_sounding_data.tau_nudging;
+            Real* u_nudge_n, *u_nudge_np1, *v_nudge_n, *v_nudge_np1;
+            if (!solverChoice.large_scale_forcing)
+            {
+                int itime_n    = 0;
+                int itime_np1  = 0;
+                int n_sounding_times = input_sounding_data.input_sounding_time.size();
 
-            Real tau_inv = one / input_sounding_data.tau_nudging;
-
-            int n_sounding_times = input_sounding_data.input_sounding_time.size();
-
-            for (int nt = 1; nt < n_sounding_times; nt++) {
-                if (time > input_sounding_data.input_sounding_time[nt]) itime_n = nt;
-            }
-            if (itime_n == n_sounding_times-1) {
-                itime_np1 = itime_n;
+                for (int nt = 1; nt < n_sounding_times; nt++) {
+                    if (time > input_sounding_data.input_sounding_time[nt]) itime_n = nt;
+                }
+                if (itime_n == n_sounding_times-1) {
+                    itime_np1 = itime_n;
+                } else {
+                    itime_np1 = itime_n+1;
+                    uv_coeff_np1 = (time                                           - input_sounding_data.input_sounding_time[itime_n]) /
+                                (input_sounding_data.input_sounding_time[itime_np1] - input_sounding_data.input_sounding_time[itime_n]);
+                    uv_coeff_n   = Real(1.0) - uv_coeff_np1;
+                }
+                u_nudge_n = input_sounding_data.U_inp_sound_d[itime_n].dataPtr() + 1;
+                u_nudge_np1 = input_sounding_data.U_inp_sound_d[itime_np1].dataPtr() + 1;
+                v_nudge_n  = input_sounding_data.V_inp_sound_d[itime_n].dataPtr() + 1;
+                v_nudge_np1 = input_sounding_data.V_inp_sound_d[itime_np1].dataPtr() + 1;
             } else {
-                itime_np1 = itime_n+1;
-                coeff_np1 = (time                                               - input_sounding_data.input_sounding_time[itime_n]) /
-                            (input_sounding_data.input_sounding_time[itime_np1] - input_sounding_data.input_sounding_time[itime_n]);
-                coeff_n   = one - coeff_np1;
+                int itime_curr = 0;
+                int itime_next = 0;
+                uv_coeff_n = 1.0;
+                uv_coeff_np1 = 0.0;
+                tau = 1.0 / lsf_data.tau_lsf; // only applies to u,v LSF nudging
+
+                lsf_data.get_forcing_time_coeffs(time, itime_curr, itime_next, uv_coeff_n, uv_coeff_np1);
+                u_nudge_n   = lsf_data.u_int_lsf_d[itime_curr].dataPtr();
+                u_nudge_np1 = lsf_data.u_int_lsf_d[itime_next].dataPtr();
+                v_nudge_n   = lsf_data.v_int_lsf_d[itime_curr].dataPtr();
+                v_nudge_np1 = lsf_data.v_int_lsf_d[itime_next].dataPtr();
             }
 
-            int nr = Rho_comp;
+            ParallelFor(tbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            {
+                Real unudge = -((dptr_u_plane(k)/dptr_r_plane(k)) - (uv_coeff_n*u_nudge_n[k] + uv_coeff_np1*u_nudge_np1[k]));
+                xmom_src_arr(i, j, k) += tau * unudge * dptr_r_plane(k);
+            });
 
-            const Real* u_inp_sound_n   = input_sounding_data.U_inp_sound_d[itime_n].dataPtr();
-            const Real* u_inp_sound_np1 = input_sounding_data.U_inp_sound_d[itime_np1].dataPtr();
-            const Real* v_inp_sound_n   = input_sounding_data.V_inp_sound_d[itime_n].dataPtr();
-            const Real* v_inp_sound_np1 = input_sounding_data.V_inp_sound_d[itime_np1].dataPtr();
-            ParallelFor(tbx, tby,
-            [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            ParallelFor(tby, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
-                Real nudge_u = (coeff_n*u_inp_sound_n[k] + coeff_np1*u_inp_sound_np1[k]) - (dptr_u_plane(k)/dptr_r_plane(k));
-                nudge_u *= tau_inv;
-                xmom_src_arr(i, j, k) += cell_data(i, j, k, nr) * nudge_u;
-            },
-            [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-            {
-                Real nudge_v = (coeff_n*v_inp_sound_n[k] + coeff_np1*v_inp_sound_np1[k]) - (dptr_v_plane(k)/dptr_r_plane(k));
-                nudge_v *= tau_inv;
-                ymom_src_arr(i, j, k) += cell_data(i, j, k, nr) * nudge_v;
+                Real vnudge = -((dptr_v_plane(k)/dptr_r_plane(k)) - (uv_coeff_n*v_nudge_n[k] + uv_coeff_np1*v_nudge_np1[k]));
+                ymom_src_arr(i, j, k) += tau * vnudge * dptr_r_plane(k);
             });
         }
 
         // *****************************************************************************
-        // Real(6.) Add NUMERICAL DIFFUSION terms
+        // 6. Add NUMERICAL DIFFUSION terms
         // *****************************************************************************
 #if 0
         if (l_use_ndiff) {
@@ -644,7 +717,7 @@ void make_mom_sources (Real time,
 #endif
 
         // *****************************************************************************
-        // Real(7.) Add SPONGING
+        // 7. Add SPONGING
         // *****************************************************************************
         if (is_slow_step) {
             if (solverChoice.spongeChoice.sponge_type == SpongeType::Input_Sponge)
@@ -683,7 +756,7 @@ void make_mom_sources (Real time,
         }
 
         // *****************************************************************************
-        // Real(8.) Add CANOPY source terms
+        // 8. Add CANOPY source terms
         // *****************************************************************************
         if (solverChoice.do_forest_drag &&
            ((is_slow_step && !use_canopy_fast) || (!is_slow_step && use_canopy_fast))) {
@@ -935,7 +1008,7 @@ void make_mom_sources (Real time,
         }
 
         // *****************************************************************************
-        // Real(10.) Enforce constant mass flux
+        // 10. Enforce constant mass flux
         // *****************************************************************************
         if (is_slow_step && (enforce_massflux_x || enforce_massflux_y)) {
             Real tau_inv = one / solverChoice.const_massflux_tau;

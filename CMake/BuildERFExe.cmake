@@ -285,7 +285,6 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/ERF_MakeNewArrays.cpp
        ${SRC_DIR}/ERF_MakeNewLevel.cpp
        ${SRC_DIR}/ERF_ReadWaves.cpp
-       ${SRC_DIR}/ERF_Tagging.cpp
        ${SRC_DIR}/Advection/ERF_AdvectionSrcForMom.cpp
        ${SRC_DIR}/Advection/ERF_AdvectionSrcForMom_ConstantDz.cpp
        ${SRC_DIR}/Advection/ERF_AdvectionSrcForMom_StretchedDz.cpp
@@ -393,6 +392,9 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/PBL/ERF_ComputeDiffusivityMYNNEDMF.cpp
        ${SRC_DIR}/PBL/ERF_ComputeDiffusivityYSU.cpp
        ${SRC_DIR}/PBL/ERF_ComputeDiffusivityMRF.cpp
+       ${SRC_DIR}/Refinement/ERF_Tagging.cpp
+       ${SRC_DIR}/Refinement/ERF_RefineBox.cpp
+       ${SRC_DIR}/Refinement/ERF_RefineHurricane.cpp
        ${SRC_DIR}/SourceTerms/ERF_ApplySpongeZoneBCs.cpp
        ${SRC_DIR}/SourceTerms/ERF_ApplySpongeZoneBCs_ReadFromFile.cpp
        ${SRC_DIR}/SourceTerms/ERF_ApplyBndryForcing_Forecast.cpp
@@ -402,7 +404,6 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/SourceTerms/ERF_MakeGradP.cpp
        ${SRC_DIR}/SourceTerms/ERF_MakeMomSources.cpp
        ${SRC_DIR}/SourceTerms/ERF_MakeSources.cpp
-       ${SRC_DIR}/SourceTerms/ERF_MoistSetRhs.cpp
        ${SRC_DIR}/SourceTerms/ERF_NumericalDiffusion.cpp
        ${SRC_DIR}/SourceTerms/ERF_ForestDrag.cpp
        ${SRC_DIR}/SourceTerms/ERF_ApplySurfaceTreatment_BulkCoeff.cpp 
@@ -442,6 +443,7 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/WindFarmParametrization/GeneralActuatorDisk/ERF_AdvanceGeneralAD.cpp
        ${SRC_DIR}/LandSurfaceModel/SLM/ERF_SLM.cpp
        ${SRC_DIR}/LandSurfaceModel/MM5/ERF_MM5.cpp
+       ${SRC_DIR}/PhysicsInterfaces/Radiation/Simple/ERF_RadiationSimple.cpp
   )
 
   include(AMReXBuildInfo)
@@ -526,6 +528,7 @@ function(build_erf_lib erf_lib_name)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/Source/LandSurfaceModel/OceanSurf>)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/Source/LandSurfaceModel/MM5>)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/Source/PhysicsInterfaces/Radiation/>)
+  target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/Source/PhysicsInterfaces/Radiation/Simple>)
 
   #Link to amrex library
   target_link_libraries_system(${erf_lib_name} PUBLIC AMReX::amrex)

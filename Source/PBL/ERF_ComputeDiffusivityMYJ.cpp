@@ -334,7 +334,7 @@ ComputeDiffusivityMYJ (Real dt,
                 // COEFFICIENTS FOR THE SH DETERMINANT
                 Real BESH=BSHM*GML+BSHH*GHL;
 
-                // one/DENOMINATOR
+                // 1/DENOMINATOR
                 Real RDEN=one/(ADEN*ELOQ4+BDEN*ELOQ2+CDEN);
 
                 // SM, SH, SQ

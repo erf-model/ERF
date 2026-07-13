@@ -118,7 +118,11 @@ void SuperDropletPC::applyBoundaryTreatment ( int                   a_lev,
                                 ptrs.sp_mass_ptrs[ctr][i] = zero;
                             }
 
-                            ptrs.mult_ptr[i] = multiplicity;
+                            ptrs.mult_ptr[i]  = multiplicity;
+                            ptrs.a_ptr[i]     = zero;
+                            ptrs.c_ptr[i]     = zero;
+                            ptrs.mrime_ptr[i] = zero;
+                            ptrs.nmono_ptr[i] = zero;
 
                             SuperDropletPC::updateParticleAttributes(
                                 i, ptrs.radius_ptr, ptrs.mass_ptr, ctx.idx_water, ctx.rho_water,
@@ -149,7 +153,11 @@ void SuperDropletPC::applyBoundaryTreatment ( int                   a_lev,
                                 ptrs.sp_mass_ptrs[ctr][i] = zero;
                             }
 
-                            ptrs.mult_ptr[i] = multiplicity;
+                            ptrs.mult_ptr[i]  = multiplicity;
+                            ptrs.a_ptr[i]     = zero;
+                            ptrs.c_ptr[i]     = zero;
+                            ptrs.mrime_ptr[i] = zero;
+                            ptrs.nmono_ptr[i] = zero;
 
                             SuperDropletPC::updateParticleAttributes(
                                 i, ptrs.radius_ptr, ptrs.mass_ptr, ctx.idx_water, ctx.rho_water,

@@ -125,6 +125,25 @@ ERF::WriteCheckpointFile () const
            BaseStateFile << BaseState::num_comps      << "\n";
            BaseStateFile << base_state[0].nGrowVect() << "\n";
        }
+
+       // Persist the LSM scalar step counter (e.g. NoahMP itimestep). Without
+       // this, restart resets the substep schedule, which changes the LSM->MOST
+       // flux firing times and produces a non-bitwise trajectory vs. cold start.
+       if (solverChoice.lsm_type != LandSurfaceType::None) {
+           std::string LsmStepFileName(checkpointname + "/lsm_step");
+           std::ofstream LsmStepFile;
+           LsmStepFile.open(LsmStepFileName.c_str(), std::ofstream::out   |
+                                                     std::ofstream::trunc |
+                                                     std::ofstream::binary);
+           if(! LsmStepFile.good()) {
+               FileOpenFailed(LsmStepFileName);
+           } else {
+               for (int lev = 0; lev <= finest_level; ++lev) {
+                   LsmStepFile << lsm.Get_LSM_Step(lev) << " ";
+               }
+               LsmStepFile << "\n";
+           }
+       }
    }
 
     // write the MultiFab data to, e.g., chk00010/Level_0/
@@ -225,6 +244,19 @@ ERF::WriteCheckpointFile () const
                 MultiFab::Copy(lsm_vars,*(lsm_flux[lev][iflux]),0,0,nvar,ng);
                 VisMF::Write(lsm_vars, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "LsmFlux" + std::to_string(iflux)));
             }
+
+            // Write the full LSM prognostic state (e.g. NoahMP soil/snow/canopy)
+            // to chk*/noahmp_restart/Level_<lev>.nc so a restart reproduces a
+            // cold-start trajectory bitwise (issue #3255). The LSM model writes
+            // its blocks collectively; no-op for models without such state.
+            // Create the subdir on rank 0 and barrier before the collective open
+            // so no rank races ahead of the directory existing.
+            std::string LsmRestartDir(checkpointname + "/noahmp_restart");
+            if (ParallelDescriptor::IOProcessor()) {
+                amrex::UtilCreateDirectory(LsmRestartDir, 0755);
+            }
+            ParallelDescriptor::Barrier();
+            lsm.Write_Lsm_Restart(lev, LsmRestartDir);
         }
 
         // Write the radiation heating rates
@@ -976,6 +1008,53 @@ ERF::ReadCheckpointFile ()
 #endif
     } // for lev
 
+    // Restore the LSM scalar step counter (e.g. NoahMP itimestep) so the
+    // substepping schedule survives restart. lsm.Init() during
+    // MakeNewLevelFromScratch has already reset itimestep to 0 (NoahmpIOVarInit);
+    // override it here from the checkpoint. Older checkpoints without this file
+    // restart with the legacy reset-to-zero behavior.
+    if (solverChoice.lsm_type != LandSurfaceType::None) {
+        std::string LsmStepFileName(restart_chkfile + "/lsm_step");
+        if (amrex::FileExists(LsmStepFileName)) {
+            Vector<char> LsmStepCharPtr;
+            ParallelDescriptor::ReadAndBcastFile(LsmStepFileName, LsmStepCharPtr);
+            std::string LsmStepStr(LsmStepCharPtr.dataPtr());
+            std::istringstream lsm_is(LsmStepStr, std::istringstream::in);
+            int step_val = 0;
+            for (int lev = 0; lev <= finest_level; ++lev) {
+                if (lsm_is >> step_val) {
+                    lsm.Set_LSM_Step(lev, step_val);
+                    amrex::Print() << "Restored LSM step counter at level " << lev
+                                   << " to " << step_val << std::endl;
+                }
+            }
+        } else {
+            amrex::Print() << "Warning: legacy checkpoint without lsm_step file; "
+                           << "LSM substep schedule will reset (may break bitwise reproducibility)."
+                           << std::endl;
+        }
+
+        // Restore the full LSM prognostic state (e.g. NoahMP soil/snow/canopy)
+        // from chk*/noahmp_restart. lsm.Init() during MakeNewLevelFromScratch
+        // has already cold-initialized this state from wrfinput/tables; this
+        // overwrites it with the checkpoint, and NoahMP's per-step In-transfer
+        // pulls it into the physics state on the first Advance (issue #3255).
+        // Legacy checkpoints without this directory fall back to cold-init.
+        std::string LsmRestartDir(restart_chkfile + "/noahmp_restart");
+        if (amrex::FileExists(LsmRestartDir + "/Level_0.nc")) {
+            for (int lev = 0; lev <= finest_level; ++lev) {
+                lsm.Read_Lsm_Restart(lev, LsmRestartDir);
+            }
+            amrex::Print() << "Restored full NoahMP prognostic state from "
+                           << LsmRestartDir << std::endl;
+        } else {
+            amrex::Print() << "Warning: legacy checkpoint without noahmp_restart; "
+                           << "NoahMP prognostic state cold-initialized from wrfinput "
+                           << "(land trajectory will differ from cold start)."
+                           << std::endl;
+        }
+    }
+
 #ifdef ERF_USE_PARTICLES
     restartTracers((ParGDBBase*)GetParGDB(),restart_chkfile);
     if (Microphysics::modelType(solverChoice.moisture_type) == MoistureModelType::Lagrangian) {
@@ -1140,86 +1219,41 @@ ERF::ReadCheckpointFileSurfaceLayer ()
 
                 //IntVect ng(1,1,0);
                 IntVect ng = vars_new[lev][Vars::cons].nGrowVect(); ng[2]=0;
-
                 const int dir = ori.coordDir();
-                int sm_index;
-                if (ori.isLow()) {
-                    sm_index = geom[lev].Domain().smallEnd(dir);
-                } else {
-                    sm_index = geom[lev].Domain().bigEnd(dir);
-                }
-
-                BoxList bl2d = vars_new[lev][Vars::cons].boxArray().boxList();
-                for (auto& b : bl2d) b.setRange(dir, sm_index);
-                BoxArray ba2d(std::move(bl2d));
-                MultiFab  m_var(ba2d,dmap[lev],1,ng);
-                MultiFab* dst = nullptr;
-
                 std::string face = "_" + std::to_string(ori);
 
+                auto read_most_var = [&] (const std::string& name, MultiFab* dst) {
+                    const std::string mf_name = MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", name);
+                    if (amrex::FileExists(mf_name + "_H")) {
+                        MultiFab m_var;
+                        VisMF::Read(m_var, mf_name);
+                        dst->ParallelCopy(m_var, 0, 0, 1, ng, ng, geom[lev].periodicity());
+                    }
+                };
+
                 // U*
-                std::string UstarFileName(restart_chkfile + "/Level_0/Ustar" + face + "_H");
-                if (amrex::FileExists(UstarFileName)) {
-                    dst = m_SurfaceLayer[ori]->get_u_star(lev);
-                    VisMF::Read(m_var, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "Ustar" + face));
-                    MultiFab::Copy(*dst,m_var,0,0,1,ng);
-                }
+                read_most_var("Ustar" + face, m_SurfaceLayer[ori]->get_u_star(lev));
 
                 // W*
-                std::string WstarFileName(restart_chkfile + "/Level_0/Wstar" + face + "_H");
-                if (amrex::FileExists(WstarFileName)) {
-                    dst = m_SurfaceLayer[ori]->get_w_star(lev);
-                    VisMF::Read(m_var, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "Wstar" + face));
-                    MultiFab::Copy(*dst,m_var,0,0,1,ng);
-                }
+                read_most_var("Wstar" + face, m_SurfaceLayer[ori]->get_w_star(lev));
 
                 // T*
-                std::string TstarFileName(restart_chkfile + "/Level_0/Tstar" + face + "_H");
-                if (amrex::FileExists(TstarFileName)) {
-                    dst = m_SurfaceLayer[ori]->get_t_star(lev);
-                    VisMF::Read(m_var, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "Tstar" + face));
-                    MultiFab::Copy(*dst,m_var,0,0,1,ng);
-                }
+                read_most_var("Tstar" + face, m_SurfaceLayer[ori]->get_t_star(lev));
 
                 // Q*
-                std::string QstarFileName(restart_chkfile + "/Level_0/Qstar" + face + "_H");
-                if (amrex::FileExists(QstarFileName)) {
-                    dst = m_SurfaceLayer[ori]->get_q_star(lev);
-                    VisMF::Read(m_var, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "Qstar" + face));
-                    MultiFab::Copy(*dst,m_var,0,0,1,ng);
-                }
+                read_most_var("Qstar" + face, m_SurfaceLayer[ori]->get_q_star(lev));
 
                 // Olen
-                std::string OlenFileName(restart_chkfile + "/Level_0/Olen" + face + "_H");
-                if (amrex::FileExists(OlenFileName)) {
-                    dst = m_SurfaceLayer[ori]->get_olen(lev);
-                    VisMF::Read(m_var, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "Olen" + face));
-                    MultiFab::Copy(*dst,m_var,0,0,1,ng);
-                }
+                read_most_var("Olen" + face, m_SurfaceLayer[ori]->get_olen(lev));
 
                 // Qsurf
-                std::string QsurfFileName(restart_chkfile + "/Level_0/Qsurf" + face + "_H");
-                if (amrex::FileExists(QsurfFileName)) {
-                    dst = m_SurfaceLayer[ori]->get_q_surf(lev);
-                    VisMF::Read(m_var, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "Qsurf" + face));
-                    MultiFab::Copy(*dst,m_var,0,0,1,ng);
-                }
+                read_most_var("Qsurf" + face, m_SurfaceLayer[ori]->get_q_surf(lev));
 
                 // PBLH
-                std::string PBLHFileName(restart_chkfile + "/Level_0/PBLH" + face + "_H");
-                if (amrex::FileExists(PBLHFileName)) {
-                    dst = m_SurfaceLayer[ori]->get_pblh(lev);
-                    VisMF::Read(m_var, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "PBLH" + face));
-                    MultiFab::Copy(*dst,m_var,0,0,1,ng);
-                }
+                read_most_var("PBLH" + face, m_SurfaceLayer[ori]->get_pblh(lev));
 
                 // Z0
-                std::string Z0FileName(restart_chkfile + "/Level_0/Z0" + face + "_H");
-                if (amrex::FileExists(Z0FileName)) {
-                    dst = m_SurfaceLayer[ori]->get_z0(lev);
-                    VisMF::Read(m_var, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "Z0" + face));
-                    MultiFab::Copy(*dst,m_var,0,0,1,ng);
-                }
+                read_most_var("Z0" + face, m_SurfaceLayer[ori]->get_z0(lev));
             }
         }
     }
