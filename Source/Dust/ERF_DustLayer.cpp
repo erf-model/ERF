@@ -151,20 +151,26 @@ void DustLayer::initialize(const ERF&          erf,
         amrex::Print() << "[DUST DEBUG] Phase 9: dust_wind_ref(2), dust_pblh, dust_tsfc allocated\n";
     }
 
+    // Phase 9: confirm extraction fields are ready
+    if (dust_params.dust_debug) {
+        amrex::Print() << "[DUST DEBUG] Phase 9: zref=" << dust_params.zref
+                       << " m for wind extraction\n";
+    }
+
     // Phase 10: Allocate coarsened emission flux on atmospheric grid.
     // BoxArray and DistributionMapping are from ERF level-0.
     // Use the 2D slab: set k-range to [0,0].
     {
-        amrex::BoxArray ba_atm_2d = const_cast<amrex::BoxArray&>(erf.boxArray(0));
+        amrex::BoxArray ba_atm = erf.boxArray(0);
         amrex::Vector<amrex::Box> bl;
-        for (int b = 0; b < ba_atm_2d.size(); ++b) {
-            amrex::Box bx = ba_atm_2d[b];
+        for (int b = 0; b < ba_atm.size(); ++b) {
+            amrex::Box bx = ba_atm[b];
             bx.setSmall(2,0); bx.setBig(2,0);
             bl.push_back(bx);
         }
         amrex::BoxArray ba2d(amrex::BoxList(std::move(bl)));
         dust_flux_atm = std::make_unique<amrex::MultiFab>(
-            ba2d, const_cast<amrex::DistributionMapping&>(erf.DistributionMap(0)), 1, amrex::IntVect(1,1,0));
+            ba2d, erf.DistributionMap(0), 1, amrex::IntVect(1,1,0));
         dust_flux_atm->setVal(0.0);
     }
 
@@ -281,6 +287,13 @@ void DustLayer::advance(amrex::Real            dt,
         if (m_params.dust_debug)
             amrex::Print() << "[DUST DEBUG] Phase 9: placeholder path"
                            << " test_ustar=" << m_params.test_ustar << "\n";
+    }
+
+    // Additional Phase 9 debug output
+    if (m_params.dust_debug && have_atm) {
+        amrex::Print() << "[DUST DEBUG] Phase 9: T_sfc_max="
+                       << dust_tsfc->max(0)
+                       << " K  PBLH_max=" << dust_pblh->max(0) << " m\n";
     }
 
     amrex::Real T_sfc = have_atm ? dust_tsfc->max(0) : m_params.test_surf_temp_K;
