@@ -219,7 +219,11 @@ public:
                    const amrex::Array4<amrex::Real>& qt_array)
     {
         // Solution tolerance
-        amrex::Real tol = amrex::Real(1.0e-4);
+#ifdef AMREX_USE_FLOAT
+        constexpr amrex::Real tol = Real(1.e-4);
+#else
+        constexpr amrex::Real tol = Real(1.e-8);
+#endif
 
         // Saturation moisture fractions
         amrex::Real omn, domn;

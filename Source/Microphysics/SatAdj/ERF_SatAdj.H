@@ -153,7 +153,11 @@ public:
                                const amrex::Real qv_old,
                                amrex::Real& qsat)
     {
-        constexpr amrex::Real tol = amrex::Real(1.0e-8);
+#ifdef AMREX_USE_FLOAT
+        constexpr amrex::Real tol = Real(1.e-4);
+#else
+        constexpr amrex::Real tol = Real(1.e-8);
+#endif
         constexpr int max_niter = 20;
 
         int  niter = 0;
