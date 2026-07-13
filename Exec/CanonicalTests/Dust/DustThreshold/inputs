@@ -1,0 +1,111 @@
+# DustThreshold regression test
+#
+# Tests ERF_DustThreshold.H: compute_ustar_t_bagnold, compute_ustar_t_full,
+# and recompute_dust_ustar_t as called from DustLayer::initialize and advance.
+#
+# Incorporates fixes from PR #135 (hgopalan/ERF/pull/135):
+#   - amr.max_level = 0 (required for single-level dust tests)
+#   - erf.use_gravity = false (prevents solver crashes in test cases)
+#   - erf.most.zref = 50.0 m (must exceed first cell center; 16 cells / 1000 m = 62.5 m per cell)
+#   - erf.most.z0 = 0.1 m
+#
+# Configuration:
+#   - 8x8x16 atmospheric cells, 1000x1000x1000 m domain.
+#   - erf.dust.grid_ratio = 1: dust grid is 8x8x1 (125 m cells).
+#   - test_phreeqc.csv from PhreeqcReader test provides crust/efflor data.
+#   - phreeqc_update_interval_s = 1.0: reader triggers on every advance (dt=1.0).
+#   - max_step = 2.
+#
+# Expected results:
+#
+# At initialization (after recompute_dust_ustar_t in DustLayer::initialize):
+#   (1) Bagnold u*_t_base for bin 0 (d=7.0e-6 m, rho_p=2650, A=0.0123, rho_a=1.225):
+#         u*_t_base = 0.0123 * sqrt(2650*9.81*7.0e-6/1.225) approx 0.00474 m/s.
+#         Clamped to DustThresholdConst::USTAR_T_MIN = 0.05 m/s.
+#   (2) All modifiers are zero at init (crust=0, efflor=0, moist=0, supp=0).
+#         u*_t at all cells = 0.05 m/s.
+#
+# After step 1 (PHREEQC update then recompute):
+#   (3) At (i=2,j=2): crust=0.8, efflor=0.4, supp=0.2, moist=0.
+#         Unclamped: 0.00474 * (0.6*0.88) / (1.0*2.2) approx 0.00114 m/s.
+#         Clamped: u*_t = 0.05 m/s.
+#   (4) All cells remain at 0.05 m/s because u*_t_base < USTAR_T_MIN.
+#   (5) No NaN or negative values in dust_ustar_t.
+#   (6) Run exits with code 0.
+#
+# References:
+#   Bagnold (1941). The Physics of Blown Sand and Desert Dunes. Methuen.
+#   Marticorena & Bergametti (1995). J. Geophys. Res., 100, 16415.
+#     https://doi.org/10.1029/95JD00690
+#   Fecan et al. (1999). Ann. Geophys., 17, 149.
+#     https://doi.org/10.1007/s00585-999-0149-7
+#   PR #135: https://github.com/hgopalan/ERF/pull/135
+#   MRF PBL: Hong & Pan (1996).
+#     https://doi.org/10.1175/1520-0493(1996)124<2322:NBLVDI>2.0.CO;2
+
+erf.prob_name = "ABL"
+max_step = 2
+amr.max_level = 0
+amrex.fpe_trap_invalid = 1
+fabarray.mfiter_tile_size = 1024 1024 1024
+
+geometry.prob_extent = 1000.0 1000.0 1000.0
+amr.n_cell           =   8     8      16
+geometry.is_periodic = 1 1 0
+
+zlo.type = "surface_layer"
+erf.most.z0   = 0.1
+erf.most.zref = 50.0
+erf.most.surf_temp_flux = 0.0
+zhi.type = "SlipWall"
+zhi.theta_grad = 0.003
+
+amrex.max_grid_size_z = 16
+
+erf.fixed_dt     = 1.0
+erf.sum_interval = 1
+erf.v            = 1
+amr.v            = 1
+erf.check_int    = -1
+erf.plot_int_1   = -1
+erf.plot_vars_1  = density x_velocity y_velocity z_velocity theta
+
+erf.use_gravity     = false
+erf.molec_diff_type = "None"
+erf.les_type        = "None"
+erf.theta_ref       = 300.0
+erf.init_type         = "uniform"
+erf.density_init_pert = 0.0
+erf.theta_init_pert   = 0.0
+
+erf.pbl_type         = "MRF"
+erf.pbl_mrf_Ribcr    = 0.5
+erf.pbl_mrf_const_b  = 7.8
+erf.pbl_mrf_sf       = 0.1
+erf.enable_mrf_countergradient = false
+erf.mrf_moistvars    = false
+erf.use_coriolis     = false
+
+erf.dust.enable                    = true
+erf.dust.n_size_bins               = 3
+erf.dust.grid_ratio                = 1
+erf.dust.particle_density          = 2650.0
+erf.dust.z0_dust                   = 0.01
+erf.dust.silt_fraction             = 0.10
+erf.dust.threshold_A_coeff         = 0.0123
+erf.dust.crust_index               = 0.0
+erf.dust.alpha_crust               = 0.5
+erf.dust.alpha_efflor              = 0.3
+erf.dust.phreeqc_update_interval_s = 1.0
+erf.dust.phreeqc_output_file       = "test_phreeqc.csv"
+erf.dust.phreeqc_crust_var         = "crust_index"
+erf.dust.phreeqc_silt_var          = "silt_fraction"
+erf.dust.phreeqc_efflor_var        = "efflorescence"
+erf.dust.phreeqc_supp_var          = "suppression_mod"
+erf.dust.phreeqc_metal_var         = "metal_as_bin0"
+erf.dust.soil_type_file            = "test_soil_type.asc"
+erf.dust.silt_fraction_file        = ""
+erf.dust.crust_index_file          = ""
+erf.dust.moisture_flag_file        = ""
+erf.dust.suppression_file          = ""
+erf.dust.surface_map_file          = ""

@@ -12,7 +12,7 @@ No phase references or progress notes appear in source files.
 | 2 | 2D dust grid definition | Complete | 2026-07-13 | `ERF.H` includes `ERF_Dust.H` under `#ifdef ERF_USE_DUST`. `ERF.cpp` calls `m_DustLayer->initialize()` from `InitData_post()` and `m_DustLayer->advance()` from `Advance()` under `#ifdef ERF_USE_DUST`. PR #131. |
 | 3 | Surface property map reader | Complete | 2026-07-13 | Implements `ERF_DustSurfaceReader.H/cpp` with ESRI ASCII reader, MPI broadcast, and bilinear GPU interpolation. Row reversal convention matches `ERF_FuelMap.H`. Regression test added with test rasters and inputs file. |
 | 4 | PHREEQC output file reader and u*t mapper | Complete | 2026-07-13 | Implements `ERF_PhreeqcReader.H/cpp` with CSV reader, rank-0 read + Bcast + GPU fill pattern. Marticorena & Bergametti (1995) u*_t reduction formula applied. Time tracking and phreeqc_update_interval_s logic added to DustLayer::advance. Regression test with PhreeqcReader test case. |
-| 5 | Threshold friction velocity computation | Not started | | |
+| 5 | Threshold friction velocity computation | Complete | 2026-07-13 | Implements header-only `ERF_DustThreshold.H` with GPU device functions and MultiFab kernel. Combines Bagnold base, chemistry (crust/efflor), moisture, and suppression modifiers. Called in DustLayer::initialize and DustLayer::advance. New regression test DustThreshold with comprehensive expected values. |
 | 6 | Saltation and vertical dust emission flux | Not started | | |
 | 7 | Blasting schedule emission source | Not started | | |
 | 8 | Suppression agent degradation model | Not started | | |
@@ -34,6 +34,14 @@ No phase references or progress notes appear in source files.
 | 24 | Regression test suite and DUST_DEVELOPMENT.md finalisation | Not started | | |
 
 ## Recent Fixes and Enhancements
+
+### Phase 4 Linker Error Fix
+- Fixed undefined symbol `update_dust_from_phreeqc` on arm64 and x86 architectures
+- Root cause: `ERF_PhreeqcReader.cpp` was added to `Source/Dust/Make.package` but NOT to `CMake/BuildERFExe.cmake`
+- The authoritative build source for dust module is `CMake/BuildERFExe.cmake` (not `Source/CMakeLists.txt`)
+- **Solution**: Added `${SRC_DIR}/Dust/ERF_PhreeqcReader.cpp` to `target_sources()` in `CMake/BuildERFExe.cmake` dust block
+- **Rule for all future phases**: Every new `.cpp` dust file must be added to BOTH `CMake/BuildERFExe.cmake` AND `Source/Dust/Make.package`
+- Header-only files (like Phase 5's `ERF_DustThreshold.H`) are added only to `Make.package`, not `CMake/BuildERFExe.cmake`
 
 ### Debug Printing Enhancement
 - Added exhaustive debug printing to `DustLayer::initialize()` and `DustLayer::advance()` when `erf.dust.debug = true`

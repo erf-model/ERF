@@ -215,11 +215,7 @@ function(build_erf_lib erf_lib_name)
                    ${SRC_DIR}/Dust/ERF_DustPrerequisites.cpp
                    ${SRC_DIR}/Dust/ERF_DustLayer.cpp
                    ${SRC_DIR}/Dust/ERF_DustSurfaceReader.cpp
-                   ${SRC_DIR}/Dust/ERF_DustParams.H
-                   ${SRC_DIR}/Dust/ERF_DustGrid.H
-                   ${SRC_DIR}/Dust/ERF_DustPrerequisites.H
-                   ${SRC_DIR}/Dust/ERF_DustLayer.H
-                   ${SRC_DIR}/Dust/ERF_DustSurfaceReader.H
+                   ${SRC_DIR}/Dust/ERF_PhreeqcReader.cpp
     )
     target_include_directories(${erf_lib_name} PUBLIC
                                $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/Source/Dust>)

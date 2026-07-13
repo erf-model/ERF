@@ -8,6 +8,7 @@
 #include <ERF_DustGrid.H>
 #include <ERF_DustSurfaceReader.H>
 #include <ERF_PhreeqcReader.H>
+#include <ERF_DustThreshold.H>
 #include <ERF.H>
 #include <ERF_SurfaceLayer.H>
 #include <AMReX_Print.H>
@@ -121,6 +122,10 @@ void DustLayer::initialize(const ERF&          erf,
                        << "dust_ustar_base (1 comp)\n";
     }
 
+    // Phase 5: Allocate surface moisture MultiFab (Phase 9 will update it from ERF surface layer).
+    dust_surf_moist = std::make_unique<amrex::MultiFab>(m_dg.ba, m_dg.dm, 1, amrex::IntVect(1,1,0));
+    dust_surf_moist->setVal(0.0);
+
     // Populate surface MultiFabs from external rasters if paths are given in dust_params.
     // MultiFabs retain their setVal defaults above if paths are empty.
     populate_dust_surface_maps(*dust_soil_type, *dust_silt_fraction,
@@ -135,6 +140,12 @@ void DustLayer::initialize(const ERF&          erf,
                        << "moisture_flag_file=\"" << dust_params.moisture_flag_file << "\", "
                        << "suppression_file=\"" << dust_params.suppression_file << "\"\n";
     }
+
+    // Phase 5: Compute initial u*_t. At startup all modifiers are zero so u*_t equals
+    // dust_ustar_base where crust_index is also zero, floored to USTAR_T_MIN.
+    recompute_dust_ustar_t(*dust_ustar_t, *dust_ustar_base, *dust_crust_index,
+                           *dust_efflor, *dust_surf_moist, *dust_suppression,
+                           dust_params.alpha_crust, dust_params.alpha_efflor);
 
     // Step 6: Print status message
     amrex::Box dust_domain = m_dg.ba.minimalBox();
@@ -192,4 +203,12 @@ void DustLayer::advance(amrex::Real     dt,
                        << "PHREEQC update not due (next update at "
                        << m_last_phreeqc_update + dust_params.phreeqc_update_interval_s << " s)\n";
     }
+
+    // Phase 5: Copy moisture_flag to surf_moist. Replaced by ERF surface layer fields in Phase 9.
+    amrex::MultiFab::Copy(*dust_surf_moist, *dust_moisture_flag, 0, 0, 1, amrex::IntVect(1,1,0));
+
+    // Phase 5: Recompute u*_t after any PHREEQC or moisture changes this timestep.
+    recompute_dust_ustar_t(*dust_ustar_t, *dust_ustar_base, *dust_crust_index,
+                           *dust_efflor, *dust_surf_moist, *dust_suppression,
+                           m_params.alpha_crust, m_params.alpha_efflor);
 }

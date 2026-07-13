@@ -452,6 +452,130 @@ PHREEQC ParmParse Parameters
    * - ``erf.dust.phreeqc_metal_var``
      - CSV column / NetCDF variable name for toxic metal mass fraction (bin 0).
 
+Threshold Friction Velocity Computation (Phase 5)
+---------------------------------------------------
+
+Phase 5 implements the ``ERF_DustThreshold.H`` module that computes the per-cell
+threshold friction velocity :math:`u^*_t` incorporating chemistry, moisture,
+and suppression modifiers. The computation chain is applied after PHREEQC
+updates and surface moisture changes.
+
+Base Threshold (Bagnold 1941)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The base threshold friction velocity for emission onset is:
+
+.. math::
+
+   u^*_{t,\mathrm{base}} = A \sqrt{\frac{\rho_p \, g \, d}{\rho_a}}
+
+where:
+   - :math:`A` = Bagnold threshold coefficient (default 0.0123) [-]
+   - :math:`\rho_p` = particle density (default 2650 kg/m³) [kg/m³]
+   - :math:`g` = gravitational acceleration (9.81) [m/s²]
+   - :math:`d` = particle diameter [m]
+   - :math:`\rho_a` = air density (1.225 at sea level) [kg/m³]
+
+References:
+  Bagnold, R. A. (1941). *The Physics of Blown Sand and Desert Dunes*.
+    Methuen, London.
+
+Modifier Chain
+~~~~~~~~~~~~~~
+
+The base threshold is adjusted by three dimensionless factors:
+
+**Chemistry (PHREEQC, Phase 4):**
+
+.. math::
+
+   f_{\mathrm{chem}} = (1 - \alpha_c \cdot C_I) \times (1 - \alpha_e \cdot E_f)
+
+where :math:`C_I` is the crust strength index [0,1], :math:`E_f` is
+efflorescence fraction [0,1], and :math:`\alpha_c`, :math:`\alpha_e` are
+reduction coefficients (defaults 0.5 and 0.3). This reduction is justified
+by Marticorena & Bergametti (1995): crusty and efflorescent surfaces
+present higher cohesion and thus higher thresholds.
+
+**Moisture Inhibition (Phase 5):**
+
+.. math::
+
+   f_{\mathrm{moist}} = 1 + \beta_m \cdot w
+
+where :math:`w` is surface moisture [0,1] (clamped) and :math:`\beta_m`
+is the moisture inhibition coefficient (default 4.0, dimensionless).
+This formulation follows Fecan et al. (1999): soil moisture raises
+capillary cohesion, suppressing emission. The additive structure ensures
+:math:`f_{\mathrm{moist}} \geq 1`, consistently increasing :math:`u^*_t`
+when moisture is present.
+
+**Suppression Elevation (Phase 8):**
+
+.. math::
+
+   f_{\mathrm{supp}} = 1 + \gamma_s \cdot s
+
+where :math:`s` is suppression agent coverage [0,1] (clamped) and
+:math:`\gamma_s` is the suppression elevation coefficient (default 6.0,
+dimensionless). This structure ensures :math:`f_{\mathrm{supp}} \geq 1`,
+consistently raising :math:`u^*_t` to inhibit emission when suppression
+is applied.
+
+Final Threshold
+~~~~~~~~~~~~~~~
+
+The final per-cell threshold is computed as:
+
+.. math::
+
+   u^*_t = u^*_{t,\mathrm{base}} \times \frac{f_{\mathrm{chem}}}{f_{\mathrm{moist}} \times f_{\mathrm{supp}}}
+
+clamped to the valid range [:math:`u^*_{t,\mathrm{min}}`, :math:`u^*_{t,\mathrm{max}}`],
+where:
+   - :math:`u^*_{t,\mathrm{min}}` = 0.05 m/s (floor; very fine particles)
+   - :math:`u^*_{t,\mathrm{max}}` = 5.0 m/s (ceiling; very coarse or cohesive)
+
+The clamp prevents unphysical regimes and ensures numerical stability.
+
+Implementation
+~~~~~~~~~~~~~~~
+
+The computation is implemented as a header-only GPU kernel in
+``Source/Dust/ERF_DustThreshold.H``. The module provides:
+
+- ``compute_ustar_t_bagnold``: Device function for base Bagnold computation.
+- ``compute_moisture_inhibition``: Device function for moisture factor.
+- ``compute_suppression_factor``: Device function for suppression factor.
+- ``compute_ustar_t_full``: Device function combining all modifiers and clamping.
+- ``recompute_dust_ustar_t``: MultiFab GPU kernel called at each timestep.
+
+The kernel is invoked in ``DustLayer::initialize`` (after surface maps
+are populated) and in ``DustLayer::advance`` (after PHREEQC updates and
+moisture changes). This ensures :math:`u^*_t` is always consistent with
+the current state of surface chemistry, moisture, and suppression.
+
+Phase 5 References
+~~~~~~~~~~~~~~~~~~~
+
+  Bagnold, R. A. (1941). *The Physics of Blown Sand and Desert Dunes*.
+    Methuen, London.
+
+  Marticorena, B., & Bergametti, G. (1995). Modeling the atmospheric
+    dust cycle: 1. Design of a soil-derived dust emission scheme.
+    *J. Geophys. Res.*, 100, 16415-16430.
+    https://doi.org/10.1029/95JD00690
+
+  Fecan, F., Marticorena, B., & Bergametti, G. (1999). Parametrization
+    of the increase of aeolian erosion threshold wind friction velocity
+    due to soil moisture for arid and semi-arid areas.
+    *Ann. Geophys.*, 17, 149-157.
+    https://doi.org/10.1007/s00585-999-0149-7
+
+  Shao, Y., & Lu, H. (2000). A simple expression for wind erosion
+    threshold friction velocity. *J. Geophys. Res.*, 105, 22437-22443.
+    https://doi.org/10.1029/2000JD900304
+
 Development Phases
 ------------------
 
