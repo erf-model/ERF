@@ -102,6 +102,7 @@ public:
     const amrex::MultiFab* get_emission_flux()    const { return dust_emission_flux.get(); }
     const amrex::MultiFab* get_surf_moist()       const { return dust_surf_moist.get(); }
     const amrex::MultiFab* get_ustar_in()         const { return dust_ustar_in.get(); }
+    const amrex::MultiFab* get_retreat_flag()     const { return dust_retreat_flag.get(); }
     const DustGrid&        get_dust_grid()        const { return m_dg; }
     const amrex::Geometry& get_dust_geom()        const { return m_dg.geom; }
     const DustParams&      get_params()           const { return m_params; }
@@ -122,6 +123,9 @@ private:
     std::unique_ptr<amrex::MultiFab>      dust_ustar_in;        ///< Friction velocity u* [m/s].
                                                                   ///<   Phase 6: uniform value from DustParams.
                                                                   ///<   Phase 9: extracted from MRF surface layer.
+    std::unique_ptr<amrex::MultiFab>      dust_retreat_flag;    ///< Re-treatment flag [0=ok, 1=retreat needed].
+                                                                  ///<   Set each timestep by advance_dust_suppression.
+                                                                  ///<   Phase 17 exports this for operational use.
 
     DustParams                            m_params;
     int                                   m_step = 0;           ///< Timestep counter

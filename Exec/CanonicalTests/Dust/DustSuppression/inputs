@@ -1,0 +1,142 @@
+# DustSuppression regression test
+#
+# Tests ERF_DustSuppression.H: advance_dust_suppression as called from
+# DustLayer::advance. Verifies that suppression coverage decays each timestep
+# under prescribed temperature and wind conditions, and that the re-treatment
+# flag is set when coverage drops below DustSuppressionConst::RETREAT_THRESHOLD.
+#
+# Applies all mandatory test input settings:
+#   amrex.fpe_trap_invalid = 0  (Mac arm64 fails with 1; PR #138)
+#   erf.dust.dust_debug = true  (enables [DUST DEBUG] output for all phases)
+#   amr.max_level = 0
+#   erf.use_gravity = false
+#   erf.most.zref = 50.0 m
+#   erf.most.z0 = 0.1 m
+#   (PR #135: https://github.com/hgopalan/ERF/pull/135)
+#
+# Configuration:
+#   - 8x8x16 atmospheric cells, 1000x1000x1000 m domain.
+#   - erf.dust.grid_ratio = 1: dust grid is 8x8x1 (125 m cells).
+#   - erf.dust.test_ustar = 0.0: no background wind emission (tests suppression only).
+#   - Initial suppression coverage = 0.8 (set via a uniform ASCII raster).
+#   - supp_tau_base_s = 3600 s (water suppression agent half-life at reference T/wind).
+#   - test_surf_temp_K = 310.0 K (37 C, warmer than T_ref = 293.15 K).
+#   - test_wind_speed = 5.0 m/s.
+#   - dt = 1.0 s, max_step = 5.
+#
+# Physics calculations for expected results:
+#   f_T    = exp(0.05 * (310.0 - 293.15)) = exp(0.8425) approx 2.323
+#   f_wind = 1 + 0.1 * 5.0 = 1.5
+#   tau_eff = 3600 / (2.323 * 1.5) = 3600 / 3.484 approx 1033 s
+#   After 1 step (dt=1 s):
+#     coverage = 0.8 * exp(-1.0 / 1033) approx 0.8 * 0.999032 = 0.79923
+#   After 5 steps:
+#     coverage = 0.8 * exp(-5.0 / 1033) approx 0.8 * 0.99516 = 0.79613
+#
+# Expected results:
+#   (1) dust_suppression at all cells = 0.8 after initialization.
+#   (2) After step 1: dust_suppression at all cells approx 0.79923.
+#       Verify coverage < 0.8 (strictly less; decay has occurred).
+#   (3) After step 5: dust_suppression at all cells approx 0.79613.
+#       Verify coverage at step 5 < coverage at step 1.
+#   (4) dust_retreat_flag = 0 at all cells after 5 steps
+#       (coverage 0.796 > RETREAT_THRESHOLD = 0.2; no re-treatment needed yet).
+#   (5) [DUST DEBUG] Phase 8 print appears each step showing suppression max
+#       and retreat_flag sum = 0.
+#   (6) [DUST DEBUG] Phase 5, 6 prints appear showing u*_t and emission_flux
+#       (test_ustar = 0 so emission_flux max = 0).
+#   (7) Run exits with code 0.
+#
+# To test re-treatment flag activation, set supp_tau_base_s = 1.0 (very fast decay)
+# and max_step = 50 to drive coverage below RETREAT_THRESHOLD = 0.2.
+#
+# References:
+#   ERF_FireBreak.H (structural pattern reference):
+#     https://github.com/hgopalan/ERF/blob/a2ca3d1a7cea08a480c9d10e93ffdfab1b24b24e/
+#     Source/Fire/ERF_FireBreak.H
+#   Gillies et al. (2005). J. Air Waste Manage. Assoc., 55, 1168-1176.
+#     https://doi.org/10.1080/10473289.2005.10464701
+#   U.S. EPA AP-42 Chapter 13.2.2 (Unpaved Roads):
+#     https://www.epa.gov/air-emissions-factors-and-quantification/
+#     ap-42-compilation-air-emission-factors
+#   MSHA 30 CFR Part 70:
+#     https://www.ecfr.gov/current/title-30/chapter-I/subchapter-O/part-70
+#   MRF PBL: Hong & Pan (1996):
+#     https://doi.org/10.1175/1520-0493(1996)124<2322:NBLVDI>2.0.CO;2
+
+erf.prob_name = "ABL"
+max_step = 5
+amr.max_level = 0
+amrex.fpe_trap_invalid = 0
+fabarray.mfiter_tile_size = 1024 1024 1024
+
+geometry.prob_extent = 1000.0 1000.0 1000.0
+amr.n_cell           =   8     8      16
+geometry.is_periodic = 1 1 0
+
+zlo.type = "surface_layer"
+erf.most.z0   = 0.1
+erf.most.zref = 50.0
+erf.most.surf_temp_flux = 0.0
+zhi.type = "SlipWall"
+zhi.theta_grad = 0.003
+
+amrex.max_grid_size_z = 16
+
+erf.fixed_dt     = 1.0
+erf.sum_interval = 1
+erf.v            = 1
+amr.v            = 1
+erf.check_int    = -1
+erf.plot_int_1   = -1
+erf.plot_vars_1  = density x_velocity y_velocity z_velocity theta
+
+erf.use_gravity     = false
+erf.molec_diff_type = "None"
+erf.les_type        = "None"
+erf.theta_ref       = 300.0
+erf.init_type         = "uniform"
+erf.density_init_pert = 0.0
+erf.theta_init_pert   = 0.0
+
+erf.pbl_type         = "MRF"
+erf.pbl_mrf_Ribcr    = 0.5
+erf.pbl_mrf_const_b  = 7.8
+erf.pbl_mrf_sf       = 0.1
+erf.enable_mrf_countergradient = false
+erf.mrf_moistvars    = false
+erf.use_coriolis     = false
+
+erf.dust.enable                    = true
+erf.dust.dust_debug                = true
+erf.dust.n_size_bins               = 3
+erf.dust.grid_ratio                = 1
+erf.dust.particle_density          = 2650.0
+erf.dust.z0_dust                   = 0.01
+erf.dust.silt_fraction             = 0.10
+erf.dust.threshold_A_coeff         = 0.0123
+erf.dust.crust_index               = 0.0
+erf.dust.alpha_crust               = 0.5
+erf.dust.alpha_efflor              = 0.3
+# test_ustar = 0: background wind emission is zero; only suppression decay tested.
+erf.dust.test_ustar                = 0.0
+erf.dust.rho_air                   = 1.225
+# Suppression parameters for Phase 8.
+# Initial coverage of 0.8 is loaded from the suppression raster below.
+# supp_tau_base_s = 3600 s (water agent at reference conditions).
+# test_surf_temp_K = 310.0 K (37 C): accelerates degradation above T_ref=293.15 K.
+# test_wind_speed = 5.0 m/s: further accelerates degradation.
+erf.dust.supp_tau_base_s           = 3600.0
+erf.dust.test_surf_temp_K          = 310.0
+erf.dust.test_wind_speed           = 5.0
+erf.dust.phreeqc_update_interval_s = 86400.0
+erf.dust.phreeqc_output_file       = ""
+erf.dust.soil_type_file            = ""
+erf.dust.silt_fraction_file        = ""
+erf.dust.crust_index_file          = ""
+erf.dust.moisture_flag_file        = ""
+# suppression_file = uniform 0.8 (all cells suppressed) for testing decay.
+erf.dust.suppression_file          = "test_suppression_0p8.asc"
+erf.dust.surface_map_file          = ""
+erf.dust.blast_schedule_file       = ""
+erf.dust.blast_reactivity          = 2.0

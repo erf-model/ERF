@@ -93,6 +93,14 @@ struct DustParams {
     amrex::Real blast_reactivity    = 2.0; ///< Reactivity multiplier for fresh blast
                                            ///<   surfaces relative to weathered tailings [-].
                                            ///<   Applied to injected mass flux.
+    amrex::Real supp_tau_base_s     = 3600.0; ///< Base suppression half-life [s].
+                                           ///<   Water: ~3600 s. MgCl2: ~43200 s.
+                                           ///<   Reference: Gillies et al. (2005),
+                                           ///<     https://doi.org/10.1080/10473289.2005.10464701
+    amrex::Real test_surf_temp_K    = 293.15;  ///< Surface temperature placeholder [K].
+                                           ///<   Phase 9 replaces with MRF T_sfc.
+    amrex::Real test_wind_speed     = 5.0;     ///< 10 m wind speed placeholder [m/s].
+                                           ///<   Phase 9 replaces with MRF 10m wind.
     std::string phreeqc_crust_var    = "crust_index";    ///< Variable/column name for crust index.
     std::string phreeqc_silt_var     = "silt_fraction";  ///< Variable/column name for silt fraction.
     std::string phreeqc_efflor_var   = "efflorescence";  ///< Variable/column name for efflorescence.
@@ -141,6 +149,9 @@ struct DustParams {
         pp.query("rho_air", rho_air);
         pp.query("blast_schedule_file", blast_schedule_file);
         pp.query("blast_reactivity", blast_reactivity);
+        pp.query("supp_tau_base_s",  supp_tau_base_s);
+        pp.query("test_surf_temp_K", test_surf_temp_K);
+        pp.query("test_wind_speed",  test_wind_speed);
         pp.query("phreeqc_crust_var", phreeqc_crust_var);
         pp.query("phreeqc_silt_var", phreeqc_silt_var);
         pp.query("phreeqc_efflor_var", phreeqc_efflor_var);
