@@ -380,6 +380,78 @@ Reading follows the ``ERF_FireTerrainReader.cpp`` and ``ERF_FuelMap.H`` pattern:
 4. **Bilinear Interpolation**: A GPU kernel loops over MultiFab tiles and
    computes values at dust-grid cell centers using bilinear interpolation.
 
+PHREEQC Geochemical Coupling
+----------------------------
+
+PHREEQC (Parkhurst & Appelo 2013) is used offline to compute geochemical
+speciation, mineral crust strength, salt efflorescence state, and toxic
+metal composition of mine tailings surfaces. ERF-Dust reads PHREEQC
+output files at prescribed intervals and updates the corresponding dust
+grid ``MultiFab``\s.
+
+Reference:
+  Parkhurst, D.L., & Appelo, C.A.J. (2013). PHREEQC version 3.
+  USGS Techniques and Methods, book 6, chap. A43.
+  https://pubs.usgs.gov/tm/06/a43/
+
+Timescale Justification
+~~~~~~~~~~~~~~~~~~~~~~~
+
+Geochemical processes (crust formation, efflorescence, salt precipitation)
+evolve over days to weeks. The ERF atmospheric timestep is seconds. Periodic
+file-based updates at intervals of hours to days are sufficient to capture
+the evolution of surface chemistry. No runtime PHREEQC calls are made inside
+the ERF timestepping loop.
+
+Threshold Friction Velocity Update
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+After reading ``crust_index`` and ``efflorescence`` from PHREEQC output,
+``update_ustar_t_from_chemistry`` applies:
+
+.. math::
+
+   u^*_{t,\mathrm{new}} = u^*_{t,\mathrm{base}}
+     \times (1 - \alpha_c \cdot C_I)
+     \times (1 - \alpha_e \cdot E_f)
+
+where :math:`C_I` is the crust index [0,1], :math:`E_f` is the efflorescence
+fraction [0,1], and :math:`\alpha_c`, :math:`\alpha_e` are reduction
+coefficients set by ``erf.dust.alpha_crust`` and ``erf.dust.alpha_efflor``.
+The result is clamped to ``PhreeqcDustConst::USTAR_T_MIN`` = 0.05 m/s.
+
+Reference:
+  Marticorena, B., & Bergametti, G. (1995). J. Geophys. Res., 100, 16415.
+  https://doi.org/10.1029/95JD00690
+
+PHREEQC ParmParse Parameters
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. list-table::
+   :header-rows: 1
+   :widths: 40 60
+
+   * - Parameter
+     - Description
+   * - ``erf.dust.phreeqc_output_file``
+     - Path to PHREEQC output file (.csv or .nc). Empty = no update.
+   * - ``erf.dust.phreeqc_update_interval_s``
+     - Interval between PHREEQC file reads [s]. Default = 86400 (1 day).
+   * - ``erf.dust.alpha_crust``
+     - Crust reduction coefficient for u*_t [-]. Default = 0.5.
+   * - ``erf.dust.alpha_efflor``
+     - Efflorescence reduction coefficient for u*_t [-]. Default = 0.3.
+   * - ``erf.dust.phreeqc_crust_var``
+     - CSV column / NetCDF variable name for crust index.
+   * - ``erf.dust.phreeqc_silt_var``
+     - CSV column / NetCDF variable name for silt fraction.
+   * - ``erf.dust.phreeqc_efflor_var``
+     - CSV column / NetCDF variable name for efflorescence fraction.
+   * - ``erf.dust.phreeqc_supp_var``
+     - CSV column / NetCDF variable name for suppression modifier.
+   * - ``erf.dust.phreeqc_metal_var``
+     - CSV column / NetCDF variable name for toxic metal mass fraction (bin 0).
+
 Development Phases
 ------------------
 

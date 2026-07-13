@@ -7,6 +7,7 @@
 #include <ERF_DustPrerequisites.H>
 #include <ERF_DustGrid.H>
 #include <ERF_DustSurfaceReader.H>
+#include <ERF_PhreeqcReader.H>
 #include <ERF.H>
 #include <ERF_SurfaceLayer.H>
 #include <AMReX_Print.H>
@@ -68,6 +69,14 @@ void DustLayer::initialize(const ERF&          erf,
     // dust_emission_flux: 0.0 (zero emission at initialization)
     dust_emission_flux->setVal(0.0);
 
+    // Allocate efflorescence and base u*_t MultiFabs.
+    dust_efflor     = std::make_unique<amrex::MultiFab>(m_dg.ba, m_dg.dm, 1, amrex::IntVect(1,1,0));
+    dust_ustar_base = std::make_unique<amrex::MultiFab>(m_dg.ba, m_dg.dm, 1, amrex::IntVect(1,1,0));
+    dust_efflor->setVal(0.0);
+    // Store the Bagnold u*_t computed from DustParams as the base value.
+    // update_ustar_t_from_chemistry modifies dust_ustar_t; dust_ustar_base is read-only.
+    dust_ustar_base->Copy(*dust_ustar_t, 0, 0, 1, amrex::IntVect(1,1,0));
+
     // Populate surface MultiFabs from external rasters if paths are given in dust_params.
     // MultiFabs retain their setVal defaults above if paths are empty.
     populate_dust_surface_maps(*dust_soil_type, *dust_silt_fraction,
@@ -87,5 +96,28 @@ void DustLayer::advance(amrex::Real     dt,
                         const DustParams& dust_params)
 {
     ++m_step;
-    // Physics inserted in Phases 5-13. Stub returns without computation.
+    m_time += dt;
+
+    // Physics inserted in Phases 5-13. PHREEQC reader called here (Phase 4).
+    // Call PHREEQC reader if update interval has elapsed.
+    // The interval is set by dust_params.phreeqc_update_interval_s.
+    // File-based coupling is appropriate because geochemical processes
+    // evolve on timescales of days to weeks, much longer than the
+    // atmospheric timestep.
+    bool do_phreeqc = (m_last_phreeqc_update < 0.0) ||
+                      (m_time - m_last_phreeqc_update >=
+                       dust_params.phreeqc_update_interval_s);
+
+    if (do_phreeqc && !dust_params.phreeqc_output_file.empty()) {
+        update_dust_from_phreeqc(*dust_ustar_t,
+                                 *dust_ustar_base,
+                                 *dust_crust_index,
+                                 *dust_silt_fraction,
+                                 *dust_efflor,
+                                 *dust_suppression,
+                                 *dust_emission_flux,
+                                 m_dg,
+                                 dust_params);
+        m_last_phreeqc_update = m_time;
+    }
 }

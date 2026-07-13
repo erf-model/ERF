@@ -72,6 +72,18 @@ struct DustParams {
                                                  ///<   Geochemical processes (crust formation,
                                                  ///<   efflorescence) evolve on day-to-week timescales,
                                                  ///<   much slower than the atmospheric timestep.
+    amrex::Real alpha_crust     = 0.5;  ///< Crust strength reduction coefficient for u*_t [-].
+                                         ///<   u*_t_new = u*_t_base * (1 - alpha_crust * crust_index).
+                                         ///<   Reference: Marticorena & Bergametti (1995),
+                                         ///<     https://doi.org/10.1029/95JD00690
+    amrex::Real alpha_efflor    = 0.3;  ///< Efflorescence reduction coefficient for u*_t [-].
+    amrex::Real ustar_t_base    = -1.0; ///< Base u*_t before chemistry [m/s].
+                                         ///<   Negative means compute from Bagnold at init.
+    std::string phreeqc_crust_var    = "crust_index";    ///< Variable/column name for crust index.
+    std::string phreeqc_silt_var     = "silt_fraction";  ///< Variable/column name for silt fraction.
+    std::string phreeqc_efflor_var   = "efflorescence";  ///< Variable/column name for efflorescence.
+    std::string phreeqc_supp_var     = "suppression_mod";///< Variable/column name for suppression modifier.
+    std::string phreeqc_metal_var    = "metal_as_bin0";  ///< Variable/column name for As mass fraction bin 0.
     std::string surface_map_file    = "";      ///< Path to NetCDF surface property map; empty = uniform
     std::string phreeqc_output_file = "";      ///< Path to PHREEQC output NetCDF; empty = disabled
     std::string soil_type_file      = "";      ///< Path to soil type raster (.asc or .nc).
@@ -108,6 +120,14 @@ struct DustParams {
         pp.query("crust_index", crust_index);
         pp.query("grid_ratio", grid_ratio);
         pp.query("phreeqc_update_interval_s", phreeqc_update_interval_s);
+        pp.query("alpha_crust", alpha_crust);
+        pp.query("alpha_efflor", alpha_efflor);
+        pp.query("ustar_t_base", ustar_t_base);
+        pp.query("phreeqc_crust_var", phreeqc_crust_var);
+        pp.query("phreeqc_silt_var", phreeqc_silt_var);
+        pp.query("phreeqc_efflor_var", phreeqc_efflor_var);
+        pp.query("phreeqc_supp_var", phreeqc_supp_var);
+        pp.query("phreeqc_metal_var", phreeqc_metal_var);
         pp.query("surface_map_file", surface_map_file);
         pp.query("phreeqc_output_file", phreeqc_output_file);
         pp.query("soil_type_file",     soil_type_file);
