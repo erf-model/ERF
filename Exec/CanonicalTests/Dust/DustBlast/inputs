@@ -108,7 +108,7 @@ erf.mrf_moistvars    = false
 erf.use_coriolis     = false
 
 erf.dust.enable                    = true
-erf.dust.n_size_bins               = 3
+erf.dust.dust_debug                = true
 erf.dust.grid_ratio                = 1
 erf.dust.particle_density          = 2650.0
 erf.dust.z0_dust                   = 0.01
