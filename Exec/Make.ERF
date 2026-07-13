@@ -1,5 +1,15 @@
 AMREX_HOME ?= $(ERF_HOME)/Submodules/AMReX
-EKAT_HOME  ?= $(ERF_HOME)/Submodules/ekat/build/install
+ERF_ABS_HOME := $(abspath $(ERF_HOME))
+DEFAULT_EKAT_HOME := $(ERF_ABS_HOME)/Submodules/ekat/build/install
+ifeq ($(origin EKAT_HOME), undefined)
+  EKAT_HOME := $(DEFAULT_EKAT_HOME)
+  BUILD_EKAT ?= TRUE
+else
+  BUILD_EKAT ?= FALSE
+endif
+EKAT_SOURCE_DIR ?= $(ERF_ABS_HOME)/Submodules/ekat
+EKAT_BUILD_DIR  ?= $(EKAT_SOURCE_DIR)/build
+EKAT_INSTALL_PREFIX := $(abspath $(EKAT_HOME))
 EAMXX_HOME ?= $(ERF_HOME)/external/E3SM/components/eamxx/src
 
 USE_EAMXX_SHOC  ?= $(USE_SHOC)
@@ -256,47 +266,46 @@ INCLUDE_LOCATIONS += $(ERF_MATPROP_DIR)
 
 # If using Noah-MP model, then compile relevant source and headers
 ifeq ($(USE_NOAHMP), TRUE)
-  ifneq ($(USE_NETCDF), TRUE)
-    $(error USE_NETCDF must be true for using NOAH-MP interface)
+  USE_NETCDF = TRUE
+  USE_RRTMGP = TRUE
+
+  DEFINES   += -DERF_USE_NOAHMP
+
+  ifneq ($(PRECISION),FLOAT)
+    DEFINES               += -DDOUBLE_PREC
+    NOAHMP_PRECISION_FLAG := -DDOUBLE_PREC
   else
-    DEFINES   += -DERF_USE_NOAHMP
-
-    ifneq ($(PRECISION),FLOAT)
-      DEFINES               += -DDOUBLE_PREC
-      NOAHMP_PRECISION_FLAG := -DDOUBLE_PREC
-    else
-      NOAHMP_PRECISION_FLAG :=
-    endif
-
-    # Try netcdf-fortran => netcdf-fortran_parallel
-    has_netcdf_fortran := $(shell if [ -n "$$MPICH_DIR" ]; then export PKG_CONFIG_PATH="$$MPICH_DIR/lib/pkgconfig:$$PKG_CONFIG_PATH"; fi; pkg-config --exists netcdf-fortran 2>/dev/null; echo $$?)
-    ifeq ($(has_netcdf_fortran),0)
-      includes  += $(shell if [ -n "$$MPICH_DIR" ]; then export PKG_CONFIG_PATH="$$MPICH_DIR/lib/pkgconfig:$$PKG_CONFIG_PATH"; fi; pkg-config --cflags netcdf-fortran)
-      LIBRARIES += $(shell if [ -n "$$MPICH_DIR" ]; then export PKG_CONFIG_PATH="$$MPICH_DIR/lib/pkgconfig:$$PKG_CONFIG_PATH"; fi; pkg-config --libs netcdf-fortran)
-    else
-      has_netcdf_fortran_parallel := $(shell if [ -n "$$MPICH_DIR" ]; then export PKG_CONFIG_PATH="$$MPICH_DIR/lib/pkgconfig:$$PKG_CONFIG_PATH"; fi; pkg-config --exists netcdf-fortran_parallel 2>/dev/null; echo $$?)
-      ifeq ($(has_netcdf_fortran_parallel),0)
-        includes  += $(shell if [ -n "$$MPICH_DIR" ]; then export PKG_CONFIG_PATH="$$MPICH_DIR/lib/pkgconfig:$$PKG_CONFIG_PATH"; fi; pkg-config --cflags netcdf-fortran_parallel)
-        LIBRARIES += $(shell if [ -n "$$MPICH_DIR" ]; then export PKG_CONFIG_PATH="$$MPICH_DIR/lib/pkgconfig:$$PKG_CONFIG_PATH"; fi; pkg-config --libs netcdf-fortran_parallel)
-      else
-        $(error NetCDF Fortran not found. Tried netcdf-fortran and netcdf-fortran_parallel)
-      endif
-    endif
-
-    NOAHMP_HOME ?= $(ERF_HOME)/Submodules/Noah-MP
-
-    VPATH_LOCATIONS   += $(NOAHMP_HOME)/drivers/erf
-    INCLUDE_LOCATIONS += $(NOAHMP_HOME)/drivers/erf
-    INCLUDE_LOCATIONS += $(NOAHMP_HOME)/drivers/erf/include
-
-    ERF_LSM_NOAHMP_DIR = $(ERF_SOURCE_DIR)/LandSurfaceModel/Noah-MP
-    include $(ERF_LSM_NOAHMP_DIR)/Make.package
-    VPATH_LOCATIONS   += $(ERF_LSM_NOAHMP_DIR)
-    INCLUDE_LOCATIONS += $(ERF_LSM_NOAHMP_DIR)
-
-    LIBRARY_LOCATIONS += $(NOAHMP_HOME)/drivers/erf/lib
-    LIBRARIES += -lnoahmp -lgfortran -lquadmath -lnetcdff
+    NOAHMP_PRECISION_FLAG :=
   endif
+
+  # Try netcdf-fortran => netcdf-fortran_parallel
+  has_netcdf_fortran := $(shell if [ -n "$$MPICH_DIR" ]; then export PKG_CONFIG_PATH="$$MPICH_DIR/lib/pkgconfig:$$PKG_CONFIG_PATH"; fi; pkg-config --exists netcdf-fortran 2>/dev/null; echo $$?)
+  ifeq ($(has_netcdf_fortran),0)
+    includes  += $(shell if [ -n "$$MPICH_DIR" ]; then export PKG_CONFIG_PATH="$$MPICH_DIR/lib/pkgconfig:$$PKG_CONFIG_PATH"; fi; pkg-config --cflags netcdf-fortran)
+    LIBRARIES += $(shell if [ -n "$$MPICH_DIR" ]; then export PKG_CONFIG_PATH="$$MPICH_DIR/lib/pkgconfig:$$PKG_CONFIG_PATH"; fi; pkg-config --libs netcdf-fortran)
+  else
+    has_netcdf_fortran_parallel := $(shell if [ -n "$$MPICH_DIR" ]; then export PKG_CONFIG_PATH="$$MPICH_DIR/lib/pkgconfig:$$PKG_CONFIG_PATH"; fi; pkg-config --exists netcdf-fortran_parallel 2>/dev/null; echo $$?)
+    ifeq ($(has_netcdf_fortran_parallel),0)
+      includes  += $(shell if [ -n "$$MPICH_DIR" ]; then export PKG_CONFIG_PATH="$$MPICH_DIR/lib/pkgconfig:$$PKG_CONFIG_PATH"; fi; pkg-config --cflags netcdf-fortran_parallel)
+      LIBRARIES += $(shell if [ -n "$$MPICH_DIR" ]; then export PKG_CONFIG_PATH="$$MPICH_DIR/lib/pkgconfig:$$PKG_CONFIG_PATH"; fi; pkg-config --libs netcdf-fortran_parallel)
+    else
+      $(error NetCDF Fortran not found. Tried netcdf-fortran and netcdf-fortran_parallel)
+    endif
+  endif
+
+  NOAHMP_HOME ?= $(ERF_HOME)/Submodules/Noah-MP
+
+  VPATH_LOCATIONS   += $(NOAHMP_HOME)/drivers/erf
+  INCLUDE_LOCATIONS += $(NOAHMP_HOME)/drivers/erf
+  INCLUDE_LOCATIONS += $(NOAHMP_HOME)/drivers/erf/include
+
+  ERF_LSM_NOAHMP_DIR = $(ERF_SOURCE_DIR)/LandSurfaceModel/Noah-MP
+  include $(ERF_LSM_NOAHMP_DIR)/Make.package
+  VPATH_LOCATIONS   += $(ERF_LSM_NOAHMP_DIR)
+  INCLUDE_LOCATIONS += $(ERF_LSM_NOAHMP_DIR)
+
+  LIBRARY_LOCATIONS += $(NOAHMP_HOME)/drivers/erf/lib
+  LIBRARIES += -lnoahmp -lgfortran -lquadmath -lnetcdff
 endif
 
 ERF_RAD_DIR = $(ERF_SOURCE_DIR)/PhysicsInterfaces/Radiation
@@ -310,34 +319,30 @@ ifeq ($(USE_RRTMGP), TRUE)
   USE_KOKKOS = TRUE
   USE_NETCDF = TRUE
 
-  ifneq ($(USE_NETCDF), TRUE)
-    $(error USE_NETCDF must be true for using RRTMGP interface)
-  else
-    DEFINES += -DERF_USE_RRTMGP
-    DEFINES += -DRRTMGP_ENABLE_KOKKOS
+  DEFINES += -DERF_USE_RRTMGP
+  DEFINES += -DRRTMGP_ENABLE_KOKKOS
 
-    RRTMGP_HOME       ?= $(ERF_HOME)/Submodules/RRTMGP
+  RRTMGP_HOME       ?= $(ERF_HOME)/Submodules/RRTMGP
 
-    VPATH_LOCATIONS   += $(RRTMGP_HOME)/cpp/
-    VPATH_LOCATIONS   += $(RRTMGP_HOME)/cpp/rrtmgp
-    VPATH_LOCATIONS   += $(RRTMGP_HOME)/cpp/rrtmgp/kernels
-    VPATH_LOCATIONS   += $(RRTMGP_HOME)/cpp/rte
-    VPATH_LOCATIONS   += $(RRTMGP_HOME)/cpp/rte/kernels
-    VPATH_LOCATIONS   += $(RRTMGP_HOME)/cpp/examples
-    VPATH_LOCATIONS   += $(RRTMGP_HOME)/cpp/examples/all-sky
-    VPATH_LOCATIONS   += $(RRTMGP_HOME)/cpp/extensions/fluxes_byband
-    VPATH_LOCATIONS   += $(RRTMGP_HOME)/cpp/extensions/cloud_optics
+  VPATH_LOCATIONS   += $(RRTMGP_HOME)/cpp/
+  VPATH_LOCATIONS   += $(RRTMGP_HOME)/cpp/rrtmgp
+  VPATH_LOCATIONS   += $(RRTMGP_HOME)/cpp/rrtmgp/kernels
+  VPATH_LOCATIONS   += $(RRTMGP_HOME)/cpp/rte
+  VPATH_LOCATIONS   += $(RRTMGP_HOME)/cpp/rte/kernels
+  VPATH_LOCATIONS   += $(RRTMGP_HOME)/cpp/examples
+  VPATH_LOCATIONS   += $(RRTMGP_HOME)/cpp/examples/all-sky
+  VPATH_LOCATIONS   += $(RRTMGP_HOME)/cpp/extensions/fluxes_byband
+  VPATH_LOCATIONS   += $(RRTMGP_HOME)/cpp/extensions/cloud_optics
 
-    INCLUDE_LOCATIONS += $(RRTMGP_HOME)/cpp/
-    INCLUDE_LOCATIONS += $(RRTMGP_HOME)/cpp/rrtmgp
-    INCLUDE_LOCATIONS += $(RRTMGP_HOME)/cpp/rrtmgp/kernels
-    INCLUDE_LOCATIONS += $(RRTMGP_HOME)/cpp/rte
-    INCLUDE_LOCATIONS += $(RRTMGP_HOME)/cpp/rte/kernels
-    INCLUDE_LOCATIONS += $(RRTMGP_HOME)/cpp/examples
-    INCLUDE_LOCATIONS += $(RRTMGP_HOME)/cpp/examples/all-sky
-    INCLUDE_LOCATIONS += $(RRTMGP_HOME)/cpp/extensions/fluxes_byband
-    INCLUDE_LOCATIONS += $(RRTMGP_HOME)/cpp/extensions/cloud_optics
-  endif
+  INCLUDE_LOCATIONS += $(RRTMGP_HOME)/cpp/
+  INCLUDE_LOCATIONS += $(RRTMGP_HOME)/cpp/rrtmgp
+  INCLUDE_LOCATIONS += $(RRTMGP_HOME)/cpp/rrtmgp/kernels
+  INCLUDE_LOCATIONS += $(RRTMGP_HOME)/cpp/rte
+  INCLUDE_LOCATIONS += $(RRTMGP_HOME)/cpp/rte/kernels
+  INCLUDE_LOCATIONS += $(RRTMGP_HOME)/cpp/examples
+  INCLUDE_LOCATIONS += $(RRTMGP_HOME)/cpp/examples/all-sky
+  INCLUDE_LOCATIONS += $(RRTMGP_HOME)/cpp/extensions/fluxes_byband
+  INCLUDE_LOCATIONS += $(RRTMGP_HOME)/cpp/extensions/cloud_optics
 endif
 
 DEFINES += -DERF_HAS_SHOC_FAMILY
@@ -487,6 +492,42 @@ ifeq ($(USE_KOKKOS), TRUE)
   LIBRARIES += -lkokkoscore -ldl
 endif
 
+EKAT_CMAKE_FLAGS := \
+  -D CMAKE_BUILD_TYPE:STRING=Release \
+  -D CMAKE_CXX_COMPILER:STRING="$(CXX)" \
+  -D CMAKE_CXX_STANDARD:STRING=17 \
+  -D CMAKE_INSTALL_PREFIX:PATH="$(EKAT_INSTALL_PREFIX)" \
+  -D CMAKE_DISABLE_FIND_PACKAGE_spdlog:BOOL=TRUE \
+  -D EKAT_ENABLE_MPI:BOOL=ON \
+  -D EKAT_ENABLE_FORTRAN:BOOL=OFF \
+  -D EKAT_ENABLE_TESTS:BOOL=OFF \
+  -D EKAT_ENABLE_KOKKOS:BOOL=ON \
+  -D EKAT_ENABLE_LOGGING:BOOL=ON \
+  -D Kokkos_ENABLE_DEPRECATED_CODE:BOOL=OFF \
+  -D Kokkos_ENABLE_EXPLICIT_INSTANTIATION:BOOL=OFF \
+  -D Kokkos_ENABLE_SERIAL:BOOL=ON
+ifeq ($(USE_OMP), TRUE)
+  EKAT_CMAKE_FLAGS += -D Kokkos_ENABLE_OPENMP:BOOL=ON
+endif
+ifeq ($(USE_CUDA), TRUE)
+  EKAT_CMAKE_FLAGS += \
+    -D Kokkos_ENABLE_CUDA:BOOL=ON \
+    -D Kokkos_ENABLE_CUDA_LAMBDA:BOOL=ON \
+    -D Kokkos_ENABLE_CUDA_RELOCATABLE_DEVICE_CODE:BOOL=ON
+endif
+ifeq ($(USE_HIP), TRUE)
+  EKAT_CMAKE_FLAGS += \
+    -D Kokkos_ENABLE_HIP:BOOL=ON \
+    -D Kokkos_ENABLE_HIP_LAMBDA:BOOL=ON \
+    -D Kokkos_ENABLE_HIP_RELOCATABLE_DEVICE_CODE:BOOL=ON
+endif
+ifeq ($(USE_SYCL), TRUE)
+  EKAT_CMAKE_FLAGS += \
+    -D Kokkos_ENABLE_SYCL:BOOL=ON \
+    -D Kokkos_ENABLE_SYCL_LAMBDA:BOOL=ON
+endif
+EKAT_CMAKE_FLAGS += $(EKAT_EXTRA_CMAKE_FLAGS)
+
 # Turn on NetCDF macro define
 ifeq ($(USE_NETCDF), TRUE)
   DEFINES += -DERF_USE_NETCDF
@@ -534,6 +575,23 @@ INCLUDE_LOCATIONS += $(AMREX_HOME)/Tools/C_scripts
 
 include $(AMREX_HOME)/Tools/GNUMake/Make.rules
 
+build_ekat:
+ifeq ($(USE_KOKKOS), TRUE)
+ifeq ($(BUILD_EKAT), TRUE)
+	@if [ ! -f "$(EKAT_INSTALL_PREFIX)/include/kokkos/Kokkos_Core.hpp" ] || [ ! -f "$(EKAT_INSTALL_PREFIX)/lib/libkokkoscore.a" ]; then \
+	  echo "Building EKAT/Kokkos in $(EKAT_BUILD_DIR)"; \
+	  cmake -S "$(EKAT_SOURCE_DIR)" -B "$(EKAT_BUILD_DIR)" $(EKAT_CMAKE_FLAGS) || exit $$?; \
+	  cmake --build "$(EKAT_BUILD_DIR)" --target install --parallel || exit $$?; \
+	fi
+else
+	@if [ ! -f "$(EKAT_INSTALL_PREFIX)/include/kokkos/Kokkos_Core.hpp" ] || [ ! -f "$(EKAT_INSTALL_PREFIX)/lib/libkokkoscore.a" ]; then \
+	  echo "EKAT/Kokkos install not found under EKAT_HOME=$(EKAT_HOME)"; \
+	  echo "Set BUILD_EKAT=TRUE to build the bundled EKAT install, or set EKAT_HOME to a valid install."; \
+	  exit 1; \
+	fi
+endif
+endif
+
 build_noahmp:
 ifeq ($(USE_NOAHMP), TRUE)
 	$(MAKE) -C $(NOAHMP_HOME)/drivers/erf -f Makefile all_noahmp NOAHMP_PRECISION_FLAG="$(NOAHMP_PRECISION_FLAG)"
@@ -543,8 +601,11 @@ ifeq ($(USE_NOAHMP), TRUE)
 
 $(objForExecs): | build_noahmp
 endif
+ifeq ($(USE_KOKKOS), TRUE)
+$(objForExecs): | build_ekat
+endif
 
-all: build_noahmp $(executable)
+all: build_ekat build_noahmp $(executable)
 	(SILENT) $(RM) AMReX_buildInfo.cpp
 	@echo SUCCESS
 
