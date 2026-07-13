@@ -68,10 +68,12 @@ void DustLayer::initialize(const ERF&          erf,
     dust_emission_flux->setVal(0.0);
 
     // Step 6: Print status message
+    amrex::Box dust_domain = m_dg.ba.getDomain();
+    int dust_nx = dust_domain.length(0);
+    int dust_ny = dust_domain.length(1);
     amrex::Print() << "[DUST] DustLayer initialized: grid_ratio="
                    << m_dg.grid_ratio << ", dust cells="
-                   << m_dg.ba.d_numPts() / m_dg.ba.size() << "x"
-                   << m_dg.ba.d_numPts() / m_dg.ba.size() << "x1\n";
+                   << dust_nx << "x" << dust_ny << "x1\n";
 }
 
 void DustLayer::advance(amrex::Real     dt,
