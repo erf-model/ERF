@@ -82,6 +82,7 @@ In addition to this documentation, there is API documentation for ERF generated 
    SurfaceLayer.rst
    DerivedQuantities.rst
    Checkpoint.rst
+   Provenance.rst
    Plotfiles.rst
    Visualization.rst
 
