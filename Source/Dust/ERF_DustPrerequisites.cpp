@@ -39,11 +39,21 @@ void verify_dust_prerequisites(const ERF&          erf,
         AMREX_ALWAYS_ASSERT_WITH_MESSAGE(box_nz == domain_nz, msg.c_str());
     }
 
+    if (dust_params.dust_debug) {
+        amrex::Print() << "[DUST DEBUG] Prerequisite check 3 passed: No z-decomposition. "
+                       << "domain_nz=" << domain_nz << ", all boxes have nz=" << domain_nz << "\n";
+    }
+
     // Check 4: grid_ratio >= 1
     std::string msg4 = std::string("[DUST] Invalid grid_ratio ")
                      + std::to_string(dust_params.grid_ratio)
                      + ". Set: erf.dust.grid_ratio >= 1";
     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(dust_params.grid_ratio >= 1, msg4.c_str());
+
+    if (dust_params.dust_debug) {
+        amrex::Print() << "[DUST DEBUG] Prerequisite check 4 passed: "
+                       << "grid_ratio=" << dust_params.grid_ratio << " >= 1\n";
+    }
 
     // Check 5: All atmospheric boxes have x,y sizes divisible by grid_ratio
     for (int i = 0; i < ba_atm.size(); ++i) {
@@ -59,15 +69,32 @@ void verify_dust_prerequisites(const ERF&          erf,
         }
     }
 
+    if (dust_params.dust_debug) {
+        amrex::Print() << "[DUST DEBUG] Prerequisite check 5 passed: "
+                       << "All " << ba_atm.size() << " box(es) have x,y sizes divisible by "
+                       << "grid_ratio=" << dust_params.grid_ratio << "\n";
+    }
+
     // Check 6: DistributionMapping size matches BoxArray size
     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
         static_cast<int>(dm_atm.size()) == ba_atm.size(),
         "[DUST] DistributionMapping size mismatch. Check AMReX configuration.");
 
+    if (dust_params.dust_debug) {
+        amrex::Print() << "[DUST DEBUG] Prerequisite check 6 passed: "
+                       << "DistributionMapping size=" << dm_atm.size() 
+                       << " matches BoxArray size=" << ba_atm.size() << "\n";
+    }
+
     // Check 7: Domain z-index starts at 0
     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
         domain.smallEnd(2) == 0,
         "[DUST] Domain z-index must start at 0. Check Geometry configuration.");
+
+    if (dust_params.dust_debug) {
+        amrex::Print() << "[DUST DEBUG] Prerequisite check 7 passed: "
+                       << "Domain z-index starts at 0\n";
+    }
 
     // Check 8: Domain physical height exceeds MRF reference height
     // Default z_ref = 10.0 m (from erf.most.zref, read by SurfaceLayer)
@@ -76,6 +103,11 @@ void verify_dust_prerequisites(const ERF&          erf,
     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
         dz > 0.0,
         "[DUST] Domain physical height must be positive. Check Geometry configuration.");
+
+    if (dust_params.dust_debug) {
+        amrex::Print() << "[DUST DEBUG] Prerequisite check 8 passed: "
+                       << "Domain physical height=" << dz << " m > 0\n";
+    }
 
     amrex::Print() << "[DUST] All prerequisites verified\n";
 }

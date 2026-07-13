@@ -33,6 +33,21 @@ No phase references or progress notes appear in source files.
 | 23 | DOE Critical Materials Assessment output module | Not started | | |
 | 24 | Regression test suite and DUST_DEVELOPMENT.md finalisation | Not started | | |
 
+## Recent Fixes and Enhancements
+
+### Debug Printing Enhancement
+- Added exhaustive debug printing to `DustLayer::initialize()` and `DustLayer::advance()` when `erf.dust.debug = true`
+- Debug output includes grid creation details, MultiFab allocations, initial values, and PHREEQC update triggers
+- Added prerequisite check debug logging in `verify_dust_prerequisites()` for detailed diagnostic output
+- Output format mirrors Fire module implementation with `[DUST DEBUG]` prefix
+
+### Test Case Fixes
+- **DustGrid/inputs**: Fixed `erf.most.zref = 10.0` → `50.0` (must be above first cell center); added `amr.max_level = 0`; disabled gravity (`erf.use_gravity = false`); increased `erf.most.z0 = 0.01` → `0.1` for realistic surface layer
+- **DustScaffold/inputs**: Fixed `erf.most.zref = 16.0` → `100.0`; added `amr.max_level = 0`; disabled gravity; increased `erf.most.z0 = 0.1`
+- **DustSurfaceReader/inputs**: Fixed `erf.most.zref = 10.0` → `50.0`; added `amr.max_level = 0`; disabled gravity; increased `erf.most.z0 = 0.01` → `0.1`; added `erf.dust.dust_debug = false`
+- **PhreeqcReader/inputs**: Fixed `erf.most.zref = 10.0` → `50.0`; added `amr.max_level = 0`; disabled gravity; increased `erf.most.z0 = 0.01` → `0.1`; added `erf.dust.dust_debug = false`
+- All test cases now use canonical ABL-like structure with proper MOST parameters
+
 ## Known Limitations
 
 None at this stage.
