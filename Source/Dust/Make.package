@@ -6,6 +6,7 @@ ifeq ($(USE_DUST), TRUE)
   CEXE_sources += Dust/ERF_DustLayer.cpp
   CEXE_sources += Dust/ERF_DustSurfaceReader.cpp
   CEXE_sources += Dust/ERF_PhreeqcReader.cpp
+  CEXE_sources += Dust/ERF_DustEmission.cpp
 
   CEXE_headers += Dust/ERF_DustParams.H
   CEXE_headers += Dust/ERF_DustGrid.H
@@ -14,5 +15,6 @@ ifeq ($(USE_DUST), TRUE)
   CEXE_headers += Dust/ERF_DustSurfaceReader.H
   CEXE_headers += Dust/ERF_PhreeqcReader.H
   CEXE_headers += Dust/ERF_DustThreshold.H
+  CEXE_headers += Dust/ERF_DustEmission.H
   CEXE_headers += Dust/ERF_Dust.H
 endif

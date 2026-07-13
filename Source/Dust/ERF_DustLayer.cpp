@@ -9,6 +9,7 @@
 #include <ERF_DustSurfaceReader.H>
 #include <ERF_PhreeqcReader.H>
 #include <ERF_DustThreshold.H>
+#include <ERF_DustEmission.H>
 #include <ERF.H>
 #include <ERF_SurfaceLayer.H>
 #include <AMReX_Print.H>
@@ -127,6 +128,11 @@ void DustLayer::initialize(const ERF&          erf,
     dust_surf_moist = std::make_unique<amrex::MultiFab>(m_dg.ba, m_dg.dm, 1, amrex::IntVect(1,1,0));
     dust_surf_moist->setVal(0.0);
 
+    // Phase 6: Allocate u* input MultiFab. Phase 6: filled from DustParams::test_ustar.
+    // Phase 9: replaced by MRF surface layer u* extraction.
+    dust_ustar_in = std::make_unique<amrex::MultiFab>(m_dg.ba, m_dg.dm, 1, amrex::IntVect(1,1,0));
+    dust_ustar_in->setVal(dust_params.test_ustar);
+
     // Populate surface MultiFabs from external rasters if paths are given in dust_params.
     // MultiFabs retain their setVal defaults above if paths are empty.
     populate_dust_surface_maps(*dust_soil_type, *dust_silt_fraction,
@@ -212,4 +218,17 @@ void DustLayer::advance(amrex::Real     dt,
     recompute_dust_ustar_t(*dust_ustar_t, *dust_ustar_base, *dust_crust_index,
                            *dust_efflor, *dust_surf_moist, *dust_suppression,
                            m_params.alpha_crust, m_params.alpha_efflor);
+
+    // Phase 6: Update u* placeholder from params. Phase 9 replaces this with actual
+    // MRF u* extracted from ERF surface layer via ERF_DustWindExtract.
+    dust_ustar_in->setVal(m_params.test_ustar);
+
+    // Phase 6: Compute emission flux using current u*, u*_t, and silt fraction.
+    // Zero emission when test_ustar = 0 (default until Phase 9).
+    compute_dust_emission_flux(*dust_emission_flux,
+                               *dust_ustar_t,
+                               *dust_ustar_in,
+                               *dust_silt_fraction,
+                               m_params.n_size_bins,
+                               m_params.rho_air);
 }

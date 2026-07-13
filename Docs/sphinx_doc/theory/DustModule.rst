@@ -576,6 +576,124 @@ Phase 5 References
     threshold friction velocity. *J. Geophys. Res.*, 105, 22437-22443.
     https://doi.org/10.1029/2000JD900304
 
+Saltation and Vertical Emission Flux (Phase 6)
+-----------------------------------------------
+
+Phase 6 implements the Marticorena & Bergametti (1995) saltation bombardment
+model for dust emission. Once the friction velocity :math:`u^*` (placeholder
+in Phase 6, extracted from MRF in Phase 9) exceeds the threshold :math:`u^*_t`
+computed in Phase 5, the horizontal saltation flux and vertical emission per
+size bin are computed.
+
+Horizontal Saltation Flux
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The Owen (1964) form adopted by Marticorena & Bergametti (1995):
+
+.. math::
+
+  Q_s = C_s \frac{\rho_a}{g} {u^*}^3
+        \left(1 - \frac{u^*_t}{u^*}\right)
+        \left(1 + \frac{u^*_t}{u^*}\right)^2
+
+where:
+  - :math:`C_s` = saltation efficiency coefficient (default 2.61) [-]
+  - :math:`\rho_a` = air density [kg/m³]
+  - :math:`g` = gravitational acceleration (9.81) [m/s²]
+  - :math:`u^*` = friction velocity [m/s]
+  - :math:`u^*_t` = threshold friction velocity [m/s]
+  - :math:`Q_s = 0` when :math:`u^* \leq u^*_t`.
+
+Units: [kg m⁻¹ s⁻¹]
+
+References:
+  Owen, P. R. (1964). Saltation of uniform grains in air.
+   *J. Fluid Mech.*, 20, 225-242.
+   https://doi.org/10.1017/S0022112064001173
+
+  Marticorena, B., & Bergametti, G. (1995). Modeling the atmospheric
+   dust cycle: 1. Design of a soil-derived dust emission scheme.
+   *J. Geophys. Res.*, 100, 16415-16430.
+   https://doi.org/10.1029/95JD00690
+
+Vertical Emission per Size Bin
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. math::
+
+  F_i = \alpha_i \cdot f_\text{silt} \cdot Q_s
+
+where:
+  - :math:`\alpha_i` = sandblasting efficiency [m⁻¹]
+  - :math:`f_\text{silt}` = surface silt mass fraction [0,1]
+  - :math:`Q_s` = horizontal saltation flux [kg m⁻¹ s⁻¹]
+
+The sandblasting efficiency is computed empirically from silt fraction:
+
+.. math::
+
+  \log_{10}(\alpha_i) = 0.134 \cdot f_\text{clay} - 6.0
+
+For mine tailings surfaces, clay fraction is approximated as:
+
+.. math::
+
+  f_\text{clay} = 0.2 \cdot f_\text{silt}
+
+Emission flux is clamped to a maximum of 10⁻³ kg/(m² s) to prevent
+physically unreasonable values that could drive numerical instabilities.
+
+In Phase 6, all size bins use the same sandblasting efficiency.
+Phase 11 will apply per-bin size-dependent corrections.
+
+Units: [kg m⁻² s⁻¹]
+
+Placeholder Friction Velocity in Phase 6
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+In Phase 6, the friction velocity :math:`u^*` is a uniform prescribed
+value from the parameter ``erf.dust.test_ustar`` (default 0, no emission).
+This placeholder allows testing of the emission physics before Phase 9
+implements actual :math:`u^*` extraction from the MRF PBL surface layer.
+
+To enable emission in test cases, set ``erf.dust.test_ustar`` to a value
+exceeding the local :math:`u^*_t` (typically 0.3 m/s or higher).
+
+Phase 6 Implementation
+~~~~~~~~~~~~~~~~~~~~~~~
+
+The computation is implemented as a GPU kernel in ``Source/Dust/ERF_DustEmission.H``
+(header-only device functions) and ``Source/Dust/ERF_DustEmission.cpp``
+(MultiFab kernel). The module provides:
+
+- ``compute_saltation_flux``: Device function for horizontal saltation flux.
+- ``compute_sandblasting_efficiency``: Device function for alpha from silt fraction.
+- ``compute_vertical_emission_flux``: Device function for vertical emission per bin.
+- ``compute_dust_emission_flux``: MultiFab GPU kernel called each timestep.
+
+The kernel is invoked in ``DustLayer::advance`` after threshold recomputation,
+filling the ``dust_emission_flux`` MultiFab (one component per size bin) on
+the 2D dust grid.
+
+Phase 6 References
+~~~~~~~~~~~~~~~~~~~
+
+  Marticorena, B., & Bergametti, G. (1995). Modeling the atmospheric
+   dust cycle: 1. Design of a soil-derived dust emission scheme.
+   *J. Geophys. Res.*, 100, 16415-16430.
+   https://doi.org/10.1029/95JD00690
+
+  Owen, P. R. (1964). Saltation of uniform grains in air.
+   *J. Fluid Mech.*, 20, 225-242.
+   https://doi.org/10.1017/S0022112064001173
+
+  Shao, Y., & Lu, H. (2000). A simple expression for wind erosion
+   threshold friction velocity. *J. Geophys. Res.*, 105, 22437-22443.
+   https://doi.org/10.1029/2000JD900304
+
+  Bagnold, R. A. (1941). *The Physics of Blown Sand and Desert Dunes*.
+   Methuen, London.
+
 Development Phases
 ------------------
 
