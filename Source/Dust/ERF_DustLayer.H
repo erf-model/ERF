@@ -23,6 +23,8 @@
  * | dust_moisture_flag   | 1               | Surface moisture inhibition flag [0,1]  |
  * | dust_suppression     | 1               | Suppression agent coverage fraction [-] |
  * | dust_emission_flux   | n_size_bins     | Emission flux per size bin [kg/m^2/s]  |
+ * | dust_efflor          | 1               | Efflorescence fraction [0,1]            |
+ * | dust_ustar_base      | 1               | Base u*_t before chemistry [m/s]        |
  *
  * dust_soil_type stores an integer code as amrex::Real. Codes follow the
  * STATSGO classification for natural soils (1-16) and reserve codes
@@ -91,6 +93,7 @@ public:
     const amrex::MultiFab* get_crust_index()      const { return dust_crust_index.get(); }
     const amrex::MultiFab* get_moisture_flag()    const { return dust_moisture_flag.get(); }
     const amrex::MultiFab* get_suppression()      const { return dust_suppression.get(); }
+    const amrex::MultiFab* get_efflor()           const { return dust_efflor.get(); }
     const amrex::MultiFab* get_emission_flux()    const { return dust_emission_flux.get(); }
     const DustGrid&        get_dust_grid()        const { return m_dg; }
     const amrex::Geometry& get_dust_geom()        const { return m_dg.geom; }
@@ -106,9 +109,13 @@ private:
     std::unique_ptr<amrex::MultiFab>      dust_moisture_flag;   ///< Moisture inhibition flag [0,1]
     std::unique_ptr<amrex::MultiFab>      dust_suppression;     ///< Suppression coverage fraction [-]
     std::unique_ptr<amrex::MultiFab>      dust_emission_flux;   ///< Emission flux per bin [kg/m^2/s]
+    std::unique_ptr<amrex::MultiFab>      dust_efflor;          ///< Efflorescence fraction [0,1]. Updated by PHREEQC reader.
+    std::unique_ptr<amrex::MultiFab>      dust_ustar_base;      ///< Base threshold friction velocity before chemistry [m/s]. Set at init, not modified.
 
     DustParams                            m_params;
     int                                   m_step = 0;           ///< Timestep counter
+    amrex::Real                           m_time = 0.0;         ///< Simulation time [s]
+    amrex::Real                           m_last_phreeqc_update = -1.0e30;  ///< Time of last PHREEQC update [s]
 };
 
 #endif // ERF_DUST_LAYER_H

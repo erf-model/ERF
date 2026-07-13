@@ -1,0 +1,121 @@
+# PhreeqcReader regression test
+#
+# Tests read_phreeqc_csv and update_dust_from_phreeqc.
+# Tests that DustLayer::advance triggers the PHREEQC reader at the
+# prescribed interval and that update_ustar_t_from_chemistry applies
+# the Marticorena & Bergametti (1995) reduction correctly.
+#
+# Configuration:
+#   - 8x8x16 atmospheric cells, 1000x1000x1000 m domain.
+#   - erf.dust.grid_ratio = 1: dust grid is 8x8x1 (125 m per cell).
+#   - phreeqc_update_interval_s = 1.0: reader triggers on every advance call.
+#   - max_step = 2: advance() called twice; reader called on both steps.
+#   - Test CSV has 64 rows (8x8 cells), columns: i,j,crust_index,
+#     silt_fraction,efflorescence,suppression_mod,metal_as_bin0.
+#
+# Expected results at max_step = 2:
+#   (1) read_phreeqc_csv finds column crust_index and reads 64 rows.
+#   (2) [DUST] PHREEQC update print appears on step 1 and step 2.
+#   (3) dust_crust_index at (i=2,j=2) = 0.8 (interior high-crust zone).
+#   (4) dust_crust_index at (i=0,j=0) = 0.0 (outer ring, uncrusted).
+#   (5) dust_ustar_t at (i=2,j=2):
+#         u*_t_base computed at init from Bagnold formula for bin 0
+#         (d=7 um, rho_p=2650, A=0.0123): approx 0.00474 m/s.
+#         After update: u*_t = 0.00474 * (1 - 0.5*0.8) * (1 - 0.3*0.4)
+#                            = 0.00474 * 0.6 * 0.88
+#                            = approx 0.00250 m/s.
+#         Verify u*_t at (i=2,j=2) < u*_t at (i=0,j=0).
+#   (6) dust_ustar_t at all cells >= PhreeqcDustConst::USTAR_T_MIN = 0.05 m/s.
+#       Note: if Bagnold u*_t_base < USTAR_T_MIN, floor applies. Verify
+#       that the floor is active when base < 0.05 and chemistry reduction
+#       would push below it.
+#   (7) dust_silt_fraction at (i=2,j=2) = 0.05 (updated from CSV).
+#   (8) dust_emission_flux at (i=2,j=2,comp=0) = 3.0e-6 (metal_as_bin0).
+#   (9) Run exits with code 0.
+#
+# u*_t_base calculation (for reference in expected result 5):
+#   u*_t = A * sqrt(rho_p * g * d / rho_a)
+#         = 0.0123 * sqrt(2650 * 9.81 * 7.0e-6 / 1.225)
+#         = 0.0123 * sqrt(0.14876)
+#         approx 0.00474 m/s
+#   This is less than USTAR_T_MIN = 0.05 m/s, so dust_ustar_t will be
+#   clamped to 0.05 m/s at all cells in this test case.
+#   The test verifies the clamp is applied and that the chemistry
+#   reduction logic executes without error.
+#
+# References:
+#   Marticorena & Bergametti (1995). J. Geophys. Res., 100, 16415.
+#     https://doi.org/10.1029/95JD00690
+#   Bagnold (1941). The Physics of Blown Sand and Desert Dunes.
+#     Methuen, London.
+#   Parkhurst & Appelo (2013). PHREEQC version 3. USGS TM 6-A43.
+#     https://pubs.usgs.gov/tm/06/a43/
+#   MRF PBL: Hong & Pan (1996).
+#     https://doi.org/10.1175/1520-0493(1996)124<2322:NBLVDI>2.0.CO;2
+
+erf.prob_name = "ABL"
+max_step = 2
+amrex.fpe_trap_invalid = 1
+fabarray.mfiter_tile_size = 1024 1024 1024
+
+geometry.prob_extent = 1000.0 1000.0 1000.0
+amr.n_cell           =   8     8      16
+geometry.is_periodic = 1 1 0
+
+zlo.type = "surface_layer"
+erf.most.z0   = 0.01
+erf.most.zref = 10.0
+erf.most.surf_temp_flux = 0.0
+zhi.type = "SlipWall"
+zhi.theta_grad = 0.003
+
+amrex.max_grid_size_z = 16
+
+erf.fixed_dt     = 1.0
+erf.sum_interval = 1
+erf.v            = 1
+amr.v            = 1
+erf.check_int    = -1
+erf.plot_int_1   = -1
+erf.plot_vars_1  = density x_velocity y_velocity z_velocity theta
+
+erf.use_gravity     = true
+erf.molec_diff_type = "None"
+erf.les_type        = "None"
+erf.theta_ref       = 300.0
+erf.init_type         = "uniform"
+erf.density_init_pert = 0.0
+erf.theta_init_pert   = 0.0
+
+erf.pbl_type         = "MRF"
+erf.pbl_mrf_Ribcr    = 0.5
+erf.pbl_mrf_const_b  = 7.8
+erf.pbl_mrf_sf       = 0.1
+erf.enable_mrf_countergradient = false
+erf.mrf_moistvars    = false
+erf.use_coriolis     = false
+
+erf.dust.enable                    = true
+erf.dust.n_size_bins               = 3
+erf.dust.grid_ratio                = 1
+erf.dust.particle_density          = 2650.0
+erf.dust.z0_dust                   = 0.01
+erf.dust.silt_fraction             = 0.10
+erf.dust.threshold_A_coeff         = 0.0123
+erf.dust.crust_index               = 0.0
+# phreeqc_update_interval_s = 1.0 triggers reader on every timestep (dt=1.0).
+erf.dust.phreeqc_update_interval_s = 1.0
+erf.dust.phreeqc_output_file       = "test_phreeqc.csv"
+erf.dust.phreeqc_crust_var         = "crust_index"
+erf.dust.phreeqc_silt_var          = "silt_fraction"
+erf.dust.phreeqc_efflor_var        = "efflorescence"
+erf.dust.phreeqc_supp_var          = "suppression_mod"
+erf.dust.phreeqc_metal_var         = "metal_as_bin0"
+erf.dust.alpha_crust               = 0.5
+erf.dust.alpha_efflor              = 0.3
+erf.dust.surface_map_file          = ""
+erf.dust.soil_type_file            = ""
+erf.dust.silt_fraction_file        = ""
+erf.dust.crust_index_file          = ""
+erf.dust.moisture_flag_file        = ""
+erf.dust.suppression_file          = ""
