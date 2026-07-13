@@ -154,9 +154,9 @@ bool read_phreeqc_csv(MultiFab& mf, const DustGrid& dg,
         Real* d_data_ptr = d_data.data();
 
         ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-            // Clamp to domain bounds
-            int ii = amrex::min(i, nx - 1);
-            int jj = amrex::min(j, ny - 1);
+            // Clamp to domain bounds [0, nx-1] and [0, ny-1]
+            int ii = amrex::max(0, amrex::min(i, nx - 1));
+            int jj = amrex::max(0, amrex::min(j, ny - 1));
             mf_arr(i, j, k) = d_data_ptr[jj * nx + ii];
         });
     }
