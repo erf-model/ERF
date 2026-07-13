@@ -82,8 +82,7 @@ public:
     /**
      * @brief Advance the dust layer by one atmospheric timestep.
      *
-     * In Phase 2 this function is a stub and returns without computation.
-     * Phases 5-13 replace it with emission, coupling, and deposition physics.
+     * Phases 5-13 replace the stub with emission, coupling, and deposition physics.
      *
      * @param[in] dt                 Atmospheric timestep [s].
      * @param[in] dust_params        Dust configuration parameters.
@@ -93,13 +92,13 @@ public:
      * @param[in] z_phys_cc_mf       3D terrain height field (nullptr = placeholder fallback).
      * @param[in] nz                 Number of vertical levels (0 = placeholder fallback).
      */
-    void advance(amrex::Real             dt,
-                 const DustParams&       dust_params,
-                 const SurfaceLayer*     surface_layer = nullptr,
-                 const amrex::MultiFab*  xvel_mf = nullptr,
-                 const amrex::MultiFab*  yvel_mf = nullptr,
-                 const amrex::MultiFab*  z_phys_cc_mf = nullptr,
-                 int                     nz = 0);
+    void advance(amrex::Real            dt,
+                 const DustParams&      dust_params,
+                 SurfaceLayer*          surface_layer = nullptr,   // non-const: getters not const
+                 const amrex::MultiFab* xvel_mf = nullptr,
+                 const amrex::MultiFab* yvel_mf = nullptr,
+                 const amrex::MultiFab* z_phys_cc_mf = nullptr,
+                 int                    nz = 0);
 
     // Const accessors for plotfile and diagnostic output
     const amrex::MultiFab* get_ustar_t()         const { return dust_ustar_t.get(); }
@@ -123,35 +122,31 @@ public:
 private:
     DustGrid                              m_dg;
 
-    std::unique_ptr<amrex::MultiFab>      dust_ustar_t;         ///< Threshold u* [m/s]
-    std::unique_ptr<amrex::MultiFab>      dust_soil_type;       ///< Soil type index (as Real)
-    std::unique_ptr<amrex::MultiFab>      dust_silt_fraction;   ///< Silt mass fraction [-]
-    std::unique_ptr<amrex::MultiFab>      dust_crust_index;     ///< Crust strength index [0,1]
-    std::unique_ptr<amrex::MultiFab>      dust_moisture_flag;   ///< Moisture inhibition flag [0,1]
-    std::unique_ptr<amrex::MultiFab>      dust_suppression;     ///< Suppression coverage fraction [-]
-    std::unique_ptr<amrex::MultiFab>      dust_emission_flux;   ///< Emission flux per bin [kg/m^2/s]
-    std::unique_ptr<amrex::MultiFab>      dust_efflor;          ///< Efflorescence fraction [0,1]. Updated by PHREEQC reader.
-    std::unique_ptr<amrex::MultiFab>      dust_ustar_base;      ///< Base threshold friction velocity before chemistry [m/s]. Set at init, not modified.
-    std::unique_ptr<amrex::MultiFab>      dust_surf_moist;      ///< Surface wetness [0,1]. Set to 0 at init. Driven by ERF surface layer in Phase 9.
-    std::unique_ptr<amrex::MultiFab>      dust_ustar_in;        ///< Friction velocity u* [m/s].
-                                                                  ///<   Phase 6: uniform value from DustParams.
-                                                                  ///<   Phase 9: extracted from MRF surface layer.
-    std::unique_ptr<amrex::MultiFab>      dust_retreat_flag;    ///< Re-treatment flag [0=ok, 1=retreat needed].
-                                                                  ///<   Set each timestep by advance_dust_suppression.
-                                                                  ///<   Phase 17 exports this for operational use.
+    std::unique_ptr<amrex::MultiFab>      dust_ustar_t;
+    std::unique_ptr<amrex::MultiFab>      dust_soil_type;
+    std::unique_ptr<amrex::MultiFab>      dust_silt_fraction;
+    std::unique_ptr<amrex::MultiFab>      dust_crust_index;
+    std::unique_ptr<amrex::MultiFab>      dust_moisture_flag;
+    std::unique_ptr<amrex::MultiFab>      dust_suppression;
+    std::unique_ptr<amrex::MultiFab>      dust_emission_flux;
+    std::unique_ptr<amrex::MultiFab>      dust_efflor;
+    std::unique_ptr<amrex::MultiFab>      dust_ustar_base;
+    std::unique_ptr<amrex::MultiFab>      dust_surf_moist;
+    std::unique_ptr<amrex::MultiFab>      dust_ustar_in;
+    std::unique_ptr<amrex::MultiFab>      dust_retreat_flag;
 
     // Phase 9: atmospheric fields extracted each timestep
-    std::unique_ptr<amrex::MultiFab>      dust_wind_ref;        ///< u,v at zref [m/s] (ncomp=2)
-    std::unique_ptr<amrex::MultiFab>      dust_pblh;            ///< MRF PBL height [m]
-    std::unique_ptr<amrex::MultiFab>      dust_tsfc;            ///< Surface temperature [K]
+    std::unique_ptr<amrex::MultiFab>      dust_wind_ref;   ///< u,v at zref [m/s] (ncomp=2)
+    std::unique_ptr<amrex::MultiFab>      dust_pblh;       ///< MRF PBL height [m]
+    std::unique_ptr<amrex::MultiFab>      dust_tsfc;       ///< Surface temperature [K]
 
     DustParams                            m_params;
-    int                                   m_step = 0;           ///< Timestep counter
-    amrex::Real                           m_time = 0.0;         ///< Simulation time [s]
-    amrex::Real                           m_last_phreeqc_update = -1.0e30;  ///< Time of last PHREEQC update [s]
+    int                                   m_step = 0;
+    amrex::Real                           m_time = 0.0;
+    amrex::Real                           m_last_phreeqc_update = -1.0e30;
 #ifdef ERF_USE_DUST
-    BlastSchedule                         m_blast_schedule;     ///< Loaded at init if blast_schedule_file is non-empty.
-    bool                                  m_has_blast_schedule = false; ///< True if blast schedule was loaded.
+    BlastSchedule                         m_blast_schedule;
+    bool                                  m_has_blast_schedule = false;
 #endif
 };
 
