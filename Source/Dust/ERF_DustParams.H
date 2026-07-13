@@ -5,6 +5,9 @@
  * Parameters are read from the "erf.dust" ParmParse prefix at runtime.
  * Default values correspond to bare quartz soil at an arid site.
  *
+ * Phase 1 creates this struct and registers it with CMake and GNUmake.
+ * Phase 2 adds grid_ratio and uses this struct in ERF_DustGrid and ERF_DustLayer.
+ *
  * References:
  *   Bagnold, R. A. (1941). The Physics of Blown Sand and Desert Dunes.
  *     Methuen, London.
@@ -34,10 +37,19 @@ struct DustParams {
 
     bool        enable              = false;    ///< Enable dust module
     bool        dust_debug          = false;    ///< Write per-timestep debug fields to plotfile
-    int         n_size_bins         = 3;        ///< Number of particle size bins
+    int         n_size_bins         = 3;        ///< Number of particle size bins; each bin maps to
+                                                 ///<   one RhoQ*_comp scalar component in ERF.
                                                  ///<   Bin 0: coarse  (2.5 um < d <= 10 um)
                                                  ///<   Bin 1: PM10    (1.0 um < d <= 2.5 um)
                                                  ///<   Bin 2: PM2.5   (d <= 1.0 um)
+    int         grid_ratio          = 1;        ///< Refinement factor of dust grid relative to ERF
+                                                 ///<   level-0 horizontal grid [dimensionless].
+                                                 ///<   grid_ratio = 1 places one dust cell per
+                                                 ///<   atmospheric cell. Values > 1 subdivide each
+                                                 ///<   atmospheric cell into grid_ratio^2 dust cells.
+                                                 ///<   All atmospheric box x,y sizes must be divisible
+                                                 ///<   by grid_ratio. Set erf.dust.grid_ratio to match
+                                                 ///<   the desired surface resolution.
     amrex::Real bin_diameter_um[3]  = {7.0, 3.5, 0.7}; ///< Representative aerodynamic diameter per bin [um]
     amrex::Real particle_density    = 2650.0;  ///< Bulk particle density [kg/m^3]; quartz default
     amrex::Real z0_dust             = 0.01;    ///< Aerodynamic roughness length over bare tailings [m]
@@ -77,6 +89,7 @@ struct DustParams {
         pp.query("silt_fraction", silt_fraction);
         pp.query("threshold_A_coeff", threshold_A_coeff);
         pp.query("crust_index", crust_index);
+        pp.query("grid_ratio", grid_ratio);
         pp.query("phreeqc_update_interval_s", phreeqc_update_interval_s);
         pp.query("surface_map_file", surface_map_file);
         pp.query("phreeqc_output_file", phreeqc_output_file);

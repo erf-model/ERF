@@ -1,0 +1,118 @@
+# DustGrid regression test
+#
+# Tests that DustLayer::initialize() completes without error and that
+# the 2D dust grid has the correct dimensions and that MultiFabs are
+# allocated and filled with their default values.
+#
+# Test configuration:
+#   - 8x8x16 atmospheric cells over a 1000 x 1000 x 1000 m domain.
+#   - erf.dust.grid_ratio = 2: dust grid is 16x16x1 cells,
+#     each dust cell covers 62.5 m x 62.5 m horizontally.
+#   - erf.dust.enable = true.
+#   - max_step = 0: DustLayer::advance() is not called.
+#
+# Expected results at max_step = 0:
+#   (1) verify_dust_prerequisites passes all 8 checks without abort.
+#   (2) create_dust_grid produces a DustGrid with:
+#         ba extent: [0,15] x [0,15] x [0,0]
+#         physical domain: [0,1000] x [0,1000] m (same as atmospheric)
+#         grid_ratio = 2
+#   (3) DustLayer MultiFab dimensions are 16x16x1 cells plus 1 ghost cell
+#       in x and y.
+#   (4) dust_ustar_t is filled with the Bagnold threshold for bin 0
+#       (d = 7.0 um, rho_p = 2650 kg/m^3, A = 0.0123):
+#         u*_t = 0.0123 * sqrt(2650 * 9.81 * 7.0e-6 / 1.225)
+#              = 0.0123 * sqrt(0.14876)
+#              approximately 0.00474 m/s.
+#       Verify this value is uniform across all cells.
+#   (5) dust_silt_fraction is filled with erf.dust.silt_fraction = 0.15
+#       (non-default value to verify ParmParse reading).
+#   (6) dust_emission_flux has ncomp = 3 and is filled with 0.0.
+#   (7) DustLayer::advance() stub executes and returns without error.
+#   (8) Run exits with code 0.
+#
+# Reference:
+#   Bagnold threshold friction velocity:
+#     Bagnold, R. A. (1941). The Physics of Blown Sand and Desert Dunes.
+#     Methuen, London.
+#   Marticorena & Bergametti (1995). J. Geophys. Res., 100, 16415-16430.
+#     https://doi.org/10.1029/95JD00690
+
+erf.prob_name = "ABL"
+
+max_step = 0
+
+amrex.fpe_trap_invalid = 1
+
+fabarray.mfiter_tile_size = 1024 1024 1024
+
+# Atmospheric domain: 8x8 horizontal cells, 16 vertical levels.
+# All boxes must have x,y sizes divisible by grid_ratio = 2.
+geometry.prob_extent = 1000.0 1000.0 1000.0
+amr.n_cell           =   8     8      16
+geometry.is_periodic = 1 1 0
+
+zlo.type = "surface_layer"
+erf.most.z0   = 0.01
+erf.most.zref = 10.0
+erf.most.surf_temp_flux = 0.0
+
+zhi.type = "SlipWall"
+zhi.theta_grad = 0.003
+
+# Prevent z-decomposition: z-extent must be on a single rank.
+# verify_dust_prerequisites check 3 requires box_nz == domain_nz.
+amrex.max_grid_size_z = 16
+
+erf.fixed_dt = 1.0
+
+# DIAGNOSTICS
+erf.sum_interval = 1
+erf.v            = 1
+amr.v            = 1
+
+# CHECKPOINT
+erf.check_int = -1
+
+# PLOTFILES: not produced at max_step = 0
+erf.plot_int_1  = -1
+erf.plot_vars_1 = density x_velocity y_velocity z_velocity theta
+
+# SOLVER
+erf.use_gravity     = true
+erf.molec_diff_type = "None"
+erf.les_type        = "None"
+erf.theta_ref       = 300.0
+
+# INITIALIZATION
+erf.init_type         = "uniform"
+erf.density_init_pert = 0.0
+erf.theta_init_pert   = 0.0
+
+# MRF PBL
+# Hong & Pan (1996), Mon. Wea. Rev., 124, 2322-2339.
+# https://doi.org/10.1175/1520-0493(1996)124<2322:NBLVDI>2.0.CO;2
+erf.pbl_type         = "MRF"
+erf.pbl_mrf_Ribcr    = 0.5
+erf.pbl_mrf_const_b  = 7.8
+erf.pbl_mrf_sf       = 0.1
+erf.enable_mrf_countergradient = false
+erf.mrf_moistvars    = false
+erf.use_coriolis     = false
+
+# DUST MODULE
+# grid_ratio = 2: dust grid is 16x16x1 cells on an 8x8x16 atmospheric grid.
+# Atmospheric box x,y sizes (8) are divisible by grid_ratio (2): check 5 passes.
+# silt_fraction = 0.15 overrides the default 0.10 to verify ParmParse reading.
+erf.dust.enable                    = true
+erf.dust.dust_debug                = false
+erf.dust.n_size_bins               = 3
+erf.dust.grid_ratio                = 2
+erf.dust.particle_density          = 2650.0
+erf.dust.z0_dust                   = 0.01
+erf.dust.silt_fraction             = 0.15
+erf.dust.threshold_A_coeff         = 0.0123
+erf.dust.crust_index               = 0.0
+erf.dust.phreeqc_update_interval_s = 86400.0
+erf.dust.surface_map_file          = ""
+erf.dust.phreeqc_output_file       = ""

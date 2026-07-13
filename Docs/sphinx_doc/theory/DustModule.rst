@@ -145,6 +145,10 @@ All parameters are read from the ``erf.dust`` ParmParse prefix.
      - Real
      - 0.0
      - Surface crust strength index [0,1]
+   * - ``erf.dust.grid_ratio``
+     - int
+     - 1
+     - Refinement factor of dust grid relative to atmospheric grid [dimensionless]
    * - ``erf.dust.phreeqc_update_interval_s``
      - Real
      - 86400.0
@@ -157,6 +161,85 @@ All parameters are read from the ``erf.dust`` ParmParse prefix.
      - string
      - ""
      - Path to PHREEQC output NetCDF
+
+2D Dust Grid
+------------
+
+The dust emission layer operates on a 2D horizontal slab (k-extent = 1)
+that covers the same physical domain as the ERF level-0 atmospheric grid.
+The dust grid can be refined relative to the atmospheric grid by the factor
+``erf.dust.grid_ratio``. With ``grid_ratio = 1`` (default), one dust cell
+corresponds to one atmospheric cell. With ``grid_ratio = N``, each
+atmospheric cell is subdivided into N² dust cells, allowing sub-atmospheric-
+cell resolution of surface emission heterogeneity (e.g., pit walls, road
+segments, pond boundaries).
+
+The MPI decomposition of the dust grid follows the atmospheric
+``DistributionMapping``, so that each MPI rank owns the same horizontal
+tiles in both grids. This avoids inter-rank communication during wind
+extraction (Phase 9) and atmospheric flux injection (Phase 10).
+
+All atmospheric box sizes in x and y must be divisible by ``grid_ratio``.
+If this constraint is not satisfied, the prerequisite check in
+``verify_dust_prerequisites`` aborts the simulation with a diagnostic
+message.
+
+The prerequisite verification function (``verify_dust_prerequisites``)
+checks eight conditions before the DustLayer is allocated:
+
+1. ``SurfaceLayer`` is initialized (``zlo.type = "surface_layer"`` required).
+2. Roughness length ``erf.most.z0`` is set.
+3. No z-direction MPI decomposition (``amrex.max_grid_size_z = domain_nz``).
+4. ``erf.dust.grid_ratio >= 1``.
+5. All atmospheric box x,y sizes are divisible by ``grid_ratio``.
+6. ``DistributionMapping`` size matches ``BoxArray`` size.
+7. Domain z-index starts at 0.
+8. Domain physical height exceeds the MRF reference height ``erf.most.zref``.
+
+Dust State Variables
+--------------------
+
+The following ``MultiFab``\s are allocated on the 2D dust grid in Phase 2.
+All fields have 1 ghost cell in x and y (z ghost cells are not used). The
+number of components in ``dust_emission_flux`` equals ``erf.dust.n_size_bins``.
+
+.. list-table::
+   :header-rows: 1
+   :widths: 30 10 60
+
+   * - Field
+     - ncomp
+     - Description
+   * - ``dust_ustar_t``
+     - 1
+     - Threshold friction velocity :math:`u^*_t` [m/s]. Initialized to the
+       Bagnold value for bin 0 (coarsest bin). Updated by surface chemistry
+       and moisture in Phases 4 and 5.
+   * - ``dust_soil_type``
+     - 1
+     - Soil type index stored as Real. Codes 1--16 follow STATSGO. Codes
+       :math:`\geq 100` are reserved for mine-specific surface types
+       (assigned in Phase 3).
+   * - ``dust_silt_fraction``
+     - 1
+     - Surface silt mass fraction [--]. Initialized from
+       ``erf.dust.silt_fraction``. Updated by surface reader in Phase 3.
+   * - ``dust_crust_index``
+     - 1
+     - Mineral crust strength index [0, 1]. Initialized from
+       ``erf.dust.crust_index``. Updated by PHREEQC reader in Phase 4.
+   * - ``dust_moisture_flag``
+     - 1
+     - Surface moisture inhibition flag [0, 1]. Set to 0 at initialization
+       (dry surface). Updated from ERF surface layer in Phase 5.
+   * - ``dust_suppression``
+     - 1
+     - Suppression agent coverage fraction [--]. Set to 0 at initialization.
+       Updated by suppression model in Phase 8.
+   * - ``dust_emission_flux``
+     - ``n_size_bins``
+     - Vertical dust emission flux per size bin [kg/m²/s]. Set to 0 at
+       initialization. Computed by emission model in Phase 6.
 
 Development Phases
 ------------------

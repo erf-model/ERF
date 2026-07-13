@@ -211,7 +211,13 @@ function(build_erf_lib erf_lib_name)
   if(ERF_ENABLE_DUST)
     target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_DUST)
     target_sources(${erf_lib_name} PRIVATE
+                   ${SRC_DIR}/Dust/ERF_DustGrid.cpp
+                   ${SRC_DIR}/Dust/ERF_DustPrerequisites.cpp
+                   ${SRC_DIR}/Dust/ERF_DustLayer.cpp
                    ${SRC_DIR}/Dust/ERF_DustParams.H
+                   ${SRC_DIR}/Dust/ERF_DustGrid.H
+                   ${SRC_DIR}/Dust/ERF_DustPrerequisites.H
+                   ${SRC_DIR}/Dust/ERF_DustLayer.H
     )
     target_include_directories(${erf_lib_name} PUBLIC
                                $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/Source/Dust>)

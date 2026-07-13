@@ -9,7 +9,7 @@ No phase references or progress notes appear in source files.
 | Phase | Title | Status | Date | Notes |
 |-------|-------|--------|------|-------|
 | 1 | Directory scaffold and CMake integration | Complete | 2026-07-13 | |
-| 2 | 2D dust grid definition | Not started | | |
+| 2 | 2D dust grid definition | Complete | 2026-07-13 | |
 | 3 | Surface property map reader | Not started | | |
 | 4 | PHREEQC output file reader and u*t mapper | Not started | | |
 | 5 | Threshold friction velocity computation | Not started | | |
