@@ -219,6 +219,7 @@ public:
 
          // integrate from surface to domain top
         amrex::Real dz, F, C;
+        amrex::Real T_hi;
         amrex::Real rho_tot_hi, rho_tot_lo;
         for (int k=1; k < size(itime); ++k)
         {
@@ -231,6 +232,7 @@ public:
 
             // Initial guess and residual
             pm_integ[k]   = pm_integ[k-1];
+            T_hi          = getTgivenPandTh(pm_integ[k], theta_inp_sound[itime][k], R_d/Cp_d);
             rhod_integ[k] = getRhogivenThetaPress(theta_inp_sound[itime][k],
                                                   pm_integ[k],
                                                   R_d/Cp_d,
@@ -239,10 +241,14 @@ public:
             F = pm_integ[k] + myhalf*rho_tot_hi*CONST_GRAV*dz + C;
 
             // Do iterations
-            if (std::abs(F)>tol) HSEutils::Newton_Raphson_hse_Th(tol, R_d/Cp_d, dz,
-                                                                 CONST_GRAV, C, theta_inp_sound[itime][k],
-                                                                 qv_inp_sound[itime][k], qv_inp_sound[itime][k],
-                                                                 pm_integ[k], rhod_integ[k], F);
+            if (std::abs(F)>tol) {
+                bool maintain_Th = true;
+                HSEutils::Newton_Raphson_hse(tol, R_d/Cp_d, dz,
+                                             CONST_GRAV, C, theta_inp_sound[itime][k], T_hi,
+                                             qv_inp_sound[itime][k], qv_inp_sound[itime][k],
+                                             pm_integ[k], rhod_integ[k], F, maintain_Th);
+            }
+
 #if 0       // Printing
             amrex::Print() << z_inp_sound[itime][k]
                            << " " << pm_integ[k]
@@ -272,7 +278,7 @@ public:
         rhod_integ.resize(Ninp);
 
         // evaluate surface quantities (k=0): total pressure and dry air
-        pm_integ[0] = press_ref_inp_sound;
+        pm_integ[0]   = press_ref_inp_sound;
         rhod_integ[0] = getRhogivenThetaPress(theta_ref_inp_sound,
                                               press_ref_inp_sound,
                                               R_d/Cp_d,

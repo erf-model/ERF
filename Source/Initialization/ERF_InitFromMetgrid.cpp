@@ -1436,7 +1436,8 @@ init_base_state_from_metgrid (const bool use_moisture,
             Real p_lo,   p_hi;
             Real qv_lo, qv_hi;
             Real rd_lo, rd_hi;
-            Real thetad_lo, thetad_hi;
+            Real th_lo, th_hi;
+            Real t_hi;
 
             // Calculate or use pressure at the surface.
             if (metgrid_debug_psfc) {
@@ -1454,18 +1455,18 @@ init_base_state_from_metgrid (const bool use_moisture,
 
             // Iterations for the first CC point that is 1/2 dz off the surface
             {
-                z_lo      = new_z(i,j,0);
-                qv_lo     = (use_moisture) ? new_data(i,j,0,RhoQ_comp) : zero;
-                rd_lo     = zero; // initial guess
-                thetad_lo = new_data(i,j,0,RhoTheta_comp);
+                z_lo  = new_z(i,j,0);
+                qv_lo = (use_moisture) ? new_data(i,j,0,RhoQ_comp) : zero;
+                rd_lo = zero; // initial guess
+                th_lo = new_data(i,j,0,RhoTheta_comp);
                 // NOTE: The first iteration is from z=0 to z_cc(i,j,0) since the
                 //       reference pressure (psurf) is at the ground.
                 Real myhalf_dz = z_lo;
-                Real qvf     = one+(R_v/R_d)*qv_lo;
-                Real thetam  = thetad_lo*qvf;
+                Real qvf       = one+(R_v/R_d)*qv_lo;
+                Real thetam    = th_lo*qvf;
                 for (int it(0); it<maxiter; it++) {
                     p_lo = psurf-myhalf_dz*rd_lo*(one+qv_lo)*grav;
-                    if (p_lo < zero) p_lo = zero;
+                    if (p_lo < zero) { p_lo = zero; }
                     rd_lo = (p_0/(R_d*thetam))*std::pow(p_lo/p_0, iGamma);
                 } // it
 
@@ -1485,14 +1486,12 @@ init_base_state_from_metgrid (const bool use_moisture,
                 // Known hi data
                 z_hi  = new_z(i,j,k);
                 qv_hi = (use_moisture) ? new_data(i,j,k,RhoQ_comp) : zero;
-                thetad_hi = new_data(i,j,k,RhoTheta_comp);
+                th_hi = new_data(i,j,k,RhoTheta_comp);
 
                 // Initial guesses for hi data
                  p_hi = p_lo;
-                rd_hi = getRhogivenThetaPress(thetad_hi,
-                                              p_hi,
-                                              R_d/Cp_d,
-                                              qv_hi);
+                 t_hi = getTgivenPandTh(p_hi, th_hi, R_d/Cp_d);
+                rd_hi = getRhogivenThetaPress(th_hi, p_hi, R_d/Cp_d, qv_hi);
 
                 // Vertical grid spacing
                 Real dz = z_hi - z_lo;
@@ -1506,10 +1505,13 @@ init_base_state_from_metgrid (const bool use_moisture,
                 Real F = p_hi + myhalf*rho_tot_hi*grav*dz + C;
 
                 // Do iterations
-                if (std::abs(F)>tol) HSEutils::Newton_Raphson_hse_Th(tol, R_d/Cp_d, dz,
-                                                                     grav, C, thetad_hi,
-                                                                     qv_hi, qv_hi, p_hi,
-                                                                     rd_hi, F);
+                if (std::abs(F)>tol) {
+                    bool maintain_Th = true;
+                    HSEutils::Newton_Raphson_hse(tol, R_d/Cp_d, dz,
+                                                 grav, C, th_hi, t_hi,
+                                                 qv_hi, qv_hi, p_hi,
+                                                 rd_hi, F, maintain_Th);
+                }
 
                 // Copy solution to state
                 new_data(i,j,k,Rho_comp)       = rd_hi;
@@ -1526,7 +1528,7 @@ init_base_state_from_metgrid (const bool use_moisture,
                 p_lo  = p_hi;
                 qv_lo = qv_hi;
                 rd_lo = rd_hi;
-                thetad_lo = thetad_hi;
+                th_lo = th_hi;
             }
         });
     }

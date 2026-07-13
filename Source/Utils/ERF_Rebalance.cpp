@@ -10,7 +10,7 @@ rebalance_columns (MultiFab& rho,
                    const MultiFab& qt,
                    const MultiFab* z_phys,
                    const Geometry& geom,
-                   bool const_th)
+                   const bool& maintain_Th)
 {
 
 #ifdef AMREX_USE_FLOAT
@@ -24,7 +24,7 @@ rebalance_columns (MultiFab& rho,
     int k_dom_lo = geom.Domain().smallEnd(2);
     int k_dom_hi = geom.Domain().bigEnd(2);
 
-    for ( MFIter mfi(rho,TileNoZ()); mfi.isValid(); ++mfi ) {
+    for (MFIter mfi(rho,TileNoZ()); mfi.isValid(); ++mfi) {
         Box bx  = mfi.tilebox();
         int klo = bx.smallEnd(2);
         int khi = bx.bigEnd(2);
@@ -78,20 +78,14 @@ rebalance_columns (MultiFab& rho,
                 F = P_hi + myhalf*rho_tot_hi*grav*dz + C;
 
                 // Do iterations
-                if (const_th) {
-                    HSEutils::Newton_Raphson_hse_Th(tol, R_d/Cp_d, dz,
-                                                    grav, C, Th_hi,
-                                                    qt_hi, qv_hi,
-                                                    P_hi, R_hi, F);
-                } else {
-                    HSEutils::Newton_Raphson_hse_T(tol, R_d/Cp_d, dz,
-                                                   grav, C, T_hi,
-                                                   qt_hi, qv_hi,
-                                                   P_hi, R_hi, F);
-                }
+                HSEutils::Newton_Raphson_hse(tol, R_d/Cp_d, dz,
+                                             grav, C, Th_hi, T_hi,
+                                             qt_hi, qv_hi,
+                                             P_hi, R_hi, F, maintain_Th);
 
                 // Assign data
                 rho_arr(i,j,klo) = R_hi;
+                if (!maintain_Th) { th_arr(i,j,klo)  = getThgivenTandP(T_hi, P_hi, R_d/Cp_d); }
                 P_lo = P_hi;
                 z_lo = z_hi;
 
@@ -127,21 +121,14 @@ rebalance_columns (MultiFab& rho,
               F = P_hi + myhalf*rho_tot_hi*grav*dz + C;
 
               // Do iterations
-              if (const_th) {
-                  HSEutils::Newton_Raphson_hse_Th(tol, R_d/Cp_d, dz,
-                                                  grav, C, Th_hi,
-                                                  qt_hi, qv_hi,
-                                                  P_hi, R_hi, F);
-              } else {
-                  HSEutils::Newton_Raphson_hse_T(tol, R_d/Cp_d, dz,
-                                                 grav, C, T_hi,
-                                                 qt_hi, qv_hi,
-                                                 P_hi, R_hi, F);
-              }
+              HSEutils::Newton_Raphson_hse(tol, R_d/Cp_d, dz,
+                                           grav, C, Th_hi, T_hi,
+                                           qt_hi, qv_hi,
+                                           P_hi, R_hi, F, maintain_Th);
 
               // Assign data
               rho_arr(i,j,k) = R_hi;
-              if (!const_th) { th_arr(i,j,k)  = getThgivenTandP(T_hi, P_hi, R_d/Cp_d); }
+              if (!maintain_Th) { th_arr(i,j,k)  = getThgivenTandP(T_hi, P_hi, R_d/Cp_d); }
               P_lo = P_hi;
               z_lo = z_hi;
             }

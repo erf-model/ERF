@@ -21,7 +21,7 @@ rebalance_columns (amrex::MultiFab& rho,
                    const amrex::MultiFab& qv,
                    const amrex::MultiFab* z_phys,
                    const amrex::Geometry& geom,
-                   bool const_th = false);
+                   const bool& maintain_Th);
 
 /*
  * Create a new BoxArray in which every grid touches the bottom boundary

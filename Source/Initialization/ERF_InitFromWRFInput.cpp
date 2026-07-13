@@ -1088,7 +1088,8 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev)
         int n_qstate_into_total = micro->Get_Qstate_Moist_Size() - micro->Get_Qstate_Moist_NumConc_Size();
         make_qt(lev_new[Vars::cons], qt, n_qstate_into_total);
 
-        rebalance_columns(rho, theta, qv, qt, z_phys_nd[lev].get(), geom[lev]);
+        bool maintain_Th = false;
+        rebalance_columns(rho, theta, qv, qt, z_phys_nd[lev].get(), geom[lev], maintain_Th);
 
         // Update (rho qv) in the state
         MultiFab::Multiply(qv, rho, 0, 0, 1, 1);
@@ -1420,7 +1421,7 @@ init_base_state_from_wrfinput (const Box& subdomain,
                 Real z_lo, z_hi;
                 Real R_lo, R_hi;
                 Real Th_lo, Th_hi;
-                Real T_lo;
+                Real T_hi, T_lo;
                 Real P_lo, P_hi;
 
                 Real qv_lo = zero;
@@ -1446,17 +1447,19 @@ init_base_state_from_wrfinput (const Box& subdomain,
                     C  = -P_lo + myhalf*rho_tot_lo*grav*dz;
 
                     // Initial guess and residual
-                    Th_hi = th_hse_arr(i,j,klo);
-                    P_hi  = P_lo;
+                    P_hi  = P00 * std::exp( -T00/TLP + std::sqrt( (T00/TLP)*(T00/TLP) - two * grav * z_hi / (TLP * R_d) ) );
+                    T_hi  = std::max(TISO, T00 + TLP * std::log(P_hi/p_0));
+                    Th_hi = getThgivenTandP(T_hi, P_hi, R_d/Cp_d);
                     R_hi  = getRhogivenThetaPress(Th_hi, P_hi, R_d/Cp_d);
                     rho_tot_hi = R_hi;
                     F = P_hi + myhalf*rho_tot_hi*grav*dz + C;
 
                     // Do iterations
-                    HSEutils::Newton_Raphson_hse_Th(tol, R_d/Cp_d, dz,
-                                                    grav, C, Th_hi,
-                                                    qv_hi, qv_hi,
-                                                    P_hi, R_hi, F);
+                    bool maintain_Th = true;
+                    HSEutils::Newton_Raphson_hse(tol, R_d/Cp_d, dz,
+                                                 grav, C, Th_hi, T_hi,
+                                                 qv_hi, qv_hi,
+                                                 P_hi, R_hi, F, maintain_Th);
 
                     // At first cell center
                      r_hse_arr(i,j,klo) = R_hi;
@@ -1480,16 +1483,19 @@ init_base_state_from_wrfinput (const Box& subdomain,
                   C  = -P_lo + myhalf*rho_tot_lo*grav*dz;
 
                   // Initial guess and residual
-                  Th_hi = th_hse_arr(i,j,k);
+                  P_hi  = P00 * std::exp( -T00/TLP + std::sqrt( (T00/TLP)*(T00/TLP) - two * grav * z_hi / (TLP * R_d) ) );
+                  T_hi  = std::max(TISO, T00 + TLP * std::log(P_hi/p_0));
+                  Th_hi = getThgivenTandP(T_hi, P_hi, R_d/Cp_d);
                   R_hi  = getRhogivenThetaPress(Th_hi, P_hi, R_d/Cp_d, qv_hi);
                   rho_tot_hi = R_hi;
                   F = P_hi + myhalf*rho_tot_hi*grav*dz + C;
 
                   // Do iterations
-                  HSEutils::Newton_Raphson_hse_Th(tol, R_d/Cp_d, dz,
-                                                  grav, C, Th_hi,
-                                                  qv_hi, qv_hi,
-                                                  P_hi, R_hi, F);
+                  bool maintain_Th = true;
+                  HSEutils::Newton_Raphson_hse(tol, R_d/Cp_d, dz,
+                                               grav, C, Th_hi, T_hi,
+                                               qv_hi, qv_hi,
+                                               P_hi, R_hi, F, maintain_Th);
 
                   // Assign data
                    r_hse_arr(i,j,k) = R_hi;

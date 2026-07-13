@@ -521,10 +521,11 @@ convert_wrfbdy_data (const int itime,
               F = P_hi + myhalf*rho_tot_hi*grav*dz + C;
 
               // Do iterations
-              HSEutils::Newton_Raphson_hse_T(tol, R_d/Cp_d, dz,
-                                             grav, C, T_hi,
-                                             qt_hi, qv_hi,
-                                             P_hi, R_hi, F);
+              bool maintain_Th = false;
+              HSEutils::Newton_Raphson_hse(tol, R_d/Cp_d, dz,
+                                           grav, C, Th_hi, T_hi,
+                                           qt_hi, qv_hi,
+                                           P_hi, R_hi, F, maintain_Th);
 
               // Assign data
               bdy_r_int(i,j,k) = R_hi;
