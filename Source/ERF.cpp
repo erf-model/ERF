@@ -2060,8 +2060,9 @@ ERF::ReadParameters ()
         pp.query("check_file", check_file);
 
         // The regression tests use "amr.restart" and "amr.m_check_int" so we allow
-        //    for those or "erf.restart" / "erf.m_check_int" with the former taking
-        //    precedence if both are specified
+        //    for those or "erf.restart" / "erf.m_check_int". The amr.* values are
+        //    queried after the erf.* values and therefore take precedence if both
+        //    are specified.
         pp.query("check_int", m_check_int);
         pp.query("check_per", m_check_per);
         pp_amr.query("check_int", m_check_int);

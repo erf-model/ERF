@@ -104,6 +104,9 @@ ERF::ERF_shared ()
     for (int lev = 0; lev <= max_level; ++lev) { m_forest_drag[lev] = nullptr;}
 
     ReadParameters();
+    // Create one invocation identity after inputs are available and before
+    // InitData can read restart metadata or write an output on restart.
+    execution_provenance = erf_provenance::initialize_execution_provenance();
     initializeMicrophysics(nlevs_max);
     initializeFire(nlevs_max);
 

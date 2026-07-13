@@ -5,7 +5,11 @@
 
 /**
  * Compute eddy diffusivities of momentum (eddy viscosity) and heat using the
- * Medium Range Forecast (MRF) scheme (Janjic (2002), NCEP Office Note 437)
+ * Mellor-Yamada-Janjić (MYJ) boundary layer scheme.
+ * Reference: Janjić, Z. I., 1994: The Step-Mountain Eta Coordinate Model:
+ * Further Developments of the Convection, Viscous Sublayer, and Turbulence
+ * Closure Schemes. Monthly Weather Review, 122, 927–945.
+ * https://doi.org/10.1175/1520-0493(1994)122<0927:TSMECM>2.0.CO;2
  *
  * @param[in] xvel Velocity in x-dir
  * @param[in] yvel Velocity in y-dir
@@ -137,7 +141,10 @@ ComputeDiffusivityYSU (const amrex::MultiFab& xvel,
                        const MoistureComponentIndices& moisture_indices);
 /**
  * Compute eddy diffusivities of momentum (eddy viscosity) and heat using the
- * older version of Yonsei University PBL scheme
+ * Medium Range Forecast (MRF) boundary layer scheme based on Hong and Pan (1996).
+ * Reference: Hong, S. Y., and H.-L. Pan, 1996: Nonlocal Boundary Layer Vertical
+ * Diffusion in a Medium-Range Forecast Model. Monthly Weather Review, 124,
+ * 2322-2339. https://doi.org/10.1175/1520-0493(1996)124<2322:NBLVDI>2.0.CO;2
  *
  * @param[in] xvel Velocity in x-dir
  * @param[in] yvel Velocity in y-dir
