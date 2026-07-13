@@ -90,6 +90,12 @@ using amrex::MPI_Comm;
 class MultiBlockContainer;
 #endif
 
+// Near the top with other includes:
+#ifdef ERF_USE_DUST
+#include <ERF_DustLayer.H>
+#include <ERF_DustParams.H>
+#endif
+
 /**
  * Enum of possible interpolation types between coarse/fine
 */
@@ -1449,6 +1455,10 @@ private:
     std::unique_ptr<WriteBndryPlanes> m_w2d  = nullptr;
     std::unique_ptr<ReadBndryPlanes>  m_r2d  = nullptr;
     std::unique_ptr<SurfaceLayer>     m_SurfaceLayer = nullptr;
+
+    #ifdef ERF_USE_DUST
+    std::unique_ptr<DustLayer>    m_DustLayer;
+    #endif
     amrex::Vector<std::unique_ptr<ForestDrag>> m_forest_drag;
 
     //

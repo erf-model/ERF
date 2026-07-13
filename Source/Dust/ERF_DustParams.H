@@ -25,6 +25,7 @@
 #define ERF_DUST_PARAMS_H
 
 #include <AMReX_ParmParse.H>
+#include <AMReX_Vector.H>
 #include <string>
 
 /**
@@ -50,7 +51,7 @@ struct DustParams {
                                                  ///<   All atmospheric box x,y sizes must be divisible
                                                  ///<   by grid_ratio. Set erf.dust.grid_ratio to match
                                                  ///<   the desired surface resolution.
-    amrex::Real bin_diameter_um[3]  = {7.0, 3.5, 0.7}; ///< Representative aerodynamic diameter per bin [um]
+    amrex::Vector<amrex::Real> bin_diameter_um  = {7.0, 3.5, 0.7}; ///< Representative aerodynamic diameter per bin [um]
     amrex::Real particle_density    = 2650.0;  ///< Bulk particle density [kg/m^3]; quartz default
     amrex::Real z0_dust             = 0.01;    ///< Aerodynamic roughness length over bare tailings [m]
     amrex::Real silt_fraction       = 0.10;    ///< Default surface silt mass fraction [dimensionless]
@@ -83,7 +84,7 @@ struct DustParams {
         pp.query("enable", enable);
         pp.query("dust_debug", dust_debug);
         pp.query("n_size_bins", n_size_bins);
-        pp.queryarr("bin_diameter_um", bin_diameter_um, n_size_bins);
+        pp.queryarr("bin_diameter_um", bin_diameter_um);
         pp.query("particle_density", particle_density);
         pp.query("z0_dust", z0_dust);
         pp.query("silt_fraction", silt_fraction);

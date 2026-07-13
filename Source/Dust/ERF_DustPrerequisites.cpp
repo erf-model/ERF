@@ -5,7 +5,7 @@
 
 #include <ERF_DustPrerequisites.H>
 #include <ERF.H>
-#include <SurfaceLayer.H>
+#include <ERF_SurfaceLayer.H>
 #include <AMReX_Print.H>
 
 void verify_dust_prerequisites(const ERF&          erf,

@@ -7,7 +7,7 @@
 #include <ERF_DustPrerequisites.H>
 #include <ERF_DustGrid.H>
 #include <ERF.H>
-#include <SurfaceLayer.H>
+#include <ERF_SurfaceLayer.H>
 #include <AMReX_Print.H>
 #include <cmath>
 
@@ -68,7 +68,7 @@ void DustLayer::initialize(const ERF&          erf,
     dust_emission_flux->setVal(0.0);
 
     // Step 6: Print status message
-    amrex::Box dust_domain = m_dg.ba.getDomain();
+    amrex::Box dust_domain = m_dg.ba.minimalBox();
     int dust_nx = dust_domain.length(0);
     int dust_ny = dust_domain.length(1);
     amrex::Print() << "[DUST] DustLayer initialized: grid_ratio="
