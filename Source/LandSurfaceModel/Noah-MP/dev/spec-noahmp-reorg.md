@@ -48,8 +48,9 @@ editing **both**.
 - `interp_from_lev0(...)` — the `!m_has_nc_file` fine-level interpolation branch.
 - `time_to_fire(elapsed_time)` — the firing-schedule gate + lockstep counter
   advance (identical on every rank; see api spec §5).
-- `prepare_precip_sources(...)` / `advance_precip_snapshots(...)` /
-  `report_precip_diagnostics(...)` — precip bookkeeping (`_Precip.cpp`).
+- `collect_precip_sources(...)` / `prepare_precip_snapshots(...)` /
+  `advance_precip_snapshots(...)` / `report_precip_diagnostics(...)` — precip
+  bookkeeping (`_Precip.cpp`).
 - per box: `stage_forcing(...)` (gpu-spec steps 1–3) then `DriverMain()` (step 4)
   then `read_results(...)` (steps 5–6).
 
@@ -58,25 +59,40 @@ per field, pinned arena, k/j transpose, counter mirrored-not-owned).
 
 ## 4. The field registry (X-macro)
 
-`ERF_NOAHMP_Fields.H` defines the mechanical, 1:1 coupled fields once as X-macro
-lists, then expands them to generate the enum entries, the `LsmData_NOAHMP` name
-strings, and the host↔`NoahmpIO` copy lines — a single source of truth that
-cannot drift:
+`ERF_NOAHMP_Fields.H` defines the mechanical, 1:1 coupled fields once as
+**field registries** — `NOAHMP_*_FIELDS(X)` lists of `X(...)` rows — then expands
+each with a small **emitter** macro (the per-row action) to generate the enum
+entries, the `LsmData_NOAHMP` name strings, and the host↔`NoahmpIO` copy lines.
+A single source of truth that cannot drift:
 
 ```c
-// (name-token, noahmp-member-token)
-#define NOAHMP_INPUT_3D(X)  X(u_phy,U_PHY) X(v_phy,V_PHY) X(t_phy,T_PHY) \
-                            X(qv_curr,QV_CURR) X(p8w,P8W)
-#define NOAHMP_INPUT_2D(X)  X(swdown,SWDOWN) X(glw,GLW) X(coszen,COSZEN)
-#define NOAHMP_OUTPUT_2D(X) X(hfx,HFX) X(lh,LH) X(tau_ew,TAU_EW) X(tau_ns,TAU_NS) \
-                            X(tsk,TSK) X(emiss,EMISS) X(o_grdflx,GRDFLX) \
-                            X(o_fira,FIRAXY) X(o_sav,SAVXY) X(o_sag,SAGXY) \
-                            X(o_albedo,ALBEDO) X(o_sfcrunoff,SFCRUNOFF) \
-                            X(o_udrunoff,UDRUNOFF)
+// Registries. Boundary rows are  X( ERF comp, NoahmpIO member ).
+#define NOAHMP_INPUT_3D_FIELDS(X)  X(u_phy,U_PHY) X(v_phy,V_PHY) X(t_phy,T_PHY) \
+                                   X(qv_curr,QV_CURR) X(p8w,P8W)
+#define NOAHMP_INPUT_2D_FIELDS(X)  X(swdown,SWDOWN) X(glw,GLW) X(coszen,COSZEN)
+// ... NOAHMP_OUTPUT_2D_FIELDS(X), NOAHMP_LSMDATA_FIELDS(X) (comp-only rows) ...
+
+// Reusable emitters (defined once) -> no #define/#undef ceremony per site.
+#define NOAHMP_ENUM(comp)          comp,    // (comp)         -> enum entry
+#define NOAHMP_QUOTE(comp)         #comp,   // (comp)         -> "comp"
+#define NOAHMP_COMP(comp, member)  comp,    // (comp, member) -> enum entry
 ```
 
-The 3-D lists copy with the k/j transpose (`noahmpio->MEMBER(i,1,j)`); the 2-D
-lists use `(i,j)`.
+An expansion site is then one clean line, e.g. `NOAHMP_INPUT_2D_FIELDS(NOAHMP_COMP)`
+inside the enum, or `NOAHMP_LSMDATA_FIELDS(NOAHMP_QUOTE)` for the name table.
+The host↔`NoahmpIO` copy loops reference local buffers, so their emitters
+(`NOAHMP_STAGE_IN_3D/2D`, `NOAHMP_READ_OUT_2D`) are defined next to each loop in
+`_Advance.cpp`: 3-D members copy with the k/j transpose (`noahmpio->MEMBER(i,1,j)`);
+2-D members use `(i,j)`.
+
+A fourth registry, `NOAHMP_RESULT_FIELDS`, ties the Noah-MP result scatter
+together. Each row is a triple `X( ERF Array4 alias, LsmData_NOAHMP comp,
+NoahmpOutputComp comp )` and drives the three index-aligned sites in
+`_Advance.cpp` that previously drifted by hand: the `Array4` bind
+(`NOAHMP_BIND_RESULT`), the valid-cell copy (`NOAHMP_COPY_RESULT`), and the
+`-9999` fill-value → `lsm_undefined` branch (`NOAHMP_UNDEF_RESULT`). Only the
+mechanical (pure 1:1) results are listed; the per-field math around them stays
+explicit (below).
 
 ### What the table does *not* cover (by necessity — stays explicit)
 
@@ -87,9 +103,13 @@ hand-written, sectioned, and commented:
 - **Computed forcing:** winds (face→center average), `t_phy`/`p8w` (EOS helpers).
 - **Precipitation:** the per-slot delta, the clamp guard, and the
   `MP_SNOW+MP_GRAUP ≤ MP_RAINNC` invariant rescale.
-- **Banded albedos:** `ALBSFCDIRXY`/`ALBSFCDIFXY` at band 1 (VIS) / 2 (NIR).
-- **Sentinels:** `smstav`/`smstot` emit `lsm_undefined` (not computed by this core).
-- **Guarded outputs:** flux `÷rho` + the `-9999` fill-value guard.
+- **Banded albedos:** the `NoahmpIO` *read* of `ALBSFCDIRXY`/`ALBSFCDIFXY` at
+  band 1 (VIS) / 2 (NIR) stays explicit; their subsequent scatter into ERF *is*
+  in `NOAHMP_RESULT_FIELDS` (that part is a plain 1:1 copy).
+- **Sentinels:** `smstav`/`smstot` emit `lsm_undefined` (not computed by this
+  core), so they are kept out of `NOAHMP_RESULT_FIELDS` and stay explicit.
+- **Fluxes:** the surface-layer flux `÷rho` conversions behind the `-9999`
+  guard (the guard *branch itself* now drives the table-driven result scatter).
 - **Soil profile:** the per-`nsoil` `SMOIS`/`SH2O`/`TSLB` loops.
 
 So: adding a *mechanical* field is one X-macro line + one enum position; adding a

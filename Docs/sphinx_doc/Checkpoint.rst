@@ -11,6 +11,9 @@ Checkpoint / Restart
 
 ERF has a standard sort of checkpointing and restarting capability and
 uses the native AMReX format for reading and writing checkpoints.
+Each native checkpoint contains a provenance block in ``job_info``. The block
+records the checkpoint artifact, the ERF execution that wrote it, and the
+known restart ancestry. See :ref:`sec:Provenance`.
 In the inputs file, the following options control the generation of
 checkpoint files (which are really directories):
 
@@ -48,17 +51,18 @@ List of Parameters
 Restarting
 ==========
 
-+---------------------------------+----------------+----------------+----------------+
-| Parameter                       | Definition     | Acceptable     | Default        |
-|                                 |                | Values         |                |
-+=================================+================+================+================+
-| **erf.restart**                 | name of the    | String         | not used if    |
-|                                 | file           |                | not set        |
-|                                 | (directory)    |                |                |
-|                                 | from which to  |                |                |
-|                                 | restart        |                |                |
-|                                 | files          |                |                |
-+---------------------------------+----------------+----------------+----------------+
+.. list-table:: Restart parameters
+   :header-rows: 1
+   :widths: 30 45 15 20
+
+   * - Parameter
+     - Definition
+     - Acceptable values
+     - Default
+   * - ``erf.restart`` or ``amr.restart``
+     - Checkpoint directory from which to restart. ``amr.restart`` takes precedence if both are set.
+     - String
+     - Not used if unset
 
 .. _examples-of-usage-7:
 
@@ -81,7 +85,11 @@ Examples of Usage
    passes a multiple of 5.0.  The directory names will reflect the
    integer number of steps which have elapsed.
 
-To restart from *chk_run00061*,for example, then set
+To restart from *chk_run00061*, for example, set **erf.restart** to that
+directory:
 
--  **amr.restart** = *chk_run00061*
+-  **erf.restart** = *chk_run00061*
 
+ERF also accepts **amr.restart** for compatibility with AMReX and existing
+regression inputs. When both keys are present, **amr.restart** takes
+precedence because ``ReadParameters()`` queries it after ``erf.restart``.
