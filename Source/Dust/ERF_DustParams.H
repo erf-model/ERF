@@ -101,6 +101,9 @@ struct DustParams {
                                            ///<   Phase 9 replaces with MRF T_sfc.
     amrex::Real test_wind_speed     = 5.0;     ///< 10 m wind speed placeholder [m/s].
                                            ///<   Phase 9 replaces with MRF 10m wind.
+    amrex::Real zref = 10.0; ///< Wind extraction height [m]. Set equal to erf.most.zref.
+                          ///<   Hong & Pan (1996):
+                          ///<   https://doi.org/10.1175/1520-0493(1996)124<2322:NBLVDI>2.0.CO;2
     std::string phreeqc_crust_var    = "crust_index";    ///< Variable/column name for crust index.
     std::string phreeqc_silt_var     = "silt_fraction";  ///< Variable/column name for silt fraction.
     std::string phreeqc_efflor_var   = "efflorescence";  ///< Variable/column name for efflorescence.
@@ -152,6 +155,7 @@ struct DustParams {
         pp.query("supp_tau_base_s",  supp_tau_base_s);
         pp.query("test_surf_temp_K", test_surf_temp_K);
         pp.query("test_wind_speed",  test_wind_speed);
+        pp.query("zref", zref);
         pp.query("phreeqc_crust_var", phreeqc_crust_var);
         pp.query("phreeqc_silt_var", phreeqc_silt_var);
         pp.query("phreeqc_efflor_var", phreeqc_efflor_var);

@@ -191,7 +191,14 @@ ERF::Evolve ()
 
 #ifdef ERF_USE_DUST
         if (m_DustLayer) {
-            m_DustLayer->advance(dt[0], m_DustLayer->get_params());
+            const amrex::MultiFab* xvel_ptr  = &vars_new[0][Vars::xvel];
+            const amrex::MultiFab* yvel_ptr  = &vars_new[0][Vars::yvel];
+            const amrex::MultiFab* zphys_ptr =
+                (z_phys_cc.size() > 0) ? z_phys_cc[0].get() : nullptr;
+            int nz = geom[0].Domain().length(2);
+            m_DustLayer->advance(dt[0], m_DustLayer->get_params(),
+                                 m_SurfaceLayer.get(),
+                                 xvel_ptr, yvel_ptr, zphys_ptr, nz);
         }
 #endif
 
