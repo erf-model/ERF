@@ -1,4 +1,6 @@
 ifeq ($(USE_DUST), TRUE)
+  DEFINES += -DERF_USE_DUST
+
   CEXE_sources += Dust/ERF_DustGrid.cpp
   CEXE_sources += Dust/ERF_DustPrerequisites.cpp
   CEXE_sources += Dust/ERF_DustLayer.cpp

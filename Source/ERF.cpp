@@ -189,6 +189,12 @@ ERF::Evolve ()
         int iteration = 1;
         timeStep(0, cur_time, iteration);
 
+#ifdef ERF_USE_DUST
+        if (m_DustLayer) {
+            m_DustLayer->advance(dt[0], m_DustLayer->get_params());
+        }
+#endif
+
         cur_time += static_cast<double>(dt[0]);
         t_new[0] = cur_time;
 
@@ -1257,6 +1263,16 @@ ERF::InitData_post ()
             }
         }
     } // end if (phys_bc_type[Orientation(Direction::z,Orientation::low)] == ERF_BC::surface_layer)
+
+#ifdef ERF_USE_DUST
+    {
+        DustParams dust_params;  // reads all erf.dust.* from ParmParse
+        if (dust_params.enable) {
+            m_DustLayer = std::make_unique<DustLayer>();
+            m_DustLayer->initialize(*this, m_SurfaceLayer.get(), dust_params);
+        }
+    }
+#endif
 
     // Update micro vars and finish moisture model initializations before first plot file
     if (solverChoice.moisture_type != MoistureType::None) {
