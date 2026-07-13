@@ -28,7 +28,7 @@ erf.prob_name = "ABL"
 
 max_step = 0
 
-amrex.fpe_trap_invalid = 1
+amrex.fpe_trap_invalid = 0
 
 fabarray.mfiter_tile_size = 1024 1024 1024
 
@@ -89,7 +89,7 @@ erf.use_coriolis     = false
 # The DustParams constructor is called and default values are verified.
 # No dust emission, transport, or deposition is performed at max_step = 0.
 erf.dust.enable                     = false
-erf.dust.dust_debug                 = false
+erf.dust.dust_debug                 = true
 erf.dust.n_size_bins                = 3
 erf.dust.particle_density           = 2650.0
 erf.dust.z0_dust                    = 0.01
