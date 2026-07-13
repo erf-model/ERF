@@ -114,7 +114,8 @@ void DustLayer::initialize(const ERF&          erf,
     dust_efflor->setVal(0.0);
     // Store the Bagnold u*_t computed from DustParams as the base value.
     // update_ustar_t_from_chemistry modifies dust_ustar_t; dust_ustar_base is read-only.
-    dust_ustar_base->Copy(*dust_ustar_t, 0, 0, 1, amrex::IntVect(1,1,0));
+    //dust_ustar_base->Copy(*dust_ustar_t, 0, 0, 1, amrex::IntVect(1,1,0));
+    amrex::MultiFab::Copy(*dust_ustar_base, *dust_ustar_t, 0, 0, 1, amrex::IntVect(1,1,0));
 
     if (dust_params.dust_debug) {
         amrex::Print() << "[DUST DEBUG] Allocated internal MultiFabs: "
