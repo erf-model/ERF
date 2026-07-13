@@ -273,10 +273,13 @@ SurfaceLayer::update_fluxes (const int& lev,
         }
     }
 
-    u_star[lev]->FillBoundary(m_geom[lev].periodicity());
-    t_star[lev]->FillBoundary(m_geom[lev].periodicity());
-    q_star[lev]->FillBoundary(m_geom[lev].periodicity());
-      olen[lev]->FillBoundary(m_geom[lev].periodicity());
+    if (m_face.coordDir() == 2) {
+        // only fill on Z faces - X and Y faces are filled individually on corresponding ranks
+        u_star[lev]->FillBoundary(m_geom[lev].periodicity());
+        t_star[lev]->FillBoundary(m_geom[lev].periodicity());
+        q_star[lev]->FillBoundary(m_geom[lev].periodicity());
+        olen[lev]->FillBoundary(m_geom[lev].periodicity());
+    }
 }
 
 /**

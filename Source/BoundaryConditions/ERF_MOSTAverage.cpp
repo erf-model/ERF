@@ -788,13 +788,14 @@ MOSTAverage::set_k_indices_T (const int& lev)
         } else {
             if (is_lo_face) {
                 int kmax = m_geom[lev].Domain().bigEnd(2);
+                int ng = m_k_indx[lev]->nGrow() - 1;
                 //for (MFIter mfi(*fields[imf_cc], TileNoZ()); mfi.isValid(); ++mfi) {
                 for (MFIter mfi(*m_k_indx[lev], TileNoZ()); mfi.isValid(); ++mfi) {
-                    Box npbx = mfi.tilebox(IntVect(1,1,0),IntVect(1,1,1));
+                    Box npbx = mfi.tilebox(IntVect(1,1,0),IntVect(ng,ng,0));
 
-                    //if (npbx.smallEnd(2) != klo) { continue; }
+                    if (npbx.smallEnd(2) != klo) { continue; }
 
-                    //npbx.makeSlab(2,klo);
+                    npbx.makeSlab(2,klo);
 
                     const auto z_phys_arr = m_z_phys_nd[lev]->const_array(mfi);
                     auto k_arr = m_k_indx[lev]->array(mfi);
@@ -804,13 +805,13 @@ MOSTAverage::set_k_indices_T (const int& lev)
                         k_arr(i,j,k) = 0;
                         bool found = false;
                         Real z_bot_face  = fourth * ( z_phys_arr(i  ,j  ,k) + z_phys_arr(i+1,j  ,k)
-                                                  + z_phys_arr(i  ,j+1,k) + z_phys_arr(i+1,j+1,k) );
+                                                    + z_phys_arr(i  ,j+1,k) + z_phys_arr(i+1,j+1,k) );
                         Real z_target    = z_bot_face + d_zref;
                         for (int lk(0); lk<=kmax; ++lk) {
                             Real z_lo = fourth * ( z_phys_arr(i,j  ,lk  ) + z_phys_arr(i+1,j  ,lk  )
-                                               + z_phys_arr(i,j+1,lk  ) + z_phys_arr(i+1,j+1,lk  ) );
+                                                 + z_phys_arr(i,j+1,lk  ) + z_phys_arr(i+1,j+1,lk  ) );
                             Real z_hi = fourth * ( z_phys_arr(i,j  ,lk+1) + z_phys_arr(i+1,j  ,lk+1)
-                                               + z_phys_arr(i,j+1,lk+1) + z_phys_arr(i+1,j+1,lk+1) );
+                                                 + z_phys_arr(i,j+1,lk+1) + z_phys_arr(i+1,j+1,lk+1) );
                             if (z_target >= z_lo && z_target <= z_hi){
                                 AMREX_ALWAYS_ASSERT_WITH_MESSAGE(lk >= d_radius,
                                                                  "K index must be larger than averaging radius!");
@@ -826,8 +827,16 @@ MOSTAverage::set_k_indices_T (const int& lev)
                 }
             } else {
                 int kmax = m_geom[lev].Domain().bigEnd(2) + 1;
+                int ng = m_k_indx[lev]->nGrow() - 1;
                 for (MFIter mfi(*m_k_indx[lev], TileNoZ()); mfi.isValid(); ++mfi) {
-                    Box npbx = mfi.tilebox(IntVect(1,1,0),IntVect(1,1,1));
+                    Box npbx = mfi.tilebox(IntVect(1,1,0),IntVect(ng,ng,0));
+
+                    if (npbx.bigEnd(2) != kmax-1) { continue; }
+
+                    npbx.makeSlab(2,kmax-1);
+                    npbx.grow(2, m_k_indx[lev]->nGrow());
+                    npbx.setBig(2, kmax);
+
                     const auto z_phys_arr = m_z_phys_nd[lev]->const_array(mfi);
                     auto k_arr = m_k_indx[lev]->array(mfi);
                     auto zref_arr = m_zref[lev]->array(mfi);
