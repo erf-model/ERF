@@ -1421,16 +1421,16 @@ init_base_state_from_wrfinput (const Box& subdomain,
                 Real z_lo, z_hi;
                 Real R_lo, R_hi;
                 Real Th_lo, Th_hi;
-                Real T_hi, T_lo;
+                Real T_hi;
                 Real P_lo, P_hi;
 
                 Real qv_lo = zero;
                 Real qv_hi = zero;
 
-                // First integrate from sea level to the height at klo
+                // First integrate from surface to first CC at klo
                 {
                     // Vertical grid spacing
-                    z_lo = Real(0.25)  * ( z_arr(i,j,klo  ) + z_arr(i+1,j,klo  ) + z_arr(i,j+1,klo  ) + z_arr(i+1,j+1,klo  ) );
+                    z_lo = zero; // corresponding to p_0
                     z_hi = Real(0.125) * ( z_arr(i,j,klo  ) + z_arr(i+1,j,klo  ) + z_arr(i,j+1,klo  ) + z_arr(i+1,j+1,klo  )
                                          + z_arr(i,j,klo+1) + z_arr(i+1,j,klo+1) + z_arr(i,j+1,klo+1) + z_arr(i+1,j+1,klo+1) );
 
@@ -1438,18 +1438,16 @@ init_base_state_from_wrfinput (const Box& subdomain,
                     dz = z_hi - z_lo;
 
                     // Known surface values
-                    P_lo  = P00 * std::exp( -T00/TLP + std::sqrt( (T00/TLP)*(T00/TLP) - two * grav * z_lo / (TLP * R_d) ) );
-                    T_lo  = std::max(TISO, T00 + TLP * std::log(P_lo/p_0));
-                    Th_lo = getThgivenTandP(T_lo, P_lo, R_d/Cp_d);
-
+                    P_lo  = P00;
+                    Th_lo = getThgivenTandP(T00, P00, R_d/Cp_d);
                     R_lo  = getRhogivenThetaPress(Th_lo, P_lo, R_d/Cp_d);
                     rho_tot_lo = R_lo;
                     C  = -P_lo + myhalf*rho_tot_lo*grav*dz;
 
                     // Initial guess and residual
-                    P_hi  = P00 * std::exp( -T00/TLP + std::sqrt( (T00/TLP)*(T00/TLP) - two * grav * z_hi / (TLP * R_d) ) );
-                    T_hi  = std::max(TISO, T00 + TLP * std::log(P_hi/p_0));
-                    Th_hi = getThgivenTandP(T_hi, P_hi, R_d/Cp_d);
+                    P_hi  = P_lo;
+                    Th_hi = th_hse_arr(i,j,klo);
+                    T_hi  = getTgivenPandTh(P_hi, Th_hi, R_d/Cp_d);
                     R_hi  = getRhogivenThetaPress(Th_hi, P_hi, R_d/Cp_d);
                     rho_tot_hi = R_hi;
                     F = P_hi + myhalf*rho_tot_hi*grav*dz + C;
@@ -1483,9 +1481,8 @@ init_base_state_from_wrfinput (const Box& subdomain,
                   C  = -P_lo + myhalf*rho_tot_lo*grav*dz;
 
                   // Initial guess and residual
-                  P_hi  = P00 * std::exp( -T00/TLP + std::sqrt( (T00/TLP)*(T00/TLP) - two * grav * z_hi / (TLP * R_d) ) );
-                  T_hi  = std::max(TISO, T00 + TLP * std::log(P_hi/p_0));
-                  Th_hi = getThgivenTandP(T_hi, P_hi, R_d/Cp_d);
+                  Th_hi = th_hse_arr(i,j,k);
+                  T_hi  = getTgivenPandTh(P_hi, Th_hi, R_d/Cp_d);
                   R_hi  = getRhogivenThetaPress(Th_hi, P_hi, R_d/Cp_d, qv_hi);
                   rho_tot_hi = R_hi;
                   F = P_hi + myhalf*rho_tot_hi*grav*dz + C;

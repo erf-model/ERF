@@ -1301,11 +1301,13 @@ init_base_state_from_metgrid (const bool use_moisture,
             // Surface values and constants
             Real dz, F, C;
             Real z_hi, Pd_hi, Td_hi, Rd_hi;
+
+            // Surface quantities
             Real z_lo  = Real(0.25) * ( z_arr(i,j,klo  ) + z_arr(i+1,j,klo  ) + z_arr(i,j+1,klo  ) + z_arr(i+1,j+1,klo  ) );
             Real Pd_lo = p_0 * std::exp( -T00/TLP + std::sqrt( (T00/TLP)*(T00/TLP) - two * grav * z_lo / (TLP * R_d) ) );
             Real Td_lo = std::max(TISO, T00 + TLP * std::log(Pd_lo/p_0));
-
             Real Rd_lo = getRhogivenTandPress(Td_lo, Pd_lo);
+
             for (int k(klo); k<=khi; ++k) {
                 // Vertical grid spacing
                 z_hi = Real(0.125) * ( z_arr(i,j,k  ) + z_arr(i+1,j,k  ) + z_arr(i,j+1,k  ) + z_arr(i+1,j+1,k  )
@@ -1332,9 +1334,9 @@ init_base_state_from_metgrid (const bool use_moisture,
                     Real dFdP    = (F_plus - F) / dP;
 
                     Pd_hi -= F / dFdP;
-                    Td_hi = std::max(TISO, T00 + TLP * std::log(Pd_hi/p_0));
-                    Rd_hi   = getRhogivenTandPress(Td_hi, Pd_hi);
-                    F       = Pd_hi + myhalf*Rd_hi*grav*dz + C;
+                    Td_hi  = std::max(TISO, T00 + TLP * std::log(Pd_hi/p_0));
+                    Rd_hi  = getRhogivenTandPress(Td_hi, Pd_hi);
+                    F      = Pd_hi + myhalf*Rd_hi*grav*dz + C;
                     ++niter;
                 }
 
