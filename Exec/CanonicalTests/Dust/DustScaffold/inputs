@@ -37,9 +37,11 @@ geometry.prob_extent = 1000.0 1000.0 1000.0
 amr.n_cell           =   8     8      8
 geometry.is_periodic = 1 1 0
 
+amr.max_level = 0
+
 zlo.type = "surface_layer"
 erf.most.z0   = 0.1
-erf.most.zref = 16.0
+erf.most.zref = 100.0
 erf.most.surf_temp_flux = 0.0
 
 zhi.type = "SlipWall"
@@ -60,7 +62,7 @@ erf.plot_int_1   = -1
 erf.plot_vars_1  = density x_velocity y_velocity z_velocity theta
 
 # SOLVER
-erf.use_gravity        = true
+erf.use_gravity        = false
 erf.molec_diff_type    = "None"
 erf.les_type           = "None"
 erf.theta_ref          = 300.0
