@@ -128,6 +128,15 @@ struct DustParams {
                                                  ///<   Supported formats: ESRI ASCII (.asc), NetCDF (.nc).
                                                  ///<   NetCDF requires ERF_ENABLE_NETCDF=ON.
 
+    // Phase 10: Atmosphere coupling parameters
+    bool        transport_bins_separately = false; ///< When false (default), use one 3D
+                                                   ///<   scalar for total dust mass density.
+                                                   ///<   When true, use n_size_bins scalars
+                                                   ///<   (Phase 11). Default false reduces
+                                                   ///<   3D advection cost.
+    amrex::Real atm_feedback = 1.0;                ///< Coupling strength [0,1]. 0 = coupling
+                                                   ///<   disabled. 1 = full injection.
+
     /**
      * Constructor that reads all parameters from ParmParse.
      */
@@ -168,6 +177,8 @@ struct DustParams {
         pp.query("crust_index_file",   crust_index_file);
         pp.query("moisture_flag_file", moisture_flag_file);
         pp.query("suppression_file",   suppression_file);
+        pp.query("transport_bins_separately", transport_bins_separately);
+        pp.query("atm_feedback", atm_feedback);
     }
 };
 

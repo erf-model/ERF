@@ -260,6 +260,22 @@ ERF::Advance (int lev, double time, double dt_lev, int iteration, int /*ncycle*/
     }
 
     // **************************************************************************************
+    // Phase 10: Inject dust emission flux into the atmosphere
+    // **************************************************************************************
+#ifdef ERF_USE_DUST
+    if (m_DustLayer && lev == 0) {
+        // Inject dust emission flux into cc_source before dycore advance.
+        // One-step explicit lag: flux from previous timestep is injected here.
+        // Pattern follows apply_fire_tendency_to_cc_source in ERF_FireAtmCoupling.H.
+        const amrex::MultiFab* zphys_ptr =
+            (z_phys_cc.size() > 0) ? z_phys_cc[lev].get() : nullptr;
+        if (zphys_ptr) {
+            m_DustLayer->apply_to_cc_source(cc_source, *zphys_ptr, Geom(lev));
+        }
+    }
+#endif
+
+    // **************************************************************************************
     // Update the dycore
     // **************************************************************************************
     advance_dycore(lev, state_old, state_new,

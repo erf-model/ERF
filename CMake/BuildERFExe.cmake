@@ -218,6 +218,7 @@ function(build_erf_lib erf_lib_name)
                    ${SRC_DIR}/Dust/ERF_PhreeqcReader.cpp
                    ${SRC_DIR}/Dust/ERF_DustEmission.cpp
                    ${SRC_DIR}/Dust/ERF_DustWindExtract.cpp
+                   ${SRC_DIR}/Dust/ERF_DustAtmCoupling.cpp
                    ${SRC_DIR}/Dust/ERF_DustParams.H
                    ${SRC_DIR}/Dust/ERF_DustGrid.H
                    ${SRC_DIR}/Dust/ERF_DustPrerequisites.H
@@ -227,7 +228,9 @@ function(build_erf_lib erf_lib_name)
                    ${SRC_DIR}/Dust/ERF_DustThreshold.H
                    ${SRC_DIR}/Dust/ERF_DustEmission.H
                    ${SRC_DIR}/Dust/ERF_DustBlastSchedule.H
+                   ${SRC_DIR}/Dust/ERF_DustSuppression.H
                    ${SRC_DIR}/Dust/ERF_DustWindExtract.H
+                   ${SRC_DIR}/Dust/ERF_DustAtmCoupling.H
                    ${SRC_DIR}/Dust/ERF_Dust.H
     )
     target_include_directories(${erf_lib_name} PUBLIC
