@@ -117,7 +117,7 @@ NOAHMP::stage_forcing (const MFIter& mfi,
     // (1) Stage ERF forcing into the pinned buffer (device).
     ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
-        Real qv = (is_moist) ? CONS(i,j,k,RhoQ1_comp)/CONS(i,j,k,Rho_comp) : zero;
+        Real qv = (is_moist) ? CONS(i,j,k,RhoQ1_comp)/CONS(i,j,k,Rho_comp) : Real(0.);
         noah_input_arr(i,j,0,NoahmpInputComp::u_phy)   = myhalf*(U_PHY(i,j,k)+U_PHY(i+1,j,k));
         noah_input_arr(i,j,0,NoahmpInputComp::v_phy)   = myhalf*(V_PHY(i,j,k)+V_PHY(i  ,j+1,k));
         noah_input_arr(i,j,0,NoahmpInputComp::t_phy)   = getTgivenRandRTh(CONS(i,j,k,Rho_comp),CONS(i,j,k,RhoTheta_comp),qv);
@@ -129,13 +129,13 @@ NOAHMP::stage_forcing (const MFIter& mfi,
 
         // RAW water-equivalent interval precip [mm]: per slot d = max(0, (now-prev)
         // * native_to_kg_m2). Host applies the guard and derives SR / MP_RAINNC.
-        Real drain = zero, dsnow = zero, dgraup = zero;
+        Real drain = Real(0.), dsnow = Real(0.), dgraup = Real(0.);
         if (hp) {
             Real dd[NoahmpPrecipSlot::NumSlots];
             for (int s(0); s < NoahmpPrecipSlot::NumSlots; ++s) {
                 dd[s] = slot_present[s]
-                      ? amrex::max(zero, (accum_now[s](i,j,kklo) - accum_prv[s](i,j,kklo)) * accum_fac[s])
-                      : zero;
+                    ? amrex::max(Real(0.), (accum_now[s](i,j,kklo) - accum_prv[s](i,j,kklo)) * accum_fac[s])
+                    : Real(0.);
             }
             // Hail is folded into MP_GRAUP (no ERF scheme fills the hail slot
             // today); to feed it separately, stage dd[hail] into MP_HAIL instead.
@@ -180,7 +180,7 @@ NOAHMP::stage_forcing (const MFIter& mfi,
         const Real inv_tol = Real(1.0e-6) * (Real(1.0) + drain_h);
         if (dfroz_h > drain_h + inv_tol) {
             invariant_cells.push_back(erf_noahmp::InvariantPrecipCell{i, j, dfroz_h, drain_h});
-            if (dfroz_h > zero) {
+            if (dfroz_h > Real(0.)) {
                 const Real scale = drain_h / dfroz_h;   // <= 1
                 dsnow_h  *= scale;
                 dgraup_h *= scale;
@@ -188,12 +188,12 @@ NOAHMP::stage_forcing (const MFIter& mfi,
             }
         }
         noahmpio->RAINBL(i,j)    = drain_h;                                       // [mm]
-        noahmpio->SR(i,j)        = (drain_h > zero) ? amrex::min(Real(1.0), dfroz_h/drain_h) : zero; // [-]
+        noahmpio->SR(i,j)        = (drain_h > Real(0.)) ? amrex::min(Real(1.0), dfroz_h/drain_h) : Real(0.); // [-]
         noahmpio->MP_RAINNC(i,j) = drain_h;                                       // [mm]
         noahmpio->MP_SNOW(i,j)   = dsnow_h;                                       // [mm]
         noahmpio->MP_GRAUP(i,j)  = dgraup_h;                                      // [mm] (includes folded hail)
         // 0 = "no hail" (a real value, not a sentinel; lsm_undefined would corrupt opt_snf=4)
-        noahmpio->MP_HAIL(i,j)   = zero;                                          // [mm]
+        noahmpio->MP_HAIL(i,j)   = Real(0.);                                      // [mm]
     });
 }
 
