@@ -694,6 +694,81 @@ Phase 6 References
   Bagnold, R. A. (1941). *The Physics of Blown Sand and Desert Dunes*.
    Methuen, London.
 
+Blasting Schedule Emission (Phase 7)
+------------------------------------
+
+Mine blasting events generate sudden high-mass dust injection that
+cannot be captured by a steady-state saltation model. Phase 7 implements
+a timed blast schedule that injects dust mass into ``dust_emission_flux``
+at specified times and locations, following the same event dispatch
+pattern as ``ERF_IgnitionSchedule.H`` in ``Source/Fire/``.
+
+CSV File Format
+~~~~~~~~~~~~~~~
+
+The blast schedule CSV has one event per row (lines starting with ``#``
+or ``!`` are comments):
+
+.. code-block:: text
+
+  time_s  cx  cy  radius  mass_kg_m2  [mineral_type]  [priority]
+
+where:
+
+- ``time_s`` — simulation time of blast [s]
+- ``cx``, ``cy`` — blast center in physical coordinates [m]
+- ``radius`` — affected radius [m]
+- ``mass_kg_m2`` — dust mass per unit area injected [kg/m²]
+- ``mineral_type`` — 0=quartz tailings (default), 1=Li brine,
+  2=REE tailings, 3=Cu tailings
+- ``priority`` — higher integer fires first within the same timestep
+
+Injection Formula
+~~~~~~~~~~~~~~~~~
+
+For each dust grid cell within ``radius`` of the blast center:
+
+.. math::
+
+  F_\text{blast} = \frac{m \cdot r_b}{dt \cdot N_\text{bins}}
+
+where :math:`m` = ``mass_kg_m2``, :math:`r_b` = ``blast_reactivity``
+(default 2.0, representing higher erodibility of fresh blasted surfaces),
+:math:`dt` = timestep duration [s], :math:`N_\text{bins}` = number of
+size bins. The result is added to ``dust_emission_flux`` and clamped to
+``DustBlastConst::BLAST_FLUX_MAX`` = 10⁻² kg/m²/s.
+
+Implementation
+~~~~~~~~~~~~~~
+
+``ERF_DustBlastSchedule.H`` is a header-only module that adapts
+``ERF_IgnitionSchedule.H``: rank-0 reads the CSV, broadcasts via
+``MPI_Bcast``, and applies events per timestep via a host-side event
+loop + GPU ``ParallelFor`` per event.
+
+ParmParse Parameters
+~~~~~~~~~~~~~~~~~~~~
+
+.. list-table::
+  :header-rows: 1
+  :widths: 40 60
+
+  * - Parameter
+    - Description
+  * - ``erf.dust.blast_schedule_file``
+    - Path to blast schedule CSV. Empty = no blast events.
+  * - ``erf.dust.blast_reactivity``
+    - Reactivity multiplier for fresh blast surface [-]. Default = 2.0.
+
+Phase 7 References
+~~~~~~~~~~~~~~~~~~
+
+  U.S. EPA AP-42, Chapter 13.2.3 (Heavy Construction Operations).
+   https://www.epa.gov/air-emissions-factors-and-quantification/ap-42-compilation-air-emission-factors
+
+  MSHA 30 CFR Part 70 (Worker dust exposure limits).
+   https://www.ecfr.gov/current/title-30/chapter-I/subchapter-O/part-70
+
 Development Phases
 ------------------
 

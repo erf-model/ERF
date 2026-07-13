@@ -85,6 +85,14 @@ struct DustParams {
                                          ///<   0 = no emission (all cells below threshold).
     amrex::Real rho_air         = 1.225; ///< Air density used in emission flux [kg/m^3].
                                          ///<   Standard atmosphere default.
+    std::string blast_schedule_file = "";  ///< Path to blast schedule CSV.
+                                           ///<   Empty = no blast events.
+                                           ///<   Format: time_s cx cy radius mass_kg_m2
+                                           ///<     [mineral_type] [priority]
+                                           ///<   Reference: ERF_DustBlastSchedule.H
+    amrex::Real blast_reactivity    = 2.0; ///< Reactivity multiplier for fresh blast
+                                           ///<   surfaces relative to weathered tailings [-].
+                                           ///<   Applied to injected mass flux.
     std::string phreeqc_crust_var    = "crust_index";    ///< Variable/column name for crust index.
     std::string phreeqc_silt_var     = "silt_fraction";  ///< Variable/column name for silt fraction.
     std::string phreeqc_efflor_var   = "efflorescence";  ///< Variable/column name for efflorescence.
@@ -131,6 +139,8 @@ struct DustParams {
         pp.query("ustar_t_base", ustar_t_base);
         pp.query("test_ustar", test_ustar);
         pp.query("rho_air", rho_air);
+        pp.query("blast_schedule_file", blast_schedule_file);
+        pp.query("blast_reactivity", blast_reactivity);
         pp.query("phreeqc_crust_var", phreeqc_crust_var);
         pp.query("phreeqc_silt_var", phreeqc_silt_var);
         pp.query("phreeqc_efflor_var", phreeqc_efflor_var);
