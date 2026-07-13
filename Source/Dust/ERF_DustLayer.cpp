@@ -10,6 +10,7 @@
 #include <ERF_PhreeqcReader.H>
 #include <ERF_DustThreshold.H>
 #include <ERF_DustEmission.H>
+#include <ERF_DustSuppression.H>
 #include <ERF.H>
 #include <ERF_SurfaceLayer.H>
 #include <AMReX_Print.H>
@@ -133,6 +134,23 @@ void DustLayer::initialize(const ERF&          erf,
     dust_ustar_in = std::make_unique<amrex::MultiFab>(m_dg.ba, m_dg.dm, 1, amrex::IntVect(1,1,0));
     dust_ustar_in->setVal(dust_params.test_ustar);
 
+    if (dust_params.dust_debug) {
+        amrex::Print() << "[DUST DEBUG] Phase 6: dust_ustar_in (placeholder) = "
+                       << dust_params.test_ustar << " m/s\n";
+    }
+
+    // Phase 8: Allocate re-treatment flag. Set to 0 at startup (no re-treatment needed initially).
+    dust_retreat_flag = std::make_unique<amrex::MultiFab>(m_dg.ba, m_dg.dm, 1, amrex::IntVect(1,1,0));
+    dust_retreat_flag->setVal(0.0);
+
+    if (dust_params.dust_debug) {
+        amrex::Print() << "[DUST DEBUG] Phase 8: dust_retreat_flag allocated, "
+                       << "supp_tau_base_s=" << dust_params.supp_tau_base_s
+                       << " s, test_surf_temp_K=" << dust_params.test_surf_temp_K
+                       << " K, test_wind_speed=" << dust_params.test_wind_speed
+                       << " m/s\n";
+    }
+
     // Populate surface MultiFabs from external rasters if paths are given in dust_params.
     // MultiFabs retain their setVal defaults above if paths are empty.
     populate_dust_surface_maps(*dust_soil_type, *dust_silt_fraction,
@@ -158,6 +176,10 @@ void DustLayer::initialize(const ERF&          erf,
             amrex::Print() << "[DUST] Blast schedule loaded from: "
                            << dust_params.blast_schedule_file << "\n";
         }
+        if (dust_params.dust_debug && m_has_blast_schedule) {
+            amrex::Print() << "[DUST DEBUG] Phase 7: blast schedule loaded, "
+                           << m_blast_schedule.events.size() << " events\n";
+        }
     }
 #endif
 
@@ -166,6 +188,14 @@ void DustLayer::initialize(const ERF&          erf,
     recompute_dust_ustar_t(*dust_ustar_t, *dust_ustar_base, *dust_crust_index,
                            *dust_efflor, *dust_surf_moist, *dust_suppression,
                            dust_params.alpha_crust, dust_params.alpha_efflor);
+
+    if (dust_params.dust_debug) {
+        amrex::Real ut_min = dust_ustar_t->min(0);
+        amrex::Real ut_max = dust_ustar_t->max(0);
+        amrex::Print() << "[DUST DEBUG] Phase 5: u*_t after init modifiers: "
+                       << "min=" << ut_min << " m/s, max=" << ut_max << " m/s "
+                       << "(USTAR_T_MIN=" << DustThresholdConst::USTAR_T_MIN << " m/s)\n";
+    }
 
     // Step 6: Print status message
     amrex::Box dust_domain = m_dg.ba.minimalBox();
@@ -227,10 +257,36 @@ void DustLayer::advance(amrex::Real     dt,
     // Phase 5: Copy moisture_flag to surf_moist. Replaced by ERF surface layer fields in Phase 9.
     amrex::MultiFab::Copy(*dust_surf_moist, *dust_moisture_flag, 0, 0, 1, amrex::IntVect(1,1,0));
 
+    // Phase 8: Advance suppression coverage decay and set re-treatment flag.
+    // Phase 9 replaces test_surf_temp_K and test_wind_speed with MRF surface layer fields.
+    if (dt > 0.0) {
+        advance_dust_suppression(*dust_suppression,
+                                 *dust_retreat_flag,
+                                 m_params.test_surf_temp_K,
+                                 m_params.test_wind_speed,
+                                 dt,
+                                 m_params.supp_tau_base_s);
+    }
+
+    if (m_params.dust_debug) {
+        amrex::Real s_max = dust_suppression->max(0);
+        amrex::Real r_sum = dust_retreat_flag->sum(0);
+        amrex::Print() << "[DUST DEBUG] Phase 8: suppression coverage max="
+                       << s_max << ", retreat_flag sum=" << r_sum
+                       << " at step=" << m_step << "\n";
+    }
+
     // Phase 5: Recompute u*_t after any PHREEQC or moisture changes this timestep.
     recompute_dust_ustar_t(*dust_ustar_t, *dust_ustar_base, *dust_crust_index,
                            *dust_efflor, *dust_surf_moist, *dust_suppression,
                            m_params.alpha_crust, m_params.alpha_efflor);
+
+    if (m_params.dust_debug) {
+        amrex::Real ut_min = dust_ustar_t->min(0);
+        amrex::Real ut_max = dust_ustar_t->max(0);
+        amrex::Print() << "[DUST DEBUG] Phase 5: u*_t at step=" << m_step
+                       << " min=" << ut_min << " max=" << ut_max << " [m/s]\n";
+    }
 
     // Phase 6: Update u* placeholder from params. Phase 9 replaces this with actual
     // MRF u* extracted from ERF surface layer via ERF_DustWindExtract.
@@ -245,6 +301,14 @@ void DustLayer::advance(amrex::Real     dt,
                                m_params.n_size_bins,
                                m_params.rho_air);
 
+    if (m_params.dust_debug) {
+        amrex::Real f_max = dust_emission_flux->max(0);
+        amrex::Real f_sum = dust_emission_flux->sum(0);
+        amrex::Print() << "[DUST DEBUG] Phase 6: emission_flux bin0 at step=" << m_step
+                       << " max=" << f_max << " sum=" << f_sum
+                       << " [kg/m^2/s]\n";
+    }
+
     // Apply any blast events scheduled in this timestep.
     // Blast injection adds to emission flux computed above.
     // ERF_DustBlastSchedule.H documents the CSV format and injection formula.
@@ -258,6 +322,12 @@ void DustLayer::advance(amrex::Real     dt,
                              dt,
                              m_params.n_size_bins,
                              m_params.blast_reactivity);
+
+        if (m_params.dust_debug) {
+            amrex::Real f_max = dust_emission_flux->max(0);
+            amrex::Print() << "[DUST DEBUG] Phase 7: emission_flux bin0 after blast step="
+                           << m_step << " max=" << f_max << " [kg/m^2/s]\n";
+        }
     }
 #endif
 }

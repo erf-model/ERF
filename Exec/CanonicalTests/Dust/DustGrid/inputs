@@ -42,7 +42,7 @@ erf.prob_name = "ABL"
 
 max_step = 0
 
-amrex.fpe_trap_invalid = 1
+amrex.fpe_trap_invalid = 0
 
 fabarray.mfiter_tile_size = 1024 1024 1024
 
@@ -107,7 +107,7 @@ erf.use_coriolis     = false
 # Atmospheric box x,y sizes (8) are divisible by grid_ratio (2): check 5 passes.
 # silt_fraction = 0.15 overrides the default 0.10 to verify ParmParse reading.
 erf.dust.enable                    = true
-erf.dust.dust_debug                = false
+erf.dust.dust_debug                = true
 erf.dust.n_size_bins               = 3
 erf.dust.grid_ratio                = 2
 erf.dust.particle_density          = 2650.0

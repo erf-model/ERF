@@ -769,6 +769,77 @@ Phase 7 References
   MSHA 30 CFR Part 70 (Worker dust exposure limits).
    https://www.ecfr.gov/current/title-30/chapter-I/subchapter-O/part-70
 
+Suppression Agent Degradation (Phase 8)
+---------------------------------------
+
+Mine haul roads and tailings surfaces are treated with dust suppression
+agents (water, MgCl₂, lignin sulfonate) to reduce PM₁₀ and PM₂.₅ emissions.
+Phase 8 tracks the time-decay of suppression agent coverage and produces
+a per-cell re-treatment flag when coverage drops below a threshold.
+
+Decay Model
+~~~~~~~~~~~
+
+Suppression coverage :math:`C` [0,1] decays each timestep as:
+
+.. math::
+
+   C_\text{new} = C_\text{old} \cdot \exp\!\left(-\frac{\Delta t}{\tau_\text{eff}}\right)
+
+where the effective half-life :math:`\tau_\text{eff}` [s] is:
+
+.. math::
+
+   \tau_\text{eff} = \frac{\tau_\text{base}}{f_T \cdot f_\text{wind}}
+
+with:
+
+.. math::
+
+   f_T    &= \exp(k_T (T_\text{surf} - T_\text{ref})) \\
+   f_\text{wind} &= 1 + k_\text{wind} \cdot u_{10}
+
+Constants: :math:`\tau_\text{base}` = ``erf.dust.supp_tau_base_s`` (default
+3600 s for water), :math:`T_\text{ref}` = 293.15 K, :math:`k_T` = 0.05 K⁻¹,
+:math:`k_\text{wind}` = 0.1 s/m.
+
+Coverage values below ``DustSuppressionConst::COVERAGE_FLOOR`` = 0.01 are
+set to zero. Cells where coverage drops below
+``DustSuppressionConst::RETREAT_THRESHOLD`` = 0.2 receive a re-treatment
+flag value of 1.0 in ``dust_retreat_flag``.
+
+Structural Reference
+~~~~~~~~~~~~~~~~~~~~
+
+``ERF_DustSuppression.H`` follows the pattern of ``ERF_FireBreak.H`` in
+``Source/Fire/``: a local 2D property modification on the surface grid via
+a GPU ``ParallelFor`` kernel.
+
+References:
+  Gillies, J.A., et al. (2005). J. Air Waste Manage. Assoc., 55, 1168.
+  https://doi.org/10.1080/10473289.2005.10464701
+
+  U.S. EPA AP-42, Chapter 13.2.2 (Unpaved Roads).
+  https://www.epa.gov/air-emissions-factors-and-quantification/ap-42-compilation-air-emission-factors
+
+  MSHA 30 CFR Part 70. https://www.ecfr.gov/current/title-30/chapter-I/subchapter-O/part-70
+
+ParmParse Parameters
+~~~~~~~~~~~~~~~~~~~~
+
+.. list-table::
+   :header-rows: 1
+   :widths: 40 60
+
+   * - Parameter
+     - Description
+   * - ``erf.dust.supp_tau_base_s``
+     - Base suppression half-life [s]. Default = 3600 (water agent).
+   * - ``erf.dust.test_surf_temp_K``
+     - Surface temperature placeholder [K]. Phase 9 uses MRF T_sfc.
+   * - ``erf.dust.test_wind_speed``
+     - 10 m wind speed placeholder [m/s]. Phase 9 uses MRF wind.
+
 Development Phases
 ------------------
 

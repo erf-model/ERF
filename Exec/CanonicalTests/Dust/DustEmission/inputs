@@ -64,7 +64,7 @@
 erf.prob_name = "ABL"
 max_step = 2
 amr.max_level = 0
-amrex.fpe_trap_invalid = 1
+amrex.fpe_trap_invalid = 0
 fabarray.mfiter_tile_size = 1024 1024 1024
 
 geometry.prob_extent = 1000.0 1000.0 1000.0
@@ -105,7 +105,7 @@ erf.mrf_moistvars    = false
 erf.use_coriolis     = false
 
 erf.dust.enable                    = true
-erf.dust.n_size_bins               = 3
+erf.dust.dust_debug                = true
 erf.dust.grid_ratio                = 1
 erf.dust.particle_density          = 2650.0
 erf.dust.z0_dust                   = 0.01
