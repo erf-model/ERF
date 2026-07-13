@@ -33,15 +33,15 @@ struct {
 
 
 void
-ERF::ComputeGlobalMinLocation_WRF (const SolverChoice& sc,
-                                   const Geometry& lev_geom,
-                                   const Vector<MultiFab>& S_data,
-                                   Real* d_val_min_ptr,
-                                   int* d_i_min_ptr,
-                                   int* d_j_min_ptr,
-                                   Real& global_val_min,
-                                   int& global_i_min,
-                                   int& global_j_min)
+ERF::ComputeGlobalMinLocation (const SolverChoice& sc,
+                               const Geometry& lev_geom,
+                               const Vector<MultiFab>& S_data,
+                               Real* d_val_min_ptr,
+                               int* d_i_min_ptr,
+                               int* d_j_min_ptr,
+                               Real& global_val_min,
+                               int& global_i_min,
+                               int& global_j_min)
 {
     Real h_val_min;
     int h_i_min, h_j_min;
@@ -146,7 +146,7 @@ ERF::ComputeGlobalMinLocation_WRF (const SolverChoice& sc,
 }
 
 void
-ERF::HurricaneTrackerCircle_WRF ()
+ERF::HurricaneTrackerCircle ()
 {
     // Check that there is at least one eye position
     if (hurricane_eye_track_xy.empty()) return;
@@ -172,11 +172,11 @@ ERF::HurricaneTrackerCircle_WRF ()
 }
 
 void
-ERF::HurricaneEyeTrackerInitial_WRF (const SolverChoice& sc,
-                                     const Geometry& lev_geom,
-                                     const Vector<MultiFab>& S_data,
-                                     const Real& hurricane_eye_latitude,
-                                     const Real& hurricane_eye_longitude)
+ERF::HurricaneEyeTrackerInitial (const SolverChoice& sc,
+                                 const Geometry& lev_geom,
+                                 const Vector<MultiFab>& S_data,
+                                 const Real& hurricane_eye_latitude,
+                                 const Real& hurricane_eye_longitude)
 {
     int levc = finest_level;
     Gpu::DeviceScalar<Real> d_val_min(1e10);
@@ -241,16 +241,16 @@ ERF::HurricaneEyeTrackerInitial_WRF (const SolverChoice& sc,
     Real global_val_min;
     int global_i_min, global_j_min;
 
-    ComputeGlobalMinLocation_WRF(sc, lev_geom, S_data,
-                                 d_val_min_ptr, d_i_min_ptr, d_j_min_ptr,
-                                 global_val_min, global_i_min, global_j_min);
+    ComputeGlobalMinLocation(sc, lev_geom, S_data,
+                             d_val_min_ptr, d_i_min_ptr, d_j_min_ptr,
+                             global_val_min, global_i_min, global_j_min);
 }
 
 void
-ERF::HurricaneEyeTrackerNotInitial_WRF (const SolverChoice& sc,
-                                        const Geometry& lev_geom,
-                                        const Vector<MultiFab>& S_data,
-                                        MoistureType moisture_type)
+ERF::HurricaneEyeTrackerNotInitial (const SolverChoice& sc,
+                                    const Geometry& lev_geom,
+                                    const Vector<MultiFab>& S_data,
+                                    MoistureType moisture_type)
 {
 
     if (hurricane_eye_track_xy.empty()) {
@@ -306,7 +306,7 @@ ERF::HurricaneEyeTrackerNotInitial_WRF (const SolverChoice& sc,
     Real global_val_min;
     int global_i_min, global_j_min;
 
-    ComputeGlobalMinLocation_WRF (sc, lev_geom, S_data,
+    ComputeGlobalMinLocation(sc, lev_geom, S_data,
                              d_val_min_ptr, d_i_min_ptr, d_j_min_ptr,
                              global_val_min, global_i_min, global_j_min);
 }
@@ -472,7 +472,7 @@ ERF::ReadStormTrackerRestart ()
 }
 
 void
-ERF::HurricaneEyeTracker_WRF (const SolverChoice& sc)
+ERF::HurricaneEyeTracker (const SolverChoice& sc)
 {
     static bool is_start = true;
     int levc=finest_level;
@@ -482,25 +482,25 @@ ERF::HurricaneEyeTracker_WRF (const SolverChoice& sc)
     const Real hurricane_eye_longitude = sc.hurricane_eye_longitude;
 
     if(is_start and restart_chkfile.empty()){
-        HurricaneEyeTrackerInitial_WRF(sc, geom[levc],
-                                       vars_new[levc],
-                                       hurricane_eye_latitude,
-                                       hurricane_eye_longitude);
+        HurricaneEyeTrackerInitial(sc, geom[levc],
+                                   vars_new[levc],
+                                   hurricane_eye_latitude,
+                                   hurricane_eye_longitude);
         is_start = false;
     } else {
          if(!restart_chkfile.empty()) {
             ReadStormTrackerRestart();
         }
-        HurricaneEyeTrackerNotInitial_WRF(sc, geom[levc], vars_new[levc],
-                                          moisture_type);
+        HurricaneEyeTrackerNotInitial(sc, geom[levc], vars_new[levc],
+                                      moisture_type);
     }
-    HurricaneTrackerCircle_WRF();
+    HurricaneTrackerCircle();
 }
 
 void
-ERF::HurricaneMaxVelTracker_WRF(const Geometry& lev_geom,
-                                const MultiFab& mf_cc_vel,
-                                const double& time)
+ERF::HurricaneMaxVelTracker(const Geometry& lev_geom,
+                            const MultiFab& mf_cc_vel,
+                            const double& time)
 {
     const int ncomp = AMREX_SPACEDIM;
 
@@ -553,10 +553,10 @@ ERF::HurricaneMaxVelTracker_WRF(const Geometry& lev_geom,
 }
 
 void
-ERF::HurricaneMinPressureTracker_WRF(MoistureType moisture_type,
-                                 const Geometry& lev_geom,
-                                 const MultiFab& mf_cons_var,
-                                 const double& time)
+ERF::HurricaneMinPressureTracker (MoistureType moisture_type,
+                                  const Geometry& lev_geom,
+                                  const MultiFab& mf_cons_var,
+                                  const double& time)
 {
 
 
