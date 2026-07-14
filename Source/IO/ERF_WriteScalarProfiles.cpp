@@ -58,7 +58,9 @@ ERF::sum_integrated_quantities (double time)
     }
 #ifdef ERF_USE_DUST
     if (m_DustLayer) {
-        dust_sl = volWgtSumMF(0,vars_new[0][Vars::cons],RhoAdv_comp,dJ0,mfx0,mfy0,false);
+        //dust_sl = volWgtSumMF(0,vars_new[0][Vars::cons],RhoAdv_comp,dJ0,mfx0,mfy0,false);
+        dust_sl = volWgtSumMF(0,vars_new[0][Vars::cons],m_DustLayer->get_dust_scalar_comp(),dJ0,mfx0,mfy0,false);
+
     }
 #endif
 
@@ -76,7 +78,8 @@ ERF::sum_integrated_quantities (double time)
         }
 #ifdef ERF_USE_DUST
         if (m_DustLayer) {
-            dust_ml += volWgtSumMF(lev,vars_new[lev][Vars::cons],RhoAdv_comp,dJ,mfx,mfy,true);
+            //dust_ml += volWgtSumMF(lev,vars_new[lev][Vars::cons],RhoAdv_comp,dJ,mfx,mfy,true);
+            dust_ml += volWgtSumMF(lev,vars_new[lev][Vars::cons],m_DustLayer->get_dust_scalar_comp(),dJ,mfx,mfy,true);
         }
 #endif
     }
