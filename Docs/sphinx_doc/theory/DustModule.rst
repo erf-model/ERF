@@ -1102,6 +1102,145 @@ References
   canopies. *Atmos. Environ.*, 16, 1785–1794.
   https://doi.org/10.1016/0004-6981(82)90271-2
 
+Two-Way Coupling: Return Fields from ERF-Atm to ERF-Dust (Phase 13)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Phase 13 implements the return path, mapping three diagnostic and feedback
+fields from the 3D atmospheric conserved state back to the 2D dust surface
+grid. These fields enable loading feedback on the threshold and dynamic
+moisture inhibition, with the deposition accumulator confirming Phase 12
+correctness.
+
+Near-Surface Dust Concentration
+  The dust mass density at the lowest atmospheric cell (k=klo) is extracted
+  from the conserved state and mapped to the 2D dust grid as ``dust_conc_sfc``
+  [kg/m³]:
+
+  .. math::
+
+   C_{\text{sfc}}(i,j) = \max(\rho_\text{dust}(i/C, j/C, k=\text{klo}), 0)
+
+  where :math:`C` is the grid refinement ratio (dimensionless). This field
+  feeds the Shao (2001) loading feedback correction to the threshold friction
+  velocity.
+
+Shao (2001) Loading Feedback
+  When ``loading_feedback_coeff`` > 0, the effective threshold is increased by
+  near-surface dust concentration:
+
+  .. math::
+
+   u_{*,t}^{\text{eff}} = u_{*,t} \cdot (1 + \alpha_L \cdot C_{\text{sfc}})
+
+  where :math:`\alpha_L` = ``loading_feedback_coeff`` [m³/kg]. This feedback
+  models the suppression of saltation when sediment concentration builds up
+  near the surface, reducing the potential for further emission. Setting
+  :math:`\alpha_L = 0` (default) disables the feedback. Typical values from
+  observations are in the range 10³–10⁷ m³/kg.
+
+  Reference: Shao, Y. (2001). *J. Geophys. Res.*, 106, 20599–20610.
+  https://doi.org/10.1029/2001JD900171
+
+Surface Moisture Flux
+  The vertical moisture flux at the bottom z-face (k=klo, face-staggered z)
+  is extracted from ``Q1fx3`` and mapped to the 2D dust grid as
+  ``dust_surf_moist`` [kg/m²/s]:
+
+  .. math::
+
+   q_{\text{flux}}(i,j) = Q1fx3(i/C, j/C, k=\text{klo})
+
+  This field is null-safe: when the atmospheric model does not use a moisture
+  scheme (``moisture_type == None``, all current dust tests), ``Q1fx3`` is null
+  and ``dust_surf_moist`` is zeroed. The Phase 5 static moisture flag is used
+  unchanged in this case. When a moisture scheme is active and
+  ``use_dynamic_moisture = true``, the flux is used to compute the Fecan et al.
+  (1999) dynamic moisture inhibition factor.
+
+Fecan (1999) Dynamic Moisture Inhibition
+  When ``use_dynamic_moisture = true`` and a moisture scheme is active,
+  gravimetric water content :math:`w` [kg/kg] is derived from the surface flux:
+
+  .. math::
+
+   w = \frac{q_{\text{flux}}}{L_v \rho_a}
+
+  where :math:`L_v = 2.501 \times 10^6` J/kg is the latent heat of vaporization
+  and :math:`\rho_a = 1.225` kg/m³ is reference air density. The Fecan inhibition
+  factor is:
+
+  .. math::
+
+   f_{\text{moist}} = \sqrt{1 + a_f \max(w - w', 0)}
+
+  where :math:`a_f = 1.21` is the Fecan coefficient and :math:`w' = 0.003` kg/kg
+  is the residual moisture threshold. The threshold is then:
+
+  .. math::
+
+   u_{*,t}^{\text{final}} = u_{*,t}^{\text{eff}} \cdot f_{\text{moist}}
+
+  When ``Q1fx3`` is null (no moisture scheme), :math:`w = 0`, so
+  :math:`f_{\text{moist}} = 1.0` and no inhibition is applied. This is correct
+  for dry conditions.
+
+  Reference: Fecan, F., B. Marticorena, and G. Bergametti (1999). Parametrization
+  of the increase of the aeolian erosion threshold wind friction velocity due to
+  soil moisture for arid and semi-arid areas. *Ann. Geophys.*, 17, 149–157.
+  https://doi.org/10.1007/s00585-999-0149-7
+
+Deposition Accumulator Diagnostic
+  Phase 13 adds a domain-integral print each timestep confirming that the Phase 12
+  ``dust_deposition_rate`` accumulator is active. The print appears in the
+  ``[DUST DEBUG] Phase 13`` output as ``dep_total`` [kg/m²].
+
+Coarsening Pattern
+  All three fields use the same coarsening map as Phase 9 wind extraction and
+  Phase 10 emission injection:
+
+  .. code-block:: cpp
+
+   dust_field(i,j,0) = atm_field(i/C, j/C, k_ref)
+
+  This pattern ensures consistency between forward (emission injection) and
+  backward (concentration/flux extraction) coupling on the two grids.
+
+Implementation
+  The extraction functions are header-only in ``ERF_DustAtmReturn.H``:
+
+  * ``fill_dust_conc_from_atm``: Extract RhoDust at k=klo from conserved state.
+  * ``fill_dust_moist_from_atm``: Extract Q1fx3 at z-face klo. Null-safe.
+
+  Called from ``ERF_TI_slow_rhs_post.H`` after ``erf_slow_rhs_post`` completes,
+  ensuring that S_new conserved state and Q1fx3 flux are updated before extraction.
+  The Phase 5 threshold recomputation then applies the loading and moisture
+  feedbacks before Phase 6 computes the emission flux for the next timestep.
+
+Parameters
+  * ``loading_feedback_coeff`` [m³/kg] (default: 0.0): Shao loading feedback
+   coefficient. 0 = disabled. Positive values enable feedback.
+  * ``use_dynamic_moisture`` [boolean] (default: false): Enable Fecan dynamic
+   moisture inhibition. Safe to set true with no moisture scheme: Q1fx3 will
+   be null and function returns immediately.
+
+Test Configuration
+  The ``DustAtmReturn`` test uses the neutral ABL configuration and verifies:
+
+  * ``conc_sfc_max > 0`` after step 1 (dust injected by Phase 10 appears in 3D scalar)
+  * ``conc_sfc_sum`` changes with step count
+  * ``moisture_path_active = 0`` (Q1fx3 null, dry neutral ABL)
+  * ``moist_flux_max = 0`` (no moisture flux in dry case)
+  * ``dep_total`` increases each step (Phase 12 accumulator confirmed active)
+  * Run exits with code 0 at ``max_step = 5``
+
+  To test loading feedback: set ``loading_feedback_coeff = 1e6`` and verify that
+  ``emission_flux_max`` decreases as ``conc_sfc_max`` grows over successive steps.
+
+  To test the moisture path: enable a moisture scheme (``erf.moisture_type != None``)
+  and set ``use_dynamic_moisture = true``. Q1fx3 will be non-null,
+  ``moisture_path_active = 1`` will appear in debug output, and the Fecan
+  inhibition factor will reduce u*_t in cells with surface moisture flux.
+
 Development Phases
 ------------------
 

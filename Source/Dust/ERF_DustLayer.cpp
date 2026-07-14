@@ -220,6 +220,20 @@ DustLayer::initialize(
                    << " and dep_flux_atm allocated\n";
   }
 
+  // Phase 13: allocate return fields from 3D solver
+  dust_conc_sfc = std::make_unique<amrex::MultiFab>(m_dg.ba, m_dg.dm, 1, amrex::IntVect(1,1,0));
+  dust_conc_sfc->setVal(0.0);
+  dust_surf_moist->setVal(0.0);  // Initialize the existing dust_surf_moist for Phase 13
+
+  if (dust_params.dust_debug) {
+    amrex::Print() << "[DUST DEBUG] Phase 13: dust_conc_sfc and"
+                   << " dust_surf_moist allocated on dust grid\n"
+                   << "[DUST DEBUG] Phase 13: loading_feedback_coeff="
+                   << dust_params.loading_feedback_coeff
+                   << " use_dynamic_moisture=" << dust_params.use_dynamic_moisture
+                   << "\n";
+  }
+
   // Populate surface MultiFabs from external rasters
   populate_dust_surface_maps(
     *dust_soil_type, *dust_silt_fraction, *dust_crust_index,
@@ -301,6 +315,17 @@ DustLayer::initialize(
                    << "[DUST DEBUG] Phase 11: transport_bins_separately="
                    << dust_params.transport_bins_separately << "\n";
   }
+
+  if (dust_params.dust_debug) {
+    amrex::Print() << "[DUST DEBUG] initialize complete:"
+                   << " n_size_bins=" << dust_params.n_size_bins
+                   << " grid_ratio=" << m_dg.grid_ratio
+                   << " dust_scalar_comp=" << m_dust_scalar_comp
+                   << " loading_feedback_coeff="
+                   << dust_params.loading_feedback_coeff
+                   << " use_dynamic_moisture="
+                   << dust_params.use_dynamic_moisture << "\n";
+  }
 }
 
 void
@@ -315,6 +340,17 @@ DustLayer::advance(
 {
   ++m_step;
   m_time += dt;
+
+  // Phase 13: Entry debug output
+  if (m_params.dust_debug) {
+    amrex::Real ustar_max = dust_ustar_in  ? dust_ustar_in->max(0)        : 0.0;
+    amrex::Real flux_max  = dust_emission_flux ? dust_emission_flux->max(0) : 0.0;
+    amrex::Real conc_max  = dust_conc_sfc  ? dust_conc_sfc->max(0)        : 0.0;
+    amrex::Print() << "[DUST DEBUG] advance: step=" << m_step
+                   << " ustar_max=" << ustar_max << " m/s"
+                   << " emission_flux_max=" << flux_max << " kg/m^2/s"
+                   << " conc_sfc_max=" << conc_max << " kg/m^3\n";
+  }
 
   // Phase 9: Extract wind and surface fields from atmospheric solver
   bool have_atm =
@@ -408,6 +444,61 @@ DustLayer::advance(
     amrex::Print() << "[DUST DEBUG] Phase 5: u*_t at step=" << m_step
                    << " min=" << dust_ustar_t->min(0)
                    << " max=" << dust_ustar_t->max(0) << " [m/s]\n";
+  }
+
+  // Phase 13: Apply Shao (2001) loading feedback to u*_t
+  // Effective threshold: u*_t *= (1 + coeff * C_sfc)
+  // Reference: Shao (2001), https://doi.org/10.1029/2001JD900171
+  // dust_conc_sfc is updated by extract_atm_return_fields each step.
+  // At step 0 dust_conc_sfc = 0 so feedback has no effect initially.
+  if (m_params.loading_feedback_coeff > 0.0 && dust_conc_sfc) {
+    for (amrex::MFIter mfi(*dust_ustar_t, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+        const amrex::Box& bx = mfi.tilebox();
+        auto ust  = dust_ustar_t->array(mfi);
+        auto conc = dust_conc_sfc->const_array(mfi);
+        const amrex::Real alpha = m_params.loading_feedback_coeff;
+        amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+            ust(i,j,k) *= (1.0 + alpha * amrex::max(conc(i,j,k), 0.0));
+        });
+    }
+    if (m_params.dust_debug) {
+        amrex::Real ust_max = dust_ustar_t->max(0);
+        amrex::Print() << "[DUST DEBUG] Phase 13: loading feedback applied"
+                       << " ustar_t_max=" << ust_max << " m/s\n";
+    }
+  }
+
+  // Phase 13: Apply Fecan et al. (1999) dynamic moisture inhibition
+  // f_moist = sqrt(1 + a_f * max(w - w_prime, 0))
+  // a_f = 1.21, w_prime = 0.003 (residual moisture threshold)
+  // When use_dynamic_moisture = false (default, all current tests):
+  //   use static moisture_flag from Phase 3 map (existing code path, unchanged).
+  // When use_dynamic_moisture = true and Q1fx3 non-null:
+  //   w = dust_surf_moist / (Lv * rho_a) where Lv = 2.501e6 J/kg.
+  //   When Q1fx3 is null (no moisture scheme), dust_surf_moist = 0,
+  //   so w = 0 and f_moist = 1.0 (no inhibition). This is correct for dry conditions.
+  // Reference: Fecan et al. (1999), https://doi.org/10.1007/s00585-999-0149-7
+  if (m_params.use_dynamic_moisture && dust_surf_moist) {
+    constexpr amrex::Real Lv      = 2.501e6;
+    constexpr amrex::Real rho_a   = 1.225;
+    constexpr amrex::Real a_f     = 1.21;
+    constexpr amrex::Real w_prime = 0.003;
+    for (amrex::MFIter mfi(*dust_ustar_t, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+        const amrex::Box& bx = mfi.tilebox();
+        auto ust   = dust_ustar_t->array(mfi);
+        auto qflux = dust_surf_moist->const_array(mfi);
+        amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+            amrex::Real w       = amrex::max(qflux(i,j,k), 0.0) / (Lv * rho_a);
+            amrex::Real excess  = amrex::max(w - w_prime, 0.0);
+            amrex::Real f_moist = std::sqrt(1.0 + a_f * excess);
+            ust(i,j,k)  *= f_moist;
+        });
+    }
+    if (m_params.dust_debug) {
+        amrex::Real ust_max = dust_ustar_t->max(0);
+        amrex::Print() << "[DUST DEBUG] Phase 13: dynamic moisture inhibition applied"
+                       << " ustar_t_max=" << ust_max << " m/s\n";
+    }
   }
 
   // Phase 6: Compute emission flux
@@ -560,6 +651,40 @@ DustLayer::apply_deposition_bc(
                       << " deposition_rate_sum=" << dep_sum
                       << " kg/m^2 (accumulated total)\n";
    }
+}
+
+void
+DustLayer::extract_atm_return_fields(
+    const amrex::MultiFab& S_new_cons,
+    const amrex::MultiFab* Q1fx3,
+    const amrex::Geometry& geom_atm)
+{
+    // Field A: near-surface dust concentration.
+    fill_dust_conc_from_atm(*dust_conc_sfc, S_new_cons,
+                             m_dust_scalar_comp, geom_atm, m_dg.grid_ratio);
+
+    // Field B: surface moisture flux. Null-safe: returns immediately when
+    // Q1fx3 == nullptr (moisture_type == None in current dust tests).
+    const amrex::MultiFab* q1fx3_ptr = m_params.use_dynamic_moisture ? Q1fx3 : nullptr;
+    fill_dust_moist_from_atm(*dust_surf_moist, q1fx3_ptr,
+                              geom_atm, m_dg.grid_ratio);
+
+    if (m_params.dust_debug) {
+        amrex::Real conc_max  = dust_conc_sfc->max(0);
+        amrex::Real conc_sum  = dust_conc_sfc->sum(0);
+        amrex::Real moist_max = dust_surf_moist->max(0);
+        amrex::Real dep_total = dust_deposition_rate ? dust_deposition_rate->sum(0) : 0.0;
+        bool q1fx3_active = (Q1fx3 != nullptr) && m_params.use_dynamic_moisture;
+        amrex::Print() << "[DUST DEBUG] Phase 13: step=" << m_step
+                       << " conc_sfc_max=" << conc_max
+                       << " kg/m^3  conc_sfc_sum=" << conc_sum
+                       << "\n[DUST DEBUG] Phase 13:"
+                       << " moist_flux_max=" << moist_max
+                       << " kg/m^2/s  moisture_path_active=" << q1fx3_active
+                       << "\n[DUST DEBUG] Phase 13:"
+                       << " dep_total=" << dep_total
+                       << " kg/m^2 (Phase 12 accumulator)\n";
+    }
 }
 
 #endif // ERF_USE_DUST

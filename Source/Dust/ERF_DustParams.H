@@ -152,6 +152,18 @@ struct DustParams {
                                         ///<   Paved road: 1e-4
                                         ///<   Vegetated buffer: 1e-2
 
+    // Phase 13: Return fields and feedbacks
+    amrex::Real loading_feedback_coeff = 0.0; ///< Shao (2001) loading feedback coefficient.
+                                               ///<   Effective threshold: u*_t *= (1 + coeff * C_sfc).
+                                               ///<   0 = disabled (default).
+                                               ///<   Shao (2001): https://doi.org/10.1029/2001JD900171
+    bool use_dynamic_moisture = false;         ///< Pass Q1fx3 to fill_dust_moist_from_atm.
+                                               ///<   Requires moisture_type != None in ERF.
+                                               ///<   Safe to set true with no moisture: Q1fx3 will
+                                               ///<   be null and function returns immediately.
+                                               ///<   Fecan et al. (1999):
+                                               ///<   https://doi.org/10.1007/s00585-999-0149-7
+
     /**
      * Constructor that reads all parameters from ParmParse.
      */
@@ -195,6 +207,8 @@ struct DustParams {
         pp.query("transport_bins_separately", transport_bins_separately);
         pp.query("atm_feedback", atm_feedback);
         pp.query("deposition_E0", deposition_E0);
+        pp.query("loading_feedback_coeff", loading_feedback_coeff);
+        pp.query("use_dynamic_moisture",   use_dynamic_moisture);
         
         // Allow per-bin diameter override from input file.
         // erf.dust.bin_diameters = d0 d1 d2 ...

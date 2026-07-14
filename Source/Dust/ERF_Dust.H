@@ -25,6 +25,7 @@
 #include <ERF_DustAtmCoupling.H>
 #include <ERF_DustSettling.H>
 #include <ERF_DustDeposition.H>
+#include <ERF_DustAtmReturn.H>
 
 #endif // ERF_USE_DUST
 

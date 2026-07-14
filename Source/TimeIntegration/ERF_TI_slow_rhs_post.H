@@ -54,6 +54,21 @@
                           fr_as_crse, fr_as_fine,
                           m_r2d);
 
+        // Phase 13: Extract return fields from 3D solver to 2D dust grid
+#ifdef ERF_USE_DUST
+        if (m_DustLayer && level == 0) {
+            // Extract return fields from 3D solver to 2D dust grid.
+            // Pattern follows fill_fire_wind_from_interpolation call site
+            // in ERF_FireWindExtract.H (Source/Fire/).
+            // Q1fx3 = SFS_q1fx3_lev[lev].get(): null when moisture_type == None.
+            // fill_dust_moist_from_atm handles null safely (zeroes dust_surf_moist).
+            m_DustLayer->extract_atm_return_fields(
+                S_new[IntVars::cons],
+                Q1fx3,
+                fine_geom);
+        }
+#endif
+
         // Implicit diffusion of moisture
         #include "ERF_ImplicitPost.H"
 
