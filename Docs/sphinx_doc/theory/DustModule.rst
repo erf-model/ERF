@@ -1476,6 +1476,109 @@ References
     *J. Air Waste Manag. Assoc.*, 55, 539–549.
     https://doi.org/10.1080/10473289.2005.10464701
 
+EPA NAAQS PM2.5/PM10 Compliance Module
+---------------------------------------
+
+Phase 17 adds regulatory compliance diagnostics for EPA National Ambient Air Quality
+Standards (NAAQS) particulate matter (PM) standards. The module computes PM2.5 and
+PM10 mass concentrations from the dust scalar field and tracks 24-hour running averages
+and exceedance flags at each model grid cell.
+
+**Regulatory Background**
+
+The U.S. EPA NAAQS sets national air quality standards for particulate matter at ground
+level [EPA2024]_. Phase 17 focuses on 24-hour averages:
+
+* **PM2.5 24-hour**: 35 µg/m³ (98th percentile of 24-hour averages over 3 years). 40 CFR Part 50.18.
+* **PM10 24-hour**: 150 µg/m³ (not to be exceeded more than once per year on average over 3 years). 40 CFR Part 50.6.
+
+Mine sites are regulated under 40 CFR Part 60 Subpart OOO (nonmetallic mineral processing)
+and Subpart LL (metallic mineral processing) with fugitive dust provisions.
+
+**Size Fractionation**
+
+Dust size bins are classified into PM classes based on aerodynamic diameter following
+EPA convention [Watson1994]_:
+
+* **PM2.5**: aerodynamic diameter ≤ 2.5 µm
+* **PM10**: aerodynamic diameter ≤ 10 µm (includes PM2.5)
+
+A bin with diameter :math:`d` [m] contributes its full mass to the PM class if
+:math:`d` ≤ threshold. No partial fractional attribution is applied within a bin at
+this phase.
+
+**Running Time Averages**
+
+At each grid cell, 24-hour arithmetic mean PM concentrations are maintained using an
+exponential moving average:
+
+.. math::
+
+  C_{\text{avg}}(t) = C_{\text{avg}}(t - \Delta t) \cdot \frac{T_{\text{avg}} - \Delta t}{T_{\text{avg}}} + C_{\text{now}} \cdot \frac{\Delta t}{T_{\text{avg}}}
+
+where :math:`T_{\text{avg}} = 86400` s (24 hours), :math:`\Delta t` is the timestep, and
+:math:`C_{\text{now}}` is the instantaneous concentration.
+
+**Exceedance Flags**
+
+At each grid cell, binary flags [0/1] indicate whether the 24-hour PM average exceeds
+the NAAQS threshold:
+
+* ``dust_pm25_exceed`` = 1 where PM2.5 24h > 35 µg/m³
+* ``dust_pm10_exceed`` = 1 where PM10 24h > 150 µg/m³
+
+**CSV Output**
+
+Per-step domain statistics are written to ``dust_naaqs.csv`` with columns:
+
+* ``step`` — Step number
+* ``time_s`` — Simulation time [s]
+* ``PM25_max_ug_m3`` — Instantaneous PM2.5 maximum [µg/m³]
+* ``PM25_24h_max_ug_m3`` — 24-hour running average PM2.5 maximum [µg/m³]
+* ``PM10_max_ug_m3`` — Instantaneous PM10 maximum [µg/m³]
+* ``PM10_24h_max_ug_m3`` — 24-hour running average PM10 maximum [µg/m³]
+* ``n_cells_PM25_exceed`` — Number of cells exceeding PM2.5 threshold
+* ``n_cells_PM10_exceed`` — Number of cells exceeding PM10 threshold
+
+**Plotfile Integration**
+
+Phase 17 adds 6 new variables to the 2D dust plotfile (total 14 fields):
+
+* ``dust_pm25_ug_m3`` — Instantaneous PM2.5 [µg/m³]
+* ``dust_pm10_ug_m3`` — Instantaneous PM10 [µg/m³]
+* ``dust_pm25_24h_ug_m3`` — 24-hour running average PM2.5 [µg/m³]
+* ``dust_pm10_24h_ug_m3`` — 24-hour running average PM10 [µg/m³]
+* ``dust_pm25_exceed`` — PM2.5 exceedance flag [0/1]
+* ``dust_pm10_exceed`` — PM10 exceedance flag [0/1]
+
+**Transport Mode Considerations**
+
+When ``erf.dust.transport_bins_separately = false`` (default):
+  A single 3D scalar holds total dust mass. PM attribution uses bin 0 diameter.
+
+When ``erf.dust.transport_bins_separately = true``:
+  Each bin has its own 3D scalar. PM attribution is per-bin, giving separate mass
+  contributions for PM2.5 and PM10 from each size bin.
+
+**Implementation Limitation**
+
+Bins straddling the 2.5 µm or 10 µm threshold are classified by their nominal diameter.
+No size distribution or partial bin attribution is applied. For higher fidelity, future
+phases may use a size-resolved bin moment or lognormal distribution within each bin.
+
+Parameters
+  * ``erf.dust.dust_naaqs_file`` [string] (default: ``"dust_naaqs.csv"``) — Path to NAAQS
+   compliance CSV output (relative to run directory)
+
+Implementation
+  Phase 17 introduces two new files:
+
+  * ``Source/Dust/ERF_DustPM.H`` — Header-only; provides size fractionation functions
+  * ``Source/Dust/ERF_DustNAAQSOutput.H`` — Header-only; provides CSV writer
+
+  ``DustLayer::compute_naaqs_diagnostics`` is called from ``DustLayer::advance()``
+  each timestep, after ``extract_atm_return_fields`` has updated ``dust_conc_sfc``.
+
 Development Phases
 ------------------
 
@@ -1508,6 +1611,15 @@ References
    erosion threshold friction velocity. *J. Geophys. Res.*, 105,
    22437-22443.
    https://doi.org/10.1029/2000JD900304
+
+.. [EPA2024] U.S. EPA (2024). Review of the NAAQS for Particulate Matter.
+   https://www.epa.gov/pm-pollution/review-national-ambient-air-quality-standards-naaqs-particulate-matter-pm
+
+.. [Watson1994] Watson, J. G., J. C. Chow, L. C. Pritchett, W. R. Pierson,
+   W. A. Frazier, and R. G. Egami (1994). Receptor modeling application
+   framework for particle source apportionment.
+   *Atmos. Environ.*, 28, 2493-2509.
+   https://doi.org/10.1016/1352-2310(94)90400-6
 
 .. [Parkhurst2013] Parkhurst, D. L., and C. A. J. Appelo (2013).
    Description of input and examples for PHREEQC version 3.
