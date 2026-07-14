@@ -53,6 +53,8 @@
 #include <ERF_DustSettling.H>
 #include <ERF_DustDeposition.H>
 #include <ERF_DustAtmReturn.H>
+#include <ERF_DustPlotfile.H>
+#include <ERF_DustStatsOutput.H>
 #endif
 
 // Forward declarations
@@ -201,6 +203,23 @@ public:
                                     const amrex::MultiFab* Q1fx3,
                                     const amrex::Geometry& geom_atm);
 
+    /**
+     * @brief Write dust plotfile and CSV diagnostics.
+     *
+     * Called from ERF::WriteAtIntermediateTime and ERF::WriteAtFinalTime.
+     * Plotfile uses VisMF::Write + WriteGenericPlotfileHeader on the native
+     * dust grid (pattern: ERF_FirePlotfile.cpp).
+     * CSV diagnostics use append pattern (pattern: ERF_FireStatsOutput.H).
+     *
+     * Final-step guard: is_final=true and nstep > m_last_dust_plot_step
+     * ensures a write at simulation end regardless of dust_plot_int.
+     *
+     * @param[in] nstep     Current step number.
+     * @param[in] cur_time  Current simulation time [s].
+     * @param[in] is_final  True when called from WriteAtFinalTime.
+     */
+    void write_output(int nstep, double cur_time, bool is_final = false);
+
 private:
     DustGrid                              m_dg;
 
@@ -239,6 +258,7 @@ private:
     DustParams                            m_params;
     int                                   m_step = 0;
     amrex::Real                           m_time = 0.0;
+    int                                   m_last_dust_plot_step = -1;
     amrex::Real                           m_last_phreeqc_update = -1.0e30;
 #ifdef ERF_USE_DUST
     BlastSchedule                         m_blast_schedule;

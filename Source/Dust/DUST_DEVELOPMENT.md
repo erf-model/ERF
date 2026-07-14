@@ -23,7 +23,7 @@ No phase references or progress notes appear in source files.
 | 13 | Two-way coupling: ERF-Atm returns fields to ERF-Dust | Complete | 2026-07-14 | ERF_DustAtmReturn.H. fill_dust_conc_from_atm (Shao 2001 loading feedback). fill_dust_moist_from_atm (Fecan 1999 moisture inhibition, null-safe: Q1fx3 null when moisture_type==None). loading_feedback_coeff and use_dynamic_moisture parameters. dep_total diagnostic. Pattern follows fill_dust_scalar_from_atm (Phase 9). |
 | 14 | MRF nonlocal countergradient extension to dust scalars | Complete | 2026-07-14 | Verified EddyDiff::Scalar_v set in ERF_ComputeDiffusivityMRF.cpp. dust_mrf_Sc_t parameter in TurbStruct. gamma_dust=0 confirmed. Debug print of Scalar_v_max and Theta_v_max in ERF_AdvanceDycore.cpp. DustMRFDiffusion regtest. |
 | 15 | MRF high-resolution diffusivity bounds at fine AMR levels | Not started | | |
-| 16 | Dust diagnostics and plotfile output | Not started | | |
+| 16 | Dust diagnostics and plotfile output | Complete | 2026-07-14 | ERF_DustPlotfile.H/cpp (VisMF::Write + WriteGenericPlotfileHeader on native dust grid, pattern: ERF_FirePlotfile.cpp). ERF_DustPlotfileCatalog.H (8 fields). ERF_DustStatsOutput.H (CSV append, pattern: ERF_FireStatsOutput.H). Final-step guard: nstep > m_last_dust_plot_step. DustOutput regtest (max_step=7, dust_plot_int=3, plots at 0,3,6,7). |
 | 17 | EPA NAAQS PM2.5/PM10 compliance output module | Not started | | |
 | 18 | MSHA worker exposure tracking module | Not started | | |
 | 19 | Lagrangian super-particle receptor tracking | Not started | | |

@@ -312,6 +312,11 @@ ERF::WriteAtIntermediateTime(int step, double cur_time)
         WriteCheckpointFile();
         if (m_check_per > zero) {last_check_file_time += m_check_per;}
     }
+
+#ifdef ERF_USE_DUST
+    if (m_DustLayer)
+        m_DustLayer->write_output(step+1, cur_time, /*is_final=*/false);
+#endif
 }
 
 void
@@ -346,6 +351,11 @@ ERF::WriteAtFinalTime()
         WriteCheckpointFile();
         if (m_check_per > zero) {last_check_file_time += m_check_per;}
     }
+
+#ifdef ERF_USE_DUST
+    if (m_DustLayer)
+        m_DustLayer->write_output(istep[0], t_new[0], /*is_final=*/true);
+#endif
 }
 
 // Called after every coarse timestep
@@ -1379,6 +1389,11 @@ if (m_DustLayer && restart_chkfile.empty()) {
             }
         }
     }
+
+#ifdef ERF_USE_DUST
+    if (m_DustLayer && m_DustLayer->get_params().dust_plot_int > 0)
+        m_DustLayer->write_output(istep[0], t_new[0], /*is_final=*/false);
+#endif
 
     // Set these up here because we need to know which MPI rank "cell" is on...
     ParmParse pp("erf");

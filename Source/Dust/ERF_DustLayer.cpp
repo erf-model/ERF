@@ -326,6 +326,16 @@ DustLayer::initialize(
                    << " use_dynamic_moisture="
                    << dust_params.use_dynamic_moisture << "\n";
   }
+
+  // Phase 16: Write CSV header and initialize plotfile tracking
+  write_dust_stats_header(m_params.dust_diag_file);
+
+  if (dust_params.dust_debug) {
+    amrex::Print() << "[DUST DEBUG] Phase 16: dust_plot_int="
+                   << dust_params.dust_plot_int
+                   << " prefix=" << dust_params.dust_plot_prefix
+                   << " diag_file=" << dust_params.dust_diag_file << "\n";
+  }
 }
 
 void
@@ -690,6 +700,44 @@ DustLayer::extract_atm_return_fields(
                        << " set by ComputeDiffusivityMRF)\n"
                        << "[DUST DEBUG] Phase 14: gamma_dust=0"
                        << " (no countergradient term for dust scalar)\n";
+    }
+}
+
+void
+DustLayer::write_output(int nstep, double cur_time, bool is_final)
+{
+    // Always write CSV diagnostics.
+    append_dust_stats(nstep, cur_time,
+                      m_params.dust_diag_file,
+                      get_emission_flux(),
+                      get_deposition_rate(),
+                      get_ustar_in(),
+                      get_conc_sfc());
+
+    // Determine whether to write the plotfile.
+    bool write_plt = false;
+    if (m_params.dust_plot_int > 0)
+        write_plt = (nstep % m_params.dust_plot_int == 0);
+    if (is_final && nstep > m_last_dust_plot_step)
+        write_plt = true;
+
+    if (write_plt) {
+        WriteDustPlotfile(m_params.dust_plot_prefix, *this, cur_time, nstep);
+        m_last_dust_plot_step = nstep;
+
+        if (m_params.dust_debug) {
+            amrex::Print() << "[DUST DEBUG] Phase 16: plotfile written"
+                           << " step=" << nstep
+                           << " is_final=" << is_final << "\n";
+        }
+    }
+
+    if (m_params.dust_debug) {
+        amrex::Real em = dust_emission_flux  ? dust_emission_flux->sum(0)    : 0.0;
+        amrex::Real dp = dust_deposition_rate? dust_deposition_rate->sum(0) : 0.0;
+        amrex::Print() << "[DUST DEBUG] Phase 16: step=" << nstep
+                       << " emission_sum=" << em << " kg/s"
+                       << " dep_total=" << dp << " kg/m^2\n";
     }
 }
 
