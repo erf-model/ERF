@@ -300,7 +300,6 @@ ERF::Advance (int lev, double time, double dt_lev, int iteration, int /*ncycle*/
                    U_new, V_new, W_new,
                    cc_source, xmom_source, ymom_source, zmom_source, buoyancy,
                    Geom(lev), dt_lev, time);
-
     // **************************************************************************************
     // Tests on the reasonableness of the solution after the dycore
     // **************************************************************************************
