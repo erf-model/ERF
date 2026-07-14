@@ -27,6 +27,10 @@ ERF::sum_integrated_quantities (double time)
     Real rhth_ml = zero;
     Real scal_ml = zero;
     Real mois_ml = zero;
+#ifdef ERF_USE_DUST
+    Real dust_sl = zero;
+    Real dust_ml = zero;
+#endif
 
     bool local = true;
 
@@ -52,6 +56,11 @@ ERF::sum_integrated_quantities (double time)
             mois_sl += volWgtSumMF(0,vars_new[0][Vars::cons],RhoQ1_comp+qoff,dJ0,mfx0,mfy0,false);
         }
     }
+#ifdef ERF_USE_DUST
+    if (m_DustLayer) {
+        dust_sl = volWgtSumMF(0,vars_new[0][Vars::cons],RhoAdv_comp,dJ0,mfx0,mfy0,false);
+    }
+#endif
 
     for (int lev = 0; lev <= finest_level; lev++) {
         auto& mfx = *mapfac[lev][MapFacType::m_x];
@@ -65,6 +74,11 @@ ERF::sum_integrated_quantities (double time)
                 mois_ml += volWgtSumMF(lev,vars_new[lev][Vars::cons],RhoQ1_comp+qoff,dJ,mfx,mfy,false);
             }
         }
+#ifdef ERF_USE_DUST
+        if (m_DustLayer) {
+            dust_ml += volWgtSumMF(lev,vars_new[lev][Vars::cons],RhoAdv_comp,dJ,mfx,mfy,true);
+        }
+#endif
     }
 
     Gpu::HostVector<Real> h_avg_ustar; h_avg_ustar.resize(1);
@@ -89,8 +103,13 @@ ERF::sum_integrated_quantities (double time)
         h_avg_olen[0]  = zero;
     }
 
+#ifdef ERF_USE_DUST
+    const int nfoo = 10;
+    Real foo[nfoo] = {mass_sl,rhth_sl,scal_sl,mois_sl,dust_sl,mass_ml,rhth_ml,scal_ml,mois_ml,dust_ml};
+#else
     const int nfoo = 8;
     Real foo[nfoo] = {mass_sl,rhth_sl,scal_sl,mois_sl,mass_ml,rhth_ml,scal_ml,mois_ml};
+#endif
 #ifdef AMREX_LAZY
     Lazy::QueueReduction([=]() mutable {
 #endif
@@ -98,15 +117,21 @@ ERF::sum_integrated_quantities (double time)
         foo, nfoo, ParallelDescriptor::IOProcessorNumber());
 
       if (ParallelDescriptor::IOProcessor()) {
-        int i = 0;
-        mass_sl = foo[i++];
-        rhth_sl = foo[i++];
-        scal_sl = foo[i++];
-        mois_sl = foo[i++];
-        mass_ml = foo[i++];
-        rhth_ml = foo[i++];
-        scal_ml = foo[i++];
-        mois_ml = foo[i++];
+         int i = 0;
+         mass_sl = foo[i++];
+         rhth_sl = foo[i++];
+         scal_sl = foo[i++];
+         mois_sl = foo[i++];
+#ifdef ERF_USE_DUST
+         dust_sl = foo[i++];
+#endif
+         mass_ml = foo[i++];
+         rhth_ml = foo[i++];
+         scal_ml = foo[i++];
+         mois_ml = foo[i++];
+#ifdef ERF_USE_DUST
+         dust_ml = foo[i++];
+#endif
 
         Print() << '\n';
         Print() << "TIME= " << std::setw(datwidth) << std::setprecision(timeprecision) << std::left << time << '\n';
@@ -119,6 +144,9 @@ ERF::sum_integrated_quantities (double time)
            Print() << " RHO THETA  = " << rhth_sl << '\n';
            if (solverChoice.transport_scalar) { Print() << " RHO SCALAR = " << scal_sl << '\n'; }
            if (solverChoice.moisture_type != MoistureType::None) { Print() << " RHO QTOTAL = " << mois_sl << '\n'; }
+#ifdef ERF_USE_DUST
+           if (m_DustLayer) { Print() << " RHO DUST   = " << dust_sl << '\n'; }
+#endif
         } else {
 #if 1
            Print() << " MASS       SL/ML = " << mass_sl << " " << mass_ml << '\n';
@@ -128,6 +156,9 @@ ERF::sum_integrated_quantities (double time)
            Print() << " RHO THETA  SL/ML = " << rhth_sl << " " << rhth_ml << '\n';
            if (solverChoice.transport_scalar) { Print() << " RHO SCALAR SL/ML = " << scal_sl << " " << scal_ml << '\n'; }
            if (solverChoice.moisture_type != MoistureType::None) { Print() << " RHO QTOTAL SL/ML = " << mois_sl << " " << mois_ml << '\n'; }
+#ifdef ERF_USE_DUST
+           if (m_DustLayer) { Print() << " RHO DUST   SL/ML = " << dust_sl << " " << dust_ml << '\n'; }
+#endif
         }
 
         // The first data log only holds scalars
