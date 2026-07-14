@@ -154,9 +154,9 @@ public:
                                amrex::Real& qsat)
     {
 #ifdef AMREX_USE_FLOAT
-        constexpr amrex::Real tol = Real(1.e-4);
+        constexpr amrex::Real tol = amrex::Real(1.e-4);
 #else
-        constexpr amrex::Real tol = Real(1.e-8);
+        constexpr amrex::Real tol = amrex::Real(1.e-8);
 #endif
         constexpr int max_niter = 20;
 

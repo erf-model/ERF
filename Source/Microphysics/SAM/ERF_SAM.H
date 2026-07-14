@@ -206,7 +206,7 @@ public:
     NewtonIterSat (int& i, int& j, int& k,
                    const int& SAM_moisture_type,
                    const amrex::Real& fac_cond,
-                   const amrex::Real& /*fac_fus*/,
+                   const amrex::Real& fac_fus,
                    const amrex::Real& fac_sub,
                    const amrex::Real& an,
                    const amrex::Real& bn,
@@ -220,9 +220,9 @@ public:
     {
         // Solution tolerance
 #ifdef AMREX_USE_FLOAT
-        constexpr amrex::Real tol = Real(1.e-4);
+        constexpr amrex::Real tol = amrex::Real(1.e-4);
 #else
-        constexpr amrex::Real tol = Real(1.e-8);
+        constexpr amrex::Real tol = amrex::Real(1.e-8);
 #endif
 
         // Saturation moisture fractions
@@ -235,16 +235,17 @@ public:
         int  niter = 0;
         amrex::Real F, dFdT;
         amrex::Real lstar, dlstar;
-        amrex::Real lstarw, lstari;
-        amrex::Real delta_qc, delta_qi;
+        amrex::Real lstarw, lstari, lstarc;
+        amrex::Real delta_qv, delta_qc, delta_qi;
+
+        //=======================================================================
+        // Mixed-phase Newton iteration to qv=qsat (cloud phase only)
+        //=======================================================================
 
         // Initial guess for temperature & pressure
         amrex::Real tabs = tabs_array(i,j,k);
         amrex::Real pres = pres_array(i,j,k);
 
-        //==================================================
-        // Newton iteration to qv=qsat (cloud phase only)
-        //==================================================
         // Latent heats and their derivatives wrt to T
         lstarw  = fac_cond;
         lstari  = fac_sub;
@@ -329,15 +330,115 @@ public:
             ++niter;
         }
 
-        // Changes in each component
-        const SAMCloudPhaseChange phase_change =
-            sam_apply_condensate_limiter(qv_array(i,j,k), qsat,
-                                         qc_array(i,j,k), qi_array(i,j,k), omn);
-        delta_qc = phase_change.delta_qc;
-        delta_qi = phase_change.delta_qi;
+        // Ensure conservation with unconstrained mixed-phase iterations
+        delta_qv = qv_array(i,j,k) - qsat;
+        delta_qc = delta_qv * omn;
+        delta_qi = delta_qv * (one - omn);
+
+        // Exhausted ice during mixed-phase
+        if ((qi_array(i,j,k) + delta_qi) < zero) {
+            //=======================================================================
+            // Single-phase no-ice Newton iteration to qv=qsat (cloud phase only)
+            //=======================================================================
+            tabs   = tabs_array(i,j,k);
+            lstarw = fac_cond;
+            lstari = fac_fus;
+            erf_qsatw(tabs, pres, qsat);
+            erf_dtqsatw(tabs, pres, dqsat);
+            F = sam_newton_residual_no_ice(tabs, tabs_array(i,j,k),
+                                           lstarw, qv_array(i,j,k), qsat,
+                                           lstari, qi_array(i,j,k));
+            while (std::abs(F) > tol && niter < 20) {
+                // Derivative of function (T_new iterated on)
+                dFdT  = sam_newton_residual_derivative_no_ice(lstarw, dqsat);
+
+                // Update the temperature
+                tabs -= F/dFdT;
+
+                // Saturation moisture fractions
+                erf_qsatw(tabs, pres, qsat);
+                erf_dtqsatw(tabs, pres, dqsat);
+
+                // Function for root finding:
+                // 0 = -T_new + T_old + L_v/C_p * (qv - qsat) - L_f/C_p * qi
+                F = sam_newton_residual_no_ice(tabs, tabs_array(i,j,k),
+                                               lstarw, qv_array(i,j,k), qsat,
+                                               lstari, qi_array(i,j,k));
+                // Update iteration
+                ++niter;
+            }
+
+            // Set update
+            delta_qv = qv_array(i,j,k) - qsat;
+            delta_qc = delta_qv + qi_array(i,j,k);
+            delta_qi = -qi_array(i,j,k);
+
+            // Exhausted liquid during single-phase
+            if ((qc_array(i,j,k) + delta_qc) < zero) {
+                tabs = tabs_array(i,j,k) - fac_cond * qc_array(i,j,k) - fac_sub * qi_array(i,j,k);
+                erf_qsatw(tabs, pres, qsat);
+                if (qsat <= qt_array(i,j,k)) {
+                    delta_qv = qv_array(i,j,k) - qsat;
+                    delta_qc = -qc_array(i,j,k);
+                    delta_qi = -qi_array(i,j,k);
+                }
+            }
+        }
+
+        // Exhausted liquid during mixed-phase
+        if ((qc_array(i,j,k) + delta_qc) < zero) {
+            //=======================================================================
+            // Single-phase no-liquid Newton iteration to qv=qsat (cloud phase only)
+            //=======================================================================
+            tabs   = tabs_array(i,j,k);
+            lstarw = fac_sub;
+            lstarc = fac_fus;
+            erf_qsatw(tabs, pres, qsat);
+            erf_dtqsatw(tabs, pres, dqsat);
+            F = sam_newton_residual_no_liquid(tabs, tabs_array(i,j,k),
+                                              lstarw, qv_array(i,j,k), qsat,
+                                              lstarc, qc_array(i,j,k));
+            while (std::abs(F) > tol && niter < 20) {
+                // Derivative of function (T_new iterated on)
+                dFdT  = sam_newton_residual_derivative_no_liquid(lstarw, dqsat);
+
+                // Update the temperature
+                tabs -= F/dFdT;
+
+                // Saturation moisture fractions
+                erf_qsatw(tabs, pres, qsat);
+                erf_dtqsatw(tabs, pres, dqsat);
+
+                // Function for root finding:
+                // 0 = -T_new + T_old + L_s/C_p * (qv - qsat) + L_f/C_p * qc
+                F = sam_newton_residual_no_liquid(tabs, tabs_array(i,j,k),
+                                                  lstarw, qv_array(i,j,k), qsat,
+                                                  lstarc, qc_array(i,j,k));
+                // Update iteration
+                ++niter;
+            }
+
+            // Set update
+            delta_qv = qv_array(i,j,k) - qsat;
+            delta_qc = -qc_array(i,j,k);
+            delta_qi = delta_qv + qc_array(i,j,k);
+
+            // Exhausted liquid during single-phase
+            if ((qi_array(i,j,k) + delta_qi) < zero) {
+                tabs = tabs_array(i,j,k) - fac_cond * qc_array(i,j,k) - fac_sub * qi_array(i,j,k);
+                erf_qsatw(tabs, pres, qsat);
+                if (qsat <= qt_array(i,j,k)) {
+                    delta_qv = qv_array(i,j,k) - qsat;
+                    delta_qc = -qc_array(i,j,k);
+                    delta_qi = -qi_array(i,j,k);
+                } else {
+                    amrex::Abort("SAM Cloud iterations could not find a valid branch.");
+                }
+            }
+        }
 
         // Partition the change in non-precipitating q
-        qv_array(i,j,k)  = phase_change.qv;
+        qv_array(i,j,k) += delta_qv;
         qc_array(i,j,k) += delta_qc;
         qi_array(i,j,k) += delta_qi;
         qn_array(i,j,k)  = qc_array(i,j,k) + qi_array(i,j,k);
