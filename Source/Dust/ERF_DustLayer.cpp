@@ -192,9 +192,10 @@ DustLayer::initialize(
     dust_flux_atm->setVal(0.0);
   }
 
-  // Determine scalar component index. Use RhoAdv_comp if available.
-  // RhoAdv_comp is the first passive advected scalar in ERF_IndexDefines.H.
-  m_dust_scalar_comp = RhoAdv_comp;
+  // Use the second passive scalar slot (RhoScalar_comp + 1).
+  // NSCALARS is 2 when ERF_USE_DUST is defined, so this index is
+  // within bounds: nvars = NDRY + NSCALARS = 3 + 2 = 5, valid indices 0-4.
+  m_dust_scalar_comp = RhoScalar_comp + 1;
 
   if (dust_params.dust_debug) {
     amrex::Print()
