@@ -9,6 +9,7 @@ ifeq ($(USE_DUST), TRUE)
   CEXE_sources += Dust/ERF_DustEmission.cpp
   CEXE_sources += Dust/ERF_DustWindExtract.cpp
   CEXE_sources += Dust/ERF_DustAtmCoupling.cpp
+  CEXE_sources += Dust/ERF_DustPlotfile.cpp
 
   CEXE_headers += Dust/ERF_DustParams.H
   CEXE_headers += Dust/ERF_DustGrid.H
@@ -25,5 +26,8 @@ ifeq ($(USE_DUST), TRUE)
   CEXE_headers += Dust/ERF_DustSettling.H
   CEXE_headers += Dust/ERF_DustDeposition.H
   CEXE_headers += Dust/ERF_DustAtmReturn.H
+  CEXE_headers += Dust/ERF_DustPlotfile.H
+  CEXE_headers += Dust/ERF_DustPlotfileCatalog.H
+  CEXE_headers += Dust/ERF_DustStatsOutput.H
   CEXE_headers += Dust/ERF_Dust.H
 endif

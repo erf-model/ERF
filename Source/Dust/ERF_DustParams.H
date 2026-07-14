@@ -170,6 +170,11 @@ struct DustParams {
     // Default: same diffusivity as heat (Sc_t = Pr_t).
     // Seinfeld & Pandis (2006), Ch. 16: https://doi.org/10.1002/9781118227572
 
+    // Phase 16: Dust diagnostics and plotfile output
+    int         dust_plot_int      = -1;           ///< Steps between dust plotfiles. -1 = disabled.
+    std::string dust_plot_prefix   = "plt_dust_";  ///< Plotfile name prefix.
+    std::string dust_diag_file     = "dust_diag.dat"; ///< CSV diagnostics file path.
+
     /**
      * Constructor that reads all parameters from ParmParse.
      */
@@ -215,6 +220,9 @@ struct DustParams {
         pp.query("deposition_E0", deposition_E0);
         pp.query("loading_feedback_coeff", loading_feedback_coeff);
         pp.query("use_dynamic_moisture",   use_dynamic_moisture);
+        pp.query("dust_plot_int",    dust_plot_int);
+        pp.query("dust_plot_prefix", dust_plot_prefix);
+        pp.query("dust_diag_file",   dust_diag_file);
         
         // Allow per-bin diameter override from input file.
         // erf.dust.bin_diameters = d0 d1 d2 ...
