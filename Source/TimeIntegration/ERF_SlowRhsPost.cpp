@@ -174,9 +174,6 @@ void erf_slow_rhs_post (int level, int finest_level,
     Vector<int> is_valid_slow_var; is_valid_slow_var.resize(RhoQ1_comp+1,0);
     if (l_use_KE)    { is_valid_slow_var[    RhoKE_comp] = 1; }
     if (l_do_scalar) { is_valid_slow_var[RhoScalar_comp] = 1; }
-#ifdef ERF_USE_DUST
-if (l_do_scalar) { is_valid_slow_var[RhoScalar_comp + 1] = 1; }
-#endif
 /*#ifdef ERF_USE_DUST
     // Register dust scalar for advection (Phase 10/11: dust transport)
     is_valid_slow_var[RhoAdv_comp] = 1;
