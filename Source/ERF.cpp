@@ -199,6 +199,15 @@ ERF::Evolve ()
             m_DustLayer->advance(dt[0], m_DustLayer->get_params(),
                                  m_SurfaceLayer.get(),
                                  xvel_ptr, yvel_ptr, zphys_ptr, nz);
+            
+            // Coarsen dust emission flux to atmospheric grid for injection at next step
+            // One-step explicit lag: flux from this step will be injected in next step
+            if (m_dust_flux_atm[0]) {
+                coarsen_dust_flux_to_atm(
+                    *m_dust_flux_atm[0], *m_DustLayer->get_emission_flux(),
+                    m_DustLayer->get_dust_geom(), geom[0],
+                    m_DustLayer->get_dust_grid().grid_ratio);
+            }
         }
 #endif
 
@@ -1277,6 +1286,23 @@ ERF::InitData_post ()
         if (dust_params.enable) {
             m_DustLayer = std::make_unique<DustLayer>();
             m_DustLayer->initialize(*this, m_SurfaceLayer.get(), dust_params);
+            
+            // Allocate coarsened dust flux for level 0 (dust coupling only at level 0)
+            {
+                amrex::BoxArray ba_atm = boxArray(0);
+                amrex::Vector<amrex::Box> bl;
+                for (int b = 0; b < ba_atm.size(); ++b) {
+                    amrex::Box bx = ba_atm[b];
+                    bx.setSmall(2, 0);
+                    bx.setBig(2, 0);
+                    bl.push_back(bx);
+                }
+                amrex::BoxArray ba2d(amrex::BoxList(std::move(bl)));
+                m_dust_flux_atm.resize(1);
+                m_dust_flux_atm[0] = std::make_unique<amrex::MultiFab>(
+                    ba2d, DistributionMap(0), 1, amrex::IntVect(1, 1, 0));
+                m_dust_flux_atm[0]->setVal(0.0);
+            }
         }
     }
 #endif
