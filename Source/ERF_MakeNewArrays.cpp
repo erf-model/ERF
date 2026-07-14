@@ -350,7 +350,7 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
         wrf_C2H  = std::make_unique<MultiFab>(ba1d[lev],dm,1,IntVect(ng[0],ng[1],ng[2]));
         wrf_RDNW = std::make_unique<MultiFab>(ba1d[lev],dm,1,IntVect(ng[0],ng[1],ng[2]));
         wrf_MUB  = std::make_unique<MultiFab>(ba2d[lev],dm,1,IntVect(ng[0],ng[1],ng[2]));
-        wrf_PHB  = std::make_unique<MultiFab>(convert(ba,IntVect(0,0,1)),dm,1,IntVect(ng[0],ng[1],0));
+        wrf_PHB  = std::make_unique<MultiFab>(convert(ba,IntVect(0,0,1)),dm,1,IntVect(ngrow+1,ngrow+1,0));
     }
 
     mf_PSFC[lev] = std::make_unique<MultiFab>(ba2d[lev],dm,1,ng);
