@@ -37,18 +37,18 @@ amr.max_level = 0
 amrex.fpe_trap_invalid = 0
 
 stop_time = 100000
-erf.fixed_dt = 1.0
+erf.fixed_dt = 0.5
 
 fabarray.mfiter_tile_size = 1024 1024 1024
 
-geometry.prob_extent = 4800 4800 2048
-amr.n_cell           =  8   8   128
-amrex.max_grid_size_z = 256
+geometry.prob_extent = 3000 3000 1024
+amr.n_cell           =  8   8   64
+amrex.max_grid_size_z = 128
 geometry.is_periodic = 1 1 0
 
 zlo.type = "surface_layer"
-erf.most.zref = 50.0
-erf.most.z0   = 0.1
+erf.most.zref = 24.0     # reference height [m]
+erf.most.z0   = 0.1      # roughness length [m]
 zhi.type = "SlipWall"
 zhi.theta_grad = 0.003
 
@@ -67,17 +67,17 @@ erf.plot_int_1      = 1
 erf.plot_vars_1     = x_velocity y_velocity z_velocity theta
 
 # SOLVER CHOICE
-erf.use_gravity = false
+erf.use_gravity = true
 
 erf.molec_diff_type = "None"
 erf.les_type        = "None"
 erf.Cs = 0.11
 erf.theta_ref = 300.0
 
-# INITIALIZATION
-erf.init_type = "uniform"
-erf.theta_mean_sounding = 300.0
-erf.initial_u_profile = 10.0 0.0 0.0
+# INITIALIZATION - from sounding file
+erf.init_type = "input_sounding"
+erf.sounding_type = Ideal
+erf.input_sounding_file = "sounding_dust_abl"
 
 # PBL CONFIGURATION - MRF
 erf.pbl_type = "MRF"
@@ -110,7 +110,7 @@ erf.dust.alpha_efflor              = 0.3
 erf.dust.test_ustar                = 0.0
 erf.dust.rho_air                   = 1.225
 # zref must equal erf.most.zref for extraction height consistency.
-erf.dust.zref                      = 50.0
+erf.dust.zref                      = 24.0
 erf.dust.supp_tau_base_s           = 3600.0
 erf.dust.test_surf_temp_K          = 293.15
 erf.dust.test_wind_speed           = 0.0
