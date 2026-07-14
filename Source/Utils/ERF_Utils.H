@@ -15,10 +15,14 @@
  * Rebalance state to satisfy both EOS and HSE one column at a time
  */
 void
-rebalance_columns(amrex::MultiFab& rho, const amrex::MultiFab& theta,
-                  const amrex::MultiFab& qt, const amrex::MultiFab& qv,
-                  const amrex::MultiFab* z_phys, const amrex::Geometry& geom,
-                  bool use_existing_sfc_density);
+rebalance_columns (amrex::MultiFab& rho,
+                   amrex::MultiFab& theta,
+                   const amrex::MultiFab& qt,
+                   const amrex::MultiFab& qv,
+                   const amrex::MultiFab* z_phys,
+                   const amrex::Geometry& geom,
+                   const bool& maintain_Th,
+                   bool use_sfc = false);
 
 /*
  * Create a new BoxArray in which every grid touches the bottom boundary

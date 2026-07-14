@@ -17,7 +17,6 @@
 #include "ERF_EpochTime.H"
 #include "ERF_Utils.H"
 #include "ERF_TerrainMetrics.H"
-#include "ERF_HurricaneDiagnostics.H"
 #include "ERF_SrcHeaders.H"
 //#include "ERF_BuoyancyUtils.H"
 
@@ -667,7 +666,7 @@ ERF::InitData_post ()
                 bool is_anelastic = (solverChoice.anelastic[0] == 1);
                 read_and_convert_from_wrfbdy(itime,nc_bdy_file,
                                              bdy_data_xlo,bdy_data_xhi,bdy_data_ylo,bdy_data_yhi,
-                                             wrf_MUB, wrf_C1H, wrf_C2H, wrf_PHB,
+                                             wrf_MUB, wrf_C1H, wrf_C2H, wrf_RDNW, wrf_PHB, z_phys_nd[0],
                                              vars_new[0][Vars::xvel], vars_new[0][Vars::yvel], vars_new[0][Vars::cons],
                                              r_hse, area_vec, geom[0], use_moist, domain_bcs_type,
                                              real_width, bdy_time_interval, is_anelastic);
@@ -680,7 +679,7 @@ ERF::InitData_post ()
                 bool is_anelastic = (solverChoice.anelastic[0] == 1);
                 read_and_convert_from_wrfbdy(itime,nc_bdy_file,
                                              bdy_data_xlo,bdy_data_xhi,bdy_data_ylo,bdy_data_yhi,
-                                             wrf_MUB, wrf_C1H, wrf_C2H, wrf_PHB,
+                                             wrf_MUB, wrf_C1H, wrf_C2H, wrf_RDNW, wrf_PHB, z_phys_nd[0],
                                              vars_new[0][Vars::xvel], vars_new[0][Vars::yvel], vars_new[0][Vars::cons],
                                              r_hse, area_vec, geom[0], use_moist, domain_bcs_type,
                                              real_width, bdy_time_interval, is_anelastic);
