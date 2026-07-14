@@ -17,7 +17,6 @@
 #include "ERF_EpochTime.H"
 #include "ERF_Utils.H"
 #include "ERF_TerrainMetrics.H"
-#include "ERF_HurricaneDiagnostics.H"
 #include "ERF_SrcHeaders.H"
 //#include "ERF_BuoyancyUtils.H"
 
@@ -510,21 +509,12 @@ ERF::post_timestep (int nstep, double time, double dt_lev0)
       }
     }
 
-    if ( solverChoice.init_type==InitType::HindCast and
-         solverChoice.io_hurricane_eye_tracker and
-         (nstep == 0 or (nstep+1)%m_plot3d_int_1 == 0) )
-    {
+    if (solverChoice.io_hurricane_eye_tracker and
+         (nstep == 0 or (nstep+1)%m_plot3d_int_1 == 0)) {
+
         int levc=finest_level;
 
-        HurricaneEyeTracker(geom[levc],
-                            vars_new[levc],
-                            solverChoice.moisture_type,
-                            solverChoice.hindcast_lateral_forcing? &forecast_state_interp[levc] : nullptr,
-                            solverChoice.hurricane_eye_latitude,
-                            solverChoice.hurricane_eye_longitude,
-                            hurricane_eye_track_xy,
-                            hurricane_eye_track_latlon,
-                            hurricane_tracker_circle);
+        HurricaneEyeTracker(solverChoice);
 
         MultiFab& U_new = vars_new[levc][Vars::xvel];
         MultiFab& V_new = vars_new[levc][Vars::yvel];
@@ -535,52 +525,9 @@ ERF::post_timestep (int nstep, double time, double dt_lev0)
 
         HurricaneMaxVelTracker(geom[levc],
                                mf_cc_vel,
-                               t_new[0],
-                               hurricane_eye_track_xy,
-                               hurricane_maxvel_vs_time);
-
-        HurricaneMinPressureTracker(solverChoice.moisture_type,
-                                    geom[levc],
-                                    vars_new[levc][Vars::cons],
-                                    t_new[0],
-                                    hurricane_eye_track_xy,
-                                    hurricane_minpressure_vs_time);
-
-        std::string filename_tracker = MakeVTKFilename_TrackerCircle(nstep);
-        std::string filename_xy      = MakeVTKFilename_EyeTracker_xy(nstep);
-        std::string filename_latlon  = MakeFilename_EyeTracker_latlon(nstep);
-        std::string filename_maxvel  = MakeFilename_EyeTracker_maxvel(nstep);
-        std::string filename_minpressure  = MakeFilename_EyeTracker_minpressure(nstep);
-
-        if (ParallelDescriptor::IOProcessor()) {
-            WriteVTKPolyline(filename_tracker, hurricane_tracker_circle);
-            WriteVTKPolyline(filename_xy, hurricane_eye_track_xy);
-            WriteLinePlot(filename_latlon, hurricane_eye_track_latlon);
-            WriteLinePlot(filename_maxvel, hurricane_maxvel_vs_time);
-            WriteLinePlot(filename_minpressure, hurricane_minpressure_vs_time);
-        }
-    }
-
-    if ( solverChoice.init_type==InitType::WRFInput and
-         solverChoice.io_hurricane_eye_tracker and
-         (nstep == 0 or (nstep+1)%m_plot3d_int_1 == 0)) {
-
-        int levc=finest_level;
-
-        HurricaneEyeTracker_WRF (solverChoice);
-
-        MultiFab& U_new = vars_new[levc][Vars::xvel];
-        MultiFab& V_new = vars_new[levc][Vars::yvel];
-        MultiFab& W_new = vars_new[levc][Vars::zvel];
-
-        MultiFab mf_cc_vel(grids[levc], dmap[levc], AMREX_SPACEDIM, IntVect(0,0,0));
-        average_face_to_cellcenter(mf_cc_vel,0,{AMREX_D_DECL(&U_new,&V_new,&W_new)},0);
-
-        HurricaneMaxVelTracker_WRF(geom[levc],
-                               mf_cc_vel,
                                t_new[0]);
 
-        HurricaneMinPressureTracker_WRF(solverChoice.moisture_type,
+        HurricaneMinPressureTracker(solverChoice.moisture_type,
                                     geom[levc],
                                     vars_new[levc][Vars::cons],
                                     t_new[0]);
@@ -761,7 +708,7 @@ ERF::InitData_post ()
                 bool is_anelastic = (solverChoice.anelastic[0] == 1);
                 read_and_convert_from_wrfbdy(itime,nc_bdy_file,
                                              bdy_data_xlo,bdy_data_xhi,bdy_data_ylo,bdy_data_yhi,
-                                             wrf_MUB, wrf_C1H, wrf_C2H, wrf_PHB,
+                                             wrf_MUB, wrf_C1H, wrf_C2H, wrf_RDNW, wrf_PHB, z_phys_nd[0],
                                              vars_new[0][Vars::xvel], vars_new[0][Vars::yvel], vars_new[0][Vars::cons],
                                              r_hse, area_vec, geom[0], use_moist, domain_bcs_type,
                                              real_width, bdy_time_interval, is_anelastic);
@@ -774,7 +721,7 @@ ERF::InitData_post ()
                 bool is_anelastic = (solverChoice.anelastic[0] == 1);
                 read_and_convert_from_wrfbdy(itime,nc_bdy_file,
                                              bdy_data_xlo,bdy_data_xhi,bdy_data_ylo,bdy_data_yhi,
-                                             wrf_MUB, wrf_C1H, wrf_C2H, wrf_PHB,
+                                             wrf_MUB, wrf_C1H, wrf_C2H, wrf_RDNW, wrf_PHB, z_phys_nd[0],
                                              vars_new[0][Vars::xvel], vars_new[0][Vars::yvel], vars_new[0][Vars::cons],
                                              r_hse, area_vec, geom[0], use_moist, domain_bcs_type,
                                              real_width, bdy_time_interval, is_anelastic);
