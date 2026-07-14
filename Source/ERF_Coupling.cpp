@@ -34,7 +34,11 @@ AverageDownThenRemap (const amrex::MultiFab& src,
     const IntVect ratio = src_cells.length() / dst_cells.length();
 
     MultiFab dst_avg(dst.boxArray(), dst.DistributionMap(), dst.nComp(), 0);
-    amrex::average_down(src, dst_avg, 0, dst.nComp(), ratio);
+    if (src.boxArray().ixType().cellCentered()) {
+        amrex::average_down(src, dst_avg, 0, dst.nComp(), ratio);
+    } else {
+        amrex::average_down_faces(src, dst_avg, ratio, 0);
+    }
 
     MultiFab dst_remap(dst.boxArray(), dst.DistributionMap(), dst.nComp(), 0);
     dst_remap.ParallelCopy(dst_avg, 0, 0, dst.nComp());
