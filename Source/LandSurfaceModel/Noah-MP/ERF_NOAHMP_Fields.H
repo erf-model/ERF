@@ -1,18 +1,7 @@
 #ifndef ERF_NOAHMP_FIELDS_H
 #define ERF_NOAHMP_FIELDS_H
 
-// ===========================================================================
-//  ERF <-> Noah-MP coupling contract: what crosses the boundary. Mechanical (1:1)
-//  fields live in the NOAHMP_*_FIELDS registries below, expanded via emitter macros
-//  to generate enum entries, names, and host<->NoahmpIO copies from one source.
-//  To add one: append an X(...) row (enum order is an invariant -- do not reorder).
-//  See dev/spec-noahmp-api.md and dev/spec-noahmp-reorg.md.
-// ===========================================================================
-
-// ---------------------------------------------------------------------------
-//  Field registries. X(comp) -> LsmData (no NoahmpIO member, kept by name);
-//  X(comp, member) -> boundary field with its NoahmpIO array.
-// ---------------------------------------------------------------------------
+// Append X(...) rows to add coupling fields; enum order is an invariant -- do not reorder.
 
 // ERF-internal state fields (LsmData_NOAHMP), fixed 2D. The 3D soil profile
 // (SMOIS/SH2O/TSLB) is appended at RUNTIME after NumVars -- see soil_data_idx.

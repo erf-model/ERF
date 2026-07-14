@@ -105,7 +105,7 @@ components are written and read live in
    ensures a fatal on any rank becomes an `MPI_Abort` instead of deadlocking
    peers at the next collective. See `NoahmpFatal.H`.
 2. **Builds the surface (`lsm`) geometry** — a single-cell-thick slab below the
-   atmosphere's lowest level (`khi_lsm = domain.smallEnd(2) - 1`), with the same
+   atmosphere's lowest level, with the same
    x/y decomposition as `cons_in` (every box ranged to `k = 0`).
 3. **Registers the coupling fields** — fills `LsmDataMap`/`LsmDataName` and the
    flux equivalents, allocates `lsm_fab_data[]` / `lsm_fab_flux[]`, and
