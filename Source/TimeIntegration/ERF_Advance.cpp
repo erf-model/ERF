@@ -262,37 +262,6 @@ ERF::Advance (int lev, double time, double dt_lev, int iteration, int /*ncycle*/
         }
         check_for_negative_theta(S_old);
     }
-
-    // **************************************************************************************
-    // Phase 10: Inject dust emission flux into the atmosphere
-    // **************************************************************************************
-#ifdef ERF_USE_DUST
-    if (m_DustLayer && lev == 0) {
-        // Inject dust emission flux into cc_source before dycore advance.
-        // Pattern follows apply_fire_tendency_to_cc_source in ERF_FireAtmCoupling.H.
-        const amrex::MultiFab* zphys_ptr =
-            (z_phys_cc.size() > 0) ? z_phys_cc[lev].get() : nullptr;
-        if (zphys_ptr) {
-            m_DustLayer->apply_to_cc_source(cc_source, *zphys_ptr, Geom(lev));
-        }
-    }
-
-    // **************************************************************************************
-    // Phase 11: Apply Stokes settling to dust scalars
-    // **************************************************************************************
-    if (m_DustLayer && lev == 0) {
-        // Apply Stokes settling tendency after injection so settling operates on
-        // the updated cc_source.
-        const amrex::MultiFab* zphys_ptr =
-            (z_phys_cc.size() > 0) ? z_phys_cc[lev].get() : nullptr;
-        if (zphys_ptr) {
-            m_DustLayer->apply_settling_to_cc_source(
-                cc_source, state_old[lev], *zphys_ptr, Geom(lev));
-        }
-    }
-#endif
-amrex::Print() << "[DUST CHECK] cc_source comp4 max BEFORE dycore = "
-               << cc_source.max(m_DustLayer->get_dust_scalar_comp()) << "\n";
     // **************************************************************************************
     // Update the dycore
     // **************************************************************************************
@@ -301,6 +270,10 @@ amrex::Print() << "[DUST CHECK] cc_source comp4 max BEFORE dycore = "
                    U_new, V_new, W_new,
                    cc_source, xmom_source, ymom_source, zmom_source, buoyancy,
                    Geom(lev), dt_lev, time);
+amrex::Print() << "[DUST CHECK] S_new dust max AFTER dycore = "
+               << S_new.max(m_DustLayer->get_dust_scalar_comp()) << "\n";
+amrex::Print() << "[DUST CHECK] cc_source comp4 max AFTER dycore = "
+               << cc_source.max(m_DustLayer->get_dust_scalar_comp()) << "\n";
     // **************************************************************************************
     // Tests on the reasonableness of the solution after the dycore
     // **************************************************************************************

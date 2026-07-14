@@ -111,6 +111,20 @@
                      dptr_wbar_sub, d_rayleigh_ptrs_at_lev, d_sinesq_at_lev,
                       (solverChoice.hindcast_surface_bcs? &surface_state_interp[level] : nullptr),
                      input_sounding_data, turbPert, true);
+        // ******************************************************************************
+        // Phase 10/11: Add dust emission flux and settling tendency to cc_src
+        // This must happen AFTER make_sources so it is not overwritten.
+        // ******************************************************************************
+#ifdef ERF_USE_DUST
+        if (m_DustLayer && level == 0) {
+            const amrex::MultiFab* zphys_ptr = (z_phys_cc.size() > 0) ? z_phys_cc[level].get() : nullptr;
+            if (zphys_ptr) {
+                m_DustLayer->apply_to_cc_source(cc_src, *zphys_ptr, fine_geom);
+                m_DustLayer->apply_settling_to_cc_source(
+                    cc_src, S_data[IntVars::cons], *zphys_ptr, fine_geom);
+            }
+        }
+#endif
 
         // *****************************************************************************
         // Add nudging terms on moist variables if we have a non-zero relaxation region
