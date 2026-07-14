@@ -83,6 +83,7 @@ erf.theta_ref       = 300.0
 erf.init_type         = "uniform"
 erf.density_init_pert = 0.0
 erf.theta_init_pert   = 0.0
+erf.transport_scalar  = true
 
 erf.pbl_type         = "MRF"
 erf.pbl_mrf_Ribcr    = 0.5
