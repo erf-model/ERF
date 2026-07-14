@@ -10,7 +10,8 @@ rebalance_columns (MultiFab& rho,
                    const MultiFab& qt,
                    const MultiFab* z_phys,
                    const Geometry& geom,
-                   const bool& maintain_Th)
+                   const bool& maintain_Th,
+                   bool use_sfc)
 {
 
 #ifdef AMREX_USE_FLOAT
@@ -52,7 +53,7 @@ rebalance_columns (MultiFab& rho,
             Real P_lo, P_hi;
 
             // Integrate from z=0
-            if (false) {
+            if (use_sfc) {
                 z_lo = zero; // corresponding to p_0
                 z_hi = Real(0.125) * (z_arr(i,j,klo  ) + z_arr(i+1,j,klo  ) + z_arr(i,j+1,klo  ) + z_arr(i+1,j+1,klo  )
                                      +z_arr(i,j,klo+1) + z_arr(i+1,j,klo+1) + z_arr(i,j+1,klo+1) + z_arr(i+1,j+1,klo+1));
