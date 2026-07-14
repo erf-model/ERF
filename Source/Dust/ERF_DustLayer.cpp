@@ -12,6 +12,7 @@
 #include <ERF_DustEmission.H>
 #include <ERF_DustSuppression.H>
 #include <ERF_DustWindExtract.H>
+#include <ERF_DustAtmCoupling.H>
 #include <ERF.H>
 #include <ERF_SurfaceLayer.H>
 #include <AMReX_Print.H>
@@ -150,6 +151,38 @@ void DustLayer::initialize(const ERF&          erf,
         amrex::Print() << "[DUST DEBUG] Phase 9: dust_wind_ref(2), dust_pblh, dust_tsfc allocated\n";
     }
 
+    // Phase 9: confirm extraction fields are ready
+    if (dust_params.dust_debug) {
+        amrex::Print() << "[DUST DEBUG] Phase 9: zref=" << dust_params.zref
+                       << " m for wind extraction\n";
+    }
+
+    // Phase 10: Allocate coarsened emission flux on atmospheric grid.
+    // BoxArray and DistributionMapping are from ERF level-0.
+    // Use the 2D slab: set k-range to [0,0].
+    {
+        amrex::BoxArray ba_atm = erf.boxArray(0);
+        amrex::Vector<amrex::Box> bl;
+        for (int b = 0; b < ba_atm.size(); ++b) {
+            amrex::Box bx = ba_atm[b];
+            bx.setSmall(2,0); bx.setBig(2,0);
+            bl.push_back(bx);
+        }
+        amrex::BoxArray ba2d(amrex::BoxList(std::move(bl)));
+        dust_flux_atm = std::make_unique<amrex::MultiFab>(
+            ba2d, erf.DistributionMap(0), 1, amrex::IntVect(1,1,0));
+        dust_flux_atm->setVal(0.0);
+    }
+
+    // Determine scalar component index. Use RhoAdv_comp if available.
+    // RhoAdv_comp is the first passive advected scalar in ERF_IndexDefines.H.
+    m_dust_scalar_comp = RhoAdv_comp;
+
+    if (dust_params.dust_debug) {
+        amrex::Print() << "[DUST DEBUG] Phase 10: dust_flux_atm allocated on atm grid."
+                       << " dust_scalar_comp=" << m_dust_scalar_comp << "\n";
+    }
+
     // Populate surface MultiFabs from external rasters
     populate_dust_surface_maps(*dust_soil_type, *dust_silt_fraction,
                                *dust_crust_index, *dust_moisture_flag,
@@ -256,6 +289,13 @@ void DustLayer::advance(amrex::Real            dt,
                            << " test_ustar=" << m_params.test_ustar << "\n";
     }
 
+    // Additional Phase 9 debug output
+    if (m_params.dust_debug && have_atm) {
+        amrex::Print() << "[DUST DEBUG] Phase 9: T_sfc_max="
+                       << dust_tsfc->max(0)
+                       << " K  PBLH_max=" << dust_pblh->max(0) << " m\n";
+    }
+
     amrex::Real T_sfc = have_atm ? dust_tsfc->max(0) : m_params.test_surf_temp_K;
     amrex::Real u_10m = have_atm ? dust_wind_ref->max(0) : m_params.test_wind_speed;
 
@@ -326,3 +366,41 @@ void DustLayer::advance(amrex::Real            dt,
     }
 #endif
 }
+#ifdef ERF_USE_DUST
+
+void DustLayer::apply_to_cc_source(amrex::MultiFab&       cc_source,
+                                    const amrex::MultiFab& z_phys_cc,
+                                    const amrex::Geometry& geom_atm)
+{
+    if (!dust_flux_atm) return;
+    if (m_params.atm_feedback <= 0.0) return;
+
+    // Sum emission flux over bins into dust_flux_atm.
+    // Phase 11 will handle per-bin injection; here only total mass is used.
+    dust_flux_atm->setVal(0.0);
+    for (int b = 0; b < m_params.n_size_bins; ++b) {
+        amrex::MultiFab::Add(*dust_flux_atm, *dust_emission_flux, b, 0, 1,
+                             amrex::IntVect(0));
+    }
+
+    // Coarsen from dust grid to atm grid.
+    coarsen_dust_flux_to_atm(*dust_flux_atm, *dust_emission_flux,
+                             m_dg.geom, geom_atm, m_dg.grid_ratio);
+    // Note: when grid_ratio = 1 the dust grid == atm 2D grid; coarsening is
+    // a direct copy. When grid_ratio > 1, average_down reduces to atm resolution.
+
+    // Inject into cc_source.
+    apply_dust_tendency_to_cc_source(cc_source, *dust_flux_atm,
+                                     z_phys_cc, geom_atm,
+                                     m_dust_scalar_comp,
+                                     m_params.atm_feedback,
+                                     m_params.dust_debug);
+
+    if (m_params.dust_debug) {
+        amrex::Print() << "[DUST DEBUG] Phase 10: step=" << m_step
+                       << " dust injected into cc_source comp="
+                       << m_dust_scalar_comp << "\n";
+    }
+}
+
+#endif // ERF_USE_DUST

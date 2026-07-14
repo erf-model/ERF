@@ -840,6 +840,83 @@ ParmParse Parameters
    * - ``erf.dust.test_wind_speed``
      - 10 m wind speed placeholder [m/s]. Phase 9 uses MRF wind.
 
+Wind and Surface Field Extraction (Phase 9)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Phase 9 extracts atmospheric wind and surface fields from the ERF 3D solver
+to the 2D dust grid each timestep. The MRF PBL parameterization provides:
+
+- Friction velocity :math:`u^* = \sqrt{\tau_0 / \rho_a}` [m/s]
+- Surface temperature :math:`T_{\text{surf}}` [K]
+- PBL height :math:`H_{\text{PBL}}` [m]
+
+These are interpolated from level 0 (first vertical cell) of the 3D grid
+onto the dust grid using inverse-distance weighting on the horizontal mesh.
+Wind speed at reference height :math:`z_{\text{ref}}` (default 10 m) is
+extracted via cubic Hermite interpolation along the vertical to support
+friction velocity diagnostics and emissions testing.
+
+Structural Reference
+  ``ERF_DustWindExtract.H/cpp`` adapts ``fill_fire_wind_from_interpolation``
+  from ``Source/Fire/``. Uses ``SurfaceLayer`` accessors:
+  ``get_u_star(0)``, ``get_t_surf(0)``, ``get_pblh(0)``.
+
+Aerosol Injection into ERF-Atm (Phase 10)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Phase 10 implements one-way aerosol injection: the 2D dust emission flux
+(computed in Phases 5-9) is coarsened to the 3D atmospheric grid and injected
+as a mass source into a passive scalar slot.
+
+Scalar Slot Design
+  Phase 10 uses **one passive scalar slot** (``RhoAdv_comp``, index 4 in the
+  conserved state) to carry total dust mass density [kg/m³]. Per-bin composition
+  is tracked on the 2D dust grid and is not needed in 3D until Phase 11.
+  This minimizes advection overhead. A new parameter ``transport_bins_separately``
+  (default ``false``) controls scalar expansion in Phase 11.
+
+Injection Formula
+  At the surface (k=0), dust mass receives a source tendency:
+
+  .. math::
+
+    \frac{\partial (\rho_\text{dust})}{\partial t}\bigg|_{k=0}
+      = \frac{F_\text{dust}}{\Delta z_{k=0}}
+
+  where :math:`F_\text{dust}` [kg/m²/s] is the total emission flux coarsened
+  from the dust grid to the atmosphere grid, and :math:`\Delta z_{k=0}` [m]
+  is the depth of the first atmospheric cell. All levels :math:`k > 0` receive
+  zero tendency from this injection; transport away from the surface is handled
+  by advection and diffusion in the dycore.
+
+Coupling Strength
+  The parameter ``atm_feedback`` [0,1] scales the injection strength (default 1.0).
+  Setting ``atm_feedback = 0`` disables injection for diagnostic tests.
+
+Temporal Lag
+  The injection uses a one-step explicit lag: emission flux from time step
+  :math:`n` is injected at the start of step :math:`n+1`, before
+  ``advance_dycore()``. This is consistent with the fire module pattern
+  in ``ERF_FireAtmCoupling.H``.
+
+Coarsening
+  If the dust grid is refined (``grid_ratio > 1``), the flux is coarsened
+  to the atmospheric mesh via ``amrex::average_down``. For ``grid_ratio = 1``,
+  coarsening is a direct copy.
+
+Structural Reference
+  ``ERF_DustAtmCoupling.H/cpp`` adapts ``coarsen_fire_flux_to_atm`` and
+  ``apply_fire_tendency_to_cc_source`` from ``Source/Fire/``. The header
+  file documents the WRF-Fire coupling approach; dust injection uses the
+  same pattern but does not apply a vertical profile (injection is
+  surface-only).
+
+References
+  Mandel, J., et al. (2011). An adaptive time stepping algorithm for
+  coupled atmosphere–wildfire simulation.
+  *Math. Comput. Simul.*, 79 (3), 584–606.
+  https://doi.org/10.1016/j.matcom.2008.03.015
+
 Development Phases
 ------------------
 

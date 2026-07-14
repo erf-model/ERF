@@ -119,6 +119,26 @@ public:
     const amrex::Geometry& get_dust_geom()        const { return m_dg.geom; }
     const DustParams&      get_params()           const { return m_params; }
 
+    /**
+     * @brief Get the dust scalar component index.
+     * @return Component index in cc_source for dust mass density.
+     */
+    int get_dust_scalar_comp() const { return m_dust_scalar_comp; }
+
+    /**
+     * @brief Inject dust emission flux into the ERF cc_source MultiFab.
+     *
+     * Called from ERF_Advance.cpp before advance_dycore(), following the same
+     * call site as the fire module's apply_fire_tendency_to_cc_source.
+     *
+     * @param[in,out] cc_source    Cell-centred source MultiFab on atm grid.
+     * @param[in]     z_phys_cc    Cell-centre terrain height [m].
+     * @param[in]     geom_atm     Atmospheric geometry at level 0.
+     */
+    void apply_to_cc_source(amrex::MultiFab&       cc_source,
+                            const amrex::MultiFab& z_phys_cc,
+                            const amrex::Geometry& geom_atm);
+
 private:
     DustGrid                              m_dg;
 
@@ -139,6 +159,12 @@ private:
     std::unique_ptr<amrex::MultiFab>      dust_wind_ref;   ///< u,v at zref [m/s] (ncomp=2)
     std::unique_ptr<amrex::MultiFab>      dust_pblh;       ///< MRF PBL height [m]
     std::unique_ptr<amrex::MultiFab>      dust_tsfc;       ///< Surface temperature [K]
+
+    // Phase 10: coarsened emission flux on atmospheric grid for injection.
+    std::unique_ptr<amrex::MultiFab>      dust_flux_atm;   ///< Total emission flux coarsened
+                                                             ///< to atm level-0 grid [kg/m^2/s].
+    int                                   m_dust_scalar_comp = -1; ///< cc_source component index for dust mass.
+                                                                     ///< Set during initialize from ERF_IndexDefines.H.
 
     DustParams                            m_params;
     int                                   m_step = 0;
