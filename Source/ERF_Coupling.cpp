@@ -20,6 +20,23 @@ PrintFluxLaneStats (const char* label, const amrex::MultiFab& mf, int comp = 0)
                    << ": min=" << mf.min(comp)
                    << " max=" << mf.max(comp) << "\n";
 }
+
+void
+AverageDownThenRemap (const amrex::MultiFab& src,
+                      amrex::MultiFab& dst)
+{
+    using namespace amrex;
+
+    const IntVect ratio = src.boxArray().minimalBox().length()
+                        / dst.boxArray().minimalBox().length();
+
+    MultiFab dst_avg(dst.boxArray(), dst.DistributionMap(), dst.nComp(), 0);
+    amrex::average_down(src, dst_avg, 0, dst.nComp(), ratio);
+
+    MultiFab dst_remap(dst.boxArray(), dst.DistributionMap(), dst.nComp(), 0);
+    dst_remap.ParallelCopy(dst_avg, 0, 0, dst.nComp());
+    dst.ParallelCopy(dst_remap, 0, 0, dst.nComp());
+}
 }
 
 double
@@ -140,16 +157,14 @@ ERF::PackAtmosphericStates (amrex::Vector<amrex::MultiFab*>& states,
             for (MFIter mfi(tmp, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
                 Box bx = mfi.tilebox();
                 auto const& tau13 = Tau[lev][TauType::tau13]->const_array(mfi);
+                auto const& c = cons.const_array(mfi);
                 auto t = tmp.array(mfi);
-                 ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-                     // Tau stores conservative stress already, so export the
-                     // surface-face average directly without another rho factor.
-                     t(i,j,k) = Real(0.5) * (tau13(i,j,klo) + tau13(i+1,j,klo));
-                 });
+                ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+                    const Real tau_x_kinematic = Real(0.5) * (tau13(i,j,klo) + tau13(i+1,j,klo));
+                    t(i,j,k) = c(i,j,klo,Rho_comp) * tau_x_kinematic;
+                });
             }
-            const IntVect ratio = ba2d_lev.minimalBox().length()
-                                / states[iTauX]->boxArray().minimalBox().length();
-            amrex::average_down(tmp, *states[iTauX], 0, 1, ratio);
+            AverageDownThenRemap(tmp, *states[iTauX]);
             if (verbose) { PrintFluxLaneStats("tau_x_lane", *states[iTauX]); }
         }
 
@@ -158,16 +173,14 @@ ERF::PackAtmosphericStates (amrex::Vector<amrex::MultiFab*>& states,
             for (MFIter mfi(tmp, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
                 Box bx = mfi.tilebox();
                 auto const& tau23 = Tau[lev][TauType::tau23]->const_array(mfi);
+                auto const& c = cons.const_array(mfi);
                 auto t = tmp.array(mfi);
-                 ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-                     // Tau stores conservative stress already, so export the
-                     // surface-face average directly without another rho factor.
-                     t(i,j,k) = Real(0.5) * (tau23(i,j,klo) + tau23(i,j+1,klo));
-                 });
+                ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+                    const Real tau_y_kinematic = Real(0.5) * (tau23(i,j,klo) + tau23(i,j+1,klo));
+                    t(i,j,k) = c(i,j,klo,Rho_comp) * tau_y_kinematic;
+                });
             }
-            const IntVect ratio = ba2d_lev.minimalBox().length()
-                                / states[iTauY]->boxArray().minimalBox().length();
-            amrex::average_down(tmp, *states[iTauY], 0, 1, ratio);
+            AverageDownThenRemap(tmp, *states[iTauY]);
             if (verbose) { PrintFluxLaneStats("tau_y_lane", *states[iTauY]); }
         }
 
@@ -183,9 +196,7 @@ ERF::PackAtmosphericStates (amrex::Vector<amrex::MultiFab*>& states,
                         hfx(i,j,klo));
                 });
             }
-            const IntVect ratio = ba2d_lev.minimalBox().length()
-                                / states[iSHflux]->boxArray().minimalBox().length();
-            amrex::average_down(tmp, *states[iSHflux], 0, 1, ratio);
+            AverageDownThenRemap(tmp, *states[iSHflux]);
             if (verbose) { PrintFluxLaneStats("SHflux_lane", *states[iSHflux]); }
         }
 
@@ -201,9 +212,7 @@ ERF::PackAtmosphericStates (amrex::Vector<amrex::MultiFab*>& states,
                         qfx(i,j,klo));
                 });
             }
-            const IntVect ratio = ba2d_lev.minimalBox().length()
-                                / states[iLHflux]->boxArray().minimalBox().length();
-            amrex::average_down(tmp, *states[iLHflux], 0, 1, ratio);
+            AverageDownThenRemap(tmp, *states[iLHflux]);
             if (verbose) { PrintFluxLaneStats("LHflux_lane", *states[iLHflux]); }
         }
 
@@ -211,9 +220,7 @@ ERF::PackAtmosphericStates (amrex::Vector<amrex::MultiFab*>& states,
             if (iFluxSWrad < static_cast<int>(states.size()) && states[iFluxSWrad] != nullptr) {
                 MultiFab tmp(ba2d_lev, dm, 1, 0);
                 tmp.ParallelCopy(*rad_fluxes[lev], 1, 0, 1);
-                const IntVect ratio = ba2d_lev.minimalBox().length()
-                                    / states[iFluxSWrad]->boxArray().minimalBox().length();
-                amrex::average_down(tmp, *states[iFluxSWrad], 0, 1, ratio);
+                AverageDownThenRemap(tmp, *states[iFluxSWrad]);
                 if (verbose) { PrintFluxLaneStats("SWrad_lane", *states[iFluxSWrad]); }
             }
             if (iFluxLWrad < static_cast<int>(states.size()) && states[iFluxLWrad] != nullptr) {
@@ -226,9 +233,7 @@ ERF::PackAtmosphericStates (amrex::Vector<amrex::MultiFab*>& states,
                         t(i,j,k) = rad_flux(i,j,k,3) - rad_flux(i,j,k,2);
                     });
                 }
-                const IntVect ratio = ba2d_lev.minimalBox().length()
-                                    / states[iFluxLWrad]->boxArray().minimalBox().length();
-                amrex::average_down(tmp, *states[iFluxLWrad], 0, 1, ratio);
+                AverageDownThenRemap(tmp, *states[iFluxLWrad]);
                 if (verbose) { PrintFluxLaneStats("LWrad_lane", *states[iFluxLWrad]); }
             }
         }
@@ -244,9 +249,7 @@ ERF::PackAtmosphericStates (amrex::Vector<amrex::MultiFab*>& states,
                     t(i,j,k) = qfx(i,j,klo);
                 });
             }
-            const IntVect ratio = ba2d_lev.minimalBox().length()
-                                / states[iFluxEvap]->boxArray().minimalBox().length();
-            amrex::average_down(tmp, *states[iFluxEvap], 0, 1, ratio);
+            AverageDownThenRemap(tmp, *states[iFluxEvap]);
             if (verbose) { PrintFluxLaneStats("evap_lane", *states[iFluxEvap]); }
         }
 
@@ -270,16 +273,12 @@ ERF::PackAtmosphericStates (amrex::Vector<amrex::MultiFab*>& states,
 
         if (iUwind < static_cast<int>(states.size()) && states[iUwind] != nullptr) {
             MultiFab u_alias(uv_slab, amrex::make_alias, 0, 1); // alias u component
-            IntVect ratio = ba2d_lev.minimalBox().length()
-                          / states[iUwind]->boxArray().minimalBox().length();
-            amrex::average_down(u_alias, *states[iUwind], 0, 1, ratio);
+            AverageDownThenRemap(u_alias, *states[iUwind]);
         }
 
         if (iVwind < static_cast<int>(states.size()) && states[iVwind] != nullptr) {
             MultiFab v_alias(uv_slab, amrex::make_alias, 1, 1); // alias v component
-            IntVect ratio = ba2d_lev.minimalBox().length()
-                          / states[iVwind]->boxArray().minimalBox().length();
-            amrex::average_down(v_alias, *states[iVwind], 0, 1, ratio);
+            AverageDownThenRemap(v_alias, *states[iVwind]);
         }
     }
 
@@ -301,10 +300,7 @@ ERF::PackAtmosphericStates (amrex::Vector<amrex::MultiFab*>& states,
                 });
             }
         }
-        amrex::MultiFab tmp_dst(states[iPatm]->boxArray(),
-                                states[iPatm]->DistributionMap(), 1, 0);
-        tmp_dst.ParallelCopy(tmp, 0, 0, 1);
-        states[iPatm]->ParallelCopy(tmp_dst, 0, 0, 1);
+        AverageDownThenRemap(tmp, *states[iPatm]);
     }
 
     // --- Tair: getTgivenRandRTh(rho, RhoTheta, qv) at k=0 [K] ---
@@ -325,10 +321,7 @@ ERF::PackAtmosphericStates (amrex::Vector<amrex::MultiFab*>& states,
                 });
             }
         }
-        amrex::MultiFab tmp_dst(states[iTair]->boxArray(),
-                                states[iTair]->DistributionMap(), 1, 0);
-        tmp_dst.ParallelCopy(tmp, 0, 0, 1);
-        states[iTair]->ParallelCopy(tmp_dst, 0, 0, 1);
+        AverageDownThenRemap(tmp, *states[iTair]);
     }
 
     // --- Humidity lane: export relative humidity [0-1] for REMORA bulk fluxes ---
@@ -381,8 +374,7 @@ ERF::PackAtmosphericStates (amrex::Vector<amrex::MultiFab*>& states,
                         t(i,j,k) = static_cast<Real>(cloudy);
                     });
                 }
-                IntVect ratio = ba2d_lev.minimalBox().length() / states[iCloud]->boxArray().minimalBox().length();
-                amrex::average_down(tmp, *states[iCloud], 0, 1, ratio);
+                AverageDownThenRemap(tmp, *states[iCloud]);
             }
         }
 #if 0
@@ -412,18 +404,16 @@ ERF::PackAtmosphericStates (amrex::Vector<amrex::MultiFab*>& states,
 
     // --- Radiation: sw_flux_dn (comp=1) and lw_flux_dn (comp=3) from rad_fluxes ---
     // When absent, leave slabs at their driver-pre-filled values.
-    if (has_radiation) {
+        if (has_radiation) {
         if (iSWrad < static_cast<int>(states.size()) && states[iSWrad] != nullptr) {
             MultiFab tmp(ba2d_lev, dm, 1, 0);
             tmp.ParallelCopy(*rad_fluxes[lev], 1, 0, 1);
-            IntVect ratio = ba2d_lev.minimalBox().length() / states[iSWrad]->boxArray().minimalBox().length();
-            amrex::average_down(tmp, *states[iSWrad], 0, 1, ratio);
+            AverageDownThenRemap(tmp, *states[iSWrad]);
         }
         if (iLWrad < static_cast<int>(states.size()) && states[iLWrad] != nullptr) {
             MultiFab tmp(ba2d_lev, dm, 1, 0);
             tmp.ParallelCopy(*rad_fluxes[lev], 3, 0, 1);
-            IntVect ratio = ba2d_lev.minimalBox().length() / states[iLWrad]->boxArray().minimalBox().length();
-            amrex::average_down(tmp, *states[iLWrad], 0, 1, ratio);
+            AverageDownThenRemap(tmp, *states[iLWrad]);
         }
     }
 }
