@@ -77,7 +77,7 @@ erf.theta_ref = 300.0
 # INITIALIZATION - from sounding file
 erf.init_type = "input_sounding"
 erf.sounding_type = Ideal
-erf.input_sounding_file = "sounding_dust_abl"
+erf.input_sounding_file = "sounding_neutral_abl"
 
 # PBL CONFIGURATION - MRF
 erf.pbl_type = "MRF"
@@ -92,7 +92,7 @@ erf.latitude = 45.0
 erf.use_coriolis = true
 
 erf.abl_driver_type  = "GeostrophicWind"
-erf.abl_geo_wind     = 10.0 0.0 0.0
+erf.abl_geo_wind     = 15.0 0.0 0.0
 
 # DUST MODULE CONFIGURATION
 erf.dust.enable                    = true

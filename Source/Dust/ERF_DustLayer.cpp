@@ -203,6 +203,23 @@ DustLayer::initialize(
       << " dust_scalar_comp=" << m_dust_scalar_comp << "\n";
   }
 
+  // Phase 12: allocate deposition accumulators
+  dust_deposition_rate = std::make_unique<amrex::MultiFab>(
+    m_dg.ba, m_dg.dm, 1, amrex::IntVect(1,1,0));
+  dust_deposition_rate->setVal(0.0);
+
+  // dep_flux_atm: 2D slab on atm grid, same BoxArray as dust_flux_atm.
+  dep_flux_atm = std::make_unique<amrex::MultiFab>(
+    dust_flux_atm->boxArray(),
+    dust_flux_atm->DistributionMap(),
+    1, amrex::IntVect(1,1,0));
+  dep_flux_atm->setVal(0.0);
+
+  if (dust_params.dust_debug) {
+    amrex::Print() << "[DUST DEBUG] Phase 12: dust_deposition_rate"
+                   << " and dep_flux_atm allocated\n";
+  }
+
   // Populate surface MultiFabs from external rasters
   populate_dust_surface_maps(
     *dust_soil_type, *dust_silt_fraction, *dust_crust_index,
@@ -500,10 +517,49 @@ DustLayer::apply_settling_to_cc_source(
     }
 
     if (m_params.dust_debug) {
-        amrex::Print() << "[DUST DEBUG] Phase 11: settling applied"
-                       << " n_active_bins=" << n_active
-                       << " step=" << m_step << "\n";
+        amrex::Print() << "[DUST DEBUG] Phase 11: step=" << m_step
+                       << " settling applied n_active=" << n_active
+                       << " (erf.transport_scalar=true required)\n";
     }
+}
+
+void
+DustLayer::apply_deposition_bc(
+   amrex::MultiFab& cc_source, const amrex::MultiFab& S_old,
+   const amrex::MultiFab& z_phys_cc, const amrex::Geometry& geom_atm,
+   amrex::Real dt)
+{
+   if (!dep_flux_atm || !dust_ustar_in) return;
+   if (m_params.atm_feedback <= 0.0) return;
+
+   int n_active = m_params.transport_bins_separately
+                ? m_params.n_size_bins : 1;
+
+   for (int b = 0; b < n_active; ++b) {
+       int d_idx = (b < (int)m_params.bin_diameters.size())
+                 ? b : (int)m_params.bin_diameters.size()-1;
+       amrex::Real d_m  = m_params.bin_diameters[d_idx];
+       amrex::Real rhop = m_params.particle_density;
+       amrex::Real E_0  = m_params.deposition_E0;
+       int  comp = m_dust_scalar_comp + b;
+
+       apply_dust_deposition_bc(cc_source, *dep_flux_atm,
+                                 S_old, *dust_ustar_in,
+                                 z_phys_cc, geom_atm,
+                                 d_m, rhop, E_0, comp,
+                                 m_params.dust_debug);
+
+       apply_deposition_to_dust_grid(*dust_deposition_rate,
+                                      *dep_flux_atm,
+                                      m_dg.grid_ratio, dt);
+   }
+
+   if (m_params.dust_debug) {
+       amrex::Real dep_sum = dust_deposition_rate->sum(0);
+       amrex::Print() << "[DUST DEBUG] Phase 12: step=" << m_step
+                      << " deposition_rate_sum=" << dep_sum
+                      << " kg/m^2 (accumulated total)\n";
+   }
 }
 
 #endif // ERF_USE_DUST

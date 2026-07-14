@@ -1,54 +1,40 @@
-# DustSettling regression test
+# DustDeposition regression test
 #
-# Tests Phase 11 Stokes settling: apply_dust_settling_to_cc_source called
-# from ERF_Advance after dust injection (Phase 10).
+# Tests Phase 12 dry deposition BC: apply_dust_deposition_bc at k=klo,
+# and dust_deposition_rate accumulation on the 2D dust grid.
 #
-# Pattern: follows apply_fire_tendency_to_cc_source in
-#   Source/Fire/ERF_FireAtmCoupling.H
+# Atmospheric configuration: Moeng-Sullivan neutral ABL.
+# Reference: Exec/CanonicalTests/ABL/MRF_Enhancements/canonical/neutral_abl
+# MRF diagnoses u* ~ 0.56 m/s with 15 m/s geostrophic wind.
 #
-# Configuration:
-#   8x8x16 cells, 1000x1000x1000 m domain. dz = 62.5 m per cell.
-#   Geostrophic wind 10 m/s. MRF diagnoses u* > u*_t = 0.05 m/s.
-#   After Phase 10 injection, dust is present at k=0. Phase 11 settling
-#   moves mass downward each step.
-#   transport_bins_separately = false: single scalar slot, bin 0 diameter.
-#   bin_diameters[0] = 7e-6 m (PM10 coarse mode).
-#   max_step = 5.
-#
-# Stokes settling velocity for bin 0 (d=7 um):
-#   v_s = (2650-1.225)*9.81*(7e-6)^2/(18*1.81e-5)
-#       = 2648.775*9.81*4.9e-11/3.258e-4
-#       approx 3.9e-3 m/s
-# Cunningham correction C_c for d=7 um:
-#   ratio = 2*6.6e-8/7e-6 = 0.01886
-#   C_c = 1 + 0.01886*(1.257 + 0.4*exp(-0.55*7e-6/6.6e-8))
-#       = 1 + 0.01886*1.257 = approx 1.024
-#   v_s_corrected approx 4.0e-3 m/s
+# Deposition physics (bin 0, d=7 um, u*=0.56 m/s):
+#   v_s = (2650-1.225)*9.81*(7e-6)^2*Cc / (18*1.81e-5) approx 4.0e-3 m/s
+#   r_a = 1 / (0.56 * 0.4) = 4.46 s/m
+#   r_s = 1 / (0.56 * 3e-3) = 595 s/m
+#   denom = 4.46 + 595 + 4.46*595*4e-3 = 4.46 + 595 + 10.6 = 610 s/m
+#   v_d = 4e-3 + 1/610 approx 4e-3 + 1.6e-3 = 5.6e-3 m/s
+#   dep_flux = v_d * RhoDust(k=0)
 #
 # Expected results:
-#   (1) [DUST SETTLING] line printed each step with v_s approx 4e-3 m/s.
-#   (2) [DUST DEBUG] Phase 11 line printed each step.
-#   (3) cc_source at RhoAdv_comp, k=0 has negative settling tendency
-#       (mass leaves k=0 downward).
-#   (4) cc_source at RhoAdv_comp, k=1 has positive settling tendency
-#       (mass arrives from k=0).
-#   (5) Column integral of RhoDust * dz does not increase (no production
-#       from settling; only redistribution and Phase 10 injection).
-#   (6) Setting erf.dust.atm_feedback = 0 produces zero settling tendency
-#       (no dust in 3D to settle).
+#   (1) [DUST DEPOSITION] prints v_d approx 5.6e-3 m/s each step.
+#   (2) [DUST DEBUG] Phase 12 shows deposition_rate_sum > 0 after step 1.
+#   (3) Negative tendency at k=klo larger than Phase 11 alone.
+#   (4) dust_deposition_rate increases monotonically (never decreases).
+#   (5) Setting deposition_E0 = 0 gives v_d approx v_s (no surface collection).
+#   (6) [DUST DEBUG] Phase 10, 11, 12 lines all printed each step.
 #   (7) Run exits with code 0.
 #
 # References:
-#   Stokes (1851). Trans. Cambridge Phil. Soc., 9, 8-106.
-#   Allen & Raabe (1985). Aerosol Sci. Tech., 4, 269-286.
-#     https://doi.org/10.1080/02786828508959055
-#   Seinfeld & Pandis (2006). Atmospheric Chemistry and Physics, ch. 9.
-#     ISBN 978-0-471-72018-8.
-#   Ginoux et al. (2001). J. Geophys. Res., 106, 20255.
-#     https://doi.org/10.1029/2000JD901323
-#   ERF_FireAtmCoupling.H (pattern reference):
-#     https://github.com/hgopalan/ERF/blob/7856affedd8bb3c878b62c308f39c36bf2228791/
+#   Seinfeld & Pandis (2006). Atmos. Chem. and Phys., ch. 19. Wiley.
+#   Zhang et al. (2001). Atmos. Environ., 35, 549.
+#     https://doi.org/10.1016/S1352-2310(00)00326-5
+#   Slinn (1982). Atmos. Environ., 16, 1785.
+#     https://doi.org/10.1016/0004-6981(82)90271-2
+#   ERF_FireAtmCoupling.H (structural reference):
+#     https://github.com/hgopalan/ERF/blob/ecb9b7656bbb98fcc5d4f781e486825ee9478a73/
 #     Source/Fire/ERF_FireAtmCoupling.H
+#   Hong & Pan (1996). Mon. Wea. Rev., 124, 2322 (MRF scheme).
+#     https://doi.org/10.1175/1520-0493(1996)124<2322:NBLVDI>2.0.CO;2
 
 erf.prob_name = "ABL"
 max_step = 5
@@ -112,15 +98,16 @@ erf.dust.alpha_crust               = 0.5
 erf.dust.alpha_efflor              = 0.3
 erf.dust.test_ustar                = 0.0
 erf.dust.rho_air                   = 1.225
+# zref must equal erf.most.zref for extraction height consistency (Phase 9).
 erf.dust.zref                      = 24.0
 erf.dust.supp_tau_base_s           = 3600.0
 erf.dust.test_surf_temp_K          = 293.15
 erf.dust.test_wind_speed           = 0.0
 erf.dust.atm_feedback              = 1.0
-# transport_bins_separately = false: single scalar (lower cost, default).
 erf.dust.transport_bins_separately = false
-# bin_diameters: PM10 coarse, PM2.5, coarse mineral.
 erf.dust.bin_diameters             = 7.0e-6 2.5e-6 50.0e-6
+# deposition_E0 = 3e-3: bare mine surface (Zhang et al. 2001).
+erf.dust.deposition_E0             = 3.0e-3
 erf.dust.phreeqc_update_interval_s = 86400.0
 erf.dust.phreeqc_output_file       = ""
 erf.dust.blast_schedule_file       = ""

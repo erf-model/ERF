@@ -1004,6 +1004,104 @@ References
   simulated with the GOCART model. *J. Geophys. Res.*, 106, 20,255–20,273.
   https://doi.org/10.1029/2000JD901323
 
+Dry Deposition Lower Boundary Condition (Phase 12)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Phase 12 implements physically correct dry deposition at the lower boundary,
+replacing the zero-flux condition in Phase 11. Deposited mass is accumulated
+on a 2D dust grid for Phase 18 (MSHA worker exposure) and Phase 21 (PHREEQC
+feedback file output).
+
+Zhang et al. (2001) Resistance Scheme
+  Dry deposition velocity combines gravitational settling and surface
+  collection efficiency:
+
+  .. math::
+
+    v_d = v_s + \frac{1}{r_a + r_s + r_a r_s v_s}
+
+  where :math:`v_s` [m/s] is the Stokes settling velocity (Phase 11),
+  :math:`r_a` [s/m] is aerodynamic resistance, and :math:`r_s` [s/m] is
+  surface resistance.
+
+Aerodynamic and Surface Resistances
+  The aerodynamic resistance depends on friction velocity and von Kármán
+  constant:
+
+  .. math::
+
+    r_a = \frac{1}{u_* \kappa}
+
+  where :math:`u_*` [m/s] is friction velocity (extracted from SurfaceLayer
+  in Phase 9) and :math:`\kappa` = 0.4. The surface resistance accounts
+  for collection efficiency:
+
+  .. math::
+
+    r_s = \frac{1}{u_* E_0}
+
+  where :math:`E_0` [-] is the collection efficiency. Values from Zhang et al.
+  (2001):
+
+  * Bare mine surface: :math:`E_0` = 3.0×10⁻³ (default, ``deposition_E0`` parameter)
+  * Paved road: :math:`E_0` = 1.0×10⁻⁴
+  * Vegetated buffer: :math:`E_0` = 1.0×10⁻²
+
+Lower Boundary Flux and Accumulator
+  At the lowest grid cell (k=0), the deposition flux is:
+
+  .. math::
+
+    F_{\text{dep}} = v_d \cdot \rho_{\text{dust}}(k=0) \quad [\text{kg/m}^2/\text{s}]
+
+  This flux is applied as a source term:
+
+  .. math::
+
+    \frac{\partial (\rho_\text{dust})}{\partial t}\bigg|_{k=0,\,\text{dep}}
+      = -\frac{v_d \cdot \rho_\text{dust}(k=0)}{\Delta z_{k=0}}
+
+  Each timestep, the deposition flux is accumulated on the 2D dust grid
+  in ``dust_deposition_rate`` [kg/m²], initialized to zero and never reset:
+
+  .. math::
+
+    M_{\text{dep}}(t) = M_{\text{dep}}(t-1) + v_d(t) \cdot \rho_\text{dust}(k=0, t) \cdot \Delta t
+
+  This running total is used by Phase 18 to track cumulative exposure and
+  by Phase 21 to compute geochemical feedback.
+
+Test Configuration Requirements
+  All Phase 9–12 tests use the Moeng-Sullivan neutral ABL with:
+
+  * Domain: 3000 m × 3000 m × 1024 m
+  * Grid: 8 × 8 × 64 cells
+  * Geostrophic wind: 15.0 m/s → u* ≈ 0.56 m/s from MRF
+  * Reference height: ``erf.most.zref`` = ``erf.dust.zref`` = 24.0 m
+  * ``erf.transport_scalar = true`` required for scalar advection (PR #145 fix)
+  * Sounding file: ``sounding_neutral_abl`` copied to each test directory
+
+Structural Reference
+  ``ERF_DustDeposition.H`` contains device functions for aerodynamic and
+  surface resistance computation, plus inline MultiFab kernels for the
+  deposition tendency and accumulator update. The module follows the pattern
+  of ``ERF_FireAtmCoupling.H`` and ``ERF_DustSettling.H``.
+
+References
+  Seinfeld, J. H., and S. N. Pandis (2006).
+  *Atmospheric Chemistry and Physics: From Air Pollution to Climate Change*,
+  2nd ed., Chapter 19. Wiley.
+  ISBN 978-0-471-72018-8.
+
+  Zhang, L., R. Gong, P. A. Dawson, and C. P. J. Gong (2001). A parametrization
+  of dry particle deposition velocity for modeling aerosol transport and
+  deposition. *Atmos. Environ.*, 35, 549–560.
+  https://doi.org/10.1016/S1352-2310(00)00326-5
+
+  Slinn, W. G. N. (1982). Predictions for particle deposition to vegetative
+  canopies. *Atmos. Environ.*, 16, 1785–1794.
+  https://doi.org/10.1016/0004-6981(82)90271-2
+
 Development Phases
 ------------------
 

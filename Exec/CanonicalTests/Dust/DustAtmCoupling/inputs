@@ -90,7 +90,7 @@ erf.theta_ref = 300.0
 # INITIALIZATION - from sounding file
 erf.init_type = "input_sounding"
 erf.sounding_type = Ideal
-erf.input_sounding_file = "sounding_dust_abl"
+erf.input_sounding_file = "sounding_neutral_abl"
 
 # PBL CONFIGURATION - Baseline MRF (neutral case)
 erf.pbl_type = "MRF"
@@ -110,7 +110,11 @@ erf.latitude = 45.0  # mid-latitude (f = 1.0e-4 s^-1)
 erf.use_coriolis = true
 
 erf.abl_driver_type = "GeostrophicWind"
-erf.abl_geo_wind     = 10.0 0.0 0.0
+erf.abl_geo_wind     = 15.0 0.0 0.0
+
+# Required for the dust scalar to be advected in ERF_SlowRhsPost.cpp.
+# Without this flag is_valid_slow_var for the dust component is 0 (PR #145).
+erf.transport_scalar = true
 
 erf.dust.enable                    = true
 erf.dust.dust_debug                = true
@@ -125,7 +129,7 @@ erf.dust.alpha_crust               = 0.5
 erf.dust.alpha_efflor              = 0.3
 erf.dust.test_ustar                = 0.0
 erf.dust.rho_air                   = 1.225
-erf.dust.zref                      = 50.0
+erf.dust.zref                      = 24.0
 erf.dust.supp_tau_base_s           = 3600.0
 erf.dust.test_surf_temp_K          = 293.15
 erf.dust.test_wind_speed           = 0.0
