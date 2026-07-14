@@ -270,10 +270,6 @@ ERF::Advance (int lev, double time, double dt_lev, int iteration, int /*ncycle*/
                    U_new, V_new, W_new,
                    cc_source, xmom_source, ymom_source, zmom_source, buoyancy,
                    Geom(lev), dt_lev, time);
-amrex::Print() << "[DUST CHECK] S_new dust max AFTER dycore = "
-               << S_new.max(m_DustLayer->get_dust_scalar_comp()) << "\n";
-amrex::Print() << "[DUST CHECK] cc_source comp4 max AFTER dycore = "
-               << cc_source.max(m_DustLayer->get_dust_scalar_comp()) << "\n";
     // **************************************************************************************
     // Tests on the reasonableness of the solution after the dycore
     // **************************************************************************************
