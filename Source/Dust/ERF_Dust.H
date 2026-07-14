@@ -23,6 +23,7 @@
 #include <ERF_DustSuppression.H>
 #include <ERF_DustWindExtract.H>
 #include <ERF_DustAtmCoupling.H>
+#include <ERF_DustSettling.H>
 
 #endif // ERF_USE_DUST
 

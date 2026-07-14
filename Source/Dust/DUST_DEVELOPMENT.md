@@ -18,7 +18,7 @@ No phase references or progress notes appear in source files.
 | 8 | Suppression agent degradation model | Complete | 2026-07-13 | PR #139. ERF_DustSuppression.H. Retreat flag. amrex.fpe_trap_invalid=0 applied to all tests. AMReX_ParallelFor.H bug fixed (commit 6054023). |
 | 9 | Wind extraction from ERF-Atm to ERF-Dust | Complete | 2026-07-13 | PR #140. ERF_DustWindExtract.H/cpp. Adapts fill_fire_wind_from_interpolation from Source/Fire/. SurfaceLayer accessors: get_u_star(0), get_t_surf(0), get_pblh(0). Replaces test_ustar, test_surf_temp_K, test_wind_speed placeholders. |
 | 10 | ERF-Dust to ERF-Atm aerosol injection | Complete | 2026-07-13 | ERF_DustAtmCoupling.H/cpp. Adapts coarsen_fire_flux_to_atm and apply_fire_tendency_to_cc_source from Source/Fire/. Single scalar slot (RhoAdv_comp). transport_bins_separately=false default. Injection at k=0 only. |
-| 11 | Multi-size-bin scalar advection and Stokes settling | Not started | | |
+| 11 | Multi-size-bin scalar advection and Stokes settling | Complete | 2026-07-14 | ERF_DustSettling.H. Stokes settling with Cunningham correction. First-order upwind flux divergence. Per-bin diameters via bin_diameters parameter. transport_bins_separately flag controls 1 vs n_size_bins 3D scalar slots. |
 | 12 | Dry deposition lower boundary condition | Not started | | |
 | 13 | Two-way coupling: ERF-Atm returns fields to ERF-Dust | Not started | | |
 | 14 | MRF nonlocal countergradient extension to dust scalars | Not started | | |

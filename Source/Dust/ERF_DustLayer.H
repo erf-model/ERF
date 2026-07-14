@@ -50,6 +50,7 @@
 
 #ifdef ERF_USE_DUST
 #include <ERF_DustBlastSchedule.H>
+#include <ERF_DustSettling.H>
 #endif
 
 // Forward declarations
@@ -138,6 +139,23 @@ public:
     void apply_to_cc_source(amrex::MultiFab&       cc_source,
                             const amrex::MultiFab& z_phys_cc,
                             const amrex::Geometry& geom_atm);
+
+    /**
+     * @brief Apply Stokes settling tendency to cc_source for all active bins.
+     *
+     * Called from ERF_Advance.cpp at the same site as apply_to_cc_source.
+     * When transport_bins_separately = false, uses bin 0 diameter for the
+     * single scalar. When true, applies per-bin settling to each slot.
+     *
+     * @param[in,out] cc_source   Cell-centred source MultiFab.
+     * @param[in]     S_old       Conserved state at time n.
+     * @param[in]     z_phys_cc   Cell-centre terrain height [m].
+     * @param[in]     geom_atm    Atmospheric geometry.
+     */
+    void apply_settling_to_cc_source(amrex::MultiFab&       cc_source,
+                                      const amrex::MultiFab& S_old,
+                                      const amrex::MultiFab& z_phys_cc,
+                                      const amrex::Geometry& geom_atm);
 
 private:
     DustGrid                              m_dg;
