@@ -33,7 +33,7 @@ USE_FFT = FALSE
 # Enable NOAH LSM
 USE_NOAHMP = FALSE
 
-# Enable particles (required for ParticleTests or MultiSpeciesBubble) 
+# Enable particles (required for ParticleTests, MultiSpeciesBubble or inputs_SDM in RICO)  
 USE_PARTICLES = FALSE
 
 # GNU Make

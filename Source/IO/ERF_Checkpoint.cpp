@@ -7,8 +7,16 @@
 #include "ERF.H"
 #include "AMReX_PlotFileUtil.H"
 #include "ERF_ReadFromERFBdy.H"
+#include "ERF_Provenance.H"
 
 using namespace amrex;
+
+namespace
+{
+
+bool provenance_warning_emitted = false;
+
+} // namespace
 
 /**
  * Utility to skip to next line in Header file input stream.
@@ -420,7 +428,7 @@ ERF::WriteCheckpointFile () const
 
         if (solverChoice.use_real_bcs && solverChoice.init_type == InitType::WRFInput) {
             if (lev == 0) {
-                amrex::Print() << "Writing C1H/C2H/MUB/PHB variables at level " << lev << std::endl;
+                amrex::Print() << "Writing C1H/C2H/RDNW/MUB/PHB variables at level " << lev << std::endl;
                 MultiFab tmp1d(ba1d[0],dmap[0],1,0);
 
                 MultiFab::Copy(tmp1d,*wrf_C1H,0,0,1,0);
@@ -429,13 +437,16 @@ ERF::WriteCheckpointFile () const
                 MultiFab::Copy(tmp1d,*wrf_C2H,0,0,1,0);
                 VisMF::Write(tmp1d, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "C2H"));
 
+                MultiFab::Copy(tmp1d,*wrf_RDNW,0,0,1,0);
+                VisMF::Write(tmp1d, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "RDNW"));
+
                 MultiFab tmp2d(ba2d[0],dmap[0],1,wrf_MUB->nGrowVect());
 
                 MultiFab::Copy(tmp2d,*wrf_MUB,0,0,1,wrf_MUB->nGrowVect());
                 VisMF::Write(tmp2d, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "MUB"));
 
-                ng = IntVect(1,1,0);
-                MultiFab tmp3d(convert(grids[0],IntVect(0,0,1)),dmap[0],1,ng);
+                MultiFab tmp3d(convert(grids[0],IntVect(0,0,1)),dmap[0],1,wrf_PHB->nGrowVect());
+
                 MultiFab::Copy(tmp3d,*wrf_PHB,0,0,1,ng);
                 VisMF::Write(tmp3d, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "PHB"));
             }
@@ -489,6 +500,11 @@ ERF::WriteCheckpointFile () const
 #endif
 #endif
 
+    // Write job_info after checkpoint state so the provenance record describes
+    // the completed output attempt and can seed a later restart lineage.
+    writeJobInfo(checkpointname, erf_provenance::ArtifactType::Checkpoint,
+                 istep[0], t_new[0]);
+
     if (verbose > 0)
     {
         auto dCheckTime = amrex::second() - dCheckTime0;
@@ -504,6 +520,34 @@ void
 ERF::ReadCheckpointFile ()
 {
     Print() << "Restart from native checkpoint " << restart_chkfile << "\n";
+
+    const auto provenance_result =
+        erf_provenance::read_job_info_file(restart_chkfile + "/job_info");
+    if (provenance_result.valid() &&
+        provenance_result.record.artifact.artifact_type == erf_provenance::ArtifactType::Checkpoint) {
+        execution_provenance = erf_provenance::make_restart_provenance(
+            execution_provenance, provenance_result.record, restart_chkfile);
+    } else {
+        // Provenance is auxiliary metadata. A missing or invalid record must not make
+        // a valid physical checkpoint unreadable.
+        if (ParallelDescriptor::IOProcessor() && !provenance_warning_emitted) {
+            provenance_warning_emitted = true;
+            const std::string reason = provenance_result.valid()
+                ? "the provenance record has artifact_type=" +
+                  std::string(erf_provenance::artifact_type_token(
+                      provenance_result.record.artifact.artifact_type)) +
+                  ", not checkpoint"
+                : provenance_result.diagnostic;
+            Warning("Cannot recover provenance from native checkpoint '" +
+                    restart_chkfile + "': " + reason +
+                    ". ERF will continue with incomplete provenance.");
+        }
+        const auto failure_status = provenance_result.valid()
+            ? erf_provenance::ProvenanceReadStatus::ArtifactTypeMismatch
+            : provenance_result.status;
+        execution_provenance = erf_provenance::make_incomplete_restart_provenance(
+            execution_provenance, failure_status, restart_chkfile);
+    }
 
     // Header
     std::string File(restart_chkfile + "/Header");
@@ -948,7 +992,7 @@ ERF::ReadCheckpointFile ()
 
         if (solverChoice.use_real_bcs && solverChoice.init_type == InitType::WRFInput) {
             if (lev == 0) {
-                amrex::Print() << "Reading C1H/C2H/MUB/PHB variables at level " << lev << std::endl;
+                amrex::Print() << "Reading C1H/C2H/RDNW/MUB/PHB variables at level " << lev << std::endl;
                 MultiFab tmp1d(ba1d[0],dmap[0],1,0);
 
                 VisMF::Read(tmp1d, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "C1H"));
@@ -957,14 +1001,16 @@ ERF::ReadCheckpointFile ()
                 VisMF::Read(tmp1d, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "C2H"));
                 MultiFab::Copy(*wrf_C2H,tmp1d,0,0,1,0);
 
+                VisMF::Read(tmp1d, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "RDNW"));
+                MultiFab::Copy(*wrf_RDNW,tmp1d,0,0,1,0);
+
                 MultiFab tmp2d(ba2d[0],dmap[0],1,wrf_MUB->nGrowVect());
 
                 VisMF::Read(tmp2d, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "MUB"));
                 MultiFab::Copy(*wrf_MUB,tmp2d,0,0,1,wrf_MUB->nGrowVect());
 
-                ng = IntVect(1,1,0);
-                MultiFab tmp3d(convert(grids[0],IntVect(0,0,1)),dmap[0],1,ng);
-                wrf_PHB = std::make_unique<MultiFab>(convert(grids[0],IntVect(0,0,1)),dmap[0],1,ng);
+                MultiFab tmp3d(convert(grids[0],IntVect(0,0,1)),dmap[0],1,wrf_PHB->nGrowVect());
+
                 VisMF::Read(tmp3d, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "PHB"));
                 MultiFab::Copy(*wrf_PHB,tmp3d,0,0,1,ng);
             }
