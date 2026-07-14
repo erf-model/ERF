@@ -4,8 +4,8 @@ Unit Testing
 ============
 
 ERF uses GoogleTest for focused tests of equations, algorithms, interfaces,
-and parallel behavior. CTest builds the test inventory, assigns labels, and
-runs each registered case.
+and parallel behavior. CMake discovers and registers the cases with CTest.
+CTest selects and runs the registered cases.
 
 Unit tests complement regression tests. A unit test checks a small contract
 and reports the failed condition. A regression test runs an ERF problem and
@@ -14,6 +14,10 @@ both a local rule and a complete model configuration. See
 :ref:`RegressionTests` for the regression-test workflow.
 
 This guide explains how to build, run, debug, and add unit tests.
+
+.. contents:: On this page
+   :local:
+   :depth: 2
 
 Choose the right test
 ---------------------
@@ -102,6 +106,8 @@ Use ``ERF_ENABLE_TESTS=ON`` when one build should contain both suites:
    cmake -S . -B build-tests \
      -DCMAKE_BUILD_TYPE=Debug \
      -DERF_ENABLE_TESTS=ON \
+     -DERF_ENABLE_UNIT_TESTS=ON \
+     -DERF_ENABLE_REGRESSION_TESTS_ONLY=OFF \
      -DERF_ENABLE_MPI=ON \
      '-DERF_PARALLEL_TEST_NRANKS=1;2;4'
 
@@ -147,6 +153,19 @@ build and test time:
 Do not assume that a direct test-binary path is the same on a single-config
 and a multi-config build. Prefer CTest when writing portable instructions.
 
+Cross-compiling
+---------------
+
+ERF discovers GoogleTest cases by running each compiled test binary with
+``--gtest_list_tests`` after the binary is built. The listing path does not
+initialize MPI, AMReX, or the accelerator runtime, but the build host must
+still be able to execute the target binary.
+
+For a true cross-compile, provide a working
+``CMAKE_CROSSCOMPILING_EMULATOR`` through the toolchain or perform the test
+build on the target system. Do not treat a cross-compiled binary as a
+validated test run until it has executed on the target hardware.
+
 Build for a GPU backend
 -----------------------
 
@@ -168,12 +187,16 @@ Test configuration options
    * - Option
      - Effect
    * - ``ERF_ENABLE_TESTS``
-     - Enables regression tests and, unless regression-only mode is active,
-       unit tests.
+     - Enables the regression suite. In a fresh build directory, it also
+       defaults ``ERF_ENABLE_UNIT_TESTS`` to ``ON`` unless regression-only mode
+       is active.
    * - ``ERF_ENABLE_UNIT_TESTS``
-     - Enables the GoogleTest targets and unit-test registration.
+     - Enables the GoogleTest targets and unit-test registration. Set it
+       explicitly when reusing a build directory whose cache may contain
+       ``OFF``.
    * - ``ERF_ENABLE_REGRESSION_TESTS_ONLY``
-     - Enables only the regression suite and forces unit tests off.
+     - When used with ``ERF_ENABLE_TESTS=ON``, forces
+       ``ERF_ENABLE_UNIT_TESTS=OFF`` so only regression tests are configured.
    * - ``ERF_ENABLE_MPI``
      - Builds the parallel GoogleTest target and enables MPI-aware ERF code.
    * - ``ERF_PARALLEL_TEST_NRANKS``
@@ -380,7 +403,8 @@ the same order with:
      --gtest_shuffle \
      --gtest_random_seed=<seed>
 
-The MPI whole-binary stress run is manual or scheduled:
+The whole-binary MPI stress run is not registered in pull-request CI. Run it
+manually, or add it to a machine-specific scheduled workflow:
 
 .. code-block:: bash
 
@@ -397,7 +421,7 @@ GoogleTest XML files appear below:
 
 .. code-block:: text
 
-   build-tests/Tests/Unit/test-results/gtest
+   build-tests/test-results/gtest
 
 MPI report names include the rank count and rank so concurrent processes do
 not overwrite one another.
@@ -415,7 +439,8 @@ Start with:
    LastTest.log
    LastTestsFailed.log
 
-CI uploads the GoogleTest reports and CTest logs even when a test step fails.
+The main ``ERF CI`` workflow uploads the GoogleTest report tree and the CTest
+temporary logs even when a test step fails.
 
 Test layout
 -----------
@@ -507,6 +532,32 @@ obvious:
 
 Do not write ``Works``, ``Basic``, or ``Smoke`` when a precise behavior name
 is available.
+
+Add a SHOC test
+---------------
+
+Place SHOC tests in ``Tests/Unit/Shoc``. Add a new ``TEST`` to an existing
+source file when it belongs to that file's contract. Add a new source file to
+the ``erf_shoc_unit_tests`` source list in
+``Tests/Unit/Shoc/CMakeLists.txt``.
+
+Run the narrow case first, then the SHOC label:
+
+.. code-block:: bash
+
+   ctest --test-dir build-tests \
+     -R '<exact-shoc-test-name>' \
+     -VV \
+     --no-tests=error
+
+   ctest --test-dir build-tests \
+     -L shoc \
+     --output-on-failure \
+     --no-tests=error
+
+Keep reusable SHOC fixtures under ``Tests/Unit/Shoc/fixtures``. Use
+``ERF_SHOC_UNIT_FIXTURE_DIR`` when a test must locate a source fixture. Do not
+hard-code an absolute source-tree path.
 
 Choose TEST, TEST_P, or a loop
 ------------------------------
@@ -697,15 +748,13 @@ A small reduction test may follow this pattern:
 
    TEST(MyFeatureParallel, GlobalSumIncludesEveryRank)
    {
-       const long rank =
-           static_cast<long>(amrex::ParallelDescriptor::MyProc());
-       const long nprocs =
-           static_cast<long>(amrex::ParallelDescriptor::NProcs());
+       const int rank = amrex::ParallelDescriptor::MyProc();
+       const int nprocs = amrex::ParallelDescriptor::NProcs();
 
-       long global_sum = rank + 1;
-       amrex::ParallelDescriptor::ReduceLongSum(global_sum);
+       int global_sum = rank + 1;
+       amrex::ParallelDescriptor::ReduceIntSum(global_sum);
 
-       const long expected = nprocs * (nprocs + 1) / 2;
+       const int expected = nprocs * (nprocs + 1) / 2;
        EXPECT_EQ(global_sum, expected);
    }
 
@@ -875,6 +924,9 @@ Check that:
 - the new source file is part of the intended target;
 - the target was rebuilt after the test was added;
 - the selected label or regular expression is correct.
+
+When a reconfigured build omits unit tests, inspect ``ERF_ENABLE_UNIT_TESTS``
+in the CMake cache or set it explicitly.
 
 Use ``--no-tests=error`` so an empty selection fails.
 

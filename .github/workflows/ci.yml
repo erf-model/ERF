@@ -158,6 +158,13 @@ jobs:
         ctest -L regression -VV --no-tests=error
       working-directory: ${{runner.workspace}}/ERF/build-${{matrix.os}}
 
+    - name: Verify test reports
+      if: success()
+      shell: bash
+      run: |
+        report_root="${{runner.workspace}}/ERF/build-${{matrix.os}}/test-results"
+        test -n "$(find "${report_root}" -type f -name '*.xml' -print -quit)"
+
     - name: Upload test reports and CTest logs
       if: always()
       uses: actions/upload-artifact@v4

@@ -29,6 +29,8 @@ Enable both layers with:
    cmake -S . -B build-tests \
      -DCMAKE_BUILD_TYPE=Debug \
      -DERF_ENABLE_TESTS=ON \
+     -DERF_ENABLE_UNIT_TESTS=ON \
+     -DERF_ENABLE_REGRESSION_TESTS_ONLY=OFF \
      -DERF_ENABLE_MPI=ON \
      '-DERF_PARALLEL_TEST_NRANKS=1;2'
 

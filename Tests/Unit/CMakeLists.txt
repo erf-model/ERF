@@ -24,6 +24,9 @@ endif()
 
 include(GoogleTest)
 
+set(ERF_GTEST_REPORT_ROOT
+    "${PROJECT_BINARY_DIR}/test-results/gtest")
+
 function(erf_register_gtest_suite target)
   set(options)
   set(oneValueArgs
@@ -63,7 +66,7 @@ function(erf_register_gtest_suite target)
 
   if(NOT ERF_GTEST_XML_OUTPUT_DIR)
     set(ERF_GTEST_XML_OUTPUT_DIR
-        "${CMAKE_CURRENT_BINARY_DIR}/test-results/gtest/${target}")
+        "${ERF_GTEST_REPORT_ROOT}/${target}")
   endif()
 
   file(MAKE_DIRECTORY "${ERF_GTEST_XML_OUTPUT_DIR}")
@@ -148,7 +151,7 @@ add_test(NAME erf_unit_tests_shuffle_repeat
   COMMAND ${CMAKE_CURRENT_BINARY_DIR}/${erf_exe_name}
     --gtest_shuffle
     --gtest_repeat=3
-    --gtest_output=xml:${CMAKE_CURRENT_BINARY_DIR}/test-results/gtest/${erf_exe_name}/shuffle-repeat.xml
+    --gtest_output=xml:${ERF_GTEST_REPORT_ROOT}/${erf_exe_name}/shuffle-repeat.xml
 )
 set_tests_properties(erf_unit_tests_shuffle_repeat
   PROPERTIES
@@ -253,7 +256,7 @@ if(ERF_ENABLE_MPI)
     COMMAND ${CMAKE_COMMAND}
       -DTEST_EXECUTABLE=$<TARGET_FILE:${erf_parallel_exe_name}>
       -DOUTPUT_FILE=${erf_parallel_ctest_file}
-      -DREPORT_DIRECTORY=${CMAKE_CURRENT_BINARY_DIR}/test-results/gtest/${erf_parallel_exe_name}
+      -DREPORT_DIRECTORY=${ERF_GTEST_REPORT_ROOT}/${erf_parallel_exe_name}
       -DMPIEXEC_EXECUTABLE=${MPIEXEC_EXECUTABLE}
       -DMPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}
       -DMPIEXEC_PREFLAGS=${erf_mpiexec_preflags_arg}
