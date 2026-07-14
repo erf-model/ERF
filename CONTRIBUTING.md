@@ -207,9 +207,12 @@ commits have been saved in `new_branch` branch.
 
 ## Unit-test development
 
-The supported GoogleTest and CTest patterns, MPI safety rules, and copyable
-build and rerun commands are documented in
-[Tests/Unit/README.md](Tests/Unit/README.md).
+The [Unit Testing guide](Docs/sphinx_doc/UnitTests.rst) explains how to build,
+run, debug, and add GoogleTest cases. It also defines the numerical,
+host/device, MPI, portability, and test-design rules for new tests.
+
+The rendered guide is available in the
+[ERF documentation](https://erf.readthedocs.io/en/latest/UnitTests.html).
 
 ### Code Guidelines
 
