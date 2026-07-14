@@ -371,7 +371,7 @@ public:
 
             // Set update
             delta_qv = qsat - qv_array(i,j,k);
-            delta_qc = delta_qv + qi_array(i,j,k);
+            delta_qc = -delta_qv + qi_array(i,j,k);
             delta_qi = -qi_array(i,j,k);
 
             // Exhausted liquid during single-phase
@@ -423,7 +423,7 @@ public:
             // Set update
             delta_qv = qsat - qv_array(i,j,k);
             delta_qc = -qc_array(i,j,k);
-            delta_qi = delta_qv + qc_array(i,j,k);
+            delta_qi = -delta_qv + qc_array(i,j,k);
 
             // Exhausted liquid during single-phase
             if ((qi_array(i,j,k) + delta_qi) < zero) {
