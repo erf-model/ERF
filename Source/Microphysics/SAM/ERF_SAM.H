@@ -340,6 +340,7 @@ public:
             //=======================================================================
             // Single-phase no-ice Newton iteration to qv=qsat (cloud phase only)
             //=======================================================================
+            niter  = 0;
             tabs   = tabs_array(i,j,k);
             lstarw = fac_cond;
             lstari = fac_fus;
@@ -390,11 +391,12 @@ public:
             //=======================================================================
             // Single-phase no-liquid Newton iteration to qv=qsat (cloud phase only)
             //=======================================================================
+            niter  = 0;
             tabs   = tabs_array(i,j,k);
             lstarw = fac_sub;
             lstarc = fac_fus;
-            erf_qsatw(tabs, pres, qsat);
-            erf_dtqsatw(tabs, pres, dqsat);
+            erf_qsati(tabs, pres, qsat);
+            erf_dtqsati(tabs, pres, dqsat);
             F = sam_newton_residual_no_liquid(tabs, tabs_array(i,j,k),
                                               lstarw, qv_array(i,j,k), qsat,
                                               lstarc, qc_array(i,j,k));
@@ -406,8 +408,8 @@ public:
                 tabs -= F/dFdT;
 
                 // Saturation moisture fractions
-                erf_qsatw(tabs, pres, qsat);
-                erf_dtqsatw(tabs, pres, dqsat);
+                erf_qsati(tabs, pres, qsat);
+                erf_dtqsati(tabs, pres, dqsat);
 
                 // Function for root finding:
                 // 0 = -T_new + T_old + L_s/C_p * (qv - qsat) + L_f/C_p * qc
