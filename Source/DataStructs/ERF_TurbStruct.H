@@ -188,6 +188,14 @@ public:
           pp, "enable_mrf_unbounded_vpert", enable_mrf_unbounded_vpert, lev, max_level);
         query_one_or_per_level(
           pp, "pbl_mrf_use_zero_ri_extent", pbl_mrf_use_zero_ri_extent, lev, max_level);
+#ifdef ERF_USE_DUST
+        query_one_or_per_level(
+          pp, "dust_mrf_Sc_t", dust_mrf_Sc_t, lev, max_level);
+        if (dust_mrf_Sc_t <= 0.0) {
+          // Zero or negative: use same diffusivity as heat (no Sc_t scaling).
+          dust_mrf_Sc_t = Pr_t; // default to Prandtl number
+        }
+#endif
       } else if (pbl_type == PBLType::SHOC) {
 #ifndef ERF_USE_SHOC
           amrex::Abort("You set use_shoc to true but didn't build with SHOC; you must rebuild the executable");
@@ -441,6 +449,10 @@ public:
                      << std::endl;
       amrex::Print() << "    pbl_mrf_use_zero_ri_extent : " << pbl_mrf_use_zero_ri_extent
                      << std::endl;
+#ifdef ERF_USE_DUST
+      amrex::Print() << "    dust_mrf_Sc_t              : " << dust_mrf_Sc_t
+                     << std::endl;
+#endif
     }
   }
 
@@ -569,6 +581,13 @@ public:
   bool pbl_mrf_highres_bounds = false; // if true, apply high-resolution grid-dependent diffusivity bounds instead of global forecast bounds
   bool enable_mrf_unbounded_vpert = false; // if true, does not limit VPERT to GAMCRT
   bool pbl_mrf_use_zero_ri_extent = false; // if true, use Ri=0 (pbli_zero_arr) for K-profile extent; default false uses Ri=0.5 corrector (pbli_arr) for WRF compatibility
+#ifdef ERF_USE_DUST
+  // Turbulent Schmidt number for dust scalar in MRF PBL scheme (Phase 14).
+  // Controls EddyDiff::Scalar_v relative to EddyDiff::Theta_v.
+  // Sc_t = Pr_t (default) gives identical diffusivity to heat.
+  // Seinfeld & Pandis (2006), Ch. 16: https://doi.org/10.1002/9781118227572
+  amrex::Real dust_mrf_Sc_t = 0.0; // 0 = use same as Pr_t (default)
+#endif
   // MYNN2.5 PBL model
   // TKE/QKE stuff
   bool advect_tke = true; // if MYNN2.5 PBL is used default is turb transport in
