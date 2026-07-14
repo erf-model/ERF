@@ -1357,6 +1357,125 @@ References
     simulated with the GOCART model. *J. Geophys. Res.*, 106, 20255–20273.
     https://doi.org/10.1029/2000JD901323
 
+Dust Diagnostics and Plotfile Output (Phase 16)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Phase 16 implements diagnostic output for the dust module, writing two types of files:
+
+1. **Dust Plotfile** on native grid: 8-component 2D AMReX plotfile on the dust grid
+   (independent of ERF AMR hierarchy)
+2. **CSV time series**: Per-step scalar diagnostics to ``dust_diag.dat``
+
+Plotfile Format
+  The dust plotfile is written using the `VisMF::Write` + `WriteGenericPlotfileHeader`
+  pattern, following the fire module (``ERF_FirePlotfile.cpp``). This approach is
+  necessary because the dust grid has its own ``BoxArray`` and ``Geometry``
+  (``m_dg.ba``, ``m_dg.geom``) that are independent of the ERF AMR level hierarchy.
+  The standard ``WriteMultiLevelPlotfile`` cannot be used for this reason.
+
+  **Output structure**:
+
+  * ``plotfile_name/Header``: Standard AMReX ASCII header with variable names, geometry,
+    and time metadata
+  * ``plotfile_name/Level_0/Cell_H``, ``Cell_000000``, etc.: Binary data from ``VisMF::Write``
+  * ``plotfile_name/DustMetadata.json``: Sidecar JSON with ``format_version``, ``time``,
+    ``step``, ``grid_ratio``, ``n_variables``
+
+  **Variables written per plotfile** (8 components):
+
+  1. ``dust_emission_flux`` [kg/m²/s] — Total saltation + vertical emission flux.
+     Marticorena & Bergametti (1995).
+  2. ``dust_ustar_in`` [m/s] — Friction velocity u* extracted from MRF surface layer.
+  3. ``dust_ustar_t`` [m/s] — Threshold friction velocity. Shao & Lu (2000).
+  4. ``dust_deposition_rate`` [kg/m²] — Accumulated dry deposition. Zhang et al. (2001).
+  5. ``dust_conc_sfc`` [kg/m³] — Near-surface dust concentration (loading feedback).
+     Shao (2001).
+  6. ``dust_surf_moist`` [kg/m²/s] — Surface moisture flux. Null-safe when no moisture
+     scheme. Fecan et al. (1999).
+  7. ``dust_suppression`` [0–1] — Suppression agent coverage. Gillies et al. (2005).
+  8. ``dust_retreat_flag`` [0/1] — Re-treatment flag.
+
+CSV Time Series
+  The ``dust_diag.dat`` file follows the fire module CSV append pattern
+  (``ERF_FireStatsOutput.H``): header written on first call, append one row per step.
+  Only the IOProcessor (rank 0) writes; all ranks compute reductions in parallel.
+
+  **Column definitions**:
+
+  * ``step`` — Current timestep number
+  * ``time_s`` — Simulation time [s]
+  * ``emission_total_kg_s`` — Domain-integrated emission flux [kg/s]
+  * ``deposition_total_kg_m2`` — Domain-accumulated deposition [kg/m²]
+  * ``ustar_max_m_s`` — Maximum u* [m/s] (used for threshold checks)
+  * ``flux_max_kg_m2_s`` — Maximum emission flux [kg/m²/s]
+  * ``conc_sfc_max_kg_m3`` — Maximum near-surface concentration [kg/m³]
+
+Write Timing and Final-Step Guard
+  Plotfiles and diagnostics are written at:
+
+  * Every ``dust_plot_int`` steps (if ``dust_plot_int > 0``)
+  * At the final simulation step, even if the step number is not a multiple of
+    ``dust_plot_int``
+
+  The final-step guard uses ``m_last_dust_plot_step``, initialized to -1 and updated
+  each time a plotfile is written. In ``WriteAtFinalTime``, the condition
+  ``is_final=true && nstep > m_last_dust_plot_step`` ensures a write at simulation
+  end regardless of ``dust_plot_int``.
+
+Parameters
+  * ``erf.dust.dust_plot_int`` [steps] (default: -1) — Interval between plotfile writes.
+    Disabled when ``-1``. Set to 0 to write only at final time.
+  * ``erf.dust.dust_plot_prefix`` [string] (default: ``"plt_dust_"``) — Prefix for
+    plotfile directory names (format: ``{prefix}{step:05d}``)
+  * ``erf.dust.dust_diag_file`` [string] (default: ``"dust_diag.dat"``) — Path to CSV
+    time series file (relative to run directory)
+
+Test Configuration
+  The ``DustOutput`` regtest uses ``max_step = 7`` and ``dust_plot_int = 3``:
+
+  * Plotfiles created at steps 0 (InitData_post), 3, 6 (multiples of 3), and 7 (final)
+  * Each plotfile contains Header, Level_0/Cell* binary, and DustMetadata.json
+  * CSV file has header row plus 8 data rows (steps 0–7)
+  * Emissions increase from 0 at step 0 to max by step 1
+  * Deposition increases monotonically with time
+  * Phase 16 debug output confirms plotfile writes at correct steps
+
+Disabling Plotfile Output
+  Set ``erf.dust.dust_plot_int = -1`` to disable plotfile creation (default state).
+  CSV diagnostics continue to be written every step regardless of ``dust_plot_int``.
+
+Implementation
+  Phase 16 introduces three new files:
+
+  * ``Source/Dust/ERF_DustPlotfileCatalog.H`` — Header-only; provides
+    ``dust_plotfile_var_names()`` and ``dust_plotfile_ncomp()``
+  * ``Source/Dust/ERF_DustPlotfile.H`` — Forward declaration for ``WriteDustPlotfile``
+  * ``Source/Dust/ERF_DustPlotfile.cpp`` — Implements collective VisMF::Write and
+    IOProcessor-only Header/JSON writes
+  * ``Source/Dust/ERF_DustStatsOutput.H`` — Header-only; provides
+    ``write_dust_stats_header`` and ``append_dust_stats``
+
+  ``DustLayer::write_output`` is called from:
+
+  * ``ERF::InitData_post`` (initial state)
+  * ``ERF::WriteAtIntermediateTime`` (every timestep)
+  * ``ERF::WriteAtFinalTime`` (at end of run)
+
+References
+  .. [Zhang2001] Zhang, L., S. L. Gong, J. Padro, and L. Barrie (2001). A size-segregated
+    particle dry deposition scheme for an atmospheric aerosol module.
+    *Atmos. Environ.*, 35, 549–560.
+    https://doi.org/10.1016/S1352-2310(00)00326-5
+  .. [Fecan1999] Fecan, F., B. Marticorena, and G. Bergametti (1999). Parametrization
+    of the increase of the aeolian erosion threshold wind friction velocity due to
+    soil moisture for arid and semi-arid areas.
+    *Ann. Geophys.*, 17, 149–157.
+    https://doi.org/10.1007/s00585-999-0149-7
+  .. [Gillies2005] Gillies, J. A., W. G. Nickling, and G. S. King (2005). Shear stress
+    partitioning in large-scale surface roughness for shortgrass rangeland.
+    *J. Air Waste Manag. Assoc.*, 55, 539–549.
+    https://doi.org/10.1080/10473289.2005.10464701
+
 Development Phases
 ------------------
 
