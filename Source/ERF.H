@@ -1463,6 +1463,9 @@ private:
 
     #ifdef ERF_USE_DUST
     std::unique_ptr<DustLayer>    m_DustLayer;
+    // Coarsened dust emission flux on atmospheric grid for each level
+    // Updated after DustLayer::advance, applied in ERF_Advance before dycore
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> m_dust_flux_atm;
     #endif
     amrex::Vector<std::unique_ptr<ForestDrag>> m_forest_drag;
 
