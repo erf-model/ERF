@@ -27,8 +27,11 @@ AverageDownThenRemap (const amrex::MultiFab& src,
 {
     using namespace amrex;
 
-    const IntVect ratio = src.boxArray().minimalBox().length()
-                        / dst.boxArray().minimalBox().length();
+    AMREX_ALWAYS_ASSERT(src.boxArray().ixType() == dst.boxArray().ixType());
+
+    const Box src_cells = enclosedCells(src.boxArray().minimalBox());
+    const Box dst_cells = enclosedCells(dst.boxArray().minimalBox());
+    const IntVect ratio = src_cells.length() / dst_cells.length();
 
     MultiFab dst_avg(dst.boxArray(), dst.DistributionMap(), dst.nComp(), 0);
     amrex::average_down(src, dst_avg, 0, dst.nComp(), ratio);
@@ -114,7 +117,10 @@ ERF::PackAtmosphericStates (amrex::Vector<amrex::MultiFab*>& states,
     const auto& ba = cons.boxArray();
     const auto& dm = cons.DistributionMap();
     const auto& ba2d_lev = ba2d[lev];
+    const auto& xba2d_lev = amrex::convert(ba2d_lev, IntVect(1,0,0));
+    const auto& yba2d_lev = amrex::convert(ba2d_lev, IntVect(0,1,0));
     const int klo = ba.minimalBox().smallEnd(2);
+    const Box domain2d = ba2d_lev.minimalBox();
 
     const bool flux_mode = (states.size() == nFluxLanes);
     if (flux_mode) {
@@ -153,15 +159,18 @@ ERF::PackAtmosphericStates (amrex::Vector<amrex::MultiFab*>& states,
         }
 
         if (iTauX < static_cast<int>(states.size()) && states[iTauX] != nullptr) {
-            MultiFab tmp(ba2d_lev, dm, 1, 0);
+            MultiFab tmp(xba2d_lev, dm, 1, 0);
             for (MFIter mfi(tmp, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
                 Box bx = mfi.tilebox();
                 auto const& tau13 = Tau[lev][TauType::tau13]->const_array(mfi);
                 auto const& c = cons.const_array(mfi);
                 auto t = tmp.array(mfi);
                 ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-                    const Real tau_x_kinematic = Real(0.5) * (tau13(i,j,klo) + tau13(i+1,j,klo));
-                    t(i,j,k) = c(i,j,klo,Rho_comp) * tau_x_kinematic;
+                    const Real rho_face =
+                        (i <= domain2d.smallEnd(0)) ? c(domain2d.smallEnd(0),j,klo,Rho_comp) :
+                        (i > domain2d.bigEnd(0))   ? c(domain2d.bigEnd(0),j,klo,Rho_comp) :
+                        Real(0.5) * (c(i-1,j,klo,Rho_comp) + c(i,j,klo,Rho_comp));
+                    t(i,j,k) = rho_face * tau13(i,j,klo);
                 });
             }
             AverageDownThenRemap(tmp, *states[iTauX]);
@@ -169,15 +178,18 @@ ERF::PackAtmosphericStates (amrex::Vector<amrex::MultiFab*>& states,
         }
 
         if (iTauY < static_cast<int>(states.size()) && states[iTauY] != nullptr) {
-            MultiFab tmp(ba2d_lev, dm, 1, 0);
+            MultiFab tmp(yba2d_lev, dm, 1, 0);
             for (MFIter mfi(tmp, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
                 Box bx = mfi.tilebox();
                 auto const& tau23 = Tau[lev][TauType::tau23]->const_array(mfi);
                 auto const& c = cons.const_array(mfi);
                 auto t = tmp.array(mfi);
                 ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-                    const Real tau_y_kinematic = Real(0.5) * (tau23(i,j,klo) + tau23(i,j+1,klo));
-                    t(i,j,k) = c(i,j,klo,Rho_comp) * tau_y_kinematic;
+                    const Real rho_face =
+                        (j <= domain2d.smallEnd(1)) ? c(i,domain2d.smallEnd(1),klo,Rho_comp) :
+                        (j > domain2d.bigEnd(1))   ? c(i,domain2d.bigEnd(1),klo,Rho_comp) :
+                        Real(0.5) * (c(i,j-1,klo,Rho_comp) + c(i,j,klo,Rho_comp));
+                    t(i,j,k) = rho_face * tau23(i,j,klo);
                 });
             }
             AverageDownThenRemap(tmp, *states[iTauY]);
