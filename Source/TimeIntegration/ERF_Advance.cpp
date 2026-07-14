@@ -291,7 +291,8 @@ ERF::Advance (int lev, double time, double dt_lev, int iteration, int /*ncycle*/
         }
     }
 #endif
-
+amrex::Print() << "[DUST CHECK] cc_source comp4 max BEFORE dycore = "
+               << cc_source.max(m_DustLayer->get_dust_scalar_comp()) << "\n";
     // **************************************************************************************
     // Update the dycore
     // **************************************************************************************
