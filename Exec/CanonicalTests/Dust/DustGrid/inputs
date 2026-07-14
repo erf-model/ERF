@@ -46,17 +46,17 @@ amrex.fpe_trap_invalid = 0
 
 fabarray.mfiter_tile_size = 1024 1024 1024
 
-# Atmospheric domain: 8x8 horizontal cells, 16 vertical levels.
+# Atmospheric domain: 8x8 horizontal cells, 64 vertical levels.
 # All boxes must have x,y sizes divisible by grid_ratio = 2.
-geometry.prob_extent = 1000.0 1000.0 1000.0
-amr.n_cell           =   8     8      16
+geometry.prob_extent = 3000 3000 1024
+amr.n_cell           =  8   8   64
 geometry.is_periodic = 1 1 0
 
 amr.max_level = 0
 
 zlo.type = "surface_layer"
-erf.most.z0   = 0.1
-erf.most.zref = 50.0
+erf.most.z0   = 0.1      # roughness length [m]
+erf.most.zref = 24.0     # reference height [m]
 erf.most.surf_temp_flux = 0.0
 
 zhi.type = "SlipWall"
@@ -64,9 +64,9 @@ zhi.theta_grad = 0.003
 
 # Prevent z-decomposition: z-extent must be on a single rank.
 # verify_dust_prerequisites check 3 requires box_nz == domain_nz.
-amrex.max_grid_size_z = 16
+amrex.max_grid_size_z = 128
 
-erf.fixed_dt = 1.0
+erf.fixed_dt = 0.5
 
 # DIAGNOSTICS
 erf.sum_interval = 1
@@ -81,7 +81,7 @@ erf.plot_int_1  = -1
 erf.plot_vars_1 = density x_velocity y_velocity z_velocity theta
 
 # SOLVER
-erf.use_gravity     = false
+erf.use_gravity     = true
 erf.molec_diff_type = "None"
 erf.les_type        = "None"
 erf.theta_ref       = 300.0

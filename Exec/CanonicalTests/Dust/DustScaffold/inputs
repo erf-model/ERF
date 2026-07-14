@@ -32,22 +32,22 @@ amrex.fpe_trap_invalid = 0
 
 fabarray.mfiter_tile_size = 1024 1024 1024
 
-# Domain: small, single level, periodic horizontal, no terrain
-geometry.prob_extent = 1000.0 1000.0 1000.0
-amr.n_cell           =   8     8      8
+# Domain: 8x8x64 cells, 3000x3000x1024 m (following neutral_abl pattern)
+geometry.prob_extent = 3000.0 3000.0 1024.0
+amr.n_cell           =   8     8      64
 geometry.is_periodic = 1 1 0
 
 amr.max_level = 0
 
 zlo.type = "surface_layer"
-erf.most.z0   = 0.1
-erf.most.zref = 100.0
+erf.most.z0   = 0.1      # roughness length [m]
+erf.most.zref = 24.0     # reference height [m]
 erf.most.surf_temp_flux = 0.0
 
 zhi.type = "SlipWall"
 zhi.theta_grad = 0.003
 
-erf.fixed_dt = 1.0
+erf.fixed_dt = 0.5
 
 # DIAGNOSTICS
 erf.sum_interval = 1
@@ -62,15 +62,16 @@ erf.plot_int_1   = -1
 erf.plot_vars_1  = density x_velocity y_velocity z_velocity theta
 
 # SOLVER
-erf.use_gravity        = false
+erf.use_gravity        = true
 erf.molec_diff_type    = "None"
 erf.les_type           = "None"
+erf.Cs = 0.11
 erf.theta_ref          = 300.0
 
-# INITIALIZATION
-erf.init_type          = "uniform"
-erf.density_init_pert  = 0.0
-erf.theta_init_pert    = 0.0
+# INITIALIZATION - from sounding file
+erf.init_type          = "input_sounding"
+erf.sounding_type = Ideal
+erf.input_sounding_file = "sounding_dust_abl"
 
 # MRF PBL
 # Parameters: Hong & Pan (1996), Mon. Wea. Rev., 124, 2322-2339.
@@ -79,7 +80,7 @@ erf.pbl_type         = "MRF"
 erf.pbl_mrf_Ribcr    = 0.5
 erf.pbl_mrf_const_b  = 7.8
 erf.pbl_mrf_sf       = 0.1
-erf.enable_mrf_countergradient = false
+erf.enable_mrf_countergradient = true
 erf.mrf_moistvars    = false
 
 erf.use_coriolis     = false

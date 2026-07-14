@@ -25,6 +25,10 @@ void DustLayer::initialize(const ERF&          erf,
     // Step 1: Call verify_dust_prerequisites
     verify_dust_prerequisites(erf, surface_layer, dust_params);
 
+    if (dust_params.dust_debug) {
+        amrex::Print() << "[DUST DEBUG] Phase 1: Verified all prerequisites\n";
+    }
+
     // Step 2: Create dust grid
     m_dg = create_dust_grid(erf.boxArray(0), erf.DistributionMap(0),
                             erf.Geom(0), dust_params.grid_ratio);
@@ -303,6 +307,12 @@ void DustLayer::advance(amrex::Real            dt,
     bool do_phreeqc = (m_last_phreeqc_update < 0.0) ||
                       (m_time - m_last_phreeqc_update >=
                        dust_params.phreeqc_update_interval_s);
+
+    if (dust_params.dust_debug) {
+        amrex::Print() << "[DUST DEBUG] Phase 4: PHREEQC reader check at step="
+                       << m_step << ", time=" << m_time << " s, "
+                       << "do_phreeqc=" << do_phreeqc << "\n";
+    }
 
     if (do_phreeqc && !dust_params.phreeqc_output_file.empty()) {
         if (dust_params.dust_debug)

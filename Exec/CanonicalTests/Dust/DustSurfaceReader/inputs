@@ -35,23 +35,24 @@ max_step = 0
 amrex.fpe_trap_invalid = 0
 fabarray.mfiter_tile_size = 1024 1024 1024
 
-geometry.prob_extent = 1000.0 1000.0 1000.0
-amr.n_cell           =   8     8      16
+geometry.prob_extent = 3000 3000 1024
+amr.n_cell           =  8   8   64
+amrex.max_grid_size_z = 128
 geometry.is_periodic = 1 1 0
 
 amr.max_level = 0
 
 zlo.type = "surface_layer"
-erf.most.z0   = 0.1
-erf.most.zref = 50.0
+erf.most.z0   = 0.1      # roughness length [m]
+erf.most.zref = 24.0     # reference height [m]
 erf.most.surf_temp_flux = 0.0
 zhi.type = "SlipWall"
 zhi.theta_grad = 0.003
 
 # Prevent z-decomposition (verify_dust_prerequisites check 3).
-amrex.max_grid_size_z = 16
+amrex.max_grid_size_z = 128
 
-erf.fixed_dt     = 1.0
+erf.fixed_dt     = 0.5
 erf.sum_interval = 1
 erf.v            = 1
 amr.v            = 1
@@ -59,21 +60,35 @@ erf.check_int    = -1
 erf.plot_int_1   = -1
 erf.plot_vars_1  = density x_velocity y_velocity z_velocity theta
 
-erf.use_gravity     = false
+erf.use_gravity     = true
 erf.molec_diff_type = "None"
 erf.les_type        = "None"
-erf.theta_ref       = 300.0
-erf.init_type         = "uniform"
-erf.density_init_pert = 0.0
-erf.theta_init_pert   = 0.0
+erf.Cs = 0.11
+erf.theta_ref = 300.0
 
-erf.pbl_type         = "MRF"
-erf.pbl_mrf_Ribcr    = 0.5
-erf.pbl_mrf_const_b  = 7.8
-erf.pbl_mrf_sf       = 0.1
-erf.enable_mrf_countergradient = false
-erf.mrf_moistvars    = false
-erf.use_coriolis     = false
+# INITIALIZATION - from sounding file
+erf.init_type = "input_sounding"
+erf.sounding_type = Ideal
+erf.input_sounding_file = "sounding_dust_abl"
+
+# PBL CONFIGURATION - Baseline MRF (neutral case)
+erf.pbl_type = "MRF"
+erf.pbl_mrf_Ribcr = 0.5   # critical bulk Richardson number
+erf.pbl_mrf_const_b = 7.8 # surface layer factor (WRF CFAC)
+erf.pbl_mrf_sf = 0.1      # surface layer fraction (WRF SFAC)
+
+# Disable countergradient corrections (not relevant for neutral conditions)
+erf.enable_mrf_countergradient = true
+
+# Enable moisture diffusivity for completeness (but no moisture in neutral case)
+erf.mrf_moistvars = false
+
+# CORIOLIS EFFECT
+erf.latitude = 45.0  # mid-latitude (f = 1.0e-4 s^-1)
+
+erf.use_coriolis = false
+
+erf.abl_driver_type = "GeostrophicWind"
 
 erf.dust.enable                    = true
 erf.dust.dust_debug                = true
