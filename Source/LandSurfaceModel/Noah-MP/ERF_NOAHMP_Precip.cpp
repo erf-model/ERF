@@ -1,13 +1,8 @@
 /*
- * Precipitation bookkeeping for the ERF Noah-MP interface. Collects the typed
- * precip accumulator views, maintains the per-level "previous cumulative accum"
- * snapshots (so the interval precip fed to Noah-MP is a clean delta across the
- * land-call interval, robust across restarts), and reports guard actions.
- *
- * The actual RAINBL / MP_RAINNC / MP_SNOW / MP_GRAUP / SR staging (the delta
- * kernel, the clamp, and the frozen/total invariant) lives in the device/host
- * loops of stage_forcing() in ERF_NOAHMP_Advance.cpp; this file owns the
- * surrounding host-side bookkeeping.
+ * Precip bookkeeping for the ERF Noah-MP interface: collects the typed accumulator
+ * views, maintains the per-level previous-cumulative snapshots (so interval precip
+ * is a clean delta, robust across restarts), and reports guard actions. The actual
+ * staging lives in stage_forcing() (ERF_NOAHMP_Advance.cpp).
  */
 
 #include <memory>
@@ -19,13 +14,12 @@
 
 using namespace amrex;
 
-// Collect the five typed slots (NoahmpPrecipSlot order) into a fixed-index bundle
-// so the snapshot bookkeeping and the device delta kernel can loop generically.
-// Slots the active scheme does not provide keep a null accum.
-noahmp_detail::PrecipSlots
+// Collect the typed slots (NoahmpPrecipSlot order) into a fixed-index bundle so the
+// bookkeeping and delta kernel can loop generically. Missing slots keep a null accum.
+erf_noahmp::PrecipSlots
 NOAHMP::collect_precip_sources (const SurfacePrecipAccumulationSources& precip_sources)
 {
-    noahmp_detail::PrecipSlots p;
+    erf_noahmp::PrecipSlots p;
     const SurfacePrecipAccumulationSource slot_src[NoahmpPrecipSlot::NumSlots] = {
         precip_sources.total, precip_sources.rain, precip_sources.snow,
         precip_sources.graupel, precip_sources.hail };
@@ -38,13 +32,11 @@ NOAHMP::collect_precip_sources (const SurfacePrecipAccumulationSources& precip_s
     return p;
 }
 
-// Lazily allocate the per-level, per-slot "previous cumulative accum" snapshot.
-// On restart, seed from the checkpointed snapshot (m_precip_accum_restored) so
-// the first interval differences against what Noah-MP last consumed; on a cold
-// start, seed from the current accumulation so the first interval's delta is 0.
+// Lazily allocate the per-level, per-slot previous-cumulative snapshot. Restart seeds
+// from the checkpoint (m_precip_accum_restored); cold start seeds from current (delta 0).
 void
 NOAHMP::prepare_precip_snapshots (const int& lev,
-                                  const noahmp_detail::PrecipSlots& precip)
+                                  const erf_noahmp::PrecipSlots& precip)
 {
     if (!precip.have_any) { return; }
 
@@ -52,11 +44,8 @@ NOAHMP::prepare_precip_snapshots (const int& lev,
     auto& prev = m_precip_accum_prev[lev];
     for (int s(0); s < NoahmpPrecipSlot::NumSlots; ++s) {
         if (precip.has[s] && prev[s] == nullptr) {
-            // NOTE: allocate with ZERO ghost cells and setVal(0) first so no cell is
-            // ever uninitialized (an uninitialized prev-snapshot produced garbage
-            // ~1e25 deltas -> Noah-MP water-balance abort). We only ever read the
-            // valid region (surface slab), so 0 ghost cells is sufficient and avoids
-            // any ghost/nGrow mismatch in the Copy.
+            // Zero ghost cells + setVal(0) so no cell is uninitialized (garbage prev
+            // -> ~1e25 deltas -> Noah-MP water-balance abort); only the slab is read.
             prev[s] = std::make_unique<MultiFab>(
                 precip.accum[s]->boxArray(), precip.accum[s]->DistributionMap(), 1, 0);
             prev[s]->setVal(0.0);
@@ -71,13 +60,11 @@ NOAHMP::prepare_precip_snapshots (const int& lev,
     }
 }
 
-// Advance the precip "previous cumulative accum" snapshot to the current values
-// now that this land call's RAINBL/SR have been consumed, so the next call
-// differences against this step. Device-safe whole-MultiFab copy (these live in
-// the device arena; never touch them on the host).
+// Advance the previous-cumulative snapshot to current values now that this call's
+// RAINBL/SR are consumed, so the next call differences against this step.
 void
 NOAHMP::advance_precip_snapshots (const int& lev,
-                                  const noahmp_detail::PrecipSlots& precip)
+                                  const erf_noahmp::PrecipSlots& precip)
 {
     if (!precip.have_any) { return; }
     for (int s(0); s < NoahmpPrecipSlot::NumSlots; ++s) {
@@ -87,12 +74,12 @@ NOAHMP::advance_precip_snapshots (const int& lev,
     }
 }
 
-// Report (per rank, never silent) any cells the interval-precip guard clamped or
-// whose frozen components were rescaled to restore MP_SNOW+MP_GRAUP <= MP_RAINNC.
+// Report (per rank, never silent) cells the guard clamped or whose frozen components
+// were rescaled to restore MP_SNOW+MP_GRAUP <= MP_RAINNC.
 void
 NOAHMP::report_precip_diagnostics (const int& lev,
-                                   const Vector<noahmp_detail::ClampedPrecipCell>& clamped_cells,
-                                   const Vector<noahmp_detail::InvariantPrecipCell>& invariant_cells)
+                                   const Vector<erf_noahmp::ClampedPrecipCell>& clamped_cells,
+                                   const Vector<erf_noahmp::InvariantPrecipCell>& invariant_cells)
 {
     if (!clamped_cells.empty()) {
         const int nshow = amrex::min(int(clamped_cells.size()), 50);

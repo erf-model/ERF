@@ -2,94 +2,108 @@
 #define ERF_NOAHMP_FIELDS_H
 
 // ===========================================================================
-//  ERF <-> Noah-MP coupling contract
-// ---------------------------------------------------------------------------
-//  This header is the single place that declares WHAT crosses the ERF/Noah-MP
-//  boundary. Four (well, five) enums describe TWO different boundaries; see
-//  dev/spec-noahmp-api.md and dev/spec-noahmp-reorg.md.
-//
-//    - LsmData_NOAHMP / LsmFlux_NOAHMP : ERF-internal coupling fields, read
-//      and written by the rest of ERF (radiation, surface layer). Persisted to
-//      the LSM plotfile / checkpoint BY NAME.
-//    - NoahmpInputComp / NoahmpOutputComp : transient per-step staging-buffer
-//      components used only inside Advance_With_State. Never persisted.
-//    - NoahmpPrecipSlot : the typed precip accumulator slots.
-//
-//  Mechanical (pure 1:1) coupled fields are declared ONCE below as X-macro
-//  lists (NOAHMP_*_FIELDS). Expanding a list with different X definitions
-//  generates the enum entries, the name strings, and the host<->NoahmpIO copy
-//  lines from one source of truth, so they cannot drift. Fields that carry
-//  per-field math (winds, EOS, precip, banded albedos, fluxes, soil) are NOT
-//  table-driven and stay explicit in the .cpp -- see the "NOT table-driven"
-//  note in dev/spec-noahmp-reorg.md §4.
+//  ERF <-> Noah-MP coupling contract: what crosses the boundary. Mechanical (1:1)
+//  fields live in the NOAHMP_*_FIELDS registries below, expanded via emitter macros
+//  to generate enum entries, names, and host<->NoahmpIO copies from one source.
+//  To add one: append an X(...) row (enum order is an invariant -- do not reorder).
+//  See dev/spec-noahmp-api.md and dev/spec-noahmp-reorg.md.
 // ===========================================================================
 
 // ---------------------------------------------------------------------------
-//  Field registries (X-macro lists). Each entry is a coupled field.
+//  Field registries. X(comp) -> LsmData (no NoahmpIO member, kept by name);
+//  X(comp, member) -> boundary field with its NoahmpIO array.
 // ---------------------------------------------------------------------------
 
-// ERF-internal state fields (LsmData_NOAHMP), fixed 2D. One token per field;
-// the enum entry and the plotfile/checkpoint name string are both generated
-// from this list, so the enum order and the names can never disagree.
-//   t_sfc,sfc_emis,albedos,cos_zenith,downwelling fluxes  : radiation coupling
-//   grdflx..smstot                                        : land return-term
-//                                                           diagnostics (output)
-// The 3D soil profile (SMOIS/SH2O/TSLB) is appended at RUNTIME after NumVars,
-// 3 groups of m_nsoil layers -- see NOAHMP::soil_data_idx. Not listed here.
+// ERF-internal state fields (LsmData_NOAHMP), fixed 2D. The 3D soil profile
+// (SMOIS/SH2O/TSLB) is appended at RUNTIME after NumVars -- see soil_data_idx.
 #define NOAHMP_LSMDATA_FIELDS(X)                                               \
-    X(t_sfc) X(sfc_emis)                                                       \
-    X(sfc_alb_dir_vis) X(sfc_alb_dir_nir)                                      \
-    X(sfc_alb_dif_vis) X(sfc_alb_dif_nir)                                      \
-    X(cos_zenith_angle) X(sw_flux_dn)                                          \
-    X(sw_flux_dn_dir_vis) X(sw_flux_dn_dir_nir)                                \
-    X(sw_flux_dn_dif_vis) X(sw_flux_dn_dif_nir)                                \
-    X(lw_flux_dn)                                                              \
-    X(grdflx) X(fira) X(sav) X(sag) X(albedo)                                  \
+    /* radiation coupling */                                                  \
+    X(t_sfc)             X(sfc_emis)                                          \
+    X(sfc_alb_dir_vis)   X(sfc_alb_dir_nir)                                   \
+    X(sfc_alb_dif_vis)   X(sfc_alb_dif_nir)                                   \
+    X(cos_zenith_angle)  X(sw_flux_dn)                                        \
+    X(sw_flux_dn_dir_vis) X(sw_flux_dn_dir_nir)                               \
+    X(sw_flux_dn_dif_vis) X(sw_flux_dn_dif_nir)                               \
+    X(lw_flux_dn)                                                             \
+    /* land return-term diagnostics */                                       \
+    X(grdflx) X(fira) X(sav) X(sag) X(albedo)                                 \
     X(sfcrunoff) X(udrunoff) X(smstav) X(smstot)
 
-// Forcing ERF -> Noah-MP, mechanical 1:1 copies. (comp-name, NoahmpIO member)
-//   3D atmospheric members use the k/j transpose: noahmpio->MEMBER(i,1,j).
-//   2D surface members use noahmpio->MEMBER(i,j).
-// The computed forcing (u_phy/v_phy via face-average, t_phy/p8w via EOS) is
-// staged into the input buffer explicitly in the device kernel; its host copy
-// to the 3D members is still mechanical and IS generated from NOAHMP_INPUT_3D.
-#define NOAHMP_INPUT_3D(X)                                                     \
-    X(u_phy,U_PHY) X(v_phy,V_PHY) X(t_phy,T_PHY)                               \
-    X(qv_curr,QV_CURR) X(p8w,P8W)
-#define NOAHMP_INPUT_2D(X)                                                     \
-    X(swdown,SWDOWN) X(glw,GLW) X(coszen,COSZEN)
+// Forcing ERF -> Noah-MP, mechanical 1:1 copies: X( ERF comp, NoahmpIO member ).
+// 3D members use the k/j transpose MEMBER(i,1,j); 2D use MEMBER(i,j).
+#define NOAHMP_INPUT_3D_FIELDS(X)                                             \
+    /*    ERF comp      NoahmpIO member  */                                   \
+    X(    u_phy,        U_PHY   )                                             \
+    X(    v_phy,        V_PHY   )                                             \
+    X(    t_phy,        T_PHY   )                                             \
+    X(    qv_curr,      QV_CURR )                                             \
+    X(    p8w,          P8W     )
 
-// Results Noah-MP -> ERF, mechanical 1:1 copies (member -> output buffer).
-// Split HEAD/TAIL only so the enum can interleave the banded albedos between
-// them in their historical positions; the copy loop uses HEAD+TAIL together
-// (copy order is irrelevant -- each assignment is independent).
-#define NOAHMP_OUTPUT_2D_HEAD(X)                                               \
-    X(hfx,HFX) X(lh,LH) X(tau_ew,TAU_EW) X(tau_ns,TAU_NS)                      \
-    X(tsk,TSK) X(emiss,EMISS)
-#define NOAHMP_OUTPUT_2D_TAIL(X)                                               \
-    X(o_grdflx,GRDFLX) X(o_fira,FIRAXY) X(o_sav,SAVXY) X(o_sag,SAGXY)          \
-    X(o_albedo,ALBEDO) X(o_sfcrunoff,SFCRUNOFF) X(o_udrunoff,UDRUNOFF)
-#define NOAHMP_OUTPUT_2D(X) NOAHMP_OUTPUT_2D_HEAD(X) NOAHMP_OUTPUT_2D_TAIL(X)
+#define NOAHMP_INPUT_2D_FIELDS(X)                                             \
+    /*    ERF comp      NoahmpIO member  */                                   \
+    X(    swdown,       SWDOWN  )                                             \
+    X(    glw,          GLW     )                                             \
+    X(    coszen,       COSZEN  )
+
+// Results Noah-MP -> ERF, mechanical 1:1 copies: X( ERF comp, NoahmpIO member ).
+// Split HEAD/TAIL so the enum can interleave the banded albedos; copy loop uses both.
+#define NOAHMP_OUTPUT_2D_FIELDS_HEAD(X)                                       \
+    /*    ERF comp      NoahmpIO member  */                                   \
+    X(    hfx,          HFX     )                                             \
+    X(    lh,           LH      )                                             \
+    X(    tau_ew,       TAU_EW  )                                             \
+    X(    tau_ns,       TAU_NS  )                                             \
+    X(    tsk,          TSK     )                                             \
+    X(    emiss,        EMISS   )
+
+#define NOAHMP_OUTPUT_2D_FIELDS_TAIL(X)                                       \
+    /*    ERF comp      NoahmpIO member  */                                   \
+    X(    o_grdflx,     GRDFLX    )                                           \
+    X(    o_fira,       FIRAXY    )                                           \
+    X(    o_sav,        SAVXY     )                                           \
+    X(    o_sag,        SAGXY     )                                           \
+    X(    o_albedo,     ALBEDO    )                                           \
+    X(    o_sfcrunoff,  SFCRUNOFF )                                           \
+    X(    o_udrunoff,   UDRUNOFF  )
+
+#define NOAHMP_OUTPUT_2D_FIELDS(X) NOAHMP_OUTPUT_2D_FIELDS_HEAD(X)            \
+                                   NOAHMP_OUTPUT_2D_FIELDS_TAIL(X)
+
+// Noah-MP result -> ERF, mechanical 1:1: X( ERF Array4 alias, LsmData comp, Output
+// comp ). Banded albedos are listed but read explicitly; SMSTAV/SMSTOT are not listed.
+#define NOAHMP_RESULT_FIELDS(X)                                               \
+    /*   ERF Array4 alias  LsmData comp       Output comp    */               \
+    X(   TSK,              t_sfc,             tsk           )                  \
+    X(   EMISS,            sfc_emis,          emiss         )                  \
+    X(   ALBSFCDIR_VIS,    sfc_alb_dir_vis,   albsfcdir_vis )                  \
+    X(   ALBSFCDIR_NIR,    sfc_alb_dir_nir,   albsfcdir_nir )                  \
+    X(   ALBSFCDIF_VIS,    sfc_alb_dif_vis,   albsfcdif_vis )                  \
+    X(   ALBSFCDIF_NIR,    sfc_alb_dif_nir,   albsfcdif_nir )                  \
+    X(   GRDFLX_o,         grdflx,            o_grdflx      )                  \
+    X(   FIRA_o,           fira,              o_fira        )                  \
+    X(   SAV_o,            sav,               o_sav         )                  \
+    X(   SAG_o,            sag,               o_sag         )                  \
+    X(   ALBEDO_o,         albedo,            o_albedo      )                  \
+    X(   SFCRUNOFF_o,      sfcrunoff,         o_sfcrunoff   )                  \
+    X(   UDRUNOFF_o,       udrunoff,          o_udrunoff    )
 
 // ---------------------------------------------------------------------------
-//  Enums generated from the registries (plus the non-mechanical entries that
-//  stay in their fixed positions). Component order is preserved exactly.
+//  Reusable field emitters -- the per-row action applied when a registry is
+//  expanded, e.g. NOAHMP_LSMDATA_FIELDS(NOAHMP_QUOTE) -> "t_sfc", "sfc_emis", ...
+#define NOAHMP_ENUM(comp)          comp,    // (comp)         -> enum entry
+#define NOAHMP_QUOTE(comp)         #comp,   // (comp)         -> "comp" literal
+#define NOAHMP_COMP(comp, member)  comp,    // (comp, member) -> enum entry
+
+// ---------------------------------------------------------------------------
+//  Enums generated from the registries (plus fixed entries); order is preserved.
 // ---------------------------------------------------------------------------
 
 namespace LsmData_NOAHMP {
    enum {
-#define NOAHMP_X(name) name,
-         NOAHMP_LSMDATA_FIELDS(NOAHMP_X)
-#undef NOAHMP_X
+         NOAHMP_LSMDATA_FIELDS(NOAHMP_ENUM)
          NumVars
-         // NOTE: the 3D soil-profile state (SMOIS/SH2O/TSLB) is NOT enumerated
-         // here. It is appended at RUNTIME, one 2D field per soil layer, in three
-         // contiguous groups of m_nsoil starting at index NumVars:
-         //   [NumVars           .. NumVars +   nsoil) -> smois_1..smois_nsoil
-         //   [NumVars +   nsoil .. NumVars + 2*nsoil) -> sh2o_1 ..sh2o_nsoil
-         //   [NumVars + 2*nsoil .. NumVars + 3*nsoil) -> tslb_1 ..tslb_nsoil
-         // so the diagnostics work for any Noah-MP soil-layer count, not just 4.
-         // See NOAHMP::soil_data_idx / NOAHMP::soil_out_idx.
+         // Soil profile (SMOIS/SH2O/TSLB) appended at RUNTIME after NumVars as three
+         // contiguous groups of m_nsoil layers. See NOAHMP::soil_data_idx.
   };
 }
 
@@ -104,58 +118,48 @@ namespace LsmFlux_NOAHMP {
   };
 }
 
-// Fixed index for each typed surface-precip source slot, in the field order of
-// SurfacePrecipAccumulationSources. Used to key the per-slot previous-accumulation
-// snapshots and the water-equivalent interval deltas fed to Noah-MP.
+// Fixed index per typed surface-precip source slot (field order of
+// SurfacePrecipAccumulationSources), keying the snapshots and interval deltas.
 namespace NoahmpPrecipSlot {
     enum {
-        total = 0,   // total non-convective precip accumulator (if the scheme exposes one)
-        rain,        // explicit rain accumulator (schemes without a total slot)
-        snow,        // snow (+ice) accumulator
-        graupel,     // graupel accumulator
-        hail,        // hail accumulator: folded into MP_GRAUP (coupled MP_HAIL set to 0) -- see ERF_NOAHMP_Advance.cpp
+        total = 0,   // total non-convective precip (if the scheme exposes one)
+        rain,        // explicit rain (schemes without a total slot)
+        snow,        // snow (+ice)
+        graupel,     // graupel
+        hail,        // folded into MP_GRAUP (coupled MP_HAIL set to 0)
         NumSlots
     };
 }
 
 namespace NoahmpInputComp {
     enum {
-#define NOAHMP_X(name,member) name,
-        NOAHMP_INPUT_3D(NOAHMP_X)
-        NOAHMP_INPUT_2D(NOAHMP_X)
-#undef NOAHMP_X
-        rainbl,      // accumulated precip into land model over the interval [mm]
-        sr_in,       // frozen fraction of precip [-]
-        mp_rainnc,   // total non-convective precip this interval [mm] (WRF MP_RAINNC)
-        mp_snow,     // snow (+ice) subset of mp_rainnc [mm] (WRF MP_SNOW)
-        mp_graup,    // graupel subset of mp_rainnc [mm] (WRF MP_GRAUP)
+        NOAHMP_INPUT_3D_FIELDS(NOAHMP_COMP)
+        NOAHMP_INPUT_2D_FIELDS(NOAHMP_COMP)
+        // computed precip staging (explicit, not table-driven)
+        rainbl,      // accumulated precip over the interval [mm]
+        sr_in,       // frozen fraction [-]
+        mp_rainnc,   // total non-convective precip this interval [mm]
+        mp_snow,     // snow (+ice) subset of mp_rainnc [mm]
+        mp_graup,    // graupel subset of mp_rainnc [mm]
         NumComps
     };
 }
 
 namespace NoahmpOutputComp {
     enum {
-#define NOAHMP_X(name,member) name,
-        NOAHMP_OUTPUT_2D_HEAD(NOAHMP_X)
-#undef NOAHMP_X
-        // banded albedos (NOT table-driven: read at band 1=VIS / 2=NIR)
+        NOAHMP_OUTPUT_2D_FIELDS_HEAD(NOAHMP_COMP)
+        // banded albedos (explicit: read at band 1=VIS / 2=NIR)
         albsfcdir_vis,
         albsfcdir_nir,
         albsfcdif_vis,
         albsfcdif_nir,
-#define NOAHMP_X(name,member) name,
-        NOAHMP_OUTPUT_2D_TAIL(NOAHMP_X)
-#undef NOAHMP_X
-        // sentinels: not computed by this Noah-MP core -> emitted as lsm_undefined
+        NOAHMP_OUTPUT_2D_FIELDS_TAIL(NOAHMP_COMP)
+        // sentinels: not computed by this core -> emitted as lsm_undefined
         o_smstav,
         o_smstot,
         NumComps
-        // NOTE: the per-layer soil outputs (SMOIS/SH2O/TSLB) are appended at
-        // RUNTIME after NumComps, mirroring the LsmData_NOAHMP layout above:
-        //   [NumComps           .. NumComps +   nsoil) -> smois layers
-        //   [NumComps +   nsoil .. NumComps + 2*nsoil) -> sh2o  layers
-        //   [NumComps + 2*nsoil .. NumComps + 3*nsoil) -> tslb  layers
-        // The pinned host output buffer is sized NumComps + 3*nsoil to match.
+        // Per-layer soil outputs appended at RUNTIME after NumComps; the output
+        // buffer is sized NumComps + 3*nsoil to match.
     };
 }
 
