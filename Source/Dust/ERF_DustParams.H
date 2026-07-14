@@ -144,6 +144,14 @@ struct DustParams {
                                                    ///<   coarse bin (50 um).
                                                    ///<   Reference: Seinfeld & Pandis (2006), Ch. 9.
 
+    // Phase 12: Dry deposition parameters
+    amrex::Real deposition_E0 = 3.0e-3; ///< Surface collection efficiency [-].
+                                        ///<   Zhang et al. (2001):
+                                        ///<   https://doi.org/10.1016/S1352-2310(00)00326-5
+                                        ///<   Bare mine surface: 3e-3
+                                        ///<   Paved road: 1e-4
+                                        ///<   Vegetated buffer: 1e-2
+
     /**
      * Constructor that reads all parameters from ParmParse.
      */
@@ -186,6 +194,7 @@ struct DustParams {
         pp.query("suppression_file",   suppression_file);
         pp.query("transport_bins_separately", transport_bins_separately);
         pp.query("atm_feedback", atm_feedback);
+        pp.query("deposition_E0", deposition_E0);
         
         // Allow per-bin diameter override from input file.
         // erf.dust.bin_diameters = d0 d1 d2 ...

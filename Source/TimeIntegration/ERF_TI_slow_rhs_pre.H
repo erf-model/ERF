@@ -112,7 +112,7 @@
                       (solverChoice.hindcast_surface_bcs? &surface_state_interp[level] : nullptr),
                      input_sounding_data, turbPert, true);
         // ******************************************************************************
-        // Phase 10/11: Add dust emission flux and settling tendency to cc_src
+        // Phase 10/11/12: Add dust emission flux, settling tendency, and deposition to cc_src
         // This must happen AFTER make_sources so it is not overwritten.
         // ******************************************************************************
 #ifdef ERF_USE_DUST
@@ -122,6 +122,8 @@
                 m_DustLayer->apply_to_cc_source(cc_src, *zphys_ptr, fine_geom);
                 m_DustLayer->apply_settling_to_cc_source(
                     cc_src, S_data[IntVars::cons], *zphys_ptr, fine_geom);
+                m_DustLayer->apply_deposition_bc(cc_src, S_data[IntVars::cons],
+                                                  *zphys_ptr, fine_geom, slow_dt);
             }
         }
 #endif

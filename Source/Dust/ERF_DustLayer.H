@@ -51,6 +51,7 @@
 #ifdef ERF_USE_DUST
 #include <ERF_DustBlastSchedule.H>
 #include <ERF_DustSettling.H>
+#include <ERF_DustDeposition.H>
 #endif
 
 // Forward declarations
@@ -116,6 +117,7 @@ public:
     const amrex::MultiFab* get_wind_ref()         const { return dust_wind_ref.get(); }
     const amrex::MultiFab* get_pblh()             const { return dust_pblh.get(); }
     const amrex::MultiFab* get_tsfc()             const { return dust_tsfc.get(); }
+    const amrex::MultiFab* get_deposition_rate()  const { return dust_deposition_rate.get(); }
     const DustGrid&        get_dust_grid()        const { return m_dg; }
     const amrex::Geometry& get_dust_geom()        const { return m_dg.geom; }
     const DustParams&      get_params()           const { return m_params; }
@@ -157,6 +159,25 @@ public:
                                       const amrex::MultiFab& z_phys_cc,
                                       const amrex::Geometry& geom_atm);
 
+    /**
+     * @brief Apply dry deposition BC at k=klo and accumulate deposited mass.
+     *
+     * Called from ERF_TI_slow_rhs_pre.H after apply_settling_to_cc_source (Phase 11),
+     * following the same call-site pattern as apply_to_cc_source (Phase 10).
+     * Uses SurfaceLayer u* extracted in Phase 9 (dust_ustar_in).
+     *
+     * @param[in,out] cc_source  Cell-centred source MultiFab on atm grid.
+     * @param[in]     S_old      Conserved state at time n.
+     * @param[in]     z_phys_cc  Cell-centre terrain height [m].
+     * @param[in]     geom_atm   Atmospheric geometry.
+     * @param[in]     dt         Timestep [s].
+     */
+    void apply_deposition_bc(amrex::MultiFab&       cc_source,
+                             const amrex::MultiFab& S_old,
+                             const amrex::MultiFab& z_phys_cc,
+                             const amrex::Geometry& geom_atm,
+                             amrex::Real            dt);
+
 private:
     DustGrid                              m_dg;
 
@@ -181,6 +202,11 @@ private:
     // Phase 10: coarsened emission flux on atmospheric grid for injection.
     std::unique_ptr<amrex::MultiFab>      dust_flux_atm;   ///< Total emission flux coarsened
                                                              ///< to atm level-0 grid [kg/m^2/s].
+
+    // Phase 12: deposition accumulation and flux buffer
+    std::unique_ptr<amrex::MultiFab>      dust_deposition_rate; ///< Accumulated deposition [kg/m^2].
+    std::unique_ptr<amrex::MultiFab>      dep_flux_atm;          ///< Deposition flux buffer on atm 2D slab.
+
     int                                   m_dust_scalar_comp = -1; ///< cc_source component index for dust mass.
                                                                      ///< Set during initialize from ERF_IndexDefines.H.
 
