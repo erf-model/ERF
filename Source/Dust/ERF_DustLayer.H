@@ -52,6 +52,7 @@
 #include <ERF_DustBlastSchedule.H>
 #include <ERF_DustSettling.H>
 #include <ERF_DustDeposition.H>
+#include <ERF_DustAtmReturn.H>
 #endif
 
 // Forward declarations
@@ -118,6 +119,7 @@ public:
     const amrex::MultiFab* get_pblh()             const { return dust_pblh.get(); }
     const amrex::MultiFab* get_tsfc()             const { return dust_tsfc.get(); }
     const amrex::MultiFab* get_deposition_rate()  const { return dust_deposition_rate.get(); }
+    const amrex::MultiFab* get_conc_sfc()         const { return dust_conc_sfc.get(); }
     const DustGrid&        get_dust_grid()        const { return m_dg; }
     const amrex::Geometry& get_dust_geom()        const { return m_dg.geom; }
     const DustParams&      get_params()           const { return m_params; }
@@ -178,6 +180,27 @@ public:
                              const amrex::Geometry& geom_atm,
                              amrex::Real            dt);
 
+    /**
+     * @brief Extract return fields from the 3D solver to the 2D dust grid.
+     *
+     * Called from ERF_Advance.cpp once per timestep after erf_slow_rhs_post
+     * and before the next DustLayer::advance() call. Extracts:
+     *   - RhoDust at k=klo -> dust_conc_sfc (loading feedback for Phase 5)
+     *   - Q1fx3 at z-face klo -> dust_surf_moist (moisture inhibition, Phase 5)
+     *   - Prints dust_deposition_rate domain integral (Phase 12 confirmation)
+     *
+     * Pattern: follows SurfaceLayer extraction in Phase 9 (ERF_DustWindExtract.H),
+     * which adapts fill_fire_wind_from_interpolation from Source/Fire/.
+     *
+     * @param[in] S_new_cons  Conserved state MultiFab after dycore advance (level 0).
+     * @param[in] Q1fx3       Vertical moisture flux (face-staggered z). Null when
+     *                        moisture_type == None. From SFS_q1fx3_lev[0].get().
+     * @param[in] geom_atm    Atmospheric geometry at level 0.
+     */
+    void extract_atm_return_fields(const amrex::MultiFab& S_new_cons,
+                                    const amrex::MultiFab* Q1fx3,
+                                    const amrex::Geometry& geom_atm);
+
 private:
     DustGrid                              m_dg;
 
@@ -206,6 +229,9 @@ private:
     // Phase 12: deposition accumulation and flux buffer
     std::unique_ptr<amrex::MultiFab>      dust_deposition_rate; ///< Accumulated deposition [kg/m^2].
     std::unique_ptr<amrex::MultiFab>      dep_flux_atm;          ///< Deposition flux buffer on atm 2D slab.
+
+    // Phase 13: return fields from 3D solver
+    std::unique_ptr<amrex::MultiFab>      dust_conc_sfc;   ///< Near-surface dust [kg/m^3] on dust grid.
 
     int                                   m_dust_scalar_comp = -1; ///< cc_source component index for dust mass.
                                                                      ///< Set during initialize from ERF_IndexDefines.H.
