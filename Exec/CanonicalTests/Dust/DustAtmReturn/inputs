@@ -1,0 +1,139 @@
+# DustAtmReturn regression test
+#
+# Tests Phase 13 ERF-Atm -> ERF-Dust return fields:
+#   fill_dust_conc_from_atm: RhoDust(k=klo) -> dust_conc_sfc on dust grid
+#   fill_dust_moist_from_atm: Q1fx3 -> dust_surf_moist (null-safe)
+#   dust_deposition_rate domain integral (Phase 12 confirmation)
+#
+# Atmospheric configuration: Moeng-Sullivan neutral ABL.
+# Reference: Exec/CanonicalTests/ABL/MRF_Enhancements/canonical/neutral_abl
+# MRF u* ~ 0.56 m/s with 15 m/s geostrophic wind (documented in canonical file).
+#
+# Pattern reference: fill_dust_scalar_from_atm in ERF_DustWindExtract.H (Phase 9),
+# which adapts fill_fire_wind_from_interpolation from Source/Fire/:
+#   https://github.com/hgopalan/ERF/blob/ecb9b7656bbb98fcc5d4f781e486825ee9478a73/
+#   Source/Fire/ERF_FireWindExtract.H
+#
+# Q1fx3 behaviour in this test:
+#   erf.mrf_moistvars = false and no moisture scheme -> SFS_q1fx3_lev = null.
+#   fill_dust_moist_from_atm sets dust_surf_moist = 0 and returns immediately.
+#   moisture_path_active = 0 in debug output.
+#   Fecan inhibition not applied (use_dynamic_moisture = false).
+#   This is the correct behaviour for a dry neutral ABL.
+#
+# Expected results:
+#   (1) [DUST DEBUG] Phase 13 printed each step.
+#   (2) conc_sfc_max > 0 after step 1: dust injected by Phase 10 appears
+#       in the 3D scalar and is returned to the 2D grid.
+#   (3) conc_sfc_sum > 0 and changes with step count.
+#   (4) moisture_path_active = 0 (Q1fx3 null, neutral ABL).
+#   (5) moist_flux_max = 0.0 (no moisture flux in neutral dry case).
+#   (6) dep_total > 0 after step 1 (Phase 12 accumulator confirmed active).
+#   (7) dep_total increases each step.
+#   (8) loading_feedback_coeff = 0: u*_t unchanged (feedback disabled).
+#   (9) [DUST DEBUG] advance shows emission_flux_max > 0 and conc_sfc_max >= 0.
+#  (10) [DUST DEBUG] initialize complete shows correct dust_scalar_comp index.
+#  (11) Run exits with code 0.
+#
+# To test loading feedback: set loading_feedback_coeff = 1e6 and verify
+# that u*_t increases as conc_sfc_max grows, causing emission_flux_max to
+# decrease over successive steps.
+#
+# To test moisture path: enable a moisture scheme (erf.moisture_type != None)
+# and set use_dynamic_moisture = true. Q1fx3 will be non-null and
+# moisture_path_active = 1 will appear in debug output.
+#
+# References:
+#   Shao (2001). J. Geophys. Res., 106, 20599.
+#     https://doi.org/10.1029/2001JD900171
+#   Fecan et al. (1999). Ann. Geophys., 17, 149.
+#     https://doi.org/10.1007/s00585-999-0149-7
+#   Hong & Pan (1996). Mon. Wea. Rev., 124, 2322.
+#     https://doi.org/10.1175/1520-0493(1996)124<2322:NBLVDI>2.0.CO;2
+
+erf.prob_name = "ABL"
+max_step = 5
+amr.max_level = 0
+amrex.fpe_trap_invalid = 0
+fabarray.mfiter_tile_size = 1024 1024 1024
+
+geometry.prob_extent = 3000 3000 1024
+amr.n_cell           =  8    8   64
+geometry.is_periodic = 1 1 0
+amrex.max_grid_size_z = 128
+
+zlo.type = "surface_layer"
+erf.most.z0              = 0.1
+erf.most.zref            = 24.0
+erf.most.surf_temp_flux  = 0.0
+zhi.type = "SlipWall"
+zhi.theta_grad = 0.003
+
+erf.fixed_dt     = 0.5
+erf.sum_interval = 1
+erf.v            = 1
+amr.v            = 1
+erf.check_int    = -1
+erf.plot_int_1   = -1
+erf.plot_vars_1  = density x_velocity y_velocity z_velocity theta
+
+erf.use_gravity     = true
+erf.molec_diff_type = "None"
+erf.les_type        = "None"
+
+erf.init_type           = "input_sounding"
+erf.sounding_type       = Ideal
+erf.input_sounding_file = "sounding_neutral_abl"
+
+erf.pbl_type         = "MRF"
+erf.pbl_mrf_Ribcr    = 0.5
+erf.pbl_mrf_const_b  = 7.8
+erf.pbl_mrf_sf       = 0.1
+erf.enable_mrf_countergradient = true
+erf.mrf_moistvars    = false
+erf.use_coriolis     = true
+erf.latitude         = 45.0
+erf.abl_driver_type  = "GeostrophicWind"
+erf.abl_geo_wind     = 15.0 0.0 0.0
+
+# Required for dust scalar transport in ERF_SlowRhsPost.cpp (PR #145).
+erf.transport_scalar = true
+
+erf.dust.enable                    = true
+erf.dust.dust_debug                = true
+erf.dust.n_size_bins               = 3
+erf.dust.grid_ratio                = 1
+erf.dust.particle_density          = 2650.0
+erf.dust.z0_dust                   = 0.01
+erf.dust.silt_fraction             = 0.10
+erf.dust.threshold_A_coeff         = 0.0123
+erf.dust.crust_index               = 0.0
+erf.dust.alpha_crust               = 0.5
+erf.dust.alpha_efflor              = 0.3
+erf.dust.test_ustar                = 0.0
+erf.dust.rho_air                   = 1.225
+# zref must equal erf.most.zref for consistent extraction height (Phase 9).
+erf.dust.zref                      = 24.0
+erf.dust.supp_tau_base_s           = 3600.0
+erf.dust.test_surf_temp_K          = 293.15
+erf.dust.test_wind_speed           = 0.0
+erf.dust.atm_feedback              = 1.0
+erf.dust.transport_bins_separately = false
+erf.dust.bin_diameters             = 7.0e-6 2.5e-6 50.0e-6
+erf.dust.deposition_E0             = 3.0e-3
+# loading_feedback_coeff = 0: Shao (2001) loading feedback disabled.
+# Increase to 1e6 to test: emission_flux_max should decrease over steps.
+erf.dust.loading_feedback_coeff    = 0.0
+# use_dynamic_moisture = false: Q1fx3 not used (no moisture scheme active).
+# Set true with moisture_type != None to enable Fecan moisture inhibition.
+erf.dust.use_dynamic_moisture      = false
+erf.dust.phreeqc_update_interval_s = 86400.0
+erf.dust.phreeqc_output_file       = ""
+erf.dust.blast_schedule_file       = ""
+erf.dust.blast_reactivity          = 2.0
+erf.dust.soil_type_file            = ""
+erf.dust.silt_fraction_file        = ""
+erf.dust.crust_index_file          = ""
+erf.dust.moisture_flag_file        = ""
+erf.dust.suppression_file          = ""
+erf.dust.surface_map_file          = ""
