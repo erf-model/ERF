@@ -116,7 +116,8 @@ AdvectionSrcForMom_EB ( const MFIter& mfi,
     Array4<const Real> u_fcx{};
     Array4<const Real> u_fcy{};
     Array4<const Real> u_fcz{};
-    FabType u_type = u_factory->getMultiEBCellFlagFab()[mfi].getType();
+    FabType u_type = u_factory->getMultiEBCellFlagFab()[mfi].getType(bxx);
+
     if (u_type == FabType::singlevalued) {
         u_afrac_x = u_factory->getAreaFrac()[0]->const_array(mfi);
         u_afrac_y = u_factory->getAreaFrac()[1]->const_array(mfi);
@@ -455,6 +456,7 @@ AdvectionSrcForMom_EB ( const MFIter& mfi,
                                             + (u_afrac_y(i  , j+1, k  ) * flx_u_arr[1](i  , j+1, k  ) - u_afrac_y(i, j, k) * flx_u_arr[1](i, j, k)) * dyInv * mfsq
                                             + (u_afrac_z(i  , j  , k+1) * flx_u_arr[2](i  , j  , k+1) - u_afrac_z(i, j, k) * flx_u_arr[2](i, j, k)) * dzInv ) / u_vfrac(i,j,k);
                     } else {
+
                         // Bilinear interpolation
                         Real fxm = flx_u_arr[0](i,j,k);
                         if (u_afrac_x(i,j,k) != zero && u_afrac_x(i,j,k) != one) {
