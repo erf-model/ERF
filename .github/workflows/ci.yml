@@ -112,8 +112,24 @@ jobs:
 
     - name: Check Parallel Test Registration
       run: |
-        ctest -N -L parallel
-        ctest -N -L parallel | grep -Eq 'np1|np2|np4'
+        ctest -N -V -L parallel | tee parallel-registration.txt
+        if grep -Eq 'Could not find executable|Unable to find executable' parallel-registration.txt; then
+          echo 'Parallel CTest registration contains a missing executable.' >&2
+          exit 1
+        fi
+        if grep -Eq '^.*Test command: (COMMAND|/usr/bin/command)([[:space:]]|$)' parallel-registration.txt; then
+          echo 'Parallel CTest registration treated COMMAND as the executable.' >&2
+          exit 1
+        fi
+        test "$(grep -c '^.*Test command: ' parallel-registration.txt)" -eq 39
+        test "$(grep -c '^  Test .*\.np1$' parallel-registration.txt)" -eq 13
+        test "$(grep -c '^  Test .*\.np2$' parallel-registration.txt)" -eq 13
+        test "$(grep -c '^  Test .*\.np4$' parallel-registration.txt)" -eq 13
+        test "$(grep -c '^.*Labels: parallel$' parallel-registration.txt)" -eq 39
+        if grep -Eq '^.*Labels: .*unit.*parallel|^.*Labels: .*parallel.*unit' parallel-registration.txt; then
+          echo 'Parallel CTest entries must not carry the unit label.' >&2
+          exit 1
+        fi
       working-directory: ${{runner.workspace}}/ERF/build-${{matrix.os}}
 
     - name: Run Serial Unit Tests

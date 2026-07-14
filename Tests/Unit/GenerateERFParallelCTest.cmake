@@ -86,12 +86,10 @@ foreach(_line IN LISTS _list_lines)
     set(_name "erf_parallel_tests.${_suite}.${_test}.np${_nprocs}")
     set(_report "${REPORT_DIRECTORY}/${_suite}.${_test}.np${_nprocs}.xml")
     # CTest consumes generated CTestTestfile includes with the legacy
-    # add_test(test-name COMMAND ...) form. The NAME keyword is accepted by
-    # CMake's configure-time command but is treated as a literal test name by
-    # CTest's generated-file parser.
+    # add_test(test-name command ...) form. The COMMAND keyword belongs only
+    # to CMake's configure-time signature and would become the executable.
     set(_command "add_test(")
     _erf_append_arg(_command "${_name}")
-    string(APPEND _command " COMMAND")
     foreach(_arg IN LISTS _mpiexec _numproc_flag)
       _erf_append_arg(_command "${_arg}")
     endforeach()
@@ -107,7 +105,7 @@ foreach(_line IN LISTS _list_lines)
     endforeach()
     string(APPEND _command ")\nset_tests_properties(")
     _erf_append_arg(_command "${_name}")
-    string(APPEND _command " PROPERTIES LABELS [==[unit;parallel]==]")
+    string(APPEND _command " PROPERTIES LABELS [==[parallel]==]")
     string(APPEND _command " PROCESSORS [==[${_nprocs}]==]")
     string(APPEND _command " TIMEOUT [==[${TEST_TIMEOUT}]==]")
     string(APPEND _command " ENVIRONMENT [==[ERF_PARALLEL_TEST_NPROCS=${_nprocs}]==])\n")

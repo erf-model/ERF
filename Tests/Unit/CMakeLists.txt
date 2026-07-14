@@ -69,6 +69,11 @@ function(erf_register_gtest_suite target)
   file(MAKE_DIRECTORY "${ERF_GTEST_XML_OUTPUT_DIR}")
 
   list(JOIN ERF_GTEST_LABELS ";" _erf_gtest_labels)
+  # GoogleTest's POST_BUILD discovery forwards TEST_PROPERTIES through a
+  # Windows command line. Keep a multi-label value as one CMake argument so
+  # the semicolon is not mistaken for an argument separator.
+  string(REPLACE ";" "\\;" _erf_gtest_labels_property
+         "${_erf_gtest_labels}")
 
   set(_erf_gtest_discover_extra_args)
   if(DEFINED ERF_GTEST_TEST_PREFIX AND NOT "${ERF_GTEST_TEST_PREFIX}" STREQUAL "")
@@ -87,7 +92,7 @@ function(erf_register_gtest_suite target)
     XML_OUTPUT_DIR "${ERF_GTEST_XML_OUTPUT_DIR}"
     ${_erf_gtest_discover_extra_args}
     PROPERTIES
-      LABELS "${_erf_gtest_labels}"
+      LABELS "${_erf_gtest_labels_property}"
       TIMEOUT ${ERF_GTEST_EXECUTION_TIMEOUT}
       SKIP_RETURN_CODE ${ERF_GTEST_SKIP_RETURN_CODE}
   )
