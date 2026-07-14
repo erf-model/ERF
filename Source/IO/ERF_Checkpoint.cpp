@@ -428,7 +428,7 @@ ERF::WriteCheckpointFile () const
 
         if (solverChoice.use_real_bcs && solverChoice.init_type == InitType::WRFInput) {
             if (lev == 0) {
-                amrex::Print() << "Writing C1H/C2H/MUB/PHB variables at level " << lev << std::endl;
+                amrex::Print() << "Writing C1H/C2H/RDNW/MUB/PHB variables at level " << lev << std::endl;
                 MultiFab tmp1d(ba1d[0],dmap[0],1,0);
 
                 MultiFab::Copy(tmp1d,*wrf_C1H,0,0,1,0);
@@ -436,6 +436,9 @@ ERF::WriteCheckpointFile () const
 
                 MultiFab::Copy(tmp1d,*wrf_C2H,0,0,1,0);
                 VisMF::Write(tmp1d, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "C2H"));
+
+                MultiFab::Copy(tmp1d,*wrf_RDNW,0,0,1,0);
+                VisMF::Write(tmp1d, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "RDNW"));
 
                 MultiFab tmp2d(ba2d[0],dmap[0],1,wrf_MUB->nGrowVect());
 
@@ -1014,7 +1017,7 @@ ERF::ReadCheckpointFile ()
 
         if (solverChoice.use_real_bcs && solverChoice.init_type == InitType::WRFInput) {
             if (lev == 0) {
-                amrex::Print() << "Reading C1H/C2H/MUB/PHB variables at level " << lev << std::endl;
+                amrex::Print() << "Reading C1H/C2H/RDNW/MUB/PHB variables at level " << lev << std::endl;
                 MultiFab tmp1d(ba1d[0],dmap[0],1,0);
 
                 VisMF::Read(tmp1d, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "C1H"));
@@ -1022,6 +1025,9 @@ ERF::ReadCheckpointFile ()
 
                 VisMF::Read(tmp1d, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "C2H"));
                 MultiFab::Copy(*wrf_C2H,tmp1d,0,0,1,0);
+
+                VisMF::Read(tmp1d, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "RDNW"));
+                MultiFab::Copy(*wrf_RDNW,tmp1d,0,0,1,0);
 
                 MultiFab tmp2d(ba2d[0],dmap[0],1,wrf_MUB->nGrowVect());
 
