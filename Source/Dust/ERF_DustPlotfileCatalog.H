@@ -19,9 +19,16 @@ inline amrex::Vector<std::string> dust_plotfile_var_names()
         "dust_conc_sfc",       ///< Near-surface dust concentration [kg/m^3].
         "dust_surf_moist",     ///< Surface moisture flux [kg/m^2/s]. Null when no moisture scheme.
         "dust_suppression",    ///< Suppression agent coverage [0-1].
-        "dust_retreat_flag"    ///< Re-treatment flag [0/1].
+        "dust_retreat_flag",   ///< Re-treatment flag [0/1].
+        // Phase 17: EPA NAAQS fields
+        "dust_pm25_ug_m3",      ///< Instantaneous PM2.5 [µg/m^3].
+        "dust_pm10_ug_m3",      ///< Instantaneous PM10 [µg/m^3].
+        "dust_pm25_24h_ug_m3",  ///< 24-hour running average PM2.5 [µg/m^3].
+        "dust_pm10_24h_ug_m3",  ///< 24-hour running average PM10 [µg/m^3].
+        "dust_pm25_exceed",     ///< Exceedance flag: 1 where PM2.5 24h > 35 µg/m^3.
+        "dust_pm10_exceed"      ///< Exceedance flag: 1 where PM10 24h > 150 µg/m^3.
     };
 }
 
-inline int dust_plotfile_ncomp() { return 8; }
+inline int dust_plotfile_ncomp() { return 14; }
 #endif

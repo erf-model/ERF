@@ -175,6 +175,10 @@ struct DustParams {
     std::string dust_plot_prefix   = "plt_dust_";  ///< Plotfile name prefix.
     std::string dust_diag_file     = "dust_diag.dat"; ///< CSV diagnostics file path.
 
+    // Phase 17: EPA NAAQS compliance output
+    std::string dust_naaqs_file    = "dust_naaqs.csv"; ///< NAAQS compliance CSV output.
+                                                        ///< 40 CFR Part 50.
+
     /**
      * Constructor that reads all parameters from ParmParse.
      */
@@ -223,6 +227,7 @@ struct DustParams {
         pp.query("dust_plot_int",    dust_plot_int);
         pp.query("dust_plot_prefix", dust_plot_prefix);
         pp.query("dust_diag_file",   dust_diag_file);
+        pp.query("dust_naaqs_file",  dust_naaqs_file);
         
         // Allow per-bin diameter override from input file.
         // erf.dust.bin_diameters = d0 d1 d2 ...

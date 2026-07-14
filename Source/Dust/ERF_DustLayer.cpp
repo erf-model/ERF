@@ -234,6 +234,24 @@ DustLayer::initialize(
                    << "\n";
   }
 
+  // Phase 17: PM size fraction MultiFabs on dust grid.
+  dust_pm25 = std::make_unique<amrex::MultiFab>(m_dg.ba, m_dg.dm, 1, amrex::IntVect(1,1,0));
+  dust_pm10 = std::make_unique<amrex::MultiFab>(m_dg.ba, m_dg.dm, 1, amrex::IntVect(1,1,0));
+  dust_pm25_24h = std::make_unique<amrex::MultiFab>(m_dg.ba, m_dg.dm, 1, amrex::IntVect(1,1,0));
+  dust_pm10_24h = std::make_unique<amrex::MultiFab>(m_dg.ba, m_dg.dm, 1, amrex::IntVect(1,1,0));
+  dust_pm25_exceed = std::make_unique<amrex::MultiFab>(m_dg.ba, m_dg.dm, 1, amrex::IntVect(1,1,0));
+  dust_pm10_exceed = std::make_unique<amrex::MultiFab>(m_dg.ba, m_dg.dm, 1, amrex::IntVect(1,1,0));
+  for (auto* mf : {dust_pm25.get(), dust_pm10.get(),
+                   dust_pm25_24h.get(), dust_pm10_24h.get(),
+                   dust_pm25_exceed.get(), dust_pm10_exceed.get()})
+    mf->setVal(0.0);
+
+  if (dust_params.dust_debug) {
+    amrex::Print() << "[DUST DEBUG] Phase 17: PM2.5/PM10 MultiFabs allocated\n"
+                   << "[DUST DEBUG] Phase 17: naaqs_file="
+                   << dust_params.dust_naaqs_file << "\n";
+  }
+
   // Populate surface MultiFabs from external rasters
   populate_dust_surface_maps(
     *dust_soil_type, *dust_silt_fraction, *dust_crust_index,
@@ -316,6 +334,17 @@ DustLayer::initialize(
                    << dust_params.transport_bins_separately << "\n";
   }
 
+  // Phase 17: Log bin PM classification
+  if (dust_params.dust_debug) {
+    amrex::Print() << "[DUST DEBUG] Phase 17: bin PM classification:\n";
+    for (int b = 0; b < (int)dust_params.bin_diameters.size(); ++b) {
+      amrex::Real d = dust_params.bin_diameters[b];
+      amrex::Print() << "  bin " << b << " d=" << d*1e6 << " um"
+                     << " PM2.5=" << (is_pm25(d)?"yes":"no")
+                     << " PM10=" << (is_pm10(d)?"yes":"no") << "\n";
+    }
+  }
+
   if (dust_params.dust_debug) {
     amrex::Print() << "[DUST DEBUG] initialize complete:"
                    << " n_size_bins=" << dust_params.n_size_bins
@@ -360,6 +389,14 @@ DustLayer::advance(
                    << " ustar_max=" << ustar_max << " m/s"
                    << " emission_flux_max=" << flux_max << " kg/m^2/s"
                    << " conc_sfc_max=" << conc_max << " kg/m^3\n";
+  }
+
+  // Phase 17: Additional debug output for conc_sfc_max in NAAQS units
+  if (m_params.dust_debug && dust_conc_sfc) {
+    amrex::Real cs = dust_conc_sfc->max(0);
+    amrex::Print() << "[DUST DEBUG] advance: step=" << m_step
+                   << " conc_sfc_max_entering_NAAQS=" << cs*1e9
+                   << " ug/m^3\n";
   }
 
   // Phase 9: Extract wind and surface fields from atmospheric solver
@@ -533,6 +570,11 @@ DustLayer::advance(
         << "[DUST DEBUG] Phase 7: emission_flux bin0 after blast step="
         << m_step << " max=" << dust_emission_flux->max(0) << " [kg/m^2/s]\n";
   }
+
+  // Phase 17: Compute PM2.5/PM10 NAAQS diagnostics
+  // Called after extract_atm_return_fields has updated dust_conc_sfc.
+  // Uses m_time - dt as the time at which fields were extracted (beginning of this step).
+  compute_naaqs_diagnostics(dt, m_time - dt, m_step);
 #endif
 }
 #ifdef ERF_USE_DUST
@@ -700,6 +742,50 @@ DustLayer::extract_atm_return_fields(
                        << " set by ComputeDiffusivityMRF)\n"
                        << "[DUST DEBUG] Phase 14: gamma_dust=0"
                        << " (no countergradient term for dust scalar)\n";
+    }
+}
+
+void
+DustLayer::compute_naaqs_diagnostics(amrex::Real dt, amrex::Real cur_time, int nstep)
+{
+    if (!dust_conc_sfc) return;
+
+    int n_active = m_params.transport_bins_separately
+                 ? m_params.n_size_bins : 1;
+
+    // Task A: compute instantaneous PM2.5 and PM10.
+    compute_pm_concentrations(*dust_pm25, *dust_pm10,
+                               *dust_conc_sfc,
+                               m_params.bin_diameters, n_active);
+
+    // Task B: update 24-hour running averages.
+    update_running_average(*dust_pm25_24h, *dust_pm25, dt, 86400.0, nstep);
+    update_running_average(*dust_pm10_24h, *dust_pm10, dt, 86400.0, nstep);
+
+    // Task C: exceedance flags.
+    compute_exceedance_flag(*dust_pm25_exceed, *dust_pm25_24h,
+                             DustPMConst::PM25_24H_NAAQS);
+    compute_exceedance_flag(*dust_pm10_exceed, *dust_pm10_24h,
+                             DustPMConst::PM10_24H_NAAQS);
+
+    // Task D: CSV output.
+    append_naaqs_stats(nstep, cur_time, m_params.dust_naaqs_file,
+                       *dust_pm25, *dust_pm25_24h,
+                       *dust_pm10, *dust_pm10_24h,
+                       *dust_pm25_exceed, *dust_pm10_exceed);
+
+    if (m_params.dust_debug) {
+        amrex::Real pm25_max    = dust_pm25->max(0);
+        amrex::Real pm25_24h_mx = dust_pm25_24h->max(0);
+        amrex::Real pm10_max    = dust_pm10->max(0);
+        amrex::Real n_ex25      = dust_pm25_exceed->sum(0);
+        amrex::Real n_ex10      = dust_pm10_exceed->sum(0);
+        amrex::Print() << "[DUST DEBUG] Phase 17: step=" << nstep
+                       << " PM25_max=" << pm25_max << " ug/m^3"
+                       << " PM25_24h_max=" << pm25_24h_mx << " ug/m^3"
+                       << " PM10_max=" << pm10_max << " ug/m^3"
+                       << " PM25_exceed_cells=" << (long)n_ex25
+                       << " PM10_exceed_cells=" << (long)n_ex10 << "\n";
     }
 }
 

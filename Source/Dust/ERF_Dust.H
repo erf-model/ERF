@@ -26,6 +26,8 @@
 #include <ERF_DustSettling.H>
 #include <ERF_DustDeposition.H>
 #include <ERF_DustAtmReturn.H>
+#include <ERF_DustPM.H>
+#include <ERF_DustNAAQSOutput.H>
 
 #endif // ERF_USE_DUST
 
