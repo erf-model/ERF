@@ -332,8 +332,8 @@ public:
 
         // Ensure conservation with unconstrained mixed-phase iterations
         delta_qv = qsat - qv_array(i,j,k);
-        delta_qc = delta_qv * omn;
-        delta_qi = delta_qv * (one - omn);
+        delta_qc = -delta_qv * omn;
+        delta_qi = -delta_qv * (one - omn);
 
         // Exhausted ice during mixed-phase
         if ((qi_array(i,j,k) + delta_qi) < zero) {
