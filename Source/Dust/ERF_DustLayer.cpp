@@ -273,6 +273,16 @@ DustLayer::initialize(
                    << "phreeqc_update_interval_s="
                    << dust_params.phreeqc_update_interval_s << " s\n";
   }
+
+  // Phase 11: Log bin_diameters and transport mode
+  if (dust_params.dust_debug) {
+    amrex::Print() << "[DUST DEBUG] Phase 11: bin_diameters [um]:";
+    for (auto d : dust_params.bin_diameters)
+      amrex::Print() << " " << d * 1e6;
+    amrex::Print() << "\n"
+                   << "[DUST DEBUG] Phase 11: transport_bins_separately="
+                   << dust_params.transport_bins_separately << "\n";
+  }
 }
 
 void
@@ -419,30 +429,80 @@ DustLayer::apply_to_cc_source(
   if (m_params.atm_feedback <= 0.0)
     return;
 
-  // Sum emission flux over bins into dust_flux_atm.
-  // Phase 11 will handle per-bin injection; here only total mass is used.
-  dust_flux_atm->setVal(0.0);
-  for (int b = 0; b < m_params.n_size_bins; ++b) {
-    amrex::MultiFab::Add(
-      *dust_flux_atm, *dust_emission_flux, b, 0, 1, amrex::IntVect(0));
+  // Phase 11: Support multi-bin injection when transport_bins_separately = true
+  int n_active = m_params.transport_bins_separately ? m_params.n_size_bins : 1;
+
+  for (int b = 0; b < n_active; ++b) {
+    // For transport_bins_separately=false (default): sum all bins into slot 0.
+    // For transport_bins_separately=true: inject bin b into slot b.
+    dust_flux_atm->setVal(0.0);
+    if (m_params.transport_bins_separately) {
+      amrex::MultiFab::Copy(*dust_flux_atm, *dust_emission_flux, b, 0, 1,
+                            amrex::IntVect(0));
+    } else {
+      // Sum all bins into slot 0 (only on first iteration).
+      if (b == 0) {
+        for (int bb = 0; bb < m_params.n_size_bins; ++bb) {
+          amrex::MultiFab::Add(*dust_flux_atm, *dust_emission_flux, bb, 0, 1,
+                               amrex::IntVect(0));
+        }
+      } else {
+        break; // Only one pass needed when not transport_bins_separately
+      }
+    }
+
+    // Coarsen from dust grid to atm grid.
+    coarsen_dust_flux_to_atm(
+      *dust_flux_atm, *dust_emission_flux, m_dg.geom, geom_atm, m_dg.grid_ratio);
+    // Note: when grid_ratio = 1 the dust grid == atm 2D grid; coarsening is
+    // a direct copy. When grid_ratio > 1, average_down reduces to atm resolution.
+
+    // Inject into cc_source.
+    apply_dust_tendency_to_cc_source(
+      cc_source, *dust_flux_atm, z_phys_cc, geom_atm,
+      m_dust_scalar_comp + b, m_params.atm_feedback, m_params.dust_debug);
+
+    if (!m_params.transport_bins_separately) break; // only one pass needed
   }
-
-  // Coarsen from dust grid to atm grid.
-  coarsen_dust_flux_to_atm(
-    *dust_flux_atm, *dust_emission_flux, m_dg.geom, geom_atm, m_dg.grid_ratio);
-  // Note: when grid_ratio = 1 the dust grid == atm 2D grid; coarsening is
-  // a direct copy. When grid_ratio > 1, average_down reduces to atm resolution.
-
-  // Inject into cc_source.
-  apply_dust_tendency_to_cc_source(
-    cc_source, *dust_flux_atm, z_phys_cc, geom_atm, m_dust_scalar_comp,
-    m_params.atm_feedback, m_params.dust_debug);
 
   if (m_params.dust_debug) {
+    Real F_max = dust_flux_atm->max(0);
     amrex::Print() << "[DUST DEBUG] Phase 10: step=" << m_step
-                   << " dust injected into cc_source comp="
-                   << m_dust_scalar_comp << "\n";
+                   << " F_dust_atm_max=" << F_max
+                   << " kg/m^2/s  n_active_bins=" << n_active << "\n";
   }
+}
+
+void
+DustLayer::apply_settling_to_cc_source(
+    amrex::MultiFab& cc_source,
+    const amrex::MultiFab& S_old,
+    const amrex::MultiFab& z_phys_cc,
+    const amrex::Geometry& geom_atm)
+{
+    if (m_params.bin_diameters.empty()) return;
+
+    int n_active = m_params.transport_bins_separately
+                 ? m_params.n_size_bins : 1;
+
+    for (int b = 0; b < n_active; ++b) {
+        // Clamp bin index to available diameters.
+        int d_idx = (b < (int)m_params.bin_diameters.size())
+                  ? b : (int)m_params.bin_diameters.size() - 1;
+        amrex::Real d_m  = m_params.bin_diameters[d_idx];
+        amrex::Real rhop = m_params.particle_density;
+        int comp = m_dust_scalar_comp + b;
+
+        apply_dust_settling_to_cc_source(cc_source, S_old, z_phys_cc,
+                                         geom_atm, d_m, rhop, comp,
+                                         m_params.dust_debug);
+    }
+
+    if (m_params.dust_debug) {
+        amrex::Print() << "[DUST DEBUG] Phase 11: settling applied"
+                       << " n_active_bins=" << n_active
+                       << " step=" << m_step << "\n";
+    }
 }
 
 #endif // ERF_USE_DUST

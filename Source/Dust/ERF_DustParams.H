@@ -137,6 +137,13 @@ struct DustParams {
     amrex::Real atm_feedback = 1.0;                ///< Coupling strength [0,1]. 0 = coupling
                                                    ///<   disabled. 1 = full injection.
 
+    // Phase 11: Stokes settling parameters
+    std::vector<amrex::Real> bin_diameters = {7.0e-6, 2.5e-6, 50.0e-6}; ///< Per-bin particle
+                                                   ///<   diameters [m]. Used for Stokes settling.
+                                                   ///<   Default: PM10 bin (7 um), PM2.5 bin (2.5 um),
+                                                   ///<   coarse bin (50 um).
+                                                   ///<   Reference: Seinfeld & Pandis (2006), Ch. 9.
+
     /**
      * Constructor that reads all parameters from ParmParse.
      */
@@ -179,6 +186,16 @@ struct DustParams {
         pp.query("suppression_file",   suppression_file);
         pp.query("transport_bins_separately", transport_bins_separately);
         pp.query("atm_feedback", atm_feedback);
+        
+        // Allow per-bin diameter override from input file.
+        // erf.dust.bin_diameters = d0 d1 d2 ...
+        {
+            amrex::Vector<amrex::Real> tmp;
+            int n = pp.queryarr("bin_diameters", tmp);
+            if (n > 0) {
+                bin_diameters.assign(tmp.begin(), tmp.end());
+            }
+        }
     }
 };
 

@@ -267,19 +267,27 @@ ERF::Advance (int lev, double time, double dt_lev, int iteration, int /*ncycle*/
     // Phase 10: Inject dust emission flux into the atmosphere
     // **************************************************************************************
 #ifdef ERF_USE_DUST
-    if (m_DustLayer && lev == 0 && m_dust_flux_atm[0]) {
+    if (m_DustLayer && lev == 0) {
         // Inject dust emission flux into cc_source before dycore advance.
-        // One-step explicit lag: flux from previous timestep (coarsened in ERF.cpp)
-        // is injected here. Pattern follows apply_fire_tendency_to_cc_source in
-        // ERF_FireAtmCoupling.H.
+        // Pattern follows apply_fire_tendency_to_cc_source in ERF_FireAtmCoupling.H.
         const amrex::MultiFab* zphys_ptr =
             (z_phys_cc.size() > 0) ? z_phys_cc[lev].get() : nullptr;
         if (zphys_ptr) {
-            const DustParams& dust_params = m_DustLayer->get_params();
-            apply_dust_tendency_to_cc_source(
-                cc_source, *m_dust_flux_atm[0], *zphys_ptr, Geom(lev),
-                m_DustLayer->get_dust_scalar_comp(),
-                dust_params.atm_feedback, dust_params.dust_debug);
+            m_DustLayer->apply_to_cc_source(cc_source, *zphys_ptr, Geom(lev));
+        }
+    }
+
+    // **************************************************************************************
+    // Phase 11: Apply Stokes settling to dust scalars
+    // **************************************************************************************
+    if (m_DustLayer && lev == 0) {
+        // Apply Stokes settling tendency after injection so settling operates on
+        // the updated cc_source.
+        const amrex::MultiFab* zphys_ptr =
+            (z_phys_cc.size() > 0) ? z_phys_cc[lev].get() : nullptr;
+        if (zphys_ptr) {
+            m_DustLayer->apply_settling_to_cc_source(
+                cc_source, state_old[lev], *zphys_ptr, Geom(lev));
         }
     }
 #endif

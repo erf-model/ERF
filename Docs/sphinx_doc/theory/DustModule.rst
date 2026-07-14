@@ -917,6 +917,93 @@ References
   *Math. Comput. Simul.*, 79 (3), 584–606.
   https://doi.org/10.1016/j.matcom.2008.03.015
 
+Stokes Settling Velocity (Phase 11)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Phase 11 implements vertical settling of dust particles via first-order upwind
+advection, applying the Stokes law for particle dynamics. Particles settle out
+of the domain at the lower boundary (deposition is added in Phase 12).
+
+Stokes Law Settling Velocity
+  For a spherical particle in Stokes flow (valid for diameters < 100 µm):
+
+  .. math::
+
+    v_s = \frac{(\rho_p - \rho_a) g d^2}{18 \mu_a}
+
+  where :math:`\rho_p` [kg/m³] is particle density, :math:`\rho_a` [kg/m³]
+  is local air density, :math:`g` = 9.81 m/s² is gravitational acceleration,
+  :math:`d` [m] is particle diameter, and :math:`\mu_a` [Pa·s] is dynamic
+  viscosity of air.
+
+Cunningham Slip Correction
+  For sub-micron particles, molecular slip must be accounted for:
+
+  .. math::
+
+    C_c = 1 + \frac{2\lambda}{d} \left( A_1 + A_2 \exp\left(-\frac{A_3 d}{\lambda}\right) \right)
+
+  where :math:`\lambda` = 0.066 µm is the mean free path at STP,
+  :math:`A_1` = 1.257, :math:`A_2` = 0.400, :math:`A_3` = 0.55
+  (Allen & Raabe 1985). For diameters > 1 µm the correction is < 15%.
+  The corrected settling velocity is :math:`v_s^{\text{corr}} = v_s C_c`,
+  clamped to [0.0, 1.0] m/s.
+
+Vertical Tendency (First-Order Upwind Flux Divergence)
+  The settling tendency is applied as a divergence of the downward mass flux:
+
+  .. math::
+
+    \frac{\partial (\rho_\text{dust})}{\partial t}\bigg|_{\text{settling}}
+      = -\frac{1}{\Delta z} \left( F_\text{down}(k) - F_\text{down}(k-1) \right)
+
+  where the downward flux at the top face of cell :math:`k` is:
+
+  .. math::
+
+    F_\text{down}(k) = v_s(k) \cdot \rho_\text{dust}(k)
+
+  and :math:`v_s(k)` is evaluated using local air density :math:`\rho_a(k)`
+  from the previous timestep. At the lower boundary (k=0), the flux leaving
+  the domain is held at zero in Phase 11 (Phase 12 adds dry deposition).
+
+Multi-Bin Scalar Expansion
+  When ``transport_bins_separately = false`` (default, lower cost),
+  all particles are advected as a single 3D scalar using the diameter
+  of the first bin. When ``transport_bins_separately = true``, each
+  particle size bin receives its own 3D scalar slot, allowing accurate
+  representation of size-dependent settling and transport.
+
+  The parameter ``bin_diameters`` [m] specifies the representative diameter
+  for each bin (default: 7.0 µm, 2.5 µm, 50.0 µm for PM10, PM2.5, and
+  coarse mineral dust respectively). Phase 10 injection is expanded to
+  populate all active bins in Phase 11 when this flag is enabled.
+
+Structural Reference
+  ``ERF_DustSettling.H`` contains device functions for Cunningham correction
+  and settling velocity computation, plus an inline MultiFab kernel that
+  applies the first-order upwind tendency. It follows the pattern of
+  ``ERF_FireAtmCoupling.H`` in adapting ``apply_fire_tendency_to_cc_source``.
+
+References
+  Stokes, G. G. (1851). On the effect of the internal friction of fluids
+  on the motion of pendulums. *Trans. Cambridge Phil. Soc.*, 9, 8–106.
+
+  Allen, M. D., and O. G. Raabe (1985). Slip correction measurements of
+  spherical aerosol particles at known Stokes numbers.
+  *Aerosol Sci. Tech.*, 4, 269–286.
+  https://doi.org/10.1080/02786828508959055
+
+  Seinfeld, J. H., and S. N. Pandis (2006).
+  *Atmospheric Chemistry and Physics: From Air Pollution to Climate Change*,
+  2nd ed., Chapter 9. Wiley.
+  ISBN 978-0-471-72018-8.
+
+  Ginoux, P., M. Chin, I. Tegen, J. Prospero, B. Holben, O. Dubovik,
+  and S.-J. Lin (2001). Sources and distributions of dust aerosols
+  simulated with the GOCART model. *J. Geophys. Res.*, 106, 20,255–20,273.
+  https://doi.org/10.1029/2000JD901323
+
 Development Phases
 ------------------
 

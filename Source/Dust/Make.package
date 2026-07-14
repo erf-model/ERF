@@ -22,5 +22,6 @@ ifeq ($(USE_DUST), TRUE)
   CEXE_headers += Dust/ERF_DustSuppression.H
   CEXE_headers += Dust/ERF_DustWindExtract.H
   CEXE_headers += Dust/ERF_DustAtmCoupling.H
+  CEXE_headers += Dust/ERF_DustSettling.H
   CEXE_headers += Dust/ERF_Dust.H
 endif
