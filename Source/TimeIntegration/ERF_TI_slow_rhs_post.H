@@ -64,7 +64,7 @@
             // fill_dust_moist_from_atm handles null safely (zeroes dust_surf_moist).
             m_DustLayer->extract_atm_return_fields(
                 S_new[IntVars::cons],
-                Q1fx3.get(),
+                Q1fx3,
                 fine_geom);
         }
 #endif
