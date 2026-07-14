@@ -331,7 +331,7 @@ public:
         }
 
         // Ensure conservation with unconstrained mixed-phase iterations
-        delta_qv = qv_array(i,j,k) - qsat;
+        delta_qv = qsat - qv_array(i,j,k);
         delta_qc = delta_qv * omn;
         delta_qi = delta_qv * (one - omn);
 
@@ -369,7 +369,7 @@ public:
             }
 
             // Set update
-            delta_qv = qv_array(i,j,k) - qsat;
+            delta_qv = qsat - qv_array(i,j,k);
             delta_qc = delta_qv + qi_array(i,j,k);
             delta_qi = -qi_array(i,j,k);
 
@@ -378,7 +378,7 @@ public:
                 tabs = tabs_array(i,j,k) - fac_cond * qc_array(i,j,k) - fac_sub * qi_array(i,j,k);
                 erf_qsatw(tabs, pres, qsat);
                 if (qsat <= qt_array(i,j,k)) {
-                    delta_qv = qv_array(i,j,k) - qsat;
+                    delta_qv = qsat - qv_array(i,j,k);
                     delta_qc = -qc_array(i,j,k);
                     delta_qi = -qi_array(i,j,k);
                 }
@@ -419,7 +419,7 @@ public:
             }
 
             // Set update
-            delta_qv = qv_array(i,j,k) - qsat;
+            delta_qv = qsat - qv_array(i,j,k);
             delta_qc = -qc_array(i,j,k);
             delta_qi = delta_qv + qc_array(i,j,k);
 
@@ -428,7 +428,7 @@ public:
                 tabs = tabs_array(i,j,k) - fac_cond * qc_array(i,j,k) - fac_sub * qi_array(i,j,k);
                 erf_qsatw(tabs, pres, qsat);
                 if (qsat <= qt_array(i,j,k)) {
-                    delta_qv = qv_array(i,j,k) - qsat;
+                    delta_qv = qsat - qv_array(i,j,k);
                     delta_qc = -qc_array(i,j,k);
                     delta_qi = -qi_array(i,j,k);
                 } else {
