@@ -471,7 +471,8 @@ void ImplicitDiffForStateLU_N (const amrex::Box& bx,
                                const SolverChoice& solverChoice,
                                const amrex::BCRec* bc_ptr,
                                const bool use_SurfLayer,
-                               const amrex::Real implicit_fac);
+                               const amrex::Real implicit_fac,
+                               const bool use_mrf_countergradient = false);
 
 void ImplicitDiffForStateLU_S (const amrex::Box& bx,
                                const amrex::Box& domain,
@@ -486,7 +487,8 @@ void ImplicitDiffForStateLU_S (const amrex::Box& bx,
                                const SolverChoice& solverChoice,
                                const amrex::BCRec* bc_ptr,
                                const bool use_SurfLayer,
-                               const amrex::Real implicit_fac);
+                               const amrex::Real implicit_fac,
+                               const bool use_mrf_countergradient = false);
 
 void ImplicitDiffForStateLU_T (const amrex::Box& bx,
                                const amrex::Box& domain,
@@ -503,7 +505,8 @@ void ImplicitDiffForStateLU_T (const amrex::Box& bx,
                                const SolverChoice& solverChoice,
                                const amrex::BCRec* bc_ptr,
                                const bool use_SurfLayer,
-                               const amrex::Real implicit_fac);
+                               const amrex::Real implicit_fac,
+                               const bool use_mrf_countergradient = false);
 
 template <int stagdir>
 void ImplicitDiffForMomLU_N (const amrex::Box& bx,

@@ -16,26 +16,27 @@ namespace HSEutils
     // to control Newton iterations in init_isentropic_hse*
     const int MAX_ITER = 10;
 #ifdef AMREX_USE_FLOAT
-    const amrex::Real TOL = Real(1.e-6);
+    const amrex::Real TOL = Real(1.e-4);
 #else
     const amrex::Real TOL = Real(1.e-8);
 #endif
 
     /**
      * Function to calculate the hydrostatic density and pressure
-     * from Newton-Raphson iterations
+     * from Newton-Raphson iterations at constant Th & Qv
      *
-     * @param[in]  m_tol     iteration tolerance
-     * @param[in]  RdOCp     Rd/Cp
-     * @param[out] dz        change in vertical height
-     * @param[out] g         magnitude of gravity
-     * @param[in]  C         sum of known terms in HSE balance
-     * @param[in]  T         theta at the current cell center
-     * @param[in] qt         total moisture (non-precip and precip)
-     * @param[in] qv         water vapor
-     * @param[in] P          pressure at cell center
-     * @param[in] rd         dry density at cell center
-     * @param[in] F          starting residual of non-linear eq
+     * @param[in]  m_tol      iteration tolerance
+     * @param[in]  RdOCp      Rd/Cp
+     * @param[out] dz         change in vertical height
+     * @param[out] g          magnitude of gravity
+     * @param[in]  C          sum of known terms in HSE balance
+     * @param[in]  Th         theta at the current cell center
+     * @param[in] qt          total moisture (non-precip and precip)
+     * @param[in] qv          water vapor
+     * @param[in] P           pressure at cell center
+     * @param[in] rd          dry density at cell center
+     * @param[in] F           starting residual of non-linear eq
+     * @param[in] maintain_Th maintain theta or temperature?
     */
     AMREX_GPU_HOST_DEVICE
     AMREX_FORCE_INLINE
@@ -46,27 +47,27 @@ namespace HSEutils
                         const Real& g,
                         const Real& C,
                         const Real& Th,
+                        const Real& T,
                         const Real& qt,
                         const Real& qv,
                         Real& P,
                         Real& rd,
-                        Real& F)
+                        Real& F,
+                        const bool& maintain_Th)
     {
         int iter=0;
         int max_iter=20;
-        Real eps  = Real(1.e-6);
-        Real ieps = Real(1.e6);
         while (std::abs(F)>m_tol && iter<max_iter) {
             // Compute change in pressure
-            Real hi   = getRhogivenThetaPress(Th, P + eps, RdOCp, qv);
-            Real lo   = getRhogivenThetaPress(Th, P - eps, RdOCp, qv);
-            Real dFdp = one + fourth*ieps*(hi - lo)*g*dz;
+            Real dRdP = (maintain_Th) ? iGamma * rd / P : rd / P;
+            Real dFdp = one + myhalf*dRdP*g*dz;
             P -= F/dFdp;
             if (P < Real(1.e3)) amrex::Warning("P < 1000 [Pa]; Domain height may be too large...");
             AMREX_ALWAYS_ASSERT(P > amrex::Real(0));
 
             // Diagnose density and residual
-            rd = getRhogivenThetaPress(Th, P, RdOCp, qv);
+            rd = (maintain_Th) ? getRhogivenThetaPress(Th, P, RdOCp, qv) :
+                                 getRhogivenTandPress(T , P, qv);
             AMREX_ALWAYS_ASSERT(rd > amrex::Real(0));
             Real r_tot = rd * (one + qt);
             F = P + myhalf*r_tot*g*dz + C;
@@ -77,7 +78,6 @@ namespace HSEutils
             AMREX_DEVICE_PRINTF("HSE Newton tol: %e %e\n",F,m_tol);
         }
     }
-
 
     /**
      * Function to calculate the hydrostatic density and pressure with constant dz
@@ -481,7 +481,7 @@ Real compute_temperature (const Real p_b, const Real q_t, const Real eq_pot_temp
     Real T_b = Real(200.0), delta_T; // Initial guess
 
 #ifdef AMREX_USE_FLOAT
-    Real eps = Real(1.e-6) * T_b;
+    Real eps = Real(1.e-4) * T_b;
 #else
     Real eps = Real(1.e-10) * T_b;
 #endif
@@ -595,7 +595,7 @@ Real compute_p_k_in_zone (Real &p_k, const Real p_k_minus_1, Real &theta_k, Real
     Real delta_p_k;
 
 #ifdef AMREX_USE_FLOAT
-    Real eps = Real(1e-6);
+    Real eps = Real(1e-4);
 #else
     Real eps = Real(1e-10);
 #endif

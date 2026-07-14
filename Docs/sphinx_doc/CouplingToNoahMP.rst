@@ -41,16 +41,32 @@ Noah-MP, then Noah-MP will be updated every 10 steps.
 Files Overview
 --------------
 
--  **Source/LandSurfaceModel/Noah-MP/ERF_NOAHMP.H**: Contains the declaration
-   of the NOAH class, which extends the NullSurf.
+The ERF-side driver is split by concern across several files under
+**Source/LandSurfaceModel/Noah-MP/**:
 
--  **Source/LandSurfaceModel/Noah-MP/ERF_NOAHMP.cpp**: Implements the
-   initialization routine for the NOAH class and the per-step state exchange
-   between ERF and Noah-MP.
+-  **ERF_NOAHMP.H**: The ``NOAHMP`` class declaration (members, accessors,
+   helpers); the class extends ``NullSurf``.
+
+-  **ERF_NOAHMP_Fields.H**: The coupling-field enums and the X-macro field
+   registry.
+
+-  **ERF_NOAHMP_Init.cpp**: ``Init`` and the run lifecycle.
+
+-  **ERF_NOAHMP_Advance.cpp**: ``Advance_With_State`` and the per-step state
+   exchange between ERF and Noah-MP.
+
+-  **ERF_NOAHMP_Precip.cpp**: Precip source collection, snapshots, and guard
+   reporting.
+
+-  **ERF_NOAHMP_IO.cpp**: The land plotfile and checkpoint/restart.
+
+Developer design specifications for these files live under
+**Source/LandSurfaceModel/Noah-MP/dev/** (start with ``dev/README.md``); see
+`Working on the ERF driver with a coding agent`_.
 
 The C++ ``↔`` Fortran coupling glue under **Submodules/Noah-MP/drivers/erf**
-is no longer hand-written. Four files are **generated** at build time from a single
-source of truth by ``tools/NoahmpIOCoupling.py`` (see
+is no longer hand-written. Five files are **generated** at build time from a single
+source of truth by ``tools/NoahmpMacro.py`` (see
 `Generating the C++–Fortran Coupling Glue`_). Only the tracked ``*-mc``
 templates are edited by hand; the generated targets are git-ignored and recreated
 on every build:
@@ -64,7 +80,7 @@ on every build:
      - Role
    * - ``NoahmpIO.H-mc``
      - ``NoahmpIO.H``
-     - C++ ``NoahmpIO_type`` declaration and the ``@NoahmpIOCoupling:Source``
+     - C++ ``NoahmpIO_type`` declaration and the ``@NoahmpMacro:Source``
        member list (the single source of truth)
    * - ``NoahmpIO.cpp-mc``
      - ``NoahmpIO.cpp``
@@ -75,29 +91,28 @@ on every build:
    * - ``NoahmpIOVarType.F90-mc``
      - ``NoahmpIOVarType.F90``
      - Fortran storage type holding the coupled members
+   * - ``NoahmpIOVarInitMod.F90-mc``
+     - ``NoahmpIOVarInitMod.F90``
+     - Fortran ``allocate()`` of the coupled arrays (bounds taken from each
+       member's ``[lo:hi, ...]`` clause)
 
 -  **Submodules/Noah-MP/drivers/erf/NoahmpIO.H-mc**: Defines the C++
    ``NoahmpIO_type`` that is used to interface with Noah-MP implementations,
    following a similar structure as the underlying Fortran interface
-   (https://dx.doi.org/10.5065/ew8g-yr95). The ``@NoahmpIOCoupling:Source { ... }``
-   block inside this template is the canonical, ABI-ordered list of all coupled
-   members.
+   (https://dx.doi.org/10.5065/ew8g-yr95). The
+   ``@NoahmpMacro:Source m_noahmpio { ... }`` block inside this template is the
+   canonical, ABI-ordered list of all coupled members.
 
--  **Submodules/Noah-MP/drivers/erf/tools/NoahmpIOCoupling.py**: The stdlib-only
+-  **Submodules/Noah-MP/drivers/erf/tools/NoahmpMacro.py**: The stdlib-only
    code generator (any Python 3, no third-party libraries) that expands the
-   ``@NoahmpIOCoupling:Source`` block into the four generated targets above. The
-   build runs it automatically; ``--check`` mode also drift-checks the generated
-   files and audits the hand-written ``allocate()`` bounds.
-
--  **Submodules/Noah-MP/drivers/erf/NoahmpIOVarInitMod.F90**: Hand-written (not
-   generated) Fortran module that allocates the coupled arrays. The allocate
-   bounds must match each member's ``@NoahmpIOCoupling:bounds_Nd`` annotation;
-   ``NoahmpIOCoupling.py --check`` audits this.
+   ``@NoahmpMacro:Source`` block into the five generated targets above. The
+   build runs it automatically; ``--check`` mode drift-checks the generated
+   files against the source block.
 
 -  **Submodules/Noah-MP/drivers/erf/NoahmpReadNamelistMod.F90**: Hand-written
    Fortran module that reads ``namelist.erf``; it also holds the sentinel guards
-   that let a C++-API value override a namelist default for ``scalar namelist``
-   members.
+   that let a C++-API value override a namelist default for a scalar that is also
+   read from the namelist.
 
 -  **Submodules/Noah-MP/drivers/erf/NoahmpWriteLandMod.F90**: Hand-written
    Fortran module that controls which fields appear in the per-timestep NetCDF
@@ -110,10 +125,13 @@ on every build:
    ``WriteRestart``/``ReadRestart`` methods of ``NoahmpIO_type`` and are used by
    ERF's checkpoint/restart capability (see :ref:`noahmp-checkpoint-restart`).
 
--  **Submodules/Noah-MP/drivers/erf/specs/**: TOML specs that double as
-   AI-assistant task prompts and human references for common coupling chores
-   (``add-coupled-variable.toml``, ``plot-land-output.toml``, and
-   ``improve-coupling-codegen.toml``).
+-  **Submodules/Noah-MP/drivers/erf/dev/**: Developer design specifications
+   (markdown) for the coupling layer — architecture and file map
+   (``spec-overview.md``), the Fortran ``↔`` C ABI/API and the code generator
+   (``spec-fc-api.md``), memory safety (``spec-memory-safety.md``), the land-output
+   and restart I/O (``spec-io-parallel.md``, ``spec-io-restart.md``), and the
+   add-a-coupled-variable workflow (``spec-add-coupled-variable.md``). Start with
+   ``dev/README.md``.
 
 NOAHMP Class
 ------------
@@ -136,28 +154,34 @@ select set of variables. More variables should be exposed as needed by
 applications in ERF.
 
 All coupled members are declared **once**, in ABI order, inside the
-``@NoahmpIOCoupling:Source { ... }`` block of
+``@NoahmpMacro:Source m_noahmpio { ... }`` block of
 **Submodules/Noah-MP/drivers/erf/NoahmpIO.H-mc**. The member's kind is inferred
-from its C++ type and refined by a trailing ``@NoahmpIOCoupling:`` annotation:
+from its C++ type; arrays carry a trailing ``[lo:hi, ...]`` bounds clause, in
+Fortran order, on the member name:
 
 .. code-block:: c++
 
-    int ids, ide, jds, jde;                   // dimensions/handles -- no annotation
-    noahmp_real DTBL;                          // @NoahmpIOCoupling:scalar
-    noahmp_real ZLVL = -9999.0;                // @NoahmpIOCoupling:scalar
-    NoahArray2D<noahmp_real> XLAT;             // @NoahmpIOCoupling:bounds_2d(xstart:xend, ystart:yend)
-    NoahArray3D<noahmp_real> T_PHY;           // @NoahmpIOCoupling:bounds_3d(xstart:xend, kms:kme, ystart:yend)
+    int ids, ide, jds, jde;                                             // dimensions/handles
+    noahmp_real DTBL;                                                    // scalar
+    noahmp_real ZLVL = -9999.0;                                         // scalar with a default
+    NoahmpArray2D<noahmp_real> XLAT[xstart:xend, ystart:yend];           // 2-D array
+    NoahmpArray3D<noahmp_real> T_PHY[xstart:xend, kms:kme, ystart:yend]; // 3-D array
+
+Every bound token must be a literal or another coupled member name (``xstart``,
+``xend``, ``kms``, ``kme``, ``nsoil``, ``numrad``, ...) so C++ and Fortran resolve
+it to the same value, and the number of ``lo:hi`` pairs must match the array rank.
 
 From this one ordered list the generator re-derives the mirrored ``fi`` struct,
 both constructors, the move constructor, ``NOAHMP_IO_FI_NUM_MEMBERS``, the Fortran
 ``bind(C)`` type, the coupled members of the storage type, the
-``C_LOC``/``C_F_POINTER`` wiring, and the C++ ``NoahArray`` extents. Because the
-C++ struct and the Fortran ``bind(C)`` type are emitted from the same list in one
-run, their member count, order, and types are identical *by construction*.
+``C_LOC``/``C_F_POINTER`` wiring, the Fortran ``allocate()`` of each array, and the
+C++ ``NoahmpArray`` extents. Because the C++ struct and the Fortran ``bind(C)``
+type are emitted from the same list in one run, their member count, order, and
+types are identical *by construction*.
 
-To expose a new variable you therefore add a single annotated line here and
-rebuild; the only remaining manual steps are the runtime wiring the generator does
-not own (array allocation, namelist guard, optional NetCDF output). See
+To expose a new variable you therefore add a single line here and rebuild; the
+only remaining manual steps are the runtime wiring the generator does not own (the
+namelist guard for a namelist-read scalar, and optional NetCDF output). See
 `Generating the C++–Fortran Coupling Glue`_ for the full procedure.
 
 .. note::
@@ -271,13 +295,14 @@ Generating the C++–Fortran Coupling Glue
 
 The C++ ``↔`` Fortran ABI under **Submodules/Noah-MP/drivers/erf** is produced by a
 deterministic, stdlib-only code generator,
-**tools/NoahmpIOCoupling.py** — *not* by an LLM. The generator reads the single
-``@NoahmpIOCoupling:Source { ... }`` block in ``NoahmpIO.H-mc`` and expands every
-``@NoahmpIOCoupling:<region>`` marker in the four ``*-mc`` templates into the
+**tools/NoahmpMacro.py** — *not* by an LLM. The generator reads the single
+``@NoahmpMacro:Source m_noahmpio { ... }`` block in ``NoahmpIO.H-mc`` and expands
+every ``@NoahmpMacro:<region>`` marker in the five ``*-mc`` templates into the
 corresponding generated target (see the table under `Files Overview`_).
 
 The generated targets (``NoahmpIO.H``, ``NoahmpIO.cpp``, ``NoahmpIO_fi.F90``,
-``NoahmpIOVarType.F90``) are git-ignored and recreated by the build:
+``NoahmpIOVarType.F90``, ``NoahmpIOVarInitMod.F90``) are git-ignored and recreated
+by the build:
 
 -  **GNU Make** runs the generator at parse time (before source discovery).
 -  **CMake** runs it at configure time.
@@ -288,91 +313,96 @@ available for editing or CI:
 .. code-block:: bash
 
    # GNU Make (from Submodules/Noah-MP/drivers/erf)
-   make codegen          # regenerate the four targets in place
+   make codegen          # regenerate the five targets in place
    make codegen-check    # exit 1 if regeneration would change anything (drift check)
 
    # CMake
    cmake --build <dir> --target noahmp_codegen
    cmake --build <dir> --target noahmp_codegen_check
 
-``codegen-check`` does double duty: it fails if the generated targets are out of
-sync with the ``@NoahmpIOCoupling:Source`` block, **and** it audits the
-hand-written ``allocate()`` bounds in ``NoahmpIOVarInitMod.F90`` against each
-array's ``@NoahmpIOCoupling:bounds_Nd`` annotation. Run it in CI.
+``codegen-check`` fails if any generated target — including the array
+``allocate()`` in ``NoahmpIOVarInitMod.F90`` — is out of sync with the
+``@NoahmpMacro:Source`` block. Run it in CI.
 
 Adding a coupled variable
 -------------------------
 
-The full, authoritative procedure (and an AI-assistant prompt) lives in
-**Submodules/Noah-MP/drivers/erf/specs/add-coupled-variable.toml**. In short:
+The full, authoritative procedure lives in
+**Submodules/Noah-MP/drivers/erf/dev/spec-add-coupled-variable.md**. In short:
 
-#. **Declare it (boundary glue).** Add ONE annotated line to the
-   ``@NoahmpIOCoupling:Source`` block in ``NoahmpIO.H-mc``, in the ABI position you
-   want (order in the block = ABI order):
+#. **Declare it (boundary glue).** Add ONE line to the
+   ``@NoahmpMacro:Source m_noahmpio { ... }`` block in ``NoahmpIO.H-mc``, in the ABI
+   position you want (order in the block = ABI order):
 
    .. code-block:: c++
 
-      noahmp_real RAINBL;                  // @NoahmpIOCoupling:scalar namelist "rainfall [mm]"
-      NoahArray2D<noahmp_real> RAINLSM;    // @NoahmpIOCoupling:bounds_2d(xstart:xend, ystart:yend) "lsm rain"
-      NoahArray3D<noahmp_real> SMOIS;      // @NoahmpIOCoupling:bounds_3d(xstart:xend, nsoil:nsoil, ystart:yend)
+      noahmp_real RAINBL;                                                    // scalar, rainfall [mm]
+      NoahmpArray2D<noahmp_real> RAINLSM[xstart:xend, ystart:yend];           // lsm rain
+      NoahmpArray3D<noahmp_real> SMOIS[xstart:xend, nsoil:nsoil, ystart:yend]; // soil moisture
 
-   The generator infers the kind from the C++ type (``int`` /
-   ``noahmp_real`` / ``NoahArray{2,3}D``). Array bounds must be listed in Fortran
-   order and every bound token must be a literal or another coupled member name
+   The generator infers the kind from the C++ type (``int`` / ``noahmp_real`` /
+   ``NoahmpArray{2,3}D``). Arrays carry a trailing ``[lo:hi, ...]`` bounds clause in
+   Fortran order; every bound token must be a literal or another coupled member name
    (``xstart``, ``xend``, ``kms``, ``kme``, ``nsoil``, ``numrad``, ...) so C++ and
-   Fortran resolve it to the same value. Scalars may add ``namelist`` and an
-   optional ``"doc"`` string; ints (dimensions/handles) need no annotation and may
-   carry a C++ default (e.g. ``int numrad = 2;``).
+   Fortran resolve it to the same value, and the number of pairs must match the
+   array rank. Scalars (``noahmp_real``) and ints need no bounds clause; an int
+   may carry a shared C++ default (e.g. ``int numrad = 2;``). A trailing ``//``
+   comment is free-form documentation.
 
 #. **Regenerate.** ``make codegen`` (or ``cmake --build ... --target
    noahmp_codegen``); a plain build does this automatically. Use ``codegen-check``
    to verify.
 
-#. **Runtime wiring (manual, not generated).** For a new array, add an
-   ``allocate()`` in ``NoahmpIOVarInitMod.F90`` with bounds matching the
-   ``@NoahmpIOCoupling:bounds_Nd`` annotation (scalars are not allocated). For a
-   ``scalar namelist`` variable, add a sentinel guard in
-   ``NoahmpReadNamelistMod.F90`` so a C++-API value wins over the namelist default.
+#. **Runtime wiring (manual, not generated).** The generator emits the member
+   declarations, all ABI plumbing, **and** the Fortran ``allocate()`` of each array
+   (bounds taken from the ``[lo:hi, ...]`` clause), so a brand-new array needs no
+   hand-written allocate. The only manual step is for a scalar that is *also* read
+   from the Fortran namelist: add a sentinel guard in ``NoahmpReadNamelistMod.F90``
+   so a C++-API value wins over the namelist default.
 
 #. **(Optional) NetCDF land output.** To make the variable appear in the
    per-timestep land output, add it to ``NoahmpWriteLandMod.F90`` following the
    existing ``TSK`` / ``SMOIS`` pattern (see
-   ``specs/plot-land-output.toml``).
+   ``dev/spec-io-parallel.md``).
 
-To extend the generator itself — a new annotation kind, a new generated region, or
-better diagnostics — see ``specs/improve-coupling-codegen.toml``.
+To extend the generator itself — a new region or better diagnostics — see
+``dev/spec-fc-api.md``.
 
-Generating the ERF driver with CodeScribe
-=========================================
+Working on the ERF driver with a coding agent
+=============================================
 
-The ERF-side C++ driver, **Source/LandSurfaceModel/Noah-MP/ERF_NOAHMP.cpp** and
-**ERF_NOAHMP.H**, is *not* covered by the macroprocessor above (it contains the
-GPU-aware, component-indexed state exchange rather than flat ABI plumbing). It can
-optionally be updated with **CodeScribe**
-(https://github.com/akashdhruv/CodeScribe), an LLM-based code-update tool.
+The ERF-side C++ driver (the ``ERF_NOAHMP_*`` files under
+**Source/LandSurfaceModel/Noah-MP/**) is *not* covered by the macroprocessor above
+— it contains the GPU-aware, component-indexed state exchange rather than flat ABI
+plumbing. It is instead maintained with the help of a coding agent (Claude Code or
+similar) driven from its developer specifications.
 
-Follow the instructions in the `CodeScribe repository <https://github.com/akashdhruv/CodeScribe>`_
-to configure your LLM environment. You will need API access for your preferred
-model (e.g., OpenAI, Argo, etc.). Tutorials are available at
-`https://github.com/akashdhruv/codescribe-tutorial <https://github.com/akashdhruv/codescribe-tutorial>`_.
-The driver's design specifications — the component-indexed field enums, the
-GPU-aware state exchange, the lifecycle, and the contract a code-update must
-respect — live as developer specs under
-**Source/LandSurfaceModel/Noah-MP/dev/** (start with ``dev/README.md``):
+Those specifications — the source layout and X-macro field registry, the
+component-indexed field enums, the GPU-aware state exchange, the run lifecycle, and
+the contract a change must respect — live as developer specs under
+**Source/LandSurfaceModel/Noah-MP/dev/** (start with ``dev/README.md``). The
+intended workflow is:
 
-.. code-block:: bash
+#. Load ``dev/README.md`` into the agent first — it is the map from each file to
+   its concern and to the spec that documents it.
+#. Then load the concern-scoped spec for the file being changed
+   (``spec-noahmp-api.md`` for the API and lifecycle, ``spec-noahmp-gpu.md`` for
+   the per-step data movement, ``spec-noahmp-io.md`` for I/O, or
+   ``spec-noahmp-reorg.md`` for the source layout and field registry).
+#. Treat the invariants — and, for a new coupled variable, the "Adding a coupled
+   variable" validation checklist in ``spec-noahmp-api.md`` — as the acceptance
+   criteria the change must satisfy.
 
-   code-scribe update ERF_NOAHMP.cpp ERF_NOAHMP.H \
-       -q "Write a natural language prompt with variable names, dimensions, etc." \
-       -m <openai|argo-gpt4o|...>
+Keeping the design specs in ``dev/`` beside the code, so a human or an agent works
+from the same contract, is part of ongoing AI-for-HPC research using
+`CodeScribe <https://github.com/akashdhruv/CodeScribe>`_.
 
 .. note::
 
-   CodeScribe is no longer used for the ``Submodules/Noah-MP/drivers/erf`` coupling
-   glue (``NoahmpIO.H``, ``NoahmpIO.cpp``, ``NoahmpIO_fi.F90``,
-   ``NoahmpIOVarType.F90``). That glue is now generated deterministically by
-   ``tools/NoahmpIOCoupling.py`` from the ``@NoahmpIOCoupling:Source`` block; do not
-   hand-edit the generated targets. The previous manual
-   ``real(kind=kind_noahmp)`` ``→`` ``real(kind=C_DOUBLE)`` substitution is also
-   obsolete — coupled reals use ``noahmp_real`` / ``c_kind_noahmp``, whose precision
-   is selected by the ``DOUBLE_PREC`` build flag.
+   The ``Submodules/Noah-MP/drivers/erf`` coupling glue (``NoahmpIO.H``,
+   ``NoahmpIO.cpp``, ``NoahmpIO_fi.F90``, ``NoahmpIOVarType.F90``,
+   ``NoahmpIOVarInitMod.F90``) is *not* produced this way. That glue is generated
+   deterministically by ``tools/NoahmpMacro.py`` from the ``@NoahmpMacro:Source``
+   block; do not hand-edit the generated targets. Coupled reals use ``noahmp_real``
+   / ``c_kind_noahmp``, whose precision is selected by the ``DOUBLE_PREC`` build
+   flag.
