@@ -466,7 +466,7 @@ DustLayer::apply_to_cc_source(
   }
 
   if (m_params.dust_debug) {
-    Real F_max = dust_flux_atm->max(0);
+    amrex::Real F_max = dust_flux_atm->max(0);
     amrex::Print() << "[DUST DEBUG] Phase 10: step=" << m_step
                    << " F_dust_atm_max=" << F_max
                    << " kg/m^2/s  n_active_bins=" << n_active << "\n";
