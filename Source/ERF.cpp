@@ -1520,6 +1520,26 @@ ERF::InitData_post ()
 
     }
 
+    // Zero the dust scalar component after all initialization and FillPatch
+    // operations are complete. The sounding/uniform init fills ALL conserved
+    // components (including the dust slot) with rho_air. Dust starts at zero
+    // physically; Phase 10 injection adds mass each step.
+    // This must be the last operation before diagnostics so no subsequent
+    // MultiFab::Copy overwrites it.
+#ifdef ERF_USE_DUST
+    if (m_DustLayer && restart_chkfile.empty()) {
+        int dc = m_DustLayer->get_dust_scalar_comp();
+        for (int lev = 0; lev <= finest_level; ++lev) {
+            vars_new[lev][Vars::cons].setVal(0.0, dc, 1,
+                vars_new[lev][Vars::cons].nGrowVect());
+            vars_old[lev][Vars::cons].setVal(0.0, dc, 1,
+                vars_old[lev][Vars::cons].nGrowVect());
+        }
+        amrex::Print() << "[DUST] Zeroed dust_scalar_comp=" << dc
+                       << " in vars_new/old after all initialization.\n";
+    }
+#endif
+
     if (is_it_time_for_action(istep[0], t_new[0], dt[0], sum_interval, sum_per)) {
         sum_integrated_quantities(t_new[0]);
         sum_derived_quantities(t_new[0]);
