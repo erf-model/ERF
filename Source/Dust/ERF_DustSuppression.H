@@ -176,7 +176,8 @@ inline void advance_dust_suppression(
                 supp_arr(i,j,k), T, u, dt, tau);
             supp_arr(i,j,k) = c_new;
             // Set re-treatment flag when coverage falls below threshold.
-            retreat_arr(i,j,k) = (c_new < retreat_thresh && c_new >= 0.0) ? 1.0 : 0.0;
+            retreat_arr(i,j,k) = (c_new > DustSuppressionConst::COVERAGE_FLOOR &&
+                       c_new < retreat_thresh) ? 1.0 : 0.0;
         });
     }
 }

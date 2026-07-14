@@ -35,6 +35,7 @@
 #define ERF_DUST_ATM_COUPLING_H
 
 #include <AMReX_MultiFab.H>
+#include <AMReX_MultiFabUtil.H> 
 #include <AMReX_Geometry.H>
 #include <AMReX_MFIter.H>
 
