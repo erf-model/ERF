@@ -1274,6 +1274,25 @@ ERF::InitData_post ()
     }
 #endif
 
+// ************************************************************************************
+// Zero the dust scalar component BEFORE the first plotfile write and before
+// sum_integrated_quantities. The sounding init fills all conserved components
+// including dust_scalar_comp with rho_air. Dust starts at zero physically.
+// ************************************************************************************
+#ifdef ERF_USE_DUST
+if (m_DustLayer && restart_chkfile.empty()) {
+    int dc = m_DustLayer->get_dust_scalar_comp();
+    for (int lev = 0; lev <= finest_level; ++lev) {
+        vars_new[lev][Vars::cons].setVal(0.0, dc, 1,
+            vars_new[lev][Vars::cons].nGrowVect());
+        vars_old[lev][Vars::cons].setVal(0.0, dc, 1,
+            vars_old[lev][Vars::cons].nGrowVect());
+    }
+    amrex::Print() << "[DUST] Zeroed dust_scalar_comp=" << dc
+                   << " in vars_new/old after all initialization.\n";
+}
+#endif
+
     // Update micro vars and finish moisture model initializations before first plot file
     if (solverChoice.moisture_type != MoistureType::None) {
         for (int lev = 0; lev <= finest_level; ++lev) {
@@ -1322,6 +1341,8 @@ ERF::InitData_post ()
         last_check_file_step = 0;
         if (m_check_per > zero) {last_check_file_time += m_check_per;}
     }
+
+
 
     if ( (restart_chkfile.empty()) ||
          (!restart_chkfile.empty() && plot_file_on_restart) )
@@ -1520,7 +1541,7 @@ ERF::InitData_post ()
 
     }
 
-    // Zero the dust scalar component after all initialization and FillPatch
+    /*// Zero the dust scalar component after all initialization and FillPatch
     // operations are complete. The sounding/uniform init fills ALL conserved
     // components (including the dust slot) with rho_air. Dust starts at zero
     // physically; Phase 10 injection adds mass each step.
@@ -1538,7 +1559,7 @@ ERF::InitData_post ()
         amrex::Print() << "[DUST] Zeroed dust_scalar_comp=" << dc
                        << " in vars_new/old after all initialization.\n";
     }
-#endif
+#endif*/
 
     if (is_it_time_for_action(istep[0], t_new[0], dt[0], sum_interval, sum_per)) {
         sum_integrated_quantities(t_new[0]);
