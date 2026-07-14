@@ -203,10 +203,25 @@ ERF::Evolve ()
             // Coarsen dust emission flux to atmospheric grid for injection at next step
             // One-step explicit lag: flux from this step will be injected in next step
             if (m_dust_flux_atm[0]) {
-                coarsen_dust_flux_to_atm(
-                    *m_dust_flux_atm[0], *m_DustLayer->get_emission_flux(),
-                    m_DustLayer->get_dust_geom(), geom[0],
-                    m_DustLayer->get_dust_grid().grid_ratio);
+                const DustParams& dust_params = m_DustLayer->get_params();
+                
+                // Sum emission flux over all size bins into a temporary 1-component MultiFab
+                // on the dust grid, then coarsen to the atmospheric grid.
+                {
+                    amrex::MultiFab dust_flux_sum(m_DustLayer->get_emission_flux()->boxArray(),
+                                                   m_DustLayer->get_emission_flux()->DistributionMap(),
+                                                   1, amrex::IntVect(1, 1, 0));
+                    dust_flux_sum.setVal(0.0);
+                    for (int b = 0; b < dust_params.n_size_bins; ++b) {
+                        amrex::MultiFab::Add(dust_flux_sum, *m_DustLayer->get_emission_flux(),
+                                            b, 0, 1, amrex::IntVect(1, 1, 0));
+                    }
+                    
+                    // Coarsen summed flux from dust grid to atmospheric grid
+                    coarsen_dust_flux_to_atm(*m_dust_flux_atm[0], dust_flux_sum,
+                                             m_DustLayer->get_dust_geom(), geom[0],
+                                             m_DustLayer->get_dust_grid().grid_ratio);
+                }
             }
         }
 #endif
