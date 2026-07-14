@@ -273,6 +273,16 @@ DustLayer::initialize(
                    << "phreeqc_update_interval_s="
                    << dust_params.phreeqc_update_interval_s << " s\n";
   }
+
+  // Phase 11: Log bin_diameters and transport mode
+  if (dust_params.dust_debug) {
+    amrex::Print() << "[DUST DEBUG] Phase 11: bin_diameters [um]:";
+    for (auto d : dust_params.bin_diameters)
+      amrex::Print() << " " << d * 1e6;
+    amrex::Print() << "\n"
+                   << "[DUST DEBUG] Phase 11: transport_bins_separately="
+                   << dust_params.transport_bins_separately << "\n";
+  }
 }
 
 void

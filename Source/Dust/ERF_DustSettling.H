@@ -42,6 +42,11 @@
 #include <AMReX_Print.H>
 #include <cmath>
 
+// Density component index (needed for S_old array access)
+#ifndef Rho_comp
+#include <ERF_IndexDefines.H>
+#endif
+
 namespace DustSettlingConst {
     constexpr amrex::Real G_ACCEL    = 9.81;     ///< Gravitational acceleration [m/s^2]
     constexpr amrex::Real MU_AIR_STD = 1.81e-5;  ///< Dynamic viscosity of air at 293 K [Pa s]

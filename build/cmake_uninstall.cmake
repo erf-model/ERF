@@ -1,8 +1,8 @@
-if(NOT EXISTS "/home/runner/work/ERF/ERF/Build/install_manifest.txt")
-    message(FATAL_ERROR "Cannot find install manifest: /home/runner/work/ERF/ERF/Build/install_manifest.txt")
+if(NOT EXISTS "/home/runner/work/ERF/ERF/build/install_manifest.txt")
+    message(FATAL_ERROR "Cannot find install manifest: /home/runner/work/ERF/ERF/build/install_manifest.txt")
 endif()
 
-file(READ "/home/runner/work/ERF/ERF/Build/install_manifest.txt" files)
+file(READ "/home/runner/work/ERF/ERF/build/install_manifest.txt" files)
 string(REGEX REPLACE "\n" ";" files "${files}")
 
 foreach(file ${files})

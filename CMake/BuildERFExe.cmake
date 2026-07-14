@@ -231,6 +231,7 @@ function(build_erf_lib erf_lib_name)
                    ${SRC_DIR}/Dust/ERF_DustSuppression.H
                    ${SRC_DIR}/Dust/ERF_DustWindExtract.H
                    ${SRC_DIR}/Dust/ERF_DustAtmCoupling.H
+                   ${SRC_DIR}/Dust/ERF_DustSettling.H
                    ${SRC_DIR}/Dust/ERF_Dust.H
     )
     target_include_directories(${erf_lib_name} PUBLIC
