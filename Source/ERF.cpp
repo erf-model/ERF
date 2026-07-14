@@ -26,6 +26,11 @@
 #include "ERF_ReadFromWRFBdy.H"
 #endif
 
+
+#ifdef ERF_USE_DUST
+#include "ERF_DustAtmCoupling.H"
+#endif
+
 using namespace amrex;
 
 double ERF::startCPUTime        = 0.0;

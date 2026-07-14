@@ -5,6 +5,10 @@
 #include <ERF_WindFarm.H>
 #endif
 
+#ifdef ERF_USE_DUST
+#include <ERF_DustAtmCoupling.H>
+#endif
+
 using namespace amrex;
 
 /**
