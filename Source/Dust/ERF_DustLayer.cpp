@@ -684,6 +684,12 @@ DustLayer::extract_atm_return_fields(
                        << "\n[DUST DEBUG] Phase 13:"
                        << " dep_total=" << dep_total
                        << " kg/m^2 (Phase 12 accumulator)\n";
+        // Phase 14: MRF diffusion active
+        amrex::Print() << "[DUST DEBUG] Phase 14: MRF diffusion active"
+                       << " (erf.transport_scalar=true, EddyDiff::Scalar_v"
+                       << " set by ComputeDiffusivityMRF)\n"
+                       << "[DUST DEBUG] Phase 14: gamma_dust=0"
+                       << " (no countergradient term for dust scalar)\n";
     }
 }
 

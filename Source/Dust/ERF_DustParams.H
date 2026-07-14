@@ -164,6 +164,12 @@ struct DustParams {
                                                ///<   Fecan et al. (1999):
                                                ///<   https://doi.org/10.1007/s00585-999-0149-7
 
+    // Phase 14: MRF nonlocal countergradient PBL diffusion
+    // MRF turbulent Schmidt number for the dust scalar is controlled via
+    // erf.dust.mrf_Sc_t in the PBL turbulence parameters (ERF_TurbStruct.H).
+    // Default: same diffusivity as heat (Sc_t = Pr_t).
+    // Seinfeld & Pandis (2006), Ch. 16: https://doi.org/10.1002/9781118227572
+
     /**
      * Constructor that reads all parameters from ParmParse.
      */

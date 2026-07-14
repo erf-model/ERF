@@ -1241,6 +1241,122 @@ Test Configuration
   ``moisture_path_active = 1`` will appear in debug output, and the Fecan
   inhibition factor will reduce u*_t in cells with surface moisture flux.
 
+MRF Nonlocal Countergradient Extension to Dust Scalar (Phase 14)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Phase 14 extends the Hong & Pan (1996) MRF boundary layer scheme's nonlocal
+countergradient transport framework to the dust scalar component, ensuring that
+dust particles are diffused vertically with the same eddy diffusivity profile
+:math:`K_h(z)` used for heat and moisture. Since dust has no prescribed surface
+flux gradient (unlike heat and moisture), the countergradient term for dust
+vanishes.
+
+The MRF Nonlocal Diffusion Profile
+  In the Hong & Pan (1996) MRF scheme, the vertical eddy viscosity in the PBL
+  is computed as:
+
+  .. math::
+
+    K_h(z) = w_* \kappa h \frac{z}{h} \left(1 - \frac{z}{h}\right)^2
+
+  where:
+
+  * :math:`w_*` = convective velocity scale [m/s] (related to friction velocity :math:`u_*`)
+  * :math:`\kappa = 0.4` = von Kármán constant
+  * :math:`h` = PBL height [m]
+  * :math:`z` = height above ground [m]
+
+  This profile peaks at :math:`z/h = 1/3`, where
+  :math:`K_{h,\text{peak}} \approx 0.037 \, w_* \, h`. For neutral boundary layers
+  with u* ~ 0.56 m/s and h ~ 500 m (typical MRF diagnostic), the peak diffusivity
+  is ~27.7 m²/s.
+
+Scalar Diffusivity for Dust
+  Phase 14 sets ``EddyDiff::Scalar_v`` (vertical scalar diffusivity) equal to
+  ``EddyDiff::Theta_v`` (vertical heat diffusivity) in ``ComputeDiffusivityMRF.cpp``.
+  The dust scalar component is then automatically diffused using this profile when
+  ``erf.transport_scalar = true``, via the existing ``DiffusionSrcForState_N/T/S``
+  routines which reference ``EddyDiff::Scalar_v`` for any passive scalar in the
+  ``RhoScalar_comp`` range.
+
+Zero Countergradient for Dust
+  The MRF scheme includes countergradient corrections for heat
+  (``HGAMT_v``, Hong & Pan 1996 Eq. 3) and moisture (``HGAMQ_v``):
+
+  .. math::
+
+    K_h \frac{\partial \theta}{\partial z} = K_h \left(\frac{\partial \overline{\theta}}{\partial z} - \gamma_\theta\right)
+
+  where :math:`\gamma_\theta` represents the nonlocal countergradient transport.
+  For dust, :math:`\gamma_{\text{dust}} = 0` because there is no prescribed surface
+  dust flux analogous to the sensible heat flux :math:`\overline{w''\theta''}_{\text{sfc}}`.
+  The diffusion is therefore purely gradient-driven, consistent with passive
+  aerosol tracer transport in the literature.
+
+Turbulent Schmidt Number Scaling
+  By default, dust diffusivity is identical to heat diffusivity, corresponding to
+  a turbulent Schmidt number :math:`Sc_t` equal to the turbulent Prandtl number
+  :math:`Pr_t`. This is the standard assumption for passive aerosol tracers at large
+  Reynolds numbers (Seinfeld & Pandis 2006, Ch. 16).
+
+  For fine-tuning, Phase 14 introduces the parameter ``erf.dust.mrf_Sc_t``
+  [dimensionless]:
+
+  .. math::
+
+    K_h^{\text{dust}} = K_h^{\text{heat}} \times \frac{Pr_t}{Sc_t}
+
+  * Default: ``Sc_t = 0`` or ``Sc_t = Pr_t`` → no scaling (dust diffusivity = heat diffusivity)
+  * Example: ``Sc_t = 2.0`` → dust diffusivity = 0.5 × heat diffusivity (halved relative to heat)
+
+  Reference: Seinfeld, J.H., and S.N. Pandis (2006). *Atmospheric Chemistry and
+  Physics: From Air Pollution to Climate Change*, 2nd ed., Ch. 16. Wiley.
+  ISBN 978-0-471-72018-8.
+
+Diagnostics
+  Phase 14 adds two debug outputs (when ``erf.dust.dust_debug = true``):
+
+  1. In ``extract_atm_return_fields``: Confirmation that gamma_dust = 0 (no countergradient)
+  2. In ``ComputeTurbulentViscosity``: Print of :math:`K_{h,\text{max}}^{\text{Scalar}}` and
+    :math:`K_{h,\text{max}}^{\text{Heat}}` for verification of Sc_t scaling
+
+Parameters
+  * ``erf.dust.mrf_Sc_t`` [dimensionless] (default: 0 → use Pr_t): Turbulent Schmidt
+   number for dust in MRF PBL scheme. Controls ``EddyDiff::Scalar_v`` relative to
+   ``EddyDiff::Theta_v``.
+
+Test Configuration
+  The ``DustMRFDiffusion`` test uses the neutral ABL configuration and verifies:
+
+  * Phase 14 debug output shows ``Scalar_v_max`` and ``Theta_v_max`` each step
+  * With ``Sc_t = 0`` (default): ``Scalar_v_max ≈ Theta_v_max`` (within 1%)
+  * With ``Sc_t = 2.0``: ``Scalar_v_max ≈ 0.5 × Theta_v_max``
+  * Dust concentration profile exhibits vertical diffusion (reduced gradient)
+  * Phase 13 and 14 debug prints confirm MRF diffusion is active
+  * Run exits with code 0 at ``max_step = 5``
+
+Implementation
+  Phase 14 modifications are concentrated in two files:
+
+  * ``Source/PBL/ERF_ComputeDiffusivityMRF.cpp``: Set ``EddyDiff::Scalar_v`` and
+   apply Sc_t scaling
+  * ``Source/DataStructs/ERF_TurbStruct.H``: Add ``dust_mrf_Sc_t`` parameter and
+   parser
+
+  No diffusion calling code changes are required; ``DiffusionSrcForState_N/T/S``
+  routines already reference ``EddyDiff::Scalar_v`` for dust via the existing
+  ``is_valid_slow_var`` component index logic.
+
+References
+  .. [Hong1996MRF] (already defined above)
+  .. [Seinfeld2006] Seinfeld, J.H., and S.N. Pandis (2006). *Atmospheric Chemistry
+    and Physics: From Air Pollution to Climate Change*, 2nd ed., Ch. 16. Wiley.
+    ISBN 978-0-471-72018-8.
+  .. [Ginoux2001] Ginoux, P., M. Chin, I. N. Tegen, J. M. Prospero, B. Holben,
+    O. Dubovik, and S.-J. Lin (2001). Sources and distributions of dust aerosols
+    simulated with the GOCART model. *J. Geophys. Res.*, 106, 20255–20273.
+    https://doi.org/10.1029/2000JD901323
+
 Development Phases
 ------------------
 
