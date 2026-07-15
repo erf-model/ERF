@@ -27,6 +27,7 @@
 #include <AMReX_Utility.H>
 #include <iomanip>
 #include <fstream>
+#include <string>
 
 using namespace amrex;
 
@@ -78,7 +79,6 @@ void WriteDustPlotfile(const std::string& plotfile_prefix,
     std::string plotfilename = Concatenate(plotfile_prefix, step, 5);
 
     // Step 1: IOProcessor creates directories; barrier before collective write.
-    // Pattern: ERF_FirePlotfile.cpp lines 126-135.
     if (ParallelDescriptor::IOProcessor()) {
         if (!amrex::UtilCreateDirectory(plotfilename, 0755))
             amrex::CreateDirectoryFailed(plotfilename);
