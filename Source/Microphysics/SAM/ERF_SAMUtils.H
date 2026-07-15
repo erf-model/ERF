@@ -362,69 +362,37 @@ amrex::Real sam_mixed_dqsat_dT (const amrex::Real& omn,
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+amrex::Real sam_mixed_dqif_dT (const amrex::Real& omn,
+                               const amrex::Real& domn,
+                               const amrex::Real& qn,
+                               const amrex::Real& dqsatm) noexcept
+{
+    // Temperature derivative of the final ice fraction
+    return -domn * qn - (one - omn) * dqsatm;
+}
+
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 amrex::Real sam_newton_residual (const amrex::Real& tabs_new,
                                  const amrex::Real& tabs_old,
                                  const amrex::Real& fcond,
                                  const amrex::Real& qv,
-                                 const amrex::Real& qsatw,
+                                 const amrex::Real& qsatm,
                                  const amrex::Real& ffus,
                                  const amrex::Real& qi,
-                                 const amrex::Real& qsati) noexcept
+                                 const amrex::Real& qif) noexcept
 {
     // Residual for the local constant-pressure saturation adjustment solve.
-    return -tabs_new + tabs_old + fcond * (qv - qsatw) - ffus * (qi - qsati);
-}
-
-AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-amrex::Real sam_newton_residual_no_ice (const amrex::Real& tabs_new,
-                                        const amrex::Real& tabs_old,
-                                        const amrex::Real& fcond,
-                                        const amrex::Real& qv,
-                                        const amrex::Real& qsatw,
-                                        const amrex::Real& ffus,
-                                        const amrex::Real& qi) noexcept
-{
-    // Residual for the local constant-pressure saturation adjustment solve.
-    return -tabs_new + tabs_old + fcond * (qv - qsatw) - ffus * qi;
-}
-
-AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-amrex::Real sam_newton_residual_no_liquid (const amrex::Real& tabs_new,
-                                           const amrex::Real& tabs_old,
-                                           const amrex::Real& fsub,
-                                           const amrex::Real& qv,
-                                           const amrex::Real& qsati,
-                                           const amrex::Real& ffus,
-                                           const amrex::Real& qc) noexcept
-{
-    // Residual for the local constant-pressure saturation adjustment solve.
-    return -tabs_new + tabs_old + fsub * (qv - qsati) + ffus * qc;
+    return -tabs_new + tabs_old + fcond * (qv - qsatm) - ffus * (qi - qif);
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 amrex::Real sam_newton_residual_derivative (const amrex::Real& fcond,
                                             const amrex::Real& ffus,
-                                            const amrex::Real& dqsatw,
-                                            const amrex::Real& dqsati) noexcept
+                                            const amrex::Real& dqsatm,
+                                            const amrex::Real& dqif) noexcept
 {
     // Derivative for the local constant-pressure saturation adjustment solve.
-    return -one - fcond * dqsatw + ffus * dqsati;
-}
-
-AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-amrex::Real sam_newton_residual_derivative_no_ice (const amrex::Real& fcond,
-                                                   const amrex::Real& dqsatw) noexcept
-{
-    // Derivative for the local constant-pressure saturation adjustment solve.
-    return -one - fcond * dqsatw;
-}
-
-AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-amrex::Real sam_newton_residual_derivative_no_liquid (const amrex::Real& fsub,
-                                                      const amrex::Real& dqsati) noexcept
-{
-    // Derivative for the local constant-pressure saturation adjustment solve.
-    return -one - fsub * dqsati;
+    return -one - fcond * dqsatm + ffus * dqif;
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
