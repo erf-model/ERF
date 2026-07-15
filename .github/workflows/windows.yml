@@ -64,6 +64,12 @@ jobs:
         ctest -C Debug -L unit -VV
       working-directory: ${{runner.workspace}}/ERF/build
 
+    - name: CMake Shuffle Stress Test
+      if: matrix.particles == 'OFF' && matrix.particles_precision == 'DOUBLE' && matrix.mesh_precision == 'DOUBLE'
+      shell: pwsh
+      run: ctest -C Debug -L stress --output-on-failure --no-tests=error
+      working-directory: ${{runner.workspace}}/ERF/build
+
     - name: CMake Regression Tests # see file ERF/Tests/CTestList.cmake
       if: matrix.particles_precision == 'DOUBLE' && matrix.mesh_precision == 'DOUBLE'
       run: |
