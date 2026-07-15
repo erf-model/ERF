@@ -364,65 +364,67 @@ amrex::Real sam_mixed_dqsat_dT (const amrex::Real& omn,
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 amrex::Real sam_newton_residual (const amrex::Real& tabs_new,
                                  const amrex::Real& tabs_old,
-                                 const amrex::Real& lstar,
+                                 const amrex::Real& fcond,
                                  const amrex::Real& qv,
-                                 const amrex::Real& qsat) noexcept
+                                 const amrex::Real& qsatw,
+                                 const amrex::Real& ffus,
+                                 const amrex::Real& qi,
+                                 const amrex::Real& qsati) noexcept
 {
     // Residual for the local constant-pressure saturation adjustment solve.
-    return -tabs_new + tabs_old + lstar * (qv - qsat);
+    return -tabs_new + tabs_old + fcond * (qv - qsatw) - ffus * (qi - qsati);
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 amrex::Real sam_newton_residual_no_ice (const amrex::Real& tabs_new,
                                         const amrex::Real& tabs_old,
-                                        const amrex::Real& lstarv,
+                                        const amrex::Real& fcond,
                                         const amrex::Real& qv,
-                                        const amrex::Real& qsat,
-                                        const amrex::Real& lstarf,
+                                        const amrex::Real& qsatw,
+                                        const amrex::Real& ffus,
                                         const amrex::Real& qi) noexcept
 {
     // Residual for the local constant-pressure saturation adjustment solve.
-    return -tabs_new + tabs_old + lstarv * (qv - qsat) - lstarf * qi;
+    return -tabs_new + tabs_old + fcond * (qv - qsatw) - ffus * qi;
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 amrex::Real sam_newton_residual_no_liquid (const amrex::Real& tabs_new,
                                            const amrex::Real& tabs_old,
-                                           const amrex::Real& lstarv,
+                                           const amrex::Real& fsub,
                                            const amrex::Real& qv,
-                                           const amrex::Real& qsat,
-                                           const amrex::Real& lstarf,
+                                           const amrex::Real& qsati,
+                                           const amrex::Real& ffus,
                                            const amrex::Real& qc) noexcept
 {
     // Residual for the local constant-pressure saturation adjustment solve.
-    return -tabs_new + tabs_old + lstarv * (qv - qsat) + lstarf * qc;
+    return -tabs_new + tabs_old + fsub * (qv - qsati) + ffus * qc;
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-amrex::Real sam_newton_residual_derivative (const amrex::Real& lstar,
-                                            const amrex::Real& dlstar,
-                                            const amrex::Real& qv,
-                                            const amrex::Real& qsat,
-                                            const amrex::Real& dqsat) noexcept
+amrex::Real sam_newton_residual_derivative (const amrex::Real& fcond,
+                                            const amrex::Real& ffus,
+                                            const amrex::Real& dqsatw,
+                                            const amrex::Real& dqsati) noexcept
 {
     // Derivative for the local constant-pressure saturation adjustment solve.
-    return -one + dlstar * (qv - qsat) - lstar * dqsat;
+    return -one - fcond * dqsatw + ffus * dqsati;
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-amrex::Real sam_newton_residual_derivative_no_ice (const amrex::Real& lstarv,
-                                                   const amrex::Real& dqsat) noexcept
+amrex::Real sam_newton_residual_derivative_no_ice (const amrex::Real& fcond,
+                                                   const amrex::Real& dqsatw) noexcept
 {
     // Derivative for the local constant-pressure saturation adjustment solve.
-    return -one - lstarv * dqsat;
+    return -one - fcond * dqsatw;
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-amrex::Real sam_newton_residual_derivative_no_liquid (const amrex::Real& lstars,
-                                                      const amrex::Real& dqsat) noexcept
+amrex::Real sam_newton_residual_derivative_no_liquid (const amrex::Real& fsub,
+                                                      const amrex::Real& dqsati) noexcept
 {
     // Derivative for the local constant-pressure saturation adjustment solve.
-    return -one - lstars * dqsat;
+    return -one - fsub * dqsati;
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
@@ -436,9 +438,9 @@ SAMPrecipSources sam_autoconversion_rates (const amrex::Real& dtn,
     // the microphysics time step dtn. The strict qcw0/qci0 thresholds are
     // intentional: equality leaves the source inactive.
     const amrex::Real auto_r = (qcc > qcw0) ? alphaelq : zero;
-    const amrex::Real autos = (qii > qci0) ? betaelq * coefice_k : zero;
+    const amrex::Real autos  = (qii > qci0) ? betaelq * coefice_k : zero;
     result.dqca = dtn * auto_r * (qcc - qcw0);
-    result.dqia = dtn * autos * (qii - qci0);
+    result.dqia = dtn * autos  * (qii - qci0);
     return result;
 }
 

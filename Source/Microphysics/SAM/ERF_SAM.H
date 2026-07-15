@@ -227,16 +227,13 @@ public:
 
         // Saturation moisture fractions
         amrex::Real omn, domn;
-        amrex::Real qsat, dqsat;
         amrex::Real qsatw, dqsatw;
         amrex::Real qsati, dqsati;
 
         // Newton iteration vars
         int  niter = 0;
         amrex::Real F, dFdT;
-        amrex::Real lstar, dlstar;
-        amrex::Real lstarw, lstari, lstarc;
-        amrex::Real delta_qv, delta_qc, delta_qi;
+        amrex::Real qv_tmp, qc_tmp, qi_tmp, qn_tmp;
 
         //=======================================================================
         // Mixed-phase Newton iteration to qv=qsat (cloud phase only)
@@ -246,18 +243,15 @@ public:
         amrex::Real tabs = tabs_array(i,j,k);
         amrex::Real pres = pres_array(i,j,k);
 
-        // Latent heats and their derivatives wrt to T
-        lstarw  = fac_cond;
-        lstari  = fac_sub;
-
         // Saturation moisture fractions
         erf_qsatw(tabs, pres, qsatw);
-        erf_qsati(tabs, pres, qsati);
-        erf_dtqsatw(tabs, pres, dqsatw);
-        erf_dtqsati(tabs, pres, dqsati);
 
-        omn = sam_cloud_liquid_fraction(SAM_moisture_type, tabs, an, bn);
+        // Enforce omega splitting
+        omn    = sam_cloud_liquid_fraction(SAM_moisture_type, tabs, an, bn);
+        qn_tmp = qt_array(i,j,k) - qsatw;
+        qsati  = qn_tmp * (one - omn);
 
+        // Saturation derivatives WRT temperature (dqndt = -dqsatw)
         domn = zero;
         if (SAM_moisture_type == 1) {
             // Cloud ice not permitted (condensation)
@@ -268,37 +262,38 @@ public:
             }
             // Mixed cloud phase (condensation & deposition)
             else {
-                lstari = fac_sub;
                 domn   = an;
             }
+            erf_dtqsatw(tabs, pres, dqsatw);
+            dqsati = -(one - omn) * dqsatw - qn_tmp * domn;
         } else if (SAM_moisture_type == 2) {
             domn = zero;
+            erf_dtqsatw(tabs, pres, dqsatw);
+            qsati  = zero;
+            dqsati = zero;
         }
 
-        // Linear combination of each component
-        qsat   = sam_mixed_qsat(omn, qsatw, qsati);
-        dqsat  = sam_mixed_dqsat_dT(omn, domn, qsatw, qsati, dqsatw, dqsati);
-        lstar  =  omn * lstarw + (one-omn) * lstari;
-        dlstar = domn * lstarw -     domn  * lstari;
-
-        // Function for root finding:
-        // 0 = -T_new + T_old + L_eff/C_p * (qv - qsat)
-        F = sam_newton_residual(tabs, tabs_array(i,j,k), lstar, qv_array(i,j,k), qsat);
+        // Function for root finding (conserve latent proxy):
+        // 0 = -T_new + T_old + L_v/C_p * (qv,0 - qs,w) - L_f/C_p * (qi,0 - qs,i)
+        F = sam_newton_residual(tabs, tabs_array(i,j,k),
+                                fac_cond, qv_array(i,j,k), qsatw,
+                                fac_fus , qi_array(i,j,k), qsati);
         while (std::abs(F) > tol && niter < 20) {
             // Derivative of function (T_new iterated on)
-            dFdT  = sam_newton_residual_derivative(lstar, dlstar, qv_array(i,j,k), qsat, dqsat);
+            dFdT  = sam_newton_residual_derivative(fac_cond, fac_fus, dqsatw, dqsati);
 
             // Update the temperature
             tabs -= F/dFdT;
 
             // Saturation moisture fractions
             erf_qsatw(tabs, pres, qsatw);
-            erf_qsati(tabs, pres, qsati);
-            erf_dtqsatw(tabs, pres, dqsatw);
-            erf_dtqsati(tabs, pres, dqsati);
 
-            omn  = sam_cloud_liquid_fraction(SAM_moisture_type, tabs, an, bn);
+            // Enforce omega splitting
+            omn    = sam_cloud_liquid_fraction(SAM_moisture_type, tabs, an, bn);
+            qn_tmp = qt_array(i,j,k) - qsatw;
+            qsati  = qn_tmp * (one - omn);
 
+            // Saturation derivatives WRT temperature
             domn = zero;
             if (SAM_moisture_type == 1) {
                 // Cloud ice not permitted (condensation)
@@ -309,130 +304,127 @@ public:
                 }
                 // Mixed cloud phase (condensation & deposition)
                 else {
-                    lstari = fac_sub;
                     domn   = an;
                 }
+                erf_dtqsatw(tabs, pres, dqsatw);
+                dqsati = -(one - omn) * dqsatw - qn_tmp * domn; // dqndt = -dqsatw
             } else if (SAM_moisture_type == 2) {
                 domn = zero;
+                erf_dtqsatw(tabs, pres, dqsatw);
+                qsati  = zero;
+                dqsati = zero;
             }
 
-            // Linear combination of each component
-            qsat   = sam_mixed_qsat(omn, qsatw, qsati);
-            dqsat  = sam_mixed_dqsat_dT(omn, domn, qsatw, qsati, dqsatw, dqsati);
-            lstar  =  omn * lstarw + (one-omn) * lstari;
-            dlstar = domn * lstarw -     domn  * lstari;
-
-            // Function for root finding:
-            // 0 = -T_new + T_old + L_eff/C_p * (qv - qsat)
-            F = sam_newton_residual(tabs, tabs_array(i,j,k), lstar, qv_array(i,j,k), qsat);
+            // Function for root finding (conserve latent proxy):
+            // 0 = -T_new + T_old + L_v/C_p * (qv,0 - qs,w) - L_f/C_P * (qi,0 - qs,i)
+            F = sam_newton_residual(tabs, tabs_array(i,j,k),
+                                    fac_cond, qv_array(i,j,k), qsatw,
+                                    fac_fus , qi_array(i,j,k), qsati);
 
             // Update iteration
             ++niter;
         }
 
         // Ensure conservation with unconstrained mixed-phase iterations
-        delta_qv = qsat - qv_array(i,j,k);
-        delta_qc = -delta_qv * omn;
-        delta_qi = -delta_qv * (one - omn);
+        qv_tmp = qsatw;
+        qn_tmp = qt_array(i,j,k) - qsatw;
+        qc_tmp = qn_tmp * omn;
+        qi_tmp = qn_tmp * (one - omn);
 
         // Exhausted ice during mixed-phase
-        if ((qi_array(i,j,k) + delta_qi) < zero) {
+        if (qi_tmp < zero) {
             //=======================================================================
             // Single-phase no-ice Newton iteration to qv=qsat (cloud phase only)
             //=======================================================================
             niter  = 0;
             tabs   = tabs_array(i,j,k);
-            lstarw = fac_cond;
-            lstari = fac_fus;
-            erf_qsatw(tabs, pres, qsat);
-            erf_dtqsatw(tabs, pres, dqsat);
+            erf_qsatw(tabs, pres, qsatw);
+            erf_dtqsatw(tabs, pres, dqsatw);
             F = sam_newton_residual_no_ice(tabs, tabs_array(i,j,k),
-                                           lstarw, qv_array(i,j,k), qsat,
-                                           lstari, qi_array(i,j,k));
+                                           fac_cond, qv_array(i,j,k), qsatw,
+                                           fac_fus , qi_array(i,j,k));
             while (std::abs(F) > tol && niter < 20) {
                 // Derivative of function (T_new iterated on)
-                dFdT  = sam_newton_residual_derivative_no_ice(lstarw, dqsat);
+                dFdT  = sam_newton_residual_derivative_no_ice(fac_cond, dqsatw);
 
                 // Update the temperature
                 tabs -= F/dFdT;
 
                 // Saturation moisture fractions
-                erf_qsatw(tabs, pres, qsat);
-                erf_dtqsatw(tabs, pres, dqsat);
+                erf_qsatw(tabs, pres, qsatw);
+                erf_dtqsatw(tabs, pres, dqsatw);
 
                 // Function for root finding:
-                // 0 = -T_new + T_old + L_v/C_p * (qv - qsat) - L_f/C_p * qi
+                // 0 = -T_new + T_old + L_v/C_p * (qv,0 - qs,w) - L_f/C_p * qi,0
                 F = sam_newton_residual_no_ice(tabs, tabs_array(i,j,k),
-                                               lstarw, qv_array(i,j,k), qsat,
-                                               lstari, qi_array(i,j,k));
+                                               fac_cond, qv_array(i,j,k), qsatw,
+                                               fac_fus , qi_array(i,j,k));
                 // Update iteration
                 ++niter;
             }
 
             // Set update
-            delta_qv = qsat - qv_array(i,j,k);
-            delta_qc = -delta_qv + qi_array(i,j,k);
-            delta_qi = -qi_array(i,j,k);
+            qv_tmp = qsatw;
+            qc_tmp = qt_array(i,j,k) - qsatw;
+            qi_tmp = zero;
 
             // Exhausted liquid during single-phase
-            if ((qc_array(i,j,k) + delta_qc) < zero) {
+            if (qc_tmp < zero) {
                 tabs = tabs_array(i,j,k) - fac_cond * qc_array(i,j,k) - fac_sub * qi_array(i,j,k);
-                erf_qsatw(tabs, pres, qsat);
-                if (qsat <= qt_array(i,j,k)) {
-                    delta_qv = qsat - qv_array(i,j,k);
-                    delta_qc = -qc_array(i,j,k);
-                    delta_qi = -qi_array(i,j,k);
+                erf_qsatw(tabs, pres, qsatw);
+                if (qsatw >= qt_array(i,j,k)) {
+                    qv_tmp = qt_array(i,j,k);
+                    qc_tmp = zero;
+                    qi_tmp = zero;
                 }
             }
         }
 
         // Exhausted liquid during mixed-phase
-        if ((qc_array(i,j,k) + delta_qc) < zero) {
+        if (qc_tmp < zero) {
             //=======================================================================
             // Single-phase no-liquid Newton iteration to qv=qsat (cloud phase only)
             //=======================================================================
             niter  = 0;
             tabs   = tabs_array(i,j,k);
-            lstarw = fac_sub;
-            lstarc = fac_fus;
-            erf_qsati(tabs, pres, qsat);
-            erf_dtqsati(tabs, pres, dqsat);
+            erf_qsati(tabs, pres, qsati);
+            erf_dtqsati(tabs, pres, dqsati);
             F = sam_newton_residual_no_liquid(tabs, tabs_array(i,j,k),
-                                              lstarw, qv_array(i,j,k), qsat,
-                                              lstarc, qc_array(i,j,k));
+                                              fac_sub, qv_array(i,j,k), qsati,
+                                              fac_fus, qc_array(i,j,k));
             while (std::abs(F) > tol && niter < 20) {
                 // Derivative of function (T_new iterated on)
-                dFdT  = sam_newton_residual_derivative_no_liquid(lstarw, dqsat);
+                dFdT  = sam_newton_residual_derivative_no_liquid(fac_sub, dqsati);
 
                 // Update the temperature
                 tabs -= F/dFdT;
 
                 // Saturation moisture fractions
-                erf_qsati(tabs, pres, qsat);
-                erf_dtqsati(tabs, pres, dqsat);
+                erf_qsati(tabs, pres, qsati);
+                erf_dtqsati(tabs, pres, dqsati);
 
                 // Function for root finding:
-                // 0 = -T_new + T_old + L_s/C_p * (qv - qsat) + L_f/C_p * qc
+                // 0 = -T_new + T_old + L_s/C_p * (qv,0 - qs,i) + L_f/C_p * qc,0
                 F = sam_newton_residual_no_liquid(tabs, tabs_array(i,j,k),
-                                                  lstarw, qv_array(i,j,k), qsat,
-                                                  lstarc, qc_array(i,j,k));
+                                                  fac_sub, qv_array(i,j,k), qsati,
+                                                  fac_fus, qc_array(i,j,k));
                 // Update iteration
                 ++niter;
             }
 
             // Set update
-            delta_qv = qsat - qv_array(i,j,k);
-            delta_qc = -qc_array(i,j,k);
-            delta_qi = -delta_qv + qc_array(i,j,k);
+            qv_tmp = qsati;
+            qc_tmp = zero;
+            qi_tmp = qt_array(i,j,k) - qsati;
 
-            // Exhausted liquid during single-phase
-            if ((qi_array(i,j,k) + delta_qi) < zero) {
+            // Exhausted ice during single-phase
+            if (qi_tmp < zero) {
                 tabs = tabs_array(i,j,k) - fac_cond * qc_array(i,j,k) - fac_sub * qi_array(i,j,k);
-                erf_qsatw(tabs, pres, qsat);
-                if (qsat <= qt_array(i,j,k)) {
-                    delta_qv = qsat - qv_array(i,j,k);
-                    delta_qc = -qc_array(i,j,k);
-                    delta_qi = -qi_array(i,j,k);
+                erf_qsati(tabs, pres, qsati);
+                if (qsati >= qt_array(i,j,k)) {
+                    qv_tmp = qt_array(i,j,k);
+                    qc_tmp = zero;
+                    qi_tmp = zero;
                 } else {
                     amrex::Abort("SAM Cloud iterations could not find a valid branch.");
                 }
@@ -440,11 +432,11 @@ public:
         }
 
         // Partition the change in non-precipitating q
-        qv_array(i,j,k) += delta_qv;
-        qc_array(i,j,k) += delta_qc;
-        qi_array(i,j,k) += delta_qi;
-        qn_array(i,j,k)  = qc_array(i,j,k) + qi_array(i,j,k);
-        qt_array(i,j,k)  = qv_array(i,j,k) + qn_array(i,j,k);
+        qv_array(i,j,k) = qv_tmp;
+        qc_array(i,j,k) = qc_tmp;
+        qi_array(i,j,k) = qi_tmp;
+        qn_array(i,j,k) = qc_array(i,j,k) + qi_array(i,j,k);
+        qt_array(i,j,k) = qv_array(i,j,k) + qn_array(i,j,k);
 
         // Return to temperature
         return tabs;
