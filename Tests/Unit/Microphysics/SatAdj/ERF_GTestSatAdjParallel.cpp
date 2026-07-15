@@ -12,9 +12,24 @@
 
 #include <gtest/gtest.h>
 
+#include "../../ERF_GTestAssertions.H"
 #include "ERF_GTestSatAdjCommon.H"
 
 using namespace satadj_test;
+
+namespace satadj_test {
+
+void PrintTo (const LocatedError& error, std::ostream* os)
+{
+    *os << "LocatedError{rank=" << error.rank
+        << ", cell=(" << error.i << "," << error.j << "," << error.k << ")"
+        << ", component=" << error.component
+        << ", normalized_error=" << error.normalized_error
+        << ", actual=" << error.actual_value
+        << ", expected=" << error.expected_value << "}";
+}
+
+} // namespace satadj_test
 
 namespace {
 
@@ -101,8 +116,8 @@ TEST(SatAdjParallel, DistributedMultiBoxMatchesScalarReference)
     long global_changed = local_counts.changed;
     amrex::ParallelDescriptor::ReduceLongSum(global_checked);
     amrex::ParallelDescriptor::ReduceLongSum(global_changed);
-    amrex::Real global_max_error = local_worst.normalized_error;
-    amrex::ParallelDescriptor::ReduceRealMax(global_max_error);
+    const LocatedError global_worst = select_global_worst_error(
+        local_worst, amrex::ParallelDescriptor::Communicator());
 
     const int rank = amrex::ParallelDescriptor::MyProc();
     const long expected_cells = num_valid_cells(geom.Domain());
@@ -124,21 +139,22 @@ TEST(SatAdjParallel, DistributedMultiBoxMatchesScalarReference)
         << " local_changed=" << local_counts.changed
         << " global_changed=" << global_changed
         << " local_unexpected_unchanged=" << local_counts.unexpected_unchanged;
-    EXPECT_LE(global_max_error, normalized_tol)
+    ERF_EXPECT_FINITE(global_worst.normalized_error);
+    EXPECT_LE(global_worst.normalized_error, normalized_tol)
         << "rank=" << rank
         << " max_size=" << max_size_string(max_size)
-        << " local_component=" << component_name(local_worst.component)
-        << " local_i=" << local_worst.i
-        << " local_j=" << local_worst.j
-        << " local_k=" << local_worst.k
-        << " local_box_id=" << local_worst.box_id
-        << " local_actual=" << local_worst.actual_value
-        << " local_expected=" << local_worst.expected_value
-        << " local_absolute_error=" << local_worst.absolute_error
-        << " local_normalized_error=" << local_worst.normalized_error
-        << " global_max_normalized_error=" << global_max_error
-        << " eos_actual_temperature=" << local_worst.eos_projected_actual_temperature
-        << " eos_expected_temperature=" << local_worst.eos_projected_expected_temperature;
+        << " global_rank=" << global_worst.rank
+        << " global_component=" << component_name(global_worst.component)
+        << " global_i=" << global_worst.i
+        << " global_j=" << global_worst.j
+        << " global_k=" << global_worst.k
+        << " global_box_id=" << global_worst.box_id
+        << " global_actual=" << global_worst.actual_value
+        << " global_expected=" << global_worst.expected_value
+        << " global_absolute_error=" << global_worst.absolute_error
+        << " global_normalized_error=" << global_worst.normalized_error
+        << " eos_actual_temperature=" << global_worst.eos_projected_actual_temperature
+        << " eos_expected_temperature=" << global_worst.eos_projected_expected_temperature;
 }
 
 // Motivation: This extends the parallel copy-back ghost test to the full SatAdj
@@ -242,24 +258,26 @@ TEST(SatAdjParallel, FullPublicFlowFillBoundaryParallel)
 
     long global_checked_ghosts = local_checked_ghosts;
     amrex::ParallelDescriptor::ReduceLongSum(global_checked_ghosts);
-    amrex::Real global_max_error = local_worst.normalized_error;
-    amrex::ParallelDescriptor::ReduceRealMax(global_max_error);
+    const LocatedError global_worst = select_global_worst_error(
+        local_worst, amrex::ParallelDescriptor::Communicator());
     const int rank = amrex::ParallelDescriptor::MyProc();
 
     EXPECT_GT(global_checked_ghosts, 0)
         << "rank=" << rank
         << " max_size=" << max_size_string(max_size)
         << " local_checked_ghosts=" << local_checked_ghosts;
-    EXPECT_LE(global_max_error, amrex::Real(1.0))
+    ERF_EXPECT_FINITE(global_worst.normalized_error);
+    EXPECT_LE(global_worst.normalized_error, amrex::Real(1.0))
         << "rank=" << rank
         << " max_size=" << max_size_string(max_size)
-        << " local_component=" << component_name(local_worst.component)
-        << " ghost_i=" << local_worst.i
-        << " ghost_j=" << local_worst.j
-        << " ghost_k=" << local_worst.k
-        << " local_box_id=" << local_worst.box_id
-        << " local_actual=" << local_worst.actual_value
-        << " local_expected=" << local_worst.expected_value
-        << " local_absolute_error=" << local_worst.absolute_error
-        << " global_max_normalized_error=" << global_max_error;
+        << " global_rank=" << global_worst.rank
+        << " global_component=" << component_name(global_worst.component)
+        << " global_i=" << global_worst.i
+        << " global_j=" << global_worst.j
+        << " global_k=" << global_worst.k
+        << " global_box_id=" << global_worst.box_id
+        << " global_actual=" << global_worst.actual_value
+        << " global_expected=" << global_worst.expected_value
+        << " global_absolute_error=" << global_worst.absolute_error
+        << " global_normalized_error=" << global_worst.normalized_error;
 }

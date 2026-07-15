@@ -1,88 +1,122 @@
 .. _Testing:
+.. _GettingStartedWithERFTests:
 
-Testing and Verification
-------------------------
+Getting Started with ERF Tests
+==============================
 
-Testing and verification of ERF can be performed using CTest, which is included in the CMake build system. If one builds ERF with CMake, the testing suite, and the verification suite, can be enabled during the CMake configure step.
+ERF uses two complementary kinds of tests.
 
-An example ``cmake`` configure command performed in the ``build`` directory in ERF is shown below with options relevant to the testing suite:
+A unit test checks one focused behavior, such as an equation, numerical
+property, interface, or parallel rule. A regression test runs a complete ERF
+case and compares its output with a reference result.
 
-::
+This page follows one path: build and run the CPU-only serial unit tests in a
+Debug configuration. You do not need MPI or a GPU. Use :ref:`UnitTests` when
+you are ready to add tests or work with SHOC, MPI, device code, accelerator
+backends, multiple precisions, or cross-compiling. Use :ref:`RegressionTests`
+when a change affects a complete ERF problem or its output.
 
-  cmake -DCMAKE_INSTALL_PREFIX:PATH=./install \
-        -DCMAKE_BUILD_TYPE:STRING=Release \
-        -DERF_ENABLE_MPI:BOOL=ON \
-        -DCMAKE_CXX_COMPILER:STRING=mpicxx \
-        -DCMAKE_C_COMPILER:STRING=mpicc \
-        -DCMAKE_Fortran_COMPILER:STRING=mpifort \
-        -DERF_ENABLE_FCOMPARE:BOOL=ON \
-        -DERF_ENABLE_TESTS:BOOL=ON \
-        -DERF_USE_CPP:BOOL=ON \
-        ..
+What you need
+-------------
 
-While performing a ``cmake -LAH ..`` command will give descriptions of every option for the CMake project. Descriptions of particular options regarding the testing suite are listed below:
+Run these commands from the root of an ERF checkout. You need:
 
-**ERF_ENABLE_FCOMPARE** -- builds the ``fcompare`` utility from AMReX as well as the executable(s), to allow for testing differences between plot files
+- CMake 3.20 or newer;
+- a C++17 compiler;
+- the ERF source tree;
+- the repository submodules.
 
-**ERF_ENABLE_TESTS** -- enables the base level regression test suite that will check whether each test will run its executable to completion successfully
+Initialize the submodules after cloning:
 
-**ERF_ENABLE_UNIT_TESTS** -- enables the ``gtest``-based unit-test executable and registers CTest tests with the ``unit`` label; this defaults to ``ON`` when ``ERF_ENABLE_TESTS=ON`` and ``ERF_ENABLE_REGRESSION_TESTS_ONLY=OFF``, and can also be enabled explicitly for unit-only builds
+.. code-block:: bash
 
-**ERF_ENABLE_REGRESSION_TESTS_ONLY** -- when ``ERF_ENABLE_TESTS=ON``, suppresses unit-test build and registration so only the regression suite is configured
+   git submodule update --init --recursive
 
+Configure and build
+-------------------
 
-Building the Tests
-~~~~~~~~~~~~~~~~~~
+Configure a Debug build with unit tests enabled and MPI disabled:
 
-Once the user has performed the CMake configure step, the ``make`` command will build
-the ERF executable(s) required for each test (for example, the shared ``erf_exec`` binary
-for regression tests and ``erf_unit_tests`` for ``gtest``-based unit tests).
-In this step, it is highly beneficial for the user to use the ``-j`` option for ``make``
-to build source files in parallel.
+.. code-block:: bash
 
-Running the Tests
-~~~~~~~~~~~~~~~~~
+   cmake -S . -B build-unit \
+     -DCMAKE_BUILD_TYPE=Debug \
+     -DERF_ENABLE_UNIT_TESTS=ON \
+     -DERF_ENABLE_MPI=OFF
 
-Once the test executables are built, CTest also creates working directories for each test within the ``build`` directory
-where plot files will be output, etc. This directory is analogous to the source location of the tests in ``Tests/test_files``.
+   cmake --build build-unit --parallel
 
-**Where is the executable?** With the CMake workflow, the shared regression executable is built under the build tree in ``Exec``
-(for example, ``build/Exec/erf_exec``), and all regression/canonical test input decks are run using that binary.
-The ``gtest`` unit-test executable is built as ``build/Tests/Unit/erf_unit_tests``.
-When enabling unit tests locally, make sure the GoogleTest submodule is initialized first, for example with
-``git submodule update --init Submodules/googletest`` (or ``git submodule update --init --recursive`` after cloning).
-ERF unit tests use a custom GoogleTest ``main()`` that initializes and finalizes AMReX before and after
-``RUN_ALL_TESTS()`` so the same harness can be used for CPU and GPU-oriented tests.
+The ``-B build-unit`` argument keeps generated files outside the source tree.
+Remove that directory when you need a completely clean configuration.
 
-To run the test suite, run ``ctest`` in the ``build`` directory. CTest will run the tests and report their exit status.
-Useful options for CTest are ``-VV`` which runs in a verbose mode where the output of each test can be seen. ``-R``
-where a regex string can be used to run specific sets of tests. ``-j`` where CTest will bin pack and run tests in
-parallel based on how many processes each test is specified to use and fit them into the amount of cores available
-on the machine. ``-L`` where the subset of tests containing a particular label will be run. ERF currently uses
-``ctest -L unit`` for ``gtest``-based unit tests and ``ctest -L regression`` for regression tests. Some GPU
-workflows currently build the unit-test executable without running it, but the unit-test scaffold is enabled across
-CPU, CUDA, HIP, and SYCL builds. Output for the
-last set of tests run is available in the ``build`` directory in ``Tests/Temporary/LastTest.log``.
+List the tests
+--------------
 
-Adding Tests
-~~~~~~~~~~~~
+CMake registers tests in the build directory. CTest is the program that lists,
+selects, and runs those registered tests.
 
-Developers are encouraged to add tests to ERF and in this section we describe how the tests are organized in the
-CTest framework. The locations (relative to the ERF code base) of the tests are in ``Tests``. To add a test, first
-create a problem directory with a name in ``Exec/RegTests/<prob_name>``
-(for problems to be used as regression tests),
-``Exec/CanonicalTests/<prob_name>`` (for canonical test cases),
-or ``ERF/.Exec_dev/<prob_name>`` (for problems testing features under development),
-depending on which type of test is being added.  Prepare a suitable input file.
-As an example, the ``TaylorGreenVortex`` problem with input file ``Exec/RegTests/TaylorGreenVortex/inputs_ex``
-solves a simple advection-diffusion problem. The corresponding regression tests are driven by the input files
-``Tests/test_files/TaylorGreenAdvecting/TaylorGreenAdvecting.i`` and
-``Tests/test_files/TaylorGreenAdvectingDiffusing/TaylorGreenAdvectingDiffusing.i``.
+List the unit tests without running them:
 
-Any file in the test directory will be copied during CMake configure to the test's working directory.
-The input files meant for regression test run only until a few time steps. The reference solution that the
-regression test will refer to should be placed in ``Tests/ERFGoldFiles/<test_name>``. Next, edit the
-``Tests/CTestList.cmake`` file, add the problem and the corresponding tests
-to the list. Note that there are different categories of tests and if your test falls outside of these
-categories, a new function to add the test will need to be created. After these steps, your test will be
-automatically added to the test suite database when doing the CMake configure with the testing suite enabled.
+.. code-block:: bash
+
+   ctest --test-dir build-unit -N -L unit
+
+``-N`` means “show only.” ``-L unit`` selects tests with the ``unit`` label.
+
+Run the unit tests
+------------------
+
+Run the unit-test label:
+
+.. code-block:: bash
+
+   ctest --test-dir build-unit \
+     -L unit \
+     --output-on-failure \
+     --no-tests=error
+
+``--output-on-failure`` prints the failed test's output. ``--no-tests=error``
+makes an empty selection fail instead of appearing successful.
+
+Run one test
+------------
+
+Use ``-R`` with an exact CTest-name regular expression:
+
+.. code-block:: bash
+
+   ctest --test-dir build-unit \
+     -R '^ERFEOSConstants\.KappaGammaContract$' \
+     -VV \
+     --no-tests=error
+
+``-VV`` shows the full test command and output. List the tests first when you
+do not know the exact name.
+
+Understand the result
+---------------------
+
+A successful run reports that all selected tests passed and returns a zero
+exit status.
+
+A failed test returns a nonzero status. Read the assertion message and the
+output printed by ``--output-on-failure``.
+
+An empty selection also returns a nonzero status because the commands use
+``--no-tests=error``. Check the build options, label, regular expression, and
+whether the test target was rebuilt.
+
+CTest writes its latest detailed log to:
+
+.. code-block:: text
+
+   build-unit/Testing/Temporary/LastTest.log
+
+Where to go next
+----------------
+
+- **Adding or reviewing a unit test?** Read :ref:`UnitTests`.
+- **Need SHOC, MPI, GPU, device-path, precision, or cross-compiling guidance?**
+  Read :ref:`UnitTests`.
+- **Changing a complete ERF case or reference output?** Read
+  :ref:`RegressionTests`.

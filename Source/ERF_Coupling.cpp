@@ -72,6 +72,34 @@ ERF::EvolveOneStep (double /*time*/, double /*dt_request*/)
     return dt[0];
 }
 
+void
+ERF::ConfigureDriverAtmosToOceanCoupling (bool use_coupling_driver,
+                                          bool use_two_way_coupling,
+                                          bool use_state_contract)
+{
+    m_driver_has_atm2ocn_coupling = use_coupling_driver;
+    m_driver_uses_two_way_coupling = use_two_way_coupling;
+    m_driver_atm2ocn_uses_state_contract = use_state_contract;
+}
+
+void
+ERF::SetDriverAtmosToOceanStateContract (bool use_state_contract)
+{
+    m_driver_atm2ocn_uses_state_contract = use_state_contract;
+}
+
+void
+ERF::GetOceanToAtmosSurfaceLayout (amrex::BoxArray& ba,
+                                   amrex::DistributionMapping& dm)
+{
+    auto* sst_ptr = lsm.Get_Data_Ptr(0, 0);
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+        sst_ptr != nullptr,
+        "ERF::GetOceanToAtmosSurfaceLayout requires OceanSurf level-0 surface storage after InitData.");
+    ba = sst_ptr->boxArray();
+    dm = sst_ptr->DistributionMap();
+}
+
 /*
   Coupling reference context (implementation-side):
 
