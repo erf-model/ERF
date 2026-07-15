@@ -2,10 +2,15 @@
 #define ERF_GTEST_SATADJ_COMMON_H_
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <limits>
 #include <string>
 #include <utility>
+
+#ifdef AMREX_USE_MPI
+#include <mpi.h>
+#endif
 
 #include <AMReX_Arena.H>
 #include <AMReX_Array.H>
@@ -97,6 +102,7 @@ struct LocatedError {
     int k{0};
     int component{RhoTheta_comp};
     int box_id{-1};
+    int rank{-1};
 };
 
 struct ActiveCellCounts {
@@ -104,6 +110,57 @@ struct ActiveCellCounts {
     long changed{0};
     long unexpected_unchanged{0};
 };
+
+#ifdef AMREX_USE_MPI
+// Keep the normalized maximum coupled to its complete local provenance. A
+// scalar ReduceRealMax followed by printing rank-local metadata can describe
+// a different cell than the one that actually produced the global maximum.
+inline LocatedError select_global_worst_error (const LocatedError& local,
+                                                const MPI_Comm comm)
+{
+    int rank = 0;
+    MPI_Comm_rank(comm, &rank);
+
+    struct {
+        double value;
+        int rank;
+    } local_key{static_cast<double>(local.normalized_error), rank}, global_key{};
+    MPI_Allreduce(&local_key, &global_key, 1, MPI_DOUBLE_INT, MPI_MAXLOC, comm);
+
+    std::array<double, 6> real_values{};
+    std::array<int, 5> integer_values{};
+    if (rank == global_key.rank) {
+        real_values = {
+            static_cast<double>(local.normalized_error),
+            static_cast<double>(local.absolute_error),
+            static_cast<double>(local.actual_value),
+            static_cast<double>(local.expected_value),
+            static_cast<double>(local.eos_projected_actual_temperature),
+            static_cast<double>(local.eos_projected_expected_temperature)};
+        integer_values = {local.i, local.j, local.k, local.component, local.box_id};
+    }
+
+    MPI_Bcast(real_values.data(), static_cast<int>(real_values.size()), MPI_DOUBLE,
+              global_key.rank, comm);
+    MPI_Bcast(integer_values.data(), static_cast<int>(integer_values.size()), MPI_INT,
+              global_key.rank, comm);
+
+    LocatedError global;
+    global.normalized_error = static_cast<amrex::Real>(real_values[0]);
+    global.absolute_error = static_cast<amrex::Real>(real_values[1]);
+    global.actual_value = static_cast<amrex::Real>(real_values[2]);
+    global.expected_value = static_cast<amrex::Real>(real_values[3]);
+    global.eos_projected_actual_temperature = static_cast<amrex::Real>(real_values[4]);
+    global.eos_projected_expected_temperature = static_cast<amrex::Real>(real_values[5]);
+    global.i = integer_values[0];
+    global.j = integer_values[1];
+    global.k = integer_values[2];
+    global.component = integer_values[3];
+    global.box_id = integer_values[4];
+    global.rank = global_key.rank;
+    return global;
+}
+#endif
 
 enum class SatAdjActiveGeneratorRegime {
     SupersaturatedCloud = 0,

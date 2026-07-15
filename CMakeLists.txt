@@ -1,6 +1,6 @@
 ############################ BASE ######################################
 
-cmake_minimum_required (VERSION 3.14 FATAL_ERROR)
+cmake_minimum_required (VERSION 3.20 FATAL_ERROR)
 
 # Set main ERF context
 list(APPEND CMAKE_MESSAGE_CONTEXT "ERF")

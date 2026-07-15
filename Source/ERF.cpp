@@ -574,6 +574,14 @@ ERF::InitData ()
 void
 ERF::InitData_pre ()
 {
+    if (m_driver_has_atm2ocn_coupling && verbose > 0) {
+        amrex::Print() << "ERF InitData_pre: driver-managed atm2ocn coupling enabled"
+                       << " two_way=" << (m_driver_uses_two_way_coupling ? 1 : 0)
+                       << " active_contract="
+                       << (m_driver_atm2ocn_uses_state_contract ? "state" : "flux")
+                       << "\n";
+    }
+
     // Initialize the start time for our CPU-time tracker
     startCPUTime = ParallelDescriptor::second();
 
