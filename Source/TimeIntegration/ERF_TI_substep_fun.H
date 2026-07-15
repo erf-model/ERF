@@ -170,7 +170,7 @@ auto acoustic_substepping_fun = [&](int fast_step, int n_sub, int nrk,
         // Even if we update all the conserved variables we don't need
         // to fillpatch the slow ones every acoustic substep
 
-        if ( (solverChoice.vert_implicit_fac[nrk] > zero) && !solverChoice.implicit_before_substep &&
+        if ( (solverChoice.vert_implicit_fac[level][nrk] > zero) && !solverChoice.implicit_before_substep &&
              (fast_step == n_sub-1) )
         {
             MultiFab scratch(S_data[IntVars::cons], make_alias, 0, 2);

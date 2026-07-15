@@ -138,6 +138,10 @@ public:
     // Tag cells for refinement
     void ErrorEst (int lev, amrex::TagBoxArray& tags, amrex::Real time, int ngrow) override;
 
+    // Tag cells in a given box
+    void read_box_for_refinement   (std::string& ref_prefix, int& lev_for_box, amrex::RealBox& real_box);
+    void update_box_for_refinement (std::string& ref_prefix, int& lev_for_box, amrex::RealBox& real_box, const amrex::Real time);
+
     // Refinement criteria for hurricanes
     void HurricaneTracker (int lev,
                            amrex::Real time,
@@ -245,6 +249,12 @@ public:
 
     // Called after every level 0 timestep
     void post_timestep (int nstep, double time, amrex::Real dt_lev);
+
+    // Do whatever writing needs to be done at intermediate times
+    void WriteAtIntermediateTime(int nstep, double time);
+
+    // Do whatever writing needs to be done after time-stepping is complete
+    void WriteAtFinalTime();
 
     // Diagnostics
     void sum_integrated_quantities (double time);

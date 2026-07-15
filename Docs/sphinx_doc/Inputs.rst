@@ -464,15 +464,15 @@ List of Parameters
 |                                     | each RK stage?       | "None"         | compressible,       |
 |                                     |                      |                | "None" if anelastic |
 +-------------------------------------+----------------------+----------------+---------------------+
-| **erf.vert_implicit**               | Do vertical implicit | Boolean        | true                |
-|                                     | solve for diffusion  |                |                     |
+| **erf.vert_implicit**               | Do vertical implicit | Boolean        | true if compressible|
+|                                     | solve for diffusion  |                | false if anelastic  |
 |                                     | of u, v, theta, KE,  |                |                     |
 |                                     | and qv with default  |                |                     |
 |                                     | time-centering in    |                |                     |
 |                                     | each stage           |                |                     |
 +-------------------------------------+----------------------+----------------+---------------------+
 | **erf.vert_implicit_fac**           | How much implicit    | Real >= 0      | 1.0, 1.0, 0.0       |
-|                                     | vertical diffusion   | (explicit) and | (fully explicit)    |
+|                                     | vertical diffusion   | (explicit) and |                     |
 |                                     | to include in each   | <= 1 (implicit)|                     |
 |                                     | RK stage?            |                |                     |
 |                                     |                      |                |                     |
@@ -1436,8 +1436,11 @@ List of Parameters
 | **erf.tau_nudging**                 | Time scale for         | Real              | 5.0                 |
 |                                     | nudging                |                   |                     |
 +-------------------------------------+------------------------+-------------------+---------------------+
-| **erf.bdy_nudge_factor**            | Sets real bc nudging   | Real              | 10.0                 |
+| **erf.bdy_nudge_factor**            | Sets real bc nudging   | Real              | 10.0                |
 |                                     | strength as 1/(VAL*dt) |                   |                     |
++-------------------------------------+------------------------+-------------------+---------------------+
+| **erf.bdy_moist_nudge_type**        | Which strategy for     | int 0,1 or 2      | 0                   |
+|                                     | nudging of moist vars  |                   |                     |
 +-------------------------------------+------------------------+-------------------+---------------------+
 
 If ``erf.nudging_from_input_sounding`` is true, it is expected that at least one input sounding

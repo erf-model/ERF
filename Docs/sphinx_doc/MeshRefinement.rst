@@ -121,6 +121,32 @@ The PBL models compute the height of the boundary layer and require that each bo
 The lo/hi indices in the vertical direction should therefore be 0 and (number of cells in z direction - 1) respectively,
 and the number of cells in the z direction should be divisible by the refinement ratio in the vertical direction.
 
+We can also adapt this static refinement paradigm to specify rectangular regions whose locations
+are a prescribed function of time.   Following the WRF paradigm for moving nested grids, we specify
+motion in terms of the speed of the grid in separate time intervals.  Modifying the first example above,
+we could have the following, where the first box would be static but the second box would change in time.
+In particular, the box would move east at 1 m/s for the first 10 minutes, be at rest from 10 minutes to 20 minutes,
+then move north at 1 m/2 from 20 minutes to 80 minutes after the start time.
+
+::
+
+          amr.max_level = 1
+          amr.ref_ratio = 2 2 2
+
+          erf.refinement_indicators = box1 box2
+
+          erf.box1.in_box_lo = 1200 1400 0
+          erf.box1.in_box_hi = 3000 2400 2048
+          erf.box1.max_level = 1
+
+          erf.box2.in_box_lo = 3200 3400 0
+          erf.box2.in_box_hi = 4000 4000 2048
+          erf.box2.max_level = 1
+          erf.box2.move_start_time = 0.   1200.
+          erf.box2.move_stop_time  = 600. 4800.
+          erf.box2.move_speed_x    = 1. 0.
+          erf.box2.move_speed_y    = 0. 1.
+
 Dynamic Mesh Refinement
 -----------------------
 

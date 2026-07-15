@@ -639,7 +639,7 @@ make_zcc (const Geometry& geom,
         Array4<Real      > z_cc = z_phys_cc.array(mfi);
         ParallelFor(gbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
            z_cc(i, j, k) = Real(.125) * ( z_nd(i,j,k  ) + z_nd(i+1,j,k  ) + z_nd(i,j+1,k  ) + z_nd(i+1,j+1,k  )
-                                   +z_nd(i,j,k+1) + z_nd(i+1,j,k+1) + z_nd(i,j+1,k+1) + z_nd(i+1,j+1,k+1) );
+                                         +z_nd(i,j,k+1) + z_nd(i+1,j,k+1) + z_nd(i,j+1,k+1) + z_nd(i+1,j+1,k+1) );
        });
     }
     z_phys_cc.FillBoundary(geom.periodicity());

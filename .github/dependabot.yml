@@ -7,3 +7,8 @@ updates:
     directory: /
     allow:
       - dependency-name: "Submodules/AMReX"
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    target-branch: "development"

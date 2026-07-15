@@ -66,13 +66,13 @@ super_droplets_moisture.num_initializations = 2
 super_droplets_moisture.density_scaling = true
 
 super_droplets_moisture.0.initial_aerosol_distribution_type_NH4HSO4 = "radius_log_normal"
-super_droplets_moisture.0.initial_aerosol_mean_radius_NH4HSO4 = 30.0e-9 #kg (0.03 mu-m)
+super_droplets_moisture.0.initial_aerosol_mean_radius_NH4HSO4 = 30.0e-9 # m
 super_droplets_moisture.0.initial_aerosol_geomstd_radius_NH4HSO4 = 1.28
 super_droplets_moisture.0.initial_number_density = 9.0e7 #m^{-3}
 super_droplets_moisture.0.initial_particles_per_cell = 64
-#
+
 super_droplets_moisture.1.initial_aerosol_distribution_type_NH4HSO4 = "radius_log_normal"
-super_droplets_moisture.1.initial_aerosol_mean_radius_NH4HSO4 = 140.0e-9 #kg (0.14 mu-m)
+super_droplets_moisture.1.initial_aerosol_mean_radius_NH4HSO4 = 140.0e-9 # m
 super_droplets_moisture.1.initial_aerosol_geomstd_radius_NH4HSO4 = 1.75
 super_droplets_moisture.1.initial_number_density = 1.5e7 #m^{-3}
 super_droplets_moisture.1.initial_particles_per_cell = 64

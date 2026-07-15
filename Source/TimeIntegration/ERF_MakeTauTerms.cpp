@@ -55,7 +55,7 @@ void erf_make_tau_terms (int level, int nrk,
     const bool need_SmnSmn      = (tc.les_type  == LESType::Deardorff ||
                                    tc.rans_type == RANSType::kEqn);
 
-    const bool do_implicit = (solverChoice.vert_implicit_fac[nrk] > 0) && solverChoice.implicit_momentum_diffusion;
+    const bool do_implicit = (solverChoice.vert_implicit_fac[level][nrk] > 0) && solverChoice.implicit_momentum_diffusion;
 
     const Box& domain = geom.Domain();
     const int domlo_z = domain.smallEnd(2);

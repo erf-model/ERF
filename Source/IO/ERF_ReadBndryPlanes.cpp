@@ -530,6 +530,21 @@ void ReadBndryPlanes::read_file (const int idx,
                     continue;
                 }
 
+                // Split the 2-cell-thick working box into ghost and interior
+                // slots so the (i+v_offset) neighbor access stays in-bounds.
+                // Both slots are filled with the same face-averaged Dirichlet
+                // value; the interior slot just needs the opposite neighbor.
+                Box bx_ghost = bx;
+                Box bx_int   = bx;
+                if (ori.isLow()) {
+                    bx_ghost.setBig  (normal, domain.smallEnd(normal) - 1);
+                    bx_int  .setSmall(normal, domain.smallEnd(normal));
+                } else {
+                    bx_ghost.setSmall(normal, domain.bigEnd(normal) + 1);
+                    bx_int  .setBig  (normal, domain.bigEnd(normal));
+                }
+                const IntVect v_offset_int = -v_offset;
+
                 // We average the two cell-centered data points in the normal direction
                 //    to define a Dirichlet value on the face itself.
 
@@ -539,7 +554,7 @@ void ReadBndryPlanes::read_file (const int idx,
                 if (n_for_density >= 0) {
                   if (var_name == "temperature") {
                     ParallelFor(
-                        bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                        bx_ghost, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
                              Real R1 =  bndry_read_r_arr(i, j, k, 0);
                              Real R2 =  bndry_read_r_arr(i+v_offset[0],j+v_offset[1],k+v_offset[2],0);
                              Real T1 =  bndry_read_arr(i, j, k, 0);
@@ -552,7 +567,7 @@ void ReadBndryPlanes::read_file (const int idx,
                   } else if (var_name == "theta" || var_name == "ke" || var_name == "scalar" ||
                              var_name == "qv"    || var_name == "qc") {
                     ParallelFor(
-                        bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                        bx_ghost, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
                              Real R1 =  bndry_read_r_arr(i, j, k, 0);
                              Real R2 =  bndry_read_r_arr(i+v_offset[0],j+v_offset[1],k+v_offset[2],0);
                              bndry_mf_arr(i, j, k, 0) = (real_bcs) ? bndry_read_arr(i, j, k, 0) :
@@ -561,7 +576,7 @@ void ReadBndryPlanes::read_file (const int idx,
                         });
                    } else if (var_name == "density") {
                     ParallelFor(
-                        bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                        bx_ghost, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
                                 bndry_mf_arr(i, j, k, 0) = (real_bcs) ? bndry_read_arr(i, j, k, 0) :
                                     myhalf * ( bndry_read_arr(i, j, k, 0) +
                                             bndry_read_arr(i+v_offset[0],j+v_offset[1],k+v_offset[2], 0));
@@ -570,7 +585,7 @@ void ReadBndryPlanes::read_file (const int idx,
                 } else if (!ingested_density()) {
                   if (var_name == "temperature") {
                     ParallelFor(
-                        bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                        bx_ghost, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
                              Real R1  = l_bc_extdir_vals_d[BCVars::Rho_bc_comp][ori];
                              Real R2  = l_bc_extdir_vals_d[BCVars::Rho_bc_comp][ori];
                              Real T1  = bndry_read_arr(i, j, k, 0);
@@ -583,7 +598,7 @@ void ReadBndryPlanes::read_file (const int idx,
                   } else if (var_name == "theta" || var_name == "ke" || var_name == "scalar" ||
                              var_name == "qv"    || var_name == "qc") {
                       ParallelFor(
-                        bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                        bx_ghost, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
                              Real R1  = l_bc_extdir_vals_d[BCVars::Rho_bc_comp][ori];
                              Real R2  = l_bc_extdir_vals_d[BCVars::Rho_bc_comp][ori];
                              bndry_mf_arr(i, j, k, 0) = (real_bcs) ? bndry_read_arr(i, j, k, 0) :
@@ -596,10 +611,79 @@ void ReadBndryPlanes::read_file (const int idx,
                 // This is velocity
                 if (var_name == "velocity") {
                     ParallelFor(
-                        bx, ncomp, [=] AMREX_GPU_DEVICE(int i, int j, int k, int n) noexcept {
+                        bx_ghost, ncomp, [=] AMREX_GPU_DEVICE(int i, int j, int k, int n) noexcept {
                                 bndry_mf_arr(i, j, k, n) = (real_bcs) ? bndry_read_arr(i, j, k, n) :
                                   myhalf * (bndry_read_arr(i, j, k, n) +
                                          bndry_read_arr(i+v_offset[0],j+v_offset[1],k+v_offset[2], n));
+                        });
+                }
+
+                // --- interior-slot fill (same face-averaged Dirichlet value;
+                //     neighbor offset is flipped because the "other cell"
+                //     is now on the opposite side of the boundary face) ---
+                if (n_for_density >= 0) {
+                    if (var_name == "temperature") {
+                        ParallelFor(
+                            bx_int, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                                 Real R1 =  bndry_read_r_arr(i, j, k, 0);
+                                 Real R2 =  bndry_read_r_arr(i+v_offset_int[0],j+v_offset_int[1],k+v_offset_int[2],0);
+                                 Real T1 =  bndry_read_arr(i, j, k, 0);
+                                 Real T2 =  bndry_read_arr(i+v_offset_int[0],j+v_offset_int[1],k+v_offset_int[2],0);
+                                 Real Th1 = getThgivenRandT(R1,T1,rdOcp);
+                                 Real Th2 = getThgivenRandT(R2,T2,rdOcp);
+                                 bndry_mf_arr(i, j, k, 0) = (real_bcs) ? bndry_read_arr(i, j, k, 0) :
+                                                                         myhalf * (R1*Th1 + R2*Th2);
+                            });
+                    } else if (var_name == "theta" || var_name == "ke" || var_name == "scalar" ||
+                               var_name == "qv"    || var_name == "qc") {
+                        ParallelFor(
+                            bx_int, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                                 Real R1 =  bndry_read_r_arr(i, j, k, 0);
+                                 Real R2 =  bndry_read_r_arr(i+v_offset_int[0],j+v_offset_int[1],k+v_offset_int[2],0);
+                                 bndry_mf_arr(i, j, k, 0) = (real_bcs) ? bndry_read_arr(i, j, k, 0) :
+                                     myhalf * ( R1 * bndry_read_arr(i, j, k, 0) +
+                                             R2 * bndry_read_arr(i+v_offset_int[0],j+v_offset_int[1],k+v_offset_int[2], 0));
+                            });
+                    } else if (var_name == "density") {
+                        ParallelFor(
+                            bx_int, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                                    bndry_mf_arr(i, j, k, 0) = (real_bcs) ? bndry_read_arr(i, j, k, 0) :
+                                        myhalf * ( bndry_read_arr(i, j, k, 0) +
+                                                bndry_read_arr(i+v_offset_int[0],j+v_offset_int[1],k+v_offset_int[2], 0));
+                            });
+                    }
+                } else if (!ingested_density()) {
+                    if (var_name == "temperature") {
+                        ParallelFor(
+                            bx_int, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                                 Real R1  = l_bc_extdir_vals_d[BCVars::Rho_bc_comp][ori];
+                                 Real R2  = l_bc_extdir_vals_d[BCVars::Rho_bc_comp][ori];
+                                 Real T1  = bndry_read_arr(i, j, k, 0);
+                                 Real T2  = bndry_read_arr(i+v_offset_int[0],j+v_offset_int[1],k+v_offset_int[2], 0);
+                                 Real Th1 = getThgivenRandT(R1,T1,rdOcp);
+                                 Real Th2 = getThgivenRandT(R2,T2,rdOcp);
+                                 bndry_mf_arr(i, j, k, 0) = (real_bcs) ? bndry_read_arr(i, j, k, 0) :
+                                                                         myhalf * (R1*Th1 + R2*Th2);
+                            });
+                    } else if (var_name == "theta" || var_name == "ke" || var_name == "scalar" ||
+                               var_name == "qv"    || var_name == "qc") {
+                          ParallelFor(
+                            bx_int, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                                 Real R1  = l_bc_extdir_vals_d[BCVars::Rho_bc_comp][ori];
+                                 Real R2  = l_bc_extdir_vals_d[BCVars::Rho_bc_comp][ori];
+                                 bndry_mf_arr(i, j, k, 0) = (real_bcs) ? bndry_read_arr(i, j, k, 0) :
+                                    myhalf * (R1 * bndry_read_arr(i, j, k, 0) +
+                                           R2 * bndry_read_arr(i+v_offset_int[0],j+v_offset_int[1],k+v_offset_int[2], 0));
+                            });
+                    }
+                }
+
+                if (var_name == "velocity") {
+                    ParallelFor(
+                        bx_int, ncomp, [=] AMREX_GPU_DEVICE(int i, int j, int k, int n) noexcept {
+                                bndry_mf_arr(i, j, k, n) = (real_bcs) ? bndry_read_arr(i, j, k, n) :
+                                  myhalf * (bndry_read_arr(i, j, k, n) +
+                                         bndry_read_arr(i+v_offset_int[0],j+v_offset_int[1],k+v_offset_int[2], n));
                         });
                 }
 

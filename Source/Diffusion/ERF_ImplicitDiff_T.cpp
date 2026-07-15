@@ -284,7 +284,7 @@ ImplicitDiffForMomLU_T (const Box& bx,
                             bc_ptr[bc_comp].hi(2) == ERFBCType::ext_dir_prim);
     bool foextrap_on_zlo = (bc_ptr[bc_comp].lo(2) == ERFBCType::foextrap);
     bool foextrap_on_zhi = (bc_ptr[bc_comp].hi(2) == ERFBCType::foextrap);
-    amrex::ignore_unused(foextrap_on_zhi);
+    amrex::ignore_unused(foextrap_on_zlo,foextrap_on_zhi);
 
     AMREX_ASSERT_WITH_MESSAGE(foextrap_on_zlo || ext_dir_on_zlo || use_SurfLayer,
                               "Unexpected lower BC for momentum used with implicit vertical diffusion");

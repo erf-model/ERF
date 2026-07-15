@@ -694,11 +694,32 @@ ERF::Evolve ()
 
         post_timestep(step, cur_time, dt[0]);
 
-        if (writeNow(cur_time, step+1, m_plot3d_int_1, m_plot3d_per_1, dt[0], last_plot3d_file_time_1)) {
-            last_plot3d_file_step_1 = step+1;
-            Write3DPlotFile(1,plotfile3d_type_1,plot3d_var_names_1);
-            for (int lev = 0; lev <= finest_level; ++lev) {lsm.Plot(lev, step+1);}
-            if (m_plot3d_per_1 > zero) {last_plot3d_file_time_1 += m_plot3d_per_1;}
+        WriteAtIntermediateTime(step, cur_time);
+
+#ifdef AMREX_MEM_PROFILING
+        {
+            std::ostringstream ss;
+            ss << "[STEP " << step+1 << "]";
+            MemProfiler::report(ss.str());
+        }
+#endif
+
+        if (start_time+cur_time >= stop_time - Real(1.e-6)*dt[0]) break;
+    }
+
+    WriteAtFinalTime();
+
+    BL_PROFILE_VAR_STOP(evolve);
+}
+
+void
+ERF::WriteAtIntermediateTime(int step, double cur_time)
+{
+    if (writeNow(cur_time, step+1, m_plot3d_int_1, m_plot3d_per_1, dt[0], last_plot3d_file_time_1)) {
+        last_plot3d_file_step_1 = step+1;
+        Write3DPlotFile(1,plotfile3d_type_1,plot3d_var_names_1);
+        for (int lev = 0; lev <= finest_level; ++lev) {lsm.Plot(lev, step+1);}
+        if (m_plot3d_per_1 > zero) {last_plot3d_file_time_1 += m_plot3d_per_1;}
 
             if (plot_micro_src)
             {
@@ -717,51 +738,44 @@ ERF::Evolve ()
                 Vector<std::string> buoysrc_varnames = {"buoysrc_zmom"};
                 WriteSingleLevelPlotfile(buoysrc_plotfilename, *buoy_src[0], buoysrc_varnames, geom[0], cur_time, step+1);
             }
-        }
-        if (writeNow(cur_time, step+1, m_plot3d_int_2, m_plot3d_per_2, dt[0], last_plot3d_file_time_2)) {
-            last_plot3d_file_step_2 = step+1;
-            Write3DPlotFile(2,plotfile3d_type_2,plot3d_var_names_2);
-            for (int lev = 0; lev <= finest_level; ++lev) {lsm.Plot(lev, step+1);}
-            if (m_plot3d_per_2 > zero) {last_plot3d_file_time_2 += m_plot3d_per_2;}
-        }
-
-        if (writeNow(cur_time, step+1, m_plot2d_int_1, m_plot2d_per_1, dt[0], last_plot2d_file_time_1)) {
-            last_plot2d_file_step_1 = step+1;
-            Write2DPlotFile(1,plotfile2d_type_1,plot2d_var_names_1);
-            if (m_plot2d_per_1 > zero) {last_plot2d_file_time_1 += m_plot2d_per_1;}
-        }
-
-        if (writeNow(cur_time, step+1, m_plot2d_int_2, m_plot2d_per_2, dt[0], last_plot2d_file_time_2)) {
-            last_plot2d_file_step_2 = step+1;
-            Write2DPlotFile(2,plotfile2d_type_2,plot2d_var_names_2);
-            if (m_plot2d_per_2 > zero) {last_plot2d_file_time_2 += m_plot2d_per_2;}
-        }
-
-        for (int i = 0; i < m_subvol_int.size(); i++) {
-            if (writeNow(cur_time, step+1, m_subvol_int[i], m_subvol_per[i], dt[0], last_subvol_time[i])) {
-                last_subvol_step[i] = step+1;
-                WriteSubvolume(i,subvol3d_var_names);
-                if (m_subvol_per[i] > zero) {last_subvol_time[i] += m_subvol_per[i];}
-            }
-        }
-
-        if (writeNow(cur_time, step+1, m_check_int, m_check_per, dt[0], last_check_file_time)) {
-            last_check_file_step = step+1;
-            WriteCheckpointFile();
-            if (m_check_per > zero) {last_check_file_time += m_check_per;}
-        }
-
-#ifdef AMREX_MEM_PROFILING
-        {
-            std::ostringstream ss;
-            ss << "[STEP " << step+1 << "]";
-            MemProfiler::report(ss.str());
-        }
-#endif
-
-        if (start_time+cur_time >= stop_time - Real(1.e-6)*dt[0]) break;
+    }
+    if (writeNow(cur_time, step+1, m_plot3d_int_2, m_plot3d_per_2, dt[0], last_plot3d_file_time_2)) {
+        last_plot3d_file_step_2 = step+1;
+        Write3DPlotFile(2,plotfile3d_type_2,plot3d_var_names_2);
+        for (int lev = 0; lev <= finest_level; ++lev) {lsm.Plot(lev, step+1);}
+        if (m_plot3d_per_2 > zero) {last_plot3d_file_time_2 += m_plot3d_per_2;}
     }
 
+    if (writeNow(cur_time, step+1, m_plot2d_int_1, m_plot2d_per_1, dt[0], last_plot2d_file_time_1)) {
+        last_plot2d_file_step_1 = step+1;
+        Write2DPlotFile(1,plotfile2d_type_1,plot2d_var_names_1);
+        if (m_plot2d_per_1 > zero) {last_plot2d_file_time_1 += m_plot2d_per_1;}
+    }
+
+    if (writeNow(cur_time, step+1, m_plot2d_int_2, m_plot2d_per_2, dt[0], last_plot2d_file_time_2)) {
+        last_plot2d_file_step_2 = step+1;
+        Write2DPlotFile(2,plotfile2d_type_2,plot2d_var_names_2);
+        if (m_plot2d_per_2 > zero) {last_plot2d_file_time_2 += m_plot2d_per_2;}
+    }
+
+    for (int i = 0; i < m_subvol_int.size(); i++) {
+        if (writeNow(cur_time, step+1, m_subvol_int[i], m_subvol_per[i], dt[0], last_subvol_time[i])) {
+            last_subvol_step[i] = step+1;
+            WriteSubvolume(i,subvol3d_var_names);
+            if (m_subvol_per[i] > zero) {last_subvol_time[i] += m_subvol_per[i];}
+        }
+    }
+
+    if (writeNow(cur_time, step+1, m_check_int, m_check_per, dt[0], last_check_file_time)) {
+        last_check_file_step = step+1;
+        WriteCheckpointFile();
+        if (m_check_per > zero) {last_check_file_time += m_check_per;}
+    }
+}
+
+void
+ERF::WriteAtFinalTime()
+{
     // Write plotfiles at final time
     if ( (m_plot3d_int_1 > 0 || m_plot3d_per_1 > zero) && istep[0] > last_plot3d_file_step_1 ) {
         Write3DPlotFile(1,plotfile3d_type_1,plot3d_var_names_1);
@@ -791,8 +805,6 @@ ERF::Evolve ()
         WriteCheckpointFile();
         if (m_check_per > zero) {last_check_file_time += m_check_per;}
     }
-
-    BL_PROFILE_VAR_STOP(evolve);
 }
 
 // Called after every coarse timestep
@@ -1104,13 +1116,16 @@ ERF::InitData_post ()
     }
 
 #ifdef ERF_IMPLICIT_W
-    if (SolverChoice::mesh_type == MeshType::VariableDz &&
-        (solverChoice.vert_implicit_fac[0] > 0 ||
-         solverChoice.vert_implicit_fac[1] > 0 ||
-         solverChoice.vert_implicit_fac[2] > 0  )       &&
-        solverChoice.implicit_momentum_diffusion)
-    {
-        Warning("Doing implicit solve for u, v, and w with terrain -- this has not been tested");
+    if ( (SolverChoice::mesh_type == MeshType::VariableDz) &&
+         (solverChoice.implicit_momentum_diffusion) ) {
+        for (int lev = 0; lev <= finest_level; lev++) {
+            if ( (solverChoice.vert_implicit_fac[lev][0] > 0) ||
+                 (solverChoice.vert_implicit_fac[lev][1] > 0) ||
+                 (solverChoice.vert_implicit_fac[lev][2] > 0) )
+            {
+                Warning("Doing implicit solve for u, v, and w with terrain at level " << lev << " -- this has not been tested");
+            }
+        }
     }
 #endif
 
@@ -1780,7 +1795,7 @@ ERF::InitData_post ()
     // Print max values of lateral gradients of base state pressure at level 0
     if (verbose > 0) {
         for (int lev = 0; lev <= finest_level; ++lev) {
-            if ( (lev == 0) && (solverChoice.terrain_type != TerrainType::EB) ) {
+            if (lev == 0) {
                 compute_max_pressure_gradient_diagnostic(lev);
             }
         }
@@ -2273,6 +2288,10 @@ ERF::restart ()
     auto dRestartTime0 = amrex::second();
 
     ReadCheckpointFile();
+
+    // Force regrid on level 0 if more procs than boxes are requested
+    regrid_level_0_on_restart = ( regrid_level_0_on_restart ||
+                                  grids[0].size() < ParallelDescriptor::NProcs() );
 
     if (regrid_level_0_on_restart) {
         //

@@ -65,8 +65,8 @@ erf.box1.max_level = 1
 erf.box1.in_box_lo =  0.25 0.0
 erf.box1.in_box_hi =  0.75 1.0
 
-erf.coupling_type  = "TwoWay"
-erf.coupling_type  = "Mixed"
+#erf.coupling_type  = "TwoWay"
+#erf.coupling_type  = "Mixed"
 erf.coupling_type  = "OneWay"
 
 erf.cf_width     = 3

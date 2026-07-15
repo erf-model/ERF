@@ -425,7 +425,7 @@ void erf_slow_rhs_post (int level, int finest_level,
                     Real l_vert_implicit_fac = zero;
                     if ( (ivar == RhoKE_comp && solverChoice.implicit_ke_diffusion      ) ||
                          (ivar == RhoQ1_comp && solverChoice.implicit_moisture_diffusion) ) {
-                        l_vert_implicit_fac = solverChoice.vert_implicit_fac[nrk];
+                        l_vert_implicit_fac = solverChoice.vert_implicit_fac[level][nrk];
                     }
 
                     const Array4<const Real> tm_arr = t_mean_mf ? t_mean_mf->const_array(mfi) : Array4<const Real>{};

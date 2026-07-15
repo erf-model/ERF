@@ -5,7 +5,7 @@ stop_time = 3600.0
 
 # PROBLEM SIZE & GEOMETRY
 geometry.prob_extent =  40   40  1000
-amr.n_cell           =   4    4   100
+#amr.n_cell           =   4    4   100
 
 geometry.is_periodic = 1 1 0
 
@@ -43,15 +43,15 @@ erf.input_sounding_file = "input_sounding_U0"
 # TIME STEP CONTROL
 erf.fixed_mri_dt_ratio = 4
 
-erf.vert_implicit_fac  = 0.0  # fully explicit (default)
-erf.fixed_dt           = 2.5  # largest stable dt with explicit diffusion
-erf.fixed_dt           = 0.5  # reference
+#erf.vert_implicit_fac  = 0.0  # fully explicit (default)
+#erf.fixed_dt           = 2.5  # largest stable dt with explicit diffusion
+#erf.fixed_dt           = 0.5  # reference
 
 erf.vert_implicit_fac  = 1.0 1.0 0.0  # implicit in first two stages, explicit in last RK stage
 erf.implicit_before_substep = 1
 #erf.implicit_divtau_terms = 0 # implicit rho*theta only
-erf.fixed_dt           = 20.0
-erf.fixed_dt           = 30.0
+#erf.fixed_dt           = 20.0
+#erf.fixed_dt           = 30.0
 erf.fixed_dt           = 60.0
 
 # DIAGNOSTICS & VERBOSITY
@@ -82,5 +82,5 @@ erf.use_coriolis = false
 
 # Turbulence closure
 erf.les_type = "None"
-erf.pbl_type = "None"
+#erf.pbl_type = "None"
 erf.pbl_type = "MRF"
