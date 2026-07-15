@@ -381,6 +381,58 @@ DustLayer::initialize(
                    << " prefix=" << dust_params.dust_plot_prefix
                    << " diag_file=" << dust_params.dust_diag_file << "\n";
   }
+
+  // Phase 20: allocate dust_site_id and populate from bounding boxes.
+  dust_site_id = std::make_unique<amrex::MultiFab>(m_dg.ba, m_dg.dm, 1, amrex::IntVect(1,1,0));
+  dust_site_id->setVal(0.0);
+
+  int n_sites = (int)dust_params.site_names.size();
+  if (n_sites > 0) {
+    populate_dust_site_id(*dust_site_id, m_dg.geom,
+                          dust_params.site_x_lo, dust_params.site_y_lo,
+                          dust_params.site_x_hi, dust_params.site_y_hi);
+
+    auto counts = count_site_cells(*dust_site_id, n_sites);
+
+    if (dust_params.dust_debug) {
+      amrex::Print() << "[DUST DEBUG] Phase 20: " << n_sites
+                     << " mine sites registered\n";
+      amrex::Print() << "[DUST DEBUG] Phase 20: unassigned cells="
+                     << counts[0] << "\n";
+      for (int s = 0; s < n_sites; ++s) {
+        amrex::Print() << "[DUST DEBUG] Phase 20: site " << (s+1)
+                       << " name=" << dust_params.site_names[s]
+                       << " file=" << dust_params.site_phreeqc_files[s]
+                       << " bbox=["
+                       << dust_params.site_x_lo[s] << ","
+                       << dust_params.site_y_lo[s] << ","
+                       << dust_params.site_x_hi[s] << ","
+                       << dust_params.site_y_hi[s] << "]"
+                       << " cells=" << counts[s+1] << "\n";
+      }
+    }
+
+    // Load per-site PHREEQC factors (placeholder for now).
+    // These would normally be read from PHREEQC files, but for Phase 20
+    // we default to 1.0 (no reduction factor). Full PHREEQC integration
+    // will be completed in a later phase.
+    m_site_ustar_t_factors.resize(n_sites, 1.0);
+    for (int s = 0; s < n_sites; ++s) {
+      if (!dust_params.site_phreeqc_files[s].empty()) {
+        // TODO: Call Phase 4 PHREEQC reader function here.
+        // For now, use default factor of 1.0.
+        if (dust_params.dust_debug) {
+          amrex::Print() << "[DUST DEBUG] Phase 20: site " << (s+1)
+                         << " PHREEQC file: "
+                         << dust_params.site_phreeqc_files[s] << "\n";
+        }
+      }
+    }
+  } else {
+    if (dust_params.dust_debug)
+      amrex::Print() << "[DUST DEBUG] Phase 20: no site bounding boxes"
+                     << " defined; single-site mode (Phase 4 table)\n";
+  }
 } // end initialize()
 
 void
@@ -402,10 +454,13 @@ DustLayer::advance(
     amrex::Real cs  = dust_conc_sfc  ? dust_conc_sfc->max(0) * 1e9 : 0.0;
     amrex::Real p10 = dust_pm10      ? dust_pm10->max(0) : 0.0;
     amrex::Real twa = dust_msha_twa  ? dust_msha_twa->max(0) : 0.0;
+    amrex::Real site_max = dust_site_id ? dust_site_id->max(0) : 0.0;
     amrex::Print() << "[DUST DEBUG] advance: step=" << m_step
                    << " conc_sfc=" << cs << " ug/m3"
                    << " PM10=" << p10 << " ug/m3"
-                   << " MSHA_TWA=" << twa << " mg/m3\n";
+                   << " MSHA_TWA=" << twa << " mg/m3"
+                   << " site_id_max=" << (int)site_max
+                   << " n_sites=" << (int)m_params.site_names.size() << "\n";
   }
 
   bool have_atm =

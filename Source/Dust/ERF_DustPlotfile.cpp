@@ -94,6 +94,8 @@ void WriteDustPlotfile(const std::string& plotfile_prefix,
     { MultiFab z(dg.ba,dg.dm,1,0); z.setVal(0.0);
      MultiFab::Copy(mf,z,0,18,1,0); }
 #endif
+    // Phase 20: Multi-mine site index
+    copy_if(dust_layer.get_site_id(),         19);
 
 
     std::string plotfilename = Concatenate(plotfile_prefix, step, 5);

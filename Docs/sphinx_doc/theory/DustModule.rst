@@ -1800,6 +1800,122 @@ Implementation
 +* Seinfeld, J. H., and S. N. Pandis (2006). *Atmospheric Chemistry and Physics*,
 +  2nd ed., Ch. 9. Wiley. ISBN 978-0-471-72018-8.
 +
++Multi-Mine Domain with Per-Site PHREEQC Tables (Phase 20)
++==========================================================
++
++Phase 20 extends the emission model to support multiple named mine sites, each with
++its own geochemical PHREEQC output file and spatial bounding box. This enables
++regional dust emission modeling where different extraction sites have distinct
++mineralogy, processing waste characteristics, and remediation status.
++
++**Overview**
++
++Phase 4 established the PHREEQC reader, which processes a single global PHREEQC
++output file and applies its crust index and other geochemical factors to the entire
++dust grid. Phase 20 generalizes this to multiple per-site PHREEQC files.
++
++Each site is defined by:
++
++* A unique name label (e.g., ``mine_north``, ``mine_south``)
++* A path to its PHREEQC output NetCDF file (empty string disables PHREEQC for that site)
++* A spatial bounding box in domain coordinates: :math:`[x_\mathrm{lo}, y_\mathrm{lo}, x_\mathrm{hi}, y_\mathrm{hi}]` [m]
++
++Sites may overlap; when they do, the **last site in the input list wins** (highest priority).
++Dust grid cells outside all site bounding boxes are assigned ``site_id=0`` and use the
++global Phase 4 PHREEQC table as a fallback (single-site mode).
++
++**Site Assignment Algorithm**
++
++At initialization, each dust grid cell (i, j) is tested against all registered sites.
++The cell centre is computed as:
++
++.. math::
++
++   x_c = x_\mathrm{lo} + (i + 0.5) \Delta x
++   y_c = y_\mathrm{lo} + (j + 0.5) \Delta y
++
++For each site :math:`s = 1, 2, \ldots, N`, if the cell centre lies within the
++bounding box :math:`[x_\mathrm{lo}^s, x_\mathrm{hi}^s] \times [y_\mathrm{lo}^s, y_\mathrm{hi}^s]`,
++the cell is assigned to that site. If multiple sites contain the cell, the
++**last-wins rule** assigns the cell to the highest-indexed site.
++
++The result is stored in a 2D MultiFab ``dust_site_id`` on the dust grid:
++
++* ``dust_site_id(i, j) = 0`` if cell (i, j) is outside all bounding boxes (fallback mode)
++* ``dust_site_id(i, j) = s`` (1-indexed) if cell (i, j) is assigned to site s
++
++**Per-Site PHREEQC Table Application**
++
++In Phase 5 (threshold friction velocity computation), the code checks each cell's
++``dust_site_id`` value. If the value is > 0, the PHREEQC data for that site
++is applied (e.g., per-site crust index, efflorescence, silt fraction).
++If the value is 0, the global Phase 4 table is used.
++
++This allows each site to have distinct geochemical conditions, which affect
++the threshold velocity and hence dust emission potential.
++
++**Input Parameters**
++
++Phase 20 adds six new input parameter arrays to the ``erf.dust`` section:
++
++.. code-block:: text
++
++   erf.dust.site_names         = "mine_north" "mine_south"
++   erf.dust.site_phreeqc_files = "phreeqc_north.nc" "phreeqc_south.nc"
++   erf.dust.site_x_lo          = 0.0   1500.0
++   erf.dust.site_y_lo          = 1500.0 0.0
++   erf.dust.site_x_hi          = 3000.0 3000.0
++   erf.dust.site_y_hi          = 3000.0 1500.0
++
++If ``site_names`` is empty or not provided, Phase 20 reverts to single-site mode.
++If a ``site_phreeqc_files`` entry is an empty string, that site uses the global
++Phase 4 table (no per-site PHREEQC override).
++
++**Plotfile Output**
++
++Phase 20 adds the ``dust_site_id`` field as component 19 to the dust 2D plotfile
++(updating the total from 19 to 20 components). The field contains the integer
++site index as a real-valued MultiFab, allowing visualization and verification
++of site assignments.
++
++**Spatial Pattern Reference**
++
++The multi-site spatial assignment pattern follows the ``fire_grid_id`` approach
++used in the ERF-Fire module (see ``Source/Fire/ERF_FireGrid.H``). Each cell
++stores a domain-level metadata integer that identifies which sub-system
++(fire zone or dust site) owns it. This enables efficient filtering of data
++and physics at advanced simulation stages.
++
++**Implementation**
++
++Phase 20 introduces two new files:
++
++* ``Source/Dust/ERF_DustSiteRegistry.H`` — Header-only; provides site bounding box
++  checking (``populate_dust_site_id``) and cell counting (``count_site_cells``)
++* ``Source/Dust/ERF_DustLayer.H`` — Updated to hold ``dust_site_id`` MultiFab
++  and per-site factor vector ``m_site_ustar_t_factors``
++
++``DustLayer::initialize`` allocates ``dust_site_id`` and populates it via
++``populate_dust_site_id``. A debug summary is printed for each site
++(name, file path, bounding box, cell count) when ``dust_debug=true``.
++
++``DustLayer::advance`` appends debug output showing the maximum site_id in
++the current domain (useful for verifying correct assignment).
++
++**References**
++
++* Parkhurst, D. L., & Appelo, C. A. J. (2013). *PHREEQC Version 3*.
++  U.S. Geological Survey Techniques and Methods 6–A43.
++  https://pubs.usgs.gov/tm/06/a43/
++* Marticorena, B., & Bergametti, G. (1995). Modeling the atmospheric dust cycle:
++  1. Design of a soil-derived dust emission scheme. *J. Geophys. Res.*, 100, 16415–16430.
++  https://doi.org/10.1029/95JD00690
++* Shao, Y., & Lu, H. (2000). A simple expression for wind erosion threshold
++  friction velocity. *J. Geophys. Res.*, 105, 22437–22443.
++  https://doi.org/10.1029/2000JD900304
++* Fire grid reference: ``Source/Fire/ERF_FireGrid.H``
++  https://github.com/hgopalan/ERF/blob/ERF-Fire/Source/Fire/ERF_FireGrid.H
++
 ------------------
 
 Development is divided into 24 phases. Phase completion status is recorded
