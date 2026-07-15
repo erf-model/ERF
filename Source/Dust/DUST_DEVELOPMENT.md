@@ -31,7 +31,7 @@ No phase references or progress notes appear in source files.
 | 21 | PHREEQC deposition feedback file writer | Complete | 2026-07-15 | ERF_DustPHREEQCWriter.H. write_phreeqc_deposition_file (64 rows, overwrite). append_phreeqc_site_summary (per-site CSV, append). phreeqc_feedback_interval_s, phreeqc_feedback_file, phreeqc_site_summary_file params. Final-step guard m_last_phreeqc_write_step. Called from write_output(). DustPHREEQCFeedback regtest (7 steps, interval=1.0s, writes at t=1,2,3,3.5s).
 | 22 | Haul road vehicle schedule emission module | Complete | 2026-07-15 | ERF_DustRoadSchedule.H. load_road_schedule (rank-0 CSV + Bcast, pattern: ERF_DustBlastSchedule.H). apply_road_schedule (GPU ParallelFor, EPA AP-42 Ch.13.2.2). RoadEvent struct, DustRoadConst namespace. road_schedule_file and road_diag_file params. Active_roads debug counter. DustRoadSchedule regtest (2 roads, time-windowed).
 | 23 | DOE Critical Materials Assessment output module | Complete | 2026-07-15 | ERF_DustCriticalMaterials.H. compute_cm_flux (per-bin cm_fractions, GPU ParallelFor). append_cm_budget (domain + per-site CSV, LoopOnCpu+ReduceRealSum, pattern: ERF_FireStatsOutput.H). dust_cm_flux MultiFab. Catalog updated 20->21 fields. DustCriticalMaterials regtest (2 sites, cm_fractions=0.001).
-| 24 | Regression test suite and DUST_DEVELOPMENT.md finalisation | Not started | | |
+| 24 | Regression test suite and DUST_DEVELOPMENT.md finalisation | Complete | 2026-07-15 | DustIntegration end-to-end test. All 23 individual phase tests audited and repaired. Parameter recommendations added. |
 
 ## Build Rules (apply to every phase)
 
@@ -55,8 +55,52 @@ All files under `Exec/CanonicalTests/Dust/*/inputs` must have:
 
 ## Known Limitations
 
-None at this stage.
+- Phase 15 (MRF scale-aware blending) is not implemented in ERF-Mining.
+  It is implemented separately in the blending_les branch.
+- Phase 19 particle advection uses nearest-cell velocity interpolation.
+  Full trilinear interpolation (as in ERFPCEvolve.cpp) is a future improvement.
+- The PHREEQC coupling is loose (offline file exchange) not tight (runtime).
+  See ERF_DustPHREEQCWriter.H for the workflow description.
+- Road emission uses the EPA AP-42 Chapter 13.2.2 formula for unpaved roads.
+  Paved road emission (AP-42 Chapter 13.2.1) is not yet implemented.
+- CM fractions are currently constant per bin. Time-varying fractions from
+  PHREEQC mineralogy updates are a planned extension (see ERF_DustCriticalMaterials.H).
+- All tests use max_level=0 (no AMR). Multi-level dust transport with AMR
+  is not validated.
 
 ## Parameter Recommendations
 
-To be populated during Phase 24 based on results from arid Western US test cases.
+Based on implementation design and standard atmospheric boundary layer values:
+
+### Emission parameters
+- `threshold_A_coeff = 0.0123`: Bagnold (1941) coefficient for quartz-dominated mine tailings.
+- `silt_fraction = 0.05–0.20`: Typical range for mine tailings (0.10 is a reasonable default).
+- `rho_air = 1.225`: Standard sea-level air density [kg/m^3].
+
+### Settling and deposition
+- `bin_diameters = 7.0e-6 2.5e-6 50.0e-6`: Covers PM2.5, PM10, and coarse fractions.
+- `deposition_E0 = 3.0e-3`: Impaction efficiency for bare mine surface (Slinn 1982).
+  Increase to 5e-3 for rough tailings; decrease to 1e-3 for paved surfaces.
+
+### Suppression
+- `supp_tau_base_s = 3600.0`: Water half-life ~1 h at 20°C in low wind.
+  Use 7200–14400 for MgCl2 (longer-lived). Use 1800 for high temperatures (>35°C).
+
+### PHREEQC coupling
+- `phreeqc_update_interval_s = 86400.0`: Daily geochemical updates are appropriate
+  for crust formation timescales (Parkhurst & Appelo 2013).
+
+### MSHA / NAAQS output
+- `msha_pel_mg_m3 = 5.0`: 30 CFR 56.5001 respirable dust PEL.
+- `msha_shift_duration_s = 28800.0`: Standard 8-hour mine shift.
+
+### Critical materials
+- `cm_fractions`: Typical REE mass fractions in mine tailings are 0.001–0.01 (0.1–1%).
+  Use 0.0 (empty) to disable CM tracking.
+  Reference: USGS Mineral Resources Program (https://www.usgs.gov/programs/mineral-resources-program).
+
+### Performance
+- `transport_bins_separately = false`: Use for production runs unless per-bin
+  concentration is required. Reduces conserved state array size.
+- `atm_feedback = 0.0`: Disable atmospheric injection for standalone dust diagnostics
+  without full atmosphere coupling.
