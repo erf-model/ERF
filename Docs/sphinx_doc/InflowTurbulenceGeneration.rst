@@ -273,10 +273,10 @@ Below is an example of the input tags necessary for a simulation with CPM:
 Best practices are to set :math:`{Nx}_{pb}=8`, :math:`{Ny}_{pb}=8`, and
 :math:`{Nz}_{pb}=3` regardless of the physical size of the boxes/cells and to set
 ``erf.perturbation_layers = 3``. The user can also specify the vertical extent of
-the perturbation region using ``erf.perturbation_zlo`` and ``erf.perturbation_zhi``.
+the perturbation region using ``erf.perturbation_klo`` and ``erf.perturbation_khi``.
 For example, if the user would like to only perturb the atmospheric boundary layer up
-to a specified inversion height, they can use ``erf.perturbation_zhi`` to limit how
-high the perturbations extend. Best practice is to specify ``erf.perturbation_zl = 1``
+to a specified inversion height, they can use ``erf.perturbation_khi`` to limit how
+high the perturbations extend. Best practice is to specify ``erf.perturbation_klo = 1``
 to prevent any unphysical interactions with the bottom boundary conditions. If the user
 does not specify the perturbation extents, the perturbation region will extend the entire
 vertical column.
@@ -304,5 +304,5 @@ with an example also in ``Exec/RegTests/TurbulentInflow/``:
 
           erf.perturbation_w_amp = 1.5
 
-          erf.perturbation_zlo = 1
-          erf.perturbation_zhi = 40
+          erf.perturbation_klo = 1
+          erf.perturbation_khi = 40
