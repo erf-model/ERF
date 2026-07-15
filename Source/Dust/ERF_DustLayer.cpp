@@ -308,6 +308,25 @@ DustLayer::initialize(
                      << m_blast_schedule.events.size() << " events\n";
     }
   }
+
+  // Phase 22: load haul road vehicle schedule.
+  load_road_schedule(dust_params.road_schedule_file, m_road_schedule);
+  if (dust_params.dust_debug) {
+    amrex::Print() << "[DUST DEBUG] Phase 22: road_schedule_file="
+                   << dust_params.road_schedule_file
+                   << " n_roads=" << m_road_schedule.roads.size() << "\n";
+    for (int r = 0; r < (int)m_road_schedule.roads.size(); ++r) {
+        const auto& ev = m_road_schedule.roads[r];
+        amrex::Print() << "  road " << r << " name=" << ev.name
+                       << " bbox=[" << ev.x_lo << "," << ev.y_lo << ","
+                       << ev.x_hi << "," << ev.y_hi << "]"
+                       << " W=" << ev.vehicle_weight_t << " t"
+                       << " silt=" << ev.silt_pct << "%"
+                       << " vmt=" << ev.vmt_per_h << "/h"
+                       << " t=[" << ev.start_time_s << ","
+                       << ev.end_time_s << "] s\n";
+    }
+  }
 #endif
 
   recompute_dust_ustar_t(
@@ -464,7 +483,18 @@ DustLayer::advance(
     amrex::Real p10 = dust_pm10      ? dust_pm10->max(0) : 0.0;
     amrex::Real twa = dust_msha_twa  ? dust_msha_twa->max(0) : 0.0;
     amrex::Real site_max = dust_site_id ? dust_site_id->max(0) : 0.0;
+    amrex::Real ef_max = dust_emission_flux ? dust_emission_flux->max(0) : 0.0;
+    int  n_roads_active = 0;
+    if (m_road_schedule.loaded) {
+        for (const auto& ev : m_road_schedule.roads) {
+            bool active = (m_time >= ev.start_time_s) &&
+                          (ev.end_time_s < 0.0 || m_time <= ev.end_time_s);
+            if (active) ++n_roads_active;
+        }
+    }
     amrex::Print() << "[DUST DEBUG] advance: step=" << m_step
+                   << " emission_flux_max=" << ef_max << " kg/m^2/s"
+                   << " active_roads=" << n_roads_active
                    << " conc_sfc=" << cs << " ug/m3"
                    << " PM10=" << p10 << " ug/m3"
                    << " MSHA_TWA=" << twa << " mg/m3"
@@ -617,6 +647,11 @@ DustLayer::advance(
         << "[DUST DEBUG] Phase 7: emission_flux bin0 after blast step="
         << m_step << " max=" << dust_emission_flux->max(0) << " [kg/m^2/s]\n";
   }
+
+  // Phase 22: apply haul road vehicle resuspension (additive to emission flux).
+  apply_road_schedule(*dust_emission_flux, m_dg.geom, m_road_schedule,
+                      m_time, dt, m_params.dust_debug,
+                      m_params.road_diag_file, m_step);
 
   compute_naaqs_diagnostics(dt, m_time - dt, m_step);
   compute_msha_exposure(dt, m_time - dt, m_step);

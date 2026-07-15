@@ -29,7 +29,7 @@ No phase references or progress notes appear in source files.
 +| 19 | Lagrangian super-particle receptor tracking | Complete | 2026-07-15 | ERF_DustPC.H/cpp (ParticleContainer<0,0,5,0>). ReleaseParticles (LoopOnCpu). AdvanceParticles (nearest-cell Euler + Stokes). dust_source_map in catalog (ncomp=19). Guarded ERF_USE_PARTICLES. DustParticles regtest. |
 | 20 | Multi-mine domain with per-site PHREEQC tables | Complete | 2026-07-15 | ERF_DustSiteRegistry.H (populate_dust_site_id, count_site_cells). dust_site_id MultiFab on dust grid. Per-site PHREEQC u*_t factors. last-wins bounding box assignment. Catalog updated 19->20 fields. DustMultiSite regtest (2 sites, 32 cells each).
 | 21 | PHREEQC deposition feedback file writer | Complete | 2026-07-15 | ERF_DustPHREEQCWriter.H. write_phreeqc_deposition_file (64 rows, overwrite). append_phreeqc_site_summary (per-site CSV, append). phreeqc_feedback_interval_s, phreeqc_feedback_file, phreeqc_site_summary_file params. Final-step guard m_last_phreeqc_write_step. Called from write_output(). DustPHREEQCFeedback regtest (7 steps, interval=1.0s, writes at t=1,2,3,3.5s).
-| 22 | Haul road vehicle schedule emission module | Not started | | |
+| 22 | Haul road vehicle schedule emission module | Complete | 2026-07-15 | ERF_DustRoadSchedule.H. load_road_schedule (rank-0 CSV + Bcast, pattern: ERF_DustBlastSchedule.H). apply_road_schedule (GPU ParallelFor, EPA AP-42 Ch.13.2.2). RoadEvent struct, DustRoadConst namespace. road_schedule_file and road_diag_file params. Active_roads debug counter. DustRoadSchedule regtest (2 roads, time-windowed).
 | 23 | DOE Critical Materials Assessment output module | Not started | | |
 | 24 | Regression test suite and DUST_DEVELOPMENT.md finalisation | Not started | | |
 

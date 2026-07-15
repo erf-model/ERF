@@ -213,6 +213,14 @@ struct DustParams {
     std::string phreeqc_feedback_file        = "dust_dep_feedback.dat";
     std::string phreeqc_site_summary_file    = "dust_dep_site_summary.csv";
 
+    // Phase 22: haul road vehicle schedule.
+    // CSV format: road_name, x_lo, y_lo, x_hi, y_hi, road_width_m,
+    //             vehicle_weight_t, silt_pct, vmt_per_h, start_time_s, end_time_s
+    // Reference: EPA AP-42 Ch. 13.2.2. https://www.epa.gov/air-emissions-factors-and-quantification/
+    //            ap-42-compilation-air-emissions-factors
+    std::string road_schedule_file  = "";             ///< Road schedule CSV. Empty = disabled.
+    std::string road_diag_file      = "dust_road_diag.csv"; ///< Road diagnostics CSV.
+
     /**
      * Constructor that reads all parameters from ParmParse.
      */
@@ -295,3 +303,7 @@ struct DustParams {
         pp.query("phreeqc_feedback_interval_s", phreeqc_feedback_interval_s);
         pp.query("phreeqc_feedback_file",        phreeqc_feedback_file);
         pp.query("phreeqc_site_summary_file",    phreeqc_site_summary_file);
+
+        // Phase 22: road schedule CSV.
+        pp.query("road_schedule_file", road_schedule_file);
+        pp.query("road_diag_file",     road_diag_file);

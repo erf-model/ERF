@@ -1,0 +1,6 @@
+# Haul road schedule. Columns (space or comma delimited):
+# road_name x_lo_m y_lo_m x_hi_m y_hi_m road_width_m vehicle_weight_t silt_pct vmt_per_h start_s end_s
+# end_s = -1 means active for full simulation.
+# EPA AP-42 Ch. 13.2.2: E = k*(s/12)^a*(W/3)^b, k=2.6 a=0.8 b=0.4
+haul_north  0.0  2000.0  3000.0  2500.0  20.0  80.0  10.0  5.0   0.0  -1
+haul_south  0.0   500.0  3000.0  1000.0  20.0  80.0  10.0  5.0   1.0   2.5
