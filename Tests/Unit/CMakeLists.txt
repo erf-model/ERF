@@ -148,7 +148,7 @@ erf_register_gtest_suite(${erf_exe_name}
 )
 
 add_test(NAME erf_unit_tests_shuffle_repeat
-  COMMAND ${CMAKE_CURRENT_BINARY_DIR}/${erf_exe_name}
+  COMMAND $<TARGET_FILE:${erf_exe_name}>
     --gtest_shuffle
     --gtest_repeat=3
     --gtest_output=xml:${ERF_GTEST_REPORT_ROOT}/${erf_exe_name}/shuffle-repeat.xml
@@ -240,7 +240,39 @@ if(ERF_ENABLE_MPI)
   )
 
   set(erf_parallel_ctest_file
+      "${CMAKE_CURRENT_BINARY_DIR}/${erf_parallel_exe_name}_tests_$<CONFIG>.cmake")
+  set(erf_parallel_ctest_wrapper
       "${CMAKE_CURRENT_BINARY_DIR}/${erf_parallel_exe_name}_tests.cmake")
+
+  # CTest includes this stable wrapper. Multi-config generators build one
+  # generated test file per configuration; CTest chooses the requested file
+  # through CTEST_CONFIGURATION_TYPE. A single-config build falls back to
+  # its only generated file when ctest is invoked without -C.
+  file(WRITE "${erf_parallel_ctest_wrapper}" [=[
+set(_erf_parallel_test_files)
+if(DEFINED CTEST_CONFIGURATION_TYPE AND
+   NOT "${CTEST_CONFIGURATION_TYPE}" STREQUAL "")
+  set(_erf_parallel_test_file
+      "${CMAKE_CURRENT_LIST_DIR}/erf_parallel_tests_tests_${CTEST_CONFIGURATION_TYPE}.cmake")
+  if(NOT EXISTS "${_erf_parallel_test_file}")
+    message(FATAL_ERROR
+      "No generated MPI CTest file exists for configuration '${CTEST_CONFIGURATION_TYPE}'")
+  endif()
+  include("${_erf_parallel_test_file}")
+else()
+  file(GLOB _erf_parallel_test_files
+       "${CMAKE_CURRENT_LIST_DIR}/erf_parallel_tests_tests_*.cmake")
+  list(LENGTH _erf_parallel_test_files _erf_parallel_test_file_count)
+  if(_erf_parallel_test_file_count EQUAL 1)
+    include("${_erf_parallel_test_files}")
+  elseif(_erf_parallel_test_file_count EQUAL 0)
+    message(FATAL_ERROR "No generated MPI CTest file exists")
+  else()
+    message(FATAL_ERROR
+      "Multiple generated MPI CTest files exist; use ctest -C <configuration>")
+  endif()
+endif()
+]=])
 
   # Encode CMake lists as comma-separated values for the -D arguments below.
   # COMMAND_EXPAND_LISTS would otherwise split a single -D value into several
@@ -251,6 +283,18 @@ if(ERF_ENABLE_MPI)
          "${ERF_PARALLEL_TEST_NRANKS}")
   string(REPLACE ";" "," erf_mpiexec_preflags_arg "${MPIEXEC_PREFLAGS}")
   string(REPLACE ";" "," erf_mpiexec_postflags_arg "${MPIEXEC_POSTFLAGS}")
+
+  get_target_property(erf_parallel_test_emulator
+    ${erf_parallel_exe_name} CROSSCOMPILING_EMULATOR)
+  if(NOT erf_parallel_test_emulator OR
+     erf_parallel_test_emulator MATCHES "-NOTFOUND$")
+    set(erf_parallel_test_emulator)
+  endif()
+  # Encode target-property lists as comma-separated -D values. This preserves
+  # semicolon-delimited list boundaries and spaces inside emulator arguments,
+  # matching the existing MPI flag encoding used by this custom generator.
+  string(REPLACE ";" "," erf_parallel_test_emulator_arg
+         "${erf_parallel_test_emulator}")
 
   add_custom_command(TARGET ${erf_parallel_exe_name} POST_BUILD
     COMMAND ${CMAKE_COMMAND}
@@ -263,6 +307,7 @@ if(ERF_ENABLE_MPI)
       -DMPIEXEC_POSTFLAGS=${erf_mpiexec_postflags_arg}
       -DERF_MPI_PREFLAGS=${erf_parallel_test_mpiexec_preflags_arg}
       -DERF_MPI_RANKS=${erf_parallel_test_ranks_arg}
+      -DERF_CROSSCOMPILING_EMULATOR=${erf_parallel_test_emulator_arg}
       -DTEST_TIMEOUT=1800
       -P ${CMAKE_CURRENT_LIST_DIR}/GenerateERFParallelCTest.cmake
     COMMAND_EXPAND_LISTS
@@ -270,7 +315,7 @@ if(ERF_ENABLE_MPI)
   )
 
   set_property(DIRECTORY APPEND PROPERTY TEST_INCLUDE_FILES
-    "${erf_parallel_ctest_file}")
+    "${erf_parallel_ctest_wrapper}")
 
   add_executable(erf_mpi_gtest_listener_self_test
     ERF_GTestMPIListenerSelfTest.cpp

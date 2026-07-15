@@ -56,7 +56,7 @@ Prerequisites
 
 ERF unit tests require:
 
-- CMake 3.18 or newer;
+- CMake 3.20 or newer;
 - a C++17 compiler;
 - the ERF submodules;
 - MPI for the parallel suite;
@@ -697,7 +697,7 @@ Use ``erf_gtest::print_field`` to keep field formatting consistent:
 
 .. code-block:: cpp
 
-   inline void PrintTo(const CellState& state, std::ostream* os)
+   inline void PrintTo (const CellState& state, std::ostream* os)
    {
        *os << "{";
        erf_gtest::print_field(os, "temperature", state.temperature, true);

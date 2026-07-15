@@ -20,6 +20,8 @@ jobs:
   Build-And-Test:
     runs-on: ${{matrix.os}}
     name: OS ${{matrix.os}} - Particles ${{matrix.particles}}
+    env:
+      ERF_PARALLEL_TEST_NRANKS: '1;2;4'
     strategy:
       matrix:
         os: [ubuntu-22.04]
@@ -71,7 +73,7 @@ jobs:
           -DERF_DIM:STRING=3 \
           -DERF_ENABLE_MPI:BOOL=ON \
           -DERF_PARALLEL_TEST_ALLOW_OVERSUBSCRIBE:BOOL=ON \
-          '-DERF_PARALLEL_TEST_NRANKS:STRING=1;2;4' \
+          '-DERF_PARALLEL_TEST_NRANKS:STRING=${{env.ERF_PARALLEL_TEST_NRANKS}}' \
           -DERF_ENABLE_PARTICLES:BOOL=${{matrix.particles}} \
           -DERF_ENABLE_TESTS:BOOL=ON \
           -DERF_ENABLE_ALL_WARNINGS:BOOL=ON \
@@ -121,15 +123,74 @@ jobs:
           echo 'Parallel CTest registration treated COMMAND as the executable.' >&2
           exit 1
         fi
-        test "$(grep -c '^.*Test command: ' parallel-registration.txt)" -eq 39
-        test "$(grep -c '^  Test .*\.np1$' parallel-registration.txt)" -eq 13
-        test "$(grep -c '^  Test .*\.np2$' parallel-registration.txt)" -eq 13
-        test "$(grep -c '^  Test .*\.np4$' parallel-registration.txt)" -eq 13
-        test "$(grep -c '^.*Labels: parallel$' parallel-registration.txt)" -eq 39
-        if grep -Eq '^.*Labels: .*unit.*parallel|^.*Labels: .*parallel.*unit' parallel-registration.txt; then
-          echo 'Parallel CTest entries must not carry the unit label.' >&2
-          exit 1
-        fi
+        python3 - "$ERF_PARALLEL_TEST_NRANKS" \
+          ${{runner.workspace}}/ERF/build-${{matrix.os}}/Tests/Unit/erf_parallel_tests \
+          parallel-registration.txt <<'PY'
+        import re
+        import sys
+        from collections import Counter
+        from pathlib import Path
+
+        rank_text, executable, registration = sys.argv[1:]
+        ranks = rank_text.split(';')
+        if not ranks or any(not re.fullmatch(r'[1-9][0-9]*', rank) for rank in ranks):
+            raise SystemExit(f'Invalid configured MPI rank list: {rank_text!r}')
+
+        listing = __import__('subprocess').check_output(
+            [executable, '--gtest_list_tests'], text=True)
+        suite = None
+        cases = []
+        case_pattern = re.compile(r'[A-Za-z0-9_./:-]+')
+        for raw_line in listing.splitlines():
+            line = re.sub(r'[ \t]*#.*$', '', raw_line)
+            stripped = line.strip()
+            if not stripped:
+                continue
+            if not raw_line[:1].isspace():
+                suite = stripped[:-1] if stripped.endswith('.') else None
+                continue
+            if suite is not None and case_pattern.fullmatch(stripped):
+                cases.append(f'{suite}.{stripped}')
+
+        if not cases:
+            raise SystemExit('No GoogleTest cases found in erf_parallel_tests')
+
+        entry_names = []
+        labels = {}
+        pending_labels = None
+        for raw_line in Path(registration).read_text().splitlines():
+            label_match = re.search(r'Labels: (.*)$', raw_line)
+            if label_match:
+                pending_labels = label_match.group(1).split()
+                continue
+            match = re.match(r'^\s*Test #[0-9]+: (.+)$', raw_line)
+            if match:
+                current_name = match.group(1)
+                entry_names.append(current_name)
+                labels[current_name] = pending_labels or []
+                pending_labels = None
+
+        expected = Counter(
+            f'erf_parallel_tests.{case}.np{rank}'
+            for case in cases for rank in ranks)
+        actual = Counter(entry_names)
+        if actual != expected:
+            missing = expected - actual
+            extra = actual - expected
+            raise SystemExit(
+                f'Parallel CTest inventory mismatch: {len(cases)} base cases, '
+                f'{len(entry_names)} registered entries, expected {sum(expected.values())}; '
+                f'missing={dict(missing)}, extra={dict(extra)}')
+
+        if any(labels.get(name) != ['parallel'] for name in entry_names):
+            bad = {name: labels.get(name) for name in entry_names
+                   if labels.get(name) != ['parallel']}
+            raise SystemExit(f'Parallel entries must have only the parallel label: {bad}')
+
+        print(f'GoogleTest MPI base cases: {len(cases)}')
+        print(f'Configured MPI ranks: {ranks}')
+        print(f'Parallel CTest entries: {len(entry_names)}')
+        PY
       working-directory: ${{runner.workspace}}/ERF/build-${{matrix.os}}
 
     - name: Run Serial Unit Tests
@@ -162,8 +223,18 @@ jobs:
       if: success()
       shell: bash
       run: |
-        report_root="${{runner.workspace}}/ERF/build-${{matrix.os}}/test-results"
-        test -n "$(find "${report_root}" -type f -name '*.xml' -print -quit)"
+        build_root="${{runner.workspace}}/ERF/build-${{matrix.os}}"
+        report_root="${build_root}/test-results/gtest"
+        for suite in erf_unit_tests erf_shoc_unit_tests erf_parallel_tests; do
+          test -n "$(find "${report_root}/${suite}" -type f -name '*.xml' -print -quit)"
+        done
+        if [[ "${{matrix.particles}}" == OFF ]]; then
+          test -f "${report_root}/erf_unit_tests/shuffle-repeat.xml"
+        fi
+        if find "${build_root}/Tests/Unit" -type d -name test-results -print -quit | grep -q .; then
+          echo 'Found stale nested Tests/Unit test-results directory.' >&2
+          exit 1
+        fi
 
     - name: Upload test reports and CTest logs
       if: always()

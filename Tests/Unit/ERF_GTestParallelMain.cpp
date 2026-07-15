@@ -4,6 +4,7 @@
 
 #include <gtest/gtest.h>
 
+#include <cctype>
 #include <cstdlib>
 #include <string>
 #include <vector>
@@ -24,13 +25,8 @@ bool gtest_list_requested (const int argc, char** argv)
 }
 
 void make_mpi_xml_path_unique (std::vector<std::string>& arguments,
-                               const int rank)
+                               const int rank, const int nprocs)
 {
-    const char* nprocs = std::getenv("ERF_PARALLEL_TEST_NPROCS");
-    if (nprocs == nullptr) {
-        return;
-    }
-
     for (std::string& argument : arguments) {
         if (argument.rfind("--gtest_output=", 0) != 0) {
             continue;
@@ -40,9 +36,42 @@ void make_mpi_xml_path_unique (std::vector<std::string>& arguments,
         if (separator == std::string::npos) {
             continue;
         }
+        if (output.substr(0, separator) != "xml") {
+            continue;
+        }
+
+        const std::string path = output.substr(separator + 1);
+        constexpr const char* xml_suffix = ".xml";
+        const std::size_t suffix_size = 4;
+        if (path.size() < suffix_size ||
+            path.compare(path.size() - suffix_size, suffix_size, xml_suffix) != 0) {
+            continue;
+        }
+
+        const std::size_t xml_position = path.size() - suffix_size;
+        const std::size_t np_position = path.rfind(".np", xml_position);
+        bool has_rank_count = np_position != std::string::npos &&
+                              np_position + 3 < xml_position;
+        if (has_rank_count) {
+            for (std::size_t index = np_position + 3; index < xml_position; ++index) {
+                if (!std::isdigit(static_cast<unsigned char>(path[index]))) {
+                    has_rank_count = false;
+                    break;
+                }
+            }
+        }
+
+        std::string unique_path;
+        if (has_rank_count) {
+            unique_path = path.substr(0, xml_position) + ".rank" +
+                          std::to_string(rank) + path.substr(xml_position);
+        } else {
+            unique_path = path.substr(0, xml_position) + ".np" +
+                          std::to_string(nprocs) + ".rank" +
+                          std::to_string(rank) + xml_suffix;
+        }
         argument = "--gtest_output=" + output.substr(0, separator + 1) +
-                   output.substr(separator + 1) + ".np" + nprocs + ".rank" +
-                   std::to_string(rank) + ".xml";
+                   unique_path;
         return;
     }
 }
@@ -69,12 +98,14 @@ main (int argc, char** argv)
 
     int rank = 0;
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+    int nprocs = 1;
+    MPI_Comm_size(MPI_COMM_WORLD, &nprocs);
 
     // MPI implementations are permitted to rewrite argc/argv during
     // initialization. Keep the GoogleTest arguments captured before MPI so
     // XML output and filters are not lost.
     std::vector<std::string> argument_storage = original_arguments;
-    make_mpi_xml_path_unique(argument_storage, rank);
+    make_mpi_xml_path_unique(argument_storage, rank, nprocs);
     std::vector<char*> argument_values;
     argument_values.reserve(argument_storage.size() + 1);
     for (std::string& argument : argument_storage) {

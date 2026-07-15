@@ -12,9 +12,14 @@ foreach(required_var
   endif()
 endforeach()
 
-foreach(list_var ERF_MPI_PREFLAGS ERF_MPI_RANKS MPIEXEC_PREFLAGS MPIEXEC_POSTFLAGS)
+foreach(list_var ERF_MPI_PREFLAGS ERF_MPI_RANKS MPIEXEC_PREFLAGS MPIEXEC_POSTFLAGS
+                 ERF_CROSSCOMPILING_EMULATOR)
   string(REPLACE "," ";" ${list_var} "${${list_var}}")
 endforeach()
+
+if(NOT DEFINED ERF_CROSSCOMPILING_EMULATOR)
+  set(ERF_CROSSCOMPILING_EMULATOR)
+endif()
 
 separate_arguments(_mpiexec UNIX_COMMAND "${MPIEXEC_EXECUTABLE}")
 separate_arguments(_numproc_flag UNIX_COMMAND "${MPIEXEC_NUMPROC_FLAG}")
@@ -23,8 +28,10 @@ separate_arguments(_postflags UNIX_COMMAND "${MPIEXEC_POSTFLAGS}")
 
 set(_all_preflags ${_preflags} ${ERF_MPI_PREFLAGS})
 
+set(_discovery_command ${ERF_CROSSCOMPILING_EMULATOR} "${TEST_EXECUTABLE}"
+  --gtest_list_tests)
 execute_process(
-  COMMAND "${TEST_EXECUTABLE}" --gtest_list_tests
+  COMMAND ${_discovery_command}
   RESULT_VARIABLE _list_result
   OUTPUT_VARIABLE _list_output
   ERROR_VARIABLE _list_error
@@ -95,6 +102,9 @@ foreach(_line IN LISTS _list_lines)
     endforeach()
     _erf_append_arg(_command "${_nprocs}")
     foreach(_arg IN LISTS _all_preflags)
+      _erf_append_arg(_command "${_arg}")
+    endforeach()
+    foreach(_arg IN LISTS ERF_CROSSCOMPILING_EMULATOR)
       _erf_append_arg(_command "${_arg}")
     endforeach()
     _erf_append_arg(_command "${TEST_EXECUTABLE}")
