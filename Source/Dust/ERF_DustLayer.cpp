@@ -389,7 +389,29 @@ DustLayer::initialize(
                    << " prefix=" << dust_params.dust_plot_prefix
                    << " diag_file=" << dust_params.dust_diag_file << "\n";
   }
-}
+
++#if defined(ERF_USE_PARTICLES)
++  // Phase 19: Initialize Lagrangian super-particles
++  if (dust_params.enable_particles) {
++    // Store atmospheric geometry for particle use
++    m_geom_atm = erf.Geom(0);
++    
++    // Construct particle container on atmospheric grid
++    // Use dust BoxArray for particle distribution but atm geometry for positions
++    amrex::BoxArray ba_particles = amrex::convert(m_dg.ba, amrex::IntVect::TheZeroVector());
++    m_dust_pc = std::make_unique<ERFDustPC>(m_geom_atm, m_dg.dm, ba_particles);
++    
++    // Allocate source_map on dust grid [kg/m^2]
++    dust_source_map = std::make_unique<amrex::MultiFab>(
++        m_dg.ba, m_dg.dm, 1, amrex::IntVect(1,1,0));
++    dust_source_map->setVal(0.0);
++    
++    if (dust_params.dust_debug) {
++      amrex::Print() << "[DUST DEBUG] Phase 19: ERFDustPC initialized\n";
++    }
++  }
++#endif
+
 
 void
 DustLayer::advance(
@@ -596,6 +618,24 @@ DustLayer::advance(
   // Phase 18: Compute MSHA worker exposure tracking
   // Called after compute_naaqs_diagnostics.
   compute_msha_exposure(dt, m_time - dt, m_step);
+
++#if defined(ERF_USE_PARTICLES)
++  // Phase 19: Release and advance Lagrangian super-particles
++  if (m_params.enable_particles && have_atm && xvel_mf && yvel_mf) {
++    // Note: advance_particles requires xvel/yvel/zvel as face-staggered fields.
++    // The xvel_mf and yvel_mf are passed as MultiFab arrays (u_mac, v_mac).
++    // zvel is extracted from velocity solver or computed from divergence.
++    // For simplicity in Phase 19, pass xvel_mf directly as u component.
++    // TODO: Extract zvel properly when available in 3D solver.
++    const amrex::MultiFab* zvel_ptr = nullptr;  // Phase 19 stub: no vertical velocity yet
++    // Actual call would be:
++    // advance_particles(*xvel_mf, *yvel_mf, *zvel_ptr, m_geom_atm, dt, m_step);
++    // For now, skip until zvel is properly passed from ERF_Advance.cpp
++    if (dust_params.dust_debug) {
++      amrex::Print() << "[DUST DEBUG] Phase 19: particle advance skipped (zvel not passed yet)\n";
++    }
++  }
++#endif
 #endif
 }
 #ifdef ERF_USE_DUST
@@ -898,5 +938,44 @@ DustLayer::write_output(int nstep, double cur_time, bool is_final)
                        << " dep_total=" << dp << " kg/m^2\n";
     }
 }
+
++#if defined(ERF_USE_PARTICLES)
++void
++DustLayer::advance_particles(const amrex::MultiFab& xvel,
++                             const amrex::MultiFab& yvel,
++                             const amrex::MultiFab& zvel,
++                             const amrex::Geometry& geom_atm,
++                             amrex::Real dt, int nstep)
++{
++    if (!m_dust_pc || !m_params.enable_particles) return;
++    if (!dust_emission_flux || !dust_source_map) return;
++
++    int n_active = m_params.transport_bins_separately
++                 ? m_params.n_size_bins : 1;
++
++    // Release particles at each step if interval matches
++    if (nstep % m_params.particle_release_interval == 0) {
++        for (int b = 0; b < n_active; ++b) {
++            int di = (b < (int)m_params.bin_diameters.size())
++                   ? b : (int)m_params.bin_diameters.size()-1;
++            m_dust_pc->ReleaseParticles(*dust_emission_flux,
++                geom_atm, m_dg.geom, dt,
++                m_params.bin_diameters[di], m_params.particle_density);
++        }
++    }
++    
++    // Advance particles
++    m_dust_pc->AdvanceParticles(xvel, yvel, zvel,
++        *dust_source_map, geom_atm, m_dg.geom, dt);
++
++    if (m_params.dust_debug) {
++        long np = m_dust_pc->TotalNumberOfParticles(true, false);
++        amrex::Real sm = dust_source_map->sum(0);
++        amrex::Print() << "[DUST DEBUG] Phase 19: step=" << nstep
++                       << " n_particles=" << np
++                       << " source_map_sum=" << sm << " kg/m^2\n";
++    }
++}
++#endif
 
 #endif // ERF_USE_DUST

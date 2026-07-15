@@ -31,9 +31,12 @@ inline amrex::Vector<std::string> dust_plotfile_var_names()
         "dust_msha_dose_mg_m3_h",  ///< Cumulative 8h TWA dose [mg/m^3/h].
         "dust_msha_twa_mg_m3",     ///< 8-hour time-weighted average [mg/m^3]. 30 CFR 56.5001.
         "dust_msha_exceed",        ///< PEL exceedance flag [0/1].
-        "dust_msha_shift_twa"      ///< TWA at last shift end [mg/m^3].
+        "dust_msha_shift_twa",     ///< TWA at last shift end [mg/m^3].
+        // Phase 19: Lagrangian super-particle source-receptor attribution
+        "dust_source_map"      ///< Cumulative source deposition [kg/m^2]. Phase 19.
     };
 }
 
-inline int dust_plotfile_ncomp() { return 18; }
+inline int dust_plotfile_ncomp() { return 19; }
 #endif
+
