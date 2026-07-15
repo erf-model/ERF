@@ -390,27 +390,27 @@ DustLayer::initialize(
                    << " diag_file=" << dust_params.dust_diag_file << "\n";
   }
 
-+#if defined(ERF_USE_PARTICLES)
-+  // Phase 19: Initialize Lagrangian super-particles
-+  if (dust_params.enable_particles) {
-+    // Store atmospheric geometry for particle use
-+    m_geom_atm = erf.Geom(0);
-+    
-+    // Construct particle container on atmospheric grid
-+    // Use dust BoxArray for particle distribution but atm geometry for positions
-+    amrex::BoxArray ba_particles = amrex::convert(m_dg.ba, amrex::IntVect::TheZeroVector());
-+    m_dust_pc = std::make_unique<ERFDustPC>(m_geom_atm, m_dg.dm, ba_particles);
-+    
-+    // Allocate source_map on dust grid [kg/m^2]
-+    dust_source_map = std::make_unique<amrex::MultiFab>(
-+        m_dg.ba, m_dg.dm, 1, amrex::IntVect(1,1,0));
-+    dust_source_map->setVal(0.0);
-+    
-+    if (dust_params.dust_debug) {
-+      amrex::Print() << "[DUST DEBUG] Phase 19: ERFDustPC initialized\n";
-+    }
-+  }
-+#endif
+#if defined(ERF_USE_PARTICLES)
+  // Phase 19: Initialize Lagrangian super-particles
+  if (dust_params.enable_particles) {
+    // Store atmospheric geometry for particle use
+    m_geom_atm = erf.Geom(0);
+    
+    // Construct particle container on atmospheric grid
+    // Use dust BoxArray for particle distribution but atm geometry for positions
+    amrex::BoxArray ba_particles = amrex::convert(m_dg.ba, amrex::IntVect::TheZeroVector());
+    m_dust_pc = std::make_unique<ERFDustPC>(m_geom_atm, m_dg.dm, ba_particles);
+    
+    // Allocate source_map on dust grid [kg/m^2]
+    dust_source_map = std::make_unique<amrex::MultiFab>(
+        m_dg.ba, m_dg.dm, 1, amrex::IntVect(1,1,0));
+    dust_source_map->setVal(0.0);
+    
+    if (dust_params.dust_debug) {
+      amrex::Print() << "[DUST DEBUG] Phase 19: ERFDustPC initialized\n";
+    }
+  }
+#endif
 
 
 void
@@ -621,12 +621,12 @@ DustLayer::advance(
   // Called after compute_naaqs_diagnostics.
   compute_msha_exposure(dt, m_time - dt, m_step);
 
-+#if defined(ERF_USE_PARTICLES)
-+  // Phase 19: Release and advance Lagrangian super-particles
-+  if (m_params.enable_particles && geom_atm && zvel_mf && xvel_mf && yvel_mf) {
-+    advance_particles(*xvel_mf, *yvel_mf, *zvel_mf, *geom_atm, dt, m_step);
-+  }
-+#endif
+#if defined(ERF_USE_PARTICLES)
+  // Phase 19: Release and advance Lagrangian super-particles
+  if (m_params.enable_particles && geom_atm && zvel_mf && xvel_mf && yvel_mf) {
+    advance_particles(*xvel_mf, *yvel_mf, *zvel_mf, *geom_atm, dt, m_step);
+  }
+#endif
  #endif
  }
 #endif
@@ -934,41 +934,42 @@ DustLayer::write_output(int nstep, double cur_time, bool is_final)
 
 +#if defined(ERF_USE_PARTICLES)
 +void
-+DustLayer::advance_particles(const amrex::MultiFab& xvel,
-+                             const amrex::MultiFab& yvel,
-+                             const amrex::MultiFab& zvel,
-+                             const amrex::Geometry& geom_atm,
-+                             amrex::Real dt, int nstep)
-+{
-+    if (!m_dust_pc || !m_params.enable_particles) return;
-+    if (!dust_emission_flux || !dust_source_map) return;
-+
-+    int n_active = m_params.transport_bins_separately
-+                 ? m_params.n_size_bins : 1;
-+
-+    // Release particles at each step if interval matches
-+    if (nstep % m_params.particle_release_interval == 0) {
-+        for (int b = 0; b < n_active; ++b) {
-+            int di = (b < (int)m_params.bin_diameters.size())
-+                   ? b : (int)m_params.bin_diameters.size()-1;
-+            m_dust_pc->ReleaseParticles(*dust_emission_flux,
-+                geom_atm, m_dg.geom, dt,
-+                m_params.bin_diameters[di], m_params.particle_density);
-+        }
-+    }
-+    
-+    // Advance particles
-+    m_dust_pc->AdvanceParticles(xvel, yvel, zvel,
-+        *dust_source_map, geom_atm, m_dg.geom, dt);
-+
-+    if (m_params.dust_debug) {
-+        long np = m_dust_pc->TotalNumberOfParticles(true, false);
-+        amrex::Real sm = dust_source_map->sum(0);
-+        amrex::Print() << "[DUST DEBUG] Phase 19: step=" << nstep
-+                       << " n_particles=" << np
-+                       << " source_map_sum=" << sm << " kg/m^2\n";
-+    }
-+}
-+#endif
+void
+DustLayer::advance_particles(const amrex::MultiFab& xvel,
+                             const amrex::MultiFab& yvel,
+                             const amrex::MultiFab& zvel,
+                             const amrex::Geometry& geom_atm,
+                             amrex::Real dt, int nstep)
+{
+    if (!m_dust_pc || !m_params.enable_particles) return;
+    if (!dust_emission_flux || !dust_source_map) return;
+
+    int n_active = m_params.transport_bins_separately
+                 ? m_params.n_size_bins : 1;
+
+    // Release particles at each step if interval matches
+    if (nstep % m_params.particle_release_interval == 0) {
+        for (int b = 0; b < n_active; ++b) {
+            int di = (b < (int)m_params.bin_diameters.size())
+                   ? b : (int)m_params.bin_diameters.size()-1;
+            m_dust_pc->ReleaseParticles(*dust_emission_flux,
+                geom_atm, m_dg.geom, dt,
+                m_params.bin_diameters[di], m_params.particle_density);
+        }
+    }
+    
+    // Advance particles
+    m_dust_pc->AdvanceParticles(xvel, yvel, zvel,
+        *dust_source_map, geom_atm, m_dg.geom, dt);
+
+    if (m_params.dust_debug) {
+        long np = m_dust_pc->TotalNumberOfParticles(true, false);
+        amrex::Real sm = dust_source_map->sum(0);
+        amrex::Print() << "[DUST DEBUG] Phase 19: step=" << nstep
+                       << " n_particles=" << np
+                       << " source_map_sum=" << sm << " kg/m^2\n";
+    }
+}
+#endif
 
 #endif // ERF_USE_DUST
