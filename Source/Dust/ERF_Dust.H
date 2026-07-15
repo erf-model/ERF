@@ -20,6 +20,7 @@
 #include <ERF_DustThreshold.H>
 #include <ERF_DustEmission.H>
 #include <ERF_DustBlastSchedule.H>
+#include <ERF_DustRoadSchedule.H>
 #include <ERF_DustSuppression.H>
 #include <ERF_DustSiteRegistry.H>
 #include <ERF_DustWindExtract.H>
