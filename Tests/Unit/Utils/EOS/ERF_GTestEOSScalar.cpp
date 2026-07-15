@@ -1,10 +1,17 @@
 #include <gtest/gtest.h>
 
+#include <tuple>
+
+#include "../../ERF_GTestAssertions.H"
 #include "ERF_GTestEOSCommon.H"
 
 using namespace eos_test;
 
 namespace {
+
+using EOSStateCase = std::tuple<std::string, EOSState>;
+
+class ERFEOSRepresentativeStateTest : public ::testing::TestWithParam<EOSStateCase> {};
 
 void expect_near_relative (const amrex::Real actual,
                            const amrex::Real expected,
@@ -14,6 +21,29 @@ void expect_near_relative (const amrex::Real actual,
 }
 
 } // namespace
+
+TEST_P(ERFEOSRepresentativeStateTest, TemperatureAndPotentialTemperatureAreInverses)
+{
+    const auto& state = std::get<1>(GetParam());
+    SCOPED_TRACE(std::get<0>(GetParam()));
+
+    const amrex::Real theta = getThgivenTandP(state.temperature, state.pressure, kRdOcp);
+    const amrex::Real recovered_temperature = getTgivenPandTh(state.pressure, theta, kRdOcp);
+    ERF_EXPECT_NEAR(recovered_temperature, state.temperature, scaled_tol(state.temperature, state.temperature, kEOSRelTol));
+    ERF_EXPECT_FINITE(recovered_temperature);
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    RepresentativeStates,
+    ERFEOSRepresentativeStateTest,
+    ::testing::Values(
+        EOSStateCase{"DryWarm", get_test_state(0)},
+        EOSStateCase{"MoistWarm", get_test_state(1)},
+        EOSStateCase{"ColdUpperAir", get_test_state(2)},
+        EOSStateCase{"ModerateMoist", get_test_state(3)}),
+    [](const ::testing::TestParamInfo<EOSStateCase>& info) {
+        return std::get<0>(info.param);
+    });
 
 // Motivation: The ERF constants encode the thermodynamic exponent contract that
 // closes every inverse-property test below.
