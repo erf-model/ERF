@@ -295,3 +295,7 @@ struct DustParams {
         pp.query("phreeqc_feedback_interval_s", phreeqc_feedback_interval_s);
         pp.query("phreeqc_feedback_file",        phreeqc_feedback_file);
         pp.query("phreeqc_site_summary_file",    phreeqc_site_summary_file);
+  }  // end DustParams constructor
+};     // end struct DustParams
+
+#endif // ERF_DUST_PARAMS_H

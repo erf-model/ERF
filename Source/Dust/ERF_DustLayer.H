@@ -386,7 +386,7 @@ private:
     int                                   m_step = 0;
     amrex::Real                           m_time = 0.0;
     int                                   m_last_dust_plot_step = -1;
-    amrex::Real                           m_last_phreeqc_write_time = -1.0e30; ///< Time of last PHREEQC feedback write.
+    amrex::Real                           m_last_phreeqc_write_time = 0.0; ///< Time of last PHREEQC feedback write.
     int                                   m_last_phreeqc_write_step = -1;      ///< Step of last PHREEQC feedback write.
     amrex::Real                           m_last_phreeqc_update = -1.0e30;
     int                                   m_msha_shift_count = 0; ///< Phase 18: shift counter for MSHA.

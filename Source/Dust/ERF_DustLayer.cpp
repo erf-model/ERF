@@ -960,6 +960,10 @@ DustLayer::write_phreeqc_feedback(int nstep, amrex::Real cur_time,
     const amrex::Real interval = m_params.phreeqc_feedback_interval_s;
     if (interval <= 0.0 && !is_final) return;
 
+    // Prevent duplicate writes for the same step (called from both
+    // WriteAtIntermediateTime and WriteAtFinalTime).
+    if (nstep == m_last_phreeqc_write_step) return;
+
     bool do_write = false;
     if (interval > 0.0 &&
         (cur_time - m_last_phreeqc_write_time) >= interval - 0.5*interval*1e-6)
@@ -969,14 +973,18 @@ DustLayer::write_phreeqc_feedback(int nstep, amrex::Real cur_time,
 
     if (!do_write) return;
 
-    // Task A: write full-grid deposition file.
+    // Update step tracker BEFORE writing to block any re-entrant call.
+    m_last_phreeqc_write_step = nstep;
+    m_last_phreeqc_write_time = cur_time;
+
+    // Task A: write full-grid deposition file (overwritten each interval).
     write_phreeqc_deposition_file(
         m_params.phreeqc_feedback_file,
         *dust_deposition_rate,
         m_dg.geom,
         cur_time, nstep);
 
-    // Task B: per-site summary CSV.
+    // Task B: per-site summary CSV (appended).
     append_phreeqc_site_summary(
         m_params.phreeqc_site_summary_file,
         *dust_deposition_rate,
@@ -984,9 +992,6 @@ DustLayer::write_phreeqc_feedback(int nstep, amrex::Real cur_time,
         m_dg.geom,
         cur_time,
         m_params.site_names);
-
-    m_last_phreeqc_write_time = cur_time;
-    m_last_phreeqc_write_step = nstep;
 
     if (m_params.dust_debug) {
         amrex::Real dep_sum = dust_deposition_rate->sum(0);
