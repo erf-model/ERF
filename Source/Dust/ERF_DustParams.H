@@ -309,3 +309,4 @@ struct DustParams {
         pp.query("road_diag_file",     road_diag_file);
    }  // end DustParams constructor
  };     // end struct DustParams
+#endif // ERF_DUST_PARAMS_H
