@@ -45,12 +45,12 @@ class eb_ {
 
     // Toggle between eb_aux_ and native AMReX FC factories
     #ifndef USE_FC_FACTORY
-    #define USE_FC_FACTORY 0  // Default to 0: use eb_aux_ (original)
+    #define USE_FC_FACTORY 1  // Default to 0: use eb_aux_ (original)
     #endif
 
     const std::unique_ptr<amrex::EBFArrayBoxFactory>& get_const_factory () const noexcept { return m_factory; }
 
-    void set_connection_flags ();
+    void set_connection_flags (amrex::EBFArrayBoxFactory* factory);
 
     #if USE_FC_FACTORY
     // Return native AMReX FC factories
