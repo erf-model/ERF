@@ -10,17 +10,26 @@ foreach(required_var
   endif()
 endforeach()
 
-string(REPLACE "," " " _mpi_preflags_string "${ERF_MPI_PREFLAGS}")
+string(REPLACE "," ";" _erf_mpi_preflags "${ERF_MPI_PREFLAGS}")
+
+if(NOT DEFINED ERF_CROSSCOMPILING_EMULATOR OR
+   "${ERF_CROSSCOMPILING_EMULATOR}" STREQUAL "" OR
+   ERF_CROSSCOMPILING_EMULATOR MATCHES "-NOTFOUND$")
+  set(_crosscompiling_emulator)
+else()
+  string(REPLACE "," ";" _crosscompiling_emulator
+         "${ERF_CROSSCOMPILING_EMULATOR}")
+endif()
 
 separate_arguments(_mpiexec UNIX_COMMAND "${MPIEXEC_EXECUTABLE}")
 separate_arguments(_numproc_flag UNIX_COMMAND "${MPIEXEC_NUMPROC_FLAG}")
 separate_arguments(_preflags UNIX_COMMAND "${MPIEXEC_PREFLAGS}")
 separate_arguments(_postflags UNIX_COMMAND "${MPIEXEC_POSTFLAGS}")
-separate_arguments(_erf_mpi_preflags UNIX_COMMAND "${_mpi_preflags_string}")
 
 execute_process(
   COMMAND ${_mpiexec} ${_numproc_flag} 2
           ${_preflags} ${_erf_mpi_preflags}
+          ${_crosscompiling_emulator}
           "${TEST_EXECUTABLE}" ${_postflags}
   RESULT_VARIABLE _result
   OUTPUT_VARIABLE _stdout

@@ -148,7 +148,7 @@ erf_register_gtest_suite(${erf_exe_name}
 )
 
 add_test(NAME erf_unit_tests_shuffle_repeat
-  COMMAND $<TARGET_FILE:${erf_exe_name}>
+  COMMAND ${erf_exe_name}
     --gtest_shuffle
     --gtest_repeat=3
     --gtest_output=xml:${ERF_GTEST_REPORT_ROOT}/${erf_exe_name}/shuffle-repeat.xml
@@ -326,6 +326,15 @@ endif()
       MPI::MPI_CXX
   )
 
+  get_target_property(erf_listener_self_test_emulator
+    erf_mpi_gtest_listener_self_test CROSSCOMPILING_EMULATOR)
+  if(NOT erf_listener_self_test_emulator OR
+     erf_listener_self_test_emulator MATCHES "-NOTFOUND$")
+    set(erf_listener_self_test_emulator)
+  endif()
+  string(REPLACE ";" "," erf_listener_self_test_emulator_arg
+         "${erf_listener_self_test_emulator}")
+
   add_test(NAME erf_mpi_gtest_listener_self_test
     COMMAND ${CMAKE_COMMAND}
       -DMPIEXEC_EXECUTABLE=${MPIEXEC_EXECUTABLE}
@@ -333,6 +342,7 @@ endif()
       -DMPIEXEC_PREFLAGS=${erf_mpiexec_preflags_arg}
       -DMPIEXEC_POSTFLAGS=${erf_mpiexec_postflags_arg}
       -DERF_MPI_PREFLAGS=${erf_parallel_test_mpiexec_preflags_arg}
+      -DERF_CROSSCOMPILING_EMULATOR=${erf_listener_self_test_emulator_arg}
       -DTEST_EXECUTABLE=$<TARGET_FILE:erf_mpi_gtest_listener_self_test>
       -P ${CMAKE_CURRENT_LIST_DIR}/RunERFMPIListenerSelfTest.cmake
   )

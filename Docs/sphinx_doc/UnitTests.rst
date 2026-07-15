@@ -19,10 +19,51 @@ This guide explains how to build, run, debug, and add unit tests.
    :local:
    :depth: 2
 
+Agent and contributor quick path
+--------------------------------
+
+Use this sequence for each test change.
+
+1. Classify the change as serial, SHOC, device-path, MPI, or regression.
+2. Inspect the nearest existing test and its common header.
+3. State one observable contract and choose an independent oracle.
+4. Add the test to the correct existing source file, or add a new source file
+   to the correct CMake target.
+5. Build the narrowest configuration that exercises the change.
+6. Verify discovery with ``ctest -N``.
+7. Run the exact test, then its full CTest label.
+8. Run each affected precision, feature, backend, and MPI rank configuration.
+9. Record changed files, commands, results, and configurations not run.
+
+Do not widen a tolerance, weaken an assertion, or skip a hardware path merely
+to obtain a passing result. First identify whether the failure is in the
+implementation, reference, test design, build configuration, or test harness.
+
 Choose the right test
 ---------------------
 
 Use the smallest test that proves the contract.
+
+Use this decision path.
+
+1. Does the change require a complete ERF input case or output comparison?
+
+   - **Yes:** add or update a regression test.
+   - **No:** continue.
+
+2. Does the behavior execute inside an AMReX kernel?
+
+   - **Yes:** add a device-path unit test. Assert the result on the host.
+   - **No:** continue.
+
+3. Does the behavior require communication or more than one MPI rank?
+
+   - **Yes:** add a parallel unit test.
+   - **No:** add a serial unit test.
+
+SHOC is a domain-specific source location and test binary, not a competing
+test category. A SHOC case may still exercise scalar, device, or public-flow
+behavior.
 
 .. list-table::
    :header-rows: 1
@@ -165,6 +206,12 @@ For a true cross-compile, provide a working
 ``CMAKE_CROSSCOMPILING_EMULATOR`` through the toolchain or perform the test
 build on the target system. Do not treat a cross-compiled binary as a
 validated test run until it has executed on the target hardware.
+
+When ``add_test`` names an executable target directly, CMake preserves the
+target's configuration-specific path and cross-compiling emulator. A wrapper
+that launches a test binary itself must propagate ``CROSSCOMPILING_EMULATOR``
+explicitly. Do not replace a target-name command with a raw executable path
+without preserving that behavior.
 
 Build for a GPU backend
 -----------------------
@@ -974,25 +1021,27 @@ Check ownership, ghost cells, reductions, collective order, and assumptions
 about box distribution. Compare global counts and invariants, not rank-local
 layout, unless layout is the contract.
 
-Checklist for contributors and coding agents
----------------------------------------------
+Completion criteria
+-------------------
 
-Before submitting a unit-test change:
+A unit-test change is complete when:
 
-- identify the contract;
-- inspect the nearest existing test and common header;
-- choose the correct binary and label;
-- choose ``TEST``, ``TEST_P``, or a loop deliberately;
-- use a deterministic, minimal state;
-- justify the oracle and tolerance;
-- keep assertions on the host;
-- keep MPI control flow collective-safe;
-- add a new source file to the correct CMake target;
-- rebuild and confirm discovery with GoogleTest and CTest;
-- run the narrow test and its full label;
-- run affected precision, particle, MPI, and backend configurations;
-- run ``git diff --check``;
-- record commands run and configurations not run.
+- the test states one observable contract;
+- the test contains at least one meaningful assertion;
+- its oracle is independent enough to detect the intended defect;
+- each numerical tolerance has written provenance where the reason is not
+  obvious;
+- a new source file is part of the intended CMake target;
+- ``ctest -N`` lists the new case;
+- the exact test passes;
+- its full CTest label passes;
+- affected precision, particle, MPI-rank, and backend configurations were run
+  or recorded as not run;
+- device work is synchronized before host assertions read its result;
+- MPI control flow remains collective-safe;
+- ``git diff --check`` passes;
+- the final report lists changed files, commands, results, and untested
+  configurations.
 
 For a bug fix, verify that the new test fails for the intended reason before
 the fix when practical. After the fix, verify that it passes and that nearby
@@ -1005,7 +1054,7 @@ necessarily correct.
 Related documentation
 ---------------------
 
-- :ref:`Testing` gives the short testing overview.
+- :ref:`GettingStartedWithERFTests` gives a first CPU-only test build and run.
 - :ref:`RegressionTests` covers complete ERF regression cases.
 - :doc:`buildingConfiguration` covers machine and library configuration.
 - The `GoogleTest primer <https://google.github.io/googletest/primer.html>`_

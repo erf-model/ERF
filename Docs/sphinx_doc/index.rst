@@ -104,6 +104,7 @@ In addition to this documentation, there is API documentation for ERF generated 
    :caption: TESTING
    :maxdepth: 1
 
+   testing.rst
    UnitTests.rst
    RegressionTests.rst
    Verification.rst

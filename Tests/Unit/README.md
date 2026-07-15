@@ -1,5 +1,14 @@
 # ERF unit tests
 
+New to ERF tests? Start with the Sphinx
+[Getting Started with ERF Tests page](../../Docs/sphinx_doc/testing.rst).
+The rendered page is available in the
+[ERF documentation](https://erf.readthedocs.io/en/latest/testing.html).
+
+Adding, reviewing, or debugging a test? Use the canonical
+[Unit Testing guide](../../Docs/sphinx_doc/UnitTests.rst), also available in the
+[rendered documentation](https://erf.readthedocs.io/en/latest/UnitTests.html).
+
 The canonical guide is the Sphinx
 [Unit Testing page](../../Docs/sphinx_doc/UnitTests.rst). The rendered guide is
 available in the

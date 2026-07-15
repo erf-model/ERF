@@ -91,7 +91,12 @@ foreach(_line IN LISTS _list_lines)
     endif()
 
     set(_name "erf_parallel_tests.${_suite}.${_test}.np${_nprocs}")
-    set(_report "${REPORT_DIRECTORY}/${_suite}.${_test}.np${_nprocs}.xml")
+    set(_report_identity "${_suite}.${_test}")
+    string(MAKE_C_IDENTIFIER "${_report_identity}" _report_stem)
+    string(SHA256 _report_hash "${_report_identity}")
+    string(SUBSTRING "${_report_hash}" 0 12 _report_hash_short)
+    set(_report
+        "${REPORT_DIRECTORY}/${_report_stem}-${_report_hash_short}.xml")
     # CTest consumes generated CTestTestfile includes with the legacy
     # add_test(test-name command ...) form. The COMMAND keyword belongs only
     # to CMake's configure-time signature and would become the executable.
