@@ -23,29 +23,30 @@ void ERFDustPC::ReleaseParticles(const amrex::MultiFab& emission_flux,
     const Real dx_dust_m = dx_dust[0];
     const Real dy_dust_m = dx_dust[1];
 
+    // Use ATM geometry for all positions so particles are inside geom_atm domain
     const auto& plo_atm  = geom_atm.ProbLoArray();
     const auto& dx_atm   = geom_atm.CellSize();
     const Real dz_atm    = dx_atm[2];
     const Real z_lo_atm  = plo_atm[2];
-    // Release at k=1 centre so z > z_deposit = z_lo + 0.5*dz
     const Real z_release = z_lo_atm + 1.5 * dz_atm;
+
+    // Also use atm dx for x,y so positions map into atm domain
+    const Real dx_xy = dx_atm[0];
+    const Real dy_xy = dx_atm[1];
 
     const Real v_settle = compute_stokes_settling(d_m, rho_p, 1.225,
                                                    DustSettlingConst::MU_AIR_STD);
 
     // Copy emission_flux onto the particle container's own BoxArray/DM
-    // so that DefineAndReturnParticleTile(0, mfi) index matches.
     amrex::MultiFab flux_on_pc(ParticleBoxArray(0),
                                ParticleDistributionMap(0),
                                emission_flux.nComp(),
-                               amrex::IntVect(1,1,0));
+                               amrex::IntVect(0));
     flux_on_pc.setVal(0.0);
     flux_on_pc.ParallelCopy(emission_flux, 0, 0, emission_flux.nComp(),
                             emission_flux.nGrowVect(),
                             amrex::IntVect(0),
                             geom_atm.periodicity());
-
-    const auto& plo_dust = geom_dust.ProbLoArray();
 
     for (MFIter mfi(flux_on_pc, true); mfi.isValid(); ++mfi) {
         const Box& bx   = mfi.tilebox();
@@ -58,8 +59,9 @@ void ERFDustPC::ReleaseParticles(const amrex::MultiFab& emission_flux,
         amrex::LoopOnCpu(bx, [&](int i, int j, int k) {
             if (k != 0 || flux_arr(i, j, k) <= 0.0) return;
 
-            const Real x_pos = plo_dust[0] + (i + 0.5) * dx_dust_m;
-            const Real y_pos = plo_dust[1] + (j + 0.5) * dy_dust_m;
+            // Compute x,y from ATM geometry so position is inside geom_atm
+            const Real x_pos = plo_atm[0] + (i + 0.5) * dx_xy;
+            const Real y_pos = plo_atm[1] + (j + 0.5) * dy_xy;
             const Real mass  = flux_arr(i, j, k) * dx_dust_m * dy_dust_m * dt;
 
             ParticleType p;
