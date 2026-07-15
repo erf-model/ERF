@@ -60,6 +60,7 @@ struct SAMKernelOutputs {
     amrex::Real graupel_fraction;
     amrex::Real mixed_qsat;
     amrex::Real mixed_dqsat;
+    amrex::Real mixed_dqif;
     amrex::Real residual_derivative;
     amrex::Real autoconv_cloud;
     amrex::Real autoconv_ice;
@@ -348,17 +349,22 @@ SAMKernelOutputs host_reference (const SAMKernelCase& test_case)
         test_case.qp_km1, test_case.qp_k);
     const amrex::Real precip_flux = sam_precip_flux_from_face_state(
         test_case.face_state, amrex::Real(2.0), amrex::Real(3.0), amrex::Real(4.0));
+    const amrex::Real dqsatm = sam_mixed_dqsat_dT(
+        test_case.omn, test_case.domn,
+        test_case.qsatw, test_case.qsati,
+        test_case.dqsatw, test_case.dqsati);
+    const amrex::Real qn = test_case.qcc + test_case.qii;
+    const amrex::Real dqif = sam_mixed_dqif_dT(
+        test_case.omn, test_case.domn, qn, dqsatm);
 
     return SAMKernelOutputs{
         sam_cloud_liquid_fraction(test_case.mode, test_case.tabs, a_bg, tbgmin * a_bg),
         sam_precip_rain_fraction(test_case.mode, test_case.tabs),
         sam_graupel_fraction(test_case.mode, test_case.tabs),
         sam_mixed_qsat(test_case.omn, test_case.qsatw, test_case.qsati),
-        sam_mixed_dqsat_dT(test_case.omn, test_case.domn,
-                           test_case.qsatw, test_case.qsati,
-                           test_case.dqsatw, test_case.dqsati),
-        sam_newton_residual_derivative(kFacCond, kFacFus,
-                                       test_case.dqsatw, test_case.dqsati),
+        dqsatm,
+        dqif,
+        sam_newton_residual_derivative(kFacCond, kFacFus, dqsatm, dqif),
         sam_autoconversion_rates(test_case.dtn, test_case.qcc, test_case.qii,
                                  test_case.coefice).dqca,
         sam_autoconversion_rates(test_case.dtn, test_case.qcc, test_case.qii,
@@ -429,17 +435,22 @@ void launch_sam_helper_kernel (const int ncases,
             amrex::Real(2.0), amrex::Real(3.0),
             amrex::Real(4.0), amrex::Real(5.0),
             amrex::Real(6.0), amrex::Real(7.0));
+        const amrex::Real dqsatm = sam_mixed_dqsat_dT(
+            test_case.omn, test_case.domn,
+            test_case.qsatw, test_case.qsati,
+            test_case.dqsatw, test_case.dqsati);
+        const amrex::Real qn = test_case.qcc + test_case.qii;
+        const amrex::Real dqif = sam_mixed_dqif_dT(
+            test_case.omn, test_case.domn, qn, dqsatm);
 
         outputs_ptr[idx] = SAMKernelOutputs{
             sam_cloud_liquid_fraction(test_case.mode, test_case.tabs, a_bg, tbgmin * a_bg),
             sam_precip_rain_fraction(test_case.mode, test_case.tabs),
             sam_graupel_fraction(test_case.mode, test_case.tabs),
             sam_mixed_qsat(test_case.omn, test_case.qsatw, test_case.qsati),
-            sam_mixed_dqsat_dT(test_case.omn, test_case.domn,
-                               test_case.qsatw, test_case.qsati,
-                               test_case.dqsatw, test_case.dqsati),
-            sam_newton_residual_derivative(kFacCond, kFacFus,
-                                           test_case.dqsatw, test_case.dqsati),
+            dqsatm,
+            dqif,
+            sam_newton_residual_derivative(kFacCond, kFacFus, dqsatm, dqif),
             auto_sources.dqca,
             auto_sources.dqia,
             evap_sources.dqpr,
@@ -622,6 +633,9 @@ TEST(SAMKernel, SAMUtilsSweptHostDeviceEquivalence)
         expect_close("sam_mixed_dqsat_dT", idx, cases[idx],
                      host_outputs[idx].mixed_dqsat, device_outputs[idx].mixed_dqsat,
                      roundoff_tol(host_outputs[idx].mixed_dqsat));
+        expect_close("sam_mixed_dqif_dT", idx, cases[idx],
+                     host_outputs[idx].mixed_dqif, device_outputs[idx].mixed_dqif,
+                     roundoff_tol(host_outputs[idx].mixed_dqif));
         expect_close("sam_newton_residual_derivative", idx, cases[idx],
                      host_outputs[idx].residual_derivative, device_outputs[idx].residual_derivative,
                      roundoff_tol(host_outputs[idx].residual_derivative));

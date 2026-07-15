@@ -1190,7 +1190,7 @@ TEST(SAMPhysicalProperties, NativeShocSuppressesCloudAdjustment)
         SAMCellState initial_state{};
         SAMCellState partitioned_state{};
         SAMCellState final_state{};
-        amrex::Real qsatw_final{amrex::Real(0.0)};
+        amrex::Real qsatm_final{amrex::Real(0.0)};
         amrex::Real omn_final{amrex::Real(0.0)};
     };
 
@@ -1260,8 +1260,8 @@ TEST(SAMPhysicalProperties, NativeShocSuppressesCloudAdjustment)
                         kFacFus,
                         an,
                         bn);
-                    amrex::Real qsat_partition;
-                    erf_qsatw(partition.tabs, pres_mbar, qsat_partition);
+                    const amrex::Real qsat_partition =
+                        mixed_qsat_for_state(kSAMWithIceMode, partition.tabs, pres_mbar);
 
                     for (const amrex::Real deficit_fraction : deficit_fractions) {
                         const amrex::Real qv_initial = qsat_partition - deficit_fraction * qn_initial;
@@ -1351,14 +1351,17 @@ TEST(SAMPhysicalProperties, NativeShocSuppressesCloudAdjustment)
                             amrex::Real(0.0));
 
                         amrex::Real qsatw_final;
+                        amrex::Real qsati_final;
                         erf_qsatw(tabs_final, pres_mbar, qsatw_final);
+                        erf_qsati(tabs_final, pres_mbar, qsati_final);
                         const amrex::Real omn_final =
                             sam_cloud_liquid_fraction(kSAMWithIceMode, tabs_final, an, bn);
-                        result.qsatw_final = qsatw_final;
+                        result.qsatm_final = sam_mixed_qsat(omn_final, qsatw_final, qsati_final);
                         result.omn_final = omn_final;
 
-                        // The new mixed-phase solve saturates vapor over water
-                        // and partitions all remaining condensate with omega_n.
+                        // The mixed-phase solve saturates vapor against the
+                        // omega-weighted water/ice relation and partitions all
+                        // remaining condensate with the same omega_n.
                         if (result.final_state.qcl > zero && result.final_state.qci > zero &&
                             tabs_final > tbgmin && tabs_final < tbgmax) {
                             result.found = true;
@@ -1375,8 +1378,8 @@ TEST(SAMPhysicalProperties, NativeShocSuppressesCloudAdjustment)
     // Motivation:
     // Reproduce the same held-pressure cloud-adjustment sequence used by SAM::Cloud
     // on a valid one-cell state: phase repartition first, then NewtonIterSat. The
-    // new mixed-phase contract is qv=qsatw, qcl=omega_n*(qt-qsatw), and
-    // qci=(1-omega_n)*(qt-qsatw), while total water and the latent proxy
+    // mixed-phase contract is qv=qsatm, qcl=omega_n*(qt-qsatm), and
+    // qci=(1-omega_n)*(qt-qsatm), while total water and the latent proxy
     // T + fac_cond*qv - fac_fus*qci remain conserved.
     TEST(SAMPhysicalProperties, CloudAdjustmentMixedPhaseSatisfiesCoupledConstraints)
     {
@@ -1397,9 +1400,9 @@ TEST(SAMPhysicalProperties, NativeShocSuppressesCloudAdjustment)
         const amrex::Real total_water_residual = final_total_water - initial_total_water;
         const amrex::Real latent_proxy_residual = final_latent_proxy - initial_latent_proxy;
         const amrex::Real qv_minus_qsat_final =
-            investigation.final_state.qv - investigation.qsatw_final;
+            investigation.final_state.qv - investigation.qsatm_final;
         const amrex::Real qsat_tol =
-            property_accumulation_tol(6, std::max(std::abs(investigation.qsatw_final), amrex::Real(1.0)));
+            property_accumulation_tol(6, std::max(std::abs(investigation.qsatm_final), amrex::Real(1.0)));
         // NewtonIterSat stops on a temperature update tolerance, so the final
         // cloud-adjustment latent proxy should close far tighter than that, but
         // not necessarily to pure accumulation roundoff.
@@ -1529,22 +1532,28 @@ TEST(SAMPhysicalProperties, CloudAdjustmentNoIceSatisfiesLiquidOnlyConstraints)
 }
 
 // Motivation:
-// If total non-precipitating water is below saturation, NewtonIterSat must
-// exhaust condensate without producing a negative liquid or ice species.
-TEST(SAMPhysicalProperties, CloudAdjustmentDryFallbackExhaustsCondensate)
+// At the cold omega cap, the unified mixed-saturation solve reduces to ice
+// saturation and assigns all remaining condensate to cloud ice.
+TEST(SAMPhysicalProperties, CloudAdjustmentColdCapSatisfiesIceOnlyConstraints)
 {
     const amrex::Real pres_mbar = amrex::Real(900.0);
+    const amrex::Real tabs_initial = tbgmin - amrex::Real(5.0);
+    amrex::Real qsati_initial;
+    erf_qsati(tabs_initial, pres_mbar, qsati_initial);
     const SAMCellState initial = make_cell_state(
-        amrex::Real(280.0), pres_mbar,
-        amrex::Real(1.0e-3), amrex::Real(1.0e-4), zero, zero, zero, zero);
+        tabs_initial, pres_mbar,
+        qsati_initial + amrex::Real(5.0e-4), zero,
+        amrex::Real(1.0e-3), zero, zero, zero);
     const SAMCellState final = run_newton_adjustment(initial, kSAMWithIceMode);
 
-    const amrex::Real expected_tabs = initial.tabs - kFacCond * initial.qcl;
-    EXPECT_NEAR(final.tabs, expected_tabs, newton_temperature_tol(expected_tabs));
-    EXPECT_NEAR(final.qv, initial.qt, property_accumulation_tol(3, one));
+    amrex::Real qsati_final;
+    erf_qsati(final.tabs, pres_mbar, qsati_final);
+    EXPECT_NEAR(final.qv, qsati_final,
+                property_accumulation_tol(4, std::max(std::abs(qsati_final), one)));
     EXPECT_NEAR(final.qcl, zero, exact_zero_tol());
-    EXPECT_NEAR(final.qci, zero, exact_zero_tol());
-    EXPECT_NEAR(final.qt, initial.qt, property_accumulation_tol(3, one));
+    EXPECT_NEAR(final.qci, initial.qt - final.qv,
+                property_accumulation_tol(4, one));
+    EXPECT_NEAR(final.qt, initial.qt, property_accumulation_tol(4, one));
     EXPECT_NEAR(final.tabs + kFacCond * final.qv - kFacFus * final.qci,
                 initial.tabs + kFacCond * initial.qv - kFacFus * initial.qci,
                 std::max(property_accumulation_tol(4, initial.tabs), amrex::Real(1.0e-9)));
