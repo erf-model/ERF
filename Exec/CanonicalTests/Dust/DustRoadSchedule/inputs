@@ -114,6 +114,7 @@ erf.dust.msha_shift_file = "msha_shift_summary.csv"
 erf.dust.phreeqc_feedback_interval_s = 0.0
 erf.dust.phreeqc_feedback_file = "dust_dep_feedback.dat"
 erf.dust.phreeqc_site_summary_file = "dust_dep_site_summary.csv"
+erf.dust.cm_budget_file = "dust_cm_budget.csv"
 # Phase 22: road schedule CSV.
 erf.dust.road_schedule_file = "road_schedule.csv"
 erf.dust.road_diag_file     = "dust_road_diag.csv"

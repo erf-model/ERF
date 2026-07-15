@@ -111,6 +111,16 @@ erf.dust.test_surf_temp_K          = 293.15
 erf.dust.test_wind_speed           = 0.0
 erf.dust.atm_feedback              = 1.0
 erf.dust.transport_bins_separately = false
+erf.dust.cm_budget_file = "dust_cm_budget.csv"
+erf.dust.msha_exposure_file = "msha_exposure.csv"
+erf.dust.msha_pel_mg_m3 = 5.0
+erf.dust.msha_shift_duration_s = 28800.0
+erf.dust.msha_shift_file = "msha_shift_summary.csv"
+erf.dust.phreeqc_feedback_file = "dust_dep_feedback.dat"
+erf.dust.phreeqc_feedback_interval_s = 0.0
+erf.dust.phreeqc_site_summary_file = "dust_dep_site_summary.csv"
+erf.dust.road_diag_file = "dust_road_diag.csv"
+erf.dust.road_schedule_file = ""
 # bin 0: 7 µm -> PM10 only; bin 1: 2.5 µm -> PM2.5+PM10; bin 2: 50 µm -> neither.
 erf.dust.bin_diameters             = 7.0e-6 2.5e-6 50.0e-6
 erf.dust.deposition_E0             = 3.0e-3
