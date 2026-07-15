@@ -1,8 +1,6 @@
 /**
  * @file ERF_DustPC.cpp
  * @brief Implementation of ERFDustPC particle release and advection.
- *
- * Phase 19: Lagrangian super-particles for dust source-receptor attribution.
  */
 
 #if defined(ERF_USE_DUST) && defined(ERF_USE_PARTICLES)
@@ -29,41 +27,46 @@ void ERFDustPC::ReleaseParticles(const amrex::MultiFab& emission_flux,
     const auto& dx_atm   = geom_atm.CellSize();
     const Real dz_atm    = dx_atm[2];
     const Real z_lo_atm  = plo_atm[2];
-    const Real z_release = z_lo_atm + 0.5 * dz_atm;
+    const Real z_release = z_lo_atm + 1.5 * dz_atm;
 
-    const Real v_settle  = compute_stokes_settling(d_m, rho_p, 1.225,
-                                                    DustSettlingConst::MU_AIR_STD);
+    const Real v_settle = compute_stokes_settling(d_m, rho_p, 1.225,
+                                                   DustSettlingConst::MU_AIR_STD);
 
     for (MFIter mfi(emission_flux, true); mfi.isValid(); ++mfi) {
-        const Box& bx   = mfi.tilebox();
-        auto flux_arr   = emission_flux.const_array(mfi);
+        const Box& bx        = mfi.tilebox();
+        auto flux_arr        = emission_flux.const_array(mfi);
         const auto& plo_dust = geom_dust.ProbLoArray();
 
-        // FIX 1: use 2-argument form (lev, iterator)
-        auto& particle_tile = DefineAndReturnParticleTile(0, mfi);
+        auto& particle_tile  = DefineAndReturnParticleTile(0, mfi);
+
+        // Collect particles to add for this tile
+        // Use ParticleTile's push_back with explicit SoA data
+        auto& aos = particle_tile.GetArrayOfStructs();
+        auto& soa = particle_tile.GetStructOfArrays();
 
         amrex::LoopOnCpu(bx, [&](int i, int j, int k) {
-            if (k == 0 && flux_arr(i, j, k) > 0.0) {
-                const Real x_pos = plo_dust[0] + (i + 0.5) * dx_dust_m;
-                const Real y_pos = plo_dust[1] + (j + 0.5) * dy_dust_m;
-                const Real mass  = flux_arr(i, j, k) * dx_dust_m * dy_dust_m * dt;
+            if (k != 0 || flux_arr(i, j, k) <= 0.0) return;
 
-                ParticleType p;
-                p.pos(0) = x_pos;
-                p.pos(1) = y_pos;
-                p.pos(2) = z_release;
-                // FIX 2: use ParticleType::NextID(), not ParticleBase::NextID()
-                p.id()   = ParticleType::NextID();
-                p.cpu()  = ParallelDescriptor::MyProc();
+            const Real x_pos = plo_dust[0] + (i + 0.5) * dx_dust_m;
+            const Real y_pos = plo_dust[1] + (j + 0.5) * dy_dust_m;
+            const Real mass  = flux_arr(i, j, k) * dx_dust_m * dy_dust_m * dt;
 
-                p.rdata(DustParticleRealIdx::mass)         = mass;
-                p.rdata(DustParticleRealIdx::v_settle)     = v_settle;
-                p.rdata(DustParticleRealIdx::release_time) = 0.0;
-                p.rdata(DustParticleRealIdx::src_i_f)      = Real(i);
-                p.rdata(DustParticleRealIdx::src_j_f)      = Real(j);
+            // Step 1: push AoS particle struct (positions + id + cpu only)
+            ParticleType p;
+            p.pos(0) = x_pos;
+            p.pos(1) = y_pos;
+            p.pos(2) = z_release;
+            p.id()   = ParticleType::NextID();
+            p.cpu()  = ParallelDescriptor::MyProc();
+            aos().push_back(p);
 
-                particle_tile.push_back(p);
-            }
+            // Step 2: push SoA real attributes one by one
+            // Must match DustParticleRealIdx order: mass, v_settle, release_time, src_i_f, src_j_f
+            soa.GetRealData(DustParticleRealIdx::mass        ).push_back(mass);
+            soa.GetRealData(DustParticleRealIdx::v_settle    ).push_back(v_settle);
+            soa.GetRealData(DustParticleRealIdx::release_time).push_back(Real(0.0));
+            soa.GetRealData(DustParticleRealIdx::src_i_f     ).push_back(Real(i));
+            soa.GetRealData(DustParticleRealIdx::src_j_f     ).push_back(Real(j));
         });
     }
 
@@ -86,14 +89,14 @@ void ERFDustPC::AdvanceParticles(const amrex::MultiFab& xvel,
     const Real dz_atm    = dx_atm[2];
     const Real z_deposit = z_lo + 0.5 * dz_atm;
 
-    const Box& dom_atm = geom_atm.Domain();
+    const Box& dom_atm  = geom_atm.Domain();
     const int i_lo = dom_atm.smallEnd(0), i_hi = dom_atm.bigEnd(0);
     const int j_lo = dom_atm.smallEnd(1), j_hi = dom_atm.bigEnd(1);
     const int k_lo = dom_atm.smallEnd(2), k_hi = dom_atm.bigEnd(2);
 
-    const Box& dom_dust  = geom_dust.Domain();
-    const int i_dust_lo  = dom_dust.smallEnd(0), i_dust_hi = dom_dust.bigEnd(0);
-    const int j_dust_lo  = dom_dust.smallEnd(1), j_dust_hi = dom_dust.bigEnd(1);
+    const Box& dom_dust = geom_dust.Domain();
+    const int i_dust_lo = dom_dust.smallEnd(0), i_dust_hi = dom_dust.bigEnd(0);
+    const int j_dust_lo = dom_dust.smallEnd(1), j_dust_hi = dom_dust.bigEnd(1);
 
     for (ParIterType pti(*this, 0); pti.isValid(); ++pti) {
         auto& particles     = pti.GetArrayOfStructs();
@@ -104,12 +107,11 @@ void ERFDustPC::AdvanceParticles(const amrex::MultiFab& xvel,
         auto zvel_arr       = zvel.const_array(pti);
         auto source_map_arr = source_map.array(pti);
 
-        // Pull SoA arrays once outside the particle loop
-        auto& soa           = pti.GetStructOfArrays();
-        auto mass_arr       = soa.GetRealData(DustParticleRealIdx::mass);
-        auto v_settle_arr   = soa.GetRealData(DustParticleRealIdx::v_settle);
-        auto src_i_arr      = soa.GetRealData(DustParticleRealIdx::src_i_f);
-        auto src_j_arr      = soa.GetRealData(DustParticleRealIdx::src_j_f);
+        auto& soa         = pti.GetStructOfArrays();
+        auto& mass_vec    = soa.GetRealData(DustParticleRealIdx::mass);
+        auto& vsett_vec   = soa.GetRealData(DustParticleRealIdx::v_settle);
+        auto& srci_vec    = soa.GetRealData(DustParticleRealIdx::src_i_f);
+        auto& srcj_vec    = soa.GetRealData(DustParticleRealIdx::src_j_f);
 
         for (int p = 0; p < npart; ++p) {
             ParticleType& particle = particles[p];
@@ -119,18 +121,17 @@ void ERFDustPC::AdvanceParticles(const amrex::MultiFab& xvel,
             Real y = particle.pos(1);
             Real z = particle.pos(2);
 
-            const Real mass     = mass_arr[p];
-            const Real v_settle = v_settle_arr[p];
-            const Real src_i_f  = src_i_arr[p];
-            const Real src_j_f  = src_j_arr[p];
+            const Real mass     = mass_vec[p];
+            const Real v_settle = vsett_vec[p];
+            const Real src_i_f  = srci_vec[p];
+            const Real src_j_f  = srcj_vec[p];
 
-            int i_cell = int(std::floor((x - plo_atm[0]) / dx_atm[0]));
-            int j_cell = int(std::floor((y - plo_atm[1]) / dx_atm[1]));
-            int k_cell = int(std::floor((z - plo_atm[2]) / dx_atm[2]));
-
-            i_cell = amrex::max(i_lo, amrex::min(i_hi, i_cell));
-            j_cell = amrex::max(j_lo, amrex::min(j_hi, j_cell));
-            k_cell = amrex::max(k_lo, amrex::min(k_hi, k_cell));
+            int i_cell = amrex::max(i_lo, amrex::min(i_hi,
+                int(std::floor((x - plo_atm[0]) / dx_atm[0]))));
+            int j_cell = amrex::max(j_lo, amrex::min(j_hi,
+                int(std::floor((y - plo_atm[1]) / dx_atm[1]))));
+            int k_cell = amrex::max(k_lo, amrex::min(k_hi,
+                int(std::floor((z - plo_atm[2]) / dx_atm[2]))));
 
             Real u = 0.0, v_p = 0.0, w = 0.0;
 
@@ -140,29 +141,28 @@ void ERFDustPC::AdvanceParticles(const amrex::MultiFab& xvel,
 
                 Real u1 = xvel_arr(i_cell,   j_cell, k_cell);
                 Real u2 = (i_cell+1 <= i_hi) ? xvel_arr(i_cell+1, j_cell, k_cell) : u1;
-                u   = 0.5 * (u1 + u2);
+                u   = 0.5*(u1+u2);
 
                 Real v1 = yvel_arr(i_cell, j_cell,   k_cell);
                 Real v2 = (j_cell+1 <= j_hi) ? yvel_arr(i_cell, j_cell+1, k_cell) : v1;
-                v_p = 0.5 * (v1 + v2);
+                v_p = 0.5*(v1+v2);
 
                 Real w1 = zvel_arr(i_cell, j_cell, k_cell);
                 Real w2 = (k_cell+1 <= k_hi) ? zvel_arr(i_cell, j_cell, k_cell+1) : w1;
-                w   = 0.5 * (w1 + w2);
+                w   = 0.5*(w1+w2);
             }
 
-            w -= v_settle;   // apply gravitational settling
+            w -= v_settle;
 
             x += u   * dt;
             y += v_p * dt;
             z += w   * dt;
 
             if (z < z_deposit) {
-                // deposit: add mass to source_map at release cell
                 int src_i = amrex::max(i_dust_lo, amrex::min(i_dust_hi, int(src_i_f)));
                 int src_j = amrex::max(j_dust_lo, amrex::min(j_dust_hi, int(src_j_f)));
                 source_map_arr(src_i, src_j, 0) += mass;
-                particle.id() = -1;  // mark dead
+                particle.id() = -1;
             } else {
                 particle.pos(0) = x;
                 particle.pos(1) = y;
