@@ -32,6 +32,7 @@
 #define ERF_DUST_CRITICAL_MATERIALS_H_
 
 #include <AMReX_MultiFab.H>
+#include <AMReX_MFIter.H>
 #include <AMReX_Geometry.H>
 #include <AMReX_ParallelDescriptor.H>
 #include <AMReX_Vector.H>
