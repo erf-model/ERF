@@ -221,6 +221,15 @@ struct DustParams {
     std::string road_schedule_file  = "";             ///< Road schedule CSV. Empty = disabled.
     std::string road_diag_file      = "dust_road_diag.csv"; ///< Road diagnostics CSV.
 
+    // Phase 23: DOE Critical Materials Assessment.
+    // Per-bin critical material mass fractions [kg_CM / kg_dust].
+    // If fewer values than n_size_bins, last value is reused.
+    // Set all to 0.0 to disable CM tracking (default: empty = no CM).
+    // Reference: US DOE (2023). Critical Materials Assessment.
+    //   https://www.energy.gov/eere/vehicles/articles/us-doe-critical-materials-assessment
+    amrex::Vector<amrex::Real> cm_fractions;
+    std::string cm_budget_file = "dust_cm_budget.csv"; ///< CM budget CSV.
+
     /**
      * Constructor that reads all parameters from ParmParse.
      */
@@ -307,6 +316,10 @@ struct DustParams {
         // Phase 22: road schedule CSV.
         pp.query("road_schedule_file", road_schedule_file);
         pp.query("road_diag_file",     road_diag_file);
+
+        // Phase 23: DOE Critical Materials Assessment
+        pp.queryarr("cm_fractions",    cm_fractions);
+        pp.query("cm_budget_file",     cm_budget_file);
    }  // end DustParams constructor
  };     // end struct DustParams
 #endif // ERF_DUST_PARAMS_H

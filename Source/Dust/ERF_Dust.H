@@ -33,6 +33,7 @@
 #include <ERF_DustMSHA.H>
 #include <ERF_DustMSHAOutput.H>
 #include <ERF_DustPHREEQCWriter.H>
+#include <ERF_DustCriticalMaterials.H>
 
 #endif // ERF_USE_DUST
 
