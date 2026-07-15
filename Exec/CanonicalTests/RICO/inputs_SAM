@@ -1,48 +1,28 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
 erf.prob_name = "RICO"
 
-#stop_time = 3600    #  1 hour
-#stop_time = 4800    #  1.5 hours
-#stop_time = 7200    #  2 hours
-stop_time = 86400   #  24 hours
+stop_time = 21600   #  6 hours
 
 amrex.fpe_trap_invalid = 1
 
 fabarray.mfiter_tile_size = 1024 1024 1024
 
 # PROBLEM SIZE & GEOMETRY
-geometry.prob_extent =  12800     12800    4000
-amr.n_cell           =    128       128     100
+geometry.prob_extent =  6400     6400    4000
+amr.n_cell           =    64       64     100
 
 geometry.is_periodic = 1 1 0
 
-
 # MOST BOUNDARY (DEFAULT IS ADIABATIC FOR THETA)
-
-#RICO options
 zlo.type = "surface_layer"
-erf.surface_layer.flux_type = "rico" # new MOST type
-erf.most.ustar  = 0.001229 # Cm
-erf.most.tstar  = 0.001094 # Ch
-erf.most.qstar  = 0.001133 # Cq
-erf.most.z0     = 0.1 # from BOMEX
-erf.most.zref   = 20.0 # from BOMEX
+erf.surface_layer.flux_type = "custom"
+erf.most.ustar  = 0.28   # ustar
+erf.most.tstar  = 8.0e-3 # theta flux
+erf.most.qstar  = 5.2e-5 # qv    flux
+erf.most.z0     = 0.1
+erf.most.zref   = 20.0
 
-erf.most.rico.theta_z0 = 300.0
-erf.most.rico.qsat_z0 = 0.022
-
-# MOST BOUNDARY (DEFAULT IS ADIABATIC FOR THETA)
-#zlo.type = "surface_layer"
-#erf.surface_layer.flux_type = "custom"
-#erf.most.ustar  = 0.28   # ustar
-#erf.most.tstar  = 8.0e-3 # theta flux
-#erf.most.qstar  = 5.2e-5 # qv    flux
-#erf.most.z0     = 0.1
-#erf.most.zref   = 20.0
-
-# NOTE: This should have a qv grad too (use hoextrapcc?!)
 zhi.type = "SlipWall"
-#zhi.theta_grad = 0.00365
 
 # TIME STEP CONTROL
 erf.fixed_dt           = 0.3 # fixed time step depending on grid resolution
@@ -65,9 +45,11 @@ erf.check_int       = 2000    # number of timesteps between checkpoints
 # PLOTFILES
 erf.plot_file_1     = plt     # prefix of plotfile name
 erf.plot_int_1      = 2000    # number of timesteps between plotfiles
-erf.plot_vars_1     = density rhotheta x_velocity y_velocity z_velocity pressure temp theta qt qp qv qc qsat qrain rain_accum
+erf.plot_vars_1     = density rhotheta x_velocity y_velocity z_velocity pressure temp theta qt qp qv qc qsat
 
 # SOLVER CHOICE
+erf.alpha_T = 0.0
+erf.alpha_C = 0.0
 erf.use_gravity = true
 
 erf.use_coriolis    = true
@@ -81,13 +63,14 @@ erf.dryscal_vert_adv_type    = Upwind_3rd
 erf.moistscal_horiz_adv_type = Upwind_3rd
 erf.moistscal_vert_adv_type  = Upwind_3rd
 
-erf.moisture_model  = "Kessler"
+erf.moisture_model  = "SAM"
 erf.buoyancy_type   = 1
 
 erf.molec_diff_type = "None"
 
-erf.les_type  = "Smagorinsky"
-erf.Cs        = 0.17
+erf.les_type        = "Smagorinsky"
+erf.Cs              = 0.17
+
 erf.Pr_t      = 0.33333333333333
 erf.Sc_t      = 0.33333333333333
 
@@ -109,16 +92,16 @@ prob.pert_ref_height = 1600.0
 prob.T_0_Pert_Mag    = 0.1
 prob.qv_0_Pert_Mag   = 0.000025
 
-prob.advection_heating_rate   = -2.8935E-5
+prob.advection_heating_rate   = -2.3148E-5
 prob.source_cutoff            = 1500.0
 prob.source_cutoff_transition = 1500.0
 
-prob.advection_moisture_rate            = -1.157E-8
-prob.moisture_source_cutoff            	= 2980.0
+prob.advection_moisture_rate            = -1.2E-8
+prob.moisture_source_cutoff            	= 300.0
 prob.moisture_source_cutoff_transition 	= 200.0
 
-prob.wbar_sub_max    = -0.005
-prob.wbar_cutoff_max = 2260.0
-prob.wbar_cutoff_min = 2500.0
+prob.wbar_sub_max    = -0.0065
+prob.wbar_cutoff_max = 1500.0
+prob.wbar_cutoff_min = 2100.0
 
 prob.custom_TKE      = true

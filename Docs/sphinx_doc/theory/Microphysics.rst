@@ -1282,7 +1282,7 @@ two moving box regions with opposing velocities and one time-limited bubble inje
 configuration and moving source regions.
 
 **RICO DevTest**: ``Exec/CanonicalTests/RICO/`` contains multiple input files for the RICO case with different microphysics models,
-including SDM configurations with various aerosol species (``input_sdm``).
+including SDM configurations with various aerosol species (``inputs_SDM``).
 
 **Temperature Source Tests**: ``Exec/RegTests/SDM_Congestus3D`` and ``Exec/RegTests/SineMassFlux``
 include SDM configurations for testing particle behavior with prescribed temperature and mass flux forcing.

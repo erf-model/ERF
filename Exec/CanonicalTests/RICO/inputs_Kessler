@@ -1,34 +1,38 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
-erf.prob_name = "SinusoidalMassFlux"
-#stop_time = 3600    #  1 hour
-#stop_time = 4800    #  1.5 hours
-#stop_time = 7200    #  2 hours
-stop_time = 3600   #  6 hours
+erf.prob_name = "RICO"
+
+stop_time = 86400   #  24 hours
 
 amrex.fpe_trap_invalid = 1
 
 fabarray.mfiter_tile_size = 1024 1024 1024
 
 # PROBLEM SIZE & GEOMETRY
-# PROBLEM SIZE & GEOMETRY
-geometry.prob_lo     =  0.   0.    0.
-geometry.prob_hi     =  400. 400. 3260.
-amr.n_cell           =  4    4    50      # dx=dy=dz=100m
+geometry.prob_extent =  12800     12800    4000
+amr.n_cell           =    128       128     100
 
 geometry.is_periodic = 1 1 0
 
+
 # MOST BOUNDARY (DEFAULT IS ADIABATIC FOR THETA)
-zlo.type = "Outflow"
-zhi.type = "Outflow"
 
-#zhi.theta_grad = 0.00365
+#RICO options
+zlo.type = "surface_layer"
+erf.surface_layer.flux_type = "rico" # new MOST type
+erf.most.ustar  = 0.001229 # Cm
+erf.most.tstar  = 0.001094 # Ch
+erf.most.qstar  = 0.001133 # Cq
+erf.most.z0     = 0.1 # from BOMEX
+erf.most.zref   = 20.0 # from BOMEX
+
+erf.most.rico.theta_z0 = 300.0
+erf.most.rico.qsat_z0 = 0.022
+
+zhi.type = "SlipWall"
 
 # TIME STEP CONTROL
-#erf.fixed_dt           = 0.3 # fixed time step depending on grid resolution
-#erf.fixed_mri_dt_ratio = 4
-# TIME STEP CONTROL
-erf.fixed_dt = 0.5
-erf.fixed_fast_dt = 0.5
+erf.fixed_dt           = 0.3 # fixed time step depending on grid resolution
+erf.fixed_mri_dt_ratio = 4
 
 # DIAGNOSTICS & VERBOSITY
 erf.sum_interval   = 1       # timesteps between computing mass
@@ -46,15 +50,13 @@ erf.check_int       = 2000    # number of timesteps between checkpoints
 
 # PLOTFILES
 erf.plot_file_1     = plt     # prefix of plotfile name
-erf.plot_int_1      = 10    # number of timesteps between plotfiles
-erf.plot_vars_1     = density rhotheta x_velocity y_velocity z_velocity pressure temp theta qt qp qv qc qsat qrain
+erf.plot_int_1      = 2000    # number of timesteps between plotfiles
+erf.plot_vars_1     = density rhotheta x_velocity y_velocity z_velocity pressure temp theta qt qp qv qc qsat qrain rain_accum
 
 # SOLVER CHOICE
-erf.alpha_T = 0.0
-erf.alpha_C = 0.0
 erf.use_gravity = true
 
-erf.use_coriolis    = false
+erf.use_coriolis    = true
 erf.coriolis_3d     = false
 erf.latitude        = 14.982176712702886  # f = 0.376e-4 1/s
 
@@ -62,22 +64,16 @@ erf.dycore_horiz_adv_type    = Upwind_3rd
 erf.dycore_vert_adv_type     = Upwind_3rd
 erf.dryscal_horiz_adv_type   = Upwind_3rd
 erf.dryscal_vert_adv_type    = Upwind_3rd
-erf.moistscal_horiz_adv_type = WENO5
-erf.moistscal_vert_adv_type  = WENO5
+erf.moistscal_horiz_adv_type = Upwind_3rd
+erf.moistscal_vert_adv_type  = Upwind_3rd
 
 erf.moisture_model  = "Kessler"
-erf.buoyancy_type   = 2
+erf.buoyancy_type   = 1
 
 erf.molec_diff_type = "None"
 
-erf.les_type        = "Smagorinsky"
-erf.Cs              = 0.17
-
-#erf.les_type = "Deardorff"
-#erf.Ck       = 0.1
-#erf.sigma_k  = 1.0
-#erf.Ce       = 0.1
-
+erf.les_type  = "Smagorinsky"
+erf.Cs        = 0.17
 erf.Pr_t      = 0.33333333333333
 erf.Sc_t      = 0.33333333333333
 
@@ -91,21 +87,24 @@ erf.custom_forcing_uses_primitive_vars = true
 
 # Higher values of perturbations lead to instability
 # Instability seems to be coming from BC
-prob.U_0_Pert_Mag = 0.0
-prob.V_0_Pert_Mag = 0.0
+prob.U_0_Pert_Mag = 0.01
+prob.V_0_Pert_Mag = 0.01
 prob.W_0_Pert_Mag = 0.0
 
 prob.pert_ref_height = 1600.0
-prob.T_0_Pert_Mag    = 0.0
-prob.qv_0_Pert_Mag   = 0.0
+prob.T_0_Pert_Mag    = 0.1
+prob.qv_0_Pert_Mag   = 0.000025
 
-prob.advection_heating_rate   = 0.0
+prob.advection_heating_rate   = -2.8935E-5
 prob.source_cutoff            = 1500.0
 prob.source_cutoff_transition = 1500.0
 
-prob.advection_moisture_rate            = 0.0
-prob.moisture_source_cutoff            	= 300.0
+prob.advection_moisture_rate            = -1.157E-8
+prob.moisture_source_cutoff            	= 2980.0
 prob.moisture_source_cutoff_transition 	= 200.0
 
+prob.wbar_sub_max    = -0.005
+prob.wbar_cutoff_max = 2260.0
+prob.wbar_cutoff_min = 2500.0
 
 prob.custom_TKE      = true

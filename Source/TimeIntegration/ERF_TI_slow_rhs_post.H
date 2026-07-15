@@ -91,7 +91,7 @@
                 }
             }
             dUdt_tmp.FillBoundary(fine_geom.periodicity());
-            dUdt_tmp.setDomainBndry(amrex::Real(1.234e10), 0, num_comp_total, fine_geom);
+            dUdt_tmp.setDomainBndry(bogus_large_value, 0, num_comp_total, fine_geom);
 
             const BCRec* bc_ptr_d = domain_bcs_type_d.data();
 

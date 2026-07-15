@@ -12,7 +12,6 @@ CEXE_sources += ERF_ApplySurfaceTreatment_BulkCoeff.cpp
 
 ifeq ($(USE_NETCDF),TRUE)
 CEXE_sources += ERF_AddMoistNudgingTerms.cpp
-CEXE_sources += ERF_MoistSetRhs.cpp
 endif
 
 CEXE_headers += ERF_NumericalDiffusion.H

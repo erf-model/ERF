@@ -2,7 +2,7 @@
         // Do semi-implicit solve for diffusion: theta, u, and v
         // *****************************************************************************
         {
-            const Real l_vert_implicit_fac = solverChoice.vert_implicit_fac[nrk];
+            const Real l_vert_implicit_fac = solverChoice.vert_implicit_fac[level][nrk];
 
             if (l_vert_implicit_fac > zero) {
 

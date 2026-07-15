@@ -10,10 +10,10 @@ max_step  = 1
 #amr.blocking_factor_y = 1
 amr.blocking_factor_z = 32
 
-erf.plot_file_1 = plt
-erf.check_file  = chk
+#erf.plot_file_1 = plt
+#erf.check_file  = chk
 
-amr.max_grid_size_x = 1024
+#amr.max_grid_size_x = 1024
 amr.max_grid_size_x = 32
 
 erf.anelastic   = 1

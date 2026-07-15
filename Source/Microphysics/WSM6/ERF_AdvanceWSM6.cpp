@@ -939,8 +939,14 @@ WSM6::Advance(const Real& dt_advance,
         const int kmhi = fab_box.bigEnd(2);
         amrex::ignore_unused(ihi, jhi, diag_i, diag_j, imlo, imhi, jmlo, jmhi, kmlo, kmhi);
 
+#if defined(ERF_USE_WSM6_FORT) && defined(AMREX_USE_GPU)
+        Arena* Arena_Used = (run_wsm6_fort) ? The_Pinned_Arena() : The_Async_Arena();
+#else
+        Arena* Arena_Used = The_Async_Arena();
+#endif
+
         const Real dz_val = m_geom.CellSize(2);
-        FArrayBox delz_fab(fab_box, 1);
+        FArrayBox delz_fab(fab_box, 1, Arena_Used);
         auto const& delz_arr = delz_fab.array();
         ParallelFor(fab_box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
             delz_arr(i,j,k) = dz_val;
@@ -962,13 +968,13 @@ WSM6::Advance(const Real& dt_advance,
         // Fortran bridge uses ims:ime, jms:jme storage bounds; these buffers must
         // therefore be allocated on fab_box extents even if C++ kernels only
         // update the valid tile slab (box2d).
-        FArrayBox rainncv_fab(fab_box2d, 1);
-        FArrayBox sr_fab(fab_box2d, 1);
-        FArrayBox snowncv_fab(fab_box2d, 1);
-        FArrayBox graupelncv_fab(fab_box2d, 1);
-        FArrayBox rainacc_fab(fab_box2d, 1);
-        FArrayBox snowacc_fab(fab_box2d, 1);
-        FArrayBox graupacc_fab(fab_box2d, 1);
+        FArrayBox rainncv_fab(fab_box2d, 1, Arena_Used);
+        FArrayBox sr_fab(fab_box2d, 1, Arena_Used);
+        FArrayBox snowncv_fab(fab_box2d, 1, Arena_Used);
+        FArrayBox graupelncv_fab(fab_box2d, 1, Arena_Used);
+        FArrayBox rainacc_fab(fab_box2d, 1, Arena_Used);
+        FArrayBox snowacc_fab(fab_box2d, 1, Arena_Used);
+        FArrayBox graupacc_fab(fab_box2d, 1, Arena_Used);
 
         auto const& rainncv_arr = rainncv_fab.array();
         auto const& sr_arr = sr_fab.array();
@@ -1016,12 +1022,12 @@ WSM6::Advance(const Real& dt_advance,
 
         // box2d for 1D per-column arrays (already defined above)
         // delqrs1/2/3, delqi: surface precipitation flux accumulators
-        FArrayBox delqrs1_fab(box2d,1);
-        FArrayBox delqrs2_fab(box2d,1);
-        FArrayBox delqrs3_fab(box2d,1);
-        FArrayBox delqi_fab(box2d,1);
-        FArrayBox tstepsnow_fab(box2d,1);
-        FArrayBox tstepgraup_fab(box2d,1);
+        FArrayBox delqrs1_fab(box2d,1, Arena_Used);
+        FArrayBox delqrs2_fab(box2d,1, Arena_Used);
+        FArrayBox delqrs3_fab(box2d,1, Arena_Used);
+        FArrayBox delqi_fab(box2d,1, Arena_Used);
+        FArrayBox tstepsnow_fab(box2d,1, Arena_Used);
+        FArrayBox tstepgraup_fab(box2d,1, Arena_Used);
         auto const& delqrs1_arr    = delqrs1_fab.array();
         auto const& delqrs2_arr    = delqrs2_fab.array();
         auto const& delqrs3_arr    = delqrs3_fab.array();
@@ -1038,55 +1044,55 @@ WSM6::Advance(const Real& dt_advance,
             tstepgraup_arr(i,j,k) = Real(0.0);
         });
         // 3D working FABs
-        FArrayBox denfac_fab(fab_box,1);  FArrayBox xni_fab(fab_box,1);
-        FArrayBox cpm_fab(fab_box,1);     FArrayBox xl_fab(fab_box,1);
-        FArrayBox qsatw_fab(fab_box,1);   FArrayBox qsati_fab(fab_box,1);
-        FArrayBox rhw_fab(fab_box,1);     FArrayBox rhi_fab(fab_box,1);
-        FArrayBox den_tmp_fab(fab_box,1); FArrayBox delz_tmp_fab(fab_box,1);
-        FArrayBox n0sfac_fab(fab_box,1);
-        FArrayBox qrs_tmp_r_fab(fab_box,1); FArrayBox qrs_tmp_s_fab(fab_box,1);
-        FArrayBox qrs_tmp_g_fab(fab_box,1);
-        FArrayBox rslope_r_fab(fab_box,1);  FArrayBox rslope_s_fab(fab_box,1);
-        FArrayBox rslope_g_fab(fab_box,1);
-        FArrayBox rslope2_r_fab(fab_box,1); FArrayBox rslope2_s_fab(fab_box,1);
-        FArrayBox rslope2_g_fab(fab_box,1);
-        FArrayBox rslope3_r_fab(fab_box,1); FArrayBox rslope3_s_fab(fab_box,1);
-        FArrayBox rslope3_g_fab(fab_box,1);
-        FArrayBox rslopeb_r_fab(fab_box,1); FArrayBox rslopeb_s_fab(fab_box,1);
-        FArrayBox rslopeb_g_fab(fab_box,1);
-        FArrayBox work1_r_fab(fab_box,1);   FArrayBox work1_s_fab(fab_box,1);
-        FArrayBox work1_g_fab(fab_box,1);
-        FArrayBox work2_fab(fab_box,1);     FArrayBox workdiffw_fab(fab_box,1);
-        FArrayBox workdiffi_fab(fab_box,1);
-        FArrayBox workr_fab(fab_box,1);     FArrayBox worka_fab(fab_box,1);
-        FArrayBox work1c_fab(fab_box,1);
-        FArrayBox denqrs1_fab(fab_box,1);   FArrayBox denqrs2_fab(fab_box,1);
-        FArrayBox denqrs3_fab(fab_box,1);   FArrayBox denqci_fab(fab_box,1);
-        FArrayBox fall_r_fab(fab_box,1);    FArrayBox fall_s_fab(fab_box,1);
-        FArrayBox fall_g_fab(fab_box,1);    FArrayBox fallc_fab(fab_box,1);
-        FArrayBox qsum_fab(fab_box,1);
-        FArrayBox nislfv_r_diag_fab(fab_box,6);
-        FArrayBox nislfv_sg_diag_fab(fab_box,6);
-        FArrayBox sed_cell_scratch_fab(fab_box, WSM6SedCellScratch::NumComps);
+        FArrayBox denfac_fab(fab_box,1, Arena_Used);  FArrayBox xni_fab(fab_box,1, Arena_Used);
+        FArrayBox cpm_fab(fab_box,1, Arena_Used);     FArrayBox xl_fab(fab_box,1, Arena_Used);
+        FArrayBox qsatw_fab(fab_box,1, Arena_Used);   FArrayBox qsati_fab(fab_box,1, Arena_Used);
+        FArrayBox rhw_fab(fab_box,1, Arena_Used);     FArrayBox rhi_fab(fab_box,1, Arena_Used);
+        FArrayBox den_tmp_fab(fab_box,1, Arena_Used); FArrayBox delz_tmp_fab(fab_box,1, Arena_Used);
+        FArrayBox n0sfac_fab(fab_box,1, Arena_Used);
+        FArrayBox qrs_tmp_r_fab(fab_box,1, Arena_Used); FArrayBox qrs_tmp_s_fab(fab_box,1, Arena_Used);
+        FArrayBox qrs_tmp_g_fab(fab_box,1, Arena_Used);
+        FArrayBox rslope_r_fab(fab_box,1, Arena_Used);  FArrayBox rslope_s_fab(fab_box,1, Arena_Used);
+        FArrayBox rslope_g_fab(fab_box,1, Arena_Used);
+        FArrayBox rslope2_r_fab(fab_box,1, Arena_Used); FArrayBox rslope2_s_fab(fab_box,1, Arena_Used);
+        FArrayBox rslope2_g_fab(fab_box,1, Arena_Used);
+        FArrayBox rslope3_r_fab(fab_box,1, Arena_Used); FArrayBox rslope3_s_fab(fab_box,1, Arena_Used);
+        FArrayBox rslope3_g_fab(fab_box,1, Arena_Used);
+        FArrayBox rslopeb_r_fab(fab_box,1, Arena_Used); FArrayBox rslopeb_s_fab(fab_box,1, Arena_Used);
+        FArrayBox rslopeb_g_fab(fab_box,1, Arena_Used);
+        FArrayBox work1_r_fab(fab_box,1, Arena_Used);   FArrayBox work1_s_fab(fab_box,1, Arena_Used);
+        FArrayBox work1_g_fab(fab_box,1, Arena_Used);
+        FArrayBox work2_fab(fab_box,1, Arena_Used);     FArrayBox workdiffw_fab(fab_box,1, Arena_Used);
+        FArrayBox workdiffi_fab(fab_box,1, Arena_Used);
+        FArrayBox workr_fab(fab_box,1, Arena_Used);     FArrayBox worka_fab(fab_box,1, Arena_Used);
+        FArrayBox work1c_fab(fab_box,1, Arena_Used);
+        FArrayBox denqrs1_fab(fab_box,1, Arena_Used);   FArrayBox denqrs2_fab(fab_box,1, Arena_Used);
+        FArrayBox denqrs3_fab(fab_box,1, Arena_Used);   FArrayBox denqci_fab(fab_box,1, Arena_Used);
+        FArrayBox fall_r_fab(fab_box,1, Arena_Used);    FArrayBox fall_s_fab(fab_box,1, Arena_Used);
+        FArrayBox fall_g_fab(fab_box,1, Arena_Used);    FArrayBox fallc_fab(fab_box,1, Arena_Used);
+        FArrayBox qsum_fab(fab_box,1, Arena_Used);
+        FArrayBox nislfv_r_diag_fab(fab_box,6, Arena_Used);
+        FArrayBox nislfv_sg_diag_fab(fab_box,6, Arena_Used);
+        FArrayBox sed_cell_scratch_fab(fab_box, WSM6SedCellScratch::NumComps, Arena_Used);
         Box sed_node_box = amrex::surroundingNodes(fab_box, 2);
-        FArrayBox sed_node_scratch_fab(sed_node_box, WSM6SedNodeScratch::NumComps);
+        FArrayBox sed_node_scratch_fab(sed_node_box, WSM6SedNodeScratch::NumComps, Arena_Used);
         // process rates
-        FArrayBox praut_fab(fab_box,1); FArrayBox pracw_fab(fab_box,1);
-        FArrayBox prevp_fab(fab_box,1); FArrayBox psdep_fab(fab_box,1);
-        FArrayBox pgdep_fab(fab_box,1); FArrayBox psaut_fab(fab_box,1);
-        FArrayBox pgaut_fab(fab_box,1); FArrayBox praci_fab(fab_box,1);
-        FArrayBox piacr_fab(fab_box,1); FArrayBox psaci_fab(fab_box,1);
-        FArrayBox psacw_fab(fab_box,1); FArrayBox pgacw_fab(fab_box,1);
-        FArrayBox pgaci_fab(fab_box,1); FArrayBox paacw_fab(fab_box,1);
-        FArrayBox pracs_fab(fab_box,1); FArrayBox psacr_fab(fab_box,1);
-        FArrayBox pgacr_fab(fab_box,1); FArrayBox pgacs_fab(fab_box,1);
-        FArrayBox pigen_fab(fab_box,1); FArrayBox pidep_fab(fab_box,1);
-        FArrayBox pcond_fab(fab_box,1); FArrayBox psmlt_fab(fab_box,1);
-        FArrayBox pgmlt_fab(fab_box,1); FArrayBox pseml_fab(fab_box,1);
-        FArrayBox pgeml_fab(fab_box,1); FArrayBox psevp_fab(fab_box,1);
-        FArrayBox pgevp_fab(fab_box,1);
-        FArrayBox pimlt_fab(fab_box,1); FArrayBox pihmf_fab(fab_box,1);
-        FArrayBox pihtf_fab(fab_box,1); FArrayBox pgfrz_fab(fab_box,1);
+        FArrayBox praut_fab(fab_box,1, Arena_Used); FArrayBox pracw_fab(fab_box,1, Arena_Used);
+        FArrayBox prevp_fab(fab_box,1, Arena_Used); FArrayBox psdep_fab(fab_box,1, Arena_Used);
+        FArrayBox pgdep_fab(fab_box,1, Arena_Used); FArrayBox psaut_fab(fab_box,1, Arena_Used);
+        FArrayBox pgaut_fab(fab_box,1, Arena_Used); FArrayBox praci_fab(fab_box,1, Arena_Used);
+        FArrayBox piacr_fab(fab_box,1, Arena_Used); FArrayBox psaci_fab(fab_box,1, Arena_Used);
+        FArrayBox psacw_fab(fab_box,1, Arena_Used); FArrayBox pgacw_fab(fab_box,1, Arena_Used);
+        FArrayBox pgaci_fab(fab_box,1, Arena_Used); FArrayBox paacw_fab(fab_box,1, Arena_Used);
+        FArrayBox pracs_fab(fab_box,1, Arena_Used); FArrayBox psacr_fab(fab_box,1, Arena_Used);
+        FArrayBox pgacr_fab(fab_box,1, Arena_Used); FArrayBox pgacs_fab(fab_box,1, Arena_Used);
+        FArrayBox pigen_fab(fab_box,1, Arena_Used); FArrayBox pidep_fab(fab_box,1, Arena_Used);
+        FArrayBox pcond_fab(fab_box,1, Arena_Used); FArrayBox psmlt_fab(fab_box,1, Arena_Used);
+        FArrayBox pgmlt_fab(fab_box,1, Arena_Used); FArrayBox pseml_fab(fab_box,1, Arena_Used);
+        FArrayBox pgeml_fab(fab_box,1, Arena_Used); FArrayBox psevp_fab(fab_box,1, Arena_Used);
+        FArrayBox pgevp_fab(fab_box,1, Arena_Used);
+        FArrayBox pimlt_fab(fab_box,1, Arena_Used); FArrayBox pihmf_fab(fab_box,1, Arena_Used);
+        FArrayBox pihtf_fab(fab_box,1, Arena_Used); FArrayBox pgfrz_fab(fab_box,1, Arena_Used);
 
         auto const& denfac_arr    = denfac_fab.array();
         auto const& xni_arr       = xni_fab.array();

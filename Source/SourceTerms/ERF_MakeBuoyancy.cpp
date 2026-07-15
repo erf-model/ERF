@@ -160,8 +160,8 @@ void make_buoyancy (int lev,
                 // ******************************************************************************************
 
                 if ( (solverChoice.moisture_type == MoistureType::Kessler_NoRain) ||
-                    (solverChoice.moisture_type == MoistureType::SAM)            ||
-                    (solverChoice.moisture_type == MoistureType::SAM_NoPrecip_NoIce) )
+                     (solverChoice.moisture_type == MoistureType::SAM)            ||
+                     (solverChoice.moisture_type == MoistureType::SAM_NoPrecip_NoIce) )
                 {
                     AMREX_ALWAYS_ASSERT(solverChoice.buoyancy_type[lev] == 1);
                 }

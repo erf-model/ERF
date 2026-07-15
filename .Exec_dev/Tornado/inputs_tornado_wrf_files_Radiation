@@ -53,7 +53,7 @@ erf.use_gravity = true
 erf.terrain_type = StaticFittedMesh
 erf.moisture_model = "Morrison"
 
-erf.pbl_type = "MYNN25"
+#erf.pbl_type = "MYNN25"
 erf.pbl_type         = MYJ
 prob.KE_0            = 0.4
 prob.KE_decay_height = 500.

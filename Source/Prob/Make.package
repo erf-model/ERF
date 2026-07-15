@@ -39,13 +39,23 @@ CEXE_headers += ERF_InitCustomPertVels_TurbulentInflow.H
 CEXE_headers += ERF_InitCustomPertVels_UserDefined.H
 
 CEXE_headers += ERF_UpdateSources.H
+
+CEXE_headers += ERF_UpdateGeostrophicProfile_Bomex.H 
 CEXE_headers += ERF_UpdateRhoThetaSources_Bomex.H
 CEXE_headers += ERF_UpdateRhoQtSources_Bomex.H
 CEXE_headers += ERF_UpdateWSubsidence_Bomex.H
-CEXE_headers += ERF_UpdateGeostrophicProfile_Bomex.H 
+
+CEXE_headers += ERF_UpdateRhoThetaSources_Constant.H
+
+CEXE_headers += ERF_UpdateGeostrophicProfile_RICO.H 
 CEXE_headers += ERF_UpdateRhoThetaSources_RICO.H
 CEXE_headers += ERF_UpdateRhoQtSources_RICO.H
 CEXE_headers += ERF_UpdateWSubsidence_RICO.H
-CEXE_headers += ERF_UpdateGeostrophicProfile_RICO.H 
+
 CEXE_headers += ERF_UpdateRhoThetaSources_SDMCongestus3D.H
 CEXE_headers += ERF_UpdateRhoQtSources_SDMCongestus3D.H
+
+CEXE_headers += ERF_UpdateGeostrophicProfile_Bomex.H 
+CEXE_headers += ERF_UpdateRhoThetaSources_SineMassFlux.H
+CEXE_headers += ERF_UpdateRhoQtSources_SineMassFlux.H
+CEXE_headers += ERF_UpdateWSubsidence_SineMassFlux.H
