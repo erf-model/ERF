@@ -26,9 +26,14 @@ inline amrex::Vector<std::string> dust_plotfile_var_names()
         "dust_pm25_24h_ug_m3",  ///< 24-hour running average PM2.5 [µg/m^3].
         "dust_pm10_24h_ug_m3",  ///< 24-hour running average PM10 [µg/m^3].
         "dust_pm25_exceed",     ///< Exceedance flag: 1 where PM2.5 24h > 35 µg/m^3.
-        "dust_pm10_exceed"      ///< Exceedance flag: 1 where PM10 24h > 150 µg/m^3.
+        "dust_pm10_exceed",     ///< Exceedance flag: 1 where PM10 24h > 150 µg/m^3.
+        // Phase 18: MSHA worker exposure tracking
+        "dust_msha_dose_mg_m3_h",  ///< Cumulative 8h TWA dose [mg/m^3/h].
+        "dust_msha_twa_mg_m3",     ///< 8-hour time-weighted average [mg/m^3]. 30 CFR 56.5001.
+        "dust_msha_exceed",        ///< PEL exceedance flag [0/1].
+        "dust_msha_shift_twa"      ///< TWA at last shift end [mg/m^3].
     };
 }
 
-inline int dust_plotfile_ncomp() { return 14; }
+inline int dust_plotfile_ncomp() { return 18; }
 #endif

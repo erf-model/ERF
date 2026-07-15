@@ -130,6 +130,10 @@ public:
     const amrex::MultiFab* get_pm10_24h()         const { return dust_pm10_24h.get(); }
     const amrex::MultiFab* get_pm25_exceed()      const { return dust_pm25_exceed.get(); }
     const amrex::MultiFab* get_pm10_exceed()      const { return dust_pm10_exceed.get(); }
+    const amrex::MultiFab* get_msha_dose()        const { return dust_msha_dose.get(); }
+    const amrex::MultiFab* get_msha_twa()         const { return dust_msha_twa.get(); }
+    const amrex::MultiFab* get_msha_exceed()      const { return dust_msha_exceed.get(); }
+    const amrex::MultiFab* get_msha_shift_twa()   const { return dust_msha_shift_twa.get(); }
     const DustGrid&        get_dust_grid()        const { return m_dg; }
     const amrex::Geometry& get_dust_geom()        const { return m_dg.geom; }
     const DustParams&      get_params()           const { return m_params; }
@@ -226,6 +230,19 @@ public:
     void compute_naaqs_diagnostics(amrex::Real dt, amrex::Real cur_time, int nstep);
 
     /**
+     * @brief Compute MSHA worker exposure: dose accumulator, TWA, and exceedance flag.
+     *
+     * Called from advance() each timestep after compute_naaqs_diagnostics (Phase 18).
+     * Updates dose and TWA accumulators, checks PEL exceedance, handles shift resets,
+     * writes per-step and per-shift CSV outputs, and samples receptor points.
+     *
+     * @param dt       Timestep [s].
+     * @param cur_time Simulation time [s].
+     * @param nstep    Current step number.
+     */
+    void compute_msha_exposure(amrex::Real dt, amrex::Real cur_time, int nstep);
+
+    /**
      * @brief Write dust plotfile and CSV diagnostics.
      *
      * Called from ERF::WriteAtIntermediateTime and ERF::WriteAtFinalTime.
@@ -282,6 +299,12 @@ private:
     std::unique_ptr<amrex::MultiFab>      dust_pm25_exceed; ///< Exceedance flag PM2.5.
     std::unique_ptr<amrex::MultiFab>      dust_pm10_exceed; ///< Exceedance flag PM10.
 
+    // Phase 18: MSHA worker exposure MultiFabs on dust grid.
+    std::unique_ptr<amrex::MultiFab>      dust_msha_dose;       ///< Cumulative dose [mg/m³/h].
+    std::unique_ptr<amrex::MultiFab>      dust_msha_twa;        ///< 8h TWA [mg/m³].
+    std::unique_ptr<amrex::MultiFab>      dust_msha_exceed;     ///< PEL exceedance [0/1].
+    std::unique_ptr<amrex::MultiFab>      dust_msha_shift_twa;  ///< TWA at last shift end [mg/m³].
+
     int                                   m_dust_scalar_comp = -1; ///< cc_source component index for dust mass.
                                                                      ///< Set during initialize from ERF_IndexDefines.H.
 
@@ -290,6 +313,7 @@ private:
     amrex::Real                           m_time = 0.0;
     int                                   m_last_dust_plot_step = -1;
     amrex::Real                           m_last_phreeqc_update = -1.0e30;
+    int                                   m_msha_shift_count = 0; ///< Phase 18: shift counter for MSHA.
 #ifdef ERF_USE_DUST
     BlastSchedule                         m_blast_schedule;
     bool                                  m_has_blast_schedule = false;

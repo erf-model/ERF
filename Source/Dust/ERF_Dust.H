@@ -28,6 +28,8 @@
 #include <ERF_DustAtmReturn.H>
 #include <ERF_DustPM.H>
 #include <ERF_DustNAAQSOutput.H>
+#include <ERF_DustMSHA.H>
+#include <ERF_DustMSHAOutput.H>
 
 #endif // ERF_USE_DUST
 

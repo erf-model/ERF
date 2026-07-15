@@ -31,5 +31,7 @@ ifeq ($(USE_DUST), TRUE)
   CEXE_headers += Dust/ERF_DustStatsOutput.H
   CEXE_headers += Dust/ERF_DustPM.H
   CEXE_headers += Dust/ERF_DustNAAQSOutput.H
+  CEXE_headers += Dust/ERF_DustMSHA.H
+  CEXE_headers += Dust/ERF_DustMSHAOutput.H
   CEXE_headers += Dust/ERF_Dust.H
 endif

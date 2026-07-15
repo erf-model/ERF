@@ -1579,6 +1579,107 @@ Implementation
   ``DustLayer::compute_naaqs_diagnostics`` is called from ``DustLayer::advance()``
   each timestep, after ``extract_atm_return_fields`` has updated ``dust_conc_sfc``.
 
+MSHA Worker Exposure Tracking Module
+-------------------------------------
+
+Phase 18 introduces a time-weighted average (TWA) dose accumulator for MSHA
+(Mine Safety and Health Administration) worker exposure protection. The module
+computes an 8-hour rolling TWA of respirable dust concentration (PM10) and
+detects exceedances of the MSHA Permissible Exposure Limit (PEL) set at 5 mg/m³
+under 30 CFR Part 56 (Surface Mines) [30CFR56]_.
+
+**Physical Model**
+
+The module processes the instantaneous PM10 concentration (computed by Phase 17)
+to track cumulative worker exposure over an 8-hour shift:
+
+.. math::
+
+    C_\mathrm{resp}(t) = \mathrm{PM10}(t) \times 10^{-3} \, [\mathrm{mg/m^3}]
+
+    \mathrm{dose}(t) = \int_0^t C_\mathrm{resp}(\tau) \, \mathrm{d}\tau \, [\mathrm{mg/m^3/h}]
+
+    \mathrm{TWA}_{8h}(t) = \frac{\mathrm{dose}(t)}{8.0} \, [\mathrm{mg/m^3}]
+
+    \mathrm{exceed}(t) = \begin{cases} 1 & \text{if } \mathrm{TWA}_{8h}(t) > 5 \, \mathrm{mg/m^3} \\
+                                      0 & \text{otherwise} \end{cases}
+
+Shift reset: When a new shift begins (detected by monitoring
+:math:`\lfloor t / T_\mathrm{shift} \rfloor`), the dose accumulator is zeroed
+and the peak TWA during the ending shift is recorded.
+
+**Output Files**
+
+Phase 18 produces three per-site CSV files in the run directory:
+
+1. ``msha_exposure.csv`` — Per-timestep exposure snapshot
+   * Columns: ``step, time_s, TWA_max_mg_m3, n_cells_exceed, dose_max_mg_m3_h``
+   * TWA_max is the maximum TWA over all dust grid cells
+   * n_cells_exceed counts how many cells exceed the PEL
+   * dose_max is the maximum cumulative dose over all cells
+
+2. ``msha_shift_summary.csv`` — End-of-shift summary
+   * Columns: ``shift_number, shift_end_time_s, TWA_peak_mg_m3, n_cells_exceed``
+   * Written once per shift when the shift boundary is crossed
+   * TWA_peak is the maximum TWA at the end of that shift
+
+3. ``msha_receptor_<name>.csv`` — Named receptor point samples (one file per receptor)
+   * Columns: ``step, time_s, PM10_ug_m3``
+   * Samples PM10 at fixed points (x, y) specified in input
+   * Uses nearest-cell-only (no interpolation)
+   * Allows fence-line and downwind monitoring stations
+
+**Parameters**
+
+Configurable MSHA parameters in input files via ``erf.dust.*`` prefix:
+
+* ``msha_pel_mg_m3`` [Real] (default: ``5.0``) — PEL threshold [mg/m³]
+* ``msha_shift_duration_s`` [Real] (default: ``28800.0`` = 8 hours) — Shift length [s]
+* ``msha_exposure_file`` [string] (default: ``"msha_exposure.csv"``) — Per-step CSV
+* ``msha_shift_file`` [string] (default: ``"msha_shift_summary.csv"``) — Shift summary CSV
+* ``msha_receptor_names`` [array of strings] (default: empty) — Receptor point names
+* ``msha_receptor_x`` [array of Real] (default: empty) — Receptor x-coordinates [m]
+* ``msha_receptor_y`` [array of Real] (default: empty) — Receptor y-coordinates [m]
+
+Example input:
+
+.. code-block:: bash
+
+   erf.dust.msha_pel_mg_m3 = 5.0              # 30 CFR 56.5001
+   erf.dust.msha_shift_duration_s = 28800.0   # 8 hours
+   erf.dust.msha_exposure_file = "msha_exposure.csv"
+   erf.dust.msha_shift_file = "msha_shift_summary.csv"
+   erf.dust.msha_receptor_names = "fence_N" "fence_S" "downwind"
+   erf.dust.msha_receptor_x = 500.0 500.0 1500.0
+   erf.dust.msha_receptor_y = 2900.0 100.0 1500.0
+
+**Plotfile Integration**
+
+Phase 18 adds 4 new variables to the 2D dust plotfile (total 18 fields):
+
+* ``dust_msha_dose_mg_m3_h`` — Cumulative dose [mg/m³/h]
+* ``dust_msha_twa_mg_m3`` — 8-hour TWA [mg/m³]
+* ``dust_msha_exceed`` — PEL exceedance [0/1]
+* ``dust_msha_shift_twa`` — TWA at last shift end [mg/m³]
+
+**Implementation Limitation**
+
+TWA is computed over the domain-averaged dust grid cells. This is the
+instantaneous concentration at fixed monitoring points, not the personal
+(time-weighted) exposure of a mobile worker. For full OSHA compliance,
+measurements should use personal dust samplers on workers. This module
+provides spatial diagnostics (which grid cells are above PEL) and
+static-point time series (how concentration evolves at fenceline stations).
+
+Implementation
+  Phase 18 introduces two new files:
+
+  * ``Source/Dust/ERF_DustMSHA.H`` — Header-only; provides dose and exceedance functions
+  * ``Source/Dust/ERF_DustMSHAOutput.H`` — Header-only; provides CSV writers for exposure, shift summary, and receptors
+
+  ``DustLayer::compute_msha_exposure`` is called from ``DustLayer::advance()``
+  each timestep, after ``compute_naaqs_diagnostics``.
+
 Development Phases
 ------------------
 
@@ -1630,7 +1731,26 @@ References
    Chapter 13.2.2: Unpaved Roads.
    https://www.epa.gov/air-emissions-factors-and-quantification/ap-42-compilation-air-emission-factors
 
-.. [MSHA2016] MSHA (2016). Lowering Miners' Exposure to Respirable Coal
+.. [30CFR56] Title 30, Part 56. Safety and Health Regulations for Surface
+   Mining. U.S. Mine Safety and Health Administration (MSHA), Department of Labor.
+   https://www.ecfr.gov/current/title-30/chapter-I/subchapter-K/part-56
+
+.. [30CFR57] Title 30, Part 57. Safety and Health Regulations for
+   Underground Mining. U.S. Mine Safety and Health Administration (MSHA),
+   Department of Labor.
+   https://www.ecfr.gov/current/title-30/chapter-I/subchapter-K/part-57
+
+.. [Stayner1998] Stayner, L. T., N. J. Dankovic, and R. A. Lemen (1998).
+   Occupational exposure to chrysotile asbestos and cancer risk: A review of
+   the amphibole hypothesis. *Am. J. Respir. Crit. Care Med.*, 157, 69-89.
+   https://doi.org/10.1164/ajrccm.157.1.9703022
+
+.. [Attfield1992] Attfield, M. D., and K. J. Morring (1992). An investigation
+   into the relationship between coal rank and coal worker's pneumoconiosis.
+   *Am. J. Ind. Med.*, 22, 417-428.
+   https://doi.org/10.1002/ajim.4700220311
+
+.. [Msha2016] MSHA (2016). Lowering Miners' Exposure to Respirable Coal
    Mine Dust, Including Continuous Personal Dust Monitors.
    *Federal Register*, 81, 16285.
    https://www.federalregister.gov/documents/2014/05/01/2014-09084/
