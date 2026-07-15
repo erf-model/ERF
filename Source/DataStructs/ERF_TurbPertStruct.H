@@ -70,7 +70,8 @@ struct TurbulentPerturbation {
         pp.get("perturbation_layers",tpi_layers);
         pp.get("perturbation_offset",tpi_offset);
 
-        pp.get("perturbation_nondimensional",tpi_nonDim);
+        tpi_nonDim = zero;
+        pp.query("perturbation_nondimensional",tpi_nonDim);
 
         tpi_Tinf = amrex::Real(300.);
         pp.query("perturbation_T_infinity",tpi_Tinf);
