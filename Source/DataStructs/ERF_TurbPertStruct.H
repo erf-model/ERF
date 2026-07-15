@@ -82,6 +82,11 @@ struct TurbulentPerturbation {
         input_Ug = zero;
         pp.query("perturbation_Ug",input_Ug);
 
+        perturbation_zlo = zero;
+        pp.query("perturbation_zlo",perturbation_zlo);
+        perturbation_zhi = zero;
+        pp.query("perturbation_zhi",perturbation_zhi);
+
         // Check variables message
         if (tpi_offset < 0) { amrex::Abort("Please provide a valid inflow cell offset value for perturbation region (ie. 0-5)"); }
         if (tpi_layers < 0) { amrex::Abort("Please provide a valid perturbation layer value (ie. 3-5)"); }
@@ -115,6 +120,10 @@ struct TurbulentPerturbation {
             const amrex::IntVect& valid_box_lo = subdomain_box.smallEnd();
             const amrex::IntVect& valid_box_hi = subdomain_box.bigEnd();
 
+            // default perturbation region to be the entire z extent if the user does not specify bounds
+            if (perturbation_zlo == zero) { perturbation_zlo = valid_box_lo[2]; }
+            if (perturbation_zhi == zero) { perturbation_zhi = valid_box_hi[2]; }
+
             // Creating perturbation regions and initializing with generic size.
             amrex::Box lo_x_bx(amrex::IntVect(0), amrex::IntVect(1), amrex::IntVect(0));
             amrex::Box hi_x_bx(amrex::IntVect(0), amrex::IntVect(1), amrex::IntVect(0));
@@ -125,27 +134,27 @@ struct TurbulentPerturbation {
             //amrex::PrintToFile("BoxPerturbationOutput") << "Setting perturbation region in:";
             // ***** X-direction perturbation *****
             if (tpi_direction[0]) { // West
-                lo_x_bx.setSmall(amrex::IntVect(valid_box_lo[0]+tpi_offset, valid_box_lo[1]+tpi_direction[1]*tpi_offset, valid_box_lo[2]));
-                lo_x_bx.setBig  (amrex::IntVect(valid_box_lo[0]+(tpi_layers*tpi_boxDim[0]-1)+tpi_offset, valid_box_hi[1]-(tpi_direction[4]*tpi_offset), valid_box_hi[2]));
+                lo_x_bx.setSmall(amrex::IntVect(valid_box_lo[0]+tpi_offset, valid_box_lo[1]+tpi_direction[1]*tpi_offset, perturbation_zlo));
+                lo_x_bx.setBig  (amrex::IntVect(valid_box_lo[0]+(tpi_layers*tpi_boxDim[0]-1)+tpi_offset, valid_box_hi[1]-(tpi_direction[4]*tpi_offset), perturbation_zhi));
                 amrex::PrintToFile("BoxPerturbationOutput") << " West face";
             }
 
             if (tpi_direction[3]) { // East
-                hi_x_bx.setSmall(amrex::IntVect(valid_box_hi[0]-((tpi_layers*tpi_boxDim[0]-1)+tpi_offset), valid_box_lo[1]+tpi_direction[1]*tpi_offset, valid_box_lo[2]));
-                hi_x_bx.setBig(amrex::IntVect(valid_box_hi[0]-tpi_offset, valid_box_hi[1]-(tpi_direction[4]*tpi_offset), valid_box_hi[2]));
+                hi_x_bx.setSmall(amrex::IntVect(valid_box_hi[0]-((tpi_layers*tpi_boxDim[0]-1)+tpi_offset), valid_box_lo[1]+tpi_direction[1]*tpi_offset, perturbation_zlo));
+                hi_x_bx.setBig(amrex::IntVect(valid_box_hi[0]-tpi_offset, valid_box_hi[1]-(tpi_direction[4]*tpi_offset), perturbation_zhi));
                 amrex::PrintToFile("BoxPerturbationOutput") << " East face";
             }
 
             // ***** Y-direction Perturbation *****
             if (tpi_direction[1]) { // North
-                lo_y_bx.setSmall(amrex::IntVect(valid_box_lo[0]+tpi_direction[0]*tpi_offset, valid_box_lo[1]+tpi_offset, valid_box_lo[2]));
-                lo_y_bx.setBig(amrex::IntVect(valid_box_hi[0]-tpi_direction[3]*tpi_offset, valid_box_lo[1]+((tpi_layers*tpi_boxDim[1])-1)+tpi_offset, valid_box_hi[2]));
+                lo_y_bx.setSmall(amrex::IntVect(valid_box_lo[0]+tpi_direction[0]*tpi_offset, valid_box_lo[1]+tpi_offset, perturbation_zlo));
+                lo_y_bx.setBig(amrex::IntVect(valid_box_hi[0]-tpi_direction[3]*tpi_offset, valid_box_lo[1]+((tpi_layers*tpi_boxDim[1])-1)+tpi_offset, perturbation_zhi));
                 amrex::PrintToFile("BoxPerturbationOutput") << " North face";
             }
 
             if (tpi_direction[4]) { // South
-                hi_y_bx.setSmall(amrex::IntVect(valid_box_lo[0]+tpi_direction[0]*tpi_offset, valid_box_hi[1]-((tpi_layers*tpi_boxDim[1]-1)+tpi_offset), valid_box_lo[2]));
-                hi_y_bx.setBig(amrex::IntVect(valid_box_hi[0]-tpi_direction[3]*tpi_offset, valid_box_hi[1]-tpi_offset, valid_box_hi[2]));
+                hi_y_bx.setSmall(amrex::IntVect(valid_box_lo[0]+tpi_direction[0]*tpi_offset, valid_box_hi[1]-((tpi_layers*tpi_boxDim[1]-1)+tpi_offset), perturbation_zlo));
+                hi_y_bx.setBig(amrex::IntVect(valid_box_hi[0]-tpi_direction[3]*tpi_offset, valid_box_hi[1]-tpi_offset, perturbation_zhi));
                 amrex::PrintToFile("BoxPerturbationOutput") << " South face";
             }
 
@@ -693,6 +702,8 @@ struct TurbulentPerturbation {
 
     amrex::Vector<amrex::IntVect> ref_ratio;  // ref_ratio for multilevel run
     amrex::Real input_Ug;                     // input geostrophic wind speed to scale perturbations when using CPM
+    int         perturbation_zlo;             // upper bound in Nz for perturbations
+    int         perturbation_zhi;             // lower bound in Nz for perturbations
 
     // Perturbation data arrays
     amrex::Vector<amrex::Vector<double>> pb_interval;         // PB update time [s]
