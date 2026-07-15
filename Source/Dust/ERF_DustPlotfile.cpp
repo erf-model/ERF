@@ -75,6 +75,18 @@ void WriteDustPlotfile(const std::string& plotfile_prefix,
     copy_if(dust_layer.get_surf_moist(),       5);
     copy_if(dust_layer.get_suppression(),      6);
     copy_if(dust_layer.get_retreat_flag(),     7);
+    // Phase 17: EPA NAAQS fields
+    copy_if(dust_layer.get_pm25(),             8);
+    copy_if(dust_layer.get_pm10(),             9);
+    copy_if(dust_layer.get_pm25_24h(),        10);
+    copy_if(dust_layer.get_pm10_24h(),        11);
+    copy_if(dust_layer.get_pm25_exceed(),     12);
+    copy_if(dust_layer.get_pm10_exceed(),     13);
+    // Phase 18: MSHA worker exposure fields
+    copy_if(dust_layer.get_msha_dose(),       14);
+    copy_if(dust_layer.get_msha_twa(),        15);
+    copy_if(dust_layer.get_msha_exceed(),     16);
+    copy_if(dust_layer.get_msha_shift_twa(),  17);
 
     std::string plotfilename = Concatenate(plotfile_prefix, step, 5);
 

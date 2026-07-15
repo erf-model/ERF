@@ -175,6 +175,19 @@ struct DustParams {
     std::string dust_plot_prefix   = "plt_dust_";  ///< Plotfile name prefix.
     std::string dust_diag_file     = "dust_diag.dat"; ///< CSV diagnostics file path.
 
+    // Phase 17: EPA NAAQS compliance output
+    std::string dust_naaqs_file    = "dust_naaqs.csv"; ///< NAAQS compliance CSV output.
+                                                        ///< 40 CFR Part 50.
+
+    // Phase 18: MSHA worker exposure tracking
+    amrex::Real msha_pel_mg_m3       = 5.0;            ///< PEL threshold [mg/m³], 30 CFR 56.5001
+    amrex::Real msha_shift_duration_s = 28800.0;       ///< Shift duration [s]. Default 8 hours.
+    std::string msha_exposure_file   = "msha_exposure.csv";        ///< Per-step CSV output
+    std::string msha_shift_file      = "msha_shift_summary.csv";   ///< End-of-shift summary
+    amrex::Vector<std::string> msha_receptor_names;    ///< Receptor point names
+    amrex::Vector<amrex::Real> msha_receptor_x;        ///< Receptor x-coordinates [m]
+    amrex::Vector<amrex::Real> msha_receptor_y;        ///< Receptor y-coordinates [m]
+
     /**
      * Constructor that reads all parameters from ParmParse.
      */
@@ -223,6 +236,14 @@ struct DustParams {
         pp.query("dust_plot_int",    dust_plot_int);
         pp.query("dust_plot_prefix", dust_plot_prefix);
         pp.query("dust_diag_file",   dust_diag_file);
+        pp.query("dust_naaqs_file",  dust_naaqs_file);
+        pp.query("msha_pel_mg_m3", msha_pel_mg_m3);
+        pp.query("msha_shift_duration_s", msha_shift_duration_s);
+        pp.query("msha_exposure_file", msha_exposure_file);
+        pp.query("msha_shift_file", msha_shift_file);
+        pp.queryarr("msha_receptor_names", msha_receptor_names);
+        pp.queryarr("msha_receptor_x", msha_receptor_x);
+        pp.queryarr("msha_receptor_y", msha_receptor_y);
         
         // Allow per-bin diameter override from input file.
         // erf.dust.bin_diameters = d0 d1 d2 ...

@@ -55,6 +55,8 @@
 #include <ERF_DustAtmReturn.H>
 #include <ERF_DustPlotfile.H>
 #include <ERF_DustStatsOutput.H>
+#include <ERF_DustPM.H>
+#include <ERF_DustNAAQSOutput.H>
 #endif
 
 // Forward declarations
@@ -122,6 +124,16 @@ public:
     const amrex::MultiFab* get_tsfc()             const { return dust_tsfc.get(); }
     const amrex::MultiFab* get_deposition_rate()  const { return dust_deposition_rate.get(); }
     const amrex::MultiFab* get_conc_sfc()         const { return dust_conc_sfc.get(); }
+    const amrex::MultiFab* get_pm25()             const { return dust_pm25.get(); }
+    const amrex::MultiFab* get_pm10()             const { return dust_pm10.get(); }
+    const amrex::MultiFab* get_pm25_24h()         const { return dust_pm25_24h.get(); }
+    const amrex::MultiFab* get_pm10_24h()         const { return dust_pm10_24h.get(); }
+    const amrex::MultiFab* get_pm25_exceed()      const { return dust_pm25_exceed.get(); }
+    const amrex::MultiFab* get_pm10_exceed()      const { return dust_pm10_exceed.get(); }
+    const amrex::MultiFab* get_msha_dose()        const { return dust_msha_dose.get(); }
+    const amrex::MultiFab* get_msha_twa()         const { return dust_msha_twa.get(); }
+    const amrex::MultiFab* get_msha_exceed()      const { return dust_msha_exceed.get(); }
+    const amrex::MultiFab* get_msha_shift_twa()   const { return dust_msha_shift_twa.get(); }
     const DustGrid&        get_dust_grid()        const { return m_dg; }
     const amrex::Geometry& get_dust_geom()        const { return m_dg.geom; }
     const DustParams&      get_params()           const { return m_params; }
@@ -204,6 +216,33 @@ public:
                                     const amrex::Geometry& geom_atm);
 
     /**
+     * @brief Compute PM2.5/PM10 concentrations, running averages, and exceedance flags.
+     *
+     * Called from advance() each timestep after extract_atm_return_fields (Phase 13).
+     * Uses dust_conc_sfc from Phase 13 as the concentration source.
+     * Updates running 24-hour averages and exceedance flags.
+     * Appends one row to dust_naaqs.csv.
+     *
+     * @param dt       Timestep [s].
+     * @param cur_time Simulation time [s].
+     * @param nstep    Current step number.
+     */
+    void compute_naaqs_diagnostics(amrex::Real dt, amrex::Real cur_time, int nstep);
+
+    /**
+     * @brief Compute MSHA worker exposure: dose accumulator, TWA, and exceedance flag.
+     *
+     * Called from advance() each timestep after compute_naaqs_diagnostics (Phase 18).
+     * Updates dose and TWA accumulators, checks PEL exceedance, handles shift resets,
+     * writes per-step and per-shift CSV outputs, and samples receptor points.
+     *
+     * @param dt       Timestep [s].
+     * @param cur_time Simulation time [s].
+     * @param nstep    Current step number.
+     */
+    void compute_msha_exposure(amrex::Real dt, amrex::Real cur_time, int nstep);
+
+    /**
      * @brief Write dust plotfile and CSV diagnostics.
      *
      * Called from ERF::WriteAtIntermediateTime and ERF::WriteAtFinalTime.
@@ -252,6 +291,20 @@ private:
     // Phase 13: return fields from 3D solver
     std::unique_ptr<amrex::MultiFab>      dust_conc_sfc;   ///< Near-surface dust [kg/m^3] on dust grid.
 
+    // Phase 17: PM size fraction MultiFabs on dust grid.
+    std::unique_ptr<amrex::MultiFab>      dust_pm25;       ///< Instantaneous PM2.5 [µg/m^3].
+    std::unique_ptr<amrex::MultiFab>      dust_pm10;       ///< Instantaneous PM10 [µg/m^3].
+    std::unique_ptr<amrex::MultiFab>      dust_pm25_24h;   ///< 24-hour running average PM2.5.
+    std::unique_ptr<amrex::MultiFab>      dust_pm10_24h;   ///< 24-hour running average PM10.
+    std::unique_ptr<amrex::MultiFab>      dust_pm25_exceed; ///< Exceedance flag PM2.5.
+    std::unique_ptr<amrex::MultiFab>      dust_pm10_exceed; ///< Exceedance flag PM10.
+
+    // Phase 18: MSHA worker exposure MultiFabs on dust grid.
+    std::unique_ptr<amrex::MultiFab>      dust_msha_dose;       ///< Cumulative dose [mg/m³/h].
+    std::unique_ptr<amrex::MultiFab>      dust_msha_twa;        ///< 8h TWA [mg/m³].
+    std::unique_ptr<amrex::MultiFab>      dust_msha_exceed;     ///< PEL exceedance [0/1].
+    std::unique_ptr<amrex::MultiFab>      dust_msha_shift_twa;  ///< TWA at last shift end [mg/m³].
+
     int                                   m_dust_scalar_comp = -1; ///< cc_source component index for dust mass.
                                                                      ///< Set during initialize from ERF_IndexDefines.H.
 
@@ -260,6 +313,7 @@ private:
     amrex::Real                           m_time = 0.0;
     int                                   m_last_dust_plot_step = -1;
     amrex::Real                           m_last_phreeqc_update = -1.0e30;
+    int                                   m_msha_shift_count = 0; ///< Phase 18: shift counter for MSHA.
 #ifdef ERF_USE_DUST
     BlastSchedule                         m_blast_schedule;
     bool                                  m_has_blast_schedule = false;

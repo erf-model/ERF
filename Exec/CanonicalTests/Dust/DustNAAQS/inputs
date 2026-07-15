@@ -1,0 +1,132 @@
+# DustNAAQS regression test
+#
+# Tests Phase 17: EPA NAAQS PM2.5/PM10 compliance output.
+#
+# Size bin classification (bin_diameters = 7e-6, 2.5e-6, 50e-6 m):
+#   bin 0: d = 7 µm  -> PM10 only (2.5 < 7 <= 10 µm)
+#   bin 1: d = 2.5 µm -> PM2.5 and PM10 (d <= 2.5 µm)
+#   bin 2: d = 50 µm -> neither (d > 10 µm)
+#
+# With transport_bins_separately=false, dust_conc_sfc holds total
+# concentration of all bins combined. In this mode the PM split
+# uses bin 0 diameter (the first bin) for classification.
+# For per-bin PM tracking, set transport_bins_separately=true.
+#
+# Atmospheric configuration: Moeng-Sullivan neutral ABL.
+# MRF u* ~ 0.56 m/s with 15 m/s geostrophic wind.
+#
+# Expected results:
+#   (1) [DUST DEBUG] Phase 17 bin classification printed at init:
+#       bin 0: PM10 only; bin 1: PM2.5+PM10; bin 2: neither.
+#   (2) [DUST DEBUG] Phase 17 step output each step with PM25_max >= 0,
+#       PM10_max >= 0, PM25_max <= PM10_max (PM2.5 subset of PM10).
+#   (3) dust_naaqs.csv created with header + 5 rows (steps 0-4).
+#   (4) n_cells_PM25_exceed = 0 for all steps (concentrations are
+#       far below 35 µg/m^3 threshold after 5 steps of injection).
+#   (5) n_cells_PM10_exceed = 0 for all steps (far below 150 µg/m^3).
+#   (6) PM25_24h_max increases each step (running average building up).
+#   (7) Dust plotfile plt_dust_00000 contains 14 variables including
+#       dust_pm25_ug_m3, dust_pm10_ug_m3, dust_pm25_24h_ug_m3,
+#       dust_pm10_24h_ug_m3, dust_pm25_exceed, dust_pm10_exceed.
+#   (8) With bin_diameters = 1e-6 1e-6 1e-6 (all PM2.5) and high
+#       atm_feedback, PM25_max > 0 and PM25_max = PM10_max.
+#   (9) Run exits with code 0.
+#
+# To test exceedance: set all diameters to 1e-6 (all PM2.5) and
+# run for many steps with high emission rate to push 24h average
+# above 35 µg/m^3. n_cells_PM25_exceed should become > 0.
+#
+# References:
+#   US EPA NAAQS: https://www.epa.gov/pm-pollution/
+#     national-ambient-air-quality-standards-naaqs-particulate-matter-pm
+#   40 CFR Part 50:
+#     https://www.ecfr.gov/current/title-40/chapter-I/subchapter-C/part-50
+#   Watson et al. (1994). Atmos. Environ., 28, 2493.
+#     https://doi.org/10.1016/1352-2310(94)90400-6
+
+erf.prob_name = "ABL"
+max_step = 5
+amr.max_level = 0
+amrex.fpe_trap_invalid = 0
+fabarray.mfiter_tile_size = 1024 1024 1024
+
+geometry.prob_extent = 3000 3000 1024
+amr.n_cell           =  8    8   64
+geometry.is_periodic = 1 1 0
+amrex.max_grid_size_z = 128
+
+zlo.type = "surface_layer"
+erf.most.z0              = 0.1
+erf.most.zref            = 24.0
+erf.most.surf_temp_flux  = 0.0
+zhi.type = "SlipWall"
+zhi.theta_grad = 0.003
+
+erf.fixed_dt     = 0.5
+erf.sum_interval = 1
+erf.v            = 1
+amr.v            = 1
+erf.check_int    = -1
+erf.plot_int_1   = -1
+erf.plot_vars_1  = density x_velocity y_velocity z_velocity theta
+
+erf.use_gravity     = true
+erf.molec_diff_type = "None"
+erf.les_type        = "None"
+
+erf.init_type           = "input_sounding"
+erf.sounding_type       = Ideal
+erf.input_sounding_file = "sounding_neutral_abl"
+
+erf.pbl_type         = "MRF"
+erf.pbl_mrf_Ribcr    = 0.5
+erf.pbl_mrf_const_b  = 7.8
+erf.pbl_mrf_sf       = 0.1
+erf.enable_mrf_countergradient = true
+erf.mrf_moistvars    = false
+erf.use_coriolis     = true
+erf.latitude         = 45.0
+erf.abl_driver_type  = "GeostrophicWind"
+erf.abl_geo_wind     = 15.0 0.0 0.0
+
+# Required for dust scalar transport in ERF_SlowRhsPost.cpp (PR #145).
+erf.transport_scalar = true
+
+erf.dust.enable                    = true
+erf.dust.dust_debug                = true
+erf.dust.n_size_bins               = 3
+erf.dust.grid_ratio                = 1
+erf.dust.particle_density          = 2650.0
+erf.dust.z0_dust                   = 0.01
+erf.dust.silt_fraction             = 0.10
+erf.dust.threshold_A_coeff         = 0.0123
+erf.dust.crust_index               = 0.0
+erf.dust.alpha_crust               = 0.5
+erf.dust.alpha_efflor              = 0.3
+erf.dust.test_ustar                = 0.0
+erf.dust.rho_air                   = 1.225
+erf.dust.zref                      = 24.0
+erf.dust.supp_tau_base_s           = 3600.0
+erf.dust.test_surf_temp_K          = 293.15
+erf.dust.test_wind_speed           = 0.0
+erf.dust.atm_feedback              = 1.0
+erf.dust.transport_bins_separately = false
+# bin 0: 7 µm -> PM10 only; bin 1: 2.5 µm -> PM2.5+PM10; bin 2: 50 µm -> neither.
+erf.dust.bin_diameters             = 7.0e-6 2.5e-6 50.0e-6
+erf.dust.deposition_E0             = 3.0e-3
+erf.dust.loading_feedback_coeff    = 0.0
+erf.dust.use_dynamic_moisture      = false
+erf.dust.dust_plot_int             = 5
+erf.dust.dust_plot_prefix          = "plt_dust_"
+erf.dust.dust_diag_file            = "dust_diag.dat"
+erf.dust.dust_naaqs_file           = "dust_naaqs.csv"
+erf.dust.phreeqc_update_interval_s = 86400.0
+erf.dust.phreeqc_output_file       = ""
+erf.dust.blast_schedule_file       = ""
+erf.dust.blast_reactivity          = 2.0
+erf.dust.soil_type_file            = ""
+erf.dust.silt_fraction_file        = ""
+erf.dust.crust_index_file          = ""
+erf.dust.moisture_flag_file        = ""
+erf.dust.suppression_file          = ""
+erf.dust.surface_map_file          = ""

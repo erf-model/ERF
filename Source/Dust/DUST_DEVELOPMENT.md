@@ -24,8 +24,8 @@ No phase references or progress notes appear in source files.
 | 14 | MRF nonlocal countergradient extension to dust scalars | Complete | 2026-07-14 | Verified EddyDiff::Scalar_v set in ERF_ComputeDiffusivityMRF.cpp. dust_mrf_Sc_t parameter in TurbStruct. gamma_dust=0 confirmed. Debug print of Scalar_v_max and Theta_v_max in ERF_AdvanceDycore.cpp. DustMRFDiffusion regtest. |
 | 15 | MRF high-resolution diffusivity bounds at fine AMR levels | Not started | | |
 | 16 | Dust diagnostics and plotfile output | Complete | 2026-07-14 | ERF_DustPlotfile.H/cpp (VisMF::Write + WriteGenericPlotfileHeader on native dust grid, pattern: ERF_FirePlotfile.cpp). ERF_DustPlotfileCatalog.H (8 fields). ERF_DustStatsOutput.H (CSV append, pattern: ERF_FireStatsOutput.H). Final-step guard: nstep > m_last_dust_plot_step. DustOutput regtest (max_step=7, dust_plot_int=3, plots at 0,3,6,7). |
-| 17 | EPA NAAQS PM2.5/PM10 compliance output module | Not started | | |
-| 18 | MSHA worker exposure tracking module | Not started | | |
+| 17 | EPA NAAQS PM2.5/PM10 compliance output module | Complete | 2026-07-14 | ERF_DustPM.H (compute_pm_concentrations, update_running_average, compute_exceedance_flag). ERF_DustNAAQSOutput.H (append_naaqs_stats CSV). ERF_DustPlotfileCatalog.H updated to 14 fields. dust_naaqs.csv. DustNAAQS regtest. |
+| 18 | MSHA worker exposure tracking module | Complete | 2026-07-15 | ERF_DustMSHA.H (update_msha_dose, compute_msha_exceed). ERF_DustMSHAOutput.H (append_msha_stats, write_msha_shift_summary, append_receptor_sample). Catalog updated 14->18 fields. msha_exposure.csv, msha_shift_summary.csv, msha_receptor_<name>.csv. Shift reset via floor(t/T_shift). DustMSHA regtest. |
 | 19 | Lagrangian super-particle receptor tracking | Not started | | |
 | 20 | Multi-mine domain with per-site PHREEQC tables | Not started | | |
 | 21 | PHREEQC deposition feedback file writer | Not started | | |
