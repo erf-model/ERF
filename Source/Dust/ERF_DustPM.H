@@ -25,6 +25,7 @@
 #ifndef ERF_DUST_PM_H
 #define ERF_DUST_PM_H
 
+#include <vector>
 #include <AMReX_MultiFab.H>
 #include <AMReX_MFIter.H>
 
@@ -73,7 +74,7 @@ inline void compute_pm_concentrations(
     amrex::MultiFab&       pm25,
     amrex::MultiFab&       pm10,
     const amrex::MultiFab& dust_conc,
-    const amrex::Vector<amrex::Real>& bin_diameters,
+    const std::vector<amrex::Real>& bin_diameters,
     int n_active)
 {
     pm25.setVal(0.0);
