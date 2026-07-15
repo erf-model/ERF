@@ -433,6 +433,15 @@ DustLayer::initialize(
       amrex::Print() << "[DUST DEBUG] Phase 20: no site bounding boxes"
                      << " defined; single-site mode (Phase 4 table)\n";
   }
+
+  // Phase 21: PHREEQC deposition feedback file writer
+  if (dust_params.dust_debug) {
+    amrex::Print() << "[DUST DEBUG] Phase 21: phreeqc_feedback_interval_s="
+                   << dust_params.phreeqc_feedback_interval_s
+                   << " feedback_file=" << dust_params.phreeqc_feedback_file
+                   << " site_summary_file="
+                   << dust_params.phreeqc_site_summary_file << "\n";
+  }
 } // end initialize()
 
 void
