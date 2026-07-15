@@ -1916,6 +1916,151 @@ Implementation
 +* Fire grid reference: ``Source/Fire/ERF_FireGrid.H``
 +  https://github.com/hgopalan/ERF/blob/ERF-Fire/Source/Fire/ERF_FireGrid.H
 +
++Phase 21: PHREEQC Deposition Feedback File Writer
++~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
++
++Phase 21 closes the feedback loop by writing the ERF-computed dust deposition
++field to files that PHREEQC can consume as input for offline geochemical
++simulations. This enables the surface chemistry updates (crust formation,
++efflorescence, salt weathering) computed by PHREEQC to be re-imported via
++Phase 4's PHREEQC reader, updating the u*_t reduction factors for the next
++simulation phase.
++
++**File Outputs**
++
++1. **Deposition Grid File** (``phreeqc_feedback_file``, default: ``dust_dep_feedback.dat``)
++
++   Whitespace-delimited text file written every ``phreeqc_feedback_interval_s`` [s].
++   Format (one row per dust grid cell, ordered by (j,i)):
++
++   .. code-block:: text
++
++      # ERF-Dust deposition feedback file
++      # time_s=1.000  step=2
++      # x_centre_m  y_centre_m  deposition_kg_m2
++      3.750000e+02  3.750000e+02  2.345000e-04
++      1.125000e+03  3.750000e+02  1.892000e-04
++      ...
++
++   The file is **overwritten** at each write interval (not appended), so it
++   always contains the current cumulative deposition state. This design allows
++   PHREEQC batch scripts to read the latest deposition as input data.
++
++2. **Per-Site Deposition Summary** (``phreeqc_site_summary_file``, default: ``dust_dep_site_summary.csv``)
++
++   CSV file appended at the same interval. Columns:
++
++   .. code-block:: text
++
++      # PHREEQC per-site deposition summary
++      # References: Parkhurst & Appelo (2013).
++      time_s,site_index,site_name,total_deposition_kg
++      1.000,0,unassigned,1.234e+00
++      1.000,1,mine_north,5.678e+01
++      1.000,2,mine_south,2.345e+01
++
++   Per-site totals are computed by integrating the deposition rate over all
++   cells belonging to each site (using ``dust_site_id`` from Phase 20).
++   Site 0 represents cells unassigned to any named site.
++
++**Parameters**
++
++New input parameters in the ``erf.dust`` section:
++
++* ``phreeqc_feedback_interval_s`` [s] — Write interval. Default: 0 (disabled).
++  When 0, no periodic writes occur (only final-step write on simulation end).
++* ``phreeqc_feedback_file`` [string] — Path to deposition grid file.
++  Default: ``"dust_dep_feedback.dat"``
++* ``phreeqc_site_summary_file`` [string] — Path to per-site summary CSV.
++  Default: ``"dust_dep_site_summary.csv"``
++
++Example input:
++
++.. code-block:: bash
++
++   erf.dust.phreeqc_feedback_interval_s = 3600.0
++   erf.dust.phreeqc_feedback_file       = "dep_feedback_hourly.dat"
++   erf.dust.phreeqc_site_summary_file   = "dep_site_summary.csv"
++
++**Implementation Details**
++
++``ERF_DustPHREEQCWriter.H`` defines two inline functions:
++
++* ``write_phreeqc_deposition_file()`` — Collects all deposition values via
++  ``LoopOnCpu`` and ``ParallelDescriptor::ReduceRealSum``, then writes to disk
++  on IOProcessor. Follows the fire module pattern (``ERF_FirePrerequisites.H``).
++  Cell coordinates are computed as center positions:
++  ``x_c = x_lo + (i + 0.5) * dx``, ``y_c = y_lo + (j + 0.5) * dx``.
++
++* ``append_phreeqc_site_summary()`` — Integrates deposition by site using
++  ``dust_site_id`` (Phase 20) and cell area ``dx[0] * dx[1]``. Appends one
++  row per site to the CSV (header written on first call). Follows the fire
++  stats pattern (``ERF_FireStatsOutput.H``).
++
++``DustLayer::write_phreeqc_feedback()`` is called from ``write_output()``
++each timestep. Writes occur when:
++
++1. **Interval trigger** — ``phreeqc_feedback_interval_s > 0`` AND
++   ``(cur_time - m_last_phreeqc_write_time) >= interval - epsilon``
++2. **Final step** — ``is_final=true`` AND ``nstep > m_last_phreeqc_write_step``
++   (guarantees a write at simulation end even if interval has not elapsed)
++
++State tracking uses two member variables:
++
++* ``m_last_phreeqc_write_time`` — Prevents duplicate writes within interval
++* ``m_last_phreeqc_write_step`` — Ensures final-step write only occurs once
++
++When ``dust_debug=true``, ``[DUST DEBUG] Phase 21: PHREEQC feedback written``
++is printed with step, time, domain deposition sum, and ``is_final`` flag.
++
++**Workflow Example**
++
++A complete feedback loop with PHREEQC:
++
++1. ERF runs Phase 1–20 (dust emission, deposition, site assignment) for 1 day.
++   Every 3600 s, Phase 21 writes:
++   - ``dust_dep_feedback.dat`` — Cumulative deposition field [kg/m²]
++   - ``dust_dep_site_summary.csv`` — Per-site totals [kg]
++
++2. User runs a PHREEQC batch script:
++   - Reads ``dust_dep_feedback.dat`` as surface loading per cell
++   - Computes surface chemistry updates (crust formation, efflorescence, etc.)
++   - Writes output table: ``site_id, new_crust_index, new_efflor``
++
++3. User updates ``dust_crust_index_file`` or runs PHREEQC reader (Phase 4)
++   to re-import the updated chemistry on next ERF restart.
++
++4. Next simulation uses updated u*_t factors (Phase 4, 20), reducing emission
++   rates where crusts have formed.
++
++**Mass Conservation Check**
++
++For regression testing, verify mass conservation across all sites:
++
++.. code-block:: python
++
++   # Load CSV
++   df = pd.read_csv('dust_dep_site_summary.csv', comment='#')
++   # Group by time, sum all sites
++   domain_total = df.groupby('time_s')['total_deposition_kg'].sum()
++   # Should match domain integral of final dust_dep_feedback.dat
++
++**References**
++
++* Parkhurst, D. L., & Appelo, C. A. J. (2013). *PHREEQC Version 3*.
++  U.S. Geological Survey Techniques and Methods 6–A43.
++  https://pubs.usgs.gov/tm/06/a43/
++* Marticorena, B., & Bergametti, G. (1995). Modeling the atmospheric dust cycle:
++  1. Design of a soil-derived dust emission scheme. *J. Geophys. Res.*, 100, 16415–16430.
++  https://doi.org/10.1029/95JD00690
++* Shao, Y., & Lu, H. (2000). A simple expression for wind erosion threshold
++  friction velocity. *J. Geophys. Res.*, 105, 22437–22443.
++  https://doi.org/10.1029/2000JD900304
++* Fire periodic write pattern: ``Source/Fire/ERF_FirePrerequisites.H``
++  https://github.com/hgopalan/ERF/blob/f264ce7dd0f5e727c71c939659a6a5caf001d21b/Source/Fire/ERF_FirePrerequisites.H
++* Fire stats CSV pattern: ``Source/Fire/ERF_FireStatsOutput.H``
++  https://github.com/hgopalan/ERF/blob/f264ce7dd0f5e727c71c939659a6a5caf001d21b/Source/Fire/ERF_FireStatsOutput.H
++
 ------------------
 
 Development is divided into 24 phases. Phase completion status is recorded

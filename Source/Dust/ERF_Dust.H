@@ -31,6 +31,7 @@
 #include <ERF_DustNAAQSOutput.H>
 #include <ERF_DustMSHA.H>
 #include <ERF_DustMSHAOutput.H>
+#include <ERF_DustPHREEQCWriter.H>
 
 #endif // ERF_USE_DUST
 

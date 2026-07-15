@@ -204,6 +204,15 @@ struct DustParams {
     amrex::Vector<amrex::Real> site_x_hi;          ///< Site bounding box x_hi [m].
     amrex::Vector<amrex::Real> site_y_hi;          ///< Site bounding box y_hi [m].
 
+    // Phase 21: PHREEQC deposition feedback file writer.
+    // phreeqc_feedback_interval_s = 0 disables periodic writes.
+    // phreeqc_feedback_file: deposition grid file (overwritten each interval).
+    // phreeqc_site_summary_file: per-site CSV (appended each interval).
+    // Reference: Parkhurst & Appelo (2013). https://pubs.usgs.gov/tm/06/a43/
+    amrex::Real phreeqc_feedback_interval_s  = 0.0;
+    std::string phreeqc_feedback_file        = "dust_dep_feedback.dat";
+    std::string phreeqc_site_summary_file    = "dust_dep_site_summary.csv";
+
     /**
      * Constructor that reads all parameters from ParmParse.
      */
@@ -281,7 +290,8 @@ struct DustParams {
         pp.queryarr("site_y_lo",          site_y_lo);
         pp.queryarr("site_x_hi",          site_x_hi);
         pp.queryarr("site_y_hi",          site_y_hi);
-    }
-};
 
-#endif // ERF_DUST_PARAMS_H
+        // Phase 21: PHREEQC deposition feedback file writer
+        pp.query("phreeqc_feedback_interval_s", phreeqc_feedback_interval_s);
+        pp.query("phreeqc_feedback_file",        phreeqc_feedback_file);
+        pp.query("phreeqc_site_summary_file",    phreeqc_site_summary_file);
