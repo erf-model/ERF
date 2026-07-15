@@ -336,27 +336,48 @@ TEST(SAMScalar, MixedQsatDerivativeMatchesSymbolicDerivative)
 }
 
 // Motivation:
-// The Newton residual derivative should match the symbolic derivative of
-// F(T) = -T + Told + L*(qv - qsat).
+// The Newton residual helpers should match the three branch equations used by
+// NewtonIterSat: mixed phase, liquid-only, and ice-only.
 TEST(SAMScalar, NewtonResidualDerivativeMatchesSymbolicDerivative)
 {
     const amrex::Real tabs_new = amrex::Real(268.0);
     const amrex::Real tabs_old = amrex::Real(270.0);
-    const amrex::Real lstar = amrex::Real(2600.0);
-    const amrex::Real dlstar = amrex::Real(-2.0);
+    const amrex::Real fcond = amrex::Real(2500.0);
+    const amrex::Real ffus = amrex::Real(330.0);
+    const amrex::Real fsub = fcond + ffus;
     const amrex::Real qv = amrex::Real(5.0e-3);
-    const amrex::Real qsat = amrex::Real(4.6e-3);
-    const amrex::Real dqsat = amrex::Real(1.2e-4);
+    const amrex::Real qsatw = amrex::Real(4.6e-3);
+    const amrex::Real qi = amrex::Real(8.0e-4);
+    const amrex::Real qsati = amrex::Real(6.0e-4);
+    const amrex::Real qc = amrex::Real(3.0e-4);
+    const amrex::Real dqsatw = amrex::Real(1.2e-4);
+    const amrex::Real dqsati = amrex::Real(9.0e-5);
 
-    const amrex::Real expected_residual = -tabs_new + tabs_old + lstar * (qv - qsat);
-    const amrex::Real expected_derivative = -one + dlstar * (qv - qsat) - lstar * dqsat;
+    const amrex::Real expected_residual =
+        -tabs_new + tabs_old + fcond * (qv - qsatw) - ffus * (qi - qsati);
+    const amrex::Real expected_derivative =
+        -one - fcond * dqsatw + ffus * dqsati;
 
     expect_near_roundoff(
-        sam_newton_residual(tabs_new, tabs_old, lstar, qv, qsat),
+        sam_newton_residual(tabs_new, tabs_old, fcond, qv, qsatw, ffus, qi, qsati),
         expected_residual);
     expect_near_roundoff(
-        sam_newton_residual_derivative(lstar, dlstar, qv, qsat, dqsat),
+        sam_newton_residual_derivative(fcond, ffus, dqsatw, dqsati),
         expected_derivative);
+
+    expect_near_roundoff(
+        sam_newton_residual_no_ice(tabs_new, tabs_old, fcond, qv, qsatw, ffus, qi),
+        -tabs_new + tabs_old + fcond * (qv - qsatw) - ffus * qi);
+    expect_near_roundoff(
+        sam_newton_residual_derivative_no_ice(fcond, dqsatw),
+        -one - fcond * dqsatw);
+
+    expect_near_roundoff(
+        sam_newton_residual_no_liquid(tabs_new, tabs_old, fsub, qv, qsati, ffus, qc),
+        -tabs_new + tabs_old + fsub * (qv - qsati) + ffus * qc);
+    expect_near_roundoff(
+        sam_newton_residual_derivative_no_liquid(fsub, dqsati),
+        -one - fsub * dqsati);
 }
 
 // Motivation:

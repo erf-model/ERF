@@ -22,10 +22,6 @@ struct SAMKernelCase {
     amrex::Real qsati;
     amrex::Real dqsatw;
     amrex::Real dqsati;
-    amrex::Real lstar;
-    amrex::Real dlstar;
-    amrex::Real qv;
-    amrex::Real qsat;
     amrex::Real dtn;
     amrex::Real qcc;
     amrex::Real qii;
@@ -361,9 +357,8 @@ SAMKernelOutputs host_reference (const SAMKernelCase& test_case)
         sam_mixed_dqsat_dT(test_case.omn, test_case.domn,
                            test_case.qsatw, test_case.qsati,
                            test_case.dqsatw, test_case.dqsati),
-        sam_newton_residual_derivative(test_case.lstar, test_case.dlstar,
-                                       test_case.qv, test_case.qsat,
-                                       test_case.dqsatw),
+        sam_newton_residual_derivative(kFacCond, kFacFus,
+                                       test_case.dqsatw, test_case.dqsati),
         sam_autoconversion_rates(test_case.dtn, test_case.qcc, test_case.qii,
                                  test_case.coefice).dqca,
         sam_autoconversion_rates(test_case.dtn, test_case.qcc, test_case.qii,
@@ -443,9 +438,8 @@ void launch_sam_helper_kernel (const int ncases,
             sam_mixed_dqsat_dT(test_case.omn, test_case.domn,
                                test_case.qsatw, test_case.qsati,
                                test_case.dqsatw, test_case.dqsati),
-            sam_newton_residual_derivative(test_case.lstar, test_case.dlstar,
-                                           test_case.qv, test_case.qsat,
-                                           test_case.dqsatw),
+            sam_newton_residual_derivative(kFacCond, kFacFus,
+                                           test_case.dqsatw, test_case.dqsati),
             auto_sources.dqca,
             auto_sources.dqia,
             evap_sources.dqpr,
@@ -479,7 +473,6 @@ std::vector<SAMKernelCase> make_kernel_cases ()
     return {
         {kSAMWithIceMode, tbgmin - amrex::Real(1.0), amrex::Real(0.8), amrex::Real(0.0), amrex::Real(1.0e-2),
          amrex::Real(6.0e-3), amrex::Real(4.0e-3), amrex::Real(3.0e-4), amrex::Real(2.0e-4),
-         amrex::Real(2500.0), amrex::Real(-1.0), amrex::Real(5.0e-3), amrex::Real(4.5e-3),
          amrex::Real(2.0), qcw0, qci0, amrex::Real(1.0),
          amrex::Real(0.0), amrex::Real(0.0), amrex::Real(0.0),
          -amrex::Real(1.0e-6), amrex::Real(0.0), amrex::Real(4.0), amrex::Real(100.0),
@@ -493,7 +486,6 @@ std::vector<SAMKernelCase> make_kernel_cases ()
          gamr1, gamr2, gams1, gams2, gamg1, gamg2},
         {kSAMWithIceMode, amrex::Real(0.5) * (tbgmin + tbgmax), amrex::Real(1.0), amrex::Real(0.4), amrex::Real(1.5e-2),
          amrex::Real(8.0e-3), amrex::Real(6.5e-3), amrex::Real(4.0e-4), amrex::Real(2.5e-4),
-         amrex::Real(2700.0), amrex::Real(-2.0), amrex::Real(7.0e-3), amrex::Real(6.1e-3),
          amrex::Real(1.5), qcw0 + amrex::Real(3.0e-4), qci0 + amrex::Real(2.0e-4), amrex::Real(1.7),
          amrex::Real(4.0e-4), amrex::Real(5.0e-4), amrex::Real(6.0e-4),
          amrex::Real(3.0e-4), amrex::Real(12.0), amrex::Real(5.0), amrex::Real(100.0),
@@ -508,7 +500,6 @@ std::vector<SAMKernelCase> make_kernel_cases ()
          gamr1, gamr2, gams1, gams2, gamg1, gamg2},
         {kSAMWithIceMode, tbgmax + amrex::Real(1.0), amrex::Real(1.2), amrex::Real(1.0), amrex::Real(0.0),
          amrex::Real(1.0e-2), amrex::Real(7.0e-3), amrex::Real(5.0e-4), amrex::Real(3.0e-4),
-         amrex::Real(2400.0), amrex::Real(-1.5), amrex::Real(8.5e-3), amrex::Real(7.5e-3),
          amrex::Real(1.0), qcw0 + amrex::Real(1.0e-4), qci0, amrex::Real(0.9),
          amrex::Real(8.0e-4), amrex::Real(2.0e-4), amrex::Real(1.0e-4),
          amrex::Real(1.0e3), amrex::Real(20.0), amrex::Real(3.0), amrex::Real(50.0),
@@ -523,7 +514,6 @@ std::vector<SAMKernelCase> make_kernel_cases ()
          gamr1, gamr2, gams1, gams2, gamg1, gamg2},
         {kSAMNoIceMode, amrex::Real(245.0), amrex::Real(0.6), amrex::Real(1.0), amrex::Real(0.0),
          amrex::Real(5.0e-3), amrex::Real(3.0e-3), amrex::Real(2.0e-4), amrex::Real(1.0e-4),
-         amrex::Real(2550.0), amrex::Real(-0.5), amrex::Real(4.0e-3), amrex::Real(3.5e-3),
          amrex::Real(0.75), qcw0 + amrex::Real(2.0e-4), qci0 + amrex::Real(1.0e-4), amrex::Real(1.3),
          amrex::Real(3.0e-4), amrex::Real(4.0e-4), amrex::Real(5.0e-4),
          amrex::Real(5.0e-5), amrex::Real(2.0), amrex::Real(2.0), amrex::Real(100.0),

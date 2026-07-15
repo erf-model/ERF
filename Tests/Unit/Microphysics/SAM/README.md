@@ -167,6 +167,36 @@ inactive_liquid_identity_residual = -dprc*eps/(dqc + eps)
 The same epsilon-scale identity residual applies component-wise to the other
 liquid and ice sinks.
 
+## Cloud saturation adjustment
+
+The mixed-phase Newton solve uses the coupled constraints
+
+```text
+qv'  = qsatw(T')
+qn'  = qt - qsatw(T')
+qcl' = omega_n(T')*qn'
+qci' = (1 - omega_n(T'))*qn'
+```
+
+and solves the held-pressure latent-proxy residual
+
+```text
+F(T') = -T' + T0
+      + fac_cond*(qv0 - qsatw(T'))
+      - fac_fus*(qci0 - qci'(T'))
+```
+
+with
+
+```text
+dF/dT = -1 - fac_cond*dqsatw/dT + fac_fus*dqci'/dT.
+```
+
+The liquid-only and ice-only fallback residuals are tested separately. The
+end-to-end mixed-phase test checks water conservation, latent-proxy closure,
+water saturation, and the final `omega_n` split rather than the obsolete
+effective-latent-heat/mixed-`qsat` relation.
+
 ## Component-flux derivative
 
 Executed SymPy output:
@@ -214,6 +244,7 @@ budget.
 | Exact all-source active diagnostics | `SAMPhysicalProperties.PrecipSources_AllSpeciesNonzeroExpectedDiagnostics`, `SAMPhysicalProperties.PrecipSources_AllSpeciesNonzeroAllSourceTermsActive` |
 | Total-water conservation across representative source cases | `SAMPhysicalProperties.PrecipSources_ConserveTotalWaterAcrossRepresentativeCases` |
 | Public constant-pressure latent-proxy closure | `SAMPhysicalProperties.PublicPrecipConstantPressureLatentProxySingleCell`, `SAMParallel.PrecipConstantPressureLatentProxyBudgetDecompositionInvariant`, `SAMParallel.PrecipDetJWeightedConstantPressureLatentProxyBudgetDecompositionInvariant` |
+| Coupled cloud saturation residuals and branch constraints | `SAMScalar.NewtonResidualDerivativeMatchesSymbolicDerivative`, `SAMPhysicalProperties.CloudAdjustmentMixedPhaseSatisfiesCoupledConstraints`, `SAMPhysicalProperties.CloudAdjustmentNoIceSatisfiesLiquidOnlyConstraints`, `SAMPhysicalProperties.CloudAdjustmentDryFallbackExhaustsCondensate` |
 | Component-flux derivative | `SAMScalar.PrecipComponentFluxDerivativeInPositiveDomain` |
 | Component-flux tiny-positive activation | `SAMScalar.PrecipComponentFluxTinyPositiveContract`, `SAMScalar.PrecipComponentFlux_ZeroWhenComponentIsZero` |
 | Component-wise sedimentation telescoping budget | `SAMPhysicalProperties.PrecipFall_RainSnowGraupelComponentBudgetsClose`, `SAMPhysicalProperties.PrecipFall_DetJWeightedComponentBudgetsClose`, `SAMParallel.PrecipFallComponentBudgetsIndependentOfDecomposition` |
