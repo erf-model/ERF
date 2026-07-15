@@ -58,6 +58,7 @@
 #include <ERF_DustPM.H>
 #include <ERF_DustNAAQSOutput.H>
 #include <ERF_DustSiteRegistry.H>
+#include <ERF_DustPHREEQCWriter.H>
 #endif
 
 #if defined(ERF_USE_DUST) && defined(ERF_USE_PARTICLES)
@@ -298,6 +299,28 @@ public:
      */
     void write_output(int nstep, double cur_time, bool is_final = false);
 
+    /**
+     * @brief Write PHREEQC deposition feedback files if interval has elapsed.
+     *
+     * Called from write_output() each timestep. Writes:
+     *   (A) phreeqc_feedback_file: full grid deposition [kg/m^2] (overwritten).
+     *   (B) phreeqc_site_summary_file: per-site totals [kg] (appended).
+     *
+     * Triggered when:
+     *   phreeqc_feedback_interval_s > 0 AND
+     *   (cur_time - m_last_phreeqc_write_time) >= phreeqc_feedback_interval_s
+     *   OR is_final = true AND nstep > m_last_phreeqc_write_step.
+     *
+     * Pattern: WriteAtFinalTime guard in Source/ERF.cpp.
+     * Fire reference: ERF_FirePrerequisites.H/cpp.
+     *
+     * @param nstep     Current step.
+     * @param cur_time  Simulation time [s].
+     * @param is_final  True when called from WriteAtFinalTime.
+     */
+    void write_phreeqc_feedback(int nstep, amrex::Real cur_time,
+                                 bool is_final = false);
+
 private:
     DustGrid                              m_dg;
 
@@ -363,6 +386,8 @@ private:
     int                                   m_step = 0;
     amrex::Real                           m_time = 0.0;
     int                                   m_last_dust_plot_step = -1;
+    amrex::Real                           m_last_phreeqc_write_time = -1.0e30; ///< Time of last PHREEQC feedback write.
+    int                                   m_last_phreeqc_write_step = -1;      ///< Step of last PHREEQC feedback write.
     amrex::Real                           m_last_phreeqc_update = -1.0e30;
     int                                   m_msha_shift_count = 0; ///< Phase 18: shift counter for MSHA.
 #ifdef ERF_USE_DUST

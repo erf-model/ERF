@@ -931,6 +931,9 @@ DustLayer::write_output(int nstep, double cur_time, bool is_final)
         }
     }
 
+    // Phase 21: PHREEQC deposition feedback file writer
+    write_phreeqc_feedback(nstep, cur_time, is_final);
+
     if (m_params.dust_debug) {
         amrex::Real em = dust_emission_flux   ? dust_emission_flux->sum(0)   : 0.0;
         amrex::Real dp = dust_deposition_rate ? dust_deposition_rate->sum(0) : 0.0;
@@ -939,5 +942,52 @@ DustLayer::write_output(int nstep, double cur_time, bool is_final)
                        << " dep_total=" << dp << " kg/m^2\n";
     }
 }
+
+void
+DustLayer::write_phreeqc_feedback(int nstep, amrex::Real cur_time,
+                                   bool is_final)
+{
+    if (!dust_deposition_rate) return;
+    const amrex::Real interval = m_params.phreeqc_feedback_interval_s;
+    if (interval <= 0.0 && !is_final) return;
+
+    bool do_write = false;
+    if (interval > 0.0 &&
+        (cur_time - m_last_phreeqc_write_time) >= interval - 0.5*interval*1e-6)
+        do_write = true;
+    if (is_final && nstep > m_last_phreeqc_write_step)
+        do_write = true;
+
+    if (!do_write) return;
+
+    // Task A: write full-grid deposition file.
+    write_phreeqc_deposition_file(
+        m_params.phreeqc_feedback_file,
+        *dust_deposition_rate,
+        m_dg.geom,
+        cur_time, nstep);
+
+    // Task B: per-site summary CSV.
+    append_phreeqc_site_summary(
+        m_params.phreeqc_site_summary_file,
+        *dust_deposition_rate,
+        dust_site_id.get(),
+        m_dg.geom,
+        cur_time,
+        m_params.site_names);
+
+    m_last_phreeqc_write_time = cur_time;
+    m_last_phreeqc_write_step = nstep;
+
+    if (m_params.dust_debug) {
+        amrex::Real dep_sum = dust_deposition_rate->sum(0);
+        amrex::Print() << "[DUST DEBUG] Phase 21: PHREEQC feedback written"
+                       << " step=" << nstep
+                       << " time=" << cur_time
+                       << " dep_sum=" << dep_sum << " kg/m^2"
+                       << " is_final=" << is_final << "\n";
+    }
+}
+
 
 #endif // ERF_USE_DUST
