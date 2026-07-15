@@ -166,21 +166,21 @@ void ERFDustPC::AdvanceParticles(const amrex::MultiFab& xvel,
             Real u = 0.0, v = 0.0, w = 0.0;
             
             // Check bounds before accessing
-            if (i_cell >= i_lo && i_cell < i_hi && j_cell >= j_lo && j_cell <= j_hi && 
-                k_cell >= k_lo && k_cell <= k_hi) {
+            if (i_cell >= i_lo && i_cell < i_hi && j_cell >= j_lo && j_cell < j_hi && 
+                k_cell >= k_lo && k_cell < k_hi) {
                 // Average x-velocities
                 Real u1 = xvel_const_arr(i_cell, j_cell, k_cell);
-                Real u2 = (i_cell < i_hi) ? xvel_const_arr(i_cell+1, j_cell, k_cell) : u1;
+                Real u2 = (i_cell + 1 < i_hi) ? xvel_const_arr(i_cell+1, j_cell, k_cell) : u1;
                 u = 0.5 * (u1 + u2);
                 
                 // Average y-velocities
                 Real v1 = yvel_const_arr(i_cell, j_cell, k_cell);
-                Real v2 = (j_cell < j_hi) ? yvel_const_arr(i_cell, j_cell+1, k_cell) : v1;
+                Real v2 = (j_cell + 1 < j_hi) ? yvel_const_arr(i_cell, j_cell+1, k_cell) : v1;
                 v = 0.5 * (v1 + v2);
                 
                 // Average z-velocities
                 Real w1 = zvel_const_arr(i_cell, j_cell, k_cell);
-                Real w2 = (k_cell < k_hi) ? zvel_const_arr(i_cell, j_cell, k_cell+1) : w1;
+                Real w2 = (k_cell + 1 < k_hi) ? zvel_const_arr(i_cell, j_cell, k_cell+1) : w1;
                 w = 0.5 * (w1 + w2);
             }
             
