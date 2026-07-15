@@ -193,6 +193,17 @@ struct DustParams {
                                                    ///< Requires ERF_USE_PARTICLES.
     int         particle_release_interval = 1;  ///< Release every N steps.
 
+    // Phase 20: multi-mine site PHREEQC tables.
+    // Each site has a name, PHREEQC file, and bounding box in domain metres.
+    // Sites are indexed 1..N; 0 = unassigned (global Phase 4 table used).
+    // Reference: Parkhurst & Appelo (2013). https://pubs.usgs.gov/tm/06/a43/
+    amrex::Vector<std::string> site_names;         ///< Site name labels.
+    amrex::Vector<std::string> site_phreeqc_files; ///< Per-site PHREEQC file paths.
+    amrex::Vector<amrex::Real> site_x_lo;          ///< Site bounding box x_lo [m].
+    amrex::Vector<amrex::Real> site_y_lo;          ///< Site bounding box y_lo [m].
+    amrex::Vector<amrex::Real> site_x_hi;          ///< Site bounding box x_hi [m].
+    amrex::Vector<amrex::Real> site_y_hi;          ///< Site bounding box y_hi [m].
+
     /**
      * Constructor that reads all parameters from ParmParse.
      */
@@ -262,6 +273,14 @@ struct DustParams {
                 bin_diameters.assign(tmp.begin(), tmp.end());
             }
         }
+
+        // Phase 20: multi-mine site configuration
+        pp.queryarr("site_names",         site_names);
+        pp.queryarr("site_phreeqc_files", site_phreeqc_files);
+        pp.queryarr("site_x_lo",          site_x_lo);
+        pp.queryarr("site_y_lo",          site_y_lo);
+        pp.queryarr("site_x_hi",          site_x_hi);
+        pp.queryarr("site_y_hi",          site_y_hi);
     }
 };
 

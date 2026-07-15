@@ -57,6 +57,7 @@
 #include <ERF_DustStatsOutput.H>
 #include <ERF_DustPM.H>
 #include <ERF_DustNAAQSOutput.H>
+#include <ERF_DustSiteRegistry.H>
 #endif
 
 #if defined(ERF_USE_DUST) && defined(ERF_USE_PARTICLES)
@@ -149,6 +150,8 @@ public:
      * @return Pointer to dust_source_map, nullptr if not initialized.
      */
     const amrex::MultiFab* get_source_map()        const { return dust_source_map.get(); }
+
+    const amrex::MultiFab* get_site_id()           const { return dust_site_id.get(); }
 
     const DustGrid&        get_dust_grid()        const { return m_dg; }
     const amrex::Geometry& get_dust_geom()        const { return m_dg.geom; }
@@ -347,6 +350,10 @@ private:
      std::unique_ptr<amrex::MultiFab>     dust_source_map;   ///< Cumulative source deposition [kg/m^2]
      amrex::Geometry                       m_geom_atm;        ///< Atmospheric geometry (stored for particle use)
 #endif
+
+    // Phase 20: multi-mine site assignment
+    std::unique_ptr<amrex::MultiFab>      dust_site_id;      ///< Per-cell site index [0=unassigned, 1..N].
+    amrex::Vector<amrex::Real>            m_site_ustar_t_factors; ///< Per-site u*_t reduction factors
 
 
     int                                   m_dust_scalar_comp = -1; ///< cc_source component index for dust mass.
