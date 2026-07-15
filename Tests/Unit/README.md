@@ -9,12 +9,10 @@ Adding, reviewing, or debugging a test? Use the canonical
 [Unit Testing guide](../../Docs/sphinx_doc/UnitTests.rst), also available in the
 [rendered documentation](https://erf.readthedocs.io/en/latest/UnitTests.html).
 
-The canonical guide is the Sphinx
-[Unit Testing page](../../Docs/sphinx_doc/UnitTests.rst). The rendered guide is
-available in the
-[ERF documentation](https://erf.readthedocs.io/en/latest/UnitTests.html).
+## MPI-enabled quick reference
 
-## Quick start
+This path requires a working MPI installation. Use the Getting Started page
+above for a serial CPU-only first build.
 
 ```bash
 git submodule update --init --recursive
@@ -45,5 +43,5 @@ ctest --test-dir build-tests -L infrastructure --output-on-failure --no-tests=er
 
 Read the Sphinx guide before adding a test. It includes build variants,
 test labels, source registration, assertion helpers, parameterized tests,
-device and MPI patterns, portability rules, troubleshooting, and a checklist
-for contributors and coding agents.
+device and MPI patterns, portability rules, troubleshooting, and completion
+criteria for contributors and coding agents.

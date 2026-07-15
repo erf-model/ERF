@@ -1,5 +1,5 @@
 
- .. _RegressionTests:
+.. _RegressionTests:
 
 Regression Tests
 ================
