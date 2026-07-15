@@ -13,6 +13,8 @@
 #include <ERF_DustSuppression.H>
 #include <ERF_DustWindExtract.H>
 #include <ERF_DustAtmCoupling.H>
+#include <ERF_DustMSHA.H>
+#include <ERF_DustMSHAOutput.H>
 #include <ERF.H>
 #include <ERF_SurfaceLayer.H>
 #include <AMReX_Print.H>
@@ -252,6 +254,28 @@ DustLayer::initialize(
                    << dust_params.dust_naaqs_file << "\n";
   }
 
+  // Phase 18: MSHA worker exposure MultiFabs on dust grid.
+  dust_msha_dose = std::make_unique<amrex::MultiFab>(m_dg.ba, m_dg.dm, 1, amrex::IntVect(1,1,0));
+  dust_msha_twa = std::make_unique<amrex::MultiFab>(m_dg.ba, m_dg.dm, 1, amrex::IntVect(1,1,0));
+  dust_msha_exceed = std::make_unique<amrex::MultiFab>(m_dg.ba, m_dg.dm, 1, amrex::IntVect(1,1,0));
+  dust_msha_shift_twa = std::make_unique<amrex::MultiFab>(m_dg.ba, m_dg.dm, 1, amrex::IntVect(1,1,0));
+  for (auto* mf : {dust_msha_dose.get(), dust_msha_twa.get(),
+                   dust_msha_exceed.get(), dust_msha_shift_twa.get()})
+    mf->setVal(0.0);
+
+  if (dust_params.dust_debug) {
+    amrex::Print() << "[DUST DEBUG] Phase 18: MSHA exposure MultiFabs allocated\n"
+                   << "[DUST DEBUG] Phase 18: PEL=" << dust_params.msha_pel_mg_m3 << " mg/m3 (30 CFR 56.5001)\n"
+                   << "[DUST DEBUG] Phase 18: shift_duration=" << dust_params.msha_shift_duration_s << " s\n"
+                   << "[DUST DEBUG] Phase 18: n_receptors=" << dust_params.msha_receptor_names.size() << "\n";
+    for (int r = 0; r < (int)dust_params.msha_receptor_names.size(); ++r) {
+      amrex::Print() << "[DUST DEBUG] Phase 18: receptor " << r << ": "
+                     << dust_params.msha_receptor_names[r] << " ("
+                     << dust_params.msha_receptor_x[r] << ", "
+                     << dust_params.msha_receptor_y[r] << ")\n";
+    }
+  }
+
   // Populate surface MultiFabs from external rasters
   populate_dust_surface_maps(
     *dust_soil_type, *dust_silt_fraction, *dust_crust_index,
@@ -380,24 +404,17 @@ DustLayer::advance(
   ++m_step;
   m_time += dt;
 
-  // Phase 13: Entry debug output
+  // Phase 13/17/18: Consolidated entry debug output
   if (m_params.dust_debug) {
-    amrex::Real ustar_max = dust_ustar_in  ? dust_ustar_in->max(0)        : 0.0;
-    amrex::Real flux_max  = dust_emission_flux ? dust_emission_flux->max(0) : 0.0;
-    amrex::Real conc_max  = dust_conc_sfc  ? dust_conc_sfc->max(0)        : 0.0;
+    amrex::Real cs = dust_conc_sfc ? dust_conc_sfc->max(0) * 1e9 : 0.0;
+    amrex::Real p10 = dust_pm10 ? dust_pm10->max(0) : 0.0;
+    amrex::Real twa = dust_msha_twa ? dust_msha_twa->max(0) : 0.0;
     amrex::Print() << "[DUST DEBUG] advance: step=" << m_step
-                   << " ustar_max=" << ustar_max << " m/s"
-                   << " emission_flux_max=" << flux_max << " kg/m^2/s"
-                   << " conc_sfc_max=" << conc_max << " kg/m^3\n";
+                   << " conc_sfc=" << cs << " ug/m3"
+                   << " PM10=" << p10 << " ug/m3"
+                   << " MSHA_TWA=" << twa << " mg/m3\n";
   }
 
-  // Phase 17: Additional debug output for conc_sfc_max in NAAQS units
-  if (m_params.dust_debug && dust_conc_sfc) {
-    amrex::Real cs = dust_conc_sfc->max(0);
-    amrex::Print() << "[DUST DEBUG] advance: step=" << m_step
-                   << " conc_sfc_max_entering_NAAQS=" << cs*1e9
-                   << " ug/m^3\n";
-  }
 
   // Phase 9: Extract wind and surface fields from atmospheric solver
   bool have_atm =
@@ -575,6 +592,10 @@ DustLayer::advance(
   // Called after extract_atm_return_fields has updated dust_conc_sfc.
   // Uses m_time - dt as the time at which fields were extracted (beginning of this step).
   compute_naaqs_diagnostics(dt, m_time - dt, m_step);
+
+  // Phase 18: Compute MSHA worker exposure tracking
+  // Called after compute_naaqs_diagnostics.
+  compute_msha_exposure(dt, m_time - dt, m_step);
 #endif
 }
 #ifdef ERF_USE_DUST
@@ -786,6 +807,57 @@ DustLayer::compute_naaqs_diagnostics(amrex::Real dt, amrex::Real cur_time, int n
                        << " PM10_max=" << pm10_max << " ug/m^3"
                        << " PM25_exceed_cells=" << (long)n_ex25
                        << " PM10_exceed_cells=" << (long)n_ex10 << "\n";
+    }
+}
+
+void
+DustLayer::compute_msha_exposure(amrex::Real dt, amrex::Real cur_time, int nstep)
+{
+    if (!dust_pm10) return;
+
+    using namespace amrex;
+
+    // Task A: Update dose and TWA from PM10
+    update_msha_dose(*dust_msha_dose, *dust_msha_twa, *dust_pm10, dt);
+
+    // Task B: Compute exceedance flag
+    compute_msha_exceed(*dust_msha_exceed, *dust_msha_twa, m_params.msha_pel_mg_m3);
+
+    // Task D: Shift reset check
+    Real sd = m_params.msha_shift_duration_s;
+    if (sd > 0.0 && std::floor(cur_time / sd) > std::floor((cur_time - dt) / sd)) {
+        // Shift boundary crossed: copy TWA to shift_twa, write summary, reset dose
+        MultiFab::Copy(*dust_msha_shift_twa, *dust_msha_twa, 0, 0, 1, 0);
+        write_msha_shift_summary(++m_msha_shift_count, cur_time,
+                                 m_params.msha_shift_file,
+                                 *dust_msha_twa, *dust_msha_exceed);
+        dust_msha_dose->setVal(0.0);
+        if (m_params.dust_debug) {
+            amrex::Print() << "[DUST DEBUG] Phase 18: shift " << m_msha_shift_count
+                           << " ended t=" << cur_time << " s  dose reset\n";
+        }
+    }
+
+    // Task D: Write per-step CSV
+    append_msha_stats(nstep, cur_time, m_params.msha_exposure_file,
+                      *dust_msha_twa, *dust_msha_exceed, *dust_msha_dose);
+
+    // Task C: Sample receptor points
+    for (int r = 0; r < (int)m_params.msha_receptor_names.size(); ++r) {
+        append_receptor_sample(nstep, cur_time,
+            "msha_receptor_" + m_params.msha_receptor_names[r] + ".csv",
+            m_params.msha_receptor_names[r],
+            m_params.msha_receptor_x[r], m_params.msha_receptor_y[r],
+            *dust_pm10, m_dg.geom);
+    }
+
+    // Debug output
+    if (m_params.dust_debug) {
+        Real tmax = dust_msha_twa->max(0);
+        Real nex = dust_msha_exceed->sum(0);
+        amrex::Print() << "[DUST DEBUG] Phase 18: step=" << nstep
+                       << " TWA_max=" << tmax << " mg/m3  exceed=" << (long)nex
+                       << " shift=" << m_msha_shift_count << "\n";
     }
 }
 
