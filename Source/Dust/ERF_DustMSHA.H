@@ -24,7 +24,6 @@
 
 #include <AMReX_MultiFab.H>
 #include <AMReX_MFIter.H>
-#include <AMReX_ParallelFor.H>
 
 namespace DustMSHAConst {
     constexpr amrex::Real UG_TO_MG  = 1.0e-3;     ///< Convert µg/m³ to mg/m³
