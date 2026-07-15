@@ -27,20 +27,31 @@ void ERFDustPC::ReleaseParticles(const amrex::MultiFab& emission_flux,
     const auto& dx_atm   = geom_atm.CellSize();
     const Real dz_atm    = dx_atm[2];
     const Real z_lo_atm  = plo_atm[2];
+    // Release at k=1 centre so z > z_deposit = z_lo + 0.5*dz
     const Real z_release = z_lo_atm + 1.5 * dz_atm;
 
     const Real v_settle = compute_stokes_settling(d_m, rho_p, 1.225,
                                                    DustSettlingConst::MU_AIR_STD);
 
-    for (MFIter mfi(emission_flux, true); mfi.isValid(); ++mfi) {
-        const Box& bx        = mfi.tilebox();
-        auto flux_arr        = emission_flux.const_array(mfi);
-        const auto& plo_dust = geom_dust.ProbLoArray();
+    // Copy emission_flux onto the particle container's own BoxArray/DM
+    // so that DefineAndReturnParticleTile(0, mfi) index matches.
+    amrex::MultiFab flux_on_pc(ParticleBoxArray(0),
+                               ParticleDistributionMap(0),
+                               emission_flux.nComp(),
+                               amrex::IntVect(1,1,0));
+    flux_on_pc.setVal(0.0);
+    flux_on_pc.ParallelCopy(emission_flux, 0, 0, emission_flux.nComp(),
+                            emission_flux.nGrowVect(),
+                            amrex::IntVect(0),
+                            geom_atm.periodicity());
 
-        auto& particle_tile  = DefineAndReturnParticleTile(0, mfi);
+    const auto& plo_dust = geom_dust.ProbLoArray();
 
-        // Collect particles to add for this tile
-        // Use ParticleTile's push_back with explicit SoA data
+    for (MFIter mfi(flux_on_pc, true); mfi.isValid(); ++mfi) {
+        const Box& bx   = mfi.tilebox();
+        auto flux_arr   = flux_on_pc.const_array(mfi);
+
+        auto& particle_tile = DefineAndReturnParticleTile(0, mfi);
         auto& aos = particle_tile.GetArrayOfStructs();
         auto& soa = particle_tile.GetStructOfArrays();
 
@@ -51,7 +62,6 @@ void ERFDustPC::ReleaseParticles(const amrex::MultiFab& emission_flux,
             const Real y_pos = plo_dust[1] + (j + 0.5) * dy_dust_m;
             const Real mass  = flux_arr(i, j, k) * dx_dust_m * dy_dust_m * dt;
 
-            // Step 1: push AoS particle struct (positions + id + cpu only)
             ParticleType p;
             p.pos(0) = x_pos;
             p.pos(1) = y_pos;
@@ -60,8 +70,6 @@ void ERFDustPC::ReleaseParticles(const amrex::MultiFab& emission_flux,
             p.cpu()  = ParallelDescriptor::MyProc();
             aos().push_back(p);
 
-            // Step 2: push SoA real attributes one by one
-            // Must match DustParticleRealIdx order: mass, v_settle, release_time, src_i_f, src_j_f
             soa.GetRealData(DustParticleRealIdx::mass        ).push_back(mass);
             soa.GetRealData(DustParticleRealIdx::v_settle    ).push_back(v_settle);
             soa.GetRealData(DustParticleRealIdx::release_time).push_back(Real(0.0));
