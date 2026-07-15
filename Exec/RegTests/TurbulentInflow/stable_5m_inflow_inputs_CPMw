@@ -92,5 +92,5 @@ erf.perturbation_layers = 3
 erf.perturbation_offset = 5
 erf.perturbation_box_dims = 8 8 3
 erf.perturbation_w_amp = 1.5
-erf.perturbation_zlo = 1
-erf.perturbation_zhi = 40
+erf.perturbation_klo = 1
+erf.perturbation_khi = 40
