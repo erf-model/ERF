@@ -197,12 +197,14 @@ ERF::Evolve ()
         if (m_DustLayer) {
             const amrex::MultiFab* xvel_ptr  = &vars_new[0][Vars::xvel];
             const amrex::MultiFab* yvel_ptr  = &vars_new[0][Vars::yvel];
+            const amrex::MultiFab* zvel_ptr  = &vars_new[0][Vars::zvel];  // Phase 19
             const amrex::MultiFab* zphys_ptr =
                 (z_phys_cc.size() > 0) ? z_phys_cc[0].get() : nullptr;
+            const amrex::Geometry* geom_atm = &geom[0];  // Phase 19
             int nz = geom[0].Domain().length(2);
             m_DustLayer->advance(dt[0], m_DustLayer->get_params(),
                                  m_SurfaceLayer.get(),
-                                 xvel_ptr, yvel_ptr, zphys_ptr, nz);
+                                 xvel_ptr, yvel_ptr, zvel_ptr, zphys_ptr, geom_atm, nz);
             
             // Coarsen dust emission flux to atmospheric grid for injection at next step
             // One-step explicit lag: flux from this step will be injected in next step

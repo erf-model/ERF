@@ -59,6 +59,11 @@
 #include <ERF_DustNAAQSOutput.H>
 #endif
 
++#if defined(ERF_USE_DUST) && defined(ERF_USE_PARTICLES)
++#include <ERF_DustPC.H>
++#endif
+
+
 // Forward declarations
 class SurfaceLayer;
 class ERF;
@@ -90,21 +95,26 @@ public:
      * @brief Advance the dust layer by one atmospheric timestep.
      *
      * Phases 5-13 replace the stub with emission, coupling, and deposition physics.
-     *
-     * @param[in] dt                 Atmospheric timestep [s].
-     * @param[in] dust_params        Dust configuration parameters.
-     * @param[in] surface_layer      Pointer to SurfaceLayer (nullptr = placeholder fallback).
-     * @param[in] xvel_mf            3D u velocity field (nullptr = placeholder fallback).
-     * @param[in] yvel_mf            3D v velocity field (nullptr = placeholder fallback).
-     * @param[in] z_phys_cc_mf       3D terrain height field (nullptr = placeholder fallback).
-     * @param[in] nz                 Number of vertical levels (0 = placeholder fallback).
-     */
+    * Phase 19 adds Lagrangian particle advection (requires xvel, yvel, zvel, geom_atm).
+    *
+    * @param[in] dt                 Atmospheric timestep [s].
+    * @param[in] dust_params        Dust configuration parameters.
+    * @param[in] surface_layer      Pointer to SurfaceLayer (nullptr = placeholder fallback).
+    * @param[in] xvel_mf            3D u velocity field (nullptr = placeholder fallback).
+    * @param[in] yvel_mf            3D v velocity field (nullptr = placeholder fallback).
+    * @param[in] zvel_mf            3D w velocity field (nullptr = placeholder fallback). Phase 19.
+    * @param[in] z_phys_cc_mf       3D terrain height field (nullptr = placeholder fallback).
+    * @param[in] geom_atm           Atmospheric geometry. Phase 19.
+    * @param[in] nz                 Number of vertical levels (0 = placeholder fallback).
+    */
     void advance(amrex::Real            dt,
                  const DustParams&      dust_params,
                  SurfaceLayer*          surface_layer = nullptr,   // non-const: getters not const
                  const amrex::MultiFab* xvel_mf = nullptr,
                  const amrex::MultiFab* yvel_mf = nullptr,
+                 const amrex::MultiFab* zvel_mf = nullptr,
                  const amrex::MultiFab* z_phys_cc_mf = nullptr,
+                 const amrex::Geometry* geom_atm = nullptr,
                  int                    nz = 0);
 
     // Const accessors for plotfile and diagnostic output
@@ -134,6 +144,12 @@ public:
     const amrex::MultiFab* get_msha_twa()         const { return dust_msha_twa.get(); }
     const amrex::MultiFab* get_msha_exceed()      const { return dust_msha_exceed.get(); }
     const amrex::MultiFab* get_msha_shift_twa()   const { return dust_msha_shift_twa.get(); }
++    /**
++     * @brief Get the dust source map (Phase 19).
++     * @return Pointer to dust_source_map, nullptr if not initialized.
++     */
++    const amrex::MultiFab* get_source_map()        const { return dust_source_map.get(); }
+
     const DustGrid&        get_dust_grid()        const { return m_dg; }
     const amrex::Geometry& get_dust_geom()        const { return m_dg.geom; }
     const DustParams&      get_params()           const { return m_params; }
@@ -242,6 +258,26 @@ public:
      */
     void compute_msha_exposure(amrex::Real dt, amrex::Real cur_time, int nstep);
 
++    /**
++     * @brief Release and advance dust super-particles one timestep (Phase 19).
++     *
++     * Called from advance() when enable_particles=true.
++     * Releases one particle per emission cell with flux > 0.
++     * Advects with nearest-cell interpolated ERF face velocities + Stokes settling.
++     * Deposits when z < z_lo + 0.5*dz_atm.
++     *
++     * @param xvel,yvel,zvel  ERF level-0 face velocities.
++     * @param geom_atm        Atmospheric geometry.
++     * @param dt              Timestep [s].
++     * @param nstep           Current step number.
++     */
++    void advance_particles(const amrex::MultiFab& xvel,
++                           const amrex::MultiFab& yvel,
++                           const amrex::MultiFab& zvel,
++                           const amrex::Geometry& geom_atm,
++                           amrex::Real dt, int nstep);
+
+
     /**
      * @brief Write dust plotfile and CSV diagnostics.
      *
@@ -304,6 +340,14 @@ private:
     std::unique_ptr<amrex::MultiFab>      dust_msha_twa;        ///< 8h TWA [mg/m³].
     std::unique_ptr<amrex::MultiFab>      dust_msha_exceed;     ///< PEL exceedance [0/1].
     std::unique_ptr<amrex::MultiFab>      dust_msha_shift_twa;  ///< TWA at last shift end [mg/m³].
+
++#if defined(ERF_USE_PARTICLES)
++     // Phase 19: Lagrangian super-particles for source-receptor attribution
++     std::unique_ptr<class ERFDustPC>      m_dust_pc;         ///< Particle container
++     std::unique_ptr<amrex::MultiFab>     dust_source_map;   ///< Cumulative source deposition [kg/m^2]
++     amrex::Geometry                       m_geom_atm;        ///< Atmospheric geometry (stored for particle use)
++#endif
+
 
     int                                   m_dust_scalar_comp = -1; ///< cc_source component index for dust mass.
                                                                      ///< Set during initialize from ERF_IndexDefines.H.
