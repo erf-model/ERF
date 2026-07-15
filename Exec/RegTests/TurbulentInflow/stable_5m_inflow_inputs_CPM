@@ -36,7 +36,7 @@ erf.use_yhi_sponge_damping = true
 erf.yhi_sponge_start = 1950
 
 # TIME STEP CONTROL
-erf.cfl = 1.0 
+erf.cfl = 10.0 
 erf.substepping_cfl = 0.5
 
 # DIAGNOSTICS & VERBOSITY
