@@ -50,6 +50,7 @@
 
 #ifdef ERF_USE_DUST
 #include <ERF_DustBlastSchedule.H>
+#include <ERF_DustRoadSchedule.H>
 #include <ERF_DustSettling.H>
 #include <ERF_DustDeposition.H>
 #include <ERF_DustAtmReturn.H>
@@ -393,6 +394,7 @@ private:
 #ifdef ERF_USE_DUST
     BlastSchedule                         m_blast_schedule;
     bool                                  m_has_blast_schedule = false;
+    RoadSchedule                          m_road_schedule;
 #endif
 };
 

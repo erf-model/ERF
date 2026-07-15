@@ -2061,6 +2061,152 @@ Implementation
 +* Fire stats CSV pattern: ``Source/Fire/ERF_FireStatsOutput.H``
 +  https://github.com/hgopalan/ERF/blob/f264ce7dd0f5e727c71c939659a6a5caf001d21b/Source/Fire/ERF_FireStatsOutput.H
 +
++Haul Road Vehicle Schedule Emission (Phase 22)
++~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
++
++Phase 22 adds a second emission source (vehicle resuspension on haul roads) to
++the ``dust_emission_flux`` MultiFab, following the same CSV schedule and GPU
++``ParallelFor`` pattern as Phase 7 (blasting). Haul road traffic resuspends
++settled dust via tire-surface interaction and aerodynamic wake effects.
++
++The emission model uses EPA AP-42 Chapter 13.2.2 formula for unpaved roads:
++
++.. math::
++
++  E_\text{road} = k \left(\frac{s}{12}\right)^a \left(\frac{W}{3}\right)^b \quad [\text{g/VKT}]
++
++where:
++
++- :math:`s` = silt content [%]
++- :math:`W` = mean vehicle weight [tons]
++- :math:`k = 2.6`, :math:`a = 0.8`, :math:`b = 0.4` (TSP, AP-42 Table 13.2.2-2)
++
++Per-cell emission flux:
++
++.. math::
++
++  F_\text{vehicle} = \frac{E_\text{road} \times \text{VMT} \times 10^{-3}}{L_\text{road} \times W_\text{road} \times 3600} \quad [\text{kg/m}^2/\text{s}]
++
++where VMT = vehicle miles/km travelled per hour, :math:`L_\text{road}` [m] and
++:math:`W_\text{road}` [m] define the road bounding box.
++
++CSV File Format
++^^^^^^^^^^^^^^^
++
++The road schedule CSV lists haul road segments (lines starting with ``#`` or
++``!`` are comments):
++
++.. code-block:: text
++
++  road_name  x_lo_m  y_lo_m  x_hi_m  y_hi_m  road_width_m  vehicle_weight_t  silt_pct  vmt_per_h  start_s  end_s
++
++where:
++
++- ``road_name`` — identifier for diagnostics (string, no spaces)
++- ``x_lo_m, y_lo_m, x_hi_m, y_hi_m`` — road bounding box [m] in physical coordinates
++- ``road_width_m`` — mean road width [m]
++- ``vehicle_weight_t`` — mean loaded vehicle mass [tons]
++- ``silt_pct`` — unpaved road surface silt fraction [%]
++- ``vmt_per_h`` — vehicle miles/km travelled per hour
++- ``start_s`` — activation start time [s]
++- ``end_s`` — activation end time [s]; ``-1`` means active for entire simulation
++
++Time Window Semantics
++^^^^^^^^^^^^^^^^^^^^^
++
++A road is active when:
++
++.. math::
++
++  t_\text{cur} \geq t_\text{start} \text{ AND } (t_\text{end} < 0 \text{ OR } t_\text{cur} \leq t_\text{end})
++
++This allows:
++
++- **Continuous operation**: ``end_s = -1`` (e.g., main haul corridor)
++- **Shift-based operation**: ``end_s = start_s + shift_duration``
++- **Multi-shift scheduling**: multiple overlapping road entries for same road at different times
++
++Implementation
++^^^^^^^^^^^^^^
++
++``ERF_DustRoadSchedule.H`` is header-only:
++
++- ``load_road_schedule(filename, schedule)``: Rank-0 reads CSV, broadcasts via
++  ``MPI_Bcast`` to all ranks. Pattern: ``ERF_DustBlastSchedule.H`` (Phase 7).
++- ``apply_road_schedule(flux, geom, schedule, cur_time, ...)``: For each active
++  road, identifies dust cells in the road bounding box and adds :math:`F_\text{vehicle}`
++  to ``dust_emission_flux[0]`` (additive to existing sources). GPU ``ParallelFor``
++  per road.
++
++The flux is clamped to ``DustRoadConst::FLUX_MAX`` = 10⁻³ kg/m²/s to prevent
++numerical instability from unrealistic road speeds or silt fractions.
++
++Diagnostics
++^^^^^^^^^^^
++
++When any road is active:
++
++1. Debug print (if ``dust_debug=true``):
++   ``[DUST DEBUG] Phase 22: road=<name> t=<time> s F_v=<flux> kg/m^2/s``
++
++2. CSV append to ``road_diag_file`` (default: ``dust_road_diag.csv``):
++   ``step, time_s, road_name, flux_add_kg_m2_s``
++   One row per active road per step. Header includes EPA reference and formula.
++
++3. In main advance debug block (if ``dust_debug=true``):
++   ``active_roads=<count>`` shows number of currently-active roads.
++
++Additive Emission Behavior
++^^^^^^^^^^^^^^^^^^^^^^^^^^
++
++Road emission is **additive** to ``dust_emission_flux``:
++
++.. math::
++
++  F_\text{total} = F_\text{wind} + F_\text{blast} + F_\text{vehicle}
++
++Phase 5 computes steady-state wind-driven saltation. Phase 7 adds impulsive blasting.
++Phase 22 adds continuous vehicle traffic. All three sources update the same MultiFab.
++The 3D solver and downwind coupling (Phases 10-13) see the combined flux.
++
++ParmParse Parameters
++^^^^^^^^^^^^^^^^^^^^
++
++.. list-table::
++  :header-rows: 1
++  :widths: 40 60
++
++  * - Parameter
++    - Description
++  * - ``erf.dust.road_schedule_file``
++    - Path to road schedule CSV. Empty = no road emission.
++  * - ``erf.dust.road_diag_file``
++    - Path to road diagnostics CSV. Default = ``dust_road_diag.csv``.
++
++Phase 22 References
++^^^^^^^^^^^^^^^^^^^
++
++  * U.S. EPA AP-42, Chapter 13.2.2 (Unpaved Roads).
++    https://www.epa.gov/air-emissions-factors-and-quantification/ap-42-compilation-air-emissions-factors
++
++  * Abu-Allaban, M., Oglesby, L., Gertler, A. W., Hu, Y., & Norbeck, J. M.
++    (2003). Particulate matter emissions from 170,000 vehicles at the Carson
++    tunnel, Long Beach, California. *Atmos. Environ.*, 37, 1417–1428.
++    https://doi.org/10.1016/S1352-2310(02)01015-8
++
++  * Watson, J. G., Chow, J. C., Pritchett, L. C., Pierson, W. R., Frazier, W. A.,
++    & Egami, R. G. (1994). Receptor modeling application of principal component
++    analysis to airborne particulate samples. *Atmos. Environ.*, 28, 2493–2505.
++    https://doi.org/10.1016/1352-2310(94)90400-6
++
++  * Countess, R. J., & Edgar, L. A. (2001). Re-entrained road dust: Control
++    strategies to reduce PM10 emissions from paved and unpaved roads.
++    SCAQMD Final Report, South Coast Air Quality Management District.
++
++  * Marticorena, B., & Bergametti, G. (1995). Modeling the atmospheric dust cycle:
++    1. Design of a soil-derived dust emission scheme. *J. Geophys. Res.*, 100, 16415–16430.
++    https://doi.org/10.1029/95JD00690
++
 ------------------
 
 Development is divided into 24 phases. Phase completion status is recorded

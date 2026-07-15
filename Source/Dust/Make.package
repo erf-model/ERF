@@ -20,6 +20,7 @@ ifeq ($(USE_DUST), TRUE)
   CEXE_headers += Dust/ERF_DustThreshold.H
   CEXE_headers += Dust/ERF_DustEmission.H
   CEXE_headers += Dust/ERF_DustBlastSchedule.H
+  CEXE_headers += Dust/ERF_DustRoadSchedule.H
   CEXE_headers += Dust/ERF_DustSuppression.H
   CEXE_headers += Dust/ERF_DustSiteRegistry.H
   CEXE_headers += Dust/ERF_DustWindExtract.H

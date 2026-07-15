@@ -1,0 +1,129 @@
+# DustRoadSchedule regression test — Phase 22 haul road vehicle emissions.
+#
+# Two haul roads:
+#   haul_north: x=[0,3000], y=[2000,2500], W=80t, s=10%, vmt=5/h, active all sim.
+#   haul_south: x=[0,3000], y=[500,1000],  W=80t, s=10%, vmt=5/h, active t=[1,2.5s].
+#
+# EPA AP-42 Chapter 13.2.2 unpaved road formula:
+#   E_road = 2.6 * (10/12)^0.8 * (80/3)^0.4 = 2.6 * 0.877 * 4.045 ~ 9.22 g/VKT
+#   road_len = max(3000, 500) = 3000 m = 3 km = 3 VKT/pass
+#   VMT = 5/h -> 5 passes/h (1 km assumed)
+#   F_v = 9.22e-3 kg/VKT * 5 VKT/h / (20m * 3000m * 3600 s/h)
+#       = 0.046 / 2.16e8 ~ 2.13e-10 kg/m^2/s (well below FLUX_MAX)
+#
+# Domain: 3000x3000 m, 8x8 cells, dx=375 m.
+# haul_north covers: all 8 columns, j cells where y_c in [2000,2500]
+#   y_c = 187.5, 562.5, 937.5, 1312.5, 1687.5, 2062.5, 2437.5, 2812.5
+#   j cells 5 and 6 (y_c=2062.5 and 2437.5) are within [2000,2500].
+#   n_active_cells = 8*2 = 16 cells for haul_north.
+# haul_south: j cells 1 and 2 (y_c=562.5 and 937.5) within [500,1000].
+#   Active only at t=[1,2.5s], so steps 2 (t=1.0s) and 3 (t=1.5s) only.
+#
+# Expected results:
+#   (1) [DUST DEBUG] Phase 22 init: n_roads=2, road details printed.
+#   (2) [DUST DEBUG] advance: active_roads=1 at steps 0,1 (haul_north only).
+#   (3) [DUST DEBUG] advance: active_roads=2 at steps 2,3,4 (both roads).
+#       Wait - at step 5 (t=2.5s), haul_south end_s=2.5: check includes/excludes.
+#   (4) haul_north F_v > 0 each step (active all sim).
+#   (5) dust_road_diag.csv created; haul_north row each step; haul_south rows at steps 2-4.
+#   (6) dust_emission_flux higher in j=5,6 cells (haul_north zone) than j outside roads.
+#   (7) Run exits code 0.
+#
+# References:
+#   EPA AP-42 Ch. 13.2.2 (Unpaved Roads):
+#     https://www.epa.gov/air-emissions-factors-and-quantification/
+#     ap-42-compilation-air-emissions-factors
+#   Abu-Allaban et al. (2003). Atmos. Environ., 37, 1417.
+#     https://doi.org/10.1016/S1352-2310(02)01015-8
+#   Watson et al. (1994). Atmos. Environ., 28, 2493.
+#     https://doi.org/10.1016/1352-2310(94)90400-6
+#   ERF_IgnitionSchedule.H (CSV schedule pattern):
+#     https://github.com/hgopalan/ERF/blob/f264ce7dd0f5e727c71c939659a6a5caf001d21b/
+#     Source/Fire/ERF_IgnitionSchedule.H
+
+erf.prob_name = "ABL"
+max_step = 5
+amr.max_level = 0
+amrex.fpe_trap_invalid = 0
+fabarray.mfiter_tile_size = 1024 1024 1024
+geometry.prob_extent = 3000 3000 1024
+amr.n_cell =  8 8 64
+geometry.is_periodic = 1 1 0
+amrex.max_grid_size_z = 128
+zlo.type = "surface_layer"
+erf.most.z0 = 0.1
+erf.most.zref = 24.0
+erf.most.surf_temp_flux = 0.0
+zhi.type = "SlipWall"
+zhi.theta_grad = 0.003
+erf.fixed_dt = 0.5
+erf.sum_interval = 1
+erf.v = 1
+amr.v = 1
+erf.check_int = -1
+erf.plot_int_1 = -1
+erf.plot_vars_1 = density x_velocity y_velocity z_velocity theta
+erf.use_gravity = true
+erf.molec_diff_type = "None"
+erf.les_type = "None"
+erf.init_type = "input_sounding"
+erf.sounding_type = Ideal
+erf.input_sounding_file = "sounding_neutral_abl"
+erf.pbl_type = "MRF"
+erf.pbl_mrf_Ribcr = 0.5
+erf.pbl_mrf_const_b = 7.8
+erf.pbl_mrf_sf = 0.1
+erf.enable_mrf_countergradient = true
+erf.mrf_moistvars = false
+erf.use_coriolis = true
+erf.latitude = 45.0
+erf.abl_driver_type = "GeostrophicWind"
+erf.abl_geo_wind = 15.0 0.0 0.0
+erf.transport_scalar = true
+erf.dust.enable = true
+erf.dust.dust_debug = true
+erf.dust.n_size_bins = 3
+erf.dust.grid_ratio = 1
+erf.dust.particle_density = 2650.0
+erf.dust.z0_dust = 0.01
+erf.dust.silt_fraction = 0.10
+erf.dust.threshold_A_coeff = 0.0123
+erf.dust.crust_index = 0.0
+erf.dust.alpha_crust = 0.5
+erf.dust.alpha_efflor = 0.3
+erf.dust.test_ustar = 0.0
+erf.dust.rho_air = 1.225
+erf.dust.zref = 24.0
+erf.dust.supp_tau_base_s = 3600.0
+erf.dust.test_surf_temp_K = 293.15
+erf.dust.test_wind_speed = 0.0
+erf.dust.atm_feedback = 1.0
+erf.dust.transport_bins_separately = false
+erf.dust.bin_diameters = 7.0e-6 2.5e-6 50.0e-6
+erf.dust.deposition_E0 = 3.0e-3
+erf.dust.loading_feedback_coeff = 0.0
+erf.dust.use_dynamic_moisture = false
+erf.dust.dust_plot_int = 5
+erf.dust.dust_plot_prefix = "plt_dust_"
+erf.dust.dust_diag_file = "dust_diag.dat"
+erf.dust.dust_naaqs_file = "dust_naaqs.csv"
+erf.dust.msha_pel_mg_m3 = 5.0
+erf.dust.msha_shift_duration_s = 28800.0
+erf.dust.msha_exposure_file = "msha_exposure.csv"
+erf.dust.msha_shift_file = "msha_shift_summary.csv"
+erf.dust.phreeqc_feedback_interval_s = 0.0
+erf.dust.phreeqc_feedback_file = "dust_dep_feedback.dat"
+erf.dust.phreeqc_site_summary_file = "dust_dep_site_summary.csv"
+# Phase 22: road schedule CSV.
+erf.dust.road_schedule_file = "road_schedule.csv"
+erf.dust.road_diag_file     = "dust_road_diag.csv"
+erf.dust.phreeqc_update_interval_s = 86400.0
+erf.dust.phreeqc_output_file = ""
+erf.dust.blast_schedule_file = ""
+erf.dust.blast_reactivity = 2.0
+erf.dust.soil_type_file = ""
+erf.dust.silt_fraction_file = ""
+erf.dust.crust_index_file = ""
+erf.dust.moisture_flag_file = ""
+erf.dust.suppression_file = ""
+erf.dust.surface_map_file = ""
