@@ -1680,7 +1680,126 @@ Implementation
   ``DustLayer::compute_msha_exposure`` is called from ``DustLayer::advance()``
   each timestep, after ``compute_naaqs_diagnostics``.
 
-Development Phases
++Lagrangian Super-Particle Source-Receptor Attribution (Phase 19)
++===============================================================
++
++Phase 19 implements Lagrangian super-particles for source-receptor attribution
++tracking. The module tracks individual dust particles from their emission point
++to deposition, accumulating deposition mass as a function of source location.
++
++**Overview**
++
++A super-particle represents an ensemble of dust grains emitted from a single
++grid cell. Each particle carries:
++
++* Mass in [kg]
++* Stokes settling velocity [m/s]
++* Release time [s]
++* Source grid cell indices (i, j) as Real for sub-cell accuracy
++
++Particles are advected by nearest-cell interpolation of ERF face-staggered
++velocities (xvel, yvel, zvel) and subject to gravitational settling. When
++a particle descends below z = z_lo + 0.5*dz_atm, it is deposited and its
++mass is accumulated in ``dust_source_map``, a 2D field on the dust grid.
++
++**Mathematics**
++
++Position update (Euler step):
++
++.. math::
++
++   \mathbf{x}_{n+1} = \mathbf{x}_n + (\mathbf{u}, \mathbf{v}, w_{adj}) \Delta t
++
++where the adjusted vertical velocity is:
++
++.. math::
++
++   w_{adj} = w - v_s
++
++The settling velocity is computed from Stokes law with Cunningham slip correction
++(see Phase 11, ``compute_stokes_settling`` in ``ERF_DustSettling.H``):
++
++.. math::
++
++   v_s = \frac{(\rho_p - \rho_a) g d^2 C_c}{18 \mu_a}
++
++**Velocity Interpolation**
++
++Velocities are obtained at the particle position via nearest-cell averaging.
++For each component:
++
++.. math::
++
++   u = 0.5 \left( u_{i,j,k} + u_{i+1,j,k} \right)
++   v = 0.5 \left( v_{i,j,k} + v_{i,j+1,k} \right)
++   w = 0.5 \left( w_{i,j,k} + w_{i,j,k+1} \right)
++
++This pattern is identical to ``AdvectWithFlow`` in ``ERFPCEvolve.cpp``.
++
++**Deposition and Source Map**
++
++When z < z_lo + 0.5*dz_atm, the particle is removed and its mass is added
++to ``dust_source_map`` at the original source cell (src_i, src_j):
++
++.. math::
++
++   S(i,j) += m
++
++The source map is never reset during a simulation, so it accumulates total
++deposition mass per source cell over all timesteps. The field has units [kg/m²].
++
++**Compile Guard**
++
++All particle code is guarded by:
++
++.. code-block:: cpp
++
++   #if defined(ERF_USE_DUST) && defined(ERF_USE_PARTICLES)
++
++When ``ERF_USE_PARTICLES`` is not defined:
++
++* No particle container is created
++* ``dust_source_map`` is zeroed in plotfile output
++* Plotfile still contains 19 components (last one is zero)
++
++**Parameters**
++
++Phase 19 adds two parameters to the dust configuration:
++
++* ``erf.dust.enable_particles`` — Boolean; default false. When true, particles
++  are released and tracked.
++* ``erf.dust.particle_release_interval`` — Integer; default 1. Particles are
++  released every N steps. Set > 1 to reduce computational cost.
++
++**Plotfile Integration**
++
++Phase 19 adds 1 new variable to the 2D dust plotfile (total 19 fields):
++
++* ``dust_source_map`` — Cumulative source deposition [kg/m²]
++
++The ``dust_source_map`` field is only updated when particles are tracked
++(``enable_particles`` = true and ``ERF_USE_PARTICLES`` defined). Otherwise,
++this field is zero in plotfile output.
++
++**Implementation**
++
++Phase 19 introduces three new files:
++
++* ``Source/Particles/ERF_DustPC.H`` — Header; declares the ``ERFDustPC`` container
++* ``Source/Particles/ERF_DustPC.cpp`` — Implementation; ``ReleaseParticles`` and ``AdvanceParticles`` methods
++
++``DustLayer::advance_particles`` is called from ``DustLayer::advance()`` after
++``compute_msha_exposure``, but only when ``enable_particles`` = true.
++
++**References**
++
++* AMReX Particles: https://amrex-codes.github.io/amrex/docs_html/Particles.html
++* Phase 11 (Stokes settling): ``ERF_DustSettling.H`` ``compute_stokes_settling``
++* Phase 9 pattern (nearest-cell advection): ``ERFPCEvolve.cpp`` ``AdvectWithFlow``
++* Shao, Y. (2008). *Physics and Modelling of Wind Erosion*. Springer.
++* Seinfeld, J. H., and S. N. Pandis (2006). *Atmospheric Chemistry and Physics*,
++  2nd ed., Ch. 9. Wiley. ISBN 978-0-471-72018-8.
++
 ------------------
 
 Development is divided into 24 phases. Phase completion status is recorded

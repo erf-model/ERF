@@ -188,6 +188,11 @@ struct DustParams {
     amrex::Vector<amrex::Real> msha_receptor_x;        ///< Receptor x-coordinates [m]
     amrex::Vector<amrex::Real> msha_receptor_y;        ///< Receptor y-coordinates [m]
 
+    // Phase 19: Lagrangian super-particle source-receptor attribution
+    bool        enable_particles        = false; ///< Lagrangian particle tracking.
+                                                   ///< Requires ERF_USE_PARTICLES.
+    int         particle_release_interval = 1;  ///< Release every N steps.
+
     /**
      * Constructor that reads all parameters from ParmParse.
      */
@@ -244,6 +249,9 @@ struct DustParams {
         pp.queryarr("msha_receptor_names", msha_receptor_names);
         pp.queryarr("msha_receptor_x", msha_receptor_x);
         pp.queryarr("msha_receptor_y", msha_receptor_y);
+        
+        pp.query("enable_particles", enable_particles);
+        pp.query("particle_release_interval", particle_release_interval);
         
         // Allow per-bin diameter override from input file.
         // erf.dust.bin_diameters = d0 d1 d2 ...

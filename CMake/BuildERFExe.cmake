@@ -166,10 +166,12 @@ function(build_erf_lib erf_lib_name)
                    ${SRC_DIR}/Particles/ERF_SuperDropletPCInitializations.cpp
                    ${SRC_DIR}/Particles/ERF_SuperDropletPCMassChange.cpp
                    ${SRC_DIR}/Particles/ERF_SuperDropletPCRecycle.cpp
-                   ${SRC_DIR}/Particles/ERF_SuperDropletPCUtils.cpp)
+                   ${SRC_DIR}/Particles/ERF_SuperDropletPCUtils.cpp
+                   ${SRC_DIR}/Particles/ERF_DustPC.cpp)
     target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/Source/Particles>)
     target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_PARTICLES)
   endif()
+
 
   if(ERF_ENABLE_FFT)
     target_sources(${erf_lib_name} PRIVATE
