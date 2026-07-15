@@ -254,18 +254,21 @@ DustLayer::initialize(
   }
 
 #if defined(ERF_USE_PARTICLES)
-  // Phase 19: Lagrangian super-particle container
   if (dust_params.enable_particles) {
     m_geom_atm = erf.Geom(0);
-    // Particle container uses atmospheric BoxArray/DM (3D)
-    m_dust_pc = std::make_unique<ERFDustPC>(
-        m_geom_atm, erf.DistributionMap(0), erf.boxArray(0));
+
+    // Construct particle container on the DUST grid (2D), not the 3D atm grid.
+    // ReleaseParticles iterates over the dust grid MFIter, so tile indices
+    // must match the dust BoxArray. Particle positions use z from geom_atm.
+    m_dust_pc = std::make_unique<ERFDustPC>(m_dg.geom, m_dg.dm, m_dg.ba);
+
     dust_source_map = std::make_unique<amrex::MultiFab>(
         m_dg.ba, m_dg.dm, 1, amrex::IntVect(1,1,0));
     dust_source_map->setVal(0.0);
+
     if (dust_params.dust_debug) {
-      amrex::Print() << "[DUST DEBUG] Phase 19: ERFDustPC initialized,"
-                     << " dust_source_map allocated\n";
+      amrex::Print() << "[DUST DEBUG] Phase 19: ERFDustPC initialized"
+                     << " on dust grid " << m_dg.ba.size() << " boxes\n";
     }
   }
 #endif
