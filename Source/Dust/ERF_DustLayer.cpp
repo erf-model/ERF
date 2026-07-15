@@ -556,7 +556,40 @@ DustLayer::advance(
   compute_msha_exposure(dt, m_time - dt, m_step);
 #endif
 
+/*#if defined(ERF_USE_PARTICLES)
+  // Phase 19: Lagrangian particle release and advection
+  if (m_params.enable_particles && m_dust_pc && xvel_mf && yvel_mf && zvel_mf
+      && geom_atm && (m_step % m_params.particle_release_interval == 0)) {
+    amrex::Real d_m   = m_params.bin_diameters.empty() ? 7.0e-6 : m_params.bin_diameters[0];
+    amrex::Real rho_p = m_params.particle_density;
+    m_dust_pc->ReleaseParticles(*dust_emission_flux, *geom_atm, m_dg.geom,
+                                 dt, d_m, rho_p);
+    if (dust_source_map) {
+      m_dust_pc->AdvanceParticles(*xvel_mf, *yvel_mf, *zvel_mf,
+                                   *dust_source_map, *geom_atm, m_dg.geom, dt);
+    }
+    if (m_params.dust_debug) {
+      long np = m_dust_pc->TotalNumberOfParticles();
+      amrex::Real sm = dust_source_map ? dust_source_map->sum(0) : 0.0;
+      amrex::Print() << "[DUST DEBUG] Phase 19: step=" << m_step
+                     << " n_particles=" << np
+                     << " source_map_sum=" << sm << " kg/m^2\n";
+    }
+  }
+#endif*/
 #if defined(ERF_USE_PARTICLES)
+  // Phase 19 diagnostic: check why block may not execute
+  if (m_params.dust_debug) {
+    amrex::Print() << "[DUST DEBUG] Phase 19 check: step=" << m_step
+                   << " enable_particles=" << m_params.enable_particles
+                   << " m_dust_pc=" << (m_dust_pc ? "valid" : "null")
+                   << " xvel_mf=" << (xvel_mf ? "valid" : "null")
+                   << " yvel_mf=" << (yvel_mf ? "valid" : "null")
+                   << " zvel_mf=" << (zvel_mf ? "valid" : "null")
+                   << " geom_atm=" << (geom_atm ? "valid" : "null")
+                   << " interval_check=" << (m_step % m_params.particle_release_interval)
+                   << " emission_max=" << dust_emission_flux->max(0) << "\n";
+  }
   // Phase 19: Lagrangian particle release and advection
   if (m_params.enable_particles && m_dust_pc && xvel_mf && yvel_mf && zvel_mf
       && geom_atm && (m_step % m_params.particle_release_interval == 0)) {
@@ -577,6 +610,7 @@ DustLayer::advance(
     }
   }
 #endif
+
 } // end advance()
 
 #ifdef ERF_USE_DUST
