@@ -95,21 +95,26 @@ public:
      * @brief Advance the dust layer by one atmospheric timestep.
      *
      * Phases 5-13 replace the stub with emission, coupling, and deposition physics.
-     *
-     * @param[in] dt                 Atmospheric timestep [s].
-     * @param[in] dust_params        Dust configuration parameters.
-     * @param[in] surface_layer      Pointer to SurfaceLayer (nullptr = placeholder fallback).
-     * @param[in] xvel_mf            3D u velocity field (nullptr = placeholder fallback).
-     * @param[in] yvel_mf            3D v velocity field (nullptr = placeholder fallback).
-     * @param[in] z_phys_cc_mf       3D terrain height field (nullptr = placeholder fallback).
-     * @param[in] nz                 Number of vertical levels (0 = placeholder fallback).
-     */
+    * Phase 19 adds Lagrangian particle advection (requires xvel, yvel, zvel, geom_atm).
+    *
+    * @param[in] dt                 Atmospheric timestep [s].
+    * @param[in] dust_params        Dust configuration parameters.
+    * @param[in] surface_layer      Pointer to SurfaceLayer (nullptr = placeholder fallback).
+    * @param[in] xvel_mf            3D u velocity field (nullptr = placeholder fallback).
+    * @param[in] yvel_mf            3D v velocity field (nullptr = placeholder fallback).
+    * @param[in] zvel_mf            3D w velocity field (nullptr = placeholder fallback). Phase 19.
+    * @param[in] z_phys_cc_mf       3D terrain height field (nullptr = placeholder fallback).
+    * @param[in] geom_atm           Atmospheric geometry. Phase 19.
+    * @param[in] nz                 Number of vertical levels (0 = placeholder fallback).
+    */
     void advance(amrex::Real            dt,
                  const DustParams&      dust_params,
                  SurfaceLayer*          surface_layer = nullptr,   // non-const: getters not const
                  const amrex::MultiFab* xvel_mf = nullptr,
                  const amrex::MultiFab* yvel_mf = nullptr,
+                 const amrex::MultiFab* zvel_mf = nullptr,
                  const amrex::MultiFab* z_phys_cc_mf = nullptr,
+                 const amrex::Geometry* geom_atm = nullptr,
                  int                    nz = 0);
 
     // Const accessors for plotfile and diagnostic output

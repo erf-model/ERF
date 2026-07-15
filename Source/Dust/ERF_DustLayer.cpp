@@ -420,7 +420,9 @@ DustLayer::advance(
   SurfaceLayer* surface_layer, // non-const: getters not marked const
   const amrex::MultiFab* xvel_mf,
   const amrex::MultiFab* yvel_mf,
+  const amrex::MultiFab* zvel_mf,
   const amrex::MultiFab* z_phys_cc_mf,
+  const amrex::Geometry* geom_atm,
   int nz)
 {
   ++m_step;
@@ -621,21 +623,12 @@ DustLayer::advance(
 
 +#if defined(ERF_USE_PARTICLES)
 +  // Phase 19: Release and advance Lagrangian super-particles
-+  if (m_params.enable_particles && have_atm && xvel_mf && yvel_mf) {
-+    // Note: advance_particles requires xvel/yvel/zvel as face-staggered fields.
-+    // The xvel_mf and yvel_mf are passed as MultiFab arrays (u_mac, v_mac).
-+    // zvel is extracted from velocity solver or computed from divergence.
-+    // For simplicity in Phase 19, pass xvel_mf directly as u component.
-+    // TODO: Extract zvel properly when available in 3D solver.
-+    const amrex::MultiFab* zvel_ptr = nullptr;  // Phase 19 stub: no vertical velocity yet
-+    // Actual call would be:
-+    // advance_particles(*xvel_mf, *yvel_mf, *zvel_ptr, m_geom_atm, dt, m_step);
-+    // For now, skip until zvel is properly passed from ERF_Advance.cpp
-+    if (dust_params.dust_debug) {
-+      amrex::Print() << "[DUST DEBUG] Phase 19: particle advance skipped (zvel not passed yet)\n";
-+    }
++  if (m_params.enable_particles && geom_atm && zvel_mf && xvel_mf && yvel_mf) {
++    advance_particles(*xvel_mf, *yvel_mf, *zvel_mf, *geom_atm, dt, m_step);
 +  }
 +#endif
+ #endif
+ }
 #endif
 }
 #ifdef ERF_USE_DUST
