@@ -307,3 +307,5 @@ struct DustParams {
         // Phase 22: road schedule CSV.
         pp.query("road_schedule_file", road_schedule_file);
         pp.query("road_diag_file",     road_diag_file);
+   }  // end DustParams constructor
+ };     // end struct DustParams
