@@ -310,3 +310,4 @@ struct DustParams {
    }  // end DustParams constructor
  };     // end struct DustParams
 #endif // ERF_DUST_PARAMS_H
+
