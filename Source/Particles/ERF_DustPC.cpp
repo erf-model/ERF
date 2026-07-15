@@ -19,49 +19,40 @@ void ERFDustPC::ReleaseParticles(const amrex::MultiFab& emission_flux,
 {
     BL_PROFILE("ERFDustPC::ReleaseParticles");
 
+    const auto& plo_atm = geom_atm.ProbLoArray();
+    const auto& dx_atm  = geom_atm.CellSize();
+    const Real dz_atm   = dx_atm[2];
+    // Release at k=1 cell center — inside 3D domain, above deposit threshold k=0
+    const Real z_release = plo_atm[2] + 1.5 * dz_atm;
+
     const auto& dx_dust  = geom_dust.CellSize();
     const Real dx_dust_m = dx_dust[0];
     const Real dy_dust_m = dx_dust[1];
 
-    // Use ATM geometry for all positions so particles are inside geom_atm domain
-    const auto& plo_atm  = geom_atm.ProbLoArray();
-    const auto& dx_atm   = geom_atm.CellSize();
-    const Real dz_atm    = dx_atm[2];
-    const Real z_lo_atm  = plo_atm[2];
-    const Real z_release = z_lo_atm + 1.5 * dz_atm;
-
-    // Also use atm dx for x,y so positions map into atm domain
-    const Real dx_xy = dx_atm[0];
-    const Real dy_xy = dx_atm[1];
-
     const Real v_settle = compute_stokes_settling(d_m, rho_p, 1.225,
                                                    DustSettlingConst::MU_AIR_STD);
 
-    // Copy emission_flux onto the particle container's own BoxArray/DM
-    amrex::MultiFab flux_on_pc(ParticleBoxArray(0),
-                               ParticleDistributionMap(0),
-                               emission_flux.nComp(),
-                               amrex::IntVect(0));
-    flux_on_pc.setVal(0.0);
-    flux_on_pc.ParallelCopy(emission_flux, 0, 0, emission_flux.nComp(),
-                            emission_flux.nGrowVect(),
-                            amrex::IntVect(0),
-                            geom_atm.periodicity());
+    // Collect all (i,j,mass) pairs from emission_flux on rank 0 cells
+    // then add to the level-0 particle tile at index 0
+    // Use level-0 tile 0 (single-rank serial release; Redistribute reassigns)
+    for (MFIter mfi(emission_flux); mfi.isValid(); ++mfi) {
+        const Box& bx   = mfi.validbox();
+        auto flux_arr   = emission_flux.const_array(mfi);
+        const auto& plo_dust = geom_dust.ProbLoArray();
 
-    for (MFIter mfi(flux_on_pc, true); mfi.isValid(); ++mfi) {
-        const Box& bx   = mfi.tilebox();
-        auto flux_arr   = flux_on_pc.const_array(mfi);
-
-        auto& particle_tile = DefineAndReturnParticleTile(0, mfi);
-        auto& aos = particle_tile.GetArrayOfStructs();
-        auto& soa = particle_tile.GetStructOfArrays();
+        // Get the level-0 tile index 0 for this MPI rank
+        // AddParticles directly into the particle container using
+        // the global index 0 tile (safe for serial 1-rank runs,
+        // and Redistribute() will reassign to correct ranks)
+        auto& ptile = GetParticles(0)[{mfi.index(), mfi.LocalTileIndex()}];
+        auto& aos   = ptile.GetArrayOfStructs();
+        auto& soa   = ptile.GetStructOfArrays();
 
         amrex::LoopOnCpu(bx, [&](int i, int j, int k) {
             if (k != 0 || flux_arr(i, j, k) <= 0.0) return;
 
-            // Compute x,y from ATM geometry so position is inside geom_atm
-            const Real x_pos = plo_atm[0] + (i + 0.5) * dx_xy;
-            const Real y_pos = plo_atm[1] + (j + 0.5) * dy_xy;
+            const Real x_pos = plo_atm[0] + (i + 0.5) * dx_atm[0];
+            const Real y_pos = plo_atm[1] + (j + 0.5) * dx_atm[1];
             const Real mass  = flux_arr(i, j, k) * dx_dust_m * dy_dust_m * dt;
 
             ParticleType p;
@@ -69,7 +60,7 @@ void ERFDustPC::ReleaseParticles(const amrex::MultiFab& emission_flux,
             p.pos(1) = y_pos;
             p.pos(2) = z_release;
             p.id()   = ParticleType::NextID();
-            p.cpu()  = ParallelDescriptor::MyProc();
+            p.cpu()  = amrex::ParallelDescriptor::MyProc();
             aos().push_back(p);
 
             soa.GetRealData(DustParticleRealIdx::mass        ).push_back(mass);

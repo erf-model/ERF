@@ -261,22 +261,9 @@ DustLayer::initialize(
     // ReleaseParticles iterates over the dust grid MFIter, so tile indices
     // must match the dust BoxArray. Particle positions use z from geom_atm.
     //m_dust_pc = std::make_unique<ERFDustPC>(m_dg.geom, m_dg.dm, m_dg.ba);
-    // line 263 — REPLACE WITH:
-        {
-            amrex::BoxArray ba_atm_2d = erf.boxArray(0);
-            amrex::Vector<amrex::Box> bl;
-            for (int b = 0; b < ba_atm_2d.size(); ++b) {
-                amrex::Box bx = ba_atm_2d[b];
-                bx.setSmall(2, 0);
-                bx.setBig(2, 0);
-                bl.push_back(bx);
-            }
-            amrex::BoxArray ba2d_atm(amrex::BoxList(std::move(bl)));
-            m_dust_pc = std::make_unique<ERFDustPC>(
-                m_geom_atm, erf.DistributionMap(0), ba2d_atm);
-        }
-
-
+    // Use full 3D atm BoxArray so particles at any z are locatable
+    m_dust_pc = std::make_unique<ERFDustPC>(
+        m_geom_atm, erf.DistributionMap(0), erf.boxArray(0));
     dust_source_map = std::make_unique<amrex::MultiFab>(
         m_dg.ba, m_dg.dm, 1, amrex::IntVect(1,1,0));
     dust_source_map->setVal(0.0);
