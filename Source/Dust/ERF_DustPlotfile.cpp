@@ -87,13 +87,13 @@ void WriteDustPlotfile(const std::string& plotfile_prefix,
     copy_if(dust_layer.get_msha_twa(),        15);
     copy_if(dust_layer.get_msha_exceed(),     16);
     copy_if(dust_layer.get_msha_shift_twa(),  17);
-+    // Phase 19: Lagrangian super-particle source-receptor attribution
-+#if defined(ERF_USE_PARTICLES)
-+    copy_if(dust_layer.get_source_map(),      18);
-+#else
-+    { MultiFab z(dg.ba,dg.dm,1,0); z.setVal(0.0);
-+      MultiFab::Copy(mf,z,0,18,1,0); }
-+#endif
+    // Phase 19: Lagrangian super-particle source-receptor attribution
+#if defined(ERF_USE_PARTICLES)
+    copy_if(dust_layer.get_source_map(),      18);
+#else
+    { MultiFab z(dg.ba,dg.dm,1,0); z.setVal(0.0);
+     MultiFab::Copy(mf,z,0,18,1,0); }
+#endif
 
 
     std::string plotfilename = Concatenate(plotfile_prefix, step, 5);
