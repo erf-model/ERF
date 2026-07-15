@@ -33,10 +33,12 @@ inline amrex::Vector<std::string> dust_plotfile_var_names()
         "dust_msha_exceed",        ///< PEL exceedance flag [0/1].
         "dust_msha_shift_twa",     ///< TWA at last shift end [mg/m^3].
         // Phase 20: Multi-mine site index
-        "dust_site_id"             ///< Mine site index [0=unassigned, 1..N].
+        "dust_site_id",            ///< Mine site index [0=unassigned, 1..N].
+        // Phase 23: DOE Critical Materials Assessment
+        "dust_cm_flux_kg_CM_m2_s"  ///< Critical material emission flux [kg_CM/m^2/s].
     };
 }
 
-inline int dust_plotfile_ncomp() { return 20; }
+inline int dust_plotfile_ncomp() { return 21; }
 #endif
 

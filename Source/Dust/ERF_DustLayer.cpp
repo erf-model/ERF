@@ -461,6 +461,22 @@ DustLayer::initialize(
                    << " site_summary_file="
                    << dust_params.phreeqc_site_summary_file << "\n";
   }
+
+  // Phase 23: critical material flux MultiFab.
+  dust_cm_flux = std::make_unique<amrex::MultiFab>(m_dg.ba, m_dg.dm, 1, amrex::IntVect(1,1,0));
+  dust_cm_flux->setVal(0.0);
+
+  if (dust_params.dust_debug) {
+    amrex::Print() << "[DUST DEBUG] Phase 23: cm_fractions=";
+    for (auto f : dust_params.cm_fractions)
+      amrex::Print() << f << " ";
+    amrex::Print() << "\n"
+                   << "[DUST DEBUG] Phase 23: cm_budget_file="
+                   << dust_params.cm_budget_file << "\n";
+    if (dust_params.cm_fractions.empty())
+      amrex::Print() << "[DUST DEBUG] Phase 23: cm_fractions empty,"
+                     << " CM tracking disabled\n";
+  }
 } // end initialize()
 
 void
@@ -652,6 +668,27 @@ DustLayer::advance(
   apply_road_schedule(*dust_emission_flux, m_dg.geom, m_road_schedule,
                       m_time, dt, m_params.dust_debug,
                       m_params.road_diag_file, m_step);
+
+  // Phase 23: compute critical material flux and write budget.
+  if (!m_params.cm_fractions.empty() && dust_emission_flux && dust_cm_flux) {
+    int n_active = m_params.transport_bins_separately
+                 ? m_params.n_size_bins : 1;
+    compute_cm_flux(*dust_cm_flux, *dust_emission_flux,
+                    m_params.cm_fractions, n_active);
+    append_cm_budget(m_params.cm_budget_file,
+                     *dust_cm_flux,
+                     dust_site_id.get(),
+                     m_dg.geom,
+                     m_time, m_step,
+                     m_params.site_names);
+    if (m_params.dust_debug) {
+      amrex::Real cm_max = dust_cm_flux->max(0);
+      amrex::Real cm_sum = dust_cm_flux->sum(0);
+      amrex::Print() << "[DUST DEBUG] Phase 23: step=" << m_step
+                     << " cm_flux_max=" << cm_max << " kg_CM/m^2/s"
+                     << " cm_flux_sum=" << cm_sum << " kg_CM/m^2/s\n";
+    }
+  }
 
   compute_naaqs_diagnostics(dt, m_time - dt, m_step);
   compute_msha_exposure(dt, m_time - dt, m_step);

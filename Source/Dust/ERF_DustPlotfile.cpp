@@ -97,6 +97,9 @@ void WriteDustPlotfile(const std::string& plotfile_prefix,
     // Phase 20: Multi-mine site index
     copy_if(dust_layer.get_site_id(),         19);
 
+    // Phase 23: DOE Critical Materials Assessment
+    copy_if(dust_layer.get_cm_flux(),         20);
+
 
     std::string plotfilename = Concatenate(plotfile_prefix, step, 5);
 
