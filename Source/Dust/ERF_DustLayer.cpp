@@ -932,8 +932,7 @@ DustLayer::write_output(int nstep, double cur_time, bool is_final)
     }
 }
 
-+#if defined(ERF_USE_PARTICLES)
-+void
+#if defined(ERF_USE_PARTICLES)
 void
 DustLayer::advance_particles(const amrex::MultiFab& xvel,
                              const amrex::MultiFab& yvel,
