@@ -107,15 +107,10 @@ void ERFDustPC::AdvanceParticles(const amrex::MultiFab& xvel,
 
     const auto& plo_atm = geom_atm.ProbLoArray();
     const auto& dx_atm = geom_atm.CellSize();
-    const auto& plo_dust = geom_dust.ProbLoArray();
-    const auto& dx_dust = geom_dust.CellSize();
     
     const Real z_lo = plo_atm[2];
     const Real dz_atm = dx_atm[2];
     const Real z_deposit = z_lo + 0.5 * dz_atm;
-    
-    const Real dx_dust_m = dx_dust[0];
-    const Real dy_dust_m = dx_dust[1];
     
     // Get atmospheric domain for nearest-cell clamping
     const Box& dom_atm = geom_atm.Domain();
@@ -127,6 +122,12 @@ void ERFDustPC::AdvanceParticles(const amrex::MultiFab& xvel,
     for (ParIterType pti(*this, 0); pti.isValid(); ++pti) {
         auto& particles = pti.GetArrayOfStructs();
         int npart = particles.size();
+        
+        // Get velocity arrays for this tile
+        auto xvel_const_arr = xvel.const_array(pti);
+        auto yvel_const_arr = yvel.const_array(pti);
+        auto zvel_const_arr = zvel.const_array(pti);
+        auto source_map_arr = source_map.array(pti);
 
         for (int p = 0; p < npart; ++p) {
             ParticleType& particle = particles[p];
@@ -162,29 +163,24 @@ void ERFDustPC::AdvanceParticles(const amrex::MultiFab& xvel,
             k_cell = amrex::max(k_lo, amrex::min(k_hi, k_cell));
             
             // Get velocities at this cell (averaged from faces)
-            // For simplicity, use cell-center values or average nearby faces
-            // xvel is at (i+0.5, j, k) faces, so average i and i+1
-            // yvel is at (i, j+0.5, k) faces, so average j and j+1
-            // zvel is at (i, j, k+0.5) faces, so average k and k+1
-            
             Real u = 0.0, v = 0.0, w = 0.0;
             
-            // Try to get velocity from xvel array (x-face staggered)
+            // Check bounds before accessing
             if (i_cell >= i_lo && i_cell < i_hi && j_cell >= j_lo && j_cell <= j_hi && 
                 k_cell >= k_lo && k_cell <= k_hi) {
                 // Average x-velocities
-                Real u1 = xvel(i_cell, j_cell, k_cell);
-                Real u2 = (i_cell < i_hi) ? xvel(i_cell+1, j_cell, k_cell) : u1;
+                Real u1 = xvel_const_arr(i_cell, j_cell, k_cell);
+                Real u2 = (i_cell < i_hi) ? xvel_const_arr(i_cell+1, j_cell, k_cell) : u1;
                 u = 0.5 * (u1 + u2);
                 
                 // Average y-velocities
-                Real v1 = yvel(i_cell, j_cell, k_cell);
-                Real v2 = (j_cell < j_hi) ? yvel(i_cell, j_cell+1, k_cell) : v1;
+                Real v1 = yvel_const_arr(i_cell, j_cell, k_cell);
+                Real v2 = (j_cell < j_hi) ? yvel_const_arr(i_cell, j_cell+1, k_cell) : v1;
                 v = 0.5 * (v1 + v2);
                 
                 // Average z-velocities
-                Real w1 = zvel(i_cell, j_cell, k_cell);
-                Real w2 = (k_cell < k_hi) ? zvel(i_cell, j_cell, k_cell+1) : w1;
+                Real w1 = zvel_const_arr(i_cell, j_cell, k_cell);
+                Real w2 = (k_cell < k_hi) ? zvel_const_arr(i_cell, j_cell, k_cell+1) : w1;
                 w = 0.5 * (w1 + w2);
             }
             
@@ -213,8 +209,8 @@ void ERFDustPC::AdvanceParticles(const amrex::MultiFab& xvel,
                 src_i = amrex::max(i_dust_lo, amrex::min(i_dust_hi, src_i));
                 src_j = amrex::max(j_dust_lo, amrex::min(j_dust_hi, src_j));
                 
-                // Add mass to source_map (CPU: direct add, not GPU atomic yet)
-                source_map(src_i, src_j, 0) += mass;
+                // Add mass to source_map (CPU: direct add, not GPU atomic for now)
+                source_map_arr(src_i, src_j, 0) += mass;
                 
                 // Mark particle as dead
                 particle.id() = -1;

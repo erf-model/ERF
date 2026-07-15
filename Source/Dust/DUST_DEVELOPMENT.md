@@ -26,8 +26,9 @@ No phase references or progress notes appear in source files.
 | 16 | Dust diagnostics and plotfile output | Complete | 2026-07-14 | ERF_DustPlotfile.H/cpp (VisMF::Write + WriteGenericPlotfileHeader on native dust grid, pattern: ERF_FirePlotfile.cpp). ERF_DustPlotfileCatalog.H (8 fields). ERF_DustStatsOutput.H (CSV append, pattern: ERF_FireStatsOutput.H). Final-step guard: nstep > m_last_dust_plot_step. DustOutput regtest (max_step=7, dust_plot_int=3, plots at 0,3,6,7). |
 | 17 | EPA NAAQS PM2.5/PM10 compliance output module | Complete | 2026-07-14 | ERF_DustPM.H (compute_pm_concentrations, update_running_average, compute_exceedance_flag). ERF_DustNAAQSOutput.H (append_naaqs_stats CSV). ERF_DustPlotfileCatalog.H updated to 14 fields. dust_naaqs.csv. DustNAAQS regtest. |
 | 18 | MSHA worker exposure tracking module | Complete | 2026-07-15 | ERF_DustMSHA.H (update_msha_dose, compute_msha_exceed). ERF_DustMSHAOutput.H (append_msha_stats, write_msha_shift_summary, append_receptor_sample). Catalog updated 14->18 fields. msha_exposure.csv, msha_shift_summary.csv, msha_receptor_<name>.csv. Shift reset via floor(t/T_shift). DustMSHA regtest. |
-| 19 | Lagrangian super-particle receptor tracking | Not started | | |
++| 19 | Lagrangian super-particle receptor tracking | Complete | 2026-07-15 | ERF_DustPC.H/cpp (ParticleContainer<0,0,5,0>). ReleaseParticles (LoopOnCpu). AdvanceParticles (nearest-cell Euler + Stokes). dust_source_map in catalog (ncomp=19). Guarded ERF_USE_PARTICLES. DustParticles regtest. |
 | 20 | Multi-mine domain with per-site PHREEQC tables | Not started | | |
+
 | 21 | PHREEQC deposition feedback file writer | Not started | | |
 | 22 | Haul road vehicle schedule emission module | Not started | | |
 | 23 | DOE Critical Materials Assessment output module | Not started | | |
