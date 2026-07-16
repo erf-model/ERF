@@ -478,6 +478,25 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
     // ********************************************************************************************
     if (solverChoice.anelastic[lev]) {
         double dummy_dt = 1.0;
+
+        // ****************************************************************************************
+        // Define grids[lev]/dmap[lev] to be the passed-in ba/dm *before* projecting.
+        //
+        // AmrCore::regrid does not call SetBoxArray/SetDistributionMap for this new level
+        // until MakeNewLevelFromCoarse returns, so grids[lev]/dmap[lev] are still empty here.
+        // project_momenta builds its per-subdomain RHS from grids[lev]/dmap[lev]; with those
+        // empty the subdomain box array is empty and the singular-solvability mean-subtraction
+        // divides by a zero-cell volume (0/0 -> NaN). That NaN traps with fpe_trap_invalid=1;
+        // with it off the projection is silently a no-op on the new level (empty RHS, early
+        // return) so the divergence-free constraint is never enforced. Setting them now
+        // (mirroring MakeNewLevelFromScratch) makes grids[lev] match the momentum MultiFabs
+        // built in init_stuff on the same ba/dm. This is idempotent with the
+        // SetBoxArray/SetDistributionMap that AmrCore performs with the identical ba/dm after
+        // this function returns.
+        // ****************************************************************************************
+        SetBoxArray(lev, ba);
+        SetDistributionMap(lev, dm);
+
         project_initial_velocity(lev, time, dummy_dt);
         pp_inc[lev].setVal(0.0);
     }

@@ -1416,10 +1416,10 @@ List of Parameters
 | **erf.coriolis_3d**                 | Include z component in | true / false      | true                |
 |                                     | the Coriolis forcing   |                   |                     |
 +-------------------------------------+------------------------+-------------------+---------------------+
-| **erf.rayleigh_damping_type**       | Rayleigh damping       | "None",           | "SlowExplicit"      |
-|                                     | type                   | "SlowExplicit",   |                     |
-|                                     |                        | "FastExplicit"    |                     |
-|                                     |                        | "FastImplicit"    |                     |
+| **erf.rayleigh_damping_type**       | Rayleigh damping       | "SlowExplicit",   | "SlowExplicit"      |
+|                                     | type. Leave all        | "FastExplicit",   |                     |
+|                                     | rayleigh_damp_* flags  | "FastImplicit"    |                     |
+|                                     | false to disable       |                   |                     |
 +-------------------------------------+------------------------+-------------------+---------------------+
 | **erf.rayleigh_damp_U**             | Include explicit       | true / false      | false               |
 |                                     | Rayleigh damping in    |                   |                     |
@@ -1438,13 +1438,15 @@ List of Parameters
 |                                     | the potential          |                   |                     |
 |                                     | temperature equation   |                   |                     |
 +-------------------------------------+------------------------+-------------------+---------------------+
-| **erf.rayleigh_dampcoef**           | Rayleigh damping       | Real              | 0.2                 |
-|                                     | coefficient, an inverse|                   |                     |
-|                                     | timescale              |                   |                     |
+| **erf.rayleigh_dampcoef**           | Inverse damping        | Real [1/s]        | 0.2                 |
+|                                     | timescale multiplying  |                   |                     |
+|                                     | the vertical damping   |                   |                     |
+|                                     | weight                 |                   |                     |
 +-------------------------------------+------------------------+-------------------+---------------------+
-| **erf.rayleigh_zdamp**              | Rayleigh damping       | Real              | 500.0               |
-|                                     | layer depth measured   |                   |                     |
-|                                     | from the top of domain |                   |                     |
+| **erf.rayleigh_zdamp**              | Depth of upper damping | Real [m]          | 500.0               |
+|                                     | layer below model top  |                   |                     |
+|                                     | where sine-squared     |                   |                     |
+|                                     | ramp is nonzero        |                   |                     |
 +-------------------------------------+------------------------+-------------------+---------------------+
 | **erf.nudging_from_input_sounding** | Add momentum source    | true / false      | false               |
 |                                     | terms to nudge the     |                   |                     |
