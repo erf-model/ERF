@@ -91,8 +91,9 @@ ERF::sum_integrated_quantities (double time)
 
     const int nfoo = 8;
     Real foo[nfoo] = {mass_sl,rhth_sl,scal_sl,mois_sl,mass_ml,rhth_ml,scal_ml,mois_ml};
+    Real zero_d = zero;
 #ifdef AMREX_LAZY
-    Lazy::QueueReduction([=,zero_d=zero]() mutable {
+    Lazy::QueueReduction([=]() mutable {
 #endif
     ParallelDescriptor::ReduceRealSum(
         foo, nfoo, ParallelDescriptor::IOProcessorNumber());
@@ -275,8 +276,9 @@ ERF::sum_derived_quantities (double time)
 
     const int nfoo = 4;
     Real foo[nfoo] = {unwted_avg,r_wted_avg,enstrsq_avg,theta_avg};
+    Real zero_d = zero;
 #ifdef AMREX_LAZY
-    Lazy::QueueReduction([=,zero_d=zero]() mutable {
+    Lazy::QueueReduction([=]() mutable {
 #endif
     ParallelDescriptor::ReduceRealSum(
         foo, nfoo, ParallelDescriptor::IOProcessorNumber());
@@ -420,8 +422,9 @@ ERF::sum_energy_quantities (double time)
 
     const int nfoo = 2;
     Real foo[nfoo] = {tot_mass_avg,tot_energy_avg};
+    Real zero_d = zero;
 #ifdef AMREX_LAZY
-    Lazy::QueueReduction([=,zero_d=zero]() mutable {
+    Lazy::QueueReduction([=]() mutable {
 #endif
     ParallelDescriptor::ReduceRealSum(
         foo, nfoo, ParallelDescriptor::IOProcessorNumber());

@@ -1374,7 +1374,7 @@ MOSTAverage::compute_region_averages (const int& lev)
                 auto x_pos_arr = x_pos->array(mfi);
                 auto y_pos_arr = y_pos->array(mfi);
                 auto z_pos_arr = z_pos->array(mfi);
-                ParallelFor(pbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+                ParallelFor(pbx, [=,one_d=one] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
                 {
                     ma_arr(i,j,0) *= d_fact_old;
 
