@@ -60,13 +60,13 @@
     Real* t   = d_t.data();
     Real* p   = d_p.data();
 
-    ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+    ParallelFor(bx, [=,myhalf_d=myhalf,PI_d=PI,two_d=two,zero_d=zero,R_d_d=R_d,Cp_d_d=Cp_d,one_d=one,R_v_d=R_v] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
     {
         // Geometry (note we must include these here to get the data on device)
         const auto prob_lo  = geomdata.ProbLo();
         const auto dx       = geomdata.CellSize();
-        const Real z        = prob_lo[2] + (k + myhalf) * dx[2];
-        const Real x        = prob_lo[0] + (i + myhalf) * dx[0];
+        const Real z        = prob_lo[2] + (k + myhalf_d) * dx[2];
+        const Real x        = prob_lo[0] + (i + myhalf_d) * dx[0];
         Real rad, delta_theta, theta_total, temperature, rho, RH, scalar;
 
         Real scaled_height = z / z_tr;
@@ -84,18 +84,18 @@
                          amrex::Math::powi<2>((z - z_c)/z_r) );
 
     if(rad <= r_c){
-        delta_theta = theta_c*amrex::Math::powi<2>(std::cos(PI*rad/two));
-        scalar = amrex::Math::powi<2>(std::cos(PI*rad/two));
+        delta_theta = theta_c*amrex::Math::powi<2>(std::cos(PI_d*rad/two_d));
+        scalar = amrex::Math::powi<2>(std::cos(PI_d*rad/two_d));
     }
     else{
-        delta_theta = zero;
-        scalar = zero;
+        delta_theta = zero_d;
+        scalar = zero_d;
     }
 
     theta_total     = t[k] + delta_theta;
 
-    temperature     = getTgivenPandTh(p[k], theta_total, (R_d/Cp_d));
-    Real T_b        = getTgivenPandTh(p[k], t[k]       , (R_d/Cp_d));
+    temperature     = getTgivenPandTh(p[k], theta_total, (R_d_d/Cp_d_d));
+    Real T_b        = getTgivenPandTh(p[k], t[k]       , (R_d_d/Cp_d_d));
 
     RH = HSEutils::compute_relative_humidity(p[k], T_b, use_empirical, which_zone, scaled_height);
 
@@ -106,11 +106,11 @@
         q_v_hot = HSEutils::vapor_mixing_ratio(p[k], T_b, RH, use_empirical, which_zone);
     }
 
-    rho = p[k]/(R_d*temperature*(one + (R_v/R_d)*q_v_hot));
+    rho = p[k]/(R_d_d*temperature*(one_d + (R_v_d/R_d_d)*q_v_hot));
 
     // Compute background quantities
-    Real temperature_back = getTgivenPandTh(p[k], t[k], (R_d/Cp_d));
-    Real T_back           = getTgivenPandTh(p[k], t[k], (R_d/Cp_d));
+    Real temperature_back = getTgivenPandTh(p[k], t[k], (R_d_d/Cp_d_d));
+    Real T_back           = getTgivenPandTh(p[k], t[k], (R_d_d/Cp_d_d));
 
     Real RH_back          = HSEutils::compute_relative_humidity(p[k], T_back, use_empirical, which_zone, scaled_height);
 
@@ -120,11 +120,11 @@
     } else {
         q_v_back = HSEutils::vapor_mixing_ratio(p[k], T_back, RH_back, use_empirical, which_zone);
     }
-    Real rho_back         = p[k]/(R_d*temperature_back*(one + (R_v/R_d)*q_v_back));
+    Real rho_back         = p[k]/(R_d_d*temperature_back*(one_d + (R_v_d/R_d_d)*q_v_back));
 
     // This version perturbs rho but not p
-    state_pert(i, j, k, RhoTheta_comp) = rho*theta_total - rho_back*t[k]*(one + (R_v/R_d)*q_v_back);// rho*d_t[k]*(one + R_v_by_R_d*q_v_hot);
-    state_pert(i, j, k, Rho_comp)      = rho - rho_back*(one + q_v_back);
+    state_pert(i, j, k, RhoTheta_comp) = rho*theta_total - rho_back*t[k]*(one_d + (R_v_d/R_d_d)*q_v_back);// rho*d_t[k]*(one + R_v_by_R_d*q_v_hot);
+    state_pert(i, j, k, Rho_comp)      = rho - rho_back*(one_d + q_v_back);
 
     // Set scalar = 0 everywhere
     state_pert(i, j, k, RhoScalar_comp) = rho*scalar;
@@ -132,8 +132,7 @@
     // mean states
     if (use_moisture) {
         state_pert(i, j, k, RhoQ1_comp) = rho*q_v_hot;
-        state_pert(i, j, k, RhoQ2_comp) = zero;
+        state_pert(i, j, k, RhoQ2_comp) = zero_d;
     }
 
   });
-

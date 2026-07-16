@@ -639,7 +639,7 @@ Radiation::mf_to_kokkos_buffers (iMultiFab* lmask,
                                                                   Array4<const Real> {};
                 const Array4<      Real>& lsm_in_arr = (lsm_input_ptrs[ivar]) ? lsm_input_ptrs[ivar]->array(mfi) :
                                                                                 Array4<      Real> {};
-                ParallelFor(sbx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+                ParallelFor(sbx, [=,lsm_undefined_d=lsm_undefined] AMREX_GPU_DEVICE (int i, int j, int k)
                 {
                     // map [i,j,k] 0-based to [icol, ilay] 0-based
                     const int icol   = (j-jmin)*nx + (i-imin) + offset;
@@ -648,7 +648,7 @@ Radiation::mf_to_kokkos_buffers (iMultiFab* lmask,
                     bool is_land = (lmask_arr) ? lmask_arr(i,j,k) : 1;
 
                     // Check if valid LSM data
-                    bool valid_lsm_data = (lsm_in_arr && (lsm_in_arr(i,j,k) < lsm_undefined));
+                    bool valid_lsm_data = (lsm_in_arr && (lsm_in_arr(i,j,k) < lsm_undefined_d));
 
                     // Have LSM and are over land
                     if (is_land && valid_lsm_data) {
@@ -715,7 +715,7 @@ Radiation::kokkos_buffers_to_mf (Vector<MultiFab*>& lsm_output_ptrs)
         const int offset     = m_col_offsets[mfi.index()];
         const Array4<Real>& q_arr = m_qheating_rates->array(mfi);
         const Array4<Real>& f_arr = m_rad_fluxes->array(mfi);
-        ParallelFor(vbx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+        ParallelFor(vbx, [=,one_d=one,R_d_d=R_d,Cp_d_d=Cp_d] AMREX_GPU_DEVICE (int i, int j, int k)
         {
             // map [i,j,k] 0-based to [icol, ilay] 0-based
             const int icol = (j-jmin)*nx + (i-imin) + offset;
@@ -726,7 +726,7 @@ Radiation::kokkos_buffers_to_mf (Vector<MultiFab*>& lsm_output_ptrs)
             q_arr(i,j,k,1) = lw_heating_tab(icol,ilay);
 
             // Convert the dT/dz to dTheta/dz
-            Real iexner = one/getExnergivenP(Real(p_lay_tab(icol,ilay)), R_d/Cp_d);
+            Real iexner = one_d/getExnergivenP(Real(p_lay_tab(icol,ilay)), R_d_d/Cp_d_d);
             q_arr(i,j,k,0) *= iexner;
             q_arr(i,j,k,1) *= iexner;
 
@@ -1162,11 +1162,11 @@ Radiation::run_impl ()
         double dt  = double(m_dt);
         auto rad_freq_in_steps = m_rad_freq_in_steps;
         Kokkos::parallel_for(Kokkos::RangePolicy<Kokkos::Serial>(0, ncol),
-                             [&] (int icol)
+                             [&,PI_d=PI] (int icol)
         {
             // Convert lat/lon to radians
-            double lat_col = h_lat(icol)*PI/Real(180.0);
-            double lon_col = h_lon(icol)*PI/Real(180.0);
+            double lat_col = h_lat(icol)*PI_d/Real(180.0);
+            double lon_col = h_lon(icol)*PI_d/Real(180.0);
             double lcalday = calday;
             double ldelta  = delta;
             double dt_avg  = static_cast<double>(rad_freq_in_steps) * dt;

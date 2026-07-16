@@ -83,7 +83,7 @@ void ERFPhysBCFunct_cons::impose_lateral_cons_bcs (const Array4<Real>& dest_arr,
         bx_xlo.grow(2,ng[2]);
         bx_xhi.grow(2,ng[2]);
         ParallelFor(
-            bx_xlo, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n)
+            bx_xlo, ncomp, [=,zero_d=zero] AMREX_GPU_DEVICE (int i, int j, int k, int n)
             {
                 int dest_comp = icomp+n;
                 int bc_comp   = (dest_comp >= RhoScalar_comp && dest_comp < RhoScalar_comp+NSCALARS) ?
@@ -92,7 +92,7 @@ void ERFPhysBCFunct_cons::impose_lateral_cons_bcs (const Array4<Real>& dest_arr,
                 int l_bc_type = bc_ptr[n].lo(0);
 
                 if ( (l_bc_type == ERFBCType::ext_dir) ||
-                     (l_bc_type == ERFBCType::ext_dir_upwind && xvel_arr(dom_lo.x,j,k) >= zero) )
+                     (l_bc_type == ERFBCType::ext_dir_upwind && xvel_arr(dom_lo.x,j,k) >= zero_d) )
                 {
                     if ((dest_comp == RhoTheta_comp) && th_bc_ptr) {
                         dest_arr(i,j,k,dest_comp) = th_bc_ptr[k];
@@ -108,7 +108,7 @@ void ERFPhysBCFunct_cons::impose_lateral_cons_bcs (const Array4<Real>& dest_arr,
                     }
                 }
             },
-            bx_xhi, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n)
+            bx_xhi, ncomp, [=,zero_d=zero] AMREX_GPU_DEVICE (int i, int j, int k, int n)
             {
                 int dest_comp = icomp+n;
                 int bc_comp   = (dest_comp >= RhoScalar_comp && dest_comp < RhoScalar_comp+NSCALARS) ?
@@ -117,7 +117,7 @@ void ERFPhysBCFunct_cons::impose_lateral_cons_bcs (const Array4<Real>& dest_arr,
                 int h_bc_type = bc_ptr[n].hi(0);
 
                 if ( (h_bc_type == ERFBCType::ext_dir) ||
-                     (h_bc_type == ERFBCType::ext_dir_upwind && xvel_arr(dom_hi.x+1,j,k) <= zero) )
+                     (h_bc_type == ERFBCType::ext_dir_upwind && xvel_arr(dom_hi.x+1,j,k) <= zero_d) )
                 {
                     if ((dest_comp == RhoTheta_comp) && th_bc_ptr) {
                         dest_arr(i,j,k,dest_comp) = th_bc_ptr[k];
@@ -149,7 +149,7 @@ void ERFPhysBCFunct_cons::impose_lateral_cons_bcs (const Array4<Real>& dest_arr,
         bx_yhi.grow(2,ng[2]);
 
         ParallelFor(
-            bx_ylo, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n)
+            bx_ylo, ncomp, [=,zero_d=zero] AMREX_GPU_DEVICE (int i, int j, int k, int n)
             {
                 int dest_comp = icomp+n;
                 int bc_comp   = (dest_comp >= RhoScalar_comp && dest_comp < RhoScalar_comp+NSCALARS) ?
@@ -157,7 +157,7 @@ void ERFPhysBCFunct_cons::impose_lateral_cons_bcs (const Array4<Real>& dest_arr,
                 if (bc_comp > BCVars::RhoScalar_bc_comp) bc_comp -= (NSCALARS-1);
                 int l_bc_type = bc_ptr[n].lo(1);
                 if ( (l_bc_type == ERFBCType::ext_dir) ||
-                     (l_bc_type == ERFBCType::ext_dir_upwind && yvel_arr(i,dom_lo.y,k) >= zero) )
+                     (l_bc_type == ERFBCType::ext_dir_upwind && yvel_arr(i,dom_lo.y,k) >= zero_d) )
                 {
                     if ((dest_comp == RhoTheta_comp) && th_bc_ptr) {
                         dest_arr(i,j,k,dest_comp) = th_bc_ptr[k];
@@ -173,7 +173,7 @@ void ERFPhysBCFunct_cons::impose_lateral_cons_bcs (const Array4<Real>& dest_arr,
                     }
                 }
             },
-            bx_yhi, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n)
+            bx_yhi, ncomp, [=,zero_d=zero] AMREX_GPU_DEVICE (int i, int j, int k, int n)
             {
                 int dest_comp = icomp+n;
                 int bc_comp   = (dest_comp >= RhoScalar_comp && dest_comp < RhoScalar_comp+NSCALARS) ?
@@ -181,7 +181,7 @@ void ERFPhysBCFunct_cons::impose_lateral_cons_bcs (const Array4<Real>& dest_arr,
                 if (bc_comp > BCVars::RhoScalar_bc_comp) bc_comp -= (NSCALARS-1);
                 int h_bc_type = bc_ptr[n].hi(1);
                 if ( (h_bc_type == ERFBCType::ext_dir) ||
-                     (h_bc_type == ERFBCType::ext_dir_upwind && yvel_arr(i,dom_hi.y+1,k) <= zero) )
+                     (h_bc_type == ERFBCType::ext_dir_upwind && yvel_arr(i,dom_hi.y+1,k) <= zero_d) )
                 {
                     if ((dest_comp == RhoTheta_comp) && th_bc_ptr) {
                         dest_arr(i,j,k,dest_comp) = th_bc_ptr[k];
@@ -212,7 +212,7 @@ void ERFPhysBCFunct_cons::impose_lateral_cons_bcs (const Array4<Real>& dest_arr,
         if (bx_xhi.smallEnd(2) != domain.smallEnd(2)) bx_xhi.growLo(2,ng[2]);
         if (bx_xhi.bigEnd(2)   != domain.bigEnd(2))   bx_xhi.growHi(2,ng[2]);
         ParallelFor(
-            bx_xlo, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n)
+            bx_xlo, ncomp, [=,one_d=one] AMREX_GPU_DEVICE (int i, int j, int k, int n)
             {
                 int dest_comp = icomp+n;
                 int l_bc_type = bc_ptr[n].lo(0);
@@ -227,10 +227,10 @@ void ERFPhysBCFunct_cons::impose_lateral_cons_bcs (const Array4<Real>& dest_arr,
                     dest_arr(i,j,k,dest_comp) = -dest_arr(iflip,j,k,dest_comp);
                 } else if (l_bc_type == ERFBCType::hoextrap) {
                     Real delta_i = static_cast<Real>(dom_lo.x - i);
-                    dest_arr(i,j,k,dest_comp) = (one + delta_i)*dest_arr(dom_lo.x,j,k,dest_comp) - delta_i*dest_arr(dom_lo.x+1,j,k,dest_comp);
+                    dest_arr(i,j,k,dest_comp) = (one_d + delta_i)*dest_arr(dom_lo.x,j,k,dest_comp) - delta_i*dest_arr(dom_lo.x+1,j,k,dest_comp);
                 }
             },
-            bx_xhi, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n)
+            bx_xhi, ncomp, [=,one_d=one] AMREX_GPU_DEVICE (int i, int j, int k, int n)
             {
                 int dest_comp = icomp+n;
                 int h_bc_type = bc_ptr[n].hi(0);
@@ -245,7 +245,7 @@ void ERFPhysBCFunct_cons::impose_lateral_cons_bcs (const Array4<Real>& dest_arr,
                     dest_arr(i,j,k,dest_comp) = -dest_arr(iflip,j,k,dest_comp);
                 } else if (h_bc_type == ERFBCType::hoextrap) {
                     Real delta_i = static_cast<Real>(i - dom_hi.x);
-                    dest_arr(i,j,k,dest_comp) = (one + delta_i)*dest_arr(dom_hi.x,j,k,dest_comp) - delta_i*dest_arr(dom_hi.x-1,j,k,dest_comp);
+                    dest_arr(i,j,k,dest_comp) = (one_d + delta_i)*dest_arr(dom_hi.x,j,k,dest_comp) - delta_i*dest_arr(dom_hi.x-1,j,k,dest_comp);
                 }
             }
         );
@@ -261,7 +261,7 @@ void ERFPhysBCFunct_cons::impose_lateral_cons_bcs (const Array4<Real>& dest_arr,
         if (bx_yhi.smallEnd(2) != domain.smallEnd(2)) bx_yhi.growLo(2,ng[2]);
         if (bx_yhi.bigEnd(2)   != domain.bigEnd(2))   bx_yhi.growHi(2,ng[2]);
         ParallelFor(
-            bx_ylo, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n)
+            bx_ylo, ncomp, [=,one_d=one] AMREX_GPU_DEVICE (int i, int j, int k, int n)
             {
                 int dest_comp = icomp+n;
                 int l_bc_type = bc_ptr[n].lo(1);
@@ -276,11 +276,11 @@ void ERFPhysBCFunct_cons::impose_lateral_cons_bcs (const Array4<Real>& dest_arr,
                     dest_arr(i,j,k,dest_comp) = -dest_arr(i,jflip,k,dest_comp);
                 } else if (l_bc_type == ERFBCType::hoextrap) {
                     Real delta_j = static_cast<Real>(dom_lo.y - j);
-                    dest_arr(i,j,k,dest_comp) = (one + delta_j)*dest_arr(i,dom_lo.y,k,dest_comp) - delta_j*dest_arr(i,dom_lo.y+1,k,dest_comp);
+                    dest_arr(i,j,k,dest_comp) = (one_d + delta_j)*dest_arr(i,dom_lo.y,k,dest_comp) - delta_j*dest_arr(i,dom_lo.y+1,k,dest_comp);
                 }
 
             },
-            bx_yhi, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n)
+            bx_yhi, ncomp, [=,one_d=one] AMREX_GPU_DEVICE (int i, int j, int k, int n)
             {
                 int dest_comp = icomp+n;
                 int h_bc_type = bc_ptr[n].hi(1);
@@ -295,7 +295,7 @@ void ERFPhysBCFunct_cons::impose_lateral_cons_bcs (const Array4<Real>& dest_arr,
                     dest_arr(i,j,k,dest_comp) = -dest_arr(i,jflip,k,dest_comp);
                 } else if (h_bc_type == ERFBCType::hoextrap) {
                     Real delta_j = static_cast<Real>(j - dom_hi.y);
-                    dest_arr(i,j,k,dest_comp) = (one + delta_j)*dest_arr(i,dom_hi.y,k,dest_comp) - delta_j*dest_arr(i,dom_hi.y-1,k,dest_comp);
+                    dest_arr(i,j,k,dest_comp) = (one_d + delta_j)*dest_arr(i,dom_hi.y,k,dest_comp) - delta_j*dest_arr(i,dom_hi.y-1,k,dest_comp);
                 }
             }
         );
@@ -418,7 +418,7 @@ void ERFPhysBCFunct_cons::impose_vertical_cons_bcs (const Array4<Real>& dest_arr
         Box bx_zhi(bx);  bx_zhi.setSmall(2,dom_hi.z+1);
         // Populate ghost cells on lo-z and hi-z domain boundaries
         ParallelFor(
-            bx_zlo, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n)
+            bx_zlo, ncomp, [=,one_d=one] AMREX_GPU_DEVICE (int i, int j, int k, int n)
             {
                 int dest_comp = icomp+n;
                 int bc_comp   = (dest_comp >= RhoScalar_comp && dest_comp < RhoScalar_comp+NSCALARS) ?
@@ -446,11 +446,11 @@ void ERFPhysBCFunct_cons::impose_vertical_cons_bcs (const Array4<Real>& dest_arr
                     }
                 } else if (l_bc_type == ERFBCType::hoextrap) {
                     Real delta_k = static_cast<Real>(dom_lo.z - k);
-                    dest_arr(i,j,k,dest_comp) = (one + delta_k) * dest_arr(i,j,dom_lo.z  ,dest_comp) -
+                    dest_arr(i,j,k,dest_comp) = (one_d + delta_k) * dest_arr(i,j,dom_lo.z  ,dest_comp) -
                                                        delta_k  * dest_arr(i,j,dom_lo.z+1,dest_comp);
                 }
             },
-            bx_zhi, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n)
+            bx_zhi, ncomp, [=,one_d=one] AMREX_GPU_DEVICE (int i, int j, int k, int n)
             {
                 int dest_comp = icomp+n;
                 int bc_comp   = (dest_comp >= RhoScalar_comp && dest_comp < RhoScalar_comp+NSCALARS) ?
@@ -478,7 +478,7 @@ void ERFPhysBCFunct_cons::impose_vertical_cons_bcs (const Array4<Real>& dest_arr
                     }
                 } else if (h_bc_type == ERFBCType::hoextrap){
                     Real delta_k = static_cast<Real>(k - dom_hi.z);
-                    dest_arr(i,j,k,dest_comp) = (one + delta_k)*dest_arr(i,j,dom_hi.z,dest_comp) - delta_k*dest_arr(i,j,dom_hi.z-1,dest_comp);
+                    dest_arr(i,j,k,dest_comp) = (one_d + delta_k)*dest_arr(i,j,dom_hi.z,dest_comp) - delta_k*dest_arr(i,j,dom_hi.z-1,dest_comp);
                 }
             }
         );
@@ -512,7 +512,7 @@ void ERFPhysBCFunct_cons::impose_vertical_cons_bcs (const Array4<Real>& dest_arr
                     Real dz = geomdata.CellSize(2);
 
                     // Fill all the Neumann srcs with terrain
-                    ParallelFor(xybx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+                    ParallelFor(xybx, [=,zero_d=zero,myhalf_d=myhalf,one_d=one] AMREX_GPU_DEVICE (int i, int j, int k)
                     {
                         // Clip indices for ghost-cells
                         int ii = amrex::min(amrex::max(i,perdom_lo.x),perdom_hi.x);
@@ -527,29 +527,29 @@ void ERFPhysBCFunct_cons::impose_vertical_cons_bcs (const Array4<Real>& dest_arr
                         // used foextrap for cell-centered quantities outside the domain to define the gradient as zero
                         Real GradVarx, GradVary;
                         if (i < dom_lo.x-1 || i > dom_hi.x+1 || (i+1 > bx_hi.x && i-1 < bx_lo.x) ) {
-                            GradVarx = zero;
+                            GradVarx = zero_d;
                         } else if (i+1 > bx_hi.x) {
                             GradVarx =       dxInv[0] * (dest_arr(i  ,j,k0,dest_comp) - dest_arr(i-1,j,k0,dest_comp));
                         } else if (i-1 < bx_lo.x) {
                             GradVarx =       dxInv[0] * (dest_arr(i+1,j,k0,dest_comp) - dest_arr(i  ,j,k0,dest_comp));
                         } else {
-                            GradVarx = myhalf * dxInv[0] * (dest_arr(i+1,j,k0,dest_comp) - dest_arr(i-1,j,k0,dest_comp));
+                            GradVarx = myhalf_d * dxInv[0] * (dest_arr(i+1,j,k0,dest_comp) - dest_arr(i-1,j,k0,dest_comp));
                         }
 
                         // GradY at IJK location inside domain -- this relies on the assumption that we have
                         // used foextrap for cell-centered quantities outside the domain to define the gradient as zero
                         if (j < dom_lo.y-1 || j > dom_hi.y+1 || (j+1 > bx_hi.y && j-1 < bx_lo.y) ) {
-                            GradVary = zero;
+                            GradVary = zero_d;
                         } else if (j+1 > bx_hi.y) {
                             GradVary =       dxInv[1] * (dest_arr(i,j  ,k0,dest_comp) - dest_arr(i,j-1,k0,dest_comp));
                         } else if (j-1 < bx_lo.y) {
                             GradVary =       dxInv[1] * (dest_arr(i,j+1,k0,dest_comp) - dest_arr(i,j  ,k0,dest_comp));
                         } else {
-                            GradVary = myhalf * dxInv[1] * (dest_arr(i,j+1,k0,dest_comp) - dest_arr(i,j-1,k0,dest_comp));
+                            GradVary = myhalf_d * dxInv[1] * (dest_arr(i,j+1,k0,dest_comp) - dest_arr(i,j-1,k0,dest_comp));
                         }
 
                         // Prefactor
-                        Real met_fac =  met_h_zeta / ( met_h_xi*met_h_xi + met_h_eta*met_h_eta + one );
+                        Real met_fac =  met_h_zeta / ( met_h_xi*met_h_xi + met_h_eta*met_h_eta + one_d );
 
                         // Accumulate in bottom ghost cell (EXTRAP already populated)
                         dest_arr(i,j,k,dest_comp) -= dz * met_fac * ( met_h_xi * GradVarx + met_h_eta * GradVary );

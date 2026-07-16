@@ -27,7 +27,7 @@ ERF::FindInitialEye(int levc,
         const Box& box = mfi.validbox();
         const Array4<const Real>& vel_arr = mf_cc_vel.const_array(mfi);
 
-        ParallelFor(box, [=] AMREX_GPU_DEVICE(int i, int j, int k)
+        ParallelFor(box, [=,myhalf_d=myhalf] AMREX_GPU_DEVICE(int i, int j, int k)
         {
             Real magnitude = std::sqrt(vel_arr(i,j,k,0) * vel_arr(i,j,k,0) +
                                        vel_arr(i,j,k,1) * vel_arr(i,j,k,1) +
@@ -35,15 +35,15 @@ ERF::FindInitialEye(int levc,
 
             magnitude *= Real(3.6);
 
-            Real z = prob_lo[2] + (k + myhalf) * dx[2];
+            Real z = prob_lo[2] + (k + myhalf_d) * dx[2];
 
             // Check if magnitude exceeds threshold
             if (z < Real(2000.) && magnitude > velmag_threshold) {
                 // Use atomic operations to set found flag and store coordinates
                 Gpu::Atomic::Add(&d_found_ptr[0], 1); // Mark as found
 
-                Real x = prob_lo[0] + (i + myhalf) * dx[0];
-                Real y = prob_lo[1] + (j + myhalf) * dx[1];
+                Real x = prob_lo[0] + (i + myhalf_d) * dx[0];
+                Real y = prob_lo[1] + (j + myhalf_d) * dx[1];
 
                 // Store coordinates
                 Gpu::Atomic::Add(&d_coords_ptr[0],x); // Store x index
@@ -91,10 +91,10 @@ tag_on_distance_from_eye(const Geometry& cgeom, TagBoxArray* tags,
 
         const Box& tile_box = mfi.tilebox(); // The box for this tile
 
-        ParallelFor(tile_box, [=] AMREX_GPU_DEVICE(int i, int j, int k) {
+        ParallelFor(tile_box, [=,myhalf_d=myhalf] AMREX_GPU_DEVICE(int i, int j, int k) {
             // Compute cell center coordinates
-            Real x = prob_lo[0] + (i + myhalf) * dx[0];
-            Real y = prob_lo[1] + (j + myhalf) * dx[1];
+            Real x = prob_lo[0] + (i + myhalf_d) * dx[0];
+            Real y = prob_lo[1] + (j + myhalf_d) * dx[1];
 
             Real dist = std::sqrt((x - eye_x)*(x - eye_x) + (y - eye_y)*(y - eye_y));
 

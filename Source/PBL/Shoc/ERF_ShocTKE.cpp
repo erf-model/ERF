@@ -188,7 +188,7 @@ ShocTKE::diagnose_tke_and_diffusivities (ShocColumnData& col,
     const auto layout = col.layout;
     const Box col_box(IntVect(0,0,0), IntVect(layout.ncell - 1, 0, 0));
 
-    ParallelFor(col_box, [=] AMREX_GPU_DEVICE (int ic, int, int) noexcept
+    ParallelFor(col_box, [=,CONST_GRAV_d=CONST_GRAV] AMREX_GPU_DEVICE (int ic, int, int) noexcept
     {
         const Real z_sfc = zi(ic,0,0);
         Real brunt_int = 0.0_rt;
@@ -200,7 +200,7 @@ ShocTKE::diagnose_tke_and_diffusivities (ShocColumnData& col,
             const Real old_tke = amrex::max(0.0_rt, tke(ic,k,0));
             const Real buoy_prod = opts.shoc_1p5tke
                 ? -old_tke * brunt(ic,k,0)
-                : (CONST_GRAV / shoc_base_temp()) * wthv_sec(ic,k,0);
+                : (CONST_GRAV_d / shoc_base_temp()) * wthv_sec(ic,k,0);
             const Real shear_prod = tk(ic,k,0) * sterm(ic,k,0);
             const Real mix = amrex::max(shoc_mix(ic,k,0), 1.0e-12_rt);
             const Real diss = shoc_tke_cee() / mix * old_tke * std::sqrt(old_tke);
@@ -222,7 +222,7 @@ ShocTKE::diagnose_tke_and_diffusivities (ShocColumnData& col,
             tke(ic,k,0) = new_tke;
         }
 
-        Real lambda = opts.lambda_low + ((brunt_int / CONST_GRAV) - opts.lambda_thresh) * opts.lambda_slope;
+        Real lambda = opts.lambda_low + ((brunt_int / CONST_GRAV_d) - opts.lambda_thresh) * opts.lambda_slope;
         lambda = shoc_clamp(lambda, opts.lambda_low, opts.lambda_high);
 
         for (int k = 0; k < layout.nlev; ++k) {

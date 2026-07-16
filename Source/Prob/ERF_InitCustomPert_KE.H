@@ -11,7 +11,7 @@
                        << std::endl;
     }
 
-    ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+    ParallelFor(bx, [=,one_d=one] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
     {
         // Set an initial value for SGS KE
         const Real z = z_cc(i,j,k);
@@ -20,7 +20,7 @@
             // scale initial SGS kinetic energy with height
             if (KE_decay_height > 0) {
                 state_pert(i, j, k, RhoKE_comp) *= max(
-                    std::pow(1 - min(z/KE_decay_height,one), KE_decay_order),
+                    std::pow(1 - min(z/KE_decay_height,one_d), KE_decay_order),
                     1e-12);
             }
         }

@@ -63,13 +63,13 @@ ApplySpongeZoneBCsForCC (const SpongeChoice& spongeChoice,
     if(use_zlo_sponge_damping)AMREX_ALWAYS_ASSERT(zlo_sponge_end   > ProbLoArr[2]);
     if(use_zhi_sponge_damping)AMREX_ALWAYS_ASSERT(zhi_sponge_start < ProbHiArr[2]);
 
-    ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+    ParallelFor(bx, [=,myhalf_d=myhalf] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
     {
         int ii = amrex::min(amrex::max(i, domlo_x), domhi_x);
         int jj = amrex::min(amrex::max(j, domlo_y), domhi_y);
 
-        Real x = ProbLoArr[0] + (ii+myhalf) * dx[0];
-        Real y = ProbLoArr[1] + (jj+myhalf) * dx[1];
+        Real x = ProbLoArr[0] + (ii+myhalf_d) * dx[0];
+        Real y = ProbLoArr[1] + (jj+myhalf_d) * dx[1];
         Real z = z_phys_cc(i,j,k);
 
         Real sponge_density = (use_base_density) ? r0(i,j,k) : sponge_density_tmp;
@@ -229,16 +229,16 @@ ApplySpongeZoneBCsForMom (const SpongeChoice& spongeChoice,
     if(use_zlo_sponge_damping)AMREX_ALWAYS_ASSERT(zlo_sponge_end   > ProbLoArr[2]);
     if(use_zhi_sponge_damping)AMREX_ALWAYS_ASSERT(zhi_sponge_start < ProbHiArr[2]);
 
-    ParallelFor(tbx, [=] AMREX_GPU_DEVICE(int i, int j, int k)
+    ParallelFor(tbx, [=,myhalf_d=myhalf] AMREX_GPU_DEVICE(int i, int j, int k)
     {
         int ii = amrex::min(amrex::max(i, domlo_x), domhi_x);
         int jj = amrex::min(amrex::max(j, domlo_y), domhi_y);
 
         Real x = ProbLoArr[0] + ii * dx[0];
-        Real y = ProbLoArr[1] + (jj+myhalf) * dx[1];
+        Real y = ProbLoArr[1] + (jj+myhalf_d) * dx[1];
         Real z = z_phys_cc(i,j,k);
 
-        Real sponge_density = (use_base) ? myhalf * (r0(i,j,k) + r0(i-1,j,k)) : sponge_density_tmp;
+        Real sponge_density = (use_base) ? myhalf_d * (r0(i,j,k) + r0(i-1,j,k)) : sponge_density_tmp;
 
         // x lo sponge
         if(use_xlo_sponge_damping){
@@ -289,16 +289,16 @@ ApplySpongeZoneBCsForMom (const SpongeChoice& spongeChoice,
     });
 
 
-    ParallelFor(tby, [=] AMREX_GPU_DEVICE(int i, int j, int k)
+    ParallelFor(tby, [=,myhalf_d=myhalf] AMREX_GPU_DEVICE(int i, int j, int k)
     {
         int ii = amrex::min(amrex::max(i, domlo_x), domhi_x);
         int jj = amrex::min(amrex::max(j, domlo_y), domhi_y);
 
-        Real x = ProbLoArr[0] + (ii+myhalf) * dx[0];
+        Real x = ProbLoArr[0] + (ii+myhalf_d) * dx[0];
         Real y = ProbLoArr[1] + jj * dx[1];
         Real z = z_phys_cc(i,j,k);
 
-        Real sponge_density = (use_base) ?  myhalf * (r0(i,j,k) + r0(i,j-1,k)) : sponge_density_tmp;
+        Real sponge_density = (use_base) ?  myhalf_d * (r0(i,j,k) + r0(i,j-1,k)) : sponge_density_tmp;
 
         // x lo sponge
         if(use_xlo_sponge_damping){
@@ -349,16 +349,16 @@ ApplySpongeZoneBCsForMom (const SpongeChoice& spongeChoice,
     });
 
 
-    ParallelFor(tbz, [=] AMREX_GPU_DEVICE(int i, int j, int k)
+    ParallelFor(tbz, [=,myhalf_d=myhalf] AMREX_GPU_DEVICE(int i, int j, int k)
     {
         int ii = amrex::min(amrex::max(i, domlo_x), domhi_x);
         int jj = amrex::min(amrex::max(j, domlo_y), domhi_y);
 
-        Real x = ProbLoArr[0] + (ii+myhalf) * dx[0];
-        Real y = ProbLoArr[1] + (jj+myhalf) * dx[1];
+        Real x = ProbLoArr[0] + (ii+myhalf_d) * dx[0];
+        Real y = ProbLoArr[1] + (jj+myhalf_d) * dx[1];
         Real z = z_phys_nd(i,j,k);
 
-        Real sponge_density = (use_base) ? myhalf * (r0(i,j,k) + r0(i,j,k-1)) : sponge_density_tmp;
+        Real sponge_density = (use_base) ? myhalf_d * (r0(i,j,k) + r0(i,j,k-1)) : sponge_density_tmp;
 
         // x left sponge
         if(use_xlo_sponge_damping){
@@ -408,7 +408,6 @@ ApplySpongeZoneBCsForMom (const SpongeChoice& spongeChoice,
         }
     });
 }
-
 
 
 

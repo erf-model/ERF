@@ -211,7 +211,7 @@ PlaneAverage::compute_averages (const IndexSelector& idxOp, const amrex::MultiFa
         const amrex::Array4<const amrex::Real>& fab_arr  = mfab.const_array(mfi);
         const amrex::Array4<const int        >& mask_arr = mask->const_array(mfi);
 
-        amrex::ParallelFor(amrex::Gpu::KernelInfo().setReduction(true), pbx, [=]
+        amrex::ParallelFor(amrex::Gpu::KernelInfo().setReduction(true), pbx, [=,one_d=one,zero_d=zero]
                     AMREX_GPU_DEVICE( int p_i, int p_j, int p_k,
                                       amrex::Gpu::Handler const& handler) noexcept
         {
@@ -226,7 +226,7 @@ PlaneAverage::compute_averages (const IndexSelector& idxOp, const amrex::MultiFa
                         // NOTE: This factor is to avoid an if statement that will break
                         //       the devicereducesum since all threads won't participate.
                         //       This more performant than Gpu::Atomic::Add.
-                        amrex::Real fac = (mask_arr(i,j,k)) ? one : zero;
+                        amrex::Real fac = (mask_arr(i,j,k)) ? one_d : zero_d;
                         amrex::Gpu::deviceReduceSum(&cnt_avg[ind], fac, handler);
                         for (int n = 0; n < ncomp; ++n) {
                             amrex::Gpu::deviceReduceSum(&line_avg[ncomp * ind + n],

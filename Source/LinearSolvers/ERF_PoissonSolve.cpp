@@ -203,9 +203,9 @@ void ERF::project_momenta (int lev, double l_time, double l_dt_d, Vector<MultiFa
             // Define Omega from (rho0 W) but store it in the same array
             //
             Box tbz = mfi.nodaltilebox(2);
-            ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+            ParallelFor(tbz, [=,zero_d=zero] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
                 if (k == 0) {
-                    rho0w_arr(i,j,k) = zero;
+                    rho0w_arr(i,j,k) = zero_d;
                 } else {
                     Real rho0w = rho0w_arr(i,j,k);
                     rho0w_arr(i,j,k) = OmegaFromW(i,j,k,rho0w,

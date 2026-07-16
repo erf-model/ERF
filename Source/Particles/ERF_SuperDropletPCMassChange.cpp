@@ -100,7 +100,7 @@ void SuperDropletPC::MassChange ( int                                         a_
                                    ti_choice == SDMassChangeTIMethod::DIRK2,
                                    "ERROR: invalid time integrator choice!" );
 
-        ParallelFor(ptrs.num_particles, [=] AMREX_GPU_DEVICE (int i)
+        ParallelFor(ptrs.num_particles, [=,zero_d=zero,four_thirds_pi_d=four_thirds_pi] AMREX_GPU_DEVICE (int i)
         {
             ParticleType& p = p_pbox[i];
             if (p.id() <= 0) { return; }
@@ -128,7 +128,7 @@ void SuperDropletPC::MassChange ( int                                         a_
             const auto temperature = fv[static_cast<int>(InterpFieldsLV::temperature)];
             const auto pressure    = fv[static_cast<int>(InterpFieldsLV::pressure)];
 
-            ParticleReal solute_moles = zero;
+            ParticleReal solute_moles = zero_d;
             if (a_is_water) {
                 for (int j = 0; j < ctx.num_species; j++) {
                     if (j != idx_vap) {
@@ -202,7 +202,7 @@ void SuperDropletPC::MassChange ( int                                         a_
             } else {
                 // update particle attributes
                 auto r_new = std::sqrt(r_sq);
-                auto d_mass = four_thirds_pi*mat_density * (r_new*r_new*r_new - r_init*r_init*r_init);
+                auto d_mass = four_thirds_pi_d*mat_density * (r_new*r_new*r_new - r_init*r_init*r_init);
                 ptrs.sp_mass_ptrs[idx_vap][i] += d_mass;
                 // don't let it go negative
                 ptrs.sp_mass_ptrs[idx_vap][i] = std::max(ptrs.sp_mass_ptrs[idx_vap][i],ParticleReal(0));
