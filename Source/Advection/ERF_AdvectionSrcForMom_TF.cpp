@@ -84,108 +84,108 @@ AdvectionSrcForMom_TF (const Box& bxx, const Box& bxy, const Box& bxz,
     const Array4<Real>& mf_vy_inv = mf_vy_invFAB.array();
 
     ParallelFor(box2d_u, box2d_v,
-    [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept
+    [=,one_d=one] AMREX_GPU_DEVICE (int i, int j, int) noexcept
     {
-        mf_ux_inv(i,j,0) = one / mf_ux(i,j,0);
-        mf_uy_inv(i,j,0) = one / mf_uy(i,j,0);
+        mf_ux_inv(i,j,0) = one_d / mf_ux(i,j,0);
+        mf_uy_inv(i,j,0) = one_d / mf_uy(i,j,0);
     },
-    [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept
+    [=,one_d=one] AMREX_GPU_DEVICE (int i, int j, int) noexcept
     {
-        mf_vx_inv(i,j,0) = one / mf_vx(i,j,0);
-        mf_vy_inv(i,j,0) = one / mf_vy(i,j,0);
+        mf_vx_inv(i,j,0) = one_d / mf_vx(i,j,0);
+        mf_vy_inv(i,j,0) = one_d / mf_vy(i,j,0);
     });
 
     // Inline with 2nd order for efficiency
     if (horiz_adv_type == AdvType::Centered_2nd && vert_adv_type == AdvType::Centered_2nd)
     {
             ParallelFor(bxx, bxy, bxz,
-            [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            [=,fourth_d=fourth,myhalf_d=myhalf] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
-                Real xflux_hi = fourth * (rho_u(i,j,k) * mf_uy_inv(i,j,0) + rho_u(i+1,j,k) * mf_uy_inv(i+1,j,0)) *
-                                       (u(i+1,j,k) + u(i,j,k)) * myhalf * (ax(i,j,k) + ax(i+1,j,k));
+                Real xflux_hi = fourth_d * (rho_u(i,j,k) * mf_uy_inv(i,j,0) + rho_u(i+1,j,k) * mf_uy_inv(i+1,j,0)) *
+                                       (u(i+1,j,k) + u(i,j,k)) * myhalf_d * (ax(i,j,k) + ax(i+1,j,k));
 
-                Real xflux_lo = fourth * (rho_u(i,j,k) * mf_uy_inv(i,j,0) + rho_u(i-1,j,k) * mf_uy_inv(i-1,j,0)) *
-                                       (u(i-1,j,k) + u(i,j,k)) * myhalf * (ax(i,j,k) + ax(i-1,j,k));
+                Real xflux_lo = fourth_d * (rho_u(i,j,k) * mf_uy_inv(i,j,0) + rho_u(i-1,j,k) * mf_uy_inv(i-1,j,0)) *
+                                       (u(i-1,j,k) + u(i,j,k)) * myhalf_d * (ax(i,j,k) + ax(i-1,j,k));
 
                 Real met_h_zeta_yhi = Compute_h_zeta_AtEdgeCenterK(i,j+1,k,cellSizeInv,z_nd);
-                Real yflux_hi = fourth * (rho_v(i,j+1,k)*mf_vx_inv(i,j+1,0) + rho_v(i-1,j+1,k)*mf_vx_inv(i-1,j+1,0)) *
+                Real yflux_hi = fourth_d * (rho_v(i,j+1,k)*mf_vx_inv(i,j+1,0) + rho_v(i-1,j+1,k)*mf_vx_inv(i-1,j+1,0)) *
                                        (u(i,j+1,k) + u(i,j,k)) * met_h_zeta_yhi;
 
                 Real met_h_zeta_ylo = Compute_h_zeta_AtEdgeCenterK(i,j  ,k,cellSizeInv,z_nd);
-                Real yflux_lo = fourth * (rho_v(i,j  ,k)*mf_vx_inv(i,j  ,0) + rho_v(i-1,j  ,k)*mf_vx_inv(i-1,j  ,0)) *
+                Real yflux_lo = fourth_d * (rho_v(i,j  ,k)*mf_vx_inv(i,j  ,0) + rho_v(i-1,j  ,k)*mf_vx_inv(i-1,j  ,0)) *
                                        (u(i,j-1,k) + u(i,j,k)) * met_h_zeta_ylo;
 
-                Real zflux_hi = fourth * (Omega(i,j,k+1) + Omega(i-1,j,k+1)) * (u(i,j,k+1) + u(i,j,k)) *
-                                        myhalf * (az(i,j,k+1) + az(i-1,j,k+1));
-                Real zflux_lo = fourth * (Omega(i,j,k  ) + Omega(i-1,j,k  )) * (u(i,j,k-1) + u(i,j,k)) *
-                                        myhalf * (az(i,j,k  ) + az(i-1,j,k  ));
+                Real zflux_hi = fourth_d * (Omega(i,j,k+1) + Omega(i-1,j,k+1)) * (u(i,j,k+1) + u(i,j,k)) *
+                                        myhalf_d * (az(i,j,k+1) + az(i-1,j,k+1));
+                Real zflux_lo = fourth_d * (Omega(i,j,k  ) + Omega(i-1,j,k  )) * (u(i,j,k-1) + u(i,j,k)) *
+                                        myhalf_d * (az(i,j,k  ) + az(i-1,j,k  ));
 
                 Real mfsq = mf_ux(i,j,0) * mf_uy(i,j,0);
 
                 Real advectionSrc = (xflux_hi - xflux_lo) * dxInv * mfsq
                                   + (yflux_hi - yflux_lo) * dyInv * mfsq
                                   + (zflux_hi - zflux_lo) * dzInv;
-                rho_u_rhs(i, j, k) = -advectionSrc / (myhalf * (detJ(i,j,k) + detJ(i-1,j,k)));
+                rho_u_rhs(i, j, k) = -advectionSrc / (myhalf_d * (detJ(i,j,k) + detJ(i-1,j,k)));
         },
-        [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        [=,fourth_d=fourth,myhalf_d=myhalf] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
 
                 Real met_h_zeta_xhi = Compute_h_zeta_AtEdgeCenterK(i+1,j,k,cellSizeInv,z_nd);
-                Real xflux_hi = fourth * (rho_u(i+1,j,k)*mf_uy_inv(i+1,j,0) + rho_u(i+1,j-1,k)*mf_uy_inv(i+1,j-1,0)) *
+                Real xflux_hi = fourth_d * (rho_u(i+1,j,k)*mf_uy_inv(i+1,j,0) + rho_u(i+1,j-1,k)*mf_uy_inv(i+1,j-1,0)) *
                                        (v(i+1,j,k) + v(i,j,k)) * met_h_zeta_xhi;
 
                 Real met_h_zeta_xlo = Compute_h_zeta_AtEdgeCenterK(i  ,j,k,cellSizeInv,z_nd);
-                Real xflux_lo = fourth * (rho_u(i, j, k)*mf_uy_inv(i  ,j,0) + rho_u(i  ,j-1,k)*mf_uy_inv(i  ,j-1,0)) *
+                Real xflux_lo = fourth_d * (rho_u(i, j, k)*mf_uy_inv(i  ,j,0) + rho_u(i  ,j-1,k)*mf_uy_inv(i  ,j-1,0)) *
                                        (v(i-1,j,k) + v(i,j,k)) * met_h_zeta_xlo;
 
-                Real yflux_hi = fourth * (rho_v(i,j+1,k)*mf_vx_inv(i,j+1,0) + rho_v(i,j  ,k) * mf_vx_inv(i,j  ,0)) *
-                                       (v(i,j+1,k) + v(i,j,k)) * myhalf * (ay(i,j,k) + ay(i,j+1,k));
+                Real yflux_hi = fourth_d * (rho_v(i,j+1,k)*mf_vx_inv(i,j+1,0) + rho_v(i,j  ,k) * mf_vx_inv(i,j  ,0)) *
+                                       (v(i,j+1,k) + v(i,j,k)) * myhalf_d * (ay(i,j,k) + ay(i,j+1,k));
 
-                Real yflux_lo = fourth * (rho_v(i,j  ,k)*mf_vx_inv(i,j  ,0) + rho_v(i,j-1,k) * mf_vx_inv(i,j-1,0)) *
-                                       (v(i,j-1,k) + v(i,j,k)) * myhalf * (ay(i,j,k) + ay(i,j-1,k));
+                Real yflux_lo = fourth_d * (rho_v(i,j  ,k)*mf_vx_inv(i,j  ,0) + rho_v(i,j-1,k) * mf_vx_inv(i,j-1,0)) *
+                                       (v(i,j-1,k) + v(i,j,k)) * myhalf_d * (ay(i,j,k) + ay(i,j-1,k));
 
-                Real zflux_hi = fourth * (Omega(i,j,k+1) + Omega(i, j-1, k+1)) * (v(i,j,k+1) + v(i,j,k)) *
-                                        myhalf * (az(i,j,k+1) + az(i,j-1,k+1));
-                Real zflux_lo = fourth * (Omega(i,j,k  ) + Omega(i, j-1, k  )) * (v(i,j,k-1) + v(i,j,k)) *
-                                        myhalf * (az(i,j,k  ) + az(i,j-1,k  ));
+                Real zflux_hi = fourth_d * (Omega(i,j,k+1) + Omega(i, j-1, k+1)) * (v(i,j,k+1) + v(i,j,k)) *
+                                        myhalf_d * (az(i,j,k+1) + az(i,j-1,k+1));
+                Real zflux_lo = fourth_d * (Omega(i,j,k  ) + Omega(i, j-1, k  )) * (v(i,j,k-1) + v(i,j,k)) *
+                                        myhalf_d * (az(i,j,k  ) + az(i,j-1,k  ));
 
                 Real mfsq = mf_vx(i,j,0) * mf_vy(i,j,0);
 
                 Real advectionSrc = (xflux_hi - xflux_lo) * dxInv * mfsq
                                   + (yflux_hi - yflux_lo) * dyInv * mfsq
                                   + (zflux_hi - zflux_lo) * dzInv;
-                rho_v_rhs(i, j, k) = -advectionSrc / (myhalf * (detJ(i,j,k) + detJ(i,j-1,k)));
+                rho_v_rhs(i, j, k) = -advectionSrc / (myhalf_d * (detJ(i,j,k) + detJ(i,j-1,k)));
         },
-        [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        [=,fourth_d=fourth,myhalf_d=myhalf] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
                 Real met_h_zeta_xhi = Compute_h_zeta_AtEdgeCenterJ(i+1,j  ,k  ,cellSizeInv,z_nd);
-                Real xflux_hi = fourth*(rho_u(i+1,j  ,k) + rho_u(i+1,j,k-1)) * mf_uy_inv(i+1,j,0) *
+                Real xflux_hi = fourth_d*(rho_u(i+1,j  ,k) + rho_u(i+1,j,k-1)) * mf_uy_inv(i+1,j,0) *
                                      (w(i+1,j,k) + w(i,j,k)) * met_h_zeta_xhi;
 
                 Real met_h_zeta_xlo = Compute_h_zeta_AtEdgeCenterJ(i  ,j  ,k  ,cellSizeInv,z_nd);
-                Real xflux_lo = fourth*(rho_u(i  ,j  ,k) + rho_u(i  ,j,k-1)) * mf_uy_inv(i  ,j,0) *
+                Real xflux_lo = fourth_d*(rho_u(i  ,j  ,k) + rho_u(i  ,j,k-1)) * mf_uy_inv(i  ,j,0) *
                                      (w(i-1,j,k) + w(i,j,k)) * met_h_zeta_xlo;
 
                 Real met_h_zeta_yhi = Compute_h_zeta_AtEdgeCenterI(i  ,j+1,k  ,cellSizeInv,z_nd);
-                Real yflux_hi = fourth*(rho_v(i,j+1,k) + rho_v(i,j+1,k-1)) * mf_vx_inv(i,j+1,0) *
+                Real yflux_hi = fourth_d*(rho_v(i,j+1,k) + rho_v(i,j+1,k-1)) * mf_vx_inv(i,j+1,0) *
                                      (w(i,j+1,k) + w(i,j,k)) * met_h_zeta_yhi;
 
                 Real met_h_zeta_ylo = Compute_h_zeta_AtEdgeCenterI(i  ,j  ,k  ,cellSizeInv,z_nd);
-                Real yflux_lo = fourth*(rho_v(i,j  ,k) + rho_v(i,j  ,k-1)) * mf_vx_inv(i,j  ,0) *
+                Real yflux_lo = fourth_d*(rho_v(i,j  ,k) + rho_v(i,j  ,k-1)) * mf_vx_inv(i,j  ,0) *
                                      (w(i,j-1,k) + w(i,j,k)) * met_h_zeta_ylo;
 
-                Real zflux_lo = fourth * (Omega(i,j,k) + Omega(i,j,k-1)) * (w(i,j,k) + w(i,j,k-1));
+                Real zflux_lo = fourth_d * (Omega(i,j,k) + Omega(i,j,k-1)) * (w(i,j,k) + w(i,j,k-1));
 
                 Real zflux_hi = (k == hi_z_face) ? Omega(i,j,k) * w(i,j,k)  * az(i,j,k):
-                    fourth * (Omega(i,j,k) + Omega(i,j,k+1)) * (w(i,j,k) + w(i,j,k+1)) *
-                    myhalf  * (az(i,j,k) + az(i,j,k+1));
+                    fourth_d * (Omega(i,j,k) + Omega(i,j,k+1)) * (w(i,j,k) + w(i,j,k+1)) *
+                    myhalf_d  * (az(i,j,k) + az(i,j,k+1));
 
                 Real mfsq = mf_mx(i,j,0) * mf_my(i,j,0);
 
                 Real advectionSrc = (xflux_hi - xflux_lo) * dxInv * mfsq
                                   + (yflux_hi - yflux_lo) * dyInv * mfsq
                                   + (zflux_hi - zflux_lo) * dzInv;
-                rho_w_rhs(i, j, k) = -advectionSrc / (myhalf*(detJ(i,j,k) + detJ(i,j,k-1)));
+                rho_w_rhs(i, j, k) = -advectionSrc / (myhalf_d*(detJ(i,j,k) + detJ(i,j,k-1)));
             });
 
     // Template higher order methods

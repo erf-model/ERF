@@ -19,36 +19,36 @@ using namespace amrex;
  */
 void ERF::init_phys_bcs (bool& rho_read, bool& read_prim_theta)
 {
-    auto f = [this,&rho_read,&read_prim_theta] (std::string const& bcid, Orientation ori)
+    auto f = [this,&rho_read,&read_prim_theta,one_d=one,zero_d=zero] (std::string const& bcid, Orientation ori)
     {
         // These are simply defaults for Dirichlet faces -- they should be over-written below
-        m_bc_extdir_vals[BCVars::Rho_bc_comp][ori]       =  one;
-        m_bc_extdir_vals[BCVars::RhoTheta_bc_comp][ori]  = -one; // It is important to set this negative
+        m_bc_extdir_vals[BCVars::Rho_bc_comp][ori]       =  one_d;
+        m_bc_extdir_vals[BCVars::RhoTheta_bc_comp][ori]  = -one_d; // It is important to set this negative
                                                                  // because the sign is tested on below
         for (int n = BCVars::RhoKE_bc_comp; n < BCVars::xvel_bc; n++) {
-            m_bc_extdir_vals[n][ori]                     = zero;
+            m_bc_extdir_vals[n][ori]                     = zero_d;
         }
 
-        m_bc_extdir_vals[BCVars::xvel_bc][ori] = zero; // default
-        m_bc_extdir_vals[BCVars::yvel_bc][ori] = zero;
-        m_bc_extdir_vals[BCVars::zvel_bc][ori] = zero;
+        m_bc_extdir_vals[BCVars::xvel_bc][ori] = zero_d; // default
+        m_bc_extdir_vals[BCVars::yvel_bc][ori] = zero_d;
+        m_bc_extdir_vals[BCVars::zvel_bc][ori] = zero_d;
 
         // These are simply defaults for Neumann gradients -- they should be over-written below
-        m_bc_neumann_vals[BCVars::Rho_bc_comp][ori]       = zero;
-        m_bc_neumann_vals[BCVars::RhoTheta_bc_comp][ori]  = zero;
+        m_bc_neumann_vals[BCVars::Rho_bc_comp][ori]       = zero_d;
+        m_bc_neumann_vals[BCVars::RhoTheta_bc_comp][ori]  = zero_d;
 
-        m_bc_neumann_vals[BCVars::RhoKE_bc_comp][ori]     = zero;
-        m_bc_neumann_vals[BCVars::RhoScalar_bc_comp][ori] = zero;
-        m_bc_neumann_vals[BCVars::RhoQ1_bc_comp][ori]     = zero;
-        m_bc_neumann_vals[BCVars::RhoQ2_bc_comp][ori]     = zero;
-        m_bc_neumann_vals[BCVars::RhoQ3_bc_comp][ori]     = zero;
-        m_bc_neumann_vals[BCVars::RhoQ4_bc_comp][ori]     = zero;
-        m_bc_neumann_vals[BCVars::RhoQ5_bc_comp][ori]     = zero;
-        m_bc_neumann_vals[BCVars::RhoQ6_bc_comp][ori]     = zero;
+        m_bc_neumann_vals[BCVars::RhoKE_bc_comp][ori]     = zero_d;
+        m_bc_neumann_vals[BCVars::RhoScalar_bc_comp][ori] = zero_d;
+        m_bc_neumann_vals[BCVars::RhoQ1_bc_comp][ori]     = zero_d;
+        m_bc_neumann_vals[BCVars::RhoQ2_bc_comp][ori]     = zero_d;
+        m_bc_neumann_vals[BCVars::RhoQ3_bc_comp][ori]     = zero_d;
+        m_bc_neumann_vals[BCVars::RhoQ4_bc_comp][ori]     = zero_d;
+        m_bc_neumann_vals[BCVars::RhoQ5_bc_comp][ori]     = zero_d;
+        m_bc_neumann_vals[BCVars::RhoQ6_bc_comp][ori]     = zero_d;
 
-        m_bc_neumann_vals[BCVars::xvel_bc][ori] = zero;
-        m_bc_neumann_vals[BCVars::yvel_bc][ori] = zero;
-        m_bc_neumann_vals[BCVars::zvel_bc][ori] = zero;
+        m_bc_neumann_vals[BCVars::xvel_bc][ori] = zero_d;
+        m_bc_neumann_vals[BCVars::yvel_bc][ori] = zero_d;
+        m_bc_neumann_vals[BCVars::zvel_bc][ori] = zero_d;
 
         std::string pp_text = pp_prefix + "." + bcid;
         ParmParse pp(pp_text);
@@ -102,9 +102,9 @@ void ERF::init_phys_bcs (bool& rho_read, bool& read_prim_theta)
 
             std::vector<Real> v;
             if (input_bndry_planes && m_r2d->ingested_velocity()) {
-                m_bc_extdir_vals[BCVars::xvel_bc][ori] = zero;
-                m_bc_extdir_vals[BCVars::yvel_bc][ori] = zero;
-                m_bc_extdir_vals[BCVars::zvel_bc][ori] = zero;
+                m_bc_extdir_vals[BCVars::xvel_bc][ori] = zero_d;
+                m_bc_extdir_vals[BCVars::yvel_bc][ori] = zero_d;
+                m_bc_extdir_vals[BCVars::zvel_bc][ori] = zero_d;
             } else {
                 // Test for input data file if at xlo face
                 std::string dirichlet_file;
@@ -120,9 +120,9 @@ void ERF::init_phys_bcs (bool& rho_read, bool& read_prim_theta)
                 }
             }
 
-            Real rho_in = zero;
+            Real rho_in = zero_d;
             if (input_bndry_planes && m_r2d->ingested_density()) {
-                m_bc_extdir_vals[BCVars::Rho_bc_comp][ori] = zero;
+                m_bc_extdir_vals[BCVars::Rho_bc_comp][ori] = zero_d;
             } else {
                 if (!pp.query("density", rho_in)) {
                     amrex::Print() << "Using interior values to set conserved vars" << std::endl;
@@ -131,9 +131,9 @@ void ERF::init_phys_bcs (bool& rho_read, bool& read_prim_theta)
             }
 
             bool th_read  = (th_bc_data[0].data()!=nullptr);
-            Real theta_in = zero;
+            Real theta_in = zero_d;
             if (input_bndry_planes && m_r2d->ingested_theta()) {
-                m_bc_extdir_vals[BCVars::RhoTheta_bc_comp][ori] = zero;
+                m_bc_extdir_vals[BCVars::RhoTheta_bc_comp][ori] = zero_d;
             } else if (!th_read) {
                 if (rho_in > 0) {
                     pp.get("theta", theta_in);
@@ -149,34 +149,34 @@ void ERF::init_phys_bcs (bool& rho_read, bool& read_prim_theta)
             pp.query("nonreflecting", nonreflecting);
             m_bc_nonreflecting[ori] = nonreflecting;
 
-            Real scalar_in = zero;
+            Real scalar_in = zero_d;
             if (input_bndry_planes && m_r2d->ingested_scalar()) {
-                m_bc_extdir_vals[BCVars::RhoScalar_bc_comp][ori] = zero;
+                m_bc_extdir_vals[BCVars::RhoScalar_bc_comp][ori] = zero_d;
             } else {
                 if (pp.query("scalar", scalar_in))
                 m_bc_extdir_vals[BCVars::RhoScalar_bc_comp][ori] = rho_in*scalar_in;
             }
 
             if (solverChoice.moisture_type != MoistureType::None) {
-                Real qv_in = zero;
+                Real qv_in = zero_d;
                 if (input_bndry_planes && m_r2d->ingested_q1()) {
-                    m_bc_extdir_vals[BCVars::RhoQ1_bc_comp][ori] = zero;
+                    m_bc_extdir_vals[BCVars::RhoQ1_bc_comp][ori] = zero_d;
                 } else {
                     if (pp.query("qv", qv_in))
                     m_bc_extdir_vals[BCVars::RhoQ1_bc_comp][ori] = rho_in*qv_in;
                 }
-                Real qc_in = zero;
+                Real qc_in = zero_d;
                 if (input_bndry_planes && m_r2d->ingested_q2()) {
-                    m_bc_extdir_vals[BCVars::RhoQ2_bc_comp][ori] = zero;
+                    m_bc_extdir_vals[BCVars::RhoQ2_bc_comp][ori] = zero_d;
                 } else {
                     if (pp.query("qc", qc_in))
                     m_bc_extdir_vals[BCVars::RhoQ2_bc_comp][ori] = rho_in*qc_in;
                 }
             }
 
-            Real KE_in = zero;
+            Real KE_in = zero_d;
             if (input_bndry_planes && m_r2d->ingested_KE()) {
-                m_bc_extdir_vals[BCVars::RhoKE_bc_comp][ori] = zero;
+                m_bc_extdir_vals[BCVars::RhoKE_bc_comp][ori] = zero_d;
             } else {
                 if (pp.query("KE", KE_in))
                 m_bc_extdir_vals[BCVars::RhoKE_bc_comp][ori] = rho_in*KE_in;
@@ -194,7 +194,7 @@ void ERF::init_phys_bcs (bool& rho_read, bool& read_prim_theta)
             // But if we find "velocity" in the inputs file, use those values instead.
             if (pp.queryarr("velocity", v, 0, AMREX_SPACEDIM))
             {
-                v[ori.coordDir()] = zero;
+                v[ori.coordDir()] = zero_d;
                 m_bc_extdir_vals[BCVars::xvel_bc][ori] = v[0];
                 m_bc_extdir_vals[BCVars::yvel_bc][ori] = v[1];
                 m_bc_extdir_vals[BCVars::zvel_bc][ori] = v[2];

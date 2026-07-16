@@ -3,7 +3,7 @@
 /**
  *  Wrapper for calling the routine that creates the fast RHS
  */
-auto acoustic_substepping_fun = [&](int fast_step, int n_sub, int nrk,
+auto acoustic_substepping_fun = [&,one_d=one,zero_d=zero](int fast_step, int n_sub, int nrk,
                                     Vector<MultiFab>& S_slow_rhs,
                                     const Vector<MultiFab>& S_old,
                                     Vector<MultiFab>& S_stage,
@@ -29,7 +29,7 @@ auto acoustic_substepping_fun = [&](int fast_step, int n_sub, int nrk,
         if (solverChoice.substepping_type[level] == SubsteppingType::Implicit) {
             beta_s = solverChoice.beta_s;
         } else { // Fully explicit
-            beta_s = -one;
+            beta_s = -one_d;
         }
 
         const GpuArray<Real, AMREX_SPACEDIM> dxInv = fine_geom.InvCellSizeArray();
@@ -170,7 +170,7 @@ auto acoustic_substepping_fun = [&](int fast_step, int n_sub, int nrk,
         // Even if we update all the conserved variables we don't need
         // to fillpatch the slow ones every acoustic substep
 
-        if ( (solverChoice.vert_implicit_fac[level][nrk] > zero) && !solverChoice.implicit_before_substep &&
+        if ( (solverChoice.vert_implicit_fac[level][nrk] > zero_d) && !solverChoice.implicit_before_substep &&
              (fast_step == n_sub-1) )
         {
             MultiFab scratch(S_data[IntVars::cons], make_alias, 0, 2);
@@ -200,7 +200,7 @@ auto acoustic_substepping_fun = [&](int fast_step, int n_sub, int nrk,
                 const Array4<const Real>& cell_data = S_data[IntVars::cons].const_array(mfi);
                 const Array4<      Real>& rho_w     = S_data[IntVars::zmom].array(mfi);
 
-                ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+                ParallelFor(tbz, [=,myhalf_d=myhalf,one_d=one] AMREX_GPU_DEVICE (int i, int j, int k)
                 {
                     Real dzInv;
                     if (z_nd_arr) {
@@ -235,14 +235,14 @@ auto acoustic_substepping_fun = [&](int fast_step, int n_sub, int nrk,
                     Real dampcoef = (w_damping_const > 0) ? w_damping_const
                                   : w_damping_coeff / (dzInv * dt_adv * dt_adv);
 
-                    Real rho_on_w_face = myhalf * ( cell_data(i,j,k,Rho_comp) + cell_data(i,j,k-1,Rho_comp) );
+                    Real rho_on_w_face = myhalf_d * ( cell_data(i,j,k,Rho_comp) + cell_data(i,j,k-1,Rho_comp) );
                     Real wmag = std::abs(rho_w(i,j,k) / rho_on_w_face);
 
                     // This is the dynamics timestep, not the slow or fast dt
                     Real cflw = wmag * dt_adv * dzInv;
 
                     if (cflw > cflw_lim) {
-                        Real sgn_w = (rho_w(i,j,k) > 0) ? one : -one;
+                        Real sgn_w = (rho_w(i,j,k) > 0) ? one_d : -one_d;
                         rho_w(i, j, k) -= rho_on_w_face * sgn_w * dampcoef * (cflw - cflw_lim) * dt_adv;
                         // Note: These prints are not immediately flushed to screen
 #ifdef AMREX_USE_GPU

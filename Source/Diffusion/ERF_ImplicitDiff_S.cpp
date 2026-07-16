@@ -90,9 +90,13 @@ ImplicitDiffForStateLU_S (const Box& bx,
     Real Fact = implicit_fac * dt;
 
 #ifdef AMREX_USE_GPU
-    ParallelFor(makeSlab(bx,2,0), [=] AMREX_GPU_DEVICE (int i, int j, int)
+    ParallelFor(makeSlab(bx,2,0), [=,one_d=one,two_d=two,zero_d=zero,myhalf_d=myhalf] AMREX_GPU_DEVICE (int i, int j, int)
     {
 #else
+    Real zero_d   = zero;
+    Real one_d    = one;
+    Real two_d    = two;
+    Real myhalf_d = myhalf;
     for (int j(jlo); j<=jhi; ++j) {
         for (int i(ilo); i<=ihi; ++i) {
 #endif
@@ -106,14 +110,14 @@ ImplicitDiffForStateLU_S (const Box& bx,
                             cell_data, mu_turb, d_alpha_eff, d_eddy_diff_idz,
                             prim_index, prim_scal_index, l_consA, l_turb);
 
-                dz_inv    = one / dz_ptr[klo];
+                dz_inv    = one_d / dz_ptr[klo];
                 dz_inv_lo = dz_inv;
-                dz_inv_hi = two / (dz_ptr[klo] + dz_ptr[klo+1]);
+                dz_inv_hi = two_d / (dz_ptr[klo] + dz_ptr[klo+1]);
 
-                a_tmp      = zero;
+                a_tmp      = zero_d;
                 c_tmp      = -Fact * rhoAlpha_hi * dz_inv_hi * dz_inv;
                 b_tmp      = cell_data(i,j,klo,Rho_comp) - a_tmp - c_tmp;
-                inv_b2_tmp = one;
+                inv_b2_tmp = one_d;
 
                 RHS_a(i,j,klo) = cell_data(i,j,klo,n); // NOTE: this is rho*phi; solution is phi
                 if (use_SurfLayer && scalar_zflux) {
@@ -125,7 +129,7 @@ ImplicitDiffForStateLU_S (const Box& bx,
                 // Add countergradient correction to RHS at bottom boundary
                 if (use_mrf_countergradient && (n == RhoTheta_comp || n == RhoQ1_comp)) {
                     const int gam_comp = (n == RhoTheta_comp) ? EddyDiff::HGAMT_v : EddyDiff::HGAMQ_v;
-                    const Real gam_hi = myhalf * (mu_turb(i, j, klo, gam_comp) + mu_turb(i, j, klo+1, gam_comp));
+                    const Real gam_hi = myhalf_d * (mu_turb(i, j, klo, gam_comp) + mu_turb(i, j, klo+1, gam_comp));
                     RHS_a(i,j,klo) -= Fact * rhoAlpha_hi * gam_hi * dz_inv_hi;
                 }
 
@@ -140,14 +144,14 @@ ImplicitDiffForStateLU_S (const Box& bx,
                             cell_data, mu_turb, d_alpha_eff, d_eddy_diff_idz,
                             prim_index, prim_scal_index, l_consA, l_turb);
 
-                dz_inv    = one / dz_ptr[k];
-                dz_inv_lo = two / (dz_ptr[k] + dz_ptr[k-1]);
-                dz_inv_hi = two / (dz_ptr[k] + dz_ptr[k+1]);
+                dz_inv    = one_d / dz_ptr[k];
+                dz_inv_lo = two_d / (dz_ptr[k] + dz_ptr[k-1]);
+                dz_inv_hi = two_d / (dz_ptr[k] + dz_ptr[k+1]);
 
                 a_tmp      = -Fact * rhoAlpha_lo * dz_inv_lo * dz_inv;
                 c_tmp      = -Fact * rhoAlpha_hi * dz_inv_hi * dz_inv;
                 b_tmp      = cell_data(i,j,k,Rho_comp) - a_tmp - c_tmp;
-                inv_b2_tmp = one / (b_tmp - a_tmp * coeffG_a(i,j,k-1));
+                inv_b2_tmp = one_d / (b_tmp - a_tmp * coeffG_a(i,j,k-1));
 
                 RHS_a(i,j,k)    = cell_data(i,j,k,n); // NOTE: this is rho*phi; solution is phi
 
@@ -157,8 +161,8 @@ ImplicitDiffForStateLU_S (const Box& bx,
                     const Real gam_k   = mu_turb(i, j, k,   gam_comp);
                     const Real gam_km1 = mu_turb(i, j, k-1, gam_comp);
                     const Real gam_kp1 = mu_turb(i, j, k+1, gam_comp);
-                    const Real gam_hi  = myhalf * (gam_k + gam_kp1); // at k+½
-                    const Real gam_lo  = myhalf * (gam_k + gam_km1); // at k-½
+                    const Real gam_hi  = myhalf_d * (gam_k + gam_kp1); // at k+½
+                    const Real gam_lo  = myhalf_d * (gam_k + gam_km1); // at k-½
                     // Countergradient flux divergence (implicit contribution to RHS):
                     //   -Fact * [ρα_{k+½}·γ_{k+½}·dz_inv_hi - ρα_{k-½}·γ_{k-½}·dz_inv_lo]
                     RHS_a(i,j,k) -= Fact * (rhoAlpha_hi * gam_hi * dz_inv_hi - rhoAlpha_lo * gam_lo * dz_inv_lo);
@@ -175,14 +179,14 @@ ImplicitDiffForStateLU_S (const Box& bx,
                             cell_data, mu_turb, d_alpha_eff, d_eddy_diff_idz,
                             prim_index, prim_scal_index, l_consA, l_turb);
 
-                dz_inv    = one / dz_ptr[khi];
-                dz_inv_lo = two / (dz_ptr[khi] + dz_ptr[khi-1]);
+                dz_inv    = one_d / dz_ptr[khi];
+                dz_inv_lo = two_d / (dz_ptr[khi] + dz_ptr[khi-1]);
                 dz_inv_hi = dz_inv;
 
                 a_tmp      = -Fact * rhoAlpha_lo * dz_inv_lo * dz_inv;
-                c_tmp      = zero;
+                c_tmp      = zero_d;
                 b_tmp      = cell_data(i,j,khi,Rho_comp) - a_tmp - c_tmp;
-                inv_b2_tmp = one / (b_tmp - a_tmp * coeffG_a(i,j,khi-1));
+                inv_b2_tmp = one_d / (b_tmp - a_tmp * coeffG_a(i,j,khi-1));
 
                 RHS_a(i,j,khi) = cell_data(i,j,khi,n); // NOTE: this is rho*phi; solution is phi
                 if (neumann_on_zhi) {
@@ -310,9 +314,13 @@ ImplicitDiffForMomLU_S (const Box& bx,
     Real Fact = implicit_fac * dt;
 
 #ifdef AMREX_USE_GPU
-    ParallelFor(makeSlab(bx,2,0), [=] AMREX_GPU_DEVICE (int i, int j, int)
+    ParallelFor(makeSlab(bx,2,0), [=,myhalf_d=myhalf,one_d=one,two_d=two,zero_d=zero] AMREX_GPU_DEVICE (int i, int j, int)
     {
 #else
+    Real zero_d   = zero;
+    Real one_d    = one;
+    Real two_d    = two;
+    Real myhalf_d = myhalf;
     for (int j(jlo); j<=jhi; ++j) {
       for (int i(ilo); i<=ihi; ++i) {
 #endif
@@ -355,16 +363,16 @@ ImplicitDiffForMomLU_S (const Box& bx,
           Real dz_inv, dz_inv_lo, dz_inv_hi;
           Real a_tmp, b_tmp, c_tmp, inv_b2_tmp;
           {
-              rhoface = myhalf * (cell_data(i,j,klo,Rho_comp) + cell_data(i-ioff,j-joff,klo,Rho_comp));
+              rhoface = myhalf_d * (cell_data(i,j,klo,Rho_comp) + cell_data(i-ioff,j-joff,klo,Rho_comp));
               getRhoAlphaForFaces(i, j, klo, ioff, joff, rhoAlpha_lo, rhoAlpha_hi,
                                   cell_data, mu_turb, mu_eff,
                                   l_consA, l_turb);
 
-              dz_inv    = one / dz_ptr[klo];
+              dz_inv    = one_d / dz_ptr[klo];
               dz_inv_lo = dz_inv;
-              dz_inv_hi = two / (dz_ptr[klo] + dz_ptr[klo+1]);
+              dz_inv_hi = two_d / (dz_ptr[klo] + dz_ptr[klo+1]);
 
-              a_tmp = zero;
+              a_tmp = zero_d;
               c_tmp = -Fact * gfac * rhoAlpha_hi * dz_inv_hi * dz_inv;
 
               RHS_a(i,j,klo) = face_data(i,j,klo); // NOTE: this is momenta; solution is velocity
@@ -377,8 +385,8 @@ ImplicitDiffForMomLU_S (const Box& bx,
                       RHS_a(i,j,klo) = 0.;
                   } else {
                       // NOTE: wall is 1/2 dz away (2 dz_inv)
-                      a_tmp = -two * Fact * rhoAlpha_lo * dz_inv_lo * dz_inv;
-                      RHS_a(i,j,klo) += two * rhoAlpha_lo * face_data(i,j,klo-1) * dz_inv_lo * dz_inv;
+                      a_tmp = -two_d * Fact * rhoAlpha_lo * dz_inv_lo * dz_inv;
+                      RHS_a(i,j,klo) += two_d * rhoAlpha_lo * face_data(i,j,klo-1) * dz_inv_lo * dz_inv;
                   }
               } else if (use_SurfLayer) {
                   // NOTE: tau = -mu*d_z(u_i) w/ SL
@@ -390,7 +398,7 @@ ImplicitDiffForMomLU_S (const Box& bx,
               }
 
               b_tmp      = rhoface - a_tmp - c_tmp;
-              inv_b2_tmp = one;
+              inv_b2_tmp = one_d;
 
               RHS_a(i,j,klo)    /= b_tmp;         // NOTE: this is now "rho"
               coeffG_a(i,j,klo)  = c_tmp / b_tmp; // NOTE: this is now "gamma"
@@ -399,19 +407,19 @@ ImplicitDiffForMomLU_S (const Box& bx,
           // Build the coefficients and RHS for L decomp
           //===================================================
           for (int k(klo+1); k < khi; k++) {
-              rhoface = myhalf * (cell_data(i,j,k,Rho_comp) + cell_data(i-ioff,j-joff,k,Rho_comp));
+              rhoface = myhalf_d * (cell_data(i,j,k,Rho_comp) + cell_data(i-ioff,j-joff,k,Rho_comp));
               getRhoAlphaForFaces(i, j, k, ioff, joff, rhoAlpha_lo, rhoAlpha_hi,
                                   cell_data, mu_turb, mu_eff,
                                   l_consA, l_turb);
 
-              dz_inv    = one / dz_ptr[k];
-              dz_inv_lo = two / (dz_ptr[k] + dz_ptr[k-1]);
-              dz_inv_hi = two / (dz_ptr[k] + dz_ptr[k+1]);
+              dz_inv    = one_d / dz_ptr[k];
+              dz_inv_lo = two_d / (dz_ptr[k] + dz_ptr[k-1]);
+              dz_inv_hi = two_d / (dz_ptr[k] + dz_ptr[k+1]);
 
               a_tmp      = -Fact * rhoAlpha_lo * dz_inv_lo * dz_inv;
               c_tmp      = -Fact * rhoAlpha_hi * dz_inv_hi * dz_inv;
               b_tmp      = rhoface - a_tmp - c_tmp;
-              inv_b2_tmp = one / (b_tmp - a_tmp * coeffG_a(i,j,k-1));
+              inv_b2_tmp = one_d / (b_tmp - a_tmp * coeffG_a(i,j,k-1));
 
               RHS_a(i,j,k)    = face_data(i,j,k); // NOTE: this is momenta; solution is velocity
               RHS_a(i,j,k)   += Fact * gfac * (tau_corr(i,j,k+1) - tau_corr(i,j,k)) * dz_inv;
@@ -423,17 +431,17 @@ ImplicitDiffForMomLU_S (const Box& bx,
           // Top boundary coefficients and RHS for L decomp
           //===================================================
           {
-              rhoface = myhalf * (cell_data(i,j,khi,Rho_comp) + cell_data(i-ioff,j-joff,khi,Rho_comp));
+              rhoface = myhalf_d * (cell_data(i,j,khi,Rho_comp) + cell_data(i-ioff,j-joff,khi,Rho_comp));
               getRhoAlphaForFaces(i, j, khi, ioff, joff, rhoAlpha_lo, rhoAlpha_hi,
                                   cell_data, mu_turb, mu_eff,
                                   l_consA, l_turb);
 
-              dz_inv    = one / dz_ptr[khi];
-              dz_inv_lo = two / (dz_ptr[khi] + dz_ptr[khi-1]);
+              dz_inv    = one_d / dz_ptr[khi];
+              dz_inv_lo = two_d / (dz_ptr[khi] + dz_ptr[khi-1]);
               dz_inv_hi = dz_inv;
 
               a_tmp = -Fact * gfac * rhoAlpha_lo * dz_inv_lo * dz_inv;
-              c_tmp = zero;
+              c_tmp = zero_d;
 
               RHS_a(i,j,khi)  = face_data(i,j,khi); // NOTE: this is momenta; solution is velocity
               RHS_a(i,j,khi) += Fact * gfac * (tau_corr(i,j,khi+1) - tau_corr(i,j,khi)) * dz_inv;
@@ -441,17 +449,17 @@ ImplicitDiffForMomLU_S (const Box& bx,
               // BCs: Dirichlet (u_i = val), slip wall (w = 0)
               if (ext_dir_on_zhi) {
                   if (stagdir==2) {
-                      a_tmp = zero;
-                      RHS_a(i,j,khi) = zero;
+                      a_tmp = zero_d;
+                      RHS_a(i,j,khi) = zero_d;
                   } else {
                       // NOTE: wall is 1/2 dz away (2 dz_inv)
-                      c_tmp = -two * Fact * rhoAlpha_hi * dz_inv_hi * dz_inv;
-                      RHS_a(i,j,khi) += two * rhoAlpha_hi * face_data(i,j,khi+1) * dz_inv_hi * dz_inv;
+                      c_tmp = -two_d * Fact * rhoAlpha_hi * dz_inv_hi * dz_inv;
+                      RHS_a(i,j,khi) += two_d * rhoAlpha_hi * face_data(i,j,khi+1) * dz_inv_hi * dz_inv;
                   }
               }
 
               b_tmp      = rhoface - a_tmp - c_tmp;
-              inv_b2_tmp = one / (b_tmp - a_tmp * coeffG_a(i,j,khi-1));
+              inv_b2_tmp = one_d / (b_tmp - a_tmp * coeffG_a(i,j,khi-1));
 
               // First solve
               soln_a(i,j,khi) = (RHS_a(i,j,khi) - a_tmp * RHS_a(i,j,khi-1)) * inv_b2_tmp;
@@ -466,7 +474,7 @@ ImplicitDiffForMomLU_S (const Box& bx,
           // Convert back to momenta
           //===================================================
           for (int k(klo); k<=khi; ++k) {
-              rhoface = myhalf * (cell_data(i,j,k,Rho_comp) + cell_data(i-ioff,j-joff,k,Rho_comp));
+              rhoface = myhalf_d * (cell_data(i,j,k,Rho_comp) + cell_data(i-ioff,j-joff,k,Rho_comp));
               face_data(i,j,k) = rhoface * soln_a(i,j,k);
           }
 

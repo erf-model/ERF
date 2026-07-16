@@ -168,7 +168,7 @@ struct MYNNPBLH {
                 });
 
                 // This depends on TileNoZ and k increasing monotonically
-                ParallelFor(gtbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+                ParallelFor(gtbx, [=,myhalf_d=myhalf] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
                 {
                     if (pblh_arr(i,j,0) == 0)
                     {
@@ -183,7 +183,7 @@ struct MYNNPBLH {
                                     && (thv  <  min_thv_arr(i,j,0) + theta_incr_land))
                         {
                             // Interpolate to get lowest height where theta = min_theta + theta_incr
-                            pblh_arr(i,j,0) = (k+myhalf)*dz_no_terrain
+                            pblh_arr(i,j,0) = (k+myhalf_d)*dz_no_terrain
                                             + dz_no_terrain/(thv1-thv)
                                               * (min_thv_arr(i,j,0) + theta_incr_land - thv);
                         }
@@ -191,7 +191,7 @@ struct MYNNPBLH {
                                           && (thv  <  min_thv_arr(i,j,0) + theta_incr_water))
                         {
                             // Interpolate to get lowest height where theta = min_theta + theta_incr
-                            pblh_arr(i,j,0) = (k+myhalf)*dz_no_terrain
+                            pblh_arr(i,j,0) = (k+myhalf_d)*dz_no_terrain
                                             + dz_no_terrain/(thv1-thv)
                                               * (min_thv_arr(i,j,0) + theta_incr_water - thv);
                         }
@@ -211,7 +211,7 @@ struct MYNNPBLH {
                         if ((tke1 <= TKEeps) && (tke > TKEeps))
                         {
                             // Interpolate to get lowest height where TKE -> 0
-                            pblh_tke_arr(i,j,0) = (k+myhalf)*dz_no_terrain
+                            pblh_tke_arr(i,j,0) = (k+myhalf_d)*dz_no_terrain
                                                 + dz_no_terrain/(tke1-tke) * (TKEeps - tke);
                         }
                     }
@@ -229,7 +229,7 @@ struct MYNNPBLH {
             auto pblh_arr     = pblh->array(mfi);
 
             amrex::Box gtbx = mfi.growntilebox();
-            ParallelFor(gtbx, [=] AMREX_GPU_DEVICE(int i, int j, int) noexcept
+            ParallelFor(gtbx, [=,two_d=two,myhalf_d=myhalf,one_d=one] AMREX_GPU_DEVICE(int i, int j, int) noexcept
             {
                 //
                 // Clip PBLH_TKE to more realistic values
@@ -248,10 +248,10 @@ struct MYNNPBLH {
                 //
                 // Finally, blend between the two PBLH estimates
                 //
-                amrex::Real maxqke = two * cons_arr(i,j,0  ,RhoKE_comp) / cons_arr(i,j,0  ,Rho_comp);
+                amrex::Real maxqke = two_d * cons_arr(i,j,0  ,RhoKE_comp) / cons_arr(i,j,0  ,Rho_comp);
                 if (maxqke > amrex::Real(0.05)) {
-                    amrex::Real wt = myhalf*std::tanh((zi - sbl_lim)/sbl_damp) + myhalf;
-                    pblh_arr(i,j,0) = (one-wt)*pblh_tke_arr(i,j,0) + wt*pblh_arr(i,j,0);
+                    amrex::Real wt = myhalf_d*std::tanh((zi - sbl_lim)/sbl_damp) + myhalf_d;
+                    pblh_arr(i,j,0) = (one_d-wt)*pblh_tke_arr(i,j,0) + wt*pblh_arr(i,j,0);
                 }
             });
         }//MFIter

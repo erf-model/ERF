@@ -89,8 +89,8 @@ ERF::compute_max_pressure_gradient_diagnostic(int lev)
             });
         } else {
             Array4<const Real> volfrac = (get_eb(lev).get_const_factory())->getVolFrac().const_array(mfi);
-            ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-                if (volfrac(i,j,k) > zero) {
+            ParallelFor(bx, [=,zero_d=zero] AMREX_GPU_DEVICE (int i, int j, int k) {
+                if (volfrac(i,j,k) > zero_d) {
                     Real rhotheta = rhse_arr(i,j,k) * thhse_arr(i,j,k);
                     dpeos_arr(i,j,k) = std::abs(getPgivenRTh(rhotheta, qvhse_arr(i,j,k)) - phse_arr(i,j,k));
                 }
@@ -147,9 +147,9 @@ ERF::compute_max_pressure_gradient_diagnostic(int lev)
             auto        gpz_arr  = gradp_temp[2].array(mfi);
             auto const  rhse_arr  =  r_hse.const_array(mfi);
             auto const qvhse_arr  = qv_hse.const_array(mfi);
-            ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-                gpz_arr(i,j,k) += grav * myhalf * ( rhse_arr(i,j,k  ) * (one + qvhse_arr(i,j,k  ))
-                                                   +rhse_arr(i,j,k-1) * (one + qvhse_arr(i,j,k-1)) );
+            ParallelFor(bx, [=,myhalf_d=myhalf,one_d=one] AMREX_GPU_DEVICE (int i, int j, int k) {
+                gpz_arr(i,j,k) += grav * myhalf_d * ( rhse_arr(i,j,k  ) * (one_d + qvhse_arr(i,j,k  ))
+                                                   +rhse_arr(i,j,k-1) * (one_d + qvhse_arr(i,j,k-1)) );
             });
         }
     // EB case: check HSE only for uncovered cells
@@ -162,10 +162,10 @@ ERF::compute_max_pressure_gradient_diagnostic(int lev)
             auto const qvhse_arr  = qv_hse.const_array(mfi);
             Array4<const Real> w_volfrac = (get_eb(lev).get_w_const_factory())->getVolFrac().const_array(mfi);
 
-            ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-                if (w_volfrac(i,j,k) > zero) {
-                    gpz_arr(i,j,k) += grav * myhalf * ( rhse_arr(i,j,k  ) * (one + qvhse_arr(i,j,k  ))
-                                                       +rhse_arr(i,j,k-1) * (one + qvhse_arr(i,j,k-1)) );
+            ParallelFor(bx, [=,zero_d=zero,myhalf_d=myhalf,one_d=one] AMREX_GPU_DEVICE (int i, int j, int k) {
+                if (w_volfrac(i,j,k) > zero_d) {
+                    gpz_arr(i,j,k) += grav * myhalf_d * ( rhse_arr(i,j,k  ) * (one_d + qvhse_arr(i,j,k  ))
+                                                       +rhse_arr(i,j,k-1) * (one_d + qvhse_arr(i,j,k-1)) );
                 }
             });
         }
@@ -264,9 +264,9 @@ ERF::compute_max_pressure_gradient_diagnostic(int lev)
                 auto const  r_arr   = rho.const_array(mfi);
                 auto const qt_arr   =  qt.const_array(mfi);
 
-                ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-                    gpz_arr(i,j,k) += grav * myhalf * (r_arr(i,j,k  )*(one+qt_arr(i,j,k  )) +
-                                                       r_arr(i,j,k-1)*(one+qt_arr(i,j,k-1)) );
+                ParallelFor(bx, [=,myhalf_d=myhalf,one_d=one] AMREX_GPU_DEVICE (int i, int j, int k) {
+                    gpz_arr(i,j,k) += grav * myhalf_d * (r_arr(i,j,k  )*(one_d+qt_arr(i,j,k  )) +
+                                                       r_arr(i,j,k-1)*(one_d+qt_arr(i,j,k-1)) );
                 });
             }
 

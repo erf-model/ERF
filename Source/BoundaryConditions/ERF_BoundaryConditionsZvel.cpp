@@ -67,10 +67,10 @@ void ERFPhysBCFunct_w::impose_lateral_zvel_bcs (const Array4<Real      >& dest_a
         Box bx_xlo(bx);  bx_xlo.setBig  (0,dom_lo.x-1);
         Box bx_xhi(bx);  bx_xhi.setSmall(0,dom_hi.x+1);
         ParallelFor(bx_xlo, bx_xhi,
-            [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+            [=,zero_d=zero] AMREX_GPU_DEVICE (int i, int j, int k) {
                 int iflip = dom_lo.x - 1 - i;
                 if ( (bc_ptr_w[0].lo(0) == ERFBCType::ext_dir) ||
-                     (bc_ptr_w[0].lo(0) == ERFBCType::ext_dir_upwind && xvel_arr(dom_lo.x,j,k) >= zero) )
+                     (bc_ptr_w[0].lo(0) == ERFBCType::ext_dir_upwind && xvel_arr(dom_lo.x,j,k) >= zero_d) )
                 {
                     dest_arr(i,j,k) = (zvel_bc_ptr) ? zvel_bc_ptr[k] : l_bc_extdir_vals_d[0][0];
                     if (l_use_terrain_fitted_coords) {
@@ -88,10 +88,10 @@ void ERFPhysBCFunct_w::impose_lateral_zvel_bcs (const Array4<Real      >& dest_a
                     dest_arr(i,j,k) = -dest_arr(iflip,j,k);
                 }
             },
-            [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+            [=,zero_d=zero] AMREX_GPU_DEVICE (int i, int j, int k) {
                 int iflip = 2*dom_hi.x + 1 - i;
                 if ( (bc_ptr_w[0].hi(0) == ERFBCType::ext_dir) ||
-                     (bc_ptr_w[0].hi(0) == ERFBCType::ext_dir_upwind && xvel_arr(dom_hi.x+1,j,k) <= zero) )
+                     (bc_ptr_w[0].hi(0) == ERFBCType::ext_dir_upwind && xvel_arr(dom_hi.x+1,j,k) <= zero_d) )
                 {
                     dest_arr(i,j,k) = (zvel_bc_ptr) ? zvel_bc_ptr[k] : l_bc_extdir_vals_d[0][3];
                     if (l_use_terrain_fitted_coords) {
@@ -119,10 +119,10 @@ void ERFPhysBCFunct_w::impose_lateral_zvel_bcs (const Array4<Real      >& dest_a
         Box bx_ylo(bx);  bx_ylo.setBig  (1,dom_lo.y-1);
         Box bx_yhi(bx);  bx_yhi.setSmall(1,dom_hi.y+1);
         ParallelFor(bx_ylo, bx_yhi,
-            [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+            [=,zero_d=zero] AMREX_GPU_DEVICE (int i, int j, int k) {
                 int jflip = dom_lo.y - 1 - j;
                 if ( (bc_ptr_w[0].lo(1) == ERFBCType::ext_dir) ||
-                     (bc_ptr_w[0].lo(1) == ERFBCType::ext_dir_upwind && yvel_arr(i,dom_lo.y,k) >= zero) )
+                     (bc_ptr_w[0].lo(1) == ERFBCType::ext_dir_upwind && yvel_arr(i,dom_lo.y,k) >= zero_d) )
                 {
                     dest_arr(i,j,k) = (zvel_bc_ptr) ? zvel_bc_ptr[k] : l_bc_extdir_vals_d[0][1];
                     if (l_use_terrain_fitted_coords) {
@@ -140,10 +140,10 @@ void ERFPhysBCFunct_w::impose_lateral_zvel_bcs (const Array4<Real      >& dest_a
                     dest_arr(i,j,k) = -dest_arr(i,jflip,k);
                 }
             },
-            [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+            [=,zero_d=zero] AMREX_GPU_DEVICE (int i, int j, int k) {
                 int jflip =  2*dom_hi.y + 1 - j;
                 if ( (bc_ptr_w[0].hi(1) == ERFBCType::ext_dir) ||
-                     (bc_ptr_w[0].hi(1) == ERFBCType::ext_dir_upwind && yvel_arr(i,dom_hi.y+1,k) <= zero) )
+                     (bc_ptr_w[0].hi(1) == ERFBCType::ext_dir_upwind && yvel_arr(i,dom_hi.y+1,k) <= zero_d) )
                 {
                     dest_arr(i,j,k) = (zvel_bc_ptr) ? zvel_bc_ptr[k] : l_bc_extdir_vals_d[0][4];
                     if (l_use_terrain_fitted_coords) {
@@ -286,9 +286,9 @@ void ERFPhysBCFunct_w::impose_vertical_zvel_bcs (const Array4<Real>& dest_arr,
                 }
             });
         } else if (bc_ptr_w_h[0].hi(2) == ERFBCType::neumann_int) {
-            ParallelFor(makeSlab(bx,2,dom_hi.z+1), [=] AMREX_GPU_DEVICE (int i, int j, int k)
+            ParallelFor(makeSlab(bx,2,dom_hi.z+1), [=,three_d=three] AMREX_GPU_DEVICE (int i, int j, int k)
             {
-                dest_arr(i,j,k) = (Real(4.0)*dest_arr(i,j,dom_hi.z) - dest_arr(i,j,dom_hi.z-1))/three;
+                dest_arr(i,j,k) = (Real(4.0)*dest_arr(i,j,dom_hi.z) - dest_arr(i,j,dom_hi.z-1))/three_d;
             });
         }
     }

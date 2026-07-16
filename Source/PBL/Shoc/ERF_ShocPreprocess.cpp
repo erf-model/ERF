@@ -88,7 +88,7 @@ ShocPreprocess::fill_columns (ShocColumnData& col,
     amrex::ignore_unused(problo, dx);
     const Box xy_box = amrex::makeSlab(mfi.validbox(), 2, klo);
 
-    ParallelFor(xy_box, [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept
+    ParallelFor(xy_box, [=,Cp_d_d=Cp_d,CONST_GRAV_d=CONST_GRAV] AMREX_GPU_DEVICE (int i, int j, int) noexcept
     {
         const int ic = shoc_column_index(layout, i, j);
         const Real rho_sfc = amrex::max(cons_arr(i,j,klo,Rho_comp), 1.0e-12_rt);
@@ -146,7 +146,7 @@ ShocPreprocess::fill_columns (ShocColumnData& col,
             shoc_ql_arr(ic,kk,0) = ql_np;
             tabs_arr(ic,kk,0) = tabs;
             tke_arr(ic,kk,0) = qke;
-            dse_arr(ic,kk,0) = Cp_d * tabs + CONST_GRAV * zc;
+            dse_arr(ic,kk,0) = Cp_d_d * tabs + CONST_GRAV_d * zc;
 
             ucol_arr(ic,kk,0) = 0.5_rt * (u_arr(i,j,k) + u_arr(i+1,j,k));
             vcol_arr(ic,kk,0) = 0.5_rt * (v_arr(i,j,k) + v_arr(i,j+1,k));

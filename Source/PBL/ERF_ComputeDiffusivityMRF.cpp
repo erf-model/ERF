@@ -224,7 +224,7 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
         // WRF reference (module_bl_mrf.F lines 813-842):
         // https://github.com/wrf-model/WRF/blob/master/phys/module_bl_mrf.F#L813-L842
         //
-        ParallelFor(xybx, [=] AMREX_GPU_DEVICE(int i, int j, int) noexcept
+        ParallelFor(xybx, [=,myhalf_d=myhalf,fourth_d=fourth,CONST_GRAV_d=CONST_GRAV] AMREX_GPU_DEVICE(int i, int j, int) noexcept
         {
             const Real t_layer = t10av_arr(i, j, 0);
             const Real moisture_fraction = use_moisture ? q10av_arr(i, j, 0) : Real(0);
@@ -236,16 +236,16 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
             {
                 zval = (use_terrain_fitted_coords)
                      ? Compute_Zrel_AtCellCenter(i, j, kpbl, z_nd_arr)
-                     : (kpbl + myhalf) * gdata.CellSize(2);
+                     : (kpbl + myhalf_d) * gdata.CellSize(2);
                 const Real theta_v     = GetThetav(i, j, kpbl, cell_data, moisture_indices);
                 // FIX: guard theta_v_klo against zero to prevent NaN in Rib
                 const Real theta_v_klo = amrex::max(GetThetav(i, j, klo, cell_data, moisture_indices), Real(1.0));
-                const Real ws2_raw = fourth * ( (uvel(i, j, kpbl) + uvel(i + 1, j, kpbl)) *
+                const Real ws2_raw = fourth_d * ( (uvel(i, j, kpbl) + uvel(i + 1, j, kpbl)) *
                                               (uvel(i, j, kpbl) + uvel(i + 1, j, kpbl)) +
                                               (vvel(i, j, kpbl) + vvel(i, j + 1, kpbl)) *
                                               (vvel(i, j, kpbl) + vvel(i, j + 1, kpbl)) );
                 const Real ws2 = amrex::max(ws2_raw, Real(1.0));
-                Rib = CONST_GRAV * zval * (theta_v - t_layer_v) / (ws2 * theta_v_klo);
+                Rib = CONST_GRAV_d * zval * (theta_v - t_layer_v) / (ws2 * theta_v_klo);
             }
 
             Real zval0 = zval, Rib0 = Rib;
@@ -257,25 +257,25 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
 
                 zval = (use_terrain_fitted_coords)
                      ? Compute_Zrel_AtCellCenter(i, j, kpbl, z_nd_arr)
-                     : (kpbl + myhalf) * gdata.CellSize(2);
+                     : (kpbl + myhalf_d) * gdata.CellSize(2);
                 const Real theta_v     = GetThetav(i, j, kpbl, cell_data, moisture_indices);
                 // FIX: guard theta_v_klo against zero to prevent NaN in Rib
                 const Real theta_v_klo = amrex::max(GetThetav(i, j, klo, cell_data, moisture_indices), Real(1.0));
-                const Real ws2_raw = fourth * ( (uvel(i, j, kpbl) + uvel(i + 1, j, kpbl)) *
+                const Real ws2_raw = fourth_d * ( (uvel(i, j, kpbl) + uvel(i + 1, j, kpbl)) *
                                               (uvel(i, j, kpbl) + uvel(i + 1, j, kpbl)) +
                                               (vvel(i, j, kpbl) + vvel(i, j + 1, kpbl)) *
                                               (vvel(i, j, kpbl) + vvel(i, j + 1, kpbl)) );
                 const Real ws2 = amrex::max(ws2_raw, Real(1.0));
-                Rib = CONST_GRAV * zval * (theta_v - t_layer_v) / (ws2 * theta_v_klo);
+                Rib = CONST_GRAV_d * zval * (theta_v - t_layer_v) / (ws2 * theta_v_klo);
                 above_critical = (Rib >= Ribcr);
             }
 
             const Real pblh_emp = (use_terrain_fitted_coords)
                                 ? Compute_Zrel_AtCellCenter(i, j, klo, z_nd_arr)
-                                : myhalf * gdata.CellSize(2);
+                                : myhalf_d * gdata.CellSize(2);
             const Real z_max = (use_terrain_fitted_coords)
                              ? Compute_Zrel_AtCellCenter(i, j, khi, z_nd_arr)
-                             : (khi + myhalf) * gdata.CellSize(2);
+                             : (khi + myhalf_d) * gdata.CellSize(2);
             const Real pblh_max = Real(0.9) * z_max;
             const Real pblh_min = amrex::max(pblh_emp, Real(10.0));
 
@@ -396,7 +396,7 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
         // WRF reference (module_bl_mrf.F lines 932-964):
         // https://github.com/wrf-model/WRF/blob/master/phys/module_bl_mrf.F#L932-L964
         //
-        ParallelFor(xybx, [=] AMREX_GPU_DEVICE(int i, int j, int) noexcept
+        ParallelFor(xybx, [=,myhalf_d=myhalf,fourth_d=fourth,CONST_GRAV_d=CONST_GRAV] AMREX_GPU_DEVICE(int i, int j, int) noexcept
         {
             const Real t_layer  = t10av_arr(i, j, 0);
             const Real moisture_fraction = use_moisture ? q10av_arr(i, j, 0) : Real(0);
@@ -414,16 +414,16 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
             {
                 zval = (use_terrain_fitted_coords)
                      ? Compute_Zrel_AtCellCenter(i, j, kpbl, z_nd_arr)
-                     : (kpbl + myhalf) * gdata.CellSize(2);
+                     : (kpbl + myhalf_d) * gdata.CellSize(2);
                 const Real theta_v     = GetThetav(i, j, kpbl, cell_data, moisture_indices);
                 // FIX: guard theta_v_klo against zero to prevent NaN in Rib
                 const Real theta_v_klo = amrex::max(GetThetav(i, j, klo, cell_data, moisture_indices), Real(1.0));
-                const Real ws2_raw = fourth * ( (uvel(i, j, kpbl) + uvel(i + 1, j, kpbl)) *
+                const Real ws2_raw = fourth_d * ( (uvel(i, j, kpbl) + uvel(i + 1, j, kpbl)) *
                                               (uvel(i, j, kpbl) + uvel(i + 1, j, kpbl)) +
                                               (vvel(i, j, kpbl) + vvel(i, j + 1, kpbl)) *
                                               (vvel(i, j, kpbl) + vvel(i, j + 1, kpbl)) );
                 const Real ws2 = amrex::max(ws2_raw, Real(1.0));
-                Rib = CONST_GRAV * zval * (theta_v - t_layer_v) / (ws2 * theta_v_klo);
+                Rib = CONST_GRAV_d * zval * (theta_v - t_layer_v) / (ws2 * theta_v_klo);
             }
             Real zval0 = zval, Rib0 = Rib;         // FIX: initialize here, mirrors Pass 1
 
@@ -435,25 +435,25 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
 
                 zval = (use_terrain_fitted_coords)
                      ? Compute_Zrel_AtCellCenter(i, j, kpbl, z_nd_arr)
-                     : (kpbl + myhalf) * gdata.CellSize(2);
+                     : (kpbl + myhalf_d) * gdata.CellSize(2);
                 const Real theta_v     = GetThetav(i, j, kpbl, cell_data, moisture_indices);
                 // FIX: guard theta_v_klo against zero to prevent NaN in Rib
                 const Real theta_v_klo = amrex::max(GetThetav(i, j, klo, cell_data, moisture_indices), Real(1.0));
-                const Real ws2_raw = fourth * ( (uvel(i, j, kpbl) + uvel(i + 1, j, kpbl)) *
+                const Real ws2_raw = fourth_d * ( (uvel(i, j, kpbl) + uvel(i + 1, j, kpbl)) *
                                               (uvel(i, j, kpbl) + uvel(i + 1, j, kpbl)) +
                                               (vvel(i, j, kpbl) + vvel(i, j + 1, kpbl)) *
                                               (vvel(i, j, kpbl) + vvel(i, j + 1, kpbl)) );
                 const Real ws2 = amrex::max(ws2_raw, Real(1.0));
-                Rib = CONST_GRAV * zval * (theta_v - t_layer_v) / (ws2 * theta_v_klo);
+                Rib = CONST_GRAV_d * zval * (theta_v - t_layer_v) / (ws2 * theta_v_klo);
                 above_critical = (Rib >= Ribcr);
             }
 
             const Real pblh_emp = (use_terrain_fitted_coords)
                                 ? Compute_Zrel_AtCellCenter(i, j, klo, z_nd_arr)
-                                : myhalf * gdata.CellSize(2);
+                                : myhalf_d * gdata.CellSize(2);
             const Real z_max = (use_terrain_fitted_coords)
                              ? Compute_Zrel_AtCellCenter(i, j, khi, z_nd_arr)
-                             : (khi + myhalf) * gdata.CellSize(2);
+                             : (khi + myhalf_d) * gdata.CellSize(2);
             const Real pblh_max = Real(0.9) * z_max;
             const Real pblh_min = amrex::max(pblh_emp, Real(10.0));
 
@@ -559,7 +559,7 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
         // https://github.com/wrf-model/WRF/blob/master/phys/module_bl_mrf.F#L932-L964
         //
         constexpr Real Ribcr_zero = Real(0);
-        ParallelFor(xybx, [=] AMREX_GPU_DEVICE(int i, int j, int) noexcept
+        ParallelFor(xybx, [=,myhalf_d=myhalf,fourth_d=fourth,CONST_GRAV_d=CONST_GRAV] AMREX_GPU_DEVICE(int i, int j, int) noexcept
         {
             const Real t_layer  = t10av_arr(i, j, 0);
             const Real moisture_fraction = use_moisture ? q10av_arr(i, j, 0) : Real(0);
@@ -571,16 +571,16 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
             {
                 zval_zero = (use_terrain_fitted_coords)
                           ? Compute_Zrel_AtCellCenter(i, j, kpbl_zero, z_nd_arr)
-                          : (kpbl_zero + myhalf) * gdata.CellSize(2);
+                          : (kpbl_zero + myhalf_d) * gdata.CellSize(2);
                 const Real theta_v     = GetThetav(i, j, kpbl_zero, cell_data, moisture_indices);
                 // FIX: guard theta_v_klo against zero to prevent NaN in Rib
                 const Real theta_v_klo = amrex::max(GetThetav(i, j, klo, cell_data, moisture_indices), Real(1.0));
-                const Real ws2_raw = fourth * ( (uvel(i, j, kpbl_zero) + uvel(i + 1, j, kpbl_zero)) *
+                const Real ws2_raw = fourth_d * ( (uvel(i, j, kpbl_zero) + uvel(i + 1, j, kpbl_zero)) *
                                                 (uvel(i, j, kpbl_zero) + uvel(i + 1, j, kpbl_zero)) +
                                                 (vvel(i, j, kpbl_zero) + vvel(i, j + 1, kpbl_zero)) *
                                                 (vvel(i, j, kpbl_zero) + vvel(i, j + 1, kpbl_zero)) );
                 const Real ws2 = amrex::max(ws2_raw, Real(1.0));
-                Rib_zero = CONST_GRAV * zval_zero * (theta_v - t_layer_v_enhanced) / (ws2 * theta_v_klo);
+                Rib_zero = CONST_GRAV_d * zval_zero * (theta_v - t_layer_v_enhanced) / (ws2 * theta_v_klo);
             }
 
             bool above_critical_zero = false;
@@ -588,16 +588,16 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
                 kpbl_zero += 1;
                 zval_zero = (use_terrain_fitted_coords)
                           ? Compute_Zrel_AtCellCenter(i, j, kpbl_zero, z_nd_arr)
-                          : (kpbl_zero + myhalf) * gdata.CellSize(2);
+                          : (kpbl_zero + myhalf_d) * gdata.CellSize(2);
                 const Real theta_v     = GetThetav(i, j, kpbl_zero, cell_data, moisture_indices);
                 // FIX: guard theta_v_klo against zero to prevent NaN in Rib
                 const Real theta_v_klo = amrex::max(GetThetav(i, j, klo, cell_data, moisture_indices), Real(1.0));
-                const Real ws2_raw = fourth * ( (uvel(i, j, kpbl_zero) + uvel(i + 1, j, kpbl_zero)) *
+                const Real ws2_raw = fourth_d * ( (uvel(i, j, kpbl_zero) + uvel(i + 1, j, kpbl_zero)) *
                                                 (uvel(i, j, kpbl_zero) + uvel(i + 1, j, kpbl_zero)) +
                                                 (vvel(i, j, kpbl_zero) + vvel(i, j + 1, kpbl_zero)) *
                                                 (vvel(i, j, kpbl_zero) + vvel(i, j + 1, kpbl_zero)) );
                 const Real ws2 = amrex::max(ws2_raw, Real(1.0));
-                Rib_zero = CONST_GRAV * zval_zero * (theta_v - t_layer_v_enhanced) / (ws2 * theta_v_klo);
+                Rib_zero = CONST_GRAV_d * zval_zero * (theta_v - t_layer_v_enhanced) / (ws2 * theta_v_klo);
                 above_critical_zero = (Rib_zero >= Ribcr_zero);
             }
 
@@ -624,7 +624,7 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
         const int izmin   = geom.Domain().smallEnd(2);
         const int izmax   = geom.Domain().bigEnd(2);
 
-        ParallelFor(gbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+        ParallelFor(gbx, [=,myhalf_d=myhalf,KAPPA_d=KAPPA,CONST_GRAV_d=CONST_GRAV] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {
             Real obuk_val = l_obuk_arr(i, j, 0);
             if (std::abs(obuk_val) < amrex::Real(1.0e-10)) {
@@ -633,7 +633,7 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
 
             const Real zval = (use_terrain_fitted_coords)
                             ? Compute_Zrel_AtCellCenter(i, j, k, z_nd_arr)
-                            : (k + myhalf) * gdata.CellSize(2);
+                            : (k + myhalf_d) * gdata.CellSize(2);
             const Real rho = cell_data(i, j, k, Rho_comp);
             // FIX: skip ghost cells with uninitialized (zero) density — prevents
             // division-by-zero inside GetThetav at lateral ghost cells of gbx
@@ -696,7 +696,7 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
                 const Real phit_eff = phit_cloud;
 
                 Real Prt_base = phit_eff / phiM_eff;
-                const Real Prt = amrex::min(amrex::max(Prt_base + const_b * KAPPA * sf, prmin), prmax);
+                const Real Prt = amrex::min(amrex::max(Prt_base + const_b * KAPPA_d * sf, prmin), prmax);
 
                 const Real wstar = wstar_arr(i, j, 0);
 
@@ -711,19 +711,19 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
                     const Real pblh_rel = pblh - z_sfc;
                     const Real zfac = amrex::max(Real(1) - zrel / pblh_rel, Real(1.0e-8));
 
-                    K_turb(i, j, k, EddyDiff::Mom_v)   = rho * wstar * KAPPA * zrel * zfac * zfac;
+                    K_turb(i, j, k, EddyDiff::Mom_v)   = rho * wstar * KAPPA_d * zrel * zfac * zfac;
                     K_turb(i, j, k, EddyDiff::Theta_v) = K_turb(i, j, k, EddyDiff::Mom_v) / Prt;
 
                     if (turbChoice.mrf_moistvars) {
                         Real Prq_base = phit_eff / phiM_eff;
-                        const Real Prq = amrex::min(amrex::max(Prq_base + const_b * KAPPA * sf, prmin), prmax);
+                        const Real Prq = amrex::min(amrex::max(Prq_base + const_b * KAPPA_d * sf, prmin), prmax);
                         K_turb(i, j, k, EddyDiff::Q_v) = K_turb(i, j, k, EddyDiff::Mom_v) / Prq;
                     } else {
                         K_turb(i, j, k, EddyDiff::Q_v) = K_turb(i, j, k, EddyDiff::Theta_v);
                     }
                 } else {
                     const Real lambda = Real(150.0);
-                    const Real lscale = (KAPPA * zval * lambda) / (KAPPA * zval + lambda);
+                    const Real lscale = (KAPPA_d * zval * lambda) / (KAPPA_d * zval + lambda);
                     Real dthetadz, dudz, dvdz;
                     ComputeVerticalDerivativesPBL(i, j, k, uvel, vvel, cell_data, izmin, izmax, Real(1) / dz_terrain,
                                                   c_ext_dir_on_zlo, c_ext_dir_on_zhi, u_ext_dir_on_zlo,
@@ -739,9 +739,9 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
                     const Real theta_v     = amrex::max(GetThetav(i, j, k,   cell_data, moisture_indices), Real(1.0));
                     const Real theta_v_kp1 = (k < izmax) ? GetThetav(i, j, k+1, cell_data, moisture_indices) : theta_v;
                     const Real theta_v_km1 = (k > izmin) ? GetThetav(i, j, k-1, cell_data, moisture_indices) : theta_v;
-                    const Real dtheta_v_dz = myhalf * (theta_v_kp1 - theta_v_km1) * (Real(1) / dz_terrain);
+                    const Real dtheta_v_dz = myhalf_d * (theta_v_kp1 - theta_v_km1) * (Real(1) / dz_terrain);
 
-                    Real grad_Ri = CONST_GRAV / theta_v * dtheta_v_dz / wind_shear_safe;
+                    Real grad_Ri = CONST_GRAV_d / theta_v * dtheta_v_dz / wind_shear_safe;
                     grad_Ri = std::max(std::min(grad_Ri, Real(100.0)), -Real(100.0));
 
                     const Real grad_Ri_safe = amrex::max(grad_Ri, -Real(100.0));
@@ -766,7 +766,7 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
                 }
             } else if (k >= pbli_extent) {
                 const Real lambda = Real(150.0);
-                const Real lscale = (KAPPA * zval * lambda) / (KAPPA * zval + lambda);
+                const Real lscale = (KAPPA_d * zval * lambda) / (KAPPA_d * zval + lambda);
                 Real dthetadz, dudz, dvdz;
                 ComputeVerticalDerivativesPBL(i, j, k, uvel, vvel, cell_data, izmin, izmax, Real(1) / dz_terrain,
                                               c_ext_dir_on_zlo, c_ext_dir_on_zhi, u_ext_dir_on_zlo,
@@ -782,9 +782,9 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
                 const Real theta_v     = amrex::max(GetThetav(i, j, k,   cell_data, moisture_indices), Real(1.0));
                 const Real theta_v_kp1 = (k < izmax) ? GetThetav(i, j, k+1, cell_data, moisture_indices) : theta_v;
                 const Real theta_v_km1 = (k > izmin) ? GetThetav(i, j, k-1, cell_data, moisture_indices) : theta_v;
-                const Real dtheta_v_dz = myhalf * (theta_v_kp1 - theta_v_km1) * (Real(1) / dz_terrain);
+                const Real dtheta_v_dz = myhalf_d * (theta_v_kp1 - theta_v_km1) * (Real(1) / dz_terrain);
 
-                Real grad_Ri = CONST_GRAV / theta_v * dtheta_v_dz / wind_shear_safe;
+                Real grad_Ri = CONST_GRAV_d / theta_v * dtheta_v_dz / wind_shear_safe;
                 grad_Ri = std::max(std::min(grad_Ri, Real(100.0)), -Real(100.0));
 
                 const Real grad_Ri_safe = amrex::max(grad_Ri, -Real(100.0));
