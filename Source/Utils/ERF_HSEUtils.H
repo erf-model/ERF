@@ -42,7 +42,7 @@ namespace HSEutils
     AMREX_FORCE_INLINE
     void
     Newton_Raphson_hse (const Real& m_tol,
-                        const Real& RdOCp,
+                        const Real& RdoCp,
                         const Real& dz,
                         const Real& g,
                         const Real& C,
@@ -66,7 +66,7 @@ namespace HSEutils
             AMREX_ALWAYS_ASSERT(P > amrex::Real(0));
 
             // Diagnose density and residual
-            rd = (maintain_Th) ? getRhogivenThetaPress(Th, P, RdOCp, qv) :
+            rd = (maintain_Th) ? getRhogivenThetaPress(Th, P, RdoCp, qv) :
                                  getRhogivenTandPress(T , P, qv);
             AMREX_ALWAYS_ASSERT(rd > amrex::Real(0));
             Real r_tot = rd * (one + qt);

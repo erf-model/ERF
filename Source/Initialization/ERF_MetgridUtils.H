@@ -933,7 +933,7 @@ rh_to_mxrat (int i,
     amrex::Real qv_min_p_safe = amrex::Real(110000.0); // WRF default value
     amrex::Real qv_min_flag   = amrex::Real(1.0e-6); // WRF default value
     amrex::Real qv_min_value  = amrex::Real(1.0e-6); // WRF default value
-    amrex::Real eps   = amrex::Real(0.622);
+    amrex::Real eps   = RdoRv;
     amrex::Real svp1  = amrex::Real(0.6112);
     amrex::Real svp2  = amrex::Real(17.67);
     amrex::Real svp3  = amrex::Real(29.65);

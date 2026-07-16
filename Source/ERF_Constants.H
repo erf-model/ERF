@@ -50,6 +50,12 @@ constexpr amrex::Real Cp_d         = amrex::Real(1004.5);   // We have set this 
 constexpr amrex::Real Cp_v         = amrex::Real(1859.0);
 constexpr amrex::Real Cp_l         = amrex::Real(4200.0);
 
+constexpr amrex::Real epsv         = R_v / R_d - one;
+constexpr amrex::Real RdoCp        = R_d / Cp_d;
+constexpr amrex::Real CpoRd        = Cp_d / R_d;
+constexpr amrex::Real RvoRd        = R_v / R_d;
+constexpr amrex::Real RdoRv        = R_d / R_v;
+
 constexpr amrex::Real L_v          = amrex::Real(2.5e6);    // latent heat of vaporization (J / kg)
 
 constexpr amrex::Real p_0          = amrex::Real(1.0e5);    // reference surface pressure [Pa]

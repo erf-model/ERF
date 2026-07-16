@@ -1097,9 +1097,9 @@ MOSTAverage::compute_plane_averages (const int& lev)
                         Real qr_interp{0};
                         trilinear_interp_T(x_pos_arr(i,j,0), y_pos_arr(i,j,0), z_pos_arr(i,j,0),
                                            &qr_interp, qr_mf_arr, z_phys_arr, plo, dxInv, 1);
-                        vfac = one + Real(0.61)*qv_interp - qr_interp;
+                        vfac = one + epsv*qv_interp - qr_interp;
                     } else {
-                        vfac = one + Real(0.61)*qv_interp;
+                        vfac = one + epsv*qv_interp;
                     }
                     const Real val = T_interp * vfac;
                     Gpu::deviceReduceSum(&plane_avg[iavg], val, handler);
@@ -1117,9 +1117,9 @@ MOSTAverage::compute_plane_averages (const int& lev)
                     Real vfac;
                     if (qr_mf_arr) {
                         // We also have liquid water
-                        vfac = one + Real(0.61)*qv_mf_arr(mi,mj,mk) - qr_mf_arr(mi,mj,mk);
+                        vfac = one + epsv*qv_mf_arr(mi,mj,mk) - qr_mf_arr(mi,mj,mk);
                     } else {
-                        vfac = one + Real(0.61)*qv_mf_arr(mi,mj,mk);
+                        vfac = one + epsv*qv_mf_arr(mi,mj,mk);
                     }
                     const Real val = T_mf_arr(mi,mj,mk) * vfac;
                     Gpu::deviceReduceSum(&plane_avg[iavg], val, handler);
@@ -1395,9 +1395,9 @@ MOSTAverage::compute_region_averages (const int& lev)
                                 Real qr_interp{0};
                                 trilinear_interp_T(x_pos_arr(i,j,0), y_pos_arr(i,j,0), z_pos_arr(i,j,0),
                                                    &qr_interp, qr_mf_arr, z_phys_arr, plo, dxInv, 1);
-                                vfac = one + Real(0.61)*qv_interp - qr_interp;
+                                vfac = one + epsv*qv_interp - qr_interp;
                             } else {
-                                vfac = one + Real(0.61)*qv_interp;
+                                vfac = one + epsv*qv_interp;
                             }
                             const Real mag = T_interp * vfac;
                             const Real val = denom * mag * d_fact_new;
@@ -1423,9 +1423,9 @@ MOSTAverage::compute_region_averages (const int& lev)
                             Real vfac;
                             if (qr_mf_arr) {
                                 // We also have liquid water
-                                vfac = one + Real(0.61)*qv_mf_arr(li,lj,lk) - qr_mf_arr(li,lj,lk);
+                                vfac = one + epsv*qv_mf_arr(li,lj,lk) - qr_mf_arr(li,lj,lk);
                             } else {
-                                vfac = one + Real(0.61)*qv_mf_arr(li,lj,lk);
+                                vfac = one + epsv*qv_mf_arr(li,lj,lk);
                             }
                             const Real mag = T_mf_arr(li,lj,lk) * vfac;
                             const Real val = denom * mag * d_fact_new;
@@ -1853,9 +1853,9 @@ MOSTAverage::compute_eb_averages (const int& lev)
                     Real vfac;
                     if (qr_mf_arr) {
                         // We also have liquid water
-                        vfac = one + Real(0.61)*qv_mf_arr(i,j,k) - qr_mf_arr(i,j,k);
+                        vfac = one + epsv*qv_mf_arr(i,j,k) - qr_mf_arr(i,j,k);
                     } else {
-                        vfac = one + Real(0.61)*qv_mf_arr(i,j,k);
+                        vfac = one + epsv*qv_mf_arr(i,j,k);
                     }
                     const Real val = T_mf_arr(i,j,k) * vfac * area;
                     Gpu::deviceReduceSum(&plane_avg[iavg], val, handler);
