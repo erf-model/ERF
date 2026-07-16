@@ -158,7 +158,7 @@ public:
 #else
         constexpr amrex::Real tol = amrex::Real(1.e-8);
 #endif
-        constexpr int max_niter = 20;
+        constexpr int max_iter = 20;
 
         int  niter = 0;
         amrex::Real F, dFdT, dqsat;
@@ -176,7 +176,7 @@ public:
         F = -tabs + tabs_old + fac_cond*(qv_old - qsat);
 
         // Iterate when necessary
-        while (std::abs(F) > tol && niter < max_niter) {
+        while (std::abs(F) > tol && niter < max_iter) {
             // Derivative of function (T_new iterated on)
             dFdT  = -one - fac_cond*dqsat;
 
