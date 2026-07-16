@@ -40,72 +40,72 @@
     const bool use_terrain  = (SolverChoice::terrain_type != TerrainType::None);
 
     // Set the x-velocity
-    ParallelForRNG(xbx, [=] AMREX_GPU_DEVICE(int i, int j, int k, const amrex::RandomEngine& engine) noexcept
+    ParallelForRNG(xbx, [=,myhalf_d=myhalf,fourth_d=fourth,zero_d=zero,two_d=two,one_d=one] AMREX_GPU_DEVICE(int i, int j, int k, const amrex::RandomEngine& engine) noexcept
     {
         const Real* prob_lo = geomdata.ProbLo();
         const Real* dx = geomdata.CellSize();
-        const Real y = prob_lo[1] + (j + myhalf) * dx[1];
-        const Real z = use_terrain ? fourth*( z_nd(i,j  ,k) + z_nd(i,j  ,k+1)
+        const Real y = prob_lo[1] + (j + myhalf_d) * dx[1];
+        const Real z = use_terrain ? fourth_d*( z_nd(i,j  ,k) + z_nd(i,j  ,k+1)
                                           + z_nd(i,j+1,k) + z_nd(i,j+1,k+1) )
-                                   : prob_lo[2] + (k + myhalf) * dx[2];
+                                   : prob_lo[2] + (k + myhalf_d) * dx[2];
 
         // Set the x-velocity
         x_vel_pert(i, j, k) = U_0;
-        if ((z <= pert_ref_height) && (U_0_Pert_Mag != zero))
+        if ((z <= pert_ref_height) && (U_0_Pert_Mag != zero_d))
         {
             Real rand_double = amrex::Random(engine); // Between zero and one
-            Real x_vel_prime = (rand_double*two - one)*U_0_Pert_Mag;
+            Real x_vel_prime = (rand_double*two_d - one_d)*U_0_Pert_Mag;
             x_vel_pert(i, j, k) += x_vel_prime;
         }
-        if (pert_deltaU != zero)
+        if (pert_deltaU != zero_d)
         {
             const Real yl = y - prob_lo[1];
             const Real zl = z / pert_ref_height;
-            const Real damp = std::exp(-myhalf * zl * zl);
+            const Real damp = std::exp(-myhalf_d * zl * zl);
             x_vel_pert(i, j, k) += ufac * damp * z * std::cos(aval * yl);
         }
     });
 
   // Set the y-velocity
-  ParallelForRNG(ybx, [=] AMREX_GPU_DEVICE(int i, int j, int k, const amrex::RandomEngine& engine) noexcept {
+  ParallelForRNG(ybx, [=,myhalf_d=myhalf,fourth_d=fourth,zero_d=zero,two_d=two,one_d=one] AMREX_GPU_DEVICE(int i, int j, int k, const amrex::RandomEngine& engine) noexcept {
     const Real* prob_lo = geomdata.ProbLo();
     const Real* dx = geomdata.CellSize();
-    const Real x = prob_lo[0] + (i + myhalf) * dx[0];
-    const Real z = use_terrain ? fourth*( z_nd(i  ,j,k) + z_nd(i  ,j,k+1)
+    const Real x = prob_lo[0] + (i + myhalf_d) * dx[0];
+    const Real z = use_terrain ? fourth_d*( z_nd(i  ,j,k) + z_nd(i  ,j,k+1)
                                       + z_nd(i+1,j,k) + z_nd(i+1,j,k+1) )
-                               : prob_lo[2] + (k + myhalf) * dx[2];
+                               : prob_lo[2] + (k + myhalf_d) * dx[2];
 
     // Set the y-velocity
     y_vel_pert(i, j, k) = V_0;
-    if ((z <= pert_ref_height) && (V_0_Pert_Mag != zero))
+    if ((z <= pert_ref_height) && (V_0_Pert_Mag != zero_d))
     {
         Real rand_double = amrex::Random(engine); // Between zero and one
-        Real y_vel_prime = (rand_double*two - one)*V_0_Pert_Mag;
+        Real y_vel_prime = (rand_double*two_d - one_d)*V_0_Pert_Mag;
         y_vel_pert(i, j, k) += y_vel_prime;
     }
-    if (pert_deltaV != zero)
+    if (pert_deltaV != zero_d)
     {
         const Real xl = x - prob_lo[0];
         const Real zl = z / pert_ref_height;
-        const Real damp = std::exp(-myhalf * zl * zl);
+        const Real damp = std::exp(-myhalf_d * zl * zl);
         y_vel_pert(i, j, k) += vfac * damp * z * std::cos(bval * xl);
     }
   });
 
   // Set the z-velocity
-  ParallelForRNG(zbx, [=] AMREX_GPU_DEVICE(int i, int j, int k, const amrex::RandomEngine& engine) noexcept {
+  ParallelForRNG(zbx, [=,zero_d=zero,two_d=two,one_d=one] AMREX_GPU_DEVICE(int i, int j, int k, const amrex::RandomEngine& engine) noexcept {
     const int dom_lo_z = geomdata.Domain().smallEnd()[2];
     const int dom_hi_z = geomdata.Domain().bigEnd()[2];
 
     // Set the z-velocity
     if (k == dom_lo_z || k == dom_hi_z+1)
     {
-        z_vel_pert(i, j, k) = zero;
+        z_vel_pert(i, j, k) = zero_d;
     }
-    else if (W_0_Pert_Mag != zero)
+    else if (W_0_Pert_Mag != zero_d)
     {
         Real rand_double = amrex::Random(engine); // Between zero and one
-        Real z_vel_prime = (rand_double*two - one)*W_0_Pert_Mag;
+        Real z_vel_prime = (rand_double*two_d - one_d)*W_0_Pert_Mag;
         z_vel_pert(i, j, k) = W_0 + z_vel_prime;
     }
   });

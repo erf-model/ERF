@@ -421,7 +421,7 @@ SHOCInterface::mf_to_kokkos_buffers ()
 
         const Array4<const Real>& z_arr    = (m_z_phys) ? m_z_phys->const_array(mfi) :
                                                           Array4<const Real>{};
-        ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        ParallelFor(gbx, [=,CONST_GRAV_d=CONST_GRAV] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
             // NOTE: k gets permuted with ilay
             // map [i,j,k] 0-based to [icol, ilay] 0-based
@@ -464,7 +464,7 @@ SHOCInterface::mf_to_kokkos_buffers ()
             // Interface data structures
             //=======================================================
             // eamxx_common_physics_functions_impl.hpp: calculate_vertical_velocity
-            omega_d(icol,ilay)         = -w_limited * r * CONST_GRAV;
+            omega_d(icol,ilay)         = -w_limited * r * CONST_GRAV_d;
             if (k==0) {
                 int ii  = std::min(std::max(i,ilo),ihi);
                 int jj  = std::min(std::max(j,jlo),jhi);
@@ -488,7 +488,7 @@ SHOCInterface::mf_to_kokkos_buffers ()
             p_mid_d(icol,ilay)       = getPgivenRTh(rt, qv);
             p_int_d(icol,ilayi)      = getPgivenRTh(rt_avg, qv_avg);
             // eamxx_common_physics_functions_impl.hpp: calculate_density
-            pseudo_dens_d(icol,ilay) = r * CONST_GRAV * delz;
+            pseudo_dens_d(icol,ilay) = r * CONST_GRAV_d * delz;
             // Enforce the grid spacing
             dz_d(icol,ilay) = delz;
             // Surface geopotential
@@ -497,7 +497,7 @@ SHOCInterface::mf_to_kokkos_buffers ()
                                                  + (z_arr(i+1,j  ,k+1) + z_arr(i+1,j  ,k))
                                                  + (z_arr(i  ,j+1,k+1) + z_arr(i  ,j+1,k))
                                                  + (z_arr(i+1,j+1,k+1) + z_arr(i+1,j+1,k)) ) : ProbLoArr[2];
-                phis_d(icol) = CONST_GRAV * z;
+                phis_d(icol) = CONST_GRAV_d * z;
             }
 
             if (ilay==0) {
@@ -559,7 +559,7 @@ SHOCInterface::kokkos_buffers_to_mf (const double dt)
         const Array4<Real>& v_tend_arr     = v_tend.array(mfi);
 
         ParallelFor(vbx_cc, vbx_x, vbx_y,
-        [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        [=,one_d=one] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
             // NOTE: k gets permuted with ilay
             // map [i,j,k] 0-based to [icol, ilay] 0-based
@@ -570,7 +570,7 @@ SHOCInterface::kokkos_buffers_to_mf (const double dt)
             Real r  = cons_arr(i,j,k,Rho_comp);
 
             // Theta at CC (eamxx_common_physics_functions_impl.hpp L123)
-            Real Th = thlm_d(icol,ilay)[0] / ( one - (one / T_mid_d(icol,ilay)[0])
+            Real Th = thlm_d(icol,ilay)[0] / ( one_d - (one_d / T_mid_d(icol,ilay)[0])
                                              * (C::LatVap/C::Cpair) * qc_d(icol,ilay)[0] );
 
             // Populate the tendencies

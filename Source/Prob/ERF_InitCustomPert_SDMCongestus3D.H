@@ -33,30 +33,30 @@
 
     const Real rdOcp   = sc.rdOcp;
 
-    ParallelForRNG(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k, const amrex::RandomEngine& engine) noexcept
+    ParallelForRNG(bx, [=,myhalf_d=myhalf,zero_d=zero,two_d=two,one_d=one] AMREX_GPU_DEVICE(int i, int j, int k, const amrex::RandomEngine& engine) noexcept
     {
         const Real* prob_lo = geomdata.ProbLo();
         const Real* prob_hi = geomdata.ProbHi();
         const Real* dx = geomdata.CellSize();
-        const Real x = prob_lo[0] + (i + myhalf) * dx[0];
-        const Real y = prob_lo[1] + (j + myhalf) * dx[1];
-        const Real z = prob_lo[2] + (k + myhalf) * dx[2];
+        const Real x = prob_lo[0] + (i + myhalf_d) * dx[0];
+        const Real y = prob_lo[1] + (j + myhalf_d) * dx[1];
+        const Real z = prob_lo[2] + (k + myhalf_d) * dx[2];
 
         // Define a point (xc,yc,zc) at the center of the domain
-        const Real xc = myhalf * (prob_lo[0] + prob_hi[0]);
-        const Real yc = myhalf * (prob_lo[1] + prob_hi[1]);
-        const Real zc = myhalf * (prob_lo[2] + prob_hi[2]);
+        const Real xc = myhalf_d * (prob_lo[0] + prob_hi[0]);
+        const Real yc = myhalf_d * (prob_lo[1] + prob_hi[1]);
+        const Real zc = myhalf_d * (prob_lo[2] + prob_hi[2]);
 
         const Real r  = std::sqrt((x-xc)*(x-xc) + (y-yc)*(y-yc) + (z-zc)*(z-zc));
 
         // Add temperature perturbations
-        if ((z <= pert_ref_height) && (T_0_Pert_Mag != zero)) {
+        if ((z <= pert_ref_height) && (T_0_Pert_Mag != zero_d)) {
             Real rand_double = amrex::Random(engine); // Between zero and one
-            state_pert(i, j, k, RhoTheta_comp) = (rand_double*two - one)*T_0_Pert_Mag;
+            state_pert(i, j, k, RhoTheta_comp) = (rand_double*two_d - one_d)*T_0_Pert_Mag;
         }
-        if ((z <= pert_ref_height) && (Q_0_Pert_Mag != zero)) {
+        if ((z <= pert_ref_height) && (Q_0_Pert_Mag != zero_d)) {
             Real rand_double = amrex::Random(engine); // Between zero and one
-            state_pert(i, j, k, RhoQ1_comp) = (rand_double*two - one)*Q_0_Pert_Mag;
+            state_pert(i, j, k, RhoQ1_comp) = (rand_double*two_d - one_d)*Q_0_Pert_Mag;
         }
         // Set scalar = A_0*exp(-10r^2), where r is distance from center of domain
         state_pert(i, j, k, RhoScalar_comp) = A_0 * std::exp(-amrex::Real(10.)*r*r);
@@ -65,10 +65,10 @@
         state_pert(i, j, k, RhoKE_comp) = KE_0;
 
         // sinusoidal variation of theta and qv for regression tests
-        if (pert_deltaT != zero)
+        if (pert_deltaT != zero_d)
         {
             const Real zl = z / pert_ref_height;
-            const Real damp = std::exp(-myhalf * zl * zl);
+            const Real damp = std::exp(-myhalf_d * zl * zl);
 
             Real rhotheta  = state(i,j,k,RhoTheta_comp);
             Real rho       = state(i,j,k,Rho_comp);
@@ -83,13 +83,13 @@
             Real rhonew    = getRhogivenThetaPress(theta_new,P,rdOcp,qv);
 
             state_pert(i, j, k, Rho_comp) = rhonew - rho;
-            state_pert(i, j, k, RhoTheta_comp) = zero;
+            state_pert(i, j, k, RhoTheta_comp) = zero_d;
         }
 
-        if (use_moisture && pert_deltaQV != zero)
+        if (use_moisture && pert_deltaQV != zero_d)
         {
             const Real zl = z / pert_ref_height;
-            const Real damp = std::exp(-myhalf * zl * zl);
+            const Real damp = std::exp(-myhalf_d * zl * zl);
 
             Real rhoold = state(i,j,k,Rho_comp);
             Real rhonew = rhoold + state_pert(i,j,k,Rho_comp);

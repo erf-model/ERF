@@ -510,7 +510,7 @@ WindFarm::fill_SMark_multifab_mesoscale_models (const Geometry& geom,
         const Array4<const Real>& z_nd_arr = z_phys_nd->const_array(mfi);
         int k0 = gbx.smallEnd()[2];
 
-        ParallelFor(gbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+        ParallelFor(gbx, [=,one_d=one] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
             if(Nturb_array(i,j,k,0) > 0) {
                 int li = amrex::min(amrex::max(i, i_lo), i_hi);
                 int lj = amrex::min(amrex::max(j, j_lo), j_hi);
@@ -521,7 +521,7 @@ WindFarm::fill_SMark_multifab_mesoscale_models (const Geometry& geom,
 
                 Real zturb = z_nd_arr(li,lj,k0) + d_hub_height;
                 if (zturb+1e-3 > z1 and zturb+1e-3 < z2) {
-                    SMark_array(i,j,k,0) = one;
+                    SMark_array(i,j,k,0) = one_d;
                 }
             }
         });
@@ -747,5 +747,4 @@ WindFarm::write_actuator_disks_vtk (const Geometry& geom,
         fclose(file_averaging_disks_in_dom);
     }
 }
-
 

@@ -77,17 +77,17 @@ GeneralAD::update (const double& dt_advance,
         auto w_vel       = W_old.array(mfi);
 
         ParallelFor(tbx, tby, tbz,
-        [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+        [=,two_d=two] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {
-            u_vel(i,j,k) = u_vel(i,j,k) + (generalAD_array(i-1,j,k,0) + generalAD_array(i,j,k,0))/two*dt_advance;
+            u_vel(i,j,k) = u_vel(i,j,k) + (generalAD_array(i-1,j,k,0) + generalAD_array(i,j,k,0))/two_d*dt_advance;
         },
-        [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+        [=,two_d=two] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {
-            v_vel(i,j,k) = v_vel(i,j,k) + (generalAD_array(i,j-1,k,1) + generalAD_array(i,j,k,1))/two*dt_advance;
+            v_vel(i,j,k) = v_vel(i,j,k) + (generalAD_array(i,j-1,k,1) + generalAD_array(i,j,k,1))/two_d*dt_advance;
         },
-        [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+        [=,two_d=two] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {
-            w_vel(i,j,k) = w_vel(i,j,k) + (generalAD_array(i,j,k-1,2) + generalAD_array(i,j,k,2))/two*dt_advance;
+            w_vel(i,j,k) = w_vel(i,j,k) + (generalAD_array(i,j,k-1,2) + generalAD_array(i,j,k,2))/two_d*dt_advance;
         });
 
     }
@@ -125,13 +125,13 @@ void GeneralAD::compute_freestream_velocity (const MultiFab& cons_in,
         auto v_vel          = V_old.array(mfi);
         Box tbx = mfi.nodaltilebox(0);
 
-        ParallelFor(tbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+        ParallelFor(tbx, [=,one_d=one,myhalf_d=myhalf] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
 
-            if(SMark_array(i,j,k,0) != -one) {
+            if(SMark_array(i,j,k,0) != -one_d) {
                 int turb_index = static_cast<int>(SMark_array(i,j,k,0));
                 Real phi = std::atan2(v_vel(i,j,k),u_vel(i,j,k)); // Wind direction w.r.t the x-direction
-                Gpu::Atomic::Add(&d_freestream_velocity_ptr[turb_index],std::pow(u_vel(i,j,k)*u_vel(i,j,k) + v_vel(i,j,k)*v_vel(i,j,k),myhalf));
-                Gpu::Atomic::Add(&d_disk_cell_count_ptr[turb_index],one);
+                Gpu::Atomic::Add(&d_freestream_velocity_ptr[turb_index],std::pow(u_vel(i,j,k)*u_vel(i,j,k) + v_vel(i,j,k)*v_vel(i,j,k),myhalf_d));
+                Gpu::Atomic::Add(&d_disk_cell_count_ptr[turb_index],one_d);
                 Gpu::Atomic::Add(&d_freestream_phi_ptr[turb_index],phi);
             }
         });
@@ -440,19 +440,19 @@ GeneralAD::source_terms_cellcentered (const Geometry& geom,
         auto SMark_array    = mf_SMark.array(mfi);
         auto generalAD_array = mf_vars_generalAD.array(mfi);
 
-        ParallelFor(gbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+        ParallelFor(gbx, [=,myhalf_d=myhalf,zero_d=zero,two_d=two,three_d=three,PI_d=PI,one_d=one] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
             int ii = amrex::min(amrex::max(i, domlo_x), domhi_x);
             int jj = amrex::min(amrex::max(j, domlo_y), domhi_y);
             int kk = amrex::min(amrex::max(k, domlo_z), domhi_z);
 
-            Real x   = ProbLoArr[0] + (ii+myhalf)*dx[0];
-            Real y   = ProbLoArr[1] + (jj+myhalf)*dx[1];
-            Real z   = ProbLoArr[2] + (kk+myhalf)*dx[2];
+            Real x   = ProbLoArr[0] + (ii+myhalf_d)*dx[0];
+            Real y   = ProbLoArr[1] + (jj+myhalf_d)*dx[1];
+            Real z   = ProbLoArr[2] + (kk+myhalf_d)*dx[2];
             // ?? Density needed here
 
             int check_int = 0;
 
-            Real source_x = zero, source_y = zero, source_z = zero;
+            Real source_x = zero_d, source_y = zero_d, source_z = zero_d;
             std::array<Real,2> Fn_and_Ft;
 
             for(long unsigned int it=0;it<nturbs;it++) {
@@ -466,14 +466,14 @@ GeneralAD::source_terms_cellcentered (const Geometry& geom,
                     // Find radial distance of the point and the zeta angle
                     Real rad = std::pow( (x-d_xloc_ptr[it])*(x-d_xloc_ptr[it]) +
                                          (y-d_yloc_ptr[it])*(y-d_yloc_ptr[it]) +
-                                         (z-d_hub_height)*(z-d_hub_height), myhalf );
+                                         (z-d_hub_height)*(z-d_hub_height), myhalf_d );
 
                     int index = find_rad_loc_index(rad, bld_rad_loc_ptr, n_bld_sections);
 
                     // This if check makes sure it is a point with radial distance
                     // between the hub radius and the rotor radius.
                     // ?? hub radius needed here
-                    if(rad >= two and rad <= d_rotor_rad) {
+                    if(rad >= two_d and rad <= d_rotor_rad) {
                         //AMREX_ASSERT( (z-d_hub_height) <= rad );
                         // Consider the vector that joines the point and the turbine center.
                         // Dot it on to the vector that joins the turbine center and along
@@ -499,8 +499,8 @@ GeneralAD::source_terms_cellcentered (const Geometry& geom,
                                                                d_blade_pitch_ptr,
                                                                n_spec_extra);
 
-                        Real Fn = three*Fn_and_Ft[0];
-                        Real Ft = three*Fn_and_Ft[1];
+                        Real Fn = three_d*Fn_and_Ft[0];
+                        Real Ft = three_d*Fn_and_Ft[1];
                         // Compute the source terms - pass in radial distance, free stream velocity
 
                         Real Fx = Fn*std::cos(phi) + Ft*std::sin(zeta)*std::sin(phi);
@@ -509,9 +509,9 @@ GeneralAD::source_terms_cellcentered (const Geometry& geom,
 
                         //Real dn = (
 
-                        source_x = -Fx/(two*PI*rad*dx[0])*one/std::pow(two*PI,myhalf);
-                        source_y = -Fy/(two*PI*rad*dx[0])*one/std::pow(two*PI,myhalf);
-                        source_z = -Fz/(two*PI*rad*dx[0])*one/std::pow(two*PI,myhalf);
+                        source_x = -Fx/(two_d*PI_d*rad*dx[0])*one_d/std::pow(two_d*PI_d,myhalf_d);
+                        source_y = -Fy/(two_d*PI_d*rad*dx[0])*one_d/std::pow(two_d*PI_d,myhalf_d);
+                        source_z = -Fz/(two_d*PI_d*rad*dx[0])*one_d/std::pow(two_d*PI_d,myhalf_d);
 
 
                         //printf("Val source_x, is %0.15g, %0.15g, %0.15g %0.15g %0.15g %0.15g\n", rad, Fn, Ft, source_x, source_y, source_z);

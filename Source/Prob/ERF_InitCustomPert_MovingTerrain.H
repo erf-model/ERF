@@ -9,11 +9,11 @@
     Real g           = CONST_GRAV;
     Real omega       = std::sqrt(g * kp);
 
-    ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+    ParallelFor(bx, [=,myhalf_d=myhalf] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
     {
         const auto prob_lo  = geomdata.ProbLo();
         const auto dx       = geomdata.CellSize();
-        const Real x = prob_lo[0] + (i + myhalf) * dx[0];
+        const Real x = prob_lo[0] + (i + myhalf_d) * dx[0];
 
         Real z = z_cc(i,j,k);
         Real z_base = Ampl * std::sin(kp * x);
