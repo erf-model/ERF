@@ -267,8 +267,8 @@ Below is an example of the input tags necessary for a simulation with CPM:
 
           erf.perturbation_Ug = 10.0
 
-          erf.perturbation_zlo = 1
-          erf.perturbation_zhi = 40
+          erf.perturbation_klo = 1
+          erf.perturbation_khi = 40
 
 Best practices are to set :math:`{Nx}_{pb}=8`, :math:`{Ny}_{pb}=8`, and
 :math:`{Nz}_{pb}=3` regardless of the physical size of the boxes/cells and to set
