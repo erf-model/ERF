@@ -176,7 +176,7 @@ AMREX_FORCE_INLINE
 amrex::Real
 buoyancy_dry_Tpert (int& i, int& j, int& k,
                     const amrex::Real& grav_gpu,
-                    const amrex::Real& RdoCp,
+                    const amrex::Real& /*lRdoCp*/,
                     const amrex::Array4<const amrex::Real>& r0_arr,
                     const amrex::Array4<const amrex::Real>& p0_arr,
                     const amrex::Array4<const amrex::Real>& th0_arr,
@@ -221,7 +221,7 @@ amrex::Real
 buoyancy_moist_Tpert (int& i, int& j, int& k,
                       const int& n_qstate,
                       const amrex::Real& grav_gpu,
-                      const amrex::Real& RdoCp,
+                      const amrex::Real& /*lRdoCp*/,
                       const amrex::Array4<const amrex::Real>& r0_arr,
                       const amrex::Array4<const amrex::Real>& th0_arr,
                       const amrex::Array4<const amrex::Real>& qv0_arr,
@@ -295,7 +295,7 @@ AMREX_FORCE_INLINE
 amrex::Real
 buoyancy_dry_anelastic_T (int& i, int& j, int& k,
                           const amrex::Real& grav_gpu,
-                          const amrex::Real& RdoCp,
+                          const amrex::Real& /*RdoCp*/,
                           const amrex::Array4<const amrex::Real>& r0_arr,
                           const amrex::Array4<const amrex::Real>& p0_arr,
                           const amrex::Array4<const amrex::Real>& cell_data)

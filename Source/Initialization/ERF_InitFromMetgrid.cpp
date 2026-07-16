@@ -1430,7 +1430,7 @@ init_base_state_from_metgrid (const bool use_moisture,
         auto       new_data  = state_fab.array();
         auto const new_z     = z_phys_cc_fab.const_array();
 
-        ParallelFor(valid_bx2d, [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept
+        ParallelFor(valid_bx2d, [=,RdoCp_d=RdoCp] AMREX_GPU_DEVICE (int i, int j, int) noexcept
         {
             // Low and Hi column variables
             Real psurf;
