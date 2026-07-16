@@ -309,7 +309,7 @@ public:
             ++niter;
         }
 
-        bool valid_solution = (std::abs(F) > tol && niter >= max_iter);
+        bool valid_solution = (std::abs(F) <= tol && niter < max_iter);
         AMREX_ALWAYS_ASSERT_WITH_MESSAGE(valid_solution, "SAM mixed phase saturation adjustment failed to converge.");
 
         // Partition the change in non-precipitating q
