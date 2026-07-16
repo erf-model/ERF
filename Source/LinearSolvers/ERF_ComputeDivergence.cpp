@@ -44,9 +44,9 @@ void ERF::compute_divergence (int lev, MultiFab& rhs, Array<MultiFab const*,AMRE
             if (SolverChoice::mesh_type == MeshType::StretchedDz)
             {
                 Real* stretched_dz_d_ptr = stretched_dz_d[lev].data();
-                ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                ParallelFor(bx, [=,one_d=one] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
                 {
-                    Real inv_dz = one/stretched_dz_d_ptr[k];
+                    Real inv_dz = one_d/stretched_dz_d_ptr[k];
                     Real mfsq   = mf_mx(i,j,0) * mf_my(i,j,0);
                     rhs_arr(i,j,k) = (  (rho0u_arr(i+1,j  ,k  )/mf_uy(i+1,j,0) - rho0u_arr(i,j,k)/mf_uy(i,j,0)) * dxInv[0]
                                        +(rho0v_arr(i  ,j+1,k  )/mf_vx(i,j+1,0) - rho0v_arr(i,j,k)/mf_vx(i,j,0)) * dxInv[1]

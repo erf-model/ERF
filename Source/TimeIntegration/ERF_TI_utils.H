@@ -20,9 +20,9 @@
           const Real rdOcp = solverChoice.rdOcp;
           const bool l_use_moisture  = (solverChoice.moisture_type != MoistureType::None);
 
-          amrex::ParallelFor(gbx1, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+          amrex::ParallelFor(gbx1, [=,zero_d=zero] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
           {
-              auto qv_for_p = (l_use_moisture) ? cons_arr(i,j,k,RhoQ1_comp)/cons_arr(i,j,k,Rho_comp) : zero;
+              auto qv_for_p = (l_use_moisture) ? cons_arr(i,j,k,RhoQ1_comp)/cons_arr(i,j,k,Rho_comp) : zero_d;
               pi_stage_arr(i,j,k) = getExnergivenRTh(cons_arr(i,j,k,RhoTheta_comp), rdOcp, qv_for_p);
           });
       } // mfi
@@ -122,7 +122,7 @@
                               ng_cons_to_use, ng_vel, cons_only, scomp_cons, ncomp_cons);
     };
 
-    auto update_terrain_stage = [&](int lev, const double old_step_time,
+    auto update_terrain_stage = [&,one_d=one](int lev, const double old_step_time,
                                              const double old_stage_time,
                                              const double new_stage_time,
                                              const double slow_dt)
@@ -173,7 +173,7 @@
             make_terrain_fitted_coords(lev,fine_geom,*z_phys_nd_new[lev], zlevels_stag[lev], phys_bc_type);
             make_J             (fine_geom, *z_phys_nd_new[lev], *detJ_cc_new[lev]);
 
-            Real inv_dt  = one/static_cast<Real>(slow_dt);
+            Real inv_dt  = one_d/static_cast<Real>(slow_dt);
 
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
@@ -187,10 +187,10 @@
                 const Array4<Real const>& z_nd_old_arr =  z_phys_nd[lev]->const_array(mfi);
 
                 // Loop over horizontal plane
-                amrex::ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                amrex::ParallelFor(gbx, [=,fourth_d=fourth] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
                 {
                     // Evaluate between RK stages assuming the geometry is linear between old and new time
-                    z_t_arr(i,j,k) = fourth * inv_dt * (z_nd_new_arr(i+1,j+1,k) - z_nd_old_arr(i+1,j+1,k)
+                    z_t_arr(i,j,k) = fourth_d * inv_dt * (z_nd_new_arr(i+1,j+1,k) - z_nd_old_arr(i+1,j+1,k)
                                                      +z_nd_new_arr(i  ,j+1,k) - z_nd_old_arr(  i,j+1,k)
                                                      +z_nd_new_arr(i+1,j  ,k) - z_nd_old_arr(i+1,j  ,k)
                                                      +z_nd_new_arr(i  ,j  ,k) - z_nd_old_arr(i  ,j  ,k));
@@ -199,7 +199,7 @@
             } // mfi
     };
 
-    auto update_terrain_substep = [&](int lev, const double old_substep_time, const double new_substep_time, const double dtau,
+    auto update_terrain_substep = [&,one_d=one](int lev, const double old_substep_time, const double new_substep_time, const double dtau,
                                       Vector<MultiFab>& S_data, std::unique_ptr<MultiFab>& z_t_pert)
     {
         // Make "old" fast geom -- store in z_phys_nd for convenience
@@ -230,7 +230,7 @@
         make_terrain_fitted_coords(lev,fine_geom,*z_phys_nd_new[lev], zlevels_stag[lev], phys_bc_type);
         make_J             (fine_geom,*z_phys_nd_new[lev], *detJ_cc_new[lev]);
 
-        Real inv_dt   = one/static_cast<Real>(dtau);
+        Real inv_dt   = one_d/static_cast<Real>(dtau);
 
         z_t_pert = std::make_unique<MultiFab>(S_data[IntVars::zmom].boxArray(), S_data[IntVars::zmom].DistributionMap(), 1, 1);
 
@@ -245,10 +245,10 @@
             const Array4<Real const>& z_nd_old_arr =  z_phys_nd[lev]->const_array(mfi);
 
             // Loop over horizontal plane
-            amrex::ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            amrex::ParallelFor(gbx, [=,fourth_d=fourth] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
                 // Evaluate between RK stages assuming the geometry is linear between old and new time
-                zp_t_arr(i,j,k) = fourth * inv_dt * (z_nd_new_arr(i+1,j+1,k) - z_nd_old_arr(i+1,j+1,k)
+                zp_t_arr(i,j,k) = fourth_d * inv_dt * (z_nd_new_arr(i+1,j+1,k) - z_nd_old_arr(i+1,j+1,k)
                                                   +z_nd_new_arr(i  ,j+1,k) - z_nd_old_arr(  i,j+1,k)
                                                   +z_nd_new_arr(i+1,j  ,k) - z_nd_old_arr(i+1,j  ,k)
                                                   +z_nd_new_arr(i  ,j  ,k) - z_nd_old_arr(i  ,j  ,k));

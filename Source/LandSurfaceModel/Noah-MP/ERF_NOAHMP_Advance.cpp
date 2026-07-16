@@ -115,11 +115,11 @@ NOAHMP::stage_forcing (const MFIter& mfi,
     const int kklo = klo;
 
     // (1) Stage ERF forcing into the pinned buffer (device).
-    ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+    ParallelFor(bx, [=,zero_d=zero,myhalf_d=myhalf] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
-        Real qv = (is_moist) ? CONS(i,j,k,RhoQ1_comp)/CONS(i,j,k,Rho_comp) : Real(0.);
-        noah_input_arr(i,j,0,NoahmpInputComp::u_phy)   = myhalf*(U_PHY(i,j,k)+U_PHY(i+1,j,k));
-        noah_input_arr(i,j,0,NoahmpInputComp::v_phy)   = myhalf*(V_PHY(i,j,k)+V_PHY(i  ,j+1,k));
+        Real qv = (is_moist) ? CONS(i,j,k,RhoQ1_comp)/CONS(i,j,k,Rho_comp) : zero_d;
+        noah_input_arr(i,j,0,NoahmpInputComp::u_phy)   = myhalf_d*(U_PHY(i,j,k)+U_PHY(i+1,j,k));
+        noah_input_arr(i,j,0,NoahmpInputComp::v_phy)   = myhalf_d*(V_PHY(i,j,k)+V_PHY(i  ,j+1,k));
         noah_input_arr(i,j,0,NoahmpInputComp::t_phy)   = getTgivenRandRTh(CONS(i,j,k,Rho_comp),CONS(i,j,k,RhoTheta_comp),qv);
         noah_input_arr(i,j,0,NoahmpInputComp::qv_curr) = qv;
         noah_input_arr(i,j,0,NoahmpInputComp::p8w)     = getPgivenRTh(CONS(i,j,k,RhoTheta_comp),qv);
@@ -129,13 +129,13 @@ NOAHMP::stage_forcing (const MFIter& mfi,
 
         // RAW water-equivalent interval precip [mm]: per slot d = max(0, (now-prev)
         // * native_to_kg_m2). Host applies the guard and derives SR / MP_RAINNC.
-        Real drain = Real(0.), dsnow = Real(0.), dgraup = Real(0.);
+        Real drain = zero_d, dsnow = zero_d, dgraup = zero_d;
         if (hp) {
             Real dd[NoahmpPrecipSlot::NumSlots];
             for (int s(0); s < NoahmpPrecipSlot::NumSlots; ++s) {
                 dd[s] = slot_present[s]
-                    ? amrex::max(Real(0.), (accum_now[s](i,j,kklo) - accum_prv[s](i,j,kklo)) * accum_fac[s])
-                    : Real(0.);
+                    ? amrex::max(zero_d, (accum_now[s](i,j,kklo) - accum_prv[s](i,j,kklo)) * accum_fac[s])
+                    : zero_d;
             }
             // Hail is folded into MP_GRAUP (no ERF scheme fills the hail slot
             // today); to feed it separately, stage dd[hail] into MP_HAIL instead.
@@ -157,7 +157,8 @@ NOAHMP::stage_forcing (const MFIter& mfi,
 
     // (3) Copy pinned staged data to NoahmpIO on the host (3D members take the k/j
     // transpose (i,1,j), 2D take (i,j)); precip is derived below.
-    LoopOnCpu(bx, [&] (int i, int j, int ) noexcept
+    LoopOnCpu(bx, [&,zero_d=zero,one_d=one,lsm_max_precip_interval_d=lsm_max_precip_interval]
+                      (int i, int j, int ) noexcept
     {
 #define NOAHMP_STAGE_IN_3D(comp,member) noahmpio->member(i,1,j) = noah_input_arr(i,j,0,NoahmpInputComp::comp);
 #define NOAHMP_STAGE_IN_2D(comp,member) noahmpio->member(i,j)   = noah_input_arr(i,j,0,NoahmpInputComp::comp);
@@ -170,17 +171,17 @@ NOAHMP::stage_forcing (const MFIter& mfi,
         Real dsnow_h  = noah_input_arr(i,j,0,NoahmpInputComp::mp_snow);
         Real dgraup_h = noah_input_arr(i,j,0,NoahmpInputComp::mp_graup);
         Real drain_h  = noah_input_arr(i,j,0,NoahmpInputComp::rainbl);
-        if (drain_h > lsm_max_precip_interval) {
+        if (drain_h > lsm_max_precip_interval_d) {
             clamped_cells.push_back(erf_noahmp::ClampedPrecipCell{i, j, drain_h});
-            drain_h = lsm_max_precip_interval;
+            drain_h = lsm_max_precip_interval_d;
         }
         // Frozen/total invariant: MP_SNOW+MP_GRAUP are subsets of MP_RAINNC; if
         // their sum exceeds it, rescale the frozen components down and record the cell.
         Real dfroz_h = dsnow_h + dgraup_h;
-        const Real inv_tol = Real(1.0e-6) * (Real(1.0) + drain_h);
+        const Real inv_tol = Real(1.0e-6) * (one_d + drain_h);
         if (dfroz_h > drain_h + inv_tol) {
             invariant_cells.push_back(erf_noahmp::InvariantPrecipCell{i, j, dfroz_h, drain_h});
-            if (dfroz_h > Real(0.)) {
+            if (dfroz_h > zero_d) {
                 const Real scale = drain_h / dfroz_h;   // <= 1
                 dsnow_h  *= scale;
                 dgraup_h *= scale;
@@ -188,12 +189,12 @@ NOAHMP::stage_forcing (const MFIter& mfi,
             }
         }
         noahmpio->RAINBL(i,j)    = drain_h;                                       // [mm]
-        noahmpio->SR(i,j)        = (drain_h > Real(0.)) ? amrex::min(Real(1.0), dfroz_h/drain_h) : Real(0.); // [-]
+        noahmpio->SR(i,j)        = (drain_h > zero_d) ? amrex::min(one_d, dfroz_h/drain_h) : zero_d; // [-]
         noahmpio->MP_RAINNC(i,j) = drain_h;                                       // [mm]
         noahmpio->MP_SNOW(i,j)   = dsnow_h;                                       // [mm]
         noahmpio->MP_GRAUP(i,j)  = dgraup_h;                                      // [mm] (includes folded hail)
         // 0 = "no hail" (a real value, not a sentinel; lsm_undefined would corrupt opt_snf=4)
-        noahmpio->MP_HAIL(i,j)   = Real(0.);                                      // [mm]
+        noahmpio->MP_HAIL(i,j)   = zero_d;                                        // [mm]
     });
 }
 
@@ -272,7 +273,8 @@ NOAHMP::read_results (const MFIter& mfi,
 
     // (6) Copy Noahmp results to ERF (device; from pinned buffer): per-field math
     // (flux ÷rho, -9999 fill guard, sentinels, soil loop), deliberately not table-driven.
-    ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+    ParallelFor(gbx, [=,Cp_d_d=Cp_d,L_v_d=L_v,lsm_undefined_d=lsm_undefined]
+                         AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
         // Limit indices to the valid box. FillBoundary will pick these up below.
         int ii = std::min(std::max(i,i_lo),i_hi);
@@ -287,15 +289,15 @@ NOAHMP::read_results (const MFIter& mfi,
             // rho for the kinematic MOST form ERF stores. Exner factor on t_flux is
             // omitted to match WRF (<~1% error near surface, ~6-7% at p~800 hPa).
             Real rho_l  = CONS(ii,jj,k,Rho_comp);
-            t_flux_arr(i,j,k) = hfx_lsm/(rho_l*Cp_d);
-            q_flux_arr(i,j,k) = noah_output_arr(ii,jj,0,NoahmpOutputComp::lh)/(rho_l*L_v);
+            t_flux_arr(i,j,k) = hfx_lsm/(rho_l*Cp_d_d);
+            q_flux_arr(i,j,k) = noah_output_arr(ii,jj,0,NoahmpOutputComp::lh)/(rho_l*L_v_d);
             tau13_arr(i,j,k)  = noah_output_arr(ii,jj,0,NoahmpOutputComp::tau_ew)/rho_l;
             tau23_arr(i,j,k)  = noah_output_arr(ii,jj,0,NoahmpOutputComp::tau_ns)/rho_l;
         } else {
-            t_flux_arr(i,j,k) = lsm_undefined;
-            q_flux_arr(i,j,k) = lsm_undefined;
-            tau13_arr(i,j,k)  = lsm_undefined;
-            tau23_arr(i,j,k)  = lsm_undefined;
+            t_flux_arr(i,j,k) = lsm_undefined_d;
+            q_flux_arr(i,j,k) = lsm_undefined_d;
+            tau13_arr(i,j,k)  = lsm_undefined_d;
+            tau23_arr(i,j,k)  = lsm_undefined_d;
         }
 
         // RRTMGP + return-term results: mechanical 1:1 copy from the buffer,
@@ -305,20 +307,20 @@ NOAHMP::read_results (const MFIter& mfi,
             NOAHMP_RESULT_FIELDS(NOAHMP_COPY_RESULT)
 #undef NOAHMP_COPY_RESULT
             // Not computed by this core -> sentinel, not a misleading 0.
-            SMSTAV_o(i,j,0)      = lsm_undefined;
-            SMSTOT_o(i,j,0)      = lsm_undefined;
+            SMSTAV_o(i,j,0)      = lsm_undefined_d;
+            SMSTOT_o(i,j,0)      = lsm_undefined_d;
             for (int s(0); s < n_soil_fld; ++s) {
                 soil_arr[s](i,j,0) = noah_output_arr(ii,jj,0,soil_out_base + s);
             }
         } else {
             // Fill-value cell (sea-ice / open-water): every result is the sentinel.
-#define NOAHMP_UNDEF_RESULT(alias,lsm,out) alias(i,j,0) = lsm_undefined;
+#define NOAHMP_UNDEF_RESULT(alias,lsm,out) alias(i,j,0) = lsm_undefined_d;
             NOAHMP_RESULT_FIELDS(NOAHMP_UNDEF_RESULT)
 #undef NOAHMP_UNDEF_RESULT
-            SMSTAV_o(i,j,0)      = lsm_undefined;
-            SMSTOT_o(i,j,0)      = lsm_undefined;
+            SMSTAV_o(i,j,0)      = lsm_undefined_d;
+            SMSTOT_o(i,j,0)      = lsm_undefined_d;
             for (int s(0); s < n_soil_fld; ++s) {
-                soil_arr[s](i,j,0) = lsm_undefined;
+                soil_arr[s](i,j,0) = lsm_undefined_d;
             }
         }
     });

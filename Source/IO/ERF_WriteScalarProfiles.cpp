@@ -91,6 +91,7 @@ ERF::sum_integrated_quantities (double time)
 
     const int nfoo = 8;
     Real foo[nfoo] = {mass_sl,rhth_sl,scal_sl,mois_sl,mass_ml,rhth_ml,scal_ml,mois_ml};
+    Real zero_d = zero;
 #ifdef AMREX_LAZY
     Lazy::QueueReduction([=]() mutable {
 #endif
@@ -136,7 +137,7 @@ ERF::sum_integrated_quantities (double time)
             int n_d = 0;
             std::ostream& data_log1 = DataLog(n_d);
             if (data_log1.good()) {
-                if (time == zero) {
+                if (time == zero_d) {
                     data_log1 << std::setw(datwidth) << "          time";
                     data_log1 << std::setw(datwidth) << "          u_star";
                     data_log1 << std::setw(datwidth) << "          t_star";
@@ -275,6 +276,7 @@ ERF::sum_derived_quantities (double time)
 
     const int nfoo = 4;
     Real foo[nfoo] = {unwted_avg,r_wted_avg,enstrsq_avg,theta_avg};
+    Real zero_d = zero;
 #ifdef AMREX_LAZY
     Lazy::QueueReduction([=]() mutable {
 #endif
@@ -290,7 +292,7 @@ ERF::sum_derived_quantities (double time)
 
         std::ostream& data_log_der = DerDataLog(0);
 
-        if (time == zero) {
+        if (time == zero_d) {
             data_log_der << std::setw(datwidth) << "          time";
             data_log_der << std::setw(datwidth) << "        ke_den";
             data_log_der << std::setw(datwidth) << "         velsq";
@@ -363,26 +365,26 @@ ERF::sum_energy_quantities (double time)
         const Array4<const Real>& cons_arr = vars_new[lev][Vars::cons].const_array(mfi);
         const Array4<const Real>& z_arr    = (z_phys_nd[lev]) ? z_phys_nd[lev]->const_array(mfi) :
                                                                 Array4<const Real>{};
-        ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        ParallelFor(bx, [=,zero_d=zero,one_d=one,myhalf_d=myhalf,Cp_d_d=Cp_d,R_d_d=R_d,Cp_v_d=Cp_v,R_v_d=R_v,L_v_d=L_v,CONST_GRAV_d=CONST_GRAV] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
-            Real Qv   = (is_moist) ? cons_arr(i,j,k,RhoQ1_comp) : zero;
-            Real Qc   = (is_moist) ? cons_arr(i,j,k,RhoQ2_comp) : zero;
+            Real Qv   = (is_moist) ? cons_arr(i,j,k,RhoQ1_comp) : zero_d;
+            Real Qc   = (is_moist) ? cons_arr(i,j,k,RhoQ2_comp) : zero_d;
             Real Qt   = Qv + Qc;
             Real Rhod = cons_arr(i,j,k,Rho_comp);
-            Real Rhot = Rhod * (one + Qt);
+            Real Rhot = Rhod * (one_d + Qt);
             Real Temp = getTgivenRandRTh(Rhod, cons_arr(i,j,k,RhoTheta_comp), Qv);
-            Real TKE  = myhalf * ( cc_vel_arr(i,j,k,0)*cc_vel_arr(i,j,k,0)
+            Real TKE  = myhalf_d * ( cc_vel_arr(i,j,k,0)*cc_vel_arr(i,j,k,0)
                               + cc_vel_arr(i,j,k,1)*cc_vel_arr(i,j,k,1)
                               + cc_vel_arr(i,j,k,2)*cc_vel_arr(i,j,k,2) );
             Real zval = (z_arr) ? z_arr(i,j,k) : Real(k)*dx[2];
 
-            Real Cv   = Cp_d - R_d;
-            Real Cvv  = Cp_v - R_v;
-            Real Cpv  = Cp_v;
+            Real Cv   = Cp_d_d - R_d_d;
+            Real Cvv  = Cp_v_d - R_v_d;
+            Real Cpv  = Cp_v_d;
 
             tot_mass_arr(i,j,k)   = Rhot;
-            tot_energy_arr(i,j,k) = Rhod * ( (Cv + Cvv*Qv + Cpv*Qc)*Temp - L_v*Qc
-                                           + (one + Qt)*TKE + (one + Qt)*CONST_GRAV*zval );
+            tot_energy_arr(i,j,k) = Rhod * ( (Cv + Cvv*Qv + Cpv*Qc)*Temp - L_v_d*Qc
+                                           + (one_d + Qt)*TKE + (one_d + Qt)*CONST_GRAV_d*zval );
 
         });
 
@@ -420,6 +422,7 @@ ERF::sum_energy_quantities (double time)
 
     const int nfoo = 2;
     Real foo[nfoo] = {tot_mass_avg,tot_energy_avg};
+    Real zero_d = zero;
 #ifdef AMREX_LAZY
     Lazy::QueueReduction([=]() mutable {
 #endif
@@ -433,7 +436,7 @@ ERF::sum_energy_quantities (double time)
 
         std::ostream& data_log_energy = *tot_e_datalog[0];
 
-        if (time == zero) {
+        if (time == zero_d) {
             data_log_energy << std::setw(datwidth) << "          time";
             data_log_energy << std::setw(datwidth) << "      tot_mass";
             data_log_energy << std::setw(datwidth) << "    tot_energy";

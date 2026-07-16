@@ -39,7 +39,7 @@ rebalance_columns (MultiFab& rho,
 
         const Array4<const Real>&   z_arr = z_phys->const_array(mfi);
 
-        ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int /*k*/) noexcept
+        ParallelFor(bx, [=,zero_d=zero,p_0_d=p_0,R_d_d=R_d,Cp_d_d=Cp_d,one_d=one,myhalf_d=myhalf] AMREX_GPU_DEVICE(int i, int j, int /*k*/) noexcept
         {
             // integrate from surface to domain top
             Real dz, F, C;
@@ -54,7 +54,7 @@ rebalance_columns (MultiFab& rho,
 
             // Integrate from z=0
             if (use_sfc) {
-                z_lo = zero; // corresponding to p_0
+                z_lo = zero_d; // corresponding to p_0
                 z_hi = Real(0.125) * (z_arr(i,j,klo  ) + z_arr(i+1,j,klo  ) + z_arr(i,j+1,klo  ) + z_arr(i+1,j+1,klo  )
                                      +z_arr(i,j,klo+1) + z_arr(i+1,j,klo+1) + z_arr(i,j+1,klo+1) + z_arr(i+1,j+1,klo+1));
                 dz = z_hi - z_lo;
@@ -63,30 +63,30 @@ rebalance_columns (MultiFab& rho,
                 qt_lo = qt_arr(i,j,klo);
                 qv_lo = qv_arr(i,j,klo);
                 Th_lo = th_arr(i,j,klo);
-                P_lo  = p_0;
-                R_lo  = getRhogivenThetaPress(Th_lo, P_lo, R_d/Cp_d, qv_lo);
-                rho_tot_lo = R_lo * (one + qt_lo);
-                C  = -P_lo + myhalf*rho_tot_lo*grav*dz;
+                P_lo  = p_0_d;
+                R_lo  = getRhogivenThetaPress(Th_lo, P_lo, R_d_d/Cp_d_d, qv_lo);
+                rho_tot_lo = R_lo * (one_d + qt_lo);
+                C  = -P_lo + myhalf_d*rho_tot_lo*grav*dz;
 
                 // Initial guess and residual
                 qt_hi = qt_arr(i,j,klo);
                 qv_hi = qv_arr(i,j,klo);
                 Th_hi = th_arr(i,j,klo);
-                P_hi  = p_0;
-                T_hi  = getTgivenPandTh(P_hi, Th_hi, R_d/Cp_d);
-                R_hi  = getRhogivenThetaPress(Th_hi, P_hi, R_d/Cp_d, qv_hi);
-                rho_tot_hi = R_hi * (one + qt_hi);
-                F = P_hi + myhalf*rho_tot_hi*grav*dz + C;
+                P_hi  = p_0_d;
+                T_hi  = getTgivenPandTh(P_hi, Th_hi, R_d_d/Cp_d_d);
+                R_hi  = getRhogivenThetaPress(Th_hi, P_hi, R_d_d/Cp_d_d, qv_hi);
+                rho_tot_hi = R_hi * (one_d + qt_hi);
+                F = P_hi + myhalf_d*rho_tot_hi*grav*dz + C;
 
                 // Do iterations
-                HSEutils::Newton_Raphson_hse(tol, R_d/Cp_d, dz,
+                HSEutils::Newton_Raphson_hse(tol, R_d_d/Cp_d_d, dz,
                                              grav, C, Th_hi, T_hi,
                                              qt_hi, qv_hi,
                                              P_hi, R_hi, F, maintain_Th);
 
                 // Assign data
                 rho_arr(i,j,klo) = R_hi;
-                if (!maintain_Th) { th_arr(i,j,klo)  = getThgivenTandP(T_hi, P_hi, R_d/Cp_d); }
+                if (!maintain_Th) { th_arr(i,j,klo)  = getThgivenTandP(T_hi, P_hi, R_d_d/Cp_d_d); }
                 P_lo = P_hi;
                 z_lo = z_hi;
 
@@ -108,28 +108,28 @@ rebalance_columns (MultiFab& rho,
               qt_lo = qt_arr(i,j,k-1);
               qv_lo = qv_arr(i,j,k-1);
               Th_lo = th_arr(i,j,k-1);
-              R_lo  = getRhogivenThetaPress(Th_lo, P_lo, R_d/Cp_d, qv_lo);
-              rho_tot_lo = R_lo * (one + qt_lo);
-              C  = -P_lo + myhalf*rho_tot_lo*grav*dz;
+              R_lo  = getRhogivenThetaPress(Th_lo, P_lo, R_d_d/Cp_d_d, qv_lo);
+              rho_tot_lo = R_lo * (one_d + qt_lo);
+              C  = -P_lo + myhalf_d*rho_tot_lo*grav*dz;
 
               // Initial guess and residual
               qt_hi = qt_arr(i,j,k);
               qv_hi = qv_arr(i,j,k);
               Th_hi = th_arr(i,j,k);
-              T_hi  = getTgivenPandTh(P_hi, Th_hi, R_d/Cp_d);
-              R_hi  = getRhogivenThetaPress(Th_hi, P_hi, R_d/Cp_d, qv_hi);
-              rho_tot_hi = R_hi * (one + qt_hi);
-              F = P_hi + myhalf*rho_tot_hi*grav*dz + C;
+              T_hi  = getTgivenPandTh(P_hi, Th_hi, R_d_d/Cp_d_d);
+              R_hi  = getRhogivenThetaPress(Th_hi, P_hi, R_d_d/Cp_d_d, qv_hi);
+              rho_tot_hi = R_hi * (one_d + qt_hi);
+              F = P_hi + myhalf_d*rho_tot_hi*grav*dz + C;
 
               // Do iterations
-              HSEutils::Newton_Raphson_hse(tol, R_d/Cp_d, dz,
+              HSEutils::Newton_Raphson_hse(tol, R_d_d/Cp_d_d, dz,
                                            grav, C, Th_hi, T_hi,
                                            qt_hi, qv_hi,
                                            P_hi, R_hi, F, maintain_Th);
 
               // Assign data
               rho_arr(i,j,k) = R_hi;
-              if (!maintain_Th) { th_arr(i,j,k)  = getThgivenTandP(T_hi, P_hi, R_d/Cp_d); }
+              if (!maintain_Th) { th_arr(i,j,k)  = getThgivenTandP(T_hi, P_hi, R_d_d/Cp_d_d); }
               P_lo = P_hi;
               z_lo = z_hi;
             }

@@ -19,11 +19,11 @@
         if (box.length(0) != 1)
         {
             // if z dimension size is 1, then src is a spatially varying function over x,y at k=0
-            ParallelFor( box, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            ParallelFor( box, [=,myhalf_d=myhalf] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
-                auto x = prob_lo[0] + (i + myhalf) * dx[0];
-                auto y = prob_lo[1] + (j + myhalf) * dx[1];
-                auto z = prob_lo[2] + (k + myhalf) * dx[2];
+                auto x = prob_lo[0] + (i + myhalf_d) * dx[0];
+                auto y = prob_lo[1] + (j + myhalf_d) * dx[1];
+                auto z = prob_lo[2] + (k + myhalf_d) * dx[2];
 
                 //const Real c = two*dx[0];
                 auto c = amrex::Real(1700.0)*amrex::Real(1700.0);
@@ -37,8 +37,8 @@
             });
         } else {
             // src is a function over Z
-            ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-                qsrc_arr(i, j, k) = zero;
+            ParallelFor(box, [=,zero_d=zero] AMREX_GPU_DEVICE (int i, int j, int k) {
+                qsrc_arr(i, j, k) = zero_d;
             });
         }
     }

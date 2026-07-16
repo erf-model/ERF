@@ -389,9 +389,9 @@ void erf_make_tau_terms (int level, int nrk,
 
                 // First create Omega using velocity (not momentum)
                 Array4<Real> omega_arr = Omega.array();
-                ParallelFor(gbxo, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                ParallelFor(gbxo, [=,zero_d=zero] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
                 {
-                    omega_arr(i,j,k) = (k == 0) ? zero : OmegaFromW(i,j,k,w(i,j,k),u,v,
+                    omega_arr(i,j,k) = (k == 0) ? zero_d : OmegaFromW(i,j,k,w(i,j,k),u,v,
                                                                   mf_ux,mf_vy,z_nd,dxInv);
                 });
 
@@ -533,9 +533,9 @@ void erf_make_tau_terms (int level, int nrk,
                                         (w(i  , j  , k+1) - w(i, j, k))*dxInv[2];
                     });
                 } else {
-                    ParallelFor(bxcc, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                    ParallelFor(bxcc, [=,one_d=one,zero_d=zero] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
                         if (cflag(i,j,k).isSingleValued()) {
-                            er_arr(i,j,k) = (one/vfrac(i,j,k)) * (
+                            er_arr(i,j,k) = (one_d/vfrac(i,j,k)) * (
                             dxInv[0] * ( apx(i+1,j,k)*u(i+1,j,k) - apx(i,j,k)*u(i,j,k) )
                             + dxInv[1] * ( apy(i,j+1,k)*v(i,j+1,k) - apy(i,j,k)*v(i,j,k) )
                             + dxInv[2] * ( apz(i,j,k+1)*w(i,j,k+1) - apz(i,j,k)*w(i,j,k) ) );
@@ -544,7 +544,7 @@ void erf_make_tau_terms (int level, int nrk,
                                             (v(i  , j+1, k  ) - v(i, j, k))*dxInv[1] +
                                             (w(i  , j  , k+1) - w(i, j, k))*dxInv[2];
                         } else {
-                            er_arr(i,j,k) = zero;
+                            er_arr(i,j,k) = zero_d;
                         }
                     });
                 }

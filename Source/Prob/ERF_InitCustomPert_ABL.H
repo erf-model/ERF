@@ -52,10 +52,10 @@
     }
 #endif
 
-    ParallelForRNG(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k, const amrex::RandomEngine& engine) noexcept
+    ParallelForRNG(bx, [=,myhalf_d=myhalf] AMREX_GPU_DEVICE(int i, int j, int k, const amrex::RandomEngine& engine) noexcept
     {
-        const Real x = prob_lo_x + (i + myhalf) * dx;
-        const Real y = prob_lo_y + (j + myhalf) * dy;
+        const Real x = prob_lo_x + (i + myhalf_d) * dx;
+        const Real y = prob_lo_y + (j + myhalf_d) * dy;
         const Real z = z_cc(i,j,k);
 
         const Real r  = std::sqrt((x-xc)*(x-xc) + (y-yc)*(y-yc) + (z-zc)*(z-zc));
@@ -88,4 +88,3 @@
             }
         }
     });
-

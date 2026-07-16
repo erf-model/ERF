@@ -28,25 +28,25 @@
         const Real a = one / DE;
 
         // Set the x-velocity
-        ParallelFor(xbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+        ParallelFor(xbx, [=,myhalf_d=myhalf,one_d=one] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
             const auto dx = geomdata.CellSize();
-            const Real z = (k + myhalf) * dx[2];
+            const Real z = (k + myhalf_d) * dx[2];
 
             // Set the x-velocity
-            x_vel_pert(i, j, k) = u_0 * (one - std::exp(-a * z) * std::cos(-a * z));
+            x_vel_pert(i, j, k) = u_0 * (one_d - std::exp(-a * z) * std::cos(-a * z));
         });
 
         // Set the y-velocity
-        ParallelFor(ybx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+        ParallelFor(ybx, [=,myhalf_d=myhalf] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
             const auto dx = geomdata.CellSize();
-            const Real z = (k + myhalf) * dx[2];
+            const Real z = (k + myhalf_d) * dx[2];
 
             // Set the y-velocity
             y_vel_pert(i, j, k) = -u_0 * std::exp(-a * z) * std::sin(-a * z);
         });
 
         // Set the z-velocity
-        ParallelFor(zbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-            z_vel_pert(i, j, k) = zero;
+        ParallelFor(zbx, [=,zero_d=zero] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+            z_vel_pert(i, j, k) = zero_d;
         });
     } // end if uniform

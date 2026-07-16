@@ -741,13 +741,13 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev)
                   const Array4<      Real>& cos_arr = (cosPhi_m[lev])->array(mfi);
                   const Array4<      Real>& dst_arr = (lat_m[lev])->array(mfi);
                   const Array4<const Real>& src_arr = var_fab.const_array();
-                  ParallelFor(gtbx, [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept
+                  ParallelFor(gtbx, [=,PI_d=PI] AMREX_GPU_DEVICE (int i, int j, int) noexcept
                   {
                       int li = amrex::min(amrex::max(i, i_lo), i_hi);
                       int lj = amrex::min(amrex::max(j, j_lo), j_hi);
                       dst_arr(i,j,0) = src_arr(li,lj,0);
 
-                      Real lat_rad = dst_arr(i,j,0) * (PI/Real(180.));
+                      Real lat_rad = dst_arr(i,j,0) * (PI_d/Real(180.));
                       sin_arr(i,j,0) = std::sin(lat_rad);
                       cos_arr(i,j,0) = std::cos(lat_rad);
                   });
@@ -1347,7 +1347,7 @@ init_base_state_from_wrfinput (const Box& subdomain,
         const Array4<Real const>&     ALB_arr = (mf_ALB) ? mf_ALB->const_array(mfi) :
                                                            Array4<const Real> {};
 
-        ParallelFor(gtbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+        ParallelFor(gtbx, [=,R_d_d=R_d] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {
             // Base state needs ghost cells filled, protect FAB access
             int ii = std::max(i , dom_lo.x);
@@ -1362,7 +1362,7 @@ init_base_state_from_wrfinput (const Box& subdomain,
             // Have inverse base density
             if (ALB_arr) {
                 Rd  = Real(1.0) / ALB_arr(ii,jj,kk);
-                Td  = Pd / (R_d * Rd);
+                Td  = Pd / (R_d_d * Rd);
                 Thd = getThgivenTandP(Td, Pd, l_rdOcp);
             } else {
                 Td  = std::max(TISO, T00 + TLP * std::log(Pd/P00));
@@ -1413,7 +1413,7 @@ init_base_state_from_wrfinput (const Box& subdomain,
 
             const Array4<const Real>& z_arr = z_phys_nd->const_array(mfi);
 
-            ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int /*k*/) noexcept
+            ParallelFor(bx, [=,zero_d=zero,R_d_d=R_d,Cp_d_d=Cp_d,myhalf_d=myhalf] AMREX_GPU_DEVICE(int i, int j, int /*k*/) noexcept
             {
                 // integrate from surface to domain top
                 Real dz, F, C;
@@ -1424,13 +1424,13 @@ init_base_state_from_wrfinput (const Box& subdomain,
                 Real T_hi;
                 Real P_lo, P_hi;
 
-                Real qv_lo = zero;
-                Real qv_hi = zero;
+                Real qv_lo = zero_d;
+                Real qv_hi = zero_d;
 
                 // First integrate from surface to first CC at klo
                 {
                     // Vertical grid spacing
-                    z_lo = zero; // corresponding to p_0
+                    z_lo = zero_d; // corresponding to p_0
                     z_hi = Real(0.125) * ( z_arr(i,j,klo  ) + z_arr(i+1,j,klo  ) + z_arr(i,j+1,klo  ) + z_arr(i+1,j+1,klo  )
                                          + z_arr(i,j,klo+1) + z_arr(i+1,j,klo+1) + z_arr(i,j+1,klo+1) + z_arr(i+1,j+1,klo+1) );
 
@@ -1439,22 +1439,22 @@ init_base_state_from_wrfinput (const Box& subdomain,
 
                     // Known surface values
                     P_lo  = P00;
-                    Th_lo = getThgivenTandP(T00, P00, R_d/Cp_d);
-                    R_lo  = getRhogivenThetaPress(Th_lo, P_lo, R_d/Cp_d);
+                    Th_lo = getThgivenTandP(T00, P00, R_d_d/Cp_d_d);
+                    R_lo  = getRhogivenThetaPress(Th_lo, P_lo, R_d_d/Cp_d_d);
                     rho_tot_lo = R_lo;
-                    C  = -P_lo + myhalf*rho_tot_lo*grav*dz;
+                    C  = -P_lo + myhalf_d*rho_tot_lo*grav*dz;
 
                     // Initial guess and residual
                     P_hi  = P_lo;
                     Th_hi = th_hse_arr(i,j,klo);
-                    T_hi  = getTgivenPandTh(P_hi, Th_hi, R_d/Cp_d);
-                    R_hi  = getRhogivenThetaPress(Th_hi, P_hi, R_d/Cp_d);
+                    T_hi  = getTgivenPandTh(P_hi, Th_hi, R_d_d/Cp_d_d);
+                    R_hi  = getRhogivenThetaPress(Th_hi, P_hi, R_d_d/Cp_d_d);
                     rho_tot_hi = R_hi;
-                    F = P_hi + myhalf*rho_tot_hi*grav*dz + C;
+                    F = P_hi + myhalf_d*rho_tot_hi*grav*dz + C;
 
                     // Do iterations
                     bool maintain_Th = true;
-                    HSEutils::Newton_Raphson_hse(tol, R_d/Cp_d, dz,
+                    HSEutils::Newton_Raphson_hse(tol, R_d_d/Cp_d_d, dz,
                                                  grav, C, Th_hi, T_hi,
                                                  qv_hi, qv_hi,
                                                  P_hi, R_hi, F, maintain_Th);
@@ -1476,20 +1476,20 @@ init_base_state_from_wrfinput (const Box& subdomain,
 
                   // Establish known constant
                   Th_lo = th_hse_arr(i,j,k-1);
-                  R_lo  = getRhogivenThetaPress(Th_lo, P_lo, R_d/Cp_d, qv_lo);
+                  R_lo  = getRhogivenThetaPress(Th_lo, P_lo, R_d_d/Cp_d_d, qv_lo);
                   rho_tot_lo = R_lo;
-                  C  = -P_lo + myhalf*rho_tot_lo*grav*dz;
+                  C  = -P_lo + myhalf_d*rho_tot_lo*grav*dz;
 
                   // Initial guess and residual
                   Th_hi = th_hse_arr(i,j,k);
-                  T_hi  = getTgivenPandTh(P_hi, Th_hi, R_d/Cp_d);
-                  R_hi  = getRhogivenThetaPress(Th_hi, P_hi, R_d/Cp_d, qv_hi);
+                  T_hi  = getTgivenPandTh(P_hi, Th_hi, R_d_d/Cp_d_d);
+                  R_hi  = getRhogivenThetaPress(Th_hi, P_hi, R_d_d/Cp_d_d, qv_hi);
                   rho_tot_hi = R_hi;
-                  F = P_hi + myhalf*rho_tot_hi*grav*dz + C;
+                  F = P_hi + myhalf_d*rho_tot_hi*grav*dz + C;
 
                   // Do iterations
                   bool maintain_Th = true;
-                  HSEutils::Newton_Raphson_hse(tol, R_d/Cp_d, dz,
+                  HSEutils::Newton_Raphson_hse(tol, R_d_d/Cp_d_d, dz,
                                                grav, C, Th_hi, T_hi,
                                                qv_hi, qv_hi,
                                                P_hi, R_hi, F, maintain_Th);
@@ -1573,14 +1573,14 @@ compute_terrain_top_and_bottom (const MultiFab& mf_PH,
         //
         // This loop computes the min and max values of the bottom surface
         //
-        ParallelFor(Fab2dBox_lo, [=] AMREX_GPU_DEVICE(int i, int j, int /*k*/) noexcept
+        ParallelFor(Fab2dBox_lo, [=,CONST_GRAV_d=CONST_GRAV] AMREX_GPU_DEVICE(int i, int j, int /*k*/) noexcept
         {
             int ii = std::max(std::min(i,ihi-1),ilo+1);
             int jj = std::max(std::min(j,jhi-1),jlo+1);
             Real z_calc_lo = Real(0.25) * ( ph (ii,jj  ,klo) + ph (ii-1,jj  ,klo) +
                                             ph (ii,jj-1,klo) + ph (ii-1,jj-1,klo) +
                                             phb(ii,jj  ,klo) + phb(ii-1,jj  ,klo) +
-                                            phb(ii,jj-1,klo) + phb(ii-1,jj-1,klo) ) / CONST_GRAV;
+                                            phb(ii,jj-1,klo) + phb(ii-1,jj-1,klo) ) / CONST_GRAV_d;
             amrex::Gpu::Atomic::Min(&(min_d[0]),z_calc_lo);
             amrex::Gpu::Atomic::Max(&(max_d[0]),z_calc_lo);
         });
@@ -1588,14 +1588,14 @@ compute_terrain_top_and_bottom (const MultiFab& mf_PH,
         //
         // This loop computes the max value of the top surface
         //
-        ParallelFor(Fab2dBox_hi, [=] AMREX_GPU_DEVICE(int i, int j, int /*k*/) noexcept
+        ParallelFor(Fab2dBox_hi, [=,CONST_GRAV_d=CONST_GRAV] AMREX_GPU_DEVICE(int i, int j, int /*k*/) noexcept
         {
             int ii = std::max(std::min(i,ihi-1),ilo+1);
             int jj = std::max(std::min(j,jhi-1),jlo+1);
             Real z_calc_hi = Real(0.25) * ( ph (ii,jj  ,khi) + ph (ii-1,jj  ,khi) +
                                             ph (ii,jj-1,khi) + ph (ii-1,jj-1,khi) +
                                             phb(ii,jj  ,khi) + phb(ii-1,jj  ,khi) +
-                                            phb(ii,jj-1,khi) + phb(ii-1,jj-1,khi) ) / CONST_GRAV;
+                                            phb(ii,jj-1,khi) + phb(ii-1,jj-1,khi) ) / CONST_GRAV_d;
             amrex::Gpu::Atomic::Max(&(max_d[1]),z_calc_hi);
             amrex::Gpu::Atomic::Min(&(min_d[1]),z_calc_hi);
         });
@@ -1603,14 +1603,14 @@ compute_terrain_top_and_bottom (const MultiFab& mf_PH,
         //
         // This loop computes the max value of the layer just below the top surface
         //
-        ParallelFor(Fab2dBox_hi_m1, [=] AMREX_GPU_DEVICE(int i, int j, int /*k*/) noexcept
+        ParallelFor(Fab2dBox_hi_m1, [=,CONST_GRAV_d=CONST_GRAV] AMREX_GPU_DEVICE(int i, int j, int /*k*/) noexcept
         {
             int ii = std::max(std::min(i,ihi-1),ilo+1);
             int jj = std::max(std::min(j,jhi-1),jlo+1);
             Real z_calc_hi = Real(0.25) * ( ph (ii,jj  ,khi-1) + ph (ii-1,jj  ,khi-1) +
                                             ph (ii,jj-1,khi-1) + ph (ii-1,jj-1,khi-1) +
                                             phb(ii,jj  ,khi-1) + phb(ii-1,jj  ,khi-1) +
-                                            phb(ii,jj-1,khi-1) + phb(ii-1,jj-1,khi-1) ) / CONST_GRAV;
+                                            phb(ii,jj-1,khi-1) + phb(ii-1,jj-1,khi-1) ) / CONST_GRAV_d;
             amrex::Gpu::Atomic::Max(&(max_d[2]),z_calc_hi);
         });
     } // mfi
@@ -1685,7 +1685,7 @@ init_terrain_from_wrfinput (int /*lev*/,
         int klo = z_face_box.smallEnd()[2];
         int khi = z_face_box.bigEnd()[2];
 
-        ParallelFor(gnbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+        ParallelFor(gnbx, [=,CONST_GRAV_d=CONST_GRAV,two_d=two] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {
             int ii = std::max(std::min(i,ihi),ilo);
             int jj = std::max(std::min(j,jhi),jlo);
@@ -1697,23 +1697,23 @@ init_terrain_from_wrfinput (int /*lev*/,
                 Real z_klo   = Real(0.25) * ( nc_ph_arr (ii,jj,klo  ) + nc_ph_arr (im,jj,klo  ) +
                                               nc_ph_arr (ii,jm,klo  ) + nc_ph_arr (im,jm,klo) +
                                               nc_phb_arr(ii,jj,klo  ) + nc_phb_arr(im,jj,klo  ) +
-                                              nc_phb_arr(ii,jm,klo  ) + nc_phb_arr(im,jm,klo) ) / CONST_GRAV;
+                                              nc_phb_arr(ii,jm,klo  ) + nc_phb_arr(im,jm,klo) ) / CONST_GRAV_d;
                 Real z_klop1 = Real(0.25) * ( nc_ph_arr (ii,jj,klo+1) + nc_ph_arr (im,jj,klo+1) +
                                               nc_ph_arr (ii,jm,klo+1) + nc_ph_arr (im,jm,klo+1) +
                                               nc_phb_arr(ii,jj,klo+1) + nc_phb_arr(im,jj,klo+1) +
-                                              nc_phb_arr(ii,jm,klo+1) + nc_phb_arr(im,jm,klo+1) ) / CONST_GRAV;
-                z_arr(i, j, k) = two * z_klo - z_klop1;
+                                              nc_phb_arr(ii,jm,klo+1) + nc_phb_arr(im,jm,klo+1) ) / CONST_GRAV_d;
+                z_arr(i, j, k) = two_d * z_klo - z_klop1;
             } else if (k > khi) {
                 Real z_khim1 = Real(0.25) * ( nc_ph_arr (ii,jj,khi-1) + nc_ph_arr (im,jj,khi-1) +
                                               nc_ph_arr (ii,jm,khi-1) + nc_ph_arr (im,jm,khi-1) +
                                               nc_phb_arr(ii,jj,khi-1) + nc_phb_arr(im,jj,khi-1) +
-                                              nc_phb_arr(ii,jm,khi-1) + nc_phb_arr(im,jm,khi-1) ) / CONST_GRAV;
-                z_arr(i, j, k) = two * z_top - z_khim1;
+                                              nc_phb_arr(ii,jm,khi-1) + nc_phb_arr(im,jm,khi-1) ) / CONST_GRAV_d;
+                z_arr(i, j, k) = two_d * z_top - z_khim1;
             } else if (k == khi) {
                 z_arr(i, j, k) = Real(0.25) * ( nc_ph_arr (ii,jj,k) + nc_ph_arr (im,jj,k) +
                                                 nc_ph_arr (ii,jm,k) + nc_ph_arr (im,jm,k) +
                                                 nc_phb_arr(ii,jj,k) + nc_phb_arr(im,jj,k) +
-                                                nc_phb_arr(ii,jm,k) + nc_phb_arr(im,jm,k) ) / CONST_GRAV;
+                                                nc_phb_arr(ii,jm,k) + nc_phb_arr(im,jm,k) ) / CONST_GRAV_d;
                 z_arr(i, j, k) = z_top;
             } else {
                 // Note: wrfinput geopotentials ph, phb are only staggered in the vertical, i.e.,
@@ -1723,7 +1723,7 @@ init_terrain_from_wrfinput (int /*lev*/,
                 z_arr(i, j, k) = Real(0.25) * ( nc_ph_arr (ii,jj,k) + nc_ph_arr (im,jj,k) +
                                                 nc_ph_arr (ii,jm,k) + nc_ph_arr (im,jm,k) +
                                                 nc_phb_arr(ii,jj,k) + nc_phb_arr(im,jj,k) +
-                                                nc_phb_arr(ii,jm,k) + nc_phb_arr(im,jm,k) ) / CONST_GRAV;
+                                                nc_phb_arr(ii,jm,k) + nc_phb_arr(im,jm,k) ) / CONST_GRAV_d;
             }
         });
 

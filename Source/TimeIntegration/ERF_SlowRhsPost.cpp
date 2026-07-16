@@ -521,7 +521,7 @@ void erf_slow_rhs_post (int level, int finest_level,
                 } else if (l_anelastic && (nrk == 1)) { // not moving and ( (anelastic) and second RK stage) )
 
                     ParallelFor(tbx, num_comp,
-                    [=] AMREX_GPU_DEVICE (int i, int j, int k, int nn) noexcept {
+                    [=,myhalf_d=myhalf] AMREX_GPU_DEVICE (int i, int j, int k, int nn) noexcept {
                         const int n = start_comp + nn;
                         cell_rhs(i,j,k,n) += src_arr(i,j,k,n);
 
@@ -529,7 +529,7 @@ void erf_slow_rhs_post (int level, int finest_level,
                         Real dt_times_old_cell_rhs = cur_cons(i,j,k,n) - old_cons(i,j,k,n);
 
                         // Add the time-averaged RHS to the old state
-                        cur_cons(i,j,k,n) = old_cons(i,j,k,n) + myhalf * (dt_times_old_cell_rhs + dt * cell_rhs(i,j,k,n));
+                        cur_cons(i,j,k,n) = old_cons(i,j,k,n) + myhalf_d * (dt_times_old_cell_rhs + dt * cell_rhs(i,j,k,n));
 
                         if (ivar == RhoKE_comp) {
                             cur_cons(i,j,k,n) = amrex::max(cur_cons(i,j,k,n), eps);

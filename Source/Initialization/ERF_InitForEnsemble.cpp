@@ -142,9 +142,9 @@ ERF::apply_gaussian_smoothing_to_perturbations(const int lev,
         auto const& out = mf_cc_pert.array(mfi);
 
         ParallelFor(bx, ncomp,
-        [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+        [=,zero_d=zero] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
         {
-            Real sum = zero;
+            Real sum = zero_d;
 
             for (int m = -r; m <= r; ++m) {
                 for (int nn = -r; nn <= r; ++nn) {
@@ -385,17 +385,17 @@ InterpolateToFineMF(
         auto arr = mf_fine.array(mfi);
 
         amrex::ParallelFor(bx,
-        [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        [=,myhalf_d=myhalf] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
             // physical location (fine cell center)
-            Real x = problo_f[0] + (i + myhalf) * dx_f[0];
-            Real y = problo_f[1] + (j + myhalf) * dx_f[1];
-            Real z = problo_f[2] + (k + myhalf) * dx_f[2];
+            Real x = problo_f[0] + (i + myhalf_d) * dx_f[0];
+            Real y = problo_f[1] + (j + myhalf_d) * dx_f[1];
+            Real z = problo_f[2] + (k + myhalf_d) * dx_f[2];
 
             // map to coarse index space
-            Real rx = (x - problo[0]) / dx_c[0] - myhalf;
-            Real ry = (y - problo[1]) / dx_c[1] - myhalf;
-            Real rz = (z - problo[2]) / dx_c[2] - myhalf;
+            Real rx = (x - problo[0]) / dx_c[0] - myhalf_d;
+            Real ry = (y - problo[1]) / dx_c[1] - myhalf_d;
+            Real rz = (z - problo[2]) / dx_c[2] - myhalf_d;
 
             int ic = static_cast<int>(floor(rx));
             int jc = static_cast<int>(floor(ry));
@@ -453,9 +453,9 @@ MakeFinalMultiFabs (const MultiFab& mf_cc_fine,
         auto const& uface = xvel_pert.array(mfi);
         auto const& cc    = mf_cc_fine.const_array(mfi);
 
-        amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+        amrex::ParallelFor(bx, [=,myhalf_d=myhalf] AMREX_GPU_DEVICE (int i, int j, int k)
         {
-            uface(i,j,k) = myhalf * (cc(i-1,j,k,2) + cc(i,j,k,2));
+            uface(i,j,k) = myhalf_d * (cc(i-1,j,k,2) + cc(i,j,k,2));
         });
     }
 
@@ -466,9 +466,9 @@ MakeFinalMultiFabs (const MultiFab& mf_cc_fine,
         auto const& vface = yvel_pert.array(mfi);
         auto const& cc    = mf_cc_fine.const_array(mfi);
 
-        amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+        amrex::ParallelFor(bx, [=,myhalf_d=myhalf] AMREX_GPU_DEVICE (int i, int j, int k)
         {
-            vface(i,j,k) = myhalf * (cc(i,j-1,k,3) + cc(i,j,k,3));
+            vface(i,j,k) = myhalf_d * (cc(i,j-1,k,3) + cc(i,j,k,3));
         });
     }
 
@@ -479,9 +479,9 @@ MakeFinalMultiFabs (const MultiFab& mf_cc_fine,
         auto const& wface = zvel_pert.array(mfi);
         //auto const& cc    = mf_cc_fine.const_array(mfi);
 
-        amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+        amrex::ParallelFor(bx, [=,zero_d=zero] AMREX_GPU_DEVICE (int i, int j, int k)
         {
-            wface(i,j,k) = zero; //myhalf * (cc(i,j,k-1,4) + cc(i,j,k,4));
+            wface(i,j,k) = zero_d; //myhalf * (cc(i,j,k-1,4) + cc(i,j,k,4));
         });
     }
 }

@@ -70,13 +70,13 @@ SimpleAD::update (const double& dt_advance,
         auto v_vel       = V_old.array(mfi);
 
         ParallelFor(tbx, tby,
-        [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+        [=,two_d=two] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {
-            u_vel(i,j,k) = u_vel(i,j,k) + (simpleAD_array(i-1,j,k,0) + simpleAD_array(i,j,k,0))/two*dt_advance;
+            u_vel(i,j,k) = u_vel(i,j,k) + (simpleAD_array(i-1,j,k,0) + simpleAD_array(i,j,k,0))/two_d*dt_advance;
         },
-        [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+        [=,two_d=two] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {
-            v_vel(i,j,k) = v_vel(i,j,k) + (simpleAD_array(i,j-1,k,1) + simpleAD_array(i,j,k,1))/two*dt_advance;
+            v_vel(i,j,k) = v_vel(i,j,k) + (simpleAD_array(i,j-1,k,1) + simpleAD_array(i,j,k,1))/two_d*dt_advance;
         });
     }
 }
@@ -113,13 +113,13 @@ void SimpleAD::compute_freestream_velocity (const MultiFab& cons_in,
         auto v_vel          = V_old.array(mfi);
         Box tbx = mfi.nodaltilebox(0);
 
-        ParallelFor(tbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+        ParallelFor(tbx, [=,one_d=one,myhalf_d=myhalf] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
 
-            if(SMark_array(i,j,k,0) != -one) {
+            if(SMark_array(i,j,k,0) != -one_d) {
                 int turb_index = static_cast<int>(SMark_array(i,j,k,0));
                 Real phi = std::atan2(v_vel(i,j,k),u_vel(i,j,k)); // Wind direction w.r.t the x-direction
-                Gpu::Atomic::Add(&d_freestream_velocity_ptr[turb_index],std::pow(u_vel(i,j,k)*u_vel(i,j,k) + v_vel(i,j,k)*v_vel(i,j,k),myhalf));
-                Gpu::Atomic::Add(&d_disk_cell_count_ptr[turb_index],one);
+                Gpu::Atomic::Add(&d_freestream_velocity_ptr[turb_index],std::pow(u_vel(i,j,k)*u_vel(i,j,k) + v_vel(i,j,k)*v_vel(i,j,k),myhalf_d));
+                Gpu::Atomic::Add(&d_disk_cell_count_ptr[turb_index],one_d);
                 Gpu::Atomic::Add(&d_freestream_phi_ptr[turb_index],phi);
             }
         });
@@ -221,14 +221,14 @@ SimpleAD::source_terms_cellcentered (const Geometry& geom,
         auto SMark_array    = mf_SMark.array(mfi);
         auto simpleAD_array = mf_vars_simpleAD.array(mfi);
 
-        ParallelFor(gbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+        ParallelFor(gbx, [=,zero_d=zero,myhalf_d=myhalf,one_d=one,two_d=two] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
             int ii = amrex::min(amrex::max(i, domlo_x), domhi_x);
             int jj = amrex::min(amrex::max(j, domlo_y), domhi_y);
             int kk = amrex::min(amrex::max(k, domlo_z), domhi_z);
 
 
-            Real source_x = zero;
-            Real source_y = zero;
+            Real source_x = zero_d;
+            Real source_y = zero_d;
 
             int it = static_cast<int>(SMark_array(ii,jj,kk,1));
 
@@ -239,16 +239,16 @@ SimpleAD::source_terms_cellcentered (const Geometry& geom,
                 Real C_T = interpolate_1d(wind_speed_d, thrust_coeff_d, avg_vel, n_spec_table);
                 Real a;
                 if(C_T <= 1) {
-                    a = myhalf - myhalf*std::pow(one-C_T,myhalf);
+                    a = myhalf_d - myhalf_d*std::pow(one_d-C_T,myhalf_d);
                 }
                 Real Uinfty_dot_nhat = avg_vel*(std::cos(phi)*nx + std::sin(phi)*ny);
                     if(C_T <= 1) {
-                        source_x = -two*std::pow(Uinfty_dot_nhat, two)*a*(one-a)*dx[1]*dx[2]*std::cos(d_turb_disk_angle)/(dx[0]*dx[1]*dx[2])*std::cos(phi);
-                        source_y = -two*std::pow(Uinfty_dot_nhat, two)*a*(one-a)*dx[1]*dx[2]*std::cos(d_turb_disk_angle)/(dx[0]*dx[1]*dx[2])*std::sin(phi);
+                        source_x = -two_d*std::pow(Uinfty_dot_nhat, two_d)*a*(one_d-a)*dx[1]*dx[2]*std::cos(d_turb_disk_angle)/(dx[0]*dx[1]*dx[2])*std::cos(phi);
+                        source_y = -two_d*std::pow(Uinfty_dot_nhat, two_d)*a*(one_d-a)*dx[1]*dx[2]*std::cos(d_turb_disk_angle)/(dx[0]*dx[1]*dx[2])*std::sin(phi);
                     }
                     else {
-                        source_x = -myhalf*C_T*std::pow(Uinfty_dot_nhat, two)*dx[1]*dx[2]*std::cos(d_turb_disk_angle)/(dx[0]*dx[1]*dx[2])*std::cos(phi);
-                        source_y = -myhalf*C_T*std::pow(Uinfty_dot_nhat, two)*dx[1]*dx[2]*std::cos(d_turb_disk_angle)/(dx[0]*dx[1]*dx[2])*std::sin(phi);
+                        source_x = -myhalf_d*C_T*std::pow(Uinfty_dot_nhat, two_d)*dx[1]*dx[2]*std::cos(d_turb_disk_angle)/(dx[0]*dx[1]*dx[2])*std::cos(phi);
+                        source_y = -myhalf_d*C_T*std::pow(Uinfty_dot_nhat, two_d)*dx[1]*dx[2]*std::cos(d_turb_disk_angle)/(dx[0]*dx[1]*dx[2])*std::sin(phi);
                     }
              }
 

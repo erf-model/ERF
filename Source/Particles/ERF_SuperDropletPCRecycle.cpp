@@ -130,7 +130,7 @@ void SuperDropletPC::Recycle ( const int             a_lev,
         const auto z_max = m_recyc_zmax;
 
         forEachParticleTile(a_lev, proc_ctx,
-            [&](ParIterType& /*pti*/, int grid, ParticleType* p_pbox,
+            [&,one_d=one,zero_d=zero](ParIterType& /*pti*/, int grid, ParticleType* p_pbox,
                 const SDProcess::ParticlePointers& ptrs,
                 const SDProcess::ProcessContext& ctx)
         {
@@ -140,9 +140,9 @@ void SuperDropletPC::Recycle ( const int             a_lev,
             // Get sampled aerosol mass values based on initialization
             Gpu::DeviceVector<Real> aerosol_mass_d(ctx.num_aerosols*np);
             Gpu::DeviceVector<Real> multiplicity_d(np);
-            ParticleReal mult_scale = one;
+            ParticleReal mult_scale = one_d;
             {
-                Vector<Real> multiplicity_h(np, zero);
+                Vector<Real> multiplicity_h(np, zero_d);
                 for (int i = 0; i < ctx.num_aerosols; i++) {
                     Vector<Real> aerosol_mass_h;
                     if (sampled_multiplicity) {
@@ -167,7 +167,7 @@ void SuperDropletPC::Recycle ( const int             a_lev,
                 }
                 if (sampled_multiplicity) {
                     // compute multiplicity scale
-                    ParticleReal mult_sum = zero;
+                    ParticleReal mult_sum = zero_d;
                     for (int ctr=0; ctr < multiplicity_h.size(); ctr++) {
                         mult_sum += multiplicity_h[ctr];
                     }
@@ -187,7 +187,7 @@ void SuperDropletPC::Recycle ( const int             a_lev,
             Gpu::Buffer<Long> np_recycle_buf({0});
             auto* np_recycle_ptr = np_recycle_buf.data();
 
-            ParallelForRNG(np, [=] AMREX_GPU_DEVICE (int i, const RandomEngine& rnd_engine) noexcept
+            ParallelForRNG(np, [=,zero_d=zero,four_thirds_pi_d=four_thirds_pi] AMREX_GPU_DEVICE (int i, const RandomEngine& rnd_engine) noexcept
             {
                 ParticleType& p = p_pbox[i];
                 if (p.id() <= 0) { return; }
@@ -206,15 +206,15 @@ void SuperDropletPC::Recycle ( const int             a_lev,
                                                   ctx.plo, ctx.dxi, zheight, k_max));
 
                 // Set velocities to zero
-                ptrs.v_ptr[0][i] = ptrs.v_ptr[1][i] = ptrs.v_ptr[2][i] = ptrs.vterm_ptr[i] = zero;
+                ptrs.v_ptr[0][i] = ptrs.v_ptr[1][i] = ptrs.v_ptr[2][i] = ptrs.vterm_ptr[i] = zero_d;
 
                 // reset all species masses to zero
                 for (int ctr = 0; ctr < ctx.num_species; ctr++) {
-                    ptrs.sp_mass_ptrs[ctr][i] = zero;
+                    ptrs.sp_mass_ptrs[ctr][i] = zero_d;
                 }
                 // Reset water mass
                 auto water_radius = Real(1.0e-15);
-                auto water_mass = four_thirds_pi
+                auto water_mass = four_thirds_pi_d
                                  * water_radius*water_radius*water_radius*ctx.rho_water;
                 ptrs.sp_mass_ptrs[ctx.idx_water][i] = water_mass;
 

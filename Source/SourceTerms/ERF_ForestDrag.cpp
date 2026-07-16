@@ -100,14 +100,14 @@ ForestDrag::define_drag_field (const BoxArray& ba,
             const Array4<const Real>& z_cc = z_phys_cc->const_array(mfi);
             const Array4<const Real>& z_nd = z_phys_nd->const_array(mfi);
 
-            ParallelFor(gtbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+            ParallelFor(gtbx, [=,myhalf_d=myhalf,fourth_d=fourth,one_d=one] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
             {
                 // Physical positions of cell-centers
-                const Real x = prob_lo[0] + (i + myhalf) * dx[0];
-                const Real y = prob_lo[1] + (j + myhalf) * dx[1];
+                const Real x = prob_lo[0] + (i + myhalf_d) * dx[0];
+                const Real y = prob_lo[1] + (j + myhalf_d) * dx[1];
 
                 // "z" is measured as distance from cell center to ground
-                const Real z_sfc = fourth * ( z_nd(i,j  ,0) + z_nd(i+1,j  ,0)
+                const Real z_sfc = fourth_d * ( z_nd(i,j  ,0) + z_nd(i+1,j  ,0)
                                            +z_nd(i,j+1,0) + z_nd(i+1,j+1,0));
                 const Real z = std::max((z_cc(i,j,k)-z_sfc),amrex::Real(0));
 
@@ -117,15 +117,15 @@ ForestDrag::define_drag_field (const BoxArray& ba,
 
                 // Hit for canopy region
                 Real factor = 1;
-                if ((z <= hf) && (radius <= (myhalf * df))) {
+                if ((z <= hf) && (radius <= (myhalf_d * df))) {
                     if (tf == 2) {
                         Real ratio = (hf - treeZm) / (hf - z);
                         if (z < treeZm) {
                             factor = amrex::Math::powi<6>(ratio) *
-                                     std::exp(Real(6.0) * (one - ratio));
+                                     std::exp(Real(6.0) * (one_d - ratio));
                         } else if (z <= hf) {
-                            factor = std::pow(ratio, myhalf) *
-                                     std::exp(myhalf * (one - ratio));
+                            factor = std::pow(ratio, myhalf_d) *
+                                     std::exp(myhalf_d * (one_d - ratio));
                         }
                     }
                     levelDrag(i, j, k) = cdf * af * factor;
@@ -138,4 +138,3 @@ ForestDrag::define_drag_field (const BoxArray& ba,
     m_forest_drag->FillBoundary(geom.periodicity());
 
 } // init_drag_field
-

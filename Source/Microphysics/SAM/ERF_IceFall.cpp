@@ -43,7 +43,7 @@ void SAM::IceFall (const SolverChoice& sc) {
 
         const auto& box3d  = mfi.tilebox();
 
-        ParallelFor(box3d, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+        ParallelFor(box3d, [=,zero_d=zero] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {
             const Real rho_km1 = (k == k_lo) ? rho_array(i,j,k) : rho_array(i,j,k-1);
             const Real rho_k = (k == k_hi + 1) ? rho_array(i,j,k-1) : rho_array(i,j,k);
@@ -51,9 +51,9 @@ void SAM::IceFall (const SolverChoice& sc) {
             const Real qci_k = (k == k_hi + 1) ? qci_array(i,j,k-1) : qci_array(i,j,k);
             const SAMFaceState face_state = sam_face_average_state(k, k_lo, k_hi,
                                                                    rho_km1, rho_k,
-                                                                   zero, zero,
+                                                                   zero_d, zero_d,
                                                                    qci_km1, qci_k,
-                                                                   zero, zero);
+                                                                   zero_d, zero_d);
             const Real vt_ice = sam_cloud_ice_terminal_velocity(face_state.qci_avg);
 
             // NOTE: Fz is the sedimentation flux from the advective operator.
@@ -103,7 +103,7 @@ void SAM::IceFall (const SolverChoice& sc) {
             const auto& tbz = mfi.tilebox(IntVect(0,0,1),IntVect(0));
 
             // Update vertical flux every substep
-            ParallelFor(tbz, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+            ParallelFor(tbz, [=,zero_d=zero] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
             {
                 const Real rho_km1 = (k == k_lo) ? rho_array(i,j,k) : rho_array(i,j,k-1);
                 const Real rho_k = (k == k_hi + 1) ? rho_array(i,j,k-1) : rho_array(i,j,k);
@@ -111,9 +111,9 @@ void SAM::IceFall (const SolverChoice& sc) {
                 const Real qci_k = (k == k_hi + 1) ? qci_array(i,j,k-1) : qci_array(i,j,k);
                 const SAMFaceState face_state = sam_face_average_state(k, k_lo, k_hi,
                                                                        rho_km1, rho_k,
-                                                                       zero, zero,
+                                                                       zero_d, zero_d,
                                                                        qci_km1, qci_k,
-                                                                       zero, zero);
+                                                                       zero_d, zero_d);
                 const Real vt_ice = sam_cloud_ice_terminal_velocity(face_state.qci_avg);
 
                 // NOTE: Fz is the sedimentation flux from the advective operator.
@@ -126,10 +126,10 @@ void SAM::IceFall (const SolverChoice& sc) {
             });
 
             // Update precip every substep
-            ParallelFor(tbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+            ParallelFor(tbx, [=,one_d=one] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
             {
                 // Jacobian determinant
-                Real dJinv = (dJ_array) ? one/dJ_array(i,j,k) : one;
+                Real dJinv = (dJ_array) ? one_d/dJ_array(i,j,k) : one_d;
 
                 //==================================================
                 // Cloud ice sedimentation (A32)
@@ -150,4 +150,3 @@ void SAM::IceFall (const SolverChoice& sc) {
         } // mfi
     } // nsub
 }
-
