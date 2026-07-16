@@ -277,7 +277,7 @@ ERF::init_from_ncfile (int lev)
                 Real R_lo, R_hi;
                 Real qv_lo, qv_hi;
                 Real Th_lo, Th_hi;
-                Real T_lo, T_hi;
+                Real T_hi;
                 Real P_lo, P_hi;
 
                 // First integrate from sea level to the height at klo
@@ -292,7 +292,6 @@ ERF::init_from_ncfile (int lev)
                     qv_lo = (have_moisture) ? con_arr(i,j,klo,RhoQ1_comp) / con_arr(i,j,klo,Rho_comp) : zero_d;
                     Th_lo = con_arr(i,j,klo,RhoTheta_comp) / con_arr(i,j,klo,Rho_comp);
                     P_lo  = p_0_d;
-                    T_lo  = getTgivenPandTh(P_lo, Th_lo, R_d_d/Cp_d_d);
                     R_lo  = getRhogivenThetaPress(Th_lo, P_lo, R_d_d/Cp_d_d, qv_lo);
                     rho_tot_lo = R_lo * (one_d + qv_lo);
                     C  = -P_lo + myhalf_d*rho_tot_lo*grav*dz;
