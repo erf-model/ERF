@@ -358,7 +358,7 @@ SAMKernelOutputs host_reference (const SAMKernelCase& test_case)
         test_case.omn, test_case.domn, qn, dqsatm);
 
     return SAMKernelOutputs{
-        sam_cloud_liquid_fraction(test_case.mode, test_case.tabs, a_bg_d, tbgmin_d * a_bg_d),
+        sam_cloud_liquid_fraction(test_case.mode, test_case.tabs, a_bg, tbgmin * a_bg),
         sam_precip_rain_fraction(test_case.mode, test_case.tabs),
         sam_graupel_fraction(test_case.mode, test_case.tabs),
         sam_mixed_qsat(test_case.omn, test_case.qsatw, test_case.qsati),
