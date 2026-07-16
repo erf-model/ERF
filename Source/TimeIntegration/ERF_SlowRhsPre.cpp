@@ -576,7 +576,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
         Array4<const Real> bcent_arr{};
 
         if (l_use_eb) {
-            const auto* eb_cc_factory = ebfact.get_const_factory();
+            const auto& eb_cc_factory = ebfact.get_const_factory();
 
             EBCellFlagFab const& cfg = eb_cc_factory->getMultiEBCellFlagFab()[mfi];
             cfg_arr  = cfg.const_array();
