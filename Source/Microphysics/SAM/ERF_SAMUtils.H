@@ -244,8 +244,8 @@ bool sam_is_no_precip (const MoistureType& moisture_type) noexcept
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 amrex::Real sam_cloud_liquid_fraction (const int& SAM_moisture_type,
                                        const amrex::Real& tabs,
-                                       const amrex::Real& an,
-                                       const amrex::Real& bn) noexcept
+                                       const amrex::Real an,
+                                       const amrex::Real bn) noexcept
 {
     // Empirical cloud phase-fraction closure for omega_n. No-ice mode forces
     // liquid fraction to one; the warm branch is all liquid, the cold branch
@@ -769,12 +769,12 @@ SAMFaceState sam_face_average_state (const int& k,
                                      const int& k_hi,
                                      const amrex::Real& rho_km1,
                                      const amrex::Real& rho_k,
-                                     const amrex::Real& tabs_km1,
-                                     const amrex::Real& tabs_k,
+                                     const amrex::Real tabs_km1,
+                                     const amrex::Real tabs_k,
                                      const amrex::Real& qci_km1,
                                      const amrex::Real& qci_k,
-                                     const amrex::Real& qp_km1,
-                                     const amrex::Real& qp_k) noexcept
+                                     const amrex::Real qp_km1,
+                                     const amrex::Real qp_k) noexcept
 {
     SAMFaceState result{};
     if (k == k_lo) {
