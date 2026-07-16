@@ -224,6 +224,7 @@ public:
 #else
         constexpr amrex::Real tol = amrex::Real(1.e-8);
 #endif
+        constexpr int max_iter = 20;
 
         // Saturation moisture fractions
         amrex::Real omn, domn;
@@ -234,7 +235,6 @@ public:
 
         // Newton iteration vars
         int niter    = 0;
-        int max_iter = 20;
         amrex::Real F, dFdT;
 
         //=======================================================================

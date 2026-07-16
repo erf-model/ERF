@@ -195,6 +195,10 @@ public:
             ++niter;
         }
 
+        if (std::abs(F) > tol && niter >= max_niter) {
+             amrex::Abort("SatAdj single phase saturation adjustment failed to converge.");
+        }
+
         return tabs;
     }
 

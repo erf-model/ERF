@@ -564,7 +564,7 @@ SAMCellState sam_precip_cell_update (SAMCellState state,
     }
 
     state.qn = state.qcl + state.qci;
-    state.qt = state.qv + state.qn;
+    state.qt = state.qv  + state.qn;
     state.qp = state.qpr + state.qps + state.qpg;
 
     if (!config.enable_precip || state.qn + state.qp <= zero) {
