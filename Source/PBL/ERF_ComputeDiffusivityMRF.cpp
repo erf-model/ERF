@@ -396,7 +396,7 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
         // WRF reference (module_bl_mrf.F lines 932-964):
         // https://github.com/wrf-model/WRF/blob/master/phys/module_bl_mrf.F#L932-L964
         //
-        ParallelFor(xybx, [=,zero_d=zero,one_d=one,myhalf_d=myhalf,fourth_d=fourth,CONST_GRAV_d=CONST_GRAV] 
+        ParallelFor(xybx, [=,zero_d=zero,one_d=one,myhalf_d=myhalf,fourth_d=fourth,CONST_GRAV_d=CONST_GRAV]
                     AMREX_GPU_DEVICE(int i, int j, int) noexcept
         {
             const Real t_layer  = t10av_arr(i, j, 0);
@@ -560,7 +560,7 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
         // https://github.com/wrf-model/WRF/blob/master/phys/module_bl_mrf.F#L932-L964
         //
         constexpr Real Ribcr_zero = Real(0);
-        ParallelFor(xybx, [=,zero_d=zero,one_d=one,myhalf_d=myhalf,fourth_d=fourth,CONST_GRAV_d=CONST_GRAV] 
+        ParallelFor(xybx, [=,zero_d=zero,one_d=one,myhalf_d=myhalf,fourth_d=fourth,CONST_GRAV_d=CONST_GRAV]
                     AMREX_GPU_DEVICE(int i, int j, int) noexcept
         {
             const Real t_layer  = t10av_arr(i, j, 0);

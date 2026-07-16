@@ -715,7 +715,7 @@ Radiation::kokkos_buffers_to_mf (Vector<MultiFab*>& lsm_output_ptrs)
         const int offset     = m_col_offsets[mfi.index()];
         const Array4<Real>& q_arr = m_qheating_rates->array(mfi);
         const Array4<Real>& f_arr = m_rad_fluxes->array(mfi);
-        ParallelFor(vbx, [=,RdoCp_d=RdoCp,one_d=one,R_d_d=R_d,Cp_d_d=Cp_d] 
+        ParallelFor(vbx, [=,RdoCp_d=RdoCp,one_d=one,R_d_d=R_d,Cp_d_d=Cp_d]
                     AMREX_GPU_DEVICE (int i, int j, int k)
         {
             // map [i,j,k] 0-based to [icol, ilay] 0-based

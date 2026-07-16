@@ -698,7 +698,7 @@ void make_sources (int level,
             Real qt_i = Real(0.008);
 
             Box xybx = makeSlab(bx,2,klo);
-            ParallelFor(xybx, [=,RdoCp_d=RdoCp,zero_d=zero,myhalf_d=myhalf,Cp_d_d=Cp_d,three_d=three,one_d=one,R_d_d=R_d] 
+            ParallelFor(xybx, [=,RdoCp_d=RdoCp,zero_d=zero,myhalf_d=myhalf,Cp_d_d=Cp_d,three_d=three,one_d=one,R_d_d=R_d]
                         AMREX_GPU_DEVICE(int i, int j, int /*k*/) noexcept
             {
                 // Inclusive scan at w-faces for the Q integral (also find "i" values)

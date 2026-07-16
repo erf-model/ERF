@@ -1296,7 +1296,7 @@ init_base_state_from_metgrid (const bool use_moisture,
         const Array4<Real>& qv_hse_arr = qv_hse_fab.array();
         auto const z_arr = z_phys_nd_fab.const_array();
 
-        ParallelFor(valid_bx2d, [=,RdoCp_d=RdoCp,p_0_d=p_0,two_d=two,R_d_d=R_d,myhalf_d=myhalf] 
+        ParallelFor(valid_bx2d, [=,RdoCp_d=RdoCp,p_0_d=p_0,two_d=two,R_d_d=R_d,myhalf_d=myhalf]
                     AMREX_GPU_DEVICE (int i, int j, int) noexcept
         {
             // Surface values and constants
@@ -1431,7 +1431,7 @@ init_base_state_from_metgrid (const bool use_moisture,
         auto       new_data  = state_fab.array();
         auto const new_z     = z_phys_cc_fab.const_array();
 
-        ParallelFor(valid_bx2d, [=,RdoCp_d=RdoCp,p_0_d=p_0,two_d=two,R_d_d=R_d,zero_d=zero,one_d=one,R_v_d=R_v,iGamma_d=iGamma,Cp_d_d=Cp_d,myhalf_d=myhalf] 
+        ParallelFor(valid_bx2d, [=,RdoCp_d=RdoCp,p_0_d=p_0,two_d=two,R_d_d=R_d,zero_d=zero,one_d=one,R_v_d=R_v,iGamma_d=iGamma,Cp_d_d=Cp_d,myhalf_d=myhalf]
                     AMREX_GPU_DEVICE (int i, int j, int) noexcept
         {
             // Low and Hi column variables

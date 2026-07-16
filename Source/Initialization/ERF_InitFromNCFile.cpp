@@ -219,7 +219,7 @@ ERF::init_from_ncfile (int lev)
             const Array4<Real>& pi_hse_arr = pi_hse.array(mfi);
             const Array4<Real>& qv_hse_arr = (have_moisture) ? qv_hse.array(mfi) : Array4<Real>{};
 
-            ParallelFor(gtbx, [=,RdoCp_d=RdoCp,R_d_d=R_d,Cp_d_d=Cp_d] 
+            ParallelFor(gtbx, [=,RdoCp_d=RdoCp,R_d_d=R_d,Cp_d_d=Cp_d]
                         AMREX_GPU_DEVICE(int i, int j, int k) noexcept
             {
                 // Base state needs ghost cells filled, protect FAB access
@@ -269,7 +269,7 @@ ERF::init_from_ncfile (int lev)
             const Array4<      Real>& pi_hse_arr = pi_hse.array(mfi);
             const Array4<      Real>& qv_hse_arr = (have_moisture) ? qv_hse.array(mfi) : Array4<Real>{};
 
-            ParallelFor(bx, [=,RdoCp_d=RdoCp,zero_d=zero,p_0_d=p_0,R_d_d=R_d,Cp_d_d=Cp_d,one_d=one,myhalf_d=myhalf] 
+            ParallelFor(bx, [=,RdoCp_d=RdoCp,zero_d=zero,p_0_d=p_0,R_d_d=R_d,Cp_d_d=Cp_d,one_d=one,myhalf_d=myhalf]
                         AMREX_GPU_DEVICE(int i, int j, int /*k*/) noexcept
             {
                 // integrate from surface to domain top
@@ -294,7 +294,6 @@ ERF::init_from_ncfile (int lev)
                     qv_lo = (have_moisture) ? con_arr(i,j,klo,RhoQ1_comp) / con_arr(i,j,klo,Rho_comp) : zero_d;
                     Th_lo = con_arr(i,j,klo,RhoTheta_comp) / con_arr(i,j,klo,Rho_comp);
                     P_lo  = p_0;
-                    T_lo  = getTgivenPandTh(P_lo, Th_lo, RdoCp_d);
                     R_lo  = getRhogivenThetaPress(Th_lo, P_lo, RdoCp_d, qv_lo);
                     rho_tot_lo = R_lo * (one + qv_lo);
                     C  = -P_lo + myhalf*rho_tot_lo*grav*dz;

@@ -39,7 +39,7 @@ rebalance_columns (MultiFab& rho,
 
         const Array4<const Real>&   z_arr = z_phys->const_array(mfi);
 
-        ParallelFor(bx, [=,RdoCp_d=RdoCp,zero_d=zero,p_0_d=p_0,R_d_d=R_d,Cp_d_d=Cp_d,one_d=one,myhalf_d=myhalf] 
+        ParallelFor(bx, [=,RdoCp_d=RdoCp,zero_d=zero,p_0_d=p_0,R_d_d=R_d,Cp_d_d=Cp_d,one_d=one,myhalf_d=myhalf]
                     AMREX_GPU_DEVICE(int i, int j, int /*k*/) noexcept
         {
             // integrate from surface to domain top
