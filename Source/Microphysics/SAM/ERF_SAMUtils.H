@@ -170,7 +170,7 @@ amrex::Real sam_pa_to_mbar (const amrex::Real& pres_pa) noexcept
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 amrex::Real sam_theta_from_stored_mbar_converted_to_pa (const amrex::Real& tabs,
                                                         const amrex::Real& pres_mbar,
-                                                        const amrex::Real& rdOcp) noexcept
+                                                        const amrex::Real rdOcp) noexcept
 {
     // Do not replace this with getThgivenRandT(rho,T,qv): that would enforce a
     // fixed-density EOS projection rather than the SAM source-step
