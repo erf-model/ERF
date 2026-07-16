@@ -155,8 +155,8 @@ ERF::init_from_input_sounding (int lev)
 
     if (!constant_density_sounding) {
         // Enforce HSE on the base state -- holding th_hse and qv_hse constant
-        bool use_existing_sfc_density = true;
-        rebalance_columns(r_hse, th_hse, qv_hse, qv_hse, z_phys_nd[lev].get(), geom[lev], use_existing_sfc_density);
+        bool maintain_Th = true;
+        rebalance_columns(r_hse, th_hse, qv_hse, qv_hse, z_phys_nd[lev].get(), geom[lev], maintain_Th);
 
         // Update rho in the state from base state
         MultiFab::Copy(lev_new[Vars::cons], r_hse, 0, Rho_comp, 1, 1);

@@ -95,7 +95,6 @@ if __name__ == "__main__":
         plot_actual_hurricane_track(ax, args.actual_track)
 
     ax.legend(loc="upper right")
-    plt.title("Latitude/Longitude Map", fontsize=16)
     plt.savefig(args.outfile_track, dpi=150, bbox_inches="tight")
     plt.close()
 
@@ -139,7 +138,7 @@ if __name__ == "__main__":
 
         if args.erf_minpressure:
             data = np.loadtxt(args.erf_minpressure)
-            plt.plot(data[:, 0], data[:, 1], "-xr", linewidth=2, label="ERF")
+            plt.plot(data[:, 0], data[:, 1]/100.0, "-xr", linewidth=2, label="ERF")
 
         if args.wrf_minpressure:
             data = np.loadtxt(args.wrf_minpressure)

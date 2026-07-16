@@ -17,7 +17,6 @@
 #include "ERF_EpochTime.H"
 #include "ERF_Utils.H"
 #include "ERF_TerrainMetrics.H"
-#include "ERF_HurricaneDiagnostics.H"
 #include "ERF_SrcHeaders.H"
 //#include "ERF_BuoyancyUtils.H"
 
@@ -521,6 +520,14 @@ ERF::InitData ()
 void
 ERF::InitData_pre ()
 {
+    if (m_driver_has_atm2ocn_coupling && verbose > 0) {
+        amrex::Print() << "ERF InitData_pre: driver-managed atm2ocn coupling enabled"
+                       << " two_way=" << (m_driver_uses_two_way_coupling ? 1 : 0)
+                       << " active_contract="
+                       << (m_driver_atm2ocn_uses_state_contract ? "state" : "flux")
+                       << "\n";
+    }
+
     // Initialize the start time for our CPU-time tracker
     startCPUTime = ParallelDescriptor::second();
 
@@ -667,7 +674,7 @@ ERF::InitData_post ()
                 bool is_anelastic = (solverChoice.anelastic[0] == 1);
                 read_and_convert_from_wrfbdy(itime,nc_bdy_file,
                                              bdy_data_xlo,bdy_data_xhi,bdy_data_ylo,bdy_data_yhi,
-                                             wrf_MUB, wrf_C1H, wrf_C2H, wrf_PHB,
+                                             wrf_MUB, wrf_C1H, wrf_C2H, wrf_RDNW, wrf_PHB, z_phys_nd[0],
                                              vars_new[0][Vars::xvel], vars_new[0][Vars::yvel], vars_new[0][Vars::cons],
                                              r_hse, area_vec, geom[0], use_moist, domain_bcs_type,
                                              real_width, bdy_time_interval, is_anelastic);
@@ -680,7 +687,7 @@ ERF::InitData_post ()
                 bool is_anelastic = (solverChoice.anelastic[0] == 1);
                 read_and_convert_from_wrfbdy(itime,nc_bdy_file,
                                              bdy_data_xlo,bdy_data_xhi,bdy_data_ylo,bdy_data_yhi,
-                                             wrf_MUB, wrf_C1H, wrf_C2H, wrf_PHB,
+                                             wrf_MUB, wrf_C1H, wrf_C2H, wrf_RDNW, wrf_PHB, z_phys_nd[0],
                                              vars_new[0][Vars::xvel], vars_new[0][Vars::yvel], vars_new[0][Vars::cons],
                                              r_hse, area_vec, geom[0], use_moist, domain_bcs_type,
                                              real_width, bdy_time_interval, is_anelastic);
