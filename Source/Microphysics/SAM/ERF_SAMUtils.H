@@ -170,7 +170,7 @@ amrex::Real sam_pa_to_mbar (const amrex::Real& pres_pa) noexcept
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 amrex::Real sam_theta_from_stored_mbar_converted_to_pa (const amrex::Real& tabs,
                                                         const amrex::Real& pres_mbar,
-                                                        const amrex::Real rdOcp) noexcept
+                                                        const amrex::Real& rdOcp) noexcept
 {
     // Do not replace this with getThgivenRandT(rho,T,qv): that would enforce a
     // fixed-density EOS projection rather than the SAM source-step
@@ -244,8 +244,8 @@ bool sam_is_no_precip (const MoistureType& moisture_type) noexcept
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 amrex::Real sam_cloud_liquid_fraction (const int& SAM_moisture_type,
                                        const amrex::Real& tabs,
-                                       const amrex::Real an,
-                                       const amrex::Real bn) noexcept
+                                       const amrex::Real& an,
+                                       const amrex::Real& bn) noexcept
 {
     // Empirical cloud phase-fraction closure for omega_n. No-ice mode forces
     // liquid fraction to one; the warm branch is all liquid, the cold branch
@@ -326,6 +326,7 @@ SAMCloudPhaseChange sam_partition_cloud_phase (const int& SAM_moisture_type,
             result.qcl = qn * result.omn;
             result.qci = qn * (one - result.omn);
             result.tabs += fac_fus * result.delta_qc;
+            result.omn = sam_cloud_liquid_fraction(SAM_moisture_type, result.tabs, an, bn);
         }
     } else {
         result.omn = one;

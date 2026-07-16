@@ -254,7 +254,7 @@ public:
         // Saturation derivative WRT temperature
         domn = zero;
         if ( (SAM_moisture_type == 1) &&
-             (tabs > tbgmax) && (tabs < tbgmin) ) {
+             (tabs < tbgmax) && (tabs > tbgmin) ) {
             domn = an;
         }
         erf_dtqsatw(tabs, pres, dqsatw);
@@ -287,7 +287,7 @@ public:
             // Saturation derivative WRT temperature
             domn = zero;
             if ( (SAM_moisture_type == 1) &&
-                 (tabs > tbgmax) && (tabs < tbgmin) ) {
+                 (tabs < tbgmax) && (tabs > tbgmin) ) {
                 domn = an;
             }
             erf_dtqsatw(tabs, pres, dqsatw);
@@ -309,9 +309,8 @@ public:
             ++niter;
         }
 
-        if (std::abs(F) > tol && niter >= max_iter) {
-            amrex::Abort("SAM mixed phase saturation adjustment failed to converge.");
-        }
+        bool valid_solution = (std::abs(F) > tol && niter >= max_iter);
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(valid_solution, "SAM mixed phase saturation adjustment failed to converge.");
 
         // Partition the change in non-precipitating q
         qv_array(i,j,k) = qsatm;

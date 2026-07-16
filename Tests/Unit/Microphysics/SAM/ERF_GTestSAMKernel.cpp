@@ -155,7 +155,7 @@ SAMCellState make_precip_kernel_state (const SAMPrecipKernelCase& test_case) noe
     state.qn = state.qcl + state.qci;
     state.qt = state.qv + state.qn;
     state.qp = state.qpr + state.qps + state.qpg;
-    state.theta = sam_theta_from_stored_mbar_converted_to_pa(state.tabs, state.pres_mbar, kRdOcp);
+    state.theta = sam_theta_from_stored_mbar_converted_to_pa(state.tabs, state.pres_mbar, kRdOcp_d);
     state.rho = getRhogivenTandPress(state.tabs, sam_mbar_to_pa(state.pres_mbar), state.qv);
     return state;
 }
@@ -228,7 +228,8 @@ void launch_sam_precip_update_kernel (const int ncases,
                                       const SAMPrecipKernelCase* cases_ptr,
                                       SAMPrecipKernelOutputs* outputs_ptr)
 {
-    amrex::ParallelFor(ncases, [=] AMREX_GPU_DEVICE (int idx) noexcept {
+    amrex::ParallelFor(ncases, [=,kRdOcp_d=kRdOcp]
+                       AMREX_GPU_DEVICE (int idx) noexcept {
         const SAMPrecipKernelCase test_case = cases_ptr[idx];
         SAMPrecipCellDiagnostics diagnostics;
         const SAMCellState state = sam_precip_cell_update(
@@ -358,7 +359,7 @@ SAMKernelOutputs host_reference (const SAMKernelCase& test_case)
         test_case.omn, test_case.domn, qn, dqsatm);
 
     return SAMKernelOutputs{
-        sam_cloud_liquid_fraction(test_case.mode, test_case.tabs, a_bg, tbgmin * a_bg),
+        sam_cloud_liquid_fraction(test_case.mode, test_case.tabs, a_bg_d, tbgmin_d * a_bg_d),
         sam_precip_rain_fraction(test_case.mode, test_case.tabs),
         sam_graupel_fraction(test_case.mode, test_case.tabs),
         sam_mixed_qsat(test_case.omn, test_case.qsatw, test_case.qsati),
@@ -410,7 +411,8 @@ void launch_sam_helper_kernel (const int ncases,
                                const SAMKernelCase* cases_ptr,
                                SAMKernelOutputs* outputs_ptr)
 {
-    amrex::ParallelFor(ncases, [=] AMREX_GPU_DEVICE (int idx) noexcept {
+    amrex::ParallelFor(ncases, [=,kFacCond_d=KfacCond,kFacFus_d=KfacFus,a_bg_d=a_bg,tbgmin_d=tbgmin]
+                       AMREX_GPU_DEVICE (int idx) noexcept {
         const SAMKernelCase test_case = cases_ptr[idx];
         const SAMCoefficientRow coeffs = sam_compute_coefficient_row(
             test_case.rho, test_case.tabs,
@@ -444,13 +446,13 @@ void launch_sam_helper_kernel (const int ncases,
             test_case.omn, test_case.domn, qn, dqsatm);
 
         outputs_ptr[idx] = SAMKernelOutputs{
-            sam_cloud_liquid_fraction(test_case.mode, test_case.tabs, a_bg, tbgmin * a_bg),
+            sam_cloud_liquid_fraction(test_case.mode, test_case.tabs, a_bg_d, tbgmin_d * a_bg_d),
             sam_precip_rain_fraction(test_case.mode, test_case.tabs),
             sam_graupel_fraction(test_case.mode, test_case.tabs),
             sam_mixed_qsat(test_case.omn, test_case.qsatw, test_case.qsati),
             dqsatm,
             dqif,
-            sam_newton_residual_derivative(kFacCond, kFacFus, dqsatm, dqif),
+            sam_newton_residual_derivative(kFacCond_d, kFacFus_d, dqsatm, dqif),
             auto_sources.dqca,
             auto_sources.dqia,
             evap_sources.dqpr,
