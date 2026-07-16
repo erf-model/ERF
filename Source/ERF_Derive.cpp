@@ -55,7 +55,7 @@ Real
 mucape_vapor_pressure_pa (Real p, Real qv)
 {
     Real qv_clamped = amrex::max(qv, Real(0));
-    return p * qv_clamped / amrex::max(Rd_on_Rv + qv_clamped, mucape_min_qv());
+    return p * qv_clamped / amrex::max(RdoRv + qv_clamped, mucape_min_qv());
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
@@ -96,7 +96,7 @@ mucape_saturated_dTdp (Real T, Real p_pa)
     Real qsat = mucape_qsat(T_safe, p_safe);
     Real num = R_d * T_safe * (one + epsv * qsat) *
                (Real(1) + L_v * qsat / (R_d * T_safe));
-    Real denom = p_safe * (Cp_d + (L_v * L_v * qsat * Rd_on_Rv) / (R_d * T_safe * T_safe));
+    Real denom = p_safe * (Cp_d + (L_v * L_v * qsat * RdoRv) / (R_d * T_safe * T_safe));
     return num / amrex::max(denom, Real(1.0e-12));
 }
 

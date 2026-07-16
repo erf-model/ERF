@@ -193,11 +193,11 @@ lagrange_setup (char var_type,
                 // Comparable to the WRF default, t_extrap_type=two
                 amrex::Real depth_of_extrap_in_p = new_x_p[new_k]-orig_x_p[0];
                 amrex::Real avg_of_extrap_p = myhalf*(new_x_p[new_k]+orig_x_p[0]);
-                amrex::Real temp_extrap_starting_point = orig_y[0]*std::pow(orig_x_p[0]/amrex::Real(100000.0), R_d/Cp_d);
+                amrex::Real temp_extrap_starting_point = orig_y[0]*std::pow(orig_x_p[0]/amrex::Real(100000.0), RdoCp);
                 amrex::Real dZdP = CRC_const1*CRC_const2*std::pow(avg_of_extrap_p/amrex::Real(100.0), CRC_const2-one);
                 amrex::Real dZ = dZdP*(depth_of_extrap_in_p/amrex::Real(100.0));
                 amrex::Real dT = dZ*CRC_const3;
-                new_y[new_k] = (temp_extrap_starting_point+dT)*std::pow(amrex::Real(100000.0)/new_x_p[new_k], R_d/Cp_d);
+                new_y[new_k] = (temp_extrap_starting_point+dT)*std::pow(amrex::Real(100000.0)/new_x_p[new_k], RdoCp);
             } else {
                 // Use a constant value below ground.
                 // Comparable to the WRF default, extrap_type=two

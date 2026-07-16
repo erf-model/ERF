@@ -127,12 +127,11 @@ constexpr amrex::Real cgrau = b_grau / amrex::Real(4.0);
 
 constexpr amrex::Real lat_vap  = amrex::Real(2.5e6);     // Latent heat of vaporization (J/kg)
 constexpr amrex::Real lat_ice  = amrex::Real(3.337e5);   // latent heat of fusion (J/kg)
-constexpr amrex::Real Rd_on_Rv = R_d/R_v;
 constexpr amrex::Real tmelt    = amrex::Real(273.15);  // melting temp.
 constexpr amrex::Real h2otrip  = amrex::Real(273.15);  // Triple point temperature of water (K)
 constexpr amrex::Real tboil    = amrex::Real(373.16);  // Boiling point of water at 1 atm (K)
 constexpr amrex::Real ttrice   = amrex::Real(20.00);   // transition range from es over H2O to es over ice
-constexpr amrex::Real epsilo   = Rd_on_Rv;
+constexpr amrex::Real epsilo   = RdoRv;
 constexpr amrex::Real omeps    = one - epsilo;
 constexpr amrex::Real rhoh2o   = amrex::Real(1.000e3);  // density of liquid water
 

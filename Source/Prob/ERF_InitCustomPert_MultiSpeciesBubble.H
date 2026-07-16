@@ -118,13 +118,13 @@
             }
 
             theta_total  = theta_back[k]*(delta_theta/amrex::Real(300.0) + 1);
-            Real T = getTgivenPandTh(p_back[k], theta_total, (R_d/Cp_d));
+            Real T = getTgivenPandTh(p_back[k], theta_total, RdoCp);
             rho    = p_back[k]/(R_d*T*(one + (R_v/R_d)*q_v_back[k]));
             RH     = one; // compute_relative_humidity();
             Real q_v_hot = HSEutils::vapor_mixing_ratio(p_back[k], T, RH, use_empirical, which_zone);
 
             // Compute background quantities
-            Real T_back   = getTgivenPandTh(p_back[k], theta_back[k], (R_d/Cp_d));
+            Real T_back   = getTgivenPandTh(p_back[k], theta_back[k], RdoCp);
             Real rho_back = p_back[k]/(R_d*T_back*(one + (R_v/R_d)*q_v_back[k]));
 
             // This version perturbs rho but not p
