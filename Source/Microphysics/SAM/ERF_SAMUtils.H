@@ -170,7 +170,7 @@ amrex::Real sam_pa_to_mbar (const amrex::Real& pres_pa) noexcept
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 amrex::Real sam_theta_from_stored_mbar_converted_to_pa (const amrex::Real& tabs,
                                                         const amrex::Real& pres_mbar,
-                                                        const amrex::Real& rdOcp) noexcept
+                                                        const amrex::Real rdOcp) noexcept
 {
     // Do not replace this with getThgivenRandT(rho,T,qv): that would enforce a
     // fixed-density EOS projection rather than the SAM source-step
@@ -244,8 +244,8 @@ bool sam_is_no_precip (const MoistureType& moisture_type) noexcept
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 amrex::Real sam_cloud_liquid_fraction (const int& SAM_moisture_type,
                                        const amrex::Real& tabs,
-                                       const amrex::Real& an,
-                                       const amrex::Real& bn) noexcept
+                                       const amrex::Real an,
+                                       const amrex::Real bn) noexcept
 {
     // Empirical cloud phase-fraction closure for omega_n. No-ice mode forces
     // liquid fraction to one; the warm branch is all liquid, the cold branch
@@ -292,10 +292,10 @@ SAMCloudPhaseChange sam_partition_cloud_phase (const int& SAM_moisture_type,
                                                const amrex::Real& qn,
                                                const amrex::Real& qcl,
                                                const amrex::Real& qci,
-                                               const amrex::Real& fac_cond,
-                                               const amrex::Real& fac_fus,
-                                               const amrex::Real& an,
-                                               const amrex::Real& bn) noexcept
+                                               const amrex::Real fac_cond,
+                                               const amrex::Real fac_fus,
+                                               const amrex::Real an,
+                                               const amrex::Real bn) noexcept
 {
     // Repartition cloud condensate between liquid and ice using omega_n while
     // preserving total cloud condensate qn. The temperature increment accounts
@@ -375,10 +375,10 @@ amrex::Real sam_mixed_dqif_dT (const amrex::Real& omn,
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 amrex::Real sam_newton_residual (const amrex::Real& tabs_new,
                                  const amrex::Real& tabs_old,
-                                 const amrex::Real& fcond,
+                                 const amrex::Real fcond,
                                  const amrex::Real& qv,
                                  const amrex::Real& qsatm,
-                                 const amrex::Real& ffus,
+                                 const amrex::Real ffus,
                                  const amrex::Real& qi,
                                  const amrex::Real& qif) noexcept
 {
@@ -387,8 +387,8 @@ amrex::Real sam_newton_residual (const amrex::Real& tabs_new,
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-amrex::Real sam_newton_residual_derivative (const amrex::Real& fcond,
-                                            const amrex::Real& ffus,
+amrex::Real sam_newton_residual_derivative (const amrex::Real fcond,
+                                            const amrex::Real ffus,
                                             const amrex::Real& dqsatm,
                                             const amrex::Real& dqif) noexcept
 {
