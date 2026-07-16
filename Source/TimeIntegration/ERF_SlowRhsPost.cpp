@@ -213,8 +213,6 @@ void erf_slow_rhs_post (int level, int finest_level,
           physbnd_mask.BuildMask(geom.Domain(), geom.periodicity(), 1, 1, 0, 1);
       }
 
-      amrex::Print()<<"SK: erf_slow_rhs_post (A)"<<std::endl;
-
       for (MFIter mfi(S_data[IntVars::cons],TilingIfNotGPU()); mfi.isValid(); ++mfi) {
 
         Box tbx  = mfi.tilebox();
@@ -308,8 +306,6 @@ void erf_slow_rhs_post (int level, int finest_level,
             });
         }
 
-        amrex::Print()<<"SK: erf_slow_rhs_post (B)"<<std::endl;
-
         // **************************************************************************
         // Define updates in the RHS of continuity, temperature, and scalar equations
         // **************************************************************************
@@ -386,14 +382,11 @@ void erf_slow_rhs_post (int level, int finest_level,
         const Array4<const Real>& mu_turb =
             l_use_turb ? eddyDiffs->const_array(mfi) : Array4<const Real>{};
 
-        amrex::Print()<<"SK: erf_slow_rhs_post (C)"<<std::endl;
-
         //
         // Note that we either advect and diffuse all or none of the moisture variables
         //
         for (int ivar(RhoKE_comp); ivar<= RhoQ1_comp; ++ivar)
         {
-            amrex::Print()<<"SK: erf_slow_rhs_post (C-0) ivar = "<<ivar<<", is_valid_slow_var[ivar] = "<<is_valid_slow_var[ivar]<<std::endl;
 
             if (is_valid_slow_var[ivar])
             {
@@ -429,8 +422,6 @@ void erf_slow_rhs_post (int level, int finest_level,
                     }
                 }
 
-                amrex::Print()<<"SK: erf_slow_rhs_post (C-1) ivar = "<<ivar<<std::endl;
-
                 if (( ivar != RhoKE_comp                 ) ||
                     ((ivar == RhoKE_comp) && l_advect_KE))
                 {
@@ -455,8 +446,6 @@ void erf_slow_rhs_post (int level, int finest_level,
                                                  already_on_centroids);
                     }
                 }
-
-                amrex::Print()<<"SK: erf_slow_rhs_post (C-2) ivar = "<<ivar<<", l_use_diff = "<<l_use_diff<<std::endl;
 
                 if (l_use_diff)
                 {
@@ -512,11 +501,9 @@ void erf_slow_rhs_post (int level, int finest_level,
                     }
                 } // use_diff
 
-                amrex::Print()<<"SK: erf_slow_rhs_post (C-3) ivar = "<<ivar<<std::endl;
+
             } // valid slow var
         } // loop ivar
-
-        amrex::Print()<<"SK: erf_slow_rhs_post (D)"<<std::endl;
 
 #ifdef ERF_USE_EAMXX_SHOC
         if (tc.uses_eamxx_shoc() && eamxx_shoc_lev) {
