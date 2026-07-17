@@ -771,7 +771,7 @@ Built-In 2D Diagnostic Catalog
    * - ``landmask``
      - ``1``
      - Always available.
-     - Land-sea mask. Land is ``1`` and sea is ``0``.
+     - Land-sea mask. Land is ``1`` and sea is ``0``. Buildings are ``2`` when using ImmersedForcing.
    * - ``mapfac``
      - ``1``
      - Always available.
