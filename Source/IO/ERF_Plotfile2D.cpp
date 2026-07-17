@@ -403,10 +403,10 @@ ERF::Write2DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
                 const Box& bx = mfi.tilebox();
                 const auto& derdat   = mf[lev].array(mfi);
                 const auto& cons_arr = vars_new[lev][Vars::cons].const_array(mfi);
-                ParallelFor(bx, [=,zero_d=zero] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
                     auto rt = cons_arr(i,j,klo,RhoTheta_comp);
                     auto qv = (moist) ? cons_arr(i,j,klo,RhoQ1_comp)/cons_arr(i,j,klo,Rho_comp)
-                                      : zero_d;
+                                      : zero;
                     derdat(i, j, k, mf_comp) = getPgivenRTh(rt, qv);
                 });
             }

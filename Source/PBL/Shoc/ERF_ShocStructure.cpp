@@ -83,7 +83,7 @@ ShocStructure::diagnose_surface_layer (ShocColumnData& col)
     const auto layout = col.layout;
     const Box col_box(IntVect(0,0,0), IntVect(layout.ncell - 1, 0, 0));
 
-    ParallelFor(col_box, [=,CONST_GRAV_d=CONST_GRAV,KAPPA_d=KAPPA] AMREX_GPU_DEVICE (int ic, int, int) noexcept
+    ParallelFor(col_box, [=] AMREX_GPU_DEVICE (int ic, int, int) noexcept
     {
         const Real cldliq_sfc = qc(ic,0,0) + qi(ic,0,0);
         const Real th_sfc = theta_from_shoc_state(thetal(ic,0,0), qc(ic,0,0), qi(ic,0,0), exner(ic,0,0));
@@ -97,7 +97,7 @@ ShocStructure::diagnose_surface_layer (ShocColumnData& col)
         ustar(ic,0,0) = amrex::max(shoc_u_star_min(), ustar_val);
         const Real ustar_cu = ustar(ic,0,0) * ustar(ic,0,0) * ustar(ic,0,0);
         obklen(ic,0,0) = -thv_sfc * ustar_cu /
-                         (CONST_GRAV_d * KAPPA_d * (kbfs + sign_val));
+                         (CONST_GRAV * KAPPA * (kbfs + sign_val));
         pblh(ic,0,0) = shoc::height_agl(zt(ic,0,0), zi(ic,0,0));
 
         // E3SM SHOC advances TKE using the carried buoyancy-flux profile from
@@ -128,7 +128,7 @@ ShocStructure::diagnose_pblh (ShocColumnData& col)
     const auto layout = col.layout;
     const Box col_box(IntVect(0,0,0), IntVect(layout.ncell - 1, 0, 0));
 
-    ParallelFor(col_box, [=,CONST_GRAV_d=CONST_GRAV] AMREX_GPU_DEVICE (int ic, int, int) noexcept
+    ParallelFor(col_box, [=] AMREX_GPU_DEVICE (int ic, int, int) noexcept
     {
         const int npbl = diagnose_npbl(p_mid, layout, ic);
         const Real ustar_loc = ustar(ic,0,0);
@@ -150,7 +150,7 @@ ShocStructure::diagnose_pblh (ShocColumnData& col)
                                         du * du +
                                         dv * dv +
                                         shoc_pbl_fac() * ustar_loc * ustar_loc);
-            const Real rino = CONST_GRAV_d * (thvk - thv0) * (ztk_agl - zt0_agl) /
+            const Real rino = CONST_GRAV * (thvk - thv0) * (ztk_agl - zt0_agl) /
                               (amrex::max(thv0, 1.0e-12_rt) * vvk);
             if (rino >= shoc_pbl_ricr()) {
                 if (k == 1 || amrex::Math::abs(rino - prev_rino) <= 1.0e-12_rt) {
@@ -188,7 +188,7 @@ ShocStructure::diagnose_pblh (ShocColumnData& col)
                                             du * du +
                                             dv * dv +
                                             shoc_pbl_fac() * ustar_loc * ustar_loc);
-                const Real rino = CONST_GRAV_d * (thvk - tlv) * (ztk_agl - zt0_agl) /
+                const Real rino = CONST_GRAV * (thvk - tlv) * (ztk_agl - zt0_agl) /
                                   (amrex::max(thv0, 1.0e-12_rt) * vvk);
                 if (rino >= shoc_pbl_ricr()) {
                     if (k == 1 || amrex::Math::abs(rino - prev_rino) <= 1.0e-12_rt) {
@@ -233,7 +233,7 @@ ShocStructure::diagnose_length_and_brunt (ShocColumnData& col,
     const auto layout = col.layout;
     const Box col_box(IntVect(0,0,0), IntVect(layout.ncell - 1, 0, 0));
 
-    ParallelFor(col_box, [=,CONST_GRAV_d=CONST_GRAV,KAPPA_d=KAPPA] AMREX_GPU_DEVICE (int ic, int, int) noexcept
+    ParallelFor(col_box, [=] AMREX_GPU_DEVICE (int ic, int, int) noexcept
     {
         const Real z_sfc = zi(ic,0,0);
         Real numerator = 0.0_rt;
@@ -281,12 +281,12 @@ ShocStructure::diagnose_length_and_brunt (ShocColumnData& col,
             // ERF columns use bottom-up indexing, so the upper interface is
             // k+1 and the lower interface is k. Stable stratification must
             // therefore yield positive Brunt-Vaisala frequency.
-            brunt(ic,k,0) = (CONST_GRAV_d / amrex::max(theta_v_k, 1.0e-12_rt)) *
+            brunt(ic,k,0) = (CONST_GRAV / amrex::max(theta_v_k, 1.0e-12_rt)) *
                             (theta_v_hi - theta_v_lo) / amrex::max(dz(ic,k,0), 1.0e-12_rt);
             const Real tkes = std::sqrt(amrex::max(tke(ic,k,0), shoc_min_tke()));
             const Real brunt_pos = amrex::max(brunt(ic,k,0), 0.0_rt);
             const Real zt_agl = shoc::height_agl(zt(ic,k,0), z_sfc);
-            const Real inv_term = (1.0_rt / amrex::max(400.0_rt * tkes * KAPPA_d * amrex::max(zt_agl, 1.0_rt), 1.0e-12_rt)) +
+            const Real inv_term = (1.0_rt / amrex::max(400.0_rt * tkes * KAPPA * amrex::max(zt_agl, 1.0_rt), 1.0e-12_rt)) +
                                   (1.0_rt / amrex::max(400.0_rt * tkes * amrex::max(l_inf, shoc_min_len()), 1.0e-12_rt)) +
                                   0.01_rt * brunt_pos / amrex::max(tke(ic,k,0), shoc_min_tke());
             Real mix = amrex::min(shoc_max_len(),

@@ -154,7 +154,7 @@ void ERFPhysBCFunct_base::impose_lateral_basestate_bcs (const Array4<Real>& dest
         if (bx_xhi.smallEnd(2) != domain.smallEnd(2)) bx_xhi.growLo(2,nghost[2]);
         if (bx_xhi.bigEnd(2)   != domain.bigEnd(2))   bx_xhi.growHi(2,nghost[2]);
         ParallelFor(
-            bx_xlo, ncomp, [=,one_d=one] AMREX_GPU_DEVICE (int i, int j, int k, int n)
+            bx_xlo, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n)
             {
                 int dest_comp = n;
                 int l_bc_type = bc_ptr[n].lo(0);
@@ -169,10 +169,10 @@ void ERFPhysBCFunct_base::impose_lateral_basestate_bcs (const Array4<Real>& dest
                     dest_arr(i,j,k,dest_comp) = -dest_arr(iflip,j,k,dest_comp);
                 } else if (l_bc_type == ERFBCType::hoextrap) {
                     Real delta_i = static_cast<Real>(dom_lo.x - i);
-                    dest_arr(i,j,k,dest_comp) = (one_d + delta_i)*dest_arr(dom_lo.x,j,k,dest_comp) - delta_i*dest_arr(dom_lo.x+1,j,k,dest_comp) ;
+                    dest_arr(i,j,k,dest_comp) = (one + delta_i)*dest_arr(dom_lo.x,j,k,dest_comp) - delta_i*dest_arr(dom_lo.x+1,j,k,dest_comp) ;
                 }
             },
-            bx_xhi, ncomp, [=,one_d=one] AMREX_GPU_DEVICE (int i, int j, int k, int n)
+            bx_xhi, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n)
             {
                 int dest_comp = n;
                 int h_bc_type = bc_ptr[n].hi(0);
@@ -187,7 +187,7 @@ void ERFPhysBCFunct_base::impose_lateral_basestate_bcs (const Array4<Real>& dest
                     dest_arr(i,j,k,dest_comp) = -dest_arr(iflip,j,k,dest_comp);
                 } else if (h_bc_type == ERFBCType::hoextrap) {
                     Real delta_i = static_cast<Real>(i - dom_hi.x);
-                    dest_arr(i,j,k,dest_comp) = (one_d + delta_i)*dest_arr(dom_hi.x,j,k,dest_comp) - delta_i*dest_arr(dom_hi.x-1,j,k,dest_comp) ;
+                    dest_arr(i,j,k,dest_comp) = (one + delta_i)*dest_arr(dom_hi.x,j,k,dest_comp) - delta_i*dest_arr(dom_hi.x-1,j,k,dest_comp) ;
                 }
             }
         );
@@ -203,7 +203,7 @@ void ERFPhysBCFunct_base::impose_lateral_basestate_bcs (const Array4<Real>& dest
         if (bx_yhi.smallEnd(2) != domain.smallEnd(2)) bx_yhi.growLo(2,nghost[2]);
         if (bx_yhi.bigEnd(2)   != domain.bigEnd(2))   bx_yhi.growHi(2,nghost[2]);
         ParallelFor(
-            bx_ylo, ncomp, [=,one_d=one] AMREX_GPU_DEVICE (int i, int j, int k, int n)
+            bx_ylo, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n)
             {
                 int dest_comp = n;
                 int l_bc_type = bc_ptr[n].lo(1);
@@ -218,11 +218,11 @@ void ERFPhysBCFunct_base::impose_lateral_basestate_bcs (const Array4<Real>& dest
                     dest_arr(i,j,k,dest_comp) = -dest_arr(i,jflip,k,dest_comp);
                 } else if (l_bc_type == ERFBCType::hoextrap) {
                     Real delta_j = static_cast<Real>(dom_lo.y - j);
-                    dest_arr(i,j,k,dest_comp) = (one_d + delta_j)*dest_arr(i,dom_lo.y,k,dest_comp) - delta_j*dest_arr(i,dom_lo.y+1,k,dest_comp) ;
+                    dest_arr(i,j,k,dest_comp) = (one + delta_j)*dest_arr(i,dom_lo.y,k,dest_comp) - delta_j*dest_arr(i,dom_lo.y+1,k,dest_comp) ;
                 }
 
             },
-            bx_yhi, ncomp, [=,one_d=one] AMREX_GPU_DEVICE (int i, int j, int k, int n)
+            bx_yhi, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n)
             {
                 int dest_comp = n;
                 int h_bc_type = bc_ptr[n].hi(1);
@@ -237,7 +237,7 @@ void ERFPhysBCFunct_base::impose_lateral_basestate_bcs (const Array4<Real>& dest
                     dest_arr(i,j,k,dest_comp) = -dest_arr(i,jflip,k,dest_comp);
                 } else if (h_bc_type == ERFBCType::hoextrap) {
                     Real delta_j = static_cast<Real>(j - dom_hi.y);
-                    dest_arr(i,j,k,dest_comp) = (one_d + delta_j)*dest_arr(i,dom_hi.y,k,dest_comp) - delta_j*dest_arr(i,dom_hi.y-1,k,dest_comp);
+                    dest_arr(i,j,k,dest_comp) = (one + delta_j)*dest_arr(i,dom_hi.y,k,dest_comp) - delta_j*dest_arr(i,dom_hi.y-1,k,dest_comp);
                 }
             }
         );

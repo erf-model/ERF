@@ -44,17 +44,17 @@ scale_bdy_normal_by_rho0 (const MultiFab& rho0,
         // amrex::Print() << "MULTIPLYING BY RHO0 ON BX " << dir << " " << bx << std::endl;
 
         if (dir == 0) {
-            ParallelFor(bx, [=,zero_d=zero] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
                 const Real normal_vel = bdy_arr(i,j,k);
                 const bool use_xlo =
                     (i == domlo) &&
                     ((bc_lo == ERFBCType::ext_dir) ||
-                     (bc_lo == ERFBCType::ext_dir_upwind && normal_vel >= zero_d));
+                     (bc_lo == ERFBCType::ext_dir_upwind && normal_vel >= zero));
                 const bool use_xhi =
                     (i == domhi) &&
                     ((bc_hi == ERFBCType::ext_dir) ||
-                     (bc_hi == ERFBCType::ext_dir_upwind && normal_vel <= zero_d));
+                     (bc_hi == ERFBCType::ext_dir_upwind && normal_vel <= zero));
 
                 Real fac;
                 if (use_xlo) {
@@ -67,17 +67,17 @@ scale_bdy_normal_by_rho0 (const MultiFab& rho0,
                 tmp_arr(i,j,k) = multiply_by_rho0 ? normal_vel * fac : normal_vel / fac;
             });
         } else {
-            ParallelFor(bx, [=,zero_d=zero] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
                 const Real normal_vel = bdy_arr(i,j,k);
                 const bool use_ylo =
                     (j == domlo) &&
                     ((bc_lo == ERFBCType::ext_dir) ||
-                     (bc_lo == ERFBCType::ext_dir_upwind && normal_vel >= zero_d));
+                     (bc_lo == ERFBCType::ext_dir_upwind && normal_vel >= zero));
                 const bool use_yhi =
                     (j == domhi) &&
                     ((bc_hi == ERFBCType::ext_dir) ||
-                     (bc_hi == ERFBCType::ext_dir_upwind && normal_vel <= zero_d));
+                     (bc_hi == ERFBCType::ext_dir_upwind && normal_vel <= zero));
 
                 Real fac;
                 if (use_ylo) {
@@ -119,10 +119,10 @@ correct_bdy_outflow_on_face (FArrayBox& bdy_fab,
 
     // amrex::Print() << "OPERATING ON BX " << bx << std::endl;
 
-    ParallelFor(bx, [=,zero_d=zero] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+    ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
-        if ((is_low && bdy_arr(i,j,k) < zero_d) ||
-           (!is_low && bdy_arr(i,j,k) > zero_d)) {
+        if ((is_low && bdy_arr(i,j,k) < zero) ||
+           (!is_low && bdy_arr(i,j,k) > zero)) {
             bdy_arr(i,j,k) *= alpha_fcf;
         }
     });
@@ -159,15 +159,15 @@ void compute_influx_outflux_bdy (FArrayBox& bdy_data_xlo, FArrayBox& bdy_data_xh
         ParReduce(TypeList<ReduceOpSum>{},
                   TypeList<Real>{},
                   *area_vec[0], ngrow,
-        [=,zero_d=zero] AMREX_GPU_DEVICE (int box_no, int i, int j, int k)
+        [=] AMREX_GPU_DEVICE (int box_no, int i, int j, int k)
             noexcept -> GpuTuple<Real>
         {
-            if ( (i == domlo.x + n) && (j >= domlo.y+n && j<= domhi.y-n) && bdatxlo(i,j,k) > zero_d) {
+            if ( (i == domlo.x + n) && (j >= domlo.y+n && j<= domhi.y-n) && bdatxlo(i,j,k) > zero) {
                 return { std::abs(bdatxlo(i,j,k)) * area_x[box_no](i,j,k) };
-            } else if ( (i == domhi.x+1 - n) && (j >= domlo.y+n && j<= domhi.y-n) && bdatxhi(i,j,k) < zero_d) {
+            } else if ( (i == domhi.x+1 - n) && (j >= domlo.y+n && j<= domhi.y-n) && bdatxhi(i,j,k) < zero) {
                 return { std::abs(bdatxhi(i,j,k)) * area_x[box_no](i,j,k) };
             } else {
-                return { zero_d };
+                return { zero };
             }
         });
 
@@ -175,15 +175,15 @@ void compute_influx_outflux_bdy (FArrayBox& bdy_data_xlo, FArrayBox& bdy_data_xh
         ParReduce(TypeList<ReduceOpSum>{},
                   TypeList<Real>{},
                   *area_vec[0], ngrow,
-        [=,zero_d=zero] AMREX_GPU_DEVICE (int box_no, int i, int j, int k)
+        [=] AMREX_GPU_DEVICE (int box_no, int i, int j, int k)
             noexcept -> GpuTuple<Real>
         {
-            if (i == (domlo.x + n) && (j >= domlo.y+n && j<= domhi.y-n) && bdatxlo(i,j,k) < zero_d) {
+            if (i == (domlo.x + n) && (j >= domlo.y+n && j<= domhi.y-n) && bdatxlo(i,j,k) < zero) {
                 return { std::abs(bdatxlo(i,j,k)) * area_x[box_no](i,j,k) };
-            } else if ( (i == domhi.x+1 - n) && (j >= domlo.y+n && j<= domhi.y-n) && bdatxhi(i,j,k) > zero_d) {
+            } else if ( (i == domhi.x+1 - n) && (j >= domlo.y+n && j<= domhi.y-n) && bdatxhi(i,j,k) > zero) {
                 return { std::abs(bdatxhi(i,j,k)) * area_x[box_no](i,j,k) };
             } else {
-                return { zero_d };
+                return { zero };
             }
         });
 
@@ -195,15 +195,15 @@ void compute_influx_outflux_bdy (FArrayBox& bdy_data_xlo, FArrayBox& bdy_data_xh
         ParReduce(TypeList<ReduceOpSum>{},
                   TypeList<Real>{},
                   *area_vec[1], ngrow,
-        [=,zero_d=zero] AMREX_GPU_DEVICE (int box_no, int i, int j, int k)
+        [=] AMREX_GPU_DEVICE (int box_no, int i, int j, int k)
             noexcept -> GpuTuple<Real>
         {
-            if ( (j == domlo.y + n) && (i >= domlo.x+n && i<= domhi.x-n) && bdatylo(i,j,k) > zero_d) {
+            if ( (j == domlo.y + n) && (i >= domlo.x+n && i<= domhi.x-n) && bdatylo(i,j,k) > zero) {
                 return { std::abs(bdatylo(i,j,k)) * area_y[box_no](i,j,k) };
-            } else if ( (j == domhi.y+1 - n) && (i >= domlo.x+n && i<= domhi.x-n) && bdatyhi(i,j,k) < zero_d) {
+            } else if ( (j == domhi.y+1 - n) && (i >= domlo.x+n && i<= domhi.x-n) && bdatyhi(i,j,k) < zero) {
                 return { std::abs(bdatyhi(i,j,k)) * area_y[box_no](i,j,k) };
             } else {
-                return { zero_d };
+                return { zero };
             }
         });
 
@@ -211,15 +211,15 @@ void compute_influx_outflux_bdy (FArrayBox& bdy_data_xlo, FArrayBox& bdy_data_xh
         ParReduce(TypeList<ReduceOpSum>{},
                   TypeList<Real>{},
                   *area_vec[1], ngrow,
-        [=,zero_d=zero] AMREX_GPU_DEVICE (int box_no, int i, int j, int k)
+        [=] AMREX_GPU_DEVICE (int box_no, int i, int j, int k)
             noexcept -> GpuTuple<Real>
         {
-            if ( (j == domlo.y + n) && (i >= domlo.x+n && i<= domhi.x-n) && bdatylo(i,j,k) < zero_d) {
+            if ( (j == domlo.y + n) && (i >= domlo.x+n && i<= domhi.x-n) && bdatylo(i,j,k) < zero) {
                 return { std::abs(bdatylo(i,j,k)) * area_y[box_no](i,j,k) };
-            } else if ( (j == domhi.y+1 - n) && (i >= domlo.x+n && i<= domhi.x-n) && bdatyhi(i,j,k) > zero_d) {
+            } else if ( (j == domhi.y+1 - n) && (i >= domlo.x+n && i<= domhi.x-n) && bdatyhi(i,j,k) > zero) {
                 return { std::abs(bdatyhi(i,j,k)) * area_y[box_no](i,j,k) };
             } else {
-                return { zero_d };
+                return { zero };
             }
         });
 

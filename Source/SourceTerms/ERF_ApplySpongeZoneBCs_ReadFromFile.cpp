@@ -54,13 +54,13 @@ ApplySpongeZoneBCsForMom_ReadFromFile (const SpongeChoice& spongeChoice,
     if(use_zlo_sponge_damping)AMREX_ALWAYS_ASSERT(zlo_sponge_end   > ProbLoArr[2]);
     if(use_zhi_sponge_damping)AMREX_ALWAYS_ASSERT(zhi_sponge_start < ProbHiArr[2]);
 
-    ParallelFor(tbx, [=,myhalf_d=myhalf] AMREX_GPU_DEVICE(int i, int j, int k)
+    ParallelFor(tbx, [=] AMREX_GPU_DEVICE(int i, int j, int k)
     {
         int ii = amrex::min(amrex::max(i, domlo_x), domhi_x);
         int jj = amrex::min(amrex::max(j, domlo_y), domhi_y);
 
         Real x = ProbLoArr[0] + ii * dx[0];
-        Real y = ProbLoArr[1] + (jj+myhalf_d) * dx[1];
+        Real y = ProbLoArr[1] + (jj+myhalf) * dx[1];
         Real z = z_phys_cc(i,j,k);
 
         // x lo sponge
@@ -112,12 +112,12 @@ ApplySpongeZoneBCsForMom_ReadFromFile (const SpongeChoice& spongeChoice,
     });
 
 
-    ParallelFor(tby, [=,myhalf_d=myhalf] AMREX_GPU_DEVICE(int i, int j, int k)
+    ParallelFor(tby, [=] AMREX_GPU_DEVICE(int i, int j, int k)
     {
         int ii = amrex::min(amrex::max(i, domlo_x), domhi_x);
         int jj = amrex::min(amrex::max(j, domlo_y), domhi_y);
 
-        Real x = ProbLoArr[0] + (ii+myhalf_d) * dx[0];
+        Real x = ProbLoArr[0] + (ii+myhalf) * dx[0];
         Real y = ProbLoArr[1] + jj * dx[1];
         Real z = z_phys_cc(i,j,k);
 

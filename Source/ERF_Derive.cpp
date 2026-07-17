@@ -47,7 +47,7 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 Real
 mucape_virtual_temperature (Real T, Real qv)
 {
-    return T * (Real(1) + Real(0.61) * amrex::max(qv, Real(0)));
+    return T * (one + epsv * amrex::max(qv, Real(0)));
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
@@ -55,7 +55,7 @@ Real
 mucape_vapor_pressure_pa (Real p, Real qv)
 {
     Real qv_clamped = amrex::max(qv, Real(0));
-    return p * qv_clamped / amrex::max(Rd_on_Rv + qv_clamped, mucape_min_qv());
+    return p * qv_clamped / amrex::max(RdoRv + qv_clamped, mucape_min_qv());
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
@@ -94,9 +94,9 @@ mucape_saturated_dTdp (Real T, Real p_pa)
     Real p_safe = amrex::max(p_pa, mucape_min_pressure_pa());
     Real T_safe = amrex::max(T, mucape_min_temperature());
     Real qsat = mucape_qsat(T_safe, p_safe);
-    Real num = R_d * T_safe * (Real(1) + Real(0.61) * qsat) *
+    Real num = R_d * T_safe * (one + epsv * qsat) *
                (Real(1) + L_v * qsat / (R_d * T_safe));
-    Real denom = p_safe * (Cp_d + (L_v * L_v * qsat * Rd_on_Rv) / (R_d * T_safe * T_safe));
+    Real denom = p_safe * (Cp_d + (L_v * L_v * qsat * RdoRv) / (R_d * T_safe * T_safe));
     return num / amrex::max(denom, Real(1.0e-12));
 }
 
@@ -223,12 +223,12 @@ erf_dersoundspeed (const Box& bx,
     // NOTE: we compute the soundspeed of dry air -- we do not account for any moisture effects here
     Real qv = Real(0.0);
 
-    ParallelFor(bx, [=,Gamma_d=Gamma] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+    ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
     {
         const Real rhotheta = dat(i, j, k, RhoTheta_comp);
         const Real rho      = dat(i, j, k, Rho_comp);
         AMREX_ALWAYS_ASSERT(rhotheta > 0);
-        cfab(i,j,k) = std::sqrt(Gamma_d * getPgivenRTh(rhotheta,qv) / rho);
+        cfab(i,j,k) = std::sqrt(Gamma * getPgivenRTh(rhotheta,qv) / rho);
     });
 }
 
@@ -432,10 +432,10 @@ erf_dervortz ( const Box& bx,
     const Real dx = geomdata.CellSize(0);
     const Real dy = geomdata.CellSize(2);
 
-    ParallelFor(bx, [=,two_d=two] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+    ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
     {
-        tfab(i,j,k,dcomp) = (dat(i+1,j,k,1) - dat(i-1,j,k,1)) / (two_d*dx)  // dv/dx
-                          - (dat(i,j+1,k,0) - dat(i,j-1,k,0)) / (two_d*dy); // du/dy
+        tfab(i,j,k,dcomp) = (dat(i+1,j,k,1) - dat(i-1,j,k,1)) / (two*dx)  // dv/dx
+                          - (dat(i,j+1,k,0) - dat(i,j-1,k,0)) / (two*dy); // du/dy
     });
 }
 
@@ -668,7 +668,7 @@ erf_derhelicity ( const Box& bx,
     // Collapse to i,j box (ignore vertical for now)
     Box b2d = makeSlab(bx,2,0);
 
-    ParallelFor(b2d, [=,myhalf_d=myhalf,two_d=two] AMREX_GPU_DEVICE(int i, int j, int ) noexcept
+    ParallelFor(b2d, [=] AMREX_GPU_DEVICE(int i, int j, int ) noexcept
     {
         Real int_hel = Real(0.0);
         for (int k = bx.smallEnd(2); k <= bx.bigEnd(2); ++k)
@@ -678,12 +678,12 @@ erf_derhelicity ( const Box& bx,
             // Helicity is defined as integral from 2km to 5km in vertical
             if (z > Real(2000.0) && z < Real(5000.0)) {
 
-                Real z_hi = myhalf_d * (z_arr(i,j,k) + z_arr(i,j,k+1));
-                Real z_lo = myhalf_d * (z_arr(i,j,k) + z_arr(i,j,k-1));
+                Real z_hi = myhalf * (z_arr(i,j,k) + z_arr(i,j,k+1));
+                Real z_lo = myhalf * (z_arr(i,j,k) + z_arr(i,j,k-1));
                 Real dz = z_hi - z_lo;
 
-                Real vortz = (dat(i+1,j,k,1) - dat(i-1,j,k,1)) / (two_d*dx)  // dv/dx
-                           - (dat(i,j+1,k,0) - dat(i,j-1,k,0)) / (two_d*dy); // du/dy
+                Real vortz = (dat(i+1,j,k,1) - dat(i-1,j,k,1)) / (two*dx)  // dv/dx
+                           - (dat(i,j+1,k,0) - dat(i,j-1,k,0)) / (two*dy); // du/dy
                 Real w     = dat(i,j,k,2); // vertical velocity
 
                 int_hel += vortz * w * dz;
@@ -720,14 +720,14 @@ erf_derprecipitable ( const Box& bx,
 
     auto z_arr     = zcc_fab.array(); // cell-centered height z
 
-    ParallelFor(b2d, [=,myhalf_d=myhalf] AMREX_GPU_DEVICE(int i, int j, int) noexcept
+    ParallelFor(b2d, [=] AMREX_GPU_DEVICE(int i, int j, int) noexcept
     {
         Real integral_qv = Real(0.0);
 
         for (int k = 0; k <= bx.bigEnd(2); ++k)
         {
-            Real z_hi = myhalf_d * (z_arr(i,j,k+1) + z_arr(i,j,k));
-            Real z_lo = myhalf_d * (z_arr(i,j,k-1) + z_arr(i,j,k));
+            Real z_hi = myhalf * (z_arr(i,j,k+1) + z_arr(i,j,k));
+            Real z_lo = myhalf * (z_arr(i,j,k-1) + z_arr(i,j,k));
             Real dz = z_hi - z_lo;
 
             Real rhoQ1 = dat(i, j, k, RhoQ1_comp);
@@ -766,7 +766,8 @@ erf_dermucape ( const Box& bx,
     b2d.setSmall(2,0);
     b2d.setBig(2,0);
 
-    ParallelFor(b2d, [=,Cp_d_d=Cp_d,R_d_d=R_d,CONST_GRAV_d=CONST_GRAV] AMREX_GPU_DEVICE(int i, int j, int) noexcept
+    ParallelFor(b2d, [=]
+                AMREX_GPU_DEVICE(int i, int j, int) noexcept
     {
         Real mucape = Real(0);
         int klo = bx.smallEnd(2);
@@ -799,10 +800,10 @@ erf_dermucape ( const Box& bx,
 
                     Real Td_src = mucape_dewpoint_temperature(p_src, qv_src, T_src);
                     Real Tlcl   = mucape_lcl_temperature(T_src, Td_src);
-                    Real plcl   = p_src * std::pow(Tlcl / T_src, Cp_d_d / R_d_d);
+                    Real plcl   = p_src * std::pow(Tlcl / T_src, CpoRd);
                     plcl = amrex::min(p_src, amrex::max(plcl, mucape_min_pressure_pa()));
 
-                    Real theta_src = getThgivenTandP(T_src, p_src, R_d_d / Cp_d_d);
+                    Real theta_src = getThgivenTandP(T_src, p_src, RdoCp);
 
                     Real candidate_cape = Real(0);
                     Real z_prev = z_arr(i,j,ks);
@@ -827,7 +828,7 @@ erf_dermucape ( const Box& bx,
                         Real qv_parcel;
 
                         if (p_env >= plcl) {
-                            T_parcel  = getTgivenPandTh(p_env, theta_src, R_d_d / Cp_d_d);
+                            T_parcel  = getTgivenPandTh(p_env, theta_src, RdoCp);
                             qv_parcel = qv_src;
                         } else {
                             if (!saturated) {
@@ -846,7 +847,7 @@ erf_dermucape ( const Box& bx,
                         }
 
                         Real Tv_parcel = mucape_virtual_temperature(T_parcel, qv_parcel);
-                        Real buoyancy = CONST_GRAV_d * (Tv_parcel - Tv_env) /
+                        Real buoyancy = CONST_GRAV * (Tv_parcel - Tv_env) /
                                         amrex::max(Tv_env, mucape_min_temperature());
 
                         candidate_cape += mucape_positive_area(b_prev, buoyancy, z_env - z_prev);

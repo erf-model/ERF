@@ -105,9 +105,9 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
                                    Array4<Real const> const& vf) -> Real
         {
            Real new_comp_dt = -bogus_large_value;
-           amrex::Loop(b, [=,&new_comp_dt,zero_d=zero,Gamma_d=Gamma] (int i, int j, int k) noexcept
+           amrex::Loop(b, [=,&new_comp_dt] (int i, int j, int k) noexcept
            {
-               if (vf(i,j,k) > zero_d)
+               if (vf(i,j,k) > zero)
                {
                    const Real rho      = s(i, j, k, Rho_comp);
                    const Real rhotheta = s(i, j, k, RhoTheta_comp);
@@ -116,7 +116,7 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
                    //       we only use the partial pressure of the dry air
                    //       to compute the soundspeed
                    Real pressure = getPgivenRTh(rhotheta);
-                   Real c = std::sqrt(Gamma_d * pressure / rho);
+                   Real c = std::sqrt(Gamma * pressure / rho);
 
                    // If we are doing implicit acoustic substepping, then the z-direction does not contribute
                    //    to the computation of the time step
@@ -165,7 +165,7 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
                                   Array4<Real const> const& dJ) -> Real
        {
            Real new_comp_dt = -bogus_large_value;
-           amrex::Loop(b, [=,&new_comp_dt,Gamma_d=Gamma] (int i, int j, int k) noexcept
+           amrex::Loop(b, [=,&new_comp_dt] (int i, int j, int k) noexcept
            {
                {
                    const Real rho      = s(i, j, k, Rho_comp);
@@ -177,7 +177,7 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
                    //       we only use the partial pressure of the dry air
                    //       to compute the soundspeed
                    Real pressure = getPgivenRTh(rhotheta);
-                   Real c = std::sqrt(Gamma_d * pressure / rho);
+                   Real c = std::sqrt(Gamma * pressure / rho);
 
                    // If we are doing implicit acoustic substepping, then the z-direction is not constrained
                    //    by the speed of sound for the computation of the time step
@@ -249,7 +249,7 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
                                     Array4<Real const> const& u) -> Real
          {
              Real new_comp_dt = -bogus_large_value;
-             amrex::Loop(b, [=,&new_comp_dt,Gamma_d=Gamma] (int i, int j, int k) noexcept
+             amrex::Loop(b, [=,&new_comp_dt] (int i, int j, int k) noexcept
              {
                  {
                      const Real rho      = s(i, j, k, Rho_comp);
@@ -259,7 +259,7 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
                      //       we only use the partial pressure of the dry air
                      //       to compute the soundspeed
                      Real pressure = getPgivenRTh(rhotheta);
-                     Real c = std::sqrt(Gamma_d * pressure / rho);
+                     Real c = std::sqrt(Gamma * pressure / rho);
 
                      // Look at z-direction only
                      new_comp_dt = amrex::max((amrex::Math::abs(u(i,j,k,2)) + c) * dzinv, new_comp_dt);
