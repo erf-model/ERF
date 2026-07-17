@@ -5,6 +5,7 @@
  */
 
 #include <iostream>
+#include <cmath>
 #include <limits>
 
 #include <AMReX_Print.H>
@@ -14,6 +15,36 @@
 #include <ERF_EOS.H>
 
 using namespace amrex;
+
+namespace
+{
+
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+bool noahmp_result_is_valid (Real value) noexcept
+{
+    // Noah-MP uses approximately -9999 for unprocessed cells. ERF also
+    // rejects nonfinite values before storing provider data.
+    return std::isfinite(value) && value > Real(-9990.0) &&
+           value < Real(0.5) * lsm_undefined;
+}
+
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+bool noahmp_result_is_valid_for_output (Real value, int output_comp) noexcept
+{
+    if (!noahmp_result_is_valid(value)) {
+        return false;
+    }
+    if (output_comp == NoahmpOutputComp::o_noahmp_q2m_veg ||
+        output_comp == NoahmpOutputComp::o_noahmp_q2m_bare) {
+        return value >= Real(0.0);
+    }
+    if (output_comp == NoahmpOutputComp::o_noahmp_fveg) {
+        return value >= Real(0.0) && value <= Real(1.0);
+    }
+    return true;
+}
+
+} // namespace
 
 // ---------------------------------------------------------------------------
 //  Fine-level interpolation (no per-level NetCDF land file)
@@ -273,7 +304,7 @@ NOAHMP::read_results (const MFIter& mfi,
 
     // (6) Copy Noahmp results to ERF (device; from pinned buffer): per-field math
     // (flux ÷rho, -9999 fill guard, sentinels, soil loop), deliberately not table-driven.
-    ParallelFor(gbx, [=]
+    ParallelFor(gbx, [=,Cp_d_d=Cp_d,L_v_d=L_v,lsm_undefined_d=lsm_undefined]
                          AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
         // Limit indices to the valid box. FillBoundary will pick these up below.
@@ -289,39 +320,33 @@ NOAHMP::read_results (const MFIter& mfi,
             // rho for the kinematic MOST form ERF stores. Exner factor on t_flux is
             // omitted to match WRF (<~1% error near surface, ~6-7% at p~800 hPa).
             Real rho_l  = CONS(ii,jj,k,Rho_comp);
-            t_flux_arr(i,j,k) = hfx_lsm/(rho_l*Cp_d);
-            q_flux_arr(i,j,k) = noah_output_arr(ii,jj,0,NoahmpOutputComp::lh)/(rho_l*L_v);
+            t_flux_arr(i,j,k) = hfx_lsm/(rho_l*Cp_d_d);
+            q_flux_arr(i,j,k) = noah_output_arr(ii,jj,0,NoahmpOutputComp::lh)/(rho_l*L_v_d);
             tau13_arr(i,j,k)  = noah_output_arr(ii,jj,0,NoahmpOutputComp::tau_ew)/rho_l;
             tau23_arr(i,j,k)  = noah_output_arr(ii,jj,0,NoahmpOutputComp::tau_ns)/rho_l;
         } else {
-            t_flux_arr(i,j,k) = lsm_undefined;
-            q_flux_arr(i,j,k) = lsm_undefined;
-            tau13_arr(i,j,k)  = lsm_undefined;
-            tau23_arr(i,j,k)  = lsm_undefined;
+            t_flux_arr(i,j,k) = lsm_undefined_d;
+            q_flux_arr(i,j,k) = lsm_undefined_d;
+            tau13_arr(i,j,k)  = lsm_undefined_d;
+            tau23_arr(i,j,k)  = lsm_undefined_d;
         }
 
-        // RRTMGP + return-term results: mechanical 1:1 copy from the buffer,
-        // generated from NOAHMP_RESULT_FIELDS.
-        if (hfx_lsm > Real(-9990.0)) {
-#define NOAHMP_COPY_RESULT(alias,lsm,out) alias(i,j,0) = noah_output_arr(ii,jj,0,NoahmpOutputComp::out);
-            NOAHMP_RESULT_FIELDS(NOAHMP_COPY_RESULT)
+        // Store each provider field independently. HFX is not a validity gate:
+        // option-dependent diagnostics can be valid even when HFX is absent.
+#define NOAHMP_COPY_RESULT(alias,lsm,out)                                      \
+        {                                                                       \
+            const Real value = noah_output_arr(ii,jj,0,NoahmpOutputComp::out);  \
+            alias(i,j,0) = noahmp_result_is_valid_for_output(                         \
+                value, NoahmpOutputComp::out) ? value : lsm_undefined_d;              \
+        }
+        NOAHMP_RESULT_FIELDS(NOAHMP_COPY_RESULT)
 #undef NOAHMP_COPY_RESULT
-            // Not computed by this core -> sentinel, not a misleading 0.
-            SMSTAV_o(i,j,0)      = lsm_undefined;
-            SMSTOT_o(i,j,0)      = lsm_undefined;
-            for (int s(0); s < n_soil_fld; ++s) {
-                soil_arr[s](i,j,0) = noah_output_arr(ii,jj,0,soil_out_base + s);
-            }
-        } else {
-            // Fill-value cell (sea-ice / open-water): every result is the sentinel.
-#define NOAHMP_UNDEF_RESULT(alias,lsm,out) alias(i,j,0) = lsm_undefined;
-            NOAHMP_RESULT_FIELDS(NOAHMP_UNDEF_RESULT)
-#undef NOAHMP_UNDEF_RESULT
-            SMSTAV_o(i,j,0)      = lsm_undefined;
-            SMSTOT_o(i,j,0)      = lsm_undefined;
-            for (int s(0); s < n_soil_fld; ++s) {
-                soil_arr[s](i,j,0) = lsm_undefined;
-            }
+        // Not computed by this core -> sentinel, not a misleading zero.
+        SMSTAV_o(i,j,0) = lsm_undefined_d;
+        SMSTOT_o(i,j,0) = lsm_undefined_d;
+        for (int s(0); s < n_soil_fld; ++s) {
+            const Real value = noah_output_arr(ii,jj,0,soil_out_base + s);
+            soil_arr[s](i,j,0) = noahmp_result_is_valid(value) ? value : lsm_undefined_d;
         }
     });
     // The scatter kernel reads soil_arr_d; sync before it is destroyed.

@@ -3,6 +3,7 @@
 
 #include <AMReX_MultiFab.H>
 #include <AMReX_REAL.H>
+#include <AMReX_GpuQualifiers.H>
 
 // Mechanical fill helpers for ERF 2D plotfile assembly. These helpers copy,
 // fill, and convert existing diagnostic sources into output components.
@@ -48,6 +49,18 @@ void fill_component_from_klevel_or_value (amrex::MultiFab& dst,
                                           int src_k,
                                           amrex::Real missing_value,
                                           int src_comp = 0);
+
+// Noah-MP and other land-surface providers use internal sentinels that must
+// not enter a public plotfile. Valid zero and negative physical values pass
+// through unchanged.
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+bool is_valid_land_surface_value (amrex::Real value) noexcept;
+
+void fill_land_surface_component_from_klevel_or_missing (amrex::MultiFab& dst,
+                                                         int dst_comp,
+                                                         const amrex::MultiFab* src,
+                                                         int src_k,
+                                                         amrex::Real missing_value);
 
 // Convert the selected conservative sensible-flux source to W m^-2 for the
 // public sensible_heat_flux diagnostic. Unit semantics remain in

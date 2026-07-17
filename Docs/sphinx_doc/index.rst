@@ -80,6 +80,7 @@ In addition to this documentation, there is API documentation for ERF generated 
    BoundaryConditions.rst
    InflowTurbulenceGeneration.rst
    SurfaceLayer.rst
+   LandSurfaceDiagnostics.rst
    DerivedQuantities.rst
    Checkpoint.rst
    Provenance.rst
