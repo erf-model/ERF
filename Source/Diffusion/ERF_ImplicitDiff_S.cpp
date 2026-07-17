@@ -93,10 +93,6 @@ ImplicitDiffForStateLU_S (const Box& bx,
     ParallelFor(makeSlab(bx,2,0), [=] AMREX_GPU_DEVICE (int i, int j, int)
     {
 #else
-    Real zero   = zero;
-    Real one    = one;
-    Real two    = two;
-    Real myhalf = myhalf;
     for (int j(jlo); j<=jhi; ++j) {
         for (int i(ilo); i<=ihi; ++i) {
 #endif
@@ -317,10 +313,6 @@ ImplicitDiffForMomLU_S (const Box& bx,
     ParallelFor(makeSlab(bx,2,0), [=] AMREX_GPU_DEVICE (int i, int j, int)
     {
 #else
-    Real zero   = zero;
-    Real one    = one;
-    Real two    = two;
-    Real myhalf = myhalf;
     for (int j(jlo); j<=jhi; ++j) {
       for (int i(ilo); i<=ihi; ++i) {
 #endif
