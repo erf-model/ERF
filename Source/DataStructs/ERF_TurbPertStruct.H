@@ -88,9 +88,14 @@ struct TurbulentPerturbation {
         pp.query("perturbation_w_amp",input_w_amp);
 
         perturbation_klo = zero;
+        bool have_klo = false;
         pp.query("perturbation_klo",perturbation_klo);
+        if (perturbation_klo != zero) { have_klo = true; }
+
         perturbation_khi = zero;
+        bool have_khi = false;
         pp.query("perturbation_khi",perturbation_khi);
+        if (perturbation_khi != zero) { have_khi = true; }
 
         // Check variables message
         if (tpi_offset < 0) { amrex::Abort("Please provide a valid inflow cell offset value for perturbation region (ie. 0-5)"); }
@@ -126,8 +131,8 @@ struct TurbulentPerturbation {
             const amrex::IntVect& valid_box_hi = subdomain_box.bigEnd();
 
             // default perturbation region to be the entire z extent if the user does not specify bounds
-            if (perturbation_klo == zero) { perturbation_klo = valid_box_lo[2]; }
-            if (perturbation_khi == zero) { perturbation_khi = valid_box_hi[2]; }
+            if (!have_klo) { perturbation_klo = valid_box_lo[2]; }
+            if (!have_khi) { perturbation_khi = valid_box_hi[2]; }
 
             // Creating perturbation regions and initializing with generic size.
             amrex::Box lo_x_bx(amrex::IntVect(0), amrex::IntVect(1), amrex::IntVect(0));
