@@ -544,7 +544,7 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev)
 
                     if (use_theta_m && (var_name == "QVAPOR")) {
                         // Now, we can calculate theta = thm / (1 + R_v/R_d * Qv)
-                        var_fab.template mult<RunOn::Device>(R_v/R_d);
+                        var_fab.template mult<RunOn::Device>(RvoRd);
                         var_fab.template plus<RunOn::Device>(one);
                         var_fab.template invert<RunOn::Device>(one);
 #ifdef _OPENMP
@@ -1413,7 +1413,8 @@ init_base_state_from_wrfinput (const Box& subdomain,
 
             const Array4<const Real>& z_arr = z_phys_nd->const_array(mfi);
 
-            ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int /*k*/) noexcept
+            ParallelFor(bx, [=,RdoCp_d=RdoCp]
+                        AMREX_GPU_DEVICE(int i, int j, int /*k*/) noexcept
             {
                 // integrate from surface to domain top
                 Real dz, F, C;
@@ -1439,22 +1440,22 @@ init_base_state_from_wrfinput (const Box& subdomain,
 
                     // Known surface values
                     P_lo  = P00;
-                    Th_lo = getThgivenTandP(T00, P00, R_d/Cp_d);
-                    R_lo  = getRhogivenThetaPress(Th_lo, P_lo, R_d/Cp_d);
+                    Th_lo = getThgivenTandP(T00, P00, RdoCp_d);
+                    R_lo  = getRhogivenThetaPress(Th_lo, P_lo, RdoCp_d);
                     rho_tot_lo = R_lo;
                     C  = -P_lo + myhalf*rho_tot_lo*grav*dz;
 
                     // Initial guess and residual
                     P_hi  = P_lo;
                     Th_hi = th_hse_arr(i,j,klo);
-                    T_hi  = getTgivenPandTh(P_hi, Th_hi, R_d/Cp_d);
-                    R_hi  = getRhogivenThetaPress(Th_hi, P_hi, R_d/Cp_d);
+                    T_hi  = getTgivenPandTh(P_hi, Th_hi, RdoCp_d);
+                    R_hi  = getRhogivenThetaPress(Th_hi, P_hi, RdoCp_d);
                     rho_tot_hi = R_hi;
                     F = P_hi + myhalf*rho_tot_hi*grav*dz + C;
 
                     // Do iterations
                     bool maintain_Th = true;
-                    HSEutils::Newton_Raphson_hse(tol, R_d/Cp_d, dz,
+                    HSEutils::Newton_Raphson_hse(tol, RdoCp_d, dz,
                                                  grav, C, Th_hi, T_hi,
                                                  qv_hi, qv_hi,
                                                  P_hi, R_hi, F, maintain_Th);
@@ -1476,20 +1477,20 @@ init_base_state_from_wrfinput (const Box& subdomain,
 
                   // Establish known constant
                   Th_lo = th_hse_arr(i,j,k-1);
-                  R_lo  = getRhogivenThetaPress(Th_lo, P_lo, R_d/Cp_d, qv_lo);
+                  R_lo  = getRhogivenThetaPress(Th_lo, P_lo, RdoCp_d, qv_lo);
                   rho_tot_lo = R_lo;
                   C  = -P_lo + myhalf*rho_tot_lo*grav*dz;
 
                   // Initial guess and residual
                   Th_hi = th_hse_arr(i,j,k);
-                  T_hi  = getTgivenPandTh(P_hi, Th_hi, R_d/Cp_d);
-                  R_hi  = getRhogivenThetaPress(Th_hi, P_hi, R_d/Cp_d, qv_hi);
+                  T_hi  = getTgivenPandTh(P_hi, Th_hi, RdoCp_d);
+                  R_hi  = getRhogivenThetaPress(Th_hi, P_hi, RdoCp_d, qv_hi);
                   rho_tot_hi = R_hi;
                   F = P_hi + myhalf*rho_tot_hi*grav*dz + C;
 
                   // Do iterations
                   bool maintain_Th = true;
-                  HSEutils::Newton_Raphson_hse(tol, R_d/Cp_d, dz,
+                  HSEutils::Newton_Raphson_hse(tol, RdoCp_d, dz,
                                                grav, C, Th_hi, T_hi,
                                                qv_hi, qv_hi,
                                                P_hi, R_hi, F, maintain_Th);

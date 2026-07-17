@@ -3,7 +3,7 @@
 /**
  *  Wrapper for calling the routine that creates the fast RHS
  */
-auto acoustic_substepping_fun = [&](int fast_step, int n_sub, int nrk,
+auto acoustic_substepping_fun = [&,one_d=one,zero_d=zero](int fast_step, int n_sub, int nrk,
                                     Vector<MultiFab>& S_slow_rhs,
                                     const Vector<MultiFab>& S_old,
                                     Vector<MultiFab>& S_stage,
@@ -29,7 +29,7 @@ auto acoustic_substepping_fun = [&](int fast_step, int n_sub, int nrk,
         if (solverChoice.substepping_type[level] == SubsteppingType::Implicit) {
             beta_s = solverChoice.beta_s;
         } else { // Fully explicit
-            beta_s = -one;
+            beta_s = -one_d;
         }
 
         const GpuArray<Real, AMREX_SPACEDIM> dxInv = fine_geom.InvCellSizeArray();
@@ -170,7 +170,7 @@ auto acoustic_substepping_fun = [&](int fast_step, int n_sub, int nrk,
         // Even if we update all the conserved variables we don't need
         // to fillpatch the slow ones every acoustic substep
 
-        if ( (solverChoice.vert_implicit_fac[level][nrk] > zero) && !solverChoice.implicit_before_substep &&
+        if ( (solverChoice.vert_implicit_fac[level][nrk] > zero_d) && !solverChoice.implicit_before_substep &&
              (fast_step == n_sub-1) )
         {
             MultiFab scratch(S_data[IntVars::cons], make_alias, 0, 2);

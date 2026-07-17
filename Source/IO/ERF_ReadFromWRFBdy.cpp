@@ -343,7 +343,7 @@ convert_wrfbdy_data (const int itime,
                 Real xmu         = (mu_arr(i,j,0) + mub_arr(i,j,0));
                 Real xmu_mult    = c1h_arr(0,0,k) * xmu + c2h_arr(0,0,k);
                 Real new_bdy_Th  = bdy_t_arr(i,j,k) / xmu_mult + wrf_theta_ref;
-                Real qv_fac      = (one + (R_v/R_d) * bdy_qv_arr(i,j,k) / xmu_mult);
+                Real qv_fac      = (one + RvoRd * bdy_qv_arr(i,j,k) / xmu_mult);
                 new_bdy_Th      /= qv_fac;
                 bdy_t_tmp(i,j,k) = new_bdy_Th;
             }
@@ -478,7 +478,7 @@ convert_wrfbdy_data (const int itime,
 #endif
         Real grav = CONST_GRAV;
         ParallelFor(bx_t_slab,
-        [=] AMREX_GPU_DEVICE (int i, int j, int /*k*/) noexcept
+        [=,RdoCp_d=RdoCp] AMREX_GPU_DEVICE (int i, int j, int /*k*/) noexcept
         {
             // integrate from surface to domain top
             Real dz, F, C;
@@ -507,7 +507,7 @@ convert_wrfbdy_data (const int itime,
               qt_lo = bdy_qv_int(i,j,k-1);
               qv_lo = bdy_qv_int(i,j,k-1);
               Th_lo = bdy_t_int(i,j,k-1);
-              R_lo  = getRhogivenThetaPress(Th_lo, P_lo, R_d/Cp_d, qv_lo);
+              R_lo  = getRhogivenThetaPress(Th_lo, P_lo, RdoCp_d, qv_lo);
               rho_tot_lo = R_lo * (one + qt_lo);
               C  = -P_lo + myhalf*rho_tot_lo*grav*dz;
 
@@ -515,21 +515,21 @@ convert_wrfbdy_data (const int itime,
               qt_hi = bdy_qv_int(i,j,k);
               qv_hi = bdy_qv_int(i,j,k);
               Th_hi = bdy_t_int(i,j,k);
-              T_hi  = getTgivenPandTh(P_hi, Th_hi, R_d/Cp_d);
-              R_hi  = getRhogivenThetaPress(Th_hi, P_hi, R_d/Cp_d, qv_hi);
+              T_hi  = getTgivenPandTh(P_hi, Th_hi, RdoCp_d);
+              R_hi  = getRhogivenThetaPress(Th_hi, P_hi, RdoCp_d, qv_hi);
               rho_tot_hi = R_hi * (one + qt_hi);
               F = P_hi + myhalf*rho_tot_hi*grav*dz + C;
 
               // Do iterations
               bool maintain_Th = false;
-              HSEutils::Newton_Raphson_hse(tol, R_d/Cp_d, dz,
+              HSEutils::Newton_Raphson_hse(tol, RdoCp_d, dz,
                                            grav, C, Th_hi, T_hi,
                                            qt_hi, qv_hi,
                                            P_hi, R_hi, F, maintain_Th);
 
               // Assign data
               bdy_r_int(i,j,k) = R_hi;
-              bdy_t_int(i,j,k) = getThgivenTandP(T_hi, P_hi, R_d/Cp_d);
+              bdy_t_int(i,j,k) = getThgivenTandP(T_hi, P_hi, RdoCp_d);
               P_lo = P_hi;
               z_lo = z_hi;
             }

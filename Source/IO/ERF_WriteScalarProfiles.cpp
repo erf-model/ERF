@@ -113,6 +113,7 @@ ERF::sum_integrated_quantities (double time)
     const int nfoo = 8;
     Real foo[nfoo] = {mass_sl,rhth_sl,scal_sl,mois_sl,mass_ml,rhth_ml,scal_ml,mois_ml};
 #endif
+    Real zero_d = zero;
 #ifdef AMREX_LAZY
     Lazy::QueueReduction([=]() mutable {
 #endif
@@ -170,7 +171,7 @@ ERF::sum_integrated_quantities (double time)
             int n_d = 0;
             std::ostream& data_log1 = DataLog(n_d);
             if (data_log1.good()) {
-                if (time == zero) {
+                if (time == zero_d) {
                     data_log1 << std::setw(datwidth) << "          time";
                     data_log1 << std::setw(datwidth) << "          u_star";
                     data_log1 << std::setw(datwidth) << "          t_star";
@@ -309,6 +310,7 @@ ERF::sum_derived_quantities (double time)
 
     const int nfoo = 4;
     Real foo[nfoo] = {unwted_avg,r_wted_avg,enstrsq_avg,theta_avg};
+    Real zero_d = zero;
 #ifdef AMREX_LAZY
     Lazy::QueueReduction([=]() mutable {
 #endif
@@ -324,7 +326,7 @@ ERF::sum_derived_quantities (double time)
 
         std::ostream& data_log_der = DerDataLog(0);
 
-        if (time == zero) {
+        if (time == zero_d) {
             data_log_der << std::setw(datwidth) << "          time";
             data_log_der << std::setw(datwidth) << "        ke_den";
             data_log_der << std::setw(datwidth) << "         velsq";
@@ -454,6 +456,7 @@ ERF::sum_energy_quantities (double time)
 
     const int nfoo = 2;
     Real foo[nfoo] = {tot_mass_avg,tot_energy_avg};
+    Real zero_d = zero;
 #ifdef AMREX_LAZY
     Lazy::QueueReduction([=]() mutable {
 #endif
@@ -467,7 +470,7 @@ ERF::sum_energy_quantities (double time)
 
         std::ostream& data_log_energy = *tot_e_datalog[0];
 
-        if (time == zero) {
+        if (time == zero_d) {
             data_log_energy << std::setw(datwidth) << "          time";
             data_log_energy << std::setw(datwidth) << "      tot_mass";
             data_log_energy << std::setw(datwidth) << "    tot_energy";

@@ -261,4 +261,3 @@ AdvectionSrcForMom (const MFIter& mfi,
                                            domhi_z);
     }
 }
-
