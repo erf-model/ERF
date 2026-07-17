@@ -47,7 +47,7 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 Real
 mucape_virtual_temperature (Real T, Real qv)
 {
-    return T * (Real(1) + Real(0.61) * amrex::max(qv, Real(0)));
+    return T * (one + epsv * amrex::max(qv, Real(0)));
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
@@ -55,7 +55,7 @@ Real
 mucape_vapor_pressure_pa (Real p, Real qv)
 {
     Real qv_clamped = amrex::max(qv, Real(0));
-    return p * qv_clamped / amrex::max(Rd_on_Rv + qv_clamped, mucape_min_qv());
+    return p * qv_clamped / amrex::max(RdoRv + qv_clamped, mucape_min_qv());
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
@@ -94,9 +94,9 @@ mucape_saturated_dTdp (Real T, Real p_pa)
     Real p_safe = amrex::max(p_pa, mucape_min_pressure_pa());
     Real T_safe = amrex::max(T, mucape_min_temperature());
     Real qsat = mucape_qsat(T_safe, p_safe);
-    Real num = R_d * T_safe * (Real(1) + Real(0.61) * qsat) *
+    Real num = R_d * T_safe * (one + epsv * qsat) *
                (Real(1) + L_v * qsat / (R_d * T_safe));
-    Real denom = p_safe * (Cp_d + (L_v * L_v * qsat * Rd_on_Rv) / (R_d * T_safe * T_safe));
+    Real denom = p_safe * (Cp_d + (L_v * L_v * qsat * RdoRv) / (R_d * T_safe * T_safe));
     return num / amrex::max(denom, Real(1.0e-12));
 }
 
@@ -766,7 +766,8 @@ erf_dermucape ( const Box& bx,
     b2d.setSmall(2,0);
     b2d.setBig(2,0);
 
-    ParallelFor(b2d, [=] AMREX_GPU_DEVICE(int i, int j, int) noexcept
+    ParallelFor(b2d, [=]
+                AMREX_GPU_DEVICE(int i, int j, int) noexcept
     {
         Real mucape = Real(0);
         int klo = bx.smallEnd(2);
@@ -799,10 +800,10 @@ erf_dermucape ( const Box& bx,
 
                     Real Td_src = mucape_dewpoint_temperature(p_src, qv_src, T_src);
                     Real Tlcl   = mucape_lcl_temperature(T_src, Td_src);
-                    Real plcl   = p_src * std::pow(Tlcl / T_src, Cp_d / R_d);
+                    Real plcl   = p_src * std::pow(Tlcl / T_src, CpoRd);
                     plcl = amrex::min(p_src, amrex::max(plcl, mucape_min_pressure_pa()));
 
-                    Real theta_src = getThgivenTandP(T_src, p_src, R_d / Cp_d);
+                    Real theta_src = getThgivenTandP(T_src, p_src, RdoCp);
 
                     Real candidate_cape = Real(0);
                     Real z_prev = z_arr(i,j,ks);
@@ -827,7 +828,7 @@ erf_dermucape ( const Box& bx,
                         Real qv_parcel;
 
                         if (p_env >= plcl) {
-                            T_parcel  = getTgivenPandTh(p_env, theta_src, R_d / Cp_d);
+                            T_parcel  = getTgivenPandTh(p_env, theta_src, RdoCp);
                             qv_parcel = qv_src;
                         } else {
                             if (!saturated) {

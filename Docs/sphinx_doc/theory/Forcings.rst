@@ -67,23 +67,27 @@ There is no dependence on the radial distance from the center of the earth, thus
 Rayleigh Damping
 ----------------
 
-Rayleigh damping can be imposed on any or all of :math:`u, v, w, T` and is controlled by
-setting
+Rayleigh damping can be imposed on any or all of :math:`u, v, w, T` by
+setting one or more of
 ::
 
-      rayleigh_damp_U = true
-      rayleigh_damp_V = true
-      rayleigh_damp_W = true
-      rayleigh_damp_T = true
+      erf.rayleigh_damp_U = true
+      erf.rayleigh_damp_V = true
+      erf.rayleigh_damp_W = true
+      erf.rayleigh_damp_T = true
 
-in the inputs file.  When one or more of those is true and
-the Rayleigh damping type is set to SlowExplicit or FastExplict,
+in the inputs file.  The time integration of the damping terms is controlled
+by ``erf.rayleigh_damping_type``.  Rayleigh damping is disabled when all four
+``rayleigh_damp_*`` flags are false.
+
+When one or more of those flags is true and
+the Rayleigh damping type is set to ``SlowExplicit`` or ``FastExplicit``,
 then explicit Rayleigh damping is included in the energy and/or momentum equations
 in the form described in Section 4.4.3 of the WRF Model Version 4 documentation (p40), i.e. :
 
 .. math::
 
-  \mathbf{F} = - \tau(z) \rho \; (u - \overline{u}, v - \overline{v}, w - 0)
+  \mathbf{F} = - \tau(z) \rho \; (u - \overline{u}, v - \overline{v}, w - \overline{w})
 
 and
 
@@ -91,10 +95,49 @@ and
 
   F_{\rho \theta} = - \tau(z) \rho (\theta - \overline{\theta})
 
-where :math:`(\overline{u}, \overline{v}, 0)` is the reference state velocity, typically
-defined as the initial horizontally homogeneous fields in idealized simulations,
-and :math:`\overline{\theta}` is the reference state potential temperature.
-As in the WRF model, the reference state vertical velocity is assumed to be zero.
+where :math:`(\overline{u}, \overline{v}, \overline{w})` is the reference
+state velocity, typically defined as the initial horizontally homogeneous
+fields in idealized simulations, and :math:`\overline{\theta}` is the
+reference state potential temperature.  The default Rayleigh helper sets
+constant reference values from ``prob.rayleigh_U_0``, ``prob.rayleigh_V_0``,
+``prob.rayleigh_W_0``, and ``prob.rayleigh_T_0``.  If the initialization type
+is ``Input_Sounding``, ERF overwrites :math:`\overline{u}`,
+:math:`\overline{v}`, and :math:`\overline{\theta}` with the sounding profiles
+and sets :math:`\overline{w}=0`.  Problem setups can also override
+``erf_init_rayleigh`` to define custom vertical reference profiles.
+
+The height-dependent damping coefficient is
+
+.. math::
+
+   \tau(z) = \alpha R(z),
+
+where :math:`\alpha` is ``erf.rayleigh_dampcoef`` in :math:`\mathrm{s}^{-1}`.
+Thus ``rayleigh_dampcoef`` is an inverse damping timescale: if
+:math:`R(z)=1`, perturbations from the reference profile are damped with
+timescale :math:`1/\alpha`.
+
+The nondimensional vertical ramp :math:`R(z)` is set by
+``erf.rayleigh_zdamp``:
+
+.. math::
+
+   R(z) =
+   \begin{cases}
+   \sin^2\left[\frac{\pi}{2}
+      \left(1 - \frac{z_\mathrm{top} - z}{H}\right)\right],
+      & z > z_\mathrm{top} - H, \\
+   0, & z \le z_\mathrm{top} - H,
+   \end{cases}
+
+where :math:`H` is ``erf.rayleigh_zdamp`` and :math:`z_\mathrm{top}` is the
+model top.  The ramp is zero at the bottom of the damping layer
+(:math:`z=z_\mathrm{top}-H`) and increases smoothly to one at the model top.
+For :math:`u`, :math:`v`, and :math:`\theta`, ERF evaluates this ramp at
+cell-center heights.  For :math:`w`, ERF evaluates it at the vertically
+staggered :math:`w` levels.  Setting ``rayleigh_zdamp`` larger than the domain
+height makes the ramp start below the domain; very large values make
+:math:`R(z) \approx 1` throughout the domain, giving nearly uniform damping.
 
 If the Rayleigh damping type is set to SlowExplicit then all the damping terms are computed once per
 RK stage; if the type is FastExplicit then the damping terms are computed once per acoustic substep.

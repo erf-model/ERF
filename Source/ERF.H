@@ -740,6 +740,7 @@ private:
     // Initialize the Turbulent perturbation
     void turbPert_update (const int lev, const double dt);
     void turbPert_amplitude (const int lev);
+    void turbPert_amplitude_w (const int lev);
 
     // Initialize the integrator object
     void initialize_integrator (int lev, amrex::MultiFab& cons_mf, amrex::MultiFab& vel_mf);

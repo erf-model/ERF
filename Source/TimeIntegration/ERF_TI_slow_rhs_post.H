@@ -1,6 +1,6 @@
 #include "ERF_SrcHeaders.H"
 
-    auto slow_rhs_fun_post = [&](Vector<MultiFab>& S_rhs,
+    auto slow_rhs_fun_post = [&,bogus_large_value_d=bogus_large_value](Vector<MultiFab>& S_rhs,
                                  Vector<MultiFab>& S_old,
                                  Vector<MultiFab>& S_new,
                                  Vector<MultiFab>& S_data,
@@ -92,7 +92,7 @@
                 }
             }
             dUdt_tmp.FillBoundary(fine_geom.periodicity());
-            dUdt_tmp.setDomainBndry(bogus_large_value, 0, num_comp_total, fine_geom);
+            dUdt_tmp.setDomainBndry(bogus_large_value_d, 0, num_comp_total, fine_geom);
 
             const BCRec* bc_ptr_d = domain_bcs_type_d.data();
 

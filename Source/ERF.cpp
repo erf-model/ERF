@@ -1987,7 +1987,11 @@ ERF::init_only (int lev, double elapsed_time)
     // Initialize turbulent perturbation
     if (solverChoice.use_perturbation(lev)) {
         turbPert_update(lev, zero);
-        turbPert_amplitude(lev);
+        if (solverChoice.use_wvel_perturbation(lev)) {
+            turbPert_amplitude_w(lev);
+        } else {
+            turbPert_amplitude(lev);
+        }
     }
 
     // Set initial velocity field for immersed cells to be close to 0

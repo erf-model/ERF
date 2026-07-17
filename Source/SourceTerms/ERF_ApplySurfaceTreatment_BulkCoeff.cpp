@@ -63,7 +63,7 @@ ApplySurfaceTreatment_BulkCoeff_CC (const Box& bx,
                          const Array4<const Real>& z_phys_cc,
                          const Array4<const Real>& surface_state_arr)
 {
-     ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+     ParallelFor(bx, [=,zero_d=zero] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
         if(k == 0) {
             Real dz = z_phys_cc(i,j,1)-z_phys_cc(i,j,0);
             Real ls_mask = surface_state_arr(i,j,0);
@@ -79,8 +79,8 @@ ApplySurfaceTreatment_BulkCoeff_CC (const Box& bx,
             Real uvel = cons_state(i,j,k,1)/cons_state(i,j,k,0);
             Real vvel = cons_state(i,j,k,2)/cons_state(i,j,k,0);
             Real velmag = std::sqrt(uvel*uvel + vvel*vvel);
-            Real dT = max(zero, Real(301.0) - temp);
-            Real dq = max(zero, Real(0.024) - qv);
+            Real dT = max(zero_d, Real(301.0) - temp);
+            Real dq = max(zero_d, Real(0.024) - qv);
             cell_rhs(i, j, k, RhoTheta_comp) += (theta/(Real(1005.0)*temp))*rho*Ch*velmag*dT/dz;
             cell_rhs(i, j, k, RhoQ1_comp) += rho*Ce*velmag*dq/dz;
         }

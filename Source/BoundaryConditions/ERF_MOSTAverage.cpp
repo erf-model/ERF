@@ -715,17 +715,17 @@ MOSTAverage::set_norm_indices_T (const int& lev)
 
             // Search for k (grid is stretched in z)
             Real z_bot_face  = fourth * ( z_phys_arr(i  ,j  ,k) + z_phys_arr(i+1,j  ,k)
-                                      + z_phys_arr(i  ,j+1,k) + z_phys_arr(i+1,j+1,k) );
+                                          + z_phys_arr(i  ,j+1,k) + z_phys_arr(i+1,j+1,k) );
             Real z_target    = z_bot_face + delta_z;
             k_arr(i,j,0)     = klo;
             zref_arr(i,j,0)  = myhalf * z_bot_face +
                                Real(0.125) * ( z_phys_arr(i  ,j  ,k+1) + z_phys_arr(i+1,j  ,k+1)
-                                       + z_phys_arr(i  ,j+1,k+1) + z_phys_arr(i+1,j+1,k+1) );
+                                             + z_phys_arr(i  ,j+1,k+1) + z_phys_arr(i+1,j+1,k+1) );
             for (int lk(klo); lk<=kmax; ++lk) {
                 Real z_lo = fourth * ( z_phys_arr(i_new,j_new  ,lk  ) + z_phys_arr(i_new+1,j_new  ,lk  )
-                                   + z_phys_arr(i_new,j_new+1,lk  ) + z_phys_arr(i_new+1,j_new+1,lk  ) );
+                                       + z_phys_arr(i_new,j_new+1,lk  ) + z_phys_arr(i_new+1,j_new+1,lk  ) );
                 Real z_hi = fourth * ( z_phys_arr(i_new,j_new  ,lk+1) + z_phys_arr(i_new+1,j_new  ,lk+1)
-                                   + z_phys_arr(i_new,j_new+1,lk+1) + z_phys_arr(i_new+1,j_new+1,lk+1) );
+                                       + z_phys_arr(i_new,j_new+1,lk+1) + z_phys_arr(i_new+1,j_new+1,lk+1) );
                 if (z_target > z_lo && z_target < z_hi){
                     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(lk >= d_radius,
                                                      "K index must be larger than averaging radius!");
@@ -790,7 +790,7 @@ MOSTAverage::set_z_positions_T (const int& lev)
             x_pos_arr(i,j,0) = plo[0] + ((Real) i + myhalf) * dx[0];
             y_pos_arr(i,j,0) = plo[1] + ((Real) j + myhalf) * dx[1];
             Real z_bot_face  = fourth * ( z_phys_arr(i  ,j  ,k) + z_phys_arr(i+1,j  ,k)
-                                      + z_phys_arr(i  ,j+1,k) + z_phys_arr(i+1,j+1,k) );
+                                          + z_phys_arr(i  ,j+1,k) + z_phys_arr(i+1,j+1,k) );
             z_pos_arr(i,j,0) = z_bot_face + d_zref;
 
             // Destination position must be contained on the current process!
@@ -866,7 +866,7 @@ MOSTAverage::set_norm_positions_T (const int& lev)
             x_pos_arr(i,j,0) = x0 + delta_x;
             y_pos_arr(i,j,0) = y0 + delta_y;
             Real z_bot_face  = fourth * ( z_phys_arr(i  ,j  ,k) + z_phys_arr(i+1,j  ,k)
-                                      + z_phys_arr(i  ,j+1,k) + z_phys_arr(i+1,j+1,k) );
+                                          + z_phys_arr(i  ,j+1,k) + z_phys_arr(i+1,j+1,k) );
             z_pos_arr(i,j,0) = z_bot_face + delta_z;
 
             // NOTE: Normal vector end point can be below the surface for concave regions.
@@ -874,7 +874,7 @@ MOSTAverage::set_norm_positions_T (const int& lev)
             int i_new = (int) ((x_pos_arr(i,j,0) - plo[0]) / dx[0] - myhalf);
             int j_new = (int) ((y_pos_arr(i,j,0) - plo[1]) / dx[1] - myhalf);
             Real z_new_bot_face = fourth * ( z_phys_arr(i_new,j_new  ,k) + z_phys_arr(i_new+1,j_new  ,k)
-                                         + z_phys_arr(i_new,j_new+1,k) + z_phys_arr(i_new+1,j_new+1,k) );
+                                             + z_phys_arr(i_new,j_new+1,k) + z_phys_arr(i_new+1,j_new+1,k) );
             if (z_pos_arr(i,j,0) < z_new_bot_face) {
                 z_pos_arr(i,j,0) = z_new_bot_face + delta_z;
             }
@@ -1097,9 +1097,9 @@ MOSTAverage::compute_plane_averages (const int& lev)
                         Real qr_interp{0};
                         trilinear_interp_T(x_pos_arr(i,j,0), y_pos_arr(i,j,0), z_pos_arr(i,j,0),
                                            &qr_interp, qr_mf_arr, z_phys_arr, plo, dxInv, 1);
-                        vfac = one + Real(0.61)*qv_interp - qr_interp;
+                        vfac = one + epsv*qv_interp - qr_interp;
                     } else {
-                        vfac = one + Real(0.61)*qv_interp;
+                        vfac = one + epsv*qv_interp;
                     }
                     const Real val = T_interp * vfac;
                     Gpu::deviceReduceSum(&plane_avg[iavg], val, handler);
@@ -1117,9 +1117,9 @@ MOSTAverage::compute_plane_averages (const int& lev)
                     Real vfac;
                     if (qr_mf_arr) {
                         // We also have liquid water
-                        vfac = one + Real(0.61)*qv_mf_arr(mi,mj,mk) - qr_mf_arr(mi,mj,mk);
+                        vfac = one + epsv*qv_mf_arr(mi,mj,mk) - qr_mf_arr(mi,mj,mk);
                     } else {
-                        vfac = one + Real(0.61)*qv_mf_arr(mi,mj,mk);
+                        vfac = one + epsv*qv_mf_arr(mi,mj,mk);
                     }
                     const Real val = T_mf_arr(mi,mj,mk) * vfac;
                     Gpu::deviceReduceSum(&plane_avg[iavg], val, handler);
@@ -1181,9 +1181,9 @@ MOSTAverage::compute_plane_averages (const int& lev)
                     Real u_interp{0};
                     Real v_interp{0};
                     trilinear_interp_T(x_pos_arr(i,j,0), y_pos_arr(i,j,0), z_pos_arr(i,j,0),
-                                            &u_interp, u_mf_arr, z_phys_arr, plo, dxInv, 1);
+                                       &u_interp, u_mf_arr, z_phys_arr, plo, dxInv, 1);
                     trilinear_interp_T(x_pos_arr(i,j,0), y_pos_arr(i,j,0), z_pos_arr(i,j,0),
-                                            &v_interp, v_mf_arr, z_phys_arr, plo, dxInv, 1);
+                                       &v_interp, v_mf_arr, z_phys_arr, plo, dxInv, 1);
                     const Real val = std::sqrt(u_interp*u_interp + v_interp*v_interp + Vsg*Vsg);
                     Gpu::deviceReduceSum(&plane_avg[iavg], val, handler);
                 });
@@ -1395,9 +1395,9 @@ MOSTAverage::compute_region_averages (const int& lev)
                                 Real qr_interp{0};
                                 trilinear_interp_T(x_pos_arr(i,j,0), y_pos_arr(i,j,0), z_pos_arr(i,j,0),
                                                    &qr_interp, qr_mf_arr, z_phys_arr, plo, dxInv, 1);
-                                vfac = one + Real(0.61)*qv_interp - qr_interp;
+                                vfac = one + epsv*qv_interp - qr_interp;
                             } else {
-                                vfac = one + Real(0.61)*qv_interp;
+                                vfac = one + epsv*qv_interp;
                             }
                             const Real mag = T_interp * vfac;
                             const Real val = denom * mag * d_fact_new;
@@ -1423,9 +1423,9 @@ MOSTAverage::compute_region_averages (const int& lev)
                             Real vfac;
                             if (qr_mf_arr) {
                                 // We also have liquid water
-                                vfac = one + Real(0.61)*qv_mf_arr(li,lj,lk) - qr_mf_arr(li,lj,lk);
+                                vfac = one + epsv*qv_mf_arr(li,lj,lk) - qr_mf_arr(li,lj,lk);
                             } else {
-                                vfac = one + Real(0.61)*qv_mf_arr(li,lj,lk);
+                                vfac = one + epsv*qv_mf_arr(li,lj,lk);
                             }
                             const Real mag = T_mf_arr(li,lj,lk) * vfac;
                             const Real val = denom * mag * d_fact_new;
@@ -1853,9 +1853,9 @@ MOSTAverage::compute_eb_averages (const int& lev)
                     Real vfac;
                     if (qr_mf_arr) {
                         // We also have liquid water
-                        vfac = one + Real(0.61)*qv_mf_arr(i,j,k) - qr_mf_arr(i,j,k);
+                        vfac = one + epsv*qv_mf_arr(i,j,k) - qr_mf_arr(i,j,k);
                     } else {
-                        vfac = one + Real(0.61)*qv_mf_arr(i,j,k);
+                        vfac = one + epsv*qv_mf_arr(i,j,k);
                     }
                     const Real val = T_mf_arr(i,j,k) * vfac * area;
                     Gpu::deviceReduceSum(&plane_avg[iavg], val, handler);

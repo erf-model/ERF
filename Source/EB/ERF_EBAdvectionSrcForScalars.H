@@ -258,4 +258,3 @@ EBAdvectionSrcForScalarsVert (const amrex::Box& bx,
         AMREX_ASSERT_WITH_MESSAGE(false, "Unknown vertical advection scheme!");
     }
 }
-
