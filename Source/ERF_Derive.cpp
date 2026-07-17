@@ -223,12 +223,12 @@ erf_dersoundspeed (const Box& bx,
     // NOTE: we compute the soundspeed of dry air -- we do not account for any moisture effects here
     Real qv = Real(0.0);
 
-    ParallelFor(bx, [=,Gamma_d=Gamma] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+    ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
     {
         const Real rhotheta = dat(i, j, k, RhoTheta_comp);
         const Real rho      = dat(i, j, k, Rho_comp);
         AMREX_ALWAYS_ASSERT(rhotheta > 0);
-        cfab(i,j,k) = std::sqrt(Gamma_d * getPgivenRTh(rhotheta,qv) / rho);
+        cfab(i,j,k) = std::sqrt(Gamma * getPgivenRTh(rhotheta,qv) / rho);
     });
 }
 
@@ -432,10 +432,10 @@ erf_dervortz ( const Box& bx,
     const Real dx = geomdata.CellSize(0);
     const Real dy = geomdata.CellSize(2);
 
-    ParallelFor(bx, [=,two_d=two] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+    ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
     {
-        tfab(i,j,k,dcomp) = (dat(i+1,j,k,1) - dat(i-1,j,k,1)) / (two_d*dx)  // dv/dx
-                          - (dat(i,j+1,k,0) - dat(i,j-1,k,0)) / (two_d*dy); // du/dy
+        tfab(i,j,k,dcomp) = (dat(i+1,j,k,1) - dat(i-1,j,k,1)) / (two*dx)  // dv/dx
+                          - (dat(i,j+1,k,0) - dat(i,j-1,k,0)) / (two*dy); // du/dy
     });
 }
 
@@ -668,7 +668,7 @@ erf_derhelicity ( const Box& bx,
     // Collapse to i,j box (ignore vertical for now)
     Box b2d = makeSlab(bx,2,0);
 
-    ParallelFor(b2d, [=,myhalf_d=myhalf,two_d=two] AMREX_GPU_DEVICE(int i, int j, int ) noexcept
+    ParallelFor(b2d, [=] AMREX_GPU_DEVICE(int i, int j, int ) noexcept
     {
         Real int_hel = Real(0.0);
         for (int k = bx.smallEnd(2); k <= bx.bigEnd(2); ++k)
@@ -678,12 +678,12 @@ erf_derhelicity ( const Box& bx,
             // Helicity is defined as integral from 2km to 5km in vertical
             if (z > Real(2000.0) && z < Real(5000.0)) {
 
-                Real z_hi = myhalf_d * (z_arr(i,j,k) + z_arr(i,j,k+1));
-                Real z_lo = myhalf_d * (z_arr(i,j,k) + z_arr(i,j,k-1));
+                Real z_hi = myhalf * (z_arr(i,j,k) + z_arr(i,j,k+1));
+                Real z_lo = myhalf * (z_arr(i,j,k) + z_arr(i,j,k-1));
                 Real dz = z_hi - z_lo;
 
-                Real vortz = (dat(i+1,j,k,1) - dat(i-1,j,k,1)) / (two_d*dx)  // dv/dx
-                           - (dat(i,j+1,k,0) - dat(i,j-1,k,0)) / (two_d*dy); // du/dy
+                Real vortz = (dat(i+1,j,k,1) - dat(i-1,j,k,1)) / (two*dx)  // dv/dx
+                           - (dat(i,j+1,k,0) - dat(i,j-1,k,0)) / (two*dy); // du/dy
                 Real w     = dat(i,j,k,2); // vertical velocity
 
                 int_hel += vortz * w * dz;
@@ -720,14 +720,14 @@ erf_derprecipitable ( const Box& bx,
 
     auto z_arr     = zcc_fab.array(); // cell-centered height z
 
-    ParallelFor(b2d, [=,myhalf_d=myhalf] AMREX_GPU_DEVICE(int i, int j, int) noexcept
+    ParallelFor(b2d, [=] AMREX_GPU_DEVICE(int i, int j, int) noexcept
     {
         Real integral_qv = Real(0.0);
 
         for (int k = 0; k <= bx.bigEnd(2); ++k)
         {
-            Real z_hi = myhalf_d * (z_arr(i,j,k+1) + z_arr(i,j,k));
-            Real z_lo = myhalf_d * (z_arr(i,j,k-1) + z_arr(i,j,k));
+            Real z_hi = myhalf * (z_arr(i,j,k+1) + z_arr(i,j,k));
+            Real z_lo = myhalf * (z_arr(i,j,k-1) + z_arr(i,j,k));
             Real dz = z_hi - z_lo;
 
             Real rhoQ1 = dat(i, j, k, RhoQ1_comp);
@@ -766,7 +766,7 @@ erf_dermucape ( const Box& bx,
     b2d.setSmall(2,0);
     b2d.setBig(2,0);
 
-    ParallelFor(b2d, [=,RdoCp_d=RdoCp,CpoRd_d=CpoRd]
+    ParallelFor(b2d, [=]
                 AMREX_GPU_DEVICE(int i, int j, int) noexcept
     {
         Real mucape = Real(0);
@@ -800,10 +800,10 @@ erf_dermucape ( const Box& bx,
 
                     Real Td_src = mucape_dewpoint_temperature(p_src, qv_src, T_src);
                     Real Tlcl   = mucape_lcl_temperature(T_src, Td_src);
-                    Real plcl   = p_src * std::pow(Tlcl / T_src, CpoRd_d);
+                    Real plcl   = p_src * std::pow(Tlcl / T_src, CpoRd);
                     plcl = amrex::min(p_src, amrex::max(plcl, mucape_min_pressure_pa()));
 
-                    Real theta_src = getThgivenTandP(T_src, p_src, RdoCp_d);
+                    Real theta_src = getThgivenTandP(T_src, p_src, RdoCp);
 
                     Real candidate_cape = Real(0);
                     Real z_prev = z_arr(i,j,ks);
@@ -828,7 +828,7 @@ erf_dermucape ( const Box& bx,
                         Real qv_parcel;
 
                         if (p_env >= plcl) {
-                            T_parcel  = getTgivenPandTh(p_env, theta_src, RdoCp_d);
+                            T_parcel  = getTgivenPandTh(p_env, theta_src, RdoCp);
                             qv_parcel = qv_src;
                         } else {
                             if (!saturated) {

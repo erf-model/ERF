@@ -10,27 +10,27 @@
 
     const Real rdOcp = sc.rdOcp;
 
-    ParallelFor(bx, [=,myhalf_d=myhalf,one_d=one,PI_d=PI,two_d=two,R_d_d=R_d,p_0_d=p_0] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+    ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
     {
         // Geometry (note we must include these here to get the data on device)
         const auto prob_lo = geomdata.ProbLo();
         const auto dx      = geomdata.CellSize();
 
-        const Real x = ( prob_lo[0] + (i + myhalf_d) * dx[0] ) / mf_m(i,j,0);
+        const Real x = ( prob_lo[0] + (i + myhalf) * dx[0] ) / mf_m(i,j,0);
         const Real z = z_cc(i,j,k);
 
         Real L = std::sqrt(
             amrex::Math::powi<2>((x - x_c)/x_r) +
             amrex::Math::powi<2>((z - z_c)/z_r));
 
-        if (L <= one_d)
+        if (L <= one)
         {
-            Real dT = T_pert * (std::cos(PI_d*L) + one_d)/two_d;
-            Real Tbar_hse = p_hse(i,j,k) / (R_d_d * r_hse(i,j,k));
+            Real dT = T_pert * (std::cos(PI*L) + one)/two;
+            Real Tbar_hse = p_hse(i,j,k) / (R_d * r_hse(i,j,k));
 
             // Note: dT is a perturbation in temperature, theta_perturbed is base state + perturbation
-            Real theta_perturbed = (Tbar_hse+dT)*std::pow(p_0_d/p_hse(i,j,k), rdOcp);
-            Real theta_0         = (Tbar_hse   )*std::pow(p_0_d/p_hse(i,j,k), rdOcp);
+            Real theta_perturbed = (Tbar_hse+dT)*std::pow(p_0/p_hse(i,j,k), rdOcp);
+            Real theta_0         = (Tbar_hse   )*std::pow(p_0/p_hse(i,j,k), rdOcp);
 
             if (const_rho) {
                 state_pert(i, j, k, RhoTheta_comp) = r_hse(i,j,k) * (theta_perturbed  - theta_0);

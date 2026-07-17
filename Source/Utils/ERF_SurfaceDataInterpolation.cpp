@@ -109,11 +109,11 @@ ERF::FillSurfaceStateMultiFabs(const int lev,
         const Box gbx = mfi.growntilebox();
         const Array4<Real>& surf_arr = surface_state[lev].array(mfi);
 
-        ParallelFor(gbx, [=,myhalf_d=myhalf] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+        ParallelFor(gbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
 
             if(k == 0) {
-                const Real x        = prob_lo[0] + (i + myhalf_d) * dx[0];
-                const Real y        = prob_lo[1] + (j + myhalf_d) * dx[1];
+                const Real x        = prob_lo[0] + (i + myhalf) * dx[0];
+                const Real y        = prob_lo[1] + (j + myhalf) * dx[1];
 
                 // First interpolate where the weather data is available from
                 Real tmp_ls_mask, tmp_sst;

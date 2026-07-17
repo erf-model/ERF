@@ -12,7 +12,7 @@
         {
             src->setVal(0.0);
         } else {
-            ParallelFor(box, [=,zero_d=zero] AMREX_GPU_DEVICE (int i, int j, int k) {
+            ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
                 const Real z_cc = d_zlevels_arr[k];
                 if (z_cc < cutoff) {
                     src_arr(i, j, k) = advection_heating_rate;
@@ -20,7 +20,7 @@
                     Real slope = -advection_heating_rate / cutoff_transition;
                     src_arr(i, j, k) = (z_cc-cutoff) * slope + advection_heating_rate;
                 } else {
-                    src_arr(i, j, k) = zero_d;
+                    src_arr(i, j, k) = zero;
                 }
             });
         }

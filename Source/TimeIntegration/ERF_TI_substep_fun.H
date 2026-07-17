@@ -200,7 +200,7 @@ auto acoustic_substepping_fun = [&,one_d=one,zero_d=zero](int fast_step, int n_s
                 const Array4<const Real>& cell_data = S_data[IntVars::cons].const_array(mfi);
                 const Array4<      Real>& rho_w     = S_data[IntVars::zmom].array(mfi);
 
-                ParallelFor(tbz, [=,myhalf_d=myhalf,one_d=one] AMREX_GPU_DEVICE (int i, int j, int k)
+                ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k)
                 {
                     Real dzInv;
                     if (z_nd_arr) {
@@ -235,14 +235,14 @@ auto acoustic_substepping_fun = [&,one_d=one,zero_d=zero](int fast_step, int n_s
                     Real dampcoef = (w_damping_const > 0) ? w_damping_const
                                   : w_damping_coeff / (dzInv * dt_adv * dt_adv);
 
-                    Real rho_on_w_face = myhalf_d * ( cell_data(i,j,k,Rho_comp) + cell_data(i,j,k-1,Rho_comp) );
+                    Real rho_on_w_face = myhalf * ( cell_data(i,j,k,Rho_comp) + cell_data(i,j,k-1,Rho_comp) );
                     Real wmag = std::abs(rho_w(i,j,k) / rho_on_w_face);
 
                     // This is the dynamics timestep, not the slow or fast dt
                     Real cflw = wmag * dt_adv * dzInv;
 
                     if (cflw > cflw_lim) {
-                        Real sgn_w = (rho_w(i,j,k) > 0) ? one_d : -one_d;
+                        Real sgn_w = (rho_w(i,j,k) > 0) ? one : -one;
                         rho_w(i, j, k) -= rho_on_w_face * sgn_w * dampcoef * (cflw - cflw_lim) * dt_adv;
                         // Note: These prints are not immediately flushed to screen
 #ifdef AMREX_USE_GPU

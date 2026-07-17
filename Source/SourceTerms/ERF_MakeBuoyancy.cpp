@@ -196,9 +196,9 @@ void make_buoyancy (int lev,
             if ( anelastic && (solverChoice.moisture_type == MoistureType::None) ) {
 
                 if (grav_gpu[2]==0) {
-                    ParallelFor(tbz, [=,zero_d=zero] AMREX_GPU_DEVICE (int i, int j, int k)
+                    ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k)
                     {
-                        buoyancy_fab(i, j, k) = zero_d;
+                        buoyancy_fab(i, j, k) = zero;
                     });
                 } else {
 
@@ -214,9 +214,9 @@ void make_buoyancy (int lev,
             else
             {
                 if (grav_gpu[2]==0) {
-                    ParallelFor(tbz, [=,zero_d=zero] AMREX_GPU_DEVICE (int i, int j, int k)
+                    ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k)
                     {
-                        buoyancy_fab(i, j, k) = zero_d;
+                        buoyancy_fab(i, j, k) = zero;
                     });
                 } else {
                     // Currently, only dry compressible is supported

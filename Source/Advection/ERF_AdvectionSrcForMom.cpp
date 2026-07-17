@@ -111,13 +111,13 @@ AdvectionSrcForMom (const MFIter& mfi,
                                              terrain_type == TerrainType::MovingFittedMesh);
 
     ParallelFor(box2d_u, box2d_v,
-    [=,one_d=one] AMREX_GPU_DEVICE (int i, int j, int) noexcept
+    [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept
     {
-        mf_u_inv(i,j,0) = one_d / mf_ux(i,j,0);
+        mf_u_inv(i,j,0) = one / mf_ux(i,j,0);
     },
-    [=,one_d=one] AMREX_GPU_DEVICE (int i, int j, int) noexcept
+    [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept
     {
-        mf_v_inv(i,j,0) = one_d / mf_vy(i,j,0);
+        mf_v_inv(i,j,0) = one / mf_vy(i,j,0);
     });
 
     if (mesh_type == MeshType::ConstantDz && terrain_type != TerrainType::EB)

@@ -306,9 +306,9 @@ AdvectionSrcForMomWrapper_N (const amrex::Box& bxx, const amrex::Box& bxy, const
     auto dz_ptr = stretched_dz_d.data();
 
     amrex::ParallelFor(bxx,
-    [=,one_d=one] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+    [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
-        auto dzInv = one_d/dz_ptr[k];
+        auto dzInv = one/dz_ptr[k];
         rho_u_rhs(i, j, k) = -AdvectionSrcForXMom_N(i, j, k, rho_u, rho_v, rho_w,
                                                     interp_u_h, interp_u_v,
                                                     mf_ux_inv, mf_uy_inv, mf_vx_inv,
@@ -316,9 +316,9 @@ AdvectionSrcForMomWrapper_N (const amrex::Box& bxx, const amrex::Box& bxy, const
     });
 
     amrex::ParallelFor(bxy,
-    [=,one_d=one] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+    [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
-        auto dzInv = one_d/dz_ptr[k];
+        auto dzInv = one/dz_ptr[k];
         rho_v_rhs(i, j, k) = -AdvectionSrcForYMom_N(i, j, k, rho_u, rho_v, rho_w,
                                                     interp_v_h, interp_v_v,
                                                     mf_uy_inv, mf_vx_inv, mf_vy_inv,
@@ -326,9 +326,9 @@ AdvectionSrcForMomWrapper_N (const amrex::Box& bxx, const amrex::Box& bxy, const
     });
 
     amrex::ParallelFor(bxz,
-    [=,one_d=one,two_d=two] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+    [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
-        auto dzInv = (k == 0) ? one_d / dz_ptr[k] : two_d/(dz_ptr[k] + dz_ptr[k-1]);
+        auto dzInv = (k == 0) ? one / dz_ptr[k] : two/(dz_ptr[k] + dz_ptr[k-1]);
         rho_w_rhs(i, j, k) = -AdvectionSrcForZMom_N(i, j, k, rho_u, rho_v, rho_w, w,
                                                     interp_w_h, interp_w_v, interp_w_wall,
                                                     mf_mx, mf_my, mf_uy_inv, mf_vx_inv,

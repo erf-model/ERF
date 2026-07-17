@@ -115,11 +115,11 @@ NOAHMP::stage_forcing (const MFIter& mfi,
     const int kklo = klo;
 
     // (1) Stage ERF forcing into the pinned buffer (device).
-    ParallelFor(bx, [=,zero_d=zero,myhalf_d=myhalf] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+    ParallelFor(bx, [=,zero_d=zero] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
         Real qv = (is_moist) ? CONS(i,j,k,RhoQ1_comp)/CONS(i,j,k,Rho_comp) : zero_d;
-        noah_input_arr(i,j,0,NoahmpInputComp::u_phy)   = myhalf_d*(U_PHY(i,j,k)+U_PHY(i+1,j,k));
-        noah_input_arr(i,j,0,NoahmpInputComp::v_phy)   = myhalf_d*(V_PHY(i,j,k)+V_PHY(i  ,j+1,k));
+        noah_input_arr(i,j,0,NoahmpInputComp::u_phy)   = myhalf*(U_PHY(i,j,k)+U_PHY(i+1,j,k));
+        noah_input_arr(i,j,0,NoahmpInputComp::v_phy)   = myhalf*(V_PHY(i,j,k)+V_PHY(i  ,j+1,k));
         noah_input_arr(i,j,0,NoahmpInputComp::t_phy)   = getTgivenRandRTh(CONS(i,j,k,Rho_comp),CONS(i,j,k,RhoTheta_comp),qv);
         noah_input_arr(i,j,0,NoahmpInputComp::qv_curr) = qv;
         noah_input_arr(i,j,0,NoahmpInputComp::p8w)     = getPgivenRTh(CONS(i,j,k,RhoTheta_comp),qv);
@@ -273,7 +273,7 @@ NOAHMP::read_results (const MFIter& mfi,
 
     // (6) Copy Noahmp results to ERF (device; from pinned buffer): per-field math
     // (flux ÷rho, -9999 fill guard, sentinels, soil loop), deliberately not table-driven.
-    ParallelFor(gbx, [=,Cp_d_d=Cp_d,L_v_d=L_v,lsm_undefined_d=lsm_undefined]
+    ParallelFor(gbx, [=]
                          AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
         // Limit indices to the valid box. FillBoundary will pick these up below.
@@ -289,15 +289,15 @@ NOAHMP::read_results (const MFIter& mfi,
             // rho for the kinematic MOST form ERF stores. Exner factor on t_flux is
             // omitted to match WRF (<~1% error near surface, ~6-7% at p~800 hPa).
             Real rho_l  = CONS(ii,jj,k,Rho_comp);
-            t_flux_arr(i,j,k) = hfx_lsm/(rho_l*Cp_d_d);
-            q_flux_arr(i,j,k) = noah_output_arr(ii,jj,0,NoahmpOutputComp::lh)/(rho_l*L_v_d);
+            t_flux_arr(i,j,k) = hfx_lsm/(rho_l*Cp_d);
+            q_flux_arr(i,j,k) = noah_output_arr(ii,jj,0,NoahmpOutputComp::lh)/(rho_l*L_v);
             tau13_arr(i,j,k)  = noah_output_arr(ii,jj,0,NoahmpOutputComp::tau_ew)/rho_l;
             tau23_arr(i,j,k)  = noah_output_arr(ii,jj,0,NoahmpOutputComp::tau_ns)/rho_l;
         } else {
-            t_flux_arr(i,j,k) = lsm_undefined_d;
-            q_flux_arr(i,j,k) = lsm_undefined_d;
-            tau13_arr(i,j,k)  = lsm_undefined_d;
-            tau23_arr(i,j,k)  = lsm_undefined_d;
+            t_flux_arr(i,j,k) = lsm_undefined;
+            q_flux_arr(i,j,k) = lsm_undefined;
+            tau13_arr(i,j,k)  = lsm_undefined;
+            tau23_arr(i,j,k)  = lsm_undefined;
         }
 
         // RRTMGP + return-term results: mechanical 1:1 copy from the buffer,
@@ -307,20 +307,20 @@ NOAHMP::read_results (const MFIter& mfi,
             NOAHMP_RESULT_FIELDS(NOAHMP_COPY_RESULT)
 #undef NOAHMP_COPY_RESULT
             // Not computed by this core -> sentinel, not a misleading 0.
-            SMSTAV_o(i,j,0)      = lsm_undefined_d;
-            SMSTOT_o(i,j,0)      = lsm_undefined_d;
+            SMSTAV_o(i,j,0)      = lsm_undefined;
+            SMSTOT_o(i,j,0)      = lsm_undefined;
             for (int s(0); s < n_soil_fld; ++s) {
                 soil_arr[s](i,j,0) = noah_output_arr(ii,jj,0,soil_out_base + s);
             }
         } else {
             // Fill-value cell (sea-ice / open-water): every result is the sentinel.
-#define NOAHMP_UNDEF_RESULT(alias,lsm,out) alias(i,j,0) = lsm_undefined_d;
+#define NOAHMP_UNDEF_RESULT(alias,lsm,out) alias(i,j,0) = lsm_undefined;
             NOAHMP_RESULT_FIELDS(NOAHMP_UNDEF_RESULT)
 #undef NOAHMP_UNDEF_RESULT
-            SMSTAV_o(i,j,0)      = lsm_undefined_d;
-            SMSTOT_o(i,j,0)      = lsm_undefined_d;
+            SMSTAV_o(i,j,0)      = lsm_undefined;
+            SMSTOT_o(i,j,0)      = lsm_undefined;
             for (int s(0); s < n_soil_fld; ++s) {
-                soil_arr[s](i,j,0) = lsm_undefined_d;
+                soil_arr[s](i,j,0) = lsm_undefined;
             }
         }
     });

@@ -231,13 +231,13 @@ SurfaceLayer::update_fluxes (const int& lev,
             const auto& t_star_arr = t_star[lev]->const_array(mfi);
             const auto& dist_arr   = walldist->const_array(mfi);
 
-            ParallelFor(gpbx, [=,CONST_GRAV_d=CONST_GRAV,KAPPA_d=KAPPA,two_d=two,three_d=three] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+            ParallelFor(gpbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
             {
                 Real rho = cons_arr(i,j,k,Rho_comp);
                 if (t_star_arr(i,j,0) < -1e-8) {
                     // Only destabilizing buoyancy flux affects the boundary k
                     // tstar < 0 ==> B > 0
-                    Real B = -CONST_GRAV_d * l_inv_theta0 * u_star_arr(i,j,0) * t_star_arr(i,j,0);
+                    Real B = -CONST_GRAV * l_inv_theta0 * u_star_arr(i,j,0) * t_star_arr(i,j,0);
                     if (!use_ref_theta) {
                         B *= cons_arr(i,j,k,Rho_comp) /
                              cons_arr(i,j,k,RhoTheta_comp);
@@ -247,8 +247,8 @@ SurfaceLayer::update_fluxes (const int& lev,
                     cons_arr(i,j,k,RhoKE_comp) = rho * l_inv_Cmu2 *
                         std::pow(
                             u_star_arr(i,j,0) * u_star_arr(i,j,0) * u_star_arr(i,j,0)
-                            + KAPPA_d * B * dist_arr(i,j,k),
-                        two_d/three_d);
+                            + KAPPA * B * dist_arr(i,j,k),
+                        two/three);
                 } else {
                     cons_arr(i,j,k,RhoKE_comp) = rho * l_inv_Cmu2 * u_star_arr(i,j,0) * u_star_arr(i,j,0);
                 }
@@ -572,14 +572,14 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
         Box bx = mfi.tilebox();
         if (bx.smallEnd(2) != klo) { continue; }
         bx.makeSlab(2,klo);
-        ParallelFor(bx, [=,lsm_undefined_d=lsm_undefined] AMREX_GPU_DEVICE (int i, int j, int k)
+        ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
             // Valid theta flux from LSM and over land. The LSM writes the
             // lsm_undefined sentinel for cells it did not process (sea-ice /
             // open water); fall back to MOST there instead of applying garbage.
             Real Tflux;
             int is_land = (lmask_arr) ? lmask_arr(i,j,0) : 1;
-            const bool lsm_flux_is_valid = (lsm_t_flux_arr) ? (lsm_t_flux_arr(i,j,0) < lsm_undefined_d) :
+            const bool lsm_flux_is_valid = (lsm_t_flux_arr) ? (lsm_t_flux_arr(i,j,0) < lsm_undefined) :
                                                               false;
             const bool has_land_and_flux = (static_cast<bool>(is_land) && lsm_flux_is_valid);
             if (lsm_t_flux_arr && has_land_and_flux) {
@@ -613,12 +613,12 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
         // Rho*Qv flux
         //============================================================================
         if (use_moisture) {
-            ParallelFor(bx, [=,lsm_undefined_d=lsm_undefined] AMREX_GPU_DEVICE (int i, int j, int k)
+            ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
             {
                 // Valid qv flux from LSM and over land (sentinel -> fall back to MOST)
                 Real Qflux;
                 int is_land = (lmask_arr) ? lmask_arr(i,j,0) : 1;
-                const bool lsm_flux_is_valid = (lsm_q_flux_arr) ? (lsm_q_flux_arr(i,j,0) < lsm_undefined_d) :
+                const bool lsm_flux_is_valid = (lsm_q_flux_arr) ? (lsm_q_flux_arr(i,j,0) < lsm_undefined) :
                                                                   false;
                 const bool has_land_and_flux = (static_cast<bool>(is_land) && lsm_flux_is_valid);
                 if (lsm_q_flux_arr && has_land_and_flux) {
@@ -649,7 +649,7 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
             // Rho*u flux
             //============================================================================
             Box bxx = surroundingNodes(bx,0);
-            ParallelFor(bxx, [=,zero_d=zero,lsm_undefined_d=lsm_undefined] AMREX_GPU_DEVICE (int i, int j, int k)
+            ParallelFor(bxx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
             {
                 // Valid tau13 from LSM and over land. A side that is land but
                 // whose LSM flux is the sentinel (sea-ice / open water) is treated
@@ -659,10 +659,10 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
                 int is_land_lo = (lmask_arr) ? lmask_arr(i-1,j,0) : 1;
                 const bool lsm_hi_flux_is_valid = surface_layer_stress::lsm_flux_is_valid(
                     static_cast<bool>(lsm_tau13_arr), static_cast<bool>(is_land_hi),
-                    lsm_tau13_arr ? lsm_tau13_arr(i  ,j,0) : zero_d, lsm_undefined_d);
+                    lsm_tau13_arr ? lsm_tau13_arr(i  ,j,0) : zero, lsm_undefined);
                 const bool lsm_lo_flux_is_valid = surface_layer_stress::lsm_flux_is_valid(
                     static_cast<bool>(lsm_tau13_arr), static_cast<bool>(is_land_lo),
-                    lsm_tau13_arr ? lsm_tau13_arr(i-1,j,0) : zero_d, lsm_undefined_d);
+                    lsm_tau13_arr ? lsm_tau13_arr(i-1,j,0) : zero, lsm_undefined);
                 const bool has_land_and_flux_hi = (static_cast<bool>(is_land_hi) && lsm_hi_flux_is_valid);
                 const bool has_land_and_flux_lo = (static_cast<bool>(is_land_lo) && lsm_lo_flux_is_valid);
                 if (lsm_tau13_arr && (has_land_and_flux_hi || has_land_and_flux_lo)) {
@@ -671,7 +671,7 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
                     const Real most_stress = (!has_land_and_flux_hi || !has_land_and_flux_lo) ?
                         flux_comp.compute_u_flux(i, j, k,
                                                  cons_arr, velx_arr, vely_arr,
-                                                 umm_arr, um_arr, u_star_arr) : zero_d;
+                                                 umm_arr, um_arr, u_star_arr) : zero;
                     const auto result = surface_layer_stress::combine_lsm_and_most_stress(
                         rho_lo, rho_hi, lsm_tau13_arr(i-1,j,0), lsm_tau13_arr(i,j,0),
                         has_land_and_flux_lo, has_land_and_flux_hi, most_stress);
@@ -700,7 +700,7 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
             // Rho*v flux
             //============================================================================
             Box bxy = surroundingNodes(bx,1);
-            ParallelFor(bxy, [=,zero_d=zero,lsm_undefined_d=lsm_undefined] AMREX_GPU_DEVICE (int i, int j, int k)
+            ParallelFor(bxy, [=] AMREX_GPU_DEVICE (int i, int j, int k)
             {
                 // Valid tau23 from LSM and over land (sentinel side -> MOST stress)
                 Real stressy;
@@ -708,10 +708,10 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
                 int is_land_lo = (lmask_arr) ? lmask_arr(i,j-1,0) : 1;
                 const bool lsm_hi_flux_is_valid = surface_layer_stress::lsm_flux_is_valid(
                     static_cast<bool>(lsm_tau23_arr), static_cast<bool>(is_land_hi),
-                    lsm_tau23_arr ? lsm_tau23_arr(i,j  ,0) : zero_d, lsm_undefined_d);
+                    lsm_tau23_arr ? lsm_tau23_arr(i,j  ,0) : zero, lsm_undefined);
                 const bool lsm_lo_flux_is_valid = surface_layer_stress::lsm_flux_is_valid(
                     static_cast<bool>(lsm_tau23_arr), static_cast<bool>(is_land_lo),
-                    lsm_tau23_arr ? lsm_tau23_arr(i,j-1,0) : zero_d, lsm_undefined_d);
+                    lsm_tau23_arr ? lsm_tau23_arr(i,j-1,0) : zero, lsm_undefined);
                 const bool has_land_and_flux_hi = (static_cast<bool>(is_land_hi) && lsm_hi_flux_is_valid);
                 const bool has_land_and_flux_lo = (static_cast<bool>(is_land_lo) && lsm_lo_flux_is_valid);
                 if (lsm_tau23_arr && (has_land_and_flux_hi || has_land_and_flux_lo)) {
@@ -720,7 +720,7 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
                     const Real most_stress = (!has_land_and_flux_hi || !has_land_and_flux_lo) ?
                         flux_comp.compute_v_flux(i, j, k,
                                                  cons_arr, velx_arr, vely_arr,
-                                                 umm_arr, vm_arr, u_star_arr) : zero_d;
+                                                 umm_arr, vm_arr, u_star_arr) : zero;
                     const auto result = surface_layer_stress::combine_lsm_and_most_stress(
                         rho_lo, rho_hi, lsm_tau23_arr(i,j-1,0), lsm_tau23_arr(i,j,0),
                         has_land_and_flux_lo, has_land_and_flux_hi, most_stress);
