@@ -41,14 +41,19 @@ The unified fields are:
      - Numeric code identifying the source selected for the unified bundle
      - 1
 
-ERF chooses one complete source bundle per horizontal cell. It never combines
-a Noah-MP temperature with MOST humidity, or MOST temperature with Noah-MP
-humidity.
+ERF chooses one coherent source for the fields requested in a plotfile stream.
+It never combines a Noah-MP temperature with MOST humidity, or MOST
+temperature with Noah-MP humidity. Selection is request-aware: temperature
+needs the two native temperature tiles and ``f_v``; humidity needs the two
+native humidity tiles, ``f_v``, and a moist run; requesting both needs all five
+native fields. A source-only request follows the temperature path, including
+in a dry run.
 
-1. A valid native Noah-MP bundle is preferred.
-2. If any required native component is invalid, ERF evaluates both fields from
-   the active SurfaceLayer MOST state when that state is valid.
-3. If neither source produces a valid value, ERF writes ``-999``.
+1. A valid native source for every requested field is preferred.
+2. If the required native fields are invalid or incomplete, ERF evaluates all
+   requested fields from one active SurfaceLayer MOST state when valid.
+3. If neither source can satisfy the request, continuous fields are ``-999``
+   and the categorical source code is ``0``.
 
 Native Noah-MP aggregation
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -65,9 +70,11 @@ Let :math:`f_v` be the Noah-MP vegetation fraction. The grid-cell values are
 
 The ERF Noah-MP transfer routine already converts the native specific
 humidities to mixing ratios using :math:`r_v=q/(1-q)`. ERF therefore does not
-apply a second conversion. The native bundle is accepted only when all five
-components are finite, outside the provider fill range, :math:`0\leq f_v\leq1`,
-and both mixing ratios are nonnegative.
+apply a second conversion. Native temperature and humidity requests validate
+only their required tile pair and ``f_v``. Temperature must be finite, outside
+the provider fill range, and positive; requested mixing ratios must be finite,
+outside the fill range, and nonnegative; and :math:`0\leq f_v\leq1`. Valid
+zero and signed physical values are preserved.
 
 MOST fallback
 ~~~~~~~~~~~~~
@@ -85,24 +92,28 @@ SurfaceLayer implementation. At height :math:`z`:
    r_v(z)-r_{v,0} = \frac{r_{v,*}}{\kappa}
    \left[\ln\left(\frac{z}{z_0}\right)-\Psi_h\left(\frac{z}{L}\right)\right].
 
-For these diagnostics, :math:`z=2` m above the local surface. ERF converts the
-resulting potential temperature with the EOS helpers. Pressure is reconstructed
-from the lowest atmospheric cell using
+For these diagnostics, :math:`z=2` m above the local surface. ERF evaluates
+the temperature and humidity scalar profiles with the current SurfaceLayer
+similarity function. Temperature is converted from potential temperature with
+the EOS helpers. Pressure is reconstructed from the lowest atmospheric cell
+only when temperature is requested, using
 
 .. math::
 
    p_2 = p_{cc}+\rho_{cc}g\left(z_{cc}^{AGL}-2\,\mathrm{m}\right).
 
 This is a local first-order hydrostatic reconstruction. Invalid profile inputs,
-pressure, or output values produce ``-999``; they are not silently clamped.
-The implementation reuses the active SurfaceLayer similarity function described
-in :ref:`sec:surface_layer`.
+pressure, or output values produce ``-999``; they are not silently clamped. A
+humidity-only request does not require pressure reconstruction. The
+implementation reuses the active SurfaceLayer similarity function described in
+:ref:`sec:surface_layer`.
 
 Source codes
 ------------
 
 ``near_surface_diagnostic_source`` uses the stable convention already used by
-``surface_diagnostic_source``:
+``surface_diagnostic_source``. It is categorical and always available; missing
+is ``0`` rather than the continuous ``-999`` fill:
 
 .. list-table::
    :header-rows: 1
@@ -173,7 +184,9 @@ When Noah-MP is active, the catalog also exposes the stored provider fields,
 including ``t_sfc``, ``sfc_emis``, the direct and diffuse visible/NIR albedos,
 ``cos_zenith_angle``, the shortwave and longwave downwelling fields, ``grdflx``,
 ``fira``, ``sav``, ``sag``, ``albedo``, ``sfcrunoff``, and ``udrunoff``. These
-are provider values and are not reconstructed from MOST.
+are provider values and are not reconstructed from MOST. Raw fields remain
+missing when Noah-MP has not produced a valid provider value; MOST is used only
+for the unified fields.
 
 Dynamic soil layers
 -------------------
@@ -197,7 +210,7 @@ Timing and limitations
 ----------------------
 
 The unified fields are assembled when each primary 2-D plotfile is written,
-using the current level's native LSM fields, SurfaceLayer state, source mask,
+using the latest level's native LSM fields, SurfaceLayer state, source mask,
 land mask, and lowest-cell atmospheric state. They are not checkpoint fields
 and do not alter surface-flux updates. The native path adds five persistent
 one-component 2-D fields per active level; those fields are interpolated and

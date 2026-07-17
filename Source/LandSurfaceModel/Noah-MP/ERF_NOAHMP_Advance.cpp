@@ -312,10 +312,12 @@ NOAHMP::read_results (const MFIter& mfi,
         int jj = std::min(std::max(j,j_lo),j_hi);
 
         // Noah-MP returns -9999 for cells it does not process (sea-ice/open-water);
-        // detect it and write lsm_undefined so the surface layer falls back to MOST.
-        // tau13/tau23 are nodal in xz/yz; the 2D MFs carry 1 ghost cell for averaging.
-        Real hfx_lsm = noah_output_arr(ii,jj,0,NoahmpOutputComp::hfx);
-        if (hfx_lsm > Real(-9990.0)) {
+        // HFX is Noah-MP's processed-cell gate; it is not a statement that
+        // every physical output is valid. tau13/tau23 are nodal in xz/yz;
+        // the 2D MFs carry 1 ghost cell for averaging.
+        const Real hfx_lsm = noah_output_arr(ii,jj,0,NoahmpOutputComp::hfx);
+        const bool noah_cell_processed = noahmp_result_is_valid(hfx_lsm);
+        if (noah_cell_processed) {
             // Noah-MP returns HFX,LH [W/m2] and TAU [N/m2] (rho included); divide by
             // rho for the kinematic MOST form ERF stores. Exner factor on t_flux is
             // omitted to match WRF (<~1% error near surface, ~6-7% at p~800 hPa).
@@ -331,8 +333,9 @@ NOAHMP::read_results (const MFIter& mfi,
             tau23_arr(i,j,k)  = lsm_undefined_d;
         }
 
-        // Store each provider field independently. HFX is not a validity gate:
-        // option-dependent diagnostics can be valid even when HFX is absent.
+        // Processed cells retain field-specific validity checks. Unprocessed
+        // cells invalidate the complete provider result set.
+        if (noah_cell_processed) {
 #define NOAHMP_COPY_RESULT(alias,lsm,out)                                      \
         {                                                                       \
             const Real value = noah_output_arr(ii,jj,0,NoahmpOutputComp::out);  \
@@ -341,12 +344,22 @@ NOAHMP::read_results (const MFIter& mfi,
         }
         NOAHMP_RESULT_FIELDS(NOAHMP_COPY_RESULT)
 #undef NOAHMP_COPY_RESULT
-        // Not computed by this core -> sentinel, not a misleading zero.
-        SMSTAV_o(i,j,0) = lsm_undefined_d;
-        SMSTOT_o(i,j,0) = lsm_undefined_d;
-        for (int s(0); s < n_soil_fld; ++s) {
-            const Real value = noah_output_arr(ii,jj,0,soil_out_base + s);
-            soil_arr[s](i,j,0) = noahmp_result_is_valid(value) ? value : lsm_undefined_d;
+            // Not computed by this core -> sentinel, not a misleading 0.
+            SMSTAV_o(i,j,0) = lsm_undefined_d;
+            SMSTOT_o(i,j,0) = lsm_undefined_d;
+            for (int s(0); s < n_soil_fld; ++s) {
+                const Real value = noah_output_arr(ii,jj,0,soil_out_base + s);
+                soil_arr[s](i,j,0) = noahmp_result_is_valid(value) ? value : lsm_undefined_d;
+            }
+        } else {
+#define NOAHMP_UNDEF_RESULT(alias,lsm,out) alias(i,j,0) = lsm_undefined_d;
+            NOAHMP_RESULT_FIELDS(NOAHMP_UNDEF_RESULT)
+#undef NOAHMP_UNDEF_RESULT
+            SMSTAV_o(i,j,0) = lsm_undefined_d;
+            SMSTOT_o(i,j,0) = lsm_undefined_d;
+            for (int s(0); s < n_soil_fld; ++s) {
+                soil_arr[s](i,j,0) = lsm_undefined_d;
+            }
         }
     });
     // The scatter kernel reads soil_arr_d; sync before it is destroyed.

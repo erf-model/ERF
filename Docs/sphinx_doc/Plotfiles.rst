@@ -753,6 +753,14 @@ stream. ERF writes built-in variables first. It writes selected built-in
 variables in the catalog order shown below, not in input order. ERF then appends
 sampled-level variables in level-set order, target-value order, and field order.
 
+The unified land-surface diagnostics ``temperature_2m``,
+``water_vapor_mixing_ratio_2m``, and ``near_surface_diagnostic_source`` are
+documented in :ref:`sec:LandSurfaceDiagnostics`. Their source selection is
+request-aware and cell-local: native Noah-MP fields are preferred when the
+requested bundle is valid, then the active SurfaceLayer MOST state is used.
+Continuous unavailable values are ``-999``; the source mask is categorical,
+with ``0`` meaning missing. Raw Noah-MP fields are never filled from MOST.
+
 Built-In 2D Diagnostic Catalog
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 

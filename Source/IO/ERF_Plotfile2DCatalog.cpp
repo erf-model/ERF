@@ -53,7 +53,7 @@ const amrex::Vector<DiagnosticDescriptor>& catalog_storage ()
         {DiagnosticID::SurfaceDiagnosticSource,
                                          "surface_diagnostic_source",
                                                         "Surface diagnostic source code",
-                                                        "1",         DiagnosticCategory::SurfaceLayer,    MissingPolicy::FillMinus999WhenUnavailable},
+                                                        "1",         DiagnosticCategory::SurfaceLayer,    MissingPolicy::AlwaysAvailable},
         {DiagnosticID::SensibleHeatFlux,"sensible_heat_flux","Surface sensible heat flux",                  "W m^-2",    DiagnosticCategory::SurfaceFlux,     MissingPolicy::FillMinus999WhenUnavailable},
         {DiagnosticID::LatentHeatFlux,  "latent_heat_flux","Surface latent heat flux",                    "W m^-2",    DiagnosticCategory::SurfaceFlux,     MissingPolicy::FillMinus999WhenUnavailable},
         {DiagnosticID::ShocUStar,      "shoc_u_star",  "Native SHOC friction velocity diagnostic",        "m/s",       DiagnosticCategory::PBL,             MissingPolicy::FillMinus999WhenUnavailable},
@@ -86,7 +86,7 @@ const amrex::Vector<DiagnosticDescriptor>& catalog_storage ()
         {DiagnosticID::NoahmpVegetationFraction, "noahmp_vegetation_fraction", "Noah-MP vegetation fraction", "1", DiagnosticCategory::LandSurface, MissingPolicy::FillMinus999WhenUnavailable},
         {DiagnosticID::Temperature2m, "temperature_2m", "Physical air temperature 2 m above the local surface", "K", DiagnosticCategory::LandSurface, MissingPolicy::FillMinus999WhenUnavailable},
         {DiagnosticID::WaterVaporMixingRatio2m, "water_vapor_mixing_ratio_2m", "Water-vapor mixing ratio 2 m above the local surface per unit dry-air mass", "kg kg^-1 dry air", DiagnosticCategory::LandSurface, MissingPolicy::FillMinus999WhenUnavailable},
-        {DiagnosticID::NearSurfaceDiagnosticSource, "near_surface_diagnostic_source", "Source code for the unified near-surface diagnostic bundle", "1", DiagnosticCategory::LandSurface, MissingPolicy::FillMinus999WhenUnavailable},
+        {DiagnosticID::NearSurfaceDiagnosticSource, "near_surface_diagnostic_source", "Source code for the unified near-surface diagnostic bundle", "1", DiagnosticCategory::LandSurface, MissingPolicy::AlwaysAvailable},
     };
 
     return catalog;

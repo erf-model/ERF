@@ -38,6 +38,17 @@ in the **namelist.erf** file, may be set larger than the ERF timestep to allow s
 in time. For example, if an 4s timestep is utilized for ERF and a 40s timestep is utilized for
 Noah-MP, then Noah-MP will be updated every 10 steps.
 
+The latest completed Noah-MP exchange supplies the raw land-surface fields and
+the five native 2-m fields used by the unified 2-D diagnostics. The native
+temperature fields are in K and the humidity fields are water-vapor mixing
+ratios per unit dry-air mass; the transfer layer performs the Noah-MP
+specific-humidity conversion. A cell is considered processed only when the
+Noah-MP ``HFX`` result passes its processed-cell gate. Within processed cells,
+individual fields retain their own validity checks; unprocessed cells receive
+the ERF land-surface undefined sentinel. MOST fallback is limited to the
+unified 2-m diagnostics and does not populate raw Noah-MP outputs or change
+prognostic state or surface fluxes.
+
 Files Overview
 --------------
 

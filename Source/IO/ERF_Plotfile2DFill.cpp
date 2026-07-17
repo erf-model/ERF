@@ -10,6 +10,9 @@ using namespace amrex;
 namespace plotfile2d
 {
 
+namespace
+{
+
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 bool
 is_valid_land_surface_value (Real value) noexcept
@@ -19,6 +22,8 @@ is_valid_land_surface_value (Real value) noexcept
     return std::isfinite(value) && value > Real(-9990.0) &&
            value < Real(0.5) * lsm_undefined;
 }
+
+} // namespace
 
 void
 fill_component_with_value (MultiFab& dst, int dst_comp, Real value)

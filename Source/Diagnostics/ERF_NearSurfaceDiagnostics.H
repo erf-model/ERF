@@ -58,17 +58,50 @@ bool valid_noahmp_component (amrex::Real value) noexcept
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+bool native_bundle_temperature_is_valid (const NativeBundle& bundle) noexcept;
+
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+bool native_bundle_mixing_ratio_is_valid (const NativeBundle& bundle) noexcept;
+
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+bool native_bundle_vegetation_fraction_is_valid (const NativeBundle& bundle) noexcept;
+
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 bool native_bundle_is_valid (const NativeBundle& bundle) noexcept
+{
+    return native_bundle_temperature_is_valid(bundle) &&
+           native_bundle_mixing_ratio_is_valid(bundle) &&
+           native_bundle_vegetation_fraction_is_valid(bundle);
+}
+
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+bool native_bundle_temperature_is_valid (const NativeBundle& bundle) noexcept
 {
     return valid_noahmp_component(bundle.temperature_vegetated) &&
            valid_noahmp_component(bundle.temperature_bare) &&
-           valid_noahmp_component(bundle.mixing_ratio_vegetated) &&
-           valid_noahmp_component(bundle.mixing_ratio_bare) &&
-           valid_noahmp_component(bundle.vegetation_fraction) &&
            bundle.temperature_vegetated > amrex::Real(0.0) &&
            bundle.temperature_bare > amrex::Real(0.0) &&
+           valid_noahmp_component(bundle.vegetation_fraction) &&
+           bundle.vegetation_fraction >= amrex::Real(0.0) &&
+           bundle.vegetation_fraction <= amrex::Real(1.0);
+}
+
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+bool native_bundle_mixing_ratio_is_valid (const NativeBundle& bundle) noexcept
+{
+    return valid_noahmp_component(bundle.mixing_ratio_vegetated) &&
+           valid_noahmp_component(bundle.mixing_ratio_bare) &&
+           valid_noahmp_component(bundle.vegetation_fraction) &&
            bundle.mixing_ratio_vegetated >= amrex::Real(0.0) &&
            bundle.mixing_ratio_bare >= amrex::Real(0.0) &&
+           bundle.vegetation_fraction >= amrex::Real(0.0) &&
+           bundle.vegetation_fraction <= amrex::Real(1.0);
+}
+
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+bool native_bundle_vegetation_fraction_is_valid (const NativeBundle& bundle) noexcept
+{
+    return valid_noahmp_component(bundle.vegetation_fraction) &&
            bundle.vegetation_fraction >= amrex::Real(0.0) &&
            bundle.vegetation_fraction <= amrex::Real(1.0);
 }
@@ -110,6 +143,24 @@ bool evaluate_most_profile (const MostState& state,
            valid_real(profile.mixing_ratio) &&
            profile.potential_temperature > amrex::Real(0.0) &&
            profile.mixing_ratio >= amrex::Real(0.0);
+}
+
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+bool evaluate_most_factor (const MostState& state,
+                           amrex::Real height,
+                           amrex::Real& factor) noexcept
+{
+    if (!valid_real(state.roughness_height) ||
+        !valid_real(state.obukhov_length) ||
+        state.roughness_height <= amrex::Real(0.0) ||
+        height <= state.roughness_height ||
+        state.obukhov_length == amrex::Real(0.0)) {
+        return false;
+    }
+    const similarity_funs sfuns;
+    factor = std::log(height / state.roughness_height) -
+             sfuns.calc_psi_h(height / state.obukhov_length);
+    return valid_real(factor);
 }
 
 struct Sources

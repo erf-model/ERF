@@ -487,7 +487,7 @@ ERF::Write2DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
             plotfile2d::fill_component_from_klevel_or_value(
                 mf[lev], mf_comp,
                 m_SurfaceLayer ? m_SurfaceLayer->get_surface_diagnostic_source(lev) : nullptr,
-                0, -999);
+                0, 0);
             mf_comp++;
         } // surface_diagnostic_source
 
