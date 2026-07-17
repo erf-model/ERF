@@ -389,7 +389,7 @@ void SuperDropletPC::SetAttributes (MultiFab& a_rhoc /*!< mass density of conden
     {
         auto condensate_mass_density = a_rhoc[grid].array();
 
-        ParallelForRNG(np, [=,zero_d=zero,four_thirds_pi_d=four_thirds_pi] AMREX_GPU_DEVICE (int i, const RandomEngine& rnd_engine)
+        ParallelForRNG(np, [=] AMREX_GPU_DEVICE (int i, const RandomEngine& rnd_engine)
         {
             ParticleType& p = p_pbox[i];
             if (p.id() <= 0) { return; }
@@ -401,14 +401,14 @@ void SuperDropletPC::SetAttributes (MultiFab& a_rhoc /*!< mass density of conden
             Real mult_rnd = static_cast<Real>(-ptrs.mult_ptr[i]/3 + 2*ptrs.mult_ptr[i]/3*Random(rnd_engine));
             ptrs.mult_ptr[i] += mult_rnd;
 
-            ParticleReal species_mass_total = zero_d;
+            ParticleReal species_mass_total = zero;
             for (int ctr = 0; ctr < num_sp; ctr++) {
                 if (ctr != idx_w) {
                     species_mass_total += ptrs.sp_mass_ptrs[ctr][np];
                 }
             }
 
-            ParticleReal aerosol_mass_total = zero_d;
+            ParticleReal aerosol_mass_total = zero;
             for (int ctr = 0; ctr < num_ae; ctr++) {
                 aerosol_mass_total += ptrs.ae_mass_ptrs[ctr][np];
             }
@@ -416,8 +416,8 @@ void SuperDropletPC::SetAttributes (MultiFab& a_rhoc /*!< mass density of conden
             const Real mass_particle = static_cast<Real>(mass_condensate_sd / ptrs.mult_ptr[i] + aerosol_mass_total + species_mass_total);
             ptrs.mass_ptr[i] = mass_particle;
 
-            Real radius_cubed = mass_particle / (four_thirds_pi_d*rho_w);
-            Real radius = (radius_cubed == zero_d ? zero_d : std::cbrt(radius_cubed));
+            Real radius_cubed = mass_particle / (four_thirds_pi*rho_w);
+            Real radius = (radius_cubed == zero ? zero : std::cbrt(radius_cubed));
             ptrs.radius_ptr[i] = radius;
         });
     }); // end forEachParticleTile

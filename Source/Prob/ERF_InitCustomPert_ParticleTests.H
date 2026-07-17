@@ -8,26 +8,26 @@
   // Overridden physical constants
   Real C_p = amrex::Real(1004.0);
 
-  ParallelFor(bx, [=,myhalf_d=myhalf,R_d_d=R_d,one_d=one,PI_d=PI,two_d=two,p_0_d=p_0] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+  ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
   {
     // Geometry (note we must include these here to get the data on device)
     const auto prob_lo  = geomdata.ProbLo();
     const auto dx       = geomdata.CellSize();
-    const Real x = prob_lo[0] + (i + myhalf_d) * dx[0];
+    const Real x = prob_lo[0] + (i + myhalf) * dx[0];
     const Real z = z_cc(i,j,k);
 
     // Temperature that satisfies the EOS given the hydrostatically balanced (r,p)
-    const Real Tbar_hse = p_hse(i,j,k) / (R_d_d * r_hse(i,j,k));
+    const Real Tbar_hse = p_hse(i,j,k) / (R_d * r_hse(i,j,k));
 
     Real L = std::sqrt(
         amrex::Math::powi<2>((x - x_c)/x_r) +
         amrex::Math::powi<2>((z - z_c)/z_r)
     );
-    if (L <= one_d) {
-        Real dT = T_pert * (std::cos(PI_d*L) + one_d)/two_d;
+    if (L <= one) {
+        Real dT = T_pert * (std::cos(PI*L) + one)/two;
 
         // Note: dT is a temperature perturbation, theta_perturbed is base state + perturbation in theta
-        Real theta_perturbed = (Tbar_hse+dT)*std::pow(p_0_d/p_hse(i,j,k), R_d_d/C_p);
+        Real theta_perturbed = (Tbar_hse+dT)*std::pow(p_0/p_hse(i,j,k), R_d/C_p);
 
         // This version perturbs rho but not p
         state_pert(i, j, k, Rho_comp) = getRhoThetagivenP(p_hse(i,j,k)) / theta_perturbed - r_hse(i,j,k);

@@ -178,12 +178,12 @@ ERF::FillForecastStateMultiFabs(const int lev,
         const auto dx       = geom[lev].CellSizeArray();
        //const Box &gtbz = mfi.tilebox(IntVect(0,0,1));
 
-        ParallelFor(gbx, [=,myhalf_d=myhalf,two_d=two,zero_d=zero] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+        ParallelFor(gbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
             // Geometry (note we must include these here to get the data on device)
-            const Real x        = prob_lo[0] + (i + myhalf_d) * dx[0];
-            const Real y        = prob_lo[1] + (j + myhalf_d) * dx[1];
+            const Real x        = prob_lo[0] + (i + myhalf) * dx[0];
+            const Real y        = prob_lo[1] + (j + myhalf) * dx[1];
             //const Real z        = prob_lo[2] + (k + myhalf) * dx[2];
-            const Real z = (z_arr(i,j,k) + z_arr(i,j,k+1))/two_d;
+            const Real z = (z_arr(i,j,k) + z_arr(i,j,k+1))/two;
 
             // First interpolate where the weather data is available from
             Real tmp_rho, tmp_theta, tmp_qv, tmp_qc, tmp_qr, tmp_lat, tmp_lon;
@@ -220,13 +220,13 @@ ERF::FillForecastStateMultiFabs(const int lev,
             bilinear_interpolation(xvec_d_ptr, yvec_d_ptr, zvec_d_ptr,
                                    dxvec, dyvec,
                                    nx, ny, 1,
-                                   x, y, zero_d,
+                                   x, y, zero,
                                    latvec_d_ptr, tmp_lat);
 
             bilinear_interpolation(xvec_d_ptr, yvec_d_ptr, zvec_d_ptr,
                                    dxvec, dyvec,
                                    nx, ny, 1,
-                                   x, y, zero_d,
+                                   x, y, zero,
                                    lonvec_d_ptr, tmp_lon);
 
             fine_cons_arr(i,j,k,Rho_comp) = tmp_rho;
@@ -235,12 +235,12 @@ ERF::FillForecastStateMultiFabs(const int lev,
         });
 
         ParallelFor(gtbx, gtby, gtbz,
-        [=,myhalf_d=myhalf,two_d=two] AMREX_GPU_DEVICE(int i, int j, int k) {
+        [=] AMREX_GPU_DEVICE(int i, int j, int k) {
              // Physical location of the fine node
             Real x = prob_lo_erf[0] + i       * dx_erf[0];
-            Real y = prob_lo_erf[1] + (j+myhalf_d) * dx_erf[1];
+            Real y = prob_lo_erf[1] + (j+myhalf) * dx_erf[1];
             //Real z = prob_lo_erf[2] + (k+myhalf) * dx_erf[2];
-            const Real z = (z_arr(i,j,k) + z_arr(i,j,k+1))/two_d;
+            const Real z = (z_arr(i,j,k) + z_arr(i,j,k+1))/two;
 
             Real tmp_uvel;
             bilinear_interpolation(xvec_d_ptr, yvec_d_ptr, zvec_d_ptr,
@@ -251,12 +251,12 @@ ERF::FillForecastStateMultiFabs(const int lev,
 
             fine_xvel_arr(i, j, k, 0) = tmp_uvel;
         },
-        [=,myhalf_d=myhalf,two_d=two] AMREX_GPU_DEVICE(int i, int j, int k) {
+        [=] AMREX_GPU_DEVICE(int i, int j, int k) {
              // Physical location of the fine node
-            Real x = prob_lo_erf[0] + (i+myhalf_d) * dx_erf[0];
+            Real x = prob_lo_erf[0] + (i+myhalf) * dx_erf[0];
             Real y = prob_lo_erf[1] + j       * dx_erf[1];
             //Real z = prob_lo_erf[2] + (k+myhalf) * dx_erf[2];
-            const Real z = (z_arr(i,j,k) + z_arr(i,j,k+1))/two_d;
+            const Real z = (z_arr(i,j,k) + z_arr(i,j,k+1))/two;
 
             Real tmp_vvel;
             bilinear_interpolation(xvec_d_ptr, yvec_d_ptr, zvec_d_ptr,
@@ -267,10 +267,10 @@ ERF::FillForecastStateMultiFabs(const int lev,
 
             fine_yvel_arr(i, j, k, 0) = tmp_vvel;
         },
-        [=,myhalf_d=myhalf] AMREX_GPU_DEVICE(int i, int j, int k) {
+        [=] AMREX_GPU_DEVICE(int i, int j, int k) {
              // Physical location of the fine node
-            Real x = prob_lo_erf[0] + (i+myhalf_d) * dx_erf[0];
-            Real y = prob_lo_erf[1] + (j+myhalf_d) * dx_erf[1];
+            Real x = prob_lo_erf[0] + (i+myhalf) * dx_erf[0];
+            Real y = prob_lo_erf[1] + (j+myhalf) * dx_erf[1];
             Real z = prob_lo_erf[2] + k       * dx_erf[2];
             //const Real z = (z_arr(i,j,k) + z_arr(i,j,k+1))/two;
 

@@ -663,7 +663,7 @@ void SuperDropletPC::ComputeBinnedDistributionsCell( const int a_iter,
         varnames[n] = std::string(r_str);
 
         ParticleToMesh( *this, m_mass_ln_R_mf, a_lev,
-            [=,four_thirds_pi_d=four_thirds_pi,one_d=one,zero_d=zero] AMREX_GPU_DEVICE (  const SDTDType& ptd, int i, Array4<Real> const& mf_arr)
+            [=] AMREX_GPU_DEVICE (  const SDTDType& ptd, int i, Array4<Real> const& mf_arr)
             {
                 auto p = ptd.m_aos[i];
                 auto iv = getParticleCell(p, plo, dxi, domain);
@@ -671,14 +671,14 @@ void SuperDropletPC::ComputeBinnedDistributionsCell( const int a_iter,
                 auto ai = ptd.m_runtime_idata[SuperDropletsIntIdxSoA_RT::active][i];
                 auto ni = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::multiplicity][i];
                 auto mi = ptd.m_runtime_rdata[ridx_s(idx_w,na,ns)][i];
-                auto ri = std::cbrt( mi / (four_thirds_pi_d*density) );
-                auto inbin = (r_l <= ri && ri < r_r) ? one_d : zero_d;
+                auto ri = std::cbrt( mi / (four_thirds_pi*density) );
+                auto inbin = (r_l <= ri && ri < r_r) ? one : zero;
 
                 Gpu::Atomic::AddNoRet(&mf_arr(iv, n), (ai*ni*mi*inbin * inv_cell_volume / dln_R));
             }, false);
 
         ParticleToMesh( *this, m_num_ln_R_mf, a_lev,
-            [=,four_thirds_pi_d=four_thirds_pi,one_d=one,zero_d=zero] AMREX_GPU_DEVICE (  const SDTDType& ptd, int i, Array4<Real> const& mf_arr)
+            [=] AMREX_GPU_DEVICE (  const SDTDType& ptd, int i, Array4<Real> const& mf_arr)
             {
                 auto p = ptd.m_aos[i];
                 auto iv = getParticleCell(p, plo, dxi, domain);
@@ -686,8 +686,8 @@ void SuperDropletPC::ComputeBinnedDistributionsCell( const int a_iter,
                 auto ai = ptd.m_runtime_idata[SuperDropletsIntIdxSoA_RT::active][i];
                 auto ni = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::multiplicity][i];
                 auto mi = ptd.m_runtime_rdata[ridx_s(idx_w,na,ns)][i];
-                auto ri = std::cbrt( mi / (four_thirds_pi_d*density) );
-                auto inbin = (r_l <= ri && ri < r_r) ? one_d : zero_d;
+                auto ri = std::cbrt( mi / (four_thirds_pi*density) );
+                auto inbin = (r_l <= ri && ri < r_r) ? one : zero;
 
                 Gpu::Atomic::AddNoRet(&mf_arr(iv, n), (ai*ni*inbin * inv_cell_volume / dln_R) );
             }, false);

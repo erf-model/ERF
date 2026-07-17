@@ -86,14 +86,14 @@ DiffusionSrcForState_S (const Box& bx, const Box& domain,
 
     // Constant alpha & Turb model
     if (l_consA && l_turb) {
-        ParallelFor(xbx, [=,myhalf_d=myhalf] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        ParallelFor(xbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
             const int prim_index = qty_index - 1;
             const int prim_scal_index = (qty_index >= RhoScalar_comp && qty_index < RhoScalar_comp+NSCALARS) ? PrimScalar_comp : prim_index;
 
-            Real rhoFace  = myhalf_d * ( cell_data(i, j, k, Rho_comp) + cell_data(i-1, j, k, Rho_comp) );
+            Real rhoFace  = myhalf * ( cell_data(i, j, k, Rho_comp) + cell_data(i-1, j, k, Rho_comp) );
             Real rhoAlpha = rhoFace * d_alpha_eff[prim_scal_index];
-            rhoAlpha += myhalf_d * ( mu_turb(i  , j, k, d_eddy_diff_idx[prim_scal_index])
+            rhoAlpha += myhalf * ( mu_turb(i  , j, k, d_eddy_diff_idx[prim_scal_index])
                                  + mu_turb(i-1, j, k, d_eddy_diff_idx[prim_scal_index]) );
 
             int bc_comp = (qty_index >= RhoScalar_comp && qty_index < RhoScalar_comp+NSCALARS) ?
@@ -104,14 +104,14 @@ DiffusionSrcForState_S (const Box& bx, const Box& domain,
 
             xflux(i,j,k) = -rhoAlpha * mf_ux(i,j,0) * GradCx;
         });
-        ParallelFor(ybx, [=,myhalf_d=myhalf] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        ParallelFor(ybx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
             const int prim_index = qty_index - 1;
             const int prim_scal_index = (qty_index >= RhoScalar_comp && qty_index < RhoScalar_comp+NSCALARS) ? PrimScalar_comp : prim_index;
 
-            Real rhoFace  = myhalf_d * ( cell_data(i, j, k, Rho_comp) + cell_data(i, j-1, k, Rho_comp) );
+            Real rhoFace  = myhalf * ( cell_data(i, j, k, Rho_comp) + cell_data(i, j-1, k, Rho_comp) );
             Real rhoAlpha = rhoFace * d_alpha_eff[prim_scal_index];
-            rhoAlpha += myhalf_d * ( mu_turb(i, j  , k, d_eddy_diff_idy[prim_scal_index])
+            rhoAlpha += myhalf * ( mu_turb(i, j  , k, d_eddy_diff_idy[prim_scal_index])
                                  + mu_turb(i, j-1, k, d_eddy_diff_idy[prim_scal_index]) );
 
             int bc_comp = (qty_index >= RhoScalar_comp && qty_index < RhoScalar_comp+NSCALARS) ?
@@ -122,14 +122,14 @@ DiffusionSrcForState_S (const Box& bx, const Box& domain,
 
             yflux(i,j,k) = -rhoAlpha * mf_vy(i,j,0) * GradCy;
         });
-        ParallelFor(zbx, [=,myhalf_d=myhalf,one_d=one,two_d=two,zero_d=zero] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        ParallelFor(zbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
             const int prim_index = qty_index - 1;
             const int prim_scal_index = (qty_index >= RhoScalar_comp && qty_index < RhoScalar_comp+NSCALARS) ? PrimScalar_comp : prim_index;
 
-            Real rhoFace  = myhalf_d * ( cell_data(i, j, k, Rho_comp) + cell_data(i, j, k-1, Rho_comp) );
+            Real rhoFace  = myhalf * ( cell_data(i, j, k, Rho_comp) + cell_data(i, j, k-1, Rho_comp) );
             Real rhoAlpha = rhoFace * d_alpha_eff[prim_scal_index];
-            rhoAlpha += myhalf_d * ( mu_turb(i, j, k  , d_eddy_diff_idz[prim_scal_index])
+            rhoAlpha += myhalf * ( mu_turb(i, j, k  , d_eddy_diff_idz[prim_scal_index])
                                  + mu_turb(i, j, k-1, d_eddy_diff_idz[prim_scal_index]) );
 
             Real GradCz;
@@ -148,12 +148,12 @@ DiffusionSrcForState_S (const Box& bx, const Box& domain,
                 // Third order stencil with variable dz
                 Real dz0  = dz_ptr[k];
                 Real dz1  = dz_ptr[k+1];
-                Real idz0 = one_d / dz0;
-                Real f    = (dz1 / dz0) + two_d;
+                Real idz0 = one / dz0;
+                Real f    = (dz1 / dz0) + two;
                 Real f2   = f*f;
-                Real c3   = two_d / (f - f2);
+                Real c3   = two / (f - f2);
                 Real c2   = -f2*c3;
-                Real c1   = -(one_d-f2)*c3;
+                Real c1   = -(one-f2)*c3;
                 GradCz = idz0 * ( c1 * cell_prim(i, j, k-1, prim_index)
                                 + c2 * cell_prim(i, j, k  , prim_index)
                                 + c3 * cell_prim(i, j, k+1, prim_index) );
@@ -161,23 +161,23 @@ DiffusionSrcForState_S (const Box& bx, const Box& domain,
                 // Third order stencil with variable dz
                 Real dz0  = dz_ptr[k-1];
                 Real dz1  = dz_ptr[k-2];
-                Real idz0 = one_d / dz0;
-                Real f    = (dz1 / dz0) + two_d;
+                Real idz0 = one / dz0;
+                Real f    = (dz1 / dz0) + two;
                 Real f2   = f*f;
-                Real c3   = two_d / (f - f2);
+                Real c3   = two / (f - f2);
                 Real c2   = -f2*c3;
-                Real c1   = -(one_d-f2)*c3;
+                Real c1   = -(one-f2)*c3;
                 GradCz = idz0 * (  -( c1 * cell_prim(i, j, k  , prim_index)
                                     + c2 * cell_prim(i, j, k-1, prim_index)
                                     + c3 * cell_prim(i, j, k-2, prim_index) ) );
             } else {
                 Real dzk_inv;
                 if (k==klo) {
-                    dzk_inv =  one_d / dz_ptr[k];
+                    dzk_inv =  one / dz_ptr[k];
                 } else if (k==(khi+1)) {
-                    dzk_inv =  one_d / dz_ptr[k-1];
+                    dzk_inv =  one / dz_ptr[k-1];
                 } else {
-                    dzk_inv =  two_d / (dz_ptr[k] + dz_ptr[k-1]);
+                    dzk_inv =  two / (dz_ptr[k] + dz_ptr[k-1]);
                 }
                 GradCz = dzk_inv * ( cell_prim(i, j, k, prim_index) - cell_prim(i, j, k-1, prim_index) );
             }
@@ -188,7 +188,7 @@ DiffusionSrcForState_S (const Box& bx, const Box& domain,
                 } else if (qty_index == RhoQ1_comp) {
                     zflux(i,j,k) = qfx1_z(i,j,0);
                 } else {
-                    zflux(i,j,k) = zero_d;
+                    zflux(i,j,k) = zero;
                 }
             } else {
                 zflux(i,j,k) = -rhoAlpha * GradCz;
@@ -208,12 +208,12 @@ DiffusionSrcForState_S (const Box& bx, const Box& domain,
         });
     // Constant rho*alpha & Turb model
     } else if (l_turb) {
-        ParallelFor(xbx, [=,myhalf_d=myhalf] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        ParallelFor(xbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
             const int prim_index = qty_index - 1;
 
             Real rhoAlpha = d_alpha_eff[prim_index];
-            rhoAlpha += myhalf_d * ( mu_turb(i  , j, k, d_eddy_diff_idx[prim_index])
+            rhoAlpha += myhalf * ( mu_turb(i  , j, k, d_eddy_diff_idx[prim_index])
                                  + mu_turb(i-1, j, k, d_eddy_diff_idx[prim_index]) );
 
             int bc_comp = (qty_index >= RhoScalar_comp && qty_index < RhoScalar_comp+NSCALARS) ?
@@ -224,12 +224,12 @@ DiffusionSrcForState_S (const Box& bx, const Box& domain,
 
             xflux(i,j,k) = -rhoAlpha * mf_ux(i,j,0) * GradCx;
         });
-        ParallelFor(ybx, [=,myhalf_d=myhalf] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        ParallelFor(ybx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
             const int prim_index = qty_index - 1;
 
             Real rhoAlpha = d_alpha_eff[prim_index];
-            rhoAlpha += myhalf_d * ( mu_turb(i, j  , k, d_eddy_diff_idy[prim_index])
+            rhoAlpha += myhalf * ( mu_turb(i, j  , k, d_eddy_diff_idy[prim_index])
                                  + mu_turb(i, j-1, k, d_eddy_diff_idy[prim_index]) );
 
             int bc_comp = (qty_index >= RhoScalar_comp && qty_index < RhoScalar_comp+NSCALARS) ?
@@ -240,12 +240,12 @@ DiffusionSrcForState_S (const Box& bx, const Box& domain,
 
             yflux(i,j,k) = -rhoAlpha * mf_vy(i,j,0) * GradCy;
         });
-        ParallelFor(zbx, [=,myhalf_d=myhalf,one_d=one,two_d=two,zero_d=zero] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        ParallelFor(zbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
             const int prim_index = qty_index - 1;
 
             Real rhoAlpha = d_alpha_eff[prim_index];
-            rhoAlpha += myhalf_d * ( mu_turb(i, j, k  , d_eddy_diff_idz[prim_index])
+            rhoAlpha += myhalf * ( mu_turb(i, j, k  , d_eddy_diff_idz[prim_index])
                                  + mu_turb(i, j, k-1, d_eddy_diff_idz[prim_index]) );
 
             Real GradCz;
@@ -263,12 +263,12 @@ DiffusionSrcForState_S (const Box& bx, const Box& domain,
                 // Third order stencil with variable dz
                 Real dz0  = dz_ptr[k];
                 Real dz1  = dz_ptr[k+1];
-                Real idz0 = one_d / dz0;
-                Real f    = (dz1 / dz0) + two_d;
+                Real idz0 = one / dz0;
+                Real f    = (dz1 / dz0) + two;
                 Real f2   = f*f;
-                Real c3   = two_d / (f - f2);
+                Real c3   = two / (f - f2);
                 Real c2   = -f2*c3;
-                Real c1   = -(one_d-f2)*c3;
+                Real c1   = -(one-f2)*c3;
                 GradCz = idz0 * ( c1 * cell_prim(i, j, k-1, prim_index)
                                 + c2 * cell_prim(i, j, k  , prim_index)
                                 + c3 * cell_prim(i, j, k+1, prim_index) );
@@ -276,23 +276,23 @@ DiffusionSrcForState_S (const Box& bx, const Box& domain,
                 // Third order stencil with variable dz
                 Real dz0  = dz_ptr[k-1];
                 Real dz1  = dz_ptr[k-2];
-                Real idz0 = one_d / dz0;
-                Real f    = (dz1 / dz0) + two_d;
+                Real idz0 = one / dz0;
+                Real f    = (dz1 / dz0) + two;
                 Real f2   = f*f;
-                Real c3   = two_d / (f - f2);
+                Real c3   = two / (f - f2);
                 Real c2   = -f2*c3;
-                Real c1   = -(one_d-f2)*c3;
+                Real c1   = -(one-f2)*c3;
                 GradCz = idz0 * (  -( c1 * cell_prim(i, j, k  , prim_index)
                                     + c2 * cell_prim(i, j, k-1, prim_index)
                                     + c3 * cell_prim(i, j, k-2, prim_index) ) );
             } else {
                 Real dzk_inv;
                 if (k==klo) {
-                    dzk_inv =  one_d / dz_ptr[k];
+                    dzk_inv =  one / dz_ptr[k];
                 } else if (k==(khi+1)) {
-                    dzk_inv =  one_d / dz_ptr[k-1];
+                    dzk_inv =  one / dz_ptr[k-1];
                 } else {
-                    dzk_inv =  two_d / (dz_ptr[k] + dz_ptr[k-1]);
+                    dzk_inv =  two / (dz_ptr[k] + dz_ptr[k-1]);
                 }
                 GradCz = dzk_inv * ( cell_prim(i, j, k, prim_index) - cell_prim(i, j, k-1, prim_index) );
             }
@@ -305,7 +305,7 @@ DiffusionSrcForState_S (const Box& bx, const Box& domain,
                 } else if (qty_index == RhoQ1_comp) {
                     zflux(i,j,k) = qfx1_z(i,j,0);
                 } else {
-                    zflux(i,j,k) = zero_d;
+                    zflux(i,j,k) = zero;
                 }
             } else {
                 zflux(i,j,k) = -rhoAlpha * GradCz;
@@ -325,11 +325,11 @@ DiffusionSrcForState_S (const Box& bx, const Box& domain,
         });
     // Constant alpha & no LES/PBL model
     } else if(l_consA) {
-        ParallelFor(xbx, [=,myhalf_d=myhalf] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        ParallelFor(xbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
             const int prim_index = qty_index - 1;
 
-            Real rhoFace  = myhalf_d * ( cell_data(i, j, k, Rho_comp) + cell_data(i-1, j, k, Rho_comp) );
+            Real rhoFace  = myhalf * ( cell_data(i, j, k, Rho_comp) + cell_data(i-1, j, k, Rho_comp) );
             Real rhoAlpha = rhoFace * d_alpha_eff[prim_index];
 
             int bc_comp = (qty_index >= RhoScalar_comp && qty_index < RhoScalar_comp+NSCALARS) ?
@@ -340,11 +340,11 @@ DiffusionSrcForState_S (const Box& bx, const Box& domain,
 
             xflux(i,j,k) = -rhoAlpha * mf_ux(i,j,0) * GradCx;
         });
-        ParallelFor(ybx, [=,myhalf_d=myhalf] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        ParallelFor(ybx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
             const int prim_index = qty_index - 1;
 
-            Real rhoFace  = myhalf_d * ( cell_data(i, j, k, Rho_comp) + cell_data(i, j-1, k, Rho_comp) );
+            Real rhoFace  = myhalf * ( cell_data(i, j, k, Rho_comp) + cell_data(i, j-1, k, Rho_comp) );
             Real rhoAlpha = rhoFace * d_alpha_eff[prim_index];
 
             int bc_comp = (qty_index >= RhoScalar_comp && qty_index < RhoScalar_comp+NSCALARS) ?
@@ -355,11 +355,11 @@ DiffusionSrcForState_S (const Box& bx, const Box& domain,
 
             yflux(i,j,k) = -rhoAlpha * mf_vy(i,j,0) * GradCy;
         });
-        ParallelFor(zbx, [=,myhalf_d=myhalf,one_d=one,two_d=two,zero_d=zero] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        ParallelFor(zbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
             const int prim_index = qty_index - 1;
 
-            Real rhoFace  = myhalf_d * ( cell_data(i, j, k, Rho_comp) + cell_data(i, j, k-1, Rho_comp) );
+            Real rhoFace  = myhalf * ( cell_data(i, j, k, Rho_comp) + cell_data(i, j, k-1, Rho_comp) );
             Real rhoAlpha = rhoFace * d_alpha_eff[prim_index];
 
             Real GradCz;
@@ -377,12 +377,12 @@ DiffusionSrcForState_S (const Box& bx, const Box& domain,
                 // Third order stencil with variable dz
                 Real dz0  = dz_ptr[k];
                 Real dz1  = dz_ptr[k+1];
-                Real idz0 = one_d / dz0;
-                Real f    = (dz1 / dz0) + two_d;
+                Real idz0 = one / dz0;
+                Real f    = (dz1 / dz0) + two;
                 Real f2   = f*f;
-                Real c3   = two_d / (f - f2);
+                Real c3   = two / (f - f2);
                 Real c2   = -f2*c3;
-                Real c1   = -(one_d-f2)*c3;
+                Real c1   = -(one-f2)*c3;
                 GradCz = idz0 * ( c1 * cell_prim(i, j, k-1, prim_index)
                                 + c2 * cell_prim(i, j, k  , prim_index)
                                 + c3 * cell_prim(i, j, k+1, prim_index) );
@@ -390,23 +390,23 @@ DiffusionSrcForState_S (const Box& bx, const Box& domain,
                 // Third order stencil with variable dz
                 Real dz0  = dz_ptr[k-1];
                 Real dz1  = dz_ptr[k-2];
-                Real idz0 = one_d / dz0;
-                Real f    = (dz1 / dz0) + two_d;
+                Real idz0 = one / dz0;
+                Real f    = (dz1 / dz0) + two;
                 Real f2   = f*f;
-                Real c3   = two_d / (f - f2);
+                Real c3   = two / (f - f2);
                 Real c2   = -f2*c3;
-                Real c1   = -(one_d-f2)*c3;
+                Real c1   = -(one-f2)*c3;
                 GradCz = idz0 * (  -( c1 * cell_prim(i, j, k  , prim_index)
                                     + c2 * cell_prim(i, j, k-1, prim_index)
                                     + c3 * cell_prim(i, j, k-2, prim_index) ) );
             } else {
                 Real dzk_inv;
                 if (k==klo) {
-                    dzk_inv =  one_d / dz_ptr[k];
+                    dzk_inv =  one / dz_ptr[k];
                 } else if (k==(khi+1)) {
-                    dzk_inv =  one_d / dz_ptr[k-1];
+                    dzk_inv =  one / dz_ptr[k-1];
                 } else {
-                    dzk_inv =  two_d / (dz_ptr[k] + dz_ptr[k-1]);
+                    dzk_inv =  two / (dz_ptr[k] + dz_ptr[k-1]);
                 }
                 GradCz = dzk_inv * ( cell_prim(i, j, k, prim_index) - cell_prim(i, j, k-1, prim_index) );
             }
@@ -419,7 +419,7 @@ DiffusionSrcForState_S (const Box& bx, const Box& domain,
                 } else if (qty_index == RhoQ1_comp) {
                     zflux(i,j,k) = qfx1_z(i,j,0);
                 } else {
-                    zflux(i,j,k) = zero_d;
+                    zflux(i,j,k) = zero;
                 }
             } else {
                 zflux(i,j,k) = -rhoAlpha * GradCz;
@@ -467,7 +467,7 @@ DiffusionSrcForState_S (const Box& bx, const Box& domain,
 
             yflux(i,j,k) = -rhoAlpha * mf_vy(i,j,0) * GradCy;
         });
-        ParallelFor(zbx, [=,one_d=one,two_d=two,zero_d=zero] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        ParallelFor(zbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
             const int prim_index = qty_index - 1;
 
@@ -488,12 +488,12 @@ DiffusionSrcForState_S (const Box& bx, const Box& domain,
                 // Third order stencil with variable dz
                 Real dz0  = dz_ptr[k];
                 Real dz1  = dz_ptr[k+1];
-                Real idz0 = one_d / dz0;
-                Real f    = (dz1 / dz0) + two_d;
+                Real idz0 = one / dz0;
+                Real f    = (dz1 / dz0) + two;
                 Real f2   = f*f;
-                Real c3   = two_d / (f - f2);
+                Real c3   = two / (f - f2);
                 Real c2   = -f2*c3;
-                Real c1   = -(one_d-f2)*c3;
+                Real c1   = -(one-f2)*c3;
                 GradCz = idz0 * ( c1 * cell_prim(i, j, k-1, prim_index)
                                 + c2 * cell_prim(i, j, k  , prim_index)
                                 + c3 * cell_prim(i, j, k+1, prim_index) );
@@ -501,23 +501,23 @@ DiffusionSrcForState_S (const Box& bx, const Box& domain,
                 // Third order stencil with variable dz
                 Real dz0  = dz_ptr[k-1];
                 Real dz1  = dz_ptr[k-2];
-                Real idz0 = one_d / dz0;
-                Real f    = (dz1 / dz0) + two_d;
+                Real idz0 = one / dz0;
+                Real f    = (dz1 / dz0) + two;
                 Real f2   = f*f;
-                Real c3   = two_d / (f - f2);
+                Real c3   = two / (f - f2);
                 Real c2   = -f2*c3;
-                Real c1   = -(one_d-f2)*c3;
+                Real c1   = -(one-f2)*c3;
                 GradCz = idz0 * (  -( c1 * cell_prim(i, j, k  , prim_index)
                                     + c2 * cell_prim(i, j, k-1, prim_index)
                                     + c3 * cell_prim(i, j, k-2, prim_index) ) );
             } else {
                 Real dzk_inv;
                 if (k==klo) {
-                    dzk_inv =  one_d / dz_ptr[k];
+                    dzk_inv =  one / dz_ptr[k];
                 } else if (k==(khi+1)) {
-                    dzk_inv =  one_d / dz_ptr[k-1];
+                    dzk_inv =  one / dz_ptr[k-1];
                 } else {
-                    dzk_inv =  two_d / (dz_ptr[k] + dz_ptr[k-1]);
+                    dzk_inv =  two / (dz_ptr[k] + dz_ptr[k-1]);
                 }
                 GradCz = dzk_inv * ( cell_prim(i, j, k, prim_index) - cell_prim(i, j, k-1, prim_index) );
             }
@@ -530,7 +530,7 @@ DiffusionSrcForState_S (const Box& bx, const Box& domain,
                 } else if (qty_index == RhoQ1_comp) {
                     zflux(i,j,k) = qfx1_z(i,j,0);
                 } else {
-                    zflux(i,j,k) = zero_d;
+                    zflux(i,j,k) = zero;
                 }
             } else {
                 zflux(i,j,k) = -rhoAlpha * GradCz;
@@ -571,10 +571,10 @@ DiffusionSrcForState_S (const Box& bx, const Box& domain,
 
     // Use fluxes to compute RHS
     //-----------------------------------------------------------------------------------
-    ParallelFor(bx,[=,one_d=one] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+    ParallelFor(bx,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
         Real mfsq = mf_mx(i,j,0) * mf_my(i,j,0);
-        Real dzk_inv = one_d / dz_ptr[k];
+        Real dzk_inv = one / dz_ptr[k];
         Real stateContrib = (xflux(i+1,j  ,k  ) - xflux(i, j, k)) * dx_inv * mfsq  // Diffusive flux in x-dir
                            +(yflux(i  ,j+1,k  ) - yflux(i, j, k)) * dy_inv * mfsq  // Diffusive flux in y-dir
                            +(zflux(i  ,j  ,k+1) - zflux(i, j, k)) * dzk_inv;       // Diffusive flux in z-dir

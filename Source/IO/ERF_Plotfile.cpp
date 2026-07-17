@@ -672,14 +672,14 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
                 const Array4<Real const>& S_arr = vars_new[lev][Vars::cons].const_array(mfi);
                 const Array4<Real const>& p_arr = pressure.const_array(mfi);
                 const int ncomp = vars_new[lev][Vars::cons].nComp();
-                ParallelFor(bx, [=,zero_d=zero,Cp_d_d=Cp_d,Cp_l_d=Cp_l,p_0_d=p_0,R_d_d=R_d,L_v_d=L_v] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-                    Real qv = (use_moisture && (ncomp > RhoQ1_comp)) ? S_arr(i,j,k,RhoQ1_comp)/S_arr(i,j,k,Rho_comp) : zero_d;
-                    Real qc = (use_moisture && (ncomp > RhoQ2_comp)) ? S_arr(i,j,k,RhoQ2_comp)/S_arr(i,j,k,Rho_comp) : zero_d;
+                ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                    Real qv = (use_moisture && (ncomp > RhoQ1_comp)) ? S_arr(i,j,k,RhoQ1_comp)/S_arr(i,j,k,Rho_comp) : zero;
+                    Real qc = (use_moisture && (ncomp > RhoQ2_comp)) ? S_arr(i,j,k,RhoQ2_comp)/S_arr(i,j,k,Rho_comp) : zero;
                     Real T = getTgivenRandRTh(S_arr(i,j,k,Rho_comp), S_arr(i,j,k,RhoTheta_comp), qv);
-                    Real fac = Cp_d_d + Cp_l_d*(qv + qc);
+                    Real fac = Cp_d + Cp_l*(qv + qc);
                     Real pv = erf_esatw(T)*Real(100.0);
 
-                    derdat(i, j, k, mf_comp) = T*std::pow((p_arr(i,j,k) - pv)/p_0_d, -R_d_d/fac)*std::exp(L_v_d*qv/(fac*T)) ;
+                    derdat(i, j, k, mf_comp) = T*std::pow((p_arr(i,j,k) - pv)/p_0, -R_d/fac)*std::exp(L_v*qv/(fac*T)) ;
                 });
             }
             mf_comp ++;
@@ -697,9 +697,9 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
                 const Array4<Real const>& S_arr = vars_new[lev][Vars::cons].const_array(mfi);
                 const Array4<Real const>& p_arr = pressure.const_array(mfi);
                 const int ncomp = vars_new[lev][Vars::cons].nComp();
-                ParallelFor(bx, [=,zero_d=zero] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+                ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
                 {
-                    const Real qv       = (use_moisture && (ncomp > RhoQ1_comp)) ? S_arr(i,j,k,RhoQ1_comp)/S_arr(i,j,k,Rho_comp) : zero_d;
+                    const Real qv       = (use_moisture && (ncomp > RhoQ1_comp)) ? S_arr(i,j,k,RhoQ1_comp)/S_arr(i,j,k,Rho_comp) : zero;
 
                     const Real T        = getTgivenRandRTh(S_arr(i,j,k,Rho_comp), S_arr(i,j,k,RhoTheta_comp), qv);
                     const Real e_sat = Real(100.0) * erf_esatw_cc(T);
@@ -776,8 +776,8 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
                 const Array4<Real const>&   gpx_arr = (solverChoice.anelastic[lev] == 1) ?
                       gradp[lev][GpVars::gpx].array(mfi) : gradp_temp[GpVars::gpx].array(mfi);
                 const Array4<Real const>& mf_mx_arr = mapfac[lev][MapFacType::m_x]->const_array(mfi);
-                ParallelFor(bx, [=,myhalf_d=myhalf] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-                    derdat(i ,j ,k, mf_comp) = myhalf_d * (gpx_arr(i+1,j,k) + gpx_arr(i,j,k)) * mf_mx_arr(i,j,0);
+                ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                    derdat(i ,j ,k, mf_comp) = myhalf * (gpx_arr(i+1,j,k) + gpx_arr(i,j,k)) * mf_mx_arr(i,j,0);
                 });
             }
             mf_comp ++;
@@ -791,8 +791,8 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
                 const Array4<Real const>&   gpy_arr = (solverChoice.anelastic[lev] == 1) ?
                       gradp[lev][GpVars::gpy].array(mfi) : gradp_temp[GpVars::gpy].array(mfi);
                 const Array4<Real const>& mf_my_arr = mapfac[lev][MapFacType::m_y]->const_array(mfi);
-                ParallelFor(bx, [=,myhalf_d=myhalf] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-                    derdat(i ,j ,k, mf_comp) = myhalf_d * (gpy_arr(i,j+1,k) + gpy_arr(i,j,k)) * mf_my_arr(i,j,0);
+                ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                    derdat(i ,j ,k, mf_comp) = myhalf * (gpy_arr(i,j+1,k) + gpy_arr(i,j,k)) * mf_my_arr(i,j,0);
                 });
             }
             mf_comp ++;
@@ -805,8 +805,8 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
                 const Array4<Real      >&  derdat  = mf[lev].array(mfi);
                 const Array4<Real const>&  gpz_arr = (solverChoice.anelastic[lev] == 1) ?
                       gradp[lev][GpVars::gpz].array(mfi) : gradp_temp[GpVars::gpz].array(mfi);
-                ParallelFor(bx, [=,myhalf_d=myhalf] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-                    derdat(i ,j ,k, mf_comp) = myhalf_d * (gpz_arr(i,j,k+1) + gpz_arr(i,j,k));
+                ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                    derdat(i ,j ,k, mf_comp) = myhalf * (gpz_arr(i,j,k+1) + gpz_arr(i,j,k));
                 });
             }
             mf_comp ++;
@@ -830,8 +830,8 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
                 const Array4<Real      >&  derdat  = mf[lev].array(mfi);
                 const Array4<Real const>&  gpx_arr = gradp_temp[0].array(mfi);
                 const Array4<Real const>& mf_mx_arr = mapfac[lev][MapFacType::m_x]->const_array(mfi);
-                ParallelFor(bx, [=,myhalf_d=myhalf] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-                    derdat(i ,j ,k, mf_comp) = myhalf_d * (gpx_arr(i+1,j,k) + gpx_arr(i,j,k)) * mf_mx_arr(i,j,0);
+                ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                    derdat(i ,j ,k, mf_comp) = myhalf * (gpx_arr(i+1,j,k) + gpx_arr(i,j,k)) * mf_mx_arr(i,j,0);
                 });
             }
             mf_comp += 1;
@@ -845,8 +845,8 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
                 const Array4<Real      >&  derdat  = mf[lev].array(mfi);
                 const Array4<Real const>&  gpy_arr = gradp_temp[1].array(mfi);
                 const Array4<Real const>& mf_my_arr = mapfac[lev][MapFacType::m_y]->const_array(mfi);
-                ParallelFor(bx, [=,myhalf_d=myhalf] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-                    derdat(i ,j ,k, mf_comp) = myhalf_d * (gpy_arr(i,j+1,k) + gpy_arr(i,j,k)) * mf_my_arr(i,j,0);
+                ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                    derdat(i ,j ,k, mf_comp) = myhalf * (gpy_arr(i,j+1,k) + gpy_arr(i,j,k)) * mf_my_arr(i,j,0);
                 });
             }
             mf_comp += 1;
@@ -1457,10 +1457,10 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
 
                 const Array4<Real const>& z_nd = z_phys_nd[lev]->const_array(mfi);
 
-                ParallelFor(xbx, [=,fourth_d=fourth] AMREX_GPU_DEVICE (int i, int j, int k)
+                ParallelFor(xbx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
                 {
                     Real x = i * dx[0];
-                    Real z = fourth_d * (z_nd(i,j,k) + z_nd(i,j+1,k) + z_nd(i,j,k+1) + z_nd(i,j+1,k+1));
+                    Real z = fourth * (z_nd(i,j,k) + z_nd(i,j+1,k) + z_nd(i,j,k+1) + z_nd(i,j+1,k+1));
 
                     Real z_base = Ampl * std::sin(kp * x - omega_t);
                     z -= z_base;
@@ -1470,10 +1470,10 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
                     xvel_arr(i,j,k) -= -Ampl * omega * fac * std::sin(kp * x - omega_t);
                 });
 
-                ParallelFor(bx, [=,myhalf_d=myhalf,fourth_d=fourth] AMREX_GPU_DEVICE (int i, int j, int k)
+                ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
                 {
-                    Real x   = (i + myhalf_d) * dx[0];
-                    Real z   = fourth_d * ( z_nd(i,j,k) + z_nd(i+1,j,k) + z_nd(i,j+1,k) + z_nd(i+1,j+1,k));
+                    Real x   = (i + myhalf) * dx[0];
+                    Real z   = fourth * ( z_nd(i,j,k) + z_nd(i+1,j,k) + z_nd(i,j+1,k) + z_nd(i+1,j+1,k));
 
                     Real z_base = Ampl * std::sin(kp * x - omega_t);
                     z -= z_base;
@@ -1515,10 +1515,10 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
 
                 const Array4<Real const>& z_nd = z_phys_nd[lev]->const_array(mfi);
 
-                ParallelFor(xbx, [=,fourth_d=fourth] AMREX_GPU_DEVICE (int i, int j, int k)
+                ParallelFor(xbx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
                 {
                     Real x = i * dx[0];
-                    Real z = fourth_d * (z_nd(i,j,k) + z_nd(i,j+1,k) + z_nd(i,j,k+1) + z_nd(i,j+1,k+1));
+                    Real z = fourth * (z_nd(i,j,k) + z_nd(i,j+1,k) + z_nd(i,j,k+1) + z_nd(i,j+1,k+1));
                     Real z_base = Ampl * std::sin(kp * x - omega_t);
 
                     z -= z_base;
@@ -1526,10 +1526,10 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
                     Real fac = std::cosh( kp * (z - H) ) / std::sinh(kp * H);
                     xvel_arr(i,j,k) += -Ampl * omega * fac * std::sin(kp * x - omega_t);
                 });
-                ParallelFor(bx, [=,myhalf_d=myhalf,fourth_d=fourth] AMREX_GPU_DEVICE (int i, int j, int k)
+                ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
                 {
-                    Real x   = (i + myhalf_d) * dx[0];
-                    Real z   = fourth_d * ( z_nd(i,j,k) + z_nd(i+1,j,k) + z_nd(i,j+1,k) + z_nd(i+1,j+1,k));
+                    Real x   = (i + myhalf) * dx[0];
+                    Real z   = fourth * ( z_nd(i,j,k) + z_nd(i+1,j,k) + z_nd(i,j+1,k) + z_nd(i+1,j+1,k));
                     Real z_base = Ampl * std::sin(kp * x - omega_t);
 
                     z -= z_base;
@@ -1566,13 +1566,13 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
                 Real omega       = std::sqrt(g * kp);
                 Real omega_t     = omega * t_new[lev];
 
-                ParallelFor(bx, [=,myhalf_d=myhalf] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+                ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
                 {
                     derdat(i, j, k, mf_comp) = p_arr(i,j,k) - p0_arr(i,j,k);
 
                     Real rho_hse     = r0_arr(i,j,k);
 
-                    Real x   = (i + myhalf_d) * dx[0];
+                    Real x   = (i + myhalf) * dx[0];
                     Real z   = Real(0.125) * ( z_nd(i,j,k  ) + z_nd(i+1,j,k  ) + z_nd(i,j+1,k  ) + z_nd(i+1,j+1,k  )
                                         +z_nd(i,j,k+1) + z_nd(i+1,j,k+1) + z_nd(i,j+1,k+1) + z_nd(i+1,j+1,k+1) );
                     Real z_base = Ampl * std::sin(kp * x - omega_t);

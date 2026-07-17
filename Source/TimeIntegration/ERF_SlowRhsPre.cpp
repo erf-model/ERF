@@ -320,8 +320,8 @@ void erf_slow_rhs_pre (int level, int finest_level,
             Box gbxo_lo = gbxo; gbxo_lo.setBig(2,domain.smallEnd(2));
             int lo_z_face = domain.smallEnd(2);
             if (gbxo_lo.smallEnd(2) <= lo_z_face) {
-                ParallelFor(gbxo_lo, [=,zero_d=zero] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                    omega_arr(i,j,k) = zero_d;
+                ParallelFor(gbxo_lo, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                    omega_arr(i,j,k) = zero;
                 });
             }
             Box gbxo_hi = gbxo; gbxo_hi.setSmall(2,gbxo.bigEnd(2));
@@ -340,9 +340,9 @@ void erf_slow_rhs_pre (int level, int finest_level,
                 Box gbxo_mid = gbxo; gbxo_mid.setSmall(2,1); gbxo_mid.setBig(2,gbxo.bigEnd(2)-1);
                       Array4<const Real> z_t        = z_t_mf->array(mfi);
                 const Array4<const Real>& cell_data = S_data[IntVars::cons].array(mfi);
-                ParallelFor(gbxo_mid, [=,myhalf_d=myhalf] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                ParallelFor(gbxo_mid, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
                     // We define rho on the z-face the same way as in MomentumToVelocity/VelocityToMomentum
-                    Real rho_at_face = myhalf_d * (cell_data(i,j,k,Rho_comp) + cell_data(i,j,k-1,Rho_comp));
+                    Real rho_at_face = myhalf * (cell_data(i,j,k,Rho_comp) + cell_data(i,j,k-1,Rho_comp));
                     omega_arr(i,j,k) = OmegaFromW(i,j,k,rho_w(i,j,k),
                                                   rho_u,rho_v,mf_ux,mf_vy,z_nd,dxInv) -
                         rho_at_face * z_t(i,j,k);
@@ -721,10 +721,10 @@ void erf_slow_rhs_pre (int level, int finest_level,
         // If anelastic and in second RK stage, take average of old-time and new-time source
         if ( l_anelastic && (nrk == 1) )
         {
-            ParallelFor(bx, [=,myhalf_d=myhalf] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
-                cell_rhs(i,j,k,     Rho_comp) *= myhalf_d;
-                cell_rhs(i,j,k,RhoTheta_comp) *= myhalf_d;
+                cell_rhs(i,j,k,     Rho_comp) *= myhalf;
+                cell_rhs(i,j,k,RhoTheta_comp) *= myhalf;
 
                 cell_rhs(i,j,k,     Rho_comp) += half_dt * (cell_data(i,j,k,     Rho_comp) - cell_old(i,j,k,     Rho_comp));
                 cell_rhs(i,j,k,RhoTheta_comp) += half_dt * (cell_data(i,j,k,RhoTheta_comp) - cell_old(i,j,k,RhoTheta_comp));
@@ -784,14 +784,14 @@ void erf_slow_rhs_pre (int level, int finest_level,
         auto abl_pressure_grad    = solverChoice.abl_pressure_grad;
 
         ParallelFor(tbx, tby,
-        [=,myhalf_d=myhalf,zero_d=zero,one_d=one] AMREX_GPU_DEVICE (int i, int j, int k)
+        [=] AMREX_GPU_DEVICE (int i, int j, int k)
         { // x-momentum equation
 
             // Note that gradp arrays now carry the map factor in them
 
-            Real q = (l_use_moisture) ? myhalf_d * (qt_arr(i,j,k) + qt_arr(i-1,j,k)) : zero_d;
+            Real q = (l_use_moisture) ? myhalf * (qt_arr(i,j,k) + qt_arr(i-1,j,k)) : zero;
 
-            rho_u_rhs(i, j, k) += (-gpx_arr(i,j,k) - abl_pressure_grad[0]) / (one_d + q) + xmom_src_arr(i,j,k);
+            rho_u_rhs(i, j, k) += (-gpx_arr(i,j,k) - abl_pressure_grad[0]) / (one + q) + xmom_src_arr(i,j,k);
 
             if (l_moving_terrain) {
                 Real h_zeta = Compute_h_zeta_AtIface(i, j, k, dxInv, z_nd);
@@ -799,18 +799,18 @@ void erf_slow_rhs_pre (int level, int finest_level,
             }
 
             if ( l_anelastic && (nrk == 1) ) {
-                rho_u_rhs(i,j,k) *= myhalf_d;
+                rho_u_rhs(i,j,k) *= myhalf;
                 rho_u_rhs(i,j,k) += half_dt * (rho_u(i,j,k) - rho_u_old(i,j,k));
             }
         },
-        [=,myhalf_d=myhalf,zero_d=zero,one_d=one] AMREX_GPU_DEVICE (int i, int j, int k)
+        [=] AMREX_GPU_DEVICE (int i, int j, int k)
         { // y-momentum equation
 
             // Note that gradp arrays now carry the map factor in them
 
-            Real q = (l_use_moisture) ? myhalf_d * (qt_arr(i,j,k) + qt_arr(i,j-1,k)) : zero_d;
+            Real q = (l_use_moisture) ? myhalf * (qt_arr(i,j,k) + qt_arr(i,j-1,k)) : zero;
 
-            rho_v_rhs(i, j, k) += (-gpy_arr(i,j,k) - abl_pressure_grad[1]) / (one_d + q) + ymom_src_arr(i,j,k);
+            rho_v_rhs(i, j, k) += (-gpy_arr(i,j,k) - abl_pressure_grad[1]) / (one + q) + ymom_src_arr(i,j,k);
 
             if (l_moving_terrain) {
                 Real h_zeta = Compute_h_zeta_AtJface(i, j, k, dxInv, z_nd);
@@ -818,7 +818,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
             }
 
             if ( l_anelastic && (nrk == 1) ) {
-                rho_v_rhs(i,j,k) *= myhalf_d;
+                rho_v_rhs(i,j,k) *= myhalf;
                 rho_v_rhs(i,j,k) += half_dt * (rho_v(i,j,k) - rho_v_old(i,j,k));
             }
         });
@@ -831,13 +831,13 @@ void erf_slow_rhs_pre (int level, int finest_level,
         if (bx.smallEnd(0) == domain.smallEnd(0)) {
             Box lo_x_dom_face(bx); lo_x_dom_face.setBig(0,bx.smallEnd(0));
             if (bc_ptr_h[BCVars::xvel_bc].lo(0) == ERFBCType::ext_dir) {
-                ParallelFor(lo_x_dom_face, [=,zero_d=zero] AMREX_GPU_DEVICE (int i, int j, int k) {
-                    rho_u_rhs(i,j,k) = zero_d;
+                ParallelFor(lo_x_dom_face, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+                    rho_u_rhs(i,j,k) = zero;
                 });
             } else if (bc_ptr_h[BCVars::xvel_bc].lo(0) == ERFBCType::ext_dir_upwind) {
-                ParallelFor(lo_x_dom_face, [=,zero_d=zero] AMREX_GPU_DEVICE (int i, int j, int k) {
-                    if (u(i,j,k) >= zero_d) {
-                        rho_u_rhs(i,j,k) = zero_d;
+                ParallelFor(lo_x_dom_face, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+                    if (u(i,j,k) >= zero) {
+                        rho_u_rhs(i,j,k) = zero;
                     }
                 });
             }
@@ -845,13 +845,13 @@ void erf_slow_rhs_pre (int level, int finest_level,
         if (bx.bigEnd(0) == domain.bigEnd(0)) {
             Box hi_x_dom_face(bx); hi_x_dom_face.setSmall(0,bx.bigEnd(0)+1); hi_x_dom_face.setBig(0,bx.bigEnd(0)+1);
             if (bc_ptr_h[BCVars::xvel_bc].hi(0) == ERFBCType::ext_dir) {
-                ParallelFor(hi_x_dom_face, [=,zero_d=zero] AMREX_GPU_DEVICE (int i, int j, int k) {
-                    rho_u_rhs(i,j,k) = zero_d;
+                ParallelFor(hi_x_dom_face, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+                    rho_u_rhs(i,j,k) = zero;
                 });
             } else if (bc_ptr_h[BCVars::xvel_bc].hi(0) == ERFBCType::ext_dir_upwind) {
-                ParallelFor(hi_x_dom_face, [=,zero_d=zero] AMREX_GPU_DEVICE (int i, int j, int k) {
-                    if (u(i,j,k) <= zero_d) {
-                        rho_u_rhs(i,j,k) = zero_d;
+                ParallelFor(hi_x_dom_face, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+                    if (u(i,j,k) <= zero) {
+                        rho_u_rhs(i,j,k) = zero;
                     }
                 });
             }
@@ -859,13 +859,13 @@ void erf_slow_rhs_pre (int level, int finest_level,
         if (bx.smallEnd(1) == domain.smallEnd(1)) {
             Box lo_y_dom_face(bx); lo_y_dom_face.setBig(1,bx.smallEnd(1));
             if (bc_ptr_h[BCVars::yvel_bc].lo(1) == ERFBCType::ext_dir) {
-                ParallelFor(lo_y_dom_face, [=,zero_d=zero] AMREX_GPU_DEVICE (int i, int j, int k) {
-                    rho_v_rhs(i,j,k) = zero_d;
+                ParallelFor(lo_y_dom_face, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+                    rho_v_rhs(i,j,k) = zero;
                 });
             } else if (bc_ptr_h[BCVars::yvel_bc].lo(1) == ERFBCType::ext_dir_upwind) {
-                ParallelFor(lo_y_dom_face, [=,zero_d=zero] AMREX_GPU_DEVICE (int i, int j, int k) {
-                    if (v(i,j,k) >= zero_d) {
-                        rho_v_rhs(i,j,k) = zero_d;
+                ParallelFor(lo_y_dom_face, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+                    if (v(i,j,k) >= zero) {
+                        rho_v_rhs(i,j,k) = zero;
                     }
                 });
             }
@@ -873,29 +873,29 @@ void erf_slow_rhs_pre (int level, int finest_level,
         if (bx.bigEnd(1) == domain.bigEnd(1)) {
             Box hi_y_dom_face(bx); hi_y_dom_face.setSmall(1,bx.bigEnd(1)+1); hi_y_dom_face.setBig(1,bx.bigEnd(1)+1);
             if (bc_ptr_h[BCVars::yvel_bc].hi(1) == ERFBCType::ext_dir) {
-                ParallelFor(hi_y_dom_face, [=,zero_d=zero] AMREX_GPU_DEVICE (int i, int j, int k) {
-                    rho_v_rhs(i,j,k) = zero_d;
+                ParallelFor(hi_y_dom_face, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+                    rho_v_rhs(i,j,k) = zero;
                 });
             } else if (bc_ptr_h[BCVars::yvel_bc].hi(1) == ERFBCType::ext_dir_upwind) {
-                ParallelFor(hi_y_dom_face, [=,zero_d=zero] AMREX_GPU_DEVICE (int i, int j, int k) {
-                    if (v(i,j,k) <= zero_d) {
-                        rho_v_rhs(i,j,k) = zero_d;
+                ParallelFor(hi_y_dom_face, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+                    if (v(i,j,k) <= zero) {
+                        rho_v_rhs(i,j,k) = zero;
                     }
                 });
             }
         }
 
-        ParallelFor(tbz, [=,myhalf_d=myhalf,zero_d=zero,one_d=one] AMREX_GPU_DEVICE (int i, int j, int k)
+        ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k)
         { // z-momentum equation
 
             Real gpz = gpz_arr(i,j,k);
 
-            Real q = (l_use_moisture) ? myhalf_d * (qt_arr(i,j,k) + qt_arr(i,j,k-1)) : zero_d;
+            Real q = (l_use_moisture) ? myhalf * (qt_arr(i,j,k) + qt_arr(i,j,k-1)) : zero;
 
-            rho_w_rhs(i, j, k) += (-gpz - abl_pressure_grad[2] + buoyancy_arr(i,j,k)) / (one_d + q) + zmom_src_arr(i,j,k);
+            rho_w_rhs(i, j, k) += (-gpz - abl_pressure_grad[2] + buoyancy_arr(i,j,k)) / (one + q) + zmom_src_arr(i,j,k);
 
             if (l_moving_terrain) {
-                 rho_w_rhs(i, j, k) *= myhalf_d * (detJ_arr(i,j,k) + detJ_arr(i,j,k-1));
+                 rho_w_rhs(i, j, k) *= myhalf * (detJ_arr(i,j,k) + detJ_arr(i,j,k-1));
             }
         });
 

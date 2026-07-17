@@ -58,24 +58,24 @@
         }
     }
 
-    ParallelForRNG(bx, [=,myhalf_d=myhalf,zero_d=zero,two_d=two,one_d=one] AMREX_GPU_DEVICE(int i, int j, int k, const amrex::RandomEngine& engine) noexcept
+    ParallelForRNG(bx, [=,one_d=one] AMREX_GPU_DEVICE(int i, int j, int k, const amrex::RandomEngine& engine) noexcept
     {
         const Real* dx = geomdata.CellSize();
-        const Real x = prob_lo[0] + (i + myhalf_d) * dx[0];
-        const Real y = prob_lo[1] + (j + myhalf_d) * dx[1];
+        const Real x = prob_lo[0] + (i + myhalf) * dx[0];
+        const Real y = prob_lo[1] + (j + myhalf) * dx[1];
         const Real z = z_cc(i,j,k);
 
         // Define a point (xc,yc,zc) at the center of the domain
-        const Real xc = myhalf_d * (prob_lo[0] + prob_hi[0]);
-        const Real yc = myhalf_d * (prob_lo[1] + prob_hi[1]);
-        const Real zc = myhalf_d * (prob_lo[2] + prob_hi[2]);
+        const Real xc = myhalf * (prob_lo[0] + prob_hi[0]);
+        const Real yc = myhalf * (prob_lo[1] + prob_hi[1]);
+        const Real zc = myhalf * (prob_lo[2] + prob_hi[2]);
 
         const Real r  = std::sqrt((x-xc)*(x-xc) + (y-yc)*(y-yc) + (z-zc)*(z-zc));
 
         // Add temperature perturbations
-        if ((z <= pert_ref_height) && (T_0_Pert_Mag != zero_d)) {
+        if ((z <= pert_ref_height) && (T_0_Pert_Mag != zero)) {
             Real rand_double = amrex::Random(engine); // Between zero and one
-            state_pert(i, j, k, RhoTheta_comp) = (rand_double*two_d - one_d)*T_0_Pert_Mag;
+            state_pert(i, j, k, RhoTheta_comp) = (rand_double*two - one_d)*T_0_Pert_Mag;
             if (!pert_rhotheta) {
                 // we're perturbing theta, not rho*theta
                 state_pert(i, j, k, RhoTheta_comp) *= r_hse(i,j,k);
