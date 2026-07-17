@@ -130,7 +130,7 @@ void SuperDropletPC::Recycle ( const int             a_lev,
         const auto z_max = m_recyc_zmax;
 
         forEachParticleTile(a_lev, proc_ctx,
-            [&](ParIterType& /*pti*/, int grid, ParticleType* p_pbox,
+            [&,one_d=one,zero_d=zero](ParIterType& /*pti*/, int grid, ParticleType* p_pbox,
                 const SDProcess::ParticlePointers& ptrs,
                 const SDProcess::ProcessContext& ctx)
         {
@@ -140,9 +140,9 @@ void SuperDropletPC::Recycle ( const int             a_lev,
             // Get sampled aerosol mass values based on initialization
             Gpu::DeviceVector<Real> aerosol_mass_d(ctx.num_aerosols*np);
             Gpu::DeviceVector<Real> multiplicity_d(np);
-            ParticleReal mult_scale = one;
+            ParticleReal mult_scale = one_d;
             {
-                Vector<Real> multiplicity_h(np, zero);
+                Vector<Real> multiplicity_h(np, zero_d);
                 for (int i = 0; i < ctx.num_aerosols; i++) {
                     Vector<Real> aerosol_mass_h;
                     if (sampled_multiplicity) {
@@ -167,7 +167,7 @@ void SuperDropletPC::Recycle ( const int             a_lev,
                 }
                 if (sampled_multiplicity) {
                     // compute multiplicity scale
-                    ParticleReal mult_sum = zero;
+                    ParticleReal mult_sum = zero_d;
                     for (int ctr=0; ctr < multiplicity_h.size(); ctr++) {
                         mult_sum += multiplicity_h[ctr];
                     }
