@@ -77,7 +77,8 @@
             moisture_type = 2;
         }
 
-        ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k)
+        ParallelFor(bx, [=,zero_d=zero,one_d=one,tbgmin_d=tbgmin,a_bg_d=a_bg]
+                    AMREX_GPU_DEVICE(int i, int j, int k)
         {
             // Geometry (note we must include these here to get the data on device)
             const auto prob_lo  = geomdata.ProbLo();
@@ -89,7 +90,7 @@
             Real rad, delta_theta, theta_total, rho, RH;
 
             // Introduce the warm bubble. Assume that the bubble is pressure matched with the background
-            rad = zero;
+            rad = zero_d;
             if (x_r > 0) rad += amrex::Math::powi<2>((x - x_c)/x_r);
             if (y_r > 0) rad += amrex::Math::powi<2>((y - y_c)/y_r);
             if (z_r > 0) rad += amrex::Math::powi<2>((z - z_c)/z_r);
@@ -98,22 +99,22 @@
             if (rad <= amrex::Real(1)) {
                 delta_theta = theta_pert*amrex::Math::powi<2>(std::cos(PI*rad/two));
             } else {
-                 delta_theta = amrex::Real(0);
+                 delta_theta = zero;
             }
 
             theta_total  = theta_back[k]*(delta_theta/amrex::Real(300.0) + 1);
-            Real T = getTgivenPandTh(p_back[k], theta_total, (R_d/Cp_d));
-            rho    = p_back[k]/(R_d*T*(amrex::Real(1) + (R_v/R_d)*q_v_back[k]));
+            Real T = getTgivenPandTh(p_back[k], theta_total, RdoCp);
+            rho    = p_back[k]/(R_d*T*(one + RvoRd*q_v_back[k]));
             RH     = compute_relative_humidity(use_empirical);
             Real q_v_hot = vapor_mixing_ratio(p_back[k], T, RH);
 
             // Compute background quantities
-            Real T_back   = getTgivenPandTh(p_back[k], theta_back[k], (R_d/Cp_d));
-            Real rho_back = p_back[k]/(R_d*T_back*(amrex::Real(1) + (R_v/R_d)*q_v_back[k]));
+            Real T_back   = getTgivenPandTh(p_back[k], theta_back[k], RdoCp);
+            Real rho_back = p_back[k]/(R_d*T_back*(one + RvoRd*q_v_back[k]));
 
             // This version perturbs rho but not p
-            state_pert(i, j, k, RhoTheta_comp) = rho*theta_total - rho_back*theta_back[k]*(amrex::Real(1) + (R_v/R_d)*q_v_back[k]);
-            state_pert(i, j, k, Rho_comp)      = rho - rho_back*(amrex::Real(1) + qt_init);
+            state_pert(i, j, k, RhoTheta_comp) = rho*theta_total - rho_back*theta_back[k]*(one + RvoRd*q_v_back[k]);
+            state_pert(i, j, k, Rho_comp)      = rho - rho_back*(one + qt_init);
 
             // Set scalar = 0 everywhere
             state_pert(i, j, k, RhoScalar_comp) = zero;
@@ -127,16 +128,16 @@
             if (nstate == NVAR_max) {
                 Real omn;
                 if(moisture_type == 1) {
-                    omn = std::max(amrex::Real(0),std::min(amrex::Real(1),(T-tbgmin)*a_bg));
+                    omn = std::max(zero_d,std::min(one_d,(T-tbgmin_d)*a_bg_d));
                 } else if(moisture_type == 2) {
-                    omn = amrex::Real(1);
+                    omn = one;
                 } else {
                     omn = zero;
                     Abort("Invalid moisture type specified");
                 }
                 Real qn  = state_pert(i, j, k, RhoQ2_comp);
                 state_pert(i, j, k, RhoQ2_comp) = qn * omn;
-                state_pert(i, j, k, RhoQ3_comp) = qn * (amrex::Real(1)-omn);
+                state_pert(i, j, k, RhoQ3_comp) = qn * (one - omn);
             }
         });
     } else {

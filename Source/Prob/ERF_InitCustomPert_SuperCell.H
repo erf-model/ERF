@@ -97,8 +97,8 @@
         }
 
         theta_total     = t[k] + delta_theta;
-        temperature     = getTgivenPandTh(p[k], theta_total, (R_d/Cp_d));
-        Real T_b        = getTgivenPandTh(p[k], t[k]       , (R_d/Cp_d));
+        temperature     = getTgivenPandTh(p[k], theta_total, RdoCp);
+        Real T_b        = getTgivenPandTh(p[k], t[k]       , RdoCp);
         RH              = HSEutils::compute_relative_humidity(p[k], T_b, use_empirical, which_zone, scaled_height);
 
         Real q_v_hot;
@@ -108,11 +108,11 @@
             q_v_hot = HSEutils::vapor_mixing_ratio(p[k], T_b, RH, use_empirical, which_zone);
         }
 
-        rho             = p[k]/(R_d*temperature*(one + (R_v/R_d)*q_v_hot));
+        rho = p[k]/(R_d*temperature*(one + RvoRd*q_v_hot));
 
         // Compute background quantities
-        Real temperature_back = getTgivenPandTh(p[k], t[k], (R_d/Cp_d));
-        Real T_back           = getTgivenPandTh(p[k], t[k], (R_d/Cp_d));
+        Real temperature_back = getTgivenPandTh(p[k], t[k], RdoCp);
+        Real T_back           = getTgivenPandTh(p[k], t[k], RdoCp);
         Real RH_back          = HSEutils::compute_relative_humidity(p[k], T_back, use_empirical, which_zone, scaled_height);
 
         Real q_v_back;
@@ -125,7 +125,7 @@
         Real rho_back         = getRhogivenTandPress(temperature_back, p[k], q_v_back);
 
         // This version perturbs rho but not p
-        state_pert(i, j, k, RhoTheta_comp) = rho*theta_total - rho_back*t[k]*(one + (R_v/R_d)*q_v_back);// rho*d_t[k]*(one + R_v_by_R_d*q_v_hot);
+        state_pert(i, j, k, RhoTheta_comp) = rho*theta_total - rho_back*t[k]*(one + RvoRd*q_v_back);// rho*d_t[k]*(one + R_v_by_R_d*q_v_hot);
         state_pert(i, j, k, Rho_comp)      = rho - rho_back*(one + q_v_back);
 
         // Set scalar = 0 everywhere
