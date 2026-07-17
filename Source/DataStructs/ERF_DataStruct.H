@@ -1370,18 +1370,25 @@ struct SolverChoice {
     {
         return pert_type[lev] == PerturbationType::Source ||
                pert_type[lev] == PerturbationType::Direct ||
-               pert_type[lev] == PerturbationType::CPM;
+               pert_type[lev] == PerturbationType::CPM ||
+               pert_type[lev] == PerturbationType::CPM_W;
     }
 
     bool use_direct_perturbation (int lev) const
     {
         return pert_type[lev] == PerturbationType::Direct ||
-               pert_type[lev] == PerturbationType::CPM;
+               pert_type[lev] == PerturbationType::CPM ||
+               pert_type[lev] == PerturbationType::CPM_W;
     }
 
     bool use_source_perturbation (int lev) const
     {
         return pert_type[lev] == PerturbationType::Source;
+    }
+
+    bool use_wvel_perturbation (int lev) const
+    {
+        return pert_type[lev] == PerturbationType::CPM_W;
     }
 
     bool uses_shoc_family () const noexcept
