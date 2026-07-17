@@ -64,7 +64,9 @@ WriteBndryPlanes::WriteBndryPlanes (Vector<BoxArray>& grids,
     pp.getarr("bndry_output_box_lo",box_lo,0,2);
     pp.getarr("bndry_output_box_hi",box_hi,0,2);
 
-    // If the target area is contained at a finer level, use the finest data possible
+    // If the target area is contained at a finer level, use the finest data possible.
+    // target_box is expressed in the index space of bndry_lev, so it must only be set
+    // together with bndry_lev; each level's candidate box is kept in a local variable.
     for (int ilev = 0; ilev < grids.size(); ilev++) {
 
         const Real* xLo   = m_geom[ilev].ProbLo();
@@ -79,11 +81,11 @@ WriteBndryPlanes::WriteBndryPlanes (Vector<BoxArray>& grids,
         int jhi = static_cast<int>(Math::floor((box_hi[1] - xLo[1]) * dxi[1])+Real(.5))-1;
 
         // Map this to index space -- for now we do no interpolation
-        target_box.setSmall(IntVect(ilo,jlo,0));
-        target_box.setBig(IntVect(ihi,jhi,domain.bigEnd(2)));
+        Box box_this_lev(IntVect(ilo,jlo,0),
+                         IntVect(ihi,jhi,domain.bigEnd(2)));
 
         // Test if the target box at this level fits in the grids at this level
-        Box gbx = target_box; gbx.grow(IntVect(1,1,0));
+        Box gbx = box_this_lev; gbx.grow(IntVect(1,1,0));
 
         // Ensure that the box is no larger than can fit in the (periodically grown) domain
         // at level 0
@@ -96,9 +98,16 @@ WriteBndryPlanes::WriteBndryPlanes (Vector<BoxArray>& grids,
             if (!per_grown_domain.contains(gbx))
                 Error("WriteBndryPlanes: Requested box is too large to fill");
             */
+
+            // Default to level 0
+            target_box = box_this_lev;
         }
 
-        if (grids[ilev].contains(gbx)) bndry_lev = ilev;
+        // Use this level's data only if its grids fully contain the requested region
+        if (grids[ilev].contains(gbx)) {
+            bndry_lev  = ilev;
+            target_box = box_this_lev;
+        }
     }
 
     // The folder "m_filename" will contain the time series of data and the time.dat file
