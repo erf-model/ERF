@@ -83,9 +83,14 @@ void ReadBndryPlanes::define_level_data (int /*lev*/)
  * @param time Constant specifying the time for interpolation
  */
 Vector<std::unique_ptr<PlaneVector>>&
-ReadBndryPlanes::interp_in_time (const double& time)
+ReadBndryPlanes::interp_in_time (const double& time_in)
 {
-    AMREX_ALWAYS_ASSERT(m_tn <= time && time <= m_tnp2);
+    // A restart that lands exactly on a boundary-plane time can request a time a few
+    // ULP outside [m_tn, m_tnp2] because per-level t_new drifts under subcycling.
+    // Tolerate that drift, then clamp into the valid window before interpolating.
+    const double eps  = 1.0e-8 * (m_tnp2 - m_tn);
+    AMREX_ALWAYS_ASSERT(m_tn - eps <= time_in && time_in <= m_tnp2 + eps);
+    const double time = std::min(std::max(time_in, m_tn), m_tnp2);
 
     //Print() << "interp_in_time at time " << time << " given " << m_tn << " " << m_tnp1 << " " << m_tnp2 << std::endl;
     //Print() << "m_tinterp " << m_tinterp << std::endl;
@@ -143,9 +148,14 @@ ReadBndryPlanes::interp_in_time (const double& time)
  * @param time Constant specifying the time for interpolation
  */
 Vector<std::unique_ptr<PlaneVector>>&
-ReadBndryPlanes::get_tendency (const double& time)
+ReadBndryPlanes::get_tendency (const double& time_in)
 {
-    AMREX_ALWAYS_ASSERT(m_tn <= time && time <= m_tnp2);
+    // A restart that lands exactly on a boundary-plane time can request a time a few
+    // ULP outside [m_tn, m_tnp2] because per-level t_new drifts under subcycling.
+    // Tolerate that drift, then clamp into the valid window before interpolating.
+    const double eps  = 1.0e-8 * (m_tnp2 - m_tn);
+    AMREX_ALWAYS_ASSERT(m_tn - eps <= time_in && time_in <= m_tnp2 + eps);
+    const double time = std::min(std::max(time_in, m_tn), m_tnp2);
 
     if (time < m_tnp1) {
         Real idt = static_cast<Real>(1.0 / (m_tnp1 - m_tn));
