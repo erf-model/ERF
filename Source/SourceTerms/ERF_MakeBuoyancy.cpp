@@ -174,9 +174,9 @@ void make_buoyancy (int lev,
                 else if (solverChoice.buoyancy_type[lev] == 2 || solverChoice.buoyancy_type[lev] == 3)
                 {
 
-                    ParallelFor(tbz, [=,rdOcp_d=solverChoice.rdOcp] AMREX_GPU_DEVICE (int i, int j, int k)
+                    ParallelFor(tbz, [=,RdoCp_d=RdoCp] AMREX_GPU_DEVICE (int i, int j, int k)
                     {
-                        buoyancy_fab(i, j, k) = buoyancy_moist_Tpert(i,j,k,n_qstate,grav_gpu[2],rdOcp_d,
+                        buoyancy_fab(i, j, k) = buoyancy_moist_Tpert(i,j,k,n_qstate,grav_gpu[2],RdoCp_d,
                                                                      r0_arr,th0_arr,qv0_arr,p0_arr,
                                                                      cell_prim,cell_data,qt_arr);
                     });
