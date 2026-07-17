@@ -1009,11 +1009,11 @@ SurfaceLayer::compute_sfc_params_from_lsm_fluxes (const int& lev,
             if (toLower(m_lsm_flux_name[n]) == "tau23")  { lsm_tau23_arr  = m_lsm_flux_lev[lev][n]->array(mfi); }
         }
 
-        ParallelFor(vbx, [=,lsm_undefined_d=lsm_undefined,zero_d=zero,one_d=one,R_v_d=R_v,R_d_d=R_d,KAPPA_d=KAPPA,CONST_GRAV_d=CONST_GRAV] AMREX_GPU_DEVICE(int i, int j, int /*k*/) noexcept
+        ParallelFor(vbx, [=] AMREX_GPU_DEVICE(int i, int j, int /*k*/) noexcept
         {
             int is_land = (lmask_arr) ? lmask_arr(i,j,0) : 1;
             // Skip cells the LSM did not have a valid flux (lsm_undefined).
-            if (is_land && lsm_t_flux_arr && lsm_t_flux_arr(i,j,0) < lsm_undefined_d) {
+            if (is_land && lsm_t_flux_arr && lsm_t_flux_arr(i,j,0) < lsm_undefined) {
                 Real rho = cons_arr(i,j,klo,Rho_comp);
                 Real Thd = cons_arr(i,j,klo,RhoTheta_comp) / rho;
                 Real qv  = (has_moisture) ? cons_arr(i,j,klo,RhoQ1_comp) / rho : zero;
@@ -1021,18 +1021,18 @@ SurfaceLayer::compute_sfc_params_from_lsm_fluxes (const int& lev,
                 Real tau = std::sqrt( lsm_tau13_arr(i,j,0)*lsm_tau13_arr(i,j,0)
                                     + lsm_tau23_arr(i,j,0)*lsm_tau23_arr(i,j,0) );
                 u_star_arr(i,j,0) = amrex::max(std::sqrt(tau),eps);
-                if (lsm_t_flux_arr(i,j,0)>=zero_d) {
+                if (lsm_t_flux_arr(i,j,0)>=zero) {
                     t_star_arr(i,j,0) = amrex::min(-lsm_t_flux_arr(i,j,0) / u_star_arr(i,j,0),-eps);
                 } else {
                     t_star_arr(i,j,0) = amrex::max(-lsm_t_flux_arr(i,j,0) / u_star_arr(i,j,0),eps);
                 }
-                if (lsm_q_flux_arr(i,j,0)>=zero_d) {
+                if (lsm_q_flux_arr(i,j,0)>=zero) {
                     q_star_arr(i,j,0) = amrex::min(-lsm_q_flux_arr(i,j,0) / u_star_arr(i,j,0),-eps);
                 } else {
                     q_star_arr(i,j,0) = amrex::max(-lsm_q_flux_arr(i,j,0) / u_star_arr(i,j,0),eps);
                 }
                 olen_arr(i,j,0)   = ( u_star_arr(i,j,0) * u_star_arr(i,j,0) * Thv ) /
-                                    ( KAPPA_d * CONST_GRAV_d * t_star_arr(i,j,0) );
+                                    ( KAPPA * CONST_GRAV * t_star_arr(i,j,0) );
             }
         });
     } // mfi
@@ -1149,17 +1149,17 @@ SurfaceLayer::fill_qsurf_with_qsat (const int& lev,
         const auto z_arr    = (z_phys_nd) ? z_phys_nd->const_array(mfi) :
                                             Array4<const Real> {};
 
-        ParallelFor(gtbx, [=,myhalf_d=myhalf,CONST_GRAV_d=CONST_GRAV] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+        ParallelFor(gtbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {
             int is_land = (lmask_arr) ? lmask_arr(i,j,k) : 1;
             if (!is_land) {
                 auto deltaZ = (z_arr) ? Compute_Zrel_AtCellCenter(i,j,k,z_arr) :
-                                        myhalf_d*dz;
+                                        myhalf*dz;
                 auto Rho  = cons_arr(i,j,k,Rho_comp);
                 auto RTh  = cons_arr(i,j,k,RhoTheta_comp);
                 auto Qv   = cons_arr(i,j,k,RhoQ1_comp) / Rho;
                 auto P_cc = getPgivenRTh(RTh, Qv);
-                P_cc += Rho*CONST_GRAV_d*deltaZ;
+                P_cc += Rho*CONST_GRAV*deltaZ;
                 P_cc *= Real(0.01);
                 erf_qsatw(t_surf_arr(i,j,k), P_cc, q_surf_arr(i,j,k));
             }
@@ -1263,10 +1263,10 @@ SurfaceLayer::init_tke_from_ustar (const int& lev,
         auto const& z_phys_arr = z_phys_nd->const_array(mfi);
         auto        z_surf_all = z_surf_lo.array();
 
-        ParallelFor(vbx, [=,fourth_d=fourth] AMREX_GPU_DEVICE(int i, int j, int ) noexcept
+        ParallelFor(vbx, [=] AMREX_GPU_DEVICE(int i, int j, int ) noexcept
         {
             u_star_all(i,j,0) = u_star_arr(i,j,0);
-            z_surf_all(i,j,0) = fourth_d * ( z_phys_arr(i  ,j  ,klo) + z_phys_arr(i+1,j  ,klo)
+            z_surf_all(i,j,0) = fourth * ( z_phys_arr(i  ,j  ,klo) + z_phys_arr(i+1,j  ,klo)
                                        + z_phys_arr(i  ,j+1,klo) + z_phys_arr(i+1,j+1,klo) );
         });
     }
@@ -1366,7 +1366,7 @@ SurfaceLayer::read_custom_roughness (const int& lev,
             int jhi = m_geom[lev].Domain().bigEnd(1);
 
             Array4<Real> const& z0_arr = z_0[lev].array(mfi);
-            ParallelFor(gtbx, [=,zero_d=zero] AMREX_GPU_DEVICE (int i, int j, int /*k*/)
+            ParallelFor(gtbx, [=] AMREX_GPU_DEVICE (int i, int j, int /*k*/)
             {
                 // Clip indices for ghost-cells
                 int ii = amrex::min(amrex::max(i,ilo),ihi);
@@ -1380,7 +1380,7 @@ SurfaceLayer::read_custom_roughness (const int& lev,
                     z0_arr(i,j,klo) = z0p[inode];
                 } else {
                     // Unexpected list order, do brute force search
-                    Real z0loc = zero_d;
+                    Real z0loc = zero;
                     bool found = false;
                     for (int n=0; n<nnode; ++n) {
                         Real delta=std::sqrt(amrex::Math::powi<2>(x-xp[n])+amrex::Math::powi<2>(y-yp[n]));
