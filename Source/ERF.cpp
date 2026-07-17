@@ -676,7 +676,7 @@ ERF::InitData_post ()
                                              bdy_data_xlo,bdy_data_xhi,bdy_data_ylo,bdy_data_yhi,
                                              wrf_MUB, wrf_C1H, wrf_C2H, wrf_RDNW, wrf_PHB, z_phys_nd[0],
                                              vars_new[0][Vars::xvel], vars_new[0][Vars::yvel], vars_new[0][Vars::cons],
-                                             r_hse, area_vec, geom[0], use_moist, solverChoice.rebalance_wrf_bdy, domain_bcs_type,
+                                             r_hse, area_vec, geom[0], use_moist, solverChoice.rebalance_wrf_input, domain_bcs_type,
                                              real_width, bdy_time_interval, is_anelastic);
             }
 
@@ -689,7 +689,7 @@ ERF::InitData_post ()
                                              bdy_data_xlo,bdy_data_xhi,bdy_data_ylo,bdy_data_yhi,
                                              wrf_MUB, wrf_C1H, wrf_C2H, wrf_RDNW, wrf_PHB, z_phys_nd[0],
                                              vars_new[0][Vars::xvel], vars_new[0][Vars::yvel], vars_new[0][Vars::cons],
-                                             r_hse, area_vec, geom[0], use_moist, solverChoice.rebalance_wrf_bdy, domain_bcs_type,
+                                             r_hse, area_vec, geom[0], use_moist, solverChoice.rebalance_wrf_input, domain_bcs_type,
                                              real_width, bdy_time_interval, is_anelastic);
             } // itime
         } // use_real_bcs

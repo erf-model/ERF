@@ -38,7 +38,7 @@ read_and_convert_from_wrfbdy (const int itime, const std::string& nc_bdy_file,
                               const amrex::MultiFab& rho0,
                               amrex::Array<amrex::MultiFab*, AMREX_SPACEDIM>& area_vec,
                               const amrex::Geometry& geom, const bool& use_moist,
-                              const bool rebalance_wrf_bdy,
+                              const bool rebalance_wrf_state,
                               const amrex::Vector<amrex::BCRec>& domain_bcs_type_h,
                               int real_width, double bdy_time_interval,
                               bool is_anelastic, bool do_conversion = true);
