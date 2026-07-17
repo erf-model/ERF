@@ -1296,7 +1296,8 @@ init_base_state_from_metgrid (const bool use_moisture,
         const Array4<Real>& qv_hse_arr = qv_hse_fab.array();
         auto const z_arr = z_phys_nd_fab.const_array();
 
-        ParallelFor(valid_bx2d, [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept
+        ParallelFor(valid_bx2d, [=]
+                    AMREX_GPU_DEVICE (int i, int j, int) noexcept
         {
             // Surface values and constants
             Real dz, F, C;
@@ -1430,7 +1431,8 @@ init_base_state_from_metgrid (const bool use_moisture,
         auto       new_data  = state_fab.array();
         auto const new_z     = z_phys_cc_fab.const_array();
 
-        ParallelFor(valid_bx2d, [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept
+        ParallelFor(valid_bx2d, [=,RdoCp_d=RdoCp]
+                    AMREX_GPU_DEVICE (int i, int j, int) noexcept
         {
             // Low and Hi column variables
             Real psurf;
@@ -1492,8 +1494,8 @@ init_base_state_from_metgrid (const bool use_moisture,
 
                 // Initial guesses for hi data
                  p_hi = p_lo;
-                 t_hi = getTgivenPandTh(p_hi, th_hi, R_d/Cp_d);
-                rd_hi = getRhogivenThetaPress(th_hi, p_hi, R_d/Cp_d, qv_hi);
+                 t_hi = getTgivenPandTh(p_hi, th_hi, RdoCp_d);
+                rd_hi = getRhogivenThetaPress(th_hi, p_hi, RdoCp_d, qv_hi);
 
                 // Vertical grid spacing
                 Real dz = z_hi - z_lo;
@@ -1509,7 +1511,7 @@ init_base_state_from_metgrid (const bool use_moisture,
                 // Do iterations
                 if (std::abs(F)>tol) {
                     bool maintain_Th = true;
-                    HSEutils::Newton_Raphson_hse(tol, R_d/Cp_d, dz,
+                    HSEutils::Newton_Raphson_hse(tol, RdoCp_d, dz,
                                                  grav, C, th_hi, t_hi,
                                                  qv_hi, qv_hi, p_hi,
                                                  rd_hi, F, maintain_Th);

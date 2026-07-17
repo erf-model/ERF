@@ -55,13 +55,13 @@ void GetMoistureVars (int i, int j, int k,
  */
 AMREX_GPU_DEVICE
 AMREX_FORCE_INLINE
-amrex::Real ComputeVirtualPotentialTemperature (amrex::Real theta,
-                                                amrex::Real qv,
-                                                amrex::Real qc_liquid,
-                                                amrex::Real qc_ice)
+amrex::Real ComputeVirtualPotentialTemperature (const amrex::Real& theta,
+                                                const amrex::Real& qv,
+                                                const amrex::Real& qc_liquid,
+                                                const amrex::Real& qc_ice)
 {
     amrex::Real qc_total = qc_liquid + qc_ice;
-    return theta * (one + amrex::Real(0.61)*qv - qc_total);
+    return theta * (one + epsv*qv - qc_total);
 }
 
 /**
@@ -69,7 +69,7 @@ amrex::Real ComputeVirtualPotentialTemperature (amrex::Real theta,
  */
 AMREX_GPU_DEVICE
 AMREX_FORCE_INLINE
-amrex::Real GetThetav (int i, int j, int k,
+amrex::Real GetThetav (const int& i, const int& j, const int& k,
                        const amrex::Array4<amrex::Real const>& cell_data,
                        const MoistureComponentIndices& moisture_indices)
 {
@@ -86,9 +86,9 @@ amrex::Real GetThetav (int i, int j, int k,
  */
 AMREX_GPU_DEVICE
 AMREX_FORCE_INLINE
-amrex::Real ComputeLiquidWaterPotentialTemperature (amrex::Real theta,
-                                                    amrex::Real T,
-                                                    amrex::Real qc_liquid)
+amrex::Real ComputeLiquidWaterPotentialTemperature (const amrex::Real& theta,
+                                                    const amrex::Real& T,
+                                                    const amrex::Real& qc_liquid)
 {
     return theta - (theta / T) * (L_v / Cp_d) * qc_liquid;
 }
@@ -98,7 +98,7 @@ amrex::Real ComputeLiquidWaterPotentialTemperature (amrex::Real theta,
  */
 AMREX_GPU_DEVICE
 AMREX_FORCE_INLINE
-amrex::Real GetThetal (int i, int j, int k,
+amrex::Real GetThetal (const int& i, const int& j, const int& k,
                        const amrex::Array4<amrex::Real const>& cell_data,
                        const MoistureComponentIndices& moisture_indices)
 {
@@ -120,11 +120,11 @@ amrex::Real GetThetal (int i, int j, int k,
  */
 AMREX_GPU_DEVICE
 AMREX_FORCE_INLINE
-amrex::Real ComputeMoistStratification (int i, int j, int k,
+amrex::Real ComputeMoistStratification (const int& i, const int& j, const int& k,
                                         const amrex::Array4<amrex::Real const>& cell_data,
-                                        amrex::Real dzInv,
-                                        amrex::Real abs_g,
-                                        amrex::Real inv_theta0,
+                                        const amrex::Real& dzInv,
+                                        const amrex::Real& abs_g,
+                                        const amrex::Real& inv_theta0,
                                         const MoistureComponentIndices& moisture_indices)
 {
     // Get moisture variables partitioned into phases
@@ -173,13 +173,13 @@ amrex::Real ComputeMoistStratification (int i, int j, int k,
  */
 AMREX_GPU_DEVICE
 AMREX_FORCE_INLINE
-amrex::Real ComputeStratificationForSmagorinsky (int i, int j, int k,
+amrex::Real ComputeStratificationForSmagorinsky (const int& i, const int& j, const int& k,
                                                  const amrex::Array4<amrex::Real const>& cell_data,
-                                                 amrex::Real dzInv,
-                                                 amrex::Real abs_g,
-                                                 amrex::Real inv_theta0,
-                                                 bool use_moisture,
-                                                 int rho_qv_comp,
+                                                 const amrex::Real& dzInv,
+                                                 const amrex::Real& abs_g,
+                                                 const amrex::Real& inv_theta0,
+                                                 const bool& use_moisture,
+                                                 const int& rho_qv_comp,
                                                  const MoistureComponentIndices& moisture_indices)
 {
     if (use_moisture && (rho_qv_comp >= 0)) {

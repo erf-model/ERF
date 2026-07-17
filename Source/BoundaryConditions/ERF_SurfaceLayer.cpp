@@ -1017,7 +1017,7 @@ SurfaceLayer::compute_sfc_params_from_lsm_fluxes (const int& lev,
                 Real rho = cons_arr(i,j,klo,Rho_comp);
                 Real Thd = cons_arr(i,j,klo,RhoTheta_comp) / rho;
                 Real qv  = (has_moisture) ? cons_arr(i,j,klo,RhoQ1_comp) / rho : zero;
-                Real Thv = Thd * (one + (R_v/R_d - one)*qv);
+                Real Thv = Thd * (one + epsv*qv);
                 Real tau = std::sqrt( lsm_tau13_arr(i,j,0)*lsm_tau13_arr(i,j,0)
                                     + lsm_tau23_arr(i,j,0)*lsm_tau23_arr(i,j,0) );
                 u_star_arr(i,j,0) = amrex::max(std::sqrt(tau),eps);

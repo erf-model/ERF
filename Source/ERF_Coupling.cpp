@@ -31,18 +31,60 @@ AverageDownThenRemap (const amrex::MultiFab& src,
 
     const Box src_cells = enclosedCells(src.boxArray().minimalBox());
     const Box dst_cells = enclosedCells(dst.boxArray().minimalBox());
-    const IntVect ratio = src_cells.length() / dst_cells.length();
+    const IntVect src_len = src_cells.length();
+    const IntVect dst_len = dst_cells.length();
 
-    MultiFab dst_avg(dst.boxArray(), dst.DistributionMap(), dst.nComp(), 0);
-    if (src.boxArray().ixType().cellCentered()) {
-        amrex::average_down(src, dst_avg, 0, dst.nComp(), ratio);
-    } else {
-        amrex::average_down_faces(src, dst_avg, ratio, 0);
+    const bool same_layout =
+        (src.boxArray() == dst.boxArray()) &&
+        (src.DistributionMap() == dst.DistributionMap());
+    if (same_layout) {
+        dst.ParallelCopy(src, 0, 0, dst.nComp());
+        return;
     }
 
-    MultiFab dst_remap(dst.boxArray(), dst.DistributionMap(), dst.nComp(), 0);
-    dst_remap.ParallelCopy(dst_avg, 0, 0, dst.nComp());
-    dst.ParallelCopy(dst_remap, 0, 0, dst.nComp());
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+        src_len[2] == 1 && dst_len[2] == 1,
+        "AverageDownThenRemap expects one-cell-thick source and destination slabs.");
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+        src_cells.smallEnd(0) == dst_cells.smallEnd(0) &&
+        src_cells.smallEnd(1) == dst_cells.smallEnd(1),
+        "AverageDownThenRemap requires aligned source/destination slab origins.");
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+        src_len[0] >= dst_len[0] && src_len[1] >= dst_len[1] &&
+        src_len[0] % dst_len[0] == 0 && src_len[1] % dst_len[1] == 0,
+        "AverageDownThenRemap requires source/destination slab extents to be integer-ratio compatible.");
+
+    const IntVect ratio(src_len[0] / dst_len[0], src_len[1] / dst_len[1], 1);
+
+    amrex::BoxArray coarsened_src_ba = src.boxArray();
+    for (int i = 0; i < coarsened_src_ba.size(); ++i) {
+        const amrex::Box original = coarsened_src_ba[i];
+        amrex::Box coarsened = original;
+        coarsened.coarsen(ratio);
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+            coarsened.refine(ratio) == original,
+            "AverageDownThenRemap source boxes are not evenly coarsenable by the source/destination ratio.");
+    }
+    coarsened_src_ba.coarsen(ratio);
+
+    const bool direct_average_down_safe = (coarsened_src_ba == dst.boxArray());
+
+    if (direct_average_down_safe) {
+        if (src.boxArray().ixType().cellCentered()) {
+            amrex::average_down(src, dst, 0, dst.nComp(), ratio);
+        } else {
+            amrex::average_down_faces(src, dst, ratio, 0);
+        }
+    } else {
+        MultiFab dst_avg(coarsened_src_ba, src.DistributionMap(), dst.nComp(), 0);
+        if (src.boxArray().ixType().cellCentered()) {
+            amrex::average_down(src, dst_avg, 0, dst.nComp(), ratio);
+        } else {
+            amrex::average_down_faces(src, dst_avg, ratio, 0);
+        }
+
+        dst.ParallelCopy(dst_avg, 0, 0, dst.nComp());
+    }
 }
 }
 

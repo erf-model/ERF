@@ -191,9 +191,9 @@ ComputeDiffusivityYSU (const MultiFab& xvel,
             if (k < pbli_arr(i,j,0)) {
                 // -- Compute diffusion coefficients within PBL
                 constexpr Real zfacmin = Real(1e-8); // value from WRF
-                constexpr Real phifac = Real(8.0); // value from H10 and WRF
-                constexpr Real wstar3 = zero; // only nonzero for unstable
-                constexpr Real pfac = two; // profile exponent
+                constexpr Real phifac  = Real(8.0); // value from H10 and WRF
+                constexpr Real wstar3  = Real(0.);  // only nonzero for unstable
+                constexpr Real pfac    = Real(2.);  // profile exponent
                 const Real zfac = std::min(std::max(amrex::Real(1) - zval / pblh_arr(i,j,0), zfacmin ), amrex::Real(1));
                 // Not including YSU top down PBL term (not in H10, added to WRF later)
                 const Real ust3 = u_star_arr(i,j,0) * u_star_arr(i,j,0) * u_star_arr(i,j,0);

@@ -215,4 +215,3 @@ SAM::PrecipFall (const SolverChoice& sc)
         } // mfi
     } // nsub
 }
-

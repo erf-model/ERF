@@ -19,7 +19,7 @@ AdvectionSrcForOpenBC_Normal (const Box& bx,
     // NOTE: Indices (i,j,k) correspond to data that is ON the open bdy.
     int sgn = 1; if (do_lo) sgn = -1;
     Real c_o_star = Real(sgn)*Real(30.0);
-    ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+    ParallelFor(bx, [=,zero_d=zero] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
         IntVect ivu1(i,j,k); if ( do_lo) ivu1[dir] -= sgn; // Vel indexed into domain for do_lo
         IntVect ivu2(i,j,k); if (!do_lo) ivu2[dir] -= sgn; // Vel indexed into domain for do_hi
@@ -28,7 +28,7 @@ AdvectionSrcForOpenBC_Normal (const Box& bx,
         IntVect ivr2(i,j,k); if ( do_lo) ivr2[dir] += sgn; // Rho indexed out  domain for do_lo
 
         Real rho_face  = myhalf * ( cell_data_arr(ivr1,Rho_comp) + cell_data_arr(ivr2,Rho_comp) );
-        Real mom_star  = rho_face * Real(sgn) * max( Real(sgn)*(vel_norm_arr(ivu1) + c_o_star), zero );
+        Real mom_star  = rho_face * Real(sgn) * max( Real(sgn)*(vel_norm_arr(ivu1) + c_o_star), zero_d );
         Real vel_grad  =  ( vel_norm_arr(ivu1) - vel_norm_arr(ivu2) ) * dxInv[dir];
         Real flux      = -( mom_star * vel_grad );
         rhs_arr(i,j,k) = flux;
