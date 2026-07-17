@@ -766,7 +766,7 @@ erf_dermucape ( const Box& bx,
     b2d.setSmall(2,0);
     b2d.setBig(2,0);
 
-    ParallelFor(b2d, [=,RdoCp_d=RdoCp,CpoRd_d=CpoRd,Cp_d_d=Cp_d,R_d_d=R_d,CONST_GRAV_d=CONST_GRAV]
+    ParallelFor(b2d, [=,RdoCp_d=RdoCp,CpoRd_d=CpoRd]
                 AMREX_GPU_DEVICE(int i, int j, int) noexcept
     {
         Real mucape = Real(0);
@@ -847,7 +847,7 @@ erf_dermucape ( const Box& bx,
                         }
 
                         Real Tv_parcel = mucape_virtual_temperature(T_parcel, qv_parcel);
-                        Real buoyancy = CONST_GRAV_d * (Tv_parcel - Tv_env) /
+                        Real buoyancy = CONST_GRAV * (Tv_parcel - Tv_env) /
                                         amrex::max(Tv_env, mucape_min_temperature());
 
                         candidate_cape += mucape_positive_area(b_prev, buoyancy, z_env - z_prev);

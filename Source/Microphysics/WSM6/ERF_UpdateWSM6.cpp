@@ -21,7 +21,7 @@ WSM6::Copy_Micro_to_State(MultiFab& cons)
         auto qs = mic_fab_vars[MicVar_WSM6::qs]->array(mfi);
         auto qg = mic_fab_vars[MicVar_WSM6::qg]->array(mfi);
 
-        ParallelFor(box3d, [=,RdoCp_d=RdoCp,R_d_d=R_d,Cp_d_d=Cp_d]
+        ParallelFor(box3d, [=,RdoCp_d=RdoCp]
                     AMREX_GPU_DEVICE(int i, int j, int k) {
             theta(i,j,k) = getThgivenRandT(rho(i,j,k), tabs(i,j,k), RdoCp_d, qv(i,j,k));
             states(i,j,k,RhoTheta_comp) = rho(i,j,k) * theta(i,j,k);

@@ -524,7 +524,8 @@ void make_sources (int level,
 
             const Real Olen_in            = solverChoice.if_Olen_in;
 
-            ParallelFor(bx, [=,myhalf_d=myhalf,zero_d=zero,two_d=two] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+            ParallelFor(bx, [=,myhalf_d=myhalf,zero_d=zero,two_d=two]
+                        AMREX_GPU_DEVICE(int i, int j, int k) noexcept
             {
                 const Real t_blank       = t_blank_arr(i, j, k);
                 const Real t_blank_above = t_blank_arr(i, j, k+1);
@@ -698,7 +699,7 @@ void make_sources (int level,
             Real qt_i = Real(0.008);
 
             Box xybx = makeSlab(bx,2,klo);
-            ParallelFor(xybx, [=,RdoCp_d=RdoCp,zero_d=zero,myhalf_d=myhalf,Cp_d_d=Cp_d,three_d=three,one_d=one,R_d_d=R_d]
+            ParallelFor(xybx, [=,RdoCp_d=RdoCp,zero_d=zero,myhalf_d=myhalf,Cp_d_d=Cp_d,three_d=three,one_d=one]
                         AMREX_GPU_DEVICE(int i, int j, int /*k*/) noexcept
             {
                 // Inclusive scan at w-faces for the Q integral (also find "i" values)

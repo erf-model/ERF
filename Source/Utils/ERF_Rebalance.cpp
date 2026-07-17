@@ -39,8 +39,7 @@ rebalance_columns (MultiFab& rho,
 
         const Array4<const Real>&   z_arr = z_phys->const_array(mfi);
 
-        ParallelFor(bx, [=,RdoCp_d=RdoCp,zero_d=zero,p_0_d=p_0,R_d_d=R_d,Cp_d_d=Cp_d,one_d=one,myhalf_d=myhalf]
-                    AMREX_GPU_DEVICE(int i, int j, int /*k*/) noexcept
+        ParallelFor(bx, [=,RdoCp_d=RdoCp] AMREX_GPU_DEVICE (int i, int j, int /*k*/) noexcept
         {
             // integrate from surface to domain top
             Real dz, F, C;
@@ -55,7 +54,7 @@ rebalance_columns (MultiFab& rho,
 
             // Integrate from z=0
             if (use_sfc) {
-                z_lo = zero_d; // corresponding to p_0
+                z_lo = zero; // corresponding to p_0
                 z_hi = Real(0.125) * (z_arr(i,j,klo  ) + z_arr(i+1,j,klo  ) + z_arr(i,j+1,klo  ) + z_arr(i+1,j+1,klo  )
                                      +z_arr(i,j,klo+1) + z_arr(i+1,j,klo+1) + z_arr(i,j+1,klo+1) + z_arr(i+1,j+1,klo+1));
                 dz = z_hi - z_lo;
