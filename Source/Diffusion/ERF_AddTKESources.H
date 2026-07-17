@@ -12,7 +12,7 @@
     //       each RK stage, but that does not change the buoyancy production term here.
     if (l_use_keqn && (start_comp <= RhoKE_comp) && (end_comp >= RhoKE_comp)) {
         int qty_index = RhoKE_comp;
-        ParallelFor(bx,[=,two_d=two] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        ParallelFor(bx,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
             // Add Buoyancy Source
             // where the SGS buoyancy flux tau_{theta,i} = -KH * dtheta/dx_i,
@@ -35,7 +35,7 @@
             //   P = -tau_ij * S_ij = 2 * mu_turb * S_ij * S_ij
             // Note: This assumes that the horizontal and vertical diffusivities
             // of momentum are equal
-            cell_rhs(i,j,k,qty_index) += two_d*mu_turb(i,j,k,EddyDiff::Mom_v) * SmnSmn_a(i,j,k);
+            cell_rhs(i,j,k,qty_index) += two*mu_turb(i,j,k,EddyDiff::Mom_v) * SmnSmn_a(i,j,k);
 
             // TKE dissipation
             cell_rhs(i,j,k,qty_index) -= diss(i,j,k);

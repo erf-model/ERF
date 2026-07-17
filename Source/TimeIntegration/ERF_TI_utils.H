@@ -20,9 +20,9 @@
           const Real rdOcp = solverChoice.rdOcp;
           const bool l_use_moisture  = (solverChoice.moisture_type != MoistureType::None);
 
-          amrex::ParallelFor(gbx1, [=,zero_d=zero] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+          amrex::ParallelFor(gbx1, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
           {
-              auto qv_for_p = (l_use_moisture) ? cons_arr(i,j,k,RhoQ1_comp)/cons_arr(i,j,k,Rho_comp) : zero_d;
+              auto qv_for_p = (l_use_moisture) ? cons_arr(i,j,k,RhoQ1_comp)/cons_arr(i,j,k,Rho_comp) : zero;
               pi_stage_arr(i,j,k) = getExnergivenRTh(cons_arr(i,j,k,RhoTheta_comp), rdOcp, qv_for_p);
           });
       } // mfi
@@ -187,10 +187,10 @@
                 const Array4<Real const>& z_nd_old_arr =  z_phys_nd[lev]->const_array(mfi);
 
                 // Loop over horizontal plane
-                amrex::ParallelFor(gbx, [=,fourth_d=fourth] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                amrex::ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
                 {
                     // Evaluate between RK stages assuming the geometry is linear between old and new time
-                    z_t_arr(i,j,k) = fourth_d * inv_dt * (z_nd_new_arr(i+1,j+1,k) - z_nd_old_arr(i+1,j+1,k)
+                    z_t_arr(i,j,k) = fourth * inv_dt * (z_nd_new_arr(i+1,j+1,k) - z_nd_old_arr(i+1,j+1,k)
                                                      +z_nd_new_arr(i  ,j+1,k) - z_nd_old_arr(  i,j+1,k)
                                                      +z_nd_new_arr(i+1,j  ,k) - z_nd_old_arr(i+1,j  ,k)
                                                      +z_nd_new_arr(i  ,j  ,k) - z_nd_old_arr(i  ,j  ,k));
@@ -245,10 +245,10 @@
             const Array4<Real const>& z_nd_old_arr =  z_phys_nd[lev]->const_array(mfi);
 
             // Loop over horizontal plane
-            amrex::ParallelFor(gbx, [=,fourth_d=fourth] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            amrex::ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
                 // Evaluate between RK stages assuming the geometry is linear between old and new time
-                zp_t_arr(i,j,k) = fourth_d * inv_dt * (z_nd_new_arr(i+1,j+1,k) - z_nd_old_arr(i+1,j+1,k)
+                zp_t_arr(i,j,k) = fourth * inv_dt * (z_nd_new_arr(i+1,j+1,k) - z_nd_old_arr(i+1,j+1,k)
                                                   +z_nd_new_arr(i  ,j+1,k) - z_nd_old_arr(  i,j+1,k)
                                                   +z_nd_new_arr(i+1,j  ,k) - z_nd_old_arr(i+1,j  ,k)
                                                   +z_nd_new_arr(i  ,j  ,k) - z_nd_old_arr(i  ,j  ,k));

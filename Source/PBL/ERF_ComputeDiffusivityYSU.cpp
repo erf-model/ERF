@@ -86,14 +86,14 @@ ComputeDiffusivityYSU (const MultiFab& xvel,
         const bool force_over_water = turbChoice.pbl_ysu_force_over_water;
         const Real land_Ribcr = turbChoice.pbl_ysu_land_Ribcr;
         const Real unst_Ribcr = turbChoice.pbl_ysu_unst_Ribcr;
-        ParallelFor(xybx, [=,CONST_GRAV_d=CONST_GRAV,myhalf_d=myhalf,fourth_d=fourth,zero_d=zero,one_d=one] AMREX_GPU_DEVICE (int i, int j, int) noexcept
+        ParallelFor(xybx, [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept
         {
             // Reconstruct a surface bulk Richardson number from the surface layer model
             // In WRF, this value is supplied to YSU by the MM5 surface layer model
             const Real t_surf = t_surf_arr(i,j,0);
             const Real t_layer = t10av_arr(i,j,0);
             const Real ws_layer = ws10av_arr(i,j,0);
-            const Real Rib_layer = CONST_GRAV_d * most_zref / (ws_layer*ws_layer) * (t_layer - t_surf)/(t_layer);
+            const Real Rib_layer = CONST_GRAV * most_zref / (ws_layer*ws_layer) * (t_layer - t_surf)/(t_layer);
 
             // For now, we only support stable boundary layers
             if (Rib_layer < unst_Ribcr) {
@@ -122,35 +122,35 @@ ComputeDiffusivityYSU (const MultiFab& xvel,
             while (!above_critical and bx.contains(i,j,kpbl+1)) {
                 kpbl += 1;
                 const Real zval = use_terrain_fitted_coords ?
-                                  Compute_Zrel_AtCellCenter(i,j,kpbl,z_nd_arr) : gdata.ProbLo(2) + (kpbl + myhalf_d)*gdata.CellSize(2);
-                const Real ws2_level = fourth_d*( (uvel(i,j,kpbl)+uvel(i+1,j  ,kpbl))*(uvel(i,j,kpbl)+uvel(i+1,j  ,kpbl))
+                                  Compute_Zrel_AtCellCenter(i,j,kpbl,z_nd_arr) : gdata.ProbLo(2) + (kpbl + myhalf)*gdata.CellSize(2);
+                const Real ws2_level = fourth*( (uvel(i,j,kpbl)+uvel(i+1,j  ,kpbl))*(uvel(i,j,kpbl)+uvel(i+1,j  ,kpbl))
                                             + (vvel(i,j,kpbl)+vvel(i  ,j+1,kpbl))*(vvel(i,j,kpbl)+vvel(i  ,j+1,kpbl)) );
                 const Real theta = cell_data(i,j,kpbl,RhoTheta_comp) / cell_data(i,j,kpbl,Rho_comp);
                 Rib_dn = Rib_up;
-                Rib_up = (theta-base_theta)/base_theta * CONST_GRAV_d * zval / ws2_level;
+                Rib_up = (theta-base_theta)/base_theta * CONST_GRAV * zval / ws2_level;
                 above_critical = Rib_up >= Rib_cr;
             }
 
             Real interp_fact;
             if (Rib_dn >= Rib_cr) {
-                interp_fact = zero_d;
+                interp_fact = zero;
             } else if (Rib_up <= Rib_cr)
-                interp_fact = one_d;
+                interp_fact = one;
             else {
                 interp_fact = (Rib_cr - Rib_dn) / (Rib_up - Rib_dn);
             }
 
             const Real zval_up = use_terrain_fitted_coords ?
-                                 Compute_Zrel_AtCellCenter(i,j,kpbl,z_nd_arr) : gdata.ProbLo(2) + (kpbl + myhalf_d)*gdata.CellSize(2);
+                                 Compute_Zrel_AtCellCenter(i,j,kpbl,z_nd_arr) : gdata.ProbLo(2) + (kpbl + myhalf)*gdata.CellSize(2);
             const Real zval_dn = use_terrain_fitted_coords ?
-                                 Compute_Zrel_AtCellCenter(i,j,kpbl-1,z_nd_arr) : gdata.ProbLo(2) + (kpbl-1 + myhalf_d)*gdata.CellSize(2);
+                                 Compute_Zrel_AtCellCenter(i,j,kpbl-1,z_nd_arr) : gdata.ProbLo(2) + (kpbl-1 + myhalf)*gdata.CellSize(2);
             pblh_arr(i,j,0) = zval_dn + interp_fact*(zval_up-zval_dn);
 
             const Real zval_0 = use_terrain_fitted_coords ?
-                                 Compute_Zrel_AtCellCenter(i,j,0,z_nd_arr) : gdata.ProbLo(2) + (myhalf_d)*gdata.CellSize(2);
+                                 Compute_Zrel_AtCellCenter(i,j,0,z_nd_arr) : gdata.ProbLo(2) + (myhalf)*gdata.CellSize(2);
             const Real zval_1 = use_terrain_fitted_coords ?
                                  Compute_Zrel_AtCellCenter(i,j,1,z_nd_arr) : gdata.ProbLo(2) + (Real(1.5))*gdata.CellSize(2);
-            if (pblh_arr(i,j,0) < myhalf_d*(zval_0+zval_1) ) {
+            if (pblh_arr(i,j,0) < myhalf*(zval_0+zval_1) ) {
                 kpbl = 0;
             }
             pbli_arr(i,j,0) = kpbl;
@@ -181,12 +181,12 @@ ComputeDiffusivityYSU (const MultiFab& xvel,
         const int izmin = geom.Domain().smallEnd(2);
         const int izmax = geom.Domain().bigEnd(2);
 
-        ParallelFor(bx, [=,myhalf_d=myhalf,one_d=one,zero_d=zero,two_d=two,KAPPA_d=KAPPA,CONST_GRAV_d=CONST_GRAV] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
             const Real zval = use_terrain_fitted_coords ?
-                              Compute_Zrel_AtCellCenter(i,j,k,z_nd_arr) : gdata.ProbLo(2) + (k + myhalf_d)*gdata.CellSize(2);
+                              Compute_Zrel_AtCellCenter(i,j,k,z_nd_arr) : gdata.ProbLo(2) + (k + myhalf)*gdata.CellSize(2);
             const Real rho = cell_data(i,j,k,Rho_comp);
-            const Real met_h_zeta = use_terrain_fitted_coords ? Compute_h_zeta_AtCellCenter(i,j,k,dxInv,z_nd_arr) : one_d;
+            const Real met_h_zeta = use_terrain_fitted_coords ? Compute_h_zeta_AtCellCenter(i,j,k,dxInv,z_nd_arr) : one;
             const Real dz_terrain = met_h_zeta/dz_inv;
             if (k < pbli_arr(i,j,0)) {
                 // -- Compute diffusion coefficients within PBL
@@ -197,12 +197,12 @@ ComputeDiffusivityYSU (const MultiFab& xvel,
                 const Real zfac = std::min(std::max(amrex::Real(1) - zval / pblh_arr(i,j,0), zfacmin ), amrex::Real(1));
                 // Not including YSU top down PBL term (not in H10, added to WRF later)
                 const Real ust3 = u_star_arr(i,j,0) * u_star_arr(i,j,0) * u_star_arr(i,j,0);
-                Real wscalek = ust3 + phifac * KAPPA_d * wstar3 * (amrex::Real(1) - zfac);
+                Real wscalek = ust3 + phifac * KAPPA * wstar3 * (amrex::Real(1) - zfac);
                 wscalek = std::pow(wscalek, amrex::Real(1.0/3.0));
                 // stable only
                 const Real phi_term = amrex::Real(1) + amrex::Real(5) * zval / l_obuk_arr(i,j,0); // phi_term appears in WRF but not papers
                 wscalek = std::max(u_star_arr(i,j,0) / phi_term, Real(0.001)); // Real(0.001) limit appears in WRF but not papers
-                K_turb(i,j,k,EddyDiff::Mom_v) = rho * wscalek * KAPPA_d * zval * std::pow(zfac, pfac);
+                K_turb(i,j,k,EddyDiff::Mom_v) = rho * wscalek * KAPPA * zval * std::pow(zfac, pfac);
                 K_turb(i,j,k,EddyDiff::Theta_v) = K_turb(i,j,k,EddyDiff::Mom_v);
             } else {
                 // -- Compute coefficients in free stream above PBL
@@ -211,27 +211,27 @@ ComputeDiffusivityYSU (const MultiFab& xvel,
                 constexpr Real prandtl_max = Real(4.0);
                 Real dthetadz, dudz, dvdz;
                 ComputeVerticalDerivativesPBL(i, j, k,
-                                              uvel, vvel, cell_data, izmin, izmax, one_d/dz_terrain,
+                                              uvel, vvel, cell_data, izmin, izmax, one/dz_terrain,
                                               c_ext_dir_on_zlo, c_ext_dir_on_zhi,
                                               u_ext_dir_on_zlo, u_ext_dir_on_zhi,
                                               v_ext_dir_on_zlo, v_ext_dir_on_zhi,
                                               dthetadz, dudz, dvdz, moisture_indices);
                 const Real shear_squared = dudz*dudz + dvdz*dvdz + Real(1.0e-9); // Real(1.0e-9) from WRF to avoid divide by zero
                 const Real theta = cell_data(i,j,k,RhoTheta_comp) / cell_data(i,j,k,Rho_comp);
-                Real richardson = CONST_GRAV_d / theta * dthetadz / shear_squared;
+                Real richardson = CONST_GRAV / theta * dthetadz / shear_squared;
                 const Real lambdadz = std::min(std::max(Real(0.1)*dz_terrain , lam0), Real(300.0)); // in WRF, H10 paper just says use lam0
-                const Real lengthscale = lambdadz * KAPPA_d * zval / (lambdadz + KAPPA_d * zval);
+                const Real lengthscale = lambdadz * KAPPA * zval / (lambdadz + KAPPA * zval);
                 const Real turbfact = lengthscale * lengthscale * std::sqrt(shear_squared);
 
                 if (richardson < 0) {
                     richardson = max(richardson, min_richardson);
                     Real sqrt_richardson = std::sqrt(-richardson);
-                    K_turb(i,j,k,EddyDiff::Mom_v) = rho * turbfact * (one_d - Real(8.0) * richardson / (one_d + Real(1.746) * sqrt_richardson));
-                    K_turb(i,j,k,EddyDiff::Theta_v) = rho * turbfact * (one_d - Real(8.0) * richardson / (one_d + Real(1.286) * sqrt_richardson));
+                    K_turb(i,j,k,EddyDiff::Mom_v) = rho * turbfact * (one - Real(8.0) * richardson / (one + Real(1.746) * sqrt_richardson));
+                    K_turb(i,j,k,EddyDiff::Theta_v) = rho * turbfact * (one - Real(8.0) * richardson / (one + Real(1.286) * sqrt_richardson));
                 } else {
-                    const Real oneplus5ri = one_d + Real(5.0) * richardson;
+                    const Real oneplus5ri = one + Real(5.0) * richardson;
                     K_turb(i,j,k,EddyDiff::Theta_v) = rho * turbfact / (oneplus5ri * oneplus5ri);
-                    const Real prandtl = std::min(one_d+Real(2.1)*richardson, prandtl_max); // limit from WRF
+                    const Real prandtl = std::min(one+Real(2.1)*richardson, prandtl_max); // limit from WRF
                     K_turb(i,j,k,EddyDiff::Mom_v) = K_turb(i,j,k,EddyDiff::Theta_v) * prandtl;
                 }
             }

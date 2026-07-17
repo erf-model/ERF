@@ -74,15 +74,15 @@ AdvectionSrcForMom_StretchedDz (const Box& bxx, const Box& bxy, const Box& bxz,
     const Array4<Real>& mf_vy_inv = mf_vy_invFAB.array();
 
     ParallelFor(box2d_u, box2d_v,
-    [=,one_d=one] AMREX_GPU_DEVICE (int i, int j, int) noexcept
+    [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept
     {
-        mf_ux_inv(i,j,0) = one_d / mf_ux(i,j,0);
-        mf_uy_inv(i,j,0) = one_d / mf_uy(i,j,0);
+        mf_ux_inv(i,j,0) = one / mf_ux(i,j,0);
+        mf_uy_inv(i,j,0) = one / mf_uy(i,j,0);
     },
-    [=,one_d=one] AMREX_GPU_DEVICE (int i, int j, int) noexcept
+    [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept
     {
-        mf_vx_inv(i,j,0) = one_d / mf_vx(i,j,0);
-        mf_vy_inv(i,j,0) = one_d / mf_vy(i,j,0);
+        mf_vx_inv(i,j,0) = one / mf_vx(i,j,0);
+        mf_vy_inv(i,j,0) = one / mf_vy(i,j,0);
     });
 
     auto dz_ptr = stretched_dz_d.data();
@@ -91,62 +91,62 @@ AdvectionSrcForMom_StretchedDz (const Box& bxx, const Box& bxy, const Box& bxz,
     if (horiz_adv_type == AdvType::Centered_2nd && vert_adv_type == AdvType::Centered_2nd)
     {
             ParallelFor(bxx, bxy, bxz,
-            [=,fourth_d=fourth,one_d=one] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
-                Real xflux_hi = fourth_d * (rho_u(i, j  , k) * mf_uy_inv(i,j,0) + rho_u(i+1, j  , k) * mf_uy_inv(i+1,j,0)) * (u(i+1,j,k) + u(i,j,k));
-                Real xflux_lo = fourth_d * (rho_u(i, j  , k) * mf_uy_inv(i,j,0) + rho_u(i-1, j  , k) * mf_uy_inv(i-1,j,0)) * (u(i-1,j,k) + u(i,j,k));
+                Real xflux_hi = fourth * (rho_u(i, j  , k) * mf_uy_inv(i,j,0) + rho_u(i+1, j  , k) * mf_uy_inv(i+1,j,0)) * (u(i+1,j,k) + u(i,j,k));
+                Real xflux_lo = fourth * (rho_u(i, j  , k) * mf_uy_inv(i,j,0) + rho_u(i-1, j  , k) * mf_uy_inv(i-1,j,0)) * (u(i-1,j,k) + u(i,j,k));
 
-                Real yflux_hi = fourth_d * (rho_v(i, j+1, k) * mf_vx_inv(i,j+1,0) + rho_v(i-1, j+1, k) * mf_vx_inv(i-1,j+1,0)) * (u(i,j+1,k) + u(i,j,k));
-                Real yflux_lo = fourth_d * (rho_v(i, j  , k) * mf_vx_inv(i,j  ,0) + rho_v(i-1, j  , k) * mf_vx_inv(i-1,j  ,0)) * (u(i,j-1,k) + u(i,j,k));
+                Real yflux_hi = fourth * (rho_v(i, j+1, k) * mf_vx_inv(i,j+1,0) + rho_v(i-1, j+1, k) * mf_vx_inv(i-1,j+1,0)) * (u(i,j+1,k) + u(i,j,k));
+                Real yflux_lo = fourth * (rho_v(i, j  , k) * mf_vx_inv(i,j  ,0) + rho_v(i-1, j  , k) * mf_vx_inv(i-1,j  ,0)) * (u(i,j-1,k) + u(i,j,k));
 
-                Real zflux_hi = fourth_d * (omega(i, j, k+1) + omega(i-1, j, k+1)) * (u(i,j,k+1) + u(i,j,k));
-                Real zflux_lo = fourth_d * (omega(i, j, k  ) + omega(i-1, j, k  )) * (u(i,j,k-1) + u(i,j,k));
+                Real zflux_hi = fourth * (omega(i, j, k+1) + omega(i-1, j, k+1)) * (u(i,j,k+1) + u(i,j,k));
+                Real zflux_lo = fourth * (omega(i, j, k  ) + omega(i-1, j, k  )) * (u(i,j,k-1) + u(i,j,k));
 
                 Real mfsq = mf_ux(i,j,0) * mf_uy(i,j,0);
 
-                Real dzInv = one_d/dz_ptr[k];
+                Real dzInv = one/dz_ptr[k];
 
                 Real advectionSrc = (xflux_hi - xflux_lo) * dxInv * mfsq
                                   + (yflux_hi - yflux_lo) * dyInv * mfsq
                                   + (zflux_hi - zflux_lo) * dzInv;
                 rho_u_rhs(i, j, k) = -advectionSrc;
         },
-        [=,fourth_d=fourth,one_d=one] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
-                Real xflux_hi = fourth_d * (rho_u(i+1, j, k) * mf_uy_inv(i+1,j,0) + rho_u(i+1, j-1, k) * mf_uy_inv(i+1,j-1,0)) * (v(i+1,j,k) + v(i,j,k));
-                Real xflux_lo = fourth_d * (rho_u(i  , j, k) * mf_uy_inv(i  ,j,0) + rho_u(i  , j-1, k) * mf_uy_inv(i  ,j-1,0)) * (v(i-1,j,k) + v(i,j,k));
+                Real xflux_hi = fourth * (rho_u(i+1, j, k) * mf_uy_inv(i+1,j,0) + rho_u(i+1, j-1, k) * mf_uy_inv(i+1,j-1,0)) * (v(i+1,j,k) + v(i,j,k));
+                Real xflux_lo = fourth * (rho_u(i  , j, k) * mf_uy_inv(i  ,j,0) + rho_u(i  , j-1, k) * mf_uy_inv(i  ,j-1,0)) * (v(i-1,j,k) + v(i,j,k));
 
-                Real yflux_hi = fourth_d * (rho_v(i  ,j+1,k) * mf_vx_inv(i,j+1,0) + rho_v(i  ,j  ,k) * mf_vx_inv(i,j  ,0)) * (v(i,j+1,k) + v(i,j,k));
-                Real yflux_lo = fourth_d * (rho_v(i  ,j  ,k) * mf_vx_inv(i,j  ,0) + rho_v(i  ,j-1,k) * mf_vx_inv(i,j-1,0)) * (v(i,j-1,k) + v(i,j,k));
+                Real yflux_hi = fourth * (rho_v(i  ,j+1,k) * mf_vx_inv(i,j+1,0) + rho_v(i  ,j  ,k) * mf_vx_inv(i,j  ,0)) * (v(i,j+1,k) + v(i,j,k));
+                Real yflux_lo = fourth * (rho_v(i  ,j  ,k) * mf_vx_inv(i,j  ,0) + rho_v(i  ,j-1,k) * mf_vx_inv(i,j-1,0)) * (v(i,j-1,k) + v(i,j,k));
 
-                Real zflux_hi = fourth_d * (omega(i, j, k+1) + omega(i, j-1, k+1)) * (v(i,j,k+1) + v(i,j,k));
-                Real zflux_lo = fourth_d * (omega(i, j, k  ) + omega(i, j-1, k  )) * (v(i,j,k-1) + v(i,j,k));
+                Real zflux_hi = fourth * (omega(i, j, k+1) + omega(i, j-1, k+1)) * (v(i,j,k+1) + v(i,j,k));
+                Real zflux_lo = fourth * (omega(i, j, k  ) + omega(i, j-1, k  )) * (v(i,j,k-1) + v(i,j,k));
 
                 Real mfsq = mf_vx(i,j,0) * mf_vy(i,j,0);
 
-                Real dzInv = one_d/dz_ptr[k];
+                Real dzInv = one/dz_ptr[k];
 
                 Real advectionSrc = (xflux_hi - xflux_lo) * dxInv * mfsq
                                   + (yflux_hi - yflux_lo) * dyInv * mfsq
                                   + (zflux_hi - zflux_lo) * dzInv;
                 rho_v_rhs(i, j, k) = -advectionSrc;
         },
-        [=,fourth_d=fourth,one_d=one,two_d=two] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
-                Real xflux_hi = fourth_d*(rho_u(i+1,j  ,k) + rho_u(i+1, j, k-1)) * mf_uy_inv(i+1,j  ,0) * (w(i+1,j,k) + w(i,j,k));
-                Real xflux_lo = fourth_d*(rho_u(i  ,j  ,k) + rho_u(i  , j, k-1)) * mf_uy_inv(i  ,j  ,0) * (w(i-1,j,k) + w(i,j,k));
+                Real xflux_hi = fourth*(rho_u(i+1,j  ,k) + rho_u(i+1, j, k-1)) * mf_uy_inv(i+1,j  ,0) * (w(i+1,j,k) + w(i,j,k));
+                Real xflux_lo = fourth*(rho_u(i  ,j  ,k) + rho_u(i  , j, k-1)) * mf_uy_inv(i  ,j  ,0) * (w(i-1,j,k) + w(i,j,k));
 
-                Real yflux_hi = fourth_d*(rho_v(i  ,j+1,k) + rho_v(i, j+1, k-1)) * mf_vx_inv(i  ,j+1,0) * (w(i,j+1,k) + w(i,j,k));
-                Real yflux_lo = fourth_d*(rho_v(i  ,j  ,k) + rho_v(i, j  , k-1)) * mf_vx_inv(i  ,j  ,0) * (w(i,j-1,k) + w(i,j,k));
+                Real yflux_hi = fourth*(rho_v(i  ,j+1,k) + rho_v(i, j+1, k-1)) * mf_vx_inv(i  ,j+1,0) * (w(i,j+1,k) + w(i,j,k));
+                Real yflux_lo = fourth*(rho_v(i  ,j  ,k) + rho_v(i, j  , k-1)) * mf_vx_inv(i  ,j  ,0) * (w(i,j-1,k) + w(i,j,k));
 
-                Real zflux_lo = fourth_d * (omega(i,j,k) + omega(i,j,k-1)) * (w(i,j,k) + w(i,j,k-1));
+                Real zflux_lo = fourth * (omega(i,j,k) + omega(i,j,k-1)) * (w(i,j,k) + w(i,j,k-1));
 
                 Real zflux_hi = (k == hi_z_face) ? omega(i,j,k) * w(i,j,k) :
-                    fourth_d * (omega(i,j,k) + omega(i,j,k+1)) * (w(i,j,k) + w(i,j,k+1));
+                    fourth * (omega(i,j,k) + omega(i,j,k+1)) * (w(i,j,k) + w(i,j,k+1));
 
                 Real mfsq = mf_mx(i,j,0) * mf_my(i,j,0);
 
-                Real dzInv = (k == 0) ? one_d / dz_ptr[k] : two_d/(dz_ptr[k] + dz_ptr[k-1]);
+                Real dzInv = (k == 0) ? one / dz_ptr[k] : two/(dz_ptr[k] + dz_ptr[k-1]);
 
                 Real advectionSrc = (xflux_hi - xflux_lo) * dxInv * mfsq
                                   + (yflux_hi - yflux_lo) * dyInv * mfsq

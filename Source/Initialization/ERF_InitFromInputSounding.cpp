@@ -238,10 +238,10 @@ init_state_from_input_sounding (const Box &bx,
     Box gbx = bx; // Copy constructor
     gbx.grow(0,1); gbx.grow(1,1); // Grow by one in the lateral directions
 
-    ParallelFor(gbx, [=,myhalf_d=myhalf,one_d=one] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-        const Real z = (z_cc_arr) ? z_cc_arr(i,j,k) : z_lo + (k + myhalf_d) * dz;
+    ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+        const Real z = (z_cc_arr) ? z_cc_arr(i,j,k) : z_lo + (k + myhalf) * dz;
 
-        Real rho_0 = one_d;
+        Real rho_0 = one;
 
         // Set the density
         state(i, j, k, Rho_comp) = rho_0;
@@ -308,9 +308,9 @@ init_state_from_input_sounding_hse (const Box &bx,
     Box gbx = bx; // Copy constructor
     gbx.grow(0,1); gbx.grow(1,1); // Grow by one in the lateral directions
 
-    ParallelFor(gbx, [=,myhalf_d=myhalf,zero_d=zero] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+    ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
         const Real z = (z_cc_arr) ? z_cc_arr(i,j,k)
-                                  : z_lo + (k + myhalf_d) * dz;
+                                  : z_lo + (k + myhalf) * dz;
 
         Real rho_k   = interpolate_1d(z_inp_sound, rho_inp_sound, z, inp_sound_size);
         Real rhoTh_k = rho_k * interpolate_1d(z_inp_sound, theta_inp_sound, z, inp_sound_size);
@@ -337,7 +337,7 @@ init_state_from_input_sounding_hse (const Box &bx,
 
         // Total nonprecipitating water (Q1) == water vapor (Qv), i.e., there
         // is no cloud water or cloud ice
-        Real qv_k = zero_d;
+        Real qv_k = zero;
         if (l_moist) {
             qv_k = interpolate_1d(z_inp_sound, qv_inp_sound, z, inp_sound_size);
             state(i, j, k, RhoQ1_comp) = rho_k * qv_k;
@@ -434,31 +434,31 @@ init_velocities_from_input_sounding (const Box &bx,
 
     // Set the x,y,z-velocities
     ParallelFor(xbx, ybx, zbx,
-    [=,fourth_d=fourth,myhalf_d=myhalf] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+    [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
         // Note that this is called on a box of x-faces
-        const Real z = (z_nd_arr) ? fourth_d*( z_nd_arr(i,j  ,k  )
+        const Real z = (z_nd_arr) ? fourth*( z_nd_arr(i,j  ,k  )
                                          + z_nd_arr(i,j+1,k  )
                                          + z_nd_arr(i,j  ,k+1)
                                          + z_nd_arr(i,j+1,k+1))
-                                  : z_lo + (k + myhalf_d) * dz;
+                                  : z_lo + (k + myhalf) * dz;
 
         // Set the x-velocity
         x_vel(i, j, k) = interpolate_1d(z_inp_sound, U_inp_sound, z, inp_sound_size);
     },
-    [=,fourth_d=fourth,myhalf_d=myhalf] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+    [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
         // Note that this is called on a box of y-faces
-        const Real z = (z_nd_arr) ? fourth_d*( z_nd_arr(i  ,j,k  )
+        const Real z = (z_nd_arr) ? fourth*( z_nd_arr(i  ,j,k  )
                                          + z_nd_arr(i+1,j,k  )
                                          + z_nd_arr(i  ,j,k+1)
                                          + z_nd_arr(i+1,j,k+1))
-                                  : z_lo + (k + myhalf_d) * dz;
+                                  : z_lo + (k + myhalf) * dz;
 
         // Set the y-velocity
         y_vel(i, j, k) = interpolate_1d(z_inp_sound, V_inp_sound, z, inp_sound_size);
     },
-    [=,zero_d=zero] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+    [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
         // Note that this is called on a box of z-faces
         // Set the z-velocity
-        z_vel(i, j, k) = zero_d;
+        z_vel(i, j, k) = zero;
     });
 }
