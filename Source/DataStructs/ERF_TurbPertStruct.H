@@ -87,10 +87,10 @@ struct TurbulentPerturbation {
         input_w_amp = zero;
         pp.query("perturbation_w_amp",input_w_amp);
 
-        perturbation_klo = zero;
+        perturbation_klo = 0;
         bool have_klo = pp.query("perturbation_klo", perturbation_klo);
 
-        perturbation_khi = zero;
+        perturbation_khi = 0;
         bool have_khi = pp.query("perturbation_khi", perturbation_khi);
 
         // Check variables message
