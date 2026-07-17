@@ -90,6 +90,8 @@ Problem::init_custom_pert (
 
     if (my_prob_name_ci == "abl") {
 #include "Prob/ERF_InitCustomPert_ABL.H"
+    } else if (my_prob_name_ci == "constant_rhotheta_src") {
+#include "Prob/ERF_InitCustomPert_ABL.H"
     } else if (my_prob_name_ci == "density current") {
 #include "Prob/ERF_InitCustomPert_DensityCurrent.H"
     }
