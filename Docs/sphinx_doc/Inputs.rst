@@ -1701,6 +1701,9 @@ List of Parameters
 | **erf.rebalance_wrf_input**      | rebalance state     |  bool              | true                  |
 |                                  | from wrf input?     |                    |                       |
 +----------------------------------+---------------------+--------------------+-----------------------+
+| **erf.rebalance_wrf_bdy**        | rebalance WRF       |  bool              | true                  |
+|                                  | boundary state?     |                    |                       |
++----------------------------------+---------------------+--------------------+-----------------------+
 | **erf.real_extrap_w**            | First-order         | bool               | true                  |
 |                                  | extrapolation of    |                    |                       |
 |                                  | vertical velocities |                    |                       |

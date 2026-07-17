@@ -411,6 +411,7 @@ struct SolverChoice {
 
         // Rebalance wrf state?
         pp.query("rebalance_wrf_input", rebalance_wrf_input);
+        pp.query("rebalance_wrf_bdy", rebalance_wrf_bdy);
 
         // These default to true but are used for unit testing
         pp.query("use_gravity", use_gravity);
@@ -1322,6 +1323,7 @@ struct SolverChoice {
 
     // Flag to rebalance state from wrf input
     bool        rebalance_wrf_input   = true;
+    bool        rebalance_wrf_bdy     = true;
 
     // Constants
     amrex::Real gravity;
