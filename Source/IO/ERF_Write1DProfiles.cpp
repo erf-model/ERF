@@ -92,7 +92,7 @@ ERF::write_1D_profiles (double time)
                       } else {
                           z = (k + myhalf)* dx[2];
                       }
-                      Real thv = h_avg_th[k] * (1 + Real(0.61)*h_avg_qv[k] - h_avg_qc[k] - h_avg_qr[k]);
+                      Real thv = h_avg_th[k] * (one + epsv*h_avg_qv[k] - h_avg_qc[k] - h_avg_qr[k]);
                       data_log2 << std::setw(datwidth) << std::setprecision(timeprecision) << time << " "
                                 << std::setw(datwidth) << std::setprecision(datprecision) << z << " "
                                 << h_avg_uu[k]   - h_avg_u[k]*h_avg_u[k]  << " "
@@ -397,7 +397,7 @@ ERF::derive_diag_profiles(double /*time*/,
                 }
                 Real ql    = qc + qr;
                 Real theta = cons_arr(i,j,k,RhoTheta_comp) / cons_arr(i,j,k,Rho_comp);
-                Real thv   = theta * (1 + Real(0.61)*qv - ql);
+                Real thv   = theta * (one + epsv*qv - ql);
                 fab_arr(i, j, k,31) = w_cc_arr(i,j,k) * thv; // w*thv
             });
         } // mfi
