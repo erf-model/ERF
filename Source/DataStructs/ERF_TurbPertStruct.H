@@ -429,9 +429,9 @@ struct TurbulentPerturbation {
                         pert_cell(i,j,k) = rand_number_const * amp_copy;
                     });
                 } else {
-                    ParallelForRNG(ubx, [=] AMREX_GPU_DEVICE(int i, int j, int k, const amrex::RandomEngine& engine) noexcept {
+                    ParallelForRNG(ubx, [=,two_d=two,one_d=one] AMREX_GPU_DEVICE(int i, int j, int k, const amrex::RandomEngine& engine) noexcept {
                         amrex::Real rand_double = amrex::Random(engine);
-                        pert_cell(i,j,k) = (rand_double*two - one) * amp_copy;
+                        pert_cell(i,j,k) = (rand_double*two_d - one_d) * amp_copy;
                     });
                 }
 
@@ -451,8 +451,8 @@ struct TurbulentPerturbation {
             amrex::Box ubx = pbx & vbx;
             if (ubx.ok()) {
                 const amrex::Array4<amrex::Real>& pert_cell = pb_cell[lev].array(mfi);
-                ParallelFor(ubx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-                    pert_cell(i,j,k) = zero;
+                ParallelFor(ubx, [=,zero_d=zero] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                    pert_cell(i,j,k) = zero_d;
                 });
             }
         }

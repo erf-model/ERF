@@ -20,6 +20,8 @@ jobs:
   Build-And-Test:
     runs-on: ${{matrix.os}}
     name: OS ${{matrix.os}} - Particles ${{matrix.particles}}
+    env:
+      ERF_PARALLEL_TEST_NRANKS: '1;2;4'
     strategy:
       matrix:
         os: [ubuntu-22.04]
@@ -71,7 +73,7 @@ jobs:
           -DERF_DIM:STRING=3 \
           -DERF_ENABLE_MPI:BOOL=ON \
           -DERF_PARALLEL_TEST_ALLOW_OVERSUBSCRIBE:BOOL=ON \
-          '-DERF_PARALLEL_TEST_NRANKS:STRING=1;2;4' \
+          '-DERF_PARALLEL_TEST_NRANKS:STRING=${{env.ERF_PARALLEL_TEST_NRANKS}}' \
           -DERF_ENABLE_PARTICLES:BOOL=${{matrix.particles}} \
           -DERF_ENABLE_TESTS:BOOL=ON \
           -DERF_ENABLE_ALL_WARNINGS:BOOL=ON \
@@ -110,9 +112,120 @@ jobs:
         grep -Eq '^[A-Za-z0-9_].*\.$' ${{runner.workspace}}/unit-test-list.txt
       working-directory: ${{runner.workspace}}/ERF/build-${{matrix.os}}
 
+    - name: Check Parallel Test Registration
+      run: |
+        ctest --show-only=json-v1 -L parallel > parallel-registration.json
+        ctest -N -V -L parallel | tee parallel-registration.txt
+        python3 - "$ERF_PARALLEL_TEST_NRANKS" \
+          ${{runner.workspace}}/ERF/build-${{matrix.os}}/Tests/Unit/erf_parallel_tests \
+          parallel-registration.json \
+          ${{runner.workspace}}/ERF/build-${{matrix.os}}/test-results/gtest/erf_parallel_tests <<'PY'
+        import json
+        import re
+        import subprocess
+        import sys
+        from pathlib import Path
+
+        rank_text, executable, registration, report_directory = sys.argv[1:]
+        ranks = rank_text.split(';')
+        if not ranks or any(not re.fullmatch(r'[1-9][0-9]*', rank) for rank in ranks):
+            raise SystemExit(f'Invalid configured MPI rank list: {rank_text!r}')
+
+        listing = subprocess.check_output([executable, '--gtest_list_tests'], text=True)
+        suite = None
+        cases = []
+        case_pattern = re.compile(r'[A-Za-z0-9_./:-]+')
+        for raw_line in listing.splitlines():
+            line = re.sub(r'[ \t]*#.*$', '', raw_line)
+            stripped = line.strip()
+            if not stripped:
+                continue
+            if not raw_line[:1].isspace():
+                suite = stripped[:-1] if stripped.endswith('.') else None
+                continue
+            if suite is not None and case_pattern.fullmatch(stripped):
+                cases.append(f'{suite}.{stripped}')
+
+        if not cases:
+            raise SystemExit('No GoogleTest cases found in erf_parallel_tests')
+
+        data = json.loads(Path(registration).read_text())
+        tests = data.get('tests')
+        if not isinstance(tests, list):
+            raise SystemExit('CTest JSON does not contain a tests list')
+
+        def properties(test):
+            return {
+                item['name']: item.get('value')
+                for item in test.get('properties', [])
+            }
+
+        expected_names = {
+            f'erf_parallel_tests.{case}.np{rank}'
+            for case in cases for rank in ranks
+        }
+        actual_names = {test.get('name') for test in tests}
+        if actual_names != expected_names:
+            raise SystemExit(
+                f'Parallel CTest inventory mismatch: {len(cases)} base cases, '
+                f'{len(tests)} registered entries, expected {len(expected_names)}; '
+                f'missing={sorted(expected_names - actual_names)}, '
+                f'extra={sorted(actual_names - expected_names)}')
+
+        report_directory = Path(report_directory).resolve()
+        for test in tests:
+            name = test['name']
+            rank = int(name.rsplit('.np', 1)[1])
+            props = properties(test)
+            command = test.get('command')
+            if not command:
+                raise SystemExit(f'{name}: CTest JSON has an empty command')
+            if command[0] in {'COMMAND', '/usr/bin/command'}:
+                raise SystemExit(f'{name}: COMMAND was registered as the executable')
+            if command.count(executable) != 1:
+                raise SystemExit(f'{name}: expected the target executable exactly once: {command}')
+            if props.get('LABELS') != ['parallel']:
+                raise SystemExit(f'{name}: expected exactly the parallel label: {props.get("LABELS")}')
+            if props.get('PROCESSORS', 1) != rank:
+                raise SystemExit(f'{name}: PROCESSORS does not equal {rank}: {props.get("PROCESSORS")}')
+            if f'ERF_PARALLEL_TEST_NPROCS={rank}' not in props.get('ENVIRONMENT', []):
+                raise SystemExit(f'{name}: missing rank environment: {props.get("ENVIRONMENT")}')
+
+            case = name[len('erf_parallel_tests.'):-len(f'.np{rank}')]
+            expected_filter = f'--gtest_filter={case}'
+            if [arg for arg in command if arg.startswith('--gtest_filter=')] != [expected_filter]:
+                raise SystemExit(f'{name}: incorrect GoogleTest filter: {command}')
+            output_args = [arg for arg in command if arg.startswith('--gtest_output=xml:')]
+            if len(output_args) != 1:
+                raise SystemExit(f'{name}: expected one XML output argument: {command}')
+            report_path = Path(output_args[0].split(':', 1)[1]).resolve()
+            if report_path.parent != report_directory or '/' in report_path.name or '\\' in report_path.name:
+                raise SystemExit(f'{name}: report is not a flat direct-child path: {report_path}')
+
+        required_parameterized = {
+            'RepresentativeValues/ParallelIntegerParameterTest.GlobalSumIncludesEveryRank/Zero',
+            'RepresentativeValues/ParallelIntegerParameterTest.GlobalSumIncludesEveryRank/Three',
+        }
+        registered_filters = {
+            arg[len('--gtest_filter='):]
+            for test in tests
+            for arg in test.get('command', [])
+            if arg.startswith('--gtest_filter=')
+        }
+        if not required_parameterized <= registered_filters:
+            raise SystemExit(
+                f'Missing named parameterized MPI cases: '
+                f'{sorted(required_parameterized - registered_filters)}')
+
+        print(f'GoogleTest MPI base cases: {len(cases)}')
+        print(f'Configured MPI ranks: {ranks}')
+        print(f'Parallel CTest entries: {len(tests)}')
+        PY
+      working-directory: ${{runner.workspace}}/ERF/build-${{matrix.os}}
+
     - name: Run Serial Unit Tests
       run: |
-        ctest -L unit --output-on-failure --no-tests=error
+        ctest -L unit -LE parallel --output-on-failure --no-tests=error
       working-directory: ${{runner.workspace}}/ERF/build-${{matrix.os}}
 
     - name: Run Parallel Tests
@@ -120,10 +233,103 @@ jobs:
         ctest -L parallel --output-on-failure --no-tests=error
       working-directory: ${{runner.workspace}}/ERF/build-${{matrix.os}}
 
+    - name: Run Infrastructure Tests
+      run: |
+        ctest -L infrastructure --output-on-failure --no-tests=error
+      working-directory: ${{runner.workspace}}/ERF/build-${{matrix.os}}
+
+    - name: Run Shuffle Stress Check
+      if: matrix.particles == 'OFF'
+      run: |
+        ctest -L stress --output-on-failure --no-tests=error
+      working-directory: ${{runner.workspace}}/ERF/build-${{matrix.os}}
+
     - name: Regression Tests
       run: |
-        ctest -L regression -VV
+        ctest -L regression -VV --no-tests=error
       working-directory: ${{runner.workspace}}/ERF/build-${{matrix.os}}
+
+    - name: Verify test reports
+      if: success()
+      shell: bash
+      run: |
+        build_root="${{runner.workspace}}/ERF/build-${{matrix.os}}"
+        report_root="${build_root}/test-results/gtest"
+        for suite in erf_unit_tests erf_shoc_unit_tests erf_parallel_tests; do
+          test -n "$(find "${report_root}/${suite}" -type f -name '*.xml' -print -quit)"
+        done
+        if [[ "${{matrix.particles}}" == OFF ]]; then
+          test -f "${report_root}/erf_unit_tests/shuffle-repeat.xml"
+        fi
+        python3 - "$ERF_PARALLEL_TEST_NRANKS" \
+          "${build_root}/parallel-registration.json" \
+          "${report_root}/erf_parallel_tests" <<'PY'
+        import json
+        import re
+        import sys
+        from pathlib import Path
+
+        rank_text, registration, report_directory = sys.argv[1:]
+        ranks = [int(rank) for rank in rank_text.split(';')]
+        data = json.loads(Path(registration).read_text())
+        tests = data['tests']
+        report_directory = Path(report_directory)
+        children = list(report_directory.iterdir())
+        if any(path.is_dir() for path in children):
+            raise SystemExit(f'MPI report directory contains a nested directory: {children}')
+
+        actual_names = {path.name for path in children if path.is_file() and path.suffix == '.xml'}
+        expected_names = set()
+        parameterized_filters = {
+            'RepresentativeValues/ParallelIntegerParameterTest.GlobalSumIncludesEveryRank/Zero',
+            'RepresentativeValues/ParallelIntegerParameterTest.GlobalSumIncludesEveryRank/Three',
+        }
+        seen_parameterized = set()
+        for test in tests:
+            props = {item['name']: item.get('value') for item in test.get('properties', [])}
+            nprocs = int(props.get('PROCESSORS', 1))
+            output = next(arg for arg in test['command'] if arg.startswith('--gtest_output=xml:'))
+            report = Path(output.split(':', 1)[1])
+            if report.parent != report_directory:
+                raise SystemExit(f'Report path is not a direct child: {report}')
+            base = report.name[:-4]
+            for rank in range(nprocs):
+                expected_names.add(f'{base}.np{nprocs}.rank{rank}.xml')
+            filters = [arg[len('--gtest_filter='):] for arg in test['command']
+                       if arg.startswith('--gtest_filter=')]
+            seen_parameterized.update(set(filters) & parameterized_filters)
+
+        if not parameterized_filters <= seen_parameterized:
+            raise SystemExit(
+                f'Parameterized MPI reports were not registered: '
+                f'{sorted(parameterized_filters - seen_parameterized)}')
+        if actual_names != expected_names:
+            raise SystemExit(
+                f'MPI XML inventory mismatch: actual={len(actual_names)}, '
+                f'expected={len(expected_names)} (base cases={len(tests) // len(ranks)}, '
+                f'ranks={ranks}); missing={sorted(expected_names - actual_names)}, '
+                f'extra={sorted(actual_names - expected_names)}')
+        bad_names = [name for name in actual_names
+                     if not re.search(r'\.np[1-9][0-9]*\.rank[0-9]+\.xml$', name)]
+        if bad_names:
+            raise SystemExit(f'Invalid MPI XML filenames: {bad_names}')
+        print(f'Expected and actual MPI XML reports: {len(expected_names)}')
+        PY
+        if find "${build_root}/Tests/Unit" -type d -name test-results -print -quit | grep -q .; then
+          echo 'Found stale nested Tests/Unit test-results directory.' >&2
+          exit 1
+        fi
+
+    - name: Upload test reports and CTest logs
+      if: always()
+      uses: actions/upload-artifact@v7
+      with:
+        name: erf-test-results-${{matrix.os}}-particles-${{matrix.particles}}
+        if-no-files-found: warn
+        path: |
+          ${{runner.workspace}}/ERF/build-${{matrix.os}}/test-results/**
+          ${{runner.workspace}}/ERF/build-${{matrix.os}}/Testing/Temporary/LastTest.log
+          ${{runner.workspace}}/ERF/build-${{matrix.os}}/Testing/Temporary/LastTestsFailed.log
 
     # Raf: disabled Codecov since the dashboard and GitHub comments were buggy,
     # but it may be useful to post the gcov coverage reports to GitHub Actions
@@ -136,14 +342,14 @@ jobs:
     #     cd ..
     #     gcovr -g -k -r . --xml regressioncov.html  # -v
     # - name: Success artifacts
-    #   uses: actions/upload-artifact@v4
+    #   uses: actions/upload-artifact@v7
     #   if: success()
     #   with:
     #     name: build-and-test
     #     path: |
     #       ${{runner.workspace}}/ERF/regressioncov.html
     # - name: Failing test artifacts
-    #   uses: actions/upload-artifact@v4
+    #   uses: actions/upload-artifact@v7
     #   if: failure()
     #   with:
     #     name: build-and-test

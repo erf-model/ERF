@@ -32,9 +32,9 @@ init_default_zphys (int /*lev*/, const Geometry& geom, MultiFab& z_phys_nd, Mult
     {
         const Box& bx = mfi.growntilebox();
         const Array4< Real> z_cc_arr = z_phys_cc.array(mfi);
-        ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+        ParallelFor(bx, [=,myhalf_d=myhalf] AMREX_GPU_DEVICE (int i, int j, int k)
         {
-            z_cc_arr(i,j,k) = (k + myhalf) * dz - z_offset;
+            z_cc_arr(i,j,k) = (k + myhalf_d) * dz - z_offset;
         });
     }
 }
@@ -266,9 +266,9 @@ init_which_terrain_grid (int lev, Geometry const& geom, MultiFab& z_phys_nd,
                 Array4<Real> const& z_arr = z_phys_nd.array(mfi);
 
                 // Fill lateral boundaries below the bottom surface
-                ParallelFor(makeSlab(gbx,2,0), [=] AMREX_GPU_DEVICE (int i, int j, int)
+                ParallelFor(makeSlab(gbx,2,0), [=,two_d=two] AMREX_GPU_DEVICE (int i, int j, int)
                 {
-                    z_arr(i,j,-1) = two*z_arr(i,j,0) - z_arr(i,j,1);
+                    z_arr(i,j,-1) = two_d*z_arr(i,j,0) - z_arr(i,j,1);
                 });
             }
         } // mfi
@@ -416,7 +416,7 @@ init_which_terrain_grid (int lev, Geometry const& geom, MultiFab& z_phys_nd,
                 Array4<Real> const& h_s   = h_mf_old.array(mfi);
                 Array4<Real> const& z_arr = z_phys_nd.array(mfi);
 
-                ParallelFor(xybx, [=] AMREX_GPU_DEVICE (int i, int j, int) {
+                ParallelFor(xybx, [=,two_d=two] AMREX_GPU_DEVICE (int i, int j, int) {
 
                     // Location of nodes
                     Real z = z_lev_d[k];
@@ -426,7 +426,7 @@ init_which_terrain_grid (int lev, Geometry const& geom, MultiFab& z_phys_nd,
 
                     // Fill below the bottom surface
                     if (k == 1) {
-                        z_arr(i,j,k0-1) = two*z_arr(i,j,k0) - z_arr(i,j,k);
+                        z_arr(i,j,k0-1) = two_d*z_arr(i,j,k0) - z_arr(i,j,k);
                     }
                 });
             } // mfi
@@ -450,7 +450,7 @@ init_which_terrain_grid (int lev, Geometry const& geom, MultiFab& z_phys_nd,
                 Array4<Real> const& z_arr = z_phys_nd.array(mfi);
                 auto const&         z_lev = z_levels_d.data();
 
-                ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+                ParallelFor(gbx, [=,one_d=one,two_d=two] AMREX_GPU_DEVICE (int i, int j, int k)
                 {
                     // Vertical grid stretching
                     Real z =  z_lev[k];
@@ -460,14 +460,14 @@ init_which_terrain_grid (int lev, Geometry const& geom, MultiFab& z_phys_nd,
 
                     // Fill levels using model from Sullivan et. al. 2014
                     int omega = 3; //Used to adjust how rapidly grid lines level out. omega=1 is BTF!
-                    z_arr(i,j,k) = z + static_cast<Real>(std::pow((one - (z/z_top)),omega) * z_arr(ii,jj,k0));
+                    z_arr(i,j,k) = z + static_cast<Real>(std::pow((one_d - (z/z_top)),omega) * z_arr(ii,jj,k0));
 
                     // Fill lateral boundaries and below the bottom surface
                     if (k == k0) {
                         z_arr(i,j,k0  ) = z_arr(ii,jj,k0);
                     }
                     if (k == 1) {
-                        z_arr(i,j,k0-1) = two*z_arr(ii,jj,k0) - z_arr(i,j,k);
+                        z_arr(i,j,k0-1) = two_d*z_arr(ii,jj,k0) - z_arr(i,j,k);
                     }
                 });
             } // mfi
@@ -487,7 +487,7 @@ init_which_terrain_grid (int lev, Geometry const& geom, MultiFab& z_phys_nd,
                 Array4<Real> const& z_arr = z_phys_nd.array(mfi);
                 auto const&         z_lev = z_levels_d.data();
 
-                ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+                ParallelFor(gbx, [=,one_d=one] AMREX_GPU_DEVICE (int i, int j, int k)
                 {
                     // Vertical grid stretching
                     Real z =  z_lev[k];
@@ -501,13 +501,13 @@ init_which_terrain_grid (int lev, Geometry const& geom, MultiFab& z_phys_nd,
                     } else {
                         // Fill levels using model from Sullivan et. al. 2014
                         int omega = 3; //Used to adjust how rapidly grid lines level out. omega=1 is BTF!
-                        z_arr(i,j,k) = z + static_cast<Real>(std::pow((one - (z/z_top)),omega) * z_arr(ii,jj,k0));
+                        z_arr(i,j,k) = z + static_cast<Real>(std::pow((one_d - (z/z_top)),omega) * z_arr(ii,jj,k0));
                     }
                 });
                 gbx.setBig(2,0);
-                ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+                ParallelFor(gbx, [=,zero_d=zero] AMREX_GPU_DEVICE (int i, int j, int k)
                 {
-                    z_arr(i,j,k  ) = zero;
+                    z_arr(i,j,k  ) = zero_d;
                     z_arr(i,j,k-1) = -z_arr(i,j,k+1);
                 });
             } // mfi

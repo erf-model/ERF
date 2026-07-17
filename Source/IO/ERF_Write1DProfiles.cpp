@@ -287,12 +287,12 @@ ERF::derive_diag_profiles(double /*time*/,
         const Array4<const Real>& eta_arr = (eta_src) ? eta_src->const_array(mfi) :
                                                         Array4<const Real>{};
 
-        ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+        ParallelFor(bx, [=,zero_d=zero,myhalf_d=myhalf] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {
             Real theta = cons_arr(i,j,k,RhoTheta_comp) / cons_arr(i,j,k,Rho_comp);
             fab_arr(i, j, k, 0) = cons_arr(i,j,k,Rho_comp);
             fab_arr(i, j, k, 1) = theta;
-            Real ksgs = zero;
+            Real ksgs = zero_d;
             if (l_use_KE) {
                 ksgs = cons_arr(i,j,k,RhoKE_comp) / cons_arr(i,j,k,Rho_comp);
             }
@@ -302,15 +302,15 @@ ERF::derive_diag_profiles(double /*time*/,
                 fab_arr(i, j, k, 3) = eta_arr(i,j,k,EddyDiff::Mom_v); // Kmv
                 fab_arr(i, j, k, 4) = eta_arr(i,j,k,EddyDiff::Theta_v); // Khv
             } else {
-                fab_arr(i, j, k, 3) = zero;
-                fab_arr(i, j, k, 4) = zero;
+                fab_arr(i, j, k, 3) = zero_d;
+                fab_arr(i, j, k, 4) = zero_d;
             }
 #else
             // Here we hijack the "Kturb" variable name to print out the resolved kinetic energy
             Real upert = u_cc_arr(i,j,k) - avg_u_ptr[k];
             Real vpert = v_cc_arr(i,j,k) - avg_v_ptr[k];
             Real wpert = w_cc_arr(i,j,k) - avg_w_ptr[k];
-            fab_arr(i, j, k, 3) = myhalf * (upert*upert + vpert*vpert + wpert*wpert);
+            fab_arr(i, j, k, 3) = myhalf_d * (upert*upert + vpert*vpert + wpert*wpert);
 #endif
             fab_arr(i, j, k, 5) = u_cc_arr(i,j,k) * u_cc_arr(i,j,k);   // u*u
             fab_arr(i, j, k, 6) = u_cc_arr(i,j,k) * v_cc_arr(i,j,k);   // u*v
@@ -337,16 +337,16 @@ ERF::derive_diag_profiles(double /*time*/,
                 fab_arr(i, j, k,19) = p * u_cc_arr(i,j,k);     // p*u
                 fab_arr(i, j, k,20) = p * v_cc_arr(i,j,k);     // p*v
                 fab_arr(i, j, k,21) = p * w_cc_arr(i,j,k);     // p*w
-                fab_arr(i, j, k,22) = zero;  // qv
-                fab_arr(i, j, k,23) = zero;  // qc
-                fab_arr(i, j, k,24) = zero;  // qr
-                fab_arr(i, j, k,25) = zero;  // w*qv
-                fab_arr(i, j, k,26) = zero;  // w*qc
-                fab_arr(i, j, k,27) = zero;  // w*qr
-                fab_arr(i, j, k,28) = zero;  // qi
-                fab_arr(i, j, k,29) = zero;  // qs
-                fab_arr(i, j, k,30) = zero;  // qg
-                fab_arr(i, j, k,31) = zero;  // w*thv
+                fab_arr(i, j, k,22) = zero_d;  // qv
+                fab_arr(i, j, k,23) = zero_d;  // qc
+                fab_arr(i, j, k,24) = zero_d;  // qr
+                fab_arr(i, j, k,25) = zero_d;  // w*qv
+                fab_arr(i, j, k,26) = zero_d;  // w*qc
+                fab_arr(i, j, k,27) = zero_d;  // w*qr
+                fab_arr(i, j, k,28) = zero_d;  // qi
+                fab_arr(i, j, k,29) = zero_d;  // qs
+                fab_arr(i, j, k,30) = zero_d;  // qg
+                fab_arr(i, j, k,31) = zero_d;  // w*thv
             }
         });
     } // mfi
@@ -367,12 +367,12 @@ ERF::derive_diag_profiles(double /*time*/,
 
             int rhoqr_comp = solverChoice.moisture_indices.qr;
 
-            ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+            ParallelFor(bx, [=,zero_d=zero] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
             {
                 Real qv = cons_arr(i,j,k,RhoQ1_comp) / cons_arr(i,j,k,Rho_comp);
                 Real qc = cons_arr(i,j,k,RhoQ2_comp) / cons_arr(i,j,k,Rho_comp);
                 Real qr = (rhoqr_comp > -1) ?  cons_arr(i,j,k,rhoqr_comp) / cons_arr(i,j,k,Rho_comp) :
-                                               zero;
+                                               zero_d;
                 Real p  = getPgivenRTh(cons_arr(i, j, k, RhoTheta_comp), qv);
 
                 p -= p0_arr(i,j,k);
@@ -391,9 +391,9 @@ ERF::derive_diag_profiles(double /*time*/,
                     fab_arr(i, j, k,29) = cons_arr(i,j,k,RhoQ5_comp) / cons_arr(i,j,k,Rho_comp);  // qs
                     fab_arr(i, j, k,30) = cons_arr(i,j,k,RhoQ6_comp) / cons_arr(i,j,k,Rho_comp);  // qg
                 } else {
-                    fab_arr(i, j, k,28) = zero;  // qi
-                    fab_arr(i, j, k,29) = zero;  // qs
-                    fab_arr(i, j, k,30) = zero;  // qg
+                    fab_arr(i, j, k,28) = zero_d;  // qi
+                    fab_arr(i, j, k,29) = zero_d;  // qs
+                    fab_arr(i, j, k,30) = zero_d;  // qg
                 }
                 Real ql    = qc + qr;
                 Real theta = cons_arr(i,j,k,RhoTheta_comp) / cons_arr(i,j,k,Rho_comp);
@@ -526,7 +526,7 @@ ERF::derive_stress_profiles (Gpu::HostVector<Real>& h_avg_tau11, Gpu::HostVector
                                                               Array4<const Real>{};
         const Array4<const Real>& diss_arr = SFS_diss_lev[lev]->const_array(mfi);
 
-        ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+        ParallelFor(bx, [=,myhalf_d=myhalf,zero_d=zero] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {
             // rho averaging should follow Diffusion/ERF_ComputeStress_*.cpp
             fab_arr(i, j, k, 0) = tau11_arr(i,j,k) / rho_arr(i,j,k);
@@ -544,9 +544,9 @@ ERF::derive_stress_profiles (Gpu::HostVector<Real>& h_avg_tau11, Gpu::HostVector
                                 / (   rho_arr(i,j,k  ) +   rho_arr(i,j+1,k  )
                                   +   rho_arr(i,j,k+1) +   rho_arr(i,j+1,k+1) );
             fab_arr(i, j, k, 5) = tau33_arr(i,j,k) / rho_arr(i,j,k);
-            fab_arr(i, j, k, 6) = myhalf * ( hfx3_arr(i,j,k) + hfx3_arr(i,j,k+1) ) / rho_arr(i,j,k);
-            fab_arr(i, j, k, 7) = (l_use_moist) ? myhalf * ( q1fx3_arr(i,j,k) + q1fx3_arr(i,j,k+1) ) / rho_arr(i,j,k) : zero;
-            fab_arr(i, j, k, 8) = (l_use_moist) ? myhalf * ( q2fx3_arr(i,j,k) + q2fx3_arr(i,j,k+1) ) / rho_arr(i,j,k) : zero;
+            fab_arr(i, j, k, 6) = myhalf_d * ( hfx3_arr(i,j,k) + hfx3_arr(i,j,k+1) ) / rho_arr(i,j,k);
+            fab_arr(i, j, k, 7) = (l_use_moist) ? myhalf_d * ( q1fx3_arr(i,j,k) + q1fx3_arr(i,j,k+1) ) / rho_arr(i,j,k) : zero_d;
+            fab_arr(i, j, k, 8) = (l_use_moist) ? myhalf_d * ( q2fx3_arr(i,j,k) + q2fx3_arr(i,j,k+1) ) / rho_arr(i,j,k) : zero_d;
             fab_arr(i, j, k, 9) =  diss_arr(i,j,k) / rho_arr(i,j,k);
         });
     }

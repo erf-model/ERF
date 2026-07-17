@@ -117,16 +117,16 @@ void SuperDropletsMoist::phaseChange ( const Real& a_dt,
 
                     auto fac_cond = vapour_mat.m_lat_vap / m_Cp;
 
-                    ParallelFor( bx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+                    ParallelFor( bx, [=,zero_d=zero] AMREX_GPU_DEVICE (int i, int j, int k)
                     {
                         if (mask_arr(i,j,k) == 0) return;
                         auto old_qv = qv_arr(i,j,k);
                         if (is == idx_w) {
                             auto qw = qc_arr(i,j,k) + qr_arr(i,j,k);
                             if (qw > qt_arr(i,j,k)) {
-                                qv_arr(i,j,k) = zero;
+                                qv_arr(i,j,k) = zero_d;
                                 if (qr_arr(i,j,k) > qt_arr(i,j,k)) {
-                                    qc_arr(i,j,k) = zero;
+                                    qc_arr(i,j,k) = zero_d;
                                     qr_arr(i,j,k) = qt_arr(i,j,k);
                                 } else {
                                     qc_arr(i,j,k) = qt_arr(i,j,k) - qr_arr(i,j,k);
@@ -134,17 +134,17 @@ void SuperDropletsMoist::phaseChange ( const Real& a_dt,
                             } else {
                                 qv_arr(i,j,k) = qt_arr(i,j,k) - qw;
                             }
-                            AMREX_ALWAYS_ASSERT(qr_arr(i,j,k) >= zero);
+                            AMREX_ALWAYS_ASSERT(qr_arr(i,j,k) >= zero_d);
                         } else {
                             if (qc_arr(i,j,k) > qt_arr(i,j,k)) {
-                                qv_arr(i,j,k) = zero;
+                                qv_arr(i,j,k) = zero_d;
                                 qc_arr(i,j,k) = qt_arr(i,j,k);
                             } else {
                                 qv_arr(i,j,k) = qt_arr(i,j,k) - qc_arr(i,j,k);
                             }
                         }
-                        AMREX_ALWAYS_ASSERT(qv_arr(i,j,k) >= zero);
-                        AMREX_ALWAYS_ASSERT(qc_arr(i,j,k) >= zero);
+                        AMREX_ALWAYS_ASSERT(qv_arr(i,j,k) >= zero_d);
+                        AMREX_ALWAYS_ASSERT(qc_arr(i,j,k) >= zero_d);
 
                         if (is == idx_w) { dqc_arr(i,j,k) = - (qv_arr(i,j,k) - old_qv) / dt_s; }
 

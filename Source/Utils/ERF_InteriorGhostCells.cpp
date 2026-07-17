@@ -348,16 +348,16 @@ realbdy_compute_interior_ghost_rhs (const double& time,
 
             // Populate with interpolation (protect from ghost cells)
             ParallelFor(tbx_xlo, tbx_xhi,
-            [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            [=,myhalf_d=myhalf] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
                 int ii = std::max(i , dom_lo.x); ii = std::min(ii, dom_lo.x+offset);
                 int jj = std::max(j , dom_lo.y); jj = std::min(jj, dom_hi.y);
 
                 Real rho_interp;
                 if (ivar==ivarU) {
-                    rho_interp = myhalf * ( r_arr(i-1,j  ,k) + r_arr(i,j,k) );
+                    rho_interp = myhalf_d * ( r_arr(i-1,j  ,k) + r_arr(i,j,k) );
                 } else if (ivar==ivarV) {
-                    rho_interp = myhalf * ( r_arr(i  ,j-1,k) + r_arr(i,j,k) );
+                    rho_interp = myhalf_d * ( r_arr(i  ,j-1,k) + r_arr(i,j,k) );
                 } else {
                     rho_interp = r_arr(i,j,k);
                 }
@@ -371,16 +371,16 @@ realbdy_compute_interior_ghost_rhs (const double& time,
                                                   + alpha * bdatxlo_np1(ii,jj,k,0) );
                 }
             },
-            [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            [=,myhalf_d=myhalf] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
                 int ii = std::max(i , dom_hi.x-offset); ii = std::min(ii, dom_hi.x);
                 int jj = std::max(j , dom_lo.y);        jj = std::min(jj, dom_hi.y);
 
                 Real rho_interp;
                 if (ivar==ivarU) {
-                    rho_interp = myhalf * ( r_arr(i-1,j  ,k) + r_arr(i,j,k) );
+                    rho_interp = myhalf_d * ( r_arr(i-1,j  ,k) + r_arr(i,j,k) );
                 } else if (ivar==ivarV) {
-                    rho_interp = myhalf * ( r_arr(i  ,j-1,k) + r_arr(i,j,k) );
+                    rho_interp = myhalf_d * ( r_arr(i  ,j-1,k) + r_arr(i,j,k) );
                 } else {
                     rho_interp = r_arr(i,j,k);
                 }
@@ -396,16 +396,16 @@ realbdy_compute_interior_ghost_rhs (const double& time,
             });
 
             ParallelFor(tbx_ylo, tbx_yhi,
-            [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            [=,myhalf_d=myhalf] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
                 int ii = std::max(i , dom_lo.x); ii = std::min(ii, dom_hi.x);
                 int jj = std::max(j , dom_lo.y); jj = std::min(jj, dom_lo.y+offset);
 
                 Real rho_interp;
                 if (ivar==ivarU) {
-                    rho_interp = myhalf * ( r_arr(i-1,j  ,k) + r_arr(i,j,k) );
+                    rho_interp = myhalf_d * ( r_arr(i-1,j  ,k) + r_arr(i,j,k) );
                 } else if (ivar==ivarV) {
-                    rho_interp = myhalf * ( r_arr(i  ,j-1,k) + r_arr(i,j,k) );
+                    rho_interp = myhalf_d * ( r_arr(i  ,j-1,k) + r_arr(i,j,k) );
                 } else {
                     rho_interp = r_arr(i,j,k);
                 }
@@ -419,16 +419,16 @@ realbdy_compute_interior_ghost_rhs (const double& time,
                                                   + alpha * bdatylo_np1(ii,jj,k,0) );
                 }
             },
-            [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            [=,myhalf_d=myhalf] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
                 int ii = std::max(i , dom_lo.x);        ii = std::min(ii, dom_hi.x);
                 int jj = std::max(j , dom_hi.y-offset); jj = std::min(jj, dom_hi.y);
 
                 Real rho_interp;
                 if (ivar==ivarU) {
-                    rho_interp = myhalf * ( r_arr(i-1,j  ,k) + r_arr(i,j,k) );
+                    rho_interp = myhalf_d * ( r_arr(i-1,j  ,k) + r_arr(i,j,k) );
                 } else if (ivar==ivarV) {
-                    rho_interp = myhalf * ( r_arr(i  ,j-1,k) + r_arr(i,j,k) );
+                    rho_interp = myhalf_d * ( r_arr(i  ,j-1,k) + r_arr(i,j,k) );
                 } else {
                     rho_interp = r_arr(i,j,k);
                 }
@@ -712,10 +712,10 @@ fine_compute_interior_ghost_rhs (const double& time,
                 const Array4<const Real>& rho_arr  = fmf_p_v[0].const_array(mfi);
                 const Array4<const int>&  mask_arr = mask->const_array(mfi);
 
-                ParallelFor(tbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                ParallelFor(tbx, [=,myhalf_d=myhalf] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
                 {
                     if (mask_arr(i,j,k) == relax_mask_val) {
-                        Real rho_interp = myhalf * ( rho_arr(i-1,j,k) + rho_arr(i,j,k) );
+                        Real rho_interp = myhalf_d * ( rho_arr(i-1,j,k) + rho_arr(i,j,k) );
                         prim_arr(i,j,k) *= rho_interp;
                     }
                 });
@@ -739,10 +739,10 @@ fine_compute_interior_ghost_rhs (const double& time,
                 const Array4<const Real>& rho_arr  = fmf_p_v[0].const_array(mfi);
                 const Array4<const int>&  mask_arr = mask->const_array(mfi);
 
-                ParallelFor(tbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                ParallelFor(tbx, [=,myhalf_d=myhalf] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
                 {
                     if (mask_arr(i,j,k) == relax_mask_val) {
-                        Real rho_interp = myhalf * ( rho_arr(i,j-1,k) + rho_arr(i,j,k) );
+                        Real rho_interp = myhalf_d * ( rho_arr(i,j-1,k) + rho_arr(i,j,k) );
                         prim_arr(i,j,k) *= rho_interp;
                     }
                 });
@@ -766,10 +766,10 @@ fine_compute_interior_ghost_rhs (const double& time,
                 const Array4<const Real>& rho_arr  = fmf_p_v[0].const_array(mfi);
                 const Array4<const int>&  mask_arr = mask->const_array(mfi);
 
-                ParallelFor(tbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                ParallelFor(tbx, [=,myhalf_d=myhalf] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
                 {
                     if (mask_arr(i,j,k) == relax_mask_val) {
-                        Real rho_interp = myhalf * ( rho_arr(i,j,k-1) + rho_arr(i,j,k) );
+                        Real rho_interp = myhalf_d * ( rho_arr(i,j,k-1) + rho_arr(i,j,k) );
                         prim_arr(i,j,k) *= rho_interp;
                     }
                 });
@@ -790,10 +790,10 @@ fine_compute_interior_ghost_rhs (const double& time,
             const Array4<Real>& rhs_arr  = rhs.array(mfi);
             const Array4<const int>& mask_arr = mask->const_array(mfi);
 
-            ParallelFor(tbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            ParallelFor(tbx, [=,zero_d=zero] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
                 if (mask_arr(i,j,k) == set_mask_val) {
-                    rhs_arr(i,j,k) = zero;
+                    rhs_arr(i,j,k) = zero_d;
                 }
             });
         } // mfi
@@ -825,7 +825,7 @@ fine_compute_interior_ghost_rhs (const double& time,
             int Relax_z = width - Spec_z;
             Real num    = Real(Spec_z + Relax_z);
             Real denom  = Real(Relax_z - 1);
-            ParallelFor(tbx, num_var, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+            ParallelFor(tbx, num_var, [=,one_d=one] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
             {
                if (mask_arr(i,j,k) == relax_mask_val) {
 
@@ -860,15 +860,15 @@ fine_compute_interior_ghost_rhs (const double& time,
 
                    // Found a nearby masked cell (valid n_ind)
                    if (mask_x_found && mask_y_found) {
-                       n_ind = std::min(ii,jj) + one;
+                       n_ind = std::min(ii,jj) + one_d;
                    } else if (mask_x_found) {
-                       n_ind = ii + one;
+                       n_ind = ii + one_d;
                    } else if (mask_y_found) {
-                       n_ind = jj + one;
+                       n_ind = jj + one_d;
                    // Pesky corner cell
                    } else {
                        if (near_x_lo_wall || near_x_hi_wall) {
-                           Real dj_min{width-one};
+                           Real dj_min{width-one_d};
                            int j_lb = std::max(vbx_lo.y,j-width);
                            int j_ub = std::min(vbx_hi.y,j+width);
                            int li   = (near_x_lo_wall) ? vbx_lo.x : vbx_hi.x;
@@ -880,12 +880,12 @@ fine_compute_interior_ghost_rhs (const double& time,
                            }
                            if (mask_y_found) {
                                Real mag = std::sqrt( Real(dj_min*dj_min + ii*ii) );
-                               n_ind = std::min(mag,width-one) + one;
+                               n_ind = std::min(mag,width-one_d) + one_d;
                            } else {
                                Abort("Mask not found near x wall!");
                            }
                        } else if (near_y_lo_wall || near_y_hi_wall) {
-                           Real di_min{width-one};
+                           Real di_min{width-one_d};
                            int i_lb = std::max(vbx_lo.x,i-width);
                            int i_ub = std::min(vbx_hi.x,i+width);
                            int lj   = (near_y_lo_wall) ? vbx_lo.y : vbx_hi.y;
@@ -897,7 +897,7 @@ fine_compute_interior_ghost_rhs (const double& time,
                            }
                            if (mask_x_found) {
                                Real mag = std::sqrt( Real(di_min*di_min + jj*jj) );
-                               n_ind = std::min(mag,width-one) + one;
+                               n_ind = std::min(mag,width-one_d) + one_d;
                            } else {
                                Abort("Mask not found near y wall!");
                            }

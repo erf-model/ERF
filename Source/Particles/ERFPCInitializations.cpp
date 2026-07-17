@@ -113,10 +113,10 @@ void ERFPC::initializeParticlesUniformDistributionInBox (const std::unique_ptr<M
         auto num_particles_arr = num_particles[mfi].array();
         if (a_height_ptr) {
             const auto height_arr = (*a_height_ptr)[mfi].array();
-            ParallelFor(tile_box, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            ParallelFor(tile_box, [=,myhalf_d=myhalf] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
-                Real x  = plo[0] + (i + myhalf)*dx[0];
-                Real y  = plo[1] + (j + myhalf)*dx[1];
+                Real x  = plo[0] + (i + myhalf_d)*dx[0];
+                Real y  = plo[1] + (j + myhalf_d)*dx[1];
                 Real zh = Real(0.125) * (height_arr(i,j  ,k  ) + height_arr(i+1,j  ,k  ) +
                                    height_arr(i,j+1,k  ) + height_arr(i+1,j+1,k  ) +
                                    height_arr(i,j  ,k+1) + height_arr(i+1,j  ,k+1) +
@@ -137,11 +137,11 @@ void ERFPC::initializeParticlesUniformDistributionInBox (const std::unique_ptr<M
             });
 
         } else {
-            ParallelFor(tile_box, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            ParallelFor(tile_box, [=,myhalf_d=myhalf] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
-                Real x = plo[0] + (i + myhalf)*dx[0];
-                Real y = plo[1] + (j + myhalf)*dx[1];
-                Real z = plo[2] + (k + myhalf)*dx[2];
+                Real x = plo[0] + (i + myhalf_d)*dx[0];
+                Real y = plo[1] + (j + myhalf_d)*dx[1];
+                Real z = plo[2] + (k + myhalf_d)*dx[2];
                 bool in_box = AMREX_D_TERM(   (x >= blo0) && (x < bhi0),
                                            && (y >= blo1) && (y < bhi1),
                                            && (z >= blo2) && (z < bhi2) );
@@ -196,13 +196,13 @@ void ERFPC::initializeParticlesUniformDistributionInBox (const std::unique_ptr<M
 
         if (place_randomly_in_cells) {
 
-            ParallelForRNG(tile_box, [=] AMREX_GPU_DEVICE (int i, int j, int k,
+            ParallelForRNG(tile_box, [=,zero_d=zero] AMREX_GPU_DEVICE (int i, int j, int k,
                                                            const RandomEngine& rnd_engine) noexcept
             {
                 int start = offset_arr(i,j,k);
                 for (int n = start; n < start+num_particles_arr(i,j,k); n++) {
                     Real r[3] = {Random(rnd_engine), Random(rnd_engine), Random(rnd_engine)};
-                    Real v[3] = {zero, zero, zero};
+                    Real v[3] = {zero_d, zero_d, zero_d};
 
                     Real x = plo[0] + (i + r[0])*dx[0];
                     Real y = plo[1] + (j + r[1])*dx[1];
@@ -217,18 +217,18 @@ void ERFPC::initializeParticlesUniformDistributionInBox (const std::unique_ptr<M
                     vx_ptr[n] = v[0]; vy_ptr[n] = v[1]; vz_ptr[n] = v[2];
 
                     mass_ptr[n] = Real(1.0e-6);
-                    T_ptr[n] = zero;
+                    T_ptr[n] = zero_d;
                }
             });
 
         } else {
 
-            ParallelFor(tile_box, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            ParallelFor(tile_box, [=,fourth_d=fourth,zero_d=zero] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
                 int start = offset_arr(i,j,k);
                 for (int n = start; n < start+num_particles_arr(i,j,k); n++) {
-                    Real r[3] = {Real(0.3), Real(0.7), fourth};
-                    Real v[3] = {zero, zero, zero};
+                    Real r[3] = {Real(0.3), Real(0.7), fourth_d};
+                    Real v[3] = {zero_d, zero_d, zero_d};
 
                     Real x = plo[0] + (i + r[0])*dx[0];
                     Real y = plo[1] + (j + r[1])*dx[1];
@@ -243,7 +243,7 @@ void ERFPC::initializeParticlesUniformDistributionInBox (const std::unique_ptr<M
                     vx_ptr[n] = v[0]; vy_ptr[n] = v[1]; vz_ptr[n] = v[2];
 
                     mass_ptr[n] = Real(1.0e-6);
-                    T_ptr[n] = zero;
+                    T_ptr[n] = zero_d;
                }
             });
         }

@@ -761,9 +761,9 @@ ERF::ReadCheckpointFile ()
                 // We only compute theta_0 on valid cells since we will impose domain BC's after restart
                 const Box& bx = mfi.tilebox();
                 Array4<Real> const& fab = base_state[lev].array(mfi);
-                ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+                ParallelFor(bx, [=,zero_d=zero] AMREX_GPU_DEVICE (int i, int j, int k)
                 {
-                    fab(i,j,k,BaseState::qv0_comp) = zero;
+                    fab(i,j,k,BaseState::qv0_comp) = zero_d;
                 });
             }
         }

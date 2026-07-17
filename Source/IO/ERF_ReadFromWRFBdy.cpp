@@ -222,7 +222,7 @@ convert_wrfbdy_data (const int itime,
 
         // New z values
         ParallelFor(bx_t, bx_u, bx_v,
-        [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        [=,CONST_GRAV_d=CONST_GRAV] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
             // Mass coupling
             Real mu    = mu_arr(i ,j ,0)  + mub_arr(i ,j ,0);
@@ -235,12 +235,12 @@ convert_wrfbdy_data (const int itime,
             Real P0_kp = phb_arr(i ,j ,k+1) + bdy_ph0_arr(i ,j ,k+1)/mu0;
 
             // New heights
-            bdy_c_z_src(i,j,k) = Real(0.5  ) * ( P + P_kp ) / CONST_GRAV;
+            bdy_c_z_src(i,j,k) = Real(0.5  ) * ( P + P_kp ) / CONST_GRAV_d;
 
             // Original heights
-            bdy_c_z_dst(i,j,k) = Real(0.5  ) * ( P0 + P0_kp ) / CONST_GRAV;
+            bdy_c_z_dst(i,j,k) = Real(0.5  ) * ( P0 + P0_kp ) / CONST_GRAV_d;
         },
-        [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        [=,CONST_GRAV_d=CONST_GRAV] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
             // Prevent averaging outside domain and match init from WRF input
             int ii = std::max(std::min(i  ,ihi_ph),ilo_ph);
@@ -263,12 +263,12 @@ convert_wrfbdy_data (const int itime,
             Real P0_im_kp = phb_arr(im,j ,k+1) + bdy_ph0_arr(im,j ,k+1)/mu0_im;
 
             // New heights
-            bdy_u_z_src(i,j,k) = Real(0.25) * ( P + P_kp + P_im + P_im_kp ) / CONST_GRAV;
+            bdy_u_z_src(i,j,k) = Real(0.25) * ( P + P_kp + P_im + P_im_kp ) / CONST_GRAV_d;
 
             // Original heights
-            bdy_u_z_dst(i,j,k) = Real(0.25) * ( P0 + P0_kp + P0_im + P0_im_kp ) / CONST_GRAV;
+            bdy_u_z_dst(i,j,k) = Real(0.25) * ( P0 + P0_kp + P0_im + P0_im_kp ) / CONST_GRAV_d;
         },
-        [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        [=,CONST_GRAV_d=CONST_GRAV] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
             // Prevent averaging outside domain and match init from WRF input
             int jj = std::max(std::min(j  ,jhi_ph),jlo_ph);
@@ -291,14 +291,14 @@ convert_wrfbdy_data (const int itime,
             Real P0_jm_kp = phb_arr(i ,jm,k+1) + bdy_ph0_arr(i ,jm,k+1)/mu0_jm;
 
             // New heights
-            bdy_v_z_src(i,j,k) = Real(0.25) * ( P + P_kp + P_jm + P_jm_kp ) / CONST_GRAV;
+            bdy_v_z_src(i,j,k) = Real(0.25) * ( P + P_kp + P_jm + P_jm_kp ) / CONST_GRAV_d;
 
             // Original heights
-            bdy_v_z_dst(i,j,k) = Real(0.25) * ( P0 + P0_kp + P0_jm + P0_jm_kp ) / CONST_GRAV;
+            bdy_v_z_dst(i,j,k) = Real(0.25) * ( P0 + P0_kp + P0_jm + P0_jm_kp ) / CONST_GRAV_d;
         });
 
         // Define u velocity
-        ParallelFor(bx_u, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        ParallelFor(bx_u, [=,myhalf_d=myhalf] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
             if (mask_u_arr(i,j,k)) {
                 Real xmu;
@@ -308,7 +308,7 @@ convert_wrfbdy_data (const int itime,
                     xmu  = mu_arr(i-1,j,0) + mub_arr(i-1,j,0);
                 } else {
                     xmu = (  mu_arr(i,j,0) +  mu_arr(i-1,j,0)
-                          + mub_arr(i,j,0) + mub_arr(i-1,j,0)) * myhalf;
+                          + mub_arr(i,j,0) + mub_arr(i-1,j,0)) * myhalf_d;
                 }
                 Real xmu_mult    = c1h_arr(0,0,k) * xmu + c2h_arr(0,0,k);
                 Real new_bdy     = bdy_u_arr(i,j,k) / xmu_mult;
@@ -317,7 +317,7 @@ convert_wrfbdy_data (const int itime,
         });
 
         // Define v velocity
-        ParallelFor(bx_v, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        ParallelFor(bx_v, [=,myhalf_d=myhalf] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
             if (mask_v_arr(i,j,k)) {
                 Real xmu;
@@ -327,7 +327,7 @@ convert_wrfbdy_data (const int itime,
                     xmu  = mu_arr(i,j-1,0) + mub_arr(i,j-1,0);
                 } else {
                     xmu =  (  mu_arr(i,j,0) +  mu_arr(i,j-1,0)
-                           + mub_arr(i,j,0) + mub_arr(i,j-1,0) ) * myhalf;
+                           + mub_arr(i,j,0) + mub_arr(i,j-1,0) ) * myhalf_d;
                 }
                 Real xmu_mult    = c1h_arr(0,0,k) * xmu + c2h_arr(0,0,k);
                 Real new_bdy     = bdy_v_arr(i,j,k) / xmu_mult;
@@ -337,26 +337,26 @@ convert_wrfbdy_data (const int itime,
 
         // Convert perturbational moist pot. temp. (Th_m) to dry pot. temp. (Th_d)
         const Real wrf_theta_ref = Real(300.);
-        ParallelFor(bx_t, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        ParallelFor(bx_t, [=,one_d=one,R_v_d=R_v,R_d_d=R_d] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
             if (mask_c_arr(i,j,k)) {
                 Real xmu         = (mu_arr(i,j,0) + mub_arr(i,j,0));
                 Real xmu_mult    = c1h_arr(0,0,k) * xmu + c2h_arr(0,0,k);
                 Real new_bdy_Th  = bdy_t_arr(i,j,k) / xmu_mult + wrf_theta_ref;
-                Real qv_fac      = (one + (R_v/R_d) * bdy_qv_arr(i,j,k) / xmu_mult);
+                Real qv_fac      = (one_d + (R_v_d/R_d_d) * bdy_qv_arr(i,j,k) / xmu_mult);
                 new_bdy_Th      /= qv_fac;
                 bdy_t_tmp(i,j,k) = new_bdy_Th;
             }
         });
 
         // Define Qv
-        ParallelFor(bx_qv, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        ParallelFor(bx_qv, [=,zero_d=zero] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
             if (mask_c_arr(i,j,k)) {
                 Real xmu          = (mu_arr(i,j,0) + mub_arr(i,j,0));
                 Real xmu_mult     = c1h_arr(0,0,k) * xmu + c2h_arr(0,0,k);
                 Real new_bdy_QV   = bdy_qv_arr(i,j,k) / xmu_mult;
-                bdy_qv_tmp(i,j,k) = (use_moist) ? new_bdy_QV : zero;
+                bdy_qv_tmp(i,j,k) = (use_moist) ? new_bdy_QV : zero_d;
             }
         });
 
@@ -478,7 +478,7 @@ convert_wrfbdy_data (const int itime,
 #endif
         Real grav = CONST_GRAV;
         ParallelFor(bx_t_slab,
-        [=] AMREX_GPU_DEVICE (int i, int j, int /*k*/) noexcept
+        [=,R_d_d=R_d,Cp_d_d=Cp_d,one_d=one,myhalf_d=myhalf] AMREX_GPU_DEVICE (int i, int j, int /*k*/) noexcept
         {
             // integrate from surface to domain top
             Real dz, F, C;
@@ -507,29 +507,29 @@ convert_wrfbdy_data (const int itime,
               qt_lo = bdy_qv_int(i,j,k-1);
               qv_lo = bdy_qv_int(i,j,k-1);
               Th_lo = bdy_t_int(i,j,k-1);
-              R_lo  = getRhogivenThetaPress(Th_lo, P_lo, R_d/Cp_d, qv_lo);
-              rho_tot_lo = R_lo * (one + qt_lo);
-              C  = -P_lo + myhalf*rho_tot_lo*grav*dz;
+              R_lo  = getRhogivenThetaPress(Th_lo, P_lo, R_d_d/Cp_d_d, qv_lo);
+              rho_tot_lo = R_lo * (one_d + qt_lo);
+              C  = -P_lo + myhalf_d*rho_tot_lo*grav*dz;
 
               // Initial guess and residual
               qt_hi = bdy_qv_int(i,j,k);
               qv_hi = bdy_qv_int(i,j,k);
               Th_hi = bdy_t_int(i,j,k);
-              T_hi  = getTgivenPandTh(P_hi, Th_hi, R_d/Cp_d);
-              R_hi  = getRhogivenThetaPress(Th_hi, P_hi, R_d/Cp_d, qv_hi);
-              rho_tot_hi = R_hi * (one + qt_hi);
-              F = P_hi + myhalf*rho_tot_hi*grav*dz + C;
+              T_hi  = getTgivenPandTh(P_hi, Th_hi, R_d_d/Cp_d_d);
+              R_hi  = getRhogivenThetaPress(Th_hi, P_hi, R_d_d/Cp_d_d, qv_hi);
+              rho_tot_hi = R_hi * (one_d + qt_hi);
+              F = P_hi + myhalf_d*rho_tot_hi*grav*dz + C;
 
               // Do iterations
               bool maintain_Th = false;
-              HSEutils::Newton_Raphson_hse(tol, R_d/Cp_d, dz,
+              HSEutils::Newton_Raphson_hse(tol, R_d_d/Cp_d_d, dz,
                                            grav, C, Th_hi, T_hi,
                                            qt_hi, qv_hi,
                                            P_hi, R_hi, F, maintain_Th);
 
               // Assign data
               bdy_r_int(i,j,k) = R_hi;
-              bdy_t_int(i,j,k) = getThgivenTandP(T_hi, P_hi, R_d/Cp_d);
+              bdy_t_int(i,j,k) = getThgivenTandP(T_hi, P_hi, R_d_d/Cp_d_d);
               P_lo = P_hi;
               z_lo = z_hi;
             }

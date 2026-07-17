@@ -100,8 +100,8 @@ ConvertForProjection (const MultiFab& den_div, const MultiFab& den_mlt,
             }
             else if (bc_ptr_h[BCVars::cons_bc].lo(0) == ERFBCType::ext_dir_upwind)
             {
-                ParallelFor(makeSlab(tbx,0,domain.smallEnd(0)), [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-                    if (momx(i,j,k) >= zero) {
+                ParallelFor(makeSlab(tbx,0,domain.smallEnd(0)), [=,zero_d=zero] AMREX_GPU_DEVICE (int i, int j, int k) {
+                    if (momx(i,j,k) >= zero_d) {
                         momx(i,j,k) *= den_mlt_arr(i-1,j,k,Rho_comp) / den_div_arr(i-1,j,k,Rho_comp) ;
                     } else {
                         momx(i,j,k) *= ( den_mlt_arr(i,j,k,Rho_comp) + den_mlt_arr(i-1,j,k,Rho_comp) )
@@ -120,8 +120,8 @@ ConvertForProjection (const MultiFab& den_div, const MultiFab& den_mlt,
             }
             else if (bc_ptr_h[BCVars::cons_bc].hi(0) == ERFBCType::ext_dir_upwind)
             {
-                ParallelFor(makeSlab(tbx,0,domain.bigEnd(0)+1), [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-                    if (momx(i,j,k) <= zero) {
+                ParallelFor(makeSlab(tbx,0,domain.bigEnd(0)+1), [=,zero_d=zero] AMREX_GPU_DEVICE (int i, int j, int k) {
+                    if (momx(i,j,k) <= zero_d) {
                         momx(i,j,k) *= den_mlt_arr(i,j,k,Rho_comp) / den_div_arr(i,j,k,Rho_comp) ;
                     } else {
                         momx(i,j,k) *= ( den_mlt_arr(i,j,k,Rho_comp) + den_mlt_arr(i-1,j,k,Rho_comp) )
@@ -140,8 +140,8 @@ ConvertForProjection (const MultiFab& den_div, const MultiFab& den_mlt,
             }
             else if (bc_ptr_h[BCVars::cons_bc].lo(1) == ERFBCType::ext_dir_upwind)
             {
-                ParallelFor(makeSlab(tby,1,domain.smallEnd(1)), [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-                    if (momy(i,j,k) >= zero) {
+                ParallelFor(makeSlab(tby,1,domain.smallEnd(1)), [=,zero_d=zero] AMREX_GPU_DEVICE (int i, int j, int k) {
+                    if (momy(i,j,k) >= zero_d) {
                         momy(i,j,k) *= den_mlt_arr(i,j-1,k,Rho_comp) / den_div_arr(i,j-1,k,Rho_comp) ;
                     } else {
                         momy(i,j,k) *= ( den_mlt_arr(i,j,k,Rho_comp) + den_mlt_arr(i,j-1,k,Rho_comp) )
@@ -160,8 +160,8 @@ ConvertForProjection (const MultiFab& den_div, const MultiFab& den_mlt,
             }
             else if (bc_ptr_h[BCVars::cons_bc].hi(1) == ERFBCType::ext_dir_upwind)
             {
-                ParallelFor(makeSlab(tby,1,domain.bigEnd(1)+1), [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-                    if (momy(i,j,k) <= zero) {
+                ParallelFor(makeSlab(tby,1,domain.bigEnd(1)+1), [=,zero_d=zero] AMREX_GPU_DEVICE (int i, int j, int k) {
+                    if (momy(i,j,k) <= zero_d) {
                         momy(i,j,k) *= den_mlt_arr(i,j,k,Rho_comp) / den_div_arr(i,j,k,Rho_comp) ;
                     } else {
                         momy(i,j,k) *= ( den_mlt_arr(i,j,k,Rho_comp) + den_mlt_arr(i,j-1,k,Rho_comp) )
@@ -201,14 +201,14 @@ void compute_influx_outflux(
         ParReduce(TypeList<ReduceOpSum>{},
                   TypeList<Real>{},
                   *vels_vec[0], ngrow,
-        [=] AMREX_GPU_DEVICE (int box_no, int i, int j, int k)
+        [=,zero_d=zero] AMREX_GPU_DEVICE (int box_no, int i, int j, int k)
             noexcept -> GpuTuple<Real>
         {
             if ( (i == domlo.x   && vel_x[box_no](i,j,k) > zero) ||
                  (i == domhi.x+1 && vel_x[box_no](i,j,k) < zero) ) {
                 return { std::abs(vel_x[box_no](i,j,k)) * area_x[box_no](i,j,k) };
             } else {
-                return { zero };
+                return { zero_d };
             }
         });
 
@@ -216,14 +216,14 @@ void compute_influx_outflux(
         ParReduce(TypeList<ReduceOpSum>{},
                   TypeList<Real>{},
                   *vels_vec[0], ngrow,
-        [=] AMREX_GPU_DEVICE (int box_no, int i, int j, int k)
+        [=,zero_d=zero] AMREX_GPU_DEVICE (int box_no, int i, int j, int k)
             noexcept -> GpuTuple<Real>
         {
             if ( (i == domlo.x   && vel_x[box_no](i,j,k) < zero) ||
                  (i == domhi.x+1 && vel_x[box_no](i,j,k) > zero) ) {
                 return { std::abs(vel_x[box_no](i,j,k)) * area_x[box_no](i,j,k) };
             } else {
-                return { zero };
+                return { zero_d };
             }
         });
 
@@ -234,14 +234,14 @@ void compute_influx_outflux(
         ParReduce(TypeList<ReduceOpSum>{},
                   TypeList<Real>{},
                   *vels_vec[1], ngrow,
-        [=] AMREX_GPU_DEVICE (int box_no, int i, int j, int k)
+        [=,zero_d=zero] AMREX_GPU_DEVICE (int box_no, int i, int j, int k)
             noexcept -> GpuTuple<Real>
         {
             if ( (j == domlo.y   && vel_y[box_no](i,j,k) > zero) ||
                  (j == domhi.y+1 && vel_y[box_no](i,j,k) < zero) ) {
                 return { std::abs(vel_y[box_no](i,j,k)) * area_y[box_no](i,j,k) };
             } else {
-                return { zero };
+                return { zero_d };
             }
         });
 
@@ -249,14 +249,14 @@ void compute_influx_outflux(
         ParReduce(TypeList<ReduceOpSum>{},
                   TypeList<Real>{},
                   *vels_vec[1], ngrow,
-        [=] AMREX_GPU_DEVICE (int box_no, int i, int j, int k)
+        [=,zero_d=zero] AMREX_GPU_DEVICE (int box_no, int i, int j, int k)
             noexcept -> GpuTuple<Real>
         {
             if ( (j == domlo.y   && vel_y[box_no](i,j,k) < zero) ||
                  (j == domhi.y+1 && vel_y[box_no](i,j,k) > zero) ) {
                 return { std::abs(vel_y[box_no](i,j,k)) * area_y[box_no](i,j,k) };
             } else {
-                return { zero };
+                return { zero_d };
             }
         });
 

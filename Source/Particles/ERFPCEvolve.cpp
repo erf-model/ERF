@@ -249,7 +249,7 @@ void ERFPC::AdvectWithGravity (int                              a_lev,
 
         auto zheight = (*a_z_height)[grid].array();
 
-        ParallelFor(n, [=] AMREX_GPU_DEVICE (int i)
+        ParallelFor(n, [=,CONST_GRAV_d=CONST_GRAV,myhalf_d=myhalf] AMREX_GPU_DEVICE (int i)
         {
             ParticleType& p = p_pbox[i];
             if (p.id() <= 0) { return; }
@@ -259,10 +259,10 @@ void ERFPC::AdvectWithGravity (int                              a_lev,
             // Define acceleration to be (gravity minus drag) where drag is defined
             // such the particles will reach a terminal velocity of Real(5.0) (totally arbitrary)
             ParticleReal terminal_vel = Real(5.0);
-            ParticleReal grav = CONST_GRAV;
-            ParticleReal drag = CONST_GRAV * (v * v) / (terminal_vel*terminal_vel);
+            ParticleReal grav = CONST_GRAV_d;
+            ParticleReal drag = CONST_GRAV_d * (v * v) / (terminal_vel*terminal_vel);
 
-            ParticleReal myhalf_dt = myhalf * a_dt;
+            ParticleReal myhalf_dt = myhalf_d * a_dt;
 
             // Update the particle velocity over first half of step (a_dt/2)
             vz_ptr[i] -= (grav - drag) * myhalf_dt;
