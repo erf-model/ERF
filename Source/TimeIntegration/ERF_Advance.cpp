@@ -78,12 +78,22 @@ ERF::Advance (int lev, double time, double dt_lev, int iteration, int /*ncycle*/
     // on the conserved field
     if (solverChoice.use_direct_perturbation(lev))
     {
-        auto m_ixtype = S_old.boxArray().ixType(); // Conserved term
-        for (MFIter mfi(S_old,TileNoZ()); mfi.isValid(); ++mfi) {
-            Box bx  = mfi.tilebox();
-            const Array4<Real> &cell_data  = S_old.array(mfi);
-            const Array4<const Real> &pert_cell = turbPert.pb_cell[lev].array(mfi);
-            turbPert.apply_tpi(lev, bx, RhoTheta_comp, m_ixtype, cell_data, pert_cell);
+        if (solverChoice.use_wvel_perturbation(lev)) { // CPM_W
+            auto m_ixtype = W_old.boxArray().ixType();
+            for (MFIter mfi(W_old,TileNoZ()); mfi.isValid(); ++mfi) {
+                Box bx  = mfi.tilebox();
+                const Array4<Real> &cell_data  = W_old.array(mfi);
+                const Array4<const Real> &pert_cell = turbPert.pb_cell[lev].array(mfi);
+                turbPert.apply_tpi(lev, bx, -1, m_ixtype, cell_data, pert_cell);
+            }
+        } else {
+            auto m_ixtype = S_old.boxArray().ixType(); // Conserved term
+            for (MFIter mfi(S_old,TileNoZ()); mfi.isValid(); ++mfi) {
+                Box bx  = mfi.tilebox();
+                const Array4<Real> &cell_data  = S_old.array(mfi);
+                const Array4<const Real> &pert_cell = turbPert.pb_cell[lev].array(mfi);
+                turbPert.apply_tpi(lev, bx, RhoTheta_comp, m_ixtype, cell_data, pert_cell);
+            }
         }
     }
 
