@@ -77,7 +77,8 @@
             moisture_type = 2;
         }
 
-        ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k)
+        ParallelFor(bx, [=,zero_d=zero,one_d=one,tbgmin_d=tbgmin,a_bg_d=a_bg]
+                    AMREX_GPU_DEVICE(int i, int j, int k)
         {
             // Geometry (note we must include these here to get the data on device)
             const auto prob_lo  = geomdata.ProbLo();
@@ -89,7 +90,7 @@
             Real rad, delta_theta, theta_total, rho, RH;
 
             // Introduce the warm bubble. Assume that the bubble is pressure matched with the background
-            rad = zero;
+            rad = zero_d;
             if (x_r > 0) rad += amrex::Math::powi<2>((x - x_c)/x_r);
             if (y_r > 0) rad += amrex::Math::powi<2>((y - y_c)/y_r);
             if (z_r > 0) rad += amrex::Math::powi<2>((z - z_c)/z_r);
@@ -127,16 +128,16 @@
             if (nstate == NVAR_max) {
                 Real omn;
                 if(moisture_type == 1) {
-                    omn = std::max(zero,std::min(one,(T-tbgmin)*a_bg));
+                    omn = std::max(zero_d,std::min(one_d,(T-tbgmin_d)*a_bg_d));
                 } else if(moisture_type == 2) {
-                    omn = amrex::Real(1);
+                    omn = one;
                 } else {
                     omn = zero;
                     Abort("Invalid moisture type specified");
                 }
                 Real qn  = state_pert(i, j, k, RhoQ2_comp);
                 state_pert(i, j, k, RhoQ2_comp) = qn * omn;
-                state_pert(i, j, k, RhoQ3_comp) = qn * (amrex::Real(1)-omn);
+                state_pert(i, j, k, RhoQ3_comp) = qn * (one - omn);
             }
         });
     } else {
