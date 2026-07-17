@@ -122,7 +122,7 @@
                               ng_cons_to_use, ng_vel, cons_only, scomp_cons, ncomp_cons);
     };
 
-    auto update_terrain_stage = [&](int lev, const double old_step_time,
+    auto update_terrain_stage = [&,one_d=one](int lev, const double old_step_time,
                                              const double old_stage_time,
                                              const double new_stage_time,
                                              const double slow_dt)
@@ -173,7 +173,7 @@
             make_terrain_fitted_coords(lev,fine_geom,*z_phys_nd_new[lev], zlevels_stag[lev], phys_bc_type);
             make_J             (fine_geom, *z_phys_nd_new[lev], *detJ_cc_new[lev]);
 
-            Real inv_dt  = one/static_cast<Real>(slow_dt);
+            Real inv_dt  = one_d/static_cast<Real>(slow_dt);
 
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
@@ -199,7 +199,7 @@
             } // mfi
     };
 
-    auto update_terrain_substep = [&](int lev, const double old_substep_time, const double new_substep_time, const double dtau,
+    auto update_terrain_substep = [&,one_d=one](int lev, const double old_substep_time, const double new_substep_time, const double dtau,
                                       Vector<MultiFab>& S_data, std::unique_ptr<MultiFab>& z_t_pert)
     {
         // Make "old" fast geom -- store in z_phys_nd for convenience
@@ -230,7 +230,7 @@
         make_terrain_fitted_coords(lev,fine_geom,*z_phys_nd_new[lev], zlevels_stag[lev], phys_bc_type);
         make_J             (fine_geom,*z_phys_nd_new[lev], *detJ_cc_new[lev]);
 
-        Real inv_dt   = one/static_cast<Real>(dtau);
+        Real inv_dt   = one_d/static_cast<Real>(dtau);
 
         z_t_pert = std::make_unique<MultiFab>(S_data[IntVars::zmom].boxArray(), S_data[IntVars::zmom].DistributionMap(), 1, 1);
 

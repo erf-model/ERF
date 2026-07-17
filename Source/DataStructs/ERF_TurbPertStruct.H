@@ -16,7 +16,7 @@
 */
 
 AMREX_ENUM(PerturbationType,
-    Source, Direct, CPM, None
+    Source, Direct, CPM, CPM_W, None
 );
 
 struct TurbulentPerturbation {
@@ -39,6 +39,8 @@ struct TurbulentPerturbation {
             pt_type[lev] = 1;
         } else if (pert_type == PerturbationType::CPM) {
             pt_type[lev] = 2;
+        } else if (pert_type == PerturbationType::CPM_W) {
+            pt_type[lev] = 3;
         } else {
             pt_type[lev] = -1;
         }
@@ -70,7 +72,8 @@ struct TurbulentPerturbation {
         pp.get("perturbation_layers",tpi_layers);
         pp.get("perturbation_offset",tpi_offset);
 
-        pp.get("perturbation_nondimensional",tpi_nonDim);
+        tpi_nonDim = zero;
+        pp.query("perturbation_nondimensional",tpi_nonDim);
 
         tpi_Tinf = amrex::Real(300.);
         pp.query("perturbation_T_infinity",tpi_Tinf);
@@ -80,6 +83,15 @@ struct TurbulentPerturbation {
 
         input_Ug = zero;
         pp.query("perturbation_Ug",input_Ug);
+
+        input_w_amp = zero;
+        pp.query("perturbation_w_amp",input_w_amp);
+
+        perturbation_klo = 0;
+        bool have_klo = pp.query("perturbation_klo", perturbation_klo);
+
+        perturbation_khi = 0;
+        bool have_khi = pp.query("perturbation_khi", perturbation_khi);
 
         // Check variables message
         if (tpi_offset < 0) { amrex::Abort("Please provide a valid inflow cell offset value for perturbation region (ie. 0-5)"); }
@@ -114,6 +126,10 @@ struct TurbulentPerturbation {
             const amrex::IntVect& valid_box_lo = subdomain_box.smallEnd();
             const amrex::IntVect& valid_box_hi = subdomain_box.bigEnd();
 
+            // default perturbation region to be the entire z extent if the user does not specify bounds
+            if (!have_klo) { perturbation_klo = valid_box_lo[2]; }
+            if (!have_khi) { perturbation_khi = valid_box_hi[2]; }
+
             // Creating perturbation regions and initializing with generic size.
             amrex::Box lo_x_bx(amrex::IntVect(0), amrex::IntVect(1), amrex::IntVect(0));
             amrex::Box hi_x_bx(amrex::IntVect(0), amrex::IntVect(1), amrex::IntVect(0));
@@ -124,27 +140,27 @@ struct TurbulentPerturbation {
             //amrex::PrintToFile("BoxPerturbationOutput") << "Setting perturbation region in:";
             // ***** X-direction perturbation *****
             if (tpi_direction[0]) { // West
-                lo_x_bx.setSmall(amrex::IntVect(valid_box_lo[0]+tpi_offset, valid_box_lo[1]+tpi_direction[1]*tpi_offset, valid_box_lo[2]));
-                lo_x_bx.setBig  (amrex::IntVect(valid_box_lo[0]+(tpi_layers*tpi_boxDim[0]-1)+tpi_offset, valid_box_hi[1]-(tpi_direction[4]*tpi_offset), valid_box_hi[2]));
+                lo_x_bx.setSmall(amrex::IntVect(valid_box_lo[0]+tpi_offset, valid_box_lo[1]+tpi_direction[1]*tpi_offset, perturbation_klo));
+                lo_x_bx.setBig  (amrex::IntVect(valid_box_lo[0]+(tpi_layers*tpi_boxDim[0]-1)+tpi_offset, valid_box_hi[1]-(tpi_direction[4]*tpi_offset), perturbation_khi));
                 amrex::PrintToFile("BoxPerturbationOutput") << " West face";
             }
 
             if (tpi_direction[3]) { // East
-                hi_x_bx.setSmall(amrex::IntVect(valid_box_hi[0]-((tpi_layers*tpi_boxDim[0]-1)+tpi_offset), valid_box_lo[1]+tpi_direction[1]*tpi_offset, valid_box_lo[2]));
-                hi_x_bx.setBig(amrex::IntVect(valid_box_hi[0]-tpi_offset, valid_box_hi[1]-(tpi_direction[4]*tpi_offset), valid_box_hi[2]));
+                hi_x_bx.setSmall(amrex::IntVect(valid_box_hi[0]-((tpi_layers*tpi_boxDim[0]-1)+tpi_offset), valid_box_lo[1]+tpi_direction[1]*tpi_offset, perturbation_klo));
+                hi_x_bx.setBig(amrex::IntVect(valid_box_hi[0]-tpi_offset, valid_box_hi[1]-(tpi_direction[4]*tpi_offset), perturbation_khi));
                 amrex::PrintToFile("BoxPerturbationOutput") << " East face";
             }
 
             // ***** Y-direction Perturbation *****
             if (tpi_direction[1]) { // North
-                lo_y_bx.setSmall(amrex::IntVect(valid_box_lo[0]+tpi_direction[0]*tpi_offset, valid_box_lo[1]+tpi_offset, valid_box_lo[2]));
-                lo_y_bx.setBig(amrex::IntVect(valid_box_hi[0]-tpi_direction[3]*tpi_offset, valid_box_lo[1]+((tpi_layers*tpi_boxDim[1])-1)+tpi_offset, valid_box_hi[2]));
+                lo_y_bx.setSmall(amrex::IntVect(valid_box_lo[0]+tpi_direction[0]*tpi_offset, valid_box_lo[1]+tpi_offset, perturbation_klo));
+                lo_y_bx.setBig(amrex::IntVect(valid_box_hi[0]-tpi_direction[3]*tpi_offset, valid_box_lo[1]+((tpi_layers*tpi_boxDim[1])-1)+tpi_offset, perturbation_khi));
                 amrex::PrintToFile("BoxPerturbationOutput") << " North face";
             }
 
             if (tpi_direction[4]) { // South
-                hi_y_bx.setSmall(amrex::IntVect(valid_box_lo[0]+tpi_direction[0]*tpi_offset, valid_box_hi[1]-((tpi_layers*tpi_boxDim[1]-1)+tpi_offset), valid_box_lo[2]));
-                hi_y_bx.setBig(amrex::IntVect(valid_box_hi[0]-tpi_direction[3]*tpi_offset, valid_box_hi[1]-tpi_offset, valid_box_hi[2]));
+                hi_y_bx.setSmall(amrex::IntVect(valid_box_lo[0]+tpi_direction[0]*tpi_offset, valid_box_hi[1]-((tpi_layers*tpi_boxDim[1]-1)+tpi_offset), perturbation_klo));
+                hi_y_bx.setBig(amrex::IntVect(valid_box_hi[0]-tpi_direction[3]*tpi_offset, valid_box_hi[1]-tpi_offset, perturbation_khi));
                 amrex::PrintToFile("BoxPerturbationOutput") << " South face";
             }
 
@@ -209,7 +225,11 @@ struct TurbulentPerturbation {
         pb_amp[lev].resize(pb_ba[lev].size(), zero);
 
         // Creating data array for perturbation amplitude storage
-        pb_cell[lev].define(ba, dm, 1, ngrow_state); // this is the only place ba is used. Maybe we can print here to determine what's valid...
+        if (pt_type[lev] == 3) { // CPM_W converts to the k-face ba.
+            pb_cell[lev].define(convert(ba, amrex::IntVect(0,0,1)), dm, 1, ngrow_state);
+        } else {
+            pb_cell[lev].define(ba, dm, 1, ngrow_state); // this is the only place ba is used. Maybe we can print here to determine what's valid...
+        }
         pb_cell[lev].setVal(0.);
 
         // Computing perturbation reference length
@@ -260,6 +280,7 @@ struct TurbulentPerturbation {
         srand( (unsigned) time(NULL) );
 
         auto m_ixtype = mf_cons.boxArray().ixType(); // safety step
+        if (pt_type[lev] == 3) { m_ixtype = amrex::IndexType(amrex::IntVect(0,0,1)); }
 
         // Seed the random generator at 1024UL for regression testing
         int fix_random_seed = 0;
@@ -277,7 +298,7 @@ struct TurbulentPerturbation {
 
             bool update_box = true; // initialize flag
             // Check if the local elapsed time is greater than the update interval and don't go into boxes the rank doesn't own
-            if (pt_type[lev] == 2) {
+            if (pt_type[lev] == 2 || pt_type[lev] == 3) {
                 // for CPM, perturbation boxes/cells refresh after boxes have advected box width/length * num_layers (advective time scale)
                 update_box = ((pb_local_etime[lev][boxIdx] >= pb_interval[lev][boxIdx]*tpi_layers) && pb_local_etime[lev][boxIdx] != -one);
             } else {
@@ -292,7 +313,7 @@ struct TurbulentPerturbation {
                 // Done for parallelism to avoid Inf being stored in array
                 if (pb_mag[lev][boxIdx] !=zero) {
                     double interval = 0.0;
-                    if (pt_type[lev] == 2) {
+                    if (pt_type[lev] == 2 || pt_type[lev] == 3) {
                         //  Wind direction correction for angled wind
                         amrex::Real wind_direction = pb_dir[lev][boxIdx];
                         if (wind_direction > PI / 4) { wind_direction = PI / 2 - wind_direction; }
@@ -320,7 +341,7 @@ struct TurbulentPerturbation {
 
             } else {
                 // set perturbation amplitudes to 0 for CPM. A little inefficient but leverages as much as existing code as possible.
-                if (pt_type[lev] == 2) { zero_amp(boxIdx, lev, m_ixtype); }
+                if (pt_type[lev] == 2 || pt_type[lev] == 3) { zero_amp(boxIdx, lev, m_ixtype); }
 
                 // Increase by timestep of level 0 (but only if the box is owned by this rank)
                 if (pb_local_etime[lev][boxIdx] != -one) { pb_local_etime[lev][boxIdx] += dt; }
@@ -358,16 +379,23 @@ struct TurbulentPerturbation {
     {
         for (int boxIdx = 0; boxIdx < pb_ba[lev].size(); boxIdx++) {
             amrex::Box pbx = amrex::convert(pb_ba[lev][boxIdx], m_ixtype);
+            if (pt_type[lev] == 3) { pbx.setBig(2, pbx.bigEnd(2) - 1); } // prevent double counting after converting to k-faces
             amrex::Box ubx = pbx & vbx;
             if (ubx.ok()) {
-                ParallelFor(ubx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-                    src_arr(i,j,k,comp) += pert_cell(i,j,k);
+                if (comp == -1) { // vertical velocity perturbations
+                    ParallelFor(ubx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                        src_arr(i,j,k) += pert_cell(i,j,k);
+                    });
+                } else {
+                    ParallelFor(ubx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                        src_arr(i,j,k,comp) += pert_cell(i,j,k);
 
-                    // For box region debug only
-                    #ifdef INDEX_PERTURB
-                    src_arr(i,j,k,comp) = (amrex::Real) (boxIdx + amrex::Real(5.));
-                    #endif
-                });
+                        // For box region debug only
+                        #ifdef INDEX_PERTURB
+                        src_arr(i,j,k,comp) = (amrex::Real) (boxIdx + 5.);
+                        #endif
+                    });
+                }
             }
         }
     }
@@ -382,6 +410,8 @@ struct TurbulentPerturbation {
             amrex::Real cp = 1004; // specific heat of air [J/(kg K)]
             amrex::Real Ec = amrex::Real(0.2); // Eckert number
             pb_amp[lev][boxIdx] = (input_Ug * input_Ug) / (Ec * cp);
+        } else if (pt_type[lev] == 3) {
+            pb_amp[lev][boxIdx] = input_w_amp;
         } else { // box perturbation
             amrex::Real Um = pb_mag[lev][boxIdx];
             amrex::Real beta = one/tpi_Tinf; // Thermal expansion coefficient
@@ -418,12 +448,13 @@ struct TurbulentPerturbation {
         for (amrex::MFIter mfi(pb_cell[lev],TileNoZ()); mfi.isValid(); ++mfi) {
             amrex::Box vbx = mfi.validbox();
             amrex::Box pbx = amrex::convert(pb_ba[lev][boxIdx], m_ixtype);
+            if (pt_type[lev] == 3) { pbx.setBig(2, pbx.bigEnd(2) - 1); } // prevent double counting after converting to k-faces
             amrex::Box ubx = pbx & vbx;
             if (ubx.ok()) {
                 amrex::Real amp_copy = pb_amp[lev][boxIdx];
                 const amrex::Array4<amrex::Real>& pert_cell = pb_cell[lev].array(mfi);
 
-                if (pt_type[lev] == 2) { // CPM
+                if (pt_type[lev] == 2  || pt_type[lev] == 3) { // CPM
                     amrex::Real rand_number_const = RandomReal(-one, one);
                     ParallelFor(ubx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
                         pert_cell(i,j,k) = rand_number_const * amp_copy;
@@ -434,7 +465,6 @@ struct TurbulentPerturbation {
                         pert_cell(i,j,k) = (rand_double*two - one) * amp_copy;
                     });
                 }
-
             }
         }
     }
@@ -448,6 +478,7 @@ struct TurbulentPerturbation {
         for (amrex::MFIter mfi(pb_cell[lev],TileNoZ()); mfi.isValid(); ++mfi) {
             amrex::Box vbx = mfi.validbox();
             amrex::Box pbx = amrex::convert(pb_ba[lev][boxIdx], m_ixtype);
+            if (pt_type[lev] == 3) { pbx.setBig(2, pbx.bigEnd(2) - 1); } // prevent double counting after converting to k-faces
             amrex::Box ubx = pbx & vbx;
             if (ubx.ok()) {
                 const amrex::Array4<amrex::Real>& pert_cell = pb_cell[lev].array(mfi);
@@ -692,6 +723,9 @@ struct TurbulentPerturbation {
 
     amrex::Vector<amrex::IntVect> ref_ratio;  // ref_ratio for multilevel run
     amrex::Real input_Ug;                     // input geostrophic wind speed to scale perturbations when using CPM
+    amrex::Real input_w_amp;                  // input vertical velocity amplitude for w
+    int         perturbation_klo;             // upper bound in Nz for perturbations
+    int         perturbation_khi;             // lower bound in Nz for perturbations
 
     // Perturbation data arrays
     amrex::Vector<amrex::Vector<double>> pb_interval;         // PB update time [s]

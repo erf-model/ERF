@@ -138,4 +138,3 @@ ForestDrag::define_drag_field (const BoxArray& ba,
     m_forest_drag->FillBoundary(geom.periodicity());
 
 } // init_drag_field
-
