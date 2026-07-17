@@ -181,7 +181,7 @@ ComputeDiffusivityYSU (const MultiFab& xvel,
         const int izmin = geom.Domain().smallEnd(2);
         const int izmax = geom.Domain().bigEnd(2);
 
-        ParallelFor(bx, [=,myhalf_d=myhalf,one_d=one,zero_d=zero,two_d=two,KAPPA_d=KAPPA,CONST_GRAV_d=CONST_GRAV] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        ParallelFor(bx, [=,myhalf_d=myhalf,one_d=one,KAPPA_d=KAPPA,CONST_GRAV_d=CONST_GRAV] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
             const Real zval = use_terrain_fitted_coords ?
                               Compute_Zrel_AtCellCenter(i,j,k,z_nd_arr) : gdata.ProbLo(2) + (k + myhalf_d)*gdata.CellSize(2);

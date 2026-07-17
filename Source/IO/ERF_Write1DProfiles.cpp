@@ -287,7 +287,7 @@ ERF::derive_diag_profiles(double /*time*/,
         const Array4<const Real>& eta_arr = (eta_src) ? eta_src->const_array(mfi) :
                                                         Array4<const Real>{};
 
-        ParallelFor(bx, [=,zero_d=zero,myhalf_d=myhalf] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+        ParallelFor(bx, [=,zero_d=zero] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {
             Real theta = cons_arr(i,j,k,RhoTheta_comp) / cons_arr(i,j,k,Rho_comp);
             fab_arr(i, j, k, 0) = cons_arr(i,j,k,Rho_comp);
@@ -310,7 +310,7 @@ ERF::derive_diag_profiles(double /*time*/,
             Real upert = u_cc_arr(i,j,k) - avg_u_ptr[k];
             Real vpert = v_cc_arr(i,j,k) - avg_v_ptr[k];
             Real wpert = w_cc_arr(i,j,k) - avg_w_ptr[k];
-            fab_arr(i, j, k, 3) = myhalf_d * (upert*upert + vpert*vpert + wpert*wpert);
+            fab_arr(i, j, k, 3) = myhalf * (upert*upert + vpert*vpert + wpert*wpert);
 #endif
             fab_arr(i, j, k, 5) = u_cc_arr(i,j,k) * u_cc_arr(i,j,k);   // u*u
             fab_arr(i, j, k, 6) = u_cc_arr(i,j,k) * v_cc_arr(i,j,k);   // u*v
