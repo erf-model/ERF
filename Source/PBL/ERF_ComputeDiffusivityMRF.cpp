@@ -887,4 +887,46 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
             K_turb(i, j, khi+1, EddyDiff::Turb_lengthscale) = K_turb(i, j, khi, EddyDiff::Turb_lengthscale);
         });
     }// mfi
+
+    // =========================================================================
+    // FIX: Copy MRF PBLH from Turb_lengthscale (k=klo) into SurfaceLayer->pblh.
+    //
+    // The MRF scheme computes the corrected PBL height (pblh_corr_arr) and stores
+    // it in K_turb(Turb_lengthscale) at every k level (all k get the same 2D value).
+    // However SurfaceLayer->pblh is never written by ComputeDiffusivityMRF — it is
+    // only populated when pblh_type == MYNN25 via update_pblh(). For MRF runs,
+    // get_pblh() returns the uninitialized bogus_large_value (1e+150), which the
+    // dust layer's fill_dust_scalar_from_atm reads, producing PBLH_max=1e+150 in
+    // the [DUST DEBUG] Phase 9 output.
+    //
+    // Fix: after all MFIter tiles are done, do a single host-side loop over
+    // eddyViscosity MFIter to extract Turb_lengthscale at k=klo into pblh.
+    // This is a 2D -> 2D copy (same box layout) so it is cheap.
+    // =========================================================================
+    if (SurfLayer && SurfLayer->get_pblh(level)) {
+        amrex::MultiFab* pblh_mf = SurfLayer->get_pblh(level);
+        const int klo_2d = geom.Domain().smallEnd(2);
+        for (amrex::MFIter mfi(eddyViscosity, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+            // Build a 2D slab box at k=0 for the pblh MultiFab (which is 2D).
+            // eddyViscosity is 3D; pblh_mf is 2D (k-extent = [0,0]).
+            const amrex::Box& bx3d = mfi.validbox();
+            amrex::Box bx2d = bx3d;
+            bx2d.setSmall(2, 0);
+            bx2d.setBig(2, 0);
+
+            // Guard: only proceed if this tile touches klo in 3D.
+            // Tiles that don't include klo would read garbage; skip them.
+            if (!bx3d.contains(amrex::IntVect(bx3d.smallEnd(0),
+                                              bx3d.smallEnd(1),
+                                              klo_2d))) continue;
+
+            auto k_arr    = eddyViscosity.const_array(mfi);
+            auto pblh_arr = pblh_mf->array(mfi);
+            const int kl  = klo_2d;
+            amrex::ParallelFor(bx2d, [=] AMREX_GPU_DEVICE(int i, int j, int) noexcept {
+                // Turb_lengthscale stores pblh_corr at every k — read from klo.
+                pblh_arr(i, j, 0) = k_arr(i, j, kl, EddyDiff::Turb_lengthscale);
+            });
+        }
+    }
 }
