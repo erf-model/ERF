@@ -13,7 +13,11 @@
 #define NDRY       3
 
 // This defines the ACTUAL number of non-moisture scalar vars
+#ifdef ERF_USE_DUST
+#define NSCALARS   2
+#else
 #define NSCALARS   1
+#endif
 
 // This defines the MAXIMUM number of moisture vars (six q's plus five n's)
 #define NMOIST_max 11
@@ -39,7 +43,12 @@
 
 #define RhoScalar_comp (RhoKE_comp+1)
 
-#define RhoQ1_comp     (RhoScalar_comp+NSCALARS)
+// Phase 10 (Dust): First passive advected scalar component index
+// Used for total dust mass density [kg/m^3] on 3D atmospheric grid.
+// Phase 11 expands to n_size_bins slots when DustParams::transport_bins_separately = true.
+#define RhoAdv_comp    (RhoScalar_comp+NSCALARS)
+
+#define RhoQ1_comp     (RhoAdv_comp+1)
 #define RhoQ2_comp     (RhoQ1_comp+1)
 #define RhoQ3_comp     (RhoQ1_comp+2)
 #define RhoQ4_comp     (RhoQ1_comp+3)
@@ -55,6 +64,7 @@
 #define PrimTheta_comp   (RhoTheta_comp -1)
 #define PrimKE_comp      (RhoKE_comp    -1)
 #define PrimScalar_comp  (RhoScalar_comp-1)
+#define PrimAdv_comp     (RhoAdv_comp-1)
 #define PrimQ1_comp      (RhoQ1_comp-1)
 #define PrimQ2_comp      (RhoQ2_comp-1)
 #define PrimQ3_comp      (RhoQ3_comp-1)

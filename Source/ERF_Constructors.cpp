@@ -108,6 +108,7 @@ ERF::ERF_shared ()
     // InitData can read restart metadata or write an output on restart.
     execution_provenance = erf_provenance::initialize_execution_provenance();
     initializeMicrophysics(nlevs_max);
+    initializeFire(nlevs_max);
 
 #ifdef ERF_USE_WINDFARM
     initializeWindFarm(nlevs_max);

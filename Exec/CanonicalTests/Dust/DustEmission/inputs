@@ -1,0 +1,188 @@
+# DustEmission regression test
+#
+# Tests compute_dust_emission_flux (ERF_DustEmission.cpp) as called from
+# DustLayer::advance. Tests that emission is non-zero when test_ustar > u*_t
+# and zero when test_ustar <= u*_t.
+#
+# Incorporates fixes from PR #135 (hgopalan/ERF/pull/135) and PR #136
+# (hgopalan/ERF/pull/136):
+#   - amr.max_level = 0
+#   - erf.use_gravity = false
+#   - erf.most.zref = 50.0 m
+#   - erf.most.z0 = 0.1 m
+#   - ERF_DustEmission.cpp in CMake/BuildERFExe.cmake (not Source/CMakeLists.txt)
+#
+# Configuration:
+#   - 8x8x16 atmospheric cells, 1000x1000x1000 m domain.
+#   - erf.dust.grid_ratio = 1: dust grid is 8x8x1 (125 m cells).
+#   - erf.dust.test_ustar = 0.3 m/s: exceeds u*_t = 0.05 m/s (USTAR_T_MIN floor)
+#     so emission is active.
+#   - test_soil_type.asc: outer ring = code 100 (silt_frac=0.10 default),
+#     interior = code 104 (haul road, silt_frac=0.10 default).
+#     silt_fraction_file is empty so silt_frac = DustParams default = 0.10.
+#   - max_step = 2.
+#
+# Expected results:
+#
+# At initialization (DustLayer::initialize):
+#   (1) dust_ustar_in set to 0.3 m/s uniformly (test_ustar = 0.3).
+#   (2) dust_ustar_t = 0.05 m/s at all cells (USTAR_T_MIN floor active).
+#   (3) dust_emission_flux filled with zeros at initialization
+#       (emission computed only in advance()).
+#
+# After step 1 (compute_dust_emission_flux called in advance()):
+#   (4) ustar = 0.3 m/s > ustar_t = 0.05 m/s: emission is active.
+#   (5) Horizontal saltation flux Q_s at all cells (uniform u*, u*_t, silt):
+#         Q_s = 2.61 * 1.225 / 9.81 * 0.3^3 * (1 - 0.05/0.3) * (1 + 0.05/0.3)^2
+#             = 2.61 * 0.1249 * 0.027 * 0.833 * (1.1667)^2
+#             approx 0.00896 kg/m/s.
+#   (6) Sandblasting efficiency for silt_frac = 0.10:
+#         clay = 0.2 * 0.10 = 0.02
+#         log10(alpha) = 0.134 * 0.02 - 6.0 = -5.9973
+#         alpha approx 1.006e-6 m^-1.
+#   (7) Vertical emission flux F = alpha * silt * Qs:
+#         F = 1.006e-6 * 0.10 * 0.00896 approx 9.01e-10 kg/m^2/s.
+#         All 3 bins have the same flux in Phase 6.
+#   (8) dust_emission_flux at all cells, all bins > 0.
+#   (9) dust_emission_flux < DustEmissionConst::FLUX_MAX = 1e-3 kg/m^2/s.
+#  (10) Run exits with code 0.
+#
+# Zero-emission case (can be verified by setting test_ustar = 0.0):
+#   u* = 0 < u*_t = 0.05 m/s: all flux values = 0.
+#
+# References:
+#   Marticorena & Bergametti (1995). J. Geophys. Res., 100, 16415.
+#     https://doi.org/10.1029/95JD00690
+#   Owen (1964). J. Fluid Mech., 20, 225-242.
+#     https://doi.org/10.1017/S0022112064001173
+#   Bagnold (1941). The Physics of Blown Sand and Desert Dunes. Methuen.
+#   PR #135: https://github.com/hgopalan/ERF/pull/135
+#   PR #136: https://github.com/hgopalan/ERF/pull/136
+#   MRF PBL: Hong & Pan (1996).
+#     https://doi.org/10.1175/1520-0493(1996)124<2322:NBLVDI>2.0.CO;2
+
+erf.prob_name = "ABL"
+max_step = 2
+amr.max_level = 0
+amrex.fpe_trap_invalid = 0
+fabarray.mfiter_tile_size = 1024 1024 1024
+
+geometry.prob_extent = 3000 3000 1024
+amr.n_cell           =  8   8   64
+amrex.max_grid_size_z = 128
+geometry.is_periodic = 1 1 0
+
+zlo.type = "surface_layer"
+erf.most.z0   = 0.1      # roughness length [m]
+erf.most.zref = 24.0     # reference height [m]
+erf.most.surf_temp_flux    = 0.0
+zhi.type = "SlipWall"
+zhi.theta_grad = 0.003  # adiabatic upper boundary
+erf.fixed_dt = 0.5  # time step [s]
+
+# DIAGNOSTICS & VERBOSITY
+erf.sum_interval   = 1       # timesteps between computing mass
+erf.v              = 1       # verbosity in ERF.cpp
+amr.v              = 1       # verbosity in Amr.cpp
+
+# REFINEMENT / REGRIDDING
+amr.max_level       = 0       # maximum level number allowed
+
+# CHECKPOINT FILES
+erf.check_file      = chk_dust_emission     # root name of checkpoint file
+erf.check_int       = -1             # number of timesteps between checkpoints
+
+# DATA COLLECTION
+erf.data_log    = dust_emission_hist.dat dust_emission_profiles.dat
+erf.profile_int = 10
+
+# PLOTFILES
+erf.plot_file_1     = plt_dust_emission      # prefix of plotfile name
+erf.plot_int_1      = 1000             # number of timesteps between plotfiles
+erf.plot_vars_1     = x_velocity y_velocity z_velocity theta
+
+# SOLVER CHOICE
+erf.use_gravity = true
+erf.molec_diff_type = "None"
+erf.les_type        = "None"
+erf.Cs = 0.11
+erf.theta_ref = 300.0
+
+# INITIALIZATION - from sounding file
+erf.init_type = "input_sounding"
+erf.sounding_type = Ideal
+erf.input_sounding_file = "sounding_dust_abl"
+
+# PBL CONFIGURATION - Baseline MRF (neutral case)
+erf.pbl_type = "MRF"
+erf.pbl_mrf_Ribcr = 0.5   # critical bulk Richardson number
+erf.pbl_mrf_const_b = 7.8 # surface layer factor (WRF CFAC)
+erf.pbl_mrf_sf = 0.1      # surface layer fraction (WRF SFAC)
+
+# Disable countergradient corrections (not relevant for neutral conditions)
+erf.enable_mrf_countergradient = true
+
+# Enable moisture diffusivity for completeness (but no moisture in neutral case)
+erf.mrf_moistvars = false
+
+# CORIOLIS EFFECT
+erf.latitude = 45.0  # mid-latitude (f = 1.0e-4 s^-1)
+
+erf.use_coriolis = false
+
+erf.abl_driver_type = "GeostrophicWind"
+
+erf.dust.enable                    = true
+erf.dust.dust_debug                = true
+erf.dust.grid_ratio                = 1
+erf.dust.particle_density          = 2650.0
+erf.dust.z0_dust                   = 0.01
+erf.dust.silt_fraction             = 0.10
+erf.dust.threshold_A_coeff         = 0.0123
+erf.dust.crust_index               = 0.0
+erf.dust.alpha_crust               = 0.5
+erf.dust.alpha_efflor              = 0.3
+erf.dust.atm_feedback = 1.0
+erf.dust.bin_diameters = 7.0e-6 2.5e-6 50.0e-6
+erf.dust.blast_reactivity = 2.0
+erf.dust.blast_schedule_file = ""
+erf.dust.cm_budget_file = "dust_cm_budget.csv"
+erf.dust.deposition_E0 = 3.0e-3
+erf.dust.dust_diag_file = "dust_diag.dat"
+erf.dust.dust_naaqs_file = "dust_naaqs.csv"
+erf.dust.dust_plot_int = -1
+erf.dust.dust_plot_prefix = "plt_dust_"
+erf.dust.loading_feedback_coeff = 0.0
+erf.dust.msha_exposure_file = "msha_exposure.csv"
+erf.dust.msha_pel_mg_m3 = 5.0
+erf.dust.msha_shift_duration_s = 28800.0
+erf.dust.msha_shift_file = "msha_shift_summary.csv"
+erf.dust.n_size_bins = 3
+erf.dust.phreeqc_feedback_file = "dust_dep_feedback.dat"
+erf.dust.phreeqc_feedback_interval_s = 0.0
+erf.dust.phreeqc_site_summary_file = "dust_dep_site_summary.csv"
+erf.dust.road_diag_file = "dust_road_diag.csv"
+erf.dust.road_schedule_file = ""
+erf.dust.supp_tau_base_s = 3600.0
+erf.dust.test_surf_temp_K = 293.15
+erf.dust.test_wind_speed = 0.0
+erf.dust.transport_bins_separately = false
+erf.dust.use_dynamic_moisture = false
+erf.dust.zref = 24.0
+# test_ustar = 0.3 m/s: exceeds USTAR_T_MIN = 0.05 m/s, emission is active.
+# Set to 0.0 to verify zero-emission case.
+erf.dust.test_ustar                = 0.3
+erf.dust.rho_air                   = 1.225
+erf.dust.phreeqc_update_interval_s = 1.0
+erf.dust.phreeqc_output_file       = "test_phreeqc.csv"
+erf.dust.phreeqc_crust_var         = "crust_index"
+erf.dust.phreeqc_silt_var          = "silt_fraction"
+erf.dust.phreeqc_efflor_var        = "efflorescence"
+erf.dust.phreeqc_supp_var          = "suppression_mod"
+erf.dust.phreeqc_metal_var         = "metal_as_bin0"
+erf.dust.soil_type_file            = "test_soil_type.asc"
+erf.dust.silt_fraction_file        = ""
+erf.dust.crust_index_file          = ""
+erf.dust.moisture_flag_file        = ""
+erf.dust.suppression_file          = ""
+erf.dust.surface_map_file          = ""

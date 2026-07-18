@@ -1,0 +1,41 @@
+ifeq ($(USE_DUST), TRUE)
+  DEFINES += -DERF_USE_DUST
+
+  CEXE_sources += Dust/ERF_DustGrid.cpp
+  CEXE_sources += Dust/ERF_DustPrerequisites.cpp
+  CEXE_sources += Dust/ERF_DustLayer.cpp
+  CEXE_sources += Dust/ERF_DustSurfaceReader.cpp
+  CEXE_sources += Dust/ERF_PhreeqcReader.cpp
+  CEXE_sources += Dust/ERF_DustEmission.cpp
+  CEXE_sources += Dust/ERF_DustWindExtract.cpp
+  CEXE_sources += Dust/ERF_DustAtmCoupling.cpp
+  CEXE_sources += Dust/ERF_DustPlotfile.cpp
+
+  CEXE_headers += Dust/ERF_DustParams.H
+  CEXE_headers += Dust/ERF_DustGrid.H
+  CEXE_headers += Dust/ERF_DustPrerequisites.H
+  CEXE_headers += Dust/ERF_DustLayer.H
+  CEXE_headers += Dust/ERF_DustSurfaceReader.H
+  CEXE_headers += Dust/ERF_PhreeqcReader.H
+  CEXE_headers += Dust/ERF_DustThreshold.H
+  CEXE_headers += Dust/ERF_DustEmission.H
+  CEXE_headers += Dust/ERF_DustBlastSchedule.H
+  CEXE_headers += Dust/ERF_DustRoadSchedule.H
+  CEXE_headers += Dust/ERF_DustSuppression.H
+  CEXE_headers += Dust/ERF_DustSiteRegistry.H
+  CEXE_headers += Dust/ERF_DustWindExtract.H
+  CEXE_headers += Dust/ERF_DustAtmCoupling.H
+  CEXE_headers += Dust/ERF_DustSettling.H
+  CEXE_headers += Dust/ERF_DustDeposition.H
+  CEXE_headers += Dust/ERF_DustAtmReturn.H
+  CEXE_headers += Dust/ERF_DustPlotfile.H
+  CEXE_headers += Dust/ERF_DustPlotfileCatalog.H
+  CEXE_headers += Dust/ERF_DustStatsOutput.H
+  CEXE_headers += Dust/ERF_DustPM.H
+  CEXE_headers += Dust/ERF_DustNAAQSOutput.H
+  CEXE_headers += Dust/ERF_DustMSHA.H
+  CEXE_headers += Dust/ERF_DustMSHAOutput.H
+  CEXE_headers += Dust/ERF_DustPHREEQCWriter.H
+  CEXE_headers += Dust/ERF_DustCriticalMaterials.H
+  CEXE_headers += Dust/ERF_Dust.H
+endif

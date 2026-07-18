@@ -1,0 +1,145 @@
+# DustPHREEQCFeedback regression test — Phase 21 PHREEQC deposition feedback.
+#
+# Tests write_phreeqc_deposition_file and append_phreeqc_site_summary.
+# max_step=7, phreeqc_feedback_interval_s=1.0s (dt=0.5s -> writes at t=1,2,3 s).
+# Final step t=3.5s: write triggered by is_final=true and nstep>last_write_step.
+#
+# ERF write timing: write_output() called from WriteAtIntermediateTime and
+# WriteAtFinalTime in Source/ERF.cpp (same as Phase 16 pattern).
+#
+# Two mine sites (from Phase 20 pattern):
+#   site 1 "mine_north": j=4..7 (32 cells, y=[1500,3000])
+#   site 2 "mine_south": j=0..3 (32 cells, y=[0,1500])
+#
+# Expected results:
+#   (1) [DUST DEBUG] Phase 21 printed at init with correct params.
+#   (2) [DUST DEBUG] Phase 21 PHREEQC feedback written at steps 2,4,6,7
+#       (t=1.0, 2.0, 3.0 s from interval=1.0 s; step 7 from is_final).
+#   (3) dust_dep_feedback.dat exists after run; contains header + 64 rows
+#       (8x8 dust grid, ni=8, nj=8).
+#   (4) dust_dep_feedback.dat header shows final step/time.
+#       File is overwritten each interval so only final state is retained.
+#   (5) dust_dep_site_summary.csv exists; contains header + rows for each
+#       write event (4 writes * 3 rows each = 12 data rows:
+#       site 0=unassigned, site 1=mine_north, site 2=mine_south).
+#   (6) dust_dep_site_summary.csv total_deposition_kg >= 0 for all rows.
+#   (7) site 1 + site 2 total_deposition_kg + site 0 total =
+#       domain total deposition (mass conservation check).
+#   (8) With phreeqc_feedback_interval_s=0: no feedback files written
+#       except at final step (is_final guard active).
+#   (9) Run exits code 0.
+#
+# File format note: dust_dep_feedback.dat is whitespace-delimited with
+# 3 columns (x_centre_m, y_centre_m, deposition_kg_m2) for use as input
+# to a PHREEQC batch script that maps deposition loading to
+# surface chemistry updates.
+# Reference: Parkhurst & Appelo (2013). https://pubs.usgs.gov/tm/06/a43/
+#
+# References:
+#   Parkhurst & Appelo (2013). PHREEQC Version 3.
+#     https://pubs.usgs.gov/tm/06/a43/
+#   Marticorena & Bergametti (1995). J. Geophys. Res., 100, 16415.
+#     https://doi.org/10.1029/95JD00690
+#   Shao & Lu (2000). J. Geophys. Res., 105, 22437.
+#     https://doi.org/10.1029/2000JD900304
+#   ERF_FirePrerequisites.H (periodic write pattern):
+#     https://github.com/hgopalan/ERF/blob/f264ce7dd0f5e727c71c939659a6a5caf001d21b/
+#     Source/Fire/ERF_FirePrerequisites.H
+#   ERF_FireStatsOutput.H (append CSV pattern):
+#     https://github.com/hgopalan/ERF/blob/f264ce7dd0f5e727c71c939659a6a5caf001d21b/
+#     Source/Fire/ERF_FireStatsOutput.H
+
+erf.prob_name = "ABL"
+max_step = 7
+amr.max_level = 0
+amrex.fpe_trap_invalid = 0
+fabarray.mfiter_tile_size = 1024 1024 1024
+geometry.prob_extent = 3000 3000 1024
+amr.n_cell =  8 8 64
+geometry.is_periodic = 1 1 0
+amrex.max_grid_size_z = 128
+zlo.type = "surface_layer"
+erf.most.z0 = 0.1
+erf.most.zref = 24.0
+erf.most.surf_temp_flux = 0.0
+zhi.type = "SlipWall"
+zhi.theta_grad = 0.003
+erf.fixed_dt = 0.5
+erf.sum_interval = 1
+erf.v = 1
+amr.v = 1
+erf.check_int = -1
+erf.plot_int_1 = -1
+erf.plot_vars_1 = density x_velocity y_velocity z_velocity theta
+erf.use_gravity = true
+erf.molec_diff_type = "None"
+erf.les_type = "None"
+erf.init_type = "input_sounding"
+erf.sounding_type = Ideal
+erf.input_sounding_file = "sounding_neutral_abl"
+erf.pbl_type = "MRF"
+erf.pbl_mrf_Ribcr = 0.5
+erf.pbl_mrf_const_b = 7.8
+erf.pbl_mrf_sf = 0.1
+erf.enable_mrf_countergradient = true
+erf.mrf_moistvars = false
+erf.use_coriolis = true
+erf.latitude = 45.0
+erf.abl_driver_type = "GeostrophicWind"
+erf.abl_geo_wind = 15.0 0.0 0.0
+erf.transport_scalar = true
+erf.dust.enable = true
+erf.dust.dust_debug = true
+erf.dust.n_size_bins = 3
+erf.dust.grid_ratio = 1
+erf.dust.particle_density = 2650.0
+erf.dust.z0_dust = 0.01
+erf.dust.silt_fraction = 0.10
+erf.dust.threshold_A_coeff = 0.0123
+erf.dust.crust_index = 0.0
+erf.dust.alpha_crust = 0.5
+erf.dust.alpha_efflor = 0.3
+erf.dust.test_ustar = 0.0
+erf.dust.rho_air = 1.225
+erf.dust.zref = 24.0
+erf.dust.supp_tau_base_s = 3600.0
+erf.dust.test_surf_temp_K = 293.15
+erf.dust.test_wind_speed = 0.0
+erf.dust.atm_feedback = 1.0
+erf.dust.transport_bins_separately = false
+erf.dust.bin_diameters = 7.0e-6 2.5e-6 50.0e-6
+erf.dust.deposition_E0 = 3.0e-3
+erf.dust.loading_feedback_coeff = 0.0
+erf.dust.use_dynamic_moisture = false
+erf.dust.dust_plot_int = -1
+erf.dust.dust_plot_prefix = "plt_dust_"
+erf.dust.dust_diag_file = "dust_diag.dat"
+erf.dust.dust_naaqs_file = "dust_naaqs.csv"
+erf.dust.msha_pel_mg_m3 = 5.0
+erf.dust.msha_shift_duration_s = 28800.0
+erf.dust.msha_exposure_file = "msha_exposure.csv"
+erf.dust.msha_shift_file = "msha_shift_summary.csv"
+erf.dust.cm_budget_file = "dust_cm_budget.csv"
+erf.dust.road_diag_file = "dust_road_diag.csv"
+erf.dust.road_schedule_file = ""
+# Two mine sites matching Phase 20 test.
+erf.dust.site_names         = "mine_north" "mine_south"
+erf.dust.site_phreeqc_files = "" ""
+erf.dust.site_x_lo          = 0.0    0.0
+erf.dust.site_y_lo          = 1500.0 0.0
+erf.dust.site_x_hi          = 3000.0 3000.0
+erf.dust.site_y_hi          = 3000.0 1500.0
+# Phase 21: write feedback file every 1.0 s (every 2 steps at dt=0.5s).
+erf.dust.phreeqc_feedback_interval_s = 1.0
+erf.dust.phreeqc_feedback_file       = "dust_dep_feedback.dat"
+erf.dust.phreeqc_site_summary_file   = "dust_dep_site_summary.csv"
+erf.dust.phreeqc_update_interval_s   = 86400.0
+erf.dust.phreeqc_output_file         = ""
+erf.dust.blast_schedule_file         = ""
+erf.dust.blast_reactivity            = 2.0
+erf.dust.soil_type_file              = ""
+erf.dust.silt_fraction_file          = ""
+erf.dust.crust_index_file            = ""
+erf.dust.moisture_flag_file          = ""
+erf.dust.suppression_file            = ""
+erf.dust.surface_map_file            = ""

@@ -25,6 +25,13 @@
 #include "ERF_ReadFromWRFBdy.H"
 #endif
 
+#ifdef ERF_ENABLE_FIRE
+#include "ERF_FirePlotfile.H"
+#endif
+#ifdef ERF_USE_DUST
+#include "ERF_DustAtmCoupling.H"
+#endif
+
 using namespace amrex;
 
 double ERF::startCPUTime        = 0.0;
@@ -89,6 +96,10 @@ double ERF::last_plot2d_file_time_1 = 0.0;
 double ERF::last_plot2d_file_time_2 = 0.0;
 double ERF::last_check_file_time    = 0.0;
 
+#ifdef ERF_ENABLE_FIRE
+Real ERF::last_fire_plot_time = -one;
+#endif
+
 bool ERF::plot_file_on_restart = true;
 
 // Native AMReX vs NetCDF
@@ -143,6 +154,16 @@ ERF::Evolve ()
     // Tracked in double to avoid float32 drift over many timesteps in single-precision builds.
     double cur_time = static_cast<double>(t_new[0]);
 
+    // Write fire output at time 0 (initial condition)
+#ifdef ERF_ENABLE_FIRE
+    if (m_fire_layer && istep[0] == 0 && (m_fire_plot_int > 0 || m_fire_plot_per > zero)) {
+        WriteFirePlotfile(m_fire_plot_file, *m_fire_layer, cur_time, istep[0]);
+        if (m_fire_params.fire_debug) {
+            amrex::Print() << "[FIRE] Initial fire output written at time 0" << std::endl;
+        }
+    }
+#endif
+
     // Take one coarse timestep by calling timeStep -- which recursively calls timeStep
     //      for finer levels (with or without subcycling)
     for (int step = istep[0]; (step < max_step) && (start_time+cur_time < stop_time); ++step)
@@ -187,6 +208,45 @@ ERF::Evolve ()
 
         int iteration = 1;
         timeStep(0, cur_time, iteration);
+
+#ifdef ERF_USE_DUST
+        if (m_DustLayer) {
+            const amrex::MultiFab* xvel_ptr  = &vars_new[0][Vars::xvel];
+            const amrex::MultiFab* yvel_ptr  = &vars_new[0][Vars::yvel];
+            const amrex::MultiFab* zvel_ptr  = &vars_new[0][Vars::zvel];  // Phase 19
+            const amrex::MultiFab* zphys_ptr =
+                (z_phys_cc.size() > 0) ? z_phys_cc[0].get() : nullptr;
+            const amrex::Geometry* geom_atm = &geom[0];  // Phase 19
+            int nz = geom[0].Domain().length(2);
+            m_DustLayer->advance(dt[0], m_DustLayer->get_params(),
+                                 m_SurfaceLayer.get(),
+                                 xvel_ptr, yvel_ptr, zvel_ptr, zphys_ptr, geom_atm, nz);
+            
+            // Coarsen dust emission flux to atmospheric grid for injection at next step
+            // One-step explicit lag: flux from this step will be injected in next step
+            if (m_dust_flux_atm[0]) {
+                const DustParams& dust_params = m_DustLayer->get_params();
+                
+                // Sum emission flux over all size bins into a temporary 1-component MultiFab
+                // on the dust grid, then coarsen to the atmospheric grid.
+                {
+                    amrex::MultiFab dust_flux_sum(m_DustLayer->get_emission_flux()->boxArray(),
+                                                   m_DustLayer->get_emission_flux()->DistributionMap(),
+                                                   1, amrex::IntVect(1, 1, 0));
+                    dust_flux_sum.setVal(0.0);
+                    for (int b = 0; b < dust_params.n_size_bins; ++b) {
+                        amrex::MultiFab::Add(dust_flux_sum, *m_DustLayer->get_emission_flux(),
+                                            b, 0, 1, amrex::IntVect(1, 1, 0));
+                    }
+                    
+                    // Coarsen summed flux from dust grid to atmospheric grid
+                    coarsen_dust_flux_to_atm(*m_dust_flux_atm[0], dust_flux_sum,
+                                             m_DustLayer->get_dust_geom(), geom[0],
+                                             m_DustLayer->get_dust_grid().grid_ratio);
+                }
+            }
+        }
+#endif
 
         cur_time += static_cast<double>(dt[0]);
         t_new[0] = cur_time;
@@ -257,6 +317,15 @@ ERF::WriteAtIntermediateTime(int step, double cur_time)
         if (m_plot2d_per_2 > zero) {last_plot2d_file_time_2 += m_plot2d_per_2;}
     }
 
+#ifdef ERF_ENABLE_FIRE
+    if (m_fire_layer && (m_fire_plot_int > 0 || m_fire_plot_per > zero)) {
+        if (writeNow(cur_time, step+1, m_fire_plot_int, m_fire_plot_per, dt[0], last_fire_plot_time)) {
+            WriteFirePlotfile(m_fire_plot_file, *m_fire_layer, cur_time, step+1);
+            if (m_fire_plot_per > zero) {last_fire_plot_time += m_fire_plot_per;}
+        }
+    }
+#endif
+
     for (int i = 0; i < m_subvol_int.size(); i++) {
         if (writeNow(cur_time, step+1, m_subvol_int[i], m_subvol_per[i], dt[0], last_subvol_time[i])) {
             last_subvol_step[i] = step+1;
@@ -270,6 +339,11 @@ ERF::WriteAtIntermediateTime(int step, double cur_time)
         WriteCheckpointFile();
         if (m_check_per > zero) {last_check_file_time += m_check_per;}
     }
+
+#ifdef ERF_USE_DUST
+    if (m_DustLayer)
+        m_DustLayer->write_output(step+1, cur_time, /*is_final=*/false);
+#endif
 }
 
 void
@@ -304,6 +378,11 @@ ERF::WriteAtFinalTime()
         WriteCheckpointFile();
         if (m_check_per > zero) {last_check_file_time += m_check_per;}
     }
+
+#ifdef ERF_USE_DUST
+    if (m_DustLayer)
+        m_DustLayer->write_output(istep[0], t_new[0], /*is_final=*/true);
+#endif
 }
 
 // Called after every coarse timestep
@@ -1197,6 +1276,26 @@ ERF::InitData_post ()
                                               z_phys_nd[lev],
                                               walldist[lev]);
 
+                // Initialize fire layer after surface layer is fully initialized (lev=0)
+#ifdef ERF_ENABLE_FIRE
+                if (lev == 0 && m_fire_layer && z_phys_nd[0]) {
+                    m_fire_layer->initialize(*this, m_SurfaceLayer.get(), *z_phys_nd[0], m_fire_params);
+                    
+                    // Verify that at least one cell was marked during fire initialization
+                    if (const amrex::MultiFab* phi = m_fire_layer->get_levelset()) {
+                        Real phi_min = phi->min(0);
+                        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(phi_min < 0.0_rt,
+                            "[FIRE] Fire initialization failed: no cells were marked as burned. "
+                            "Check ignition parameters (ignition_x, ignition_y, ignition_r).");
+                    }
+                    
+                    // Restore fire state from checkpoint if restarting
+                    if (restart_chkfile != "") {
+                        ReadCheckpointFileFire();
+                    }
+                }
+#endif
+
                 // Initialize tke(x,y,z) as a function of u*(x,y)
                 if (solverChoice.turbChoice[lev].init_tke_from_ustar) {
                     Real qkefac = one;
@@ -1212,6 +1311,52 @@ ERF::InitData_post ()
             }
         }
     } // end if (phys_bc_type[Orientation(Direction::z,Orientation::low)] == ERF_BC::surface_layer)
+
+#ifdef ERF_USE_DUST
+    {
+        DustParams dust_params;  // reads all erf.dust.* from ParmParse
+        if (dust_params.enable) {
+            m_DustLayer = std::make_unique<DustLayer>();
+            m_DustLayer->initialize(*this, m_SurfaceLayer.get(), dust_params);
+            
+            // Allocate coarsened dust flux for level 0 (dust coupling only at level 0)
+            {
+                amrex::BoxArray ba_atm = boxArray(0);
+                amrex::Vector<amrex::Box> bl;
+                for (int b = 0; b < ba_atm.size(); ++b) {
+                    amrex::Box bx = ba_atm[b];
+                    bx.setSmall(2, 0);
+                    bx.setBig(2, 0);
+                    bl.push_back(bx);
+                }
+                amrex::BoxArray ba2d(amrex::BoxList(std::move(bl)));
+                m_dust_flux_atm.resize(1);
+                m_dust_flux_atm[0] = std::make_unique<amrex::MultiFab>(
+                    ba2d, DistributionMap(0), 1, amrex::IntVect(1, 1, 0));
+                m_dust_flux_atm[0]->setVal(0.0);
+            }
+        }
+    }
+#endif
+
+// ************************************************************************************
+// Zero the dust scalar component BEFORE the first plotfile write and before
+// sum_integrated_quantities. The sounding init fills all conserved components
+// including dust_scalar_comp with rho_air. Dust starts at zero physically.
+// ************************************************************************************
+#ifdef ERF_USE_DUST
+if (m_DustLayer && restart_chkfile.empty()) {
+    int dc = m_DustLayer->get_dust_scalar_comp();
+    for (int lev = 0; lev <= finest_level; ++lev) {
+        vars_new[lev][Vars::cons].setVal(0.0, dc, 1,
+            vars_new[lev][Vars::cons].nGrowVect());
+        vars_old[lev][Vars::cons].setVal(0.0, dc, 1,
+            vars_old[lev][Vars::cons].nGrowVect());
+    }
+    amrex::Print() << "[DUST] Zeroed dust_scalar_comp=" << dc
+                   << " in vars_new/old after all initialization.\n";
+}
+#endif
 
     // Update micro vars and finish moisture model initializations before first plot file
     if (solverChoice.moisture_type != MoistureType::None) {
@@ -1262,6 +1407,8 @@ ERF::InitData_post ()
         if (m_check_per > zero) {last_check_file_time += m_check_per;}
     }
 
+
+
     if ( (restart_chkfile.empty()) ||
          (!restart_chkfile.empty() && plot_file_on_restart) )
     {
@@ -1297,6 +1444,11 @@ ERF::InitData_post ()
             }
         }
     }
+
+#ifdef ERF_USE_DUST
+    if (m_DustLayer && m_DustLayer->get_params().dust_plot_int > 0)
+        m_DustLayer->write_output(istep[0], t_new[0], /*is_final=*/false);
+#endif
 
     // Set these up here because we need to know which MPI rank "cell" is on...
     ParmParse pp("erf");
@@ -1459,6 +1611,7 @@ ERF::InitData_post ()
 
     }
 
+
     if (is_it_time_for_action(istep[0], t_new[0], dt[0], sum_interval, sum_per)) {
         sum_integrated_quantities(t_new[0]);
         sum_derived_quantities(t_new[0]);
@@ -1495,6 +1648,18 @@ ERF::InitData_post ()
             WriteEBSurface(grids[finest_level],dmap[finest_level],Geom(finest_level),&EBFactory(finest_level));
         }
     }
+
+/*#ifdef ERF_ENABLE_FIRE
+    // Initialize fire module
+    m_fire_params = FireParams();
+    if (m_fire_params.enable) {
+        m_fire_layer = std::make_unique<FireLayer>();
+        m_fire_layer->initialize(*this,
+                         m_SurfaceLayer.get(),
+                         *z_phys_nd[0],
+                         m_fire_params);
+    }
+#endif*/ 
 }
 
 void
@@ -1721,6 +1886,22 @@ ERF::initializeMicrophysics (const int& a_nlevsmax /*!< number of AMR levels */)
     return;
 }
 
+void
+ERF::initializeFire (const int& /*a_nlevsmax*/ /*!< number of AMR levels */)
+{
+#ifdef ERF_ENABLE_FIRE
+    if (m_fire_params.enable) {
+        m_fire_layer = std::make_unique<FireLayer>();
+        amrex::Print() << "[FIRE] Fire module enabled (grid_ratio="
+                       << m_fire_params.grid_ratio << ")\n";
+        if (m_fire_params.fire_debug) {
+            amrex::Print() << "[FIRE DEBUG] Fire debug mode enabled. Coupling type: "
+                           << m_fire_params.coupling_type << std::endl;
+        }
+    }
+#endif
+}
+
 #ifdef ERF_USE_WINDFARM
 void
 ERF::initializeWindFarm(const int& a_nlevsmax/*!< number of AMR levels */ )
@@ -1820,6 +2001,17 @@ ERF::init_only (int lev, double elapsed_time)
         // Now init the base state and the data itself
         init_from_input_sounding(lev);
 
+        // Zero the dust scalar slot — init_from_input_sounding fills ALL
+        // conserved components with rho_air, but dust starts at zero.
+        #ifdef ERF_USE_DUST
+        {
+            int dc = RhoScalar_comp + 1;  // dust slot = NSCALARS-1 offset from RhoScalar
+            lev_new[Vars::cons].setVal(0.0, dc, 1, lev_new[Vars::cons].nGrowVect());
+            lev_old[Vars::cons].setVal(0.0, dc, 1, lev_old[Vars::cons].nGrowVect());
+        }
+        #endif
+
+
         // The base state has been initialized by integrating vertically
         // through the sounding for ideal (like WRF) or isentropic approaches
         if (solverChoice.sounding_type == SoundingType::Ideal ||
@@ -1882,6 +2074,13 @@ ERF::init_only (int lev, double elapsed_time)
 
         // Copy rho and rhotheta from rho_hse and p_hse
         init_from_hse(lev);
+        #ifdef ERF_USE_DUST
+        {
+            int dc = RhoScalar_comp + 1;
+            lev_new[Vars::cons].setVal(0.0, dc, 1, lev_new[Vars::cons].nGrowVect());
+            lev_old[Vars::cons].setVal(0.0, dc, 1, lev_old[Vars::cons].nGrowVect());
+        }
+        #endif
 
     } else {
         Abort("Unknown init_type!");
@@ -2169,6 +2368,12 @@ ERF::ReadParameters ()
         pp.query("plot2d_int_2" , m_plot2d_int_2);
         pp.query("plot2d_per_1",  m_plot2d_per_1);
         pp.query("plot2d_per_2",  m_plot2d_per_2);
+
+#ifdef ERF_ENABLE_FIRE
+        pp.query("fire_plot_file", m_fire_plot_file);
+        pp.query("fire_plot_int",  m_fire_plot_int);
+        pp.query("fire_plot_per",  m_fire_plot_per);
+#endif
 
         pp.query("subvol_file",   subvol_file);
 

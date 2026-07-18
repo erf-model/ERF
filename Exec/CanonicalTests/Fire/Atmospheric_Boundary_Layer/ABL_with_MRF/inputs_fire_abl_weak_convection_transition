@@ -1,0 +1,88 @@
+# ============================================================================
+# ABL-Enhanced Fire Configuration: WEAK_CONVECTION_TRANSITION
+# ============================================================================
+# Combines atmospheric boundary layer physics with fire dynamics
+#
+# Atmospheric Scenario: Weak convection transition - conditions between stable and unstable
+# Stability: Transitional
+# Reference Wind Speed: 8.0 m/s
+# ============================================================================
+
+erf.prob_name = "ABL"
+max_step = 216000
+amrex.fpe_trap_invalid = 0
+fabarray.mfiter_tile_size = 1024 1024 1024
+geometry.prob_extent = 8000  8000  2048
+amr.n_cell           =  8   8   64
+geometry.is_periodic = 1 1 0
+zlo.type = "surface_layer"
+erf.most.z0   = 0.1      # roughness length [m]
+erf.most.zref = 48.0     # reference height [m]
+erf.most.surf_temp = 300.0   # initial surface temperature [K]
+erf.most.surf_heating_rate = 0.5  # average heating rate [K/h] (varies with time)
+zhi.type = "SlipWall"
+zhi.theta_grad = 0.005   # weak stable layer [K/m] (typical for tropical mornings)
+erf.fixed_dt = 0.1  # time step [s]
+erf.sum_interval   = 1       # timesteps between computing mass
+erf.v              = 1       # verbosity in ERF.cpp
+amr.v              = 1       # verbosity in Amr.cpp
+erf.data_log    = transition_hist.dat transition_profiles.dat
+erf.profile_int = 50  # frequent profiles to capture transition
+amr.max_level       = 0       # maximum level number allowed
+erf.check_file      = chk_weak_convection    # root name of checkpoint file
+erf.check_int       = 50000                  # checkpoint every ~5400 s (90 min)
+erf.plot_file_1     = plt_unstable      # prefix of plotfile name
+erf.plot_int_1      = 15                # number of timesteps between plotfiles
+erf.plot_vars_1     = density rhoadv_0 rhoadv_1 x_velocity y_velocity z_velocity pressure temp theta
+erf.use_gravity = true
+erf.molec_diff_type = "None"
+erf.les_type        = "None"
+erf.theta_ref = 300.0
+erf.init_type = "input_sounding"
+erf.input_sounding_file = "input_sounding_MRF_weak_convection_transition"
+erf.sounding_type = Ideal
+erf.latitude = 45.0  # mid-latitude (f = 1.0e-4 s^-1)
+erf.use_coriolis = true
+
+# ============================================================================
+# FIRE MODULE CONFIGURATION
+# ============================================================================
+
+erf.fire.enable = true
+erf.fire.fire_debug = false
+
+# Fire grid refinement (5x finer in horizontal)
+erf.fire.grid_ratio = 5
+
+# Fuel model: 4 (Chaparral - suitable for diverse fire scenarios)
+erf.fire.fuel_model_id = 4
+
+# Fuel moisture content (NFMD standard)
+erf.fire.moisture_1hr = 0.12
+erf.fire.moisture_10hr = 0.12
+erf.fire.moisture_100hr = 0.15
+erf.fire.moisture_live = 0.90
+
+# Wind and fire propagation
+erf.fire.wind_ref_ht = 10.0
+erf.fire.use_waf = true
+erf.fire.waf_formula = "andrews"
+erf.fire.use_wind_limit = true
+erf.fire.use_terrain_wind = false
+
+# Fire atmosphere coupling
+erf.fire.coupling_type = "lagged"
+erf.fire.heat_flux_alfg = 45.0
+erf.fire.fire_atm_feedback = 1.0
+erf.fire.inject_latent = true
+
+# Diagnostics
+erf.fire.write_fire_stats_csv = true
+erf.fire.fire_stats_csv_file = "fire_stats_abl_weak_convection_transition.csv"
+
+# Plot files
+erf.fire_plot_file = plt_fire_abl_weak_convection_transition_
+erf.fire_plot_int = 100
+
+# Geostrophic wind (from sounding file)
+erf.abl_geo_wind = 8.0 0.0 0.0

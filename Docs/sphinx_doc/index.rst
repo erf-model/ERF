@@ -60,9 +60,11 @@ In addition to this documentation, there is API documentation for ERF generated 
    theory/Microphysics.rst
    theory/DNSvsLES.rst
    theory/PBLschemes.rst
+   theory/DustModule.rst
    theory/Forcings.rst
    Particles.rst
    theory/Forest.rst
+   theory/Fire.rst
    theory/HindCast.rst
    theory/UnitsAndConstants.rst
 

@@ -1,0 +1,150 @@
+# DustSettling regression test
+#
+# Tests Phase 11 Stokes settling: apply_dust_settling_to_cc_source called
+# from ERF_Advance after dust injection (Phase 10).
+#
+# Pattern: follows apply_fire_tendency_to_cc_source in
+#   Source/Fire/ERF_FireAtmCoupling.H
+#
+# Configuration:
+#   8x8x16 cells, 1000x1000x1000 m domain. dz = 62.5 m per cell.
+#   Geostrophic wind 10 m/s. MRF diagnoses u* > u*_t = 0.05 m/s.
+#   After Phase 10 injection, dust is present at k=0. Phase 11 settling
+#   moves mass downward each step.
+#   transport_bins_separately = false: single scalar slot, bin 0 diameter.
+#   bin_diameters[0] = 7e-6 m (PM10 coarse mode).
+#   max_step = 5.
+#
+# Stokes settling velocity for bin 0 (d=7 um):
+#   v_s = (2650-1.225)*9.81*(7e-6)^2/(18*1.81e-5)
+#       = 2648.775*9.81*4.9e-11/3.258e-4
+#       approx 3.9e-3 m/s
+# Cunningham correction C_c for d=7 um:
+#   ratio = 2*6.6e-8/7e-6 = 0.01886
+#   C_c = 1 + 0.01886*(1.257 + 0.4*exp(-0.55*7e-6/6.6e-8))
+#       = 1 + 0.01886*1.257 = approx 1.024
+#   v_s_corrected approx 4.0e-3 m/s
+#
+# Expected results:
+#   (1) [DUST SETTLING] line printed each step with v_s approx 4e-3 m/s.
+#   (2) [DUST DEBUG] Phase 11 line printed each step.
+#   (3) cc_source at RhoAdv_comp, k=0 has negative settling tendency
+#       (mass leaves k=0 downward).
+#   (4) cc_source at RhoAdv_comp, k=1 has positive settling tendency
+#       (mass arrives from k=0).
+#   (5) Column integral of RhoDust * dz does not increase (no production
+#       from settling; only redistribution and Phase 10 injection).
+#   (6) Setting erf.dust.atm_feedback = 0 produces zero settling tendency
+#       (no dust in 3D to settle).
+#   (7) Run exits with code 0.
+#
+# References:
+#   Stokes (1851). Trans. Cambridge Phil. Soc., 9, 8-106.
+#   Allen & Raabe (1985). Aerosol Sci. Tech., 4, 269-286.
+#     https://doi.org/10.1080/02786828508959055
+#   Seinfeld & Pandis (2006). Atmospheric Chemistry and Physics, ch. 9.
+#     ISBN 978-0-471-72018-8.
+#   Ginoux et al. (2001). J. Geophys. Res., 106, 20255.
+#     https://doi.org/10.1029/2000JD901323
+#   ERF_FireAtmCoupling.H (pattern reference):
+#     https://github.com/hgopalan/ERF/blob/7856affedd8bb3c878b62c308f39c36bf2228791/
+#     Source/Fire/ERF_FireAtmCoupling.H
+
+erf.prob_name = "ABL"
+max_step = 5
+amr.max_level = 0
+amrex.fpe_trap_invalid = 0
+fabarray.mfiter_tile_size = 1024 1024 1024
+
+geometry.prob_extent = 3000 3000 1024
+amr.n_cell           =  8    8   64
+geometry.is_periodic = 1 1 0
+amrex.max_grid_size_z = 128
+
+zlo.type = "surface_layer"
+erf.most.z0   = 0.1
+erf.most.zref = 24.0
+erf.most.surf_temp_flux = 0.0
+zhi.type = "SlipWall"
+zhi.theta_grad = 0.003
+
+erf.fixed_dt     = 0.5
+erf.sum_interval = 1
+erf.v            = 1
+amr.v            = 1
+erf.check_int    = -1
+erf.plot_int_1   = -1
+erf.plot_vars_1  = density x_velocity y_velocity z_velocity theta
+
+erf.use_gravity     = true
+erf.molec_diff_type = "None"
+erf.les_type        = "None"
+
+erf.init_type           = "input_sounding"
+erf.sounding_type       = Ideal
+erf.input_sounding_file = "sounding_neutral_abl"
+
+erf.pbl_type         = "MRF"
+erf.pbl_mrf_Ribcr    = 0.5
+erf.pbl_mrf_const_b  = 7.8
+erf.pbl_mrf_sf       = 0.1
+erf.enable_mrf_countergradient = true
+erf.mrf_moistvars    = false
+erf.use_coriolis     = true
+erf.latitude         = 45.0
+erf.abl_driver_type  = "GeostrophicWind"
+erf.abl_geo_wind     = 15.0 0.0 0.0
+
+# Required for the dust scalar to be advected in ERF_SlowRhsPost.cpp.
+# Without this flag is_valid_slow_var for the dust component is 0 (PR #145).
+erf.transport_scalar = true
+
+erf.dust.enable                    = true
+erf.dust.dust_debug                = true
+erf.dust.n_size_bins               = 3
+erf.dust.grid_ratio                = 1
+erf.dust.particle_density          = 2650.0
+erf.dust.z0_dust                   = 0.01
+erf.dust.silt_fraction             = 0.10
+erf.dust.threshold_A_coeff         = 0.0123
+erf.dust.crust_index               = 0.0
+erf.dust.alpha_crust               = 0.5
+erf.dust.alpha_efflor              = 0.3
+erf.dust.test_ustar                = 0.0
+erf.dust.rho_air                   = 1.225
+erf.dust.zref                      = 24.0
+erf.dust.supp_tau_base_s           = 3600.0
+erf.dust.test_surf_temp_K          = 293.15
+erf.dust.test_wind_speed           = 0.0
+erf.dust.atm_feedback              = 1.0
+erf.dust.cm_budget_file = "dust_cm_budget.csv"
+erf.dust.deposition_E0 = 3.0e-3
+erf.dust.dust_diag_file = "dust_diag.dat"
+erf.dust.dust_naaqs_file = "dust_naaqs.csv"
+erf.dust.dust_plot_int = -1
+erf.dust.dust_plot_prefix = "plt_dust_"
+erf.dust.loading_feedback_coeff = 0.0
+erf.dust.msha_exposure_file = "msha_exposure.csv"
+erf.dust.msha_pel_mg_m3 = 5.0
+erf.dust.msha_shift_duration_s = 28800.0
+erf.dust.msha_shift_file = "msha_shift_summary.csv"
+erf.dust.phreeqc_feedback_file = "dust_dep_feedback.dat"
+erf.dust.phreeqc_feedback_interval_s = 0.0
+erf.dust.phreeqc_site_summary_file = "dust_dep_site_summary.csv"
+erf.dust.road_diag_file = "dust_road_diag.csv"
+erf.dust.road_schedule_file = ""
+erf.dust.use_dynamic_moisture = false
+# transport_bins_separately = false: single scalar (lower cost, default).
+erf.dust.transport_bins_separately = false
+# bin_diameters: PM10 coarse, PM2.5, coarse mineral.
+erf.dust.bin_diameters             = 7.0e-6 2.5e-6 50.0e-6
+erf.dust.phreeqc_update_interval_s = 86400.0
+erf.dust.phreeqc_output_file       = ""
+erf.dust.blast_schedule_file       = ""
+erf.dust.blast_reactivity          = 2.0
+erf.dust.soil_type_file            = ""
+erf.dust.silt_fraction_file        = ""
+erf.dust.crust_index_file          = ""
+erf.dust.moisture_flag_file        = ""
+erf.dust.suppression_file          = ""
+erf.dust.surface_map_file          = ""

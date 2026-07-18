@@ -1,0 +1,128 @@
+# DustMSHA regression test — Phase 18 MSHA worker exposure tracking.
+#
+# Physics:
+#   PM_resp = dust_pm10 [ug/m3] / 1000           [mg/m3]
+#   dose   += PM_resp * dt / 3600                [mg/m3/h]
+#   TWA_8h  = dose / 8.0                         [mg/m3]
+#   PEL = 5.0 mg/m3 (30 CFR Part 56).
+#
+# msha_shift_duration_s=1.0 causes shift resets at t=1.0 s (step 2)
+# and t=2.0 s (step 4) within the 5-step test.
+#
+# Two receptors: fence_N at (500,2900) and fence_S at (500,100).
+#
+# Expected results:
+#   (1) [DUST DEBUG] Phase 18 printed each step with TWA_max >= 0.
+#   (2) Shift resets logged at steps 2 and 4 (t=1.0 and 2.0 s).
+#   (3) msha_exposure.csv: header + 5 rows; TWA_max increases each step.
+#   (4) msha_exposure.csv n_cells_exceed = 0 (far below 5 mg/m3).
+#   (5) msha_shift_summary.csv: 2 rows (shifts at t=1.0 s and 2.0 s).
+#   (6) msha_receptor_fence_N.csv and msha_receptor_fence_S.csv: 5 rows each.
+#   (7) plt_dust_00005 contains 18 variables including
+#       dust_msha_dose_mg_m3_h, dust_msha_twa_mg_m3,
+#       dust_msha_exceed, dust_msha_shift_twa.
+#   (8) DustMetadata.json: n_variables=18.
+#   (9) Setting msha_pel_mg_m3=1e-15: n_cells_exceed > 0 once PM is present.
+#  (10) Run exits code 0.
+#
+# References:
+#   30 CFR Part 56: https://www.ecfr.gov/current/title-30/chapter-I/subchapter-K/part-56
+#   MSHA dust: https://www.msha.gov/rules-regs/dust
+#   Stayner et al. (1998). https://doi.org/10.1164/ajrccm.157.1.9703022
+#   Attfield & Morring (1992). https://doi.org/10.1002/ajim.4700220311
+#   ERF_FireStatsOutput.H (CSV pattern):
+#     https://github.com/hgopalan/ERF/blob/ERF-Fire/Source/Fire/ERF_FireStatsOutput.H
+
+erf.prob_name = "ABL"
+max_step = 5
+amr.max_level = 0
+amrex.fpe_trap_invalid = 0
+fabarray.mfiter_tile_size = 1024 1024 1024
+geometry.prob_extent = 3000 3000 1024
+amr.n_cell           =  8    8   64
+geometry.is_periodic = 1 1 0
+amrex.max_grid_size_z = 128
+zlo.type = "surface_layer"
+erf.most.z0 = 0.1
+erf.most.zref = 24.0
+erf.most.surf_temp_flux = 0.0
+zhi.type = "SlipWall"
+zhi.theta_grad = 0.003
+erf.fixed_dt = 0.5
+erf.sum_interval = 1
+erf.v = 1
+amr.v = 1
+erf.check_int = -1
+erf.plot_int_1 = -1
+erf.plot_vars_1 = density x_velocity y_velocity z_velocity theta
+erf.use_gravity = true
+erf.molec_diff_type = "None"
+erf.les_type = "None"
+erf.init_type = "input_sounding"
+erf.sounding_type = Ideal
+erf.input_sounding_file = "sounding_neutral_abl"
+erf.pbl_type = "MRF"
+erf.pbl_mrf_Ribcr = 0.5
+erf.pbl_mrf_const_b = 7.8
+erf.pbl_mrf_sf = 0.1
+erf.enable_mrf_countergradient = true
+erf.mrf_moistvars = false
+erf.use_coriolis = true
+erf.latitude = 45.0
+erf.abl_driver_type = "GeostrophicWind"
+erf.abl_geo_wind = 15.0 0.0 0.0
+erf.transport_scalar = true
+erf.dust.enable = true
+erf.dust.dust_debug = true
+erf.dust.n_size_bins = 3
+erf.dust.grid_ratio = 1
+erf.dust.particle_density = 2650.0
+erf.dust.z0_dust = 0.01
+erf.dust.silt_fraction = 0.10
+erf.dust.threshold_A_coeff = 0.0123
+erf.dust.crust_index = 0.0
+erf.dust.alpha_crust = 0.5
+erf.dust.alpha_efflor = 0.3
+erf.dust.test_ustar = 0.0
+erf.dust.rho_air = 1.225
+erf.dust.zref = 24.0
+erf.dust.supp_tau_base_s = 3600.0
+erf.dust.test_surf_temp_K = 293.15
+erf.dust.test_wind_speed = 0.0
+erf.dust.atm_feedback = 1.0
+erf.dust.transport_bins_separately = false
+erf.dust.cm_budget_file = "dust_cm_budget.csv"
+erf.dust.phreeqc_feedback_file = "dust_dep_feedback.dat"
+erf.dust.phreeqc_feedback_interval_s = 0.0
+erf.dust.phreeqc_site_summary_file = "dust_dep_site_summary.csv"
+erf.dust.road_diag_file = "dust_road_diag.csv"
+erf.dust.road_schedule_file = ""
+# bin1 d=2.5um -> PM2.5+PM10 -> MSHA respirable dose
+erf.dust.bin_diameters = 7.0e-6 2.5e-6 50.0e-6
+erf.dust.deposition_E0 = 3.0e-3
+erf.dust.loading_feedback_coeff = 0.0
+erf.dust.use_dynamic_moisture = false
+erf.dust.dust_plot_int = 5
+erf.dust.dust_plot_prefix = "plt_dust_"
+erf.dust.dust_diag_file = "dust_diag.dat"
+erf.dust.dust_naaqs_file = "dust_naaqs.csv"
+# PEL 5 mg/m3 respirable dust (30 CFR 56.5001).
+erf.dust.msha_pel_mg_m3 = 5.0
+# Short shift so resets occur within 5 steps.
+erf.dust.msha_shift_duration_s = 1.0
+erf.dust.msha_exposure_file = "msha_exposure.csv"
+erf.dust.msha_shift_file = "msha_shift_summary.csv"
+# Two fence-line receptors (x,y in meters from domain corner).
+erf.dust.msha_receptor_names = "fence_N" "fence_S"
+erf.dust.msha_receptor_x = 500.0 500.0
+erf.dust.msha_receptor_y = 2900.0 100.0
+erf.dust.phreeqc_update_interval_s = 86400.0
+erf.dust.phreeqc_output_file = ""
+erf.dust.blast_schedule_file = ""
+erf.dust.blast_reactivity = 2.0
+erf.dust.soil_type_file = ""
+erf.dust.silt_fraction_file = ""
+erf.dust.crust_index_file = ""
+erf.dust.moisture_flag_file = ""
+erf.dust.suppression_file = ""
+erf.dust.surface_map_file = ""

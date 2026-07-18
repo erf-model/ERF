@@ -1,0 +1,15 @@
+# Phase 11 polygon ignition test file.
+# Closed polygon approximating a 200x100 m ellipse centred at (1000, 1000).
+# format: x y  (one vertex per line, # lines are comments)
+1200.0 1000.0
+1178.0 1058.0
+1118.0 1095.0
+1000.0 1100.0
+882.0  1095.0
+822.0  1058.0
+800.0  1000.0
+822.0  942.0
+882.0  905.0
+1000.0 900.0
+1118.0 905.0
+1178.0 942.0

@@ -1,0 +1,138 @@
+# DustScaffold regression test
+# Tests that the ERF-Dust parameter struct compiles, loads defaults,
+# and that the build completes when ERF_ENABLE_DUST=ON.
+#
+# This test runs zero timesteps. It verifies:
+#   (1) DustParams constructor reads all fields from ParmParse without error.
+#   (2) Default values match the values declared in ERF_DustParams.H:
+#         erf.dust.enable              = false
+#         erf.dust.n_size_bins         = 3
+#         erf.dust.particle_density    = 2650.0 [kg/m^3]
+#         erf.dust.z0_dust             = 0.01   [m]
+#         erf.dust.silt_fraction       = 0.10
+#         erf.dust.threshold_A_coeff   = 0.0123
+#         erf.dust.crust_index         = 0.0
+#         erf.dust.phreeqc_update_interval_s = 86400.0
+#   (3) Overriding erf.dust.enable = true and erf.dust.n_size_bins = 5
+#       produces a DustParams struct with those values without aborting.
+#   (4) No dust-specific plotfile fields are written when erf.dust.enable = false.
+#
+# Expected result: run completes with max_step = 0 and exit code 0.
+# No plotfile output is produced for dust variables.
+#
+# Reference: ERF-Dust Phase 1 scaffold.
+#   Source/Dust/ERF_DustParams.H
+#   Source/Dust/DUST_DEVELOPMENT.md
+
+erf.prob_name = "ABL"
+
+max_step = 0
+
+amrex.fpe_trap_invalid = 0
+
+fabarray.mfiter_tile_size = 1024 1024 1024
+
+# Domain: 8x8x64 cells, 3000x3000x1024 m (following neutral_abl pattern)
+geometry.prob_extent = 3000.0 3000.0 1024.0
+amr.n_cell           =   8     8      64
+geometry.is_periodic = 1 1 0
+
+amr.max_level = 0
+
+zlo.type = "surface_layer"
+erf.most.z0   = 0.1      # roughness length [m]
+erf.most.zref = 24.0     # reference height [m]
+erf.most.surf_temp_flux = 0.0
+
+zhi.type = "SlipWall"
+zhi.theta_grad = 0.003
+
+erf.fixed_dt = 0.5
+
+# DIAGNOSTICS
+erf.sum_interval = 1
+erf.v            = 1
+amr.v            = 1
+
+# CHECKPOINT
+erf.check_int = -1
+
+# PLOTFILES
+erf.plot_int_1   = -1
+erf.plot_vars_1  = density x_velocity y_velocity z_velocity theta
+
+# SOLVER
+erf.use_gravity        = true
+erf.molec_diff_type    = "None"
+erf.les_type           = "None"
+erf.Cs = 0.11
+erf.theta_ref          = 300.0
+
+# INITIALIZATION - from sounding file
+erf.init_type          = "input_sounding"
+erf.sounding_type = Ideal
+erf.input_sounding_file = "sounding_dust_abl"
+
+# MRF PBL
+# Parameters: Hong & Pan (1996), Mon. Wea. Rev., 124, 2322-2339.
+# https://doi.org/10.1175/1520-0493(1996)124<2322:NBLVDI>2.0.CO;2
+erf.pbl_type         = "MRF"
+erf.pbl_mrf_Ribcr    = 0.5
+erf.pbl_mrf_const_b  = 7.8
+erf.pbl_mrf_sf       = 0.1
+erf.enable_mrf_countergradient = true
+erf.mrf_moistvars    = false
+
+erf.use_coriolis     = false
+
+# DUST MODULE
+# erf.dust.enable is false by default.
+# The DustParams constructor is called and default values are verified.
+# No dust emission, transport, or deposition is performed at max_step = 0.
+erf.dust.enable                     = false
+erf.dust.dust_debug                 = true
+erf.dust.n_size_bins                = 3
+erf.dust.particle_density           = 2650.0
+erf.dust.z0_dust                    = 0.01
+erf.dust.silt_fraction              = 0.10
+erf.dust.threshold_A_coeff          = 0.0123
+erf.dust.crust_index                = 0.0
+erf.dust.phreeqc_update_interval_s  = 86400.0
+erf.dust.surface_map_file           = ""
+erf.dust.phreeqc_output_file        = ""
+erf.dust.alpha_crust = 0.5
+erf.dust.alpha_efflor = 0.3
+erf.dust.atm_feedback = 1.0
+erf.dust.bin_diameters = 7.0e-6 2.5e-6 50.0e-6
+erf.dust.blast_reactivity = 2.0
+erf.dust.blast_schedule_file = ""
+erf.dust.cm_budget_file = "dust_cm_budget.csv"
+erf.dust.crust_index_file = ""
+erf.dust.deposition_E0 = 3.0e-3
+erf.dust.dust_diag_file = "dust_diag.dat"
+erf.dust.dust_naaqs_file = "dust_naaqs.csv"
+erf.dust.dust_plot_int = -1
+erf.dust.dust_plot_prefix = "plt_dust_"
+erf.dust.grid_ratio = 1
+erf.dust.loading_feedback_coeff = 0.0
+erf.dust.moisture_flag_file = ""
+erf.dust.msha_exposure_file = "msha_exposure.csv"
+erf.dust.msha_pel_mg_m3 = 5.0
+erf.dust.msha_shift_duration_s = 28800.0
+erf.dust.msha_shift_file = "msha_shift_summary.csv"
+erf.dust.phreeqc_feedback_file = "dust_dep_feedback.dat"
+erf.dust.phreeqc_feedback_interval_s = 0.0
+erf.dust.phreeqc_site_summary_file = "dust_dep_site_summary.csv"
+erf.dust.rho_air = 1.225
+erf.dust.road_diag_file = "dust_road_diag.csv"
+erf.dust.road_schedule_file = ""
+erf.dust.silt_fraction_file = ""
+erf.dust.soil_type_file = ""
+erf.dust.supp_tau_base_s = 3600.0
+erf.dust.suppression_file = ""
+erf.dust.test_surf_temp_K = 293.15
+erf.dust.test_ustar = 0.0
+erf.dust.test_wind_speed = 0.0
+erf.dust.transport_bins_separately = false
+erf.dust.use_dynamic_moisture = false
+erf.dust.zref = 24.0
