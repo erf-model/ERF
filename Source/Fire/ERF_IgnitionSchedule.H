@@ -163,8 +163,8 @@ void load_ignition_schedule(const std::string& filename,
         if (amrex::ParallelDescriptor::NProcs() > 1) {
             // Broadcast schedule size
             int n_events = static_cast<int>(host_events.size());
-            MPI_Bcast(&n_events, 1, MPI_INT, amrex::ParallelDescriptor::IOProcessorNumber(),
-                      MPI_COMM_WORLD);
+            amrex::ParallelDescriptor::Bcast(&n_events, 1,
+                                             amrex::ParallelDescriptor::IOProcessorNumber());
 
             if (n_events > 0) {
                 // Serialize events into flat arrays for broadcast
@@ -186,20 +186,20 @@ void load_ignition_schedule(const std::string& filename,
                     d_suppress[i] = host_events[i].suppress_if_burning ? 1 : 0;
                 }
 
-                MPI_Bcast(d_time_s.data(), n_events, MPI_DOUBLE,
-                          amrex::ParallelDescriptor::IOProcessorNumber(), MPI_COMM_WORLD);
-                MPI_Bcast(d_cx.data(), n_events, MPI_DOUBLE,
-                          amrex::ParallelDescriptor::IOProcessorNumber(), MPI_COMM_WORLD);
-                MPI_Bcast(d_cy.data(), n_events, MPI_DOUBLE,
-                          amrex::ParallelDescriptor::IOProcessorNumber(), MPI_COMM_WORLD);
-                MPI_Bcast(d_radius.data(), n_events, MPI_DOUBLE,
-                          amrex::ParallelDescriptor::IOProcessorNumber(), MPI_COMM_WORLD);
-                MPI_Bcast(d_source_type.data(), n_events, MPI_INT,
-                          amrex::ParallelDescriptor::IOProcessorNumber(), MPI_COMM_WORLD);
-                MPI_Bcast(d_priority.data(), n_events, MPI_INT,
-                          amrex::ParallelDescriptor::IOProcessorNumber(), MPI_COMM_WORLD);
-                MPI_Bcast(d_suppress.data(), n_events, MPI_INT,
-                          amrex::ParallelDescriptor::IOProcessorNumber(), MPI_COMM_WORLD);
+                amrex::ParallelDescriptor::Bcast(d_time_s.data(), n_events,
+                                                 amrex::ParallelDescriptor::IOProcessorNumber());
+                amrex::ParallelDescriptor::Bcast(d_cx.data(), n_events,
+                                                 amrex::ParallelDescriptor::IOProcessorNumber());
+                amrex::ParallelDescriptor::Bcast(d_cy.data(), n_events,
+                                                 amrex::ParallelDescriptor::IOProcessorNumber());
+                amrex::ParallelDescriptor::Bcast(d_radius.data(), n_events,
+                                                 amrex::ParallelDescriptor::IOProcessorNumber());
+                amrex::ParallelDescriptor::Bcast(d_source_type.data(), n_events,
+                                                 amrex::ParallelDescriptor::IOProcessorNumber());
+                amrex::ParallelDescriptor::Bcast(d_priority.data(), n_events,
+                                                 amrex::ParallelDescriptor::IOProcessorNumber());
+                amrex::ParallelDescriptor::Bcast(d_suppress.data(), n_events,
+                                                 amrex::ParallelDescriptor::IOProcessorNumber());
 
                 host_events.resize(n_events);
                 for (int i = 0; i < n_events; ++i) {
@@ -218,8 +218,8 @@ void load_ignition_schedule(const std::string& filename,
         // Non-IO ranks participate in broadcast
         if (amrex::ParallelDescriptor::NProcs() > 1) {
             int n_events = 0;
-            MPI_Bcast(&n_events, 1, MPI_INT, amrex::ParallelDescriptor::IOProcessorNumber(),
-                      MPI_COMM_WORLD);
+            amrex::ParallelDescriptor::Bcast(&n_events, 1,
+                                             amrex::ParallelDescriptor::IOProcessorNumber());
 
             if (n_events > 0) {
                 std::vector<amrex::Real> d_time_s(n_events);
@@ -230,20 +230,20 @@ void load_ignition_schedule(const std::string& filename,
                 std::vector<int> d_priority(n_events);
                 std::vector<int> d_suppress(n_events);
 
-                MPI_Bcast(d_time_s.data(), n_events, MPI_DOUBLE,
-                          amrex::ParallelDescriptor::IOProcessorNumber(), MPI_COMM_WORLD);
-                MPI_Bcast(d_cx.data(), n_events, MPI_DOUBLE,
-                          amrex::ParallelDescriptor::IOProcessorNumber(), MPI_COMM_WORLD);
-                MPI_Bcast(d_cy.data(), n_events, MPI_DOUBLE,
-                          amrex::ParallelDescriptor::IOProcessorNumber(), MPI_COMM_WORLD);
-                MPI_Bcast(d_radius.data(), n_events, MPI_DOUBLE,
-                          amrex::ParallelDescriptor::IOProcessorNumber(), MPI_COMM_WORLD);
-                MPI_Bcast(d_source_type.data(), n_events, MPI_INT,
-                          amrex::ParallelDescriptor::IOProcessorNumber(), MPI_COMM_WORLD);
-                MPI_Bcast(d_priority.data(), n_events, MPI_INT,
-                          amrex::ParallelDescriptor::IOProcessorNumber(), MPI_COMM_WORLD);
-                MPI_Bcast(d_suppress.data(), n_events, MPI_INT,
-                          amrex::ParallelDescriptor::IOProcessorNumber(), MPI_COMM_WORLD);
+                amrex::ParallelDescriptor::Bcast(d_time_s.data(), n_events,
+                                                 amrex::ParallelDescriptor::IOProcessorNumber());
+                amrex::ParallelDescriptor::Bcast(d_cx.data(), n_events,
+                                                 amrex::ParallelDescriptor::IOProcessorNumber());
+                amrex::ParallelDescriptor::Bcast(d_cy.data(), n_events,
+                                                 amrex::ParallelDescriptor::IOProcessorNumber());
+                amrex::ParallelDescriptor::Bcast(d_radius.data(), n_events,
+                                                 amrex::ParallelDescriptor::IOProcessorNumber());
+                amrex::ParallelDescriptor::Bcast(d_source_type.data(), n_events,
+                                                 amrex::ParallelDescriptor::IOProcessorNumber());
+                amrex::ParallelDescriptor::Bcast(d_priority.data(), n_events,
+                                                 amrex::ParallelDescriptor::IOProcessorNumber());
+                amrex::ParallelDescriptor::Bcast(d_suppress.data(), n_events,
+                                                 amrex::ParallelDescriptor::IOProcessorNumber());
 
                 host_events.resize(n_events);
                 for (int i = 0; i < n_events; ++i) {

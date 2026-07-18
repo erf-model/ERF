@@ -6,7 +6,7 @@
 #ifndef ERF_FIRE_UTILS_H
 #define ERF_FIRE_UTILS_H
 
-#include <AMReX_MultiFab.h>
+#include <AMReX_MultiFab.H>
 #include <AMReX_Geometry.H>
 #include <AMReX_MFIter.H>
 #include <ERF_MicrophysicsUtils.H>

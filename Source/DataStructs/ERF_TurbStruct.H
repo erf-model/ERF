@@ -194,6 +194,14 @@ public:
           pp, "mrf_fire_q_threshold", mrf_fire_q_threshold, lev, max_level);
         query_one_or_per_level(
           pp, "mrf_fire_t_excess_cap", mrf_fire_t_excess_cap, lev, max_level);
+#ifdef ERF_USE_DUST
+        query_one_or_per_level(
+          pp, "dust_mrf_Sc_t", dust_mrf_Sc_t, lev, max_level);
+        if (dust_mrf_Sc_t <= 0.0) {
+          // Zero or negative: use same diffusivity as heat (no Sc_t scaling).
+          dust_mrf_Sc_t = Pr_t; // default to Prandtl number
+        }
+#endif
       } else if (pbl_type == PBLType::SHOC) {
 #ifndef ERF_USE_SHOC
            amrex::Abort("You set use_shoc to true but didn't build with SHOC; you must rebuild the executable");
@@ -453,6 +461,10 @@ public:
                      << std::endl;
       amrex::Print() << "    mrf_fire_t_excess_cap       : " << mrf_fire_t_excess_cap
                      << std::endl;
+#ifdef ERF_USE_DUST
+      amrex::Print() << "    dust_mrf_Sc_t              : " << dust_mrf_Sc_t
+                     << std::endl;
+#endif
     }
   }
 
@@ -586,6 +598,13 @@ public:
   amrex::Real mrf_fire_q_threshold = amrex::Real(50.0); ///< minimum fire heat flux [W/m2] to activate correction
   amrex::Real mrf_fire_t_excess_cap = amrex::Real(50.0); ///< maximum thermal excess [K] when fire is active
 
+#ifdef ERF_USE_DUST
+  // Turbulent Schmidt number for dust scalar in MRF PBL scheme (Phase 14).
+  // Controls EddyDiff::Scalar_v relative to EddyDiff::Theta_v.
+  // Sc_t = Pr_t (default) gives identical diffusivity to heat.
+  // Seinfeld & Pandis (2006), Ch. 16: https://doi.org/10.1002/9781118227572
+  amrex::Real dust_mrf_Sc_t = 0.0; // 0 = use same as Pr_t (default)
+#endif
   // MYNN2.5 PBL model
   // TKE/QKE stuff
   bool advect_tke = true; // if MYNN2.5 PBL is used default is turb transport in

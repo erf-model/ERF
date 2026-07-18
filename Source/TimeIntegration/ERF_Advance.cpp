@@ -9,6 +9,10 @@
 #include <ERF_WindFarm.H>
 #endif
 
+#ifdef ERF_USE_DUST
+#include <ERF_DustAtmCoupling.H>
+#endif
+
 using namespace amrex;
 
 /**
@@ -272,7 +276,6 @@ ERF::Advance (int lev, double time, double dt_lev, int iteration, int /*ncycle*/
         }
         check_for_negative_theta(S_old);
     }
-
     // **************************************************************************************
     // Update the dycore
     // **************************************************************************************
@@ -281,7 +284,6 @@ ERF::Advance (int lev, double time, double dt_lev, int iteration, int /*ncycle*/
                    U_new, V_new, W_new,
                    cc_source, xmom_source, ymom_source, zmom_source, buoyancy,
                    Geom(lev), dt_lev, time);
-
     // **************************************************************************************
     // Tests on the reasonableness of the solution after the dycore
     // **************************************************************************************

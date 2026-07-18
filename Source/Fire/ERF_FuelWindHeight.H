@@ -2,7 +2,7 @@
 #define ERF_FUEL_WIND_HEIGHT_H
 
 #include <vector>
-#include <AMReX_Real.H>
+#include <AMReX_REAL.H>
 
 /**
  * @file ERF_FuelWindHeight.H

@@ -166,10 +166,12 @@ function(build_erf_lib erf_lib_name)
                    ${SRC_DIR}/Particles/ERF_SuperDropletPCInitializations.cpp
                    ${SRC_DIR}/Particles/ERF_SuperDropletPCMassChange.cpp
                    ${SRC_DIR}/Particles/ERF_SuperDropletPCRecycle.cpp
-                   ${SRC_DIR}/Particles/ERF_SuperDropletPCUtils.cpp)
+                   ${SRC_DIR}/Particles/ERF_SuperDropletPCUtils.cpp
+                   ${SRC_DIR}/Particles/ERF_DustPC.cpp)
     target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/Source/Particles>)
     target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_PARTICLES)
   endif()
+
 
   if(ERF_ENABLE_FFT)
     target_sources(${erf_lib_name} PRIVATE
@@ -205,6 +207,44 @@ function(build_erf_lib erf_lib_name)
                    ${SRC_DIR}/LandSurfaceModel/Noah-MP/ERF_NOAHMP_IO.cpp)
     target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_NOAHMP)
     target_link_libraries_system(${erf_lib_name} PUBLIC NoahMP::noahmp)
+  endif()
+
+  ########################## DUST ##################################
+  if(ERF_ENABLE_DUST)
+    target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_DUST)
+    target_sources(${erf_lib_name} PRIVATE
+                   ${SRC_DIR}/Dust/ERF_DustGrid.cpp
+                   ${SRC_DIR}/Dust/ERF_DustPrerequisites.cpp
+                   ${SRC_DIR}/Dust/ERF_DustLayer.cpp
+                   ${SRC_DIR}/Dust/ERF_DustSurfaceReader.cpp
+                   ${SRC_DIR}/Dust/ERF_PhreeqcReader.cpp
+                   ${SRC_DIR}/Dust/ERF_DustEmission.cpp
+                   ${SRC_DIR}/Dust/ERF_DustWindExtract.cpp
+                   ${SRC_DIR}/Dust/ERF_DustAtmCoupling.cpp
+                   ${SRC_DIR}/Dust/ERF_DustPlotfile.cpp
+                   ${SRC_DIR}/Dust/ERF_DustParams.H
+                   ${SRC_DIR}/Dust/ERF_DustGrid.H
+                   ${SRC_DIR}/Dust/ERF_DustPrerequisites.H
+                   ${SRC_DIR}/Dust/ERF_DustLayer.H
+                   ${SRC_DIR}/Dust/ERF_DustSurfaceReader.H
+                   ${SRC_DIR}/Dust/ERF_PhreeqcReader.H
+                   ${SRC_DIR}/Dust/ERF_DustThreshold.H
+                   ${SRC_DIR}/Dust/ERF_DustEmission.H
+                   ${SRC_DIR}/Dust/ERF_DustBlastSchedule.H
+                   ${SRC_DIR}/Dust/ERF_DustSuppression.H
+                   ${SRC_DIR}/Dust/ERF_DustWindExtract.H
+                   ${SRC_DIR}/Dust/ERF_DustAtmCoupling.H
+                   ${SRC_DIR}/Dust/ERF_DustSettling.H
+                   ${SRC_DIR}/Dust/ERF_DustDeposition.H
+                   ${SRC_DIR}/Dust/ERF_DustAtmReturn.H
+                   ${SRC_DIR}/Dust/ERF_DustPlotfile.H
+                   ${SRC_DIR}/Dust/ERF_DustPlotfileCatalog.H
+                   ${SRC_DIR}/Dust/ERF_DustStatsOutput.H
+                   ${SRC_DIR}/Dust/ERF_Dust.H
+    )
+    target_include_directories(${erf_lib_name} PUBLIC
+                               $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/Source/Dust>)
+    message(STATUS "ERF-Dust module enabled")
   endif()
 
   ########################### GPU defs for KOKKOS #################################

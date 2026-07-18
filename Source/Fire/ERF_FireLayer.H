@@ -1,7 +1,7 @@
 #ifndef ERF_FIRE_LAYER_H
 #define ERF_FIRE_LAYER_H
 
-#include <AMReX_MultiFab.h>
+#include <AMReX_MultiFab.H>
 #include <AMReX_Geometry.H>
 #include <memory>
 #include <ERF_FireParams.H>

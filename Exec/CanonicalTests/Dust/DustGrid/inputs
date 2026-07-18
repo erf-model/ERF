@@ -1,0 +1,155 @@
+# DustGrid regression test
+#
+# Tests that DustLayer::initialize() completes without error and that
+# the 2D dust grid has the correct dimensions and that MultiFabs are
+# allocated and filled with their default values.
+#
+# Test configuration:
+#   - 8x8x16 atmospheric cells over a 1000 x 1000 x 1000 m domain.
+#   - erf.dust.grid_ratio = 2: dust grid is 16x16x1 cells,
+#     each dust cell covers 62.5 m x 62.5 m horizontally.
+#   - erf.dust.enable = true.
+#   - max_step = 0: DustLayer::advance() is not called.
+#
+# Expected results at max_step = 0:
+#   (1) verify_dust_prerequisites passes all 8 checks without abort.
+#   (2) create_dust_grid produces a DustGrid with:
+#         ba extent: [0,15] x [0,15] x [0,0]
+#         physical domain: [0,1000] x [0,1000] m (same as atmospheric)
+#         grid_ratio = 2
+#   (3) DustLayer MultiFab dimensions are 16x16x1 cells plus 1 ghost cell
+#       in x and y.
+#   (4) dust_ustar_t is filled with the Bagnold threshold for bin 0
+#       (d = 7.0 um, rho_p = 2650 kg/m^3, A = 0.0123):
+#         u*_t = 0.0123 * sqrt(2650 * 9.81 * 7.0e-6 / 1.225)
+#              = 0.0123 * sqrt(0.14876)
+#              approximately 0.00474 m/s.
+#       Verify this value is uniform across all cells.
+#   (5) dust_silt_fraction is filled with erf.dust.silt_fraction = 0.15
+#       (non-default value to verify ParmParse reading).
+#   (6) dust_emission_flux has ncomp = 3 and is filled with 0.0.
+#   (7) DustLayer::advance() stub executes and returns without error.
+#   (8) Run exits with code 0.
+#
+# Reference:
+#   Bagnold threshold friction velocity:
+#     Bagnold, R. A. (1941). The Physics of Blown Sand and Desert Dunes.
+#     Methuen, London.
+#   Marticorena & Bergametti (1995). J. Geophys. Res., 100, 16415-16430.
+#     https://doi.org/10.1029/95JD00690
+
+erf.prob_name = "ABL"
+
+max_step = 0
+
+amrex.fpe_trap_invalid = 0
+
+fabarray.mfiter_tile_size = 1024 1024 1024
+
+# Atmospheric domain: 8x8 horizontal cells, 64 vertical levels.
+# All boxes must have x,y sizes divisible by grid_ratio = 2.
+geometry.prob_extent = 3000 3000 1024
+amr.n_cell           =  8   8   64
+geometry.is_periodic = 1 1 0
+
+amr.max_level = 0
+
+zlo.type = "surface_layer"
+erf.most.z0   = 0.1      # roughness length [m]
+erf.most.zref = 24.0     # reference height [m]
+erf.most.surf_temp_flux = 0.0
+
+zhi.type = "SlipWall"
+zhi.theta_grad = 0.003
+
+# Prevent z-decomposition: z-extent must be on a single rank.
+# verify_dust_prerequisites check 3 requires box_nz == domain_nz.
+amrex.max_grid_size_z = 128
+
+erf.fixed_dt = 0.5
+
+# DIAGNOSTICS
+erf.sum_interval = 1
+erf.v            = 1
+amr.v            = 1
+
+# CHECKPOINT
+erf.check_int = -1
+
+# PLOTFILES: not produced at max_step = 0
+erf.plot_int_1  = -1
+erf.plot_vars_1 = density x_velocity y_velocity z_velocity theta
+
+# SOLVER
+erf.use_gravity     = true
+erf.molec_diff_type = "None"
+erf.les_type        = "None"
+erf.theta_ref       = 300.0
+
+# INITIALIZATION
+erf.init_type         = "uniform"
+erf.density_init_pert = 0.0
+erf.theta_init_pert   = 0.0
+
+# MRF PBL
+# Hong & Pan (1996), Mon. Wea. Rev., 124, 2322-2339.
+# https://doi.org/10.1175/1520-0493(1996)124<2322:NBLVDI>2.0.CO;2
+erf.pbl_type         = "MRF"
+erf.pbl_mrf_Ribcr    = 0.5
+erf.pbl_mrf_const_b  = 7.8
+erf.pbl_mrf_sf       = 0.1
+erf.enable_mrf_countergradient = false
+erf.mrf_moistvars    = false
+erf.use_coriolis     = false
+
+# DUST MODULE
+# grid_ratio = 2: dust grid is 16x16x1 cells on an 8x8x16 atmospheric grid.
+# Atmospheric box x,y sizes (8) are divisible by grid_ratio (2): check 5 passes.
+# silt_fraction = 0.15 overrides the default 0.10 to verify ParmParse reading.
+erf.dust.enable                    = true
+erf.dust.dust_debug                = true
+erf.dust.n_size_bins               = 3
+erf.dust.grid_ratio                = 2
+erf.dust.particle_density          = 2650.0
+erf.dust.z0_dust                   = 0.01
+erf.dust.silt_fraction             = 0.15
+erf.dust.threshold_A_coeff         = 0.0123
+erf.dust.crust_index               = 0.0
+erf.dust.phreeqc_update_interval_s = 86400.0
+erf.dust.surface_map_file          = ""
+erf.dust.phreeqc_output_file       = ""
+erf.dust.alpha_crust = 0.5
+erf.dust.alpha_efflor = 0.3
+erf.dust.atm_feedback = 1.0
+erf.dust.bin_diameters = 7.0e-6 2.5e-6 50.0e-6
+erf.dust.blast_reactivity = 2.0
+erf.dust.blast_schedule_file = ""
+erf.dust.cm_budget_file = "dust_cm_budget.csv"
+erf.dust.crust_index_file = ""
+erf.dust.deposition_E0 = 3.0e-3
+erf.dust.dust_diag_file = "dust_diag.dat"
+erf.dust.dust_naaqs_file = "dust_naaqs.csv"
+erf.dust.dust_plot_int = -1
+erf.dust.dust_plot_prefix = "plt_dust_"
+erf.dust.loading_feedback_coeff = 0.0
+erf.dust.moisture_flag_file = ""
+erf.dust.msha_exposure_file = "msha_exposure.csv"
+erf.dust.msha_pel_mg_m3 = 5.0
+erf.dust.msha_shift_duration_s = 28800.0
+erf.dust.msha_shift_file = "msha_shift_summary.csv"
+erf.dust.phreeqc_feedback_file = "dust_dep_feedback.dat"
+erf.dust.phreeqc_feedback_interval_s = 0.0
+erf.dust.phreeqc_site_summary_file = "dust_dep_site_summary.csv"
+erf.dust.rho_air = 1.225
+erf.dust.road_diag_file = "dust_road_diag.csv"
+erf.dust.road_schedule_file = ""
+erf.dust.silt_fraction_file = ""
+erf.dust.soil_type_file = ""
+erf.dust.supp_tau_base_s = 3600.0
+erf.dust.suppression_file = ""
+erf.dust.test_surf_temp_K = 293.15
+erf.dust.test_ustar = 0.0
+erf.dust.test_wind_speed = 0.0
+erf.dust.transport_bins_separately = false
+erf.dust.use_dynamic_moisture = false
+erf.dust.zref = 24.0

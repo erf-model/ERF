@@ -1,0 +1,120 @@
+# DustParticles regression test — Phase 19 Lagrangian super-particles.
+#
+# One super-particle released per emission cell per step.
+# Advected by ERF face velocities (nearest-cell) + Stokes settling.
+# Deposited when z < z_lo + 0.5*dz; mass to dust_source_map.
+#
+# Requires ERF_USE_PARTICLES at compile time.
+# Without it, n_particles=0 and test still passes.
+#
+# MRF u* ~ 0.56 m/s, 15 m/s westerly wind.
+# bin d=7 um: v_settle ~ 4e-3 m/s -> 0.002 m per step (dt=0.5s).
+# Particles stay aloft for many steps; source_map_sum may be 0
+# over only 5 steps with d=7 um.
+#
+# Expected results:
+#   (1) [DUST DEBUG] Phase 19 n_particles > 0 after step 1
+#       (when ERF_USE_PARTICLES defined and emission flux > 0).
+#   (2) n_particles non-decreasing over 5 steps (release > deposition).
+#   (3) source_map_sum >= 0 each step.
+#   (4) plt_dust_00005: 19 variables, includes dust_source_map.
+#   (5) DustMetadata.json n_variables=19.
+#   (6) enable_particles=false: n_particles=0, test passes.
+#   (7) bin_diameters=100e-6 (large): source_map_sum > 0 within 5 steps.
+#   (8) Run exits code 0.
+#
+# References:
+#   AMReX particles: https://amrex-codes.github.io/amrex/docs_html/Particles.html
+#   ERFPCEvolve.cpp: Source/Particles/ERFPCEvolve.cpp
+#   Shao (2008). Physics and Modelling of Wind Erosion. Springer.
+#   Seinfeld & Pandis (2006) Ch. 9.
+#     https://doi.org/10.1002/9781118227572
+
+erf.prob_name = "ABL"
+max_step = 5
+amr.max_level = 0
+amrex.fpe_trap_invalid = 0
+fabarray.mfiter_tile_size = 1024 1024 1024
+geometry.prob_extent = 3000 3000 1024
+amr.n_cell =  8 8 64
+geometry.is_periodic = 1 1 0
+amrex.max_grid_size_z = 128
+zlo.type = "surface_layer"
+erf.most.z0 = 0.1
+erf.most.zref = 24.0
+erf.most.surf_temp_flux = 0.0
+zhi.type = "SlipWall"
+zhi.theta_grad = 0.003
+erf.fixed_dt = 0.5
+erf.sum_interval = 1
+erf.v = 1
+amr.v = 1
+erf.check_int = -1
+erf.plot_int_1 = -1
+erf.plot_vars_1 = density x_velocity y_velocity z_velocity theta
+erf.use_gravity = true
+erf.molec_diff_type = "None"
+erf.les_type = "None"
+erf.init_type = "input_sounding"
+erf.sounding_type = Ideal
+erf.input_sounding_file = "sounding_neutral_abl"
+erf.pbl_type = "MRF"
+erf.pbl_mrf_Ribcr = 0.5
+erf.pbl_mrf_const_b = 7.8
+erf.pbl_mrf_sf = 0.1
+erf.enable_mrf_countergradient = true
+erf.mrf_moistvars = false
+erf.use_coriolis = true
+erf.latitude = 45.0
+erf.abl_driver_type = "GeostrophicWind"
+erf.abl_geo_wind = 15.0 0.0 0.0
+erf.transport_scalar = true
+erf.dust.enable = true
+erf.dust.dust_debug = true
+erf.dust.n_size_bins = 3
+erf.dust.grid_ratio = 1
+erf.dust.particle_density = 2650.0
+erf.dust.z0_dust = 0.01
+erf.dust.silt_fraction = 0.10
+erf.dust.threshold_A_coeff = 0.0123
+erf.dust.crust_index = 0.0
+erf.dust.alpha_crust = 0.5
+erf.dust.alpha_efflor = 0.3
+erf.dust.test_ustar = 0.0
+erf.dust.rho_air = 1.225
+erf.dust.zref = 24.0
+erf.dust.supp_tau_base_s = 3600.0
+erf.dust.test_surf_temp_K = 293.15
+erf.dust.test_wind_speed = 0.0
+erf.dust.atm_feedback = 1.0
+erf.dust.transport_bins_separately = false
+erf.dust.bin_diameters = 7.0e-6 2.5e-6 50.0e-6
+erf.dust.deposition_E0 = 3.0e-3
+erf.dust.loading_feedback_coeff = 0.0
+erf.dust.use_dynamic_moisture = false
+erf.dust.dust_plot_int = 5
+erf.dust.dust_plot_prefix = "plt_dust_"
+erf.dust.dust_diag_file = "dust_diag.dat"
+erf.dust.dust_naaqs_file = "dust_naaqs.csv"
+erf.dust.msha_pel_mg_m3 = 5.0
+erf.dust.msha_shift_duration_s = 28800.0
+erf.dust.msha_exposure_file = "msha_exposure.csv"
+erf.dust.msha_shift_file = "msha_shift_summary.csv"
+erf.dust.enable_particles = true
+erf.dust.particle_release_interval = 1
+erf.dust.phreeqc_update_interval_s = 86400.0
+erf.dust.phreeqc_output_file = ""
+erf.dust.blast_schedule_file = ""
+erf.dust.blast_reactivity = 2.0
+erf.dust.soil_type_file = ""
+erf.dust.silt_fraction_file = ""
+erf.dust.crust_index_file = ""
+erf.dust.moisture_flag_file = ""
+erf.dust.suppression_file = ""
+erf.dust.surface_map_file = ""
+erf.dust.cm_budget_file = "dust_cm_budget.csv"
+erf.dust.phreeqc_feedback_file = "dust_dep_feedback.dat"
+erf.dust.phreeqc_feedback_interval_s = 0.0
+erf.dust.phreeqc_site_summary_file = "dust_dep_site_summary.csv"
+erf.dust.road_diag_file = "dust_road_diag.csv"
+erf.dust.road_schedule_file = ""

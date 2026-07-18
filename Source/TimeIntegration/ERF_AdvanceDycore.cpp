@@ -269,6 +269,18 @@ void ERF::advance_dycore (int level,
                                   l_use_moisture, level,
                                   bc_ptr_h,
                                   get_eb(level), false, Q_fire_for_pbl);
+        // Phase 14: Print debug info about dust scalar diffusivity
+#ifdef ERF_USE_DUST
+        // Check if dust layer is active and debug is enabled
+        if (m_DustLayer && level == 0 && m_DustLayer->get_params().dust_debug) {
+            Real Kh_scalar_max = eddyDiffs->max(EddyDiff::Scalar_v);
+            Real Kh_theta_max  = eddyDiffs->max(EddyDiff::Theta_v);
+            amrex::Print() << "[DUST DEBUG] Phase 14:"
+                           << " EddyDiff::Scalar_v_max=" << Kh_scalar_max
+                           << " m^2/s  EddyDiff::Theta_v_max=" << Kh_theta_max
+                           << " m^2/s\n";
+        }
+#endif
     }
 
     // ***********************************************************************************************

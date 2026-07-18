@@ -12,6 +12,7 @@ CEXE_sources += ERF_SuperDropletPCInitializations.cpp
 CEXE_sources += ERF_SuperDropletPCMassChange.cpp
 CEXE_sources += ERF_SuperDropletPCRecycle.cpp
 CEXE_sources += ERF_SuperDropletPCUtils.cpp
+CEXE_sources += ERF_DustPC.cpp
 
 CEXE_headers += ERF_ParticleData.H
 CEXE_headers += ERFPC.H
@@ -22,3 +23,5 @@ CEXE_headers += ERF_SuperDropletPCDefinitions.H
 CEXE_headers += ERF_SuperDropletPCCoalescence.H
 CEXE_headers += ERF_SuperDropletPCMassChange.H
 CEXE_headers += ERF_SuperDropletPCProcess.H
+CEXE_headers += ERF_DustPC.H
+

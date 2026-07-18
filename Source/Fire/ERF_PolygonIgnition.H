@@ -102,15 +102,15 @@ void read_polygon_vertices(const std::string& filename,
     // Broadcast vertex count
     int n_verts = static_cast<int>(xs.size());
     if (ParallelDescriptor::NProcs() > 1) {
-        MPI_Bcast(&n_verts, 1, MPI_INT, ParallelDescriptor::IOProcessorNumber(), MPI_COMM_WORLD);
+        ParallelDescriptor::Bcast(&n_verts, 1, ParallelDescriptor::IOProcessorNumber());
 
         if (n_verts > 0) {
             if (!ParallelDescriptor::IOProcessor()) {
                 xs.resize(n_verts);
                 ys.resize(n_verts);
             }
-            MPI_Bcast(xs.data(), n_verts, MPI_DOUBLE, ParallelDescriptor::IOProcessorNumber(), MPI_COMM_WORLD);
-            MPI_Bcast(ys.data(), n_verts, MPI_DOUBLE, ParallelDescriptor::IOProcessorNumber(), MPI_COMM_WORLD);
+            ParallelDescriptor::Bcast(xs.data(), n_verts, ParallelDescriptor::IOProcessorNumber());
+            ParallelDescriptor::Bcast(ys.data(), n_verts, ParallelDescriptor::IOProcessorNumber());
         }
     }
 }

@@ -1,0 +1,136 @@
+# DustDeposition regression test
+#
+# Tests Phase 12 dry deposition BC: apply_dust_deposition_bc at k=klo,
+# and dust_deposition_rate accumulation on the 2D dust grid.
+#
+# Atmospheric configuration: Moeng-Sullivan neutral ABL.
+# Reference: Exec/CanonicalTests/ABL/MRF_Enhancements/canonical/neutral_abl
+# MRF diagnoses u* ~ 0.56 m/s with 15 m/s geostrophic wind.
+#
+# Deposition physics (bin 0, d=7 um, u*=0.56 m/s):
+#   v_s = (2650-1.225)*9.81*(7e-6)^2*Cc / (18*1.81e-5) approx 4.0e-3 m/s
+#   r_a = 1 / (0.56 * 0.4) = 4.46 s/m
+#   r_s = 1 / (0.56 * 3e-3) = 595 s/m
+#   denom = 4.46 + 595 + 4.46*595*4e-3 = 4.46 + 595 + 10.6 = 610 s/m
+#   v_d = 4e-3 + 1/610 approx 4e-3 + 1.6e-3 = 5.6e-3 m/s
+#   dep_flux = v_d * RhoDust(k=0)
+#
+# Expected results:
+#   (1) [DUST DEPOSITION] prints v_d approx 5.6e-3 m/s each step.
+#   (2) [DUST DEBUG] Phase 12 shows deposition_rate_sum > 0 after step 1.
+#   (3) Negative tendency at k=klo larger than Phase 11 alone.
+#   (4) dust_deposition_rate increases monotonically (never decreases).
+#   (5) Setting deposition_E0 = 0 gives v_d approx v_s (no surface collection).
+#   (6) [DUST DEBUG] Phase 10, 11, 12 lines all printed each step.
+#   (7) Run exits with code 0.
+#
+# References:
+#   Seinfeld & Pandis (2006). Atmos. Chem. and Phys., ch. 19. Wiley.
+#   Zhang et al. (2001). Atmos. Environ., 35, 549.
+#     https://doi.org/10.1016/S1352-2310(00)00326-5
+#   Slinn (1982). Atmos. Environ., 16, 1785.
+#     https://doi.org/10.1016/0004-6981(82)90271-2
+#   ERF_FireAtmCoupling.H (structural reference):
+#     https://github.com/hgopalan/ERF/blob/ecb9b7656bbb98fcc5d4f781e486825ee9478a73/
+#     Source/Fire/ERF_FireAtmCoupling.H
+#   Hong & Pan (1996). Mon. Wea. Rev., 124, 2322 (MRF scheme).
+#     https://doi.org/10.1175/1520-0493(1996)124<2322:NBLVDI>2.0.CO;2
+
+erf.prob_name = "ABL"
+max_step = 5
+amr.max_level = 0
+amrex.fpe_trap_invalid = 0
+fabarray.mfiter_tile_size = 1024 1024 1024
+
+geometry.prob_extent = 3000 3000 1024
+amr.n_cell           =  8    8   64
+geometry.is_periodic = 1 1 0
+amrex.max_grid_size_z = 128
+
+zlo.type = "surface_layer"
+erf.most.z0   = 0.1
+erf.most.zref = 24.0
+erf.most.surf_temp_flux = 0.0
+zhi.type = "SlipWall"
+zhi.theta_grad = 0.003
+
+erf.fixed_dt     = 0.5
+erf.sum_interval = 1
+erf.v            = 1
+amr.v            = 1
+erf.check_int    = -1
+erf.plot_int_1   = -1
+erf.plot_vars_1  = density x_velocity y_velocity z_velocity theta
+
+erf.use_gravity     = true
+erf.molec_diff_type = "None"
+erf.les_type        = "None"
+
+erf.init_type           = "input_sounding"
+erf.sounding_type       = Ideal
+erf.input_sounding_file = "sounding_neutral_abl"
+
+erf.pbl_type         = "MRF"
+erf.pbl_mrf_Ribcr    = 0.5
+erf.pbl_mrf_const_b  = 7.8
+erf.pbl_mrf_sf       = 0.1
+erf.enable_mrf_countergradient = true
+erf.mrf_moistvars    = false
+erf.use_coriolis     = true
+erf.latitude         = 45.0
+erf.abl_driver_type  = "GeostrophicWind"
+erf.abl_geo_wind     = 15.0 0.0 0.0
+
+# Required for the dust scalar to be advected in ERF_SlowRhsPost.cpp.
+# Without this flag is_valid_slow_var for the dust component is 0 (PR #145).
+erf.transport_scalar = true
+
+erf.dust.enable                    = true
+erf.dust.dust_debug                = true
+erf.dust.n_size_bins               = 3
+erf.dust.grid_ratio                = 1
+erf.dust.particle_density          = 2650.0
+erf.dust.z0_dust                   = 0.01
+erf.dust.silt_fraction             = 0.10
+erf.dust.threshold_A_coeff         = 0.0123
+erf.dust.crust_index               = 0.0
+erf.dust.alpha_crust               = 0.5
+erf.dust.alpha_efflor              = 0.3
+erf.dust.test_ustar                = 0.0
+erf.dust.rho_air                   = 1.225
+erf.dust.cm_budget_file = "dust_cm_budget.csv"
+erf.dust.dust_diag_file = "dust_diag.dat"
+erf.dust.dust_naaqs_file = "dust_naaqs.csv"
+erf.dust.dust_plot_int = -1
+erf.dust.dust_plot_prefix = "plt_dust_"
+erf.dust.loading_feedback_coeff = 0.0
+erf.dust.msha_exposure_file = "msha_exposure.csv"
+erf.dust.msha_pel_mg_m3 = 5.0
+erf.dust.msha_shift_duration_s = 28800.0
+erf.dust.msha_shift_file = "msha_shift_summary.csv"
+erf.dust.phreeqc_feedback_file = "dust_dep_feedback.dat"
+erf.dust.phreeqc_feedback_interval_s = 0.0
+erf.dust.phreeqc_site_summary_file = "dust_dep_site_summary.csv"
+erf.dust.road_diag_file = "dust_road_diag.csv"
+erf.dust.road_schedule_file = ""
+erf.dust.use_dynamic_moisture = false
+# zref must equal erf.most.zref for extraction height consistency (Phase 9).
+erf.dust.zref                      = 24.0
+erf.dust.supp_tau_base_s           = 3600.0
+erf.dust.test_surf_temp_K          = 293.15
+erf.dust.test_wind_speed           = 0.0
+erf.dust.atm_feedback              = 1.0
+erf.dust.transport_bins_separately = false
+erf.dust.bin_diameters             = 7.0e-6 2.5e-6 50.0e-6
+# deposition_E0 = 3e-3: bare mine surface (Zhang et al. 2001).
+erf.dust.deposition_E0             = 3.0e-3
+erf.dust.phreeqc_update_interval_s = 86400.0
+erf.dust.phreeqc_output_file       = ""
+erf.dust.blast_schedule_file       = ""
+erf.dust.blast_reactivity          = 2.0
+erf.dust.soil_type_file            = ""
+erf.dust.silt_fraction_file        = ""
+erf.dust.crust_index_file          = ""
+erf.dust.moisture_flag_file        = ""
+erf.dust.suppression_file          = ""
+erf.dust.surface_map_file          = ""

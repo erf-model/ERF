@@ -1,0 +1,135 @@
+# DustMultiSite regression test — Phase 20 multi-mine PHREEQC tables.
+#
+# Two named mine sites with non-overlapping bounding boxes.
+# Domain: 3000x3000 m, 8x8 cells -> dx=375 m.
+# Cell centres: x in {187.5, 562.5, ..., 2812.5}, y in {187.5, ..., 2812.5}.
+#
+# Site 1: "mine_north" x=[0,3000] y=[1500,3000]
+#   -> cells (i,j) where y_c > 1500: j in {4,5,6,7} = 32 cells.
+# Site 2: "mine_south" x=[0,3000] y=[0,1500]
+#   -> cells (i,j) where y_c < 1500: j in {0,1,2,3} = 32 cells.
+# No overlap; all 64 cells assigned (0 unassigned).
+#
+# site_phreeqc_files are empty strings -> PHREEQC factor = 1.0 (no reduction).
+# With factor=1.0: Phase 5 u*_t is unchanged by Phase 20 (same as single-site).
+#
+# Expected results:
+#   (1) [DUST DEBUG] Phase 20: 2 mine sites registered.
+#   (2) [DUST DEBUG] Phase 20: unassigned cells = 0.
+#   (3) [DUST DEBUG] Phase 20: site 1 cells=32, site 2 cells=32.
+#   (4) dust_site_id MultiFab: cells j>=4 have value 1.0,
+#       cells j<4 have value 2.0, no cells have value 0.0.
+#   (5) With empty PHREEQC files: u*_t unchanged vs single-site run.
+#   (6) plt_dust_00005 contains 20 variables including dust_site_id.
+#   (7) DustMetadata.json n_variables=20.
+#   (8) [DUST DEBUG] advance shows site_id_max=2 each step.
+#   (9) Run exits code 0.
+#
+# To test PHREEQC reduction: provide real PHREEQC file paths and verify
+# that u*_t differs between site 1 and site 2 cells.
+# To test overlap: set site 2 bbox to cover the whole domain; all cells
+# should be assigned site 2 (last-wins rule).
+#
+# References:
+#   Parkhurst & Appelo (2013). PHREEQC Version 3.
+#     https://pubs.usgs.gov/tm/06/a43/
+#   Marticorena & Bergametti (1995). J. Geophys. Res., 100, 16415.
+#     https://doi.org/10.1029/95JD00690
+#   Shao & Lu (2000). J. Geophys. Res., 105, 22437.
+#     https://doi.org/10.1029/2000JD900304
+#   ERF_FireGrid.H (spatial metadata pattern):
+#     https://github.com/hgopalan/ERF/blob/ERF-Fire/Source/Fire/ERF_FireGrid.H
+
+erf.prob_name = "ABL"
+max_step = 5
+amr.max_level = 0
+amrex.fpe_trap_invalid = 0
+fabarray.mfiter_tile_size = 1024 1024 1024
+geometry.prob_extent = 3000 3000 1024
+amr.n_cell =  8 8 64
+geometry.is_periodic = 1 1 0
+amrex.max_grid_size_z = 128
+zlo.type = "surface_layer"
+erf.most.z0 = 0.1
+erf.most.zref = 24.0
+erf.most.surf_temp_flux = 0.0
+zhi.type = "SlipWall"
+zhi.theta_grad = 0.003
+erf.fixed_dt = 0.5
+erf.sum_interval = 1
+erf.v = 1
+amr.v = 1
+erf.check_int = -1
+erf.plot_int_1 = -1
+erf.plot_vars_1 = density x_velocity y_velocity z_velocity theta
+erf.use_gravity = true
+erf.molec_diff_type = "None"
+erf.les_type = "None"
+erf.init_type = "input_sounding"
+erf.sounding_type = Ideal
+erf.input_sounding_file = "sounding_neutral_abl"
+erf.pbl_type = "MRF"
+erf.pbl_mrf_Ribcr = 0.5
+erf.pbl_mrf_const_b = 7.8
+erf.pbl_mrf_sf = 0.1
+erf.enable_mrf_countergradient = true
+erf.mrf_moistvars = false
+erf.use_coriolis = true
+erf.latitude = 45.0
+erf.abl_driver_type = "GeostrophicWind"
+erf.abl_geo_wind = 15.0 0.0 0.0
+erf.transport_scalar = true
+erf.dust.enable = true
+erf.dust.dust_debug = true
+erf.dust.n_size_bins = 3
+erf.dust.grid_ratio = 1
+erf.dust.particle_density = 2650.0
+erf.dust.z0_dust = 0.01
+erf.dust.silt_fraction = 0.10
+erf.dust.threshold_A_coeff = 0.0123
+erf.dust.crust_index = 0.0
+erf.dust.alpha_crust = 0.5
+erf.dust.alpha_efflor = 0.3
+erf.dust.test_ustar = 0.0
+erf.dust.rho_air = 1.225
+erf.dust.zref = 24.0
+erf.dust.supp_tau_base_s = 3600.0
+erf.dust.test_surf_temp_K = 293.15
+erf.dust.test_wind_speed = 0.0
+erf.dust.atm_feedback = 1.0
+erf.dust.transport_bins_separately = false
+erf.dust.bin_diameters = 7.0e-6 2.5e-6 50.0e-6
+erf.dust.deposition_E0 = 3.0e-3
+erf.dust.loading_feedback_coeff = 0.0
+erf.dust.use_dynamic_moisture = false
+erf.dust.dust_plot_int = 5
+erf.dust.dust_plot_prefix = "plt_dust_"
+erf.dust.dust_diag_file = "dust_diag.dat"
+erf.dust.dust_naaqs_file = "dust_naaqs.csv"
+erf.dust.msha_pel_mg_m3 = 5.0
+erf.dust.msha_shift_duration_s = 28800.0
+erf.dust.msha_exposure_file = "msha_exposure.csv"
+erf.dust.msha_shift_file = "msha_shift_summary.csv"
+erf.dust.cm_budget_file = "dust_cm_budget.csv"
+erf.dust.phreeqc_feedback_file = "dust_dep_feedback.dat"
+erf.dust.phreeqc_feedback_interval_s = 0.0
+erf.dust.phreeqc_site_summary_file = "dust_dep_site_summary.csv"
+erf.dust.road_diag_file = "dust_road_diag.csv"
+erf.dust.road_schedule_file = ""
+# Two mine sites. Non-overlapping y bands.
+erf.dust.site_names         = "mine_north" "mine_south"
+erf.dust.site_phreeqc_files = "" ""
+erf.dust.site_x_lo          = 0.0   0.0
+erf.dust.site_y_lo          = 1500.0 0.0
+erf.dust.site_x_hi          = 3000.0 3000.0
+erf.dust.site_y_hi          = 3000.0 1500.0
+erf.dust.phreeqc_update_interval_s = 86400.0
+erf.dust.phreeqc_output_file = ""
+erf.dust.blast_schedule_file = ""
+erf.dust.blast_reactivity = 2.0
+erf.dust.soil_type_file = ""
+erf.dust.silt_fraction_file = ""
+erf.dust.crust_index_file = ""
+erf.dust.moisture_flag_file = ""
+erf.dust.suppression_file = ""
+erf.dust.surface_map_file = ""
