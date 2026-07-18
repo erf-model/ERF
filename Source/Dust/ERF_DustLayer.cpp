@@ -18,6 +18,7 @@
 #include <ERF.H>
 #include <ERF_SurfaceLayer.H>
 #include <AMReX_Print.H>
+#include <AMReX_MultiFabUtil.H>
 #include <cmath>
 
 void
@@ -256,12 +257,6 @@ DustLayer::initialize(
 #if defined(ERF_USE_PARTICLES)
   if (dust_params.enable_particles) {
     m_geom_atm = erf.Geom(0);
-
-    // Construct particle container on the DUST grid (2D), not the 3D atm grid.
-    // ReleaseParticles iterates over the dust grid MFIter, so tile indices
-    // must match the dust BoxArray. Particle positions use z from geom_atm.
-    //m_dust_pc = std::make_unique<ERFDustPC>(m_dg.geom, m_dg.dm, m_dg.ba);
-    // Use full 3D atm BoxArray so particles at any z are locatable
     m_dust_pc = std::make_unique<ERFDustPC>(
         m_geom_atm, erf.DistributionMap(0), erf.boxArray(0));
     dust_source_map = std::make_unique<amrex::MultiFab>(
@@ -431,15 +426,9 @@ DustLayer::initialize(
       }
     }
 
-    // Load per-site PHREEQC factors (placeholder for now).
-    // These would normally be read from PHREEQC files, but for Phase 20
-    // we default to 1.0 (no reduction factor). Full PHREEQC integration
-    // will be completed in a later phase.
     m_site_ustar_t_factors.resize(n_sites, 1.0);
     for (int s = 0; s < n_sites; ++s) {
       if (!dust_params.site_phreeqc_files[s].empty()) {
-        // TODO: Call Phase 4 PHREEQC reader function here.
-        // For now, use default factor of 1.0.
         if (dust_params.dust_debug) {
           amrex::Print() << "[DUST DEBUG] Phase 20: site " << (s+1)
                          << " PHREEQC file: "
@@ -694,27 +683,6 @@ DustLayer::advance(
   compute_msha_exposure(dt, m_time - dt, m_step);
 #endif
 
-/*#if defined(ERF_USE_PARTICLES)
-  // Phase 19: Lagrangian particle release and advection
-  if (m_params.enable_particles && m_dust_pc && xvel_mf && yvel_mf && zvel_mf
-      && geom_atm && (m_step % m_params.particle_release_interval == 0)) {
-    amrex::Real d_m   = m_params.bin_diameters.empty() ? 7.0e-6 : m_params.bin_diameters[0];
-    amrex::Real rho_p = m_params.particle_density;
-    m_dust_pc->ReleaseParticles(*dust_emission_flux, *geom_atm, m_dg.geom,
-                                 dt, d_m, rho_p);
-    if (dust_source_map) {
-      m_dust_pc->AdvanceParticles(*xvel_mf, *yvel_mf, *zvel_mf,
-                                   *dust_source_map, *geom_atm, m_dg.geom, dt);
-    }
-    if (m_params.dust_debug) {
-      long np = m_dust_pc->TotalNumberOfParticles();
-      amrex::Real sm = dust_source_map ? dust_source_map->sum(0) : 0.0;
-      amrex::Print() << "[DUST DEBUG] Phase 19: step=" << m_step
-                     << " n_particles=" << np
-                     << " source_map_sum=" << sm << " kg/m^2\n";
-    }
-  }
-#endif*/
 #if defined(ERF_USE_PARTICLES)
   // Phase 19 diagnostic: check why block may not execute
   if (m_params.dust_debug) {
@@ -728,7 +696,6 @@ DustLayer::advance(
                    << " interval_check=" << (m_step % m_params.particle_release_interval)
                    << " emission_max=" << dust_emission_flux->max(0) << "\n";
   }
-  // Phase 19: Lagrangian particle release and advection
   if (m_params.enable_particles && m_dust_pc && xvel_mf && yvel_mf && zvel_mf
       && geom_atm && (m_step % m_params.particle_release_interval == 0)) {
     amrex::Real d_m   = m_params.bin_diameters.empty() ? 7.0e-6 : m_params.bin_diameters[0];
@@ -764,24 +731,48 @@ DustLayer::apply_to_cc_source(
 
   int n_active = m_params.transport_bins_separately ? m_params.n_size_bins : 1;
 
+  // Temporary 1-component MultiFab on the dust grid for bin summing.
+  // Needed when transport_bins_separately=false to sum all bins first
+  // before coarsening. Allocated once per call (small 2D slab, cheap).
+  amrex::MultiFab dust_bin_tmp(m_dg.ba, m_dg.dm, 1, amrex::IntVect(0));
+
   for (int b = 0; b < n_active; ++b) {
-    dust_flux_atm->setVal(0.0);
+    dust_bin_tmp.setVal(0.0);
+
     if (m_params.transport_bins_separately) {
-      amrex::MultiFab::Copy(*dust_flux_atm, *dust_emission_flux, b, 0, 1,
+      // Extract bin b from dust_emission_flux into the temporary.
+      amrex::MultiFab::Copy(dust_bin_tmp, *dust_emission_flux, b, 0, 1,
                             amrex::IntVect(0));
     } else {
-      if (b == 0) {
-        for (int bb = 0; bb < m_params.n_size_bins; ++bb) {
-          amrex::MultiFab::Add(*dust_flux_atm, *dust_emission_flux, bb, 0, 1,
-                               amrex::IntVect(0));
-        }
-      } else {
-        break;
+      // Sum all bins into the temporary (b==0 only; loop breaks below).
+      for (int bb = 0; bb < m_params.n_size_bins; ++bb) {
+        amrex::MultiFab::Add(dust_bin_tmp, *dust_emission_flux, bb, 0, 1,
+                             amrex::IntVect(0));
       }
     }
 
-    coarsen_dust_flux_to_atm(
-      *dust_flux_atm, *dust_emission_flux, m_dg.geom, geom_atm, m_dg.grid_ratio);
+    // FIX for grid_ratio > 1: average_down directly from the dust grid
+    // (dust_bin_tmp, m_dg.geom) to the atm 2D slab (dust_flux_atm, geom_atm_2d).
+    // Previously this called MultiFab::Copy(*dust_flux_atm, *dust_emission_flux,...)
+    // which fails when grid_ratio > 1 because the BoxArrays have different sizes.
+    dust_flux_atm->setVal(0.0);
+    {
+      // Build a 2D geometry for dust_flux_atm (same physical domain, atm resolution).
+      // geom_atm is 3D; we need the 2D slab version with z-extent = [0,0].
+      amrex::Box atm_domain_2d = geom_atm.Domain();
+      atm_domain_2d.setSmall(2, 0);
+      atm_domain_2d.setBig(2, 0);
+      amrex::RealBox prob_2d = geom_atm.ProbDomain();
+      prob_2d.setHi(2, prob_2d.lo(2) + 1.0); // dummy 1 m z-extent
+      amrex::Geometry geom_atm_2d(atm_domain_2d, prob_2d,
+                                   amrex::CoordSys::cartesian,
+                                   {false, false, false});
+
+      amrex::average_down(dust_bin_tmp, *dust_flux_atm,
+                          m_dg.geom, geom_atm_2d,
+                          0, 1,
+                          amrex::IntVect(m_dg.grid_ratio, m_dg.grid_ratio, 1));
+    }
 
     apply_dust_tendency_to_cc_source(
       cc_source, *dust_flux_atm, z_phys_cc, geom_atm,
@@ -1032,8 +1023,6 @@ DustLayer::write_phreeqc_feedback(int nstep, amrex::Real cur_time,
     const amrex::Real interval = m_params.phreeqc_feedback_interval_s;
     if (interval <= 0.0 && !is_final) return;
 
-    // Prevent duplicate writes for the same step (called from both
-    // WriteAtIntermediateTime and WriteAtFinalTime).
     if (nstep == m_last_phreeqc_write_step) return;
 
     bool do_write = false;
@@ -1045,18 +1034,15 @@ DustLayer::write_phreeqc_feedback(int nstep, amrex::Real cur_time,
 
     if (!do_write) return;
 
-    // Update step tracker BEFORE writing to block any re-entrant call.
     m_last_phreeqc_write_step = nstep;
     m_last_phreeqc_write_time = cur_time;
 
-    // Task A: write full-grid deposition file (overwritten each interval).
     write_phreeqc_deposition_file(
         m_params.phreeqc_feedback_file,
         *dust_deposition_rate,
         m_dg.geom,
         cur_time, nstep);
 
-    // Task B: per-site summary CSV (appended).
     append_phreeqc_site_summary(
         m_params.phreeqc_site_summary_file,
         *dust_deposition_rate,
