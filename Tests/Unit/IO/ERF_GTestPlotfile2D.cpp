@@ -852,6 +852,31 @@ TEST(NearSurfaceDiagnostics, SourceOnlyRequestUsesTemperaturePath)
     EXPECT_EQ(dst.min(0), 3.0);
 }
 
+// Motivation: A source-only request can be satisfied by the complete native
+// temperature bundle without humidity, MOST, atmospheric, or terrain state.
+TEST(NearSurfaceDiagnostics, SourceOnlyRequestUsesNativeTemperatureBundle)
+{
+    const auto ba = make_test_slab_boxarray();
+    const amrex::DistributionMapping dm(ba);
+    amrex::MultiFab tv(ba, dm, 1, 0), tb(ba, dm, 1, 0), fv(ba, dm, 1, 0);
+    amrex::MultiFab dst(ba, dm, 1, 0);
+    tv.setVal(300.0); tb.setVal(280.0); fv.setVal(0.25); dst.setVal(-7.0);
+
+    near_surface_diagnostics::Sources sources;
+    sources.native_temperature_vegetated = &tv;
+    sources.native_temperature_bare = &tb;
+    sources.native_vegetation_fraction = &fv;
+    sources.moist = false;
+    near_surface_diagnostics::fill(dst, -1, -1, 0, sources);
+    amrex::Gpu::streamSynchronize();
+    EXPECT_EQ(dst.min(0), 2.0);
+
+    tv.setVal(-9999.0);
+    near_surface_diagnostics::fill(dst, -1, -1, 0, sources);
+    amrex::Gpu::streamSynchronize();
+    EXPECT_EQ(dst.min(0), 0.0);
+}
+
 // Motivation: The temperature fill uses zero hydrostatic correction at 2 m
 // and must use height relative to the terrain surface, not absolute height.
 TEST(NearSurfaceDiagnostics, MostTemperatureFillUsesTerrainRelativeHeight)
@@ -954,6 +979,37 @@ TEST(NearSurfaceDiagnostics, RequestedHumidityUsesMostBundleWithoutTemperature)
     amrex::Gpu::streamSynchronize();
 
     const amrex::Real factor = reference_most_factor(2.0, 0.1, 100.0);
+    const amrex::Real expected = 0.010 + 0.001 / KAPPA * factor;
+    EXPECT_NEAR(dst.min(0), expected, diagnostic_test_tolerance(expected));
+    EXPECT_EQ(dst.min(1), 3.0);
+}
+
+// Motivation: Humidity-only MOST fallback must execute the unstable branch
+// through fill() without temperature, EOS, atmospheric, or terrain inputs.
+TEST(NearSurfaceDiagnostics, RequestedHumidityUsesUnstableMostBundleWithoutTemperature)
+{
+    const auto ba = make_test_slab_boxarray();
+    const amrex::DistributionMapping dm(ba);
+    amrex::MultiFab qsurf(ba, dm, 1, 0), qstar(ba, dm, 1, 0);
+    amrex::MultiFab z0(ba, dm, 1, 0), olen(ba, dm, 1, 0), source_mask(ba, dm, 1, 0);
+    amrex::MultiFab dst(ba, dm, 2, 0);
+    qsurf.setVal(0.010); qstar.setVal(0.001); z0.setVal(0.1); olen.setVal(-100.0);
+    source_mask.setVal(2.0); dst.setVal(-7.0);
+
+    near_surface_diagnostics::Sources sources;
+    sources.mixing_ratio_surface = &qsurf;
+    sources.mixing_ratio_star = &qstar;
+    sources.roughness_height = &z0;
+    sources.obukhov_length = &olen;
+    sources.source_mask = &source_mask;
+    sources.moist = true;
+    sources.has_lsm = true;
+    near_surface_diagnostics::fill(dst, -1, 0, 1, sources);
+    amrex::Gpu::streamSynchronize();
+
+    const amrex::Real zeta = amrex::Real(2.0) / olen.min(0);
+    ASSERT_LT(zeta, amrex::Real(0.0));
+    const amrex::Real factor = reference_most_factor(2.0, 0.1, -100.0);
     const amrex::Real expected = 0.010 + 0.001 / KAPPA * factor;
     EXPECT_NEAR(dst.min(0), expected, diagnostic_test_tolerance(expected));
     EXPECT_EQ(dst.min(1), 3.0);

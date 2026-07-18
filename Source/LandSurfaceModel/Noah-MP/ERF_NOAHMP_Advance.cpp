@@ -287,31 +287,29 @@ NOAHMP::read_results (const MFIter& mfi,
         // every physical output is valid. tau13/tau23 are nodal in xz/yz;
         // the 2D MFs carry 1 ghost cell for averaging.
         const Real hfx_lsm = noah_output_arr(ii,jj,0,NoahmpOutputComp::hfx);
-        const bool noah_cell_processed = noahmp_result_policy::result_is_valid(hfx_lsm);
-        if (noah_cell_processed) {
-            // Noah-MP returns HFX,LH [W/m2] and TAU [N/m2] (rho included); divide by
-            // rho for the kinematic MOST form ERF stores. Exner factor on t_flux is
-            // omitted to match WRF (<~1% error near surface, ~6-7% at p~800 hPa).
-            Real rho_l  = CONS(ii,jj,k,Rho_comp);
-            t_flux_arr(i,j,k) = hfx_lsm/(rho_l*Cp_d_d);
-            q_flux_arr(i,j,k) = noah_output_arr(ii,jj,0,NoahmpOutputComp::lh)/(rho_l*L_v_d);
-            tau13_arr(i,j,k)  = noah_output_arr(ii,jj,0,NoahmpOutputComp::tau_ew)/rho_l;
-            tau23_arr(i,j,k)  = noah_output_arr(ii,jj,0,NoahmpOutputComp::tau_ns)/rho_l;
-        } else {
-            t_flux_arr(i,j,k) = lsm_undefined_d;
-            q_flux_arr(i,j,k) = lsm_undefined_d;
-            tau13_arr(i,j,k)  = lsm_undefined_d;
-            tau23_arr(i,j,k)  = lsm_undefined_d;
-        }
+        const noahmp_result_policy::CellPolicy cell_policy(hfx_lsm);
+        // Noah-MP returns HFX,LH [W/m2] and TAU [N/m2] (rho included); divide by
+        // rho for the kinematic MOST form ERF stores. Exner factor on t_flux is
+        // omitted to match WRF (<~1% error near surface, ~6-7% at p~800 hPa).
+        const Real rho_l = CONS(ii,jj,k,Rho_comp);
+        const auto fluxes = cell_policy.select_fluxes(
+            noah_output_arr(ii,jj,0,NoahmpOutputComp::lh),
+            noah_output_arr(ii,jj,0,NoahmpOutputComp::tau_ew),
+            noah_output_arr(ii,jj,0,NoahmpOutputComp::tau_ns),
+            rho_l, Cp_d_d, L_v_d, lsm_undefined_d);
+        t_flux_arr(i,j,k) = fluxes.temperature;
+        q_flux_arr(i,j,k) = fluxes.mixing_ratio;
+        tau13_arr(i,j,k)  = fluxes.tau_ew;
+        tau23_arr(i,j,k)  = fluxes.tau_ns;
 
         // Processed cells retain field-specific validity checks. Unprocessed
         // cells invalidate the complete provider result set.
-        if (noah_cell_processed) {
+        if (cell_policy.processed) {
 #define NOAHMP_COPY_RESULT(alias,lsm,out)                                      \
         {                                                                       \
             const Real value = noah_output_arr(ii,jj,0,NoahmpOutputComp::out);  \
-            alias(i,j,0) = noahmp_result_policy::select_result(                       \
-                noah_cell_processed, value, lsm_undefined_d, NoahmpOutputComp::out);  \
+            alias(i,j,0) = cell_policy.select(                                  \
+                value, lsm_undefined_d, NoahmpOutputComp::out);                \
         }
         NOAHMP_RESULT_FIELDS(NOAHMP_COPY_RESULT)
 #undef NOAHMP_COPY_RESULT
@@ -320,8 +318,7 @@ NOAHMP::read_results (const MFIter& mfi,
             SMSTOT_o(i,j,0) = lsm_undefined_d;
             for (int s(0); s < n_soil_fld; ++s) {
                 const Real value = noah_output_arr(ii,jj,0,soil_out_base + s);
-                soil_arr[s](i,j,0) = noahmp_result_policy::select_result(
-                    noah_cell_processed, value, lsm_undefined_d, -1);
+                soil_arr[s](i,j,0) = cell_policy.select(value, lsm_undefined_d, -1);
             }
         } else {
 #define NOAHMP_UNDEF_RESULT(alias,lsm,out) alias(i,j,0) = lsm_undefined_d;
