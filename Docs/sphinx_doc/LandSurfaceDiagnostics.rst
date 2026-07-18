@@ -39,7 +39,7 @@ The unified fields are:
      - kg kg\ :sup:`-1` dry air
    * - ``near_surface_diagnostic_source``
      - Numeric code identifying the source selected for the unified bundle
-     - 1
+     - categorical code
 
 ERF chooses one coherent source for the fields requested in a plotfile stream.
 It never combines a Noah-MP temperature with MOST humidity, or MOST
@@ -112,8 +112,12 @@ Source codes
 ------------
 
 ``near_surface_diagnostic_source`` uses the stable convention already used by
-``surface_diagnostic_source``. It is categorical and always available; missing
-is ``0`` rather than the continuous ``-999`` fill:
+``surface_diagnostic_source``. When selected and supported, it is categorical
+and every cell contains a code from ``0`` through ``6``; missing is ``0``
+rather than the continuous ``-999`` fill. Selecting provenance alongside a
+humidity-only request does not add a temperature prerequisite. A source-only
+request retains the temperature-path convention. The field is not advertised
+when neither Noah-MP nor SurfaceLayer can provide a diagnostic pathway:
 
 .. list-table::
    :header-rows: 1
@@ -124,16 +128,16 @@ is ``0`` rather than the continuous ``-999`` fill:
      - Meaning
    * - 0
      - ``missing``
-     - Neither native Noah-MP nor MOST produced a valid value
+     - No source satisfied the selected request
    * - 1
      - ``surface_layer_land``
      - MOST supplied a land value without a valid native LSM bundle
    * - 2
      - ``lsm_land``
-     - Native Noah-MP supplied the complete valid 2-m bundle
+     - Native Noah-MP supplied every component required by the selected field or fields
    * - 3
      - ``surface_layer_fallback``
-     - Noah-MP was selected, but its bundle was invalid and MOST supplied the value
+     - Noah-MP was selected, but components required by the selected field or fields were invalid or incomplete; MOST supplied the output
    * - 4
      - ``surface_layer_sea``
      - MOST supplied the value over water

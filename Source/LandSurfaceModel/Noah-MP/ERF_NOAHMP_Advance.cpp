@@ -13,38 +13,9 @@
 #include <ERF_NOAHMP.H>
 #include <ERF_Constants.H>
 #include <ERF_EOS.H>
+#include "ERF_NOAHMP_ResultPolicy.H"
 
 using namespace amrex;
-
-namespace
-{
-
-AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-bool noahmp_result_is_valid (Real value) noexcept
-{
-    // Noah-MP uses approximately -9999 for unprocessed cells. ERF also
-    // rejects nonfinite values before storing provider data.
-    return std::isfinite(value) && value > Real(-9990.0) &&
-           value < Real(0.5) * lsm_undefined;
-}
-
-AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-bool noahmp_result_is_valid_for_output (Real value, int output_comp) noexcept
-{
-    if (!noahmp_result_is_valid(value)) {
-        return false;
-    }
-    if (output_comp == NoahmpOutputComp::o_noahmp_q2m_veg ||
-        output_comp == NoahmpOutputComp::o_noahmp_q2m_bare) {
-        return value >= Real(0.0);
-    }
-    if (output_comp == NoahmpOutputComp::o_noahmp_fveg) {
-        return value >= Real(0.0) && value <= Real(1.0);
-    }
-    return true;
-}
-
-} // namespace
 
 // ---------------------------------------------------------------------------
 //  Fine-level interpolation (no per-level NetCDF land file)
@@ -316,7 +287,7 @@ NOAHMP::read_results (const MFIter& mfi,
         // every physical output is valid. tau13/tau23 are nodal in xz/yz;
         // the 2D MFs carry 1 ghost cell for averaging.
         const Real hfx_lsm = noah_output_arr(ii,jj,0,NoahmpOutputComp::hfx);
-        const bool noah_cell_processed = noahmp_result_is_valid(hfx_lsm);
+        const bool noah_cell_processed = noahmp_result_policy::result_is_valid(hfx_lsm);
         if (noah_cell_processed) {
             // Noah-MP returns HFX,LH [W/m2] and TAU [N/m2] (rho included); divide by
             // rho for the kinematic MOST form ERF stores. Exner factor on t_flux is
@@ -339,8 +310,8 @@ NOAHMP::read_results (const MFIter& mfi,
 #define NOAHMP_COPY_RESULT(alias,lsm,out)                                      \
         {                                                                       \
             const Real value = noah_output_arr(ii,jj,0,NoahmpOutputComp::out);  \
-            alias(i,j,0) = noahmp_result_is_valid_for_output(                         \
-                value, NoahmpOutputComp::out) ? value : lsm_undefined_d;              \
+            alias(i,j,0) = noahmp_result_policy::select_result(                       \
+                noah_cell_processed, value, lsm_undefined_d, NoahmpOutputComp::out);  \
         }
         NOAHMP_RESULT_FIELDS(NOAHMP_COPY_RESULT)
 #undef NOAHMP_COPY_RESULT
@@ -349,7 +320,8 @@ NOAHMP::read_results (const MFIter& mfi,
             SMSTOT_o(i,j,0) = lsm_undefined_d;
             for (int s(0); s < n_soil_fld; ++s) {
                 const Real value = noah_output_arr(ii,jj,0,soil_out_base + s);
-                soil_arr[s](i,j,0) = noahmp_result_is_valid(value) ? value : lsm_undefined_d;
+                soil_arr[s](i,j,0) = noahmp_result_policy::select_result(
+                    noah_cell_processed, value, lsm_undefined_d, -1);
             }
         } else {
 #define NOAHMP_UNDEF_RESULT(alias,lsm,out) alias(i,j,0) = lsm_undefined_d;

@@ -116,35 +116,6 @@ NativeAggregate aggregate_native_bundle (const NativeBundle& bundle) noexcept
     };
 }
 
-// Evaluate ERF's integrated scalar profile without changing the production
-// surface-layer state. The inputs use theta and mixing-ratio scales.
-AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-bool evaluate_most_profile (const MostState& state,
-                            amrex::Real height,
-                            MostProfile& profile) noexcept
-{
-    if (!valid_real(state.theta_surface) || !valid_real(state.theta_star) ||
-        !valid_real(state.mixing_ratio_surface) || !valid_real(state.mixing_ratio_star) ||
-        !valid_real(state.roughness_height) || !valid_real(state.obukhov_length) ||
-        state.roughness_height <= amrex::Real(0.0) ||
-        height <= state.roughness_height || state.obukhov_length == amrex::Real(0.0)) {
-        return false;
-    }
-
-    const similarity_funs sfuns;
-    const amrex::Real zeta = height / state.obukhov_length;
-    const amrex::Real profile_factor =
-        std::log(height / state.roughness_height) - sfuns.calc_psi_h(zeta);
-    profile.potential_temperature = state.theta_surface +
-        state.theta_star / KAPPA * profile_factor;
-    profile.mixing_ratio = state.mixing_ratio_surface +
-        state.mixing_ratio_star / KAPPA * profile_factor;
-    return valid_real(profile.potential_temperature) &&
-           valid_real(profile.mixing_ratio) &&
-           profile.potential_temperature > amrex::Real(0.0) &&
-           profile.mixing_ratio >= amrex::Real(0.0);
-}
-
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 bool evaluate_most_factor (const MostState& state,
                            amrex::Real height,
@@ -161,6 +132,33 @@ bool evaluate_most_factor (const MostState& state,
     factor = std::log(height / state.roughness_height) -
              sfuns.calc_psi_h(height / state.obukhov_length);
     return valid_real(factor);
+}
+
+// Evaluate ERF's integrated scalar profile without changing the production
+// surface-layer state. The inputs use theta and mixing-ratio scales.
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+bool evaluate_most_profile (const MostState& state,
+                            amrex::Real height,
+                            MostProfile& profile) noexcept
+{
+    if (!valid_real(state.theta_surface) || !valid_real(state.theta_star) ||
+        !valid_real(state.mixing_ratio_surface) || !valid_real(state.mixing_ratio_star)) {
+        return false;
+    }
+
+    amrex::Real profile_factor = amrex::Real(0.0);
+    if (!evaluate_most_factor(state, height, profile_factor)) {
+        return false;
+    }
+
+    profile.potential_temperature = state.theta_surface +
+        state.theta_star / KAPPA * profile_factor;
+    profile.mixing_ratio = state.mixing_ratio_surface +
+        state.mixing_ratio_star / KAPPA * profile_factor;
+    return valid_real(profile.potential_temperature) &&
+           valid_real(profile.mixing_ratio) &&
+           profile.potential_temperature > amrex::Real(0.0) &&
+           profile.mixing_ratio >= amrex::Real(0.0);
 }
 
 struct Sources
@@ -189,8 +187,9 @@ struct Sources
 };
 
 // Fill any requested unified 2-m components. A component index below zero
-// means that the caller did not select that field. The same source code is
-// written for temperature and humidity; dry runs retain a meaningful
+// means that the caller did not select that field. A source-only request uses
+// the temperature path; provenance paired with humidity describes humidity
+// without adding a temperature prerequisite. Dry runs retain a meaningful
 // temperature source while humidity remains unavailable.
 void fill (amrex::MultiFab& dst,
            int temperature_comp,

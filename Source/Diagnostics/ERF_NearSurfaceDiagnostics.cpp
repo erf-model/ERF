@@ -71,9 +71,12 @@ void fill (MultiFab& dst,
         const bool request_temperature = temperature_comp >= 0;
         const bool request_mixing_ratio = mixing_ratio_comp >= 0;
         const bool request_source = source_comp >= 0;
-        // Provenance follows the temperature path, including source-only
-        // output. A dry humidity request remains unavailable.
-        const bool need_temperature = request_temperature || request_source;
+        // Provenance follows the temperature path only for a source-only
+        // request. When paired with humidity, it describes the humidity
+        // source without adding an unrequested temperature prerequisite.
+        const bool source_only = request_source && !request_temperature &&
+                                 !request_mixing_ratio;
+        const bool need_temperature = request_temperature || source_only;
         const bool need_mixing_ratio = request_mixing_ratio;
         const bool have_native_temperature = sources.native_temperature_vegetated &&
                                               sources.native_temperature_bare &&
