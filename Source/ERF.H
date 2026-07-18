@@ -59,6 +59,9 @@
 #include "ERF_EulerianMicrophysics.H"
 #include "ERF_LagrangianMicrophysics.H"
 #include "ERF_LandSurface.H"
+#ifdef ERF_ENABLE_FIRE
+#include "ERF_Fire.H"
+#endif
 
 #ifdef ERF_USE_WINDFARM
 #include "ERF_WindFarm.H"
@@ -748,6 +751,9 @@ private:
     // Initialize the microphysics object
     void initializeMicrophysics (const int&);
 
+    // Initialize the fire model object
+    void initializeFire (const int&);
+
 #ifdef ERF_USE_WINDFARM
     // Initialize the windfarm object
     void initializeWindFarm (const int&);
@@ -991,6 +997,7 @@ private:
     amrex::Vector<std::string> lsm_flux_name;                // (ncomp) -- e.g., hfx3, q1fx3, tau13, tau23
     amrex::Vector<amrex::Vector<amrex::MultiFab*>> lsm_flux; // (lev,ncomp) Fluxes from LSM needed by DYCORE
 
+
     amrex::Vector<std::unique_ptr<IRadiation>> rad; // Radiation model at each level
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> qheating_rates;  // radiation heating rate source terms (SW, LW) (DYCORE)
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> rad_fluxes;      // radiation fluxes (SW up/dn, LW up/dn) (OUTPUT ONLY)
@@ -1138,6 +1145,10 @@ private:
     static double last_plot2d_file_time_1;
     static double last_plot2d_file_time_2;
     static double last_check_file_time;
+
+#ifdef ERF_ENABLE_FIRE
+    static amrex::Real last_fire_plot_time;
+#endif
 
     amrex::Vector<int> last_subvol_step;
     amrex::Vector<double> last_subvol_time;
@@ -1469,6 +1480,16 @@ private:
     std::unique_ptr<ReadBndryPlanes>  m_r2d  = nullptr;
     std::unique_ptr<SurfaceLayer>     m_SurfaceLayer = nullptr;
     amrex::Vector<std::unique_ptr<ForestDrag>> m_forest_drag;
+
+#ifdef ERF_ENABLE_FIRE
+    std::unique_ptr<FireLayer>        m_fire_layer = nullptr;
+    FireParams                        m_fire_params;
+    std::string m_fire_plot_file {"plt_fire_"};
+    int         m_fire_plot_int  = -1;
+    amrex::Real m_fire_plot_per  = -1.0;
+    void ReadCheckpointFileFire (); 
+#endif
+
 
     //
     // Holds info for dynamically generated tagging criteria

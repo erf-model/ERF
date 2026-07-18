@@ -163,6 +163,7 @@ option(ERF_ENABLE_NOAHMP "Enable Noah-MP" OFF)
 
 #Other parameterizations
 option(ERF_ENABLE_WINDFARM "Enable wind farm parameterizations" OFF)
+option(ERF_ENABLE_FIRE "Enable wildfire spread module" ON)
 option(ERF_ENABLE_WSM6_FORT "Enable WSM6 Fortran bridge calls" OFF)
 
 if(ERF_ENABLE_WSM6_FORT AND NOT ERF_PRECISION STREQUAL "DOUBLE")

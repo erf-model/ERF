@@ -2243,6 +2243,132 @@ List of Parameters
 |                          | output                       |                     |         |
 +--------------------------+------------------------------+---------------------+---------+
 
+Fire Model
+==========
+
+The fire model simulates wildfire propagation using the Rothermel fire spread model combined with the FARSITE elliptical fire expansion algorithm. Fire front tracking uses Lagrangian perimeter propagation with cumulative arrival-time field for burned area representation. Additional details are available in :ref:`sec:Fire`.
+
+Basic Configuration
+-------------------
+
++---------------------------+-----------------------------------+---------------------+----------+
+| Parameter                 | Definition                        | Acceptable Values   | Default  |
++===========================+===================================+=====================+==========+
+| **erf.fire.enable**       | Enable/disable fire model         | true / false        | false    |
++---------------------------+-----------------------------------+---------------------+----------+
+| **erf.fire.grid_ratio**   | Fire grid refinement factor       | Integer > 0         | 5        |
++---------------------------+-----------------------------------+---------------------+----------+
+| **erf.fire.fuel_model_id**| Anderson FBFM13 fuel model        | Integer 1-13        | 1        |
++---------------------------+-----------------------------------+---------------------+----------+
+| **erf.fire.ignition_x**   | Ignition center x-coordinate [m]  | Real                | 0.0      |
++---------------------------+-----------------------------------+---------------------+----------+
+| **erf.fire.ignition_y**   | Ignition center y-coordinate [m]  | Real                | 0.0      |
++---------------------------+-----------------------------------+---------------------+----------+
+| **erf.fire.ignition_r**   | Initial fire radius [m]           | Real > 0            | 20.0     |
++---------------------------+-----------------------------------+---------------------+----------+
+| **erf.fire.ignition_time**| Ignition time [s]                 | Real >= 0           | 0.0      |
++---------------------------+-----------------------------------+---------------------+----------+
+
+Fuel and Moisture
+-----------------
+
++----------------------------+-----------------------------------+---------------------+----------+
+| Parameter                  | Definition                        | Acceptable Values   | Default  |
++============================+===================================+=====================+==========+
+| **erf.fire.moisture_1hr**  | 1-hour fuel moisture [fraction]   | Real 0-1            | 0.08     |
++----------------------------+-----------------------------------+---------------------+----------+
+| **erf.fire.moisture_10hr** | 10-hour fuel moisture [fraction]  | Real 0-1            | 0.08     |
++----------------------------+-----------------------------------+---------------------+----------+
+| **erf.fire.moisture_100hr**| 100-hour fuel moisture [fraction] | Real 0-1            | 0.10     |
++----------------------------+-----------------------------------+---------------------+----------+
+
+Wind Parameters
+---------------
+
++---------------------------+-----------------------------------+---------------------+----------+
+| Parameter                 | Definition                        | Acceptable Values   | Default  |
++===========================+===================================+=====================+==========+
+| **erf.fire.wind_ref_ht**  | Reference height for wind [m]     | Real > 0            | 6.1      |
++---------------------------+-----------------------------------+---------------------+----------+
+| **erf.fire.use_waf**      | Apply Wind Adjustment Factor      | true / false        | true     |
++---------------------------+-----------------------------------+---------------------+----------+
+| **erf.fire.waf_formula**  | WAF formula selection             | "andrews",          | "andrews"|
+|                           |                                   | "behaviorplus"      |          |
++---------------------------+-----------------------------------+---------------------+----------+
+
+Terrain Corrections
+-------------------
+
++---------------------------+-----------------------------------+---------------------+----------+
+| Parameter                 | Definition                        | Acceptable Values   | Default  |
++===========================+===================================+=====================+==========+
+| **erf.fire.use_terrain_wind** | Apply FARSITE terrain            | true / false        | true     |
+|                               | corrections                   |                     |          |
++---------------------------+-----------------------------------+---------------------+----------+
+| **erf.fire.k_ridge**      | Ridge speed-up factor             | Real > 0            | 1.5      |
++---------------------------+-----------------------------------+---------------------+----------+
+| **erf.fire.k_shelter**    | Sheltered wind reduction factor   | Real > 0            | 0.6      |
++---------------------------+-----------------------------------+---------------------+----------+
+| **erf.fire.k_valley**     | Valley channeling factor          | Real > 0            | 0.8      |
++---------------------------+-----------------------------------+---------------------+----------+
+| **erf.fire.k_deflect**    | Wind deflection factor            | Real > 0            | 0.3      |
++---------------------------+-----------------------------------+---------------------+----------+
+
+FARSITE Algorithm Parameters
+-----------------------------
+
++--------------------------------------+-----------------------------------+---------------------+----------+
+| Parameter                            | Definition                        | Acceptable Values   | Default  |
++======================================+===================================+=====================+==========+
+| **erf.fire.farsite.phi_threshold**   | Level-set detection threshold     | Real                | 0.0      |
++--------------------------------------+-----------------------------------+---------------------+----------+
+| **erf.fire.farsite.use_anderson_lw** | Use Anderson L/W ratio            | 0 / 1               | 1        |
++--------------------------------------+-----------------------------------+---------------------+----------+
+| **erf.fire.farsite.coeff_a**         | Richards head fire coefficient    | Real > 0            | 0.5      |
++--------------------------------------+-----------------------------------+---------------------+----------+
+| **erf.fire.farsite.coeff_b**         | Richards flank fire coefficient   | Real > 0            | 0.25     |
++--------------------------------------+-----------------------------------+---------------------+----------+
+| **erf.fire.farsite.coeff_c**         | Richards backing fire coefficient | Real > 0            | 0.1      |
++--------------------------------------+-----------------------------------+---------------------+----------+
+| **erf.fire.farsite.gaussian_sigma**  | Phi stamping radius [m]           | Real                | -1.0     |
+|                                      | (-1: single-cell,                 |                     |          |
+|                                      |  0: auto, >0: fixed)              |                     |          |
++--------------------------------------+-----------------------------------+---------------------+----------+
+| **erf.fire.farsite.cfl_fire**        | Fire CFL subcycle parameter       | Real > 0            | 0.5      |
++--------------------------------------+-----------------------------------+---------------------+----------+
+
+Debugging
+---------
+
++---------------------------+-----------------------------------+---------------------+----------+
+| Parameter                 | Definition                        | Acceptable Values   | Default  |
++===========================+===================================+=====================+==========+
+| **erf.fire.fire_debug**   | Enable debug output               | true / false        | false    |
++---------------------------+-----------------------------------+---------------------+----------+
+
+CSV Output
+----------
+
++--------------------------------+-----------------------------------+---------------------+----------+
+| Parameter                      | Definition                        | Acceptable Values   | Default  |
++================================+===================================+=====================+==========+
+| **erf.fire.write_fire_stats_csv** | Write burned area and perimeter  | true / false        | true     |
+|                                |  statistics to CSV file           |                     |          |
++--------------------------------+-----------------------------------+---------------------+----------+
+| **erf.fire.fire_stats_csv_file**  | CSV output filename               | String (path)       |"fire_    |
+|                                |                                   |                     |stats.csv"|
++--------------------------------+-----------------------------------+---------------------+----------+
+
+The fire statistics CSV file contains time series data including:
+   - **step**: Simulation step number
+   - **time_s**: Simulation time [s]
+   - **burned_area_ha**: Cumulative burned area [hectares]
+   - **perimeter_km**: Active fire perimeter [km]
+   - **active_front_cells**: Number of cells at fire front
+   - **head_ros_ms**: Maximum rate of spread (head fire) [m/s]
+   - **major_axis_m**: Fire ellipse major axis [m]
+   - **minor_axis_m**: Fire ellipse minor axis [m]
+
 Ensemble Initialization
 =======================
 

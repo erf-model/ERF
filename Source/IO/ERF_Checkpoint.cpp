@@ -454,6 +454,31 @@ ERF::WriteCheckpointFile () const
 #endif
     } // for lev
 
+#ifdef ERF_ENABLE_FIRE
+    if (m_fire_layer) {
+        if (const amrex::MultiFab* phi = m_fire_layer->get_levelset()) {
+            amrex::Print() << "Writing fire level-set (phi) to checkpoint" << std::endl;
+            VisMF::Write(*phi, MultiFabFileFullPrefix(0, checkpointname, "Level_", "FirePhi"));
+        }
+        // Save fire arrival time (needed to restore burned interior on restart)
+        if (const amrex::MultiFab* at = m_fire_layer->get_arrival_time()) {
+            amrex::Print() << "Writing fire arrival time to checkpoint" << std::endl;
+            VisMF::Write(*at, MultiFabFileFullPrefix(0, checkpointname, "Level_", "FireArrivalTime"));
+        }
+        if (const amrex::MultiFab* ros = m_fire_layer->get_ros()) {
+            amrex::Print() << "Writing fire ROS to checkpoint" << std::endl;
+            VisMF::Write(*ros, MultiFabFileFullPrefix(0, checkpointname, "Level_", "FireROS"));
+        }
+        if (const amrex::MultiFab* fuel = m_fire_layer->get_fuel_load()) {
+            amrex::Print() << "Writing fire fuel load to checkpoint" << std::endl;
+            VisMF::Write(*fuel, MultiFabFileFullPrefix(0, checkpointname, "Level_", "FireFuelLoad"));
+        }
+        if (amrex::ParallelDescriptor::IOProcessor()) {
+            amrex::Print() << "[FIRE] Fire state written to checkpoint " << checkpointname << "\n";
+        }
+    }
+#endif
+
 #ifdef ERF_USE_PARTICLES
    particleData.Checkpoint(checkpointname);
 #endif
@@ -1223,6 +1248,30 @@ ERF::ReadCheckpointFile ()
         }
     }
 #endif
+
+#ifdef ERF_ENABLE_FIRE
+    if (m_fire_layer) {
+        std::string FirePhiFile(restart_chkfile + "/Level_0/FirePhi_H");
+        if (amrex::FileExists(FirePhiFile)) {
+            amrex::Print() << "Reading fire level-set from checkpoint" << std::endl;
+            amrex::MultiFab tmp_phi;
+            VisMF::Read(tmp_phi, MultiFabFileFullPrefix(0, restart_chkfile, "Level_", "FirePhi"));
+            m_fire_layer->get_levelset_mut()->ParallelCopy(tmp_phi, 0, 0, 1,
+                                                           tmp_phi.nGrowVect(),
+                                                           m_fire_layer->get_levelset_mut()->nGrowVect());
+        }
+        // Restore fire arrival time (needed to restore burned interior on restart)
+        std::string ArrivalTimeFile(restart_chkfile + "/Level_0/FireArrivalTime_H");
+        if (amrex::FileExists(ArrivalTimeFile)) {
+            amrex::Print() << "Reading fire arrival time from checkpoint" << std::endl;
+            amrex::MultiFab tmp_at;
+            VisMF::Read(tmp_at, MultiFabFileFullPrefix(0, restart_chkfile, "Level_", "FireArrivalTime"));
+            m_fire_layer->get_arrival_time_mut()->ParallelCopy(tmp_at, 0, 0, 1,
+                                                               tmp_at.nGrowVect(),
+                                                               m_fire_layer->get_arrival_time_mut()->nGrowVect());
+        }
+    }
+#endif
 }
 
 /**
@@ -1310,4 +1359,34 @@ ERF::ReadCheckpointFileSurfaceLayer ()
         // Z0
         read_most_var("Z0", m_SurfaceLayer->get_z0(lev));
     }
+}
+
+/**
+ * ERF function for reading fire state from a checkpoint file during restart.
+ *
+ * This is called after FireLayer::initialize() to restore the fire simulation
+ * state (level-set, arrival time, and fuel load).
+ */
+void
+ERF::ReadCheckpointFileFire ()
+{
+    if (!m_fire_layer) { return; }
+
+    std::string FirePhiFile(restart_chkfile + "/Level_0/FirePhi_H");
+    if (!amrex::FileExists(FirePhiFile)) {
+        amrex::Print() << "[FIRE] No fire state found in checkpoint; using ignition defaults.\n";
+        return;
+    }
+
+    amrex::Print() << "[FIRE] Restoring fire state from checkpoint " << restart_chkfile << "\n";
+
+    VisMF::Read(*m_fire_layer->get_levelset_mut(),
+        amrex::MultiFabFileFullPrefix(0, restart_chkfile, "Level_", "FirePhi"));
+    m_fire_layer->get_levelset_mut()->FillBoundary(m_fire_layer->get_fire_geom().periodicity());
+
+    VisMF::Read(*m_fire_layer->get_arrival_time_mut(),
+        amrex::MultiFabFileFullPrefix(0, restart_chkfile, "Level_", "FireArrivalTime"));
+
+    VisMF::Read(*m_fire_layer->get_fuel_load_mut(),
+        amrex::MultiFabFileFullPrefix(0, restart_chkfile, "Level_", "FireFuelLoad"));
 }

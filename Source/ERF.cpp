@@ -25,6 +25,10 @@
 #include "ERF_ReadFromWRFBdy.H"
 #endif
 
+#ifdef ERF_ENABLE_FIRE
+#include "ERF_FirePlotfile.H"
+#endif
+
 using namespace amrex;
 
 double ERF::startCPUTime        = 0.0;
@@ -89,6 +93,10 @@ double ERF::last_plot2d_file_time_1 = 0.0;
 double ERF::last_plot2d_file_time_2 = 0.0;
 double ERF::last_check_file_time    = 0.0;
 
+#ifdef ERF_ENABLE_FIRE
+Real ERF::last_fire_plot_time = -one;
+#endif
+
 bool ERF::plot_file_on_restart = true;
 
 // Native AMReX vs NetCDF
@@ -142,6 +150,16 @@ ERF::Evolve ()
     // stop_time is total time
     // Tracked in double to avoid float32 drift over many timesteps in single-precision builds.
     double cur_time = static_cast<double>(t_new[0]);
+
+    // Write fire output at time 0 (initial condition)
+#ifdef ERF_ENABLE_FIRE
+    if (m_fire_layer && istep[0] == 0 && (m_fire_plot_int > 0 || m_fire_plot_per > zero)) {
+        WriteFirePlotfile(m_fire_plot_file, *m_fire_layer, cur_time, istep[0]);
+        if (m_fire_params.fire_debug) {
+            amrex::Print() << "[FIRE] Initial fire output written at time 0" << std::endl;
+        }
+    }
+#endif
 
     // Take one coarse timestep by calling timeStep -- which recursively calls timeStep
     //      for finer levels (with or without subcycling)
@@ -256,6 +274,15 @@ ERF::WriteAtIntermediateTime(int step, double cur_time)
         Write2DPlotFile(2,plotfile2d_type_2,plot2d_var_names_2);
         if (m_plot2d_per_2 > zero) {last_plot2d_file_time_2 += m_plot2d_per_2;}
     }
+
+#ifdef ERF_ENABLE_FIRE
+    if (m_fire_layer && (m_fire_plot_int > 0 || m_fire_plot_per > zero)) {
+        if (writeNow(cur_time, step+1, m_fire_plot_int, m_fire_plot_per, dt[0], last_fire_plot_time)) {
+            WriteFirePlotfile(m_fire_plot_file, *m_fire_layer, cur_time, step+1);
+            if (m_fire_plot_per > zero) {last_fire_plot_time += m_fire_plot_per;}
+        }
+    }
+#endif
 
     for (int i = 0; i < m_subvol_int.size(); i++) {
         if (writeNow(cur_time, step+1, m_subvol_int[i], m_subvol_per[i], dt[0], last_subvol_time[i])) {
@@ -1197,6 +1224,26 @@ ERF::InitData_post ()
                                               z_phys_nd[lev],
                                               walldist[lev]);
 
+                // Initialize fire layer after surface layer is fully initialized (lev=0)
+#ifdef ERF_ENABLE_FIRE
+                if (lev == 0 && m_fire_layer && z_phys_nd[0]) {
+                    m_fire_layer->initialize(*this, m_SurfaceLayer.get(), *z_phys_nd[0], m_fire_params);
+                    
+                    // Verify that at least one cell was marked during fire initialization
+                    if (const amrex::MultiFab* phi = m_fire_layer->get_levelset()) {
+                        Real phi_min = phi->min(0);
+                        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(phi_min < 0.0_rt,
+                            "[FIRE] Fire initialization failed: no cells were marked as burned. "
+                            "Check ignition parameters (ignition_x, ignition_y, ignition_r).");
+                    }
+                    
+                    // Restore fire state from checkpoint if restarting
+                    if (restart_chkfile != "") {
+                        ReadCheckpointFileFire();
+                    }
+                }
+#endif
+
                 // Initialize tke(x,y,z) as a function of u*(x,y)
                 if (solverChoice.turbChoice[lev].init_tke_from_ustar) {
                     Real qkefac = one;
@@ -1495,6 +1542,18 @@ ERF::InitData_post ()
             WriteEBSurface(grids[finest_level],dmap[finest_level],Geom(finest_level),&EBFactory(finest_level));
         }
     }
+
+/*#ifdef ERF_ENABLE_FIRE
+    // Initialize fire module
+    m_fire_params = FireParams();
+    if (m_fire_params.enable) {
+        m_fire_layer = std::make_unique<FireLayer>();
+        m_fire_layer->initialize(*this,
+                         m_SurfaceLayer.get(),
+                         *z_phys_nd[0],
+                         m_fire_params);
+    }
+#endif*/ 
 }
 
 void
@@ -1719,6 +1778,22 @@ ERF::initializeMicrophysics (const int& a_nlevsmax /*!< number of AMR levels */)
 
     qmoist.resize(a_nlevsmax);
     return;
+}
+
+void
+ERF::initializeFire (const int& /*a_nlevsmax*/ /*!< number of AMR levels */)
+{
+#ifdef ERF_ENABLE_FIRE
+    if (m_fire_params.enable) {
+        m_fire_layer = std::make_unique<FireLayer>();
+        amrex::Print() << "[FIRE] Fire module enabled (grid_ratio="
+                       << m_fire_params.grid_ratio << ")\n";
+        if (m_fire_params.fire_debug) {
+            amrex::Print() << "[FIRE DEBUG] Fire debug mode enabled. Coupling type: "
+                           << m_fire_params.coupling_type << std::endl;
+        }
+    }
+#endif
 }
 
 #ifdef ERF_USE_WINDFARM
@@ -2169,6 +2244,12 @@ ERF::ReadParameters ()
         pp.query("plot2d_int_2" , m_plot2d_int_2);
         pp.query("plot2d_per_1",  m_plot2d_per_1);
         pp.query("plot2d_per_2",  m_plot2d_per_2);
+
+#ifdef ERF_ENABLE_FIRE
+        pp.query("fire_plot_file", m_fire_plot_file);
+        pp.query("fire_plot_int",  m_fire_plot_int);
+        pp.query("fire_plot_per",  m_fire_plot_per);
+#endif
 
         pp.query("subvol_file",   subvol_file);
 

@@ -188,26 +188,32 @@ public:
           pp, "enable_mrf_unbounded_vpert", enable_mrf_unbounded_vpert, lev, max_level);
         query_one_or_per_level(
           pp, "pbl_mrf_use_zero_ri_extent", pbl_mrf_use_zero_ri_extent, lev, max_level);
+        query_one_or_per_level(
+          pp, "pbl_mrf_fire_thermal_excess", mrf_fire_thermal_excess, lev, max_level);
+        query_one_or_per_level(
+          pp, "mrf_fire_q_threshold", mrf_fire_q_threshold, lev, max_level);
+        query_one_or_per_level(
+          pp, "mrf_fire_t_excess_cap", mrf_fire_t_excess_cap, lev, max_level);
       } else if (pbl_type == PBLType::SHOC) {
 #ifndef ERF_USE_SHOC
-          amrex::Abort("You set use_shoc to true but didn't build with SHOC; you must rebuild the executable");
-      }
+           amrex::Abort("You set use_shoc to true but didn't build with SHOC; you must rebuild the executable");
+       }
 #endif
-      if (uses_eamxx_shoc()) {
+       if (uses_eamxx_shoc()) {
 #ifndef ERF_USE_EAMXX_SHOC
-          amrex::Abort("PBLType::EAMXX_SHOC requested, but ERF was not built with ERF_ENABLE_EAMXX_SHOC=ON");
+           amrex::Abort("PBLType::EAMXX_SHOC requested, but ERF was not built with ERF_ENABLE_EAMXX_SHOC=ON");
 #endif
-      }
+       }
 
-      if (pbl_requires_surface_layer()) {
-          std::string zlo_bc = "none";
-          amrex::ParmParse pp_bc("zlo");
-          pp_bc.get("type",zlo_bc);
-          if (amrex::toLower(zlo_bc) != "surface_layer") {
-               amrex::Abort("You must use the surface_layer BC at zlo with the selected PBL.");
-          }
-      }
-    }
+       if (pbl_requires_surface_layer()) {
+           std::string zlo_bc = "none";
+           amrex::ParmParse pp_bc("zlo");
+           pp_bc.get("type",zlo_bc);
+           if (amrex::toLower(zlo_bc) != "surface_layer") {
+                amrex::Abort("You must use the surface_layer BC at zlo with the selected PBL.");
+           }
+       }
+     }
 
     // Flags for QKE/TKE equation
     if (pbl_type == PBLType::MYJ || pbl_type == PBLType::MYNN25 || pbl_type == PBLType::MYNNEDMF) {
@@ -441,6 +447,12 @@ public:
                      << std::endl;
       amrex::Print() << "    pbl_mrf_use_zero_ri_extent : " << pbl_mrf_use_zero_ri_extent
                      << std::endl;
+      amrex::Print() << "    pbl_mrf_fire_thermal_excess : " << mrf_fire_thermal_excess
+                     << std::endl;
+      amrex::Print() << "    mrf_fire_q_threshold        : " << mrf_fire_q_threshold
+                     << std::endl;
+      amrex::Print() << "    mrf_fire_t_excess_cap       : " << mrf_fire_t_excess_cap
+                     << std::endl;
     }
   }
 
@@ -558,6 +570,7 @@ public:
     fourth; // Critical Bulk Richardson number of Land for stable conditions
   amrex::Real pbl_ysu_unst_Ribcr =
     zero; // Critical Bulk Richardson number for unstable conditions
+
   // Model coefficients - MRF
   amrex::Real pbl_mrf_coriolis_freq = amrex::Real(1.0e-4);
   amrex::Real pbl_mrf_Ribcr   = amrex::Real(0.5); // Critical Bulk Richardson number for MRF PBL model
@@ -569,6 +582,10 @@ public:
   bool pbl_mrf_highres_bounds = false; // if true, apply high-resolution grid-dependent diffusivity bounds instead of global forecast bounds
   bool enable_mrf_unbounded_vpert = false; // if true, does not limit VPERT to GAMCRT
   bool pbl_mrf_use_zero_ri_extent = false; // if true, use Ri=0 (pbli_zero_arr) for K-profile extent; default false uses Ri=0.5 corrector (pbli_arr) for WRF compatibility
+  bool mrf_fire_thermal_excess = false; ///< if true, add fire surface flux to MRF thermal excess
+  amrex::Real mrf_fire_q_threshold = amrex::Real(50.0); ///< minimum fire heat flux [W/m2] to activate correction
+  amrex::Real mrf_fire_t_excess_cap = amrex::Real(50.0); ///< maximum thermal excess [K] when fire is active
+
   // MYNN2.5 PBL model
   // TKE/QKE stuff
   bool advect_tke = true; // if MYNN2.5 PBL is used default is turb transport in
