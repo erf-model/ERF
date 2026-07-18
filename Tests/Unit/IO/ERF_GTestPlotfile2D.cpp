@@ -138,6 +138,18 @@ void set_component_value_at_k (amrex::MultiFab& mf, int comp, int k_level, amrex
     amrex::Gpu::streamSynchronize();
 }
 
+void set_land_mask_by_x (amrex::iMultiFab& land)
+{
+    for (amrex::MFIter mfi(land, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+        const amrex::Box& bx = mfi.tilebox();
+        const auto arr = land.array(mfi);
+        amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+            arr(i, j, k, 0) = (i == 0) ? 0 : 1;
+        });
+    }
+    amrex::Gpu::streamSynchronize();
+}
+
 void add_sampled_level_definition (const std::string& level_name,
                                    const std::string& coordinate,
                                    const std::vector<amrex::Real>& values,
@@ -753,14 +765,7 @@ TEST(NearSurfaceDiagnostics, MostFallbackPublishesMixedLandWaterSources)
     set_component_value_at_k(cons, Rho_comp, 0, 1.0);
     set_component_value_at_k(cons, RhoTheta_comp, 0, 300.0);
     set_component_value_at_k(cons, RhoQ1_comp, 0, 0.010);
-    for (amrex::MFIter mfi(land, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
-        const auto bx = mfi.tilebox();
-        const auto arr = land.array(mfi);
-        amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-            arr(i,j,k,0) = (i == 0) ? 0 : 1;
-        });
-    }
-    amrex::Gpu::streamSynchronize();
+    set_land_mask_by_x(land);
 
     near_surface_diagnostics::Sources sources;
     sources.native_temperature_vegetated = &tv;
