@@ -214,6 +214,7 @@ ERF::Evolve ()
 #ifdef ERF_ENABLE_FIRE
             if (m_fire_dust_coupling.enabled && m_fire_layer) {
                 m_fire_dust_coupling.fire_phi_mf = m_fire_layer->get_levelset();
+                m_fire_dust_coupling.geom_fire   = m_fire_layer->get_fire_geom();
                 m_fire_dust_coupling.apply_burned_area_to_crust(
                     *m_DustLayer->get_crust_index_mut(),
                     m_DustLayer->get_dust_geom());
@@ -1332,6 +1333,7 @@ ERF::InitData_post ()
                 pp.query("fire_dust_coupling",        m_fire_dust_coupling.enabled);
                 pp.query("fire_dust_crust_reduction", m_fire_dust_coupling.post_fire_crust_reduction);
                 m_fire_dust_coupling.fire_phi_mf = m_fire_layer->get_levelset();
+                m_fire_dust_coupling.geom_fire   = m_fire_layer->get_fire_geom();
             }
 #endif
             
