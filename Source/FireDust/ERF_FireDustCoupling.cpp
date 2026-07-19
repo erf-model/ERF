@@ -166,6 +166,14 @@ void FireDustCoupling::apply_fire_wind_to_dust_ustar(
                 ustar(i, j, k) = amrex::max(ustar(i, j, k), ustar_fire);
             });
     }
+
+    // Debug output — after all MPI collectives (LNG_MPI_SKILLS Rule B1)
+    amrex::Real ustar_max = dust_ustar_in.max(0);
+    amrex::Real wind_max  = fire_wind_scratch.max(0);
+    amrex::Print() << "[DUST DEBUG] Phase 2 fire-wind coupling:"
+                   << " fire_wind_max=" << wind_max << " m/s"
+                   << " ustar_max_after=" << ustar_max << " m/s"
+                   << " C=" << C_ratio << "\n";
 }
 
 #endif
