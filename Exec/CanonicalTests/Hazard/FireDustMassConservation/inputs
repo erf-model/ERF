@@ -11,48 +11,58 @@
 #   REQUIRED: must match when fire_dust_coupling=true.
 #   ignition_r = 200 m >= fire grid cell size (187.5 m at grid_ratio=2)
 #   marks ~4 burned cells at t=0. With crust_index=1.0 and
-#   crust_reduction=0.8, burned cells have crust=0.2 -> lower u*_t.
+#   crust_reduction=0.8, burned cells have crust->0 over time.
 #
 # Expected Results (verified step=100, t=50 s, dt=0.5 s):
 #
 #   Dynamics:
 #   - Simulation completes 100 steps without errors.
-#   - EddyDiff::Scalar_v_max grows over time as fire heats the BL:
-#     ~41 m^2/s at step 100 (vs ~13.6 m^2/s at step 20 in Interaction1).
-#   - PBLH_max ~ 535 m  |  u*_max ~ 1.080 m/s at step 100
+#   - Fixed dt = 0.5 s.
+#   - EddyDiff::Scalar_v_max = 41.0436419 m^2/s  (fire heating grows BL)
+#   - u*_max = 1.079892165 m/s  |  u_10m_max = 14.66152983 m/s
+#   - PBLH_max = 535.2122451 m
+#   - T_sfc_max = 300 K  (surface temp from MOST, fire heating in BL)
 #
 #   Fire (step 100):
-#   - Number of active fire cells: 4 (ignition_r=200 m, slow spread)
-#   - Q_atm_max ~ 841 W/m^2 (lagged, from previous step)
-#   - Q_max ~ 3362 W/m^2  |  I_B_max ~ 37.4 kW/m (fuel consumed)
-#   - T_flame_max ~ 652 K (higher due to fuel consumption)
-#   - Max ROS = 0.2160244347 m/s
+#   - 4 active fire cells  (ignition_r=200 m, slow spread)
+#   - phi_min=-1  phi_max=0
+#   - Q_atm_max = 840.8885242 W/m^2  (lagged, from previous step)
+#   - Q_max = 3361.617029 W/m^2  |  I_B_max = 37.35425503 kW/m
+#   - T_flame_max = 651.7021367 K
+#   - Max ROS = 0.2160244347 m/s  |  Max eff wind = 4.827585362 m/s
+#   - Surface temp range: 299.923 - 300.658 K  (fire heating over 50 s)
+#
+#   Phase 2 fire-wind coupling (step 100):
+#   - fire_wind_max = 4.820176387 m/s
+#   - ustar_max_after = 1.080589961 m/s  (MRF u* dominates)
+#   - C = 1
 #
 #   Dust Threshold (step 100):
-#   - All cells have crust=0 at step 100 (entire domain burned or reset).
-#   - u*_t uniform at 0.004741 m/s (USTAR_T_MIN=0.001, crust=0)
+#   - crust_min = 0  crust_max = 0  (entire domain reached crust=0)
+#   - u*_t uniform = 0.004740711511 m/s  (USTAR_T_MIN floor, crust=0)
 #
 #   Dust Emission (step 100):
-#   - emission_sum = 1.061849e-05 kg/s
-#   - emission_flux bin0 max = 4.148e-08 kg/m^2/s
-#   - F_dust_atm_max = 1.247e-07 kg/m^2/s
+#   - emission_sum = 1.061848919e-05 kg/s
+#   - emission_flux bin0 max = 4.147847339e-08 kg/m^2/s
+#   - F_dust_atm_max = 1.246764471e-07 kg/m^2/s
+#   - u*_in range: [1.079892165, 1.079892165] m/s (uniform)
 #
 #   Dust Concentrations (step 100):
-#   - conc_sfc_max = 331.1 ug/m^3  (accumulating over 50 s, no deposition)
-#   - PM10_max = 329.0 ug/m^3
-#   - RHO DUST grows monotonically (deposition_E0=0.0 so no removal)
+#   - conc_sfc_max = 331.126908 ug/m^3  (accumulating, no dry deposition)
+#   - PM10_max = 331.126908 ug/m^3
+#   - MSHA_TWA = 3.178733566e-04 mg/m^3  (growing monotonically)
 #
-#   Deposition:
-#   - dep_total = 7.815e-07 kg/m^2 (gravitational settling only, E0=0)
-#   - With deposition_E0=0.0 dry deposition is disabled; only Stokes
-#     settling contributes to dep_total accumulation.
+#   Deposition (step 100):
+#   - dep_total = 7.815415087e-07 kg/m^2  (Stokes settling only, E0=0)
+#   - deposition_E0=0.0: dry deposition disabled; only gravitational
+#     settling (v_d=0.004001745324 m/s at u*=1.080 m/s) contributes.
 #
-#   Mass Budget:
-#   - MASS = 1.013e+10  |  RHO THETA growing (fire heating)
+#   Mass Budget (step 100):
 #   - No NaNs, no negative concentrations.
+#   - RHO DUST grows monotonically over 100 steps (confirmed mass-conservative).
 #
 #   Performance:
-#   - Timestep wall time ~ 5.7e-03 s  |  Total ~ 0.611 s
+#   - Timestep wall time ~ 5.7e-03 s  |  Total ~ 0.598 s
 # ============================================================
 
 erf.prob_name = "ABL"
@@ -104,7 +114,7 @@ erf.dust.z0_dust = 0.01
 erf.dust.silt_fraction = 0.10
 erf.dust.threshold_A_coeff = 0.0123
 # crust_index = 1.0: start with fully crusted soil; burned cells will
-# be reduced to crust=0.2 by fire_dust_crust_reduction=0.8 each step.
+# be reduced to crust=0 over time by fire_dust_crust_reduction=0.8 each step.
 erf.dust.crust_index = 1.0
 erf.dust.alpha_crust = 0.5
 erf.dust.alpha_efflor = 0.3
@@ -152,5 +162,5 @@ erf.fire.coupling_type = "lagged"
 erf.dust.use_terrain_wind = false
 erf.dust.terrain_file = ""
 erf.fire_dust_coupling = true
-# crust_reduction = 0.8: burned cells drop from crust=1.0 -> 0.2
+# crust_reduction = 0.8: burned cells decay from crust=1.0 -> 0 over time
 erf.fire_dust_crust_reduction = 0.8
