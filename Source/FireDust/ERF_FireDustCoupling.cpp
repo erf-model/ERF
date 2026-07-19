@@ -59,6 +59,9 @@ void FireDustCoupling::apply_burned_area_to_crust(
 
     const amrex::Real reduction = post_fire_crust_reduction;
 
+    // Track stats for debug output
+    int n_burned_cells = 0;
+
     for (MFIter mfi(dust_crust_index, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
         const Box& bx = mfi.tilebox();
         auto crust = dust_crust_index.array(mfi);
@@ -84,9 +87,19 @@ void FireDustCoupling::apply_burned_area_to_crust(
             if (phi_host[jj * fnx + ii] < 0.0_rt) {
                 crust(i, j, k) *= (1.0_rt - reduction);
                 crust(i, j, k)  = amrex::max(crust(i, j, k), 0.0_rt);
+                n_burned_cells++;
             }
         });
     }
+
+    // Report debug info
+    amrex::ParallelDescriptor::ReduceIntSum(n_burned_cells);
+    amrex::Real crust_min = dust_crust_index.min(0);
+    amrex::Real crust_max = dust_crust_index.max(0);
+    amrex::Print() << "[DUST DEBUG] Fire-dust coupling: reduced crust in "
+                   << n_burned_cells << " cells, "
+                   << "crust_min=" << crust_min << ", crust_max=" << crust_max
+                   << ", reduction=" << reduction << "\n";
 }
 
 #endif
