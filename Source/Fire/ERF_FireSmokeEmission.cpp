@@ -26,6 +26,7 @@ void inject_smoke_from_fire(
     const auto& dx     = geom_atm.CellSizeArray();
     const auto& domain = geom_atm.Domain();
     const int   klo    = domain.smallEnd(2);
+    const int   khi    = domain.bigEnd(2);
 
     for (MFIter mfi(cc_source, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
         const Box& bx  = mfi.tilebox();
@@ -43,7 +44,7 @@ void inject_smoke_from_fire(
 
         ParallelFor(bx0, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
             // Cell height — use terrain-aware dz if available
-            Real dz_cell = (k < zcc.nz - 1)
+            Real dz_cell = (k < khi)
                 ? amrex::max(zcc(i,j,k+1) - zcc(i,j,k), dz * 0.1_rt)
                 : dz;
             // smoke_flux [kg/m2/s] = ef * Q [W/m2] / hoc [J/kg]
