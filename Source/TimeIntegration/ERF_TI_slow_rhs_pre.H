@@ -2,6 +2,7 @@
 
 #ifdef ERF_ENABLE_FIRE
 #include <ERF_FireLayer.H>
+#include <ERF_FireSmokeEmission.H>
 #endif
 
 /**
@@ -148,6 +149,24 @@
                 *zpc_to_use,
                 fine_geom,
                 has_moisture);
+        }
+
+        // *****************************************************************************
+        // Phase 4: Inject smoke tracer from fire heat flux AFTER make_sources
+        // and AFTER fire coupling. Smoke is proportional to fire heat flux.
+        // *****************************************************************************
+        if (level == 0 && m_fire_layer && m_fire_layer->get_params().smoke_enable &&
+            m_fire_layer->get_Q_atm_prev()) {
+            inject_smoke_from_fire(
+                cc_src,
+                *m_fire_layer->get_Q_atm_prev(),
+                *zpc_to_use,
+                fine_geom,
+                m_fire_layer->get_params().smoke_emission_factor,
+                m_fire_layer->get_params().smoke_heat_of_comb,
+                RhoSmoke_comp,
+                m_fire_layer->get_params().fire_debug,
+                m_nstep);
         }
 #endif
 

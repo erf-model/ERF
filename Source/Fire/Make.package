@@ -8,6 +8,7 @@ ifeq ($(USE_FIRE), TRUE)
   CEXE_sources += Fire/ERF_FireLayer.cpp
   CEXE_sources += Fire/ERF_Fire.cpp
   CEXE_sources += Fire/ERF_FirePlotfile.cpp
+  CEXE_sources += Fire/ERF_FireSmokeEmission.cpp
 
   CEXE_headers += Fire/ERF_Fire.H
   CEXE_headers += Fire/ERF_FireParams.H
@@ -34,6 +35,7 @@ ifeq ($(USE_FIRE), TRUE)
   CEXE_headers += Fire/ERF_FireDiagnostics.H
   CEXE_headers += Fire/ERF_FireStatsOutput.H
   CEXE_headers += Fire/ERF_FireAtmCoupling.H
+  CEXE_headers += Fire/ERF_FireSmokeEmission.H
   CEXE_headers += Fire/ERF_AlbiniSpotting.H
   CEXE_headers += Fire/ERF_ScottSpottingTable.H
   CEXE_headers += Fire/ERF_CrownFire.H
