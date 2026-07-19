@@ -23,13 +23,14 @@
 #     uniform slope geometry means all cells share the same upwind
 #     aspect; lee/valley/deflect paths are not meaningful here.
 #
+#   Dust Threshold (step 20):
+#   - u*_t = 0.007111 m/s (crust_index=1.0, USTAR_T_MIN=0.001)
+#
 #   Dust Emission (step 20):
 #   - Only bin 0 (d = 7 um) is active (n_active_bins = 1).
 #   - F_dust_max (atm coupling flux) = 1.582e-07 kg/m^2/s
 #   - emission_flux bin0 max = 5.274e-08 kg/m^2/s
-#   - emission_flux bin0 sum = 3.081e-06 kg/m^2/s (domain total rate)
-#   - emission_sum = 3.081e-06 kg/s
-#   - RhoDust_tend max = 9.890e-09 kg/m^3/s
+#   - emission_sum ~ 1.234e-05 kg/s
 #   - emission_flux bin0 max is ~9.4% higher than DustTerrainFlat
 #     (4.821e-08 kg/m^2/s), confirming k_ridge amplification of flux.
 #
@@ -41,7 +42,6 @@
 #
 #   Dust Concentrations (step 20):
 #   - conc_sfc_max = 9.600e-08 kg/m^3  (~96.0 ug/m^3)
-#   - conc_sfc_sum = 5.407e-06 kg/m^3 (domain integral)
 #   - PM10_max ~ 90.9 ug/m^3  |  PM2.5_max = 0 ug/m^3
 #   - MSHA TWA = 1.661e-05 mg/m^3 (below occupational limit)
 #   - All dust concentrations non-negative.
@@ -51,27 +51,13 @@
 #   Flat Baseline Comparison (DustTerrainFlat, step 20):
 #   - u*_max:            1.121 -> 1.156 m/s   (+3.1%)
 #   - u_10m_max:        14.99  -> 22.49 m/s   (+50.0%, k_ridge=1.5)
-#   - F_dust_max:       1.447e-07 -> 1.582e-07 kg/m^2/s  (+9.4%)
 #   - emission_flux max:4.821e-08 -> 5.274e-08 kg/m^2/s  (+9.4%)
 #   - conc_sfc_max:    84.67  -> 96.00 ug/m^3 (+13.4%)
 #   - PM10_max:        80.33  -> 90.94 ug/m^3 (+13.2%)
-#   - dep_total:       7.377e-08 -> 7.416e-08 kg/m^2 (+0.5%)
-#   - RHO DUST:        12.379 -> 12.351        (~same, domain-integrated)
 #
 #   Mass Budget (step 20):
-#   - RHO DUST = 12.351 (domain-integrated dust mass)
+#   - RHO DUST = 12.351
 #   - MASS = 1.013e+10  |  RHO THETA = 3.080e+12
-#   - RHO SCALAR = 0 (passive scalar inactive)
-#
-#   MRF Diffusion:
-#   - EddyDiff::Scalar_v_max = 2.168 m^2/s
-#   - gamma_dust = 0 (no countergradient term for dust scalar)
-#   - moisture_path_active = 0 (use_dynamic_moisture = false)
-#
-#   PHREEQC / suppression:
-#   - do_phreeqc = 1 (reader active, no external file)
-#   - suppression coverage max = 0, retreat_flag sum = 0
-#   - u*_t min = max = 0.05 m/s (threshold friction velocity)
 #
 #   Performance:
 #   - Timestep wall time ~ 5.4e-03 s  |  Total ~ 0.137 s
@@ -92,7 +78,8 @@ geometry.prob_extent = 3000 3000 1024
 amr.n_cell = 8 8 64
 geometry.is_periodic = 1 1 0
 amr.max_grid_size = 32
-amr.max_grid_size_z = 32
+# max_grid_size_z = 64 keeps all 64 vertical levels in one box (no z decomposition)
+amr.max_grid_size_z = 64
 zlo.type = "surface_layer"
 zhi.type = "SlipWall"
 zhi.theta_grad = 0.003
@@ -130,7 +117,8 @@ erf.dust.particle_density = 2650.0
 erf.dust.z0_dust = 0.01
 erf.dust.silt_fraction = 0.10
 erf.dust.threshold_A_coeff = 0.0123
-erf.dust.crust_index = 0.0
+# crust_index = 1.0: fully crusted soil
+erf.dust.crust_index = 1.0
 erf.dust.alpha_crust = 0.5
 erf.dust.alpha_efflor = 0.3
 erf.dust.test_ustar = 0.0

@@ -18,9 +18,9 @@
 #   - Only bin 0 (d = 7 um) is active (n_active_bins = 1).
 #   - F_dust_max (atm coupling flux) = 1.447e-07 kg/m^2/s
 #   - emission_flux bin0 max = 4.821e-08 kg/m^2/s
-#   - emission_flux bin0 sum = 3.085e-06 kg/m^2/s (domain total rate)
-#   - emission_sum = 3.085e-06 kg/s
-#   - RhoDust_tend max = 9.042e-09 kg/m^3/s
+#   - emission_sum = 1.234186e-05 kg/s
+#   - u*_t min = max = 0.007111 m/s (crust_index=1.0, alpha_crust=0.5,
+#     USTAR_T_MIN=0.001; Bagnold base ~0.00474 m/s * f_chem(1.5) = 0.00711)
 #   - With flat terrain (use_terrain_wind = false), emission is
 #     spatially uniform (periodic domain).
 #
@@ -28,17 +28,16 @@
 #   - Settling velocity bin0 (d=7 um) v_s = 4.001e-03 m/s
 #   - Deposition velocity v_d = 7.311e-03 m/s
 #   - dep_flux_max = 6.609e-11 kg/m^2/s
-#   - dep_total (accumulated) = 7.377e-08 kg/m^2
+#   - dep_total (accumulated) ~ 2.951e-07 kg/m^2
 #
 #   Dust Concentrations (step 20):
-#   - conc_sfc_max = 8.467e-08 kg/m^3  (~84.7 ug/m^3)
-#   - conc_sfc_sum = 5.419e-06 kg/m^3 (domain integral)
+#   - conc_sfc_max ~ 84.7 ug/m^3
 #   - PM10_max ~ 80.3 ug/m^3  |  PM2.5_max = 0 ug/m^3
-#   - MSHA TWA = 1.333e-05 mg/m^3 (below occupational limit)
+#   - MSHA TWA ~ 1.333e-05 mg/m^3 (below occupational limit)
 #   - All dust concentrations non-negative.
 #
 #   Mass Budget (step 20):
-#   - RHO DUST = 12.379 (domain-integrated dust mass)
+#   - RHO DUST ~ 12.379
 #   - MASS = 1.013e+10  |  RHO THETA = 3.080e+12
 #   - RHO SCALAR = 0 (passive scalar inactive)
 #
@@ -50,7 +49,6 @@
 #   PHREEQC / suppression:
 #   - do_phreeqc = 1 (reader active, no external file)
 #   - suppression coverage max = 0, retreat_flag sum = 0
-#   - u*_t min = max = 0.05 m/s (threshold friction velocity)
 #
 #   Performance:
 #   - Timestep wall time ~ 4.3e-03 s  |  Total ~ 0.106 s
@@ -64,7 +62,8 @@ geometry.prob_extent = 3000 3000 1024
 amr.n_cell = 8 8 64
 geometry.is_periodic = 1 1 0
 amr.max_grid_size = 32
-amr.max_grid_size_z = 32
+# max_grid_size_z = 64 keeps all 64 vertical levels in one box (no z decomposition)
+amr.max_grid_size_z = 64
 zlo.type = "surface_layer"
 zhi.type = "SlipWall"
 zhi.theta_grad = 0.003
@@ -102,7 +101,9 @@ erf.dust.particle_density = 2650.0
 erf.dust.z0_dust = 0.01
 erf.dust.silt_fraction = 0.10
 erf.dust.threshold_A_coeff = 0.0123
-erf.dust.crust_index = 0.0
+# crust_index = 1.0: fully crusted soil (maximum protection)
+# u*_t = A*sqrt(rho_p*g*d/rho_a) * (1 + alpha_crust*1.0) = 0.00474 * 1.5 = 0.00711 m/s
+erf.dust.crust_index = 1.0
 erf.dust.alpha_crust = 0.5
 erf.dust.alpha_efflor = 0.3
 erf.dust.test_ustar = 0.0
@@ -117,10 +118,12 @@ erf.dust.bin_diameters = 7.0e-6 2.5e-6 50.0e-6
 erf.dust.deposition_E0 = 3.0e-3
 erf.dust.loading_feedback_coeff = 0.0
 erf.dust.use_dynamic_moisture = false
-erf.dust.k_ridge = 1.5
-erf.dust.k_shelter = 0.6
-erf.dust.k_valley = 0.8
-erf.dust.k_deflect = 0.3
+# Terrain wind k-factors are neutral (1.0) since use_terrain_wind=false
+# for this flat-terrain test
+erf.dust.k_ridge = 1.0
+erf.dust.k_shelter = 1.0
+erf.dust.k_valley = 1.0
+erf.dust.k_deflect = 1.0
 erf.dust.dust_plot_int = -1
 erf.dust.phreeqc_output_file = ""
 erf.dust.blast_schedule_file = ""
