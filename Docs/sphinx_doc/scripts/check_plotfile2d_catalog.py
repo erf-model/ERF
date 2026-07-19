@@ -72,7 +72,7 @@ def parse_rst_catalog(path: Path):
                 fail(f"truncated RST row for {values[0]!r}")
             line = lines[i + offset]
             if not re.match(r'^\s*-\s+', line):
-                fail(f"unparseable RST row for {values[0]!r}: {line.strip()}")
+                fail(f"unparsable RST row for {values[0]!r}: {line.strip()}")
             values.append(strip_markup(re.sub(r'^\s*-\s+', '', line)))
         rows.append(dict(zip(("name", "category", "units", "policy", "long_name"), values)))
         i += 5
