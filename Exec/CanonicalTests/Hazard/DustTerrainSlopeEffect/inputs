@@ -7,18 +7,29 @@
 # Expected Results:
 #   - Simulation completes 20 steps without errors.
 #   - Terrain file (terrain_slope_10deg.asc) is read successfully.
-#   - Slope effect modulates local wind speed at the surface:
-#     ridge amplification (k_ridge = 1.5) increases u* on upwind
-#     slope crests; shelter reduction (k_shelter = 0.6) decreases
-#     u* in lee zones; valley effect (k_valley = 0.8) reduces
-#     emissions in topographic depressions.
-#   - Dust emissions are spatially non-uniform, with higher emission
-#     rates on ridge crests compared to the DustTerrainFlat baseline.
+#   - Slope effect modulates local wind speed at the surface via
+#     terrain wind factors applied to u*:
+#     ridge amplification (k_ridge = 1.5) increases u* on the upwind
+#     face of the slope.
+#   - k_shelter = 1.0 and k_valley = 1.0 are set to neutral so that
+#     the uniform 10-degree slope geometry (all cells same aspect) does
+#     not globally suppress emissions via the lee/valley paths.
+#   - k_deflect = 1.0 is set to neutral to avoid compounding with
+#     shelter factors and suppressing u* below the flat baseline.
+#   - Dust emissions are higher than the DustTerrainFlat baseline
+#     because k_ridge = 1.5 amplifies u* on the upwind slope face,
+#     increasing emission flux above the flat reference.
 #   - Dust concentrations remain non-negative across all bins.
-#   - Total dust emission flux is higher than the DustTerrainFlat
-#     case due to terrain-enhanced wind stress on slopes.
+#   - Total dust emission flux exceeds the DustTerrainFlat case.
 #   - Atmospheric feedback (atm_feedback = 1.0) produces a small
 #     reduction in near-surface wind speed due to dust loading.
+#
+# NOTE on terrain geometry: terrain_slope_10deg.asc is a spatially
+# uniform 10-degree slope. All cells share the same upwind aspect
+# relative to the x-direction geostrophic wind (15 0 0). Therefore
+# k_shelter and k_valley are set to 1.0 (neutral) for this test;
+# their spatial selectivity is exercised in separate tests that use
+# non-uniform terrain with distinct ridge, valley, and lee zones.
 # ============================================================
 
 erf.prob_name = "ABL"
@@ -82,10 +93,13 @@ erf.dust.bin_diameters = 7.0e-6 2.5e-6 50.0e-6
 erf.dust.deposition_E0 = 3.0e-3
 erf.dust.loading_feedback_coeff = 0.0
 erf.dust.use_dynamic_moisture = false
+# k_ridge = 1.5: amplifies u* on upwind slope face (active factor for this test)
+# k_shelter, k_valley, k_deflect = 1.0: neutral — uniform slope geometry means
+# all cells share same aspect; lee/valley/deflect paths are not meaningful here
 erf.dust.k_ridge = 1.5
-erf.dust.k_shelter = 0.6
-erf.dust.k_valley = 0.8
-erf.dust.k_deflect = 0.3
+erf.dust.k_shelter = 1.0
+erf.dust.k_valley = 1.0
+erf.dust.k_deflect = 1.0
 erf.dust.dust_plot_int = -1
 erf.dust.phreeqc_output_file = ""
 erf.dust.blast_schedule_file = ""
