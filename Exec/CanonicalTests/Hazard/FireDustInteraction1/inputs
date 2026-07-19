@@ -9,6 +9,8 @@
 # Expected Results:
 #   - Simulation completes 20 steps without errors.
 #   - Fire ignites at (1500, 1500) and spreads outward.
+#     NOTE: ignition_r = 200 m >= fire grid cell size (187.5 m at
+#     grid_ratio=2) to ensure burned cells are initialized.
 #   - In cells where fire_phi < 0 (burned), the dust crust index is
 #     reduced by fire_dust_crust_reduction = 0.8, i.e., crust *= 0.2.
 #   - Dust emission flux in burned areas is higher than in the
@@ -99,7 +101,7 @@ erf.fire.moisture_100hr = 0.10
 erf.fire.moisture_dynamic = false
 erf.fire.ignition_x = 1500.0
 erf.fire.ignition_y = 1500.0
-erf.fire.ignition_r = 20.0
+erf.fire.ignition_r = 200.0
 erf.fire.wind_ref_ht = 6.1
 erf.fire.use_waf = true
 erf.fire.use_wind_limit = true
