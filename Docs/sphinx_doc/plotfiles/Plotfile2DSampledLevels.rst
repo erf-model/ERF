@@ -25,9 +25,8 @@ does not extrapolate beyond the model column.
 Configuring a level set
 -----------------------
 
-ERF can write 2D fields sampled on model-index, height, or pressure levels. This
-mode lets one 2D output stream combine built-in diagnostics with fields on
-user-defined vertical targets.
+The level-set keys define the coordinate, target values, fields, interpolation,
+and missing-value behavior for a named set.
 
 Select sampled level sets for each 2D output stream with:
 

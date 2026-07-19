@@ -13,14 +13,12 @@ Time-averaged velocity fields require ``erf.time_avg_vel = true``. Set
 in separate face-centered outputs associated with the configured 3D stream.
 
 3D output variables
-===================
+-------------------
 
-Plotfiles can include the quantities of several simulation parameters as output.
-They are summarized in the list below. Note that temporally averaged quantities
-(e.g., ``u_t_avg, v_t_avg, w_t_avg, umag_t_avg``) require the user to enable the
-storage of the time averaged variables with ``erf.time_avg_vel = true``.
-Some optional quantities are only available when the corresponding compile-time
-option or physics package is enabled; those restrictions are noted in the table.
+The fixed core names are selected from the input list and emitted in the order
+defined by ERF. Temporally averaged quantities require
+``erf.time_avg_vel = true``. Some names require a compile-time option, a physics
+package, or stored diagnostic state; those restrictions are noted below.
 
 The default subvolume inventory is documented on :ref:`sec:Plotfiles`.
 
@@ -361,6 +359,55 @@ The default subvolume inventory is documented on :ref:`sec:Plotfiles`.
 |                             | [count]          |
 +-----------------------------+------------------+
 
+Fixed conserved-state fields
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The conserved-state inventory also includes the moisture-density components
+below. The active moisture model determines which components are selectable.
+
+.. code-block:: text
+
+   rhoQ1 rhoQ2 rhoQ3 rhoQ4 rhoQ5 rhoQ6
+   rhoQ7 rhoQ8 rhoQ9 rhoQ10 rhoQ11
+
+These are conserved moisture or species densities. The component names are
+fixed; the active moisture model controls which components are available.
+
+Velocity output behavior
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+Requesting any one of ``x_velocity``, ``y_velocity``, or ``z_velocity`` selects
+all three cell-centered velocity components. When ``erf.plot_face_vels = true``,
+native AMReX output also writes three separate face-centered plotfiles with the
+components ``x_velocity_stag``, ``y_velocity_stag``, and ``z_velocity_stag``.
+
+For stream 1, the face files use ``<plot_file_1>U<step>``,
+``<plot_file_1>V<step>``, and ``<plot_file_1>W<step>``. Stream 2 uses the
+corresponding ``<plot_file_2>U<step>``, ``V<step>``, and ``W<step>`` prefixes.
+These face-velocity filenames always use level-0 step numbering, including when
+``erf.use_real_time_in_pltname = true``. The face outputs are native AMReX
+artifacts; the NetCDF writer does not enter this face-output path.
+
+Additional fixed derived fields
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The main table above contains the common derived fields. The fixed inventory
+also includes these names:
+
+* Hydrostatic and pressure diagnostics: ``qv_hse`` and ``buoyancy``.
+* Native SHOC diagnostics: ``pblh``, ``shoc_cldfrac``, ``shoc_ql``, ``shoc_ql2``,
+  ``shoc_cond``, ``wqls_sec``, ``wthv_sec``, ``w_sec``, ``thl_sec``, ``qw_sec``,
+  ``qwthl_sec``, ``wthl_sec``, ``wqw_sec``, ``w3``, ``brunt``, ``isotropy``,
+  ``shear_prod``, ``buoy_prod``, and ``diss_tke``.
+* Moisture and number diagnostics: ``nc``, ``ni``, ``nr``, ``ns``, and ``ng``.
+* Conditional error diagnostics: ``xvel_err``, ``yvel_err``, ``zvel_err``, and
+  ``pp_err`` when ``ERF_COMPUTE_ERROR`` is enabled.
+
+The remaining fixed names are listed in the main table, including geometry,
+turbulence, accumulation, terrain, immersed-boundary, radiation-source, and
+wind-farm fields. A requested name is still subject to the runtime selection
+conditions in ``setPlotVariables``.
+
 Wind-farm-only variables
 ~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -520,3 +567,38 @@ To output Morrison diagnostic variables, add them to your plot variables list:
 This will output the base ERF variables (density, theta, qv) along with Morrison
 cloud water, rain water, cloud droplet number concentration, and rain drop number
 concentration.
+
+Scheme-provided dynamic fields
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+After the fixed names are selected, ERF asks the active microphysics provider for
+additional plot names. There is no universal static list for these fields.
+
+The current providers expose the following families:
+
+* Morrison exposes the 19 ``micro_*`` names listed in the section above.
+* SuperDroplets generates ``qv_<species>``, ``qc_<species>``,
+  ``qt_<species>``, ``sat_ratio_<species>``, and ``accum_<species>`` names for
+  configured species, plus ``accum_<aerosol>`` names for configured aerosols.
+* Providers that inherit the empty ``NullMoist`` plot-name implementation add
+  no scheme-specific names.
+
+Particle-provided fields
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+Particle builds can add Eulerian mesh fields after particle containers are
+initialized. ERF prefixes each provider name with the particle-container name.
+The default particle container provides ``<container>_mass_density``. The
+SuperDroplet provider additionally generates mass-flux, number-density,
+species-density, species-flux, aerosol-density, and aerosol-flux families from
+the configured species and aerosols. Particle count names use the form
+``<container>_count``. These fields are dynamic; their exact names depend on the
+particle configuration.
+
+Three-dimensional output has one relevant state-update exception. For
+Lagrangian microphysics with two-way AMR coupling and at least two AMR levels,
+``Write3DPlotFile`` averages fine-level microphysics and moisture state down to
+covered coarse cells before it constructs the plotfile. This consistency update
+mutates persistent coarse storage so level-0 output includes fine-level deposits;
+it is not a physical time tendency. Other 3D output assembly is diagnostic
+construction.

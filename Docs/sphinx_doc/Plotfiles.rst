@@ -82,9 +82,7 @@ stops with an input error. A per-stream parameter may be set without setting the
 other stream; the unset stream keeps the AMReX default.
 
 The configured stream formats apply to ordinary scheduled and startup writes.
-The current final-time writer passes the stream-1 format enum when it writes
-stream 2 for both 3D and 2D output; this implementation defect is not changed
-by this documentation update.
+Final-time writes use each stream's configured format independently.
 
 Primary native AMReX 2D and 3D plotfiles contain an execution and ancestry
 record in ``job_info``. Each output has its own artifact UUID. Native AMReX 2D
@@ -113,13 +111,21 @@ Common naming controls
      - Type
      - Default
    * - ``erf.use_real_time_in_pltname``
-     - Use simulation time rather than the level-0 step in output names.
+     - For 3D primary and subvolume outputs, use a UTC calendar timestamp
+       derived from the configured start time plus elapsed model time. 2D
+       output and face-velocity files remain step-numbered.
      - Boolean
      - ``false``
    * - ``erf.file_name_digits``
      - Number of digits appended to step-based plotfile and checkpoint names.
      - Integer greater than zero
      - ``5``
+
+When ``erf.use_real_time_in_pltname = true``, a primary 3D name uses
+``<prefix>_YYYY-MM-DD_HH:MM:SS`` from ``start_time + elapsed model time`` in
+UTC. A subvolume name uses the same timestamp with six fractional-second digits
+after ``<subvol_file>_<region-index>``. 2D primary names and 3D face-velocity
+names remain step-numbered.
 
 Output streams and schedules
 ============================
@@ -193,8 +199,8 @@ Example:
    erf.plot_vars_1   = density theta qv x_velocity y_velocity z_velocity
 
 This writes the selected 3D fields every 10 level-0 steps. See
-:ref:`sec:Plotfile3DReference` for the complete variable inventory and physics
-restrictions.
+:ref:`sec:Plotfile3DReference` for the complete fixed core inventory, dynamic
+provider rules, and physics restrictions.
 
 Configuring 2D output
 =====================
@@ -331,10 +337,14 @@ General behavior
   plotfile hierarchy. NetCDF output is written separately by level.
 * NetCDF output requires an ERF build with NetCDF enabled.
 * A negative interval or period disables that scheduling control.
-* Output fields are diagnostics. Writing a plotfile does not change prognostic
+* Constructing fixed and sampled 2D diagnostics does not change prognostic
   state.
+* A 3D write for Lagrangian microphysics with two-way AMR coupling performs a
+  fine-to-coarse consistency average-down before constructing the output. This
+  updates covered coarse state and microphysics storage; it is not a physical
+  time tendency.
 
-.. _sec:PlotfileConfigurationExamples:
+.. _sec:PlotfileDetailedReferences:
 
 Detailed references
 ===================

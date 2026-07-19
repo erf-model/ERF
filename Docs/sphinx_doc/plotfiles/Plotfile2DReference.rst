@@ -36,15 +36,9 @@ model-index levels, see :ref:`sec:Plotfile2DSampledLevels`.
 Built-in diagnostic catalog
 ---------------------------
 
-**Descriptor metadata** means the fixed catalog's name, canonical order, long
-name, unit string, category, and missing-value policy. **Selectable** means
-that ERF accepts a request name for the active configuration and creates an
-output component. **Runtime value** means the value written in that component
-at a cell and output time. A **provider sentinel** is an internal invalid
-value translated at the public output boundary. A **categorical source code**
-is an integer state whose zero value means no source; it is not a continuous
-fill value. A descriptor's metadata policy does not guarantee that the name is
-selectable in every configuration.
+The marked table is the authoritative fixed catalog. The three contracts in the
+introduction apply to every row; the selection table below gives the
+configuration and runtime details that cannot be inferred from metadata alone.
 
 .. BEGIN ERF BUILT-IN 2D DIAGNOSTIC CATALOG
 
@@ -461,6 +455,7 @@ The selection contract and the value written after selection are separate:
    * - ``near_surface_diagnostic_source``
      - Selectable: a Noah-MP or SurfaceLayer pathway exists, including a dry source-only request.
      - Value: categorical code ``0`` through ``6``; its ``AlwaysAvailable`` metadata policy records ``missing_value: null``.
+
 .. _sec:Plotfile2DDynamicSoil:
 
 Dynamic soil diagnostic families
@@ -495,6 +490,7 @@ runtime order. ``<layer>`` is a one-based layer index.
 
 .. END ERF DYNAMIC SOIL DIAGNOSTIC FAMILIES
 
+
 .. _sec:Plotfile2DFluxes:
 
 Surface flux diagnostics
@@ -523,6 +519,7 @@ consumed flux in conservative ERF output units.
 In native SHOC ``state_update`` mode, SHOC is the transport owner. The
 ``surface_diagnostic_source`` field still describes the upstream surface-flux
 source path used before SHOC consumes it.
+
 .. _sec:Plotfile2DPrecipitation:
 
 Surface precipitation accumulations
@@ -534,7 +531,7 @@ equivalent mass that has reached the lower boundary since model start or the
 most recent restart. Some schemes store explicit rain/snow/graupel species
 accumulators, while others store a total accumulator plus frozen-species
 subsets. ERF normalizes each available scheme-native source to ``kg/m^2``
-before deriving the public 2-D fields. Request acceptance follows the active
+before deriving the public 2D fields. Request acceptance follows the active
 rain, snow, and graupel mass components: total and frozen require any one of
 those components; each species field requires its own component; hail is not
 selectable for current schemes. Runtime mapping may still derive rain from a
@@ -594,6 +591,7 @@ and
 .. math::
 
    \Delta P_{frozen} = P_{frozen}(t_1) - P_{frozen}(t_0).
+
 .. _sec:Plotfile2DWaterPaths:
 
 Column water-path diagnostics
@@ -646,6 +644,7 @@ not included.
 The metadata sidecar records these fields as ``ColumnIntegral`` diagnostics
 with ``FillZeroWhenUnavailable`` missing-value policy. Water-path diagnostics
 use the built-in metadata fields and add no water-path-specific metadata keys.
+
 .. _sec:Plotfile2DSourceCodes:
 
 Surface diagnostic source codes
@@ -694,12 +693,13 @@ infer provenance from ``landmask``.
      - ``rico``
      - The RICO pathway supplied the SurfaceLayer state.
 
+
 .. _sec:Plotfile2DMetadata:
 
 AMReX metadata and NetCDF differences
 --------------------------------------
 
-Native AMReX 2-D plotfiles write a JSON metadata sidecar named
+Native AMReX 2D plotfiles write a JSON metadata sidecar named
 ``2DMetadata.json`` in the plotfile directory. The sidecar lists selected
 outputs in component order. Fixed outputs use descriptor metadata. Sampled-
 level outputs add source-field and vertical-coordinate metadata.
@@ -715,7 +715,7 @@ plotfile variables. Sampled-level outputs carry their own metadata record. The
 sidecar does not record the runtime source chosen at each cell. Source choice is
 carried by categorical output fields. It does not change field values.
 
-NetCDF 2-D output uses the same variable names but does not write this JSON
+NetCDF 2D output uses the same variable names but does not write this JSON
 sidecar or sampled-level metadata attributes. The sidecar format version is
 ``2``.
 

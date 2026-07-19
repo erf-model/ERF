@@ -10,6 +10,7 @@
 
 #include "ERF_EOS.H"
 #include "ERF.H"
+#include "ERF_PlotfileStream.H"
 #include "AMReX_buildInfo.H"
 #include "AMReX_Random.H"
 #include "AMReX_WriteEBSurface.H"
@@ -281,7 +282,8 @@ ERF::WriteAtFinalTime()
         if (m_plot3d_per_1 > zero) {last_plot3d_file_time_1 += m_plot3d_per_1;}
     }
     if ( (m_plot3d_int_2 > 0 || m_plot3d_per_2 > zero) && istep[0] > last_plot3d_file_step_2) {
-        Write3DPlotFile(2,plotfile3d_type_1,plot3d_var_names_2);
+        Write3DPlotFile(2,erf_plotfile::stream_format(2, plotfile3d_type_1, plotfile3d_type_2),
+                        plot3d_var_names_2);
         if (m_plot3d_per_2 > zero) {last_plot3d_file_time_2 += m_plot3d_per_2;}
     }
     if ( (m_plot2d_int_1 > 0 || m_plot2d_per_1 > zero) && istep[0] > last_plot2d_file_step_1 ) {
@@ -289,7 +291,8 @@ ERF::WriteAtFinalTime()
         if (m_plot2d_per_1 > zero) {last_plot2d_file_time_1 += m_plot2d_per_1;}
     }
     if ( (m_plot2d_int_2 > 0 || m_plot2d_per_2 > zero) && istep[0] > last_plot2d_file_step_2) {
-        Write2DPlotFile(2,plotfile2d_type_1,plot2d_var_names_2);
+        Write2DPlotFile(2,erf_plotfile::stream_format(2, plotfile2d_type_1, plotfile2d_type_2),
+                        plot2d_var_names_2);
         if (m_plot2d_per_2 > zero) {last_plot2d_file_time_2 += m_plot2d_per_2;}
     }
 

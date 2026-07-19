@@ -15,18 +15,22 @@ Unified 2-m fields and coherent source selection
 The public unified fields are:
 
 ``temperature_2m``
-   Physical temperature 2 m above the local surface.
+   Physical temperature 2-m above the local surface.
 
 ``water_vapor_mixing_ratio_2m``
-   Water-vapor mixing ratio 2 m above the local surface, per unit dry-air
+   Water-vapor mixing ratio 2-m above the local surface, per unit dry-air
    mass.
 
 ``near_surface_diagnostic_source``
    Categorical code for the source selected for the requested bundle.
 
-Selection is cell-local and request-aware. ERF chooses one coherent source for
-all requested continuous fields. It never combines native temperature with
-MOST humidity, or MOST temperature with native humidity.
+The requested bundle consists of the requested continuous unified fields:
+temperature, humidity, or both. A source-only request follows the separate
+selection rule documented below. Selection is cell-local and request-aware. ERF
+chooses one coherent source for the complete requested bundle: either all
+required native Noah-MP values or all required SurfaceLayer/MOST values. It
+never combines native temperature with MOST humidity, or MOST temperature with
+native humidity.
 
 The native requirements are minimal for the request:
 
@@ -108,12 +112,14 @@ uses EOS helpers after reconstructing local pressure:
          \left(z_{cc}^{\mathrm{AGL}} - 2\,\mathrm{m}\right).
 
 A humidity-only request does not require pressure, terrain height, conserved
-atmospheric state, or a temperature source. Invalid profile geometry, pressure,
-state, or output produces ``-999``. ERF does not silently clamp an invalid
-profile. MOST fills only unified fields; it never fills raw provider fields.
+atmospheric state, or a temperature source. Pressure, terrain, temperature
+state, and related prerequisites matter only for requests whose reconstruction
+uses them. Invalid required profile geometry, state, or output produces
+``-999``. ERF does not silently clamp an invalid profile. MOST fills only
+unified fields; it never fills raw provider fields.
 
-Exact HFX processed-cell scope
-------------------------------
+Validation of Noah-MP results
+-----------------------------
 
 Noah-MP ``HFX`` gates the following Noah-MP return fields:
 
