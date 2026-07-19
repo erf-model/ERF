@@ -79,15 +79,20 @@ void apply_farsite_terrain_wind(
                 cos_upslope = (sx*ux + sy*uy) / (slope_mag * wind_mag);
             }
 
-            // Classify terrain position and compute speed factor
+            // Classify terrain position and compute speed factor.
+            // Slope-based classification uses wind-slope alignment (cos_upslope)
+            // to identify windward (upslope) and lee (downslope) faces.
+            // Curvature is used only for valley detection (concave terrain).
+            // NOTE: uniform planar slopes have zero curvature, so curvature
+            // must NOT be required for ridge/shelter classification.
             Real factor = 1.0;
 
-            // Ridge: convex, windward slope
-            if (curv_val > 0.01 && slope_mag > 0.05 && cos_upslope > 0.0) {
-                factor = 1.0 + (k_ridge - 1.0) * amrex::min(slope_mag, 1.0_rt);
+            // Windward slope: wind climbing the slope (upslope face / ridge)
+            if (slope_mag > 0.05 && cos_upslope > 0.0) {
+                factor = k_ridge;
             }
             // Shelter: lee-side slope (wind blowing downslope)
-            else if (cos_upslope < -0.5 && curv_val > 0.01) {
+            else if (slope_mag > 0.05 && cos_upslope < -0.5) {
                 factor = k_shelter;
             }
             // Valley: concave terrain (negative curvature)
