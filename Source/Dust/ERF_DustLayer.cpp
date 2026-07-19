@@ -285,6 +285,10 @@ DustLayer::initialize(
     *dust_soil_type, *dust_silt_fraction, *dust_crust_index,
     *dust_moisture_flag, *dust_suppression, m_dg, dust_params);
 
+  // Ensure ghost cells are synchronized after reading surface maps
+  dust_crust_index->FillBoundary(m_dg.geom.periodicity());
+  dust_silt_fraction->FillBoundary(m_dg.geom.periodicity());
+
   if (dust_params.dust_debug) {
     amrex::Print() << "[DUST DEBUG] Surface maps populated: "
                    << "soil_type_file=\"" << dust_params.soil_type_file
