@@ -11,57 +11,61 @@
 #   ignition_r = 600 m marks ~32 burned fire cells at t=0
 #   (~12.5% of 16x16 fire domain), consistent with FireDustInteraction1.
 #
-# Expected Results (verified step=20, t=10 s, dt=0.5 s):
+# Expected Results (verified step=20, t=10 s, dt=0.5 s, 4096 atm cells):
 #
 #   Dynamics:
 #   - Simulation completes 20 steps without errors.
 #   - Fixed dt = 0.5 s.
 #   - u*_max ~ 0.771 m/s  |  u_10m_max ~ 14.99 m/s
 #     NOTE: u*_max is LOWER than FireDustInteraction1 (1.121 m/s) because
-#     terrain wind corrections (k_shelter=0.6, k_valley=0.8) reduce the
-#     effective friction velocity in sheltered zones.
+#     terrain wind corrections (k_shelter=0.6, k_valley=0.8, k_deflect=0.3)
+#     reduce the effective friction velocity in sheltered zones.
 #   - PBLH_max ~ 535.4 m  |  T_sfc ~ 300 K
 #
 #   Fire (step 20):
 #   - Number of active fire cells: 32 (ignition_r=600 m)
 #   - FARSITE terrain wind corrections applied to fire spread.
-#   - Fire heat flux injected: Q_atm_max = 3522 W/m^2
+#   - Fire heat flux injected: Q_atm_max = 3522 W/m^2 (alfg=45 m)
 #   - EddyDiff::Scalar_v_max = 13.618 m^2/s (fire heating)
 #   - Max ROS = 0.2160244347 m/s  |  Q_max = 3520 W/m^2
+#   - phi_min = -1  |  phi_max = 0
 #
 #   Dust Threshold (step 20):
-#   - crust_min=0, crust_max=0 at step 20 — the entire domain has
-#     crust=0 because the crust reset applies crust_index=1.0 but
-#     the fire phi field maps all dust cells as covered by the
-#     ignition circle (ignition_r=600 m covers the whole 3000x3000 m
-#     dust domain at grid_ratio=2, 16x16 cells of 187.5 m each).
-#     u*_t = 0.004741 m/s (USTAR_T_MIN floor, crust=0)
+#   - Per-cell u*_t varies with crust (fire-dust coupling active):
+#     crust_min = 1.049e-14 (burned cells, crust_index=1.0 * (1-0.8)^n)
+#     crust_max = 1.0       (unburned cells)
+#     u*_t_min = 0.004741 m/s  (burned, USTAR_T_MIN floor)
+#     u*_t_max = 0.007111 m/s  (unburned, crust=1.0)
+#   - Per-cell crust modulation confirmed working (same as FireDustInteraction1).
 #
 #   Dust Emission (step 20):
-#   - emission_sum = 3.863688e-06 kg/s
-#   - emission_flux bin0 max = 1.510e-08 kg/m^2/s
-#   - F_dust_atm_max = 4.531e-08 kg/m^2/s
-#   - NOTE: emission is ~3x LOWER than FireDustInteraction1 (1.190e-05)
-#     because u*_max=0.771 m/s vs 1.121 m/s (terrain sheltering)
-#     and the terrain wind k-factors reduce the effective u* in
-#     sheltered cells. The lower u* directly reduces emission flux
-#     (flux ~ u*^3 above threshold).
+#   - emission_sum = 3.873865e-06 kg/s
+#   - emission_flux bin0 max = 1.515e-08 kg/m^2/s
+#   - F_dust_atm_max = 4.545e-08 kg/m^2/s
+#   - Compared to FireDustInteraction1 (1.190e-05 kg/s): -67%
+#     The dominant effect is terrain sheltering: u*_max=0.771 m/s vs
+#     1.121 m/s in FireDustInteraction1. Since emission ~ u*^3 above
+#     threshold, this (0.771/1.121)^3 ~ 0.33x reduction is expected.
 #
 #   Dust Concentrations (step 20):
-#   - conc_sfc_max ~ 26.5 ug/m^3  (lower due to reduced emission)
-#   - PM10_max ~ 25.2 ug/m^3
-#   - RHO DUST = 3.874  (vs 11.944 in FireDustInteraction1)
+#   - conc_sfc_max ~ 26.6 ug/m^3  (vs ~81.9 in FireDustInteraction1)
+#   - PM10_max ~ 25.3 ug/m^3
+#   - RHO DUST = 3.884  (vs 11.944 in FireDustInteraction1: -67%)
+#   - All dust concentrations non-negative.
 #
 #   Mass Budget (step 20):
 #   - MASS = 1.013e+10  |  RHO THETA = 3.080496e+12
+#   - RHO SCALAR = 0  |  dep_total = 7.934e-08 kg/m^2
 #
 #   Performance:
-#   - Timestep wall time ~ 5.9e-03 s  |  Total ~ 0.132 s
+#   - Timestep wall time ~ 6.0e-03 s  |  Total ~ 0.130 s
 #
-#   NOTE: To isolate terrain wind effect without full-domain ignition,
-#   use ignition_r=200 m (marks ~4 burned cells). The ignition_r=600 m
-#   here matches FireDustInteraction1 for direct comparison of the
-#   terrain wind effect on the coupled fire-dust system.
+#   Key comparison: FireDustInteraction1 (flat) vs FireDustTerrainCoupled:
+#   - u*_max:       1.121 -> 0.771 m/s   (-31%, terrain sheltering)
+#   - emission_sum: 1.190e-05 -> 3.874e-06 kg/s  (-67%, u*^3 scaling)
+#   - RHO DUST:    11.944 -> 3.884               (-67%)
+#   - u*_t_min:    0.004741 -> 0.004741 m/s      (same, crust logic identical)
+#   - u*_t_max:    0.007111 -> 0.007111 m/s      (same, crust logic identical)
 # ============================================================
 
 erf.prob_name = "ABL"
@@ -112,7 +116,8 @@ erf.dust.particle_density = 2650.0
 erf.dust.z0_dust = 0.01
 erf.dust.silt_fraction = 0.10
 erf.dust.threshold_A_coeff = 0.0123
-# crust_index = 1.0: start fully crusted; burned cells reduced by fire_dust_crust_reduction
+# crust_index = 1.0: start fully crusted; burned cells reduced each step
+# by fire_dust_crust_reduction=0.8 -> crust * (1-0.8) = 0.2 -> near 0 after n steps
 erf.dust.crust_index = 1.0
 erf.dust.alpha_crust = 0.5
 erf.dust.alpha_efflor = 0.3
@@ -128,9 +133,11 @@ erf.dust.bin_diameters = 7.0e-6 2.5e-6 50.0e-6
 erf.dust.deposition_E0 = 3.0e-3
 erf.dust.loading_feedback_coeff = 0.0
 erf.dust.use_dynamic_moisture = false
-# Terrain wind k-factors for terrain-coupled test
-# k_ridge=1.5 amplifies ridgeline u*, k_shelter=0.6 reduces lee-side u*,
-# k_valley=0.8 reduces valley u*, k_deflect=0.3 reduces deflected flow
+# Terrain wind k-factors for terrain-coupled test:
+# k_ridge=1.5: amplifies u* on ridgelines
+# k_shelter=0.6: reduces u* in lee zones (dominant effect in this flat-terrain case)
+# k_valley=0.8: reduces u* in valley zones
+# k_deflect=0.3: reduces u* in flow-deflection zones
 erf.dust.k_ridge = 1.5
 erf.dust.k_shelter = 0.6
 erf.dust.k_valley = 0.8
@@ -162,4 +169,6 @@ erf.fire.coupling_type = "lagged"
 erf.dust.use_terrain_wind = true
 erf.dust.terrain_file = ""
 erf.fire_dust_coupling = true
+# crust_reduction = 0.8: burned cells drop from crust=1.0 each step
+# Verified: crust_min=1.049e-14 (burned), crust_max=1.0 (unburned) at step 20
 erf.fire_dust_crust_reduction = 0.8
