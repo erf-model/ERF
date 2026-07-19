@@ -3,6 +3,7 @@
 #ifdef ERF_USE_DUST
 
 #include <AMReX_MFIter.H>
+#include <AMReX_MultiFab.H>
 #include <AMReX_ParallelFor.H>
 #include <AMReX_Print.H>
 
