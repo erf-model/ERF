@@ -11,22 +11,33 @@
  *
  * Handles interactions between fire and dust modules, particularly
  * burned area effects on dust emission.
+ *
+ * The fire level-set phi lives on the fire sub-grid (grid_ratio times
+ * finer than the atmosphere). The dust crust index lives on the dust
+ * sub-grid (which may have a different grid_ratio). We map burned
+ * status from fire to dust using physical (x,y) coordinates so that
+ * the two grids do not need to be aligned.
  */
 struct FireDustCoupling {
-    bool        enabled                  = false;
-    amrex::Real post_fire_crust_reduction = 0.8;   // fraction of crust removed in burned cells
-    const amrex::MultiFab* fire_phi_mf   = nullptr; // phi < 0 = burned
+    bool        enabled                   = false;
+    amrex::Real post_fire_crust_reduction = 0.8;  // fraction of crust removed in burned cells
+
+    // Fire level-set phi on the fire sub-grid (phi < 0 => burned).
+    const amrex::MultiFab* fire_phi_mf  = nullptr;
+    // Geometry of the fire sub-grid (needed for physical-coordinate mapping).
+    amrex::Geometry        geom_fire;
 
     /**
      * @brief Reduce crust_index in burned cells, lowering u*_t and raising dust emission.
      *
-     * Implementation: GPU kernel over dust grid cells; where fire_phi < 0,
-     * apply crust *= (1 - reduction); crust = max(crust, 0).
+     * For each dust cell we compute its physical centre (x,y), find the
+     * containing fire cell, and if fire_phi < 0 there we apply
+     *   crust *= (1 - post_fire_crust_reduction),  crust = max(crust, 0).
      *
-     * @param[in,out] dust_crust_index  Dust layer crust index MultiFab
-     * @param[in]     geom_dust         Dust grid geometry
+     * @param[in,out] dust_crust_index  Dust layer crust index MultiFab (dust grid)
+     * @param[in]     geom_dust         Geometry of the dust sub-grid
      */
-    void apply_burned_area_to_crust(amrex::MultiFab& dust_crust_index,
+    void apply_burned_area_to_crust(amrex::MultiFab&       dust_crust_index,
                                     const amrex::Geometry& geom_dust) const;
 };
 
