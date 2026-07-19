@@ -55,6 +55,17 @@ void fill_dust_scalar_from_atm(
     const amrex::MultiFab& atm_field,
     const DustGrid&        dg);
 
+// Compute u* from wind magnitude using simple log-profile: u* = κ * U / ln(z_ref/z0)
+// @param dust_ustar_in [out] Friction velocity on dust grid [m/s]
+// @param dust_wind_ref [in]  Wind vector (u,v) at reference height on dust grid [m/s]
+// @param z_ref        [in]  Reference height [m]
+// @param z0           [in]  Surface roughness length [m]
+void compute_dust_ustar_from_wind(
+    amrex::MultiFab&       dust_ustar_in,
+    const amrex::MultiFab& dust_wind_ref,
+    amrex::Real            z_ref,
+    amrex::Real            z0);
+
 #endif // ERF_USE_DUST
 
 #endif // ERF_DUST_WIND_EXTRACT_H

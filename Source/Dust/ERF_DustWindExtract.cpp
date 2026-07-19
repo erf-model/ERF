@@ -118,4 +118,38 @@ void fill_dust_scalar_from_atm(
     }
 }
 
+void compute_dust_ustar_from_wind(
+    MultiFab&       dust_ustar_in,
+    const MultiFab& dust_wind_ref,
+    Real            z_ref,
+    Real            z0)
+{
+    // Compute friction velocity from wind speed using simple log-profile:
+    // u* = κ * U / ln(z_ref/z0)
+    // where κ = 0.4 (von Karman constant)
+    // Reference: Businger et al. (1971), and MOST in ERF_MOSTStress.H
+    
+    constexpr Real kappa = 0.4;  // von Karman constant
+    Real ln_ratio = std::log(z_ref / z0);
+    if (ln_ratio <= 0.0) ln_ratio = 1.0;  // Safety guard
+    
+    for (MFIter mfi(dust_ustar_in, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+        const Box& bx = mfi.tilebox();
+        auto ust = dust_ustar_in.array(mfi);
+        auto wind = dust_wind_ref.const_array(mfi);
+        
+        ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+            // Extract (u, v) components
+            Real uu = wind(i, j, k, 0);
+            Real vv = wind(i, j, k, 1);
+            
+            // Compute wind speed magnitude
+            Real wind_mag = std::sqrt(uu*uu + vv*vv);
+            
+            // Compute u* = κ * U / ln(z_ref/z0)
+            ust(i, j, k) = kappa * wind_mag / ln_ratio;
+        });
+    }
+}
+
 #endif // ERF_USE_DUST
