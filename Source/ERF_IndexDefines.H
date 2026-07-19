@@ -12,11 +12,18 @@
 //      rho, rhotheta, rhoKE
 #define NDRY       3
 
+// Phase 4 (Smoke): Passive tracer emitted from fire heat flux [kg/m^3]
+#ifdef ERF_ENABLE_FIRE
+#define NSCALARS_SMOKE 1
+#else
+#define NSCALARS_SMOKE 0
+#endif
+
 // This defines the ACTUAL number of non-moisture scalar vars
 #ifdef ERF_USE_DUST
-#define NSCALARS   2
+#define NSCALARS   (2 + NSCALARS_SMOKE)
 #else
-#define NSCALARS   1
+#define NSCALARS   (1 + NSCALARS_SMOKE)
 #endif
 
 // This defines the MAXIMUM number of moisture vars (six q's plus five n's)
@@ -48,7 +55,14 @@
 // Phase 11 expands to n_size_bins slots when DustParams::transport_bins_separately = true.
 #define RhoAdv_comp    (RhoScalar_comp+NSCALARS)
 
+// Phase 4 (Smoke): Passive tracer from fire smoke emission [kg/m^3]
+// Injected at k=0 proportional to fire heat flux when ERF_ENABLE_FIRE is defined.
+#ifdef ERF_ENABLE_FIRE
+#define RhoSmoke_comp  (RhoAdv_comp+1)
+#define RhoQ1_comp     (RhoAdv_comp+2)
+#else
 #define RhoQ1_comp     (RhoAdv_comp+1)
+#endif
 #define RhoQ2_comp     (RhoQ1_comp+1)
 #define RhoQ3_comp     (RhoQ1_comp+2)
 #define RhoQ4_comp     (RhoQ1_comp+3)

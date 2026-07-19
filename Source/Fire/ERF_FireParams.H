@@ -223,6 +223,11 @@ struct FireParams
     int n_firebreaks = 0;
     std::vector<FireBreak> firebreaks;
 
+    // Phase 4: smoke tracer
+    bool  smoke_enable           = false;
+    amrex::Real  smoke_emission_factor  = 0.02;       // kg smoke / kg fuel [-]
+    amrex::Real  smoke_heat_of_comb     = 18700000.0; // J/kg fuel
+
     /**
      * @brief Construct FireParams from ParmParse
      *
@@ -297,6 +302,11 @@ struct FireParams
        pp.query("fire_atm_feedback", fire_atm_feedback);
        pp.query("coupling_type", coupling_type);
        pp.query("inject_latent", inject_latent);
+
+       // Phase 4: smoke tracer parameters
+       pp.query("smoke_enable", smoke_enable);
+       pp.query("smoke_emission_factor", smoke_emission_factor);
+       pp.query("smoke_heat_of_comb", smoke_heat_of_comb);
 
        // Phase 8: Albini (1983) ember spotting parameters
        auto& sp = spotting;
