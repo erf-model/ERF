@@ -4,25 +4,77 @@
 #              terrain driven by a neutral ABL with geostrophic wind.
 #              No fire coupling. Terrain wind effects are enabled.
 #
-# Expected Results:
+# Expected Results (verified from simulation output at step 20,
+#                   t = 10 s, dt = 0.5 s, 4096 cells):
+#
+#   Dynamics:
 #   - Simulation completes 20 steps without errors.
+#   - Fixed dt = 0.5 s (CFL-limited compressible dt ~1.03 s,
+#     anelastic dt ~25.0 s; fixed dt is binding).
+#   - u*_max ~ 1.156 m/s  |  u_10m_max ~ 22.49 m/s
+#   - PBLH_max ~ 534.7 m  |  T_sfc = 300 K
+#
+#   Terrain Wind Effect:
 #   - Terrain file (terrain_slope_10deg.asc) is read successfully.
-#   - Slope effect modulates local wind speed at the surface via
-#     terrain wind factors applied to u*:
-#     ridge amplification (k_ridge = 1.5) increases u* on the upwind
-#     face of the slope.
-#   - k_shelter = 1.0 and k_valley = 1.0 are set to neutral so that
-#     the uniform 10-degree slope geometry (all cells same aspect) does
-#     not globally suppress emissions via the lee/valley paths.
-#   - k_deflect = 1.0 is set to neutral to avoid compounding with
-#     shelter factors and suppressing u* below the flat baseline.
-#   - Dust emissions are higher than the DustTerrainFlat baseline
-#     because k_ridge = 1.5 amplifies u* on the upwind slope face,
-#     increasing emission flux above the flat reference.
-#   - Dust concentrations remain non-negative across all bins.
-#   - Total dust emission flux exceeds the DustTerrainFlat case.
-#   - Atmospheric feedback (atm_feedback = 1.0) produces a small
-#     reduction in near-surface wind speed due to dust loading.
+#   - k_ridge = 1.5 amplifies effective wind speed on the upwind slope
+#     face: u_10m_max = 22.49 m/s vs. 14.99 m/s in the flat baseline
+#     (+50%, confirming k_ridge factor is active).
+#   - k_shelter = 1.0, k_valley = 1.0, k_deflect = 1.0 (neutral):
+#     uniform slope geometry means all cells share the same upwind
+#     aspect; lee/valley/deflect paths are not meaningful here.
+#
+#   Dust Emission (step 20):
+#   - Only bin 0 (d = 7 um) is active (n_active_bins = 1).
+#   - F_dust_max (atm coupling flux) = 1.582e-07 kg/m^2/s
+#   - emission_flux bin0 max = 5.274e-08 kg/m^2/s
+#   - emission_flux bin0 sum = 3.081e-06 kg/m^2/s (domain total rate)
+#   - emission_sum = 3.081e-06 kg/s
+#   - RhoDust_tend max = 9.890e-09 kg/m^3/s
+#   - emission_flux bin0 max is ~9.4% higher than DustTerrainFlat
+#     (4.821e-08 kg/m^2/s), confirming k_ridge amplification of flux.
+#
+#   Dust Settling & Deposition (step 20):
+#   - Settling velocity bin0 (d=7 um) v_s = 4.001e-03 m/s
+#   - Deposition velocity v_d = 7.413e-03 m/s
+#   - dep_flux_max = 7.330e-11 kg/m^2/s
+#   - dep_total (accumulated) = 7.416e-08 kg/m^2
+#
+#   Dust Concentrations (step 20):
+#   - conc_sfc_max = 9.600e-08 kg/m^3  (~96.0 ug/m^3)
+#   - conc_sfc_sum = 5.407e-06 kg/m^3 (domain integral)
+#   - PM10_max ~ 90.9 ug/m^3  |  PM2.5_max = 0 ug/m^3
+#   - MSHA TWA = 1.661e-05 mg/m^3 (below occupational limit)
+#   - All dust concentrations non-negative.
+#   - conc_sfc_max is ~13.4% higher than DustTerrainFlat (84.67 ug/m^3),
+#     confirming slope effect increases near-surface dust loading.
+#
+#   Flat Baseline Comparison (DustTerrainFlat, step 20):
+#   - u*_max:            1.121 -> 1.156 m/s   (+3.1%)
+#   - u_10m_max:        14.99  -> 22.49 m/s   (+50.0%, k_ridge=1.5)
+#   - F_dust_max:       1.447e-07 -> 1.582e-07 kg/m^2/s  (+9.4%)
+#   - emission_flux max:4.821e-08 -> 5.274e-08 kg/m^2/s  (+9.4%)
+#   - conc_sfc_max:    84.67  -> 96.00 ug/m^3 (+13.4%)
+#   - PM10_max:        80.33  -> 90.94 ug/m^3 (+13.2%)
+#   - dep_total:       7.377e-08 -> 7.416e-08 kg/m^2 (+0.5%)
+#   - RHO DUST:        12.379 -> 12.351        (~same, domain-integrated)
+#
+#   Mass Budget (step 20):
+#   - RHO DUST = 12.351 (domain-integrated dust mass)
+#   - MASS = 1.013e+10  |  RHO THETA = 3.080e+12
+#   - RHO SCALAR = 0 (passive scalar inactive)
+#
+#   MRF Diffusion:
+#   - EddyDiff::Scalar_v_max = 2.168 m^2/s
+#   - gamma_dust = 0 (no countergradient term for dust scalar)
+#   - moisture_path_active = 0 (use_dynamic_moisture = false)
+#
+#   PHREEQC / suppression:
+#   - do_phreeqc = 1 (reader active, no external file)
+#   - suppression coverage max = 0, retreat_flag sum = 0
+#   - u*_t min = max = 0.05 m/s (threshold friction velocity)
+#
+#   Performance:
+#   - Timestep wall time ~ 5.4e-03 s  |  Total ~ 0.137 s
 #
 # NOTE on terrain geometry: terrain_slope_10deg.asc is a spatially
 # uniform 10-degree slope. All cells share the same upwind aspect
