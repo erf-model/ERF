@@ -9,12 +9,14 @@
 #include <ERF_DustSurfaceReader.H>
 #include <ERF_PhreeqcReader.H>
 #include <ERF_DustThreshold.H>
+#include <ERF_DustTerrainSlope.H>
 #include <ERF_DustEmission.H>
 #include <ERF_DustSuppression.H>
 #include <ERF_DustWindExtract.H>
 #include <ERF_DustAtmCoupling.H>
 #include <ERF_DustMSHA.H>
 #include <ERF_DustMSHAOutput.H>
+#include <ERF_FireWindExtract.H>
 #include <ERF.H>
 #include <ERF_SurfaceLayer.H>
 #include <AMReX_Print.H>
@@ -25,6 +27,7 @@ void
 DustLayer::initialize(
   const ERF& erf,
   const SurfaceLayer* surface_layer,
+  const amrex::MultiFab& z_phys_nd_atm,
   const DustParams& dust_params)
 {
   verify_dust_prerequisites(erf, surface_layer, dust_params);
@@ -54,6 +57,14 @@ DustLayer::initialize(
   m_params = dust_params;
 
   amrex::IntVect ng(1, 1, 0);
+  dust_slopes        = std::make_unique<amrex::MultiFab>(m_dg.ba, m_dg.dm, 2, ng);
+  dust_curvature     = std::make_unique<amrex::MultiFab>(m_dg.ba, m_dg.dm, 1, 0);
+  dust_slopes->setVal(0.0);
+  dust_curvature->setVal(0.0);
+  compute_dust_terrain_slopes(
+    *dust_slopes, z_phys_nd_atm, erf.Geom(0), m_dg, dust_params.terrain_file);
+  dust_slopes->FillBoundary(m_dg.geom.periodicity());
+  compute_terrain_curvature(*dust_curvature, *dust_slopes, m_dg.geom);
 
   dust_ustar_t       = std::make_unique<amrex::MultiFab>(m_dg.ba, m_dg.dm, 1, ng);
   dust_soil_type     = std::make_unique<amrex::MultiFab>(m_dg.ba, m_dg.dm, 1, ng);
@@ -327,7 +338,7 @@ DustLayer::initialize(
   recompute_dust_ustar_t(
     *dust_ustar_t, *dust_ustar_base, *dust_crust_index, *dust_efflor,
     *dust_surf_moist, *dust_suppression, dust_params.alpha_crust,
-    dust_params.alpha_efflor);
+    dust_params.alpha_efflor, dust_slopes.get());
 
   if (dust_params.dust_debug) {
     amrex::Print() << "[DUST DEBUG] Phase 5: u*_t after init modifiers: "
@@ -516,6 +527,11 @@ DustLayer::advance(
         *dust_ustar_in, *surface_layer->get_u_star(0), m_dg);
     fill_dust_wind_from_interpolation(
       *dust_wind_ref, *xvel_mf, *yvel_mf, *z_phys_cc_mf, m_dg, m_params.zref, nz);
+    if (m_params.use_terrain_wind && dust_slopes && dust_curvature) {
+      apply_farsite_terrain_wind(
+        *dust_wind_ref, *dust_slopes, *dust_curvature, m_params.k_ridge,
+        m_params.k_shelter, m_params.k_valley, m_params.k_deflect);
+    }
     if (surface_layer->get_t_surf(0))
       fill_dust_scalar_from_atm(*dust_tsfc, *surface_layer->get_t_surf(0), m_dg);
     if (surface_layer->get_pblh(0))
@@ -584,7 +600,7 @@ DustLayer::advance(
   recompute_dust_ustar_t(
     *dust_ustar_t, *dust_ustar_base, *dust_crust_index, *dust_efflor,
     *dust_surf_moist, *dust_suppression, m_params.alpha_crust,
-    m_params.alpha_efflor);
+    m_params.alpha_efflor, dust_slopes.get());
 
   if (m_params.dust_debug) {
     amrex::Print() << "[DUST DEBUG] Phase 5: u*_t at step=" << m_step

@@ -99,6 +99,9 @@ class MultiBlockContainer;
 #include <ERF_DustLayer.H>
 #include <ERF_DustParams.H>
 #endif
+#if defined(ERF_ENABLE_FIRE) && defined(ERF_USE_DUST)
+#include <ERF_FireDustCoupling.H>
+#endif
 
 /**
  * Enum of possible interpolation types between coarse/fine
@@ -1491,6 +1494,9 @@ private:
     // Coarsened dust emission flux on atmospheric grid for each level
     // Updated after DustLayer::advance, applied in ERF_Advance before dycore
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> m_dust_flux_atm;
+#if defined(ERF_ENABLE_FIRE) && defined(ERF_USE_DUST)
+    FireDustCoupling m_fire_dust_coupling;
+#endif
     #endif
     amrex::Vector<std::unique_ptr<ForestDrag>> m_forest_drag;
 

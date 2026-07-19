@@ -71,6 +71,8 @@
 // Forward declarations
 class SurfaceLayer;
 class ERF;
+class FireLayer;
+struct FireDustCoupling;
 
 class DustLayer
 {
@@ -89,10 +91,12 @@ public:
      *
      * @param[in] erf              ERF instance (public AmrCore accessors only).
      * @param[in] surface_layer    Pointer to the initialized SurfaceLayer.
+     * @param[in] z_phys_nd_atm    Atmospheric nodal terrain heights at level 0.
      * @param[in] dust_params      Dust configuration parameters.
      */
     void initialize(const ERF&          erf,
                     const SurfaceLayer* surface_layer,
+                    const amrex::MultiFab& z_phys_nd_atm,
                     const DustParams&   dust_params);
 
     /**
@@ -134,6 +138,7 @@ public:
     const amrex::MultiFab* get_ustar_in()         const { return dust_ustar_in.get(); }
     const amrex::MultiFab* get_retreat_flag()     const { return dust_retreat_flag.get(); }
     const amrex::MultiFab* get_wind_ref()         const { return dust_wind_ref.get(); }
+    const amrex::MultiFab* get_slopes()           const { return dust_slopes.get(); }
     const amrex::MultiFab* get_pblh()             const { return dust_pblh.get(); }
     const amrex::MultiFab* get_tsfc()             const { return dust_tsfc.get(); }
     const amrex::MultiFab* get_deposition_rate()  const { return dust_deposition_rate.get(); }
@@ -165,6 +170,9 @@ public:
     const DustGrid&        get_dust_grid()        const { return m_dg; }
     const amrex::Geometry& get_dust_geom()        const { return m_dg.geom; }
     const DustParams&      get_params()           const { return m_params; }
+
+    // Non-const accessors for internal coupling (e.g., fire-dust coupling)
+    amrex::MultiFab* get_crust_index_mut() { return dust_crust_index.get(); }
 
     /**
      * @brief Get the dust scalar component index.
@@ -330,6 +338,9 @@ public:
                                  bool is_final = false);
 
 private:
+    friend void apply_fire_dust_coupling(
+        DustLayer& dust_layer, const FireLayer& fire_layer, const FireDustCoupling& coupling);
+
     DustGrid                              m_dg;
 
     std::unique_ptr<amrex::MultiFab>      dust_ustar_t;
@@ -344,6 +355,8 @@ private:
     std::unique_ptr<amrex::MultiFab>      dust_surf_moist;
     std::unique_ptr<amrex::MultiFab>      dust_ustar_in;
     std::unique_ptr<amrex::MultiFab>      dust_retreat_flag;
+    std::unique_ptr<amrex::MultiFab>      dust_slopes;     ///< Static terrain slopes on dust grid.
+    std::unique_ptr<amrex::MultiFab>      dust_curvature;  ///< Static terrain curvature on dust grid.
 
     // Phase 9: atmospheric fields extracted each timestep
     std::unique_ptr<amrex::MultiFab>      dust_wind_ref;   ///< u,v at zref [m/s] (ncomp=2)

@@ -46,6 +46,7 @@ namespace DustThresholdConst {
     constexpr amrex::Real BETA_MOIST   = 4.0;    ///< Moisture inhibition coefficient [-].
                                                   ///<   Fecan et al. (1999).
     constexpr amrex::Real GAMMA_SUPP   = 6.0;    ///< Suppression elevation coefficient [-].
+    constexpr amrex::Real TAN_REPOSE   = 0.7002075382097097; ///< tan(35 deg), Iversen & White (1982).
 }
 
 /**
@@ -120,6 +121,8 @@ amrex::Real compute_suppression_factor(amrex::Real s) noexcept
  * @param[in] alpha_efflor       Efflorescence reduction coefficient [-].
  * @param[in] surface_moisture   Surface moisture [0,1].
  * @param[in] suppression        Suppression coverage [0,1].
+ * @param[in] slope_x            Terrain slope dz/dx [m/m].
+ * @param[in] slope_y            Terrain slope dz/dy [m/m].
  *
  * @return Final u*_t clamped to [USTAR_T_MIN, USTAR_T_MAX] [m/s].
  */
@@ -130,7 +133,9 @@ amrex::Real compute_ustar_t_full(amrex::Real ustar_t_base,
                                   amrex::Real alpha_crust,
                                   amrex::Real alpha_efflor,
                                   amrex::Real surface_moisture,
-                                  amrex::Real suppression) noexcept
+                                  amrex::Real suppression,
+                                  amrex::Real slope_x = 0.0,
+                                  amrex::Real slope_y = 0.0) noexcept
 {
     // Chemistry reduction from PHREEQC (Phase 4).
     // Marticorena & Bergametti (1995), https://doi.org/10.1029/95JD00690
@@ -142,6 +147,16 @@ amrex::Real compute_ustar_t_full(amrex::Real ustar_t_base,
     amrex::Real f_supp  = compute_suppression_factor(suppression);
 
     amrex::Real ut = ustar_t_base * f_chem / (f_moist * f_supp);
+
+    // Iversen & White (1982) upslope correction using local terrain grade.
+    amrex::Real slope_mag = std::sqrt(slope_x * slope_x + slope_y * slope_y);
+    if (slope_mag > 0.0) {
+        amrex::Real cos_beta = 1.0 / std::sqrt(1.0 + slope_mag * slope_mag);
+        amrex::Real slope_factor =
+            std::sqrt(amrex::max(0.1, cos_beta + slope_mag / DustThresholdConst::TAN_REPOSE));
+        ut *= slope_factor;
+    }
+
     return amrex::min(amrex::max(ut, DustThresholdConst::USTAR_T_MIN),
                       DustThresholdConst::USTAR_T_MAX);
 }
@@ -170,7 +185,8 @@ inline void recompute_dust_ustar_t(
     const amrex::MultiFab& dust_surf_moist,
     const amrex::MultiFab& dust_suppression,
     amrex::Real            alpha_crust,
-    amrex::Real            alpha_efflor)
+    amrex::Real            alpha_efflor,
+    const amrex::MultiFab* dust_slopes = nullptr)
 {
     for (amrex::MFIter mfi(dust_ustar_t, amrex::TilingIfNotGPU());
          mfi.isValid(); ++mfi)
@@ -182,13 +198,20 @@ inline void recompute_dust_ustar_t(
         auto efflor_arr = dust_efflor.const_array(mfi);
         auto moist_arr  = dust_surf_moist.const_array(mfi);
         auto supp_arr   = dust_suppression.const_array(mfi);
+        amrex::Array4<const amrex::Real> slope_arr;
+        const bool have_slopes = (dust_slopes != nullptr);
+        if (have_slopes) {
+            slope_arr = dust_slopes->const_array(mfi);
+        }
         const amrex::Real ac = alpha_crust;
         const amrex::Real ae = alpha_efflor;
 
         amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+            amrex::Real slope_x = have_slopes ? slope_arr(i,j,k,0) : 0.0;
+            amrex::Real slope_y = have_slopes ? slope_arr(i,j,k,1) : 0.0;
             ut_arr(i,j,k) = compute_ustar_t_full(
                 base_arr(i,j,k), crust_arr(i,j,k), efflor_arr(i,j,k),
-                ac, ae, moist_arr(i,j,k), supp_arr(i,j,k));
+                ac, ae, moist_arr(i,j,k), supp_arr(i,j,k), slope_x, slope_y);
         });
     }
 }
