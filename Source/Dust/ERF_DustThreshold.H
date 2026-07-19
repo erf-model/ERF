@@ -11,7 +11,7 @@
  *   u*_t = A * sqrt(rho_p * g * d / rho_a)
  *
  * Modifier chain:
- *   f_chem  = (1 - alpha_c * crust_index) * (1 - alpha_e * efflorescence)
+ *   f_chem  = (1 + alpha_c * crust_index) * (1 + alpha_e * efflorescence)
  *   f_moist = 1 + beta_m  * surface_moisture   (raises u*_t; inhibits emission)
  *   f_supp  = 1 + gamma_s * suppression         (raises u*_t; inhibits emission)
  *

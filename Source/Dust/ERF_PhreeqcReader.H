@@ -29,10 +29,10 @@
  *                                fraction per size bin per cell.
  *
  * Threshold friction velocity update:
- *   u*_t_new = u*_t_base * (1 - alpha_c * crust_index)
- *                        * (1 - alpha_e * efflorescence)
- *   where alpha_c and alpha_e are crust and efflorescence reduction
- *   coefficients from DustParams.
+ *   u*_t_new = u*_t_base * (1 + alpha_c * crust_index)
+ *                        * (1 + alpha_e * efflorescence)
+ *   where alpha_c and alpha_e are crust and efflorescence enhancement
+ *   coefficients from DustParams. Higher crust increases u*_t (harder to emit).
  *   Reference: Marticorena & Bergametti (1995), J. Geophys. Res., 100,
  *     16415-16430. https://doi.org/10.1029/95JD00690
  *
@@ -72,16 +72,19 @@ struct DustGrid;
  *   https://doi.org/10.1029/95JD00690
  */
 namespace PhreeqcDustConst {
-    /// Crust strength reduction coefficient for u*_t [dimensionless].
-    /// Fraction by which a fully crusted surface (crust_index=1) reduces u*_t.
-    /// Reference: Marticorena & Bergametti (1995).
+    /// Crust strength enhancement coefficient for u*_t [dimensionless].
+    /// Higher crust_index (fully crusted, protected soil) increases u*_t (harder to emit).
+    /// Lower crust_index (bare, uncrusted soil) decreases u*_t (easier to emit).
+    /// Formula: f_chem = (1 + ALPHA_CRUST * crust_index)
+    /// Reference: Marticorena & Bergametti (1995), https://doi.org/10.1029/95JD00690
     constexpr amrex::Real ALPHA_CRUST       = 0.5;
 
-    /// Efflorescence reduction coefficient for u*_t [dimensionless].
-    /// Fraction by which full efflorescence (efflorescence=1) reduces u*_t.
+    /// Efflorescence enhancement coefficient for u*_t [dimensionless].
+    /// Higher efflorescence increases u*_t (protective effect).
+    /// Formula: f_efflor = (1 + ALPHA_EFFLOR * efflorescence)
     constexpr amrex::Real ALPHA_EFFLOR      = 0.3;
 
-    /// Minimum allowed u*_t after crust/efflorescence reduction [m/s].
+    /// Minimum allowed u*_t after crust/efflorescence modulation [m/s].
     constexpr amrex::Real USTAR_T_MIN       = 0.05;
 
     /// Suppression agent binding factor reduction per unit salt hygroscopicity.
@@ -128,14 +131,15 @@ bool read_phreeqc_netcdf(amrex::MultiFab&   mf,
 
 /**
  * @brief Update u*_t from crust index and efflorescence using the
- * Marticorena & Bergametti (1995) reduction formula:
+ * Marticorena & Bergametti (1995) enhancement formula:
  *
- *   u*_t_new = u*_t_base * (1 - alpha_c * crust_index)
- *                        * (1 - alpha_e * efflorescence)
+ *   u*_t_new = u*_t_base * (1 + alpha_c * crust_index)
+ *                        * (1 + alpha_e * efflorescence)
  *
  * clamped to [PhreeqcDustConst::USTAR_T_MIN, ...].
  * GPU kernel over dust grid cells. Called after crust_index and
  * efflorescence MultiFabs have been updated.
+ * Higher crust and efflorescence both increase u*_t (harder to emit).
  *
  * @param[in,out] dust_ustar_t    Threshold friction velocity [m/s].
  * @param[in]     dust_ustar_base Base u*_t before chemistry [m/s].

@@ -616,9 +616,9 @@ DustLayer::advance(
     amrex::Print() << "[DUST DEBUG] Phase 7: crust_index before u*_t computation at step=" << m_step
                    << " min=" << dust_crust_index->min(0)
                    << " max=" << dust_crust_index->max(0) << "\n";
-    amrex::Print() << "[DUST DEBUG] Phase 5: u*_t at step=" << m_step
-                   << " min=" << dust_ustar_t->min(0)
-                   << " max=" << dust_ustar_t->max(0) << " [m/s]\n";
+    amrex::Print() << "[DUST DEBUG] Phase 5: u*_t after crust modulation at step=" << m_step
+                   << " u*_t_min=" << dust_ustar_t->min(0)
+                   << " u*_t_max=" << dust_ustar_t->max(0) << " [m/s]\n";
   }
 
   if (m_params.loading_feedback_coeff > 0.0 && dust_conc_sfc) {
@@ -659,6 +659,13 @@ DustLayer::advance(
       amrex::Print() << "[DUST DEBUG] Phase 13: dynamic moisture inhibition applied"
                      << " ustar_t_max=" << ust_max << " m/s\n";
     }
+  }
+
+  if (m_params.dust_debug) {
+    amrex::Print() << "[DUST DEBUG] Phase 6: Before emission computation: u*_t_min="
+                   << dust_ustar_t->min(0) << " u*_t_max=" << dust_ustar_t->max(0)
+                   << " [m/s], u*_in_min=" << dust_ustar_in->min(0) 
+                   << " u*_in_max=" << dust_ustar_in->max(0) << " [m/s]\n";
   }
 
   compute_dust_emission_flux(
