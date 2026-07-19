@@ -101,6 +101,12 @@ struct DustParams {
                                            ///<   Phase 9 replaces with MRF T_sfc.
     amrex::Real test_wind_speed     = 5.0;     ///< 10 m wind speed placeholder [m/s].
                                            ///<   Phase 9 replaces with MRF 10m wind.
+    bool use_terrain_wind           = false;   ///< Apply FARSITE-style terrain wind correction.
+    amrex::Real k_ridge             = 1.5;     ///< Ridge speed-up factor.
+    amrex::Real k_shelter           = 0.6;     ///< Lee-side shelter factor.
+    amrex::Real k_valley            = 0.8;     ///< Valley channeling factor.
+    amrex::Real k_deflect           = 0.3;     ///< Valley deflection factor.
+    std::string terrain_file        = "";      ///< Optional fine-grid terrain file for dust slopes.
     amrex::Real zref = 10.0; ///< Wind extraction height [m]. Set equal to erf.most.zref.
                           ///<   Hong & Pan (1996):
                           ///<   https://doi.org/10.1175/1520-0493(1996)124<2322:NBLVDI>2.0.CO;2
@@ -257,6 +263,12 @@ struct DustParams {
         pp.query("supp_tau_base_s",  supp_tau_base_s);
         pp.query("test_surf_temp_K", test_surf_temp_K);
         pp.query("test_wind_speed",  test_wind_speed);
+        pp.query("use_terrain_wind", use_terrain_wind);
+        pp.query("k_ridge",          k_ridge);
+        pp.query("k_shelter",        k_shelter);
+        pp.query("k_valley",         k_valley);
+        pp.query("k_deflect",        k_deflect);
+        pp.query("terrain_file",     terrain_file);
         pp.query("zref", zref);
         pp.query("phreeqc_crust_var", phreeqc_crust_var);
         pp.query("phreeqc_silt_var", phreeqc_silt_var);
@@ -323,4 +335,3 @@ struct DustParams {
    }  // end DustParams constructor
  };     // end struct DustParams
 #endif // ERF_DUST_PARAMS_H
-

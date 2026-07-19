@@ -211,6 +211,14 @@ ERF::Evolve ()
 
 #ifdef ERF_USE_DUST
         if (m_DustLayer) {
+#ifdef ERF_ENABLE_FIRE
+            if (m_fire_dust_coupling.enabled && m_fire_layer) {
+                m_fire_dust_coupling.fire_phi_mf = m_fire_layer->get_levelset();
+                m_fire_dust_coupling.apply_burned_area_to_crust(
+                    *m_DustLayer->get_crust_index_mut(),
+                    m_DustLayer->get_dust_geom());
+            }
+#endif
             const amrex::MultiFab* xvel_ptr  = &vars_new[0][Vars::xvel];
             const amrex::MultiFab* yvel_ptr  = &vars_new[0][Vars::yvel];
             const amrex::MultiFab* zvel_ptr  = &vars_new[0][Vars::zvel];  // Phase 19
@@ -1317,7 +1325,15 @@ ERF::InitData_post ()
         DustParams dust_params;  // reads all erf.dust.* from ParmParse
         if (dust_params.enable) {
             m_DustLayer = std::make_unique<DustLayer>();
-            m_DustLayer->initialize(*this, m_SurfaceLayer.get(), dust_params);
+            m_DustLayer->initialize(*this, m_SurfaceLayer.get(), *z_phys_nd[0], dust_params);
+#ifdef ERF_ENABLE_FIRE
+            if (m_fire_layer && m_DustLayer) {
+                amrex::ParmParse pp("erf");
+                pp.query("fire_dust_coupling",        m_fire_dust_coupling.enabled);
+                pp.query("fire_dust_crust_reduction", m_fire_dust_coupling.post_fire_crust_reduction);
+                m_fire_dust_coupling.fire_phi_mf = m_fire_layer->get_levelset();
+            }
+#endif
             
             // Allocate coarsened dust flux for level 0 (dust coupling only at level 0)
             {
