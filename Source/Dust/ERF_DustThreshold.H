@@ -39,7 +39,7 @@
 #include <cmath>
 
 namespace DustThresholdConst {
-    constexpr amrex::Real USTAR_T_MIN  = 0.05;   ///< Floor for u*_t [m/s].
+    constexpr amrex::Real USTAR_T_MIN  = 0.001;   ///< Floor for u*_t [m/s].
     constexpr amrex::Real USTAR_T_MAX  = 5.0;    ///< Ceiling for u*_t [m/s].
     constexpr amrex::Real RHO_AIR_STD  = 1.225;  ///< Standard air density [kg/m^3].
     constexpr amrex::Real G_ACCEL      = 9.81;   ///< Gravitational acceleration [m/s^2].
