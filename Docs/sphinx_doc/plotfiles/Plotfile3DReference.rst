@@ -16,14 +16,13 @@ in separate face-centered outputs associated with the configured 3D stream.
 -------------------
 
 The fixed core names are selected from the input list and emitted in the order
-defined by ERF. Temporally averaged quantities require
-``erf.time_avg_vel = true``. Some names require a compile-time option, a physics
-package, or stored diagnostic state; those restrictions are noted below.
+defined by ERF. Some names require a compile-time option, a physics package, or
+stored diagnostic state; those restrictions are noted below.
 
 The default subvolume inventory is documented on :ref:`sec:Plotfiles`.
 
 +-----------------------------+------------------+
-| Parameter                   | Definition       |
+| Variable                    | Definition       |
 |                             |                  |
 +=============================+==================+
 | **x_velocity**              | Velocity in x    |
@@ -66,6 +65,10 @@ The default subvolume inventory is documented on :ref:`sec:Plotfiles`.
 |                             | potential        |
 |                             | temperature [K]  |
 +-----------------------------+------------------+
+| **qv_hse**                  | Base-state water |
+|                             | vapor mixing     |
+|                             | ratio [kg/kg]    |
++-----------------------------+------------------+
 | **pert_pres**               | Perturbational   |
 |                             | pressure         |
 |                             | [Pa]             |
@@ -99,6 +102,11 @@ The default subvolume inventory is documented on :ref:`sec:Plotfiles`.
 | **theta**                   | Potential        |
 |                             | temperature [K]  |
 |                             |                  |
++-----------------------------+------------------+
+| **buoyancy**                | Buoyancy term    |
+|                             | used by the      |
+|                             | z-momentum       |
+|                             | equation         |
 +-----------------------------+------------------+
 | **eq_pot_temp**             | Equivalent       |
 |                             | potential        |
@@ -283,6 +291,16 @@ The default subvolume inventory is documented on :ref:`sec:Plotfiles`.
 |                             | mixing ratio     |
 |                             | [kg/kg]          |
 +-----------------------------+------------------+
+| **qrain**                   | Rain-water       |
+|                             | mixing ratio     |
+|                             | [kg/kg]          |
++-----------------------------+------------------+
+| **qsnow**                   | Snow mixing      |
+|                             | ratio [kg/kg]    |
++-----------------------------+------------------+
+| **qgraup**                  | Graupel mixing   |
+|                             | ratio [kg/kg]    |
++-----------------------------+------------------+
 | **qv**                      | Water vapor      |
 |                             | mixing ratio     |
 |                             | [kg/kg]          |
@@ -359,6 +377,9 @@ The default subvolume inventory is documented on :ref:`sec:Plotfiles`.
 |                             | [count]          |
 +-----------------------------+------------------+
 
+The ``qrain``, ``qsnow``, and ``qgraup`` rows are available when the active
+moisture scheme provides the corresponding rain, snow, or graupel component.
+
 Fixed conserved-state fields
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -388,25 +409,31 @@ These face-velocity filenames always use level-0 step numbering, including when
 ``erf.use_real_time_in_pltname = true``. The face outputs are native AMReX
 artifacts; the NetCDF writer does not enter this face-output path.
 
-Additional fixed derived fields
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Supplemental fixed derived fields
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-The main table above contains the common derived fields. The fixed inventory
-also includes these names:
-
-* Hydrostatic and pressure diagnostics: ``qv_hse`` and ``buoyancy``.
-* Native SHOC diagnostics: ``pblh``, ``shoc_cldfrac``, ``shoc_ql``, ``shoc_ql2``,
-  ``shoc_cond``, ``wqls_sec``, ``wthv_sec``, ``w_sec``, ``thl_sec``, ``qw_sec``,
-  ``qwthl_sec``, ``wthl_sec``, ``wqw_sec``, ``w3``, ``brunt``, ``isotropy``,
-  ``shear_prod``, ``buoy_prod``, and ``diss_tke``.
-* Moisture and number diagnostics: ``nc``, ``ni``, ``nr``, ``ns``, and ``ng``.
-* Conditional error diagnostics: ``xvel_err``, ``yvel_err``, ``zvel_err``, and
-  ``pp_err`` when ``ERF_COMPUTE_ERROR`` is enabled.
-
-The remaining fixed names are listed in the main table, including geometry,
-turbulence, accumulation, terrain, immersed-boundary, radiation-source, and
-wind-farm fields. A requested name is still subject to the runtime selection
+The main table contains the ordinary fixed fields. The following fixed names
+are conditional or specialized and remain part of the same source-defined
+inventory. A requested name is still subject to the runtime selection
 conditions in ``setPlotVariables``.
+
+* ``pblh`` is the native SHOC planetary-boundary-layer height in metres.
+* ``shoc_cldfrac``, ``shoc_ql``, ``shoc_ql2``, ``shoc_cond``, ``wqls_sec``,
+  ``wthv_sec``, ``w_sec``, ``thl_sec``, ``qw_sec``, ``qwthl_sec``, ``wthl_sec``,
+  ``wqw_sec``, ``w3``, ``brunt``, ``isotropy``, ``shear_prod``, ``buoy_prod``,
+  and ``diss_tke`` are native SHOC diagnostics. Their units and availability
+  follow the active native SHOC implementation.
+* ``nc``, ``ni``, ``nr``, ``ns``, and ``ng`` are moisture number
+  concentrations. They are available when the active moisture model provides
+  the corresponding conserved component; the output units follow that model's
+  number-concentration convention.
+* ``xvel_err``, ``yvel_err``, ``zvel_err``, and ``pp_err`` are error diagnostics
+  available when ``ERF_COMPUTE_ERROR`` is enabled. Their units follow the
+  corresponding velocity or pressure quantity.
+
+The fixed conserved-state inventory is ``density``, ``rhotheta``, ``rhoKE``,
+``rhoadv_0``, and ``rhoQ1`` through ``rhoQ11``. The ``rhoQ`` components are
+active only to the extent that the selected moisture model provides them.
 
 Wind-farm-only variables
 ~~~~~~~~~~~~~~~~~~~~~~~~
@@ -415,7 +442,7 @@ The following quantities are available only in builds with
 ``ERF_USE_WINDFARM`` enabled.
 
 +-----------------------------+------------------+
-| Parameter                   | Definition       |
+| Variable                    | Definition       |
 +=============================+==================+
 | **num_turb**                | Number of wind   |
 |                             | turbines in cell |
@@ -449,7 +476,7 @@ the variables below in your **erf.plot_vars_1** or **erf.plot_vars_2** list.
 **Thermodynamic State Variables:**
 
 +-----------------------------+------------------+
-| Parameter                   | Definition       |
+| Variable                    | Definition       |
 +=============================+==================+
 | **micro_rho**               | Air density      |
 |                             | [kg/m^3]         |
@@ -467,7 +494,7 @@ the variables below in your **erf.plot_vars_1** or **erf.plot_vars_2** list.
 **Non-Precipitating Moisture Variables (mixing ratios in kg/kg):**
 
 +-----------------------------+------------------+
-| Parameter                   | Definition       |
+| Variable                    | Definition       |
 +=============================+==================+
 | **micro_qv**                | Water vapor      |
 |                             | mixing ratio     |
@@ -496,7 +523,7 @@ the variables below in your **erf.plot_vars_1** or **erf.plot_vars_2** list.
 **Precipitating Hydrometeor Variables (mixing ratios in kg/kg):**
 
 +-----------------------------+------------------+
-| Parameter                   | Definition       |
+| Variable                    | Definition       |
 +=============================+==================+
 | **micro_qp**                | Total            |
 |                             | precipitation    |
@@ -520,7 +547,7 @@ the variables below in your **erf.plot_vars_1** or **erf.plot_vars_2** list.
 **Number Concentrations (1/kg):**
 
 +-----------------------------+------------------+
-| Parameter                   | Definition       |
+| Variable                    | Definition       |
 +=============================+==================+
 | **micro_nc**                | Cloud droplet    |
 |                             | number           |
@@ -547,7 +574,7 @@ the variables below in your **erf.plot_vars_1** or **erf.plot_vars_2** list.
 **Dynamical Variables:**
 
 +-----------------------------+------------------+
-| Parameter                   | Definition       |
+| Variable                    | Definition       |
 +=============================+==================+
 | **micro_omega**             | Grid-scale       |
 |                             | vertical         |
@@ -595,10 +622,9 @@ the configured species and aerosols. Particle count names use the form
 ``<container>_count``. These fields are dynamic; their exact names depend on the
 particle configuration.
 
-Three-dimensional output has one relevant state-update exception. For
-Lagrangian microphysics with two-way AMR coupling and at least two AMR levels,
-``Write3DPlotFile`` averages fine-level microphysics and moisture state down to
-covered coarse cells before it constructs the plotfile. This consistency update
-mutates persistent coarse storage so level-0 output includes fine-level deposits;
-it is not a physical time tendency. Other 3D output assembly is diagnostic
-construction.
+Before constructing a 3D plotfile in a Lagrangian-microphysics run with
+two-way AMR coupling and at least two AMR levels, ERF averages fine-level
+microphysics storage, ``RhoTheta``, and
+the active moist conserved components onto covered coarse cells. This is a
+consistency update so coarse output reflects fine-level deposits; it is not a
+physical time tendency. Other 3D output assembly is diagnostic construction.

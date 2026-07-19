@@ -435,8 +435,8 @@ The selection contract and the value written after selection are separate:
      - Selectable: the active moisture scheme has a graupel mass component.
      - Value: normalized graupel accumulation.
    * - ``precip_hail_accum``
-     - Selectable: never for current moisture schemes; it remains a fixed descriptor.
-     - Value: zero through the fixed metadata policy unless a future scheme supplies a hail source.
+     - Selectable: not selectable for any current moisture scheme. The fixed descriptor reserves this public name for future support.
+     - Value: no component is currently written. If a future scheme makes the field selectable, the descriptor's zero-fill policy applies when its runtime source is unavailable.
    * - ``integrated_qv``
      - Selectable: always.
      - Value: column-integrated water vapor; zero when moisture is disabled.

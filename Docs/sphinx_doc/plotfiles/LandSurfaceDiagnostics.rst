@@ -15,10 +15,10 @@ Unified 2-m fields and coherent source selection
 The public unified fields are:
 
 ``temperature_2m``
-   Physical temperature 2-m above the local surface.
+   Physical temperature 2 m above the local surface.
 
 ``water_vapor_mixing_ratio_2m``
-   Water-vapor mixing ratio 2-m above the local surface, per unit dry-air
+   Water-vapor mixing ratio 2 m above the local surface, per unit dry-air
    mass.
 
 ``near_surface_diagnostic_source``
