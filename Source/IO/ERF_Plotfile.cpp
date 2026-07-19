@@ -1,6 +1,7 @@
 #include "ERF.H"
 #include "ERF_EpochTime.H"
 #include "ERF_NCPlotFile.H"
+#include "ERF_PlotfileSelection.H"
 #include "ERF_SrcHeaders.H"
 #include "ERF_StormDiagnostics.H"
 #include "ERF_TerrainMetrics.H"
@@ -39,41 +40,21 @@ ERF::setPlotVariables (const std::string& pp_plot_var_names, Vector<std::string>
     }
 
     // Get state variables in the same order as we define them,
-    // since they may be in any order in the input list
+    // since they may be in any order in the input list.  This is called
+    // before vars_new is allocated, so use the microphysics interface as
+    // the source of truth for the active conserved-state size.
     Vector<std::string> tmp_plot_names;
+    const erf_plotfile::Plot3DSelectionCapabilities capabilities{
+        NDRY + NSCALARS + micro->Get_Qstate_Size(),
+        micro->Get_Qstate_Moist_Size(),
+        micro->Get_Qstate_Moist_NumConc_Size(),
+        micro->Get_Qmoist_Size(0),
+        solverChoice.moisture_type};
 
     for (int i = 0; i < cons_names.size(); ++i) {
-        if ( containerHasElement(plot_var_names, cons_names[i]) ) {
-            if (solverChoice.moisture_type == MoistureType::None) {
-                if (cons_names[i] != "rhoQ1" && cons_names[i] != "rhoQ2" && cons_names[i] != "rhoQ3" &&
-                    cons_names[i] != "rhoQ4" && cons_names[i] != "rhoQ5" && cons_names[i] != "rhoQ6")
-                {
-                    tmp_plot_names.push_back(cons_names[i]);
-                }
-            } else if (solverChoice.moisture_type == MoistureType::Kessler) { // allow rhoQ1, rhoQ2, rhoQ3
-                if (cons_names[i] != "rhoQ4" && cons_names[i] != "rhoQ5" && cons_names[i] != "rhoQ6")
-                {
-                    tmp_plot_names.push_back(cons_names[i]);
-                }
-            } else if ( (solverChoice.moisture_type == MoistureType::SatAdj) ||
-                        (solverChoice.moisture_type == MoistureType::SAM_NoPrecip_NoIce) ||
-                        (solverChoice.moisture_type == MoistureType::Kessler_NoRain) ) { // allow rhoQ1, rhoQ2
-                if (cons_names[i] != "rhoQ3" && cons_names[i] != "rhoQ4" &&
-                    cons_names[i] != "rhoQ5" && cons_names[i] != "rhoQ6")
-                {
-                    tmp_plot_names.push_back(cons_names[i]);
-                }
-            } else if ( (solverChoice.moisture_type == MoistureType::Morrison_NoIce) ||
-                        (solverChoice.moisture_type == MoistureType::SAM_NoIce     ) ) { // allow rhoQ1, rhoQ2, rhoQ4
-                if (cons_names[i] != "rhoQ3" && cons_names[i] != "rhoQ5" && cons_names[i] != "rhoQ6")
-                {
-                    tmp_plot_names.push_back(cons_names[i]);
-                }
-            } else
-            {
-                // For moisture_type SAM, Morrison and WSM6 we have all six variables
-                tmp_plot_names.push_back(cons_names[i]);
-            }
+        if (containerHasElement(plot_var_names, cons_names[i]) &&
+            erf_plotfile::plot3d_fixed_variable_available(cons_names[i], capabilities)) {
+            tmp_plot_names.push_back(cons_names[i]);
         }
     }
 
@@ -104,37 +85,12 @@ ERF::setPlotVariables (const std::string& pp_plot_var_names, Vector<std::string>
 #ifndef ERF_USE_WINDFARM
             ok_to_add     &= (derived_names[i] != "SMark0" && derived_names[i] != "SMark1");
 #endif
+            ok_to_add     &= (derived_names[i] != "num_turb" &&
+                              derived_names[i] != "SMark0" &&
+                              derived_names[i] != "SMark1");
             if (ok_to_add)
             {
-                if (solverChoice.moisture_type == MoistureType::None) { // no moist quantities allowed
-                    if (derived_names[i] != "qv" && derived_names[i] != "qc"    && derived_names[i] != "qrain"  &&
-                        derived_names[i] != "qi" && derived_names[i] != "qsnow" && derived_names[i] != "qgraup" &&
-                        derived_names[i] != "qt" && derived_names[i] != "qn"    && derived_names[i] != "qp"     &&
-                        derived_names[i] != "rain_accum" && derived_names[i] != "snow_accum" && derived_names[i] != "graup_accum")
-                    {
-                        tmp_plot_names.push_back(derived_names[i]);
-                    }
-                } else if ( (solverChoice.moisture_type == MoistureType::Kessler       ) ||
-                            (solverChoice.moisture_type == MoistureType::Morrison_NoIce) ||
-                            (solverChoice.moisture_type == MoistureType::SAM_NoIce     ) ) { // allow qv, qc, qrain
-                    if (derived_names[i] != "qi" && derived_names[i] != "qsnow" && derived_names[i] != "qgraup" &&
-                        derived_names[i] != "snow_accum" && derived_names[i] != "graup_accum")
-                    {
-                        tmp_plot_names.push_back(derived_names[i]);
-                    }
-                } else if ( (solverChoice.moisture_type == MoistureType::SatAdj)             ||
-                            (solverChoice.moisture_type == MoistureType::SAM_NoPrecip_NoIce) ||
-                            (solverChoice.moisture_type == MoistureType::Kessler_NoRain)     ||
-                            (solverChoice.moisture_type == MoistureType::MoistNoCondensation) ) { // allow qv, qc
-                    if (derived_names[i] != "qrain"  && derived_names[i] != "qi" && derived_names[i] != "qsnow" &&
-                        derived_names[i] != "qgraup" && derived_names[i] != "qp" &&
-                        derived_names[i] != "rain_accum" && derived_names[i] != "snow_accum" && derived_names[i] != "graup_accum")
-                    {
-                        tmp_plot_names.push_back(derived_names[i]);
-                    }
-                } else
-                {
-                    // For moisture_type SAM and Morrison we have all moist quantities
+                if (erf_plotfile::plot3d_fixed_variable_available(derived_names[i], capabilities)) {
                     tmp_plot_names.push_back(derived_names[i]);
                 }
             } // use_terrain?
@@ -160,12 +116,18 @@ ERF::setPlotVariables (const std::string& pp_plot_var_names, Vector<std::string>
 #endif
 
 #ifdef ERF_USE_PARTICLES
-    const auto& particles_namelist( particleData.getNamesUnalloc() );
-    for (auto it = particles_namelist.cbegin(); it != particles_namelist.cend(); ++it) {
-        std::string tmp( (*it)+"_count" );
-        if (containerHasElement(plot_var_names, tmp) ) {
-            tmp_plot_names.push_back(tmp);
+    Vector<std::string> configured_particle_names;
+    for (const auto& name : particleData.getNamesUnalloc()) {
+        configured_particle_names.push_back(name);
+    }
+    for (const auto& name : particleData.getNames()) {
+        if (!containerHasElement(configured_particle_names, name)) {
+            configured_particle_names.push_back(name);
         }
+    }
+    for (const auto& name : erf_plotfile::plot3d_selected_particle_count_names(
+             plot_var_names, configured_particle_names)) {
+        tmp_plot_names.push_back(name + "_count");
     }
 #endif
 
@@ -275,8 +237,9 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
 
     if (ncomp_mf == 0) return;
 
-    // Lagrangian microphysics with AMR (TwoWay): bring fine-level moisture down
-    // to coarse cells so plotfiles at level 0 show the fine-deposit cloud.
+    // Lagrangian microphysics with AMR (TwoWay): synchronize the
+    // microphysics-owned storage before rebuilding the active moisture state
+    // used by the plotfile diagnostics.
     if (Microphysics::modelType(solverChoice.moisture_type) == MoistureModelType::Lagrangian
         && solverChoice.coupling_type == CouplingType::TwoWay
         && finest_level >= 1) {
@@ -409,7 +372,9 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
         // First, copy any of the conserved state variables into the output plotfile
         for (int i = 0; i < cons_names.size(); ++i) {
             if (containerHasElement(plot_var_names, cons_names[i])) {
-                MultiFab::Copy(mf[lev],vars_new[lev][Vars::cons],i,mf_comp,1,0);
+                const int cons_comp = erf_plotfile::plot3d_conserved_component_index(cons_names[i]);
+                AMREX_ALWAYS_ASSERT(cons_comp >= 0 && cons_comp < vars_new[lev][Vars::cons].nComp());
+                MultiFab::Copy(mf[lev],vars_new[lev][Vars::cons],cons_comp,mf_comp,1,0);
                 mf_comp++;
             }
         }
@@ -436,15 +401,9 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
 
         MultiFab pressure;
 
+        const bool needs_pressure = erf_plotfile::plot3d_needs_pressure(plot_var_names);
         if (solverChoice.anelastic[lev] == 0) {
-            if (containerHasElement(plot_var_names, "pressure")     ||
-                containerHasElement(plot_var_names, "pert_pres")    ||
-                containerHasElement(plot_var_names, "dpdx")         ||
-                containerHasElement(plot_var_names, "dpdy")         ||
-                containerHasElement(plot_var_names, "dpdz")         ||
-                containerHasElement(plot_var_names, "eq_pot_temp")  ||
-                containerHasElement(plot_var_names, "qsat"))
-            {
+            if (needs_pressure) {
                 int ng = (containerHasElement(plot_var_names, "dpdx") || containerHasElement(plot_var_names, "dpdy") ||
                           containerHasElement(plot_var_names, "dpdz")) ? 1 : 0;
 
@@ -477,12 +436,7 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
             } // compute compressible pressure
         } // not anelastic
         else {
-            if (containerHasElement(plot_var_names, "dpdx")         ||
-                containerHasElement(plot_var_names, "dpdy")         ||
-                containerHasElement(plot_var_names, "dpdz")         ||
-                containerHasElement(plot_var_names, "eq_pot_temp")  ||
-                containerHasElement(plot_var_names, "qsat"))
-            {
+            if (needs_pressure) {
                 // Copy p_hse into pressure if using anelastic
                 pressure.define(ba,dm,1,0);
                 MultiFab::Copy(pressure,p_hse,0,0,1,0);
@@ -1607,27 +1561,27 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
         // *****************************************************************************************
 
 #ifdef ERF_USE_PARTICLES
-        const auto& particles_namelist( particleData.getNames() );
-
-        if (containerHasElement(plot_var_names, "tracer_particles_count")) {
-            if (particles_namelist.size() == 0) {
-                MultiFab temp_dat(mf[lev].boxArray(), mf[lev].DistributionMap(), 1, 0);
-                temp_dat.setVal(0);
-                MultiFab::Copy(mf[lev], temp_dat, 0, mf_comp, 1, 0);
-                mf_comp += 1;
-            } else {
-                for (ParticlesNamesVector::size_type i = 0; i < particles_namelist.size(); i++) {
-                    if (containerHasElement(plot_var_names, std::string(particles_namelist[i]+"_count"))) {
-                        MultiFab temp_dat(mf[lev].boxArray(), mf[lev].DistributionMap(), 1, 0);
-                        temp_dat.setVal(0);
-                        if (particleData.HasSpecies(particles_namelist[i])) {
-                            particleData[particles_namelist[i]]->Increment(temp_dat, lev);
-                        }
-                        MultiFab::Copy(mf[lev], temp_dat, 0, mf_comp, 1, 0);
-                        mf_comp += 1;
-                    }
-                }
+        Vector<std::string> configured_particle_names;
+        for (const auto& name : particleData.getNamesUnalloc()) {
+            configured_particle_names.push_back(name);
+        }
+        for (const auto& name : particleData.getNames()) {
+            if (!containerHasElement(configured_particle_names, name)) {
+                configured_particle_names.push_back(name);
             }
+        }
+
+        const Vector<std::string> requested_particle_counts =
+            erf_plotfile::plot3d_selected_particle_count_names(plot_var_names,
+                                                                configured_particle_names);
+        for (const auto& name : requested_particle_counts) {
+            MultiFab temp_dat(mf[lev].boxArray(), mf[lev].DistributionMap(), 1, 0);
+            temp_dat.setVal(0);
+            if (particleData.HasSpecies(name)) {
+                particleData[name]->Increment(temp_dat, lev);
+            }
+            MultiFab::Copy(mf[lev], temp_dat, 0, mf_comp, 1, 0);
+            mf_comp += 1;
         }
 
         Vector<std::string> particle_mesh_plot_names(0);
@@ -1658,6 +1612,10 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
                 }
             }
         }
+
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+            mf_comp == ncomp_mf,
+            "3D plotfile component assembly does not match selected variable names");
     } // lev
 
     if (solverChoice.terrain_type == TerrainType::EB)

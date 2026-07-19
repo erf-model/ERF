@@ -41,8 +41,11 @@ The default subvolume inventory is documented on :ref:`sec:Plotfiles`.
 |                             | [kg/m^3]         |
 |                             |                  |
 +-----------------------------+------------------+
-| **moist_density**           | Total density    |
-|                             | [kg/m^3]         |
+| **moist_density**           | Dry-air density  |
+|                             | plus vapor and   |
+|                             | non-precipitating|
+|                             | condensate       |
+|                             | density [kg/m^3] |
 |                             |                  |
 +-----------------------------+------------------+
 | **dens_hse**                | Hydrostatic      |
@@ -393,6 +396,10 @@ below. The active moisture model determines which components are selectable.
 
 These are conserved moisture or species densities. The component names are
 fixed; the active moisture model controls which components are available.
+ERF checks the active conserved-state and microphysics sizes before selecting a
+requested component. Unsupported fixed names are omitted and reported as
+unavailable; they do not reserve a plotfile component. Provider-supplied names
+remain dynamic and are appended only when the active provider exposes them.
 
 Velocity output behavior
 ~~~~~~~~~~~~~~~~~~~~~~~~
@@ -620,7 +627,8 @@ SuperDroplet provider additionally generates mass-flux, number-density,
 species-density, species-flux, aerosol-density, and aerosol-flux families from
 the configured species and aerosols. Particle count names use the form
 ``<container>_count``. These fields are dynamic; their exact names depend on the
-particle configuration.
+particle configuration. Every configured container can be selected, including
+one that has not yet been allocated; its mesh count is then initialized to zero.
 
 Before constructing a 3D plotfile in a Lagrangian-microphysics run with
 two-way AMR coupling and at least two AMR levels, ERF averages fine-level
