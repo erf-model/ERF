@@ -220,6 +220,36 @@ ERF::Evolve ()
                     m_DustLayer->get_dust_geom());
                 // Ensure ghost cells are properly synchronized after crust reduction
                 m_DustLayer->get_crust_index_mut()->FillBoundary(m_DustLayer->get_dust_geom().periodicity());
+
+                // Phase 2: fire outflow wind raises dust u*
+                if (m_fire_dust_coupling.fire_wind_to_dust) {
+                    // MPI-safe cross-grid access (LNG_MPI_SKILLS Rule B3):
+                    // fire_wind_eff lives on the fire grid BoxArray/DM.
+                    // dust_ustar_in lives on the dust grid BoxArray/DM.
+                    // With grid_ratio > 1 and 2+ MPI ranks a dust tile on rank 0 may
+                    // need fire cells owned by rank 1. ParallelCopy into a scratch MultiFab
+                    // on the dust BA before the GPU kernel runs.
+                    const amrex::Periodicity& per = Geom(0).periodicity();
+                    amrex::MultiFab fire_wind_scratch(
+                        m_DustLayer->get_dust_ba(),
+                        m_DustLayer->get_dust_dm(),
+                        2, 1);   // 2 components (u,v), 1 ghost cell
+                    fire_wind_scratch.setVal(0.0_rt);
+                    fire_wind_scratch.ParallelCopy(
+                        *m_fire_layer->get_wind_eff(), 0, 0, 2, 0, 1, per);
+                    fire_wind_scratch.FillBoundary(per);  // Rule B4: always pass periodicity
+
+                    const int C = amrex::max(
+                        m_fire_layer->get_grid_ratio() / m_DustLayer->get_grid_ratio(), 1);
+
+                    m_fire_dust_coupling.apply_fire_wind_to_dust_ustar(
+                        *m_DustLayer->get_ustar_in_mut(),
+                        fire_wind_scratch,
+                        m_DustLayer->get_dust_geom(),
+                        m_fire_dust_coupling.fire_wind_z0,
+                        m_fire_dust_coupling.fire_wind_zref,
+                        C);
+                }
             }
 #endif
             const amrex::MultiFab* xvel_ptr  = &vars_new[0][Vars::xvel];
@@ -1334,6 +1364,9 @@ ERF::InitData_post ()
                 amrex::ParmParse pp("erf");
                 pp.query("fire_dust_coupling",        m_fire_dust_coupling.enabled);
                 pp.query("fire_dust_crust_reduction", m_fire_dust_coupling.post_fire_crust_reduction);
+                pp.query("fire_dust_wind_to_dust",   m_fire_dust_coupling.fire_wind_to_dust);
+                pp.query("fire_dust_wind_z0",        m_fire_dust_coupling.fire_wind_z0);
+                pp.query("fire_dust_wind_zref",      m_fire_dust_coupling.fire_wind_zref);
                 m_fire_dust_coupling.fire_phi_mf = m_fire_layer->get_levelset();
                 m_fire_dust_coupling.geom_fire   = m_fire_layer->get_fire_geom();
                 
