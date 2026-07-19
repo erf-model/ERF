@@ -44,17 +44,45 @@ ERF::setPlotVariables (const std::string& pp_plot_var_names, Vector<std::string>
     // before vars_new is allocated, so use the microphysics interface as
     // the source of truth for the active conserved-state size.
     Vector<std::string> tmp_plot_names;
-    const erf_plotfile::Plot3DSelectionCapabilities capabilities{
-        NDRY + NSCALARS + micro->Get_Qstate_Size(),
-        micro->Get_Qstate_Moist_Size(),
-        micro->Get_Qstate_Moist_NumConc_Size(),
-        micro->Get_Qmoist_Size(0),
-        solverChoice.moisture_type};
+    erf_plotfile::Plot3DSelectionCapabilities capabilities;
+    capabilities.conserved_state_size = NDRY + NSCALARS + micro->Get_Qstate_Size();
+    capabilities.moist_state_size = micro->Get_Qstate_Moist_Size();
+    capabilities.moist_numconc_size = micro->Get_Qstate_Moist_NumConc_Size();
+    capabilities.qmoist_size = micro->Get_Qmoist_Size(0);
+    capabilities.moisture_type = solverChoice.moisture_type;
+    capabilities.moisture = erf_plotfile::plot3d_moisture_capabilities(
+        solverChoice.moisture_type);
+    capabilities.time_average_storage = solverChoice.time_avg_vel;
+    capabilities.radiation_heating_storage = solverChoice.rad_type != RadiationType::None;
+    capabilities.eddy_diffusivity_storage = true;
+    capabilities.dissipation_storage = true;
+    capabilities.wall_distance_storage = true;
+    for (int lev = 0; lev <= max_level; ++lev) {
+        capabilities.eddy_diffusivity_storage =
+            capabilities.eddy_diffusivity_storage && solverChoice.turbChoice[lev].use_kturb;
+        capabilities.dissipation_storage =
+            capabilities.dissipation_storage &&
+            (solverChoice.diffChoice.molec_diff_type != MolecDiffType::None ||
+             solverChoice.turbChoice[lev].use_kturb);
+        capabilities.wall_distance_storage =
+            capabilities.wall_distance_storage &&
+            solverChoice.turbChoice[lev].rans_type != RANSType::None;
+    }
+
+    auto warn_unavailable = [&](const std::string& name) {
+        if (amrex::ParallelDescriptor::IOProcessor()) {
+            Warning("\nWARNING: Requested fixed 3D plot variable '" + name +
+                    "' is unavailable for the active configuration");
+        }
+    };
 
     for (int i = 0; i < cons_names.size(); ++i) {
-        if (containerHasElement(plot_var_names, cons_names[i]) &&
-            erf_plotfile::plot3d_fixed_variable_available(cons_names[i], capabilities)) {
-            tmp_plot_names.push_back(cons_names[i]);
+        if (containerHasElement(plot_var_names, cons_names[i])) {
+            if (erf_plotfile::plot3d_fixed_variable_available(cons_names[i], capabilities)) {
+                tmp_plot_names.push_back(cons_names[i]);
+            } else {
+                warn_unavailable(cons_names[i]);
+            }
         }
     }
 
@@ -74,6 +102,10 @@ ERF::setPlotVariables (const std::string& pp_plot_var_names, Vector<std::string>
     //
     for (int i = 0; i < derived_names.size(); ++i) {
         if ( containerHasElement(plot_var_names, derived_names[i]) ) {
+            const bool is_windfarm_name =
+                derived_names[i] == "num_turb" || derived_names[i] == "SMark0" ||
+                derived_names[i] == "SMark1";
+            if (is_windfarm_name) continue;
             bool ok_to_add = ( (solverChoice.terrain_type == TerrainType::ImmersedForcing || solverChoice.buildings_type == BuildingsType::ImmersedForcing ) ||
                                (derived_names[i] != "terrain_IB_mask") );
             ok_to_add     &= ( (SolverChoice::terrain_type == TerrainType::StaticFittedMesh) ||
@@ -92,7 +124,11 @@ ERF::setPlotVariables (const std::string& pp_plot_var_names, Vector<std::string>
             {
                 if (erf_plotfile::plot3d_fixed_variable_available(derived_names[i], capabilities)) {
                     tmp_plot_names.push_back(derived_names[i]);
+                } else {
+                    warn_unavailable(derived_names[i]);
                 }
+            } else {
+                warn_unavailable(derived_names[i]);
             } // use_terrain?
         } // hasElement
     }
@@ -168,7 +204,8 @@ ERF::appendPlotVariables (const std::string& pp_plot_var_names, Vector<std::stri
         }
         for (int i = 0; i < particle_mesh_plot_names.size(); i++) {
             std::string tmp(particle_mesh_plot_names[i]);
-            if (containerHasElement(plot_var_names, tmp) ) {
+            if (containerHasElement(plot_var_names, tmp) &&
+                !containerHasElement(tmp_plot_names, tmp)) {
                 tmp_plot_names.push_back(tmp);
             }
         }
@@ -189,7 +226,8 @@ ERF::appendPlotVariables (const std::string& pp_plot_var_names, Vector<std::stri
                 first_call = false;
             }
             for (auto& plot_name : microphysics_plot_names) {
-                if (containerHasElement(plot_var_names, plot_name)) {
+                if (containerHasElement(plot_var_names, plot_name) &&
+                    !containerHasElement(tmp_plot_names, plot_name)) {
                     tmp_plot_names.push_back(plot_name);
                 }
             }
@@ -197,7 +235,9 @@ ERF::appendPlotVariables (const std::string& pp_plot_var_names, Vector<std::stri
     }
 
     for (int i = 0; i < tmp_plot_names.size(); i++) {
-        a_plot_var_names.push_back( tmp_plot_names[i] );
+        if (!containerHasElement(a_plot_var_names, tmp_plot_names[i])) {
+            a_plot_var_names.push_back(tmp_plot_names[i]);
+        }
     }
 
     // Finally, check to see if we found all the requested variables
@@ -884,77 +924,36 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
         } // lon_m
 
         if (solverChoice.time_avg_vel) {
-            if (containerHasElement(plot_var_names, "u_t_avg")) {
+            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+                vel_t_avg[lev] != nullptr,
+                "time-average plot variables require vel_t_avg storage on every AMR level");
+            const Real norm = static_cast<Real>(t_avg_cnt[lev]);
+            auto copy_time_average = [&](const int source_comp) {
+                if (norm > Real(0.0)) {
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
-                for ( MFIter mfi(mf[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi)
-                {
-                    const Box& bx = mfi.tilebox();
-                    const Array4<Real>& derdat = mf[lev].array(mfi);
-                    const Array4<Real>& data   = vel_t_avg[lev]->array(mfi);
-                    const Real norm = static_cast<Real>(t_avg_cnt[lev]);
-                    ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+                    for ( MFIter mfi(mf[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi)
                     {
-                        derdat(i ,j ,k, mf_comp) = data(i,j,k,0) / norm;
-                    });
+                        const Box& bx = mfi.tilebox();
+                        const Array4<Real>& derdat = mf[lev].array(mfi);
+                        const Array4<Real>& data   = vel_t_avg[lev]->array(mfi);
+                        ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+                        {
+                            derdat(i ,j ,k, mf_comp) = data(i,j,k,source_comp) / norm;
+                        });
+                    }
+                } else {
+                    // A plot requested before the first accumulation is defined as zero.
+                    mf[lev].setVal(Real(0.0), mf_comp, 1, 0);
                 }
-                mf_comp ++;
-            }
+                ++mf_comp;
+            };
 
-            if (containerHasElement(plot_var_names, "v_t_avg")) {
-#ifdef _OPENMP
-#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
-#endif
-                for ( MFIter mfi(mf[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi)
-                {
-                    const Box& bx = mfi.tilebox();
-                    const Array4<Real>& derdat = mf[lev].array(mfi);
-                    const Array4<Real>& data   = vel_t_avg[lev]->array(mfi);
-                    const Real norm = static_cast<Real>(t_avg_cnt[lev]);
-                    ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
-                    {
-                        derdat(i ,j ,k, mf_comp) = data(i,j,k,1) / norm;
-                    });
-                }
-                mf_comp ++;
-            }
-
-            if (containerHasElement(plot_var_names, "w_t_avg")) {
-#ifdef _OPENMP
-#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
-#endif
-                for ( MFIter mfi(mf[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi)
-                {
-                    const Box& bx = mfi.tilebox();
-                    const Array4<Real>& derdat = mf[lev].array(mfi);
-                    const Array4<Real>& data   = vel_t_avg[lev]->array(mfi);
-                    const Real norm = static_cast<Real>(t_avg_cnt[lev]);
-                    ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
-                    {
-                        derdat(i ,j ,k, mf_comp) = data(i,j,k,2) / norm;
-                    });
-                }
-                mf_comp ++;
-            }
-
-            if (containerHasElement(plot_var_names, "umag_t_avg")) {
-#ifdef _OPENMP
-#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
-#endif
-                for ( MFIter mfi(mf[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi)
-                {
-                    const Box& bx = mfi.tilebox();
-                    const Array4<Real>& derdat = mf[lev].array(mfi);
-                    const Array4<Real>& data   = vel_t_avg[lev]->array(mfi);
-                    const Real norm = static_cast<Real>(t_avg_cnt[lev]);
-                    ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
-                    {
-                        derdat(i ,j ,k, mf_comp) = data(i,j,k,3) / norm;
-                    });
-                }
-                mf_comp ++;
-            }
+            if (containerHasElement(plot_var_names, "u_t_avg")) copy_time_average(0);
+            if (containerHasElement(plot_var_names, "v_t_avg")) copy_time_average(1);
+            if (containerHasElement(plot_var_names, "w_t_avg")) copy_time_average(2);
+            if (containerHasElement(plot_var_names, "umag_t_avg")) copy_time_average(3);
         }
 
         const MultiFab* eta_src = nullptr;
@@ -969,6 +968,9 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
             {
                 eta_src = eddyDiffs_lev[lev].get();
             }
+            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+                eta_src != nullptr,
+                "eddy-diffusivity plot variables require an eddy diagnostic source");
         }
 
         if (containerHasElement(plot_var_names, "nut")) {
@@ -998,6 +1000,25 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
         const MultiFab* shoc_or_host_eddy = have_native_shoc_diagnostics
             ? &native_shoc_driver[lev]->native_diagnostics()
             : eddyDiffs_lev[lev].get();
+
+        if (containerHasElement(plot_var_names, "Kmv") ||
+            containerHasElement(plot_var_names, "Kmh") ||
+            containerHasElement(plot_var_names, "Khv") ||
+            containerHasElement(plot_var_names, "Khh") ||
+            containerHasElement(plot_var_names, "Lturb")) {
+            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+                shoc_or_host_eddy != nullptr,
+                "eddy diagnostic plot variables require an eddy diagnostic source");
+            if (containerHasElement(plot_var_names, "Kmh") ||
+                containerHasElement(plot_var_names, "Khh")) {
+                AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+                    eddyDiffs_lev[lev] != nullptr,
+                    "horizontal eddy diagnostic plot variables require eddyDiffs storage");
+            }
+            if (!have_native_shoc_diagnostics) {
+                AMREX_ALWAYS_ASSERT(eddyDiffs_lev[lev] != nullptr);
+            }
+        }
 
         if (containerHasElement(plot_var_names, "Kmv")) {
             MultiFab::Copy(mf[lev],*shoc_or_host_eddy,EddyDiff::Mom_v,mf_comp,1,0);
@@ -1125,10 +1146,16 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
                                         : nullptr);
         }
         if (containerHasElement(plot_var_names, "walldist")) {
+            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+                walldist[lev] != nullptr,
+                "walldist plot variable requires wall-distance storage");
             MultiFab::Copy(mf[lev],*walldist[lev],0,mf_comp,1,0);
             mf_comp ++;
         }
         if (containerHasElement(plot_var_names, "diss")) {
+            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+                SFS_diss_lev[lev] != nullptr,
+                "diss plot variable requires dissipation storage");
             MultiFab::Copy(mf[lev],*SFS_diss_lev[lev],0,mf_comp,1,0);
             mf_comp ++;
         }
@@ -1544,6 +1571,12 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
 #endif
 
         if (solverChoice.rad_type != RadiationType::None) {
+            if (containerHasElement(plot_var_names, "qsrc_sw") ||
+                containerHasElement(plot_var_names, "qsrc_lw")) {
+                AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+                    qheating_rates[lev] != nullptr,
+                    "radiation source plot variables require qheating_rates storage");
+            }
             if (containerHasElement(plot_var_names, "qsrc_sw")) {
                 MultiFab::Copy(mf[lev], *(qheating_rates[lev]), 0, mf_comp, 1, 0);
                 mf_comp += 1;

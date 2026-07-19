@@ -383,6 +383,63 @@ The default subvolume inventory is documented on :ref:`sec:Plotfiles`.
 The ``qrain``, ``qsnow``, and ``qgraup`` rows are available when the active
 moisture scheme provides the corresponding rain, snow, or graupel component.
 
+Fixed-field capability matrix
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Fixed moisture names are selected only when both the active scheme gives the
+source its documented physical meaning and the corresponding conserved or
+auxiliary component exists. A reduced scheme can retain a fixed-width state
+vector without making every slot a valid diagnostic. Unsupported requests are
+warned about and omitted before plotfile allocation.
+
+The following matrix summarizes the fixed moisture capabilities. ``qv`` is
+vapor, ``qc`` is cloud liquid, ``qi`` is cloud ice, and ``qr``, ``qs``, and
+``qg`` are rain, snow, and graupel. ``N`` denotes the corresponding number
+concentration and ``A`` the corresponding accumulation field.
+
++--------------------------+------------------------+-------------------------+----------------------+
+| Moisture type            | Mass fields            | Number fields           | Accumulations        |
++==========================+========================+=========================+======================+
+| ``None``                 | none                   | none                    | none                 |
+| ``MoistNoCondensation``  | qv                     | none                    | none                 |
+| ``SatAdj``               | qv, qc                 | none                    | none                 |
+| ``Kessler_NoRain``       | qv, qc                 | none                    | none                 |
+| ``Kessler``              | qv, qc, qr             | none                    | rain                 |
+| ``SAM_NoPrecip_NoIce``   | qv, qc                 | none                    | none                 |
+| ``SAM_NoIce``            | qv, qc, qr             | none                    | rain                 |
+| ``SAM``                  | qv, qc, qi, qr, qs, qg | none                    | rain, snow, graupel  |
+| ``Morrison_NoIce``       | qv, qc, qr             | Nc, Nr                  | rain                 |
+| ``Morrison``             | qv, qc, qi, qr, qs, qg | Nc, Ni, Nr, Ns, Ng      | rain, snow, graupel  |
+| ``WSM6``                 | qv, qc, qi, qr, qs, qg | none                    | rain, snow, graupel  |
+| ``SuperDroplets``        | qv, qc                 | none                    | rain                 |
++--------------------------+------------------------+-------------------------+----------------------+
+
+For ``SuperDroplets``, the fixed ``qrain`` and ``qp`` names are deliberately
+not promised: species-resolved hydrometeors are dynamic provider fields. The
+fixed ``rain_accum``, ``rel_humidity``, and ``condensation_rate`` names are
+available only when their documented auxiliary qmoist storage is present.
+The aggregate ``qt``, ``qn``, ``qp``, ``moist_density``, ``qsat``, and
+``precipitable`` fields additionally require their source-state bounds.
+
+Optional storage restrictions
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The following fixed diagnostics are selected only if the storage exists on
+every AMR level in the plotfile:
+
+* ``u_t_avg``, ``v_t_avg``, ``w_t_avg``, and ``umag_t_avg`` require
+  ``erf.time_avg_vel = true``. If no samples have been accumulated yet, the
+  output value is defined as zero rather than dividing by zero.
+* ``qsrc_sw`` and ``qsrc_lw`` require a non-``None`` radiation choice.
+* ``nut``, ``Kmv``, ``Kmh``, ``Khv``, ``Khh``, and ``Lturb`` require
+  ``use_kturb = true`` at every AMR level.
+* ``diss`` requires molecular diffusion or ``use_kturb`` at every level.
+* ``walldist`` requires a non-``None`` RANS choice at every level.
+
+These restrictions apply to fixed names only. Dynamic names supplied by an
+active microphysics or particle provider remain governed by that provider's
+own plot-variable contract.
+
 Fixed conserved-state fields
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
