@@ -250,6 +250,11 @@ function(build_erf_lib erf_lib_name)
                    ${SRC_DIR}/Dust/ERF_DustStatsOutput.H
                    ${SRC_DIR}/Dust/ERF_Dust.H
     )
+    if(ERF_ENABLE_FIRE)
+        target_sources(${erf_lib_name} PRIVATE
+                       ${SRC_DIR}/Dust/ERF_DustFireLofting.cpp
+                       ${SRC_DIR}/Dust/ERF_DustFireLofting.H)
+    endif()
     target_include_directories(${erf_lib_name} PUBLIC
                                $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/Source/Dust>)
     message(STATUS "ERF-Dust module enabled")

@@ -1496,6 +1496,8 @@ private:
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> m_dust_flux_atm;
 #if defined(ERF_ENABLE_FIRE) && defined(ERF_USE_DUST)
     FireDustCoupling m_fire_dust_coupling;
+    amrex::MultiFab m_fire_heat_scratch_for_lofting;
+    bool            m_fire_lofting_ready = false;
 #endif
     #endif
     amrex::Vector<std::unique_ptr<ForestDrag>> m_forest_drag;

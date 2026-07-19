@@ -30,6 +30,9 @@
 #endif
 #ifdef ERF_USE_DUST
 #include "ERF_DustAtmCoupling.H"
+#if defined(ERF_ENABLE_FIRE)
+#include "ERF_DustFireLofting.H"
+#endif
 #endif
 
 using namespace amrex;
@@ -255,6 +258,22 @@ ERF::Evolve ()
                         ustar_in->FillBoundary(m_DustLayer->get_dust_geom().periodicity());
                     }
                 }
+
+                // Phase 3: Prepare fire heat flux scratch for lofting call (after advance)
+                m_fire_lofting_ready = false;
+                if (m_fire_dust_coupling.fire_lofting_enabled &&
+                    m_fire_layer->get_heat_flux()) {
+                    const amrex::Periodicity& per = Geom(0).periodicity();
+                    m_fire_heat_scratch_for_lofting = amrex::MultiFab(
+                        m_DustLayer->get_dust_ba(),
+                        m_DustLayer->get_dust_dm(),
+                        1, 1);
+                    m_fire_heat_scratch_for_lofting.setVal(0.0_rt);
+                    m_fire_heat_scratch_for_lofting.ParallelCopy(
+                        *m_fire_layer->get_heat_flux(), 0, 0, 1, 0, 1, per);
+                    m_fire_heat_scratch_for_lofting.FillBoundary(per);
+                    m_fire_lofting_ready = true;
+                }
             }
 #endif
             const amrex::MultiFab* xvel_ptr  = &vars_new[0][Vars::xvel];
@@ -267,6 +286,21 @@ ERF::Evolve ()
             m_DustLayer->advance(dt[0], m_DustLayer->get_params(),
                                  m_SurfaceLayer.get(),
                                  xvel_ptr, yvel_ptr, zvel_ptr, zphys_ptr, geom_atm, nz);
+
+#ifdef ERF_ENABLE_FIRE
+            if (m_fire_lofting_ready && m_DustLayer) {
+                apply_fire_lofting_to_emission_flux(
+                    *m_DustLayer->get_emission_flux_mut(),
+                    m_fire_heat_scratch_for_lofting,
+                    m_DustLayer->get_params().n_size_bins,
+                    m_fire_dust_coupling.lofting_k_loft,
+                    m_fire_dust_coupling.lofting_Q_threshold,
+                    m_fire_dust_coupling.lofting_Q_ref,
+                    m_DustLayer->get_params().dust_debug,
+                    m_nstep);
+                m_fire_lofting_ready = false;
+            }
+#endif
             
             // Coarsen dust emission flux to atmospheric grid for injection at next step
             // One-step explicit lag: flux from this step will be injected in next step
@@ -1372,6 +1406,10 @@ ERF::InitData_post ()
                 pp.query("fire_dust_wind_to_dust",   m_fire_dust_coupling.fire_wind_to_dust);
                 pp.query("fire_dust_wind_z0",        m_fire_dust_coupling.fire_wind_z0);
                 pp.query("fire_dust_wind_zref",      m_fire_dust_coupling.fire_wind_zref);
+                pp.query("fire_dust_lofting_enabled",     m_fire_dust_coupling.fire_lofting_enabled);
+                pp.query("fire_dust_lofting_k_loft",      m_fire_dust_coupling.lofting_k_loft);
+                pp.query("fire_dust_lofting_Q_threshold", m_fire_dust_coupling.lofting_Q_threshold);
+                pp.query("fire_dust_lofting_Q_ref",       m_fire_dust_coupling.lofting_Q_ref);
                 m_fire_dust_coupling.fire_phi_mf = m_fire_layer->get_levelset();
                 m_fire_dust_coupling.geom_fire   = m_fire_layer->get_fire_geom();
                 

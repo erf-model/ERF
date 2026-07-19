@@ -179,6 +179,7 @@ public:
     // Non-const accessors for internal coupling (e.g., fire-dust coupling)
     amrex::MultiFab* get_crust_index_mut() { return dust_crust_index.get(); }
     amrex::MultiFab* get_ustar_in_mut() { return dust_ustar_in.get(); }
+    amrex::MultiFab* get_emission_flux_mut() { return dust_emission_flux.get(); }
     const amrex::BoxArray&            get_dust_ba() const { return m_dg.ba; }
     const amrex::DistributionMapping& get_dust_dm() const { return m_dg.dm; }
     int                               get_grid_ratio() const { return m_dg.grid_ratio; }

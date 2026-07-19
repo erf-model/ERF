@@ -14,6 +14,8 @@ ifeq ($(USE_DUST), TRUE)
   ifneq ($(USE_FIRE), TRUE)
     CEXE_sources += Fire/ERF_FireWindExtract.cpp
     CEXE_headers += Fire/ERF_FireWindExtract.H
+  else
+    CEXE_sources += Dust/ERF_DustFireLofting.cpp
   endif
 
   CEXE_headers += Dust/ERF_DustParams.H
