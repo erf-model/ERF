@@ -531,6 +531,12 @@ DustLayer::advance(
       apply_farsite_terrain_wind(
         *dust_wind_ref, *dust_slopes, *dust_curvature, m_params.k_ridge,
         m_params.k_shelter, m_params.k_valley, m_params.k_deflect);
+      // Recompute dust_ustar_in from the terrain-corrected wind using log-profile.
+      // This ensures the FARSITE terrain wind corrections (ridge speed-up, lee sheltering,
+      // valley channeling) are properly reflected in the friction velocity used for
+      // dust emission calculations.
+      compute_dust_ustar_from_wind(
+        *dust_ustar_in, *dust_wind_ref, m_params.zref, m_params.z0_dust);
     }
     if (surface_layer->get_t_surf(0))
       fill_dust_scalar_from_atm(*dust_tsfc, *surface_layer->get_t_surf(0), m_dg);
