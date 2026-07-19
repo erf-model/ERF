@@ -222,7 +222,8 @@ ERF::Evolve ()
                 m_DustLayer->get_crust_index_mut()->FillBoundary(m_DustLayer->get_dust_geom().periodicity());
 
                 // Phase 2: fire outflow wind raises dust u*
-                if (m_fire_dust_coupling.fire_wind_to_dust) {
+                if (m_fire_dust_coupling.fire_wind_to_dust &&
+                    m_fire_layer->get_wind_eff() != nullptr) {
                     // MPI-safe cross-grid access (LNG_MPI_SKILLS Rule B3):
                     // fire_wind_eff lives on the fire grid BoxArray/DM.
                     // dust_ustar_in lives on the dust grid BoxArray/DM.
@@ -242,13 +243,17 @@ ERF::Evolve ()
                     const int C = amrex::max(
                         m_fire_layer->get_grid_ratio() / m_DustLayer->get_grid_ratio(), 1);
 
-                    m_fire_dust_coupling.apply_fire_wind_to_dust_ustar(
-                        *m_DustLayer->get_ustar_in_mut(),
-                        fire_wind_scratch,
-                        m_DustLayer->get_dust_geom(),
-                        m_fire_dust_coupling.fire_wind_z0,
-                        m_fire_dust_coupling.fire_wind_zref,
-                        C);
+                    amrex::MultiFab* ustar_in = m_DustLayer->get_ustar_in_mut();
+                    if (ustar_in) {
+                        m_fire_dust_coupling.apply_fire_wind_to_dust_ustar(
+                            *ustar_in,
+                            fire_wind_scratch,
+                            m_DustLayer->get_dust_geom(),
+                            m_fire_dust_coupling.fire_wind_z0,
+                            m_fire_dust_coupling.fire_wind_zref,
+                            C);
+                        ustar_in->FillBoundary(m_DustLayer->get_dust_geom().periodicity());
+                    }
                 }
             }
 #endif
