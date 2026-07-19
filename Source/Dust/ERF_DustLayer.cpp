@@ -285,6 +285,10 @@ DustLayer::initialize(
     *dust_soil_type, *dust_silt_fraction, *dust_crust_index,
     *dust_moisture_flag, *dust_suppression, m_dg, dust_params);
 
+  // Ensure ghost cells are synchronized after reading surface maps
+  dust_crust_index->FillBoundary(m_dg.geom.periodicity());
+  dust_silt_fraction->FillBoundary(m_dg.geom.periodicity());
+
   if (dust_params.dust_debug) {
     amrex::Print() << "[DUST DEBUG] Surface maps populated: "
                    << "soil_type_file=\"" << dust_params.soil_type_file
@@ -609,6 +613,9 @@ DustLayer::advance(
     m_params.alpha_efflor, dust_slopes.get());
 
   if (m_params.dust_debug) {
+    amrex::Print() << "[DUST DEBUG] Phase 7: crust_index before u*_t computation at step=" << m_step
+                   << " min=" << dust_crust_index->min(0)
+                   << " max=" << dust_crust_index->max(0) << "\n";
     amrex::Print() << "[DUST DEBUG] Phase 5: u*_t at step=" << m_step
                    << " min=" << dust_ustar_t->min(0)
                    << " max=" << dust_ustar_t->max(0) << " [m/s]\n";

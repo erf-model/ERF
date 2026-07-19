@@ -218,6 +218,8 @@ ERF::Evolve ()
                 m_fire_dust_coupling.apply_burned_area_to_crust(
                     *m_DustLayer->get_crust_index_mut(),
                     m_DustLayer->get_dust_geom());
+                // Ensure ghost cells are properly synchronized after crust reduction
+                m_DustLayer->get_crust_index_mut()->FillBoundary(m_DustLayer->get_dust_geom().periodicity());
             }
 #endif
             const amrex::MultiFab* xvel_ptr  = &vars_new[0][Vars::xvel];

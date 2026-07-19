@@ -59,34 +59,64 @@ void FireDustCoupling::apply_burned_area_to_crust(
 
     const amrex::Real reduction = post_fire_crust_reduction;
 
+    // Copy fire phi into a GPU-resident vector for device access
+    amrex::Gpu::DeviceVector<amrex::Real> phi_device(fnx * fny);
+    amrex::Gpu::copy(amrex::Gpu::hostToDevice, phi_host.begin(), phi_host.end(), phi_device.begin());
+
+    // Capture geometry data as integers to avoid floating-point issues
+    const int fi_lo_int = fi_lo;
+    const int fj_lo_int = fj_lo;
+    const int fi_hi_int = fi_hi;
+    const int fj_hi_int = fj_hi;
+    const int fnx_int = fnx;
+    const int fny_int = fny;
+
     for (MFIter mfi(dust_crust_index, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
         const Box& bx = mfi.tilebox();
         auto crust = dust_crust_index.array(mfi);
 
-        // phi_host lives on CPU; loop on CPU via amrex::Loop (host path)
-        amrex::Loop(bx, [&](int i, int j, int k) noexcept {
+        // Get raw device pointer for GPU access
+        const amrex::Real* phi_ptr = phi_device.data();
+        const amrex::Real fire_plo_0 = fire_plo[0];
+        const amrex::Real fire_plo_1 = fire_plo[1];
+        const amrex::Real fire_dx_0 = fire_dx[0];
+        const amrex::Real fire_dx_1 = fire_dx[1];
+        const amrex::Real dust_plo_0 = dust_plo[0];
+        const amrex::Real dust_plo_1 = dust_plo[1];
+        const amrex::Real dust_dx_0 = dust_dx[0];
+        const amrex::Real dust_dx_1 = dust_dx[1];
+
+        // Use ParallelFor for GPU/CPU compatibility
+        amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
             // Physical centre of this dust cell
-            amrex::Real xc = dust_plo[0] + (i + 0.5_rt) * dust_dx[0];
-            amrex::Real yc = dust_plo[1] + (j + 0.5_rt) * dust_dx[1];
+            amrex::Real xc = dust_plo_0 + (i + 0.5_rt) * dust_dx_0;
+            amrex::Real yc = dust_plo_1 + (j + 0.5_rt) * dust_dx_1;
 
             // Corresponding fire cell index (nearest cell containing xc, yc)
-            int i_f = static_cast<int>((xc - fire_plo[0]) / fire_dx[0]);
-            int j_f = static_cast<int>((yc - fire_plo[1]) / fire_dx[1]);
+            int i_f = static_cast<int>((xc - fire_plo_0) / fire_dx_0);
+            int j_f = static_cast<int>((yc - fire_plo_1) / fire_dx_1);
 
             // Clamp to valid fire domain
-            i_f = amrex::max(fi_lo, amrex::min(fi_hi, i_f + fi_lo));
-            j_f = amrex::max(fj_lo, amrex::min(fj_hi, j_f + fj_lo));
+            i_f = amrex::max(fi_lo_int, amrex::min(fi_hi_int, i_f + fi_lo_int));
+            j_f = amrex::max(fj_lo_int, amrex::min(fj_hi_int, j_f + fj_lo_int));
 
-            int ii = i_f - fi_lo;
-            int jj = j_f - fj_lo;
+            int ii = i_f - fi_lo_int;
+            int jj = j_f - fj_lo_int;
 
             // Apply crust reduction if fire_phi < 0 (burned)
-            if (phi_host[jj * fnx + ii] < 0.0_rt) {
+            if (phi_ptr[jj * fnx_int + ii] < 0.0_rt) {
                 crust(i, j, k) *= (1.0_rt - reduction);
                 crust(i, j, k)  = amrex::max(crust(i, j, k), 0.0_rt);
             }
         });
     }
+
+    // Report debug info
+    amrex::Real crust_min = dust_crust_index.min(0);
+    amrex::Real crust_max = dust_crust_index.max(0);
+    amrex::Print() << "[DUST DEBUG] Fire-dust coupling: modified crust values "
+                   << "crust_min=" << crust_min << ", crust_max=" << crust_max
+                   << ", reduction=" << reduction << "\n";
 }
 
 #endif
