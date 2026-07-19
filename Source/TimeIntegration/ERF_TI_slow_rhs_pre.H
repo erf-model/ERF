@@ -166,7 +166,7 @@
                 m_fire_layer->get_params().smoke_heat_of_comb,
                 RhoSmoke_comp,
                 m_fire_layer->get_params().fire_debug,
-                m_nstep);
+                istep[level]);
         }
 #endif
 
