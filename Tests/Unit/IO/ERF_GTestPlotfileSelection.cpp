@@ -27,6 +27,102 @@ make_capabilities (const MoistureType moisture_type,
 
 } // namespace
 
+TEST(Plotfile3DSelection, AggregateRangesMatchFixedWriterLayouts)
+{
+    struct Expected {
+        int moist_state_size;
+        int moist_numconc_size;
+        int total_first;
+        int total_last;
+        int nonprecip_first;
+        int nonprecip_last;
+        int precip_first;
+        int precip_last;
+    };
+
+    const std::array<Expected, 7> expected{{
+        {2, 0, 1, 2, 1, 2, 0, -1},
+        {3, 0, 1, 3, 1, 2, 3, 3},
+        {6, 0, 1, 6, 1, 3, 4, 6},
+        {11, 5, 1, 6, 1, 3, 4, 6},
+        {3, 0, 1, 3, 1, 2, 3, 3},
+        {3, 4, 0, -1, 1, 2, 0, -1},
+        {0, 0, 0, -1, 0, -1, 0, -1}
+    }};
+
+    for (const auto& item : expected) {
+        const auto total = erf_plotfile::plot3d_total_mass_q_range(
+            item.moist_state_size, item.moist_numconc_size);
+        const auto nonprecip = erf_plotfile::plot3d_nonprecipitating_q_range(
+            item.moist_state_size);
+        const auto precip = erf_plotfile::plot3d_precipitating_q_range(
+            item.moist_state_size, item.moist_numconc_size);
+        EXPECT_EQ(total.first_q, item.total_first);
+        EXPECT_EQ(total.last_q, item.total_last);
+        EXPECT_EQ(nonprecip.first_q, item.nonprecip_first);
+        EXPECT_EQ(nonprecip.last_q, item.nonprecip_last);
+        EXPECT_EQ(precip.first_q, item.precip_first);
+        EXPECT_EQ(precip.last_q, item.precip_last);
+        EXPECT_EQ(total.valid(), item.total_last >= item.total_first && item.total_first >= 1);
+        EXPECT_EQ(nonprecip.valid(), item.nonprecip_last >= item.nonprecip_first && item.nonprecip_first >= 1);
+        EXPECT_EQ(precip.valid(), item.precip_last >= item.precip_first && item.precip_first >= 1);
+    }
+}
+
+TEST(Plotfile3DSelection, SuperDropletsCompensatedStateUsesCompleteBounds)
+{
+    const auto superdroplets = make_capabilities(
+        MoistureType::SuperDroplets, 6, 3, 0, 7);
+
+    EXPECT_EQ(erf_plotfile::plot3d_q_conserved_component_index(1), 4);
+    EXPECT_EQ(erf_plotfile::plot3d_q_conserved_component_index(2), 5);
+    EXPECT_EQ(erf_plotfile::plot3d_q_conserved_component_index(3), 6);
+    EXPECT_TRUE(erf_plotfile::plot3d_fixed_variable_available("qv", superdroplets));
+    EXPECT_TRUE(erf_plotfile::plot3d_fixed_variable_available("qc", superdroplets));
+    EXPECT_TRUE(erf_plotfile::plot3d_fixed_variable_available("moist_density", superdroplets));
+    EXPECT_TRUE(erf_plotfile::plot3d_fixed_variable_available("qn", superdroplets));
+    EXPECT_FALSE(erf_plotfile::plot3d_fixed_variable_available("qt", superdroplets));
+    EXPECT_FALSE(erf_plotfile::plot3d_fixed_variable_available("qrain", superdroplets));
+    EXPECT_FALSE(erf_plotfile::plot3d_fixed_variable_available("qp", superdroplets));
+    EXPECT_TRUE(erf_plotfile::plot3d_q_range_available(
+        superdroplets, erf_plotfile::plot3d_nonprecipitating_q_range(3)));
+    EXPECT_FALSE(erf_plotfile::plot3d_q_range_available(
+        superdroplets, erf_plotfile::plot3d_total_mass_q_range(3, 0)));
+}
+
+TEST(Plotfile3DSelection, StandardAggregateRangesRemainAvailable)
+{
+    const auto kessler = make_capabilities(MoistureType::Kessler, 7, 3, 0, 1);
+    EXPECT_TRUE(erf_plotfile::plot3d_fixed_variable_available("qt", kessler));
+    EXPECT_TRUE(erf_plotfile::plot3d_fixed_variable_available("qn", kessler));
+    EXPECT_TRUE(erf_plotfile::plot3d_fixed_variable_available("qp", kessler));
+    EXPECT_TRUE(erf_plotfile::plot3d_fixed_variable_available("moist_density", kessler));
+
+    const auto morrison = make_capabilities(MoistureType::Morrison, 15, 11, 5, 3);
+    EXPECT_TRUE(erf_plotfile::plot3d_fixed_variable_available("qt", morrison));
+    EXPECT_TRUE(erf_plotfile::plot3d_fixed_variable_available("qn", morrison));
+    EXPECT_TRUE(erf_plotfile::plot3d_fixed_variable_available("qp", morrison));
+    EXPECT_TRUE(erf_plotfile::plot3d_fixed_variable_available("moist_density", morrison));
+
+    const auto truncated = make_capabilities(MoistureType::Kessler, 6, 3, 0, 1);
+    EXPECT_FALSE(erf_plotfile::plot3d_fixed_variable_available("qt", truncated));
+    EXPECT_FALSE(erf_plotfile::plot3d_fixed_variable_available("qp", truncated));
+    EXPECT_TRUE(erf_plotfile::plot3d_fixed_variable_available("qn", truncated));
+}
+
+TEST(Plotfile3DSelection, MalformedAggregateSizesAreRejected)
+{
+    EXPECT_FALSE(erf_plotfile::plot3d_total_mass_q_range(3, -1).valid());
+    EXPECT_FALSE(erf_plotfile::plot3d_total_mass_q_range(3, 4).valid());
+    EXPECT_FALSE(erf_plotfile::plot3d_total_mass_q_range(0, 0).valid());
+    EXPECT_FALSE(erf_plotfile::plot3d_precipitating_q_range(3, -1).valid());
+    EXPECT_FALSE(erf_plotfile::plot3d_precipitating_q_range(3, 4).valid());
+
+    const auto malformed = make_capabilities(MoistureType::Morrison, 15, 3, 4, 3);
+    EXPECT_FALSE(erf_plotfile::plot3d_fixed_variable_available("qt", malformed));
+    EXPECT_FALSE(erf_plotfile::plot3d_fixed_variable_available("qp", malformed));
+}
+
 TEST(Plotfile3DSelection, MoistureCapabilityTruthTable)
 {
     struct Expected {
@@ -131,7 +227,8 @@ TEST(Plotfile3DSelection, SemanticAndStorageChecksAreIndependent)
     EXPECT_FALSE(erf_plotfile::plot3d_fixed_variable_available("moist_density", too_narrow));
     EXPECT_TRUE(erf_plotfile::plot3d_fixed_variable_available("rain_accum", too_narrow));
 
-    const auto superdroplets = make_capabilities(MoistureType::SuperDroplets, 32, 3, 0, 7);
+    const auto superdroplets = make_capabilities(MoistureType::SuperDroplets, 6, 3, 0, 7);
+    EXPECT_FALSE(erf_plotfile::plot3d_fixed_variable_available("qt", superdroplets));
     EXPECT_TRUE(erf_plotfile::plot3d_fixed_variable_available("rel_humidity", superdroplets));
     EXPECT_TRUE(erf_plotfile::plot3d_fixed_variable_available("condensation_rate", superdroplets));
     EXPECT_FALSE(erf_plotfile::plot3d_fixed_variable_available("qrain", superdroplets));

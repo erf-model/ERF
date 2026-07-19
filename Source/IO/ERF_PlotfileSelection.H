@@ -50,6 +50,17 @@ struct Plot3DSelectionCapabilities
     bool wall_distance_storage = false;
 };
 
+struct Plot3DQRange
+{
+    int first_q = 0;
+    int last_q = -1;
+
+    [[nodiscard]] bool valid () const noexcept
+    {
+        return first_q >= 1 && last_q >= first_q;
+    }
+};
+
 inline Plot3DMoistureCapabilities
 plot3d_moisture_capabilities (const MoistureType moisture_type)
 {
@@ -146,6 +157,13 @@ plot3d_moisture_capabilities (const MoistureType moisture_type)
 }
 
 inline int
+plot3d_q_conserved_component_index (const int q)
+{
+    if (q < 1 || q > 11) return -1;
+    return 3 + q; // RhoQ1_comp + q - 1 in the fixed conserved layout.
+}
+
+inline int
 plot3d_conserved_component_index (const std::string& name)
 {
     if (name == "density")  return 0;
@@ -158,7 +176,7 @@ plot3d_conserved_component_index (const std::string& name)
         if (!suffix.empty() && std::all_of(suffix.cbegin(), suffix.cend(),
                                            [] (const char c) { return c >= '0' && c <= '9'; })) {
             const int q = std::stoi(suffix);
-            if (q >= 1 && q <= 11) return 3 + q;
+            return plot3d_q_conserved_component_index(q);
         }
     }
 
@@ -175,8 +193,59 @@ inline bool
 plot3d_source_component_available (const Plot3DSelectionCapabilities& caps,
                                     const int q)
 {
-    return plot3d_has_moist_state(caps) && q >= 1 && q <= caps.moist_state_size &&
-        3 + q < caps.conserved_state_size;
+    const int comp = plot3d_q_conserved_component_index(q);
+    return plot3d_has_moist_state(caps) && comp >= 0 && comp < caps.conserved_state_size;
+}
+
+inline bool
+plot3d_moist_q_component_available (const Plot3DSelectionCapabilities& caps,
+                                     const int q)
+{
+    return q >= 1 && q <= caps.moist_state_size &&
+        plot3d_source_component_available(caps, q);
+}
+
+inline Plot3DQRange
+plot3d_total_mass_q_range (const int moist_state_size,
+                           const int moist_numconc_size)
+{
+    if (moist_state_size <= 0 || moist_numconc_size < 0 ||
+        moist_numconc_size > moist_state_size) {
+        return {};
+    }
+
+    const int mass_count = moist_state_size - moist_numconc_size;
+    if (mass_count <= 0) return {};
+    return {1, mass_count};
+}
+
+inline Plot3DQRange
+plot3d_nonprecipitating_q_range (const int moist_state_size)
+{
+    if (moist_state_size < 2) return {};
+    return {1, moist_state_size > 3 ? 3 : 2};
+}
+
+inline Plot3DQRange
+plot3d_precipitating_q_range (const int moist_state_size,
+                              const int moist_numconc_size)
+{
+    const Plot3DQRange total =
+        plot3d_total_mass_q_range(moist_state_size, moist_numconc_size);
+    if (!total.valid()) return {};
+
+    const int first_precip_q = moist_state_size > 3 ? 4 : 3;
+    if (total.last_q < first_precip_q) return {};
+    return {first_precip_q, total.last_q};
+}
+
+inline bool
+plot3d_q_range_available (const Plot3DSelectionCapabilities& caps,
+                          const Plot3DQRange range)
+{
+    return range.valid() &&
+        plot3d_source_component_available(caps, range.first_q) &&
+        plot3d_source_component_available(caps, range.last_q);
 }
 
 inline bool
@@ -231,34 +300,40 @@ plot3d_fixed_variable_available (const std::string& name,
     const auto& moisture = caps.moisture;
     if (name == "moist_density") {
         return moisture.vapor && moisture.cloud_liquid &&
-            plot3d_source_component_available(caps, 2);
+            plot3d_q_range_available(
+                caps, plot3d_nonprecipitating_q_range(caps.moist_state_size));
     }
-    if (name == "qv")    return moisture.vapor && plot3d_source_component_available(caps, 1);
-    if (name == "qc")    return moisture.cloud_liquid && plot3d_source_component_available(caps, 2);
-    if (name == "qi")    return moisture.cloud_ice && plot3d_source_component_available(caps, 4);
-    if (name == "qrain") return moisture.rain && plot3d_source_component_available(caps, caps.moist_state_size > 3 ? 4 : 3);
-    if (name == "qsnow") return moisture.snow && plot3d_source_component_available(caps, 5);
-    if (name == "qgraup") return moisture.graupel && plot3d_source_component_available(caps, 6);
-    if (name == "nc") return moisture.cloud_number && plot3d_source_component_available(caps, 7);
-    if (name == "ni") return moisture.ice_number && plot3d_source_component_available(caps, 8);
-    if (name == "nr") return moisture.rain_number && plot3d_source_component_available(caps, 9);
-    if (name == "ns") return moisture.snow_number && plot3d_source_component_available(caps, 10);
-    if (name == "ng") return moisture.graupel_number && plot3d_source_component_available(caps, 11);
-    if (name == "qt") return moisture.vapor && plot3d_source_component_available(caps, 1);
+    if (name == "qv")    return moisture.vapor && plot3d_moist_q_component_available(caps, 1);
+    if (name == "qc")    return moisture.cloud_liquid && plot3d_moist_q_component_available(caps, 2);
+    if (name == "qi")    return moisture.cloud_ice && plot3d_moist_q_component_available(caps, 4);
+    if (name == "qrain") return moisture.rain && plot3d_moist_q_component_available(
+        caps, caps.moist_state_size > 3 ? 4 : 3);
+    if (name == "qsnow") return moisture.snow && plot3d_moist_q_component_available(caps, 5);
+    if (name == "qgraup") return moisture.graupel && plot3d_moist_q_component_available(caps, 6);
+    if (name == "nc") return moisture.cloud_number && plot3d_moist_q_component_available(caps, 7);
+    if (name == "ni") return moisture.ice_number && plot3d_moist_q_component_available(caps, 8);
+    if (name == "nr") return moisture.rain_number && plot3d_moist_q_component_available(caps, 9);
+    if (name == "ns") return moisture.snow_number && plot3d_moist_q_component_available(caps, 10);
+    if (name == "ng") return moisture.graupel_number && plot3d_moist_q_component_available(caps, 11);
+    if (name == "qt") {
+        return moisture.vapor &&
+            plot3d_q_range_available(
+                caps, plot3d_total_mass_q_range(
+                    caps.moist_state_size, caps.moist_numconc_size));
+    }
     if (name == "qn") {
-        return moisture.cloud_liquid && plot3d_source_component_available(caps, 2);
+        return moisture.cloud_liquid &&
+            plot3d_q_range_available(
+                caps, plot3d_nonprecipitating_q_range(caps.moist_state_size));
     }
     if (name == "qp") {
-        const int precip_start_q = caps.moist_state_size > 3 ? 4 : 3;
-        const int precip_start_comp = 3 + precip_start_q;
-        const int precip_end_comp = caps.conserved_state_size - 1 - caps.moist_numconc_size;
         return moisture.rain &&
-            plot3d_source_component_available(caps, precip_start_q) &&
-            caps.moist_numconc_size >= 0 && precip_start_comp <= precip_end_comp &&
-            precip_end_comp < caps.conserved_state_size;
+            plot3d_q_range_available(
+                caps, plot3d_precipitating_q_range(
+                    caps.moist_state_size, caps.moist_numconc_size));
     }
-    if (name == "qsat") return moisture.vapor && plot3d_source_component_available(caps, 1);
-    if (name == "precipitable") return moisture.vapor && plot3d_source_component_available(caps, 1);
+    if (name == "qsat") return moisture.vapor && plot3d_moist_q_component_available(caps, 1);
+    if (name == "precipitable") return moisture.vapor && plot3d_moist_q_component_available(caps, 1);
 
     if (name == "rain_accum") return moisture.rain_accumulation &&
         caps.qmoist_size >= (caps.moisture_type == MoistureType::SuperDroplets ? 7 : 1);

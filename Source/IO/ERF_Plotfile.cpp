@@ -45,9 +45,19 @@ ERF::setPlotVariables (const std::string& pp_plot_var_names, Vector<std::string>
     // the source of truth for the active conserved-state size.
     Vector<std::string> tmp_plot_names;
     erf_plotfile::Plot3DSelectionCapabilities capabilities;
-    capabilities.conserved_state_size = NDRY + NSCALARS + micro->Get_Qstate_Size();
     capabilities.moist_state_size = micro->Get_Qstate_Moist_Size();
     capabilities.moist_numconc_size = micro->Get_Qstate_Moist_NumConc_Size();
+    capabilities.conserved_state_size = NDRY + NSCALARS + micro->Get_Qstate_Size();
+    // SuperDroplets exposes qv/qc/qr as conceptual moisture variables, but
+    // its compensated conserved layout contains only qv and qc.
+    if (solverChoice.moisture_type == MoistureType::SuperDroplets &&
+        capabilities.moist_state_size >= 3) {
+        const auto nonprecipitating = erf_plotfile::plot3d_nonprecipitating_q_range(
+            capabilities.moist_state_size);
+        capabilities.conserved_state_size = std::min(
+            capabilities.conserved_state_size,
+            erf_plotfile::plot3d_q_conserved_component_index(nonprecipitating.last_q) + 1);
+    }
     capabilities.qmoist_size = micro->Get_Qmoist_Size(0);
     capabilities.moisture_type = solverChoice.moisture_type;
     capabilities.moisture = erf_plotfile::plot3d_moisture_capabilities(
@@ -69,19 +79,10 @@ ERF::setPlotVariables (const std::string& pp_plot_var_names, Vector<std::string>
             solverChoice.turbChoice[lev].rans_type != RANSType::None;
     }
 
-    auto warn_unavailable = [&](const std::string& name) {
-        if (amrex::ParallelDescriptor::IOProcessor()) {
-            Warning("\nWARNING: Requested fixed 3D plot variable '" + name +
-                    "' is unavailable for the active configuration");
-        }
-    };
-
     for (int i = 0; i < cons_names.size(); ++i) {
         if (containerHasElement(plot_var_names, cons_names[i])) {
             if (erf_plotfile::plot3d_fixed_variable_available(cons_names[i], capabilities)) {
                 tmp_plot_names.push_back(cons_names[i]);
-            } else {
-                warn_unavailable(cons_names[i]);
             }
         }
     }
@@ -124,11 +125,7 @@ ERF::setPlotVariables (const std::string& pp_plot_var_names, Vector<std::string>
             {
                 if (erf_plotfile::plot3d_fixed_variable_available(derived_names[i], capabilities)) {
                     tmp_plot_names.push_back(derived_names[i]);
-                } else {
-                    warn_unavailable(derived_names[i]);
                 }
-            } else {
-                warn_unavailable(derived_names[i]);
             } // use_terrain?
         } // hasElement
     }
@@ -273,8 +270,6 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
     const Vector<std::string> varnames = PlotFileVarNames(plot_var_names);
     const int ncomp_mf = static_cast<int>(varnames.size());
 
-    int ncomp_cons = vars_new[0][Vars::cons].nComp();
-
     if (ncomp_mf == 0) return;
 
     // Lagrangian microphysics with AMR (TwoWay): synchronize the
@@ -405,6 +400,19 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
         }
 
         int mf_comp = 0;
+        const int ncomp_cons_lev = vars_new[lev][Vars::cons].nComp();
+        auto assert_q_range_in_state =
+            [&](const char* /*field*/, const erf_plotfile::Plot3DQRange range)
+        {
+            const int first_comp =
+                erf_plotfile::plot3d_q_conserved_component_index(range.first_q);
+            const int last_comp =
+                erf_plotfile::plot3d_q_conserved_component_index(range.last_q);
+            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+                range.valid() && first_comp >= 0 && last_comp >= first_comp &&
+                last_comp < ncomp_cons_lev,
+                "fixed aggregate 3D plot variable requires a complete in-bounds q range");
+        };
 
         BoxArray ba(vars_new[lev][Vars::cons].boxArray());
         DistributionMapping dm = vars_new[lev][Vars::cons].DistributionMap();
@@ -1160,12 +1168,8 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
             mf_comp ++;
         }
 
-        // TODO: The size of the q variables can vary with different
-        //       moisture models. Therefore, certain components may
-        //       reside at different indices. For example, Kessler is
-        //       warm but precipitating. This puts qp at index three
-        //       However, SAM is cold and precipitating so qp is index Real(4.)
-        //       Need to built an external enum struct or a better pathway.
+        // Aggregate q ranges and their conserved-component mapping are
+        // centralized in ERF_PlotfileSelection.H.
 
         // NOTE: Protect against accessing non-existent data
         if (use_moisture) {
@@ -1175,12 +1179,14 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
             // Moist density
             if(containerHasElement(plot_var_names, "moist_density"))
             {
-                int n_start = RhoQ1_comp; // qv
-                int n_end   = RhoQ2_comp; // qc
-                if (n_qstate_moist > 3) n_end = RhoQ3_comp; // qi
+                const auto range = erf_plotfile::plot3d_nonprecipitating_q_range(
+                    n_qstate_moist);
+                assert_q_range_in_state("moist_density", range);
                 MultiFab::Copy(mf[lev], vars_new[lev][Vars::cons], Rho_comp, mf_comp, 1, 0);
-                for (int n_comp(n_start); n_comp <= n_end; ++n_comp) {
-                    MultiFab::Add(mf[lev], vars_new[lev][Vars::cons], n_comp, mf_comp, 1, 0);
+                for (int q = range.first_q; q <= range.last_q; ++q) {
+                    MultiFab::Add(
+                        mf[lev], vars_new[lev][Vars::cons],
+                        erf_plotfile::plot3d_q_conserved_component_index(q), mf_comp, 1, 0);
                 }
                 mf_comp += 1;
             }
@@ -1267,12 +1273,17 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
             //--------------------------------------------------------------------------
             if(containerHasElement(plot_var_names, "qt"))
             {
-                int n_start = RhoQ1_comp; // qv
-                int n_end   = n_start + n_qstate_moist - n_qstate_moist_numconc;
-                MultiFab::Copy(mf[lev], vars_new[lev][Vars::cons], n_start, mf_comp, 1, 0);
-
-                for (int n_comp(n_start+1); n_comp < n_end; ++n_comp) {
-                    MultiFab::Add(mf[lev], vars_new[lev][Vars::cons], n_comp, mf_comp, 1, 0);
+                const auto range = erf_plotfile::plot3d_total_mass_q_range(
+                    n_qstate_moist, n_qstate_moist_numconc);
+                assert_q_range_in_state("qt", range);
+                MultiFab::Copy(
+                    mf[lev], vars_new[lev][Vars::cons],
+                    erf_plotfile::plot3d_q_conserved_component_index(range.first_q),
+                    mf_comp, 1, 0);
+                for (int q = range.first_q + 1; q <= range.last_q; ++q) {
+                    MultiFab::Add(
+                        mf[lev], vars_new[lev][Vars::cons],
+                        erf_plotfile::plot3d_q_conserved_component_index(q), mf_comp, 1, 0);
                 }
 
                 MultiFab::Divide(mf[lev], vars_new[lev][Vars::cons], Rho_comp  , mf_comp, 1, 0);
@@ -1284,12 +1295,17 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
             //--------------------------------------------------------------------------
             if (containerHasElement(plot_var_names, "qn"))
             {
-                int n_start = RhoQ1_comp; // qv
-                int n_end   = RhoQ2_comp; // qc
-                if (n_qstate_moist > 3) n_end = RhoQ3_comp; // qi
-                MultiFab::Copy(mf[lev], vars_new[lev][Vars::cons], n_start, mf_comp, 1, 0);
-                for (int n_comp(n_start+1); n_comp <= n_end; ++n_comp) {
-                    MultiFab::Add(mf[lev], vars_new[lev][Vars::cons], n_comp, mf_comp, 1, 0);
+                const auto range = erf_plotfile::plot3d_nonprecipitating_q_range(
+                    n_qstate_moist);
+                assert_q_range_in_state("qn", range);
+                MultiFab::Copy(
+                    mf[lev], vars_new[lev][Vars::cons],
+                    erf_plotfile::plot3d_q_conserved_component_index(range.first_q),
+                    mf_comp, 1, 0);
+                for (int q = range.first_q + 1; q <= range.last_q; ++q) {
+                    MultiFab::Add(
+                        mf[lev], vars_new[lev][Vars::cons],
+                        erf_plotfile::plot3d_q_conserved_component_index(q), mf_comp, 1, 0);
                 }
                 MultiFab::Divide(mf[lev], vars_new[lev][Vars::cons], Rho_comp  , mf_comp, 1, 0);
                 mf_comp += 1;
@@ -1297,13 +1313,19 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
 
             // Precipitating components
             //--------------------------------------------------------------------------
-            if(containerHasElement(plot_var_names, "qp") && (n_qstate_moist >= 3))
+            if(containerHasElement(plot_var_names, "qp"))
             {
-                int n_start = (n_qstate_moist > 3) ? RhoQ4_comp : RhoQ3_comp;
-                int n_end   = ncomp_cons - 1 - n_qstate_moist_numconc;
-                MultiFab::Copy(  mf[lev], vars_new[lev][Vars::cons], n_start, mf_comp, 1, 0);
-                for (int n_comp(n_start+1); n_comp <= n_end; ++n_comp) {
-                    MultiFab::Add(  mf[lev], vars_new[lev][Vars::cons], n_comp, mf_comp, 1, 0);
+                const auto range = erf_plotfile::plot3d_precipitating_q_range(
+                    n_qstate_moist, n_qstate_moist_numconc);
+                assert_q_range_in_state("qp", range);
+                MultiFab::Copy(
+                    mf[lev], vars_new[lev][Vars::cons],
+                    erf_plotfile::plot3d_q_conserved_component_index(range.first_q),
+                    mf_comp, 1, 0);
+                for (int q = range.first_q + 1; q <= range.last_q; ++q) {
+                    MultiFab::Add(
+                        mf[lev], vars_new[lev][Vars::cons],
+                        erf_plotfile::plot3d_q_conserved_component_index(q), mf_comp, 1, 0);
                 }
                 MultiFab::Divide(mf[lev], vars_new[lev][Vars::cons], Rho_comp  , mf_comp, 1, 0);
                 mf_comp += 1;
