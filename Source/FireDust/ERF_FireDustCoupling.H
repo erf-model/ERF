@@ -88,6 +88,16 @@ struct FireDustCoupling {
        amrex::Real            z0,
        amrex::Real            zref,
        int                    C) const;
+
+    // ── Phase 3: fire heat flux → convective dust lofting ────────────────────
+    // Fire heat flux drives a convective updraft above the fire front that lofts
+    // dust particles. Enhancement applied to emission flux as:
+    //   flux *= (1 + k_loft * max(Q_fire - Q_threshold, 0) / Q_ref)
+    // capped at (1 + k_loft). No effect when Q_fire <= Q_threshold.
+    bool        fire_lofting_enabled = false;
+    amrex::Real lofting_k_loft       = 2.0;
+    amrex::Real lofting_Q_threshold  = 50.0;
+    amrex::Real lofting_Q_ref        = 500.0;
 };
 
 #endif
