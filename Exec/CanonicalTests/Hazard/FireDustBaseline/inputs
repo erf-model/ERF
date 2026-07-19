@@ -15,11 +15,12 @@
 #   - Fire operates in passive coupling mode: heat/latent flux is
 #     injected into the atmosphere (inject_latent = true) but fire
 #     spread is NOT affected by the atmospheric wind feedback.
-#   - Dust emissions are driven purely by the ambient wind field;
-#     no crust reduction is applied from burned areas
-#     (fire_dust_coupling = false).
-#   - Dust concentrations and emission fluxes match the
-#     DustTerrainFlat case closely (same dust parameters, same wind).
+#   - Dust emissions are driven by the ambient wind field with a
+#     uniform protective crust (crust_index = 1.0) over the whole
+#     domain; no crust reduction from burned areas because
+#     fire_dust_coupling = false.
+#   - Emission fluxes are uniformly suppressed by the crust relative
+#     to the no-crust (crust_index=0) DustTerrainFlat case.
 #   - Fire phi-function field shows burned area growing over time.
 #   - No NaNs or negative dust concentrations.
 # ============================================================
@@ -70,7 +71,7 @@ erf.dust.particle_density = 2650.0
 erf.dust.z0_dust = 0.01
 erf.dust.silt_fraction = 0.10
 erf.dust.threshold_A_coeff = 0.0123
-erf.dust.crust_index = 0.0
+erf.dust.crust_index = 1.0
 erf.dust.alpha_crust = 0.5
 erf.dust.alpha_efflor = 0.3
 erf.dust.test_ustar = 0.0
@@ -85,10 +86,12 @@ erf.dust.bin_diameters = 7.0e-6 2.5e-6 50.0e-6
 erf.dust.deposition_E0 = 3.0e-3
 erf.dust.loading_feedback_coeff = 0.0
 erf.dust.use_dynamic_moisture = false
-erf.dust.k_ridge = 1.5
-erf.dust.k_shelter = 0.6
-erf.dust.k_valley = 0.8
-erf.dust.k_deflect = 0.3
+# Terrain wind k-factors are neutral (1.0) since use_terrain_wind=false
+# for this flat-terrain baseline test
+erf.dust.k_ridge = 1.0
+erf.dust.k_shelter = 1.0
+erf.dust.k_valley = 1.0
+erf.dust.k_deflect = 1.0
 erf.dust.dust_plot_int = -1
 erf.dust.phreeqc_output_file = ""
 erf.dust.blast_schedule_file = ""
