@@ -4,63 +4,73 @@
 #              terrain driven by a neutral ABL with geostrophic wind.
 #              No fire coupling. Terrain wind effects are enabled.
 #
-# Expected Results (verified from simulation output at step 20,
-#                   t = 10 s, dt = 0.5 s, 4096 cells):
+# Expected Results (verified step=20, t=10 s, dt=0.5 s, 4096 cells):
 #
 #   Dynamics:
 #   - Simulation completes 20 steps without errors.
-#   - Fixed dt = 0.5 s (CFL-limited compressible dt ~1.03 s,
-#     anelastic dt ~25.0 s; fixed dt is binding).
-#   - u*_max ~ 1.156 m/s  |  u_10m_max ~ 22.49 m/s
-#   - PBLH_max ~ 534.7 m  |  T_sfc = 300 K
+#   - Fixed dt = 0.5 s (compressible dt ~1.031 s, anelastic ~25.0 s).
+#   - u*_max = 1.155887464 m/s  |  u_10m_max = 22.49132767 m/s
+#   - PBLH_max = 534.72106 m    |  T_sfc_max = 300 K
+#   - EddyDiff::Scalar_v_max = 2.167818648 m^2/s
 #
 #   Terrain Wind Effect:
-#   - Terrain file (terrain_slope_10deg.asc) is read successfully.
-#   - k_ridge = 1.5 amplifies effective wind speed on the upwind slope
-#     face: u_10m_max = 22.49 m/s vs. 14.99 m/s in the flat baseline
-#     (+50%, confirming k_ridge factor is active).
-#   - k_shelter = 1.0, k_valley = 1.0, k_deflect = 1.0 (neutral):
-#     uniform slope geometry means all cells share the same upwind
-#     aspect; lee/valley/deflect paths are not meaningful here.
+#   - terrain_slope_10deg.asc read successfully.
+#   - k_ridge=1.5 amplifies effective wind on upwind slope:
+#     u_10m_max = 22.491 m/s vs. 14.994 m/s flat (+50.0%) ✓
+#   - k_shelter, k_valley, k_deflect = 1.0 (neutral):
+#     uniform slope geometry; lee/valley/deflect paths not meaningful.
 #
 #   Dust Threshold (step 20):
-#   - u*_t = 0.007111 m/s (crust_index=1.0, USTAR_T_MIN=0.001)
+#   - Phase 7: crust_min=0, crust_max=0  (same as DustTerrainFlat:
+#     DustLayer resets crust to 0 internally when no fire coupling)
+#   - u*_t_min = 0.005128846206 m/s  |  u*_t_max = 0.007333296069 m/s
+#     (spatially varying due to terrain wind modifying threshold)
+#   - u*_in range: [0.7705916424, 1.155887464] m/s
 #
 #   Dust Emission (step 20):
-#   - Only bin 0 (d = 7 um) is active (n_active_bins = 1).
-#   - F_dust_max (atm coupling flux) = 1.582e-07 kg/m^2/s
-#   - emission_flux bin0 max = 5.274e-08 kg/m^2/s
-#   - emission_sum ~ 1.234e-05 kg/s
-#   - emission_flux bin0 max is ~9.4% higher than DustTerrainFlat
-#     (4.821e-08 kg/m^2/s), confirming k_ridge amplification of flux.
+#   - Only bin 0 (d=7 um) active  |  n_active_bins=1
+#   - emission_flux bin0 max = 5.095766939e-08 kg/m^2/s
+#   - emission_sum = 2.970431769e-06 kg/s
+#   - F_dust_atm_max = 1.52897459e-07 kg/m^2/s
 #
 #   Dust Settling & Deposition (step 20):
-#   - Settling velocity bin0 (d=7 um) v_s = 4.001e-03 m/s
-#   - Deposition velocity v_d = 7.413e-03 m/s
-#   - dep_flux_max = 7.330e-11 kg/m^2/s
-#   - dep_total (accumulated) = 7.416e-08 kg/m^2
+#   - Settling velocity bin0 (d=7 um): v_s = 0.004000674647 m/s
+#   - Deposition velocity: v_d = 0.007413398738 m/s
+#   - dep_flux_max = 7.082632146e-11 kg/m^2/s
+#   - dep_total (accumulated) = 7.151193619e-08 kg/m^2
 #
 #   Dust Concentrations (step 20):
-#   - conc_sfc_max = 9.600e-08 kg/m^3  (~96.0 ug/m^3)
-#   - PM10_max ~ 90.9 ug/m^3  |  PM2.5_max = 0 ug/m^3
-#   - MSHA TWA = 1.661e-05 mg/m^3 (below occupational limit)
+#   - conc_sfc_max = 92.78530622 ug/m^3
+#   - PM10_max = 87.89374485 ug/m^3  |  PM2.5_max = 0 ug/m^3
+#   - MSHA_TWA = 1.605362559e-05 mg/m^3  (below occupational limit)
 #   - All dust concentrations non-negative.
-#   - conc_sfc_max is ~13.4% higher than DustTerrainFlat (84.67 ug/m^3),
-#     confirming slope effect increases near-surface dust loading.
-#
-#   Flat Baseline Comparison (DustTerrainFlat, step 20):
-#   - u*_max:            1.121 -> 1.156 m/s   (+3.1%)
-#   - u_10m_max:        14.99  -> 22.49 m/s   (+50.0%, k_ridge=1.5)
-#   - emission_flux max:4.821e-08 -> 5.274e-08 kg/m^2/s  (+9.4%)
-#   - conc_sfc_max:    84.67  -> 96.00 ug/m^3 (+13.4%)
-#   - PM10_max:        80.33  -> 90.94 ug/m^3 (+13.2%)
 #
 #   Mass Budget (step 20):
-#   - RHO DUST = 12.351
-#   - MASS = 1.013e+10  |  RHO THETA = 3.080e+12
+#   - RHO DUST = 11.909882
+#   - MASS = 1.012650226e+10  |  RHO THETA = 3.080452531e+12
+#   - RHO SCALAR = 0
 #
 #   Performance:
-#   - Timestep wall time ~ 5.4e-03 s  |  Total ~ 0.137 s
+#   - Timestep wall time ~ 5.4e-03 s  |  Total ~ 0.120 s
+#
+# Slope vs Flat comparison (verified run numbers, step=20):
+#
+#   Metric               | DustTerrainFlat   | DustTerrainSlopeEffect | Delta
+#   ---------------------|-------------------|------------------------|------
+#   u*_max [m/s]         | 1.121392          | 1.155887               | +3.1%
+#   u_10m_max [m/s]      | 14.994            | 22.491                 | +50.0% (k_ridge=1.5)
+#   u*_t_min [m/s]       | 0.004741 (uniform)| 0.005129               | spatially varying
+#   u*_t_max [m/s]       | 0.004741 (uniform)| 0.007333               | spatially varying
+#   emission_flux [kg/m2/s]| 4.6439e-08      | 5.0958e-08             | +9.7%
+#   emission_sum [kg/s]  | 2.972e-06         | 2.970e-06              | ~same (uniform domain)
+#   conc_sfc_max [ug/m3] | 81.557            | 92.785                 | +13.7%
+#   PM10_max [ug/m3]     | 77.383            | 87.894                 | +13.6%
+#   dep_total [kg/m2]    | 7.106e-08         | 7.151e-08              | +0.6%
+#   RHO DUST             | 11.924            | 11.910                 | ~same
+#
+#   Key finding: k_ridge=1.5 boosts u_10m by 50% and emission flux by ~10%.
+#   The u*_t range is now spatially varying (terrain modifies threshold).
+#   Near-surface concentration is 13.7% higher on the slope.
 #
 # NOTE on terrain geometry: terrain_slope_10deg.asc is a spatially
 # uniform 10-degree slope. All cells share the same upwind aspect
@@ -117,7 +127,8 @@ erf.dust.particle_density = 2650.0
 erf.dust.z0_dust = 0.01
 erf.dust.silt_fraction = 0.10
 erf.dust.threshold_A_coeff = 0.0123
-# crust_index = 1.0: fully crusted soil
+# crust_index = 1.0 set here but DustLayer resets crust to 0 internally
+# when no fire coupling is active (same behaviour as DustTerrainFlat).
 erf.dust.crust_index = 1.0
 erf.dust.alpha_crust = 0.5
 erf.dust.alpha_efflor = 0.3
