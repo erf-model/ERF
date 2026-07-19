@@ -1225,6 +1225,8 @@ Dynamic soil fields are not part of the fixed catalog. ERF exposes only names
 reported by the active land-surface provider inventory, in that inventory's
 runtime order. ``<layer>`` is a one-based layer index.
 
+.. BEGIN ERF DYNAMIC SOIL DIAGNOSTIC FAMILIES
+
 .. list-table::
    :header-rows: 1
    :widths: 28 42 20 35
@@ -1245,6 +1247,8 @@ runtime order. ``<layer>`` is a one-based layer index.
      - Soil temperature
      - ``K``
      - Category ``LandSurface``; policy ``FillMinus999WhenUnavailable``; invalid public values become ``-999``.
+
+.. END ERF DYNAMIC SOIL DIAGNOSTIC FAMILIES
 
 Flux Diagnostics
 ^^^^^^^^^^^^^^^^

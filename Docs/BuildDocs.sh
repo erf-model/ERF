@@ -16,6 +16,9 @@ GRN='\033[1;32m'
 NC='\033[0m'
 
 # Check the fixed 2-D catalog before any documentation generator runs.
+python3 -m unittest discover \
+  -s sphinx_doc/scripts \
+  -p 'test_check_plotfile2d_catalog.py'
 python3 sphinx_doc/scripts/check_plotfile2d_catalog.py
 
 # Build doxygen documents -- configuration parameters contained in Doxyfile.in
