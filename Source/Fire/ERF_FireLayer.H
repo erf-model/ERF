@@ -250,6 +250,15 @@ public:
     }
 
     /**
+     * @brief Get fire grid refinement factor.
+     * @return Fire-to-atmospheric grid ratio.
+     */
+    int get_grid_ratio() const
+    {
+       return m_fg.C;
+    }
+
+    /**
      * @brief Get reference wind field for plotfile output.
      * @return Pointer to fire_wind_ref MultiFab [m/s].
      */
