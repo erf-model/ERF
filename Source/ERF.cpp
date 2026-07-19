@@ -1334,6 +1334,17 @@ ERF::InitData_post ()
                 pp.query("fire_dust_crust_reduction", m_fire_dust_coupling.post_fire_crust_reduction);
                 m_fire_dust_coupling.fire_phi_mf = m_fire_layer->get_levelset();
                 m_fire_dust_coupling.geom_fire   = m_fire_layer->get_fire_geom();
+                
+                // Validate grid_ratio matching for fire-dust coupling
+                if (m_fire_dust_coupling.enabled) {
+                    int fire_gr = m_fire_params.grid_ratio;
+                    int dust_gr = dust_params.grid_ratio;
+                    std::string msg = "[FIRE-DUST] fire_dust_coupling=true requires "
+                        "dust.grid_ratio == fire.grid_ratio for proper sub-grid mapping. "
+                        "Set erf.dust.grid_ratio = " + std::to_string(fire_gr) +
+                        " (currently " + std::to_string(dust_gr) + ").";
+                    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(fire_gr == dust_gr, msg.c_str());
+                }
             }
 #endif
             

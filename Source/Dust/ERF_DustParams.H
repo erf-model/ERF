@@ -72,11 +72,13 @@ struct DustParams {
                                                  ///<   Geochemical processes (crust formation,
                                                  ///<   efflorescence) evolve on day-to-week timescales,
                                                  ///<   much slower than the atmospheric timestep.
-    amrex::Real alpha_crust     = 0.5;  ///< Crust strength reduction coefficient for u*_t [-].
-                                         ///<   u*_t_new = u*_t_base * (1 - alpha_crust * crust_index).
+    amrex::Real alpha_crust     = 0.5;  ///< Crust strength enhancement coefficient for u*_t [-].
+                                         ///<   Higher crust (fully crusted, protected soil) increases u*_t (harder to emit).
+                                         ///<   u*_t_final = u*_t_base * (1 + alpha_crust * crust_index) / (f_moist * f_supp).
+                                         ///<   When fire reduces crust (e.g., 1.0 -> 0.01), u*_t decreases, raising emission.
                                          ///<   Reference: Marticorena & Bergametti (1995),
                                          ///<     https://doi.org/10.1029/95JD00690
-    amrex::Real alpha_efflor    = 0.3;  ///< Efflorescence reduction coefficient for u*_t [-].
+    amrex::Real alpha_efflor    = 0.3;  ///< Efflorescence enhancement coefficient for u*_t [-].
     amrex::Real ustar_t_base    = -1.0; ///< Base u*_t before chemistry [m/s].
                                          ///<   Negative means compute from Bagnold at init.
     amrex::Real test_ustar      = 0.0;   ///< Placeholder u* [m/s] used in Phase 6 before
