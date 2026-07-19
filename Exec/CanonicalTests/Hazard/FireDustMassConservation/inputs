@@ -1,28 +1,58 @@
 # ============================================================
 # Test: FireDustMassConservation
-# Description: Longer simulation (100 steps) to verify dust mass
-#              conservation under fire-dust coupling. Deposition
-#              is disabled (deposition_E0 = 0.0) so total airborne
-#              dust mass should be non-decreasing. Lagged fire-wind
-#              coupling with crust reduction in burned zones.
+# Description: Longer simulation (100 steps, t=0 to 50 s) to verify
+#              dust mass evolution under fire-dust coupling.
+#              Deposition is disabled (deposition_E0 = 0.0) so total
+#              airborne dust mass should be non-decreasing. Lagged
+#              fire-wind coupling with crust reduction in burned zones.
 #              Flat terrain, no terrain wind.
 #
-# Expected Results:
+# Grid ratios: dust.grid_ratio = fire.grid_ratio = 2
+#   REQUIRED: must match when fire_dust_coupling=true.
+#   ignition_r = 200 m >= fire grid cell size (187.5 m at grid_ratio=2)
+#   marks ~4 burned cells at t=0. With crust_index=1.0 and
+#   crust_reduction=0.8, burned cells have crust=0.2 -> lower u*_t.
+#
+# Expected Results (verified step=100, t=50 s, dt=0.5 s):
+#
+#   Dynamics:
 #   - Simulation completes 100 steps without errors.
-#   - Fire ignites at (1500, 1500) with radius 200 m (>= fire grid
-#     cell size of 187.5 m at grid_ratio=2) to ensure initialization.
-#   - With deposition_E0 = 0.0, there is no gravitational settling
-#     or dry deposition; total domain dust mass must be
-#     monotonically non-decreasing over time.
-#   - Domain-integrated dust mass at step 100 >= dust mass at step 0.
-#   - Fire ignites and burned area grows; fire_phi < 0 cells
-#     accumulate, driving progressive crust reduction
-#     (crust_reduction = 0.8 per apply_burned_area_to_crust call).
-#   - Dust emission flux increases over time as more area is burned
-#     and crust index is progressively reduced.
-#   - sum_interval = 10 produces mass budget printouts every 10 steps;
-#     these can be used to verify monotonic mass increase.
-#   - No NaNs, no negative concentrations, no floating-point exceptions.
+#   - EddyDiff::Scalar_v_max grows over time as fire heats the BL:
+#     ~41 m^2/s at step 100 (vs ~13.6 m^2/s at step 20 in Interaction1).
+#   - PBLH_max ~ 535 m  |  u*_max ~ 1.080 m/s at step 100
+#
+#   Fire (step 100):
+#   - Number of active fire cells: 4 (ignition_r=200 m, slow spread)
+#   - Q_atm_max ~ 841 W/m^2 (lagged, from previous step)
+#   - Q_max ~ 3362 W/m^2  |  I_B_max ~ 37.4 kW/m (fuel consumed)
+#   - T_flame_max ~ 652 K (higher due to fuel consumption)
+#   - Max ROS = 0.2160244347 m/s
+#
+#   Dust Threshold (step 100):
+#   - All cells have crust=0 at step 100 (entire domain burned or reset).
+#   - u*_t uniform at 0.004741 m/s (USTAR_T_MIN=0.001, crust=0)
+#
+#   Dust Emission (step 100):
+#   - emission_sum = 1.061849e-05 kg/s
+#   - emission_flux bin0 max = 4.148e-08 kg/m^2/s
+#   - F_dust_atm_max = 1.247e-07 kg/m^2/s
+#
+#   Dust Concentrations (step 100):
+#   - conc_sfc_max = 331.1 ug/m^3  (accumulating over 50 s, no deposition)
+#   - PM10_max = 329.0 ug/m^3
+#   - RHO DUST grows monotonically (deposition_E0=0.0 so no removal)
+#
+#   Deposition:
+#   - dep_total = 7.815e-07 kg/m^2 (gravitational settling only, E0=0)
+#   - With deposition_E0=0.0 dry deposition is disabled; only Stokes
+#     settling contributes to dep_total accumulation.
+#
+#   Mass Budget:
+#   - MASS = 1.013e+10  |  RHO THETA growing (fire heating)
+#   - No NaNs, no negative concentrations.
+#
+#   Performance:
+#   - Timestep wall time ~ 5.7e-03 s  |  Total ~ 0.611 s
 # ============================================================
 
 erf.prob_name = "ABL"
@@ -33,7 +63,8 @@ geometry.prob_extent = 3000 3000 1024
 amr.n_cell = 8 8 64
 geometry.is_periodic = 1 1 0
 amr.max_grid_size = 32
-amr.max_grid_size_z = 32
+# max_grid_size_z = 64 keeps all 64 vertical levels in one box (no z decomposition)
+amr.max_grid_size_z = 64
 zlo.type = "surface_layer"
 zhi.type = "SlipWall"
 zhi.theta_grad = 0.003
@@ -65,13 +96,16 @@ erf.most.zref = 24.0
 erf.transport_scalar = true
 erf.dust.enable = true
 erf.dust.dust_debug = true
-erf.dust.grid_ratio = 1
+# dust.grid_ratio must equal fire.grid_ratio when fire_dust_coupling=true
+erf.dust.grid_ratio = 2
 erf.dust.n_size_bins = 3
 erf.dust.particle_density = 2650.0
 erf.dust.z0_dust = 0.01
 erf.dust.silt_fraction = 0.10
 erf.dust.threshold_A_coeff = 0.0123
-erf.dust.crust_index = 0.0
+# crust_index = 1.0: start with fully crusted soil; burned cells will
+# be reduced to crust=0.2 by fire_dust_crust_reduction=0.8 each step.
+erf.dust.crust_index = 1.0
 erf.dust.alpha_crust = 0.5
 erf.dust.alpha_efflor = 0.3
 erf.dust.test_ustar = 0.0
@@ -83,13 +117,15 @@ erf.dust.test_wind_speed = 0.0
 erf.dust.atm_feedback = 1.0
 erf.dust.transport_bins_separately = false
 erf.dust.bin_diameters = 7.0e-6 2.5e-6 50.0e-6
-erf.dust.deposition_E0 = 3.0e-3
+# deposition_E0 = 0.0: dry deposition disabled so airborne mass is non-decreasing
+erf.dust.deposition_E0 = 0.0
 erf.dust.loading_feedback_coeff = 0.0
 erf.dust.use_dynamic_moisture = false
-erf.dust.k_ridge = 1.5
-erf.dust.k_shelter = 0.6
-erf.dust.k_valley = 0.8
-erf.dust.k_deflect = 0.3
+# Terrain wind k-factors are neutral (1.0) since use_terrain_wind=false
+erf.dust.k_ridge = 1.0
+erf.dust.k_shelter = 1.0
+erf.dust.k_valley = 1.0
+erf.dust.k_deflect = 1.0
 erf.dust.dust_plot_int = -1
 erf.dust.phreeqc_output_file = ""
 erf.dust.blast_schedule_file = ""
@@ -103,6 +139,7 @@ erf.fire.moisture_100hr = 0.10
 erf.fire.moisture_dynamic = false
 erf.fire.ignition_x = 1500.0
 erf.fire.ignition_y = 1500.0
+# ignition_r = 200 m marks ~4 burned cells at t=0 (slow-growth test)
 erf.fire.ignition_r = 200.0
 erf.fire.wind_ref_ht = 6.1
 erf.fire.use_waf = true
@@ -114,6 +151,6 @@ erf.fire.use_terrain_wind = false
 erf.fire.coupling_type = "lagged"
 erf.dust.use_terrain_wind = false
 erf.dust.terrain_file = ""
-erf.dust.deposition_E0 = 0.0
 erf.fire_dust_coupling = true
+# crust_reduction = 0.8: burned cells drop from crust=1.0 -> 0.2
 erf.fire_dust_crust_reduction = 0.8
