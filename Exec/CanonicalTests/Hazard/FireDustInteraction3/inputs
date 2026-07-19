@@ -1,20 +1,79 @@
-# FireDustInteraction3 — Phase 3: fire heat flux drives convective dust lofting.
+# ============================================================
+# Test: FireDustInteraction3
+# Description: Phase 3 isolated — fire heat flux drives convective dust lofting.
 #
-# After DustLayer::advance() computes the saltation emission flux,
-# apply_fire_lofting_to_emission_flux multiplies it by
-# (1 + k_loft * max(Q_fire - Q_threshold, 0) / Q_ref) in cells where
-# fire heat flux exceeds lofting_Q_threshold.
+#   After DustLayer::advance() computes the saltation emission flux,
+#   apply_fire_lofting_to_emission_flux multiplies it by:
+#     factor = 1 + k_loft * max(Q_fire - Q_threshold, 0) / Q_ref
+#   capped at (1 + k_loft). Only cells where Q_fire > Q_threshold are enhanced.
 #
-# Interaction 3 isolated:
+# Interactions:
 #   fire_dust_crust_reduction = 0.0  -> Interaction 1 disabled
 #   fire_dust_wind_to_dust = false   -> Interaction 2 disabled
-#   fire_dust_lofting_enabled = true -> Interaction 3 enabled
+#   fire_dust_lofting_enabled = true -> Interaction 3 active
 #
-# Expected results:
-#   (1) [DUST DEBUG] Phase 3 fire-lofting: fire_heat_max > 50 after step 4
-#   (2) emission_flux_max increases sharply when fire ignites
-#   (3) emission_flux_max > FireDustBaseline at step 20
-#   (4) No NaN, run exits code 0 at max_step=20
+# Settings:
+#   fuel_model_id = 1                -> FM1 short grass
+#   crust_index = 0.5                -> partially crusted (uniform, no Phase 1)
+#   k_loft = 2.0                     -> max 3x enhancement (factor = 1 + 2 = 3)
+#   Q_threshold = 50 W/m^2           -> lofting active when Q > 50 W/m^2
+#   Q_ref = 500 W/m^2                -> full enhancement at Q_ref
+#   sounding_neutral_abl (u=15 m/s) -> consistent with geo_wind=15.0
+#   fire.coupling_type = "passive"   -> no heat injection into atmosphere
+#
+# Expected Results (verified step=20, t=10 s, dt=0.5 s):
+#
+#   Dynamics:
+#   - Simulation completes 20 steps without errors.
+#   - Fixed dt = 0.5 s.
+#   - u*_max = 1.121392 m/s  |  u_10m_max = 14.994 m/s  |  PBLH = 534.721 m
+#   - EddyDiff::Scalar_v_max = 2.167818648 m^2/s
+#   - T_sfc_max = 300 K  (passive fire, no heating)
+#
+#   Fire (step 20):
+#   - 32 active fire cells (ignition_r=600 m)
+#   - Max reference wind = 14.562 m/s
+#   - Max effective wind (post-WAF) = 5.272939414 m/s
+#   - Max ROS = 0.2160244347 m/s  |  Q_max = 3520.16312 W/m^2
+#   - T_flame_max = 536.5483447 K
+#   - phi_min=-1  phi_max=0
+#
+#   Phase 3 output (step 20):
+#   - [DUST DEBUG] Phase 3 fire-lofting:
+#       step=20
+#       fire_heat_max=3520.16312 W/m2
+#       emission_flux_max_after_loft=1.39462757e-07 kg/m2/s
+#   - Pre-loft emission_flux bin0 max = 4.648758566e-08 kg/m^2/s
+#   - Enhancement factor at fire cells:
+#       factor = 1 + 2.0 * (3520 - 50) / 500 = 1 + 13.88 -> capped at 1+2 = 3
+#       so lofted_flux = 3 * 4.649e-08 = 1.395e-07 kg/m^2/s (matches output)
+#   - C=3x enhancement confirmed correct
+#
+#   Phase 1+2 disabled (step 20):
+#   - crust_min=0.5, crust_max=0.5, reduction=0  (Phase 1 inactive)
+#   - No fire-wind coupling output (Phase 2 inactive)
+#   - u*_t = 0.005925889388 m/s (uniform, crust=0.5)
+#
+#   Dust Emission (step 20, after lofting):
+#   - emission_sum = 1.487602741e-05 kg/s  (vs 1.19e-05 baseline: 25% increase)
+#   - F_dust_atm_max = 4.185084176e-07 kg/m^2/s  (injected to atm)
+#   - conc_sfc_max = 241.958 ug/m^3  |  PM10 = 229.846 ug/m^3
+#   - RHO DUST = 14.921
+#   - dep_total = 3.556812621e-07 kg/m^2
+#
+#   Mass Budget (step 20):
+#   - MASS = 1.012650226e+10  |  RHO THETA = 3.080452531e+12
+#   - RHO SCALAR = 0
+#
+#   Performance:
+#   - Timestep wall time ~ 5.8e-03 s  |  Total ~ 0.139 s
+#   - NOTE: amrex.max_grid_size_z is unused (use amr.max_grid_size_z instead)
+#
+# Comparison vs baseline (FireDustBaseline, step=20, 15 m/s, no fire-dust coupling):
+#   emission_sum: 1.488e-05 vs ~1.189e-05 baseline -> ~25% increase from lofting
+#   RHO DUST:     14.921   vs ~11.9     baseline    -> 25% more dust in domain
+#   conc_sfc:     242 ug/m^3 vs ~82 ug/m^3 baseline -> 3x higher (lofting capped at 3x)
+# ============================================================
 
 erf.prob_name = "ABL"
 max_step = 20
@@ -24,7 +83,8 @@ geometry.prob_extent = 3000 3000 1024
 amr.n_cell = 8 8 64
 geometry.is_periodic = 1 1 0
 amr.max_grid_size = 32
-amrex.max_grid_size_z = 64
+# max_grid_size_z = 64 keeps all 64 vertical levels in one box (no z decomposition)
+amr.max_grid_size_z = 64
 zlo.type = "surface_layer"
 zhi.type = "SlipWall"
 zhi.theta_grad = 0.003
@@ -40,6 +100,7 @@ erf.les_type = "None"
 erf.theta_ref = 300.0
 erf.init_type = "input_sounding"
 erf.sounding_type = Ideal
+# sounding_neutral_abl: u=15 m/s, consistent with geo_wind=15.0
 erf.input_sounding_file = "sounding_neutral_abl"
 erf.pbl_type = "MRF"
 erf.pbl_mrf_Ribcr = 0.5
@@ -50,18 +111,21 @@ erf.mrf_moistvars = false
 erf.use_coriolis = true
 erf.latitude = 45.0
 erf.abl_driver_type = "GeostrophicWind"
+# geo_wind = 15.0 consistent with sounding_neutral_abl
 erf.abl_geo_wind = 15.0 0.0 0.0
 erf.most.z0 = 0.1
 erf.most.zref = 24.0
 erf.transport_scalar = true
 erf.dust.enable = true
 erf.dust.dust_debug = true
+# dust.grid_ratio must equal fire.grid_ratio when fire_dust_coupling=true
 erf.dust.grid_ratio = 2
 erf.dust.n_size_bins = 3
 erf.dust.particle_density = 2650.0
 erf.dust.z0_dust = 0.01
 erf.dust.silt_fraction = 0.10
 erf.dust.threshold_A_coeff = 0.0123
+# crust_index = 0.5: uniform partially crusted soil (Phase 1 inactive)
 erf.dust.crust_index = 0.5
 erf.dust.alpha_crust = 0.5
 erf.dust.alpha_efflor = 0.3
@@ -94,6 +158,7 @@ erf.fire.moisture_100hr = 0.10
 erf.fire.moisture_dynamic = false
 erf.fire.ignition_x = 1500.0
 erf.fire.ignition_y = 1500.0
+# ignition_r = 600 m marks ~32 burned cells at t=0 (~12.5% of fire domain)
 erf.fire.ignition_r = 600.0
 erf.fire.wind_ref_ht = 6.1
 erf.fire.use_waf = true
@@ -102,12 +167,18 @@ erf.fire.heat_flux_alfg = 45.0
 erf.fire.fire_atm_feedback = 1.0
 erf.fire.inject_latent = true
 erf.fire.use_terrain_wind = false
+# coupling_type = passive: fire heat NOT injected into atmosphere
 erf.fire.coupling_type = "passive"
 erf.dust.use_terrain_wind = false
 erf.dust.terrain_file = ""
 erf.fire_dust_coupling = true
+# Phase 1 disabled
 erf.fire_dust_crust_reduction = 0.0
+# Phase 2 disabled
 erf.fire_dust_wind_to_dust = false
+# Phase 3: fire heat flux enhances emission flux via lofting factor
+# factor = 1 + k_loft * max(Q - Q_threshold, 0) / Q_ref  (capped at 1+k_loft)
+# At Q=3520 W/m^2: factor = 1 + 2*(3520-50)/500 = 14.88 -> capped at 3
 erf.fire_dust_lofting_enabled = true
 erf.fire_dust_lofting_k_loft = 2.0
 erf.fire_dust_lofting_Q_threshold = 50.0
