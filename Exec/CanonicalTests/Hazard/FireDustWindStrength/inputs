@@ -20,14 +20,14 @@
 #
 #   Metric                     | FM1 (Interaction2) | FM4 (WindStrength)  | Ratio
 #   ---------------------------|--------------------|--------------------|-------
-#   fire_wind_eff_max [m/s]    | 5.273              | 7.962              | 1.51x
-#   Max ROS [m/s]              | 0.216              | 0.845              | 3.91x
-#   Q_max [W/m^2]              | 3520               | 288713             | 82x
-#   T_flame_max [K]            | 536                | 1305               | 2.4x
-#   I_B_max [kW/m]             | 7.64               | 2490               | 326x
+#   fire_wind_eff_max [m/s]    | 5.273              | 7.962453917        | 1.51x
+#   Max ROS [m/s]              | 0.216              | 0.8449813953       | 3.91x
+#   Q_max [W/m^2]              | 3520               | 288712.9252        | 82x
+#   T_flame_max [K]            | 536.5              | 1304.915032        | 2.43x
+#   I_B_max [kW/m]             | 7.64               | 2489.759636        | 326x
 #   fire-derived u* [m/s]      | 0.513              | 0.775              | 1.51x
-#   ustar_max_after [m/s]      | 1.121              | 1.121              | 1.0x
-#   emission_sum [kg/s]        | 1.1888e-05         | 1.1888e-05         | ~1.0x
+#   ustar_max_after [m/s]      | 1.121              | 1.121499712        | ~1.0x
+#   emission_sum [kg/s]        | 1.18884e-05        | 1.188843e-05       | ~1.0x
 #
 # Key finding: At 15 m/s background wind, MRF u*=1.121 m/s dominates over
 # both FM1 fire-derived u*=0.513 m/s AND FM4 fire-derived u*=0.775 m/s.
@@ -42,40 +42,45 @@
 #   Dynamics:
 #   - Simulation completes 20 steps without errors.
 #   - Fixed dt = 0.5 s.
-#   - u*_max = 1.121 m/s  |  u_10m_max = 14.994 m/s  |  PBLH = 534.7 m
-#   - EddyDiff::Scalar_v_max = 2.168 m^2/s
+#   - u*_max = 1.121499712 m/s  |  u_10m_max = 14.99421844 m/s  |  PBLH = 534.721 m
+#   - EddyDiff::Scalar_v_max = 2.167818648 m^2/s
 #   - T_sfc_max = 300 K  (passive fire, no heating)
 #
 #   Fire FM4 (step 20):
 #   - 32 active fire cells (ignition_r=600 m)
-#   - Max reference wind = 14.562 m/s
-#   - Max effective wind (post-WAF) = 7.962447894 m/s  (vs 5.273 for FM1)
+#   - Max reference wind = 14.56193684 m/s
+#   - Max effective wind (post-WAF) = 7.962453917 m/s  (vs 5.273 for FM1)
 #   - Max ROS = 0.8449813953 m/s  (vs 0.216 for FM1)
-#   - Q_max = 288712.9 W/m^2  |  I_B_max = 2489.76 kW/m  |  L_max = 2.828 m
-#   - T_flame_max = 1304.9 K  (vs 536.5 K for FM1)
+#   - Q_max = 288712.9252 W/m^2  |  I_B_max = 2489.759636 kW/m  |  L_max = 2.828356288 m
+#   - T_flame_max = 1304.915032 K  (vs 536.5 K for FM1)
 #   - phi_min=-1  phi_max=0
 #
 #   Phase 2 output (step 20):
 #   - [DUST DEBUG] Phase 2 fire-wind coupling:
-#       fire_wind_max=7.962447894 m/s
-#       ustar_max_after=1.12149862 m/s
+#       fire_wind_max=7.962453917 m/s
+#       ustar_max_after=1.121499712 m/s
 #       C=1
 #   - fire-derived u* = 7.962*0.4/ln(6.1/0.1) = 0.775 m/s < MRF 1.121 m/s
 #   - max() correctly keeps MRF u*
 #
 #   Phase 1 output (step 20):
 #   - crust_min=0, crust_max=0, reduction=0  (Phase 1 disabled)
-#   - u*_t = 0.004741 m/s (USTAR_T_MIN floor)
+#   - u*_t = 0.004740711511 m/s (USTAR_T_MIN floor)
 #
 #   Dust Emission (step 20):
-#   - emission_sum = 1.188840e-05 kg/s  (identical to FM1 at 15 m/s)
-#   - emission_flux bin0 max = 4.643905e-08 kg/m^2/s
-#   - conc_sfc_max = 81.557 ug/m^3  |  PM10 = 77.382 ug/m^3
+#   - emission_sum = 1.188842981e-05 kg/s
+#   - emission_flux bin0 max = 4.643917895e-08 kg/m^2/s
+#   - F_dust_atm_max = 1.393575578e-07 kg/m^2/s
+#   - conc_sfc_max = 81.557 ug/m^3  |  PM10 = 77.383 ug/m^3
 #   - RHO DUST = 11.924
-#   - dep_total = 2.842e-07 kg/m^2
+#   - dep_total = 2.842488665e-07 kg/m^2
+#
+#   Mass Budget (step 20):
+#   - MASS = 1.012650226e+10  |  RHO THETA = 3.080452531e+12
+#   - RHO SCALAR = 0
 #
 #   Performance:
-#   - Timestep wall time ~ 5.6e-03 s  |  Total ~ 0.127 s
+#   - Timestep wall time ~ 5.9e-03 s  |  Total ~ 0.131 s
 # ============================================================
 
 erf.prob_name = "ABL"
@@ -156,7 +161,7 @@ erf.fire.enable = true
 erf.fire.fire_debug = true
 erf.fire.grid_ratio = 2
 # FM4 chaparral: higher ROS, higher heat flux than FM1 short grass
-# Produces fire_wind_eff_max=7.962 m/s vs 5.273 m/s for FM1 (1.51x)
+# fire_wind_eff_max=7.962 m/s vs 5.273 m/s for FM1 (1.51x)
 # Change to fuel_model_id = 1 to reproduce FireDustInteraction2 baseline
 erf.fire.fuel_model_id = 4
 erf.fire.moisture_1hr = 0.08
