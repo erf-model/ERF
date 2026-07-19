@@ -15,22 +15,43 @@
 #   produce a visible emission difference in FireDustInteraction1
 #   when crust_reduction = 0.99 is applied.
 #
-# Expected Results:
-#   - Simulation completes 20 steps without errors.
-#   - Fire ignites at (1500, 1500) with radius 600 m.
-#     NOTE: ignition_r = 600 m >> fire grid cell size (187.5 m at
-#     grid_ratio=2, domain 3000 m / 16 cells), marking ~32 burned cells.
-#   - Fire operates in PASSIVE coupling mode: fire spread uses
-#     PRE-dycore wind; heat/moisture flux NOT injected into atmosphere
-#     (coupling_type=passive, injects_flux=false).
-#   - Dust is driven by ambient wind with uniform crust (crust_index=1.0)
-#     over the whole domain; no crust reduction from burned areas because
-#     fire_dust_coupling = false.
-#   - This output serves as the reference emission_sum and conc_sfc
-#     against which FireDustInteraction1 (coupling=true) is compared.
-#   - No NaNs or negative dust concentrations.
+# Expected Results (verified step=20, t=10 s, dt=0.5 s, 4096 atm cells):
 #
-# NOTE: Expected results will be updated after verified run.
+#   Dynamics:
+#   - Simulation completes 20 steps without errors.
+#   - Fixed dt = 0.5 s (CFL-limited compressible dt ~1.03 s).
+#   - u*_max ~ 1.121 m/s  |  u_10m_max ~ 14.99 m/s
+#   - PBLH_max ~ 534.7 m  |  T_sfc = 300 K
+#
+#   Fire (step 20):
+#   - Fire ignites at (1500, 1500) with radius 600 m and spreads outward.
+#   - Number of active fire cells: 32 (~12.5% of 16x16 fire domain)
+#   - Fire operates in PASSIVE coupling mode: heat/moisture NOT injected
+#     into atmosphere (coupling_type=passive, injects_flux=false).
+#   - EddyDiff::Scalar_v_max = 2.168 m^2/s (no fire heat effect)
+#   - Max ROS = 0.2160244347 m/s  |  Q_max ~ 3520 W/m^2
+#   - phi_min = -1  |  phi_max = 0
+#
+#   Dust Emission (step 20):
+#   - Only bin 0 (d = 7 um) is active (n_active_bins = 1).
+#   - u*_t uniform at 0.007111 m/s (unburned crust=1.0, USTAR_T_MIN=0.001)
+#   - emission_flux bin0 max = 4.821e-08 kg/m^2/s
+#   - emission_sum = 1.234186e-05 kg/s  (reference value for comparison)
+#   - Dust driven by ambient wind; crust uniform at 1.0 (no fire coupling).
+#
+#   Dust Concentrations (step 20):
+#   - conc_sfc_max ~ 84.7 ug/m^3  |  PM10_max ~ 80.3 ug/m^3
+#   - RHO DUST = 12.379
+#
+#   Key comparison point:
+#   - FireDustInteraction1 emission_sum = 1.190330e-05 kg/s (-3.5%)
+#     The coupled case is LOWER because fire heat flux raises EddyDiff
+#     6x (13.6 vs 2.2 m^2/s), increasing PBL mixing and dispersing
+#     near-surface dust faster. The crust reduction in 32 burned cells
+#     (12.5% domain) lowers u*_t in those cells but the fire thermal
+#     effect on the BL dominates at t=10 s.
+#   - u*_t in FireDustInteraction1: min=0.00474 (burned), max=0.00711 (unburned)
+#     versus flat 0.00711 here -- confirming per-cell crust modulation works.
 # ============================================================
 
 erf.prob_name = "ABL"
