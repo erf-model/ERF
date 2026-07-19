@@ -600,12 +600,45 @@ DustLayer::advance(
       m_params.supp_tau_base_s);
   }
 
-  if (m_params.dust_debug) {
+  /*if (m_params.dust_debug) {
+    amrex::Print() << "[DUST DEBUG] Phase 8: suppression coverage max="
+                   << dust_suppression->max(0)
+                   << ", retreat_flag sum=" << dust_retreat_flag->sum(0)
+                   << " at step=" << m_step << "\n";
+  }*/
+
+    if (m_params.dust_debug) {
     amrex::Print() << "[DUST DEBUG] Phase 8: suppression coverage max="
                    << dust_suppression->max(0)
                    << ", retreat_flag sum=" << dust_retreat_flag->sum(0)
                    << " at step=" << m_step << "\n";
   }
+
+  // -----------------------------------------------------------------------
+  // Fire-dust coupling: reset crust to baseline each step, then re-apply
+  // burned-area reduction so u*_t is recomputed from the current crust.
+  // Must run BEFORE recompute_dust_ustar_t so the updated crust is used.
+  // -----------------------------------------------------------------------
+#if defined(ERF_ENABLE_FIRE) && defined(ERF_USE_DUST)
+  if (m_fire_dust_coupling && m_fire_dust_coupling->enabled
+      && dust_crust_index)
+  {
+      // Reset crust to the initial uniform value each step so that
+      // crust is not permanently driven to zero over multiple steps.
+      dust_crust_index->setVal(m_params.crust_index);
+      // Re-apply burned-area reduction using current fire phi field.
+      m_fire_dust_coupling->apply_burned_area_to_crust(
+          *dust_crust_index, m_dg.geom);
+      dust_crust_index->FillBoundary(m_dg.geom.periodicity());
+  }
+#endif
+
+  if (m_params.dust_debug) {
+    amrex::Print() << "[DUST DEBUG] Phase 7: crust_index before u*_t computation at step=" << m_step
+                   << " min=" << dust_crust_index->min(0)
+                   << " max=" << dust_crust_index->max(0) << "\n";
+  }
+
 
   recompute_dust_ustar_t(
     *dust_ustar_t, *dust_ustar_base, *dust_crust_index, *dust_efflor,
@@ -613,9 +646,9 @@ DustLayer::advance(
     m_params.alpha_efflor, dust_slopes.get());
 
   if (m_params.dust_debug) {
-    amrex::Print() << "[DUST DEBUG] Phase 7: crust_index before u*_t computation at step=" << m_step
+    /*amrex::Print() << "[DUST DEBUG] Phase 7: crust_index before u*_t computation at step=" << m_step
                    << " min=" << dust_crust_index->min(0)
-                   << " max=" << dust_crust_index->max(0) << "\n";
+                   << " max=" << dust_crust_index->max(0) << "\n";*/
     amrex::Print() << "[DUST DEBUG] Phase 5: u*_t after crust modulation at step=" << m_step
                    << " u*_t_min=" << dust_ustar_t->min(0)
                    << " u*_t_max=" << dust_ustar_t->max(0) << " [m/s]\n";

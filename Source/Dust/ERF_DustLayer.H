@@ -63,6 +63,11 @@
 #include <ERF_DustCriticalMaterials.H>
 #endif
 
+#if defined(ERF_ENABLE_FIRE) && defined(ERF_USE_DUST)
+#include <ERF_FireDustCoupling.H>
+#endif
+
+
 #if defined(ERF_USE_DUST) && defined(ERF_USE_PARTICLES)
 #include <ERF_DustPC.H>
 #endif
@@ -173,6 +178,18 @@ public:
 
     // Non-const accessors for internal coupling (e.g., fire-dust coupling)
     amrex::MultiFab* get_crust_index_mut() { return dust_crust_index.get(); }
+
+    /**
+     * @brief Register the fire-dust coupling object so advance() can apply
+     *        burned-area crust reduction before recomputing u*_t each step.
+     * @param fdc  Pointer to the FireDustCoupling struct (owned by ERF).
+     *             Pass nullptr to disable.
+     */
+#if defined(ERF_ENABLE_FIRE) && defined(ERF_USE_DUST)
+    void set_fire_dust_coupling(const FireDustCoupling* fdc) {
+        m_fire_dust_coupling = fdc;
+    }
+#endif
 
     /**
      * @brief Get the dust scalar component index.
@@ -406,6 +423,10 @@ private:
                                                                      ///< Set during initialize from ERF_IndexDefines.H.
 
     DustParams                            m_params;
+#if defined(ERF_ENABLE_FIRE) && defined(ERF_USE_DUST)
+    const FireDustCoupling* m_fire_dust_coupling = nullptr;
+#endif
+
     int                                   m_step = 0;
     amrex::Real                           m_time = 0.0;
     int                                   m_last_dust_plot_step = -1;
