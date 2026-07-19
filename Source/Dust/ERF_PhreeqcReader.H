@@ -72,16 +72,19 @@ struct DustGrid;
  *   https://doi.org/10.1029/95JD00690
  */
 namespace PhreeqcDustConst {
-    /// Crust strength reduction coefficient for u*_t [dimensionless].
-    /// Fraction by which a fully crusted surface (crust_index=1) reduces u*_t.
-    /// Reference: Marticorena & Bergametti (1995).
+    /// Crust strength enhancement coefficient for u*_t [dimensionless].
+    /// Higher crust_index (fully crusted, protected soil) increases u*_t (harder to emit).
+    /// Lower crust_index (bare, uncrusted soil) decreases u*_t (easier to emit).
+    /// Formula: f_chem = (1 + ALPHA_CRUST * crust_index)
+    /// Reference: Marticorena & Bergametti (1995), https://doi.org/10.1029/95JD00690
     constexpr amrex::Real ALPHA_CRUST       = 0.5;
 
-    /// Efflorescence reduction coefficient for u*_t [dimensionless].
-    /// Fraction by which full efflorescence (efflorescence=1) reduces u*_t.
+    /// Efflorescence enhancement coefficient for u*_t [dimensionless].
+    /// Higher efflorescence increases u*_t (protective effect).
+    /// Formula: f_efflor = (1 + ALPHA_EFFLOR * efflorescence)
     constexpr amrex::Real ALPHA_EFFLOR      = 0.3;
 
-    /// Minimum allowed u*_t after crust/efflorescence reduction [m/s].
+    /// Minimum allowed u*_t after crust/efflorescence modulation [m/s].
     constexpr amrex::Real USTAR_T_MIN       = 0.05;
 
     /// Suppression agent binding factor reduction per unit salt hygroscopicity.

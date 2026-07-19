@@ -252,8 +252,11 @@ bool read_phreeqc_netcdf(MultiFab& mf, const DustGrid& dg,
 void update_ustar_t_from_chemistry(MultiFab& ustar_t, const MultiFab& ustar_base,
                                    const MultiFab& crust, const MultiFab& efflor)
 {
-    // u*_t reduction from mineral crust and salt efflorescence.
-    // Marticorena & Bergametti (1995), https://doi.org/10.1029/95JD00690
+    // u*_t modulation from mineral crust and salt efflorescence.
+    // Higher crust_index (fully crusted, protected soil) increases u*_t (harder to emit).
+    // Lower crust_index (bare, uncrusted soil) decreases u*_t (easier to emit).
+    // This makes burned areas with reduced crust emit more dust, as expected.
+    // Reference: Marticorena & Bergametti (1995), https://doi.org/10.1029/95JD00690
     const Real alpha_c    = PhreeqcDustConst::ALPHA_CRUST;
     const Real alpha_e    = PhreeqcDustConst::ALPHA_EFFLOR;
     const Real ustar_tmin = PhreeqcDustConst::USTAR_T_MIN;
@@ -266,9 +269,11 @@ void update_ustar_t_from_chemistry(MultiFab& ustar_t, const MultiFab& ustar_base
         auto efflor_arr  = efflor.const_array(mfi);
 
         ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-            Real ut = ut_base_arr(i,j,k)
-                    * (Real(1.0) - alpha_c * crust_arr(i,j,k))
-                    * (Real(1.0) - alpha_e * efflor_arr(i,j,k));
+            // Higher crust and efflorescence both INCREASE u*_t (harder to emit).
+            // This matches the threshold computation: f_chem = (1 + alpha_c * crust) * (1 + alpha_e * efflor)
+            Real f_chem = (Real(1.0) + alpha_c * amrex::min(amrex::max(crust_arr(i,j,k), 0.0), 1.0))
+                        * (Real(1.0) + alpha_e * amrex::min(amrex::max(efflor_arr(i,j,k), 0.0), 1.0));
+            Real ut = ut_base_arr(i,j,k) * f_chem;
             ut_arr(i,j,k) = amrex::max(ut, ustar_tmin);
         });
     }
