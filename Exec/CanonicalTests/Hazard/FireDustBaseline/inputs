@@ -1,3 +1,27 @@
+# ============================================================
+# Test: FireDustBaseline
+# Description: Fire and dust running concurrently but without
+#              fire-dust coupling (fire_dust_coupling = false).
+#              Passive fire coupling mode. Flat terrain.
+#              Serves as the baseline to compare against
+#              FireDustInteraction1 and FireDustTerrainCoupled.
+#
+# Expected Results:
+#   - Simulation completes 20 steps without errors.
+#   - Fire ignites at (1500, 1500) with radius 20 m and spreads
+#     outward using the Rothermel (fuel_model_id=1) rate of spread.
+#   - Fire operates in passive coupling mode: heat/latent flux is
+#     injected into the atmosphere (inject_latent = true) but fire
+#     spread is NOT affected by the atmospheric wind feedback.
+#   - Dust emissions are driven purely by the ambient wind field;
+#     no crust reduction is applied from burned areas
+#     (fire_dust_coupling = false).
+#   - Dust concentrations and emission fluxes match the
+#     DustTerrainFlat case closely (same dust parameters, same wind).
+#   - Fire phi-function field shows burned area growing over time.
+#   - No NaNs or negative dust concentrations.
+# ============================================================
+
 erf.prob_name = "ABL"
 max_step = 20
 amr.max_level = 0

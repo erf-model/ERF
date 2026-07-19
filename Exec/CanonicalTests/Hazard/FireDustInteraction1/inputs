@@ -1,3 +1,26 @@
+# ============================================================
+# Test: FireDustInteraction1
+# Description: Fire and dust with active fire-dust coupling
+#              (fire_dust_coupling = true) using lagged wind coupling.
+#              Fire burned areas reduce the dust crust index,
+#              leading to increased dust emission in post-fire zones.
+#              Flat terrain, no terrain wind.
+#
+# Expected Results:
+#   - Simulation completes 20 steps without errors.
+#   - Fire ignites at (1500, 1500) and spreads outward.
+#   - In cells where fire_phi < 0 (burned), the dust crust index is
+#     reduced by fire_dust_crust_reduction = 0.8, i.e., crust *= 0.2.
+#   - Dust emission flux in burned areas is higher than in the
+#     FireDustBaseline case (crust suppression removed).
+#   - Lagged coupling (coupling_type = "lagged") means fire spread
+#     uses the wind field from the previous atmospheric timestep.
+#   - Total domain-integrated dust emission flux is greater than
+#     FireDustBaseline due to post-fire crust reduction.
+#   - Dust concentrations remain non-negative across all bins.
+#   - No NaNs or floating-point exceptions.
+# ============================================================
+
 erf.prob_name = "ABL"
 max_step = 20
 amr.max_level = 0

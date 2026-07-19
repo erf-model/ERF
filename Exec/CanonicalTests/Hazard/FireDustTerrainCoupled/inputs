@@ -1,3 +1,30 @@
+# ============================================================
+# Test: FireDustTerrainCoupled
+# Description: Full coupling test combining fire spread, dust
+#              emission, and terrain wind effects simultaneously.
+#              Both fire and dust use terrain wind corrections.
+#              Fire-dust coupling is active with crust reduction
+#              in burned zones. Lagged fire-wind coupling.
+#
+# Expected Results:
+#   - Simulation completes 20 steps without errors.
+#   - Terrain wind corrections are applied to both the fire spread
+#     rate (use_terrain_wind = true for fire) and dust emission
+#     (use_terrain_wind = true for dust).
+#   - Fire spread rate is modulated by terrain-modified wind;
+#     expect asymmetric fire growth pattern if terrain gradient
+#     aligns with or opposes the geostrophic wind direction.
+#   - Dust emissions are spatially non-uniform due to terrain
+#     wind effects (k_ridge, k_valley, k_shelter, k_deflect).
+#   - Burned cells (fire_phi < 0) experience crust reduction
+#     (crust_reduction = 0.8), further elevating dust emissions
+#     in post-fire terrain zones.
+#   - Combined terrain + fire-dust coupling produces higher peak
+#     dust emission fluxes than FireDustInteraction1 (flat terrain).
+#   - Dust concentrations remain non-negative across all bins.
+#   - No NaNs, no negative concentrations, no floating-point exceptions.
+# ============================================================
+
 erf.prob_name = "ABL"
 max_step = 20
 amr.max_level = 0

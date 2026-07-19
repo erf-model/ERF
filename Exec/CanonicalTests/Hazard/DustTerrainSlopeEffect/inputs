@@ -1,3 +1,26 @@
+# ============================================================
+# Test: DustTerrainSlopeEffect
+# Description: Dust emission and transport over a 10-degree sloped
+#              terrain driven by a neutral ABL with geostrophic wind.
+#              No fire coupling. Terrain wind effects are enabled.
+#
+# Expected Results:
+#   - Simulation completes 20 steps without errors.
+#   - Terrain file (terrain_slope_10deg.asc) is read successfully.
+#   - Slope effect modulates local wind speed at the surface:
+#     ridge amplification (k_ridge = 1.5) increases u* on upwind
+#     slope crests; shelter reduction (k_shelter = 0.6) decreases
+#     u* in lee zones; valley effect (k_valley = 0.8) reduces
+#     emissions in topographic depressions.
+#   - Dust emissions are spatially non-uniform, with higher emission
+#     rates on ridge crests compared to the DustTerrainFlat baseline.
+#   - Dust concentrations remain non-negative across all bins.
+#   - Total dust emission flux is higher than the DustTerrainFlat
+#     case due to terrain-enhanced wind stress on slopes.
+#   - Atmospheric feedback (atm_feedback = 1.0) produces a small
+#     reduction in near-surface wind speed due to dust loading.
+# ============================================================
+
 erf.prob_name = "ABL"
 max_step = 20
 amr.max_level = 0

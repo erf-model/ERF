@@ -1,3 +1,28 @@
+# ============================================================
+# Test: FireDustMassConservation
+# Description: Longer simulation (100 steps) to verify dust mass
+#              conservation under fire-dust coupling. Deposition
+#              is disabled (deposition_E0 = 0.0) so total airborne
+#              dust mass should be non-decreasing. Lagged fire-wind
+#              coupling with crust reduction in burned zones.
+#              Flat terrain, no terrain wind.
+#
+# Expected Results:
+#   - Simulation completes 100 steps without errors.
+#   - With deposition_E0 = 0.0, there is no gravitational settling
+#     or dry deposition; total domain dust mass must be
+#     monotonically non-decreasing over time.
+#   - Domain-integrated dust mass at step 100 >= dust mass at step 0.
+#   - Fire ignites and burned area grows; fire_phi < 0 cells
+#     accumulate, driving progressive crust reduction
+#     (crust_reduction = 0.8 per apply_burned_area_to_crust call).
+#   - Dust emission flux increases over time as more area is burned
+#     and crust index is progressively reduced.
+#   - sum_interval = 10 produces mass budget printouts every 10 steps;
+#     these can be used to verify monotonic mass increase.
+#   - No NaNs, no negative concentrations, no floating-point exceptions.
+# ============================================================
+
 erf.prob_name = "ABL"
 max_step = 100
 amr.max_level = 0

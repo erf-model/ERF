@@ -1,3 +1,25 @@
+# ============================================================
+# Test: DustTerrainFlat
+# Description: Dust emission and transport over a flat terrain
+#              driven by a neutral ABL with geostrophic wind.
+#              No fire coupling. No terrain wind effects.
+#
+# Expected Results:
+#   - Simulation completes 20 steps without errors.
+#   - Dust is mobilized by surface wind stress once u* exceeds
+#     the threshold (threshold_A_coeff = 0.0123).
+#   - Dust concentrations remain non-negative across all bins.
+#   - With flat terrain (use_terrain_wind = false), no slope/ridge/
+#     shelter corrections are applied (k_ridge, k_valley, k_deflect
+#     have no effect on emissions).
+#   - Uniform dust emission pattern across the horizontal domain
+#     (periodic in x and y).
+#   - Atmospheric feedback (atm_feedback = 1.0) produces a small
+#     reduction in near-surface wind speed due to dust loading.
+#   - Total dust mass in domain decreases slightly due to deposition
+#     (deposition_E0 = 3.0e-3).
+# ============================================================
+
 erf.prob_name = "ABL"
 max_step = 20
 amr.max_level = 0
