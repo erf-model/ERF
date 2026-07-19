@@ -6,23 +6,80 @@
 #              Serves as the baseline to compare against
 #              FireDustInteraction1 and FireDustTerrainCoupled.
 #
-# Expected Results:
+# Expected Results (verified from simulation output at step 20,
+#                   t = 10 s, dt = 0.5 s, 4096 cells):
+#
+#   Dynamics:
 #   - Simulation completes 20 steps without errors.
+#   - Fixed dt = 0.5 s (CFL-limited compressible dt ~1.03 s,
+#     anelastic dt ~25.0 s; fixed dt is binding).
+#   - u*_max ~ 1.121 m/s  |  u_10m_max ~ 14.99 m/s
+#   - PBLH_max ~ 534.7 m  |  T_sfc = 300 K
+#
+#   Fire (step 19-20):
 #   - Fire ignites at (1500, 1500) with radius 200 m and spreads
 #     outward using the Rothermel (fuel_model_id=1) rate of spread.
 #     NOTE: ignition_r must be >= fire grid cell size (187.5 m at
 #     grid_ratio=2, domain 3000 m / 16 cells) to mark burned cells.
-#   - Fire operates in passive coupling mode: heat/latent flux is
-#     injected into the atmosphere (inject_latent = true) but fire
-#     spread is NOT affected by the atmospheric wind feedback.
-#   - Dust emissions are driven by the ambient wind field with a
-#     uniform protective crust (crust_index = 1.0) over the whole
-#     domain; no crust reduction from burned areas because
-#     fire_dust_coupling = false.
-#   - Emission fluxes are uniformly suppressed by the crust relative
-#     to the no-crust (crust_index=0) DustTerrainFlat case.
-#   - Fire phi-function field shows burned area growing over time.
-#   - No NaNs or negative dust concentrations.
+#   - Fire operates in PASSIVE coupling mode: fire spread uses
+#     PRE-dycore wind; heat/moisture flux NOT injected into atmosphere
+#     (coupling_type=passive, injects_flux=false — confirmed by log:
+#     "Skipping flux buffer update: coupling_type is passive").
+#   - Number of active fire cells: 4
+#   - Max reference wind: ~14.58 m/s (step 19), ~14.56 m/s (step 20)
+#   - Wind Adjustment Factor (andrews formula) applied:
+#     max effective wind ~5.27-5.28 m/s
+#   - Max ROS = 0.2160244347 m/s (both steps, Rothermel model)
+#   - tau_sav = 2.752 s  (dx_fire=187.5 m / max_ROS)
+#   - phi_min = -1  |  phi_max = 0  (fire front level set)
+#   - Q_max ~ 3520-3522 W/m^2  |  I_B_max ~ 7.26-7.64 kW/m
+#   - T_flame_max ~ 533-537 K  (Byram radiant method)
+#   - L_max ~ 0.193-0.198 m (flame length)
+#   - 0 new perimeter points stamped (fire contained within ignition)
+#   - 1 fire subcycle per atmospheric step
+#
+#   Dust Emission (step 20):
+#   - Only bin 0 (d = 7 um) is active (n_active_bins = 1).
+#   - F_dust_max (atm coupling flux) = 1.447e-07 kg/m^2/s
+#   - emission_flux bin0 max = 4.821e-08 kg/m^2/s
+#   - emission_flux bin0 sum = 3.085e-06 kg/m^2/s (domain total rate)
+#   - emission_sum = 3.085e-06 kg/s
+#   - RhoDust_tend max = 9.042e-09 kg/m^3/s
+#   - Dust is driven by ambient wind with uniform crust (crust_index=1.0);
+#     no crust reduction from burned areas (fire_dust_coupling=false).
+#   - Emission flux matches DustTerrainFlat baseline identically,
+#     confirming fire has no effect on dust in passive/uncoupled mode.
+#
+#   Dust Settling & Deposition (step 20):
+#   - Settling velocity bin0 (d=7 um) v_s = 4.001e-03 m/s
+#   - Deposition velocity v_d = 7.311e-03 m/s
+#   - dep_flux_max = 6.609e-11 kg/m^2/s
+#   - dep_total (accumulated) = 7.377e-08 kg/m^2
+#
+#   Dust Concentrations (step 20):
+#   - conc_sfc_max = 8.467e-08 kg/m^3  (~84.7 ug/m^3)
+#   - conc_sfc_sum = 5.419e-06 kg/m^3 (domain integral)
+#   - PM10_max ~ 80.3 ug/m^3  |  PM2.5_max = 0 ug/m^3
+#   - MSHA TWA = 1.333e-05 mg/m^3 (below occupational limit)
+#   - All dust concentrations non-negative.
+#
+#   Mass Budget (step 20):
+#   - RHO DUST = 12.379 (domain-integrated dust mass)
+#   - MASS = 1.013e+10  |  RHO THETA = 3.080e+12
+#   - RHO SCALAR = 0 (passive scalar inactive)
+#
+#   MRF Diffusion:
+#   - EddyDiff::Scalar_v_max = 2.168 m^2/s
+#   - gamma_dust = 0 (no countergradient term for dust scalar)
+#   - moisture_path_active = 0 (use_dynamic_moisture = false)
+#
+#   PHREEQC / suppression:
+#   - do_phreeqc = 1 (reader active, no external file)
+#   - suppression coverage max = 0, retreat_flag sum = 0
+#   - u*_t min = max = 0.05 m/s (threshold friction velocity)
+#
+#   Performance:
+#   - Timestep wall time ~ 5.6e-03 s  |  Total ~ 0.127 s
 # ============================================================
 
 erf.prob_name = "ABL"
