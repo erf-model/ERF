@@ -107,18 +107,22 @@ amrex::Real compute_suppression_factor(amrex::Real s) noexcept
  *
  * Combines Bagnold base with chemistry (crust/efflorescence), moisture, and suppression:
  *
- *   f_chem  = (1 - alpha_crust * crust_index) * (1 - alpha_efflor * efflorescence)
+ *   f_chem  = (1 + alpha_crust * crust_index) * (1 + alpha_efflor * efflorescence)
  *   f_moist = 1 + beta_m * surface_moisture
  *   f_supp  = 1 + gamma_s * suppression
  *
  *   u*_t = u*_t_base * f_chem / (f_moist * f_supp)
  *   clamped to [USTAR_T_MIN, USTAR_T_MAX].
  *
+ * Higher crust_index (fully crusted, protected soil) increases u*_t (harder to emit).
+ * Lower crust_index (bare, uncrusted soil) decreases u*_t (easier to emit).
+ * This makes burned areas with reduced crust emit more dust, as expected.
+ *
  * @param[in] ustar_t_base       Bagnold base threshold [m/s].
- * @param[in] crust_index        Crust strength [0,1].
+ * @param[in] crust_index        Crust strength [0,1]. 0=uncrusted (bare), 1=fully crusted (protected).
  * @param[in] efflorescence      Efflorescence coverage [0,1].
- * @param[in] alpha_crust        Crust reduction coefficient [-].
- * @param[in] alpha_efflor       Efflorescence reduction coefficient [-].
+ * @param[in] alpha_crust        Crust enhancement coefficient [-]. Increases u*_t per unit crust.
+ * @param[in] alpha_efflor       Efflorescence enhancement coefficient [-].
  * @param[in] surface_moisture   Surface moisture [0,1].
  * @param[in] suppression        Suppression coverage [0,1].
  * @param[in] slope_x            Terrain slope dz/dx [m/m].
@@ -137,10 +141,11 @@ amrex::Real compute_ustar_t_full(amrex::Real ustar_t_base,
                                   amrex::Real slope_x = 0.0,
                                   amrex::Real slope_y = 0.0) noexcept
 {
-    // Chemistry reduction from PHREEQC (Phase 4).
-    // Marticorena & Bergametti (1995), https://doi.org/10.1029/95JD00690
-    amrex::Real f_chem = (1.0 - alpha_crust * amrex::min(amrex::max(crust_index,  0.0), 1.0))
-                       * (1.0 - alpha_efflor * amrex::min(amrex::max(efflorescence,0.0), 1.0));
+    // Chemistry enhancement from crust and efflorescence (Phase 4).
+    // Higher crust_index and efflorescence both increase the threshold (harder to emit).
+    // Reference: Marticorena & Bergametti (1995), https://doi.org/10.1029/95JD00690
+    amrex::Real f_chem = (1.0 + alpha_crust * amrex::min(amrex::max(crust_index,  0.0), 1.0))
+                       * (1.0 + alpha_efflor * amrex::min(amrex::max(efflorescence,0.0), 1.0));
     f_chem = amrex::max(f_chem, 0.01);
 
     amrex::Real f_moist = compute_moisture_inhibition(surface_moisture);
