@@ -411,23 +411,24 @@ concentration and ``A`` the corresponding accumulation field.
 | ``Morrison_NoIce``       | qv, qc, qr             | Nc, Nr                  | rain                 |
 | ``Morrison``             | qv, qc, qi, qr, qs, qg | Nc, Ni, Nr, Ns, Ng      | rain, snow, graupel  |
 | ``WSM6``                 | qv, qc, qi, qr, qs, qg | none                    | rain, snow, graupel  |
-| ``SuperDroplets``        | qv, qc                 | none                    | rain                 |
+| ``SuperDroplets``        | qv, qc, qr             | none                    | rain                 |
 +--------------------------+------------------------+-------------------------+----------------------+
 
-For ``SuperDroplets``, the fixed ``qt``, ``qrain``, and ``qp`` names are
-unavailable. Its compensated conserved-state layout does not expose every
-fixed Eulerian source component required by those aggregate or precipitating
-fields. Use provider-generated species diagnostics for particle-resolved
-hydrometeors. The fixed ``qv``, ``qc``, ``qn``, and ``moist_density`` fields
-remain available because their required fixed sources are present. The fixed
-``rain_accum``, ``rel_humidity``, and ``condensation_rate`` names are available
-only when their documented auxiliary qmoist storage is present.
+For ``SuperDroplets``, water vapor, cloud water, and rain water occupy the
+fixed ``RhoQ1``, ``RhoQ2``, and ``RhoQ3`` conserved components. The fixed
+``qv``, ``qc``, ``qrain``, ``qt``, ``qn``, and ``qp`` diagnostics are therefore
+available. For this scheme, ``qt = qv + qc + qrain``, ``qn = qv + qc``, and
+``qp = qrain``. Provider-generated names such as ``qv_<species>``,
+``qc_<species>``, and ``qt_<species>`` apply only to additional non-water
+condensable species. The fixed ``rain_accum``, ``rel_humidity``, and
+``condensation_rate`` names are available only when their documented
+auxiliary qmoist storage is present.
 The aggregate ``qt``, ``qn``, ``qp``, ``moist_density``, ``qsat``, and
 ``precipitable`` fields additionally require their source-state bounds.
 
 In general, an aggregate fixed field is selected only when the complete
 inclusive q-component range used by its writer is present in the actual
-conserved state.
+conserved state. SuperDroplets satisfies this rule for its q1:q3 water state.
 
 Optional storage restrictions
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

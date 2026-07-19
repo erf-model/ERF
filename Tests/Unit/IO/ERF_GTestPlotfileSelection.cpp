@@ -27,6 +27,8 @@ make_capabilities (const MoistureType moisture_type,
 
 } // namespace
 
+// Motivation: Keep selector and writer range formulas identical so aggregate
+// fields cannot pass selection with an incomplete source range.
 TEST(Plotfile3DSelection, AggregateRangesMatchFixedWriterLayouts)
 {
     struct Expected {
@@ -69,27 +71,53 @@ TEST(Plotfile3DSelection, AggregateRangesMatchFixedWriterLayouts)
     }
 }
 
-TEST(Plotfile3DSelection, SuperDropletsCompensatedStateUsesCompleteBounds)
+// Motivation: SuperDroplets replaces its constructor sentinel during
+// readInputs() and stores qv, qc, and qr in RhoQ1-RhoQ3. This regression
+// prevents the temporary sentinel from being mistaken for a missing q3.
+TEST(Plotfile3DSelection, SuperDropletsWaterStateIncludesRainComponent)
 {
+    const int through_q3 =
+        erf_plotfile::plot3d_q_conserved_component_index(3) + 1;
     const auto superdroplets = make_capabilities(
-        MoistureType::SuperDroplets, 6, 3, 0, 7);
+        MoistureType::SuperDroplets, through_q3, 3, 0, 7);
 
     EXPECT_EQ(erf_plotfile::plot3d_q_conserved_component_index(1), 4);
     EXPECT_EQ(erf_plotfile::plot3d_q_conserved_component_index(2), 5);
     EXPECT_EQ(erf_plotfile::plot3d_q_conserved_component_index(3), 6);
     EXPECT_TRUE(erf_plotfile::plot3d_fixed_variable_available("qv", superdroplets));
     EXPECT_TRUE(erf_plotfile::plot3d_fixed_variable_available("qc", superdroplets));
-    EXPECT_TRUE(erf_plotfile::plot3d_fixed_variable_available("moist_density", superdroplets));
+    EXPECT_TRUE(erf_plotfile::plot3d_fixed_variable_available("qrain", superdroplets));
+    EXPECT_TRUE(erf_plotfile::plot3d_fixed_variable_available("qt", superdroplets));
     EXPECT_TRUE(erf_plotfile::plot3d_fixed_variable_available("qn", superdroplets));
-    EXPECT_FALSE(erf_plotfile::plot3d_fixed_variable_available("qt", superdroplets));
-    EXPECT_FALSE(erf_plotfile::plot3d_fixed_variable_available("qrain", superdroplets));
-    EXPECT_FALSE(erf_plotfile::plot3d_fixed_variable_available("qp", superdroplets));
+    EXPECT_TRUE(erf_plotfile::plot3d_fixed_variable_available("qp", superdroplets));
+    EXPECT_TRUE(erf_plotfile::plot3d_fixed_variable_available("moist_density", superdroplets));
+    EXPECT_TRUE(erf_plotfile::plot3d_q_range_available(
+        superdroplets, erf_plotfile::plot3d_total_mass_q_range(3, 0)));
     EXPECT_TRUE(erf_plotfile::plot3d_q_range_available(
         superdroplets, erf_plotfile::plot3d_nonprecipitating_q_range(3)));
-    EXPECT_FALSE(erf_plotfile::plot3d_q_range_available(
-        superdroplets, erf_plotfile::plot3d_total_mass_q_range(3, 0)));
+    EXPECT_TRUE(erf_plotfile::plot3d_q_range_available(
+        superdroplets, erf_plotfile::plot3d_precipitating_q_range(3, 0)));
 }
 
+// Motivation: Correcting the production SuperDroplets width must not weaken
+// the generic rule that qrain, qt, and qp require a complete q3 source.
+TEST(Plotfile3DSelection, TruncatedSuperDropletsStateRejectsQ3Fields)
+{
+    const int through_q2 =
+        erf_plotfile::plot3d_q_conserved_component_index(2) + 1;
+    const auto truncated_superdroplets = make_capabilities(
+        MoistureType::SuperDroplets, through_q2, 3, 0, 7);
+
+    EXPECT_TRUE(erf_plotfile::plot3d_fixed_variable_available("qv", truncated_superdroplets));
+    EXPECT_TRUE(erf_plotfile::plot3d_fixed_variable_available("qc", truncated_superdroplets));
+    EXPECT_FALSE(erf_plotfile::plot3d_fixed_variable_available("qrain", truncated_superdroplets));
+    EXPECT_FALSE(erf_plotfile::plot3d_fixed_variable_available("qt", truncated_superdroplets));
+    EXPECT_TRUE(erf_plotfile::plot3d_fixed_variable_available("qn", truncated_superdroplets));
+    EXPECT_FALSE(erf_plotfile::plot3d_fixed_variable_available("qp", truncated_superdroplets));
+}
+
+// Motivation: Bounds hardening must not remove valid aggregate diagnostics
+// from ordinary warm-rain and mixed-phase schemes.
 TEST(Plotfile3DSelection, StandardAggregateRangesRemainAvailable)
 {
     const auto kessler = make_capabilities(MoistureType::Kessler, 7, 3, 0, 1);
@@ -110,6 +138,8 @@ TEST(Plotfile3DSelection, StandardAggregateRangesRemainAvailable)
     EXPECT_TRUE(erf_plotfile::plot3d_fixed_variable_available("qn", truncated));
 }
 
+// Motivation: Invalid metadata must fail closed before a writer range is
+// constructed from negative or inconsistent sizes.
 TEST(Plotfile3DSelection, MalformedAggregateSizesAreRejected)
 {
     EXPECT_FALSE(erf_plotfile::plot3d_total_mass_q_range(3, -1).valid());
@@ -123,6 +153,8 @@ TEST(Plotfile3DSelection, MalformedAggregateSizesAreRejected)
     EXPECT_FALSE(erf_plotfile::plot3d_fixed_variable_available("qp", malformed));
 }
 
+// Motivation: Physical species availability depends on the selected scheme,
+// not merely on allocated state width or placeholder components.
 TEST(Plotfile3DSelection, MoistureCapabilityTruthTable)
 {
     struct Expected {
@@ -166,7 +198,7 @@ TEST(Plotfile3DSelection, MoistureCapabilityTruthTable)
          true, true, true, true, true, true, true, true},
         {MoistureType::WSM6, true, true, true, true, true, true,
          false, false, false, false, false, true, true, true},
-        {MoistureType::SuperDroplets, true, true, false, false, false, false,
+        {MoistureType::SuperDroplets, true, true, false, true, false, false,
          false, false, false, false, false, true, false, false}
     }};
 
@@ -189,6 +221,8 @@ TEST(Plotfile3DSelection, MoistureCapabilityTruthTable)
     }
 }
 
+// Motivation: Raw rhoQ requests must never index beyond the active conserved
+// state even though the public inventory lists rhoQ1 through rhoQ11.
 TEST(Plotfile3DSelection, ConservedComponentsRequireActiveBounds)
 {
     const auto caps = make_capabilities(MoistureType::Kessler, 7, 3, 0, 1);
@@ -202,6 +236,8 @@ TEST(Plotfile3DSelection, ConservedComponentsRequireActiveBounds)
     EXPECT_FALSE(erf_plotfile::plot3d_fixed_variable_available("not_a_fixed_field", caps));
 }
 
+// Motivation: A field is selectable only when both its physical species and
+// its concrete source storage exist.
 TEST(Plotfile3DSelection, SemanticAndStorageChecksAreIndependent)
 {
     const auto no_rain = make_capabilities(MoistureType::Kessler_NoRain, 32, 3, 0, 1);
@@ -227,15 +263,20 @@ TEST(Plotfile3DSelection, SemanticAndStorageChecksAreIndependent)
     EXPECT_FALSE(erf_plotfile::plot3d_fixed_variable_available("moist_density", too_narrow));
     EXPECT_TRUE(erf_plotfile::plot3d_fixed_variable_available("rain_accum", too_narrow));
 
-    const auto superdroplets = make_capabilities(MoistureType::SuperDroplets, 6, 3, 0, 7);
-    EXPECT_FALSE(erf_plotfile::plot3d_fixed_variable_available("qt", superdroplets));
+    const int through_q3 =
+        erf_plotfile::plot3d_q_conserved_component_index(3) + 1;
+    const auto superdroplets = make_capabilities(
+        MoistureType::SuperDroplets, through_q3, 3, 0, 7);
+    EXPECT_TRUE(erf_plotfile::plot3d_fixed_variable_available("qt", superdroplets));
+    EXPECT_TRUE(erf_plotfile::plot3d_fixed_variable_available("qrain", superdroplets));
+    EXPECT_TRUE(erf_plotfile::plot3d_fixed_variable_available("qp", superdroplets));
     EXPECT_TRUE(erf_plotfile::plot3d_fixed_variable_available("rel_humidity", superdroplets));
     EXPECT_TRUE(erf_plotfile::plot3d_fixed_variable_available("condensation_rate", superdroplets));
-    EXPECT_FALSE(erf_plotfile::plot3d_fixed_variable_available("qrain", superdroplets));
-    EXPECT_FALSE(erf_plotfile::plot3d_fixed_variable_available("qp", superdroplets));
     EXPECT_FALSE(erf_plotfile::plot3d_fixed_variable_available("snow_accum", superdroplets));
 }
 
+// Motivation: Optional diagnostics must be rejected before the writer can
+// dereference unallocated configuration-dependent storage.
 TEST(Plotfile3DSelection, OptionalStorageGroupsAreExplicit)
 {
     auto caps = make_capabilities(MoistureType::None, 4, 0, 0, 0);
@@ -257,6 +298,8 @@ TEST(Plotfile3DSelection, OptionalStorageGroupsAreExplicit)
     EXPECT_TRUE(erf_plotfile::plot3d_fixed_variable_available("walldist", caps));
 }
 
+// Motivation: Every diagnostic that reads pressure must participate in the
+// same allocation predicate, including standalone VPD and conditional pp_err.
 TEST(Plotfile3DSelection, PressureReadersShareAllocationPredicate)
 {
     EXPECT_TRUE(erf_plotfile::plot3d_needs_pressure({"temp", "VPD"}));
@@ -270,6 +313,8 @@ TEST(Plotfile3DSelection, PressureReadersShareAllocationPredicate)
 #endif
 }
 
+// Motivation: Configured particle containers may be unallocated at output
+// time, but unknown and duplicate count requests must not create extra fields.
 TEST(Plotfile3DSelection, ParticleCountsHandleUnknownAndDuplicateNames)
 {
     const amrex::Vector<std::string> requested{

@@ -244,6 +244,8 @@ add_test_r(MoistBubble                       ""  "erf_exec" "plt00010" RUNTIME_O
 add_test_r(SquallLine_2D                     ""  "erf_exec" "plt00010" RUNTIME_OPTIONS "erf.vert_implicit=false ")
 add_test_r(SuperCell_3D                      ""  "erf_exec" "plt00010" RUNTIME_OPTIONS "erf.vert_implicit=false ")
 if(ERF_ENABLE_PARTICLES)
+  # Production regression: protect the fixed SuperDroplets water-field
+  # contract against confusing the constructor sentinel with state width.
   add_test_plotfile_header(Plotfile3D_SuperDropletsSelection "" "erf_exec" "plt00000")
   add_test_r(ParticleAdvect                  ""  "erf_exec" "plt00010" RUNTIME_OPTIONS "erf.vert_implicit=false ")
   add_test_r(ParticleWoA                     ""  "erf_exec" "plt00010" RUNTIME_OPTIONS "erf.vert_implicit=false ")

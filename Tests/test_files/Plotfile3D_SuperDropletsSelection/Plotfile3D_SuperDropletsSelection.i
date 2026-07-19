@@ -1,4 +1,8 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
+# Regression motivation:
+# SuperDroplets stores water qv, qc, and qr in RhoQ1-RhoQ3 after readInputs().
+# This test prevents the constructor's temporary nonmoist sentinel from being
+# misread as a production layout that omits RhoQ3, qrain, qt, or qp.
 erf.prob_name = "Bubble"
 max_step = 0
 stop_time = 5.0
@@ -24,7 +28,7 @@ erf.check_int = -1
 
 erf.plot_file_1 = plt
 erf.plot_int_1 = 1
-erf.plot_vars_1 = density qv qc qt qrain qp theta
+erf.plot_vars_1 = density theta qv qc qrain qt qn qp
 
 erf.use_gravity = false
 erf.les_type = "None"

@@ -47,17 +47,10 @@ ERF::setPlotVariables (const std::string& pp_plot_var_names, Vector<std::string>
     erf_plotfile::Plot3DSelectionCapabilities capabilities;
     capabilities.moist_state_size = micro->Get_Qstate_Moist_Size();
     capabilities.moist_numconc_size = micro->Get_Qstate_Moist_NumConc_Size();
+    // Get_Qstate_Size() is the post-construction production state width.
+    // SuperDroplets readInputs() replaces its temporary nonmoist sentinel
+    // before this function is called, so water-only SDM includes qv, qc, and qr.
     capabilities.conserved_state_size = NDRY + NSCALARS + micro->Get_Qstate_Size();
-    // SuperDroplets exposes qv/qc/qr as conceptual moisture variables, but
-    // its compensated conserved layout contains only qv and qc.
-    if (solverChoice.moisture_type == MoistureType::SuperDroplets &&
-        capabilities.moist_state_size >= 3) {
-        const auto nonprecipitating = erf_plotfile::plot3d_nonprecipitating_q_range(
-            capabilities.moist_state_size);
-        capabilities.conserved_state_size = std::min(
-            capabilities.conserved_state_size,
-            erf_plotfile::plot3d_q_conserved_component_index(nonprecipitating.last_q) + 1);
-    }
     capabilities.qmoist_size = micro->Get_Qmoist_Size(0);
     capabilities.moisture_type = solverChoice.moisture_type;
     capabilities.moisture = erf_plotfile::plot3d_moisture_capabilities(
