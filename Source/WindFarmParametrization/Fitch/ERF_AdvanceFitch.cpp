@@ -83,13 +83,13 @@ Fitch::update (const double& dt_advance,
         auto v_vel       = V_old.array(mfi);
 
         ParallelFor(tbx, tby, bx,
-        [=,two_d=two] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+        [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {
-            u_vel(i,j,k) = u_vel(i,j,k) + (fitch_array(i-1,j,k,2) + fitch_array(i,j,k,2))/two_d*dt_advance;
+            u_vel(i,j,k) = u_vel(i,j,k) + (fitch_array(i-1,j,k,2) + fitch_array(i,j,k,2))/two*dt_advance;
         },
-        [=,two_d=two] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+        [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {
-            v_vel(i,j,k) = v_vel(i,j,k) + (fitch_array(i,j-1,k,3) + fitch_array(i,j,k,3))/two_d*dt_advance;
+            v_vel(i,j,k) = v_vel(i,j,k) + (fitch_array(i,j-1,k,3) + fitch_array(i,j,k,3))/two*dt_advance;
         },
         [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {
@@ -131,10 +131,10 @@ Fitch::compute_power_output (const MultiFab& cons_in,
         auto v_vel          = V_old.array(mfi);
         Box tbx = mfi.nodaltilebox(0);
 
-        ParallelFor(tbx, [=,one_d=one,myhalf_d=myhalf] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+        ParallelFor(tbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
 
-            if(SMark_array(i,j,k,0) == one_d) {
-                Real avg_vel = std::pow(u_vel(i,j,k)*u_vel(i,j,k) + v_vel(i,j,k)*v_vel(i,j,k),myhalf_d);
+            if(SMark_array(i,j,k,0) == one) {
+                Real avg_vel = std::pow(u_vel(i,j,k)*u_vel(i,j,k) + v_vel(i,j,k)*v_vel(i,j,k),myhalf);
                 Real turb_power = interpolate_1d(d_wind_speed_ptr, d_power_ptr, avg_vel, n_spec_table);
                 turb_power = turb_power*Nturb_array(i,j,k,0);
                 Gpu::Atomic::Add(d_total_power_ptr,turb_power);
@@ -207,7 +207,7 @@ Fitch::source_terms_cellcentered (const Geometry& geom,
         const Real* thrust_coeff_d   = d_thrust_coeff.dataPtr();
         const int n_spec_table = static_cast<int>(d_wind_speed.size());
 
-        ParallelFor(gbx, [=,myhalf_d=myhalf,zero_d=zero] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+        ParallelFor(gbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
             int kk = amrex::min(amrex::max(k, domlo_z), domhi_z);
 
             Real z_k   = kk*dx[2];
@@ -219,16 +219,16 @@ Fitch::source_terms_cellcentered (const Geometry& geom,
 
             Real Vabs = std::pow(u_vel(i,j,k)*u_vel(i,j,k) +
                                  v_vel(i,j,k)*v_vel(i,j,k) +
-                                 w_vel(i,j,kk)*w_vel(i,j,kk), myhalf_d);
+                                 w_vel(i,j,kk)*w_vel(i,j,kk), myhalf);
 
             Real C_T = interpolate_1d(wind_speed_d, thrust_coeff_d, Vabs, n_spec_table);
-            Real C_TKE = zero_d;
+            Real C_TKE = zero;
 
             fitch_array(i,j,k,0) = Vabs;
-            fitch_array(i,j,k,1) =  -myhalf_d*Nturb_array(i,j,k)/(dx[0]*dx[1])*C_T*Vabs*Vabs*A_ijk/(z_kp1 - z_k);
+            fitch_array(i,j,k,1) =  -myhalf*Nturb_array(i,j,k)/(dx[0]*dx[1])*C_T*Vabs*Vabs*A_ijk/(z_kp1 - z_k);
             fitch_array(i,j,k,2) = u_vel(i,j,k)/Vabs*fitch_array(i,j,k,1);
             fitch_array(i,j,k,3) = v_vel(i,j,k)/Vabs*fitch_array(i,j,k,1);
-            fitch_array(i,j,k,4) = myhalf_d*Nturb_array(i,j,k)/(dx[0]*dx[1])*C_TKE*amrex::Math::powi<3>(Vabs)*A_ijk/(z_kp1 - z_k);
+            fitch_array(i,j,k,4) = myhalf*Nturb_array(i,j,k)/(dx[0]*dx[1])*C_TKE*amrex::Math::powi<3>(Vabs)*A_ijk/(z_kp1 - z_k);
 
                  //amrex::Gpu::Atomic::Add(sum_area, A_ijk);
         });

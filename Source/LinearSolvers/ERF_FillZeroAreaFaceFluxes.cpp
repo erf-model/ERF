@@ -43,40 +43,40 @@ FillZeroAreaFaceFluxes (MultiFab& phi, Array<MultiFab,AMREX_SPACEDIM>& fluxes,
 
             ParallelFor(xbx, ybx, zbx,
             // x-face
-            [=,zero_d=zero,three_d=three,two_d=two] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
-                if (apx(i,j,k) == zero_d) {
+                if (apx(i,j,k) == zero) {
                     if (!u_cflag(i,j,k).isCovered()) {
                         if (cflag(i,j,k).isCovered() && !cflag(i-1,j,k).isCovered()) {
-                            fx(i,j,k) = dxInv[0] * (p_arr(i-3,j,k) - three_d*p_arr(i-2,j,k) + two_d*p_arr(i-1,j,k));
+                            fx(i,j,k) = dxInv[0] * (p_arr(i-3,j,k) - three*p_arr(i-2,j,k) + two*p_arr(i-1,j,k));
                         } else if (cflag(i-1,j,k).isCovered() && !cflag(i,j,k).isCovered()) {
-                            fx(i,j,k) = dxInv[0] * (three_d*p_arr(i+1,j,k) - p_arr(i+2,j,k) - two_d*p_arr(i,j,k));
+                            fx(i,j,k) = dxInv[0] * (three*p_arr(i+1,j,k) - p_arr(i+2,j,k) - two*p_arr(i,j,k));
                         }
                     }
                 }
             },
             // y-face
-            [=,zero_d=zero,three_d=three,two_d=two] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
-                if (apy(i,j,k) == zero_d) {
+                if (apy(i,j,k) == zero) {
                     if (!v_cflag(i,j,k).isCovered()) {
                         if (cflag(i,j,k).isCovered() && !cflag(i,j-1,k).isCovered()) {
-                            fy(i,j,k) = dxInv[1] * (p_arr(i,j-3,k) - three_d*p_arr(i,j-2,k) + two_d*p_arr(i,j-1,k));
+                            fy(i,j,k) = dxInv[1] * (p_arr(i,j-3,k) - three*p_arr(i,j-2,k) + two*p_arr(i,j-1,k));
                         } else if (cflag(i,j-1,k).isCovered() && !cflag(i,j,k).isCovered()) {
-                            fy(i,j,k) = dxInv[1] * (three_d*p_arr(i,j+1,k) - p_arr(i,j+2,k) - two_d*p_arr(i,j,k));
+                            fy(i,j,k) = dxInv[1] * (three*p_arr(i,j+1,k) - p_arr(i,j+2,k) - two*p_arr(i,j,k));
                         }
                     }
                 }
             },
             // z-face
-            [=,zero_d=zero,three_d=three,two_d=two] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
-                if (apz(i,j,k) == zero_d) {
+                if (apz(i,j,k) == zero) {
                     if (!w_cflag(i,j,k).isCovered()) {
                         if (cflag(i,j,k).isCovered() && !cflag(i,j,k-1).isCovered()) {
-                            fz(i,j,k) = dxInv[2] * (p_arr(i,j,k-3) - three_d*p_arr(i,j,k-2) + two_d*p_arr(i,j,k-1));
+                            fz(i,j,k) = dxInv[2] * (p_arr(i,j,k-3) - three*p_arr(i,j,k-2) + two*p_arr(i,j,k-1));
                         } else if (cflag(i,j,k-1).isCovered() && !cflag(i,j,k).isCovered()) {
-                            fz(i,j,k) = dxInv[2] * (three_d*p_arr(i,j,k+1) - p_arr(i,j,k+2) - two_d*p_arr(i,j,k));
+                            fz(i,j,k) = dxInv[2] * (three*p_arr(i,j,k+1) - p_arr(i,j,k+2) - two*p_arr(i,j,k));
                         }
                     }
                 }

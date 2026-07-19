@@ -8,7 +8,7 @@ AMREX_GPU_DEVICE
 AMREX_FORCE_INLINE
 amrex::Real
 buoyancy_dry_anelastic (int& i, int& j, int& k,
-                        amrex::Real const& grav_gpu,
+                        const amrex::Real& grav_gpu,
                         const amrex::Array4<const amrex::Real>& r0_arr,
                         const amrex::Array4<const amrex::Real>& th0_arr,
                         const amrex::Array4<const amrex::Real>& cell_data)
@@ -28,11 +28,11 @@ AMREX_GPU_DEVICE
 AMREX_FORCE_INLINE
 amrex::Real
 buoyancy_dry_anelastic_eb (int& i, int& j, int& k,
-                        amrex::Real const& grav_gpu,
-                        const amrex::Array4<const amrex::Real>& r0_arr,
-                        const amrex::Array4<const amrex::Real>& th0_arr,
-                        const amrex::Array4<const amrex::Real>& cell_data,
-                        amrex::Array4<amrex::EBCellFlag const> const& flag)
+                           const amrex::Real& grav_gpu,
+                           const amrex::Array4<const amrex::Real>& r0_arr,
+                           const amrex::Array4<const amrex::Real>& th0_arr,
+                           const amrex::Array4<const amrex::Real>& cell_data,
+                           amrex::Array4<amrex::EBCellFlag const> const& flag)
 {
     amrex::Real buoyancy = zero;
     if (flag(i,j,k).isRegular()) {
@@ -73,33 +73,32 @@ AMREX_GPU_DEVICE
 AMREX_FORCE_INLINE
 amrex::Real
 buoyancy_moist_anelastic (int& i, int& j, int& k,
-                          amrex::Real const& grav_gpu,
-                          amrex::Real const& rv_over_rd,
+                          const amrex::Real& grav_gpu,
                           const amrex::Array4<const amrex::Real>&  r0_arr,
                           const amrex::Array4<const amrex::Real>& th0_arr,
                           const amrex::Array4<const amrex::Real>& qv0_arr,
                           const amrex::Array4<const amrex::Real>& cell_data,
                           const amrex::Array4<const amrex::Real>& qt_arr)
 {
-    amrex::Real Fact = (one - rv_over_rd); // = -amrex::Real(0.61)
+    amrex::Real Fact = (one - RvoRd); // ~= -amrex::Real(0.61)
 
-    amrex::Real th_d_hi = cell_data(i,j,k  ,RhoTheta_comp)/cell_data(i,j,k  ,Rho_comp);
-    amrex::Real th_d_lo = cell_data(i,j,k-1,RhoTheta_comp)/cell_data(i,j,k-1,Rho_comp);
+    amrex::Real th_d_hi  = cell_data(i,j,k  ,RhoTheta_comp)/cell_data(i,j,k  ,Rho_comp);
+    amrex::Real th_d_lo  = cell_data(i,j,k-1,RhoTheta_comp)/cell_data(i,j,k-1,Rho_comp);
 
-    amrex::Real qv_hi   = cell_data(i,j,k  ,RhoQ1_comp)   /cell_data(i,j,k  ,Rho_comp);
-    amrex::Real qv_lo   = cell_data(i,j,k-1,RhoQ1_comp)   /cell_data(i,j,k-1,Rho_comp);
+    amrex::Real qv_hi    = cell_data(i,j,k  ,RhoQ1_comp)   /cell_data(i,j,k  ,Rho_comp);
+    amrex::Real qv_lo    = cell_data(i,j,k-1,RhoQ1_comp)   /cell_data(i,j,k-1,Rho_comp);
 
-    amrex::Real qt_hi   = qt_arr(i,j,k  ) - qv_hi;
-    amrex::Real th_v_hi = th_d_hi * (one - Fact*qt_hi - rv_over_rd*qt_hi);
+    amrex::Real qt_hi    = qt_arr(i,j,k  ) - qv_hi;
+    amrex::Real th_v_hi  = th_d_hi * (one - Fact*qt_hi - RvoRd*qt_hi);
 
-    amrex::Real qt_lo   = qt_arr(i,j,k-1) - qv_lo;
-    amrex::Real th_v_lo = th_d_lo * (one - Fact*qt_lo - rv_over_rd*qt_lo);
+    amrex::Real qt_lo    = qt_arr(i,j,k-1) - qv_lo;
+    amrex::Real th_v_lo  = th_d_lo * (one - Fact*qt_lo - RvoRd*qt_lo);
 
     amrex::Real th_v0_hi = th0_arr(i,j,k  ) * (one - Fact*qv0_arr(i,j,k  ));
     amrex::Real th_v0_lo = th0_arr(i,j,k-1) * (one - Fact*qv0_arr(i,j,k-1));
 
-    amrex::Real qv0_hi      = qv0_arr(i,j,k  );
-    amrex::Real qv0_lo      = qv0_arr(i,j,k-1);
+    amrex::Real qv0_hi   = qv0_arr(i,j,k  );
+    amrex::Real qv0_lo   = qv0_arr(i,j,k-1);
 
     amrex::Real q_hi = (qv_hi-qv0_hi) - qt_hi + (th_v_hi - th_v0_hi) / th_v0_hi;
     amrex::Real q_lo = (qv_lo-qv0_lo) - qt_lo + (th_v_lo - th_v0_lo) / th_v0_lo;
@@ -115,7 +114,7 @@ AMREX_GPU_DEVICE
 AMREX_FORCE_INLINE
 amrex::Real
 buoyancy_rhopert (int& i, int& j, int& k,
-                  amrex::Real const& grav_gpu,
+                  const amrex::Real& grav_gpu,
                   const amrex::Array4<const amrex::Real>& r0_arr,
                   const amrex::Array4<const amrex::Real>& qv0_arr,
                   const amrex::Array4<const amrex::Real>& cell_data,
@@ -132,12 +131,12 @@ AMREX_GPU_DEVICE
 AMREX_FORCE_INLINE
 amrex::Real
 buoyancy_rhopert_eb (int& i, int& j, int& k,
-                    amrex::Real const& grav_gpu,
-                    const amrex::Array4<const amrex::Real>& r0_arr,
-                    const amrex::Array4<const amrex::Real>& qv0_arr,
-                    const amrex::Array4<const amrex::Real>& cell_data,
-                    const amrex::Array4<const amrex::Real>& qt_arr,
-                    amrex::Array4<amrex::EBCellFlag const> const& flag)
+                     const amrex::Real& grav_gpu,
+                     const amrex::Array4<const amrex::Real>& r0_arr,
+                     const amrex::Array4<const amrex::Real>& qv0_arr,
+                     const amrex::Array4<const amrex::Real>& cell_data,
+                     const amrex::Array4<const amrex::Real>& qt_arr,
+                     amrex::Array4<amrex::EBCellFlag const> const& flag)
 {
     amrex::Real buoyancy = zero;
     if (flag(i,j,k).isRegular()) {
@@ -176,17 +175,17 @@ AMREX_GPU_DEVICE
 AMREX_FORCE_INLINE
 amrex::Real
 buoyancy_dry_Tpert (int& i, int& j, int& k,
-                    amrex::Real const& grav_gpu,
-                    amrex::Real const& rd_over_cp,
+                    const amrex::Real& grav_gpu,
+                    const amrex::Real& /*lRdoCp*/,
                     const amrex::Array4<const amrex::Real>& r0_arr,
                     const amrex::Array4<const amrex::Real>& p0_arr,
                     const amrex::Array4<const amrex::Real>& th0_arr,
                     const amrex::Array4<const amrex::Real>& cell_data)
 {
-    amrex::Real t0_hi = getTgivenPandTh(p0_arr(i,j,k), th0_arr(i,j,k), rd_over_cp);
+    amrex::Real t0_hi = getTgivenPandTh(p0_arr(i,j,k), th0_arr(i,j,k), RdoCp);
     amrex::Real  t_hi = getTgivenRandRTh(cell_data(i,j,k  ,Rho_comp), cell_data(i,j,k  ,RhoTheta_comp));
 
-    amrex::Real t0_lo = getTgivenPandTh(p0_arr(i,j,k-1), th0_arr(i,j,k-1), rd_over_cp);
+    amrex::Real t0_lo = getTgivenPandTh(p0_arr(i,j,k-1), th0_arr(i,j,k-1), RdoCp);
     amrex::Real  t_lo = getTgivenRandRTh(cell_data(i,j,k-1,Rho_comp), cell_data(i,j,k-1,RhoTheta_comp));
 
     amrex::Real tprime_hi = (t_hi-t0_hi)/t0_hi;
@@ -202,7 +201,7 @@ AMREX_GPU_DEVICE
 AMREX_FORCE_INLINE
 amrex::Real
 buoyancy_dry_Thpert (int& i, int& j, int& k,
-                     amrex::Real const& grav_gpu,
+                     const amrex::Real& grav_gpu,
                      const amrex::Array4<const amrex::Real>& r0_arr,
                      const amrex::Array4<const amrex::Real>& th0_arr,
                      const amrex::Array4<const amrex::Real>& cell_prim)
@@ -221,8 +220,8 @@ AMREX_FORCE_INLINE
 amrex::Real
 buoyancy_moist_Tpert (int& i, int& j, int& k,
                       const int& n_qstate,
-                      amrex::Real const& grav_gpu,
-                      amrex::Real const& rd_over_cp,
+                      const amrex::Real& grav_gpu,
+                      const amrex::Real& /*lRdoCp*/,
                       const amrex::Array4<const amrex::Real>& r0_arr,
                       const amrex::Array4<const amrex::Real>& th0_arr,
                       const amrex::Array4<const amrex::Real>& qv0_arr,
@@ -234,8 +233,8 @@ buoyancy_moist_Tpert (int& i, int& j, int& k,
     amrex::Real qv_hi = (n_qstate >= 1) ? cell_prim(i,j,k  ,PrimQ1_comp) : zero;
     amrex::Real qv_lo = (n_qstate >= 1) ? cell_prim(i,j,k-1,PrimQ1_comp) : zero;
 
-    amrex::Real t0_hi = getTgivenPandTh(p0_arr(i,j,k  ), th0_arr(i,j,k  ), rd_over_cp);
-    amrex::Real t0_lo = getTgivenPandTh(p0_arr(i,j,k-1), th0_arr(i,j,k-1), rd_over_cp);
+    amrex::Real t0_hi = getTgivenPandTh(p0_arr(i,j,k  ), th0_arr(i,j,k  ), RdoCp);
+    amrex::Real t0_lo = getTgivenPandTh(p0_arr(i,j,k-1), th0_arr(i,j,k-1), RdoCp);
 
     amrex::Real dt_hi  = getTgivenRandRTh(cell_data(i,j,k  ,Rho_comp), cell_data(i,j,k  ,RhoTheta_comp), qv_hi) - t0_hi;
     amrex::Real dt_lo  = getTgivenRandRTh(cell_data(i,j,k-1,Rho_comp), cell_data(i,j,k-1,RhoTheta_comp), qv_lo) - t0_lo;
@@ -243,8 +242,8 @@ buoyancy_moist_Tpert (int& i, int& j, int& k,
     amrex::Real qv0_hi = qv0_arr(i,j,k  );
     amrex::Real qv0_lo = qv0_arr(i,j,k-1);
 
-    amrex::Real q_hi = amrex::Real(0.61) * (qv_hi-qv0_hi) - (qt_arr(i,j,k  )-qv_hi) + dt_hi/t0_hi;
-    amrex::Real q_lo = amrex::Real(0.61) * (qv_lo-qv0_lo) - (qt_arr(i,j,k-1)-qv_lo) + dt_lo/t0_lo;
+    amrex::Real q_hi = epsv * (qv_hi-qv0_hi) - (qt_arr(i,j,k  )-qv_hi) + dt_hi/t0_hi;
+    amrex::Real q_lo = epsv * (qv_lo-qv0_lo) - (qt_arr(i,j,k-1)-qv_lo) + dt_lo/t0_lo;
 
     amrex::Real qavg = myhalf  * (q_hi + q_lo);
 
@@ -258,7 +257,7 @@ AMREX_FORCE_INLINE
 amrex::Real
 buoyancy_moist_Thpert (int& i, int& j, int& k,
                        const int& n_qstate,
-                       amrex::Real const& grav_gpu,
+                       const amrex::Real& grav_gpu,
                        const amrex::Array4<const amrex::Real>& r0_arr,
                        const amrex::Array4<const amrex::Real>& th0_arr,
                        const amrex::Array4<const amrex::Real>& qv0_arr,
@@ -277,8 +276,8 @@ buoyancy_moist_Thpert (int& i, int& j, int& k,
     amrex::Real qv0_hi = qv0_arr(i,j,k  );
     amrex::Real qv0_lo = qv0_arr(i,j,k-1);
 
-    amrex::Real q_hi = amrex::Real(0.61) * (qv_hi-qv0_hi) - qt_hi + dth_hi/th0_arr(i,j,k  );
-    amrex::Real q_lo = amrex::Real(0.61) * (qv_lo-qv0_lo) - qt_lo + dth_lo/th0_arr(i,j,k-1);
+    amrex::Real q_hi = epsv * (qv_hi-qv0_hi) - qt_hi + dth_hi/th0_arr(i,j,k  );
+    amrex::Real q_lo = epsv * (qv_lo-qv0_lo) - qt_lo + dth_lo/th0_arr(i,j,k-1);
 
     amrex::Real qavg  = myhalf * (q_hi + q_lo);
 
@@ -295,20 +294,20 @@ AMREX_GPU_DEVICE
 AMREX_FORCE_INLINE
 amrex::Real
 buoyancy_dry_anelastic_T (int& i, int& j, int& k,
-                          amrex::Real const& grav_gpu,
-                          amrex::Real const& rd_over_cp,
+                          const amrex::Real& grav_gpu,
+                          const amrex::Real& /*RdoCp*/,
                           const amrex::Array4<const amrex::Real>& r0_arr,
                           const amrex::Array4<const amrex::Real>& p0_arr,
                           const amrex::Array4<const amrex::Real>& cell_data)
 {
     amrex::Real rt0_hi = getRhoThetagivenP(p0_arr(i,j,k));
-    amrex::Real  t0_hi = getTgivenPandTh(p0_arr(i,j,k), rt0_hi/r0_arr(i,j,k), rd_over_cp);
-    amrex::Real   t_hi = getTgivenPandTh(p0_arr(i,j,k), cell_data(i,j,k,RhoTheta_comp)/r0_arr(i,j,k), rd_over_cp);
+    amrex::Real  t0_hi = getTgivenPandTh(p0_arr(i,j,k), rt0_hi/r0_arr(i,j,k), RdoCp);
+    amrex::Real   t_hi = getTgivenPandTh(p0_arr(i,j,k), cell_data(i,j,k,RhoTheta_comp)/r0_arr(i,j,k), RdoCp);
     amrex::Real   q_hi  = (t_hi-t0_hi)/t0_hi;
 
     amrex::Real rt0_lo = getRhoThetagivenP(p0_arr(i,j,k-1));
-    amrex::Real  t0_lo = getTgivenPandTh(p0_arr(i,j,k-1), rt0_lo/r0_arr(i,j,k-1), rd_over_cp);
-    amrex::Real   t_lo = getTgivenPandTh(p0_arr(i,j,k-1), cell_data(i,j,k-1,RhoTheta_comp)/r0_arr(i,j,k-1), rd_over_cp);
+    amrex::Real  t0_lo = getTgivenPandTh(p0_arr(i,j,k-1), rt0_lo/r0_arr(i,j,k-1), RdoCp);
+    amrex::Real   t_lo = getTgivenPandTh(p0_arr(i,j,k-1), cell_data(i,j,k-1,RhoTheta_comp)/r0_arr(i,j,k-1), RdoCp);
     amrex::Real   q_lo = (t_lo-t0_lo)/t0_lo;
 
     amrex::Real r0_q_avg = myhalf * (r0_arr(i,j,k) * q_hi + r0_arr(i,j,k-1) * q_lo);

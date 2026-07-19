@@ -282,10 +282,10 @@ ERF::HurricaneEyeTrackerNotInitial (const SolverChoice& sc,
         const Box& box = mfi.validbox();
         const Array4<Real const>& S_arr = S_data[IntVars::cons].const_array(mfi);
 
-        ParallelFor(box,[=,myhalf_d=myhalf] AMREX_GPU_DEVICE(int i, int j, int k) {
+        ParallelFor(box,[=] AMREX_GPU_DEVICE(int i, int j, int k) {
             if(k==0) {
-                Real x =  prob_lo[0] + (i+myhalf_d)*dx[0];
-                Real y =  prob_lo[1] + (j+myhalf_d)*dx[1];
+                Real x =  prob_lo[0] + (i+myhalf)*dx[0];
+                Real y =  prob_lo[1] + (j+myhalf)*dx[1];
                 Real dist = std::sqrt((x-tmp_x_eye)*(x-tmp_x_eye) + (y-tmp_y_eye)*(y-tmp_y_eye));
                 if(dist < 200e3) {
                     Real qv_for_p = (use_moisture && (ncomp > RhoQ1_comp)) ? S_arr(i,j,k,RhoQ1_comp)/S_arr(i,j,k,Rho_comp) : 0;
@@ -519,13 +519,13 @@ ERF::HurricaneMaxVelTracker(const Geometry& lev_geom,
         const Box& box = mfi.validbox();
         const auto& vel_arr = mf_cc_vel.const_array(mfi);
 
-        ParallelFor(box, [=,myhalf_d=myhalf,zero_d=zero] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-            Real x = prob_lo[0] + (i+myhalf_d)*dx[0];
-            Real y = prob_lo[1] + (j+myhalf_d)*dx[1];
+        ParallelFor(box, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+            Real x = prob_lo[0] + (i+myhalf)*dx[0];
+            Real y = prob_lo[1] + (j+myhalf)*dx[1];
             Real dist = std::sqrt((x-x_eye)*(x-x_eye) +
                                          (y-y_eye)*(y-y_eye));
             if(k==1 && dist < 200e3) {
-                Real velmag = zero_d;
+                Real velmag = zero;
                 for (int comp = 0; comp < ncomp; ++comp) {
                     Real vel = vel_arr(i, j, k, comp);
                     velmag += vel * vel;
@@ -576,9 +576,9 @@ ERF::HurricaneMinPressureTracker (MoistureType moisture_type,
         const Box& box = mfi.validbox();
         const auto& S_arr = mf_cons_var.const_array(mfi);
 
-        ParallelFor(box, [=,myhalf_d=myhalf] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-            Real x = prob_lo[0] + (i+myhalf_d)*dx[0];
-            Real y = prob_lo[1] + (j+myhalf_d)*dx[1];
+        ParallelFor(box, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+            Real x = prob_lo[0] + (i+myhalf)*dx[0];
+            Real y = prob_lo[1] + (j+myhalf)*dx[1];
             Real dist2 = (x-x_last)*(x-x_last) +
                                 (y-y_last)*(y-y_last);
             if(k==1 && dist2 < 200e3*200e3) {

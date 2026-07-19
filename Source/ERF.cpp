@@ -565,6 +565,11 @@ ERF::InitData_post ()
         restart();
     }
 
+    // Select 2-D variables after the active LSM has initialized its runtime
+    // field inventory, including provider-specific soil layers.
+    setPlotVariables2D("plot2d_vars_1", plot2d_var_names_1);
+    setPlotVariables2D("plot2d_vars_2", plot2d_var_names_2);
+
     //
     // Make sure that detJ and z_phys_cc are the average of the data on a finer level if there is one and if two way coupling
     //
@@ -1912,7 +1917,11 @@ ERF::init_only (int lev, double elapsed_time)
     // Initialize turbulent perturbation
     if (solverChoice.use_perturbation(lev)) {
         turbPert_update(lev, zero);
-        turbPert_amplitude(lev);
+        if (solverChoice.use_wvel_perturbation(lev)) {
+            turbPert_amplitude_w(lev);
+        } else {
+            turbPert_amplitude(lev);
+        }
     }
 
     // Set initial velocity field for immersed cells to be close to 0
@@ -2585,7 +2594,7 @@ ERF::MakeHorizontalAverages ()
             auto const cons_arr = vars_new[lev][Vars::cons].const_array(mfi);
             int ncomp = vars_new[lev][Vars::cons].nComp();
 
-            ParallelFor(bx, [=,zero_d=zero] AMREX_GPU_DEVICE (int i, int j, int k) {
+            ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
                 Real dens = cons_arr(i, j, k, Rho_comp);
                 if (is_anelastic) {
                     fab_arr(i,j,k,2) = hse_arr(i,j,k,BaseState::p0_comp);
@@ -2593,8 +2602,8 @@ ERF::MakeHorizontalAverages ()
                     Real qv = cons_arr(i, j, k, RhoQ1_comp) / dens;
                     fab_arr(i, j, k, 2) = getPgivenRTh(cons_arr(i, j, k, RhoTheta_comp), qv);
                 }
-                fab_arr(i, j, k, 3) = (ncomp > RhoQ1_comp ? cons_arr(i, j, k, RhoQ1_comp) / dens : zero_d);
-                fab_arr(i, j, k, 4) = (ncomp > RhoQ2_comp ? cons_arr(i, j, k, RhoQ2_comp) / dens : zero_d);
+                fab_arr(i, j, k, 3) = (ncomp > RhoQ1_comp ? cons_arr(i, j, k, RhoQ1_comp) / dens : zero);
+                fab_arr(i, j, k, 4) = (ncomp > RhoQ2_comp ? cons_arr(i, j, k, RhoQ2_comp) / dens : zero);
             });
         }
 
@@ -2903,12 +2912,12 @@ ERF::check_for_negative_theta(amrex::MultiFab& S)
     {
         Box bx = mfi.tilebox();
         const Array4<Real> &s_arr  = S.array(mfi);
-        ParallelFor(bx, [=,zero_d=zero] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
             const Real rho      = s_arr(i, j, k, Rho_comp);
             const Real rhotheta = s_arr(i, j, k, RhoTheta_comp);
 
-            if (rho <= zero_d) {
+            if (rho <= zero) {
 #ifdef AMREX_USE_GPU
                 AMREX_DEVICE_PRINTF("Rho is negative at %d %d %d %e \n", i,j,k,rho);
 #else
@@ -2917,7 +2926,7 @@ ERF::check_for_negative_theta(amrex::MultiFab& S)
 #endif
             }
 
-            if (rhotheta <= zero_d) {
+            if (rhotheta <= zero) {
 #ifdef AMREX_USE_GPU
                 AMREX_DEVICE_PRINTF("RhoTheta is negative at %d %d %d %e \n", i,j,k,rhotheta);
 #else

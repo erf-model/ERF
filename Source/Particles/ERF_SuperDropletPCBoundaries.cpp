@@ -43,7 +43,7 @@ void SuperDropletPC::applyBoundaryTreatment ( int                   a_lev,
         Gpu::Buffer<Long> deactivated_particles({0});
         auto* deactivated_particles_ptr = deactivated_particles.data();
 
-        ParallelFor(ptrs.num_particles, [=,zero_d=zero] AMREX_GPU_DEVICE (int i)
+        ParallelFor(ptrs.num_particles, [=] AMREX_GPU_DEVICE (int i)
         {
             ParticleType& p = p_pbox[i];
             if (p.id() <= 0) { return; }
@@ -61,7 +61,7 @@ void SuperDropletPC::applyBoundaryTreatment ( int                   a_lev,
                 }
                 if (p.pos(2) < z_ground) {
                     p.pos(2) = z_ground + Real(0.01)*ctx.dx[2];
-                    ptrs.v_ptr[0][i] = ptrs.v_ptr[1][i] = ptrs.v_ptr[2][i] = ptrs.vterm_ptr[i] = zero_d;
+                    ptrs.v_ptr[0][i] = ptrs.v_ptr[1][i] = ptrs.v_ptr[2][i] = ptrs.vterm_ptr[i] = zero;
                     ptrs.active_ptr[i] = 0;
                     if ((!a_recycle) && (!save_inac)) { p.id() = -1; }
                     Gpu::Atomic::Add(deactivated_particles_ptr, Long(1));
@@ -80,7 +80,7 @@ void SuperDropletPC::applyBoundaryTreatment ( int                   a_lev,
                 }
                 if (p.pos(2) > z_roof) {
                     p.pos(2) = z_roof - ctx.dx[2];
-                    ptrs.v_ptr[0][i] = ptrs.v_ptr[1][i] = ptrs.v_ptr[2][i] = ptrs.vterm_ptr[i] = zero_d;
+                    ptrs.v_ptr[0][i] = ptrs.v_ptr[1][i] = ptrs.v_ptr[2][i] = ptrs.vterm_ptr[i] = zero;
                     ptrs.active_ptr[i] = 0;
                     if ((!a_recycle) && (!save_inac)) { p.id() = -1; }
                     Gpu::Atomic::Add(deactivated_particles_ptr, Long(1));
@@ -102,7 +102,7 @@ void SuperDropletPC::applyBoundaryTreatment ( int                   a_lev,
                     if ((bc_lo == ERF_BC::slip_wall) || (bc_lo == ERF_BC::no_slip_wall)) {
 
                         p.pos(d) = x_min + Real(0.01)*ctx.dx[d];
-                        ptrs.v_ptr[0][i] = ptrs.v_ptr[1][i] = ptrs.v_ptr[2][i] = ptrs.vterm_ptr[i] = zero_d;
+                        ptrs.v_ptr[0][i] = ptrs.v_ptr[1][i] = ptrs.v_ptr[2][i] = ptrs.vterm_ptr[i] = zero;
                         ptrs.active_ptr[i] = 0;
                         if ((!a_recycle) && (!save_inac)) { p.id() = -1; }
                         Gpu::Atomic::Add(deactivated_particles_ptr, Long(1));
@@ -112,10 +112,10 @@ void SuperDropletPC::applyBoundaryTreatment ( int                   a_lev,
                         auto delta = x_min - p.pos(d);
                         p.pos(d) = x_max - delta;
                         if (!ctx.is_periodic[d]) {
-                            ptrs.v_ptr[0][i] = ptrs.v_ptr[1][i] = ptrs.v_ptr[2][i] = ptrs.vterm_ptr[i] = zero_d;
+                            ptrs.v_ptr[0][i] = ptrs.v_ptr[1][i] = ptrs.v_ptr[2][i] = ptrs.vterm_ptr[i] = zero;
 
                             for (int ctr = 0; ctr < ctx.num_species; ctr++) {
-                                ptrs.sp_mass_ptrs[ctr][i] = zero_d;
+                                ptrs.sp_mass_ptrs[ctr][i] = zero;
                             }
 
                             ptrs.mult_ptr[i] = multiplicity;
@@ -133,7 +133,7 @@ void SuperDropletPC::applyBoundaryTreatment ( int                   a_lev,
                     if ((bc_hi == ERF_BC::slip_wall) || (bc_hi == ERF_BC::no_slip_wall)) {
 
                         p.pos(d) = x_max - Real(0.01)*ctx.dx[d];
-                        ptrs.v_ptr[0][i] = ptrs.v_ptr[1][i] = ptrs.v_ptr[2][i] = ptrs.vterm_ptr[i] = zero_d;
+                        ptrs.v_ptr[0][i] = ptrs.v_ptr[1][i] = ptrs.v_ptr[2][i] = ptrs.vterm_ptr[i] = zero;
                         ptrs.active_ptr[i] = 0;
                         if ((!a_recycle) && (!save_inac)) { p.id() = -1; }
                         Gpu::Atomic::Add(deactivated_particles_ptr, Long(1));
@@ -143,10 +143,10 @@ void SuperDropletPC::applyBoundaryTreatment ( int                   a_lev,
                         auto delta = p.pos(d) - x_max;
                         p.pos(d) = x_min + delta;
                         if (!ctx.is_periodic[d]) {
-                            ptrs.v_ptr[0][i] = ptrs.v_ptr[1][i] = ptrs.v_ptr[2][i] = ptrs.vterm_ptr[i] = zero_d;
+                            ptrs.v_ptr[0][i] = ptrs.v_ptr[1][i] = ptrs.v_ptr[2][i] = ptrs.vterm_ptr[i] = zero;
 
                             for (int ctr = 0; ctr < ctx.num_species; ctr++) {
-                                ptrs.sp_mass_ptrs[ctr][i] = zero_d;
+                                ptrs.sp_mass_ptrs[ctr][i] = zero;
                             }
 
                             ptrs.mult_ptr[i] = multiplicity;

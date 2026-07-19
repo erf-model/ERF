@@ -184,8 +184,8 @@ ERF::send_to_ww3 (int lev)
         const Array4<Real>& u_vel = x_avg.array(mfi);
         const Array4<const Real>& velx_arr = xvel_data.array(mfi);
 
-        ParallelFor(bx, [=,myhalf_d=myhalf] AMREX_GPU_DEVICE (int i, int j, int k){
-            u_vel(i,j,k)  = myhalf_d *( velx_arr(i,j,k) + velx_arr(i+1,j,k) );
+        ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k){
+            u_vel(i,j,k)  = myhalf *( velx_arr(i,j,k) + velx_arr(i+1,j,k) );
 
             amrex::AllPrintToFile("uvel.txt") << amrex::IntVect(i,j,k) << " ["
                                               <<velx_arr(i,j,k) << "| avg:  "
@@ -200,9 +200,9 @@ ERF::send_to_ww3 (int lev)
         const Array4<Real>& v_vel = y_avg.array(mfi);
         const Array4<const Real>& vely_arr = yvel_data.array(mfi);
 
-        ParallelFor(bx, [=,myhalf_d=myhalf] AMREX_GPU_DEVICE (int i, int j, int k){
+        ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k){
 
-            v_vel(i,j,k)  = myhalf_d *( vely_arr(i,j,k) + vely_arr(i,j+1,k) );
+            v_vel(i,j,k)  = myhalf *( vely_arr(i,j,k) + vely_arr(i,j+1,k) );
 
             amrex::AllPrintToFile("vvel.txt") << "%ld" << amrex::IntVect(i,j,k) << " ["
                                               <<vely_arr(i,j,k)<<"| avg: "
@@ -237,7 +237,7 @@ ERF::send_to_ww3 (int lev)
         DistributionMapping dm_onegrid(ba2d_onegrid);
         dm_onegrid.define(pmap);
 
-        ParallelFor(bx, [=,PI_d=PI] AMREX_GPU_DEVICE (int i, int j, int k)
+        ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
             //magnitude(i,j,k)  = std::sqrt( pow(u(i,j,k), 2) + pow(v(i,j,k), 2) );
 
@@ -252,7 +252,7 @@ ERF::send_to_ww3 (int lev)
 
             if ( u_val < 0 && v_val > 0 || u_val < 0 && v_val < 0 ) {
 
-                theta(i,j,k) = PI_d + ( atan( v_val / u_val ) );
+                theta(i,j,k) = PI + ( atan( v_val / u_val ) );
 
             } else {
 

@@ -32,36 +32,36 @@ NumericalDiffusion_Scal (const Box& bx,
     Real coeff6 = num_diff_coeff / (two * static_cast<Real>(dt));
 
     // Compute 5th order derivative and augment RHS
-    ParallelFor(bx, num_comp, [=,one_d=one,myhalf_d=myhalf,zero_d=zero] AMREX_GPU_DEVICE (int i, int j, int k, int m) noexcept
+    ParallelFor(bx, num_comp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int m) noexcept
     {
         int n   = start_comp + m;     // conserved index
         int nm1 = (n==0) ? 0 : n - 1; // prim index
-        Real rho_x_lo = (n==0) ? one_d : myhalf_d * ( cell_data(i-1,j,k,Rho_comp) + cell_data(i  ,j,k,Rho_comp) );
+        Real rho_x_lo = (n==0) ? one : myhalf * ( cell_data(i-1,j,k,Rho_comp) + cell_data(i  ,j,k,Rho_comp) );
         Real xflux_lo = rho_x_lo * calc_fifth_order_deriv(prim_data(i+2,j,k,nm1), prim_data(i+1,j,k,nm1),
                                                           prim_data(i  ,j,k,nm1), prim_data(i-1,j,k,nm1),
                                                           prim_data(i-2,j,k,nm1), prim_data(i-3,j,k,nm1));
-        if ( (xflux_lo * (prim_data(i,j,k,nm1) - prim_data(i-1,j,k,nm1)) ) < zero_d) xflux_lo = zero_d;
+        if ( (xflux_lo * (prim_data(i,j,k,nm1) - prim_data(i-1,j,k,nm1)) ) < zero) xflux_lo = zero;
 
 
-        Real rho_x_hi = (n==0) ? one_d : myhalf_d * ( cell_data(i+1,j,k,Rho_comp) + cell_data(i  ,j,k,Rho_comp) );
+        Real rho_x_hi = (n==0) ? one : myhalf * ( cell_data(i+1,j,k,Rho_comp) + cell_data(i  ,j,k,Rho_comp) );
         Real xflux_hi = rho_x_hi * calc_fifth_order_deriv(prim_data(i+3,j,k,nm1), prim_data(i+2,j,k,nm1),
                                                           prim_data(i+1,j,k,nm1), prim_data(i  ,j,k,nm1),
                                                           prim_data(i-1,j,k,nm1), prim_data(i-2,j,k,nm1));
-        if ( (xflux_hi * (prim_data(i+1,j,k,nm1) - prim_data(i,j,k,nm1)) ) < zero_d) xflux_hi = zero_d;
+        if ( (xflux_hi * (prim_data(i+1,j,k,nm1) - prim_data(i,j,k,nm1)) ) < zero) xflux_hi = zero;
 
 
-        Real rho_y_lo = (n==0) ? one_d : myhalf_d * ( cell_data(i,j-1,k,Rho_comp) + cell_data(i,j  ,k,Rho_comp) );
+        Real rho_y_lo = (n==0) ? one : myhalf * ( cell_data(i,j-1,k,Rho_comp) + cell_data(i,j  ,k,Rho_comp) );
         Real yflux_lo = rho_y_lo * calc_fifth_order_deriv(prim_data(i,j+2,k,nm1), prim_data(i,j+1,k,nm1),
                                                           prim_data(i,j  ,k,nm1), prim_data(i,j-1,k,nm1),
                                                           prim_data(i,j-2,k,nm1), prim_data(i,j-3,k,nm1));
-        if ( (yflux_lo * (prim_data(i,j,k,nm1) - prim_data(i,j-1,k,nm1)) ) < zero_d) yflux_lo = zero_d;
+        if ( (yflux_lo * (prim_data(i,j,k,nm1) - prim_data(i,j-1,k,nm1)) ) < zero) yflux_lo = zero;
 
 
-        Real rho_y_hi = (n==0) ? one_d : myhalf_d * ( cell_data(i,j+1,k,Rho_comp) + cell_data(i,j  ,k,Rho_comp) );
+        Real rho_y_hi = (n==0) ? one : myhalf * ( cell_data(i,j+1,k,Rho_comp) + cell_data(i,j  ,k,Rho_comp) );
         Real yflux_hi = rho_y_hi * calc_fifth_order_deriv(prim_data(i,j+3,k,nm1), prim_data(i,j+2,k,nm1),
                                                           prim_data(i,j+1,k,nm1), prim_data(i,j  ,k,nm1),
                                                           prim_data(i,j-1,k,nm1), prim_data(i,j-2,k,nm1));
-        if ( (yflux_hi * (prim_data(i,j+1,k,nm1) - prim_data(i,j,k,nm1)) ) < zero_d) yflux_hi = zero_d;
+        if ( (yflux_hi * (prim_data(i,j+1,k,nm1) - prim_data(i,j,k,nm1)) ) < zero) yflux_hi = zero;
 
 
         rhs(i,j,k,n) += coeff6 * ( mfx_arr(i,j,0) * (xflux_hi - xflux_lo)
@@ -97,36 +97,36 @@ NumericalDiffusion_Xmom (const Box& bx,
     Real coeff6 = num_diff_coeff / (two * static_cast<Real>(dt));
 
     // Compute 5th order derivative and augment RHS
-    ParallelFor(bx, [=,zero_d=zero,fourth_d=fourth] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+    ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
         Real rho_x_lo = cell_data(i-1,j,k,Rho_comp);
         Real xflux_lo = rho_x_lo * calc_fifth_order_deriv(prim_data(i+2,j,k), prim_data(i+1,j,k),
                                                           prim_data(i  ,j,k), prim_data(i-1,j,k),
                                                           prim_data(i-2,j,k), prim_data(i-3,j,k));
-        if ( (xflux_lo * (prim_data(i,j,k) - prim_data(i-1,j,k)) ) < zero_d) xflux_lo = zero_d;
+        if ( (xflux_lo * (prim_data(i,j,k) - prim_data(i-1,j,k)) ) < zero) xflux_lo = zero;
 
 
         Real rho_x_hi = cell_data(i  ,j,k,Rho_comp);
         Real xflux_hi = rho_x_hi * calc_fifth_order_deriv(prim_data(i+3,j,k), prim_data(i+2,j,k),
                                                           prim_data(i+1,j,k), prim_data(i  ,j,k),
                                                           prim_data(i-1,j,k), prim_data(i-2,j,k));
-        if ( (xflux_hi * (prim_data(i+1,j,k) - prim_data(i,j,k)) ) < zero_d) xflux_hi = zero_d;
+        if ( (xflux_hi * (prim_data(i+1,j,k) - prim_data(i,j,k)) ) < zero) xflux_hi = zero;
 
 
-        Real rho_y_lo = fourth_d * ( cell_data(i  ,j  ,k,Rho_comp) + cell_data(i-1,j  ,k,Rho_comp)
+        Real rho_y_lo = fourth * ( cell_data(i  ,j  ,k,Rho_comp) + cell_data(i-1,j  ,k,Rho_comp)
                                + cell_data(i  ,j-1,k,Rho_comp) + cell_data(i-1,j-1,k,Rho_comp) );
         Real yflux_lo = rho_y_lo * calc_fifth_order_deriv(prim_data(i,j+2,k), prim_data(i,j+1,k),
                                                           prim_data(i,j  ,k), prim_data(i,j-1,k),
                                                           prim_data(i,j-2,k), prim_data(i,j-3,k));
-        if ( (yflux_lo * (prim_data(i,j,k) - prim_data(i,j-1,k)) ) < zero_d) yflux_lo = zero_d;
+        if ( (yflux_lo * (prim_data(i,j,k) - prim_data(i,j-1,k)) ) < zero) yflux_lo = zero;
 
 
-        Real rho_y_hi = fourth_d * ( cell_data(i  ,j  ,k,Rho_comp) + cell_data(i-1,j  ,k,Rho_comp)
+        Real rho_y_hi = fourth * ( cell_data(i  ,j  ,k,Rho_comp) + cell_data(i-1,j  ,k,Rho_comp)
                                + cell_data(i  ,j+1,k,Rho_comp) + cell_data(i-1,j+1,k,Rho_comp) );
         Real yflux_hi = rho_y_hi * calc_fifth_order_deriv(prim_data(i,j+3,k), prim_data(i,j+2,k),
                                                           prim_data(i,j+1,k), prim_data(i,j  ,k),
                                                           prim_data(i,j-1,k), prim_data(i,j-2,k));
-        if ( (yflux_hi * (prim_data(i,j+1,k) - prim_data(i,j,k)) ) < zero_d) yflux_hi = zero_d;
+        if ( (yflux_hi * (prim_data(i,j+1,k) - prim_data(i,j,k)) ) < zero) yflux_hi = zero;
 
 
         rhs(i,j,k,0) += coeff6 * ( mfx_arr(i,j,0) * (xflux_hi - xflux_lo)
@@ -163,36 +163,36 @@ NumericalDiffusion_Ymom (const Box& bx,
     Real coeff6 = num_diff_coeff / (two * static_cast<Real>(dt));
 
     // Compute 5th order derivative and augment RHS
-    ParallelFor(bx, [=,fourth_d=fourth,zero_d=zero] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+    ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
-        Real rho_x_lo = fourth_d * ( cell_data(i  ,j  ,k,Rho_comp) + cell_data(i  ,j-1,k,Rho_comp)
+        Real rho_x_lo = fourth * ( cell_data(i  ,j  ,k,Rho_comp) + cell_data(i  ,j-1,k,Rho_comp)
                                + cell_data(i-1,j  ,k,Rho_comp) + cell_data(i-1,j-1,k,Rho_comp) );
         Real xflux_lo = rho_x_lo * calc_fifth_order_deriv(prim_data(i+2,j,k), prim_data(i+1,j,k),
                                                           prim_data(i  ,j,k), prim_data(i-1,j,k),
                                                           prim_data(i-2,j,k), prim_data(i-3,j,k));
-        if ( (xflux_lo * (prim_data(i,j,k) - prim_data(i-1,j,k)) ) < zero_d) xflux_lo = zero_d;
+        if ( (xflux_lo * (prim_data(i,j,k) - prim_data(i-1,j,k)) ) < zero) xflux_lo = zero;
 
 
-        Real rho_x_hi = fourth_d * ( cell_data(i  ,j  ,k,Rho_comp) + cell_data(i  ,j-1,k,Rho_comp)
+        Real rho_x_hi = fourth * ( cell_data(i  ,j  ,k,Rho_comp) + cell_data(i  ,j-1,k,Rho_comp)
                                + cell_data(i+1,j  ,k,Rho_comp) + cell_data(i+1,j-1,k,Rho_comp) );
         Real xflux_hi = rho_x_hi * calc_fifth_order_deriv(prim_data(i+3,j,k), prim_data(i+2,j,k),
                                                           prim_data(i+1,j,k), prim_data(i  ,j,k),
                                                           prim_data(i-1,j,k), prim_data(i-2,j,k));
-        if ( (xflux_hi * (prim_data(i+1,j,k) - prim_data(i,j,k)) ) < zero_d) xflux_hi = zero_d;
+        if ( (xflux_hi * (prim_data(i+1,j,k) - prim_data(i,j,k)) ) < zero) xflux_hi = zero;
 
 
         Real rho_y_lo = cell_data(i,j-1,k,Rho_comp);
         Real yflux_lo = rho_y_lo * calc_fifth_order_deriv(prim_data(i,j+2,k), prim_data(i,j+1,k),
                                                           prim_data(i,j  ,k), prim_data(i,j-1,k),
                                                           prim_data(i,j-2,k), prim_data(i,j-3,k));
-        if ( (yflux_lo * (prim_data(i,j,k) - prim_data(i,j-1,k)) ) < zero_d) yflux_lo = zero_d;
+        if ( (yflux_lo * (prim_data(i,j,k) - prim_data(i,j-1,k)) ) < zero) yflux_lo = zero;
 
 
         Real rho_y_hi = cell_data(i,j  ,k,Rho_comp);
         Real yflux_hi = rho_y_hi * calc_fifth_order_deriv(prim_data(i,j+3,k), prim_data(i,j+2,k),
                                                           prim_data(i,j+1,k), prim_data(i,j  ,k),
                                                           prim_data(i,j-1,k), prim_data(i,j-2,k));
-        if ( (yflux_hi * (prim_data(i,j ,k) - prim_data(i,j,k)) ) < zero_d) yflux_hi = zero_d;
+        if ( (yflux_hi * (prim_data(i,j ,k) - prim_data(i,j,k)) ) < zero) yflux_hi = zero;
 
 
         rhs(i,j,k,0) += coeff6 * ( mfx_arr(i,j,0) * (xflux_hi - xflux_lo)

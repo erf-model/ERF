@@ -224,13 +224,13 @@ ShocImplicit::advance_implicit_state (ShocColumnData& col,
     auto coeffC = coeffC_fab.array();
 
     const Box col_box(IntVect(0,0,0), IntVect(layout.ncell - 1, 0, 0));
-    ParallelFor(col_box, [=,CONST_GRAV_d=CONST_GRAV] AMREX_GPU_DEVICE (int ic, int, int) noexcept
+    ParallelFor(col_box, [=] AMREX_GPU_DEVICE (int ic, int, int) noexcept
     {
         for (int k = 0; k <= nlev; ++k) {
-            tmpi(ic,k,0) = dt * CONST_GRAV_d * amrex::max(rho_zi(ic,k,0), 1.0e-12_rt) /
+            tmpi(ic,k,0) = dt * CONST_GRAV * amrex::max(rho_zi(ic,k,0), 1.0e-12_rt) /
                            interface_spacing(zt, zi, layout, ic, k);
             if (k < nlev) {
-                rdp_zt(ic,k,0) = 1.0_rt / amrex::max(CONST_GRAV_d * rho(ic,k,0) * dz(ic,k,0), 1.0e-12_rt);
+                rdp_zt(ic,k,0) = 1.0_rt / amrex::max(CONST_GRAV * rho(ic,k,0) * dz(ic,k,0), 1.0e-12_rt);
             }
         }
 
@@ -238,7 +238,7 @@ ShocImplicit::advance_implicit_state (ShocColumnData& col,
         // The tmpi array includes a 1/dz_zi interface-spacing factor that
         // belongs only in the tridiagonal diffusion matrix, NOT in the
         // explicit surface-flux injection.
-        const Real cmnfac = dt * CONST_GRAV_d * amrex::max(rho_zi(ic,0,0), 1.0e-12_rt) * rdp_zt(ic,0,0);
+        const Real cmnfac = dt * CONST_GRAV * amrex::max(rho_zi(ic,0,0), 1.0e-12_rt) * rdp_zt(ic,0,0);
 
         const Real uw_sfc = surf_tau_u(ic,0,0);
         const Real vw_sfc = surf_tau_v(ic,0,0);
@@ -262,7 +262,7 @@ ShocImplicit::advance_implicit_state (ShocColumnData& col,
             coeffC(ic,0,k) = (k < nlev - 1) ? -tk_zi(ic,k+1,0) * tmpi(ic,k+1,0) * rdp_zt(ic,k,0) : 0.0_rt;
             coeffB(ic,0,k) = 1.0_rt - coeffA(ic,0,k) - coeffC(ic,0,k);
         }
-        coeffB(ic,0,0) += ksrf * dt * CONST_GRAV_d * rdp_zt(ic,0,0);
+        coeffB(ic,0,0) += ksrf * dt * CONST_GRAV * rdp_zt(ic,0,0);
         SolveTridiag(ic, 0, 0, nlev - 1, soln, coeffA, coeffB, inv_coeffB, coeffC, rhs);
         for (int k = 0; k < nlev; ++k) {
             u(ic,k,0) = soln(ic,0,k);
@@ -274,7 +274,7 @@ ShocImplicit::advance_implicit_state (ShocColumnData& col,
             coeffC(ic,0,k) = (k < nlev - 1) ? -tk_zi(ic,k+1,0) * tmpi(ic,k+1,0) * rdp_zt(ic,k,0) : 0.0_rt;
             coeffB(ic,0,k) = 1.0_rt - coeffA(ic,0,k) - coeffC(ic,0,k);
         }
-        coeffB(ic,0,0) += ksrf * dt * CONST_GRAV_d * rdp_zt(ic,0,0);
+        coeffB(ic,0,0) += ksrf * dt * CONST_GRAV * rdp_zt(ic,0,0);
         SolveTridiag(ic, 0, 0, nlev - 1, soln, coeffA, coeffB, inv_coeffB, coeffC, rhs);
         for (int k = 0; k < nlev; ++k) {
             v(ic,k,0) = soln(ic,0,k);
@@ -377,7 +377,7 @@ ShocImplicit::finalize_from_pdf (ShocColumnData& col,
 
     {
         BL_PROFILE("SHOC::advance::finalize::reconstruct");
-        ParallelFor(cell_box, [=,Cp_d_d=Cp_d,CONST_GRAV_d=CONST_GRAV] AMREX_GPU_DEVICE (int ic, int k, int) noexcept
+        ParallelFor(cell_box, [=] AMREX_GPU_DEVICE (int ic, int k, int) noexcept
         {
             const Real qw_new_loc = amrex::max(qw(ic,k,0), shoc_min_qw());
             const Real ql_base = amrex::max(0.0_rt, qc_base(ic,k,0) + qi_base(ic,k,0));
@@ -402,7 +402,7 @@ ShocImplicit::finalize_from_pdf (ShocColumnData& col,
             qi(ic,k,0) = qi_new_loc;
             shoc_ql(ic,k,0) = ql_total;
             theta_v(ic,k,0) = theta(ic,k,0) * (1.0_rt + shoc_zvir() * qv_new_loc - ql_total);
-            host_dse(ic,k,0) = Cp_d_d * tabs_new + CONST_GRAV_d * zt(ic,k,0);
+            host_dse(ic,k,0) = Cp_d * tabs_new + CONST_GRAV * zt(ic,k,0);
 
             theta_tend(ic,k,0) = (theta(ic,k,0) - theta_base(ic,k,0)) / dt;
             qv_tend(ic,k,0) = (qv_new_loc - qv_base(ic,k,0)) / dt;

@@ -107,6 +107,17 @@ public:
     Get_Data_Ptr (const int& lev, const int& varIdx) { return m_lsm_model[lev]->Lsm_Data_Ptr(varIdx); }
 
     amrex::MultiFab*
+    Get_Data_Ptr (const int& lev, const std::string& varname)
+    {
+        std::string name = varname;
+        const int index = m_lsm_model[lev]->Lsm_DataIndex(name);
+        return (index >= 0) ? m_lsm_model[lev]->Lsm_Data_Ptr(index) : nullptr;
+    }
+
+    bool
+    Has_Model () const { return !m_lsm_model.empty() && m_lsm_model[0] != nullptr; }
+
+    amrex::MultiFab*
     Get_Flux_Ptr (const int& lev, const int& varIdx) { return m_lsm_model[lev]->Lsm_Flux_Ptr(varIdx); }
 
     amrex::Geometry
@@ -120,6 +131,21 @@ public:
 
     std::string
     Get_DataName (const int& varIdx) { return m_lsm_model[0]->Lsm_DataName(varIdx); }
+
+    amrex::Vector<std::string>
+    Get_DataNames ()
+    {
+        amrex::Vector<std::string> names;
+        if (m_lsm_model.empty() || m_lsm_model[0] == nullptr) {
+            return names;
+        }
+        const int nvars = Get_Data_Size();
+        names.reserve(nvars);
+        for (int var = 0; var < nvars; ++var) {
+            names.push_back(Get_DataName(var));
+        }
+        return names;
+    }
 
     int
     Get_DataIdx (const int& lev, std::string& varname) { return m_lsm_model[lev]->Lsm_DataIndex(varname); }

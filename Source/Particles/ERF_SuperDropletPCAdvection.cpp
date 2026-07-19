@@ -83,18 +83,18 @@ void SuperDropletPC::AdvectParticles ( int                   a_lev,
         const auto& temperature_arr = a_temperature[grid].array();
         const auto& pressure_arr = a_pressure[grid].array();
 
-        ParallelFor(ptrs.num_particles, [=,zero_d=zero,two_d=two,PI_d=PI] AMREX_GPU_DEVICE (int i)
+        ParallelFor(ptrs.num_particles, [=] AMREX_GPU_DEVICE (int i)
         {
             ParticleType& p = p_pbox[i];
             if (p.id() <= 0) { return; }
             if (ptrs.active_ptr[i] == 0) { return; }
 
             ParticleReal v[AMREX_SPACEDIM];
-            v[0] = v[1] = v[2] = zero_d;
+            v[0] = v[1] = v[2] = zero;
 
             mac_interpolate(p, ctx.plo, ctx.dxi, umacarr, v);
             if (amrex::isnan(v[0]) || amrex::isnan(v[1]) || amrex::isnan(v[2])) {
-                v[0] = zero_d; v[1] = zero_d; v[2] = zero_d;
+                v[0] = zero; v[1] = zero; v[2] = zero;
             }
 
             // Interpolate density, pressure, temperature at particle position
@@ -112,9 +112,9 @@ void SuperDropletPC::AdvectParticles ( int                   a_lev,
 
             if (prescribed_advection) {
                if (a_time < 600) {
-                   v[2] = two_d*sin(PI_d*a_time/600)/density;
+                   v[2] = two*sin(PI*a_time/600)/density;
                } else {
-                   v[2] = zero_d;
+                   v[2] = zero;
                }
             }
 
@@ -126,7 +126,7 @@ void SuperDropletPC::AdvectParticles ( int                   a_lev,
                                               ptrs.sp_mass_ptrs, ptrs.ae_mass_ptrs,
                                               ptrs.sp_rho_arr, ptrs.ae_rho_arr );
 
-            ParticleReal terminal_vel = zero_d;
+            ParticleReal terminal_vel = zero;
             if (vterm_type_w == SDTerminalVelocityType::AtlasUlbrich) {
                 terminal_vel = term_vel.AtlasUlbrich( r_eff );
             } else if (vterm_type_w == SDTerminalVelocityType::RogersYau) {

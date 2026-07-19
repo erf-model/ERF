@@ -16,7 +16,13 @@
     X(lw_flux_dn)                                                             \
     /* land return-term diagnostics */                                       \
     X(grdflx) X(fira) X(sav) X(sag) X(albedo)                                 \
-    X(sfcrunoff) X(udrunoff) X(smstav) X(smstot)
+    X(sfcrunoff) X(udrunoff) X(smstav) X(smstot)                              \
+    /* native Noah-MP 2-m bundle */                                           \
+    X(noahmp_temperature_2m_vegetated)                                       \
+    X(noahmp_temperature_2m_bare)                                            \
+    X(noahmp_water_vapor_mixing_ratio_2m_vegetated)                           \
+    X(noahmp_water_vapor_mixing_ratio_2m_bare)                                \
+    X(noahmp_vegetation_fraction)
 
 // Forcing ERF -> Noah-MP, mechanical 1:1 copies: X( ERF comp, NoahmpIO member ).
 // 3D members use the k/j transpose MEMBER(i,1,j); 2D use MEMBER(i,j).
@@ -53,7 +59,12 @@
     X(    o_sag,        SAGXY     )                                           \
     X(    o_albedo,     ALBEDO    )                                           \
     X(    o_sfcrunoff,  SFCRUNOFF )                                           \
-    X(    o_udrunoff,   UDRUNOFF  )
+    X(    o_udrunoff,   UDRUNOFF  )                                           \
+    X(    o_noahmp_t2m_veg,  T2MVXY )                                         \
+    X(    o_noahmp_t2m_bare, T2MBXY )                                         \
+    X(    o_noahmp_q2m_veg,  Q2MVXY )                                         \
+    X(    o_noahmp_q2m_bare, Q2MBXY )                                         \
+    X(    o_noahmp_fveg,     FVEGXY )
 
 #define NOAHMP_OUTPUT_2D_FIELDS(X) NOAHMP_OUTPUT_2D_FIELDS_HEAD(X)            \
                                    NOAHMP_OUTPUT_2D_FIELDS_TAIL(X)
@@ -74,7 +85,12 @@
     X(   SAG_o,            sag,               o_sag         )                  \
     X(   ALBEDO_o,         albedo,            o_albedo      )                  \
     X(   SFCRUNOFF_o,      sfcrunoff,         o_sfcrunoff   )                  \
-    X(   UDRUNOFF_o,       udrunoff,          o_udrunoff    )
+    X(   UDRUNOFF_o,       udrunoff,          o_udrunoff    )                  \
+    X(   T2MVXY_o,         noahmp_temperature_2m_vegetated, o_noahmp_t2m_veg ) \
+    X(   T2MBXY_o,         noahmp_temperature_2m_bare,      o_noahmp_t2m_bare) \
+    X(   Q2MVXY_o,         noahmp_water_vapor_mixing_ratio_2m_vegetated, o_noahmp_q2m_veg ) \
+    X(   Q2MBXY_o,         noahmp_water_vapor_mixing_ratio_2m_bare,      o_noahmp_q2m_bare) \
+    X(   FVEGXY_o,         noahmp_vegetation_fraction, o_noahmp_fveg       )
 
 // ---------------------------------------------------------------------------
 //  Reusable field emitters -- the per-row action applied when a registry is
