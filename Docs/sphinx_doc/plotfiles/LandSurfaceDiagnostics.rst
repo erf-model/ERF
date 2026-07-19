@@ -65,7 +65,7 @@ specific humidity to dry-air mixing ratio:
 
    r_v = \frac{q_v}{1-q_v}.
 
-The 2-D diagnostic layer receives mixing ratio and does not convert it again.
+The 2D diagnostic layer receives mixing ratio and does not convert it again.
 
 Native validation is request-specific:
 
@@ -138,10 +138,12 @@ Noah-MP ``HFX`` gates the following Noah-MP return fields:
    noahmp_water_vapor_mixing_ratio_2m_bare
    noahmp_vegetation_fraction
 
-It also gates Noah-MP surface-flux results and runtime soil result fields. An
-invalid ``HFX`` means that Noah-MP did not process the cell. ERF invalidates
-that result set. A valid ``HFX`` only establishes that the cell was processed;
-each returned field still passes its own validity rule.
+It also gates Noah-MP surface-flux results and runtime soil result fields. The
+gate rejects nonfinite values and the provider sentinel; it is not a positivity
+test, so a finite zero or negative ``HFX`` remains a processed result. ERF
+invalidates the result set when the gate fails. A valid ``HFX`` only establishes
+that the cell was processed; each returned field still passes its own validity
+rule.
 
 The following radiation-to-LSM forcing fields are not HFX-gated:
 
@@ -155,7 +157,7 @@ The following radiation-to-LSM forcing fields are not HFX-gated:
    sw_flux_dn_dif_nir
    lw_flux_dn
 
-They are stored through the radiation exchange path. Their public 2-D output
+They are stored through the radiation exchange path. Their public 2D output
 still translates absent, nonfinite, or sentinel values to ``-999``.
 
 Provider-specific native fields
@@ -178,7 +180,7 @@ metadata contract.
 Timing and limitations
 ----------------------
 
-ERF assembles these fields when it writes each primary 2-D plotfile. It
+ERF assembles these fields when it writes each primary 2D plotfile. It
 assembles each AMR level from that level's latest available land-surface,
 SurfaceLayer, source-mask, terrain, and atmospheric state. These fields are
 diagnostics, not checkpoint state. They do not change prognostic state or
