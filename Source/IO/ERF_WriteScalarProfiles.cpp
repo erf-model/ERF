@@ -31,6 +31,10 @@ ERF::sum_integrated_quantities (double time)
     Real dust_sl = zero;
     Real dust_ml = zero;
 #endif
+#ifdef ERF_ENABLE_FIRE
+    Real smoke_sl = zero;
+    Real smoke_ml = zero;
+#endif
 
     bool local = true;
 
@@ -63,6 +67,11 @@ ERF::sum_integrated_quantities (double time)
 
     }
 #endif
+#ifdef ERF_ENABLE_FIRE
+    if (m_fire_layer) {
+        smoke_sl = volWgtSumMF(0, vars_new[0][Vars::cons], RhoSmoke_comp, dJ0, mfx0, mfy0, false);
+    }
+#endif
 
     for (int lev = 0; lev <= finest_level; lev++) {
         auto& mfx = *mapfac[lev][MapFacType::m_x];
@@ -80,6 +89,11 @@ ERF::sum_integrated_quantities (double time)
         if (m_DustLayer) {
             //dust_ml += volWgtSumMF(lev,vars_new[lev][Vars::cons],RhoAdv_comp,dJ,mfx,mfy,true);
             dust_ml += volWgtSumMF(lev,vars_new[lev][Vars::cons],m_DustLayer->get_dust_scalar_comp(),dJ,mfx,mfy,true);
+        }
+#endif
+#ifdef ERF_ENABLE_FIRE
+        if (m_fire_layer) {
+            smoke_ml += volWgtSumMF(lev, vars_new[lev][Vars::cons], RhoSmoke_comp, dJ, mfx, mfy, true);
         }
 #endif
     }
@@ -106,7 +120,13 @@ ERF::sum_integrated_quantities (double time)
         h_avg_olen[0]  = zero;
     }
 
-#ifdef ERF_USE_DUST
+#if defined(ERF_USE_DUST) && defined(ERF_ENABLE_FIRE)
+    const int nfoo = 12;
+    Real foo[nfoo] = {mass_sl,rhth_sl,scal_sl,mois_sl,dust_sl,smoke_sl,mass_ml,rhth_ml,scal_ml,mois_ml,dust_ml,smoke_ml};
+#elif defined(ERF_ENABLE_FIRE)
+    const int nfoo = 10;
+    Real foo[nfoo] = {mass_sl,rhth_sl,scal_sl,mois_sl,smoke_sl,mass_ml,rhth_ml,scal_ml,mois_ml,smoke_ml};
+#elif defined(ERF_USE_DUST)
     const int nfoo = 10;
     Real foo[nfoo] = {mass_sl,rhth_sl,scal_sl,mois_sl,dust_sl,mass_ml,rhth_ml,scal_ml,mois_ml,dust_ml};
 #else
@@ -129,12 +149,18 @@ ERF::sum_integrated_quantities (double time)
 #ifdef ERF_USE_DUST
          dust_sl = foo[i++];
 #endif
+#ifdef ERF_ENABLE_FIRE
+         smoke_sl = foo[i++];
+#endif
          mass_ml = foo[i++];
          rhth_ml = foo[i++];
          scal_ml = foo[i++];
          mois_ml = foo[i++];
 #ifdef ERF_USE_DUST
          dust_ml = foo[i++];
+#endif
+#ifdef ERF_ENABLE_FIRE
+         smoke_ml = foo[i++];
 #endif
 
         Print() << '\n';
@@ -151,6 +177,9 @@ ERF::sum_integrated_quantities (double time)
 #ifdef ERF_USE_DUST
            if (m_DustLayer) { Print() << " RHO DUST   = " << dust_sl << '\n'; }
 #endif
+#ifdef ERF_ENABLE_FIRE
+           if (m_fire_layer) { Print() << " RHO SMOKE  = " << smoke_sl << '\n'; }
+#endif
         } else {
 #if 1
            Print() << " MASS       SL/ML = " << mass_sl << " " << mass_ml << '\n';
@@ -162,6 +191,9 @@ ERF::sum_integrated_quantities (double time)
            if (solverChoice.moisture_type != MoistureType::None) { Print() << " RHO QTOTAL SL/ML = " << mois_sl << " " << mois_ml << '\n'; }
 #ifdef ERF_USE_DUST
            if (m_DustLayer) { Print() << " RHO DUST   SL/ML = " << dust_sl << " " << dust_ml << '\n'; }
+#endif
+#ifdef ERF_ENABLE_FIRE
+           if (m_fire_layer) { Print() << " RHO SMOKE  SL/ML = " << smoke_sl << " " << smoke_ml << '\n'; }
 #endif
         }
 
