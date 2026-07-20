@@ -93,10 +93,28 @@ erf.dust.blast_schedule_file = ""
 erf.dust.road_schedule_file = ""
 
 # Fire
+erf.fire.enable = true
+erf.fire.fire_debug = true
+erf.fire.grid_ratio = 2
+erf.fire.fuel_model_id = 1
+erf.fire.moisture_1hr = 0.08
+erf.fire.moisture_10hr = 0.08
+erf.fire.moisture_100hr = 0.10
+erf.fire.moisture_dynamic = false
+erf.fire.ignition_x = 2000.0
+erf.fire.ignition_y = 2000.0
+erf.fire.ignition_r = 600.0
+erf.fire.wind_ref_ht = 6.1
+erf.fire.use_waf = true
+erf.fire.use_wind_limit = true
+erf.fire.heat_flux_alfg = 45.0
+erf.fire.fire_atm_feedback = 1.0
+erf.fire.inject_latent = true
+erf.fire.use_terrain_wind = false
+erf.fire.coupling_type = "passive"
 erf.fire.smoke_enable = true
 erf.fire.smoke_emission_factor = 0.02
 erf.fire.smoke_heat_of_comb = 18700000.0
-erf.fire.fire_debug = true
 
 # Fire-Dust coupling
 erf.dust.crust_index = 0.5
