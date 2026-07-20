@@ -49,6 +49,15 @@ void fill_component_from_klevel_or_value (amrex::MultiFab& dst,
                                           amrex::Real missing_value,
                                           int src_comp = 0);
 
+// Noah-MP and other land-surface providers use internal sentinels that must
+// not enter a public plotfile. Valid zero and negative physical values pass
+// through unchanged.
+void fill_land_surface_component_from_klevel_or_missing (amrex::MultiFab& dst,
+                                                         int dst_comp,
+                                                         const amrex::MultiFab* src,
+                                                         int src_k,
+                                                         amrex::Real missing_value);
+
 // Convert the selected conservative sensible-flux source to W m^-2 for the
 // public sensible_heat_flux diagnostic. Unit semantics remain in
 // surface_flux_diagnostics.
