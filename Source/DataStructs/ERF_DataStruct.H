@@ -1320,7 +1320,7 @@ struct SolverChoice {
     // This defaults to true but can be set to false for moving terrain cases only
     bool        use_lagged_delta_rt   = true;
 
-    // Flag to rebalance state from wrf input
+    // Flag to rebalance states from wrfinput and wrfbdy
     bool        rebalance_wrf_input   = true;
 
     // Constants
