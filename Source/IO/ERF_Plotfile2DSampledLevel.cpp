@@ -395,6 +395,9 @@ build_sampled_level_output_descriptors_from_definitions (
     for (const auto& name : static_plot_vars) {
         const auto* static_descriptor = find_diagnostic(name);
         if (static_descriptor == nullptr) {
+            static_descriptor = find_dynamic_soil_diagnostic(name);
+        }
+        if (static_descriptor == nullptr) {
             amrex::Abort("Unknown built-in 2D plotfile diagnostic '" + name + "'");
         }
 

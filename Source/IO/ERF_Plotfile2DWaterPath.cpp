@@ -4,6 +4,9 @@
 #include <AMReX.H>
 #include <AMReX_Gpu.H>
 #include <AMReX_Geometry.H>
+#include <AMReX_ParmParse.H>
+
+#include <algorithm>
 
 #include "ERF_IndexDefines.H"
 
@@ -81,13 +84,100 @@ is_condensed_water_path_name (const std::string& name)
     return descriptor && is_condensed_water_path(descriptor->id);
 }
 
+bool is_noahmp_active (const SolverChoice& solver_choice) noexcept
+{
+#ifdef ERF_USE_NOAHMP
+    return solver_choice.lsm_type == LandSurfaceType::NOAHMP;
+#else
+    amrex::ignore_unused(solver_choice);
+    return false;
+#endif
+}
+
+bool is_land_surface_provider_field (DiagnosticID id) noexcept
+{
+    switch (id) {
+    case DiagnosticID::LandSurfaceTsfC:
+    case DiagnosticID::LandSurfaceEmissivity:
+    case DiagnosticID::LandSurfaceAlbDirVis:
+    case DiagnosticID::LandSurfaceAlbDirNir:
+    case DiagnosticID::LandSurfaceAlbDifVis:
+    case DiagnosticID::LandSurfaceAlbDifNir:
+    case DiagnosticID::LandSurfaceCosZenith:
+    case DiagnosticID::LandSurfaceSwFluxDn:
+    case DiagnosticID::LandSurfaceSwFluxDnDirVis:
+    case DiagnosticID::LandSurfaceSwFluxDnDirNir:
+    case DiagnosticID::LandSurfaceSwFluxDnDifVis:
+    case DiagnosticID::LandSurfaceSwFluxDnDifNir:
+    case DiagnosticID::LandSurfaceLwFluxDn:
+    case DiagnosticID::LandSurfaceGrdflx:
+    case DiagnosticID::LandSurfaceFira:
+    case DiagnosticID::LandSurfaceSav:
+    case DiagnosticID::LandSurfaceSag:
+    case DiagnosticID::LandSurfaceAlbedo:
+    case DiagnosticID::LandSurfaceSfcrunoff:
+    case DiagnosticID::LandSurfaceUdrunoff:
+    case DiagnosticID::NoahmpTemperature2mVegetated:
+    case DiagnosticID::NoahmpTemperature2mBare:
+    case DiagnosticID::NoahmpWaterVaporMixingRatio2mVegetated:
+    case DiagnosticID::NoahmpWaterVaporMixingRatio2mBare:
+    case DiagnosticID::NoahmpVegetationFraction:
+        return true;
+    default:
+        return false;
+    }
+}
+
+bool active_lsm_contains (const amrex::Vector<std::string>& active_lsm_names,
+                          const char* name)
+{
+    return std::find(active_lsm_names.begin(), active_lsm_names.end(), name) !=
+           active_lsm_names.end();
+}
+
 amrex::Vector<std::string>
 available_diagnostic_names (const SolverChoice& solver_choice)
 {
+    return available_diagnostic_names(solver_choice, true);
+}
+
+amrex::Vector<std::string>
+available_diagnostic_names (const SolverChoice& solver_choice,
+                            bool has_surface_layer)
+{
+    return available_diagnostic_names(solver_choice, has_surface_layer,
+                                      amrex::Vector<std::string>{});
+}
+
+amrex::Vector<std::string>
+available_diagnostic_names (const SolverChoice& solver_choice,
+                            bool has_surface_layer,
+                            const amrex::Vector<std::string>& active_lsm_names)
+{
     amrex::Vector<std::string> names;
     names.reserve(diagnostic_catalog().size());
+    const bool has_noahmp = is_noahmp_active(solver_choice);
+    const bool has_moisture = solver_choice.moisture_type != MoistureType::None;
 
     for (const auto& descriptor : diagnostic_catalog()) {
+        if (is_land_surface_provider_field(descriptor.id) &&
+            ((!active_lsm_names.empty() &&
+              !active_lsm_contains(active_lsm_names, descriptor.name)) ||
+             (active_lsm_names.empty() && !has_noahmp))) {
+            continue;
+        }
+        if (descriptor.id == DiagnosticID::Temperature2m && !(has_noahmp || has_surface_layer)) {
+            continue;
+        }
+        if ((descriptor.id == DiagnosticID::WaterVaporMixingRatio2m ||
+             descriptor.id == DiagnosticID::NearSurfaceDiagnosticSource) &&
+            !(has_moisture && (has_noahmp || has_surface_layer))) {
+            if (descriptor.id == DiagnosticID::NearSurfaceDiagnosticSource &&
+                (has_noahmp || has_surface_layer)) {
+                names.push_back(descriptor.name);
+            }
+            continue;
+        }
         if (is_condensed_water_path(descriptor.id)) {
             if (source_component_for(descriptor.id, solver_choice.moisture_indices) >= 0) {
                 names.push_back(descriptor.name);
@@ -103,6 +193,15 @@ available_diagnostic_names (const SolverChoice& solver_choice)
         }
 
         names.push_back(descriptor.name);
+    }
+
+    if (has_noahmp || !active_lsm_names.empty()) {
+        amrex::ParmParse pp("erf");
+        int nsoil = 4;
+        const auto soil_names = active_lsm_names.empty()
+            ? (pp.query("lsm_nsoil", nsoil), dynamic_soil_diagnostic_names(nsoil))
+            : dynamic_soil_diagnostic_names(active_lsm_names);
+        names.insert(names.end(), soil_names.begin(), soil_names.end());
     }
 
     return names;

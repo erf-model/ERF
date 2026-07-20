@@ -105,6 +105,7 @@ diagnostic_category_to_string (DiagnosticCategory category) noexcept
     case DiagnosticCategory::SurfaceState:     return "SurfaceState";
     case DiagnosticCategory::Precipitation:    return "Precipitation";
     case DiagnosticCategory::ColumnIntegral:   return "ColumnIntegral";
+    case DiagnosticCategory::LandSurface:      return "LandSurface";
     case DiagnosticCategory::SampledLevel:     return "SampledLevel";
     }
 
@@ -178,6 +179,9 @@ format_2d_metadata_json (const amrex::Vector<std::string>& varnames)
 
     for (const auto& name : varnames) {
         const auto* static_descriptor = find_diagnostic(name);
+        if (static_descriptor == nullptr) {
+            static_descriptor = find_dynamic_soil_diagnostic(name);
+        }
         if (static_descriptor == nullptr) {
             amrex::Abort("2D metadata requested for unknown diagnostic '" + name + "'");
         }

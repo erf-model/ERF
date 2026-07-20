@@ -1,5 +1,6 @@
 #include <algorithm>
 #include <cmath>
+#include <limits>
 #include <string>
 #include <unordered_set>
 #include <utility>
@@ -10,6 +11,7 @@
 #include <AMReX_DistributionMapping.H>
 #include <AMReX_Geometry.H>
 #include <AMReX_Gpu.H>
+#include <AMReX_iMultiFab.H>
 #include <AMReX_MultiFab.H>
 #include <AMReX_ParmParse.H>
 #include <gtest/gtest.h>
@@ -24,7 +26,10 @@
 #include "ERF_Plotfile2DWaterPath.H"
 #include "ERF_Plotfile2DUtils.H"
 #include "ERF_DataStruct.H"
+#include "ERF_EOS.H"
 #include "ERF_IndexDefines.H"
+#include "ERF_MOSTStress.H"
+#include "Diagnostics/ERF_NearSurfaceDiagnostics.H"
 #include "Diagnostics/ERF_SurfaceFluxDiagnostics.H"
 
 using namespace plotfile2d;
@@ -40,6 +45,25 @@ bool contains (const std::string& haystack, const std::string& needle)
 bool has_name (const amrex::Vector<std::string>& names, const std::string& target)
 {
     return std::find(names.begin(), names.end(), target) != names.end();
+}
+
+amrex::Real diagnostic_test_tolerance (amrex::Real expected)
+{
+    return amrex::Real(128.0) * std::numeric_limits<amrex::Real>::epsilon() *
+           std::max(std::abs(expected), amrex::Real(1.0e-3));
+}
+
+amrex::Real reference_most_factor (amrex::Real height,
+                                   amrex::Real roughness_height,
+                                   amrex::Real obukhov_length)
+{
+    const amrex::Real zeta = height / obukhov_length;
+    const amrex::Real psi_h = (zeta > amrex::Real(0.0))
+        ? amrex::Real(-5.0) * zeta
+        : amrex::Real(2.0) * std::log(
+              amrex::Real(0.5) * (amrex::Real(1.0) +
+              std::sqrt(amrex::Real(1.0) - amrex::Real(16.0) * zeta)));
+    return std::log(height / roughness_height) - psi_h;
 }
 
 amrex::Box make_test_domain ()
@@ -109,6 +133,18 @@ void set_component_value_at_k (amrex::MultiFab& mf, int comp, int k_level, amrex
             if (k == k_level) {
                 arr(i, j, k, comp) = value;
             }
+        });
+    }
+    amrex::Gpu::streamSynchronize();
+}
+
+void set_land_mask_by_x (amrex::iMultiFab& land)
+{
+    for (amrex::MFIter mfi(land, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+        const amrex::Box& bx = mfi.tilebox();
+        const auto arr = land.array(mfi);
+        amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+            arr(i, j, k, 0) = (i == 0) ? 0 : 1;
         });
     }
     amrex::Gpu::streamSynchronize();
@@ -227,7 +263,18 @@ TEST(Plotfile2D, CatalogNamesMatchCanonicalOrder)
         "integrated_qr", "integrated_qs", "integrated_qg",
         "surface_diagnostic_source",
         "sensible_heat_flux", "latent_heat_flux",
-        "shoc_u_star", "shoc_Olen", "shoc_wthv_sfc"
+        "shoc_u_star", "shoc_Olen", "shoc_wthv_sfc",
+        "t_sfc", "sfc_emis", "sfc_alb_dir_vis", "sfc_alb_dir_nir",
+        "sfc_alb_dif_vis", "sfc_alb_dif_nir", "cos_zenith_angle",
+        "sw_flux_dn", "sw_flux_dn_dir_vis", "sw_flux_dn_dir_nir",
+        "sw_flux_dn_dif_vis", "sw_flux_dn_dif_nir", "lw_flux_dn",
+        "grdflx", "fira", "sav", "sag", "albedo", "sfcrunoff",
+        "udrunoff",
+        "noahmp_temperature_2m_vegetated", "noahmp_temperature_2m_bare",
+        "noahmp_water_vapor_mixing_ratio_2m_vegetated",
+        "noahmp_water_vapor_mixing_ratio_2m_bare",
+        "noahmp_vegetation_fraction", "temperature_2m",
+        "water_vapor_mixing_ratio_2m", "near_surface_diagnostic_source"
     };
 
     EXPECT_EQ(plotfile2d::diagnostic_names(), expected);
@@ -331,6 +378,28 @@ TEST(Plotfile2DWaterPath, NoPrecipitationSchemesExcludeAccumulations)
                 << "unexpected field " << name;
         }
     }
+}
+
+// Motivation: Availability must reflect the compiled/provider path: raw
+// Noah-MP fields are hidden without Noah-MP, while SurfaceLayer-only unified
+// temperature remains selectable and dry-run humidity does not.
+TEST(Plotfile2DWaterPath, LandSurfaceAvailabilityIsSchemeAware)
+{
+    SolverChoice dry;
+    dry.moisture_type = MoistureType::None;
+    const auto surface_layer_names = plotfile2d::available_diagnostic_names(dry, true);
+    EXPECT_TRUE(has_name(surface_layer_names, "temperature_2m"));
+    EXPECT_FALSE(has_name(surface_layer_names, "water_vapor_mixing_ratio_2m"));
+    EXPECT_TRUE(has_name(surface_layer_names, "near_surface_diagnostic_source"));
+    EXPECT_FALSE(has_name(surface_layer_names, "t_sfc"));
+    EXPECT_FALSE(has_name(surface_layer_names, "noahmp_vegetation_fraction"));
+
+    SolverChoice moist = dry;
+    moist.moisture_type = MoistureType::MoistNoCondensation;
+    const auto no_surface_layer_names = plotfile2d::available_diagnostic_names(moist, false);
+    EXPECT_FALSE(has_name(no_surface_layer_names, "temperature_2m"));
+    EXPECT_FALSE(has_name(no_surface_layer_names, "water_vapor_mixing_ratio_2m"));
+    EXPECT_FALSE(has_name(no_surface_layer_names, "near_surface_diagnostic_source"));
 }
 
 // Motivation: Warm-rain and no-ice schemes should expose only the accumulators
@@ -458,6 +527,7 @@ TEST(Plotfile2D, CatalogDescriptorsHaveRequiredMetadata)
         case plotfile2d::DiagnosticCategory::SurfaceState:
         case plotfile2d::DiagnosticCategory::Precipitation:
         case plotfile2d::DiagnosticCategory::ColumnIntegral:
+        case plotfile2d::DiagnosticCategory::LandSurface:
         case plotfile2d::DiagnosticCategory::SampledLevel:
             valid_category = true;
             break;
@@ -474,6 +544,558 @@ TEST(Plotfile2D, CatalogDescriptorsHaveRequiredMetadata)
         }
         EXPECT_TRUE(valid_missing_policy);
     }
+}
+
+// Motivation: Runtime soil descriptors must follow the active Noah-MP layer
+// count without adding a second fixed catalog or unstable metadata pointers.
+TEST(Plotfile2D, DynamicSoilDescriptorsFollowConfiguredLayerCount)
+{
+    const auto names = plotfile2d::dynamic_soil_diagnostic_names(2);
+    const amrex::Vector<std::string> expected{
+        "smois_1", "smois_2", "sh2o_1", "sh2o_2", "tslb_1", "tslb_2"
+    };
+    EXPECT_EQ(names, expected);
+
+    for (const auto& name : expected) {
+        const auto* descriptor = plotfile2d::find_dynamic_soil_diagnostic(name);
+        ASSERT_NE(descriptor, nullptr);
+        EXPECT_STREQ(descriptor->name, name.c_str());
+        EXPECT_EQ(descriptor->category, plotfile2d::DiagnosticCategory::LandSurface);
+        EXPECT_EQ(descriptor->missing_policy,
+                  plotfile2d::MissingPolicy::FillMinus999WhenUnavailable);
+        EXPECT_FALSE(std::string(descriptor->long_name).empty());
+        EXPECT_FALSE(std::string(descriptor->units).empty());
+    }
+    EXPECT_EQ(plotfile2d::find_dynamic_soil_diagnostic("smois_0"), nullptr);
+    EXPECT_STREQ(plotfile2d::find_dynamic_soil_diagnostic("smois_3")->name,
+                 "smois_3");
+}
+
+// Motivation: Availability must consume the active provider inventory in its
+// reported order, rather than exposing a guessed fixed set of soil layers.
+TEST(Plotfile2D, ActiveLandSurfaceInventoryControlsAvailability)
+{
+    SolverChoice sc;
+    sc.moisture_type = MoistureType::MoistNoCondensation;
+    const amrex::Vector<std::string> active{
+        "t_sfc", "smois_1", "tslb_1", "smois_2"
+    };
+    const auto available = plotfile2d::available_diagnostic_names(sc, true, active);
+
+    EXPECT_TRUE(has_name(available, "t_sfc"));
+    EXPECT_FALSE(has_name(available, "sfc_emis"));
+    EXPECT_TRUE(has_name(available, "smois_1"));
+    EXPECT_TRUE(has_name(available, "tslb_1"));
+    EXPECT_TRUE(has_name(available, "smois_2"));
+    EXPECT_FALSE(has_name(available, "smois_3"));
+}
+
+// Motivation: The native Noah-MP bundle is area-weighted by vegetation
+// fraction; the endpoint fractions catch accidental use of the wrong tile.
+TEST(NearSurfaceDiagnostics, NativeBundleAggregationHonorsTileFractions)
+{
+    using near_surface_diagnostics::NativeBundle;
+    using near_surface_diagnostics::aggregate_native_bundle;
+
+    const NativeBundle vegetated{300.0, 280.0, 0.004, 0.001, 1.0};
+    const auto veg = aggregate_native_bundle(vegetated);
+    EXPECT_NEAR(veg.temperature, 300.0, diagnostic_test_tolerance(300.0));
+    EXPECT_NEAR(veg.mixing_ratio, 0.004, diagnostic_test_tolerance(0.004));
+
+    const NativeBundle bare{300.0, 280.0, 0.004, 0.001, 0.0};
+    const auto bare_result = aggregate_native_bundle(bare);
+    EXPECT_NEAR(bare_result.temperature, 280.0, diagnostic_test_tolerance(280.0));
+    EXPECT_NEAR(bare_result.mixing_ratio, 0.001, diagnostic_test_tolerance(0.001));
+
+    const NativeBundle mixed{300.0, 280.0, 0.004, 0.001, 0.25};
+    const auto mixed_result = aggregate_native_bundle(mixed);
+    EXPECT_NEAR(mixed_result.temperature, 285.0, diagnostic_test_tolerance(285.0));
+    const amrex::Real expected_mixing_ratio = amrex::Real(0.00175);
+    const amrex::Real erroneously_reconverted = expected_mixing_ratio /
+        (amrex::Real(1.0) - expected_mixing_ratio);
+    const amrex::Real tolerance = diagnostic_test_tolerance(expected_mixing_ratio);
+    ASSERT_GT(std::abs(erroneously_reconverted - expected_mixing_ratio), tolerance);
+    EXPECT_NEAR(mixed_result.mixing_ratio, expected_mixing_ratio, tolerance);
+    EXPECT_GT(std::abs(mixed_result.mixing_ratio - erroneously_reconverted), tolerance);
+}
+
+// Motivation: One invalid Noah-MP component must reject the complete native
+// bundle so unified output cannot mix a native tile with a MOST fallback.
+TEST(NearSurfaceDiagnostics, NativeBundleValidationRejectsInvalidComponents)
+{
+    using near_surface_diagnostics::NativeBundle;
+    using near_surface_diagnostics::native_bundle_is_valid;
+
+    EXPECT_TRUE(native_bundle_is_valid(NativeBundle{300.0, 280.0, 0.004, 0.001, 0.5}));
+    EXPECT_FALSE(native_bundle_is_valid(NativeBundle{-9999.0, 280.0, 0.004, 0.001, 0.5}));
+    EXPECT_FALSE(native_bundle_is_valid(NativeBundle{300.0, 280.0, -0.001, 0.001, 0.5}));
+    EXPECT_FALSE(native_bundle_is_valid(NativeBundle{300.0, 280.0, 0.004, 0.001, 1.1}));
+}
+
+// Motivation: The diagnostic profile must reuse ERF's active integrated MOST
+// relation, including its stable/unstable correction and neutral limit.
+TEST(NearSurfaceDiagnostics, MostProfileMatchesActiveSimilarityFunction)
+{
+    using near_surface_diagnostics::MostProfile;
+    using near_surface_diagnostics::MostState;
+
+    const MostState state{300.0, 0.5, 0.010, 0.001, 0.1, 100.0};
+    MostProfile profile{};
+    ASSERT_TRUE(near_surface_diagnostics::evaluate_most_profile(state, 2.0, profile));
+
+    const amrex::Real reference_factor = reference_most_factor(2.0, 0.1, 100.0);
+    amrex::Real factor = 0.0;
+    ASSERT_TRUE(near_surface_diagnostics::evaluate_most_factor(state, 2.0, factor));
+    EXPECT_NEAR(factor, reference_factor, diagnostic_test_tolerance(reference_factor));
+    const amrex::Real expected_theta = 300.0 + 0.5 / KAPPA * factor;
+    const amrex::Real expected_mixing_ratio = 0.010 + 0.001 / KAPPA * factor;
+    EXPECT_NEAR(profile.potential_temperature, expected_theta,
+                diagnostic_test_tolerance(expected_theta));
+    EXPECT_NEAR(profile.mixing_ratio, expected_mixing_ratio,
+                diagnostic_test_tolerance(expected_mixing_ratio));
+
+    const MostState neutral{300.0, 0.0, 0.010, 0.0, 0.1, 1.0e30};
+    MostProfile neutral_profile{};
+    ASSERT_TRUE(near_surface_diagnostics::evaluate_most_profile(neutral, 2.0,
+                                                                 neutral_profile));
+    EXPECT_NEAR(neutral_profile.potential_temperature, 300.0,
+                diagnostic_test_tolerance(300.0));
+    EXPECT_NEAR(neutral_profile.mixing_ratio, 0.010,
+                diagnostic_test_tolerance(0.010));
+
+    MostProfile profile_5m{};
+    MostProfile profile_20m{};
+    ASSERT_TRUE(near_surface_diagnostics::evaluate_most_profile(state, 5.0, profile_5m));
+    ASSERT_TRUE(near_surface_diagnostics::evaluate_most_profile(state, 20.0, profile_20m));
+    const amrex::Real round_trip_factor =
+        reference_most_factor(20.0, state.roughness_height, state.obukhov_length) -
+        reference_most_factor(5.0, state.roughness_height, state.obukhov_length);
+    const amrex::Real expected_delta = state.theta_star / KAPPA * round_trip_factor;
+    EXPECT_NEAR(profile_20m.potential_temperature - profile_5m.potential_temperature,
+                expected_delta, diagnostic_test_tolerance(expected_delta));
+}
+
+// Motivation: The production MOST factor must be checked against the
+// documented stable, unstable, and neutral closed forms rather than against
+// another implementation of similarity_funs.
+TEST(NearSurfaceDiagnostics, MostFactorMatchesIndependentReference)
+{
+    using near_surface_diagnostics::MostState;
+    using near_surface_diagnostics::evaluate_most_factor;
+
+    for (const MostState state : {
+             MostState{300.0, 0.5, 0.010, 0.001, 0.1, 100.0},
+             MostState{300.0, 0.5, 0.010, 0.001, 0.1, -100.0},
+             MostState{300.0, 0.5, 0.010, 0.001, 0.1, 1.0e30}}) {
+        amrex::Real factor = 0.0;
+        ASSERT_TRUE(evaluate_most_factor(state, 2.0, factor));
+        const amrex::Real expected = reference_most_factor(
+            2.0, state.roughness_height, state.obukhov_length);
+        EXPECT_NEAR(factor, expected, diagnostic_test_tolerance(expected));
+    }
+
+    amrex::Real factor = 0.0;
+    EXPECT_FALSE(evaluate_most_factor(
+        MostState{300.0, 0.5, 0.010, 0.001, 0.1, 0.0}, 2.0, factor));
+    EXPECT_FALSE(evaluate_most_factor(
+        MostState{300.0, 0.5, 0.010, 0.001, 0.0, 100.0}, 2.0, factor));
+    EXPECT_FALSE(evaluate_most_factor(
+        MostState{300.0, 0.5, 0.010, 0.001, 2.0, 100.0}, 2.0, factor));
+    EXPECT_FALSE(evaluate_most_factor(
+        MostState{300.0, 0.5, 0.010, 0.001,
+                  std::numeric_limits<amrex::Real>::infinity(), 100.0},
+        2.0, factor));
+}
+
+// Motivation: Unified output must use one complete source bundle and publish
+// its provenance code, while invalid native data must not become plausible zero.
+TEST(NearSurfaceDiagnostics, FillUsesNativeBundleOrMissingAsOneDecision)
+{
+    const auto ba = make_test_slab_boxarray();
+    const amrex::DistributionMapping dm(ba);
+    amrex::MultiFab tv(ba, dm, 1, 0), tb(ba, dm, 1, 0);
+    amrex::MultiFab qv(ba, dm, 1, 0), qb(ba, dm, 1, 0), fv(ba, dm, 1, 0);
+    amrex::MultiFab dst(ba, dm, 3, 0);
+    tv.setVal(300.0); tb.setVal(290.0); qv.setVal(0.004); qb.setVal(0.002); fv.setVal(0.25);
+    dst.setVal(-7.0);
+
+    near_surface_diagnostics::Sources sources;
+    sources.native_temperature_vegetated = &tv;
+    sources.native_temperature_bare = &tb;
+    sources.native_mixing_ratio_vegetated = &qv;
+    sources.native_mixing_ratio_bare = &qb;
+    sources.native_vegetation_fraction = &fv;
+    sources.moist = true;
+    near_surface_diagnostics::fill(dst, 0, 1, 2, sources);
+    amrex::Gpu::streamSynchronize();
+    EXPECT_NEAR(dst.min(0), 292.5, diagnostic_test_tolerance(292.5));
+    EXPECT_NEAR(dst.min(1), 0.0025, diagnostic_test_tolerance(0.0025));
+    EXPECT_EQ(dst.min(2), 2.0);
+
+    qv.setVal(-9999.0);
+    near_surface_diagnostics::fill(dst, 0, 1, 2, sources);
+    amrex::Gpu::streamSynchronize();
+    EXPECT_NEAR(dst.min(0), -999.0, diagnostic_test_tolerance(-999.0));
+    EXPECT_NEAR(dst.min(1), -999.0, diagnostic_test_tolerance(-999.0));
+    EXPECT_EQ(dst.min(2), 0.0);
+}
+
+// Motivation: A mixed land/water slab must retain per-cell provenance when
+// MOST supplies the fallback after an invalid native bundle.
+TEST(NearSurfaceDiagnostics, MostFallbackPublishesMixedLandWaterSources)
+{
+    const auto ba = make_test_slab_boxarray();
+    const auto ba3d = make_test_boxarray();
+    const amrex::DistributionMapping dm(ba);
+    const amrex::DistributionMapping dm3d(ba3d);
+    amrex::MultiFab tv(ba, dm, 1, 0), tb(ba, dm, 1, 0);
+    amrex::MultiFab qv(ba, dm, 1, 0), qb(ba, dm, 1, 0), fv(ba, dm, 1, 0);
+    amrex::MultiFab theta(ba, dm, 1, 0), theta_star(ba, dm, 1, 0);
+    amrex::MultiFab qsurf(ba, dm, 1, 0), qstar(ba, dm, 1, 0);
+    amrex::MultiFab z0(ba, dm, 1, 0), olen(ba, dm, 1, 0);
+    amrex::MultiFab cons(ba3d, dm3d, RhoQ6_comp + 1, 0);
+    amrex::MultiFab dst(ba, dm, 3, 0);
+    amrex::iMultiFab land(ba, dm, 1, 0);
+
+    tv.setVal(-9999.0); tb.setVal(-9999.0); qv.setVal(-9999.0);
+    qb.setVal(-9999.0); fv.setVal(-9999.0);
+    theta.setVal(300.0); theta_star.setVal(0.0);
+    qsurf.setVal(0.010); qstar.setVal(0.0); z0.setVal(0.1); olen.setVal(1.0e30);
+    cons.setVal(0.0); dst.setVal(-7.0); land.setVal(1);
+    set_component_value_at_k(cons, Rho_comp, 0, 1.0);
+    set_component_value_at_k(cons, RhoTheta_comp, 0, 300.0);
+    set_component_value_at_k(cons, RhoQ1_comp, 0, 0.010);
+    set_land_mask_by_x(land);
+
+    near_surface_diagnostics::Sources sources;
+    sources.native_temperature_vegetated = &tv;
+    sources.native_temperature_bare = &tb;
+    sources.native_mixing_ratio_vegetated = &qv;
+    sources.native_mixing_ratio_bare = &qb;
+    sources.native_vegetation_fraction = &fv;
+    sources.theta_surface = &theta;
+    sources.theta_star = &theta_star;
+    sources.mixing_ratio_surface = &qsurf;
+    sources.mixing_ratio_star = &qstar;
+    sources.roughness_height = &z0;
+    sources.obukhov_length = &olen;
+    sources.land_mask = &land;
+    sources.cons = &cons;
+    sources.dz = 1.0;
+    sources.klo = 0;
+    sources.moist = true;
+    sources.has_lsm = true;
+    near_surface_diagnostics::fill(dst, 0, 1, 2, sources);
+    amrex::Gpu::streamSynchronize();
+
+    EXPECT_GT(dst.min(0), 0.0);
+    EXPECT_GT(dst.min(1), 0.0);
+    EXPECT_EQ(dst.min(2), 3.0);
+    EXPECT_EQ(dst.max(2), 4.0);
+
+    // Motivation: Both requested scalars must come from one coherent MOST
+    // bundle; a valid temperature must not leak when humidity is invalid.
+    qsurf.setVal(-9999.0);
+    near_surface_diagnostics::fill(dst, 0, 1, 2, sources);
+    amrex::Gpu::streamSynchronize();
+    EXPECT_NEAR(dst.min(0), -999.0, diagnostic_test_tolerance(-999.0));
+    EXPECT_NEAR(dst.min(1), -999.0, diagnostic_test_tolerance(-999.0));
+    EXPECT_EQ(dst.min(2), 0.0);
+}
+
+// Motivation: The unified writer must satisfy only the fields requested by
+// the caller; a dry temperature-only request must not require Noah humidity.
+TEST(NearSurfaceDiagnostics, RequestedFieldsSelectMinimalNativeBundle)
+{
+    const auto ba = make_test_slab_boxarray();
+    const amrex::DistributionMapping dm(ba);
+    amrex::MultiFab tv(ba, dm, 1, 0), tb(ba, dm, 1, 0), fv(ba, dm, 1, 0);
+    amrex::MultiFab dst(ba, dm, 2, 0);
+    tv.setVal(300.0); tb.setVal(280.0); fv.setVal(0.25); dst.setVal(-7.0);
+
+    near_surface_diagnostics::Sources temperature_sources;
+    temperature_sources.native_temperature_vegetated = &tv;
+    temperature_sources.native_temperature_bare = &tb;
+    temperature_sources.native_vegetation_fraction = &fv;
+    temperature_sources.moist = false;
+    near_surface_diagnostics::fill(dst, 0, -1, 1, temperature_sources);
+    amrex::Gpu::streamSynchronize();
+
+    EXPECT_NEAR(dst.min(0), 285.0, diagnostic_test_tolerance(285.0));
+    EXPECT_NEAR(dst.min(1), 2.0, diagnostic_test_tolerance(2.0));
+}
+
+// Motivation: A source-only request retains the established temperature-path
+// convention, so a valid MOST temperature source receives LSM fallback code.
+TEST(NearSurfaceDiagnostics, SourceOnlyRequestUsesTemperaturePath)
+{
+    const auto ba = make_test_slab_boxarray();
+    const auto ba3d = make_test_boxarray();
+    const amrex::DistributionMapping dm(ba);
+    const amrex::DistributionMapping dm3d(ba3d);
+    amrex::MultiFab theta(ba, dm, 1, 0), theta_star(ba, dm, 1, 0);
+    amrex::MultiFab z0(ba, dm, 1, 0), olen(ba, dm, 1, 0);
+    amrex::MultiFab cons(ba3d, dm3d, RhoTheta_comp + 1, 0);
+    amrex::MultiFab dst(ba, dm, 1, 0);
+    theta.setVal(300.0); theta_star.setVal(0.0); z0.setVal(0.1); olen.setVal(1.0e30);
+    cons.setVal(0.0); dst.setVal(-7.0);
+    set_component_value_at_k(cons, Rho_comp, 0, 1.0);
+    set_component_value_at_k(cons, RhoTheta_comp, 0, 300.0);
+
+    near_surface_diagnostics::Sources sources;
+    sources.theta_surface = &theta;
+    sources.theta_star = &theta_star;
+    sources.roughness_height = &z0;
+    sources.obukhov_length = &olen;
+    sources.cons = &cons;
+    sources.dz = 1.0;
+    sources.has_lsm = true;
+    sources.moist = false;
+    near_surface_diagnostics::fill(dst, -1, -1, 0, sources);
+    amrex::Gpu::streamSynchronize();
+
+    EXPECT_EQ(dst.min(0), 3.0);
+}
+
+// Motivation: A source-only request can be satisfied by the complete native
+// temperature bundle without humidity, MOST, atmospheric, or terrain state.
+TEST(NearSurfaceDiagnostics, SourceOnlyRequestUsesNativeTemperatureBundle)
+{
+    const auto ba = make_test_slab_boxarray();
+    const amrex::DistributionMapping dm(ba);
+    amrex::MultiFab tv(ba, dm, 1, 0), tb(ba, dm, 1, 0), fv(ba, dm, 1, 0);
+    amrex::MultiFab dst(ba, dm, 1, 0);
+    tv.setVal(300.0); tb.setVal(280.0); fv.setVal(0.25); dst.setVal(-7.0);
+
+    near_surface_diagnostics::Sources sources;
+    sources.native_temperature_vegetated = &tv;
+    sources.native_temperature_bare = &tb;
+    sources.native_vegetation_fraction = &fv;
+    sources.moist = false;
+    near_surface_diagnostics::fill(dst, -1, -1, 0, sources);
+    amrex::Gpu::streamSynchronize();
+    EXPECT_EQ(dst.min(0), 2.0);
+
+    tv.setVal(-9999.0);
+    near_surface_diagnostics::fill(dst, -1, -1, 0, sources);
+    amrex::Gpu::streamSynchronize();
+    EXPECT_EQ(dst.min(0), 0.0);
+}
+
+// Motivation: The temperature fill uses zero hydrostatic correction at 2 m
+// and must use height relative to the terrain surface, not absolute height.
+TEST(NearSurfaceDiagnostics, MostTemperatureFillUsesTerrainRelativeHeight)
+{
+    const auto ba = make_test_slab_boxarray();
+    const auto ba3d = make_test_boxarray();
+    const auto ba_nd = make_test_nodal_boxarray();
+    const amrex::DistributionMapping dm(ba);
+    const amrex::DistributionMapping dm3d(ba3d);
+    amrex::MultiFab theta(ba, dm, 1, 0), theta_star(ba, dm, 1, 0);
+    amrex::MultiFab z0(ba, dm, 1, 0), olen(ba, dm, 1, 0);
+    amrex::MultiFab cons(ba3d, dm3d, RhoTheta_comp + 1, 0);
+    amrex::MultiFab z_phys_nd(ba_nd, dm, 1, 0);
+    amrex::MultiFab dst(ba, dm, 2, 0);
+    theta.setVal(300.0); theta_star.setVal(0.0); z0.setVal(0.1); olen.setVal(1.0e30);
+    cons.setVal(0.0); z_phys_nd.setVal(0.0); dst.setVal(-7.0);
+    set_component_value_at_k(cons, Rho_comp, 0, 1.0);
+    set_component_value_at_k(cons, RhoTheta_comp, 0, 300.0);
+    set_component_value_at_k(z_phys_nd, 0, 1, 4.0);
+
+    near_surface_diagnostics::Sources sources;
+    sources.theta_surface = &theta;
+    sources.theta_star = &theta_star;
+    sources.roughness_height = &z0;
+    sources.obukhov_length = &olen;
+    sources.cons = &cons;
+    sources.z_phys_nd = &z_phys_nd;
+    sources.klo = 0;
+    sources.moist = false;
+    near_surface_diagnostics::fill(dst, 0, -1, 1, sources);
+    amrex::Gpu::streamSynchronize();
+
+    const amrex::Real p_cc = getPgivenRTh(300.0, 0.0);
+    const amrex::Real expected_at_2m = getTgivenPandTh(p_cc, 300.0, R_d/Cp_d);
+    EXPECT_NEAR(dst.min(0), expected_at_2m, diagnostic_test_tolerance(expected_at_2m));
+    EXPECT_EQ(dst.min(1), 1.0);
+
+    // Shift the terrain upward without changing the 2-m AGL height.
+    set_component_value_at_k(z_phys_nd, 0, 0, 100.0);
+    set_component_value_at_k(z_phys_nd, 0, 1, 104.0);
+    dst.setVal(-7.0);
+    near_surface_diagnostics::fill(dst, 0, -1, 1, sources);
+    amrex::Gpu::streamSynchronize();
+    EXPECT_NEAR(dst.min(0), expected_at_2m, diagnostic_test_tolerance(expected_at_2m));
+
+    // A one-meter increase in relative height must produce the corresponding
+    // hydrostatic pressure correction.
+    set_component_value_at_k(z_phys_nd, 0, 1, 106.0);
+    dst.setVal(-7.0);
+    near_surface_diagnostics::fill(dst, 0, -1, 1, sources);
+    amrex::Gpu::streamSynchronize();
+    const amrex::Real expected_at_3m = getTgivenPandTh(
+        p_cc + CONST_GRAV, 300.0, R_d/Cp_d);
+    EXPECT_NEAR(dst.min(0), expected_at_3m, diagnostic_test_tolerance(expected_at_3m));
+}
+
+// Motivation: A moist humidity-plus-provenance request uses only the native
+// humidity tile pair and vegetation fraction, without requiring temperature.
+TEST(NearSurfaceDiagnostics, RequestedHumidityUsesNativeHumidityBundle)
+{
+    const auto ba = make_test_slab_boxarray();
+    const amrex::DistributionMapping dm(ba);
+    amrex::MultiFab qv(ba, dm, 1, 0), qb(ba, dm, 1, 0), fv(ba, dm, 1, 0);
+    amrex::MultiFab dst(ba, dm, 2, 0);
+    qv.setVal(0.004); qb.setVal(0.002); fv.setVal(0.25); dst.setVal(-7.0);
+
+    near_surface_diagnostics::Sources sources;
+    sources.native_mixing_ratio_vegetated = &qv;
+    sources.native_mixing_ratio_bare = &qb;
+    sources.native_vegetation_fraction = &fv;
+    sources.moist = true;
+    near_surface_diagnostics::fill(dst, -1, 0, 1, sources);
+    amrex::Gpu::streamSynchronize();
+
+    EXPECT_NEAR(dst.min(0), 0.0025, diagnostic_test_tolerance(0.0025));
+    EXPECT_EQ(dst.min(1), 2.0);
+}
+
+// Motivation: MOST humidity plus provenance must not require temperature,
+// pressure, conserved state, or terrain geometry when native humidity fails.
+TEST(NearSurfaceDiagnostics, RequestedHumidityUsesMostBundleWithoutTemperature)
+{
+    const auto ba = make_test_slab_boxarray();
+    const amrex::DistributionMapping dm(ba);
+    amrex::MultiFab qsurf(ba, dm, 1, 0), qstar(ba, dm, 1, 0);
+    amrex::MultiFab z0(ba, dm, 1, 0), olen(ba, dm, 1, 0), source_mask(ba, dm, 1, 0);
+    amrex::MultiFab dst(ba, dm, 2, 0);
+    qsurf.setVal(0.010); qstar.setVal(0.001); z0.setVal(0.1); olen.setVal(100.0);
+    source_mask.setVal(2.0); dst.setVal(-7.0);
+
+    near_surface_diagnostics::Sources sources;
+    sources.mixing_ratio_surface = &qsurf;
+    sources.mixing_ratio_star = &qstar;
+    sources.roughness_height = &z0;
+    sources.obukhov_length = &olen;
+    sources.source_mask = &source_mask;
+    sources.moist = true;
+    sources.has_lsm = true;
+    near_surface_diagnostics::fill(dst, -1, 0, 1, sources);
+    amrex::Gpu::streamSynchronize();
+
+    const amrex::Real factor = reference_most_factor(2.0, 0.1, 100.0);
+    const amrex::Real expected = 0.010 + 0.001 / KAPPA * factor;
+    EXPECT_NEAR(dst.min(0), expected, diagnostic_test_tolerance(expected));
+    EXPECT_EQ(dst.min(1), 3.0);
+}
+
+// Motivation: Humidity-only MOST fallback must execute the unstable branch
+// through fill() without temperature, EOS, atmospheric, or terrain inputs.
+TEST(NearSurfaceDiagnostics, RequestedHumidityUsesUnstableMostBundleWithoutTemperature)
+{
+    const auto ba = make_test_slab_boxarray();
+    const amrex::DistributionMapping dm(ba);
+    amrex::MultiFab qsurf(ba, dm, 1, 0), qstar(ba, dm, 1, 0);
+    amrex::MultiFab z0(ba, dm, 1, 0), olen(ba, dm, 1, 0), source_mask(ba, dm, 1, 0);
+    amrex::MultiFab dst(ba, dm, 2, 0);
+    qsurf.setVal(0.010); qstar.setVal(0.001); z0.setVal(0.1); olen.setVal(-100.0);
+    source_mask.setVal(2.0); dst.setVal(-7.0);
+
+    near_surface_diagnostics::Sources sources;
+    sources.mixing_ratio_surface = &qsurf;
+    sources.mixing_ratio_star = &qstar;
+    sources.roughness_height = &z0;
+    sources.obukhov_length = &olen;
+    sources.source_mask = &source_mask;
+    sources.moist = true;
+    sources.has_lsm = true;
+    near_surface_diagnostics::fill(dst, -1, 0, 1, sources);
+    amrex::Gpu::streamSynchronize();
+
+    const amrex::Real zeta = amrex::Real(2.0) / olen.min(0);
+    ASSERT_LT(zeta, amrex::Real(0.0));
+    const amrex::Real factor = reference_most_factor(2.0, 0.1, -100.0);
+    const amrex::Real expected = 0.010 + 0.001 / KAPPA * factor;
+    EXPECT_NEAR(dst.min(0), expected, diagnostic_test_tolerance(expected));
+    EXPECT_EQ(dst.min(1), 3.0);
+}
+
+// Motivation: Invalid MOST geometry must leave both continuous humidity and
+// categorical provenance missing when no native source can satisfy the request.
+TEST(NearSurfaceDiagnostics, InvalidMostInputsProduceMissingHumidityAndSource)
+{
+    const auto ba = make_test_slab_boxarray();
+    const amrex::DistributionMapping dm(ba);
+    amrex::MultiFab qsurf(ba, dm, 1, 0), qstar(ba, dm, 1, 0);
+    amrex::MultiFab z0(ba, dm, 1, 0), olen(ba, dm, 1, 0);
+    amrex::MultiFab dst(ba, dm, 2, 0);
+    qsurf.setVal(0.010); qstar.setVal(0.001); z0.setVal(0.1); olen.setVal(0.0);
+    dst.setVal(-7.0);
+
+    near_surface_diagnostics::Sources sources;
+    sources.mixing_ratio_surface = &qsurf;
+    sources.mixing_ratio_star = &qstar;
+    sources.roughness_height = &z0;
+    sources.obukhov_length = &olen;
+    sources.moist = true;
+    near_surface_diagnostics::fill(dst, -1, 0, 1, sources);
+    amrex::Gpu::streamSynchronize();
+    EXPECT_EQ(dst.min(0), -999.0);
+    EXPECT_EQ(dst.min(1), 0.0);
+
+    z0.setVal(2.0); olen.setVal(100.0);
+    near_surface_diagnostics::fill(dst, -1, 0, 1, sources);
+    amrex::Gpu::streamSynchronize();
+    EXPECT_EQ(dst.min(0), -999.0);
+    EXPECT_EQ(dst.min(1), 0.0);
+}
+
+// Motivation: Provenance masks are categorical. Fractional and out-of-range
+// values must fall back to land/sea classification instead of being emitted.
+TEST(NearSurfaceDiagnostics, InvalidSourceMaskFallsBackToLandSeaClassification)
+{
+    const auto ba = make_test_slab_boxarray();
+    const auto ba3d = make_test_boxarray();
+    const amrex::DistributionMapping dm(ba);
+    const amrex::DistributionMapping dm3d(ba3d);
+    amrex::MultiFab theta(ba, dm, 1, 0), theta_star(ba, dm, 1, 0);
+    amrex::MultiFab z0(ba, dm, 1, 0), olen(ba, dm, 1, 0), source_mask(ba, dm, 1, 0);
+    amrex::MultiFab cons(ba3d, dm3d, RhoTheta_comp + 1, 0);
+    amrex::iMultiFab land(ba, dm, 1, 0);
+    amrex::MultiFab dst(ba, dm, 1, 0);
+    theta.setVal(300.0); theta_star.setVal(0.0); z0.setVal(0.1); olen.setVal(1.0e30);
+    source_mask.setVal(2.5); land.setVal(1); cons.setVal(0.0); dst.setVal(-7.0);
+    set_component_value_at_k(cons, Rho_comp, 0, 1.0);
+    set_component_value_at_k(cons, RhoTheta_comp, 0, 300.0);
+
+    near_surface_diagnostics::Sources sources;
+    sources.theta_surface = &theta;
+    sources.theta_star = &theta_star;
+    sources.roughness_height = &z0;
+    sources.obukhov_length = &olen;
+    sources.source_mask = &source_mask;
+    sources.land_mask = &land;
+    sources.cons = &cons;
+    sources.dz = 1.0;
+    sources.moist = false;
+    near_surface_diagnostics::fill(dst, -1, -1, 0, sources);
+    amrex::Gpu::streamSynchronize();
+    EXPECT_EQ(dst.min(0), 1.0);
+
+    source_mask.setVal(0.0); land.setVal(0);
+    near_surface_diagnostics::fill(dst, -1, -1, 0, sources);
+    amrex::Gpu::streamSynchronize();
+    EXPECT_EQ(dst.min(0), 4.0);
+
+    source_mask.setVal(7.0); land.setVal(1);
+    near_surface_diagnostics::fill(dst, -1, -1, 0, sources);
+    amrex::Gpu::streamSynchronize();
+    EXPECT_EQ(dst.min(0), 1.0);
+
+    source_mask.setVal(std::numeric_limits<amrex::Real>::infinity());
+    near_surface_diagnostics::fill(dst, -1, -1, 0, sources);
+    amrex::Gpu::streamSynchronize();
+    EXPECT_EQ(dst.min(0), 1.0);
 }
 
 // Motivation: The selection helper should be able to resolve a known catalog
@@ -516,7 +1138,7 @@ TEST(Plotfile2D, FindDiagnosticReturnsDescriptorForSurfaceDiagnosticSource)
     EXPECT_EQ(descriptor->id, plotfile2d::DiagnosticID::SurfaceDiagnosticSource);
     EXPECT_FALSE(std::string(descriptor->long_name).empty());
     EXPECT_FALSE(std::string(descriptor->units).empty());
-    EXPECT_EQ(descriptor->missing_policy, plotfile2d::MissingPolicy::FillMinus999WhenUnavailable);
+    EXPECT_EQ(descriptor->missing_policy, plotfile2d::MissingPolicy::AlwaysAvailable);
 }
 
 // Motivation: The public precipitation fields must carry the documented
