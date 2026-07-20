@@ -1,9 +1,13 @@
 # GATE
 
-Idealized tropical maritime convection on a 12.8 x 12.8 x 4 km domain (128 x 128 x 100),
-periodic in the horizontal. The large-scale forcing (geostrophic wind, subsidence, and
-advective tendencies) and the bulk-aerodynamic surface fluxes are configured as in the
-RICO case (see `../RICO`); the case is named for the GARP Atlantic Tropical Experiment.
+Idealized tropical convection following the GATE Phase III cloud-resolving-model case of
+Grabowski, Wu, and Moncrieff (1996), on a 12.8 x 12.8 x 4 km domain (128 x 128 x 100),
+periodic in the horizontal. The large-scale forcing is prescribed height-dependent profiles
+of the apparent heat source (a theta tendency), the apparent moisture sink (a qv tendency),
+and the geostrophic wind, fit to the GATE composite data; the large-scale subsidence is set
+to zero (w_bar = 0, as required with periodic lateral boundaries). Only the bulk-aerodynamic
+surface fluxes use the RICO formulation (see `../RICO`). The case is named for the GARP
+Atlantic Tropical Experiment (GATE, 1974).
 
 ## Input files
 
