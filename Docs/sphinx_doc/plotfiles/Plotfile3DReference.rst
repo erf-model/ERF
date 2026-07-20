@@ -430,6 +430,11 @@ In general, an aggregate fixed field is selected only when the complete
 inclusive q-component range used by its writer is present in the actual
 conserved state. SuperDroplets satisfies this rule for its q1:q3 water state.
 
+For the fixed mixed-phase layouts, ``qi`` is read from ``RhoQ3`` and
+``qrain`` from ``RhoQ4``. Warm-rain layouts have no ice component and place
+``qrain`` in ``RhoQ3``. Selection checks the exact source component used by
+the writer.
+
 Optional storage restrictions
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 

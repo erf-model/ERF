@@ -71,6 +71,36 @@ TEST(Plotfile3DSelection, AggregateRangesMatchFixedWriterLayouts)
     }
 }
 
+// Motivation: Cloud ice is stored in q3; its availability must not depend
+// on the unrelated q4 rain component. The synthetic truncated state isolates
+// selector source mapping and is not a supported production SAM layout.
+TEST(Plotfile3DSelection, CloudIceUsesQ3SourceComponent)
+{
+    const int through_q3 =
+        erf_plotfile::plot3d_q_conserved_component_index(3) + 1;
+
+    const auto cold_through_q3 = make_capabilities(
+        MoistureType::SAM,
+        through_q3,
+        6,
+        0,
+        3);
+
+    EXPECT_TRUE(
+        erf_plotfile::plot3d_source_component_available(
+            cold_through_q3, 3));
+    EXPECT_FALSE(
+        erf_plotfile::plot3d_source_component_available(
+            cold_through_q3, 4));
+
+    EXPECT_TRUE(
+        erf_plotfile::plot3d_fixed_variable_available(
+            "qi", cold_through_q3));
+    EXPECT_FALSE(
+        erf_plotfile::plot3d_fixed_variable_available(
+            "qrain", cold_through_q3));
+}
+
 // Motivation: SuperDroplets replaces its constructor sentinel during
 // readInputs() and stores qv, qc, and qr in RhoQ1-RhoQ3. This regression
 // prevents the temporary sentinel from being mistaken for a missing q3.

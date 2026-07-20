@@ -306,7 +306,7 @@ plot3d_fixed_variable_available (const std::string& name,
     }
     if (name == "qv")    return moisture.vapor && plot3d_moist_q_component_available(caps, 1);
     if (name == "qc")    return moisture.cloud_liquid && plot3d_moist_q_component_available(caps, 2);
-    if (name == "qi")    return moisture.cloud_ice && plot3d_moist_q_component_available(caps, 4);
+    if (name == "qi")    return moisture.cloud_ice && plot3d_moist_q_component_available(caps, 3);
     if (name == "qrain") return moisture.rain && plot3d_moist_q_component_available(
         caps, caps.moist_state_size > 3 ? 4 : 3);
     if (name == "qsnow") return moisture.snow && plot3d_moist_q_component_available(caps, 5);

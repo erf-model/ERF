@@ -51,16 +51,21 @@ function(add_test_plotfile_header TEST_NAME TEST_DIR TEST_EXE PLTFILE)
     set(header_checker "${PROJECT_SOURCE_DIR}/Tests/CheckPlotfileHeader.cmake")
     set(test_log "${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.log")
     set(header_file "${CURRENT_TEST_BINARY_DIR}/${PLTFILE}/Header")
+    # Regression motivation: this test is launched through `sh -c`, while on
+    # Windows CMAKE_COMMAND normally resides below "C:/Program Files". Keep
+    # checker executable and path-bearing arguments shell-quoted.
     set(check_command
-        "${CMAKE_COMMAND}"
-        "-DHEADER=${header_file}"
-        "-DEXPECTED_NAMES_FILE=${CURRENT_TEST_BINARY_DIR}/expected_names.txt"
-        "-DLOG=${test_log}"
-        "-DEXPECTED_UNAVAILABLE_FILE=${CURRENT_TEST_BINARY_DIR}/expected_unavailable.txt"
-        "-P" "${header_checker}")
+        "\"${CMAKE_COMMAND}\""
+        "\"-DHEADER=${header_file}\""
+        "\"-DEXPECTED_NAMES_FILE=${CURRENT_TEST_BINARY_DIR}/expected_names.txt\""
+        "\"-DLOG=${test_log}\""
+        "\"-DEXPECTED_UNAVAILABLE_FILE=${CURRENT_TEST_BINARY_DIR}/expected_unavailable.txt\""
+        "-P"
+        "\"${header_checker}\"")
     list(JOIN check_command " " check_command_string)
+    set(test_input "${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.i")
     set(test_command sh -c
-        "${MPI_COMMANDS} ${TEST_EXE} ${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.i > ${test_log} 2>&1 && ${check_command_string}")
+        "${MPI_COMMANDS} ${TEST_EXE} \"${test_input}\" > \"${test_log}\" 2>&1 && ${check_command_string}")
 
     add_test(${TEST_NAME} ${test_command})
     set_tests_properties(${TEST_NAME}

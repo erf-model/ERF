@@ -1198,8 +1198,9 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
                 mf_comp += 1;
             }
 
-            if(containerHasElement(plot_var_names, "qi") && (n_qstate_moist >= 4))
+            if(containerHasElement(plot_var_names, "qi"))
             {
+                assert_q_range_in_state("qi", {3, 3});
                 MultiFab::Copy(  mf[lev], vars_new[lev][Vars::cons], RhoQ3_comp, mf_comp, 1, 0);
                 MultiFab::Divide(mf[lev], vars_new[lev][Vars::cons], Rho_comp  , mf_comp, 1, 0);
                 mf_comp += 1;
