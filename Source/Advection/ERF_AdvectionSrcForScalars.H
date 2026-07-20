@@ -24,24 +24,24 @@ AdvectionSrcForScalarsWrapper (const amrex::Box& bx,
     const amrex::Box ybx = amrex::surroundingNodes(bx,1);
     const amrex::Box zbx = amrex::surroundingNodes(bx,2);
 
-    amrex::ParallelFor(xbx, [=,zero_d=zero] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+    amrex::ParallelFor(xbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
         const int prim_index = cons_index - 1;
-        amrex::Real interpx(zero_d);
+        amrex::Real interpx(zero);
         interp_prim_h.InterpolateInX(i,j,k,prim_index,interpx,avg_xmom(i  ,j  ,k  ));
         (flx_arr[0])(i,j,k) = avg_xmom(i,j,k) * interpx;
     });
-    amrex::ParallelFor(ybx, [=,zero_d=zero] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+    amrex::ParallelFor(ybx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
         const int prim_index = cons_index - 1;
-        amrex::Real interpy(zero_d);
+        amrex::Real interpy(zero);
         interp_prim_h.InterpolateInY(i,j,k,prim_index,interpy,avg_ymom(i  ,j  ,k  ));
         (flx_arr[1])(i,j,k) = avg_ymom(i,j,k) * interpy;
     });
-    amrex::ParallelFor(zbx, [=,zero_d=zero] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+    amrex::ParallelFor(zbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
         const int prim_index = cons_index - 1;
-        amrex::Real interpz(zero_d);
+        amrex::Real interpz(zero);
         interp_prim_v.InterpolateInZ(i,j,k,prim_index,interpz,avg_zmom(i  ,j  ,k  ));
         (flx_arr[2])(i,j,k) = avg_zmom(i,j,k) * interpz;
     });

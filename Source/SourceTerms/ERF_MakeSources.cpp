@@ -349,21 +349,21 @@ void make_sources (int level,
             const int n = RhoTheta_comp;
             if (solverChoice.custom_forcing_prim_vars) {
                 const int nr = Rho_comp;
-                ParallelFor(bx, [=,one_d=one,myhalf_d=myhalf] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
                 {
-                    Real dzInv = (z_cc_arr) ? one_d/ (z_cc_arr(i,j,k+1) - z_cc_arr(i,j,k-1)) : myhalf_d*dxInv[2];
+                    Real dzInv = (z_cc_arr) ? one/ (z_cc_arr(i,j,k+1) - z_cc_arr(i,j,k-1)) : myhalf*dxInv[2];
                     Real T_hi = dptr_t_plane(k+1) / dptr_r_plane(k+1);
                     Real T_lo = dptr_t_plane(k-1) / dptr_r_plane(k-1);
-                    Real wbar_cc = myhalf_d * (dptr_wbar_sub[k] + dptr_wbar_sub[k+1]);
+                    Real wbar_cc = myhalf * (dptr_wbar_sub[k] + dptr_wbar_sub[k+1]);
                     cell_src(i, j, k, n) -= cell_data(i,j,k,nr) * wbar_cc * (T_hi - T_lo) * dzInv;
                 });
             } else {
-                ParallelFor(bx, [=,one_d=one,myhalf_d=myhalf] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
                 {
-                    Real dzInv = (z_cc_arr) ? one_d/ (z_cc_arr(i,j,k+1) - z_cc_arr(i,j,k-1)) : myhalf_d*dxInv[2];
+                    Real dzInv = (z_cc_arr) ? one/ (z_cc_arr(i,j,k+1) - z_cc_arr(i,j,k-1)) : myhalf*dxInv[2];
                     Real T_hi = dptr_t_plane(k+1) / dptr_r_plane(k+1);
                     Real T_lo = dptr_t_plane(k-1) / dptr_r_plane(k-1);
-                    Real wbar_cc = myhalf_d * (dptr_wbar_sub[k] + dptr_wbar_sub[k+1]);
+                    Real wbar_cc = myhalf * (dptr_wbar_sub[k] + dptr_wbar_sub[k+1]);
                     cell_src(i, j, k, n) -= wbar_cc * (T_hi - T_lo) * dzInv;
                 });
             }
@@ -376,26 +376,26 @@ void make_sources (int level,
             const int nv = RhoQ1_comp;
             if (solverChoice.custom_forcing_prim_vars) {
                 const int nr = Rho_comp;
-                ParallelFor(bx, [=,one_d=one,myhalf_d=myhalf] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
                 {
-                    Real dzInv = (z_cc_arr) ? one_d/ (z_cc_arr(i,j,k+1) - z_cc_arr(i,j,k-1)) : myhalf_d*dxInv[2];
+                    Real dzInv = (z_cc_arr) ? one/ (z_cc_arr(i,j,k+1) - z_cc_arr(i,j,k-1)) : myhalf*dxInv[2];
                     Real Qv_hi = dptr_qv_plane(k+1) / dptr_r_plane(k+1);
                     Real Qv_lo = dptr_qv_plane(k-1) / dptr_r_plane(k-1);
                     Real Qc_hi = dptr_qc_plane(k+1) / dptr_r_plane(k+1);
                     Real Qc_lo = dptr_qc_plane(k-1) / dptr_r_plane(k-1);
-                    Real wbar_cc = myhalf_d * (dptr_wbar_sub[k] + dptr_wbar_sub[k+1]);
+                    Real wbar_cc = myhalf * (dptr_wbar_sub[k] + dptr_wbar_sub[k+1]);
                     cell_src(i, j, k, nv  ) -= cell_data(i,j,k,nr) * wbar_cc * (Qv_hi - Qv_lo) * dzInv;
                     cell_src(i, j, k, nv+1) -= cell_data(i,j,k,nr) * wbar_cc * (Qc_hi - Qc_lo) * dzInv;
                 });
             } else {
-                ParallelFor(bx, [=,one_d=one,myhalf_d=myhalf] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
                 {
-                    Real dzInv = (z_cc_arr) ? one_d/ (z_cc_arr(i,j,k+1) - z_cc_arr(i,j,k-1)) : myhalf_d*dxInv[2];
+                    Real dzInv = (z_cc_arr) ? one/ (z_cc_arr(i,j,k+1) - z_cc_arr(i,j,k-1)) : myhalf*dxInv[2];
                     Real Qv_hi = dptr_qv_plane(k+1) / dptr_r_plane(k+1);
                     Real Qv_lo = dptr_qv_plane(k-1) / dptr_r_plane(k-1);
                     Real Qc_hi = dptr_qc_plane(k+1) / dptr_r_plane(k+1);
                     Real Qc_lo = dptr_qc_plane(k-1) / dptr_r_plane(k-1);
-                    Real wbar_cc = myhalf_d * (dptr_wbar_sub[k] + dptr_wbar_sub[k+1]);
+                    Real wbar_cc = myhalf * (dptr_wbar_sub[k] + dptr_wbar_sub[k+1]);
                     cell_src(i, j, k, nv  ) -= wbar_cc * (Qv_hi - Qv_lo) * dzInv;
                     cell_src(i, j, k, nv+1) -= wbar_cc * (Qc_hi - Qc_lo) * dzInv;
                 });
@@ -524,20 +524,21 @@ void make_sources (int level,
 
             const Real Olen_in            = solverChoice.if_Olen_in;
 
-            ParallelFor(bx, [=,myhalf_d=myhalf,zero_d=zero,two_d=two] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+            ParallelFor(bx, [=]
+                        AMREX_GPU_DEVICE(int i, int j, int k) noexcept
             {
                 const Real t_blank       = t_blank_arr(i, j, k);
                 const Real t_blank_above = t_blank_arr(i, j, k+1);
-                const Real ux_cc_2r = myhalf_d * (u(i  ,j  ,k+1) + u(i+1,j  ,k+1));
-                const Real uy_cc_2r = myhalf_d * (v(i  ,j  ,k+1) + v(i  ,j+1,k+1));
+                const Real ux_cc_2r = myhalf * (u(i  ,j  ,k+1) + u(i+1,j  ,k+1));
+                const Real uy_cc_2r = myhalf * (v(i  ,j  ,k+1) + v(i  ,j+1,k+1));
                 const Real h_windspeed2r  = std::sqrt(ux_cc_2r * ux_cc_2r + uy_cc_2r * uy_cc_2r);
 
                 const Real theta          = cell_data(i,j,k  ,RhoTheta_comp) / cell_data(i,j,k  ,Rho_comp);
                 const Real theta_neighbor = cell_data(i,j,k+1,RhoTheta_comp) / cell_data(i,j,k+1,Rho_comp);
 
                 // SURFACE TEMP AND HEATING/COOLING RATE
-                if (init_surf_temp > zero_d) {
-                    if (t_blank > 0 && (t_blank_above == zero_d)) { // force to MOST value
+                if (init_surf_temp > zero) {
+                    if (t_blank > 0 && (t_blank_above == zero)) { // force to MOST value
                         const Real surf_temp    = init_surf_temp + surf_heating_rate*time;
                         const Real bc_forcing_rt_srf = -(cell_data(i,j,k-1,Rho_comp) * surf_temp - cell_data(i,j,k-1,RhoTheta_comp));
                         cell_src(i, j, k-1, RhoTheta_comp) -= drag_coefficient * U_s * bc_forcing_rt_srf; // k-1
@@ -546,13 +547,13 @@ void make_sources (int level,
 
                 // SURFACE HEAT FLUX
                 if (tflux != Real(1e-8)){
-                    if (t_blank > 0 && (t_blank_above == zero_d)) { // force to MOST value
-                        Real psi_m           = zero_d;
-                        Real psi_h           = zero_d;
-                        Real psi_h_neighbor  = zero_d;
+                    if (t_blank > 0 && (t_blank_above == zero)) { // force to MOST value
+                        Real psi_m           = zero;
+                        Real psi_h           = zero;
+                        Real psi_h_neighbor  = zero;
                         Real ustar = h_windspeed2r * kappa / (std::log((Real(1.5)) * dx_z / z0) - psi_m);
                         const Real Olen  = -ustar * ustar * ustar * theta / (kappa * ggg * tflux + tiny);
-                        const Real zeta          = (myhalf_d) * dx_z / Olen;
+                        const Real zeta          = (myhalf) * dx_z / Olen;
                         const Real zeta_neighbor = (Real(1.5)) * dx_z / Olen;
 
                         // similarity functions
@@ -562,15 +563,15 @@ void make_sources (int level,
                         ustar = h_windspeed2r * kappa / (std::log((Real(1.5)) * dx_z / z0) - psi_m);
 
                         // prevent some unphysical math
-                        if (!(ustar > zero_d && !std::isnan(ustar))) { ustar = zero_d; }
-                        if (!(ustar < two_d && !std::isnan(ustar))) { ustar = two_d; }
+                        if (!(ustar > zero && !std::isnan(ustar))) { ustar = zero; }
+                        if (!(ustar < two && !std::isnan(ustar))) { ustar = two; }
                         if (psi_h_neighbor > std::log(Real(1.5) * dx_z / z0)) { psi_h_neighbor = std::log(Real(1.5) * dx_z / z0); }
-                        if (psi_h > std::log(myhalf_d * dx_z / z0)) { psi_h = std::log(myhalf_d * dx_z / z0); }
+                        if (psi_h > std::log(myhalf * dx_z / z0)) { psi_h = std::log(myhalf * dx_z / z0); }
 
                         // We do not know the actual temperature so use cell above
                         const Real thetastar    = theta * ustar * ustar / (kappa * ggg * Olen);
                         const Real surf_temp    = theta_neighbor - thetastar / kappa * (std::log((Real(1.5)) * dx_z / z0) - psi_h_neighbor);
-                        const Real tTarget      = surf_temp + thetastar / kappa * (std::log((myhalf_d) * dx_z / z0) - psi_h);
+                        const Real tTarget      = surf_temp + thetastar / kappa * (std::log((myhalf) * dx_z / z0) - psi_h);
 
                         const Real bc_forcing_rt = -(cell_data(i,j,k,Rho_comp) * tTarget - cell_data(i,j,k,RhoTheta_comp));
                         cell_src(i, j, k, RhoTheta_comp) -= drag_coefficient * U_s * bc_forcing_rt;
@@ -579,9 +580,9 @@ void make_sources (int level,
 
                 // OBUKHOV LENGTH
                 if (Olen_in != Real(1e-8)){
-                    if (t_blank > 0 && (t_blank_above == zero_d)) { // force to MOST value
+                    if (t_blank > 0 && (t_blank_above == zero)) { // force to MOST value
                         const Real Olen  = Olen_in;
-                        const Real zeta          = (myhalf_d) * dx_z / Olen;
+                        const Real zeta          = (myhalf) * dx_z / Olen;
                         const Real zeta_neighbor = (Real(1.5)) * dx_z / Olen;
 
                         // similarity functions
@@ -593,7 +594,7 @@ void make_sources (int level,
                         // We do not know the actual temperature so use cell above
                         const Real thetastar    = theta * ustar * ustar / (kappa * ggg * Olen);
                         const Real surf_temp    = theta_neighbor - thetastar / kappa * (std::log((Real(1.5)) * dx_z / z0) - psi_h_neighbor);
-                        const Real tTarget      = surf_temp + thetastar / kappa * (std::log((myhalf_d) * dx_z / z0) - psi_h);
+                        const Real tTarget      = surf_temp + thetastar / kappa * (std::log((myhalf) * dx_z / z0) - psi_h);
 
                         const Real bc_forcing_rt = -(cell_data(i,j,k,Rho_comp) * tTarget - cell_data(i,j,k,RhoTheta_comp));
                         cell_src(i, j, k, RhoTheta_comp) -= drag_coefficient * U_s * bc_forcing_rt;
@@ -623,7 +624,7 @@ void make_sources (int level,
             // Note this has been converted to K / s when it was read in;
             const Real surf_heating_rate  = solverChoice.if_surf_heating_rate;
 
-            ParallelFor(bx, [=,zero_d=zero,one_d=one,three_d=three] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+            ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
             {
                 Real t_blank       = t_blank_arr(i, j, k);
                 Real t_blank_below = t_blank_arr(i, j, k-1);
@@ -632,50 +633,50 @@ void make_sources (int level,
                 Real t_blank_south  = t_blank_arr(i  , j-1, k);
                 Real t_blank_east   = t_blank_arr(i+1, j  , k);
                 Real t_blank_west   = t_blank_arr(i-1, j  , k);
-                if (t_blank < min_t_blank) { t_blank = zero_d; } // deal with situations where very small volfrac exist
-                if (t_blank_below < min_t_blank) { t_blank_below = zero_d; }
-                if (t_blank_north < min_t_blank) { t_blank_north = zero_d; }
-                if (t_blank_south < min_t_blank) { t_blank_south = zero_d; }
-                if (t_blank_east < min_t_blank) { t_blank_east = zero_d; }
-                if (t_blank_west < min_t_blank) { t_blank_west = zero_d; }
+                if (t_blank < min_t_blank) { t_blank = zero; } // deal with situations where very small volfrac exist
+                if (t_blank_below < min_t_blank) { t_blank_below = zero; }
+                if (t_blank_north < min_t_blank) { t_blank_north = zero; }
+                if (t_blank_south < min_t_blank) { t_blank_south = zero; }
+                if (t_blank_east < min_t_blank) { t_blank_east = zero; }
+                if (t_blank_west < min_t_blank) { t_blank_west = zero; }
 
                 Real dx_z    = (z_cc_arr) ? (z_cc_arr(i,j,k) - z_cc_arr(i,j,k-1)) : dx[2];
-                Real drag_coefficient = alpha_h / std::pow(dx_x*dx_y*dx_z, one_d/three_d);
+                Real drag_coefficient = alpha_h / std::pow(dx_x*dx_y*dx_z, one/three);
 
                 // SURFACE TEMP AND HEATING/COOLING RATE
-                if (init_surf_temp > zero_d) {
+                if (init_surf_temp > zero) {
                     const Real surf_temp    = init_surf_temp + surf_heating_rate*time;
-                    if (t_blank > 0 && (t_blank_above == zero_d) && (t_blank_below == one_d)) { // building roof
+                    if (t_blank > 0 && (t_blank_above == zero) && (t_blank_below == one)) { // building roof
                         const Real bc_forcing_rt_srf = -(cell_data(i,j,k,Rho_comp) * surf_temp - cell_data(i,j,k,RhoTheta_comp));
                         cell_src(i, j, k, RhoTheta_comp) -= drag_coefficient * U_s * bc_forcing_rt_srf;
 
-                    } else if (((t_blank > 0 && t_blank < t_blank_west && t_blank_east == zero_d) ||
-                                (t_blank > 0 && t_blank < t_blank_east && t_blank_west == zero_d) ||
-                                (t_blank > 0 && t_blank < t_blank_north && t_blank_south == zero_d) ||
-                                (t_blank > 0 && t_blank < t_blank_south && t_blank_north == zero_d))) {
+                    } else if (((t_blank > 0 && t_blank < t_blank_west && t_blank_east == zero) ||
+                                (t_blank > 0 && t_blank < t_blank_east && t_blank_west == zero) ||
+                                (t_blank > 0 && t_blank < t_blank_north && t_blank_south == zero) ||
+                                (t_blank > 0 && t_blank < t_blank_south && t_blank_north == zero))) {
                         // this should enter for just building walls
                         // walls are currently separated to allow for flexible in the future to heat walls differently
 
                         // south face
-                        if ((t_blank < t_blank_north) && (t_blank_north == one_d)) {
+                        if ((t_blank < t_blank_north) && (t_blank_north == one)) {
                             const Real bc_forcing_rt_srf = -(cell_data(i,j,k,Rho_comp) * surf_temp - cell_data(i,j,k,RhoTheta_comp));
                             cell_src(i, j, k, RhoTheta_comp) -= drag_coefficient * U_s * bc_forcing_rt_srf;
                         }
 
                         // north face
-                        if ((t_blank < t_blank_south) && (t_blank_south == one_d)) {
+                        if ((t_blank < t_blank_south) && (t_blank_south == one)) {
                             const Real bc_forcing_rt_srf = -(cell_data(i,j,k,Rho_comp) * surf_temp - cell_data(i,j,k,RhoTheta_comp));
                             cell_src(i, j, k, RhoTheta_comp) -= drag_coefficient * U_s * bc_forcing_rt_srf;
                         }
 
                         // west face
-                        if ((t_blank < t_blank_east) && (t_blank_east == one_d)) {
+                        if ((t_blank < t_blank_east) && (t_blank_east == one)) {
                             const Real bc_forcing_rt_srf = -(cell_data(i,j,k,Rho_comp) * surf_temp - cell_data(i,j,k,RhoTheta_comp));
                             cell_src(i, j, k, RhoTheta_comp) -= drag_coefficient * U_s * bc_forcing_rt_srf;
                         }
 
                         // east face
-                        if ((t_blank < t_blank_west) && (t_blank_west == one_d)) {
+                        if ((t_blank < t_blank_west) && (t_blank_west == one)) {
                             const Real bc_forcing_rt_srf = -(cell_data(i,j,k,Rho_comp) * surf_temp - cell_data(i,j,k,RhoTheta_comp));
                             cell_src(i, j, k, RhoTheta_comp) -= drag_coefficient * U_s * bc_forcing_rt_srf;
                         }
@@ -698,22 +699,23 @@ void make_sources (int level,
             Real qt_i = Real(0.008);
 
             Box xybx = makeSlab(bx,2,klo);
-            ParallelFor(xybx, [=,zero_d=zero,myhalf_d=myhalf,Cp_d_d=Cp_d,three_d=three,one_d=one,R_d_d=R_d] AMREX_GPU_DEVICE(int i, int j, int /*k*/) noexcept
+            ParallelFor(xybx, [=]
+                        AMREX_GPU_DEVICE(int i, int j, int /*k*/) noexcept
             {
                 // Inclusive scan at w-faces for the Q integral (also find "i" values)
-                q_int[0] = zero_d;
-                Real zi   = myhalf_d * (z_cc_arr(i,j,khi) + z_cc_arr(i,j,khi-1));
-                Real rhoi = myhalf_d * (cell_data(i,j,khi,Rho_comp) + cell_data(i,j,khi-1,Rho_comp));
+                q_int[0] = zero;
+                Real zi   = myhalf * (z_cc_arr(i,j,khi) + z_cc_arr(i,j,khi-1));
+                Real rhoi = myhalf * (cell_data(i,j,khi,Rho_comp) + cell_data(i,j,khi-1,Rho_comp));
                 for (int k(klo+1); k<=khi+1; ++k) {
                     int lk    = k - klo;
                     // Average to w-faces when looping w-faces
-                    Real dz    = (z_cc_arr) ? myhalf_d * (z_cc_arr(i,j,k) - z_cc_arr(i,j,k-2)) : dx[2];
+                    Real dz    = (z_cc_arr) ? myhalf * (z_cc_arr(i,j,k) - z_cc_arr(i,j,k-2)) : dx[2];
                     q_int[lk]  = q_int[lk-1] + krad * cell_data(i,j,k-1,Rho_comp) * cell_data(i,j,k-1,RhoQ2_comp) * dz;
                     Real qt_hi = cell_data(i,j,k  ,RhoQ1_comp) + cell_data(i,j,k  ,RhoQ2_comp);
                     Real qt_lo = cell_data(i,j,k-1,RhoQ1_comp) + cell_data(i,j,k-1,RhoQ2_comp);
                     if ( (qt_lo > qt_i) && (qt_hi < qt_i) ) {
-                        zi   = myhalf_d * (z_cc_arr(i,j,k) + z_cc_arr(i,j,k-1));
-                        rhoi = myhalf_d * (cell_data(i,j,k,Rho_comp) + cell_data(i,j,k-1,Rho_comp));
+                        zi   = myhalf * (z_cc_arr(i,j,k) + z_cc_arr(i,j,k-1));
+                        rhoi = myhalf * (cell_data(i,j,k,Rho_comp) + cell_data(i,j,k-1,Rho_comp));
                     }
                 }
 
@@ -721,10 +723,10 @@ void make_sources (int level,
                 Real q_int_inf = q_int[khi+1];
                 for (int k(klo); k<=khi+1; ++k) {
                     int lk       = k - klo;
-                    Real z       = myhalf_d * (z_cc_arr(i,j,k) + z_cc_arr(i,j,k-1));
+                    Real z       = myhalf * (z_cc_arr(i,j,k) + z_cc_arr(i,j,k-1));
                     rad_flux[lk] = F1*std::exp(-q_int[lk]) + F0*std::exp(-(q_int_inf - q_int[lk]));
                     if (z > zi) {
-                      rad_flux[lk] += rhoi * Cp_d_d * D * ( std::pow(z-zi,Real(4.)/three_d)/Real(4.) + zi*std::pow(z-zi,one_d/three_d) ) ;
+                      rad_flux[lk] += rhoi * Cp_d * D * ( std::pow(z-zi,Real(4.)/three)/Real(4.) + zi*std::pow(z-zi,one/three) ) ;
                     }
                 }
 
@@ -732,12 +734,12 @@ void make_sources (int level,
                 for (int k(klo); k<=khi; ++k) {
                     int lk       = k - klo;
                     // Average to w-faces when looping CC
-                    Real dzInv   = (z_cc_arr) ? one_d/ (myhalf_d * (z_cc_arr(i,j,k+1) - z_cc_arr(i,j,k-1))) : dxInv[2];
+                    Real dzInv   = (z_cc_arr) ? one/ (myhalf * (z_cc_arr(i,j,k+1) - z_cc_arr(i,j,k-1))) : dxInv[2];
                     // NOTE: Fnet  = Up - Dn (all fluxes are up here)
                     //       dT/dt = dF/dz * (1/(-rho*Cp))
-                    Real dTdt    = (rad_flux[lk+1] - rad_flux[lk]) * dzInv / (-cell_data(i,j,k,Rho_comp)*Cp_d_d);
+                    Real dTdt    = (rad_flux[lk+1] - rad_flux[lk]) * dzInv / (-cell_data(i,j,k,Rho_comp)*Cp_d);
                     Real qv      = cell_data(i,j,k,RhoQ1_comp)/cell_data(i,j,k,Rho_comp);
-                    Real iexner  = one_d/getExnergivenRTh(cell_data(i,j,k,RhoTheta_comp), R_d_d/Cp_d_d, qv);
+                    Real iexner  = one/getExnergivenRTh(cell_data(i,j,k,RhoTheta_comp), RdoCp, qv);
                     // Convert dT/dt to dTheta/dt and multiply rho
                     cell_src(i,j,k,RhoTheta_comp) += cell_data(i,j,k,Rho_comp) * dTdt * iexner;
                 }

@@ -166,9 +166,9 @@ ERF::AverageDownTo (int crse_lev, int scomp, int ncomp, bool do_perturbational_a
                 const Array4<      Real> cons_new = vars_new[lev][Vars::cons].array(mfi);
                 const Array4<const Real> cons_old = vars_old[lev][Vars::cons].array(mfi);
                 const Array4<const Real> detJ_arr = detJ_cc[lev]->const_array(mfi);
-                ParallelFor(bx, ncomp, [=,zero_d=zero] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+                ParallelFor(bx, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
                 {
-                    if (detJ_arr(i,j,k) == zero_d) {
+                    if (detJ_arr(i,j,k) == zero) {
                         cons_new(i,j,k,scomp+n) = cons_old(i,j,k,scomp+n);
                     }
                 });

@@ -72,22 +72,22 @@ AdvectionSrcForRho (const Box& bx,
     });
 
     if (fixed_rho) {
-        ParallelFor(bx, [=,zero_d=zero] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
-            advectionSrc(i,j,k,0) = zero_d;
+            advectionSrc(i,j,k,0) = zero;
         });
     } else
     {
-        ParallelFor(bx, [=,zero_d=zero] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
-            if (detJ(i,j,k) > zero_d) {
+            if (detJ(i,j,k) > zero) {
                 Real mfsq = mf_mx(i,j,0) * mf_my(i,j,0);
                 advectionSrc(i,j,k,0) = - mfsq / detJ(i,j,k) * (
                   ( (flx_arr[0])(i+1,j,k,0) - (flx_arr[0])(i  ,j,k,0) ) * dxInv +
                   ( (flx_arr[1])(i,j+1,k,0) - (flx_arr[1])(i,j  ,k,0) ) * dyInv +
                   ( (flx_arr[2])(i,j,k+1,0) - (flx_arr[2])(i,j,k  ,0) ) * dzInv );
             } else {
-                advectionSrc(i,j,k,0) = zero_d;
+                advectionSrc(i,j,k,0) = zero;
             }
         });
     }
@@ -174,22 +174,22 @@ AdvectionSrcForScalars (const Box& bx,
         //       because that was done when they were constructed in AdvectionSrcForRhoAndTheta
         if (horiz_adv_type == AdvType::Centered_2nd && vert_adv_type == AdvType::Centered_2nd)
         {
-            ParallelFor(xbx, [=,myhalf_d=myhalf] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            ParallelFor(xbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
                 const int prim_index = cons_index - 1;
-                const Real prim_on_face = myhalf_d * (cell_prim(i,j,k,prim_index) + cell_prim(i-1,j,k,prim_index));
+                const Real prim_on_face = myhalf * (cell_prim(i,j,k,prim_index) + cell_prim(i-1,j,k,prim_index));
                 (flx_arr[0])(i,j,k) = avg_xmom(i,j,k) * prim_on_face;
             });
-            ParallelFor(ybx, [=,myhalf_d=myhalf] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            ParallelFor(ybx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
                 const int prim_index = cons_index - 1;
-                const Real prim_on_face = myhalf_d * (cell_prim(i,j,k,prim_index) + cell_prim(i,j-1,k,prim_index));
+                const Real prim_on_face = myhalf * (cell_prim(i,j,k,prim_index) + cell_prim(i,j-1,k,prim_index));
                 (flx_arr[1])(i,j,k) = avg_ymom(i,j,k) * prim_on_face;
             });
-            ParallelFor(zbx, [=,myhalf_d=myhalf] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            ParallelFor(zbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
                 const int prim_index = cons_index - 1;
-                const Real prim_on_face = myhalf_d * (cell_prim(i,j,k,prim_index) + cell_prim(i,j,k-1,prim_index));
+                const Real prim_on_face = myhalf * (cell_prim(i,j,k,prim_index) + cell_prim(i,j,k-1,prim_index));
                 (flx_arr[2])(i,j,k) = avg_zmom(i,j,k) * prim_on_face;
             });
 
@@ -266,11 +266,11 @@ AdvectionSrcForScalars (const Box& bx,
             }
         }
 
-        ParallelFor(bx, [=,zero_d=zero,one_d=one] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
-            if (detJ(i,j,k) > zero_d)
+            if (detJ(i,j,k) > zero)
             {
-                Real invdetJ = one_d / detJ(i,j,k);
+                Real invdetJ = one / detJ(i,j,k);
                 Real mfsq    = mf_mx(i,j,0) * mf_my(i,j,0);
 
                 advectionSrc(i,j,k,cons_index) = - invdetJ * mfsq * (
@@ -278,7 +278,7 @@ AdvectionSrcForScalars (const Box& bx,
                   ( (flx_arr[1])(i,j+1,k) - (flx_arr[1])(i,j,k) ) * dyInv +
                   ( (flx_arr[2])(i,j,k+1) - (flx_arr[2])(i,j,k) ) * dzInv );
             } else {
-                advectionSrc(i,j,k,cons_index) = zero_d;
+                advectionSrc(i,j,k,cons_index) = zero;
             }
         });
 

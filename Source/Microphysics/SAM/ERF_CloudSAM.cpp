@@ -40,7 +40,7 @@ SAM::Cloud (const SolverChoice& sc)
 
         auto tbx = mfi.tilebox();
 
-        ParallelFor(tbx, [=,zero_d=zero] AMREX_GPU_DEVICE (int i, int j, int k)
+        ParallelFor(tbx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
             // Saturation moisture fractions
             Real omn;
@@ -110,9 +110,9 @@ SAM::Cloud (const SolverChoice& sc)
 
                 // Partition the change in non-precipitating q
                  qv_array(i,j,k) += delta_qv;
-                qcl_array(i,j,k)  = zero_d;
-                qci_array(i,j,k)  = zero_d;
-                 qn_array(i,j,k)  = zero_d;
+                qcl_array(i,j,k)  = zero;
+                qci_array(i,j,k)  = zero;
+                 qn_array(i,j,k)  = zero;
                  qt_array(i,j,k)  = qv_array(i,j,k);
 
                 // Update temperature (endothermic since we evap/sublime)

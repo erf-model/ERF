@@ -449,13 +449,13 @@ ERF::init_from_metgrid (int lev)
                 const Array4<      Real>& cos_arr = (cosPhi_m[lev])->array(mfi);
                 const Array4<      Real>& dst_arr = dst.array();
                 const Array4<const Real>& src_arr = src.const_array();
-                ParallelFor(gtbx, [=,PI_d=PI] AMREX_GPU_DEVICE (int i, int j, int) noexcept
+                ParallelFor(gtbx, [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept
                 {
                     int li = min(max(i, i_lo), i_hi);
                     int lj = min(max(j, j_lo), j_hi);
                     dst_arr(i,j,0) = src_arr(li,lj,0);
 
-                    Real lat_rad = dst_arr(i,j,0) * (PI_d/Real(180.));
+                    Real lat_rad = dst_arr(i,j,0) * (PI/Real(180.));
                     sin_arr(i,j,0) = std::sin(lat_rad);
                     cos_arr(i,j,0) = std::cos(lat_rad);
                 });
@@ -679,11 +679,11 @@ init_terrain_from_metgrid (FArrayBox& z_phys_nd_fab,
 
    Box bx = z_phys_box & from_box;
 
-   ParallelFor(bx, [=,fourth_d=fourth] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+   ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
    {
        int ii = std::max(std::min(i,ihi-1),ilo+1);
        int jj = std::max(std::min(j,jhi-1),jlo+1);
-       z_arr(i,j,k) =  fourth_d * ( nc_hgt_arr (ii,jj  ,k) + nc_hgt_arr(ii-1,jj  ,k) +
+       z_arr(i,j,k) =  fourth * ( nc_hgt_arr (ii,jj  ,k) + nc_hgt_arr(ii-1,jj  ,k) +
                                 nc_hgt_arr (ii,jj-1,k) + nc_hgt_arr(ii-1,jj-1,k) );
    });
 }
@@ -792,11 +792,11 @@ init_state_from_metgrid (const int  lev,
     int tmp_indx = 0;
     int dst_indx = 0;
 
-    ParallelFor(bx2d, [=,zero_d=zero] AMREX_GPU_DEVICE (int i, int j, int) noexcept
+    ParallelFor(bx2d, [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept
     {
         if (metgrid_debug_quiescent) { // Debugging option to run quiescent.
             for (int k(0); k<=kmax; k++) {
-                new_data(i,j,k,tmp_indx) = zero_d;
+                new_data(i,j,k,tmp_indx) = zero;
             }
         } else if (metgrid_basic_linear) { // Linear interpolation with no quality control.
             for (int k(0); k<=kmax; k++) {
@@ -840,11 +840,11 @@ init_state_from_metgrid (const int  lev,
     int tmp_indx = 0;
     int dst_indx = 0;
 
-    ParallelFor(bx2d, [=,zero_d=zero] AMREX_GPU_DEVICE (int i, int j, int) noexcept
+    ParallelFor(bx2d, [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept
     {
         if (metgrid_debug_quiescent) { // Debugging option to run quiescent.
             for (int k(0); k<=kmax; k++) {
-                new_data(i,j,k,tmp_indx) = zero_d;
+                new_data(i,j,k,tmp_indx) = zero;
             }
         } else if (metgrid_basic_linear) { // Linear interpolation with no quality control.
             for (int k(0); k<=kmax; k++) {
@@ -1082,11 +1082,11 @@ init_state_from_metgrid (const int  lev,
             int tmp_indx = MetGridTmpDstVars::QV;
             int dst_indx = RhoQ1_comp;
 
-            ParallelFor(bx2d, [=,zero_d=zero] AMREX_GPU_DEVICE (int i, int j, int) noexcept
+            ParallelFor(bx2d, [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept
             {
                 if (metgrid_debug_dry) { // Debugging option to run dry.
                     for (int k(0); k<=kmax; k++) {
-                        new_data(i,j,k,tmp_indx)   = zero_d;
+                        new_data(i,j,k,tmp_indx)   = zero;
                     }
                 } else if (metgrid_basic_linear) { // Linear interpolation with no quality control.
                     for (int k(0); k<=kmax; k++) {
@@ -1296,7 +1296,8 @@ init_base_state_from_metgrid (const bool use_moisture,
         const Array4<Real>& qv_hse_arr = qv_hse_fab.array();
         auto const z_arr = z_phys_nd_fab.const_array();
 
-        ParallelFor(valid_bx2d, [=,p_0_d=p_0,two_d=two,R_d_d=R_d,myhalf_d=myhalf] AMREX_GPU_DEVICE (int i, int j, int) noexcept
+        ParallelFor(valid_bx2d, [=]
+                    AMREX_GPU_DEVICE (int i, int j, int) noexcept
         {
             // Surface values and constants
             Real dz, F, C;
@@ -1304,8 +1305,8 @@ init_base_state_from_metgrid (const bool use_moisture,
 
             // Surface quantities
             Real z_lo  = Real(0.25) * ( z_arr(i,j,klo  ) + z_arr(i+1,j,klo  ) + z_arr(i,j+1,klo  ) + z_arr(i+1,j+1,klo  ) );
-            Real Pd_lo = p_0_d * std::exp( -T00/TLP + std::sqrt( (T00/TLP)*(T00/TLP) - two_d * grav * z_lo / (TLP * R_d_d) ) );
-            Real Td_lo = std::max(TISO, T00 + TLP * std::log(Pd_lo/p_0_d));
+            Real Pd_lo = p_0 * std::exp( -T00/TLP + std::sqrt( (T00/TLP)*(T00/TLP) - two * grav * z_lo / (TLP * R_d) ) );
+            Real Td_lo = std::max(TISO, T00 + TLP * std::log(Pd_lo/p_0));
             Real Rd_lo = getRhogivenTandPress(Td_lo, Pd_lo);
 
             for (int k(klo); k<=khi; ++k) {
@@ -1315,28 +1316,28 @@ init_base_state_from_metgrid (const bool use_moisture,
                 dz   = z_hi - z_lo;
 
                 // Establish known constant
-                C  = -Pd_lo + myhalf_d*Rd_lo*grav*dz;
+                C  = -Pd_lo + myhalf*Rd_lo*grav*dz;
 
                 // Initial guess and residual
                 Pd_hi = Pd_lo;
                 Td_hi = Td_lo;
                 Rd_hi = Rd_lo;
-                F = Pd_hi + myhalf_d*Rd_hi*grav*dz + C;
+                F = Pd_hi + myhalf*Rd_hi*grav*dz + C;
 
                 // Iterate to solution
                 int niter = 0;
                 while (std::fabs(F)>tol && niter<maxiter) {
                     Real dP      = amrex::max(Real(1.0e-3),Real(1.0e-3)*Pd_hi);
                     Real Pd_plus = Pd_hi + dP;
-                    Real Td_plus = std::max(TISO, T00 + TLP * std::log(Pd_plus/p_0_d));
+                    Real Td_plus = std::max(TISO, T00 + TLP * std::log(Pd_plus/p_0));
                     Real Rd_plus = getRhogivenTandPress(Td_plus, Pd_plus);
-                    Real F_plus  = Pd_plus + myhalf_d*Rd_plus*grav*dz + C;
+                    Real F_plus  = Pd_plus + myhalf*Rd_plus*grav*dz + C;
                     Real dFdP    = (F_plus - F) / dP;
 
                     Pd_hi -= F / dFdP;
-                    Td_hi  = std::max(TISO, T00 + TLP * std::log(Pd_hi/p_0_d));
+                    Td_hi  = std::max(TISO, T00 + TLP * std::log(Pd_hi/p_0));
                     Rd_hi  = getRhogivenTandPress(Td_hi, Pd_hi);
-                    F      = Pd_hi + myhalf_d*Rd_hi*grav*dz + C;
+                    F      = Pd_hi + myhalf*Rd_hi*grav*dz + C;
                     ++niter;
                 }
 
@@ -1430,7 +1431,8 @@ init_base_state_from_metgrid (const bool use_moisture,
         auto       new_data  = state_fab.array();
         auto const new_z     = z_phys_cc_fab.const_array();
 
-        ParallelFor(valid_bx2d, [=,p_0_d=p_0,two_d=two,R_d_d=R_d,zero_d=zero,one_d=one,R_v_d=R_v,iGamma_d=iGamma,Cp_d_d=Cp_d,myhalf_d=myhalf] AMREX_GPU_DEVICE (int i, int j, int) noexcept
+        ParallelFor(valid_bx2d, [=,RdoCp_d=RdoCp]
+                    AMREX_GPU_DEVICE (int i, int j, int) noexcept
         {
             // Low and Hi column variables
             Real psurf;
@@ -1450,26 +1452,26 @@ init_base_state_from_metgrid (const bool use_moisture,
                 z_lo     = new_z(i,j,0);
                 Real t_0 = Real(290.0); // WRF's model_config_rec%base_temp
                 Real a   = Real(50.0);  // WRF's model_config_rec%base_lapse
-                psurf = p_0_d*std::exp(-t_0/a + std::sqrt(std::pow(t_0/a, two_d)-two_d*grav*z_lo/(a*R_d_d)));
+                psurf = p_0*std::exp(-t_0/a + std::sqrt(std::pow(t_0/a, two)-two*grav*z_lo/(a*R_d)));
             }
-            AMREX_ALWAYS_ASSERT(psurf > zero_d);
-            AMREX_ALWAYS_ASSERT(new_data(i,j,0,RhoTheta_comp) > zero_d);
+            AMREX_ALWAYS_ASSERT(psurf > zero);
+            AMREX_ALWAYS_ASSERT(new_data(i,j,0,RhoTheta_comp) > zero);
 
             // Iterations for the first CC point that is 1/2 dz off the surface
             {
                 z_lo  = new_z(i,j,0);
-                qv_lo = (use_moisture) ? new_data(i,j,0,RhoQ_comp) : zero_d;
-                rd_lo = zero_d; // initial guess
+                qv_lo = (use_moisture) ? new_data(i,j,0,RhoQ_comp) : zero;
+                rd_lo = zero; // initial guess
                 th_lo = new_data(i,j,0,RhoTheta_comp);
                 // NOTE: The first iteration is from z=0 to z_cc(i,j,0) since the
                 //       reference pressure (psurf) is at the ground.
                 Real myhalf_dz = z_lo;
-                Real qvf       = one_d+(R_v_d/R_d_d)*qv_lo;
+                Real qvf       = one+(R_v/R_d)*qv_lo;
                 Real thetam    = th_lo*qvf;
                 for (int it(0); it<maxiter; it++) {
-                    p_lo = psurf-myhalf_dz*rd_lo*(one_d+qv_lo)*grav;
-                    if (p_lo < zero_d) { p_lo = zero_d; }
-                    rd_lo = (p_0_d/(R_d_d*thetam))*std::pow(p_lo/p_0_d, iGamma_d);
+                    p_lo = psurf-myhalf_dz*rd_lo*(one+qv_lo)*grav;
+                    if (p_lo < zero) { p_lo = zero; }
+                    rd_lo = (p_0/(R_d*thetam))*std::pow(p_lo/p_0, iGamma);
                 } // it
 
                 // Copy solution to state
@@ -1479,7 +1481,7 @@ init_base_state_from_metgrid (const bool use_moisture,
                     new_data(i,j,0,RhoQ_comp) *= rd_lo;
                 }
                 for (int n(0); n < NSCALARS; n++) {
-                    new_data(i,j,0,RhoScalar_comp+n) = zero_d;
+                    new_data(i,j,0,RhoScalar_comp+n) = zero;
                 }
             }
 
@@ -1487,29 +1489,29 @@ init_base_state_from_metgrid (const bool use_moisture,
             for (int k(1); k<=kmax; k++) {
                 // Known hi data
                 z_hi  = new_z(i,j,k);
-                qv_hi = (use_moisture) ? new_data(i,j,k,RhoQ_comp) : zero_d;
+                qv_hi = (use_moisture) ? new_data(i,j,k,RhoQ_comp) : zero;
                 th_hi = new_data(i,j,k,RhoTheta_comp);
 
                 // Initial guesses for hi data
                  p_hi = p_lo;
-                 t_hi = getTgivenPandTh(p_hi, th_hi, R_d_d/Cp_d_d);
-                rd_hi = getRhogivenThetaPress(th_hi, p_hi, R_d_d/Cp_d_d, qv_hi);
+                 t_hi = getTgivenPandTh(p_hi, th_hi, RdoCp_d);
+                rd_hi = getRhogivenThetaPress(th_hi, p_hi, RdoCp_d, qv_hi);
 
                 // Vertical grid spacing
                 Real dz = z_hi - z_lo;
 
                 // Establish known constant
-                Real rho_tot_lo = rd_lo * (one_d + qv_lo);
-                Real C = -p_lo + myhalf_d*rho_tot_lo*grav*dz;
+                Real rho_tot_lo = rd_lo * (one + qv_lo);
+                Real C = -p_lo + myhalf*rho_tot_lo*grav*dz;
 
                 // Initial residual
-                Real rho_tot_hi = rd_hi * (one_d + qv_hi);
-                Real F = p_hi + myhalf_d*rho_tot_hi*grav*dz + C;
+                Real rho_tot_hi = rd_hi * (one + qv_hi);
+                Real F = p_hi + myhalf*rho_tot_hi*grav*dz + C;
 
                 // Do iterations
                 if (std::abs(F)>tol) {
                     bool maintain_Th = true;
-                    HSEutils::Newton_Raphson_hse(tol, R_d_d/Cp_d_d, dz,
+                    HSEutils::Newton_Raphson_hse(tol, RdoCp_d, dz,
                                                  grav, C, th_hi, t_hi,
                                                  qv_hi, qv_hi, p_hi,
                                                  rd_hi, F, maintain_Th);
@@ -1522,7 +1524,7 @@ init_base_state_from_metgrid (const bool use_moisture,
                     new_data(i,j,k,RhoQ_comp) *= rd_hi;
                 }
                 for (int n(0); n < NSCALARS; n++) {
-                    new_data(i,j,k,RhoScalar_comp+n) = zero_d;
+                    new_data(i,j,k,RhoScalar_comp+n) = zero;
                 }
 
                 // Copy hi to lo

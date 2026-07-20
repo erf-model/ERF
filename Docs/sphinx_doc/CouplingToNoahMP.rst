@@ -38,6 +38,20 @@ in the **namelist.erf** file, may be set larger than the ERF timestep to allow s
 in time. For example, if an 4s timestep is utilized for ERF and a 40s timestep is utilized for
 Noah-MP, then Noah-MP will be updated every 10 steps.
 
+The latest completed exchange supplies the provider inventory used by 2-D
+output. The transfer layer converts native Noah-MP specific humidity to dry-air
+mixing ratio once. ``HFX`` gates Noah-MP returned state, flux, native 2-m, and
+soil result fields. It does not gate radiation-to-LSM forcing fields. Processed
+return fields still retain field-specific validity checks; unprocessed return
+values use the internal land-surface undefined sentinel before public
+translation. MOST fallback applies only to unified 2-m diagnostics. It does
+not populate raw provider fields or alter prognostic state or flux updates.
+
+For the complete request inventory and canonical order, see
+:ref:`sec:Plotfile2DBuiltInCatalog`. For configuration-level selection and
+runtime values, see :ref:`sec:Plotfile2DSelectionRules`. For the numerical
+source-selection and MOST contracts, see :ref:`sec:LandSurfaceDiagnostics`.
+
 Files Overview
 --------------
 

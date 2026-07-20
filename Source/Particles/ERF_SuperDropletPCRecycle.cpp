@@ -187,7 +187,7 @@ void SuperDropletPC::Recycle ( const int             a_lev,
             Gpu::Buffer<Long> np_recycle_buf({0});
             auto* np_recycle_ptr = np_recycle_buf.data();
 
-            ParallelForRNG(np, [=,zero_d=zero,four_thirds_pi_d=four_thirds_pi] AMREX_GPU_DEVICE (int i, const RandomEngine& rnd_engine) noexcept
+            ParallelForRNG(np, [=] AMREX_GPU_DEVICE (int i, const RandomEngine& rnd_engine) noexcept
             {
                 ParticleType& p = p_pbox[i];
                 if (p.id() <= 0) { return; }
@@ -206,15 +206,15 @@ void SuperDropletPC::Recycle ( const int             a_lev,
                                                   ctx.plo, ctx.dxi, zheight, k_max));
 
                 // Set velocities to zero
-                ptrs.v_ptr[0][i] = ptrs.v_ptr[1][i] = ptrs.v_ptr[2][i] = ptrs.vterm_ptr[i] = zero_d;
+                ptrs.v_ptr[0][i] = ptrs.v_ptr[1][i] = ptrs.v_ptr[2][i] = ptrs.vterm_ptr[i] = zero;
 
                 // reset all species masses to zero
                 for (int ctr = 0; ctr < ctx.num_species; ctr++) {
-                    ptrs.sp_mass_ptrs[ctr][i] = zero_d;
+                    ptrs.sp_mass_ptrs[ctr][i] = zero;
                 }
                 // Reset water mass
                 auto water_radius = Real(1.0e-15);
-                auto water_mass = four_thirds_pi_d
+                auto water_mass = four_thirds_pi
                                  * water_radius*water_radius*water_radius*ctx.rho_water;
                 ptrs.sp_mass_ptrs[ctx.idx_water][i] = water_mass;
 

@@ -573,7 +573,7 @@ struct surface_flux
             qflux = (spec_qflux) ? mdata.surf_moist_flux :
                                  -(qvm_arr(i,j,k) - q_surf_arr(i,j,k)) * ustar * mdata.kappa /
                                   (std::log(zref / z0_arr(i,j,k)) - psi_h); // <w'Qv'>
-            tflux = mdata.surf_temp_flux*(1 + amrex::Real(0.61)*qvm_arr(i,j,k)) + qflux*amrex::Real(0.61)*tm_arr(i,j,k);
+            tflux = mdata.surf_temp_flux*(one + epsv*qvm_arr(i,j,k)) + qflux*epsv*tm_arr(i,j,k);
             if (w_star_arr) {
                 // update w* and Umagmean
                 w_star_arr(i,j,k) = calc_wstar(tflux, pblh_arr(i,j,k), tvm_arr(i,j,k));
@@ -691,7 +691,7 @@ struct surface_flux_charnock
             qflux = (spec_qflux) ? mdata.surf_moist_flux :
                                  -(qvm_arr(i,j,k) - q_surf_arr(i,j,k)) * ustar * mdata.kappa /
                                   (std::log(zref / z0_arr(i,j,k)) - psi_h); // <w'Qv'>
-            tflux = mdata.surf_temp_flux*(1 + amrex::Real(0.61)*qvm_arr(i,j,k)) + qflux*amrex::Real(0.61)*tm_arr(i,j,k);
+            tflux = mdata.surf_temp_flux*(one + epsv*qvm_arr(i,j,k)) + qflux*epsv*tm_arr(i,j,k);
             if (w_star_arr) {
                 // update w* and Umagmean
                 w_star_arr(i,j,k) = calc_wstar(tflux, pblh_arr(i,j,k), tvm_arr(i,j,k));
@@ -802,7 +802,7 @@ struct surface_flux_mod_charnock
             qflux = (spec_qflux) ? mdata.surf_moist_flux :
                                  -(qvm_arr(i,j,k) - q_surf_arr(i,j,k)) * ustar * mdata.kappa /
                                   (std::log(zref / z0_arr(i,j,k)) - psi_h); // <w'Qv'>
-            tflux = mdata.surf_temp_flux*(1 + amrex::Real(0.61)*qvm_arr(i,j,k)) + qflux*amrex::Real(0.61)*tm_arr(i,j,k);
+            tflux = mdata.surf_temp_flux*(one + epsv*qvm_arr(i,j,k)) + qflux*epsv*tm_arr(i,j,k);
             if (w_star_arr) {
                 // update w* and Umagmean
                 w_star_arr(i,j,k) = calc_wstar(tflux, pblh_arr(i,j,k), tvm_arr(i,j,k));
@@ -910,7 +910,7 @@ struct surface_flux_donelan
             qflux = (spec_qflux) ? mdata.surf_moist_flux :
                                  -(qvm_arr(i,j,k) - q_surf_arr(i,j,k)) * ustar * mdata.kappa /
                                   (std::log(zref / z0_arr(i,j,k)) - psi_h); // <w'Qv'>
-            tflux = mdata.surf_temp_flux*(1 + amrex::Real(0.61)*qvm_arr(i,j,k)) + qflux*amrex::Real(0.61)*tm_arr(i,j,k);
+            tflux = mdata.surf_temp_flux*(one + epsv*qvm_arr(i,j,k)) + qflux*epsv*tm_arr(i,j,k);
             if (w_star_arr) {
                 // update w* and Umagmean
                 w_star_arr(i,j,k) = calc_wstar(tflux, pblh_arr(i,j,k), tvm_arr(i,j,k));
@@ -1024,7 +1024,7 @@ struct surface_flux_wave_coupled
             qflux = (spec_qflux) ? mdata.surf_moist_flux :
                                  -(qvm_arr(i,j,k) - q_surf_arr(i,j,k)) * ustar * mdata.kappa /
                                   (std::log(zref / z0_arr(i,j,k)) - psi_h); // <w'Qv'>
-            tflux = mdata.surf_temp_flux*(1 + amrex::Real(0.61)*qvm_arr(i,j,k)) + qflux*amrex::Real(0.61)*tm_arr(i,j,k);
+            tflux = mdata.surf_temp_flux*(one + epsv*qvm_arr(i,j,k)) + qflux*epsv*tm_arr(i,j,k);
             if (w_star_arr) {
                 // update w* and Umagmean
                 w_star_arr(i,j,k) = calc_wstar(tflux, pblh_arr(i,j,k), tvm_arr(i,j,k));
@@ -1149,7 +1149,7 @@ struct surface_temp
             amrex::Real tstar = mdata.kappa * (tm_arr(i,j,k) - t_surf_arr(i,j,k)) / (C - psi_h);
             amrex::Real qflux = (spec_qflux) ? mdata.surf_moist_flux :
                                  -ustar * mdata.kappa * (qv_a - qv_s) / (C - psi_h);
-            amrex::Real tflux = -ustar*tstar*(1 + amrex::Real(0.61)*qvm_arr(i,j,k)) + amrex::Real(0.61)*tm_arr(i,j,k)*qflux;
+            amrex::Real tflux = -ustar*tstar*(one + epsv*qvm_arr(i,j,k)) + epsv*tm_arr(i,j,k)*qflux;
             w_star_arr(i,j,k) = calc_wstar(tflux, pblh_arr(i,j,k), tvm_arr(i,j,k));
             amrex::Real wstar = mdata.Bjr_beta * w_star_arr(i,j,k);
             umm = std::sqrt(umm_arr(i,j,k)*umm_arr(i,j,k) + wstar*wstar);
@@ -1157,8 +1157,8 @@ struct surface_temp
         }
 
         // Bulk Richardson number w/ moisture
-        amrex::Real thv_s = t_surf_arr(i,j,k) * (one + amrex::Real(0.61)*qv_s);
-        amrex::Real thv_a =     tm_arr(i,j,k) * (one + amrex::Real(0.61)*qv_a);
+        amrex::Real thv_s = t_surf_arr(i,j,k) * (one + epsv*qv_s);
+        amrex::Real thv_a =     tm_arr(i,j,k) * (one + epsv*qv_a);
         Rib = ( (mdata.gravity * zref) / tm_arr(i,j,k) ) *
               ( (thv_a - thv_s) / (umm * umm) );
         Rib = std::min(std::max(Rib,-amrex::Real(4.0)),amrex::Real(4.0));
@@ -1291,7 +1291,7 @@ struct surface_temp_charnock
             amrex::Real tstar = mdata.kappa * (tm_arr(i,j,k) - t_surf_arr(i,j,k)) / (C - psi_h);
             amrex::Real qflux = (spec_qflux) ? mdata.surf_moist_flux :
                                  -ustar * mdata.kappa * (qv_a - qv_s) / (C - psi_h);
-            amrex::Real tflux = -ustar*tstar*(1 + amrex::Real(0.61)*qvm_arr(i,j,k)) + amrex::Real(0.61)*tm_arr(i,j,k)*qflux;
+            amrex::Real tflux = -ustar*tstar*(one + epsv*qvm_arr(i,j,k)) + epsv*tm_arr(i,j,k)*qflux;
             w_star_arr(i,j,k) = calc_wstar(tflux, pblh_arr(i,j,k), tvm_arr(i,j,k));
             amrex::Real wstar = mdata.Bjr_beta * w_star_arr(i,j,k);
             umm = std::sqrt(umm_arr(i,j,k)*umm_arr(i,j,k) + wstar*wstar);
@@ -1299,8 +1299,8 @@ struct surface_temp_charnock
         }
 
         // Bulk Richardson number w/ moisture
-        amrex::Real thv_s = t_surf_arr(i,j,k) * (one + amrex::Real(0.61)*qv_s);
-        amrex::Real thv_a =     tm_arr(i,j,k) * (one + amrex::Real(0.61)*qv_a);
+        amrex::Real thv_s = t_surf_arr(i,j,k) * (one + epsv*qv_s);
+        amrex::Real thv_a =     tm_arr(i,j,k) * (one + epsv*qv_a);
         Rib = ( (mdata.gravity * zref) / tm_arr(i,j,k) ) *
               ( (thv_a - thv_s) / (umm * umm) );
         Rib = std::min(std::max(Rib,-amrex::Real(4.0)),amrex::Real(4.0));
@@ -1462,7 +1462,7 @@ struct surface_temp_mod_charnock
             amrex::Real tstar = mdata.kappa * (tm_arr(i,j,k) - t_surf_arr(i,j,k)) / (C - psi_h);
             amrex::Real qflux = (spec_qflux) ? mdata.surf_moist_flux :
                                  -ustar * mdata.kappa * (qv_a - qv_s) / (C - psi_h);
-            amrex::Real tflux = -ustar*tstar*(1 + amrex::Real(0.61)*qvm_arr(i,j,k)) + amrex::Real(0.61)*tm_arr(i,j,k)*qflux;
+            amrex::Real tflux = -ustar*tstar*(one + epsv*qvm_arr(i,j,k)) + epsv*tm_arr(i,j,k)*qflux;
             w_star_arr(i,j,k) = calc_wstar(tflux, pblh_arr(i,j,k), tvm_arr(i,j,k));
             amrex::Real wstar = mdata.Bjr_beta * w_star_arr(i,j,k);
             umm = std::sqrt(umm_arr(i,j,k)*umm_arr(i,j,k) + wstar*wstar);
@@ -1470,8 +1470,8 @@ struct surface_temp_mod_charnock
         }
 
         // Bulk Richardson number w/ moisture
-        amrex::Real thv_s = t_surf_arr(i,j,k) * (amrex::Real(1.0) + amrex::Real(0.61)*qv_s);
-        amrex::Real thv_a =     tm_arr(i,j,k) * (amrex::Real(1.0) + amrex::Real(0.61)*qv_a);
+        amrex::Real thv_s = t_surf_arr(i,j,k) * (one + epsv*qv_s);
+        amrex::Real thv_a =     tm_arr(i,j,k) * (one + epsv*qv_a);
         Rib = ( (mdata.gravity * zref) / tm_arr(i,j,k) ) *
               ( (thv_a - thv_s) / (umm * umm) );
         Rib = std::min(std::max(Rib,-amrex::Real(4.0)),amrex::Real(4.0));
@@ -1610,11 +1610,11 @@ struct surface_temp_donelan
             z0    = Donelan_roughness(ustar);
             tflux = -(tm_arr(i,j,k) - t_surf_arr(i,j,k)) * ustar * mdata.kappa /
                      (std::log(zref / z0) - psi_h); // <w'T'>
-            tflux *= (1 + amrex::Real(0.61)*qvm_arr(i,j,k));
+            tflux *= (one + epsv*qvm_arr(i,j,k));
             qflux = (spec_qflux) ? mdata.surf_moist_flux :
                                  -(qvm_arr(i,j,k) - q_surf_arr(i,j,k)) * ustar * mdata.kappa /
                                   (std::log(zref / z0_arr(i,j,k)) - psi_h); // <w'Qv'>
-            tflux += amrex::Real(0.61)*tm_arr(i,j,k) * qflux; // ~= <w'Tv'>
+            tflux += epsv * tm_arr(i,j,k) * qflux; // ~= <w'Tv'>
             if (w_star_arr) {
                 // update w* and Umagmean
                 w_star_arr(i,j,k) = calc_wstar(tflux, pblh_arr(i,j,k), tvm_arr(i,j,k));
@@ -1734,11 +1734,11 @@ struct surface_temp_wave_coupled
                                       + amrex::Real(0.11) * eta_arr(ie,je,k,EddyDiff::Mom_v) / ustar, z0_eps), z0_max );
             tflux = -(tm_arr(i,j,k) - t_surf_arr(i,j,k)) * ustar * mdata.kappa /
                      (std::log(zref / z0) - psi_h); // <w'T'>
-            tflux *= (1 + amrex::Real(0.61)*qvm_arr(i,j,k));
+            tflux *= (one + epsv*qvm_arr(i,j,k));
             qflux = (spec_qflux) ? mdata.surf_moist_flux :
                                  -(qvm_arr(i,j,k) - q_surf_arr(i,j,k)) * ustar * mdata.kappa /
                                   (std::log(zref / z0_arr(i,j,k)) - psi_h); // <w'Qv'>
-            tflux += amrex::Real(0.61)*tm_arr(i,j,k) * qflux; // ~= <w'Tv'>
+            tflux += epsv * tm_arr(i,j,k) * qflux; // ~= <w'Tv'>
             if (w_star_arr) {
                 // update w* and Umagmean
                 w_star_arr(i,j,k) = calc_wstar(tflux, pblh_arr(i,j,k), tvm_arr(i,j,k));

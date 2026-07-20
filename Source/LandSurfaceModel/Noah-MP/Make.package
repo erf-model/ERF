@@ -5,3 +5,4 @@ CEXE_sources += ERF_NOAHMP_IO.cpp
 
 CEXE_headers += ERF_NOAHMP.H
 CEXE_headers += ERF_NOAHMP_Fields.H
+CEXE_headers += ERF_NOAHMP_ResultPolicy.H

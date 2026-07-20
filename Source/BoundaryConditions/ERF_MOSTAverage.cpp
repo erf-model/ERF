@@ -326,21 +326,21 @@ MOSTAverage::set_rotated_fields (const int& lev)
         const Array4<Real>& v_rot_arr = rot_fields[1]->array(mfi);
 
         // U rotated magnitude
-        ParallelFor(ubx, [=,one_d=one] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        ParallelFor(ubx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
             // Elements of first tangent vector
             Real met_h_xi    = Compute_h_xi_AtIface(i,j,k,dxInv,z_phys_arr);
             u_rot_arr(i,j,k) = (u_arr(i,j,k) + met_h_xi*w_arr(i,j,k))
-                             / std::sqrt(met_h_xi*met_h_xi + one_d);
+                             / std::sqrt(met_h_xi*met_h_xi + one);
         });
 
         // V rotated magnitude
-        ParallelFor(vbx, [=,one_d=one] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        ParallelFor(vbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
             // Elements of second tangent vector
             Real met_h_eta   = Compute_h_eta_AtJface(i,j,k,dxInv,z_phys_arr);
             v_rot_arr(i,j,k) = (v_arr(i,j,k) + met_h_eta*w_arr(i,j,k))
-                             / std::sqrt(met_h_eta*met_h_eta + one_d);
+                             / std::sqrt(met_h_eta*met_h_eta + one);
         });
     }
 
@@ -620,23 +620,23 @@ MOSTAverage::set_k_indices_T (const int& lev)
             const auto z_phys_arr = m_z_phys_nd[lev]->const_array(mfi);
             auto k_arr = m_k_indx[lev]->array(mfi);
             auto zref_arr = m_zref[lev]->array(mfi);
-            ParallelFor(npbx, [=,fourth_d=fourth,myhalf_d=myhalf] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            ParallelFor(npbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
                 k_arr(i,j,k) = klo;
                 bool found = false;
-                Real z_bot_face  = fourth_d * ( z_phys_arr(i  ,j  ,k) + z_phys_arr(i+1,j  ,k)
+                Real z_bot_face  = fourth * ( z_phys_arr(i  ,j  ,k) + z_phys_arr(i+1,j  ,k)
                                           + z_phys_arr(i  ,j+1,k) + z_phys_arr(i+1,j+1,k) );
                 Real z_target    = z_bot_face + d_zref;
                 for (int lk(klo); lk<=kmax; ++lk) {
-                    Real z_lo = fourth_d * ( z_phys_arr(i,j  ,lk  ) + z_phys_arr(i+1,j  ,lk  )
+                    Real z_lo = fourth * ( z_phys_arr(i,j  ,lk  ) + z_phys_arr(i+1,j  ,lk  )
                                        + z_phys_arr(i,j+1,lk  ) + z_phys_arr(i+1,j+1,lk  ) );
-                    Real z_hi = fourth_d * ( z_phys_arr(i,j  ,lk+1) + z_phys_arr(i+1,j  ,lk+1)
+                    Real z_hi = fourth * ( z_phys_arr(i,j  ,lk+1) + z_phys_arr(i+1,j  ,lk+1)
                                        + z_phys_arr(i,j+1,lk+1) + z_phys_arr(i+1,j+1,lk+1) );
                     if (z_target > z_lo && z_target < z_hi){
                         AMREX_ALWAYS_ASSERT_WITH_MESSAGE(lk >= d_radius,
                                                          "K index must be larger than averaging radius!");
                         k_arr(i,j,0) = lk;
-                        zref_arr(i,j,0) = myhalf_d * (z_hi + z_lo) - z_bot_face;
+                        zref_arr(i,j,0) = myhalf * (z_hi + z_lo) - z_bot_face;
                         found = true;
                         break;
                     }
@@ -693,17 +693,17 @@ MOSTAverage::set_norm_indices_T (const int& lev)
         auto j_arr = m_j_indx[lev]->array(mfi);
         auto k_arr = m_k_indx[lev]->array(mfi);
         auto zref_arr = m_zref[lev]->array(mfi);
-        ParallelFor(npbx, [=,one_d=one,fourth_d=fourth,myhalf_d=myhalf] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        ParallelFor(npbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
             // Elements of normal vector
             Real met_h_xi  = Compute_h_xi_AtCellCenter (i,j,k,dxInv,z_phys_arr);
             Real met_h_eta = Compute_h_eta_AtCellCenter(i,j,k,dxInv,z_phys_arr);
-            Real mag = std::sqrt(met_h_xi*met_h_xi + met_h_eta*met_h_eta + one_d);
+            Real mag = std::sqrt(met_h_xi*met_h_xi + met_h_eta*met_h_eta + one);
 
             // Unit-normal vector scaled by z_ref
             Real delta_x = -met_h_xi/mag  * d_zref;
             Real delta_y = -met_h_eta/mag * d_zref;
-            Real delta_z = one_d/mag * d_zref;
+            Real delta_z = one/mag * d_zref;
 
             // Compute i & j as displacements (no grid stretching)
             int delta_i  = static_cast<int>(std::round(delta_x*dxInv[0]));
@@ -714,24 +714,24 @@ MOSTAverage::set_norm_indices_T (const int& lev)
             j_arr(i,j,0) = j_new;
 
             // Search for k (grid is stretched in z)
-            Real z_bot_face  = fourth_d * ( z_phys_arr(i  ,j  ,k) + z_phys_arr(i+1,j  ,k)
-                                      + z_phys_arr(i  ,j+1,k) + z_phys_arr(i+1,j+1,k) );
+            Real z_bot_face  = fourth * ( z_phys_arr(i  ,j  ,k) + z_phys_arr(i+1,j  ,k)
+                                          + z_phys_arr(i  ,j+1,k) + z_phys_arr(i+1,j+1,k) );
             Real z_target    = z_bot_face + delta_z;
             k_arr(i,j,0)     = klo;
-            zref_arr(i,j,0)  = myhalf_d * z_bot_face +
+            zref_arr(i,j,0)  = myhalf * z_bot_face +
                                Real(0.125) * ( z_phys_arr(i  ,j  ,k+1) + z_phys_arr(i+1,j  ,k+1)
-                                       + z_phys_arr(i  ,j+1,k+1) + z_phys_arr(i+1,j+1,k+1) );
+                                             + z_phys_arr(i  ,j+1,k+1) + z_phys_arr(i+1,j+1,k+1) );
             for (int lk(klo); lk<=kmax; ++lk) {
-                Real z_lo = fourth_d * ( z_phys_arr(i_new,j_new  ,lk  ) + z_phys_arr(i_new+1,j_new  ,lk  )
-                                   + z_phys_arr(i_new,j_new+1,lk  ) + z_phys_arr(i_new+1,j_new+1,lk  ) );
-                Real z_hi = fourth_d * ( z_phys_arr(i_new,j_new  ,lk+1) + z_phys_arr(i_new+1,j_new  ,lk+1)
-                                   + z_phys_arr(i_new,j_new+1,lk+1) + z_phys_arr(i_new+1,j_new+1,lk+1) );
+                Real z_lo = fourth * ( z_phys_arr(i_new,j_new  ,lk  ) + z_phys_arr(i_new+1,j_new  ,lk  )
+                                       + z_phys_arr(i_new,j_new+1,lk  ) + z_phys_arr(i_new+1,j_new+1,lk  ) );
+                Real z_hi = fourth * ( z_phys_arr(i_new,j_new  ,lk+1) + z_phys_arr(i_new+1,j_new  ,lk+1)
+                                       + z_phys_arr(i_new,j_new+1,lk+1) + z_phys_arr(i_new+1,j_new+1,lk+1) );
                 if (z_target > z_lo && z_target < z_hi){
                     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(lk >= d_radius,
                                                      "K index must be larger than averaging radius!");
                     amrex::ignore_unused(d_radius);
                     k_arr(i,j,0) = lk;
-                    zref_arr(i,j,0) = myhalf_d * (z_hi + z_lo) - z_bot_face;
+                    zref_arr(i,j,0) = myhalf * (z_hi + z_lo) - z_bot_face;
                     break;
                 }
             }
@@ -784,17 +784,17 @@ MOSTAverage::set_z_positions_T (const int& lev)
         auto x_pos_arr = m_x_pos[lev]->array(mfi);
         auto y_pos_arr = m_y_pos[lev]->array(mfi);
         auto z_pos_arr = m_z_pos[lev]->array(mfi);
-        ParallelFor(npbx, [=,myhalf_d=myhalf,fourth_d=fourth] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        ParallelFor(npbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
             // Final position at end of vector
-            x_pos_arr(i,j,0) = plo[0] + ((Real) i + myhalf_d) * dx[0];
-            y_pos_arr(i,j,0) = plo[1] + ((Real) j + myhalf_d) * dx[1];
-            Real z_bot_face  = fourth_d * ( z_phys_arr(i  ,j  ,k) + z_phys_arr(i+1,j  ,k)
-                                      + z_phys_arr(i  ,j+1,k) + z_phys_arr(i+1,j+1,k) );
+            x_pos_arr(i,j,0) = plo[0] + ((Real) i + myhalf) * dx[0];
+            y_pos_arr(i,j,0) = plo[1] + ((Real) j + myhalf) * dx[1];
+            Real z_bot_face  = fourth * ( z_phys_arr(i  ,j  ,k) + z_phys_arr(i+1,j  ,k)
+                                          + z_phys_arr(i  ,j+1,k) + z_phys_arr(i+1,j+1,k) );
             z_pos_arr(i,j,0) = z_bot_face + d_zref;
 
             // Destination position must be contained on the current process!
-            Real pos[] = {x_pos_arr(i,j,0)-plo[0],y_pos_arr(i,j,0)-plo[1],myhalf_d*dx[2]};
+            Real pos[] = {x_pos_arr(i,j,0)-plo[0],y_pos_arr(i,j,0)-plo[1],myhalf*dx[2]};
             amrex::ignore_unused(pos);
             AMREX_ALWAYS_ASSERT_WITH_MESSAGE(grb.contains(&pos[0]),
                                              "Query point outside of proc domain!");
@@ -846,12 +846,12 @@ MOSTAverage::set_norm_positions_T (const int& lev)
         auto y_pos_arr   = m_y_pos[lev]->array(mfi);
         auto z_pos_arr   = m_z_pos[lev]->array(mfi);
         auto zref_arr    = m_zref[lev]->array(mfi);
-        ParallelFor(npbx, [=,one_d=one,myhalf_d=myhalf,fourth_d=fourth] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        ParallelFor(npbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
             // Elements of normal vector
             Real met_h_xi  = Compute_h_xi_AtCellCenter (i,j,k,dxInv,z_phys_arr);
             Real met_h_eta = Compute_h_eta_AtCellCenter(i,j,k,dxInv,z_phys_arr);
-            Real imag = one_d / std::sqrt(met_h_xi*met_h_xi + met_h_eta*met_h_eta + one_d);
+            Real imag = one / std::sqrt(met_h_xi*met_h_xi + met_h_eta*met_h_eta + one);
 
             // Unit-normal vector scaled by z_ref
             Real delta_x = -met_h_xi  * imag * d_zref;
@@ -859,22 +859,22 @@ MOSTAverage::set_norm_positions_T (const int& lev)
             Real delta_z =              imag * d_zref;
 
             // Position of the current node (indx:0,0,1)
-            Real x0 = plo[0] + ((Real) i + myhalf_d) * dx[0];
-            Real y0 = plo[1] + ((Real) j + myhalf_d) * dx[1];
+            Real x0 = plo[0] + ((Real) i + myhalf) * dx[0];
+            Real y0 = plo[1] + ((Real) j + myhalf) * dx[1];
 
             // Final position at end of vector
             x_pos_arr(i,j,0) = x0 + delta_x;
             y_pos_arr(i,j,0) = y0 + delta_y;
-            Real z_bot_face  = fourth_d * ( z_phys_arr(i  ,j  ,k) + z_phys_arr(i+1,j  ,k)
-                                      + z_phys_arr(i  ,j+1,k) + z_phys_arr(i+1,j+1,k) );
+            Real z_bot_face  = fourth * ( z_phys_arr(i  ,j  ,k) + z_phys_arr(i+1,j  ,k)
+                                          + z_phys_arr(i  ,j+1,k) + z_phys_arr(i+1,j+1,k) );
             z_pos_arr(i,j,0) = z_bot_face + delta_z;
 
             // NOTE: Normal vector end point can be below the surface for concave regions.
             //       Here we protect against that by augmenting the normal if needed.
-            int i_new = (int) ((x_pos_arr(i,j,0) - plo[0]) / dx[0] - myhalf_d);
-            int j_new = (int) ((y_pos_arr(i,j,0) - plo[1]) / dx[1] - myhalf_d);
-            Real z_new_bot_face = fourth_d * ( z_phys_arr(i_new,j_new  ,k) + z_phys_arr(i_new+1,j_new  ,k)
-                                         + z_phys_arr(i_new,j_new+1,k) + z_phys_arr(i_new+1,j_new+1,k) );
+            int i_new = (int) ((x_pos_arr(i,j,0) - plo[0]) / dx[0] - myhalf);
+            int j_new = (int) ((y_pos_arr(i,j,0) - plo[1]) / dx[1] - myhalf);
+            Real z_new_bot_face = fourth * ( z_phys_arr(i_new,j_new  ,k) + z_phys_arr(i_new+1,j_new  ,k)
+                                             + z_phys_arr(i_new,j_new+1,k) + z_phys_arr(i_new+1,j_new+1,k) );
             if (z_pos_arr(i,j,0) < z_new_bot_face) {
                 z_pos_arr(i,j,0) = z_new_bot_face + delta_z;
             }
@@ -882,7 +882,7 @@ MOSTAverage::set_norm_positions_T (const int& lev)
             zref_arr(i,j,0) = delta_z;
 
             // Destination position must be contained on the current process!
-            Real pos[] = {x_pos_arr(i,j,0)-plo[0],y_pos_arr(i,j,0)-plo[1],myhalf_d*dx[2]};
+            Real pos[] = {x_pos_arr(i,j,0)-plo[0],y_pos_arr(i,j,0)-plo[1],myhalf*dx[2]};
             amrex::ignore_unused(pos);
             AMREX_ALWAYS_ASSERT_WITH_MESSAGE(grb.contains(&pos[0]),
                                               "Query point outside of proc domain!");
@@ -1082,7 +1082,7 @@ MOSTAverage::compute_plane_averages (const int& lev)
                 auto x_pos_arr = x_pos->array(mfi);
                 auto y_pos_arr = y_pos->array(mfi);
                 auto z_pos_arr = z_pos->array(mfi);
-                ParallelFor(Gpu::KernelInfo().setReduction(true), pbx, [=,one_d=one]
+                ParallelFor(Gpu::KernelInfo().setReduction(true), pbx, [=]
                 AMREX_GPU_DEVICE(int i, int j, int , Gpu::Handler const& handler) noexcept
                 {
                     Real T_interp{0};
@@ -1097,9 +1097,9 @@ MOSTAverage::compute_plane_averages (const int& lev)
                         Real qr_interp{0};
                         trilinear_interp_T(x_pos_arr(i,j,0), y_pos_arr(i,j,0), z_pos_arr(i,j,0),
                                            &qr_interp, qr_mf_arr, z_phys_arr, plo, dxInv, 1);
-                        vfac = one_d + Real(0.61)*qv_interp - qr_interp;
+                        vfac = one + epsv*qv_interp - qr_interp;
                     } else {
-                        vfac = one_d + Real(0.61)*qv_interp;
+                        vfac = one + epsv*qv_interp;
                     }
                     const Real val = T_interp * vfac;
                     Gpu::deviceReduceSum(&plane_avg[iavg], val, handler);
@@ -1108,7 +1108,7 @@ MOSTAverage::compute_plane_averages (const int& lev)
                 auto k_arr = k_indx->const_array(mfi);
                 auto j_arr = j_indx ? j_indx->const_array(mfi) : Array4<const int> {};
                 auto i_arr = i_indx ? i_indx->const_array(mfi) : Array4<const int> {};
-                ParallelFor(Gpu::KernelInfo().setReduction(true), pbx, [=,one_d=one]
+                ParallelFor(Gpu::KernelInfo().setReduction(true), pbx, [=]
                 AMREX_GPU_DEVICE(int i, int j, int , Gpu::Handler const& handler) noexcept
                 {
                     int mk = k_arr(i,j,0);
@@ -1117,9 +1117,9 @@ MOSTAverage::compute_plane_averages (const int& lev)
                     Real vfac;
                     if (qr_mf_arr) {
                         // We also have liquid water
-                        vfac = one_d + Real(0.61)*qv_mf_arr(mi,mj,mk) - qr_mf_arr(mi,mj,mk);
+                        vfac = one + epsv*qv_mf_arr(mi,mj,mk) - qr_mf_arr(mi,mj,mk);
                     } else {
-                        vfac = one_d + Real(0.61)*qv_mf_arr(mi,mj,mk);
+                        vfac = one + epsv*qv_mf_arr(mi,mj,mk);
                     }
                     const Real val = T_mf_arr(mi,mj,mk) * vfac;
                     Gpu::deviceReduceSum(&plane_avg[iavg], val, handler);
@@ -1181,9 +1181,9 @@ MOSTAverage::compute_plane_averages (const int& lev)
                     Real u_interp{0};
                     Real v_interp{0};
                     trilinear_interp_T(x_pos_arr(i,j,0), y_pos_arr(i,j,0), z_pos_arr(i,j,0),
-                                            &u_interp, u_mf_arr, z_phys_arr, plo, dxInv, 1);
+                                       &u_interp, u_mf_arr, z_phys_arr, plo, dxInv, 1);
                     trilinear_interp_T(x_pos_arr(i,j,0), y_pos_arr(i,j,0), z_pos_arr(i,j,0),
-                                            &v_interp, v_mf_arr, z_phys_arr, plo, dxInv, 1);
+                                       &v_interp, v_mf_arr, z_phys_arr, plo, dxInv, 1);
                     const Real val = std::sqrt(u_interp*u_interp + v_interp*v_interp + Vsg*Vsg);
                     Gpu::deviceReduceSum(&plane_avg[iavg], val, handler);
                 });
@@ -1191,14 +1191,14 @@ MOSTAverage::compute_plane_averages (const int& lev)
                 auto k_arr = k_indx->const_array(mfi);
                 auto j_arr = j_indx ? j_indx->const_array(mfi) : Array4<const int> {};
                 auto i_arr = i_indx ? i_indx->const_array(mfi) : Array4<const int> {};
-                ParallelFor(Gpu::KernelInfo().setReduction(true), pbx, [=,myhalf_d=myhalf]
+                ParallelFor(Gpu::KernelInfo().setReduction(true), pbx, [=]
                 AMREX_GPU_DEVICE(int i, int j, int , Gpu::Handler const& handler) noexcept
                 {
                     int mk = k_arr(i,j,0);
                     int mj = j_arr ? j_arr(i,j,0) : j;
                     int mi = i_arr ? i_arr(i,j,0) : i;
-                    const Real u_val = myhalf_d * (u_mf_arr(mi,mj,mk) + u_mf_arr(mi+1,mj  ,mk));
-                    const Real v_val = myhalf_d * (v_mf_arr(mi,mj,mk) + v_mf_arr(mi  ,mj+1,mk));
+                    const Real u_val = myhalf * (u_mf_arr(mi,mj,mk) + u_mf_arr(mi+1,mj  ,mk));
+                    const Real v_val = myhalf * (v_mf_arr(mi,mj,mk) + v_mf_arr(mi  ,mj+1,mk));
                     const Real val = std::sqrt(u_val*u_val + v_val*v_val + Vsg*Vsg);
                     Gpu::deviceReduceSum(&plane_avg[iavg], val, handler);
                 });
@@ -1293,7 +1293,7 @@ MOSTAverage::compute_region_averages (const int& lev)
                 auto x_pos_arr = x_pos->array(mfi);
                 auto y_pos_arr = y_pos->array(mfi);
                 auto z_pos_arr = z_pos->array(mfi);
-                ParallelFor(pbx, [=,one_d=one] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+                ParallelFor(pbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
                 {
                     ma_arr(i,j,0) *= d_fact_old;
 
@@ -1374,7 +1374,7 @@ MOSTAverage::compute_region_averages (const int& lev)
                 auto x_pos_arr = x_pos->array(mfi);
                 auto y_pos_arr = y_pos->array(mfi);
                 auto z_pos_arr = z_pos->array(mfi);
-                ParallelFor(pbx, [=,one_d=one] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+                ParallelFor(pbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
                 {
                     ma_arr(i,j,0) *= d_fact_old;
 
@@ -1395,9 +1395,9 @@ MOSTAverage::compute_region_averages (const int& lev)
                                 Real qr_interp{0};
                                 trilinear_interp_T(x_pos_arr(i,j,0), y_pos_arr(i,j,0), z_pos_arr(i,j,0),
                                                    &qr_interp, qr_mf_arr, z_phys_arr, plo, dxInv, 1);
-                                vfac = one_d + Real(0.61)*qv_interp - qr_interp;
+                                vfac = one + epsv*qv_interp - qr_interp;
                             } else {
-                                vfac = one_d + Real(0.61)*qv_interp;
+                                vfac = one + epsv*qv_interp;
                             }
                             const Real mag = T_interp * vfac;
                             const Real val = denom * mag * d_fact_new;
@@ -1410,7 +1410,7 @@ MOSTAverage::compute_region_averages (const int& lev)
                 auto k_arr = k_indx->const_array(mfi);
                 auto j_arr = j_indx ? j_indx->const_array(mfi) : Array4<const int> {};
                 auto i_arr = i_indx ? i_indx->const_array(mfi) : Array4<const int> {};
-                ParallelFor(pbx, [=,one_d=one] AMREX_GPU_DEVICE(int i, int j, int ) noexcept
+                ParallelFor(pbx, [=] AMREX_GPU_DEVICE(int i, int j, int ) noexcept
                 {
                     ma_arr(i,j,0) *= d_fact_old;
 
@@ -1423,9 +1423,9 @@ MOSTAverage::compute_region_averages (const int& lev)
                             Real vfac;
                             if (qr_mf_arr) {
                                 // We also have liquid water
-                                vfac = one_d + Real(0.61)*qv_mf_arr(li,lj,lk) - qr_mf_arr(li,lj,lk);
+                                vfac = one + epsv*qv_mf_arr(li,lj,lk) - qr_mf_arr(li,lj,lk);
                             } else {
-                                vfac = one_d + Real(0.61)*qv_mf_arr(li,lj,lk);
+                                vfac = one + epsv*qv_mf_arr(li,lj,lk);
                             }
                             const Real mag = T_mf_arr(li,lj,lk) * vfac;
                             const Real val = denom * mag * d_fact_new;
@@ -1511,7 +1511,7 @@ MOSTAverage::compute_region_averages (const int& lev)
                 auto k_arr = k_indx->const_array(mfi);
                 auto j_arr = j_indx ? j_indx->const_array(mfi) : Array4<const int> {};
                 auto i_arr = i_indx ? i_indx->const_array(mfi) : Array4<const int> {};
-                ParallelFor(pbx, [=,myhalf_d=myhalf] AMREX_GPU_DEVICE(int i, int j, int ) noexcept
+                ParallelFor(pbx, [=] AMREX_GPU_DEVICE(int i, int j, int ) noexcept
                 {
                     ma_arr(i,j,0) *= d_fact_old;
 
@@ -1521,8 +1521,8 @@ MOSTAverage::compute_region_averages (const int& lev)
                     for (int lk(mk-d_radius); lk <= (mk+d_radius); ++lk) {
                       for (int lj(mj-d_radius); lj <= (mj+d_radius); ++lj) {
                         for (int li(mi-d_radius); li <= (mi+d_radius); ++li) {
-                            const Real u_val = myhalf_d * (u_mf_arr(li,lj,lk) + u_mf_arr(li+1,lj  ,lk));
-                            const Real v_val = myhalf_d * (v_mf_arr(li,lj,lk) + v_mf_arr(li  ,lj+1,lk));
+                            const Real u_val = myhalf * (u_mf_arr(li,lj,lk) + u_mf_arr(li+1,lj  ,lk));
+                            const Real v_val = myhalf * (v_mf_arr(li,lj,lk) + v_mf_arr(li  ,lj+1,lk));
                             const Real mag   = std::sqrt(u_val*u_val + v_val*v_val + Vsg*Vsg);
                             Real val = denom * mag * d_fact_new;
                             ma_arr(i,j,0) += val;
@@ -1686,7 +1686,7 @@ MOSTAverage::compute_eb_averages (const int& lev)
             auto const v_arr = fields[1]->const_array(mfi);
             auto const w_arr = fields[5]->const_array(mfi);
 
-            ParallelFor(Gpu::KernelInfo().setReduction(true), bx, [=,zero_d=zero]
+            ParallelFor(Gpu::KernelInfo().setReduction(true), bx, [=]
             AMREX_GPU_DEVICE(int i, int j, int k, Gpu::Handler const& handler) noexcept
             {
                 // Area-weighted averaging over cut cells at any k
@@ -1709,17 +1709,17 @@ MOSTAverage::compute_eb_averages (const int& lev)
                     Real vf_u_lo = u_vf_arr(i,j,k);
                     Real vf_u_hi = u_vf_arr(i+1,j,k);
                     Real sum_vf_u = vf_u_lo + vf_u_hi;
-                    Real u_cc = (sum_vf_u > zero_d) ? (u_arr(i,j,k)*vf_u_lo + u_arr(i+1,j,k)*vf_u_hi) / sum_vf_u : zero_d;
+                    Real u_cc = (sum_vf_u > zero) ? (u_arr(i,j,k)*vf_u_lo + u_arr(i+1,j,k)*vf_u_hi) / sum_vf_u : zero;
 
                     Real vf_v_lo = v_vf_arr(i,j,k);
                     Real vf_v_hi = v_vf_arr(i,j+1,k);
                     Real sum_vf_v = vf_v_lo + vf_v_hi;
-                    Real v_cc = (sum_vf_v > zero_d) ? (v_arr(i,j,k)*vf_v_lo + v_arr(i,j+1,k)*vf_v_hi) / sum_vf_v : zero_d;
+                    Real v_cc = (sum_vf_v > zero) ? (v_arr(i,j,k)*vf_v_lo + v_arr(i,j+1,k)*vf_v_hi) / sum_vf_v : zero;
 
                     Real vf_w_lo = w_vf_arr(i,j,k);
                     Real vf_w_hi = w_vf_arr(i,j,k+1);
                     Real sum_vf_w = vf_w_lo + vf_w_hi;
-                    Real w_cc = (sum_vf_w > zero_d) ? (w_arr(i,j,k)*vf_w_lo + w_arr(i,j,k+1)*vf_w_hi) / sum_vf_w : zero_d;
+                    Real w_cc = (sum_vf_w > zero) ? (w_arr(i,j,k)*vf_w_lo + w_arr(i,j,k+1)*vf_w_hi) / sum_vf_w : zero;
 
                     // Get normal vector components
                     Real nx = bnorm_arr(i,j,k,0);
@@ -1832,7 +1832,7 @@ MOSTAverage::compute_eb_averages (const int& lev)
             const Array4<Real const> qr_mf_arr = (fields[4]) ? fields[4]->const_array(mfi) :
                                                                 Array4<const Real> {};
 
-            ParallelFor(Gpu::KernelInfo().setReduction(true), bx, [=,one_d=one]
+            ParallelFor(Gpu::KernelInfo().setReduction(true), bx, [=]
             AMREX_GPU_DEVICE(int i, int j, int k, Gpu::Handler const& handler) noexcept
             {
                 if (flag_arr(i,j,k).isSingleValued()) {
@@ -1853,9 +1853,9 @@ MOSTAverage::compute_eb_averages (const int& lev)
                     Real vfac;
                     if (qr_mf_arr) {
                         // We also have liquid water
-                        vfac = one_d + Real(0.61)*qv_mf_arr(i,j,k) - qr_mf_arr(i,j,k);
+                        vfac = one + epsv*qv_mf_arr(i,j,k) - qr_mf_arr(i,j,k);
                     } else {
-                        vfac = one_d + Real(0.61)*qv_mf_arr(i,j,k);
+                        vfac = one + epsv*qv_mf_arr(i,j,k);
                     }
                     const Real val = T_mf_arr(i,j,k) * vfac * area;
                     Gpu::deviceReduceSum(&plane_avg[iavg], val, handler);

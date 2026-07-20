@@ -102,21 +102,21 @@ eb_::set_connection_flags ()
         Array4<EBCellFlag> const& flag = cellflag.array(mfi);
         Array4<Real const> const& vfrac = volfrac.const_array(mfi);
 
-        ParallelFor(gbx, [=,zero_d=zero] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
             for(int kk(-1); kk<=1; kk++) {
             for(int jj(-1); jj<=1; jj++) {
             for(int ii(-1); ii<=1; ii++)
             {
-                if (vfrac(i+ii,j+jj,k+kk) == zero_d) {
+                if (vfrac(i+ii,j+jj,k+kk) == zero) {
                     flag(i,j,k).setDisconnected(ii,jj,kk);
                 }
             }}}
         });
 
-        ParallelFor(gbx, [=,zero_d=zero] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
-            if (vfrac(i,j,k)==zero_d) {
+            if (vfrac(i,j,k)==zero) {
                 flag(i,j,k).setCovered();
             }
         });

@@ -138,7 +138,7 @@ SAM::PrecipFall (const SolverChoice& sc)
             const auto& tbz = mfi.tilebox(IntVect(0,0,1),IntVect(0));
 
             // Update vertical flux every substep
-            ParallelFor(tbz, [=,one_d=one] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+            ParallelFor(tbz, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
             {
                 const SAMPrecipComponentFaceState face_state =
                     sam_precip_component_face_state(rho_array, tabs_array,
@@ -152,7 +152,7 @@ SAM::PrecipFall (const SolverChoice& sc)
                                                                  rho_0,
                                                                  face_state.rho_avg);
                 const int donor_k = sam_precip_face_donor_k(k, k_lo, k_hi);
-                const Real detJ_donor = (dJ_array) ? dJ_array(i,j,donor_k) : one_d;
+                const Real detJ_donor = (dJ_array) ? dJ_array(i,j,donor_k) : one;
 
                 // NOTE: Fz is the sedimentation flux from the advective operator.
                 //       In the terrain-following coordinate system, the z-deriv in
@@ -188,10 +188,10 @@ SAM::PrecipFall (const SolverChoice& sc)
             });
 
             // Update precip every substep
-            ParallelFor(tbx, [=,one_d=one] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+            ParallelFor(tbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
             {
                 // Jacobian determinant
-                Real dJinv = (dJ_array) ? one_d/dJ_array(i,j,k) : one_d;
+                Real dJinv = (dJ_array) ? one/dJ_array(i,j,k) : one;
 
                 //==================================================
                 // Precipitating sedimentation (A19)
