@@ -254,7 +254,7 @@ ERF::erf_enforce_hse (int lev,
 
         const Real rdOcp = solverChoice.rdOcp;
 
-        ParallelFor(b2d, [=,myhalf_d=myhalf,p_0_d=p_0] AMREX_GPU_DEVICE (int i, int j, int)
+        ParallelFor(b2d, [=] AMREX_GPU_DEVICE (int i, int j, int)
         {
             // Set value at surface from Newton iteration for rho
             if (klo == 0)
@@ -264,10 +264,10 @@ ERF::erf_enforce_hse (int lev,
                 if (l_use_terrain) {
                     hz = zcc_arr(i,j,klo);
                 } else {
-                    hz = myhalf_d*dz;
+                    hz = myhalf*dz;
                 }
 
-                pres_arr(i,j,klo) = p_0_d - hz * rho_arr(i,j,klo) * l_gravity;
+                pres_arr(i,j,klo) = p_0 - hz * rho_arr(i,j,klo) * l_gravity;
                   pi_arr(i,j,klo) = getExnergivenP(pres_arr(i,j,klo), rdOcp);
                   th_arr(i,j,klo) = getRhoThetagivenP(pres_arr(i,j,klo)) / rho_arr(i,j,klo);
 
@@ -275,7 +275,7 @@ ERF::erf_enforce_hse (int lev,
                 // Set ghost cell with dz and rho at boundary
                 // (We will set the rest of the ghost cells in the boundary condition routine)
                 //
-                pres_arr(i,j,klo-1) = p_0_d + hz * rho_arr(i,j,klo) * l_gravity;
+                pres_arr(i,j,klo-1) = p_0 + hz * rho_arr(i,j,klo) * l_gravity;
                   pi_arr(i,j,klo-1) = getExnergivenP(pres_arr(i,j,klo-1), rdOcp);
                   th_arr(i,j,klo-1) = getRhoThetagivenP(pres_arr(i,j,klo-1)) / rho_arr(i,j,klo-1);
 
@@ -290,7 +290,7 @@ ERF::erf_enforce_hse (int lev,
                     dz_loc = dz;
                 }
 
-                Real dens_interp = myhalf_d*(rho_arr(i,j,klo) + rho_arr(i,j,klo-1));
+                Real dens_interp = myhalf*(rho_arr(i,j,klo) + rho_arr(i,j,klo-1));
                 pres_arr(i,j,klo) = pres_arr(i,j,klo-1) - dz_loc * dens_interp * l_gravity;
 
                 pi_arr(i,j,klo  ) = getExnergivenP(pres_arr(i,j,klo  ), rdOcp);
@@ -304,14 +304,14 @@ ERF::erf_enforce_hse (int lev,
             if (l_use_terrain) {
                 for (int k = klo+1; k <= khi; k++) {
                     Real dz_loc = (zcc_arr(i,j,k) - zcc_arr(i,j,k-1));
-                    dens_interp = myhalf_d*(rho_arr(i,j,k) + rho_arr(i,j,k-1));
+                    dens_interp = myhalf*(rho_arr(i,j,k) + rho_arr(i,j,k-1));
                     pres_arr(i,j,k) = pres_arr(i,j,k-1) - dz_loc * dens_interp * l_gravity;
                     pi_arr(i,j,k) = getExnergivenP(pres_arr(i,j,k), rdOcp);
                     th_arr(i,j,k) = getRhoThetagivenP(pres_arr(i,j,k)) / rho_arr(i,j,k);
                 }
             } else {
                 for (int k = klo+1; k <= khi; k++) {
-                    dens_interp = myhalf_d*(rho_arr(i,j,k) + rho_arr(i,j,k-1));
+                    dens_interp = myhalf*(rho_arr(i,j,k) + rho_arr(i,j,k-1));
                     pres_arr(i,j,k) = pres_arr(i,j,k-1) - dz * dens_interp * l_gravity;
                     pi_arr(i,j,k) = getExnergivenP(pres_arr(i,j,k), rdOcp);
                     th_arr(i,j,k) = getRhoThetagivenP(pres_arr(i,j,k)) / rho_arr(i,j,k);

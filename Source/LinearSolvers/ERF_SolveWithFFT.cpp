@@ -204,21 +204,21 @@ void ERF::solve_with_fft (int lev, int isub, const Box& subdomain,
         Array4<Real> const& fz_arr  = fluxes[2].array(mfi);
         if (solverChoice.mesh_type != MeshType::ConstantDz) {
             Real* stretched_dz_d_ptr = stretched_dz_d[lev].data();
-            ParallelFor(zbx, [=,zero_d=zero,myhalf_d=myhalf] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            ParallelFor(zbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
                 if (k == sub_lo.z || k == sub_hi.z+1) {
-                    fz_arr(i,j,k) = zero_d;
+                    fz_arr(i,j,k) = zero;
                 } else {
-                    Real dz = myhalf_d * (stretched_dz_d_ptr[k] + stretched_dz_d_ptr[k-1]);
+                    Real dz = myhalf * (stretched_dz_d_ptr[k] + stretched_dz_d_ptr[k-1]);
                     fz_arr(i,j,k) = -(p_arr(i,j,k) - p_arr(i,j,k-1)) / dz;
                 }
             });
         } else { // no grid stretching
             const Real dz_inv = dxInv[2];
-            ParallelFor(zbx, [=,zero_d=zero] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            ParallelFor(zbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
                 if (k == sub_lo.z || k == sub_hi.z+1) {
-                    fz_arr(i,j,k) = zero_d;
+                    fz_arr(i,j,k) = zero;
                 } else {
                     fz_arr(i,j,k) = -(p_arr(i,j,k) - p_arr(i,j,k-1)) * dz_inv;
                 }

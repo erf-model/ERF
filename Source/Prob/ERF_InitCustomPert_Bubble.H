@@ -77,14 +77,15 @@
             moisture_type = 2;
         }
 
-        ParallelFor(bx, [=,myhalf_d=myhalf,zero_d=zero,PI_d=PI,two_d=two,R_d_d=R_d,Cp_d_d=Cp_d,R_v_d=R_v,tbgmin_d=tbgmin,a_bg_d=a_bg] AMREX_GPU_DEVICE(int i, int j, int k)
+        ParallelFor(bx, [=,zero_d=zero,one_d=one,tbgmin_d=tbgmin,a_bg_d=a_bg]
+                    AMREX_GPU_DEVICE(int i, int j, int k)
         {
             // Geometry (note we must include these here to get the data on device)
             const auto prob_lo  = geomdata.ProbLo();
             const auto dx       = geomdata.CellSize();
-            const Real x        = prob_lo[0] + (i + myhalf_d) * dx[0];
-            const Real y        = prob_lo[1] + (j + myhalf_d) * dx[1];
-            const Real z        = prob_lo[2] + (k + myhalf_d) * dx[2];
+            const Real x        = prob_lo[0] + (i + myhalf) * dx[0];
+            const Real y        = prob_lo[1] + (j + myhalf) * dx[1];
+            const Real z        = prob_lo[2] + (k + myhalf) * dx[2];
 
             Real rad, delta_theta, theta_total, rho, RH;
 
@@ -96,27 +97,27 @@
             rad = std::sqrt(rad);
 
             if (rad <= amrex::Real(1)) {
-                delta_theta = theta_pert*amrex::Math::powi<2>(std::cos(PI_d*rad/two_d));
+                delta_theta = theta_pert*amrex::Math::powi<2>(std::cos(PI*rad/two));
             } else {
-                 delta_theta = amrex::Real(0);
+                 delta_theta = zero;
             }
 
             theta_total  = theta_back[k]*(delta_theta/amrex::Real(300.0) + 1);
-            Real T = getTgivenPandTh(p_back[k], theta_total, (R_d_d/Cp_d_d));
-            rho    = p_back[k]/(R_d_d*T*(amrex::Real(1) + (R_v_d/R_d_d)*q_v_back[k]));
+            Real T = getTgivenPandTh(p_back[k], theta_total, RdoCp);
+            rho    = p_back[k]/(R_d*T*(one + RvoRd*q_v_back[k]));
             RH     = compute_relative_humidity(use_empirical);
             Real q_v_hot = vapor_mixing_ratio(p_back[k], T, RH);
 
             // Compute background quantities
-            Real T_back   = getTgivenPandTh(p_back[k], theta_back[k], (R_d_d/Cp_d_d));
-            Real rho_back = p_back[k]/(R_d_d*T_back*(amrex::Real(1) + (R_v_d/R_d_d)*q_v_back[k]));
+            Real T_back   = getTgivenPandTh(p_back[k], theta_back[k], RdoCp);
+            Real rho_back = p_back[k]/(R_d*T_back*(one + RvoRd*q_v_back[k]));
 
             // This version perturbs rho but not p
-            state_pert(i, j, k, RhoTheta_comp) = rho*theta_total - rho_back*theta_back[k]*(amrex::Real(1) + (R_v_d/R_d_d)*q_v_back[k]);
-            state_pert(i, j, k, Rho_comp)      = rho - rho_back*(amrex::Real(1) + qt_init);
+            state_pert(i, j, k, RhoTheta_comp) = rho*theta_total - rho_back*theta_back[k]*(one + RvoRd*q_v_back[k]);
+            state_pert(i, j, k, Rho_comp)      = rho - rho_back*(one + qt_init);
 
             // Set scalar = 0 everywhere
-            state_pert(i, j, k, RhoScalar_comp) = zero_d;
+            state_pert(i, j, k, RhoScalar_comp) = zero;
 
             // mean states
             state_pert(i, j, k, RhoQ1_comp) = rho*q_v_hot;
@@ -127,28 +128,28 @@
             if (nstate == NVAR_max) {
                 Real omn;
                 if(moisture_type == 1) {
-                    omn = std::max(amrex::Real(0),std::min(amrex::Real(1),(T-tbgmin_d)*a_bg_d));
+                    omn = std::max(zero_d,std::min(one_d,(T-tbgmin_d)*a_bg_d));
                 } else if(moisture_type == 2) {
-                    omn = amrex::Real(1);
+                    omn = one;
                 } else {
-                    omn = zero_d;
+                    omn = zero;
                     Abort("Invalid moisture type specified");
                 }
                 Real qn  = state_pert(i, j, k, RhoQ2_comp);
                 state_pert(i, j, k, RhoQ2_comp) = qn * omn;
-                state_pert(i, j, k, RhoQ3_comp) = qn * (amrex::Real(1)-omn);
+                state_pert(i, j, k, RhoQ3_comp) = qn * (one - omn);
             }
         });
     } else {
-        ParallelFor(bx, [=,myhalf_d=myhalf,zero_d=zero,PI_d=PI,two_d=two,R_d_d=R_d,p_0_d=p_0] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+        ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {
             // Geometry (note we must include these here to get the data on device)
             const auto prob_lo         = geomdata.ProbLo();
             const auto dx              = geomdata.CellSize();
 
-            const Real x = prob_lo[0] + (i + myhalf_d) * dx[0];
-            const Real y = prob_lo[1] + (j + myhalf_d) * dx[1];
-            const Real z = prob_lo[2] + (k + myhalf_d) * dx[2];
+            const Real x = prob_lo[0] + (i + myhalf) * dx[0];
+            const Real y = prob_lo[1] + (j + myhalf) * dx[1];
+            const Real z = prob_lo[2] + (k + myhalf) * dx[2];
 
             //perturb_rho_theta(x, y, z, p_hse(i,j,k), r_hse(i,j,k), rdOcp,
             //                  state_pert(i, j, k, Rho_comp),
@@ -158,29 +159,29 @@
             // - The bubble is either cylindrical (for 2-D problems, if two
             //   radial extents are specified) or an ellipsoid (if all three
             //   radial extents are specified).
-            Real L = zero_d;
+            Real L = zero;
             if (x_r > 0) L += amrex::Math::powi<2>((x - x_c)/x_r);
             if (y_r > 0) L += amrex::Math::powi<2>((y - y_c)/y_r);
             if (z_r > 0) L += amrex::Math::powi<2>((z - z_c)/z_r);
             L = std::sqrt(L);
             Real dT;
             if (L > amrex::Real(1)) {
-                dT = zero_d;
+                dT = zero;
             } else {
-                dT = T_pert * amrex::Math::powi<2>(std::cos(PI_d*L/two_d));
+                dT = T_pert * amrex::Math::powi<2>(std::cos(PI*L/two));
             }
 
             // Temperature that satisfies the EOS given the hydrostatically balanced (r,p)
-            const Real Tbar_hse = p_hse(i,j,k) / (R_d_d * r_hse(i,j,k));
+            const Real Tbar_hse = p_hse(i,j,k) / (R_d * r_hse(i,j,k));
 
             // Note: theta_perturbed is theta PLUS perturbation in theta
             Real theta_perturbed;
             if (T_pert_is_airtemp) {
                 // dT is air temperature
-                theta_perturbed = (Tbar_hse + dT)*std::pow(p_0_d/p_hse(i,j,k), rdOcp);
+                theta_perturbed = (Tbar_hse + dT)*std::pow(p_0/p_hse(i,j,k), rdOcp);
             } else {
                 // dT is potential temperature
-                theta_perturbed = Tbar_hse*std::pow(p_0_d/p_hse(i,j,k), rdOcp) + dT;
+                theta_perturbed = Tbar_hse*std::pow(p_0/p_hse(i,j,k), rdOcp) + dT;
             }
 
             if (perturb_rho)
@@ -189,12 +190,12 @@
                 // - hydrostatic rebalance is needed (TODO: is this true?)
                 // - this is the approach taken in the density current problem
                 state_pert(i,j,k,Rho_comp)      = getRhoThetagivenP(p_hse(i,j,k)) / theta_perturbed - r_hse(i,j,k);
-                state_pert(i,j,k,RhoTheta_comp) = zero_d; // i.e., hydrostatically balanced pressure stays const
+                state_pert(i,j,k,RhoTheta_comp) = zero; // i.e., hydrostatically balanced pressure stays const
             }
             else
             {
                 // this version perturbs rho*theta (i.e., p) but not rho
-                state_pert(i,j,k,Rho_comp)      = zero_d; // i.e., hydrostatically balanced density stays const
+                state_pert(i,j,k,Rho_comp)      = zero; // i.e., hydrostatically balanced density stays const
                 state_pert(i,j,k,RhoTheta_comp) = r_hse(i,j,k) * theta_perturbed - getRhoThetagivenP(p_hse(i,j,k));
             }
         });

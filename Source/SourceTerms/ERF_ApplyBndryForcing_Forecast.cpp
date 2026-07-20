@@ -56,13 +56,13 @@ ApplyBndryForcing_Forecast (
     AMREX_ALWAYS_ASSERT(ylo_sponge_end   > ProbLoArr[1]);
     AMREX_ALWAYS_ASSERT(yhi_sponge_start < ProbHiArr[1]);
 
-    ParallelFor(tbx, [=,myhalf_d=myhalf] AMREX_GPU_DEVICE(int i, int j, int k)
+    ParallelFor(tbx, [=] AMREX_GPU_DEVICE(int i, int j, int k)
     {
         int ii = amrex::min(amrex::max(i, domlo_x), domhi_x);
         int jj = amrex::min(amrex::max(j, domlo_y), domhi_y);
 
         Real x = ProbLoArr[0] + ii * dx[0];
-        Real y = ProbLoArr[1] + (jj+myhalf_d) * dx[1];
+        Real y = ProbLoArr[1] + (jj+myhalf) * dx[1];
 
         Real rho_u_sponge = rho_u_initial_state(i,j,k)*cons_initial_state(i,j,k,0);
         // x lo sponge
@@ -88,12 +88,12 @@ ApplyBndryForcing_Forecast (
     });
 
 
-    ParallelFor(tby, [=,myhalf_d=myhalf] AMREX_GPU_DEVICE(int i, int j, int k)
+    ParallelFor(tby, [=] AMREX_GPU_DEVICE(int i, int j, int k)
     {
         int ii = amrex::min(amrex::max(i, domlo_x), domhi_x);
         int jj = amrex::min(amrex::max(j, domlo_y), domhi_y);
 
-        Real x = ProbLoArr[0] + (ii+myhalf_d) * dx[0];
+        Real x = ProbLoArr[0] + (ii+myhalf) * dx[0];
         Real y = ProbLoArr[1] + jj * dx[1];
 
         Real rho_v_sponge    = rho_v_initial_state(i,j,k)*cons_initial_state(i,j,k,0);
@@ -121,14 +121,14 @@ ApplyBndryForcing_Forecast (
             }
     });
 
-    ParallelFor(tbz, [=,zero_d=zero] AMREX_GPU_DEVICE(int i, int j, int k)
+    ParallelFor(tbz, [=] AMREX_GPU_DEVICE(int i, int j, int k)
     {
         Real z = z_phys_nd(i,j,k);
 
         if(hindcast_zhi_sponge_damping){
             if (z > zhi_sponge_start) {
                 Real xi = (z - zhi_sponge_start) / hindcast_zhi_sponge_length;
-                rho_w_rhs(i, j, k) -= hindcast_zhi_sponge_strength * xi * xi * (rho_w(i, j, k) - zero_d);
+                rho_w_rhs(i, j, k) -= hindcast_zhi_sponge_strength * xi * xi * (rho_w(i, j, k) - zero);
             }
         }
     });

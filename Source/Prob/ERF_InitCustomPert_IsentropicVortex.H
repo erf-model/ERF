@@ -49,29 +49,29 @@
 
     const amrex::Real rdOcp = sc.rdOcp;
 
-    ParallelFor(bx, [=,myhalf_d=myhalf,one_d=one,two_d=two,Gamma_d=Gamma,p_0_d=p_0,fourth_d=fourth,PI_d=PI] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+    ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
     {
         const Real* dx = geomdata.CellSize();
 
         // Note that since we only use (x-xc) and (y-yc), we neglect the prob_lo offset in these
-        const Real x = (i + myhalf_d) * dx[0]; // cell center
-        const Real y = (j + myhalf_d) * dx[1]; // cell center
+        const Real x = (i + myhalf) * dx[0]; // cell center
+        const Real y = (j + myhalf) * dx[1]; // cell center
 
         // Calculate perturbation temperature
         const Real Omg = erf_vortex_Gaussian(x,y,xc,yc,R,beta,sigma);
-        const Real deltaT = -(gamma - one_d)/(two_d*sigma*sigma) * Omg*Omg;
+        const Real deltaT = -(gamma - one)/(two*sigma*sigma) * Omg*Omg;
 
         // Set the perturbation density
-        const Real rho_norm = std::pow(one_d + deltaT, inv_gm1);
+        const Real rho_norm = std::pow(one + deltaT, inv_gm1);
         state_pert(i, j, k, Rho_comp) = rho_norm * rho_0 - r_hse(i,j,k);
 
         // Initial _potential_ temperature
-        const Real T = (one_d + deltaT) * T_inf;
-        const Real p = std::pow(rho_norm, Gamma_d) / Gamma_d  // isentropic relation
+        const Real T = (one + deltaT) * T_inf;
+        const Real p = std::pow(rho_norm, Gamma) / Gamma  // isentropic relation
                               * rho_0*a_inf*a_inf;
-        const Real rho_theta = rho_0 * rho_norm * (T * std::pow(p_0_d / p, rdOcp)); // T --> theta
+        const Real rho_theta = rho_0 * rho_norm * (T * std::pow(p_0 / p, rdOcp)); // T --> theta
         state_pert(i, j, k, RhoTheta_comp) = rho_theta - getRhoThetagivenP(p_hse(i,j,k)); // Set the perturbation rho*theta
 
         const Real r2d_xy = std::sqrt((x-xc)*(x-xc) + (y-yc)*(y-yc));
-        state_pert(i, j, k, RhoScalar_comp) = fourth_d * (one_d + std::cos(PI_d * std::min(r2d_xy, R) / R));
+        state_pert(i, j, k, RhoScalar_comp) = fourth * (one + std::cos(PI * std::min(r2d_xy, R) / R));
     });

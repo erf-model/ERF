@@ -326,15 +326,15 @@
                });
 
                Box gbx2 = mfi.growntilebox({1,1,0});
-               amrex::ParallelFor(gbx2, [=,myhalf_d=myhalf,one_d=one] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+               amrex::ParallelFor(gbx2, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
                {
-                   Real zflux_r_lo = -z_t_arr(i,j,k  ) * myhalf_d * (r0_tmp_arr(i,j,k) + r0_tmp_arr(i,j,k-1));
-                   Real zflux_r_hi = -z_t_arr(i,j,k+1) * myhalf_d * (r0_tmp_arr(i,j,k) + r0_tmp_arr(i,j,k+1));
+                   Real zflux_r_lo = -z_t_arr(i,j,k  ) * myhalf * (r0_tmp_arr(i,j,k) + r0_tmp_arr(i,j,k-1));
+                   Real zflux_r_hi = -z_t_arr(i,j,k+1) * myhalf * (r0_tmp_arr(i,j,k) + r0_tmp_arr(i,j,k+1));
 
-                   Real zflux_rt_lo = zflux_r_lo * myhalf_d * (rt0_tmp_arr(i,j,k)/r0_tmp_arr(i,j,k) + rt0_tmp_arr(i,j,k-1)/r0_tmp_arr(i,j,k-1));
-                   Real zflux_rt_hi = zflux_r_hi * myhalf_d * (rt0_tmp_arr(i,j,k)/r0_tmp_arr(i,j,k) + rt0_tmp_arr(i,j,k+1)/r0_tmp_arr(i,j,k+1));
+                   Real zflux_rt_lo = zflux_r_lo * myhalf * (rt0_tmp_arr(i,j,k)/r0_tmp_arr(i,j,k) + rt0_tmp_arr(i,j,k-1)/r0_tmp_arr(i,j,k-1));
+                   Real zflux_rt_hi = zflux_r_hi * myhalf * (rt0_tmp_arr(i,j,k)/r0_tmp_arr(i,j,k) + rt0_tmp_arr(i,j,k+1)/r0_tmp_arr(i,j,k+1));
 
-                   Real invdetJ = one_d / dJ_src_arr(i,j,k);
+                   Real invdetJ = one / dJ_src_arr(i,j,k);
 
                    Real src_r  = - invdetJ * ( zflux_r_hi  - zflux_r_lo  ) * dxInv[2];
                    Real src_rt = - invdetJ * ( zflux_rt_hi - zflux_rt_lo ) * dxInv[2];

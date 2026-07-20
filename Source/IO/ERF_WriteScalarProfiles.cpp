@@ -365,26 +365,26 @@ ERF::sum_energy_quantities (double time)
         const Array4<const Real>& cons_arr = vars_new[lev][Vars::cons].const_array(mfi);
         const Array4<const Real>& z_arr    = (z_phys_nd[lev]) ? z_phys_nd[lev]->const_array(mfi) :
                                                                 Array4<const Real>{};
-        ParallelFor(bx, [=,zero_d=zero,one_d=one,myhalf_d=myhalf,Cp_d_d=Cp_d,R_d_d=R_d,Cp_v_d=Cp_v,R_v_d=R_v,L_v_d=L_v,CONST_GRAV_d=CONST_GRAV] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
-            Real Qv   = (is_moist) ? cons_arr(i,j,k,RhoQ1_comp) : zero_d;
-            Real Qc   = (is_moist) ? cons_arr(i,j,k,RhoQ2_comp) : zero_d;
+            Real Qv   = (is_moist) ? cons_arr(i,j,k,RhoQ1_comp) : zero;
+            Real Qc   = (is_moist) ? cons_arr(i,j,k,RhoQ2_comp) : zero;
             Real Qt   = Qv + Qc;
             Real Rhod = cons_arr(i,j,k,Rho_comp);
-            Real Rhot = Rhod * (one_d + Qt);
+            Real Rhot = Rhod * (one + Qt);
             Real Temp = getTgivenRandRTh(Rhod, cons_arr(i,j,k,RhoTheta_comp), Qv);
-            Real TKE  = myhalf_d * ( cc_vel_arr(i,j,k,0)*cc_vel_arr(i,j,k,0)
+            Real TKE  = myhalf * ( cc_vel_arr(i,j,k,0)*cc_vel_arr(i,j,k,0)
                               + cc_vel_arr(i,j,k,1)*cc_vel_arr(i,j,k,1)
                               + cc_vel_arr(i,j,k,2)*cc_vel_arr(i,j,k,2) );
             Real zval = (z_arr) ? z_arr(i,j,k) : Real(k)*dx[2];
 
-            Real Cv   = Cp_d_d - R_d_d;
-            Real Cvv  = Cp_v_d - R_v_d;
-            Real Cpv  = Cp_v_d;
+            Real Cv   = Cp_d - R_d;
+            Real Cvv  = Cp_v - R_v;
+            Real Cpv  = Cp_v;
 
             tot_mass_arr(i,j,k)   = Rhot;
-            tot_energy_arr(i,j,k) = Rhod * ( (Cv + Cvv*Qv + Cpv*Qc)*Temp - L_v_d*Qc
-                                           + (one_d + Qt)*TKE + (one_d + Qt)*CONST_GRAV_d*zval );
+            tot_energy_arr(i,j,k) = Rhod * ( (Cv + Cvv*Qv + Cpv*Qc)*Temp - L_v*Qc
+                                           + (one + Qt)*TKE + (one + Qt)*CONST_GRAV*zval );
 
         });
 

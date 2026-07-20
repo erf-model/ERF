@@ -42,7 +42,7 @@ namespace HSEutils
     AMREX_FORCE_INLINE
     void
     Newton_Raphson_hse (const Real& m_tol,
-                        const Real& RdOCp,
+                        const Real& RdoCp,
                         const Real& dz,
                         const Real& g,
                         const Real& C,
@@ -66,7 +66,7 @@ namespace HSEutils
             AMREX_ALWAYS_ASSERT(P > amrex::Real(0));
 
             // Diagnose density and residual
-            rd = (maintain_Th) ? getRhogivenThetaPress(Th, P, RdOCp, qv) :
+            rd = (maintain_Th) ? getRhogivenThetaPress(Th, P, RdoCp, qv) :
                                  getRhogivenTandPress(T , P, qv);
             AMREX_ALWAYS_ASSERT(rd > amrex::Real(0));
             Real r_tot = rd * (one + qt);
@@ -432,7 +432,7 @@ Real compute_relative_humidity (const Real p_b, const Real T_b, const bool use_e
     if (which_zone > 0) {
         if (which_zone == 1) { // z <= height
             Real p_s = compute_saturation_pressure(T_b, use_empirical);
-            Real q_s = Rd_on_Rv*p_s/(p_b - p_s);
+            Real q_s = RdoRv*p_s/(p_b - p_s);
             return Real(0.014)/q_s;
         } else if (which_zone == 2) { // z > height and z <= z_tr; scaled_height = z/z_tr
             return one - Real(0.75)*std::pow(scaled_height,Real(1.25));
@@ -451,7 +451,7 @@ Real vapor_mixing_ratio (const Real p_b, const Real T_b, const Real RH, const bo
 {
     Real p_s = compute_saturation_pressure(T_b,use_empirical);
     Real p_v = compute_vapor_pressure(p_s, RH);
-    Real q_v = Rd_on_Rv*p_v/(p_b - p_v);
+    Real q_v = RdoRv*p_v/(p_b - p_v);
 
     if (which_zone == 1) { // z <= height
         return Real(0.014);
@@ -538,10 +538,10 @@ void compute_rho (const Real& pressure, Real& theta, Real& rho, Real& q_v, Real&
 
     if (T_from_theta) {
         theta   = compute_theta(scaled_height, theta_0, theta_tr, z_tr, T_tr);
-        T_b     = getTgivenPandTh(pressure, theta, (R_d/Cp_d));
+        T_b     = getTgivenPandTh(pressure, theta, RdoCp);
     } else {
         T_b     = compute_temperature(pressure, q_t, eq_pot_temp, use_empirical, which_zone, scaled_height);
-        theta   = getThgivenTandP(T_b, pressure, (R_d/Cp_d));
+        theta   = getThgivenTandP(T_b, pressure, RdoCp);
     }
 
     Real RH = compute_relative_humidity(pressure, T_b, use_empirical, which_zone, scaled_height);

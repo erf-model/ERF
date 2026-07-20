@@ -219,7 +219,8 @@ ERF::init_from_ncfile (int lev)
             const Array4<Real>& pi_hse_arr = pi_hse.array(mfi);
             const Array4<Real>& qv_hse_arr = (have_moisture) ? qv_hse.array(mfi) : Array4<Real>{};
 
-            ParallelFor(gtbx, [=,R_d_d=R_d,Cp_d_d=Cp_d] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+            ParallelFor(gtbx, [=]
+                        AMREX_GPU_DEVICE(int i, int j, int k) noexcept
             {
                 // Base state needs ghost cells filled, protect FAB access
                 int ii = std::max(i , ilo);
@@ -232,7 +233,7 @@ ERF::init_from_ncfile (int lev)
                  r_hse_arr(i,j,k) =  r_hse_arr(ii,jj,kk);
                  p_hse_arr(i,j,k) =  p_hse_arr(ii,jj,kk);
                 th_hse_arr(i,j,k) = th_hse_arr(ii,jj,kk);
-                pi_hse_arr(i,j,k) = getExnergivenP(p_hse_arr(ii,jj,kk), R_d_d/Cp_d_d);
+                pi_hse_arr(i,j,k) = getExnergivenP(p_hse_arr(ii,jj,kk), RdoCp);
 
                 // qv_hse == qv
                 if (have_moisture) qv_hse_arr(i,j,k) = con_arr(ii,jj,kk,RhoQ1_comp);
@@ -268,7 +269,8 @@ ERF::init_from_ncfile (int lev)
             const Array4<      Real>& pi_hse_arr = pi_hse.array(mfi);
             const Array4<      Real>& qv_hse_arr = (have_moisture) ? qv_hse.array(mfi) : Array4<Real>{};
 
-            ParallelFor(bx, [=,zero_d=zero,p_0_d=p_0,R_d_d=R_d,Cp_d_d=Cp_d,one_d=one,myhalf_d=myhalf] AMREX_GPU_DEVICE(int i, int j, int /*k*/) noexcept
+            ParallelFor(bx, [=,RdoCp_d=RdoCp]
+                        AMREX_GPU_DEVICE(int i, int j, int /*k*/) noexcept
             {
                 // integrate from surface to domain top
                 Real dz, F, C;
@@ -283,31 +285,31 @@ ERF::init_from_ncfile (int lev)
                 // First integrate from sea level to the height at klo
                 {
                     // Vertical grid spacing
-                    z_lo = zero_d; // corresponding to p_0
+                    z_lo = zero; // corresponding to p_0
                     z_hi = Real(0.125) * (z_arr(i,j,klo  ) + z_arr(i+1,j,klo  ) + z_arr(i,j+1,klo  ) + z_arr(i+1,j+1,klo  )
                                          +z_arr(i,j,klo+1) + z_arr(i+1,j,klo+1) + z_arr(i,j+1,klo+1) + z_arr(i+1,j+1,klo+1));
                     dz = z_hi - z_lo;
 
                     // Establish known constant
-                    qv_lo = (have_moisture) ? con_arr(i,j,klo,RhoQ1_comp) / con_arr(i,j,klo,Rho_comp) : zero_d;
+                    qv_lo = (have_moisture) ? con_arr(i,j,klo,RhoQ1_comp) / con_arr(i,j,klo,Rho_comp) : zero;
                     Th_lo = con_arr(i,j,klo,RhoTheta_comp) / con_arr(i,j,klo,Rho_comp);
-                    P_lo  = p_0_d;
-                    R_lo  = getRhogivenThetaPress(Th_lo, P_lo, R_d_d/Cp_d_d, qv_lo);
-                    rho_tot_lo = R_lo * (one_d + qv_lo);
-                    C  = -P_lo + myhalf_d*rho_tot_lo*grav*dz;
+                    P_lo  = p_0;
+                    R_lo  = getRhogivenThetaPress(Th_lo, P_lo, RdoCp_d, qv_lo);
+                    rho_tot_lo = R_lo * (one + qv_lo);
+                    C  = -P_lo + myhalf*rho_tot_lo*grav*dz;
 
                     // Initial guess and residual
-                    qv_hi = (have_moisture) ? con_arr(i,j,klo,RhoQ1_comp) / con_arr(i,j,klo,Rho_comp) : zero_d;
+                    qv_hi = (have_moisture) ? con_arr(i,j,klo,RhoQ1_comp) / con_arr(i,j,klo,Rho_comp) : zero;
                     Th_hi = con_arr(i,j,klo,RhoTheta_comp) / con_arr(i,j,klo,Rho_comp);
-                    P_hi  = p_0_d;
-                    T_hi  = getTgivenPandTh(P_hi, Th_hi, R_d_d/Cp_d_d);
-                    R_hi  = getRhogivenThetaPress(Th_hi, P_hi, R_d_d/Cp_d_d, qv_hi);
-                    rho_tot_hi = R_hi * (one_d + qv_hi);
-                    F = P_hi + myhalf_d*rho_tot_hi*grav*dz + C;
+                    P_hi  = p_0;
+                    T_hi  = getTgivenPandTh(P_hi, Th_hi, RdoCp_d);
+                    R_hi  = getRhogivenThetaPress(Th_hi, P_hi, RdoCp_d, qv_hi);
+                    rho_tot_hi = R_hi * (one + qv_hi);
+                    F = P_hi + myhalf*rho_tot_hi*grav*dz + C;
 
                     // Do iterations
                     bool maintain_Th = true;
-                    HSEutils::Newton_Raphson_hse(tol, R_d_d/Cp_d_d, dz,
+                    HSEutils::Newton_Raphson_hse(tol, RdoCp_d, dz,
                                                  grav, C, Th_hi, T_hi,
                                                  qv_hi, qv_hi,
                                                  P_hi, R_hi, F, maintain_Th);
@@ -316,7 +318,7 @@ ERF::init_from_ncfile (int lev)
                      r_hse_arr(i,j,klo) = R_hi;
                      p_hse_arr(i,j,klo) = P_hi;
                     th_hse_arr(i,j,klo) = Th_hi;
-                    pi_hse_arr(i,j,klo) = getExnergivenP(p_hse_arr(i,j,klo), R_d_d/Cp_d_d);
+                    pi_hse_arr(i,j,klo) = getExnergivenP(p_hse_arr(i,j,klo), RdoCp_d);
                     if (have_moisture) { qv_hse_arr(i,j,klo) = qv_hi; }
                     P_lo = P_hi;
                     z_lo = z_hi;
@@ -329,23 +331,23 @@ ERF::init_from_ncfile (int lev)
                     dz   = z_hi - z_lo;
 
                     // Establish known constant
-                    qv_lo = (have_moisture) ? con_arr(i,j,k,RhoQ1_comp) / con_arr(i,j,k,Rho_comp) : zero_d;
+                    qv_lo = (have_moisture) ? con_arr(i,j,k,RhoQ1_comp) / con_arr(i,j,k,Rho_comp) : zero;
                     Th_lo = con_arr(i,j,k,RhoTheta_comp) / con_arr(i,j,k,Rho_comp);
-                    R_lo  = getRhogivenThetaPress(Th_lo, P_lo, R_d_d/Cp_d_d, qv_lo);
-                    rho_tot_lo = R_lo * (one_d + qv_lo);
-                    C  = -P_lo + myhalf_d*rho_tot_lo*grav*dz;
+                    R_lo  = getRhogivenThetaPress(Th_lo, P_lo, RdoCp_d, qv_lo);
+                    rho_tot_lo = R_lo * (one + qv_lo);
+                    C  = -P_lo + myhalf*rho_tot_lo*grav*dz;
 
                     // Initial guess and residual
-                    qv_hi = (have_moisture) ? con_arr(i,j,k,RhoQ1_comp) / con_arr(i,j,k,Rho_comp) : zero_d;
+                    qv_hi = (have_moisture) ? con_arr(i,j,k,RhoQ1_comp) / con_arr(i,j,k,Rho_comp) : zero;
                     Th_hi = con_arr(i,j,k,RhoTheta_comp) / con_arr(i,j,k,Rho_comp);
-                    T_hi  = getTgivenPandTh(P_hi, Th_hi, R_d_d/Cp_d_d);
-                    R_hi  = getRhogivenThetaPress(Th_hi, P_hi, R_d_d/Cp_d_d, qv_hi);
-                    rho_tot_hi = R_hi * (one_d + qv_hi);
-                    F = P_hi + myhalf_d*rho_tot_hi*grav*dz + C;
+                    T_hi  = getTgivenPandTh(P_hi, Th_hi, RdoCp_d);
+                    R_hi  = getRhogivenThetaPress(Th_hi, P_hi, RdoCp_d, qv_hi);
+                    rho_tot_hi = R_hi * (one + qv_hi);
+                    F = P_hi + myhalf*rho_tot_hi*grav*dz + C;
 
                     // Do iterations
                     bool maintain_Th = true;
-                    HSEutils::Newton_Raphson_hse(tol, R_d_d/Cp_d_d, dz,
+                    HSEutils::Newton_Raphson_hse(tol, RdoCp_d, dz,
                                                  grav, C, Th_hi, T_hi,
                                                  qv_hi, qv_hi,
                                                  P_hi, R_hi, F, maintain_Th);
@@ -354,7 +356,7 @@ ERF::init_from_ncfile (int lev)
                      r_hse_arr(i,j,k) = R_hi;
                      p_hse_arr(i,j,k) = P_hi;
                     th_hse_arr(i,j,k) = Th_hi;
-                    pi_hse_arr(i,j,k) = getExnergivenP(p_hse_arr(i,j,k), R_d_d/Cp_d_d);
+                    pi_hse_arr(i,j,k) = getExnergivenP(p_hse_arr(i,j,k), RdoCp_d);
                     if (have_moisture) { qv_hse_arr(i,j,k) = qv_hi; }
                     P_lo = P_hi;
                     z_lo = z_hi;

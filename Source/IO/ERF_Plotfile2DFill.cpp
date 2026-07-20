@@ -2,12 +2,28 @@
 
 #include <AMReX_Gpu.H>
 
+#include "ERF_Constants.H"
 #include "Diagnostics/ERF_SurfaceFluxDiagnostics.H"
 
 using namespace amrex;
 
 namespace plotfile2d
 {
+
+namespace
+{
+
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+bool
+is_valid_land_surface_value (Real value) noexcept
+{
+    // Noah-MP's -9999 fill convention and ERF's large internal sentinel are
+    // both invalid. This preserves valid zero and negative flux values.
+    return std::isfinite(value) && value > Real(-9990.0) &&
+           value < Real(0.5) * lsm_undefined;
+}
+
+} // namespace
 
 void
 fill_component_with_value (MultiFab& dst, int dst_comp, Real value)
@@ -52,6 +68,34 @@ fill_component_from_klevel_or_value (MultiFab& dst,
         fill_component_from_klevel(dst, dst_comp, *src, src_k, src_comp);
     } else {
         fill_component_with_value(dst, dst_comp, missing_value);
+    }
+}
+
+void
+fill_land_surface_component_from_klevel_or_missing (MultiFab& dst,
+                                                    int dst_comp,
+                                                    const MultiFab* src,
+                                                    int src_k,
+                                                    Real missing_value)
+{
+    if (!src) {
+        fill_component_with_value(dst, dst_comp, missing_value);
+        return;
+    }
+
+#ifdef _OPENMP
+#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#endif
+    for (MFIter mfi(dst, TilingIfNotGPU()); mfi.isValid(); ++mfi)
+    {
+        const Box& bx = mfi.tilebox();
+        const auto& dst_arr = dst.array(mfi);
+        const auto& src_arr = src->const_array(mfi);
+        ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+            const Real value = src_arr(i, j, src_k, 0);
+            dst_arr(i, j, k, dst_comp) = is_valid_land_surface_value(value)
+                ? value : missing_value;
+        });
     }
 }
 

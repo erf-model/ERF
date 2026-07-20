@@ -244,7 +244,7 @@ TEST(MicrophysicsQSat, WaterNormalBranchMatchesFiniteDifference)
         erf_qsatw(temperature, pressure, qsat);
         erf_dtqsatw(temperature, pressure, dqsat);
 
-        const amrex::Real expected = Rd_on_Rv * erf_dtesatw(temperature) * pressure /
+        const amrex::Real expected = RdoRv * erf_dtesatw(temperature) * pressure /
                                      ((pressure - esat) * (pressure - esat));
         const amrex::Real finite_difference = central_difference(
             [pressure] (const amrex::Real value) {
@@ -255,7 +255,7 @@ TEST(MicrophysicsQSat, WaterNormalBranchMatchesFiniteDifference)
             temperature);
 
         EXPECT_GE(qsat, amrex::Real(0.0));
-        EXPECT_LE(qsat, Rd_on_Rv);
+        EXPECT_LE(qsat, RdoRv);
         EXPECT_GT(dqsat, amrex::Real(0.0));
         expect_near_relative(dqsat, expected, kDerivativeRelTol);
         expect_near_relative(dqsat, finite_difference, kDerivativeRelTol);
@@ -280,13 +280,13 @@ TEST(MicrophysicsQSat, WaterNormalBranchRoundTripRecoversEsat)
 
         amrex::Real qsat;
         erf_qsatw(temperature, pressure, qsat);
-        const amrex::Real recovered_esat = pressure * qsat / (Rd_on_Rv + qsat);
+        const amrex::Real recovered_esat = pressure * qsat / (RdoRv + qsat);
 
         expect_near_relative(recovered_esat, esat);
     }
 }
 
-// Motivation: Once the qsat cap is active, qsat should be fixed at Rd_on_Rv and
+// Motivation: Once the qsat cap is active, qsat should be fixed at RdoRv and
 // its temperature derivative should collapse to zero.
 TEST(MicrophysicsQSat, WaterCappedBranchIsConstant)
 {
@@ -298,7 +298,7 @@ TEST(MicrophysicsQSat, WaterCappedBranchIsConstant)
     erf_qsatw(temperature, pressure, qsat);
     erf_dtqsatw(temperature, pressure, dqsat);
 
-    expect_near_relative(qsat, Rd_on_Rv);
+    expect_near_relative(qsat, RdoRv);
     expect_near_relative(dqsat, amrex::Real(0.0));
 }
 
@@ -323,8 +323,8 @@ TEST(MicrophysicsQSat, IceNormalAndCappedBranchesAreConsistent)
     ASSERT_TRUE(uses_normal_qsat_branch(esat, normal_pressure));
     EXPECT_GT(dqsat_normal, amrex::Real(0.0));
     EXPECT_GE(qsat_normal, amrex::Real(0.0));
-    EXPECT_LE(qsat_normal, Rd_on_Rv);
-    expect_near_relative(qsat_capped, Rd_on_Rv);
+    EXPECT_LE(qsat_normal, RdoRv);
+    expect_near_relative(qsat_capped, RdoRv);
     expect_near_relative(dqsat_capped, amrex::Real(0.0));
 }
 
@@ -358,7 +358,7 @@ TEST(MicrophysicsQSat, IceNormalBranchFiniteDifferenceAndRoundTrip)
         erf_qsati(temperature, pressure, qsat);
         erf_dtqsati(temperature, pressure, dqsat);
 
-        const amrex::Real recovered_esat = pressure * qsat / (Rd_on_Rv + qsat);
+        const amrex::Real recovered_esat = pressure * qsat / (RdoRv + qsat);
         const amrex::Real finite_difference = central_difference(
             [pressure] (const amrex::Real value) {
                 amrex::Real qsat_local;
@@ -392,11 +392,11 @@ TEST(MicrophysicsQSat, BoundsAndMonotonicityHoldOnNormalBranch)
         erf_qsati(std::min(temperature, amrex::Real(260.0)), amrex::Real(800.0), qsat_ice);
 
         EXPECT_GE(qsat_water, amrex::Real(0.0));
-        EXPECT_LE(qsat_water, Rd_on_Rv);
+        EXPECT_LE(qsat_water, RdoRv);
 
         if (temperature <= amrex::Real(260.0)) {
             EXPECT_GE(qsat_ice, amrex::Real(0.0));
-            EXPECT_LE(qsat_ice, Rd_on_Rv);
+            EXPECT_LE(qsat_ice, RdoRv);
             if (previous_ice > amrex::Real(0.0)) {
                 EXPECT_GT(qsat_ice, previous_ice);
             }

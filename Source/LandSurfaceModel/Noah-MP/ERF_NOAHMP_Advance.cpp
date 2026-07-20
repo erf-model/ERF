@@ -5,6 +5,7 @@
  */
 
 #include <iostream>
+#include <cmath>
 #include <limits>
 
 #include <AMReX_Print.H>
@@ -12,6 +13,7 @@
 #include <ERF_NOAHMP.H>
 #include <ERF_Constants.H>
 #include <ERF_EOS.H>
+#include "ERF_NOAHMP_ResultPolicy.H"
 
 using namespace amrex;
 
@@ -115,11 +117,11 @@ NOAHMP::stage_forcing (const MFIter& mfi,
     const int kklo = klo;
 
     // (1) Stage ERF forcing into the pinned buffer (device).
-    ParallelFor(bx, [=,zero_d=zero,myhalf_d=myhalf] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+    ParallelFor(bx, [=,zero_d=zero] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
         Real qv = (is_moist) ? CONS(i,j,k,RhoQ1_comp)/CONS(i,j,k,Rho_comp) : zero_d;
-        noah_input_arr(i,j,0,NoahmpInputComp::u_phy)   = myhalf_d*(U_PHY(i,j,k)+U_PHY(i+1,j,k));
-        noah_input_arr(i,j,0,NoahmpInputComp::v_phy)   = myhalf_d*(V_PHY(i,j,k)+V_PHY(i  ,j+1,k));
+        noah_input_arr(i,j,0,NoahmpInputComp::u_phy)   = myhalf*(U_PHY(i,j,k)+U_PHY(i+1,j,k));
+        noah_input_arr(i,j,0,NoahmpInputComp::v_phy)   = myhalf*(V_PHY(i,j,k)+V_PHY(i  ,j+1,k));
         noah_input_arr(i,j,0,NoahmpInputComp::t_phy)   = getTgivenRandRTh(CONS(i,j,k,Rho_comp),CONS(i,j,k,RhoTheta_comp),qv);
         noah_input_arr(i,j,0,NoahmpInputComp::qv_curr) = qv;
         noah_input_arr(i,j,0,NoahmpInputComp::p8w)     = getPgivenRTh(CONS(i,j,k,RhoTheta_comp),qv);
@@ -281,44 +283,49 @@ NOAHMP::read_results (const MFIter& mfi,
         int jj = std::min(std::max(j,j_lo),j_hi);
 
         // Noah-MP returns -9999 for cells it does not process (sea-ice/open-water);
-        // detect it and write lsm_undefined so the surface layer falls back to MOST.
-        // tau13/tau23 are nodal in xz/yz; the 2D MFs carry 1 ghost cell for averaging.
-        Real hfx_lsm = noah_output_arr(ii,jj,0,NoahmpOutputComp::hfx);
-        if (hfx_lsm > Real(-9990.0)) {
-            // Noah-MP returns HFX,LH [W/m2] and TAU [N/m2] (rho included); divide by
-            // rho for the kinematic MOST form ERF stores. Exner factor on t_flux is
-            // omitted to match WRF (<~1% error near surface, ~6-7% at p~800 hPa).
-            Real rho_l  = CONS(ii,jj,k,Rho_comp);
-            t_flux_arr(i,j,k) = hfx_lsm/(rho_l*Cp_d_d);
-            q_flux_arr(i,j,k) = noah_output_arr(ii,jj,0,NoahmpOutputComp::lh)/(rho_l*L_v_d);
-            tau13_arr(i,j,k)  = noah_output_arr(ii,jj,0,NoahmpOutputComp::tau_ew)/rho_l;
-            tau23_arr(i,j,k)  = noah_output_arr(ii,jj,0,NoahmpOutputComp::tau_ns)/rho_l;
-        } else {
-            t_flux_arr(i,j,k) = lsm_undefined_d;
-            q_flux_arr(i,j,k) = lsm_undefined_d;
-            tau13_arr(i,j,k)  = lsm_undefined_d;
-            tau23_arr(i,j,k)  = lsm_undefined_d;
-        }
+        // HFX is Noah-MP's processed-cell gate; it is not a statement that
+        // every physical output is valid. tau13/tau23 are nodal in xz/yz;
+        // the 2D MFs carry 1 ghost cell for averaging.
+        const Real hfx_lsm = noah_output_arr(ii,jj,0,NoahmpOutputComp::hfx);
+        const noahmp_result_policy::CellPolicy cell_policy(hfx_lsm);
+        // Noah-MP returns HFX,LH [W/m2] and TAU [N/m2] (rho included); divide by
+        // rho for the kinematic MOST form ERF stores. Exner factor on t_flux is
+        // omitted to match WRF (<~1% error near surface, ~6-7% at p~800 hPa).
+        const Real rho_l = CONS(ii,jj,k,Rho_comp);
+        const auto fluxes = cell_policy.select_fluxes(
+            noah_output_arr(ii,jj,0,NoahmpOutputComp::lh),
+            noah_output_arr(ii,jj,0,NoahmpOutputComp::tau_ew),
+            noah_output_arr(ii,jj,0,NoahmpOutputComp::tau_ns),
+            rho_l, Cp_d_d, L_v_d, lsm_undefined_d);
+        t_flux_arr(i,j,k) = fluxes.temperature;
+        q_flux_arr(i,j,k) = fluxes.mixing_ratio;
+        tau13_arr(i,j,k)  = fluxes.tau_ew;
+        tau23_arr(i,j,k)  = fluxes.tau_ns;
 
-        // RRTMGP + return-term results: mechanical 1:1 copy from the buffer,
-        // generated from NOAHMP_RESULT_FIELDS.
-        if (hfx_lsm > Real(-9990.0)) {
-#define NOAHMP_COPY_RESULT(alias,lsm,out) alias(i,j,0) = noah_output_arr(ii,jj,0,NoahmpOutputComp::out);
-            NOAHMP_RESULT_FIELDS(NOAHMP_COPY_RESULT)
+        // Processed cells retain field-specific validity checks. Unprocessed
+        // cells invalidate the complete provider result set.
+        if (cell_policy.processed) {
+#define NOAHMP_COPY_RESULT(alias,lsm,out)                                      \
+        {                                                                       \
+            const Real value = noah_output_arr(ii,jj,0,NoahmpOutputComp::out);  \
+            alias(i,j,0) = cell_policy.select(                                  \
+                value, lsm_undefined_d, NoahmpOutputComp::out);                \
+        }
+        NOAHMP_RESULT_FIELDS(NOAHMP_COPY_RESULT)
 #undef NOAHMP_COPY_RESULT
             // Not computed by this core -> sentinel, not a misleading 0.
-            SMSTAV_o(i,j,0)      = lsm_undefined_d;
-            SMSTOT_o(i,j,0)      = lsm_undefined_d;
+            SMSTAV_o(i,j,0) = lsm_undefined_d;
+            SMSTOT_o(i,j,0) = lsm_undefined_d;
             for (int s(0); s < n_soil_fld; ++s) {
-                soil_arr[s](i,j,0) = noah_output_arr(ii,jj,0,soil_out_base + s);
+                const Real value = noah_output_arr(ii,jj,0,soil_out_base + s);
+                soil_arr[s](i,j,0) = cell_policy.select(value, lsm_undefined_d, -1);
             }
         } else {
-            // Fill-value cell (sea-ice / open-water): every result is the sentinel.
 #define NOAHMP_UNDEF_RESULT(alias,lsm,out) alias(i,j,0) = lsm_undefined_d;
             NOAHMP_RESULT_FIELDS(NOAHMP_UNDEF_RESULT)
 #undef NOAHMP_UNDEF_RESULT
-            SMSTAV_o(i,j,0)      = lsm_undefined_d;
-            SMSTOT_o(i,j,0)      = lsm_undefined_d;
+            SMSTAV_o(i,j,0) = lsm_undefined_d;
+            SMSTOT_o(i,j,0) = lsm_undefined_d;
             for (int s(0); s < n_soil_fld; ++s) {
                 soil_arr[s](i,j,0) = lsm_undefined_d;
             }
