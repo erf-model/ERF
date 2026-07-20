@@ -53,15 +53,36 @@
 // Phase 10 (Dust): First passive advected scalar component index
 // Used for total dust mass density [kg/m^3] on 3D atmospheric grid.
 // Phase 11 expands to n_size_bins slots when DustParams::transport_bins_separately = true.
-#define RhoAdv_comp    (RhoScalar_comp+NSCALARS)
+//
+// Scalar slot layout (consecutive, starting at RhoScalar_comp = NDRY):
+//   [RhoScalar_comp]          always present (base passive scalar)
+//   [RhoScalar_comp+1]        RhoAdv_comp  (dust)  -- only when ERF_USE_DUST
+//   [RhoScalar_comp+1 or +2]  RhoSmoke_comp (smoke) -- only when ERF_ENABLE_FIRE
+//   [RhoQ1_comp ...]          moisture variables
+//
+// NSCALARS counts: 1 (base) + 1 (dust, if enabled) + NSCALARS_SMOKE (smoke, if fire enabled)
+#ifdef ERF_USE_DUST
+#define RhoAdv_comp    (RhoScalar_comp+1)
+#else
+#define RhoAdv_comp    RhoScalar_comp   // unused alias — keep for compile compatibility
+#endif
 
 // Phase 4 (Smoke): Passive tracer from fire smoke emission [kg/m^3]
 // Injected at k=0 proportional to fire heat flux when ERF_ENABLE_FIRE is defined.
 #ifdef ERF_ENABLE_FIRE
-#define RhoSmoke_comp  (RhoAdv_comp+1)
-#define RhoQ1_comp     (RhoAdv_comp+2)
+#  ifdef ERF_USE_DUST
+#    define RhoSmoke_comp  (RhoAdv_comp+1)
+#    define RhoQ1_comp     (RhoAdv_comp+2)
+#  else
+#    define RhoSmoke_comp  (RhoScalar_comp+1)
+#    define RhoQ1_comp     (RhoScalar_comp+2)
+#  endif
 #else
-#define RhoQ1_comp     (RhoAdv_comp+1)
+#  ifdef ERF_USE_DUST
+#    define RhoQ1_comp     (RhoAdv_comp+1)
+#  else
+#    define RhoQ1_comp     (RhoScalar_comp+1)
+#  endif
 #endif
 #define RhoQ2_comp     (RhoQ1_comp+1)
 #define RhoQ3_comp     (RhoQ1_comp+2)
