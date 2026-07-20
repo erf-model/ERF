@@ -42,6 +42,7 @@ void make_sources (int level,
                    const  MultiFab*  z_phys_cc,
                    const  MultiFab & xvel,
                    const  MultiFab & yvel,
+                   const  MultiFab & zvel,
                    const MultiFab* qheating_rates,
                           MultiFab* terrain_blank,
                    const Geometry geom,
@@ -611,11 +612,10 @@ void make_sources (int level,
         const Real* dx_arr = geom.CellSize();
         const Real dx_x = dx_arr[0];
         const Real dx_y = dx_arr[1];
-        const Real dx_z = (z_cc_arr) ? (z_cc_arr(i,j,k) - z_cc_arr(i,j,k-1)) : dx[2];
-        const Real delta_xyz = std::pow(dx_x*dx_y*dx_z, one/three);
+        const Real delta_xy = std::pow(dx_x*dx_y, myhalf);
         if ((solverChoice.buildings_type == BuildingsType::ImmersedForcing ) &&
            ((is_slow_step && !use_ImmersedForcing_fast) || (!is_slow_step && use_ImmersedForcing_fast)) &&
-            (delta_xyz <= 50.0)) // only apply immersed forcing when grid spacing is less than 50m
+            (delta_xy <= 50.0)) // only apply immersed forcing when grid spacing is less than 50m
         {
             const Array4<const Real>& u = xvel.array(mfi);
             const Array4<const Real>& v = yvel.array(mfi);
@@ -623,9 +623,8 @@ void make_sources (int level,
 
             const Real alpha_h          = solverChoice.if_Cd_scalar;
             const Real U_s              = one; // unit velocity scale
-            const Real min_t_blank      = Real(0.005);
-
-            const Real init_surf_temp     = solverChoice.if_init_surf_temp;
+            const Real tiny             = std::numeric_limits<amrex::Real>::epsilon();
+            const Real min_t_blank      = Real(1.e-4);
 
             // MOST parameters
             similarity_funs sfuns;
@@ -653,6 +652,7 @@ void make_sources (int level,
                 if (t_blank_east < min_t_blank) { t_blank_east = zero; }
                 if (t_blank_west < min_t_blank) { t_blank_west = zero; }
 
+                const Real dx_z = (z_cc_arr) ? (z_cc_arr(i,j,k) - z_cc_arr(i,j,k-1)) : dx[2];
                 Real drag_coefficient = alpha_h / std::pow(dx_x*dx_y*dx_z, one/three);
 
                 const Real ux_cc_2r = 0.5 * (u(i  ,j  ,k+1) + u(i+1,j  ,k+1));

@@ -35,7 +35,7 @@ using namespace amrex;
  */
 
 void make_mom_sources (double time_d,
-                       double /*dt*/,
+                       double dt,
                        const Vector<MultiFab>& S_data,
                        const MultiFab* z_phys_nd,
                        const MultiFab* z_phys_cc,
@@ -887,8 +887,7 @@ void make_mom_sources (double time_d,
         const Real* dx_arr = geom.CellSize();
         const Real dx_x = dx_arr[0];
         const Real dx_y = dx_arr[1];
-        const Real dx_z = (z_cc_arr) ? (z_cc_arr(i,j,k) - z_cc_arr(i,j,k-1)) : dx[2];
-        const Real delta_xyz = std::pow(dx_x*dx_y*dx_z, one/three);
+        const Real delta_xyz = std::pow(dx_x*dx_y, myhalf);
         if ((solverChoice.buildings_type == BuildingsType::ImmersedForcing ) &&
            ((is_slow_step && !use_ImmersedForcing_fast) || (!is_slow_step && use_ImmersedForcing_fast)) &&
             (delta_xyz <= 50.0)) // only apply immersed forcing when grid spacing is less than 50m
@@ -942,6 +941,8 @@ void make_mom_sources (double time_d,
                 t_blank_north = std::round(t_blank_north * Real(10000.0)) / Real(10000.0);
                 t_blank_south = std::round(t_blank_south * Real(10000.0)) / Real(10000.0);
 
+                const Real dx_z = (z_cc_arr) ? (z_cc_arr(i,j,k) - z_cc_arr(i,j,k-1)) : dx_arr[2];
+                const Real drag_coefficient = alpha_m / std::pow(dx_x*dx_y*dx_z, one/three);
                 const Real CdM = std::min(drag_coefficient / (windspeed + tiny), Real(1000.0));
                 Real drag = t_blank * rho_xface * CdM * ux * windspeed; // default to drag for fully immersed cells
 
@@ -1064,7 +1065,6 @@ void make_mom_sources (double time_d,
                 const Real rho_yface =  myhalf * ( cell_data(i,j,k,Rho_comp) + cell_data(i,j-1,k,Rho_comp) );
                 const Real theta_yface = (myhalf * (cell_data(i,j,k  ,RhoTheta_comp) + cell_data(i,j-1,k, RhoTheta_comp))) / rho_yface ;
 
-
                 Real t_blank             = myhalf * (t_blank_arr(i  , j  , k  ) + t_blank_arr(i-1, j  , k  ));
                 Real t_blank_below       = myhalf * (t_blank_arr(i  , j  , k-1) + t_blank_arr(i-1, j  , k-1));
                 Real t_blank_above       = myhalf * (t_blank_arr(i  , j  , k+1) + t_blank_arr(i-1, j  , k+1));
@@ -1083,6 +1083,8 @@ void make_mom_sources (double time_d,
                 t_blank_east  = std::round(t_blank_east  * Real(10000.0)) / Real(10000.0);
                 t_blank_west  = std::round(t_blank_west  * Real(10000.0)) / Real(10000.0);
 
+                const Real dx_z = (z_cc_arr) ? (z_cc_arr(i,j,k) - z_cc_arr(i,j,k-1)) : dx_arr[2];
+                const Real drag_coefficient = alpha_m / std::pow(dx_x*dx_y*dx_z, one/three);
                 const Real CdM = std::min(drag_coefficient / (windspeed + tiny), Real(1000.0));
                 Real drag = t_blank * rho_yface * CdM * uy * windspeed;  // default to drag for fully immersed cells
 
@@ -1229,7 +1231,9 @@ void make_mom_sources (double time_d,
                 t_blank_east  = std::round(t_blank_east  * Real(10000.0)) / Real(10000.0);
                 t_blank_west  = std::round(t_blank_west  * Real(10000.0)) / Real(10000.0);
 
-                const Real CdM = std::min(drag_coefficient / (windspeed + tiny), min_CdM);
+                const Real dx_z = (z_cc_arr) ? (z_cc_arr(i,j,k) - z_cc_arr(i,j,k-1)) : dx_arr[2];
+                const Real drag_coefficient = alpha_m / std::pow(dx_x*dx_y*dx_z, one/three);
+                const Real CdM = std::min(drag_coefficient / (windspeed + tiny), Real(1000.0));
                 Real drag = t_blank * rho_zface * CdM * uz * windspeed;
 
                 if        (((t_blank > zero && t_blank <= t_blank_west && t_blank_east == zero) || 
@@ -1329,7 +1333,7 @@ void make_mom_sources (double time_d,
                     Real wspd_target_z = wspd_target * uz_cellaway / (tiny + tan_wspd);
                     Real bc_forcing_z = -(wspd_target_z - uz);
 
-		            drag = bc_forcing_z * rho_wface * CdM * windspeed;
+		            drag = bc_forcing_z * rho_zface * CdM * windspeed;
                 }
 
                 if (is_slow_step && !use_ImmersedForcing_fast) { // limit drag term for anelastic for numerical stability
