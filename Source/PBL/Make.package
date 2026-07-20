@@ -3,6 +3,7 @@ CEXE_sources += ERF_ComputeDiffusivityMYNN25.cpp
 CEXE_sources += ERF_ComputeDiffusivityMYNNEDMF.cpp
 CEXE_sources += ERF_ComputeDiffusivityYSU.cpp
 CEXE_sources += ERF_ComputeDiffusivityMRF.cpp
+CEXE_sources += ERF_ComputeDiffusivityYSUNew.cpp
 
 CEXE_headers += ERF_PBLModels.H
 CEXE_headers += ERF_PBLHeight.H
