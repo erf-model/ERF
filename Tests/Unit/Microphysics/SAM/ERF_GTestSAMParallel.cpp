@@ -555,14 +555,14 @@ void compute_icefall_reference_global_substep (const amrex::Geometry& geom,
 
             const auto& tbx = mfi.tilebox();
 
-            amrex::ParallelFor(tbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            amrex::ParallelFor(tbx, [=,one_d=one] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
                 const amrex::Real rho = const_cons_array(i,j,k,Rho_comp);
                 const amrex::Real qci_mass = const_cons_array(i,j,k,RhoQ3_comp);
                 const amrex::Real qci = icefall_mixing_ratio_from_conserved(qci_mass, rho);
 
                 amrex::Real dqi = sam_sedimentation_tendency(fz_array(i,j,k+1), fz_array(i,j,k),
-                                                             rho, one, coef);
+                                                             rho, one_d, coef);
                 dqi = std::max(-qci, dqi);
 
                 cons_array(i,j,k,RhoQ3_comp) = qci_mass + rho * dqi;
