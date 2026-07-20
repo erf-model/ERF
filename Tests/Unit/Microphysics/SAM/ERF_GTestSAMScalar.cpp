@@ -324,38 +324,48 @@ TEST(SAMScalar, MixedQsatDerivativeMatchesSymbolicDerivative)
     const amrex::Real qsati = amrex::Real(6.5e-3);
     const amrex::Real dqsatw = amrex::Real(4.0e-4);
     const amrex::Real dqsati = amrex::Real(2.5e-4);
+    const amrex::Real qn = amrex::Real(2.0e-3);
 
     const amrex::Real expected_qsat = omn * qsatw + (one - omn) * qsati;
     const amrex::Real expected_dqsat =
         omn * dqsatw + (one - omn) * dqsati + domn * (qsatw - qsati);
+    const amrex::Real expected_dqif = -domn * qn - (one - omn) * expected_dqsat;
 
     expect_near_roundoff(sam_mixed_qsat(omn, qsatw, qsati), expected_qsat);
     expect_near_roundoff(
         sam_mixed_dqsat_dT(omn, domn, qsatw, qsati, dqsatw, dqsati),
         expected_dqsat);
+    expect_near_roundoff(
+        sam_mixed_dqif_dT(omn, domn, qn, expected_dqsat),
+        expected_dqif);
 }
 
 // Motivation:
-// The Newton residual derivative should match the symbolic derivative of
-// F(T) = -T + Told + L*(qv - qsat).
+// The Newton residual helpers should match the single mixed-saturation equation
+// used by NewtonIterSat, including the temperature-dependent final ice amount.
 TEST(SAMScalar, NewtonResidualDerivativeMatchesSymbolicDerivative)
 {
     const amrex::Real tabs_new = amrex::Real(268.0);
     const amrex::Real tabs_old = amrex::Real(270.0);
-    const amrex::Real lstar = amrex::Real(2600.0);
-    const amrex::Real dlstar = amrex::Real(-2.0);
+    const amrex::Real fcond = amrex::Real(2500.0);
+    const amrex::Real ffus = amrex::Real(330.0);
     const amrex::Real qv = amrex::Real(5.0e-3);
-    const amrex::Real qsat = amrex::Real(4.6e-3);
-    const amrex::Real dqsat = amrex::Real(1.2e-4);
+    const amrex::Real qsatm = amrex::Real(4.6e-3);
+    const amrex::Real qi = amrex::Real(8.0e-4);
+    const amrex::Real qif = amrex::Real(6.0e-4);
+    const amrex::Real dqsatm = amrex::Real(1.2e-4);
+    const amrex::Real dqif = -amrex::Real(9.0e-5);
 
-    const amrex::Real expected_residual = -tabs_new + tabs_old + lstar * (qv - qsat);
-    const amrex::Real expected_derivative = -one + dlstar * (qv - qsat) - lstar * dqsat;
+    const amrex::Real expected_residual =
+        -tabs_new + tabs_old + fcond * (qv - qsatm) - ffus * (qi - qif);
+    const amrex::Real expected_derivative =
+        -one - fcond * dqsatm + ffus * dqif;
 
     expect_near_roundoff(
-        sam_newton_residual(tabs_new, tabs_old, lstar, qv, qsat),
+        sam_newton_residual(tabs_new, tabs_old, fcond, qv, qsatm, ffus, qi, qif),
         expected_residual);
     expect_near_roundoff(
-        sam_newton_residual_derivative(lstar, dlstar, qv, qsat, dqsat),
+        sam_newton_residual_derivative(fcond, ffus, dqsatm, dqif),
         expected_derivative);
 }
 
