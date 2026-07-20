@@ -743,6 +743,15 @@ ERF::InitData_post ()
             } // itime
         }
 #endif
+#ifdef ERF_USE_FFT
+        for (int lev = 0; lev <= finest_level; lev++) {
+            // rebuild fft solvers here in case mesh type was changed when reading the checkpoint file
+            if ( ( (solverChoice.anelastic[lev] == 1)               || (solverChoice.project_initial_velocity[lev] == 1) ) &&
+                 ( (solverChoice.mesh_type == MeshType::ConstantDz) || (solverChoice.mesh_type == MeshType::StretchedDz) ) ) {
+                build_fft_solvers(lev);
+            }
+        }
+#endif
     } // end restart
 
 #ifdef ERF_USE_PARTICLES
