@@ -93,6 +93,10 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
     const int izmin = klo;
     const int izmax = khi;
 
+    const Real dz     = geom.CellSize(2);
+    const Real dz_inv = geom.InvCellSize(2);
+    const auto& dxInv = geom.InvCellSizeArray();
+
 #ifdef _OPENMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())
 #endif
@@ -612,7 +616,7 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
             });
         }
 
-        ParallelFor(xybx, [=, zero_d=zero, CONST_GRAV_d=CONST_GRAV] AMREX_GPU_DEVICE(int i, int j, int) noexcept
+        ParallelFor(xybx, [=, zero_d=zero, one_d=one, CONST_GRAV_d=CONST_GRAV] AMREX_GPU_DEVICE(int i, int j, int) noexcept
         {
             const Real t_layer  = t10av_arr(i, j, 0);
             Real obuk_val = l_obuk_arr(i, j, 0);
@@ -784,7 +788,7 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
                                        ? Compute_Zrel_AtCellCenter(i, j, klo, z_nd_arr)
                                        : (klo + myhalf) * gdata.CellSize(2);
                     constexpr Real sfcfrac_h = amrex::Real(0.1);  // WRF SFCFRAC
-                    const Real height_lim = amrex::min(zl1_col / (sfcfrac_h * pblh), one);
+                    const Real height_lim = amrex::min(zl1_col / (sfcfrac_h * pblh), one_d);
 
                     const Real VPERT_raw = HGAMT + amrex::Real(0.61) * t_layer * HGAMQ;
                     const Real VPERT_capped = enable_ysu_unbounded_vpert
@@ -845,8 +849,6 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
         // we need to re-scan for the PBL height using the corrector Ribcr criterion.
         // This corrects the earlier Pass 2 which used zero-VPERT Rib values.
         //
-        const Real dz_inv = geom.InvCellSize(2);
-        const auto& dxInv = geom.InvCellSizeArray();
         ParallelFor(xybx, [=] AMREX_GPU_DEVICE(int i, int j, int) noexcept
         {
             // Determine surface-type-dependent critical Richardson number (same as before)
@@ -1170,7 +1172,7 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
                 const amrex::Real pblh  = pblh_corr_arr(i,j,0);
                 const amrex::Real zval  = (use_terrain_fitted_coords)
                                         ? Compute_Zrel_AtCellCenter(i,j,k,z_nd_arr)
-                                        : (k + myhalf) * geom.CellSize(2);
+                                        : (k + myhalf) * dz;
                 const amrex::Real z_sfc = (use_terrain_fitted_coords)
                                         ? Compute_Zrel_AtCellCenter(i,j,klo,z_nd_arr) : zero;
                 const amrex::Real zrel  = zval - z_sfc;
