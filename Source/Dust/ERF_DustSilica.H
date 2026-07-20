@@ -76,20 +76,18 @@ inline void write_silica_stats(int step, amrex::Real time_s,
     Real rcs_sum = rcs_mf.sum(0);
     Real rcs_mean = rcs_sum / rcs_mf.boxArray().numPts();
 
-    // Count cells exceeding OSHA PEL
-    Real n_exceed = 0.0;
-    for (MFIter mfi(rcs_mf); mfi.isValid(); ++mfi) {
+    // Count cells exceeding OSHA PEL using MultiFab mask
+    MultiFab exceed_mask(rcs_mf.boxArray(), rcs_mf.DistributionMap(), 1, 0);
+    exceed_mask.setVal(0.0);
+    for (MFIter mfi(exceed_mask, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
         const Box& bx = mfi.tilebox();
+        auto mask = exceed_mask.array(mfi);
         auto rcs = rcs_mf.const_array(mfi);
-        ParallelFor(bx, [=, &n_exceed] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-            if (rcs(i,j,k) > osha_pel) {
-                amrex::Gpu::Atomic::Add(&n_exceed, 1.0);
-            }
+        ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+            mask(i,j,k) = (rcs(i,j,k) > osha_pel) ? 1.0 : 0.0;
         });
     }
-
-    // Reduction across all processes
-    ParallelDescriptor::ReduceRealSum(n_exceed);
+    Real n_exceed = exceed_mask.sum(0);
 
     if (!ParallelDescriptor::IOProcessor()) return;
 

@@ -1,0 +1,4 @@
+# DustIntegration blast schedule.
+# One blast at t=2.0s at domain centre, r=500m, mass=1e-4 kg/m^2.
+# time_s  cx     cy     radius  mass_kg_m2  mineral_type  priority
+2.0  1500.0  1500.0  500.0  1.0e-4  0  10
