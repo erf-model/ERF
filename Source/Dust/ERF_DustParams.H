@@ -238,6 +238,24 @@ struct DustParams {
     amrex::Vector<amrex::Real> cm_fractions;
     std::string cm_budget_file = "dust_cm_budget.csv"; ///< CM budget CSV.
 
+    // Phase 7: Visibility and health exposure diagnostics
+    bool        visibility_enable        = false;   ///< Enable Koschmieder visibility output
+    amrex::Real visibility_k_ext        = 4.0e3;   ///< Mass extinction coefficient [m²/kg]
+                                                 ///< k_ext = 3/(2*rho_p*r_eff) with rho_p=2650, r_eff=5um
+    amrex::Real visibility_road_closure_m = 300.0; ///< Haul road closure threshold [m]
+    amrex::Real visibility_warning_m    = 1000.0;  ///< Reduced visibility warning threshold [m]
+    std::string visibility_diag_file    = "visibility_diag.csv"; ///< Output CSV
+
+    bool        silica_enable           = false;    ///< Enable silica RCS tracking
+    amrex::Real silica_fraction_rcs     = 0.04;    ///< Silica mass fraction of dust [-]
+    amrex::Real silica_osha_pel_mg_m3   = 0.05;    ///< OSHA PEL for quartz RCS [mg/m³]
+    std::string silica_diag_file        = "silica_diag.csv"; ///< Output CSV
+
+    bool        stel_enable             = false;    ///< Enable 15-min STEL tracking
+    amrex::Real stel_threshold_mg_m3    = 10.0;    ///< OSHA STEL for nuisance dust [mg/m³]
+    amrex::Real stel_averaging_s        = 900.0;   ///< Averaging period [s]
+    std::string stel_diag_file          = "stel_diag.csv"; ///< Output CSV
+
     /**
      * Constructor that reads all parameters from ParmParse.
      */
@@ -334,6 +352,23 @@ struct DustParams {
         // Phase 23: DOE Critical Materials Assessment
         pp.queryarr("cm_fractions",    cm_fractions);
         pp.query("cm_budget_file",     cm_budget_file);
+
+        // Phase 7: Visibility and health exposure diagnostics
+        pp.query("visibility_enable", visibility_enable);
+        pp.query("visibility_k_ext", visibility_k_ext);
+        pp.query("visibility_road_closure_m", visibility_road_closure_m);
+        pp.query("visibility_warning_m", visibility_warning_m);
+        pp.query("visibility_diag_file", visibility_diag_file);
+
+        pp.query("silica_enable", silica_enable);
+        pp.query("silica_fraction_rcs", silica_fraction_rcs);
+        pp.query("silica_osha_pel_mg_m3", silica_osha_pel_mg_m3);
+        pp.query("silica_diag_file", silica_diag_file);
+
+        pp.query("stel_enable", stel_enable);
+        pp.query("stel_threshold_mg_m3", stel_threshold_mg_m3);
+        pp.query("stel_averaging_s", stel_averaging_s);
+        pp.query("stel_diag_file", stel_diag_file);
    }  // end DustParams constructor
  };     // end struct DustParams
 #endif // ERF_DUST_PARAMS_H

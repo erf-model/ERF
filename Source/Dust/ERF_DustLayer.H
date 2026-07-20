@@ -61,6 +61,9 @@
 #include <ERF_DustSiteRegistry.H>
 #include <ERF_DustPHREEQCWriter.H>
 #include <ERF_DustCriticalMaterials.H>
+#include <ERF_DustVisibility.H>
+#include <ERF_DustSilica.H>
+#include <ERF_DustSTEL.H>
 #endif
 
 #if defined(ERF_ENABLE_FIRE) && defined(ERF_USE_DUST)
@@ -423,6 +426,13 @@ private:
 
     // Phase 23: DOE Critical Materials Assessment
     std::unique_ptr<amrex::MultiFab>      dust_cm_flux;      ///< Critical material flux [kg_CM/m^2/s].
+
+    // Phase 7: Visibility and health exposure diagnostics
+    std::unique_ptr<amrex::MultiFab>      m_visibility;    ///< Horizontal visibility [m]
+    std::unique_ptr<amrex::MultiFab>      m_vis_closure;   ///< Haul road closure flag [0/1]
+    std::unique_ptr<amrex::MultiFab>      m_vis_warning;   ///< Reduced visibility warning flag [0/1]
+    std::unique_ptr<amrex::MultiFab>      m_rcs_conc;      ///< Silica RCS concentration [mg/m³]
+    std::unique_ptr<amrex::MultiFab>      m_stel_avg;      ///< 15-min STEL running average [mg/m³]
 
     int                                   m_dust_scalar_comp = -1; ///< cc_source component index for dust mass.
                                                                      ///< Set during initialize from ERF_IndexDefines.H.

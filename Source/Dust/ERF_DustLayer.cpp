@@ -470,7 +470,23 @@ DustLayer::initialize(
   dust_cm_flux = std::make_unique<amrex::MultiFab>(m_dg.ba, m_dg.dm, 1, amrex::IntVect(1,1,0));
   dust_cm_flux->setVal(0.0);
 
+  // Phase 7: visibility and health exposure diagnostics MultiFabs.
+  m_visibility = std::make_unique<amrex::MultiFab>(m_dg.ba, m_dg.dm, 1, amrex::IntVect(0,0,0));
+  m_vis_closure = std::make_unique<amrex::MultiFab>(m_dg.ba, m_dg.dm, 1, amrex::IntVect(0,0,0));
+  m_vis_warning = std::make_unique<amrex::MultiFab>(m_dg.ba, m_dg.dm, 1, amrex::IntVect(0,0,0));
+  m_rcs_conc = std::make_unique<amrex::MultiFab>(m_dg.ba, m_dg.dm, 1, amrex::IntVect(0,0,0));
+  m_stel_avg = std::make_unique<amrex::MultiFab>(m_dg.ba, m_dg.dm, 1, amrex::IntVect(0,0,0));
+
+  // Initialize all Phase 7 diagnostics to zero
+  for (auto* mf : {m_visibility.get(), m_vis_closure.get(), m_vis_warning.get(),
+                   m_rcs_conc.get(), m_stel_avg.get()}) {
+    if (mf) mf->setVal(0.0);
+  }
+
   if (dust_params.dust_debug) {
+    amrex::Print() << "[DUST DEBUG] Phase 7: visibility_enable=" << dust_params.visibility_enable
+                   << " silica_enable=" << dust_params.silica_enable
+                   << " stel_enable=" << dust_params.stel_enable << "\n";
     amrex::Print() << "[DUST DEBUG] Phase 23: cm_fractions=";
     for (auto f : dust_params.cm_fractions)
       amrex::Print() << f << " ";
@@ -1042,6 +1058,30 @@ DustLayer::compute_msha_exposure(amrex::Real dt, amrex::Real cur_time, int nstep
         amrex::Print() << "[DUST DEBUG] Phase 18: step=" << nstep
                        << " TWA_max=" << tmax << " mg/m3  exceed=" << (long)nex
                        << " shift=" << m_msha_shift_count << "\n";
+    }
+
+    // Phase 7: Visibility diagnostics
+    if (m_params.visibility_enable && m_visibility && m_vis_closure && m_vis_warning && dust_pm10) {
+        compute_visibility(*m_visibility, *dust_pm10, m_params.visibility_k_ext, 1.0e5);
+        compute_visibility_flags(*m_vis_closure, *m_vis_warning, *m_visibility,
+                                 m_params.visibility_road_closure_m,
+                                 m_params.visibility_warning_m);
+        write_visibility_stats(nstep, cur_time, *m_visibility, *m_vis_closure,
+                               *m_vis_warning, m_params.visibility_diag_file);
+    }
+
+    // Phase 7: Silica RCS diagnostics
+    if (m_params.silica_enable && m_rcs_conc && dust_pm10) {
+        compute_silica_concentration(*m_rcs_conc, *dust_pm10, m_params.silica_fraction_rcs);
+        write_silica_stats(nstep, cur_time, *m_rcs_conc,
+                           m_params.silica_osha_pel_mg_m3, m_params.silica_diag_file);
+    }
+
+    // Phase 7: STEL diagnostics
+    if (m_params.stel_enable && m_stel_avg && dust_pm10) {
+        update_stel_average(*m_stel_avg, *dust_pm10, dt, m_params.stel_averaging_s);
+        write_stel_stats(nstep, cur_time, *m_stel_avg,
+                         m_params.stel_threshold_mg_m3, m_params.stel_diag_file);
     }
 }
 
