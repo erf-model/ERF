@@ -81,11 +81,41 @@ erf.input_sounding_file = "input_sounding_MRF_high_shear"
 
 # PBL CONFIGURATION - MRF PBL under high shear
 erf.pbl_type = "MRF"
+
+# MRF PBL PARAMETERS (for MRF model)
+erf.enable_mrf_cloud_adjustment = false
+erf.enable_mrf_countergradient = false
+erf.enable_mrf_unbounded_vpert = false
+erf.mrf_moistvars = false
 erf.pbl_mrf_Ribcr = 0.5
 erf.pbl_mrf_const_b = 7.8
+erf.pbl_mrf_coriolis_freq = 1.0e-4
+erf.pbl_mrf_highres_bounds = false
 erf.pbl_mrf_sf = 0.1
-erf.enable_mrf_countergradient = false
-erf.mrf_moistvars = false
+erf.pbl_mrf_use_zero_ri_extent = false
+
+# ============================================================
+# YSUNew PBL PARAMETERS (uncomment to use YSU model)
+# For YSUNew model:
+#   1. Comment out the MRF parameters above
+#   2. Uncomment the following YSU parameters
+#   3. Change 'erf.pbl_type = "MRF"' to 'erf.pbl_type = "YSUNew"'
+# ============================================================
+# erf.enable_ysu_cloud_pblh = true
+# erf.enable_ysu_countergradient = true
+# erf.enable_ysu_entrainment = true
+# erf.enable_ysu_liquid_theta = true
+# erf.enable_ysu_sat_limiter = false
+# erf.enable_ysu_terrain_pblh_floor = true
+# erf.enable_ysu_topdown = true
+# erf.pbl_ysu_coriolis_freq = 1.0e-4
+# erf.pbl_ysu_force_over_water = false
+# erf.pbl_ysu_land_Ribcr = 0.25
+# erf.pbl_ysu_unst_Ribcr = 0.0
+# erf.pbl_ysu_use_consistent_coriolis = false
+# erf.pbl_ysunew_highres_bounds = false
+# erf.ysu_moistvars = false
+# erf.ysu_qcloud_threshold = 1.0e-4
 
 # CORIOLIS EFFECT
 erf.latitude = 45.0  # mid-latitude (f = 1.0e-4 s^-1)

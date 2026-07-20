@@ -1187,3 +1187,20 @@ The following references have informed the implementation of the MRF and YSU mod
 - [WF18] `Wilson and Fovell, Weather and Forecasting, 2018 <https://doi.org/10.1175/WAF-D-17-0109.1>`_: Extension of YSU to handle interplay between radiation and fog, active in WRF with the ``ysu_topdown_pblmix = 1`` option
 
 - The WRF Fortran source code for this `module <https://github.com/wrf-model/WRF/blob/a8eb846859cb39d0acfd1d3297ea9992ce66424a/phys/module_bl_ysu.F>`_ as of Dec. 2023. The ERF implementation supports the same physical models as this WRF implementation, with the exception of the ``ysu_topdown_pblmix = 1`` option from WF18, i.e. the implementation in ERF largely matches the PBL scheme described in H10.
+
+YSUNew Cloudy PBL Extensions
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The YSUNew implementation includes extensions for handling cloud-topped boundary layers without requiring radiation coupling. These extensions are controlled by the ``enable_ysu_topdown`` flag and the ``use_moisture`` condition.
+
+**Liquid Potential Temperature PBLH Extension**
+
+When enabled, an additional upward scan of the PBL height is performed using liquid potential temperature (:math:`\theta_{li}`) as the stability criterion. This extension allows detection of deeper cloud-topped boundary layers where the traditional bulk Richardson number criterion may underestimate the mixed layer depth. The scan uses an unstable threshold (zero Richardson number) to extend the PBL height upward through layers where cloud liquid water provides buoyancy support.
+
+Configuration: ``enable_ysu_topdown = true``, ``use_moisture = true``
+
+**Cloudy Entrainment Correction**
+
+When liquid water content plus ice content at the layer below PBL top exceeds a threshold (0.01 g/kg), an adjusted entrainment coefficient is computed using cloud buoyancy considerations. This correction replaces the clear-sky entrainment velocity with a value derived from the liquid-theta buoyancy jump, accounting for the reduced stability at cloud top. The entrainment efficiency is computed from cloud liquid water content and limited to 0.4. This path does not require radiation coupling; the calculation uses only surface buoyancy flux.
+
+Configuration: ``enable_ysu_topdown = true``, ``use_moisture = true``

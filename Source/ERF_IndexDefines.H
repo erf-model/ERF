@@ -215,6 +215,8 @@ namespace EddyDiff {
         Turb_lengthscale,
         HGAMT_v,  // MRF countergradient for heat (HGAMT/h, units K/m), zero outside PBL
         HGAMQ_v,  // MRF countergradient for moisture (HGAMQ/h, units kg/kg/m), zero outside PBL
+        HGAMU_v,  // YSU countergradient for x-momentum (units m/s/m), zero outside PBL
+        HGAMV_v,  // YSU countergradient for y-momentum (units m/s/m), zero outside PBL
         NumDiffs
     };
 }
