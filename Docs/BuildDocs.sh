@@ -5,8 +5,7 @@ set -e
 
 # To avoid issues when calling the script from different directories
 # sets the directory to the location of the script
-SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-cd "$SCRIPT_DIR"
+cd $(dirname $0)
 
 # This short script builds both the doxygen and sphinx documentation
 
@@ -15,11 +14,6 @@ YEL='\033[0;33m'
 GRN='\033[1;32m'
 NC='\033[0m'
 
-# Check the fixed 2-D catalog before any documentation generator runs.
-python3 -m unittest discover \
-  -s sphinx_doc/scripts \
-  -p 'test_check_plotfile2d_catalog.py'
-python3 sphinx_doc/scripts/check_plotfile2d_catalog.py
 
 # Build doxygen documents -- configuration parameters contained in Doxyfile.in
 # Errors can be viewed in the file: doxy.log

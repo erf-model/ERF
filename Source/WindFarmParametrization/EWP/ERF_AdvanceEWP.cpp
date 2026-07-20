@@ -60,12 +60,12 @@ EWP::compute_power_output (const MultiFab& cons_in,
         auto w_vel          = W_old.array(mfi);
         Box tbx = mfi.nodaltilebox(0);
 
-        ParallelFor(tbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+        ParallelFor(tbx, [=,one_d=one,myhalf_d=myhalf] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
 
-            if(SMark_array(i,j,k,0) == one) {
+            if(SMark_array(i,j,k,0) == one_d) {
                 Real avg_vel = std::pow(u_vel(i,j,k)*u_vel(i,j,k) +
                                         v_vel(i,j,k)*v_vel(i,j,k) +
-                                        w_vel(i,j,k)*w_vel(i,j,k),myhalf);
+                                        w_vel(i,j,k)*w_vel(i,j,k),myhalf_d);
                 Real turb_power = interpolate_1d(d_wind_speed_ptr, d_power_ptr, avg_vel, n_spec_table);
                 turb_power = turb_power*Nturb_array(i,j,k,0);
                 Gpu::Atomic::Add(d_total_power_ptr,turb_power);
@@ -109,13 +109,13 @@ EWP::update (const double& dt_advance,
         auto v_vel       = V_old.array(mfi);
 
         ParallelFor(tbx, tby, bx,
-        [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+        [=,two_d=two] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {
-            u_vel(i,j,k) = u_vel(i,j,k) + (ewp_array(i-1,j,k,0) + ewp_array(i,j,k,0))/two*dt_advance;
+            u_vel(i,j,k) = u_vel(i,j,k) + (ewp_array(i-1,j,k,0) + ewp_array(i,j,k,0))/two_d*dt_advance;
         },
-        [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+        [=,two_d=two] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {
-            v_vel(i,j,k) = v_vel(i,j,k) + (ewp_array(i,j-1,k,1) + ewp_array(i,j,k,1))/two*dt_advance;
+            v_vel(i,j,k) = v_vel(i,j,k) + (ewp_array(i,j-1,k,1) + ewp_array(i,j,k,1))/two_d*dt_advance;
         },
         [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {
@@ -173,33 +173,33 @@ EWP::source_terms_cellcentered (const Geometry& geom,
         const Real* thrust_coeff_d   = d_thrust_coeff.dataPtr();
         const int n_spec_table = static_cast<int>(d_wind_speed.size());
 
-        ParallelFor(gbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+        ParallelFor(gbx, [=,myhalf_d=myhalf,zero_d=zero,two_d=two,three_d=three,PI_d=PI] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
 
             int kk = amrex::min(amrex::max(k, domlo_z), domhi_z);
-            Real z = ProbLoArr[2] + (kk+myhalf) * dx[2];
+            Real z = ProbLoArr[2] + (kk+myhalf_d) * dx[2];
 
             // Compute Fitch source terms
 
             Real Vabs = std::pow(u_vel(i,j,k)*u_vel(i,j,k) +
                                  v_vel(i,j,k)*v_vel(i,j,k) +
-                                 w_vel(i,j,kk)*w_vel(i,j,kk), myhalf);
+                                 w_vel(i,j,kk)*w_vel(i,j,kk), myhalf_d);
 
             Real C_T = interpolate_1d(wind_speed_d, thrust_coeff_d, Vabs, n_spec_table);
 
-            Real C_TKE = zero;
+            Real C_TKE = zero_d;
             Real K_turb = Real(6.0);
 
-            Real L_wake = std::pow(dx[0]*dx[1],myhalf)/two;
-            Real sigma_e = Vabs/(three*K_turb*L_wake)*
-                           (std::pow(two*K_turb*L_wake/Vabs + std::pow(sigma_0,2),three/two) - amrex::Math::powi<3>(sigma_0));
+            Real L_wake = std::pow(dx[0]*dx[1],myhalf_d)/two_d;
+            Real sigma_e = Vabs/(three_d*K_turb*L_wake)*
+                           (std::pow(two_d*K_turb*L_wake/Vabs + std::pow(sigma_0,2),three_d/two_d) - amrex::Math::powi<3>(sigma_0));
 
             Real phi     = std::atan2(v_vel(i,j,k),u_vel(i,j,k)); // Wind direction w.r.t the x-dreiction
-            Real fac = -std::pow(PI/Real(8.0),myhalf)*C_T*amrex::Math::powi<2>(d_rotor_rad)*
+            Real fac = -std::pow(PI_d/Real(8.0),myhalf_d)*C_T*amrex::Math::powi<2>(d_rotor_rad)*
                         amrex::Math::powi<2>(Vabs)/(dx[0]*dx[1]*sigma_e)*
-                        std::exp(-myhalf*amrex::Math::powi<2>((z - d_hub_height)/sigma_e));
+                        std::exp(-myhalf_d*amrex::Math::powi<2>((z - d_hub_height)/sigma_e));
             ewp_array(i,j,k,0) = fac*std::cos(phi)*Nturb_array(i,j,k);
             ewp_array(i,j,k,1) = fac*std::sin(phi)*Nturb_array(i,j,k);
-            ewp_array(i,j,k,2) = C_TKE*zero;
+            ewp_array(i,j,k,2) = C_TKE*zero_d;
          });
     }
 }

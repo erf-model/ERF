@@ -153,9 +153,9 @@ DiffusionSrcForMom_EB (const MFIter& mfi,
 
     // x-momentum
     ParallelFor(bxx,
-    [=] AMREX_GPU_DEVICE (int i, int j, int k)
+    [=,zero_d=zero,three_d=three,myhalf_d=myhalf,two_d=two] AMREX_GPU_DEVICE (int i, int j, int k)
     {
-        if (u_volfrac(i,j,k)>zero) {
+        if (u_volfrac(i,j,k)>zero_d) {
 
             // Inv Jacobian
             Real mfsq = mf_ux(i,j,0) * mf_uy(i,j,0);
@@ -185,15 +185,15 @@ DiffusionSrcForMom_EB (const MFIter& mfi,
 
                 Real barea = std::sqrt(adx*adx + ady*ady + adz*adz);
 
-                Real dudn = zero;
+                Real dudn = zero_d;
 
                 if (l_no_slip || l_surface_layer) {
 
                     RealVect bcent_eb {u_bcent(i,j,k,0), u_bcent(i,j,k,1), u_bcent(i,j,k,2)};
 
-                    Real Dirichlet_u {zero};
-                    Real Dirichlet_v {zero};
-                    Real Dirichlet_w {zero};
+                    Real Dirichlet_u {zero_d};
+                    Real Dirichlet_v {zero_d};
+                    Real Dirichlet_w {zero_d};
 
                     Real nx = u_bnorm(i,j,k,0);
                     Real ny = u_bnorm(i,j,k,1);
@@ -236,9 +236,9 @@ DiffusionSrcForMom_EB (const MFIter& mfi,
                     Real dwdy = slopes_w[1];
                     Real dwdz = slopes_w[2];
 
-                    Real tau11_eb = ( dudx - ( dudx + dvdy + dwdz ) / three );
-                    Real tau12_eb = myhalf * (dudy + dvdx);
-                    Real tau13_eb = myhalf * (dudz + dwdx);
+                    Real tau11_eb = ( dudx - ( dudx + dvdy + dwdz ) / three_d );
+                    Real tau12_eb = myhalf_d * (dudy + dvdx);
+                    Real tau13_eb = myhalf_d * (dudz + dwdx);
 
                     if (l_no_slip) {
 
@@ -249,12 +249,12 @@ DiffusionSrcForMom_EB (const MFIter& mfi,
                         Real tbx_x, tbx_y, tbx_z, tby_x, tby_y, tby_z;
                         compute_tangent_vectors(nx, ny, nz, tbx_x, tbx_y, tbx_z, tby_x, tby_y, tby_z);
 
-                        Real tau22_eb = ( dvdy - ( dudx + dvdy + dwdz ) / three );
-                        Real tau33_eb = ( dwdz - ( dudx + dvdy + dwdz ) / three );
-                        Real tau23_eb = myhalf * (dvdz + dwdy);
+                        Real tau22_eb = ( dvdy - ( dudx + dvdy + dwdz ) / three_d );
+                        Real tau33_eb = ( dwdz - ( dudx + dvdy + dwdz ) / three_d );
+                        Real tau23_eb = myhalf_d * (dvdz + dwdy);
 
                         Real tauzz = mu_eff * ( nx*nx*tau11_eb + ny*ny*tau22_eb + nz*nz*tau33_eb
-                                            + two * (nx*ny*tau12_eb + ny*nz*tau23_eb + nx*nz*tau13_eb ));
+                                            + two_d * (nx*ny*tau12_eb + ny*nz*tau23_eb + nx*nz*tau13_eb ));
 
                         dudn = - tbx_x * u_tau_eb13(i,j,k) - tby_x * u_tau_eb23(i,j,k) - nx * tauzz;
                     }
@@ -268,9 +268,9 @@ DiffusionSrcForMom_EB (const MFIter& mfi,
 
     // y-momentum
     ParallelFor(bxy,
-    [=] AMREX_GPU_DEVICE (int i, int j, int k)
+    [=,zero_d=zero,three_d=three,myhalf_d=myhalf,two_d=two] AMREX_GPU_DEVICE (int i, int j, int k)
     {
-        if (v_volfrac(i,j,k)>zero) {
+        if (v_volfrac(i,j,k)>zero_d) {
 
             // Inv Jacobian
             Real mfsq = mf_vx(i,j,0) * mf_vy(i,j,0);
@@ -306,9 +306,9 @@ DiffusionSrcForMom_EB (const MFIter& mfi,
 
                     RealVect bcent_eb {v_bcent(i,j,k,0), v_bcent(i,j,k,1), v_bcent(i,j,k,2)};
 
-                    Real Dirichlet_u {zero};
-                    Real Dirichlet_v {zero};
-                    Real Dirichlet_w {zero};
+                    Real Dirichlet_u {zero_d};
+                    Real Dirichlet_v {zero_d};
+                    Real Dirichlet_w {zero_d};
 
                     Real nx = v_bnorm(i,j,k,0);
                     Real ny = v_bnorm(i,j,k,1);
@@ -350,9 +350,9 @@ DiffusionSrcForMom_EB (const MFIter& mfi,
                     Real dwdy = slopes_w[1];
                     Real dwdz = slopes_w[2];
 
-                    Real tau22_eb = ( dvdy - ( dudx + dvdy + dwdz ) / three );
-                    Real tau12_eb = myhalf * (dudy + dvdx);
-                    Real tau23_eb = myhalf * (dvdz + dwdy);
+                    Real tau22_eb = ( dvdy - ( dudx + dvdy + dwdz ) / three_d );
+                    Real tau12_eb = myhalf_d * (dudy + dvdx);
+                    Real tau23_eb = myhalf_d * (dvdz + dwdy);
 
                     if (l_no_slip) {
 
@@ -363,12 +363,12 @@ DiffusionSrcForMom_EB (const MFIter& mfi,
                         Real tbx_x, tbx_y, tbx_z, tby_x, tby_y, tby_z;
                         compute_tangent_vectors(nx, ny, nz, tbx_x, tbx_y, tbx_z, tby_x, tby_y, tby_z);
 
-                        Real tau11_eb = ( dudx - ( dudx + dvdy + dwdz ) / three );
-                        Real tau33_eb = ( dwdz - ( dudx + dvdy + dwdz ) / three );
-                        Real tau13_eb = myhalf * (dudz + dwdx);
+                        Real tau11_eb = ( dudx - ( dudx + dvdy + dwdz ) / three_d );
+                        Real tau33_eb = ( dwdz - ( dudx + dvdy + dwdz ) / three_d );
+                        Real tau13_eb = myhalf_d * (dudz + dwdx);
 
                         Real tauzz = mu_eff * ( nx*nx*tau11_eb + ny*ny*tau22_eb + nz*nz*tau33_eb
-                                            + two * (nx*ny*tau12_eb + ny*nz*tau23_eb + nx*nz*tau13_eb ));
+                                            + two_d * (nx*ny*tau12_eb + ny*nz*tau23_eb + nx*nz*tau13_eb ));
 
                         dvdn = - tbx_y * v_tau_eb13(i,j,k) - tby_y * v_tau_eb23(i,j,k) - ny * tauzz;
                     }
@@ -381,9 +381,9 @@ DiffusionSrcForMom_EB (const MFIter& mfi,
 
     // z-momentum
     ParallelFor(bxz,
-    [=] AMREX_GPU_DEVICE (int i, int j, int k)
+    [=,zero_d=zero,three_d=three,myhalf_d=myhalf,two_d=two] AMREX_GPU_DEVICE (int i, int j, int k)
     {
-        if (w_volfrac(i,j,k)>zero) {
+        if (w_volfrac(i,j,k)>zero_d) {
 
             // Inv Jacobian
             Real mfsq = mf_mx(i,j,0) * mf_my(i,j,0);
@@ -412,15 +412,15 @@ DiffusionSrcForMom_EB (const MFIter& mfi,
 
                 Real barea = std::sqrt(adx*adx + ady*ady + adz*adz);
 
-                Real dwdn = zero;
+                Real dwdn = zero_d;
 
                 if (l_no_slip || l_surface_layer) {
 
                     const RealVect bcent_eb {w_bcent(i,j,k,0), w_bcent(i,j,k,1), w_bcent(i,j,k,2)};
 
-                    Real Dirichlet_u {zero};
-                    Real Dirichlet_v {zero};
-                    Real Dirichlet_w {zero};
+                    Real Dirichlet_u {zero_d};
+                    Real Dirichlet_v {zero_d};
+                    Real Dirichlet_w {zero_d};
 
                     Real nx = w_bnorm(i,j,k,0);
                     Real ny = w_bnorm(i,j,k,1);
@@ -462,9 +462,9 @@ DiffusionSrcForMom_EB (const MFIter& mfi,
                     Real dwdy = slopes_w[1];
                     Real dwdz = slopes_w[2];
 
-                    Real tau33_eb = ( dwdz - ( dudx + dvdy + dwdz ) / three );
-                    Real tau13_eb = myhalf * (dudz + dwdx);
-                    Real tau23_eb = myhalf * (dvdz + dwdy);
+                    Real tau33_eb = ( dwdz - ( dudx + dvdy + dwdz ) / three_d );
+                    Real tau13_eb = myhalf_d * (dudz + dwdx);
+                    Real tau23_eb = myhalf_d * (dvdz + dwdy);
 
                     if (l_no_slip) {
 
@@ -475,12 +475,12 @@ DiffusionSrcForMom_EB (const MFIter& mfi,
                         Real tbx_x, tbx_y, tbx_z, tby_x, tby_y, tby_z;
                         compute_tangent_vectors(nx, ny, nz, tbx_x, tbx_y, tbx_z, tby_x, tby_y, tby_z);
 
-                        Real tau11_eb = ( dudx - ( dudx + dvdy + dwdz ) / three );
-                        Real tau22_eb = ( dvdy - ( dudx + dvdy + dwdz ) / three );
-                        Real tau12_eb = myhalf * (dudy + dvdx);
+                        Real tau11_eb = ( dudx - ( dudx + dvdy + dwdz ) / three_d );
+                        Real tau22_eb = ( dvdy - ( dudx + dvdy + dwdz ) / three_d );
+                        Real tau12_eb = myhalf_d * (dudy + dvdx);
 
                         Real tauzz = mu_eff * ( nx*nx*tau11_eb + ny*ny*tau22_eb + nz*nz*tau33_eb
-                                            + two * (nx*ny*tau12_eb + ny*nz*tau23_eb + nx*nz*tau13_eb ));
+                                            + two_d * (nx*ny*tau12_eb + ny*nz*tau23_eb + nx*nz*tau13_eb ));
 
                         dwdn = - tbx_z * w_tau_eb13(i,j,k) - tby_z * w_tau_eb23(i,j,k) - nz * tauzz;
 

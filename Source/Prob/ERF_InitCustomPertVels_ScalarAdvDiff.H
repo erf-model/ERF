@@ -12,14 +12,14 @@
     int prob_type = -1; pp_for_pert_vels.query("prob_type", prob_type);
 
     // Set the x-velocity
-    ParallelFor(xbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+    ParallelFor(xbx, [=,myhalf_d=myhalf,zero_d=zero] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
     {
         const Real* prob_lo = geomdata.ProbLo();
         const Real*      dx = geomdata.CellSize();
-        const Real        z = prob_lo[2] + (k + myhalf) * dx[2];
+        const Real        z = prob_lo[2] + (k + myhalf_d) * dx[2];
 
         // Set the x-velocity
-        if (uRef != zero) {
+        if (uRef != zero_d) {
             x_vel_pert(i, j, k) = U_0 + uRef *
                                   std::log((z + z0)/z0) / std::log((zRef +z0)/z0);
         } else {

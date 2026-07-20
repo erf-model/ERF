@@ -270,7 +270,7 @@ realbdy_compute_relaxation (const int& icomp,
     int nq = num_var;
 
     amrex::ParallelFor( bx_xlo, bx_xhi,
-    [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+    [=,zero_d=zero] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
         // Corners with x boxes
         amrex::Real x = ProbLo[0] + (i + ioff) * dx[0];
@@ -279,8 +279,8 @@ realbdy_compute_relaxation (const int& icomp,
         amrex::Real y_end  = ProbLo[1] + width * dx[1];
         amrex::Real y_strt = ProbHi[1] - width * dx[1];
         amrex::Real xi     = (x_end - x) / (x_end - ProbLo[0]);
-        amrex::Real eta_lo = (y < y_end ) ? (y_end  - y) / (y_end  - ProbLo[1]) : zero;
-        amrex::Real eta_hi = (y > y_strt) ? (y - y_strt) / (ProbHi[1] - y_strt) : zero;
+        amrex::Real eta_lo = (y < y_end ) ? (y_end  - y) / (y_end  - ProbLo[1]) : zero_d;
+        amrex::Real eta_hi = (y > y_strt) ? (y - y_strt) / (ProbHi[1] - y_strt) : zero_d;
         amrex::Real eta    = std::max(eta_lo,eta_hi);
         amrex::Real Factor = std::max(xi*xi,eta*eta) * F1;
 
@@ -314,7 +314,7 @@ realbdy_compute_relaxation (const int& icomp,
             }
         }
     },
-    [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+    [=,zero_d=zero] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
         // Corners with x boxes
         amrex::Real x = ProbLo[0] + (i + ioff) * dx[0];
@@ -323,8 +323,8 @@ realbdy_compute_relaxation (const int& icomp,
         amrex::Real y_strt = ProbHi[1] - width * dx[1];
         amrex::Real y_end  = ProbLo[1] + width * dx[1];
         amrex::Real xi     = (x - x_strt) / (ProbHi[0] - x_strt);
-        amrex::Real eta_lo = (y < y_end ) ? (y_end  - y) / (y_end  - ProbLo[1]) : zero;
-        amrex::Real eta_hi = (y > y_strt) ? (y - y_strt) / (ProbHi[1] - y_strt) : zero;
+        amrex::Real eta_lo = (y < y_end ) ? (y_end  - y) / (y_end  - ProbLo[1]) : zero_d;
+        amrex::Real eta_hi = (y > y_strt) ? (y - y_strt) / (ProbHi[1] - y_strt) : zero_d;
         amrex::Real eta    = std::max(eta_lo,eta_hi);
         amrex::Real Factor = std::max(xi*xi,eta*eta) * F1;
 

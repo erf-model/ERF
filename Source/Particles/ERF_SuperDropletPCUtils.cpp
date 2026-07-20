@@ -363,12 +363,12 @@ void SuperDropletPC::effectiveRadius (  MultiFab& a_mf,
         const auto& box = mfi.tilebox();
         auto mf_arr = a_mf.array(mfi);
         const auto nd_arr = number_density.const_array(mfi);
-        ParallelFor( box, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+        ParallelFor( box, [=,zero_d=zero] AMREX_GPU_DEVICE (int i, int j, int k)
                           {
                               if (nd_arr(i,j,k,0) > 0) {
                                   mf_arr(i,j,k,a_comp) /= nd_arr(i,j,k,0);
                               } else {
-                                  mf_arr(i,j,k,a_comp) = zero;
+                                  mf_arr(i,j,k,a_comp) = zero_d;
                               }
                           } );
     }

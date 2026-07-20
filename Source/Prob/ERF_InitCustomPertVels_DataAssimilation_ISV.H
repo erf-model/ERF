@@ -21,13 +21,13 @@
     amrex::Real a_inf = std::sqrt(gamma * R_d * T_inf);
 
     // Set the x-velocity
-    ParallelFor(xbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+    ParallelFor(xbx, [=,myhalf_d=myhalf] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
     {
         const Real* dx = geomdata.CellSize();
 
         // Note that since we only use (x-xc) and (y-yc), we neglect the prob_lo offset in these
         const Real x =  i           * dx[0]; // face center
-        const Real y = (j + myhalf) * dx[1]; // cell center
+        const Real y = (j + myhalf_d) * dx[1]; // cell center
         const Real Omg = erf_vortex_Gaussian(x,y,xc,yc,R,beta,sigma);
 
         x_vel_pert(i, j, k) = (M_inf * std::cos(alpha)
@@ -35,12 +35,12 @@
     });
 
     // Set the y-velocity
-    ParallelFor(ybx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+    ParallelFor(ybx, [=,myhalf_d=myhalf] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
     {
         const Real* dx = geomdata.CellSize();
 
         // Note that since we only use (x-xc) and (y-yc), we neglect the prob_lo offset in these
-        const Real x = (i + myhalf) * dx[0]; // cell center
+        const Real x = (i + myhalf_d) * dx[0]; // cell center
         const Real y =  j           * dx[1]; // face center
         const Real Omg = erf_vortex_Gaussian(x,y,xc,yc,R,beta,sigma);
 

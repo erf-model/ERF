@@ -85,7 +85,7 @@ init_my_custom_terrain ( const Geometry& geom,
                     }
                 });
             } else if (dir == 1) {
-                ParallelFor(zbx, [=] AMREX_GPU_DEVICE (int i, int j, int)
+                ParallelFor(zbx, [=,one_d=one] AMREX_GPU_DEVICE (int i, int j, int)
                 {
                     // Clip indices for ghost-cells
                     int jj = amrex::min(amrex::max(j,domlo_y),domhi_y);
@@ -98,11 +98,11 @@ init_my_custom_terrain ( const Geometry& geom,
                         z_arr(i,j,k0) = num / (y*y + Real(4.0) * a * a);
                     } else {
                         Real y_L = y / L;
-                        z_arr(i,j,k0) = hm / (one + y_L*y_L) + z_offset;
+                        z_arr(i,j,k0) = hm / (one_d + y_L*y_L) + z_offset;
                     }
                 });
             } else if (dir == 2) {
-                ParallelFor(zbx, [=] AMREX_GPU_DEVICE (int i, int j, int)
+                ParallelFor(zbx, [=,one_d=one] AMREX_GPU_DEVICE (int i, int j, int)
                 {
                     // Clip indices for ghost-cells
                     int ii = amrex::min(amrex::max(i,domlo_x),domhi_x);
@@ -118,7 +118,7 @@ init_my_custom_terrain ( const Geometry& geom,
                         z_arr(i,j,k0) = num / (r*r + Real(4.0) * a * a);
                     } else {
                         Real r_L = r / L;
-                        z_arr(i,j,k0) = hm / (one + r_L*r_L) + z_offset;
+                        z_arr(i,j,k0) = hm / (one_d + r_L*r_L) + z_offset;
                     }
                 });
             } else {
@@ -131,7 +131,7 @@ init_my_custom_terrain ( const Geometry& geom,
             Real Hm     =  Real(250.0);
             Real lambda = Real(4000.0);
 
-            ParallelFor(zbx, [=] AMREX_GPU_DEVICE (int i, int j, int)
+            ParallelFor(zbx, [=,PI_d=PI] AMREX_GPU_DEVICE (int i, int j, int)
             {
                 // Clip indices for ghost-cells
                 int ii = amrex::min(amrex::max(i,domlo_x),domhi_x);
@@ -139,7 +139,7 @@ init_my_custom_terrain ( const Geometry& geom,
                 // Location of nodes
                 Real x = (ProbLoArr[0] + ii * dx[0] - xcen);
 
-                Real cosx = std::cos(PI * x / lambda);
+                Real cosx = std::cos(PI_d * x / lambda);
 
                 z_arr(i,j,k0) = Hm * std::exp(-x*x/asq) * cosx * cosx;
             });
@@ -148,7 +148,7 @@ init_my_custom_terrain ( const Geometry& geom,
 
             Real asq = myhalf * myhalf;
 
-            ParallelFor(zbx, [=] AMREX_GPU_DEVICE (int i, int j, int)
+            ParallelFor(zbx, [=,zero_d=zero] AMREX_GPU_DEVICE (int i, int j, int)
             {
                 // Clip indices for ghost-cells
                 int ii = amrex::min(amrex::max(i,domlo_x),domhi_x);
@@ -161,7 +161,7 @@ init_my_custom_terrain ( const Geometry& geom,
                 if (rsq < asq) {
                     z_arr(i,j,k0) = std::sqrt(asq - rsq);
                 } else {
-                    z_arr(i,j,k0) = zero;
+                    z_arr(i,j,k0) = zero_d;
                 }
             });
 
@@ -169,7 +169,7 @@ init_my_custom_terrain ( const Geometry& geom,
 
             Real asq = myhalf * myhalf;
 
-            ParallelFor(zbx, [=] AMREX_GPU_DEVICE (int i, int j, int)
+            ParallelFor(zbx, [=,myhalf_d=myhalf,zero_d=zero] AMREX_GPU_DEVICE (int i, int j, int)
             {
                 // Clip indices for ghost-cells
                 int ii = amrex::min(amrex::max(i,domlo_x),domhi_x);
@@ -182,9 +182,9 @@ init_my_custom_terrain ( const Geometry& geom,
                 Real rsq = x*x + y*y;
 
                 if (rsq < asq) {
-                    z_arr(i,j,k0) = std::pow(asq-rsq, myhalf);
+                    z_arr(i,j,k0) = std::pow(asq-rsq, myhalf_d);
                 } else {
-                    z_arr(i,j,k0) = zero;
+                    z_arr(i,j,k0) = zero_d;
                 }
             });
 
@@ -216,7 +216,7 @@ init_my_custom_terrain ( const Geometry& geom,
 
         } else if (custom_terrain_type == "WindFarmTest") {
 
-            ParallelFor(zbx, [=] AMREX_GPU_DEVICE (int i, int j, int)
+            ParallelFor(zbx, [=,one_d=one] AMREX_GPU_DEVICE (int i, int j, int)
             {
                 // Clip indices for ghost-cells
                 int ii = amrex::min(amrex::max(i,domlo_x),domhi_x);
@@ -229,7 +229,7 @@ init_my_custom_terrain ( const Geometry& geom,
                 Real x_L = x/Real(100.0);
                 Real y_L = y/Real(100.0);
 
-                z_arr(i,j,k0) = Real(100.0) / (one + x_L*x_L + y_L*y_L);
+                z_arr(i,j,k0) = Real(100.0) / (one_d + x_L*x_L + y_L*y_L);
             });
 
         } else if (custom_terrain_type == "RaisedFlat") {
@@ -246,7 +246,7 @@ init_my_custom_terrain ( const Geometry& geom,
             Real z_offset = zero; pp_prob.query("z_offset", z_offset);
             Real fourL = four * L;
 
-            ParallelFor(zbx, [=] AMREX_GPU_DEVICE (int i, int j, int)
+            ParallelFor(zbx, [=,one_d=one,PI_d=PI,four_d=four] AMREX_GPU_DEVICE (int i, int j, int)
             {
 
                 // Clip indices for ghost-cells
@@ -259,16 +259,16 @@ init_my_custom_terrain ( const Geometry& geom,
                 Real r = std::sqrt(x*x + y*y);
 
                 if (r < fourL) {
-                    z_arr(i,j,k0) = z_offset + hm * Real(0.0625) * std::pow(one + std::cos(PI*r/fourL), four);
+                    z_arr(i,j,k0) = z_offset + hm * Real(0.0625) * std::pow(one_d + std::cos(PI_d*r/fourL), four_d);
                 } else {
                     z_arr(i,j,k0) = z_offset;
                 }
             });
 
         } else if (custom_terrain_type == "None") {
-            ParallelFor(zbx, [=] AMREX_GPU_DEVICE (int i, int j, int)
+            ParallelFor(zbx, [=,zero_d=zero] AMREX_GPU_DEVICE (int i, int j, int)
             {
-                z_arr(i,j,k0) = zero;
+                z_arr(i,j,k0) = zero_d;
             });
         } else {
             Abort("Don't know this custom_terrain_type");

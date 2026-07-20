@@ -75,9 +75,9 @@ SLM::ComputeTsurf ()
 
         auto theta_array = lsm_fab_vars[LsmVar_SLM::theta]->array(mfi);
 
-        ParallelFor( box2d, [=] AMREX_GPU_DEVICE (int i, int j, int )
+        ParallelFor( box2d, [=,myhalf_d=myhalf] AMREX_GPU_DEVICE (int i, int j, int )
         {
-            theta_array(i,j,khi+1) = Real(1.5)*theta_array(i,j,khi) - myhalf*theta_array(i,j,khi-1);
+            theta_array(i,j,khi+1) = Real(1.5)*theta_array(i,j,khi) - myhalf_d*theta_array(i,j,khi-1);
         });
     }
 }
