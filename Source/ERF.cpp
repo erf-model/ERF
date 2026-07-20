@@ -724,6 +724,11 @@ ERF::InitData_post ()
         restart();
     }
 
+    // Select 2-D variables after the active LSM has initialized its runtime
+    // field inventory, including provider-specific soil layers.
+    setPlotVariables2D("plot2d_vars_1", plot2d_var_names_1);
+    setPlotVariables2D("plot2d_vars_2", plot2d_var_names_2);
+
     //
     // Make sure that detJ and z_phys_cc are the average of the data on a finer level if there is one and if two way coupling
     //

@@ -46,6 +46,17 @@ bool is_condensed_water_path_name (const std::string& name);
 amrex::Vector<std::string>
 available_diagnostic_names (const SolverChoice& solver_choice);
 
+// Include the fields supplied by the active land-surface provider and the
+// unified near-surface fields that have a possible source in this run.
+amrex::Vector<std::string>
+available_diagnostic_names (const SolverChoice& solver_choice,
+                            bool has_surface_layer);
+
+amrex::Vector<std::string>
+available_diagnostic_names (const SolverChoice& solver_choice,
+                            bool has_surface_layer,
+                            const amrex::Vector<std::string>& active_lsm_names);
+
 SelectedWaterPathComponents
 selected_condensed_water_path_components (const amrex::Vector<std::string>& plot_var_names,
                                           const SolverChoice& solver_choice);
