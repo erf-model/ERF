@@ -1,0 +1,38 @@
+# HaboobFireFlat — Phase 5 integration: all Phase 1-4 physics on flat terrain.
+#
+# Fire + wind coupling (Interaction 2) + lofting (Interaction 3) + crust
+# reduction (Interaction 1) + smoke (Phase 4) all active simultaneously
+# on flat terrain. This is the reference case for HaboobFireHill and
+# HaboobFirePit — any difference between flat and terrain results is
+# attributable to the terrain effect alone.
+#
+# Expected results:
+#   (1) All four [DUST DEBUG] and [FIRE DEBUG] signatures present each step
+#   (2) smoke_diag.dat: smoke_total_mass > 0 after step 4
+#   (3) dust_diag.dat: emission_flux_max > 0 after step 4
+#   (4) Both scalars non-NaN throughout
+#   (5) fire_stats.csv: burned_area_ha increasing after step 4
+#   (6) Run exits code 0 at max_step=20
+
+amrex.max_grid_size_z = 64
+geometry.prob_extent = 4000.0 4000.0 1500.0
+amr.n_cell = 32 32 64
+erf.fixed_dt = 0.5
+max_step = 20
+erf.pbl_type = MRF
+erf.abl_geo_wind = 5.0 0.0 0.0
+erf.fire.smoke_enable = true
+erf.fire.smoke_emission_factor = 0.02
+erf.fire.smoke_heat_of_comb = 18700000.0
+erf.fire.fire_debug = true
+erf.dust.enable = true
+erf.dust.crust_index = 0.5
+erf.fire_dust_coupling = true
+erf.fire_dust_crust_reduction = 0.8
+erf.fire_dust_wind_to_dust = true
+erf.fire_dust_wind_z0 = 0.1
+erf.fire_dust_wind_zref = 6.1
+erf.fire_dust_lofting_enabled = true
+erf.fire_dust_lofting_k_loft = 2.0
+erf.fire_dust_lofting_Q_threshold = 50.0
+erf.fire_dust_lofting_Q_ref = 500.0

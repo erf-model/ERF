@@ -1,0 +1,41 @@
+# HaboobFireHill — Phase 5 integration: all Phase 1-4 physics on Gaussian hill.
+#
+# Identical to HaboobFireFlat but with Gaussian hill terrain. Fire ignites on
+# the upwind side of the hill. Terrain-channelled wind accelerates over the
+# crest, driving higher fire ROS and stronger dust emission on the windward
+# slope. Smoke plume is deflected over the hill crest.
+#
+# Expected results:
+#   (1) ERF prints "max of zphys_nd = 200" at startup
+#   (2) emission_flux_max > HaboobFireFlat at step 20 (terrain amplifies emission)
+#   (3) smoke plume peak concentration is downwind of hill crest
+#   (4) All Phase 1-4 [DUST DEBUG] and [FIRE DEBUG] signatures present
+#   (5) No NaN in any field, run exits code 0 at max_step=20
+
+erf.terrain_type = StaticFittedMesh
+erf.init_type = input_sounding
+geometry.prob_extent = 4000.0 4000.0 1500.0
+amr.n_cell = 32 32 64
+amrex.max_grid_size_z = 64
+erf.fixed_dt = 0.5
+max_step = 20
+erf.pbl_type = MRF
+erf.abl_geo_wind = 5.0 0.0 0.0
+prob.hill_height = 200.0
+prob.hill_halfwidth = 600.0
+erf.fire.smoke_enable = true
+erf.fire.smoke_emission_factor = 0.02
+erf.fire.smoke_heat_of_comb = 18700000.0
+erf.fire.fire_debug = true
+erf.dust.enable = true
+erf.dust.crust_index = 0.5
+erf.dust.use_terrain_wind = true
+erf.fire_dust_coupling = true
+erf.fire_dust_crust_reduction = 0.8
+erf.fire_dust_wind_to_dust = true
+erf.fire_dust_wind_z0 = 0.1
+erf.fire_dust_wind_zref = 6.1
+erf.fire_dust_lofting_enabled = true
+erf.fire_dust_lofting_k_loft = 2.0
+erf.fire_dust_lofting_Q_threshold = 50.0
+erf.fire_dust_lofting_Q_ref = 500.0
