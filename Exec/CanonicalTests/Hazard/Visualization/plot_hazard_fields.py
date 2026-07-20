@@ -84,7 +84,7 @@ def plot_smoke_plan(ds, case):
 
     safe_slice(
         ds, axis="z",
-        field="RhoSmoke_comp",
+        field="smoke",
         center=[cx, cy, cz],
         width=[(float(dom[0]), "m"), (float(dom[1]), "m")],
         cmap="inferno",
@@ -104,7 +104,7 @@ def plot_smoke_xz(ds, case):
 
     safe_slice(
         ds, axis="y",
-        field="RhoSmoke_comp",
+        field="smoke",
         center=[cx, cy, cz],
         width=[(float(dom[0]), "m"), (float(dom[2]), "m")],
         cmap="inferno",
@@ -184,7 +184,7 @@ def plot_dust_concentration(ds, case):
 
     safe_slice(
         ds, axis="y",
-        field="RhoAdv_comp",
+        field="rhoadv_dust",
         center=[cx, cy, cz],
         width=[(float(dom[0]), "m"), (float(dom[2]), "m")],
         cmap="YlOrRd",
