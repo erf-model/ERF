@@ -61,7 +61,7 @@ amrex::Real ComputeVirtualPotentialTemperature (const amrex::Real& theta,
                                                 const amrex::Real& qc_ice)
 {
     amrex::Real qc_total = qc_liquid + qc_ice;
-    return theta * (one + epsv*qv - qc_total);
+    return theta * (one + epsv * qv - qc_total);
 }
 
 /**
@@ -93,7 +93,7 @@ amrex::Real GetThetavl (int i, int j, int k,
                         const amrex::Array4<amrex::Real const>& cell_data,
                         const MoistureComponentIndices& moisture_indices)
 {
-    const amrex::Real rho = cell_data(i, j, k, Rho_comp);
+    const amrex::Real rho   = cell_data(i, j, k, Rho_comp);
     const amrex::Real theta = cell_data(i, j, k, RhoTheta_comp) / rho;
 
     amrex::Real qv = zero, qc = zero, qi = zero;
@@ -104,7 +104,7 @@ amrex::Real GetThetavl (int i, int j, int k,
     if (moisture_indices.qi >= 0)
         qi = cell_data(i, j, k, moisture_indices.qi) / rho;
 
-    return theta * (one + amrex::Real(0.61) * qv - qc - qi);
+    return theta * (one + epsv * qv - qc - qi);
 }
 
 
