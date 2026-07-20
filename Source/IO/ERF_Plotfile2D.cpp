@@ -7,6 +7,7 @@
 #include "ERF_Plotfile2DWaterPath.H"
 #include "ERF_NCPlotFile.H"
 #include "ERF_Plotfile2DUtils.H"
+#include "Diagnostics/ERF_NearSurfaceDiagnostics.H"
 #include "ERF_EpochTime.H"
 #include "ERF_SrcHeaders.H"
 #include "ERF_StormDiagnostics.H"
@@ -44,6 +45,18 @@ std::string make_2d_plotfile_name (int which,
 
     Abort(plotfile2d::format_invalid_2d_stream_error(which));
     return {};
+}
+
+bool is_unified_near_surface_diagnostic (plotfile2d::DiagnosticID id) noexcept
+{
+    return id == plotfile2d::DiagnosticID::Temperature2m ||
+           id == plotfile2d::DiagnosticID::WaterVaporMixingRatio2m ||
+           id == plotfile2d::DiagnosticID::NearSurfaceDiagnosticSource;
+}
+
+bool is_land_surface_diagnostic (const plotfile2d::DiagnosticDescriptor* descriptor) noexcept
+{
+    return descriptor && descriptor->category == plotfile2d::DiagnosticCategory::LandSurface;
 }
 
 Vector<Geometry> make_2d_plot_geometries (const Vector<Geometry>& geom,
@@ -113,7 +126,12 @@ ERF::setPlotVariables2D (const std::string& pp_plot_var_names, Vector<std::strin
         requested_plot_names.push_back(nm);
     }
 
-    const auto available_names = plotfile2d::available_diagnostic_names(solverChoice);
+    const bool has_surface_layer =
+        phys_bc_type[Orientation(Direction::z, Orientation::low)] == ERF_BC::surface_layer;
+    const auto active_lsm_names = lsm.Get_DataNames();
+    const auto available_names = plotfile2d::available_diagnostic_names(solverChoice,
+                                                                         has_surface_layer,
+                                                                         active_lsm_names);
 
     // Keep the canonical built-in 2D ordering so the plotfile component layout
     // stays stable even if the input request order changes.
@@ -469,7 +487,7 @@ ERF::Write2DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
             plotfile2d::fill_component_from_klevel_or_value(
                 mf[lev], mf_comp,
                 m_SurfaceLayer ? m_SurfaceLayer->get_surface_diagnostic_source(lev) : nullptr,
-                0, -999);
+                0, 0);
             mf_comp++;
         } // surface_diagnostic_source
 
@@ -502,6 +520,84 @@ ERF::Write2DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
                 mf[lev], mf_comp, shoc_wthv_source, klo, -999);
             mf_comp++;
         } // shoc_wthv_sfc
+
+        // Land-surface provider fields use the generic LandSurface name/index
+        // interface. The catalog supplies metadata; this block only assembles
+        // stored values and translates provider sentinels.
+        int temperature_2m_comp = -1;
+        int mixing_ratio_2m_comp = -1;
+        int near_surface_source_comp = -1;
+        for (const auto& name : plot_var_names) {
+            const auto* descriptor = plotfile2d::find_diagnostic(name);
+            if (!descriptor) {
+                descriptor = plotfile2d::find_dynamic_soil_diagnostic(name);
+            }
+            if (!is_land_surface_diagnostic(descriptor)) {
+                continue;
+            }
+
+            if (is_unified_near_surface_diagnostic(descriptor->id)) {
+                if (descriptor->id == plotfile2d::DiagnosticID::Temperature2m) {
+                    temperature_2m_comp = mf_comp;
+                } else if (descriptor->id == plotfile2d::DiagnosticID::WaterVaporMixingRatio2m) {
+                    mixing_ratio_2m_comp = mf_comp;
+                } else {
+                    near_surface_source_comp = mf_comp;
+                }
+                ++mf_comp;
+                continue;
+            }
+
+            plotfile2d::fill_land_surface_component_from_klevel_or_missing(
+                mf[lev], mf_comp, lsm.Get_Data_Ptr(lev, name), 0, -999);
+            ++mf_comp;
+        }
+
+        if (temperature_2m_comp >= 0 || mixing_ratio_2m_comp >= 0 ||
+            near_surface_source_comp >= 0) {
+            near_surface_diagnostics::Sources near_surface_sources;
+            near_surface_sources.native_temperature_vegetated =
+                lsm.Get_Data_Ptr(lev, "noahmp_temperature_2m_vegetated");
+            near_surface_sources.native_temperature_bare =
+                lsm.Get_Data_Ptr(lev, "noahmp_temperature_2m_bare");
+            near_surface_sources.native_mixing_ratio_vegetated =
+                lsm.Get_Data_Ptr(lev, "noahmp_water_vapor_mixing_ratio_2m_vegetated");
+            near_surface_sources.native_mixing_ratio_bare =
+                lsm.Get_Data_Ptr(lev, "noahmp_water_vapor_mixing_ratio_2m_bare");
+            near_surface_sources.native_vegetation_fraction =
+                lsm.Get_Data_Ptr(lev, "noahmp_vegetation_fraction");
+            near_surface_sources.theta_surface =
+                m_SurfaceLayer ? m_SurfaceLayer->get_t_surf(lev) : nullptr;
+            near_surface_sources.theta_star =
+                m_SurfaceLayer ? m_SurfaceLayer->get_t_star(lev) : nullptr;
+            near_surface_sources.mixing_ratio_surface =
+                m_SurfaceLayer ? m_SurfaceLayer->get_q_surf(lev) : nullptr;
+            near_surface_sources.mixing_ratio_star =
+                m_SurfaceLayer ? m_SurfaceLayer->get_q_star(lev) : nullptr;
+            near_surface_sources.roughness_height =
+                m_SurfaceLayer ? m_SurfaceLayer->get_z0(lev) : nullptr;
+            near_surface_sources.obukhov_length =
+                m_SurfaceLayer ? m_SurfaceLayer->get_olen(lev) : nullptr;
+            near_surface_sources.source_mask =
+                m_SurfaceLayer ? m_SurfaceLayer->get_surface_diagnostic_source(lev) : nullptr;
+            near_surface_sources.land_mask =
+                (lmask_lev[lev].empty()) ? nullptr : lmask_lev[lev][0].get();
+            near_surface_sources.cons = &vars_new[lev][Vars::cons];
+            near_surface_sources.z_phys_nd = z_phys_nd[lev].get();
+            near_surface_sources.dz = geom[lev].CellSize(2);
+            near_surface_sources.klo = klo;
+            near_surface_sources.moist = solverChoice.moisture_type != MoistureType::None;
+            near_surface_sources.has_lsm =
+                near_surface_sources.native_temperature_vegetated != nullptr &&
+                near_surface_sources.native_temperature_bare != nullptr &&
+                near_surface_sources.native_mixing_ratio_vegetated != nullptr &&
+                near_surface_sources.native_mixing_ratio_bare != nullptr &&
+                near_surface_sources.native_vegetation_fraction != nullptr;
+            near_surface_diagnostics::fill(mf[lev], temperature_2m_comp,
+                                           mixing_ratio_2m_comp,
+                                           near_surface_source_comp,
+                                           near_surface_sources);
+        }
 
         const int static_output_count = static_cast<int>(plot_var_names.size());
         for (int out_idx = static_output_count; out_idx < static_cast<int>(output_descriptors.size()); ++out_idx) {
