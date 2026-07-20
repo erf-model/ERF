@@ -56,18 +56,7 @@ inline void update_stel_average(
         });
     }
 
-    // Call the existing update_running_average from ERF_DustPM.H
-    // The signature is: update_running_average(avg, val, dt, T_avg)
-    // Note: This requires pm10_mg_m3 to be a vector of MultiFabs
-    // Since we only have one component (STEL), we create a temporary vector
-    std::vector<amrex::MultiFab> pm10_vec(1);
-    pm10_vec[0] = pm10_mg_m3;
-
-    std::vector<amrex::MultiFab> stel_vec(1);
-    stel_vec[0] = stel_avg_mf;
-
-    // Use the update_running_average pattern from ERF_DustPM.H
-    // For now, implement directly using the same algorithm
+    // Update STEL running average using exponential moving average
     for (MFIter mfi(stel_avg_mf, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
         const Box& bx = mfi.tilebox();
         auto stel = stel_avg_mf.array(mfi);
