@@ -95,7 +95,7 @@ amrex::Real GetThetavl (int i, int j, int k,
 {
     const amrex::Real rho = cell_data(i, j, k, Rho_comp);
     const amrex::Real theta = cell_data(i, j, k, RhoTheta_comp) / rho;
-    
+
     amrex::Real qv = zero, qc = zero, qi = zero;
     if (moisture_indices.qv >= 0)
         qv = cell_data(i, j, k, moisture_indices.qv) / rho;
@@ -103,7 +103,7 @@ amrex::Real GetThetavl (int i, int j, int k,
         qc = cell_data(i, j, k, moisture_indices.qc) / rho;
     if (moisture_indices.qi >= 0)
         qi = cell_data(i, j, k, moisture_indices.qi) / rho;
-    
+
     return theta * (one + amrex::Real(0.61) * qv - qc - qi);
 }
 

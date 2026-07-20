@@ -199,10 +199,12 @@
         Real sdt = static_cast<Real>(slow_dt);
 
         if ((solverChoice.vert_implicit_fac[level][nrk] > zero_d) && solverChoice.implicit_before_substep) {
-            MultiFab scratch(S_data[IntVars::cons].boxArray(),S_data[IntVars::cons].DistributionMap(), 2,
+            MultiFab scratch(S_data[IntVars::cons].boxArray(),S_data[IntVars::cons].DistributionMap(), 3,
                              S_data[IntVars::cons].nGrowVect());
-            MultiFab::Copy(scratch, S_old[IntVars::cons], 0, 0, 2, S_data[IntVars::cons].nGrowVect()); // scratch := S_old               (for rho, rhotheta)
-            MultiFab::Saxpy(scratch, sdt, S_rhs[IntVars::cons], 0, 0, 2, 0);                       // scratch := S_old + slow_dt*Src (for rho, rhotheta)
+            MultiFab::Copy(scratch, S_old[IntVars::cons], 0, 0, 2, S_data[IntVars::cons].nGrowVect());
+            MultiFab::Copy(scratch, S_old[IntVars::cons], RhoQ1_comp, 2, 1, S_data[IntVars::cons].nGrowVect());
+            MultiFab::Saxpy(scratch, sdt, S_rhs[IntVars::cons], 0, 0, 2, 0);
+            MultiFab::Saxpy(scratch, sdt, S_rhs[IntVars::cons], RhoQ1_comp, 2, 1, 0);
             scratch.FillBoundary(geom[level].periodicity());
 
             MultiFab scratch_xmom(S_data[IntVars::xmom].boxArray(),
@@ -233,9 +235,11 @@
 
 #include "ERF_ImplicitPre.H"
 
-            MultiFab::Saxpy(scratch, -one_d, S_old[IntVars::cons], 1, 1, 1, 0); // scratch  := (S_new - S_old)           (for rhotheta only)
-            scratch.mult(one_d / sdt);                                      // scratch  := (S_new - S_old) / slow_dt
-            MultiFab::Copy(S_rhs[IntVars::cons], scratch, 1, 1, 1, 0);        // slow_rhs := (S_new - S_old) / slow_dt (for rhotheta only)
+            MultiFab::Saxpy(scratch, -one_d, S_old[IntVars::cons], 1, 1, 1, 0);
+            MultiFab::Saxpy(scratch, -one_d, S_old[IntVars::cons], RhoQ1_comp, 2, 1, 0);
+            scratch.mult(one_d / sdt);
+            MultiFab::Copy(S_rhs[IntVars::cons], scratch, 1, 1, 1, 0);
+            MultiFab::Copy(S_rhs[IntVars::cons], scratch, 2, RhoQ1_comp, 1, 0);
 
             if (solverChoice.implicit_momentum_diffusion) {
                 MultiFab::Saxpy(scratch_xmom, -one_d, S_old[IntVars::xmom], 0, 0, 1, 0); // scratch  := (S_new - S_old)
