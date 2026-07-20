@@ -522,7 +522,8 @@ void ImplicitDiffForMomLU_N (const amrex::Box& bx,
                              const SolverChoice& solverChoice,
                              const amrex::BCRec* bc_ptr,
                              const bool use_SurfLayer,
-                             const amrex::Real implicit_fac);
+                             const amrex::Real implicit_fac,
+                             const bool use_ysu_mom_countergradient);
 
 template <int stagdir>
 void ImplicitDiffForMomLU_S (const amrex::Box& bx,
@@ -538,7 +539,8 @@ void ImplicitDiffForMomLU_S (const amrex::Box& bx,
                              const SolverChoice& solverChoice,
                              const amrex::BCRec* bc_ptr,
                              const bool use_SurfLayer,
-                             const amrex::Real implicit_fac);
+                             const amrex::Real implicit_fac,
+                             const bool use_ysu_mom_countergradient);
 
 template <int stagdir>
 void ImplicitDiffForMomLU_T (const amrex::Box& bx,
@@ -556,5 +558,6 @@ void ImplicitDiffForMomLU_T (const amrex::Box& bx,
                              const SolverChoice& solverChoice,
                              const amrex::BCRec* bc_ptr,
                              const bool use_SurfLayer,
-                             const amrex::Real implicit_fac);
+                             const amrex::Real implicit_fac,
+                             const bool use_ysu_mom_countergradient);
 #endif

@@ -82,6 +82,33 @@ amrex::Real GetThetav (const int& i, const int& j, const int& k,
 }
 
 /**
+ * Compute liquid-water virtual potential temperature
+ * theta_vl = theta * (1 + 0.61*qv - ql - qi)
+ * where ql = qc (cloud liquid) and qi = qi (cloud ice)
+ * This accounts for condensate loading in the virtual temperature effect
+ */
+AMREX_GPU_DEVICE
+AMREX_FORCE_INLINE
+amrex::Real GetThetavl (int i, int j, int k,
+                        const amrex::Array4<amrex::Real const>& cell_data,
+                        const MoistureComponentIndices& moisture_indices)
+{
+    const amrex::Real rho = cell_data(i, j, k, Rho_comp);
+    const amrex::Real theta = cell_data(i, j, k, RhoTheta_comp) / rho;
+    
+    amrex::Real qv = zero, qc = zero, qi = zero;
+    if (moisture_indices.qv >= 0)
+        qv = cell_data(i, j, k, moisture_indices.qv) / rho;
+    if (moisture_indices.qc >= 0)
+        qc = cell_data(i, j, k, moisture_indices.qc) / rho;
+    if (moisture_indices.qi >= 0)
+        qi = cell_data(i, j, k, moisture_indices.qi) / rho;
+    
+    return theta * (one + amrex::Real(0.61) * qv - qc - qi);
+}
+
+
+/**
  * Compute linearized liquid-water potential temperature
  */
 AMREX_GPU_DEVICE
