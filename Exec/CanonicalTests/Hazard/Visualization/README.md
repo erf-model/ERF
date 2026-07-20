@@ -50,7 +50,7 @@ Make sure the ERF `inputs` file includes these in `erf.plot_vars_1`:
 ```
 erf.plot_vars_1 = density x_velocity y_velocity z_velocity theta
 ```
-Smoke (`RhoSmoke_comp`) and dust (`RhoAdv_comp`) are written automatically
+Smoke (`smoke`) and dust (`rhoadv_dust`) are written automatically
 when `ERF_ENABLE_FIRE=ON` and `ERF_USE_DUST=ON`.
 
 ---
