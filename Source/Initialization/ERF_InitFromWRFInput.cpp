@@ -1208,7 +1208,7 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev)
                                              bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi,
                                              wrf_MUB, wrf_C1H, wrf_C2H, wrf_RDNW, wrf_PHB, z_phys_nd[lev],
                                              lev_new[Vars::xvel], lev_new[Vars::yvel], lev_new[Vars::cons],
-                                             r_hse, area_vec, geom[lev], use_moist, domain_bcs_type,
+                                             r_hse, area_vec, geom[lev], use_moist, solverChoice.rebalance_wrf_input, domain_bcs_type,
                                              real_width, bdy_time_interval, is_anelastic);
 
                 // Write this time to erfbdy.
@@ -1229,7 +1229,7 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev)
                                                  bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi,
                                                  wrf_MUB, wrf_C1H, wrf_C2H, wrf_RDNW, wrf_PHB, z_phys_nd[lev],
                                                  lev_new[Vars::xvel], lev_new[Vars::yvel], lev_new[Vars::cons],
-                                                 r_hse, area_vec, geom[lev], use_moist, domain_bcs_type,
+                                                 r_hse, area_vec, geom[lev], use_moist, solverChoice.rebalance_wrf_input, domain_bcs_type,
                                                  real_width, bdy_time_interval, is_anelastic);
 
                     WriteERFBdyTimeSlice(erfbdy_file, itime,

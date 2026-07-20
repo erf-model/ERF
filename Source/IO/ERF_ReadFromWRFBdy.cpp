@@ -115,7 +115,8 @@ convert_wrfbdy_data (const int itime,
                      const iMultiFab* mask_u,
                      const iMultiFab* mask_v,
                      const iMultiFab* mask_c,
-                     const bool& use_moist)
+                     const bool& use_moist,
+                     const bool rebalance_wrf_state)
 {
     // Temporary bdy data structures for global reductions
     int vsize = bdy_data[itime].size() - 3; // Don't do PH, MU, or PC
@@ -469,6 +470,7 @@ convert_wrfbdy_data (const int itime,
             }
         });
 
+        if (rebalance_wrf_state) {
         // Rebalance with constant temperature (modifies theta only)
         // New z values
 #ifdef AMREX_USE_FLOAT
@@ -534,6 +536,7 @@ convert_wrfbdy_data (const int itime,
               z_lo = z_hi;
             }
         });
+        }
 
     } // mfi
 
@@ -564,11 +567,19 @@ read_and_convert_from_wrfbdy (const int itime, const std::string& nc_bdy_file,
                               Array<MultiFab*, AMREX_SPACEDIM>& area_vec,
                               const Geometry& geom,
                               const bool& use_moist,
+                              const bool rebalance_wrf_state,
                               const Vector<BCRec>& domain_bcs_type_h,
                               int real_width, double bdy_time_interval,
                               bool is_anelastic, bool do_conversion)
 {
     int ioproc = ParallelDescriptor::IOProcessorNumber();  // I/O rank
+
+    static bool printed_rebalance_status = false;
+    if (!printed_rebalance_status) {
+        amrex::Print() << "WRF input and boundary hydrostatic rebalance: "
+                       << (rebalance_wrf_state ? "enabled" : "disabled") << '\n';
+        printed_rebalance_status = true;
+    }
 
     // If we are trying to define the bdy data at the final time, we must do it by first reading the tendency from
     // the previous time, then adding the previous time value + dT * tendency.
@@ -581,7 +592,7 @@ read_and_convert_from_wrfbdy (const int itime, const std::string& nc_bdy_file,
                                      bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi,
                                      wrf_MUB, wrf_C1H, wrf_C2H, wrf_RDNW, wrf_PHB, z_phys_nd,
                                      xvel, yvel, cons, rho0, area_vec, geom,
-                                     use_moist, domain_bcs_type_h, real_width, bdy_time_interval,
+                                     use_moist, rebalance_wrf_state, domain_bcs_type_h, real_width, bdy_time_interval,
                                      is_anelastic, false);
     }
 
@@ -1008,16 +1019,16 @@ read_and_convert_from_wrfbdy (const int itime, const std::string& nc_bdy_file,
         std::unique_ptr<iMultiFab> mask_v = OwnerMask(yvel, geom.periodicity());
 
         if (do_tendency) {
-            convert_wrfbdy_data(itime-1, domain, bdy_data_xlo, wrf_MUB, wrf_C1H, wrf_C2H, wrf_RDNW, wrf_PHB, z_phys_nd, mask_u.get(), mask_v.get(), mask_c.get(), use_moist);
-            convert_wrfbdy_data(itime-1, domain, bdy_data_xhi, wrf_MUB, wrf_C1H, wrf_C2H, wrf_RDNW, wrf_PHB, z_phys_nd, mask_u.get(), mask_v.get(), mask_c.get(), use_moist);
-            convert_wrfbdy_data(itime-1, domain, bdy_data_ylo, wrf_MUB, wrf_C1H, wrf_C2H, wrf_RDNW, wrf_PHB, z_phys_nd, mask_u.get(), mask_v.get(), mask_c.get(), use_moist);
-            convert_wrfbdy_data(itime-1, domain, bdy_data_yhi, wrf_MUB, wrf_C1H, wrf_C2H, wrf_RDNW, wrf_PHB, z_phys_nd, mask_u.get(), mask_v.get(), mask_c.get(), use_moist);
+            convert_wrfbdy_data(itime-1, domain, bdy_data_xlo, wrf_MUB, wrf_C1H, wrf_C2H, wrf_RDNW, wrf_PHB, z_phys_nd, mask_u.get(), mask_v.get(), mask_c.get(), use_moist, rebalance_wrf_state);
+            convert_wrfbdy_data(itime-1, domain, bdy_data_xhi, wrf_MUB, wrf_C1H, wrf_C2H, wrf_RDNW, wrf_PHB, z_phys_nd, mask_u.get(), mask_v.get(), mask_c.get(), use_moist, rebalance_wrf_state);
+            convert_wrfbdy_data(itime-1, domain, bdy_data_ylo, wrf_MUB, wrf_C1H, wrf_C2H, wrf_RDNW, wrf_PHB, z_phys_nd, mask_u.get(), mask_v.get(), mask_c.get(), use_moist, rebalance_wrf_state);
+            convert_wrfbdy_data(itime-1, domain, bdy_data_yhi, wrf_MUB, wrf_C1H, wrf_C2H, wrf_RDNW, wrf_PHB, z_phys_nd, mask_u.get(), mask_v.get(), mask_c.get(), use_moist, rebalance_wrf_state);
         }
 
-        convert_wrfbdy_data(itime, domain, bdy_data_xlo, wrf_MUB, wrf_C1H, wrf_C2H, wrf_RDNW, wrf_PHB, z_phys_nd, mask_u.get(), mask_v.get(), mask_c.get(), use_moist);
-        convert_wrfbdy_data(itime, domain, bdy_data_xhi, wrf_MUB, wrf_C1H, wrf_C2H, wrf_RDNW, wrf_PHB, z_phys_nd, mask_u.get(), mask_v.get(), mask_c.get(), use_moist);
-        convert_wrfbdy_data(itime, domain, bdy_data_ylo, wrf_MUB, wrf_C1H, wrf_C2H, wrf_RDNW, wrf_PHB, z_phys_nd, mask_u.get(), mask_v.get(), mask_c.get(), use_moist);
-        convert_wrfbdy_data(itime, domain, bdy_data_yhi, wrf_MUB, wrf_C1H, wrf_C2H, wrf_RDNW, wrf_PHB, z_phys_nd, mask_u.get(), mask_v.get(), mask_c.get(), use_moist);
+        convert_wrfbdy_data(itime, domain, bdy_data_xlo, wrf_MUB, wrf_C1H, wrf_C2H, wrf_RDNW, wrf_PHB, z_phys_nd, mask_u.get(), mask_v.get(), mask_c.get(), use_moist, rebalance_wrf_state);
+        convert_wrfbdy_data(itime, domain, bdy_data_xhi, wrf_MUB, wrf_C1H, wrf_C2H, wrf_RDNW, wrf_PHB, z_phys_nd, mask_u.get(), mask_v.get(), mask_c.get(), use_moist, rebalance_wrf_state);
+        convert_wrfbdy_data(itime, domain, bdy_data_ylo, wrf_MUB, wrf_C1H, wrf_C2H, wrf_RDNW, wrf_PHB, z_phys_nd, mask_u.get(), mask_v.get(), mask_c.get(), use_moist, rebalance_wrf_state);
+        convert_wrfbdy_data(itime, domain, bdy_data_yhi, wrf_MUB, wrf_C1H, wrf_C2H, wrf_RDNW, wrf_PHB, z_phys_nd, mask_u.get(), mask_v.get(), mask_c.get(), use_moist, rebalance_wrf_state);
 
         if (is_anelastic) {
             if (do_tendency) {
