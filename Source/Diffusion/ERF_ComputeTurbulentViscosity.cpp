@@ -787,6 +787,7 @@ void ComputeTurbulentViscosityRANS (Vector<std::unique_ptr<MultiFab>>& /*Tau_lev
  * @param[in]  turbChoice container with turbulence parameters
  * @param[in]  most pointer to Monin-Obukhov class if instantiated
  * @param[in]  vert_only flag for vertical components of eddyViscosity
+ * @param[in]  qheating_rates radiation heating rates (SW, LW components)
  */
 void ComputeTurbulentViscosity (double dt,
                                 const MultiFab& xvel, const MultiFab& yvel,
@@ -806,7 +807,8 @@ void ComputeTurbulentViscosity (double dt,
                                 int level,
                                 const BCRec* bc_ptr,
                                 const eb_& ebfact,
-                                bool vert_only)
+                                bool vert_only,
+                                const MultiFab* qheating_rates)
 {
     BL_PROFILE_VAR("ComputeTurbulentViscosity()",ComputeTurbulentViscosity);
     //
@@ -893,6 +895,13 @@ void ComputeTurbulentViscosity (double dt,
                               use_terrain_fitted_coords, use_moisture,
                               level, bc_ptr, vert_only, z_phys_nd,
                               solverChoice.moisture_indices);
+    } else if (turbChoice.pbl_type == PBLType::YSUNew) {
+        ComputeDiffusivityYSUNew(xvel, yvel, cons_in, eddyViscosity,
+                                 geom, turbChoice, SurfLayer,
+                                 use_terrain_fitted_coords, use_moisture,
+                                 level, bc_ptr, vert_only, z_phys_nd,
+                                 solverChoice.moisture_indices,
+                                 qheating_rates);
     } else if (turbChoice.uses_shoc_family()) {
         // NOTE: Nothing to do here. The SHOC class handles setting the vertical
         //       components of eddyDiffs in slow RHS pre.
