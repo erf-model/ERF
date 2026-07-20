@@ -92,8 +92,6 @@ void erf_substep_T (int step, int /*nrk*/,
     // How much do we project forward the (rho theta) that is used in the horizontal momentum equations
     Real beta_d = Real(0.1);
 
-    Real RvOverRd = R_v / R_d;
-
     bool l_rayleigh_impl_for_w = (sinesq_stag_d != nullptr);
 
     const Real* dx = geom.CellSize();
@@ -209,8 +207,8 @@ void erf_substep_T (int step, int /*nrk*/,
             Real qv_stg = (l_use_moisture) ?     prim(i,j,k,PrimQ1_comp) : zero;
             Real qv_cur = (l_use_moisture) ? cur_cons(i,j,k,RhoQ1_comp ) / cur_cons(i,j,k,Rho_comp) : zero;
             old_drho(i,j,k)     =   cur_cons(i,j,k,Rho_comp) - stage_cons(i,j,k,Rho_comp);
-            old_drho_thm(i,j,k) =   cur_cons(i,j,k,RhoTheta_comp) * (Real(1.0) + RvOverRd*qv_cur)
-                                - stage_cons(i,j,k,RhoTheta_comp) * (Real(1.0) + RvOverRd*qv_stg);
+            old_drho_thm(i,j,k) =   cur_cons(i,j,k,RhoTheta_comp) * (one + RvoRd*qv_cur)
+                                - stage_cons(i,j,k,RhoTheta_comp) * (one + RvoRd*qv_stg);
             if (step == 0) {
                 thm_extrap(i,j,k) = old_drho_thm(i,j,k);
             } else {
@@ -560,10 +558,10 @@ void erf_substep_T (int step, int /*nrk*/,
             Real qv_k   = (l_use_moisture) ? prim(i,j,k  ,PrimQ1_comp) : zero;
             Real qv_kp1 = (l_use_moisture) ? prim(i,j,k+1,PrimQ1_comp) : zero;
 
-            Real thm_km2 = thd_km2 * (Real(1.0) + RvOverRd*qv_km2);
-            Real thm_km1 = thd_km1 * (Real(1.0) + RvOverRd*qv_km1);
-            Real thm_k   = thd_k   * (Real(1.0) + RvOverRd*qv_k  );
-            Real thm_kp1 = thd_kp1 * (Real(1.0) + RvOverRd*qv_kp1);
+            Real thm_km2 = thd_km2 * (one + RvoRd*qv_km2);
+            Real thm_km1 = thd_km1 * (one + RvoRd*qv_km1);
+            Real thm_k   = thd_k   * (one + RvoRd*qv_k  );
+            Real thm_kp1 = thd_kp1 * (one + RvoRd*qv_kp1);
 
             // Stage theta_m at w-faces
             Real thm_t_lo  = myhalf * (thm_km2 + thm_km1);
@@ -571,12 +569,12 @@ void erf_substep_T (int step, int /*nrk*/,
             Real thm_t_hi  = myhalf * (thm_k   + thm_kp1);
 
             // Stage coefficients for linearization
-            Real A_T_k   =  (one + RvOverRd*qv_k  );
-            Real A_T_km1 =  (one + RvOverRd*qv_km1);
-            Real A_Q_k   =  RvOverRd*prim(i,j,k  ,PrimTheta_comp);
-            Real A_Q_km1 =  RvOverRd*prim(i,j,k-1,PrimTheta_comp);
-            Real A_D_k   = -RvOverRd*prim(i,j,k  ,PrimTheta_comp)*qv_k;
-            Real A_D_km1 = -RvOverRd*prim(i,j,k-1,PrimTheta_comp)*qv_km1;
+            Real A_T_k   =  (one + RvoRd*qv_k  );
+            Real A_T_km1 =  (one + RvoRd*qv_km1);
+            Real A_Q_k   =  RvoRd*prim(i,j,k  ,PrimTheta_comp);
+            Real A_Q_km1 =  RvoRd*prim(i,j,k-1,PrimTheta_comp);
+            Real A_D_k   = -RvoRd*prim(i,j,k  ,PrimTheta_comp)*qv_k;
+            Real A_D_km1 = -RvoRd*prim(i,j,k-1,PrimTheta_comp)*qv_km1;
 
             // Sums of slow RHS
             Real Q_srhs_k     = (l_use_moisture) ? slow_rhs_cons(i,j,k  ,RhoQ1_comp) : zero;
@@ -726,8 +724,8 @@ void erf_substep_T (int step, int /*nrk*/,
             cur_zmom(i,j,k) += wpp;
 
             if (l_rayleigh_impl_for_w) {
-              Real damping_coeff = l_damp_coef * dtau * sinesq_stag_d[k];
-              cur_zmom(i,j,k) /= (one + damping_coeff);
+                Real damping_coeff = l_damp_coef * dtau * sinesq_stag_d[k];
+                cur_zmom(i,j,k) /= (one + damping_coeff);
             }
         });
 

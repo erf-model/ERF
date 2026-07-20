@@ -42,7 +42,6 @@ void make_fast_coeffs (int /*level*/,
     Real beta_2 = myhalf * (one + beta_s);  // multiplies implicit terms
 
     Real c_v = c_p - R_d;
-    Real RvOverRd = R_v / R_d;
 
     const GpuArray<Real, AMREX_SPACEDIM> dxInv = geom.InvCellSizeArray();
     Real dzi = dxInv[2];
@@ -133,10 +132,10 @@ void make_fast_coeffs (int /*level*/,
                  Real qv_k   = (l_use_moisture) ? prim(i,j,k  ,PrimQ1_comp) : zero;
                  Real qv_kp1 = (l_use_moisture) ? prim(i,j,k+1,PrimQ1_comp) : zero;
 
-                 Real thm_km2 = thd_km2 * (one + RvOverRd*qv_km2);
-                 Real thm_km1 = thd_km1 * (one + RvOverRd*qv_km1);
-                 Real thm_k   = thd_k   * (one + RvOverRd*qv_k  );
-                 Real thm_kp1 = thd_kp1 * (one + RvOverRd*qv_kp1);
+                 Real thm_km2 = thd_km2 * (one + RvoRd*qv_km2);
+                 Real thm_km1 = thd_km1 * (one + RvoRd*qv_km1);
+                 Real thm_k   = thd_k   * (one + RvoRd*qv_k  );
+                 Real thm_kp1 = thd_kp1 * (one + RvoRd*qv_kp1);
 
                  Real thm_t_lo  = myhalf * (thm_km2 + thm_km1);
                  Real thm_t_mid = myhalf * (thm_km1 + thm_k  );
@@ -144,11 +143,11 @@ void make_fast_coeffs (int /*level*/,
 
                  Real coeff_P = -Gamma * R_d * dzi * inv_detJ_on_kface * pi_c
                               +  halfg * R_d * rhobar_hi * pi_stage_ca(i,j,k) /
-                               (  c_v * pibar_hi * stage_cons(i,j,k,RhoTheta_comp) * (one + RvOverRd*qv_k) );
+                               (  c_v * pibar_hi * stage_cons(i,j,k,RhoTheta_comp) * (one + RvoRd*qv_k) );
 
                  Real coeff_Q =  Gamma * R_d * dzi * inv_detJ_on_kface * pi_c
                               + halfg * R_d * rhobar_lo * pi_stage_ca(i,j,k-1) /
-                               ( c_v  * pibar_lo * stage_cons(i,j,k-1,RhoTheta_comp) * (one + RvOverRd*qv_km1) );
+                               ( c_v  * pibar_lo * stage_cons(i,j,k-1,RhoTheta_comp) * (one + RvoRd*qv_km1) );
 
                  coeffP_a(i,j,k) = coeff_P;
                  coeffQ_a(i,j,k) = coeff_Q;
@@ -184,11 +183,11 @@ void make_fast_coeffs (int /*level*/,
                  Real qv_p = (l_use_moisture) ? prim(i,j,k  ,PrimQ1_comp) : zero;
                  Real qv_q = (l_use_moisture) ? prim(i,j,k-1,PrimQ1_comp) : zero;
 
-                 Real coeff_P = -Gamma * R_d * dzi * pi_c * (one + RvOverRd*qv_p)
+                 Real coeff_P = -Gamma * R_d * dzi * pi_c * (one + RvoRd*qv_p)
                               +  halfg * R_d * rhobar_hi * pi_stage_ca(i,j,k) /
                               (  c_v * pibar_hi * stage_cons(i,j,k,RhoTheta_comp) );
 
-                 Real coeff_Q = Gamma * R_d * dzi * pi_c * (one + RvOverRd*qv_q)
+                 Real coeff_Q = Gamma * R_d * dzi * pi_c * (one + RvoRd*qv_q)
                               + halfg * R_d * rhobar_lo * pi_stage_ca(i,j,k-1) /
                               ( c_v  * pibar_lo * stage_cons(i,j,k-1,RhoTheta_comp) );
 
