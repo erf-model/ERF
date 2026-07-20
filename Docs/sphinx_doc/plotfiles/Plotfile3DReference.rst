@@ -397,22 +397,62 @@ vapor, ``qc`` is cloud liquid, ``qi`` is cloud ice, and ``qr``, ``qs``, and
 ``qg`` are rain, snow, and graupel. ``N`` denotes the corresponding number
 concentration and ``A`` the corresponding accumulation field.
 
-+--------------------------+------------------------+-------------------------+----------------------+
-| Moisture type            | Mass fields            | Number fields           | Accumulations        |
-+==========================+========================+=========================+======================+
-| ``None``                 | none                   | none                    | none                 |
-| ``MoistNoCondensation``  | qv                     | none                    | none                 |
-| ``SatAdj``               | qv, qc                 | none                    | none                 |
-| ``Kessler_NoRain``       | qv, qc                 | none                    | none                 |
-| ``Kessler``              | qv, qc, qr             | none                    | rain                 |
-| ``SAM_NoPrecip_NoIce``   | qv, qc                 | none                    | none                 |
-| ``SAM_NoIce``            | qv, qc, qr             | none                    | rain                 |
-| ``SAM``                  | qv, qc, qi, qr, qs, qg | none                    | rain, snow, graupel  |
-| ``Morrison_NoIce``       | qv, qc, qr             | Nc, Nr                  | rain                 |
-| ``Morrison``             | qv, qc, qi, qr, qs, qg | Nc, Ni, Nr, Ns, Ng      | rain, snow, graupel  |
-| ``WSM6``                 | qv, qc, qi, qr, qs, qg | none                    | rain, snow, graupel  |
-| ``SuperDroplets``        | qv, qc, qr             | none                    | rain                 |
-+--------------------------+------------------------+-------------------------+----------------------+
+.. list-table::
+   :header-rows: 1
+   :widths: 27 31 25 22
+
+   * - Moisture type
+     - Mass fields
+     - Number fields
+     - Accumulations
+   * - ``None``
+     - none
+     - none
+     - none
+   * - ``MoistNoCondensation``
+     - qv
+     - none
+     - none
+   * - ``SatAdj``
+     - qv, qc
+     - none
+     - none
+   * - ``Kessler_NoRain``
+     - qv, qc
+     - none
+     - none
+   * - ``Kessler``
+     - qv, qc, qr
+     - none
+     - rain
+   * - ``SAM_NoPrecip_NoIce``
+     - qv, qc
+     - none
+     - none
+   * - ``SAM_NoIce``
+     - qv, qc, qr
+     - none
+     - rain
+   * - ``SAM``
+     - qv, qc, qi, qr, qs, qg
+     - none
+     - rain, snow, graupel
+   * - ``Morrison_NoIce``
+     - qv, qc, qr
+     - Nc, Nr
+     - rain
+   * - ``Morrison``
+     - qv, qc, qi, qr, qs, qg
+     - Nc, Ni, Nr, Ns, Ng
+     - rain, snow, graupel
+   * - ``WSM6``
+     - qv, qc, qi, qr, qs, qg
+     - none
+     - rain, snow, graupel
+   * - ``SuperDroplets``
+     - qv, qc, qr
+     - none
+     - rain
 
 For ``SuperDroplets``, water vapor, cloud water, and rain water occupy the
 fixed ``RhoQ1``, ``RhoQ2``, and ``RhoQ3`` conserved components. The fixed
