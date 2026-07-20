@@ -934,9 +934,9 @@ void FireLayer::compute_heat_flux_and_diagnostics(Real dt_fire_s)
 
 void FireLayer::update_atm_flux_buffer(const amrex::Geometry& geom_atm)
 {
-    if (!m_params.injects_flux()) {
+    if (!m_params.injects_flux() && !m_params.smoke_enable) {
         if (m_params.fire_debug) {
-            amrex::Print() << "[FIRE DEBUG] Skipping flux buffer update: coupling_type is passive (injects_flux=false)" << std::endl;
+            amrex::Print() << "[FIRE DEBUG] Skipping flux buffer update: coupling_type is passive (injects_flux=false) and smoke_enable=false" << std::endl;
         }
         return;
     }
