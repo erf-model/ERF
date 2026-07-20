@@ -1,4 +1,0 @@
-# DustIntegration road schedule.
-# One haul road active from t=1.0s for full simulation (end_s=-1).
-# road_name  x_lo  y_lo   x_hi    y_hi   width  W_t  silt%  vmt/h  start_s  end_s
-haul_main    0.0  1200.0  3000.0  1800.0   20.0  80.0  10.0    5.0     1.0    -1
