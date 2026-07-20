@@ -216,7 +216,7 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
         {
           const amrex::Real t_layer   = t10av_arr(i,j,0);
           const amrex::Real q_frac    = use_moisture ? q10av_arr(i,j,0) : zero;
-          const amrex::Real t_layer_v = t_layer * (one + amrex::Real(0.61) * q_frac);
+          const amrex::Real t_layer_v = t_layer * (one + epsv * q_frac);
           // On first call, vpert_arr is initialized to zero
           const amrex::Real t_enh     = t_layer_v + vpert_arr(i,j,0);
           const amrex::Real z_sfc     = (use_terrain_fitted_coords)
@@ -251,7 +251,7 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
         // Computing them once per column improves GPU performance and ensures consistency.
         //
         BL_PROFILE_VAR("YSUNew_SurfFlux_Precompute", prof_sflux_precomp);
-        ParallelFor(xybx, [=] AMREX_GPU_DEVICE(int i, int j, int) noexcept
+        ParallelFor(xybx, [=, zero_d=zero] AMREX_GPU_DEVICE(int i, int j, int) noexcept
         {
             const Real rho_sfc  = cell_data(i, j, klo, Rho_comp);
             const Real t_layer  = t10av_arr(i, j, 0);      // Dry potential temperature at z1
@@ -288,7 +288,7 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
             // First-guess pblh needed for wstar3 — use nominal 500m for initial estimate
             // wstar3 is refined in subsequent loop after corrector pblh is available
             const Real pblh_guess = amrex::Real(500.0);
-            const Real bfx0   = amrex::max(sflux, zero);
+            const Real bfx0   = amrex::max(sflux, zero_d);
             const Real wstar3 = govrth * bfx0 * pblh_guess;
             wstar3_arr(i, j, 0) = wstar3;
 
@@ -450,8 +450,8 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
         //
         const Real const_b = turbChoice.pbl_mrf_const_b;
         const Real sf = turbChoice.pbl_mrf_sf;
-        constexpr Real prmin = Real(0.5);
-        constexpr Real prmax = Real(4.0);
+        //constexpr Real prmin = Real(0.5);
+        //constexpr Real prmax = Real(4.0);
         constexpr Real GAMCRT = Real(3.0);    // WRF GAMCRT: max heat countergradient (K)
         constexpr Real GAMCRQ = Real(2.e-3);  // WRF GAMCRQ: max moisture countergradient (kg/kg)
         const bool enable_ysu_countergradient = turbChoice.enable_ysu_countergradient;
@@ -473,9 +473,11 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
                 }
             }
 
+            /*
             const Real t_layer  = t10av_arr(i, j, 0);
             const Real moisture_fraction = use_moisture ? q10av_arr(i, j, 0) : zero;
-            const Real t_layer_v = t_layer * (one + amrex::Real(0.61) * moisture_fraction);
+            const Real t_layer_v = t_layer * (one + epsv * moisture_fraction);
+            */
 
             const amrex::Real z_sfc_col = (use_terrain_fitted_coords)
                                          ? Compute_Zrel_AtCellCenter(i, j, klo, z_nd_arr)
@@ -516,8 +518,6 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
 
             amrex::Real pblh_min;
             if (turbChoice.enable_ysu_terrain_pblh_floor && use_terrain_fitted_coords) {
-                const Real dz_inv = geom.InvCellSize(2);
-                const auto& dxInv = geom.InvCellSizeArray();
                 const amrex::Real met_h_klo = Compute_h_zeta_AtCellCenter(i, j, klo, dxInv, z_nd_arr);
                 const amrex::Real dz0 = met_h_klo / dz_inv;
                 pblh_min = amrex::max(z_sfc_col + Real(0.5)*dz0, Real(10.0));
@@ -612,7 +612,7 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
             });
         }
 
-        ParallelFor(xybx, [=] AMREX_GPU_DEVICE(int i, int j, int) noexcept
+        ParallelFor(xybx, [=, zero_d=zero, CONST_GRAV_d=CONST_GRAV] AMREX_GPU_DEVICE(int i, int j, int) noexcept
         {
             const Real t_layer  = t10av_arr(i, j, 0);
             Real obuk_val = l_obuk_arr(i, j, 0);
@@ -672,14 +672,14 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
                 const amrex::Real t_local = cell_data(i, j, k_cloud_top, RhoTheta_comp)
                                           / cell_data(i, j, k_cloud_top, Rho_comp);
                 const amrex::Real rho_ct  = cell_data(i, j, k_cloud_top, Rho_comp);
-                wstar3_down = amrex::max(CONST_GRAV / t_local * LRAD
+                wstar3_down = amrex::max(CONST_GRAV_d / t_local * LRAD
                                         / (rho_ct * amrex::Real(1004.0))
-                                        * pblh_corr_arr(i, j, 0), zero);
+                                        * pblh_corr_arr(i, j, 0), zero_d);
             }
             wstar3_down_arr(i, j, 0) = wstar3_down;
 
             // Recompute wstar3 and wscale with corrected pblh_corr_arr
-            const Real bfx0_corr = amrex::max(sflux_arr(i, j, 0), zero);
+            const Real bfx0_corr = amrex::max(sflux_arr(i, j, 0), zero_d);
             const Real t_dry = t10av_arr(i, j, 0);
             const Real wstar3_corr = (CONST_GRAV / t_dry) * bfx0_corr * pblh_corr_arr(i, j, 0);
             wstar3_arr(i, j, 0) = wstar3_corr;
@@ -709,7 +709,7 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
             const Real HGAMQ_raw = (SFCFLG && use_moisture && enable_ysu_countergradient)
                                   ? gamfac * qfx_col
                                   : zero;
-            Real HGAMQ = amrex::min(amrex::max(HGAMQ_raw, zero), GAMCRQ);
+            Real HGAMQ = amrex::min(amrex::max(HGAMQ_raw, zero_d), GAMCRQ);
 
             // Land/water surface discrimination
             if (lmask_arr && SFCFLG && use_moisture && enable_ysu_countergradient) {
@@ -728,7 +728,7 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
                 erf_qsatw(T_klo, p_klo, qsat_klo);
                 Real rh_klo = (qsat_klo > Real(1.0e-10)) ? (qv_klo / qsat_klo) : zero;
                 if (rh_klo > Real(0.95)) {
-                    Real rh_scaling = amrex::max(zero, (one - rh_klo) / Real(0.05));
+                    Real rh_scaling = amrex::max(zero_d, (one - rh_klo) / Real(0.05));
                     HGAMQ *= rh_scaling;
                 }
             }
@@ -790,7 +790,7 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
                     const Real VPERT_capped = enable_ysu_unbounded_vpert
                                             ? VPERT_raw
                                             : amrex::min(VPERT_raw, GAMCRT);
-                    vpert_arr(i, j, 0) = amrex::max(VPERT_capped, zero) * height_lim;
+                    vpert_arr(i, j, 0) = amrex::max(VPERT_capped, zero_d) * height_lim;
                 } else {
                     vpert_arr(i, j, 0) = zero;
                 }
@@ -815,7 +815,7 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
         {
           const amrex::Real t_layer   = t10av_arr(i,j,0);
           const amrex::Real q_frac    = use_moisture ? q10av_arr(i,j,0) : zero;
-          const amrex::Real t_layer_v = t_layer * (one + amrex::Real(0.61) * q_frac);
+          const amrex::Real t_layer_v = t_layer * (one + epsv * q_frac);
           // Now vpert_arr contains the computed thermal perturbation from the corrector pass
           const amrex::Real t_enh     = t_layer_v + vpert_arr(i,j,0);
           const amrex::Real z_sfc     = (use_terrain_fitted_coords)
@@ -1018,8 +1018,6 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
         });
         BL_PROFILE_VAR_STOP(prof_pblh);
 
-        const auto& dxInv = geom.InvCellSizeArray();
-        const Real dz_inv = geom.InvCellSize(2);
         // Compute entrainment diffusivity at PBL top cell (WRF bl_ysu.F90 lines 831-925)
         // Uses WRF's buoyancy-flux-based entrainment velocity (we), which accounts for
         // the actual inversion strength (dthvx) at the PBL top.
@@ -1027,7 +1025,7 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
             const bool enable_ysu_entrainment = turbChoice.enable_ysu_entrainment;
             const bool enable_ysu_cloud_pblh = turbChoice.enable_ysu_cloud_pblh;
 
-            ParallelFor(xybx, [=] AMREX_GPU_DEVICE(int i, int j, int) noexcept
+            ParallelFor(xybx, [=, zero_d=zero] AMREX_GPU_DEVICE(int i, int j, int) noexcept
             {
                 entr_arr(i,j,0) = zero;
                 if (!enable_ysu_entrainment) return;
@@ -1120,7 +1118,7 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
 
                         // Cloud-top entrainment velocity contribution
                         // bfxpbl_cloud = -ent_eff * max(sflux, 0) (surface buoyancy flux only, no radsum)
-                        const Real bfx0_cloud = amrex::max(sflux_arr(i, j, 0), zero);
+                        const Real bfx0_cloud = amrex::max(sflux_arr(i, j, 0), zero_d);
                         const Real bfxpbl_cloud = -ent_eff * bfx0_cloud;
                         const Real we_cloud_top = amrex::max(bfxpbl_cloud / dthvx_li,
                                                              -std::sqrt(std::pow(wm3, amrex::Real(2.0)/amrex::Real(3.0))));
@@ -1207,7 +1205,7 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
 
         BL_PROFILE_VAR("YSUNew_Kprofile", prof_kprof);
         ParallelFor(gbx, [=, wstar3_arr_cap=wstar3_arr, zol1_arr_cap=zol1_arr, sfcflg_arr_cap=sfcflg_arr,
-                          zero_d=zero, one_d=one] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+                          zero_d=zero, one_d=one, two_d=two] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {
             Real obuk_val = l_obuk_arr(i, j, 0);
             if (std::abs(obuk_val) < amrex::Real(1.0e-10)) {
@@ -1436,7 +1434,7 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
                     constexpr Real zfacmin = amrex::Real(1.0e-8);
                     const Real pblh_rel    = amrex::max(pblh_corr_arr(i, j, 0) - zl1, amrex::Real(1.0e-4));
                     const Real zfac        = amrex::min(
-                        amrex::max(one - (zq_kp1 - zl1) / pblh_rel, zfacmin), one);
+                        amrex::max(one_d - (zq_kp1 - zl1) / pblh_rel, zfacmin), one_d);
 
                     // Step 4: Compute level-dependent wscalek (for K-profile, NOT for HGAMT/HGAMQ)
                     // WRF stores wstar3 per column; we now have it from Phase 12
@@ -1484,7 +1482,7 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
                     constexpr Real zfacmin_stable = amrex::Real(1.0e-8);
                     const Real pblh_rel_stable = amrex::max(pblh_corr_arr(i, j, 0) - zl1_stable, amrex::Real(1.0e-4));
                     const Real zfac_stable = amrex::min(
-                        amrex::max(one - (zq_kp1_stable - zl1_stable) / pblh_rel_stable, zfacmin_stable), one);
+                        amrex::max(one_d - (zq_kp1_stable - zl1_stable) / pblh_rel_stable, zfacmin_stable), one_d);
 
                     // Step 4: Compute stable wscalek using phi_m
                     // WRF bl_ysu.F90 lines 951-957: wscalek = ust / phi_m(zq(k+1)/L)
@@ -1620,10 +1618,10 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
                 const Real grad_Ri_safe = amrex::max(grad_Ri, -Real(100.0)); // Bound negative values
                 const Real fm = (grad_Ri_safe > 0)
                               ? one / ((one + Real(5.0) * grad_Ri_safe) * (one + Real(5.0) * grad_Ri_safe))
-                              : 1 - 8 * grad_Ri_safe / (1 + Real(1.746) * std::sqrt(amrex::max(-grad_Ri_safe, zero))); // Eqn. A20b/d
+                              : 1 - 8 * grad_Ri_safe / (1 + Real(1.746) * std::sqrt(amrex::max(-grad_Ri_safe, zero_d))); // Eqn. A20b/d
                 const Real ft = (grad_Ri_safe > 0)
                               ? one / ((one + Real(5.0) * grad_Ri_safe) * (one + Real(5.0) * grad_Ri_safe))
-                              : 1 - 8 * grad_Ri_safe / (1 + Real(1.286) * std::sqrt(amrex::max(-grad_Ri_safe, zero))); // Eqn. A20a/c
+                              : 1 - 8 * grad_Ri_safe / (1 + Real(1.286) * std::sqrt(amrex::max(-grad_Ri_safe, zero_d))); // Eqn. A20a/c
                 const Real rl2wsp = rho * lscale * lscale * std::sqrt(wind_shear);
 
                 K_turb(i, j, k, EddyDiff::Mom_v)   = rl2wsp * fm;
