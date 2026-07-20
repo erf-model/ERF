@@ -1,0 +1,28 @@
+# DustGaussianHill — Phase 5: dust emission on Gaussian hill terrain.
+#
+# Verifies that dust slope corrections (Phase 1a) produce higher emission on
+# the windward slope and lower emission in the lee. No fire.
+# Hill height = 200 m, sigma = 600 m — clearly visible slope effect.
+#
+# Expected results:
+#   (1) ERF prints "max of zphys_nd = 200" at startup (terrain is non-flat)
+#   (2) [DUST DEBUG] Phase 5: u*_t_min < u*_t_max (slope correction active)
+#   (3) emission_flux on windward slope > emission_flux on flat reference
+#   (4) dust_diag.dat: emission_total > 0 from step 1
+#   (5) No NaN in dust_ustar_t, dust_emission_flux, z_phys_nd
+#   (6) Run exits code 0 at max_step=20
+
+erf.terrain_type = StaticFittedMesh
+erf.init_type = input_sounding
+geometry.prob_extent = 4000.0 4000.0 1500.0
+amr.n_cell = 32 32 64
+amrex.max_grid_size_z = 64
+erf.fixed_dt = 0.5
+max_step = 20
+erf.pbl_type = MRF
+erf.abl_geo_wind = 8.0 0.0 0.0
+prob.hill_height = 200.0
+prob.hill_halfwidth = 600.0
+erf.dust.enable = true
+erf.dust.crust_index = 0.5
+erf.dust.use_terrain_wind = true

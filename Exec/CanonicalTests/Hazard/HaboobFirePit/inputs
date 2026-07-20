@@ -1,0 +1,41 @@
+# HaboobFirePit — Phase 5 integration: all Phase 1-4 physics in Gaussian pit.
+#
+# Open pit mine analog. Negative hill amplitude produces a concave pit 200 m
+# deep. Fire ignites on the pit floor. Smoke and dust are trapped in the
+# stable air pool at the pit bottom before being lofted by the fire convective
+# column. This is the first ERF-Hazard open pit mine simulation.
+#
+# Expected results:
+#   (1) z_phys_nd at domain centre < 0 (pit floor below datum)
+#   (2) Smoke and dust concentrations elevated at pit floor (stable pool trapping)
+#   (3) All Phase 1-4 [DUST DEBUG] and [FIRE DEBUG] signatures present
+#   (4) fire_stats.csv: burned_area_ha > 0 and increasing
+#   (5) No NaN in any field, run exits code 0 at max_step=20
+
+erf.terrain_type = StaticFittedMesh
+erf.init_type = input_sounding
+geometry.prob_extent = 4000.0 4000.0 1500.0
+amr.n_cell = 32 32 64
+amrex.max_grid_size_z = 64
+erf.fixed_dt = 0.5
+max_step = 20
+erf.pbl_type = MRF
+erf.abl_geo_wind = 5.0 0.0 0.0
+prob.hill_height = -200.0
+prob.hill_halfwidth = 600.0
+erf.fire.smoke_enable = true
+erf.fire.smoke_emission_factor = 0.02
+erf.fire.smoke_heat_of_comb = 18700000.0
+erf.fire.fire_debug = true
+erf.dust.enable = true
+erf.dust.crust_index = 0.5
+erf.dust.use_terrain_wind = true
+erf.fire_dust_coupling = true
+erf.fire_dust_crust_reduction = 0.8
+erf.fire_dust_wind_to_dust = true
+erf.fire_dust_wind_z0 = 0.1
+erf.fire_dust_wind_zref = 6.1
+erf.fire_dust_lofting_enabled = true
+erf.fire_dust_lofting_k_loft = 2.0
+erf.fire_dust_lofting_Q_threshold = 50.0
+erf.fire_dust_lofting_Q_ref = 500.0

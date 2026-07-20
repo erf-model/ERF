@@ -1,0 +1,29 @@
+# DustGaussianPit — Phase 5: dust emission in Gaussian pit (mine analog).
+#
+# Negative hill amplitude produces a concave pit. Verifies that ERF terrain
+# infrastructure handles negative z_phys_nd, that MRF stable pool forms at
+# pit bottom in calm conditions, and that dust emission is elevated on pit
+# wall slopes relative to the flat surroundings.
+#
+# Expected results:
+#   (1) ERF prints "max of zphys_nd = 0" and pit depth is visible in plotfile
+#   (2) z_phys_nd at domain centre < 0 (pit floor below datum)
+#   (3) [DUST DEBUG] Phase 5: u*_t variation across pit walls
+#   (4) dust_diag.dat: emission_total > 0 from step 1
+#   (5) No NaN in any field
+#   (6) Run exits code 0 at max_step=20
+
+erf.terrain_type = StaticFittedMesh
+erf.init_type = input_sounding
+geometry.prob_extent = 4000.0 4000.0 1500.0
+amr.n_cell = 32 32 64
+amrex.max_grid_size_z = 64
+erf.fixed_dt = 0.5
+max_step = 20
+erf.pbl_type = MRF
+erf.abl_geo_wind = 5.0 0.0 0.0
+prob.hill_height = -200.0
+prob.hill_halfwidth = 600.0
+erf.dust.enable = true
+erf.dust.crust_index = 0.5
+erf.dust.use_terrain_wind = true
