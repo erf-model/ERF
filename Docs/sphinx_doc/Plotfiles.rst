@@ -771,7 +771,7 @@ Built-In 2D Diagnostic Catalog
    * - ``landmask``
      - ``1``
      - Always available.
-     - Land-sea mask. Land is ``1`` and sea is ``0``. Buildings are ``2`` when using ImmersedForcing.
+     - Land-sea mask
    * - ``mapfac``
      - ``1``
      - Always available.
@@ -887,6 +887,11 @@ Built-In 2D Diagnostic Catalog
      - ``K m s^-1``
      - ``-999`` if unavailable.
      - Native SHOC surface virtual potential temperature flux.
+
+.. note::
+
+   For the ``landmask`` variable, land is ``1`` and sea is ``0``. 
+   Buildings are ``2`` when using ImmersedForcing.
 
 If a requested built-in diagnostic is not available for the active configuration,
 ERF warns and skips that diagnostic.
