@@ -294,13 +294,25 @@ static void rime_update_attribs(const int a_i, /*!< index of particle */
         gamma_water = gamma;
     }
 
-    // Compute new ice mass
-    ParticleReal mi_new = gamma_ice * a_sp_m[a_sp_idx_i][id_ice]
-                        + gamma_water * a_sp_m[a_sp_idx_w][id_water];
+    // Above the melting point the collected droplet cannot freeze: the melting (wet) ice keeps
+    // its core and the droplet water joins the particle's liquid (meltwater) load rather than
+    // forming rime. This also guards the supercooled Heymsfield-Pflaum rime density, which is
+    // undefined at T >= 0 C -- erf_esati = 0 there, giving inf/inf in iceSurfaceTemperature.
+    const bool melting = (a_T >= ParticleReal(tmelt));
+    const ParticleReal m_wat_drop = a_sp_m[a_sp_idx_w][id_water]; // colliding droplet water
+    const ParticleReal m_wat_ice  = a_sp_m[a_sp_idx_w][id_ice];   // meltwater already on the ice
 
-    // Compute new rime mass
-    ParticleReal mrime_new = gamma_ice * a_mrime[id_ice]
-                           + gamma_water * a_sp_m[a_sp_idx_w][id_water];
+    // New ice-core mass, liquid (meltwater) mass, and rime mass
+    ParticleReal mi_new, mwater_new, mrime_new;
+    if (melting) {
+        mi_new     = gamma_ice * a_sp_m[a_sp_idx_i][id_ice];
+        mwater_new = gamma_ice * m_wat_ice + gamma_water * m_wat_drop;
+        mrime_new  = gamma_ice * a_mrime[id_ice];
+    } else {
+        mi_new     = gamma_ice * a_sp_m[a_sp_idx_i][id_ice] + gamma_water * m_wat_drop;
+        mwater_new = ParticleReal(zero);
+        mrime_new  = gamma_ice * a_mrime[id_ice] + gamma_water * m_wat_drop;
+    }
 
     // Compute new number of monomers
     ParticleReal nmono_new = gamma_ice * a_nmono[id_ice];
@@ -309,7 +321,14 @@ static void rime_update_attribs(const int a_i, /*!< index of particle */
     ParticleReal a_new = ParticleReal(zero);
     ParticleReal c_new = ParticleReal(zero);
 
-    if (a_radius[id_water] > std::max(a_a[id_ice], a_c[id_ice])) {
+    if (melting) {
+        // No ice deposited: keep the ice-core geometry (scaled if several cores merged),
+        // consistent with mi_new at the core's apparent density. Skips rimeDensity (undefined
+        // at T >= 0 C).
+        const auto s = ParticleReal(std::cbrt(gamma_ice));
+        a_new = a_a[id_ice] * s;
+        c_new = a_c[id_ice] * s;
+    } else if (a_radius[id_water] > std::max(a_a[id_ice], a_c[id_ice])) {
         // Water droplet is larger than ice particle - form spherical ice
         a_new = c_new = std::cbrt(mi_new / (ParticleReal(four_thirds_pi)*a_rho_ice));
     } else {
@@ -358,9 +377,9 @@ static void rime_update_attribs(const int a_i, /*!< index of particle */
             a_mrime[a_i] = mrime_new;
             a_nmono[a_i] = nmono_new;
             a_Tfz[a_i] = std::max(a_Tfz[a_j], a_Tfz[a_i]);
-            // Riming-specific species update: water->0, ice->mi_new
+            // Riming species update: water->meltwater (0 unless melting), ice->mi_new
             for (int n = 0; n < a_n_sp; n++) {
-                if (n == a_sp_idx_w) { a_sp_m[n][a_i] = ParticleReal(zero); }
+                if (n == a_sp_idx_w) { a_sp_m[n][a_i] = mwater_new; }
                 else if (n == a_sp_idx_i) { a_sp_m[n][a_i] = mi_new; }
                 else { a_sp_m[n][a_i] += gamma*a_sp_m[n][a_j]; }
             }
@@ -377,10 +396,10 @@ static void rime_update_attribs(const int a_i, /*!< index of particle */
             a_mrime[a_j] = a_mrime[a_i] = mrime_new;
             a_nmono[a_j] = a_nmono[a_i] = nmono_new;
             a_Tfz[a_i] = a_Tfz[a_j] = std::max(a_Tfz[a_j], a_Tfz[a_i]);
-            // Riming-specific species update: water->0, ice->mi_new
+            // Riming species update: water->meltwater (0 unless melting), ice->mi_new
             for (int n = 0; n < a_n_sp; n++) {
                 if (n == a_sp_idx_w) {
-                    a_sp_m[n][a_i] = a_sp_m[n][a_j] = 0.0;
+                    a_sp_m[n][a_i] = a_sp_m[n][a_j] = mwater_new;
                 } else if (n == a_sp_idx_i) {
                     a_sp_m[n][a_i] = a_sp_m[n][a_j] = mi_new;
                 } else {
