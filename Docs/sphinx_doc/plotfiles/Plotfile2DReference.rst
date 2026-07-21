@@ -373,6 +373,11 @@ configuration and runtime details that cannot be inferred from metadata alone.
      - Source code for the unified near-surface diagnostic bundle
 .. END ERF BUILT-IN 2D DIAGNOSTIC CATALOG
 
+.. note::
+
+   For the ``landmask`` variable, land is ``1`` and sea is ``0``. Buildings are
+   ``2`` when using ``ImmersedForcing``.
+
 If a requested fixed diagnostic is not selectable for the active configuration,
 ERF warns and skips it. The descriptor table above records metadata; it does
 not define request acceptance or guarantee a non-missing runtime value.

@@ -681,7 +681,7 @@ ERF::InitData_post ()
                                              bdy_data_xlo,bdy_data_xhi,bdy_data_ylo,bdy_data_yhi,
                                              wrf_MUB, wrf_C1H, wrf_C2H, wrf_RDNW, wrf_PHB, z_phys_nd[0],
                                              vars_new[0][Vars::xvel], vars_new[0][Vars::yvel], vars_new[0][Vars::cons],
-                                             r_hse, area_vec, geom[0], use_moist, domain_bcs_type,
+                                             r_hse, area_vec, geom[0], use_moist, solverChoice.rebalance_wrf_input, domain_bcs_type,
                                              real_width, bdy_time_interval, is_anelastic);
             }
 
@@ -694,7 +694,7 @@ ERF::InitData_post ()
                                              bdy_data_xlo,bdy_data_xhi,bdy_data_ylo,bdy_data_yhi,
                                              wrf_MUB, wrf_C1H, wrf_C2H, wrf_RDNW, wrf_PHB, z_phys_nd[0],
                                              vars_new[0][Vars::xvel], vars_new[0][Vars::yvel], vars_new[0][Vars::cons],
-                                             r_hse, area_vec, geom[0], use_moist, domain_bcs_type,
+                                             r_hse, area_vec, geom[0], use_moist, solverChoice.rebalance_wrf_input, domain_bcs_type,
                                              real_width, bdy_time_interval, is_anelastic);
             } // itime
         } // use_real_bcs
@@ -741,6 +741,15 @@ ERF::InitData_post ()
                                vars_new[lev][Vars::cons], *mf_PSFC[lev],
                                solverChoice.rdOcp, lmask_lev[lev][0], use_moist);
             } // itime
+        }
+#endif
+#ifdef ERF_USE_FFT
+        for (int lev = 0; lev <= finest_level; lev++) {
+            // rebuild fft solvers here in case mesh type was changed when reading the checkpoint file
+            if ( ( (solverChoice.anelastic[lev] == 1)               || (solverChoice.project_initial_velocity[lev] == 1) ) &&
+                 ( (solverChoice.mesh_type == MeshType::ConstantDz) || (solverChoice.mesh_type == MeshType::StretchedDz) ) ) {
+                build_fft_solvers(lev);
+            }
         }
 #endif
     } // end restart

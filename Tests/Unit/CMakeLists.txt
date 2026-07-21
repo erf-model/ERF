@@ -237,6 +237,7 @@ if(ERF_ENABLE_MPI)
       ${CMAKE_CURRENT_SOURCE_DIR}/IO/ERF_GTestProvenanceParallel.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/Microphysics/SatAdj/ERF_GTestSatAdjParallel.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/Microphysics/SAM/ERF_GTestSAMParallel.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/IO/ERF_GTestProvenanceParallel.cpp
   )
   build_erf_exe(${erf_parallel_exe_name} NO_ERF_MAIN)
   target_link_libraries(${erf_parallel_exe_name}
