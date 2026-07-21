@@ -24,6 +24,7 @@ using namespace amrex;
 */
 void add_par () {
    ParmParse pp("amr");
+   ParmParse pp_erf("erf");
 
    // Set the refine_grid_layout flags to (1,1,0) by default
    pp.add("refine_grid_layout_x",1);
@@ -48,6 +49,88 @@ void add_par () {
 
    int n_error_buf = 0;
    pp.queryAdd("n_error_buf",n_error_buf);
+
+   amrex::Vector<int> legacy_n_cell;
+   amrex::Vector<int> erf_n_cell;
+   const bool has_legacy_n_cell = pp.queryarr("n_cell", legacy_n_cell);
+   const bool has_erf_n_cell = pp_erf.queryarr("n_cell", erf_n_cell);
+   if (has_erf_n_cell && has_legacy_n_cell) {
+      amrex::Abort("erf.n_cell and amr.n_cell are both specified. Please use only one!");
+   }
+   if (has_erf_n_cell) {
+      pp.addarr("n_cell", erf_n_cell);
+   }
+
+   ParmParse pp_geometry("geometry");
+   amrex::Vector<amrex::Real> legacy_prob_lo;
+   amrex::Vector<amrex::Real> legacy_prob_hi;
+   amrex::Vector<amrex::Real> legacy_prob_extent;
+   amrex::Vector<int> legacy_is_periodic;
+   amrex::Vector<amrex::Real> erf_prob_lo;
+   amrex::Vector<amrex::Real> erf_prob_hi;
+   amrex::Vector<amrex::Real> erf_prob_extent;
+   amrex::Vector<int> erf_is_periodic;
+
+   const bool has_legacy_prob_lo = pp_geometry.queryarr("prob_lo", legacy_prob_lo);
+   const bool has_legacy_prob_hi = pp_geometry.queryarr("prob_hi", legacy_prob_hi);
+   const bool has_legacy_prob_extent = pp_geometry.queryarr("prob_extent", legacy_prob_extent);
+   const bool has_legacy_is_periodic = pp_geometry.queryarr("is_periodic", legacy_is_periodic);
+
+   const bool has_erf_prob_lo = pp_erf.queryarr("prob_lo", erf_prob_lo);
+   const bool has_erf_prob_hi = pp_erf.queryarr("prob_hi", erf_prob_hi);
+   const bool has_erf_prob_extent = pp_erf.queryarr("prob_extent", erf_prob_extent);
+   const bool has_erf_is_periodic = pp_erf.queryarr("is_periodic", erf_is_periodic);
+
+   if (has_erf_prob_lo && has_legacy_prob_lo) {
+      amrex::Abort("erf.prob_lo and geometry.prob_lo are both specified. Please use only one!");
+   }
+   if ((has_erf_prob_hi || has_erf_prob_extent) && !has_erf_prob_lo) {
+      amrex::Abort("ERF prefixed geometry requires erf.prob_lo together with erf.prob_hi or erf.prob_extent.");
+   }
+   if (has_erf_is_periodic && has_legacy_is_periodic) {
+      amrex::Abort("erf.is_periodic and geometry.is_periodic are both specified. Please use only one!");
+   }
+   if (has_erf_prob_hi && has_legacy_prob_hi) {
+      amrex::Abort("erf.prob_hi and geometry.prob_hi are both specified. Please use only one!");
+   }
+   if (has_erf_prob_extent && has_legacy_prob_extent) {
+      amrex::Abort("erf.prob_extent and geometry.prob_extent are both specified. Please use only one!");
+   }
+   if (has_erf_prob_hi || has_erf_prob_extent) {
+      if (has_legacy_prob_hi || has_legacy_prob_extent) {
+         amrex::Abort("ERF prefixed geometry and legacy geometry.prob_hi/prob_extent are both specified. Please use only one form.");
+      }
+   }
+   if (has_erf_prob_hi && has_erf_prob_extent) {
+      amrex::Vector<amrex::Real> derived_prob_hi(erf_prob_extent.size(), 0.0);
+      for (int i = 0; i < static_cast<int>(erf_prob_extent.size()); ++i) {
+         derived_prob_hi[i] = (i < static_cast<int>(erf_prob_lo.size()) ? erf_prob_lo[i] : 0.0) + erf_prob_extent[i];
+      }
+      AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+         derived_prob_hi.size() == erf_prob_hi.size(),
+         "erf.prob_hi and erf.prob_extent have inconsistent lengths.");
+      for (int i = 0; i < static_cast<int>(erf_prob_hi.size()); ++i) {
+         if (derived_prob_hi[i] != erf_prob_hi[i]) {
+            amrex::Abort("erf.prob_hi and erf.prob_extent are both specified but inconsistent.");
+         }
+      }
+   }
+
+   if (has_erf_prob_lo) {
+      pp_geometry.addarr("prob_lo", erf_prob_lo);
+   }
+   if (has_erf_prob_hi) {
+      pp_geometry.addarr("prob_hi", erf_prob_hi);
+   } else if (has_erf_prob_extent) {
+      amrex::Vector<amrex::Real> derived_prob_hi(erf_prob_extent.size(), 0.0);
+      for (int i = 0; i < static_cast<int>(erf_prob_extent.size()); ++i) {
+         derived_prob_hi[i] = (i < static_cast<int>(erf_prob_lo.size()) ? erf_prob_lo[i] : 0.0) + erf_prob_extent[i];
+      }
+      pp_geometry.addarr("prob_hi", derived_prob_hi);
+   }
+   if (has_erf_is_periodic) {
+      pp_geometry.addarr("is_periodic", erf_is_periodic);
+   }
 }
 
 /**
