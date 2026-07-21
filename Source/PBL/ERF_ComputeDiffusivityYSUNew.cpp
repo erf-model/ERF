@@ -1594,12 +1594,12 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
                         constexpr Real rd  = amrex::Real(287.0);   // gas constant dry air (J/kg/K)
                         constexpr Real rv  = amrex::Real(461.5);   // gas constant water vapor (J/kg/K)
                         constexpr Real cp  = amrex::Real(1004.0);  // specific heat dry air (J/kg/K)
-                        const Real alph = xlv * qmean / (rd * tmean);
-                        const Real chi  = xlv * xlv * qmean / (cp * rv * tmean * tmean);
+                        const Real alpha   = xlv * qmean / (rd * tmean);
+                        const Real chi     = xlv * xlv * qmean / (cp * rv * tmean * tmean);
                         // Moist Ri correction:
-                        grad_Ri = (one + alph) * (grad_Ri
-                                  - CONST_GRAV * CONST_GRAV / wind_shear_safe / tmean / cp
-                                    * (chi - alph) / (one + chi));
+                        grad_Ri = (one + alpha) * (grad_Ri
+                                - CONST_GRAV * CONST_GRAV / wind_shear_safe / tmean / cp
+                                * (chi - alpha) / (one + chi));
                         grad_Ri = amrex::max(amrex::min(grad_Ri, amrex::Real(100.0)), amrex::Real(-100.0));
                     }
                 }
