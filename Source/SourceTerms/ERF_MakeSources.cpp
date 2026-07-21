@@ -752,8 +752,8 @@ void make_sources (int level,
 
                         // south face
 			            if (t_blank > zero && t_blank < t_blank_north && t_blank_south == zero) {
-                            ux_cellaway = 0.5 * (u(i  ,j-1,k) + u(i+1,j-1,k  ));
-                            uz_cellaway = 0.5 * (w(i  ,j-1,k) + w(i  ,j-1,k+1));
+                            ux_cellaway = myhalf * (u(i  ,j-1,k) + u(i+1,j-1,k  ));
+                            uz_cellaway = myhalf * (w(i  ,j-1,k) + w(i  ,j-1,k+1));
                             u1 = ux_cellaway;
                             u2 = uz_cellaway;
                             delta = dx_y;
@@ -764,8 +764,8 @@ void make_sources (int level,
 
                         // north face
                         if (t_blank > zero && t_blank < t_blank_south && t_blank_north == zero) {  
-                            ux_cellaway = 0.5 * (u(i  ,j+1,k) + u(i+1,j+1,k  ));
-                            uz_cellaway = 0.5 * (w(i  ,j+1,k) + w(i  ,j+1,k+1));
+                            ux_cellaway = myhalf * (u(i  ,j+1,k) + u(i+1,j+1,k  ));
+                            uz_cellaway = myhalf * (w(i  ,j+1,k) + w(i  ,j+1,k+1));
                             u1 = ux_cellaway;
                             u2 = uz_cellaway;
                             delta = dx_y;
@@ -776,8 +776,8 @@ void make_sources (int level,
 
                         // west face
                         if (t_blank > zero && t_blank < t_blank_east && t_blank_west == zero) {
-                            uy_cellaway = 0.5 * (u(i-1,j  ,k) + u(i-1,j+1,k  ));
-                            uz_cellaway = 0.5 * (w(i-1,j  ,k) + w(i-1,j  ,k+1));
+                            uy_cellaway = myhalf * (u(i-1,j  ,k) + u(i-1,j+1,k  ));
+                            uz_cellaway = myhalf * (w(i-1,j  ,k) + w(i-1,j  ,k+1));
                             u1 = uy_cellaway;
                             u2 = uz_cellaway;
                             delta = dx_x;
@@ -787,9 +787,9 @@ void make_sources (int level,
                         }
 
                         // east face
-                        if (t_blank > 0 && t_blank < t_blank_west && t_blank_east == 0.0) {
-                            uy_cellaway = 0.5 * (u(i+1,j  ,k) + u(i+1,j+1,k  ));
-                            uz_cellaway = 0.5 * (w(i+1,j  ,k) + w(i+1,j  ,k+1));
+                        if (t_blank > zero && t_blank < t_blank_west && t_blank_east == zero) {
+                            uy_cellaway = myhalf * (u(i+1,j  ,k) + u(i+1,j+1,k  ));
+                            uz_cellaway = myhalf * (w(i+1,j  ,k) + w(i+1,j  ,k+1));
                             u1 = uy_cellaway;
                             u2 = uz_cellaway;
                             delta = dx_x;

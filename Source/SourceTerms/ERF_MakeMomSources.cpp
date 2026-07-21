@@ -972,8 +972,8 @@ void make_mom_sources (double time_d,
                     ustar = h_windspeed2r * kappa / (std::log(1.5 * dx_z / z0) - psi_m);
 
                     // prevent some unphysical math
-                    if (!(ustar > 0.0 && !std::isnan(ustar))) { ustar = 0.0; }
-                    if (!(ustar < 2.0 && !std::isnan(ustar))) { ustar = 2.0; }
+                    if (!(ustar > zero && !std::isnan(ustar))) { ustar = zero; }
+                    if (!(ustar < 2.0  && !std::isnan(ustar))) { ustar = 2.0; }
                     if (psi_m > std::log(myhalf * dx_z / z0)) { psi_m = std::log(myhalf * dx_z / z0); }
 
                     Real uTarget      = (1 - t_blank) * ustar / kappa * (std::log(myhalf * dx_z / z0) - psi_m);
