@@ -1578,9 +1578,9 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
                         // WRF bl_ysu.F90 lines 997-1000:
                         // qmean = 0.5*(qvx(k)+qvx(k+1))
                         // tmean = 0.5*(tx(k)+tx(k+1))  [temperature, not theta]
-                        // alph = xlv*qmean/rd/tmean
+                        // alpha = xlv*qmean/rd/tmean
                         // chi  = xlv*xlv*qmean / (cp*rv*tmean*tmean)
-                        // ri = (1+alph)*(ri - g^2/(ss*tmean*cp) * (chi-alph)/(1+chi))
+                        // ri = (1+alpha)*(ri - g^2/(ss*tmean*cp) * (chi-alpha)/(1+chi))
                         const Real qv_k_mri   = (moisture_indices.qv >= 0)
                                                 ? cell_data(i,j,k,  moisture_indices.qv) / rho_k   : zero;
                         const Real qv_kp1_mri = (moisture_indices.qv >= 0)
