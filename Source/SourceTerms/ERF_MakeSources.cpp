@@ -655,8 +655,8 @@ void make_sources (int level,
                 const Real dx_z = (z_cc_arr) ? (z_cc_arr(i,j,k) - z_cc_arr(i,j,k-1)) : dx[2];
                 Real drag_coefficient = alpha_h / std::pow(dx_x*dx_y*dx_z, one/three);
 
-                const Real ux_cc_2r = 0.5 * (u(i  ,j  ,k+1) + u(i+1,j  ,k+1));
-                const Real uy_cc_2r = 0.5 * (v(i  ,j  ,k+1) + v(i  ,j+1,k+1));
+                const Real ux_cc_2r = myhalf * (u(i  ,j  ,k+1) + u(i+1,j  ,k+1));
+                const Real uy_cc_2r = myhalf * (v(i  ,j  ,k+1) + v(i  ,j+1,k+1));
                 const Real h_windspeed2r  = std::sqrt(ux_cc_2r * ux_cc_2r + uy_cc_2r * uy_cc_2r);
 
                 const Real theta          = cell_data(i,j,k  ,RhoTheta_comp) / cell_data(i,j,k  ,Rho_comp);
@@ -714,8 +714,8 @@ void make_sources (int level,
 
                         for (int iter = 0; iter < 2; ++iter) {
                             if (iter > 0) { Olen  = -ustar * ustar * ustar * theta / (kappa * ggg * tflux + tiny); }
-                            Real zeta          = (0.5) * dx_z / Olen;
-                            Real zeta_neighbor = (1.5) * dx_z / Olen;
+                            Real zeta          = (myhalf) * dx_z / Olen;
+                            Real zeta_neighbor = (1.5)    * dx_z / Olen;
 
                             // similarity functions
                             psi_m          = sfuns.calc_psi_m(zeta);
@@ -728,12 +728,12 @@ void make_sources (int level,
                         if (!(ustar > zero && !std::isnan(ustar))) { ustar = zero; }
                         if (!(ustar < 2.0  && !std::isnan(ustar))) { ustar = 2.0; }
                         if (psi_h_neighbor > std::log(1.5 * dx_z / z0)) { psi_h_neighbor = std::log(1.5 * dx_z / z0); }
-                        if (psi_h > std::log(0.5 * dx_z / z0)) { psi_h = std::log(0.5 * dx_z / z0); }
+                        if (psi_h > std::log(myhalf * dx_z / z0)) { psi_h = std::log(myhalf * dx_z / z0); }
 
                         // We do not know the actual temperature so use cell above
                         const Real thetastar    = theta * ustar * ustar / (kappa * ggg * Olen);
                         const Real surf_temp    = theta_neighbor - thetastar / kappa * (std::log((1.5) * dx_z / z0) - psi_h_neighbor);
-                        const Real tTarget      = surf_temp + thetastar / kappa * (std::log((0.5) * dx_z / z0) - psi_h);
+                        const Real tTarget      = surf_temp + thetastar / kappa * (std::log((myhalf) * dx_z / z0) - psi_h);
 
                         const Real bc_forcing_rt = -(cell_data(i,j,k,Rho_comp) * tTarget - cell_data(i,j,k,RhoTheta_comp));
                         cell_src(i, j, k, RhoTheta_comp) -= drag_coefficient * U_s * bc_forcing_rt;
@@ -808,8 +808,8 @@ void make_sources (int level,
 
                         for (int iter = 0; iter < 2; ++iter) {
                             if (iter > 0) { Olen  = -ustar * ustar * ustar * theta / (kappa * ggg * tflux + tiny); }
-                            Real zeta          = (0.5) * delta / Olen;
-                            Real zeta_neighbor = (1.5) * delta / Olen;
+                            Real zeta          = (myhalf) * delta / Olen;
+                            Real zeta_neighbor = (1.5)    * delta / Olen;
 
                             // similarity functions
                             psi_m          = sfuns.calc_psi_m(zeta);
@@ -822,12 +822,12 @@ void make_sources (int level,
                         if (!(ustar > zero && !std::isnan(ustar))) { ustar = zero; }
                         if (!(ustar < 2.0  && !std::isnan(ustar))) { ustar = 2.0; }
                         if (psi_h_neighbor > std::log(1.5 * delta / z0)) { psi_h_neighbor = std::log(1.5 * delta / z0); }
-                        if (psi_h > std::log(0.5 * delta / z0)) { psi_h = std::log(0.5 * delta / z0); }
+                        if (psi_h > std::log(myhalf * delta / z0)) { psi_h = std::log(myhalf * delta / z0); }
 
                         // We do not know the actual temperature so use cell above
                         const Real thetastar    = theta * ustar * ustar / (kappa * ggg * Olen);
                         const Real surf_temp    = theta_neighbor - thetastar / kappa * (std::log((1.5) * delta / z0) - psi_h_neighbor);
-                        const Real tTarget      = surf_temp + thetastar / kappa * (std::log((0.5) * delta / z0) - psi_h);
+                        const Real tTarget      = surf_temp + thetastar / kappa * (std::log((myhalf) * delta / z0) - psi_h);
 
                         const Real bc_forcing_rt = -(cell_data(i,j,k,Rho_comp) * tTarget - cell_data(i,j,k,RhoTheta_comp));
                         cell_src(i, j, k, RhoTheta_comp) -= drag_coefficient * U_s * bc_forcing_rt;
