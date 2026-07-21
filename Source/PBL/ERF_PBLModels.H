@@ -174,6 +174,7 @@ ComputeDiffusivityMRF (const amrex::MultiFab& xvel,
                        bool /*vert_only*/,
                        const std::unique_ptr<amrex::MultiFab>& z_phys_nd,
                        const MoistureComponentIndices& moisture_indices,
+                       const amrex::MultiFab* qheating_rates = nullptr,
                        const amrex::MultiFab* Q_fire_atm = nullptr);
 
 /**

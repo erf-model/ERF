@@ -895,7 +895,7 @@ void ComputeTurbulentViscosity (double dt,
                               geom, turbChoice, SurfLayer,
                               use_terrain_fitted_coords, use_moisture,
                               level, bc_ptr, vert_only, z_phys_nd,
-                              solverChoice.moisture_indices, Q_fire_atm);
+                              solverChoice.moisture_indices, qheating_rates, Q_fire_atm);
     } else if (turbChoice.pbl_type == PBLType::YSUNew) {
         ComputeDiffusivityYSUNew(xvel, yvel, cons_in, eddyViscosity,
                                  geom, turbChoice, SurfLayer,

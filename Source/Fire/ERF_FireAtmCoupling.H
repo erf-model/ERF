@@ -26,6 +26,16 @@
 //   injected into cc_source at the beginning of step n+1, before advance_dycore().
 //   This is consistent with WRF-Fire's explicit coupling approach.
 //
+// RK-stage safety:
+//   apply_fire_tendency_to_cc_source may be invoked once per RK stage of the
+//   slow-RHS integrator. Because the lagged Q_atm_prev is fixed for the whole
+//   timestep, the fire tendency it produces must also be identical at every
+//   RK stage. We therefore OVERWRITE cc_source[RhoTheta_comp] (and RhoQ1_comp
+//   when latent heat is on) rather than accumulate: the values are cleared to
+//   zero at the top of the routine and then set via '=' inside the kernel.
+//   Accumulating with '+=' across RK stages triples the injected heat and
+//   drives rho negative at the surface within a few timesteps.
+//
 // Latent heat:
 //   WRF-Fire computes grnqfx (ground latent heat flux) alongside grnhfx and
 //   passes both through fire_tendency. ERF-Fire follows the same approach:
@@ -43,6 +53,10 @@
 //   - fire_atm_feedback multiplier (equivalent to WRF-Fire's fire_atm_feedback)
 //     scales both sensible and latent flux. Set to 0 for one-way coupling only
 //     (fire responds to wind but atmosphere does not respond to fire heat).
+//   - The RhoTheta / RhoQ1 slots of cc_source are OWNED by the fire coupling
+//     for the duration of a timestep. If any other physics writes into those
+//     same slots per stage, this routine must be moved out of the per-stage
+//     slow-RHS path and called once before mri_integrator.advance() instead.
 
 #ifndef ERF_FIRE_ATM_COUPLING_H
 #define ERF_FIRE_ATM_COUPLING_H
@@ -106,8 +120,11 @@ inline void compute_fire_latent_flux(
     }
 }
 
-// Distribute fire surface heat flux through the atmospheric column and add
-// the resulting tendency to cc_source.
+// Distribute fire surface heat flux through the atmospheric column and write
+// the resulting tendency into cc_source.
+//
+// Behaviour: OVERWRITES cc_source[RhoTheta_comp] and (when latent heat is on)
+// cc_source[RhoQ1_comp]. See file-level "RK-stage safety" note above.
 //
 // Optional fire_debug argument prints per-call tendency diagnostics to stdout:
 //   [FIRE COUPLING] RhoTheta tendency sum = ...  max = ... [kg K m^-3 s^-1]
@@ -141,6 +158,15 @@ inline void apply_fire_tendency_to_cc_source(
     const auto& dx = geom_atm.CellSize();
     Real dz_avg = dx[2];
 
+    const bool has_latent_global = (Q_lat_atm != nullptr) && has_moisture;
+
+    // RK-stage safety: zero the components we own before overwriting them,
+    // so any state left over from a previous stage does not leak through.
+    cc_source.setVal(0.0, RhoTheta_comp, 1, cc_source.nGrowVect());
+    if (has_latent_global) {
+        cc_source.setVal(0.0, RhoQ1_comp, 1, cc_source.nGrowVect());
+    }
+
     for (MFIter mfi(cc_source, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
         auto const& cc_src_a = cc_source.array(mfi);
         auto const& q_atm_a  = Q_atm.array(mfi);
@@ -149,7 +175,7 @@ inline void apply_fire_tendency_to_cc_source(
 
         const Box& bx = mfi.tilebox();
 
-        bool has_latent = (Q_lat_atm != nullptr) && has_moisture;
+        const bool has_latent = has_latent_global;
         Array4<Real const> q_lat_arr;
         if (has_latent) {
             q_lat_arr = Q_lat_atm->const_array(mfi);
@@ -182,13 +208,15 @@ inline void apply_fire_tendency_to_cc_source(
             Real hfx_k    = (q_sfc_sensible / Cp_d) * exp_k;
             Real hfx_kp1  = (q_sfc_sensible / Cp_d) * exp_kp1;
             Real theta_tend = -rho * (hfx_kp1 - hfx_k) / dz;
-            cc_src_a(i, j, k, RhoTheta_comp) += theta_tend;
+            // OVERWRITE (see file-level RK-stage safety note). Do NOT use += here.
+            cc_src_a(i, j, k, RhoTheta_comp) = theta_tend;
 
             if (has_latent) {
                 Real qfx_k   = (q_sfc_latent / L_V) * exp_k;
                 Real qfx_kp1 = (q_sfc_latent / L_V) * exp_kp1;
                 Real q_tend  = -rho * (qfx_kp1 - qfx_k) / dz;
-                cc_src_a(i, j, k, RhoQ1_comp) += q_tend;
+                // OVERWRITE (see file-level RK-stage safety note). Do NOT use += here.
+                cc_src_a(i, j, k, RhoQ1_comp) = q_tend;
             }
         });
     }
