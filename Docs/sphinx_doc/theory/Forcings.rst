@@ -317,6 +317,7 @@ with
 
 This formulation is used for all three direction and we assume walls are orthogonal to cell faces.
 If ``erf.if_stability_correction = false`` (which is the default), then MOST simply becomes the log law.
+The stability corrections are available for the similarity functions ``erf.if_stability_correction = true``; however, they should only be used with extreme caution as their validity for horizontal walls is questionable.
 For additional details on this formulation, please see see `Wise et al. (2025) <https://essopenarchive.org/doi/full/10.22541/essoar.176659709.97467775/v1>`_.
 
 Similar to the previous section, temperature forcing is also available for the building 'surface'.
@@ -345,7 +346,8 @@ This is because the timestep used for the anelastic solver is typically much coa
 A larger drag coefficient will more quickly force a cell to the desired value; however, there is a stability limit related to the timestep due to the explicit form of the drag term.
 The recommended values are ``erf.if_Cd_scalar = 50.0`` and ``erf.if_Cd_momentum = 500.0`` for the fully compresible solver and
 ``erf.if_Cd_scalar = 5.0`` and ``erf.if_Cd_momentum = 50.0`` (note that these are the default values).
-The immersed forcing formulation for buildings has been rigorously tested at grid spacings 5.0 m and less. Caution is needed when using immersed forcing at coarser grid spacings.
+The immersed forcing formulation for buildings has been rigorously tested at grid spacings of 5.0 m and less.
+Caution is needed when using immersed forcing at coarser grid spacings.
 If immersed forcing is causing your simulations to become unstable, the first recommendation is to reduce the drag coefficients.
 
 Immersed forcing for buildings can be used in conjunction with the ``StaticFittedMesh`` terrain option.
