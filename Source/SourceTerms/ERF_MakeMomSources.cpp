@@ -880,7 +880,7 @@ void make_mom_sources (double time_d,
                 const Real uz = w(i, j, k);
                 const Real windspeed = std::sqrt(ux * ux + uy * uy + uz * uz);
                 const Real t_blank = myhalf * (t_blank_arr(i, j, k) + t_blank_arr(i, j, k-1));
-                
+
                 const Real dx_z = (z_cc_arr) ? (z_cc_arr(i,j,k) - z_cc_arr(i,j,k-1)) : dx_arr[2];
                 const Real drag_coefficient = alpha_m / std::pow(dx_x*dx_y*dx_z, one/three);
                 const Real CdM = std::min(drag_coefficient / (windspeed + tiny), drag_coefficient);
@@ -897,10 +897,10 @@ void make_mom_sources (double time_d,
         const Real* dx_arr = geom.CellSize();
         const Real dx_x = dx_arr[0];
         const Real dx_y = dx_arr[1];
-        const Real delta_xyz = std::pow(dx_x*dx_y, myhalf);
+        const Real delta_xy = std::pow(dx_x*dx_y, myhalf);
         if ((solverChoice.buildings_type == BuildingsType::ImmersedForcing ) &&
            ((is_slow_step && !use_ImmersedForcing_fast) || (!is_slow_step && use_ImmersedForcing_fast)) &&
-            (delta_xyz <= 50.0)) // only apply immersed forcing when grid spacing is less than 50m
+            (delta_xy <= 50.0)) // only apply immersed forcing when grid spacing is less than 50m
         {
             const Real alpha_m          = solverChoice.if_Cd_momentum;
             const Real tiny             = std::numeric_limits<amrex::Real>::epsilon();
