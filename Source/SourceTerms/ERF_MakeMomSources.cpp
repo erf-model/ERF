@@ -771,7 +771,7 @@ void make_mom_sources (double time_d,
                 const Real windspeed = std::sqrt(ux * ux + uy * uy + uz * uz);
                 const Real t_blank = myhalf * (t_blank_arr(i, j, k) + t_blank_arr(i-1, j, k));
                 const Real t_blank_above = myhalf * (t_blank_arr(i, j, k+1) + t_blank_arr(i-1, j, k+1));
-                const Real CdM = std::min(drag_coefficient / (windspeed + tiny), Real(1000.0));
+                const Real CdM = std::min(drag_coefficient / (windspeed + tiny), drag_coefficient);
                 const Real rho_xface = myhalf * ( cell_data(i,j,k,Rho_comp) + cell_data(i-1,j,k,Rho_comp) );
 
                 if ((t_blank > 0 && (t_blank_above == zero)) && l_use_most) { // force to MOST value
@@ -823,7 +823,7 @@ void make_mom_sources (double time_d,
                 const Real windspeed = std::sqrt(ux * ux + uy * uy + uz * uz);
                 const Real t_blank = myhalf * (t_blank_arr(i, j, k) + t_blank_arr(i, j-1, k));
                 const Real t_blank_above = myhalf * (t_blank_arr(i, j, k+1) + t_blank_arr(i, j-1, k+1));
-                const Real CdM = std::min(drag_coefficient / (windspeed + tiny), Real(1000.0));
+                const Real CdM = std::min(drag_coefficient / (windspeed + tiny), drag_coefficient);
                 const Real rho_yface =  myhalf * ( cell_data(i,j,k,Rho_comp) + cell_data(i,j-1,k,Rho_comp) );
 
                 if ((t_blank > 0 && (t_blank_above == zero)) && l_use_most) { // force to MOST value
@@ -874,7 +874,7 @@ void make_mom_sources (double time_d,
                 const Real uz = w(i, j, k);
                 const Real windspeed = std::sqrt(ux * ux + uy * uy + uz * uz);
                 const Real t_blank = myhalf * (t_blank_arr(i, j, k) + t_blank_arr(i, j, k-1));
-                const Real CdM = std::min(drag_coefficient / (windspeed + tiny), Real(1000.0));
+                const Real CdM = std::min(drag_coefficient / (windspeed + tiny), drag_coefficient);
                 const Real rho_zface =  myhalf * ( cell_data(i,j,k,Rho_comp) + cell_data(i,j,k-1,Rho_comp) );
                 zmom_src_arr(i, j, k) -= t_blank * rho_zface * CdM * uz * windspeed;
             });
@@ -943,7 +943,7 @@ void make_mom_sources (double time_d,
 
                 const Real dx_z = (z_cc_arr) ? (z_cc_arr(i,j,k) - z_cc_arr(i,j,k-1)) : dx_arr[2];
                 const Real drag_coefficient = alpha_m / std::pow(dx_x*dx_y*dx_z, one/three);
-                const Real CdM = std::min(drag_coefficient / (windspeed + tiny), Real(1000.0));
+                const Real CdM = std::min(drag_coefficient / (windspeed + tiny), drag_coefficient);
                 Real drag = t_blank * rho_xface * CdM * ux * windspeed; // default to drag for fully immersed cells
 
                 if ((t_blank > 0 && (t_blank < t_blank_below) && (t_blank_above == 0.0)) && l_use_most) { // this should enter just for buildings roofs
@@ -1085,7 +1085,7 @@ void make_mom_sources (double time_d,
 
                 const Real dx_z = (z_cc_arr) ? (z_cc_arr(i,j,k) - z_cc_arr(i,j,k-1)) : dx_arr[2];
                 const Real drag_coefficient = alpha_m / std::pow(dx_x*dx_y*dx_z, one/three);
-                const Real CdM = std::min(drag_coefficient / (windspeed + tiny), Real(1000.0));
+                const Real CdM = std::min(drag_coefficient / (windspeed + tiny), drag_coefficient);
                 Real drag = t_blank * rho_yface * CdM * uy * windspeed;  // default to drag for fully immersed cells
 
                 if ((t_blank > zero && (t_blank < t_blank_below) && (t_blank_above == zero)) && l_use_most) { // enters for building roofs
@@ -1233,7 +1233,7 @@ void make_mom_sources (double time_d,
 
                 const Real dx_z = (z_cc_arr) ? (z_cc_arr(i,j,k) - z_cc_arr(i,j,k-1)) : dx_arr[2];
                 const Real drag_coefficient = alpha_m / std::pow(dx_x*dx_y*dx_z, one/three);
-                const Real CdM = std::min(drag_coefficient / (windspeed + tiny), Real(1000.0));
+                const Real CdM = std::min(drag_coefficient / (windspeed + tiny), drag_coefficient);
                 Real drag = t_blank * rho_zface * CdM * uz * windspeed;
 
                 if        (((t_blank > zero && t_blank <= t_blank_west && t_blank_east == zero) || 
