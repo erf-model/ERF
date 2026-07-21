@@ -941,7 +941,7 @@ void make_mom_sources (double time_d,
                 if (t_blank < min_t_blank) { t_blank = zero; }
                 if (k == 0) { t_blank_below = zero; }
                 if (t_blank_below < min_t_blank) { t_blank_below = zero; }
-                if (t_blank_above < min_t_blank) { t_blank_above = zero; } 
+                if (t_blank_above < min_t_blank) { t_blank_above = zero; }
                 if (t_blank_north < min_t_blank) { t_blank_north = zero; }
                 if (t_blank_south < min_t_blank) { t_blank_south = zero; }
                 // round to four decimal places to avoid issues for cells with very small volfracs.
@@ -959,17 +959,17 @@ void make_mom_sources (double time_d,
                 if ((t_blank > 0 && (t_blank < t_blank_below) && (t_blank_above == 0.0)) && l_use_most) { // this should enter just for buildings roofs
                     Real ux2r = u(i, j, k+1) ;
                     Real uy2r = fourth * ( v(i, j  , k+1) + v(i-1, j  , k+1)
-                                         + v(i, j+1, k+1) + v(i-1, j+1, k+1) ) ;                    
+                                         + v(i, j+1, k+1) + v(i-1, j+1, k+1) ) ;
                     Real h_windspeed2r = std::sqrt(ux2r * ux2r + uy2r * uy2r);
-                    
+
                     // MOST
                     Real rho_xface_below    = myhalf * (cell_data(i,j,k-1,Rho_comp) + cell_data(i-1,j,k-1,Rho_comp));
                     Real theta_xface_below  = (myhalf * (cell_data(i,j,k-1,RhoTheta_comp) + cell_data(i-1,j,k-1, RhoTheta_comp))) / rho_xface_below;
                     Real theta_surf         = theta_xface_below;
-                    
+
                     Real psi_m = zero;
                     Real psi_h = zero;
-                    Real ustar = h_windspeed2r * kappa / (std::log(1.5 * dx_z / z0) - psi_m); 
+                    Real ustar = h_windspeed2r * kappa / (std::log(1.5 * dx_z / z0) - psi_m);
                     Real tflux = (tflux_in != 1e-8) ? tflux_in : -(theta_xface - theta_surf) * ustar * kappa / (std::log(1.5 * dx_z / z0) - psi_h);
                     Real Olen  = (Olen_in != 1e-8)  ? Olen_in  : -ustar * ustar * ustar * theta_xface / (kappa * ggg * tflux + tiny);
                     Real zeta  = 1.5 * dx_z / Olen;
@@ -1031,7 +1031,7 @@ void make_mom_sources (double time_d,
                     Real tflux = (tflux_in != 1e-8) ? tflux_in : -(theta_xface - theta_surf) * ustar * kappa / (std::log(1.5 * delta / z0) - psi_h);
                     Real Olen  = (Olen_in != 1e-8)  ? Olen_in  : -ustar * ustar * ustar * theta_xface / (kappa * ggg * tflux + tiny);
                     Real zeta  = 1.5 * delta / Olen;
-                    
+
                     // similarity functions
                     if (l_stability_correction){
                         psi_m          = sfuns.calc_psi_m(zeta);
@@ -1082,9 +1082,9 @@ void make_mom_sources (double time_d,
                 Real t_blank_west        = myhalf * (t_blank_arr(i-1, j  , k  ) + t_blank_arr(i-1, j-1, k  ));
                 if (t_blank < min_t_blank) { t_blank = zero; }
                 if (k == 0) { t_blank_below = zero; }
-                if (t_blank_below < min_t_blank) { t_blank_below = zero; } 
-                if (t_blank_above < min_t_blank) { t_blank_above = zero; } 
-                if (t_blank_east < min_t_blank) { t_blank_east = zero; } 
+                if (t_blank_below < min_t_blank) { t_blank_below = zero; }
+                if (t_blank_above < min_t_blank) { t_blank_above = zero; }
+                if (t_blank_east < min_t_blank) { t_blank_east = zero; }
                 if (t_blank_west < min_t_blank) { t_blank_west = zero; }
                 // round to four decimal places to avoid issues for cells with very small volfracs.
                 t_blank       = std::round(t_blank       * Real(10000.0)) / Real(10000.0);
@@ -1148,7 +1148,7 @@ void make_mom_sources (double time_d,
                         // MOST
                         Real rho_yface_inside    =  myhalf * ( cell_data(i+1,j,k,Rho_comp) + cell_data(i+1,j-1,k,Rho_comp) );
                         Real theta_yface_inside  = (myhalf * (cell_data(i+1,j,k  ,RhoTheta_comp) + cell_data(i+1,j-1,k, RhoTheta_comp))) / rho_yface_inside ;
-                        theta_surf               = theta_yface_inside;  
+                        theta_surf               = theta_yface_inside;
                     }
 
                     // east face, y forcing
@@ -1159,7 +1159,7 @@ void make_mom_sources (double time_d,
                         // MOST
                         Real rho_yface_inside    =  myhalf * ( cell_data(i-1,j,k,Rho_comp) + cell_data(i-1,j-1,k,Rho_comp) );
                         Real theta_yface_inside  = (myhalf * (cell_data(i-1,j,k  ,RhoTheta_comp) + cell_data(i-1,j-1,k, RhoTheta_comp))) / rho_yface_inside ;
-                        theta_surf               = theta_yface_inside;     
+                        theta_surf               = theta_yface_inside;
                     }
 
                     Real u1 = uy_cellaway;
@@ -1191,7 +1191,7 @@ void make_mom_sources (double time_d,
                     Real bc_forcing_y = -(wspd_target_y - uy);
 
                     drag = bc_forcing_y * rho_yface * CdM * U_s;
-                }          
+                }
 
                 if (is_slow_step && !use_ImmersedForcing_fast) { // limit drag term for anelastic for numerical stability
                     Real d_drag = dt * -drag; // time step * acceleration like tendency
@@ -1231,7 +1231,7 @@ void make_mom_sources (double time_d,
                 if (t_blank_north < min_t_blank) { t_blank_north = zero; }
                 if (t_blank_south < min_t_blank) { t_blank_south = zero; }
                 if (t_blank_east < min_t_blank)  { t_blank_east = zero; }
-                if (t_blank_west < min_t_blank)  { t_blank_west = zero; } 
+                if (t_blank_west < min_t_blank)  { t_blank_west = zero; }
                 // round to four decimal places to avoid issues for cells with very small volfracs.
                 t_blank       = std::round(t_blank       * Real(10000.0)) / Real(10000.0);
                 t_blank_below = std::round(t_blank_below * Real(10000.0)) / Real(10000.0);
@@ -1246,7 +1246,7 @@ void make_mom_sources (double time_d,
                 const Real CdM = std::min(drag_coefficient / (windspeed + tiny), drag_coefficient);
                 Real drag = t_blank * rho_zface * CdM * uz * windspeed;
 
-                if        (((t_blank > zero && t_blank <= t_blank_west && t_blank_east == zero) || 
+                if        (((t_blank > zero && t_blank <= t_blank_west && t_blank_east == zero) ||
                             (t_blank > zero && t_blank <= t_blank_east && t_blank_west == zero) ||
                             (t_blank > zero && t_blank <= t_blank_north && t_blank_south == zero) ||
                             (t_blank > zero && t_blank <= t_blank_south && t_blank_north == zero)) && l_use_most && k >= 1) { // this should enter for just building walls
@@ -1277,11 +1277,11 @@ void make_mom_sources (double time_d,
                     if (t_blank > zero && t_blank <= t_blank_south && t_blank_north == zero) {
                         ux_cellaway = fourth * ( u(i  , j+1, k  ) + u(i+1, j+1, k  )
                                                + u(i  , j+1, k-1) + u(i+1, j+1, k-1) );
-                        uz_cellaway = w(i, j+1, k); 
+                        uz_cellaway = w(i, j+1, k);
                         u1 = ux_cellaway;
                         u2 = uz_cellaway;
                         delta = dx_y;
-                    
+
                         // MOST
                         Real rho_zface_inside    = myhalf * ( cell_data(i,j-1,k,Rho_comp) + cell_data(i,j-1,k-1,Rho_comp) );
                         Real theta_zface_inside  = (myhalf * (cell_data(i,j-1,k  ,RhoTheta_comp) + cell_data(i,j-1,k-1, RhoTheta_comp))) / rho_zface_inside ;
@@ -1326,7 +1326,7 @@ void make_mom_sources (double time_d,
                     Real tflux = (tflux_in != 1e-8) ? tflux_in : -(theta_zface - theta_surf) * ustar * kappa / (std::log(1.5 * delta / z0) - psi_h);
                     Real Olen  = (Olen_in != 1e-8)  ? Olen_in  : -ustar * ustar * ustar * theta_zface / (kappa * ggg * tflux + tiny);
                     Real zeta  = 1.5 * delta / Olen;
-                    
+
                     // similarity functions
                     if (l_stability_correction){
                         psi_m          = sfuns.calc_psi_m(zeta);
@@ -1355,7 +1355,7 @@ void make_mom_sources (double time_d,
                     d_drag = amrex::min(amrex::max(d_drag, -wsmax_change), wsmax_change);
                     zmom_src_arr(i,j,k) += d_drag / dt; // put back as limited tendency
                 } else {
-                    zmom_src_arr(i, j, k) -= drag; 
+                    zmom_src_arr(i, j, k) -= drag;
                 }
             });
         }

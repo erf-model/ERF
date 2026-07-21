@@ -605,7 +605,7 @@ void erf_slow_rhs_post (int level, int finest_level,
                     new_zmom(i,j,k) = cur_zmom(i,j,k);
                 }
             });
-            ParallelFor(tbx, 
+            ParallelFor(tbx,
             [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
                 Real t_blank       = t_blank_arr(i, j, k  );
                 if (t_blank == one) { // don't update rho and theta for fully immersed cells

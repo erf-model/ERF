@@ -738,7 +738,7 @@ void make_sources (int level,
 
                         const Real bc_forcing_rt = -(cell_data(i,j,k,Rho_comp) * tTarget - cell_data(i,j,k,RhoTheta_comp));
                         cell_src(i, j, k, RhoTheta_comp) -= drag_coefficient * U_s * bc_forcing_rt;
-                        
+
                     } else if (((t_blank > zero && t_blank < t_blank_west && t_blank_east == zero) ||
                                 (t_blank > zero && t_blank < t_blank_east && t_blank_west == zero) ||
                                 (t_blank > zero && t_blank < t_blank_north && t_blank_south == zero) ||
@@ -764,15 +764,15 @@ void make_sources (int level,
                         }
 
                         // north face
-                        if (t_blank > zero && t_blank < t_blank_south && t_blank_north == zero) {  
+                        if (t_blank > zero && t_blank < t_blank_south && t_blank_north == zero) {
                             ux_cellaway = myhalf * (u(i  ,j+1,k) + u(i+1,j+1,k  ));
                             uz_cellaway = myhalf * (w(i  ,j+1,k) + w(i  ,j+1,k+1));
                             u1 = ux_cellaway;
                             u2 = uz_cellaway;
                             delta = dx_y;
-                        
+
                             // MOST
-                            theta_neighbor = cell_data(i,j+1,k,RhoTheta_comp) / cell_data(i,j+1,k,Rho_comp); 
+                            theta_neighbor = cell_data(i,j+1,k,RhoTheta_comp) / cell_data(i,j+1,k,Rho_comp);
                         }
 
                         // west face
@@ -784,7 +784,7 @@ void make_sources (int level,
                             delta = dx_x;
 
                             // MOST
-                            theta_neighbor = cell_data(i-1,j,k,RhoTheta_comp) / cell_data(i-1,j,k,Rho_comp); 
+                            theta_neighbor = cell_data(i-1,j,k,RhoTheta_comp) / cell_data(i-1,j,k,Rho_comp);
                         }
 
                         // east face
@@ -796,7 +796,7 @@ void make_sources (int level,
                             delta = dx_x;
 
                             // MOST
-                            theta_neighbor = cell_data(i+1,j,k,RhoTheta_comp) / cell_data(i+1,j,k,Rho_comp); 
+                            theta_neighbor = cell_data(i+1,j,k,RhoTheta_comp) / cell_data(i+1,j,k,Rho_comp);
                         }
 
                         Real tan_wspd = std::sqrt(u1 * u1 + u2 * u2);
