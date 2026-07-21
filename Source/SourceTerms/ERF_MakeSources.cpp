@@ -710,10 +710,10 @@ void make_sources (int level,
                         Real psi_h           = zero;
                         Real psi_h_neighbor  = zero;
                         Real ustar           = h_windspeed2r * kappa / (std::log((1.5) * dx_z / z0) - psi_m);
-                        Real Olen            = zero;
+                        Real Olen            = (Olen_in  != Real(1e-8)) ? Olen_in  : -ustar * ustar * ustar * theta / (kappa * ggg * tflux + tiny);
 
                         for (int iter = 0; iter < 2; ++iter) {
-                            Olen  = -ustar * ustar * ustar * theta / (kappa * ggg * tflux + tiny);
+                            if (iter > 0) { Olen  = -ustar * ustar * ustar * theta / (kappa * ggg * tflux + tiny); }
                             Real zeta          = (0.5) * dx_z / Olen;
                             Real zeta_neighbor = (1.5) * dx_z / Olen;
 
@@ -749,7 +749,6 @@ void make_sources (int level,
                         Real u1          = zero;
                         Real u2          = zero;
                         Real delta       = zero;
-                        Real theta_surf  = zero;
 
                         // south face
 			            if (t_blank > zero && t_blank < t_blank_north && t_blank_south == zero) {
@@ -805,10 +804,10 @@ void make_sources (int level,
                         Real psi_h           = zero;
                         Real psi_h_neighbor  = zero;
                         Real ustar           = tan_wspd * kappa / (std::log(1.5 * delta / z0) - psi_m);
-                        Real Olen            = zero;
+                        Real Olen            = (Olen_in  != Real(1e-8)) ? Olen_in  : -ustar * ustar * ustar * theta / (kappa * ggg * tflux + tiny);
 
                         for (int iter = 0; iter < 2; ++iter) {
-                            Olen  = -ustar * ustar * ustar * theta / (kappa * ggg * tflux + tiny);
+                            if (iter > 0) { Olen  = -ustar * ustar * ustar * theta / (kappa * ggg * tflux + tiny); }
                             Real zeta          = (0.5) * delta / Olen;
                             Real zeta_neighbor = (1.5) * delta / Olen;
 

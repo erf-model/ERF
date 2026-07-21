@@ -979,14 +979,14 @@ void make_mom_sources (double time_d,
                     Real uTarget      = (1 - t_blank) * ustar / kappa * (std::log(myhalf * dx_z / z0) - psi_m);
                     Real uxTarget     = uTarget * ux2r / (tiny + h_windspeed2r);
                     Real bc_forcing_x = -(uxTarget - ux); // BC forcing pushes nonrelative velocity toward target velocity
-                    drag = bc_forcing_x * rho_xface * CdM * windspeed;
+                    drag = bc_forcing_x * rho_xface * CdM * U_s;
 
                 } else if (((t_blank > zero && t_blank <= t_blank_south && t_blank_north == zero) || // north face
                             (t_blank > zero && t_blank <= t_blank_north && t_blank_south == zero))   // south face
                             && l_use_most) { // this should enter for just building walls
                     Real ux_cellaway = zero;
                     Real uz_cellaway = zero;
-                    Real theta_surf  = zero;
+                    Real theta_surf  = theta_xface;
 
                     // south face, x forcing
                     if (t_blank > zero && t_blank <= t_blank_north && t_blank_south == zero) {
@@ -996,7 +996,7 @@ void make_mom_sources (double time_d,
                         // MOST
                         Real rho_xface_inside    = myhalf * ( cell_data(i,j+1,k,Rho_comp) + cell_data(i-1,j+1,k,Rho_comp) );
                         Real theta_xface_inside  = (myhalf * (cell_data(i,j+1,k,RhoTheta_comp) + cell_data(i-1,j+1,k, RhoTheta_comp))) / rho_xface_inside;
-                        Real theta_surf         = theta_xface_inside;
+                        theta_surf               = theta_xface_inside;
                     }
 
                     // north face, x forcing
@@ -1007,7 +1007,7 @@ void make_mom_sources (double time_d,
                         // MOST
                         Real rho_xface_inside    = myhalf * ( cell_data(i,j-1,k,Rho_comp) + cell_data(i-1,j-1,k,Rho_comp) );
                         Real theta_xface_inside  = (myhalf * (cell_data(i,j-1,k,RhoTheta_comp) + cell_data(i-1,j-1,k, RhoTheta_comp))) / rho_xface_inside;
-                        Real theta_surf         = theta_xface_inside;
+                        theta_surf               = theta_xface_inside;
                     }
 
                     Real u1 = ux_cellaway;
@@ -1038,7 +1038,7 @@ void make_mom_sources (double time_d,
                     const amrex::Real wspd_target_x = wspd_target * ux_cellaway / (tiny + tan_wspd);
                     const amrex::Real bc_forcing_x = -(wspd_target_x - ux);
 
-                    drag = bc_forcing_x * rho_xface * CdM * windspeed;
+                    drag = bc_forcing_x * rho_xface * CdM * U_s;
                 }
 
                 if (is_slow_step && !use_ImmersedForcing_fast) { // limit drag term for anelastic for numerical stability
@@ -1121,14 +1121,14 @@ void make_mom_sources (double time_d,
                     Real uTarget  = (1 - t_blank) * ustar / kappa * (std::log(myhalf * dx_z / z0) - psi_m);
                     Real uyTarget = uTarget * uy2r / (tiny + h_windspeed2r);
                     Real bc_forcing_y = -(uyTarget - uy); // BC forcing pushes nonrelative velocity toward target velocity
-                    drag = bc_forcing_y * rho_yface * CdM * windspeed;
+                    drag = bc_forcing_y * rho_yface * CdM * U_s;
 
                 } else if (((t_blank > zero && t_blank <= t_blank_west && t_blank_east == zero) || // east wall
                             (t_blank > zero && t_blank <= t_blank_east && t_blank_west == zero))   // west wall
                             && l_use_most) { // this should enter for just building walls
                     Real uy_cellaway = zero;
                     Real uz_cellaway = zero;
-                    Real theta_surf = zero;
+                    Real theta_surf  = theta_yface;
 
                     // west face, y forcing
                     if (t_blank > zero && t_blank <= t_blank_east && t_blank_west == zero) {
@@ -1138,7 +1138,7 @@ void make_mom_sources (double time_d,
                         // MOST
                         Real rho_yface_inside    =  myhalf * ( cell_data(i+1,j,k,Rho_comp) + cell_data(i+1,j-1,k,Rho_comp) );
                         Real theta_yface_inside  = (myhalf * (cell_data(i+1,j,k  ,RhoTheta_comp) + cell_data(i+1,j-1,k, RhoTheta_comp))) / rho_yface_inside ;
-                        Real theta_surf         = theta_yface_inside;  
+                        theta_surf               = theta_yface_inside;  
                     }
 
                     // east face, y forcing
@@ -1149,7 +1149,7 @@ void make_mom_sources (double time_d,
                         // MOST
                         Real rho_yface_inside    =  myhalf * ( cell_data(i-1,j,k,Rho_comp) + cell_data(i-1,j-1,k,Rho_comp) );
                         Real theta_yface_inside  = (myhalf * (cell_data(i-1,j,k  ,RhoTheta_comp) + cell_data(i-1,j-1,k, RhoTheta_comp))) / rho_yface_inside ;
-                        Real theta_surf         = theta_yface_inside;     
+                        theta_surf               = theta_yface_inside;     
                     }
 
                     Real u1 = uy_cellaway;
@@ -1180,7 +1180,7 @@ void make_mom_sources (double time_d,
                     Real wspd_target_y = wspd_target * uy_cellaway / (tiny + tan_wspd);
                     Real bc_forcing_y = -(wspd_target_y - uy);
 
-                    drag = bc_forcing_y * rho_yface * CdM * windspeed;
+                    drag = bc_forcing_y * rho_yface * CdM * U_s;
                 }          
 
                 if (is_slow_step && !use_ImmersedForcing_fast) { // limit drag term for anelastic for numerical stability
@@ -1246,7 +1246,7 @@ void make_mom_sources (double time_d,
                     Real u1          = zero;
                     Real u2          = zero;
                     Real delta       = zero;
-                    Real theta_surf  = zero;
+                    Real theta_surf  = theta_zface;
 
                     // south face, z forcing
                     if (t_blank > zero && t_blank <= t_blank_north && t_blank_south == zero) {
@@ -1260,7 +1260,7 @@ void make_mom_sources (double time_d,
                         // MOST
                         Real rho_zface_inside    = myhalf * ( cell_data(i,j+1,k,Rho_comp) + cell_data(i,j+1,k-1,Rho_comp) );
                         Real theta_zface_inside  = (myhalf * (cell_data(i,j+1,k,RhoTheta_comp) + cell_data(i,j+1,k-1, RhoTheta_comp))) / rho_zface_inside ;
-                        Real theta_surf          = theta_zface_inside;
+                        theta_surf               = theta_zface_inside;
                     }
 
                     // north face, z forcing
@@ -1275,7 +1275,7 @@ void make_mom_sources (double time_d,
                         // MOST
                         Real rho_zface_inside    = myhalf * ( cell_data(i,j-1,k,Rho_comp) + cell_data(i,j-1,k-1,Rho_comp) );
                         Real theta_zface_inside  = (myhalf * (cell_data(i,j-1,k  ,RhoTheta_comp) + cell_data(i,j-1,k-1, RhoTheta_comp))) / rho_zface_inside ;
-                        Real theta_surf          = theta_zface_inside;
+                        theta_surf               = theta_zface_inside;
                     }
 
                     // west face, z forcing
@@ -1290,7 +1290,7 @@ void make_mom_sources (double time_d,
                         // MOST
                         Real rho_zface_inside    = myhalf * ( cell_data(i+1,j,k,Rho_comp) + cell_data(i+1,j,k-1,Rho_comp) );
                         Real theta_zface_inside  = (myhalf * (cell_data(i+1,j,k,RhoTheta_comp) + cell_data(i+1,j,k-1, RhoTheta_comp))) / rho_zface_inside ;
-                        Real theta_surf          = theta_zface_inside;
+                        theta_surf               = theta_zface_inside;
                     }
 
                     // east face, z forcing
@@ -1305,7 +1305,7 @@ void make_mom_sources (double time_d,
                         // MOST
                         Real rho_zface_inside    = myhalf * ( cell_data(i-1,j,k,Rho_comp) + cell_data(i-1,j,k-1,Rho_comp) );
                         Real theta_zface_inside  = (myhalf * (cell_data(i-1,j,k  ,RhoTheta_comp) + cell_data(i-1,j,k-1, RhoTheta_comp))) / rho_zface_inside ;
-                        Real theta_surf          = theta_zface_inside;
+                        theta_surf               = theta_zface_inside;
                     }
 
                     Real tan_wspd = std::sqrt(u1 * u1 + u2 * u2);
@@ -1333,7 +1333,7 @@ void make_mom_sources (double time_d,
                     Real wspd_target_z = wspd_target * uz_cellaway / (tiny + tan_wspd);
                     Real bc_forcing_z = -(wspd_target_z - uz);
 
-		            drag = bc_forcing_z * rho_zface * CdM * windspeed;
+		            drag = bc_forcing_z * rho_zface * CdM * U_s;
                 }
 
                 if (is_slow_step && !use_ImmersedForcing_fast) { // limit drag term for anelastic for numerical stability
