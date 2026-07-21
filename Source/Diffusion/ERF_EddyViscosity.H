@@ -39,7 +39,10 @@ ComputeTurbulentViscosity (double dt,
                            const amrex::BCRec* bc_ptr,
                            const eb_& ebfact,
                            bool vert_only = false,
+<<<<<<< HEAD
                            const amrex::MultiFab* Q_fire_atm = nullptr,
+=======
+>>>>>>> 8cc9bb5a (Fix)
                            const amrex::MultiFab* qheating_rates = nullptr,
                            const amrex::MultiFab* Q_fire_atm = nullptr);
 
