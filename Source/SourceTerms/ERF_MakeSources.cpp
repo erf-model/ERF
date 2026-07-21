@@ -505,10 +505,8 @@ void make_sources (int level,
             const Real* dx_arr = geom.CellSize();
             const Real dx_x = dx_arr[0];
             const Real dx_y = dx_arr[1];
-            const Real dx_z = dx_arr[2];
 
             const Real alpha_h          = solverChoice.if_Cd_scalar;
-            const Real drag_coefficient = alpha_h / std::pow(dx_x*dx_y*dx_z, one/three);
             const Real tiny             = std::numeric_limits<amrex::Real>::epsilon();
             const Real U_s              = one; // unit velocity scale
 
@@ -528,6 +526,9 @@ void make_sources (int level,
             ParallelFor(bx, [=]
                         AMREX_GPU_DEVICE(int i, int j, int k) noexcept
             {
+                const Real dx_z = (z_cc_arr) ? (z_cc_arr(i,j,k) - z_cc_arr(i,j,k-1)) : dx_arr[2];
+                const Real drag_coefficient = alpha_h / std::pow(dx_x*dx_y*dx_z, one/three);
+
                 const Real t_blank       = t_blank_arr(i, j, k);
                 const Real t_blank_above = t_blank_arr(i, j, k+1);
                 const Real ux_cc_2r = myhalf * (u(i  ,j  ,k+1) + u(i+1,j  ,k+1));
@@ -652,7 +653,7 @@ void make_sources (int level,
                 if (t_blank_east < min_t_blank) { t_blank_east = zero; }
                 if (t_blank_west < min_t_blank) { t_blank_west = zero; }
 
-                const Real dx_z = (z_cc_arr) ? (z_cc_arr(i,j,k) - z_cc_arr(i,j,k-1)) : dx[2];
+                const Real dx_z = (z_cc_arr) ? (z_cc_arr(i,j,k) - z_cc_arr(i,j,k-1)) : dx_arr[2];
                 Real drag_coefficient = alpha_h / std::pow(dx_x*dx_y*dx_z, one/three);
 
                 const Real ux_cc_2r = myhalf * (u(i  ,j  ,k+1) + u(i+1,j  ,k+1));
