@@ -356,7 +356,7 @@ In the future, this requirement will be removed.
 Note that the volume fraction is calculated prior to the grid transformation; therefore, building heights when located in steep terrain should be considered approximate.
 
 An example of immersed forcing for a building located on top of a Witch of Agnesi hill is available in ``Exec/RegTests/ImmersedForcingTest``.
-Additional examples are also in the same directory demonstrating the wall model and different idealized thermal boundary conditions.
+Additional examples are in ``Exec/RegTests/ImmersedForcingTest/wall_model`` demonstrating the wall model and different idealized thermal boundary conditions.
 
 
 Problem-Specific Forcing
