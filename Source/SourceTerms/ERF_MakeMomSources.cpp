@@ -868,9 +868,9 @@ void make_mom_sources (double time_d,
             ParallelFor(tbz, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
             {
                 const Real ux = fourth * ( u(i  , j  , k  ) + u(i+1, j  , k  )
-                                       + u(i  , j  , k-1) + u(i+1, j  , k-1) );
+                                         + u(i  , j  , k-1) + u(i+1, j  , k-1) );
                 const Real uy = fourth * ( v(i  , j  , k  ) + v(i  , j+1, k  )
-                                       + v(i  , j  , k-1) + v(i  , j+1, k-1) );
+                                         + v(i  , j  , k-1) + v(i  , j+1, k-1) );
                 const Real uz = w(i, j, k);
                 const Real windspeed = std::sqrt(ux * ux + uy * uy + uz * uz);
                 const Real t_blank = myhalf * (t_blank_arr(i, j, k) + t_blank_arr(i, j, k-1));
