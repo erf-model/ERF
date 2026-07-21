@@ -1699,7 +1699,8 @@ List of Parameters
 |                                  | true                |                    |                       |
 +----------------------------------+---------------------+--------------------+-----------------------+
 | **erf.rebalance_wrf_input**      | rebalance state     |  bool              | true                  |
-|                                  | from wrf input?     |                    |                       |
+|                                  | from wrfinput and   |                    |                       |
+|                                  | wrfbdy?             |                    |                       |
 +----------------------------------+---------------------+--------------------+-----------------------+
 | **erf.real_extrap_w**            | First-order         | bool               | true                  |
 |                                  | extrapolation of    |                    |                       |

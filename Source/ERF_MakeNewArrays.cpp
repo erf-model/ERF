@@ -791,6 +791,20 @@ ERF::init_zphys (int lev, double elapsed_time)
         MultiFab::Subtract(*terrain_blanking[lev], EBFactory(lev).getVolFrac(), 0, 0, 1, ComputeGhostCells(solverChoice) + 2);
         terrain_blanking[lev]->FillBoundary(geom[lev].periodicity());
         init_immersed_forcing(lev); // needed for real cases
+
+        // buildings are landmask = 2
+        for (MFIter mfi(*lmask_lev[lev][0]); mfi.isValid(); ++mfi) {
+            const Box& bx2d = mfi.growntilebox();
+            auto lmask_arr = lmask_lev[lev][0]->array(mfi);
+            const auto& t_blank_arr = terrain_blanking[lev]->array(mfi);
+
+            amrex::ParallelFor(bx2d, [=] AMREX_GPU_DEVICE(int i, int j, int k) {
+                // Use k=0 for the terrain_blanking field
+                if (t_blank_arr(i, j, 0) > 0.0) {
+                    lmask_arr(i, j, k) = 2;
+                }
+            });
+        }
     }
 
     // Compute the min dz and pass to the micro model
