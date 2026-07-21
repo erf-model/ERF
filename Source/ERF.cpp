@@ -297,7 +297,7 @@ ERF::Evolve ()
                     m_fire_dust_coupling.lofting_Q_threshold,
                     m_fire_dust_coupling.lofting_Q_ref,
                     m_DustLayer->get_params().dust_debug,
-                    m_nstep);
+                    step);
                 m_fire_lofting_ready = false;
             }
 #endif
