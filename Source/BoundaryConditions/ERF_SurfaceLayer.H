@@ -1,6 +1,11 @@
 #ifndef ERF_SURFACELAYER_H
 #define ERF_SURFACELAYER_H
 
+#include <fstream>
+#include <sstream>
+#include <string>
+#include <vector>
+
 #include "AMReX_Geometry.H"
 #include "AMReX_ParmParse.H"
 #include "AMReX_FArrayBox.H"
@@ -17,6 +22,62 @@
 #include "ERF_PBLHeight.H"
 #include "ERF_MicrophysicsUtils.H"
 #include "ERF_EB.H"
+
+namespace erf_surface_layer_detail {
+
+inline std::vector<std::vector<amrex::Real>>
+read_cols (const std::string& fname, int nskip)
+{
+    std::ifstream file(fname);
+    if (!file.is_open()) {
+        amrex::Abort("Error: Could not open the file " + fname);
+    }
+
+    std::string line;
+    for (int i = 0; i < nskip; ++i) {
+        if (!std::getline(file, line)) {
+            amrex::Abort("Error: Could not skip header lines in " + fname);
+        }
+    }
+
+    std::vector<std::vector<amrex::Real>> rows;
+    int ncols = -1;
+    while (std::getline(file, line)) {
+        if (line.empty()) { continue; }
+
+        std::stringstream ss(line);
+        std::vector<amrex::Real> row;
+        amrex::Real value;
+        while (ss >> value) {
+            row.push_back(value);
+        }
+
+        if (row.empty()) { continue; }
+
+        if (ncols < 0) {
+            ncols = static_cast<int>(row.size());
+        } else if (static_cast<int>(row.size()) != ncols) {
+            amrex::Abort("Error: Inconsistent column count in " + fname);
+        }
+
+        rows.push_back(std::move(row));
+    }
+
+    if (rows.empty() || ncols <= 0) {
+        amrex::Abort("Error: No surface flux data found in " + fname);
+    }
+
+    std::vector<std::vector<amrex::Real>> cols(ncols, std::vector<amrex::Real>(rows.size()));
+    for (int i = 0; i < static_cast<int>(rows.size()); ++i) {
+        for (int j = 0; j < ncols; ++j) {
+            cols[j][i] = rows[i][j];
+        }
+    }
+
+    return cols;
+}
+
+} // namespace erf_surface_layer_detail
 
 /** Abstraction layer for different surface layer schemes (e.g. MOST, Cd)
  *
@@ -360,6 +421,49 @@ public:
       m_Lwave_lev[lev] = Lwave;
       m_eddyDiffs_lev[lev] = eddyDiffs;
 
+      // Text-file driven surface forcing modes. The file always contains at
+      // least time(day) and sst(K); prescribed-flux mode also uses H, LE, USTAR.
+      pp.query("most.use_sfc_fluxes", use_sfc_fluxes);
+      pp.query("most.use_sfc_sst", use_sfc_sst);
+      if (use_sfc_fluxes && use_sfc_sst) {
+          amrex::Abort("Only one of most.use_sfc_fluxes and most.use_sfc_sst may be enabled");
+      }
+      if (use_sfc_fluxes || use_sfc_sst) {
+          if (m_terrain_type == TerrainType::EB) {
+              amrex::Abort("Text-file surface forcing is not supported with EB terrain");
+          }
+
+          std::string sfc_file;
+          pp.query("most.sfc_file", sfc_file);
+          if (sfc_file.empty()) {
+              amrex::Abort("most.sfc_file must be set when using text-file surface forcing");
+          }
+
+          sfc = erf_surface_layer_detail::read_cols(sfc_file, 1);
+
+          const int min_cols = use_sfc_fluxes ? 5 : 2;
+          if (static_cast<int>(sfc.size()) < min_cols) {
+              amrex::Abort("Surface forcing file does not contain the required number of columns");
+          }
+
+          const amrex::Real start_day = sfc[0][0];
+          for (int i = 0; i < static_cast<int>(sfc[0].size()); ++i) {
+              sfc[0][i] = 86400.0 * (sfc[0][i] - start_day);
+          }
+
+          if (use_sfc_sst) {
+              if (theta_type == ThetaCalcType::HEAT_FLUX || surf_heating_rate != zero) {
+                  amrex::Abort("most.use_sfc_sst cannot be combined with prescribed heat flux or surf_heating_rate");
+              }
+              if (moist_type == MoistCalcType::MOISTURE_FLUX) {
+                  amrex::Abort("most.use_sfc_sst cannot be combined with prescribed moisture flux");
+              }
+              theta_type = ThetaCalcType::SURFACE_TEMPERATURE;
+              amrex::Print() << "Using MOST with prescribed SST from most.sfc_file over sea"
+                             << std::endl;
+          }
+      }
+
       // Get pointers to LSM data and Fluxes
       int ndata = static_cast<int>(lsm_data.size());
       int nflux = static_cast<int>(lsm_flux.size());
@@ -376,6 +480,9 @@ public:
               m_lsm_tsurf_indx = n;
               m_has_ocean_lsm_tsurf = (lc_name == "t_surf");
           }
+      }
+      if (use_sfc_sst && m_has_ocean_lsm_tsurf) {
+          amrex::Abort("most.use_sfc_sst cannot be combined with an ocean LSM t_surf input");
       }
       int n_valid_lsm_flux = 0;
       for (int n(0); n < nflux; ++n) {
@@ -428,6 +535,22 @@ public:
 
       const amrex::DistributionMapping& dm = mf.DistributionMap();
       const int ncomp = 1;
+
+      // If SST is prescribed from a text file, treat a missing land mask as
+      // an all-ocean domain so the sea branch of MOST is active everywhere.
+      if (use_sfc_sst && (m_lmask_lev[lev].empty() || m_lmask_lev[lev][0] == nullptr)) {
+          if (lmask_lev.empty()) {
+              lmask_lev.resize(1);
+          }
+          if (m_lmask_lev[lev].empty()) {
+              m_lmask_lev[lev].resize(1);
+          }
+          lmask_lev[0] = std::make_unique<amrex::iMultiFab>(ba_flux, dm, 1, 0);
+          lmask_lev[0]->setVal(0);
+          m_lmask_lev[lev][0] = lmask_lev[0].get();
+          amrex::Print() << "No LANDMASK provided; treating the domain as all water for "
+                         << "most.use_sfc_sst" << std::endl;
+      }
 
       // Z0 heights FAB
       //--------------------------------------------------------
@@ -570,9 +693,17 @@ public:
   void fill_tsurf_with_sst_and_tsk (const int& lev,
                                     const amrex::Real& time);
 
+  void fill_tsurf_with_sfc_sst (const int& lev,
+                                const amrex::Real& time);
+
   void fill_qsurf_with_qsat (const int& lev,
                              const amrex::MultiFab& cons_in,
                              const std::unique_ptr<amrex::MultiFab>& z_phys_nd);
+
+  void update_sfc_time_index (const amrex::Real& time);
+
+  amrex::Real interpolate_sfc_column (const amrex::Real& time,
+                                      int col) const;
 
   void get_lsm_tsurf (const int& lev);
 
@@ -745,6 +876,8 @@ private:
   amrex::Real rico_qsat_z0{amrex::Real(0.001)};
 
   bool use_moisture;
+  bool use_sfc_fluxes = false;
+  bool use_sfc_sst = false;
   bool m_has_lsm_fluxes = false;
   bool m_has_lsm_tsurf  = false;
   bool m_has_ocean_lsm_tsurf = false;
@@ -782,6 +915,11 @@ private:
   bool m_update_k_rans = false;
   amrex::Real inv_Cmu2 = zero;
   amrex::Real theta_ref = zero;
+  int sfc_time_ind = 0;
+  amrex::Real sfc_qflux{zero};
+  amrex::Real sfc_tflux{zero};
+  amrex::Real sfc_ustar{zero};
+  std::vector<std::vector<amrex::Real>> sfc;
 };
 
 #endif /* SURFACELAYER_H */

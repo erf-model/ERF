@@ -22,6 +22,9 @@ SurfaceLayer::update_fluxes (const int& lev,
         !m_sst_lev[lev].empty() && m_sst_lev[lev][0]) {
         fill_tsurf_with_sst_and_tsk(lev, elapsed_time_since_start_low);
     }
+    if (use_sfc_sst) {
+        fill_tsurf_with_sfc_sst(lev, elapsed_time);
+    }
 
     // Apply heating rate if needed
     if (theta_type == ThetaCalcType::SURFACE_TEMPERATURE &&
@@ -254,10 +257,65 @@ SurfaceLayer::update_fluxes (const int& lev,
         }
     }
 
+    if (use_sfc_fluxes)
+    {
+        update_sfc_time_index(elapsed_time);
+        sfc_qflux = interpolate_sfc_column(elapsed_time, 3);
+        sfc_tflux = interpolate_sfc_column(elapsed_time, 2);
+        sfc_ustar = interpolate_sfc_column(elapsed_time, 4);
+
+        amrex::Print() << " ABLMOST: Interpolating SHF and LHF at time "
+                       << elapsed_time
+                       << ": SHF = " << sfc_tflux
+                       << " LHF = " << sfc_qflux
+                       << " USTAR = " << sfc_ustar << std::endl;
+
+        u_star[lev]->setVal(sfc_ustar);
+        t_star[lev]->setVal(sfc_tflux / 1004.0);
+        q_star[lev]->setVal(sfc_qflux / 2.5104e6);
+    }
+
     u_star[lev]->FillBoundary(m_geom[lev].periodicity());
     t_star[lev]->FillBoundary(m_geom[lev].periodicity());
     q_star[lev]->FillBoundary(m_geom[lev].periodicity());
-      olen[lev]->FillBoundary(m_geom[lev].periodicity());
+    olen[lev]->FillBoundary(m_geom[lev].periodicity());
+}
+
+void
+SurfaceLayer::update_sfc_time_index (const Real& elapsed_time)
+{
+    if (sfc.empty() || sfc[0].size() < 2) { return; }
+
+    Real t1 = sfc[0][sfc_time_ind+1];
+    while (elapsed_time >= t1)
+    {
+        int prev_index = sfc_time_ind;
+        sfc_time_ind = std::min(sfc_time_ind + 1, int(sfc[0].size() - 2));
+        t1 = sfc[0][sfc_time_ind+1];
+        if (prev_index == sfc_time_ind) {
+            break;
+        }
+    }
+}
+
+Real
+SurfaceLayer::interpolate_sfc_column (const Real& elapsed_time,
+                                      int col) const
+{
+    if (sfc.empty() || sfc[0].empty()) { return zero; }
+    if (sfc[0].size() == 1) { return sfc[col][0]; }
+
+    const Real t0 = sfc[0][sfc_time_ind];
+    const Real t1 = sfc[0][sfc_time_ind+1];
+    const Real x0 = sfc[col][sfc_time_ind];
+    const Real x1 = sfc[col][sfc_time_ind+1];
+
+    if (t0 == t1 || elapsed_time > t1) {
+        return x1;
+    }
+
+    const Real dt = (elapsed_time - t0) / (t1 - t0);
+    return x0 + (x1 - x0) * dt;
 }
 
 /**
@@ -1056,6 +1114,36 @@ SurfaceLayer::fill_tsurf_with_sst_and_tsk (const int& lev,
             });
         }
     }
+    t_surf[lev]->FillBoundary(m_geom[lev].periodicity());
+}
+
+void
+SurfaceLayer::fill_tsurf_with_sfc_sst (const int& lev,
+                                       const Real& elapsed_time)
+{
+    update_sfc_time_index(elapsed_time);
+    const Real sfc_sst = interpolate_sfc_column(elapsed_time, 1);
+    const int klo = m_geom[lev].Domain().smallEnd(2);
+
+    for (MFIter mfi(*t_surf[lev]); mfi.isValid(); ++mfi)
+    {
+        Box gtbx = mfi.growntilebox();
+
+        if (gtbx.smallEnd(2) != klo) { continue; }
+
+        auto t_surf_arr = t_surf[lev]->array(mfi);
+        auto lmask_arr  = (m_lmask_lev[lev][0]) ? m_lmask_lev[lev][0]->array(mfi) :
+                                                  Array4<int> {};
+
+        ParallelFor(gtbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+        {
+            int is_land = (lmask_arr) ? lmask_arr(i,j,k) : 0;
+            if (!is_land) {
+                t_surf_arr(i,j,k) = sfc_sst;
+            }
+        });
+    }
+
     t_surf[lev]->FillBoundary(m_geom[lev].periodicity());
 }
 

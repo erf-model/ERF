@@ -20,6 +20,11 @@ employs Moeng's formulation for Monin-Obukhov similarity theory (MOST) and ``cus
 specify the fluxes through ``ustar; tstar; qstar``. Currently, the MOST pathway is the primary flux type employed
 in ERF simulations and will be the focus in subsequent sections.
 
+For text-based time-varying ocean forcing, ``most.sfc_file`` can be paired with either
+``most.use_sfc_fluxes = true`` to prescribe ``H``, ``LE`` and ``USTAR`` directly, or
+``most.use_sfc_sst = true`` to prescribe sea-surface temperature while allowing MOST to
+compute the fluxes.
+
 
 MOST Theory
 ~~~~~~~~~~~~~~~~~~~
