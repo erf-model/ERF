@@ -1728,10 +1728,10 @@ init_terrain_from_wrfinput (int /*lev*/,
             }
         });
 
-        // NOTE: Above we enforce zero lateral gradient on the terrain height.
-        //       This condition uniquely defines the z_arr at the nodes all around
-        //       the domain border. By sweeping row by row, we can solve for the
-        //       unknown node that ensures the average recovers the WRF heights.
+        // NOTE: At the domain boundaries, we enforce zero lateral gradient on
+        //       the terrain height. This condition uniquely defines z_arr at
+        //       the nodes on the domain border. By sweeping row by row, we can
+        //       solve for nodal heights that average to the WRF heights.
 
         // Sweep and solve to ensure nodal averages give back the z-face values
         IntVect ngz = z_phys->nGrowVect();
