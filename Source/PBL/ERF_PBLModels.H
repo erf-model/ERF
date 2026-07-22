@@ -249,34 +249,34 @@ ComputeVerticalDerivativesPBL (int i, int j, int k,
                                const MoistureComponentIndices& moisture_indices)
 {
     if ( k==izmax && c_ext_dir_on_zhi ) {
-        dthetadz = (one/three)*(       -GetThetav(i,j,k-1,cell_data,moisture_indices)
-                              - three * GetThetav(i,j,k  ,cell_data,moisture_indices)
-                              + amrex::Real(4.0) * GetThetav(i,j,k+1,cell_data,moisture_indices) )*dz_inv;
+        dthetadz = (one/three)*(        -GetThetav(i,j,k-1,cell_data,moisture_indices)
+                               - three * GetThetav(i,j,k  ,cell_data,moisture_indices)
+                               + amrex::Real(4.0) * GetThetav(i,j,k+1,cell_data,moisture_indices) )*dz_inv;
     } else if ( k==izmin && c_ext_dir_on_zlo ) {
         dthetadz = (one/three)*(        GetThetav(i,j,k+1,cell_data,moisture_indices)
                               + three * GetThetav(i,j,k  ,cell_data,moisture_indices)
                               - amrex::Real(4.0) * GetThetav(i,j,k-1,cell_data,moisture_indices) )*dz_inv;
     } else {
-        dthetadz = myhalf*(  GetThetav(i,j,k+1,cell_data,moisture_indices)
-                        - GetThetav(i,j,k-1,cell_data,moisture_indices) )*dz_inv;
+        dthetadz = myhalf*( GetThetav(i,j,k+1,cell_data,moisture_indices)
+                          - GetThetav(i,j,k-1,cell_data,moisture_indices) )*dz_inv;
     }
 
     if ( k==izmax && u_ext_dir_on_zhi ) {
         dudz = (one/amrex::Real(6.0))*( (-uvel(i  ,j,k-1) - three * uvel(i  ,j,k  ) + amrex::Real(4.0) * uvel(i  ,j,k+1))
-                         + (-uvel(i+1,j,k-1) - three * uvel(i+1,j,k  ) + amrex::Real(4.0) * uvel(i+1,j,k+1)) )*dz_inv;
+                                      + (-uvel(i+1,j,k-1) - three * uvel(i+1,j,k  ) + amrex::Real(4.0) * uvel(i+1,j,k+1)) )*dz_inv;
     } else if ( k==izmin && u_ext_dir_on_zlo ) {
         dudz = (one/amrex::Real(6.0))*( (uvel(i  ,j,k+1) + three * uvel(i  ,j,k  ) - amrex::Real(4.0) * uvel(i  ,j,k-1))
-                         + (uvel(i+1,j,k+1) + three * uvel(i+1,j,k  ) - amrex::Real(4.0) * uvel(i+1,j,k-1)) )*dz_inv;
+                                      + (uvel(i+1,j,k+1) + three * uvel(i+1,j,k  ) - amrex::Real(4.0) * uvel(i+1,j,k-1)) )*dz_inv;
     } else {
         dudz = fourth*( uvel(i,j,k+1) - uvel(i,j,k-1) + uvel(i+1,j,k+1) - uvel(i+1,j,k-1) )*dz_inv;
     }
 
     if ( k==izmax && v_ext_dir_on_zhi ) {
         dvdz = (one/amrex::Real(6.0))*( (-vvel(i,j  ,k-1) - three * vvel(i,j  ,k  ) + amrex::Real(4.0) * vvel(i,j  ,k+1))
-                         + (-vvel(i,j+1,k-1) - three * vvel(i,j+1,k  ) + amrex::Real(4.0) * vvel(i,j+1,k+1)) )*dz_inv;
+                                      + (-vvel(i,j+1,k-1) - three * vvel(i,j+1,k  ) + amrex::Real(4.0) * vvel(i,j+1,k+1)) )*dz_inv;
     } else if ( k==izmin && v_ext_dir_on_zlo ) {
         dvdz = (one/amrex::Real(6.0))*( (vvel(i,j  ,k+1) + three * vvel(i,j  ,k  ) - amrex::Real(4.0) * vvel(i,j  ,k-1))
-                         + (vvel(i,j+1,k+1) + three * vvel(i,j+1,k  ) - amrex::Real(4.0) * vvel(i,j+1,k-1)) )*dz_inv;
+                                      + (vvel(i,j+1,k+1) + three * vvel(i,j+1,k  ) - amrex::Real(4.0) * vvel(i,j+1,k-1)) )*dz_inv;
     } else {
         dvdz = fourth*( vvel(i,j,k+1) - vvel(i,j,k-1) + vvel(i,j+1,k+1) - vvel(i,j+1,k-1) )*dz_inv;
     }
