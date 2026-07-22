@@ -1728,6 +1728,33 @@ init_terrain_from_wrfinput (int /*lev*/,
             }
         });
 
+        // NOTE: Above we enforce zero lateral gradient on the terrain height.
+        //       This condition uniquely defines the z_arr at the nodes all around
+        //       the domain border. By sweeping row by row, we can solve for the
+        //       unknown node that ensures the average recovers the WRF heights.
+
+        // Sweep and solve to ensure nodal averages give back the z-face values
+        IntVect ngz = z_phys_nd[lev]->nGrowVect();
+        Box vbx_1d  = mfi.validbox();
+        int imin    = std::max(vbx_1d.smallEnd()[0],ilo+1);
+        int imax    = vbx_1d.bigEnd()[0];
+        int jmin    = std::max(vbx_1d.smallEnd()[1],jlo+1);
+        int jmax    = vbx_1d.bigEnd()[1];
+        if (imax == ihi) { imax += ngz[0]; }
+        if (jmax == jhi) { jmax += ngz[1]; }
+        vbx_1d.setRange(0,0); vbx_1d.setRange(1,0); vbx_1d.growHi(2,-1);
+        ParallelFor(gnbx_1d, [=] AMREX_GPU_DEVICE(int /*i*/, int /*j*/, int k) noexcept
+        {
+            for (int j(jmin); j<=jmax; ++j) {
+                for (int i(imin); i<=imax; ++i) {
+                    int ii = std::max(std::min(i,ihi),ilo);
+                    int jj = std::max(std::min(j,jhi),jlo);
+                    Real z_face = ( nc_ph_arr(ii,jj,k) + nc_ph_arr(ii,jj,k) ) / CONST_GRAV;
+                    z_arr(i, j, k) = Real(4.0) * z_face - z_arr(i-1, j, k) - z_arr(i, j-1, k) - z_arr(i-1, j-1, k);
+                }
+            }
+        });
+
         // Sanity check
         Print() << "Verifying grid integrity" << std::endl;
         const Box& vbox = mfi.validbox();
