@@ -752,7 +752,7 @@ void make_sources (int level,
                         Real delta       = zero;
 
                         // south face
-			            if (t_blank > zero && t_blank < t_blank_north && t_blank_south == zero) {
+                        if (t_blank > zero && t_blank < t_blank_north && t_blank_south == zero) {
                             ux_cellaway = myhalf * (u(i  ,j-1,k) + u(i+1,j-1,k  ));
                             uz_cellaway = myhalf * (w(i  ,j-1,k) + w(i  ,j-1,k+1));
                             u1 = ux_cellaway;

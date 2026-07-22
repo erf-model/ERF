@@ -1343,7 +1343,7 @@ void make_mom_sources (double time_d,
                     Real wspd_target_z = wspd_target * uz_cellaway / (tiny + tan_wspd);
                     Real bc_forcing_z = -(wspd_target_z - uz);
 
-		            drag = bc_forcing_z * rho_zface * CdM * U_s;
+                    drag = bc_forcing_z * rho_zface * CdM * U_s;
                 }
 
                 if (is_slow_step && !use_ImmersedForcing_fast) { // limit drag term for anelastic for numerical stability
