@@ -38,7 +38,8 @@ ComputeTurbulentViscosity (double dt,
                            int level,
                            const amrex::BCRec* bc_ptr,
                            const eb_& ebfact,
-                           bool vert_only = false);
+                           bool vert_only = false,
+                           const amrex::MultiFab* qheating_rates = nullptr);
 
 void
 ComputeTurbulentViscosityLES (amrex::Vector<std::unique_ptr<amrex::MultiFab>>& Tau_lev,

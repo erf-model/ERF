@@ -398,6 +398,7 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/IO/ERF_Plotfile2DSampledLevel.cpp
        ${SRC_DIR}/IO/ERF_Plotfile2DInterpolator.cpp
        ${SRC_DIR}/IO/ERF_Plotfile2DUtils.cpp
+       ${SRC_DIR}/Diagnostics/ERF_NearSurfaceDiagnostics.cpp
        ${SRC_DIR}/IO/ERF_WriteSubvolume.cpp
        ${SRC_DIR}/IO/ERF_WriteJobInfo.cpp
        ${SRC_DIR}/IO/ERF_ConsoleIO.cpp
@@ -442,6 +443,7 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/PBL/ERF_ComputeDiffusivityMYNNEDMF.cpp
        ${SRC_DIR}/PBL/ERF_ComputeDiffusivityYSU.cpp
        ${SRC_DIR}/PBL/ERF_ComputeDiffusivityMRF.cpp
+       ${SRC_DIR}/PBL/ERF_ComputeDiffusivityYSUNew.cpp
        ${SRC_DIR}/Refinement/ERF_Tagging.cpp
        ${SRC_DIR}/Refinement/ERF_RefineBox.cpp
        ${SRC_DIR}/Refinement/ERF_RefineHurricane.cpp
@@ -475,7 +477,7 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/Utils/ERF_ChopGrids.cpp
        ${SRC_DIR}/Utils/ERF_ConvertForProjection.cpp
        ${SRC_DIR}/Utils/ERF_EnforceConstraintOnBdy.cpp
-       ${SRC_DIR}/Utils/ERF_HurricaneDiagnostics_WRF.cpp
+       ${SRC_DIR}/Utils/ERF_HurricaneDiagnostics.cpp
        ${SRC_DIR}/Utils/ERF_InitZLevels.cpp
        ${SRC_DIR}/Utils/ERF_MakeSubdomains.cpp
        ${SRC_DIR}/Utils/ERF_MomentumToVelocity.cpp

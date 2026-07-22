@@ -206,8 +206,8 @@ public:
     NewtonIterSat (int& i, int& j, int& k,
                    const int& SAM_moisture_type,
                    const amrex::Real& fac_cond,
-                   const amrex::Real& /*fac_fus*/,
-                   const amrex::Real& fac_sub,
+                   const amrex::Real& fac_fus,
+                   const amrex::Real& /*fac_sub*/,
                    const amrex::Real& an,
                    const amrex::Real& bn,
                    const amrex::Array4<amrex::Real>& tabs_array,
@@ -219,97 +219,105 @@ public:
                    const amrex::Array4<amrex::Real>& qt_array)
     {
         // Solution tolerance
-        amrex::Real tol = amrex::Real(1.0e-4);
+#ifdef AMREX_USE_FLOAT
+        constexpr amrex::Real tol = amrex::Real(1.e-4);
+#else
+        constexpr amrex::Real tol = amrex::Real(1.e-8);
+#endif
+        constexpr int max_iter = 20;
 
         // Saturation moisture fractions
         amrex::Real omn, domn;
-        amrex::Real qsat, dqsat;
+        amrex::Real qsatm, dqsatm;
         amrex::Real qsatw, dqsatw;
         amrex::Real qsati, dqsati;
+        amrex::Real qn, qif, dqif;
 
         // Newton iteration vars
-        int  niter;
-        amrex::Real fff, dfff, dtabs;
-        amrex::Real lstar, dlstar;
-        amrex::Real lstarw, lstari;
-        amrex::Real delta_qc, delta_qi;
+        int niter    = 0;
+        amrex::Real F, dFdT;
+
+        //=======================================================================
+        // Mixed-phase Newton iteration to qv=qsat (cloud phase only)
+        //=======================================================================
 
         // Initial guess for temperature & pressure
         amrex::Real tabs = tabs_array(i,j,k);
         amrex::Real pres = pres_array(i,j,k);
 
-        niter = 0;
-        dtabs = 1;
-        //==================================================
-        // Newton iteration to qv=qsat (cloud phase only)
-        //==================================================
-        do {
-            // Latent heats and their derivatives wrt to T
-            lstarw  = fac_cond;
-            lstari  = fac_sub;
-            domn    = zero;
+        // Mixed saturation moisture fractions
+        erf_qsatw(tabs, pres, qsatw);
+        erf_qsati(tabs, pres, qsati);
+        omn   = sam_cloud_liquid_fraction(SAM_moisture_type, tabs, an, bn);
+        qsatm = sam_mixed_qsat(omn, qsatw, qsati);
 
-            // Saturation moisture fractions
-            erf_qsatw(tabs, pres, qsatw);
-            erf_qsati(tabs, pres, qsati);
-            erf_dtqsatw(tabs, pres, dqsatw);
-            erf_dtqsati(tabs, pres, dqsati);
+        // Saturation derivative WRT temperature
+        domn = zero;
+        if ( (SAM_moisture_type == 1) &&
+             (tabs < tbgmax) && (tabs > tbgmin) ) {
+            domn = an;
+        }
+        erf_dtqsatw(tabs, pres, dqsatw);
+        erf_dtqsati(tabs, pres, dqsati);
+        dqsatm = sam_mixed_dqsat_dT(omn, domn, qsatw, qsati, dqsatw, dqsati);
 
-            omn = sam_cloud_liquid_fraction(SAM_moisture_type, tabs, an, bn);
+        // Enforce omega splitting
+        qn   = (qt_array(i,j,k) - qsatm);
+        qif  = qn * (one - omn);
+        dqif = sam_mixed_dqif_dT(omn, domn, qn, dqsatm);
 
-            if (SAM_moisture_type == 1) {
-                // Cloud ice not permitted (condensation)
-                if(tabs >= tbgmax) {
-                }
-                // Cloud water not permitted (sublimation)
-                else if(tabs <= tbgmin) {
-                }
-                // Mixed cloud phase (condensation & deposition)
-                else {
-                    lstari = fac_sub;
-                    domn   = an;
-                }
-            } else if (SAM_moisture_type == 2) {
-                domn = zero;
-            }
-
-            // Linear combination of each component
-            qsat   = sam_mixed_qsat(omn, qsatw, qsati);
-            dqsat  = sam_mixed_dqsat_dT(omn, domn, qsatw, qsati, dqsatw, dqsati);
-            lstar  =  omn * lstarw + (one-omn) * lstari;
-            dlstar = domn * lstarw -     domn  * lstari;
-
-            // Function for root finding:
-            // 0 = -T_new + T_old + L_eff/C_p * (qv - qsat)
-            fff   = sam_newton_residual(tabs, tabs_array(i,j,k), lstar, qv_array(i,j,k), qsat);
-
+        // Function for root finding (conserve latent proxy):
+        // 0 = -T_new + T_old + L_v/C_p * (qv,0 - qs,m) - L_f/C_p * (qi,0 - qi,f)
+        F = sam_newton_residual(tabs, tabs_array(i,j,k),
+                                fac_cond, qv_array(i,j,k), qsatm,
+                                fac_fus , qi_array(i,j,k), qif  );
+        while (std::abs(F) > tol && niter < max_iter) {
             // Derivative of function (T_new iterated on)
-            dfff  = sam_newton_residual_derivative(lstar, dlstar, qv_array(i,j,k), qsat, dqsat);
+            dFdT  = sam_newton_residual_derivative(fac_cond, fac_fus, dqsatm, dqif);
 
             // Update the temperature
-            dtabs = -fff/dfff;
-            tabs += dtabs;
+            tabs -= F/dFdT;
+
+            // Mixed saturation moisture fractions
+            erf_qsatw(tabs, pres, qsatw);
+            erf_qsati(tabs, pres, qsati);
+            omn   = sam_cloud_liquid_fraction(SAM_moisture_type, tabs, an, bn);
+            qsatm = sam_mixed_qsat(omn, qsatw, qsati);
+
+            // Saturation derivative WRT temperature
+            domn = zero;
+            if ( (SAM_moisture_type == 1) &&
+                 (tabs < tbgmax) && (tabs > tbgmin) ) {
+                domn = an;
+            }
+            erf_dtqsatw(tabs, pres, dqsatw);
+            erf_dtqsati(tabs, pres, dqsati);
+            dqsatm = sam_mixed_dqsat_dT(omn, domn, qsatw, qsati, dqsatw, dqsati);
+
+            // Enforce omega splitting
+            qn   = (qt_array(i,j,k) - qsatm);
+            qif  = qn * (one - omn);
+            dqif = sam_mixed_dqif_dT(omn, domn, qn, dqsatm);
+
+            // Function for root finding (conserve latent proxy):
+            // 0 = -T_new + T_old + L_v/C_p * (qv,0 - qs,m) - L_f/C_p * (qi,0 - qi,f)
+            F = sam_newton_residual(tabs, tabs_array(i,j,k),
+                                    fac_cond, qv_array(i,j,k), qsatm,
+                                    fac_fus , qi_array(i,j,k), qif  );
 
             // Update iteration
-            niter = niter+1;
-        } while(std::abs(dtabs) > tol && niter < 20);
+            ++niter;
+        }
 
-        // Update qsat from last iteration (dq = dq/dt * dt)
-        qsat += dqsat*dtabs;
-
-        // Changes in each component
-        const SAMCloudPhaseChange phase_change =
-            sam_apply_condensate_limiter(qv_array(i,j,k), qsat,
-                                         qc_array(i,j,k), qi_array(i,j,k), omn);
-        delta_qc = phase_change.delta_qc;
-        delta_qi = phase_change.delta_qi;
+        bool valid_solution = (std::abs(F) <= tol && niter < max_iter);
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(valid_solution, "SAM mixed phase saturation adjustment failed to converge.");
 
         // Partition the change in non-precipitating q
-        qv_array(i,j,k)  = phase_change.qv;
-        qc_array(i,j,k) += delta_qc;
-        qi_array(i,j,k) += delta_qi;
-        qn_array(i,j,k)  = qc_array(i,j,k) + qi_array(i,j,k);
-        qt_array(i,j,k)  = qv_array(i,j,k) + qn_array(i,j,k);
+        qv_array(i,j,k) = qsatm;
+        qc_array(i,j,k) = qn * omn;
+        qi_array(i,j,k) = qn * (one - omn);
+        qn_array(i,j,k) = qn;
+        qt_array(i,j,k) = qv_array(i,j,k) + qn_array(i,j,k);
 
         // Return to temperature
         return tabs;

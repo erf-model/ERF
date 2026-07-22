@@ -524,7 +524,8 @@ void make_sources (int level,
 
             const Real Olen_in            = solverChoice.if_Olen_in;
 
-            ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+            ParallelFor(bx, [=]
+                        AMREX_GPU_DEVICE(int i, int j, int k) noexcept
             {
                 const Real t_blank       = t_blank_arr(i, j, k);
                 const Real t_blank_above = t_blank_arr(i, j, k+1);
@@ -698,7 +699,8 @@ void make_sources (int level,
             Real qt_i = Real(0.008);
 
             Box xybx = makeSlab(bx,2,klo);
-            ParallelFor(xybx, [=] AMREX_GPU_DEVICE(int i, int j, int /*k*/) noexcept
+            ParallelFor(xybx, [=]
+                        AMREX_GPU_DEVICE(int i, int j, int /*k*/) noexcept
             {
                 // Inclusive scan at w-faces for the Q integral (also find "i" values)
                 q_int[0] = zero;
@@ -737,7 +739,7 @@ void make_sources (int level,
                     //       dT/dt = dF/dz * (1/(-rho*Cp))
                     Real dTdt    = (rad_flux[lk+1] - rad_flux[lk]) * dzInv / (-cell_data(i,j,k,Rho_comp)*Cp_d);
                     Real qv      = cell_data(i,j,k,RhoQ1_comp)/cell_data(i,j,k,Rho_comp);
-                    Real iexner  = one/getExnergivenRTh(cell_data(i,j,k,RhoTheta_comp), R_d/Cp_d, qv);
+                    Real iexner  = one/getExnergivenRTh(cell_data(i,j,k,RhoTheta_comp), RdoCp, qv);
                     // Convert dT/dt to dTheta/dt and multiply rho
                     cell_src(i,j,k,RhoTheta_comp) += cell_data(i,j,k,Rho_comp) * dTdt * iexner;
                 }

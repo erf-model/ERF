@@ -1,0 +1,91 @@
+# ------------------  INPUTS TO MAIN PROGRAM  -------------------
+# Moist Unstable Atmospheric Boundary Layer Test Case - YSUNew Scheme
+# 
+# Moist unstable conditions characterized by:
+#   - Strong surface heat flux (heating)
+#   - High moisture content in lower boundary layer
+#   - Potential for cloud formation
+#   - Buoyancy-driven convection enhanced by latent heating
+#
+# This case tests YSUNew performance in moist unstable conditions
+
+erf.prob_name = "ABL"
+
+max_step = 100
+
+amrex.fpe_trap_invalid = 0
+
+fabarray.mfiter_tile_size = 1024 1024 1024
+
+# PROBLEM SIZE & GEOMETRY
+geometry.prob_extent = 4000  4000  2000
+amr.n_cell           =  4   4   64
+geometry.is_periodic = 1 1 0
+
+# MOST BOUNDARY - Strong surface heating with high moisture
+zlo.type = "surface_layer"
+erf.most.z0   = 0.1      # roughness length [m]
+erf.most.zref = 10.0     # reference height [m]
+erf.most.surf_temp = 308.0  # surface temperature [K] (warm)
+erf.most.surf_temp_flux = 0.1  # surface temperature flux (positive = unstable, K*m/s)
+
+# Upper boundary - stable layer capping the PBL
+zhi.type = "SlipWall"
+zhi.theta_grad = 0.008  # stable layer (K/m) to define PBL top
+
+# TIME STEP CONTROL
+erf.fixed_dt = 0.05  # time step [s]
+
+# DIAGNOSTICS & VERBOSITY
+erf.sum_interval   = 1       # timesteps between computing mass
+erf.v              = 1       # verbosity in ERF.cpp
+amr.v              = 1       # verbosity in Amr.cpp
+
+# planar averaging
+erf.data_log    = moist_hist.dat moist_profiles.dat
+erf.profile_int = 10
+
+# REFINEMENT / REGRIDDING
+amr.max_level       = 0       # maximum level number allowed
+
+# CHECKPOINT FILES
+erf.check_file      = chk_moist     # root name of checkpoint file
+erf.check_int       = 150            # number of timesteps between checkpoints
+
+# PLOTFILES
+erf.plot_file_1     = plt_moist      # prefix of plotfile name
+erf.plot_int_1      = 15             # number of timesteps between plotfiles
+erf.plot_vars_1     = density rhoadv_0 rhoadv_1 x_velocity y_velocity z_velocity pressure temp theta
+
+# SOLVER CHOICE
+erf.use_gravity = true
+
+erf.molec_diff_type = "None"
+# When using a PBL model, LES closure should be disabled
+erf.les_type        = "None"
+erf.theta_ref = 300.0
+
+# INITIALIZATION - from sounding file
+erf.init_type = "input_sounding"
+erf.sounding_type = Ideal
+erf.input_sounding_file = "input_sounding_YSUNew_moist"
+
+# PBL CONFIGURATION - YSUNew with moist variables
+erf.pbl_type = "YSUNew"
+erf.pbl_ysu_land_Ribcr = 0.25
+erf.enable_ysu_countergradient = true
+erf.enable_ysu_entrainment = true
+erf.pbl_ysunew_phifac = 8.0
+
+# Enable moisture diffusivity (latent heat effects)
+erf.ysu_moistvars = true
+
+# MOISTURE CONFIGURATION
+erf.use_moisture = true
+erf.moisture_model = "Kessler"
+
+# CORIOLIS EFFECT - Tropical latitude
+erf.latitude = 15.0  # tropical latitude
+erf.use_coriolis = true
+erf.abl_driver_type = "GeostrophicWind"
+erf.abl_geo_wind = 5.0 0.0 0.0

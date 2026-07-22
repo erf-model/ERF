@@ -1324,7 +1324,7 @@ struct SolverChoice {
     // This defaults to true but can be set to false for moving terrain cases only
     bool        use_lagged_delta_rt   = true;
 
-    // Flag to rebalance state from wrf input
+    // Flag to rebalance states from wrfinput and wrfbdy
     bool        rebalance_wrf_input   = true;
 
     // Constants
@@ -1374,18 +1374,25 @@ struct SolverChoice {
     {
         return pert_type[lev] == PerturbationType::Source ||
                pert_type[lev] == PerturbationType::Direct ||
-               pert_type[lev] == PerturbationType::CPM;
+               pert_type[lev] == PerturbationType::CPM ||
+               pert_type[lev] == PerturbationType::CPM_W;
     }
 
     bool use_direct_perturbation (int lev) const
     {
         return pert_type[lev] == PerturbationType::Direct ||
-               pert_type[lev] == PerturbationType::CPM;
+               pert_type[lev] == PerturbationType::CPM ||
+               pert_type[lev] == PerturbationType::CPM_W;
     }
 
     bool use_source_perturbation (int lev) const
     {
         return pert_type[lev] == PerturbationType::Source;
+    }
+
+    bool use_wvel_perturbation (int lev) const
+    {
+        return pert_type[lev] == PerturbationType::CPM_W;
     }
 
     bool uses_shoc_family () const noexcept

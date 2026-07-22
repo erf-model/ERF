@@ -141,6 +141,16 @@ public:
     void Evolve ();
     double EvolveOneStep (double time, double dt_request);
 
+    void ConfigureDriverAtmosToOceanCoupling (bool use_coupling_driver,
+                                              bool use_two_way_coupling,
+                                              bool use_state_contract);
+    void SetDriverAtmosToOceanStateContract (bool use_state_contract);
+    // Driver currently consumes BoxArray/DistributionMapping only. If we later
+    // need exact copy semantics, promote this to expose IndexType/ngrow
+    // explicitly or return the underlying MultiFab pointer/reference instead.
+    void GetOceanToAtmosSurfaceLayout (amrex::BoxArray& ba,
+                                       amrex::DistributionMapping& dm);
+
     void PackAtmosphericStates (amrex::Vector<amrex::MultiFab*>& states, double time);
     void ApplyOceanSurfaceState (const amrex::Vector<amrex::MultiFab*>& state, double time);
 
@@ -691,6 +701,10 @@ public:
     void remake_zphys          (int lev, std::unique_ptr<amrex::MultiFab>& temp_zphys_nd);
     void update_terrain_arrays (int lev);
 
+    bool m_driver_has_atm2ocn_coupling = false;
+    bool m_driver_uses_two_way_coupling = false;
+    bool m_driver_atm2ocn_uses_state_contract = true;
+
 private:
 
     ///////////////////////////
@@ -723,6 +737,7 @@ private:
     // Initialize the Turbulent perturbation
     void turbPert_update (const int lev, const double dt);
     void turbPert_amplitude (const int lev);
+    void turbPert_amplitude_w (const int lev);
 
     // Initialize the integrator object
     void initialize_integrator (int lev, amrex::MultiFab& cons_mf, amrex::MultiFab& vel_mf);

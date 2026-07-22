@@ -176,6 +176,51 @@ ComputeDiffusivityMRF (const amrex::MultiFab& xvel,
                        const MoistureComponentIndices& moisture_indices);
 
 /**
+ * Compute eddy diffusivities of momentum (eddy viscosity) and heat using the
+ * WRF Yonsei University (YSU) PBL scheme.
+ *
+ * Based on:
+ *   Hong, Noh &amp; Dudhia (2006), MWR, https://doi.org/10.1175/MWR3250.1
+ *   Hong (2010), QJRMS, https://doi.org/10.1002/qj.665
+ *
+ * Features: three-pass bulk-Richardson PBLH diagnosis, nonlocal
+ * countergradient fluxes, explicit entrainment at PBL top, and
+ * grid-adaptive Richardson-number mixing in free atmosphere.
+ *
+ * @param[in]  xvel   x-direction velocity
+ * @param[in]  yvel   y-direction velocity
+ * @param[in]  cons_in  cell-center conserved quantities
+ * @param[out] eddyViscosity  turbulent eddy viscosity
+ * @param[in]  geom   problem geometry
+ * @param[in]  turbChoice  turbulence parameter container
+ * @param[in]  SurfLayer  Monin-Obukhov surface layer object
+ * @param[in]  use_terrain_fitted_coords  flag for terrain coordinates
+ * @param[in]  use_moisture  flag for moisture active
+ * @param[in]  level  AMR level
+ * @param[in]  bc_ptr  boundary condition array
+ * @param[in]  vert_only  compute vertical diffusivity only
+ * @param[in]  z_phys_nd  physical node heights (terrain)
+ * @param[in]  moisture_indices  component index mapping for moisture variables
+ * @param[in]  qheating_rates  radiation heating rates (SW, LW components); optional
+ */
+void
+ComputeDiffusivityYSUNew (const amrex::MultiFab& xvel,
+                          const amrex::MultiFab& yvel,
+                          const amrex::MultiFab& cons_in,
+                          amrex::MultiFab& eddyViscosity,
+                          const amrex::Geometry& geom,
+                          const TurbChoice& turbChoice,
+                          std::unique_ptr<SurfaceLayer>& SurfLayer,
+                          bool use_terrain_fitted_coords,
+                          bool use_moisture,
+                          int level,
+                          const amrex::BCRec* bc_ptr,
+                          bool /*vert_only*/,
+                          const std::unique_ptr<amrex::MultiFab>& z_phys_nd,
+                          const MoistureComponentIndices& moisture_indices,
+                          const amrex::MultiFab* qheating_rates = nullptr);
+
+/**
  * Function for computing vertical derivatives for use in PBL model
  *
  * @param[in] u velocity in x-dir

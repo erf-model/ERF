@@ -134,6 +134,11 @@ include $(ERF_IO_DIR)/Make.package
 VPATH_LOCATIONS   += $(ERF_IO_DIR)
 INCLUDE_LOCATIONS += $(ERF_IO_DIR)
 
+ERF_DIAGNOSTICS_DIR = $(ERF_SOURCE_DIR)/Diagnostics
+include $(ERF_DIAGNOSTICS_DIR)/Make.package
+VPATH_LOCATIONS   += $(ERF_DIAGNOSTICS_DIR)
+INCLUDE_LOCATIONS += $(ERF_DIAGNOSTICS_DIR)
+
 ERF_MOISTURE_DIR = $(ERF_SOURCE_DIR)/Microphysics
 include $(ERF_MOISTURE_DIR)/Make.package
 VPATH_LOCATIONS   += $(ERF_MOISTURE_DIR)
@@ -492,7 +497,7 @@ ifeq ($(USE_NETCDF), TRUE)
   DEFINES += -DERF_USE_NETCDF
 
   # Try netcdf-mpi => netcdf => netcdf-cxx4_parallel => netcdf_parallel
-  # We need to add MPICH_DIR ot pkg's config path because of a Cray bug.
+  # We need to add MPICH_DIR to pkg's config path because of a Cray bug.
   has_netcdf_mpi := $(shell pkg-config --cflags netcdf-mpi > /dev/null 2>&1; echo $$?)
   ifeq ($(has_netcdf_mpi),0)
       includes  += $(shell pkg-config --cflags netcdf-mpi)

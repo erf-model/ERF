@@ -49,9 +49,6 @@ void make_buoyancy (int lev,
     const int klo = geom.Domain().smallEnd()[2];
     const int khi = geom.Domain().bigEnd()[2] + 1;
 
-    Real rd_over_cp = solverChoice.rdOcp;
-    //Real rv_over_rd = R_v/R_d;
-
     MultiFab r0 (base_state, make_alias, BaseState::r0_comp , 1);
     MultiFab p0 (base_state, make_alias, BaseState::p0_comp , 1);
     MultiFab th0(base_state, make_alias, BaseState::th0_comp, 1);
@@ -105,7 +102,7 @@ void make_buoyancy (int lev,
                     //
                     // Return -rho0 g (thetaprime / theta0)
                     //
-                    //buoyancy_fab(i, j, k) = buoyancy_moist_anelastic(i,j,k,grav_gpu[2],rv_over_rd,
+                    //buoyancy_fab(i, j, k) = buoyancy_moist_anelastic(i,j,k,grav_gpu[2],RvoRd_d,
                     //                                                 r0_arr,th0_arr,qv0_arr,cell_data,qt_arr);
 
                     // NOTE: Using the type 4, which we formally derived.
@@ -132,12 +129,12 @@ void make_buoyancy (int lev,
                 }
                 else if (solverChoice.buoyancy_type[lev] == 2 || solverChoice.buoyancy_type[lev] == 3)
                 {
-                    ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+                    ParallelFor(tbz, [=,rdOcp_d=solverChoice.rdOcp] AMREX_GPU_DEVICE (int i, int j, int k)
                     {
                         //
                         // Return -rho0 g (Tprime / T0)
                         //
-                        buoyancy_fab(i, j, k) = buoyancy_dry_Tpert(i,j,k,grav_gpu[2],rd_over_cp,
+                        buoyancy_fab(i, j, k) = buoyancy_dry_Tpert(i,j,k,grav_gpu[2],rdOcp_d,
                                                                    r0_arr,p0_arr,th0_arr,cell_data);
                     });
                 }
@@ -177,9 +174,9 @@ void make_buoyancy (int lev,
                 else if (solverChoice.buoyancy_type[lev] == 2 || solverChoice.buoyancy_type[lev] == 3)
                 {
 
-                    ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+                    ParallelFor(tbz, [=,RdoCp_d=RdoCp] AMREX_GPU_DEVICE (int i, int j, int k)
                     {
-                        buoyancy_fab(i, j, k) = buoyancy_moist_Tpert(i,j,k,n_qstate,grav_gpu[2],rd_over_cp,
+                        buoyancy_fab(i, j, k) = buoyancy_moist_Tpert(i,j,k,n_qstate,grav_gpu[2],RdoCp_d,
                                                                      r0_arr,th0_arr,qv0_arr,p0_arr,
                                                                      cell_prim,cell_data,qt_arr);
                     });

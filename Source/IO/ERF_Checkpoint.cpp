@@ -445,8 +445,8 @@ ERF::WriteCheckpointFile () const
                 MultiFab::Copy(tmp2d,*wrf_MUB,0,0,1,wrf_MUB->nGrowVect());
                 VisMF::Write(tmp2d, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "MUB"));
 
-                ng = IntVect(1,1,0);
-                MultiFab tmp3d(convert(grids[0],IntVect(0,0,1)),dmap[0],1,ng);
+                MultiFab tmp3d(convert(grids[0],IntVect(0,0,1)),dmap[0],1,wrf_PHB->nGrowVect());
+
                 MultiFab::Copy(tmp3d,*wrf_PHB,0,0,1,ng);
                 VisMF::Write(tmp3d, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "PHB"));
             }
@@ -1009,9 +1009,8 @@ ERF::ReadCheckpointFile ()
                 VisMF::Read(tmp2d, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "MUB"));
                 MultiFab::Copy(*wrf_MUB,tmp2d,0,0,1,wrf_MUB->nGrowVect());
 
-                ng = IntVect(1,1,0);
-                MultiFab tmp3d(convert(grids[0],IntVect(0,0,1)),dmap[0],1,ng);
-                wrf_PHB = std::make_unique<MultiFab>(convert(grids[0],IntVect(0,0,1)),dmap[0],1,ng);
+                MultiFab tmp3d(convert(grids[0],IntVect(0,0,1)),dmap[0],1,wrf_PHB->nGrowVect());
+
                 VisMF::Read(tmp3d, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "PHB"));
                 MultiFab::Copy(*wrf_PHB,tmp3d,0,0,1,ng);
             }

@@ -743,153 +743,516 @@ concentration.
 Output Options for 2D Plotfiles
 -------------------------------
 
-ERF supports two 2D plotfile streams. Use ``erf.plot2d_vars_1`` and
-``erf.plot2d_vars_2`` to request built-in 2D diagnostics. Use
-``erf.plot2d_level_sets_1`` and ``erf.plot2d_level_sets_2`` to request
-sampled-level diagnostics.
+.. toctree::
+   :maxdepth: 1
 
-Built-in variables and sampled-level variables can appear in the same 2D output
-stream. ERF writes built-in variables first. It writes selected built-in
-variables in the catalog order shown below, not in input order. ERF then appends
-sampled-level variables in level-set order, target-value order, and field order.
+   LandSurfaceDiagnostics.rst
+
+ERF supports two independent 2-D plotfile streams. Each output level is a
+one-cell-thick horizontal slab. Use ``erf.plot2d_vars_1`` and
+``erf.plot2d_vars_2`` to request built-in diagnostics. Use
+``erf.plot2d_level_sets_1`` and ``erf.plot2d_level_sets_2`` to request
+generated sampled-level fields.
+
+ERF writes selected fixed diagnostics in canonical catalog order, not input
+order. It appends sampled-level fields in level-set, target-value, and field
+order. ERF warns and skips an unknown or configuration-ineligible request name.
+An accepted component follows its documented runtime value contract.
+
+The unified land-surface diagnostics ``temperature_2m``,
+``water_vapor_mixing_ratio_2m``, and ``near_surface_diagnostic_source`` are
+defined in :ref:`sec:LandSurfaceDiagnostics`.
+
+.. _sec:Plotfile2DBuiltInCatalog:
 
 Built-In 2D Diagnostic Catalog
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+**Descriptor metadata** means the fixed catalog's name, canonical order, long
+name, unit string, category, and missing-value policy. **Selectable** means
+that ERF accepts a request name for the active configuration and creates an
+output component. **Runtime value** means the value written in that component
+at a cell and output time. A **provider sentinel** is an internal invalid
+value translated at the public output boundary. A **categorical source code**
+is an integer state whose zero value means no source; it is not a continuous
+fill value. A descriptor's metadata policy does not guarantee that the name is
+selectable in every configuration.
+
+.. BEGIN ERF BUILT-IN 2D DIAGNOSTIC CATALOG
+
 .. list-table::
    :header-rows: 1
-   :widths: 24 16 24 56
+   :widths: 30 17 20 38 80
 
    * - Variable
+     - Category
      - Units
-     - Availability
+     - Metadata policy
      - Description
    * - ``z_surf``
+     - ``Geometry``
      - ``m``
-     - Always available.
-     - Surface elevation.
+     - ``AlwaysAvailable``
+     - Surface elevation
    * - ``landmask``
+     - ``Geometry``
      - ``1``
-     - Always available.
-     - Land-sea mask. Land is ``1`` and sea is ``0``.
+     - ``AlwaysAvailable``
+     - Land-sea mask
    * - ``mapfac``
+     - ``Geometry``
      - ``1``
-     - Always available.
-     - Map factor at mass points.
+     - ``AlwaysAvailable``
+     - Map factor at mass points
    * - ``lat_m``
+     - ``Geometry``
      - ``deg``
-     - Available when latitude data are present.
-     - Latitude at unstaggered mass points.
+     - ``FillZeroWhenUnavailable``
+     - Latitude at unstaggered mass points
    * - ``lon_m``
+     - ``Geometry``
      - ``deg``
-     - Available when longitude data are present.
-     - Longitude at unstaggered mass points.
+     - ``FillZeroWhenUnavailable``
+     - Longitude at unstaggered mass points
    * - ``u_star``
-     - ``m s^-1``
-     - ``-999`` if unavailable.
-     - Friction velocity from the surface layer.
+     - ``SurfaceLayer``
+     - ``m/s``
+     - ``FillMinus999WhenUnavailable``
+     - Friction velocity from the surface layer
    * - ``w_star``
-     - ``m s^-1``
-     - ``-999`` if unavailable.
-     - Convective velocity scale from the surface layer.
+     - ``SurfaceLayer``
+     - ``m/s``
+     - ``FillMinus999WhenUnavailable``
+     - Convective velocity scale from the surface layer
    * - ``t_star``
+     - ``SurfaceLayer``
      - ``K``
-     - ``-999`` if unavailable.
-     - Temperature scale from the surface layer.
+     - ``FillMinus999WhenUnavailable``
+     - Temperature scale from the surface layer
    * - ``q_star``
-     - ``kg kg^-1``
-     - ``-999`` if unavailable.
-     - Humidity scale from the surface layer.
+     - ``SurfaceLayer``
+     - ``kg/kg``
+     - ``FillMinus999WhenUnavailable``
+     - Humidity scale from the surface layer
    * - ``Olen``
+     - ``SurfaceLayer``
      - ``m``
-     - ``-999`` if unavailable.
-     - Obukhov length from the surface layer.
+     - ``FillMinus999WhenUnavailable``
+     - Obukhov length from the surface layer
    * - ``pblh``
+     - ``SurfaceLayer``
      - ``m``
-     - ``-999`` if unavailable.
-     - Planetary boundary layer height. Native SHOC provides this value when
-       available; otherwise ERF uses SurfaceLayer when present.
+     - ``FillMinus999WhenUnavailable``
+     - Planetary boundary layer height from the active PBL diagnostic provider
    * - ``t_surf``
+     - ``SurfaceLayer``
      - ``K``
-     - ``-999`` if unavailable.
-     - Surface temperature from the surface layer.
+     - ``FillMinus999WhenUnavailable``
+     - Surface temperature from the surface layer
    * - ``q_surf``
-     - ``kg kg^-1``
-     - ``-999`` if unavailable.
-     - Surface humidity from the surface layer.
+     - ``SurfaceLayer``
+     - ``kg/kg``
+     - ``FillMinus999WhenUnavailable``
+     - Surface humidity from the surface layer
    * - ``z0``
+     - ``SurfaceLayer``
      - ``m``
-     - ``-999`` if unavailable.
-     - Roughness height from the surface layer.
+     - ``FillMinus999WhenUnavailable``
+     - Roughness height from the surface layer
    * - ``OLR``
-     - ``W m^-2``
-     - ``-999`` if unavailable.
-     - Outgoing longwave radiation at the model top.
+     - ``Radiation``
+     - ``W/m^2``
+     - ``FillMinus999WhenUnavailable``
+     - Outgoing longwave radiation at the model top
    * - ``sens_flux``
+     - ``SurfaceFlux``
      - ``kg K m^-2 s^-1``
-     - ``-999`` if unavailable.
-     - Conservative surface sensible heat flux.
+     - ``FillMinus999WhenUnavailable``
+     - Surface sensible heat flux
    * - ``laten_flux``
+     - ``SurfaceFlux``
      - ``kg m^-2 s^-1``
-     - ``-999`` if unavailable.
-     - Conservative surface moisture flux. This is a legacy output name.
+     - ``FillMinus999WhenUnavailable``
+     - Surface moisture flux (legacy output name)
    * - ``surf_pres``
+     - ``SurfaceState``
      - ``Pa``
-     - Always available.
-     - Surface pressure.
+     - ``AlwaysAvailable``
+     - Surface pressure
+   * - ``precip_total_accum``
+     - ``Precipitation``
+     - ``kg/m^2``
+     - ``FillZeroWhenUnavailable``
+     - Accumulated surface precipitation, liquid-water equivalent
+   * - ``precip_rain_accum``
+     - ``Precipitation``
+     - ``kg/m^2``
+     - ``FillZeroWhenUnavailable``
+     - Accumulated surface rain precipitation, liquid-water equivalent
+   * - ``precip_snow_accum``
+     - ``Precipitation``
+     - ``kg/m^2``
+     - ``FillZeroWhenUnavailable``
+     - Accumulated surface snow precipitation, liquid-water equivalent
+   * - ``precip_graupel_accum``
+     - ``Precipitation``
+     - ``kg/m^2``
+     - ``FillZeroWhenUnavailable``
+     - Accumulated surface graupel precipitation, liquid-water equivalent
+   * - ``precip_hail_accum``
+     - ``Precipitation``
+     - ``kg/m^2``
+     - ``FillZeroWhenUnavailable``
+     - Accumulated surface hail precipitation, liquid-water equivalent
+   * - ``precip_frozen_accum``
+     - ``Precipitation``
+     - ``kg/m^2``
+     - ``FillZeroWhenUnavailable``
+     - Accumulated frozen surface precipitation, liquid-water equivalent
    * - ``integrated_qv``
-     - ``kg m^-2``
-     - Zero when moisture is disabled.
-     - Column-integrated water vapor.
+     - ``ColumnIntegral``
+     - ``kg/m^2``
+     - ``FillZeroWhenUnavailable``
+     - Column-integrated water vapor
    * - ``integrated_qc``
-     - ``kg m^-2``
-     - Available when the active moisture model has ``qc``.
-     - Column-integrated cloud liquid water.
+     - ``ColumnIntegral``
+     - ``kg/m^2``
+     - ``FillZeroWhenUnavailable``
+     - Column-integrated cloud liquid water
    * - ``integrated_qi``
-     - ``kg m^-2``
-     - Available when the active moisture model has ``qi``.
-     - Column-integrated cloud ice.
+     - ``ColumnIntegral``
+     - ``kg/m^2``
+     - ``FillZeroWhenUnavailable``
+     - Column-integrated cloud ice
    * - ``integrated_qr``
-     - ``kg m^-2``
-     - Available when the active moisture model has ``qr``.
-     - Column-integrated rain water.
+     - ``ColumnIntegral``
+     - ``kg/m^2``
+     - ``FillZeroWhenUnavailable``
+     - Column-integrated rain water
    * - ``integrated_qs``
-     - ``kg m^-2``
-     - Available when the active moisture model has ``qs``.
-     - Column-integrated snow.
+     - ``ColumnIntegral``
+     - ``kg/m^2``
+     - ``FillZeroWhenUnavailable``
+     - Column-integrated snow
    * - ``integrated_qg``
-     - ``kg m^-2``
-     - Available when the active moisture model has ``qg``.
-     - Column-integrated graupel.
+     - ``ColumnIntegral``
+     - ``kg/m^2``
+     - ``FillZeroWhenUnavailable``
+     - Column-integrated graupel
    * - ``surface_diagnostic_source``
+     - ``SurfaceLayer``
      - ``1``
-     - ``-999`` when SurfaceLayer is not active.
-     - Source code for the cell-centered SurfaceLayer scalar diagnostic path.
+     - ``AlwaysAvailable``
+     - Surface diagnostic source code
    * - ``sensible_heat_flux``
+     - ``SurfaceFlux``
      - ``W m^-2``
-     - ``-999`` if unavailable.
-     - Surface sensible heat flux computed from the same conservative source as
-       ``sens_flux``.
+     - ``FillMinus999WhenUnavailable``
+     - Surface sensible heat flux
    * - ``latent_heat_flux``
+     - ``SurfaceFlux``
      - ``W m^-2``
-     - ``-999`` if unavailable.
-     - Surface latent heat flux computed from the same conservative source as
-       ``laten_flux``.
+     - ``FillMinus999WhenUnavailable``
+     - Surface latent heat flux
    * - ``shoc_u_star``
-     - ``m s^-1``
-     - ``-999`` if unavailable.
-     - Native SHOC friction velocity diagnostic.
+     - ``PBL``
+     - ``m/s``
+     - ``FillMinus999WhenUnavailable``
+     - Native SHOC friction velocity diagnostic
    * - ``shoc_Olen``
+     - ``PBL``
      - ``m``
-     - ``-999`` if unavailable.
-     - Native SHOC Obukhov length diagnostic.
+     - ``FillMinus999WhenUnavailable``
+     - Native SHOC Obukhov length diagnostic
    * - ``shoc_wthv_sfc``
+     - ``PBL``
      - ``K m s^-1``
-     - ``-999`` if unavailable.
-     - Native SHOC surface virtual potential temperature flux.
+     - ``FillMinus999WhenUnavailable``
+     - Native SHOC surface virtual potential temperature flux
+   * - ``t_sfc``
+     - ``LandSurface``
+     - ``K``
+     - ``FillMinus999WhenUnavailable``
+     - Noah-MP radiative surface temperature
+   * - ``sfc_emis``
+     - ``LandSurface``
+     - ``1``
+     - ``FillMinus999WhenUnavailable``
+     - Surface bulk emissivity
+   * - ``sfc_alb_dir_vis``
+     - ``LandSurface``
+     - ``1``
+     - ``FillMinus999WhenUnavailable``
+     - Direct visible surface albedo
+   * - ``sfc_alb_dir_nir``
+     - ``LandSurface``
+     - ``1``
+     - ``FillMinus999WhenUnavailable``
+     - Direct near-infrared surface albedo
+   * - ``sfc_alb_dif_vis``
+     - ``LandSurface``
+     - ``1``
+     - ``FillMinus999WhenUnavailable``
+     - Diffuse visible surface albedo
+   * - ``sfc_alb_dif_nir``
+     - ``LandSurface``
+     - ``1``
+     - ``FillMinus999WhenUnavailable``
+     - Diffuse near-infrared surface albedo
+   * - ``cos_zenith_angle``
+     - ``LandSurface``
+     - ``1``
+     - ``FillMinus999WhenUnavailable``
+     - Cosine of the solar zenith angle supplied to Noah-MP
+   * - ``sw_flux_dn``
+     - ``LandSurface``
+     - ``W m^-2``
+     - ``FillMinus999WhenUnavailable``
+     - Downwelling shortwave flux supplied to Noah-MP
+   * - ``sw_flux_dn_dir_vis``
+     - ``LandSurface``
+     - ``W m^-2``
+     - ``FillMinus999WhenUnavailable``
+     - Direct visible downwelling shortwave flux
+   * - ``sw_flux_dn_dir_nir``
+     - ``LandSurface``
+     - ``W m^-2``
+     - ``FillMinus999WhenUnavailable``
+     - Direct near-infrared downwelling shortwave flux
+   * - ``sw_flux_dn_dif_vis``
+     - ``LandSurface``
+     - ``W m^-2``
+     - ``FillMinus999WhenUnavailable``
+     - Diffuse visible downwelling shortwave flux
+   * - ``sw_flux_dn_dif_nir``
+     - ``LandSurface``
+     - ``W m^-2``
+     - ``FillMinus999WhenUnavailable``
+     - Diffuse near-infrared downwelling shortwave flux
+   * - ``lw_flux_dn``
+     - ``LandSurface``
+     - ``W m^-2``
+     - ``FillMinus999WhenUnavailable``
+     - Downwelling longwave flux supplied to Noah-MP
+   * - ``grdflx``
+     - ``LandSurface``
+     - ``W m^-2``
+     - ``FillMinus999WhenUnavailable``
+     - Ground or snow heat flux
+   * - ``fira``
+     - ``LandSurface``
+     - ``W m^-2``
+     - ``FillMinus999WhenUnavailable``
+     - Total net longwave flux, positive toward the atmosphere
+   * - ``sav``
+     - ``LandSurface``
+     - ``W m^-2``
+     - ``FillMinus999WhenUnavailable``
+     - Solar radiation absorbed by vegetation
+   * - ``sag``
+     - ``LandSurface``
+     - ``W m^-2``
+     - ``FillMinus999WhenUnavailable``
+     - Solar radiation absorbed by the ground
+   * - ``albedo``
+     - ``LandSurface``
+     - ``1``
+     - ``FillMinus999WhenUnavailable``
+     - Broadband surface albedo
+   * - ``sfcrunoff``
+     - ``LandSurface``
+     - ``m``
+     - ``FillMinus999WhenUnavailable``
+     - Accumulated surface runoff
+   * - ``udrunoff``
+     - ``LandSurface``
+     - ``m``
+     - ``FillMinus999WhenUnavailable``
+     - Accumulated subsurface runoff
+   * - ``noahmp_temperature_2m_vegetated``
+     - ``LandSurface``
+     - ``K``
+     - ``FillMinus999WhenUnavailable``
+     - Noah-MP 2-m temperature over the vegetated fraction
+   * - ``noahmp_temperature_2m_bare``
+     - ``LandSurface``
+     - ``K``
+     - ``FillMinus999WhenUnavailable``
+     - Noah-MP 2-m temperature over the bare fraction
+   * - ``noahmp_water_vapor_mixing_ratio_2m_vegetated``
+     - ``LandSurface``
+     - ``kg kg^-1 dry air``
+     - ``FillMinus999WhenUnavailable``
+     - Noah-MP 2-m water-vapor mixing ratio over the vegetated fraction
+   * - ``noahmp_water_vapor_mixing_ratio_2m_bare``
+     - ``LandSurface``
+     - ``kg kg^-1 dry air``
+     - ``FillMinus999WhenUnavailable``
+     - Noah-MP 2-m water-vapor mixing ratio over the bare fraction
+   * - ``noahmp_vegetation_fraction``
+     - ``LandSurface``
+     - ``1``
+     - ``FillMinus999WhenUnavailable``
+     - Noah-MP vegetation fraction
+   * - ``temperature_2m``
+     - ``LandSurface``
+     - ``K``
+     - ``FillMinus999WhenUnavailable``
+     - Physical air temperature 2 m above the local surface
+   * - ``water_vapor_mixing_ratio_2m``
+     - ``LandSurface``
+     - ``kg kg^-1 dry air``
+     - ``FillMinus999WhenUnavailable``
+     - Water-vapor mixing ratio 2 m above the local surface per unit dry-air mass
+   * - ``near_surface_diagnostic_source``
+     - ``LandSurface``
+     - ``1``
+     - ``AlwaysAvailable``
+     - Source code for the unified near-surface diagnostic bundle
+.. END ERF BUILT-IN 2D DIAGNOSTIC CATALOG
 
-If a requested built-in diagnostic is not available for the active configuration,
-ERF warns and skips that diagnostic.
+.. note::
+
+   For the ``landmask`` variable, land is ``1`` and sea is ``0``. Buildings are ``2`` when using ImmersedForcing.
+
+If a requested fixed diagnostic is not selectable for the active configuration,
+ERF warns and skips it. The descriptor table above records metadata; it does
+not define request acceptance or guarantee a non-missing runtime value.
+
+.. _sec:Plotfile2DSelectionRules:
+
+Selection and runtime-value rules
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The selection contract and the value written after selection are separate:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 30 35 55
+
+   * - Name or family
+     - Selectable when
+     - Runtime value
+   * - ``z_surf``, ``landmask``, ``mapfac``
+     - Selectable: fixed geometry or state writer path.
+     - Value: ERF writes the corresponding geometry or state value.
+   * - ``lat_m``, ``lon_m``
+     - Selectable: fixed request names.
+     - Value: ERF writes the coordinate data, or zero when the coordinate source is absent.
+   * - ``u_star``, ``w_star``, ``t_star``, ``q_star``, ``Olen``, ``t_surf``, ``q_surf``, ``z0``
+     - Selectable: these names are not filtered by the catalog builder.
+     - Value: SurfaceLayer scalar values; ``-999`` when the source pointer is absent.
+   * - ``pblh``
+     - Selectable: fixed request name.
+     - Value: native SHOC PBL height when present, otherwise SurfaceLayer; ``-999`` if neither exists.
+   * - ``OLR``
+     - Selectable: fixed request name.
+     - Value: radiation output; ``-999`` when the radiation source is absent.
+   * - ``sens_flux``, ``laten_flux``
+     - Selectable: fixed request names.
+     - Value: legacy conservative surface flux outputs.
+   * - ``surf_pres``
+     - Selectable: fixed request name.
+     - Value: pressure computed from the lowest atmospheric state.
+   * - ``surface_diagnostic_source``
+     - Selectable: fixed request name.
+     - Value: categorical code ``0`` through ``6``; code ``0`` means no source, including when SurfaceLayer is absent.
+   * - ``sensible_heat_flux``, ``latent_heat_flux``
+     - Selectable: fixed request names.
+     - Value: the selected conservative sources converted to energy-flux units; ``-999`` when unavailable.
+   * - ``shoc_u_star``, ``shoc_Olen``, ``shoc_wthv_sfc``
+     - Selectable: fixed request names.
+     - Value: native SHOC diagnostics; ``-999`` when absent.
+   * - ``precip_total_accum``, ``precip_frozen_accum``
+     - Selectable: the active moisture scheme has any rain, snow, or graupel mass component.
+     - Value: normalized liquid-water-equivalent accumulations; ``precip_frozen_accum`` is defined zero in a rain-only scheme.
+   * - ``precip_rain_accum``
+     - Selectable: the active moisture scheme has a rain mass component.
+     - Value: normalized rain accumulation, or the derived rain value when a runtime total source is used without a direct rain source.
+   * - ``precip_snow_accum``
+     - Selectable: the active moisture scheme has a snow mass component.
+     - Value: normalized snow accumulation.
+   * - ``precip_graupel_accum``
+     - Selectable: the active moisture scheme has a graupel mass component.
+     - Value: normalized graupel accumulation.
+   * - ``precip_hail_accum``
+     - Selectable: never for current moisture schemes; it remains a fixed descriptor.
+     - Value: zero through the fixed metadata policy unless a future scheme supplies a hail source.
+   * - ``integrated_qv``
+     - Selectable: always.
+     - Value: column-integrated water vapor; zero when moisture is disabled.
+   * - ``integrated_qc``, ``integrated_qi``, ``integrated_qr``, ``integrated_qs``, ``integrated_qg``
+     - Selectable: the active moisture model exposes the corresponding conserved mass component.
+     - Value: the corresponding column water path. An unsupported species is skipped during request validation.
+   * - Fixed land-surface provider names from ``t_sfc`` through ``noahmp_vegetation_fraction``
+     - Selectable: the active land-surface inventory contains the exact name.
+     - Value: finite provider values pass through when valid; absent, nonfinite, or sentinel values become ``-999``. Valid zero and signed values pass through when the field permits them. Raw fields never use MOST fallback.
+   * - ``temperature_2m``
+     - Selectable: a Noah-MP or SurfaceLayer pathway exists.
+     - Value: a coherent native or MOST value, or ``-999`` when no complete source satisfies the request.
+   * - ``water_vapor_mixing_ratio_2m``
+     - Selectable: moisture is enabled and a Noah-MP or SurfaceLayer pathway exists.
+     - Value: a coherent native or MOST mixing ratio, or ``-999`` when no complete source satisfies the request.
+   * - ``near_surface_diagnostic_source``
+     - Selectable: a Noah-MP or SurfaceLayer pathway exists, including a dry source-only request.
+     - Value: categorical code ``0`` through ``6``; its ``AlwaysAvailable`` metadata policy records ``missing_value: null``.
+
+Precipitation selections follow the active moisture components. At runtime,
+
+.. math::
+
+   P_{frozen} = P_{snow} + P_{graupel} + P_{hail},
+
+.. math::
+
+   P_{total} =
+   \begin{cases}
+   P_{total}^{native}, & \text{when a native total source exists},\\
+   P_{rain} + P_{frozen}, & \text{otherwise},
+   \end{cases}
+
+and, when rain is not supplied directly,
+
+.. math::
+
+   P_{rain} = \max\left(0, P_{total} - P_{frozen}\right).
+
+All public precipitation accumulations use liquid-water-equivalent ``kg/m^2``
+metadata units.
+
+.. _sec:Plotfile2DDynamicSoil:
+
+Dynamic soil diagnostic families
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Dynamic soil fields are not part of the fixed catalog. ERF exposes only names
+reported by the active land-surface provider inventory, in that inventory's
+runtime order. ``<layer>`` is a one-based layer index.
+
+.. BEGIN ERF DYNAMIC SOIL DIAGNOSTIC FAMILIES
+
+.. list-table::
+   :header-rows: 1
+   :widths: 28 42 20 35
+
+   * - Name family
+     - Meaning
+     - Units
+     - Metadata
+   * - ``smois_<layer>``
+     - Volumetric total soil moisture
+     - ``m^3 m^-3``
+     - Category ``LandSurface``; policy ``FillMinus999WhenUnavailable``; invalid public values become ``-999``.
+   * - ``sh2o_<layer>``
+     - Volumetric liquid soil water
+     - ``m^3 m^-3``
+     - Category ``LandSurface``; policy ``FillMinus999WhenUnavailable``; invalid public values become ``-999``.
+   * - ``tslb_<layer>``
+     - Soil temperature
+     - ``K``
+     - Category ``LandSurface``; policy ``FillMinus999WhenUnavailable``; invalid public values become ``-999``.
+
+.. END ERF DYNAMIC SOIL DIAGNOSTIC FAMILIES
 
 Flux Diagnostics
 ^^^^^^^^^^^^^^^^
@@ -921,23 +1284,25 @@ source path used before SHOC consumes it.
 2D AMReX Metadata Sidecar
 ^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Native AMReX 2D plotfiles include a JSON metadata sidecar named
-``2DMetadata.json`` in the plotfile directory. The sidecar lists the selected
-2D variables in output component order. For each variable it records the
-component index, name, long name, units, diagnostic category, missing-value
-policy, and documented missing value. Sampled-level outputs add a source field
-and vertical-coordinate record.
+Native AMReX 2-D plotfiles write a JSON metadata sidecar named
+``2DMetadata.json`` in the plotfile directory. The sidecar lists selected
+outputs in component order. Fixed outputs use descriptor metadata. Sampled-
+level outputs add source-field and vertical-coordinate metadata.
+
+The metadata policy maps to JSON as follows:
+
+* ``AlwaysAvailable`` records ``missing_value: null``.
+* ``FillZeroWhenUnavailable`` records ``missing_value: 0``.
+* ``FillMinus999WhenUnavailable`` records ``missing_value: -999``.
 
 The sidecar uses the same 2D diagnostic catalog that defines the built-in
 plotfile variables. Sampled-level outputs carry their own metadata record. The
-sidecar does not change field values. For example, in native SHOC
-``state_update`` mode the flux fields may come from preserved SHOC-consumed
-flux snapshots, as described above, but the sidecar records the public
-diagnostic metadata for the selected variables.
+sidecar does not record the runtime source chosen at each cell. Source choice is
+carried by categorical output fields. It does not change field values.
 
-Native AMReX 2D plotfiles write sampled-level metadata in ``2DMetadata.json``.
-NetCDF 2D output uses the same sampled-level variable names, but does not write
-sampled-level metadata attributes. The sidecar format version is ``2``.
+NetCDF 2-D output uses the same variable names but does not write this JSON
+sidecar or sampled-level metadata attributes. The sidecar format version is
+``2``.
 
 Example built-in metadata:
 
@@ -1282,12 +1647,14 @@ equivalent mass that has reached the lower boundary since model start or the
 most recent restart. Some schemes store explicit rain/snow/graupel species
 accumulators, while others store a total accumulator plus frozen-species
 subsets. ERF normalizes each available scheme-native source to ``kg/m^2``
-before deriving the public 2D fields. When a scheme provides a total source
-but no explicit rain source, ERF computes ``precip_rain_accum`` as
-``precip_total_accum - precip_frozen_accum`` and clips small negative residuals
-to zero. The public fields use ``kg/m^2`` because downstream land surface
-forcing consumes precipitation as mass over area, even though ``1 kg/m^2`` is
-numerically equal to ``1 mm`` of liquid water equivalent.
+before deriving the public 2-D fields. Request acceptance follows the active
+rain, snow, and graupel mass components: total and frozen require any one of
+those components; each species field requires its own component; hail is not
+selectable for current schemes. Runtime mapping may still derive rain from a
+total source without a direct rain source. The public fields use ``kg/m^2``
+because downstream land-surface forcing consumes precipitation as mass over
+area, even though ``1 kg/m^2`` is numerically equal to ``1 mm`` of liquid-water
+equivalent.
 
 +-----------------------------+--------------------------------------------------+----------+
 | Field                       | Meaning                                          | Units    |
@@ -1311,12 +1678,12 @@ numerically equal to ``1 mm`` of liquid water equivalent.
 |                             | liquid-water equivalent                          |          |
 +-----------------------------+--------------------------------------------------+----------+
 
-``precip_total_accum`` is the normalized total accumulation when the scheme
-stores one, or the sum of the normalized species accumulations otherwise.
-``precip_frozen_accum`` is the sum of the normalized frozen species
-accumulations. Species that are not available in the active microphysics
-scheme contribute zero to the derived totals. ``precip_hail_accum`` is reserved
-for a future scheme that exposes a distinct hail accumulator.
+``precip_total_accum`` is the normalized native total when one exists, or the
+sum of normalized rain and frozen accumulations otherwise.
+``precip_frozen_accum`` is the sum of normalized snow, graupel, and hail
+accumulations. Species absent from the active runtime source contribute zero to
+derived totals. ``precip_hail_accum`` is a fixed descriptor reserved for a
+future scheme that exposes a distinct hail accumulator.
 
 To diagnose the frozen fraction over a coupling interval, use accumulation
 differences rather than a ratio of cumulative values:
@@ -1383,49 +1750,62 @@ when ERF uses the column metric factor :math:`J`.
 | **integrated_qg**             | Graupel water path                            | kg/m^2   |
 +-------------------------------+-----------------------------------------------+----------+
 
-A name is available only if the active moisture model has that species as a
-conserved mass component. Two-moment number concentrations are not water mass
-paths and are not included.
+A name is selectable only if the active moisture model has that species as a
+conserved mass component. Unsupported species are skipped during request
+validation. Two-moment number concentrations are not water mass paths and are
+not included.
 
 The metadata sidecar records these fields as ``ColumnIntegral`` diagnostics
 with ``FillZeroWhenUnavailable`` missing-value policy. Water-path diagnostics
 use the built-in metadata fields and add no water-path-specific metadata keys.
+
+.. _sec:Plotfile2DSourceCodes:
 
 Surface Diagnostic Source Codes
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 ``surface_diagnostic_source`` is a cell-centered categorical diagnostic. It
 reports the source path used by the SurfaceLayer scalar diagnostic path. It
-does not report fractional land-cover contributions.
+does not report fractional land-cover contributions. The same code table
+defines ``near_surface_diagnostic_source``; that field reports the request-
+aware source selected for the unified 2-m output bundle.
 
 If an input dataset contains fractional land information, this diagnostic still
 reports the categorical source used by ERF's active SurfaceLayer scalar flux
 path.
 
-The diagnostic does not fully describe staggered stress-face provenance. ERF
-may average adjacent LSM and non-LSM contributions when applying staggered
-surface stresses.
+The fields do not describe fractional cover or complete staggered stress-face
+provenance. Consumers must compare the numeric code with this table rather than
+infer provenance from ``landmask``.
 
-+------+---------------------------------------------------------------+
-| Code | Meaning                                                       |
-+======+===============================================================+
-| -999 | SurfaceLayer is inactive or the field is unavailable.         |
-+------+---------------------------------------------------------------+
-| 0    | Missing or unset.                                             |
-+------+---------------------------------------------------------------+
-| 1    | Non-LSM SurfaceLayer over land.                               |
-+------+---------------------------------------------------------------+
-| 2    | LSM over land.                                                |
-+------+---------------------------------------------------------------+
-| 3    | Non-LSM SurfaceLayer fallback where an LSM flux was undefined |
-|      | or unavailable for a land cell.                               |
-+------+---------------------------------------------------------------+
-| 4    | Non-LSM SurfaceLayer over sea.                                |
-+------+---------------------------------------------------------------+
-| 5    | Custom prescribed surface-layer values.                       |
-+------+---------------------------------------------------------------+
-| 6    | RICO prescribed surface-layer values.                         |
-+------+---------------------------------------------------------------+
+.. list-table::
+   :header-rows: 1
+   :widths: 10 32 58
+
+   * - Value
+     - Token
+     - Meaning
+   * - 0
+     - ``missing``
+     - No source was selected.
+   * - 1
+     - ``surface_layer_land``
+     - SurfaceLayer supplied the land value.
+   * - 2
+     - ``lsm_land``
+     - The land-surface model supplied the land value.
+   * - 3
+     - ``surface_layer_fallback``
+     - A land-surface path existed, but its required result was invalid or incomplete; SurfaceLayer supplied the value.
+   * - 4
+     - ``surface_layer_sea``
+     - SurfaceLayer supplied the value over water.
+   * - 5
+     - ``custom``
+     - The custom surface pathway supplied the SurfaceLayer state.
+   * - 6
+     - ``rico``
+     - The RICO pathway supplied the SurfaceLayer state.
 
 Examples of Usage
 -----------------
