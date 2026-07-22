@@ -344,7 +344,7 @@ Inputs that can be used with immersed forcing for buildings are as follows:
 The default drag coefficients are different when using the fully compressible solver compared to the anelastic solver.
 This is because the timestep used for the anelastic solver is typically much coarser compared to the substep timestep for the fully compressible solver.
 A larger drag coefficient will more quickly force a cell to the desired value; however, there is a stability limit related to the timestep due to the explicit form of the drag term.
-The recommended values are ``erf.if_Cd_scalar = 50.0`` and ``erf.if_Cd_momentum = 500.0`` for the fully compresible solver and
+The recommended values are ``erf.if_Cd_scalar = 50.0`` and ``erf.if_Cd_momentum = 500.0`` for the fully compressible solver and
 ``erf.if_Cd_scalar = 5.0`` and ``erf.if_Cd_momentum = 50.0`` (note that these are the default values).
 The immersed forcing formulation for buildings has been rigorously tested at grid spacings of 5.0 m and less.
 Caution is needed when using immersed forcing at coarser grid spacings.
