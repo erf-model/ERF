@@ -1740,8 +1740,8 @@ init_terrain_from_wrfinput (int /*lev*/,
         int imax    = vbx_1d.bigEnd()[0];
         int jmin    = std::max(vbx_1d.smallEnd()[1],jlo+1);
         int jmax    = vbx_1d.bigEnd()[1];
-        if (imax == ihi) { imax += ngz[0]; }
-        if (jmax == jhi) { jmax += ngz[1]; }
+        if (imax == ihi+1) { imax += ngz[0]; }
+        if (jmax == jhi+1) { jmax += ngz[1]; }
         vbx_1d.setRange(0,0); vbx_1d.setRange(1,0); vbx_1d.growHi(2,-1);
         ParallelFor(vbx_1d, [=] AMREX_GPU_DEVICE(int /*i*/, int /*j*/, int k) noexcept
         {
@@ -1749,7 +1749,7 @@ init_terrain_from_wrfinput (int /*lev*/,
                 for (int i(imin); i<=imax; ++i) {
                     int ii = std::max(std::min(i,ihi),ilo);
                     int jj = std::max(std::min(j,jhi),jlo);
-                    Real z_face = ( nc_ph_arr(ii,jj,k) + nc_ph_arr(ii,jj,k) ) / CONST_GRAV;
+                    Real z_face = ( nc_ph_arr(ii,jj,k) + nc_phb_arr(ii,jj,k) ) / CONST_GRAV;
                     z_arr(i, j, k) = Real(4.0) * z_face - z_arr(i-1, j, k) - z_arr(i, j-1, k) - z_arr(i-1, j-1, k);
                 }
             }
