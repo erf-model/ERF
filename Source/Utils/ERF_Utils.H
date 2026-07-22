@@ -17,12 +17,13 @@
 void
 rebalance_columns (amrex::MultiFab& rho,
                    amrex::MultiFab& theta,
-                   const amrex::MultiFab& qt,
                    const amrex::MultiFab& qv,
+                   const amrex::MultiFab& qt,
                    const amrex::MultiFab* z_phys,
                    const amrex::Geometry& geom,
                    const bool& maintain_Th,
-                   bool use_sfc = false);
+                   bool use_sfc = false,
+                   const amrex::MultiFab* tabs = nullptr);
 
 /*
  * Create a new BoxArray in which every grid touches the bottom boundary

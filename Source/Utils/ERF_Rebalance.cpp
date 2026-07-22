@@ -11,7 +11,8 @@ rebalance_columns (MultiFab& rho,
                    const MultiFab* z_phys,
                    const Geometry& geom,
                    const bool& maintain_Th,
-                   bool use_sfc)
+                   bool use_sfc,
+                   const MultiFab* tabs)
 {
 
 #ifdef AMREX_USE_FLOAT
@@ -36,6 +37,8 @@ rebalance_columns (MultiFab& rho,
         const Array4<      Real>&  th_arr = theta.array(mfi);
         const Array4<const Real>&  qv_arr =    qv.const_array(mfi);
         const Array4<const Real>&  qt_arr =    qt.const_array(mfi);
+        const Array4<const Real>& tabs_arr = (tabs) ? tabs->const_array(mfi) :
+                                                     Array4<const Real> {};
 
         const Array4<const Real>&   z_arr = z_phys->const_array(mfi);
 
@@ -73,8 +76,9 @@ rebalance_columns (MultiFab& rho,
                 qv_hi = qv_arr(i,j,klo);
                 Th_hi = th_arr(i,j,klo);
                 P_hi  = p_0;
-                T_hi  = getTgivenPandTh(P_hi, Th_hi, RdoCp_d);
-                R_hi  = getRhogivenThetaPress(Th_hi, P_hi, RdoCp_d, qv_hi);
+                T_hi  = (tabs_arr) ? tabs_arr(i,j,klo) : getTgivenPandTh(P_hi, Th_hi, RdoCp_d);
+                R_hi  = (maintain_Th) ? getRhogivenThetaPress(Th_hi, P_hi, RdoCp_d, qv_hi) :
+                                       getRhogivenTandPress(T_hi, P_hi, qv_hi);
                 rho_tot_hi = R_hi * (one + qt_hi);
                 F = P_hi + myhalf*rho_tot_hi*grav*dz + C;
 
@@ -116,8 +120,9 @@ rebalance_columns (MultiFab& rho,
               qt_hi = qt_arr(i,j,k);
               qv_hi = qv_arr(i,j,k);
               Th_hi = th_arr(i,j,k);
-              T_hi  = getTgivenPandTh(P_hi, Th_hi, RdoCp_d);
-              R_hi  = getRhogivenThetaPress(Th_hi, P_hi, RdoCp_d, qv_hi);
+              T_hi  = (tabs_arr) ? tabs_arr(i,j,k) : getTgivenPandTh(P_hi, Th_hi, RdoCp_d);
+              R_hi  = (maintain_Th) ? getRhogivenThetaPress(Th_hi, P_hi, RdoCp_d, qv_hi) :
+                                     getRhogivenTandPress(T_hi, P_hi, qv_hi);
               rho_tot_hi = R_hi * (one + qt_hi);
               F = P_hi + myhalf*rho_tot_hi*grav*dz + C;
 

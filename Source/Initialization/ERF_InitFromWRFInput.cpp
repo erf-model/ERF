@@ -1088,10 +1088,95 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev)
         int n_qstate_into_total = micro->Get_Qstate_Moist_Size() - micro->Get_Qstate_Moist_NumConc_Size();
         make_qt(lev_new[Vars::cons], qt, n_qstate_into_total);
 
+        // Diagnose absolute temperature at the WRF heights, then interpolate it
+        // and qv to the ERF cell-center heights for the constant-temperature rebalance.
+        MultiFab tabs_tmp(rho.boxArray(), rho.DistributionMap(), 1, 0);
+        MultiFab tabs_int(rho.boxArray(), rho.DistributionMap(), 1, 0);
+        MultiFab qv_int  (rho.boxArray(), rho.DistributionMap(), 1, 0);
+
+        for (MFIter mfi(tabs_tmp, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+            const Box& bx = mfi.tilebox();
+            const Array4<      Real>& tabs_tmp_arr = tabs_tmp.array(mfi);
+            const Array4<const Real>&       rho_arr = rho.const_array(mfi);
+            const Array4<const Real>&     theta_arr = theta.const_array(mfi);
+            const Array4<const Real>&        qv_arr = qv.const_array(mfi);
+
+            ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            {
+                tabs_tmp_arr(i,j,k) = getTgivenRandRTh(rho_arr(i,j,k),
+                                                       rho_arr(i,j,k) * theta_arr(i,j,k),
+                                                       qv_arr(i,j,k));
+            });
+        }
+
+        const int klo = geom[lev].Domain().smallEnd(2);
+        const int khi = geom[lev].Domain().bigEnd(2);
+        if (compute_terrain_here) {
+            for (MFIter mfi(tabs_int, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+                const Box& bx = mfi.tilebox();
+                const Array4<      Real>& tabs_int_arr = tabs_int.array(mfi);
+                const Array4<      Real>&   qv_int_arr = qv_int.array(mfi);
+                const Array4<const Real>& tabs_tmp_arr = tabs_tmp.const_array(mfi);
+                const Array4<const Real>&        qv_arr = qv.const_array(mfi);
+                const Array4<const Real>&       ph_arr = mf_PH.const_array(mfi);
+                const Array4<const Real>&      phb_arr = mf_PHB->const_array(mfi);
+                const Array4<const Real>&        z_arr = z_phys_nd[lev]->const_array(mfi);
+
+                ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                {
+                    int kstart = amrex::max(klo, k-5);
+                    Real z_dst = Real(0.125) *
+                        (z_arr(i  ,j  ,k  ) + z_arr(i+1,j  ,k  ) +
+                         z_arr(i  ,j+1,k  ) + z_arr(i+1,j+1,k  ) +
+                         z_arr(i  ,j  ,k+1) + z_arr(i+1,j  ,k+1) +
+                         z_arr(i  ,j+1,k+1) + z_arr(i+1,j+1,k+1));
+                    Real z_lo_src = Real(0.5) *
+                        (ph_arr(i,j,kstart  ) + phb_arr(i,j,kstart  ) +
+                         ph_arr(i,j,kstart+1) + phb_arr(i,j,kstart+1)) / CONST_GRAV;
+
+                    bool found = false;
+                    int kend   = kstart;
+                    for (int lk(kstart+1); lk<=khi; ++lk) {
+                        Real z_hi_src = Real(0.5) *
+                            (ph_arr(i,j,lk) + phb_arr(i,j,lk) +
+                             ph_arr(i,j,lk+1) + phb_arr(i,j,lk+1)) / CONST_GRAV;
+                        if (z_dst >= z_lo_src && z_dst <= z_hi_src) {
+                            found = true;
+                            kend  = lk;
+                            break;
+                        }
+                        z_lo_src = z_hi_src;
+                        kstart   = lk;
+                    }
+
+                    if (found) {
+                        Real z_hi_src = Real(0.5) *
+                            (ph_arr(i,j,kend  ) + phb_arr(i,j,kend  ) +
+                             ph_arr(i,j,kend+1) + phb_arr(i,j,kend+1)) / CONST_GRAV;
+                        Real dz_rat = (z_dst - z_lo_src) / (z_hi_src - z_lo_src);
+                        tabs_int_arr(i,j,k) =
+                            (tabs_tmp_arr(i,j,kend) - tabs_tmp_arr(i,j,kstart)) * dz_rat
+                            + tabs_tmp_arr(i,j,kstart);
+                        qv_int_arr(i,j,k) =
+                            (qv_arr(i,j,kend) - qv_arr(i,j,kstart)) * dz_rat
+                            + qv_arr(i,j,kstart);
+                    } else {
+                        tabs_int_arr(i,j,k) = tabs_tmp_arr(i,j,k);
+                        qv_int_arr(i,j,k)   = qv_arr(i,j,k);
+                    }
+                });
+            }
+        } else {
+            MultiFab::Copy(tabs_int, tabs_tmp, 0, 0, 1, 0);
+            MultiFab::Copy(qv_int, qv, 0, 0, 1, 0);
+        }
+
         bool maintain_Th = false;
-        rebalance_columns(rho, theta, qv, qt, z_phys_nd[lev].get(), geom[lev], maintain_Th);
+        rebalance_columns(rho, theta, qv_int, qt, z_phys_nd[lev].get(), geom[lev],
+                          maintain_Th, false, &tabs_int);
 
         // Update (rho qv) in the state
+        MultiFab::Copy(qv, qv_int, 0, 0, 1, 0);
         MultiFab::Multiply(qv, rho, 0, 0, 1, 1);
         MultiFab::Copy(lev_new[Vars::cons], qv, 0, RhoQ1_comp, 1, 1);
 

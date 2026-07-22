@@ -133,6 +133,13 @@ convert_wrfbdy_data (const int itime,
         bdy_data_int[ivar].template setVal<RunOn::Device>(0);
     }
 
+    // Temporary absolute temperature at the WRF heights and interpolated heights
+    amrex::FArrayBox bdy_tabs_tmp_fab, bdy_tabs_int_fab;
+    bdy_tabs_tmp_fab.resize(bdy_data[itime][WRFBdyVars::T].box(),1,The_Managed_Arena());
+    bdy_tabs_int_fab.resize(bdy_data[itime][WRFBdyVars::T].box(),1,The_Managed_Arena());
+    bdy_tabs_tmp_fab.template setVal<RunOn::Device>(0);
+    bdy_tabs_int_fab.template setVal<RunOn::Device>(0);
+
     // Temporary "NEW" heights (this is the source array)
     amrex::FArrayBox bdy_c_z_new, bdy_u_z_new, bdy_v_z_new;
     bdy_c_z_new.resize(bdy_data[itime][WRFBdyVars::T].box(),1,The_Managed_Arena());
@@ -198,6 +205,7 @@ convert_wrfbdy_data (const int itime,
         Array4<Real> bdy_t_tmp  = bdy_data_tmp[WRFBdyVars::T].array();  // This is cell-centered
         Array4<Real> bdy_qv_tmp = bdy_data_tmp[WRFBdyVars::QV].array(); // This is cell-centered
         Array4<Real> bdy_r_tmp  = bdy_data_tmp[WRFBdyVars::R].array();  // This is cell-centered
+        Array4<Real> bdy_tabs_tmp = bdy_tabs_tmp_fab.array();            // This is cell-centered
 
         // TMP INTERP BDY data
         Array4<Real> bdy_u_int  = bdy_data_int[WRFBdyVars::U].array();  // This is x-face-centered
@@ -205,6 +213,7 @@ convert_wrfbdy_data (const int itime,
         Array4<Real> bdy_t_int  = bdy_data_int[WRFBdyVars::T].array();  // This is cell-centered
         Array4<Real> bdy_qv_int = bdy_data_int[WRFBdyVars::QV].array(); // This is cell-centered
         Array4<Real> bdy_r_int  = bdy_data_int[WRFBdyVars::R].array();  // This is cell-centered
+        Array4<Real> bdy_tabs_int = bdy_tabs_int_fab.array();            // This is cell-centered
 
         // Mask data
         const Array4<const int>& mask_c_arr = mask_c->const_array(mfi);
@@ -372,6 +381,16 @@ convert_wrfbdy_data (const int itime,
             bdy_r_tmp(i,j,k) = -xmu / ( dpht * rdnw_arr(0,0,k) );
         });
 
+        // Diagnose absolute temperature at the WRF heights before interpolation
+        ParallelFor(bx_t, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            if (mask_c_arr(i,j,k)) {
+                bdy_tabs_tmp(i,j,k) = getTgivenRandRTh(bdy_r_tmp(i,j,k),
+                                                       bdy_r_tmp(i,j,k) * bdy_t_tmp(i,j,k),
+                                                       bdy_qv_tmp(i,j,k));
+            }
+        });
+
         // Interpolate in height
         ParallelFor(bx_t, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
@@ -399,9 +418,11 @@ convert_wrfbdy_data (const int itime,
                     Real dz_rat = (z_dst - z_lo_src) / (z_hi_src - z_lo_src);
                     bdy_t_int(i,j,k)  = (  bdy_t_tmp(i,j,kend) -  bdy_t_tmp(i,j,kstart) ) * dz_rat +  bdy_t_tmp(i,j,kstart);
                     bdy_qv_int(i,j,k) = ( bdy_qv_tmp(i,j,kend) - bdy_qv_tmp(i,j,kstart) ) * dz_rat + bdy_qv_tmp(i,j,kstart);
+                    bdy_tabs_int(i,j,k) = ( bdy_tabs_tmp(i,j,kend) - bdy_tabs_tmp(i,j,kstart) ) * dz_rat + bdy_tabs_tmp(i,j,kstart);
                 } else {
                     bdy_t_int(i,j,k)  =  bdy_t_tmp(i,j,k);
                     bdy_qv_int(i,j,k) = bdy_qv_tmp(i,j,k);
+                    bdy_tabs_int(i,j,k) = bdy_tabs_tmp(i,j,k);
                 }
                 // NOTE: always copy rho for rebalance
                 bdy_r_int(i,j,k)  =  bdy_r_tmp(i,j,k);
@@ -517,8 +538,8 @@ convert_wrfbdy_data (const int itime,
               qt_hi = bdy_qv_int(i,j,k);
               qv_hi = bdy_qv_int(i,j,k);
               Th_hi = bdy_t_int(i,j,k);
-              T_hi  = getTgivenPandTh(P_hi, Th_hi, RdoCp_d);
-              R_hi  = getRhogivenThetaPress(Th_hi, P_hi, RdoCp_d, qv_hi);
+              T_hi  = bdy_tabs_int(i,j,k);
+              R_hi  = getRhogivenTandPress(T_hi, P_hi, qv_hi);
               rho_tot_hi = R_hi * (one + qt_hi);
               F = P_hi + myhalf*rho_tot_hi*grav*dz + C;
 
