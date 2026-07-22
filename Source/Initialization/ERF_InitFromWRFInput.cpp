@@ -1734,7 +1734,7 @@ init_terrain_from_wrfinput (int /*lev*/,
         //       unknown node that ensures the average recovers the WRF heights.
 
         // Sweep and solve to ensure nodal averages give back the z-face values
-        IntVect ngz = z_phys_nd[lev]->nGrowVect();
+        IntVect ngz = z_phys->nGrowVect();
         Box vbx_1d  = mfi.validbox();
         int imin    = std::max(vbx_1d.smallEnd()[0],ilo+1);
         int imax    = vbx_1d.bigEnd()[0];
@@ -1743,7 +1743,7 @@ init_terrain_from_wrfinput (int /*lev*/,
         if (imax == ihi) { imax += ngz[0]; }
         if (jmax == jhi) { jmax += ngz[1]; }
         vbx_1d.setRange(0,0); vbx_1d.setRange(1,0); vbx_1d.growHi(2,-1);
-        ParallelFor(gnbx_1d, [=] AMREX_GPU_DEVICE(int /*i*/, int /*j*/, int k) noexcept
+        ParallelFor(vbx_1d, [=] AMREX_GPU_DEVICE(int /*i*/, int /*j*/, int k) noexcept
         {
             for (int j(jmin); j<=jmax; ++j) {
                 for (int i(imin); i<=imax; ++i) {
