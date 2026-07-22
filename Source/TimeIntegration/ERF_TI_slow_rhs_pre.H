@@ -132,7 +132,8 @@
                                     start_bdy_time, final_bdy_time, bdy_time_interval,
                                     bdy_factor, real_width, geom[level],
                                     bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi,
-                                    m_r2d, l_c_p, l_rdOcp, moist_nudge_type);
+                                    m_r2d, l_c_p, l_rdOcp,
+                                    solverChoice.use_wrf_bdy_density, moist_nudge_type);
         }
 #endif
 
@@ -374,7 +375,9 @@
                                                    S_rhs, S_data,
                                                    bdy_data_xlo, bdy_data_xhi,
                                                    bdy_data_ylo, bdy_data_yhi,
-                                                   m_r2d, l_c_p, l_rdOcp);
+                                                   m_r2d, l_c_p, l_rdOcp,
+                                                   solverChoice.use_wrf_bdy_density,
+                                                   solverChoice.bdy_rho_nudge_factor);
             }
         }
 #endif
