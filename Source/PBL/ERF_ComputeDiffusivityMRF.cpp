@@ -631,7 +631,7 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
         const amrex::Real l_blend_length = turbChoice.pbl_blend_length;
         const amrex::Real l_blend_cs     = turbChoice.pbl_blend_cs;
         const amrex::Real l_blend_cmax   = turbChoice.pbl_blend_c_max;
-        const bool        l_use_smag_ceil= turbChoice.pbl_blend_use_smag;
+        //const bool        l_use_smag_ceil= turbChoice.pbl_blend_use_smag;
         // dx: use horizontal spacing at this level (assume dx = dy for regular grids).
         const amrex::Real l_dx = geom.CellSize(0);
 
