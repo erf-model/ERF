@@ -23,6 +23,7 @@
  * @param[in] bc_ptr Pointer to array with boundary condition info
  * @param[in] vert_only Only compute vertical eddy diffusivities
  * @param[in] z_phys_nd Physical location of grid nodes, if terrain (or grid stretching) is enabled
+ * @param[in] z_phys_cc Physical location of cell centers
  */
 void
 ComputeDiffusivityMYJ (double dt,
@@ -39,6 +40,7 @@ ComputeDiffusivityMYJ (double dt,
                        const amrex::BCRec* bc_ptr,
                        bool /*vert_only*/,
                        const std::unique_ptr<amrex::MultiFab>& z_phys_nd,
+                       const std::unique_ptr<amrex::MultiFab>& z_phys_cc,
                        const MoistureComponentIndices& moisture_indices);
 
 /**
@@ -57,6 +59,7 @@ ComputeDiffusivityMYJ (double dt,
  * @param[in] bc_ptr Pointer to array with boundary condition info
  * @param[in] vert_only Only compute vertical eddy diffusivities
  * @param[in] z_phys_nd Physical location of grid nodes, if terrain (or grid stretching) is enabled
+ * @param[in] z_phys_cc Physical location of cell centers
  */
 void
 ComputeDiffusivityMYNN25 (const amrex::MultiFab& xvel,
@@ -72,6 +75,7 @@ ComputeDiffusivityMYNN25 (const amrex::MultiFab& xvel,
                           const amrex::BCRec* bc_ptr,
                           bool /*vert_only*/,
                           const std::unique_ptr<amrex::MultiFab>& z_phys_nd,
+                          const std::unique_ptr<amrex::MultiFab>& z_phys_cc,
                           const MoistureComponentIndices& moisture_indices);
 
 /**
@@ -90,6 +94,7 @@ ComputeDiffusivityMYNN25 (const amrex::MultiFab& xvel,
  * @param[in] bc_ptr Pointer to array with boundary condition info
  * @param[in] vert_only Only compute vertical eddy diffusivities
  * @param[in] z_phys_nd Physical location of grid nodes, if terrain (or grid stretching) is enabled
+ * @param[in] z_phys_cc Physical location of cell centers
  */
 void
 ComputeDiffusivityMYNNEDMF (const amrex::MultiFab& xvel,
@@ -105,6 +110,7 @@ ComputeDiffusivityMYNNEDMF (const amrex::MultiFab& xvel,
                             const amrex::BCRec* bc_ptr,
                             bool /*vert_only*/,
                             const std::unique_ptr<amrex::MultiFab>& z_phys_nd,
+                            const std::unique_ptr<amrex::MultiFab>& z_phys_cc,
                             const MoistureComponentIndices& moisture_indices);
 
 /**
@@ -123,6 +129,7 @@ ComputeDiffusivityMYNNEDMF (const amrex::MultiFab& xvel,
  * @param[in] bc_ptr Pointer to array with boundary condition info
  * @param[in] vert_only Only compute vertical eddy diffusivities
  * @param[in] z_phys_nd Physical location of grid nodes, if terrain (or grid stretching) is enabled
+ * @param[in] z_phys_cc Physical location of cell centers
  */
 void
 ComputeDiffusivityYSU (const amrex::MultiFab& xvel,
@@ -138,6 +145,7 @@ ComputeDiffusivityYSU (const amrex::MultiFab& xvel,
                        const amrex::BCRec* bc_ptr,
                        bool /*vert_only*/,
                        const std::unique_ptr<amrex::MultiFab>& z_phys_nd,
+                       const std::unique_ptr<amrex::MultiFab>& z_phys_cc,
                        const MoistureComponentIndices& moisture_indices);
 /**
  * Compute eddy diffusivities of momentum (eddy viscosity) and heat using the
@@ -158,6 +166,7 @@ ComputeDiffusivityYSU (const amrex::MultiFab& xvel,
  * @param[in] bc_ptr Pointer to array with boundary condition info
  * @param[in] vert_only Only compute vertical eddy diffusivities
  * @param[in] z_phys_nd Physical location of grid nodes, if terrain (or grid stretching) is enabled
+ * @param[in] z_phys_cc Physical location of cell centers
  */
 void
 ComputeDiffusivityMRF (const amrex::MultiFab& xvel,
@@ -173,6 +182,7 @@ ComputeDiffusivityMRF (const amrex::MultiFab& xvel,
                        const amrex::BCRec* bc_ptr,
                        bool /*vert_only*/,
                        const std::unique_ptr<amrex::MultiFab>& z_phys_nd,
+                       const std::unique_ptr<amrex::MultiFab>& z_phys_cc,
                        const MoistureComponentIndices& moisture_indices);
 
 /**
@@ -200,6 +210,7 @@ ComputeDiffusivityMRF (const amrex::MultiFab& xvel,
  * @param[in]  bc_ptr  boundary condition array
  * @param[in]  vert_only  compute vertical diffusivity only
  * @param[in]  z_phys_nd  physical node heights (terrain)
+ * @param[in]  z_phys_cc  physical cell-center heights
  * @param[in]  moisture_indices  component index mapping for moisture variables
  * @param[in]  qheating_rates  radiation heating rates (SW, LW components); optional
  */
@@ -217,6 +228,7 @@ ComputeDiffusivityYSUNew (const amrex::MultiFab& xvel,
                           const amrex::BCRec* bc_ptr,
                           bool /*vert_only*/,
                           const std::unique_ptr<amrex::MultiFab>& z_phys_nd,
+                          const std::unique_ptr<amrex::MultiFab>& z_phys_cc,
                           const MoistureComponentIndices& moisture_indices,
                           const amrex::MultiFab* qheating_rates = nullptr);
 
@@ -227,6 +239,15 @@ ComputeDiffusivityYSUNew (const amrex::MultiFab& xvel,
  * @param[in] v velocity in y-dir
  * @param[in] cell_data conserved cell center vars
  */
+struct PBLDerivativeDzInv
+{
+    // Each value is the inverse physical distance between the two samples
+    // used by its corresponding derivative stencil.
+    amrex::Real interior;
+    amrex::Real dirichlet_lo;
+    amrex::Real dirichlet_hi;
+};
+
 AMREX_GPU_DEVICE
 AMREX_FORCE_INLINE
 void
@@ -236,7 +257,7 @@ ComputeVerticalDerivativesPBL (int i, int j, int k,
                                const amrex::Array4<const amrex::Real>& cell_data,
                                const int izmin,
                                const int izmax,
-                               const amrex::Real& dz_inv,
+                               const PBLDerivativeDzInv& dz_inv,
                                const bool c_ext_dir_on_zlo,
                                const bool c_ext_dir_on_zhi,
                                const bool u_ext_dir_on_zlo,
@@ -248,37 +269,41 @@ ComputeVerticalDerivativesPBL (int i, int j, int k,
                                amrex::Real& dvdz,
                                const MoistureComponentIndices& moisture_indices)
 {
+    // ext_dir ghost values hold the value at the physical boundary, which is
+    // half a ghost-center spacing from the adjacent cell center. Use a
+    // two-point, first-order boundary-to-center difference with inverse
+    // distance 2/dz.
     if ( k==izmax && c_ext_dir_on_zhi ) {
-        dthetadz = (one/three)*(       -GetThetav(i,j,k-1,cell_data,moisture_indices)
-                              - three * GetThetav(i,j,k  ,cell_data,moisture_indices)
-                              + amrex::Real(4.0) * GetThetav(i,j,k+1,cell_data,moisture_indices) )*dz_inv;
+        dthetadz = ( GetThetav(i,j,k+1,cell_data,moisture_indices)
+                    -GetThetav(i,j,k  ,cell_data,moisture_indices) )*dz_inv.dirichlet_hi;
     } else if ( k==izmin && c_ext_dir_on_zlo ) {
-        dthetadz = (one/three)*(        GetThetav(i,j,k+1,cell_data,moisture_indices)
-                              + three * GetThetav(i,j,k  ,cell_data,moisture_indices)
-                              - amrex::Real(4.0) * GetThetav(i,j,k-1,cell_data,moisture_indices) )*dz_inv;
+        dthetadz = ( GetThetav(i,j,k  ,cell_data,moisture_indices)
+                    -GetThetav(i,j,k-1,cell_data,moisture_indices) )*dz_inv.dirichlet_lo;
     } else {
-        dthetadz = myhalf*(  GetThetav(i,j,k+1,cell_data,moisture_indices)
-                        - GetThetav(i,j,k-1,cell_data,moisture_indices) )*dz_inv;
+        dthetadz = ( GetThetav(i,j,k+1,cell_data,moisture_indices)
+                    -GetThetav(i,j,k-1,cell_data,moisture_indices) )*dz_inv.interior;
     }
 
     if ( k==izmax && u_ext_dir_on_zhi ) {
-        dudz = (one/amrex::Real(6.0))*( (-uvel(i  ,j,k-1) - three * uvel(i  ,j,k  ) + amrex::Real(4.0) * uvel(i  ,j,k+1))
-                         + (-uvel(i+1,j,k-1) - three * uvel(i+1,j,k  ) + amrex::Real(4.0) * uvel(i+1,j,k+1)) )*dz_inv;
+        dudz = myhalf*( uvel(i  ,j,k+1) - uvel(i  ,j,k)
+                       +uvel(i+1,j,k+1) - uvel(i+1,j,k) )*dz_inv.dirichlet_hi;
     } else if ( k==izmin && u_ext_dir_on_zlo ) {
-        dudz = (one/amrex::Real(6.0))*( (uvel(i  ,j,k+1) + three * uvel(i  ,j,k  ) - amrex::Real(4.0) * uvel(i  ,j,k-1))
-                         + (uvel(i+1,j,k+1) + three * uvel(i+1,j,k  ) - amrex::Real(4.0) * uvel(i+1,j,k-1)) )*dz_inv;
+        dudz = myhalf*( uvel(i  ,j,k) - uvel(i  ,j,k-1)
+                       +uvel(i+1,j,k) - uvel(i+1,j,k-1) )*dz_inv.dirichlet_lo;
     } else {
-        dudz = fourth*( uvel(i,j,k+1) - uvel(i,j,k-1) + uvel(i+1,j,k+1) - uvel(i+1,j,k-1) )*dz_inv;
+        dudz = myhalf*( uvel(i  ,j,k+1) - uvel(i  ,j,k-1)
+                       +uvel(i+1,j,k+1) - uvel(i+1,j,k-1) )*dz_inv.interior;
     }
 
     if ( k==izmax && v_ext_dir_on_zhi ) {
-        dvdz = (one/amrex::Real(6.0))*( (-vvel(i,j  ,k-1) - three * vvel(i,j  ,k  ) + amrex::Real(4.0) * vvel(i,j  ,k+1))
-                         + (-vvel(i,j+1,k-1) - three * vvel(i,j+1,k  ) + amrex::Real(4.0) * vvel(i,j+1,k+1)) )*dz_inv;
+        dvdz = myhalf*( vvel(i,j  ,k+1) - vvel(i,j  ,k)
+                       +vvel(i,j+1,k+1) - vvel(i,j+1,k) )*dz_inv.dirichlet_hi;
     } else if ( k==izmin && v_ext_dir_on_zlo ) {
-        dvdz = (one/amrex::Real(6.0))*( (vvel(i,j  ,k+1) + three * vvel(i,j  ,k  ) - amrex::Real(4.0) * vvel(i,j  ,k-1))
-                         + (vvel(i,j+1,k+1) + three * vvel(i,j+1,k  ) - amrex::Real(4.0) * vvel(i,j+1,k-1)) )*dz_inv;
+        dvdz = myhalf*( vvel(i,j  ,k) - vvel(i,j  ,k-1)
+                       +vvel(i,j+1,k) - vvel(i,j+1,k-1) )*dz_inv.dirichlet_lo;
     } else {
-        dvdz = fourth*( vvel(i,j,k+1) - vvel(i,j,k-1) + vvel(i,j+1,k+1) - vvel(i,j+1,k-1) )*dz_inv;
+        dvdz = myhalf*( vvel(i,j  ,k+1) - vvel(i,j  ,k-1)
+                       +vvel(i,j+1,k+1) - vvel(i,j+1,k-1) )*dz_inv.interior;
     }
 }
 
@@ -290,8 +315,8 @@ ComputeVerticalDerivativesPBL (int i, int j, int k,
  * @param[in] cell_data conserved cell center vars
  * @param[in] cell_prim primitive cell center vars
  * @param[in] K_turb turbulent viscosity
- * @param[in] cellSizeInv inverse cell size array
  * @param[in] domain box of the whole domain
+ * @param[in] dz_inv inverse spacings for interior and Dirichlet-boundary differences
  * @param[in] pbl_mynn_B1_l a parameter
  * @param[in] theta_mean average theta
  */
@@ -304,8 +329,8 @@ ComputeQKESourceTerms (int i, int j, int k,
                        const amrex::Array4<const amrex::Real>& cell_data,
                        const amrex::Array4<const amrex::Real>& cell_prim,
                        const amrex::Array4<const amrex::Real>& K_turb,
-                       const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
                        const amrex::Box& domain,
+                       const PBLDerivativeDzInv dz_inv,
                        amrex::Real pbl_mynn_B1_l,
                        const amrex::Real theta_mean,
                        const MoistureComponentIndices& moisture_indices,
@@ -314,19 +339,17 @@ ComputeQKESourceTerms (int i, int j, int k,
                        bool u_ext_dir_on_zlo,
                        bool u_ext_dir_on_zhi,
                        bool v_ext_dir_on_zlo,
-                       bool v_ext_dir_on_zhi,
-                       const amrex::Real met_h_zeta=one)
+                       bool v_ext_dir_on_zhi)
 {
     // Compute some relevant derivatives
     amrex::Real dthetadz, dudz, dvdz;
     amrex::Real source_term = zero;
 
-    amrex::Real dz_inv = cellSizeInv[2];
     int izmin = domain.smallEnd(2);
     int izmax = domain.bigEnd(2);
 
     ComputeVerticalDerivativesPBL(i, j, k,
-                                  uvel, vvel, cell_data, izmin, izmax, dz_inv/met_h_zeta,
+                                  uvel, vvel, cell_data, izmin, izmax, dz_inv,
                                   c_ext_dir_on_zlo, c_ext_dir_on_zhi,
                                   u_ext_dir_on_zlo, u_ext_dir_on_zhi,
                                   v_ext_dir_on_zlo, v_ext_dir_on_zhi,
@@ -359,4 +382,46 @@ ComputeQKESourceTerms (int i, int j, int k,
 
     return source_term;
 }
+
+struct PBLDerivativeDzInv_N
+{
+    amrex::Real value;
+
+    AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+    PBLDerivativeDzInv operator() (int, int, int) const noexcept
+    {
+        return {myhalf*value, two*value, two*value};
+    }
+};
+
+struct PBLDerivativeDzInv_S
+{
+    const amrex::Real* dz;
+    int klo;
+    int khi;
+
+    AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+    PBLDerivativeDzInv operator() (int, int, int k) const noexcept
+    {
+        // Adjacent cell centers are separated by half the sum of their widths.
+        const amrex::Real dz_lo = dz[(k > klo) ? k-1 : k];
+        const amrex::Real dz_hi = dz[(k < khi) ? k+1 : k];
+        return {two / (dz_lo + two*dz[k] + dz_hi),
+                two / dz[k],
+                two / dz[k]};
+    }
+};
+
+struct PBLDerivativeDzInv_T
+{
+    amrex::Array4<const amrex::Real> z_cc;
+
+    AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+    PBLDerivativeDzInv operator() (int i, int j, int k) const noexcept
+    {
+        return {one / (z_cc(i,j,k+1) - z_cc(i,j,k-1)),
+                two / (z_cc(i,j,k  ) - z_cc(i,j,k-1)),
+                two / (z_cc(i,j,k+1) - z_cc(i,j,k  ))};
+    }
+};
 #endif
