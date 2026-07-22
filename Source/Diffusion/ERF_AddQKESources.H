@@ -12,16 +12,15 @@
             bool v_ext_dir_on_zlo = ( (bc_ptr[BCVars::yvel_bc].lo(2) == ERFBCType::ext_dir) );
             bool v_ext_dir_on_zhi = ( (bc_ptr[BCVars::yvel_bc].hi(2) == ERFBCType::ext_dir) );
 
-            const Real met_h_zeta = Compute_h_zeta_AtCellCenter(i,j,k,cellSizeInv,z_nd_arr);
+            const auto pbl_dz_inv = pbl_derivative_dz_inv(i,j,k);
 
             // This computes shear production, buoyancy production, and dissipation terms only.
             cell_rhs(i, j, k, qty_index) += ComputeQKESourceTerms(i,j,k,u,v,cell_data,cell_prim,
-                                                                  mu_turb,cellSizeInv,domain,
+                                                                  mu_turb,domain,pbl_dz_inv,
                                                                   pbl_mynn_B1_l,tm_arr(i,j,0),
                                                                   moist_indices,
                                                                   c_ext_dir_on_zlo, c_ext_dir_on_zhi,
                                                                   u_ext_dir_on_zlo, u_ext_dir_on_zhi,
-                                                                  v_ext_dir_on_zlo, v_ext_dir_on_zhi,
-                                                                  met_h_zeta);
+                                                                  v_ext_dir_on_zlo, v_ext_dir_on_zhi);
         });
     }

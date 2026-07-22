@@ -27,6 +27,7 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
                        const BCRec* bc_ptr,
                        bool /*vert_only*/,
                        const std::unique_ptr<MultiFab>& z_phys_nd,
+                       const std::unique_ptr<MultiFab>& z_phys_cc,
                        const MoistureComponentIndices& moisture_indices,
                        const MultiFab* qheating_rates)
 {
@@ -193,6 +194,7 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
                                 SurfLayer->get_lmask(level)->const_array(mfi) :
                                 Array4<int>{};
         const Array4<Real const> z_nd_arr = z_phys_nd->array(mfi);
+        const PBLDerivativeDzInv_T pbl_derivative_dz_inv{z_phys_cc->const_array(mfi)};
         // Get qheating_rates if provided (for LW radiation coupling to top-down mixing)
         const Array4<Real const> qheat_arr = (qheating_rates != nullptr)
                                              ? qheating_rates->const_array(mfi)
@@ -1525,7 +1527,7 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
                 const Real lambdadz = amrex::min(amrex::max(Real(0.1) * dz_terrain, lambda_min), lambda_max);
                 const Real lscale = (lambdadz * KAPPA * zval) / (lambdadz + KAPPA * zval);
                 Real dthetadz, dudz, dvdz;
-                ComputeVerticalDerivativesPBL(i, j, k, uvel, vvel, cell_data, izmin, izmax, one / dz_terrain,
+                ComputeVerticalDerivativesPBL(i, j, k, uvel, vvel, cell_data, izmin, izmax, pbl_derivative_dz_inv(i,j,k),
                                               c_ext_dir_on_zlo, c_ext_dir_on_zhi, u_ext_dir_on_zlo,
                                               u_ext_dir_on_zhi, v_ext_dir_on_zlo, v_ext_dir_on_zhi, dthetadz,
                                               dudz, dvdz, moisture_indices);
@@ -1544,9 +1546,7 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
                 // WRF Reference: module_bl_ysu.F uses THVX (virtual potential temperature).
                 // For moist air, θ_v = θ * (1 + 0.61*q_v - q_l - q_i) ≈ θ * (1 + 0.61*q_v)
                 const Real theta_v = GetThetav(i, j, k, cell_data, moisture_indices);
-                const Real theta_v_kp1 = (k < izmax) ? GetThetav(i, j, k+1, cell_data, moisture_indices) : theta_v;
-                const Real theta_v_km1 = (k > izmin) ? GetThetav(i, j, k-1, cell_data, moisture_indices) : theta_v;
-                const Real dtheta_v_dz = myhalf * (theta_v_kp1 - theta_v_km1) * (one / dz_terrain);
+                const Real dtheta_v_dz = dthetadz;
 
                 // Gradient Richardson number: Ri_g = (g/θ_v) * (dθ_v/dz) / (shear²)
                 // Reference: WRF module_bl_ysu.F line ~450-456, Hong et al. 2006, Eqn. A18

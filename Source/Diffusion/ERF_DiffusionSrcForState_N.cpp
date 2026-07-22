@@ -61,7 +61,6 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
                               Array4<      Real>& qfx2_z,
                               Array4<      Real>& diss,
                         const Array4<const Real>& mu_turb,
-                        const Array4<const Real>& z_nd_arr,
                         const SolverChoice &solverChoice,
                         const int level,
                         const Array4<const Real>& tm_arr,
@@ -587,6 +586,7 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
     });
     } // n
 
+    const PBLDerivativeDzInv_N pbl_derivative_dz_inv{cellSizeInv[2]};
 #include "ERF_AddTKESources.H"
 #include "ERF_AddQKESources.H"
 }

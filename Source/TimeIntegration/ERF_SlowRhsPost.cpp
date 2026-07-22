@@ -453,7 +453,7 @@ void erf_slow_rhs_post (int level, int finest_level,
                                                mf_mx, mf_ux, mf_vx,
                                                mf_my, mf_uy, mf_vy,
                                                hfx_z, q1fx_z, q2fx_z, diss,
-                                               mu_turb, z_nd, solverChoice, level,
+                                               mu_turb, solverChoice, level,
                                                tm_arr, grav_gpu, bc_ptr_d, l_apply_surface_layer_fluxes_in_diffusion, l_vert_implicit_fac);
                     } else if (l_use_terrain) {
                         DiffusionSrcForState_T(tbx, domain, start_comp, num_comp, l_rotate, u, v,
@@ -464,7 +464,7 @@ void erf_slow_rhs_post (int level, int finest_level,
                                                mf_mx, mf_ux, mf_vx,
                                                mf_my, mf_uy, mf_vy,
                                                hfx_x, hfx_y, hfx_z, q1fx_x, q1fx_y, q1fx_z,q2fx_z, diss,
-                                               mu_turb, z_nd, solverChoice, level,
+                                               mu_turb, solverChoice, level,
                                                tm_arr, grav_gpu, bc_ptr_d, l_apply_surface_layer_fluxes_in_diffusion, l_vert_implicit_fac);
                     } else {
                         DiffusionSrcForState_N(tbx, domain, start_comp, num_comp, u, v,
@@ -473,7 +473,7 @@ void erf_slow_rhs_post (int level, int finest_level,
                                                mf_mx, mf_ux, mf_vx,
                                                mf_my, mf_uy, mf_vy,
                                                hfx_z, q1fx_z, q2fx_z, diss,
-                                               mu_turb, z_nd, solverChoice, level,
+                                               mu_turb, solverChoice, level,
                                                tm_arr, grav_gpu, bc_ptr_d, l_apply_surface_layer_fluxes_in_diffusion, l_vert_implicit_fac);
                     }
                 } // use_diff
