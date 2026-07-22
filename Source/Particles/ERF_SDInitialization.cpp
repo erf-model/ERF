@@ -325,7 +325,7 @@ void SDInitProperties::printParameters ( const MatVec& a_species_mat,
                     << " (distribution: " << getEnumNameString(m_aerosol_init_type[i]);
             if (m_aerosol_init_type[i] == SDDistributionType::mass_constant) {
                 Print() << ", value=" << m_mass_aerosol_mean[i];
-                AMREX_ALWAYS_ASSERT(m_mass_aerosol_mean[i] > zero);
+                AMREX_ALWAYS_ASSERT(m_mass_aerosol_mean[i] >= zero);
             } else if (m_aerosol_init_type[i] == SDDistributionType::mass_exponential) {
                 Print() << ", min=" << m_mass_aerosol_min[i]
                         << ", mean=" << m_mass_aerosol_mean[i]
@@ -350,6 +350,18 @@ void SDInitProperties::printParameters ( const MatVec& a_species_mat,
             }
             Print() << ")" << "\n";
         }
+
+        // At least one aerosol must carry non-zero dry mass; individual aerosols
+        // may be empty (e.g. a pure-CCN mode with no dust core).
+        bool any_aerosol_nonzero = false;
+        for (unsigned long i=0; i < a_aerosol_mat.size(); i++) {
+            if (m_aerosol_init_type[i] == SDDistributionType::mass_constant) {
+                if (m_mass_aerosol_mean[i] > zero) { any_aerosol_nonzero = true; }
+            } else {
+                any_aerosol_nonzero = true;
+            }
+        }
+        AMREX_ALWAYS_ASSERT(any_aerosol_nonzero);
     }
 }
 
