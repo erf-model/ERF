@@ -23,61 +23,6 @@
 #include "ERF_MicrophysicsUtils.H"
 #include "ERF_EB.H"
 
-namespace erf_surface_layer_detail {
-
-inline std::vector<std::vector<amrex::Real>>
-read_cols (const std::string& fname, int nskip)
-{
-    std::ifstream file(fname);
-    if (!file.is_open()) {
-        amrex::Abort("Error: Could not open the file " + fname);
-    }
-
-    std::string line;
-    for (int i = 0; i < nskip; ++i) {
-        if (!std::getline(file, line)) {
-            amrex::Abort("Error: Could not skip header lines in " + fname);
-        }
-    }
-
-    std::vector<std::vector<amrex::Real>> rows;
-    int ncols = -1;
-    while (std::getline(file, line)) {
-        if (line.empty()) { continue; }
-
-        std::stringstream ss(line);
-        std::vector<amrex::Real> row;
-        amrex::Real value;
-        while (ss >> value) {
-            row.push_back(value);
-        }
-
-        if (row.empty()) { continue; }
-
-        if (ncols < 0) {
-            ncols = static_cast<int>(row.size());
-        } else if (static_cast<int>(row.size()) != ncols) {
-            amrex::Abort("Error: Inconsistent column count in " + fname);
-        }
-
-        rows.push_back(std::move(row));
-    }
-
-    if (rows.empty() || ncols <= 0) {
-        amrex::Abort("Error: No surface flux data found in " + fname);
-    }
-
-    std::vector<std::vector<amrex::Real>> cols(ncols, std::vector<amrex::Real>(rows.size()));
-    for (int i = 0; i < static_cast<int>(rows.size()); ++i) {
-        for (int j = 0; j < ncols; ++j) {
-            cols[j][i] = rows[i][j];
-        }
-    }
-
-    return cols;
-}
-
-} // namespace erf_surface_layer_detail
 
 /** Abstraction layer for different surface layer schemes (e.g. MOST, Cd)
  *
@@ -439,7 +384,7 @@ public:
               amrex::Abort("most.sfc_file must be set when using text-file surface forcing");
           }
 
-          sfc = erf_surface_layer_detail::read_cols(sfc_file, 1);
+          sfc = read_cols(sfc_file, 1);
 
           const int min_cols = use_sfc_fluxes ? 5 : 2;
           if (static_cast<int>(sfc.size()) < min_cols) {
@@ -535,22 +480,6 @@ public:
 
       const amrex::DistributionMapping& dm = mf.DistributionMap();
       const int ncomp = 1;
-
-      // If SST is prescribed from a text file, treat a missing land mask as
-      // an all-ocean domain so the sea branch of MOST is active everywhere.
-      if (use_sfc_sst && (m_lmask_lev[lev].empty() || m_lmask_lev[lev][0] == nullptr)) {
-          if (lmask_lev.empty()) {
-              lmask_lev.resize(1);
-          }
-          if (m_lmask_lev[lev].empty()) {
-              m_lmask_lev[lev].resize(1);
-          }
-          lmask_lev[0] = std::make_unique<amrex::iMultiFab>(ba_flux, dm, 1, 0);
-          lmask_lev[0]->setVal(0);
-          m_lmask_lev[lev][0] = lmask_lev[0].get();
-          amrex::Print() << "No LANDMASK provided; treating the domain as all water for "
-                         << "most.use_sfc_sst" << std::endl;
-      }
 
       // Z0 heights FAB
       //--------------------------------------------------------
@@ -722,6 +651,9 @@ public:
 
   void read_custom_roughness (const int& lev,
                               const std::string& fname);
+
+  amrex::Vector<amrex::Vector<amrex::Real>>
+  read_cols(const std::string &fname, const int skip_nlines);
 
   void update_surf_temp (const amrex::Real& time)
   {
@@ -919,7 +851,7 @@ private:
   amrex::Real sfc_qflux{zero};
   amrex::Real sfc_tflux{zero};
   amrex::Real sfc_ustar{zero};
-  std::vector<std::vector<amrex::Real>> sfc;
+  amrex::Vector<amrex::Vector<amrex::Real>> sfc;
 };
 
 #endif /* SURFACELAYER_H */

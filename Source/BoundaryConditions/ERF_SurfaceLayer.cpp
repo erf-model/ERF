@@ -23,6 +23,7 @@ SurfaceLayer::update_fluxes (const int& lev,
         fill_tsurf_with_sst_and_tsk(lev, elapsed_time_since_start_low);
     }
     if (use_sfc_sst) {
+        // Set tsurf to time varying SST from sfc file
         fill_tsurf_with_sfc_sst(lev, elapsed_time);
     }
 
@@ -1443,4 +1444,57 @@ SurfaceLayer::read_custom_roughness (const int& lev,
                        m_geom[lev].Domain(),ratio,
                        bcr, 0);
     }
+}
+
+amrex::Vector<amrex::Vector<amrex::Real>>
+SurfaceLayer::read_cols(const std::string &fname, const int skip_nlines)
+{
+    std::ifstream ifs(fname);
+    if (!ifs.is_open())
+    {
+        amrex::Error("Error opening input file " + fname);
+    }
+
+    amrex::Vector<amrex::Vector<amrex::Real>> col_data;
+    std::string line;
+    int i = 0;
+    int ncols = -1;
+
+    while (std::getline(ifs, line))
+    {
+        i++;
+        if (i <= skip_nlines) continue;
+
+        std::istringstream iss(line);
+
+        amrex::Real tmp;
+        // Get the number of columns in the file
+        if (ncols == -1) {
+            int j = 0;
+            while (iss >> tmp) {
+                col_data.push_back(amrex::Vector<amrex::Real>());
+                j+= 1;
+            }
+
+            ncols = j;
+            iss = std::istringstream(line);
+        }
+
+        int j = 0;
+        while (iss >> tmp) {
+            // verify each line has the same number of columns
+            if (j > ncols) {
+              amrex::Error(
+                "Error reading file '" + fname + "': expected line " +
+                std::to_string(i) + " to have " + std::to_string(ncols) +
+                " columns, but got " + std::to_string(j));
+            }
+            col_data[j].push_back(tmp);
+            j+= 1;
+        }
+    }
+
+    ifs.close();
+
+    return col_data;
 }
