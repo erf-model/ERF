@@ -72,6 +72,7 @@ ComputeDiffusivityYSU (const MultiFab& xvel,
         const auto& over_land_arr = (SurfLayer->get_lmask(level)) ? SurfLayer->get_lmask(level)->const_array(mfi) :
                                                                   Array4<int> {};
         const Array4<Real const> z_nd_arr = z_phys_nd->array(mfi);
+        const PBLDerivativeDzInv_T pbl_derivative_dz_inv{z_phys_cc->const_array(mfi)};
 
         // create flattened boxes to store PBL height
         const GeometryData gdata = geom.data();

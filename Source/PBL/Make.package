@@ -8,6 +8,7 @@ CEXE_sources += ERF_ComputeDiffusivityYSUNew.cpp
 CEXE_headers += ERF_PBLModels.H
 CEXE_headers += ERF_PBLHeight.H
 CEXE_headers += ERF_MYNNStruct.H
+CEXE_headers += ERF_PBLScaleAwareBlending.H
 
 include $(ERF_PBL_DIR)/Shoc/Make.package
 VPATH_LOCATIONS   += $(ERF_PBL_DIR)/Shoc

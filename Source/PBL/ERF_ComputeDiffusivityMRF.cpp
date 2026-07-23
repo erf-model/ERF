@@ -6,6 +6,7 @@
 #include "ERF_PBLModels.H"
 #include "ERF_TileNoZ.H"
 #include "ERF_MoistUtils.H"
+#include "ERF_PBLScaleAwareBlending.H"
 
 using namespace amrex;
 
@@ -235,7 +236,7 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
                                 Array4<int>{};
         // Only retrieve z_phys_nd array if terrain-fitted coordinates are in use
         const Array4<Real const> z_nd_arr = use_terrain_fitted_coords ? z_phys_nd->array(mfi)
-                                                                : Array4<Real const>{};
+                                                                      : Array4<Real const>{};
         const PBLDerivativeDzInv_T pbl_derivative_dz_inv{z_phys_cc->const_array(mfi)};
 
         // Fire heat flux array and flags
@@ -981,6 +982,14 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
         const int izmin   = geom.Domain().smallEnd(2);
         const int izmax   = geom.Domain().bigEnd(2);
 
+        // Blending parameters captured as scalars for GPU lambda.
+        const amrex::Real l_blend_length = turbChoice.pbl_blend_length;
+        const amrex::Real l_blend_cs     = turbChoice.pbl_blend_cs;
+        const amrex::Real l_blend_cmax   = turbChoice.pbl_blend_c_max;
+        //const bool        l_use_smag_ceil= turbChoice.pbl_blend_use_smag;
+        // dx: use horizontal spacing at this level (assume dx = dy for regular grids).
+        const amrex::Real l_dx = geom.CellSize(0);
+
         ParallelFor(gbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {
             Real obuk_val = l_obuk_arr(i, j, 0);
@@ -1099,8 +1108,6 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
 
                     // FIX: guard theta_v against zero/negative in grad_Ri denominator
                     const Real theta_v     = amrex::max(GetThetav(i, j, k,   cell_data, moisture_indices), Real(1.0));
-                    const Real theta_v_kp1 = (k < izmax) ? GetThetav(i, j, k+1, cell_data, moisture_indices) : theta_v;
-                    const Real theta_v_km1 = (k > izmin) ? GetThetav(i, j, k-1, cell_data, moisture_indices) : theta_v;
                     const Real dtheta_v_dz = dthetadz;
 
                     Real grad_Ri = CONST_GRAV / theta_v * dtheta_v_dz / wind_shear_safe;
@@ -1145,8 +1152,6 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
 
                 // FIX: guard theta_v against zero/negative in grad_Ri denominator
                 const Real theta_v     = amrex::max(GetThetav(i, j, k,   cell_data, moisture_indices), Real(1.0));
-                const Real theta_v_kp1 = (k < izmax) ? GetThetav(i, j, k+1, cell_data, moisture_indices) : theta_v;
-                const Real theta_v_km1 = (k > izmin) ? GetThetav(i, j, k-1, cell_data, moisture_indices) : theta_v;
                 const Real dtheta_v_dz = dthetadz;
 
                 Real grad_Ri = CONST_GRAV / theta_v * dtheta_v_dz / wind_shear_safe;
@@ -1174,6 +1179,22 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
                 } else {
                     K_turb(i, j, k, EddyDiff::Q_v) = K_turb(i, j, k, EddyDiff::Theta_v);
                 }
+            }
+
+            // Scale-aware blending for grey-zone resolution (Boutle et al. 2014).
+            // ERF_PBLScaleAwareBlending.H. Gated by pbl_blend_length > 0.
+            // Applied to Theta_v and Q_v. Mom_v is not modified.
+            if (l_blend_length > 0.0) {
+                // For MRF, use power-law ceiling (SmnSmn not available)
+                K_turb(i, j, k, EddyDiff::Theta_v) = pbl_kh_blend_and_cap(
+                    K_turb(i, j, k, EddyDiff::Theta_v),
+                    l_dx, l_blend_length, l_blend_cs, l_blend_cmax,
+                    amrex::Real(-1.0), false);
+
+                K_turb(i, j, k, EddyDiff::Q_v) = pbl_kh_blend_and_cap(
+                    K_turb(i, j, k, EddyDiff::Q_v),
+                    l_dx, l_blend_length, l_blend_cs, l_blend_cmax,
+                    amrex::Real(-1.0), false);
             }
 
             // Limit diffusion coefficients to physical bounds

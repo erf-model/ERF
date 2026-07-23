@@ -126,6 +126,8 @@ ComputeDiffusivityMYNN25 (const MultiFab& xvel,
 
         ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
+            // Compute some partial derivatives that we will need (second order)
+            // U and V derivatives are interpolated to account for staggered grid
             Real dthetavdz, dudz, dvdz;
             ComputeVerticalDerivativesPBL(i, j, k,
                                           uvel, vvel, cell_data, izmin, izmax, pbl_derivative_dz_inv(i,j,k),
