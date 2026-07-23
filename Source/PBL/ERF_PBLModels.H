@@ -23,6 +23,7 @@
  * @param[in] bc_ptr Pointer to array with boundary condition info
  * @param[in] vert_only Only compute vertical eddy diffusivities
  * @param[in] z_phys_nd Physical location of grid nodes, if terrain (or grid stretching) is enabled
+ * @param[in] z_phys_cc Physical location of cell centers
  */
 void
 ComputeDiffusivityMYJ (double dt,
@@ -58,6 +59,7 @@ ComputeDiffusivityMYJ (double dt,
  * @param[in] bc_ptr Pointer to array with boundary condition info
  * @param[in] vert_only Only compute vertical eddy diffusivities
  * @param[in] z_phys_nd Physical location of grid nodes, if terrain (or grid stretching) is enabled
+ * @param[in] z_phys_cc Physical location of cell centers
  */
 void
 ComputeDiffusivityMYNN25 (const amrex::MultiFab& xvel,
@@ -92,6 +94,7 @@ ComputeDiffusivityMYNN25 (const amrex::MultiFab& xvel,
  * @param[in] bc_ptr Pointer to array with boundary condition info
  * @param[in] vert_only Only compute vertical eddy diffusivities
  * @param[in] z_phys_nd Physical location of grid nodes, if terrain (or grid stretching) is enabled
+ * @param[in] z_phys_cc Physical location of cell centers
  */
 void
 ComputeDiffusivityMYNNEDMF (const amrex::MultiFab& xvel,
@@ -126,6 +129,7 @@ ComputeDiffusivityMYNNEDMF (const amrex::MultiFab& xvel,
  * @param[in] bc_ptr Pointer to array with boundary condition info
  * @param[in] vert_only Only compute vertical eddy diffusivities
  * @param[in] z_phys_nd Physical location of grid nodes, if terrain (or grid stretching) is enabled
+ * @param[in] z_phys_cc Physical location of cell centers
  */
 void
 ComputeDiffusivityYSU (const amrex::MultiFab& xvel,
@@ -162,6 +166,7 @@ ComputeDiffusivityYSU (const amrex::MultiFab& xvel,
  * @param[in] bc_ptr Pointer to array with boundary condition info
  * @param[in] vert_only Only compute vertical eddy diffusivities
  * @param[in] z_phys_nd Physical location of grid nodes, if terrain (or grid stretching) is enabled
+ * @param[in] z_phys_cc Physical location of cell centers
  */
 void
 ComputeDiffusivityMRF (const amrex::MultiFab& xvel,
@@ -207,6 +212,7 @@ ComputeDiffusivityMRF (const amrex::MultiFab& xvel,
  * @param[in]  bc_ptr  boundary condition array
  * @param[in]  vert_only  compute vertical diffusivity only
  * @param[in]  z_phys_nd  physical node heights (terrain)
+ * @param[in]  z_phys_cc  physical cell-center heights
  * @param[in]  moisture_indices  component index mapping for moisture variables
  * @param[in]  qheating_rates  radiation heating rates (SW, LW components); optional
  */
@@ -265,6 +271,10 @@ ComputeVerticalDerivativesPBL (int i, int j, int k,
                                amrex::Real& dvdz,
                                const MoistureComponentIndices& moisture_indices)
 {
+    // ext_dir ghost values hold the value at the physical boundary, which is
+    // half a ghost-center spacing from the adjacent cell center. Use a
+    // two-point, first-order boundary-to-center difference with inverse
+    // distance 2/dz.
     if ( k==izmax && c_ext_dir_on_zhi ) {
         dthetadz = ( GetThetav(i,j,k+1,cell_data,moisture_indices)
                     -GetThetav(i,j,k  ,cell_data,moisture_indices) )*dz_inv.dirichlet_hi;

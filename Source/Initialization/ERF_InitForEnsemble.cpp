@@ -16,7 +16,7 @@ ERF::create_random_perturbations(const int lev,
 {
     const MultiFab& src = vars_new[lev][Vars::cons];
 
-    int ncomp = 5;
+    int ncomp = 8;
     mf_cc_pert.define(src.boxArray(), src.DistributionMap(),
                       ncomp, src.nGrow());
 
@@ -205,7 +205,8 @@ void ApplyNeumannBCs(const Geometry& geom,
 }
 
 
-void ReadCustomDataFile(const std::string& filename_custom,
+void
+ReadCustomDataFile(const std::string& filename_custom,
                         int& nx, int& ny, int& nz,
                         int& ng, int& ncomp,
                         std::array<Real,3>& problo_ext,
@@ -214,7 +215,10 @@ void ReadCustomDataFile(const std::string& filename_custom,
                         Vector<Real>& data_theta,
                         Vector<Real>& data_xvel,
                         Vector<Real>& data_yvel,
-                        Vector<Real>& data_zvel)
+                        Vector<Real>& data_zvel,
+                        Vector<Real>& data_qv,
+                        Vector<Real>& data_qc,
+                        Vector<Real>& data_qrain)
 {
     std::ifstream ifs(filename_custom, std::ios::binary);
     if (!ifs.is_open()) {
@@ -249,6 +253,9 @@ void ReadCustomDataFile(const std::string& filename_custom,
     data_xvel.resize(ncell);
     data_yvel.resize(ncell);
     data_zvel.resize(ncell);
+    data_qv.resize(ncell);
+    data_qc.resize(ncell);
+    data_qrain.resize(ncell);
 
     // ----------------------------
     // Read data
@@ -273,7 +280,16 @@ void ReadCustomDataFile(const std::string& filename_custom,
                 ifs.read(reinterpret_cast<char*>(&data_xvel[idx]),  sizeof(Real));
                 ifs.read(reinterpret_cast<char*>(&data_yvel[idx]),  sizeof(Real));
                 ifs.read(reinterpret_cast<char*>(&data_zvel[idx]),  sizeof(Real));
+                ifs.read(reinterpret_cast<char*>(&data_qv[idx]),  sizeof(Real));
+                ifs.read(reinterpret_cast<char*>(&data_qc[idx]),  sizeof(Real));
+                ifs.read(reinterpret_cast<char*>(&data_qrain[idx]),  sizeof(Real));
 
+                /*if(ParallelDescriptor::IOProcessor()) {
+                    std::cout << "Values are " << data_rho[idx] << " " << data_theta[idx] << " "
+                                               << data_xvel[idx] << " " << data_yvel[idx] << " "
+                                               << data_zvel[idx] << " " << data_qv[idx] << " "
+                                               << data_qc[idx] << " " << data_qrain[idx] << std::endl;
+                }*/
                 ++idx;
             }
         }
@@ -328,6 +344,9 @@ InterpolateToFineMF(
     const Vector<Real>& data_xvel,
     const Vector<Real>& data_yvel,
     const Vector<Real>& data_zvel,
+    const Vector<Real>& data_qv,
+    const Vector<Real>& data_qc,
+    const Vector<Real>& data_qrain,
     int nx, int ny, int nz,
     const std::array<Real,3>& problo,
     const std::array<Real,3>& probhi,
@@ -349,6 +368,9 @@ InterpolateToFineMF(
     amrex::Gpu::DeviceVector<Real> d_xvel(data_xvel.size());
     amrex::Gpu::DeviceVector<Real> d_yvel(data_yvel.size());
     amrex::Gpu::DeviceVector<Real> d_zvel(data_zvel.size());
+    amrex::Gpu::DeviceVector<Real> d_qv(data_qv.size());
+    amrex::Gpu::DeviceVector<Real> d_qc(data_qc.size());
+    amrex::Gpu::DeviceVector<Real> d_qrain(data_qrain.size());
 
     // Step 2: copy data from host to device
     amrex::Gpu::copyAsync(amrex::Gpu::hostToDevice,
@@ -371,11 +393,27 @@ InterpolateToFineMF(
                       data_zvel.begin(), data_zvel.end(),
                       d_zvel.begin());
 
+    amrex::Gpu::copyAsync(amrex::Gpu::hostToDevice,
+                      data_qv.begin(), data_qv.end(),
+                      d_qv.begin());
+
+    amrex::Gpu::copyAsync(amrex::Gpu::hostToDevice,
+                      data_qc.begin(), data_qc.end(),
+                      d_qc.begin());
+
+    amrex::Gpu::copyAsync(amrex::Gpu::hostToDevice,
+                      data_qrain.begin(), data_qrain.end(),
+                      d_qrain.begin());
+
     const Real* rho_ptr   = d_rho.data();
     const Real* theta_ptr = d_theta.data();
     const Real* xvel_ptr  = d_xvel.data();
     const Real* yvel_ptr  = d_yvel.data();
     const Real* zvel_ptr  = d_zvel.data();
+    const Real* qv_ptr    = d_qv.data();
+    const Real* qc_ptr    = d_qc.data();
+    const Real* qrain_ptr = d_qrain.data();
+
     // -------------------------------
     // GPU kernel over MultiFab
     // -------------------------------
@@ -392,23 +430,28 @@ InterpolateToFineMF(
             Real y = problo_f[1] + (j + myhalf) * dx_f[1];
             Real z = problo_f[2] + (k + myhalf) * dx_f[2];
 
-            // map to coarse index space
+            // map to coarse index space (cell centers)
             Real rx = (x - problo[0]) / dx_c[0] - myhalf;
             Real ry = (y - problo[1]) / dx_c[1] - myhalf;
             Real rz = (z - problo[2]) / dx_c[2] - myhalf;
 
-            int ic = static_cast<int>(floor(rx));
-            int jc = static_cast<int>(floor(ry));
-            int kc = static_cast<int>(floor(rz));
+            // clamp coordinates into valid coarse cell-center range
+            rx = amrex::max(Real(0), amrex::min(rx, Real(nx-1)));
+            ry = amrex::max(Real(0), amrex::min(ry, Real(ny-1)));
+            rz = amrex::max(Real(0), amrex::min(rz, Real(nz-1)));
+
+            int ic = static_cast<int>(amrex::Math::floor(rx));
+            int jc = static_cast<int>(amrex::Math::floor(ry));
+            int kc = static_cast<int>(amrex::Math::floor(rz));
 
             Real tx = rx - ic;
             Real ty = ry - jc;
             Real tz = rz - kc;
 
-            // clamp
-            ic = amrex::max(0, amrex::min(ic, nx-1));
-            jc = amrex::max(0, amrex::min(jc, ny-1));
-            kc = amrex::max(0, amrex::min(kc, nz-1));
+            // optional: avoid degenerate interpolation at upper edge
+            if (ic == nx-1) tx = Real(0);
+            if (jc == ny-1) ty = Real(0);
+            if (kc == nz-1) tz = Real(0);
 
             //printf("The values are x, y, z, rx, ry, rz = %0.15g %0.15g %0.15g %0.15g %0.15g %0.15g\n", x, y, z, rx, ry, rz);
 
@@ -418,6 +461,13 @@ InterpolateToFineMF(
             arr(i,j,k,2) = interp_trilinear(xvel_ptr,  ic,jc,kc, tx,ty,tz, nx,ny,nz);
             arr(i,j,k,3) = interp_trilinear(yvel_ptr,  ic,jc,kc, tx,ty,tz, nx,ny,nz);
             arr(i,j,k,4) = interp_trilinear(zvel_ptr,  ic,jc,kc, tx,ty,tz, nx,ny,nz);
+            arr(i,j,k,5) = interp_trilinear(qv_ptr,  ic,jc,kc, tx,ty,tz, nx,ny,nz);
+            arr(i,j,k,6) = interp_trilinear(qc_ptr,  ic,jc,kc, tx,ty,tz, nx,ny,nz);
+            arr(i,j,k,7) = interp_trilinear(qrain_ptr,  ic,jc,kc, tx,ty,tz, nx,ny,nz);
+
+            /*printf("Values are %0.15g %0.15g %0.15g %0.15g %0.15g %0.15g %0.15g %0.15g\n",
+                    arr(i,j,k,0), arr(i,j,k,1), arr(i,j,k,2), arr(i,j,k,3),
+                    arr(i,j,k,4), arr(i,j,k,5), arr(i,j,k,6), arr(i,j,k,7));*/
         });
     }
 }
@@ -439,10 +489,16 @@ MakeFinalMultiFabs (const MultiFab& mf_cc_fine,
 
         amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
-            Real tmp_rho = mf_cc_fine_arr(i,j,k,0);
+            Real tmp_rho   = mf_cc_fine_arr(i,j,k,0);
             Real tmp_theta = mf_cc_fine_arr(i,j,k,1);
-            cons_pert_arr(i,j,k,Rho_comp) = tmp_rho;
+            Real tmp_qv    = mf_cc_fine_arr(i,j,k,5);
+            Real tmp_qc    = mf_cc_fine_arr(i,j,k,6);
+            Real tmp_qrain = mf_cc_fine_arr(i,j,k,7);
+            cons_pert_arr(i,j,k,Rho_comp)      = tmp_rho;
             cons_pert_arr(i,j,k,RhoTheta_comp) = tmp_rho*tmp_theta;
+            cons_pert_arr(i,j,k,RhoQ1_comp)    = tmp_rho*tmp_qv;
+            cons_pert_arr(i,j,k,RhoQ2_comp)    = tmp_rho*tmp_qc;
+            cons_pert_arr(i,j,k,RhoQ3_comp)    = tmp_rho*tmp_qrain;
         });
     }
 
@@ -527,36 +583,41 @@ ERF::create_background_state_for_ensemble (int lev,
     std::array<Real,3> problo_ext, probhi_ext;
 
     Vector<Real> data_rho, data_theta, data_xvel, data_yvel, data_zvel;
+    Vector<Real> data_qv, data_qc, data_qrain;
 
     ReadCustomDataFile(solverChoice.coarse_bckgnd_data_file,
                        nx_crse, ny_crse, nz_crse, ng_crse, ncomp_crse,
                        problo_ext, probhi_ext,
-                       data_rho, data_theta, data_xvel, data_yvel, data_zvel);
+                       data_rho, data_theta,
+                       data_xvel, data_yvel, data_zvel,
+                       data_qv, data_qc, data_qrain);
 
     Geometry& geom_fine = geom[0];
     // Create a cell-centered multifab on the fine mesh - ie. something with the same boxarray,
     // distributed mapping, nGrow, but with 5 components
     MultiFab mf_cc_fine;
     const MultiFab& src = vars_new[0][0];
-    int ncomp = 5;
+    int ncomp = 8;
     mf_cc_fine.define(src.boxArray(), src.DistributionMap(),
-                                           ncomp, src.nGrow());
+                      ncomp, src.nGrow());
 
-    InterpolateToFineMF(data_rho, data_theta, data_xvel, data_yvel, data_zvel,
+    InterpolateToFineMF(data_rho, data_theta,
+                        data_xvel, data_yvel, data_zvel,
+                        data_qv, data_qc, data_qrain,
                         nx_crse, ny_crse, nz_crse,
                         problo_ext, probhi_ext,
                         mf_cc_fine,
                         geom_fine);
 
+
+    Vector<std::string> varnames = {"density","theta", "x_velocity","y_velocity","z_velocity", "qv", "qc", "qrain"};
+    WriteSingleLevelPlotfile("1_plt_final_interp", mf_cc_fine, varnames, geom_fine, zero, 0);
+
     ApplyNeumannBCs(geom_fine, mf_cc_fine);
-
-    Vector<std::string> varnames = {"density","theta", "x_velocity","y_velocity","z_velocity"};
-
      // Add pertubrations stored in the "pert" variables in the function arguments
     // (multiplied by the corresponding amplitude)
     AddPertToBckgnd(mf_cc_fine, mf_cc_pert, solverChoice.ens_pert_amplitude);
     ApplyNeumannBCs(geom_fine, mf_cc_fine);
-    //WriteSingleLevelPlotfile("1_plt_final", mf_cc_fine, varnames, geom_fine, zero, 0);
 
     MakeFinalMultiFabs(mf_cc_fine, cons_pert, xvel_pert, yvel_pert, zvel_pert);
 }

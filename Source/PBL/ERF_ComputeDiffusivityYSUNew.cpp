@@ -1546,6 +1546,7 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
                 // WRF Reference: module_bl_ysu.F uses THVX (virtual potential temperature).
                 // For moist air, θ_v = θ * (1 + 0.61*q_v - q_l - q_i) ≈ θ * (1 + 0.61*q_v)
                 const Real theta_v = GetThetav(i, j, k, cell_data, moisture_indices);
+                const Real dtheta_v_dz = dthetadz;
 
                 // Gradient Richardson number: Ri_g = (g/θ_v) * (dθ_v/dz) / (shear²)
                 // Reference: WRF module_bl_ysu.F line ~450-456, Hong et al. 2006, Eqn. A18
