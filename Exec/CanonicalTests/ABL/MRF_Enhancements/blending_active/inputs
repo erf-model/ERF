@@ -1,0 +1,75 @@
+# MRF scale-aware blending active at grey-zone resolution.
+#
+# Domain: 3000x3000x1024 m, 8x8x64 cells -> dx = 375 m.
+# pbl_blend_length = 750 m.
+# f_blend = 1 / (1 + (375/750)^2) = 1 / (1 + 0.25) = 0.8
+#
+# K_h ceiling (power-law, pbl_blend_use_smag=false):
+#   K_h_max = 0.1 * 375^(4/3) = 0.1 * 2610 ~ 261 m^2/s
+# MRF peak K_h for neutral ABL ~ 27 m^2/s << 261 m^2/s.
+# Ceiling is not active here; only the Boutle factor applies.
+# K_h_eff = 27 * 0.8 = 21.6 m^2/s (20% reduction).
+#
+# Expected results:
+#   (1) Run exits code 0.
+#   (2) EddyDiff::Theta_v peak ~ 0.8 * (blending_disabled Theta_v peak).
+#       Approximately 20% reduction relative to blending_disabled.
+#   (3) EddyDiff::Q_v peak ~ 0.8 * (blending_disabled Q_v peak).
+#   (4) EddyDiff::Mom_v unchanged relative to blending_disabled.
+#   (5) pbl_blend_length = 1e10: f -> 1.0, recovers blending_disabled.
+#   (6) pbl_blend_length = 1.0: f -> 0 at dx=375 m (375>>1),
+#       K_h_eff -> min(K_h*~0, K_h_max) ~ 0.
+#
+# References:
+#   Boutle et al. (2014). Mon. Wea. Rev., 142, 1655.
+#     https://doi.org/10.1175/MWR-D-13-00229.1
+#   Beare (2014). Bound.-Layer Meteor., 153, 345.
+#     https://doi.org/10.1007/s10546-013-9881-3
+#   Honnert et al. (2011). J. Atmos. Sci., 68, 2742.
+#     https://doi.org/10.1175/JAS-D-11-025.1
+#   Smagorinsky (1963). Mon. Wea. Rev., 91, 99.
+#     https://doi.org/10.1175/1520-0493(1963)091<0099:GCEWTP>2.3.CO;2
+#   ERF_PBLScaleAwareBlending.H: Source/PBL/ERF_PBLScaleAwareBlending.H
+
+erf.prob_name = "ABL"
+max_step = 5
+amr.max_level = 0
+amrex.fpe_trap_invalid = 0
+geometry.prob_extent = 3000 3000 1024
+amr.n_cell           =  8   8   64
+geometry.is_periodic = 1 1 0
+amrex.max_grid_size_z = 128
+zlo.type = "surface_layer"
+erf.most.z0 = 0.1
+erf.most.zref = 24.0
+erf.most.surf_temp_flux = 0.0
+zhi.type = "SlipWall"
+zhi.theta_grad = 0.003
+erf.fixed_dt = 0.5
+erf.sum_interval = 1
+erf.v = 1
+amr.v = 1
+erf.check_int = -1
+erf.plot_int_1 = 5
+erf.plot_vars_1 = x_velocity y_velocity z_velocity theta
+erf.use_gravity = true
+erf.molec_diff_type = "None"
+erf.les_type = "None"
+erf.init_type = "input_sounding"
+erf.sounding_type = Ideal
+erf.input_sounding_file = "sounding_neutral_abl"
+erf.pbl_type = "MRF"
+erf.pbl_mrf_Ribcr = 0.5
+erf.pbl_mrf_const_b = 7.8
+erf.pbl_mrf_sf = 0.1
+erf.enable_mrf_countergradient = true
+erf.mrf_moistvars = false
+erf.use_coriolis = true
+erf.latitude = 45.0
+erf.abl_driver_type = "GeostrophicWind"
+erf.abl_geo_wind = 15.0 0.0 0.0
+# Blending active: dx=375 m, L_blend=750 m -> f=0.8 -> 20% K_h reduction.
+erf.pbl_blend_length   = 750.0
+erf.pbl_blend_cs       = 0.17
+erf.pbl_blend_c_max    = 0.1
+erf.pbl_blend_use_smag = false
