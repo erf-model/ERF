@@ -16,7 +16,7 @@ void ERFPhysBCFunct_u::impose_lateral_xvel_bcs (const Array4<Real>& dest_arr,
                                                 const Array4<Real const>& xvel_arr,
                                                 const Array4<Real const>& yvel_arr,
                                                 const Box& bx, const Box& domain, int bccomp,
-                                                const Real /*time*/)
+                                                const double /*time*/)
 {
     BL_PROFILE_VAR("impose_lateral_xvel_bcs()",impose_lateral_xvel_bcs);
     const auto& dom_lo = lbound(domain);
@@ -196,9 +196,9 @@ void ERFPhysBCFunct_u::impose_vertical_xvel_bcs (const Array4<Real>& dest_arr,
                                                  const GpuArray<Real,AMREX_SPACEDIM> dxInv,
                                                  int bccomp,
 #ifdef ERF_USE_TERRAIN_VELOCITY
-                                                 const Real time)
+                                                 const double time)
 #else
-                                                 const Real /*time*/)
+                                                 const double /*time*/)
 #endif
 {
     BL_PROFILE_VAR("impose_vertical_xvel_bcs()",impose_vertical_xvel_bcs);

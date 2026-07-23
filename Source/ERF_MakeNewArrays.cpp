@@ -346,9 +346,11 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
     IntVect ng  = vars_new[lev][Vars::cons].nGrowVect();
 
     if (lev == 0) {
-        wrf_C1H = std::make_unique<MultiFab>(ba1d[lev],dm,1,IntVect(ng[0],ng[1],ng[2]));
-        wrf_C2H = std::make_unique<MultiFab>(ba1d[lev],dm,1,IntVect(ng[0],ng[1],ng[2]));
-        wrf_MUB = std::make_unique<MultiFab>(ba2d[lev],dm,1,IntVect(ng[0],ng[1],ng[2]));
+        wrf_C1H  = std::make_unique<MultiFab>(ba1d[lev],dm,1,IntVect(ng[0],ng[1],ng[2]));
+        wrf_C2H  = std::make_unique<MultiFab>(ba1d[lev],dm,1,IntVect(ng[0],ng[1],ng[2]));
+        wrf_RDNW = std::make_unique<MultiFab>(ba1d[lev],dm,1,IntVect(ng[0],ng[1],ng[2]));
+        wrf_MUB  = std::make_unique<MultiFab>(ba2d[lev],dm,1,IntVect(ng[0],ng[1],ng[2]));
+        wrf_PHB  = std::make_unique<MultiFab>(convert(ba,IntVect(0,0,1)),dm,1,IntVect(ngrow+1,ngrow+1,0));
     }
 
     mf_PSFC[lev] = std::make_unique<MultiFab>(ba2d[lev],dm,1,ng);
@@ -683,7 +685,7 @@ ERF::update_diffusive_arrays (int lev, const BoxArray& ba, const DistributionMap
 }
 
 void
-ERF::init_zphys (int lev, Real elapsed_time)
+ERF::init_zphys (int lev, double elapsed_time)
 {
     // For EB, z_phys_nd was already initialized with the correct z_offset by init_default_zphys.
     // The terrain-fitting (BTF) done below is irrelevant for a flat EB mesh and would clobber
@@ -751,6 +753,15 @@ ERF::init_zphys (int lev, Real elapsed_time)
                 amrex::Print() << "max of zlevels  " << zlevels_stag[0][zlevels_stag[0].size()-1] << std::endl;
                 AMREX_ALWAYS_ASSERT_WITH_MESSAGE(rel_diff < Real(1.e-8), "Terrain is taller than domain top!");
             }
+
+#if 0
+            // This remains commented out until we verify that the stretched and variable dz pathways
+            //   in fact give the same answer when appropriate
+            if (SolverChoice::mesh_type == MeshType::VariableDz)
+            {
+                check_mesh_type(lev);
+            }
+#endif
         } // lev == 0
 
     } else {
@@ -780,6 +791,20 @@ ERF::init_zphys (int lev, Real elapsed_time)
         MultiFab::Subtract(*terrain_blanking[lev], EBFactory(lev).getVolFrac(), 0, 0, 1, ComputeGhostCells(solverChoice) + 2);
         terrain_blanking[lev]->FillBoundary(geom[lev].periodicity());
         init_immersed_forcing(lev); // needed for real cases
+
+        // buildings are landmask = 2
+        for (MFIter mfi(*lmask_lev[lev][0]); mfi.isValid(); ++mfi) {
+            const Box& bx2d = mfi.growntilebox();
+            auto lmask_arr = lmask_lev[lev][0]->array(mfi);
+            const auto& t_blank_arr = terrain_blanking[lev]->array(mfi);
+
+            amrex::ParallelFor(bx2d, [=] AMREX_GPU_DEVICE(int i, int j, int k) {
+                // Use k=0 for the terrain_blanking field
+                if (t_blank_arr(i, j, 0) > 0.0) {
+                    lmask_arr(i, j, k) = 2;
+                }
+            });
+        }
     }
 
     // Compute the min dz and pass to the micro model

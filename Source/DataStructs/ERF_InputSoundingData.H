@@ -191,7 +191,7 @@ public:
           pm_integ[0] = press_ref_inp_sound;
         rhod_integ[0] = getRhogivenThetaPress(theta_ref_inp_sound,
                                               press_ref_inp_sound,
-                                              R_d/Cp_d,
+                                              RdoCp,
                                               qv_ref_inp_sound);
 
         amrex::Print() << "ideal sounding init: surface dry air density = "
@@ -219,6 +219,7 @@ public:
 
          // integrate from surface to domain top
         amrex::Real dz, F, C;
+        amrex::Real T_hi;
         amrex::Real rho_tot_hi, rho_tot_lo;
         for (int k=1; k < size(itime); ++k)
         {
@@ -231,18 +232,23 @@ public:
 
             // Initial guess and residual
             pm_integ[k]   = pm_integ[k-1];
+            T_hi          = getTgivenPandTh(pm_integ[k], theta_inp_sound[itime][k], RdoCp);
             rhod_integ[k] = getRhogivenThetaPress(theta_inp_sound[itime][k],
                                                   pm_integ[k],
-                                                  R_d/Cp_d,
+                                                  RdoCp,
                                                   qv_inp_sound[itime][k]);
             rho_tot_hi = rhod_integ[k] * (one + qv_inp_sound[itime][k]);
             F = pm_integ[k] + myhalf*rho_tot_hi*CONST_GRAV*dz + C;
 
             // Do iterations
-            if (std::abs(F)>tol) HSEutils::Newton_Raphson_hse(tol, R_d/Cp_d, dz,
-                                                              CONST_GRAV, C, theta_inp_sound[itime][k],
-                                                              qv_inp_sound[itime][k], qv_inp_sound[itime][k],
-                                                              pm_integ[k], rhod_integ[k], F);
+            if (std::abs(F)>tol) {
+                bool maintain_Th = true;
+                HSEutils::Newton_Raphson_hse(tol, RdoCp, dz,
+                                             CONST_GRAV, C, theta_inp_sound[itime][k], T_hi,
+                                             qv_inp_sound[itime][k], qv_inp_sound[itime][k],
+                                             pm_integ[k], rhod_integ[k], F, maintain_Th);
+            }
+
 #if 0       // Printing
             amrex::Print() << z_inp_sound[itime][k]
                            << " " << pm_integ[k]
@@ -272,10 +278,10 @@ public:
         rhod_integ.resize(Ninp);
 
         // evaluate surface quantities (k=0): total pressure and dry air
-        pm_integ[0] = press_ref_inp_sound;
+        pm_integ[0]   = press_ref_inp_sound;
         rhod_integ[0] = getRhogivenThetaPress(theta_ref_inp_sound,
                                               press_ref_inp_sound,
-                                              R_d/Cp_d,
+                                              RdoCp,
                                               qv_ref_inp_sound);
 
         const amrex::Real th0 = theta_ref_inp_sound;
@@ -308,7 +314,7 @@ public:
 
             // Isentropic pressure at next level
             amrex::Real qvmean = (assume_dry) ? zero : myhalf*(qv_inp_sound[itime][k-1] + qv_inp_sound[itime][k]);
-            amrex::Real thm0 = th0 * (1 + R_v/R_d * qvmean);
+            amrex::Real thm0 = th0 * (one + RvoRd * qvmean);
             amrex::Real plo_pow = std::pow(pm_integ[k-1], (Gamma-1)/Gamma);
             pm_integ[k] = (Gamma-1)/Gamma *
                 (-CONST_GRAV * p0_pow / (R_d * thm0) * (1 + qvmean) * dz
@@ -321,7 +327,7 @@ public:
             // Get corresponding dry air density
             rhod_integ[k] = getRhogivenThetaPress(theta_inp_sound[itime][k],
                                                   pm_integ[k],
-                                                  R_d/Cp_d,
+                                                  RdoCp,
                                                   qv_inp_sound[itime][k]);
 
 #if 0       // Printing

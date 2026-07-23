@@ -11,6 +11,8 @@
 
 #include <ERF_ReadFromWRFInput.H>
 #include <ERF_ReadFromWRFBdy.H>
+#include <ERF_WriteERFBdy.H>
+#include <ERF_ReadFromERFBdy.H>
 
 using namespace amrex;
 
@@ -89,10 +91,10 @@ init_base_state_from_wrfinput (const Box& subdomain,
                                const Real& TLP_STRAT,
                                const Real& P_STRAT);
 
-Real
+double
 read_start_time_from_wrfinput (int lev, const std::string& fname)
 {
-    Real NC_epochTime;
+    double NC_epochTime = 0.0;
     const std::string dateTimeFormat = "%Y-%m-%d_%H:%M:%S";
 
     if (ParallelDescriptor::IOProcessor()) {
@@ -109,7 +111,7 @@ read_start_time_from_wrfinput (int lev, const std::string& fname)
 
         auto epochTime = getEpochTime(date, dateTimeFormat);
         Print() << "  wrfinput datetime 0 : " << date << " " << epochTime << std::endl;
-        NC_epochTime = static_cast<Real>(epochTime);
+        NC_epochTime = static_cast<double>(epochTime);
 
         Print() << "Have read start_time string at level "<< lev << " is " << date << std::endl;
         Print() << "Have read start_time number at level "<< lev << " is " << NC_epochTime << std::endl;
@@ -235,26 +237,27 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev)
     NC_names.push_back("LANDMASK");  // 18
     NC_names.push_back("C1H");       // 19
     NC_names.push_back("C2H");       // 20
-    NC_names.push_back("XLAT_V");    // 21
-    NC_names.push_back("XLONG_U");   // 22
+    NC_names.push_back("RDNW");      // 21
+    NC_names.push_back("XLAT_V");    // 22
+    NC_names.push_back("XLONG_U");   // 23
     if (use_moist) {
-        NC_names.push_back("QVAPOR"); // 23
-        NC_names.push_back("QCLOUD"); // 24
-        NC_names.push_back("QRAIN");  // 25
+        NC_names.push_back("QVAPOR"); // 24
+        NC_names.push_back("QCLOUD"); // 25
+        NC_names.push_back("QRAIN");  // 26
     }
-    NC_names.push_back("IVGTYP");     // 26
-    NC_names.push_back("ISLTYP");     // 27
+    NC_names.push_back("IVGTYP");     // 27
+    NC_names.push_back("ISLTYP");     // 28
     if (use_lsm) {
-        NC_names.push_back("TSLB");   // 28
-        NC_names.push_back("SMOIS");  // 29
-        NC_names.push_back("SH2O");   // 30
-        NC_names.push_back("LAI");    // 31
-        NC_names.push_back("ZS");     // 32
-        NC_names.push_back("DZS");    // 33
-        NC_names.push_back("VEGFRA"); // 34
-        NC_names.push_back("TMN");    // 35
-        NC_names.push_back("SHDMIN"); // 36
-        NC_names.push_back("SHDMAX"); // 37
+        NC_names.push_back("TSLB");   // 29
+        NC_names.push_back("SMOIS");  // 30
+        NC_names.push_back("SH2O");   // 31
+        NC_names.push_back("LAI");    // 32
+        NC_names.push_back("ZS");     // 33
+        NC_names.push_back("DZS");    // 34
+        NC_names.push_back("VEGFRA"); // 35
+        NC_names.push_back("TMN");    // 36
+        NC_names.push_back("SHDMIN"); // 37
+        NC_names.push_back("SHDMAX"); // 38
 
         // --- debugging ---
         // print LSM varname->WRF input name map
@@ -275,14 +278,21 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev)
 
     auto& lev_new = vars_new[lev];
 
-    // NOTE: Following MFs must have an underlying BA that follows
-    //       the shapes in ERF_ReadFromWRFInput.cpp
-    //       Most are 3D but MU/MUB are 2D and C1/2H are 1D
+    // NOTE: These temporaries keep us from overwriting the lev==0 wrf data that is
+    //       stored for the BDY operations.
+    MultiFab* mf_C1H;
+    MultiFab* mf_C2H;
+    MultiFab* mf_RDNW;
+    MultiFab* mf_MUB;
     MultiFab* mf_PHB;
-    MultiFab PHB_tmp;
-    MultiFab mf_PH ;                  // For geopotential height
-    MultiFab mf_PB , mf_P  ;          // For base state
-    std::unique_ptr<MultiFab> mf_ALB; // For base state
+    MultiFab  C1H_tmp;
+    MultiFab  C2H_tmp;
+    MultiFab  RDNW_tmp;
+    MultiFab  MUB_tmp;
+    MultiFab  PHB_tmp;
+
+    MultiFab mf_PH, mf_PB, mf_P;      // For geopotential and base state
+    std::unique_ptr<MultiFab> mf_ALB; // For density
 
     // Read base state params (used if ALB is not read)
     Real T00 = Real(290.0);
@@ -534,7 +544,7 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev)
 
                     if (use_theta_m && (var_name == "QVAPOR")) {
                         // Now, we can calculate theta = thm / (1 + R_v/R_d * Qv)
-                        var_fab.template mult<RunOn::Device>(R_v/R_d);
+                        var_fab.template mult<RunOn::Device>(RvoRd);
                         var_fab.template plus<RunOn::Device>(one);
                         var_fab.template invert<RunOn::Device>(one);
 #ifdef _OPENMP
@@ -592,13 +602,11 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev)
                   // NOTE: We call FillBoundary on PHB below
                   auto& ba_w = lev_new[Vars::zvel].boxArray();
                   if (lev == 0) {
-                      wrf_PHB = std::make_unique<MultiFab>(ba_w, dm, 1, IntVect(ngz[0],ngz[1],0));
                       mf_PHB = wrf_PHB.get();
                   } else {
                       PHB_tmp.define(ba_w, dm, 1, IntVect(ngz[0],ngz[1],0));
                       mf_PHB = &PHB_tmp;
                   }
-
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
@@ -650,34 +658,73 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev)
                 FArrayBox &cur_fab = mf_PSFC_lev[mfi];
                 cur_fab.template copy<RunOn::Device>(var_fab, 0, 0, 1);
               }
+              Real pmax = mf_PSFC_lev.max(0);
+              if (pmax == zero) {
+                  amrex::Print() << " PSFC read in had max of 0; replacing it by 1e5 everywhere" << std::endl;
+                  mf_PSFC_lev.setVal(p_0);
+              }
               var_fab.clear();
           } else if ( var_name == "MUB" ) {
+              if (lev == 0) {
+                  mf_MUB = wrf_MUB.get();
+              } else {
+                  MUB_tmp.define(ba2d[lev], dm, 1, IntVect(ngz[0],ngz[1],0));
+                  mf_MUB = &MUB_tmp;
+              }
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
-              for ( MFIter mfi(*wrf_MUB, false); mfi.isValid(); ++mfi )
+              for ( MFIter mfi(*mf_MUB, false); mfi.isValid(); ++mfi )
               {
-                FArrayBox &cur_fab = (*wrf_MUB)[mfi];
+                FArrayBox &cur_fab = (*mf_MUB)[mfi];
                 cur_fab.template copy<RunOn::Device>(var_fab, 0, 0, 1);
               }
               var_fab.clear();
           } else if ( var_name == "C1H" ) {
+              if (lev == 0) {
+                  mf_C1H = wrf_C1H.get();
+              } else {
+                  C1H_tmp.define(ba1d[lev], dm, 1, IntVect(ngz[0],ngz[1],0));
+                  mf_C1H = &C1H_tmp;
+              }
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
-              for ( MFIter mfi(*wrf_C1H, false); mfi.isValid(); ++mfi )
+              for ( MFIter mfi(*mf_C1H, false); mfi.isValid(); ++mfi )
               {
-                FArrayBox &cur_fab = (*wrf_C1H)[mfi];
+                FArrayBox &cur_fab = (*mf_C1H)[mfi];
                 cur_fab.template copy<RunOn::Device>(var_fab, 0, 0, 1);
               }
               var_fab.clear();
           } else if ( var_name == "C2H" ) {
+              if (lev == 0) {
+                  mf_C2H = wrf_C2H.get();
+              } else {
+                  C2H_tmp.define(ba1d[lev], dm, 1, IntVect(ngz[0],ngz[1],0));
+                  mf_C2H = &C2H_tmp;
+              }
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
-              for ( MFIter mfi(*wrf_C2H, false); mfi.isValid(); ++mfi )
+              for ( MFIter mfi(*mf_C2H, false); mfi.isValid(); ++mfi )
               {
-                FArrayBox &cur_fab = (*wrf_C2H)[mfi];
+                FArrayBox &cur_fab = (*mf_C2H)[mfi];
+                cur_fab.template copy<RunOn::Device>(var_fab, 0, 0, 1);
+              }
+              var_fab.clear();
+          } else if ( var_name == "RDNW" ) {
+              if (lev == 0) {
+                  mf_RDNW = wrf_RDNW.get();
+              } else {
+                  RDNW_tmp.define(ba1d[lev], dm, 1, IntVect(ngz[0],ngz[1],0));
+                  mf_RDNW = &RDNW_tmp;
+              }
+#ifdef _OPENMP
+#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#endif
+              for ( MFIter mfi(*mf_RDNW, false); mfi.isValid(); ++mfi )
+              {
+                  FArrayBox &cur_fab = (*mf_RDNW)[mfi];
                 cur_fab.template copy<RunOn::Device>(var_fab, 0, 0, 1);
               }
               var_fab.clear();
@@ -1041,8 +1088,8 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev)
         int n_qstate_into_total = micro->Get_Qstate_Moist_Size() - micro->Get_Qstate_Moist_NumConc_Size();
         make_qt(lev_new[Vars::cons], qt, n_qstate_into_total);
 
-        bool use_existing_sfc_density = false;
-        rebalance_columns(rho, theta, qv, qt, z_phys_nd[lev].get(), geom[lev], use_existing_sfc_density);
+        bool maintain_Th = false;
+        rebalance_columns(rho, theta, qv, qt, z_phys_nd[lev].get(), geom[lev], maintain_Th);
 
         // Update (rho qv) in the state
         MultiFab::Multiply(qv, rho, 0, 0, 1, 1);
@@ -1086,29 +1133,119 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev)
             amrex::Error("NetCDF boundary file name must be provided via input");
         }
 
-        bdy_time_interval = read_times_from_wrfbdy(nc_bdy_file,
-                                                   bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi,
-                                                   start_bdy_time, final_bdy_time);
+        // Check for erfbdy file.
+        std::string erfbdy_header = erfbdy_file + "/Header";
+        use_erfbdy = FileSystem::Exists(erfbdy_header);
+        if (use_erfbdy || write_erfbdy) nvars_erfbdy = WRFBdyVars::NumTypes;
 
-        Print() << "Reading in boundary data with width " << real_width << std::endl;
-        Print() << "Running with relaxation width       " << real_width << std::endl;
+        // Path 1: Load from existing erfbdy file.
+        if (use_erfbdy) {
+            Print() << "Loading boundary data from erfbdy file: " << erfbdy_file << std::endl;
 
-        // *******************************************************************************************
-        // We intentionally only read in the first three slices here ... we will read the rest in
-        // as needed during the time stepping procedure
-        // *******************************************************************************************
-        int ntimes = bdy_data_xlo.size(); ntimes = amrex::min(ntimes, 3);
-        Array<MultiFab*, AMREX_SPACEDIM> area_vec = {ax[lev].get(), ay[lev].get(), az[lev].get()};
-        bool is_anelastic = (solverChoice.anelastic[0] == 1);
-        for (int itime = 0; itime < ntimes; itime++)
-        {
-            read_and_convert_from_wrfbdy(itime, nc_bdy_file,
-                                         bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi,
-                                         wrf_MUB, wrf_C1H, wrf_C2H, wrf_PHB,
-                                         lev_new[Vars::xvel], lev_new[Vars::yvel], lev_new[Vars::cons],
-                                         r_hse, area_vec, geom[0], use_moist, domain_bcs_type,
-                                         real_width, bdy_time_interval, is_anelastic);
-        } // itime
+            // Read metadata and times from erfbdy.
+            int ntimes_erfbdy;
+            Vector<double> bdy_times;
+            bdy_time_interval = read_times_from_erfbdy(erfbdy_file,
+                                                       ntimes_erfbdy, nvars_erfbdy, real_width,
+                                                       bdy_times, start_bdy_time, final_bdy_time);
+
+            Print() << "erfbdy file contains " << ntimes_erfbdy << " time slices" << std::endl;
+            Print() << "start_bdy_time = " << start_bdy_time << std::endl;
+            Print() << "final_bdy_time = " << final_bdy_time << std::endl;
+            Print() << "bdy_time_interval = " << bdy_time_interval << std::endl;
+
+            bdy_data_xlo.resize(ntimes_erfbdy);
+            bdy_data_xhi.resize(ntimes_erfbdy);
+            bdy_data_ylo.resize(ntimes_erfbdy);
+            bdy_data_yhi.resize(ntimes_erfbdy);
+
+            // Load the first 2 times for simulation initialization.
+            for (int itime = 0; itime < std::min(2, ntimes_erfbdy); ++itime) {
+                read_from_erfbdy(itime, erfbdy_file,
+                                 bdy_data_xlo, bdy_data_xhi,
+                                 bdy_data_ylo, bdy_data_yhi,
+                                 nvars_erfbdy, real_width);
+                Print() << "Loaded erfbdy time slice " << itime << std::endl;
+            }
+
+            Print() << "Read in boundary data with width "  << real_width << std::endl;
+            Print() << "Running with relaxation width: " << real_width << std::endl;
+        }
+        // Path 2: Load from wrfbdy and optionally write to erfbdy.
+        else {
+            if (nc_bdy_file.empty()) {
+                amrex::Error("NetCDF boundary file name must be provided via input");
+            }
+
+            bdy_time_interval = read_times_from_wrfbdy(nc_bdy_file,
+                                                       bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi,
+                                                       start_bdy_time, final_bdy_time);
+
+            int ntimes_total = bdy_data_xlo.size();
+            Vector<double> bdy_times(ntimes_total);
+
+            // Initialize erfbdy file.
+            if (write_erfbdy) {
+                for (int itime = 0; itime < ntimes_total; ++itime) {
+                    bdy_times[itime] = start_bdy_time + itime * bdy_time_interval;
+                }
+
+                InitERFBdyFile(erfbdy_file, ntimes_total, bdy_times,
+                               geom[lev].Domain(), nvars_erfbdy, real_width);
+                Print() << "Initialized erfbdy file: " << erfbdy_file << std::endl;
+            }
+
+            // *******************************************************************************************
+            // We intentionally only read in the first three slices here ... we will read the rest in
+            // as needed during the time stepping procedure
+            // *******************************************************************************************
+            int ntimes = bdy_data_xlo.size(); ntimes = amrex::min(ntimes, 3);
+            Array<MultiFab*, AMREX_SPACEDIM> area_vec = {ax[lev].get(), ay[lev].get(), az[lev].get()};
+            bool is_anelastic = (solverChoice.anelastic[0] == 1);
+            for (int itime = 0; itime < ntimes; itime++)
+            {
+                read_and_convert_from_wrfbdy(itime, nc_bdy_file,
+                                             bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi,
+                                             wrf_MUB, wrf_C1H, wrf_C2H, wrf_RDNW, wrf_PHB, z_phys_nd[lev],
+                                             lev_new[Vars::xvel], lev_new[Vars::yvel], lev_new[Vars::cons],
+                                             r_hse, area_vec, geom[lev], use_moist, solverChoice.rebalance_wrf_input, domain_bcs_type,
+                                             real_width, bdy_time_interval, is_anelastic);
+
+                // Write this time to erfbdy.
+                if (write_erfbdy) {
+                    WriteERFBdyTimeSlice(erfbdy_file, itime,
+                                         bdy_data_xlo[itime], bdy_data_xhi[itime],
+                                         bdy_data_ylo[itime], bdy_data_yhi[itime],
+                                         WRFBdyVars::NumTypes);
+                    Print() << "Wrote erfbdy time index " << itime << " of " << ntimes_total-1 << std::endl;
+                }
+            } // itime
+
+            // If writing erfbdy and we have more than 3 times, then process the remaining times.
+            if (write_erfbdy && ntimes_total > 3) {
+                Print() << "Processing remaining " << ntimes_total - 3 << " boundary times..." << std::endl;
+                for (int itime = 3; itime < ntimes_total; ++itime) {
+                    read_and_convert_from_wrfbdy(itime, nc_bdy_file,
+                                                 bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi,
+                                                 wrf_MUB, wrf_C1H, wrf_C2H, wrf_RDNW, wrf_PHB, z_phys_nd[lev],
+                                                 lev_new[Vars::xvel], lev_new[Vars::yvel], lev_new[Vars::cons],
+                                                 r_hse, area_vec, geom[lev], use_moist, solverChoice.rebalance_wrf_input, domain_bcs_type,
+                                                 real_width, bdy_time_interval, is_anelastic);
+
+                    WriteERFBdyTimeSlice(erfbdy_file, itime,
+                                         bdy_data_xlo[itime], bdy_data_xhi[itime],
+                                         bdy_data_ylo[itime], bdy_data_yhi[itime],
+                                         WRFBdyVars::NumTypes);
+                    Print() << "Wrote erfbdy time index " << itime << " of " << ntimes_total-1 << std::endl;
+
+                    bdy_data_xlo[itime].clear();
+                    bdy_data_xhi[itime].clear();
+                    bdy_data_ylo[itime].clear();
+                    bdy_data_yhi[itime].clear();
+                }
+                Print() << "Completed writing erfbdy times" << std::endl;
+            } // itime
+        } // use_erfbdy
 
         //
         // Start at the earliest time (read_from_wrfbdy)
@@ -1276,7 +1413,8 @@ init_base_state_from_wrfinput (const Box& subdomain,
 
             const Array4<const Real>& z_arr = z_phys_nd->const_array(mfi);
 
-            ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int /*k*/) noexcept
+            ParallelFor(bx, [=,RdoCp_d=RdoCp]
+                        AMREX_GPU_DEVICE(int i, int j, int /*k*/) noexcept
             {
                 // integrate from surface to domain top
                 Real dz, F, C;
@@ -1284,40 +1422,43 @@ init_base_state_from_wrfinput (const Box& subdomain,
                 Real z_lo, z_hi;
                 Real R_lo, R_hi;
                 Real Th_lo, Th_hi;
+                Real T_hi;
                 Real P_lo, P_hi;
 
                 Real qv_lo = zero;
                 Real qv_hi = zero;
 
-                // First integrate from sea level to the height at klo
+                // First integrate from surface to first CC at klo
                 {
                     // Vertical grid spacing
                     z_lo = zero; // corresponding to p_0
-                    z_hi = Real(0.125) * (z_arr(i,j,klo  ) + z_arr(i+1,j,klo  ) + z_arr(i,j+1,klo  ) + z_arr(i+1,j+1,klo  )
-                                         +z_arr(i,j,klo+1) + z_arr(i+1,j,klo+1) + z_arr(i,j+1,klo+1) + z_arr(i+1,j+1,klo+1));
+                    z_hi = Real(0.125) * ( z_arr(i,j,klo  ) + z_arr(i+1,j,klo  ) + z_arr(i,j+1,klo  ) + z_arr(i+1,j+1,klo  )
+                                         + z_arr(i,j,klo+1) + z_arr(i+1,j,klo+1) + z_arr(i,j+1,klo+1) + z_arr(i+1,j+1,klo+1) );
 
                     // dz == height of first cell center
                     dz = z_hi - z_lo;
 
                     // Known surface values
-                    Th_lo = getThgivenTandP(T00, P00, R_d/Cp_d);
                     P_lo  = P00;
-                    R_lo  = getRhogivenThetaPress(Th_lo, P_lo, R_d/Cp_d);
+                    Th_lo = getThgivenTandP(T00, P00, RdoCp_d);
+                    R_lo  = getRhogivenThetaPress(Th_lo, P_lo, RdoCp_d);
                     rho_tot_lo = R_lo;
                     C  = -P_lo + myhalf*rho_tot_lo*grav*dz;
 
                     // Initial guess and residual
-                    Th_hi = th_hse_arr(i,j,klo);
                     P_hi  = P_lo;
-                    R_hi  = getRhogivenThetaPress(Th_hi, P_hi, R_d/Cp_d);
+                    Th_hi = th_hse_arr(i,j,klo);
+                    T_hi  = getTgivenPandTh(P_hi, Th_hi, RdoCp_d);
+                    R_hi  = getRhogivenThetaPress(Th_hi, P_hi, RdoCp_d);
                     rho_tot_hi = R_hi;
                     F = P_hi + myhalf*rho_tot_hi*grav*dz + C;
 
                     // Do iterations
-                    HSEutils::Newton_Raphson_hse(tol, R_d/Cp_d, dz,
-                                                 grav, C, Th_hi,
+                    bool maintain_Th = true;
+                    HSEutils::Newton_Raphson_hse(tol, RdoCp_d, dz,
+                                                 grav, C, Th_hi, T_hi,
                                                  qv_hi, qv_hi,
-                                                 P_hi, R_hi, F);
+                                                 P_hi, R_hi, F, maintain_Th);
 
                     // At first cell center
                      r_hse_arr(i,j,klo) = R_hi;
@@ -1336,21 +1477,23 @@ init_base_state_from_wrfinput (const Box& subdomain,
 
                   // Establish known constant
                   Th_lo = th_hse_arr(i,j,k-1);
-                  R_lo  = getRhogivenThetaPress(Th_lo, P_lo, R_d/Cp_d, qv_lo);
+                  R_lo  = getRhogivenThetaPress(Th_lo, P_lo, RdoCp_d, qv_lo);
                   rho_tot_lo = R_lo;
                   C  = -P_lo + myhalf*rho_tot_lo*grav*dz;
 
                   // Initial guess and residual
                   Th_hi = th_hse_arr(i,j,k);
-                  R_hi  = getRhogivenThetaPress(Th_hi, P_hi, R_d/Cp_d, qv_hi);
+                  T_hi  = getTgivenPandTh(P_hi, Th_hi, RdoCp_d);
+                  R_hi  = getRhogivenThetaPress(Th_hi, P_hi, RdoCp_d, qv_hi);
                   rho_tot_hi = R_hi;
                   F = P_hi + myhalf*rho_tot_hi*grav*dz + C;
 
                   // Do iterations
-                  HSEutils::Newton_Raphson_hse(tol, R_d/Cp_d, dz,
-                                               grav, C, Th_hi,
+                  bool maintain_Th = true;
+                  HSEutils::Newton_Raphson_hse(tol, RdoCp_d, dz,
+                                               grav, C, Th_hi, T_hi,
                                                qv_hi, qv_hi,
-                                               P_hi, R_hi, F);
+                                               P_hi, R_hi, F, maintain_Th);
 
                   // Assign data
                    r_hse_arr(i,j,k) = R_hi;

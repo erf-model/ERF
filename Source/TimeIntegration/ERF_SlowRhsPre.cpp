@@ -7,6 +7,7 @@
 #include "AMReX_GpuPrint.H"
 
 #include "ERF_TI_slow_headers.H"
+#include "ERF_ShocDriver.H"
 #include "ERF_EOS.H"
 #include "ERF_Utils.H"
 #include "ERF_Diffusion.H"
@@ -64,7 +65,7 @@ using namespace amrex;
 
 void erf_slow_rhs_pre (int level, int finest_level,
                        int nrk,
-                       Real dt,
+                       double dt,
                        Vector<MultiFab>& S_rhs,
                        Vector<MultiFab>& S_old,
                        Vector<MultiFab>& S_data,
@@ -109,9 +110,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
 #ifdef ERF_USE_EAMXX_SHOC
                        SHOCInterface* eamxx_shoc_lev,
 #endif
-#ifdef ERF_USE_NATIVE_SHOC
                        ShocDriver* native_shoc_lev,
-#endif
                        YAFluxRegister* fr_as_crse,
                        YAFluxRegister* fr_as_fine)
 {
@@ -204,7 +203,6 @@ void erf_slow_rhs_pre (int level, int finest_level,
             eamxx_shoc_lev->set_eddy_diffs();
         }
 #endif
-#ifdef ERF_USE_NATIVE_SHOC
         if (tc.uses_native_shoc()) {
             AMREX_ALWAYS_ASSERT(native_shoc_lev != nullptr);
             // Native SHOC always owns the scalar fluxes in state_update mode.
@@ -212,7 +210,6 @@ void erf_slow_rhs_pre (int level, int finest_level,
             // SurfaceLayer call entirely so the host does not re-apply them.
             native_shoc_lev->set_eddy_diffs();
         }
-#endif
 
         erf_make_tau_terms(level,nrk,domain_bcs_type_h,z_phys_nd,
                            S_data,xvel,yvel,zvel,
@@ -235,7 +232,6 @@ void erf_slow_rhs_pre (int level, int finest_level,
             surface_layer_handled = true;
         }
 #endif
-#ifdef ERF_USE_NATIVE_SHOC
         if (tc.uses_native_shoc()) {
             AMREX_ALWAYS_ASSERT(native_shoc_lev != nullptr);
             if (native_shoc_lev->owns_scalar_surface_fluxes()) {
@@ -245,7 +241,6 @@ void erf_slow_rhs_pre (int level, int finest_level,
                 surface_layer_handled = true;
             }
         }
-#endif
         if (!surface_layer_handled && l_use_SurfLayer) {
             Vector<const MultiFab*> mfs = {&S_data[IntVars::cons], &xvel, &yvel, &zvel};
             if (!l_use_eb) {
@@ -722,6 +717,8 @@ void erf_slow_rhs_pre (int level, int finest_level,
             cell_rhs(i,j,k,RhoTheta_comp) += source_arr(i,j,k,RhoTheta_comp);
         });
 
+        Real half_dt = static_cast<Real>(myhalf/dt);
+
         // If anelastic and in second RK stage, take average of old-time and new-time source
         if ( l_anelastic && (nrk == 1) )
         {
@@ -730,8 +727,8 @@ void erf_slow_rhs_pre (int level, int finest_level,
                 cell_rhs(i,j,k,     Rho_comp) *= myhalf;
                 cell_rhs(i,j,k,RhoTheta_comp) *= myhalf;
 
-                cell_rhs(i,j,k,     Rho_comp) += myhalf / dt * (cell_data(i,j,k,     Rho_comp) - cell_old(i,j,k,     Rho_comp));
-                cell_rhs(i,j,k,RhoTheta_comp) += myhalf / dt * (cell_data(i,j,k,RhoTheta_comp) - cell_old(i,j,k,RhoTheta_comp));
+                cell_rhs(i,j,k,     Rho_comp) += half_dt * (cell_data(i,j,k,     Rho_comp) - cell_old(i,j,k,     Rho_comp));
+                cell_rhs(i,j,k,RhoTheta_comp) += half_dt * (cell_data(i,j,k,RhoTheta_comp) - cell_old(i,j,k,RhoTheta_comp));
             });
         }
 
@@ -804,7 +801,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
 
             if ( l_anelastic && (nrk == 1) ) {
                 rho_u_rhs(i,j,k) *= myhalf;
-                rho_u_rhs(i,j,k) += myhalf / dt * (rho_u(i,j,k) - rho_u_old(i,j,k));
+                rho_u_rhs(i,j,k) += half_dt * (rho_u(i,j,k) - rho_u_old(i,j,k));
             }
         },
         [=] AMREX_GPU_DEVICE (int i, int j, int k)
@@ -823,7 +820,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
 
             if ( l_anelastic && (nrk == 1) ) {
                 rho_v_rhs(i,j,k) *= myhalf;
-                rho_v_rhs(i,j,k) += myhalf / dt * (rho_v(i,j,k) - rho_v_old(i,j,k));
+                rho_v_rhs(i,j,k) += half_dt * (rho_v(i,j,k) - rho_v_old(i,j,k));
             }
         });
 
@@ -939,12 +936,12 @@ void erf_slow_rhs_pre (int level, int finest_level,
             if (level < finest_level) {
                 fr_as_crse->CrseAdd(mfi,
                     {{AMREX_D_DECL(&(flux[0]), &(flux[1]), &(flux[2]))}},
-                    dx, dt, strt_comp_reflux, strt_comp_reflux, num_comp_reflux, RunOn::Device);
+                    dx, static_cast<Real>(dt), strt_comp_reflux, strt_comp_reflux, num_comp_reflux, RunOn::Device);
             }
             if (level > 0) {
                 fr_as_fine->FineAdd(mfi,
                     {{AMREX_D_DECL(&(flux[0]), &(flux[1]), &(flux[2]))}},
-                    dx, dt, strt_comp_reflux, strt_comp_reflux, num_comp_reflux, RunOn::Device);
+                    dx, static_cast<Real>(dt), strt_comp_reflux, strt_comp_reflux, num_comp_reflux, RunOn::Device);
             }
 
         } // two-way coupling

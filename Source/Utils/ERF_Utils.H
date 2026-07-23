@@ -15,10 +15,14 @@
  * Rebalance state to satisfy both EOS and HSE one column at a time
  */
 void
-rebalance_columns(amrex::MultiFab& rho, const amrex::MultiFab& theta,
-                  const amrex::MultiFab& qt, const amrex::MultiFab& qv,
-                  const amrex::MultiFab* z_phys, const amrex::Geometry& geom,
-                  bool use_existing_sfc_density);
+rebalance_columns (amrex::MultiFab& rho,
+                   amrex::MultiFab& theta,
+                   const amrex::MultiFab& qt,
+                   const amrex::MultiFab& qv,
+                   const amrex::MultiFab* z_phys,
+                   const amrex::Geometry& geom,
+                   const bool& maintain_Th,
+                   bool use_sfc = false);
 
 /*
  * Create a new BoxArray in which every grid touches the bottom boundary
@@ -163,11 +167,11 @@ void realbdy_bc_bxs_xy (const amrex::Box& bx,
 /*
  * Compute relaxation region RHS with wrfbdy
  */
-void realbdy_compute_interior_ghost_rhs (const amrex::Real& total_time,
-                                         const amrex::Real& delta_t,
-                                         const amrex::Real& start_bdy_time,
-                                         const amrex::Real& final_bdy_time,
-                                         const amrex::Real& bdy_time_interval,
+void realbdy_compute_interior_ghost_rhs (const double& total_time,
+                                         const double& delta_t,
+                                         const double& start_bdy_time,
+                                         const double& final_bdy_time,
+                                         const double& bdy_time_interval,
                                          const amrex::Real& nudge_factor,
                                          int width,
                                          const amrex::Geometry& geom,
@@ -185,8 +189,8 @@ void realbdy_compute_interior_ghost_rhs (const amrex::Real& total_time,
  * Compute relaxation region RHS at fine-crse interface
  */
 void
-fine_compute_interior_ghost_rhs (const amrex::Real& time,
-                                 const amrex::Real& delta_t,
+fine_compute_interior_ghost_rhs (const double& time,
+                                 const double& delta_t,
                                  const int& width,
                                  const int& set_width,
                                  const amrex::Geometry& geom,
@@ -202,8 +206,8 @@ fine_compute_interior_ghost_rhs (const amrex::Real& time,
  * Accumulate time averaged velocity fields
  */
 void
-Time_Avg_Vel_atCC (const amrex::Real& dt,
-                   amrex::Real& t_avg_cnt,
+Time_Avg_Vel_atCC (double dt,
+                   double& t_avg_cnt,
                    amrex::MultiFab* vel_t_avg,
                    amrex::MultiFab& xvel,
                    amrex::MultiFab& yvel,
@@ -488,7 +492,7 @@ thinbody_wall_dist (std::unique_ptr<amrex::MultiFab>& wdist,
                     std::unique_ptr<amrex::MultiFab>& z_phys_cc);
 
 
-void WeatherDataInterpolation(const amrex::Real time);
+void WeatherDataInterpolation(const double time);
 
 AMREX_GPU_HOST_DEVICE
 AMREX_FORCE_INLINE

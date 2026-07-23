@@ -1,6 +1,6 @@
 ############################ BASE ######################################
 
-cmake_minimum_required (VERSION 3.14 FATAL_ERROR)
+cmake_minimum_required (VERSION 3.20 FATAL_ERROR)
 
 # Set main ERF context
 list(APPEND CMAKE_MESSAGE_CONTEXT "ERF")
@@ -143,7 +143,6 @@ option(ERF_ENABLE_ML_UPHYS_DIAGNOSTICS "Enable ML UPHYS diagnostics in SDM" OFF)
 if(ERF_ENABLE_ML_UPHYS_DIAGNOSTICS AND NOT ERF_ENABLE_PARTICLES)
   message(FATAL_ERROR "ERF_ENABLE_ML_UPHYS_DIAGNOSTICS requires particles be enabled")
 endif()
-set(ERF_ENABLE_NATIVE_SHOC ON CACHE BOOL "Deprecated; native SHOC is always built" FORCE)
 option(ERF_ENABLE_EAMXX_SHOC "Build EAMxx SHOC parameterization" OFF)
 option(ERF_ENABLE_SHOC "Deprecated alias for ERF_ENABLE_EAMXX_SHOC" OFF)
 if(ERF_ENABLE_SHOC AND NOT ERF_ENABLE_EAMXX_SHOC)

@@ -992,6 +992,7 @@ TEST(ShocDriver, AdvanceAppliesStateUpdateAndProducesFiniteDiagnostics)
     });
     EXPECT_TRUE(driver.has_native_diagnostics());
     EXPECT_TRUE(driver.uses_state_update());
+    EXPECT_TRUE(driver.has_consumed_surface_flux_diagnostics());
 
     expect_multifab_finite(driver.native_diagnostics(), 0, EddyDiff::NumDiffs, "native_diagnostics");
     expect_component_nonnegative(driver.native_diagnostics(), EddyDiff::Mom_v, "native Kmv");
@@ -1005,6 +1006,10 @@ TEST(ShocDriver, AdvanceAppliesStateUpdateAndProducesFiniteDiagnostics)
 
     expect_multifab_finite(driver.pblh_diagnostics(), 0, 1, "pblh");
     expect_component_nonnegative(driver.pblh_diagnostics(), 0, "pblh");
+    expect_multifab_finite(driver.consumed_sens_flux_diagnostics(), 0, 1, "consumed_sens_flux");
+    expect_multifab_finite(driver.consumed_laten_flux_diagnostics(), 0, 1, "consumed_laten_flux");
+    expect_multifab_finite(driver.shoc_ustar_diagnostics(), 0, 1, "shoc_ustar");
+    expect_multifab_finite(driver.shoc_olen_diagnostics(), 0, 1, "shoc_olen");
 
     expect_multifab_finite(driver.shoc_cldfrac_diagnostics(), 0, 1, "cloud fraction");
     expect_component_between(driver.shoc_cldfrac_diagnostics(), 0, 0.0_rt, 1.0_rt, "cloud fraction");
@@ -1050,6 +1055,10 @@ TEST(ShocDriver, AdvanceAppliesStateUpdateAndProducesFiniteDiagnostics)
     expect_component_between(qfx3, 0, 0.0_rt, 0.0_rt, "qfx3 cleared");
     expect_component_minmax_match(tau13, tau13_before, 0, "tau13 preserved for host momentum diffusion");
     expect_component_minmax_match(tau23, tau23_before, 0, "tau23 preserved for host momentum diffusion");
+    expect_component_minmax_match(driver.consumed_sens_flux_diagnostics(), hfx3_before, 0,
+                                  "consumed sensible flux preserved");
+    expect_component_minmax_match(driver.consumed_laten_flux_diagnostics(), qfx3_before, 0,
+                                  "consumed latent flux preserved");
 
     amrex::Vector<MultiFab> rhs(IntVars::NumTypes);
     rhs[IntVars::cons].define(ba, dm, NVAR_max, 0);
@@ -1311,6 +1320,80 @@ TEST(ShocDriver, PassiveScalarIsNotModifiedByNativeShoc)
     });
 
     EXPECT_EQ(component_max_abs(rhs[IntVars::cons], RhoScalar_comp), 0.0_rt);
+}
+
+// Motivation: Native SHOC state_update intentionally clears host SFS arrays
+// after consuming them. 2D diagnostics need a preserved snapshot of the
+// consumed fluxes so output reports the surface forcing SHOC used.
+TEST(ShocDriver, PreservesConsumedSurfaceFluxDiagnosticsAfterHostArraysAreCleared)
+{
+    Box domain(IntVect(0,0,0), IntVect(nx-1, ny-1, nz-1));
+    amrex::RealBox real_box(0.0_rt, 0.0_rt, 0.0_rt,
+                            500.0_rt, 100.0_rt, 900.0_rt);
+    int is_periodic[AMREX_SPACEDIM] = {1, 1, 0};
+    Geometry geom(domain, &real_box, amrex::CoordSys::cartesian, is_periodic);
+    const FixtureMap fixture = load_driver_fixture();
+
+    amrex::BoxArray ba(domain);
+    ba.maxSize(IntVect(3, ny, nz));
+    DistributionMapping dm(ba);
+
+    MultiFab cons(ba, dm, NVAR_max, 0);
+    amrex::BoxArray xba = amrex::convert(ba, IntVect(1,0,0));
+    amrex::BoxArray yba = amrex::convert(ba, IntVect(0,1,0));
+    amrex::BoxArray zba = amrex::convert(ba, IntVect(0,0,1));
+    amrex::BoxArray xzba = amrex::convert(ba, IntVect(1,0,1));
+    amrex::BoxArray yzba = amrex::convert(ba, IntVect(0,1,1));
+
+    MultiFab xvel(xba, dm, 1, 0);
+    MultiFab yvel(yba, dm, 1, 0);
+    MultiFab zvel(zba, dm, 1, 0);
+    MultiFab z_phys_nd(make_nodal_zphys_boxarray(ba), dm, 1, 0);
+    MultiFab hfx3(ba, dm, 1, 0);
+    MultiFab qfx3(ba, dm, 1, 0);
+    MultiFab tau13(xzba, dm, 1, 0);
+    MultiFab tau23(yzba, dm, 1, 0);
+    MultiFab eddy_diffs(ba, dm, EddyDiff::NumDiffs, 0);
+
+    initialize_state(cons, fixture);
+    initialize_velocity(xvel, yvel, zvel, fixture);
+    initialize_geometry(z_phys_nd, fixture);
+    initialize_surface_fluxes(hfx3, qfx3, tau13, tau23, fixture);
+    initialize_eddy_diffs(eddy_diffs, fixture);
+    shoc_test::sync();
+
+    MultiFab hfx3_before(ba, dm, 1, 0);
+    MultiFab qfx3_before(ba, dm, 1, 0);
+    MultiFab::Copy(hfx3_before, hfx3, 0, 0, 1, 0);
+    MultiFab::Copy(qfx3_before, qfx3, 0, 0, 1, 0);
+
+    SolverChoice solver_choice;
+    solver_choice.moisture_type = MoistureType::None;
+
+    ShocDriver driver(0, solver_choice);
+
+    shoc_test::run_and_sync([&] {
+        driver.advance(cons, xvel, yvel, zvel,
+                       &tau13, &tau23, &hfx3, &qfx3, &eddy_diffs,
+                       z_phys_nd, geom, 10.0_rt);
+    });
+
+    EXPECT_TRUE(driver.has_consumed_surface_flux_diagnostics());
+    expect_component_minmax_match(driver.consumed_sens_flux_diagnostics(), hfx3_before, 0,
+                                  "consumed sensible flux snapshot");
+    expect_component_minmax_match(driver.consumed_laten_flux_diagnostics(), qfx3_before, 0,
+                                  "consumed latent flux snapshot");
+
+    shoc_test::run_and_sync([&] {
+        driver.set_diff_stresses();
+    });
+
+    expect_component_between(hfx3, 0, 0.0_rt, 0.0_rt, "host hfx3 cleared");
+    expect_component_between(qfx3, 0, 0.0_rt, 0.0_rt, "host qfx3 cleared");
+    expect_component_minmax_match(driver.consumed_sens_flux_diagnostics(), hfx3_before, 0,
+                                  "preserved sensible flux snapshot");
+    expect_component_minmax_match(driver.consumed_laten_flux_diagnostics(), qfx3_before, 0,
+                                  "preserved latent flux snapshot");
 }
 
 TEST(ShocDriver, SecondAdvanceIgnoresHostDiffSeedsAfterCarryStateIsEstablished)

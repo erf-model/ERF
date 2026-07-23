@@ -83,8 +83,10 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 void
 apply_energy_fix_column (const ShocEnergyFixerView& v,
                          int ic,
-                         amrex::Real dt) noexcept
+                         double dt_d) noexcept
 {
+    amrex::Real dt = static_cast<amrex::Real>(dt_d);
+
     const int shoc_top = diagnose_active_top(v.tke, ic, v.nlev);
     if (shoc_top < 0) {
         return;
@@ -151,7 +153,7 @@ public:
 
     static void apply_column (const ShocColumnData& col,
                               int ic,
-                              amrex::Real dt,
+                              double dt,
                               const amrex::Vector<amrex::Real>& thl_old,
                               const amrex::Vector<amrex::Real>& qv_old,
                               const amrex::Vector<amrex::Real>& qc_old,

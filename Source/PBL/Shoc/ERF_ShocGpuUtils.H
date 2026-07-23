@@ -36,23 +36,9 @@ default_init_run_on ()
 inline void
 set_fab_val (amrex::FArrayBox& fab,
              amrex::Real value,
-             InitRunOn run_on)
+             InitRunOn /*run_on*/)
 {
-    if (run_on == InitRunOn::Device) {
-#ifdef AMREX_USE_GPU
-        fab.setVal<amrex::RunOn::Device>(value, fab.box(), 0, fab.nComp());
-#else
-        fab.setVal<amrex::RunOn::Host>(value, fab.box(), 0, fab.nComp());
-#endif
-    } else {
-        fab.setVal<amrex::RunOn::Host>(value, fab.box(), 0, fab.nComp());
-    }
-}
-
-inline void
-set_fab_val (amrex::FArrayBox& fab, amrex::Real value)
-{
-    set_fab_val(fab, value, default_init_run_on());
+    fab.template setVal<amrex::RunOn::Device>(value);
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE

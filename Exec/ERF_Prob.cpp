@@ -51,7 +51,7 @@ Real vapor_mixing_ratio (const Real p_b, const Real T_b, const Real RH)
 {
     Real p_s = compute_saturation_pressure(T_b);
     Real p_v = compute_vapor_pressure(p_s, RH);
-    Real q_v = Rd_on_Rv*p_v/(p_b - p_v);
+    Real q_v = RdoRv*p_v/(p_b - p_v);
     return q_v;
 }
 
@@ -89,6 +89,8 @@ Problem::init_custom_pert (
     std::string my_prob_name_ci = amrex::toLower(my_prob_name);
 
     if (my_prob_name_ci == "abl") {
+#include "Prob/ERF_InitCustomPert_ABL.H"
+    } else if (my_prob_name_ci == "constant_rhotheta_src") {
 #include "Prob/ERF_InitCustomPert_ABL.H"
     } else if (my_prob_name_ci == "density current") {
 #include "Prob/ERF_InitCustomPert_DensityCurrent.H"
@@ -256,7 +258,7 @@ Problem::init_custom_pert_vels (
 }
 
 void
-Problem::update_rhotheta_sources (const Real& time,
+Problem::update_rhotheta_sources (const double& time,
                                   amrex::MultiFab* src,
                                   const Geometry& geom,
                                   std::unique_ptr<MultiFab>& z_phys_cc)
@@ -298,7 +300,7 @@ Problem::update_rhotheta_sources (const Real& time,
 }
 
 void
-Problem::update_rhoqt_sources (const Real& time,
+Problem::update_rhoqt_sources (const double& time,
                                amrex::MultiFab* qsrc,
                                const Geometry& geom,
                                std::unique_ptr<MultiFab>& z_phys_cc)
@@ -341,7 +343,7 @@ Problem::update_rhoqt_sources (const Real& time,
 // USER-DEFINED FUNCTION
 //=============================================================================
 void
-Problem::update_w_subsidence (const Real& time,
+Problem::update_w_subsidence (const double& time,
                               Vector<Real>& wbar,
                               Gpu::DeviceVector<Real>& d_wbar,
                               const amrex::MultiFab& state,
@@ -376,7 +378,7 @@ Problem::update_w_subsidence (const Real& time,
 // USER-DEFINED FUNCTION
 //=============================================================================
 void
-Problem::update_geostrophic_profile (const Real& /*time*/,
+Problem::update_geostrophic_profile (const double& /*time*/,
                                      Vector<Real>& u_geos,
                                      Gpu::DeviceVector<Real>& d_u_geos,
                                      Vector<Real>& v_geos,

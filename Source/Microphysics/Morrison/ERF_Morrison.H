@@ -19,6 +19,7 @@
 #include "ERF_IndexDefines.H"
 #include "ERF_DataStruct.H"
 #include "ERF_NullMoist.H"
+#include "ERF_SurfacePrecipitation.H"
 #include <ERF_Morrison_Fortran_Interface.H>
 
 namespace MicVar_Morr {
@@ -70,6 +71,7 @@ public:
     void
     Define (SolverChoice& sc) override
     {
+        m_moisture_type = sc.moisture_type;
         m_rdOcp    = sc.rdOcp;
         m_do_cond  = (!sc.uses_shoc_family());
     }
@@ -148,6 +150,20 @@ public:
         a_idx.push_back(2); a_names.push_back("GraupAccum");
     }
 
+    SurfacePrecipAccumulationSources
+    Get_Surface_Precip_Accumulation_Ptrs (const int&) const override
+    {
+        SurfacePrecipAccumulationSources sources;
+        sources.total = {mic_fab_vars[MicVar_Morr::rain_accum].get(), rhor / amrex::Real(1000.0)};
+
+        if (m_moisture_type == MoistureType::Morrison) {
+            sources.snow    = {mic_fab_vars[MicVar_Morr::snow_accum].get(), rhor / amrex::Real(1000.0)};
+            sources.graupel = {mic_fab_vars[MicVar_Morr::graup_accum].get(), rhor / amrex::Real(1000.0)};
+        }
+
+        return sources;
+    }
+
     void
     GetPlotVarNames (amrex::Vector<std::string>& a_vec) const override;
 
@@ -182,6 +198,7 @@ private:
     // constants
     amrex::Real m_rdOcp;
     bool m_do_cond;
+    MoistureType m_moisture_type = MoistureType::None;
 
     // Minimum dz at this level
     amrex::Real m_dzmin;

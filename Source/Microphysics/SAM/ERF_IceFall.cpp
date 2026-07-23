@@ -150,4 +150,3 @@ void SAM::IceFall (const SolverChoice& sc) {
         } // mfi
     } // nsub
 }
-

@@ -7,7 +7,7 @@ using namespace amrex;
 
 void
 GeneralAD::advance (const Geometry& geom,
-                    const Real& dt_advance,
+                    const double& dt_advance,
                     MultiFab& cons_in,
                     MultiFab& mf_vars_generalAD,
                     MultiFab& U_old,
@@ -15,7 +15,7 @@ GeneralAD::advance (const Geometry& geom,
                     MultiFab& W_old,
                     const MultiFab& mf_Nturb,
                     const MultiFab& mf_SMark,
-                    const Real& time)
+                    const double& time)
 {
     AMREX_ALWAYS_ASSERT(W_old.nComp() > 0);
     AMREX_ALWAYS_ASSERT(mf_Nturb.nComp() > 0);
@@ -28,7 +28,7 @@ GeneralAD::advance (const Geometry& geom,
 }
 
 void
-GeneralAD::compute_power_output (const Real& time)
+GeneralAD::compute_power_output (const double& time)
 {
      get_turb_loc(xloc, yloc);
      get_turb_spec(rotor_rad, hub_height, thrust_coeff_standing,
@@ -57,7 +57,7 @@ GeneralAD::compute_power_output (const Real& time)
 
 
 void
-GeneralAD::update (const Real& dt_advance,
+GeneralAD::update (const double& dt_advance,
                    MultiFab& cons_in,
                    MultiFab& U_old,
                    MultiFab& V_old,

@@ -16,6 +16,7 @@
 #include "ERF_IndexDefines.H"
 #include "ERF_DataStruct.H"
 #include "ERF_NullMoist.H"
+#include "ERF_SurfacePrecipitation.H"
 
 namespace MicVar_Kess {
    enum {
@@ -54,6 +55,7 @@ public:
     void
     Define (SolverChoice& sc) override
     {
+        m_moisture_type = sc.moisture_type;
         // Use one latent-over-cp factor for both the saturation solve and theta
         // update. L_v comes from ERF_Constants.H; c_p comes from SolverChoice.
         m_fac_cond = L_v / sc.c_p;
@@ -137,6 +139,18 @@ public:
         a_idx.push_back(0); a_names.push_back("RainAccum");
     }
 
+    SurfacePrecipAccumulationSources
+    Get_Surface_Precip_Accumulation_Ptrs (const int&) const override
+    {
+        if (m_moisture_type == MoistureType::Kessler_NoRain) {
+            return {};
+        }
+
+        SurfacePrecipAccumulationSources sources;
+        sources.rain = {mic_fab_vars[MicVar_Kess::rain_accum].get(), rhor / amrex::Real(1000.0)};
+        return sources;
+    }
+
 private:
     // Number of qmoist variables (rain_accum)
     int m_qmoist_size = 1;
@@ -168,6 +182,7 @@ private:
     // constants
     amrex::Real m_fac_cond;
     bool m_do_cond;
+    MoistureType m_moisture_type = MoistureType::None;
 
     // Pointer to terrain data
     amrex::MultiFab* m_z_phys_nd;

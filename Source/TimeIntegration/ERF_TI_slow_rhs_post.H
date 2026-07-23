@@ -1,18 +1,18 @@
 #include "ERF_SrcHeaders.H"
 
-    auto slow_rhs_fun_post = [&](Vector<MultiFab>& S_rhs,
+    auto slow_rhs_fun_post = [&,bogus_large_value_d=bogus_large_value](Vector<MultiFab>& S_rhs,
                                  Vector<MultiFab>& S_old,
                                  Vector<MultiFab>& S_new,
                                  Vector<MultiFab>& S_data,
-                                 const Real old_step_time,
-                                 const Real old_stage_time,
-                                 const Real new_stage_time,
+                                 const double old_step_time,
+                                 const double old_stage_time,
+                                 const double new_stage_time,
                                  const int nrk)
     {
         // Note that the "old" and "new" metric terms correspond to
         // t^n and the RK stage (either t^*, t^** or t^{n+1} that this source
         // will be used to advance to
-        Real slow_dt = new_stage_time - old_step_time;
+        double slow_dt = new_stage_time - old_step_time;
 
         if (verbose) amrex::Print() << "Time integration of scalars at level " << level
                                     << std::setprecision(timeprecision)
@@ -50,9 +50,7 @@
 #ifdef ERF_USE_EAMXX_SHOC
                           eamxx_shoc_interface[level].get(),
 #endif
-#ifdef ERF_USE_NATIVE_SHOC
                           native_shoc_driver[level].get(),
-#endif
                           fr_as_crse, fr_as_fine,
                           m_r2d);
 
@@ -94,7 +92,7 @@
                 }
             }
             dUdt_tmp.FillBoundary(fine_geom.periodicity());
-            dUdt_tmp.setDomainBndry(bogus_large_value, 0, num_comp_total, fine_geom);
+            dUdt_tmp.setDomainBndry(bogus_large_value_d, 0, num_comp_total, fine_geom);
 
             const BCRec* bc_ptr_d = domain_bcs_type_d.data();
 
@@ -124,11 +122,12 @@
                         } else if (ivar == RhoScalar_comp) {
                             num_comp = NSCALARS;
                         }
+                        Real sdt = static_cast<Real>(slow_dt);
                         ParallelFor(tbx, num_comp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int nn)
                         {
                             if (detJ_arr(i,j,k) > zero) {
                                 const int n = start_comp + nn;
-                                snew(i,j,k,n) = sold(i,j,k,n) + slow_dt * srhs(i,j,k,n);
+                                snew(i,j,k,n) = sold(i,j,k,n) + sdt * srhs(i,j,k,n);
                             }
                         });
                     }

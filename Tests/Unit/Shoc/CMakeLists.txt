@@ -34,23 +34,14 @@ target_include_directories(erf_shoc_unit_tests PRIVATE
 
 target_compile_definitions(erf_shoc_unit_tests PRIVATE
   ERF_SHOC_UNIT_FIXTURE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/fixtures"
-  ERF_USE_NATIVE_SHOC
   ERF_HAS_SHOC_FAMILY
 )
 
 target_link_libraries(erf_shoc_unit_tests PRIVATE GTest::gtest)
 
-include(GoogleTest)
-
-gtest_add_tests(TARGET erf_shoc_unit_tests
+erf_register_gtest_suite(erf_shoc_unit_tests
+  LABELS unit shoc
   WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
-  TEST_LIST erf_shoc_unit_tests_tests
+  DISCOVERY_TIMEOUT 60
+  EXECUTION_TIMEOUT 900
 )
-
-if(erf_shoc_unit_tests_tests)
-  set_tests_properties(${erf_shoc_unit_tests_tests}
-    PROPERTIES
-      LABELS "unit;shoc"
-      SKIP_RETURN_CODE 77
-  )
-endif()

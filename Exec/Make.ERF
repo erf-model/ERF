@@ -134,6 +134,11 @@ include $(ERF_IO_DIR)/Make.package
 VPATH_LOCATIONS   += $(ERF_IO_DIR)
 INCLUDE_LOCATIONS += $(ERF_IO_DIR)
 
+ERF_DIAGNOSTICS_DIR = $(ERF_SOURCE_DIR)/Diagnostics
+include $(ERF_DIAGNOSTICS_DIR)/Make.package
+VPATH_LOCATIONS   += $(ERF_DIAGNOSTICS_DIR)
+INCLUDE_LOCATIONS += $(ERF_DIAGNOSTICS_DIR)
+
 ERF_MOISTURE_DIR = $(ERF_SOURCE_DIR)/Microphysics
 include $(ERF_MOISTURE_DIR)/Make.package
 VPATH_LOCATIONS   += $(ERF_MOISTURE_DIR)
@@ -279,7 +284,7 @@ ifeq ($(USE_NOAHMP), TRUE)
         includes  += $(shell if [ -n "$$MPICH_DIR" ]; then export PKG_CONFIG_PATH="$$MPICH_DIR/lib/pkgconfig:$$PKG_CONFIG_PATH"; fi; pkg-config --cflags netcdf-fortran_parallel)
         LIBRARIES += $(shell if [ -n "$$MPICH_DIR" ]; then export PKG_CONFIG_PATH="$$MPICH_DIR/lib/pkgconfig:$$PKG_CONFIG_PATH"; fi; pkg-config --libs netcdf-fortran_parallel)
       else
-        $(error NetCDF Fortran not found. Tried netcdf-fortran and netcdf-fortran_parallel)
+        $(warning NetCDF Fortran not found. Tried netcdf-fortran and netcdf-fortran_parallel)
       endif
     endif
 
@@ -295,7 +300,7 @@ ifeq ($(USE_NOAHMP), TRUE)
     INCLUDE_LOCATIONS += $(ERF_LSM_NOAHMP_DIR)
 
     LIBRARY_LOCATIONS += $(NOAHMP_HOME)/drivers/erf/lib
-    LIBRARIES += -lnoahmp
+    LIBRARIES += -lnoahmp -lgfortran -lquadmath -lnetcdff
   endif
 endif
 
@@ -340,7 +345,6 @@ ifeq ($(USE_RRTMGP), TRUE)
   endif
 endif
 
-DEFINES += -DERF_USE_NATIVE_SHOC
 DEFINES += -DERF_HAS_SHOC_FAMILY
 
 # If using EAMxx SHOC, compile relevant source and headers
@@ -492,17 +496,18 @@ endif
 ifeq ($(USE_NETCDF), TRUE)
   DEFINES += -DERF_USE_NETCDF
 
-  # Try netcdf => netcdf-cxx4_parallel => netcdf_parallel
-  has_netcdf := $(shell if [ -n "$$MPICH_DIR" ]; then export PKG_CONFIG_PATH="$$MPICH_DIR/lib/pkgconfig:$$PKG_CONFIG_PATH"; fi; pkg-config --exists netcdf 2>/dev/null; echo $$?)
-  ifeq ($(has_netcdf),0)
-    includes  += $(shell if [ -n "$$MPICH_DIR" ]; then export PKG_CONFIG_PATH="$$MPICH_DIR/lib/pkgconfig:$$PKG_CONFIG_PATH"; fi; pkg-config --cflags netcdf)
-    LIBRARIES += $(shell if [ -n "$$MPICH_DIR" ]; then export PKG_CONFIG_PATH="$$MPICH_DIR/lib/pkgconfig:$$PKG_CONFIG_PATH"; fi; pkg-config --libs netcdf)
-
-  else
-    has_netcdf_mpi := $(shell pkg-config --cflags netcdf-mpi > /dev/null 2>&1; echo $$?)
-    ifeq ($(has_netcdf_mpi),0)
+  # Try netcdf-mpi => netcdf => netcdf-cxx4_parallel => netcdf_parallel
+  # We need to add MPICH_DIR to pkg's config path because of a Cray bug.
+  has_netcdf_mpi := $(shell pkg-config --cflags netcdf-mpi > /dev/null 2>&1; echo $$?)
+  ifeq ($(has_netcdf_mpi),0)
       includes  += $(shell pkg-config --cflags netcdf-mpi)
       LIBRARIES += $(shell pkg-config --libs netcdf-mpi)
+
+  else
+    has_netcdf := $(shell if [ -n "$$MPICH_DIR" ]; then export PKG_CONFIG_PATH="$$MPICH_DIR/lib/pkgconfig:$$PKG_CONFIG_PATH"; fi; pkg-config --exists netcdf 2>/dev/null; echo $$?)
+    ifeq ($(has_netcdf),0)
+      includes  += $(shell if [ -n "$$MPICH_DIR" ]; then export PKG_CONFIG_PATH="$$MPICH_DIR/lib/pkgconfig:$$PKG_CONFIG_PATH"; fi; pkg-config --cflags netcdf)
+      LIBRARIES += $(shell if [ -n "$$MPICH_DIR" ]; then export PKG_CONFIG_PATH="$$MPICH_DIR/lib/pkgconfig:$$PKG_CONFIG_PATH"; fi; pkg-config --libs netcdf)
     else
       has_netcdf_cxx4_parallel := $(shell if [ -n "$$MPICH_DIR" ]; then export PKG_CONFIG_PATH="$$MPICH_DIR/lib/pkgconfig:$$PKG_CONFIG_PATH"; fi; pkg-config --exists netcdf-cxx4_parallel 2>/dev/null; echo $$?)
       ifeq ($(has_netcdf_cxx4_parallel),0)
@@ -514,7 +519,7 @@ ifeq ($(USE_NETCDF), TRUE)
           includes  += $(shell if [ -n "$$MPICH_DIR" ]; then export PKG_CONFIG_PATH="$$MPICH_DIR/lib/pkgconfig:$$PKG_CONFIG_PATH"; fi; pkg-config --cflags netcdf_parallel)
           LIBRARIES += $(shell if [ -n "$$MPICH_DIR" ]; then export PKG_CONFIG_PATH="$$MPICH_DIR/lib/pkgconfig:$$PKG_CONFIG_PATH"; fi; pkg-config --libs netcdf_parallel)
         else
-          $(error NetCDF not found. Tried netcdf, netcdf-mpi, netcdf-cxx4_parallel, and netcdf_parallel)
+          $(warning NetCDF not found. Tried netcdf-mpi, netcdf, netcdf-cxx4_parallel, and netcdf_parallel)
         endif
       endif
     endif
@@ -538,6 +543,11 @@ include $(AMREX_HOME)/Tools/GNUMake/Make.rules
 build_noahmp:
 ifeq ($(USE_NOAHMP), TRUE)
 	$(MAKE) -C $(NOAHMP_HOME)/drivers/erf -f Makefile all_noahmp NOAHMP_PRECISION_FLAG="$(NOAHMP_PRECISION_FLAG)"
+
+# Build Noah-MP (codegen + libnoahmp.a) before any ERF object; -j ignores the
+# `all` prereq order, so an order-only (|) dep is needed to enforce it.
+
+$(objForExecs): | build_noahmp
 endif
 
 all: build_noahmp $(executable)

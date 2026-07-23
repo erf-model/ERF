@@ -1,6 +1,7 @@
 #include "ERF_ShocDriver.H"
 #include "ERF_ShocImplicit.H"
 
+#include "ERF_Constants.H"
 #include "ERF_IndexDefines.H"
 
 #include <AMReX_BLProfiler.H>
@@ -245,8 +246,10 @@ namespace
                                        int qc_comp,
                                        int qi_comp,
                                        const ShocRuntimeOptions& opts,
-                                       Real dt)
+                                       double dt_d)
     {
+        Real dt = static_cast<Real>(dt_d);
+
         const bool has_qv = shoc_valid_comp(qv_comp, cons.nComp());
         const bool has_qc = shoc_valid_comp(qc_comp, cons.nComp());
         const bool has_qi = shoc_valid_comp(qi_comp, cons.nComp());
@@ -268,20 +271,20 @@ namespace
                 if (!opts.debug_disable_moisture_state_update) {
                     if (has_qv) {
                         cc(i,j,k,qv_comp) = amrex::max(
-                            cc(i,j,k,qv_comp) + rho_val * dt * qv_tend(i,j,k), 0.0_rt);
+                            cc(i,j,k,qv_comp) + rho_val * dt * qv_tend(i,j,k), Real(0.));
                     }
                     if (has_qc) {
                         cc(i,j,k,qc_comp) = amrex::max(
-                            cc(i,j,k,qc_comp) + rho_val * dt * qc_tend(i,j,k), 0.0_rt);
+                            cc(i,j,k,qc_comp) + rho_val * dt * qc_tend(i,j,k), Real(0.));
                     }
                     if (has_qi) {
                         cc(i,j,k,qi_comp) = amrex::max(
-                            cc(i,j,k,qi_comp) + rho_val * dt * qi_tend(i,j,k), 0.0_rt);
+                            cc(i,j,k,qi_comp) + rho_val * dt * qi_tend(i,j,k), Real(0.));
                     }
                 }
                 if (!opts.debug_disable_tke_state_update) {
                     cc(i,j,k,RhoKE_comp) = amrex::max(
-                        cc(i,j,k,RhoKE_comp) + rho_val * dt * tke_tend(i,j,k), 0.0_rt);
+                        cc(i,j,k,RhoKE_comp) + rho_val * dt * tke_tend(i,j,k), Real(0.));
                 }
             });
         }
@@ -289,8 +292,9 @@ namespace
 
     void apply_state_update_face_velocity_impl (MultiFab& vel,
                                                 const MultiFab& vel_tend,
-                                                Real dt)
+                                                double dt_d)
     {
+        Real dt = static_cast<Real>(dt_d);
         for (MFIter mfi(vel_tend, false); mfi.isValid(); ++mfi) {
             auto v = vel.array(mfi);
             const auto tend = vel_tend.const_array(mfi);
@@ -336,7 +340,11 @@ ShocDriver::ensure_storage (const MultiFab& cons,
                                 EddyDiff::NumDiffs, 0);
         m_prev_turb_cc.define(cons.boxArray(), cons.DistributionMap(), 2, 0);
         m_prev_wthv_sec_cc.define(cons.boxArray(), cons.DistributionMap(), 1, 0);
+        m_consumed_sens_flux_cc.define(cons.boxArray(), cons.DistributionMap(), 1, 0);
+        m_consumed_laten_flux_cc.define(cons.boxArray(), cons.DistributionMap(), 1, 0);
         m_pblh_cc.define(cons.boxArray(), cons.DistributionMap(), 1, 0);
+        m_shoc_ustar_cc.define(cons.boxArray(), cons.DistributionMap(), 1, 0);
+        m_shoc_olen_cc.define(cons.boxArray(), cons.DistributionMap(), 1, 0);
         m_shoc_cldfrac_cc.define(cons.boxArray(), cons.DistributionMap(), 1, 0);
         m_shoc_ql_cc.define(cons.boxArray(), cons.DistributionMap(), 1, 0);
         m_shoc_ql2_cc.define(cons.boxArray(), cons.DistributionMap(), 1, 0);
@@ -368,7 +376,11 @@ ShocDriver::ensure_storage (const MultiFab& cons,
     m_u_tend_fc.setVal(0.0);
     m_v_tend_fc.setVal(0.0);
     m_eddy_coeffs_cc.setVal(0.0);
+    m_consumed_sens_flux_cc.setVal(0.0);
+    m_consumed_laten_flux_cc.setVal(0.0);
     m_pblh_cc.setVal(0.0);
+    m_shoc_ustar_cc.setVal(0.0);
+    m_shoc_olen_cc.setVal(0.0);
     m_shoc_cldfrac_cc.setVal(0.0);
     m_shoc_ql_cc.setVal(0.0);
     m_shoc_ql2_cc.setVal(0.0);
@@ -461,7 +473,7 @@ ShocDriver::advance (MultiFab& cons,
                      MultiFab* eddy_diffs,
                      MultiFab& z_phys_nd,
                      const Geometry& geom,
-                     Real dt)
+                     double dt)
 {
     BL_PROFILE("SHOC::advance");
 
@@ -571,6 +583,10 @@ ShocDriver::advance (MultiFab& cons,
         auto u_tend_cc = m_u_tend_cc.array(mfi);
         auto v_tend_cc = m_v_tend_cc.array(mfi);
         auto pblh_arr = m_pblh_cc.array(mfi);
+        auto consumed_sens_flux_arr = m_consumed_sens_flux_cc.array(mfi);
+        auto consumed_laten_flux_arr = m_consumed_laten_flux_cc.array(mfi);
+        auto shoc_ustar_arr = m_shoc_ustar_cc.array(mfi);
+        auto shoc_olen_arr = m_shoc_olen_cc.array(mfi);
         auto shoc_cldfrac_arr = m_shoc_cldfrac_cc.array(mfi);
         auto shoc_ql_arr = m_shoc_ql_cc.array(mfi);
         auto shoc_ql2_arr = m_shoc_ql2_cc.array(mfi);
@@ -592,6 +608,10 @@ ShocDriver::advance (MultiFab& cons,
 
         const auto shoc_mix = col.shoc_mix.const_array();
         const auto pblh = col.pblh.const_array();
+        const auto surf_sens_flux = col.surf_sens_flux.const_array();
+        const auto surf_lat_flux = col.surf_lat_flux.const_array();
+        const auto ustar = col.ustar.const_array();
+        const auto obklen = col.obklen.const_array();
         const auto shoc_cldfrac = col.shoc_cldfrac.const_array();
         const auto shoc_ql = col.shoc_ql.const_array();
         const auto shoc_ql2 = col.shoc_ql2.const_array();
@@ -629,6 +649,8 @@ ShocDriver::advance (MultiFab& cons,
             ParallelFor(xy_box, [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept
             {
                 const int ic = shoc_column_index(layout, i, j);
+                const int k0 = layout.kmin;
+                const Real rho_sfc = rho(ic,0,0);
                 for (int kk = 0; kk < layout.nlev; ++kk) {
                     const int k = layout.kmin + kk;
                     const Real l = shoc_mix(ic,kk,0);
@@ -683,6 +705,15 @@ ShocDriver::advance (MultiFab& cons,
                     buoy_prod_arr(i,j,k) = buoy_prod(ic,kk,0);
                     diss_tke_arr(i,j,k) = diss_tke(ic,kk,0);
                 }
+                // Motivation: Native SHOC state_update consumes SurfaceLayer
+                // fluxes before the host diffusion path clears the overlapping
+                // SFS arrays. Preserve the consumed conservative fluxes here
+                // so 2D diagnostics report the surface forcing SHOC actually
+                // used, not the cleared host arrays.
+                consumed_sens_flux_arr(i,j,k0) = rho_sfc * surf_sens_flux(ic,0,0);
+                consumed_laten_flux_arr(i,j,k0) = rho_sfc * surf_lat_flux(ic,0,0);
+                shoc_ustar_arr(i,j,k0) = ustar(ic,0,0);
+                shoc_olen_arr(i,j,k0) = obklen(ic,0,0);
                 });
         }
 
@@ -886,7 +917,7 @@ void
 ShocDriver::apply_state_update (MultiFab& cons,
                                 MultiFab& xvel,
                                 MultiFab& yvel,
-                                Real dt) const
+                                double dt) const
 {
     AMREX_ALWAYS_ASSERT(dt > 0.0);
 
@@ -917,9 +948,9 @@ ShocDriver::debug_check_bad_column (const ShocColumnData& col,
                                     const MultiFab* tau13,
                                     const MultiFab* tau23,
                                     const Geometry& geom,
-                                    Real dt) const
+                                    double dt_d) const
 {
-    amrex::ignore_unused(geom, dt);
+    amrex::ignore_unused(geom, dt_d);
 
     if (!m_opts.debug_bad_column) {
         return;
@@ -1214,9 +1245,9 @@ ShocDriver::debug_check_bad_column (const ShocColumnData& col,
         const int kk = rep.kk;
         const int ic = rep.ic;
 
-        const auto node_value = [&] (int ii, int jj, int kk) -> Real {
-            const IntVect iv(ii, jj, kk);
-            return z_host.box().contains(iv) ? z_arr(ii, jj, kk) : std::numeric_limits<Real>::quiet_NaN();
+        const auto node_value = [&] (int iii, int jjj, int kkk) -> Real {
+            const IntVect iv(iii, jjj, kkk);
+            return z_host.box().contains(iv) ? z_arr(iii, jjj, kkk) : std::numeric_limits<Real>::quiet_NaN();
         };
 
         const Real z_nd_ijk = node_value(i, j, k);
@@ -1251,6 +1282,9 @@ ShocDriver::debug_check_bad_column (const ShocColumnData& col,
         const Real delta_qi = qi_new_val - qi_base_val;
         const Real delta_ql = ql_new - ql_base;
         const Real delta_qw = qw_new - qw_base;
+
+        const Real dt = static_cast<Real>(dt_d);
+
         const Real dt_theta_tend = theta_tend_arr(ic, kk, 0) * dt;
         const Real dt_qv_tend = qv_tend_arr(ic, kk, 0) * dt;
         const Real dt_qc_tend = qc_tend_arr(ic, kk, 0) * dt;
@@ -1440,7 +1474,7 @@ ShocDriver::debug_check_bad_column (const ShocColumnData& col,
 }
 
 void
-ShocDriver::print_debug_summary (Real dt) const
+ShocDriver::print_debug_summary (double dt) const
 {
     BL_PROFILE("SHOC::print_debug_summary");
 

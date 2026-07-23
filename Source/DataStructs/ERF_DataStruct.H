@@ -427,14 +427,31 @@ struct SolverChoice {
         read_int_string(max_level, "fixed_density", fixed_density, 0);
         read_int_string(max_level, "project_initial_velocity", project_initial_velocity, 0);
 
+        bool any_anelastic = false;
+        bool any_compress  = false;
         for (int i = 0; i <= max_level; ++i) {
             if (anelastic[i] == 1) {
                 project_initial_velocity[i] = 1;
                 fixed_density[i]            = 1; // We default to true but are allowed to override below
                 buoyancy_type[i]            = 3; // (This isn't actually used when anelastic is set)
+                any_anelastic               = true;
+            } else {
+                any_compress                = true;
             }
         }
 
+        // Want to have different immersed forcing defaults depending on anelastic or fully compressible.
+        // We should have different starting values because the stability of the method is dependent on dt.
+        // dt is coarser for anelastic --> need to loosen stiffness of immersed forcing.
+        if (any_anelastic) {
+            immersed_forcing_substep  = false;
+            if_Cd_momentum            = amrex::Real(50.0);
+            if_Cd_scalar              = amrex::Real(5.0);
+        } else {
+            immersed_forcing_substep  = true;
+            if_Cd_momentum            = amrex::Real(500.0);
+            if_Cd_scalar              = amrex::Real(50.0);
+        }
 
         // *******************************************************************************
         // Read substepping_type and allow for different values at each level
@@ -494,8 +511,8 @@ struct SolverChoice {
         pp.query("forest_substep", forest_substep);                     // apply canopy-related source terms in substep only
 
         // immersed forcing parameters
-        pp.query("if_Cd_scalar", if_Cd_scalar);
         pp.query("if_Cd_momentum", if_Cd_momentum);
+        pp.query("if_Cd_scalar", if_Cd_scalar);
         pp.query("if_z0", if_z0);
         pp.query("if_surf_temp_flux", if_surf_temp_flux);
         pp.query("if_init_surf_temp", if_init_surf_temp);
@@ -776,15 +793,6 @@ struct SolverChoice {
         pp.query_enum_case_insensitive("coupling_type",coupling_type);
 
         // Test for hybrid (compressible + anelastic) -- in this case we must use one-way coupling
-        bool any_anelastic = false;
-        bool any_compress  = false;
-        for (int lev = 0; lev <= max_level; lev++) {
-            if (anelastic[lev] == 0) {
-                any_compress = true;
-            } else {
-                any_anelastic = true;
-            }
-        }
         if (any_anelastic && any_compress) {
             coupling_type = CouplingType::OneWay;
         }
@@ -986,6 +994,25 @@ struct SolverChoice {
             }
         }
 
+        // Countergradient validation: ensure required implicit diffusion is enabled
+        for (int lev = 0; lev <= max_level; lev++) {
+            if (turbChoice[lev].enable_mrf_countergradient) {
+                AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+                    vert_implicit_fac[lev][0] > zero ||
+                    vert_implicit_fac[lev][1] > zero ||
+                    vert_implicit_fac[lev][2] > zero,
+                    "enable_mrf_countergradient requires vert_implicit_fac > 0");
+                AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+                    implicit_thermal_diffusion,
+                    "enable_mrf_countergradient requires implicit_thermal_diffusion = true");
+                if (moisture_type != MoistureType::None) {
+                    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+                        implicit_moisture_diffusion,
+                        "enable_mrf_countergradient with moisture requires implicit_moisture_diffusion = true");
+                }
+            }
+        }
+
         for (int lev = 0; lev <= max_level; lev++) {
             turbChoice[lev].check_params(phys_bc_type);
         }
@@ -1011,9 +1038,10 @@ struct SolverChoice {
         }
 
         for (int lev = 0; lev <= max_level; lev++) {
-            amrex::Print() << "vert_implicit_fac at level  : " << lev << " " << vert_implicit_fac[lev][0] << " "
-                                                                             << vert_implicit_fac[lev][1] << " "
-                                                                             << vert_implicit_fac[lev][2];
+            amrex::Print() << "vert_implicit_fac at level " << lev << " : "
+                           << vert_implicit_fac[lev][0] << " "
+                           << vert_implicit_fac[lev][1] << " "
+                           << vert_implicit_fac[lev][2];
             if (vert_implicit_fac[lev][0] > zero ||
                 vert_implicit_fac[lev][1] > zero ||
                 vert_implicit_fac[lev][2] > zero)
@@ -1132,10 +1160,10 @@ struct SolverChoice {
         amrex::ParmParse pp(pp_prefix);
 
         // Read the rotational time period (in seconds)
-        amrex::Real rot_time_period = amrex::Real(86400.0);
+        double rot_time_period = 86400.0;
         pp.query("rotational_time_period", rot_time_period);
 
-        coriolis_factor = two * two * PI / rot_time_period;
+        coriolis_factor = static_cast<amrex::Real>(4.0 * PI / rot_time_period);
 
         pp.query("coriolis_3d", coriolis_3d);
 
@@ -1279,8 +1307,8 @@ struct SolverChoice {
     bool        forest_substep            = false;
 
     // immersed forcing parameters
+    amrex::Real if_Cd_momentum        = amrex::Real(50.0);
     amrex::Real if_Cd_scalar          = amrex::Real(10.0);
-    amrex::Real if_Cd_momentum        = amrex::Real(10.0);
     // immersed forcing MOST parameters.
     amrex::Real if_z0                 = amrex::Real(0.1);   // [m]
     amrex::Real if_surf_temp_flux     = amrex::Real(1e-8);  // [K m/s]
@@ -1292,7 +1320,7 @@ struct SolverChoice {
     // This defaults to true but can be set to false for moving terrain cases only
     bool        use_lagged_delta_rt   = true;
 
-    // Flag to rebalance state from wrf input
+    // Flag to rebalance states from wrfinput and wrfbdy
     bool        rebalance_wrf_input   = true;
 
     // Constants
@@ -1342,18 +1370,25 @@ struct SolverChoice {
     {
         return pert_type[lev] == PerturbationType::Source ||
                pert_type[lev] == PerturbationType::Direct ||
-               pert_type[lev] == PerturbationType::CPM;
+               pert_type[lev] == PerturbationType::CPM ||
+               pert_type[lev] == PerturbationType::CPM_W;
     }
 
     bool use_direct_perturbation (int lev) const
     {
         return pert_type[lev] == PerturbationType::Direct ||
-               pert_type[lev] == PerturbationType::CPM;
+               pert_type[lev] == PerturbationType::CPM ||
+               pert_type[lev] == PerturbationType::CPM_W;
     }
 
     bool use_source_perturbation (int lev) const
     {
         return pert_type[lev] == PerturbationType::Source;
+    }
+
+    bool use_wvel_perturbation (int lev) const
+    {
+        return pert_type[lev] == PerturbationType::CPM_W;
     }
 
     bool uses_shoc_family () const noexcept

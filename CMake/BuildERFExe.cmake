@@ -199,7 +199,10 @@ function(build_erf_lib erf_lib_name)
                                $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/Source/LandSurfaceModel/Noah-MP>
                                $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/Submodules/Noah-MP/drivers/erf>)
     target_sources(${erf_lib_name} PRIVATE
-                   ${SRC_DIR}/LandSurfaceModel/Noah-MP/ERF_NOAHMP.cpp)
+                   ${SRC_DIR}/LandSurfaceModel/Noah-MP/ERF_NOAHMP_Init.cpp
+                   ${SRC_DIR}/LandSurfaceModel/Noah-MP/ERF_NOAHMP_Advance.cpp
+                   ${SRC_DIR}/LandSurfaceModel/Noah-MP/ERF_NOAHMP_Precip.cpp
+                   ${SRC_DIR}/LandSurfaceModel/Noah-MP/ERF_NOAHMP_IO.cpp)
     target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_NOAHMP)
     target_link_libraries_system(${erf_lib_name} PUBLIC NoahMP::noahmp)
   endif()
@@ -248,7 +251,6 @@ function(build_erf_lib erf_lib_name)
   endif()
 
   erf_add_native_shoc_sources(${erf_lib_name})
-  target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_NATIVE_SHOC)
   target_compile_definitions(${erf_lib_name} PUBLIC ERF_HAS_SHOC_FAMILY)
 
   if(ERF_ENABLE_EAMXX_SHOC)
@@ -315,6 +317,7 @@ function(build_erf_lib erf_lib_name)
      PRIVATE
        ${SRC_DIR}/ERF_Derive.cpp
        ${SRC_DIR}/ERF.cpp
+       ${SRC_DIR}/ERF_Constructors.cpp
        ${SRC_DIR}/ERF_Diagnostics.cpp
        ${SRC_DIR}/ERF_MakeNewArrays.cpp
        ${SRC_DIR}/ERF_MakeNewLevel.cpp
@@ -377,6 +380,7 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/Initialization/ERF_InitImmersedForcing.cpp
        ${SRC_DIR}/Initialization/ERF_InitForEnsemble.cpp
        ${SRC_DIR}/IO/ERF_Checkpoint.cpp
+       ${SRC_DIR}/IO/ERF_Provenance.cpp
        ${SRC_DIR}/IO/ERF_ReadBndryPlanes.cpp
        ${SRC_DIR}/IO/ERF_WriteBndryPlanes.cpp
        ${SRC_DIR}/IO/ERF_TrackerOutput.cpp
@@ -386,10 +390,20 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/IO/ERF_Plotfile.cpp
        ${SRC_DIR}/IO/ERF_Plotfile2DCatalog.cpp
        ${SRC_DIR}/IO/ERF_Plotfile2D.cpp
+       ${SRC_DIR}/IO/ERF_Plotfile2DFill.cpp
+       ${SRC_DIR}/IO/ERF_Plotfile2DMetadata.cpp
+       ${SRC_DIR}/IO/ERF_Plotfile2DWaterPath.cpp
+       ${SRC_DIR}/IO/ERF_Plotfile2DPrecip.cpp
+       ${SRC_DIR}/IO/ERF_Plotfile2DSampledField.cpp
+       ${SRC_DIR}/IO/ERF_Plotfile2DSampledLevel.cpp
+       ${SRC_DIR}/IO/ERF_Plotfile2DInterpolator.cpp
        ${SRC_DIR}/IO/ERF_Plotfile2DUtils.cpp
+       ${SRC_DIR}/Diagnostics/ERF_NearSurfaceDiagnostics.cpp
        ${SRC_DIR}/IO/ERF_WriteSubvolume.cpp
        ${SRC_DIR}/IO/ERF_WriteJobInfo.cpp
        ${SRC_DIR}/IO/ERF_ConsoleIO.cpp
+       ${SRC_DIR}/IO/ERF_ReadFromERFBdy.cpp
+       ${SRC_DIR}/IO/ERF_WriteERFBdy.cpp
        ${SRC_DIR}/LinearSolvers/ERF_PoissonSolve.cpp
        ${SRC_DIR}/LinearSolvers/ERF_PoissonSolve_tb.cpp
        ${SRC_DIR}/LinearSolvers/ERF_PoissonWallDist.cpp
@@ -429,6 +443,7 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/PBL/ERF_ComputeDiffusivityMYNNEDMF.cpp
        ${SRC_DIR}/PBL/ERF_ComputeDiffusivityYSU.cpp
        ${SRC_DIR}/PBL/ERF_ComputeDiffusivityMRF.cpp
+       ${SRC_DIR}/PBL/ERF_ComputeDiffusivityYSUNew.cpp
        ${SRC_DIR}/Refinement/ERF_Tagging.cpp
        ${SRC_DIR}/Refinement/ERF_RefineBox.cpp
        ${SRC_DIR}/Refinement/ERF_RefineHurricane.cpp
@@ -462,7 +477,7 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/Utils/ERF_ChopGrids.cpp
        ${SRC_DIR}/Utils/ERF_ConvertForProjection.cpp
        ${SRC_DIR}/Utils/ERF_EnforceConstraintOnBdy.cpp
-       ${SRC_DIR}/Utils/ERF_HurricaneDiagnostics_WRF.cpp
+       ${SRC_DIR}/Utils/ERF_HurricaneDiagnostics.cpp
        ${SRC_DIR}/Utils/ERF_InitZLevels.cpp
        ${SRC_DIR}/Utils/ERF_MakeSubdomains.cpp
        ${SRC_DIR}/Utils/ERF_MomentumToVelocity.cpp

@@ -64,7 +64,7 @@ ERF::createNCColumnFile (int lev,
 void
 ERF::writeToNCColumnFile (const int lev,
                           const std::string& colfile_name, const Real xloc, const Real yloc,
-                          const Real cumtime)
+                          const double cumtime)
 {
   //
   // This routine assumes that we can grab the whole column of data from the MultiFabs at

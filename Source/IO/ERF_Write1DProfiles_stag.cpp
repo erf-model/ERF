@@ -147,7 +147,7 @@ ERF::write_1D_profiles_stag (double time)
                       Real qrface = myhalf*(h_avg_qr[k] + h_avg_qr[k-1]);
                       Real uuface = myhalf*(h_avg_uu[k] + h_avg_uu[k-1]);
                       Real vvface = myhalf*(h_avg_vv[k] + h_avg_vv[k-1]);
-                      Real thvface = thface * (1 + Real(0.61)*qvface - qcface - qrface);
+                      Real thvface = thface * (one + epsv*qvface - qcface - qrface);
                       w_cc   = myhalf*(h_avg_w[k-1]  + h_avg_w[k]);
                       uw_cc  = myhalf*(h_avg_uw[k-1] + h_avg_uw[k]);
                       vw_cc  = myhalf*(h_avg_vw[k-1] + h_avg_vw[k]);
@@ -204,7 +204,7 @@ ERF::write_1D_profiles_stag (double time)
                   Real qrface = Real(1.5)*h_avg_qr[k-1] - myhalf*h_avg_qr[k-2];
                   Real uuface = Real(1.5)*h_avg_uu[k-1] - myhalf*h_avg_uu[k-2];
                   Real vvface = Real(1.5)*h_avg_vv[k-1] - myhalf*h_avg_vv[k-2];
-                  Real thvface = thface * (1 + Real(0.61)*qvface - qcface - qrface);
+                  Real thvface = thface * (one + epsv*qvface - qcface - qrface);
                   Real z = (zlevels_stag[0].size() > 1) ? zlevels_stag[0][unstag_size] : unstag_size * dx[2];
                   data_log2 << std::setw(datwidth) << std::setprecision(timeprecision) << time << " "
                             << std::setw(datwidth) << std::setprecision(datprecision) << z << " "
@@ -345,19 +345,13 @@ ERF::derive_diag_profiles_stag (double /*time*/,
     bool use_moisture = (solverChoice.moisture_type != MoistureType::None);
     const MultiFab* eta_src = nullptr;
     const bool have_native_shoc_diagnostics =
-#ifdef ERF_USE_NATIVE_SHOC
         solverChoice.turbChoice[lev].uses_native_shoc() &&
         native_shoc_driver[lev] &&
         native_shoc_driver[lev]->has_native_diagnostics();
-#else
-        false;
-#endif
     if (l_use_kturb) {
-#ifdef ERF_USE_NATIVE_SHOC
         if (have_native_shoc_diagnostics) {
             eta_src = &native_shoc_driver[lev]->native_diagnostics();
         } else
-#endif
         {
             eta_src = eddyDiffs_lev[lev].get();
         }
@@ -525,7 +519,7 @@ ERF::derive_diag_profiles_stag (double /*time*/,
                 Real theta1 = cons_arr(i,j,k-1,RhoTheta_comp) / cons_arr(i,j,k-1,Rho_comp);
                 Real thface = myhalf*(theta0 + theta1);
                 Real ql = qcface + qrface;
-                Real thv = thface * (1 + Real(0.61)*qvface - ql);
+                Real thv = thface * (one + epsv*qvface - ql);
 
                 fab_arr_stag(i,j,k,5) = pface  * w_fc_arr(i,j,k); // p*w
                 fab_arr_stag(i,j,k,6) = qvface * w_fc_arr(i,j,k); // w*qv

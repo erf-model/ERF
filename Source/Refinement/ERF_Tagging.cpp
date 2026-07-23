@@ -5,7 +5,7 @@ using namespace amrex;
 
 #ifdef ERF_USE_NETCDF
 Box read_subdomain_from_wrfinput (int lev, const std::string& fname, int& ratio);
-Real read_start_time_from_wrfinput (int lev, const std::string& fname);
+double read_start_time_from_wrfinput (int lev, const std::string& fname);
 Box read_subdomain_from_metgrid (int lev, const std::string& fname, int& ratio, int& klo, int& khi);
 #endif
 
@@ -40,7 +40,7 @@ ERF::ErrorEst (int levc, TagBoxArray& tags, Real time, int /*ngrow*/)
 
         if (!nc_init_file[levc+1].empty())
         {
-            Real levc_start_time = read_start_time_from_wrfinput(levc  , nc_init_file[levc  ][0]);
+            double levc_start_time = read_start_time_from_wrfinput(levc  , nc_init_file[levc  ][0]);
             if (solverChoice.init_type == InitType::WRFInput) {
                 amrex::Print() << " WRFInput       time at level " << levc << " is " << levc_start_time << std::endl;
             } else if (solverChoice.init_type == InitType::Metgrid) {
@@ -50,7 +50,7 @@ ERF::ErrorEst (int levc, TagBoxArray& tags, Real time, int /*ngrow*/)
             for (int isub = 0; isub < nc_init_file[levc+1].size(); isub++) {
                 if (!have_read_nc_init_file[levc+1][isub])
                 {
-                    Real levf_start_time = read_start_time_from_wrfinput(levc+1, nc_init_file[levc+1][isub]);
+                    double levf_start_time = read_start_time_from_wrfinput(levc+1, nc_init_file[levc+1][isub]);
                     if (solverChoice.init_type == InitType::WRFInput) {
                         amrex::Print() << " WRFInput start_time at level " << levc+1 << " is " << levf_start_time << std::endl;
                     } else if (solverChoice.init_type == InitType::Metgrid) {
@@ -435,7 +435,7 @@ ERF::ErrorEst (int levc, TagBoxArray& tags, Real time, int /*ngrow*/)
             std::string ref_prefix = pp_prefix + "." + refinement_indicators[i];
             ParmParse ppr(ref_prefix);
 
-            Real ref_start_time = -one;
+            double ref_start_time = -1.0;
             ppr.query("start_time",ref_start_time);
 
             if (time >= ref_start_time) {
@@ -494,13 +494,13 @@ ERF::refinement_criteria_setup ()
             }
 
             if (ppr.countval("start_time") > 0) {
-                Real ref_min_time; ppr.get("start_time",ref_min_time);
-                info.SetMinTime(ref_min_time);
+                double ref_min_time; ppr.get("start_time",ref_min_time);
+                info.SetMinTime(static_cast<Real>(ref_min_time));
             }
 
             if (ppr.countval("end_time") > 0) {
-                Real ref_max_time; ppr.get("end_time",ref_max_time);
-                info.SetMaxTime(ref_max_time);
+                double ref_max_time; ppr.get("end_time",ref_max_time);
+                info.SetMaxTime(static_cast<Real>(ref_max_time));
             }
 
             if (ppr.countval("max_level") > 0) {

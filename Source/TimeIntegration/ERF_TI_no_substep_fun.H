@@ -1,15 +1,17 @@
 /**
  *  Wrapper for advancing the solution with the slow RHS in the absence of acoustic substepping
  */
-    auto no_substep_fun = [&](Vector<MultiFab>& S_sum,
+    auto no_substep_fun = [&,bogus_large_value_d=bogus_large_value](Vector<MultiFab>& S_sum,
                               Vector<MultiFab>& S_old,
                               Vector<MultiFab>& F_slow,
-                              const Real time_for_fp, const Real slow_dt,
+                              const double time_for_fp, const double slow_dt_d,
                               const int nrk)
     {
         BL_PROFILE("no_substep_fun");
         amrex::ignore_unused(nrk);
         int n_data = IntVars::NumTypes;
+
+        amrex::Real slow_dt = static_cast<Real>(slow_dt_d);
 
         const auto& dxInv = fine_geom.InvCellSizeArray();
 
@@ -190,7 +192,7 @@
                 for (int i = 0; i <= AMREX_SPACEDIM; ++i) {
                     dUdt[i].setVal(0, 0, ncomp_fast[i], dUdt[i].nGrow());
                     MultiFab::Copy(dUdt[i], F_slow[i], 0, 0, F_slow[i].nComp(), 0);
-                    dUdt[i].setDomainBndry(bogus_large_value, 0, ncomp_fast[i], fine_geom);
+                    dUdt[i].setDomainBndry(bogus_large_value_d, 0, ncomp_fast[i], fine_geom);
                     dUdt[i].FillBoundary(fine_geom.periodicity());
                 }
 

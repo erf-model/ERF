@@ -1,8 +1,13 @@
 #include "ERF.H"
 #include "ERF_Plotfile2DCatalog.H"
+#include "ERF_Plotfile2DFill.H"
+#include "ERF_Plotfile2DMetadata.H"
+#include "ERF_Plotfile2DInterpolator.H"
+#include "ERF_Plotfile2DPrecip.H"
+#include "ERF_Plotfile2DWaterPath.H"
 #include "ERF_NCPlotFile.H"
 #include "ERF_Plotfile2DUtils.H"
-#include "Diagnostics/ERF_SurfaceFluxDiagnostics.H"
+#include "Diagnostics/ERF_NearSurfaceDiagnostics.H"
 #include "ERF_EpochTime.H"
 #include "ERF_SrcHeaders.H"
 #include "ERF_StormDiagnostics.H"
@@ -18,6 +23,9 @@ namespace
 // validates the requested names, assembles the slab geometry, fills existing
 // diagnostics, and dispatches to AMReX or NetCDF output. Nontrivial science
 // diagnostics should live in dedicated modules and be called from here.
+// The assembly path should stay explicit about three diagnostic shapes:
+// surface/single-level fields, column reductions, and future interpolated
+// horizontal surfaces.
 // Keep the fill order below synchronized with plotfile2d::diagnostic_catalog()
 // until the fill blocks move into dedicated diagnostic modules.
 
@@ -37,6 +45,18 @@ std::string make_2d_plotfile_name (int which,
 
     Abort(plotfile2d::format_invalid_2d_stream_error(which));
     return {};
+}
+
+bool is_unified_near_surface_diagnostic (plotfile2d::DiagnosticID id) noexcept
+{
+    return id == plotfile2d::DiagnosticID::Temperature2m ||
+           id == plotfile2d::DiagnosticID::WaterVaporMixingRatio2m ||
+           id == plotfile2d::DiagnosticID::NearSurfaceDiagnosticSource;
+}
+
+bool is_land_surface_diagnostic (const plotfile2d::DiagnosticDescriptor* descriptor) noexcept
+{
+    return descriptor && descriptor->category == plotfile2d::DiagnosticCategory::LandSurface;
 }
 
 Vector<Geometry> make_2d_plot_geometries (const Vector<Geometry>& geom,
@@ -106,7 +126,12 @@ ERF::setPlotVariables2D (const std::string& pp_plot_var_names, Vector<std::strin
         requested_plot_names.push_back(nm);
     }
 
-    const auto available_names = plotfile2d::diagnostic_names();
+    const bool has_surface_layer =
+        phys_bc_type[Orientation(Direction::z, Orientation::low)] == ERF_BC::surface_layer;
+    const auto active_lsm_names = lsm.Get_DataNames();
+    const auto available_names = plotfile2d::available_diagnostic_names(solverChoice,
+                                                                         has_surface_layer,
+                                                                         active_lsm_names);
 
     // Keep the canonical built-in 2D ordering so the plotfile component layout
     // stays stable even if the input request order changes.
@@ -130,7 +155,15 @@ ERF::Write2DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
                                                            plot2d_file_1, plot2d_file_2,
                                                            file_name_digits);
 
-    const Vector<std::string> varnames = PlotFileVarNames(plot_var_names);
+    const auto output_descriptors =
+        plotfile2d::build_sampled_level_output_descriptors(pp_prefix, which,
+                                                           plot_var_names, solverChoice);
+
+    Vector<std::string> varnames;
+    varnames.reserve(output_descriptors.size());
+    for (const auto& descriptor : output_descriptors) {
+        varnames.push_back(descriptor.name);
+    }
     const int ncomp_mf = static_cast<int>(varnames.size());
 
     if (ncomp_mf == 0) return;
@@ -160,6 +193,48 @@ ERF::Write2DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
         // Expose domain khi and klo at each level
         int klo = geom[lev].Domain().smallEnd(2);
         int khi = geom[lev].Domain().bigEnd(2);
+
+        const MultiFab* pblh_source = nullptr;
+        const MultiFab* sens_flux_source = SFS_hfx3_lev[lev].get();
+        const MultiFab* laten_flux_source = SFS_q1fx3_lev[lev].get();
+        const MultiFab* shoc_ustar_source = nullptr;
+        const MultiFab* shoc_olen_source = nullptr;
+        const MultiFab* shoc_wthv_source = nullptr;
+        const ShocDriver* native_shoc = native_shoc_driver[lev].get();
+        const bool native_shoc_owns_scalar_fluxes =
+            native_shoc && native_shoc->owns_scalar_surface_fluxes();
+        const bool native_shoc_has_consumed_flux_diagnostics =
+            native_shoc && native_shoc->has_consumed_surface_flux_diagnostics();
+        if (native_shoc && native_shoc->has_native_diagnostics()) {
+            pblh_source = &native_shoc->pblh_diagnostics();
+        }
+        // Native SHOC state_update clears the host SFS arrays after consuming
+        // them. Use SHOC's preserved snapshots only for flux components whose
+        // corresponding host SFS field existed; otherwise keep the source null
+        // so the 2D writer emits the documented -999 missing value.
+        if (plotfile2d::use_native_shoc_consumed_flux_source(
+                native_shoc_owns_scalar_fluxes,
+                native_shoc_has_consumed_flux_diagnostics,
+                SFS_hfx3_lev[lev] != nullptr)) {
+            sens_flux_source = &native_shoc->consumed_sens_flux_diagnostics();
+        }
+        if (plotfile2d::use_native_shoc_consumed_flux_source(
+                native_shoc_owns_scalar_fluxes,
+                native_shoc_has_consumed_flux_diagnostics,
+                SFS_q1fx3_lev[lev] != nullptr)) {
+            laten_flux_source = &native_shoc->consumed_laten_flux_diagnostics();
+        }
+        if (native_shoc && native_shoc->has_native_diagnostics()) {
+            shoc_ustar_source = &native_shoc->shoc_ustar_diagnostics();
+            shoc_olen_source = &native_shoc->shoc_olen_diagnostics();
+            shoc_wthv_source = &native_shoc->wthv_sec_diagnostics();
+        }
+        // pblh should follow the active PBL diagnostic provider. Native SHOC
+        // diagnoses its own PBL height in state_update mode; SurfaceLayer
+        // remains the fallback for non-SHOC configurations.
+        if (!pblh_source && m_SurfaceLayer) {
+            pblh_source = m_SurfaceLayer->get_pblh(lev);
+        }
 
         if (containerHasElement(plot_var_names, "z_surf")) {
 #ifdef _OPENMP
@@ -250,246 +325,89 @@ ERF::Write2DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
         } // lon_m
 
         ///////////////////////////////////////////////////////////////////////
-        // These quantities are diagnosed by the surface layer
+        // Surface and single-level diagnostics use the fill helpers below.
+        // Column reductions and future interpolated surfaces keep explicit
+        // assembly paths until their contracts are isolated in dedicated
+        // helpers.
         if (containerHasElement(plot_var_names, "u_star")) {
-#ifdef _OPENMP
-#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
-#endif
-            if (m_SurfaceLayer) {
-                for ( MFIter mfi(mf[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi)
-                {
-                    const Box& bx = mfi.tilebox();
-                    const auto& derdat = mf[lev].array(mfi);
-                    const auto& ustar  = m_SurfaceLayer->get_u_star(lev)->const_array(mfi);
-                    ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-                       derdat(i, j, k, mf_comp) = ustar(i, j, 0);
-                    });
-                }
-            } else {
-                mf[lev].setVal(-999,mf_comp,1,0);
-            }
+            plotfile2d::fill_component_from_klevel_or_value(
+                mf[lev], mf_comp, m_SurfaceLayer ? m_SurfaceLayer->get_u_star(lev) : nullptr,
+                0, -999);
             mf_comp++;
-        } // ustar
+        } // u_star
 
         if (containerHasElement(plot_var_names, "w_star")) {
-#ifdef _OPENMP
-#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
-#endif
-            if (m_SurfaceLayer) {
-                for ( MFIter mfi(mf[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi)
-                {
-                    const Box& bx = mfi.tilebox();
-                    const auto& derdat = mf[lev].array(mfi);
-                    const auto& ustar  = m_SurfaceLayer->get_w_star(lev)->const_array(mfi);
-                    ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-                       derdat(i, j, k, mf_comp) = ustar(i, j, 0);
-                    });
-                }
-            } else {
-                mf[lev].setVal(-999,mf_comp,1,0);
-            }
+            plotfile2d::fill_component_from_klevel_or_value(
+                mf[lev], mf_comp, m_SurfaceLayer ? m_SurfaceLayer->get_w_star(lev) : nullptr,
+                0, -999);
             mf_comp++;
-        } // wstar
+        } // w_star
 
         if (containerHasElement(plot_var_names, "t_star")) {
-#ifdef _OPENMP
-#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
-#endif
-            if (m_SurfaceLayer) {
-                for ( MFIter mfi(mf[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi)
-                {
-                    const Box& bx = mfi.tilebox();
-                    const auto& derdat = mf[lev].array(mfi);
-                    const auto& ustar  = m_SurfaceLayer->get_t_star(lev)->const_array(mfi);
-                    ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-                       derdat(i, j, k, mf_comp) = ustar(i, j, 0);
-                    });
-                }
-            } else {
-                mf[lev].setVal(-999,mf_comp,1,0);
-            }
+            plotfile2d::fill_component_from_klevel_or_value(
+                mf[lev], mf_comp, m_SurfaceLayer ? m_SurfaceLayer->get_t_star(lev) : nullptr,
+                0, -999);
             mf_comp++;
-        } // tstar
+        } // t_star
 
         if (containerHasElement(plot_var_names, "q_star")) {
-#ifdef _OPENMP
-#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
-#endif
-            if (m_SurfaceLayer) {
-                for ( MFIter mfi(mf[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi)
-                {
-                    const Box& bx = mfi.tilebox();
-                    const auto& derdat = mf[lev].array(mfi);
-                    const auto& ustar  = m_SurfaceLayer->get_q_star(lev)->const_array(mfi);
-                    ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-                       derdat(i, j, k, mf_comp) = ustar(i, j, 0);
-                    });
-                }
-            } else {
-                mf[lev].setVal(-999,mf_comp,1,0);
-            }
+            plotfile2d::fill_component_from_klevel_or_value(
+                mf[lev], mf_comp, m_SurfaceLayer ? m_SurfaceLayer->get_q_star(lev) : nullptr,
+                0, -999);
             mf_comp++;
-        } // qstar
+        } // q_star
 
         if (containerHasElement(plot_var_names, "Olen")) {
-#ifdef _OPENMP
-#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
-#endif
-            if (m_SurfaceLayer) {
-                for ( MFIter mfi(mf[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi)
-                {
-                    const Box& bx = mfi.tilebox();
-                    const auto& derdat = mf[lev].array(mfi);
-                    const auto& ustar  = m_SurfaceLayer->get_olen(lev)->const_array(mfi);
-                    ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-                       derdat(i, j, k, mf_comp) = ustar(i, j, 0);
-                    });
-                }
-            } else {
-                mf[lev].setVal(-999,mf_comp,1,0);
-            }
+            plotfile2d::fill_component_from_klevel_or_value(
+                mf[lev], mf_comp, m_SurfaceLayer ? m_SurfaceLayer->get_olen(lev) : nullptr,
+                0, -999);
             mf_comp++;
         } // Olen
 
         if (containerHasElement(plot_var_names, "pblh")) {
-#ifdef _OPENMP
-#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
-#endif
-            if (m_SurfaceLayer) {
-                for ( MFIter mfi(mf[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi)
-                {
-                    const Box& bx = mfi.tilebox();
-                    const auto& derdat = mf[lev].array(mfi);
-                    const auto& ustar  = m_SurfaceLayer->get_pblh(lev)->const_array(mfi);
-                    ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-                       derdat(i, j, k, mf_comp) = ustar(i, j, 0);
-                    });
-                }
-            } else {
-                mf[lev].setVal(-999,mf_comp,1,0);
-            }
+            plotfile2d::fill_component_from_klevel_or_value(
+                mf[lev], mf_comp, pblh_source, 0, -999);
             mf_comp++;
         } // pblh
 
         if (containerHasElement(plot_var_names, "t_surf")) {
-#ifdef _OPENMP
-#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
-#endif
-            if (m_SurfaceLayer) {
-                for ( MFIter mfi(mf[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi)
-                {
-                    const Box& bx = mfi.tilebox();
-                    const auto& derdat = mf[lev].array(mfi);
-                    const auto& tsurf  = m_SurfaceLayer->get_t_surf(lev)->const_array(mfi);
-                    ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-                       derdat(i, j, k, mf_comp) = tsurf(i, j, 0);
-                    });
-                }
-            } else {
-                mf[lev].setVal(-999,mf_comp,1,0);
-            }
+            plotfile2d::fill_component_from_klevel_or_value(
+                mf[lev], mf_comp, m_SurfaceLayer ? m_SurfaceLayer->get_t_surf(lev) : nullptr,
+                0, -999);
             mf_comp++;
-        } // tsurf
+        } // t_surf
 
         if (containerHasElement(plot_var_names, "q_surf")) {
-#ifdef _OPENMP
-#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
-#endif
-            if (m_SurfaceLayer) {
-                for ( MFIter mfi(mf[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi)
-                {
-                    const Box& bx = mfi.tilebox();
-                    const auto& derdat = mf[lev].array(mfi);
-                    const auto& ustar  = m_SurfaceLayer->get_q_surf(lev)->const_array(mfi);
-                    ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-                       derdat(i, j, k, mf_comp) = ustar(i, j, 0);
-                    });
-                }
-            } else {
-                mf[lev].setVal(-999,mf_comp,1,0);
-            }
+            plotfile2d::fill_component_from_klevel_or_value(
+                mf[lev], mf_comp, m_SurfaceLayer ? m_SurfaceLayer->get_q_surf(lev) : nullptr,
+                0, -999);
             mf_comp++;
-        } // qsurf
+        } // q_surf
 
         if (containerHasElement(plot_var_names, "z0")) {
-#ifdef _OPENMP
-#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
-#endif
-            if (m_SurfaceLayer) {
-                for ( MFIter mfi(mf[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi)
-                {
-                    const Box& bx = mfi.tilebox();
-                    const auto& derdat = mf[lev].array(mfi);
-                    const auto& ustar  = m_SurfaceLayer->get_z0(lev)->const_array(mfi);
-                    ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-                       derdat(i, j, k, mf_comp) = ustar(i, j, 0);
-                    });
-                }
-            } else {
-                mf[lev].setVal(-999,mf_comp,1,0);
-            }
+            plotfile2d::fill_component_from_klevel_or_value(
+                mf[lev], mf_comp, m_SurfaceLayer ? m_SurfaceLayer->get_z0(lev) : nullptr,
+                0, -999);
             mf_comp++;
         } // z0
 
         if (containerHasElement(plot_var_names, "OLR")) {
-#ifdef _OPENMP
-#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
-#endif
-            if (solverChoice.rad_type != RadiationType::None) {
-                for ( MFIter mfi(mf[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi)
-                {
-                    const Box& bx = mfi.tilebox();
-                    const auto& derdat = mf[lev].array(mfi);
-                    const auto& olr    = rad_fluxes[lev]->const_array(mfi);
-                    ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-                        derdat(i, j, k, mf_comp) = olr(i, j, khi, 2);
-                    });
-                }
-            } else {
-                mf[lev].setVal(-999,mf_comp,1,0);
-            }
+            plotfile2d::fill_component_from_klevel_or_value(
+                mf[lev], mf_comp, rad_fluxes[lev].get(), khi, -999, 2);
             mf_comp++;
         } // OLR
 
         if (containerHasElement(plot_var_names, "sens_flux")) {
-#ifdef _OPENMP
-#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
-#endif
-            if (SFS_hfx3_lev[lev]) {
-                for ( MFIter mfi(mf[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi)
-                {
-                    const Box& bx = mfi.tilebox();
-                    const auto& derdat = mf[lev].array(mfi);
-                    const auto& hfx_arr = SFS_hfx3_lev[lev]->const_array(mfi);
-                    ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-                        derdat(i, j, k, mf_comp) = hfx_arr(i, j, klo);
-                    });
-                }
-            } else {
-                mf[lev].setVal(-999,mf_comp,1,0);
-            }
+            plotfile2d::fill_component_from_klevel_or_value(
+                mf[lev], mf_comp, sens_flux_source, klo, -999);
             mf_comp++;
         } // sens_flux
 
         // Keep the legacy output name "laten_flux"; it maps to the vertical
         // water-vapor surface flux field.
         if (containerHasElement(plot_var_names, "laten_flux")) {
-#ifdef _OPENMP
-#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
-#endif
-            if (SFS_q1fx3_lev[lev]) {
-                for ( MFIter mfi(mf[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi)
-                {
-                    const Box& bx = mfi.tilebox();
-                    const auto& derdat = mf[lev].array(mfi);
-                    const auto& qfx_arr = SFS_q1fx3_lev[lev]->const_array(mfi);
-                    ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-                        derdat(i, j, k, mf_comp) = qfx_arr(i, j, klo);
-                    });
-                }
-            } else {
-                mf[lev].setVal(-999,mf_comp,1,0);
-            }
+            plotfile2d::fill_component_from_klevel_or_value(
+                mf[lev], mf_comp, laten_flux_source, klo, -999);
             mf_comp++;
         } // laten_flux
 
@@ -513,7 +431,30 @@ ERF::Write2DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
             mf_comp++;
         } // surf_pres
 
+        const auto precip_sources =
+            micro ? micro->Get_Surface_Precip_Accumulation_Ptrs(lev)
+                  : SurfacePrecipAccumulationSources{};
+        const auto selected_precipitation =
+            plotfile2d::selected_precipitation_accumulation_components(varnames,
+                                                                       precip_sources);
+        if (selected_precipitation.n > 0) {
+            plotfile2d::fill_precipitation_accumulations(mf[lev],
+                                                         precip_sources,
+                                                         selected_precipitation,
+                                                         klo);
+        }
+
+        if (containerHasElement(plot_var_names, "precip_total_accum"))   { mf_comp++; }
+        if (containerHasElement(plot_var_names, "precip_rain_accum"))    { mf_comp++; }
+        if (containerHasElement(plot_var_names, "precip_snow_accum"))    { mf_comp++; }
+        if (containerHasElement(plot_var_names, "precip_graupel_accum")) { mf_comp++; }
+        if (containerHasElement(plot_var_names, "precip_hail_accum"))    { mf_comp++; }
+        if (containerHasElement(plot_var_names, "precip_frozen_accum"))  { mf_comp++; }
+
         if (containerHasElement(plot_var_names, "integrated_qv")) {
+            // integrated_qv remains the legacy column-reduction example.
+            // Scheme-aware condensed water paths use a dedicated helper below
+            // rather than the single-k copy helpers.
             MultiFab mf_qv_int(mf[lev],make_alias,mf_comp,1);
             if (solverChoice.moisture_type != MoistureType::None) {
                 volWgtColumnSum(lev, vars_new[lev][Vars::cons], RhoQ1_comp, mf_qv_int, *detJ_cc[lev]);
@@ -523,71 +464,162 @@ ERF::Write2DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
             mf_comp++;
         }
 
+        const auto selected_water_paths =
+            plotfile2d::selected_condensed_water_path_components(varnames, solverChoice);
+        if (selected_water_paths.n > 0) {
+            // Condensed water paths are scheme-aware column reductions. Their
+            // availability comes from solverChoice.moisture_indices, and the
+            // reduction uses the same metric convention as integrated_qv.
+            plotfile2d::fill_condensed_water_paths(mf[lev],
+                                                   vars_new[lev][Vars::cons],
+                                                   selected_water_paths,
+                                                   geom[lev],
+                                                   *detJ_cc[lev]);
+        }
+
+        if (containerHasElement(plot_var_names, "integrated_qc")) { mf_comp++; }
+        if (containerHasElement(plot_var_names, "integrated_qi")) { mf_comp++; }
+        if (containerHasElement(plot_var_names, "integrated_qr")) { mf_comp++; }
+        if (containerHasElement(plot_var_names, "integrated_qs")) { mf_comp++; }
+        if (containerHasElement(plot_var_names, "integrated_qg")) { mf_comp++; }
+
         if (containerHasElement(plot_var_names, "surface_diagnostic_source")) {
-#ifdef _OPENMP
-#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
-#endif
-            if (m_SurfaceLayer) {
-                for (MFIter mfi(mf[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi)
-                {
-                    const Box& bx = mfi.tilebox();
-                    const auto& derdat = mf[lev].array(mfi);
-                    const auto& source = m_SurfaceLayer->get_surface_diagnostic_source(lev)->const_array(mfi);
-                    ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-                        derdat(i, j, k, mf_comp) = source(i, j, 0);
-                    });
-                }
-            } else {
-                mf[lev].setVal(-999, mf_comp, 1, 0);
-            }
+            plotfile2d::fill_component_from_klevel_or_value(
+                mf[lev], mf_comp,
+                m_SurfaceLayer ? m_SurfaceLayer->get_surface_diagnostic_source(lev) : nullptr,
+                0, 0);
             mf_comp++;
         } // surface_diagnostic_source
 
         if (containerHasElement(plot_var_names, "sensible_heat_flux")) {
-#ifdef _OPENMP
-#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
-#endif
-            if (SFS_hfx3_lev[lev]) {
-                for ( MFIter mfi(mf[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi)
-                {
-                    const Box& bx = mfi.tilebox();
-                    const auto& derdat = mf[lev].array(mfi);
-                    const auto& hfx_arr = SFS_hfx3_lev[lev]->const_array(mfi);
-                    ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-                        // Delegate unit semantics to the surface flux diagnostics helper.
-                        derdat(i, j, k, mf_comp) =
-                            surface_flux_diagnostics::sensible_heat_flux_wm2_from_rhotheta_flux(
-                                hfx_arr(i, j, klo));
-                    });
-                }
-            } else {
-                mf[lev].setVal(-999, mf_comp, 1, 0);
-            }
+            plotfile2d::fill_sensible_heat_flux_from_klevel_or_missing(
+                mf[lev], mf_comp, sens_flux_source, klo, -999);
             mf_comp++;
         } // sensible_heat_flux
 
         if (containerHasElement(plot_var_names, "latent_heat_flux")) {
-#ifdef _OPENMP
-#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
-#endif
-            if (SFS_q1fx3_lev[lev]) {
-                for ( MFIter mfi(mf[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi)
-                {
-                    const Box& bx = mfi.tilebox();
-                    const auto& derdat = mf[lev].array(mfi);
-                    const auto& qfx_arr = SFS_q1fx3_lev[lev]->const_array(mfi);
-                    ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-                        // Delegate unit semantics to the surface flux diagnostics helper.
-                        derdat(i, j, k, mf_comp) =
-                            surface_flux_diagnostics::latent_heat_flux_wm2_from_rhoqv_flux(
-                                qfx_arr(i, j, klo));
-                    });
-                }
-            } else {
-                mf[lev].setVal(-999, mf_comp, 1, 0);
-            }
+            plotfile2d::fill_latent_heat_flux_from_klevel_or_missing(
+                mf[lev], mf_comp, laten_flux_source, klo, -999);
             mf_comp++;
         } // latent_heat_flux
+
+        if (containerHasElement(plot_var_names, "shoc_u_star")) {
+            plotfile2d::fill_component_from_klevel_or_value(
+                mf[lev], mf_comp, shoc_ustar_source, klo, -999);
+            mf_comp++;
+        } // shoc_u_star
+
+        if (containerHasElement(plot_var_names, "shoc_Olen")) {
+            plotfile2d::fill_component_from_klevel_or_value(
+                mf[lev], mf_comp, shoc_olen_source, klo, -999);
+            mf_comp++;
+        } // shoc_Olen
+
+        if (containerHasElement(plot_var_names, "shoc_wthv_sfc")) {
+            plotfile2d::fill_component_from_klevel_or_value(
+                mf[lev], mf_comp, shoc_wthv_source, klo, -999);
+            mf_comp++;
+        } // shoc_wthv_sfc
+
+        // Land-surface provider fields use the generic LandSurface name/index
+        // interface. The catalog supplies metadata; this block only assembles
+        // stored values and translates provider sentinels.
+        int temperature_2m_comp = -1;
+        int mixing_ratio_2m_comp = -1;
+        int near_surface_source_comp = -1;
+        for (const auto& name : plot_var_names) {
+            const auto* descriptor = plotfile2d::find_diagnostic(name);
+            if (!descriptor) {
+                descriptor = plotfile2d::find_dynamic_soil_diagnostic(name);
+            }
+            if (!is_land_surface_diagnostic(descriptor)) {
+                continue;
+            }
+
+            if (is_unified_near_surface_diagnostic(descriptor->id)) {
+                if (descriptor->id == plotfile2d::DiagnosticID::Temperature2m) {
+                    temperature_2m_comp = mf_comp;
+                } else if (descriptor->id == plotfile2d::DiagnosticID::WaterVaporMixingRatio2m) {
+                    mixing_ratio_2m_comp = mf_comp;
+                } else {
+                    near_surface_source_comp = mf_comp;
+                }
+                ++mf_comp;
+                continue;
+            }
+
+            plotfile2d::fill_land_surface_component_from_klevel_or_missing(
+                mf[lev], mf_comp, lsm.Get_Data_Ptr(lev, name), 0, -999);
+            ++mf_comp;
+        }
+
+        if (temperature_2m_comp >= 0 || mixing_ratio_2m_comp >= 0 ||
+            near_surface_source_comp >= 0) {
+            near_surface_diagnostics::Sources near_surface_sources;
+            near_surface_sources.native_temperature_vegetated =
+                lsm.Get_Data_Ptr(lev, "noahmp_temperature_2m_vegetated");
+            near_surface_sources.native_temperature_bare =
+                lsm.Get_Data_Ptr(lev, "noahmp_temperature_2m_bare");
+            near_surface_sources.native_mixing_ratio_vegetated =
+                lsm.Get_Data_Ptr(lev, "noahmp_water_vapor_mixing_ratio_2m_vegetated");
+            near_surface_sources.native_mixing_ratio_bare =
+                lsm.Get_Data_Ptr(lev, "noahmp_water_vapor_mixing_ratio_2m_bare");
+            near_surface_sources.native_vegetation_fraction =
+                lsm.Get_Data_Ptr(lev, "noahmp_vegetation_fraction");
+            near_surface_sources.theta_surface =
+                m_SurfaceLayer ? m_SurfaceLayer->get_t_surf(lev) : nullptr;
+            near_surface_sources.theta_star =
+                m_SurfaceLayer ? m_SurfaceLayer->get_t_star(lev) : nullptr;
+            near_surface_sources.mixing_ratio_surface =
+                m_SurfaceLayer ? m_SurfaceLayer->get_q_surf(lev) : nullptr;
+            near_surface_sources.mixing_ratio_star =
+                m_SurfaceLayer ? m_SurfaceLayer->get_q_star(lev) : nullptr;
+            near_surface_sources.roughness_height =
+                m_SurfaceLayer ? m_SurfaceLayer->get_z0(lev) : nullptr;
+            near_surface_sources.obukhov_length =
+                m_SurfaceLayer ? m_SurfaceLayer->get_olen(lev) : nullptr;
+            near_surface_sources.source_mask =
+                m_SurfaceLayer ? m_SurfaceLayer->get_surface_diagnostic_source(lev) : nullptr;
+            near_surface_sources.land_mask =
+                (lmask_lev[lev].empty()) ? nullptr : lmask_lev[lev][0].get();
+            near_surface_sources.cons = &vars_new[lev][Vars::cons];
+            near_surface_sources.z_phys_nd = z_phys_nd[lev].get();
+            near_surface_sources.dz = geom[lev].CellSize(2);
+            near_surface_sources.klo = klo;
+            near_surface_sources.moist = solverChoice.moisture_type != MoistureType::None;
+            near_surface_sources.has_lsm =
+                near_surface_sources.native_temperature_vegetated != nullptr &&
+                near_surface_sources.native_temperature_bare != nullptr &&
+                near_surface_sources.native_mixing_ratio_vegetated != nullptr &&
+                near_surface_sources.native_mixing_ratio_bare != nullptr &&
+                near_surface_sources.native_vegetation_fraction != nullptr;
+            near_surface_diagnostics::fill(mf[lev], temperature_2m_comp,
+                                           mixing_ratio_2m_comp,
+                                           near_surface_source_comp,
+                                           near_surface_sources);
+        }
+
+        const int static_output_count = static_cast<int>(plot_var_names.size());
+        for (int out_idx = static_output_count; out_idx < static_cast<int>(output_descriptors.size()); ++out_idx) {
+            const auto& descriptor = output_descriptors[out_idx];
+            // Sampled-level descriptors are dynamic. The interpolator owns
+            // their vertical sampling so the writer remains an output
+            // assembly layer.
+            plotfile2d::SampledWindSources wind_sources;
+            wind_sources.xvel = &vars_new[lev][Vars::xvel];
+            wind_sources.yvel = &vars_new[lev][Vars::yvel];
+            wind_sources.zvel = &vars_new[lev][Vars::zvel];
+            plotfile2d::fill_sampled_level_component(
+                mf[lev], mf_comp, descriptor,
+                vars_new[lev][Vars::cons],
+                z_phys_cc[lev].get(),
+                *z_phys_nd[lev],
+                z_phys_cc[lev] != nullptr,
+                solverChoice.moisture_indices,
+                klo, khi,
+                wind_sources);
+            mf_comp++;
+        }
 
         if (mf_comp != ncomp_mf) {
             Abort(plotfile2d::format_2d_component_count_error(lev, mf_comp, ncomp_mf));
@@ -601,8 +633,12 @@ ERF::Write2DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
         Print() << "Writing 2D native plotfile " << plotfilename << "\n";
         WriteMultiLevelPlotfile(plotfilename, finest_level+1,
                                 GetVecOfConstPtrs(mf),
-                                varnames, my_geom, t_new[0], istep, refRatio());
-        writeJobInfo(plotfilename);
+                                varnames, my_geom, static_cast<Real>(t_new[0]), istep, refRatio());
+        // Native AMReX 2D plotfiles write a JSON sidecar with catalog
+        // metadata for the selected output variables only.
+        plotfile2d::write_2d_metadata_json(plotfilename, output_descriptors);
+        writeJobInfo(plotfilename, erf_provenance::ArtifactType::Plotfile2D,
+                     istep[0], t_new[0]);
 
 #ifdef ERF_USE_NETCDF
     } else if (plotfile_type == PlotFileType::Netcdf) {
@@ -613,7 +649,8 @@ ERF::Write2DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
          const auto dx    = my_geom[lev].CellSize();
          writeNCPlotFile(lev, l_which, plotfilename, GetVecOfConstPtrs(mf), varnames, istep,
                          {p_lo[0],p_lo[1],p_lo[2]},{p_hi[0],p_hi[1],dx[2]}, {dx[0],dx[1],dx[2]},
-                         my_geom[lev].Domain(), t_new[0], start_bdy_time, solverChoice, zlevels_stag[lev]);
+                         my_geom[lev].Domain(), static_cast<Real>(t_new[0]),
+                         static_cast<Real>(start_bdy_time), solverChoice, zlevels_stag[lev]);
 #endif
     } else {
         // Here we assume the plotfile_type is PlotFileType::None

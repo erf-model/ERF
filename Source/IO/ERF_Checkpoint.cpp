@@ -6,8 +6,17 @@
 
 #include "ERF.H"
 #include "AMReX_PlotFileUtil.H"
+#include "ERF_ReadFromERFBdy.H"
+#include "ERF_Provenance.H"
 
 using namespace amrex;
+
+namespace
+{
+
+bool provenance_warning_emitted = false;
+
+} // namespace
 
 /**
  * Utility to skip to next line in Header file input stream.
@@ -419,7 +428,7 @@ ERF::WriteCheckpointFile () const
 
         if (solverChoice.use_real_bcs && solverChoice.init_type == InitType::WRFInput) {
             if (lev == 0) {
-                amrex::Print() << "Writing C1H/C2H/MUB/PHB variables at level " << lev << std::endl;
+                amrex::Print() << "Writing C1H/C2H/RDNW/MUB/PHB variables at level " << lev << std::endl;
                 MultiFab tmp1d(ba1d[0],dmap[0],1,0);
 
                 MultiFab::Copy(tmp1d,*wrf_C1H,0,0,1,0);
@@ -428,13 +437,16 @@ ERF::WriteCheckpointFile () const
                 MultiFab::Copy(tmp1d,*wrf_C2H,0,0,1,0);
                 VisMF::Write(tmp1d, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "C2H"));
 
+                MultiFab::Copy(tmp1d,*wrf_RDNW,0,0,1,0);
+                VisMF::Write(tmp1d, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "RDNW"));
+
                 MultiFab tmp2d(ba2d[0],dmap[0],1,wrf_MUB->nGrowVect());
 
                 MultiFab::Copy(tmp2d,*wrf_MUB,0,0,1,wrf_MUB->nGrowVect());
                 VisMF::Write(tmp2d, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "MUB"));
 
-                ng = IntVect(1,1,0);
-                MultiFab tmp3d(convert(grids[0],IntVect(0,0,1)),dmap[0],1,ng);
+                MultiFab tmp3d(convert(grids[0],IntVect(0,0,1)),dmap[0],1,wrf_PHB->nGrowVect());
+
                 MultiFab::Copy(tmp3d,*wrf_PHB,0,0,1,ng);
                 VisMF::Write(tmp3d, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "PHB"));
             }
@@ -488,6 +500,11 @@ ERF::WriteCheckpointFile () const
 #endif
 #endif
 
+    // Write job_info after checkpoint state so the provenance record describes
+    // the completed output attempt and can seed a later restart lineage.
+    writeJobInfo(checkpointname, erf_provenance::ArtifactType::Checkpoint,
+                 istep[0], t_new[0]);
+
     if (verbose > 0)
     {
         auto dCheckTime = amrex::second() - dCheckTime0;
@@ -503,6 +520,34 @@ void
 ERF::ReadCheckpointFile ()
 {
     Print() << "Restart from native checkpoint " << restart_chkfile << "\n";
+
+    const auto provenance_result =
+        erf_provenance::read_job_info_file(restart_chkfile + "/job_info");
+    if (provenance_result.valid() &&
+        provenance_result.record.artifact.artifact_type == erf_provenance::ArtifactType::Checkpoint) {
+        execution_provenance = erf_provenance::make_restart_provenance(
+            execution_provenance, provenance_result.record, restart_chkfile);
+    } else {
+        // Provenance is auxiliary metadata. A missing or invalid record must not make
+        // a valid physical checkpoint unreadable.
+        if (ParallelDescriptor::IOProcessor() && !provenance_warning_emitted) {
+            provenance_warning_emitted = true;
+            const std::string reason = provenance_result.valid()
+                ? "the provenance record has artifact_type=" +
+                  std::string(erf_provenance::artifact_type_token(
+                      provenance_result.record.artifact.artifact_type)) +
+                  ", not checkpoint"
+                : provenance_result.diagnostic;
+            Warning("Cannot recover provenance from native checkpoint '" +
+                    restart_chkfile + "': " + reason +
+                    ". ERF will continue with incomplete provenance.");
+        }
+        const auto failure_status = provenance_result.valid()
+            ? erf_provenance::ProvenanceReadStatus::ArtifactTypeMismatch
+            : provenance_result.status;
+        execution_provenance = erf_provenance::make_incomplete_restart_provenance(
+            execution_provenance, failure_status, restart_chkfile);
+    }
 
     // Header
     std::string File(restart_chkfile + "/Header");
@@ -563,7 +608,7 @@ ERF::ReadCheckpointFile ()
         std::istringstream lis(line);
         int i = 0;
         while (lis >> word) {
-            dt[i++] = static_cast<Real>(std::stod(word));
+            dt[i++] = std::stod(word);
         }
     }
 
@@ -573,7 +618,7 @@ ERF::ReadCheckpointFile ()
         std::istringstream lis(line);
         int i = 0;
         while (lis >> word) {
-            t_new[i++] = static_cast<Real>(std::stod(word));
+            t_new[i++] = std::stod(word);
         }
     }
 
@@ -586,7 +631,7 @@ ERF::ReadCheckpointFile ()
         // create a distribution mapping
         DistributionMapping dm { ba, ParallelDescriptor::NProcs() };
 
-        MakeNewLevelFromScratch (lev, t_new[lev], ba, dm);
+        MakeNewLevelFromScratch (lev, static_cast<Real>(t_new[lev]), ba, dm);
     }
 
     // ncomp is only valid after we MakeNewLevelFromScratch (asks micro how many vars)
@@ -725,40 +770,22 @@ ERF::ReadCheckpointFile ()
         base_state[lev].FillBoundary(geom[lev].periodicity());
 
         if (SolverChoice::mesh_type != MeshType::ConstantDz)  {
-           // Note that we also read the ghost cells of z_phys_nd
-           IntVect ng = z_phys_nd[lev]->nGrowVect();
-           MultiFab z_height(convert(grids[lev],IntVect(1,1,1)),dmap[lev],1,ng);
-           VisMF::Read(z_height, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "Z_Phys_nd"));
-           MultiFab::Copy(*z_phys_nd[lev],z_height,0,0,1,ng);
-           update_terrain_arrays(lev);
+            // Note that we also read the ghost cells of z_phys_nd
+            IntVect ng = z_phys_nd[lev]->nGrowVect();
+            MultiFab z_height(convert(grids[lev],IntVect(1,1,1)),dmap[lev],1,ng);
+            VisMF::Read(z_height, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "Z_Phys_nd"));
+            MultiFab::Copy(*z_phys_nd[lev],z_height,0,0,1,ng);
+            update_terrain_arrays(lev);
 
-           // Compute the min dz and pass to the micro model
-           Real dzmin = get_dzmin_terrain(*z_phys_nd[lev]);
-           micro->Set_dzmin(lev, dzmin);
+            // Compute the min dz and pass to the micro model
+            Real dzmin = get_dzmin_terrain(*z_phys_nd[lev]);
+            micro->Set_dzmin(lev, dzmin);
 
-           if (SolverChoice::mesh_type == MeshType::VariableDz) {
-               MultiFab z_slab(convert(ba2d[lev],IntVect(1,1,1)),dmap[lev],1,0);
-               int klo = geom[lev].Domain().smallEnd(2);
-               for (MFIter mfi(z_slab); mfi.isValid(); ++mfi) {
-                   Box nbx = mfi.tilebox();
-                   Array4<Real const> const& z_arr      = z_phys_nd[lev]->const_array(mfi);
-                   Array4<Real      > const& z_slab_arr = z_slab.array(mfi);
-                   ParallelFor(nbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-                   {
-                       z_slab_arr(i,j,k) = z_arr(i,j,klo);
-                   });
-               }
-               Real z_min = z_slab.min(0);
-               Real z_max = z_slab.max(0);
-
-               auto dz = geom[lev].CellSize()[2];
-               if (z_max - z_min < Real(1.e-8) * dz) {
-                   SolverChoice::set_mesh_type(MeshType::StretchedDz);
-                   if (verbose > 0) {
-                       amrex::Print() << "Resetting mesh type to StretchedDz since terrain is flat" << std::endl;
-                   }
-               }
-           }
+#if 0
+            if ( (solverChoice.init_type != InitType::WRFInput) && (solverChoice.init_type != InitType::Metgrid) ) {
+                check_mesh_type(lev);
+            }
+#endif
         }
 
         // Read in the moisture model restart variables
@@ -965,7 +992,7 @@ ERF::ReadCheckpointFile ()
 
         if (solverChoice.use_real_bcs && solverChoice.init_type == InitType::WRFInput) {
             if (lev == 0) {
-                amrex::Print() << "Reading C1H/C2H/MUB/PHB variables at level " << lev << std::endl;
+                amrex::Print() << "Reading C1H/C2H/RDNW/MUB/PHB variables at level " << lev << std::endl;
                 MultiFab tmp1d(ba1d[0],dmap[0],1,0);
 
                 VisMF::Read(tmp1d, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "C1H"));
@@ -974,14 +1001,16 @@ ERF::ReadCheckpointFile ()
                 VisMF::Read(tmp1d, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "C2H"));
                 MultiFab::Copy(*wrf_C2H,tmp1d,0,0,1,0);
 
+                VisMF::Read(tmp1d, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "RDNW"));
+                MultiFab::Copy(*wrf_RDNW,tmp1d,0,0,1,0);
+
                 MultiFab tmp2d(ba2d[0],dmap[0],1,wrf_MUB->nGrowVect());
 
                 VisMF::Read(tmp2d, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "MUB"));
                 MultiFab::Copy(*wrf_MUB,tmp2d,0,0,1,wrf_MUB->nGrowVect());
 
-                ng = IntVect(1,1,0);
-                MultiFab tmp3d(convert(grids[0],IntVect(0,0,1)),dmap[0],1,ng);
-                wrf_PHB = std::make_unique<MultiFab>(convert(grids[0],IntVect(0,0,1)),dmap[0],1,ng);
+                MultiFab tmp3d(convert(grids[0],IntVect(0,0,1)),dmap[0],1,wrf_PHB->nGrowVect());
+
                 VisMF::Read(tmp3d, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "PHB"));
                 MultiFab::Copy(*wrf_PHB,tmp3d,0,0,1,ng);
             }
@@ -1142,6 +1171,57 @@ ERF::ReadCheckpointFile ()
         }
     } // init_type == WRFInput or Metgrid
 #endif
+#endif
+
+#ifdef ERF_USE_NETCDF
+    // Load boundary data from erfbdy during restart for metgrid or wrfinput.
+    if (((solverChoice.init_type == InitType::WRFInput) || (solverChoice.init_type == InitType::Metgrid)) &&
+        solverChoice.use_real_bcs) {
+
+        // Check for erfbdy file.
+        std::string erfbdy_header = erfbdy_file + "/Header";
+
+        // For now we disable this for InitType::WRFInput because it failed the WPS_Test_restart regression test
+        use_erfbdy = ( (solverChoice.init_type == InitType::Metgrid) && FileSystem::Exists(erfbdy_header) );
+
+        if (solverChoice.init_type == InitType::Metgrid) {
+            if (!use_erfbdy) {
+                Abort("Restart with init_type=metgrid requires erfbdy file: " + erfbdy_file);
+            }
+        }
+
+        // Load from erfbdy if it exists.
+        if (use_erfbdy) {
+            Print() << "Restart: Loading boundary data from erfbdy file: " << erfbdy_file << std::endl;
+
+            int ntimes_erfbdy;
+            Vector<double> bdy_times;
+            bdy_time_interval = read_times_from_erfbdy(erfbdy_file,
+                                                       ntimes_erfbdy, nvars_erfbdy, real_width,
+                                                       bdy_times, start_bdy_time, final_bdy_time);
+
+            Print() << "Restart: erfbdy file contains " << ntimes_erfbdy << " times" << std::endl;
+
+            bdy_data_xlo.resize(ntimes_erfbdy);
+            bdy_data_xhi.resize(ntimes_erfbdy);
+            bdy_data_ylo.resize(ntimes_erfbdy);
+            bdy_data_yhi.resize(ntimes_erfbdy);
+
+            // Determine which times we need based on current simulation time.
+            double time_since_start_bdy = t_new[0] + start_time - start_bdy_time;
+            int n_time_old = std::min(static_cast<int>(time_since_start_bdy / bdy_time_interval), ntimes_erfbdy-1);
+            int n_time_new = n_time_old + 1;
+
+            // Read the necessary times into memory.
+            for (int itime = n_time_old; itime <= std::min(n_time_new + 1, ntimes_erfbdy - 1); ++itime) {
+                read_from_erfbdy(itime, erfbdy_file,
+                                 bdy_data_xlo, bdy_data_xhi,
+                                 bdy_data_ylo, bdy_data_yhi,
+                                 nvars_erfbdy, real_width);
+                Print() << "Restart: Loaded erfbdy time index " << itime << std::endl;
+            }
+        }
+    }
 #endif
 }
 

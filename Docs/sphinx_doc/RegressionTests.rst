@@ -1,15 +1,15 @@
 
- .. _RegressionTests:
+.. _RegressionTests:
 
 Regression Tests
 ================
 
-There are currently 26 tests which are run as part of every PR.
-The CI tests use cmake and are based on the version
-of AMReX in the ERF submodule.
+This page covers complete ERF regression cases. For focused GoogleTest cases,
+see :ref:`UnitTests`.
 
-In addition there are nightly tests that use GNUMake and use the current
-development branch of AMReX.
+ERF runs a set of CMake regression tests on every pull request. These tests use
+the AMReX version in the ERF submodule. Nightly GNU Make tests use the current
+AMReX development branch.
 
 Results from the nightly CPU tests can be found here: `CPU tests`_
 

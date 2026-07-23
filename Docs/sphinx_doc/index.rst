@@ -82,6 +82,7 @@ In addition to this documentation, there is API documentation for ERF generated 
    SurfaceLayer.rst
    DerivedQuantities.rst
    Checkpoint.rst
+   Provenance.rst
    Plotfiles.rst
    Visualization.rst
 
@@ -103,9 +104,11 @@ In addition to this documentation, there is API documentation for ERF generated 
    :caption: TESTING
    :maxdepth: 1
 
+   testing.rst
+   UnitTests.rst
+   RegressionTests.rst
    Verification.rst
    Performance.rst
-   RegressionTests.rst
 
 .. toctree::
    :caption: CONTAINERS

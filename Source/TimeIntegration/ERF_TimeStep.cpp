@@ -1,6 +1,7 @@
 #include <ERF.H>
 #include <ERF_Utils.H>
 #include <ERF_ReadFromWRFBdy.H>
+#include <ERF_ReadFromERFBdy.H>
 
 using namespace amrex;
 
@@ -65,21 +66,32 @@ ERF::timeStep (int lev, double time, int /*iteration*/)
             bool need_itime = (itime >= n_time_old && itime <= n_time_new+1);
             //if (need_itime) { amrex::Print()  << "NEED  BDY DATA AT TIME " << itime << std::endl; }
 
-            if (bdy_data_xlo[itime].size() == 0 && need_itime) {
-                bool is_anelastic = (solverChoice.anelastic[0] == 1);
-                read_and_convert_from_wrfbdy(itime,nc_bdy_file,bdy_data_xlo,bdy_data_xhi,bdy_data_ylo,bdy_data_yhi,
-                                             wrf_MUB, wrf_C1H, wrf_C2H, wrf_PHB,
-                                             vars_new[lev][Vars::xvel], vars_new[lev][Vars::yvel], vars_new[lev][Vars::cons],
-                                             r_hse, area_vec, geom[lev], use_moist, domain_bcs_type,
-                                             real_width, bdy_time_interval, is_anelastic);
-           }
+            // Handle erfbdy files (AMReX native format).
+            if (use_erfbdy) {
+                if (bdy_data_xlo[itime].size() == 0 && need_itime) {
+                    read_from_erfbdy(itime, erfbdy_file,
+                                     bdy_data_xlo, bdy_data_xhi,
+                                     bdy_data_ylo, bdy_data_yhi,
+                                     nvars_erfbdy, real_width);
+                }
+            // Handle wrfbdy files (NetCDF format).
+            } else {
+                if (bdy_data_xlo[itime].size() == 0 && need_itime) {
+                    bool is_anelastic = (solverChoice.anelastic[0] == 1);
+                    read_and_convert_from_wrfbdy(itime,nc_bdy_file,bdy_data_xlo,bdy_data_xhi,bdy_data_ylo,bdy_data_yhi,
+                                                 wrf_MUB, wrf_C1H, wrf_C2H, wrf_RDNW, wrf_PHB, z_phys_nd[lev],
+                                                 vars_new[lev][Vars::xvel], vars_new[lev][Vars::yvel], vars_new[lev][Vars::cons],
+                                                 r_hse, area_vec, geom[lev], use_moist, solverChoice.rebalance_wrf_input, domain_bcs_type,
+                                                 real_width, bdy_time_interval, is_anelastic);
+                }
+            } // use_erfbdy
         } // itime
     } // use_real_bcs && lev == 0
 
     if (!nc_low_file.empty() && (lev==0))
     {
         int ntimes = low_data_zlo.size();
-        Real time_since_start_low = time + start_time - start_low_time;
+        double time_since_start_low = time + start_time - start_low_time;
         int n_time_old = std::min(static_cast<int>( (time_since_start_low        ) /  low_time_interval), ntimes-1);
         int n_time_new = std::min(static_cast<int>( (time_since_start_low+dt[lev]) /  low_time_interval), ntimes-1);
 
@@ -154,7 +166,7 @@ ERF::timeStep (int lev, double time, int /*iteration*/)
                     }
                 }
 
-                regrid(lev, time);
+                regrid(lev, static_cast<Real>(time));
 
 #ifdef ERF_USE_PARTICLES
                 particleData.Redistribute(z_phys_nd);
@@ -167,7 +179,7 @@ ERF::timeStep (int lev, double time, int /*iteration*/)
 
                 // if there are newly created levels, set the time step
                 for (int k = old_finest+1; k <= finest_level; ++k) {
-                    dt[k] = dt[k-1] / static_cast<Real>(nsubsteps[k]);
+                    dt[k] = dt[k-1] / static_cast<double>(nsubsteps[k]);
                 }
             } // if
         } // lev
@@ -209,7 +221,7 @@ ERF::timeStep (int lev, double time, int /*iteration*/)
         // recursive call for next-finer level
         for (int i = 1; i <= nsubsteps[lev+1]; ++i)
         {
-            Real strt_time_for_fine = time + (i-1)*dt[lev+1];
+            double strt_time_for_fine = time + (i-1)*dt[lev+1];
             timeStep(lev+1, strt_time_for_fine, i);
         }
     }

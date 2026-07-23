@@ -80,17 +80,58 @@ ERF::PerformDataAssimilation(int da_iter)
     // Compute the ensemble mean
     MultiFab xf_bar = compute_ensemble_mean(Nens, last_pf_name, varnames);
 
+   // Construct perturbation plotfile name
+   std::string pltname = "plt_ens_mean";
+   WriteSingleLevelPlotfile(pltname,
+                            xf_bar,
+                            varnames,
+                            geom[0],
+                            0.0,   // time
+                            0);    // level
+
     // Compute the mean of forecast observations yf_bar = Hx_f
     MultiFab mean_H_xf;
     compute_mean_H_xf(mean_H_xf, Nens, last_pf_name, varnames);
+
+     Vector<std::string> varnames1 = {"x_velocity", "y_velocity"};
+   // Construct perturbation plotfile name
+   std::string pltname1 = "plt_mean_H_xf";
+   WriteSingleLevelPlotfile(pltname1,
+                            mean_H_xf,
+                            varnames1,
+                            geom[0],
+                            0.0,   // time
+                            0);    // level
+
+
+
 
     // Read in the observation file
     MultiFab y_obs;
     read_in_observations(da_iter, varnames, y_obs);
 
+    std::string pltname2 = "plt_y_obs";
+     Vector<std::string> varnames2 = {"x_velocity", "y_velocity"};
+   WriteSingleLevelPlotfile(pltname2,
+                            y_obs,
+                            varnames2,
+                            geom[0],
+                            0.0,   // time
+                            0);    // level
+
     // Compute y_obs - yf_bar
     MultiFab d_vec;
     compute_d_vec(y_obs, mean_H_xf, d_vec);
+
+    std::string pltname_diff = "plt_rhs_diff";
+     Vector<std::string> varnames_diff = {"x_velocity", "y_velocity"};
+   WriteSingleLevelPlotfile(pltname_diff,
+                            d_vec,
+                            varnames_diff,
+                            geom[0],
+                            0.0,   // time
+                            0);    // level
+
 
     // Assign values for the observation error covarinace matrix
     Vector<Real> R_diag;
@@ -114,8 +155,28 @@ ERF::PerformDataAssimilation(int da_iter)
     MultiFab Xf_prime_alpha;
     compute_Xf_prime_times_vector(Nens, last_pf_name, varnames, xf_bar, alpha_vec, Xf_prime_alpha);
 
+    std::string pltname3 = "plt_Xf_prime_alpha";
+    Vector<std::string> varnames3 = {"density", "theta", "x_velocity", "y_velocity", "z_velocity"};
+    WriteSingleLevelPlotfile(pltname3,
+                            Xf_prime_alpha,
+                            varnames3,
+                            geom[0],
+                            0.0,   // time
+                            0);    // level
+
     MultiFab xf_bar_updated;
     add_multifabs(xf_bar, Xf_prime_alpha, xf_bar_updated);
+
+    std::string pltname4 = "plt_xf_bar_updated";
+    Vector<std::string> varnames4 = {"density", "theta", "x_velocity", "y_velocity", "z_velocity"};
+    WriteSingleLevelPlotfile(pltname4,
+                            xf_bar_updated,
+                            varnames4,
+                            geom[0],
+                            0.0,   // time
+                            0);    // level
+
+    exit(0);
 
     Matrix T_mat(Nens);
     compute_T_matrix(S_mat, T_mat);

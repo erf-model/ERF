@@ -3,6 +3,8 @@
  */
 #include <ERF_Constants.H>
 #include <ERF_MetgridUtils.H>
+#include <ERF_WriteERFBdy.H>
+#include <ERF_ReadFromERFBdy.H>
 
 using namespace amrex;
 
@@ -14,10 +16,10 @@ using namespace amrex;
  * Reads start_time from the first metgrid file
  *
 */
-Real
+double
 read_start_time_from_metgrid(int lev, const std::string& fname)
 {
-    Real NC_epochTime;
+    double NC_epochTime = 0.0;
     const std::string dateTimeFormat = "%Y-%m-%d_%H:%M:%S";
 
     if (ParallelDescriptor::IOProcessor()) {
@@ -34,7 +36,7 @@ read_start_time_from_metgrid(int lev, const std::string& fname)
 
         auto epochTime = getEpochTime(date, dateTimeFormat);
         Print() << "  metgrid datetime 0 : " << date << " " << epochTime << std::endl;
-        NC_epochTime = static_cast<Real>(epochTime);
+        NC_epochTime = static_cast<double>(epochTime);
 
         amrex::Print() << "Have read start_time string at level "<< lev << " is " << date << std::endl;
         amrex::Print() << "Have read start_time number at level "<< lev << " is " << NC_epochTime << std::endl;
@@ -59,6 +61,57 @@ ERF::init_from_metgrid (int lev)
     } else {
         Print() << "Init with met_em without moisture model." << std::endl;
     }
+
+    // Check for an erfbdy file.
+    if (lev == 0 && !write_erfbdy) {
+        std::string erfbdy_header = erfbdy_file + "/Header";
+        use_erfbdy = FileSystem::Exists(erfbdy_header);
+    }
+    // Set nvars_erfbdy based on whether moisture is enabled
+    if (use_erfbdy || write_erfbdy) {
+        nvars_erfbdy = use_moisture ? MetGridBdyVars::NumTypes : (MetGridBdyVars::NumTypes - 1);
+    }
+
+    // If the erfbdy file exists, load boundary data and skip met_em processing.
+    if (lev == 0 && use_erfbdy) {
+        Print() << "Loading boundary data from erfbdy file: " << erfbdy_file << std::endl;
+
+        int ntimes_erfbdy;
+        Vector<double> bdy_times;
+        bdy_time_interval = read_times_from_erfbdy(erfbdy_file,
+                                                   ntimes_erfbdy, nvars_erfbdy, real_width,
+                                                   bdy_times, start_bdy_time, final_bdy_time);
+
+        AMREX_ALWAYS_ASSERT(ntimes_erfbdy >= 2);
+
+        Print() << "erfbdy file has " << ntimes_erfbdy << " times" << std::endl;
+        Print() << "start_bdy_time = " << start_bdy_time << std::endl;
+        Print() << "final_bdy_time = " << final_bdy_time << std::endl;
+        Print() << "bdy_time_interval = " << bdy_time_interval << std::endl;
+
+        bdy_data_xlo.resize(ntimes_erfbdy);
+        bdy_data_xhi.resize(ntimes_erfbdy);
+        bdy_data_ylo.resize(ntimes_erfbdy);
+        bdy_data_yhi.resize(ntimes_erfbdy);
+
+        // Load the first 2 times.
+        for (int itime = 0; itime < 2; ++itime) {
+            read_from_erfbdy(itime, erfbdy_file,
+                             bdy_data_xlo, bdy_data_xhi,
+                             bdy_data_ylo, bdy_data_yhi,
+                             nvars_erfbdy, real_width);
+            Print() << "Loaded erfbdy time slice " << itime << std::endl;
+        }
+
+        // Set the simulation start time.
+        t_new[lev] = zero;
+        t_old[lev] = -Real(1.e200);
+
+        Print() << "Loaded boundaries from erfbdy, skipping met_em processing" << std::endl;
+        return; // Skip the rest of met_em processing.
+    }
+
+    use_erfbdy = true;
 
     int ntimes = num_files_at_level[lev];
     Print() << ntimes << " met_em.d0" << lev+1 << "*.nc files are listed" << std::endl;
@@ -119,7 +172,7 @@ ERF::init_from_metgrid (int lev)
     Real NC_dx;
     Real NC_dy;
     Vector<std::string> NC_dateTime; NC_dateTime.resize( ntimes);
-    Vector<Real> NC_epochTime;       NC_epochTime.resize(ntimes);
+    Vector<double> NC_epochTime;     NC_epochTime.resize(ntimes);
 
     // Define the arena to be used for data allocation
     Arena* Arena_Used = The_Arena();
@@ -220,7 +273,7 @@ ERF::init_from_metgrid (int lev)
                 bdy_data_xhi[itime][nvar].template setVal<RunOn::Device>(0);
                 bdy_data_ylo[itime][nvar].template setVal<RunOn::Device>(0);
                 bdy_data_yhi[itime][nvar].template setVal<RunOn::Device>(0);
-            }
+            } // nvar
         } // itime
     } // lev==0
 
@@ -229,6 +282,21 @@ ERF::init_from_metgrid (int lev)
     MultiFab pi_hse(base_state[lev], make_alias, BaseState::pi0_comp, 1);
     MultiFab th_hse(base_state[lev], make_alias, BaseState::th0_comp, 1);
     MultiFab qv_hse(base_state[lev], make_alias, BaseState::qv0_comp, 1);
+
+    Vector<double> bdy_times(ntimes);
+
+    // Read times from met_em files (necessary for erfbdy header initialization).
+    if (lev == 0 && write_erfbdy) {
+        Print() << "Reading times from " << ntimes << " met_em files for erfbdy initialization" << std::endl;
+        for (int itime(0); itime < ntimes; itime++) {
+            bdy_times[itime] = read_start_time_from_metgrid(lev, nc_init_file[lev][itime]);
+        }
+
+        // Initialize erfbdy file header.
+        InitERFBdyFile(erfbdy_file, ntimes, bdy_times,
+                       geom[lev].Domain(), nvars_erfbdy, real_width);
+        Print() << "Initialized erfbdy file: " << erfbdy_file << std::endl;
+    }
 
     for (int itime(0); itime < ntimes; itime++) {
         Print() << " init_from_metgrid: reading nc_init_file[" << lev << "][" << itime << "]\t" << nc_init_file[lev][itime] << std::endl;
@@ -246,6 +314,8 @@ ERF::init_from_metgrid (int lev)
                           NC_lmask_iab, geom[lev]);
 
         if (lev == 0) {
+            bdy_times[itime] = NC_epochTime[itime];
+
             if (itime == 0) {
                 // Start at the earliest time in nc_init_file[lev].
                 start_bdy_time = NC_epochTime[itime];
@@ -265,7 +335,7 @@ ERF::init_from_metgrid (int lev)
                 bdy_time_interval = NC_epochTime[1]-NC_epochTime[0];
 
                 // Verify that met_em files have even spacing in time.
-                Real NC_dt = NC_epochTime[itime]-NC_epochTime[itime-1];
+                double NC_dt = NC_epochTime[itime]-NC_epochTime[itime-1];
                 Print() << " " << nc_init_file[lev][itime-1] << " / " << nc_init_file[lev][itime] << " are " << NC_dt << " seconds apart" << std::endl;
                 if (NC_dt != bdy_time_interval) Error("Time interval between consecutive met_em files must be consistent.");
             } // itime==0
@@ -530,23 +600,13 @@ ERF::init_from_metgrid (int lev)
 
         } // itime==0
 
-    } // itime
-
-    // FillBoundary to populate the internal halo cells
-     r_hse.FillBoundary(geom[lev].periodicity());
-     p_hse.FillBoundary(geom[lev].periodicity());
-    pi_hse.FillBoundary(geom[lev].periodicity());
-    th_hse.FillBoundary(geom[lev].periodicity());
-    qv_hse.FillBoundary(geom[lev].periodicity());
-
-    // NOTE: fabs_for_bcs is defined over the whole domain on each rank.
-    //       However, the operations needed to define the data on the ERF
-    //       grid are done over MultiFab boxes that are local to the rank.
-    //       So when we save the data in fabs_for_bc, only regions owned
-    //       by the rank are populated. Use an allreduce sum to make the
-    //       complete data set; initialized to 0 above.
-    if (lev == 0) {
-        for (int itime(0); itime < ntimes; itime++) {
+        if (lev == 0) {
+            // NOTE: fabs_for_bcs is defined over the whole domain on each rank.
+            //       However, the operations needed to define the data on the ERF
+            //       grid are done over MultiFab boxes that are local to the rank.
+            //       So when we save the data in fabs_for_bc, only regions owned
+            //       by the rank are populated. Use an allreduce sum to make the
+            //       complete data set; initialized to 0 above.
             for (int nvar(0); nvar<MetGridBdyEnd; ++nvar) {
                 ParallelAllReduce::Sum(bdy_data_xlo[itime][nvar].dataPtr(),
                                        bdy_data_xlo[itime][nvar].size(),
@@ -561,8 +621,33 @@ ERF::init_from_metgrid (int lev)
                                        bdy_data_yhi[itime][nvar].size(),
                                        ParallelContext::CommunicatorAll());
             } // nvar
-        } // itime
-    } // lev==0
+
+            if (write_erfbdy) {
+                WriteERFBdyTimeSlice(erfbdy_file, itime,
+                                     bdy_data_xlo[itime], bdy_data_xhi[itime],
+                                     bdy_data_ylo[itime], bdy_data_yhi[itime],
+                                     nvars_erfbdy);
+                Print() << "Wrote erfbdy time slice " << itime << " of " << ntimes-1 << std::endl;
+
+                // Clear this time from memory after writing unless it's one
+                // of the first two times, which are needed at initialization.
+                if (itime > 1) {
+                    bdy_data_xlo[itime].clear();
+                    bdy_data_xhi[itime].clear();
+                    bdy_data_ylo[itime].clear();
+                    bdy_data_yhi[itime].clear();
+                }
+            }
+        } // lev==0
+
+    } // itime
+
+    // FillBoundary to populate the internal halo cells
+     r_hse.FillBoundary(geom[lev].periodicity());
+     p_hse.FillBoundary(geom[lev].periodicity());
+    pi_hse.FillBoundary(geom[lev].periodicity());
+    th_hse.FillBoundary(geom[lev].periodicity());
+    qv_hse.FillBoundary(geom[lev].periodicity());
 
     Print() << "Running with relaxation width: " << real_width << std::endl;
 }
@@ -1211,17 +1296,19 @@ init_base_state_from_metgrid (const bool use_moisture,
         const Array4<Real>& qv_hse_arr = qv_hse_fab.array();
         auto const z_arr = z_phys_nd_fab.const_array();
 
-        ParallelFor(valid_bx2d, [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept
+        ParallelFor(valid_bx2d, [=]
+                    AMREX_GPU_DEVICE (int i, int j, int) noexcept
         {
             // Surface values and constants
             Real dz, F, C;
             Real z_hi, Pd_hi, Td_hi, Rd_hi;
-            Real z_lo  = Real(0.25)  * ( z_arr(i,j  ,klo  ) + z_arr(i+1,j  ,klo  )
-                                       + z_arr(i,j+1,klo  ) + z_arr(i+1,j+1,klo  ) );
+
+            // Surface quantities
+            Real z_lo  = Real(0.25) * ( z_arr(i,j,klo  ) + z_arr(i+1,j,klo  ) + z_arr(i,j+1,klo  ) + z_arr(i+1,j+1,klo  ) );
             Real Pd_lo = p_0 * std::exp( -T00/TLP + std::sqrt( (T00/TLP)*(T00/TLP) - two * grav * z_lo / (TLP * R_d) ) );
             Real Td_lo = std::max(TISO, T00 + TLP * std::log(Pd_lo/p_0));
-
             Real Rd_lo = getRhogivenTandPress(Td_lo, Pd_lo);
+
             for (int k(klo); k<=khi; ++k) {
                 // Vertical grid spacing
                 z_hi = Real(0.125) * ( z_arr(i,j,k  ) + z_arr(i+1,j,k  ) + z_arr(i,j+1,k  ) + z_arr(i+1,j+1,k  )
@@ -1248,9 +1335,9 @@ init_base_state_from_metgrid (const bool use_moisture,
                     Real dFdP    = (F_plus - F) / dP;
 
                     Pd_hi -= F / dFdP;
-                    Td_hi = std::max(TISO, T00 + TLP * std::log(Pd_hi/p_0));
-                    Rd_hi   = getRhogivenTandPress(Td_hi, Pd_hi);
-                    F       = Pd_hi + myhalf*Rd_hi*grav*dz + C;
+                    Td_hi  = std::max(TISO, T00 + TLP * std::log(Pd_hi/p_0));
+                    Rd_hi  = getRhogivenTandPress(Td_hi, Pd_hi);
+                    F      = Pd_hi + myhalf*Rd_hi*grav*dz + C;
                     ++niter;
                 }
 
@@ -1344,7 +1431,8 @@ init_base_state_from_metgrid (const bool use_moisture,
         auto       new_data  = state_fab.array();
         auto const new_z     = z_phys_cc_fab.const_array();
 
-        ParallelFor(valid_bx2d, [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept
+        ParallelFor(valid_bx2d, [=,RdoCp_d=RdoCp]
+                    AMREX_GPU_DEVICE (int i, int j, int) noexcept
         {
             // Low and Hi column variables
             Real psurf;
@@ -1352,7 +1440,8 @@ init_base_state_from_metgrid (const bool use_moisture,
             Real p_lo,   p_hi;
             Real qv_lo, qv_hi;
             Real rd_lo, rd_hi;
-            Real thetad_lo, thetad_hi;
+            Real th_lo, th_hi;
+            Real t_hi;
 
             // Calculate or use pressure at the surface.
             if (metgrid_debug_psfc) {
@@ -1370,18 +1459,18 @@ init_base_state_from_metgrid (const bool use_moisture,
 
             // Iterations for the first CC point that is 1/2 dz off the surface
             {
-                z_lo      = new_z(i,j,0);
-                qv_lo     = (use_moisture) ? new_data(i,j,0,RhoQ_comp) : zero;
-                rd_lo     = zero; // initial guess
-                thetad_lo = new_data(i,j,0,RhoTheta_comp);
+                z_lo  = new_z(i,j,0);
+                qv_lo = (use_moisture) ? new_data(i,j,0,RhoQ_comp) : zero;
+                rd_lo = zero; // initial guess
+                th_lo = new_data(i,j,0,RhoTheta_comp);
                 // NOTE: The first iteration is from z=0 to z_cc(i,j,0) since the
                 //       reference pressure (psurf) is at the ground.
                 Real myhalf_dz = z_lo;
-                Real qvf     = one+(R_v/R_d)*qv_lo;
-                Real thetam  = thetad_lo*qvf;
+                Real qvf       = one+(R_v/R_d)*qv_lo;
+                Real thetam    = th_lo*qvf;
                 for (int it(0); it<maxiter; it++) {
                     p_lo = psurf-myhalf_dz*rd_lo*(one+qv_lo)*grav;
-                    if (p_lo < zero) p_lo = zero;
+                    if (p_lo < zero) { p_lo = zero; }
                     rd_lo = (p_0/(R_d*thetam))*std::pow(p_lo/p_0, iGamma);
                 } // it
 
@@ -1401,14 +1490,12 @@ init_base_state_from_metgrid (const bool use_moisture,
                 // Known hi data
                 z_hi  = new_z(i,j,k);
                 qv_hi = (use_moisture) ? new_data(i,j,k,RhoQ_comp) : zero;
-                thetad_hi = new_data(i,j,k,RhoTheta_comp);
+                th_hi = new_data(i,j,k,RhoTheta_comp);
 
                 // Initial guesses for hi data
                  p_hi = p_lo;
-                rd_hi = getRhogivenThetaPress(thetad_hi,
-                                              p_hi,
-                                              R_d/Cp_d,
-                                              qv_hi);
+                 t_hi = getTgivenPandTh(p_hi, th_hi, RdoCp_d);
+                rd_hi = getRhogivenThetaPress(th_hi, p_hi, RdoCp_d, qv_hi);
 
                 // Vertical grid spacing
                 Real dz = z_hi - z_lo;
@@ -1422,10 +1509,13 @@ init_base_state_from_metgrid (const bool use_moisture,
                 Real F = p_hi + myhalf*rho_tot_hi*grav*dz + C;
 
                 // Do iterations
-                if (std::abs(F)>tol) HSEutils::Newton_Raphson_hse(tol, R_d/Cp_d, dz,
-                                                                  grav, C, thetad_hi,
-                                                                  qv_hi, qv_hi, p_hi,
-                                                                  rd_hi, F);
+                if (std::abs(F)>tol) {
+                    bool maintain_Th = true;
+                    HSEutils::Newton_Raphson_hse(tol, RdoCp_d, dz,
+                                                 grav, C, th_hi, t_hi,
+                                                 qv_hi, qv_hi, p_hi,
+                                                 rd_hi, F, maintain_Th);
+                }
 
                 // Copy solution to state
                 new_data(i,j,k,Rho_comp)       = rd_hi;
@@ -1442,7 +1532,7 @@ init_base_state_from_metgrid (const bool use_moisture,
                 p_lo  = p_hi;
                 qv_lo = qv_hi;
                 rd_lo = rd_hi;
-                thetad_lo = thetad_hi;
+                th_lo = th_hi;
             }
         });
     }

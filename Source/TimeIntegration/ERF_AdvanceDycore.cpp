@@ -44,7 +44,7 @@ void ERF::advance_dycore (int level,
                           MultiFab& ymom_src, MultiFab& zmom_src,
                           MultiFab& buoyancy,
                           const Geometry fine_geom,
-                          const Real dt_advance, const Real old_time)
+                          const double dt_advance, const double old_time)
 {
     BL_PROFILE_VAR("erf_advance_dycore()",erf_advance_dycore);
 
@@ -253,11 +253,13 @@ void ERF::advance_dycore (int level,
                                   *walldist[level].get(),
                                   *eddyDiffs, *Hfx1, *Hfx2, *Hfx3, *Diss, // to be updated
                                   fine_geom, mapfac[level],
-                                  z_phys_nd[level], solverChoice,
+                                  z_phys_nd[level], z_phys_cc[level], solverChoice,
                                   m_SurfaceLayer, z_0, l_use_terrain_fitted_coords,
                                   l_use_moisture, level,
                                   bc_ptr_h,
-                                  get_eb(level));
+                                  get_eb(level),
+                                  false, // vert_only
+                                  qheating_rates[level].get());
     }
 
     // ***********************************************************************************************

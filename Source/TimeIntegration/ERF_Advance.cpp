@@ -17,7 +17,7 @@ using namespace amrex;
  */
 
 void
-ERF::Advance (int lev, Real time, Real dt_lev, int iteration, int /*ncycle*/)
+ERF::Advance (int lev, double time, double dt_lev, int iteration, int /*ncycle*/)
 {
     BL_PROFILE("ERF::Advance()");
 
@@ -78,12 +78,22 @@ ERF::Advance (int lev, Real time, Real dt_lev, int iteration, int /*ncycle*/)
     // on the conserved field
     if (solverChoice.use_direct_perturbation(lev))
     {
-        auto m_ixtype = S_old.boxArray().ixType(); // Conserved term
-        for (MFIter mfi(S_old,TileNoZ()); mfi.isValid(); ++mfi) {
-            Box bx  = mfi.tilebox();
-            const Array4<Real> &cell_data  = S_old.array(mfi);
-            const Array4<const Real> &pert_cell = turbPert.pb_cell[lev].array(mfi);
-            turbPert.apply_tpi(lev, bx, RhoTheta_comp, m_ixtype, cell_data, pert_cell);
+        if (solverChoice.use_wvel_perturbation(lev)) { // CPM_W
+            auto m_ixtype = W_old.boxArray().ixType();
+            for (MFIter mfi(W_old,TileNoZ()); mfi.isValid(); ++mfi) {
+                Box bx  = mfi.tilebox();
+                const Array4<Real> &cell_data  = W_old.array(mfi);
+                const Array4<const Real> &pert_cell = turbPert.pb_cell[lev].array(mfi);
+                turbPert.apply_tpi(lev, bx, -1, m_ixtype, cell_data, pert_cell);
+            }
+        } else {
+            auto m_ixtype = S_old.boxArray().ixType(); // Conserved term
+            for (MFIter mfi(S_old,TileNoZ()); mfi.isValid(); ++mfi) {
+                Box bx  = mfi.tilebox();
+                const Array4<Real> &cell_data  = S_old.array(mfi);
+                const Array4<const Real> &pert_cell = turbPert.pb_cell[lev].array(mfi);
+                turbPert.apply_tpi(lev, bx, RhoTheta_comp, m_ixtype, cell_data, pert_cell);
+            }
         }
     }
 
@@ -113,9 +123,9 @@ ERF::Advance (int lev, Real time, Real dt_lev, int iteration, int /*ncycle*/)
                                         solverChoice.moisture_indices);
 
 #ifdef ERF_USE_NETCDF
-            Real elapsed_time_since_start_low = time + (start_time - start_low_time);
+            double elapsed_time_since_start_low = time + (start_time - start_low_time);
 #else
-            Real elapsed_time_since_start_low = time;
+            double elapsed_time_since_start_low = time;
 #endif
             m_SurfaceLayer->update_fluxes(lev, time, elapsed_time_since_start_low,
                                           S_old, z_phys_nd[lev], walldist[lev]);
@@ -139,7 +149,6 @@ ERF::Advance (int lev, Real time, Real dt_lev, int iteration, int /*ncycle*/)
     // **************************************************************************************
     advance_radiation(lev, S_old, dt_lev);
 
-#if defined(ERF_USE_EAMXX_SHOC) || defined(ERF_USE_NATIVE_SHOC)
     // **************************************************************************************
     // Update the "old" state using SHOC
     // **************************************************************************************
@@ -164,7 +173,6 @@ ERF::Advance (int lev, Real time, Real dt_lev, int iteration, int /*ncycle*/)
                                     dt_lev);
 #endif
         } else if (solverChoice.turbChoice[lev].uses_native_shoc()) {
-#ifdef ERF_USE_NATIVE_SHOC
             compute_native_shoc_tendencies(lev, &S_old, &U_old, &V_old, &W_old, w_sub,
                                            Tau[lev][TauType::tau13].get(), Tau[lev][TauType::tau23].get(),
                                            SFS_hfx3_lev[lev].get()       , SFS_q1fx3_lev[lev].get()      ,
@@ -191,10 +199,8 @@ ERF::Advance (int lev, Real time, Real dt_lev, int iteration, int /*ncycle*/)
                                        true, false);
                 }
             }
-#endif
         }
     }
-#endif
 
     const BoxArray&            ba = S_old.boxArray();
     const DistributionMapping& dm = S_old.DistributionMap();
@@ -316,7 +322,7 @@ ERF::Advance (int lev, Real time, Real dt_lev, int iteration, int /*ncycle*/)
     // **************************************************************************************
     // Update the land surface model
     // **************************************************************************************
-    Real time_at_end_of_step = time+dt_lev;
+    double time_at_end_of_step = time+dt_lev;
     advance_lsm(lev, S_new, U_new, V_new, time_at_end_of_step, dt_lev);
 
 #ifdef ERF_USE_PARTICLES
@@ -402,7 +408,9 @@ ERF::Advance (int lev, Real time, Real dt_lev, int iteration, int /*ncycle*/)
             InterpFromCoarseLevel(zmom_crse_rhs[lev+1],  IntVect{0}, IntVect{0}, state_new[IntVars::zmom], 0, 0, 1,
                                   geom[lev], geom[lev+1], refRatio(lev), mapper_f, domain_bcs_type, BCVars::zvel_bc);
             MultiFab::Subtract(zmom_crse_rhs[lev+1],temp_state,0,0,1,IntVect{0});
-            zmom_crse_rhs[lev+1].mult(one/dt_lev,0,1,0);
+
+            Real inv_dt = static_cast<Real>(one/dt_lev);
+            zmom_crse_rhs[lev+1].mult(inv_dt,0,1,0);
     }
 
     // ***********************************************************************************************

@@ -280,7 +280,7 @@ compute_mean_H_xf(MultiFab& mean_H_xf,
         if (n==0) {
             mean_H_xf.define(xf_i.boxArray(),
                              xf_i.DistributionMap(),
-                             xf_i.nComp(),
+                             2,
                              xf_i.nGrow());
             mean_H_xf.setVal(0.0);
         }
@@ -336,7 +336,11 @@ Compute_yf_prime_i_T_Rinv_yf_prime_j(const MultiFab& Yi,
     }
 
     ReduceTuple hv = reduce_data.value();
-    return amrex::get<0>(hv);
+    Real result = amrex::get<0>(hv);
+
+    ParallelDescriptor::ReduceRealSum(result);
+
+    return result;
 }
 
 void
@@ -444,7 +448,12 @@ compute_yf_prime_T_d_prime_vec (const MultiFab& yf_prime,
 
     ReduceTuple hv = reduce_data.value();
 
-    return amrex::get<0>(hv);
+    Real r = amrex::get<0>(hv);
+
+    // Global MPI reduction
+    ParallelDescriptor::ReduceRealSum(r);
+
+    return r;
 }
 
 void
@@ -525,6 +534,13 @@ compute_Xf_prime_times_vector (const int Nens,
     {
         MultiFab xf_n =
             read_member_multifab(n, last_pf_name, varnames);
+
+        AMREX_ALWAYS_ASSERT(xf_n.boxArray() == result.boxArray());
+        AMREX_ALWAYS_ASSERT(xf_n.DistributionMap() == result.DistributionMap());
+        AMREX_ALWAYS_ASSERT(xf_n.ixType() == result.ixType());
+
+        AMREX_ALWAYS_ASSERT(xf_bar.boxArray() == result.boxArray());
+        AMREX_ALWAYS_ASSERT(xf_bar.DistributionMap() == result.DistributionMap());
 
         // xf_n_prime = xf_n - xf_bar
         MultiFab xf_n_prime(xf_n.boxArray(),
