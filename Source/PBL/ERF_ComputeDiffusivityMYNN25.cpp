@@ -23,6 +23,7 @@ ComputeDiffusivityMYNN25 (const MultiFab& xvel,
                           const BCRec* bc_ptr,
                           bool /*vert_only*/,
                           const std::unique_ptr<MultiFab>& z_phys_nd,
+                          const std::unique_ptr<MultiFab>& z_phys_cc,
                           const MoistureComponentIndices& moisture_indices)
 {
     auto mynn     = turbChoice.pbl_mynn;
@@ -123,6 +124,7 @@ ComputeDiffusivityMYNN25 (const MultiFab& xvel,
         const auto& q_star_arr = (use_moisture) ? q_star_mf->const_array(mfi) : Array4<Real>{};
 
         const Array4<Real const> z_nd_arr = z_phys_nd->const_array(mfi);
+        const PBLDerivativeDzInv_T pbl_derivative_dz_inv{z_phys_cc->const_array(mfi)};
 
         ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
@@ -132,7 +134,7 @@ ComputeDiffusivityMYNN25 (const MultiFab& xvel,
 
             Real dthetavdz, dudz, dvdz;
             ComputeVerticalDerivativesPBL(i, j, k,
-                                          uvel, vvel, cell_data, izmin, izmax, dz_inv/met_h_zeta,
+                                          uvel, vvel, cell_data, izmin, izmax, pbl_derivative_dz_inv(i,j,k),
                                           c_ext_dir_on_zlo, c_ext_dir_on_zhi,
                                           u_ext_dir_on_zlo, u_ext_dir_on_zhi,
                                           v_ext_dir_on_zlo, v_ext_dir_on_zhi,

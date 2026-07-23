@@ -737,6 +737,7 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
     });
     } // n
 
+    const PBLDerivativeDzInv_T pbl_derivative_dz_inv{z_cc};
 #include "ERF_AddTKESources.H"
 #include "ERF_AddQKESources.H"
 }
