@@ -1223,9 +1223,19 @@ SurfaceLayer::update_pblh (const int& lev,
     if (pblh_type == PBLHeightCalcType::MYNN25) {
         MYNNPBLH estimator;
         compute_pblh(lev, vars, z_phys_cc, estimator, moisture_indices);
-    } else if (pblh_type == PBLHeightCalcType::YSU || pblh_type == PBLHeightCalcType::MRF) {
-        amrex::Error("YSU/MRF PBLH calc not implemented yet");
+    } else if (pblh_type == PBLHeightCalcType::YSU || pblh_type == PBLHeightCalcType::MRF || pblh_type == PBLHeightCalcType::YSUNew) {
+        //amrex::Error("YSU/MRF PBLH calc not implemented yet");
+        // PBLH for MRF/YSU is computed inside ComputeDiffusivityMRF
+        // and written back via set_pblh(). Nothing to do here.        
     }
+}
+
+void
+SurfaceLayer::set_pblh (const int& lev, const amrex::MultiFab& pblh_in)
+{
+    AMREX_ASSERT(pblh[lev]);
+    amrex::MultiFab::Copy(*pblh[lev], pblh_in, 0, 0, 1, 0);
+    pblh[lev]->FillBoundary(m_geom[lev].periodicity());
 }
 
 template <typename PBLHeightEstimator>

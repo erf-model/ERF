@@ -101,6 +101,11 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
 #ifdef _OPENMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())
 #endif
+
+// Collect YSUNew-computed PBLH for writing back to SurfaceLayer
+MultiFab pblh_mf(eddyViscosity.boxArray(), eddyViscosity.DistributionMap(), 1, 0);
+pblh_mf.setVal(0.0);
+
     for (MFIter mfi(eddyViscosity, TileNoZ()); mfi.isValid(); ++mfi) {
 
         // Box operated on must span fill domain in z-dir
@@ -923,6 +928,14 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
             pbli_arr(i, j, 0) = kpbl;
         });
 
+        // Copy corrected PBL height into pblh_mf for SurfaceLayer storage
+        {
+            auto pblh_out = pblh_mf.array(mfi);
+            const Box& vbx = mfi.validbox();
+            ParallelFor(vbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                pblh_out(i, j, k) = pblh_corr_arr(i, j, 0);
+            });
+        }
         // ========================================================================
         // Extension scan using liquid potential temperature (WRF bl_ysu.F90 lines 733-769)
         // ========================================================================
@@ -1764,4 +1777,7 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
             K_turb(i, j, khi+1, EddyDiff::Turb_lengthscale) = K_turb(i, j, khi, EddyDiff::Turb_lengthscale);
         });
     }// mfi
+    // Write YSUNew-computed PBLH back into SurfaceLayer so Beljaars correction
+    // and diagnostics can use it, and update_pblh no longer aborts for YSUNew type.
+    SurfLayer->set_pblh(level, pblh_mf);
 }

@@ -169,6 +169,11 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
 #ifdef _OPENMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())
 #endif
+
+// Collect MRF-computed PBLH for writing back to SurfaceLayer
+MultiFab pblh_mf(eddyViscosity.boxArray(), eddyViscosity.DistributionMap(), 1, 0);
+pblh_mf.setVal(0.0);
+
     for (MFIter mfi(eddyViscosity, TileNoZ()); mfi.isValid(); ++mfi) {
 
         // Box operated on must span fill domain in z-dir
@@ -479,6 +484,15 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
             }
         });
 
+
+        // Copy corrected PBL height into pblh_mf for SurfaceLayer storage
+    {
+    auto pblh_out = pblh_mf.array(mfi);
+    const Box& vbx = mfi.validbox();
+    ParallelFor(vbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+        pblh_out(i, j, k) = pblh_corr_arr(i, j, 0);
+    });
+    }
         //
         // PASS 4 (WSTAR RECOMPUTE): Recompute wstar, HGAMT, HGAMQ using the corrected
         // PBL height (pblh_corr_arr) to ensure internal consistency between the K-profile
@@ -883,4 +897,7 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
             K_turb(i, j, khi+1, EddyDiff::Turb_lengthscale) = K_turb(i, j, khi, EddyDiff::Turb_lengthscale);
         });
     }// mfi
+    // Write MRF-computed PBLH back into SurfaceLayer so Beljaars correction
+    // and diagnostics can use it, and update_pblh no longer aborts for MRF type.
+    SurfLayer->set_pblh(level, pblh_mf);
 }

@@ -579,6 +579,8 @@ public:
   void fill_qsurf_with_qsat (const int& lev,
                              const amrex::MultiFab& cons_in,
                              const std::unique_ptr<amrex::MultiFab>& z_phys_nd);
+    
+  void set_pblh(const int& lev, const amrex::MultiFab& pblh_in);
 
   void get_lsm_tsurf (const int& lev);
 
