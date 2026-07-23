@@ -102,8 +102,6 @@ ComputeDiffusivityMYNN25 (const MultiFab& xvel,
             });
         }
 
-        Real dz_inv = geom.InvCellSize(2);
-        const auto& dxInv = geom.InvCellSizeArray();
         int izmin = geom.Domain().smallEnd(2);
         int izmax = geom.Domain().bigEnd(2);
 
@@ -128,10 +126,6 @@ ComputeDiffusivityMYNN25 (const MultiFab& xvel,
 
         ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
-            // Compute some partial derivatives that we will need (second order)
-            // U and V derivatives are interpolated to account for staggered grid
-            const Real met_h_zeta = use_terrain_fitted_coords ? Compute_h_zeta_AtCellCenter(i,j,k,dxInv,z_nd_arr) : one;
-
             Real dthetavdz, dudz, dvdz;
             ComputeVerticalDerivativesPBL(i, j, k,
                                           uvel, vvel, cell_data, izmin, izmax, pbl_derivative_dz_inv(i,j,k),
