@@ -43,6 +43,41 @@ macro(setup_test)
     endif()
 endmacro(setup_test)
 
+# Production contract test for native 3D plotfile names and unavailable-name warnings.
+function(add_test_plotfile_header TEST_NAME TEST_DIR TEST_EXE PLTFILE)
+    setup_test()
+
+    resolve_test_exe("${TEST_DIR}" "${TEST_EXE}" TEST_EXE)
+    set(header_checker "${PROJECT_SOURCE_DIR}/Tests/CheckPlotfileHeader.cmake")
+    set(test_log "${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.log")
+    set(header_file "${CURRENT_TEST_BINARY_DIR}/${PLTFILE}/Header")
+    # Regression motivation: this test is launched through `sh -c`, while on
+    # Windows CMAKE_COMMAND normally resides below "C:/Program Files". Keep
+    # checker executable and path-bearing arguments shell-quoted.
+    set(check_command
+        "\"${CMAKE_COMMAND}\""
+        "\"-DHEADER=${header_file}\""
+        "\"-DEXPECTED_NAMES_FILE=${CURRENT_TEST_BINARY_DIR}/expected_names.txt\""
+        "\"-DLOG=${test_log}\""
+        "\"-DEXPECTED_UNAVAILABLE_FILE=${CURRENT_TEST_BINARY_DIR}/expected_unavailable.txt\""
+        "-P"
+        "\"${header_checker}\"")
+    list(JOIN check_command " " check_command_string)
+    set(test_input "${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.i")
+    set(test_command sh -c
+        "${MPI_COMMANDS} ${TEST_EXE} \"${test_input}\" > \"${test_log}\" 2>&1 && ${check_command_string}")
+
+    add_test(${TEST_NAME} ${test_command})
+    set_tests_properties(${TEST_NAME}
+        PROPERTIES
+        TIMEOUT 300
+        PROCESSORS ${NP}
+        WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
+        LABELS "regression;plotfile"
+        ATTACHED_FILES_ON_FAIL "${test_log};${header_file}"
+    )
+endfunction(add_test_plotfile_header)
+
 # Standard regression test
 function(add_test_r TEST_NAME TEST_DIR TEST_EXE PLTFILE)
     set(options )
@@ -174,6 +209,7 @@ endfunction(add_test_sdm)
 #=============================================================================
 
 # These tests will all be built in Exec
+add_test_plotfile_header(Plotfile3D_DryUnavailableSelection "" "erf_exec" "plt00000")
 add_test_r(DensityCurrent                    ""  "erf_exec" "plt00010" RUNTIME_OPTIONS "erf.vert_implicit=false ")
 add_test_r(DensityCurrent_anelastic          ""  "erf_exec" "plt00010" RUNTIME_OPTIONS "erf.vert_implicit=false ")
 add_test_r(DensityCurrent_detJ2              ""  "erf_exec" "plt00010" RUNTIME_OPTIONS "erf.vert_implicit=false ")
@@ -213,6 +249,9 @@ add_test_r(MoistBubble                       ""  "erf_exec" "plt00010" RUNTIME_O
 add_test_r(SquallLine_2D                     ""  "erf_exec" "plt00010" RUNTIME_OPTIONS "erf.vert_implicit=false ")
 add_test_r(SuperCell_3D                      ""  "erf_exec" "plt00010" RUNTIME_OPTIONS "erf.vert_implicit=false ")
 if(ERF_ENABLE_PARTICLES)
+  # Production regression: protect the fixed SuperDroplets water-field
+  # contract against confusing the constructor sentinel with state width.
+  add_test_plotfile_header(Plotfile3D_SuperDropletsSelection "" "erf_exec" "plt00000")
   add_test_r(ParticleAdvect                  ""  "erf_exec" "plt00010" RUNTIME_OPTIONS "erf.vert_implicit=false ")
   add_test_r(ParticleWoA                     ""  "erf_exec" "plt00010" RUNTIME_OPTIONS "erf.vert_implicit=false ")
   add_test_r(ParticleAdvect_AMR1_box         ""  "erf_exec" "plt00050" RUNTIME_OPTIONS "erf.vert_implicit=false ")

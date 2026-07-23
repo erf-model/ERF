@@ -680,9 +680,9 @@ public:
                         int ncomp,
                         bool do_perturbational_and_momenta = true); // NOLINT
 
-    /*! \brief Conservation-preserving fine→coarse average of moist state components
-     *  (RhoTheta and the contiguous moist q range) using detJ/mfac weighting,
-     *  reusing AverageDownTo with perturbational/momenta handling disabled. */
+    /*! \brief Conservation-preserving fine-to-coarse average of RhoTheta and
+     *  the active moist conserved components using detJ/mfac weighting, reusing
+     *  AverageDownTo with perturbational-state and momentum handling disabled. */
     void AverageDownMoistStateTo (int crse_lev);
 
     // Write checkpoint file to disk
