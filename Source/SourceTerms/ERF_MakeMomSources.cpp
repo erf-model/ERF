@@ -12,6 +12,51 @@
 
 using namespace amrex;
 
+// helper function for immersed forcing wall model
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+amrex::Real
+compute_if_most_target_vel(
+    const amrex::Real u1_2r,
+    const amrex::Real u2_2r,
+    const amrex::Real delta,
+    const amrex::Real z0,
+    const amrex::Real t_blank,
+    const amrex::Real theta_xface,
+    const amrex::Real theta_surf,
+    const amrex::Real tflux_in,
+    const amrex::Real Olen_in,
+    const bool        stability_correction
+)
+{
+    const Real tiny             = std::numeric_limits<amrex::Real>::epsilon();
+    Real psi_m                  = zero;
+    Real psi_h                  = zero;
+    Real tang_windspeed2r       = std::sqrt(u1_2r * u1_2r + u2_2r * u2_2r);
+
+    Real ustar = tang_windspeed2r * KAPPA / (std::log(1.5 * delta / z0) - psi_m);
+    Real tflux = (tflux_in != 1e-8) ? tflux_in : -(theta_xface - theta_surf) * ustar * KAPPA / (std::log(1.5 * delta / z0) - psi_h);
+    Real Olen  = (Olen_in != 1e-8)  ? Olen_in  : -ustar * ustar * ustar * theta_xface / (KAPPA * CONST_GRAV * tflux + tiny);
+    Real zeta  = 1.5 * delta / Olen;
+
+    // similarity functions
+    similarity_funs sfuns;
+    if (stability_correction){
+        psi_m          = sfuns.calc_psi_m(zeta);
+        psi_h          = sfuns.calc_psi_h(zeta);
+    }
+    ustar = tang_windspeed2r * KAPPA / (std::log(1.5 * delta / z0) - psi_m);
+
+    // prevent some unphysical math
+    if (!(ustar > zero && !std::isnan(ustar))) { ustar = zero; }
+    if (!(ustar < 2.0  && !std::isnan(ustar))) { ustar = 2.0; }
+    if (psi_m > std::log(myhalf * delta / z0)) { psi_m = std::log(myhalf * delta / z0); }
+
+    Real uTarget      = (1 - t_blank) * ustar / KAPPA * (std::log(myhalf * delta / z0) - psi_m);
+    Real u1Target     = uTarget * u1_2r / (tiny + tang_windspeed2r);
+
+    return u1Target;
+}
+
 /**
  * Function for computing the slow RHS for the evolution equations for the density, potential temperature and momentum.
  *
@@ -954,104 +999,59 @@ void make_mom_sources (double time_d,
                 const Real dx_z = (z_cc_arr) ? (z_cc_arr(i,j,k) - z_cc_arr(i,j,k-1)) : dx_arr[2];
                 const Real drag_coefficient = alpha_m / std::pow(dx_x*dx_y*dx_z, one/three);
                 const Real CdM = std::min(drag_coefficient / (windspeed + tiny), drag_coefficient);
-                Real drag = t_blank * rho_xface * CdM * ux * windspeed; // default to drag for fully immersed cells
 
-                if ((t_blank > 0 && (t_blank < t_blank_below) && (t_blank_above == 0.0)) && l_use_most) { // this should enter just for buildings roofs
-                    Real ux2r = u(i, j, k+1) ;
-                    Real uy2r = fourth * ( v(i, j  , k+1) + v(i-1, j  , k+1)
-                                         + v(i, j+1, k+1) + v(i-1, j+1, k+1) ) ;
-                    Real h_windspeed2r = std::sqrt(ux2r * ux2r + uy2r * uy2r);
+                const Real roof_mask     = (t_blank > zero && t_blank <  t_blank_below && t_blank_above == zero && l_use_most) ? one : zero; // roof cell
+                const Real south_mask    = (t_blank > zero && t_blank <= t_blank_north && t_blank_south == zero && l_use_most) ? one : zero; // south wall cell
+                const Real north_mask    = (t_blank > zero && t_blank <= t_blank_south && t_blank_north == zero && l_use_most) ? one : zero; // north wall cell
+                const Real wall_mask     = (t_blank > zero && t_blank < one && !l_use_most) ? one : zero; // wall cell (not using most)
+                const Real interior_mask = (t_blank == 1.0) ? one : zero; // interior cell
 
-                    // MOST
-                    Real rho_xface_below    = myhalf * (cell_data(i,j,k-1,Rho_comp) + cell_data(i-1,j,k-1,Rho_comp));
-                    Real theta_xface_below  = (myhalf * (cell_data(i,j,k-1,RhoTheta_comp) + cell_data(i-1,j,k-1, RhoTheta_comp))) / rho_xface_below;
-                    Real theta_surf         = theta_xface_below;
+                Real drag             = zero;
+                Real u1_cellaway      = zero;
+                Real u2_cellaway      = zero;
+                Real rho_xface_inside = rho_xface;
+                Real theta_surf       = theta_xface;
+                Real bc_forcing_x     = zero;
+                Real u_target         = zero;
 
-                    Real psi_m = zero;
-                    Real psi_h = zero;
-                    Real ustar = h_windspeed2r * kappa / (std::log(1.5 * dx_z / z0) - psi_m);
-                    Real tflux = (tflux_in != 1e-8) ? tflux_in : -(theta_xface - theta_surf) * ustar * kappa / (std::log(1.5 * dx_z / z0) - psi_h);
-                    Real Olen  = (Olen_in != 1e-8)  ? Olen_in  : -ustar * ustar * ustar * theta_xface / (kappa * ggg * tflux + tiny);
-                    Real zeta  = 1.5 * dx_z / Olen;
+                // roof forcing
+                u1_cellaway         = u(i, j, k+1) ;
+                u2_cellaway         = fourth * ( v(i, j  , k+1) + v(i-1, j  , k+1)
+                                               + v(i, j+1, k+1) + v(i-1, j+1, k+1) ) ;
+                rho_xface_inside    =  myhalf * (cell_data(i,j,k-1,Rho_comp) + cell_data(i-1,j,k-1,Rho_comp));
+                theta_surf          = (myhalf * (cell_data(i,j,k-1,RhoTheta_comp) + cell_data(i-1,j,k-1, RhoTheta_comp))) / rho_xface_inside;
+                u_target            = compute_if_most_target_vel(u1_cellaway, u2_cellaway, dx_z, z0, t_blank, theta_xface, theta_surf, tflux_in, Olen_in, l_stability_correction);
+                bc_forcing_x        = -(u_target - ux); // BC forcing pushes nonrelative velocity toward target velocity
+                drag               += bc_forcing_x * roof_mask * rho_xface * CdM * U_s;
 
-                    // similarity functions
-                    if (l_stability_correction){
-                        psi_m          = sfuns.calc_psi_m(zeta);
-                        psi_h          = sfuns.calc_psi_h(zeta);
-                    }
-                    ustar = h_windspeed2r * kappa / (std::log(1.5 * dx_z / z0) - psi_m);
+                // south wall forcing
+                u1_cellaway         = u(i, j-1, k  );
+                u2_cellaway         = fourth * ( w(i, j-1, k  ) + w(i-1, j-1, k  )
+                                               + w(i, j-1, k+1) + w(i-1, j-1, k+1) ) ;
+                rho_xface_inside    = myhalf * ( cell_data(i,j+1,k,Rho_comp) + cell_data(i-1,j+1,k,Rho_comp) );
+                theta_surf          = (myhalf * (cell_data(i,j+1,k,RhoTheta_comp) + cell_data(i-1,j+1,k, RhoTheta_comp))) / rho_xface_inside;
+                u_target            = compute_if_most_target_vel(u1_cellaway, u2_cellaway, dx_z, z0, t_blank, theta_xface, theta_surf, tflux_in, Olen_in, l_stability_correction);
+                bc_forcing_x        = -(u_target - ux); // BC forcing pushes nonrelative velocity toward target velocity
+                drag               += bc_forcing_x * south_mask * rho_xface * CdM * U_s;
 
-                    // prevent some unphysical math
-                    if (!(ustar > zero && !std::isnan(ustar))) { ustar = zero; }
-                    if (!(ustar < 2.0  && !std::isnan(ustar))) { ustar = 2.0; }
-                    if (psi_m > std::log(myhalf * dx_z / z0)) { psi_m = std::log(myhalf * dx_z / z0); }
+                // north wall forcing
+                u1_cellaway         = u(i, j+1, k  ) ;
+                u2_cellaway         = fourth * ( w(i, j+1, k  ) + w(i-1, j+1, k  )
+                                               + w(i, j+1, k+1) + w(i-1, j+1, k+1) ) ;
+                rho_xface_inside    = myhalf * ( cell_data(i,j-1,k,Rho_comp) + cell_data(i-1,j-1,k,Rho_comp) );
+                theta_surf          = (myhalf * (cell_data(i,j-1,k,RhoTheta_comp) + cell_data(i-1,j-1,k, RhoTheta_comp))) / rho_xface_inside;
+                u_target            = compute_if_most_target_vel(u1_cellaway, u2_cellaway, dx_z, z0, t_blank, theta_xface, theta_surf, tflux_in, Olen_in, l_stability_correction);
+                bc_forcing_x        = -(u_target - ux); // BC forcing pushes nonrelative velocity toward target velocity
+                drag               += bc_forcing_x * north_mask * rho_xface * CdM * U_s;
 
-                    Real uTarget      = (1 - t_blank) * ustar / kappa * (std::log(myhalf * dx_z / z0) - psi_m);
-                    Real uxTarget     = uTarget * ux2r / (tiny + h_windspeed2r);
-                    Real bc_forcing_x = -(uxTarget - ux); // BC forcing pushes nonrelative velocity toward target velocity
-                    drag = bc_forcing_x * rho_xface * CdM * U_s;
+                // wall forcing (if not using most)
+                drag               += wall_mask * t_blank * rho_xface * CdM * ux * windspeed;
 
-                } else if (((t_blank > zero && t_blank <= t_blank_south && t_blank_north == zero) || // north face
-                            (t_blank > zero && t_blank <= t_blank_north && t_blank_south == zero))   // south face
-                            && l_use_most) { // this should enter for just building walls
-                    Real ux_cellaway = zero;
-                    Real uz_cellaway = zero;
-                    Real theta_surf  = theta_xface;
+                // interior cell forcing
+                drag               += interior_mask * rho_xface * CdM * ux * windspeed;
 
-                    // south face, x forcing
-                    if (t_blank > zero && t_blank <= t_blank_north && t_blank_south == zero) {
-                        ux_cellaway   = u(i, j-1, k  );
-                        uz_cellaway  = fourth * ( w(i, j-1, k  ) + w(i-1, j-1, k  )
-                                                + w(i, j-1, k+1) + w(i-1, j-1, k+1) ) ;
-                        // MOST
-                        Real rho_xface_inside    = myhalf * ( cell_data(i,j+1,k,Rho_comp) + cell_data(i-1,j+1,k,Rho_comp) );
-                        Real theta_xface_inside  = (myhalf * (cell_data(i,j+1,k,RhoTheta_comp) + cell_data(i-1,j+1,k, RhoTheta_comp))) / rho_xface_inside;
-                        theta_surf               = theta_xface_inside;
-                    }
-
-                    // north face, x forcing
-                    if (t_blank > zero && t_blank <= t_blank_south && t_blank_north == zero) {
-                        ux_cellaway   = u(i, j+1, k  ) ;
-                        uz_cellaway  = fourth * ( w(i, j+1, k  ) + w(i-1, j+1, k  )
-                                                + w(i, j+1, k+1) + w(i-1, j+1, k+1) ) ;
-                        // MOST
-                        Real rho_xface_inside    = myhalf * ( cell_data(i,j-1,k,Rho_comp) + cell_data(i-1,j-1,k,Rho_comp) );
-                        Real theta_xface_inside  = (myhalf * (cell_data(i,j-1,k,RhoTheta_comp) + cell_data(i-1,j-1,k, RhoTheta_comp))) / rho_xface_inside;
-                        theta_surf               = theta_xface_inside;
-                    }
-
-                    Real u1 = ux_cellaway;
-                    Real u2 = uz_cellaway;
-                    Real delta = dx_y;
-                    Real tan_wspd = std::sqrt(u1 * u1 + u2 * u2);
-
-                    Real psi_m = zero;
-                    Real psi_h = zero;
-                    Real ustar = tan_wspd * kappa / (std::log(1.5 * delta / z0) - psi_m);
-                    Real tflux = (tflux_in != 1e-8) ? tflux_in : -(theta_xface - theta_surf) * ustar * kappa / (std::log(1.5 * delta / z0) - psi_h);
-                    Real Olen  = (Olen_in != 1e-8)  ? Olen_in  : -ustar * ustar * ustar * theta_xface / (kappa * ggg * tflux + tiny);
-                    Real zeta  = 1.5 * delta / Olen;
-
-                    // similarity functions
-                    if (l_stability_correction){
-                        psi_m          = sfuns.calc_psi_m(zeta);
-                        psi_h          = sfuns.calc_psi_h(zeta);
-                    }
-                    ustar = tan_wspd * kappa / (std::log(1.5 * delta / z0) - psi_m);
-
-                    // prevent some unphysical math
-                    if (!(ustar > zero && !std::isnan(ustar))) { ustar = zero; }
-                    if (!(ustar < 2.0  && !std::isnan(ustar))) { ustar = 2.0; }
-                    if (psi_m > std::log(myhalf * delta / z0)) { psi_m = std::log(myhalf * delta / z0); }
-
-                    const amrex::Real wspd_target = (one - t_blank) * ustar / kappa * std::log(myhalf * delta / z0); // make target wind speed a function of wall distance
-                    const amrex::Real wspd_target_x = wspd_target * ux_cellaway / (tiny + tan_wspd);
-                    const amrex::Real bc_forcing_x = -(wspd_target_x - ux);
-
-                    drag = bc_forcing_x * rho_xface * CdM * U_s;
-                }
-
-                if (is_slow_step && !use_ImmersedForcing_fast) { // limit drag term for anelastic for numerical stability
+                // limit drag term for anelastic for numerical stability
+                if (is_slow_step && !use_ImmersedForcing_fast) {
                     Real d_drag = dt * -drag; // time step * acceleration like tendency
                     Real wsmax_change = damp_alpha * amrex::max(amrex::Math::abs(ux), ws_floor); // aims to prevent oscillations around 0.
                     if (amrex::Math::abs(ux) < 0.1){ // no damping for smaller velocities
