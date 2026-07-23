@@ -169,7 +169,7 @@ EBAdvectionSrcForMomWrapper (const amrex::Vector<amrex::Box>& bxx_grown,
                 }
             }
             flx_u_arr[1](i,j,k) = rho_v_avg * interpy;
-        
+
         } else {
 
             flx_u_arr[1](i,j,k) = zero;
@@ -218,7 +218,7 @@ EBAdvectionSrcForMomWrapper (const amrex::Vector<amrex::Box>& bxx_grown,
                 }
             }
             flx_u_arr[2](i,j,k) = rho_w_avg * interpz;
-        
+
         } else {
 
             flx_u_arr[2](i,j,k) = zero;
@@ -273,7 +273,7 @@ EBAdvectionSrcForMomWrapper (const amrex::Vector<amrex::Box>& bxx_grown,
                 }
             }
             flx_v_arr[0](i,j,k) = rho_u_avg * interpx;
-        
+
         } else {
 
             flx_v_arr[0](i,j,k) = zero;
@@ -322,7 +322,7 @@ EBAdvectionSrcForMomWrapper (const amrex::Vector<amrex::Box>& bxx_grown,
                 }
             }
             flx_v_arr[1](i,j,k) = rho_v_avg * interpy;
-        
+
         } else {
 
             flx_v_arr[1](i,j,k) = zero;
@@ -371,7 +371,7 @@ EBAdvectionSrcForMomWrapper (const amrex::Vector<amrex::Box>& bxx_grown,
                 }
             }
             flx_v_arr[2](i,j,k) = rho_w_avg * interpz;
-        
+
         } else {
 
             flx_v_arr[2](i,j,k) = zero;
@@ -426,7 +426,7 @@ EBAdvectionSrcForMomWrapper (const amrex::Vector<amrex::Box>& bxx_grown,
                 }
             }
             flx_w_arr[0](i,j,k) = rho_u_avg * interpx;
-        
+
         } else {
 
             flx_w_arr[0](i,j,k) = zero;
@@ -475,7 +475,7 @@ EBAdvectionSrcForMomWrapper (const amrex::Vector<amrex::Box>& bxx_grown,
                 }
             }
             flx_w_arr[1](i,j,k) = rho_v_avg * interpy;
-        
+
         } else {
 
             flx_w_arr[1](i,j,k) = zero;
@@ -538,7 +538,7 @@ EBAdvectionSrcForMomWrapper (const amrex::Vector<amrex::Box>& bxx_grown,
                 }
                 flx_w_arr[2](i,j,k) = rho_w_avg * interpz;
             } // lo_z_face, hi_z_face
-        
+
         } else {
 
             flx_w_arr[2](i,j,k) = zero;

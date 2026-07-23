@@ -488,7 +488,7 @@ void erf_slow_rhs_post (int level, int finest_level,
                                                 dx, dxInv,
                                                 hfx_z, q1fx_z, q2fx_z, hfx_EB,
                                                 mu_turb, solverChoice, level,
-                                                bc_ptr_d, l_apply_surface_layer_fluxes_in_diffusion);                    
+                                                bc_ptr_d, l_apply_surface_layer_fluxes_in_diffusion);
                     } else {
                         DiffusionSrcForState_N(tbx, domain, start_comp, num_comp, u, v,
                                                new_cons, cur_prim, cell_rhs,

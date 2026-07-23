@@ -135,7 +135,7 @@ DiffusionSrcForMom_EB (const MFIter& mfi,
         u_bcent = u_factory->getBndryCent().const_array(mfi);
         u_bnorm = u_factory->getBndryNormal().const_array(mfi);
     }
-    
+
 
     // EB v-factory
     const auto* v_factory = ebfact.get_v_const_factory();
@@ -181,7 +181,7 @@ DiffusionSrcForMom_EB (const MFIter& mfi,
     if (u_type == FabType::regular) {
 
         ParallelFor(bxx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-            
+
             Real mfsq = mf_ux(i,j,0) * mf_uy(i,j,0);
 
             Real diffContrib  = ( (tau11(i  , j  , k  ) - tau11(i-1, j  , k  ) ) * dxinv * mfsq
@@ -195,7 +195,7 @@ DiffusionSrcForMom_EB (const MFIter& mfi,
     } else if (u_type == FabType::singlevalued) {
 
         ParallelFor(bxx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-            
+
             if (u_volfrac(i,j,k)>zero) {
 
                 // Inv Jacobian
@@ -323,7 +323,7 @@ DiffusionSrcForMom_EB (const MFIter& mfi,
             rho_v_rhs(i,j,k) -= diffContrib;
         });
     } else if (v_type == FabType::singlevalued) {
-        
+
         ParallelFor(bxy, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
 
             if (v_volfrac(i,j,k)>zero) {
@@ -447,10 +447,10 @@ DiffusionSrcForMom_EB (const MFIter& mfi,
                                 + (tau23(i  , j+1, k  ) - tau23(i  , j  , k  ) ) * dyinv * mfsq
                                 + (tau33(i  , j  , k  ) - tau33(i  , j  , k-1) ) * dzinv );
             diffContrib      /= w_volfrac(i,j,k);
-            
+
             rho_w_rhs(i,j,k) -= diffContrib;
         });
-        
+
     } else if (w_type == FabType::singlevalued) {
 
         ParallelFor(bxz, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {

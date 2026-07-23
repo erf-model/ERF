@@ -126,7 +126,7 @@ AdvectionSrcForMom_EB ( const MFIter& mfi,
         u_fcy     = u_factory->getFaceCent()[1]->const_array(mfi);
         u_fcz     = u_factory->getFaceCent()[2]->const_array(mfi);
     }
-    
+
     // EB v-factory
     auto const* v_factory = ebfact.get_v_const_factory();
     Array4<const EBCellFlag> v_cflag = v_factory->getMultiEBCellFlagFab()[mfi].const_array();
@@ -426,7 +426,7 @@ AdvectionSrcForMom_EB ( const MFIter& mfi,
 
         if (u_type == FabType::covered) {
 
-            ParallelFor(bxx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {  
+            ParallelFor(bxx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
                 rho_u_rhs(i, j, k) = zero;
             });
 
@@ -548,7 +548,7 @@ AdvectionSrcForMom_EB ( const MFIter& mfi,
             });
 
         } else if (v_type == FabType::regular) {
-            
+
             ParallelFor(bxy, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
                 Real mfsq = mf_vx(i,j,0) * mf_vy(i,j,0);
                 rho_v_rhs(i, j, k) = - (flx_v_arr[0](i+1, j  , k  ) - flx_v_arr[0](i, j, k)) * dxInv * mfsq
@@ -559,7 +559,7 @@ AdvectionSrcForMom_EB ( const MFIter& mfi,
         } else if (v_type == FabType::singlevalued) {
 
             ParallelFor(bxy, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                
+
                 if (v_vfrac(i,j,k)>zero) {
                     Real mfsq = mf_vx(i,j,0) * mf_vy(i,j,0);
 
