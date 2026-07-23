@@ -1088,7 +1088,7 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev)
         int n_qstate_into_total = micro->Get_Qstate_Moist_Size() - micro->Get_Qstate_Moist_NumConc_Size();
         make_qt(lev_new[Vars::cons], qt, n_qstate_into_total);
 
-        bool maintain_Th = false;
+        bool maintain_Th = true;
         rebalance_columns(rho, theta, qv, qt, z_phys_nd[lev].get(), geom[lev], maintain_Th);
 
         // Update (rho qv) in the state
@@ -1747,9 +1747,9 @@ init_terrain_from_wrfinput (int /*lev*/,
         {
             for (int j(jmin); j<=jmax; ++j) {
                 for (int i(imin); i<=imax; ++i) {
-                    int ii = std::max(std::min(i,ihi),ilo);
-                    int jj = std::max(std::min(j,jhi),jlo);
-                    Real z_face = ( nc_ph_arr(ii,jj,k) + nc_phb_arr(ii,jj,k) ) / CONST_GRAV;
+                    int iim = std::max(std::min(i-1,ihi),ilo);
+                    int jjm = std::max(std::min(j-1,jhi),jlo);
+                    Real z_face = ( nc_ph_arr(iim,jjm,k) + nc_phb_arr(iim,jjm,k) ) / CONST_GRAV;
                     z_arr(i, j, k) = Real(4.0) * z_face - z_arr(i-1, j, k) - z_arr(i, j-1, k) - z_arr(i-1, j-1, k);
                 }
             }
