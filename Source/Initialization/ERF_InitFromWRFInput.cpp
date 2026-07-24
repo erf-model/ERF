@@ -1666,114 +1666,189 @@ init_terrain_from_wrfinput (int /*lev*/,
                             const MultiFab& mf_PH,
                             const MultiFab& mf_PHB)
 {
-    for ( MFIter mfi(*z_phys, false); mfi.isValid(); ++mfi )
-    {
-        Box gnbx = mfi.growntilebox();
+    Print() << "Constructing nodal heights (z_phys_nd)" << std::endl;
 
-        // This copies from NC_zphys on z-faces to z_phys_nd on nodes
-        const Array4<Real      >&      z_arr = z_phys->array(mfi);
-        const Array4<Real const>& nc_phb_arr = mf_PHB.const_array(mfi);
-        const Array4<Real const>& nc_ph_arr  = mf_PH.const_array(mfi);
+    // Lateral ghost cells
+    IntVect ngz = z_phys->nGrowVect(); int kghost = ngz[2]; ngz[2] = 0;
 
-        // PHB and PH are on z-faces (half dx / half dy ahead of zphys)
-        Box z_face_box = convert(subdomain,IntVect(0,0,1));
+    // PHB and PH are on z-faces
+    Box z_face_dom = convert(subdomain,IntVect(0,0,1));
+    int imin = z_face_dom.smallEnd(0);
+    int imax = z_face_dom.bigEnd(0);
+    int jmin = z_face_dom.smallEnd(1);
+    int jmax = z_face_dom.bigEnd(1);
 
-        // Prevent averaging from going into ghost cells
-        int ilo = z_face_box.smallEnd()[0];
-        int ihi = z_face_box.bigEnd()[0];
-        int jlo = z_face_box.smallEnd()[1];
-        int jhi = z_face_box.bigEnd()[1];
-        int klo = z_face_box.smallEnd()[2];
-        int khi = z_face_box.bigEnd()[2];
+    // Z-face FAB for each z_wrf slice
+    Box z_face_dom_slice = makeSlab(z_face_dom, 2, 0);
+    FArrayBox z_slice_wrf(z_face_dom_slice, 1, The_Managed_Arena());
 
-        ParallelFor(gnbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
-        {
-            int ii = std::max(std::min(i,ihi),ilo);
-            int jj = std::max(std::min(j,jhi),jlo);
+    // Z_phys is nodal
+    Box node_dom = convert(subdomain, IntVect(1,1,1));
+    Box grown_node_dom = grow(node_dom, ngz);
+    int ilo = node_dom.smallEnd(0);
+    int jlo = node_dom.smallEnd(1);
+    int klo = node_dom.smallEnd(2);
+    int khi = node_dom.bigEnd(2);
 
-            int im = std::max(std::min(i-1,ihi),ilo);
-            int jm = std::max(std::min(j-1,jhi),jlo);
+    // Nodal FAB for each z_erf slice
+    Box grown_node_dom_slice = makeSlab(grown_node_dom, 2, 0);
+    FArrayBox z_slice_erf(grown_node_dom_slice, 1, The_Managed_Arena());
 
-            if (k < klo) {
-                Real z_klo   = Real(0.25) * ( nc_ph_arr (ii,jj,klo  ) + nc_ph_arr (im,jj,klo  ) +
-                                              nc_ph_arr (ii,jm,klo  ) + nc_ph_arr (im,jm,klo) +
-                                              nc_phb_arr(ii,jj,klo  ) + nc_phb_arr(im,jj,klo  ) +
-                                              nc_phb_arr(ii,jm,klo  ) + nc_phb_arr(im,jm,klo) ) / CONST_GRAV;
-                Real z_klop1 = Real(0.25) * ( nc_ph_arr (ii,jj,klo+1) + nc_ph_arr (im,jj,klo+1) +
-                                              nc_ph_arr (ii,jm,klo+1) + nc_ph_arr (im,jm,klo+1) +
-                                              nc_phb_arr(ii,jj,klo+1) + nc_phb_arr(im,jj,klo+1) +
-                                              nc_phb_arr(ii,jm,klo+1) + nc_phb_arr(im,jm,klo+1) ) / CONST_GRAV;
-                z_arr(i, j, k) = two * z_klo - z_klop1;
-            } else if (k > khi) {
-                Real z_khim1 = Real(0.25) * ( nc_ph_arr (ii,jj,khi-1) + nc_ph_arr (im,jj,khi-1) +
-                                              nc_ph_arr (ii,jm,khi-1) + nc_ph_arr (im,jm,khi-1) +
-                                              nc_phb_arr(ii,jj,khi-1) + nc_phb_arr(im,jj,khi-1) +
-                                              nc_phb_arr(ii,jm,khi-1) + nc_phb_arr(im,jm,khi-1) ) / CONST_GRAV;
-                z_arr(i, j, k) = two * z_top - z_khim1;
-            } else if (k == khi) {
-                z_arr(i, j, k) = Real(0.25) * ( nc_ph_arr (ii,jj,k) + nc_ph_arr (im,jj,k) +
-                                                nc_ph_arr (ii,jm,k) + nc_ph_arr (im,jm,k) +
-                                                nc_phb_arr(ii,jj,k) + nc_phb_arr(im,jj,k) +
-                                                nc_phb_arr(ii,jm,k) + nc_phb_arr(im,jm,k) ) / CONST_GRAV;
-                z_arr(i, j, k) = z_top;
-            } else {
-                // Note: wrfinput geopotentials ph, phb are only staggered in the vertical, i.e.,
-                //       they have dims (bottom_top_stag, south_north, west_east). On k==klo, we
-                //       will end up smoothing the terrain as we average from surface face centers
-                //       to nodes.
-                z_arr(i, j, k) = Real(0.25) * ( nc_ph_arr (ii,jj,k) + nc_ph_arr (im,jj,k) +
-                                                nc_ph_arr (ii,jm,k) + nc_ph_arr (im,jm,k) +
-                                                nc_phb_arr(ii,jj,k) + nc_phb_arr(im,jj,k) +
-                                                nc_phb_arr(ii,jm,k) + nc_phb_arr(im,jm,k) ) / CONST_GRAV;
-            }
-        });
+    // Boxes to seed the xlo and ylo faces (includes lateral ghost cells)
+    Box xface_bx = grown_node_dom_slice; xface_bx.setBig(0, ilo);
+    Box yface_bx = grown_node_dom_slice; yface_bx.setBig(1, jlo);
 
-        // NOTE: At the domain boundaries, we enforce zero lateral gradient on
-        //       the terrain height. This condition uniquely defines z_arr at
-        //       the nodes on the domain border. By sweeping row by row, we can
-        //       solve for nodal heights that average to the WRF heights.
+    // Box for filling the unknown nodes (includes lateral ghost cells)
+    Box sol_bx  = grown_node_dom_slice; sol_bx.setSmall(0,ilo+1); sol_bx.setSmall(1,jlo+1);
 
-        // Sweep and solve to ensure nodal averages give back the z-face values
-        IntVect ngz = z_phys->nGrowVect();
-        Box vbx_1d  = mfi.validbox();
-        int imin    = std::max(vbx_1d.smallEnd()[0],ilo+1);
-        int imax    = vbx_1d.bigEnd()[0];
-        int jmin    = std::max(vbx_1d.smallEnd()[1],jlo+1);
-        int jmax    = vbx_1d.bigEnd()[1];
-        if (imax == ihi+1) { imax += ngz[0]; }
-        if (jmax == jhi+1) { jmax += ngz[1]; }
-        vbx_1d.setRange(0,0); vbx_1d.setRange(1,0); vbx_1d.growHi(2,-1);
-        ParallelFor(vbx_1d, [=] AMREX_GPU_DEVICE(int /*i*/, int /*j*/, int k) noexcept
-        {
-            for (int j(jmin); j<=jmax; ++j) {
-                for (int i(imin); i<=imax; ++i) {
-                    int iim = std::max(std::min(i-1,ihi),ilo);
-                    int jjm = std::max(std::min(j-1,jhi),jlo);
-                    Real z_face = ( nc_ph_arr(iim,jjm,k) + nc_phb_arr(iim,jjm,k) ) / CONST_GRAV;
-                    z_arr(i, j, k) = Real(4.0) * z_face - z_arr(i-1, j, k) - z_arr(i, j-1, k) - z_arr(i-1, j-1, k);
-                }
-            }
-        });
+    // Process each slice
+    for (int k(klo); k<khi; ++k) {
+        z_slice_wrf.setVal<RunOn::Device>(zero);
 
-        // Sanity check
-        Print() << "Verifying grid integrity" << std::endl;
-        const Box& vbox = mfi.validbox();
-        if (vbox.smallEnd(2) == klo) {
-            Box z_surf_faces = makeSlab(vbox, 2, klo);
-            ParallelFor(z_surf_faces, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+        const Array4<Real>& z_slice_wrf_arr = z_slice_wrf.array();
+        const Array4<Real>& z_slice_erf_arr = z_slice_erf.array();
+
+        // Fill the z-face fab with wrf heights
+        for ( MFIter mfi(mf_PH); mfi.isValid(); ++mfi ) {
+
+            Box vbx = mfi.validbox(); vbx.makeSlab(2,0);
+
+            const Array4<const Real>& nc_phb_arr = mf_PHB.const_array(mfi);
+            const Array4<const Real>& nc_ph_arr  = mf_PH.const_array(mfi);
+
+            ParallelFor(vbx, [=] AMREX_GPU_DEVICE(int i, int j, int /*k*/) noexcept
             {
-                if (z_arr(i,j,k+1) < z_arr(i,j,k)) {
-#ifdef AMREX_USE_GPU
-                    AMREX_DEVICE_PRINTF("z values at (%d,%d,%d) and k+1 are %f, %f\n",
-                           i,j,k, z_arr(i,j,k), z_arr(i,j,k+1));
-#else
-                    printf("z values at (%d,%d,%d) and k+1 are %f, %f\n",
-                           i,j,k, z_arr(i,j,k), z_arr(i,j,k+1));
-#endif
-                    Error("Grid integrity issue detected");
+                z_slice_wrf_arr(i,j,0) = ( nc_ph_arr(i,j,k) + nc_phb_arr(i,j,k) ) / CONST_GRAV;
+            });
+        }
+
+        ParallelAllReduce::Sum(z_slice_wrf.dataPtr(),
+                               z_slice_wrf.size(),
+                               ParallelContext::CommunicatorAll());
+
+        // Copy into ghost cells of z_erf
+        ParallelFor(xface_bx, yface_bx,
+        [=] AMREX_GPU_DEVICE(int i, int j, int /*k*/) noexcept
+        {
+            int ii = std::max(std::min(i,imax),imin);
+            int jj = std::max(std::min(j,jmax),jmin);
+            z_slice_erf_arr(i,j,0) = z_slice_wrf_arr(ii,jj,0);
+        },
+        [=] AMREX_GPU_DEVICE(int i, int j, int /*k*/) noexcept
+        {
+            int ii = std::max(std::min(i,imax),imin);
+            int jj = std::max(std::min(j,jmax),jmin);
+            z_slice_erf_arr(i,j,0) = z_slice_wrf_arr(ii,jj,0);
+        });
+
+        /*=========================================================================
+        * NOTE: A recurrence relation may be defined for this problem to write
+        *        the nodal solution, S(i,j), as a function of the known boundary
+        *        solutions, S(i,0) and S(0,j), and the target values T(i,j).
+        *
+        * The nodal values satisfy the exact averaging constraint
+        *
+        *     ( S(i,j) + S(i+1,j) + S(i,j+1) + S(i+1,j+1) ) / 4 = T(i,j)
+        *
+        * Given the nodal values on the lower-x and lower-y boundaries,
+        *
+        *     S(i,0),  i = 0,...,Nx
+        *     S(0,j),  j = 0,...,Ny
+        *
+        * all interior nodes are uniquely determined by the recurrence
+        *
+        *     S(i+1,j+1) =
+        *         4*T(i,j)
+        *       - S(i  ,j)
+        *       - S(i+1,j)
+        *       - S(i  ,j+1).
+        *
+        * Equivalently, the interior nodes may be written explicitly as
+        *
+        *     S(i,j) =
+        *         (-1)^j S(i,0)
+        *       + (-1)^i S(0,j)
+        *       - (-1)^(i+j) S(0,0)
+        *       + 4 * sum_{p=0}^{i-1} sum_{q=0}^{j-1}
+        *           (-1)^(i+j+p+q) T(p,q).
+        *
+        * The explicit expression shows that each interior node depends only on
+        * the prescribed boundary nodes and the target face-centered values.
+        * The alternating-sign structure is an inherent consequence of the exact
+        * averaging constraint.
+        *
+        * Direct solve row by row is done on CPU since ordered operations are
+        * needed and the analytical solution is O(Nx^2Ny^2) per slice due to
+        * the fourth summation term.
+        * =========================================================================*/
+        LoopOnCpu(sol_bx, [=] (int i, int j, int /*k*/) noexcept
+        {
+            int iim = std::max(std::min(i-1,imax),imin);
+            int jjm = std::max(std::min(j-1,jmax),jmin);
+            z_slice_erf_arr(i, j, 0) = four * z_slice_wrf_arr(iim,jjm,0)
+                                     - z_slice_erf_arr(i-1, j  , 0)
+                                     - z_slice_erf_arr(i  , j-1, 0)
+                                     - z_slice_erf_arr(i-1, j-1, 0);
+        });
+
+        // Copy back to z_phys and handle top/bottom ghost cells
+        for ( MFIter mfi(*z_phys); mfi.isValid(); ++mfi ) {
+            Box gbx = mfi.growntilebox();
+            Box sbx = makeSlab(gbx, 2, 0);
+            const Array4<Real>& z_arr = z_phys->array(mfi);
+            ParallelFor(sbx, [=] AMREX_GPU_DEVICE(int i, int j, int /*k*/) noexcept
+            {
+                z_arr(i,j,k) = z_slice_erf_arr(i,j,0);
+                if (k == klo + 1) {
+                    Real dz = z_arr(i,j,k) - z_arr(i,j,k-1);
+                    for (int lk(1); lk<(kghost+1); ++lk) {
+                        z_arr(i,j,klo-lk) = z_arr(i,j,klo) - dz * static_cast<Real>(lk);
+                    }
+                }
+                if (k == khi - 1) {
+                    z_arr(i,j,khi) = z_top;
+                    Real dz = Real(100.0);
+                    for (int lk(1); lk<(kghost+1); ++lk) {
+                        z_arr(i,j,khi+lk) = z_top + dz * static_cast<Real>(lk);
+                    }
                 }
             });
-        } // tile includes zlo
+        }
+    } // k
+
+    // Sanity check
+    Print() << "Verifying nodal heights average to WRF z-face heights" << std::endl;
+    for ( MFIter mfi(*z_phys); mfi.isValid(); ++mfi ) {
+        const Box& vbx = mfi.validbox();
+
+        const Array4<const Real>& nc_phb_arr = mf_PHB.const_array(mfi);
+        const Array4<const Real>& nc_ph_arr  = mf_PH.const_array(mfi);
+        const Array4<const Real>& z_arr      = z_phys->const_array(mfi);
+
+#ifdef AMREX_USE_FLOAT
+        const amrex::Real tol = Real(1.e-6);
+#else
+        const amrex::Real tol = Real(1.e-10);
+#endif
+        ParallelFor(vbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+        {
+            int ii = std::max(std::min(i,imax),imin);
+            int jj = std::max(std::min(j,jmax),jmin);
+            Real z_face_wrf = ( nc_ph_arr(ii,jj,k) + nc_phb_arr(ii,jj,k) ) / CONST_GRAV;
+            Real z_face_erf = fourth * ( z_arr(i, j  , k) + z_arr(i+1, j  , k)
+                                       + z_arr(i, j+1, k) + z_arr(i+1, j+1, k) );
+            if ((std::fabs(z_face_erf-z_face_wrf) > tol) && (k < khi)) {
+#ifdef AMREX_USE_GPU
+                AMREX_DEVICE_PRINTF("z-face does not match WRF at (%d,%d,%d). ERF and WRF values are: %f, %f\n",
+                                    i,j,k, z_face_erf, z_face_wrf);
+#else
+                printf("z-face does not match WRF at (%d,%d,%d). ERF and WRF values are: %f, %f\n",
+                       i,j,k, z_face_erf, z_face_wrf);
+
+#endif
+                Error("Grid integrity issue detected");
+            }
+        });
     } // mfi
 }
 #endif // ERF_USE_NETCDF
