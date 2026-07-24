@@ -1227,7 +1227,7 @@ SurfaceLayer::update_pblh (const int& lev,
     {
         //amrex::Error("YSU/MRF PBLH calc not implemented yet");
         // PBLH for MRF/YSU is computed inside ComputeDiffusivityMRF
-        // and written back via set_pblh(). Nothing to do here.        
+        // and written back via set_pblh(). Nothing to do here.
     }
 }
 
