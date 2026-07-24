@@ -1726,21 +1726,6 @@ init_terrain_from_wrfinput (int /*lev*/,
                                z_slice_wrf.size(),
                                ParallelContext::CommunicatorAll());
 
-        // Copy into ghost cells of z_erf
-        ParallelFor(xface_bx, yface_bx,
-        [=] AMREX_GPU_DEVICE(int i, int j, int /*k*/) noexcept
-        {
-            int ii = std::max(std::min(i,imax),imin);
-            int jj = std::max(std::min(j,jmax),jmin);
-            z_slice_erf_arr(i,j,0) = z_slice_wrf_arr(ii,jj,0);
-        },
-        [=] AMREX_GPU_DEVICE(int i, int j, int /*k*/) noexcept
-        {
-            int ii = std::max(std::min(i,imax),imin);
-            int jj = std::max(std::min(j,jmax),jmin);
-            z_slice_erf_arr(i,j,0) = z_slice_wrf_arr(ii,jj,0);
-        });
-
         /*=========================================================================
         * NOTE: A recurrence relation may be defined for this problem to write
         *        the nodal solution, S(i,j), as a function of the known boundary
@@ -1781,6 +1766,22 @@ init_terrain_from_wrfinput (int /*lev*/,
         * needed and the analytical solution is O(Nx^2Ny^2) per slice due to
         * the fourth summation term.
         * =========================================================================*/
+
+        // Copy into ghost cells of z_erf
+        LoopOnCpu(xface_bx, [=] (int i, int j, int /*k*/) noexcept
+        {
+            int ii = std::max(std::min(i,imax),imin);
+            int jj = std::max(std::min(j,jmax),jmin);
+            z_slice_erf_arr(i,j,0) = z_slice_wrf_arr(ii,jj,0);
+        });
+        LoopOnCpu(yface_bx, [=] (int i, int j, int /*k*/) noexcept
+        {
+            int ii = std::max(std::min(i,imax),imin);
+            int jj = std::max(std::min(j,jmax),jmin);
+            z_slice_erf_arr(i,j,0) = z_slice_wrf_arr(ii,jj,0);
+        });
+
+        // Direct solve
         LoopOnCpu(sol_bx, [=] (int i, int j, int /*k*/) noexcept
         {
             int iim = std::max(std::min(i-1,imax),imin);
