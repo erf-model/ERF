@@ -210,6 +210,15 @@ public:
           pp, "enable_mrf_unbounded_vpert", enable_mrf_unbounded_vpert, lev, max_level);
         query_one_or_per_level(
           pp, "pbl_mrf_use_zero_ri_extent", pbl_mrf_use_zero_ri_extent, lev, max_level);
+        // Scale-aware PBL-LES blending parameters.
+        query_one_or_per_level(
+          pp, "pbl_blend_length", pbl_blend_length, lev, max_level);
+        query_one_or_per_level(
+          pp, "pbl_blend_cs", pbl_blend_cs, lev, max_level);
+        query_one_or_per_level(
+          pp, "pbl_blend_c_max", pbl_blend_c_max, lev, max_level);
+        query_one_or_per_level(
+          pp, "pbl_blend_use_smag", pbl_blend_use_smag, lev, max_level);
       } else if (pbl_type == PBLType::SHOC) {
 #ifndef ERF_USE_SHOC
           amrex::Abort("You set use_shoc to true but didn't build with SHOC; you must rebuild the executable");
@@ -487,6 +496,14 @@ public:
                      << std::endl;
       amrex::Print() << "    pbl_mrf_use_zero_ri_extent : " << pbl_mrf_use_zero_ri_extent
                      << std::endl;
+      amrex::Print() << "    pbl_blend_length   : " << pbl_blend_length
+                     << std::endl;
+      amrex::Print() << "    pbl_blend_cs       : " << pbl_blend_cs
+                     << std::endl;
+      amrex::Print() << "    pbl_blend_c_max    : " << pbl_blend_c_max
+                     << std::endl;
+      amrex::Print() << "    pbl_blend_use_smag : " << pbl_blend_use_smag
+                     << std::endl;
     }
   }
 
@@ -628,6 +645,13 @@ public:
   amrex::Real pbl_mrf_Ribcr   = amrex::Real(0.5); // Critical Bulk Richardson number for MRF PBL model
   amrex::Real pbl_mrf_const_b = amrex::Real(7.8); // Constant b in MRF PBL model, used to compute the PBL height
   amrex::Real pbl_mrf_sf      = amrex::Real(0.1); // MRF surface flux, used to compute the PBL height
+  // Scale-aware PBL-LES blending parameters.
+  // Boutle et al. (2014): https://doi.org/10.1175/MWR-D-13-00229.1
+  // Set pbl_blend_length = 0 to disable (default). Recovers original behaviour.
+  amrex::Real pbl_blend_length   = amrex::Real(0.0);   ///< Boutle blending length L [m]. 0 = off.
+  amrex::Real pbl_blend_cs       = amrex::Real(0.17);  ///< Smagorinsky coeff for K_h ceiling.
+  amrex::Real pbl_blend_c_max    = amrex::Real(0.1);   ///< Power-law ceiling coeff [m^(2/3)/s].
+  bool        pbl_blend_use_smag = true;               ///< Use Smagorinsky ceiling (else power-law).
   bool mrf_moistvars = false; // if true, adds turbulence to moisture
   bool enable_mrf_countergradient = false; // if true, apply WRF-style HGAMT/HGAMQ correction to PBL height
   bool enable_mrf_cloud_adjustment = false; // if true, apply cloud-aware stability function adjustments in MRF scheme

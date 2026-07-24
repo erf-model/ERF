@@ -3,7 +3,7 @@
 
 ERF presents fixed 2-D diagnostic metadata in two places: the authoritative
 ``Source/IO/ERF_Plotfile2DCatalog.cpp`` file and the marked table in
-``Docs/sphinx_doc/Plotfiles.rst``. The repetition helps users, but it can
+``Docs/sphinx_doc/plotfiles/Plotfile2DReference.rst``. The repetition helps users, but it can
 drift. This checker keeps the public documentation and C++ catalog aligned.
 
 ``Docs/BuildDocs.sh`` runs this script before Doxygen and Sphinx. The GitHub
@@ -47,6 +47,7 @@ FIXED_CATALOG_END = ".. END ERF BUILT-IN 2D DIAGNOSTIC CATALOG"
 DYNAMIC_SOIL_BEGIN = ".. BEGIN ERF DYNAMIC SOIL DIAGNOSTIC FAMILIES"
 DYNAMIC_SOIL_END = ".. END ERF DYNAMIC SOIL DIAGNOSTIC FAMILIES"
 DYNAMIC_SOIL_PATTERNS = ("smois_<layer>", "sh2o_<layer>", "tslb_<layer>")
+DOCUMENTED_CATALOG_PATH = Path("Docs/sphinx_doc/plotfiles/Plotfile2DReference.rst")
 
 CATALOG_FUNCTION_RE = re.compile(
     r"(?ms)^[ \t]*const[ \t]+amrex::Vector<DiagnosticDescriptor>&"
@@ -340,7 +341,7 @@ def main() -> int:
 
     repo = Path(__file__).resolve().parents[3]
     cpp = repo / "Source/IO/ERF_Plotfile2DCatalog.cpp"
-    rst = repo / "Docs/sphinx_doc/Plotfiles.rst"
+    rst = repo / DOCUMENTED_CATALOG_PATH
     try:
         fixed_count, dynamic_count = check_catalog(cpp, rst)
     except CatalogCheckError as exc:
