@@ -28,6 +28,7 @@ enum class DiagnosticID
     SensFlux,
     LatenFlux,
     SurfPres,
+    SeaLevelPressure,
     PrecipTotalAccum,
     PrecipRainAccum,
     PrecipSnowAccum,
