@@ -96,6 +96,52 @@ amrex::Real complete_reference (const ColumnState& state)
         state.lowest_height, state.surface_height);
 }
 
+void launch_scalar_calculation (amrex::Gpu::DeviceVector<amrex::Real>& output)
+{
+    auto* output_ptr = output.data();
+    amrex::ParallelFor(2, [=] AMREX_GPU_DEVICE (int index) noexcept {
+        output_ptr[index] = reduce_surface_pressure_to_sea_level(
+            amrex::Real(90000.0), amrex::Real(280.0), amrex::Real(0.0),
+            amrex::Real(1050.0), amrex::Real(1000.0));
+    });
+}
+
+void initialize_dry_conserved_state (amrex::MultiFab& conserved)
+{
+    for (amrex::MFIter mfi(conserved); mfi.isValid(); ++mfi) {
+        const amrex::Box& bx = mfi.validbox();
+        auto c = conserved.array(mfi);
+        amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+            c(i, j, k, Rho_comp) = amrex::Real(1.0);
+            c(i, j, k, RhoTheta_comp) = getRhoThetagivenP(amrex::Real(90000.0), zero);
+        });
+    }
+}
+
+void initialize_physical_heights (amrex::MultiFab& heights)
+{
+    for (amrex::MFIter mfi(heights); mfi.isValid(); ++mfi) {
+        const amrex::Box& bx = mfi.validbox();
+        auto z = heights.array(mfi);
+        amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+            z(i, j, k) = amrex::Real(100.0 * i) + amrex::Real(100.0 * (k - 4));
+        });
+    }
+}
+
+void initialize_moist_conserved_state (amrex::MultiFab& conserved)
+{
+    for (amrex::MFIter mfi(conserved); mfi.isValid(); ++mfi) {
+        const amrex::Box& bx = mfi.validbox();
+        auto c = conserved.array(mfi);
+        amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+            c(i, j, k, RhoTheta_comp) = getRhoThetagivenP(
+                amrex::Real(90000.0), amrex::Real(0.012));
+            c(i, j, k, RhoQ1_comp) = amrex::Real(0.012);
+        });
+    }
+}
+
 
 // Motivation: Moderate columns must use the unmodified hydrostatic reduction;
 // this prevents applying the Shuell limiter outside its stated regime.
@@ -256,12 +302,7 @@ TEST(SeaLevelPressureAdapter, CompleteDryAndMoistColumnReferences)
 TEST(SeaLevelPressureKernel, ScalarCalculationIsDeviceCallable)
 {
     amrex::Gpu::DeviceVector<amrex::Real> output(2, amrex::Real(0.0));
-    auto* output_ptr = output.data();
-    amrex::ParallelFor(2, [=] AMREX_GPU_DEVICE (int index) noexcept {
-        output_ptr[index] = reduce_surface_pressure_to_sea_level(
-            amrex::Real(90000.0), amrex::Real(280.0), amrex::Real(0.0),
-            amrex::Real(1050.0), amrex::Real(1000.0));
-    });
+    launch_scalar_calculation(output);
     amrex::Gpu::streamSynchronize();
     amrex::Gpu::HostVector<amrex::Real> host_output(output.size());
     amrex::Gpu::copy(amrex::Gpu::deviceToHost, output.begin(), output.end(), host_output.begin());
@@ -287,21 +328,8 @@ TEST(SeaLevelPressureMultiFab, ReadsLowestSourceLevelAndLocalTerrain)
     conserved.setVal(amrex::Real(0.0));
     heights.setVal(amrex::Real(0.0));
     destination.setVal(amrex::Real(-1.0));
-    for (amrex::MFIter mfi(conserved); mfi.isValid(); ++mfi) {
-        const amrex::Box& bx = mfi.validbox();
-        auto c = conserved.array(mfi);
-        amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-            c(i, j, k, Rho_comp) = amrex::Real(1.0);
-            c(i, j, k, RhoTheta_comp) = getRhoThetagivenP(amrex::Real(90000.0), zero);
-        });
-    }
-    for (amrex::MFIter mfi(heights); mfi.isValid(); ++mfi) {
-        const amrex::Box& bx = mfi.validbox();
-        auto z = heights.array(mfi);
-        amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-            z(i, j, k) = amrex::Real(100.0 * i) + amrex::Real(100.0 * (k - 4));
-        });
-    }
+    initialize_dry_conserved_state(conserved);
+    initialize_physical_heights(heights);
     amrex::Gpu::streamSynchronize();
 
     fill_sea_level_pressure(destination, 0, conserved, heights, -1, 4);
@@ -325,15 +353,7 @@ TEST(SeaLevelPressureMultiFab, ReadsLowestSourceLevelAndLocalTerrain)
 
     // Rebuild the manufactured state with a valid vapor component while
     // retaining the same 90-kPa lowest-level pressure for the moist pass.
-    for (amrex::MFIter mfi(conserved); mfi.isValid(); ++mfi) {
-        const amrex::Box& bx = mfi.validbox();
-        auto c = conserved.array(mfi);
-        amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-            c(i, j, k, RhoTheta_comp) = getRhoThetagivenP(
-                amrex::Real(90000.0), amrex::Real(0.012));
-            c(i, j, k, RhoQ1_comp) = amrex::Real(0.012);
-        });
-    }
+    initialize_moist_conserved_state(conserved);
     fill_sea_level_pressure(destination, 0, conserved, heights, RhoQ1_comp, 4);
     amrex::Gpu::streamSynchronize();
     amrex::MultiFab::Copy(host_destination, destination, 0, 0, 1, 0);
