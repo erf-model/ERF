@@ -141,6 +141,11 @@ configuration and runtime details that cannot be inferred from metadata alone.
      - ``Pa``
      - ``AlwaysAvailable``
      - Surface pressure
+   * - ``sea_level_pressure``
+     - ``SurfaceState``
+     - ``Pa``
+     - ``AlwaysAvailable``
+     - Sea-level pressure from the NMC/NGM reduction with Shuell correction
    * - ``precip_total_accum``
      - ``Precipitation``
      - ``kg/m^2``
@@ -418,6 +423,11 @@ The selection contract and the value written after selection are separate:
    * - ``surf_pres``
      - Selectable: fixed request name.
      - Value: pressure computed from the lowest atmospheric state.
+   * - ``sea_level_pressure``
+     - Selectable: fixed request name in dry and moist configurations.
+     - Value: pressure reduced hydrostatically from the local terrain surface
+       to ERF's physical ``z=0`` datum using the NMC/NGM lapse-rate method and
+       Shuell correction.
    * - ``surface_diagnostic_source``
      - Selectable: fixed request name.
      - Value: categorical code ``0`` through ``6``; code ``0`` means no source, including when SurfaceLayer is absent.
@@ -460,6 +470,84 @@ The selection contract and the value written after selection are separate:
    * - ``near_surface_diagnostic_source``
      - Selectable: a Noah-MP or SurfaceLayer pathway exists, including a dry source-only request.
      - Value: categorical code ``0`` through ``6``; its ``AlwaysAvailable`` metadata policy records ``missing_value: null``.
+
+.. _sec:Plotfile2DSeaLevelPressure:
+
+NMC/NGM sea-level pressure
+^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+``sea_level_pressure`` is an opt-in surface-state diagnostic useful for
+comparing model pressure with meteorological sea-level-pressure analyses. It
+is an adaptation of the NMC/NGM sea-level-pressure reduction with the Shuell
+correction from NOAA-EMC UPP ``sorc/ncep_post.fd/NGMSLP.f`` at immutable commit
+`1ee7b175c340a566287a987870d925e4708fe19b
+<https://github.com/NOAA-EMC/UPP/blob/1ee7b175c340a566287a987870d925e4708fe19b/sorc/ncep_post.fd/NGMSLP.f>`_.
+ERF preserves the method and empirical correction but uses its native physical
+constants, so bit-for-bit equality with UPP is not expected.
+
+ERF stores water-vapor mixing ratio per unit dry-air mass, ``r_v``. The
+reduction uses specific humidity ``q_v``:
+
+.. math::
+
+   q_v = \frac{r_v}{1+r_v},
+   \qquad
+   \epsilon_v = \frac{R_v}{R_d}-1,
+   \qquad
+   T_{v,m}=T_m\left(1+\epsilon_v q_v\right).
+
+The original UPP routine uses the rounded coefficient ``0.608``; ERF computes
+the equivalent coefficient from its shared ``R_d`` and ``R_v`` constants. ERF
+diagnoses ``p_m`` and ``T_m`` from the lowest cell-centered conserved state
+using its existing EOS.
+
+Let ``z_m`` be the lowest cell-center physical height and ``z_s`` the lower
+terrain-interface height. With ``Gamma = 0.0065 K m^-1``,
+
+.. math::
+
+   T_{v,s}=T_{v,m}+\Gamma(z_m-z_s),
+   \qquad
+   \overline{\tau}_{m,s}=\frac{R_d}{g}\frac{T_{v,m}+T_{v,s}}{2},
+   \qquad
+   p_s=p_m\exp\left(\frac{z_m-z_s}{\overline{\tau}_{m,s}}\right).
+
+The ground pressure ``p_s`` is reconstructed because ERF does not store the
+UPP ground-interface pressure in its cell-centered state. The uncorrected
+sea-level extrapolation is ``T_{v,0}=T_{v,m}+Gamma z_m``. For ``T_c=290.66 K``,
+the Shuell correction is
+
+.. math::
+
+   T_{v,0}^{*}=\begin{cases}
+   T_c, & T_{v,0}>T_c\ \text{and}\ T_{v,s}\leq T_c,\\
+   T_c-0.005(T_{v,s}-T_c)^2,
+      & T_{v,0}>T_c\ \text{and}\ T_{v,s}>T_c,\\
+   T_{v,0}, & \text{otherwise.}
+   \end{cases}
+
+The final reduction uses
+
+.. math::
+
+   \overline{\tau}_{s,0}=\frac{R_d}{g}\frac{T_{v,s}+T_{v,0}^{*}}{2},
+   \qquad
+   p_{\mathrm{MSL}}=\begin{cases}
+   p_s, & |z_s|\leq 1\ \mathrm{m},\\
+   p_s\exp\left(\frac{z_s}{\overline{\tau}_{s,0}}\right),
+      & |z_s|>1\ \mathrm{m}.
+   \end{cases}
+
+The output units are pascals. It is pressure reduced to ERF's physical
+``z=0`` datum and represents mean sea-level pressure only when that datum is
+mean sea level. The diagnostic uses the lowest model level, assumes the fixed
+lapse rate below it, applies no horizontal smoothing, does not calculate
+1000-hPa height, is computed independently on each AMR level, and does not
+alter model state. ``surf_pres`` remains a separate lowest-cell-center field.
+
+.. code-block:: text
+
+   erf.plot2d_vars_1 = surf_pres sea_level_pressure
 
 .. _sec:Plotfile2DDynamicSoil:
 

@@ -210,6 +210,9 @@ endfunction(add_test_sdm)
 
 # These tests will all be built in Exec
 add_test_plotfile_header(Plotfile3D_DryUnavailableSelection "" "erf_exec" "plt00000")
+# Regression motivation: the 2D writer must select and order the new
+# always-available diagnostic without changing the existing surf_pres field.
+add_test_plotfile_header(Plotfile2D_SeaLevelPressureSelection "" "erf_exec" "plt2d00000")
 add_test_r(DensityCurrent                    ""  "erf_exec" "plt00010" RUNTIME_OPTIONS "erf.vert_implicit=false ")
 add_test_r(DensityCurrent_anelastic          ""  "erf_exec" "plt00010" RUNTIME_OPTIONS "erf.vert_implicit=false ")
 add_test_r(DensityCurrent_detJ2              ""  "erf_exec" "plt00010" RUNTIME_OPTIONS "erf.vert_implicit=false ")

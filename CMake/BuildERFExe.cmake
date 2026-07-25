@@ -399,6 +399,7 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/IO/ERF_Plotfile2DInterpolator.cpp
        ${SRC_DIR}/IO/ERF_Plotfile2DUtils.cpp
        ${SRC_DIR}/Diagnostics/ERF_NearSurfaceDiagnostics.cpp
+       ${SRC_DIR}/Diagnostics/ERF_SeaLevelPressure.cpp
        ${SRC_DIR}/IO/ERF_WriteSubvolume.cpp
        ${SRC_DIR}/IO/ERF_WriteJobInfo.cpp
        ${SRC_DIR}/IO/ERF_ConsoleIO.cpp

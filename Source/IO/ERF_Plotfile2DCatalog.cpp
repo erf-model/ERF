@@ -38,6 +38,7 @@ const amrex::Vector<DiagnosticDescriptor>& catalog_storage ()
         {DiagnosticID::SensFlux,       "sens_flux",    "Surface sensible heat flux",                      "kg K m^-2 s^-1", DiagnosticCategory::SurfaceFlux, MissingPolicy::FillMinus999WhenUnavailable},
         {DiagnosticID::LatenFlux,      "laten_flux",   "Surface moisture flux (legacy output name)",      "kg m^-2 s^-1", DiagnosticCategory::SurfaceFlux,    MissingPolicy::FillMinus999WhenUnavailable},
         {DiagnosticID::SurfPres,       "surf_pres",    "Surface pressure",                                "Pa",        DiagnosticCategory::SurfaceState,   MissingPolicy::AlwaysAvailable},
+        {DiagnosticID::SeaLevelPressure, "sea_level_pressure", "Sea-level pressure from the NMC/NGM reduction with Shuell correction", "Pa", DiagnosticCategory::SurfaceState, MissingPolicy::AlwaysAvailable},
         {DiagnosticID::PrecipTotalAccum,   "precip_total_accum",   "Accumulated surface precipitation, liquid-water equivalent", "kg/m^2", DiagnosticCategory::Precipitation, MissingPolicy::FillZeroWhenUnavailable},
         {DiagnosticID::PrecipRainAccum,    "precip_rain_accum",    "Accumulated surface rain precipitation, liquid-water equivalent", "kg/m^2", DiagnosticCategory::Precipitation, MissingPolicy::FillZeroWhenUnavailable},
         {DiagnosticID::PrecipSnowAccum,    "precip_snow_accum",    "Accumulated surface snow precipitation, liquid-water equivalent", "kg/m^2", DiagnosticCategory::Precipitation, MissingPolicy::FillZeroWhenUnavailable},
