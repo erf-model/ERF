@@ -1,5 +1,5 @@
 HyperCLaw-V1.1
-19
+20
 density
 rhoKE
 x_velocity
@@ -19,6 +19,7 @@ shear_prod
 buoy_prod
 diss_tke
 qv
+qc
 3
 20
 0

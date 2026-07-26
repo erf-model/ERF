@@ -5,9 +5,7 @@
 
 #include <algorithm>
 #include <cmath>
-#include <cstdlib>
 #include <iostream>
-#include <limits>
 #include <string>
 #include <vector>
 
@@ -17,6 +15,21 @@ using amrex::MultiFab;
 using amrex::PlotFileData;
 using amrex::Real;
 
+// Stable exit codes let CTest distinguish a broken simulation from a
+// deliberately broken negative-control contract.
+enum CheckCode : int {
+    kSuccess = 0,
+    kUsage = 2,
+    kMissingField = 3,
+    kInvalidField = 4,
+    kTransportContract = 5,
+    kCloudContract = 6,
+    kNegativeTkeContract = 7,
+    kNegativeThetaContract = 8
+};
+
+// The checker is intentionally driven by three plotfile snapshots so that
+// every oracle can inspect both the initial state and the resulting evolution.
 struct Arguments {
     std::string mode;
     std::string initial;
@@ -24,6 +37,8 @@ struct Arguments {
     std::string final;
 };
 
+// Return whether a named field is present without asking PlotFileData to throw
+// for an absent diagnostic.  This keeps missing-output failures actionable.
 bool
 has_variable (const PlotFileData& plotfile, const std::string& name)
 {
@@ -31,6 +46,9 @@ has_variable (const PlotFileData& plotfile, const std::string& name)
     return std::find(names.begin(), names.end(), name) != names.end();
 }
 
+// Parse the small command-line interface used by RunShocRegression.cmake.
+// Keeping parsing here makes the checker independently runnable when debugging
+// a failed plotfile contract.
 bool
 read_arguments (int argc, char** argv, Arguments& args)
 {
@@ -58,20 +76,25 @@ read_arguments (int argc, char** argv, Arguments& args)
            !args.midpoint.empty() && !args.final.empty();
 }
 
+// Verify the fields shared by every SHOC snapshot exist and contain finite
+// values.  Physical bounds are checked separately so each failure can report
+// the most relevant contract category.
 bool
-check_finite_and_bounds (PlotFileData& plotfile,
-                         const std::vector<std::string>& required,
-                         std::string& error)
+check_finite (PlotFileData& plotfile,
+              const std::vector<std::string>& required,
+              CheckCode& code,
+              std::string& error)
 {
     for (const auto& name : required) {
         if (!has_variable(plotfile, name)) {
-            error = "required field '" + name + "' is missing from " +
-                    std::to_string(plotfile.time());
+            code = kMissingField;
+            error = "required field '" + name + "' is missing";
             return false;
         }
 
         const MultiFab field = plotfile.get(0, name);
         if (!field.is_finite(0, 1, 0, false)) {
+            code = kInvalidField;
             error = "field '" + name + "' contains a non-finite value";
             return false;
         }
@@ -80,6 +103,8 @@ check_finite_and_bounds (PlotFileData& plotfile,
     return true;
 }
 
+// Compute the cellwise L-infinity difference between two same-layout fields.
+// This is used for both evolution checks and the negative controls.
 Real
 maximum_difference (const MultiFab& first, const MultiFab& second)
 {
@@ -99,15 +124,18 @@ maximum_difference (const MultiFab& first, const MultiFab& second)
     return result;
 }
 
+// Enforce non-negativity for mass, energy, and diffusivity diagnostics while
+// allowing the tiny negative roundoff produced by floating-point arithmetic.
 bool
 check_nonnegative (PlotFileData& plotfile,
                    const std::string& name,
                    const Real allowance,
+                   CheckCode& code,
                    std::string& error)
 {
-    const MultiFab field = plotfile.get(0, name);
-    const Real minimum = field.min(0, 0, false);
+    const Real minimum = plotfile.get(0, name).min(0, 0, false);
     if (minimum < -allowance) {
+        code = kInvalidField;
         error = "field '" + name + "' has minimum " + std::to_string(minimum) +
                 ", below allowed negative roundoff " + std::to_string(allowance);
         return false;
@@ -115,30 +143,49 @@ check_nonnegative (PlotFileData& plotfile,
     return true;
 }
 
+// Apply the state-independent SHOC output contract: required diagnostics,
+// finite values, positivity, non-negativity, cloud-fraction bounds, and any
+// optional scheme-specific hydrometeor bounds.
 bool
-check_common_state (PlotFileData& plotfile, bool require_qc, std::string& error)
+check_common_state (PlotFileData& plotfile, CheckCode& code, std::string& error)
 {
     const std::vector<std::string> required {
-        "density", "temp", "theta", "pressure", "qv", "rhoKE",
+        "density", "temp", "theta", "pressure", "qv", "qc", "rhoKE",
         "x_velocity", "y_velocity", "Kmv", "Khv", "Lturb", "shoc_cldfrac",
         "shoc_ql", "shoc_cond", "brunt", "shear_prod", "buoy_prod", "diss_tke"
     };
-    if (!check_finite_and_bounds(plotfile, required, error)) {
+    if (!check_finite(plotfile, required, code, error)) {
         return false;
     }
-    if (require_qc) {
-        if (std::find(plotfile.varNames().begin(), plotfile.varNames().end(), "qc") ==
-            plotfile.varNames().end()) {
-            error = "required field 'qc' is missing";
+
+    for (const auto& name : {"density", "temp", "theta", "pressure"}) {
+        if (plotfile.get(0, name).min(0, 0, false) <= 0.0) {
+            code = kInvalidField;
+            error = "field '" + std::string(name) + "' is not strictly positive";
             return false;
         }
     }
 
-    const std::vector<std::string> nonnegative {
-        "density", "qv", "rhoKE", "Kmv", "Khv", "Lturb"
-    };
-    for (const auto& name : nonnegative) {
-        if (!check_nonnegative(plotfile, name, 1.0e-12, error)) {
+    for (const auto& name : {"density", "qv", "qc", "rhoKE", "Kmv", "Khv", "Lturb", "shoc_ql"}) {
+        if (!check_nonnegative(plotfile, name, 1.0e-12, code, error)) {
+            return false;
+        }
+    }
+
+    const auto& cldfrac = plotfile.get(0, "shoc_cldfrac");
+    const Real cldfrac_min = cldfrac.min(0, 0, false);
+    const Real cldfrac_max = cldfrac.max(0, 0, false);
+    if (cldfrac_min < -1.0e-12 || cldfrac_max > 1.0 + 1.0e-12) {
+        code = kInvalidField;
+        error = "field 'shoc_cldfrac' is outside [0,1]: min=" +
+                std::to_string(cldfrac_min) + ", max=" + std::to_string(cldfrac_max);
+        return false;
+    }
+
+    // Check scheme-specific hydrometeors whenever the fixture requested them.
+    for (const auto& name : {"qi", "qrain", "qsnow", "qgraup"}) {
+        if (has_variable(plotfile, name) &&
+            !check_nonnegative(plotfile, name, 1.0e-12, code, error)) {
             return false;
         }
     }
@@ -146,9 +193,12 @@ check_common_state (PlotFileData& plotfile, bool require_qc, std::string& error)
     return true;
 }
 
+// Confirm that the run exercised the native SHOC transport path rather than
+// merely producing a numerically valid but unchanged plotfile.
 bool
 check_active_transport (PlotFileData& initial,
                         PlotFileData& final,
+                        CheckCode& code,
                         std::string& error)
 {
     const Real momentum_change = maximum_difference(initial.get(0, "x_velocity"),
@@ -157,80 +207,89 @@ check_active_transport (PlotFileData& initial,
                                                final.get(0, "rhoKE"));
     const Real thermal_change = maximum_difference(initial.get(0, "theta"),
                                                    final.get(0, "theta"));
-    if (momentum_change <= 1.0e-12) {
-        error = "horizontal momentum did not change (max |delta x_velocity| = " +
-                std::to_string(momentum_change) + ")";
+    if (momentum_change <= 1.0e-12 || thermal_change <= 1.0e-12) {
+        code = kTransportContract;
+        error = "native SHOC transport did not evolve momentum and thermal state: "
+                "max |delta x_velocity|=" + std::to_string(momentum_change) +
+                ", max |delta theta|=" + std::to_string(thermal_change);
         return false;
     }
     if (tke_change <= 1.0e-12) {
+        code = kTransportContract;
         error = "TKE did not change (max |delta rhoKE| = " +
                 std::to_string(tke_change) + ")";
-        return false;
-    }
-    if (thermal_change <= 1.0e-12) {
-        error = "potential temperature did not change (max |delta theta| = " +
-                std::to_string(thermal_change) + ")";
         return false;
     }
     if (final.get(0, "Kmv").max(0, 0, false) <= 0.0 ||
         final.get(0, "Khv").max(0, 0, false) <= 0.0 ||
         final.get(0, "Lturb").max(0, 0, false) <= 0.0) {
+        code = kTransportContract;
         error = "native SHOC diffusivity or mixing-length diagnostics are trivial";
         return false;
     }
     return true;
 }
 
+// Clear fixtures are expected to remain free of condensed water at every
+// checkpoint; checking all three snapshots catches transient cloud creation.
+bool
+check_clear_snapshot (PlotFileData& plotfile, const std::string& label,
+                      CheckCode& code, std::string& error)
+{
+    const Real qc = plotfile.get(0, "qc").max(0, 0, false);
+    const Real ql = plotfile.get(0, "shoc_ql").max(0, 0, false);
+    const Real cldfrac = plotfile.get(0, "shoc_cldfrac").max(0, 0, false);
+    if (qc > 1.0e-10 || ql > 1.0e-10 || cldfrac > 1.0e-10) {
+        code = kCloudContract;
+        error = label + " snapshot is not clear: max qc=" + std::to_string(qc) +
+                ", max shoc_ql=" + std::to_string(ql) +
+                ", max shoc_cldfrac=" + std::to_string(cldfrac);
+        return false;
+    }
+    return true;
+}
+
+// Apply the mode-specific oracle after common state and transport checks have
+// passed.  Cloud modes require formation and evolution, clear modes require
+// the requested stratification sign, and negative modes require the targeted
+// state update to be observably absent.
 bool
 check_regime (const Arguments& args,
               PlotFileData& initial,
               PlotFileData& midpoint,
               PlotFileData& final,
+              CheckCode& code,
               std::string& error)
 {
-    if (!check_active_transport(initial, final, error)) {
+    if (!check_active_transport(initial, final, code, error)) {
         return false;
     }
 
-    if (args.mode == "unstable_cloud_nocond") {
-        amrex::Print() << "SHOC property check: mode=" << args.mode
-                       << " qv_initial=" << initial.get(0, "qv").max(0, 0, false)
-                       << " qv_final=" << final.get(0, "qv").max(0, 0, false) << "\n";
+    if (args.mode == "negative_tke") {
+        const Real change = maximum_difference(initial.get(0, "rhoKE"), final.get(0, "rhoKE"));
+        if (change <= 1.0e-3) {
+            code = kNegativeTkeContract;
+            error = "negative control detected insufficient TKE state evolution: max |delta rhoKE| = " +
+                    std::to_string(change);
+            return false;
+        }
+        return true;
+    }
+    if (args.mode == "negative_theta") {
+        const Real change = maximum_difference(initial.get(0, "theta"), final.get(0, "theta"));
+        if (change <= 1.0e-3) {
+            code = kNegativeThetaContract;
+            error = "negative control detected insufficient thermal state evolution: max |delta theta| = " +
+                    std::to_string(change);
+            return false;
+        }
         return true;
     }
 
-    if (args.mode == "negative_tke") {
-        const Real tke_change = maximum_difference(initial.get(0, "rhoKE"),
-                                                   final.get(0, "rhoKE"));
-        if (tke_change <= 1.0e-3) {
-            error = "negative control detected insufficient TKE state evolution: max |delta rhoKE| = " +
-                    std::to_string(tke_change);
-            return false;
-        }
-    }
-    if (args.mode == "negative_theta") {
-        const Real thermal_change = maximum_difference(initial.get(0, "theta"),
-                                                       final.get(0, "theta"));
-        if (thermal_change <= 1.0e-3) {
-            error = "negative control detected insufficient thermal state evolution: max |delta theta| = " +
-                    std::to_string(thermal_change);
-            return false;
-        }
-    }
-
-    const Real qc_initial = initial.get(0, "qc").max(0, 0, false);
-    const Real qc_midpoint = midpoint.get(0, "qc").max(0, 0, false);
-    const Real qc_final = final.get(0, "qc").max(0, 0, false);
-    const Real cldfrac_final = final.get(0, "shoc_cldfrac").max(0, 0, false);
-    const Real shoc_ql_final = final.get(0, "shoc_ql").max(0, 0, false);
-    const Real condensation_midpoint = midpoint.get(0, "shoc_cond").max(0, 0, false);
-    const Real condensation_final = final.get(0, "shoc_cond").max(0, 0, false);
-    const Real qc_change = maximum_difference(midpoint.get(0, "qc"), final.get(0, "qc"));
-
     if (args.mode == "stable_clear" || args.mode == "unstable_clear") {
-        if (args.mode == "stable_clear" && qc_final > 1.0e-10) {
-            error = "clear-case cloud water reached " + std::to_string(qc_final) +
-                    ", above 1.0e-10 tolerance";
+        if (!check_clear_snapshot(initial, "initial", code, error) ||
+            !check_clear_snapshot(midpoint, "midpoint", code, error) ||
+            !check_clear_snapshot(final, "final", code, error)) {
             return false;
         }
         const Real brunt_min = final.get(0, "brunt").min(0, 0, false);
@@ -238,11 +297,50 @@ check_regime (const Arguments& args,
         const Real buoy_min = final.get(0, "buoy_prod").min(0, 0, false);
         const Real buoy_max = final.get(0, "buoy_prod").max(0, 0, false);
         if (args.mode == "stable_clear" && (brunt_max <= 0.0 || buoy_min >= 0.0)) {
-            error = "stable case lacks positive stratification and negative buoyancy production";
+            code = kCloudContract;
+            error = "stable case lacks positive stratification and negative buoyancy production: "
+                    "brunt_max=" + std::to_string(brunt_max) +
+                    ", buoy_min=" + std::to_string(buoy_min);
             return false;
         }
         if (args.mode == "unstable_clear" && (brunt_min >= 0.0 || buoy_max <= 0.0)) {
-            error = "unstable case lacks negative stratification and positive buoyancy production";
+            code = kCloudContract;
+            error = "unstable case lacks negative stratification and positive buoyancy production: "
+                    "brunt_min=" + std::to_string(brunt_min) +
+                    ", buoy_max=" + std::to_string(buoy_max);
+            return false;
+        }
+        amrex::Print() << "SHOC property check: mode=" << args.mode
+                       << " clear snapshots verified at initial/midpoint/final\n";
+        return true;
+    }
+
+    if (args.mode == "stable_cloud" || args.mode == "unstable_cloud" ||
+        args.mode == "unstable_cloud_nocond") {
+        const Real qc_initial = initial.get(0, "qc").max(0, 0, false);
+        const Real qc_midpoint = midpoint.get(0, "qc").max(0, 0, false);
+        const Real qc_final = final.get(0, "qc").max(0, 0, false);
+        const Real cldfrac_final = final.get(0, "shoc_cldfrac").max(0, 0, false);
+        const Real shoc_ql_final = final.get(0, "shoc_ql").max(0, 0, false);
+        const Real qc_change = maximum_difference(midpoint.get(0, "qc"), final.get(0, "qc"));
+        if (qc_initial > 1.0e-12) {
+            code = kCloudContract;
+            error = "cloud-formation fixture is not initialized clear: max qc(t=0) = " +
+                    std::to_string(qc_initial);
+            return false;
+        }
+        if (qc_final <= 1.0e-8 || shoc_ql_final <= 1.0e-8 || cldfrac_final <= 1.0e-6) {
+            code = kCloudContract;
+            error = "cloud-formation oracle failed: max qc=" + std::to_string(qc_final) +
+                    ", max shoc_ql=" + std::to_string(shoc_ql_final) +
+                    ", max shoc_cldfrac=" + std::to_string(cldfrac_final);
+            return false;
+        }
+        if (qc_change <= 1.0e-10 || qc_midpoint <= 1.0e-8) {
+            code = kCloudContract;
+            error = "cloud water did not form and evolve through midpoint/final outputs: "
+                    "max qc(midpoint)=" + std::to_string(qc_midpoint) +
+                    ", max delta qc=" + std::to_string(qc_change);
             return false;
         }
         amrex::Print() << "SHOC property check: mode=" << args.mode
@@ -252,35 +350,7 @@ check_regime (const Arguments& args,
         return true;
     }
 
-    if (args.mode == "stable_cloud" || args.mode == "unstable_cloud") {
-        if (qc_initial > 1.0e-12) {
-            error = "cloud-formation fixture is not initialized clear: max qc(t=0) = " +
-                    std::to_string(qc_initial);
-            return false;
-        }
-        if (qc_final <= 1.0e-8 || shoc_ql_final <= 1.0e-8 || cldfrac_final <= 1.0e-6) {
-            error = "cloud-formation oracle failed: max qc=" + std::to_string(qc_final) +
-                    ", max shoc_ql=" + std::to_string(shoc_ql_final) +
-                    ", max shoc_cldfrac=" + std::to_string(cldfrac_final) +
-                    ", max shoc_cond(mid/final)=" + std::to_string(condensation_midpoint) +
-                    "/" + std::to_string(condensation_final);
-            return false;
-        }
-        if (qc_change <= 1.0e-10) {
-            error = "cloud water did not evolve between midpoint and final output: max delta qc=" +
-                    std::to_string(qc_change);
-            return false;
-        }
-        amrex::Print() << "SHOC property check: mode=" << args.mode
-                       << " qc_initial=" << qc_initial
-                       << " qc_midpoint=" << qc_midpoint
-                       << " qc_final=" << qc_final
-                       << " shoc_ql_final=" << shoc_ql_final
-                       << " shoc_cond_midpoint/final=" << condensation_midpoint
-                       << "/" << condensation_final << "\n";
-        return true;
-    }
-
+    code = kUsage;
     error = "unsupported SHOC property-check mode '" + args.mode + "'";
     return false;
 }
@@ -290,28 +360,32 @@ check_regime (const Arguments& args,
 int
 main (int argc, char** argv)
 {
+    // This executable is a contract checker, not a statistical comparison:
+    // it validates physical invariants and state evolution before fcompare
+    // performs the narrow numerical gold-file comparison.
     amrex::Initialize(argc, argv, false);
 
     Arguments args;
-    bool ok = read_arguments(argc, argv, args);
+    CheckCode code = kUsage;
     std::string error;
+    bool ok = read_arguments(argc, argv, args);
     if (ok) {
         PlotFileData initial(args.initial);
         PlotFileData midpoint(args.midpoint);
         PlotFileData final(args.final);
-        const bool require_qc = args.mode != "unstable_cloud_nocond";
-        ok = check_common_state(initial, require_qc, error) &&
-             check_common_state(midpoint, require_qc, error) &&
-             check_common_state(final, require_qc, error) &&
-             check_regime(args, initial, midpoint, final, error);
+        ok = check_common_state(initial, code, error) &&
+             check_common_state(midpoint, code, error) &&
+             check_common_state(final, code, error) &&
+             check_regime(args, initial, midpoint, final, code, error);
+        if (ok) code = kSuccess;
     }
 
     if (!ok) {
-        std::cerr << "SHOC property check failed: "
+        std::cerr << "SHOC property check failed (code " << static_cast<int>(code) << "): "
                   << (error.empty() ? "usage: --mode MODE --initial PF --midpoint PF --final PF" : error)
                   << "\n";
     }
 
     amrex::Finalize();
-    return ok ? EXIT_SUCCESS : EXIT_FAILURE;
+    return static_cast<int>(code);
 }

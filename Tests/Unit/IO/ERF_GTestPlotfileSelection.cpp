@@ -208,7 +208,7 @@ TEST(Plotfile3DSelection, MoistureCapabilityTruthTable)
     const std::array<Expected, 12> expected{{
         {MoistureType::None, false, false, false, false, false, false,
          false, false, false, false, false, false, false, false},
-        {MoistureType::MoistNoCondensation, true, false, false, false, false, false,
+        {MoistureType::MoistNoCondensation, true, true, false, false, false, false,
          false, false, false, false, false, false, false, false},
         {MoistureType::SatAdj, true, true, false, false, false, false,
          false, false, false, false, false, false, false, false},

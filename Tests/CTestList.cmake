@@ -121,7 +121,7 @@ endfunction(add_test_r)
 # matrix to reuse a physical fixture while keeping unique binary and gold
 # directories.  The checker runs before the standard fcompare gold check.
 function(add_test_shoc_r TEST_NAME TEST_DIR TEST_EXE PLTFILE)
-    set(options )
+    set(options SKIP_GOLD)
     set(oneValueArgs "TEST_FILES_DIR" "INPUT_FILE" "CHECK_MODE" "RUNTIME_OPTIONS" "TIMEOUT")
     set(multiValueArgs "LABELS")
     cmake_parse_arguments(ADD_TEST_SHOC_R "${options}" "${oneValueArgs}"
@@ -159,6 +159,7 @@ function(add_test_shoc_r TEST_NAME TEST_DIR TEST_EXE PLTFILE)
         -DRTOL=${ERF_TEST_FCOMPARE_RTOL}
         -DATOL=${ERF_TEST_FCOMPARE_ATOL}
         -DGOLD=${PLOT_GOLD}
+        -DSKIP_GOLD=${ADD_TEST_SHOC_R_SKIP_GOLD}
         -P ${PROJECT_SOURCE_DIR}/Tests/RunShocRegression.cmake)
     if(ADD_TEST_SHOC_R_TIMEOUT)
         set(_shoc_timeout "${ADD_TEST_SHOC_R_TIMEOUT}")
@@ -176,10 +177,11 @@ function(add_test_shoc_r TEST_NAME TEST_DIR TEST_EXE PLTFILE)
         PROCESSORS ${NP}
         WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
         LABELS "${_shoc_labels}"
+        ENVIRONMENT "FI_PROVIDER=tcp"
         ATTACHED_FILES_ON_FAIL "${test_log}")
 endfunction(add_test_shoc_r)
 
-function(add_test_shoc_negative TEST_NAME RUNTIME_OPTIONS CHECK_MODE)
+function(add_test_shoc_negative TEST_NAME RUNTIME_OPTIONS CHECK_MODE EXPECTED_CODE)
     set(TEST_FILES_DIR "SHOC_Stable_Clear")
     setup_test()
     resolve_test_exe("" "erf_exec" TEST_EXE)
@@ -199,7 +201,7 @@ function(add_test_shoc_negative TEST_NAME RUNTIME_OPTIONS CHECK_MODE)
         -DINITIAL=${CURRENT_TEST_BINARY_DIR}/plt00000
         -DMIDPOINT=${CURRENT_TEST_BINARY_DIR}/plt00010
         -DFINAL=${CURRENT_TEST_BINARY_DIR}/plt00020
-        -DEXPECT_CHECKER_FAILURE=TRUE
+        -DEXPECTED_CHECKER_CODE=${EXPECTED_CODE}
         -P ${PROJECT_SOURCE_DIR}/Tests/RunShocRegression.cmake)
     set_tests_properties(${TEST_NAME}
         PROPERTIES
@@ -207,6 +209,7 @@ function(add_test_shoc_negative TEST_NAME RUNTIME_OPTIONS CHECK_MODE)
         PROCESSORS ${NP}
         WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
         LABELS "regression;shoc;negative"
+        ENVIRONMENT "FI_PROVIDER=tcp"
         ATTACHED_FILES_ON_FAIL "${test_log}")
 endfunction(add_test_shoc_negative)
 
@@ -214,14 +217,15 @@ if(ERF_ENABLE_MPI)
 add_test(SHOC_Unstable_Cloud_SatAdj_vs_NoCond
     ${MPIEXEC_EXECUTABLE} ${MPIEXEC_NUMPROC_FLAG} 1 ${MPIEXEC_PREFLAGS}
     ${SHOC_MICROPHYSICS_DIFFERENTIAL}
-    ${CMAKE_CURRENT_BINARY_DIR}/test_files/SHOC_Unstable_Cloud_SatAdj/plt00020
-    ${CMAKE_CURRENT_BINARY_DIR}/test_files/SHOC_Unstable_Cloud_NoCond/plt00020)
+    ${CMAKE_CURRENT_BINARY_DIR}/test_files/SHOC_Unstable_Cloud_SatAdj_Property/plt00020
+    ${CMAKE_CURRENT_BINARY_DIR}/test_files/SHOC_Unstable_Cloud_NoCond_Property/plt00020)
 set_tests_properties(SHOC_Unstable_Cloud_SatAdj_vs_NoCond
     PROPERTIES
-    DEPENDS "SHOC_Unstable_Cloud_SatAdj;SHOC_Unstable_Cloud_NoCond"
+    DEPENDS "SHOC_Unstable_Cloud_SatAdj_Property;SHOC_Unstable_Cloud_NoCond_Property"
     TIMEOUT 120
     PROCESSORS 1
     WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/"
+    ENVIRONMENT "FI_PROVIDER=tcp"
     LABELS "regression;shoc;microphysics")
 endif()
 
@@ -356,6 +360,22 @@ if(ERF_ENABLE_TESTS AND ERF_ENABLE_MPI)
         RUNTIME_OPTIONS "erf.moisture_model=MoistNoCondensation "
         LABELS regression shoc microphysics
         TIMEOUT 900)
+    add_test_shoc_r(SHOC_Unstable_Cloud_SatAdj_Property "" "erf_exec" "plt00020"
+        TEST_FILES_DIR "SHOC_Unstable_Cloud"
+        INPUT_FILE "SHOC_Unstable_Cloud.i"
+        CHECK_MODE "unstable_cloud"
+        RUNTIME_OPTIONS "erf.moisture_model=SatAdj "
+        SKIP_GOLD
+        LABELS regression shoc microphysics property
+        TIMEOUT 900)
+    add_test_shoc_r(SHOC_Unstable_Cloud_NoCond_Property "" "erf_exec" "plt00020"
+        TEST_FILES_DIR "SHOC_Unstable_Cloud"
+        INPUT_FILE "SHOC_Unstable_Cloud.i"
+        CHECK_MODE "unstable_cloud_nocond"
+        RUNTIME_OPTIONS "erf.moisture_model=MoistNoCondensation "
+        SKIP_GOLD
+        LABELS regression shoc microphysics property
+        TIMEOUT 900)
     add_test_shoc_r(SHOC_Unstable_Cloud_Kessler "" "erf_exec" "plt00020"
         TEST_FILES_DIR "SHOC_Unstable_Cloud"
         INPUT_FILE "SHOC_Unstable_Cloud.i"
@@ -371,9 +391,9 @@ if(ERF_ENABLE_TESTS AND ERF_ENABLE_MPI)
         LABELS regression shoc microphysics
         TIMEOUT 900)
     add_test_shoc_negative(SHOC_Negative_Disable_Tke_State_Update
-        "erf.shoc.debug_disable_tke_state_update=true" negative_tke)
+        "erf.shoc.debug_disable_tke_state_update=true" negative_tke 7)
     add_test_shoc_negative(SHOC_Negative_Disable_Theta_State_Update
-        "erf.shoc.debug_disable_theta_state_update=true" negative_theta)
+        "erf.shoc.debug_disable_theta_state_update=true" negative_theta 8)
 endif()
 
 # These tests will all be built in Exec

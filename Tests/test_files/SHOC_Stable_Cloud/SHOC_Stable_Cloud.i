@@ -24,8 +24,8 @@ zhi.type = "SlipWall"
 
 erf.surface_layer.flux_type = "custom"
 erf.most.ustar = 0.25
-erf.most.tstar = -0.005
-erf.most.qstar = 0.00002
+erf.most.tstar = 0.005
+erf.most.qstar = -0.00002
 erf.most.z0 = 0.10
 erf.most.zref = 10.0
 

@@ -21,8 +21,7 @@ execute_process(
   OUTPUT_FILE "${LOG}"
   ERROR_FILE "${LOG}"
   RESULT_VARIABLE _run_result)
-if(NOT _run_result EQUAL 0 AND
-   NOT (_run_result EQUAL 143 AND EXISTS "${FINAL}"))
+if(NOT _run_result EQUAL 0)
   message(FATAL_ERROR "SHOC simulation failed with exit code ${_run_result}; see ${LOG}")
 endif()
 
@@ -37,15 +36,21 @@ list(APPEND _checker_command
   --midpoint "${MIDPOINT}"
   --final "${FINAL}")
 execute_process(COMMAND ${_checker_command} RESULT_VARIABLE _checker_result)
-if(DEFINED EXPECT_CHECKER_FAILURE AND EXPECT_CHECKER_FAILURE)
-  if(_checker_result EQUAL 0)
-    message(FATAL_ERROR "SHOC negative control unexpectedly passed the property checker")
+if(DEFINED EXPECTED_CHECKER_CODE)
+  if(NOT _checker_result EQUAL EXPECTED_CHECKER_CODE)
+    message(FATAL_ERROR
+      "SHOC property checker returned ${_checker_result}; expected ${EXPECTED_CHECKER_CODE}")
   endif()
-  message(STATUS "SHOC negative control correctly failed the property checker")
+  message(STATUS "SHOC negative control returned expected checker code ${EXPECTED_CHECKER_CODE}")
   return()
 endif()
 if(NOT _checker_result EQUAL 0)
   message(FATAL_ERROR "SHOC property checker failed with exit code ${_checker_result}")
+endif()
+
+if(DEFINED SKIP_GOLD AND SKIP_GOLD)
+  message(STATUS "SHOC property stage passed; gold comparison skipped")
+  return()
 endif()
 
 set(_compare_command "${MPIEXEC}" "${MPIEXEC_NUMPROC_FLAG}" "1")
