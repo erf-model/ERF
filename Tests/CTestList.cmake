@@ -119,10 +119,11 @@ endfunction(add_test_r)
 # add_test_r so existing registrations retain their exact command and
 # fixture behaviour.  TEST_FILES_DIR and INPUT_FILE allow the small SHOC
 # matrix to reuse a physical fixture while keeping unique binary and gold
-# directories.  The checker runs before the standard fcompare gold check.
+# directories.  The checker runs before the selected gold comparison path.
 function(add_test_shoc_r TEST_NAME TEST_DIR TEST_EXE PLTFILE)
     set(options SKIP_GOLD)
-    set(oneValueArgs "TEST_FILES_DIR" "INPUT_FILE" "CHECK_MODE" "RUNTIME_OPTIONS" "TIMEOUT")
+    set(oneValueArgs "TEST_FILES_DIR" "INPUT_FILE" "CHECK_MODE" "RUNTIME_OPTIONS" "TIMEOUT"
+        "GOLD_COMPARISON" "GOLD_MODE")
     set(multiValueArgs "LABELS")
     cmake_parse_arguments(ADD_TEST_SHOC_R "${options}" "${oneValueArgs}"
         "${multiValueArgs}" ${ARGN})
@@ -140,6 +141,11 @@ function(add_test_shoc_r TEST_NAME TEST_DIR TEST_EXE PLTFILE)
     resolve_test_exe("${TEST_DIR}" "${TEST_EXE}" TEST_EXE)
 
     set(test_log "${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.log")
+    if(ADD_TEST_SHOC_R_GOLD_COMPARISON)
+        set(_shoc_gold_comparison "${ADD_TEST_SHOC_R_GOLD_COMPARISON}")
+    else()
+        set(_shoc_gold_comparison "fcompare")
+    endif()
     add_test(${TEST_NAME} ${CMAKE_COMMAND}
         -DMPIEXEC=${MPIEXEC_EXECUTABLE}
         -DMPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}
@@ -156,6 +162,9 @@ function(add_test_shoc_r TEST_NAME TEST_DIR TEST_EXE PLTFILE)
         -DMIDPOINT=${CURRENT_TEST_BINARY_DIR}/plt00010
         -DFINAL=${CURRENT_TEST_BINARY_DIR}/${PLTFILE}
         -DFCOMPARE=${FCOMPARE_EXE}
+        -DGOLD_DIFFERENTIAL=${SHOC_GOLD_DIFFERENTIAL}
+        -DGOLD_COMPARISON=${_shoc_gold_comparison}
+        -DGOLD_MODE=${ADD_TEST_SHOC_R_GOLD_MODE}
         -DRTOL=${ERF_TEST_FCOMPARE_RTOL}
         -DATOL=${ERF_TEST_FCOMPARE_ATOL}
         -DGOLD=${PLOT_GOLD}
@@ -342,22 +351,28 @@ if(ERF_ENABLE_TESTS AND ERF_ENABLE_MPI)
     add_test_shoc_r(SHOC_Stable_Clear "" "erf_exec" "plt00020"
         TEST_FILES_DIR "SHOC_Stable_Clear"
         CHECK_MODE "stable_clear"
+        GOLD_COMPARISON "fcompare"
         LABELS regression shoc
         TIMEOUT 900)
     add_test_shoc_r(SHOC_Stable_Cloud "" "erf_exec" "plt00020"
         TEST_FILES_DIR "SHOC_Stable_Cloud"
         CHECK_MODE "stable_cloud"
+        GOLD_COMPARISON "field_aware"
+        GOLD_MODE "stable_cloud"
         LABELS regression shoc
         TIMEOUT 900)
     add_test_shoc_r(SHOC_Unstable_Clear_BOMEX "" "erf_exec" "plt00020"
         TEST_FILES_DIR "SHOC_Unstable_Clear_BOMEX"
         CHECK_MODE "unstable_clear"
+        GOLD_COMPARISON "fcompare"
         LABELS regression shoc
         TIMEOUT 900)
     add_test_shoc_r(SHOC_Unstable_Cloud_SatAdj "" "erf_exec" "plt00020"
         TEST_FILES_DIR "SHOC_Unstable_Cloud"
         INPUT_FILE "SHOC_Unstable_Cloud.i"
         CHECK_MODE "unstable_cloud"
+        GOLD_COMPARISON "field_aware"
+        GOLD_MODE "unstable_cloud"
         RUNTIME_OPTIONS "erf.moisture_model=SatAdj erf.buoyancy_type=1 "
         LABELS regression shoc microphysics
         TIMEOUT 900)
@@ -365,6 +380,8 @@ if(ERF_ENABLE_TESTS AND ERF_ENABLE_MPI)
         TEST_FILES_DIR "SHOC_Unstable_Cloud"
         INPUT_FILE "SHOC_Unstable_Cloud.i"
         CHECK_MODE "unstable_cloud_nocond"
+        GOLD_COMPARISON "field_aware"
+        GOLD_MODE "unstable_cloud_nocond"
         RUNTIME_OPTIONS "erf.moisture_model=MoistNoCondensation erf.buoyancy_type=1 "
         LABELS regression shoc microphysics
         TIMEOUT 900)
@@ -372,6 +389,8 @@ if(ERF_ENABLE_TESTS AND ERF_ENABLE_MPI)
         TEST_FILES_DIR "SHOC_Unstable_Cloud"
         INPUT_FILE "SHOC_Unstable_Cloud.i"
         CHECK_MODE "unstable_cloud"
+        GOLD_COMPARISON "field_aware"
+        GOLD_MODE "unstable_cloud"
         RUNTIME_OPTIONS "erf.moisture_model=SatAdj erf.buoyancy_type=1 "
         SKIP_GOLD
         LABELS regression shoc microphysics property
@@ -380,6 +399,8 @@ if(ERF_ENABLE_TESTS AND ERF_ENABLE_MPI)
         TEST_FILES_DIR "SHOC_Unstable_Cloud"
         INPUT_FILE "SHOC_Unstable_Cloud.i"
         CHECK_MODE "unstable_cloud_nocond"
+        GOLD_COMPARISON "field_aware"
+        GOLD_MODE "unstable_cloud_nocond"
         RUNTIME_OPTIONS "erf.moisture_model=MoistNoCondensation erf.buoyancy_type=1 "
         SKIP_GOLD
         LABELS regression shoc microphysics property
@@ -388,12 +409,16 @@ if(ERF_ENABLE_TESTS AND ERF_ENABLE_MPI)
         TEST_FILES_DIR "SHOC_Unstable_Cloud"
         INPUT_FILE "SHOC_Unstable_Cloud_Kessler.i"
         CHECK_MODE "unstable_cloud_kessler"
+        GOLD_COMPARISON "field_aware"
+        GOLD_MODE "unstable_cloud_kessler"
         LABELS regression shoc microphysics
         TIMEOUT 900)
     add_test_shoc_r(SHOC_Unstable_Cloud_WSM6 "" "erf_exec" "plt00020"
         TEST_FILES_DIR "SHOC_Unstable_Cloud"
         INPUT_FILE "SHOC_Unstable_Cloud_WSM6.i"
         CHECK_MODE "unstable_cloud_wsm6"
+        GOLD_COMPARISON "field_aware"
+        GOLD_MODE "unstable_cloud_wsm6"
         LABELS regression shoc microphysics
         TIMEOUT 900)
     add_test_shoc_mutation(SHOC_Mutation_Disable_Tke_State_Update

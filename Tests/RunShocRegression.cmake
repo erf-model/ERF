@@ -45,15 +45,35 @@ if(DEFINED SKIP_GOLD AND SKIP_GOLD)
   return()
 endif()
 
+if(NOT DEFINED GOLD_COMPARISON OR "${GOLD_COMPARISON}" STREQUAL "")
+  set(GOLD_COMPARISON "fcompare")
+endif()
+
 set(_compare_command "${MPIEXEC}" "${MPIEXEC_NUMPROC_FLAG}" "1")
 if(DEFINED MPIEXEC_PREFLAGS AND NOT "${MPIEXEC_PREFLAGS}" STREQUAL "")
   list(APPEND _compare_command ${_mpi_preflags})
 endif()
-list(APPEND _compare_command
-  "${FCOMPARE}"
-  --abort_if_not_all_found
-  -a -r "${RTOL}" --abs_tol "${ATOL}"
-  "${GOLD}" "${FINAL}")
+if(GOLD_COMPARISON STREQUAL "fcompare")
+  message(STATUS "SHOC property stage passed; using strict amrex_fcompare gold comparison")
+  list(APPEND _compare_command
+    "${FCOMPARE}"
+    --abort_if_not_all_found
+    -a -r "${RTOL}" --abs_tol "${ATOL}"
+    "${GOLD}" "${FINAL}")
+elseif(GOLD_COMPARISON STREQUAL "field_aware")
+  if(NOT DEFINED GOLD_DIFFERENTIAL OR "${GOLD_DIFFERENTIAL}" STREQUAL "" OR
+     NOT DEFINED GOLD_MODE OR "${GOLD_MODE}" STREQUAL "")
+    message(FATAL_ERROR "field_aware gold comparison requires GOLD_DIFFERENTIAL and GOLD_MODE")
+  endif()
+  message(STATUS "SHOC property stage passed; using field-aware gold comparison mode ${GOLD_MODE}")
+  list(APPEND _compare_command
+    "${GOLD_DIFFERENTIAL}"
+    --mode "${GOLD_MODE}"
+    --gold "${GOLD}"
+    --candidate "${FINAL}")
+else()
+  message(FATAL_ERROR "unknown SHOC gold comparison path '${GOLD_COMPARISON}'")
+endif()
 execute_process(COMMAND ${_compare_command} RESULT_VARIABLE _compare_result)
 if(NOT _compare_result EQUAL 0)
   message(FATAL_ERROR "SHOC gold comparison failed with exit code ${_compare_result}")
