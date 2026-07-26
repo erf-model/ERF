@@ -3,7 +3,8 @@ cmake_minimum_required(VERSION 3.24)
 foreach(required_argument
     MPIEXEC MPIEXEC_NUMPROC_FLAG NRANKS TEST_EXE
     BASELINE_INPUT MUTANT_INPUT BASELINE_WORKING_DIRECTORY MUTANT_WORKING_DIRECTORY
-    BASELINE_LOG MUTANT_LOG CHECKER TARGET_FIELD THRESHOLD)
+    BASELINE_LOG MUTANT_LOG CHECKER TARGET_FIELD MIN_FINAL_DIFFERENCE
+    MIN_BASELINE_EVOLUTION MAX_MUTANT_TO_BASELINE_EVOLUTION_RATIO)
     if(NOT DEFINED ${required_argument} OR "${${required_argument}}" STREQUAL "")
         message(FATAL_ERROR
             "RunShocMutationRegression.cmake requires ${required_argument}")
@@ -68,7 +69,9 @@ endif()
 list(APPEND check_command
     "${CHECKER}"
     --field "${TARGET_FIELD}"
-    --threshold "${THRESHOLD}"
+    --min-final-difference "${MIN_FINAL_DIFFERENCE}"
+    --min-baseline-evolution "${MIN_BASELINE_EVOLUTION}"
+    --max-mutant-to-baseline-evolution-ratio "${MAX_MUTANT_TO_BASELINE_EVOLUTION_RATIO}"
     --baseline-initial "${BASELINE_WORKING_DIRECTORY}/plt00000"
     --mutant-initial "${MUTANT_WORKING_DIRECTORY}/plt00000"
     --baseline-final "${BASELINE_WORKING_DIRECTORY}/plt00020"

@@ -180,7 +180,8 @@ function(add_test_shoc_r TEST_NAME TEST_DIR TEST_EXE PLTFILE)
         ATTACHED_FILES_ON_FAIL "${test_log}")
 endfunction(add_test_shoc_r)
 
-function(add_test_shoc_mutation TEST_NAME MUTATION_OPTION TARGET_FIELD)
+function(add_test_shoc_mutation TEST_NAME MUTATION_OPTION TARGET_FIELD
+        MIN_FINAL_DIFFERENCE MIN_BASELINE_EVOLUTION MAX_MUTANT_TO_BASELINE_EVOLUTION_RATIO)
     set(TEST_FILES_DIR "SHOC_Stable_Clear")
     setup_test()
     resolve_test_exe("" "erf_exec" TEST_EXE)
@@ -208,7 +209,9 @@ function(add_test_shoc_mutation TEST_NAME MUTATION_OPTION TARGET_FIELD)
         -DMUTANT_LOG=${_mutant_log}
         -DCHECKER=${SHOC_MUTATION_DIFFERENTIAL}
         -DTARGET_FIELD=${TARGET_FIELD}
-        -DTHRESHOLD=1.0e-4
+        -DMIN_FINAL_DIFFERENCE=${MIN_FINAL_DIFFERENCE}
+        -DMIN_BASELINE_EVOLUTION=${MIN_BASELINE_EVOLUTION}
+        -DMAX_MUTANT_TO_BASELINE_EVOLUTION_RATIO=${MAX_MUTANT_TO_BASELINE_EVOLUTION_RATIO}
         -P ${PROJECT_SOURCE_DIR}/Tests/RunShocMutationRegression.cmake)
     set_tests_properties(${TEST_NAME}
         PROPERTIES
@@ -384,19 +387,21 @@ if(ERF_ENABLE_TESTS AND ERF_ENABLE_MPI)
     add_test_shoc_r(SHOC_Unstable_Cloud_Kessler "" "erf_exec" "plt00020"
         TEST_FILES_DIR "SHOC_Unstable_Cloud"
         INPUT_FILE "SHOC_Unstable_Cloud_Kessler.i"
-        CHECK_MODE "unstable_cloud"
+        CHECK_MODE "unstable_cloud_kessler"
         LABELS regression shoc microphysics
         TIMEOUT 900)
     add_test_shoc_r(SHOC_Unstable_Cloud_WSM6 "" "erf_exec" "plt00020"
         TEST_FILES_DIR "SHOC_Unstable_Cloud"
         INPUT_FILE "SHOC_Unstable_Cloud_WSM6.i"
-        CHECK_MODE "unstable_cloud"
+        CHECK_MODE "unstable_cloud_wsm6"
         LABELS regression shoc microphysics
         TIMEOUT 900)
     add_test_shoc_mutation(SHOC_Mutation_Disable_Tke_State_Update
-        "erf.shoc.debug_disable_tke_state_update=true" rhoKE)
+        "erf.shoc.debug_disable_tke_state_update=true" rhoKE
+        1.0e-3 1.0e-3 0.10)
     add_test_shoc_mutation(SHOC_Mutation_Disable_Theta_State_Update
-        "erf.shoc.debug_disable_theta_state_update=true" theta)
+        "erf.shoc.debug_disable_theta_state_update=true" theta
+        1.0e-2 1.0e-2 0.05)
 endif()
 
 # These tests will all be built in Exec

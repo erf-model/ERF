@@ -22,7 +22,9 @@ struct Arguments {
     std::string mutant_initial;
     std::string baseline_final;
     std::string mutant_final;
-    Real threshold = 0.0;
+    Real min_final_difference = 0.0;
+    Real min_baseline_evolution = 0.0;
+    Real max_mutant_to_baseline_evolution_ratio = 0.0;
 };
 
 // Paired mutation tests compare only fields that are valid in the initial
@@ -51,16 +53,53 @@ Real maximum_difference (const MultiFab& lhs, const MultiFab& rhs)
     return difference.norm0();
 }
 
-bool read_arguments (int argc, char** argv, Arguments& args)
+bool parse_real (const std::string& text, Real& value)
 {
+    try {
+        std::size_t consumed = 0;
+        const double parsed = std::stod(text, &consumed);
+        if (consumed != text.size() || !std::isfinite(parsed)) {
+            return false;
+        }
+        value = static_cast<Real>(parsed);
+    } catch (...) {
+        return false;
+    }
+    return true;
+}
+
+bool read_arguments (int argc, char** argv, Arguments& args, std::string& error)
+{
+    bool have_min_final_difference = false;
+    bool have_min_baseline_evolution = false;
+    bool have_max_ratio = false;
     for (int i = 1; i < argc; ++i) {
         const std::string option(argv[i]);
-        if (i + 1 >= argc) return false;
+        if (i + 1 >= argc) {
+            error = "missing value after " + option;
+            return false;
+        }
         const std::string value(argv[++i]);
         if (option == "--field") {
             args.field = value;
-        } else if (option == "--threshold") {
-            args.threshold = std::stod(value);
+        } else if (option == "--min-final-difference") {
+            have_min_final_difference = parse_real(value, args.min_final_difference);
+            if (!have_min_final_difference) {
+                error = "invalid --min-final-difference value '" + value + "'";
+                return false;
+            }
+        } else if (option == "--min-baseline-evolution") {
+            have_min_baseline_evolution = parse_real(value, args.min_baseline_evolution);
+            if (!have_min_baseline_evolution) {
+                error = "invalid --min-baseline-evolution value '" + value + "'";
+                return false;
+            }
+        } else if (option == "--max-mutant-to-baseline-evolution-ratio") {
+            have_max_ratio = parse_real(value, args.max_mutant_to_baseline_evolution_ratio);
+            if (!have_max_ratio) {
+                error = "invalid --max-mutant-to-baseline-evolution-ratio value '" + value + "'";
+                return false;
+            }
         } else if (option == "--baseline-initial") {
             args.baseline_initial = value;
         } else if (option == "--mutant-initial") {
@@ -70,12 +109,30 @@ bool read_arguments (int argc, char** argv, Arguments& args)
         } else if (option == "--mutant-final") {
             args.mutant_final = value;
         } else {
+            error = "unknown option '" + option + "'";
             return false;
         }
     }
-    return !args.field.empty() && args.threshold > 0.0 &&
-           !args.baseline_initial.empty() && !args.mutant_initial.empty() &&
-           !args.baseline_final.empty() && !args.mutant_final.empty();
+    if (args.field.empty() || args.baseline_initial.empty() || args.mutant_initial.empty() ||
+        args.baseline_final.empty() || args.mutant_final.empty() ||
+        !have_min_final_difference || !have_min_baseline_evolution || !have_max_ratio) {
+        error = "missing required mutation argument";
+        return false;
+    }
+    if (args.min_final_difference <= 0.0) {
+        error = "--min-final-difference must be positive";
+        return false;
+    }
+    if (args.min_baseline_evolution <= 0.0) {
+        error = "--min-baseline-evolution must be positive";
+        return false;
+    }
+    if (args.max_mutant_to_baseline_evolution_ratio <= 0.0 ||
+        args.max_mutant_to_baseline_evolution_ratio >= 1.0) {
+        error = "--max-mutant-to-baseline-evolution-ratio must be between zero and one";
+        return false;
+    }
+    return true;
 }
 
 bool check_finite_fields (PlotFileData& plotfile,
@@ -95,6 +152,53 @@ bool check_finite_fields (PlotFileData& plotfile,
     return true;
 }
 
+bool check_physical_final_state (PlotFileData& plotfile, const std::string& label)
+{
+    constexpr Real allowance = 1.0e-12;
+    for (const auto& field : {"density", "temp", "theta", "pressure"}) {
+        const Real minimum = plotfile.get(0, field).min(0, 0, false);
+        if (minimum <= 0.0) {
+            std::cerr << label << " field '" << field
+                      << "' has non-positive minimum " << minimum << "\n";
+            return false;
+        }
+    }
+    for (const auto& field : {"qv", "qc", "rhoKE"}) {
+        const Real minimum = plotfile.get(0, field).min(0, 0, false);
+        if (minimum < -allowance) {
+            std::cerr << label << " field '" << field
+                      << "' is below the allowed roundoff floor: minimum="
+                      << minimum << ", allowance=" << allowance << "\n";
+            return false;
+        }
+    }
+    return true;
+}
+
+bool check_compatible_layout (const MultiFab& lhs,
+                              const MultiFab& rhs,
+                              const std::string& context)
+{
+    if (lhs.nComp() < 1 || rhs.nComp() < 1) {
+        std::cerr << context << " has a field with no components\n";
+        return false;
+    }
+    if (lhs.nComp() != rhs.nComp()) {
+        std::cerr << context << " has component-count mismatch: "
+                  << lhs.nComp() << " versus " << rhs.nComp() << "\n";
+        return false;
+    }
+    if (lhs.boxArray() != rhs.boxArray()) {
+        std::cerr << context << " has BoxArray mismatch\n";
+        return false;
+    }
+    if (lhs.DistributionMap() != rhs.DistributionMap()) {
+        std::cerr << context << " has DistributionMapping mismatch\n";
+        return false;
+    }
+    return true;
+}
+
 } // namespace
 
 int
@@ -103,8 +207,12 @@ main (int argc, char** argv)
     amrex::Initialize(argc, argv, false);
 
     Arguments args;
-    if (!read_arguments(argc, argv, args)) {
-        std::cerr << "usage: --field FIELD --threshold VALUE "
+    std::string argument_error;
+    if (!read_arguments(argc, argv, args, argument_error)) {
+        std::cerr << "SHOC mutation checker argument error: " << argument_error << "\n"
+                  << "usage: --field FIELD --min-final-difference VALUE "
+                     "--min-baseline-evolution VALUE "
+                     "--max-mutant-to-baseline-evolution-ratio VALUE "
                      "--baseline-initial PF --mutant-initial PF "
                      "--baseline-final PF --mutant-final PF\n";
         amrex::Finalize();
@@ -118,19 +226,38 @@ main (int argc, char** argv)
 
     if (!check_finite_fields(baseline_initial, host_state_fields(), "baseline initial") ||
         !check_finite_fields(mutant_initial, host_state_fields(), "mutant initial") ||
-        !check_finite_fields(baseline_final, {args.field}, "baseline final") ||
-        !check_finite_fields(mutant_final, {args.field}, "mutant final")) {
+        !check_finite_fields(baseline_final, host_state_fields(), "baseline final") ||
+        !check_finite_fields(mutant_final, host_state_fields(), "mutant final") ||
+        !check_physical_final_state(baseline_final, "baseline final") ||
+        !check_physical_final_state(mutant_final, "mutant final")) {
         amrex::Finalize();
         return EXIT_FAILURE;
     }
 
     constexpr Real initial_tolerance = 2.0e-10;
-    constexpr Real reduction_factor = 0.5;
     Real maximum_initial_difference = 0.0;
     for (const auto& field : host_state_fields()) {
+        if (!check_compatible_layout(
+                baseline_initial.get(0, field), mutant_initial.get(0, field),
+                "baseline/mutant initial field '" + field + "'") ||
+            !check_compatible_layout(
+                baseline_initial.get(0, field), baseline_final.get(0, field),
+                "baseline initial/final field '" + field + "'") ||
+            !check_compatible_layout(
+                mutant_initial.get(0, field), mutant_final.get(0, field),
+                "mutant initial/final field '" + field + "'")) {
+            amrex::Finalize();
+            return EXIT_FAILURE;
+        }
         maximum_initial_difference = std::max(
             maximum_initial_difference,
             maximum_difference(baseline_initial.get(0, field), mutant_initial.get(0, field)));
+    }
+    if (!check_compatible_layout(
+            baseline_final.get(0, args.field), mutant_final.get(0, args.field),
+            "baseline/mutant final target field '" + args.field + "'")) {
+        amrex::Finalize();
+        return EXIT_FAILURE;
     }
     if (maximum_initial_difference > initial_tolerance) {
         std::cerr << "paired mutation initial states differ by "
@@ -151,16 +278,32 @@ main (int argc, char** argv)
                    << " final_difference=" << final_difference
                    << " baseline_evolution=" << baseline_evolution
                    << " mutant_evolution=" << mutant_evolution
-                   << " threshold=" << args.threshold << "\n";
+                   << " min_final_difference=" << args.min_final_difference
+                   << " min_baseline_evolution=" << args.min_baseline_evolution
+                   << " max_mutant_to_baseline_evolution_ratio="
+                   << args.max_mutant_to_baseline_evolution_ratio << "\n";
 
-    if (final_difference <= args.threshold) {
-        std::cerr << "debug mutation did not materially change " << args.field << "\n";
+    if (final_difference < args.min_final_difference) {
+        std::cerr << "debug mutation final difference for '" << args.field
+                  << "' is below the configured minimum: observed=" << final_difference
+                  << ", minimum=" << args.min_final_difference << "\n";
         amrex::Finalize();
         return EXIT_FAILURE;
     }
-    if (mutant_evolution >= reduction_factor * baseline_evolution) {
-        std::cerr << "debug mutation did not reduce " << args.field
-                  << " evolution by the required factor\n";
+    if (baseline_evolution < args.min_baseline_evolution) {
+        std::cerr << "baseline evolution for '" << args.field
+                  << "' is below the configured minimum: observed=" << baseline_evolution
+                  << ", minimum=" << args.min_baseline_evolution << "\n";
+        amrex::Finalize();
+        return EXIT_FAILURE;
+    }
+    if (mutant_evolution >
+        args.max_mutant_to_baseline_evolution_ratio * baseline_evolution) {
+        std::cerr << "debug mutation mutant evolution for '" << args.field
+                  << "' exceeds the configured baseline ratio: mutant=" << mutant_evolution
+                  << ", baseline=" << baseline_evolution
+                  << ", ratio_limit="
+                  << args.max_mutant_to_baseline_evolution_ratio << "\n";
         amrex::Finalize();
         return EXIT_FAILURE;
     }

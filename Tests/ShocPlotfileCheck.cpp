@@ -169,11 +169,59 @@ check_optional_hydrometeors (PlotFileData& plotfile,
     return true;
 }
 
+// Scheme-specific fixtures must name their hydrometeor inventory explicitly;
+// otherwise a future fixture/gold edit could make an optional loop vacuous.
+bool
+check_required_hydrometeors (PlotFileData& plotfile,
+                             const std::vector<std::string>& required,
+                             const std::string& label,
+                             CheckCode& code,
+                             std::string& error)
+{
+    for (const auto& name : required) {
+        if (!has_variable(plotfile, name)) {
+            code = kMissingField;
+            error = label + " is missing required hydrometeor field '" + name + "'";
+            return false;
+        }
+        const MultiFab field = plotfile.get(0, name);
+        if (!field.is_finite(0, 1, 0, false)) {
+            code = kInvalidField;
+            error = label + " hydrometeor field '" + name + "' contains a non-finite value";
+            return false;
+        }
+        const Real minimum = plotfile.get(0, name).min(0, 0, false);
+        if (minimum < -1.0e-12) {
+            code = kInvalidField;
+            error = label + " hydrometeor field '" + name + "' has minimum " +
+                    std::to_string(minimum) + ", below allowed negative roundoff";
+            return false;
+        }
+    }
+    return true;
+}
+
+std::vector<std::string>
+required_hydrometeors_for_mode (const std::string& mode)
+{
+    if (mode == "unstable_cloud_kessler") {
+        return {"qrain"};
+    }
+    if (mode == "unstable_cloud_wsm6") {
+        return {"qi", "qrain", "qsnow", "qgraup"};
+    }
+    return {};
+}
+
 // Check the host state that is meaningful at initialization.  Native SHOC
 // diagnostics are intentionally absent here: the first plotfile is written
 // before the SHOC driver has diagnosed its PDF and transport fields.
 bool
-check_initial_state (PlotFileData& plotfile, CheckCode& code, std::string& error)
+check_initial_state (PlotFileData& plotfile,
+                     const std::string& label,
+                     const std::vector<std::string>& required_hydrometeors,
+                     CheckCode& code,
+                     std::string& error)
 {
     const std::vector<std::string> required {
         "density", "temp", "theta", "pressure", "qv", "qc", "rhoKE",
@@ -197,6 +245,10 @@ check_initial_state (PlotFileData& plotfile, CheckCode& code, std::string& error
         }
     }
 
+    if (!required_hydrometeors.empty()) {
+        return check_required_hydrometeors(
+            plotfile, required_hydrometeors, label, code, error);
+    }
     return check_optional_hydrometeors(plotfile, code, error);
 }
 
@@ -260,9 +312,14 @@ check_available_shoc_diagnostics (PlotFileData& plotfile,
 // Check a saved state after SHOC has run: host-state validity, available
 // native diagnostics, and any selected scheme-specific hydrometeors.
 bool
-check_post_shoc_state (PlotFileData& plotfile, CheckCode& code, std::string& error)
+check_post_shoc_state (PlotFileData& plotfile,
+                       const std::string& label,
+                       const std::vector<std::string>& required_hydrometeors,
+                       CheckCode& code,
+                       std::string& error)
 {
-    return check_initial_state(plotfile, code, error) &&
+    return check_initial_state(
+               plotfile, label, required_hydrometeors, code, error) &&
            check_available_shoc_diagnostics(plotfile, code, error);
 }
 
@@ -364,7 +421,9 @@ check_regime (const Arguments& args,
     }
 
     if (args.mode == "stable_cloud" || args.mode == "unstable_cloud" ||
-        args.mode == "unstable_cloud_nocond") {
+        args.mode == "unstable_cloud_nocond" ||
+        args.mode == "unstable_cloud_kessler" ||
+        args.mode == "unstable_cloud_wsm6") {
         const Real qc_initial = initial.get(0, "qc").max(0, 0, false);
         const Real qc_midpoint = midpoint.get(0, "qc").max(0, 0, false);
         const Real qc_final = final.get(0, "qc").max(0, 0, false);
@@ -418,12 +477,16 @@ main (int argc, char** argv)
     std::string error;
     bool ok = read_arguments(argc, argv, args);
     if (ok) {
+        const auto required_hydrometeors = required_hydrometeors_for_mode(args.mode);
         PlotFileData initial(args.initial);
         PlotFileData midpoint(args.midpoint);
         PlotFileData final(args.final);
-        ok = check_initial_state(initial, code, error) &&
-             check_post_shoc_state(midpoint, code, error) &&
-             check_post_shoc_state(final, code, error) &&
+        ok = check_initial_state(
+                 initial, "initial", required_hydrometeors, code, error) &&
+             check_post_shoc_state(
+                 midpoint, "midpoint", required_hydrometeors, code, error) &&
+             check_post_shoc_state(
+                 final, "final", required_hydrometeors, code, error) &&
              check_regime(args, initial, midpoint, final, code, error);
         if (ok) code = kSuccess;
     }
