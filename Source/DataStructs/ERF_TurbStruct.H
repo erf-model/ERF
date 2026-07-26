@@ -7,7 +7,7 @@ AMREX_ENUM(LESType, None, Smagorinsky, Smagorinsky2D, Deardorff);
 
 AMREX_ENUM(RANSType, None, kEqn);
 
-AMREX_ENUM(PBLType, None, MYJ, MYNN25, MYNNEDMF, YSU, MRF, SHOC, EAMXX_SHOC, NATIVE_SHOC);
+AMREX_ENUM(PBLType, None, MYJ, MYNN25, MYNNEDMF, YSU, YSUNew, MRF, SHOC, EAMXX_SHOC, NATIVE_SHOC);
 
 AMREX_ENUM(StratType, theta, thetav, thetal);
 
@@ -155,7 +155,7 @@ public:
           pp, "pbl_mynn_SHmax", pbl_mynn.SHmax, lev, max_level);
         query_one_or_per_level(
           pp, "pbl_mynn_SQfactor", pbl_mynn.SQfac, lev, max_level);
-      } else if (pbl_type == PBLType::YSU) {
+      } else if (pbl_type == PBLType::YSU || pbl_type == PBLType::YSUNew) {
         query_one_or_per_level(
           pp, "pbl_ysu_coriolis_freq", pbl_ysu_coriolis_freq, lev, max_level);
         query_one_or_per_level(
@@ -168,6 +168,28 @@ public:
           pp, "pbl_ysu_land_Ribcr", pbl_ysu_land_Ribcr, lev, max_level);
         query_one_or_per_level(
           pp, "pbl_ysu_unst_Ribcr", pbl_ysu_unst_Ribcr, lev, max_level);
+        query_one_or_per_level(
+          pp, "enable_ysu_liquid_theta", enable_ysu_liquid_theta, lev, max_level);
+        query_one_or_per_level(
+          pp, "enable_ysu_countergradient", enable_ysu_countergradient, lev, max_level);
+        query_one_or_per_level(
+          pp, "enable_ysu_terrain_pblh_floor", enable_ysu_terrain_pblh_floor, lev, max_level);
+        query_one_or_per_level(
+          pp, "enable_ysu_sat_limiter", enable_ysu_sat_limiter, lev, max_level);
+        query_one_or_per_level(
+          pp, "enable_ysu_topdown", enable_ysu_topdown, lev, max_level);
+        query_one_or_per_level(
+          pp, "enable_ysu_entrainment", enable_ysu_entrainment, lev, max_level);
+        query_one_or_per_level(
+          pp, "enable_ysu_cloud_pblh", enable_ysu_cloud_pblh, lev, max_level);
+        query_one_or_per_level(
+          pp, "enable_mrf_unbounded_vpert", enable_mrf_unbounded_vpert, lev, max_level);
+        query_one_or_per_level(
+          pp, "ysu_qcloud_threshold", ysu_qcloud_threshold, lev, max_level);
+        query_one_or_per_level(
+          pp, "ysu_moistvars", ysu_moistvars, lev, max_level);
+        query_one_or_per_level(
+          pp, "pbl_ysunew_highres_bounds", pbl_ysunew_highres_bounds, lev, max_level);
       } else if (pbl_type == PBLType::MRF) {
         query_one_or_per_level(
           pp, "pbl_mrf_coriolis_freq", pbl_mrf_coriolis_freq, lev, max_level);
@@ -188,6 +210,15 @@ public:
           pp, "enable_mrf_unbounded_vpert", enable_mrf_unbounded_vpert, lev, max_level);
         query_one_or_per_level(
           pp, "pbl_mrf_use_zero_ri_extent", pbl_mrf_use_zero_ri_extent, lev, max_level);
+        // Scale-aware PBL-LES blending parameters.
+        query_one_or_per_level(
+          pp, "pbl_blend_length", pbl_blend_length, lev, max_level);
+        query_one_or_per_level(
+          pp, "pbl_blend_cs", pbl_blend_cs, lev, max_level);
+        query_one_or_per_level(
+          pp, "pbl_blend_c_max", pbl_blend_c_max, lev, max_level);
+        query_one_or_per_level(
+          pp, "pbl_blend_use_smag", pbl_blend_use_smag, lev, max_level);
       } else if (pbl_type == PBLType::SHOC) {
 #ifndef ERF_USE_SHOC
           amrex::Abort("You set use_shoc to true but didn't build with SHOC; you must rebuild the executable");
@@ -345,6 +376,8 @@ public:
       amrex::Print() << "    Using MYNNEDMF PBL model at level " << lev << std::endl;
     } else if (pbl_type == PBLType::YSU) {
       amrex::Print() << "    Using YSU PBL model at level " << lev << std::endl;
+    } else if (pbl_type == PBLType::YSUNew) {
+      amrex::Print() << "    Using YSU PBL model at level " << lev << std::endl;
     } else if (pbl_type == PBLType::MRF) {
       amrex::Print() << "    Using MRF PBL model at level " << lev << std::endl;
     } else if (pbl_type == PBLType::EAMXX_SHOC) {
@@ -409,17 +442,39 @@ public:
       amrex::Print() << "    pbl_mynn_C3 : " << pbl_mynn.C3 << std::endl;
       amrex::Print() << "    pbl_mynn_C4 : " << pbl_mynn.C4 << std::endl;
       amrex::Print() << "    pbl_mynn_C5 : " << pbl_mynn.C5 << std::endl;
-    } else if (pbl_type == PBLType::YSU) {
-      amrex::Print() << "    pbl_ysu_coriolis_freq           : "
+    } else if (pbl_type == PBLType::YSU || pbl_type == PBLType::YSUNew) {
+      amrex::Print() << "    pbl_ysu_coriolis_freq              : "
                      << pbl_ysu_coriolis_freq << std::endl;
-      amrex::Print() << "    pbl_ysu_use_consistent_coriolis : "
+      amrex::Print() << "    pbl_ysu_use_consistent_coriolis    : "
                      << pbl_ysu_use_consistent_coriolis << std::endl;
-      amrex::Print() << "    pbl_ysu_force_over_water        : "
+      amrex::Print() << "    pbl_ysu_force_over_water           : "
                      << pbl_ysu_force_over_water << std::endl;
-      amrex::Print() << "    pbl_ysu_land_Ribcr              : "
+      amrex::Print() << "    pbl_ysu_land_Ribcr                 : "
                      << pbl_ysu_land_Ribcr << std::endl;
-      amrex::Print() << "    pbl_ysu_unst_Ribcr              : "
+      amrex::Print() << "    pbl_ysu_unst_Ribcr                 : "
                      << pbl_ysu_unst_Ribcr << std::endl;
+      amrex::Print() << "    enable_ysu_liquid_theta            : "
+                     << enable_ysu_liquid_theta << std::endl;
+      amrex::Print() << "    enable_ysu_countergradient         : "
+                     << enable_ysu_countergradient << std::endl;
+      amrex::Print() << "    enable_ysu_terrain_pblh_floor      : "
+                     << enable_ysu_terrain_pblh_floor << std::endl;
+      amrex::Print() << "    enable_ysu_sat_limiter             : "
+                     << enable_ysu_sat_limiter << std::endl;
+      amrex::Print() << "    enable_ysu_topdown                 : "
+                     << enable_ysu_topdown << std::endl;
+      amrex::Print() << "    enable_ysu_entrainment             : "
+                     << enable_ysu_entrainment << std::endl;
+      amrex::Print() << "    enable_ysu_cloud_pblh              : "
+                     << enable_ysu_cloud_pblh << std::endl;
+      amrex::Print() << "    ysu_qcloud_threshold               : "
+                     << ysu_qcloud_threshold << std::endl;
+      amrex::Print() << "    ysu_moistvars                      : "
+                     << ysu_moistvars << std::endl;
+      amrex::Print() << "    pbl_ysunew_highres_bounds          : "
+                     << pbl_ysunew_highres_bounds << std::endl;
+      amrex::Print() << "    enable_mrf_unbounded_vpert         : "
+                     << enable_mrf_unbounded_vpert << std::endl;
     } else if (pbl_type == PBLType::MRF) {
       amrex::Print() << "    pbl_mrf_coriolis_freq : " << pbl_mrf_coriolis_freq
                      << std::endl;
@@ -440,6 +495,14 @@ public:
       amrex::Print() << "    enable_mrf_unbounded_vpert : " << enable_mrf_unbounded_vpert
                      << std::endl;
       amrex::Print() << "    pbl_mrf_use_zero_ri_extent : " << pbl_mrf_use_zero_ri_extent
+                     << std::endl;
+      amrex::Print() << "    pbl_blend_length   : " << pbl_blend_length
+                     << std::endl;
+      amrex::Print() << "    pbl_blend_cs       : " << pbl_blend_cs
+                     << std::endl;
+      amrex::Print() << "    pbl_blend_c_max    : " << pbl_blend_c_max
+                     << std::endl;
+      amrex::Print() << "    pbl_blend_use_smag : " << pbl_blend_use_smag
                      << std::endl;
     }
   }
@@ -514,6 +577,7 @@ public:
       return (pbl_type == PBLType::MYNN25)   ||
              (pbl_type == PBLType::MYNNEDMF) ||
              (pbl_type == PBLType::YSU)      ||
+             (pbl_type == PBLType::YSUNew)      ||
              (pbl_type == PBLType::MRF)       ||
              uses_shoc_family();
   }
@@ -558,11 +622,36 @@ public:
     fourth; // Critical Bulk Richardson number of Land for stable conditions
   amrex::Real pbl_ysu_unst_Ribcr =
     zero; // Critical Bulk Richardson number for unstable conditions
+  bool enable_ysu_liquid_theta =
+    true; // if true, use liquid-water virtual potential temperature in YSU stability
+  bool enable_ysu_countergradient =
+    true; // if true, apply YSU-style HGAMT/HGAMQ/HGAMU/HGAMV countergradient correction
+  bool enable_ysu_terrain_pblh_floor =
+    true; // if true, apply terrain-following floor on PBL height
+  bool enable_ysu_sat_limiter =
+    false; // if true, apply saturation limiter to moisture countergradient
+  bool enable_ysu_topdown =
+    true; // if true, enable top-down mixing for cloud-topped boundary layers
+  bool enable_ysu_entrainment =
+    true; // if true, enable entrainment layer parameterization
+  bool enable_ysu_cloud_pblh =
+    true; // if true, enable cloud-based PBL height detection
+  amrex::Real ysu_qcloud_threshold =
+    amrex::Real(1.0e-4); // Cloud liquid water threshold for YSUNew (kg/kg)
+  bool ysu_moistvars = false; // if true, adds turbulence to moisture
+  bool pbl_ysunew_highres_bounds = false; // if true, apply high-resolution grid-dependent diffusivity bounds
   // Model coefficients - MRF
   amrex::Real pbl_mrf_coriolis_freq = amrex::Real(1.0e-4);
   amrex::Real pbl_mrf_Ribcr   = amrex::Real(0.5); // Critical Bulk Richardson number for MRF PBL model
   amrex::Real pbl_mrf_const_b = amrex::Real(7.8); // Constant b in MRF PBL model, used to compute the PBL height
   amrex::Real pbl_mrf_sf      = amrex::Real(0.1); // MRF surface flux, used to compute the PBL height
+  // Scale-aware PBL-LES blending parameters.
+  // Boutle et al. (2014): https://doi.org/10.1175/MWR-D-13-00229.1
+  // Set pbl_blend_length = 0 to disable (default). Recovers original behaviour.
+  amrex::Real pbl_blend_length   = amrex::Real(0.0);   ///< Boutle blending length L [m]. 0 = off.
+  amrex::Real pbl_blend_cs       = amrex::Real(0.17);  ///< Smagorinsky coeff for K_h ceiling.
+  amrex::Real pbl_blend_c_max    = amrex::Real(0.1);   ///< Power-law ceiling coeff [m^(2/3)/s].
+  bool        pbl_blend_use_smag = true;               ///< Use Smagorinsky ceiling (else power-law).
   bool mrf_moistvars = false; // if true, adds turbulence to moisture
   bool enable_mrf_countergradient = false; // if true, apply WRF-style HGAMT/HGAMQ correction to PBL height
   bool enable_mrf_cloud_adjustment = false; // if true, apply cloud-aware stability function adjustments in MRF scheme

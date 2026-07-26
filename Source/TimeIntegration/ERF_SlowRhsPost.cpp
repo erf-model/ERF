@@ -26,6 +26,7 @@ using namespace amrex;
  * @param[in   ] yvel y-component of velocity
  * @param[in   ] zvel z-component of velocity
  * @param[in   ] source source terms for conserved variables
+ * @param[in   ] terrain_blank immersed forcing mask
  * @param[in   ] SmnSmn strain rate magnitude
  * @param[in   ] eddyDiffs diffusion coefficients for LES turbulence models
  * @param[in   ] Hfx3 heat flux in z-dir
@@ -61,6 +62,7 @@ void erf_slow_rhs_post (int level, int finest_level,
                         const MultiFab& yvel,
                         const MultiFab& /*zvel*/,
                         const MultiFab& source,
+                              MultiFab* terrain_blank,
                         const MultiFab* SmnSmn,
                         const MultiFab* eddyDiffs,
                         MultiFab* Hfx1, MultiFab* Hfx2, MultiFab* Hfx3,
@@ -255,6 +257,9 @@ void erf_slow_rhs_post (int level, int finest_level,
         const Array4<const Real>& z_nd         = z_phys_nd->const_array(mfi);
         const Array4<const Real>& z_cc         = z_phys_cc->const_array(mfi);
         const Array4<const Real>& detJ_new_arr = l_moving_terrain ? detJ_new->const_array(mfi)    : Array4<const Real>{};
+
+        const Array4<const Real>& t_blank_arr = (terrain_blank) ? terrain_blank->const_array(mfi) :
+                                                                Array4<const Real>{};
 
         // Map factors
         const Array4<const Real>& mf_mx = mapfac[MapFacType::m_x]->const_array(mfi);
@@ -574,16 +579,52 @@ void erf_slow_rhs_post (int level, int finest_level,
 
         {
         BL_PROFILE("rhs_post_10()");
-        ParallelFor(xtbx, ytbx, ztbx,
-        [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-            new_xmom(i,j,k) = cur_xmom(i,j,k);
-        },
-        [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-            new_ymom(i,j,k) = cur_ymom(i,j,k);
-        },
-        [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-            new_zmom(i,j,k) = cur_zmom(i,j,k);
-        });
+        if (l_anelastic && terrain_blank) { // explicitly set fully immersed cells to have 0 velocities for anelastic (unstable for fully compressible).
+            ParallelFor(xtbx, ytbx, ztbx,
+            [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                Real t_blank       = myhalf * (t_blank_arr(i, j, k  ) + t_blank_arr(i-1, j, k  ));
+                if (t_blank == one) {
+                    new_xmom(i,j,k) = zero;
+                } else {
+                    new_xmom(i,j,k) = cur_xmom(i,j,k);
+                }
+            },
+            [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                Real t_blank       = myhalf* (t_blank_arr(i, j, k  ) + t_blank_arr(i, j-1, k  ));
+                if (t_blank == one) {
+                    new_ymom(i,j,k) = zero;
+                } else {
+                    new_ymom(i,j,k) = cur_ymom(i,j,k);
+                }
+            },
+            [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                Real t_blank       = myhalf * (t_blank_arr(i, j, k  ) + t_blank_arr(i, j, k-1));
+                if (t_blank == one) {
+                    new_zmom(i,j,k) = zero;
+                } else {
+                    new_zmom(i,j,k) = cur_zmom(i,j,k);
+                }
+            });
+            ParallelFor(tbx,
+            [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                Real t_blank       = t_blank_arr(i, j, k  );
+                if (t_blank == one) { // don't update rho and theta for fully immersed cells
+                    new_cons(i, j, k, Rho_comp)      = old_cons(i, j, k, Rho_comp);
+                    new_cons(i, j, k, RhoTheta_comp) = old_cons(i, j, k, RhoTheta_comp);
+                }
+            });
+        } else {
+            ParallelFor(xtbx, ytbx, ztbx,
+            [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                new_xmom(i,j,k) = cur_xmom(i,j,k);
+            },
+            [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                new_ymom(i,j,k) = cur_ymom(i,j,k);
+            },
+            [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                new_zmom(i,j,k) = cur_zmom(i,j,k);
+            });
+        }
         } // end profile
 
         {

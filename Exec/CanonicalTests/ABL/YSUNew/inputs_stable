@@ -1,0 +1,91 @@
+# ------------------  INPUTS TO MAIN PROGRAM  -------------------
+# Stable Atmospheric Boundary Layer Test Case - YSUNew Scheme
+# 
+# Stable conditions characterized by:
+#   - Strong negative surface heat flux (cooling)
+#   - Statically stable stratification (dθ/dz > 0)
+#   - Weak mixing and oscillatory motion
+#   - Inertial oscillations due to Coriolis (geostrophic wind balance)
+#   - Sharp PBL-free atmosphere interface
+#   - Very limited vertical mixing (low diffusivity)
+#
+# This case tests YSUNew performance in stable conditions where:
+# - Countergradient corrections have minimal effect
+# - Stability damping dominates
+# - Richardson number mixing is weak in PBL
+# - Accurate prediction of very shallow PBL is critical
+
+erf.prob_name = "ABL"
+
+max_step = 100
+
+amrex.fpe_trap_invalid = 0
+
+fabarray.mfiter_tile_size = 1024 1024 1024
+
+# PROBLEM SIZE & GEOMETRY
+geometry.prob_extent = 4000  4000  2000
+amr.n_cell           =  4   4   64
+geometry.is_periodic = 1 1 0
+
+# MOST BOUNDARY - Strong surface cooling
+zlo.type = "surface_layer"
+erf.most.z0   = 0.1      # roughness length [m]
+erf.most.zref = 10.0     # reference height [m]
+erf.most.surf_temp = 265.0      # surface temperature [K] (very cold)
+erf.most.surf_heating_rate = -0.25  # strong cooling rate [K/h]
+
+# Upper boundary - capping inversion
+zhi.type = "SlipWall"
+zhi.theta_grad = 0.01   # strong stable layer [K/m]
+
+# TIME STEP CONTROL
+erf.fixed_dt = 0.05  # time step [s]
+
+# DIAGNOSTICS & VERBOSITY
+erf.sum_interval   = 1       # timesteps between computing mass
+erf.v              = 1       # verbosity in ERF.cpp
+amr.v              = 1       # verbosity in Amr.cpp
+
+# planar averaging
+erf.data_log    = stable_hist.dat stable_profiles.dat stable_covar.dat
+erf.profile_int = 20
+
+# REFINEMENT / REGRIDDING
+amr.max_level       = 0       # maximum level number allowed
+
+# CHECKPOINT FILES
+erf.check_file      = chk_stable      # root name of checkpoint file
+erf.check_int       = 1200            # number of timesteps between checkpoints
+
+# PLOTFILES
+erf.plot_file_1     = plt_stable      # prefix of plotfile name
+erf.plot_int_1      = 15              # number of timesteps between plotfiles
+erf.plot_vars_1     = density rhoadv_0 rhoadv_1 x_velocity y_velocity z_velocity pressure temp theta
+
+# SOLVER CHOICE
+erf.use_gravity = true
+
+erf.molec_diff_type = "None"
+# When using a PBL model, LES closure should be disabled
+erf.les_type        = "None"
+erf.theta_ref = 300.0
+
+erf.init_type = "input_sounding"
+erf.sounding_type = Ideal
+erf.input_sounding_file = "input_sounding_YSUNew_stable"
+
+# PBL CONFIGURATION - YSUNew for stable boundary layer
+erf.pbl_type = "YSUNew"
+erf.pbl_ysu_land_Ribcr = 0.25    # critical bulk Richardson number for land
+erf.enable_ysu_countergradient = false
+erf.enable_ysu_entrainment = false
+
+# Disable moisture diffusivity (dry stable case)
+erf.ysu_moistvars = false
+
+# CORIOLIS EFFECT - High latitude for strong inertial oscillations
+erf.latitude = 73.3  # high latitude
+erf.use_coriolis = true
+erf.abl_driver_type = "GeostrophicWind"
+erf.abl_geo_wind = 8.0 0.0 0.0

@@ -155,21 +155,21 @@ struct SAMPrecipFluxComponents {
 // stored in mbar on this path, EOS/theta helpers expect Pa, and the saturation
 // helpers below consume mbar where SAM currently calls them that way.
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-amrex::Real sam_mbar_to_pa (const amrex::Real pres_mbar) noexcept
+amrex::Real sam_mbar_to_pa (const amrex::Real& pres_mbar) noexcept
 {
     // SAM stores pressure in mbar. EOS and theta helpers expect Pa.
     return amrex::Real(100.0) * pres_mbar;
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-amrex::Real sam_pa_to_mbar (const amrex::Real pres_pa) noexcept
+amrex::Real sam_pa_to_mbar (const amrex::Real& pres_pa) noexcept
 {
     return amrex::Real(0.01) * pres_pa;
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-amrex::Real sam_theta_from_stored_mbar_converted_to_pa (const amrex::Real tabs,
-                                                        const amrex::Real pres_mbar,
+amrex::Real sam_theta_from_stored_mbar_converted_to_pa (const amrex::Real& tabs,
+                                                        const amrex::Real& pres_mbar,
                                                         const amrex::Real rdOcp) noexcept
 {
     // Do not replace this with getThgivenRandT(rho,T,qv): that would enforce a
@@ -179,14 +179,14 @@ amrex::Real sam_theta_from_stored_mbar_converted_to_pa (const amrex::Real tabs,
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-SAMPrimitiveCell sam_cons_to_primitive (const amrex::Real rho,
-                                        const amrex::Real rho_theta,
-                                        const amrex::Real rho_qv,
-                                        const amrex::Real rho_qcl,
-                                        const amrex::Real rho_qci,
-                                        const amrex::Real rho_qpr,
-                                        const amrex::Real rho_qps,
-                                        const amrex::Real rho_qpg) noexcept
+SAMPrimitiveCell sam_cons_to_primitive (const amrex::Real& rho,
+                                        const amrex::Real& rho_theta,
+                                        const amrex::Real& rho_qv,
+                                        const amrex::Real& rho_qcl,
+                                        const amrex::Real& rho_qci,
+                                        const amrex::Real& rho_qpr,
+                                        const amrex::Real& rho_qps,
+                                        const amrex::Real& rho_qpg) noexcept
 {
     // Copy-in reconstructs the SAM primitive cell state from the conserved ERF
     // state, clips negative moisture defensively, and diagnoses tabs and
@@ -212,9 +212,9 @@ SAMPrimitiveCell sam_cons_to_primitive (const amrex::Real rho,
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 void sam_primitive_to_cons (const SAMPrimitiveCell& primitive,
                             const amrex::Array4<amrex::Real>& states_arr,
-                            const int i,
-                            const int j,
-                            const int k) noexcept
+                            const int& i,
+                            const int& j,
+                            const int& k) noexcept
 {
     // Copy-out writes rho*theta and clipped moisture species back to the
     // conserved state. Pressure is not stored here; it is diagnosed again on
@@ -229,21 +229,21 @@ void sam_primitive_to_cons (const SAMPrimitiveCell& primitive,
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-bool sam_is_no_ice (const MoistureType moisture_type) noexcept
+bool sam_is_no_ice (const MoistureType& moisture_type) noexcept
 {
     return moisture_type == MoistureType::SAM_NoIce ||
            moisture_type == MoistureType::SAM_NoPrecip_NoIce;
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-bool sam_is_no_precip (const MoistureType moisture_type) noexcept
+bool sam_is_no_precip (const MoistureType& moisture_type) noexcept
 {
     return moisture_type == MoistureType::SAM_NoPrecip_NoIce;
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-amrex::Real sam_cloud_liquid_fraction (const int SAM_moisture_type,
-                                       const amrex::Real tabs,
+amrex::Real sam_cloud_liquid_fraction (const int& SAM_moisture_type,
+                                       const amrex::Real& tabs,
                                        const amrex::Real an,
                                        const amrex::Real bn) noexcept
 {
@@ -263,8 +263,8 @@ amrex::Real sam_cloud_liquid_fraction (const int SAM_moisture_type,
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-amrex::Real sam_precip_rain_fraction (const int SAM_moisture_type,
-                                      const amrex::Real tabs) noexcept
+amrex::Real sam_precip_rain_fraction (const int& SAM_moisture_type,
+                                      const amrex::Real& tabs) noexcept
 {
     // Empirical precipitating rain fraction omega_p. No-ice mode forces rain
     // fraction to one, and the result is clipped to [0, 1].
@@ -275,8 +275,8 @@ amrex::Real sam_precip_rain_fraction (const int SAM_moisture_type,
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-amrex::Real sam_graupel_fraction (const int SAM_moisture_type,
-                                  const amrex::Real tabs) noexcept
+amrex::Real sam_graupel_fraction (const int& SAM_moisture_type,
+                                  const amrex::Real& tabs) noexcept
 {
     // Empirical graupel fraction omega_g. No-ice mode forces graupel fraction
     // to zero, and the result is clipped to [0, 1].
@@ -287,11 +287,11 @@ amrex::Real sam_graupel_fraction (const int SAM_moisture_type,
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-SAMCloudPhaseChange sam_partition_cloud_phase (const int SAM_moisture_type,
-                                               const amrex::Real tabs,
-                                               const amrex::Real qn,
-                                               const amrex::Real qcl,
-                                               const amrex::Real qci,
+SAMCloudPhaseChange sam_partition_cloud_phase (const int& SAM_moisture_type,
+                                               const amrex::Real& tabs,
+                                               const amrex::Real& qn,
+                                               const amrex::Real& qcl,
+                                               const amrex::Real& qci,
                                                const amrex::Real fac_cond,
                                                const amrex::Real fac_fus,
                                                const amrex::Real an,
@@ -326,6 +326,7 @@ SAMCloudPhaseChange sam_partition_cloud_phase (const int SAM_moisture_type,
             result.qcl = qn * result.omn;
             result.qci = qn * (one - result.omn);
             result.tabs += fac_fus * result.delta_qc;
+            result.omn = sam_cloud_liquid_fraction(SAM_moisture_type, result.tabs, an, bn);
         }
     } else {
         result.omn = one;
@@ -340,21 +341,21 @@ SAMCloudPhaseChange sam_partition_cloud_phase (const int SAM_moisture_type,
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-amrex::Real sam_mixed_qsat (const amrex::Real omn,
-                            const amrex::Real qsatw,
-                            const amrex::Real qsati) noexcept
+amrex::Real sam_mixed_qsat (const amrex::Real& omn,
+                            const amrex::Real& qsatw,
+                            const amrex::Real& qsati) noexcept
 {
     // Mixed liquid/ice saturation relation used by the SAM cloud adjustment.
     return omn * qsatw + (one - omn) * qsati;
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-amrex::Real sam_mixed_dqsat_dT (const amrex::Real omn,
-                                const amrex::Real domn,
-                                const amrex::Real qsatw,
-                                const amrex::Real qsati,
-                                const amrex::Real dqsatw,
-                                const amrex::Real dqsati) noexcept
+amrex::Real sam_mixed_dqsat_dT (const amrex::Real& omn,
+                                const amrex::Real& domn,
+                                const amrex::Real& qsatw,
+                                const amrex::Real& qsati,
+                                const amrex::Real& dqsatw,
+                                const amrex::Real& dqsati) noexcept
 {
     // Temperature derivative of mixed saturation, including the mixed-branch
     // temperature derivative of the liquid/ice phase fraction.
@@ -362,82 +363,73 @@ amrex::Real sam_mixed_dqsat_dT (const amrex::Real omn,
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-amrex::Real sam_newton_residual (const amrex::Real tabs_new,
-                                 const amrex::Real tabs_old,
-                                 const amrex::Real lstar,
-                                 const amrex::Real qv,
-                                 const amrex::Real qsat) noexcept
+amrex::Real sam_mixed_dqif_dT (const amrex::Real& omn,
+                               const amrex::Real& domn,
+                               const amrex::Real& qn,
+                               const amrex::Real& dqsatm) noexcept
+{
+    // Temperature derivative of the final ice fraction
+    return -domn * qn - (one - omn) * dqsatm;
+}
+
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+amrex::Real sam_newton_residual (const amrex::Real& tabs_new,
+                                 const amrex::Real& tabs_old,
+                                 const amrex::Real fcond,
+                                 const amrex::Real& qv,
+                                 const amrex::Real& qsatm,
+                                 const amrex::Real ffus,
+                                 const amrex::Real& qi,
+                                 const amrex::Real& qif) noexcept
 {
     // Residual for the local constant-pressure saturation adjustment solve.
-    return -tabs_new + tabs_old + lstar * (qv - qsat);
+    return -tabs_new + tabs_old + fcond * (qv - qsatm) - ffus * (qi - qif);
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-amrex::Real sam_newton_residual_derivative (const amrex::Real lstar,
-                                            const amrex::Real dlstar,
-                                            const amrex::Real qv,
-                                            const amrex::Real qsat,
-                                            const amrex::Real dqsat) noexcept
+amrex::Real sam_newton_residual_derivative (const amrex::Real fcond,
+                                            const amrex::Real ffus,
+                                            const amrex::Real& dqsatm,
+                                            const amrex::Real& dqif) noexcept
 {
     // Derivative for the local constant-pressure saturation adjustment solve.
-    return -one + dlstar * (qv - qsat) - lstar * dqsat;
+    return -one - fcond * dqsatm + ffus * dqif;
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-SAMCloudPhaseChange sam_apply_condensate_limiter (const amrex::Real qv,
-                                                  const amrex::Real qsat,
-                                                  const amrex::Real qc,
-                                                  const amrex::Real qi,
-                                                  const amrex::Real omn) noexcept
-{
-    // Prevents the adjustment from evaporating or depositing more condensate
-    // than is locally available.
-    SAMCloudPhaseChange result{};
-    result.delta_qv = qv - qsat;
-    result.delta_qc = amrex::max(-qc, result.delta_qv * omn);
-    result.delta_qi = amrex::max(-qi, result.delta_qv * (one - omn));
-    result.qv = qsat;
-    result.qcl = qc + result.delta_qc;
-    result.qci = qi + result.delta_qi;
-    result.qn = result.qcl + result.qci;
-    result.qt = result.qv + result.qn;
-    return result;
-}
-
-AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-SAMPrecipSources sam_autoconversion_rates (const amrex::Real dtn,
-                                           const amrex::Real qcc,
-                                           const amrex::Real qii,
-                                           const amrex::Real coefice_k) noexcept
+SAMPrecipSources sam_autoconversion_rates (const amrex::Real& dtn,
+                                           const amrex::Real& qcc,
+                                           const amrex::Real& qii,
+                                           const amrex::Real& coefice_k) noexcept
 {
     SAMPrecipSources result{};
     // Thresholded cloud-liquid and cloud-ice autoconversion increments over
     // the microphysics time step dtn. The strict qcw0/qci0 thresholds are
     // intentional: equality leaves the source inactive.
     const amrex::Real auto_r = (qcc > qcw0) ? alphaelq : zero;
-    const amrex::Real autos = (qii > qci0) ? betaelq * coefice_k : zero;
+    const amrex::Real autos  = (qii > qci0) ? betaelq * coefice_k : zero;
     result.dqca = dtn * auto_r * (qcc - qcw0);
-    result.dqia = dtn * autos * (qii - qci0);
+    result.dqia = dtn * autos  * (qii - qci0);
     return result;
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-SAMPrecipSources sam_accretion_rates (const amrex::Real dtn,
-                                      const amrex::Real qcc,
-                                      const amrex::Real qii,
-                                      const amrex::Real qpr,
-                                      const amrex::Real qps,
-                                      const amrex::Real qpg,
-                                      const amrex::Real powr1,
-                                      const amrex::Real pows1,
-                                      const amrex::Real powg1,
-                                      const amrex::Real omp,
-                                      const amrex::Real omg,
-                                      const amrex::Real accrrc_k,
-                                      const amrex::Real accrsc_k,
-                                      const amrex::Real accrsi_k,
-                                      const amrex::Real accrgc_k,
-                                      const amrex::Real accrgi_k) noexcept
+SAMPrecipSources sam_accretion_rates (const amrex::Real& dtn,
+                                      const amrex::Real& qcc,
+                                      const amrex::Real& qii,
+                                      const amrex::Real& qpr,
+                                      const amrex::Real& qps,
+                                      const amrex::Real& qpg,
+                                      const amrex::Real& powr1,
+                                      const amrex::Real& pows1,
+                                      const amrex::Real& powg1,
+                                      const amrex::Real& omp,
+                                      const amrex::Real& omg,
+                                      const amrex::Real& accrrc_k,
+                                      const amrex::Real& accrsc_k,
+                                      const amrex::Real& accrsi_k,
+                                      const amrex::Real& accrgc_k,
+                                      const amrex::Real& accrgi_k) noexcept
 {
     SAMPrecipSources result{};
     amrex::Real accrcr = zero;
@@ -472,9 +464,9 @@ SAMPrecipSources sam_accretion_rates (const amrex::Real dtn,
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-SAMPrecipSources sam_rescale_cloud_sinks (const amrex::Real qcl,
-                                          const amrex::Real qci,
-                                          const amrex::Real eps,
+SAMPrecipSources sam_rescale_cloud_sinks (const amrex::Real& qcl,
+                                          const amrex::Real& qci,
+                                          const amrex::Real& eps,
                                           SAMPrecipSources result) noexcept
 {
     // Proportional donor limiter. If requested liquid or ice sinks exceed
@@ -503,8 +495,8 @@ SAMPrecipSources sam_rescale_cloud_sinks (const amrex::Real qcl,
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 SAMPrecipSources sam_partition_autoconverted_precip (SAMPrecipSources result,
-                                                     const amrex::Real omp,
-                                                     const amrex::Real omg) noexcept
+                                                     const amrex::Real& omp,
+                                                     const amrex::Real& omg) noexcept
 {
     // Partitions limited autoconversion sources into rain/snow/graupel using
     // the precipitating phase fractions and adds direct accretion
@@ -516,18 +508,18 @@ SAMPrecipSources sam_partition_autoconverted_precip (SAMPrecipSources result,
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-SAMPrecipSources sam_precip_evaporation_rates (const amrex::Real qpr,
-                                               const amrex::Real qps,
-                                               const amrex::Real qpg,
-                                               const amrex::Real powr2,
-                                               const amrex::Real pows2,
-                                               const amrex::Real powg2,
-                                               const amrex::Real evapr1_k,
-                                               const amrex::Real evapr2_k,
-                                               const amrex::Real evaps1_k,
-                                               const amrex::Real evaps2_k,
-                                               const amrex::Real evapg1_k,
-                                               const amrex::Real evapg2_k) noexcept
+SAMPrecipSources sam_precip_evaporation_rates (const amrex::Real& qpr,
+                                               const amrex::Real& qps,
+                                               const amrex::Real& qpg,
+                                               const amrex::Real& powr2,
+                                               const amrex::Real& pows2,
+                                               const amrex::Real& powg2,
+                                               const amrex::Real& evapr1_k,
+                                               const amrex::Real& evapr2_k,
+                                               const amrex::Real& evaps1_k,
+                                               const amrex::Real& evaps2_k,
+                                               const amrex::Real& evapg1_k,
+                                               const amrex::Real& evapg2_k) noexcept
 {
     // Positive-domain evaporation/sublimation rate form for precipitating
     // species: C1*sqrt(q_m) + C2*q_m^p. The derivative is singular at q_m = 0,
@@ -540,9 +532,9 @@ SAMPrecipSources sam_precip_evaporation_rates (const amrex::Real qpr,
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-SAMPrecipSources sam_apply_precip_evaporation_limiter (const amrex::Real qpr,
-                                                       const amrex::Real qps,
-                                                       const amrex::Real qpg,
+SAMPrecipSources sam_apply_precip_evaporation_limiter (const amrex::Real& qpr,
+                                                       const amrex::Real& qps,
+                                                       const amrex::Real& qpg,
                                                        SAMPrecipSources result) noexcept
 {
     // Limits rain evaporation and snow/graupel sublimation by available
@@ -573,7 +565,7 @@ SAMCellState sam_precip_cell_update (SAMCellState state,
     }
 
     state.qn = state.qcl + state.qci;
-    state.qt = state.qv + state.qn;
+    state.qt = state.qv  + state.qn;
     state.qp = state.qpr + state.qps + state.qpg;
 
     if (!config.enable_precip || state.qn + state.qp <= zero) {
@@ -708,14 +700,14 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 // Closure coefficients for the SAM source parameterizations at one vertical
 // level. The formula ordering is kept close to the SAM baseline to avoid
 // unintended numerical drift.
-SAMCoefficientRow sam_compute_coefficient_row (const amrex::Real rho,
-                                               const amrex::Real tabs,
-                                               const amrex::Real gamr1,
-                                               const amrex::Real gamr2,
-                                               const amrex::Real gams1,
-                                               const amrex::Real gams2,
-                                               const amrex::Real gamg1,
-                                               const amrex::Real gamg2) noexcept
+SAMCoefficientRow sam_compute_coefficient_row (const amrex::Real& rho,
+                                               const amrex::Real& tabs,
+                                               const amrex::Real& gamr1,
+                                               const amrex::Real& gamr2,
+                                               const amrex::Real& gams1,
+                                               const amrex::Real& gams2,
+                                               const amrex::Real& gamg1,
+                                               const amrex::Real& gamg2) noexcept
 {
     // Preserve the SAM baseline formula ordering in these closure rows.
     SAMCoefficientRow row{};
@@ -765,7 +757,7 @@ SAMCoefficientRow sam_compute_coefficient_row (const amrex::Real rho,
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-amrex::Real sam_cloud_ice_terminal_velocity (const amrex::Real qci_avg) noexcept
+amrex::Real sam_cloud_ice_terminal_velocity (const amrex::Real& qci_avg) noexcept
 {
     // MUST MATCH: SAM cloud-ice terminal-velocity coefficient and exponent.
     return amrex::min(amrex::Real(0.4),
@@ -773,15 +765,15 @@ amrex::Real sam_cloud_ice_terminal_velocity (const amrex::Real qci_avg) noexcept
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-SAMFaceState sam_face_average_state (const int k,
-                                     const int k_lo,
-                                     const int k_hi,
-                                     const amrex::Real rho_km1,
-                                     const amrex::Real rho_k,
+SAMFaceState sam_face_average_state (const int& k,
+                                     const int& k_lo,
+                                     const int& k_hi,
+                                     const amrex::Real& rho_km1,
+                                     const amrex::Real& rho_k,
                                      const amrex::Real tabs_km1,
                                      const amrex::Real tabs_k,
-                                     const amrex::Real qci_km1,
-                                     const amrex::Real qci_k,
+                                     const amrex::Real& qci_km1,
+                                     const amrex::Real& qci_k,
                                      const amrex::Real qp_km1,
                                      const amrex::Real qp_k) noexcept
 {
@@ -806,9 +798,9 @@ SAMFaceState sam_face_average_state (const int k,
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-int sam_precip_face_donor_k (const int face_k,
-                             const int k_lo,
-                             const int k_hi) noexcept
+int sam_precip_face_donor_k (const int& face_k,
+                             const int& k_lo,
+                             const int& k_hi) noexcept
 {
     if (face_k <= k_lo) {
         return k_lo;
@@ -820,9 +812,9 @@ int sam_precip_face_donor_k (const int face_k,
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-int sam_substep_count_from_reduced_flux (const amrex::Real reduced_flux,
-                                         const amrex::Real dt,
-                                         const amrex::Real dz) noexcept
+int sam_substep_count_from_reduced_flux (const amrex::Real& reduced_flux,
+                                         const amrex::Real& dt,
+                                         const amrex::Real& dz) noexcept
 {
     // Substeps follow the legacy reduced-flux rule based on the maximum
     // density-corrected precip flux, not directly on a terminal fall speed.
@@ -832,16 +824,15 @@ int sam_substep_count_from_reduced_flux (const amrex::Real reduced_flux,
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-SAMPrecipFaceState sam_precip_face_state (
-    const int SAM_moisture_type,
-    const amrex::Array4<const amrex::Real>& rho_array,
-    const amrex::Array4<const amrex::Real>& tabs_array,
-    const amrex::Array4<const amrex::Real>& qp_array,
-    const int i,
-    const int j,
-    const int k,
-    const int k_lo,
-    const int k_hi) noexcept
+SAMPrecipFaceState sam_precip_face_state (const int& SAM_moisture_type,
+                                          const amrex::Array4<const amrex::Real>& rho_array,
+                                          const amrex::Array4<const amrex::Real>& tabs_array,
+                                          const amrex::Array4<const amrex::Real>& qp_array,
+                                          const int& i,
+                                          const int& j,
+                                          const int& k,
+                                          const int& k_lo,
+                                          const int& k_hi) noexcept
 {
     // MUST MATCH: SAM PrecipFall bottom/interior/top face rules.
     SAMPrecipFaceState result{};
@@ -870,17 +861,16 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 // Component PrecipFall face state. Uses the same bottom/interior/top face
 // selection rules, but reads qpr/qps/qpg directly so each precipitating
 // species can be sedimented and limited conservatively.
-SAMPrecipComponentFaceState sam_precip_component_face_state (
-    const amrex::Array4<const amrex::Real>& rho_array,
-    const amrex::Array4<const amrex::Real>& tabs_array,
-    const amrex::Array4<const amrex::Real>& qpr_array,
-    const amrex::Array4<const amrex::Real>& qps_array,
-    const amrex::Array4<const amrex::Real>& qpg_array,
-    const int i,
-    const int j,
-    const int k,
-    const int k_lo,
-    const int k_hi) noexcept
+SAMPrecipComponentFaceState sam_precip_component_face_state (const amrex::Array4<const amrex::Real>& rho_array,
+                                                             const amrex::Array4<const amrex::Real>& tabs_array,
+                                                             const amrex::Array4<const amrex::Real>& qpr_array,
+                                                             const amrex::Array4<const amrex::Real>& qps_array,
+                                                             const amrex::Array4<const amrex::Real>& qpg_array,
+                                                             const int& i,
+                                                             const int& j,
+                                                             const int& k,
+                                                             const int& k_lo,
+                                                             const int& k_hi) noexcept
 {
     // MUST MATCH: SAM PrecipFall bottom/interior/top face rules.
     SAMPrecipComponentFaceState result{};
@@ -912,9 +902,9 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 // branch. The conservative production PrecipFall path uses the component
 // helper below.
 amrex::Real sam_precip_flux_from_face_state (const SAMPrecipFaceState& face_state,
-                                             const amrex::Real vrain,
-                                             const amrex::Real vsnow,
-                                             const amrex::Real vgrau) noexcept
+                                             const amrex::Real& vrain,
+                                             const amrex::Real& vsnow,
+                                             const amrex::Real& vgrau) noexcept
 {
     if (face_state.qp_avg <= qp_threshold) {
         return zero;
@@ -930,9 +920,9 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 // fluxes. The conservative production PrecipFall path uses the component
 // helper below instead of repartitioning total qp.
 SAMPrecipFluxComponents sam_precip_flux_components_from_face_state (const SAMPrecipFaceState& face_state,
-                                                                    const amrex::Real vrain,
-                                                                    const amrex::Real vsnow,
-                                                                    const amrex::Real vgrau) noexcept
+                                                                    const amrex::Real& vrain,
+                                                                    const amrex::Real& vsnow,
+                                                                    const amrex::Real& vgrau) noexcept
 {
     SAMPrecipFluxComponents result{};
     if (face_state.qp_avg <= qp_threshold) {
@@ -952,11 +942,10 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 // fluxes are zero only when the corresponding component mass is nonpositive;
 // tiny positive qpr/qps/qpg produce tiny positive fluxes and are donor-limited
 // later.
-SAMPrecipFluxComponents sam_precip_component_fluxes_from_face_state (
-    const SAMPrecipComponentFaceState& face_state,
-    const amrex::Real vrain,
-    const amrex::Real vsnow,
-    const amrex::Real vgrau) noexcept
+SAMPrecipFluxComponents sam_precip_component_fluxes_from_face_state (const SAMPrecipComponentFaceState& face_state,
+                                                                     const amrex::Real& vrain,
+                                                                     const amrex::Real& vsnow,
+                                                                     const amrex::Real& vgrau) noexcept
 {
     SAMPrecipFluxComponents result{};
     if (face_state.qpr_avg > zero) {
@@ -972,18 +961,17 @@ SAMPrecipFluxComponents sam_precip_component_fluxes_from_face_state (
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-amrex::Real sam_precip_flux_density_corrected (const amrex::Real precip_flux,
-                                               const amrex::Real rho_0,
-                                               const amrex::Real rho_avg) noexcept
+amrex::Real sam_precip_flux_density_corrected (const amrex::Real& precip_flux,
+                                               const amrex::Real& rho_0,
+                                               const amrex::Real& rho_avg) noexcept
 {
     return precip_flux * std::sqrt(rho_0 / rho_avg);
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-SAMPrecipFluxComponents sam_precip_flux_components_density_corrected (
-    const SAMPrecipFluxComponents& precip_fluxes,
-    const amrex::Real rho_0,
-    const amrex::Real rho_avg) noexcept
+SAMPrecipFluxComponents sam_precip_flux_components_density_corrected (const SAMPrecipFluxComponents& precip_fluxes,
+                                                                      const amrex::Real& rho_0,
+                                                                      const amrex::Real& rho_avg) noexcept
 {
     const amrex::Real density_correction = std::sqrt(rho_0 / rho_avg);
     return {
@@ -996,12 +984,11 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 // Donor-cap limiter for conservative component sedimentation. The limited flux
 // cannot export more component mass over one substep than the donor cell
 // contains, including detJ for terrain-following cell mass.
-amrex::Real sam_limit_precip_component_flux (
-    const amrex::Real raw_flux,
-    const amrex::Real rho_donor,
-    const amrex::Real q_donor,
-    const amrex::Real detJ_donor,
-    const amrex::Real coef) noexcept
+amrex::Real sam_limit_precip_component_flux (const amrex::Real& raw_flux,
+                                             const amrex::Real& rho_donor,
+                                             const amrex::Real& q_donor,
+                                             const amrex::Real& detJ_donor,
+                                             const amrex::Real& coef) noexcept
 {
     const amrex::Real available_flux =
         rho_donor * amrex::max(amrex::Real(0.0), q_donor) * detJ_donor / coef;
@@ -1012,11 +999,11 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 // Converts face-flux divergence into a mixing-ratio tendency. With the same
 // limited face fluxes used for accumulation, column component budgets
 // telescope.
-amrex::Real sam_sedimentation_tendency (const amrex::Real fz_hi,
-                                        const amrex::Real fz_lo,
-                                        const amrex::Real rho,
-                                        const amrex::Real dJinv,
-                                        const amrex::Real coef) noexcept
+amrex::Real sam_sedimentation_tendency (const amrex::Real& fz_hi,
+                                        const amrex::Real& fz_lo,
+                                        const amrex::Real& rho,
+                                        const amrex::Real& dJinv,
+                                        const amrex::Real& coef) noexcept
 {
     return dJinv * (one / rho) * (fz_hi - fz_lo) * coef;
 }
@@ -1027,7 +1014,7 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 // update.
 SAMSurfaceAccumulation sam_surface_accumulation_from_component_fluxes (
     const SAMPrecipFluxComponents& component_fluxes,
-    const amrex::Real dtn) noexcept
+    const amrex::Real& dtn) noexcept
 {
     SAMSurfaceAccumulation result{};
     result.rain = component_fluxes.rain * dtn / rhor * amrex::Real(1000.0);
@@ -1038,11 +1025,11 @@ SAMSurfaceAccumulation sam_surface_accumulation_from_component_fluxes (
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 SAMSurfaceAccumulation sam_surface_accumulation (const SAMPrecipFaceState& face_state,
-                                                 const amrex::Real rho_0,
-                                                 const amrex::Real vrain,
-                                                 const amrex::Real vsnow,
-                                                 const amrex::Real vgrau,
-                                                 const amrex::Real dtn) noexcept
+                                                 const amrex::Real& rho_0,
+                                                 const amrex::Real& vrain,
+                                                 const amrex::Real& vsnow,
+                                                 const amrex::Real& vgrau,
+                                                 const amrex::Real& dtn) noexcept
 {
     const SAMPrecipFluxComponents face_fluxes =
         sam_precip_flux_components_from_face_state(face_state, vrain, vsnow, vgrau);

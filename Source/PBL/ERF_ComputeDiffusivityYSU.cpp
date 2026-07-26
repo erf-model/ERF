@@ -21,6 +21,7 @@ ComputeDiffusivityYSU (const MultiFab& xvel,
                        const BCRec* bc_ptr,
                        bool /*vert_only*/,
                        const std::unique_ptr<MultiFab>& z_phys_nd,
+                       const std::unique_ptr<MultiFab>& z_phys_cc,
                        const MoistureComponentIndices& moisture_indices)
 {
     /*
@@ -71,6 +72,7 @@ ComputeDiffusivityYSU (const MultiFab& xvel,
         const auto& over_land_arr = (SurfLayer->get_lmask(level)) ? SurfLayer->get_lmask(level)->const_array(mfi) :
                                                                   Array4<int> {};
         const Array4<Real const> z_nd_arr = z_phys_nd->array(mfi);
+        const PBLDerivativeDzInv_T pbl_derivative_dz_inv{z_phys_cc->const_array(mfi)};
 
         // create flattened boxes to store PBL height
         const GeometryData gdata = geom.data();
@@ -211,7 +213,7 @@ ComputeDiffusivityYSU (const MultiFab& xvel,
                 constexpr Real prandtl_max = Real(4.0);
                 Real dthetadz, dudz, dvdz;
                 ComputeVerticalDerivativesPBL(i, j, k,
-                                              uvel, vvel, cell_data, izmin, izmax, one/dz_terrain,
+                                              uvel, vvel, cell_data, izmin, izmax, pbl_derivative_dz_inv(i,j,k),
                                               c_ext_dir_on_zlo, c_ext_dir_on_zhi,
                                               u_ext_dir_on_zlo, u_ext_dir_on_zhi,
                                               v_ext_dir_on_zlo, v_ext_dir_on_zhi,

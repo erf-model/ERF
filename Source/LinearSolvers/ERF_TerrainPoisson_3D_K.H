@@ -413,7 +413,7 @@ void terrpoisson_adotx (int i, int j, int k, amrex::Array4<T> const& y,
     //
         Real px_lo = -terrpoisson_flux_x(i  ,j,k,x,zp,dxinv);
         Real px_hi = -terrpoisson_flux_x(i+1,j,k,x,zp,dxinv);
-        Real py_lo = -terrpoisson_flux_y(i,j  ,k,x,zp,dxinv);
+        Real py_lo = -terrpoisson_flux_y(i,j  ,k,x,zp,dyinv);
         Real py_hi = -terrpoisson_flux_y(i,j+1,k,x,zp,dyinv);
         Real pz_lo = -terrpoisson_flux_z(i,j,k  ,x,zp,dxinv,dyinv);
         Real pz_hi = -terrpoisson_flux_z(i,j,k+1,x,zp,dxinv,dyinv);

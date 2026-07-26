@@ -1,0 +1,58 @@
+# MRF scale-aware blending disabled (pbl_blend_length=0).
+#
+# Verifies that pbl_blend_length=0 is a strict no-op:
+# pbl_kh_blend_and_cap returns K_h unchanged when L_blend=0.
+# Results must be identical to a standard MRF neutral ABL run.
+#
+# Domain: 3000x3000x1024 m, 8x8x64 cells -> dx=375 m.
+# MRF neutral ABL: u* ~ 0.56 m/s, peak K_h ~ 27 m^2/s at z/h ~ 1/3.
+#
+# Expected results:
+#   (1) Run exits code 0.
+#   (2) EddyDiff::Theta_v and Q_v equal standard MRF values.
+#       No reduction relative to pbl_blend_length=0 baseline.
+#   (3) Velocity and theta profiles after 5 steps match standard MRF.
+#
+# References:
+#   Hong & Pan (1996). https://doi.org/10.1175/1520-0493(1996)124<2322:NBLVDI>2.0.CO;2
+#   Boutle et al. (2014). https://doi.org/10.1175/MWR-D-13-00229.1
+
+erf.prob_name = "ABL"
+max_step = 5
+amr.max_level = 0
+amrex.fpe_trap_invalid = 0
+geometry.prob_extent = 3000 3000 1024
+amr.n_cell           =  8   8   64
+geometry.is_periodic = 1 1 0
+amrex.max_grid_size_z = 128
+zlo.type = "surface_layer"
+erf.most.z0 = 0.1
+erf.most.zref = 24.0
+erf.most.surf_temp_flux = 0.0
+zhi.type = "SlipWall"
+zhi.theta_grad = 0.003
+erf.fixed_dt = 0.5
+erf.sum_interval = 1
+erf.v = 1
+amr.v = 1
+erf.check_int = -1
+erf.plot_int_1 = 5
+erf.plot_vars_1 = x_velocity y_velocity z_velocity theta
+erf.use_gravity = true
+erf.molec_diff_type = "None"
+erf.les_type = "None"
+erf.init_type = "input_sounding"
+erf.sounding_type = Ideal
+erf.input_sounding_file = "sounding_neutral_abl"
+erf.pbl_type = "MRF"
+erf.pbl_mrf_Ribcr = 0.5
+erf.pbl_mrf_const_b = 7.8
+erf.pbl_mrf_sf = 0.1
+erf.enable_mrf_countergradient = true
+erf.mrf_moistvars = false
+erf.use_coriolis = true
+erf.latitude = 45.0
+erf.abl_driver_type = "GeostrophicWind"
+erf.abl_geo_wind = 15.0 0.0 0.0
+# pbl_blend_length=0: gate is closed; pbl_kh_blend_and_cap is a no-op.
+erf.pbl_blend_length = 0.0

@@ -581,11 +581,13 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
             int is_land = (lmask_arr) ? lmask_arr(i,j,0) : 1;
             const bool lsm_flux_is_valid = (lsm_t_flux_arr) ? (lsm_t_flux_arr(i,j,0) < lsm_undefined) :
                                                               false;
-            const bool has_land_and_flux = (static_cast<bool>(is_land) && lsm_flux_is_valid);
+            const bool has_land_and_flux = (is_land == 1 && lsm_flux_is_valid);
             if (lsm_t_flux_arr && has_land_and_flux) {
                 // LSM flux MultiFabs store kinematic fluxes for MOST parameter
                 // updates. The applied hfx array stores the conservative RHS flux.
                 Tflux = cons_arr(i,j,k,Rho_comp) * lsm_t_flux_arr(i,j,0);
+            } else if (is_land == 2) { // no temperature flux within buildings
+                Tflux = zero;
             } else {
                 Tflux = flux_comp.compute_t_flux(i, j, k,
                                                  cons_arr, velx_arr, vely_arr,
@@ -620,11 +622,13 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
                 int is_land = (lmask_arr) ? lmask_arr(i,j,0) : 1;
                 const bool lsm_flux_is_valid = (lsm_q_flux_arr) ? (lsm_q_flux_arr(i,j,0) < lsm_undefined) :
                                                                   false;
-                const bool has_land_and_flux = (static_cast<bool>(is_land) && lsm_flux_is_valid);
+                const bool has_land_and_flux = (is_land == 1 && lsm_flux_is_valid);
                 if (lsm_q_flux_arr && has_land_and_flux) {
                     // LSM flux MultiFabs store kinematic fluxes for MOST parameter
                     // updates. The applied qfx array stores the conservative RHS flux.
                     Qflux = cons_arr(i,j,k,Rho_comp) * lsm_q_flux_arr(i,j,0);
+                } else if (is_land == 2) { // no moisture flux within buildings
+                    Qflux = zero;
                 } else {
                     Qflux = flux_comp.compute_q_flux(i, j, k,
                                                      cons_arr, velx_arr, vely_arr,
@@ -658,13 +662,13 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
                 int is_land_hi = (lmask_arr) ? lmask_arr(i  ,j,0) : 1;
                 int is_land_lo = (lmask_arr) ? lmask_arr(i-1,j,0) : 1;
                 const bool lsm_hi_flux_is_valid = surface_layer_stress::lsm_flux_is_valid(
-                    static_cast<bool>(lsm_tau13_arr), static_cast<bool>(is_land_hi),
+                    static_cast<bool>(lsm_tau13_arr), is_land_hi == 1,
                     lsm_tau13_arr ? lsm_tau13_arr(i  ,j,0) : zero, lsm_undefined);
                 const bool lsm_lo_flux_is_valid = surface_layer_stress::lsm_flux_is_valid(
-                    static_cast<bool>(lsm_tau13_arr), static_cast<bool>(is_land_lo),
+                    static_cast<bool>(lsm_tau13_arr), is_land_lo == 1,
                     lsm_tau13_arr ? lsm_tau13_arr(i-1,j,0) : zero, lsm_undefined);
-                const bool has_land_and_flux_hi = (static_cast<bool>(is_land_hi) && lsm_hi_flux_is_valid);
-                const bool has_land_and_flux_lo = (static_cast<bool>(is_land_lo) && lsm_lo_flux_is_valid);
+                const bool has_land_and_flux_hi = (is_land_hi == 1 && lsm_hi_flux_is_valid);
+                const bool has_land_and_flux_lo = (is_land_lo == 1 && lsm_lo_flux_is_valid);
                 if (lsm_tau13_arr && (has_land_and_flux_hi || has_land_and_flux_lo)) {
                     const Real rho_hi = cons_arr(i  ,j,k,Rho_comp);
                     const Real rho_lo = cons_arr(i-1,j,k,Rho_comp);
@@ -678,6 +682,8 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
                     stressx = result.face_stress;
                     if (!has_land_and_flux_lo) { lsm_tau13_arr(i-1,j,0) = result.low_kinematic_cache; }
                     if (!has_land_and_flux_hi) { lsm_tau13_arr(i  ,j,0) = result.high_kinematic_cache; }
+                } else if (is_land_hi == 2 || is_land_lo == 2) { // no stress within buildings
+                    stressx = zero;
                 } else {
                     stressx = flux_comp.compute_u_flux(i, j, k,
                                                        cons_arr, velx_arr, vely_arr,
@@ -707,13 +713,13 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
                 int is_land_hi = (lmask_arr) ? lmask_arr(i,j  ,0) : 1;
                 int is_land_lo = (lmask_arr) ? lmask_arr(i,j-1,0) : 1;
                 const bool lsm_hi_flux_is_valid = surface_layer_stress::lsm_flux_is_valid(
-                    static_cast<bool>(lsm_tau23_arr), static_cast<bool>(is_land_hi),
+                    static_cast<bool>(lsm_tau23_arr), is_land_hi == 1,
                     lsm_tau23_arr ? lsm_tau23_arr(i,j  ,0) : zero, lsm_undefined);
                 const bool lsm_lo_flux_is_valid = surface_layer_stress::lsm_flux_is_valid(
-                    static_cast<bool>(lsm_tau23_arr), static_cast<bool>(is_land_lo),
+                    static_cast<bool>(lsm_tau23_arr), is_land_lo == 1,
                     lsm_tau23_arr ? lsm_tau23_arr(i,j-1,0) : zero, lsm_undefined);
-                const bool has_land_and_flux_hi = (static_cast<bool>(is_land_hi) && lsm_hi_flux_is_valid);
-                const bool has_land_and_flux_lo = (static_cast<bool>(is_land_lo) && lsm_lo_flux_is_valid);
+                const bool has_land_and_flux_hi = (is_land_hi == 1 && lsm_hi_flux_is_valid);
+                const bool has_land_and_flux_lo = (is_land_lo == 1 && lsm_lo_flux_is_valid);
                 if (lsm_tau23_arr && (has_land_and_flux_hi || has_land_and_flux_lo)) {
                     const Real rho_hi = cons_arr(i,j  ,k,Rho_comp);
                     const Real rho_lo = cons_arr(i,j-1,k,Rho_comp);
@@ -727,6 +733,8 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
                     stressy = result.face_stress;
                     if (!has_land_and_flux_lo) { lsm_tau23_arr(i,j-1,0) = result.low_kinematic_cache; }
                     if (!has_land_and_flux_hi) { lsm_tau23_arr(i,j  ,0) = result.high_kinematic_cache; }
+                } else if (is_land_hi == 2 || is_land_lo == 2) { // no stress within buildings
+                    stressy = zero;
                 } else {
                     stressy = flux_comp.compute_v_flux(i, j, k,
                                                        cons_arr, velx_arr, vely_arr,

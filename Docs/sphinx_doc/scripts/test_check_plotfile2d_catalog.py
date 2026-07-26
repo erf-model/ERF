@@ -215,10 +215,16 @@ class CheckerTests(unittest.TestCase):
         repo = SCRIPT_DIR.parents[2]
         fixed_count, dynamic_count = checker.check_catalog(
             repo / "Source/IO/ERF_Plotfile2DCatalog.cpp",
-            repo / "Docs/sphinx_doc/Plotfiles.rst",
+            repo / checker.DOCUMENTED_CATALOG_PATH,
         )
         self.assertGreater(fixed_count, 0)
         self.assertEqual(dynamic_count, len(checker.DYNAMIC_SOIL_PATTERNS))
+
+    def test_documented_catalog_path_points_to_2d_reference(self):
+        self.assertEqual(
+            checker.DOCUMENTED_CATALOG_PATH.as_posix(),
+            "Docs/sphinx_doc/plotfiles/Plotfile2DReference.rst",
+        )
 
 
 if __name__ == "__main__":
