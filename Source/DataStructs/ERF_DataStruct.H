@@ -244,8 +244,7 @@ struct SolverChoice {
                    moisture_type == MoistureType::Morrison ||
                    moisture_type == MoistureType::Morrison_NoIce ||
                    moisture_type == MoistureType::WSM6 ||
-                   moisture_type == MoistureType::SatAdj ||
-                   moisture_type == MoistureType::MoistNoCondensation) )
+                   moisture_type == MoistureType::SatAdj) )
             {
                 for (int i = 0; i <= max_level; ++i) {
                     buoyancy_type[i] = 2; // uses Tprime

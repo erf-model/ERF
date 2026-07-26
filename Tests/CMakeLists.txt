@@ -50,6 +50,13 @@ if(ERF_ENABLE_TESTS)
   set(SHOC_MICROPHYSICS_DIFFERENTIAL
       "${CMAKE_CURRENT_BINARY_DIR}/erf_shoc_microphysics_differential${CMAKE_EXECUTABLE_SUFFIX}")
 
+  add_executable(erf_shoc_mutation_differential
+    ${CMAKE_CURRENT_SOURCE_DIR}/ShocMutationDifferential.cpp)
+  target_link_libraries(erf_shoc_mutation_differential PRIVATE AMReX::amrex)
+  target_compile_features(erf_shoc_mutation_differential PRIVATE cxx_std_17)
+  set(SHOC_MUTATION_DIFFERENTIAL
+      "${CMAKE_CURRENT_BINARY_DIR}/erf_shoc_mutation_differential${CMAKE_EXECUTABLE_SUFFIX}")
+
   include(${CMAKE_CURRENT_SOURCE_DIR}/CTestList.cmake)
 endif()
 

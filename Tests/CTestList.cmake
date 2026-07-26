@@ -177,41 +177,47 @@ function(add_test_shoc_r TEST_NAME TEST_DIR TEST_EXE PLTFILE)
         PROCESSORS ${NP}
         WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
         LABELS "${_shoc_labels}"
-        ENVIRONMENT "FI_PROVIDER=tcp"
         ATTACHED_FILES_ON_FAIL "${test_log}")
 endfunction(add_test_shoc_r)
 
-function(add_test_shoc_negative TEST_NAME RUNTIME_OPTIONS CHECK_MODE EXPECTED_CODE)
+function(add_test_shoc_mutation TEST_NAME MUTATION_OPTION TARGET_FIELD)
     set(TEST_FILES_DIR "SHOC_Stable_Clear")
     setup_test()
     resolve_test_exe("" "erf_exec" TEST_EXE)
-    set(test_log "${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.log")
+    set(_baseline_dir "${CURRENT_TEST_BINARY_DIR}/baseline")
+    set(_mutant_dir "${CURRENT_TEST_BINARY_DIR}/mutant")
+    file(MAKE_DIRECTORY "${_baseline_dir}" "${_mutant_dir}")
+    file(COPY "${CURRENT_TEST_SOURCE_DIR}/." DESTINATION "${_baseline_dir}")
+    file(COPY "${CURRENT_TEST_SOURCE_DIR}/." DESTINATION "${_mutant_dir}")
+
+    set(_baseline_log "${_baseline_dir}/${TEST_NAME}_baseline.log")
+    set(_mutant_log "${_mutant_dir}/${TEST_NAME}_mutant.log")
     add_test(${TEST_NAME} ${CMAKE_COMMAND}
         -DMPIEXEC=${MPIEXEC_EXECUTABLE}
         -DMPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}
         -DMPIEXEC_PREFLAGS=${MPIEXEC_PREFLAGS}
         -DNRANKS=${NP}
         -DTEST_EXE=${TEST_EXE}
-        -DINPUT=${CURRENT_TEST_BINARY_DIR}/SHOC_Stable_Clear.i
-        -DRUNTIME_OPTIONS=${RUNTIME_OPTIONS}
-        -DWORKING_DIRECTORY=${CURRENT_TEST_BINARY_DIR}
-        -DLOG=${test_log}
-        -DCHECKER=${SHOC_PLOTFILE_CHECKER}
-        -DCHECK_MODE=${CHECK_MODE}
-        -DINITIAL=${CURRENT_TEST_BINARY_DIR}/plt00000
-        -DMIDPOINT=${CURRENT_TEST_BINARY_DIR}/plt00010
-        -DFINAL=${CURRENT_TEST_BINARY_DIR}/plt00020
-        -DEXPECTED_CHECKER_CODE=${EXPECTED_CODE}
-        -P ${PROJECT_SOURCE_DIR}/Tests/RunShocRegression.cmake)
+        -DBASELINE_INPUT=${_baseline_dir}/SHOC_Stable_Clear.i
+        -DMUTANT_INPUT=${_mutant_dir}/SHOC_Stable_Clear.i
+        -DBASELINE_OPTIONS=
+        -DMUTANT_OPTIONS=${MUTATION_OPTION}
+        -DBASELINE_WORKING_DIRECTORY=${_baseline_dir}
+        -DMUTANT_WORKING_DIRECTORY=${_mutant_dir}
+        -DBASELINE_LOG=${_baseline_log}
+        -DMUTANT_LOG=${_mutant_log}
+        -DCHECKER=${SHOC_MUTATION_DIFFERENTIAL}
+        -DTARGET_FIELD=${TARGET_FIELD}
+        -DTHRESHOLD=1.0e-4
+        -P ${PROJECT_SOURCE_DIR}/Tests/RunShocMutationRegression.cmake)
     set_tests_properties(${TEST_NAME}
         PROPERTIES
         TIMEOUT 900
         PROCESSORS ${NP}
         WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
-        LABELS "regression;shoc;negative"
-        ENVIRONMENT "FI_PROVIDER=tcp"
-        ATTACHED_FILES_ON_FAIL "${test_log}")
-endfunction(add_test_shoc_negative)
+        LABELS "regression;shoc;mutation"
+        ATTACHED_FILES_ON_FAIL "${_baseline_log};${_mutant_log}")
+endfunction(add_test_shoc_mutation)
 
 if(ERF_ENABLE_MPI)
 add_test(SHOC_Unstable_Cloud_SatAdj_vs_NoCond
@@ -225,7 +231,6 @@ set_tests_properties(SHOC_Unstable_Cloud_SatAdj_vs_NoCond
     TIMEOUT 120
     PROCESSORS 1
     WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/"
-    ENVIRONMENT "FI_PROVIDER=tcp"
     LABELS "regression;shoc;microphysics")
 endif()
 
@@ -350,21 +355,21 @@ if(ERF_ENABLE_TESTS AND ERF_ENABLE_MPI)
         TEST_FILES_DIR "SHOC_Unstable_Cloud"
         INPUT_FILE "SHOC_Unstable_Cloud.i"
         CHECK_MODE "unstable_cloud"
-        RUNTIME_OPTIONS "erf.moisture_model=SatAdj "
+        RUNTIME_OPTIONS "erf.moisture_model=SatAdj erf.buoyancy_type=1 "
         LABELS regression shoc microphysics
         TIMEOUT 900)
     add_test_shoc_r(SHOC_Unstable_Cloud_NoCond "" "erf_exec" "plt00020"
         TEST_FILES_DIR "SHOC_Unstable_Cloud"
         INPUT_FILE "SHOC_Unstable_Cloud.i"
         CHECK_MODE "unstable_cloud_nocond"
-        RUNTIME_OPTIONS "erf.moisture_model=MoistNoCondensation "
+        RUNTIME_OPTIONS "erf.moisture_model=MoistNoCondensation erf.buoyancy_type=1 "
         LABELS regression shoc microphysics
         TIMEOUT 900)
     add_test_shoc_r(SHOC_Unstable_Cloud_SatAdj_Property "" "erf_exec" "plt00020"
         TEST_FILES_DIR "SHOC_Unstable_Cloud"
         INPUT_FILE "SHOC_Unstable_Cloud.i"
         CHECK_MODE "unstable_cloud"
-        RUNTIME_OPTIONS "erf.moisture_model=SatAdj "
+        RUNTIME_OPTIONS "erf.moisture_model=SatAdj erf.buoyancy_type=1 "
         SKIP_GOLD
         LABELS regression shoc microphysics property
         TIMEOUT 900)
@@ -372,28 +377,26 @@ if(ERF_ENABLE_TESTS AND ERF_ENABLE_MPI)
         TEST_FILES_DIR "SHOC_Unstable_Cloud"
         INPUT_FILE "SHOC_Unstable_Cloud.i"
         CHECK_MODE "unstable_cloud_nocond"
-        RUNTIME_OPTIONS "erf.moisture_model=MoistNoCondensation "
+        RUNTIME_OPTIONS "erf.moisture_model=MoistNoCondensation erf.buoyancy_type=1 "
         SKIP_GOLD
         LABELS regression shoc microphysics property
         TIMEOUT 900)
     add_test_shoc_r(SHOC_Unstable_Cloud_Kessler "" "erf_exec" "plt00020"
         TEST_FILES_DIR "SHOC_Unstable_Cloud"
-        INPUT_FILE "SHOC_Unstable_Cloud.i"
+        INPUT_FILE "SHOC_Unstable_Cloud_Kessler.i"
         CHECK_MODE "unstable_cloud"
-        RUNTIME_OPTIONS "erf.moisture_model=Kessler "
         LABELS regression shoc microphysics
         TIMEOUT 900)
     add_test_shoc_r(SHOC_Unstable_Cloud_WSM6 "" "erf_exec" "plt00020"
         TEST_FILES_DIR "SHOC_Unstable_Cloud"
-        INPUT_FILE "SHOC_Unstable_Cloud.i"
+        INPUT_FILE "SHOC_Unstable_Cloud_WSM6.i"
         CHECK_MODE "unstable_cloud"
-        RUNTIME_OPTIONS "erf.moisture_model=WSM6 "
         LABELS regression shoc microphysics
         TIMEOUT 900)
-    add_test_shoc_negative(SHOC_Negative_Disable_Tke_State_Update
-        "erf.shoc.debug_disable_tke_state_update=true" negative_tke 7)
-    add_test_shoc_negative(SHOC_Negative_Disable_Theta_State_Update
-        "erf.shoc.debug_disable_theta_state_update=true" negative_theta 8)
+    add_test_shoc_mutation(SHOC_Mutation_Disable_Tke_State_Update
+        "erf.shoc.debug_disable_tke_state_update=true" rhoKE)
+    add_test_shoc_mutation(SHOC_Mutation_Disable_Theta_State_Update
+        "erf.shoc.debug_disable_theta_state_update=true" theta)
 endif()
 
 # These tests will all be built in Exec

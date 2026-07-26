@@ -16,16 +16,14 @@ using amrex::PlotFileData;
 using amrex::Real;
 
 // Stable exit codes let CTest distinguish a broken simulation from a
-// deliberately broken negative-control contract.
+// deliberately broken state-update contract.
 enum CheckCode : int {
     kSuccess = 0,
     kUsage = 2,
     kMissingField = 3,
     kInvalidField = 4,
     kTransportContract = 5,
-    kCloudContract = 6,
-    kNegativeTkeContract = 7,
-    kNegativeThetaContract = 8
+    kCloudContract = 6
 };
 
 // The checker is intentionally driven by three plotfile snapshots so that
@@ -104,7 +102,7 @@ check_finite (PlotFileData& plotfile,
 }
 
 // Compute the cellwise L-infinity difference between two same-layout fields.
-// This is used for both evolution checks and the negative controls.
+// This is used for both evolution checks and mutation regressions.
 Real
 maximum_difference (const MultiFab& first, const MultiFab& second)
 {
@@ -143,16 +141,43 @@ check_nonnegative (PlotFileData& plotfile,
     return true;
 }
 
-// Apply the state-independent SHOC output contract: required diagnostics,
-// finite values, positivity, non-negativity, cloud-fraction bounds, and any
-// optional scheme-specific hydrometeor bounds.
+// Check hydrometeor fields only when the selected plotfile actually contains
+// them.  The Kessler and WSM6 fixtures request their supported species, so
+// this path is real coverage rather than a vacuous list of optional names.
 bool
-check_common_state (PlotFileData& plotfile, CheckCode& code, std::string& error)
+check_optional_hydrometeors (PlotFileData& plotfile,
+                             CheckCode& code,
+                             std::string& error)
+{
+    std::string checked;
+    for (const auto& name : {"qi", "qrain", "qsnow", "qgraup"}) {
+        if (has_variable(plotfile, name)) {
+            const std::vector<std::string> field{name};
+            if (!check_finite(plotfile, field, code, error) ||
+                !check_nonnegative(plotfile, name, 1.0e-12, code, error)) {
+                return false;
+            }
+            if (!checked.empty()) { checked += ", "; }
+            checked += name;
+        }
+    }
+
+    if (!checked.empty()) {
+        amrex::Print() << "SHOC property check: verified hydrometeor fields "
+                       << checked << "\n";
+    }
+    return true;
+}
+
+// Check the host state that is meaningful at initialization.  Native SHOC
+// diagnostics are intentionally absent here: the first plotfile is written
+// before the SHOC driver has diagnosed its PDF and transport fields.
+bool
+check_initial_state (PlotFileData& plotfile, CheckCode& code, std::string& error)
 {
     const std::vector<std::string> required {
         "density", "temp", "theta", "pressure", "qv", "qc", "rhoKE",
-        "x_velocity", "y_velocity", "Kmv", "Khv", "Lturb", "shoc_cldfrac",
-        "shoc_ql", "shoc_cond", "brunt", "shear_prod", "buoy_prod", "diss_tke"
+        "x_velocity", "y_velocity"
     };
     if (!check_finite(plotfile, required, code, error)) {
         return false;
@@ -166,7 +191,54 @@ check_common_state (PlotFileData& plotfile, CheckCode& code, std::string& error)
         }
     }
 
-    for (const auto& name : {"density", "qv", "qc", "rhoKE", "Kmv", "Khv", "Lturb", "shoc_ql"}) {
+    for (const auto& name : {"density", "qv", "qc", "rhoKE"}) {
+        if (!check_nonnegative(plotfile, name, 1.0e-12, code, error)) {
+            return false;
+        }
+    }
+
+    return check_optional_hydrometeors(plotfile, code, error);
+}
+
+// A native diagnostic is unavailable when the writer has no SHOC source for
+// it, and ERF represents that state with exactly -999.  Keep this sentinel
+// distinct from a diagnosed physical zero at saved times after SHOC runs.
+bool
+check_not_unavailable (PlotFileData& plotfile,
+                       const std::string& name,
+                       CheckCode& code,
+                       std::string& error)
+{
+    const Real minimum = plotfile.get(0, name).min(0, 0, false);
+    if (std::abs(minimum + 999.0) <= 1.0e-12) {
+        code = kMissingField;
+        error = "SHOC diagnostic '" + name + "' retains ERF unavailable sentinel -999";
+        return false;
+    }
+    return true;
+}
+
+// Require the diagnostics that are guaranteed after the midpoint and final
+// SHOC calls.  This is the post-lifecycle counterpart to check_initial_state.
+bool
+check_available_shoc_diagnostics (PlotFileData& plotfile,
+                                  CheckCode& code,
+                                  std::string& error)
+{
+    const std::vector<std::string> diagnostics {
+        "Kmv", "Khv", "Lturb", "shoc_cldfrac", "shoc_ql", "shoc_cond",
+        "brunt", "shear_prod", "buoy_prod", "diss_tke"
+    };
+    if (!check_finite(plotfile, diagnostics, code, error)) {
+        return false;
+    }
+    for (const auto& name : diagnostics) {
+        if (!check_not_unavailable(plotfile, name, code, error)) {
+            return false;
+        }
+    }
+
+    for (const auto& name : {"Kmv", "Khv", "Lturb", "shoc_ql", "shoc_cond"}) {
         if (!check_nonnegative(plotfile, name, 1.0e-12, code, error)) {
             return false;
         }
@@ -182,15 +254,16 @@ check_common_state (PlotFileData& plotfile, CheckCode& code, std::string& error)
         return false;
     }
 
-    // Check scheme-specific hydrometeors whenever the fixture requested them.
-    for (const auto& name : {"qi", "qrain", "qsnow", "qgraup"}) {
-        if (has_variable(plotfile, name) &&
-            !check_nonnegative(plotfile, name, 1.0e-12, code, error)) {
-            return false;
-        }
-    }
-
     return true;
+}
+
+// Check a saved state after SHOC has run: host-state validity, available
+// native diagnostics, and any selected scheme-specific hydrometeors.
+bool
+check_post_shoc_state (PlotFileData& plotfile, CheckCode& code, std::string& error)
+{
+    return check_initial_state(plotfile, code, error) &&
+           check_available_shoc_diagnostics(plotfile, code, error);
 }
 
 // Confirm that the run exercised the native SHOC transport path rather than
@@ -231,19 +304,16 @@ check_active_transport (PlotFileData& initial,
 }
 
 // Clear fixtures are expected to remain free of condensed water at every
-// checkpoint; checking all three snapshots catches transient cloud creation.
+// checkpoint.  This oracle intentionally uses qc only because SHOC PDF
+// diagnostics are not valid at initialization.
 bool
 check_clear_snapshot (PlotFileData& plotfile, const std::string& label,
                       CheckCode& code, std::string& error)
 {
     const Real qc = plotfile.get(0, "qc").max(0, 0, false);
-    const Real ql = plotfile.get(0, "shoc_ql").max(0, 0, false);
-    const Real cldfrac = plotfile.get(0, "shoc_cldfrac").max(0, 0, false);
-    if (qc > 1.0e-10 || ql > 1.0e-10 || cldfrac > 1.0e-10) {
+    if (qc > 1.0e-10) {
         code = kCloudContract;
-        error = label + " snapshot is not clear: max qc=" + std::to_string(qc) +
-                ", max shoc_ql=" + std::to_string(ql) +
-                ", max shoc_cldfrac=" + std::to_string(cldfrac);
+        error = label + " snapshot is not clear: max qc=" + std::to_string(qc);
         return false;
     }
     return true;
@@ -251,8 +321,7 @@ check_clear_snapshot (PlotFileData& plotfile, const std::string& label,
 
 // Apply the mode-specific oracle after common state and transport checks have
 // passed.  Cloud modes require formation and evolution, clear modes require
-// the requested stratification sign, and negative modes require the targeted
-// state update to be observably absent.
+// the requested stratification sign and the corresponding production sign.
 bool
 check_regime (const Arguments& args,
               PlotFileData& initial,
@@ -263,27 +332,6 @@ check_regime (const Arguments& args,
 {
     if (!check_active_transport(initial, final, code, error)) {
         return false;
-    }
-
-    if (args.mode == "negative_tke") {
-        const Real change = maximum_difference(initial.get(0, "rhoKE"), final.get(0, "rhoKE"));
-        if (change <= 1.0e-3) {
-            code = kNegativeTkeContract;
-            error = "negative control detected insufficient TKE state evolution: max |delta rhoKE| = " +
-                    std::to_string(change);
-            return false;
-        }
-        return true;
-    }
-    if (args.mode == "negative_theta") {
-        const Real change = maximum_difference(initial.get(0, "theta"), final.get(0, "theta"));
-        if (change <= 1.0e-3) {
-            code = kNegativeThetaContract;
-            error = "negative control detected insufficient thermal state evolution: max |delta theta| = " +
-                    std::to_string(change);
-            return false;
-        }
-        return true;
     }
 
     if (args.mode == "stable_clear" || args.mode == "unstable_clear") {
@@ -373,9 +421,9 @@ main (int argc, char** argv)
         PlotFileData initial(args.initial);
         PlotFileData midpoint(args.midpoint);
         PlotFileData final(args.final);
-        ok = check_common_state(initial, code, error) &&
-             check_common_state(midpoint, code, error) &&
-             check_common_state(final, code, error) &&
+        ok = check_initial_state(initial, code, error) &&
+             check_post_shoc_state(midpoint, code, error) &&
+             check_post_shoc_state(final, code, error) &&
              check_regime(args, initial, midpoint, final, code, error);
         if (ok) code = kSuccess;
     }

@@ -36,14 +36,6 @@ list(APPEND _checker_command
   --midpoint "${MIDPOINT}"
   --final "${FINAL}")
 execute_process(COMMAND ${_checker_command} RESULT_VARIABLE _checker_result)
-if(DEFINED EXPECTED_CHECKER_CODE)
-  if(NOT _checker_result EQUAL EXPECTED_CHECKER_CODE)
-    message(FATAL_ERROR
-      "SHOC property checker returned ${_checker_result}; expected ${EXPECTED_CHECKER_CODE}")
-  endif()
-  message(STATUS "SHOC negative control returned expected checker code ${EXPECTED_CHECKER_CODE}")
-  return()
-endif()
 if(NOT _checker_result EQUAL 0)
   message(FATAL_ERROR "SHOC property checker failed with exit code ${_checker_result}")
 endif()

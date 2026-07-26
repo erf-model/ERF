@@ -1041,12 +1041,11 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
             MultiFab::Copy(mf[lev],*shoc_or_host_eddy,EddyDiff::Turb_lengthscale,mf_comp,1,0);
             mf_comp ++;
         }
-        auto copy_native_shoc_diagnostic = [&](const MultiFab* src,
-                                               const Real missing_value = -999.0) {
+        auto copy_native_shoc_diagnostic = [&](const MultiFab* src) {
             if (src != nullptr) {
                 MultiFab::Copy(mf[lev], *src, 0, mf_comp, 1, 0);
             } else {
-                mf[lev].setVal(missing_value, mf_comp, 1, 0);
+                mf[lev].setVal(-999, mf_comp, 1, 0);
             }
             mf_comp ++;
         };
@@ -1060,22 +1059,22 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
         if (containerHasElement(plot_var_names, "shoc_cldfrac")) {
             copy_native_shoc_diagnostic(have_native_shoc_diagnostics
                                         ? &native_shoc_driver[lev]->shoc_cldfrac_diagnostics()
-                                        : nullptr, 0.0);
+                                        : nullptr);
         }
         if (containerHasElement(plot_var_names, "shoc_ql")) {
             copy_native_shoc_diagnostic(have_native_shoc_diagnostics
                                         ? &native_shoc_driver[lev]->shoc_ql_diagnostics()
-                                        : nullptr, 0.0);
+                                        : nullptr);
         }
         if (containerHasElement(plot_var_names, "shoc_ql2")) {
             copy_native_shoc_diagnostic(have_native_shoc_diagnostics
                                         ? &native_shoc_driver[lev]->shoc_ql2_diagnostics()
-                                        : nullptr, 0.0);
+                                        : nullptr);
         }
         if (containerHasElement(plot_var_names, "shoc_cond")) {
             copy_native_shoc_diagnostic(have_native_shoc_diagnostics
                                         ? &native_shoc_driver[lev]->shoc_cond_diagnostics()
-                                        : nullptr, 0.0);
+                                        : nullptr);
         }
         if (containerHasElement(plot_var_names, "wqls_sec")) {
             copy_native_shoc_diagnostic(have_native_shoc_diagnostics
