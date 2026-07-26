@@ -24,7 +24,12 @@ function(resolve_test_exe TEST_DIR TEST_EXE OUT_VAR)
 endfunction()
 
 macro(setup_test)
-    set(CURRENT_TEST_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/test_files/${TEST_NAME})
+    if(DEFINED TEST_FILES_DIR AND NOT "${TEST_FILES_DIR}" STREQUAL "")
+        set(_test_source_dir_name "${TEST_FILES_DIR}")
+    else()
+        set(_test_source_dir_name "${TEST_NAME}")
+    endif()
+    set(CURRENT_TEST_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/test_files/${_test_source_dir_name})
     set(CURRENT_TEST_BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR}/test_files/${TEST_NAME})
     set(PLOT_GOLD ${ERF_TEST_GOLD_FILES_DIRECTORY}/${TEST_NAME})
 
@@ -109,6 +114,116 @@ function(add_test_r TEST_NAME TEST_DIR TEST_EXE PLTFILE)
         ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.log"
     )
 endfunction(add_test_r)
+
+# Native SHOC regression test.  This intentionally remains separate from
+# add_test_r so existing registrations retain their exact command and
+# fixture behaviour.  TEST_FILES_DIR and INPUT_FILE allow the small SHOC
+# matrix to reuse a physical fixture while keeping unique binary and gold
+# directories.  The checker runs before the standard fcompare gold check.
+function(add_test_shoc_r TEST_NAME TEST_DIR TEST_EXE PLTFILE)
+    set(options )
+    set(oneValueArgs "TEST_FILES_DIR" "INPUT_FILE" "CHECK_MODE" "RUNTIME_OPTIONS" "TIMEOUT")
+    set(multiValueArgs "LABELS")
+    cmake_parse_arguments(ADD_TEST_SHOC_R "${options}" "${oneValueArgs}"
+        "${multiValueArgs}" ${ARGN})
+
+    set(TEST_FILES_DIR "${ADD_TEST_SHOC_R_TEST_FILES_DIR}")
+    setup_test()
+
+    if("${ADD_TEST_SHOC_R_INPUT_FILE}" STREQUAL "")
+        set(test_input "${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.i")
+    else()
+        set(test_input "${CURRENT_TEST_BINARY_DIR}/${ADD_TEST_SHOC_R_INPUT_FILE}")
+    endif()
+
+    set(RUNTIME_OPTIONS "${ADD_TEST_SHOC_R_RUNTIME_OPTIONS}")
+    resolve_test_exe("${TEST_DIR}" "${TEST_EXE}" TEST_EXE)
+
+    set(test_log "${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.log")
+    add_test(${TEST_NAME} ${CMAKE_COMMAND}
+        -DMPIEXEC=${MPIEXEC_EXECUTABLE}
+        -DMPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}
+        -DMPIEXEC_PREFLAGS=${MPIEXEC_PREFLAGS}
+        -DNRANKS=${NP}
+        -DTEST_EXE=${TEST_EXE}
+        -DINPUT=${test_input}
+        -DRUNTIME_OPTIONS=${RUNTIME_OPTIONS}
+        -DWORKING_DIRECTORY=${CURRENT_TEST_BINARY_DIR}
+        -DLOG=${test_log}
+        -DCHECKER=${SHOC_PLOTFILE_CHECKER}
+        -DCHECK_MODE=${ADD_TEST_SHOC_R_CHECK_MODE}
+        -DINITIAL=${CURRENT_TEST_BINARY_DIR}/plt00000
+        -DMIDPOINT=${CURRENT_TEST_BINARY_DIR}/plt00010
+        -DFINAL=${CURRENT_TEST_BINARY_DIR}/${PLTFILE}
+        -DFCOMPARE=${FCOMPARE_EXE}
+        -DRTOL=${ERF_TEST_FCOMPARE_RTOL}
+        -DATOL=${ERF_TEST_FCOMPARE_ATOL}
+        -DGOLD=${PLOT_GOLD}
+        -P ${PROJECT_SOURCE_DIR}/Tests/RunShocRegression.cmake)
+    if(ADD_TEST_SHOC_R_TIMEOUT)
+        set(_shoc_timeout "${ADD_TEST_SHOC_R_TIMEOUT}")
+    else()
+        set(_shoc_timeout 900)
+    endif()
+    if(ADD_TEST_SHOC_R_LABELS)
+        set(_shoc_labels "${ADD_TEST_SHOC_R_LABELS}")
+    else()
+        set(_shoc_labels "regression;shoc")
+    endif()
+    set_tests_properties(${TEST_NAME}
+        PROPERTIES
+        TIMEOUT ${_shoc_timeout}
+        PROCESSORS ${NP}
+        WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
+        LABELS "${_shoc_labels}"
+        ATTACHED_FILES_ON_FAIL "${test_log}")
+endfunction(add_test_shoc_r)
+
+function(add_test_shoc_negative TEST_NAME RUNTIME_OPTIONS CHECK_MODE)
+    set(TEST_FILES_DIR "SHOC_Stable_Clear")
+    setup_test()
+    resolve_test_exe("" "erf_exec" TEST_EXE)
+    set(test_log "${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.log")
+    add_test(${TEST_NAME} ${CMAKE_COMMAND}
+        -DMPIEXEC=${MPIEXEC_EXECUTABLE}
+        -DMPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}
+        -DMPIEXEC_PREFLAGS=${MPIEXEC_PREFLAGS}
+        -DNRANKS=${NP}
+        -DTEST_EXE=${TEST_EXE}
+        -DINPUT=${CURRENT_TEST_BINARY_DIR}/SHOC_Stable_Clear.i
+        -DRUNTIME_OPTIONS=${RUNTIME_OPTIONS}
+        -DWORKING_DIRECTORY=${CURRENT_TEST_BINARY_DIR}
+        -DLOG=${test_log}
+        -DCHECKER=${SHOC_PLOTFILE_CHECKER}
+        -DCHECK_MODE=${CHECK_MODE}
+        -DINITIAL=${CURRENT_TEST_BINARY_DIR}/plt00000
+        -DMIDPOINT=${CURRENT_TEST_BINARY_DIR}/plt00010
+        -DFINAL=${CURRENT_TEST_BINARY_DIR}/plt00020
+        -DEXPECT_CHECKER_FAILURE=TRUE
+        -P ${PROJECT_SOURCE_DIR}/Tests/RunShocRegression.cmake)
+    set_tests_properties(${TEST_NAME}
+        PROPERTIES
+        TIMEOUT 900
+        PROCESSORS ${NP}
+        WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
+        LABELS "regression;shoc;negative"
+        ATTACHED_FILES_ON_FAIL "${test_log}")
+endfunction(add_test_shoc_negative)
+
+if(ERF_ENABLE_MPI)
+add_test(SHOC_Unstable_Cloud_SatAdj_vs_NoCond
+    ${MPIEXEC_EXECUTABLE} ${MPIEXEC_NUMPROC_FLAG} 1 ${MPIEXEC_PREFLAGS}
+    ${SHOC_MICROPHYSICS_DIFFERENTIAL}
+    ${CMAKE_CURRENT_BINARY_DIR}/test_files/SHOC_Unstable_Cloud_SatAdj/plt00020
+    ${CMAKE_CURRENT_BINARY_DIR}/test_files/SHOC_Unstable_Cloud_NoCond/plt00020)
+set_tests_properties(SHOC_Unstable_Cloud_SatAdj_vs_NoCond
+    PROPERTIES
+    DEPENDS "SHOC_Unstable_Cloud_SatAdj;SHOC_Unstable_Cloud_NoCond"
+    TIMEOUT 120
+    PROCESSORS 1
+    WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/"
+    LABELS "regression;shoc;microphysics")
+endif()
 
 # Debug regression test with lower tolerance
 function(add_test_d TEST_NAME TEST_DIR TEST_EXE PLTFILE)
@@ -207,6 +322,59 @@ endfunction(add_test_sdm)
 #=============================================================================
 # Regression tests
 #=============================================================================
+
+if(ERF_ENABLE_TESTS AND ERF_ENABLE_MPI)
+    # The checker is a small AMReX PlotFileData consumer and is built only
+    # when regression tests are enabled.  All SHOC cases use explicit
+    # state-update ownership settings in their input fixture.
+    add_test_shoc_r(SHOC_Stable_Clear "" "erf_exec" "plt00020"
+        TEST_FILES_DIR "SHOC_Stable_Clear"
+        CHECK_MODE "stable_clear"
+        LABELS regression shoc
+        TIMEOUT 900)
+    add_test_shoc_r(SHOC_Stable_Cloud "" "erf_exec" "plt00020"
+        TEST_FILES_DIR "SHOC_Stable_Cloud"
+        CHECK_MODE "stable_cloud"
+        LABELS regression shoc
+        TIMEOUT 900)
+    add_test_shoc_r(SHOC_Unstable_Clear_BOMEX "" "erf_exec" "plt00020"
+        TEST_FILES_DIR "SHOC_Unstable_Clear_BOMEX"
+        CHECK_MODE "unstable_clear"
+        LABELS regression shoc
+        TIMEOUT 900)
+    add_test_shoc_r(SHOC_Unstable_Cloud_SatAdj "" "erf_exec" "plt00020"
+        TEST_FILES_DIR "SHOC_Unstable_Cloud"
+        INPUT_FILE "SHOC_Unstable_Cloud.i"
+        CHECK_MODE "unstable_cloud"
+        RUNTIME_OPTIONS "erf.moisture_model=SatAdj "
+        LABELS regression shoc microphysics
+        TIMEOUT 900)
+    add_test_shoc_r(SHOC_Unstable_Cloud_NoCond "" "erf_exec" "plt00020"
+        TEST_FILES_DIR "SHOC_Unstable_Cloud"
+        INPUT_FILE "SHOC_Unstable_Cloud.i"
+        CHECK_MODE "unstable_cloud_nocond"
+        RUNTIME_OPTIONS "erf.moisture_model=MoistNoCondensation "
+        LABELS regression shoc microphysics
+        TIMEOUT 900)
+    add_test_shoc_r(SHOC_Unstable_Cloud_Kessler "" "erf_exec" "plt00020"
+        TEST_FILES_DIR "SHOC_Unstable_Cloud"
+        INPUT_FILE "SHOC_Unstable_Cloud.i"
+        CHECK_MODE "unstable_cloud"
+        RUNTIME_OPTIONS "erf.moisture_model=Kessler "
+        LABELS regression shoc microphysics
+        TIMEOUT 900)
+    add_test_shoc_r(SHOC_Unstable_Cloud_WSM6 "" "erf_exec" "plt00020"
+        TEST_FILES_DIR "SHOC_Unstable_Cloud"
+        INPUT_FILE "SHOC_Unstable_Cloud.i"
+        CHECK_MODE "unstable_cloud"
+        RUNTIME_OPTIONS "erf.moisture_model=WSM6 "
+        LABELS regression shoc microphysics
+        TIMEOUT 900)
+    add_test_shoc_negative(SHOC_Negative_Disable_Tke_State_Update
+        "erf.shoc.debug_disable_tke_state_update=true" negative_tke)
+    add_test_shoc_negative(SHOC_Negative_Disable_Theta_State_Update
+        "erf.shoc.debug_disable_theta_state_update=true" negative_theta)
+endif()
 
 # These tests will all be built in Exec
 add_test_plotfile_header(Plotfile3D_DryUnavailableSelection "" "erf_exec" "plt00000")
