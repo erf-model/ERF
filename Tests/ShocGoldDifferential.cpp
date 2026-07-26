@@ -155,7 +155,8 @@ bool check_inventory (const PlotFileData& plotfile,
 {
     const std::set<std::string> expected_set(expected.begin(), expected.end());
     const std::set<std::string> actual_set(plotfile.varNames().begin(), plotfile.varNames().end());
-    if (expected_set != actual_set || actual_set.size() != plotfile.varNames().size()) {
+    if (expected_set != actual_set ||
+        static_cast<amrex::Long>(actual_set.size()) != plotfile.varNames().size()) {
         std::cerr << label << " has an unexpected field inventory\n";
         for (const auto& field : expected_set) {
             if (actual_set.count(field) == 0) {
