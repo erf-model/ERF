@@ -36,6 +36,34 @@ if(ERF_ENABLE_TESTS)
   message(STATUS "   Gold file directory           = ${ERF_TEST_GOLD_FILES_DIRECTORY}")
   message(STATUS "   Extra SDM tests enabled       = ${ERF_TEST_ENABLE_EXTRA_SDM_TESTS}")
 
+  add_executable(erf_shoc_plotfile_check
+    ${CMAKE_CURRENT_SOURCE_DIR}/ShocPlotfileCheck.cpp)
+  target_link_libraries(erf_shoc_plotfile_check PRIVATE AMReX::amrex)
+  target_compile_features(erf_shoc_plotfile_check PRIVATE cxx_std_17)
+  set(SHOC_PLOTFILE_CHECKER
+      "${CMAKE_CURRENT_BINARY_DIR}/erf_shoc_plotfile_check${CMAKE_EXECUTABLE_SUFFIX}")
+
+  add_executable(erf_shoc_microphysics_differential
+    ${CMAKE_CURRENT_SOURCE_DIR}/ShocMicrophysicsDifferential.cpp)
+  target_link_libraries(erf_shoc_microphysics_differential PRIVATE AMReX::amrex)
+  target_compile_features(erf_shoc_microphysics_differential PRIVATE cxx_std_17)
+  set(SHOC_MICROPHYSICS_DIFFERENTIAL
+      "${CMAKE_CURRENT_BINARY_DIR}/erf_shoc_microphysics_differential${CMAKE_EXECUTABLE_SUFFIX}")
+
+  add_executable(erf_shoc_mutation_differential
+    ${CMAKE_CURRENT_SOURCE_DIR}/ShocMutationDifferential.cpp)
+  target_link_libraries(erf_shoc_mutation_differential PRIVATE AMReX::amrex)
+  target_compile_features(erf_shoc_mutation_differential PRIVATE cxx_std_17)
+  set(SHOC_MUTATION_DIFFERENTIAL
+      "${CMAKE_CURRENT_BINARY_DIR}/erf_shoc_mutation_differential${CMAKE_EXECUTABLE_SUFFIX}")
+
+  add_executable(erf_shoc_gold_differential
+    ${CMAKE_CURRENT_SOURCE_DIR}/ShocGoldDifferential.cpp)
+  target_link_libraries(erf_shoc_gold_differential PRIVATE AMReX::amrex)
+  target_compile_features(erf_shoc_gold_differential PRIVATE cxx_std_17)
+  set(SHOC_GOLD_DIFFERENTIAL
+      "${CMAKE_CURRENT_BINARY_DIR}/erf_shoc_gold_differential${CMAKE_EXECUTABLE_SUFFIX}")
+
   include(${CMAKE_CURRENT_SOURCE_DIR}/CTestList.cmake)
 endif()
 

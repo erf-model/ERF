@@ -257,6 +257,7 @@ TEST(Plotfile2D, CatalogNamesMatchCanonicalOrder)
         "u_star", "w_star", "t_star", "q_star", "Olen", "pblh",
         "t_surf", "q_surf", "z0", "OLR", "sens_flux", "laten_flux",
         "surf_pres",
+        "sea_level_pressure",
         "precip_total_accum", "precip_rain_accum", "precip_snow_accum",
         "precip_graupel_accum", "precip_hail_accum", "precip_frozen_accum",
         "integrated_qv", "integrated_qc", "integrated_qi",
@@ -281,7 +282,7 @@ TEST(Plotfile2D, CatalogNamesMatchCanonicalOrder)
 }
 
 // Motivation: Surface precipitation accumulations are part of the canonical 2D
-// layout and should sit between surf_pres and the column-integrated water paths.
+// layout and should follow the surface-state diagnostics before column paths.
 TEST(Plotfile2D, PrecipitationDiagnosticsFollowSurfacePressure)
 {
     const auto* total = plotfile2d::find_diagnostic("precip_total_accum");
@@ -3054,4 +3055,59 @@ TEST(Plotfile2DSampledLevel, FormatsOutputNames)
 TEST(Plotfile2DMetadata, MetadataFilenameLivesInsidePlotfileDirectory)
 {
     EXPECT_EQ(metadata_json_filename("plt2d_00010"), "plt2d_00010/2DMetadata.json");
+}
+
+// Motivation: Sea-level pressure is an always-available public diagnostic;
+// this protects its catalog placement, unique identity, and metadata contract.
+TEST(Plotfile2DCatalog, SeaLevelPressureHasCanonicalMetadata)
+{
+    const auto& catalog = plotfile2d::diagnostic_catalog();
+    auto sea_level = std::find_if(catalog.begin(), catalog.end(),
+                                  [](const auto& descriptor) {
+                                      return std::string(descriptor.name) == "sea_level_pressure";
+                                  });
+    ASSERT_NE(sea_level, catalog.end());
+    EXPECT_EQ(sea_level->id, plotfile2d::DiagnosticID::SeaLevelPressure);
+    EXPECT_STREQ(sea_level->long_name,
+                 "Sea-level pressure from the NMC/NGM reduction with Shuell correction");
+    EXPECT_STREQ(sea_level->units, "Pa");
+    EXPECT_EQ(sea_level->category, plotfile2d::DiagnosticCategory::SurfaceState);
+    EXPECT_EQ(sea_level->missing_policy, plotfile2d::MissingPolicy::AlwaysAvailable);
+
+    ASSERT_NE(sea_level, catalog.begin());
+    EXPECT_STREQ((sea_level - 1)->name, "surf_pres");
+    ASSERT_NE(sea_level + 1, catalog.end());
+    EXPECT_STREQ((sea_level + 1)->name, "precip_total_accum");
+
+    std::unordered_set<int> ids;
+    std::unordered_set<std::string> names;
+    for (const auto& descriptor : catalog) {
+        EXPECT_TRUE(ids.insert(static_cast<int>(descriptor.id)).second);
+        EXPECT_TRUE(names.insert(descriptor.name).second);
+    }
+}
+
+// Motivation: Fixed diagnostics must remain selectable without provider
+// prerequisites; this prevents coupling the new field to moisture, land, or
+// surface-layer availability and protects metadata formatting for readers.
+TEST(Plotfile2DCatalog, SeaLevelPressureIsAvailableAndFormatsMetadata)
+{
+    SolverChoice dry;
+    dry.moisture_type = MoistureType::None;
+    SolverChoice moist = dry;
+    moist.moisture_type = MoistureType::MoistNoCondensation;
+
+    EXPECT_TRUE(has_name(plotfile2d::available_diagnostic_names(dry, false),
+                         "sea_level_pressure"));
+    EXPECT_TRUE(has_name(plotfile2d::available_diagnostic_names(moist, false),
+                         "sea_level_pressure"));
+
+    const std::string json = plotfile2d::format_2d_metadata_json(
+        amrex::Vector<std::string>{"sea_level_pressure"});
+    EXPECT_TRUE(contains(json, "\"name\": \"sea_level_pressure\""));
+    EXPECT_TRUE(contains(json,
+                         "\"long_name\": \"Sea-level pressure from the NMC/NGM reduction with Shuell correction\""));
+    EXPECT_TRUE(contains(json, "\"units\": \"Pa\""));
+    EXPECT_TRUE(contains(json, "\"category\": \"SurfaceState\""));
+    EXPECT_TRUE(contains(json, "\"missing_value\": null"));
 }
