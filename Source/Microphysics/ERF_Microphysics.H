@@ -115,6 +115,7 @@ public:
              || (a_moisture_type == MoistureType::Morrison)
              || (a_moisture_type == MoistureType::Morrison_NoIce)
              || (a_moisture_type == MoistureType::WSM6)
+             || (a_moisture_type == MoistureType::WDM6)
              || (a_moisture_type == MoistureType::Kessler)
              || (a_moisture_type == MoistureType::Kessler_NoRain)
              || (a_moisture_type == MoistureType::SatAdj)
