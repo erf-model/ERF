@@ -34,6 +34,8 @@ For eg.
 getARMFiles -u <username>:<token> -ds sgpmetE13.b1 -s 2025-04-02 -e 2025-04-07
 ```
 
+### 5. Plot the data
+
 ```bash
 python3 PlotARMData.py --arm-data-dir=<path-to-arm-data-dir>
 ```
