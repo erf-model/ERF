@@ -705,7 +705,7 @@ void make_sources (int level,
                 }
 
                 // SURFACE HEAT FLUX
-                if (tflux != 1e-8){
+                if (tflux != Real(1.e-8)){
                     if (t_blank > zero && (t_blank_above == zero)) { // building roof
                         Real psi_m           = zero;
                         Real psi_h           = zero;
