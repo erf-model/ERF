@@ -98,13 +98,15 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
     const Real dz_inv = geom.InvCellSize(2);
     const auto& dxInv = geom.InvCellSizeArray();
 
+    // Collect YSUNew-computed PBLH for writing back to SurfaceLayer.
+    // NOTE: OpenMP is not used here; if re-enabled, this MultiFab must remain
+    // outside any omp parallel structured block to avoid undefined behaviour.
+    MultiFab pblh_mf(eddyViscosity.boxArray(), eddyViscosity.DistributionMap(), 1, 0);
+    pblh_mf.setVal(0.0);
+
 #ifdef _OPENMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())
 #endif
-
-// Collect YSUNew-computed PBLH for writing back to SurfaceLayer
-MultiFab pblh_mf(eddyViscosity.boxArray(), eddyViscosity.DistributionMap(), 1, 0);
-pblh_mf.setVal(0.0);
 
     for (MFIter mfi(eddyViscosity, TileNoZ()); mfi.isValid(); ++mfi) {
 
@@ -1223,6 +1225,20 @@ pblh_mf.setVal(0.0);
         ParallelFor(gbx, [=, wstar3_arr_cap=wstar3_arr, zol1_arr_cap=zol1_arr, sfcflg_arr_cap=sfcflg_arr,
                           zero_d=zero, one_d=one, two_d=two] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {
+            // Guard: skip lateral ghost cells that may have uninitialized density.
+            const Real rho_guard = cell_data(i, j, k, Rho_comp);
+            if (rho_guard <= Real(0)) {
+                K_turb(i, j, k, EddyDiff::Mom_v)   = Real(0);
+                K_turb(i, j, k, EddyDiff::Theta_v) = Real(0);
+                K_turb(i, j, k, EddyDiff::Q_v)     = Real(0);
+                K_turb(i, j, k, EddyDiff::HGAMT_v) = Real(0);
+                K_turb(i, j, k, EddyDiff::HGAMQ_v) = Real(0);
+                K_turb(i, j, k, EddyDiff::HGAMU_v) = Real(0);
+                K_turb(i, j, k, EddyDiff::HGAMV_v) = Real(0);
+                K_turb(i, j, k, EddyDiff::Turb_lengthscale) = Real(0);
+                return;
+            }
+
             Real obuk_val = l_obuk_arr(i, j, 0);
             if (std::abs(obuk_val) < amrex::Real(1.0e-10)) {
                 obuk_val = (obuk_val >= zero) ? amrex::Real(1.0e-10) : amrex::Real(-1.0e-10);
@@ -1755,7 +1771,8 @@ pblh_mf.setVal(0.0);
             }
         });
         BL_PROFILE_VAR_STOP(prof_kprof);
-        amrex::Print()<<" Turbulent Viscosity at cell "<<K_turb(2, 2, 2, EddyDiff::Mom_v)<<" "<<pblh_corr_arr(2, 2, 0)<<std::endl;
+        // Debug print disabled for production runs.
+        // amrex::Print()<<" Turbulent Viscosity at cell "<<K_turb(2, 2, 2, EddyDiff::Mom_v)<<" "<<pblh_corr_arr(2, 2, 0)<<std::endl;
         // FOEXTRAP top and bottom ghost cells
         ParallelFor(xybx, [=] AMREX_GPU_DEVICE(int i, int j, int ) noexcept
         {
@@ -1779,5 +1796,8 @@ pblh_mf.setVal(0.0);
     }// mfi
     // Write YSUNew-computed PBLH back into SurfaceLayer so Beljaars correction
     // and diagnostics can use it, and update_pblh no longer aborts for YSUNew type.
+    // REGRID NOTE: On regrid, SurfaceLayer is reallocated and PBLH returns to sentinel.
+    // The driver must call ComputeDiffusivityYSUNew (or an equivalent bootstrap pass)
+    // before consuming PBLH in update_fluxes() or Beljaars correction after any regrid.
     SurfLayer->set_pblh(level, pblh_mf);
 }
