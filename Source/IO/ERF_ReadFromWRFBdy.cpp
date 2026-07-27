@@ -111,7 +111,7 @@ convert_wrfbdy_data (const int itime,
                      std::unique_ptr<MultiFab>& wrf_C2H,
                      std::unique_ptr<MultiFab>& wrf_RDNW,
                      std::unique_ptr<MultiFab>& wrf_PHB,
-                     std::unique_ptr<MultiFab>& z_phys_nd,
+                     std::unique_ptr<MultiFab>& z_phys_cc,
                      const iMultiFab* mask_u,
                      const iMultiFab* mask_v,
                      const iMultiFab* mask_c,
@@ -158,10 +158,6 @@ convert_wrfbdy_data (const int itime,
     Array4<Real> bdy_qv_arr = bdy_data[itime][WRFBdyVars::QV].array(); // This is cell-centered
     Array4<Real> mu_arr     = bdy_data[itime][WRFBdyVars::MU].array(); // This is cell-centered
     Array4<Real> bdy_ph_arr = bdy_data[itime][WRFBdyVars::PH].array(); // This is z-face-centered
-
-    // For height interpolation (removes averaging error)
-    Array4<Real> mu0_arr     = bdy_data[0][WRFBdyVars::MU].array(); // This is cell-centered
-    Array4<Real> bdy_ph0_arr = bdy_data[0][WRFBdyVars::PH].array(); // This is z-face-centered
 
     // Bounds limiting
     int ilo  = domain.smallEnd()[0];
@@ -219,7 +215,7 @@ convert_wrfbdy_data (const int itime,
         Array4<Real const> phb_arr  = wrf_PHB->const_array(mfi);
 
         // Physical heights for rebalancing
-        const Array4<const Real>& z_arr = z_phys_nd->const_array(mfi);
+        const Array4<const Real>& z_cc_arr = z_phys_cc->const_array(mfi);
 
         // New z values
         ParallelFor(bx_t, bx_u, bx_v,
@@ -227,75 +223,60 @@ convert_wrfbdy_data (const int itime,
         {
             // Mass coupling
             Real mu    = mu_arr(i ,j ,0)  + mub_arr(i ,j ,0);
-            Real mu0   = mu0_arr(i ,j ,0) + mub_arr(i ,j ,0);
 
             // Pert and base geopotential
             Real P     = phb_arr(i ,j ,k  ) + bdy_ph_arr(i ,j ,k  )/mu  ;
             Real P_kp  = phb_arr(i ,j ,k+1) + bdy_ph_arr(i ,j ,k+1)/mu  ;
-            Real P0    = phb_arr(i ,j ,k  ) + bdy_ph0_arr(i ,j ,k  )/mu0;
-            Real P0_kp = phb_arr(i ,j ,k+1) + bdy_ph0_arr(i ,j ,k+1)/mu0;
 
-            // New heights
+            // WRF heights
             bdy_c_z_src(i,j,k) = Real(0.5  ) * ( P + P_kp ) / CONST_GRAV;
 
-            // Original heights
-            bdy_c_z_dst(i,j,k) = Real(0.5  ) * ( P0 + P0_kp ) / CONST_GRAV;
+            // ERF heights
+            bdy_c_z_dst(i,j,k) = z_cc_arr(i,j,k);
         },
         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
             // Prevent averaging outside domain and match init from WRF input
-            int ii = std::max(std::min(i  ,ihi_ph),ilo_ph);
-            int im = std::max(std::min(i-1,ihi_ph),ilo_ph);
+            int ii  = std::max(std::min(i  ,ihi_ph),ilo_ph);
+            int iim = std::max(std::min(i-1,ihi_ph),ilo_ph);
 
             // Mass coupling
-            Real mu      = mu_arr(ii,j ,0)  + mub_arr(ii,j ,0);
-            Real mu_im   = mu_arr(im,j ,0)  + mub_arr(im,j ,0);
-            Real mu0     = mu0_arr(ii,j ,0) + mub_arr(ii,j ,0);
-            Real mu0_im  = mu0_arr(im,j ,0) + mub_arr(im,j ,0);
+            Real mu      = mu_arr(ii ,j ,0)  + mub_arr(ii ,j ,0);
+            Real mu_im   = mu_arr(iim,j ,0)  + mub_arr(iim,j ,0);
 
             // Pert and base geopotential
-            Real P        = phb_arr(ii,j ,k  ) + bdy_ph_arr(ii,j ,k  )/mu     ;
-            Real P_im     = phb_arr(im,j ,k  ) + bdy_ph_arr(im,j ,k  )/mu_im  ;
-            Real P_kp     = phb_arr(ii,j ,k+1) + bdy_ph_arr(ii,j ,k+1)/mu     ;
-            Real P_im_kp  = phb_arr(im,j ,k+1) + bdy_ph_arr(im,j ,k+1)/mu_im  ;
-            Real P0       = phb_arr(ii,j ,k  ) + bdy_ph0_arr(ii,j ,k  )/mu0   ;
-            Real P0_im    = phb_arr(im,j ,k  ) + bdy_ph0_arr(im,j ,k  )/mu0_im;
-            Real P0_kp    = phb_arr(ii,j ,k+1) + bdy_ph0_arr(ii,j ,k+1)/mu0   ;
-            Real P0_im_kp = phb_arr(im,j ,k+1) + bdy_ph0_arr(im,j ,k+1)/mu0_im;
+            Real P        = phb_arr(ii ,j ,k  ) + bdy_ph_arr(ii ,j ,k  )/mu     ;
+            Real P_im     = phb_arr(iim,j ,k  ) + bdy_ph_arr(iim,j ,k  )/mu_im  ;
+            Real P_kp     = phb_arr(ii ,j ,k+1) + bdy_ph_arr(ii ,j ,k+1)/mu     ;
+            Real P_im_kp  = phb_arr(iim,j ,k+1) + bdy_ph_arr(iim,j ,k+1)/mu_im  ;
 
-            // New heights
+            // WRF heights
             bdy_u_z_src(i,j,k) = Real(0.25) * ( P + P_kp + P_im + P_im_kp ) / CONST_GRAV;
 
-            // Original heights
-            bdy_u_z_dst(i,j,k) = Real(0.25) * ( P0 + P0_kp + P0_im + P0_im_kp ) / CONST_GRAV;
+            // ERF heights
+            bdy_u_z_dst(i,j,k) = Real(0.5) * (z_cc_arr(i,j,k) + z_cc_arr(i-1,j,k));
         },
         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
             // Prevent averaging outside domain and match init from WRF input
-            int jj = std::max(std::min(j  ,jhi_ph),jlo_ph);
-            int jm = std::max(std::min(j-1,jhi_ph),jlo_ph);
+            int jj  = std::max(std::min(j  ,jhi_ph),jlo_ph);
+            int jjm = std::max(std::min(j-1,jhi_ph),jlo_ph);
 
             // Mass coupling
-            Real mu      = mu_arr(i ,jj,0)  + mub_arr(i ,jj,0);
-            Real mu_jm   = mu_arr(i ,jm,0)  + mub_arr(i ,jm,0);
-            Real mu0     = mu0_arr(i ,jj,0) + mub_arr(i ,jj,0);
-            Real mu0_jm  = mu0_arr(i ,jm,0) + mub_arr(i ,jm,0);
+            Real mu      = mu_arr(i ,jj ,0)  + mub_arr(i ,jj ,0);
+            Real mu_jm   = mu_arr(i ,jjm,0)  + mub_arr(i ,jjm,0);
 
             // Pert and base geopotential
-            Real P        = phb_arr(i ,jj,k  ) + bdy_ph_arr(i ,jj,k  )/mu     ;
-            Real P_jm     = phb_arr(i ,jm,k  ) + bdy_ph_arr(i ,jm,k  )/mu_jm  ;
-            Real P_kp     = phb_arr(i ,jj,k+1) + bdy_ph_arr(i ,jj,k+1)/mu     ;
-            Real P_jm_kp  = phb_arr(i ,jm,k+1) + bdy_ph_arr(i ,jm,k+1)/mu_jm  ;
-            Real P0       = phb_arr(i ,jj,k  ) + bdy_ph0_arr(i ,jj,k  )/mu0   ;
-            Real P0_jm    = phb_arr(i ,jm,k  ) + bdy_ph0_arr(i ,jm,k  )/mu0_jm;
-            Real P0_kp    = phb_arr(i ,jj,k+1) + bdy_ph0_arr(i ,jj,k+1)/mu0   ;
-            Real P0_jm_kp = phb_arr(i ,jm,k+1) + bdy_ph0_arr(i ,jm,k+1)/mu0_jm;
+            Real P        = phb_arr(i ,jj ,k  ) + bdy_ph_arr(i ,jj ,k  )/mu   ;
+            Real P_jm     = phb_arr(i ,jjm,k  ) + bdy_ph_arr(i ,jjm,k  )/mu_jm;
+            Real P_kp     = phb_arr(i ,jj ,k+1) + bdy_ph_arr(i ,jj ,k+1)/mu   ;
+            Real P_jm_kp  = phb_arr(i ,jjm,k+1) + bdy_ph_arr(i ,jjm,k+1)/mu_jm;
 
             // New heights
             bdy_v_z_src(i,j,k) = Real(0.25) * ( P + P_kp + P_jm + P_jm_kp ) / CONST_GRAV;
 
             // Original heights
-            bdy_v_z_dst(i,j,k) = Real(0.25) * ( P0 + P0_kp + P0_jm + P0_jm_kp ) / CONST_GRAV;
+            bdy_v_z_dst(i,j,k) = Real(0.5) * (z_cc_arr(i,j,k) + z_cc_arr(i,j-1,k));
         });
 
         // Define u velocity
@@ -386,7 +367,7 @@ convert_wrfbdy_data (const int itime,
                 bool found = false;
                 for (int lk(kstart+1); lk<=khi; ++lk) {
                     z_hi_src = bdy_c_z_src(i,j,lk);
-                    if (z_dst >= z_lo_src && z_dst <= z_hi_src) {
+                    if (z_dst >= z_lo_src && z_dst < z_hi_src) {
                         found = true;
                         kend  = lk;
                         break;
@@ -421,7 +402,7 @@ convert_wrfbdy_data (const int itime,
                 bool found = false;
                 for (int lk(kstart+1); lk<=khi; ++lk) {
                     z_hi_src = bdy_u_z_src(i,j,lk);
-                    if (z_dst >= z_lo_src && z_dst <= z_hi_src) {
+                    if (z_dst >= z_lo_src && z_dst < z_hi_src) {
                         found = true;
                         kend  = lk;
                         break;
@@ -452,7 +433,7 @@ convert_wrfbdy_data (const int itime,
                 bool found = false;
                 for (int lk(kstart+1); lk<=khi; ++lk) {
                     z_hi_src = bdy_v_z_src(i,j,lk);
-                    if (z_dst >= z_lo_src && z_dst <= z_hi_src) {
+                    if (z_dst >= z_lo_src && z_dst < z_hi_src) {
                         found = true;
                         kend  = lk;
                         break;
@@ -471,71 +452,69 @@ convert_wrfbdy_data (const int itime,
         });
 
         if (rebalance_wrf_state) {
-        // Rebalance with constant temperature (modifies theta only)
-        // New z values
+            // Rebalance with constant temperature (modifies theta only)
+            // New z values
 #ifdef AMREX_USE_FLOAT
-        Real tol  = Real(1.0e-6);
+            Real tol  = Real(1.0e-6);
 #else
-        Real tol  = Real(1.0e-10);
+            Real tol  = Real(1.0e-10);
 #endif
-        Real grav = CONST_GRAV;
-        ParallelFor(bx_t_slab,
-        [=,RdoCp_d=RdoCp] AMREX_GPU_DEVICE (int i, int j, int /*k*/) noexcept
-        {
-            // integrate from surface to domain top
-            Real dz, F, C;
-            Real rho_tot_hi, rho_tot_lo;
-            Real z_lo, z_hi;
-            Real R_lo, R_hi;
-            Real qv_lo, qv_hi;
-            Real qt_lo, qt_hi;
-            Real Th_lo, Th_hi;
-            Real T_hi;
-            Real P_lo, P_hi;
-
-            // Use SFC state at first CC
-            z_lo = Real(0.125) * (z_arr(i,j,klo  ) + z_arr(i+1,j,klo  ) + z_arr(i,j+1,klo  ) + z_arr(i+1,j+1,klo  )
-                                 +z_arr(i,j,klo+1) + z_arr(i+1,j,klo+1) + z_arr(i,j+1,klo+1) + z_arr(i+1,j+1,klo+1));
-            P_lo = getPgivenRTh(bdy_r_int(i,j,klo)*bdy_t_int(i,j,klo),bdy_qv_int(i,j,klo));
-            P_hi = P_lo;
-
-            for (int k(klo+1); k<=khi; ++k)
+            Real grav = CONST_GRAV;
+            ParallelFor(bx_t_slab,
+            [=,RdoCp_d=RdoCp] AMREX_GPU_DEVICE (int i, int j, int /*k*/) noexcept
             {
-              z_hi = Real(0.125) * (z_arr(i,j,k  ) + z_arr(i+1,j,k  ) + z_arr(i,j+1,k  ) + z_arr(i+1,j+1,k  )
-                                   +z_arr(i,j,k+1) + z_arr(i+1,j,k+1) + z_arr(i,j+1,k+1) + z_arr(i+1,j+1,k+1));
-              dz   = z_hi - z_lo;
+                // integrate from surface to domain top
+                Real dz, F, C;
+                Real rho_tot_hi, rho_tot_lo;
+                Real z_lo, z_hi;
+                Real R_lo, R_hi;
+                Real qv_lo, qv_hi;
+                Real qt_lo, qt_hi;
+                Real Th_lo, Th_hi;
+                Real T_hi;
+                Real P_lo, P_hi;
 
-              // Establish known constant
-              qt_lo = bdy_qv_int(i,j,k-1);
-              qv_lo = bdy_qv_int(i,j,k-1);
-              Th_lo = bdy_t_int(i,j,k-1);
-              R_lo  = getRhogivenThetaPress(Th_lo, P_lo, RdoCp_d, qv_lo);
-              rho_tot_lo = R_lo * (one + qt_lo);
-              C  = -P_lo + myhalf*rho_tot_lo*grav*dz;
+                // Use SFC state at first CC
+                z_lo = z_cc_arr(i,j,klo);
+                P_lo = getPgivenRTh(bdy_r_int(i,j,klo)*bdy_t_int(i,j,klo),bdy_qv_int(i,j,klo));
+                P_hi = P_lo;
 
-              // Initial guess and residual
-              qt_hi = bdy_qv_int(i,j,k);
-              qv_hi = bdy_qv_int(i,j,k);
-              Th_hi = bdy_t_int(i,j,k);
-              T_hi  = getTgivenPandTh(P_hi, Th_hi, RdoCp_d);
-              R_hi  = getRhogivenThetaPress(Th_hi, P_hi, RdoCp_d, qv_hi);
-              rho_tot_hi = R_hi * (one + qt_hi);
-              F = P_hi + myhalf*rho_tot_hi*grav*dz + C;
+                for (int k(klo+1); k<=khi; ++k)
+                {
+                    z_hi = z_cc_arr(i,j,k);
+                    dz   = z_hi - z_lo;
 
-              // Do iterations
-              bool maintain_Th = true;
-              HSEutils::Newton_Raphson_hse(tol, RdoCp_d, dz,
-                                           grav, C, Th_hi, T_hi,
-                                           qt_hi, qv_hi,
-                                           P_hi, R_hi, F, maintain_Th);
+                    // Establish known constant
+                    qt_lo = bdy_qv_int(i,j,k-1);
+                    qv_lo = bdy_qv_int(i,j,k-1);
+                    Th_lo = bdy_t_int(i,j,k-1);
+                    R_lo  = getRhogivenThetaPress(Th_lo, P_lo, RdoCp_d, qv_lo);
+                    rho_tot_lo = R_lo * (one + qt_lo);
+                    C  = -P_lo + myhalf*rho_tot_lo*grav*dz;
 
-              // Assign data
-              bdy_r_int(i,j,k) = R_hi;
-              bdy_t_int(i,j,k) = getThgivenTandP(T_hi, P_hi, RdoCp_d);
-              P_lo = P_hi;
-              z_lo = z_hi;
-            }
-        });
+                    // Initial guess and residual
+                    qt_hi = bdy_qv_int(i,j,k);
+                    qv_hi = bdy_qv_int(i,j,k);
+                    Th_hi = bdy_t_int(i,j,k);
+                    T_hi  = getTgivenPandTh(P_hi, Th_hi, RdoCp_d);
+                    R_hi  = getRhogivenThetaPress(Th_hi, P_hi, RdoCp_d, qv_hi);
+                    rho_tot_hi = R_hi * (one + qt_hi);
+                    F = P_hi + myhalf*rho_tot_hi*grav*dz + C;
+
+                    // Do iterations
+                    bool maintain_Th = true;
+                    HSEutils::Newton_Raphson_hse(tol, RdoCp_d, dz,
+                                                 grav, C, Th_hi, T_hi,
+                                                 qt_hi, qv_hi,
+                                                 P_hi, R_hi, F, maintain_Th);
+
+                    // Assign data
+                    bdy_r_int(i,j,k) = R_hi;
+                    bdy_t_int(i,j,k) = getThgivenTandP(T_hi, P_hi, RdoCp_d);
+                    P_lo = P_hi;
+                    z_lo = z_hi;
+                }
+            });
         }
 
     } // mfi
@@ -559,7 +538,7 @@ read_and_convert_from_wrfbdy (const int itime, const std::string& nc_bdy_file,
                               std::unique_ptr<MultiFab>& wrf_C2H,
                               std::unique_ptr<MultiFab>& wrf_RDNW,
                               std::unique_ptr<MultiFab>& wrf_PHB,
-                              std::unique_ptr<MultiFab>& z_phys_nd,
+                              std::unique_ptr<MultiFab>& z_phys_cc,
                               const MultiFab& xvel,
                               const MultiFab& yvel,
                               const MultiFab& cons,
@@ -590,9 +569,10 @@ read_and_convert_from_wrfbdy (const int itime, const std::string& nc_bdy_file,
     {
         read_and_convert_from_wrfbdy(itime-1,nc_bdy_file,
                                      bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi,
-                                     wrf_MUB, wrf_C1H, wrf_C2H, wrf_RDNW, wrf_PHB, z_phys_nd,
+                                     wrf_MUB, wrf_C1H, wrf_C2H, wrf_RDNW, wrf_PHB, z_phys_cc,
                                      xvel, yvel, cons, rho0, area_vec, geom,
-                                     use_moist, rebalance_wrf_state, domain_bcs_type_h, real_width, bdy_time_interval,
+                                     use_moist, rebalance_wrf_state, domain_bcs_type_h,
+                                     real_width, bdy_time_interval,
                                      is_anelastic, false);
     }
 
@@ -1019,16 +999,16 @@ read_and_convert_from_wrfbdy (const int itime, const std::string& nc_bdy_file,
         std::unique_ptr<iMultiFab> mask_v = OwnerMask(yvel, geom.periodicity());
 
         if (do_tendency) {
-            convert_wrfbdy_data(itime-1, domain, bdy_data_xlo, wrf_MUB, wrf_C1H, wrf_C2H, wrf_RDNW, wrf_PHB, z_phys_nd, mask_u.get(), mask_v.get(), mask_c.get(), use_moist, rebalance_wrf_state);
-            convert_wrfbdy_data(itime-1, domain, bdy_data_xhi, wrf_MUB, wrf_C1H, wrf_C2H, wrf_RDNW, wrf_PHB, z_phys_nd, mask_u.get(), mask_v.get(), mask_c.get(), use_moist, rebalance_wrf_state);
-            convert_wrfbdy_data(itime-1, domain, bdy_data_ylo, wrf_MUB, wrf_C1H, wrf_C2H, wrf_RDNW, wrf_PHB, z_phys_nd, mask_u.get(), mask_v.get(), mask_c.get(), use_moist, rebalance_wrf_state);
-            convert_wrfbdy_data(itime-1, domain, bdy_data_yhi, wrf_MUB, wrf_C1H, wrf_C2H, wrf_RDNW, wrf_PHB, z_phys_nd, mask_u.get(), mask_v.get(), mask_c.get(), use_moist, rebalance_wrf_state);
+            convert_wrfbdy_data(itime-1, domain, bdy_data_xlo, wrf_MUB, wrf_C1H, wrf_C2H, wrf_RDNW, wrf_PHB, z_phys_cc, mask_u.get(), mask_v.get(), mask_c.get(), use_moist, rebalance_wrf_state);
+            convert_wrfbdy_data(itime-1, domain, bdy_data_xhi, wrf_MUB, wrf_C1H, wrf_C2H, wrf_RDNW, wrf_PHB, z_phys_cc, mask_u.get(), mask_v.get(), mask_c.get(), use_moist, rebalance_wrf_state);
+            convert_wrfbdy_data(itime-1, domain, bdy_data_ylo, wrf_MUB, wrf_C1H, wrf_C2H, wrf_RDNW, wrf_PHB, z_phys_cc, mask_u.get(), mask_v.get(), mask_c.get(), use_moist, rebalance_wrf_state);
+            convert_wrfbdy_data(itime-1, domain, bdy_data_yhi, wrf_MUB, wrf_C1H, wrf_C2H, wrf_RDNW, wrf_PHB, z_phys_cc, mask_u.get(), mask_v.get(), mask_c.get(), use_moist, rebalance_wrf_state);
         }
 
-        convert_wrfbdy_data(itime, domain, bdy_data_xlo, wrf_MUB, wrf_C1H, wrf_C2H, wrf_RDNW, wrf_PHB, z_phys_nd, mask_u.get(), mask_v.get(), mask_c.get(), use_moist, rebalance_wrf_state);
-        convert_wrfbdy_data(itime, domain, bdy_data_xhi, wrf_MUB, wrf_C1H, wrf_C2H, wrf_RDNW, wrf_PHB, z_phys_nd, mask_u.get(), mask_v.get(), mask_c.get(), use_moist, rebalance_wrf_state);
-        convert_wrfbdy_data(itime, domain, bdy_data_ylo, wrf_MUB, wrf_C1H, wrf_C2H, wrf_RDNW, wrf_PHB, z_phys_nd, mask_u.get(), mask_v.get(), mask_c.get(), use_moist, rebalance_wrf_state);
-        convert_wrfbdy_data(itime, domain, bdy_data_yhi, wrf_MUB, wrf_C1H, wrf_C2H, wrf_RDNW, wrf_PHB, z_phys_nd, mask_u.get(), mask_v.get(), mask_c.get(), use_moist, rebalance_wrf_state);
+        convert_wrfbdy_data(itime, domain, bdy_data_xlo, wrf_MUB, wrf_C1H, wrf_C2H, wrf_RDNW, wrf_PHB, z_phys_cc, mask_u.get(), mask_v.get(), mask_c.get(), use_moist, rebalance_wrf_state);
+        convert_wrfbdy_data(itime, domain, bdy_data_xhi, wrf_MUB, wrf_C1H, wrf_C2H, wrf_RDNW, wrf_PHB, z_phys_cc, mask_u.get(), mask_v.get(), mask_c.get(), use_moist, rebalance_wrf_state);
+        convert_wrfbdy_data(itime, domain, bdy_data_ylo, wrf_MUB, wrf_C1H, wrf_C2H, wrf_RDNW, wrf_PHB, z_phys_cc, mask_u.get(), mask_v.get(), mask_c.get(), use_moist, rebalance_wrf_state);
+        convert_wrfbdy_data(itime, domain, bdy_data_yhi, wrf_MUB, wrf_C1H, wrf_C2H, wrf_RDNW, wrf_PHB, z_phys_cc, mask_u.get(), mask_v.get(), mask_c.get(), use_moist, rebalance_wrf_state);
 
         if (is_anelastic) {
             if (do_tendency) {

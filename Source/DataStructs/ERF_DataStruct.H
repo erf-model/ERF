@@ -409,8 +409,17 @@ struct SolverChoice {
         // Use lagged_delta_rt in the fast integrator?
         pp.query("use_lagged_delta_rt", use_lagged_delta_rt);
 
+        // Keep the default wrf grid or remake our own
+        pp.query("use_wrf_height_grid",use_wrf_height_grid);
+
         // Rebalance wrf state?
         pp.query("rebalance_wrf_input", rebalance_wrf_input);
+
+        // Must rebalance if not using WRF grid
+        if (!use_wrf_height_grid && !rebalance_wrf_input) {
+            amrex::Print() << "Must rebalance when not using WRF height grid. Setting rebalance_wrf_input to true \n";
+            rebalance_wrf_input = true;
+        }
 
         // These default to true but are used for unit testing
         pp.query("use_gravity", use_gravity);
@@ -1445,6 +1454,9 @@ struct SolverChoice {
 
     // Which approach to nudging the moist variables in the boundary region?
     int bdy_moist_nudge_type = 0;
+
+    // Keep the WRF grid or remake our own?
+    bool use_wrf_height_grid {true};
 
     // Use forest canopy model?
     bool do_forest_drag {false};
