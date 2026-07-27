@@ -126,7 +126,7 @@ class SuperDropletsMoist : public NullMoistLagrangian {
         {
             m_qmoist_size = 7;
             m_qstate_moist_size = 3; // qv, qc, qr
-            m_qstate_nonmoist_size = -1; // intentional
+            m_qstate_nonmoist_size = -1; // sentinel; readInputs() sets the actual count before construction returns
             m_name = "super_droplets_moisture";
             m_idx_w = -1;
             m_num_species = 0;

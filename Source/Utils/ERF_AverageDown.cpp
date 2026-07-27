@@ -236,9 +236,9 @@ ERF::AverageDownTo (int crse_lev, int scomp, int ncomp, bool do_perturbational_a
     }
 }
 
-// Conservation-preserving fine→coarse average of moist state components only.
-// Uses the same detJ/mfac weighting as AverageDownTo, but skips the perturbational
-// and momenta blocks since they pertain to Rho/RhoTheta and velocities.
+// Conservation-preserving fine-to-coarse average of RhoTheta and the active
+// moist conserved components. Uses the same detJ/mfac weighting as AverageDownTo,
+// but skips perturbational-state and momentum handling.
 void
 ERF::AverageDownMoistStateTo (int crse_lev)
 {
