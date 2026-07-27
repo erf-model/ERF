@@ -1,0 +1,152 @@
+# WDM6 Microphysics Implementation
+
+## Overview
+
+WDM6 (WRF Double-Moment 6-class) microphysics scheme for ERF. This implementation follows the WSM6 dual-mode pattern:
+- **C++ GPU kernels** (default): GPU-compatible, device functions in ERF_AdvanceWDM6.cpp
+- **Fortran bridge** (optional): For validation against WRF, enabled with `-DERF_ENABLE_WDM6_FORT=ON`
+
+## Files
+
+### C++ Implementation (Primary)
+- **ERF_WDM6.H**: Class definition, parameters, member variables
+- **ERF_InitWDM6.cpp**: Initialization, coefficient calculations
+- **ERF_UpdateWDM6.cpp**: State transfer (conservative ↔ microphysics)
+- **ERF_AdvanceWDM6.cpp**: Time integration, microphysics kernels
+  - **STATUS**: Stub with helper functions, needs full physics
+
+### Fortran Implementation (Validation/Optional)
+- **ERF_WDM6_Fortran_Interface.H**: C/Fortran extern declarations
+- **ERF_module_mp_wdm6.F90**: Main WDM6 module
+  - **STATUS**: Stub showing structure, needs WRF port
+- **ERF_module_mp_wdm6_isohelper.F90**: Helper functions (Gamma, etc.)
+- **ERF_module_libmassv.F90**: Vector math utilities (copied from WSM6)
+- **ERF_mp_radar.F90**: Radar reflectivity (copied from WSM6)
+
+## Implementation Status
+
+✅ **Complete:**
+- Infrastructure (build system, enums, factory)
+- State management (9 moisture variables: qv-qg + nn, nc, nr)
+- Init/Update C++ files
+- I/O support
+- Test input files
+
+⚠️ **Stub/Incomplete:**
+- **ERF_AdvanceWDM6.cpp**: Needs full microphysics physics
+- **ERF_module_mp_wdm6.F90**: Needs WRF source port
+
+## Next Steps to Complete Implementation
+
+### Option A: Expand C++ GPU Implementation (Recommended)
+
+Port WRF WDM6 physics to C++ device functions in ERF_AdvanceWDM6.cpp:
+
+**Source:** `/p/lustre1/wise14/wrf/compiling/WRF/WRF_v4.7.1_clean/phys/module_mp_wdm6.F`
+
+**Key subroutines to port:**
+1. **CCN Activation** (activ_conc): Lines ~2040-2200 in WRF source
+   - Supersaturation calculation
+   - Abdul-Razzak & Ghan (2000) formulation
+   - Updates nn → nc based on supersaturation
+
+2. **Cloud Microphysics** (wdm62d kernel): Lines ~334-2035
+   - Condensation/evaporation
+   - Autoconversion (qc→qr, nc→nr)
+   - Accretion (collection processes)
+   - Droplet nucleation
+
+3. **Sedimentation** (nislfv_rain_plm6): Coupled mass/number sedimentation
+   - Maintains physical nc/qc and nr/qr ratios
+   - Upwind scheme with limiter
+
+4. **Ice Processes**: Same as WSM6 (single-moment)
+   - Freezing, melting, sublimation
+   - Bergeron process
+   - Graupel formation
+
+**Implementation pattern** (follow WSM6 in ERF_AdvanceWSM6.cpp):
+- Device-callable helper functions: `AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE`
+- ParallelFor loops with GPU lambdas
+- Use ERF thermodynamics (getTgivenRandRTh, etc.)
+
+### Option B: Complete Fortran Bridge (Validation)
+
+Port WRF module_mp_wdm6.F to ERF_module_mp_wdm6.F90:
+
+1. **Copy structure** from WRF source (3237 lines)
+2. **Add C wrappers** (already done in stub)
+3. **Adapt to ERF**:
+   - Use `iso_c_binding` for C++ interop
+   - Match ERF's array indexing (ims:ime, jms:jme, kms:kme)
+   - Call from ERF_AdvanceWDM6.cpp via `#ifdef ERF_USE_WDM6_FORT`
+
+**Then validate:** Run same case with Fortran and C++ implementations, compare results
+
+## Key Differences from WSM6
+
+### Number Concentrations
+- **WSM6**: 6 variables (qv, qc, qi, qr, qs, qg) - single-moment
+- **WDM6**: 9 variables (qv-qg + nn, nc, nr) - double-moment
+
+### State Mapping
+- RhoQ1-6: Mixing ratios (same as WSM6)
+- RhoQ7: nc (cloud droplet number, #/m³)
+- RhoQ8: nn (total aerosol/CCN number, #/m³)
+- RhoQ9: nr (rain drop number, #/m³)
+
+Note: `nn` is NOT ice number (`ni` in Morrison). WDM6 is double-moment for liquid only.
+
+### Additional Parameters
+- **ccn0**: Background CCN concentration (default 100e6 m⁻³)
+  - Maritime: ~100e6 m⁻³ → fewer, larger droplets
+  - Continental: ~500e6 m⁻³ → many, smaller droplets
+- **xland**: Land/water mask (0=water, 1=land) from ERF::lmask_lev
+  - Used for maritime vs continental CCN behavior
+
+### Physical Bounds
+- `nc >= ncmin = 1e1 m⁻³`
+- `nr >= nrmin = 1e-2 m⁻³`
+- `nn >= 0` (can deplete as CCN activate)
+
+## Testing
+
+See `/g/g10/wise14/compiling/clean/ERF/Tests/WDM6_verification/` for:
+- Test input files (bubble tests, CCN sensitivity)
+- Analysis scripts (check bounds, compare with WSM6)
+- Verification procedures
+
+## Build Instructions
+
+**C++ GPU mode (default):**
+```bash
+cmake -DERF_PRECISION=DOUBLE -DERF_ENABLE_CUDA=ON ...
+cmake --build . -j8
+```
+
+**Fortran bridge mode (validation, CPU-only):**
+```bash
+cmake -DERF_ENABLE_WDM6_FORT=ON -DERF_PRECISION=DOUBLE ...
+cmake --build . -j8
+```
+
+## Usage
+
+```
+erf.moisture_model = "WDM6"
+wdm6.ccn0 = 100.0e6  # m^-3
+wdm6.hail_opt = 0     # 0=graupel, 1=hail
+```
+
+## References
+
+- WRF WDM6 source: `/p/lustre1/wise14/wrf/compiling/WRF/WRF_v4.7.1_clean/phys/module_mp_wdm6.F`
+- Lim & Hong (2010): Development of an effective double-moment cloud microphysics scheme
+- Abdul-Razzak & Ghan (2000): A parameterization of aerosol activation
+- WSM6 ERF implementation: `/g/g10/wise14/compiling/clean/ERF/Source/Microphysics/WSM6/`
+
+## Contact
+
+Implementation follows ERF WSM6 pattern. Questions about:
+- ERF integration → see WSM6 implementation
+- WDM6 physics → see WRF source and Lim & Hong (2010) paper
