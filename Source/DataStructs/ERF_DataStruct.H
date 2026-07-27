@@ -70,7 +70,7 @@ AMREX_ENUM(MoistureModelType,
 );
 
 AMREX_ENUM(MoistureType,
-    SAM, SAM_NoIce, SAM_NoPrecip_NoIce, Kessler, Kessler_NoRain, SatAdj, Morrison, Morrison_NoIce, WSM6, SuperDroplets, MoistNoCondensation, None
+    SAM, SAM_NoIce, SAM_NoPrecip_NoIce, Kessler, Kessler_NoRain, SatAdj, Morrison, Morrison_NoIce, WSM6, WDM6, SuperDroplets, MoistNoCondensation, None
 );
 
 AMREX_ENUM(WindFarmType,
@@ -197,6 +197,18 @@ struct SolverChoice {
                 RhoQ5_comp,  // snow
                 RhoQ6_comp   // graupel
             );
+        } else if (moisture_type == MoistureType::WDM6) {
+            moisture_indices = MoistureComponentIndices(
+                RhoQ1_comp,  // water vapor (qv)
+                RhoQ2_comp,  // cloud water (qc)
+                RhoQ3_comp,  // cloud ice (qi)
+                RhoQ4_comp,  // rain (qr)
+                RhoQ5_comp,  // snow (qs)
+                RhoQ6_comp,  // graupel (qg)
+                RhoQ7_comp,  // cloud droplet number concentration (nc)
+                -1,          // ice number (ni) not used - WDM6 uses nn for total aerosol
+                RhoQ9_comp   // rain number concentration (nr)
+            );
         } else if ( (moisture_type == MoistureType::Morrison_NoIce) ||
                     (moisture_type == MoistureType::SAM_NoIce) ) {
             moisture_indices = MoistureComponentIndices(
@@ -244,6 +256,7 @@ struct SolverChoice {
                    moisture_type == MoistureType::Morrison ||
                    moisture_type == MoistureType::Morrison_NoIce ||
                    moisture_type == MoistureType::WSM6 ||
+                   moisture_type == MoistureType::WDM6 ||
                    moisture_type == MoistureType::SatAdj) )
             {
                 for (int i = 0; i <= max_level; ++i) {
@@ -1067,6 +1080,8 @@ struct SolverChoice {
             amrex::Print() << "Moisture Model: Morrison_NoIce" << std::endl;
         } else if (moisture_type == MoistureType::WSM6) {
             amrex::Print() << "Moisture Model: WSM6" << std::endl;
+        } else if (moisture_type == MoistureType::WDM6) {
+            amrex::Print() << "Moisture Model: WDM6" << std::endl;
         } else if (moisture_type == MoistureType::Kessler) {
             amrex::Print() << "Moisture Model: Kessler" << std::endl;
         } else if (moisture_type == MoistureType::Kessler_NoRain) {

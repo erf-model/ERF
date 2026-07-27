@@ -280,6 +280,17 @@ function(build_erf_lib erf_lib_name)
     target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_WSM6_FORT)
   endif()
 
+  if(ERF_ENABLE_WDM6_FORT)
+    target_sources(${erf_lib_name}
+       PRIVATE
+         ${SRC_DIR}/Microphysics/WDM6/ERF_module_libmassv.F90
+         ${SRC_DIR}/Microphysics/WDM6/ERF_mp_radar.F90
+         ${SRC_DIR}/Microphysics/WDM6/ERF_module_mp_wdm6.F90
+         ${SRC_DIR}/Microphysics/WDM6/ERF_module_mp_wdm6_isohelper.F90
+         )
+    target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_WDM6_FORT)
+  endif()
+
   if(ERF_ENABLE_WINDFARM)
     target_sources(${erf_lib_name} PRIVATE
       ${SRC_DIR}/Initialization/ERF_InitWindFarm.cpp
@@ -422,6 +433,9 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/Microphysics/WSM6/ERF_InitWSM6.cpp
        ${SRC_DIR}/Microphysics/WSM6/ERF_AdvanceWSM6.cpp
        ${SRC_DIR}/Microphysics/WSM6/ERF_UpdateWSM6.cpp
+       ${SRC_DIR}/Microphysics/WDM6/ERF_InitWDM6.cpp
+       ${SRC_DIR}/Microphysics/WDM6/ERF_AdvanceWDM6.cpp
+       ${SRC_DIR}/Microphysics/WDM6/ERF_UpdateWDM6.cpp
        ${SRC_DIR}/Microphysics/SAM/ERF_InitSAM.cpp
        ${SRC_DIR}/Microphysics/SAM/ERF_CloudSAM.cpp
        ${SRC_DIR}/Microphysics/SAM/ERF_IceFall.cpp
@@ -535,7 +549,7 @@ function(build_erf_lib erf_lib_name)
 
   if(ERF_ENABLE_MPI)
     target_link_libraries(${erf_lib_name} PUBLIC $<$<BOOL:${MPI_CXX_FOUND}>:MPI::MPI_CXX>)
-    if(ERF_ENABLE_MORR_FORT OR ERF_ENABLE_WSM6_FORT OR ERF_ENABLE_NOAHMP)
+    if(ERF_ENABLE_MORR_FORT OR ERF_ENABLE_WSM6_FORT OR ERF_ENABLE_WDM6_FORT OR ERF_ENABLE_NOAHMP)
       target_link_libraries(${erf_lib_name} PUBLIC $<$<BOOL:${MPI_CXX_FOUND}>:MPI::MPI_Fortran>)
     endif()
   endif()
@@ -567,6 +581,7 @@ function(build_erf_lib erf_lib_name)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/Source/Microphysics/Kessler>)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/Source/Microphysics/Morrison>)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/Source/Microphysics/WSM6>)
+  target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/Source/Microphysics/WDM6>)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/Source/Microphysics/SatAdj>)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/Source/Microphysics/SuperDropletsMoist>)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/Source/Microphysics/MoistNoCondensation>)  
