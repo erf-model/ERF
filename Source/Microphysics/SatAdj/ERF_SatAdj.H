@@ -86,6 +86,7 @@ public:
     void
     Update_Micro_Vars (amrex::MultiFab& cons_in) override
     {
+        if (!m_do_cond) { return; }
         this->Copy_State_to_Micro(cons_in);
     }
 
@@ -94,6 +95,7 @@ public:
     Update_State_Vars (amrex::MultiFab& cons_in,
                        const amrex::MultiFab& /*z_phys_nd*/) override
     {
+        if (!m_do_cond) { return; }
         this->Copy_Micro_to_State(cons_in);
     }
 

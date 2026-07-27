@@ -71,6 +71,9 @@ plot3d_moisture_capabilities (const MoistureType moisture_type)
         break;
     case MoistureType::MoistNoCondensation:
         caps.vapor = true;
+        // The second moist conserved component is the canonical cloud-water
+        // state even when this model supplies no condensation source.
+        caps.cloud_liquid = true;
         break;
     case MoistureType::SatAdj:
         caps.vapor = true;

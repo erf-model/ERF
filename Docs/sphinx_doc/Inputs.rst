@@ -913,6 +913,14 @@ prefixes "plt_line" and "plt_plane", respectively. Names for sampled data may op
 be provided with ``sample_line_name`` and/or ``sample_plane_name`` -- if provided, each
 line and/or plane must be named.
 
+Plane samples are written as true multi-level AMReX plotfiles: every refinement level
+whose grids intersect the plane is written (``Level_0``, ``Level_1``, ...), so a plane
+that cuts through static refinement patches retains the finer in-plane resolution there.
+By default all intersecting levels are written; ``erf.plane_sampling_max_level = <int>``
+caps the finest level (``0`` forces level-0-only output). The slice-normal direction is
+resolved natively on each level by replicating the sampled plane across the level's cells,
+so the resulting dataset has an isotropic refinement ratio and loads cleanly in yt/amrvis.
+
 Line and plane samples will be default be written to plotfiles, one plotfile per output
 snapshot, with all output variables in the same file. Alternatively, line sampling has
 the ``erf.line_sampling_text_output`` option, which writes one text file per output
@@ -981,6 +989,11 @@ List of Parameters
 +-----------------------------------+------------------+----------------+----------------+
 | **erf.plane_sampling_vars**       | Specify sampled  | List of strings| theta, magvel  |
 |                                   | variables        |                |                |
++-----------------------------------+------------------+----------------+----------------+
+| **erf.plane_sampling_max_level**  | Cap on finest    | Integer        | -1 (all        |
+|                                   | level written to |                | intersecting   |
+|                                   | the plane        |                | levels)        |
+|                                   | plotfile         |                |                |
 +-----------------------------------+------------------+----------------+----------------+
 
 .. _examples-of-usage-10b:
