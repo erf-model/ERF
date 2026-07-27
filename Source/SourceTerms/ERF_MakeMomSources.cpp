@@ -12,6 +12,51 @@
 
 using namespace amrex;
 
+// helper function for immersed forcing wall model
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+amrex::Real
+compute_if_most_target_vel(
+    const amrex::Real u1_2r,
+    const amrex::Real u2_2r,
+    const amrex::Real delta,
+    const amrex::Real z0,
+    const amrex::Real t_blank,
+    const amrex::Real theta_xface,
+    const amrex::Real theta_surf,
+    const amrex::Real tflux_in,
+    const amrex::Real Olen_in,
+    const bool        stability_correction
+)
+{
+    const Real tiny             = std::numeric_limits<amrex::Real>::epsilon();
+    Real psi_m                  = zero;
+    Real psi_h                  = zero;
+    Real tang_windspeed2r       = std::sqrt(u1_2r * u1_2r + u2_2r * u2_2r);
+
+    Real ustar = tang_windspeed2r * KAPPA / (std::log(1.5 * delta / z0) - psi_m);
+    Real tflux = (tflux_in != Real(1.e-8)) ? tflux_in : -(theta_xface - theta_surf) * ustar * KAPPA / (std::log(1.5 * delta / z0) - psi_h);
+    Real Olen  = (Olen_in != Real(1.e-8))  ? Olen_in  : -ustar * ustar * ustar * theta_xface / (KAPPA * CONST_GRAV * tflux + tiny);
+    Real zeta  = 1.5 * delta / Olen;
+
+    // similarity functions
+    similarity_funs sfuns;
+    if (stability_correction){
+        psi_m          = sfuns.calc_psi_m(zeta);
+        psi_h          = sfuns.calc_psi_h(zeta);
+    }
+    ustar = tang_windspeed2r * KAPPA / (std::log(1.5 * delta / z0) - psi_m);
+
+    // prevent some unphysical math
+    if (!(ustar > zero && !std::isnan(ustar))) { ustar = zero; }
+    if (!(ustar < 2.0  && !std::isnan(ustar))) { ustar = 2.0; }
+    if (psi_m > std::log(myhalf * delta / z0)) { psi_m = std::log(myhalf * delta / z0); }
+
+    Real uTarget      = (1 - t_blank) * ustar / KAPPA * (std::log(myhalf * delta / z0) - psi_m);
+    Real u1Target     = uTarget * u1_2r / (tiny + tang_windspeed2r);
+
+    return u1Target;
+}
+
 /**
  * Function for computing the slow RHS for the evolution equations for the density, potential temperature and momentum.
  *
@@ -35,7 +80,7 @@ using namespace amrex;
  */
 
 void make_mom_sources (double time_d,
-                       double /*dt*/,
+                       double dt,
                        const Vector<MultiFab>& S_data,
                        const MultiFab* z_phys_nd,
                        const MultiFab* z_phys_cc,
@@ -745,10 +790,8 @@ void make_mom_sources (double time_d,
             const Real* dx_arr = geom.CellSize();
             const Real dx_x = dx_arr[0];
             const Real dx_y = dx_arr[1];
-            const Real dx_z = dx_arr[2];
 
             const Real alpha_m = solverChoice.if_Cd_momentum;
-            const Real drag_coefficient = alpha_m / std::pow(dx_x*dx_y*dx_z, one/three);
             const Real tiny = std::numeric_limits<amrex::Real>::epsilon();
             const Real U_s = one; // unit velocity scale
 
@@ -771,7 +814,11 @@ void make_mom_sources (double time_d,
                 const Real windspeed = std::sqrt(ux * ux + uy * uy + uz * uz);
                 const Real t_blank = myhalf * (t_blank_arr(i, j, k) + t_blank_arr(i-1, j, k));
                 const Real t_blank_above = myhalf * (t_blank_arr(i, j, k+1) + t_blank_arr(i-1, j, k+1));
-                const Real CdM = std::min(drag_coefficient / (windspeed + tiny), Real(1000.0));
+
+                const Real dx_z = (z_cc_arr) ? (z_cc_arr(i,j,k) - z_cc_arr(i,j,k-1)) : dx_arr[2];
+                const Real drag_coefficient = alpha_m / std::pow(dx_x*dx_y*dx_z, one/three);
+                const Real CdM = std::min(drag_coefficient / (windspeed + tiny), drag_coefficient);
+
                 const Real rho_xface = myhalf * ( cell_data(i,j,k,Rho_comp) + cell_data(i-1,j,k,Rho_comp) );
 
                 if ((t_blank > 0 && (t_blank_above == zero)) && l_use_most) { // force to MOST value
@@ -823,7 +870,11 @@ void make_mom_sources (double time_d,
                 const Real windspeed = std::sqrt(ux * ux + uy * uy + uz * uz);
                 const Real t_blank = myhalf * (t_blank_arr(i, j, k) + t_blank_arr(i, j-1, k));
                 const Real t_blank_above = myhalf * (t_blank_arr(i, j, k+1) + t_blank_arr(i, j-1, k+1));
-                const Real CdM = std::min(drag_coefficient / (windspeed + tiny), Real(1000.0));
+
+                const Real dx_z = (z_cc_arr) ? (z_cc_arr(i,j,k) - z_cc_arr(i,j,k-1)) : dx_arr[2];
+                const Real drag_coefficient = alpha_m / std::pow(dx_x*dx_y*dx_z, one/three);
+                const Real CdM = std::min(drag_coefficient / (windspeed + tiny), drag_coefficient);
+
                 const Real rho_yface =  myhalf * ( cell_data(i,j,k,Rho_comp) + cell_data(i,j-1,k,Rho_comp) );
 
                 if ((t_blank > 0 && (t_blank_above == zero)) && l_use_most) { // force to MOST value
@@ -868,13 +919,17 @@ void make_mom_sources (double time_d,
             ParallelFor(tbz, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
             {
                 const Real ux = fourth * ( u(i  , j  , k  ) + u(i+1, j  , k  )
-                                       + u(i  , j  , k-1) + u(i+1, j  , k-1) );
+                                         + u(i  , j  , k-1) + u(i+1, j  , k-1) );
                 const Real uy = fourth * ( v(i  , j  , k  ) + v(i  , j+1, k  )
-                                       + v(i  , j  , k-1) + v(i  , j+1, k-1) );
+                                         + v(i  , j  , k-1) + v(i  , j+1, k-1) );
                 const Real uz = w(i, j, k);
                 const Real windspeed = std::sqrt(ux * ux + uy * uy + uz * uz);
                 const Real t_blank = myhalf * (t_blank_arr(i, j, k) + t_blank_arr(i, j, k-1));
-                const Real CdM = std::min(drag_coefficient / (windspeed + tiny), Real(1000.0));
+
+                const Real dx_z = (z_cc_arr) ? (z_cc_arr(i,j,k) - z_cc_arr(i,j,k-1)) : dx_arr[2];
+                const Real drag_coefficient = alpha_m / std::pow(dx_x*dx_y*dx_z, one/three);
+                const Real CdM = std::min(drag_coefficient / (windspeed + tiny), drag_coefficient);
+
                 const Real rho_zface =  myhalf * ( cell_data(i,j,k,Rho_comp) + cell_data(i,j,k-1,Rho_comp) );
                 zmom_src_arr(i, j, k) -= t_blank * rho_zface * CdM * uz * windspeed;
             });
@@ -883,68 +938,338 @@ void make_mom_sources (double time_d,
         // *****************************************************************************
         // 9b. Add immersed source terms for buildings
         // *****************************************************************************
+        // geometric properties
+        const Real* dx_arr = geom.CellSize();
+        const Real dx_x = dx_arr[0];
+        const Real dx_y = dx_arr[1];
+        const Real delta_xy = std::pow(dx_x*dx_y, myhalf);
         if ((solverChoice.buildings_type == BuildingsType::ImmersedForcing ) &&
-           ((is_slow_step && !use_ImmersedForcing_fast) || (!is_slow_step && use_ImmersedForcing_fast)))
+           ((is_slow_step && !use_ImmersedForcing_fast) || (!is_slow_step && use_ImmersedForcing_fast)) &&
+            (delta_xy <= 50.0)) // only apply immersed forcing when grid spacing is less than 50m
         {
-            // geometric properties
-            const Real* dx_arr = geom.CellSize();
-            const Real dx_x = dx_arr[0];
-            const Real dx_y = dx_arr[1];
-
             const Real alpha_m          = solverChoice.if_Cd_momentum;
             const Real tiny             = std::numeric_limits<amrex::Real>::epsilon();
-            const Real min_t_blank      = Real(0.005); // threshold for where immersed forcing acts
+            const Real min_t_blank      = Real(1.e-4); // threshold for where immersed forcing acts
+            const Real U_s              = one; // unit velocity scale
+
+            // MOST parameters
+            const Real z0                      = solverChoice.if_z0;
+            const Real tflux_in                = solverChoice.if_surf_temp_flux;
+            const Real Olen_in                 = solverChoice.if_Olen_in;
+            const bool l_use_most              = solverChoice.if_use_most;
+            const bool l_stability_correction  = solverChoice.if_stability_correction;
+
+            // To limit stiffness of drag when using anelastic
+            const Real ws_floor           = solverChoice.if_ws_floor;
+            const Real damp_alpha         = solverChoice.if_damp_alpha;
 
             ParallelFor(tbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
             {
-                const Real ux = u(i, j, k);
-                const Real uy = fourth * ( v(i, j  , k  ) + v(i-1, j  , k  )
-                                       + v(i, j+1, k  ) + v(i-1, j+1, k  ) );
-                const Real uz = fourth * ( w(i, j  , k  ) + w(i-1, j  , k  )
-                                       + w(i, j  , k+1) + w(i-1, j  , k+1) );
-                const Real windspeed = std::sqrt(ux * ux + uy * uy + uz * uz);
+                const Real ux   = u(i, j, k  );
+                const Real uy   = fourth * ( v(i, j  , k  ) + v(i-1, j  , k  )
+                                           + v(i, j+1, k  ) + v(i-1, j+1, k  ) );
+                const Real uz   = fourth * ( w(i, j  , k  ) + w(i-1, j  , k  )
+                                           + w(i, j  , k+1) + w(i-1, j  , k+1) );
+                const amrex::Real windspeed = std::sqrt(ux * ux + uy * uy + uz * uz);
 
-                Real t_blank = myhalf * (t_blank_arr(i, j, k) + t_blank_arr(i-1, j, k));
+                const Real rho_xface   = myhalf * ( cell_data(i,j,k,Rho_comp) + cell_data(i-1,j,k,Rho_comp) );
+                const Real theta_xface = (myhalf * (cell_data(i,j,k,RhoTheta_comp) + cell_data(i-1,j,k, RhoTheta_comp))) / rho_xface;
+
+                Real t_blank             = myhalf * (t_blank_arr(i, j  , k  ) + t_blank_arr(i-1, j  , k  ));
+                Real t_blank_below       = myhalf * (t_blank_arr(i, j  , k-1) + t_blank_arr(i-1, j  , k-1));
+                Real t_blank_above       = myhalf * (t_blank_arr(i, j  , k+1) + t_blank_arr(i-1, j  , k+1));
+                Real t_blank_north       = myhalf * (t_blank_arr(i, j+1, k  ) + t_blank_arr(i-1, j+1, k  ));
+                Real t_blank_south       = myhalf * (t_blank_arr(i, j-1, k  ) + t_blank_arr(i-1, j-1, k  ));
                 if (t_blank < min_t_blank) { t_blank = zero; }
-                const Real dx_z    = (z_cc_arr) ? (z_cc_arr(i,j,k) - z_cc_arr(i,j,k-1)) : dx_arr[2];
+                if (k == 0) { t_blank_below = zero; }
+                if (t_blank_below < min_t_blank) { t_blank_below = zero; }
+                if (t_blank_above < min_t_blank) { t_blank_above = zero; }
+                if (t_blank_north < min_t_blank) { t_blank_north = zero; }
+                if (t_blank_south < min_t_blank) { t_blank_south = zero; }
+                // round to four decimal places to avoid issues for cells with very small volfracs.
+                t_blank       = std::round(t_blank       * Real(10000.0)) / Real(10000.0);
+                t_blank_below = std::round(t_blank_below * Real(10000.0)) / Real(10000.0);
+                t_blank_above = std::round(t_blank_above * Real(10000.0)) / Real(10000.0);
+                t_blank_north = std::round(t_blank_north * Real(10000.0)) / Real(10000.0);
+                t_blank_south = std::round(t_blank_south * Real(10000.0)) / Real(10000.0);
+
+                const Real dx_z = (z_cc_arr) ? (z_cc_arr(i,j,k) - z_cc_arr(i,j,k-1)) : dx_arr[2];
                 const Real drag_coefficient = alpha_m / std::pow(dx_x*dx_y*dx_z, one/three);
-                const Real CdM = std::min(drag_coefficient / (windspeed + tiny), Real(1000.0));
-                const Real rho_xface = myhalf * ( cell_data(i,j,k,Rho_comp) + cell_data(i-1,j,k,Rho_comp) );
-                xmom_src_arr(i, j, k) -= t_blank * rho_xface * CdM * ux * windspeed;
+                const Real CdM = std::min(drag_coefficient / (windspeed + tiny), drag_coefficient);
+
+                const Real roof_mask     = (t_blank > zero && t_blank <  t_blank_below && t_blank_above == zero && l_use_most) ? one : zero; // roof cell
+                const Real south_mask    = (t_blank > zero && t_blank <= t_blank_north && t_blank_south == zero && l_use_most) ? one : zero; // south wall cell
+                const Real north_mask    = (t_blank > zero && t_blank <= t_blank_south && t_blank_north == zero && l_use_most) ? one : zero; // north wall cell
+                const Real wall_mask     = (t_blank > zero && t_blank < one && !l_use_most) ? one : zero; // wall cell (not using most)
+                const Real interior_mask = (t_blank == 1.0) ? one : zero; // interior cell
+
+                Real drag             = zero;
+                Real u1_cellaway      = zero;
+                Real u2_cellaway      = zero;
+                Real rho_xface_inside = rho_xface;
+                Real theta_surf       = theta_xface;
+                Real bc_forcing_x     = zero;
+                Real u_target         = zero;
+
+                // roof forcing
+                u1_cellaway         = u(i, j, k+1) ;
+                u2_cellaway         = fourth * ( v(i, j  , k+1) + v(i-1, j  , k+1)
+                                               + v(i, j+1, k+1) + v(i-1, j+1, k+1) ) ;
+                rho_xface_inside    =  myhalf * (cell_data(i,j,k-1,Rho_comp) + cell_data(i-1,j,k-1,Rho_comp));
+                theta_surf          = (myhalf * (cell_data(i,j,k-1,RhoTheta_comp) + cell_data(i-1,j,k-1, RhoTheta_comp))) / rho_xface_inside;
+                u_target            = compute_if_most_target_vel(u1_cellaway, u2_cellaway, dx_z, z0, t_blank, theta_xface, theta_surf, tflux_in, Olen_in, l_stability_correction);
+                bc_forcing_x        = -(u_target - ux); // BC forcing pushes nonrelative velocity toward target velocity
+                drag               += bc_forcing_x * roof_mask * rho_xface * CdM * U_s;
+
+                // south wall forcing
+                u1_cellaway         = u(i, j-1, k  );
+                u2_cellaway         = fourth * ( w(i, j-1, k  ) + w(i-1, j-1, k  )
+                                               + w(i, j-1, k+1) + w(i-1, j-1, k+1) ) ;
+                rho_xface_inside    = myhalf * ( cell_data(i,j+1,k,Rho_comp) + cell_data(i-1,j+1,k,Rho_comp) );
+                theta_surf          = (myhalf * (cell_data(i,j+1,k,RhoTheta_comp) + cell_data(i-1,j+1,k, RhoTheta_comp))) / rho_xface_inside;
+                u_target            = compute_if_most_target_vel(u1_cellaway, u2_cellaway, dx_z, z0, t_blank, theta_xface, theta_surf, tflux_in, Olen_in, l_stability_correction);
+                bc_forcing_x        = -(u_target - ux); // BC forcing pushes nonrelative velocity toward target velocity
+                drag               += bc_forcing_x * south_mask * rho_xface * CdM * U_s;
+
+                // north wall forcing
+                u1_cellaway         = u(i, j+1, k  ) ;
+                u2_cellaway         = fourth * ( w(i, j+1, k  ) + w(i-1, j+1, k  )
+                                               + w(i, j+1, k+1) + w(i-1, j+1, k+1) ) ;
+                rho_xface_inside    = myhalf * ( cell_data(i,j-1,k,Rho_comp) + cell_data(i-1,j-1,k,Rho_comp) );
+                theta_surf          = (myhalf * (cell_data(i,j-1,k,RhoTheta_comp) + cell_data(i-1,j-1,k, RhoTheta_comp))) / rho_xface_inside;
+                u_target            = compute_if_most_target_vel(u1_cellaway, u2_cellaway, dx_z, z0, t_blank, theta_xface, theta_surf, tflux_in, Olen_in, l_stability_correction);
+                bc_forcing_x        = -(u_target - ux); // BC forcing pushes nonrelative velocity toward target velocity
+                drag               += bc_forcing_x * north_mask * rho_xface * CdM * U_s;
+
+                // wall forcing (if not using most)
+                drag               += wall_mask * t_blank * rho_xface * CdM * ux * windspeed;
+
+                // interior cell forcing
+                drag               += interior_mask * rho_xface * CdM * ux * windspeed;
+
+                // limit drag term for anelastic for numerical stability
+                if (is_slow_step && !use_ImmersedForcing_fast) {
+                    Real d_drag = dt * -drag; // time step * acceleration like tendency
+                    Real wsmax_change = damp_alpha * amrex::max(amrex::Math::abs(ux), ws_floor); // aims to prevent oscillations around 0.
+                    if (amrex::Math::abs(ux) < 0.1){ // no damping for smaller velocities
+                        wsmax_change =one * amrex::max(amrex::Math::abs(ux), ws_floor);
+                    }
+                    d_drag = amrex::min(amrex::max(d_drag, -wsmax_change), wsmax_change);
+                    xmom_src_arr(i,j,k) += d_drag / dt; // put back as limited tendency
+                } else {
+                    xmom_src_arr(i, j, k) -= drag;
+                }
             });
             ParallelFor(tby, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
             {
-                const Real ux = fourth * ( u(i  , j  , k  ) + u(i  , j-1, k  )
-                                       + u(i+1, j  , k  ) + u(i+1, j-1, k  ) );
-                const Real uy = v(i, j, k);
-                const Real uz = fourth * ( w(i  , j  , k  ) + w(i  , j-1, k  )
-                                       + w(i  , j  , k+1) + w(i  , j-1, k+1) );
-                const Real windspeed = std::sqrt(ux * ux + uy * uy + uz * uz);
+                const Real ux   = fourth * ( u(i  , j  , k  ) + u(i  , j-1, k  )
+                                           + u(i+1, j  , k  ) + u(i+1, j-1, k  ) );
+                const Real uy   = v(i, j, k);
+                const Real uz   = fourth * ( w(i  , j  , k  ) + w(i  , j-1, k  )
+                                           + w(i  , j  , k+1) + w(i  , j-1, k+1) );
+                const amrex::Real windspeed = std::sqrt(ux * ux + uy * uy + uz * uz);
 
-                Real t_blank = myhalf * (t_blank_arr(i, j, k) + t_blank_arr(i, j-1, k));
+                const Real rho_yface   = myhalf * ( cell_data(i,j,k,Rho_comp) + cell_data(i,j-1,k,Rho_comp) );
+                const Real theta_yface = (myhalf * (cell_data(i,j,k  ,RhoTheta_comp) + cell_data(i,j-1,k,RhoTheta_comp))) / rho_yface;
+
+                Real t_blank             = myhalf * (t_blank_arr(i  , j  , k  ) + t_blank_arr(i-1, j  , k  ));
+                Real t_blank_below       = myhalf * (t_blank_arr(i  , j  , k-1) + t_blank_arr(i-1, j  , k-1));
+                Real t_blank_above       = myhalf * (t_blank_arr(i  , j  , k+1) + t_blank_arr(i-1, j  , k+1));
+                Real t_blank_east        = myhalf * (t_blank_arr(i+1, j  , k  ) + t_blank_arr(i+1, j-1, k  ));
+                Real t_blank_west        = myhalf * (t_blank_arr(i-1, j  , k  ) + t_blank_arr(i-1, j-1, k  ));
                 if (t_blank < min_t_blank) { t_blank = zero; }
-                const Real dx_z    = (z_cc_arr) ? (z_cc_arr(i,j,k) - z_cc_arr(i,j,k-1)) : dx_arr[2];
+                if (k == 0) { t_blank_below = zero; }
+                if (t_blank_below < min_t_blank) { t_blank_below = zero; }
+                if (t_blank_above < min_t_blank) { t_blank_above = zero; }
+                if (t_blank_east < min_t_blank) { t_blank_east = zero; }
+                if (t_blank_west < min_t_blank) { t_blank_west = zero; }
+                // round to four decimal places to avoid issues for cells with very small volfracs.
+                t_blank       = std::round(t_blank       * Real(10000.0)) / Real(10000.0);
+                t_blank_below = std::round(t_blank_below * Real(10000.0)) / Real(10000.0);
+                t_blank_above = std::round(t_blank_above * Real(10000.0)) / Real(10000.0);
+                t_blank_east  = std::round(t_blank_east  * Real(10000.0)) / Real(10000.0);
+                t_blank_west  = std::round(t_blank_west  * Real(10000.0)) / Real(10000.0);
+
+                const Real dx_z = (z_cc_arr) ? (z_cc_arr(i,j,k) - z_cc_arr(i,j,k-1)) : dx_arr[2];
                 const Real drag_coefficient = alpha_m / std::pow(dx_x*dx_y*dx_z, one/three);
-                const Real CdM = std::min(drag_coefficient / (windspeed + tiny), Real(1000.0));
-                const Real rho_yface =  myhalf * ( cell_data(i,j,k,Rho_comp) + cell_data(i,j-1,k,Rho_comp) );
-                ymom_src_arr(i, j, k) -= t_blank * rho_yface * CdM * uy * windspeed;
+                const Real CdM = std::min(drag_coefficient / (windspeed + tiny), drag_coefficient);
+
+                const Real roof_mask     = (t_blank > zero && t_blank <  t_blank_below && t_blank_above == zero && l_use_most) ? one : zero; // roof cell
+                const Real west_mask     = (t_blank > zero && t_blank <= t_blank_east  && t_blank_west  == zero && l_use_most) ? one : zero; // west wall cell
+                const Real east_mask     = (t_blank > zero && t_blank <= t_blank_west  && t_blank_east  == zero && l_use_most) ? one : zero; // east wall cell
+                const Real wall_mask     = (t_blank > zero && t_blank < one && !l_use_most) ? one : zero; // wall cell (not using most)
+                const Real interior_mask = (t_blank == 1.0) ? one : zero; // interior cell
+
+                Real drag             = zero;
+                Real u1_cellaway      = zero;
+                Real u2_cellaway      = zero;
+                Real rho_yface_inside = rho_yface;
+                Real theta_surf       = theta_yface;
+                Real bc_forcing_y     = zero;
+                Real u_target         = zero;
+
+                // roof forcing
+                u1_cellaway         = fourth * ( u(i  , j  , k+1) + u(i  , j-1, k+1)
+                                               + u(i+1, j  , k+1) + u(i+1, j-1, k+1) );
+                u2_cellaway         = v(i, j, k+1);
+                rho_yface_inside    = myhalf * ( cell_data(i,j,k-1,Rho_comp) + cell_data(i,j-1,k-1,Rho_comp) );
+                theta_surf          = (myhalf * (cell_data(i,j,k-1,RhoTheta_comp) + cell_data(i,j-1,k-1,RhoTheta_comp))) / rho_yface_inside;
+                u_target            = compute_if_most_target_vel(u1_cellaway, u2_cellaway, dx_z, z0, t_blank, theta_yface, theta_surf, tflux_in, Olen_in, l_stability_correction);
+                bc_forcing_y        = -(u_target - uy); // BC forcing pushes nonrelative velocity toward target velocity
+                drag               += bc_forcing_y * roof_mask * rho_yface * CdM * U_s;
+
+                // west wall forcing
+                u1_cellaway         = v(i-1, j , k  );
+                u2_cellaway         = fourth * ( w(i-1, j  , k  ) + w(i-1, j-1, k  )
+                                               + w(i-1, j  , k+1) + w(i-1, j-1, k+1) );
+                rho_yface_inside    = myhalf * ( cell_data(i+1,j,k,Rho_comp) + cell_data(i+1,j-1,k,Rho_comp) );
+                theta_surf          = (myhalf * (cell_data(i+1,j,k,RhoTheta_comp) + cell_data(i+1,j-1,k,RhoTheta_comp))) / rho_yface_inside;
+                u_target            = compute_if_most_target_vel(u1_cellaway, u2_cellaway, dx_x, z0, t_blank, theta_yface, theta_surf, tflux_in, Olen_in, l_stability_correction);
+                bc_forcing_y        = -(u_target - uy); // BC forcing pushes nonrelative velocity toward target velocity
+                drag               += bc_forcing_y * west_mask * rho_yface * CdM * U_s;
+
+                // east wall forcing
+                u1_cellaway         = v(i+1, j , k  );
+                u2_cellaway         = fourth * ( w(i+1, j  , k  ) + w(i+1, j-1, k  )
+                                               + w(i+1, j  , k+1) + w(i+1, j-1, k+1) );
+                rho_yface_inside    = myhalf * ( cell_data(i-1,j,k,Rho_comp) + cell_data(i-1,j-1,k,Rho_comp) );
+                theta_surf          = (myhalf * (cell_data(i-1,j,k,RhoTheta_comp) + cell_data(i-1,j-1,k,RhoTheta_comp))) / rho_yface_inside;
+                u_target            = compute_if_most_target_vel(u1_cellaway, u2_cellaway, dx_x, z0, t_blank, theta_yface, theta_surf, tflux_in, Olen_in, l_stability_correction);
+                bc_forcing_y        = -(u_target - uy); // BC forcing pushes nonrelative velocity toward target velocity
+                drag               += bc_forcing_y * east_mask * rho_yface * CdM * U_s;
+
+                // wall forcing (if not using most)
+                drag               += wall_mask * t_blank * rho_yface * CdM * uy * windspeed;
+
+                // interior cell forcing
+                drag               += interior_mask * rho_yface * CdM * uy * windspeed;
+
+                // limit drag term for anelastic for numerical stability
+                if (is_slow_step && !use_ImmersedForcing_fast) {
+                    Real d_drag = dt * -drag; // time step * acceleration like tendency
+                    Real wsmax_change = damp_alpha * amrex::max(amrex::Math::abs(uy), ws_floor); // aims to prevent oscillations around 0.
+                    if (amrex::Math::abs(uy) < 0.1){ // no damping for smaller velocities
+                        wsmax_change =one * amrex::max(amrex::Math::abs(uy), ws_floor);
+                    }
+                    d_drag = amrex::min(amrex::max(d_drag, -wsmax_change), wsmax_change);
+                    ymom_src_arr(i,j,k) += d_drag / dt; // put back as limited tendency
+                } else {
+                    ymom_src_arr(i, j, k) -= drag;
+                }
             });
             ParallelFor(tbz, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
             {
-                const Real ux = fourth * ( u(i  , j  , k  ) + u(i+1, j  , k  )
-                                       + u(i  , j  , k-1) + u(i+1, j  , k-1) );
-                const Real uy = fourth * ( v(i  , j  , k  ) + v(i  , j+1, k  )
-                                       + v(i  , j  , k-1) + v(i  , j+1, k-1) );
-                const Real uz = w(i, j, k);
-                const Real windspeed = std::sqrt(ux * ux + uy * uy + uz * uz);
+                const Real ux   = fourth * ( u(i  , j  , k  ) + u(i+1, j  , k  )
+                                           + u(i  , j  , k-1) + u(i+1, j  , k-1) );
+                const Real uy   = fourth * ( v(i, j  , k  ) + v(i, j+1, k  )
+                                           + v(i, j  , k-1) + v(i, j+1, k-1) );
+                const Real uz   = w(i, j, k);
+                const amrex::Real windspeed = std::sqrt(ux * ux + uy * uy + uz * uz);
 
-                Real t_blank = myhalf * (t_blank_arr(i, j, k) + t_blank_arr(i, j, k-1));
+                const Real rho_zface   = myhalf * ( cell_data(i,j,k,Rho_comp) + cell_data(i,j,k-1,Rho_comp) );
+                const Real theta_zface = (myhalf * (cell_data(i,j,k,RhoTheta_comp) + cell_data(i,j,k-1,RhoTheta_comp))) / rho_zface;
+
+                Real t_blank        = myhalf * (t_blank_arr(i  ,j  , k)   + t_blank_arr(i  , j  , k-1));
+                Real t_blank_below  = myhalf * (t_blank_arr(i  ,j  , k-1) + t_blank_arr(i  , j  , k-2));
+                Real t_blank_above  = myhalf * (t_blank_arr(i  ,j  , k)   + t_blank_arr(i  , j  , k+1));
+                Real t_blank_north  = myhalf * (t_blank_arr(i  ,j+1, k)   + t_blank_arr(i  , j+1, k-1));
+                Real t_blank_south  = myhalf * (t_blank_arr(i  ,j-1, k)   + t_blank_arr(i  , j-1, k-1));
+                Real t_blank_east   = myhalf * (t_blank_arr(i+1,j  , k)   + t_blank_arr(i+1, j  , k-1));
+                Real t_blank_west   = myhalf * (t_blank_arr(i-1,j  , k)   + t_blank_arr(i-1, j  , k-1));
                 if (t_blank < min_t_blank) { t_blank = zero; }
-                const Real dx_z    = (z_nd_arr) ? (z_nd_arr(i,j,k) - z_nd_arr(i,j,k-1)) : dx_arr[2]; // ASW double check
+                if (k == 0) { t_blank_below = zero; }
+                if (t_blank_below < min_t_blank) { t_blank_below = zero; }
+                if (t_blank_above < min_t_blank) { t_blank_above = zero; }
+                if (t_blank_north < min_t_blank) { t_blank_north = zero; }
+                if (t_blank_south < min_t_blank) { t_blank_south = zero; }
+                if (t_blank_east < min_t_blank)  { t_blank_east = zero; }
+                if (t_blank_west < min_t_blank)  { t_blank_west = zero; }
+                // round to four decimal places to avoid issues for cells with very small volfracs.
+                t_blank       = std::round(t_blank       * Real(10000.0)) / Real(10000.0);
+                t_blank_below = std::round(t_blank_below * Real(10000.0)) / Real(10000.0);
+                t_blank_above = std::round(t_blank_above * Real(10000.0)) / Real(10000.0);
+                t_blank_north = std::round(t_blank_north * Real(10000.0)) / Real(10000.0);
+                t_blank_south = std::round(t_blank_south * Real(10000.0)) / Real(10000.0);
+                t_blank_east  = std::round(t_blank_east  * Real(10000.0)) / Real(10000.0);
+                t_blank_west  = std::round(t_blank_west  * Real(10000.0)) / Real(10000.0);
+
+                const Real dx_z = (z_cc_arr) ? (z_cc_arr(i,j,k) - z_cc_arr(i,j,k-1)) : dx_arr[2];
                 const Real drag_coefficient = alpha_m / std::pow(dx_x*dx_y*dx_z, one/three);
-                const Real CdM = std::min(drag_coefficient / (windspeed + tiny), Real(1000.0));
-                const Real rho_zface =  myhalf * ( cell_data(i,j,k,Rho_comp) + cell_data(i,j,k-1,Rho_comp) );
-                zmom_src_arr(i, j, k) -= t_blank * rho_zface * CdM * uz * windspeed;
+                const Real CdM = std::min(drag_coefficient / (windspeed + tiny), drag_coefficient);
+
+                const Real south_mask    = (t_blank > zero && t_blank <= t_blank_north && t_blank_south == zero && l_use_most && k >= 1) ? one : zero; // south wall cell
+                const Real north_mask    = (t_blank > zero && t_blank <= t_blank_south && t_blank_north == zero && l_use_most && k >= 1) ? one : zero; // north wall cell
+                const Real west_mask     = (t_blank > zero && t_blank <= t_blank_east  && t_blank_west  == zero && l_use_most && k >= 1) ? one : zero; // west wall cell
+                const Real east_mask     = (t_blank > zero && t_blank <= t_blank_west  && t_blank_east  == zero && l_use_most && k >= 1) ? one : zero; // east wall cell
+                const Real wall_mask     = (t_blank > zero && t_blank < one && !l_use_most) ? one : zero; // wall cell (not using most)
+                const Real interior_mask = (t_blank == 1.0) ? one : zero; // interior cell
+
+                Real drag             = zero;
+                Real u1_cellaway      = zero;
+                Real u2_cellaway      = zero;
+                Real rho_zface_inside = rho_zface;
+                Real theta_surf       = theta_zface;
+                Real bc_forcing_z     = zero;
+                Real u_target         = zero;
+
+                // south wall forcing
+                u1_cellaway         = fourth * ( u(i  , j-1, k  ) + u(i+1, j-1, k  )
+                                               + u(i  , j-1, k-1) + u(i+1, j-1, k-1) );
+                u2_cellaway         = w(i, j-1, k);
+                rho_zface_inside    = myhalf * ( cell_data(i,j+1,k,Rho_comp) + cell_data(i,j+1,k-1,Rho_comp) );
+                theta_surf          = (myhalf * (cell_data(i,j+1,k,RhoTheta_comp) + cell_data(i,j+1,k-1,RhoTheta_comp))) / rho_zface_inside;
+                u_target            = compute_if_most_target_vel(u1_cellaway, u2_cellaway, dx_y, z0, t_blank, theta_zface, theta_surf, tflux_in, Olen_in, l_stability_correction);
+                bc_forcing_z        = -(u_target - uz); // BC forcing pushes nonrelative velocity toward target velocity
+                drag               += bc_forcing_z * south_mask * rho_zface * CdM * U_s;
+
+                // north wall forcing
+                u1_cellaway         = fourth * ( u(i  , j+1, k  ) + u(i+1, j+1, k  )
+                                               + u(i  , j+1, k-1) + u(i+1, j+1, k-1) );
+                u2_cellaway         = w(i, j+1, k);
+                rho_zface_inside    = myhalf * ( cell_data(i,j-1,k,Rho_comp) + cell_data(i,j-1,k-1,Rho_comp) );
+                theta_surf          = (myhalf * (cell_data(i,j-1,k,RhoTheta_comp) + cell_data(i,j-1,k-1,RhoTheta_comp))) / rho_zface_inside;
+                u_target            = compute_if_most_target_vel(u1_cellaway, u2_cellaway, dx_y, z0, t_blank, theta_zface, theta_surf, tflux_in, Olen_in, l_stability_correction);
+                bc_forcing_z        = -(u_target - uz); // BC forcing pushes nonrelative velocity toward target velocity
+                drag               += bc_forcing_z * north_mask * rho_zface * CdM * U_s;
+
+                // west wall forcing
+                u1_cellaway         = fourth * ( v(i-1, j  , k  ) + v(i-1, j+1, k  )
+                                               + v(i-1, j  , k-1) + v(i-1, j+1, k-1) );
+                u2_cellaway         = w(i-1, j, k);
+                rho_zface_inside    = myhalf * ( cell_data(i+1,j,k,Rho_comp) + cell_data(i+1,j,k-1,Rho_comp) );
+                theta_surf          = (myhalf * (cell_data(i+1,j,k,RhoTheta_comp) + cell_data(i+1,j,k-1,RhoTheta_comp))) / rho_zface_inside;
+                u_target            = compute_if_most_target_vel(u1_cellaway, u2_cellaway, dx_x, z0, t_blank, theta_zface, theta_surf, tflux_in, Olen_in, l_stability_correction);
+                bc_forcing_z        = -(u_target - uz); // BC forcing pushes nonrelative velocity toward target velocity
+                drag               += bc_forcing_z * west_mask * rho_zface * CdM * U_s;
+
+                // east wall forcing
+                u1_cellaway         = fourth * ( v(i+1, j  , k  ) + v(i+1, j+1, k  )
+                                               + v(i+1, j  , k-1) + v(i+1, j+1, k-1) );
+                u2_cellaway         = w(i+1, j, k);
+                rho_zface_inside    = myhalf * ( cell_data(i-1,j,k,Rho_comp) + cell_data(i-1,j,k-1,Rho_comp) );
+                theta_surf          = (myhalf * (cell_data(i-1,j,k,RhoTheta_comp) + cell_data(i-1,j,k-1,RhoTheta_comp))) / rho_zface_inside;
+                u_target            = compute_if_most_target_vel(u1_cellaway, u2_cellaway, dx_x, z0, t_blank, theta_zface, theta_surf, tflux_in, Olen_in, l_stability_correction);
+                bc_forcing_z        = -(u_target - uz); // BC forcing pushes nonrelative velocity toward target velocity
+                drag               += bc_forcing_z * east_mask * rho_zface * CdM * U_s;
+
+                // wall forcing (if not using most)
+                drag               += wall_mask * t_blank * rho_zface * CdM * uz * windspeed;
+
+                // interior cell forcing
+                drag               += interior_mask * rho_zface * CdM * uz * windspeed;
+
+                // limit drag term for anelastic for numerical stability
+                if (is_slow_step && !use_ImmersedForcing_fast) {
+                    Real d_drag = dt * -drag; // time step * acceleration like tendency
+                    Real wsmax_change = damp_alpha * amrex::max(amrex::Math::abs(uz), ws_floor); // aims to prevent oscillations around 0.
+                    if (amrex::Math::abs(uz) < 0.1){ // no damping for smaller velocities
+                        wsmax_change = one * amrex::max(amrex::Math::abs(uz), ws_floor);
+                    }
+                    d_drag = amrex::min(amrex::max(d_drag, -wsmax_change), wsmax_change);
+                    zmom_src_arr(i,j,k) += d_drag / dt; // put back as limited tendency
+                } else {
+                    zmom_src_arr(i, j, k) -= drag;
+                }
             });
         }
 

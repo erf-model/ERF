@@ -38,7 +38,7 @@ in the **namelist.erf** file, may be set larger than the ERF timestep to allow s
 in time. For example, if an 4s timestep is utilized for ERF and a 40s timestep is utilized for
 Noah-MP, then Noah-MP will be updated every 10 steps.
 
-The latest completed exchange supplies the provider inventory used by 2-D
+The latest completed exchange supplies the provider inventory used by 2D
 output. The transfer layer converts native Noah-MP specific humidity to dry-air
 mixing ratio once. ``HFX`` gates Noah-MP returned state, flux, native 2-m, and
 soil result fields. It does not gate radiation-to-LSM forcing fields. Processed
