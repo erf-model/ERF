@@ -47,26 +47,31 @@ NOAHMP::Plot_Landfile (const int& nstep)
 void
 NOAHMP::Write_Lsm_Restart (const std::string& dir) const
 {
+    // NetCDF (land-owning ranks) and VisMF below (full communicator) are separate
+    // collective scopes; a land-free early `return` here would skip the VisMF call.
+    {
 #ifdef AMREX_USE_MPI
-    const int color = noahmpio_vect.empty() ? MPI_UNDEFINED : 1;
-    MPI_Comm land_comm = MPI_COMM_NULL;
-    MPI_Comm_split(ParallelDescriptor::Communicator(), color,
-                   ParallelDescriptor::MyProc(), &land_comm);
-    if (land_comm == MPI_COMM_NULL) return; // land-free rank
-    const int land_comm_f = static_cast<int>(MPI_Comm_c2f(land_comm));
-    for (const NoahmpIO_type& noahmpio : noahmpio_vect) {
-        NoahmpIO_type& io = const_cast<NoahmpIO_type&>(noahmpio);
-        const int saved = io.comm;
-        io.comm   = land_comm_f;
-        io.WriteRestart(dir);
-        io.comm   = saved;
-    }
-    MPI_Comm_free(&land_comm);
+        const int color = noahmpio_vect.empty() ? MPI_UNDEFINED : 1;
+        MPI_Comm land_comm = MPI_COMM_NULL;
+        MPI_Comm_split(ParallelDescriptor::Communicator(), color,
+                       ParallelDescriptor::MyProc(), &land_comm);
+        if (land_comm != MPI_COMM_NULL) {
+            const int land_comm_f = static_cast<int>(MPI_Comm_c2f(land_comm));
+            for (const NoahmpIO_type& noahmpio : noahmpio_vect) {
+                NoahmpIO_type& io = const_cast<NoahmpIO_type&>(noahmpio);
+                const int saved = io.comm;
+                io.comm   = land_comm_f;
+                io.WriteRestart(dir);
+                io.comm   = saved;
+            }
+            MPI_Comm_free(&land_comm);
+        }
 #else
-    for (const NoahmpIO_type& noahmpio : noahmpio_vect) {
-        const_cast<NoahmpIO_type&>(noahmpio).WriteRestart(dir);
-    }
+        for (const NoahmpIO_type& noahmpio : noahmpio_vect) {
+            const_cast<NoahmpIO_type&>(noahmpio).WriteRestart(dir);
+        }
 #endif
+    }
 
     // Also save the precip snapshots so the next land call after restart differences
     // against the same baseline (no precip dropped or double-counted).
@@ -83,25 +88,30 @@ NOAHMP::Write_Lsm_Restart (const std::string& dir) const
 void
 NOAHMP::Read_Lsm_Restart (const std::string& dir)
 {
+    // Same collective-scope split as Write_Lsm_Restart: NetCDF is land-owning-only,
+    // the precip VisMF::Read below is full-communicator.
+    {
 #ifdef AMREX_USE_MPI
-    const int color = noahmpio_vect.empty() ? MPI_UNDEFINED : 1;
-    MPI_Comm land_comm = MPI_COMM_NULL;
-    MPI_Comm_split(ParallelDescriptor::Communicator(), color,
-                   ParallelDescriptor::MyProc(), &land_comm);
-    if (land_comm == MPI_COMM_NULL) return; // land-free rank
-    const int land_comm_f = static_cast<int>(MPI_Comm_c2f(land_comm));
-    for (NoahmpIO_type& noahmpio : noahmpio_vect) {
-        const int saved = noahmpio.comm;
-        noahmpio.comm   = land_comm_f;
-        noahmpio.ReadRestart(dir);
-        noahmpio.comm   = saved;
-    }
-    MPI_Comm_free(&land_comm);
+        const int color = noahmpio_vect.empty() ? MPI_UNDEFINED : 1;
+        MPI_Comm land_comm = MPI_COMM_NULL;
+        MPI_Comm_split(ParallelDescriptor::Communicator(), color,
+                       ParallelDescriptor::MyProc(), &land_comm);
+        if (land_comm != MPI_COMM_NULL) {
+            const int land_comm_f = static_cast<int>(MPI_Comm_c2f(land_comm));
+            for (NoahmpIO_type& noahmpio : noahmpio_vect) {
+                const int saved = noahmpio.comm;
+                noahmpio.comm   = land_comm_f;
+                noahmpio.ReadRestart(dir);
+                noahmpio.comm   = saved;
+            }
+            MPI_Comm_free(&land_comm);
+        }
 #else
-    for (NoahmpIO_type& noahmpio : noahmpio_vect) {
-        noahmpio.ReadRestart(dir);
-    }
+        for (NoahmpIO_type& noahmpio : noahmpio_vect) {
+            noahmpio.ReadRestart(dir);
+        }
 #endif
+    }
 
     // Read saved precip snapshots into a staging store; the first Advance copies them
     // into the live snapshots. Legacy checkpoints lack the files -> Advance cold-seeds.
