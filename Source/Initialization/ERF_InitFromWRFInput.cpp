@@ -1975,18 +1975,24 @@ init_terrain_from_wrfinput (int /*lev*/,
         * the fourth summation term.
         * =========================================================================*/
 
-        // Copy into ghost cells of z_erf
+        // Set the boundary and ghost cells of ERF's nodal heights
         LoopOnCpu(xface_bx, [=] (int i, int j, int /*k*/) noexcept
         {
-            int ii = std::max(std::min(i,imax),imin);
-            int jj = std::max(std::min(j,jmax),jmin);
-            z_slice_erf_arr(i,j,0) = z_slice_wrf_arr(ii,jj,0);
+            int ii  = std::max(std::min(i  ,imax),imin);
+            int jj  = std::max(std::min(j  ,jmax),jmin);
+            int iim = std::max(std::min(i-1,imax),imin);
+            int jjm = std::max(std::min(j-1,jmax),jmin);
+            z_slice_erf_arr(i,j,0) = fourth * ( z_slice_wrf_arr(ii ,jj ,0) + z_slice_wrf_arr(iim,jj ,0)
+                                              + z_slice_wrf_arr(ii ,jjm,0) + z_slice_wrf_arr(iim,jjm,0) );
         });
         LoopOnCpu(yface_bx, [=] (int i, int j, int /*k*/) noexcept
         {
             int ii = std::max(std::min(i,imax),imin);
             int jj = std::max(std::min(j,jmax),jmin);
-            z_slice_erf_arr(i,j,0) = z_slice_wrf_arr(ii,jj,0);
+            int iim = std::max(std::min(i-1,imax),imin);
+            int jjm = std::max(std::min(j-1,jmax),jmin);
+            z_slice_erf_arr(i,j,0) = fourth * ( z_slice_wrf_arr(ii ,jj ,0) + z_slice_wrf_arr(iim,jj ,0)
+                                              + z_slice_wrf_arr(ii ,jjm,0) + z_slice_wrf_arr(iim,jjm,0) );
         });
 
         // Direct solve
