@@ -208,7 +208,7 @@ TEST(Plotfile3DSelection, MoistureCapabilityTruthTable)
     const std::array<Expected, 12> expected{{
         {MoistureType::None, false, false, false, false, false, false,
          false, false, false, false, false, false, false, false},
-        {MoistureType::MoistNoCondensation, true, false, false, false, false, false,
+        {MoistureType::MoistNoCondensation, true, true, false, false, false, false,
          false, false, false, false, false, false, false, false},
         {MoistureType::SatAdj, true, true, false, false, false, false,
          false, false, false, false, false, false, false, false},
@@ -249,6 +249,19 @@ TEST(Plotfile3DSelection, MoistureCapabilityTruthTable)
         EXPECT_EQ(caps.snow_accumulation, item.snow_accumulation);
         EXPECT_EQ(caps.graupel_accumulation, item.graupel_accumulation);
     }
+}
+
+// Motivation: NoCondensation still stores vapor and cloud water in RhoQ1 and
+// RhoQ2.  A diagnosed zero in the cloud-water field is therefore distinct
+// from an unavailable SHOC diagnostic, which is represented by ERF's -999
+// plotfile sentinel before the native SHOC lifecycle has run.
+TEST(Plotfile3DSelection, NoCondensationCloudWaterIsSelectable)
+{
+    const auto no_condensation = make_capabilities(
+        MoistureType::MoistNoCondensation, 6, 2, 0, 1);
+    EXPECT_TRUE(erf_plotfile::plot3d_fixed_variable_available("qv", no_condensation));
+    EXPECT_TRUE(erf_plotfile::plot3d_fixed_variable_available("qc", no_condensation));
+    EXPECT_FALSE(erf_plotfile::plot3d_fixed_variable_available("qrain", no_condensation));
 }
 
 // Motivation: Raw rhoQ requests must never index beyond the active conserved
