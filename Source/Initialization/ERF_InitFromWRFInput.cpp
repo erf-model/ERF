@@ -1890,7 +1890,8 @@ init_terrain_from_wrfinput (int /*lev*/,
 
     // Z-face FAB for each z_wrf slice
     Box z_face_dom_slice = makeSlab(z_face_dom, 2, 0);
-    FArrayBox z_slice_wrf(z_face_dom_slice, 2, The_Managed_Arena());
+    FArrayBox z_slice_wrf(z_face_dom_slice, 1, The_Managed_Arena());
+    FArrayBox z_slice_wrf_sfc(z_face_dom_slice, 1, The_Managed_Arena());
 
     // Z_phys is nodal
     Box node_dom = convert(subdomain, IntVect(1,1,1));
@@ -1915,7 +1916,9 @@ init_terrain_from_wrfinput (int /*lev*/,
     int kstart = klo;
     int kend   = (use_wrf_height_grid) ? node_dom.bigEnd(2) : klo + 2; // Build first two layers to conserve CC
     for (int k(kstart); k<kend; ++k) {
-        z_slice_wrf.setVal<RunOn::Device>(zero, 0);
+        z_slice_wrf.setVal<RunOn::Device>(zero);
+
+        const Array4<Real>& z_slice_wrf_sfc_arr = z_slice_wrf_sfc.array();
 
         const Array4<Real>& z_slice_wrf_arr = z_slice_wrf.array();
         const Array4<Real>& z_slice_erf_arr = z_slice_erf.array();
@@ -2010,6 +2013,24 @@ init_terrain_from_wrfinput (int /*lev*/,
                                      - z_slice_erf_arr(i-1, j-1, 0);
         });
 
+        // Store the surface
+        if (k==kstart) {
+            LoopOnCpu(z_face_dom_slice, [=] (int i, int j, int /*k*/) noexcept
+            {
+                z_slice_wrf_sfc_arr(i,j,0) = z_slice_wrf_arr(i,j,0);
+            });
+        }
+
+        // Compute dz0_max from current layer and surface layer
+        if (k==kstart+1) {
+            dz0_max = std::numeric_limits<Real>::min();
+            LoopOnCpu(z_face_dom_slice, [=,&dz0_max] (int i, int j, int /*k*/) noexcept
+            {
+                Real dz0 = z_slice_wrf_arr(i,j,0) - z_slice_wrf_sfc_arr(i,j,0,1);
+                dz0_max = amrex::max(dz0, dz0_max);
+            });
+        }
+
         // Copy back to z_phys and handle top/bottom ghost cells
         for ( MFIter mfi(*z_phys); mfi.isValid(); ++mfi ) {
             Box gbx = mfi.growntilebox();
@@ -2031,23 +2052,6 @@ init_terrain_from_wrfinput (int /*lev*/,
                         z_arr(i,j,khi+lk) = z_top + dz * static_cast<Real>(lk);
                     }
                 }
-            });
-        }
-
-        // Copy surface to comp 1
-        if (k==kstart) {
-            LoopOnCpu(z_face_dom_slice, [=] (int i, int j, int /*k*/) noexcept
-            {
-                z_slice_wrf_arr(i,j,0,1) = z_slice_wrf_arr(i,j,0);
-            });
-        }
-        // Compute dz0_max
-        if (k==kstart+1) {
-            dz0_max = std::numeric_limits<Real>::min();
-            LoopOnCpu(z_face_dom_slice, [=,&dz0_max] (int i, int j, int /*k*/) noexcept
-            {
-                Real dz0 = z_slice_wrf_arr(i,j,0) - z_slice_wrf_arr(i,j,0,1);
-                dz0_max = amrex::max(dz0, dz0_max);
             });
         }
     } // k
