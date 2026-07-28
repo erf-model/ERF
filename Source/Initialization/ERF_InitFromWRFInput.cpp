@@ -2026,7 +2026,7 @@ init_terrain_from_wrfinput (int /*lev*/,
             dz0_max = std::numeric_limits<Real>::min();
             LoopOnCpu(z_face_dom_slice, [=,&dz0_max] (int i, int j, int /*k*/) noexcept
             {
-                Real dz0 = z_slice_wrf_arr(i,j,0) - z_slice_wrf_sfc_arr(i,j,0,1);
+                Real dz0 = z_slice_wrf_arr(i,j,0) - z_slice_wrf_sfc_arr(i,j,0);
                 dz0_max = amrex::max(dz0, dz0_max);
             });
         }
