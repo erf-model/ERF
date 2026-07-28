@@ -1067,7 +1067,7 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev)
 
             int iter   = 0;
             Real Nz    = static_cast<Real>(zlevels_stag[lev].size());
-            Real SFact = one + tol;
+            Real SFact = Real(1.03);
             Real F     = dz0_max * ( (std::pow(SFact,Nz) - one) / (SFact - one) ) - z_top;
             while (std::fabs(F)>tol && iter<max_iter) {
                 Real dFdSF = dz0_max * ( Nz * std::pow(SFact,Nz-one) * (SFact - one) - std::pow(SFact,Nz) + one )
