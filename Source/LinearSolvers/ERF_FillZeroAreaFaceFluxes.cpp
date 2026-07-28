@@ -6,10 +6,11 @@ using namespace amrex;
 /**
  * Compute phi gradients where the area of the face is zero
  */
+template <typename T>
 void
 FillZeroAreaFaceFluxes (MultiFab& phi, Array<MultiFab,AMREX_SPACEDIM>& fluxes,
                         const Geometry& geom, EBFArrayBoxFactory const& ebfact,
-                        auto const& ebfact_u, auto const& ebfact_v, auto const& ebfact_w)
+                        T const& ebfact_u, T const& ebfact_v, T const& ebfact_w)
 {
     BL_PROFILE("ERF::FillZeroAreaFaceFluxes()");
 

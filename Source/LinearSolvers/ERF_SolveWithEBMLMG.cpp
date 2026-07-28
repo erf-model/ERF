@@ -8,14 +8,15 @@
 
 using namespace amrex;
 
+template <typename T>
 void
 FillZeroAreaFaceFluxes (MultiFab& phi,
                         Array<MultiFab,AMREX_SPACEDIM>& fluxes,
                         const Geometry& geom,
                         EBFArrayBoxFactory const& ebfact,
-                        auto const& ebfact_u,
-                        auto const& ebfact_v,
-                        auto const& ebfact_w);
+                        T const& ebfact_u,
+                        T const& ebfact_v,
+                        T const& ebfact_w);
 
 /**
  * Solve the Poisson equation using EB_enabled MLMG
@@ -24,13 +25,14 @@ FillZeroAreaFaceFluxes (MultiFab& phi,
  * Important: we solve on the whole level even if there are disjoint regions
  *
  */
+template <typename T>
 void
 solve_with_EB_mlmg (int lev, Vector<MultiFab>& rhs, Vector<MultiFab>& phi,
                     Vector<Array<MultiFab,AMREX_SPACEDIM>>& fluxes,
                     EBFArrayBoxFactory const& ebfact,
-                    auto const& ebfact_u,
-                    auto const& ebfact_v,
-                    auto const& ebfact_w,
+                    T const& ebfact_u,
+                    T const& ebfact_v,
+                    T const& ebfact_w,
                     const Geometry& geom, const Vector<amrex::IntVect>& ref_ratio,
                     Array<std::string,2*AMREX_SPACEDIM> domain_bc_type,
                     int mg_verbose, Real reltol, Real abstol)
