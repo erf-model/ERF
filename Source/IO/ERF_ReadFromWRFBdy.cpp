@@ -112,6 +112,7 @@ convert_wrfbdy_data (const int itime,
                      std::unique_ptr<MultiFab>& wrf_RDNW,
                      std::unique_ptr<MultiFab>& wrf_PHB,
                      std::unique_ptr<MultiFab>& z_phys_cc,
+                     std::unique_ptr<MultiFab>& z_phys_nd,
                      const iMultiFab* mask_u,
                      const iMultiFab* mask_v,
                      const iMultiFab* mask_c,
@@ -216,6 +217,7 @@ convert_wrfbdy_data (const int itime,
 
         // Physical heights for rebalancing
         const Array4<const Real>& z_cc_arr = z_phys_cc->const_array(mfi);
+        const Array4<const Real>& z_nd_arr = z_phys_nd->const_array(mfi);
 
         // New z values
         ParallelFor(bx_t, bx_u, bx_v,
@@ -254,7 +256,8 @@ convert_wrfbdy_data (const int itime,
             bdy_u_z_src(i,j,k) = Real(0.25) * ( P + P_kp + P_im + P_im_kp ) / CONST_GRAV;
 
             // ERF heights
-            bdy_u_z_dst(i,j,k) = Real(0.5) * (z_cc_arr(i,j,k) + z_cc_arr(i-1,j,k));
+            bdy_u_z_dst(i,j,k) = Real(0.25) * ( z_nd_arr(i,j,k  ) + z_nd_arr(i,j+1,k  )
+                                              + z_nd_arr(i,j,k+1) + z_nd_arr(i,j+1,k+1) );
         },
         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
@@ -276,7 +279,8 @@ convert_wrfbdy_data (const int itime,
             bdy_v_z_src(i,j,k) = Real(0.25) * ( P + P_kp + P_jm + P_jm_kp ) / CONST_GRAV;
 
             // Original heights
-            bdy_v_z_dst(i,j,k) = Real(0.5) * (z_cc_arr(i,j,k) + z_cc_arr(i,j-1,k));
+            bdy_v_z_dst(i,j,k) = Real(0.25) * ( z_nd_arr(i,j,k  ) + z_nd_arr(i+1,j,k  )
+                                              + z_nd_arr(i,j,k+1) + z_nd_arr(i+1,j,k+1) );
         });
 
         // Define u velocity
@@ -539,6 +543,7 @@ read_and_convert_from_wrfbdy (const int itime, const std::string& nc_bdy_file,
                               std::unique_ptr<MultiFab>& wrf_RDNW,
                               std::unique_ptr<MultiFab>& wrf_PHB,
                               std::unique_ptr<MultiFab>& z_phys_cc,
+                              std::unique_ptr<MultiFab>& z_phys_nd,
                               const MultiFab& xvel,
                               const MultiFab& yvel,
                               const MultiFab& cons,
@@ -569,7 +574,8 @@ read_and_convert_from_wrfbdy (const int itime, const std::string& nc_bdy_file,
     {
         read_and_convert_from_wrfbdy(itime-1,nc_bdy_file,
                                      bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi,
-                                     wrf_MUB, wrf_C1H, wrf_C2H, wrf_RDNW, wrf_PHB, z_phys_cc,
+                                     wrf_MUB, wrf_C1H, wrf_C2H, wrf_RDNW, wrf_PHB,
+                                     z_phys_cc, z_phys_nd,
                                      xvel, yvel, cons, rho0, area_vec, geom,
                                      use_moist, rebalance_wrf_state, domain_bcs_type_h,
                                      real_width, bdy_time_interval,
@@ -999,16 +1005,48 @@ read_and_convert_from_wrfbdy (const int itime, const std::string& nc_bdy_file,
         std::unique_ptr<iMultiFab> mask_v = OwnerMask(yvel, geom.periodicity());
 
         if (do_tendency) {
-            convert_wrfbdy_data(itime-1, domain, bdy_data_xlo, wrf_MUB, wrf_C1H, wrf_C2H, wrf_RDNW, wrf_PHB, z_phys_cc, mask_u.get(), mask_v.get(), mask_c.get(), use_moist, rebalance_wrf_state);
-            convert_wrfbdy_data(itime-1, domain, bdy_data_xhi, wrf_MUB, wrf_C1H, wrf_C2H, wrf_RDNW, wrf_PHB, z_phys_cc, mask_u.get(), mask_v.get(), mask_c.get(), use_moist, rebalance_wrf_state);
-            convert_wrfbdy_data(itime-1, domain, bdy_data_ylo, wrf_MUB, wrf_C1H, wrf_C2H, wrf_RDNW, wrf_PHB, z_phys_cc, mask_u.get(), mask_v.get(), mask_c.get(), use_moist, rebalance_wrf_state);
-            convert_wrfbdy_data(itime-1, domain, bdy_data_yhi, wrf_MUB, wrf_C1H, wrf_C2H, wrf_RDNW, wrf_PHB, z_phys_cc, mask_u.get(), mask_v.get(), mask_c.get(), use_moist, rebalance_wrf_state);
+            convert_wrfbdy_data(itime-1, domain, bdy_data_xlo,
+                                wrf_MUB, wrf_C1H, wrf_C2H, wrf_RDNW, wrf_PHB,
+                                z_phys_cc, z_phys_nd,
+                                mask_u.get(), mask_v.get(), mask_c.get(),
+                                use_moist, rebalance_wrf_state);
+            convert_wrfbdy_data(itime-1, domain, bdy_data_xhi,
+                                wrf_MUB, wrf_C1H, wrf_C2H, wrf_RDNW, wrf_PHB,
+                                z_phys_cc, z_phys_nd,
+                                mask_u.get(), mask_v.get(), mask_c.get(),
+                                use_moist, rebalance_wrf_state);
+            convert_wrfbdy_data(itime-1, domain, bdy_data_ylo,
+                                wrf_MUB, wrf_C1H, wrf_C2H, wrf_RDNW, wrf_PHB,
+                                z_phys_cc, z_phys_nd,
+                                mask_u.get(), mask_v.get(), mask_c.get(),
+                                use_moist, rebalance_wrf_state);
+            convert_wrfbdy_data(itime-1, domain, bdy_data_yhi,
+                                wrf_MUB, wrf_C1H, wrf_C2H, wrf_RDNW, wrf_PHB,
+                                z_phys_cc, z_phys_nd,
+                                mask_u.get(), mask_v.get(), mask_c.get(),
+                                use_moist, rebalance_wrf_state);
         }
 
-        convert_wrfbdy_data(itime, domain, bdy_data_xlo, wrf_MUB, wrf_C1H, wrf_C2H, wrf_RDNW, wrf_PHB, z_phys_cc, mask_u.get(), mask_v.get(), mask_c.get(), use_moist, rebalance_wrf_state);
-        convert_wrfbdy_data(itime, domain, bdy_data_xhi, wrf_MUB, wrf_C1H, wrf_C2H, wrf_RDNW, wrf_PHB, z_phys_cc, mask_u.get(), mask_v.get(), mask_c.get(), use_moist, rebalance_wrf_state);
-        convert_wrfbdy_data(itime, domain, bdy_data_ylo, wrf_MUB, wrf_C1H, wrf_C2H, wrf_RDNW, wrf_PHB, z_phys_cc, mask_u.get(), mask_v.get(), mask_c.get(), use_moist, rebalance_wrf_state);
-        convert_wrfbdy_data(itime, domain, bdy_data_yhi, wrf_MUB, wrf_C1H, wrf_C2H, wrf_RDNW, wrf_PHB, z_phys_cc, mask_u.get(), mask_v.get(), mask_c.get(), use_moist, rebalance_wrf_state);
+        convert_wrfbdy_data(itime, domain, bdy_data_xlo,
+                            wrf_MUB, wrf_C1H, wrf_C2H, wrf_RDNW, wrf_PHB,
+                            z_phys_cc, z_phys_nd,
+                            mask_u.get(), mask_v.get(), mask_c.get(),
+                            use_moist, rebalance_wrf_state);
+        convert_wrfbdy_data(itime, domain, bdy_data_xhi,
+                            wrf_MUB, wrf_C1H, wrf_C2H, wrf_RDNW, wrf_PHB,
+                            z_phys_cc, z_phys_nd,
+                            mask_u.get(), mask_v.get(), mask_c.get(),
+                            use_moist, rebalance_wrf_state);
+        convert_wrfbdy_data(itime, domain, bdy_data_ylo,
+                            wrf_MUB, wrf_C1H, wrf_C2H, wrf_RDNW, wrf_PHB,
+                            z_phys_cc, z_phys_nd,
+                            mask_u.get(), mask_v.get(), mask_c.get(),
+                            use_moist, rebalance_wrf_state);
+        convert_wrfbdy_data(itime, domain, bdy_data_yhi,
+                            wrf_MUB, wrf_C1H, wrf_C2H, wrf_RDNW, wrf_PHB,
+                            z_phys_cc, z_phys_nd,
+                            mask_u.get(), mask_v.get(), mask_c.get(),
+                            use_moist, rebalance_wrf_state);
 
         if (is_anelastic) {
             if (do_tendency) {

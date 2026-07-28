@@ -1141,7 +1141,9 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev)
 
             const Array4<const Real>&   ph_arr = mf_PH.const_array(mfi);
             const Array4<const Real>&  phb_arr = mf_PHB->const_array(mfi);
+
             const Array4<const Real>& z_cc_arr = z_phys_cc[lev]->const_array(mfi);
+            const Array4<const Real>& z_nd_arr = z_phys_nd[lev]->const_array(mfi);
 
             ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
@@ -1187,7 +1189,8 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev)
                 int iim = std::max(std::min(i-1,imax),imin);
 
                 int kstart = std::max(klo,k-5);
-                Real z_dst = Real(0.5) * (z_cc_arr(i,j,k) + z_cc_arr(i-1,j,k));
+                Real z_dst = Real(0.25) * ( z_nd_arr(i,j,k  ) + z_nd_arr(i,j+1,k  )
+                                          + z_nd_arr(i,j,k+1) + z_nd_arr(i,j+1,k+1) );
                 Real z_lo_src = Real(0.25) *
                     ( ph_arr(ii ,j,kstart  ) + phb_arr(ii ,j,kstart  ) +
                       ph_arr(ii ,j,kstart+1) + phb_arr(ii ,j,kstart+1) +
@@ -1231,7 +1234,8 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev)
                 int jjm = std::max(std::min(j-1,jmax),jmin);
 
                 int kstart = std::max(klo,k-5);
-                Real z_dst = Real(0.5) * (z_cc_arr(i,j,k) + z_cc_arr(i,j-1,k));
+                Real z_dst = Real(0.25) * ( z_nd_arr(i,j,k  ) + z_nd_arr(i+1,j,k  )
+                                          + z_nd_arr(i,j,k+1) + z_nd_arr(i+1,j,k+1) );
                 Real z_lo_src = Real(0.25) *
                     ( ph_arr(i,jj ,kstart  ) + phb_arr(i,jj ,kstart  ) +
                       ph_arr(i,jj ,kstart+1) + phb_arr(i,jj ,kstart+1) +
@@ -1410,7 +1414,7 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev)
             {
                 read_and_convert_from_wrfbdy(itime, nc_bdy_file,
                                              bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi,
-                                             wrf_MUB, wrf_C1H, wrf_C2H, wrf_RDNW, wrf_PHB, z_phys_cc[lev],
+                                             wrf_MUB, wrf_C1H, wrf_C2H, wrf_RDNW, wrf_PHB, z_phys_cc[lev], z_phys_nd[lev],
                                              lev_new[Vars::xvel], lev_new[Vars::yvel], lev_new[Vars::cons],
                                              r_hse, area_vec, geom[lev], use_moist, solverChoice.rebalance_wrf_input, domain_bcs_type,
                                              real_width, bdy_time_interval, is_anelastic);
@@ -1431,7 +1435,7 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev)
                 for (int itime = 3; itime < ntimes_total; ++itime) {
                     read_and_convert_from_wrfbdy(itime, nc_bdy_file,
                                                  bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi,
-                                                 wrf_MUB, wrf_C1H, wrf_C2H, wrf_RDNW, wrf_PHB, z_phys_cc[lev],
+                                                 wrf_MUB, wrf_C1H, wrf_C2H, wrf_RDNW, wrf_PHB, z_phys_cc[lev], z_phys_nd[lev],
                                                  lev_new[Vars::xvel], lev_new[Vars::yvel], lev_new[Vars::cons],
                                                  r_hse, area_vec, geom[lev], use_moist, solverChoice.rebalance_wrf_input, domain_bcs_type,
                                                  real_width, bdy_time_interval, is_anelastic);
