@@ -124,6 +124,8 @@ void erf_slow_rhs_post (int level, int finest_level,
     const bool l_use_turb       = tc.use_kturb;
     const bool l_rotate         = (solverChoice.use_rotate_surface_flux);
     const bool l_do_scalar      = (solverChoice.transport_scalar);
+    const bool l_use_eb         = (solverChoice.terrain_type == TerrainType::EB);
+
     amrex::ignore_unused(m_r2d);
 
     const Box& domain = geom.Domain();
@@ -207,7 +209,7 @@ void erf_slow_rhs_post (int level, int finest_level,
       // Cell-centered masks for EB (used for flux interpolation)
       iMultiFab physbnd_mask;
       bool already_on_centroids = false;
-      if (solverChoice.terrain_type == TerrainType::EB) {
+      if (l_use_eb) {
           physbnd_mask.define(S_data[IntVars::cons].boxArray(), S_data[IntVars::cons].DistributionMap(), 1, 1);
           physbnd_mask.BuildMask(geom.Domain(), geom.periodicity(), 1, 1, 0, 1);
       }
@@ -220,7 +222,7 @@ void erf_slow_rhs_post (int level, int finest_level,
         // Define flux arrays for use in advection
         // *************************************************************************
         for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
-            if (solverChoice.terrain_type != TerrainType::EB) {
+            if (!l_use_eb) {
                 flux[dir].resize(surroundingNodes(tbx,dir),nvars,The_Async_Arena());
             } else {
                 flux[dir].resize(surroundingNodes(tbx,dir).grow(1),nvars,The_Async_Arena());
@@ -321,7 +323,10 @@ void erf_slow_rhs_post (int level, int finest_level,
         Array4<const Real> fcy_arr{};
         Array4<const Real> fcz_arr{};
         Array4<const Real> detJ_arr{};
-        if (solverChoice.terrain_type == TerrainType::EB) {
+        Array4<const Real> barea_arr{};
+        Array4<const Real> bcent_arr{};
+
+        if (l_use_eb) {
             EBCellFlagFab const& cfg = ebfact.getMultiEBCellFlagFab()[mfi];
             cfg_arr  = cfg.const_array();
             if (cfg.getType(tbx) == FabType::singlevalued) {
@@ -333,11 +338,16 @@ void erf_slow_rhs_post (int level, int finest_level,
                 fcy_arr  = ebfact.getFaceCent()[1]->const_array(mfi);
                 fcz_arr  = ebfact.getFaceCent()[2]->const_array(mfi);
                 detJ_arr = ebfact.getVolFrac().const_array(mfi);
-                // if (!already_on_centroids) {mask_arr = physbnd_mask.const_array(mfi);}
                 mask_arr = physbnd_mask.const_array(mfi);
+                barea_arr = ebfact.getBndryArea().const_array(mfi);
+                bcent_arr = ebfact.getBndryCent().const_array(mfi);
+            } else {
+                ax_arr   = ax->const_array(mfi);
+                ay_arr   = ay->const_array(mfi);
+                az_arr   = az->const_array(mfi);
+                detJ_arr = detJ->const_array(mfi);
             }
-        }
-        if (!l_eb_terrain_cc) {
+        } else {
             ax_arr   = ax->const_array(mfi);
             ay_arr   = ay->const_array(mfi);
             az_arr   = az->const_array(mfi);
@@ -350,6 +360,7 @@ void erf_slow_rhs_post (int level, int finest_level,
         Array4<Real> diffflux_x, diffflux_y, diffflux_z;
         Array4<Real> hfx_x, hfx_y, hfx_z, diss;
         Array4<Real> q1fx_x, q1fx_y, q1fx_z, q2fx_z;
+        Array4<Real> hfx_EB{};
 
         if (l_use_diff) {
             diffflux_x = dflux_x->array(mfi);
@@ -380,6 +391,7 @@ void erf_slow_rhs_post (int level, int finest_level,
         //
         for (int ivar(RhoKE_comp); ivar<= RhoQ2_comp; ++ivar)
         {
+
             if (is_valid_slow_var[ivar])
             {
                 start_comp = ivar;
@@ -449,7 +461,7 @@ void erf_slow_rhs_post (int level, int finest_level,
 
                     const Array4<const Real> tm_arr = t_mean_mf ? t_mean_mf->const_array(mfi) : Array4<const Real>{};
 
-                    if (solverChoice.mesh_type == MeshType::StretchedDz && solverChoice.terrain_type != TerrainType::EB) {
+                    if (solverChoice.mesh_type == MeshType::StretchedDz) {
                         DiffusionSrcForState_S(tbx, domain, start_comp, num_comp, u, v,
                                                new_cons, cur_prim, cell_rhs,
                                                diffflux_x, diffflux_y, diffflux_z,
@@ -470,6 +482,16 @@ void erf_slow_rhs_post (int level, int finest_level,
                                                hfx_x, hfx_y, hfx_z, q1fx_x, q1fx_y, q1fx_z,q2fx_z, diss,
                                                mu_turb, solverChoice, level,
                                                tm_arr, grav_gpu, bc_ptr_d, l_apply_surface_layer_fluxes_in_diffusion, l_vert_implicit_fac);
+                    } else if (l_use_eb) {
+                        DiffusionSrcForState_EB(tbx, domain, start_comp, num_comp, u, v,
+                                                new_cons, cur_prim, cell_rhs,
+                                                diffflux_x, diffflux_y, diffflux_z,
+                                                cfg_arr, ax_arr, ay_arr, az_arr, detJ_arr,
+                                                barea_arr, bcent_arr,
+                                                dx, dxInv,
+                                                hfx_z, q1fx_z, q2fx_z, hfx_EB,
+                                                mu_turb, solverChoice, level,
+                                                bc_ptr_d, l_apply_surface_layer_fluxes_in_diffusion);
                     } else {
                         DiffusionSrcForState_N(tbx, domain, start_comp, num_comp, u, v,
                                                new_cons, cur_prim, cell_rhs,
@@ -481,6 +503,8 @@ void erf_slow_rhs_post (int level, int finest_level,
                                                tm_arr, grav_gpu, bc_ptr_d, l_apply_surface_layer_fluxes_in_diffusion, l_vert_implicit_fac);
                     }
                 } // use_diff
+
+
             } // valid slow var
         } // loop ivar
 

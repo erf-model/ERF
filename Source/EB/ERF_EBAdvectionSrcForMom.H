@@ -15,6 +15,9 @@ EBAdvectionSrcForMomWrapper (const amrex::Vector<amrex::Box>& bxx_grown,
                             const amrex::Array4<const amrex::Real>& u,
                             const amrex::Array4<const amrex::Real>& v,
                             const amrex::Array4<const amrex::Real>& w,
+                            const amrex::FabType u_type,
+                            const amrex::FabType v_type,
+                            const amrex::FabType w_type,
                             const amrex::Array4<const amrex::EBCellFlag>& u_cflag,
                             const amrex::Array4<const amrex::Real>& u_afrac_x,
                             const amrex::Array4<const amrex::Real>& u_afrac_y,
@@ -61,6 +64,14 @@ EBAdvectionSrcForMomWrapper (const amrex::Vector<amrex::Box>& bxx_grown,
     UPWIND3   interp_v_UPW3(v, upw_frac_h);
     UPWIND3   interp_w_UPW3(w, upw_frac_h);
 
+    bool u_is_regular = (u_type == amrex::FabType::regular);
+    bool v_is_regular = (v_type == amrex::FabType::regular);
+    bool w_is_regular = (w_type == amrex::FabType::regular);
+
+    bool u_is_singlevalued = (u_type == amrex::FabType::singlevalued);
+    bool v_is_singlevalued = (v_type == amrex::FabType::singlevalued);
+    bool w_is_singlevalued = (w_type == amrex::FabType::singlevalued);
+
     // ---------------------------------------------------- //
     // x-momentum
     // ---------------------------------------------------- //
@@ -69,8 +80,10 @@ EBAdvectionSrcForMomWrapper (const amrex::Vector<amrex::Box>& bxx_grown,
     // x-momentum: x-face
     [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
-        if ( u_afrac_x(i,j,k) > zero )
-        {
+        bool not_covered = u_is_regular || (u_is_singlevalued && u_afrac_x(i,j,k) > zero);
+
+        if ( not_covered ) {
+
             amrex::Real rho_u_avg = myhalf * (rho_u(i-1,j,k) * mf_ux_inv(i-1,j,0) + rho_u(i,j,k) * mf_ux_inv(i,j,0));
 
             int icell = 0;
@@ -107,17 +120,19 @@ EBAdvectionSrcForMomWrapper (const amrex::Vector<amrex::Box>& bxx_grown,
                 }
             }
             flx_u_arr[0](i,j,k) = rho_u_avg * interpx;
-        }
-        else
-        {
+
+        } else {
+
             flx_u_arr[0](i,j,k) = zero;
         }
     },
     // x-momentum: y-face
     [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
-        if ( u_afrac_y(i,j,k) > zero )
-        {
+        bool not_covered = u_is_regular || (u_is_singlevalued && u_afrac_y(i,j,k) > zero);
+
+        if ( not_covered ) {
+
             amrex::Real rho_v_avg = myhalf * (rho_v(i,j,k) * mf_vx_inv(i,j,0) + rho_v(i-1,j,k) * mf_vx_inv(i-1,j,0));
 
             int jcell = 0;
@@ -154,17 +169,19 @@ EBAdvectionSrcForMomWrapper (const amrex::Vector<amrex::Box>& bxx_grown,
                 }
             }
             flx_u_arr[1](i,j,k) = rho_v_avg * interpy;
-        }
-        else
-        {
+
+        } else {
+
             flx_u_arr[1](i,j,k) = zero;
         }
     },
     // x-momentum: z-face
     [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
-        if ( u_afrac_z(i,j,k) > zero )
-        {
+        bool not_covered = u_is_regular || (u_is_singlevalued && u_afrac_z(i,j,k) > zero);
+
+        if ( not_covered ) {
+
             amrex::Real rho_w_avg = myhalf * (rho_w(i,j,k) + rho_w(i-1,j,k));
 
             int kcell = 0;
@@ -201,9 +218,9 @@ EBAdvectionSrcForMomWrapper (const amrex::Vector<amrex::Box>& bxx_grown,
                 }
             }
             flx_u_arr[2](i,j,k) = rho_w_avg * interpz;
-        }
-        else
-        {
+
+        } else {
+
             flx_u_arr[2](i,j,k) = zero;
         }
     });
@@ -216,8 +233,10 @@ EBAdvectionSrcForMomWrapper (const amrex::Vector<amrex::Box>& bxx_grown,
     // y-momentum: x-face
     [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
-        if ( v_afrac_x(i,j,k) > zero )
-        {
+        bool not_covered = v_is_regular || (v_is_singlevalued && v_afrac_x(i,j,k) > zero);
+
+        if ( not_covered ) {
+
             amrex::Real rho_u_avg = myhalf * (rho_u(i,j,k) * mf_uy_inv(i,j,0) + rho_u(i,j-1,k) * mf_uy_inv(i,j-1,0));
 
             int icell = 0;
@@ -254,17 +273,19 @@ EBAdvectionSrcForMomWrapper (const amrex::Vector<amrex::Box>& bxx_grown,
                 }
             }
             flx_v_arr[0](i,j,k) = rho_u_avg * interpx;
-        }
-        else
-        {
+
+        } else {
+
             flx_v_arr[0](i,j,k) = zero;
         }
     },
     // y-momentum: y-face
     [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
-        if ( v_afrac_y(i,j,k) > zero )
-        {
+        bool not_covered = v_is_regular || (v_is_singlevalued && v_afrac_y(i,j,k) > zero);
+
+        if ( not_covered ) {
+
             amrex::Real rho_v_avg = myhalf * (rho_v(i,j,k) * mf_vy_inv(i,j,0) + rho_v(i,j-1,k) * mf_vy_inv(i,j-1,0));
 
             int jcell = 0;
@@ -301,17 +322,19 @@ EBAdvectionSrcForMomWrapper (const amrex::Vector<amrex::Box>& bxx_grown,
                 }
             }
             flx_v_arr[1](i,j,k) = rho_v_avg * interpy;
-        }
-        else
-        {
+
+        } else {
+
             flx_v_arr[1](i,j,k) = zero;
         }
     },
     // y-momentum: z-face
     [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
-        if ( v_afrac_z(i,j,k) > zero )
-        {
+        bool not_covered = v_is_regular || (v_is_singlevalued && v_afrac_z(i,j,k) > zero);
+
+        if ( not_covered ) {
+
             amrex::Real rho_w_avg = myhalf * (rho_w(i,j,k) + rho_w(i,j-1,k));
 
             int kcell = 0;
@@ -348,9 +371,9 @@ EBAdvectionSrcForMomWrapper (const amrex::Vector<amrex::Box>& bxx_grown,
                 }
             }
             flx_v_arr[2](i,j,k) = rho_w_avg * interpz;
-        }
-        else
-        {
+
+        } else {
+
             flx_v_arr[2](i,j,k) = zero;
         }
     });
@@ -363,8 +386,10 @@ EBAdvectionSrcForMomWrapper (const amrex::Vector<amrex::Box>& bxx_grown,
     // z-momentum: x-face
     [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
-        if ( w_afrac_x(i,j,k) > zero )
-        {
+        bool not_covered = w_is_regular || (w_is_singlevalued && w_afrac_x(i,j,k) > zero);
+
+        if ( not_covered ) {
+
             amrex::Real rho_u_avg = myhalf * (rho_u(i,j,k) + rho_u(i,j,k-1)) * mf_ux_inv(i,j,0);
 
             int icell = 0;
@@ -401,17 +426,19 @@ EBAdvectionSrcForMomWrapper (const amrex::Vector<amrex::Box>& bxx_grown,
                 }
             }
             flx_w_arr[0](i,j,k) = rho_u_avg * interpx;
-        }
-        else
-        {
+
+        } else {
+
             flx_w_arr[0](i,j,k) = zero;
         }
     },
     // z-momentum: y-face
     [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
-        if ( w_afrac_y(i,j,k) > zero )
-        {
+        bool not_covered = w_is_regular || (w_is_singlevalued && w_afrac_y(i,j,k) > zero);
+
+        if ( not_covered ) {
+
             amrex::Real rho_v_avg = myhalf * (rho_v(i,j,k) + rho_v(i,j,k-1)) * mf_vy_inv(i,j,0);
 
             int jcell = 0;
@@ -448,17 +475,19 @@ EBAdvectionSrcForMomWrapper (const amrex::Vector<amrex::Box>& bxx_grown,
                 }
             }
             flx_w_arr[1](i,j,k) = rho_v_avg * interpy;
-        }
-        else
-        {
+
+        } else {
+
             flx_w_arr[1](i,j,k) = zero;
         }
     },
     // z-momentum: z-face
     [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
-        if ( w_afrac_z(i,j,k) > zero )
-        {
+        bool not_covered = w_is_regular || (w_is_singlevalued && w_afrac_z(i,j,k) > zero);
+
+        if ( not_covered ) {
+
             if (k==lo_z_face || k==hi_z_face+1) {
 
                 flx_w_arr[2](i,j,k) = rho_w(i,j,k) * w(i,j,k);
@@ -509,9 +538,9 @@ EBAdvectionSrcForMomWrapper (const amrex::Vector<amrex::Box>& bxx_grown,
                 }
                 flx_w_arr[2](i,j,k) = rho_w_avg * interpz;
             } // lo_z_face, hi_z_face
-        }
-        else
-        {
+
+        } else {
+
             flx_w_arr[2](i,j,k) = zero;
         }
     });
@@ -532,6 +561,9 @@ EBAdvectionSrcForMomVert (const amrex::Vector<amrex::Box>& bxx_grown,
                         const amrex::Array4<const amrex::Real>& u,
                         const amrex::Array4<const amrex::Real>& v,
                         const amrex::Array4<const amrex::Real>& w,
+                        const amrex::FabType u_type,
+                        const amrex::FabType v_type,
+                        const amrex::FabType w_type,
                         const amrex::Array4<const amrex::EBCellFlag>& u_cflag,
                         const amrex::Array4<const amrex::Real>& u_afrac_x,
                         const amrex::Array4<const amrex::Real>& u_afrac_y,
@@ -560,6 +592,7 @@ EBAdvectionSrcForMomVert (const amrex::Vector<amrex::Box>& bxx_grown,
         EBAdvectionSrcForMomWrapper<InterpType_H,CENTERED2,UPWINDALL>(
                                 bxx_grown, bxy_grown, bxz_grown,
                                 rho_u, rho_v, rho_w, u, v, w,
+                                u_type, v_type, w_type,
                                 u_cflag, u_afrac_x, u_afrac_y, u_afrac_z,
                                 v_cflag, v_afrac_x, v_afrac_y, v_afrac_z,
                                 w_cflag, w_afrac_x, w_afrac_y, w_afrac_z,
@@ -572,6 +605,7 @@ EBAdvectionSrcForMomVert (const amrex::Vector<amrex::Box>& bxx_grown,
         EBAdvectionSrcForMomWrapper<InterpType_H,UPWIND3,UPWINDALL>(
                                 bxx_grown, bxy_grown, bxz_grown,
                                 rho_u, rho_v, rho_w, u, v, w,
+                                u_type, v_type, w_type,
                                 u_cflag, u_afrac_x, u_afrac_y, u_afrac_z,
                                 v_cflag, v_afrac_x, v_afrac_y, v_afrac_z,
                                 w_cflag, w_afrac_x, w_afrac_y, w_afrac_z,
@@ -584,6 +618,7 @@ EBAdvectionSrcForMomVert (const amrex::Vector<amrex::Box>& bxx_grown,
         EBAdvectionSrcForMomWrapper<InterpType_H,CENTERED4,UPWINDALL>(
                                 bxx_grown, bxy_grown, bxz_grown,
                                 rho_u, rho_v, rho_w, u, v, w,
+                                u_type, v_type, w_type,
                                 u_cflag, u_afrac_x, u_afrac_y, u_afrac_z,
                                 v_cflag, v_afrac_x, v_afrac_y, v_afrac_z,
                                 w_cflag, w_afrac_x, w_afrac_y, w_afrac_z,
@@ -596,6 +631,7 @@ EBAdvectionSrcForMomVert (const amrex::Vector<amrex::Box>& bxx_grown,
         EBAdvectionSrcForMomWrapper<InterpType_H,UPWIND5,UPWINDALL>(
                                 bxx_grown, bxy_grown, bxz_grown,
                                 rho_u, rho_v, rho_w, u, v, w,
+                                u_type, v_type, w_type,
                                 u_cflag, u_afrac_x, u_afrac_y, u_afrac_z,
                                 v_cflag, v_afrac_x, v_afrac_y, v_afrac_z,
                                 w_cflag, w_afrac_x, w_afrac_y, w_afrac_z,
@@ -608,6 +644,7 @@ EBAdvectionSrcForMomVert (const amrex::Vector<amrex::Box>& bxx_grown,
         EBAdvectionSrcForMomWrapper<InterpType_H,CENTERED6,UPWINDALL>(
                                 bxx_grown, bxy_grown, bxz_grown,
                                 rho_u, rho_v, rho_w, u, v, w,
+                                u_type, v_type, w_type,
                                 u_cflag, u_afrac_x, u_afrac_y, u_afrac_z,
                                 v_cflag, v_afrac_x, v_afrac_y, v_afrac_z,
                                 w_cflag, w_afrac_x, w_afrac_y, w_afrac_z,
