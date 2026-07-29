@@ -115,6 +115,41 @@ function(add_test_r TEST_NAME TEST_DIR TEST_EXE PLTFILE)
     )
 endfunction(add_test_r)
 
+# Rotated six-wall anelastic manufactured regression. Each case keeps a
+# linear theta profile stationary, checks the full field inventory, and uses
+# an independent equal-and-opposite boundary-flux budget oracle.
+function(add_test_anelastic_wall_diffusion TEST_NAME TEST_AXIS)
+    set(TEST_FILES_DIR "${TEST_NAME}")
+    setup_test()
+    resolve_test_exe("" "erf_exec" TEST_EXE)
+
+    set(test_input "${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.i")
+    set(test_log "${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.log")
+    add_test(${TEST_NAME} ${CMAKE_COMMAND}
+        -DMPIEXEC=${MPIEXEC_EXECUTABLE}
+        -DMPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}
+        -DMPIEXEC_PREFLAGS=${MPIEXEC_PREFLAGS}
+        -DNRANKS=${NP}
+        -DTEST_EXE=${TEST_EXE}
+        -DINPUT=${test_input}
+        -DWORKING_DIRECTORY=${CURRENT_TEST_BINARY_DIR}
+        -DLOG=${test_log}
+        -DCHECKER=${ANELASTIC_WALL_DIFFUSION_CHECKER}
+        -DPLOTFILE=${CURRENT_TEST_BINARY_DIR}/plt00002
+        -DAXIS=${TEST_AXIS}
+        -DTHETA_LO=300.0
+        -DTHETA_HI=301.0
+        -DALPHA_T=0.01
+        -P ${PROJECT_SOURCE_DIR}/Tests/RunAnelasticWallDiffusion.cmake)
+    set_tests_properties(${TEST_NAME}
+        PROPERTIES
+        TIMEOUT 900
+        PROCESSORS ${NP}
+        WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
+        LABELS "regression;anelastic;wall-diffusion"
+        ATTACHED_FILES_ON_FAIL "${test_log}")
+endfunction(add_test_anelastic_wall_diffusion)
+
 # Native SHOC regression test.  This intentionally remains separate from
 # add_test_r so existing registrations retain their exact command and
 # fixture behaviour.  TEST_FILES_DIR and INPUT_FILE allow the small SHOC
@@ -232,6 +267,9 @@ function(add_test_shoc_mutation TEST_NAME MUTATION_OPTION TARGET_FIELD
 endfunction(add_test_shoc_mutation)
 
 if(ERF_ENABLE_MPI)
+add_test_anelastic_wall_diffusion(AnelasticWallDiffusion_X 0)
+add_test_anelastic_wall_diffusion(AnelasticWallDiffusion_Y 1)
+add_test_anelastic_wall_diffusion(AnelasticWallDiffusion_Z 2)
 add_test(SHOC_Unstable_Cloud_SatAdj_vs_NoCond
     ${MPIEXEC_EXECUTABLE} ${MPIEXEC_NUMPROC_FLAG} 1 ${MPIEXEC_PREFLAGS}
     ${SHOC_MICROPHYSICS_DIFFERENTIAL}

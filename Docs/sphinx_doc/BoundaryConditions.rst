@@ -144,8 +144,32 @@ rho*theta. To specify rho*theta instead, ``xlo.read_prim_theta = false`` should 
 The ``slipwall`` and ``noslipwall`` types have options for adiabatic vs Dirichlet boundary conditions.
 If a value for theta is given for a face with type ``slipwall`` or ``noslipwall`` then the boundary
 condition for theta is assumed to be "ext_dir", i.e. theta is specified on the boundary.
-If no value is specified then the wall is assumed to be adiabiatc, i.e. there is no temperature
+If no value is specified then the wall is assumed to be adiabatic, i.e. there is no temperature
 flux at the boundary.  This is enforced with the "foextrap" designation.
+
+Solid-wall scalar inputs are independent on each physical face. A density
+specified on ``xlo`` does not change how ``theta`` or ``qv`` is interpreted on
+``xhi``, and a face that omits density remains primitive even when another
+face supplies density. Presence is explicit: numerical zero is a valid input.
+In particular, ``qv = 0.0`` on a supported ``noslipwall`` requests an
+explicitly dry wall; it does not request the default extrapolated value.
+
+Users continue to provide primitive ``theta`` and ``qv`` values. In a
+compressible simulation, supplying density on the same face causes ERF to
+store the corresponding conserved value (for example,
+``rho*theta = density*theta``). When same-face density is omitted, ERF uses
+the primitive value through ``ext_dir_prim`` and the adjacent valid-cell
+density. A fixed value and a gradient for the same variable on the same face
+are mutually exclusive; for example, ``zhi.theta`` and ``zhi.theta_grad``
+together produce an input error. A supplied gradient is recognized even when
+its value is exactly zero. The currently supported Neumann wall input is
+theta; qv input is supported on no-slip walls, not slip walls.
+
+In anelastic simulations, omit ``density`` and ``density_grad`` on all
+solid-wall faces. Anelastic ERF evolves with fixed/base-state density, while
+Stage 0 wall theta and qv values are primitive wall properties. Supplying a
+separate wall density would therefore describe an inconsistent boundary
+contract. This restriction does not apply to inflow boundaries.
 
 For example
 
@@ -189,6 +213,35 @@ viscosity specified, the "foextrap" boundary condition enforces zero strain at t
 It is important to note that external Dirichlet boundary data should be specified
 as the value on the face of the cell bounding the domain, even for cell-centered
 state data.
+
+Wall scalar flux convention
+^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+For chamber budgets, a wall-normal scalar flux ``J_in`` is positive from the
+wall into the fluid. ERF's diffusive face flux is oriented toward increasing
+coordinate, so ``F_d = +J_in`` on a low face and ``F_d = -J_in`` on a high
+face; equivalently, ``F dot n = -J_in``. With uniform Cartesian cells,
+
+.. math::
+
+   \frac{d}{dt}\sum_C V_C U_C = \sum_{f\in\partial\Omega} A_f J_{in,f} + \sum_C V_C S_C.
+
+Stage 0 establishes this convention for manufactured tests and future wall
+work; it does not add a direct prescribed wall-flux input keyword.
+
+Chamber Stage 0 foundation
+^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The Stage 0 chamber foundation is a six-wall ``NoSlipWall`` anelastic case.
+Selected faces may specify primitive potential temperature through the
+existing ``<face>.theta`` keyword; faces that omit both ``<face>.theta`` and
+``<face>.theta_grad`` are adiabatic. The supported example is limited to a
+rectangular Cartesian domain with uniform ``dx``, ``dy``, and ``dz``;
+no terrain-fitted coordinates, stretched vertical grid, or embedded
+boundaries; and ``erf.vert_implicit = false``. It is a foundation for later
+chamber configurations, not a general wall-model implementation: it does not
+add direct heat/moisture fluxes, temperature/RH conversion, roughness laws,
+conjugate wall conduction, or particle-wall physics.
 
 Real Domain BCs
 ----------------------
