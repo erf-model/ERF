@@ -194,14 +194,26 @@ DiffusionCase run_case (int axis, bool low_active, bool high_active,
             weighted(i,j,k) = cell_volume * rhs(i,j,k,RhoTheta_comp);
             Real contribution = Real(0.0);
             if (axis == 0) {
-                if (i == domain.smallEnd(0)) contribution += face_area * xf(i,j,k);
-                if (i == domain.bigEnd(0)) contribution -= face_area * xf(i+1,j,k);
+                if (i == domain.smallEnd(0)) {
+                    contribution += face_area * xf(i,j,k);
+                }
+                if (i == domain.bigEnd(0)) {
+                    contribution -= face_area * xf(i+1,j,k);
+                }
             } else if (axis == 1) {
-                if (j == domain.smallEnd(1)) contribution += face_area * yf(i,j,k);
-                if (j == domain.bigEnd(1)) contribution -= face_area * yf(i,j+1,k);
+                if (j == domain.smallEnd(1)) {
+                    contribution += face_area * yf(i,j,k);
+                }
+                if (j == domain.bigEnd(1)) {
+                    contribution -= face_area * yf(i,j+1,k);
+                }
             } else {
-                if (k == domain.smallEnd(2)) contribution += face_area * zf(i,j,k);
-                if (k == domain.bigEnd(2)) contribution -= face_area * zf(i,j,k+1);
+                if (k == domain.smallEnd(2)) {
+                    contribution += face_area * zf(i,j,k);
+                }
+                if (k == domain.bigEnd(2)) {
+                    contribution -= face_area * zf(i,j,k+1);
+                }
             }
             boundary(i,j,k) = contribution;
         });
