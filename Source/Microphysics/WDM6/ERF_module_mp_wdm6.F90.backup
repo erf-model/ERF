@@ -2,15 +2,11 @@
    module mp_wdm6
 
    use iso_c_binding, only: c_double
-   use module_libmassv, only: vrec_d, vsqrt_d
    use mp_radar
    use module_model_constants, only : RE_QC_BG, RE_QI_BG, RE_QS_BG
 
    implicit none
    integer, parameter :: kind_phys = c_double
-
-   private
-   public :: mp_wdm6_init, mp_wdm6_run
 
 
 
@@ -146,7 +142,7 @@
                                                     ids,ide, jds,jde, kds,kde, &
                                                     ims,ime, jms,jme, kms,kme, &
                                                     its,ite, jts,jte, kts,kte
-   real(kind=kind_phys)                      , intent(in   ) :: delt, g, ccn0, &
+   real                                      , intent(in   ) :: delt, g, ccn0, &
                                                                 rd, rv, t0c,   &
                                                                 cpd, cpv,      &
                                                                 den0, qmin,    &
@@ -154,67 +150,67 @@
                                                                 xlv0, xlf0,    &
                                                                 cliq, cice,    &
                                                                 psat, denr    
-   real(kind=kind_phys), dimension(ims:ime,jms:jme)          , intent(in   ) :: xland
-   real(kind=kind_phys), dimension(ims:ime,kms:kme,jms:jme)  , intent(in   ) :: den
-   real(kind=kind_phys), dimension(ims:ime,kms:kme,jms:jme)  , intent(in   ) :: pii
-   real(kind=kind_phys), dimension(ims:ime,kms:kme,jms:jme)  , intent(in   ) :: p
-   real(kind=kind_phys), dimension(ims:ime,kms:kme,jms:jme)  , intent(in   ) :: delz
-   real(kind=kind_phys), dimension(ims:ime,kms:kme,jms:jme)  , intent(inout) :: th
-   real(kind=kind_phys), dimension(ims:ime,kms:kme,jms:jme)  , intent(inout) :: q
-   real(kind=kind_phys), dimension(ims:ime,kms:kme,jms:jme)  , intent(inout) :: qc
-   real(kind=kind_phys), dimension(ims:ime,kms:kme,jms:jme)  , intent(inout) :: qi
-   real(kind=kind_phys), dimension(ims:ime,kms:kme,jms:jme)  , intent(inout) :: qr
-   real(kind=kind_phys), dimension(ims:ime,kms:kme,jms:jme)  , intent(inout) :: qs
-   real(kind=kind_phys), dimension(ims:ime,kms:kme,jms:jme)  , intent(inout) :: qg
-   real(kind=kind_phys), dimension(ims:ime,kms:kme,jms:jme)  , intent(inout) :: nn
-   real(kind=kind_phys), dimension(ims:ime,kms:kme,jms:jme)  , intent(inout) :: nc
-   real(kind=kind_phys), dimension(ims:ime,kms:kme,jms:jme)  , intent(inout) :: nr
-   real(kind=kind_phys), dimension(ims:ime,jms:jme)          , intent(inout) :: rain
-   real(kind=kind_phys), dimension(ims:ime,jms:jme)          , intent(inout) :: rainncv
-   real(kind=kind_phys), dimension(ims:ime,jms:jme)          , intent(inout) :: sr
-   real(kind=kind_phys), dimension(ims:ime,jms:jme), optional, intent(inout) :: snow
-   real(kind=kind_phys), dimension(ims:ime,jms:jme), optional, intent(inout) :: snowncv
-   real(kind=kind_phys), dimension(ims:ime,jms:jme), optional, intent(inout) :: graupel
-   real(kind=kind_phys), dimension(ims:ime,jms:jme), optional, intent(inout) :: graupelncv
+   real, dimension(ims:ime,jms:jme)          , intent(in   ) :: xland
+   real, dimension(ims:ime,kms:kme,jms:jme)  , intent(in   ) :: den
+   real, dimension(ims:ime,kms:kme,jms:jme)  , intent(in   ) :: pii
+   real, dimension(ims:ime,kms:kme,jms:jme)  , intent(in   ) :: p
+   real, dimension(ims:ime,kms:kme,jms:jme)  , intent(in   ) :: delz
+   real, dimension(ims:ime,kms:kme,jms:jme)  , intent(inout) :: th
+   real, dimension(ims:ime,kms:kme,jms:jme)  , intent(inout) :: q
+   real, dimension(ims:ime,kms:kme,jms:jme)  , intent(inout) :: qc
+   real, dimension(ims:ime,kms:kme,jms:jme)  , intent(inout) :: qi
+   real, dimension(ims:ime,kms:kme,jms:jme)  , intent(inout) :: qr
+   real, dimension(ims:ime,kms:kme,jms:jme)  , intent(inout) :: qs
+   real, dimension(ims:ime,kms:kme,jms:jme)  , intent(inout) :: qg
+   real, dimension(ims:ime,kms:kme,jms:jme)  , intent(inout) :: nn
+   real, dimension(ims:ime,kms:kme,jms:jme)  , intent(inout) :: nc
+   real, dimension(ims:ime,kms:kme,jms:jme)  , intent(inout) :: nr
+   real, dimension(ims:ime,jms:jme)          , intent(inout) :: rain
+   real, dimension(ims:ime,jms:jme)          , intent(inout) :: rainncv
+   real, dimension(ims:ime,jms:jme)          , intent(inout) :: sr
+   real, dimension(ims:ime,jms:jme), optional, intent(inout) :: snow
+   real, dimension(ims:ime,jms:jme), optional, intent(inout) :: snowncv
+   real, dimension(ims:ime,jms:jme), optional, intent(inout) :: graupel
+   real, dimension(ims:ime,jms:jme), optional, intent(inout) :: graupelncv
 
 
 
    integer                                 , intent(in   ) :: has_reqc
    integer                                 , intent(in   ) :: has_reqi
    integer                                 , intent(in   ) :: has_reqs
-   real(kind=kind_phys), dimension(ims:ime,kms:kme,jms:jme), intent(inout) :: re_cloud
-   real(kind=kind_phys), dimension(ims:ime,kms:kme,jms:jme), intent(inout) :: re_ice
-   real(kind=kind_phys), dimension(ims:ime,kms:kme,jms:jme), intent(inout) :: re_snow
+   real, dimension(ims:ime,kms:kme,jms:jme), intent(inout) :: re_cloud
+   real, dimension(ims:ime,kms:kme,jms:jme), intent(inout) :: re_ice
+   real, dimension(ims:ime,kms:kme,jms:jme), intent(inout) :: re_snow
 
 
 
-   real(kind=kind_phys), dimension(ims:ime,kms:kme,jms:jme), intent(inout) :: refl_10cm
+   real, dimension(ims:ime,kms:kme,jms:jme), intent(inout) :: refl_10cm
    logical                       , optional, intent(in   ) :: diagflag
    integer                       , optional, intent(in   ) :: do_radar_ref
 
 
 
-   real(kind=kind_phys), dimension(its:ite,kts:kte)   :: t
-   real(kind=kind_phys), dimension(its:ite,kts:kte,2) :: qci
-   real(kind=kind_phys), dimension(its:ite,kts:kte,3) :: qrs, ncr
+   real, dimension(its:ite,kts:kte)   :: t
+   real, dimension(its:ite,kts:kte,2) :: qci
+   real, dimension(its:ite,kts:kte,3) :: qrs, ncr
    integer                            :: i,j,k
 
 
 
-   real(kind=kind_phys), dimension(kts:kte) :: qv1d 
-   real(kind=kind_phys), dimension(kts:kte) :: t1d
-   real(kind=kind_phys), dimension(kts:kte) :: p1d
-   real(kind=kind_phys), dimension(kts:kte) :: qr1d
-   real(kind=kind_phys), dimension(kts:kte) :: nr1d
-   real(kind=kind_phys), dimension(kts:kte) :: qs1d
-   real(kind=kind_phys), dimension(kts:kte) :: qg1d
-   real(kind=kind_phys), dimension(kts:kte) :: dBZ
+   real, dimension(kts:kte) :: qv1d 
+   real, dimension(kts:kte) :: t1d
+   real, dimension(kts:kte) :: p1d
+   real, dimension(kts:kte) :: qr1d
+   real, dimension(kts:kte) :: nr1d
+   real, dimension(kts:kte) :: qs1d
+   real, dimension(kts:kte) :: qg1d
+   real, dimension(kts:kte) :: dBZ
 
 
 
-   real(kind=kind_phys), dimension(kts:kte) :: qc1d, nc1d, den1d
-   real(kind=kind_phys), dimension(kts:kte) :: qi1d
-   real(kind=kind_phys), dimension(kts:kte) :: re_qc, re_qi, re_qs
+   real, dimension(kts:kte) :: qc1d, nc1d, den1d
+   real, dimension(kts:kte) :: qi1d
+   real, dimension(kts:kte) :: re_qc, re_qi, re_qs
 
    if (itimestep .eq. 1) then 
      do j = jms,jme
@@ -443,67 +439,67 @@
                                                    ims,ime, jms,jme, kms,kme, &
                                                    its,ite, jts,jte, kts,kte
    integer                                , intent(in   ) :: lat
-   real(kind=kind_phys) , intent(in   ) :: delt
-   real(kind=kind_phys) , intent(in   ) :: g, cpd, cpv, t0c, &
+   real                                   , intent(in   ) :: delt
+   real                                   , intent(in   ) :: g, cpd, cpv, t0c, &
                                                              den0, rd, rv,     &
                                                              ep1, ep2, qmin,   &
                                                              xls, xlv0, xlf0,  &
                                                              cliq, cice, psat, &
                                                              denr
-   real(kind=kind_phys) , intent(in   ) :: ccn0
-   real(kind=kind_phys), dimension(ims:ime)               , intent(in   ) :: slmsk
-   real(kind=kind_phys), dimension(ims:ime,kms:kme)       , intent(in   ) :: p
-   real(kind=kind_phys), dimension(ims:ime,kms:kme)       , intent(in   ) :: delz
-   real(kind=kind_phys), dimension(ims:ime,kms:kme)       , intent(in   ) :: den
-   real(kind=kind_phys), dimension(its:ite,kts:kte)       , intent(inout) :: t
-   real(kind=kind_phys), dimension(its:ite,kts:kte,2)     , intent(inout) :: qci
-   real(kind=kind_phys), dimension(its:ite,kts:kte,3)     , intent(inout) :: qrs
-   real(kind=kind_phys), dimension(its:ite,kts:kte,3)     , intent(inout) :: ncr
-   real(kind=kind_phys), dimension(ims:ime,kms:kme)       , intent(inout) :: q
-   real(kind=kind_phys), dimension(ims:ime)               , intent(inout) :: rain
-   real(kind=kind_phys), dimension(ims:ime)               , intent(inout) :: rainncv
-   real(kind=kind_phys), dimension(ims:ime)               , intent(inout) :: sr
-   real(kind=kind_phys), dimension(ims:ime), optional     , intent(inout) :: snow
-   real(kind=kind_phys), dimension(ims:ime), optional     , intent(inout) :: snowncv
-   real(kind=kind_phys), dimension(ims:ime), optional     , intent(inout) :: graupel
-   real(kind=kind_phys), dimension(ims:ime), optional     , intent(inout) :: graupelncv
+   real                                   , intent(in   ) :: ccn0
+   real, dimension(ims:ime)               , intent(in   ) :: slmsk
+   real, dimension(ims:ime,kms:kme)       , intent(in   ) :: p
+   real, dimension(ims:ime,kms:kme)       , intent(in   ) :: delz
+   real, dimension(ims:ime,kms:kme)       , intent(in   ) :: den
+   real, dimension(its:ite,kts:kte)       , intent(inout) :: t
+   real, dimension(its:ite,kts:kte,2)     , intent(inout) :: qci
+   real, dimension(its:ite,kts:kte,3)     , intent(inout) :: qrs
+   real, dimension(its:ite,kts:kte,3)     , intent(inout) :: ncr
+   real, dimension(ims:ime,kms:kme)       , intent(inout) :: q
+   real, dimension(ims:ime)               , intent(inout) :: rain
+   real, dimension(ims:ime)               , intent(inout) :: rainncv
+   real, dimension(ims:ime)               , intent(inout) :: sr
+   real, dimension(ims:ime), optional     , intent(inout) :: snow
+   real, dimension(ims:ime), optional     , intent(inout) :: snowncv
+   real, dimension(ims:ime), optional     , intent(inout) :: graupel
+   real, dimension(ims:ime), optional     , intent(inout) :: graupelncv
 
 
 
-   real(kind=kind_phys), dimension(its:ite,kts:kte)   :: dend
-   real(kind=kind_phys), dimension(its:ite,kts:kte)   :: qcr
-   real(kind=kind_phys), dimension(its:ite,kts:kte,3) :: rh
-   real(kind=kind_phys), dimension(its:ite,kts:kte,3) :: qs
-   real(kind=kind_phys), dimension(its:ite,kts:kte,3) :: rslope, rslope2, rslope3, rslopeb
-   real(kind=kind_phys), dimension(its:ite,kts:kte,3) :: falk, fall
-   real(kind=kind_phys), dimension(its:ite,kts:kte,3) :: work1
-   real(kind=kind_phys), dimension(its:ite,kts:kte,3) :: qrs_tmp
-   real(kind=kind_phys), dimension(its:ite,kts:kte,2) :: avedia
-   real(kind=kind_phys), dimension(its:ite,kts:kte)   :: rslopec, rslopec2,rslopec3
-   real(kind=kind_phys), dimension(its:ite,kts:kte)   :: workn, falln, falkn
-   real(kind=kind_phys), dimension(its:ite,kts:kte)   :: worka, workr
-   real(kind=kind_phys), dimension(its:ite,kts:kte)   :: den_tmp, delz_tmp, ncr_tmp
-   real(kind=kind_phys), dimension(its:ite,kts:kte)   :: lamdr_tmp
-   real(kind=kind_phys), dimension(its:ite,kts:kte)   :: lamdc_tmp
-   real(kind=kind_phys), dimension(its:ite,kts:kte)   :: falkc, work1c, work2c, fallc
-   real(kind=kind_phys), dimension(its:ite,kts:kte)   :: dqr,dnr
-   real(kind=kind_phys), dimension(its:ite,kts:kte)   :: pcact, prevp, psdep, pgdep, praut,    &
+   real, dimension(its:ite,kts:kte)   :: dend
+   real, dimension(its:ite,kts:kte)   :: qcr
+   real, dimension(its:ite,kts:kte,3) :: rh
+   real, dimension(its:ite,kts:kte,3) :: qs
+   real, dimension(its:ite,kts:kte,3) :: rslope, rslope2, rslope3, rslopeb
+   real, dimension(its:ite,kts:kte,3) :: falk, fall
+   real, dimension(its:ite,kts:kte,3) :: work1
+   real, dimension(its:ite,kts:kte,3) :: qrs_tmp
+   real, dimension(its:ite,kts:kte,2) :: avedia
+   real, dimension(its:ite,kts:kte)   :: rslopec, rslopec2,rslopec3
+   real, dimension(its:ite,kts:kte)   :: workn, falln, falkn
+   real, dimension(its:ite,kts:kte)   :: worka, workr
+   real, dimension(its:ite,kts:kte)   :: den_tmp, delz_tmp, ncr_tmp
+   real, dimension(its:ite,kts:kte)   :: lamdr_tmp
+   real, dimension(its:ite,kts:kte)   :: lamdc_tmp
+   real, dimension(its:ite,kts:kte)   :: falkc, work1c, work2c, fallc
+   real, dimension(its:ite,kts:kte)   :: dqr,dnr
+   real, dimension(its:ite,kts:kte)   :: pcact, prevp, psdep, pgdep, praut,    &
                                          psaut, pgaut, pracw, psacw, pgacw,    &
                                          pgacr, pgacs, psaci, pgmlt, praci,    &
                                          piacr, pracs, psacr, pgaci, pseml,    &
                                          pgeml, paacw, pigen, pidep, pcond,    &
                                          psmlt, psevp, pgevp
-   real(kind=kind_phys), dimension(its:ite,kts:kte)   :: nraut, nracw, ncevp, nccol, nrcol,    &
+   real, dimension(its:ite,kts:kte)   :: nraut, nracw, ncevp, nccol, nrcol,    &
                                          nsacw, ngacw, niacr, nsacr, ngacr,    &
                                          naacw, nseml, ngeml, ncact
-   real(kind=kind_phys), dimension(its:ite,kts:kte)   :: xl, cpm, work2, denfac, xni, n0sfac,  &
+   real, dimension(its:ite,kts:kte)   :: xl, cpm, work2, denfac, xni, n0sfac,  &
                                          qsum
-   real(kind=kind_phys), dimension(its:ite,kts:kte)   :: denqrs1, denqrs2, denqrs3
-   real(kind=kind_phys), dimension(its:ite,kts:kte)   :: denqr1, denncr3, denqci
-   real(kind=kind_phys), dimension(its:ite)           :: delqrs1, delqrs2, delqrs3, delncr3
-   real(kind=kind_phys), dimension(its:ite)           :: delqi
-   real(kind=kind_phys), dimension(its:ite)           :: tstepsnow, tstepgraup
-   real(kind=kind_phys)               :: gfac, sfac
+   real, dimension(its:ite,kts:kte)   :: denqrs1, denqrs2, denqrs3
+   real, dimension(its:ite,kts:kte)   :: denqr1, denncr3, denqci
+   real, dimension(its:ite)           :: delqrs1, delqrs2, delqrs3, delncr3
+   real, dimension(its:ite)           :: delqi
+   real, dimension(its:ite)           :: tstepsnow, tstepgraup
+   real                               :: gfac, sfac
 
 
 
@@ -511,14 +507,14 @@
 
 
 
-   real(kind=kind_phys),    dimension(its:ite)        :: tvec1
+   real,    dimension(its:ite)        :: tvec1
    integer, dimension(its:ite)        :: mnstep, numndt
    integer, dimension(its:ite)        :: mstep, numdt
    logical, dimension(its:ite)        :: flgcld
-   real(kind=kind_phys)               :: temp
-   real(kind=kind_phys)               :: vt2ave
-   real(kind=kind_phys)               :: holdc, holdci
-   real(kind=kind_phys)               :: cpmcal, xlcal, lamdac, diffus,        &
+   real                               :: temp
+   real                               :: vt2ave
+   real                               :: holdc, holdci
+   real                               :: cpmcal, xlcal, lamdac, diffus,        &
                                          viscos, xka, venfac, conden, diffac,  &
                                          x, y, z, a, b, c, d, e,               &
                                          ndt, qdt, holdrr, holdrs, holdrg,     &
@@ -540,7 +536,7 @@
 
 
 
-   real(kind=kind_phys)               :: dldti, xb, xai, tr, xbi, xa, hvap,    &
+   real                               :: dldti, xb, xai, tr, xbi, xa, hvap,    &
                                          cvap, hsub, dldt, ttp
 
 
@@ -651,11 +647,11 @@
      enddo
 
      do k = kts, kte
-       call vrec_d( tvec1(its), den(its,k), ite-its+1)
+       call vsrec( tvec1(its), den(its,k), ite-its+1)
        do i = its, ite
          tvec1(i) = tvec1(i)*den0
        enddo
-       call vsqrt_d( denfac(its,k), tvec1(its), ite-its+1)
+       call vssqrt( denfac(its,k), tvec1(its), ite-its+1)
      enddo
 
 
@@ -2082,13 +2078,13 @@
 
       END FUNCTION fpvs
 
-  SUBROUTINE wdm6init(den0,denr,dens,cl,cpv, ccn0, hail_opt, allowed_to_read)
+  SUBROUTINE wdm6init(den0,denr,dens,cl,cpv, ccn0, hail_opt, allowed_to_read) 
 
   IMPLICIT NONE
 
 
-   real(kind=kind_phys), INTENT(IN) :: den0,denr,dens,cl,cpv,ccn0
-   INTEGER, INTENT(IN) :: hail_opt
+   REAL, INTENT(IN) :: den0,denr,dens,cl,cpv,ccn0
+   INTEGER, INTENT(IN) :: hail_opt  
    LOGICAL, INTENT(IN) :: allowed_to_read
  
 
@@ -2214,23 +2210,23 @@
                             vt,vtn,its,ite,kts,kte)
   IMPLICIT NONE
   INTEGER       ::               its,ite, jts,jte, kts,kte
-  real(kind=kind_phys), DIMENSION( its:ite , kts:kte,3) ::                                     &
+  REAL, DIMENSION( its:ite , kts:kte,3) ::                                     &
                                                                           qrs, &
                                                                        rslope, &
                                                                       rslopeb, &
                                                                       rslope2, &
                                                                       rslope3, & 
                                                                            vt
-  real(kind=kind_phys), DIMENSION( its:ite , kts:kte) ::                                       &
+  REAL, DIMENSION( its:ite , kts:kte) ::                                       &
                                                                           ncr, & 
                                                                           vtn, & 
                                                                           den, &
                                                                        denfac, &
                                                                             t
-  real(kind=kind_phys), PARAMETER  :: t0c = 273.15
-  real(kind=kind_phys), DIMENSION( its:ite , kts:kte ) ::                                      &
+  REAL, PARAMETER  :: t0c = 273.15
+  REAL, DIMENSION( its:ite , kts:kte ) ::                                      &
                                                                        n0sfac
-  real(kind=kind_phys)       ::  lamdar, lamdas, lamdag, x, y, z, supcol
+  REAL       ::  lamdar, lamdas, lamdag, x, y, z, supcol
   integer :: i, j, k
 
 
@@ -2297,7 +2293,7 @@
                             vt,vtn,its,ite,kts,kte)
   IMPLICIT NONE
   INTEGER       ::               its,ite, jts,jte, kts,kte
-  real(kind=kind_phys), DIMENSION( its:ite , kts:kte) ::                                       &
+  REAL, DIMENSION( its:ite , kts:kte) ::                                       &
                                                                           qrs, &
                                                                           ncr, & 
                                                                        rslope, &
@@ -2309,10 +2305,10 @@
                                                                           den, &
                                                                        denfac, &
                                                                             t
-  real(kind=kind_phys), PARAMETER  :: t0c = 273.15
-  real(kind=kind_phys), DIMENSION( its:ite , kts:kte ) ::                                      &
+  REAL, PARAMETER  :: t0c = 273.15
+  REAL, DIMENSION( its:ite , kts:kte ) ::                                      &
                                                                        n0sfac
-  real(kind=kind_phys)       ::  lamdar, x, y, z, supcol
+  REAL       ::  lamdar, x, y, z, supcol
   integer :: i, j, k
 
 
@@ -2344,7 +2340,7 @@
                             vt,its,ite,kts,kte)
   IMPLICIT NONE
   INTEGER       ::               its,ite, jts,jte, kts,kte
-  real(kind=kind_phys), DIMENSION( its:ite , kts:kte) ::                                       &
+  REAL, DIMENSION( its:ite , kts:kte) ::                                       &
                                                                           qrs, &
                                                                        rslope, &
                                                                       rslopeb, &
@@ -2354,10 +2350,10 @@
                                                                           den, &
                                                                        denfac, &
                                                                             t
-  real(kind=kind_phys), PARAMETER  :: t0c = 273.15
-  real(kind=kind_phys), DIMENSION( its:ite , kts:kte ) ::                                      &
+  REAL, PARAMETER  :: t0c = 273.15
+  REAL, DIMENSION( its:ite , kts:kte ) ::                                      &
                                                                        n0sfac
-  real(kind=kind_phys)       ::  lamdas, x, y, z, supcol
+  REAL       ::  lamdas, x, y, z, supcol
   integer :: i, j, k
 
 
@@ -2392,7 +2388,7 @@
                             vt,its,ite,kts,kte)
   IMPLICIT NONE
   INTEGER       ::               its,ite, jts,jte, kts,kte
-  real(kind=kind_phys), DIMENSION( its:ite , kts:kte) ::                                       &
+  REAL, DIMENSION( its:ite , kts:kte) ::                                       &
                                                                           qrs, &
                                                                        rslope, &
                                                                       rslopeb, &
@@ -2402,10 +2398,10 @@
                                                                           den, &
                                                                        denfac, &
                                                                             t
-  real(kind=kind_phys), PARAMETER  :: t0c = 273.15
-  real(kind=kind_phys), DIMENSION( its:ite , kts:kte ) ::                                      &
+  REAL, PARAMETER  :: t0c = 273.15
+  REAL, DIMENSION( its:ite , kts:kte ) ::                                      &
                                                                        n0sfac
-  real(kind=kind_phys)       ::  lamdag, x, y, z, supcol
+  REAL       ::  lamdag, x, y, z, supcol
   integer :: i, j, k
 
 
@@ -2460,20 +2456,20 @@
 
       implicit none
       integer  im,km,id
-      real(kind=kind_phys) dt
-      real(kind=kind_phys) dzl(im,km),wwl(im,km),rql(im,km),rnl(im,km),precip(im)
-      real(kind=kind_phys) denl(im,km),denfacl(im,km),tkl(im,km)
+      real  dt
+      real  dzl(im,km),wwl(im,km),rql(im,km),rnl(im,km),precip(im)
+      real  denl(im,km),denfacl(im,km),tkl(im,km)
 
       integer  i,k,n,m,kk,kb,kt,iter,rid
-      real(kind=kind_phys) tl,tl2,qql,dql,qqd
-      real(kind=kind_phys) th,th2,qqh,dqh
-      real(kind=kind_phys) zsum,qsum,dim,dip,c1,con1,fa1,fa2
-      real(kind=kind_phys) allold, allnew, zz, dzamin, cflmax, decfl
-      real(kind=kind_phys) dz(km), ww(km), qq(km), nr(km), wd(km), wa(km), wa2(km), was(km)
-      real(kind=kind_phys) den(km), denfac(km), tk(km)
-      real(kind=kind_phys) wi(km+1), zi(km+1), za(km+1)
-      real(kind=kind_phys) qn(km), qr(km),tmp(km),tmp1(km),tmp2(km),tmp3(km)
-      real(kind=kind_phys) dza(km+1), qa(km+1), qmi(km+1), qpi(km+1)
+      real  tl,tl2,qql,dql,qqd
+      real  th,th2,qqh,dqh
+      real  zsum,qsum,dim,dip,c1,con1,fa1,fa2
+      real  allold, allnew, zz, dzamin, cflmax, decfl
+      real  dz(km), ww(km), qq(km), nr(km), wd(km), wa(km), wa2(km), was(km)
+      real  den(km), denfac(km), tk(km)
+      real  wi(km+1), zi(km+1), za(km+1)
+      real  qn(km), qr(km),tmp(km),tmp1(km),tmp2(km),tmp3(km)
+      real  dza(km+1), qa(km+1), qmi(km+1), qpi(km+1)
 
       precip(:) = 0.0
 
@@ -2708,20 +2704,20 @@
 
       implicit none
       integer  im,km,id
-      real(kind=kind_phys) dt
-      real(kind=kind_phys) dzl(im,km),wwl(im,km),rql(im,km),rql2(im,km),precip(im),precip1(im),precip2(im)
-      real(kind=kind_phys) denl(im,km),denfacl(im,km),tkl(im,km)
+      real  dt
+      real  dzl(im,km),wwl(im,km),rql(im,km),rql2(im,km),precip(im),precip1(im),precip2(im)
+      real  denl(im,km),denfacl(im,km),tkl(im,km)
 
       integer  i,k,n,m,kk,kb,kt,iter,ist
-      real(kind=kind_phys) tl,tl2,qql,dql,qqd
-      real(kind=kind_phys) th,th2,qqh,dqh
-      real(kind=kind_phys) zsum,qsum,dim,dip,c1,con1,fa1,fa2
-      real(kind=kind_phys) allold, allnew, zz, dzamin, cflmax, decfl
-      real(kind=kind_phys) dz(km), ww(km), qq(km), qq2(km), wd(km), wa(km), wa2(km), was(km)
-      real(kind=kind_phys) den(km), denfac(km), tk(km)
-      real(kind=kind_phys) wi(km+1), zi(km+1), za(km+1)
-      real(kind=kind_phys) qn(km), qr(km),qr2(km),tmp(km),tmp1(km),tmp2(km),tmp3(km)
-      real(kind=kind_phys) dza(km+1), qa(km+1), qa2(km+1),qmi(km+1), qpi(km+1)
+      real  tl,tl2,qql,dql,qqd
+      real  th,th2,qqh,dqh
+      real  zsum,qsum,dim,dip,c1,con1,fa1,fa2
+      real  allold, allnew, zz, dzamin, cflmax, decfl
+      real  dz(km), ww(km), qq(km), qq2(km), wd(km), wa(km), wa2(km), was(km)
+      real  den(km), denfac(km), tk(km)
+      real  wi(km+1), zi(km+1), za(km+1)
+      real  qn(km), qr(km),qr2(km),tmp(km),tmp1(km),tmp2(km),tmp3(km)
+      real  dza(km+1), qa(km+1), qa2(km+1),qmi(km+1), qpi(km+1)
 
       precip(:) = 0.0
       precip1(:) = 0.0
@@ -2961,13 +2957,13 @@
 
 
       INTEGER, INTENT(IN):: kts, kte, ii, jj
-      REAL(kind=kind_phys), DIMENSION(kts:kte), INTENT(IN)::                            &
+      REAL, DIMENSION(kts:kte), INTENT(IN)::                            &
                       qv1d, qr1d, nr1d, qs1d, qg1d, t1d, p1d
-      REAL(kind=kind_phys), DIMENSION(kts:kte), INTENT(INOUT):: dBZ
+      REAL, DIMENSION(kts:kte), INTENT(INOUT):: dBZ
 
 
-      REAL(kind=kind_phys), DIMENSION(kts:kte):: temp, pres, qv, rho
-      REAL(kind=kind_phys), DIMENSION(kts:kte):: rr, nr, rs, rg
+      REAL, DIMENSION(kts:kte):: temp, pres, qv, rho
+      REAL, DIMENSION(kts:kte):: rr, nr, rs, rg
       REAL:: temp_C
 
       DOUBLE PRECISION, DIMENSION(kts:kte):: ilamr, ilams, ilamg
@@ -2975,14 +2971,14 @@
       DOUBLE PRECISION:: lamr, lams, lamg
       LOGICAL, DIMENSION(kts:kte):: L_qr, L_qs, L_qg
 
-      REAL(kind=kind_phys), DIMENSION(kts:kte):: ze_rain, ze_snow, ze_graupel
+      REAL, DIMENSION(kts:kte):: ze_rain, ze_snow, ze_graupel
       DOUBLE PRECISION:: fmelt_s, fmelt_g
 
       INTEGER:: i, k, k_0, kbot, n
       LOGICAL:: melti
 
       DOUBLE PRECISION:: cback, x, eta, f_d
-      REAL(kind=kind_phys), PARAMETER:: R=287.
+      REAL, PARAMETER:: R=287.
 
 
 
@@ -3148,39 +3144,39 @@
 
 
       integer, intent(in) :: kts, kte, ii, jj
-      real(kind=kind_phys), intent(in) :: qmin
-      real(kind=kind_phys), intent(in) :: t0c
-      real(kind=kind_phys), dimension( kts:kte ), intent(in)::  t
-      real(kind=kind_phys), dimension( kts:kte ), intent(in)::  qc
-      real(kind=kind_phys), dimension( kts:kte ), intent(in)::  nc
-      real(kind=kind_phys), dimension( kts:kte ), intent(in)::  qi
-      real(kind=kind_phys), dimension( kts:kte ), intent(in)::  qs
-      real(kind=kind_phys), dimension( kts:kte ), intent(in)::  rho
-      real(kind=kind_phys), dimension( kts:kte ), intent(inout):: re_qc
-      real(kind=kind_phys), dimension( kts:kte ), intent(inout):: re_qi
-      real(kind=kind_phys), dimension( kts:kte ), intent(inout):: re_qs
+      real, intent(in) :: qmin
+      real, intent(in) :: t0c
+      real, dimension( kts:kte ), intent(in)::  t
+      real, dimension( kts:kte ), intent(in)::  qc
+      real, dimension( kts:kte ), intent(in)::  nc
+      real, dimension( kts:kte ), intent(in)::  qi
+      real, dimension( kts:kte ), intent(in)::  qs
+      real, dimension( kts:kte ), intent(in)::  rho
+      real, dimension( kts:kte ), intent(inout):: re_qc
+      real, dimension( kts:kte ), intent(inout):: re_qi
+      real, dimension( kts:kte ), intent(inout):: re_qs
 
       integer:: i,k
       integer :: inu_c
-      real(kind=kind_phys), dimension( kts:kte ):: ni
-      real(kind=kind_phys), dimension( kts:kte ):: rqc
-      real(kind=kind_phys), dimension( kts:kte ):: rnc
-      real(kind=kind_phys), dimension( kts:kte ):: rqi
-      real(kind=kind_phys), dimension( kts:kte ):: rni
-      real(kind=kind_phys), dimension( kts:kte ):: rqs
-      real(kind=kind_phys) :: cdm2
-      real(kind=kind_phys) :: temp
-      real(kind=kind_phys) :: supcol, n0sfac, lamdas
-      real(kind=kind_phys) :: diai      
-      real(kind=kind_phys) :: lamc
+      real, dimension( kts:kte ):: ni
+      real, dimension( kts:kte ):: rqc
+      real, dimension( kts:kte ):: rnc
+      real, dimension( kts:kte ):: rqi
+      real, dimension( kts:kte ):: rni
+      real, dimension( kts:kte ):: rqs
+      real :: cdm2
+      real :: temp
+      real :: supcol, n0sfac, lamdas
+      real :: diai      
+      double precision :: lamc
       logical :: has_qc, has_qi, has_qs
 
-      real(kind=kind_phys), parameter :: R1 = 1.E-12
-      real(kind=kind_phys), parameter :: R2 = 1.E-6
-      real(kind=kind_phys), parameter :: pi = 3.1415926536
-      real(kind=kind_phys), parameter :: bm_r = 3.0
-      real(kind=kind_phys), parameter :: obmr = 1.0/bm_r
-      real(kind=kind_phys), parameter :: cdm  = 5./3.
+      real, parameter :: R1 = 1.E-12
+      real, parameter :: R2 = 1.E-6
+      real, parameter :: pi = 3.1415926536
+      real, parameter :: bm_r = 3.0
+      real, parameter :: obmr = 1.0/bm_r
+      real, parameter :: cdm  = 5./3.
 
       has_qc = .false.
       has_qi = .false.
@@ -3233,146 +3229,5 @@
 
       end subroutine effectRad_wdm6
 
-!=================================================================================================================
-! ERF wrapper subroutines to match the C interface
-! These adapt between ERF's interface (similar to WSM6) and WDM6's actual calling convention
-!=================================================================================================================
 
-     subroutine mp_wdm6_init(den0, denr, dens, cl, cpv, ccn0, hail_opt, errmsg, errflg)
-       implicit none
-       real(kind=kind_phys), intent(in) :: den0, denr, dens, cl, cpv, ccn0
-       integer, intent(in) :: hail_opt
-       character(len=*), intent(out) :: errmsg
-       integer, intent(out) :: errflg
-       logical :: allowed_to_read
-
-       allowed_to_read = .true.
-       call wdm6init(den0, denr, dens, cl, cpv, ccn0, hail_opt, allowed_to_read)
-
-       errmsg = ''
-       errflg = 0
-     end subroutine mp_wdm6_init
-
-     subroutine mp_wdm6_run(t, q, qc, qi, qr, qs, qg, nn, nc, nr, &
-                            den, p, delz, &
-                            delt, g, cpd, cpv, rd, rv, t0c, ep1, ep2, qmin, xls, xlv0, xlf0, &
-                            den0, denr, cliq, cice, psat, ccn0, xland, &
-                            rain, rainncv, sr, snow, snowncv, graupel, graupelncv, &
-                            its, ite, kts, kte, &
-                            microphysics_debug, diag_i_dbg, diag_j_dbg, diag_k_raw_base, &
-                            errmsg, errflg)
-       implicit none
-
-       ! Input dimensions
-       integer, intent(in) :: its, ite, kts, kte
-       integer, intent(in) :: microphysics_debug, diag_i_dbg, diag_j_dbg, diag_k_raw_base
-
-       ! Thermodynamic fields (inout)
-       real(kind=kind_phys), intent(inout), dimension(its:ite, kts:kte) :: t, q, qc, qi, qr, qs, qg
-       real(kind=kind_phys), intent(inout), dimension(its:ite, kts:kte) :: nn, nc, nr
-
-       ! Input fields
-       real(kind=kind_phys), intent(in), dimension(its:ite, kts:kte) :: den, p, delz
-       real(kind=kind_phys), intent(in), dimension(its:ite) :: xland
-
-       ! Scalar constants
-       real(kind=kind_phys), intent(in) :: delt, g, cpd, cpv, rd, rv, t0c
-       real(kind=kind_phys), intent(in) :: ep1, ep2, qmin, xls, xlv0, xlf0
-       real(kind=kind_phys), intent(in) :: den0, denr, cliq, cice, psat, ccn0
-
-       ! Output precipitation
-       real(kind=kind_phys), intent(inout), dimension(its:ite) :: rain, rainncv, sr
-       real(kind=kind_phys), intent(inout), dimension(its:ite) :: snow, snowncv, graupel, graupelncv
-
-       ! Error handling
-       character(len=*), intent(out) :: errmsg
-       integer, intent(out) :: errflg
-
-       ! Local variables for calling wdm62D
-       real(kind=kind_phys), dimension(its:ite, kts:kte, 2) :: qci_tmp  ! qc, qi
-       real(kind=kind_phys), dimension(its:ite, kts:kte, 3) :: qrs_tmp  ! qr, qs, qg
-       real(kind=kind_phys), dimension(its:ite, kts:kte, 3) :: ncr_tmp  ! nn, nc, nr (reordered)
-       real(kind=kind_phys), dimension(its:ite) :: slmsk
-       integer :: ids, ide, jds, jde, kds, kde
-       integer :: ims, ime, jms, jme, kms, kme
-       integer :: jts, jte
-       integer :: i, k
-
-       ! Set dimensions (2D slice, so j dimension is 1)
-       ids = its
-       ide = ite
-       jds = 1
-       jde = 1
-       kds = kts
-       kde = kte
-
-       ims = its
-       ime = ite
-       jms = 1
-       jme = 1
-       kms = kts
-       kme = kte
-
-       jts = 1
-       jte = 1
-
-       ! Pack arrays into WDM6 format
-       do k = kts, kte
-         do i = its, ite
-           qci_tmp(i,k,1) = qc(i,k)
-           qci_tmp(i,k,2) = qi(i,k)
-           qrs_tmp(i,k,1) = qr(i,k)
-           qrs_tmp(i,k,2) = qs(i,k)
-           qrs_tmp(i,k,3) = qg(i,k)
-           ! WDM6 expects: ncr(i,k,1)=nn, ncr(i,k,2)=nc, ncr(i,k,3)=nr
-           ncr_tmp(i,k,1) = nn(i,k)
-           ncr_tmp(i,k,2) = nc(i,k)
-           ncr_tmp(i,k,3) = nr(i,k)
-         end do
-       end do
-
-       ! Convert xland (1=land, 2=water) to slmsk (1=land, 0=water)
-       do i = its, ite
-         if (xland(i) < 1.5_kind_phys) then
-           slmsk(i) = 1.0_kind_phys  ! land
-         else
-           slmsk(i) = 0.0_kind_phys  ! water
-         end if
-       end do
-
-       ! Call wdm62D
-       call wdm62D(t, q, qci_tmp, qrs_tmp, ncr_tmp, den, p, delz, &
-                   delt, g, cpd, cpv, ccn0, rd, rv, t0c, &
-                   ep1, ep2, qmin, &
-                   xls, xlv0, xlf0, den0, denr, &
-                   cliq, cice, psat, &
-                   diag_i_dbg, &
-                   slmsk, &
-                   rain, rainncv, &
-                   sr, &
-                   ids, ide, jds, jde, kds, kde, &
-                   ims, ime, jms, jme, kms, kme, &
-                   its, ite, jts, jte, kts, kte, &
-                   snow, snowncv, &
-                   graupel, graupelncv)
-
-       ! Unpack arrays from WDM6 format
-       do k = kts, kte
-         do i = its, ite
-           qc(i,k) = qci_tmp(i,k,1)
-           qi(i,k) = qci_tmp(i,k,2)
-           qr(i,k) = qrs_tmp(i,k,1)
-           qs(i,k) = qrs_tmp(i,k,2)
-           qg(i,k) = qrs_tmp(i,k,3)
-           nn(i,k) = ncr_tmp(i,k,1)
-           nc(i,k) = ncr_tmp(i,k,2)
-           nr(i,k) = ncr_tmp(i,k,3)
-         end do
-       end do
-
-       errmsg = ''
-       errflg = 0
-     end subroutine mp_wdm6_run
-
-
-       END MODULE mp_wdm6
+END MODULE mp_wdm6

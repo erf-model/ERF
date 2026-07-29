@@ -6,7 +6,7 @@
 
 module wdm6_isohelper
   use iso_c_binding
-  use mp_wdm6
+  use mp_wdm6, only: mp_wdm6_init, mp_wdm6_run
   implicit none
   private
   public :: wdm6_rgmma
@@ -43,15 +43,19 @@ contains
   end function wdm6_rgmma
 
   !=================================================================================================================
-  ! C wrapper for wdm6init
+  ! C wrapper for mp_wdm6_init
   !=================================================================================================================
   subroutine mp_wdm6_init_c(den0, denr, dens, cl, cpv, ccn0, hail_opt) bind(C, name="mp_wdm6_init_c")
     real(c_double), value, intent(in) :: den0, denr, dens, cl, cpv, ccn0
     integer(c_int), value, intent(in) :: hail_opt
-    logical :: allowed_to_read
+    character(len=256) :: errmsg
+    integer :: errflg
 
-    allowed_to_read = .true.
-    call wdm6init(den0, denr, dens, cl, cpv, ccn0, int(hail_opt, kind(0)), allowed_to_read)
+    call mp_wdm6_init(den0, denr, dens, cl, cpv, ccn0, int(hail_opt, kind(0)), errmsg, errflg)
+    if (errflg /= 0) then
+      write(*,'(A,1X,A)') 'mp_wdm6_init_c error:', trim(errmsg)
+      stop 1
+    end if
   end subroutine mp_wdm6_init_c
 
   !=================================================================================================================
