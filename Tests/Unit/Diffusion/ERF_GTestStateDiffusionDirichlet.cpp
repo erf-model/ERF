@@ -296,8 +296,12 @@ TEST(StateDiffusionDirichlet, ConstantAlphaTurbulenceLinearAndQuadraticRotated)
                         const Real budget_tol = scaled_tolerance(budget_scale, Real(512.0));
                         EXPECT_LE(result.max_state_error, state_tol);
                         EXPECT_LE(result.max_rhs_error, rhs_tol);
-                        if (low_active) EXPECT_LE(result.low_flux_error, flux_tol);
-                        if (high_active) EXPECT_LE(result.high_flux_error, flux_tol);
+                        if (low_active) {
+                            EXPECT_LE(result.low_flux_error, flux_tol);
+                        }
+                        if (high_active) {
+                            EXPECT_LE(result.high_flux_error, flux_tol);
+                        }
                         EXPECT_NEAR(result.integrated_rhs, expected_integrated, budget_tol);
                         EXPECT_NEAR(result.boundary_flux_rhs, expected_boundary, budget_tol);
                         EXPECT_NEAR(result.integrated_rhs, result.boundary_flux_rhs, budget_tol);
