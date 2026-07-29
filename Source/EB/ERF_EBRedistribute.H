@@ -8,23 +8,15 @@
 #include <AMReX_MFIter.H>
 #include <ERF_EB.H>
 
+template <typename EBFactType>
 void redistribute_term (int ncomp,
                         const amrex::Geometry& geom,
                         amrex::MultiFab& result,
                         amrex::MultiFab& result_tmp,
                         amrex::MultiFab const& state,
-                        amrex::EBFArrayBoxFactory const& ebfact,
-                        amrex::BCRec const* bc,
-                        double dt);
-
-void redistribute_term (int ncomp,
-                        const amrex::Geometry& geom,
-                        amrex::MultiFab& result,
-                        amrex::MultiFab& result_tmp,
-                        amrex::MultiFab const& state,
-                        eb_aux_ const& ebfact,
+                        EBFactType const& ebfact,
                         amrex::BCRec const* bc,
                         double dt,
-                        int const igrid);
+                        int const igrid = -1);
 
 #endif
