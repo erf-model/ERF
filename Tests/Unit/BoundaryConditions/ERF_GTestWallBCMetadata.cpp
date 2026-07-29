@@ -100,6 +100,21 @@ TEST(WallBCMetadata, ParmParseExplicitZerosArePresent)
     EXPECT_EQ(parsed.scalars.theta.stored_value, Real(0.0));
 }
 
+// Motivation: An explicitly dry no-slip wall without same-face density must
+// use primitive storage.
+TEST(WallBCMetadata, ParmParseDryNoSlipWallWithoutDensityIsPrimitive)
+{
+    ScopedWallParams params("wall_parser_dry_primitive");
+    params.add("qv", Real(0.0));
+
+    const auto parsed = erf_wall_scalar_bc::parse_wall_face_scalars(
+        params.pp(), "xlo", SolidWallKind::NoSlip, false);
+    ASSERT_TRUE(parsed.ok()) << parsed.error;
+    EXPECT_EQ(parsed.scalars.qv.intent, WallScalarBCIntent::DirichletPrimitive);
+    EXPECT_EQ(parsed.scalars.qv.stored_value, Real(0.0));
+    EXPECT_EQ(parsed.scalars.density.intent, WallScalarBCIntent::Unspecified);
+}
+
 // Motivation: Anelastic solid walls must reject density and density_grad on
 // either wall kind with the face-specific diagnostic.
 TEST(WallBCMetadata, ParmParseAnelasticDensityIsRejected)

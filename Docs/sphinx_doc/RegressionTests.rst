@@ -27,9 +27,8 @@ The following problems are currently tested in the CI:
 | Bubble_Density_Current        | 256 4 64 | Symmetry | Periodic | SlipWall   | None  | moist bubble                    |
 |                               |          | Outflow  |          | SlipWall   |       |                                 |
 +-------------------------------+----------+----------+----------+------------+-------+---------------------------------+
-| AnelasticWallDiffusion_X      | 8 12 17  |NoSlipWall|NoSlipWall| NoSlipWall | None  | stationary theta profile        |
-| AnelasticWallDiffusion_Y      | 8 12 17  |NoSlipWall|NoSlipWall| NoSlipWall | None  | stationary theta profile        |
-| AnelasticWallDiffusion_Z      | 8 12 17  |NoSlipWall|NoSlipWall| NoSlipWall | None  | stationary theta profile        |
+| AnelasticWallDiffusion_X/Y/Z  | 8 12 17  |NoSlipWall|NoSlipWall| NoSlipWall | None  | rotated stationary linear-theta |
+|                               |          |          |          |            |       | wall-diffusion tests            |
 +-------------------------------+----------+----------+----------+------------+-------+---------------------------------+
 | CouetteFlow_x                 | 32 4  16 | Periodic | Periodic | NoSlipWall | None  | inhomogeneous                   |
 |                               |          |          |          | NoSlipWall |       | bc at zhi (u = 2)               |
