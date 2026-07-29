@@ -43,13 +43,26 @@ class eb_ {
     int nghost_volume () const { return 5; } // nghost_eb_volume ()
     int nghost_full () const   { return 4; } // nghost_eb_full ()
 
+    // Toggle between eb_aux_ and native AMReX FC factories
+    #ifndef USE_FC_FACTORY
+    #define USE_FC_FACTORY 0  // Default to 0: use eb_aux_ (original)
+    #endif
+
     const std::unique_ptr<amrex::EBFArrayBoxFactory>& get_const_factory () const noexcept { return m_factory; }
 
-    void set_connection_flags ();
+    void set_connection_flags (amrex::EBFArrayBoxFactory* factory);
 
+    #if USE_FC_FACTORY
+    // Return native AMReX FC factories
+    amrex::EBFArrayBoxFactory const* get_u_const_factory() const noexcept { return m_u_factory_fc.get(); }
+    amrex::EBFArrayBoxFactory const* get_v_const_factory() const noexcept { return m_v_factory_fc.get(); }
+    amrex::EBFArrayBoxFactory const* get_w_const_factory() const noexcept { return m_w_factory_fc.get(); }
+    #else
+    // Return eb_aux_ factories (original)
     eb_aux_ const* get_u_const_factory() const noexcept { return &m_u_factory; }
     eb_aux_ const* get_v_const_factory() const noexcept { return &m_v_factory; }
     eb_aux_ const* get_w_const_factory() const noexcept { return &m_w_factory; }
+    #endif
 
     class EBToPVD;
 
@@ -69,9 +82,15 @@ class eb_ {
 
     std::unique_ptr<amrex::EBFArrayBoxFactory> m_factory = nullptr;
 
+    // Original eb_aux_ factories (USE_FC_FACTORY=0)
     eb_aux_ m_u_factory;
     eb_aux_ m_v_factory;
     eb_aux_ m_w_factory;
+
+    // New native AMReX FC factories (USE_FC_FACTORY=1)
+    std::unique_ptr<amrex::EBFArrayBoxFactory> m_u_factory_fc = nullptr;
+    std::unique_ptr<amrex::EBFArrayBoxFactory> m_v_factory_fc = nullptr;
+    std::unique_ptr<amrex::EBFArrayBoxFactory> m_w_factory_fc = nullptr;
 
     void make_terrain (amrex::Geometry const& a_geom);
 
