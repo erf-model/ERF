@@ -251,10 +251,9 @@ DiffusionCase run_case (int axis, bool low_active, bool high_active,
     return result;
 }
 
-// Regression motivation: the audited implementation used host BoxIterator
-// access to device-resident MultiFabs and tested abs(rhs), which could hide a
-// signed operator error. This production call now uses device-safe fills and
-// reductions for signed RHS, face flux, and integrated boundary balance.
+// Motivation: The production scalar-diffusion operator must remain device-safe
+// and preserve the signed face-flux/RHS balance for rotated linear and
+// quadratic profiles.
 TEST(StateDiffusionDirichlet, ConstantAlphaTurbulenceLinearAndQuadraticRotated)
 {
     for (int axis = 0; axis < 3; ++axis) {

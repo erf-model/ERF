@@ -41,10 +41,8 @@ private:
 using erf_wall_scalar_bc::SolidWallKind;
 using erf_wall_scalar_bc::WallScalarBCIntent;
 
-// Regression motivation: the original production path selected scalar
-// representation from a last-parsed density flag. This test invokes the
-// shared production parser through real ParmParse namespaces in both face
-// orders; a failure means one face can still inherit another face's policy.
+// Motivation: Each wall face must parse its own density policy, so wall order
+// cannot change whether theta is conserved or primitive.
 TEST(WallBCMetadata, ParmParseSameFaceDensityControlsRepresentation)
 {
     ScopedWallParams xlo("wall_parser_order_a_xlo");
@@ -82,9 +80,8 @@ TEST(WallBCMetadata, ParmParseSameFaceDensityControlsRepresentation)
     EXPECT_EQ(reverse_second.scalars.theta.stored_value, Real(303.0));
 }
 
-// Regression motivation: comparing parsed numbers with historical sentinels
-// dropped density=1 and zero-valued scalars. The production ParmParse parser
-// must preserve presence and return the exact intent/value pair for zeros.
+// Motivation: Explicit zero values are valid inputs; ParmParse presence, not
+// numeric sentinels, must preserve density, qv, and theta gradients.
 TEST(WallBCMetadata, ParmParseExplicitZerosArePresent)
 {
     ScopedWallParams params("wall_parser_zero_values");
@@ -103,9 +100,8 @@ TEST(WallBCMetadata, ParmParseExplicitZerosArePresent)
     EXPECT_EQ(parsed.scalars.theta.stored_value, Real(0.0));
 }
 
-// Regression motivation: anelastic density was previously accepted by the
-// parser and only became invalid later. Both solid-wall kinds must reject each
-// supplied density form with the face and keyword in the production diagnostic.
+// Motivation: Anelastic solid walls must reject density and density_grad on
+// either wall kind with the face-specific diagnostic.
 TEST(WallBCMetadata, ParmParseAnelasticDensityIsRejected)
 {
     for (const auto kind : {SolidWallKind::NoSlip, SolidWallKind::Slip}) {
@@ -125,9 +121,8 @@ TEST(WallBCMetadata, ParmParseAnelasticDensityIsRejected)
     }
 }
 
-// Regression motivation: compressible NoSlipWall density_grad was queried but
-// ignored. The shared production parser must reject both exact-zero and
-// nonzero forms while retaining fixed density support.
+// Motivation: NoSlipWall does not implement density_grad; fixed density
+// remains supported for compressible walls.
 TEST(WallBCMetadata, ParmParseNoSlipDensityGradientIsUnsupported)
 {
     for (const Real gradient_value : {Real(0.0), Real(0.25)}) {
@@ -148,9 +143,8 @@ TEST(WallBCMetadata, ParmParseNoSlipDensityGradientIsUnsupported)
     EXPECT_EQ(parsed.scalars.density.intent, WallScalarBCIntent::DirichletConserved);
 }
 
-// Regression motivation: SlipWall density gradients are an existing public
-// capability. This exercises the shared parser's zero-gradient path and its
-// mutual-exclusion policy without broadening qv support to SlipWall.
+// Motivation: SlipWall density gradients remain supported, including zero,
+// while value/gradient conflicts stay rejected and qv remains unsupported.
 TEST(WallBCMetadata, ParmParseSlipDensityGradientRemainsSupported)
 {
     ScopedWallParams zero_gradient("wall_parser_slip_gradient");
@@ -170,8 +164,8 @@ TEST(WallBCMetadata, ParmParseSlipDensityGradientRemainsSupported)
     EXPECT_NE(conflict_result.error.find("zhi.density"), std::string::npos);
 }
 
-// Regression motivation: fixed theta and theta_grad must remain mutually
-// exclusive independently of wall kind, including an explicitly zero value.
+// Motivation: theta and theta_grad are mutually exclusive on both wall kinds,
+// including explicit zero gradients.
 TEST(WallBCMetadata, ParmParseThetaValueGradientConflict)
 {
     for (const auto kind : {SolidWallKind::NoSlip, SolidWallKind::Slip}) {
@@ -186,8 +180,8 @@ TEST(WallBCMetadata, ParmParseThetaValueGradientConflict)
     }
 }
 
-// Regression motivation: omitted keywords must stay Unspecified even when
-// callers initialize temporary numeric variables to sentinel-like values.
+// Motivation: Omitted wall keywords must remain Unspecified rather than
+// inheriting a temporary or sentinel value.
 TEST(WallBCMetadata, ParmParseAbsenceRemainsUnspecified)
 {
     ScopedWallParams params("wall_parser_absence");
@@ -199,8 +193,8 @@ TEST(WallBCMetadata, ParmParseAbsenceRemainsUnspecified)
     EXPECT_EQ(parsed.scalars.qv.intent, WallScalarBCIntent::Unspecified);
 }
 
-// Regression motivation: qv is intentionally scoped to NoSlipWall. A qv
-// value on SlipWall must not be silently converted into a wall scalar state.
+// Motivation: qv is supported only on NoSlipWall and must not alter SlipWall
+// metadata.
 TEST(WallBCMetadata, ParmParseSlipWallDoesNotApplyQv)
 {
     ScopedWallParams params("wall_parser_slip_qv");
@@ -211,8 +205,8 @@ TEST(WallBCMetadata, ParmParseSlipWallDoesNotApplyQv)
     EXPECT_EQ(parsed.scalars.qv.intent, WallScalarBCIntent::Unspecified);
 }
 
-// Retain the small pure helper checks as an independent oracle for the
-// presence model used by the production parser.
+// Motivation: The pure resolver must preserve explicit zero values for
+// primitive and gradient inputs.
 TEST(WallBCMetadata, PureResolverPreservesExplicitZero)
 {
     const auto primitive = erf_wall_scalar_bc::resolve_wall_scalar_value(
