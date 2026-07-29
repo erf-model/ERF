@@ -17,60 +17,39 @@ git status  # Should show clean, 6 commits ahead
 cd Source/Microphysics/WDM6
 cp ERF_module_mp_wdm6.F90 ERF_module_mp_wdm6.F90.STUB
 
-# 3. Copy WRF source (3237 lines of real physics!)
-cp /p/lustre1/wise14/wrf/compiling/WRF/WRF_v4.7.1_clean/phys/module_mp_wdm6.F \
+# 3. Copy WRF source (3230 lines of real physics!)
+# Note: Using .f90 (preprocessed) not .F (with preprocessor directives)
+# This matches what WSM6 did - simpler and no #ifdef blocks
+cp /p/lustre1/wise14/wrf/compiling/WRF/WRF_v4.7.1_clean/phys/module_mp_wdm6.f90 \
    ERF_module_mp_wdm6.F90
 
 # 4. Quick check
-wc -l ERF_module_mp_wdm6.F90  # Should be ~3237 lines
-head -20 ERF_module_mp_wdm6.F90  # Should see WRF copyright
+wc -l ERF_module_mp_wdm6.F90  # Should be ~3230 lines (preprocessed version)
+head -20 ERF_module_mp_wdm6.F90  # Should see module declaration
 ```
 
 ---
 
-## Required Edits (2 small changes)
+## Required Edits (ALREADY DONE!)
 
-### Edit 1: Add iso_c_binding
+These edits have already been made to `ERF_module_mp_wdm6.F90`:
 
-Find line ~10 where it says:
-```fortran
-   use module_mp_radar
-```
+### ✅ Edit 1: Module name
+Changed `module module_mp_wdm6` → `module mp_wdm6`
 
-Add BEFORE it:
-```fortran
-   use iso_c_binding, only: c_double
-```
+### ✅ Edit 2: Added iso_c_binding
+Added `use iso_c_binding, only: c_double` at the top
 
-### Edit 2: Add kind_phys
+### ✅ Edit 3: Added kind_phys
+Added `integer, parameter :: kind_phys = c_double`
 
-Find line ~11 where it says:
-```fortran
-   implicit none
-```
+### ✅ Edit 4: Changed all real declarations
+Changed `real, parameter` → `real(kind=kind_phys), parameter`
 
-Add AFTER it:
-```fortran
-   integer, parameter :: kind_phys = c_double
-```
+### ✅ Edit 5: Added C wrappers
+Added `mp_wdm6_init_c` and `mp_wdm6_run_c` in `ERF_module_mp_wdm6_isohelper.F90`
 
-### Edit 3: Module name (probably already correct)
-
-Check line ~9, should say:
-```fortran
-   module module_mp_wdm6
-```
-
-**Change to:**
-```fortran
-   module mp_wdm6
-```
-
-(Our C wrappers expect `mp_wdm6`)
-
-### That's It!
-
-Those are literally the ONLY changes needed. Rest is identical to WRF.
+**All edits complete - ready to build!**
 
 ---
 

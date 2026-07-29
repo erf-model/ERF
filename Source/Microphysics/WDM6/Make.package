@@ -5,6 +5,7 @@ CEXE_headers += ERF_WDM6.H
 CEXE_headers += ERF_WDM6_Fortran_Interface.H
 
 ifeq ($(USE_WDM6_FORT),TRUE)
+     F90EXE_sources += ERF_module_model_constants.F90
      F90EXE_sources += ERF_module_libmassv.F90
      F90EXE_sources += ERF_mp_radar.F90
      F90EXE_sources += ERF_module_mp_wdm6.F90

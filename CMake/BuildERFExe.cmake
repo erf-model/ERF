@@ -283,6 +283,7 @@ function(build_erf_lib erf_lib_name)
   if(ERF_ENABLE_WDM6_FORT)
     target_sources(${erf_lib_name}
        PRIVATE
+         ${SRC_DIR}/Microphysics/WDM6/ERF_module_model_constants.F90
          ${SRC_DIR}/Microphysics/WDM6/ERF_module_libmassv.F90
          ${SRC_DIR}/Microphysics/WDM6/ERF_mp_radar.F90
          ${SRC_DIR}/Microphysics/WDM6/ERF_module_mp_wdm6.F90
