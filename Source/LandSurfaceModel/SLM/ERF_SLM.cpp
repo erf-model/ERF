@@ -5133,6 +5133,7 @@ void SLM::radiation_noahmp(const amrex::MFIter &mfi)
     auto t_canop_arr = t_canop.const_array(mfi);
     auto soilt_arr = lsm_fab_vars[LsmVar_SLM::soilt]->const_array(mfi);
     auto soilw_arr = lsm_fab_vars[LsmVar_SLM::soilw]->const_array(mfi);
+    auto poro_soil_arr = lsm_fab_vars[LsmVar_SLM::poro_soil]->const_array(mfi);
     auto veg_frac_arr = lsm_fab_vars[LsmVar_SLM::veg_frac]->const_array(mfi);
 
     // Existing SLM vegetation structure parameters (used instead of reading from NoahmpTable.TBL)
@@ -5288,7 +5289,7 @@ void SLM::radiation_noahmp(const amrex::MFIter &mfi)
 
         // Soil moisture for top layer
         amrex::Real smc[1];
-        smc[0] = soilw_arr(i, j, d_khi_lsm);
+        smc[0] = soilw_arr(i, j, d_khi_lsm) * poro_soil_arr(i, j, d_khi_lsm);
 
         int nsoil = 1;  // using top layer only for albedo calc
         int ice = 0;    // not ice
