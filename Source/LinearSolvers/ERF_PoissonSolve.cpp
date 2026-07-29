@@ -11,14 +11,15 @@ solve_with_mlmg    (int lev,
                     const amrex::Vector<amrex::IntVect>& ref_ratio,
                     Array<std::string,2*AMREX_SPACEDIM> l_domain_bc_type,
                     int mg_verbose, Real reltol, Real abstol);
+template <typename T>
 void
 solve_with_EB_mlmg (int lev,
                     Vector<amrex::MultiFab>& rhs, Vector<MultiFab>& p,
                     Vector<amrex::Array<MultiFab,AMREX_SPACEDIM>>& fluxes,
                     EBFArrayBoxFactory const& ebfact,
-                    eb_aux_ const& ebfact_u,
-                    eb_aux_ const& ebfact_v,
-                    eb_aux_ const& ebfact_w,
+                    T const& ebfact_u,
+                    T const& ebfact_v,
+                    T const& ebfact_w,
                     const Geometry& geom,
                     const amrex::Vector<amrex::IntVect>& ref_ratio,
                     Array<std::string,2*AMREX_SPACEDIM> l_domain_bc_type,

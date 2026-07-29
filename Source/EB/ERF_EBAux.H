@@ -30,7 +30,7 @@ class eb_aux_
     [[nodiscard]] const amrex::MultiFab& getCentroid () const;
     [[nodiscard]] const amrex::MultiFab& getBndryArea () const;
     [[nodiscard]] const amrex::MultiFab& getBndryCent () const;
-    [[nodiscard]] const amrex::MultiFab& getBndryNorm () const;
+    [[nodiscard]] const amrex::MultiFab& getBndryNormal () const;
 
     [[nodiscard]] amrex::Array<const amrex::MultiFab*, AMREX_SPACEDIM> getAreaFrac () const;
     [[nodiscard]] amrex::Array<const amrex::MultiFab*, AMREX_SPACEDIM> getFaceCent () const;
