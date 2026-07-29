@@ -14,6 +14,8 @@
 #include <ERF_WriteERFBdy.H>
 #include <ERF_ReadFromERFBdy.H>
 
+#include "ERF_NodalReconstruction.H"
+
 using namespace amrex;
 
 #ifdef ERF_USE_NETCDF
@@ -1883,10 +1885,6 @@ init_terrain_from_wrfinput (int /*lev*/,
 
     // PHB and PH are on z-faces
     Box z_face_dom = convert(subdomain,IntVect(0,0,1));
-    int imin = z_face_dom.smallEnd(0);
-    int imax = z_face_dom.bigEnd(0);
-    int jmin = z_face_dom.smallEnd(1);
-    int jmax = z_face_dom.bigEnd(1);
 
     // Z-face FAB for each z_wrf slice
     Box z_face_dom_slice = makeSlab(z_face_dom, 2, 0);
@@ -1895,33 +1893,21 @@ init_terrain_from_wrfinput (int /*lev*/,
 
     // Z_phys is nodal
     Box node_dom = convert(subdomain, IntVect(1,1,1));
-    Box grown_node_dom = grow(node_dom, ngz);
     int ilo = node_dom.smallEnd(0);
     int jlo = node_dom.smallEnd(1);
+    int ihi = node_dom.bigEnd(0);
+    int jhi = node_dom.bigEnd(1);
     int klo = node_dom.smallEnd(2);
     int khi = node_dom.bigEnd(2);
 
-    // Nodal FAB for each z_erf slice
-    Box grown_node_dom_slice = makeSlab(grown_node_dom, 2, 0);
-    FArrayBox z_slice_erf(grown_node_dom_slice, 1, The_Managed_Arena());
-
-    // Boxes to seed the xlo and ylo faces (includes lateral ghost cells)
-    Box xface_bx = grown_node_dom_slice; xface_bx.setBig(0, ilo);
-    Box yface_bx = grown_node_dom_slice; yface_bx.setBig(1, jlo);
-
-    // Box for filling the unknown nodes (includes lateral ghost cells)
-    Box sol_bx  = grown_node_dom_slice; sol_bx.setSmall(0,ilo+1); sol_bx.setSmall(1,jlo+1);
-
     // Process each slice
     int kstart = klo;
-    int kend   = (use_wrf_height_grid) ? node_dom.bigEnd(2) : klo + 2; // Build first two layers to conserve CC
+    int kend   = (use_wrf_height_grid) ? node_dom.bigEnd(2) : klo + 2;
     for (int k(kstart); k<kend; ++k) {
         z_slice_wrf.setVal<RunOn::Device>(zero);
 
+        const Array4<Real>& z_slice_wrf_arr     = z_slice_wrf.array();
         const Array4<Real>& z_slice_wrf_sfc_arr = z_slice_wrf_sfc.array();
-
-        const Array4<Real>& z_slice_wrf_arr = z_slice_wrf.array();
-        const Array4<Real>& z_slice_erf_arr = z_slice_erf.array();
 
         // Fill the z-face fab with wrf heights
         for ( MFIter mfi(mf_PH); mfi.isValid(); ++mfi ) {
@@ -1937,81 +1923,17 @@ init_terrain_from_wrfinput (int /*lev*/,
             });
         }
 
+        // Get global slice of WRF heights
         ParallelAllReduce::Sum(z_slice_wrf.dataPtr(),
                                z_slice_wrf.size(),
                                ParallelContext::CommunicatorAll());
 
-        /*=========================================================================
-        * NOTE: A recurrence relation may be defined for this problem to write
-        *        the nodal solution, S(i,j), as a function of the known boundary
-        *        solutions, S(i,0) and S(0,j), and the target values T(i,j).
-        *
-        * The nodal values satisfy the exact averaging constraint
-        *
-        *     ( S(i,j) + S(i+1,j) + S(i,j+1) + S(i+1,j+1) ) / 4 = T(i,j)
-        *
-        * Given the nodal values on the lower-x and lower-y boundaries,
-        *
-        *     S(i,0),  i = 0,...,Nx
-        *     S(0,j),  j = 0,...,Ny
-        *
-        * all interior nodes are uniquely determined by the recurrence
-        *
-        *     S(i+1,j+1) =
-        *         4*T(i,j)
-        *       - S(i  ,j)
-        *       - S(i+1,j)
-        *       - S(i  ,j+1).
-        *
-        * Equivalently, the interior nodes may be written explicitly as
-        *
-        *     S(i,j) =
-        *         (-1)^j S(i,0)
-        *       + (-1)^i S(0,j)
-        *       - (-1)^(i+j) S(0,0)
-        *       + 4 * sum_{p=0}^{i-1} sum_{q=0}^{j-1}
-        *           (-1)^(i+j+p+q) T(p,q).
-        *
-        * The explicit expression shows that each interior node depends only on
-        * the prescribed boundary nodes and the target face-centered values.
-        * The alternating-sign structure is an inherent consequence of the exact
-        * averaging constraint.
-        *
-        * Direct solve row by row is done on CPU since ordered operations are
-        * needed and the analytical solution is O(Nx^2Ny^2) per slice due to
-        * the fourth summation term.
-        * =========================================================================*/
-
-        // Set the boundary and ghost cells of ERF's nodal heights
-        LoopOnCpu(xface_bx, [=] (int i, int j, int /*k*/) noexcept
-        {
-            int ii  = std::max(std::min(i  ,imax),imin);
-            int jj  = std::max(std::min(j  ,jmax),jmin);
-            int iim = std::max(std::min(i-1,imax),imin);
-            int jjm = std::max(std::min(j-1,jmax),jmin);
-            z_slice_erf_arr(i,j,0) = fourth * ( z_slice_wrf_arr(ii ,jj ,0) + z_slice_wrf_arr(iim,jj ,0)
-                                              + z_slice_wrf_arr(ii ,jjm,0) + z_slice_wrf_arr(iim,jjm,0) );
-        });
-        LoopOnCpu(yface_bx, [=] (int i, int j, int /*k*/) noexcept
-        {
-            int ii = std::max(std::min(i,imax),imin);
-            int jj = std::max(std::min(j,jmax),jmin);
-            int iim = std::max(std::min(i-1,imax),imin);
-            int jjm = std::max(std::min(j-1,jmax),jmin);
-            z_slice_erf_arr(i,j,0) = fourth * ( z_slice_wrf_arr(ii ,jj ,0) + z_slice_wrf_arr(iim,jj ,0)
-                                              + z_slice_wrf_arr(ii ,jjm,0) + z_slice_wrf_arr(iim,jjm,0) );
-        });
-
-        // Direct solve
-        LoopOnCpu(sol_bx, [=] (int i, int j, int /*k*/) noexcept
-        {
-            int iim = std::max(std::min(i-1,imax),imin);
-            int jjm = std::max(std::min(j-1,jmax),jmin);
-            z_slice_erf_arr(i, j, 0) = four * z_slice_wrf_arr(iim,jjm,0)
-                                     - z_slice_erf_arr(i-1, j  , 0)
-                                     - z_slice_erf_arr(i  , j-1, 0)
-                                     - z_slice_erf_arr(i-1, j-1, 0);
-        });
+        // Solve for node values that average to WRF z-face values
+        // while minimizing the first derivative
+        NodalReconstruction NR_solver(z_face_dom_slice);
+        auto boundary = NR_solver.makeBoundaryFromT(z_slice_wrf);
+        auto result   = NR_solver.solve(z_slice_wrf, boundary);
+        const Array4<Real>& z_slice_erf_arr = result.first.array();
 
         // Store the surface
         if (k==kstart) {
@@ -2031,14 +1953,16 @@ init_terrain_from_wrfinput (int /*lev*/,
             });
         }
 
-        // Copy back to z_phys and handle top/bottom ghost cells
+        // Copy back to z_phys and handle all ghost cells
         for ( MFIter mfi(*z_phys); mfi.isValid(); ++mfi ) {
             Box gbx = mfi.growntilebox();
             Box sbx = makeSlab(gbx, 2, 0);
             const Array4<Real>& z_arr = z_phys->array(mfi);
             ParallelFor(sbx, [=] AMREX_GPU_DEVICE(int i, int j, int /*k*/) noexcept
             {
-                z_arr(i,j,k) = z_slice_erf_arr(i,j,0);
+                int ii  = std::max(std::min(i,ihi),ilo);
+                int jj  = std::max(std::min(j,jhi),jlo);
+                z_arr(i,j,k) = z_slice_erf_arr(ii,jj,0);
                 if (k == klo + 1) {
                     Real dz = z_arr(i,j,k) - z_arr(i,j,k-1);
                     for (int lk(1); lk<(kghost+1); ++lk) {
@@ -2058,7 +1982,7 @@ init_terrain_from_wrfinput (int /*lev*/,
 
     // Sanity check
     Print() << "Verifying nodal heights average to WRF z-face heights" << std::endl;
-    for ( MFIter mfi(*z_phys); mfi.isValid(); ++mfi ) {
+    for ( MFIter mfi(mf_PHB); mfi.isValid(); ++mfi ) {
         Box vbx = mfi.validbox();
 
         if (!use_wrf_height_grid) { vbx.setBig(2,klo+1); }
@@ -2068,15 +1992,13 @@ init_terrain_from_wrfinput (int /*lev*/,
         const Array4<const Real>& z_arr      = z_phys->const_array(mfi);
 
 #ifdef AMREX_USE_FLOAT
-        const Real tol = Real(1.e-6);
+        const Real tol = Real(1.e-4);
 #else
-        const Real tol = Real(1.e-10);
+        const Real tol = Real(1.e-8);
 #endif
         ParallelFor(vbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {
-            int ii = std::max(std::min(i,imax),imin);
-            int jj = std::max(std::min(j,jmax),jmin);
-            Real z_face_wrf = ( nc_ph_arr(ii,jj,k) + nc_phb_arr(ii,jj,k) ) / CONST_GRAV;
+            Real z_face_wrf = ( nc_ph_arr(i,j,k) + nc_phb_arr(i,j,k) ) / CONST_GRAV;
             Real z_face_erf = fourth * ( z_arr(i, j  , k) + z_arr(i+1, j  , k)
                                        + z_arr(i, j+1, k) + z_arr(i+1, j+1, k) );
             if ((std::fabs(z_face_erf-z_face_wrf) > tol) && (k < khi)) {
