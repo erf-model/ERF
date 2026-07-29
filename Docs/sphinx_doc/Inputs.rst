@@ -1711,7 +1711,7 @@ List of Parameters
 |                                  | use_real_bcs is     |                    |                       |
 |                                  | true                |                    |                       |
 +----------------------------------+---------------------+--------------------+-----------------------+
-| **erf.use_wrf_height_grid**      | use z heights       |  bool              | true                  |
+| **erf.use_wrf_height_grid**      | use z heights       |  bool              | false                 |
 |                                  | from wrfinput or    |                    |                       |
 |                                  | make our own?       |                    |                       |
 +----------------------------------+---------------------+--------------------+-----------------------+
