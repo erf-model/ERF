@@ -34,13 +34,6 @@ yhi.theta = 285.
 zlo.theta = 299.
 zhi.theta = 280.
 
-xlo.density = 1.2225686
-xhi.density = 1.2225686
-ylo.density = 1.2225686
-yhi.density = 1.2225686
-zlo.density = 1.2225686
-zhi.density = 1.2225686
-
 # TIME STEP CONTROL
 #erf.cfl            = 0.9
 erf.fixed_dt      = 0.025

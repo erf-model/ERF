@@ -8,8 +8,8 @@ This page covers complete ERF regression cases. For focused GoogleTest cases,
 see :ref:`UnitTests`.
 
 ERF runs a set of CMake regression tests on every pull request. These tests use
-the AMReX version in the ERF submodule. Nightly GNU Make tests use the current
-AMReX development branch.
+the AMReX version in the ERF submodule. Nightly GNU Make tests use an AMReX
+build configured for the nightly environment.
 
 Results from the nightly CPU tests can be found here: `CPU tests`_
 
@@ -21,21 +21,15 @@ Results from the nightly GPU tests can be found here: `GPU tests`_
 
 The following problems are currently tested in the CI:
 
-The ``AnelasticWallDiffusion_X``, ``AnelasticWallDiffusion_Y``, and
-``AnelasticWallDiffusion_Z`` cases are rotated six-wall manufactured tests.
-They use uniform Cartesian cells, ``ConstantAlpha`` molecular diffusion, and
-Smagorinsky turbulence so the production scalar-diffusion branch is selected
-even though the zero-velocity solution has zero turbulent strain. X directly
-guards the historical x-high predicate defect; Y and Z make the stationary
-linear-potential-temperature contract rotation-invariant. Their independent
-oracle checks the analytic face values, unchanged base density and velocity,
-and zero net boundary influx.
-
 +-------------------------------+----------+----------+----------+------------+-------+---------------------------------+
 | Test                          | nx ny nz | xbc      | ybc      | zbc        | Ext   | Other                           |
 +===============================+==========+==========+==========+============+=======+=================================+
 | Bubble_Density_Current        | 256 4 64 | Symmetry | Periodic | SlipWall   | None  | moist bubble                    |
 |                               |          | Outflow  |          | SlipWall   |       |                                 |
++-------------------------------+----------+----------+----------+------------+-------+---------------------------------+
+| AnelasticWallDiffusion_X      | 8 12 17  |NoSlipWall|NoSlipWall| NoSlipWall | None  | stationary theta profile        |
+| AnelasticWallDiffusion_Y      | 8 12 17  |NoSlipWall|NoSlipWall| NoSlipWall | None  | stationary theta profile        |
+| AnelasticWallDiffusion_Z      | 8 12 17  |NoSlipWall|NoSlipWall| NoSlipWall | None  | stationary theta profile        |
 +-------------------------------+----------+----------+----------+------------+-------+---------------------------------+
 | CouetteFlow_x                 | 32 4  16 | Periodic | Periodic | NoSlipWall | None  | inhomogeneous                   |
 |                               |          |          |          | NoSlipWall |       | bc at zhi (u = 2)               |

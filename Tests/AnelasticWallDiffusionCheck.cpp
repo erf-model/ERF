@@ -6,18 +6,29 @@
 #include <cmath>
 #include <cstdlib>
 #include <iostream>
+#include <limits>
 #include <string>
 
 namespace {
 
+using amrex::GpuArray;
+using amrex::MFIter;
 using amrex::MultiFab;
+using amrex::ParallelFor;
 using amrex::PlotFileData;
 using amrex::Real;
+using amrex::TilingIfNotGPU;
 
 bool has_variable (const PlotFileData& plotfile, const std::string& name)
 {
     const auto& names = plotfile.varNames();
     return std::find(names.begin(), names.end(), name) != names.end();
+}
+
+Real scaled_tolerance (Real scale, Real factor)
+{
+    return factor * std::numeric_limits<Real>::epsilon() *
+           std::max(Real(1.0), std::abs(scale));
 }
 
 int fail (const std::string& message)
@@ -30,8 +41,8 @@ int fail (const std::string& message)
 
 int main (int argc, char** argv)
 {
-    if (argc != 6) {
-        std::cerr << "usage: checker plotfile axis theta_lo theta_hi alpha_T\n";
+    if (argc != 5) {
+        std::cerr << "usage: checker plotfile axis theta_lo theta_hi\n";
         return 2;
     }
 
@@ -40,11 +51,10 @@ int main (int argc, char** argv)
     const int axis = std::atoi(argv[2]);
     const Real theta_lo = std::atof(argv[3]);
     const Real theta_hi = std::atof(argv[4]);
-    const Real alpha_T = std::atof(argv[5]);
 
-    if (axis < 0 || axis >= AMREX_SPACEDIM || alpha_T <= 0.0) {
+    if (axis < 0 || axis >= AMREX_SPACEDIM) {
         amrex::Finalize();
-        return fail("invalid axis or diffusion coefficient");
+        return fail("invalid axis");
     }
 
     PlotFileData plotfile(plotfile_name);
@@ -62,73 +72,80 @@ int main (int argc, char** argv)
     MultiFab x_velocity = plotfile.get(0, "x_velocity");
     MultiFab y_velocity = plotfile.get(0, "y_velocity");
     MultiFab z_velocity = plotfile.get(0, "z_velocity");
-
-    const auto prob_lo = plotfile.probLo();
-    const auto prob_hi = plotfile.probHi();
-    const auto dx = plotfile.cellSize(0);
-    const auto domain = plotfile.probDomain(0);
-    const Real length = prob_hi[axis] - prob_lo[axis];
-    const Real volume = dx[0] * dx[1] * dx[2];
-    const Real tolerance = 5.0e-8;
-    Real max_theta_error = 0.0;
-    Real max_density_error = 0.0;
-    Real max_velocity = 0.0;
-    Real integrated_theta_change = 0.0;
-
-    for (amrex::MFIter mfi(theta); mfi.isValid(); ++mfi) {
-        const auto& rho = density.const_array(mfi);
-        const auto& th = theta.const_array(mfi);
-        const auto& u = x_velocity.const_array(mfi);
-        const auto& v = y_velocity.const_array(mfi);
-        const auto& w = z_velocity.const_array(mfi);
-        const auto& box = mfi.validbox();
-        for (int k = box.smallEnd(2); k <= box.bigEnd(2); ++k) {
-            for (int j = box.smallEnd(1); j <= box.bigEnd(1); ++j) {
-                for (int i = box.smallEnd(0); i <= box.bigEnd(0); ++i) {
-                    const int index = (axis == 0) ? i : ((axis == 1) ? j : k);
-                    const Real coordinate = prob_lo[axis] +
-                        (index - domain.smallEnd(axis) + Real(0.5)) * dx[axis];
-                    const Real expected_theta = theta_lo + (theta_hi-theta_lo) *
-                        (coordinate-prob_lo[axis]) / length;
-                    max_theta_error = std::max(max_theta_error,
-                                               std::abs(th(i,j,k)-expected_theta));
-                    max_density_error = std::max(max_density_error,
-                                                 std::abs(rho(i,j,k)-Real(1.0)));
-                    max_velocity = std::max(max_velocity,
-                        std::max(std::abs(u(i,j,k)),
-                        std::max(std::abs(v(i,j,k)), std::abs(w(i,j,k)))));
-                    integrated_theta_change += (rho(i,j,k)*th(i,j,k) -
-                        expected_theta) * volume;
-                }
-            }
-        }
+    if (!density.is_finite() || !theta.is_finite() ||
+        !x_velocity.is_finite() || !y_velocity.is_finite() ||
+        !z_velocity.is_finite()) {
+        amrex::Finalize();
+        return fail("plotfile contains a non-finite required field");
     }
 
-    // Independent flux oracle: for a linear profile, the low-face inward
-    // flux is +alpha*dtheta/dn and the high-face inward flux is its negative.
-    // Equal opposite face contributions make the integrated source exactly
-    // zero; alpha_T is intentionally used here rather than read from ERF.
-    const Real gradient = (theta_hi-theta_lo) / length;
-    const Real low_inward_flux = alpha_T * gradient;
-    const Real high_inward_flux = -alpha_T * gradient;
-    const int n0 = domain.length(0), n1 = domain.length(1), n2 = domain.length(2);
-    const Real face_area = (axis == 0) ? dx[1]*dx[2]*n1*n2 :
-                           ((axis == 1) ? dx[0]*dx[2]*n0*n2 : dx[0]*dx[1]*n0*n1);
-    const Real boundary_budget = face_area * (low_inward_flux + high_inward_flux);
+    const auto prob_lo_vector = plotfile.probLo();
+    const auto dx_vector = plotfile.cellSize(0);
+    const auto domain = plotfile.probDomain(0);
+    const GpuArray<Real, AMREX_SPACEDIM> prob_lo = {
+        prob_lo_vector[0], prob_lo_vector[1], prob_lo_vector[2]};
+    const GpuArray<Real, AMREX_SPACEDIM> dx = {
+        dx_vector[0], dx_vector[1], dx_vector[2]};
+    const Real length = dx[axis] * Real(domain.length(axis));
+    const Real volume = dx[0] * dx[1] * dx[2];
 
-    const Real integrated_tolerance = 5.0e-8 * std::max(Real(1.0),
-                                                         std::abs(theta_hi-theta_lo));
-    const bool valid = max_theta_error <= tolerance &&
-                       max_density_error <= tolerance &&
-                       max_velocity <= tolerance &&
-                       std::abs(integrated_theta_change) <= integrated_tolerance &&
-                       std::abs(boundary_budget) <= integrated_tolerance;
+    MultiFab theta_error(theta.boxArray(), theta.DistributionMap(), 1, 0);
+    MultiFab density_error(density.boxArray(), density.DistributionMap(), 1, 0);
+    MultiFab velocity_error(theta.boxArray(), theta.DistributionMap(), 1, 0);
+    MultiFab state_change(theta.boxArray(), theta.DistributionMap(), 1, 0);
+
+    for (MFIter mfi(theta_error, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+        const auto bx = mfi.tilebox();
+        const auto rho = density.const_array(mfi);
+        const auto th = theta.const_array(mfi);
+        const auto u = x_velocity.const_array(mfi);
+        const auto v = y_velocity.const_array(mfi);
+        const auto w = z_velocity.const_array(mfi);
+        const auto theta_err = theta_error.array(mfi);
+        const auto density_err = density_error.array(mfi);
+        const auto velocity_err = velocity_error.array(mfi);
+        const auto change = state_change.array(mfi);
+        ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+            const int index = (axis == 0) ? i : ((axis == 1) ? j : k);
+            const Real coordinate = prob_lo[axis] +
+                (Real(index - domain.smallEnd(axis)) + Real(0.5)) * dx[axis];
+            const Real expected_theta = theta_lo + (theta_hi-theta_lo) *
+                (coordinate-prob_lo[axis]) / length;
+            theta_err(i,j,k) = std::abs(th(i,j,k) - expected_theta);
+            density_err(i,j,k) = std::abs(rho(i,j,k) - Real(1.0));
+            velocity_err(i,j,k) = std::max(std::abs(u(i,j,k)),
+                std::max(std::abs(v(i,j,k)), std::abs(w(i,j,k))));
+            change(i,j,k) = rho(i,j,k) * th(i,j,k) - expected_theta;
+        });
+    }
+    amrex::Gpu::streamSynchronize();
+
+    const Real max_theta_error = theta_error.norm0(0, 0, false);
+    const Real max_density_error = density_error.norm0(0, 0, false);
+    const Real max_velocity_error = velocity_error.norm0(0, 0, false);
+    const Real integrated_state_change = state_change.sum(0) * volume;
+    const int cell_count = domain.numPts();
+    const Real state_scale = std::max(std::abs(theta_lo), std::abs(theta_hi));
+    const Real integrated_scale = volume * Real(cell_count) * state_scale;
+    const Real theta_tolerance = scaled_tolerance(state_scale, Real(128.0));
+    const Real density_tolerance = scaled_tolerance(Real(1.0), Real(128.0));
+    const Real velocity_tolerance = scaled_tolerance(Real(1.0), Real(256.0));
+    const Real integrated_tolerance = scaled_tolerance(integrated_scale, Real(1024.0));
+    const bool valid = max_theta_error <= theta_tolerance &&
+                       max_density_error <= density_tolerance &&
+                       max_velocity_error <= velocity_tolerance &&
+                       std::abs(integrated_state_change) <= integrated_tolerance;
+
     std::cout << "axis=" << axis << " max_theta_error=" << max_theta_error
               << " max_density_error=" << max_density_error
-              << " max_velocity=" << max_velocity
-              << " integrated_theta_change=" << integrated_theta_change
-              << " boundary_budget=" << boundary_budget << "\n";
+              << " max_velocity_error=" << max_velocity_error
+              << " integrated_state_change=" << integrated_state_change
+              << " theta_tolerance=" << theta_tolerance
+              << " integrated_tolerance=" << integrated_tolerance << "\n";
 
+    // This full-run check is deliberately a stationary manufactured-state
+    // property test. The direct unit test owns the production face-flux/RHS
+    // oracle and its signed integrated boundary balance.
     amrex::Finalize();
     return valid ? 0 : fail("manufactured stationary-state property failed");
 }

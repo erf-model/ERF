@@ -1,20 +1,46 @@
 #include <AMReX_MultiFab.H>
+#include <AMReX_Reduce.H>
 
 #include <ERF_Diffusion.H>
 
 #include <gtest/gtest.h>
 
+#include <algorithm>
 #include <array>
+#include <cmath>
+#include <limits>
 
 using namespace amrex;
 
 namespace {
 
 struct DiffusionCase {
-    Real max_rhs = 0.0;
-    Real low_flux = 0.0;
-    Real high_flux = 0.0;
+    Real max_state_error = 0.0;
+    Real max_rhs_error = 0.0;
+    Real low_flux_error = 0.0;
+    Real high_flux_error = 0.0;
+    Real integrated_rhs = 0.0;
+    Real boundary_flux_rhs = 0.0;
 };
+
+Real scaled_tolerance (Real scale, Real factor)
+{
+    return factor * std::numeric_limits<Real>::epsilon() *
+           std::max(Real(1.0), std::abs(scale));
+}
+
+Real face_error (const Box& face_box,
+                 const Array4<const Real>& flux,
+                 Real expected)
+{
+    ReduceOps<ReduceOpMax> reduce_op;
+    ReduceData<Real> reduce_data(reduce_op);
+    reduce_op.eval(face_box, reduce_data,
+        [=] AMREX_GPU_DEVICE (int i, int j, int k) -> GpuTuple<Real> {
+            return std::abs(flux(i,j,k) - expected);
+        });
+    return get<0>(reduce_data.value());
+}
 
 DiffusionCase run_case (int axis, bool low_active, bool high_active,
                         bool primitive_bc, bool quadratic)
@@ -31,10 +57,17 @@ DiffusionCase run_case (int axis, bool low_active, bool high_active,
     const Real b = Real(0.41);
     const Real c = quadratic ? Real(-0.083) : Real(0.0);
     const int ncell = domain.length(axis);
+    const int active_small = domain.smallEnd(axis);
+    const Real active_dx = dx[axis];
+    const Real active_length = Real(ncell) * active_dx;
+    const Real expected_rhs = Real(2.0) * alpha * c;
+    const Real expected_low_flux = -alpha * b;
+    const Real expected_high_flux = -alpha * (b + Real(2.0)*c*active_length);
 
     MultiFab cell_data(ba, dm, NVAR_max, 2);
     MultiFab cell_prim(ba, dm, NPRIMVAR_max, 2);
     MultiFab cell_rhs(ba, dm, NVAR_max, 0);
+    MultiFab state_error(ba, dm, 1, 0);
     MultiFab xvel(BoxArray(surroundingNodes(domain, 0)), dm, 1, 1);
     MultiFab yvel(BoxArray(surroundingNodes(domain, 1)), dm, 1, 1);
     MultiFab xflux(BoxArray(surroundingNodes(domain, 0)), dm, 1, 0);
@@ -67,26 +100,35 @@ DiffusionCase run_case (int axis, bool low_active, bool high_active,
     mf_uy.setVal(Real(1.0));
     mf_vy.setVal(Real(1.0));
 
-    for (MFIter mfi(cell_prim); mfi.isValid(); ++mfi) {
+    for (MFIter mfi(cell_prim, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+        const Box gbx = mfi.growntilebox(cell_prim.nGrowVect());
         auto prim = cell_prim.array(mfi);
-        for (BoxIterator bit(cell_prim[mfi].box()); bit.ok(); ++bit) {
-            const IntVect iv = bit();
-            const int relative = iv[axis] - domain.smallEnd(axis);
-            const Real xi = (Real(relative) + Real(0.5)) * dx[axis];
-            prim(iv, PrimTheta_comp) = a + b*xi + c*xi*xi;
-        }
-        for (int side : {0, 1}) {
-            const bool active = side == 0 ? low_active : high_active;
-            const int face_index = side == 0 ? domain.smallEnd(axis)-1 : domain.bigEnd(axis)+1;
-            if (!active) continue;
-            for (BoxIterator bit(cell_prim[mfi].box()); bit.ok(); ++bit) {
-                const IntVect iv = bit();
-                if (iv[axis] == face_index) {
-                    const Real xi = (side == 0 ? Real(0.0) : Real(ncell)*dx[axis]);
-                    prim(iv, PrimTheta_comp) = a + b*xi + c*xi*xi;
-                }
+        ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+            const int index = (axis == 0) ? i : ((axis == 1) ? j : k);
+            Real xi = (Real(index - active_small) + Real(0.5)) * active_dx;
+            if (axis == 0) {
+                if (low_active && i == domain.smallEnd(0)-1) xi = Real(0.0);
+                if (high_active && i == domain.bigEnd(0)+1) xi = active_length;
+            } else if (axis == 1) {
+                if (low_active && j == domain.smallEnd(1)-1) xi = Real(0.0);
+                if (high_active && j == domain.bigEnd(1)+1) xi = active_length;
+            } else {
+                if (low_active && k == domain.smallEnd(2)-1) xi = Real(0.0);
+                if (high_active && k == domain.bigEnd(2)+1) xi = active_length;
             }
-        }
+            prim(i,j,k,PrimTheta_comp) = a + b*xi + c*xi*xi;
+        });
+    }
+    for (MFIter mfi(state_error, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+        const Box bx = mfi.tilebox();
+        const auto prim = cell_prim.const_array(mfi);
+        const auto error = state_error.array(mfi);
+        ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+            const int index = (axis == 0) ? i : ((axis == 1) ? j : k);
+            const Real xi = (Real(index - active_small) + Real(0.5)) * active_dx;
+            error(i,j,k) = std::abs(prim(i,j,k,PrimTheta_comp) -
+                                    (a + b*xi + c*xi*xi));
+        });
     }
 
     Vector<BCRec> bcs(NBCVAR_max);
@@ -118,10 +160,6 @@ DiffusionCase run_case (int axis, bool low_active, bool high_active,
         Real(1.0)/dx[0], Real(1.0)/dx[1], Real(1.0)/dx[2]};
     const GpuArray<Real, AMREX_SPACEDIM> grav = {Real(0.0), Real(0.0), Real(0.0)};
     Array4<const Real> tm_arr{};
-    auto rhs_arr = cell_rhs[0].array();
-    auto xflux_arr = xflux[0].array();
-    auto yflux_arr = yflux[0].array();
-    auto zflux_arr = zflux[0].array();
     auto hfx_arr = hfx_z[0].array();
     auto qfx1_arr = qfx1_z[0].array();
     auto qfx2_arr = qfx2_z[0].array();
@@ -129,46 +167,82 @@ DiffusionCase run_case (int axis, bool low_active, bool high_active,
     DiffusionSrcForState_N(
         domain, domain, RhoTheta_comp, 1,
         xvel[0].const_array(), yvel[0].const_array(), cell_data[0].const_array(), cell_prim[0].const_array(),
-        rhs_arr, xflux_arr, yflux_arr, zflux_arr, dx_inv,
+        cell_rhs[0].array(), xflux[0].array(), yflux[0].array(), zflux[0].array(), dx_inv,
         smn[0].const_array(), mf_mx[0].const_array(), mf_ux[0].const_array(), mf_vx[0].const_array(),
         mf_my[0].const_array(), mf_uy[0].const_array(), mf_vy[0].const_array(), hfx_arr,
         qfx1_arr, qfx2_arr, diss_arr, mu_turb[0].const_array(), solver_choice, 0,
         tm_arr, grav, bcs.data(), false, Real(0.0));
     Gpu::streamSynchronize();
 
-    DiffusionCase result;
-    for (MFIter mfi(cell_rhs); mfi.isValid(); ++mfi) {
-        const auto rhs = cell_rhs[0].const_array();
-        for (BoxIterator bit(domain); bit.ok(); ++bit) {
-            const IntVect iv = bit();
-            result.max_rhs = std::max(result.max_rhs, std::abs(rhs(iv, RhoTheta_comp)));
-        }
-        const auto xf = xflux[0].const_array();
-        const auto yf = yflux[0].const_array();
-        const auto zf = zflux[0].const_array();
-        const int i = domain.smallEnd(0) + 1;
-        const int j = domain.smallEnd(1) + 1;
-        const int k = domain.smallEnd(2) + 1;
-        if (axis == 0) {
-            result.low_flux = xf(domain.smallEnd(0), j, k);
-            result.high_flux = xf(domain.bigEnd(0)+1, j, k);
-        } else if (axis == 1) {
-            result.low_flux = yf(i, domain.smallEnd(1), k);
-            result.high_flux = yf(i, domain.bigEnd(1)+1, k);
-        } else {
-            result.low_flux = zf(i, j, domain.smallEnd(2));
-            result.high_flux = zf(i, j, domain.bigEnd(2)+1);
-        }
+    MultiFab rhs_error(ba, dm, 1, 0);
+    MultiFab weighted_rhs(ba, dm, 1, 0);
+    MultiFab boundary_terms(ba, dm, 1, 0);
+    const Real cell_volume = dx[0] * dx[1] * dx[2];
+    const Real face_area = (axis == 0) ? dx[1]*dx[2] :
+                           ((axis == 1) ? dx[0]*dx[2] : dx[0]*dx[1]);
+    for (MFIter mfi(rhs_error, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+        const Box bx = mfi.tilebox();
+        const auto rhs = cell_rhs.const_array(mfi);
+        const auto rhs_err = rhs_error.array(mfi);
+        const auto weighted = weighted_rhs.array(mfi);
+        const auto boundary = boundary_terms.array(mfi);
+        const auto xf = xflux.const_array(mfi);
+        const auto yf = yflux.const_array(mfi);
+        const auto zf = zflux.const_array(mfi);
+        ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+            rhs_err(i,j,k) = std::abs(rhs(i,j,k,RhoTheta_comp) - expected_rhs);
+            weighted(i,j,k) = cell_volume * rhs(i,j,k,RhoTheta_comp);
+            Real contribution = Real(0.0);
+            if (axis == 0) {
+                if (i == domain.smallEnd(0)) contribution += face_area * xf(i,j,k);
+                if (i == domain.bigEnd(0)) contribution -= face_area * xf(i+1,j,k);
+            } else if (axis == 1) {
+                if (j == domain.smallEnd(1)) contribution += face_area * yf(i,j,k);
+                if (j == domain.bigEnd(1)) contribution -= face_area * yf(i,j+1,k);
+            } else {
+                if (k == domain.smallEnd(2)) contribution += face_area * zf(i,j,k);
+                if (k == domain.bigEnd(2)) contribution -= face_area * zf(i,j,k+1);
+            }
+            boundary(i,j,k) = contribution;
+        });
     }
+    Gpu::streamSynchronize();
+
+    DiffusionCase result;
+    result.max_rhs_error = rhs_error.norm0(0, 0, false);
+    result.integrated_rhs = weighted_rhs.sum(0);
+    result.boundary_flux_rhs = boundary_terms.sum(0);
+
+    const Box lo_face(IntVect(domain.smallEnd(0), domain.smallEnd(1), domain.smallEnd(2)),
+                      IntVect(domain.smallEnd(0), domain.bigEnd(1), domain.bigEnd(2)));
+    const Box hi_face(IntVect(domain.bigEnd(0)+1, domain.smallEnd(1), domain.smallEnd(2)),
+                      IntVect(domain.bigEnd(0)+1, domain.bigEnd(1), domain.bigEnd(2)));
+    const Box lo_yface(IntVect(domain.smallEnd(0), domain.smallEnd(1), domain.smallEnd(2)),
+                       IntVect(domain.bigEnd(0), domain.smallEnd(1), domain.bigEnd(2)));
+    const Box hi_yface(IntVect(domain.smallEnd(0), domain.bigEnd(1)+1, domain.smallEnd(2)),
+                       IntVect(domain.bigEnd(0), domain.bigEnd(1)+1, domain.bigEnd(2)));
+    const Box lo_zface(IntVect(domain.smallEnd(0), domain.smallEnd(1), domain.smallEnd(2)),
+                       IntVect(domain.bigEnd(0), domain.bigEnd(1), domain.smallEnd(2)));
+    const Box hi_zface(IntVect(domain.smallEnd(0), domain.smallEnd(1), domain.bigEnd(2)+1),
+                       IntVect(domain.bigEnd(0), domain.bigEnd(1), domain.bigEnd(2)+1));
+    if (axis == 0) {
+        if (low_active) result.low_flux_error = face_error(lo_face, xflux[0].const_array(), expected_low_flux);
+        if (high_active) result.high_flux_error = face_error(hi_face, xflux[0].const_array(), expected_high_flux);
+    } else if (axis == 1) {
+        if (low_active) result.low_flux_error = face_error(lo_yface, yflux[0].const_array(), expected_low_flux);
+        if (high_active) result.high_flux_error = face_error(hi_yface, yflux[0].const_array(), expected_high_flux);
+    } else {
+        if (low_active) result.low_flux_error = face_error(lo_zface, zflux[0].const_array(), expected_low_flux);
+        if (high_active) result.high_flux_error = face_error(hi_zface, zflux[0].const_array(), expected_high_flux);
+    }
+    result.max_state_error = state_error.norm0(0, 0, false);
     return result;
 }
 
-// Regression motivation:
-// Before Stage 0, the ConstantAlpha + turbulence x-high predicate gated the
-// low-wall predicate a second time. These cases call DiffusionSrcForState_N,
-// the production operator, on unequal dimensions/spacings and use the exact
-// polynomial diffusion identity as the independent oracle. A failure means a
-// fixed-value face stencil or the integrated flux divergence is wrong.
+// Regression motivation: the audited implementation used host BoxIterator
+// access to device-resident MultiFabs and tested abs(rhs), which could hide a
+// signed operator error. This production call now uses device-safe fills and
+// reductions for signed RHS, face flux, and integrated boundary balance.
 TEST(StateDiffusionDirichlet, ConstantAlphaTurbulenceLinearAndQuadraticRotated)
 {
     for (int axis = 0; axis < 3; ++axis) {
@@ -178,21 +252,44 @@ TEST(StateDiffusionDirichlet, ConstantAlphaTurbulenceLinearAndQuadraticRotated)
                     for (bool high_active : {false, true}) {
                         const auto result = run_case(axis, low_active, high_active,
                                                      primitive, quadratic);
-                        const Real scale = Real(1.0) + (quadratic ? Real(0.17) : Real(0.0));
-                        const Real tol = Real(2.0e-11) * scale;
-                        const Real expected_flux_low = -Real(0.37) * Real(0.41);
-                        const Real coord_length = axis == 0 ? Real(8)*Real(0.3) :
+                        const Real alpha = Real(0.37);
+                        const Real c = quadratic ? Real(-0.083) : Real(0.0);
+                        const Real b = Real(0.41);
+                        const Real length = axis == 0 ? Real(8)*Real(0.3) :
                             (axis == 1 ? Real(12)*Real(0.4) : Real(17)*Real(0.7));
-                        const Real expected_flux_high = quadratic ?
-                            -Real(0.37) * (Real(0.41) + Real(2.0)*Real(-0.083)*coord_length) :
-                            expected_flux_low;
-                        if (!quadratic) {
-                            EXPECT_NEAR(result.max_rhs, Real(0.0), tol);
-                        } else {
-                            EXPECT_NEAR(result.max_rhs, std::abs(Real(2.0)*Real(0.37)*Real(-0.083)), tol);
-                        }
-                        if (low_active) EXPECT_NEAR(result.low_flux, expected_flux_low, tol);
-                        if (high_active) EXPECT_NEAR(result.high_flux, expected_flux_high, tol);
+                        const Real expected_rhs = Real(2.0)*alpha*c;
+                        const Real expected_low_flux = -alpha*b;
+                        const Real expected_high_flux = -alpha*(b + Real(2.0)*c*length);
+                        const Real cell_volume = Real(0.3)*Real(0.4)*Real(0.7);
+                        const Real ntransverse = axis == 0 ? Real(12*17) :
+                            (axis == 1 ? Real(8*17) : Real(8*12));
+                        const Real face_area = axis == 0 ? Real(0.4)*Real(0.7) :
+                            (axis == 1 ? Real(0.3)*Real(0.7) : Real(0.3)*Real(0.4));
+                        const Real expected_integrated = expected_rhs * cell_volume *
+                            Real(8*12*17);
+                        const Real expected_boundary = face_area*ntransverse *
+                            (expected_low_flux - expected_high_flux);
+                        const Real state_scale = std::max(Real(1.0),
+                            std::max(std::abs(Real(1.2)), std::abs(Real(1.2) + b*length + c*length*length)));
+                        const Real flux_scale = std::max(Real(1.0),
+                            alpha * (std::abs(b) + Real(2.0)*std::abs(c)*length));
+                        const Real rhs_scale = std::max(Real(1.0),
+                            std::max(std::abs(expected_rhs), alpha*state_scale/(Real(0.3)*Real(0.3))));
+                        const Real budget_scale = std::max(Real(1.0),
+                            std::max(std::abs(expected_integrated),
+                                     std::abs(face_area*ntransverse*expected_low_flux) +
+                                     std::abs(face_area*ntransverse*expected_high_flux)));
+                        const Real state_tol = scaled_tolerance(state_scale, Real(64.0));
+                        const Real flux_tol = scaled_tolerance(flux_scale, Real(128.0));
+                        const Real rhs_tol = scaled_tolerance(rhs_scale, Real(256.0));
+                        const Real budget_tol = scaled_tolerance(budget_scale, Real(512.0));
+                        EXPECT_LE(result.max_state_error, state_tol);
+                        EXPECT_LE(result.max_rhs_error, rhs_tol);
+                        if (low_active) EXPECT_LE(result.low_flux_error, flux_tol);
+                        if (high_active) EXPECT_LE(result.high_flux_error, flux_tol);
+                        EXPECT_NEAR(result.integrated_rhs, expected_integrated, budget_tol);
+                        EXPECT_NEAR(result.boundary_flux_rhs, expected_boundary, budget_tol);
+                        EXPECT_NEAR(result.integrated_rhs, result.boundary_flux_rhs, budget_tol);
                     }
                 }
             }

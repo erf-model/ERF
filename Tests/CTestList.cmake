@@ -116,15 +116,15 @@ function(add_test_r TEST_NAME TEST_DIR TEST_EXE PLTFILE)
 endfunction(add_test_r)
 
 # Rotated six-wall anelastic manufactured regression. Each case keeps a
-# linear theta profile stationary, checks the full field inventory, and uses
-# an independent equal-and-opposite boundary-flux budget oracle.
+# linear theta profile stationary and checks the full field inventory.
 function(add_test_anelastic_wall_diffusion TEST_NAME TEST_AXIS)
     set(TEST_FILES_DIR "${TEST_NAME}")
     setup_test()
     resolve_test_exe("" "erf_exec" TEST_EXE)
 
     set(test_input "${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.i")
-    set(test_log "${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.log")
+    set(test_simulation_log "${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.simulation.log")
+    set(test_checker_log "${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.checker.log")
     add_test(${TEST_NAME} ${CMAKE_COMMAND}
         -DMPIEXEC=${MPIEXEC_EXECUTABLE}
         -DMPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}
@@ -133,13 +133,13 @@ function(add_test_anelastic_wall_diffusion TEST_NAME TEST_AXIS)
         -DTEST_EXE=${TEST_EXE}
         -DINPUT=${test_input}
         -DWORKING_DIRECTORY=${CURRENT_TEST_BINARY_DIR}
-        -DLOG=${test_log}
+        -DSIMULATION_LOG=${test_simulation_log}
+        -DCHECKER_LOG=${test_checker_log}
         -DCHECKER=${ANELASTIC_WALL_DIFFUSION_CHECKER}
         -DPLOTFILE=${CURRENT_TEST_BINARY_DIR}/plt00002
         -DAXIS=${TEST_AXIS}
         -DTHETA_LO=300.0
         -DTHETA_HI=301.0
-        -DALPHA_T=0.01
         -P ${PROJECT_SOURCE_DIR}/Tests/RunAnelasticWallDiffusion.cmake)
     set_tests_properties(${TEST_NAME}
         PROPERTIES
@@ -147,7 +147,7 @@ function(add_test_anelastic_wall_diffusion TEST_NAME TEST_AXIS)
         PROCESSORS ${NP}
         WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
         LABELS "regression;anelastic;wall-diffusion"
-        ATTACHED_FILES_ON_FAIL "${test_log}")
+        ATTACHED_FILES_ON_FAIL "${test_simulation_log};${test_checker_log}")
 endfunction(add_test_anelastic_wall_diffusion)
 
 # Native SHOC regression test.  This intentionally remains separate from

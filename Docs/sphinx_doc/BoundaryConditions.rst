@@ -167,7 +167,7 @@ theta; qv input is supported on no-slip walls, not slip walls.
 
 In anelastic simulations, omit ``density`` and ``density_grad`` on all
 solid-wall faces. Anelastic ERF evolves with fixed/base-state density, while
-Stage 0 wall theta and qv values are primitive wall properties. Supplying a
+wall theta and qv values are primitive wall properties. Supplying a
 separate wall density would therefore describe an inconsistent boundary
 contract. This restriction does not apply to inflow boundaries.
 
@@ -214,34 +214,20 @@ It is important to note that external Dirichlet boundary data should be specifie
 as the value on the face of the cell bounding the domain, even for cell-centered
 state data.
 
-Wall scalar flux convention
-^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Scalar values at solid walls
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-For chamber budgets, a wall-normal scalar flux ``J_in`` is positive from the
-wall into the fluid. ERF's diffusive face flux is oriented toward increasing
-coordinate, so ``F_d = +J_in`` on a low face and ``F_d = -J_in`` on a high
-face; equivalently, ``F dot n = -J_in``. With uniform Cartesian cells,
+For ``slipwall`` and ``noslipwall`` faces, specify primitive ``theta`` and,
+on ``noslipwall``, primitive ``qv`` with the face keyword. If ``density`` is
+also supplied on that face in a compressible simulation, ERF stores the
+corresponding conserved value. Otherwise the primitive value is used with
+the adjacent density. A value and its gradient are mutually exclusive; use
+``theta_grad`` for a specified theta gradient. An explicitly supplied zero is
+valid. ``qv`` is supported on ``noslipwall`` faces, not ``slipwall`` faces.
 
-.. math::
-
-   \frac{d}{dt}\sum_C V_C U_C = \sum_{f\in\partial\Omega} A_f J_{in,f} + \sum_C V_C S_C.
-
-Stage 0 establishes this convention for manufactured tests and future wall
-work; it does not add a direct prescribed wall-flux input keyword.
-
-Chamber Stage 0 foundation
-^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-The Stage 0 chamber foundation is a six-wall ``NoSlipWall`` anelastic case.
-Selected faces may specify primitive potential temperature through the
-existing ``<face>.theta`` keyword; faces that omit both ``<face>.theta`` and
-``<face>.theta_grad`` are adiabatic. The supported example is limited to a
-rectangular Cartesian domain with uniform ``dx``, ``dy``, and ``dz``;
-no terrain-fitted coordinates, stretched vertical grid, or embedded
-boundaries; and ``erf.vert_implicit = false``. It is a foundation for later
-chamber configurations, not a general wall-model implementation: it does not
-add direct heat/moisture fluxes, temperature/RH conversion, roughness laws,
-conjugate wall conduction, or particle-wall physics.
+On solid walls in anelastic simulations, omit both ``density`` and
+``density_grad``; density is supplied by the base state. Omitting both
+``theta`` and ``theta_grad`` gives an adiabatic theta boundary.
 
 Real Domain BCs
 ----------------------

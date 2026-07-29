@@ -19,7 +19,12 @@ using namespace amrex;
  */
 void ERF::init_phys_bcs (bool& read_prim_theta)
 {
-    auto f = [this,&read_prim_theta,one_d=one,zero_d=zero] (std::string const& bcid, Orientation ori)
+    bool anelastic = false;
+    for (int lev = 0; lev <= max_level; ++lev) {
+        anelastic = anelastic || (solverChoice.anelastic[lev] != 0);
+    }
+
+    auto f = [this,&read_prim_theta,anelastic,one_d=one,zero_d=zero] (std::string const& bcid, Orientation ori)
     {
         // These are simply defaults for Dirichlet faces -- they should be over-written below
         m_bc_extdir_vals[BCVars::Rho_bc_comp][ori]       =  one_d;
@@ -66,6 +71,19 @@ void ERF::init_phys_bcs (bool& read_prim_theta)
         }
 
         std::string bc_type = amrex::toLower(bc_type_in);
+
+        auto apply_wall_scalar = [this,ori] (int comp,
+                                             const erf_wall_scalar_bc::ParsedWallScalarBC& parsed)
+        {
+            using Intent = erf_wall_scalar_bc::WallScalarBCIntent;
+            if (parsed.intent == Intent::DirichletConserved ||
+                parsed.intent == Intent::DirichletPrimitive) {
+                m_bc_extdir_vals[comp][ori] = parsed.stored_value;
+            } else if (parsed.intent == Intent::Neumann) {
+                m_bc_neumann_vals[comp][ori] = parsed.stored_value;
+            }
+            m_wall_scalar_bc_intent[comp][ori] = parsed.intent;
+        };
 
         if (bc_type == "symmetry")
         {
@@ -204,54 +222,14 @@ void ERF::init_phys_bcs (bool& read_prim_theta)
                 m_bc_extdir_vals[BCVars::zvel_bc][ori] = v[2];
             }
 
-            Real rho_in = zero_d;
-            const bool density_specified = pp.query("density", rho_in);
-            Real rho_grad_in = zero_d;
-            const bool density_gradient_specified = pp.query("density_grad", rho_grad_in);
-            bool anelastic = false;
-            for (int lev = 0; lev <= max_level; ++lev) {
-                anelastic = anelastic || (solverChoice.anelastic[lev] != 0);
+            const auto parsed = erf_wall_scalar_bc::parse_wall_face_scalars(
+                pp, bcid, erf_wall_scalar_bc::SolidWallKind::NoSlip, anelastic);
+            if (!parsed.ok()) {
+                amrex::Error(parsed.error);
             }
-            if (anelastic && (density_specified || density_gradient_specified)) {
-                amrex::Error(erf_wall_scalar_bc::anelastic_wall_density_error(
-                    bcid, density_specified, density_gradient_specified));
-            }
-            if (density_specified) {
-                m_bc_extdir_vals[BCVars::Rho_bc_comp][ori] = rho_in;
-                m_wall_scalar_bc_intent[BCVars::Rho_bc_comp][ori] =
-                    erf_wall_scalar_bc::WallScalarBCIntent::DirichletConserved;
-            }
-            if (density_specified && density_gradient_specified) {
-                amrex::Error(erf_wall_scalar_bc::wall_scalar_value_gradient_error(bcid, "density"));
-            }
-
-            Real theta_in = zero_d;
-            const bool theta_specified = pp.query("theta", theta_in);
-            Real theta_grad_in = zero_d;
-            const bool theta_gradient_specified = pp.query("theta_grad", theta_grad_in);
-            if (erf_wall_scalar_bc::wall_scalar_value_gradient_conflict(
-                    theta_specified, theta_gradient_specified)) {
-                amrex::Error(erf_wall_scalar_bc::wall_scalar_value_gradient_error(bcid, "theta"));
-            }
-            const auto theta_bc = erf_wall_scalar_bc::resolve_wall_scalar_value(
-                theta_specified, theta_in, density_specified, rho_in);
-            if (theta_specified) {
-                m_bc_extdir_vals[BCVars::RhoTheta_bc_comp][ori] = theta_bc.stored_value;
-                m_wall_scalar_bc_intent[BCVars::RhoTheta_bc_comp][ori] = theta_bc.intent;
-            } else if (theta_gradient_specified) {
-                m_bc_neumann_vals[BCVars::RhoTheta_bc_comp][ori] = theta_grad_in;
-                m_wall_scalar_bc_intent[BCVars::RhoTheta_bc_comp][ori] =
-                    erf_wall_scalar_bc::WallScalarBCIntent::Neumann;
-            }
-
-            Real qv_in = zero_d;
-            const bool qv_specified = pp.query("qv", qv_in);
-            if (qv_specified) {
-                const auto qv_bc = erf_wall_scalar_bc::resolve_wall_scalar_value(
-                    true, qv_in, density_specified, rho_in);
-                m_bc_extdir_vals[BCVars::RhoQ1_bc_comp][ori] = qv_bc.stored_value;
-                m_wall_scalar_bc_intent[BCVars::RhoQ1_bc_comp][ori] = qv_bc.intent;
-            }
+            apply_wall_scalar(BCVars::Rho_bc_comp, parsed.scalars.density);
+            apply_wall_scalar(BCVars::RhoTheta_bc_comp, parsed.scalars.theta);
+            apply_wall_scalar(BCVars::RhoQ1_bc_comp, parsed.scalars.qv);
         }
         else if (bc_type == "slipwall")
         {
@@ -260,49 +238,13 @@ void ERF::init_phys_bcs (bool& read_prim_theta)
               phys_bc_type[ori] = ERF_BC::slip_wall;
             domain_bc_type[ori] = "SlipWall";
 
-            Real rho_in = zero_d;
-            const bool density_specified = pp.query("density", rho_in);
-            Real rho_grad_in = zero_d;
-            const bool density_gradient_specified = pp.query("density_grad", rho_grad_in);
-            bool anelastic = false;
-            for (int lev = 0; lev <= max_level; ++lev) {
-                anelastic = anelastic || (solverChoice.anelastic[lev] != 0);
+            const auto parsed = erf_wall_scalar_bc::parse_wall_face_scalars(
+                pp, bcid, erf_wall_scalar_bc::SolidWallKind::Slip, anelastic);
+            if (!parsed.ok()) {
+                amrex::Error(parsed.error);
             }
-            if (anelastic && (density_specified || density_gradient_specified)) {
-                amrex::Error(erf_wall_scalar_bc::anelastic_wall_density_error(
-                    bcid, density_specified, density_gradient_specified));
-            }
-            if (density_specified) {
-                m_bc_extdir_vals[BCVars::Rho_bc_comp][ori] = rho_in;
-                m_wall_scalar_bc_intent[BCVars::Rho_bc_comp][ori] =
-                    erf_wall_scalar_bc::WallScalarBCIntent::DirichletConserved;
-            }
-            if (density_specified && density_gradient_specified) {
-                amrex::Error(erf_wall_scalar_bc::wall_scalar_value_gradient_error(bcid, "density"));
-            } else if (density_gradient_specified) {
-                m_bc_neumann_vals[BCVars::Rho_bc_comp][ori] = rho_grad_in;
-                m_wall_scalar_bc_intent[BCVars::Rho_bc_comp][ori] =
-                    erf_wall_scalar_bc::WallScalarBCIntent::Neumann;
-            }
-
-            Real theta_in = zero_d;
-            const bool theta_specified = pp.query("theta", theta_in);
-            Real theta_grad_in = zero_d;
-            const bool theta_gradient_specified = pp.query("theta_grad", theta_grad_in);
-            if (erf_wall_scalar_bc::wall_scalar_value_gradient_conflict(
-                    theta_specified, theta_gradient_specified)) {
-                amrex::Error(erf_wall_scalar_bc::wall_scalar_value_gradient_error(bcid, "theta"));
-            }
-            const auto theta_bc = erf_wall_scalar_bc::resolve_wall_scalar_value(
-                theta_specified, theta_in, density_specified, rho_in);
-            if (theta_specified) {
-                m_bc_extdir_vals[BCVars::RhoTheta_bc_comp][ori] = theta_bc.stored_value;
-                m_wall_scalar_bc_intent[BCVars::RhoTheta_bc_comp][ori] = theta_bc.intent;
-            } else if (theta_gradient_specified) {
-                m_bc_neumann_vals[BCVars::RhoTheta_bc_comp][ori] = theta_grad_in;
-                m_wall_scalar_bc_intent[BCVars::RhoTheta_bc_comp][ori] =
-                    erf_wall_scalar_bc::WallScalarBCIntent::Neumann;
-            }
+            apply_wall_scalar(BCVars::Rho_bc_comp, parsed.scalars.density);
+            apply_wall_scalar(BCVars::RhoTheta_bc_comp, parsed.scalars.theta);
         }
         else if (bc_type == "surface_layer")
         {
