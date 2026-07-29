@@ -599,35 +599,36 @@ void WDM6::Advance(const Real& dt_advance,
         // ============================================================
         // TODO: Implement full PLM sedimentation from WRF
         // For now, use simplified top-down fall
-        ParallelFor(box2d, [=] AMREX_GPU_DEVICE (int i, int j, int) {
+        const Real dz_sedi = m_geom.CellSize(2);
+        ParallelFor(amrex::makeSlab(box,2,klo), [=] AMREX_GPU_DEVICE (int i, int j, int) {
             Real precip_rain = Real(0.0);
 
             // Top-down sedimentation
-            for (int k = khi; k >= klo; --k) {
-                if (qr_arr(i,j,k) > Real(1.e-9) && nr_arr(i,j,k) > Real(1.e-2)) {
+            for (int kk = khi; kk >= klo; --kk) {
+                if (qr_arr(i,j,kk) > Real(1.e-9) && nr_arr(i,j,kk) > Real(1.e-2)) {
                     // Terminal velocity using nr
                     Real lamdar = std::pow(
-                        (pidnr_loc * nr_arr(i,j,k) * den_arr(i,j,k)) / (den_arr(i,j,k) * qr_arr(i,j,k)),
+                        (pidnr_loc * nr_arr(i,j,kk) * den_arr(i,j,kk)) / (den_arr(i,j,kk) * qr_arr(i,j,kk)),
                         Real(1.0)/Real(3.0)
                     );
                     Real vt = Real(841.9) * std::pow(Real(1.0) / lamdar, Real(0.8));
 
                     // Flux out of cell
-                    Real flux_qr = qr_arr(i,j,k) * vt * dt_advance / dz_val;
-                    Real flux_nr = nr_arr(i,j,k) * vt * dt_advance / dz_val;
+                    Real flux_qr = qr_arr(i,j,kk) * vt * dt_advance / dz_sedi;
+                    Real flux_nr = nr_arr(i,j,kk) * vt * dt_advance / dz_sedi;
 
-                    flux_qr = amrex::min(flux_qr, qr_arr(i,j,k));
-                    flux_nr = amrex::min(flux_nr, nr_arr(i,j,k));
+                    flux_qr = amrex::min(flux_qr, qr_arr(i,j,kk));
+                    flux_nr = amrex::min(flux_nr, nr_arr(i,j,kk));
 
-                    qr_arr(i,j,k) -= flux_qr;
-                    nr_arr(i,j,k) -= flux_nr;
+                    qr_arr(i,j,kk) -= flux_qr;
+                    nr_arr(i,j,kk) -= flux_nr;
 
                     // Add to cell below or accumulate at surface
-                    if (k > klo) {
-                        qr_arr(i,j,k-1) += flux_qr;
-                        nr_arr(i,j,k-1) += flux_nr;
+                    if (kk > klo) {
+                        qr_arr(i,j,kk-1) += flux_qr;
+                        nr_arr(i,j,kk-1) += flux_nr;
                     } else {
-                        precip_rain += flux_qr * den_arr(i,j,k) * dz_val;
+                        precip_rain += flux_qr * den_arr(i,j,kk) * dz_sedi;
                     }
                 }
             }
