@@ -104,6 +104,18 @@ ERF::ERF_shared ()
     for (int lev = 0; lev <= max_level; ++lev) { m_forest_drag[lev] = nullptr;}
 
     ReadParameters();
+    {
+        ParmParse pp_erf("erf");
+        std::string prob_name;
+        int budget_interval = 0;
+        pp_erf.query("prob_name", prob_name);
+        pp_erf.query("cloud_chamber_budget_interval", budget_interval);
+        const std::string prob_name_ci = amrex::toLower(prob_name);
+        if ((prob_name_ci == "cloud chamber" || prob_name_ci == "cloudchamber") &&
+            budget_interval > 0) {
+            cloud_chamber_budget = std::make_unique<CloudChamberBudget>(budget_interval);
+        }
+    }
     // Create one invocation identity after inputs are available and before
     // InitData can read restart metadata or write an output on restart.
     execution_provenance = erf_provenance::initialize_execution_provenance();

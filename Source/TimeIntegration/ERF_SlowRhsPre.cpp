@@ -14,6 +14,7 @@
 #include "ERF_EBAdvection.H"
 #include "ERF_EB.H"
 #include "ERF_SurfaceLayer.H"
+#include "Prob/ERF_CloudChamberBudget.H"
 
 using namespace amrex;
 
@@ -112,7 +113,8 @@ void erf_slow_rhs_pre (int level, int finest_level,
 #endif
                        ShocDriver* native_shoc_lev,
                        YAFluxRegister* fr_as_crse,
-                       YAFluxRegister* fr_as_fine)
+                       YAFluxRegister* fr_as_fine,
+                       CloudChamberBudget* cloud_budget)
 {
     BL_PROFILE_REGION("erf_slow_rhs_pre()");
 
@@ -221,6 +223,11 @@ void erf_slow_rhs_pre (int level, int finest_level,
         dflux_x = std::make_unique<MultiFab>(convert(ba,IntVect(1,0,0)), dm, nvars, ng);
         dflux_y = std::make_unique<MultiFab>(convert(ba,IntVect(0,1,0)), dm, nvars, ng);
         dflux_z = std::make_unique<MultiFab>(convert(ba,IntVect(0,0,1)), dm, nvars, 0);
+        if (cloud_budget) {
+            dflux_x->setVal(0.0);
+            dflux_y->setVal(0.0);
+            dflux_z->setVal(0.0);
+        }
 
         bool surface_layer_handled = false;
 #ifdef ERF_USE_EAMXX_SHOC
@@ -948,4 +955,9 @@ void erf_slow_rhs_pre (int level, int finest_level,
         } // end profile
     } // mfi
     } // OMP
+    if (cloud_budget && l_use_diff) {
+            cloud_budget->capture_stage(CloudChamberBudget::RhoTheta, nrk,
+                                        static_cast<Real>(dt), *dflux_x, *dflux_y,
+                                        *dflux_z, geom, 0);
+    }
 }

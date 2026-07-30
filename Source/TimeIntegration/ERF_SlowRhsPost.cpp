@@ -4,6 +4,7 @@
 #include <ERF_ShocDriver.H>
 #include <ERF_EBAdvection.H>
 #include <ERF_EBRedistribute.H>
+#include "Prob/ERF_CloudChamberBudget.H"
 
 using namespace amrex;
 
@@ -90,7 +91,8 @@ void erf_slow_rhs_post (int level, int finest_level,
                         ShocDriver* native_shoc_lev,
                         YAFluxRegister* fr_as_crse,
                         YAFluxRegister* fr_as_fine,
-                        std::unique_ptr<ReadBndryPlanes>& m_r2d)
+                        std::unique_ptr<ReadBndryPlanes>& m_r2d,
+                        CloudChamberBudget* cloud_budget)
 {
     BL_PROFILE_REGION("erf_slow_rhs_post()");
 
@@ -165,9 +167,15 @@ void erf_slow_rhs_post (int level, int finest_level,
 
     if (l_use_diff) {
         IntVect ng(0,0,1);
-        dflux_x = std::make_unique<MultiFab>(convert(ba,IntVect(1,0,0)), dm, 1, ng);
-        dflux_y = std::make_unique<MultiFab>(convert(ba,IntVect(0,1,0)), dm, 1, ng);
-        dflux_z = std::make_unique<MultiFab>(convert(ba,IntVect(0,0,1)), dm, 1, 0);
+        const int n_budget_flux = cloud_budget ? std::max(1, n_qstate) : 1;
+        dflux_x = std::make_unique<MultiFab>(convert(ba,IntVect(1,0,0)), dm, n_budget_flux, ng);
+        dflux_y = std::make_unique<MultiFab>(convert(ba,IntVect(0,1,0)), dm, n_budget_flux, ng);
+        dflux_z = std::make_unique<MultiFab>(convert(ba,IntVect(0,0,1)), dm, n_budget_flux, 0);
+        if (cloud_budget) {
+            dflux_x->setVal(0.0);
+            dflux_y->setVal(0.0);
+            dflux_z->setVal(0.0);
+        }
     } else {
         dflux_x = nullptr;
         dflux_y = nullptr;
@@ -462,10 +470,18 @@ void erf_slow_rhs_post (int level, int finest_level,
 
                     const Array4<const Real> tm_arr = t_mean_mf ? t_mean_mf->const_array(mfi) : Array4<const Real>{};
 
+                    const int n_diff_calls = (cloud_budget && ivar == RhoQ1_comp) ? n_qstate : 1;
+                    for (int qstate = 0; qstate < n_diff_calls; ++qstate) {
+                        const int diffusion_start = (ivar == RhoQ1_comp) ? start_comp + qstate : start_comp;
+                        const int diffusion_num = (ivar == RhoQ1_comp) ? 1 : num_comp;
+                        const Array4<Real> diffusion_x = (ivar == RhoQ1_comp) ? dflux_x->array(mfi, qstate) : diffflux_x;
+                        const Array4<Real> diffusion_y = (ivar == RhoQ1_comp) ? dflux_y->array(mfi, qstate) : diffflux_y;
+                        const Array4<Real> diffusion_z = (ivar == RhoQ1_comp) ? dflux_z->array(mfi, qstate) : diffflux_z;
+
                     if (solverChoice.mesh_type == MeshType::StretchedDz) {
-                        DiffusionSrcForState_S(tbx, domain, start_comp, num_comp, u, v,
+                        DiffusionSrcForState_S(tbx, domain, diffusion_start, diffusion_num, u, v,
                                                new_cons, cur_prim, cell_rhs,
-                                               diffflux_x, diffflux_y, diffflux_z,
+                                               diffusion_x, diffusion_y, diffusion_z,
                                                stretched_dz_d, dxInv, SmnSmn_a,
                                                mf_mx, mf_ux, mf_vx,
                                                mf_my, mf_uy, mf_vy,
@@ -473,9 +489,9 @@ void erf_slow_rhs_post (int level, int finest_level,
                                                mu_turb, solverChoice, level,
                                                tm_arr, grav_gpu, bc_ptr_d, l_apply_surface_layer_fluxes_in_diffusion, l_vert_implicit_fac);
                     } else if (l_use_terrain) {
-                        DiffusionSrcForState_T(tbx, domain, start_comp, num_comp, l_rotate, u, v,
+                        DiffusionSrcForState_T(tbx, domain, diffusion_start, diffusion_num, l_rotate, u, v,
                                                new_cons, cur_prim, cell_rhs,
-                                               diffflux_x, diffflux_y, diffflux_z,
+                                               diffusion_x, diffusion_y, diffusion_z,
                                                z_nd, z_cc, ax_arr, ay_arr, az_arr,
                                                detJ_arr, dxInv, SmnSmn_a,
                                                mf_mx, mf_ux, mf_vx,
@@ -484,9 +500,9 @@ void erf_slow_rhs_post (int level, int finest_level,
                                                mu_turb, solverChoice, level,
                                                tm_arr, grav_gpu, bc_ptr_d, l_apply_surface_layer_fluxes_in_diffusion, l_vert_implicit_fac);
                     } else if (l_use_eb) {
-                        DiffusionSrcForState_EB(tbx, domain, start_comp, num_comp, u, v,
+                        DiffusionSrcForState_EB(tbx, domain, diffusion_start, diffusion_num, u, v,
                                                 new_cons, cur_prim, cell_rhs,
-                                                diffflux_x, diffflux_y, diffflux_z,
+                                                diffusion_x, diffusion_y, diffusion_z,
                                                 cfg_arr, ax_arr, ay_arr, az_arr, detJ_arr,
                                                 barea_arr, bcent_arr,
                                                 dx, dxInv,
@@ -494,14 +510,15 @@ void erf_slow_rhs_post (int level, int finest_level,
                                                 mu_turb, solverChoice, level,
                                                 bc_ptr_d, l_apply_surface_layer_fluxes_in_diffusion);
                     } else {
-                        DiffusionSrcForState_N(tbx, domain, start_comp, num_comp, u, v,
+                        DiffusionSrcForState_N(tbx, domain, diffusion_start, diffusion_num, u, v,
                                                new_cons, cur_prim, cell_rhs,
-                                               diffflux_x, diffflux_y, diffflux_z, dxInv, SmnSmn_a,
+                                               diffusion_x, diffusion_y, diffusion_z, dxInv, SmnSmn_a,
                                                mf_mx, mf_ux, mf_vx,
                                                mf_my, mf_uy, mf_vy,
                                                hfx_z, q1fx_z, q2fx_z, diss,
                                                mu_turb, solverChoice, level,
                                                tm_arr, grav_gpu, bc_ptr_d, l_apply_surface_layer_fluxes_in_diffusion, l_vert_implicit_fac);
+                    }
                     }
                 } // use_diff
 
@@ -677,4 +694,14 @@ void erf_slow_rhs_post (int level, int finest_level,
         } // end profile
       } // mfi
     } // OMP
+    if (cloud_budget && l_use_diff && n_qstate > 0) {
+        for (int qstate = 0; qstate < n_qstate; ++qstate) {
+            MultiFab qflux_x(*dflux_x, make_alias, qstate, 1);
+            MultiFab qflux_y(*dflux_y, make_alias, qstate, 1);
+            MultiFab qflux_z(*dflux_z, make_alias, qstate, 1);
+            cloud_budget->capture_stage(
+                qstate == 0 ? CloudChamberBudget::RhoQv : CloudChamberBudget::RhoQc,
+                nrk, static_cast<Real>(dt_d), qflux_x, qflux_y, qflux_z, geom);
+        }
+    }
 }

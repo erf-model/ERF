@@ -14,6 +14,11 @@ the specification of which initialization pathway ERF will take.
 Custom Initialization
 ----------------------------------
 
+The deterministic rectangular ``Cloud Chamber`` initializer is documented in
+:ref:`CloudChamber`.  It is a constrained Stage 1 proof of concept for
+anelastic six-wall scalar transport and optional SatAdj moisture; its
+prescribed theta and qv values do not represent physical wall-transfer laws.
+
 When not reading the initial data as described in the section below,
 the initialization in ERF has two steps: creation of the background state
 and creation of optionally non-zero initial perturbations from the background state.

@@ -312,6 +312,12 @@ ERF::post_timestep (int nstep, double time, double dt_lev0)
 {
     BL_PROFILE("ERF::post_timestep()");
 
+    if (cloud_chamber_budget) {
+        cloud_chamber_budget->report(
+            nstep, time, vars_new[0][Vars::cons], geom[0],
+            solverChoice.moisture_type == MoistureType::SatAdj);
+    }
+
 #ifdef ERF_USE_PARTICLES
     particleData.Redistribute(z_phys_nd);
 #endif

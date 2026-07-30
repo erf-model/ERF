@@ -18,6 +18,8 @@
 #include "ERF_EB.H"
 #include "ERF_ReadBndryPlanes.H"
 
+class CloudChamberBudget;
+
 class ShocDriver;
 
 void erf_make_tau_terms (int level, int nrk,
@@ -103,7 +105,8 @@ void erf_slow_rhs_pre (int level, int finest_level, int nrk,
 #endif
                       ShocDriver* native_shoc_lev,
                       amrex::YAFluxRegister* fr_as_crse,
-                      amrex::YAFluxRegister* fr_as_fine);
+                      amrex::YAFluxRegister* fr_as_fine,
+                      CloudChamberBudget* cloud_budget);
 
 /**
  * Function for computing the slow RHS for the evolution equations for the scalars other than density or potential temperature
@@ -156,6 +159,7 @@ void erf_slow_rhs_post (int level, int finest_level, int nrk,
                        ShocDriver* native_shoc_lev,
                        amrex::YAFluxRegister* fr_as_crse,
                        amrex::YAFluxRegister* fr_as_fine,
-                       std::unique_ptr<ReadBndryPlanes>& m_r2d);
+                       std::unique_ptr<ReadBndryPlanes>& m_r2d,
+                       CloudChamberBudget* cloud_budget);
 
 #endif
