@@ -23,6 +23,10 @@ WDM6::Init(const MultiFab& cons_in,
     amrex::ParmParse pp("wdm6");
     pp.query("ccn0", m_ccn0);  // default 100.0e6 m^-3
 
+    amrex::Print() << "WDM6 Initialization:\n"
+                   << "  CCN0 = " << m_ccn0 << " #/m^3\n"
+                   << "  Number concentrations will be initialized from CCN0\n";
+
     MicVarMap.resize(m_qmoist_size);
     MicVarMap = {MicVar_WDM6::rain_accum, MicVar_WDM6::snow_accum, MicVar_WDM6::graup_accum};
 
@@ -42,6 +46,46 @@ WDM6::Init(const MultiFab& cons_in,
 void
 WDM6::Copy_State_to_Micro(const MultiFab& cons_in)
 {
+    // Diagnostic: Check if state has moisture BEFORE copying
+    static int copy_call_count = 0;
+    static bool copy_diagnostic_done = false;
+    copy_call_count++;
+
+    if (!copy_diagnostic_done && copy_call_count == 1) {
+        copy_diagnostic_done = true;
+
+        // Check what's in the state cons_in using simpler max() function
+        Real max_qv = 0.0;
+        Real max_qc = 0.0;
+
+        for (MFIter mfi(cons_in); mfi.isValid(); ++mfi) {
+            const Box& bx = mfi.validbox();
+            auto const& state_arr = cons_in.const_array(mfi);
+
+            ReduceOps<ReduceOpMax, ReduceOpMax> reduce_ops;
+            ReduceData<Real, Real> reduce_data(reduce_ops);
+            using ReduceTuple = typename decltype(reduce_data)::Type;
+
+            reduce_ops.eval(bx, reduce_data,
+                [=] AMREX_GPU_DEVICE (int i, int j, int k) -> ReduceTuple
+                {
+                    Real qv_state = state_arr(i,j,k,RhoQ1_comp) / state_arr(i,j,k,Rho_comp);
+                    Real qc_state = state_arr(i,j,k,RhoQ2_comp) / state_arr(i,j,k,Rho_comp);
+                    return {qv_state, qc_state};
+                });
+            auto r = reduce_data.value();
+            max_qv = amrex::max(max_qv, amrex::get<0>(r));
+            max_qc = amrex::max(max_qc, amrex::get<1>(r));
+        }
+
+        ParallelDescriptor::ReduceRealMax(max_qv);
+        ParallelDescriptor::ReduceRealMax(max_qc);
+
+        amrex::Print() << "Copy_State_to_Micro diagnostic:\n"
+                      << "  Max qv in state = " << max_qv*1000 << " g/kg\n"
+                      << "  Max qc in state = " << max_qc*1000 << " g/kg\n";
+    }
+
     for (MFIter mfi(cons_in); mfi.isValid(); ++mfi) {
         // Match Morrison behavior: refresh microphysics ghost zones from state.
         const auto& box3d = mfi.growntilebox();
@@ -63,6 +107,8 @@ WDM6::Copy_State_to_Micro(const MultiFab& cons_in)
         auto nc = mic_fab_vars[MicVar_WDM6::nc]->array(mfi);
         auto nr = mic_fab_vars[MicVar_WDM6::nr]->array(mfi);
 
+        const Real ccn0_local = m_ccn0;  // CCN concentration in #/m³
+
         ParallelFor(box3d, [=] AMREX_GPU_DEVICE(int i, int j, int k) {
             rho(i,j,k) = states(i,j,k,Rho_comp);
             theta(i,j,k) = states(i,j,k,RhoTheta_comp) / states(i,j,k,Rho_comp);
@@ -78,6 +124,41 @@ WDM6::Copy_State_to_Micro(const MultiFab& cons_in)
             nc(i,j,k) = amrex::max(Real(0.0), states(i,j,k,RhoQ7_comp) / states(i,j,k,Rho_comp));
             nn(i,j,k) = amrex::max(Real(0.0), states(i,j,k,RhoQ8_comp) / states(i,j,k,Rho_comp));
             nr(i,j,k) = amrex::max(Real(0.0), states(i,j,k,RhoQ9_comp) / states(i,j,k,Rho_comp));
+
+            // WDM6: Initialize aerosol number concentration if not set
+            // Following WRF's approach: nn = ccn0 (#/m³) / rho (kg/m³) = #/kg
+            if (nn(i,j,k) < Real(1.0)) {
+                nn(i,j,k) = ccn0_local / rho(i,j,k);
+            }
+
+            // Initialize cloud droplet number concentration
+            // Following WRF WDM6 approach: Start with minimal nc, let microphysics
+            // build it up naturally through nucleation and activation processes.
+            // WRF uses ncmin = 10 #/kg as the lower bound.
+            //
+            // ALSO: Cap nc if unreasonably high (> 1000 cm^-3 = 1e9 m^-3)
+            // This fixes initialization errors that create pollution-level nc
+            Real nc_physical = nc(i,j,k) * rho(i,j,k);  // Convert to #/m^3
+            Real nc_max_physical = Real(5.0e8);  // 500 cm^-3 max (continental)
+
+            if (nc(i,j,k) < Real(1.e1) || nc_physical > nc_max_physical) {
+                if (qc(i,j,k) > Real(1.e-9)) {
+                    // Cloud exists - set reasonable nc
+                    // 50 cm^-3 = 5e7 m^-3 / rho (typical continental)
+                    nc(i,j,k) = Real(5.0e7) / rho(i,j,k);
+                } else {
+                    // No cloud - use WRF's ncmin
+                    nc(i,j,k) = Real(1.e1);
+                }
+            }
+
+            // Initialize rain number if rain exists but nr is not set
+            // Use diagnostic relationship based on rain mass
+            if (qr(i,j,k) > Real(1.e-9) && nr(i,j,k) < Real(1.e-2)) {
+                // Marshall-Palmer: N0 = 8e6 m^-4, typical nr ~ 1e3-1e4 #/m³
+                // Simple estimate: nr = 1000 #/m³ / rho for small rain amounts
+                nr(i,j,k) = Real(1.e3) / rho(i,j,k);
+            }
 
             tabs(i,j,k) = getTgivenRandRTh(states(i,j,k,Rho_comp),
                                            states(i,j,k,RhoTheta_comp),

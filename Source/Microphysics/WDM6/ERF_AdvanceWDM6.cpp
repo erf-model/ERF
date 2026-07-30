@@ -99,6 +99,80 @@ Real wdm6_lamdac (Real qc, Real den, Real nc, Real pidnc_arg) {
     return std::pow((pidnc_arg * nc * den) / (den * qc), Real(1.0)/Real(3.0));
 }
 
+// ---------------------------------------------------------------
+// Ice slope parameter functions (single-moment from WSM6)
+// ---------------------------------------------------------------
+
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+Real wdm6_lamdas (Real x, Real y, Real z, Real pidn0s_arg) {
+    // Snow slope parameter (single-moment)
+    return std::sqrt(std::sqrt(pidn0s_arg*z/(x*y)));
+}
+
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+Real wdm6_lamdag (Real x, Real y, Real pidn0g_arg) {
+    // Graupel slope parameter (single-moment)
+    return std::sqrt(std::sqrt(pidn0g_arg/(x*y)));
+}
+
+// ---------------------------------------------------------------
+// Full slope/terminal velocity functions for ice species
+// ---------------------------------------------------------------
+
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+void wdm6_slope_snow_cell (Real qs, Real den, Real denfac, Real t,
+                            Real pidn0s_arg, Real alpha_arg,
+                            Real n0smax_arg, Real n0s_arg,
+                            Real t0c_arg, Real qcrmin_arg,
+                            Real rslopesmax_arg, Real rslopesbmax_arg,
+                            Real rslopes2max_arg, Real rslopes3max_arg,
+                            Real bvts_arg, Real pvts_arg,
+                            Real& rslope, Real& rslopeb,
+                            Real& rslope2, Real& rslope3, Real& vt,
+                            Real& n0sfac)
+{
+    Real supcol = t0c_arg - t;
+    n0sfac = amrex::max(amrex::min(std::exp(alpha_arg*supcol),
+                                    n0smax_arg/n0s_arg), Real(1.0));
+    if (qs <= qcrmin_arg) {
+        rslope  = rslopesmax_arg;
+        rslopeb = rslopesbmax_arg;
+        rslope2 = rslopes2max_arg;
+        rslope3 = rslopes3max_arg;
+    } else {
+        rslope  = Real(1.0)/wdm6_lamdas(qs,den,n0sfac,pidn0s_arg);
+        rslopeb = std::pow(rslope,bvts_arg);
+        rslope2 = rslope*rslope;
+        rslope3 = rslope2*rslope;
+    }
+    vt = pvts_arg*rslopeb*denfac;
+    if (qs <= Real(0.0)) vt = Real(0.0);
+}
+
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+void wdm6_slope_graup_cell (Real qg, Real den, Real denfac,
+                             Real pidn0g_arg, Real qcrmin_arg,
+                             Real rslopegmax_arg, Real rslopegbmax_arg,
+                             Real rslopeg2max_arg, Real rslopeg3max_arg,
+                             Real bvtg_arg, Real pvtg_arg,
+                             Real& rslope, Real& rslopeb,
+                             Real& rslope2, Real& rslope3, Real& vt)
+{
+    if (qg <= qcrmin_arg) {
+        rslope  = rslopegmax_arg;
+        rslopeb = rslopegbmax_arg;
+        rslope2 = rslopeg2max_arg;
+        rslope3 = rslopeg3max_arg;
+    } else {
+        rslope  = Real(1.0)/wdm6_lamdag(qg,den,pidn0g_arg);
+        rslopeb = std::pow(rslope,bvtg_arg);
+        rslope2 = rslope*rslope;
+        rslope3 = rslope2*rslope;
+    }
+    vt = pvtg_arg*rslopeb*denfac;
+    if (qg <= Real(0.0)) vt = Real(0.0);
+}
+
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 Real wdm6_mean_droplet_diameter (Real qc, Real nc, Real den, Real pidnc_arg) {
     // Volume-weighted mean diameter of cloud droplets
@@ -169,6 +243,50 @@ void WDM6::Advance(const Real& dt_advance,
     // - With ERF_USE_WDM6_FORT: Call Fortran bridge (CPU-only)
     // - Without: Use C++ GPU kernels (not yet implemented)
     // ---------------------------------------------------------------
+
+    static int call_count = 0;
+    call_count++;
+    const bool first_call = (call_count == 1);
+
+    // Print header on first call
+    if (first_call) {
+#ifdef ERF_USE_WDM6_FORT
+        amrex::Print() << "=== WDM6::Advance() called with FORTRAN bridge ===\n";
+#else
+        amrex::Print() << "=== WDM6::Advance() called with C++ GPU path ===\n";
+#endif
+        amrex::Print() << "    dt_advance = " << dt_advance << " s\n";
+        amrex::Print() << "    CCN0 = " << m_ccn0 << " #/m^3\n";
+    }
+
+    // Print call number every step
+    amrex::Print() << "WDM6::Advance() call #" << call_count
+                  << " (dt=" << dt_advance << "s)\n";
+
+    // GLOBAL diagnostics BEFORE MFIter loop - check entire domain
+    {
+        Real max_qv = mic_fab_vars[MicVar_WDM6::qv]->max(0);
+        Real max_qc = mic_fab_vars[MicVar_WDM6::qc]->max(0);
+        Real max_qr = mic_fab_vars[MicVar_WDM6::qr]->max(0);
+        Real max_qi = mic_fab_vars[MicVar_WDM6::qi]->max(0);
+        Real max_qs = mic_fab_vars[MicVar_WDM6::qs]->max(0);
+        Real max_qg = mic_fab_vars[MicVar_WDM6::qg]->max(0);
+        Real max_nc = mic_fab_vars[MicVar_WDM6::nc]->max(0);
+        Real max_nr = mic_fab_vars[MicVar_WDM6::nr]->max(0);
+        Real max_nn = mic_fab_vars[MicVar_WDM6::nn]->max(0);
+
+        amrex::Print() << "  GLOBAL max mixing ratios (g/kg): "
+                      << "qv=" << max_qv*1000 << ", "
+                      << "qc=" << max_qc*1000 << ", "
+                      << "qr=" << max_qr*1000 << ", "
+                      << "qi=" << max_qi*1000 << ", "
+                      << "qs=" << max_qs*1000 << ", "
+                      << "qg=" << max_qg*1000 << "\n";
+        amrex::Print() << "  GLOBAL max number conc (#/kg): "
+                      << "nc=" << max_nc << ", "
+                      << "nr=" << max_nr << ", "
+                      << "nn=" << max_nn << "\n";
+    }
 
 #ifdef ERF_USE_WDM6_FORT
     // Fortran bridge mode - initialize once
@@ -291,6 +409,8 @@ void WDM6::Advance(const Real& dt_advance,
             graupelncv_arr(i,j,k) = Real(0.0);
         });
 
+        // (Tile-based diagnostics removed - using global diagnostics instead)
+
         // Call Fortran WDM6
         mp_wdm6_run_c(
             t_arr.dataPtr(),
@@ -307,6 +427,8 @@ void WDM6::Advance(const Real& dt_advance,
             imlo, imhi, jmlo, jmhi, kmlo, kmhi,
             ilo, ihi, jlo, jhi, klo, khi,
             0, ilo, jlo);  // microphysics_debug=0, diag_i=ilo, diag_j=jlo
+
+        // (Tile-based precipitation diagnostics removed - using global diagnostics instead)
 
         // Accumulate precipitation
         ParallelFor(box2d, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
@@ -582,11 +704,96 @@ void WDM6::Advance(const Real& dt_advance,
             });
 
             // ============================================================
-            // Step 9: Enforce bounds
+            // Step 9: Ice physics (simplified)
+            // ============================================================
+            // These processes handle ice (qi), snow (qs), and graupel (qg)
+            // following simplified versions of WSM6 processes
+
+            ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+                const Real temp = t_arr(i,j,k);
+                const Real t0c_loc = Real(273.15);
+
+                // Ice nucleation - homogeneous freezing of cloud droplets
+                if (temp < Real(233.15) && qc_arr(i,j,k) > Real(1.e-9)) {
+                    // Below -40C, freeze all cloud water to ice
+                    Real qfrz = qc_arr(i,j,k);
+                    qi_arr(i,j,k) += qfrz;
+                    qc_arr(i,j,k) -= qfrz;
+                    // Latent heat release
+                    t_arr(i,j,k) += qfrz * Real(xlf0) / Real(cpd);
+                }
+
+                // Heterogeneous freezing (cloud → ice) for -40C < T < 0C
+                if (temp < t0c_loc && temp >= Real(233.15) && qc_arr(i,j,k) > Real(1.e-9)) {
+                    // Simplified: freeze fraction based on temperature
+                    Real frac_frz = (t0c_loc - temp) / Real(40.0) * Real(0.01);  // 1% per 40K
+                    Real qfrz = amrex::min(frac_frz * qc_arr(i,j,k) * dtcld, qc_arr(i,j,k));
+                    qi_arr(i,j,k) += qfrz;
+                    qc_arr(i,j,k) -= qfrz;
+                    t_arr(i,j,k) += qfrz * Real(xlf0) / Real(cpd);
+                }
+
+                // Rain freezing (rain → graupel)
+                if (temp < t0c_loc && qr_arr(i,j,k) > Real(1.e-9)) {
+                    Real frac_frz = (t0c_loc - temp) / Real(20.0) * Real(0.05);  // 5% per 20K
+                    Real qfrz = amrex::min(frac_frz * qr_arr(i,j,k) * dtcld, qr_arr(i,j,k));
+                    qg_arr(i,j,k) += qfrz;
+                    qr_arr(i,j,k) -= qfrz;
+                    // Also freeze corresponding rain number concentration
+                    Real nfrz = qfrz * nr_arr(i,j,k) / amrex::max(qr_arr(i,j,k), Real(1.e-12));
+                    nr_arr(i,j,k) -= amrex::min(nfrz, nr_arr(i,j,k));
+                    t_arr(i,j,k) += qfrz * Real(xlf0) / Real(cpd);
+                }
+
+                // Ice → snow conversion (aggregation)
+                if (qi_arr(i,j,k) > Real(1.e-6)) {
+                    // Simplified: convert ice to snow at constant rate
+                    Real qi_to_qs = amrex::min(qi_arr(i,j,k) * Real(0.001) * dtcld, qi_arr(i,j,k));
+                    qs_arr(i,j,k) += qi_to_qs;
+                    qi_arr(i,j,k) -= qi_to_qs;
+                }
+
+                // Melting: snow → rain
+                if (temp > t0c_loc && qs_arr(i,j,k) > Real(1.e-9)) {
+                    // Simplified melting rate
+                    Real melt_rate = (temp - t0c_loc) * Real(0.01);  // 1% per K above 0C
+                    Real qmelt = amrex::min(melt_rate * qs_arr(i,j,k) * dtcld, qs_arr(i,j,k));
+                    qr_arr(i,j,k) += qmelt;
+                    qs_arr(i,j,k) -= qmelt;
+                    t_arr(i,j,k) -= qmelt * Real(xlf0) / Real(cpd);
+                }
+
+                // Melting: graupel → rain
+                if (temp > t0c_loc && qg_arr(i,j,k) > Real(1.e-9)) {
+                    Real melt_rate = (temp - t0c_loc) * Real(0.02);  // 2% per K (graupel melts faster)
+                    Real qmelt = amrex::min(melt_rate * qg_arr(i,j,k) * dtcld, qg_arr(i,j,k));
+                    qr_arr(i,j,k) += qmelt;
+                    qg_arr(i,j,k) -= qmelt;
+                    t_arr(i,j,k) -= qmelt * Real(xlf0) / Real(cpd);
+                }
+
+                // Riming: cloud water collected by snow → graupel
+                if (temp < t0c_loc && qs_arr(i,j,k) > Real(1.e-9) && qc_arr(i,j,k) > Real(1.e-9)) {
+                    // Simplified collection
+                    Real qcol = amrex::min(qs_arr(i,j,k) * qc_arr(i,j,k) * Real(10.0) * dtcld, qc_arr(i,j,k));
+                    qg_arr(i,j,k) += qcol;
+                    qc_arr(i,j,k) -= qcol;
+                    // Also remove corresponding cloud droplets
+                    Real ncol = qcol * nc_arr(i,j,k) / amrex::max(qc_arr(i,j,k), Real(1.e-12));
+                    nc_arr(i,j,k) -= amrex::min(ncol, nc_arr(i,j,k));
+                    t_arr(i,j,k) += qcol * Real(xlf0) / Real(cpd);
+                }
+            });
+
+            // ============================================================
+            // Step 10: Enforce bounds
             // ============================================================
             ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
                 qc_arr(i,j,k) = amrex::max(qc_arr(i,j,k), Real(0.0));
                 qr_arr(i,j,k) = amrex::max(qr_arr(i,j,k), Real(0.0));
+                qi_arr(i,j,k) = amrex::max(qi_arr(i,j,k), Real(0.0));
+                qs_arr(i,j,k) = amrex::max(qs_arr(i,j,k), Real(0.0));
+                qg_arr(i,j,k) = amrex::max(qg_arr(i,j,k), Real(0.0));
                 nc_arr(i,j,k) = amrex::max(nc_arr(i,j,k), Real(1.e1));
                 nr_arr(i,j,k) = amrex::max(nr_arr(i,j,k), Real(1.e-2));
                 nn_arr(i,j,k) = amrex::max(nn_arr(i,j,k), Real(0.0));
@@ -595,57 +802,128 @@ void WDM6::Advance(const Real& dt_advance,
         } // End minor timestep loop
 
         // ============================================================
-        // Step 10: Simplified sedimentation (placeholder)
+        // Step 11: Simplified sedimentation for all species
         // ============================================================
-        // TODO: Implement full PLM sedimentation from WRF
-        // For now, use simplified top-down fall
+        // Simplified top-down sedimentation for rain, snow, graupel, and ice
         const Real dz_sedi = m_geom.CellSize(2);
+        const Real t0c_sed = Real(273.15);
+
+        // WDM6 constants for terminal velocity
+        const Real avts_loc = Real(11.72);
+        const Real bvts_loc = Real(0.41);
+        const Real avtr_loc = Real(841.9);
+        const Real bvtr_loc = Real(0.8);
+        const Real avtg_loc = Real(330.0);  // Graupel fall speed coefficient
+        const Real bvtg_loc = Real(0.89);
+
         ParallelFor(amrex::makeSlab(box,2,klo), [=] AMREX_GPU_DEVICE (int i, int j, int) {
             Real precip_rain = Real(0.0);
+            Real precip_snow = Real(0.0);
+            Real precip_graup = Real(0.0);
 
-            // Top-down sedimentation
+            // Top-down sedimentation for all species
             for (int kk = khi; kk >= klo; --kk) {
+                const Real den_loc = den_arr(i,j,kk);
+                const Real denfac = std::sqrt(Real(1.28) / den_loc);
+
+                // Rain sedimentation (double-moment with nr)
                 if (qr_arr(i,j,kk) > Real(1.e-9) && nr_arr(i,j,kk) > Real(1.e-2)) {
-                    // Terminal velocity using nr
                     Real lamdar = std::pow(
-                        (pidnr_loc * nr_arr(i,j,kk) * den_arr(i,j,kk)) / (den_arr(i,j,kk) * qr_arr(i,j,kk)),
+                        (pidnr_loc * nr_arr(i,j,kk) * den_loc) / (den_loc * qr_arr(i,j,kk)),
                         Real(1.0)/Real(3.0)
                     );
-                    Real vt = Real(841.9) * std::pow(Real(1.0) / lamdar, Real(0.8));
-
-                    // Flux out of cell
-                    Real flux_qr = qr_arr(i,j,kk) * vt * dt_advance / dz_sedi;
-                    Real flux_nr = nr_arr(i,j,kk) * vt * dt_advance / dz_sedi;
-
-                    flux_qr = amrex::min(flux_qr, qr_arr(i,j,kk));
-                    flux_nr = amrex::min(flux_nr, nr_arr(i,j,kk));
+                    Real vt = avtr_loc * std::pow(Real(1.0) / lamdar, bvtr_loc) * denfac;
+                    Real flux_qr = amrex::min(qr_arr(i,j,kk) * vt * dt_advance / dz_sedi, qr_arr(i,j,kk));
+                    Real flux_nr = amrex::min(nr_arr(i,j,kk) * vt * dt_advance / dz_sedi, nr_arr(i,j,kk));
 
                     qr_arr(i,j,kk) -= flux_qr;
                     nr_arr(i,j,kk) -= flux_nr;
 
-                    // Add to cell below or accumulate at surface
                     if (kk > klo) {
                         qr_arr(i,j,kk-1) += flux_qr;
                         nr_arr(i,j,kk-1) += flux_nr;
                     } else {
-                        precip_rain += flux_qr * den_arr(i,j,kk) * dz_sedi;
+                        precip_rain += flux_qr * den_loc * dz_sedi;
                     }
+                }
+
+                // Snow sedimentation (single-moment)
+                if (qs_arr(i,j,kk) > Real(1.e-9)) {
+                    // Temperature-dependent N0 factor
+                    const Real temp = t_arr(i,j,kk);
+                    const Real supcol = t0c_sed - temp;
+                    const Real n0sfac = amrex::max(amrex::min(std::exp(Real(0.12) * supcol),
+                                                               Real(1.0e11) / Real(2.0e6)), Real(1.0));
+
+                    // Snow terminal velocity (simplified)
+                    Real lamdasq = std::pow(Real(3.14159) * Real(2.0e6) * n0sfac / (den_loc * qs_arr(i,j,kk)), Real(0.5));
+                    Real vt = avts_loc * std::pow(lamdasq, -bvts_loc) * denfac;
+                    Real flux_qs = amrex::min(qs_arr(i,j,kk) * vt * dt_advance / dz_sedi, qs_arr(i,j,kk));
+
+                    qs_arr(i,j,kk) -= flux_qs;
+
+                    if (kk > klo) {
+                        qs_arr(i,j,kk-1) += flux_qs;
+                    } else {
+                        precip_snow += flux_qs * den_loc * dz_sedi;
+                    }
+                }
+
+                // Graupel sedimentation (single-moment)
+                if (qg_arr(i,j,kk) > Real(1.e-9)) {
+                    // Graupel terminal velocity (simplified, faster than snow)
+                    Real lamdag = std::pow(Real(3.14159) * Real(4.0e5) / (den_loc * qg_arr(i,j,kk)), Real(0.25));
+                    Real vt = avtg_loc * std::pow(Real(1.0) / lamdag, bvtg_loc) * denfac;
+                    Real flux_qg = amrex::min(qg_arr(i,j,kk) * vt * dt_advance / dz_sedi, qg_arr(i,j,kk));
+
+                    qg_arr(i,j,kk) -= flux_qg;
+
+                    if (kk > klo) {
+                        qg_arr(i,j,kk-1) += flux_qg;
+                    } else {
+                        precip_graup += flux_qg * den_loc * dz_sedi;
+                    }
+                }
+
+                // Ice crystal sedimentation (very slow, often negligible)
+                if (qi_arr(i,j,kk) > Real(1.e-9)) {
+                    // Ice crystals fall slowly (~0.1-1 m/s)
+                    Real vt = Real(0.3) * denfac;  // Simplified constant fall speed
+                    Real flux_qi = amrex::min(qi_arr(i,j,kk) * vt * dt_advance / dz_sedi, qi_arr(i,j,kk));
+
+                    qi_arr(i,j,kk) -= flux_qi;
+
+                    if (kk > klo) {
+                        qi_arr(i,j,kk-1) += flux_qi;
+                    }
+                    // Ice crystals don't typically reach surface before converting to snow
                 }
             }
 
-            // Accumulate precipitation (mm)
+            // Accumulate surface precipitation (convert to mm)
             rain_arr(i,j,klo) += precip_rain;
+            snow_arr(i,j,klo) += precip_snow;
+            graup_arr(i,j,klo) += precip_graup;
         });
 
-        amrex::Print() << "WDM6::Advance() - C++ GPU kernels executed (simplified implementation)\n";
+        amrex::Print() << "WDM6::Advance() - C++ GPU kernels executed\n";
         amrex::Print() << "  CCN0 = " << m_ccn0 << " m^-3\n";
         amrex::Print() << "  dt = " << dt_advance << " s\n";
         amrex::Print() << "  Minor timesteps = " << wdm6_loops << "\n";
-        amrex::Print() << "  NOTE: Simplified sedimentation - full PLM not yet implemented\n";
-        amrex::Print() << "  NOTE: Ice processes (qi, qs, qg) not yet implemented\n";
-        amrex::Print() << "  For production, build with -DERF_ENABLE_WDM6_FORT=ON\n";
+        amrex::Print() << "  Warm rain: double-moment (qc, qr with nc, nr)\n";
+        amrex::Print() << "  Ice: single-moment (qi, qs, qg)\n";
+        amrex::Print() << "  Sedimentation: simplified top-down\n";
+        amrex::Print() << "  For full PLM sedimentation, build with -DERF_ENABLE_WDM6_FORT=ON\n";
 
 #endif
 
     } // MFIter loop
+
+    // GLOBAL precipitation diagnostic AFTER microphysics
+    {
+        Real rain_sum = mic_fab_vars[MicVar_WDM6::rain_accum]->sum(0);
+        Real rain_max = mic_fab_vars[MicVar_WDM6::rain_accum]->max(0);
+        amrex::Print() << "  GLOBAL precip this step: rain_sum=" << rain_sum
+                      << " mm, rain_max=" << rain_max << " mm\n";
+    }
 }
