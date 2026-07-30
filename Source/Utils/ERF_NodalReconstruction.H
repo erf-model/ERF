@@ -16,19 +16,26 @@
 
 #include "ERF_Constants.H"
 
+enum class VariationOperator
+{
+    FirstDeriv,
+    Laplacian
+};
+
+struct SolveInfo {
+    int iterations = 0;
+    amrex::Real final_residual = zero;
+    bool converged = false;
+};
+
 class NodalReconstruction
 {
 public:
     using Real   = amrex::Real;
     using Vector = amrex::Vector<Real>;
 
-    struct SolveInfo {
-        int iterations = 0;
-        Real final_residual = zero;
-        bool converged = false;
-    };
-
-    explicit NodalReconstruction (amrex::Box const& face_box)
+    explicit NodalReconstruction (amrex::Box const& face_box,
+                                  amrex::Geometry const& geom)
         : m_face_box(face_box),
           m_ilo(face_box.smallEnd(0)),
           m_ihi(face_box.bigEnd(0)),
@@ -46,6 +53,9 @@ public:
         m_nodal_box = amrex::surroundingNodes(face_box);
         m_nodal_box.setSmall(2, 0);
         m_nodal_box.setBig(2, 0);
+
+        m_dx = geom.CellSizeArray()[0];
+        m_dy = geom.CellSizeArray()[1];
     }
 
     [[nodiscard]] int boundaryCount () const noexcept {
@@ -61,7 +71,7 @@ public:
         auto const T_arr = T.const_array();
         Vector b(static_cast<std::size_t>(m_boundary_count), zero);
 
-        b[bottomIndex(0)] = T_arr(m_ilo, m_jlo, 0);
+        b[bottomIndex(0)]         = T_arr(m_ilo, m_jlo, 0);
         for (int ii = 1; ii < m_nx; ++ii) {
             int const i = m_ilo + ii;
             b[bottomIndex(ii)] = myhalf * ( T_arr(i-1, m_jlo, 0) + T_arr(i,  m_jlo, 0) );
@@ -78,18 +88,21 @@ public:
 
     [[nodiscard]] std::pair<amrex::FArrayBox,SolveInfo> solve (amrex::FArrayBox const& T,
                                                                Vector const& boundary_reference,
-                                                               Real epsilon = Real(1.e-8),
+                                                               VariationOperator var_op,
+                                                               Real epsilon = Real(1.e-3),
                                                                Real relative_tolerance = Real(1.e-8),
-                                                               int max_iterations = 100) const
+                                                               int max_iterations = 100)
     {
+        m_var_op = var_op;
+
         amrex::FArrayBox c(m_nodal_box,1);
         computeParticularSolution(T,c);
 
-        amrex::FArrayBox dtd_c(m_nodal_box,1);
-        applyDTD(c,dtd_c);
+        amrex::FArrayBox vtv_c(m_nodal_box,1);
+        applyVariationOperator(c,vtv_c);
 
         Vector rhs;
-        applyGT(dtd_c,rhs);
+        applyGT(vtv_c,rhs);
         for (int m=0; m<m_boundary_count; ++m) {
             auto const k = static_cast<std::size_t>(m);
             rhs[k] = -rhs[k] + epsilon*boundary_reference[k];
@@ -114,7 +127,7 @@ public:
 
         for (int j=m_jlo; j<=m_jhi; ++j) {
             for (int i=m_ilo; i<=m_ihi; ++i) {
-                S_arr(i+1,j+1,0) = Real(4.0) * T_arr(i,j,0)
+                S_arr(i+1,j+1,0) = four * T_arr(i,j,0)
                                  - S_arr(i,  j  , 0)
                                  - S_arr(i+1,j  , 0)
                                  - S_arr(i,  j+1, 0);
@@ -152,11 +165,17 @@ private:
     int m_nx=0;
     int m_ny=0;
     int m_boundary_count=0;
+    amrex::Real m_dx;
+    amrex::Real m_dy;
+    VariationOperator m_var_op;
 
-    [[nodiscard]] std::size_t bottomIndex (int ii) const noexcept {
+    [[nodiscard]] std::size_t bottomIndex (int ii) const noexcept
+    {
         return static_cast<std::size_t>(ii);
     }
-    [[nodiscard]] std::size_t leftIndex (int jj) const noexcept {
+
+    [[nodiscard]] std::size_t leftIndex (int jj) const noexcept
+    {
         return static_cast<std::size_t>(m_nx+jj);
     }
 
@@ -191,7 +210,7 @@ private:
         auto const c_arr=c.array();
         for (int j=m_jlo; j<=m_jhi; ++j) {
             for (int i=m_ilo; i<=m_ihi; ++i) {
-                c_arr(i+1,j+1,0) = Real(4.0) * T_arr(i,j,0)
+                c_arr(i+1,j+1,0) = four * T_arr(i,j,0)
                                  - c_arr(i,  j  , 0)
                                  - c_arr(i+1,j  , 0)
                                  - c_arr(i,  j+1, 0);
@@ -214,26 +233,143 @@ private:
         }
     }
 
+    void applyD (amrex::FArrayBox const& S,
+                 amrex::FArrayBox& difx,
+                 amrex::FArrayBox& dify) const
+    {
+        difx.setVal(zero);
+        dify.setVal(zero);
+
+        auto const S_arr    = S.const_array();
+        auto const difx_arr = difx.array();
+        auto const dify_arr = dify.array();
+
+        const amrex::Real idx = one / m_dx;
+        const amrex::Real idy = one / m_dy;
+
+        for (int j = m_jlo; j <= m_jhi + 1; ++j) {
+            for (int i = m_ilo; i <= m_ihi; ++i) {
+                difx_arr(i, j, 0) = idx * ( S_arr(i+1, j, 0) - S_arr(i, j, 0) );
+            }
+        }
+
+        for (int j = m_jlo; j <= m_jhi; ++j) {
+            for (int i = m_ilo; i <= m_ihi + 1; ++i) {
+                dify_arr(i, j, 0) = idy * ( S_arr(i, j+1, 0) - S_arr(i, j, 0) );
+            }
+        }
+    }
+
+    void applyDT (amrex::FArrayBox const& difx,
+                  amrex::FArrayBox const& dify,
+                  amrex::FArrayBox& R) const
+    {
+        R.setVal(zero);
+
+        auto const qx_arr = difx.const_array();
+        auto const qy_arr = dify.const_array();
+        auto const R_arr  = R.array();
+
+        const amrex::Real idx = one / m_dx;
+        const amrex::Real idy = one / m_dy;
+
+        for (int j = m_jlo; j <= m_jhi + 1; ++j) {
+            for (int i = m_ilo; i <= m_ihi; ++i) {
+                R_arr(i  , j, 0) -= idx * qx_arr(i, j, 0);
+                R_arr(i+1, j, 0) += idx * qx_arr(i, j, 0);
+            }
+        }
+
+        for (int j = m_jlo; j <= m_jhi; ++j) {
+            for (int i = m_ilo; i <= m_ihi + 1; ++i) {
+                R_arr(i, j  , 0) -= idy * qy_arr(i, j, 0);
+                R_arr(i, j+1, 0) += idy * qy_arr(i, j, 0);
+            }
+        }
+
+    }
+
     void applyDTD (amrex::FArrayBox const& S,
                    amrex::FArrayBox& R) const
     {
-        R.setVal(zero);
-        auto const S_arr = S.const_array();
-        auto const R_arr = R.array();
+        amrex::Box x_edge_box = m_nodal_box;
+        amrex::Box y_edge_box = m_nodal_box;
+        x_edge_box.growHi(0,-1);
+        y_edge_box.growHi(1,-1);
+        amrex::FArrayBox difx(x_edge_box, 1);
+        amrex::FArrayBox dify(y_edge_box, 1);
+        applyD(S, difx, dify);
+        applyDT(difx, dify, R);
+    }
 
-        for (int j=m_jlo; j<=m_jhi+1; ++j) {
-            for (int i=m_ilo; i<=m_ihi; ++i) {
-                Real const d = S_arr(i+1,j,0) - S_arr(i,j,0);
-                R_arr(i  ,j,0) -= d;
-                R_arr(i+1,j,0) += d;
+    void applyL (amrex::FArrayBox const& S,
+                 amrex::FArrayBox& lap) const
+    {
+        lap.setVal(zero);
+
+        auto const S_arr   = S.const_array();
+        auto const lap_arr = lap.array();
+
+        const amrex::Real idx2 = one / (m_dx * m_dx);
+        const amrex::Real idy2 = one / (m_dy * m_dy);
+
+        for (int j = m_jlo; j <= m_jhi; ++j) {
+            for (int i = m_ilo; i <= m_ihi; ++i) {
+                amrex::Real im_val = (i==m_ilo) ? S_arr(i, j, 0) : S_arr(i-1, j  , 0);
+                amrex::Real ip_val = (i==m_ihi) ? S_arr(i, j, 0) : S_arr(i+1, j  , 0);
+                amrex::Real jm_val = (j==m_jlo) ? S_arr(i, j, 0) : S_arr(i  , j-1, 0);
+                amrex::Real jp_val = (j==m_jhi) ? S_arr(i, j, 0) : S_arr(i  , j+1, 0);
+                lap_arr(i, j, 0) = idx2 * ( ip_val - two * S_arr(i, j, 0) + im_val )
+                                 + idy2 * ( jp_val - two * S_arr(i, j, 0) + jm_val );
             }
         }
-        for (int j=m_jlo; j<=m_jhi; ++j) {
-            for (int i=m_ilo; i<=m_ihi+1; ++i) {
-                Real const d = S_arr(i,j+1,0) - S_arr(i,j,0);
-                R_arr(i,j  ,0) -= d;
-                R_arr(i,j+1,0) += d;
+    }
+
+    void applyLT (amrex::FArrayBox const& lap,
+                  amrex::FArrayBox& R) const
+    {
+        R.setVal(zero);
+
+        auto const q_arr = lap.const_array();
+        auto const R_arr = R.array();
+
+        const amrex::Real idx2 = one / (m_dx * m_dx);
+        const amrex::Real idy2 = one / (m_dy * m_dy);
+
+        for (int j = m_jlo + 1; j <= m_jhi; ++j) {
+            for (int i = m_ilo + 1; i <= m_ihi; ++i) {
+                const amrex::Real val = q_arr(i, j, 0);
+                R_arr(i-1, j  , 0) += idx2 * val;
+                R_arr(i+1, j  , 0) += idx2 * val;
+                R_arr(i  , j-1, 0) += idy2 * val;
+                R_arr(i  , j+1, 0) += idy2 * val;
+                R_arr(i  , j  , 0) -= two * (idx2 + idy2) * val;
             }
+        }
+    }
+
+    void applyLTL (amrex::FArrayBox const& S,
+                   amrex::FArrayBox& R) const
+    {
+        amrex::FArrayBox lap(m_nodal_box, 1);
+        applyL(S, lap);
+        applyLT(lap, R);
+    }
+
+    void applyVariationOperator (amrex::FArrayBox const& S,
+                                 amrex::FArrayBox& R) const
+    {
+        switch (m_var_op) {
+        case VariationOperator::FirstDeriv:
+            applyDTD(S, R);
+            break;
+
+        case VariationOperator::Laplacian:
+            applyLTL(S, R);
+            break;
+
+        default:
+            throw std::runtime_error("Unsupported variation operator.");
         }
     }
 
@@ -262,7 +398,7 @@ private:
         amrex::FArrayBox Gv(m_nodal_box,1);
         amrex::FArrayBox q(m_nodal_box,1);
         applyG(v,Gv);
-        applyDTD(Gv,q);
+        applyVariationOperator(Gv,q);
         applyGT(q,Hv);
         for (int m=0; m<m_boundary_count; ++m) {
             auto const k=static_cast<std::size_t>(m);

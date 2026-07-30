@@ -69,6 +69,7 @@ compute_terrain_top_and_bottom (const MultiFab& mf_PH,
 
 void
 init_terrain_from_wrfinput (int lev,
+                            Geometry& geom,
                             const Real& z_top,
                             const Box& subdomain,
                             MultiFab* z_phys,
@@ -1056,7 +1057,7 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev)
         // Initialize the terrain itself
         // **************************************************************************
         Real dz0_max;
-        init_terrain_from_wrfinput(lev, z_top, boxes_at_level[lev][0], z_phys_nd[lev].get(),
+        init_terrain_from_wrfinput(lev, geom[lev], z_top, boxes_at_level[lev][0], z_phys_nd[lev].get(),
                                    mf_PH, *mf_PHB, dz0_max, solverChoice.use_wrf_height_grid);
         z_phys_nd[lev]->FillBoundary(geom[lev].periodicity());
         if (!solverChoice.use_wrf_height_grid) {
@@ -1068,7 +1069,7 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev)
             int max_iter = 20;
 
             int iter   = 0;
-            Real Nz    = static_cast<Real>(zlevels_stag[lev].size());
+            Real Nz    = static_cast<Real>(zlevels_stag[lev].size() - 1);
             Real SFact = Real(1.03);
             Real F     = dz0_max * ( (std::pow(SFact,Nz) - one) / (SFact - one) ) - z_top;
             while (std::fabs(F)>tol && iter<max_iter) {
@@ -1090,6 +1091,8 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev)
                 zlevels_stag[lev][k] = zlevels_stag[lev][k-1] + dz;
                 dz *= SFact;
             }
+            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(std::fabs(zlevels_stag[lev].back() - z_top) <= tol,
+                "Top of zlevels_stag does not match z_top!\n");
             make_terrain_fitted_coords(lev, geom[lev], *z_phys_nd[lev], zlevels_stag[lev], phys_bc_type);
         }
 
@@ -1870,6 +1873,7 @@ compute_terrain_top_and_bottom (const MultiFab& mf_PH,
  */
 void
 init_terrain_from_wrfinput (int /*lev*/,
+                            Geometry& geom,
                             const Real& z_top,
                             const Box& subdomain,
                             MultiFab* z_phys,
@@ -1930,10 +1934,20 @@ init_terrain_from_wrfinput (int /*lev*/,
 
         // Solve for node values that average to WRF z-face values
         // while minimizing the first derivative
-        NodalReconstruction NR_solver(z_face_dom_slice);
+#ifdef AMREX_USE_FLOAT
+        const Real tol = Real(1.e-4);
+#else
+        const Real tol = Real(1.e-8);
+#endif
+        NodalReconstruction NR_solver(z_face_dom_slice, geom);
         auto boundary = NR_solver.makeBoundaryFromT(z_slice_wrf);
-        auto result   = NR_solver.solve(z_slice_wrf, boundary);
+        std::pair<amrex::FArrayBox,SolveInfo> result = NR_solver.solve(z_slice_wrf, boundary, VariationOperator::Laplacian, Real(1.e-3), tol);
         const Array4<Real>& z_slice_erf_arr = result.first.array();
+        if (!result.second.converged) {
+            Print() << "WARNING: Nodal reconstruction did not converge at k = " << k
+                    << "; residual is: " << result.second.final_residual
+                    << " and requested tolerance was: " << tol << "\n";
+        }
 
         // Store the surface
         if (k==kstart) {
