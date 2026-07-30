@@ -71,15 +71,15 @@ amrex::Real erf_esatw_cc (amrex::Real t) {
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 amrex::Real erf_esatw_flatau_poly (amrex::Real dtt)
 {
-    amrex::Real const a0 = amrex::Real(6.11239921);
-    amrex::Real const a1 = amrex::Real(0.443987641);
-    amrex::Real const a2 = amrex::Real(0.142986287e-1);
-    amrex::Real const a3 = amrex::Real(0.264847430e-3);
-    amrex::Real const a4 = amrex::Real(0.302950461e-5);
-    amrex::Real const a5 = amrex::Real(0.206739458e-7);
-    amrex::Real const a6 = amrex::Real(0.640689451e-10);
-    amrex::Real const a7 = -amrex::Real(0.952447341e-13);
-    amrex::Real const a8 = -amrex::Real(0.976195544e-15);
+    constexpr amrex::Real a0 = amrex::Real(6.11239921);
+    constexpr amrex::Real a1 = amrex::Real(0.443987641);
+    constexpr amrex::Real a2 = amrex::Real(0.142986287e-1);
+    constexpr amrex::Real a3 = amrex::Real(0.264847430e-3);
+    constexpr amrex::Real a4 = amrex::Real(0.302950461e-5);
+    constexpr amrex::Real a5 = amrex::Real(0.206739458e-7);
+    constexpr amrex::Real a6 = amrex::Real(0.640689451e-10);
+    constexpr amrex::Real a7 = -amrex::Real(0.952447341e-13);
+    constexpr amrex::Real a8 = -amrex::Real(0.976195544e-15);
 
     return a0 + dtt*(a1+dtt*(a2+dtt*(a3+dtt*(a4+dtt*(a5+dtt*(a6+dtt*(a7+a8*dtt)))))));
 }
@@ -87,17 +87,16 @@ amrex::Real erf_esatw_flatau_poly (amrex::Real dtt)
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 amrex::Real erf_dtesatw_flatau_poly (amrex::Real dtt)
 {
-    amrex::Real const a0 = amrex::Real(0.443956472);
-    amrex::Real const a1 = amrex::Real(0.285976452e-1);
-    amrex::Real const a2 = amrex::Real(0.794747212e-3);
-    amrex::Real const a3 = amrex::Real(0.121167162e-4);
-    amrex::Real const a4 = amrex::Real(0.103167413e-6);
-    amrex::Real const a5 = amrex::Real(0.385208005e-9);
-    amrex::Real const a6 = -amrex::Real(0.604119582e-12);
-    amrex::Real const a7 = -amrex::Real(0.792933209e-14);
-    amrex::Real const a8 = -amrex::Real(0.599634321e-17);
+    constexpr amrex::Real a1 = amrex::Real(0.443987641);
+    constexpr amrex::Real a2 = amrex::Real(0.142986287e-1);
+    constexpr amrex::Real a3 = amrex::Real(0.264847430e-3);
+    constexpr amrex::Real a4 = amrex::Real(0.302950461e-5);
+    constexpr amrex::Real a5 = amrex::Real(0.206739458e-7);
+    constexpr amrex::Real a6 = amrex::Real(0.640689451e-10);
+    constexpr amrex::Real a7 = -amrex::Real(0.952447341e-13);
+    constexpr amrex::Real a8 = -amrex::Real(0.976195544e-15);
 
-    return a0 + dtt*(a1+dtt*(a2+dtt*(a3+dtt*(a4+dtt*(a5+dtt*(a6+dtt*(a7+a8*dtt)))))));
+    return a1 + dtt*(amrex::Real(2.0)*a2 + dtt*(amrex::Real(3.0)*a3 + dtt*(amrex::Real(4.0)*a4 + dtt*(amrex::Real(5.0)*a5 + dtt*(amrex::Real(6.0)*a6 + dtt*(amrex::Real(7.0)*a7 + amrex::Real(8.0)*a8*dtt))))));
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
@@ -183,7 +182,21 @@ amrex::Real erf_dtesatw_cc (amrex::Real t) {
 // at the switch because the Flatau polynomial and Magnus-style exponential
 // approximation are independent fits rather than a matched composite model.
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-amrex::Real erf_dtesatw (amrex::Real t) {
+amrex::Real erf_dtesatw (amrex::Real t, bool use_empirical=false) {
+    if (use_empirical) {
+        constexpr amrex::Real t0 = amrex::Real(273.15);
+        constexpr amrex::Real b   = amrex::Real(34.494);
+        constexpr amrex::Real c1  = amrex::Real(4924.99);
+        constexpr amrex::Real c2  = amrex::Real(237.1);
+        constexpr amrex::Real d   = amrex::Real(105.0);
+        constexpr amrex::Real n   = amrex::Real(1.57);
+
+        amrex::Real x = t - t0;
+        amrex::Real esatw = amrex::Real(0.01) * std::exp(b - c1/(x + c2)) / std::pow(x + d, n);
+        amrex::Real dln = c1 / ((x + c2) * (x + c2)) - n / (x + d);
+        return esatw * dln;
+    }
+
     if (erf_use_positive_esatw_poly(t)) {
         return erf_dtesatw_flatau_poly(t - amrex::Real(273.16));
     }
