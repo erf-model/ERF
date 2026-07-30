@@ -2036,6 +2036,9 @@ List of Parameters
 +-------------------------------------+----------------------------------------+-------------------+-----------------------------------+
 | **erf.rad_do_subcol_sampling**      | Enable MCICA subcolumn sampling        | true / false      | true                              |
 +-------------------------------------+----------------------------------------+-------------------+-----------------------------------+
+| **erf.rad_use_shoc_cldfrac**        | Use Native SHOC diagnosed liquid-cloud | true / false      | true                              |
+|                                     | fraction in RRTMGP when available      |                   |                                   |
++-------------------------------------+----------------------------------------+-------------------+-----------------------------------+
 | **erf.rad_orbital_year**            | Fixed orbital year for zenith calcs    | Integer           | < 0 uses timestamp year           |
 +-------------------------------------+----------------------------------------+-------------------+-----------------------------------+
 | **erf.rad_orbital_eccentricity**    | Override orbital eccentricity          | Real              | < 0 uses computed value           |

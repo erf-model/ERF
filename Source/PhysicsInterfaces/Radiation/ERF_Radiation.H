@@ -39,6 +39,7 @@
 #include <ERF_IndexDefines.H>
 #include <ERF_DataStruct.H>
 #include <ERF_EOS.H>
+#include <ERF_RadiationCloudFraction.H>
 
 #include <ERF_LandSurface.H>
 
@@ -100,6 +101,7 @@ public:
          const amrex::BoxArray& ba,
          amrex::Geometry& geom,
          amrex::MultiFab* cons_in,
+         const amrex::MultiFab* liquid_cloud_fraction,
          amrex::iMultiFab* lmask,
          amrex::MultiFab*  t_surf,
          amrex::Vector<amrex::MultiFab*>& lsm_input_ptrs,
@@ -112,7 +114,7 @@ public:
          const bool updated_lsm) override
     {
         set_grids(level, step, time, dt, ba, geom,
-                  cons_in, lmask, t_surf,
+                  cons_in, liquid_cloud_fraction, lmask, t_surf,
                   lsm_input_ptrs, qheating_rates,
                   rad_fluxes, z_phys, lat_ptr, lon_ptr,
                   updated_lsm);
@@ -128,6 +130,7 @@ public:
                const amrex::BoxArray& ba,
                amrex::Geometry& geom,
                amrex::MultiFab* cons_in,
+               const amrex::MultiFab* liquid_cloud_fraction,
                amrex::iMultiFab* lmask,
                amrex::MultiFab*  t_surf,
                amrex::Vector<amrex::MultiFab*>& lsm_input_ptrs,
@@ -245,6 +248,7 @@ private:
     // Do we have moisture and cold comps?
     bool m_moist = false;
     bool m_ice   = false;
+    bool m_use_shoc_cldfrac = true;
 
     // Do we have a land surface model?
     bool m_lsm   = false;
@@ -265,6 +269,9 @@ private:
 
     // Pointer to the CC conserved vars
     amrex::MultiFab* m_cons_in = nullptr;
+
+    // Non-owning Native SHOC liquid-cloud fraction input.
+    const amrex::MultiFab* m_liquid_cloud_fraction = nullptr;
 
     // Pointer to the radiation source terms
     amrex::MultiFab* m_qheating_rates = nullptr;
@@ -411,6 +418,8 @@ private:
     real2d_k qv_lay;
     real2d_k qc_lay;
     real2d_k qi_lay;
+    real2d_k cldfrac_liq;
+    real2d_k cldfrac_ice;
     real2d_k cldfrac_tot;
     real2d_k eff_radius_qc;
     real2d_k eff_radius_qi;

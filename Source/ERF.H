@@ -462,7 +462,8 @@ public:
 
     void advance_radiation (int lev,
                             amrex::MultiFab& cons_in,
-                            const double& dt_advance);
+                            const double& dt_advance,
+                            const amrex::MultiFab* liquid_cloud_fraction = nullptr);
 
 #ifdef ERF_USE_EAMXX_SHOC
     void compute_shoc_tendencies (int lev,

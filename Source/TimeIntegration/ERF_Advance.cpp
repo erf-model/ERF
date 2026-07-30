@@ -147,7 +147,13 @@ ERF::Advance (int lev, double time, double dt_lev, int iteration, int /*ncycle*/
     // **************************************************************************************
     // Update the radiation sources with the "old" state
     // **************************************************************************************
-    advance_radiation(lev, S_old, dt_lev);
+    const bool use_native_shoc_rad_coupling =
+        solverChoice.rad_type == RadiationType::RRTMGP &&
+        solverChoice.turbChoice[lev].uses_native_shoc();
+
+    if (!use_native_shoc_rad_coupling) {
+        advance_radiation(lev, S_old, dt_lev);
+    }
 
     // **************************************************************************************
     // Update the "old" state using SHOC
@@ -200,6 +206,13 @@ ERF::Advance (int lev, double time, double dt_lev, int iteration, int /*ncycle*/
                 }
             }
         }
+    }
+
+    if (use_native_shoc_rad_coupling) {
+        AMREX_ALWAYS_ASSERT(native_shoc_driver[lev]);
+        AMREX_ALWAYS_ASSERT(native_shoc_driver[lev]->has_native_diagnostics());
+        advance_radiation(lev, S_old, dt_lev,
+                          &native_shoc_driver[lev]->shoc_cldfrac_diagnostics());
     }
 
     const BoxArray&            ba = S_old.boxArray();

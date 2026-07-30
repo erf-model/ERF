@@ -30,6 +30,7 @@ public:
          const amrex::BoxArray& ba,
          amrex::Geometry& geom,
          amrex::MultiFab* cons_in,
+         const amrex::MultiFab* liquid_cloud_fraction,
          amrex::iMultiFab* lmask,
          amrex::MultiFab*  t_surf,
          amrex::Vector<amrex::MultiFab*>& lsm_input_ptrs,
