@@ -596,7 +596,7 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
                 // NOTE: do NOT write the MOST-fallback flux back into lsm_t_flux_arr.
                 // Doing so flips a sentinel (water/unprocessed) cell to "valid LSM"
                 // on the next step, so a MOST-derived value is re-read as an LSM flux
-                // (ERF #3446). Only Noah-MP should populate the LSM cache. Baseline 3ab899d3.
+                // Only Noah-MP should populate the LSM cache.
             }
 
             surface_source_arr(i,j,0) = surface_diagnostics::to_plot_value(
@@ -635,7 +635,7 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
                                                      umm_arr, qm_arr, u_star_arr,
                                                      q_star_arr, q_surf_arr);
                     // NOTE: no writeback into lsm_q_flux_arr -- see the matching
-                    // t_flux note above (ERF #3446 sentinel-becomes-valid). Baseline 3ab899d3.
+                    // t_flux note above.
                 }
 
                 // Do scalar flux rotations?
