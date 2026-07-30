@@ -5,6 +5,7 @@
 #include <vector>
 #include <memory>
 #include <limits>
+#include <functional>
 
 #include <AMReX_ParmParse.H>
 #include <AMReX_Interpolater.H>
@@ -311,6 +312,11 @@ public:
     }
 
 private:
+
+    // Runs fn(noahmpio) per local block on a land-owning MPI subcommunicator, so a
+    // rank with zero local boxes doesn't join the collective nf90_create in
+    // WriteLand/WriteRestart/ReadRestart. ERF_NOAHMP_IO.cpp.
+    void with_land_comm (const std::function<void(NoahmpIO_type&)>& fn) const;
 
     // lsm data var count = fixed 2D fields + runtime soil profile (3 x m_nsoil).
     // Finalized once m_nsoil is known; the fixed-field count is a safe lower bound.

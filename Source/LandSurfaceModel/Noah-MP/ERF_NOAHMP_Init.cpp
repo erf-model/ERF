@@ -194,11 +194,12 @@ NOAHMP::Init (const int& lev,
 
             // Compute initial values not supplied by the land file
             noahmpio->InitMain();
-
-            // Initial land plotfile (tag 0)
-            Print() << "Noah-MP writing lnd.nc file at lev: " << lev << std::endl;
-            noahmpio->WriteLand(0);
         }
+
+        // Initial land plotfile (tag 0); must run on the land-owning subcomm, not the
+        // full comm, or a land-free rank never joins the collective nf90_create.
+        Print() << "Noah-MP writing lnd.nc file at lev: " << lev << std::endl;
+        with_land_comm([](NoahmpIO_type& noahmpio) { noahmpio.WriteLand(0); });
 
         // Broadcast DTBL and the initial substep counter so the firing decision is
         // identical on every rank. Land-free ranks use max-reduction-losing sentinels.
