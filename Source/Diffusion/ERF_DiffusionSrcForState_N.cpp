@@ -105,7 +105,7 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
             bool ext_dir_on_xhi = ( (bc_ptr[bc_comp].hi(0) == ERFBCType::ext_dir)      ||
                                     (bc_ptr[bc_comp].hi(0) == ERFBCType::ext_dir_prim) ||
                                     (bc_ptr[bc_comp].hi(0) == ERFBCType::ext_dir_upwind && u(dom_hi.x+1,j,k) <= zero) );
-            ext_dir_on_xlo &= (i == dom_hi.x+1);
+            ext_dir_on_xhi &= (i == dom_hi.x+1);
 
             if (ext_dir_on_xlo) {
                 xflux(i,j,k) = -rhoAlpha * ( -(Real(8.)/three) * cell_prim(i-1, j, k, prim_index)

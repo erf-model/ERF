@@ -8,8 +8,8 @@ This page covers complete ERF regression cases. For focused GoogleTest cases,
 see :ref:`UnitTests`.
 
 ERF runs a set of CMake regression tests on every pull request. These tests use
-the AMReX version in the ERF submodule. Nightly GNU Make tests use the current
-AMReX development branch.
+the AMReX version in the ERF submodule. Nightly GNU Make tests use an AMReX
+build configured for the nightly environment.
 
 Results from the nightly CPU tests can be found here: `CPU tests`_
 
@@ -26,6 +26,9 @@ The following problems are currently tested in the CI:
 +===============================+==========+==========+==========+============+=======+=================================+
 | Bubble_Density_Current        | 256 4 64 | Symmetry | Periodic | SlipWall   | None  | moist bubble                    |
 |                               |          | Outflow  |          | SlipWall   |       |                                 |
++-------------------------------+----------+----------+----------+------------+-------+---------------------------------+
+| AnelasticWallDiffusion_X/Y/Z  | 8 12 17  |NoSlipWall|NoSlipWall| NoSlipWall | None  | rotated stationary linear-theta |
+|                               |          |          |          |            |       | wall-diffusion tests            |
 +-------------------------------+----------+----------+----------+------------+-------+---------------------------------+
 | CouetteFlow_x                 | 32 4  16 | Periodic | Periodic | NoSlipWall | None  | inhomogeneous                   |
 |                               |          |          |          | NoSlipWall |       | bc at zhi (u = 2)               |

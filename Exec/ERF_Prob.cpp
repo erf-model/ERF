@@ -121,6 +121,9 @@ Problem::init_custom_pert (
     else if (my_prob_name_ci == "eb poiseuille") {
 #include "Prob/ERF_InitCustomPert_EBPoiseuille.H"
     }
+    else if (my_prob_name_ci == "anelastic wall diffusion") {
+#include "Prob/ERF_InitCustomPert_AnelasticWallDiffusion.H"
+    }
     else if (my_prob_name_ci == "flow in a box") {
 #include "Prob/ERF_InitCustomPert_FlowInABox.H"
     }

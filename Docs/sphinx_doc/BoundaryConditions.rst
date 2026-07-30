@@ -54,35 +54,35 @@ for each type; this is summarized in the table below.
 ERF provides the ability to specify a variety of boundary conditions (BCs) in the inputs file.
 We use the following options preceded by ``xlo``, ``xhi``, ``ylo``, ``yhi``, ``zlo``, and ``zhi``:
 
-+---------------+--------------+----------------+----------------+--------------------------+---------------+
-| Type          | Normal vel   | Tangential vel | Density        | Theta                    | Scalar        |
-+===============+==============+================+================+==========================+===============+
-| inflow        | ext_dir      | ext_dir        | ext_dir        | ext_dir                  | ext_dir       |
-+---------------+--------------+----------------+----------------+--------------------------+---------------+
-| outflow       | foextrap     | foextrap       | foextrap       | foextrap                 | foextrap      |
-+---------------+--------------+----------------+----------------+--------------------------+---------------+
-| inflowoutflow | ext_dir if   | ext_dir if     | ext_dir if     | ext_dir if               | ext_dir if    |
-|               | inflowing;   | inflowing;     | inflowing;     | inflowing;               | inflowing;    |
-|               | otherwise    | otherwise      | otherwise      | otherwise                | otherwise     |
-|               | foextrap     | foextrap       | foextrap       | foextrap                 | foextrap      |
-+---------------+--------------+----------------+----------------+--------------------------+---------------+
-| slipwall      | ext_dir      | foextrap       | foextrap       | ext_dir/foextrap/neumann | foextrap      |
-+---------------+--------------+----------------+----------------+--------------------------+---------------+
-| noslipwall    | ext_dir      | ext_dir        | foextrap       | ext_dir/foextrap/neumann | foextrap      |
-+---------------+--------------+----------------+----------------+--------------------------+---------------+
-| symmetry      | reflect_odd  | reflect_even   | reflect_even   | reflect_even             | reflect_even  |
-+---------------+--------------+----------------+----------------+--------------------------+---------------+
-| surface_layer | ext_dir      | hoextrap       | hoextrap       | hoextrap                 | hoextrap      |
-+---------------+--------------+----------------+----------------+--------------------------+---------------+
++-----------------+----------------+------------------+------------------------------+---------------------------------------------+-----------------+
+| Type            | Normal vel     | Tangential vel   | Density                      | Theta                                       | Scalar          |
++=================+================+==================+==============================+=============================================+=================+
+| inflow          | ext_dir        | ext_dir          | ext_dir                      | ext_dir                                     | ext_dir         |
++-----------------+----------------+------------------+------------------------------+---------------------------------------------+-----------------+
+| outflow         | foextrap       | foextrap         | foextrap                     | foextrap                                    | foextrap        |
++-----------------+----------------+------------------+------------------------------+---------------------------------------------+-----------------+
+| inflowoutflow   | ext_dir if     | ext_dir if       | ext_dir if                   | ext_dir if                                  | ext_dir if      |
+|                 | inflowing;     | inflowing;       | inflowing;                   | inflowing;                                  | inflowing;      |
+|                 | otherwise      | otherwise        | otherwise                    | otherwise                                   | otherwise       |
+|                 | foextrap       | foextrap         | foextrap                     | foextrap                                    | foextrap        |
++-----------------+----------------+------------------+------------------------------+---------------------------------------------+-----------------+
+| slipwall        | ext_dir        | foextrap         | ext_dir / foextrap / neumann | ext_dir / ext_dir_prim / foextrap / neumann | foextrap        |
++-----------------+----------------+------------------+------------------------------+---------------------------------------------+-----------------+
+| noslipwall      | ext_dir        | ext_dir          | ext_dir / foextrap           | ext_dir / ext_dir_prim / foextrap / neumann | foextrap        |
++-----------------+----------------+------------------+------------------------------+---------------------------------------------+-----------------+
+| symmetry        | reflect_odd    | reflect_even     | reflect_even                 | reflect_even                                | reflect_even    |
++-----------------+----------------+------------------+------------------------------+---------------------------------------------+-----------------+
+| surface_layer   | ext_dir        | hoextrap         | hoextrap                     | hoextrap                                    | hoextrap        |
++-----------------+----------------+------------------+------------------------------+---------------------------------------------+-----------------+
 
 Here ``ext_dir``, ``foextrap``, and ``reflect_even`` refer to AMReX keywords.   The ``ext_dir`` type
 refers to an "external Dirichlet" boundary, which means the values must be specified by the user.
 The ``foextrap`` type refers to "first order extrapolation" which sets all the ghost values to the
 same value in the last valid cell/face. By contrast, ``hoextrap``, or "higher order extrapolation",
-does a linear extrapolation from the two nearest valid values. The ``neumann`` condition
-is an ERF-specific boundary type that allows a user to specify a variable gradient. Currently, the
-``neumann`` BC is only supported for theta to allow for weak capping inversion
-(:math:`\partial \theta / \partial z`) at the top domain. The ``surface_layer`` condition is an ERF-specific
+does a linear extrapolation from the two nearest valid values. The ``neumann`` condition is an
+ERF-specific boundary type for a specified variable gradient. It is supported for theta on
+``slipwall`` and ``noslipwall`` faces and for density on compressible ``slipwall`` faces. The
+``surface_layer`` condition is an ERF-specific
 boundary type that employs the above set of boundary conditions but also directly specifies the
 subgrid scale diffusive fluxes; see :ref:`sec:surface_layer` for more information.
 
@@ -141,11 +141,32 @@ rho*theta. To specify rho*theta instead, ``xlo.read_prim_theta = false`` should 
     xlo.theta               =   300.
     xlo.scalar              =   2.
 
-The ``slipwall`` and ``noslipwall`` types have options for adiabatic vs Dirichlet boundary conditions.
-If a value for theta is given for a face with type ``slipwall`` or ``noslipwall`` then the boundary
-condition for theta is assumed to be "ext_dir", i.e. theta is specified on the boundary.
-If no value is specified then the wall is assumed to be adiabiatc, i.e. there is no temperature
-flux at the boundary.  This is enforced with the "foextrap" designation.
+Scalar values at solid walls
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Solid-wall scalar inputs are independent on each physical face. A value or
+gradient is interpreted using the density policy on that same face; inputs on
+one face do not change another face. Presence is explicit, so a numerical zero
+is a valid input. Fixed wall values are specified at the physical wall face,
+including for cell-centered state data.
+
+For both ``slipwall`` and ``noslipwall`` faces, ``theta`` and ``theta_grad``
+are supported and are mutually exclusive. On ``noslipwall`` faces, primitive
+``qv`` is also supported; ``qv = 0.0`` requests an explicitly dry wall.
+Supported wall inputs are specified in primitive form. On compressible
+``slipwall`` and ``noslipwall`` faces, same-face ``density`` may
+be supplied so ERF stores the corresponding conserved value. ``density_grad``
+is supported only on compressible ``slipwall`` faces; supplying it on a
+``noslipwall`` face is an input error. Anelastic solid walls must omit both
+``density`` and ``density_grad``.
+
+For every supported variable, a fixed value and its corresponding gradient on
+the same face are mutually exclusive.
+
+When same-face density is omitted, a specified ``theta`` or ``qv`` remains a
+primitive wall value. Omitting both ``theta`` and ``theta_grad`` gives an
+adiabatic, extrapolated theta boundary. A specified gradient uses the
+coordinate direction of the face keyword.
 
 For example
 
@@ -185,10 +206,6 @@ Couette regression test example, in which we specify
 
 We also note that in the case of a ``slipwall`` boundary condition in a simulation with non-zero
 viscosity specified, the "foextrap" boundary condition enforces zero strain at the wall.
-
-It is important to note that external Dirichlet boundary data should be specified
-as the value on the face of the cell bounding the domain, even for cell-centered
-state data.
 
 Real Domain BCs
 ----------------------
