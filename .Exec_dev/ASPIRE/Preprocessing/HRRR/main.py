@@ -8,7 +8,7 @@ from numpy import *
 import time
 
 from Download_HRRRData import Download_HRRR_ForecastData
-from ReadHRRRDataAndWriteOutput import ReadHRRR_3DData 
+from ReadHRRRDataAndWriteOutput import ReadHRRR_3DData
 def CreateLCCMapping(area):
 
     lat1 = area[2]
@@ -30,7 +30,7 @@ def CreateLCCMapping(area):
     )
 
     return lambert_conformal
-    
+
 if __name__ == "__main__":
 
     comm = MPI.COMM_WORLD
@@ -49,7 +49,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--do_forecast", type=lambda x: x.lower() == "true", default=False,
         help="Set to true to download forecast data"
-    )   
+    )
 
     # Forecast args (only required if --do_forecast is set)
     parser.add_argument("--forecast_time_hours", type=int,
@@ -99,7 +99,7 @@ if __name__ == "__main__":
             ReadHRRR_3DData(filename, area, lambert_conformal)
 
     comm.Barrier()
-    
+
     end_time = time.time()
     elapsed = end_time - start_time
 
