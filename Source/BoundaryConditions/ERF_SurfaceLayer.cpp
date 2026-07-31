@@ -782,7 +782,7 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
             flux_type == FluxCalcType::DONELAN    ||
             flux_type == FluxCalcType::CUSTOM     ||
             flux_type == FluxCalcType::RICO) {
-            constexpr double eps = std::numeric_limits<float>::epsilon();
+            constexpr Real eps = std::numeric_limits<Real>::epsilon();
             bool l_use_moisture = use_moisture;
             ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int /*k*/)
             {
