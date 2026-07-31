@@ -510,6 +510,8 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
         auto hfx3_arr = zheat_flux->array(mfi);
         auto qfx3_arr = (zqv_flux)  ? zqv_flux->array(mfi)   : Array4<Real>{};
 
+        auto olen_arr   = olen[lev]->array(mfi);
+
         // Rotated stress vars
         auto t11_arr = (m_rotate) ? Tau_lev[TauType::tau11]->array(mfi) : Array4<Real>{};
         auto t22_arr = (m_rotate) ? Tau_lev[TauType::tau22]->array(mfi) : Array4<Real>{};
@@ -770,6 +772,38 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
                                      t23_arr, t32_arr);
                 });
         }
+
+        constexpr double eps = std::numeric_limits<float>::epsilon();
+        bool l_use_moisture = use_moisture;
+        ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int /*k*/)
+        {
+            int is_land = (lmask_arr) ? lmask_arr(i,j,0) : 1;
+            // Skip cells the LSM did not have a valid flux (lsm_undefined).
+            if (is_land && lsm_t_flux_arr && lsm_t_flux_arr(i,j,0) < lsm_undefined) {
+                Real rho = cons_arr(i,j,klo,Rho_comp);
+                Real Thd = cons_arr(i,j,klo,RhoTheta_comp) / rho;
+                Real qv  = (l_use_moisture) ? cons_arr(i,j,klo,RhoQ1_comp) / rho : zero;
+                Real Thv = Thd * (one + epsv*qv);
+
+                Real tau = std::sqrt( t13_arr(i,j,klo)*t13_arr(i,j,klo)
+                                    + t23_arr(i,j,klo)*t23_arr(i,j,klo) );
+                u_star_arr(i,j,0) = amrex::max(std::sqrt(tau),eps);
+
+                if (hfx3_arr(i,j,klo)>=zero) {
+                    t_star_arr(i,j,0) = amrex::min(-hfx3_arr(i,j,klo) / u_star_arr(i,j,0),-eps);
+                } else {
+                    t_star_arr(i,j,0) = amrex::max(-hfx3_arr(i,j,klo) / u_star_arr(i,j,0),eps);
+                }
+                if (qfx3_arr(i,j,klo)>=zero) {
+                    q_star_arr(i,j,0) = amrex::min(-qfx3_arr(i,j,klo) / u_star_arr(i,j,0),-eps);
+                } else {
+                    q_star_arr(i,j,0) = amrex::max(-qfx3_arr(i,j,klo) / u_star_arr(i,j,0),eps);
+                }
+                olen_arr(i,j,0)   = ( u_star_arr(i,j,0) * u_star_arr(i,j,0) * Thv ) /
+                                       ( KAPPA * CONST_GRAV * t_star_arr(i,j,0) );
+            }
+        });
+
     } // mfiter
 
     surface_diagnostic_source[lev]->FillBoundary(m_geom[lev].periodicity());
