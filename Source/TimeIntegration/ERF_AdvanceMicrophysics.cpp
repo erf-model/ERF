@@ -23,7 +23,8 @@ void ERF::advance_microphysics (int lev,
         const auto micro_state_before = cloud_chamber_budget ?
             cloud_chamber_budget->state_integrals(cons, geom[lev]) :
             std::array<Real, CloudChamberBudget::NumScalars>{};
-        micro->Update_Micro_Vars_Lev(lev, cons);
+        const amrex::MultiFab* base = solverChoice.anelastic[lev] ? &base_state[lev] : nullptr;
+        micro->Update_Micro_Vars_Lev(lev, cons, base);
         micro->Advance(lev, static_cast<Real>(dt_advance), iteration,
                        static_cast<Real>(time), solverChoice, vars_new, z_phys_nd, phys_bc_type);
         micro->Update_State_Vars_Lev(lev, cons, *z_phys_nd[lev]);

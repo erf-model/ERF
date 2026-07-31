@@ -1,9 +1,11 @@
 #include <AMReX_Array.H>
+#include <AMReX_MultiFab.H>
 
 #include <cmath>
 
 #include <gtest/gtest.h>
 
+#include "../../../Source/Diffusion/ERF_ResolvedWallFlux.H"
 #include "../../../Source/Prob/ERF_CloudChamber.H"
 
 using amrex::GpuArray;
@@ -54,6 +56,100 @@ TEST(CloudChamberProfile, PerturbationIsBoundedAndZeroOnVerticalFaces)
     EXPECT_NEAR(low, Real(0.0), Real(1.0e-15));
     EXPECT_NEAR(high, Real(0.0), Real(1.0e-15));
     EXPECT_LE(std::abs(interior), Real(0.2));
+}
+
+// Motivation: physical chamber inputs are specified as temperature and RH;
+// the initializer must convert RH to the exact mixing ratio used by the
+// anelastic thermodynamics, rather than treating temperature as theta.
+TEST(CloudChamberProfile, PhysicalTemperatureAndRelativeHumidityAreExact)
+{
+    erf_cloud_chamber::Config config;
+    config.physical_initialization = true;
+    config.prob_lo = {Real(0.0), Real(0.0), Real(0.0)};
+    config.prob_hi = {Real(1.0), Real(1.0), Real(2.0)};
+    config.initial_temperature_bottom = Real(300.0);
+    config.initial_temperature_top = Real(284.0);
+    config.temperature_perturbation_amplitude = Real(0.0);
+    config.initial_relative_humidity = Real(0.95);
+
+    const Real temperature = erf_cloud_chamber::theta_at(
+        config, Real(0.25), Real(0.75), Real(0.5));
+    const Real pressure = Real(100000.0);
+    const Real qv = erf_cloud_chamber::vapor_mixing_ratio_from_relative_humidity(
+        temperature, pressure, config.initial_relative_humidity);
+    const Real vapor_pressure = pressure * qv / (RdoRv + qv);
+    const Real recovered_rh = vapor_pressure /
+        (Real(100.0) * erf_esatw(temperature));
+
+    EXPECT_DOUBLE_EQ(temperature, Real(296.0));
+    EXPECT_NEAR(recovered_rh, config.initial_relative_humidity, Real(1.0e-14));
+    EXPECT_GT(qv, Real(0.0));
+}
+
+// Motivation: the physical wall override must replace the ordinary boundary
+// flux with the signed half-cell molecular flux; dry faces must contribute
+// exactly zero rather than imposing qv=0 as a Dirichlet state.
+TEST(CloudChamberWallFlux, WetLowFaceAndDryHighFaceHaveExactSigns)
+{
+    using amrex::Box;
+    using amrex::BoxArray;
+    using amrex::DistributionMapping;
+    using amrex::IntVect;
+    using amrex::MultiFab;
+
+    const Box domain(IntVect(0), IntVect(0));
+    const BoxArray ba(domain);
+    const DistributionMapping dm(ba);
+    MultiFab state(ba, dm, RhoQ2_comp + 1, 0);
+    MultiFab prim(ba, dm, PrimQ2_comp + 1, 0);
+    MultiFab base(ba, dm, BaseState::num_comps, 0);
+    MultiFab rhs(ba, dm, RhoQ2_comp + 1, 0);
+    BoxArray xba(ba); xba.surroundingNodes(0);
+    BoxArray yba(ba); yba.surroundingNodes(1);
+    BoxArray zba(ba); zba.surroundingNodes(2);
+    MultiFab xflux(xba, dm, 1, 0);
+    MultiFab yflux(yba, dm, 1, 0);
+    MultiFab zflux(zba, dm, 1, 0);
+
+    state.setVal(Real(0.0));
+    prim.setVal(Real(0.0));
+    base.setVal(Real(0.0));
+    rhs.setVal(Real(0.0));
+    xflux.setVal(Real(-9.0));
+    yflux.setVal(Real(-9.0));
+    zflux.setVal(Real(-9.0));
+    state.setVal(Real(1.0), Rho_comp, 1);
+    state.setVal(Real(0.01), RhoQ1_comp, 1);
+    prim.setVal(Real(0.01), PrimQ1_comp, 1);
+    base.setVal(Real(100000.0), BaseState::p0_comp, 1);
+
+    erf_cloud_chamber::Config config;
+    for (auto& wall : config.walls) {
+        wall.thermodynamics.moisture_mode =
+            erf_wall_thermodynamics::MoistureMode::DryImpermeable;
+    }
+    config.walls[0].thermodynamics.moisture_mode =
+        erf_wall_thermodynamics::MoistureMode::WetEquilibrium;
+    config.walls[0].thermodynamics.physical_temperature_K = Real(300.0);
+
+    const amrex::GpuArray<Real, AMREX_SPACEDIM> dx_inv =
+        {Real(1.0), Real(1.0), Real(1.0)};
+    amrex::MFIter mfi(state);
+    ASSERT_TRUE(mfi.isValid());
+    erf_resolved_wall_flux::apply(
+        domain, domain, RhoQ1_comp, 0, state.const_array(mfi), prim.const_array(mfi),
+        base.const_array(mfi), rhs.array(mfi), xflux.array(mfi), yflux.array(mfi),
+        zflux.array(mfi), dx_inv, config, Real(0.0), Real(0.1), R_d/Cp_d);
+    amrex::Gpu::streamSynchronize();
+
+    Real qsat = Real(0.0);
+    erf_qsatw(Real(300.0), Real(1000.0), qsat);
+    const Real expected_flux = Real(0.1) * (qsat - Real(0.01)) * Real(2.0);
+    const auto x = xflux.const_array(mfi);
+    const auto result = rhs.const_array(mfi);
+    EXPECT_NEAR(x(0,0,0,0), expected_flux, Real(1.0e-14));
+    EXPECT_DOUBLE_EQ(x(1,0,0,0), Real(0.0));
+    EXPECT_NEAR(result(0,0,0,RhoQ1_comp), expected_flux, Real(1.0e-14));
 }
 
 } // namespace

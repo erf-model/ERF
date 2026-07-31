@@ -5,6 +5,11 @@
 #include <AMReX_ParmParse.H>
 #include <AMReX_REAL.H>
 
+#include "ERF_Constants.H"
+#include "ERF_EOS.H"
+#include "ERF_MicrophysicsUtils.H"
+#include "BoundaryConditions/ERF_WallThermodynamics.H"
+
 #include <cmath>
 #include <limits>
 #include <string>
@@ -21,24 +26,25 @@ namespace erf_cloud_chamber {
  */
 enum class WallFace : unsigned char { XLo, XHi, YLo, YHi, ZLo, ZHi };
 
-enum class WallTreatment : unsigned char { PrescribedState };
-
 struct WallSpec {
     WallFace face = WallFace::XLo;
-    WallTreatment treatment = WallTreatment::PrescribedState;
-    amrex::Real theta = amrex::Real(0.0);
-    amrex::Real qv = amrex::Real(0.0);
+    erf_wall_thermodynamics::Face thermodynamics;
     amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> velocity = {};
 };
 
 struct Config {
     bool active = false;
     bool cloudy = false;
-    amrex::Real theta_bottom = amrex::Real(0.0);
-    amrex::Real theta_top = amrex::Real(0.0);
-    amrex::Real theta_perturbation_amplitude = amrex::Real(0.0);
-    amrex::Real qv_bottom = amrex::Real(0.0);
-    amrex::Real qv_top = amrex::Real(0.0);
+    bool physical_initialization = false;
+    amrex::Real initial_temperature_bottom = amrex::Real(0.0);
+    amrex::Real initial_temperature_top = amrex::Real(0.0);
+    amrex::Real initial_relative_humidity = amrex::Real(0.0);
+    amrex::Real temperature_perturbation_amplitude = amrex::Real(0.0);
+    amrex::Real theta_bottom = amrex::Real(0.0); // legacy_theta_qv only
+    amrex::Real theta_top = amrex::Real(0.0);    // legacy_theta_qv only
+    amrex::Real theta_perturbation_amplitude = amrex::Real(0.0); // legacy
+    amrex::Real qv_bottom = amrex::Real(0.0);    // legacy_theta_qv only
+    amrex::Real qv_top = amrex::Real(0.0);       // legacy_theta_qv only
     amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> prob_lo = {};
     amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> prob_hi = {};
     amrex::GpuArray<WallSpec, 2 * AMREX_SPACEDIM> walls = {};
@@ -79,10 +85,16 @@ theta_at (const Config& config, amrex::Real x, amrex::Real y,
         config.prob_hi[0] - config.prob_lo[0],
         config.prob_hi[1] - config.prob_lo[1],
         config.prob_hi[2] - config.prob_lo[2]};
-    return linear_profile(config.theta_bottom, config.theta_top, z,
+    const amrex::Real bottom = config.physical_initialization ?
+        config.initial_temperature_bottom : config.theta_bottom;
+    const amrex::Real top = config.physical_initialization ?
+        config.initial_temperature_top : config.theta_top;
+    const amrex::Real amplitude = config.physical_initialization ?
+        config.temperature_perturbation_amplitude : config.theta_perturbation_amplitude;
+    return linear_profile(bottom, top, z,
                           config.prob_lo[2], length[2]) +
            deterministic_perturbation(x, y, z, config.prob_lo, length,
-                                      config.theta_perturbation_amplitude);
+                                      amplitude);
 }
 
 AMREX_FORCE_INLINE
@@ -93,6 +105,20 @@ qv_at (const Config& config, amrex::Real z) noexcept
     return linear_profile(config.qv_bottom, config.qv_top, z,
                           config.prob_lo[2],
                           config.prob_hi[2] - config.prob_lo[2]);
+}
+
+AMREX_FORCE_INLINE
+AMREX_GPU_HOST_DEVICE
+amrex::Real
+vapor_mixing_ratio_from_relative_humidity (amrex::Real temperature_K,
+                                           amrex::Real pressure_Pa,
+                                           amrex::Real relative_humidity) noexcept
+{
+    // erf_esatw returns hPa; convert saturation and vapor pressure to Pa before
+    // applying the dry-air vapor mixing-ratio definition.
+    const amrex::Real es_Pa = erf_esatw(temperature_K) * amrex::Real(100.0);
+    const amrex::Real ev_Pa = relative_humidity * es_Pa;
+    return RdoRv * ev_Pa / (pressure_Pa - ev_Pa);
 }
 
 inline bool finite (amrex::Real value) noexcept
@@ -158,13 +184,10 @@ inline void require_no_unsupported_geometry ()
 inline void reject_unsupported_face_keys (amrex::ParmParse& pp,
                                           const std::string& face)
 {
-    for (const char* key : {"temperature", "physical_temperature",
-                            "relative_humidity", "rh", "roughness"}) {
-        if (pp.contains(key)) {
-            amrex::Error("Cloud Chamber: " + face + "." + key +
-                         " is unsupported; use prescribed numerical "
-                         "theta and qv instead");
-        }
+    if (pp.contains("physical_temperature") || pp.contains("relative_humidity") ||
+        pp.contains("rh") || pp.contains("roughness")) {
+        amrex::Error("Cloud Chamber: use temperature and moisture for physical walls; "
+                     "roughness and legacy aliases are unsupported");
     }
 }
 
@@ -203,22 +226,71 @@ inline Config parse_config (const amrex::Real* problo,
     require_no_unsupported_geometry();
 
     amrex::ParmParse pp_prob("prob");
-    pp_prob.get("theta_bottom", config.theta_bottom);
-    pp_prob.get("theta_top", config.theta_top);
-    pp_prob.query("theta_perturbation_amplitude",
-                  config.theta_perturbation_amplitude);
+    std::string init_mode;
+    pp_prob.get("thermodynamic_initialization", init_mode);
+    init_mode = amrex::toLower(init_mode);
+    if (init_mode == "physical_temperature_rh") {
+        config.physical_initialization = true;
+        std::string init_type;
+        pp_erf.get("init_type", init_type);
+        if (amrex::toLower(init_type) != "constantdensity") {
+            amrex::Error("Cloud Chamber: physical initialization requires the existing HSE-backed erf.init_type = ConstantDensity path");
+        }
+        std::string molec_diff_type;
+        pp_erf.get("molec_diff_type", molec_diff_type);
+        if (amrex::toLower(molec_diff_type) != "constantalpha") {
+            amrex::Error("Cloud Chamber: physical wall transfer requires erf.molec_diff_type = ConstantAlpha");
+        }
+        bool vert_implicit = false;
+        pp_erf.query("vert_implicit", vert_implicit);
+        if (vert_implicit) {
+            amrex::Error("Cloud Chamber: physical wall transfer requires erf.vert_implicit = false");
+        }
+        pp_prob.get("initial_temperature_bottom", config.initial_temperature_bottom);
+        pp_prob.get("initial_temperature_top", config.initial_temperature_top);
+        pp_prob.get("initial_relative_humidity", config.initial_relative_humidity);
+        pp_prob.query("temperature_perturbation_amplitude",
+                      config.temperature_perturbation_amplitude);
+        if (pp_prob.contains("theta_bottom") || pp_prob.contains("theta_top") ||
+            pp_prob.contains("qv_bottom") || pp_prob.contains("qv_top")) {
+            amrex::Error("Cloud Chamber: physical_temperature_rh cannot be combined with legacy theta/qv keys");
+        }
+        require_finite("prob.initial_temperature_bottom", config.initial_temperature_bottom);
+        require_finite("prob.initial_temperature_top", config.initial_temperature_top);
+        require_finite("prob.initial_relative_humidity", config.initial_relative_humidity);
+        require_finite("prob.temperature_perturbation_amplitude",
+                       config.temperature_perturbation_amplitude);
+        if (config.initial_temperature_bottom <= amrex::Real(0.0) ||
+            config.initial_temperature_top <= amrex::Real(0.0)) {
+            amrex::Error("Cloud Chamber: physical initial temperatures must be positive");
+        }
+        if (config.initial_relative_humidity < amrex::Real(0.0) ||
+            config.initial_relative_humidity > amrex::Real(1.0)) {
+            amrex::Error("Cloud Chamber: initial_relative_humidity must lie in [0,1]");
+        }
+    } else if (init_mode == "legacy_theta_qv") {
+        config.physical_initialization = false;
+        pp_prob.get("theta_bottom", config.theta_bottom);
+        pp_prob.get("theta_top", config.theta_top);
+        pp_prob.query("theta_perturbation_amplitude",
+                      config.theta_perturbation_amplitude);
+    } else {
+        amrex::Error("Cloud Chamber: prob.thermodynamic_initialization must be physical_temperature_rh or legacy_theta_qv");
+    }
     std::string perturbation_mode = "deterministic_sine";
     pp_prob.query("perturbation_mode", perturbation_mode);
     if (amrex::toLower(perturbation_mode) != "deterministic_sine") {
         amrex::Error("Cloud Chamber: prob.perturbation_mode must be deterministic_sine");
     }
-    require_finite("prob.theta_bottom", config.theta_bottom);
-    require_finite("prob.theta_top", config.theta_top);
-    require_finite("prob.theta_perturbation_amplitude",
-                   config.theta_perturbation_amplitude);
-    if (config.theta_bottom <= amrex::Real(0.0) ||
-        config.theta_top <= amrex::Real(0.0)) {
-        amrex::Error("Cloud Chamber: theta profile values must be positive");
+    if (!config.physical_initialization) {
+        require_finite("prob.theta_bottom", config.theta_bottom);
+        require_finite("prob.theta_top", config.theta_top);
+        require_finite("prob.theta_perturbation_amplitude",
+                       config.theta_perturbation_amplitude);
+        if (config.theta_bottom <= amrex::Real(0.0) ||
+            config.theta_top <= amrex::Real(0.0)) {
+            amrex::Error("Cloud Chamber: theta profile values must be positive");
+        }
     }
 
     std::string moisture_model;
@@ -229,13 +301,19 @@ inline Config parse_config (const amrex::Real* problo,
             amrex::Error("Cloud Chamber: moisture_model must be omitted for dry mode or set to SatAdj");
         }
         config.cloudy = true;
-        pp_prob.get("qv_bottom", config.qv_bottom);
-        pp_prob.get("qv_top", config.qv_top);
-        require_finite("prob.qv_bottom", config.qv_bottom);
-        require_finite("prob.qv_top", config.qv_top);
-        if (config.qv_bottom < amrex::Real(0.0) ||
-            config.qv_top < amrex::Real(0.0)) {
-            amrex::Error("Cloud Chamber: qv profile values must be nonnegative");
+        if (config.physical_initialization) {
+            config.cloudy = true;
+        } else {
+            pp_prob.get("qv_bottom", config.qv_bottom);
+            pp_prob.get("qv_top", config.qv_top);
+        }
+        if (!config.physical_initialization) {
+            require_finite("prob.qv_bottom", config.qv_bottom);
+            require_finite("prob.qv_top", config.qv_top);
+            if (config.qv_bottom < amrex::Real(0.0) ||
+                config.qv_top < amrex::Real(0.0)) {
+                amrex::Error("Cloud Chamber: qv profile values must be nonnegative");
+            }
         }
     } else if (pp_prob.contains("qv_bottom") || pp_prob.contains("qv_top")) {
         amrex::Error("Cloud Chamber: qv_bottom/qv_top require erf.moisture_model = SatAdj");
@@ -254,24 +332,50 @@ inline Config parse_config (const amrex::Real* problo,
         }
         WallSpec& wall = config.walls[n];
         wall.face = faces[n];
-        wall.treatment = WallTreatment::PrescribedState;
-        if (!pp_face.query("theta", wall.theta)) {
-            amrex::Error("Cloud Chamber: missing required " + face + ".theta");
-        }
-        require_finite(face + ".theta", wall.theta);
-        if (wall.theta <= amrex::Real(0.0)) {
-            amrex::Error("Cloud Chamber: " + face + ".theta must be positive");
-        }
-        if (config.cloudy) {
-            if (!pp_face.query("qv", wall.qv)) {
-                amrex::Error("Cloud Chamber: missing required " + face + ".qv for SatAdj");
+        if (config.physical_initialization) {
+            if (pp_face.contains("theta") || pp_face.contains("qv") ||
+                pp_face.contains("theta_grad") || pp_face.contains("qv_grad")) {
+                amrex::Error("Cloud Chamber: physical walls cannot combine temperature/moisture with legacy theta/qv wall keys");
             }
-            require_finite(face + ".qv", wall.qv);
-            if (wall.qv < amrex::Real(0.0)) {
-                amrex::Error("Cloud Chamber: " + face + ".qv must be nonnegative");
+            if (!pp_face.query("temperature", wall.thermodynamics.physical_temperature_K)) {
+                amrex::Error("Cloud Chamber: missing required physical " + face + ".temperature");
             }
-        } else if (pp_face.contains("qv")) {
-            amrex::Error("Cloud Chamber: " + face + ".qv requires erf.moisture_model = SatAdj");
+            require_finite(face + ".temperature", wall.thermodynamics.physical_temperature_K);
+            if (wall.thermodynamics.physical_temperature_K <= amrex::Real(0.0)) {
+                amrex::Error("Cloud Chamber: " + face + ".temperature must be positive Kelvin");
+            }
+            std::string moisture;
+            pp_face.get("moisture", moisture);
+            moisture = amrex::toLower(moisture);
+            if (moisture == "dry") {
+                wall.thermodynamics.moisture_mode = erf_wall_thermodynamics::MoistureMode::DryImpermeable;
+            } else if (moisture == "wet") {
+                wall.thermodynamics.moisture_mode = erf_wall_thermodynamics::MoistureMode::WetEquilibrium;
+                if (!config.cloudy) {
+                    amrex::Error("Cloud Chamber: wet walls require SatAdj moisture");
+                }
+            } else {
+                amrex::Error("Cloud Chamber: " + face + ".moisture must be dry or wet");
+            }
+            std::string transfer = "resolved_molecular";
+            pp_face.query("wall_transfer_model", transfer);
+            transfer = amrex::toLower(transfer);
+            if (transfer != "resolved_molecular") {
+                amrex::Error("Cloud Chamber: only resolved_molecular wall transfer is supported");
+            }
+            wall.thermodynamics.thermal_mode = erf_wall_thermodynamics::ThermalMode::FixedPhysicalTemperature;
+            wall.thermodynamics.transfer_model = erf_wall_thermodynamics::TransferModel::ResolvedMolecular;
+        } else {
+            if (!pp_face.query("theta", config.walls[n].thermodynamics.physical_temperature_K)) {
+                amrex::Error("Cloud Chamber: missing required " + face + ".theta");
+            }
+            wall.thermodynamics.thermal_mode = erf_wall_thermodynamics::ThermalMode::LegacyNumerical;
+            wall.thermodynamics.moisture_mode = config.cloudy ?
+                erf_wall_thermodynamics::MoistureMode::LegacyNumerical :
+                erf_wall_thermodynamics::MoistureMode::DryImpermeable;
+            if (config.cloudy && !pp_face.contains("qv")) {
+                amrex::Error("Cloud Chamber: legacy cloudy walls require " + face + ".qv");
+            }
         }
         for (int d = 0; d < AMREX_SPACEDIM; ++d) {
             if (pp_face.contains("velocity")) {

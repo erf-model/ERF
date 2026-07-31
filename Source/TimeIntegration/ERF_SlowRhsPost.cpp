@@ -4,6 +4,7 @@
 #include <ERF_ShocDriver.H>
 #include <ERF_EBAdvection.H>
 #include <ERF_EBRedistribute.H>
+#include "ERF_ResolvedWallFlux.H"
 #include "Prob/ERF_CloudChamberBudget.H"
 
 using namespace amrex;
@@ -92,6 +93,8 @@ void erf_slow_rhs_post (int level, int finest_level,
                         YAFluxRegister* fr_as_crse,
                         YAFluxRegister* fr_as_fine,
                         std::unique_ptr<ReadBndryPlanes>& m_r2d,
+                        const MultiFab* cloud_chamber_base_state,
+                        const erf_cloud_chamber::Config* cloud_chamber_config,
                         CloudChamberBudget* cloud_budget)
 {
     BL_PROFILE_REGION("erf_slow_rhs_post()");
@@ -167,7 +170,10 @@ void erf_slow_rhs_post (int level, int finest_level,
 
     if (l_use_diff) {
         IntVect ng(0,0,1);
-        const int n_budget_flux = cloud_budget ? std::max(1, n_qstate) : 1;
+        // Keep one scalar flux component per moist state even when interval
+        // budgets are disabled; physical wall overrides must be able to
+        // correct qv and qc independently without allocating another field.
+        const int n_budget_flux = std::max(1, n_qstate);
         dflux_x = std::make_unique<MultiFab>(convert(ba,IntVect(1,0,0)), dm, n_budget_flux, ng);
         dflux_y = std::make_unique<MultiFab>(convert(ba,IntVect(0,1,0)), dm, n_budget_flux, ng);
         dflux_z = std::make_unique<MultiFab>(convert(ba,IntVect(0,0,1)), dm, n_budget_flux, 0);
@@ -518,6 +524,26 @@ void erf_slow_rhs_post (int level, int finest_level,
                                                hfx_z, q1fx_z, q2fx_z, diss,
                                                mu_turb, solverChoice, level,
                                                tm_arr, grav_gpu, bc_ptr_d, l_apply_surface_layer_fluxes_in_diffusion, l_vert_implicit_fac);
+                    }
+                    if (cloud_chamber_config && cloud_chamber_base_state) {
+                        if (cloud_budget) {
+                            erf_resolved_wall_flux::apply(
+                                tbx, domain, diffusion_start, 0, new_cons, cur_prim,
+                                cloud_chamber_base_state->const_array(mfi), cell_rhs,
+                                diffusion_x, diffusion_y, diffusion_z, dxInv,
+                                *cloud_chamber_config, dc.alpha_T, dc.alpha_C,
+                                solverChoice.rdOcp);
+                        } else {
+                            for (int qstate = 0; qstate < n_qstate; ++qstate) {
+                                erf_resolved_wall_flux::apply(
+                                    tbx, domain, RhoQ1_comp + qstate, qstate,
+                                    new_cons, cur_prim,
+                                    cloud_chamber_base_state->const_array(mfi), cell_rhs,
+                                    diffflux_x, diffflux_y, diffflux_z, dxInv,
+                                    *cloud_chamber_config, dc.alpha_T, dc.alpha_C,
+                                    solverChoice.rdOcp);
+                            }
+                        }
                     }
                     }
                 } // use_diff

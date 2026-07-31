@@ -12,6 +12,11 @@ class Problem : public ProblemBase
 public:
     Problem (const amrex::Real* problo, const amrex::Real* probhi);
 
+    const erf_cloud_chamber::Config* cloud_chamber_config () const override
+    {
+        return m_cloud_chamber_config.active ? &m_cloud_chamber_config : nullptr;
+    }
+
 #include "Prob/ERF_InitDensityHSE.H"
 #include "Prob/ERF_InitCustomPert.H"
 #include "Prob/ERF_InitRayleighDamping.H"

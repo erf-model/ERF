@@ -17,6 +17,7 @@
 #include "ERF_TileNoZ.H"
 #include "ERF_EB.H"
 #include "ERF_ReadBndryPlanes.H"
+#include "Prob/ERF_CloudChamber.H"
 
 class CloudChamberBudget;
 
@@ -106,6 +107,8 @@ void erf_slow_rhs_pre (int level, int finest_level, int nrk,
                       ShocDriver* native_shoc_lev,
                       amrex::YAFluxRegister* fr_as_crse,
                       amrex::YAFluxRegister* fr_as_fine,
+                      const amrex::MultiFab* cloud_chamber_base_state,
+                      const erf_cloud_chamber::Config* cloud_chamber_config,
                       CloudChamberBudget* cloud_budget);
 
 /**
@@ -160,6 +163,8 @@ void erf_slow_rhs_post (int level, int finest_level, int nrk,
                        amrex::YAFluxRegister* fr_as_crse,
                        amrex::YAFluxRegister* fr_as_fine,
                        std::unique_ptr<ReadBndryPlanes>& m_r2d,
+                       const amrex::MultiFab* cloud_chamber_base_state,
+                       const erf_cloud_chamber::Config* cloud_chamber_config,
                        CloudChamberBudget* cloud_budget);
 
 #endif

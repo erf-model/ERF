@@ -14,6 +14,7 @@
 #include "ERF_EBAdvection.H"
 #include "ERF_EB.H"
 #include "ERF_SurfaceLayer.H"
+#include "ERF_ResolvedWallFlux.H"
 #include "Prob/ERF_CloudChamberBudget.H"
 
 using namespace amrex;
@@ -114,6 +115,8 @@ void erf_slow_rhs_pre (int level, int finest_level,
                        ShocDriver* native_shoc_lev,
                        YAFluxRegister* fr_as_crse,
                        YAFluxRegister* fr_as_fine,
+                       const MultiFab* cloud_chamber_base_state,
+                       const erf_cloud_chamber::Config* cloud_chamber_config,
                        CloudChamberBudget* cloud_budget)
 {
     BL_PROFILE_REGION("erf_slow_rhs_pre()");
@@ -714,6 +717,14 @@ void erf_slow_rhs_pre (int level, int finest_level,
                                        hfx_z, q1fx_z, q2fx_z, diss,
                                        mu_turb, solverChoice, level,
                                        tm_arr, grav_gpu, bc_ptr_d, l_apply_surface_layer_fluxes_in_diffusion, l_vert_implicit_fac);
+            }
+            if (cloud_chamber_config && cloud_chamber_base_state) {
+                erf_resolved_wall_flux::apply(
+                    bx, domain, RhoTheta_comp, 0, cell_data, cell_prim,
+                    cloud_chamber_base_state->const_array(mfi), cell_rhs,
+                    diffflux_x, diffflux_y, diffflux_z, dxInv,
+                    *cloud_chamber_config, dc.alpha_T, dc.alpha_C,
+                    solverChoice.rdOcp);
             }
         }
 

@@ -97,10 +97,11 @@ public:
 
     /*! \brief update microphysics variables from ERF state variables */
     void Update_Micro_Vars_Lev (const int& lev, /*! AMR level */
-                                amrex::MultiFab& cons_in /*!< Conserved state variables */) override
+                                amrex::MultiFab& cons_in, /*!< Conserved state variables */
+                                const amrex::MultiFab* base_state = nullptr) override
     {
         m_moist_model->SetCurrentLevel(lev);
-        m_moist_model->Update_Micro_Vars(cons_in);
+        m_moist_model->Update_Micro_Vars(cons_in, base_state);
     }
 
     /*! \brief update ERF state variables from microphysics variables */

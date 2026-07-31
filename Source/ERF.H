@@ -26,6 +26,7 @@
 
 #include <ERF_EB.H>
 #include "Prob/ERF_CloudChamberBudget.H"
+#include "Prob/ERF_CloudChamber.H"
 
 #ifdef ERF_USE_FFT
 #include <AMReX_FFT_Poisson.H>
@@ -973,6 +974,7 @@ private:
 
     std::unique_ptr<Microphysics> micro;
     std::unique_ptr<CloudChamberBudget> cloud_chamber_budget;
+    erf_cloud_chamber::Config cloud_chamber_config;
     amrex::Vector<amrex::Vector<amrex::MultiFab*>> qmoist; // (lev,ncomp) rain_accum, snow_accum, graup_accum
 
     // Variables for wind farm parametrization models

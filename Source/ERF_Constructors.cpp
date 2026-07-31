@@ -229,6 +229,9 @@ ERF::ERF_shared ()
     erf_probinit_link_anchor_func();
 #endif
     prob = amrex_probinit(geom[0].ProbLo(),geom[0].ProbHi());
+    if (const auto* chamber = prob->cloud_chamber_config()) {
+        cloud_chamber_config = *chamber;
+    }
 
     // Geometry on all levels has been defined already.
 
