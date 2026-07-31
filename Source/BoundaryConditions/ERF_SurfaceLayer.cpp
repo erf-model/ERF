@@ -779,9 +779,7 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
         // NOTE: For LSM, this has been handled in "compute_sfc_params_from_lsm_fluxes"
         // NOTE: Fluxes here are for conserved quantities, we divide by rho
         if (flux_type == FluxCalcType::BULK_COEFF ||
-            flux_type == FluxCalcType::DONELAN    ||
-            flux_type == FluxCalcType::CUSTOM     ||
-            flux_type == FluxCalcType::RICO) {
+            flux_type == FluxCalcType::DONELAN) {
             constexpr Real eps = std::numeric_limits<Real>::epsilon();
             bool l_use_moisture = use_moisture;
             ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int /*k*/)
