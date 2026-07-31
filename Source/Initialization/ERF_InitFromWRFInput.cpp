@@ -1934,14 +1934,10 @@ init_terrain_from_wrfinput (int /*lev*/,
 
         // Solve for node values that average to WRF z-face values
         // while minimizing the first derivative
-#ifdef AMREX_USE_FLOAT
-        const Real tol = Real(1.e-4);
-#else
-        const Real tol = Real(1.e-8);
-#endif
+        const Real tol = std::numeric_limits<Real>::epsilon();
         NodalReconstruction NR_solver(z_face_dom_slice, geom);
         auto boundary = NR_solver.makeBoundaryFromT(z_slice_wrf);
-        std::pair<amrex::FArrayBox,SolveInfo> result = NR_solver.solve(z_slice_wrf, boundary, VariationOperator::Laplacian, Real(1.e-3), tol);
+        std::pair<amrex::FArrayBox,SolveInfo> result = NR_solver.solve(z_slice_wrf, boundary, VariationOperator::Laplacian, tol);
         const Array4<Real>& z_slice_erf_arr = result.first.array();
         if (!result.second.converged) {
             Print() << "WARNING: Nodal reconstruction did not converge at k = " << k

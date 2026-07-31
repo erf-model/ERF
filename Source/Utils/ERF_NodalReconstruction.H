@@ -71,7 +71,7 @@ public:
         auto const T_arr = T.const_array();
         Vector b(static_cast<std::size_t>(m_boundary_count), zero);
 
-        b[bottomIndex(0)]         = T_arr(m_ilo, m_jlo, 0);
+        b[bottomIndex(0)] = T_arr(m_ilo, m_jlo, 0);
         for (int ii = 1; ii < m_nx; ++ii) {
             int const i = m_ilo + ii;
             b[bottomIndex(ii)] = myhalf * ( T_arr(i-1, m_jlo, 0) + T_arr(i,  m_jlo, 0) );
@@ -89,9 +89,9 @@ public:
     [[nodiscard]] std::pair<amrex::FArrayBox,SolveInfo> solve (amrex::FArrayBox const& T,
                                                                Vector const& boundary_reference,
                                                                VariationOperator var_op,
-                                                               Real epsilon = Real(1.e-3),
                                                                Real relative_tolerance = Real(1.e-8),
-                                                               int max_iterations = 100)
+                                                               Real epsilon = Real(1.e-2),
+                                                               int max_iterations = 1000)
     {
         m_var_op = var_op;
 
@@ -244,8 +244,8 @@ private:
         auto const difx_arr = difx.array();
         auto const dify_arr = dify.array();
 
-        const amrex::Real idx = one / m_dx;
-        const amrex::Real idy = one / m_dy;
+        const amrex::Real idx = std::max(one, one / m_dx);
+        const amrex::Real idy = std::max(one, one / m_dy);
 
         for (int j = m_jlo; j <= m_jhi + 1; ++j) {
             for (int i = m_ilo; i <= m_ihi; ++i) {
@@ -270,8 +270,8 @@ private:
         auto const qy_arr = dify.const_array();
         auto const R_arr  = R.array();
 
-        const amrex::Real idx = one / m_dx;
-        const amrex::Real idy = one / m_dy;
+        const amrex::Real idx = std::max(one, one / m_dx);
+        const amrex::Real idy = std::max(one, one / m_dy);
 
         for (int j = m_jlo; j <= m_jhi + 1; ++j) {
             for (int i = m_ilo; i <= m_ihi; ++i) {
@@ -310,17 +310,18 @@ private:
         auto const S_arr   = S.const_array();
         auto const lap_arr = lap.array();
 
-        const amrex::Real idx2 = one / (m_dx * m_dx);
-        const amrex::Real idy2 = one / (m_dy * m_dy);
+        const amrex::Real idx2 = std::max(one, one / (m_dx * m_dx));
+        const amrex::Real idy2 = std::max(one, one / (m_dy * m_dy));
 
-        for (int j = m_jlo; j <= m_jhi; ++j) {
-            for (int i = m_ilo; i <= m_ihi; ++i) {
-                amrex::Real im_val = (i==m_ilo) ? S_arr(i, j, 0) : S_arr(i-1, j  , 0);
-                amrex::Real ip_val = (i==m_ihi) ? S_arr(i, j, 0) : S_arr(i+1, j  , 0);
-                amrex::Real jm_val = (j==m_jlo) ? S_arr(i, j, 0) : S_arr(i  , j-1, 0);
-                amrex::Real jp_val = (j==m_jhi) ? S_arr(i, j, 0) : S_arr(i  , j+1, 0);
-                lap_arr(i, j, 0) = idx2 * ( ip_val - two * S_arr(i, j, 0) + im_val )
-                                 + idy2 * ( jp_val - two * S_arr(i, j, 0) + jm_val );
+
+        for (int j = m_jlo + 1; j <= m_jhi; ++j) {
+            for (int i = m_ilo + 1; i <= m_ihi; ++i) {
+                lap_arr(i, j, 0) = idx2 * (       S_arr(i+1, j  , 0)
+                                          - two * S_arr(i  , j  , 0)
+                                                + S_arr(i-1, j  , 0) )
+                                 + idy2 * (       S_arr(i  , j+1, 0)
+                                          - two * S_arr(i  , j  , 0)
+                                                + S_arr(i  , j-1, 0) );
             }
         }
     }
@@ -333,8 +334,9 @@ private:
         auto const q_arr = lap.const_array();
         auto const R_arr = R.array();
 
-        const amrex::Real idx2 = one / (m_dx * m_dx);
-        const amrex::Real idy2 = one / (m_dy * m_dy);
+        const amrex::Real idx2 = std::max(one, one / (m_dx * m_dx));
+        const amrex::Real idy2 = std::max(one, one / (m_dy * m_dy));
+
 
         for (int j = m_jlo + 1; j <= m_jhi; ++j) {
             for (int i = m_ilo + 1; i <= m_ihi; ++i) {
@@ -351,7 +353,10 @@ private:
     void applyLTL (amrex::FArrayBox const& S,
                    amrex::FArrayBox& R) const
     {
-        amrex::FArrayBox lap(m_nodal_box, 1);
+        amrex::Box interior_nodal_box = m_nodal_box;
+        interior_nodal_box.grow(0,-1);
+        interior_nodal_box.grow(1,-1);
+        amrex::FArrayBox lap(interior_nodal_box, 1);
         applyL(S, lap);
         applyLT(lap, R);
     }
