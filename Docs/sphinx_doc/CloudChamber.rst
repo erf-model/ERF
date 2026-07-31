@@ -129,6 +129,10 @@ coordinate-face fluxes, with low-minus-high domain orientation.  Each report
 resets its reference state and accumulators, so successive intervals and
 restart-started intervals are interpreted locally.
 
+Budget diagnostics are observational: enabling or disabling them must not
+change the governing diffusion, wall treatment, or state update.  Interval
+references remain rank-local until the values are reduced for reporting.
+
 For all-dry walls, total water should be constant apart from the reported
 floating-point residual.  For wet walls, its change equals the time-integrated
 inward vapor flux; SatAdj internal vapor/cloud-water exchanges cancel in the
@@ -143,7 +147,11 @@ warm wet bottom/cold wet top walls and dry side walls.  Its checker independentl
 verifies positive base pressure, the physical temperature profile, the
 anelastic theta relation, the exact RH conversion, zero initial cloud water,
 zero initial velocity, finite nonnegative moisture, and early buoyant motion.
-It does not require a particular cloud-water amount in a short CI run.
+It does not require a particular cloud-water amount in a short CI run.  The
+wall-flux unit coverage also exercises all six faces with a multi-box layout,
+and the short SatAdj validation compares budget-on and budget-off evolution.
+These checks protect decomposition and diagnostic-mode correctness; they do
+not constitute quantitative Pi-Chamber validation.
 
 The reference configuration is a proof of concept, not a claim of realistic
 coarse-grid molecular transfer or quantitative Pi-Chamber validation.

@@ -1,4 +1,5 @@
 #include <AMReX_Array.H>
+#include <AMReX_BoxArray.H>
 #include <AMReX_MultiFab.H>
 
 #include <cmath>
@@ -150,6 +151,92 @@ TEST(CloudChamberWallFlux, WetLowFaceAndDryHighFaceHaveExactSigns)
     EXPECT_NEAR(x(0,0,0,0), expected_flux, Real(1.0e-14));
     EXPECT_DOUBLE_EQ(x(1,0,0,0), Real(0.0));
     EXPECT_NEAR(result(0,0,0,RhoQ1_comp), expected_flux, Real(1.0e-14));
+}
+
+// Motivation: resolved wall kernels receive one local tile at a time; an
+// interior tile must not be relocated to a global boundary outside its FAB.
+// This decomposition test exercises all six physical faces with multiple
+// boxes and verifies that only physical boundary faces leave the sentinel.
+TEST(CloudChamberWallFlux, MultiBoxOwnershipAcrossAllFaces)
+{
+    using amrex::Box;
+    using amrex::BoxArray;
+    using amrex::DistributionMapping;
+    using amrex::IntVect;
+    using amrex::MFIter;
+    using amrex::MultiFab;
+
+    const Box domain(IntVect(0), IntVect(3));
+    BoxArray ba(domain);
+    ba.maxSize(IntVect(2));
+    const DistributionMapping dm(ba);
+    MultiFab state(ba, dm, RhoQ2_comp + 1, 0);
+    MultiFab prim(ba, dm, PrimQ2_comp + 1, 0);
+    MultiFab base(ba, dm, BaseState::num_comps, 0);
+    MultiFab rhs(ba, dm, RhoQ2_comp + 1, 0);
+    BoxArray xba(ba); xba.surroundingNodes(0);
+    BoxArray yba(ba); yba.surroundingNodes(1);
+    BoxArray zba(ba); zba.surroundingNodes(2);
+    MultiFab xflux(xba, dm, 1, 0);
+    MultiFab yflux(yba, dm, 1, 0);
+    MultiFab zflux(zba, dm, 1, 0);
+
+    constexpr Real sentinel = Real(-9.0);
+    state.setVal(Real(0.0));
+    prim.setVal(Real(0.0));
+    base.setVal(Real(0.0));
+    rhs.setVal(Real(0.0));
+    xflux.setVal(sentinel);
+    yflux.setVal(sentinel);
+    zflux.setVal(sentinel);
+    state.setVal(Real(1.0), Rho_comp, 1);
+    state.setVal(Real(0.01), RhoQ1_comp, 1);
+    prim.setVal(Real(0.01), PrimQ1_comp, 1);
+    base.setVal(Real(100000.0), BaseState::p0_comp, 1);
+
+    erf_cloud_chamber::Config config;
+    for (auto& wall : config.walls) {
+        wall.thermodynamics.moisture_mode =
+            erf_wall_thermodynamics::MoistureMode::WetEquilibrium;
+        wall.thermodynamics.physical_temperature_K = Real(300.0);
+    }
+    const amrex::GpuArray<Real, AMREX_SPACEDIM> dx_inv =
+        {Real(1.0), Real(1.0), Real(1.0)};
+
+    for (MFIter mfi(state); mfi.isValid(); ++mfi) {
+        erf_resolved_wall_flux::apply(
+            mfi.validbox(), domain, RhoQ1_comp, 0,
+            state.const_array(mfi), prim.const_array(mfi), base.const_array(mfi),
+            rhs.array(mfi), xflux.array(mfi), yflux.array(mfi), zflux.array(mfi),
+            dx_inv, config, Real(0.0), Real(0.1), R_d/Cp_d);
+    }
+    amrex::Gpu::streamSynchronize();
+
+    const auto check_faces = [&](const MultiFab& flux_mf, const int dir) {
+        for (MFIter mfi(flux_mf); mfi.isValid(); ++mfi) {
+            const Box box = mfi.validbox();
+            const auto flux = flux_mf.const_array(mfi);
+            for (int k = box.smallEnd(2); k <= box.bigEnd(2); ++k) {
+                for (int j = box.smallEnd(1); j <= box.bigEnd(1); ++j) {
+                    for (int i = box.smallEnd(0); i <= box.bigEnd(0); ++i) {
+                        const int coordinate = (dir == 0) ? i : ((dir == 1) ? j : k);
+                        const bool physical_face =
+                            coordinate == domain.smallEnd(dir) ||
+                            coordinate == domain.bigEnd(dir) + 1;
+                        if (physical_face) {
+                            EXPECT_NE(flux(i,j,k,0), sentinel);
+                        } else {
+                            EXPECT_DOUBLE_EQ(flux(i,j,k,0), sentinel);
+                        }
+                    }
+                }
+            }
+        }
+    };
+
+    check_faces(xflux, 0);
+    check_faces(yflux, 1);
+    check_faces(zflux, 2);
 }
 
 } // namespace

@@ -170,14 +170,17 @@ void erf_slow_rhs_post (int level, int finest_level,
 
     if (l_use_diff) {
         IntVect ng(0,0,1);
-        // Keep one scalar flux component per moist state even when interval
-        // budgets are disabled; physical wall overrides must be able to
-        // correct qv and qc independently without allocating another field.
-        const int n_budget_flux = std::max(1, n_qstate);
-        dflux_x = std::make_unique<MultiFab>(convert(ba,IntVect(1,0,0)), dm, n_budget_flux, ng);
-        dflux_y = std::make_unique<MultiFab>(convert(ba,IntVect(0,1,0)), dm, n_budget_flux, ng);
-        dflux_z = std::make_unique<MultiFab>(convert(ba,IntVect(0,0,1)), dm, n_budget_flux, 0);
-        if (cloud_budget) {
+        // Keep one reusable flux component when budgets are disabled.  With
+        // budgets enabled, retain one component per moist state for deferred
+        // interval accumulation.
+        const int n_flux_components = cloud_budget ? std::max(1, n_qstate) : 1;
+        dflux_x = std::make_unique<MultiFab>(convert(ba,IntVect(1,0,0)), dm, n_flux_components, ng);
+        dflux_y = std::make_unique<MultiFab>(convert(ba,IntVect(0,1,0)), dm, n_flux_components, ng);
+        dflux_z = std::make_unique<MultiFab>(convert(ba,IntVect(0,0,1)), dm, n_flux_components, 0);
+        // Every physical wall override reads the old face flux before
+        // replacing it; make that read deterministic regardless of budget
+        // diagnostics.
+        if (cloud_chamber_config && cloud_chamber_base_state) {
             dflux_x->setVal(0.0);
             dflux_y->setVal(0.0);
             dflux_z->setVal(0.0);
@@ -476,13 +479,35 @@ void erf_slow_rhs_post (int level, int finest_level,
 
                     const Array4<const Real> tm_arr = t_mean_mf ? t_mean_mf->const_array(mfi) : Array4<const Real>{};
 
-                    const int n_diff_calls = (cloud_budget && ivar == RhoQ1_comp) ? n_qstate : 1;
+                    // Diagnostics must not select governing-equation calls:
+                    // every moist state receives the same diffusion whether
+                    // or not interval budgets are enabled.
+                    const int n_diff_calls = (ivar == RhoQ1_comp) ? n_qstate : 1;
+                    AMREX_ALWAYS_ASSERT(n_diff_calls >= 0);
                     for (int qstate = 0; qstate < n_diff_calls; ++qstate) {
-                        const int diffusion_start = (ivar == RhoQ1_comp) ? start_comp + qstate : start_comp;
+                        const int state_comp = (ivar == RhoQ1_comp) ? RhoQ1_comp + qstate : start_comp;
+                        const int diffusion_start = state_comp;
                         const int diffusion_num = (ivar == RhoQ1_comp) ? 1 : num_comp;
-                        const Array4<Real> diffusion_x = (ivar == RhoQ1_comp) ? dflux_x->array(mfi, qstate) : diffflux_x;
-                        const Array4<Real> diffusion_y = (ivar == RhoQ1_comp) ? dflux_y->array(mfi, qstate) : diffflux_y;
-                        const Array4<Real> diffusion_z = (ivar == RhoQ1_comp) ? dflux_z->array(mfi, qstate) : diffflux_z;
+                        const int flux_comp = (ivar == RhoQ1_comp && cloud_budget) ? qstate : 0;
+                        AMREX_ALWAYS_ASSERT(state_comp >= 0 && state_comp < nvars);
+                        AMREX_ALWAYS_ASSERT(flux_comp < dflux_x->nComp());
+                        AMREX_ALWAYS_ASSERT(flux_comp < dflux_y->nComp());
+                        AMREX_ALWAYS_ASSERT(flux_comp < dflux_z->nComp());
+                        if (ivar == RhoQ1_comp) {
+                            // Some diffusion variants do not write every
+                            // ghost face.  Reset the selected storage before
+                            // each q-state so a reusable disabled-budget
+                            // component cannot retain another scalar's flux.
+                            (*dflux_x)[mfi].template setVal<RunOn::Device>(
+                                zero, (*dflux_x)[mfi].box(), flux_comp, 1);
+                            (*dflux_y)[mfi].template setVal<RunOn::Device>(
+                                zero, (*dflux_y)[mfi].box(), flux_comp, 1);
+                            (*dflux_z)[mfi].template setVal<RunOn::Device>(
+                                zero, (*dflux_z)[mfi].box(), flux_comp, 1);
+                        }
+                        const Array4<Real> diffusion_x = dflux_x->array(mfi, flux_comp);
+                        const Array4<Real> diffusion_y = dflux_y->array(mfi, flux_comp);
+                        const Array4<Real> diffusion_z = dflux_z->array(mfi, flux_comp);
 
                     if (solverChoice.mesh_type == MeshType::StretchedDz) {
                         DiffusionSrcForState_S(tbx, domain, diffusion_start, diffusion_num, u, v,
@@ -526,24 +551,19 @@ void erf_slow_rhs_post (int level, int finest_level,
                                                tm_arr, grav_gpu, bc_ptr_d, l_apply_surface_layer_fluxes_in_diffusion, l_vert_implicit_fac);
                     }
                     if (cloud_chamber_config && cloud_chamber_base_state) {
-                        if (cloud_budget) {
-                            erf_resolved_wall_flux::apply(
-                                tbx, domain, diffusion_start, 0, new_cons, cur_prim,
-                                cloud_chamber_base_state->const_array(mfi), cell_rhs,
-                                diffusion_x, diffusion_y, diffusion_z, dxInv,
-                                *cloud_chamber_config, dc.alpha_T, dc.alpha_C,
-                                solverChoice.rdOcp);
-                        } else {
-                            for (int qstate = 0; qstate < n_qstate; ++qstate) {
-                                erf_resolved_wall_flux::apply(
-                                    tbx, domain, RhoQ1_comp + qstate, qstate,
-                                    new_cons, cur_prim,
-                                    cloud_chamber_base_state->const_array(mfi), cell_rhs,
-                                    diffflux_x, diffflux_y, diffflux_z, dxInv,
-                                    *cloud_chamber_config, dc.alpha_T, dc.alpha_C,
-                                    solverChoice.rdOcp);
-                            }
-                        }
+                        // Apply the physical wall correction immediately to
+                        // the flux component just computed.  This keeps the
+                        // q-state diffusion path identical with budgets on
+                        // and off and guarantees no stale flux is consumed.
+                        // The diffusion views are component-shifted; the
+                        // wall helper receives the unshifted views and the
+                        // explicit flux component index.
+                        erf_resolved_wall_flux::apply(
+                            tbx, domain, state_comp, flux_comp, new_cons, cur_prim,
+                            cloud_chamber_base_state->const_array(mfi), cell_rhs,
+                            diffflux_x, diffflux_y, diffflux_z, dxInv,
+                            *cloud_chamber_config, dc.alpha_T, dc.alpha_C,
+                            solverChoice.rdOcp);
                     }
                     }
                 } // use_diff

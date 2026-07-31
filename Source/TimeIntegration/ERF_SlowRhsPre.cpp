@@ -226,7 +226,10 @@ void erf_slow_rhs_pre (int level, int finest_level,
         dflux_x = std::make_unique<MultiFab>(convert(ba,IntVect(1,0,0)), dm, nvars, ng);
         dflux_y = std::make_unique<MultiFab>(convert(ba,IntVect(0,1,0)), dm, nvars, ng);
         dflux_z = std::make_unique<MultiFab>(convert(ba,IntVect(0,0,1)), dm, nvars, 0);
-        if (cloud_budget) {
+        // The physical theta wall override consumes the just-computed face
+        // flux.  Initialize its storage independently of diagnostics so a
+        // budget switch cannot change the state update.
+        if (cloud_chamber_config && cloud_chamber_base_state) {
             dflux_x->setVal(0.0);
             dflux_y->setVal(0.0);
             dflux_z->setVal(0.0);

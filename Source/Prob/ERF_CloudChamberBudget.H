@@ -180,11 +180,15 @@ public:
             out << ' ' << total_net << ' ' << total_change << ' ' << total_internal << ' '
                 << total_residual << ' ' << (total_status ? "PASS" : "FAIL") << '\n';
         }
-        // The next report is an interval-local balance beginning at the state
-        // just reported, rather than a repeated comparison to t=0.
-        m_initial_state = global_current;
+        // The next report is an interval-local balance beginning at the
+        // state just reported.  Keep this reference rank-local: assigning the
+        // MPI-global value here would make every rank contribute the same
+        // global reference at the next reduction.
+        m_initial_state = current;
         m_cumulative = {};
         m_internal_source = {};
+        m_stage0 = {};
+        m_have_stage0 = {};
     }
 
 private:

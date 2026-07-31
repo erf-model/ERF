@@ -9,6 +9,7 @@
 #include <cstdlib>
 #include <iostream>
 #include <string>
+#include <vector>
 
 namespace {
 
@@ -35,12 +36,35 @@ int fail (const std::string& message)
 int main (int argc, char** argv)
 {
     if (argc != 4) {
-        std::cerr << "usage: checker mode initial_plotfile final_plotfile\n";
+        std::cerr << "usage: checker mode initial_plotfile final_plotfile\n"
+                  << "       checker parity budget_off_plotfile budget_on_plotfile\n";
         return 2;
     }
 
     amrex::Initialize(argc, argv, false);
     const std::string mode(argv[1]);
+    if (mode == "parity") {
+        PlotFileData budget_off(argv[2]);
+        PlotFileData budget_on(argv[3]);
+        const std::vector<std::string> fields = {
+            "density", "theta", "temp", "qv", "qc",
+            "x_velocity", "y_velocity", "z_velocity"};
+        Real max_difference = Real(0.0);
+        for (const auto& name : fields) {
+            if (!has_variable(budget_off, name) || !has_variable(budget_on, name)) {
+                amrex::Finalize();
+                return fail("parity comparison missing variable " + name);
+            }
+            MultiFab difference = budget_off.get(0, name);
+            MultiFab::Subtract(difference, budget_on.get(0, name), 0, 0, 1, 0);
+            max_difference = std::max(max_difference, difference.norm0(0, 0, false));
+        }
+        std::cout << "budget_on_off_max_difference=" << max_difference << "\n";
+        amrex::Finalize();
+        return max_difference <= Real(1.0e-12) ? 0 :
+            fail("budget-on/off state mismatch: max difference=" +
+                 std::to_string(static_cast<double>(max_difference)));
+    }
     PlotFileData initial(argv[2]);
     PlotFileData final(argv[3]);
     const bool cloudy = (mode == "cloudy");

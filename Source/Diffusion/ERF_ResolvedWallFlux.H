@@ -33,12 +33,21 @@ void apply_face (const amrex::Box& bx,
                  const amrex::Real alpha_C,
                  const amrex::Real rdOcp)
 {
+    // A tile may belong to an interior BoxArray box.  Do not relocate that
+    // tile to a global boundary: its Array4 views do not own data there.
+    if constexpr (HIGH) {
+        if (bx.bigEnd(DIR) != domain.bigEnd(DIR)) { return; }
+    } else {
+        if (bx.smallEnd(DIR) != domain.smallEnd(DIR)) { return; }
+    }
+
     const int cell_face = HIGH ? domain.bigEnd(DIR) : domain.smallEnd(DIR);
     amrex::Box face_cells = bx;
     face_cells.setSmall(DIR, cell_face);
     face_cells.setBig(DIR, cell_face);
     face_cells &= domain;
     if (face_cells.isEmpty()) { return; }
+    AMREX_ALWAYS_ASSERT(bx.contains(face_cells));
 
     const auto wall = config.walls[2*DIR + (HIGH ? 1 : 0)].thermodynamics;
     const bool is_theta = quantity == RhoTheta_comp;
