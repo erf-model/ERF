@@ -41,11 +41,40 @@ eb_::make_all_factories ([[maybe_unused]] int level,
         Vector<int>{nghost_basic(), nghost_volume(), nghost_full()}, m_support_level);
 
     // Correct cell connectivity
-    eb_::set_connection_flags();
+    eb_::set_connection_flags(m_factory.get());
 
+#if USE_FC_FACTORY
+    // New: Native AMReX FC factories (EB2::BuildFC called in ERF.cpp)
     { int const idim(0);
         Print() << "making EB staggered u-factory\n";
-        //m_u_factory.set_verbose();
+        m_u_factory_fc = std::make_unique<EBFArrayBoxFactory>(
+            a_eb_level, a_geom, ba, dm,
+            Vector<int>{nghost_basic(), nghost_volume(), nghost_full()},
+            m_support_level, idim);
+        eb_::set_connection_flags(m_u_factory_fc.get());
+    }
+
+    { int const idim(1);
+        Print() << "making EB staggered v-factory\n";
+        m_v_factory_fc = std::make_unique<EBFArrayBoxFactory>(
+            a_eb_level, a_geom, ba, dm,
+            Vector<int>{nghost_basic(), nghost_volume(), nghost_full()},
+            m_support_level, idim);
+        eb_::set_connection_flags(m_v_factory_fc.get());
+    }
+
+    { int const idim(2);
+        Print() << "making EB staggered w-factory\n";
+        m_w_factory_fc = std::make_unique<EBFArrayBoxFactory>(
+            a_eb_level, a_geom, ba, dm,
+            Vector<int>{nghost_basic(), nghost_volume(), nghost_full()},
+            m_support_level, idim);
+        eb_::set_connection_flags(m_w_factory_fc.get());
+    }
+#else
+    // Original: eb_aux_ factories
+    { int const idim(0);
+        Print() << "making EB staggered u-factory\n";
         m_u_factory.define(level, idim, a_geom, ba, dm,
             Vector<int>{nghost_basic(), nghost_volume(), nghost_full()},
             m_factory.get());
@@ -53,7 +82,6 @@ eb_::make_all_factories ([[maybe_unused]] int level,
 
     { int const idim(1);
         Print() << "making EB staggered v-factory\n";
-        //m_v_factory.set_verbose();
         m_v_factory.define(level, idim, a_geom, ba, dm,
             Vector<int>{nghost_basic(), nghost_volume(), nghost_full()},
             m_factory.get());
@@ -61,11 +89,11 @@ eb_::make_all_factories ([[maybe_unused]] int level,
 
     { int const idim(2);
         Print() << "making EB staggered w-factory\n";
-        //m_w_factory.set_verbose();
         m_w_factory.define(level, idim, a_geom, ba, dm,
             Vector<int>{nghost_basic(), nghost_volume(), nghost_full()},
             m_factory.get());
     }
+#endif
     Print() << "\nDone making EB factory at level = " << level << ".\n\n";
 }
 
@@ -88,12 +116,12 @@ Reset cell flags to disconnect cells with zero volume fraction,
 via non-const reference from EBFArrayBoxFactory.
 */
 void
-eb_::set_connection_flags ()
+eb_::set_connection_flags (EBFArrayBoxFactory* factory)
 {
     // Get non-const reference to EBCellFlagFab FabArray
-    FabArray<EBCellFlagFab>& cellflag = getNonConstEBCellFlags(*m_factory);
+    FabArray<EBCellFlagFab>& cellflag = getNonConstEBCellFlags(*factory);
 
-    const MultiFab& volfrac = m_factory->getVolFrac();
+    const MultiFab& volfrac = factory->getVolFrac();
 
     for (MFIter mfi(cellflag, false); mfi.isValid(); ++mfi) {
         const Box& bx = mfi.validbox();

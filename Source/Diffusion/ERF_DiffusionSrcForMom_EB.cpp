@@ -116,380 +116,453 @@ DiffusionSrcForMom_EB (const MFIter& mfi,
     const bool l_constraint_y = solverChoice.diffChoice.eb_diff_constraint_y;
     const bool l_constraint_z = solverChoice.diffChoice.eb_diff_constraint_z;
 
-    // int n = 0;
-
     // EB u-factory
     const auto* u_factory = ebfact.get_u_const_factory();
     Array4<const EBCellFlag> u_cellflg = u_factory->getMultiEBCellFlagFab()[mfi].const_array();
     Array4<const Real      > u_volfrac = u_factory->getVolFrac().const_array(mfi);
-    Array4<const Real      > u_volcent = u_factory->getCentroid().const_array(mfi);
-    Array4<const Real      > u_afrac_x = u_factory->getAreaFrac()[0]->const_array(mfi);
-    Array4<const Real      > u_afrac_y = u_factory->getAreaFrac()[1]->const_array(mfi);
-    Array4<const Real      > u_afrac_z = u_factory->getAreaFrac()[2]->const_array(mfi);
-    Array4<const Real      > u_bcent = u_factory->getBndryCent().const_array(mfi);
-    Array4<const Real      > u_bnorm = u_factory->getBndryNorm().const_array(mfi);
+    Array4<const Real      > u_volcent{};
+    Array4<const Real      > u_afrac_x{};
+    Array4<const Real      > u_afrac_y{};
+    Array4<const Real      > u_afrac_z{};
+    Array4<const Real      > u_bcent{};
+    Array4<const Real      > u_bnorm{};
+    FabType u_type = u_factory->getMultiEBCellFlagFab()[mfi].getType();
+    if (u_type == FabType::singlevalued) {
+        u_volcent = u_factory->getCentroid().const_array(mfi);
+        u_afrac_x = u_factory->getAreaFrac()[0]->const_array(mfi);
+        u_afrac_y = u_factory->getAreaFrac()[1]->const_array(mfi);
+        u_afrac_z = u_factory->getAreaFrac()[2]->const_array(mfi);
+        u_bcent = u_factory->getBndryCent().const_array(mfi);
+        u_bnorm = u_factory->getBndryNormal().const_array(mfi);
+    }
+
 
     // EB v-factory
     const auto* v_factory = ebfact.get_v_const_factory();
     Array4<const EBCellFlag> v_cellflg = v_factory->getMultiEBCellFlagFab()[mfi].const_array();
     Array4<const Real      > v_volfrac = v_factory->getVolFrac().const_array(mfi);
-    Array4<const Real      > v_volcent = v_factory->getCentroid().const_array(mfi);
-    Array4<const Real      > v_afrac_x = v_factory->getAreaFrac()[0]->const_array(mfi);
-    Array4<const Real      > v_afrac_y = v_factory->getAreaFrac()[1]->const_array(mfi);
-    Array4<const Real      > v_afrac_z = v_factory->getAreaFrac()[2]->const_array(mfi);
-    Array4<const Real      > v_bcent = v_factory->getBndryCent().const_array(mfi);
-    Array4<const Real      > v_bnorm = v_factory->getBndryNorm().const_array(mfi);
+    Array4<const Real      > v_volcent{};
+    Array4<const Real      > v_afrac_x{};
+    Array4<const Real      > v_afrac_y{};
+    Array4<const Real      > v_afrac_z{};
+    Array4<const Real      > v_bcent{};
+    Array4<const Real      > v_bnorm{};
+    FabType v_type = v_factory->getMultiEBCellFlagFab()[mfi].getType();
+    if (v_type == FabType::singlevalued) {
+        v_volcent = v_factory->getCentroid().const_array(mfi);
+        v_afrac_x = v_factory->getAreaFrac()[0]->const_array(mfi);
+        v_afrac_y = v_factory->getAreaFrac()[1]->const_array(mfi);
+        v_afrac_z = v_factory->getAreaFrac()[2]->const_array(mfi);
+        v_bcent = v_factory->getBndryCent().const_array(mfi);
+        v_bnorm = v_factory->getBndryNormal().const_array(mfi);
+    }
 
     // EB w-factory
     const auto* w_factory = ebfact.get_w_const_factory();
     Array4<const EBCellFlag> w_cellflg = w_factory->getMultiEBCellFlagFab()[mfi].const_array();
     Array4<const Real      > w_volfrac = w_factory->getVolFrac().const_array(mfi);
-    Array4<const Real      > w_volcent = w_factory->getCentroid().const_array(mfi);
-    Array4<const Real      > w_afrac_x = w_factory->getAreaFrac()[0]->const_array(mfi);
-    Array4<const Real      > w_afrac_y = w_factory->getAreaFrac()[1]->const_array(mfi);
-    Array4<const Real      > w_afrac_z = w_factory->getAreaFrac()[2]->const_array(mfi);
-    Array4<const Real      > w_bcent = w_factory->getBndryCent().const_array(mfi);
-    Array4<const Real      > w_bnorm = w_factory->getBndryNorm().const_array(mfi);
+    Array4<const Real      > w_volcent{};
+    Array4<const Real      > w_afrac_x{};
+    Array4<const Real      > w_afrac_y{};
+    Array4<const Real      > w_afrac_z{};
+    Array4<const Real      > w_bcent{};
+    Array4<const Real      > w_bnorm{};
+    FabType w_type = w_factory->getMultiEBCellFlagFab()[mfi].getType();
+    if (w_type == FabType::singlevalued) {
+        w_volcent = w_factory->getCentroid().const_array(mfi);
+        w_afrac_x = w_factory->getAreaFrac()[0]->const_array(mfi);
+        w_afrac_y = w_factory->getAreaFrac()[1]->const_array(mfi);
+        w_afrac_z = w_factory->getAreaFrac()[2]->const_array(mfi);
+        w_bcent = w_factory->getBndryCent().const_array(mfi);
+        w_bnorm = w_factory->getBndryNormal().const_array(mfi);
+    }
 
     // x-momentum
-    ParallelFor(bxx,
-    [=] AMREX_GPU_DEVICE (int i, int j, int k)
-    {
-        if (u_volfrac(i,j,k)>zero) {
+    if (u_type == FabType::regular) {
 
-            // Inv Jacobian
+        ParallelFor(bxx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+
             Real mfsq = mf_ux(i,j,0) * mf_uy(i,j,0);
 
-            Real diffContrib  = ( (tau11(i  , j  , k  ) * u_afrac_x(i+1,j  ,k  )
-                                -  tau11(i-1, j  , k  ) * u_afrac_x(i  ,j  ,k  ) ) * dxinv * mfsq
-                                + (tau12(i  , j+1, k  ) * u_afrac_y(i  ,j+1,k  )
-                                -  tau12(i  , j  , k  ) * u_afrac_y(i  ,j  ,k  ) ) * dyinv * mfsq
-                                + (tau13(i  , j  , k+1) * u_afrac_z(i  ,j  ,k+1)
-                                -  tau13(i  , j  , k  ) * u_afrac_z(i  ,j  ,k  )) * dzinv );
+            Real diffContrib  = ( (tau11(i  , j  , k  ) - tau11(i-1, j  , k  ) ) * dxinv * mfsq
+                                + (tau12(i  , j+1, k  ) - tau12(i  , j  , k  ) ) * dyinv * mfsq
+                                + (tau13(i  , j  , k+1) - tau13(i  , j  , k  ) ) * dzinv );
             diffContrib      /= u_volfrac(i,j,k);
 
             rho_u_rhs(i,j,k) -= diffContrib;
+        });
 
-            if (!l_constraint_x && u_cellflg(i,j,k).isSingleValued()) {
+    } else if (u_type == FabType::singlevalued) {
 
-                Real axm = u_afrac_x(i  ,j  ,k  );
-                Real axp = u_afrac_x(i+1,j  ,k  );
-                Real aym = u_afrac_y(i  ,j  ,k  );
-                Real ayp = u_afrac_y(i  ,j+1,k  );
-                Real azm = u_afrac_z(i  ,j  ,k  );
-                Real azp = u_afrac_z(i  ,j  ,k+1);
+        ParallelFor(bxx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
 
-                Real adx = (axm-axp) * dy * dz;
-                Real ady = (aym-ayp) * dx * dz;
-                Real adz = (azm-azp) * dx * dy;
+            if (u_volfrac(i,j,k)>zero) {
 
-                Real barea = std::sqrt(adx*adx + ady*ady + adz*adz);
+                // Inv Jacobian
+                Real mfsq = mf_ux(i,j,0) * mf_uy(i,j,0);
 
-                Real dudn = zero;
+                Real diffContrib  = ( (tau11(i  , j  , k  ) * u_afrac_x(i+1,j  ,k  )
+                                    -  tau11(i-1, j  , k  ) * u_afrac_x(i  ,j  ,k  ) ) * dxinv * mfsq
+                                    + (tau12(i  , j+1, k  ) * u_afrac_y(i  ,j+1,k  )
+                                    -  tau12(i  , j  , k  ) * u_afrac_y(i  ,j  ,k  ) ) * dyinv * mfsq
+                                    + (tau13(i  , j  , k+1) * u_afrac_z(i  ,j  ,k+1)
+                                    -  tau13(i  , j  , k  ) * u_afrac_z(i  ,j  ,k  )) * dzinv );
+                diffContrib      /= u_volfrac(i,j,k);
 
-                if (l_no_slip || l_surface_layer) {
+                rho_u_rhs(i,j,k) -= diffContrib;
 
-                    RealVect bcent_eb {u_bcent(i,j,k,0), u_bcent(i,j,k,1), u_bcent(i,j,k,2)};
+                if (!l_constraint_x && u_cellflg(i,j,k).isSingleValued()) {
 
-                    Real Dirichlet_u {zero};
-                    Real Dirichlet_v {zero};
-                    Real Dirichlet_w {zero};
+                    Real axm = u_afrac_x(i  ,j  ,k  );
+                    Real axp = u_afrac_x(i+1,j  ,k  );
+                    Real aym = u_afrac_y(i  ,j  ,k  );
+                    Real ayp = u_afrac_y(i  ,j+1,k  );
+                    Real azm = u_afrac_z(i  ,j  ,k  );
+                    Real azp = u_afrac_z(i  ,j  ,k+1);
 
-                    Real nx = u_bnorm(i,j,k,0);
-                    Real ny = u_bnorm(i,j,k,1);
-                    Real nz = u_bnorm(i,j,k,2);
+                    Real adx = (axm-axp) * dy * dz;
+                    Real ady = (aym-ayp) * dx * dz;
+                    Real adz = (azm-azp) * dx * dy;
 
-                    if (l_surface_layer) {
+                    Real barea = std::sqrt(adx*adx + ady*ady + adz*adz);
 
-                        // Average v and w onto the x-face
-                        Real velx = u_arr(i,j,k);
-                        Real vely = (v_volfrac(i-1,j  ,k) * v_arr(i-1,j  ,k) + v_volfrac(i,j  ,k) * v_arr(i,j  ,k)
-                                    + v_volfrac(i-1,j+1,k) * v_arr(i-1,j+1,k) + v_volfrac(i,j+1,k) * v_arr(i,j+1,k))
-                                    / (v_volfrac(i-1,j,k) + v_volfrac(i,j,k) + v_volfrac(i-1,j+1,k) + v_volfrac(i,j+1,k));
+                    Real dudn = zero;
 
-                        Real velz = (w_volfrac(i-1,j,k  ) * w_arr(i-1,j,k  ) + w_volfrac(i,j,k  ) * w_arr(i,j,k  )
-                                    + w_volfrac(i-1,j,k+1) * w_arr(i-1,j,k+1) + w_volfrac(i,j,k+1) * w_arr(i,j,k+1))
-                                    / (w_volfrac(i-1,j,k) + w_volfrac(i,j,k) + w_volfrac(i-1,j,k+1) + w_volfrac(i,j,k+1));
+                    if (l_no_slip || l_surface_layer) {
 
-                        // Impose tangential velocity as Dirichlet condition
-                        Real v_dot_n = velx * nx + vely * ny + velz * nz;
-                        Dirichlet_u = velx - v_dot_n * nx;
-                        Dirichlet_v = vely - v_dot_n * ny;
-                        Dirichlet_w = velz - v_dot_n * nz;
+                        RealVect bcent_eb {u_bcent(i,j,k,0), u_bcent(i,j,k,1), u_bcent(i,j,k,2)};
+
+                        Real Dirichlet_u {zero};
+                        Real Dirichlet_v {zero};
+                        Real Dirichlet_w {zero};
+
+                        Real nx = u_bnorm(i,j,k,0);
+                        Real ny = u_bnorm(i,j,k,1);
+                        Real nz = u_bnorm(i,j,k,2);
+
+                        if (l_surface_layer) {
+
+                            // Average v and w onto the x-face
+                            Real velx = u_arr(i,j,k);
+                            Real vely = (v_volfrac(i-1,j  ,k) * v_arr(i-1,j  ,k) + v_volfrac(i,j  ,k) * v_arr(i,j  ,k)
+                                        + v_volfrac(i-1,j+1,k) * v_arr(i-1,j+1,k) + v_volfrac(i,j+1,k) * v_arr(i,j+1,k))
+                                        / (v_volfrac(i-1,j,k) + v_volfrac(i,j,k) + v_volfrac(i-1,j+1,k) + v_volfrac(i,j+1,k));
+
+                            Real velz = (w_volfrac(i-1,j,k  ) * w_arr(i-1,j,k  ) + w_volfrac(i,j,k  ) * w_arr(i,j,k  )
+                                        + w_volfrac(i-1,j,k+1) * w_arr(i-1,j,k+1) + w_volfrac(i,j,k+1) * w_arr(i,j,k+1))
+                                        / (w_volfrac(i-1,j,k) + w_volfrac(i,j,k) + w_volfrac(i-1,j,k+1) + w_volfrac(i,j,k+1));
+
+                            // Impose tangential velocity as Dirichlet condition
+                            Real v_dot_n = velx * nx + vely * ny + velz * nz;
+                            Dirichlet_u = velx - v_dot_n * nx;
+                            Dirichlet_v = vely - v_dot_n * ny;
+                            Dirichlet_w = velz - v_dot_n * nz;
+                        }
+
+                        GpuArray<Real,AMREX_SPACEDIM> slopes_u;
+                        GpuArray<Real,AMREX_SPACEDIM> slopes_v;
+                        GpuArray<Real,AMREX_SPACEDIM> slopes_w;
+
+                        slopes_u = erf_calc_slopes_eb_Dirichlet          (                         dx, dy, dz, i, j, k, bcent_eb, Dirichlet_u, u_arr, u_volcent, u_cellflg);
+                        slopes_v = erf_calc_slopes_eb_Dirichlet_staggered( Vars::xvel, Vars::yvel, dx, dy, dz, i, j, k, bcent_eb, Dirichlet_v, v_arr, v_volcent, v_cellflg);
+                        slopes_w = erf_calc_slopes_eb_Dirichlet_staggered( Vars::xvel, Vars::zvel, dx, dy, dz, i, j, k, bcent_eb, Dirichlet_w, w_arr, w_volcent, w_cellflg);
+
+                        Real dudx = slopes_u[0];
+                        Real dudy = slopes_u[1];
+                        Real dudz = slopes_u[2];
+                        Real dvdx = slopes_v[0];
+                        Real dvdy = slopes_v[1];
+                        Real dvdz = slopes_v[2];
+                        Real dwdx = slopes_w[0];
+                        Real dwdy = slopes_w[1];
+                        Real dwdz = slopes_w[2];
+
+                        Real tau11_eb = ( dudx - ( dudx + dvdy + dwdz ) / three );
+                        Real tau12_eb = myhalf * (dudy + dvdx);
+                        Real tau13_eb = myhalf * (dudz + dwdx);
+
+                        if (l_no_slip) {
+
+                            dudn = - mu_eff * (nx * tau11_eb + ny * tau12_eb + nz * tau13_eb);
+
+                        } else if (l_surface_layer) {
+
+                            Real tbx_x, tbx_y, tbx_z, tby_x, tby_y, tby_z;
+                            compute_tangent_vectors(nx, ny, nz, tbx_x, tbx_y, tbx_z, tby_x, tby_y, tby_z);
+
+                            Real tau22_eb = ( dvdy - ( dudx + dvdy + dwdz ) / three );
+                            Real tau33_eb = ( dwdz - ( dudx + dvdy + dwdz ) / three );
+                            Real tau23_eb = myhalf * (dvdz + dwdy);
+
+                            Real tauzz = mu_eff * ( nx*nx*tau11_eb + ny*ny*tau22_eb + nz*nz*tau33_eb
+                                                + two * (nx*ny*tau12_eb + ny*nz*tau23_eb + nx*nz*tau13_eb ));
+
+                            dudn = - tbx_x * u_tau_eb13(i,j,k) - tby_x * u_tau_eb23(i,j,k) - nx * tauzz;
+                        }
                     }
 
-                    GpuArray<Real,AMREX_SPACEDIM> slopes_u;
-                    GpuArray<Real,AMREX_SPACEDIM> slopes_v;
-                    GpuArray<Real,AMREX_SPACEDIM> slopes_w;
-
-                    slopes_u = erf_calc_slopes_eb_Dirichlet          (                         dx, dy, dz, i, j, k, bcent_eb, Dirichlet_u, u_arr, u_volcent, u_cellflg);
-                    slopes_v = erf_calc_slopes_eb_Dirichlet_staggered( Vars::xvel, Vars::yvel, dx, dy, dz, i, j, k, bcent_eb, Dirichlet_v, v_arr, v_volcent, v_cellflg);
-                    slopes_w = erf_calc_slopes_eb_Dirichlet_staggered( Vars::xvel, Vars::zvel, dx, dy, dz, i, j, k, bcent_eb, Dirichlet_w, w_arr, w_volcent, w_cellflg);
-
-                    Real dudx = slopes_u[0];
-                    Real dudy = slopes_u[1];
-                    Real dudz = slopes_u[2];
-                    Real dvdx = slopes_v[0];
-                    Real dvdy = slopes_v[1];
-                    Real dvdz = slopes_v[2];
-                    Real dwdx = slopes_w[0];
-                    Real dwdy = slopes_w[1];
-                    Real dwdz = slopes_w[2];
-
-                    Real tau11_eb = ( dudx - ( dudx + dvdy + dwdz ) / three );
-                    Real tau12_eb = myhalf * (dudy + dvdx);
-                    Real tau13_eb = myhalf * (dudz + dwdx);
-
-                    if (l_no_slip) {
-
-                        dudn = - mu_eff * (nx * tau11_eb + ny * tau12_eb + nz * tau13_eb);
-
-                    } else if (l_surface_layer) {
-
-                        Real tbx_x, tbx_y, tbx_z, tby_x, tby_y, tby_z;
-                        compute_tangent_vectors(nx, ny, nz, tbx_x, tbx_y, tbx_z, tby_x, tby_y, tby_z);
-
-                        Real tau22_eb = ( dvdy - ( dudx + dvdy + dwdz ) / three );
-                        Real tau33_eb = ( dwdz - ( dudx + dvdy + dwdz ) / three );
-                        Real tau23_eb = myhalf * (dvdz + dwdy);
-
-                        Real tauzz = mu_eff * ( nx*nx*tau11_eb + ny*ny*tau22_eb + nz*nz*tau33_eb
-                                            + two * (nx*ny*tau12_eb + ny*nz*tau23_eb + nx*nz*tau13_eb ));
-
-                        dudn = - tbx_x * u_tau_eb13(i,j,k) - tby_x * u_tau_eb23(i,j,k) - nx * tauzz;
-                    }
+                    rho_u_rhs(i,j,k) -= barea * dudn / (vol * u_volfrac(i,j,k));
                 }
-
-                rho_u_rhs(i,j,k) -= barea * dudn / (vol * u_volfrac(i,j,k));
             }
-        }
 
-    });
+        });
+    } // u_type
 
     // y-momentum
-    ParallelFor(bxy,
-    [=] AMREX_GPU_DEVICE (int i, int j, int k)
-    {
-        if (v_volfrac(i,j,k)>zero) {
+    if (v_type == FabType::regular) {
 
-            // Inv Jacobian
+        ParallelFor(bxy, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+
             Real mfsq = mf_vx(i,j,0) * mf_vy(i,j,0);
 
-            Real diffContrib  = ( (tau12(i+1, j  , k  ) * v_afrac_x(i+1,j  ,k  )
-                                -  tau12(i  , j  , k  ) * v_afrac_x(i  ,j  ,k  ) ) * dxinv * mfsq
-                                + (tau22(i  , j  , k  ) * v_afrac_y(i  ,j+1,k  )
-                                -  tau22(i  , j-1, k  ) * v_afrac_y(i  ,j  ,k  ) ) * dyinv * mfsq
-                                + (tau23(i  , j  , k+1) * v_afrac_z(i  ,j  ,k+1)
-                                -  tau23(i  , j  , k  ) * v_afrac_z(i  ,j  ,k  ) ) * dzinv );
+            Real diffContrib  = ( (tau12(i+1, j  , k  ) - tau12(i  , j  , k  ) ) * dxinv * mfsq
+                                + (tau22(i  , j  , k  ) - tau22(i  , j-1, k  ) ) * dyinv * mfsq
+                                + (tau23(i  , j  , k+1) - tau23(i  , j  , k  ) ) * dzinv );
             diffContrib      /= v_volfrac(i,j,k);
 
             rho_v_rhs(i,j,k) -= diffContrib;
+        });
+    } else if (v_type == FabType::singlevalued) {
 
-            if (!l_constraint_y && v_cellflg(i,j,k).isSingleValued()) {
+        ParallelFor(bxy, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
 
-                Real axm = v_afrac_x(i  ,j  ,k  );
-                Real axp = v_afrac_x(i+1,j  ,k  );
-                Real aym = v_afrac_y(i  ,j  ,k  );
-                Real ayp = v_afrac_y(i  ,j+1,k  );
-                Real azm = v_afrac_z(i  ,j  ,k  );
-                Real azp = v_afrac_z(i  ,j  ,k+1);
+            if (v_volfrac(i,j,k)>zero) {
 
-                Real adx = (axm-axp) * dy * dz;
-                Real ady = (aym-ayp) * dx * dz;
-                Real adz = (azm-azp) * dx * dy;
+                // Inv Jacobian
+                Real mfsq = mf_vx(i,j,0) * mf_vy(i,j,0);
 
-                Real barea = std::sqrt(adx*adx + ady*ady + adz*adz);
+                Real diffContrib  = ( (tau12(i+1, j  , k  ) * v_afrac_x(i+1,j  ,k  )
+                                    -  tau12(i  , j  , k  ) * v_afrac_x(i  ,j  ,k  ) ) * dxinv * mfsq
+                                    + (tau22(i  , j  , k  ) * v_afrac_y(i  ,j+1,k  )
+                                    -  tau22(i  , j-1, k  ) * v_afrac_y(i  ,j  ,k  ) ) * dyinv * mfsq
+                                    + (tau23(i  , j  , k+1) * v_afrac_z(i  ,j  ,k+1)
+                                    -  tau23(i  , j  , k  ) * v_afrac_z(i  ,j  ,k  ) ) * dzinv );
+                diffContrib      /= v_volfrac(i,j,k);
 
-                Real dvdn = 0.0;
+                rho_v_rhs(i,j,k) -= diffContrib;
 
-                if (l_no_slip || l_surface_layer) {
+                if (!l_constraint_y && v_cellflg(i,j,k).isSingleValued()) {
 
-                    RealVect bcent_eb {v_bcent(i,j,k,0), v_bcent(i,j,k,1), v_bcent(i,j,k,2)};
+                    Real axm = v_afrac_x(i  ,j  ,k  );
+                    Real axp = v_afrac_x(i+1,j  ,k  );
+                    Real aym = v_afrac_y(i  ,j  ,k  );
+                    Real ayp = v_afrac_y(i  ,j+1,k  );
+                    Real azm = v_afrac_z(i  ,j  ,k  );
+                    Real azp = v_afrac_z(i  ,j  ,k+1);
 
-                    Real Dirichlet_u {zero};
-                    Real Dirichlet_v {zero};
-                    Real Dirichlet_w {zero};
+                    Real adx = (axm-axp) * dy * dz;
+                    Real ady = (aym-ayp) * dx * dz;
+                    Real adz = (azm-azp) * dx * dy;
 
-                    Real nx = v_bnorm(i,j,k,0);
-                    Real ny = v_bnorm(i,j,k,1);
-                    Real nz = v_bnorm(i,j,k,2);
+                    Real barea = std::sqrt(adx*adx + ady*ady + adz*adz);
 
-                    if (l_surface_layer) {
+                    Real dvdn = 0.0;
 
-                        // Average u and w onto the y-face
-                        Real velx = (u_volfrac(i  ,j-1,k) * u_arr(i  ,j-1,k) + u_volfrac(i+1,j-1,k) * u_arr(i+1,j-1,k)
-                                    + u_volfrac(i+1,j  ,k) * u_arr(i+1,j  ,k) + u_volfrac(i  ,j  ,k) * u_arr(i  ,j  ,k))
-                                    / (u_volfrac(i,j-1,k) + u_volfrac(i+1,j-1,k) + u_volfrac(i+1,j,k) + u_volfrac(i,j,k));
-                        Real vely = v_arr(i,j,k);
-                        Real velz = (w_volfrac(i,j-1,k  ) * w_arr(i,j-1,k  ) + w_volfrac(i,j,k  ) * w_arr(i,j,k  )
-                                    + w_volfrac(i,j  ,k+1) * w_arr(i,j  ,k+1) + w_volfrac(i,j-1,k+1) * w_arr(i,j-1,k+1))
-                                    / (w_volfrac(i,j-1,k) + w_volfrac(i,j,k) + w_volfrac(i,j,k+1) + w_volfrac(i,j-1,k+1));
+                    if (l_no_slip || l_surface_layer) {
 
-                        // Impose tangential velocity as Dirichlet condition
-                        Real v_dot_n = velx * nx + vely * ny + velz * nz;
-                        Dirichlet_u = velx - v_dot_n * nx;
-                        Dirichlet_v = vely - v_dot_n * ny;
-                        Dirichlet_w = velz - v_dot_n * nz;
-                    }
+                        RealVect bcent_eb {v_bcent(i,j,k,0), v_bcent(i,j,k,1), v_bcent(i,j,k,2)};
 
-                    GpuArray<Real,AMREX_SPACEDIM> slopes_u;
-                    GpuArray<Real,AMREX_SPACEDIM> slopes_v;
-                    GpuArray<Real,AMREX_SPACEDIM> slopes_w;
+                        Real Dirichlet_u {zero};
+                        Real Dirichlet_v {zero};
+                        Real Dirichlet_w {zero};
 
-                    slopes_u = erf_calc_slopes_eb_Dirichlet_staggered( Vars::yvel, Vars::xvel, dx, dy, dz, i, j, k, bcent_eb, Dirichlet_u, u_arr, u_volcent, u_cellflg);
-                    slopes_v = erf_calc_slopes_eb_Dirichlet          (                         dx, dy, dz, i, j, k, bcent_eb, Dirichlet_v, v_arr, v_volcent, v_cellflg);
-                    slopes_w = erf_calc_slopes_eb_Dirichlet_staggered( Vars::yvel, Vars::zvel, dx, dy, dz, i, j, k, bcent_eb, Dirichlet_w, w_arr, w_volcent, w_cellflg);
+                        Real nx = v_bnorm(i,j,k,0);
+                        Real ny = v_bnorm(i,j,k,1);
+                        Real nz = v_bnorm(i,j,k,2);
 
-                    Real dudx = slopes_u[0];
-                    Real dudy = slopes_u[1];
-                    Real dudz = slopes_u[2];
-                    Real dvdx = slopes_v[0];
-                    Real dvdy = slopes_v[1];
-                    Real dvdz = slopes_v[2];
-                    Real dwdx = slopes_w[0];
-                    Real dwdy = slopes_w[1];
-                    Real dwdz = slopes_w[2];
+                        if (l_surface_layer) {
 
-                    Real tau22_eb = ( dvdy - ( dudx + dvdy + dwdz ) / three );
-                    Real tau12_eb = myhalf * (dudy + dvdx);
-                    Real tau23_eb = myhalf * (dvdz + dwdy);
+                            // Average u and w onto the y-face
+                            Real velx = (u_volfrac(i  ,j-1,k) * u_arr(i  ,j-1,k) + u_volfrac(i+1,j-1,k) * u_arr(i+1,j-1,k)
+                                        + u_volfrac(i+1,j  ,k) * u_arr(i+1,j  ,k) + u_volfrac(i  ,j  ,k) * u_arr(i  ,j  ,k))
+                                        / (u_volfrac(i,j-1,k) + u_volfrac(i+1,j-1,k) + u_volfrac(i+1,j,k) + u_volfrac(i,j,k));
+                            Real vely = v_arr(i,j,k);
+                            Real velz = (w_volfrac(i,j-1,k  ) * w_arr(i,j-1,k  ) + w_volfrac(i,j,k  ) * w_arr(i,j,k  )
+                                        + w_volfrac(i,j  ,k+1) * w_arr(i,j  ,k+1) + w_volfrac(i,j-1,k+1) * w_arr(i,j-1,k+1))
+                                        / (w_volfrac(i,j-1,k) + w_volfrac(i,j,k) + w_volfrac(i,j,k+1) + w_volfrac(i,j-1,k+1));
 
-                    if (l_no_slip) {
+                            // Impose tangential velocity as Dirichlet condition
+                            Real v_dot_n = velx * nx + vely * ny + velz * nz;
+                            Dirichlet_u = velx - v_dot_n * nx;
+                            Dirichlet_v = vely - v_dot_n * ny;
+                            Dirichlet_w = velz - v_dot_n * nz;
+                        }
 
-                        dvdn = - mu_eff * (nx * tau12_eb + ny * tau22_eb + nz * tau23_eb);
+                        GpuArray<Real,AMREX_SPACEDIM> slopes_u;
+                        GpuArray<Real,AMREX_SPACEDIM> slopes_v;
+                        GpuArray<Real,AMREX_SPACEDIM> slopes_w;
 
-                    } else if (l_surface_layer) {
+                        slopes_u = erf_calc_slopes_eb_Dirichlet_staggered( Vars::yvel, Vars::xvel, dx, dy, dz, i, j, k, bcent_eb, Dirichlet_u, u_arr, u_volcent, u_cellflg);
+                        slopes_v = erf_calc_slopes_eb_Dirichlet          (                         dx, dy, dz, i, j, k, bcent_eb, Dirichlet_v, v_arr, v_volcent, v_cellflg);
+                        slopes_w = erf_calc_slopes_eb_Dirichlet_staggered( Vars::yvel, Vars::zvel, dx, dy, dz, i, j, k, bcent_eb, Dirichlet_w, w_arr, w_volcent, w_cellflg);
 
-                        Real tbx_x, tbx_y, tbx_z, tby_x, tby_y, tby_z;
-                        compute_tangent_vectors(nx, ny, nz, tbx_x, tbx_y, tbx_z, tby_x, tby_y, tby_z);
+                        Real dudx = slopes_u[0];
+                        Real dudy = slopes_u[1];
+                        Real dudz = slopes_u[2];
+                        Real dvdx = slopes_v[0];
+                        Real dvdy = slopes_v[1];
+                        Real dvdz = slopes_v[2];
+                        Real dwdx = slopes_w[0];
+                        Real dwdy = slopes_w[1];
+                        Real dwdz = slopes_w[2];
 
-                        Real tau11_eb = ( dudx - ( dudx + dvdy + dwdz ) / three );
-                        Real tau33_eb = ( dwdz - ( dudx + dvdy + dwdz ) / three );
-                        Real tau13_eb = myhalf * (dudz + dwdx);
-
-                        Real tauzz = mu_eff * ( nx*nx*tau11_eb + ny*ny*tau22_eb + nz*nz*tau33_eb
-                                            + two * (nx*ny*tau12_eb + ny*nz*tau23_eb + nx*nz*tau13_eb ));
-
-                        dvdn = - tbx_y * v_tau_eb13(i,j,k) - tby_y * v_tau_eb23(i,j,k) - ny * tauzz;
-                    }
-                }
-
-                rho_v_rhs(i,j,k) -= barea * dvdn / (vol * v_volfrac(i,j,k));
-            }
-        }
-    });
-
-    // z-momentum
-    ParallelFor(bxz,
-    [=] AMREX_GPU_DEVICE (int i, int j, int k)
-    {
-        if (w_volfrac(i,j,k)>zero) {
-
-            // Inv Jacobian
-            Real mfsq = mf_mx(i,j,0) * mf_my(i,j,0);
-
-            Real diffContrib  = ( (tau13(i+1, j  , k  ) * w_afrac_x(i+1,j  ,k  )
-                                -  tau13(i  , j  , k  ) * w_afrac_x(i  ,j  ,k  ) ) * dxinv * mfsq
-                                + (tau23(i  , j+1, k  ) * w_afrac_y(i  ,j+1,k  )
-                                -  tau23(i  , j  , k  ) * w_afrac_y(i  ,j  ,k  ) ) * dyinv * mfsq
-                                + (tau33(i  , j  , k  ) * w_afrac_z(i  ,j  ,k+1)
-                                -  tau33(i  , j  , k-1) * w_afrac_z(i  ,j  ,k  ) ) * dzinv );
-            diffContrib      /= w_volfrac(i,j,k);
-            rho_w_rhs(i,j,k) -= diffContrib;
-
-            if (!l_constraint_z && w_cellflg(i,j,k).isSingleValued()) {
-
-                Real axm = w_afrac_x(i  ,j  ,k  );
-                Real axp = w_afrac_x(i+1,j  ,k  );
-                Real aym = w_afrac_y(i  ,j  ,k  );
-                Real ayp = w_afrac_y(i  ,j+1,k  );
-                Real azm = w_afrac_z(i  ,j  ,k  );
-                Real azp = w_afrac_z(i  ,j  ,k+1);
-
-                Real adx = (axm-axp) * dy * dz;
-                Real ady = (aym-ayp) * dx * dz;
-                Real adz = (azm-azp) * dx * dy;
-
-                Real barea = std::sqrt(adx*adx + ady*ady + adz*adz);
-
-                Real dwdn = zero;
-
-                if (l_no_slip || l_surface_layer) {
-
-                    const RealVect bcent_eb {w_bcent(i,j,k,0), w_bcent(i,j,k,1), w_bcent(i,j,k,2)};
-
-                    Real Dirichlet_u {zero};
-                    Real Dirichlet_v {zero};
-                    Real Dirichlet_w {zero};
-
-                    Real nx = w_bnorm(i,j,k,0);
-                    Real ny = w_bnorm(i,j,k,1);
-                    Real nz = w_bnorm(i,j,k,2);
-
-                    if (l_surface_layer) {
-
-                        // Average u and v onto the z-face
-                        Real velx = (u_volfrac(i  ,j,k-1) * u_arr(i  ,j,k-1) + u_volfrac(i+1,j,k-1) * u_arr(i+1,j,k-1)
-                                    + u_volfrac(i+1,j,k  ) * u_arr(i+1,j,k  ) + u_volfrac(i  ,j,k  ) * u_arr(i  ,j,k  ))
-                                    / (u_volfrac(i,j,k-1) + u_volfrac(i+1,j,k-1) + u_volfrac(i+1,j,k) + u_volfrac(i,j,k));
-                        Real vely = (v_volfrac(i,j  ,k-1) * v_arr(i,j  ,k-1) + v_volfrac(i,j+1,k-1) * v_arr(i,j+1,k-1)
-                                    + v_volfrac(i,j+1,k  ) * v_arr(i,j+1,k  ) + v_volfrac(i,j  ,k  ) * v_arr(i,j  ,k  ))
-                                    / (v_volfrac(i,j,k-1) + v_volfrac(i,j+1,k-1) + v_volfrac(i,j+1,k) + v_volfrac(i,j,k));
-                        Real velz = w_arr(i,j,k);
-
-                        // Impose tangential velocity as Dirichlet condition
-                        Real v_dot_n = velx * nx + vely * ny + velz * nz;
-                        Dirichlet_u = velx - v_dot_n * nx;
-                        Dirichlet_v = vely - v_dot_n * ny;
-                        Dirichlet_w = velz - v_dot_n * nz;
-                    }
-
-                    GpuArray<Real,AMREX_SPACEDIM> slopes_u;
-                    GpuArray<Real,AMREX_SPACEDIM> slopes_v;
-                    GpuArray<Real,AMREX_SPACEDIM> slopes_w;
-
-                    slopes_u = erf_calc_slopes_eb_Dirichlet_staggered( Vars::zvel, Vars::xvel, dx, dy, dz, i, j, k, bcent_eb, Dirichlet_u, u_arr, u_volcent, u_cellflg);
-                    slopes_v = erf_calc_slopes_eb_Dirichlet_staggered( Vars::zvel, Vars::yvel, dx, dy, dz, i, j, k, bcent_eb, Dirichlet_v, v_arr, v_volcent, v_cellflg);
-                    slopes_w = erf_calc_slopes_eb_Dirichlet          (                         dx, dy, dz, i, j, k, bcent_eb, Dirichlet_w, w_arr, w_volcent, w_cellflg);
-
-                    Real dudx = slopes_u[0];
-                    Real dudy = slopes_u[1];
-                    Real dudz = slopes_u[2];
-                    Real dvdx = slopes_v[0];
-                    Real dvdy = slopes_v[1];
-                    Real dvdz = slopes_v[2];
-                    Real dwdx = slopes_w[0];
-                    Real dwdy = slopes_w[1];
-                    Real dwdz = slopes_w[2];
-
-                    Real tau33_eb = ( dwdz - ( dudx + dvdy + dwdz ) / three );
-                    Real tau13_eb = myhalf * (dudz + dwdx);
-                    Real tau23_eb = myhalf * (dvdz + dwdy);
-
-                    if (l_no_slip) {
-
-                        dwdn = - mu_eff * (nx * tau13_eb + ny * tau23_eb + nz * tau33_eb);
-
-                    } else if (l_surface_layer) {
-
-                        Real tbx_x, tbx_y, tbx_z, tby_x, tby_y, tby_z;
-                        compute_tangent_vectors(nx, ny, nz, tbx_x, tbx_y, tbx_z, tby_x, tby_y, tby_z);
-
-                        Real tau11_eb = ( dudx - ( dudx + dvdy + dwdz ) / three );
                         Real tau22_eb = ( dvdy - ( dudx + dvdy + dwdz ) / three );
                         Real tau12_eb = myhalf * (dudy + dvdx);
+                        Real tau23_eb = myhalf * (dvdz + dwdy);
 
-                        Real tauzz = mu_eff * ( nx*nx*tau11_eb + ny*ny*tau22_eb + nz*nz*tau33_eb
-                                            + two * (nx*ny*tau12_eb + ny*nz*tau23_eb + nx*nz*tau13_eb ));
+                        if (l_no_slip) {
 
-                        dwdn = - tbx_z * w_tau_eb13(i,j,k) - tby_z * w_tau_eb23(i,j,k) - nz * tauzz;
+                            dvdn = - mu_eff * (nx * tau12_eb + ny * tau22_eb + nz * tau23_eb);
 
+                        } else if (l_surface_layer) {
+
+                            Real tbx_x, tbx_y, tbx_z, tby_x, tby_y, tby_z;
+                            compute_tangent_vectors(nx, ny, nz, tbx_x, tbx_y, tbx_z, tby_x, tby_y, tby_z);
+
+                            Real tau11_eb = ( dudx - ( dudx + dvdy + dwdz ) / three );
+                            Real tau33_eb = ( dwdz - ( dudx + dvdy + dwdz ) / three );
+                            Real tau13_eb = myhalf * (dudz + dwdx);
+
+                            Real tauzz = mu_eff * ( nx*nx*tau11_eb + ny*ny*tau22_eb + nz*nz*tau33_eb
+                                                + two * (nx*ny*tau12_eb + ny*nz*tau23_eb + nx*nz*tau13_eb ));
+
+                            dvdn = - tbx_y * v_tau_eb13(i,j,k) - tby_y * v_tau_eb23(i,j,k) - ny * tauzz;
+                        }
                     }
+
+                    rho_v_rhs(i,j,k) -= barea * dvdn / (vol * v_volfrac(i,j,k));
                 }
-
-                rho_w_rhs(i,j,k) -= barea * dwdn / (vol * w_volfrac(i,j,k));
             }
-        }
-    });
+        });
+    } // v_type
 
+    // z-momentum
+    if (w_type == FabType::regular) {
+
+        ParallelFor(bxz, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+
+            Real mfsq = mf_mx(i,j,0) * mf_my(i,j,0);
+
+            Real diffContrib  = ( (tau13(i+1, j  , k  ) - tau13(i  , j  , k  ) ) * dxinv * mfsq
+                                + (tau23(i  , j+1, k  ) - tau23(i  , j  , k  ) ) * dyinv * mfsq
+                                + (tau33(i  , j  , k  ) - tau33(i  , j  , k-1) ) * dzinv );
+            diffContrib      /= w_volfrac(i,j,k);
+
+            rho_w_rhs(i,j,k) -= diffContrib;
+        });
+
+    } else if (w_type == FabType::singlevalued) {
+
+        ParallelFor(bxz, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+
+            if (w_volfrac(i,j,k)>zero) {
+
+                // Inv Jacobian
+                Real mfsq = mf_mx(i,j,0) * mf_my(i,j,0);
+
+                Real diffContrib  = ( (tau13(i+1, j  , k  ) * w_afrac_x(i+1,j  ,k  )
+                                    -  tau13(i  , j  , k  ) * w_afrac_x(i  ,j  ,k  ) ) * dxinv * mfsq
+                                    + (tau23(i  , j+1, k  ) * w_afrac_y(i  ,j+1,k  )
+                                    -  tau23(i  , j  , k  ) * w_afrac_y(i  ,j  ,k  ) ) * dyinv * mfsq
+                                    + (tau33(i  , j  , k  ) * w_afrac_z(i  ,j  ,k+1)
+                                    -  tau33(i  , j  , k-1) * w_afrac_z(i  ,j  ,k  ) ) * dzinv );
+                diffContrib      /= w_volfrac(i,j,k);
+
+                rho_w_rhs(i,j,k) -= diffContrib;
+
+                if (!l_constraint_z && w_cellflg(i,j,k).isSingleValued()) {
+
+                    Real axm = w_afrac_x(i  ,j  ,k  );
+                    Real axp = w_afrac_x(i+1,j  ,k  );
+                    Real aym = w_afrac_y(i  ,j  ,k  );
+                    Real ayp = w_afrac_y(i  ,j+1,k  );
+                    Real azm = w_afrac_z(i  ,j  ,k  );
+                    Real azp = w_afrac_z(i  ,j  ,k+1);
+
+                    Real adx = (axm-axp) * dy * dz;
+                    Real ady = (aym-ayp) * dx * dz;
+                    Real adz = (azm-azp) * dx * dy;
+
+                    Real barea = std::sqrt(adx*adx + ady*ady + adz*adz);
+
+                    Real dwdn = zero;
+
+                    if (l_no_slip || l_surface_layer) {
+
+                        const RealVect bcent_eb {w_bcent(i,j,k,0), w_bcent(i,j,k,1), w_bcent(i,j,k,2)};
+
+                        Real Dirichlet_u {zero};
+                        Real Dirichlet_v {zero};
+                        Real Dirichlet_w {zero};
+
+                        Real nx = w_bnorm(i,j,k,0);
+                        Real ny = w_bnorm(i,j,k,1);
+                        Real nz = w_bnorm(i,j,k,2);
+
+                        if (l_surface_layer) {
+
+                            // Average u and v onto the z-face
+                            Real velx = (u_volfrac(i  ,j,k-1) * u_arr(i  ,j,k-1) + u_volfrac(i+1,j,k-1) * u_arr(i+1,j,k-1)
+                                        + u_volfrac(i+1,j,k  ) * u_arr(i+1,j,k  ) + u_volfrac(i  ,j,k  ) * u_arr(i  ,j,k  ))
+                                        / (u_volfrac(i,j,k-1) + u_volfrac(i+1,j,k-1) + u_volfrac(i+1,j,k) + u_volfrac(i,j,k));
+                            Real vely = (v_volfrac(i,j  ,k-1) * v_arr(i,j  ,k-1) + v_volfrac(i,j+1,k-1) * v_arr(i,j+1,k-1)
+                                        + v_volfrac(i,j+1,k  ) * v_arr(i,j+1,k  ) + v_volfrac(i,j  ,k  ) * v_arr(i,j  ,k  ))
+                                        / (v_volfrac(i,j,k-1) + v_volfrac(i,j+1,k-1) + v_volfrac(i,j+1,k) + v_volfrac(i,j,k));
+                            Real velz = w_arr(i,j,k);
+
+                            // Impose tangential velocity as Dirichlet condition
+                            Real v_dot_n = velx * nx + vely * ny + velz * nz;
+                            Dirichlet_u = velx - v_dot_n * nx;
+                            Dirichlet_v = vely - v_dot_n * ny;
+                            Dirichlet_w = velz - v_dot_n * nz;
+                        }
+
+                        GpuArray<Real,AMREX_SPACEDIM> slopes_u;
+                        GpuArray<Real,AMREX_SPACEDIM> slopes_v;
+                        GpuArray<Real,AMREX_SPACEDIM> slopes_w;
+
+                        slopes_u = erf_calc_slopes_eb_Dirichlet_staggered( Vars::zvel, Vars::xvel, dx, dy, dz, i, j, k, bcent_eb, Dirichlet_u, u_arr, u_volcent, u_cellflg);
+                        slopes_v = erf_calc_slopes_eb_Dirichlet_staggered( Vars::zvel, Vars::yvel, dx, dy, dz, i, j, k, bcent_eb, Dirichlet_v, v_arr, v_volcent, v_cellflg);
+                        slopes_w = erf_calc_slopes_eb_Dirichlet          (                         dx, dy, dz, i, j, k, bcent_eb, Dirichlet_w, w_arr, w_volcent, w_cellflg);
+
+                        Real dudx = slopes_u[0];
+                        Real dudy = slopes_u[1];
+                        Real dudz = slopes_u[2];
+                        Real dvdx = slopes_v[0];
+                        Real dvdy = slopes_v[1];
+                        Real dvdz = slopes_v[2];
+                        Real dwdx = slopes_w[0];
+                        Real dwdy = slopes_w[1];
+                        Real dwdz = slopes_w[2];
+
+                        Real tau33_eb = ( dwdz - ( dudx + dvdy + dwdz ) / three );
+                        Real tau13_eb = myhalf * (dudz + dwdx);
+                        Real tau23_eb = myhalf * (dvdz + dwdy);
+
+                        if (l_no_slip) {
+
+                            dwdn = - mu_eff * (nx * tau13_eb + ny * tau23_eb + nz * tau33_eb);
+
+                        } else if (l_surface_layer) {
+
+                            Real tbx_x, tbx_y, tbx_z, tby_x, tby_y, tby_z;
+                            compute_tangent_vectors(nx, ny, nz, tbx_x, tbx_y, tbx_z, tby_x, tby_y, tby_z);
+
+                            Real tau11_eb = ( dudx - ( dudx + dvdy + dwdz ) / three );
+                            Real tau22_eb = ( dvdy - ( dudx + dvdy + dwdz ) / three );
+                            Real tau12_eb = myhalf * (dudy + dvdx);
+
+                            Real tauzz = mu_eff * ( nx*nx*tau11_eb + ny*ny*tau22_eb + nz*nz*tau33_eb
+                                                + two * (nx*ny*tau12_eb + ny*nz*tau23_eb + nx*nz*tau13_eb ));
+
+                            dwdn = - tbx_z * w_tau_eb13(i,j,k) - tby_z * w_tau_eb23(i,j,k) - nz * tauzz;
+
+                        }
+                    }
+
+                    rho_w_rhs(i,j,k) -= barea * dwdn / (vol * w_volfrac(i,j,k));
+                }
+            }
+        });
+    } // w_type
 }

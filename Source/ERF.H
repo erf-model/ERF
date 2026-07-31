@@ -47,6 +47,7 @@
 #include <ERF_WriteBndryPlanes.H>
 #include <ERF_MRI.H>
 #include <ERF_PhysBCFunct.H>
+#include <ERF_WallScalarBC.H>
 #include <ERF_FillPatcher.H>
 #include <ERF_SampleData.H>
 #include <ERF_ForestDrag.H>
@@ -727,7 +728,7 @@ private:
     void init1DArrays ();
 
     void init_bcs ();
-    void init_phys_bcs (bool& rho_read, bool& read_prim_theta);
+    void init_phys_bcs (bool& read_prim_theta);
 
     void init_stuff (int lev, const amrex::BoxArray& ba, const amrex::DistributionMapping& dm,
                      amrex::Vector<amrex::MultiFab>& lev_new, amrex::Vector<amrex::MultiFab>& lev_old,
@@ -1109,6 +1110,12 @@ private:
 
     // These hold the Neumann values at walls which need them ...
     amrex::Array<amrex::Array<amrex::Real, AMREX_SPACEDIM*2>, AMREX_SPACEDIM+NBCVAR_max> m_bc_neumann_vals;
+
+    // Host-side, face-local metadata for solid-wall scalar inputs. This is
+    // deliberately separate from the values copied into device ghost-fill
+    // kernels so explicit zero values remain distinguishable from omission.
+    amrex::Array<amrex::Array<erf_wall_scalar_bc::WallScalarBCIntent, AMREX_SPACEDIM*2>, NBCVAR_max>
+        m_wall_scalar_bc_intent{};
 
     // Per-face flag: non-reflecting inflow (extrapolate RhoTheta instead of prescribing)
     amrex::Array<bool, AMREX_SPACEDIM*2> m_bc_nonreflecting = {{false}};

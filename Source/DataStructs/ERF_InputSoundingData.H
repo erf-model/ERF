@@ -121,8 +121,35 @@ public:
             U_inp_sound_tmp.push_back(0);
             V_inp_sound_tmp.push_back(0);
 
+            // *************************************************************************************************
+            // Make sure that if we specify surface values for temp in the inputs file and in the input sounding file,
+            //      those values must match
+            // *************************************************************************************************
+            amrex::ParmParse pp_erf("erf");
+
+            amrex::Real surf_temp;
+            bool surf_temp_specified = pp_erf.query("most.surf_temp", surf_temp);
+            if ( surf_temp_specified && (surf_temp != theta_inp_sound_tmp[0]) ) {
+                amrex::Print() << "Input sounding temp does not match most.surf_temp" << std::endl;
+                amrex::Print() << "Modify one or both to match." << std::endl;
+                amrex::Abort();
+            }
+
+            // *************************************************************************************************
+            // Make sure that if we specify surface values for qv in the inputs file and in the input sounding file,
+            //      those values must match
+            // *************************************************************************************************
+            amrex::Real surf_moist;
+            bool surf_moist_specified = pp_erf.query("most.surf_moist", surf_moist);
+            if ( surf_moist_specified && (surf_moist != qv_inp_sound_tmp[0]) ) {
+                amrex::Print() << "Input sounding qv does not match most.surf_moist" << std::endl;
+                amrex::Print() << "Modify one or both to match." << std::endl;
+                amrex::Abort();
+            }
+
             // Read the vertical profile at each given height
             amrex::Real z, theta, qv, U, V;
+
             while(std::getline(input_sounding_reader, line)) {
                 std::istringstream iss_z(line);
                 iss_z >> z >> theta >> qv >> U >> V;
