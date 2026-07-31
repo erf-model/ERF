@@ -773,33 +773,42 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
                 });
         }
 
-        // Ensure Surface Layer params are consistent with fluxes
-        constexpr double eps = std::numeric_limits<float>::epsilon();
-        bool l_use_moisture = use_moisture;
-        ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int /*k*/)
-        {
-            Real rho = cons_arr(i,j,klo,Rho_comp);
-            Real Thd = cons_arr(i,j,klo,RhoTheta_comp) / rho;
-            Real qv  = (l_use_moisture) ? cons_arr(i,j,klo,RhoQ1_comp) / rho : zero;
-            Real Thv = Thd * (one + epsv*qv);
+        // For models that do not do iterations to yield u*/T*/q*,
+        // fill these values from the fluxes that were computed.
 
-            Real tau = std::sqrt( t13_arr(i,j,klo)*t13_arr(i,j,klo)
-                                + t23_arr(i,j,klo)*t23_arr(i,j,klo) );
-            u_star_arr(i,j,0) = amrex::max(std::sqrt(tau),eps);
+        // NOTE: For LSM, this has been handled in "compute_sfc_params_from_lsm_fluxes"
+        // NOTE: Fluxes here are for conserved quantities, we divide by rho
+        if (flux_type == FluxCalcType::BULK_COEFF ||
+            flux_type == FluxCalcType::DONELAN    ||
+            flux_type == FluxCalcType::CUSTOM     ||
+            flux_type == FluxCalcType::RICO) {
+            constexpr double eps = std::numeric_limits<float>::epsilon();
+            bool l_use_moisture = use_moisture;
+            ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int /*k*/)
+            {
+                Real rho = cons_arr(i,j,klo,Rho_comp);
+                Real Thd = cons_arr(i,j,klo,RhoTheta_comp) / rho;
+                Real qv  = (l_use_moisture) ? cons_arr(i,j,klo,RhoQ1_comp) / rho : zero;
+                Real Thv = Thd * (one + epsv*qv);
 
-            if (hfx3_arr(i,j,klo)>=zero) {
-                t_star_arr(i,j,0) = amrex::min(-hfx3_arr(i,j,klo) / u_star_arr(i,j,0),-eps);
-            } else {
-                t_star_arr(i,j,0) = amrex::max(-hfx3_arr(i,j,klo) / u_star_arr(i,j,0),eps);
-            }
-            if (qfx3_arr(i,j,klo)>=zero) {
-                q_star_arr(i,j,0) = amrex::min(-qfx3_arr(i,j,klo) / u_star_arr(i,j,0),-eps);
-            } else {
-                q_star_arr(i,j,0) = amrex::max(-qfx3_arr(i,j,klo) / u_star_arr(i,j,0),eps);
-            }
-            olen_arr(i,j,0)   = ( u_star_arr(i,j,0) * u_star_arr(i,j,0) * Thv ) /
-                                ( KAPPA * CONST_GRAV * t_star_arr(i,j,0) );
-        });
+                Real tau = std::sqrt( t13_arr(i,j,klo)/rho * t13_arr(i,j,klo)/rho
+                                    + t23_arr(i,j,klo)/rho * t23_arr(i,j,klo)/rho );
+                u_star_arr(i,j,0) = amrex::max(std::sqrt(tau),eps);
+
+                if (hfx3_arr(i,j,klo)>=zero) {
+                    t_star_arr(i,j,0) = amrex::min(-hfx3_arr(i,j,klo) / (rho * u_star_arr(i,j,0)),-eps);
+                } else {
+                    t_star_arr(i,j,0) = amrex::max(-hfx3_arr(i,j,klo) / (rho * u_star_arr(i,j,0)),eps);
+                }
+                if (qfx3_arr(i,j,klo)>=zero) {
+                    q_star_arr(i,j,0) = amrex::min(-qfx3_arr(i,j,klo) / (rho * u_star_arr(i,j,0)),-eps);
+                } else {
+                    q_star_arr(i,j,0) = amrex::max(-qfx3_arr(i,j,klo) / ( rho * u_star_arr(i,j,0)),eps);
+                }
+                olen_arr(i,j,0)   = ( u_star_arr(i,j,0) * u_star_arr(i,j,0) * Thv ) /
+                                    ( KAPPA * CONST_GRAV * t_star_arr(i,j,0) );
+            });
+        }
 
     } // mfiter
 
