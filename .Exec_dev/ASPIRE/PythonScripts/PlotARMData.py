@@ -98,7 +98,7 @@ def plot_function(varname, units):
     dpi=300,
     bbox_inches="tight"
     )
-    print(f"Saved {plt_filename:s}")    
+    print(f"Saved {plt_filename:s}")
 
 # ------------------------------------------------------
 # Plot accumulated precipitation
