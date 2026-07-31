@@ -81,6 +81,7 @@ contains
     real(c_double), intent(inout), dimension(ims:ime, jms:jme) :: snow, snowncv, graupel, graupelncv
 
     integer :: i, j, k, kk, kdim, debug_local, i_dbg_local, j_dbg_target
+    integer :: i_max, k_max, max_loc(2)  ! For storm cell diagnostic
     logical :: i_dbg_in_tile
     integer :: errflg
     character(len=256) :: errmsg
@@ -154,6 +155,19 @@ contains
       debug_local = int(microphysics_debug, kind(0))
       if (microphysics_debug >= 1_c_int .and. (j /= j_dbg_target .or. .not. i_dbg_in_tile)) debug_local = 0
 
+      ! Diagnostic: Find storm core cell (max qc) and print its inputs
+      if (j == jts) then
+        max_loc = maxloc(qc_col)
+        i_max = max_loc(1)
+        k_max = max_loc(2)
+        write(*,'(A,I5,A,I5,A,I5,A)') '  Storm cell at i=', i_max, ' k=', k_max, ' (j=', j, ')'
+        write(*,'(A,7ES12.4)') '    BEFORE: T, P, den, qv, qc, qr, qi = ', &
+          t_col(i_max,k_max), p_col(i_max,k_max), den_col(i_max,k_max), &
+          q_col(i_max,k_max), qc_col(i_max,k_max), qr_col(i_max,k_max), qi_col(i_max,k_max)
+        write(*,'(A,3ES12.4)') '    BEFORE: nn, nc, nr = ', &
+          nn_col(i_max,k_max), nc_col(i_max,k_max), nr_col(i_max,k_max)
+      end if
+
       call mp_wdm6_run(t_col, q_col, qc_col, qi_col, qr_col, qs_col, qg_col, &
                        nn_col, nc_col, nr_col, &
                        den_col, p_col, delz_col, &
@@ -163,6 +177,15 @@ contains
                        graupel_col, graupelncv_col, its=its, ite=ite, kts=1, kte=kdim, &
                        microphysics_debug=debug_local, diag_i_dbg=i_dbg_local, diag_j_dbg=j, diag_k_raw_base=kts, &
                        errmsg=errmsg, errflg=errflg)
+
+      ! Diagnostic: Print outputs for same cell (reuse i_max, k_max from BEFORE)
+      if (j == jts) then
+        write(*,'(A,7ES12.4)') '    AFTER:  T, P, den, qv, qc, qr, qi = ', &
+          t_col(i_max,k_max), p_col(i_max,k_max), den_col(i_max,k_max), &
+          q_col(i_max,k_max), qc_col(i_max,k_max), qr_col(i_max,k_max), qi_col(i_max,k_max)
+        write(*,'(A,3ES12.4)') '    AFTER:  nn, nc, nr = ', &
+          nn_col(i_max,k_max), nc_col(i_max,k_max), nr_col(i_max,k_max)
+      end if
 
       if (errflg /= 0) then
         write(*,'(A,1X,I0,2A)') 'mp_wdm6_run_c error at j=', j, ': ', trim(errmsg)

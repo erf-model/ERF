@@ -36,6 +36,25 @@ WDM6::Init(const MultiFab& cons_in,
         mic_fab_vars[ivar]->setVal(0.0);
     }
 
+    // Initialize nn to ccn0 / rho (matches WRF itimestep==1 behavior)
+    // This must be done here so nn is available before the first microphysics call
+    // NOTE: Can't write to cons_in (it's const), so only initialize mic_fab_vars.
+    // Copy_Micro_to_State will write it back to state after the first microphysics call.
+    // IMPORTANT: Use growntilebox to include ghost zones, since Copy_State_to_Micro will
+    // skip reading nn and expect it to be initialized everywhere.
+    const Real ccn0_init = m_ccn0;
+    for (MFIter mfi(cons_in); mfi.isValid(); ++mfi) {
+        const auto& box3d = mfi.growntilebox();  // Include ghost zones!
+        auto states = cons_in.array(mfi);
+        auto nn = mic_fab_vars[MicVar_WDM6::nn]->array(mfi);
+
+        ParallelFor(box3d, [=] AMREX_GPU_DEVICE(int i, int j, int k) {
+            Real rho = states(i,j,k,Rho_comp);
+            nn(i,j,k) = ccn0_init / rho;
+        });
+    }
+    m_nn_initialized = true;  // Mark as initialized so Copy_State_to_Micro doesn't overwrite
+
     nlev = m_geom.Domain().length(2);
     zlo = m_geom.Domain().smallEnd(2);
     zhi = m_geom.Domain().bigEnd(2);
@@ -108,6 +127,7 @@ WDM6::Copy_State_to_Micro(const MultiFab& cons_in)
         auto nr = mic_fab_vars[MicVar_WDM6::nr]->array(mfi);
 
         const Real ccn0_local = m_ccn0;  // CCN concentration in #/m³
+        const bool nn_already_initialized = m_nn_initialized;  // Capture flag for GPU kernel
 
         ParallelFor(box3d, [=] AMREX_GPU_DEVICE(int i, int j, int k) {
             rho(i,j,k) = states(i,j,k,Rho_comp);
@@ -122,49 +142,39 @@ WDM6::Copy_State_to_Micro(const MultiFab& cons_in)
 
             // Number concentrations
             nc(i,j,k) = amrex::max(Real(0.0), states(i,j,k,RhoQ7_comp) / states(i,j,k,Rho_comp));
-            nn(i,j,k) = amrex::max(Real(0.0), states(i,j,k,RhoQ8_comp) / states(i,j,k,Rho_comp));
             nr(i,j,k) = amrex::max(Real(0.0), states(i,j,k,RhoQ9_comp) / states(i,j,k,Rho_comp));
 
-            // WDM6: Initialize aerosol number concentration if not set
-            // Following WRF's approach: nn = ccn0 (#/m³) / rho (kg/m³) = #/kg
-            if (nn(i,j,k) < Real(1.0)) {
-                nn(i,j,k) = ccn0_local / rho(i,j,k);
+            // nn initialization: Skip reading from state on first call if already initialized in Init()
+            if (nn_already_initialized) {
+                // nn was set in Init(), don't overwrite it by reading from state (which is still zero)
+                // After this first Copy_State_to_Micro, nn will be written to state and subsequent
+                // calls will correctly read the evolved value
+            } else {
+                // Normal case: read nn from state
+                nn(i,j,k) = amrex::max(Real(0.0), states(i,j,k,RhoQ8_comp) / states(i,j,k,Rho_comp));
             }
 
-            // Initialize cloud droplet number concentration
-            // Following WRF WDM6 approach: Start with minimal nc, let microphysics
-            // build it up naturally through nucleation and activation processes.
-            // WRF uses ncmin = 10 #/kg as the lower bound.
-            //
-            // ALSO: Cap nc if unreasonably high (> 1000 cm^-3 = 1e9 m^-3)
-            // This fixes initialization errors that create pollution-level nc
-            Real nc_physical = nc(i,j,k) * rho(i,j,k);  // Convert to #/m^3
-            Real nc_max_physical = Real(5.0e8);  // 500 cm^-3 max (continental)
+            // WDM6: NO diagnosis of nc/nr from qc/qr!
+            // When QNCLOUD=0 in wrfinput, nc starts at ncmin=10 and WDM6's CCN
+            // activation builds it naturally during the first microphysics call.
+            // This exactly matches WRF's behavior.
 
-            if (nc(i,j,k) < Real(1.e1) || nc_physical > nc_max_physical) {
-                if (qc(i,j,k) > Real(1.e-9)) {
-                    // Cloud exists - set reasonable nc
-                    // 50 cm^-3 = 5e7 m^-3 / rho (typical continental)
-                    nc(i,j,k) = Real(5.0e7) / rho(i,j,k);
-                } else {
-                    // No cloud - use WRF's ncmin
-                    nc(i,j,k) = Real(1.e1);
-                }
-            }
-
-            // Initialize rain number if rain exists but nr is not set
-            // Use diagnostic relationship based on rain mass
-            if (qr(i,j,k) > Real(1.e-9) && nr(i,j,k) < Real(1.e-2)) {
-                // Marshall-Palmer: N0 = 8e6 m^-4, typical nr ~ 1e3-1e4 #/m³
-                // Simple estimate: nr = 1000 #/m³ / rho for small rain amounts
-                nr(i,j,k) = Real(1.e3) / rho(i,j,k);
-            }
+            // WDM6: Only enforce absolute minimums like WRF
+            nc(i,j,k) = amrex::max(nc(i,j,k), Real(1.e1));  // WRF's ncmin = 10 #/kg
+            nr(i,j,k) = amrex::max(nr(i,j,k), Real(1.e-2)); // WRF's nrmin = 0.01 #/kg
 
             tabs(i,j,k) = getTgivenRandRTh(states(i,j,k,Rho_comp),
                                            states(i,j,k,RhoTheta_comp),
                                            qv(i,j,k));
             pres(i,j,k) = getPgivenRTh(states(i,j,k,RhoTheta_comp), qv(i,j,k));
         });
+    }
+
+    // After first Copy_State_to_Micro, nn has been used by microphysics and will be
+    // written back to state by Copy_Micro_to_State. From then on, we should read
+    // nn from state like any other variable.
+    if (m_nn_initialized) {
+        m_nn_initialized = false;  // Clear flag so subsequent calls read nn from state
     }
 }
 

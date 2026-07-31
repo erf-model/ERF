@@ -241,11 +241,27 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev)
     NC_names.push_back("XLAT_V");    // 22
     NC_names.push_back("XLONG_U");   // 23
     if (use_moist) {
-        NC_names.push_back("QVAPOR"); // 24
-        NC_names.push_back("QCLOUD"); // 25
-        NC_names.push_back("QRAIN");  // 26
+        NC_names.push_back("QVAPOR");  // 24
+        NC_names.push_back("QCLOUD");  // 25
+
+        // Only read ice species and number concentrations for schemes that need them
+        int n_qstate_moist = micro->Get_Qstate_Moist_Size();
+        if (n_qstate_moist >= 6) {
+            // 6-class schemes: WSM6, WDM6, Morrison, etc.
+            NC_names.push_back("QICE");    // 26
+            NC_names.push_back("QRAIN");   // 27
+            NC_names.push_back("QSNOW");   // 28
+            NC_names.push_back("QGRAUP");  // 29
+        } else {
+            // Warm rain only: Kessler, SAM, etc. (only qv, qc, qr)
+            NC_names.push_back("QRAIN");   // 26
+        }
+
+        // Number concentrations for double-moment schemes
+        // NOTE: Skipping QNCLOUD, QNCCN, QNRAIN because they're typically zero in wrfinput
+        // Double-moment schemes diagnose nc/nr from qc/qr during initialization instead
     }
-    NC_names.push_back("IVGTYP");     // 27
+    NC_names.push_back("IVGTYP");
     NC_names.push_back("ISLTYP");     // 28
     if (use_lsm) {
         NC_names.push_back("TSLB");   // 29
@@ -350,9 +366,10 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev)
 
             auto& var_fab_from_file = NC_fab_var[idx][ivar];
             bool has_fallback_behavior =
-                (var_name == "U")      || (var_name == "V")      || (var_name == "W")      ||
-                (var_name == "THM")    || (var_name == "QVAPOR") || (var_name == "QCLOUD") ||
-                (var_name == "QRAIN")  || (var_name == "PH")     || (var_name == "PHB");
+                (var_name == "U")       || (var_name == "V")       || (var_name == "W")      ||
+                (var_name == "THM")     || (var_name == "QVAPOR")  || (var_name == "QCLOUD") ||
+                (var_name == "QICE")    || (var_name == "QRAIN")   || (var_name == "QSNOW")  ||
+                (var_name == "QGRAUP")  || (var_name == "PH")      || (var_name == "PHB");
             if (!success && !has_fallback_behavior) {
                 amrex::Abort(std::string("ERF::init_from_wrfinput: failed to read required variable " + var_name).c_str());
             }
@@ -509,10 +526,13 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev)
             }
 
             // Initialize cell-centered variables that need to be density-weighted
-            if ( var_name == "THM"    ||
-                 var_name == "QVAPOR" ||
-                 var_name == "QCLOUD" ||
-                 var_name == "QRAIN" )
+            if ( var_name == "THM"     ||
+                 var_name == "QVAPOR"  ||
+                 var_name == "QCLOUD"  ||
+                 var_name == "QICE"    ||
+                 var_name == "QRAIN"   ||
+                 var_name == "QSNOW"   ||
+                 var_name == "QGRAUP" )
             {
                 int n_qstate_moist = micro->Get_Qstate_Moist_Size();
                 AMREX_ALWAYS_ASSERT(micro->Get_Qstate_NonMoist_Size() == 0);
@@ -524,11 +544,17 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev)
                     icomp    = RhoQ1_comp;
                 } else if (var_name == "QCLOUD") {
                     icomp    = RhoQ2_comp;
-                } else if (var_name == "QRAIN") {
+                } else if (var_name == "QICE") {
                     icomp    = RhoQ3_comp;
-                    if (n_qstate_moist > 3) { icomp = RhoQ4_comp; }
-                    if (n_qstate_moist < 3) { success = 0; }
+                } else if (var_name == "QRAIN") {
+                    icomp    = RhoQ4_comp;
+                } else if (var_name == "QSNOW") {
+                    icomp    = RhoQ5_comp;
+                } else if (var_name == "QGRAUP") {
+                    icomp    = RhoQ6_comp;
                 }
+                // Note: RhoQ7-RhoQ9 (nc, nn, nr) start at zero and are diagnosed
+                // in Copy_State_to_Micro if qc/qr exist but nc/nr are zero
 
                 // INITIAL DATA common for "ideal" as well as "real" simulation
                 // Don't tile this since we are operating on full FABs in this routine

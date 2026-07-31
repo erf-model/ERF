@@ -170,6 +170,9 @@ private:
 
     amrex::Array<FabPtr, MicVar_WDM6::NumVars> mic_fab_vars;
 
+    // WDM6-specific: Track if nn has been initialized (WRF does this only on itimestep==1)
+    bool m_nn_initialized{false};
+
     // WDM6 init coefficients (hail_opt-dependent)
     bool m_hail_opt{false};
     amrex::Real m_n0g{0}, m_deng{0}, m_avtg{0}, m_bvtg{0}, m_lamdagmax{0};
