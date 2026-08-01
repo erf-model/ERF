@@ -64,6 +64,16 @@ if(ERF_ENABLE_TESTS)
   set(SHOC_GOLD_DIFFERENTIAL
       "${CMAKE_CURRENT_BINARY_DIR}/erf_shoc_gold_differential${CMAKE_EXECUTABLE_SUFFIX}")
 
+  # Regression motivation: these three rotated manufactured chambers exercise
+  # the x/y/z wall-diffusion paths, including the historical x-high branch,
+  # with one independent stationary-state oracle.
+  add_executable(erf_anelastic_wall_diffusion_check
+    ${CMAKE_CURRENT_SOURCE_DIR}/AnelasticWallDiffusionCheck.cpp)
+  target_link_libraries(erf_anelastic_wall_diffusion_check PRIVATE AMReX::amrex)
+  target_compile_features(erf_anelastic_wall_diffusion_check PRIVATE cxx_std_17)
+  set(ANELASTIC_WALL_DIFFUSION_CHECKER
+      "${CMAKE_CURRENT_BINARY_DIR}/erf_anelastic_wall_diffusion_check${CMAKE_EXECUTABLE_SUFFIX}")
+
   include(${CMAKE_CURRENT_SOURCE_DIR}/CTestList.cmake)
 endif()
 
