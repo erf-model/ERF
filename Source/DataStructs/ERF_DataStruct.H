@@ -416,7 +416,7 @@ struct SolverChoice {
         pp.query("use_gravity", use_gravity);
 
         // Initializing from Metgrid or WRFInput without gravity makes no sense
-        if ( !use_gravity && (init_type == InitType::WRFInput) || (init_type == InitType::Metgrid) ) {
+        if ( !use_gravity && ( (init_type == InitType::WRFInput) || (init_type == InitType::Metgrid) ) ) {
             amrex::Print() << "Setting use_gravity to true due to init_type = WRFInput / Metgrid " << std::endl;
             use_gravity = true;
         }
