@@ -92,9 +92,9 @@ def download_file(url, output_filename, idx):
     print(f"[{idx}] Done: {output_filename}")
 
 
-def Download_HRRR_ForecastData(inputs_file,
-                               forecast_time=72,
-                               interval=1):
+def DownloadHRRR3DData(inputs_file,
+                     forecast_time=72,
+                     interval=1):
     """
     Download HRRR analysis files for a sequence of hours.
 

@@ -46,7 +46,7 @@ def WriteUSMapLegacyVTK(filename, all_points, lines_flat):
     Write legacy ASCII VTK PolyData file (works with VisIt and ParaView).
     """
     n_points = all_points.shape[0]
-    
+
     # Count number of lines
     n_lines = 0
     idx = 0
