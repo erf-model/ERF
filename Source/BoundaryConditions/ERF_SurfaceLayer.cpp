@@ -510,6 +510,8 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
         auto hfx3_arr = zheat_flux->array(mfi);
         auto qfx3_arr = (zqv_flux)  ? zqv_flux->array(mfi)   : Array4<Real>{};
 
+        auto olen_arr   = olen[lev]->array(mfi);
+
         // Rotated stress vars
         auto t11_arr = (m_rotate) ? Tau_lev[TauType::tau11]->array(mfi) : Array4<Real>{};
         auto t22_arr = (m_rotate) ? Tau_lev[TauType::tau22]->array(mfi) : Array4<Real>{};
@@ -770,6 +772,42 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
                                      t23_arr, t32_arr);
                 });
         }
+
+        // For models that do not do iterations to yield u*/T*/q*,
+        // fill these values from the fluxes that were computed.
+
+        // NOTE: For LSM, this has been handled in "compute_sfc_params_from_lsm_fluxes"
+        // NOTE: Fluxes here are for conserved quantities, we divide by rho
+        if (flux_type == FluxCalcType::BULK_COEFF ||
+            flux_type == FluxCalcType::DONELAN) {
+            constexpr Real eps = std::numeric_limits<Real>::epsilon();
+            bool l_use_moisture = use_moisture;
+            ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int /*k*/)
+            {
+                Real rho = cons_arr(i,j,klo,Rho_comp);
+                Real Thd = cons_arr(i,j,klo,RhoTheta_comp) / rho;
+                Real qv  = (l_use_moisture) ? cons_arr(i,j,klo,RhoQ1_comp) / rho : zero;
+                Real Thv = Thd * (one + epsv*qv);
+
+                Real tau = std::sqrt( t13_arr(i,j,klo)/rho * t13_arr(i,j,klo)/rho
+                                    + t23_arr(i,j,klo)/rho * t23_arr(i,j,klo)/rho );
+                u_star_arr(i,j,0) = amrex::max(std::sqrt(tau),eps);
+
+                if (hfx3_arr(i,j,klo)>=zero) {
+                    t_star_arr(i,j,0) = amrex::min(-hfx3_arr(i,j,klo) / (rho * u_star_arr(i,j,0)),-eps);
+                } else {
+                    t_star_arr(i,j,0) = amrex::max(-hfx3_arr(i,j,klo) / (rho * u_star_arr(i,j,0)),eps);
+                }
+                if (qfx3_arr(i,j,klo)>=zero) {
+                    q_star_arr(i,j,0) = amrex::min(-qfx3_arr(i,j,klo) / (rho * u_star_arr(i,j,0)),-eps);
+                } else {
+                    q_star_arr(i,j,0) = amrex::max(-qfx3_arr(i,j,klo) / ( rho * u_star_arr(i,j,0)),eps);
+                }
+                olen_arr(i,j,0)   = ( u_star_arr(i,j,0) * u_star_arr(i,j,0) * Thv ) /
+                                    ( KAPPA * CONST_GRAV * t_star_arr(i,j,0) );
+            });
+        }
+
     } // mfiter
 
     surface_diagnostic_source[lev]->FillBoundary(m_geom[lev].periodicity());
@@ -797,19 +835,21 @@ SurfaceLayer::compute_SurfaceLayer_bcs_EB (const int& lev,
                                         const FluxCalc& flux_comp)
 {
     // Get EB flags for all centerings
-    const auto& cc_flags = m_eb_vec[lev]->get_const_factory()->getMultiEBCellFlagFab();
-    const auto& u_flags = m_eb_vec[lev]->get_u_const_factory()->getMultiEBCellFlagFab();
-    const auto& v_flags = m_eb_vec[lev]->get_v_const_factory()->getMultiEBCellFlagFab();
-    const auto& w_flags = m_eb_vec[lev]->get_w_const_factory()->getMultiEBCellFlagFab();
+    const auto& cc_factory = m_eb_vec[lev]->get_const_factory();
+    const auto& cc_flags = cc_factory->getMultiEBCellFlagFab();
+    const auto& cc_vfrac = cc_factory->getVolFrac();
 
-    const auto& cc_vfrac = m_eb_vec[lev]->get_const_factory()->getVolFrac();
-    const auto& u_vfrac = m_eb_vec[lev]->get_u_const_factory()->getVolFrac();
-    const auto& v_vfrac = m_eb_vec[lev]->get_v_const_factory()->getVolFrac();
-    const auto& w_vfrac = m_eb_vec[lev]->get_w_const_factory()->getVolFrac();
-    const auto& cc_bnorm = m_eb_vec[lev]->get_const_factory()->getBndryNormal();
-    const auto& u_bnorm = m_eb_vec[lev]->get_u_const_factory()->getBndryNorm();
-    const auto& v_bnorm = m_eb_vec[lev]->get_v_const_factory()->getBndryNorm();
-    const auto& w_bnorm = m_eb_vec[lev]->get_w_const_factory()->getBndryNorm();
+    const auto& u_factory = m_eb_vec[lev]->get_u_const_factory();
+    const auto& u_flags = u_factory->getMultiEBCellFlagFab();
+    const auto& u_vfrac = u_factory->getVolFrac();
+
+    const auto& v_factory = m_eb_vec[lev]->get_v_const_factory();
+    const auto& v_flags = v_factory->getMultiEBCellFlagFab();
+    const auto& v_vfrac = v_factory->getVolFrac();
+
+    const auto& w_factory = m_eb_vec[lev]->get_w_const_factory();
+    const auto& w_flags = w_factory->getMultiEBCellFlagFab();
+    const auto& w_vfrac = w_factory->getVolFrac();
 
     // EB does not currently have a cell-centered scalar-source classification.
     // Keep the provenance mask missing rather than inventing face-aware
@@ -842,10 +882,16 @@ SurfaceLayer::compute_SurfaceLayer_bcs_EB (const int& lev,
         auto const u_vfrac_arr = u_vfrac.const_array(mfi);
         auto const v_vfrac_arr = v_vfrac.const_array(mfi);
         auto const w_vfrac_arr = w_vfrac.const_array(mfi);
-        auto const bnorm_arr = cc_bnorm.const_array(mfi);
-        auto const u_bnorm_arr = u_bnorm.const_array(mfi);
-        auto const v_bnorm_arr = v_bnorm.const_array(mfi);
-        auto const w_bnorm_arr = w_bnorm.const_array(mfi);
+
+        // Get boundary normals only if cut cells exist
+        auto const bnorm_arr = (cc_flag.getType() == FabType::singlevalued) ?
+            cc_factory->getBndryNormal().const_array(mfi) : Array4<const Real>{};
+        auto const u_bnorm_arr = (u_flag.getType() == FabType::singlevalued) ?
+            u_factory->getBndryNormal().const_array(mfi) : Array4<const Real>{};
+        auto const v_bnorm_arr = (v_flag.getType() == FabType::singlevalued) ?
+            v_factory->getBndryNormal().const_array(mfi) : Array4<const Real>{};
+        auto const w_bnorm_arr = (w_flag.getType() == FabType::singlevalued) ?
+            w_factory->getBndryNormal().const_array(mfi) : Array4<const Real>{};
 
         // Get field arrays
         const auto cons_arr  = mfs[Vars::cons]->array(mfi);

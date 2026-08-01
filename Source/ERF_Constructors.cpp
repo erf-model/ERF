@@ -451,6 +451,9 @@ ERF::ERF_shared ()
                             ngrow_for_eb, build_coarse_level_by_coarsening);
             } else {
                 EB2::Build(gshop, this->Geom(), ngrow_for_eb);
+#if USE_FC_FACTORY
+                EB2::BuildFC();
+#endif
             }
         } else if (geometry == "plane") {
             RealArray plane_point{zero, zero, zero};
@@ -464,6 +467,9 @@ ERF::ERF_shared ()
                             ngrow_for_eb, build_coarse_level_by_coarsening);
             } else {
                 EB2::Build(gshop, this->Geom(), ngrow_for_eb);
+#if USE_FC_FACTORY
+                EB2::BuildFC();
+#endif
             }
         } else if (geometry == "box") {
             RealArray box_lo{zero, zero, zero};
@@ -477,6 +483,9 @@ ERF::ERF_shared ()
                             ngrow_for_eb, build_coarse_level_by_coarsening);
             } else {
                 EB2::Build(gshop, this->Geom(), ngrow_for_eb);
+#if USE_FC_FACTORY
+                EB2::BuildFC();
+#endif
             }
         } else if (geometry == "sphere") {
             auto ProbLoArr = geom[max_level].ProbLoArray();
@@ -491,6 +500,9 @@ ERF::ERF_shared ()
                             ngrow_for_eb, build_coarse_level_by_coarsening);
             } else {
                 EB2::Build(gshop, this->Geom(), ngrow_for_eb);
+#if USE_FC_FACTORY
+                EB2::BuildFC();
+#endif
             }
         }
     }
