@@ -135,7 +135,8 @@ AdvectionSrcForScalars (const Box& bx,
                         const Real vert_upw_frac,
                         const GpuArray<const Array4<Real>, AMREX_SPACEDIM>& flx_arr,
                         const Box& domain,
-                        const BCRec* bc_ptr_h)
+                        const BCRec* bc_ptr_h,
+                        const int flux_comp)
 {
     BL_PROFILE_VAR("AdvectionSrcForScalars", AdvectionSrcForScalars);
     auto dxInv = cellSizeInv[0], dyInv = cellSizeInv[1], dzInv = cellSizeInv[2];
@@ -178,19 +179,19 @@ AdvectionSrcForScalars (const Box& bx,
             {
                 const int prim_index = cons_index - 1;
                 const Real prim_on_face = myhalf * (cell_prim(i,j,k,prim_index) + cell_prim(i-1,j,k,prim_index));
-                (flx_arr[0])(i,j,k) = avg_xmom(i,j,k) * prim_on_face;
+                (flx_arr[0])(i,j,k,flux_comp+n) = avg_xmom(i,j,k) * prim_on_face;
             });
             ParallelFor(ybx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
                 const int prim_index = cons_index - 1;
                 const Real prim_on_face = myhalf * (cell_prim(i,j,k,prim_index) + cell_prim(i,j-1,k,prim_index));
-                (flx_arr[1])(i,j,k) = avg_ymom(i,j,k) * prim_on_face;
+                (flx_arr[1])(i,j,k,flux_comp+n) = avg_ymom(i,j,k) * prim_on_face;
             });
             ParallelFor(zbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
                 const int prim_index = cons_index - 1;
                 const Real prim_on_face = myhalf * (cell_prim(i,j,k,prim_index) + cell_prim(i,j,k-1,prim_index));
-                (flx_arr[2])(i,j,k) = avg_zmom(i,j,k) * prim_on_face;
+                (flx_arr[2])(i,j,k,flux_comp+n) = avg_zmom(i,j,k) * prim_on_face;
             });
 
             // Template higher order methods (horizontal first)
@@ -199,67 +200,67 @@ AdvectionSrcForScalars (const Box& bx,
             case AdvType::Centered_2nd:
                 AdvectionSrcForScalarsVert<CENTERED2>(bx, cons_index, flx_arr, cell_prim,
                                                       avg_xmom, avg_ymom, avg_zmom,
-                                                      horiz_upw_frac, vert_upw_frac, vert_adv_type);
+                                                      horiz_upw_frac, vert_upw_frac, vert_adv_type, flux_comp+n);
                 break;
             case AdvType::Upwind_3rd:
                 AdvectionSrcForScalarsVert<UPWIND3>(bx, cons_index, flx_arr, cell_prim,
                                                     avg_xmom, avg_ymom, avg_zmom,
-                                                    horiz_upw_frac, vert_upw_frac, vert_adv_type);
+                                                    horiz_upw_frac, vert_upw_frac, vert_adv_type, flux_comp+n);
                 break;
             case AdvType::Upwind_3rd_SL:
                 AdvectionSrcForScalarsVert<UPWIND3SL>(bx, cons_index, flx_arr, cell_prim,
                                                       avg_xmom, avg_ymom, avg_zmom,
-                                                      horiz_upw_frac, vert_upw_frac, vert_adv_type);
+                                                      horiz_upw_frac, vert_upw_frac, vert_adv_type, flux_comp+n);
                 break;
             case AdvType::Centered_4th:
                 AdvectionSrcForScalarsVert<CENTERED4>(bx, cons_index, flx_arr, cell_prim,
                                                       avg_xmom, avg_ymom, avg_zmom,
-                                                      horiz_upw_frac, vert_upw_frac, vert_adv_type);
+                                                      horiz_upw_frac, vert_upw_frac, vert_adv_type, flux_comp+n);
                 break;
             case AdvType::Upwind_5th:
                 AdvectionSrcForScalarsVert<UPWIND5>(bx, cons_index, flx_arr, cell_prim,
                                                     avg_xmom, avg_ymom, avg_zmom,
-                                                    horiz_upw_frac, vert_upw_frac, vert_adv_type);
+                                                    horiz_upw_frac, vert_upw_frac, vert_adv_type, flux_comp+n);
                 break;
             case AdvType::Centered_6th:
                 AdvectionSrcForScalarsVert<CENTERED6>(bx, cons_index, flx_arr, cell_prim,
                                                       avg_xmom, avg_ymom, avg_zmom,
-                                                      horiz_upw_frac, vert_upw_frac, vert_adv_type);
+                                                      horiz_upw_frac, vert_upw_frac, vert_adv_type, flux_comp+n);
                 break;
             case AdvType::Weno_3:
                 AdvectionSrcForScalarsWrapper<WENO3,WENO3>(bx, cons_index, flx_arr, cell_prim,
                                                            avg_xmom, avg_ymom, avg_zmom,
-                                                           horiz_upw_frac, vert_upw_frac);
+                                                           horiz_upw_frac, vert_upw_frac, flux_comp+n);
                 break;
             case AdvType::Weno_5:
                 AdvectionSrcForScalarsWrapper<WENO5,WENO5>(bx, cons_index, flx_arr, cell_prim,
                                                            avg_xmom, avg_ymom, avg_zmom,
-                                                           horiz_upw_frac, vert_upw_frac);
+                                                           horiz_upw_frac, vert_upw_frac, flux_comp+n);
                 break;
             case AdvType::Weno_7:
                 AdvectionSrcForScalarsWrapper<WENO7,WENO7>(bx, cons_index, flx_arr, cell_prim,
                                                            avg_xmom, avg_ymom, avg_zmom,
-                                                           horiz_upw_frac, vert_upw_frac);
+                                                           horiz_upw_frac, vert_upw_frac, flux_comp+n);
                 break;
             case AdvType::Weno_3Z:
                 AdvectionSrcForScalarsWrapper<WENO_Z3,WENO_Z3>(bx, cons_index, flx_arr, cell_prim,
                                                                avg_xmom, avg_ymom, avg_zmom,
-                                                               horiz_upw_frac, vert_upw_frac);
+                                                               horiz_upw_frac, vert_upw_frac, flux_comp+n);
                 break;
             case AdvType::Weno_3MZQ:
                 AdvectionSrcForScalarsWrapper<WENO_MZQ3,WENO_MZQ3>(bx, cons_index, flx_arr, cell_prim,
                                                                    avg_xmom, avg_ymom, avg_zmom,
-                                                                   horiz_upw_frac, vert_upw_frac);
+                                                                   horiz_upw_frac, vert_upw_frac, flux_comp+n);
                 break;
             case AdvType::Weno_5Z:
                 AdvectionSrcForScalarsWrapper<WENO_Z5,WENO_Z5>(bx, cons_index, flx_arr, cell_prim,
                                                                avg_xmom, avg_ymom, avg_zmom,
-                                                               horiz_upw_frac, vert_upw_frac);
+                                                               horiz_upw_frac, vert_upw_frac, flux_comp+n);
                 break;
             case AdvType::Weno_7Z:
                 AdvectionSrcForScalarsWrapper<WENO_Z7,WENO_Z7>(bx, cons_index, flx_arr, cell_prim,
                                                                avg_xmom, avg_ymom, avg_zmom,
-                                                               horiz_upw_frac, vert_upw_frac);
+                                                               horiz_upw_frac, vert_upw_frac, flux_comp+n);
                 break;
             default:
                 AMREX_ASSERT_WITH_MESSAGE(false, "Unknown advection scheme!");
@@ -274,9 +275,9 @@ AdvectionSrcForScalars (const Box& bx,
                 Real mfsq    = mf_mx(i,j,0) * mf_my(i,j,0);
 
                 advectionSrc(i,j,k,cons_index) = - invdetJ * mfsq * (
-                  ( (flx_arr[0])(i+1,j,k) - (flx_arr[0])(i,j,k) ) * dxInv +
-                  ( (flx_arr[1])(i,j+1,k) - (flx_arr[1])(i,j,k) ) * dyInv +
-                  ( (flx_arr[2])(i,j,k+1) - (flx_arr[2])(i,j,k) ) * dzInv );
+                  ( (flx_arr[0])(i+1,j,k,flux_comp+n) - (flx_arr[0])(i,j,k,flux_comp+n) ) * dxInv +
+                  ( (flx_arr[1])(i,j+1,k,flux_comp+n) - (flx_arr[1])(i,j,k,flux_comp+n) ) * dyInv +
+                  ( (flx_arr[2])(i,j,k+1,flux_comp+n) - (flx_arr[2])(i,j,k,flux_comp+n) ) * dzInv );
             } else {
                 advectionSrc(i,j,k,cons_index) = zero;
             }

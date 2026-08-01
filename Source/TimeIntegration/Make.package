@@ -9,6 +9,7 @@ CEXE_sources += ERF_MakeFastCoeffs.cpp
 CEXE_sources += ERF_MakeTauTerms.cpp
 CEXE_sources += ERF_SlowRhsPre.cpp
 CEXE_sources += ERF_SlowRhsPost.cpp
+CEXE_headers += ../Prob/ERF_CloudChamberWaterLedger.H
 CEXE_sources += ERF_Substep_NS.cpp
 CEXE_sources += ERF_Substep_T.cpp
 CEXE_sources += ERF_Substep_MT.cpp
@@ -25,4 +26,3 @@ CEXE_headers += ERF_TI_slow_headers.H
 CEXE_headers += ERF_TI_utils.H
 
 CEXE_headers += ERF_MRI.H
-

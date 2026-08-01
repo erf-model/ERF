@@ -314,8 +314,8 @@ inline Config parse_config (const amrex::Real* problo,
     const bool moisture_specified = pp_erf.query("moisture_model", moisture_model);
     if (moisture_specified) {
         moisture_model = amrex::toLower(moisture_model);
-        if (moisture_model != "satadj") {
-            amrex::Error("Cloud Chamber: moisture_model must be omitted for dry mode or set to SatAdj");
+        if (moisture_model != "satadj" && moisture_model != "moistnocondensation") {
+            amrex::Error("Cloud Chamber: moisture_model must be omitted, SatAdj, or MoistNoCondensation");
         }
         config.cloudy = true;
         if (config.physical_initialization) {

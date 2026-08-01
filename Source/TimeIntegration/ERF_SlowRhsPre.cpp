@@ -288,6 +288,18 @@ void erf_slow_rhs_pre (int level, int finest_level,
     // This is just cautionary to deal with grid boundaries that aren't domain boundaries
     S_rhs[IntVars::zmom].setVal(0);
 
+    // F_slow is reused by the MRI integrator for every RK stage.  The
+    // moisture RHS is assembled in erf_slow_rhs_post, so clear the complete
+    // moisture block here before that stage is evaluated.  Without this,
+    // qv/qc tendencies from the preceding stage are added again, producing a
+    // timestep-dependent total-water source even when all wall fluxes vanish.
+    if (l_use_moisture) {
+        const int n_moisture = S_rhs[IntVars::cons].nComp() - RhoQ1_comp;
+        if (n_moisture > 0) {
+            S_rhs[IntVars::cons].setVal(0, RhoQ1_comp, n_moisture, 0);
+        }
+    }
+
     // *****************************************************************************
     // Define updates and fluxes in the current RK stage
     // *****************************************************************************

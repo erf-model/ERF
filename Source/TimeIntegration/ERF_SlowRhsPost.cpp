@@ -6,6 +6,7 @@
 #include <ERF_EBRedistribute.H>
 #include "ERF_ResolvedWallFlux.H"
 #include "Prob/ERF_CloudChamberBudget.H"
+#include "Prob/ERF_CloudChamberWaterLedger.H"
 
 using namespace amrex;
 
@@ -95,7 +96,8 @@ void erf_slow_rhs_post (int level, int finest_level,
                         std::unique_ptr<ReadBndryPlanes>& m_r2d,
                         const MultiFab* cloud_chamber_base_state,
                         const erf_cloud_chamber::Config* cloud_chamber_config,
-                        CloudChamberBudget* cloud_budget)
+                        CloudChamberBudget* cloud_budget,
+                        CloudChamberWaterLedger* water_ledger)
 {
     BL_PROFILE_REGION("erf_slow_rhs_post()");
 
@@ -454,14 +456,23 @@ void erf_slow_rhs_post (int level, int finest_level,
                 if (( ivar != RhoKE_comp                 ) ||
                     ((ivar == RhoKE_comp) && l_advect_KE))
                 {
+                    if (water_ledger != nullptr && ivar == RhoQ1_comp &&
+                        n_qstate == 2) {
+                        Real* pre_advection_qv = water_ledger->pre_advection_rhs_ptr(CloudChamberWaterLedger::Qv);
+                        Real* pre_advection_qc = water_ledger->pre_advection_rhs_ptr(CloudChamberWaterLedger::Qc);
+                        ParallelFor(tbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                            Gpu::Atomic::Add(pre_advection_qv, cell_rhs(i,j,k,RhoQ1_comp));
+                            Gpu::Atomic::Add(pre_advection_qc, cell_rhs(i,j,k,RhoQ2_comp));
+                        });
+                    }
                     if (!l_eb_terrain_cc){
                         AdvectionSrcForScalars(tbx, start_comp, num_comp,
                                                avg_xmom_arr, avg_ymom_arr, avg_zmom_arr,
                                                cur_prim, cell_rhs,
                                                detJ_arr, dxInv, mf_mx, mf_my,
                                                horiz_adv_type, vert_adv_type,
-                                               horiz_upw_frac, vert_upw_frac,
-                                               flx_arr, domain, bc_ptr_h);
+                                                 horiz_upw_frac, vert_upw_frac,
+                                                 flx_arr, domain, bc_ptr_h, start_comp);
                     } else {
                         EBAdvectionSrcForScalars(tbx, start_comp, num_comp,
                                                  avg_xmom_arr, avg_ymom_arr, avg_zmom_arr,
@@ -473,6 +484,77 @@ void erf_slow_rhs_post (int level, int finest_level,
                                                  horiz_upw_frac, vert_upw_frac,
                                                  flx_arr, domain, bc_ptr_h,
                                                  already_on_centroids);
+                    }
+
+                    // Record the net advective water flux through the six
+                    // physical faces.  For a closed no-slip chamber this
+                    // should be zero; keeping it separate from diffusion
+                    // makes a nonzero wall transport immediately visible in
+                    // the opt-in ledger.
+                    if (water_ledger != nullptr && ivar == RhoQ1_comp &&
+                        n_qstate == 2 && !l_use_eb) {
+                        Real* advective_qv = water_ledger->advective_boundary_ptr(CloudChamberWaterLedger::Qv);
+                        Real* advective_qc = water_ledger->advective_boundary_ptr(CloudChamberWaterLedger::Qc);
+                        Real* advection_rhs_qv = water_ledger->advection_rhs_ptr(CloudChamberWaterLedger::Qv);
+                        Real* advection_rhs_qc = water_ledger->advection_rhs_ptr(CloudChamberWaterLedger::Qc);
+                        Real* raw_divergence_qv = water_ledger->raw_advection_divergence_ptr(CloudChamberWaterLedger::Qv);
+                        Real* raw_divergence_qc = water_ledger->raw_advection_divergence_ptr(CloudChamberWaterLedger::Qc);
+                        Real* weighted_divergence_qv = water_ledger->weighted_advection_divergence_ptr(CloudChamberWaterLedger::Qv);
+                        Real* weighted_divergence_qc = water_ledger->weighted_advection_divergence_ptr(CloudChamberWaterLedger::Qc);
+                        const Real x_area = dx[1] * dx[2];
+                        const Real y_area = dx[0] * dx[2];
+                        const Real z_area = dx[0] * dx[1];
+                        const int dlo_x = domain.smallEnd(0);
+                        const int dhi_x = domain.bigEnd(0);
+                        const int dlo_y = domain.smallEnd(1);
+                        const int dhi_y = domain.bigEnd(1);
+                        const int dlo_z = domain.smallEnd(2);
+                        const int dhi_z = domain.bigEnd(2);
+                        ParallelFor(tbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                            Gpu::Atomic::Add(advection_rhs_qv, cell_rhs(i,j,k,RhoQ1_comp));
+                            Gpu::Atomic::Add(advection_rhs_qc, cell_rhs(i,j,k,RhoQ2_comp));
+                            const Real qv_divergence =
+                                (flx_arr[0](i+1,j,k,RhoQ1_comp) - flx_arr[0](i,j,k,RhoQ1_comp)) * dxInv[0] +
+                                (flx_arr[1](i,j+1,k,RhoQ1_comp) - flx_arr[1](i,j,k,RhoQ1_comp)) * dxInv[1] +
+                                (flx_arr[2](i,j,k+1,RhoQ1_comp) - flx_arr[2](i,j,k,RhoQ1_comp)) * dxInv[2];
+                            const Real qc_divergence =
+                                (flx_arr[0](i+1,j,k,RhoQ2_comp) - flx_arr[0](i,j,k,RhoQ2_comp)) * dxInv[0] +
+                                (flx_arr[1](i,j+1,k,RhoQ2_comp) - flx_arr[1](i,j,k,RhoQ2_comp)) * dxInv[1] +
+                                (flx_arr[2](i,j,k+1,RhoQ2_comp) - flx_arr[2](i,j,k,RhoQ2_comp)) * dxInv[2];
+                            Gpu::Atomic::Add(raw_divergence_qv, qv_divergence);
+                            Gpu::Atomic::Add(raw_divergence_qc, qc_divergence);
+                            const Real metric_weight = mf_mx(i,j,0) * mf_my(i,j,0) / detJ_arr(i,j,k);
+                            Gpu::Atomic::Add(weighted_divergence_qv, metric_weight * qv_divergence);
+                            Gpu::Atomic::Add(weighted_divergence_qc, metric_weight * qc_divergence);
+                            Real qv_boundary = zero;
+                            Real qc_boundary = zero;
+                            if (i == dlo_x) {
+                                qv_boundary += flx_arr[0](i,j,k,RhoQ1_comp) * x_area;
+                                qc_boundary += flx_arr[0](i,j,k,RhoQ2_comp) * x_area;
+                            }
+                            if (i == dhi_x) {
+                                qv_boundary -= flx_arr[0](i+1,j,k,RhoQ1_comp) * x_area;
+                                qc_boundary -= flx_arr[0](i+1,j,k,RhoQ2_comp) * x_area;
+                            }
+                            if (j == dlo_y) {
+                                qv_boundary += flx_arr[1](i,j,k,RhoQ1_comp) * y_area;
+                                qc_boundary += flx_arr[1](i,j,k,RhoQ2_comp) * y_area;
+                            }
+                            if (j == dhi_y) {
+                                qv_boundary -= flx_arr[1](i,j+1,k,RhoQ1_comp) * y_area;
+                                qc_boundary -= flx_arr[1](i,j+1,k,RhoQ2_comp) * y_area;
+                            }
+                            if (k == dlo_z) {
+                                qv_boundary += flx_arr[2](i,j,k,RhoQ1_comp) * z_area;
+                                qc_boundary += flx_arr[2](i,j,k,RhoQ2_comp) * z_area;
+                            }
+                            if (k == dhi_z) {
+                                qv_boundary -= flx_arr[2](i,j,k+1,RhoQ1_comp) * z_area;
+                                qc_boundary -= flx_arr[2](i,j,k+1,RhoQ2_comp) * z_area;
+                            }
+                            Gpu::Atomic::Add(advective_qv, qv_boundary);
+                            Gpu::Atomic::Add(advective_qc, qc_boundary);
+                        });
                     }
                 }
 
@@ -583,6 +665,19 @@ void erf_slow_rhs_post (int level, int finest_level,
         const Real eps = std::numeric_limits<Real>::epsilon();
 
         auto const& src_arr = source.const_array(mfi);
+        const bool ledger_qstate = water_ledger != nullptr && n_qstate == 2;
+        Real* ledger_candidate_qv = ledger_qstate ? water_ledger->candidate_ptr(CloudChamberWaterLedger::Qv) : nullptr;
+        Real* ledger_candidate_qc = ledger_qstate ? water_ledger->candidate_ptr(CloudChamberWaterLedger::Qc) : nullptr;
+        Real* ledger_after_qv = ledger_qstate ? water_ledger->after_positivity_ptr(CloudChamberWaterLedger::Qv) : nullptr;
+        Real* ledger_after_qc = ledger_qstate ? water_ledger->after_positivity_ptr(CloudChamberWaterLedger::Qc) : nullptr;
+        Real* ledger_clip_qv = ledger_qstate ? water_ledger->clipping_ptr(CloudChamberWaterLedger::Qv) : nullptr;
+        Real* ledger_clip_qc = ledger_qstate ? water_ledger->clipping_ptr(CloudChamberWaterLedger::Qc) : nullptr;
+        Long* ledger_negative_qv = ledger_qstate ? water_ledger->negative_count_ptr(CloudChamberWaterLedger::Qv) : nullptr;
+        Long* ledger_negative_qc = ledger_qstate ? water_ledger->negative_count_ptr(CloudChamberWaterLedger::Qc) : nullptr;
+        Real* ledger_min_qv = ledger_qstate ? water_ledger->minimum_candidate_ptr(CloudChamberWaterLedger::Qv) : nullptr;
+        Real* ledger_min_qc = ledger_qstate ? water_ledger->minimum_candidate_ptr(CloudChamberWaterLedger::Qc) : nullptr;
+        Real* ledger_largest_qv = ledger_qstate ? water_ledger->largest_deficit_ptr(CloudChamberWaterLedger::Qv) : nullptr;
+        Real* ledger_largest_qc = ledger_qstate ? water_ledger->largest_deficit_ptr(CloudChamberWaterLedger::Qc) : nullptr;
 
         for (int ivar(RhoKE_comp); ivar<= RhoQ1_comp; ++ivar)
         {
@@ -620,12 +715,31 @@ void erf_slow_rhs_post (int level, int finest_level,
                         Real dt_times_old_cell_rhs = cur_cons(i,j,k,n) - old_cons(i,j,k,n);
 
                         // Add the time-averaged RHS to the old state
-                        cur_cons(i,j,k,n) = old_cons(i,j,k,n) + myhalf * (dt_times_old_cell_rhs + dt * cell_rhs(i,j,k,n));
+                        const Real candidate = old_cons(i,j,k,n) +
+                            myhalf * (dt_times_old_cell_rhs + dt * cell_rhs(i,j,k,n));
+                        cur_cons(i,j,k,n) = candidate;
 
                         if (ivar == RhoKE_comp) {
                             cur_cons(i,j,k,n) = amrex::max(cur_cons(i,j,k,n), eps);
                         } else if (ivar >= RhoQ1_comp) {
-                            cur_cons(i,j,k,n) = amrex::max(cur_cons(i,j,k,n), amrex::Real(0));
+                            const Real clipped = amrex::max(candidate, amrex::Real(0));
+                            if (ledger_qstate && nn < 2) {
+                                Real* candidate_sum = (nn == 0) ? ledger_candidate_qv : ledger_candidate_qc;
+                                Real* after_sum = (nn == 0) ? ledger_after_qv : ledger_after_qc;
+                                Real* clip_sum = (nn == 0) ? ledger_clip_qv : ledger_clip_qc;
+                                Long* negative_count = (nn == 0) ? ledger_negative_qv : ledger_negative_qc;
+                                Real* min_candidate = (nn == 0) ? ledger_min_qv : ledger_min_qc;
+                                Real* largest_deficit = (nn == 0) ? ledger_largest_qv : ledger_largest_qc;
+                                Gpu::Atomic::Add(candidate_sum, candidate);
+                                Gpu::Atomic::Add(after_sum, clipped);
+                                Gpu::Atomic::Min(min_candidate, candidate);
+                                if (candidate < amrex::Real(0)) {
+                                    Gpu::Atomic::Add(clip_sum, -candidate);
+                                    Gpu::Atomic::Add(negative_count, Long(1));
+                                    Gpu::Atomic::Max(largest_deficit, -candidate);
+                                }
+                            }
+                            cur_cons(i,j,k,n) = clipped;
                         }
                     });
 
@@ -635,11 +749,29 @@ void erf_slow_rhs_post (int level, int finest_level,
                     [=] AMREX_GPU_DEVICE (int i, int j, int k, int nn) noexcept {
                         const int n = start_comp + nn;
                         cell_rhs(i,j,k,n) += src_arr(i,j,k,n);
-                        cur_cons(i,j,k,n) = old_cons(i,j,k,n) + dt * cell_rhs(i,j,k,n);
+                        const Real candidate = old_cons(i,j,k,n) + dt * cell_rhs(i,j,k,n);
+                        cur_cons(i,j,k,n) = candidate;
                         if (ivar == RhoKE_comp) {
                             cur_cons(i,j,k,n) = amrex::max(cur_cons(i,j,k,n), eps);
                         } else if (ivar >= RhoQ1_comp) {
-                            cur_cons(i,j,k,n) = amrex::max(cur_cons(i,j,k,n), amrex::Real(0));
+                            const Real clipped = amrex::max(candidate, amrex::Real(0));
+                            if (ledger_qstate && nn < 2) {
+                                Real* candidate_sum = (nn == 0) ? ledger_candidate_qv : ledger_candidate_qc;
+                                Real* after_sum = (nn == 0) ? ledger_after_qv : ledger_after_qc;
+                                Real* clip_sum = (nn == 0) ? ledger_clip_qv : ledger_clip_qc;
+                                Long* negative_count = (nn == 0) ? ledger_negative_qv : ledger_negative_qc;
+                                Real* min_candidate = (nn == 0) ? ledger_min_qv : ledger_min_qc;
+                                Real* largest_deficit = (nn == 0) ? ledger_largest_qv : ledger_largest_qc;
+                                Gpu::Atomic::Add(candidate_sum, candidate);
+                                Gpu::Atomic::Add(after_sum, clipped);
+                                Gpu::Atomic::Min(min_candidate, candidate);
+                                if (candidate < amrex::Real(0)) {
+                                    Gpu::Atomic::Add(clip_sum, -candidate);
+                                    Gpu::Atomic::Add(negative_count, Long(1));
+                                    Gpu::Atomic::Max(largest_deficit, -candidate);
+                                }
+                            }
+                            cur_cons(i,j,k,n) = clipped;
                         }
                     });
 
