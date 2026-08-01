@@ -51,7 +51,7 @@ void ERF::advance_dycore (int level,
     const Box& domain = fine_geom.Domain();
 
     if (cloud_chamber_budget) {
-        cloud_chamber_budget->set_initial_state(state_old[IntVars::cons], fine_geom);
+        cloud_chamber_budget->set_initial_state(state_old[IntVars::cons], fine_geom, 0, old_time);
     }
 
     DiffChoice dc    = solverChoice.diffChoice;

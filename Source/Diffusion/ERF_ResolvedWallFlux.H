@@ -7,10 +7,10 @@
 
 #include "ERF_Constants.H"
 #include "ERF_EOS.H"
+#include "ERF_MicrophysicsUtils.H"
 #include "ERF_IndexDefines.H"
 #include "ERF_DataStruct.H"
 #include "BoundaryConditions/ERF_WallThermodynamics.H"
-#include "Prob/ERF_CloudChamber.H"
 
 namespace erf_resolved_wall_flux {
 
@@ -28,7 +28,7 @@ void apply_face (const amrex::Box& bx,
                  const amrex::Array4<amrex::Real>& yflux,
                  const amrex::Array4<amrex::Real>& zflux,
                  const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& dx_inv,
-                 const erf_cloud_chamber::Config& config,
+                 const erf_wall_thermodynamics::Boundary& walls,
                  const amrex::Real alpha_T,
                  const amrex::Real alpha_C,
                  const amrex::Real rdOcp)
@@ -49,7 +49,7 @@ void apply_face (const amrex::Box& bx,
     if (face_cells.isEmpty()) { return; }
     AMREX_ALWAYS_ASSERT(bx.contains(face_cells));
 
-    const auto wall = config.walls[2*DIR + (HIGH ? 1 : 0)].thermodynamics;
+    const auto wall = walls[2*DIR + (HIGH ? 1 : 0)];
     const bool is_theta = quantity == RhoTheta_comp;
     const bool is_qv = quantity == RhoQ1_comp;
     const bool is_qc = quantity == RhoQ2_comp;
@@ -119,17 +119,17 @@ inline void apply (const amrex::Box& bx,
                    const amrex::Array4<amrex::Real>& yflux,
                    const amrex::Array4<amrex::Real>& zflux,
                    const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& dx_inv,
-                   const erf_cloud_chamber::Config& config,
+                   const erf_wall_thermodynamics::Boundary& walls,
                    const amrex::Real alpha_T,
                    const amrex::Real alpha_C,
                    const amrex::Real rdOcp)
 {
-    apply_face<0,false>(bx,domain,quantity,flux_comp,state,prim,base_state,rhs,xflux,yflux,zflux,dx_inv,config,alpha_T,alpha_C,rdOcp);
-    apply_face<0,true >(bx,domain,quantity,flux_comp,state,prim,base_state,rhs,xflux,yflux,zflux,dx_inv,config,alpha_T,alpha_C,rdOcp);
-    apply_face<1,false>(bx,domain,quantity,flux_comp,state,prim,base_state,rhs,xflux,yflux,zflux,dx_inv,config,alpha_T,alpha_C,rdOcp);
-    apply_face<1,true >(bx,domain,quantity,flux_comp,state,prim,base_state,rhs,xflux,yflux,zflux,dx_inv,config,alpha_T,alpha_C,rdOcp);
-    apply_face<2,false>(bx,domain,quantity,flux_comp,state,prim,base_state,rhs,xflux,yflux,zflux,dx_inv,config,alpha_T,alpha_C,rdOcp);
-    apply_face<2,true >(bx,domain,quantity,flux_comp,state,prim,base_state,rhs,xflux,yflux,zflux,dx_inv,config,alpha_T,alpha_C,rdOcp);
+    apply_face<0,false>(bx,domain,quantity,flux_comp,state,prim,base_state,rhs,xflux,yflux,zflux,dx_inv,walls,alpha_T,alpha_C,rdOcp);
+    apply_face<0,true >(bx,domain,quantity,flux_comp,state,prim,base_state,rhs,xflux,yflux,zflux,dx_inv,walls,alpha_T,alpha_C,rdOcp);
+    apply_face<1,false>(bx,domain,quantity,flux_comp,state,prim,base_state,rhs,xflux,yflux,zflux,dx_inv,walls,alpha_T,alpha_C,rdOcp);
+    apply_face<1,true >(bx,domain,quantity,flux_comp,state,prim,base_state,rhs,xflux,yflux,zflux,dx_inv,walls,alpha_T,alpha_C,rdOcp);
+    apply_face<2,false>(bx,domain,quantity,flux_comp,state,prim,base_state,rhs,xflux,yflux,zflux,dx_inv,walls,alpha_T,alpha_C,rdOcp);
+    apply_face<2,true >(bx,domain,quantity,flux_comp,state,prim,base_state,rhs,xflux,yflux,zflux,dx_inv,walls,alpha_T,alpha_C,rdOcp);
 }
 
 } // namespace erf_resolved_wall_flux

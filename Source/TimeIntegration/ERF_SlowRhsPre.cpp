@@ -131,6 +131,12 @@ void erf_slow_rhs_pre (int level, int finest_level,
     if (SurfLayer) { t_mean_mf = SurfLayer->get_mac_avg(level,2); }
 
     const Box& domain = geom.Domain();
+    const bool use_physical_chamber_wall_flux =
+        cloud_chamber_config != nullptr && cloud_chamber_base_state != nullptr &&
+        cloud_chamber_config->physical_initialization;
+    const erf_wall_thermodynamics::Boundary chamber_walls =
+        use_physical_chamber_wall_flux ? cloud_chamber_config->wall_boundary() :
+                                         erf_wall_thermodynamics::Boundary{};
     int klo = domain.smallEnd(2);
     int khi = domain.bigEnd(2);
 
@@ -229,7 +235,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
         // The physical theta wall override consumes the just-computed face
         // flux.  Initialize its storage independently of diagnostics so a
         // budget switch cannot change the state update.
-        if (cloud_chamber_config && cloud_chamber_base_state) {
+        if (use_physical_chamber_wall_flux) {
             dflux_x->setVal(0.0);
             dflux_y->setVal(0.0);
             dflux_z->setVal(0.0);
@@ -721,12 +727,12 @@ void erf_slow_rhs_pre (int level, int finest_level,
                                        mu_turb, solverChoice, level,
                                        tm_arr, grav_gpu, bc_ptr_d, l_apply_surface_layer_fluxes_in_diffusion, l_vert_implicit_fac);
             }
-            if (cloud_chamber_config && cloud_chamber_base_state) {
+            if (use_physical_chamber_wall_flux) {
                 erf_resolved_wall_flux::apply(
                     bx, domain, RhoTheta_comp, 0, cell_data, cell_prim,
                     cloud_chamber_base_state->const_array(mfi), cell_rhs,
                     diffflux_x, diffflux_y, diffflux_z, dxInv,
-                    *cloud_chamber_config, dc.alpha_T, dc.alpha_C,
+                    chamber_walls, dc.alpha_T, dc.alpha_C,
                     solverChoice.rdOcp);
             }
         }

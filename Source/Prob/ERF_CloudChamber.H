@@ -48,6 +48,15 @@ struct Config {
     amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> prob_lo = {};
     amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> prob_hi = {};
     amrex::GpuArray<WallSpec, 2 * AMREX_SPACEDIM> walls = {};
+
+    erf_wall_thermodynamics::Boundary wall_boundary () const noexcept
+    {
+        erf_wall_thermodynamics::Boundary boundary{};
+        for (int n = 0; n < 2 * AMREX_SPACEDIM; ++n) {
+            boundary[n] = walls[n].thermodynamics;
+        }
+        return boundary;
+    }
 };
 
 AMREX_FORCE_INLINE
@@ -226,6 +235,14 @@ inline Config parse_config (const amrex::Real* problo,
     require_no_unsupported_geometry();
 
     amrex::ParmParse pp_prob("prob");
+    amrex::Real p_inf = p_0;
+    if (pp_prob.query("p_inf", p_inf)) {
+        require_finite("prob.p_inf", p_inf);
+        const amrex::Real pressure_tolerance = amrex::Real(1.0e-6) * p_0;
+        if (std::abs(p_inf - p_0) > pressure_tolerance) {
+            amrex::Error("Cloud Chamber: prob.p_inf must match ERF's p_0 = 100000 Pa within 1e-6 relative tolerance");
+        }
+    }
     std::string init_mode;
     pp_prob.get("thermodynamic_initialization", init_mode);
     init_mode = amrex::toLower(init_mode);

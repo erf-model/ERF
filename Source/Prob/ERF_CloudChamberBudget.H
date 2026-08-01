@@ -38,7 +38,9 @@ public:
     }
 
     void set_initial_state (const amrex::MultiFab& cons,
-                            const amrex::Geometry& geom)
+                            const amrex::Geometry& geom,
+                            int step = 0,
+                            double time = 0.0)
     {
         if (m_have_initial) { return; }
         const amrex::Real volume = geom.CellSize(0) * geom.CellSize(1) * geom.CellSize(2);
@@ -46,6 +48,8 @@ public:
             const int comp = (s == RhoTheta) ? RhoTheta_comp : RhoQ1_comp + (s-1);
             m_initial_state[s] = (comp < cons.nComp()) ? cons.sum(comp, true) * volume : amrex::Real(0.0);
         }
+        m_interval_start_step = step;
+        m_interval_start_time = time;
         m_have_initial = true;
     }
 
@@ -138,8 +142,9 @@ public:
         if (amrex::ParallelDescriptor::IOProcessor()) {
             std::ofstream out("cloud_chamber_budget.dat", std::ios::app);
             if (out.tellp() == std::streampos(0)) {
-                out << "# step time scalar units xlo xhi ylo yhi zlo zhi "
-                       "net_boundary volume_change internal_source residual status\n";
+                out << "# start_step start_time end_step end_time scalar units "
+                       "xlo xhi ylo yhi zlo zhi net_boundary volume_change "
+                       "internal_source residual tolerance status\n";
             }
             out << std::setprecision(17);
             const char* names[NumScalars] = {"rhoTheta", "water_vapor", "cloud_water"};
@@ -149,17 +154,26 @@ public:
                 amrex::Real net = faces[0] - faces[1] + faces[2] - faces[3] + faces[4] - faces[5];
                 const amrex::Real change = global_current[s] - initial[s];
                 const amrex::Real internal = global_internal[s];
-                const amrex::Real residual = change - net - internal;
-                const amrex::Real scale = std::max({amrex::Real(1.0),
+            const amrex::Real residual = change - net - internal;
+            const amrex::Real scale = std::max({amrex::Real(1.0),
                     std::abs(initial[s]), std::abs(global_current[s]),
                     std::abs(net), std::abs(internal)});
-                const amrex::Real tolerance = amrex::Real(64.0) *
-                    std::numeric_limits<amrex::Real>::epsilon() * scale;
+                const amrex::Real effective_operations =
+                    static_cast<amrex::Real>(geom.Domain().numPts()) +
+                    static_cast<amrex::Real>(NumFaces);
+                amrex::Real boundary_scale = amrex::Real(0.0);
+                for (const auto value : faces) { boundary_scale += std::abs(value); }
+                const amrex::Real tolerance = amrex::Real(128.0) *
+                    std::numeric_limits<amrex::Real>::epsilon() *
+                    (effective_operations * scale + boundary_scale + std::abs(internal));
                 const bool status = std::abs(residual) <= tolerance;
-                out << step << ' ' << time << ' ' << names[s] << ' ' << units[s];
+                const char* status_text = status ? "PASS" :
+                    (cloudy && s == RhoTheta ? "UNSUPPORTED_SOURCE" : "FAIL");
+                out << m_interval_start_step << ' ' << m_interval_start_time << ' '
+                    << step << ' ' << time << ' ' << names[s] << ' ' << units[s];
                 for (const auto value : faces) { out << ' ' << value; }
                 out << ' ' << net << ' ' << change << ' ' << internal << ' '
-                    << residual << ' ' << (status ? "PASS" : (cloudy && s == RhoTheta ? "SOURCE_REQUIRED" : "FAIL")) << '\n';
+                    << residual << ' ' << tolerance << ' ' << status_text << '\n';
             }
             std::array<amrex::Real, NumFaces> total_faces{};
             for (int f = 0; f < NumFaces; ++f) {
@@ -173,12 +187,19 @@ public:
             const amrex::Real total_residual = total_change - total_net - total_internal;
             const amrex::Real total_scale = std::max({amrex::Real(1.0), std::abs(total_change),
                 std::abs(total_net), std::abs(total_internal)});
-            const bool total_status = std::abs(total_residual) <=
-                amrex::Real(64.0) * std::numeric_limits<amrex::Real>::epsilon() * total_scale;
-            out << step << ' ' << time << " total_nonprecipitating_water mixing_ratio_density";
+            amrex::Real total_boundary_scale = amrex::Real(0.0);
+            for (const auto value : total_faces) { total_boundary_scale += std::abs(value); }
+            const amrex::Real total_tolerance = amrex::Real(128.0) *
+                std::numeric_limits<amrex::Real>::epsilon() *
+                (static_cast<amrex::Real>(geom.Domain().numPts() + NumFaces) * total_scale +
+                 total_boundary_scale + std::abs(total_internal));
+            const bool total_status = std::abs(total_residual) <= total_tolerance;
+            out << m_interval_start_step << ' ' << m_interval_start_time << ' '
+                << step << ' ' << time << " total_nonprecipitating_water mixing_ratio_density";
             for (const auto value : total_faces) { out << ' ' << value; }
             out << ' ' << total_net << ' ' << total_change << ' ' << total_internal << ' '
-                << total_residual << ' ' << (total_status ? "PASS" : "FAIL") << '\n';
+                << total_residual << ' ' << total_tolerance << ' '
+                << (total_status ? "PASS" : "FAIL") << '\n';
         }
         // The next report is an interval-local balance beginning at the
         // state just reported.  Keep this reference rank-local: assigning the
@@ -189,10 +210,14 @@ public:
         m_internal_source = {};
         m_stage0 = {};
         m_have_stage0 = {};
+        m_interval_start_step = step;
+        m_interval_start_time = time;
     }
 
 private:
     int m_interval = 0;
+    int m_interval_start_step = 0;
+    double m_interval_start_time = 0.0;
     bool m_have_initial = false;
     std::array<bool, NumScalars> m_have_stage0{};
     std::array<amrex::Real, NumScalars> m_initial_state{};

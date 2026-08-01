@@ -5,9 +5,13 @@
 #include "../Source/Utils/ERF_MicrophysicsUtils.H"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstdlib>
+#include <fstream>
 #include <iostream>
+#include <limits>
+#include <sstream>
 #include <string>
 #include <vector>
 
@@ -31,13 +35,154 @@ int fail (const std::string& message)
     return 1;
 }
 
+struct BudgetRow {
+    std::string scalar;
+    std::array<Real, 2 * AMREX_SPACEDIM> faces{};
+    Real net_boundary = Real(0.0);
+    Real volume_change = Real(0.0);
+    Real internal_source = Real(0.0);
+    Real residual = Real(0.0);
+    Real tolerance = Real(0.0);
+    std::string status;
+};
+
+bool read_budget (const std::string& path, std::vector<BudgetRow>& rows,
+                  std::string& error)
+{
+    std::ifstream in(path);
+    if (!in) {
+        error = "cannot open budget file " + path;
+        return false;
+    }
+    std::string line;
+    while (std::getline(in, line)) {
+        if (line.empty() || line[0] == '#') { continue; }
+        std::istringstream fields(line);
+        int start_step = 0;
+        int end_step = 0;
+        double start_time = 0.0;
+        double end_time = 0.0;
+        std::string units;
+        BudgetRow row;
+        if (!(fields >> start_step >> start_time >> end_step >> end_time
+                    >> row.scalar >> units)) {
+            error = "malformed budget row: " + line;
+            return false;
+        }
+        for (auto& value : row.faces) {
+            if (!(fields >> value)) {
+                error = "malformed budget face data: " + line;
+                return false;
+            }
+        }
+        if (!(fields >> row.net_boundary >> row.volume_change >> row.internal_source
+                    >> row.residual >> row.tolerance >> row.status)) {
+            error = "malformed budget closure data: " + line;
+            return false;
+        }
+        rows.push_back(row);
+    }
+    return true;
+}
+
+Real budget_tolerance (const BudgetRow& row)
+{
+    return std::max(row.tolerance,
+                    Real(128.0) * std::numeric_limits<Real>::epsilon());
+}
+
+bool close_to_zero (Real value, const BudgetRow& row)
+{
+    return std::abs(value) <= budget_tolerance(row);
+}
+
+Real integral (PlotFileData& plotfile, const std::string& scalar)
+{
+    MultiFab rho = plotfile.get(0, "density");
+    MultiFab value = plotfile.get(0, scalar == "rhoTheta" ? "theta" : scalar);
+    MultiFab::Multiply(value, rho, 0, 0, 1, 0);
+    const auto dx = plotfile.cellSize(0);
+    const Real volume = dx[0] * dx[1] * dx[2];
+    return value.sum(0, true) * volume;
+}
+
+bool check_budget_rows (const std::vector<BudgetRow>& rows,
+                        const std::string& mode, std::string& error)
+{
+    const bool all_dry = mode == "all_dry";
+    const bool wet = mode == "wet_budget";
+    int total_rows = 0;
+    int vapor_rows = 0;
+    int cloud_rows = 0;
+    for (const auto& row : rows) {
+        const Real tol = budget_tolerance(row);
+        if (row.scalar == "total_nonprecipitating_water") {
+            ++total_rows;
+            if (row.status != "PASS" || std::abs(row.residual) > tol) {
+                error = "total-water budget did not PASS";
+                return false;
+            }
+            if (all_dry && (!close_to_zero(row.net_boundary, row) ||
+                            !close_to_zero(row.volume_change, row) ||
+                            !close_to_zero(row.internal_source, row))) {
+                error = "all-dry total-water budget is not closed";
+                return false;
+            }
+        } else if (row.scalar == "water_vapor") {
+            ++vapor_rows;
+            if (row.status != "PASS") {
+                error = "water-vapor budget did not PASS";
+                return false;
+            }
+            if (all_dry) {
+                for (const auto value : row.faces) {
+                    if (!close_to_zero(value, row)) {
+                        error = "all-dry vapor wall flux is nonzero";
+                        return false;
+                    }
+                }
+            } else if (wet) {
+                for (int face = 0; face < 4; ++face) {
+                    if (!close_to_zero(row.faces[face], row)) {
+                        error = "wet-wall side vapor flux is nonzero";
+                        return false;
+                    }
+                }
+                if (!std::isfinite(static_cast<double>(row.faces[4])) ||
+                    !std::isfinite(static_cast<double>(row.faces[5]))) {
+                    error = "wet-wall vapor flux is non-finite";
+                    return false;
+                }
+            }
+        } else if (row.scalar == "cloud_water") {
+            ++cloud_rows;
+            if (row.status != "PASS") {
+                error = "cloud-water budget did not PASS";
+                return false;
+            }
+            for (const auto value : row.faces) {
+                if (!close_to_zero(value, row)) {
+                    error = "cloud-water wall flux is nonzero";
+                    return false;
+                }
+            }
+        }
+    }
+    if (total_rows < 3 || vapor_rows < 3 || cloud_rows < 3) {
+        error = "expected at least three budget intervals for every water scalar";
+        return false;
+    }
+    return true;
+}
+
 } // namespace
 
 int main (int argc, char** argv)
 {
-    if (argc != 4) {
+    if (argc != 4 && argc != 5) {
         std::cerr << "usage: checker mode initial_plotfile final_plotfile\n"
-                  << "       checker parity budget_off_plotfile budget_on_plotfile\n";
+                  << "       checker parity budget_off_plotfile budget_on_plotfile\n"
+                  << "       checker all_dry|wet_budget initial_plotfile final_plotfile budget_file\n";
         return 2;
     }
 
@@ -59,18 +204,29 @@ int main (int argc, char** argv)
             MultiFab::Subtract(difference, budget_on.get(0, name), 0, 0, 1, 0);
             max_difference = std::max(max_difference, difference.norm0(0, 0, false));
         }
-        std::cout << "budget_on_off_max_difference=" << max_difference << "\n";
+        Real max_integral_difference = Real(0.0);
+        for (const auto& scalar : {std::string("rhoTheta"), std::string("qv"), std::string("qc")}) {
+            max_integral_difference = std::max(max_integral_difference,
+                std::abs(integral(budget_off, scalar) - integral(budget_on, scalar)));
+        }
+        const Real parity_scale = std::max(Real(1.0), max_integral_difference);
+        const Real parity_tolerance = Real(4096.0) *
+            std::numeric_limits<Real>::epsilon() * parity_scale;
+        std::cout << "budget_on_off_max_difference=" << max_difference
+                  << " budget_on_off_max_integral_difference=" << max_integral_difference
+                  << " tolerance=" << parity_tolerance << "\n";
         amrex::Finalize();
-        return max_difference <= Real(1.0e-12) ? 0 :
+        return (max_difference <= parity_tolerance &&
+                max_integral_difference <= parity_tolerance) ? 0 :
             fail("budget-on/off state mismatch: max difference=" +
                  std::to_string(static_cast<double>(max_difference)));
     }
     PlotFileData initial(argv[2]);
     PlotFileData final(argv[3]);
-    const bool cloudy = (mode == "cloudy");
+    const bool cloudy = (mode == "cloudy" || mode == "all_dry" || mode == "wet_budget");
     if (!cloudy && mode != "dry") {
         amrex::Finalize();
-        return fail("mode must be dry or cloudy");
+        return fail("mode must be dry, cloudy, all_dry, or wet_budget");
     }
 
     for (const std::string& name : {"density", "theta", "temp", "x_velocity",
@@ -259,6 +415,17 @@ int main (int argc, char** argv)
             amrex::Finalize();
             return fail("physical initialization did not start with zero cloud water");
         }
+    }
+
+    if (mode == "all_dry" || mode == "wet_budget") {
+        std::vector<BudgetRow> rows;
+        std::string budget_error;
+        if (argc != 5 || !read_budget(argv[4], rows, budget_error) ||
+            !check_budget_rows(rows, mode, budget_error)) {
+            amrex::Finalize();
+            return fail(budget_error.empty() ? "budget validation failed" : budget_error);
+        }
+        std::cout << "budget_rows=" << rows.size() << " mode=" << mode << "\n";
     }
 
     const MultiFab final_u = final.get(0, "x_velocity");

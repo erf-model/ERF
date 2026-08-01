@@ -1,157 +1,297 @@
 .. _CloudChamber:
 
-Cloud Chamber Stage 1
-=====================
+Cloud Chamber
+==============
 
-Stage 1 is a small, equilibrium-cloud proof of concept for a closed Cartesian
-rectangular chamber.  It is not quantitatively validated against Pi-Chamber
-measurements and it is not an engineering wall model.  The reference geometry
-is 2 m x 2 m x 1 m, but any positive rectangular prism is accepted within the
-single-level, constant-``dz`` limitations of this stage.
+The Cloud Chamber problem provides a single-level, Cartesian, anelastic
+proof-of-concept configuration for buoyancy-driven moist convection in a
+closed rectangular chamber.  It supports physical temperature and
+relative-humidity initialization, fixed-temperature walls, impermeable dry
+walls, saturated wet walls, and equilibrium cloud water through SatAdj.
 
-Scope and maturity
+This Stage 1 configuration is not a quantitatively validated Pi-Chamber LES
+and does not include an engineering wall model or finite-rate droplet
+microphysics.
+
+Supported features
 ------------------
 
-The implementation provides anelastic thermodynamics, physical-temperature/RH
-initialization, six independently configured solid walls, resolved-molecular
-wall-normal scalar transfer, and SatAdj equilibrium condensate.  It does not
-provide MOST, roughness, partial wetness, a wall-water inventory, panel thermal
-inertia, conjugate heat transfer, finite-rate droplets, aerosol activation,
-precipitation, sedimentation, collision-coalescence, or cloud-water deposition.
-Wang et al. is useful motivation for wall sensitivity, but its MOST treatment
-is not adopted as a Stage 1 model specification.
+===============================  =================
+Feature                          Stage 1 support
+===============================  =================
+Rectangular Cartesian chamber    Yes
+Single level                     Yes
+Anelastic dynamics               Required
+SatAdj equilibrium cloud         Yes
+Dry vapor-impermeable walls      Yes
+Wet equilibrium walls            Yes
+Fixed physical wall temperature  Yes
+ConstantAlpha normal transfer    Yes
+Interior LES                     Yes
+Terrain                          No
+Embedded boundaries              No
+AMR                              No
+Engineering wall law             No
+Roughness                        No
+Finite-rate droplets             No
+===============================  =================
 
-Base state and thermodynamics
------------------------------
+The supported geometry is a positive rectangular prism with
+``erf.mesh_type = ConstantDz``, ``erf.anelastic = 1``,
+``erf.use_gravity = true``, and ``amr.max_level = 0``.  Periodic directions,
+terrain, immersed boundaries, and AMR are not supported by this configuration.
 
-Physical chamber mode requires the existing HSE-backed ``ConstantDensity``
-initialization path.  ``Uniform`` is rejected because its default
-``rho*theta`` state can imply an unintended pressure near 81 kPa.  A typical
-reference is:
+Initial state
+-------------
+
+Physical initialization is selected with:
 
 .. code-block:: none
 
+   erf.prob_name = "Cloud Chamber"
    erf.init_type = ConstantDensity
-   prob.p_inf = 100000.0       # Pa; existing ERF reference-pressure input
-   prob.T_0 = 292.0            # K; reference temperature for rho_0
-
-ERF integrates the base pressure hydrostatically from the existing reference
-pressure path and reports its minimum, maximum, and lower-boundary value at
-startup.  In anelastic mode this base pressure ``p0`` is the thermodynamic
-pressure everywhere:
-
-.. math::
-
-   T = \theta (p_0/p_{00})^{R_d/c_p}, \qquad p_{00}=10^5\ {\rm Pa}.
-
-The perturbational pressure is not substituted into this relation.  The same
-``p0`` is used by SatAdj, initialization, wet-wall saturation, and the
-anelastic ``temp``, ``qsat``, and relative-humidity diagnostics.  Compressible
-paths retain their existing EOS pressure.
-
-Physical initialization
-------------------------
-
-Select the unambiguous physical contract:
-
-.. code-block:: none
-
+   erf.anelastic = 1
+   erf.use_gravity = true
    prob.thermodynamic_initialization = physical_temperature_rh
    prob.initial_temperature_bottom = 300.0       # K
-   prob.initial_temperature_top = 284.0          # K
-   prob.initial_relative_humidity = 0.95         # fraction, not percent
+   prob.initial_temperature_top = 284.0           # K
+   prob.initial_relative_humidity = 0.95          # fraction, not percent
    prob.temperature_perturbation_amplitude = 0.02 # K
    prob.perturbation_mode = deterministic_sine
 
-The initialized temperature is a linear vertical profile plus a deterministic,
-bounded sine perturbation that vanishes on every physical face.  Vapor is
-computed from the actual perturbed temperature:
+The initialized physical temperature is
 
 .. math::
 
-   e_v = RH\,e_s(T), \qquad
-   q_v = (R_d/R_v)\frac{e_v}{p_0-e_v}, \qquad q_c=0.
+   T(z)=T_b+(T_t-T_b)\frac{z-z_\mathrm{lo}}{L_z}+\delta T.
 
-Here ``qv`` is ERF's vapor mixing ratio relative to dry air.  RH must be a
-finite fraction in ``[0,1]``.  The legacy ``legacy_theta_qv`` mode remains
-explicitly numerical and cannot be mixed with the physical keys.
+The perturbation is deterministic, bounded by its configured amplitude, and
+vanishes on the physical faces.  Relative humidity is a fraction in
+``[0,1]``; entering ``95`` instead of ``0.95`` is invalid.  Vapor is initialized
+from the actual temperature:
 
-Walls and diffusion
--------------------
+.. math::
 
-Each face is a ``NoSlipWall`` with a physical temperature in kelvin and an
-independent moisture mode:
+   e_v=RH\,e_s(T), \qquad
+   q_v=\frac{R_d}{R_v}\frac{e_v}{p_0-e_v}.
+
+Here ``qv`` is a mixing ratio relative to dry air.  ``qc`` initially equals
+zero.  A sub-saturated initial RH should not cause whole-domain startup
+condensation.
+
+The legacy ``legacy_theta_qv`` mode remains available for existing numerical
+inputs.  It must not be mixed with the physical temperature/RH keys.
+
+Anelastic pressure and temperature
+-----------------------------------
+
+For anelastic SatAdj, ERF uses the HSE base pressure ``p0`` and
+
+.. math::
+
+   T=\theta\left(\frac{p_0}{p_{00}}\right)^{R_d/c_p}.
+
+SatAdj uses this same ``p0``; it is converted to hPa only at the saturation
+helper interface.  Compressible SatAdj retains its existing EOS-derived
+pressure and temperature path.
+
+The Stage 1 surface reference is ERF's current ``100000`` Pa reference
+pressure.  ``prob.p_inf`` and ``prob.T_0`` contribute to construction of the
+reference density when needed; ``prob.p_inf`` does not independently redefine
+the HSE pressure anchor.  A physical Stage 1 input should use
+``prob.p_inf = 100000.0``.  Inputs materially inconsistent with the ERF
+reference pressure are rejected.  The parser uses a relative tolerance of
+``1e-6`` for this comparison.
+
+Wall temperature and moisture
+-----------------------------
+
+Every face is a ``NoSlipWall`` with a physical temperature in kelvin and a
+moisture mode.  For example:
 
 .. code-block:: none
 
    zlo.type = NoSlipWall
-   zlo.temperature = 300.0
-   zlo.moisture = wet       # dry or wet
+   zlo.temperature = 300.0       # K
+   zlo.moisture = wet             # dry or wet
    zlo.wall_transfer_model = resolved_molecular
 
-Dry means impermeable, not ``qv=0``.  Its vapor and cloud-water normal fluxes
-are exactly zero.  A wet wall is a pure-liquid equilibrium surface with
-``RH=1`` and ``qv_wall = qsat(T_wall,p0_wall)``.  The local base pressure is
-used on every face, including the height-dependent pressure on vertical walls.
+``resolved_molecular`` is the public Stage 1 name for physical wall-normal
+transfer using only the configured ``ConstantAlpha`` coefficients.  Set
+``erf.molec_diff_type = ConstantAlpha``, ``erf.alpha_T`` and ``erf.alpha_C``
+to positive scalar coefficients.  The interior SGS diffusivity may remain
+active, but SGS diffusivity is excluded from the physical wall-normal
+transfer.  Short validation examples may use enhanced coefficients; they are
+not automatically scientifically calibrated molecular properties.
 
-For ``ConstantAlpha`` and explicit vertical diffusion, the physical wall flux
-uses the molecular coefficient and the half-cell distance.  The interior may
-still contain SGS diffusion, but SGS diffusivity is excluded from the physical
-wall-normal transfer.  Low-face coordinate flux is positive into the domain
-when it is positive; high-face inward flux is the negative of the coordinate
-flux.  Both evaporation and condensation are supported.  Cloud water has zero
-wall flux in Stage 1.
+Dry walls
+~~~~~~~~~
 
-SatAdj and diagnostics
-----------------------
-
-SatAdj is a fixed-pressure, cell-local adjustment.  It conserves total
-non-precipitating water ``qv+qc`` and its existing latent invariant, maintains
-nonnegative vapor/cloud water, and is idempotent after adjustment.  It is an
-equilibrium cloud approximation: ``qc`` is not a droplet population and does
-not imply rain or aerosol physics.
-
-For anelastic plotfiles, ``temp`` and ``qsat`` use ``p0`` and ``rel_humidity``
-is emitted as a dimensionless fraction.  The consistency checks are:
+A dry wall is impermeable to water vapor and cloud water.  It does not impose
+zero humidity:
 
 .. math::
 
-   T=\theta(p_0/p_{00})^{R_d/c_p}, \qquad
-   q_{sat}=q_{sat}(T,p_0), \qquad RH=e_v/e_s(T).
+   J_v=0, \qquad J_c=0.
 
-Budgets
--------
+Wet walls
+~~~~~~~~~
 
-The optional ``erf.cloud_chamber_budget_interval`` writes interval-local
-balances for ``rhoTheta`` (a potential-temperature scalar, not watts), vapor,
-cloud water, and total non-precipitating water.  Fluxes are the exact applied
-coordinate-face fluxes, with low-minus-high domain orientation.  Each report
-resets its reference state and accumulators, so successive intervals and
-restart-started intervals are interpreted locally.
+A wet wall represents a stationary pure-liquid surface at saturation at the
+configured wall temperature.  Stage 1 uses the adjacent fluid-cell base
+pressure for the wall saturation state:
 
-Budget diagnostics are observational: enabling or disabling them must not
-change the governing diffusion, wall treatment, or state update.  Interval
-references remain rank-local until the values are reduced for reporting.
+.. math::
 
-For all-dry walls, total water should be constant apart from the reported
-floating-point residual.  For wet walls, its change equals the time-integrated
-inward vapor flux; SatAdj internal vapor/cloud-water exchanges cancel in the
-total-water row.
+   q_{v,w}=q_\mathrm{sat}(T_w,p_{0,c}).
 
-Reference validation
---------------------
+Here ``p0,c`` is the adjacent fluid-cell base pressure.  This approximation
+retains height dependence on vertical walls.  Evaporation and condensation
+are both permitted: positive inward flux adds vapor to the fluid, while a
+negative inward flux represents condensation onto the wall.  Cloud water does
+not cross a wall in Stage 1.
 
-The supplied dry regression uses physical initialization, six dry walls, and
-``ConstantAlpha`` diffusion to test closed water.  The SatAdj regression uses
-warm wet bottom/cold wet top walls and dry side walls.  Its checker independently
-verifies positive base pressure, the physical temperature profile, the
-anelastic theta relation, the exact RH conversion, zero initial cloud water,
-zero initial velocity, finite nonnegative moisture, and early buoyant motion.
-It does not require a particular cloud-water amount in a short CI run.  The
-wall-flux unit coverage also exercises all six faces with a multi-box layout,
-and the short SatAdj validation compares budget-on and budget-off evolution.
-These checks protect decomposition and diagnostic-mode correctness; they do
-not constitute quantitative Pi-Chamber validation.
+SatAdj limitations
+------------------
 
-The reference configuration is a proof of concept, not a claim of realistic
-coarse-grid molecular transfer or quantitative Pi-Chamber validation.
+SatAdj is an equilibrium qv/qc partition.  It conserves total
+non-precipitating water and applies the existing latent-heating adjustment.
+It does not represent droplet number or size distribution and does not
+include activation, rain, sedimentation, collision-coalescence, precipitation,
+or cloud-water wall deposition.
+
+Budgets and diagnostic neutrality
+---------------------------------
+
+Set ``erf.cloud_chamber_budget_interval`` to a positive step interval to write
+``cloud_chamber_budget.dat``.  A non-positive value disables reporting.  Each
+report is interval-local and contains the start and end step/time, state
+change, six face contributions, net boundary contribution, internal source,
+residual, tolerance, and status.  Face fluxes use coordinate orientation with
+low-minus-high signs.  Supported statuses are ``PASS``, ``FAIL``, and
+``UNSUPPORTED_SOURCE``.
+
+``rhoTheta`` is a conserved potential-temperature scalar, not a heat rate.
+For total non-precipitating water,
+
+.. math::
+
+   \Delta\int_\Omega\rho(q_v+q_c)\,dV
+   =\int_{t_a}^{t_b}\sum_f J_{v,\mathrm{in}}\,dA\,dt.
+
+For an all-dry chamber the right-hand side is zero.  SatAdj's internal qv/qc
+exchange cancels in the total-water row.  The closure tolerance is computed
+from double- or single-precision machine epsilon, an effective cell/face
+operation count, the state scale, and the absolute boundary and internal
+contributions; it is printed with every row.
+
+Enabling budgets must not change the simulation state.  Budget accumulation,
+MPI reduction, reporting, and file output are observational only.  The
+registered parity test compares density, theta, temperature, qv, qc, all three
+velocities, and the corresponding global integrals with budgets enabled and
+disabled.
+
+Complete examples
+-----------------
+
+No-moisture thermal chamber
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Use ``Tests/test_files/CloudChamber_Dry/CloudChamber_Dry.i``.  This case
+exercises physical-temperature initialization, six dry walls, and thermal
+wall forcing without a moisture model.
+
+SatAdj all-dry closed-water chamber
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The following settings form the registered multi-box conservation fixture:
+
+.. code-block:: none
+
+   erf.moisture_model = SatAdj
+   erf.cloud_chamber_budget_interval = 2
+   erf.molec_diff_type = ConstantAlpha
+   amr.n_cell = 16 16 16
+   amr.max_grid_size = 8
+   max_step = 6
+   xlo.moisture = dry
+   xhi.moisture = dry
+   ylo.moisture = dry
+   yhi.moisture = dry
+   zlo.moisture = dry
+   zhi.moisture = dry
+
+The ``CloudChamber_SatAdj_AllDry`` CTest case requires at least three passing
+budget intervals and zero total-water change within the printed tolerance.
+
+Wet-top/wet-bottom proof of concept
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The registered ``CloudChamber_SatAdj_WetBudget`` fixture uses the same
+16-by-16-by-16 multi-box layout with:
+
+.. code-block:: none
+
+   zlo.temperature = 300.0
+   zlo.moisture = wet
+   zhi.temperature = 284.0
+   zhi.moisture = wet
+   xlo.moisture = dry
+   xhi.moisture = dry
+   ylo.moisture = dry
+   yhi.moisture = dry
+
+It checks that wet-wall vapor fluxes close the total-water change, side-wall
+vapor fluxes are zero, cloud-water wall fluxes are zero, and three consecutive
+intervals pass.
+
+Validation guidance
+-------------------
+
+Inspect ``pressure``, ``temp``, ``theta``, ``qv``, ``qc``, ``qsat``,
+``rel_humidity``, and the velocity fields in plotfiles.  At initialization,
+velocity and ``qc`` should be zero, RH should be near the configured value,
+and the physical temperature—not merely potential temperature—should match
+the requested profile.  A short thermal perturbation should then produce a
+bounded buoyant response.
+
+For a serious run, record temperature, theta, qv, qc, qv+qc, integrated
+``rhoTheta``, integrated vapor, integrated cloud water, total water, velocity
+extrema, timestep, wall fluxes, and budget residuals at every output.  Stability
+alone is not quantitative Pi-Chamber validation.
+
+Testing coverage
+----------------
+
+The registered Stage 1 tests have distinct purposes:
+
+* ``CloudChamberFluxStorage.TiledComponentsPreserveEarlierTiles`` is a
+  deterministic tile-lifecycle negative control for shared-FAB resets.
+* ``CloudChamberWallFlux.MultiBoxOwnershipAcrossAllFaces`` covers all six
+  orientations and multiple boxes.
+* ``CloudChamber_SatAdj_Parity`` runs paired budget-off/on simulations and
+  checks fields and global integrals.
+* ``CloudChamber_SatAdj_AllDry`` checks closed total water with six dry walls.
+* ``CloudChamber_SatAdj_WetBudget`` checks wet-wall water closure and three
+  reporting intervals.
+* ``CloudChamber_SatAdj_OpenMP`` is enabled when ERF is built with OpenMP and
+  compares one- and two-thread results.
+
+These are decomposition and operator regressions, not quantitative LES or
+Pi-Chamber calibration tests.  GPU, sanitizer, single-precision, and extended
+32/64-cubed scientific runs must be reported separately when they are run.
+
+Troubleshooting
+---------------
+
+* If RH is entered as ``95``, change it to ``0.95``.
+* Do not mix ``physical_temperature_rh`` keys with legacy ``theta`` or ``qv``
+  wall and profile keys.
+* If an all-dry budget changes total water, inspect the six qv/qc face rows,
+  their tolerances, and the total-water residual before interpreting the flow.
+* If budgets change the solution, treat the run as invalid and inspect the
+  paired parity comparison.
+* A wet wall may condense as well as evaporate; its signed flux need not always
+  add vapor.
+* Unsupported diffusion, terrain, periodic, AMR, and embedded-boundary
+  combinations are rejected by the Cloud Chamber parser.
