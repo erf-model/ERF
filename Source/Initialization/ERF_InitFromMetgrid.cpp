@@ -514,6 +514,7 @@ ERF::init_from_metgrid (int lev)
             Box tbxc = mfi.tilebox();
             Box tbxu = mfi.tilebox(IntVect(1,0,0));
             Box tbxv = mfi.tilebox(IntVect(0,1,0));
+            Box tbxw = mfi.tilebox(IntVect(0,0,1));
 
             // Define FABs for holding some of the initial data
             FArrayBox &cons_fab = lev_new[Vars::cons][mfi];
@@ -543,7 +544,7 @@ ERF::init_from_metgrid (int lev)
                                     metgrid_use_below_sfc, metgrid_use_sfc,
                                     metgrid_retain_sfc, metgrid_proximity,
                                     metgrid_order, metgrid_force_sfc_k, l_rdOcp,
-                                    tbxc, tbxu, tbxv,
+                                    tbxc, tbxu, tbxv, tbxw,
                                     cons_fab, xvel_fab, yvel_fab, zvel_fab,
                                     z_phys_nd_fab,
                                     NC_ght_fab, NC_xvel_fab,
@@ -575,7 +576,11 @@ ERF::init_from_metgrid (int lev)
             } // mf
 
             Print() << "[init_base_state_from_metgrid] lev = " << lev << ", itime = " << itime << std::endl;
-            for ( MFIter mfi(lev_new[Vars::cons], TilingIfNotGPU()); mfi.isValid(); ++mfi ) {
+
+            //
+            // NOTE: The code inside this MFIter is not tile-safe so we must set false for the tiling option
+            //
+            for ( MFIter mfi(lev_new[Vars::cons], false); mfi.isValid(); ++mfi ) {
                 FArrayBox&     p_hse_fab = p_hse[mfi];
                 FArrayBox&    pi_hse_fab = pi_hse[mfi];
                 FArrayBox&    th_hse_fab = th_hse[mfi];
@@ -746,6 +751,7 @@ init_state_from_metgrid (const int  lev,
                          Box& tbxc,
                          Box& tbxu,
                          Box& tbxv,
+                         Box& tbxw,
                          FArrayBox& state_fab,
                          FArrayBox& x_vel_fab,
                          FArrayBox& y_vel_fab,
@@ -874,7 +880,7 @@ init_state_from_metgrid (const int  lev,
     // W
     // ********************************************************
     if (itime == 0) { // update at initialization
-        z_vel_fab.template setVal<RunOn::Device>(0);
+        z_vel_fab.template setVal<RunOn::Device>(0, tbxw, 0, z_vel_fab.nComp());
     }
 
 
@@ -882,7 +888,7 @@ init_state_from_metgrid (const int  lev,
     // Initialize all state_fab variables to zero
     // ********************************************************
     if (itime == 0) { // update at initialization
-        state_fab.template setVal<RunOn::Device>(0);
+        state_fab.template setVal<RunOn::Device>(0, tbxc, 0, state_fab.nComp());
     }
 
 
@@ -1211,7 +1217,6 @@ init_state_from_metgrid (const int  lev,
         } // use_moisture
 
     } // lev==0
-
 }
 
 

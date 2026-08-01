@@ -414,6 +414,13 @@ struct SolverChoice {
 
         // These default to true but are used for unit testing
         pp.query("use_gravity", use_gravity);
+
+        // Initializing from Metgrid or WRFInput without gravity makes no sense
+        if ( !use_gravity && ( (init_type == InitType::WRFInput) || (init_type == InitType::Metgrid) ) ) {
+            amrex::Print() << "Setting use_gravity to true due to init_type = WRFInput / Metgrid " << std::endl;
+            use_gravity = true;
+        }
+
         gravity = use_gravity? CONST_GRAV: zero;
 
         pp.query("c_p", c_p);

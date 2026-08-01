@@ -245,6 +245,7 @@ private:
     // Do we have moisture and cold comps?
     bool m_moist = false;
     bool m_ice   = false;
+    int  m_qi_comp = -1;
 
     // Do we have a land surface model?
     bool m_lsm   = false;

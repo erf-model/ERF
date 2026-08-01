@@ -25,8 +25,9 @@ Radiation::Radiation (const int& lev,
     // Check if we have a valid moisture model
     if (sc.moisture_type != MoistureType::None) { m_moist = true; }
 
-    // Check if we have a moisture model with ice
-    if (sc.moisture_type == MoistureType::SAM)  { m_ice = true; }
+    // Cloud-ice support follows the configured moisture-component mapping.
+    m_qi_comp = sc.moisture_indices.qi;
+    m_ice = (m_qi_comp >= 0);
 
     // Check if we have a land surface model enabled
     if (sc.lsm_type != LandSurfaceType::None) { m_lsm = true; }
@@ -494,6 +495,7 @@ Radiation::mf_to_kokkos_buffers (iMultiFab* lmask,
 
     bool moist = m_moist;
     bool ice   = m_ice;
+    const int qi_comp = m_qi_comp;
     const bool has_lsm = m_lsm;
     const bool has_lat = m_lat;
     const bool has_lon = m_lon;
@@ -529,7 +531,7 @@ Radiation::mf_to_kokkos_buffers (iMultiFab* lmask,
             Real rt = cons_arr(i,j,k,RhoTheta_comp);
             Real qv = (moist) ? std::max(cons_arr(i,j,k,RhoQ1_comp)/r,Real(0.)) : Real(0.);
             Real qc = (moist) ? std::max(cons_arr(i,j,k,RhoQ2_comp)/r,Real(0.)) : Real(0.);
-            Real qi = (ice)   ? std::max(cons_arr(i,j,k,RhoQ3_comp)/r,Real(0.)) : Real(0.);
+            Real qi = (ice && qi_comp >= 0) ? std::max(cons_arr(i,j,k,qi_comp)/r,Real(0.)) : Real(0.);
 
             // EOS avg to z-face
             Real r_lo   = cons_arr(i,j,k-1,Rho_comp);

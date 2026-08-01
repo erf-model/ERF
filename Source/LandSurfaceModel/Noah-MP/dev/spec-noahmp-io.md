@@ -45,8 +45,22 @@ accumulators — is serialized at the model's working precision to
 - `Write_Lsm_Restart(dir)` → `noahmpio.WriteRestart(dir)` for each box.
 - `Read_Lsm_Restart(dir)`  → `noahmpio.ReadRestart(dir)` for each box.
 
-Each local box writes its own tile into the single global-domain NetCDF file, in a
-collective operation that every rank must enter together.
+Each local box writes its own tile into the single global-domain NetCDF file. The
+NetCDF file is opened `NF90_MPIIO`, so `nf90_create`/`nf90_open`/`nf90_close` and
+the per-tile reads/writes are collective over the communicator handed to Noah-MP
+via `NoahmpIO%comm`. Because land is not present on every ERF rank
+(`noahmpio_vect` is empty on land-free ranks), that communicator must **not** be
+the full ERF communicator: a land-free rank would never enter the collective and
+would deadlock the land-owning ranks that do.
+
+The driver therefore builds a **land-owning sub-communicator** with
+`MPI_Comm_split` (color `1` where `noahmpio_vect` is non-empty, `MPI_UNDEFINED`
+otherwise). Land-free ranks get `MPI_COMM_NULL` and return early; the land-owning
+ranks temporarily point `noahmpio.comm` at this sub-communicator for the duration
+of the call, restore the original value afterward, and free the sub-communicator.
+`Read_Lsm_Restart` uses the identical split, since `nf90_open` is just as
+collective as `nf90_create`. The non-MPI build skips the split and calls the
+Noah-MP routines directly.
 
 ### 1c. Restart ordering
 
@@ -71,11 +85,14 @@ restored state into the physics on the first `Advance`.
 the per-timestep NetCDF land diagnostics. The cadence is owned by the caller, not
 the driver: ERF's time loop calls `Plot_Landfile` for every level whenever it
 writes the level-1 3-D plotfile (governed by `erf.plot_int_1`/`erf.plot_per_1`;
-see `ERF.cpp`). `Init()` does `pp.query("plot_int_1", m_plot_int_1)`, but
-`m_plot_int_1` is currently unused — the driver does not gate output itself. The
-initial land file is written during `Init()` itself with tag `0` (`WriteLand(0)`).
+see `ERF.cpp`). The driver does not gate output itself. The initial land file is written during `Init()` itself with tag `0` (`WriteLand(0)`).
 Which fields appear in that file is controlled Fortran-side in
 `NoahmpWriteLandMod.F90`.
+
+Like the restart write, `WriteLand` is a collective `NF90_MPIIO` operation, so
+`Plot_Landfile` runs it on the same land-owning sub-communicator (§1b): it splits
+off the land-owning ranks, points `noahmpio.comm` at the sub-communicator, and
+land-free ranks return early rather than joining the collective.
 
 ## 3. Static inputs read during `Init()`
 
@@ -95,8 +112,12 @@ schedule is defined on every rank (see [`spec-noahmp-api.md`](spec-noahmp-api.md
    never `noahmpio_vect[0]` — the latter is absent on land-free ranks.
 2. **Cold-init then overwrite.** Restart relies on `Init()` running first and
    `Read_Lsm_Restart` overwriting it; do not skip the cold init on restart.
-3. **Collective writes.** Restart and land output are written collectively over
-   the boxes; every rank must reach them (they sit alongside the collective
-   `FillBoundary` in the step).
+3. **Collective I/O on a land-owning sub-communicator.** Restart read/write and
+   land output are collective `NF90_MPIIO` operations. They must run on a
+   sub-communicator of the land-owning ranks (built per call with
+   `MPI_Comm_split`), never on the full ERF communicator — land-free ranks have an
+   empty `noahmpio_vect`, never enter the collective, and would otherwise deadlock
+   the land owners. Restore `noahmpio.comm` and free the sub-communicator after
+   each call.
 4. **Restart files travel with the checkpoint.** Keep `lsm_step` and
    `noahmp_restart/` inside the checkpoint directory.
