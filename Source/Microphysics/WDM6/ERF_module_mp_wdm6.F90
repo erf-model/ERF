@@ -345,6 +345,7 @@
                    ,its,ite, jts,jte, kts,kte                     &
                    ,snow,snowncv                                  &
                    ,graupel,graupelncv                            &
+                   ,microphysics_debug, diag_i_dbg, diag_j_dbg    &
                                                                   )
 
     implicit none
@@ -443,6 +444,7 @@
                                                    ims,ime, jms,jme, kms,kme, &
                                                    its,ite, jts,jte, kts,kte
    integer                                , intent(in   ) :: lat
+   integer                      , optional, intent(in   ) :: microphysics_debug, diag_i_dbg, diag_j_dbg
    real(kind=kind_phys) , intent(in   ) :: delt
    real(kind=kind_phys) , intent(in   ) :: g, cpd, cpv, t0c, &
                                                              den0, rd, rv,     &
@@ -468,7 +470,8 @@
    real(kind=kind_phys), dimension(ims:ime), optional     , intent(inout) :: graupel
    real(kind=kind_phys), dimension(ims:ime), optional     , intent(inout) :: graupelncv
 
-
+   ! Local variables for debug parameters with defaults
+   integer :: debug_local, i_dbg_local, j_dbg_local
 
    real(kind=kind_phys), dimension(its:ite,kts:kte)   :: dend
    real(kind=kind_phys), dimension(its:ite,kts:kte)   :: qcr
@@ -572,7 +575,22 @@
 
    kte_in = kte
 
-
+   ! Initialize debug parameters with defaults
+   if (present(microphysics_debug)) then
+     debug_local = microphysics_debug
+   else
+     debug_local = 0
+   endif
+   if (present(diag_i_dbg)) then
+     i_dbg_local = diag_i_dbg
+   else
+     i_dbg_local = its
+   endif
+   if (present(diag_j_dbg)) then
+     j_dbg_local = diag_j_dbg
+   else
+     j_dbg_local = lat
+   endif
 
    do k = kts, kte
      do i = its, ite
@@ -1950,10 +1968,13 @@
 
       do k = kts, kte
         do i = its, ite
-
-
-
-
+          ! Diagnostic: Print activation details at storm cell
+          if (debug_local >= 1 .and. i == i_dbg_local .and. lat == j_dbg_local) then
+            if (k >= 40 .and. k <= 42) then
+              write(*,'(A,I3,A,ES12.4,A,ES12.4,A,2ES12.4)') &
+                '  [ACT] k=',k,' RH=',rh(i,k,1),' qc=',qci(i,k,1),' nn,nc=',ncr(i,k,1),ncr(i,k,2)
+            endif
+          endif
 
           if(rh(i,k,1).gt.1.) then
             ncact(i,k) = max(0.,((ncr(i,k,1)+ncr(i,k,2))                       &
@@ -1966,6 +1987,13 @@
             ncr(i,k,1) = max(ncr(i,k,1)-ncact(i,k)*dtcld,0.)
             ncr(i,k,2) = max(ncr(i,k,2)+ncact(i,k)*dtcld,0.)
             t(i,k) = t(i,k)+pcact(i,k)*xl(i,k)/cpm(i,k)*dtcld
+            ! Diagnostic: Print activation result
+            if (debug_local >= 1 .and. i == i_dbg_local .and. lat == j_dbg_local) then
+              if (k >= 40 .and. k <= 42) then
+                write(*,'(A,I3,A,2ES12.4,A,ES12.4)') &
+                  '  [ACT] k=',k,' ncact,pcact=',ncact(i,k),pcact(i,k),' nc_after=',ncr(i,k,2)
+              endif
+            endif
           endif  
 
 
@@ -1981,13 +2009,25 @@
           work1(i,k,1) = conden(t(i,k),q(i,k),qs(i,k,1),xl(i,k),cpm(i,k))
           work2(i,k) = qci(i,k,1)+work1(i,k,1)
           pcond(i,k) = min(max(work1(i,k,1)/dtcld,0.),max(q(i,k),0.)/dtcld)
-          if(qci(i,k,1).gt.0. .and. work1(i,k,1).lt.0.)                        & 
+          if(qci(i,k,1).gt.0. .and. work1(i,k,1).lt.0.)                        &
             pcond(i,k) = max(work1(i,k,1),-qci(i,k,1))/dtcld
 
-
-
+          ! Diagnostic: Print condensation details
+          if (debug_local >= 1 .and. i == i_dbg_local .and. lat == j_dbg_local) then
+            if (k >= 40 .and. k <= 42 .and. abs(pcond(i,k)) > 1.e-20) then
+              write(*,'(A,I3,A,3ES12.4,A,ES12.4)') &
+                '  [COND] k=',k,' work1,pcond,qc=',work1(i,k,1),pcond(i,k),qci(i,k,1),' nc=',ncr(i,k,2)
+            endif
+          endif
 
           if(pcond(i,k).eq.-qci(i,k,1)/dtcld) then
+            ! Diagnostic: Cloud evaporation - all droplets returned to CCN
+            if (debug_local >= 1 .and. i == i_dbg_local .and. lat == j_dbg_local) then
+              if (k >= 40 .and. k <= 42) then
+                write(*,'(A,I3,A,ES12.4,A)') &
+                  '  [EVAP] k=',k,' ALL CLOUD EVAP: nc_before=',ncr(i,k,2),' -> nc=0'
+              endif
+            endif
             ncr(i,k,1) = ncr(i,k,1)+ncr(i,k,2)
 
             ncr(i,k,2) = 0.
@@ -3346,7 +3386,7 @@
                    ep1, ep2, qmin, &
                    xls, xlv0, xlf0, den0, denr, &
                    cliq, cice, psat, &
-                   diag_i_dbg, &
+                   diag_j_dbg, &
                    slmsk, &
                    rain, rainncv, &
                    sr, &
@@ -3354,7 +3394,8 @@
                    ims, ime, jms, jme, kms, kme, &
                    its, ite, jts, jte, kts, kte, &
                    snow, snowncv, &
-                   graupel, graupelncv)
+                   graupel, graupelncv, &
+                   microphysics_debug, diag_i_dbg, diag_j_dbg)
 
        ! Unpack arrays from WDM6 format
        do k = kts, kte

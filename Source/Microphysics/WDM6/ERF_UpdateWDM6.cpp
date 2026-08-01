@@ -8,6 +8,10 @@ using namespace amrex;
 void
 WDM6::Copy_Micro_to_State(MultiFab& cons)
 {
+    // DEBUG: Track calls to Copy_Micro_to_State
+    static int copy_to_state_count = 0;
+    copy_to_state_count++;
+
     // Conservative update of all fields
     for (MFIter mfi(cons, TilingIfNotGPU()); mfi.isValid(); ++mfi)
     {
@@ -42,6 +46,15 @@ WDM6::Copy_Micro_to_State(MultiFab& cons)
             states(i,j,k,RhoQ8_comp) = rho(i,j,k) * amrex::max(Real(0), nn(i,j,k));
             states(i,j,k,RhoQ9_comp) = rho(i,j,k) * amrex::max(Real(0), nr(i,j,k));
         });
+    }
+
+    // After first Copy_Micro_to_State, nn has been written to state (RhoQ8).
+    // Now it's safe to clear the flag so subsequent Copy_State_to_Micro calls
+    // will read nn from state like any other variable.
+    if (m_nn_initialized) {
+        amrex::Print() << "Copy_Micro_to_State call #" << copy_to_state_count
+                      << ": nn written to state, clearing m_nn_initialized flag\n";
+        m_nn_initialized = false;
     }
 
     // Diagnostic: Print comprehensive hydrometeor statistics every timestep

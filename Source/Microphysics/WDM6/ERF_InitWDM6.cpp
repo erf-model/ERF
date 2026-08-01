@@ -55,6 +55,11 @@ WDM6::Init(const MultiFab& cons_in,
     }
     m_nn_initialized = true;  // Mark as initialized so Copy_State_to_Micro doesn't overwrite
 
+    // Diagnostic: Verify nn was initialized correctly
+    Real max_nn_init = mic_fab_vars[MicVar_WDM6::nn]->max(0);
+    Real min_nn_init = mic_fab_vars[MicVar_WDM6::nn]->min(0);
+    amrex::Print() << "  nn initialized: min=" << min_nn_init << ", max=" << max_nn_init << " #/kg\n";
+
     nlev = m_geom.Domain().length(2);
     zlo = m_geom.Domain().smallEnd(2);
     zhi = m_geom.Domain().bigEnd(2);
@@ -69,6 +74,10 @@ WDM6::Copy_State_to_Micro(const MultiFab& cons_in)
     static int copy_call_count = 0;
     static bool copy_diagnostic_done = false;
     copy_call_count++;
+
+    // DEBUG: Print every call with flag status
+    amrex::Print() << "Copy_State_to_Micro call #" << copy_call_count
+                  << ", m_nn_initialized=" << m_nn_initialized << "\n";
 
     if (!copy_diagnostic_done && copy_call_count == 1) {
         copy_diagnostic_done = true;
@@ -154,14 +163,11 @@ WDM6::Copy_State_to_Micro(const MultiFab& cons_in)
                 nn(i,j,k) = amrex::max(Real(0.0), states(i,j,k,RhoQ8_comp) / states(i,j,k,Rho_comp));
             }
 
-            // WDM6: NO diagnosis of nc/nr from qc/qr!
-            // When QNCLOUD=0 in wrfinput, nc starts at ncmin=10 and WDM6's CCN
-            // activation builds it naturally during the first microphysics call.
-            // This exactly matches WRF's behavior.
-
-            // WDM6: Only enforce absolute minimums like WRF
-            nc(i,j,k) = amrex::max(nc(i,j,k), Real(1.e1));  // WRF's ncmin = 10 #/kg
-            nr(i,j,k) = amrex::max(nr(i,j,k), Real(1.e-2)); // WRF's nrmin = 0.01 #/kg
+            // WDM6: DO NOT enforce nc/nr minimums here!
+            // WRF starts with nc=0, nr=0 and lets CCN activation build nc naturally during
+            // the first microphysics call. Enforcing nc=10, nr=0.01 here prevents proper
+            // activation from nn. Minimums are enforced in Advance() right before physics,
+            // not during state copying.
 
             tabs(i,j,k) = getTgivenRandRTh(states(i,j,k,Rho_comp),
                                            states(i,j,k,RhoTheta_comp),
@@ -170,11 +176,16 @@ WDM6::Copy_State_to_Micro(const MultiFab& cons_in)
         });
     }
 
-    // After first Copy_State_to_Micro, nn has been used by microphysics and will be
-    // written back to state by Copy_Micro_to_State. From then on, we should read
-    // nn from state like any other variable.
+    // After first Copy_State_to_Micro, nn has been preserved from Init().
+    // DON'T clear the flag yet - wait until after Copy_Micro_to_State writes nn to state!
     if (m_nn_initialized) {
-        m_nn_initialized = false;  // Clear flag so subsequent calls read nn from state
+        // Diagnostic: Check nn after first copy
+        Real max_nn_after = mic_fab_vars[MicVar_WDM6::nn]->max(0);
+        Real min_nn_after = mic_fab_vars[MicVar_WDM6::nn]->min(0);
+        amrex::Print() << "  First Copy_State_to_Micro: nn preserved from Init(): "
+                      << "min=" << min_nn_after << ", max=" << max_nn_after << " #/kg\n";
+        // NOTE: Don't clear m_nn_initialized here! It will be cleared in Copy_Micro_to_State
+        // after nn is written to state for the first time.
     }
 }
 

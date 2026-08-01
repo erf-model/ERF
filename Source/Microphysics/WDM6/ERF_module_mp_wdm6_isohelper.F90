@@ -155,17 +155,20 @@ contains
       debug_local = int(microphysics_debug, kind(0))
       if (microphysics_debug >= 1_c_int .and. (j /= j_dbg_target .or. .not. i_dbg_in_tile)) debug_local = 0
 
-      ! Diagnostic: Find storm core cell (max qc) and print its inputs
-      if (j == jts) then
-        max_loc = maxloc(qc_col)
-        i_max = max_loc(1)
-        k_max = max_loc(2)
-        write(*,'(A,I5,A,I5,A,I5,A)') '  Storm cell at i=', i_max, ' k=', k_max, ' (j=', j, ')'
-        write(*,'(A,7ES12.4)') '    BEFORE: T, P, den, qv, qc, qr, qi = ', &
-          t_col(i_max,k_max), p_col(i_max,k_max), den_col(i_max,k_max), &
-          q_col(i_max,k_max), qc_col(i_max,k_max), qr_col(i_max,k_max), qi_col(i_max,k_max)
-        write(*,'(A,3ES12.4)') '    BEFORE: nn, nc, nr = ', &
-          nn_col(i_max,k_max), nc_col(i_max,k_max), nr_col(i_max,k_max)
+      ! Diagnostic: Print known storm cell at i=240, j=150 for various k levels
+      ! Only print if this tile contains both i=240 and j=150
+      if (j == 150 .and. 240 >= its .and. 240 <= ite .and. 150 >= jts .and. 150 <= jte) then
+        write(*,'(A,I5,A,I5,A,I5,A)') '=== ERF Storm cell diagnostics at i=240, j=150 (tile its:ite=', &
+          its, ':', ite, ') ==='
+        do k_max = 1, kdim, 20
+          if (k_max <= kdim) then
+            write(*,'(A,I5,A,7ES12.4)') '  k=', k_max, ' BEFORE: T,P,den,qv,qc,qr,qi = ', &
+              t_col(240,k_max), p_col(240,k_max), den_col(240,k_max), &
+              q_col(240,k_max), qc_col(240,k_max), qr_col(240,k_max), qi_col(240,k_max)
+            write(*,'(A,I5,A,3ES12.4)') '  k=', k_max, ' BEFORE: nn,nc,nr = ', &
+              nn_col(240,k_max), nc_col(240,k_max), nr_col(240,k_max)
+          end if
+        end do
       end if
 
       call mp_wdm6_run(t_col, q_col, qc_col, qi_col, qr_col, qs_col, qg_col, &
@@ -178,13 +181,18 @@ contains
                        microphysics_debug=debug_local, diag_i_dbg=i_dbg_local, diag_j_dbg=j, diag_k_raw_base=kts, &
                        errmsg=errmsg, errflg=errflg)
 
-      ! Diagnostic: Print outputs for same cell (reuse i_max, k_max from BEFORE)
-      if (j == jts) then
-        write(*,'(A,7ES12.4)') '    AFTER:  T, P, den, qv, qc, qr, qi = ', &
-          t_col(i_max,k_max), p_col(i_max,k_max), den_col(i_max,k_max), &
-          q_col(i_max,k_max), qc_col(i_max,k_max), qr_col(i_max,k_max), qi_col(i_max,k_max)
-        write(*,'(A,3ES12.4)') '    AFTER:  nn, nc, nr = ', &
-          nn_col(i_max,k_max), nc_col(i_max,k_max), nr_col(i_max,k_max)
+      ! Diagnostic: Print AFTER for same storm cell
+      if (j == 150 .and. 240 >= its .and. 240 <= ite .and. 150 >= jts .and. 150 <= jte) then
+        do k_max = 1, kdim, 20
+          if (k_max <= kdim) then
+            write(*,'(A,I5,A,7ES12.4)') '  k=', k_max, ' AFTER:  T,P,den,qv,qc,qr,qi = ', &
+              t_col(240,k_max), p_col(240,k_max), den_col(240,k_max), &
+              q_col(240,k_max), qc_col(240,k_max), qr_col(240,k_max), qi_col(240,k_max)
+            write(*,'(A,I5,A,3ES12.4)') '  k=', k_max, ' AFTER:  nn,nc,nr = ', &
+              nn_col(240,k_max), nc_col(240,k_max), nr_col(240,k_max)
+          end if
+        end do
+        write(*,'(A)') '==========================================='
       end if
 
       if (errflg /= 0) then

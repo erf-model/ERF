@@ -263,6 +263,14 @@ void WDM6::Advance(const Real& dt_advance,
     amrex::Print() << "WDM6::Advance() call #" << call_count
                   << " (dt=" << dt_advance << "s)\n";
 
+    // DEBUG: Check nn at the very start of Advance()
+    if (first_call) {
+        Real nn_min_start = mic_fab_vars[MicVar_WDM6::nn]->min(0);
+        Real nn_max_start = mic_fab_vars[MicVar_WDM6::nn]->max(0);
+        amrex::Print() << "  DEBUG: At start of first Advance(), nn min/max = "
+                      << nn_min_start << " / " << nn_max_start << " #/kg\n";
+    }
+
     // GLOBAL diagnostics BEFORE MFIter loop - check entire domain
     {
         Real max_qv = mic_fab_vars[MicVar_WDM6::qv]->max(0);
@@ -426,7 +434,23 @@ void WDM6::Advance(const Real& dt_advance,
             graupacc_arr.dataPtr(), graupelncv_arr.dataPtr(),
             imlo, imhi, jmlo, jmhi, kmlo, kmhi,
             ilo, ihi, jlo, jhi, klo, khi,
-            0, ilo, jlo);  // microphysics_debug=0, diag_i=ilo, diag_j=jlo
+            1, 240, 150);  // microphysics_debug=1, diag_i=240, diag_j=150
+
+        // CRITICAL: Convert updated temperature back to potential temperature
+        // The Fortran WDM6 modifies t_arr (absolute temperature) due to latent heating/cooling
+        // from condensation, evaporation, freezing, melting, etc.
+        // ERF stores theta (potential temperature), so we must convert back: theta = T / exner
+        // This matches WRF's conversion: th(i,k,j) = t(i,k) / pii(i,k,j)
+        auto const& theta_arr = mic_fab_vars[MicVar_WDM6::theta]->array(mfi);
+        constexpr Real p0 = 1.e5;       // Reference pressure (Pa)
+        constexpr Real rdOcp = R_d / Cp_d;  // R/cp = 0.286
+        ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+            // Recompute theta from updated temperature
+            // exner = (p/p0)^(R/cp)
+            // theta = T / exner = T * (p0/p)^(R/cp)
+            Real exner = std::pow(p_arr(i,j,k) / p0, rdOcp);
+            theta_arr(i,j,k) = t_arr(i,j,k) / exner;
+        });
 
         // (Tile-based precipitation diagnostics removed - using global diagnostics instead)
 
