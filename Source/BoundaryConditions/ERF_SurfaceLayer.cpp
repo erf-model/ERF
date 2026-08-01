@@ -761,36 +761,40 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
                 });
         }
 
-        constexpr double eps = std::numeric_limits<float>::epsilon();
-        bool l_use_moisture = use_moisture;
-        ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int /*k*/)
-        {
-            int is_land = (lmask_arr) ? lmask_arr(i,j,0) : 1;
-            // Skip cells the LSM did not have a valid flux (lsm_undefined).
-            if (is_land && lsm_t_flux_arr && lsm_t_flux_arr(i,j,0) < lsm_undefined) {
+        // For models that do not do iterations to yield u*/T*/q*,
+        // fill these values from the fluxes that were computed.
+
+        // NOTE: For LSM, this has been handled in "compute_sfc_params_from_lsm_fluxes"
+        // NOTE: Fluxes here are for conserved quantities, we divide by rho
+        if (flux_type == FluxCalcType::BULK_COEFF ||
+            flux_type == FluxCalcType::DONELAN) {
+            constexpr Real eps = std::numeric_limits<Real>::epsilon();
+            bool l_use_moisture = use_moisture;
+            ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int /*k*/)
+            {
                 Real rho = cons_arr(i,j,klo,Rho_comp);
                 Real Thd = cons_arr(i,j,klo,RhoTheta_comp) / rho;
                 Real qv  = (l_use_moisture) ? cons_arr(i,j,klo,RhoQ1_comp) / rho : zero;
                 Real Thv = Thd * (one + epsv*qv);
 
-                Real tau = std::sqrt( t13_arr(i,j,klo)*t13_arr(i,j,klo)
-                                    + t23_arr(i,j,klo)*t23_arr(i,j,klo) );
+                Real tau = std::sqrt( t13_arr(i,j,klo)/rho * t13_arr(i,j,klo)/rho
+                                    + t23_arr(i,j,klo)/rho * t23_arr(i,j,klo)/rho );
                 u_star_arr(i,j,0) = amrex::max(std::sqrt(tau),eps);
 
                 if (hfx3_arr(i,j,klo)>=zero) {
-                    t_star_arr(i,j,0) = amrex::min(-hfx3_arr(i,j,klo) / u_star_arr(i,j,0),-eps);
+                    t_star_arr(i,j,0) = amrex::min(-hfx3_arr(i,j,klo) / (rho * u_star_arr(i,j,0)),-eps);
                 } else {
-                    t_star_arr(i,j,0) = amrex::max(-hfx3_arr(i,j,klo) / u_star_arr(i,j,0),eps);
+                    t_star_arr(i,j,0) = amrex::max(-hfx3_arr(i,j,klo) / (rho * u_star_arr(i,j,0)),eps);
                 }
                 if (qfx3_arr(i,j,klo)>=zero) {
-                    q_star_arr(i,j,0) = amrex::min(-qfx3_arr(i,j,klo) / u_star_arr(i,j,0),-eps);
+                    q_star_arr(i,j,0) = amrex::min(-qfx3_arr(i,j,klo) / (rho * u_star_arr(i,j,0)),-eps);
                 } else {
-                    q_star_arr(i,j,0) = amrex::max(-qfx3_arr(i,j,klo) / u_star_arr(i,j,0),eps);
+                    q_star_arr(i,j,0) = amrex::max(-qfx3_arr(i,j,klo) / ( rho * u_star_arr(i,j,0)),eps);
                 }
                 olen_arr(i,j,0)   = ( u_star_arr(i,j,0) * u_star_arr(i,j,0) * Thv ) /
-                                       ( KAPPA * CONST_GRAV * t_star_arr(i,j,0) );
-            }
-        });
+                                    ( KAPPA * CONST_GRAV * t_star_arr(i,j,0) );
+            });
+        }
 
     } // mfiter
 
