@@ -433,6 +433,23 @@ if(ERF_ENABLE_EKAT)
 
         set_source_files_properties(${ERF_EKAT_KOKKOS_ABSOLUTE_SOURCES}
           TARGET_DIRECTORY ekat_kokkosutils PROPERTIES LANGUAGE CUDA)
+
+        # Kokkos enables CMAKE_CUDA_SEPARABLE_COMPILATION inside its own
+        # subdirectory when RDC is requested.  That directory-scoped default
+        # does not initialize CUDA targets created by EKAT's parent directory,
+        # although the generated desul configuration requires every CUDA
+        # consumer to use the same RDC mode.
+        if(Kokkos_ENABLE_CUDA_RELOCATABLE_DEVICE_CODE)
+          set_property(TARGET ekat_kokkosutils PROPERTY CUDA_SEPARABLE_COMPILATION ON)
+          get_target_property(ERF_EKAT_KOKKOS_SEPARABLE_COMPILATION
+                              ekat_kokkosutils CUDA_SEPARABLE_COMPILATION)
+          if(NOT ERF_EKAT_KOKKOS_SEPARABLE_COMPILATION)
+            message(FATAL_ERROR
+                    "EKAT Kokkos utility target did not enable CUDA separable compilation")
+          endif()
+          message(STATUS "Configured EKAT Kokkos utility target for CUDA RDC")
+        endif()
+
         foreach(ERF_EKAT_KOKKOS_ABSOLUTE_SOURCE IN LISTS ERF_EKAT_KOKKOS_ABSOLUTE_SOURCES)
           get_source_file_property(ERF_EKAT_KOKKOS_LANGUAGE
                                    "${ERF_EKAT_KOKKOS_ABSOLUTE_SOURCE}"
@@ -450,6 +467,7 @@ if(ERF_ENABLE_EKAT)
     unset(ERF_EKAT_KOKKOS_ABSOLUTE_SOURCE)
     unset(ERF_EKAT_KOKKOS_ABSOLUTE_SOURCES)
     unset(ERF_EKAT_KOKKOS_LANGUAGE)
+    unset(ERF_EKAT_KOKKOS_SEPARABLE_COMPILATION)
     unset(ERF_EKAT_KOKKOS_SOURCE)
     unset(ERF_EKAT_KOKKOS_SOURCE_DIR)
     unset(ERF_EKAT_KOKKOS_SOURCES)
