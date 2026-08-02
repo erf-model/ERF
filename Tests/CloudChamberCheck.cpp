@@ -176,7 +176,8 @@ bool check_budget_rows (const std::vector<BudgetRow>& rows,
     return true;
 }
 
-bool check_ledger (const std::string& path, std::string& error)
+bool check_ledger (const std::string& path, std::string& error,
+                   bool require_untiled_containment = false)
 {
     std::ifstream in(path);
     if (!in) {
@@ -203,11 +204,34 @@ bool check_ledger (const std::string& path, std::string& error)
         "stable_boundary_flux_x_qv", "stable_boundary_flux_x_qc",
         "stable_boundary_flux_y_qv", "stable_boundary_flux_y_qc",
         "stable_boundary_flux_z_qv", "stable_boundary_flux_z_qc",
+        "tile_face_shared_count_x",
+        "tile_face_mismatched_count_x_qv", "tile_face_mismatched_count_x_qc",
         "tile_face_mismatch_max_x_qv", "tile_face_mismatch_max_x_qc",
+        "tile_face_mismatch_abs_sum_x_qv", "tile_face_mismatch_abs_sum_x_qc",
+        "tile_face_shared_count_y",
+        "tile_face_mismatched_count_y_qv", "tile_face_mismatched_count_y_qc",
         "tile_face_mismatch_max_y_qv", "tile_face_mismatch_max_y_qc",
+        "tile_face_mismatch_abs_sum_y_qv", "tile_face_mismatch_abs_sum_y_qc",
+        "tile_face_shared_count_z",
+        "tile_face_mismatched_count_z_qv", "tile_face_mismatched_count_z_qc",
         "tile_face_mismatch_max_z_qv", "tile_face_mismatch_max_z_qc",
-        "tile_face_mismatch_count_x", "tile_face_mismatch_count_y",
-        "tile_face_mismatch_count_z"};
+        "tile_face_mismatch_abs_sum_z_qv", "tile_face_mismatch_abs_sum_z_qc",
+        "grid_face_mismatched_count_x_qv", "grid_face_mismatch_max_x_qv", "grid_face_mismatch_abs_sum_x_qv",
+        "grid_face_mismatched_count_x_qc", "grid_face_mismatch_max_x_qc", "grid_face_mismatch_abs_sum_x_qc",
+        "grid_face_mismatched_count_y_qv", "grid_face_mismatch_max_y_qv", "grid_face_mismatch_abs_sum_y_qv",
+        "grid_face_mismatched_count_y_qc", "grid_face_mismatch_max_y_qc", "grid_face_mismatch_abs_sum_y_qc",
+        "grid_face_mismatched_count_z_qv", "grid_face_mismatch_max_z_qv", "grid_face_mismatch_abs_sum_z_qv",
+        "grid_face_mismatched_count_z_qc", "grid_face_mismatch_max_z_qc", "grid_face_mismatch_abs_sum_z_qc",
+        "mpi_face_mismatched_count_x_qv", "mpi_face_mismatch_max_x_qv", "mpi_face_mismatch_abs_sum_x_qv",
+        "mpi_face_mismatched_count_x_qc", "mpi_face_mismatch_max_x_qc", "mpi_face_mismatch_abs_sum_x_qc",
+        "mpi_face_mismatched_count_y_qv", "mpi_face_mismatch_max_y_qv", "mpi_face_mismatch_abs_sum_y_qv",
+        "mpi_face_mismatched_count_y_qc", "mpi_face_mismatch_max_y_qc", "mpi_face_mismatch_abs_sum_y_qc",
+        "mpi_face_mismatched_count_z_qv", "mpi_face_mismatch_max_z_qv", "mpi_face_mismatch_abs_sum_z_qv",
+        "mpi_face_mismatched_count_z_qc", "mpi_face_mismatch_max_z_qc", "mpi_face_mismatch_abs_sum_z_qc",
+        "number_of_grids", "number_of_mfiter_tiles", "maximum_tiles_per_grid",
+        "moisture_tiling_enabled", "mpi_rank_count", "openmp_thread_count",
+        "mpi_interface_audit_enabled",
+        "advection_stage_count", "last_advection_stage"};
     std::map<std::string, std::size_t> index;
     for (std::size_t i = 0; i < names.size(); ++i) { index[names[i]] = i; }
     for (const auto& required_name : required) {
@@ -217,8 +241,11 @@ bool check_ledger (const std::string& path, std::string& error)
         }
     }
 
-    const Real tolerance = Real(1.0e-12);
     int rows = 0;
+    Real maximum_ratio = Real(0.0);
+    Real maximum_face_mismatch = Real(0.0);
+    Real maximum_grid_mismatch = Real(0.0);
+    Real maximum_mpi_mismatch = Real(0.0);
     while (std::getline(in, line)) {
         if (line.empty() || line[0] == '#') { continue; }
         std::istringstream fields(line);
@@ -228,6 +255,12 @@ bool check_ledger (const std::string& path, std::string& error)
         if (values.size() != names.size()) {
             error = "malformed water-ledger row";
             return false;
+        }
+        for (const auto field : values) {
+            if (!std::isfinite(static_cast<double>(field))) {
+                error = "water ledger contains a non-finite value";
+                return false;
+            }
         }
         ++rows;
         auto get = [&](const std::string& column) { return values[index[column]]; };
@@ -250,14 +283,67 @@ bool check_ledger (const std::string& path, std::string& error)
         const Real mismatch = std::max({
             get("tile_face_mismatch_max_x_qv"), get("tile_face_mismatch_max_x_qc"),
             get("tile_face_mismatch_max_y_qv"), get("tile_face_mismatch_max_y_qc"),
-            get("tile_face_mismatch_max_z_qv"), get("tile_face_mismatch_max_z_qc")});
-        const Real count = get("tile_face_mismatch_count_x") +
-                           get("tile_face_mismatch_count_y") +
-                           get("tile_face_mismatch_count_z");
-        if (atomic > tolerance || stable > tolerance || raw_qv > tolerance ||
-            raw_qc > tolerance || boundary > tolerance || mismatch > tolerance ||
-            count != Real(0.0)) {
-            error = "tiled scalar conservation contract failed at ledger row " +
+            get("tile_face_mismatch_max_z_qv"), get("tile_face_mismatch_max_z_qc"),
+            get("grid_face_mismatch_max_x_qv"), get("grid_face_mismatch_max_x_qc"),
+            get("grid_face_mismatch_max_y_qv"), get("grid_face_mismatch_max_y_qc"),
+            get("grid_face_mismatch_max_z_qv"), get("grid_face_mismatch_max_z_qc"),
+            get("mpi_face_mismatch_max_x_qv"), get("mpi_face_mismatch_max_x_qc"),
+            get("mpi_face_mismatch_max_y_qv"), get("mpi_face_mismatch_max_y_qc"),
+            get("mpi_face_mismatch_max_z_qv"), get("mpi_face_mismatch_max_z_qc")});
+        const Real grid_mismatch = std::max({
+            get("grid_face_mismatch_max_x_qv"), get("grid_face_mismatch_max_x_qc"),
+            get("grid_face_mismatch_max_y_qv"), get("grid_face_mismatch_max_y_qc"),
+            get("grid_face_mismatch_max_z_qv"), get("grid_face_mismatch_max_z_qc")});
+        const Real mpi_mismatch = std::max({
+            get("mpi_face_mismatch_max_x_qv"), get("mpi_face_mismatch_max_x_qc"),
+            get("mpi_face_mismatch_max_y_qv"), get("mpi_face_mismatch_max_y_qc"),
+            get("mpi_face_mismatch_max_z_qv"), get("mpi_face_mismatch_max_z_qc")});
+        maximum_face_mismatch = std::max(maximum_face_mismatch, mismatch);
+        maximum_grid_mismatch = std::max(maximum_grid_mismatch, grid_mismatch);
+        maximum_mpi_mismatch = std::max(maximum_mpi_mismatch, mpi_mismatch);
+        const Real mismatched_count =
+            get("tile_face_mismatched_count_x_qv") +
+            get("tile_face_mismatched_count_x_qc") +
+            get("tile_face_mismatched_count_y_qv") +
+            get("tile_face_mismatched_count_y_qc") +
+            get("tile_face_mismatched_count_z_qv") +
+            get("tile_face_mismatched_count_z_qc") +
+            get("grid_face_mismatched_count_x_qv") +
+            get("grid_face_mismatched_count_x_qc") +
+            get("grid_face_mismatched_count_y_qv") +
+            get("grid_face_mismatched_count_y_qc") +
+            get("grid_face_mismatched_count_z_qv") +
+            get("grid_face_mismatched_count_z_qc") +
+            get("mpi_face_mismatched_count_x_qv") +
+            get("mpi_face_mismatched_count_x_qc") +
+            get("mpi_face_mismatched_count_y_qv") +
+            get("mpi_face_mismatched_count_y_qc") +
+            get("mpi_face_mismatched_count_z_qv") +
+            get("mpi_face_mismatched_count_z_qc");
+        const Real absolute_envelope =
+            get("advection_rhs_delta_abs_qv") +
+            get("advection_rhs_delta_abs_qc") +
+            std::abs(get("stable_raw_divergence_abs_qv")) +
+            std::abs(get("stable_raw_divergence_abs_qc"));
+        const Real state_scale = std::max({
+            std::abs(get("W_timestep_start_qv")),
+            std::abs(get("W_timestep_start_qc")), Real(1.0e-30)});
+        const Real tolerance = Real(256.0) * std::numeric_limits<Real>::epsilon() *
+            std::max(absolute_envelope, state_scale);
+        const Real ratio = tolerance > Real(0.0) ?
+            std::max(std::abs(atomic), std::abs(stable)) / tolerance :
+            std::numeric_limits<Real>::infinity();
+        maximum_ratio = std::max(maximum_ratio, ratio);
+        const bool containment_topology =
+            get("number_of_grids") > Real(1.0) &&
+            get("number_of_mfiter_tiles") == get("number_of_grids") &&
+            get("maximum_tiles_per_grid") == Real(1.0) &&
+            get("moisture_tiling_enabled") == Real(0.0);
+        if (std::abs(atomic) > tolerance || std::abs(stable) > tolerance ||
+            std::abs(raw_qv) > tolerance || std::abs(raw_qc) > tolerance ||
+            std::abs(boundary) > tolerance || mismatched_count != Real(0.0) ||
+            (require_untiled_containment && !containment_topology)) {
+            error = "cloud-chamber conservation contract failed at ledger row " +
                     std::to_string(rows);
             return false;
         }
@@ -266,6 +352,12 @@ bool check_ledger (const std::string& path, std::string& error)
         error = "water ledger contains no data rows";
         return false;
     }
+    std::cout << "ledger_rows=" << rows
+              << " maximum_face_mismatch=" << maximum_face_mismatch
+              << " maximum_grid_interface_mismatch=" << maximum_grid_mismatch
+              << " maximum_mpi_interface_mismatch=" << maximum_mpi_mismatch
+              << " maximum_conservation_ratio=" << maximum_ratio
+              << " tolerance_formula=256*epsilon*max(absolute_envelope,state_scale)\n";
     return true;
 }
 
@@ -281,11 +373,21 @@ int main (int argc, char** argv)
         amrex::Finalize();
         return ok ? 0 : fail(error);
     }
+    if (argc == 4 && std::string(argv[1]) == "ledger" &&
+        std::string(argv[2]) == "containment") {
+        amrex::Initialize(argc, argv, false);
+        std::string error;
+        const bool ok = check_ledger(argv[3], error, true);
+        if (ok) { std::cout << "untiled_containment=PASS\n"; }
+        amrex::Finalize();
+        return ok ? 0 : fail(error);
+    }
     if (argc != 4 && argc != 5) {
         std::cerr << "usage: checker mode initial_plotfile final_plotfile\n"
                   << "       checker parity budget_off_plotfile budget_on_plotfile\n"
                   << "       checker all_dry|wet_budget initial_plotfile final_plotfile budget_file\n"
-                  << "       checker ledger cloud_chamber_water_ledger.dat\n";
+                  << "       checker ledger cloud_chamber_water_ledger.dat\n"
+                  << "       checker ledger containment cloud_chamber_water_ledger.dat\n";
         return 2;
     }
 

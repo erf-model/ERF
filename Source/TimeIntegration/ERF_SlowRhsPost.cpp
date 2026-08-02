@@ -8,6 +8,10 @@
 #include "Prob/ERF_CloudChamberBudget.H"
 #include "Prob/ERF_CloudChamberWaterLedger.H"
 
+#ifdef _OPENMP
+#include <omp.h>
+#endif
+
 using namespace amrex;
 
 /**
@@ -228,6 +232,41 @@ void erf_slow_rhs_post (int level, int finest_level,
     // *************************************************************************
     // Define updates and fluxes in the current RK stage
     // *************************************************************************
+    // This predicate is deliberately broad: every moisture case runs the
+    // complete slow-RHS loop untiled until a shared-face implementation makes
+    // tiled moisture advection safe.  The opt-in ledger records the actual
+    // topology so the containment regression cannot silently claim tiled
+    // coverage.  Removal requires tiled-face, lifecycle, compatibility, and
+    // performance gates to pass.
+    const bool tile_slow_rhs = (n_qstate == 0);
+    // Record the topology of the moisture slow-RHS call itself.  The same
+    // timestep can also invoke this routine for a dry/scalar path; allowing
+    // that later call to OR into the moisture flag would misreport the
+    // containment contract.
+    if (water_ledger != nullptr && n_qstate > 0) {
+        const int number_of_grids = S_data[IntVars::cons].boxArray().size();
+        int local_mfiter_tiles = 0;
+        int local_maximum_tiles_per_grid = 0;
+        Vector<int> local_tiles_per_grid(number_of_grids, 0);
+        for (MFIter topology_mfi(S_data[IntVars::cons],
+                                  tile_slow_rhs ? TilingIfNotGPU() : false);
+             topology_mfi.isValid(); ++topology_mfi) {
+            ++local_mfiter_tiles;
+            ++local_tiles_per_grid[topology_mfi.index()];
+        }
+        for (const int count : local_tiles_per_grid) {
+            local_maximum_tiles_per_grid = max(local_maximum_tiles_per_grid, count);
+        }
+        ParallelDescriptor::ReduceIntSum(local_mfiter_tiles);
+        ParallelDescriptor::ReduceIntMax(local_maximum_tiles_per_grid);
+        int openmp_thread_count = 1;
+#ifdef _OPENMP
+        openmp_thread_count = omp_get_max_threads();
+#endif
+        water_ledger->record_topology(
+            number_of_grids, local_mfiter_tiles, local_maximum_tiles_per_grid,
+            tile_slow_rhs, ParallelDescriptor::NProcs(), openmp_thread_count);
+    }
 #ifdef _OPENMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())
 #endif
@@ -252,7 +291,6 @@ void erf_slow_rhs_post (int level, int finest_level,
       // bounded containment in place for moisture states so both neighboring
       // cells consume the same untiled reconstruction.  Dry/TKE-only paths
       // retain the established CPU tiling behavior.
-      const bool tile_slow_rhs = (n_qstate == 0);
       for (MFIter mfi(S_data[IntVars::cons],
                       tile_slow_rhs ? TilingIfNotGPU() : false);
            mfi.isValid(); ++mfi) {
@@ -967,6 +1005,9 @@ void erf_slow_rhs_post (int level, int finest_level,
         } // end profile
       } // mfi
     } // OMP
+    if (water_ledger != nullptr) {
+        water_ledger->record_advection_stage(nrk);
+    }
     if (cloud_budget && l_use_diff && n_qstate > 0) {
         for (int qstate = 0; qstate < n_qstate; ++qstate) {
             MultiFab qflux_x(*dflux_x, make_alias, qstate, 1);

@@ -4,11 +4,15 @@
 #include <AMReX_GpuAtomic.H>
 #include <AMReX_GpuMemory.H>
 #include <AMReX_Geometry.H>
+#include <AMReX_Math.H>
 #include <AMReX_MultiFab.H>
+#include <AMReX_iMultiFab.H>
 #include <AMReX_ParReduce.H>
 #include <AMReX_ParallelDescriptor.H>
 #include <AMReX_Array4.H>
+#include <AMReX_FabArrayUtility.H>
 
+#include <algorithm>
 #include <array>
 #include <fstream>
 #include <iomanip>
@@ -30,6 +34,14 @@ class CloudChamberWaterLedger
 {
 public:
     enum Water : int { Qv = 0, Qc = 1, NumWater = 2 };
+
+    struct FaceMismatch
+    {
+        amrex::Real signed_mismatch = amrex::Real(0.0);
+        amrex::Real absolute_mismatch = amrex::Real(0.0);
+        amrex::Real tolerance = amrex::Real(0.0);
+        bool mismatched = false;
+    };
 
     enum DiagnosticComponent : int {
         DeltaQv = 0,
@@ -72,6 +84,21 @@ public:
 
     explicit CloudChamberWaterLedger (bool enabled) : m_enabled(enabled) {}
 
+    AMREX_GPU_HOST_DEVICE static FaceMismatch compare_face_values (
+        amrex::Real reference, amrex::Real duplicate,
+        amrex::Real flux_floor = amrex::Real(1.0e-30)) noexcept
+    {
+        const amrex::Real scale = amrex::max(
+            amrex::max(amrex::Math::abs(reference), amrex::Math::abs(duplicate)),
+            flux_floor);
+        const amrex::Real tolerance = amrex::Real(64.0) *
+            std::numeric_limits<amrex::Real>::epsilon() * scale;
+        const amrex::Real signed_mismatch = duplicate - reference;
+        const amrex::Real absolute_mismatch = amrex::Math::abs(signed_mismatch);
+        return {signed_mismatch, absolute_mismatch, tolerance,
+                absolute_mismatch > tolerance};
+    }
+
     bool enabled () const noexcept { return m_enabled; }
 
     void begin_step (const amrex::MultiFab& cons,
@@ -99,11 +126,70 @@ public:
         m_after_dycore = {};
         m_after_microphysics = {};
         m_end = {};
+        m_face_summary.fill(amrex::Real(0.0));
+        m_interface_summary.fill(amrex::Real(0.0));
+        m_number_of_grids = 0;
+        m_number_of_mfiter_tiles = 0;
+        m_maximum_tiles_per_grid = 0;
+        m_moisture_tiling_enabled = false;
+        m_mpi_rank_count = 1;
+        m_openmp_thread_count = 1;
+        m_advection_stage_count = 0;
+        m_last_advection_stage = -1;
     }
 
     void begin_advection_stage ()
     {
-        if (m_enabled) { reset_face_audit(); }
+        if (m_enabled) {
+            reset_face_audit();
+            ++m_advection_stage_count;
+        }
+    }
+
+    void record_advection_stage (int nrk)
+    {
+        if (!m_enabled) { return; }
+        m_last_advection_stage = nrk;
+        const auto stage_summary = face_audit_summary();
+        const auto interface_summary = face_interface_summary();
+        for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
+            const int offset = 7 * dir;
+            m_face_summary[offset + 0] += stage_summary[offset + 0];
+            m_face_summary[offset + 1] += stage_summary[offset + 1];
+            m_face_summary[offset + 2] += stage_summary[offset + 2];
+            m_face_summary[offset + 3] = amrex::max(
+                m_face_summary[offset + 3], stage_summary[offset + 3]);
+            m_face_summary[offset + 4] = amrex::max(
+                m_face_summary[offset + 4], stage_summary[offset + 4]);
+            m_face_summary[offset + 5] += stage_summary[offset + 5];
+            m_face_summary[offset + 6] += stage_summary[offset + 6];
+        }
+        for (std::size_t i = 0; i < m_interface_summary.size(); ++i) {
+            const bool is_maximum = (i % 6 == 1) || (i % 6 == 4);
+            if (is_maximum) {
+                m_interface_summary[i] = amrex::max(
+                    m_interface_summary[i], interface_summary[i]);
+            } else {
+                m_interface_summary[i] += interface_summary[i];
+            }
+        }
+    }
+
+    void record_topology (int number_of_grids, int number_of_mfiter_tiles,
+                          int maximum_tiles_per_grid,
+                          bool moisture_tiling_enabled,
+                          int mpi_rank_count, int openmp_thread_count)
+    {
+        if (!m_enabled) { return; }
+        m_number_of_grids = number_of_grids;
+        m_number_of_mfiter_tiles = std::max(m_number_of_mfiter_tiles,
+                                            number_of_mfiter_tiles);
+        m_maximum_tiles_per_grid = std::max(m_maximum_tiles_per_grid,
+                                            maximum_tiles_per_grid);
+        m_moisture_tiling_enabled = m_moisture_tiling_enabled ||
+                                     moisture_tiling_enabled;
+        m_mpi_rank_count = mpi_rank_count;
+        m_openmp_thread_count = openmp_thread_count;
     }
 
     void record_after_dycore (const amrex::MultiFab& cons,
@@ -126,8 +212,10 @@ public:
         const amrex::Real volume = geom.CellSize(0) * geom.CellSize(1) * geom.CellSize(2);
         constexpr int base_columns = 7 * NumWater + 6 * NumWater;
         constexpr int independent_columns = 13 * NumWater;
-        constexpr int face_columns = 5 * AMREX_SPACEDIM;
-        std::array<amrex::Real, base_columns + independent_columns + face_columns> packed{};
+        constexpr int face_columns = 19 * AMREX_SPACEDIM;
+        constexpr int topology_columns = 9;
+        std::array<amrex::Real,
+                   base_columns + independent_columns + face_columns + topology_columns> packed{};
         int n = 0;
         for (const auto value : m_start) { packed[n++] = value; }
         for (const auto value : m_before_slow) { packed[n++] = value; }
@@ -220,8 +308,30 @@ public:
         packed[n++] = amrex::get<23>(stable) * rhs_scale;
 
         const int sum_columns = n;
-        const auto face_summary = face_audit_summary();
-        for (const auto value : face_summary) { packed[n++] = value; }
+        for (const auto value : m_face_summary) { packed[n++] = value; }
+        // Keep the on-disk order aligned with the header: all grid-interface
+        // qv/qc summaries by direction, followed by all MPI-interface
+        // summaries by direction.  The in-memory array is grouped by
+        // direction so each stage can update one face orientation together.
+        for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
+            for (int component = 0; component < 6; ++component) {
+                packed[n++] = m_interface_summary[12 * dir + component];
+            }
+        }
+        for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
+            for (int component = 6; component < 12; ++component) {
+                packed[n++] = m_interface_summary[12 * dir + component];
+            }
+        }
+        packed[n++] = static_cast<amrex::Real>(m_number_of_grids);
+        packed[n++] = static_cast<amrex::Real>(m_number_of_mfiter_tiles);
+        packed[n++] = static_cast<amrex::Real>(m_maximum_tiles_per_grid);
+        packed[n++] = m_moisture_tiling_enabled ? amrex::Real(1.0) : amrex::Real(0.0);
+        packed[n++] = static_cast<amrex::Real>(m_mpi_rank_count);
+        packed[n++] = static_cast<amrex::Real>(m_openmp_thread_count);
+        packed[n++] = (m_mpi_rank_count == 1) ? amrex::Real(1.0) : amrex::Real(0.0);
+        packed[n++] = static_cast<amrex::Real>(m_advection_stage_count);
+        packed[n++] = static_cast<amrex::Real>(m_last_advection_stage);
         amrex::ParallelDescriptor::ReduceRealSum(packed.data(), sum_columns);
 
         const amrex::Real min_qv = global_min(m_min_candidate_qv.dataValue());
@@ -261,15 +371,34 @@ public:
                        "stable_boundary_flux_y_qv stable_boundary_flux_y_qc "
                        "stable_boundary_flux_z_qv stable_boundary_flux_z_qc "
                        "stable_raw_divergence_abs_qv stable_raw_divergence_abs_qc "
+                       "tile_face_shared_count_x "
+                       "tile_face_mismatched_count_x_qv tile_face_mismatched_count_x_qc "
                        "tile_face_mismatch_max_x_qv tile_face_mismatch_max_x_qc "
                        "tile_face_mismatch_abs_sum_x_qv tile_face_mismatch_abs_sum_x_qc "
-                       "tile_face_mismatch_count_x "
+                       "tile_face_shared_count_y "
+                       "tile_face_mismatched_count_y_qv tile_face_mismatched_count_y_qc "
                        "tile_face_mismatch_max_y_qv tile_face_mismatch_max_y_qc "
                        "tile_face_mismatch_abs_sum_y_qv tile_face_mismatch_abs_sum_y_qc "
-                       "tile_face_mismatch_count_y "
+                       "tile_face_shared_count_z "
+                       "tile_face_mismatched_count_z_qv tile_face_mismatched_count_z_qc "
                        "tile_face_mismatch_max_z_qv tile_face_mismatch_max_z_qc "
                        "tile_face_mismatch_abs_sum_z_qv tile_face_mismatch_abs_sum_z_qc "
-                       "tile_face_mismatch_count_z "
+                       "grid_face_mismatched_count_x_qv grid_face_mismatch_max_x_qv grid_face_mismatch_abs_sum_x_qv "
+                       "grid_face_mismatched_count_x_qc grid_face_mismatch_max_x_qc grid_face_mismatch_abs_sum_x_qc "
+                       "grid_face_mismatched_count_y_qv grid_face_mismatch_max_y_qv grid_face_mismatch_abs_sum_y_qv "
+                       "grid_face_mismatched_count_y_qc grid_face_mismatch_max_y_qc grid_face_mismatch_abs_sum_y_qc "
+                       "grid_face_mismatched_count_z_qv grid_face_mismatch_max_z_qv grid_face_mismatch_abs_sum_z_qv "
+                       "grid_face_mismatched_count_z_qc grid_face_mismatch_max_z_qc grid_face_mismatch_abs_sum_z_qc "
+                       "mpi_face_mismatched_count_x_qv mpi_face_mismatch_max_x_qv mpi_face_mismatch_abs_sum_x_qv "
+                       "mpi_face_mismatched_count_x_qc mpi_face_mismatch_max_x_qc mpi_face_mismatch_abs_sum_x_qc "
+                       "mpi_face_mismatched_count_y_qv mpi_face_mismatch_max_y_qv mpi_face_mismatch_abs_sum_y_qv "
+                       "mpi_face_mismatched_count_y_qc mpi_face_mismatch_max_y_qc mpi_face_mismatch_abs_sum_y_qc "
+                       "mpi_face_mismatched_count_z_qv mpi_face_mismatch_max_z_qv mpi_face_mismatch_abs_sum_z_qv "
+                       "mpi_face_mismatched_count_z_qc mpi_face_mismatch_max_z_qc mpi_face_mismatch_abs_sum_z_qc "
+                       "number_of_grids number_of_mfiter_tiles maximum_tiles_per_grid "
+                       "moisture_tiling_enabled mpi_rank_count openmp_thread_count "
+                       "mpi_interface_audit_enabled "
+                       "advection_stage_count last_advection_stage "
                        "qv_negative_cell_count qc_negative_cell_count "
                        "qv_largest_deficit qc_largest_deficit "
                        "qv_min_pre_positivity qc_min_pre_positivity\n";
@@ -403,14 +532,16 @@ private:
         }
     }
 
-    std::array<amrex::Real, 5 * AMREX_SPACEDIM> face_audit_summary () const
+    std::array<amrex::Real, 7 * AMREX_SPACEDIM> face_audit_summary () const
     {
-        std::array<amrex::Real, 5 * AMREX_SPACEDIM> result{};
+        std::array<amrex::Real, 7 * AMREX_SPACEDIM> result{};
         using Ops = amrex::TypeList<
+            amrex::ReduceOpSum, amrex::ReduceOpSum, amrex::ReduceOpSum,
             amrex::ReduceOpMax, amrex::ReduceOpMax,
-            amrex::ReduceOpSum, amrex::ReduceOpSum, amrex::ReduceOpSum>;
+            amrex::ReduceOpSum, amrex::ReduceOpSum>;
         using Types = amrex::TypeList<
-            amrex::Real, amrex::Real, amrex::Real, amrex::Real, amrex::Real>;
+            amrex::Real, amrex::Real, amrex::Real, amrex::Real,
+            amrex::Real, amrex::Real, amrex::Real>;
         for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
             const auto& arrays = m_face_audit[dir]->const_arrays();
             const auto local = amrex::ParReduce(
@@ -419,24 +550,160 @@ private:
                     const auto& a = arrays[box_no];
                     const amrex::Real count = a(i,j,k,FaceCount);
                     const bool shared = count > amrex::Real(1.5);
-                    const amrex::Real qv_mismatch = shared ?
+                    const amrex::Real qv_spread = shared ?
                         a(i,j,k,FaceMaxQv) - a(i,j,k,FaceMinQv) : amrex::Real(0.0);
-                    const amrex::Real qc_mismatch = shared ?
+                    const amrex::Real qc_spread = shared ?
                         a(i,j,k,FaceMaxQc) - a(i,j,k,FaceMinQc) : amrex::Real(0.0);
+                    const auto qv_check = compare_face_values(
+                        a(i,j,k,FaceMinQv), a(i,j,k,FaceMaxQv));
+                    const auto qc_check = compare_face_values(
+                        a(i,j,k,FaceMinQc), a(i,j,k,FaceMaxQc));
                     return amrex::GpuTuple<amrex::Real, amrex::Real,
+                                           amrex::Real, amrex::Real,
                                            amrex::Real, amrex::Real, amrex::Real>{
-                        qv_mismatch, qc_mismatch,
-                        qv_mismatch, qc_mismatch,
-                        shared ? amrex::Real(1.0) : amrex::Real(0.0)};
+                        shared ? amrex::Real(1.0) : amrex::Real(0.0),
+                        qv_check.mismatched ? amrex::Real(1.0) : amrex::Real(0.0),
+                        qc_check.mismatched ? amrex::Real(1.0) : amrex::Real(0.0),
+                        qv_spread, qc_spread, qv_spread, qc_spread};
                 });
-            const int offset = 5 * dir;
+            const int offset = 7 * dir;
             result[offset + 0] = amrex::get<0>(local);
             result[offset + 1] = amrex::get<1>(local);
             result[offset + 2] = amrex::get<2>(local);
             result[offset + 3] = amrex::get<3>(local);
             result[offset + 4] = amrex::get<4>(local);
-            amrex::ParallelDescriptor::ReduceRealMax(result.data() + offset, 2);
-            amrex::ParallelDescriptor::ReduceRealSum(result.data() + offset + 2, 3);
+            result[offset + 5] = amrex::get<5>(local);
+            result[offset + 6] = amrex::get<6>(local);
+            amrex::ParallelDescriptor::ReduceRealSum(result.data() + offset, 3);
+            amrex::ParallelDescriptor::ReduceRealMax(result.data() + offset + 3, 2);
+            amrex::ParallelDescriptor::ReduceRealSum(result.data() + offset + 5, 2);
+        }
+        return result;
+    }
+
+    // The tile-local audit above sees duplicate writes inside one FAB.  This
+    // opt-in owner comparison is separate: it preserves each grid's local
+    // face value, synchronizes a copy from AMReX's lowest-numbered owner,
+    // and classifies the remaining duplicates by owner rank.  It therefore
+    // covers grid interfaces and, on supported distributed configurations,
+    // MPI interfaces without changing production fluxes.
+    std::array<amrex::Real, 12 * AMREX_SPACEDIM> face_interface_summary () const
+    {
+        std::array<amrex::Real, 12 * AMREX_SPACEDIM> result{};
+        // AMReX 26.06's distributed nodal OverrideSync path is not safe for
+        // this diagnostic MultiFab layout on the current Spack MPI build.
+        // Do not let an optional ledger abort a valid multi-rank run; the
+        // ledger explicitly marks this coverage unavailable in its schema.
+        if (amrex::ParallelDescriptor::NProcs() > 1) {
+            return result;
+        }
+        using Ops = amrex::TypeList<
+            amrex::ReduceOpSum, amrex::ReduceOpMax, amrex::ReduceOpSum,
+            amrex::ReduceOpSum, amrex::ReduceOpMax, amrex::ReduceOpSum,
+            amrex::ReduceOpSum, amrex::ReduceOpMax, amrex::ReduceOpSum,
+            amrex::ReduceOpSum, amrex::ReduceOpMax, amrex::ReduceOpSum>;
+        using Types = amrex::TypeList<
+            amrex::Real, amrex::Real, amrex::Real,
+            amrex::Real, amrex::Real, amrex::Real,
+            amrex::Real, amrex::Real, amrex::Real,
+            amrex::Real, amrex::Real, amrex::Real>;
+
+        for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
+            const auto& local_face = *m_face_audit[dir];
+            amrex::MultiFab owner_values(local_face.boxArray(),
+                                          local_face.DistributionMap(), 2, 0);
+            amrex::MultiFab::Copy(owner_values, local_face, 0, FaceMinQv, 2, 0);
+
+            auto owner_mask = owner_values.OwnerMask();
+            owner_values.OverrideSync(*owner_mask);
+
+            amrex::MultiFab local_rank(local_face.boxArray(),
+                                       local_face.DistributionMap(), 1, 0);
+            for (amrex::MFIter mfi(local_rank); mfi.isValid(); ++mfi) {
+                local_rank[mfi].setVal(
+                    static_cast<amrex::Real>(local_face.DistributionMap()[mfi.index()]));
+            }
+            local_rank.OverrideSync(*owner_mask,
+                                    amrex::Periodicity::NonPeriodic());
+
+            const auto& local_arrays = local_face.const_arrays();
+            const auto& owner_arrays = owner_values.const_arrays();
+            const auto& mask_arrays = owner_mask->const_arrays();
+            const auto& rank_arrays = local_rank.const_arrays();
+            const int local_rank_id = amrex::ParallelDescriptor::MyProc();
+            const auto local = amrex::ParReduce(
+                Ops{}, Types{}, owner_values, amrex::IntVect(0),
+                [=] AMREX_GPU_DEVICE (int box_no, int i, int j, int k) noexcept {
+                    if (mask_arrays[box_no](i,j,k) != 0) {
+                        return amrex::GpuTuple<
+                            amrex::Real, amrex::Real, amrex::Real,
+                            amrex::Real, amrex::Real, amrex::Real,
+                            amrex::Real, amrex::Real, amrex::Real,
+                            amrex::Real, amrex::Real, amrex::Real>{
+                            amrex::Real(0.0), amrex::Real(0.0), amrex::Real(0.0),
+                            amrex::Real(0.0), amrex::Real(0.0), amrex::Real(0.0),
+                            amrex::Real(0.0), amrex::Real(0.0), amrex::Real(0.0),
+                            amrex::Real(0.0), amrex::Real(0.0), amrex::Real(0.0)};
+                    }
+                    const auto qv_check = compare_face_values(
+                        local_arrays[box_no](i,j,k,FaceMinQv),
+                        owner_arrays[box_no](i,j,k,0));
+                    const auto qc_check = compare_face_values(
+                        local_arrays[box_no](i,j,k,FaceMinQc),
+                        owner_arrays[box_no](i,j,k,1));
+                    const bool mpi_duplicate =
+                        rank_arrays[box_no](i,j,k) != local_rank_id;
+                    const amrex::Real qv_count =
+                        qv_check.mismatched ? amrex::Real(1.0) : amrex::Real(0.0);
+                    const amrex::Real qc_count =
+                        qc_check.mismatched ? amrex::Real(1.0) : amrex::Real(0.0);
+                    const amrex::Real grid_qv_count = mpi_duplicate ? amrex::Real(0.0) : qv_count;
+                    const amrex::Real grid_qc_count = mpi_duplicate ? amrex::Real(0.0) : qc_count;
+                    const amrex::Real mpi_qv_count = mpi_duplicate ? qv_count : amrex::Real(0.0);
+                    const amrex::Real mpi_qc_count = mpi_duplicate ? qc_count : amrex::Real(0.0);
+                    return amrex::GpuTuple<
+                        amrex::Real, amrex::Real, amrex::Real,
+                        amrex::Real, amrex::Real, amrex::Real,
+                        amrex::Real, amrex::Real, amrex::Real,
+                        amrex::Real, amrex::Real, amrex::Real>{
+                        grid_qv_count,
+                        mpi_duplicate ? amrex::Real(0.0) : qv_check.absolute_mismatch,
+                        mpi_duplicate ? amrex::Real(0.0) : qv_check.absolute_mismatch,
+                        grid_qc_count,
+                        mpi_duplicate ? amrex::Real(0.0) : qc_check.absolute_mismatch,
+                        mpi_duplicate ? amrex::Real(0.0) : qc_check.absolute_mismatch,
+                        mpi_qv_count,
+                        mpi_duplicate ? qv_check.absolute_mismatch : amrex::Real(0.0),
+                        mpi_duplicate ? qv_check.absolute_mismatch : amrex::Real(0.0),
+                        mpi_qc_count,
+                        mpi_duplicate ? qc_check.absolute_mismatch : amrex::Real(0.0),
+                        mpi_duplicate ? qc_check.absolute_mismatch : amrex::Real(0.0)};
+                });
+            const int offset = 12 * dir;
+            result[offset + 0] = amrex::get<0>(local);
+            result[offset + 1] = amrex::get<1>(local);
+            result[offset + 2] = amrex::get<2>(local);
+            result[offset + 3] = amrex::get<3>(local);
+            result[offset + 4] = amrex::get<4>(local);
+            result[offset + 5] = amrex::get<5>(local);
+            result[offset + 6] = amrex::get<6>(local);
+            result[offset + 7] = amrex::get<7>(local);
+            result[offset + 8] = amrex::get<8>(local);
+            result[offset + 9] = amrex::get<9>(local);
+            result[offset + 10] = amrex::get<10>(local);
+            result[offset + 11] = amrex::get<11>(local);
+            amrex::ParallelDescriptor::ReduceRealSum(result.data() + offset + 0, 1);
+            amrex::ParallelDescriptor::ReduceRealMax(result.data() + offset + 1, 1);
+            amrex::ParallelDescriptor::ReduceRealSum(result.data() + offset + 2, 1);
+            amrex::ParallelDescriptor::ReduceRealSum(result.data() + offset + 3, 1);
+            amrex::ParallelDescriptor::ReduceRealMax(result.data() + offset + 4, 1);
+            amrex::ParallelDescriptor::ReduceRealSum(result.data() + offset + 5, 1);
+            amrex::ParallelDescriptor::ReduceRealSum(result.data() + offset + 6, 1);
+            amrex::ParallelDescriptor::ReduceRealMax(result.data() + offset + 7, 1);
+            amrex::ParallelDescriptor::ReduceRealSum(result.data() + offset + 8, 1);
+            amrex::ParallelDescriptor::ReduceRealSum(result.data() + offset + 9, 1);
+            amrex::ParallelDescriptor::ReduceRealMax(result.data() + offset + 10, 1);
+            amrex::ParallelDescriptor::ReduceRealSum(result.data() + offset + 11, 1);
         }
         return result;
     }
@@ -496,6 +763,16 @@ private:
     amrex::Gpu::DeviceScalar<amrex::Real> m_largest_deficit_qc{amrex::Real(0.0)};
     std::unique_ptr<amrex::MultiFab> m_advection_diagnostics;
     std::array<std::unique_ptr<amrex::MultiFab>, AMREX_SPACEDIM> m_face_audit;
+    std::array<amrex::Real, 7 * AMREX_SPACEDIM> m_face_summary{};
+    std::array<amrex::Real, 12 * AMREX_SPACEDIM> m_interface_summary{};
+    int m_number_of_grids = 0;
+    int m_number_of_mfiter_tiles = 0;
+    int m_maximum_tiles_per_grid = 0;
+    bool m_moisture_tiling_enabled = false;
+    int m_mpi_rank_count = 1;
+    int m_openmp_thread_count = 1;
+    int m_advection_stage_count = 0;
+    int m_last_advection_stage = -1;
 };
 
 #endif
