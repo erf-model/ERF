@@ -74,6 +74,16 @@ if(ERF_ENABLE_TESTS)
   set(ANELASTIC_WALL_DIFFUSION_CHECKER
       "${CMAKE_CURRENT_BINARY_DIR}/erf_anelastic_wall_diffusion_check${CMAKE_EXECUTABLE_SUFFIX}")
 
+  if(ERF_ENABLE_NETCDF)
+    add_executable(erf_custom_surface_flux_file_test
+      ${CMAKE_CURRENT_SOURCE_DIR}/CustomSurfaceFluxFile.cpp)
+    target_include_directories(erf_custom_surface_flux_file_test PRIVATE ${NETCDF_INCLUDE_DIRS})
+    target_link_libraries(erf_custom_surface_flux_file_test PRIVATE ${NETCDF_LINK_LIBRARIES})
+    target_compile_features(erf_custom_surface_flux_file_test PRIVATE cxx_std_17)
+    set(CUSTOM_SURFACE_FLUX_FILE_TEST
+        "${CMAKE_CURRENT_BINARY_DIR}/erf_custom_surface_flux_file_test${CMAKE_EXECUTABLE_SUFFIX}")
+  endif()
+
   include(${CMAKE_CURRENT_SOURCE_DIR}/CTestList.cmake)
 endif()
 

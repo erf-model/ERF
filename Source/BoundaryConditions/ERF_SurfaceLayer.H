@@ -7,6 +7,7 @@
 #include "AMReX_MultiFab.H"
 #include "AMReX_iMultiFab.H"
 #include "AMReX_MFInterpolater.H"
+#include "AMReX_GpuContainers.H"
 
 #include "ERF_IndexDefines.H"
 #include "ERF_Constants.H"
@@ -18,6 +19,7 @@
 #include "ERF_PBLHeight.H"
 #include "ERF_MicrophysicsUtils.H"
 #include "ERF_EB.H"
+#include "ERF_PrescribedSurfaceFlux.H"
 
 /** Abstraction layer for different surface layer schemes (e.g. MOST, Cd)
  *
@@ -83,6 +85,8 @@ public:
               flux_type = FluxCalcType::BULK_COEFF;
           } else if (flux_string == "custom") {
               flux_type = FluxCalcType::CUSTOM;
+          } else if (flux_string == "custom_file") {
+              flux_type = FluxCalcType::CUSTOM_FILE;
           } else {
               amrex::Abort("Undefined MOST flux type!");
           }
@@ -121,7 +125,20 @@ public:
       if (erf_sq) { default_land_surf_moist = surf_moist; }
 
       // Custom type user must specify the fluxes
-      if (flux_type == FluxCalcType::CUSTOM ||
+      if (flux_type == FluxCalcType::CUSTOM_FILE) {
+          theta_type = ThetaCalcType::HEAT_FLUX;
+          moist_type = MoistCalcType::MOISTURE_FLUX;
+#ifndef ERF_USE_NETCDF
+          amrex::Abort("surface_layer.flux_type=custom_file requires an ERF build with NetCDF");
+#else
+          custom_flux_files.resize(m_geom.size());
+          custom_flux_data.resize(m_geom.size());
+          for (int lev = 0; lev < static_cast<int>(m_geom.size()); ++lev) {
+              pp.get("most.flux_file_" + std::to_string(lev), custom_flux_files[lev]);
+          }
+          amrex::Print() << "Using prescribed per-level surface flux files" << std::endl;
+#endif
+      } else if (flux_type == FluxCalcType::CUSTOM ||
           flux_type == FluxCalcType::RICO) {
           theta_type = ThetaCalcType::HEAT_FLUX;
           moist_type = MoistCalcType::MOISTURE_FLUX;
@@ -453,6 +470,10 @@ public:
       q_star[lev] = std::make_unique<amrex::MultiFab>(ba_flux, dm, ncomp, ng);
       q_star[lev]->setVal(zero); // default to dry
 
+      if (flux_type == FluxCalcType::CUSTOM_FILE) {
+          read_custom_flux_file(lev);
+      }
+
       olen[lev] = std::make_unique<amrex::MultiFab>(ba_flux, dm, ncomp, ng);
       olen[lev]->setVal(bogus_large_value);
 
@@ -598,6 +619,10 @@ public:
   void read_custom_roughness (const int& lev,
                               const std::string& fname);
 
+  void read_custom_flux_file (const int& lev);
+
+  void update_custom_file_fluxes (const int& lev, const double& time);
+
   void update_surf_temp (const double& time)
   {
       if (m_has_ocean_lsm_tsurf) {
@@ -687,6 +712,7 @@ public:
     MOENG = 0, ///< Moeng functional form
     DONELAN,   ///< Donelan functional form
     CUSTOM,    ///< Custom constant flux functional form
+    CUSTOM_FILE, ///< Custom spatially and temporally varying fluxes from NetCDF
     BULK_COEFF, ///< Bulk transfer coefficient functional form
     ROTATE,     ///< Terrain rotation flux functional form
     RICO
@@ -743,6 +769,17 @@ private:
   amrex::Real custom_qstar{0};
   amrex::Real custom_rhosurf{0}; // use specified value instead of rho from first cell
   bool specified_rho_surf{false};
+  struct CustomFluxFileData {
+      int nt{0};
+      int ny{0};
+      int nx{0};
+      std::vector<double> time;
+      amrex::Gpu::DeviceVector<amrex::Real> ustar;
+      amrex::Gpu::DeviceVector<amrex::Real> theta_flux;
+      amrex::Gpu::DeviceVector<amrex::Real> qv_flux;
+  };
+  amrex::Vector<std::string> custom_flux_files;
+  amrex::Vector<std::unique_ptr<CustomFluxFileData>> custom_flux_data;
   amrex::Real cnk_a{amrex::Real(0.0185)};
   bool cnk_visc{false};
   amrex::Real depth{amrex::Real(30.0)};

@@ -650,15 +650,20 @@ ERF::Write2DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
 
 #ifdef ERF_USE_NETCDF
     } else if (plotfile_type == PlotFileType::Netcdf) {
-         int lev   = 0;
-         int l_which = 0;
-         const Real* p_lo = my_geom[lev].ProbLo();
-         const Real* p_hi = my_geom[lev].ProbHi();
-         const auto dx    = my_geom[lev].CellSize();
-         writeNCPlotFile(lev, l_which, plotfilename, GetVecOfConstPtrs(mf), varnames, istep,
-                         {p_lo[0],p_lo[1],p_lo[2]},{p_hi[0],p_hi[1],dx[2]}, {dx[0],dx[1],dx[2]},
-                         my_geom[lev].Domain(), static_cast<Real>(t_new[0]),
-                         static_cast<Real>(start_bdy_time), solverChoice, zlevels_stag[lev]);
+        const int l_which = 0;
+        for (int lev = 0; lev <= finest_level; ++lev) {
+            const Real* p_lo = my_geom[lev].ProbLo();
+            const Real* p_hi = my_geom[lev].ProbHi();
+            const auto dx    = my_geom[lev].CellSize();
+            writeNCPlotFile(lev, l_which, plotfilename, GetVecOfConstPtrs(mf),
+                            varnames, istep,
+                            {p_lo[0],p_lo[1],p_lo[2]},
+                            {p_hi[0],p_hi[1],dx[2]},
+                            {dx[0],dx[1],dx[2]}, my_geom[lev].Domain(),
+                            static_cast<Real>(t_new[lev]),
+                            static_cast<Real>(start_bdy_time), solverChoice,
+                            zlevels_stag[lev]);
+        }
 #endif
     } else {
         // Here we assume the plotfile_type is PlotFileType::None

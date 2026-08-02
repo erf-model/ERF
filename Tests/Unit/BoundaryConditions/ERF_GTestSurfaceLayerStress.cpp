@@ -30,6 +30,26 @@ expect_result(
 
 } // namespace
 
+TEST(SurfaceLayerStress, CustomMomentumStressIsZeroAtZeroWind)
+{
+  EXPECT_EQ(surface_layer_stress::custom_momentum_stress(
+              Real(1.2), Real(0.4), Real(0.0), Real(0.0)),
+            Real(0.0));
+  EXPECT_EQ(surface_layer_stress::custom_momentum_stress(
+              Real(1.2), Real(0.4), Real(-0.0), Real(0.0)),
+            Real(0.0));
+}
+
+TEST(SurfaceLayerStress, CustomMomentumStressPreservesDirection)
+{
+  EXPECT_NEAR(surface_layer_stress::custom_momentum_stress(
+                Real(1.25), Real(0.4), Real(3.0), Real(5.0)),
+              Real(-0.12), Real(1.e-12));
+  EXPECT_NEAR(surface_layer_stress::custom_momentum_stress(
+                Real(1.25), Real(0.4), Real(-4.0), Real(5.0)),
+              Real(0.16), Real(1.e-12));
+}
+
 // Motivation: LSM stress caches are kinematic, while MOST and Tau_lev use
 // conservative stresses. The conversion must preserve both stress sign and
 // the conservative value reconstructed with the destination-cell density.

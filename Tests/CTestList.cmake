@@ -115,6 +115,29 @@ function(add_test_r TEST_NAME TEST_DIR TEST_EXE PLTFILE)
     )
 endfunction(add_test_r)
 
+function(add_test_custom_surface_flux_file)
+    set(TEST_NAME CustomSurfaceFluxFile)
+    setup_test()
+    resolve_test_exe("" "erf_exec" TEST_EXE)
+
+    set(test_log "${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.log")
+    set(level0_file "${CURRENT_TEST_BINARY_DIR}/surface_flux_0.nc")
+    set(level1_file "${CURRENT_TEST_BINARY_DIR}/surface_flux_1.nc")
+    set(level0_output "${CURRENT_TEST_BINARY_DIR}/surface_00002_d01.nc")
+    set(level1_output "${CURRENT_TEST_BINARY_DIR}/surface_00002_d02.nc")
+    set(test_command sh -c
+        "\"${CUSTOM_SURFACE_FLUX_FILE_TEST}\" generate \"${level0_file}\" 8 8 0 && \"${CUSTOM_SURFACE_FLUX_FILE_TEST}\" generate \"${level1_file}\" 16 16 1 && ${MPI_COMMANDS} ${TEST_EXE} \"${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.i\" > \"${test_log}\" 2>&1 && \"${CUSTOM_SURFACE_FLUX_FILE_TEST}\" check \"${level0_output}\" \"${level1_output}\"")
+
+    add_test(${TEST_NAME} ${test_command})
+    set_tests_properties(${TEST_NAME}
+        PROPERTIES
+        TIMEOUT 900
+        PROCESSORS ${NP}
+        WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
+        LABELS "regression;netcdf;surface-layer;amr"
+        ATTACHED_FILES_ON_FAIL "${test_log};${level0_output};${level1_output}")
+endfunction(add_test_custom_surface_flux_file)
+
 # Rotated six-wall anelastic manufactured regression. Each case keeps a
 # linear theta profile stationary and checks the full field inventory.
 function(add_test_anelastic_wall_diffusion TEST_NAME TEST_AXIS)
@@ -502,6 +525,9 @@ add_test_r(MSF_Sub_IsentropicVortexAdv       ""  "erf_exec" "plt00010" RUNTIME_O
 #add_test_r(FlowInABox                       ""  "erf_exec" "plt00010" RUNTIME_OPTIONS "erf.vert_implicit=false ")
 add_test_r(ABL_MOST                          ""  "erf_exec" "plt00010" RUNTIME_OPTIONS "erf.vert_implicit=false ")
 add_test_r(ABL_MOST_IMP_DIFF                 ""  "erf_exec" "plt00010")
+if(ERF_ENABLE_NETCDF)
+  add_test_custom_surface_flux_file()
+endif()
 add_test_r(ABL_MYNN_PBL                      ""  "erf_exec" "plt00100" INPUT_SOUNDING "input_sounding_GABLS1" RUNTIME_OPTIONS "erf.vert_implicit=false " )
 add_test_r(ABL_InflowFile                    ""  "erf_exec" "plt00010" RUNTIME_OPTIONS "erf.vert_implicit=false ")
 add_test_r(MoistBubble                       ""  "erf_exec" "plt00010" RUNTIME_OPTIONS "erf.vert_implicit=false ")

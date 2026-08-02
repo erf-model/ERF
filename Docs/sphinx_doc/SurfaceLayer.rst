@@ -13,12 +13,30 @@ all the other variables and then allows a user to specify a method for calculati
 
 ::
 
-   erf.surface_layer.flux_type    = STRING    #flux types (donelan, moeng, custom)
+   erf.surface_layer.flux_type    = STRING    #flux types (donelan, moeng, custom, custom_file)
 
 The ``donelan`` flux type employs bulk drag coefficients to compute the diffusive stresses while the ``moeng`` type
 employs Moeng's formulation for Monin-Obukhov similarity theory (MOST) and ``custom`` allows the user to directly
 specify the fluxes through ``ustar; tstar; qstar``. Currently, the MOST pathway is the primary flux type employed
 in ERF simulations and will be the focus in subsequent sections.
+
+The ``custom_file`` type prescribes spatially and temporally varying kinematic
+surface fluxes from one NetCDF file per AMR level::
+
+   erf.surface_layer.flux_type = custom_file
+   erf.most.flux_file_0 = surface_flux_0.nc
+   erf.most.flux_file_1 = surface_flux_1.nc
+
+Schema version 1 uses the global integer attribute ``schema_version = 1`` and
+dimensions ``time,y,x``. The ``time`` variable is double precision, strictly
+increasing, and has units ``seconds since simulation start``. Variables
+``ustar``, ``theta_flux``, and ``qv_flux`` have shape ``(time,y,x)`` and units
+``m s-1``, ``K m s-1``, and ``kg kg-1 m s-1``, respectively. Values are
+linearly interpolated in time without extrapolation. Each file covers the full
+geometry domain of its AMR level, even when that level's active BoxArray is
+only a subregion; active cells address the file with their global level
+indices. ``theta_flux`` and ``qv_flux`` follow the same direct kinematic-flux
+convention as the scalar ``custom`` inputs.
 
 
 MOST Theory

@@ -6,6 +6,22 @@
 
 namespace surface_layer_stress {
 
+/** Custom-mode conservative stress, with a defined calm-wind limit. */
+AMREX_GPU_HOST_DEVICE
+AMREX_FORCE_INLINE
+amrex::Real
+custom_momentum_stress(
+  amrex::Real rho,
+  amrex::Real ustar,
+  amrex::Real velocity_component,
+  amrex::Real horizontal_wind_speed)
+{
+  return horizontal_wind_speed == amrex::Real(0.0)
+           ? amrex::Real(0.0)
+           : -rho * ustar * ustar * velocity_component /
+               horizontal_wind_speed;
+}
+
 /** LSM cache value from a conservative face stress. */
 AMREX_GPU_HOST_DEVICE
 AMREX_FORCE_INLINE

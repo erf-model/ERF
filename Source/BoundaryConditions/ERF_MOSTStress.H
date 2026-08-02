@@ -4,6 +4,7 @@
 #include <ERF_Constants.H>
 #include <ERF_IndexDefines.H>
 #include <ERF_MOSTRoughness.H>
+#include <ERF_SurfaceLayerStress.H>
 #include <ERF_Wstar.H>
 
 /**
@@ -2172,7 +2173,8 @@ struct custom_flux
         amrex::Real wsp     = std::sqrt(velx*velx+vely*vely);
 
         // NOTE: this is rho*<u'w'> = -K dudz
-        amrex::Real stressx = -rho * ustar * ustar * velx / wsp;
+        amrex::Real stressx = surface_layer_stress::custom_momentum_stress(
+            rho, ustar, velx, wsp);
 
         return stressx;
     }
@@ -2199,7 +2201,8 @@ struct custom_flux
         amrex::Real wsp     = std::sqrt(velx*velx+vely*vely);
 
         // NOTE: this is rho*<v'w'> = -K dvdz
-        amrex::Real stressy = -rho * ustar * ustar * vely / wsp;
+        amrex::Real stressy = surface_layer_stress::custom_momentum_stress(
+            rho, ustar, vely, wsp);
 
         return stressy;
     }

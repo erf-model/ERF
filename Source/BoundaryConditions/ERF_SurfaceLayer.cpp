@@ -1,7 +1,46 @@
 #include "ERF_SurfaceLayer.H"
 #include "ERF_SurfaceLayerStress.H"
 
+#ifdef ERF_USE_NETCDF
+#include "ERF_NCInterface.H"
+#endif
+
+#include <algorithm>
+#include <climits>
+
 using namespace amrex;
+
+#ifdef ERF_USE_NETCDF
+namespace {
+
+void
+require_surface_flux_schema (const bool condition,
+                             const int lev,
+                             const std::string& message)
+{
+    if (!condition) {
+        amrex::Abort("Invalid custom surface flux file for level " +
+                     std::to_string(lev) + ": " + message);
+    }
+}
+
+std::vector<double>
+missing_values (const ncutils::NCVar& variable)
+{
+    std::vector<double> result;
+    for (const std::string& name : {std::string("_FillValue"),
+                                    std::string("missing_value")}) {
+        if (variable.has_attr(name)) {
+            std::vector<double> value;
+            variable.get_attr(name, value);
+            result.insert(result.end(), value.begin(), value.end());
+        }
+    }
+    return result;
+}
+
+} // namespace
+#endif
 
 /**
  * Wrapper to update ustar and tstar for Monin Obukhov similarity theory.
@@ -209,6 +248,8 @@ SurfaceLayer::update_fluxes (const int& lev,
             t_star[lev]->setVal(custom_tstar);
             q_star[lev]->setVal(custom_qstar);
         }
+    } else if (flux_type == FluxCalcType::CUSTOM_FILE) {
+        update_custom_file_fluxes(lev, elapsed_time);
     }
 
     if (m_update_k_rans) {
@@ -427,7 +468,8 @@ SurfaceLayer::impose_SurfaceLayer_bcs (const int& lev,
                                  xheat_flux, yheat_flux, zheat_flux,
                                  xqv_flux, yqv_flux, zqv_flux,
                                  z_phys, flux_comp);
-    } else if (flux_type == FluxCalcType::CUSTOM) {
+    } else if (flux_type == FluxCalcType::CUSTOM ||
+               flux_type == FluxCalcType::CUSTOM_FILE) {
         custom_flux flux_comp(specified_rho_surf);
         compute_SurfaceLayer_bcs(lev, mfs, Tau_lev,
                                  xheat_flux, yheat_flux, zheat_flux,
@@ -565,7 +607,8 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
         }
 
         const bool has_lsm_t_flux = static_cast<bool>(lsm_t_flux_arr);
-        const bool is_custom = (flux_type == FluxCalcType::CUSTOM);
+        const bool is_custom = (flux_type == FluxCalcType::CUSTOM ||
+                                flux_type == FluxCalcType::CUSTOM_FILE);
         const bool is_rico   = (flux_type == FluxCalcType::RICO);
 
 
@@ -1343,6 +1386,212 @@ SurfaceLayer::init_tke_from_ustar (const int& lev,
     }
 }
 
+
+void
+SurfaceLayer::read_custom_flux_file (const int& lev)
+{
+#ifndef ERF_USE_NETCDF
+    amrex::ignore_unused(lev);
+    amrex::Abort("custom_file surface fluxes require NetCDF support");
+#else
+    if (custom_flux_data[lev]) { return; }
+
+    const int ioproc = ParallelDescriptor::IOProcessorNumber();
+    int nt = 0;
+    int ny = 0;
+    int nx = 0;
+    std::vector<double> time;
+    std::vector<double> ustar;
+    std::vector<double> theta_flux;
+    std::vector<double> qv_flux;
+
+    if (ParallelDescriptor::IOProcessor()) {
+        const std::string& filename = custom_flux_files[lev];
+        Print() << "Reading prescribed surface flux file at level " << lev
+                << " : " << filename << std::endl;
+        auto file = ncutils::NCFile::open(filename, NC_NOWRITE);
+
+        require_surface_flux_schema(file.has_attr("schema_version"), lev,
+                                    "missing global schema_version attribute");
+        std::vector<int> schema_version;
+        file.get_attr("schema_version", schema_version);
+        require_surface_flux_schema(schema_version.size() == 1 &&
+                                    schema_version[0] == 1,
+                                    lev, "schema_version must equal 1");
+
+        for (const std::string& dim : {std::string("time"),
+                                       std::string("y"),
+                                       std::string("x")}) {
+            require_surface_flux_schema(file.has_dim(dim), lev,
+                                        "missing " + dim + " dimension");
+        }
+        const std::size_t nt_size = file.dim("time").len();
+        const std::size_t ny_size = file.dim("y").len();
+        const std::size_t nx_size = file.dim("x").len();
+        require_surface_flux_schema(nt_size <= INT_MAX && ny_size <= INT_MAX &&
+                                    nx_size <= INT_MAX,
+                                    lev, "dimensions exceed supported integer range");
+        nt = static_cast<int>(nt_size);
+        ny = static_cast<int>(ny_size);
+        nx = static_cast<int>(nx_size);
+
+        const Box& domain = m_geom[lev].Domain();
+        require_surface_flux_schema(nx == domain.length(0) &&
+                                    ny == domain.length(1),
+                                    lev, "x/y dimensions do not match the AMR level domain");
+
+        require_surface_flux_schema(file.has_var("time"), lev,
+                                    "missing time variable");
+        const auto time_var = file.var("time");
+        nc_type time_type;
+        require_surface_flux_schema(
+            nc_inq_vartype(time_var.ncid, time_var.varid, &time_type) == NC_NOERR &&
+            time_type == NC_DOUBLE,
+            lev, "time must be a double variable");
+        std::string error = prescribed_surface_flux::validate_time_layout(
+            time_var.dimnames());
+        require_surface_flux_schema(error.empty(), lev, error);
+        require_surface_flux_schema(time_var.has_attr("units") &&
+                                    time_var.get_attr("units") ==
+                                      "seconds since simulation start",
+                                    lev, "time units must be 'seconds since simulation start'");
+        time.resize(nt_size);
+        time_var.get(time.data());
+        error = prescribed_surface_flux::validate_time_axis(time);
+        require_surface_flux_schema(error.empty(), lev, error);
+
+        const std::size_t nvalues = nt_size * ny_size * nx_size;
+        auto read_field = [&] (const std::string& name,
+                               const std::string& units,
+                               const bool nonnegative,
+                               std::vector<double>& values) {
+            require_surface_flux_schema(file.has_var(name), lev,
+                                        "missing " + name + " variable");
+            const auto variable = file.var(name);
+            const std::string layout_error =
+                prescribed_surface_flux::validate_field_layout(
+                    name, variable.dimnames(), variable.shape(),
+                    {nt_size, ny_size, nx_size});
+            require_surface_flux_schema(layout_error.empty(), lev, layout_error);
+            require_surface_flux_schema(variable.has_attr("units") &&
+                                        variable.get_attr("units") == units,
+                                        lev, name + " has invalid or missing units");
+            values.resize(nvalues);
+            variable.get(values.data());
+            const std::string field_error = prescribed_surface_flux::validate_field(
+                name, values, nvalues, nonnegative, missing_values(variable));
+            require_surface_flux_schema(field_error.empty(), lev, field_error);
+        };
+
+        read_field("ustar", "m s-1", true, ustar);
+        read_field("theta_flux", "K m s-1", false, theta_flux);
+        read_field("qv_flux", "kg kg-1 m s-1", false, qv_flux);
+        file.close();
+    }
+
+    ParallelDescriptor::Bcast(&nt, 1, ioproc);
+    ParallelDescriptor::Bcast(&ny, 1, ioproc);
+    ParallelDescriptor::Bcast(&nx, 1, ioproc);
+    const std::size_t nvalues = static_cast<std::size_t>(nt) * ny * nx;
+    if (!ParallelDescriptor::IOProcessor()) {
+        time.resize(nt);
+        ustar.resize(nvalues);
+        theta_flux.resize(nvalues);
+        qv_flux.resize(nvalues);
+    }
+    ParallelDescriptor::Bcast(time.data(), nt, ioproc);
+    require_surface_flux_schema(nvalues <= INT_MAX, lev,
+                                "forcing array exceeds MPI broadcast limit");
+    const int count = static_cast<int>(nvalues);
+    ParallelDescriptor::Bcast(ustar.data(), count, ioproc);
+    ParallelDescriptor::Bcast(theta_flux.data(), count, ioproc);
+    ParallelDescriptor::Bcast(qv_flux.data(), count, ioproc);
+
+    if (!use_moisture) {
+        const bool nonzero_qv = std::any_of(qv_flux.begin(), qv_flux.end(),
+                                           [] (double value) { return value != 0.0; });
+        require_surface_flux_schema(!nonzero_qv, lev,
+                                    "nonzero qv_flux requires a moisture model");
+    }
+
+    auto data = std::make_unique<CustomFluxFileData>();
+    data->nt = nt;
+    data->ny = ny;
+    data->nx = nx;
+    data->time = std::move(time);
+    data->ustar.resize(nvalues);
+    data->theta_flux.resize(nvalues);
+    data->qv_flux.resize(nvalues);
+
+    Gpu::HostVector<Real> ustar_real(nvalues);
+    Gpu::HostVector<Real> theta_real(nvalues);
+    Gpu::HostVector<Real> qv_real(nvalues);
+    std::transform(ustar.begin(), ustar.end(), ustar_real.begin(),
+                   [] (double value) { return static_cast<Real>(value); });
+    std::transform(theta_flux.begin(), theta_flux.end(), theta_real.begin(),
+                   [] (double value) { return static_cast<Real>(value); });
+    std::transform(qv_flux.begin(), qv_flux.end(), qv_real.begin(),
+                   [] (double value) { return static_cast<Real>(value); });
+    Gpu::copy(Gpu::hostToDevice, ustar_real.begin(), ustar_real.end(),
+              data->ustar.begin());
+    Gpu::copy(Gpu::hostToDevice, theta_real.begin(), theta_real.end(),
+              data->theta_flux.begin());
+    Gpu::copy(Gpu::hostToDevice, qv_real.begin(), qv_real.end(),
+              data->qv_flux.begin());
+    custom_flux_data[lev] = std::move(data);
+#endif
+}
+
+void
+SurfaceLayer::update_custom_file_fluxes (const int& lev, const double& time)
+{
+    const auto& data = custom_flux_data[lev];
+    AMREX_ALWAYS_ASSERT(data);
+
+    prescribed_surface_flux::TimeBracket bracket;
+    std::string error;
+    if (!prescribed_surface_flux::find_time_bracket(
+            data->time, time, bracket, error)) {
+        amrex::Abort("Cannot update custom surface flux at level " +
+                     std::to_string(lev) + " and time " +
+                     std::to_string(time) + ": " + error);
+    }
+
+    const int nx = data->nx;
+    const int ny = data->ny;
+    const int ilo = m_geom[lev].Domain().smallEnd(0);
+    const int jlo = m_geom[lev].Domain().smallEnd(1);
+    const int ihi = m_geom[lev].Domain().bigEnd(0);
+    const int jhi = m_geom[lev].Domain().bigEnd(1);
+    const std::size_t lower_offset = bracket.lower *
+                                     static_cast<std::size_t>(ny) * nx;
+    const std::size_t upper_offset = bracket.upper *
+                                     static_cast<std::size_t>(ny) * nx;
+    const Real weight = static_cast<Real>(bracket.weight);
+    const Real* ustar_data = data->ustar.data();
+    const Real* theta_data = data->theta_flux.data();
+    const Real* qv_data = data->qv_flux.data();
+
+    for (MFIter mfi(*u_star[lev]); mfi.isValid(); ++mfi) {
+        const Box box = mfi.growntilebox();
+        const auto ustar_arr = u_star[lev]->array(mfi);
+        const auto theta_arr = t_star[lev]->array(mfi);
+        const auto qv_arr = q_star[lev]->array(mfi);
+        ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+            const int ii = amrex::min(amrex::max(i, ilo), ihi) - ilo;
+            const int jj = amrex::min(amrex::max(j, jlo), jhi) - jlo;
+            const std::size_t cell = static_cast<std::size_t>(jj) * nx + ii;
+            const std::size_t lower = lower_offset + cell;
+            const std::size_t upper = upper_offset + cell;
+            ustar_arr(i,j,k) = ustar_data[lower] +
+                               weight * (ustar_data[upper] - ustar_data[lower]);
+            theta_arr(i,j,k) = theta_data[lower] +
+                               weight * (theta_data[upper] - theta_data[lower]);
+            qv_arr(i,j,k) = qv_data[lower] +
+                            weight * (qv_data[upper] - qv_data[lower]);
+        });
+    }
+}
 
 void
 SurfaceLayer::read_custom_roughness (const int& lev,
