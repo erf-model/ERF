@@ -69,7 +69,7 @@ void generate (const std::string& filename, const int nx, const int ny, const in
     const int qv_var = define_field("qv_flux", "kg kg-1 m s-1");
     check_nc(nc_enddef(ncid), "end define mode");
 
-    const double times[3] = {0.0, 2.0, 4.0};
+    const double times[3] = {0.0, 0.02, 0.04};
     check_nc(nc_put_var_double(ncid, time_var, times), "write time");
     const std::size_t plane = static_cast<std::size_t>(ny) * nx;
     std::vector<double> ustar(3 * plane);

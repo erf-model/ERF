@@ -11,13 +11,13 @@ zhi.type = "SlipWall"
 erf.surface_layer.flux_type = "custom_file"
 erf.most.flux_file_0 = "surface_flux_0.nc"
 erf.most.flux_file_1 = "surface_flux_1.nc"
-erf.most.zref = 10.0
+erf.most.zref = 25.0
 
 erf.init_type = "input_sounding"
 erf.input_sounding_file = "input_sounding"
 
 erf.fixed_mri_dt_ratio = 2
-erf.fixed_dt = 1.0
+erf.fixed_dt = 0.01
 erf.dt_ref_ratio = 1
 erf.sum_interval = 1
 erf.v = 1
