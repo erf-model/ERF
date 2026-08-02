@@ -26,7 +26,6 @@
 
 #include <ERF_EB.H>
 #include "Prob/ERF_CloudChamberBudget.H"
-#include "Prob/ERF_CloudChamberWaterLedger.H"
 #include "Prob/ERF_CloudChamber.H"
 
 #ifdef ERF_USE_FFT
@@ -975,7 +974,6 @@ private:
 
     std::unique_ptr<Microphysics> micro;
     std::unique_ptr<CloudChamberBudget> cloud_chamber_budget;
-    std::unique_ptr<CloudChamberWaterLedger> cloud_chamber_water_ledger;
     erf_cloud_chamber::Config cloud_chamber_config;
     amrex::Vector<amrex::Vector<amrex::MultiFab*>> qmoist; // (lev,ncomp) rain_accum, snow_accum, graup_accum
 

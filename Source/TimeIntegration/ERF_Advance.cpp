@@ -35,10 +35,6 @@ ERF::Advance (int lev, double time, double dt_lev, int iteration, int /*ncycle*/
     MultiFab& V_new = vars_new[lev][Vars::yvel];
     MultiFab& W_new = vars_new[lev][Vars::zvel];
 
-    if (lev == 0 && cloud_chamber_water_ledger) {
-        cloud_chamber_water_ledger->begin_step(S_old, Geom(lev), time, dt_lev);
-    }
-
     // We need to set these because otherwise in the first call to erf_advance we may
     //    read uninitialized data on ghost values in setting the bc's on the velocities
     U_new.setVal(bogus_large_value,U_new.nGrowVect());
@@ -282,10 +278,6 @@ ERF::Advance (int lev, double time, double dt_lev, int iteration, int /*ncycle*/
                    cc_source, xmom_source, ymom_source, zmom_source, buoyancy,
                    Geom(lev), dt_lev, time);
 
-    if (lev == 0 && cloud_chamber_water_ledger) {
-        cloud_chamber_water_ledger->record_after_dycore(S_new, Geom(lev));
-    }
-
     // **************************************************************************************
     // Tests on the reasonableness of the solution after the dycore
     // **************************************************************************************
@@ -318,18 +310,7 @@ ERF::Advance (int lev, double time, double dt_lev, int iteration, int /*ncycle*/
     // **************************************************************************************
     if (!solverChoice.moisture_tight_coupling)
     {
-        if (lev == 0 && cloud_chamber_water_ledger) {
-            // In the standard split path this is the state immediately before
-            // the standalone microphysics update.  Tight coupling has no
-            // separate call, so the recorded dycore state remains the closest
-            // available boundary for this diagnostic.
-            cloud_chamber_water_ledger->record_after_dycore(S_new, Geom(lev));
-        }
         advance_microphysics(lev, S_new, dt_lev, iteration, time);
-
-        if (lev == 0 && cloud_chamber_water_ledger) {
-            cloud_chamber_water_ledger->record_after_microphysics(S_new, Geom(lev));
-        }
 
         // Test for NaNs after microphysics
         if (check_for_nans > 0) {
@@ -439,7 +420,4 @@ ERF::Advance (int lev, double time, double dt_lev, int iteration, int /*ncycle*/
         Time_Avg_Vel_atCC(dt[lev], t_avg_cnt[lev], vel_t_avg[lev].get(), U_new, V_new, W_new);
     }
 
-    if (lev == 0 && cloud_chamber_water_ledger) {
-        cloud_chamber_water_ledger->finish_step(S_new, Geom(lev), time + dt_lev);
-    }
 }

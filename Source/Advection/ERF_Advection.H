@@ -49,8 +49,7 @@ void AdvectionSrcForScalars (const amrex::Box& bx,
                              const amrex::Real horiz_upw_frac, const amrex::Real vert_upw_frac,
                              const amrex::GpuArray<const amrex::Array4<amrex::Real>, AMREX_SPACEDIM>& flx_arr,
                              const amrex::Box& domain,
-                             const amrex::BCRec* bc_ptr_h,
-                             const int flux_comp = 0);
+                             const amrex::BCRec* bc_ptr_h);
 
 /** Compute advection tendencies for all components of momentum */
 void AdvectionSrcForMom (const amrex::MFIter& mfi,

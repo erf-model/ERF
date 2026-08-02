@@ -8,7 +8,6 @@
 
 #include "../../../Source/Diffusion/ERF_ResolvedWallFlux.H"
 #include "../../../Source/Prob/ERF_CloudChamber.H"
-#include "../../../Source/Prob/ERF_CloudChamberWaterLedger.H"
 
 using amrex::GpuArray;
 using amrex::Real;
@@ -283,35 +282,6 @@ TEST(CloudChamberFluxStorage, TiledComponentsPreserveEarlierTiles)
         }
         ++checked_tiles;
     }
-}
-
-// Motivation: the production face audit must distinguish a legitimate shared
-// face from a disagreement between two copies.  This test is a deterministic
-// negative control for the x-direction qv face at a prescribed face index.
-// It must detect the signed perturbation rather than merely count the face.
-TEST(CloudChamberFaceAudit, NegativeControlDetectsPrescribedMismatch)
-{
-    constexpr Real reference_flux = Real(2.5);
-    constexpr Real perturbation = Real(0.125);
-    const auto result = CloudChamberWaterLedger::compare_face_values(
-        reference_flux, reference_flux + perturbation);
-
-    EXPECT_TRUE(result.mismatched);
-    EXPECT_DOUBLE_EQ(result.signed_mismatch, perturbation);
-    EXPECT_DOUBLE_EQ(result.absolute_mismatch, perturbation);
-    EXPECT_GT(result.absolute_mismatch, result.tolerance);
-}
-
-// Motivation: two identical reconstructions on an internal face are valid;
-// shared-face presence alone must not fail the audit.
-TEST(CloudChamberFaceAudit, MatchingCopiesAreNotMismatches)
-{
-    const auto result = CloudChamberWaterLedger::compare_face_values(
-        Real(-0.25), Real(-0.25));
-
-    EXPECT_FALSE(result.mismatched);
-    EXPECT_DOUBLE_EQ(result.signed_mismatch, Real(0.0));
-    EXPECT_DOUBLE_EQ(result.absolute_mismatch, Real(0.0));
 }
 
 } // namespace

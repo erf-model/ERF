@@ -20,7 +20,6 @@
 #include "Prob/ERF_CloudChamber.H"
 
 class CloudChamberBudget;
-class CloudChamberWaterLedger;
 
 class ShocDriver;
 
@@ -166,7 +165,6 @@ void erf_slow_rhs_post (int level, int finest_level, int nrk,
                        std::unique_ptr<ReadBndryPlanes>& m_r2d,
                        const amrex::MultiFab* cloud_chamber_base_state,
                        const erf_cloud_chamber::Config* cloud_chamber_config,
-                       CloudChamberBudget* cloud_budget,
-                       CloudChamberWaterLedger* water_ledger);
+                       CloudChamberBudget* cloud_budget);
 
 #endif

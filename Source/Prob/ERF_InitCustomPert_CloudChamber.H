@@ -22,9 +22,8 @@ AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
     "Cloud Chamber: terrain, buildings, and non-Cartesian mesh modes are unsupported");
 if (m_cloud_chamber_config.cloudy) {
     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
-        sc.moisture_type == MoistureType::SatAdj ||
-        sc.moisture_type == MoistureType::MoistNoCondensation,
-        "Cloud Chamber: cloudy mode requires SatAdj or MoistNoCondensation");
+        sc.moisture_type == MoistureType::SatAdj,
+        "Cloud Chamber: cloudy mode requires erf.moisture_model = SatAdj");
 } else {
     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
         sc.moisture_type == MoistureType::None,

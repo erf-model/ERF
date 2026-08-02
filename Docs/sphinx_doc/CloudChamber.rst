@@ -191,31 +191,6 @@ registered parity test compares density, theta, temperature, qv, qc, all three
 velocities, and the corresponding global integrals with budgets enabled and
 disabled.
 
-Advanced scalar-advection audit
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-Set ``erf.cloud_chamber_water_ledger = 1`` to enable the opt-in diagnostic
-ledger used by the conservation regression.  It records the qv/qc right-hand
-side change, an independent reduction of that change, directional divergence
-terms, boundary terms, topology, and an interface-consistency audit.  Rows are
-step summaries; the advection diagnostics are accumulated over the reported
-RK stages, while the interface audit retains per-stage shared and mismatched
-face counts.  The current stage summaries are unweighted accumulations for
-diagnosis, not exact RK-weighted timestep integrals; they must not be used as
-production conservation claims.  In a closed all-dry chamber, the ledger should report
-roundoff-level total-water closure and zero mismatched faces.  Shared faces
-are not errors when their duplicate values agree.  The ledger is diagnostic
-only and does not alter the solution.  The grid-owner audit is currently
-available in serial; on the current distributed AMReX/MPI configuration the
-MPI interface audit is disabled and is reported as unavailable rather than
-being treated as a pass.
-
-The ledger is disabled by default, writes ``cloud_chamber_water_ledger.dat``,
-and can add substantial runtime and memory overhead.  It is intended for
-developer-level numerical diagnosis within the supported Stage 1 Cartesian
-single-level geometry, not for routine scientific output or quantitative
-Pi-Chamber validation.
-
 Complete examples
 -----------------
 
@@ -292,9 +267,6 @@ The registered Stage 1 tests have distinct purposes:
 
 * ``CloudChamberFluxStorage.TiledComponentsPreserveEarlierTiles`` is a
   deterministic tile-lifecycle negative control for shared-FAB resets.
-* ``CloudChamberFaceAudit.NegativeControlDetectsPrescribedMismatch`` verifies
-  that a prescribed face perturbation is detected while matching copies remain
-  valid.
 * ``CloudChamberWallFlux.MultiBoxOwnershipAcrossAllFaces`` covers all six
   orientations and multiple boxes.
 * ``CloudChamber_SatAdj_Parity`` runs paired budget-off/on simulations and
@@ -304,13 +276,10 @@ The registered Stage 1 tests have distinct purposes:
   reporting intervals.
 * ``CloudChamber_SatAdj_OpenMP`` is enabled when ERF is built with OpenMP and
   compares one- and two-thread results.
-* ``CloudChamber_SatAdj_UntiledContainment`` records and checks the actual
-  multi-grid topology used by the broad moisture containment; it does not
-  claim to exercise tiled moisture advection.
 
 These are decomposition and operator regressions, not quantitative LES or
-Pi-Chamber calibration tests.  GPU, sanitizer, single-precision, and extended
-32/64-cubed scientific runs must be reported separately when they are run.
+Pi-Chamber calibration tests.  GPU, sanitizer, and single-precision runs must
+be reported separately when they are run.
 
 Troubleshooting
 ---------------

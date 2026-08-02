@@ -228,22 +228,10 @@ ERF::ERF_shared ()
             if (!cloud_chamber_config.active ||
                 !cloud_chamber_config.physical_initialization ||
                 (solverChoice.moisture_type != MoistureType::None &&
-                 solverChoice.moisture_type != MoistureType::SatAdj &&
-                 solverChoice.moisture_type != MoistureType::MoistNoCondensation)) {
-                Error("Cloud Chamber: cloud_chamber_budget_interval requires physical_temperature_rh with no moisture, SatAdj, or MoistNoCondensation");
+                 solverChoice.moisture_type != MoistureType::SatAdj)) {
+                Error("Cloud Chamber: cloud_chamber_budget_interval requires physical_temperature_rh with no moisture or SatAdj");
             }
             cloud_chamber_budget = std::make_unique<CloudChamberBudget>(budget_interval);
-        }
-        bool water_ledger_enabled = false;
-        pp_erf.query("cloud_chamber_water_ledger", water_ledger_enabled);
-        if (water_ledger_enabled) {
-            if (!cloud_chamber_config.active || !cloud_chamber_config.physical_initialization ||
-                (solverChoice.moisture_type != MoistureType::None &&
-                 solverChoice.moisture_type != MoistureType::SatAdj &&
-                 solverChoice.moisture_type != MoistureType::MoistNoCondensation)) {
-                Error("Cloud Chamber: cloud_chamber_water_ledger requires physical_temperature_rh with no moisture, SatAdj, or MoistNoCondensation");
-            }
-            cloud_chamber_water_ledger = std::make_unique<CloudChamberWaterLedger>(true);
         }
     }
 
