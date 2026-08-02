@@ -410,6 +410,33 @@ if(ERF_ENABLE_EKAT)
         message(STATUS "Removed CXX-scoped CUDA lambda flags from the Kokkos interface")
       endif()
     endif()
+
+    # Native CMake CUDA mode requires consumers that include CUDA-enabled
+    # Kokkos headers to compile as CUDA.  EKAT creates this utility target
+    # before control returns here, so fix its source language without changing
+    # the vendored submodule.
+    if(TARGET ekat_kokkosutils)
+      get_target_property(ERF_EKAT_KOKKOS_SOURCES ekat_kokkosutils SOURCES)
+      if(ERF_EKAT_KOKKOS_SOURCES AND
+         NOT ERF_EKAT_KOKKOS_SOURCES STREQUAL "ERF_EKAT_KOKKOS_SOURCES-NOTFOUND")
+        set_source_files_properties(${ERF_EKAT_KOKKOS_SOURCES}
+          TARGET_DIRECTORY ekat_kokkosutils PROPERTIES LANGUAGE CUDA)
+        foreach(ERF_EKAT_KOKKOS_SOURCE IN LISTS ERF_EKAT_KOKKOS_SOURCES)
+          get_source_file_property(ERF_EKAT_KOKKOS_LANGUAGE ${ERF_EKAT_KOKKOS_SOURCE}
+                                   TARGET_DIRECTORY ekat_kokkosutils LANGUAGE)
+          if(NOT ERF_EKAT_KOKKOS_LANGUAGE STREQUAL "CUDA")
+            message(FATAL_ERROR
+                    "EKAT Kokkos utility source was not configured as CUDA: "
+                    "${ERF_EKAT_KOKKOS_SOURCE}")
+          endif()
+        endforeach()
+        message(STATUS "Configured EKAT Kokkos utility sources for native CUDA")
+      endif()
+    endif()
+
+    unset(ERF_EKAT_KOKKOS_LANGUAGE)
+    unset(ERF_EKAT_KOKKOS_SOURCE)
+    unset(ERF_EKAT_KOKKOS_SOURCES)
     unset(ERF_KOKKOS_INTERFACE_OPTION)
     unset(ERF_KOKKOS_FILTERED_INTERFACE_OPTIONS)
     unset(ERF_KOKKOS_INTERFACE_OPTIONS)
