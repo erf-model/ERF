@@ -142,12 +142,22 @@ Real read_start_time_from_metgrid  (int lev, const std::string& fname);
 ERF::ERF ()
 {
     int fix_random_seed = 0;
-    ParmParse pp("erf"); pp.query("fix_random_seed", fix_random_seed);
+    long random_seed = -1;
+    ParmParse pp("erf");
+    pp.query("fix_random_seed", fix_random_seed);
+    pp.query("random_seed", random_seed);
     // Note that the value of 1024UL is not significant -- the point here is just to set the
     // same seed for all MPI processes for the purpose of regression testing
     if (fix_random_seed) {
         Print() << "Fixing the random seed" << std::endl;
         InitRandom(1024UL, ParallelDescriptor::NProcs(), 1024UL);
+    } else if (random_seed >= 0) {
+        // User-supplied seed: vary the random sampling per run (e.g. across ensemble
+        // realizations), still offset by rank so the ranks draw independent streams.
+        Print() << "Using user random seed " << random_seed << std::endl;
+        auto s = static_cast<unsigned long>(random_seed);
+        InitRandom(s + static_cast<unsigned long>(ParallelDescriptor::MyProc()) + 1UL,
+                   ParallelDescriptor::NProcs(), s * 1234567UL + 12345UL);
     }
 
     ERF_shared();

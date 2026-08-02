@@ -274,10 +274,18 @@ void SuperDropletPC::define (  const std::vector<Species::Name>& a_species_mat,
     {
         unsigned long int seed;
         int fix_seed = 0;
-        ParmParse pp_erf("erf"); pp_erf.query("fix_random_seed", fix_seed);
+        long user_seed = -1;
+        ParmParse pp_erf("erf");
+        pp_erf.query("fix_random_seed", fix_seed);
+        pp_erf.query("random_seed", user_seed);
         if (fix_seed) {
             Print() << "Using fixed seed for SuperDropletPC random engine.\n";
             seed = 1024UL;
+        } else if (user_seed >= 0) {
+            // Seed the collision engine from the user seed so each ensemble realization is a
+            // reproducible draw, offset by rank so the ranks draw independent streams.
+            seed = static_cast<unsigned long int>(user_seed)
+                 + static_cast<unsigned long int>(amrex::ParallelDescriptor::MyProc()) + 1UL;
         } else {
             std::random_device rd;
             std::uniform_int_distribution<unsigned long int> dist(0, std::numeric_limits<unsigned long int>::max());
