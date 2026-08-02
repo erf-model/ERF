@@ -29,7 +29,7 @@ erf.coupling_type = "OneWay"
 erf.refinement_indicators = box1
 erf.box1.max_level = 1
 erf.box1.in_box_lo = 20.0 20.0 0.0
-erf.box1.in_box_hi = 60.0 60.0 200.0
+erf.box1.in_box_hi = 60.0 60.0 400.0
 amr.n_error_buf = 0
 amr.blocking_factor = 1
 
