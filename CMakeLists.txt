@@ -381,6 +381,40 @@ if(ERF_ENABLE_EKAT)
   message(VERBOSE "EKAT binary directory: ${EKAT_BIN}")
   add_subdirectory(${PROJECT_SOURCE_DIR}/Submodules/ekat ${EKAT_BIN})
 
+  # EKAT's SetCudaFlags(kokkoscore) assumes Kokkos CUDA sources use the CXX
+  # language.  With Kokkos' native CMake CUDA-language mode, that call exports
+  # --expt-extended-lambda to downstream CXX targets, where host compilers
+  # reject it.  Remove only the invalid interface expression; kokkoscore's own
+  # CUDA compile options remain untouched.
+  if(ERF_ENABLE_CUDA AND Kokkos_ENABLE_COMPILE_AS_CMAKE_LANGUAGE AND TARGET kokkoscore)
+    get_target_property(ERF_KOKKOS_INTERFACE_OPTIONS kokkoscore INTERFACE_COMPILE_OPTIONS)
+    if(ERF_KOKKOS_INTERFACE_OPTIONS AND
+       NOT ERF_KOKKOS_INTERFACE_OPTIONS STREQUAL "ERF_KOKKOS_INTERFACE_OPTIONS-NOTFOUND")
+      set(ERF_KOKKOS_FILTERED_INTERFACE_OPTIONS ${ERF_KOKKOS_INTERFACE_OPTIONS})
+      list(FILTER ERF_KOKKOS_FILTERED_INTERFACE_OPTIONS EXCLUDE REGEX
+           "COMPILE_LANGUAGE:CXX.*expt-extended-lambda")
+      set_property(TARGET kokkoscore PROPERTY INTERFACE_COMPILE_OPTIONS
+                   "${ERF_KOKKOS_FILTERED_INTERFACE_OPTIONS}")
+
+      foreach(ERF_KOKKOS_INTERFACE_OPTION IN LISTS ERF_KOKKOS_FILTERED_INTERFACE_OPTIONS)
+        if(ERF_KOKKOS_INTERFACE_OPTION MATCHES
+           "COMPILE_LANGUAGE:CXX.*expt-extended-lambda")
+          message(FATAL_ERROR
+                  "Kokkos still exports --expt-extended-lambda to CXX targets")
+        endif()
+      endforeach()
+
+      if(ERF_KOKKOS_FILTERED_INTERFACE_OPTIONS STREQUAL ERF_KOKKOS_INTERFACE_OPTIONS)
+        message(STATUS "Verified Kokkos does not export CUDA lambda flags to CXX targets")
+      else()
+        message(STATUS "Removed CXX-scoped CUDA lambda flags from the Kokkos interface")
+      endif()
+    endif()
+    unset(ERF_KOKKOS_INTERFACE_OPTION)
+    unset(ERF_KOKKOS_FILTERED_INTERFACE_OPTIONS)
+    unset(ERF_KOKKOS_INTERFACE_OPTIONS)
+  endif()
+
   # Print Kokkos properties
   if(TARGET Kokkos::kokkos)
     print_target_properties(Kokkos::kokkos)
