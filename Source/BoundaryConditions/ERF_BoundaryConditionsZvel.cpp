@@ -4,14 +4,21 @@
 
 using namespace amrex;
 
-/*
+/**
  * Impose lateral boundary conditions on z-component of velocity
  *
- * @param[in] dest_arr  Array4 of the quantity to be filled
- * @param[in] bx        box associated with this data
- * @param[in] domain    computational domain
- * @param[in] z_phys_nd height coordinate at nodes
- * @param[in] bccomp    index into m_domain_bcs_type
+ * @param[in,out] dest_arr     Array4 of the quantity to be filled
+ * @param[in]     xvel_arr     x-velocity used to determine upwind Dirichlet inflow
+ * @param[in]     yvel_arr     y-velocity used to determine upwind Dirichlet inflow
+ * @param[in]     bx           box associated with this data
+ * @param[in]     domain       computational domain
+ * @param[in]     mf_u         metric-aware x-velocity used to convert omega to w
+ * @param[in]     mf_v         metric-aware y-velocity used to convert omega to w
+ * @param[in]     z_phys_nd    height coordinate at nodes
+ * @param[in]     dxInv        inverse cell size array
+ * @param[in]     terrain_type terrain type used to decide whether omega conversion is needed
+ * @param[in]     bccomp       index into m_domain_bcs_type
+ * @param[in]     time         time at which the data should be filled
  */
 void ERFPhysBCFunct_w::impose_lateral_zvel_bcs (const Array4<Real      >& dest_arr,
                                                 const Array4<Real const>& xvel_arr,
@@ -165,18 +172,23 @@ void ERFPhysBCFunct_w::impose_lateral_zvel_bcs (const Array4<Real      >& dest_a
     Gpu::streamSynchronize();
 }
 
-/*
+/**
  * Impose vertical boundary conditions on z-component of velocity
  *
- * @param[in] dest_arr  Array4 of the quantity to be filled
- * @param[in] bx        box associated with this data
- * @param[in] domain    computational domain
- * @param[in] z_phys_nd height coordinate at nodes
- * @param[in] dxInv     inverse cell size array
- * @param[in] bccomp_u  index into m_domain_bcs_type corresponding to u
- * @param[in] bccomp_v  index into m_domain_bcs_type corresponding to v
- * @param[in] bccomp_w  index into m_domain_bcs_type corresponding to w
- * @param[in] terrain_type if MovingFittedMesh then the terrain is moving; otherwise fixed
+ * @param[in,out] dest_arr     Array4 of the quantity to be filled
+ * @param[in]     xvel_arr     x-velocity used to convert omega to w
+ * @param[in]     yvel_arr     y-velocity used to convert omega to w
+ * @param[in]     bx           box associated with this data
+ * @param[in]     domain       computational domain
+ * @param[in]     mf_u         metric-aware x-velocity used to convert omega to w
+ * @param[in]     mf_v         metric-aware y-velocity used to convert omega to w
+ * @param[in]     z_phys_nd    height coordinate at nodes
+ * @param[in]     dxInv        inverse cell size array
+ * @param[in]     bccomp_u     index into m_domain_bcs_type corresponding to u
+ * @param[in]     bccomp_v     index into m_domain_bcs_type corresponding to v
+ * @param[in]     bccomp_w     index into m_domain_bcs_type corresponding to w
+ * @param[in]     terrain_type if MovingFittedMesh then the terrain is moving; otherwise fixed
+ * @param[in]     time         time at which the data should be filled
  */
 
 void ERFPhysBCFunct_w::impose_vertical_zvel_bcs (const Array4<Real>& dest_arr,

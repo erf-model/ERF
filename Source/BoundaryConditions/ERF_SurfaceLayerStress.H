@@ -6,7 +6,12 @@
 
 namespace surface_layer_stress {
 
-/** LSM cache value from a conservative face stress. */
+/**
+ * LSM cache value from a conservative face stress.
+ *
+ * @param[in] conservative_stress conservative face stress
+ * @param[in] rho density used to convert to kinematic stress
+ */
 AMREX_GPU_HOST_DEVICE
 AMREX_FORCE_INLINE
 amrex::Real
@@ -16,7 +21,13 @@ conservative_to_kinematic_stress(
   return conservative_stress / rho;
 }
 
-/** Test one LSM side without coupling validity to another component's handle.
+/**
+ * Test one LSM side without coupling validity to another component's handle.
+ *
+ * @param[in] has_flux whether the LSM flux array exists
+ * @param[in] is_land whether the side is classified as land
+ * @param[in] flux flux value to test against the undefined sentinel
+ * @param[in] undefined sentinel value marking undefined LSM fluxes
  */
 AMREX_GPU_HOST_DEVICE
 AMREX_FORCE_INLINE
@@ -38,6 +49,14 @@ struct FaceStressResult
  * Combine cell-centered kinematic LSM stresses with a conservative MOST
  * fallback stress at one face. The returned cache values are always
  * kinematic, while face_stress is always conservative.
+ *
+ * @param[in] rho_low density on the low-side cell
+ * @param[in] rho_high density on the high-side cell
+ * @param[in] kinematic_low low-side LSM kinematic stress
+ * @param[in] kinematic_high high-side LSM kinematic stress
+ * @param[in] low_valid whether the low-side LSM stress is valid
+ * @param[in] high_valid whether the high-side LSM stress is valid
+ * @param[in] most_face_stress conservative MOST fallback stress at the face
  */
 AMREX_GPU_HOST_DEVICE
 AMREX_FORCE_INLINE

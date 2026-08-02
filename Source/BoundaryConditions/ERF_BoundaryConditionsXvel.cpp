@@ -3,13 +3,16 @@
 
 using namespace amrex;
 
-/*
+/**
  * Impose lateral boundary conditions on x-component of velocity
  *
- * @param[in] dest_arr Array4 of the quantity to be filled
- * @param[in] bx       box associated with this data
- * @param[in] domain   computational domain
- * @param[in] bccomp   index into m_domain_bcs_type
+ * @param[in,out] dest_arr Array4 of the quantity to be filled
+ * @param[in]     xvel_arr x-velocity used to determine upwind Dirichlet inflow
+ * @param[in]     yvel_arr y-velocity used to determine upwind Dirichlet inflow
+ * @param[in]     bx       box associated with this data
+ * @param[in]     domain   computational domain
+ * @param[in]     bccomp   index into m_domain_bcs_type
+ * @param[in]     time     time at which the data should be filled
  */
 
 void ERFPhysBCFunct_u::impose_lateral_xvel_bcs (const Array4<Real>& dest_arr,
@@ -180,15 +183,16 @@ void ERFPhysBCFunct_u::impose_lateral_xvel_bcs (const Array4<Real>& dest_arr,
     Gpu::streamSynchronize();
 }
 
-/*
+/**
  * Impose vertical boundary conditions on x-component of velocity
  *
- * @param[in] dest_arr  the Array4 of the quantity to be filled
- * @param[in] bx        the box associated with this data
- * @param[in] domain    the computational domain
- * @param[in] z_phys_nd height coordinate at nodes
- * @param[in] dxInv     inverse cell size array
- * @param[in] bccomp    index into m_domain_bcs_type
+ * @param[in,out] dest_arr  the Array4 of the quantity to be filled
+ * @param[in]     bx        the box associated with this data
+ * @param[in]     domain    the computational domain
+ * @param[in]     z_phys_nd height coordinate at nodes
+ * @param[in]     dxInv     inverse cell size array
+ * @param[in]     bccomp    index into m_domain_bcs_type
+ * @param[in]     time      time at which the data should be filled
  */
 void ERFPhysBCFunct_u::impose_vertical_xvel_bcs (const Array4<Real>& dest_arr,
                                                  const Box& bx, const Box& domain,

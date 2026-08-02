@@ -10,9 +10,11 @@ using namespace amrex;
  * Constructor for MOSTAverage class.
  *
  * @param[in] geom Container for geometric information at each level
- * @param[in] vars_old Conserved variables at each level
- * @param[in] Theta_prim Primitive theta component at each level
- * @param[in] z_phys_nd Physical heights at each level
+ * @param[in] has_zphys Whether physical height data is available
+ * @param[in] a_pp_prefix ParmParse prefix for MOST inputs
+ * @param[in] mesh_type Mesh type for the simulation
+ * @param[in] terrain_type Terrain type for the simulation
+ * @param[in] eb_vec Embedded-boundary data at each level
  */
 MOSTAverage::MOSTAverage (Vector<Geometry>  geom,
                           const bool& has_zphys,
@@ -86,6 +88,16 @@ MOSTAverage::MOSTAverage (Vector<Geometry>  geom,
     m_k_indx.resize(m_maxlev);
 }
 
+/**
+ * Make MOSTAverage data structures at one level.
+ *
+ * @param[in] lev Current level
+ * @param[in] vars_old State data used by the average calculator
+ * @param[in] Theta_prim Primitive theta component at this level
+ * @param[in] Qv_prim Primitive water-vapor component at this level
+ * @param[in] Qr_prim Primitive rain-water component at this level
+ * @param[in] z_phys_nd Nodal physical height at this level
+ */
 void
 MOSTAverage::make_MOSTAverage_at_level (const int& lev,
                                         const Vector<MultiFab*>& vars_old,
@@ -274,6 +286,8 @@ MOSTAverage::make_MOSTAverage_at_level (const int& lev,
  * @param[in] lev Current level
  * @param[in] vars_old Conserved variables at each level
  * @param[in] Theta_prim Primitive theta component at each level
+ * @param[in] Qv_prim Primitive water-vapor component at each level
+ * @param[in] Qr_prim Primitive rain-water component at each level
  */
 void
 MOSTAverage::update_field_ptrs (const int& lev,
@@ -293,6 +307,7 @@ MOSTAverage::update_field_ptrs (const int& lev,
 /**
  * Function to set the rotated velocities.
  *
+ * @param[in] lev Current level
  */
 void
 MOSTAverage::set_rotated_fields (const int& lev)
@@ -352,6 +367,7 @@ MOSTAverage::set_rotated_fields (const int& lev)
 /**
  * Function to compute normalization for plane average.
  *
+ * @param[in] lev Current level
  */
 void
 MOSTAverage::set_plane_normalization (const int& lev)
@@ -409,6 +425,7 @@ MOSTAverage::set_plane_normalization (const int& lev)
 /**
  * Function to compute normalization for average over EB.
  *
+ * @param[in] lev Current level
  */
 void
 MOSTAverage::set_eb_normalization (const int& lev)
@@ -497,6 +514,7 @@ MOSTAverage::set_eb_normalization (const int& lev)
 /**
  * Function to set K indices without terrain.
  *
+ * @param[in] lev Current level
  */
 void
 MOSTAverage::set_k_indices_N (const int& lev)
@@ -553,6 +571,7 @@ MOSTAverage::set_k_indices_N (const int& lev)
 /**
  * Function to set K indices for EB.
  *
+ * @param[in] lev Current level
  */
 void
 MOSTAverage::set_z_positions_EB (const int& lev)
@@ -575,6 +594,7 @@ MOSTAverage::set_z_positions_EB (const int& lev)
 /**
  * Function to set K indices with terrain (w/o terrain normals or interpolation).
  *
+ * @param[in] lev Current level
  */
 void
 MOSTAverage::set_k_indices_T (const int& lev)
@@ -655,6 +675,7 @@ MOSTAverage::set_k_indices_T (const int& lev)
 /**
  * Function to set I,J,K indices with terrain normals (w/o interpolation).
  *
+ * @param[in] lev Current level
  */
 void
 MOSTAverage::set_norm_indices_T (const int& lev)
@@ -743,6 +764,7 @@ MOSTAverage::set_norm_indices_T (const int& lev)
 /**
  * Function to set positions with terrain and e_z vector (with interpolation but no terrain normals)
  *
+ * @param[in] lev Current level
  */
 void
 MOSTAverage::set_z_positions_T (const int& lev)
@@ -806,6 +828,7 @@ MOSTAverage::set_z_positions_T (const int& lev)
 /**
  * Function to set positions with terrain and normal vector (with interpolation).
  *
+ * @param[in] lev Current level
  */
 void
 MOSTAverage::set_norm_positions_T (const int& lev)
