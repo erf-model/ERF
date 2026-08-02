@@ -101,6 +101,10 @@ void erf_slow_rhs_post (int level, int finest_level,
 {
     BL_PROFILE_REGION("erf_slow_rhs_post()");
 
+    if (water_ledger != nullptr) {
+        water_ledger->begin_advection_stage();
+    }
+
     Real dt = static_cast<Real>(dt_d);
 
     const BCRec* bc_ptr_d = domain_bcs_type_d.data();
@@ -229,6 +233,7 @@ void erf_slow_rhs_post (int level, int finest_level,
 #endif
     {
       std::array<FArrayBox,AMREX_SPACEDIM> flux;
+      FArrayBox rhs_before_advection;
 
       int start_comp;
       int   num_comp;
@@ -241,7 +246,16 @@ void erf_slow_rhs_post (int level, int finest_level,
           physbnd_mask.BuildMask(geom.Domain(), geom.periodicity(), 1, 1, 0, 1);
       }
 
-      for (MFIter mfi(S_data[IntVars::cons],TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+      // The multi-component moisture advection call reconstructs a shared
+      // face independently for each CPU tile.  Until that operator has a
+      // persistent, uniquely-owned face-flux implementation, keep this
+      // bounded containment in place for moisture states so both neighboring
+      // cells consume the same untiled reconstruction.  Dry/TKE-only paths
+      // retain the established CPU tiling behavior.
+      const bool tile_slow_rhs = (n_qstate == 0);
+      for (MFIter mfi(S_data[IntVars::cons],
+                      tile_slow_rhs ? TilingIfNotGPU() : false);
+           mfi.isValid(); ++mfi) {
 
         Box tbx  = mfi.tilebox();
 
@@ -282,6 +296,12 @@ void erf_slow_rhs_post (int level, int finest_level,
 
         const Array4<const Real> & u = xvel.array(mfi);
         const Array4<const Real> & v = yvel.array(mfi);
+
+        Array4<Real> rhs_before_advection_arr{};
+        if (water_ledger != nullptr && n_qstate == 2) {
+            rhs_before_advection.resize(tbx, n_qstate, The_Async_Arena());
+            rhs_before_advection_arr = rhs_before_advection.array();
+        }
 
         const Array4<const Real>& z_nd         = z_phys_nd->const_array(mfi);
         const Array4<const Real>& z_cc         = z_phys_cc->const_array(mfi);
@@ -460,9 +480,14 @@ void erf_slow_rhs_post (int level, int finest_level,
                         n_qstate == 2) {
                         Real* pre_advection_qv = water_ledger->pre_advection_rhs_ptr(CloudChamberWaterLedger::Qv);
                         Real* pre_advection_qc = water_ledger->pre_advection_rhs_ptr(CloudChamberWaterLedger::Qc);
-                        ParallelFor(tbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                            Gpu::Atomic::Add(pre_advection_qv, cell_rhs(i,j,k,RhoQ1_comp));
-                            Gpu::Atomic::Add(pre_advection_qc, cell_rhs(i,j,k,RhoQ2_comp));
+                        ParallelFor(tbx, n_qstate, [=] AMREX_GPU_DEVICE (int i, int j, int k, int nn) noexcept {
+                            const Real value = cell_rhs(i,j,k,RhoQ1_comp+nn);
+                            rhs_before_advection_arr(i,j,k,nn) = value;
+                            if (nn == 0) {
+                                Gpu::Atomic::Add(pre_advection_qv, value);
+                            } else {
+                                Gpu::Atomic::Add(pre_advection_qc, value);
+                            }
                         });
                     }
                     if (!l_eb_terrain_cc){
@@ -486,6 +511,27 @@ void erf_slow_rhs_post (int level, int finest_level,
                                                  already_on_centroids);
                     }
 
+                    if (water_ledger != nullptr && ivar == RhoQ1_comp &&
+                        n_qstate == 2 && !l_use_eb) {
+                        for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
+                            const Box face_box = surroundingNodes(tbx, dir);
+                            const Array4<Real> face_audit =
+                                water_ledger->face_audit_array(dir, mfi);
+                            const Array4<const Real> flux_arr = flx_arr[dir];
+                            ParallelFor(face_box, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                                const Real qv_flux = flux_arr(i,j,k,RhoQ1_comp);
+                                const Real qc_flux = flux_arr(i,j,k,RhoQ2_comp);
+                                Gpu::Atomic::Add(&face_audit(i,j,k,CloudChamberWaterLedger::FaceSumQv), qv_flux);
+                                Gpu::Atomic::Add(&face_audit(i,j,k,CloudChamberWaterLedger::FaceSumQc), qc_flux);
+                                Gpu::Atomic::Min(&face_audit(i,j,k,CloudChamberWaterLedger::FaceMinQv), qv_flux);
+                                Gpu::Atomic::Min(&face_audit(i,j,k,CloudChamberWaterLedger::FaceMinQc), qc_flux);
+                                Gpu::Atomic::Max(&face_audit(i,j,k,CloudChamberWaterLedger::FaceMaxQv), qv_flux);
+                                Gpu::Atomic::Max(&face_audit(i,j,k,CloudChamberWaterLedger::FaceMaxQc), qc_flux);
+                                Gpu::Atomic::Add(&face_audit(i,j,k,CloudChamberWaterLedger::FaceCount), Real(1.0));
+                            });
+                        }
+                    }
+
                     // Record the net advective water flux through the six
                     // physical faces.  For a closed no-slip chamber this
                     // should be zero; keeping it separate from diffusion
@@ -501,6 +547,11 @@ void erf_slow_rhs_post (int level, int finest_level,
                         Real* raw_divergence_qc = water_ledger->raw_advection_divergence_ptr(CloudChamberWaterLedger::Qc);
                         Real* weighted_divergence_qv = water_ledger->weighted_advection_divergence_ptr(CloudChamberWaterLedger::Qv);
                         Real* weighted_divergence_qc = water_ledger->weighted_advection_divergence_ptr(CloudChamberWaterLedger::Qc);
+                        Real* advection_delta_qv = water_ledger->advection_delta_ptr(CloudChamberWaterLedger::Qv);
+                        Real* advection_delta_qc = water_ledger->advection_delta_ptr(CloudChamberWaterLedger::Qc);
+                        Real* raw_divergence_abs_qv = water_ledger->raw_advection_divergence_abs_ptr(CloudChamberWaterLedger::Qv);
+                        Real* raw_divergence_abs_qc = water_ledger->raw_advection_divergence_abs_ptr(CloudChamberWaterLedger::Qc);
+                        Array4<Real> diagnostic_arr = water_ledger->advection_diagnostics_array(mfi);
                         const Real x_area = dx[1] * dx[2];
                         const Real y_area = dx[0] * dx[2];
                         const Real z_area = dx[0] * dx[1];
@@ -511,49 +562,94 @@ void erf_slow_rhs_post (int level, int finest_level,
                         const int dlo_z = domain.smallEnd(2);
                         const int dhi_z = domain.bigEnd(2);
                         ParallelFor(tbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                            Gpu::Atomic::Add(advection_rhs_qv, cell_rhs(i,j,k,RhoQ1_comp));
-                            Gpu::Atomic::Add(advection_rhs_qc, cell_rhs(i,j,k,RhoQ2_comp));
-                            const Real qv_divergence =
-                                (flx_arr[0](i+1,j,k,RhoQ1_comp) - flx_arr[0](i,j,k,RhoQ1_comp)) * dxInv[0] +
-                                (flx_arr[1](i,j+1,k,RhoQ1_comp) - flx_arr[1](i,j,k,RhoQ1_comp)) * dxInv[1] +
+                            const Real qv_rhs_before = rhs_before_advection_arr(i,j,k,0);
+                            const Real qc_rhs_before = rhs_before_advection_arr(i,j,k,1);
+                            const Real qv_rhs_after = cell_rhs(i,j,k,RhoQ1_comp);
+                            const Real qc_rhs_after = cell_rhs(i,j,k,RhoQ2_comp);
+                            const Real qv_delta = qv_rhs_after - qv_rhs_before;
+                            const Real qc_delta = qc_rhs_after - qc_rhs_before;
+                            Gpu::Atomic::Add(advection_rhs_qv, qv_rhs_after);
+                            Gpu::Atomic::Add(advection_rhs_qc, qc_rhs_after);
+                            Gpu::Atomic::Add(advection_delta_qv, qv_delta);
+                            Gpu::Atomic::Add(advection_delta_qc, qc_delta);
+                            diagnostic_arr(i,j,k,CloudChamberWaterLedger::DeltaQv) += qv_delta;
+                            diagnostic_arr(i,j,k,CloudChamberWaterLedger::DeltaQc) += qc_delta;
+                            diagnostic_arr(i,j,k,CloudChamberWaterLedger::AbsDeltaQv) += amrex::Math::abs(qv_delta);
+                            diagnostic_arr(i,j,k,CloudChamberWaterLedger::AbsDeltaQc) += amrex::Math::abs(qc_delta);
+
+                            const Real qv_x =
+                                (flx_arr[0](i+1,j,k,RhoQ1_comp) - flx_arr[0](i,j,k,RhoQ1_comp)) * dxInv[0];
+                            const Real qv_y =
+                                (flx_arr[1](i,j+1,k,RhoQ1_comp) - flx_arr[1](i,j,k,RhoQ1_comp)) * dxInv[1];
+                            const Real qv_z =
                                 (flx_arr[2](i,j,k+1,RhoQ1_comp) - flx_arr[2](i,j,k,RhoQ1_comp)) * dxInv[2];
-                            const Real qc_divergence =
-                                (flx_arr[0](i+1,j,k,RhoQ2_comp) - flx_arr[0](i,j,k,RhoQ2_comp)) * dxInv[0] +
-                                (flx_arr[1](i,j+1,k,RhoQ2_comp) - flx_arr[1](i,j,k,RhoQ2_comp)) * dxInv[1] +
+                            const Real qc_x =
+                                (flx_arr[0](i+1,j,k,RhoQ2_comp) - flx_arr[0](i,j,k,RhoQ2_comp)) * dxInv[0];
+                            const Real qc_y =
+                                (flx_arr[1](i,j+1,k,RhoQ2_comp) - flx_arr[1](i,j,k,RhoQ2_comp)) * dxInv[1];
+                            const Real qc_z =
                                 (flx_arr[2](i,j,k+1,RhoQ2_comp) - flx_arr[2](i,j,k,RhoQ2_comp)) * dxInv[2];
+                            const Real qv_divergence = qv_x + qv_y + qv_z;
+                            const Real qc_divergence = qc_x + qc_y + qc_z;
                             Gpu::Atomic::Add(raw_divergence_qv, qv_divergence);
                             Gpu::Atomic::Add(raw_divergence_qc, qc_divergence);
+                            Gpu::Atomic::Add(raw_divergence_abs_qv, amrex::Math::abs(qv_divergence));
+                            Gpu::Atomic::Add(raw_divergence_abs_qc, amrex::Math::abs(qc_divergence));
                             const Real metric_weight = mf_mx(i,j,0) * mf_my(i,j,0) / detJ_arr(i,j,k);
                             Gpu::Atomic::Add(weighted_divergence_qv, metric_weight * qv_divergence);
                             Gpu::Atomic::Add(weighted_divergence_qc, metric_weight * qc_divergence);
-                            Real qv_boundary = zero;
-                            Real qc_boundary = zero;
+                            diagnostic_arr(i,j,k,CloudChamberWaterLedger::RawXQv) += qv_x;
+                            diagnostic_arr(i,j,k,CloudChamberWaterLedger::RawXQc) += qc_x;
+                            diagnostic_arr(i,j,k,CloudChamberWaterLedger::RawYQv) += qv_y;
+                            diagnostic_arr(i,j,k,CloudChamberWaterLedger::RawYQc) += qc_y;
+                            diagnostic_arr(i,j,k,CloudChamberWaterLedger::RawZQv) += qv_z;
+                            diagnostic_arr(i,j,k,CloudChamberWaterLedger::RawZQc) += qc_z;
+                            diagnostic_arr(i,j,k,CloudChamberWaterLedger::WeightedXQv) += metric_weight * qv_x;
+                            diagnostic_arr(i,j,k,CloudChamberWaterLedger::WeightedXQc) += metric_weight * qc_x;
+                            diagnostic_arr(i,j,k,CloudChamberWaterLedger::WeightedYQv) += metric_weight * qv_y;
+                            diagnostic_arr(i,j,k,CloudChamberWaterLedger::WeightedYQc) += metric_weight * qc_y;
+                            diagnostic_arr(i,j,k,CloudChamberWaterLedger::WeightedZQv) += metric_weight * qv_z;
+                            diagnostic_arr(i,j,k,CloudChamberWaterLedger::WeightedZQc) += metric_weight * qc_z;
+                            diagnostic_arr(i,j,k,CloudChamberWaterLedger::AbsRawQv) += amrex::Math::abs(qv_divergence);
+                            diagnostic_arr(i,j,k,CloudChamberWaterLedger::AbsRawQc) += amrex::Math::abs(qc_divergence);
+                            Real qv_boundary_x = zero;
+                            Real qc_boundary_x = zero;
+                            Real qv_boundary_y = zero;
+                            Real qc_boundary_y = zero;
+                            Real qv_boundary_z = zero;
+                            Real qc_boundary_z = zero;
                             if (i == dlo_x) {
-                                qv_boundary += flx_arr[0](i,j,k,RhoQ1_comp) * x_area;
-                                qc_boundary += flx_arr[0](i,j,k,RhoQ2_comp) * x_area;
+                                qv_boundary_x += flx_arr[0](i,j,k,RhoQ1_comp) * x_area;
+                                qc_boundary_x += flx_arr[0](i,j,k,RhoQ2_comp) * x_area;
                             }
                             if (i == dhi_x) {
-                                qv_boundary -= flx_arr[0](i+1,j,k,RhoQ1_comp) * x_area;
-                                qc_boundary -= flx_arr[0](i+1,j,k,RhoQ2_comp) * x_area;
+                                qv_boundary_x -= flx_arr[0](i+1,j,k,RhoQ1_comp) * x_area;
+                                qc_boundary_x -= flx_arr[0](i+1,j,k,RhoQ2_comp) * x_area;
                             }
                             if (j == dlo_y) {
-                                qv_boundary += flx_arr[1](i,j,k,RhoQ1_comp) * y_area;
-                                qc_boundary += flx_arr[1](i,j,k,RhoQ2_comp) * y_area;
+                                qv_boundary_y += flx_arr[1](i,j,k,RhoQ1_comp) * y_area;
+                                qc_boundary_y += flx_arr[1](i,j,k,RhoQ2_comp) * y_area;
                             }
                             if (j == dhi_y) {
-                                qv_boundary -= flx_arr[1](i,j+1,k,RhoQ1_comp) * y_area;
-                                qc_boundary -= flx_arr[1](i,j+1,k,RhoQ2_comp) * y_area;
+                                qv_boundary_y -= flx_arr[1](i,j+1,k,RhoQ1_comp) * y_area;
+                                qc_boundary_y -= flx_arr[1](i,j+1,k,RhoQ2_comp) * y_area;
                             }
                             if (k == dlo_z) {
-                                qv_boundary += flx_arr[2](i,j,k,RhoQ1_comp) * z_area;
-                                qc_boundary += flx_arr[2](i,j,k,RhoQ2_comp) * z_area;
+                                qv_boundary_z += flx_arr[2](i,j,k,RhoQ1_comp) * z_area;
+                                qc_boundary_z += flx_arr[2](i,j,k,RhoQ2_comp) * z_area;
                             }
                             if (k == dhi_z) {
-                                qv_boundary -= flx_arr[2](i,j,k+1,RhoQ1_comp) * z_area;
-                                qc_boundary -= flx_arr[2](i,j,k+1,RhoQ2_comp) * z_area;
+                                qv_boundary_z -= flx_arr[2](i,j,k+1,RhoQ1_comp) * z_area;
+                                qc_boundary_z -= flx_arr[2](i,j,k+1,RhoQ2_comp) * z_area;
                             }
-                            Gpu::Atomic::Add(advective_qv, qv_boundary);
-                            Gpu::Atomic::Add(advective_qc, qc_boundary);
+                            Gpu::Atomic::Add(advective_qv, qv_boundary_x + qv_boundary_y + qv_boundary_z);
+                            Gpu::Atomic::Add(advective_qc, qc_boundary_x + qc_boundary_y + qc_boundary_z);
+                            diagnostic_arr(i,j,k,CloudChamberWaterLedger::BoundaryXQv) += qv_boundary_x;
+                            diagnostic_arr(i,j,k,CloudChamberWaterLedger::BoundaryXQc) += qc_boundary_x;
+                            diagnostic_arr(i,j,k,CloudChamberWaterLedger::BoundaryYQv) += qv_boundary_y;
+                            diagnostic_arr(i,j,k,CloudChamberWaterLedger::BoundaryYQc) += qc_boundary_y;
+                            diagnostic_arr(i,j,k,CloudChamberWaterLedger::BoundaryZQv) += qv_boundary_z;
+                            diagnostic_arr(i,j,k,CloudChamberWaterLedger::BoundaryZQc) += qc_boundary_z;
                         });
                     }
                 }

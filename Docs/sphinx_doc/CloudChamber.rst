@@ -191,6 +191,23 @@ registered parity test compares density, theta, temperature, qv, qc, all three
 velocities, and the corresponding global integrals with budgets enabled and
 disabled.
 
+Advanced scalar-advection audit
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Set ``erf.cloud_chamber_water_ledger = 1`` to enable the opt-in diagnostic
+ledger used by the conservation regression.  It records the qv/qc right-hand
+side change, an independent reduction of that change, directional divergence
+terms, boundary terms, and a shared-face audit.  In a closed all-dry chamber,
+the ledger should report roundoff-level total-water closure and zero shared
+face mismatches.  The ledger is diagnostic only and does not alter the
+solution.  The registered ``CloudChamber_SatAdj_TiledConservation`` test
+exercises a multi-box case with a deliberately small CPU tile size.
+
+The diagnostic ledger is intended for localization of conservation failures,
+not for production output or physical validation.  Do not interpret a
+successful ledger row as validation of the cloud-chamber thermodynamics or as
+permission to resume a previously interrupted 64^3 experiment.
+
 Complete examples
 -----------------
 

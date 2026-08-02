@@ -11,6 +11,7 @@
 #include <fstream>
 #include <iostream>
 #include <limits>
+#include <map>
 #include <sstream>
 #include <string>
 #include <vector>
@@ -175,14 +176,116 @@ bool check_budget_rows (const std::vector<BudgetRow>& rows,
     return true;
 }
 
+bool check_ledger (const std::string& path, std::string& error)
+{
+    std::ifstream in(path);
+    if (!in) {
+        error = "cannot open water ledger " + path;
+        return false;
+    }
+
+    std::string line;
+    if (!std::getline(in, line) || line.empty() || line[0] != '#') {
+        error = "water ledger is missing its header";
+        return false;
+    }
+    std::istringstream header(line.substr(1));
+    std::vector<std::string> names;
+    std::string name;
+    while (header >> name) { names.push_back(name); }
+
+    const std::vector<std::string> required = {
+        "advection_rhs_delta_atomic_qv", "advection_rhs_delta_atomic_qc",
+        "advection_rhs_delta_stable_qv", "advection_rhs_delta_stable_qc",
+        "stable_raw_divergence_x_qv", "stable_raw_divergence_x_qc",
+        "stable_raw_divergence_y_qv", "stable_raw_divergence_y_qc",
+        "stable_raw_divergence_z_qv", "stable_raw_divergence_z_qc",
+        "stable_boundary_flux_x_qv", "stable_boundary_flux_x_qc",
+        "stable_boundary_flux_y_qv", "stable_boundary_flux_y_qc",
+        "stable_boundary_flux_z_qv", "stable_boundary_flux_z_qc",
+        "tile_face_mismatch_max_x_qv", "tile_face_mismatch_max_x_qc",
+        "tile_face_mismatch_max_y_qv", "tile_face_mismatch_max_y_qc",
+        "tile_face_mismatch_max_z_qv", "tile_face_mismatch_max_z_qc",
+        "tile_face_mismatch_count_x", "tile_face_mismatch_count_y",
+        "tile_face_mismatch_count_z"};
+    std::map<std::string, std::size_t> index;
+    for (std::size_t i = 0; i < names.size(); ++i) { index[names[i]] = i; }
+    for (const auto& required_name : required) {
+        if (index.find(required_name) == index.end()) {
+            error = "water ledger is missing column " + required_name;
+            return false;
+        }
+    }
+
+    const Real tolerance = Real(1.0e-12);
+    int rows = 0;
+    while (std::getline(in, line)) {
+        if (line.empty() || line[0] == '#') { continue; }
+        std::istringstream fields(line);
+        std::vector<Real> values;
+        Real value = Real(0.0);
+        while (fields >> value) { values.push_back(value); }
+        if (values.size() != names.size()) {
+            error = "malformed water-ledger row";
+            return false;
+        }
+        ++rows;
+        auto get = [&](const std::string& column) { return values[index[column]]; };
+        const Real atomic = std::abs(get("advection_rhs_delta_atomic_qv")) +
+                            std::abs(get("advection_rhs_delta_atomic_qc"));
+        const Real stable = std::abs(get("advection_rhs_delta_stable_qv")) +
+                            std::abs(get("advection_rhs_delta_stable_qc"));
+        const Real raw_qv = std::abs(get("stable_raw_divergence_x_qv") +
+                                     get("stable_raw_divergence_y_qv") +
+                                     get("stable_raw_divergence_z_qv"));
+        const Real raw_qc = std::abs(get("stable_raw_divergence_x_qc") +
+                                     get("stable_raw_divergence_y_qc") +
+                                     get("stable_raw_divergence_z_qc"));
+        const Real boundary = std::abs(get("stable_boundary_flux_x_qv")) +
+                              std::abs(get("stable_boundary_flux_x_qc")) +
+                              std::abs(get("stable_boundary_flux_y_qv")) +
+                              std::abs(get("stable_boundary_flux_y_qc")) +
+                              std::abs(get("stable_boundary_flux_z_qv")) +
+                              std::abs(get("stable_boundary_flux_z_qc"));
+        const Real mismatch = std::max({
+            get("tile_face_mismatch_max_x_qv"), get("tile_face_mismatch_max_x_qc"),
+            get("tile_face_mismatch_max_y_qv"), get("tile_face_mismatch_max_y_qc"),
+            get("tile_face_mismatch_max_z_qv"), get("tile_face_mismatch_max_z_qc")});
+        const Real count = get("tile_face_mismatch_count_x") +
+                           get("tile_face_mismatch_count_y") +
+                           get("tile_face_mismatch_count_z");
+        if (atomic > tolerance || stable > tolerance || raw_qv > tolerance ||
+            raw_qc > tolerance || boundary > tolerance || mismatch > tolerance ||
+            count != Real(0.0)) {
+            error = "tiled scalar conservation contract failed at ledger row " +
+                    std::to_string(rows);
+            return false;
+        }
+    }
+    if (rows == 0) {
+        error = "water ledger contains no data rows";
+        return false;
+    }
+    return true;
+}
+
 } // namespace
 
 int main (int argc, char** argv)
 {
+    if (argc == 3 && std::string(argv[1]) == "ledger") {
+        amrex::Initialize(argc, argv, false);
+        std::string error;
+        const bool ok = check_ledger(argv[2], error);
+        if (ok) { std::cout << "ledger_conservation=PASS rows>0\n"; }
+        amrex::Finalize();
+        return ok ? 0 : fail(error);
+    }
     if (argc != 4 && argc != 5) {
         std::cerr << "usage: checker mode initial_plotfile final_plotfile\n"
                   << "       checker parity budget_off_plotfile budget_on_plotfile\n"
-                  << "       checker all_dry|wet_budget initial_plotfile final_plotfile budget_file\n";
+                  << "       checker all_dry|wet_budget initial_plotfile final_plotfile budget_file\n"
+                  << "       checker ledger cloud_chamber_water_ledger.dat\n";
         return 2;
     }
 

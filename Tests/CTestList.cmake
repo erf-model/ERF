@@ -253,6 +253,31 @@ function(add_test_cloud_chamber_openmp TEST_NAME)
         ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/omp_1_thread/simulation.log;${CURRENT_TEST_BINARY_DIR}/omp_2_threads/simulation.log;${CURRENT_TEST_BINARY_DIR}/openmp_parity.log")
 endfunction(add_test_cloud_chamber_openmp)
 
+# Regression motivation: the moisture scalar operator must not reconstruct
+# different qv/qc fluxes on the two sides of a CPU tile interface.  This test
+# forces an 8^3 tile layout and validates the opt-in ledger's independent
+# face audit, rather than accepting a state-integral tolerance alone.
+function(add_test_cloud_chamber_conservation TEST_NAME)
+    set(TEST_FILES_DIR "CloudChamber_SatAdj_AllDry")
+    setup_test()
+    resolve_test_exe("" "erf_exec" TEST_EXE)
+    add_test(${TEST_NAME} ${CMAKE_COMMAND}
+        -DMPIEXEC=${MPIEXEC_EXECUTABLE}
+        -DMPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}
+        -DTEST_EXE=${TEST_EXE}
+        -DINPUT=${CURRENT_TEST_BINARY_DIR}/CloudChamber_SatAdj_AllDry.i
+        -DWORKING_DIRECTORY=${CURRENT_TEST_BINARY_DIR}
+        -DCHECKER=${CLOUD_CHAMBER_CHECKER}
+        -P ${PROJECT_SOURCE_DIR}/Tests/RunCloudChamberConservation.cmake)
+    set_tests_properties(${TEST_NAME}
+        PROPERTIES
+        TIMEOUT 900
+        PROCESSORS 1
+        WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
+        LABELS "regression;cloud-chamber;conservation"
+        ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/simulation.log;${CURRENT_TEST_BINARY_DIR}/checker.log;${CURRENT_TEST_BINARY_DIR}/cloud_chamber_water_ledger.dat")
+endfunction(add_test_cloud_chamber_conservation)
+
 # Native SHOC regression test.  This intentionally remains separate from
 # add_test_r so existing registrations retain their exact command and
 # fixture behaviour.  TEST_FILES_DIR and INPUT_FILE allow the small SHOC
@@ -381,6 +406,7 @@ add_test_cloud_chamber_budget(CloudChamber_SatAdj_WetBudget wet_budget CloudCham
 if(ERF_ENABLE_OPENMP)
 add_test_cloud_chamber_openmp(CloudChamber_SatAdj_OpenMP)
 endif()
+add_test_cloud_chamber_conservation(CloudChamber_SatAdj_TiledConservation)
 add_test(SHOC_Unstable_Cloud_SatAdj_vs_NoCond
     ${MPIEXEC_EXECUTABLE} ${MPIEXEC_NUMPROC_FLAG} 1 ${MPIEXEC_PREFLAGS}
     ${SHOC_MICROPHYSICS_DIFFERENTIAL}
