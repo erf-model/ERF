@@ -417,25 +417,41 @@ if(ERF_ENABLE_EKAT)
     # the vendored submodule.
     if(TARGET ekat_kokkosutils)
       get_target_property(ERF_EKAT_KOKKOS_SOURCES ekat_kokkosutils SOURCES)
+      get_target_property(ERF_EKAT_KOKKOS_SOURCE_DIR ekat_kokkosutils SOURCE_DIR)
       if(ERF_EKAT_KOKKOS_SOURCES AND
-         NOT ERF_EKAT_KOKKOS_SOURCES STREQUAL "ERF_EKAT_KOKKOS_SOURCES-NOTFOUND")
-        set_source_files_properties(${ERF_EKAT_KOKKOS_SOURCES}
-          TARGET_DIRECTORY ekat_kokkosutils PROPERTIES LANGUAGE CUDA)
+         NOT ERF_EKAT_KOKKOS_SOURCES STREQUAL "ERF_EKAT_KOKKOS_SOURCES-NOTFOUND" AND
+         ERF_EKAT_KOKKOS_SOURCE_DIR AND
+         NOT ERF_EKAT_KOKKOS_SOURCE_DIR STREQUAL "ERF_EKAT_KOKKOS_SOURCE_DIR-NOTFOUND")
+        set(ERF_EKAT_KOKKOS_ABSOLUTE_SOURCES)
         foreach(ERF_EKAT_KOKKOS_SOURCE IN LISTS ERF_EKAT_KOKKOS_SOURCES)
-          get_source_file_property(ERF_EKAT_KOKKOS_LANGUAGE ${ERF_EKAT_KOKKOS_SOURCE}
+          get_filename_component(ERF_EKAT_KOKKOS_ABSOLUTE_SOURCE
+                                 "${ERF_EKAT_KOKKOS_SOURCE}" ABSOLUTE
+                                 BASE_DIR "${ERF_EKAT_KOKKOS_SOURCE_DIR}")
+          list(APPEND ERF_EKAT_KOKKOS_ABSOLUTE_SOURCES
+               "${ERF_EKAT_KOKKOS_ABSOLUTE_SOURCE}")
+        endforeach()
+
+        set_source_files_properties(${ERF_EKAT_KOKKOS_ABSOLUTE_SOURCES}
+          TARGET_DIRECTORY ekat_kokkosutils PROPERTIES LANGUAGE CUDA)
+        foreach(ERF_EKAT_KOKKOS_ABSOLUTE_SOURCE IN LISTS ERF_EKAT_KOKKOS_ABSOLUTE_SOURCES)
+          get_source_file_property(ERF_EKAT_KOKKOS_LANGUAGE
+                                   "${ERF_EKAT_KOKKOS_ABSOLUTE_SOURCE}"
                                    TARGET_DIRECTORY ekat_kokkosutils LANGUAGE)
           if(NOT ERF_EKAT_KOKKOS_LANGUAGE STREQUAL "CUDA")
             message(FATAL_ERROR
                     "EKAT Kokkos utility source was not configured as CUDA: "
-                    "${ERF_EKAT_KOKKOS_SOURCE}")
+                    "${ERF_EKAT_KOKKOS_ABSOLUTE_SOURCE}")
           endif()
         endforeach()
         message(STATUS "Configured EKAT Kokkos utility sources for native CUDA")
       endif()
     endif()
 
+    unset(ERF_EKAT_KOKKOS_ABSOLUTE_SOURCE)
+    unset(ERF_EKAT_KOKKOS_ABSOLUTE_SOURCES)
     unset(ERF_EKAT_KOKKOS_LANGUAGE)
     unset(ERF_EKAT_KOKKOS_SOURCE)
+    unset(ERF_EKAT_KOKKOS_SOURCE_DIR)
     unset(ERF_EKAT_KOKKOS_SOURCES)
     unset(ERF_KOKKOS_INTERFACE_OPTION)
     unset(ERF_KOKKOS_FILTERED_INTERFACE_OPTIONS)
