@@ -7,8 +7,12 @@ from pyproj import CRS, Transformer
 from numpy import *
 import time
 
+from DownloadHRRR2DData import DownloadHRRR2DData
 from DownloadHRRR3DData import DownloadHRRR3DData
+from ReadHRRR2DData import ReadHRRR2DData
 from ReadHRRR3DData import ReadHRRR3DData
+
+from IO import create_gifs_parallel
 
 def CreateLCCMapping(area):
 
@@ -57,12 +61,11 @@ if __name__ == "__main__":
                         help="Forecast length in hours, e.g. 72")
     parser.add_argument("--interval_hours", type=int,
                         help="Forecast interval in hours, e.g. 6")
-    parser.add_argument(
-        "--init_hurricane_latlon",
-        type=str,
-        default=None,
-        help="Optional initial hurricane lat,lon (e.g. --init_hurricane_latlon=25,-80)"
-    )
+    parser.add_argument("--get_2d_data", type=lambda x: x.lower() == "true",
+                        help="get 2d HRRR data ", default=True)
+    parser.add_argument("--get_3d_data",  type=lambda x: x.lower() == "true",
+                        help="get 3d HRRR data ", default=False)
+
     args = parser.parse_args()
 
     # Enforce requirement only if do_forecast is true
@@ -74,24 +77,47 @@ if __name__ == "__main__":
     do_forecast = args.do_forecast
     forecast_time_hours = args.forecast_time_hours
     interval_hours = args.interval_hours
+    get_2d_data = args.get_2d_data
+    get_3d_data = args.get_3d_data
 
     if rank == 0:
         print(f"Input file: {input_filename}")
 
-    os.makedirs("HRRRFiles", exist_ok=True)
+    os.makedirs("HRRRFiles/3D", exist_ok=True)
+    os.makedirs("HRRRFiles/2D", exist_ok=True)
     os.makedirs("Output/VTK/3D/HRRRDomain", exist_ok=True)
+    os.makedirs("Output/VTK/2D/HRRRDomain", exist_ok=True)
     os.makedirs("Output/Thunderstorm", exist_ok=True)
 
     comm.Barrier();
 
+    if get_2d_data:
+        filenames, area = DownloadHRRR2DData(input_filename, forecast_time_hours, interval_hours)
+        lambert_conformal = CreateLCCMapping(area)
+        comm.Barrier();
+
+          # Find all HRRR files
+        filenames = sorted(glob.glob(os.path.join("HRRRFiles/2D", "*.grib2")))
+
+        # Distribute files across MPI ranks
+        my_files = filenames[rank::size]
+
+        for filename in my_files:
+            print(f"[Rank {rank}] Processing file: {filename}")
+            ReadHRRR2DData(filename, area, lambert_conformal)
+
+        comm.Barrier();
+
+        create_gifs_parallel("./Output/Thunderstorm", comm)
+
     # Download 3d data over pressure levels
-    if do_forecast:
+    if get_3d_data:
         filenames, area = DownloadHRRR3DData(input_filename, forecast_time_hours, interval_hours)
         lambert_conformal = CreateLCCMapping(area)
         comm.Barrier();
 
         # Find all HRRR files
-        filenames = sorted(glob.glob(os.path.join("HRRRFiles", "*.grib2")))
+        filenames = sorted(glob.glob(os.path.join("HRRRFiles/3D", "*.grib2")))
 
         # Distribute files across MPI ranks
         my_files = filenames[rank::size]
