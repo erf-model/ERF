@@ -40,6 +40,11 @@ Radiation::Radiation (const int& lev,
 
     // Radiation timestep, as a number of atm steps
     pp.query("rad_freq_in_steps", m_rad_freq_in_steps);
+    // A level-specific value takes precedence over the common fallback.  This
+    // lets time-subcycled AMR levels update radiation at the same physical
+    // cadence (for example, 100 coarse steps and 300 fine steps for a 3:1
+    // refinement ratio).
+    pp.query("rad_freq_in_steps_" + std::to_string(lev), m_rad_freq_in_steps);
 
     // Get nvar if specified
     pp.query("rad_nvar", m_rad_nvar);
@@ -153,6 +158,8 @@ Radiation::Radiation (const int& lev,
                 << m_nswgpts  << " " << m_nlwgpts  << "\n";
         Print() << "========================================================\n";
     }
+    Print() << "Radiation update frequency at level " << lev << ": "
+            << m_rad_freq_in_steps << " atmospheric steps\n";
 }
 
 void

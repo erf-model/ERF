@@ -2028,6 +2028,9 @@ List of Parameters
 +-------------------------------------+----------------------------------------+-------------------+-----------------------------------+
 | **erf.rad_freq_in_steps**           | Radiation update frequency (steps)     | Integer >= 1      | 1                                 |
 +-------------------------------------+----------------------------------------+-------------------+-----------------------------------+
+| **erf.rad_freq_in_steps_<lev>**     | Per-level update frequency; overrides  | Integer >= 1      | Common radiation frequency        |
+|                                     | the common value for AMR level <lev>   |                   |                                   |
++-------------------------------------+----------------------------------------+-------------------+-----------------------------------+
 | **erf.rad_ncol_chunk**              | Columns per RRTMGP kernel launch.      | Integer >= 1      | 5000. Lower values reduce peak    |
 |                                     | Controls peak GPU memory by processing |                   | GPU memory; higher values reduce  |
 |                                     | radiation in batches of this size.     |                   | kernel launch overhead.           |
