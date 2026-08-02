@@ -3,6 +3,80 @@ import struct
 import os
 from pyproj import Proj, Transformer, CRS
 from math import *
+import subprocess
+from pathlib import Path
+import math
+from mpi4py import MPI
+from PIL import Image
+
+def create_gifs_parallel(base_dir, comm):
+    rank = comm.Get_rank()
+    size = comm.Get_size()
+
+    base_dir = Path(base_dir)
+    output_dir = base_dir / "gifs"
+
+    # Only rank 0 needs to make the folder (avoids directory creation race conditions)
+    if rank == 0:
+        output_dir.mkdir(parents=True, exist_ok=True)
+
+    # Barrier ensures the output directory exists before any rank writes to it
+    comm.Barrier()
+
+    # Every rank scans the folder independently — no broadcast needed!
+    all_folders = sorted(
+        [f for f in base_dir.iterdir() if f.is_dir() and f.name != "gifs"]
+    )
+
+    num_folders = len(all_folders)
+
+    # --- Contiguous Block Partitioning ---
+    # Calculates start and end indices so early ranks get ceil(N / size) items
+    count = math.ceil(num_folders / size)
+    start = rank * count
+    end = min(start + count, num_folders)
+
+    # Subset of folders assigned to this specific rank
+    my_folders = all_folders[start:end]
+
+    # Run loop only on assigned folders
+    for folder in my_folders:
+        png_paths = sorted(folder.glob("*.png"))
+
+        if not png_paths:
+            print(
+                f"[Rank {rank}] Skipping '{folder.name}': No PNG files found."
+            )
+            continue
+
+        gif_filename = output_dir / f"{folder.name}.gif"
+        print(
+            f"[Rank {rank}] Processing '{folder.name}' ({len(png_paths)} frames)..."
+        )
+
+        try:
+            # 1. Force convert images to RGB to strip alpha channels
+            frames = [Image.open(p).convert("RGB") for p in png_paths]
+
+            # 2. Save GIF without overlay optimization
+            frames[0].save(
+                gif_filename,
+                format="GIF",
+                append_images=frames[1:],
+                save_all=True,
+                duration=200,  # 5 FPS
+                loop=0,
+                optimize=False,  # <-- SET TO FALSE to prevent frame stacking/ghosting!
+                disposal=2,  # <-- DISPOSAL METHOD 2: Clear frame to background before drawing next frame
+            )
+            print(f"[Rank {rank}]    └─ Created {gif_filename.name}")
+        except Exception as e:
+            print(
+                f"[Rank {rank}]   └─ Error processing '{folder.name}': {e}"
+            )
+
+    # Synchronize all ranks before returning to main execution
+    comm.Barrier()
 
 def write_binary_vtk_structured_grid(filename,
                                      x_grid,

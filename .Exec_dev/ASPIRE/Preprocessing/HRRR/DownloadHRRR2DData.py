@@ -56,15 +56,15 @@ def build_hrrr_url(dt):
         dt = 2025-06-17 00:00
 
         https://pando-rgw01.chpc.utah.edu/hrrr/prs/20250617/
-        hrrr.t00z.wrfprsf00.grib2
+        hrrr.t00z.wrfsfcf00.grib2
     """
 
     ymd = dt.strftime("%Y%m%d")
     hour = dt.strftime("%H")
 
     url = (
-        f"https://pando-rgw01.chpc.utah.edu/hrrr/prs/"
-        f"{ymd}/hrrr.t{hour}z.wrfprsf00.grib2"
+        f"https://pando-rgw01.chpc.utah.edu/hrrr/sfc/"
+        f"{ymd}/hrrr.t{hour}z.wrfsfcf01.grib2"
     )
 
     return url
@@ -92,7 +92,7 @@ def download_file(url, output_filename, idx):
     print(f"[{idx}] Done: {output_filename}")
 
 
-def DownloadHRRR3DData(inputs_file,
+def DownloadHRRR2DData(inputs_file,
                      forecast_time=72,
                      interval=1):
     """
@@ -155,7 +155,7 @@ def DownloadHRRR3DData(inputs_file,
 
         ymdh = dt.strftime("%Y%m%d_%H")
 
-        fname = f"HRRRFiles/3D/hrrr_{ymdh}.grib2"
+        fname = f"HRRRFiles/2D/hrrr_{ymdh}.grib2"
 
         url = build_hrrr_url(dt)
 
