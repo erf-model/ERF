@@ -595,10 +595,10 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
                                                  cons_arr, velx_arr, vely_arr,
                                                  umm_arr, tm_arr, u_star_arr,
                                                  t_star_arr, t_surf_arr);
-                if (lsm_t_flux_arr) {
-                    lsm_t_flux_arr(i,j,0) = Tflux / cons_arr(i,j,k,Rho_comp);
-                }
-
+                // NOTE: do NOT write the MOST-fallback flux back into lsm_t_flux_arr.
+                // Doing so flips a sentinel (water/unprocessed) cell to "valid LSM"
+                // on the next step, so a MOST-derived value is re-read as an LSM flux
+                // Only Noah-MP should populate the LSM cache.
             }
 
             surface_source_arr(i,j,0) = surface_diagnostics::to_plot_value(
@@ -636,9 +636,8 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
                                                      cons_arr, velx_arr, vely_arr,
                                                      umm_arr, qm_arr, u_star_arr,
                                                      q_star_arr, q_surf_arr);
-                    if (lsm_q_flux_arr) {
-                        lsm_q_flux_arr(i,j,0) = Qflux / cons_arr(i,j,k,Rho_comp);
-                    }
+                    // NOTE: no writeback into lsm_q_flux_arr -- see the matching
+                    // t_flux note above.
                 }
 
                 // Do scalar flux rotations?
@@ -682,23 +681,20 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
                         rho_lo, rho_hi, lsm_tau13_arr(i-1,j,0), lsm_tau13_arr(i,j,0),
                         has_land_and_flux_lo, has_land_and_flux_hi, most_stress);
                     stressx = result.face_stress;
-                    if (!has_land_and_flux_lo) { lsm_tau13_arr(i-1,j,0) = result.low_kinematic_cache; }
-                    if (!has_land_and_flux_hi) { lsm_tau13_arr(i  ,j,0) = result.high_kinematic_cache; }
+                    // NOTE: do NOT write the MOST-fallback stress back into the
+                    // cell-centered lsm_tau13_arr. This face-indexed ParallelFor
+                    // touches cells (i) and (i-1), so each cell is written by two
+                    // adjacent face threads in the same launch -> nondeterministic
+                    // write-write race on GPU (ERF #3446). It also spuriously flips
+                    // a sentinel (water/unprocessed) cell to "valid LSM" for the
+                    // next step. The face stress is fully determined here; the LSM
+                    // cache is (re)filled only by Noah-MP. Matches baseline 3ab899d3.
                 } else if (is_land_hi == 2 || is_land_lo == 2) { // no stress within buildings
                     stressx = zero;
                 } else {
                     stressx = flux_comp.compute_u_flux(i, j, k,
                                                        cons_arr, velx_arr, vely_arr,
                                                        umm_arr, um_arr, u_star_arr);
-                    if (lsm_tau13_arr) {
-                        // LSM tau13 is cell-centered kinematic stress [m2 s-2].
-                        // Tau_lev tau13 is a face-centered conservative stress [N m-2].
-                        // MOST compute_u_flux returns the conservative face stress.
-                        lsm_tau13_arr(i  ,j,0) = surface_layer_stress::conservative_to_kinematic_stress(
-                            stressx, cons_arr(i  ,j,k,Rho_comp));
-                        lsm_tau13_arr(i-1,j,0) = surface_layer_stress::conservative_to_kinematic_stress(
-                            stressx, cons_arr(i-1,j,k,Rho_comp));
-                    }
                 }
 
                 t13_arr(i,j,k) = stressx;
@@ -733,23 +729,15 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
                         rho_lo, rho_hi, lsm_tau23_arr(i,j-1,0), lsm_tau23_arr(i,j,0),
                         has_land_and_flux_lo, has_land_and_flux_hi, most_stress);
                     stressy = result.face_stress;
-                    if (!has_land_and_flux_lo) { lsm_tau23_arr(i,j-1,0) = result.low_kinematic_cache; }
-                    if (!has_land_and_flux_hi) { lsm_tau23_arr(i,j  ,0) = result.high_kinematic_cache; }
+                    // NOTE: no writeback into cell-centered lsm_tau23_arr -- see the
+                    // matching tau13 note above (ERF #3446 write-write race + stale
+                    // sentinel-becomes-valid). Face stress is complete here.
                 } else if (is_land_hi == 2 || is_land_lo == 2) { // no stress within buildings
                     stressy = zero;
                 } else {
                     stressy = flux_comp.compute_v_flux(i, j, k,
                                                        cons_arr, velx_arr, vely_arr,
                                                        umm_arr, vm_arr, u_star_arr);
-                    if (lsm_tau23_arr) {
-                        // LSM tau23 is cell-centered kinematic stress [m2 s-2].
-                        // Tau_lev tau23 is a face-centered conservative stress [N m-2].
-                        // MOST compute_v_flux returns the conservative face stress.
-                        lsm_tau23_arr(i,j  ,0) = surface_layer_stress::conservative_to_kinematic_stress(
-                            stressy, cons_arr(i,j  ,k,Rho_comp));
-                        lsm_tau23_arr(i,j-1,0) = surface_layer_stress::conservative_to_kinematic_stress(
-                            stressy, cons_arr(i,j-1,k,Rho_comp));
-                    }
                 }
 
                 t23_arr(i,j,k) = stressy;
