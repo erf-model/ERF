@@ -1357,6 +1357,8 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
 
             if (containerHasElement(plot_var_names, "qsat"))
             {
+                const bool anelastic = solverChoice.anelastic[lev];
+                const Real rdOcp = solverChoice.rdOcp;
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
@@ -1369,9 +1371,9 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
                     ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
                     {
                         Real qv = S_arr(i,j,k,RhoQ1_comp) / S_arr(i,j,k,Rho_comp);
-                        Real T  = solverChoice.anelastic[lev] ?
+                        Real T  = anelastic ?
                             getTgivenPandTh(p_arr(i,j,k), S_arr(i,j,k,RhoTheta_comp) /
-                                            S_arr(i,j,k,Rho_comp), solverChoice.rdOcp) :
+                                            S_arr(i,j,k,Rho_comp), rdOcp) :
                             getTgivenRandRTh(S_arr(i,j,k,Rho_comp), S_arr(i,j,k,RhoTheta_comp), qv);
                         Real p  = p_arr(i,j,k) * Real(0.01);
                         erf_qsatw(T, p, derdat(i,j,k,mf_comp));
