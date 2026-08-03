@@ -256,7 +256,7 @@ AdvectionSrcForOpenBC_Tangent (const int& i,
     int sgn = 1; if (do_lo) { sgn = -1; }
 
     IntVect ivm1(i,j,k); if ( do_lo) { ivm1[dir] -= sgn; } // Mom indexed into domain for do_lo
-    IntVect ivm2(i,j,k); if (!do_lo) { ivm1[dir] += sgn; } // Mom indexed out  domain for do_hi
+    IntVect ivm2(i,j,k); if (!do_lo) { ivm2[dir] += sgn; } // Mom indexed out  domain for do_hi
 
     IntVect ivs1(i,j,k); if ( do_lo) { ivs1[dir] -= sgn; } // Scalar indexed into domain for do_hi
     IntVect ivs2(i,j,k); if (!do_lo) { ivs2[dir] -= sgn; } // Scalar indexed into domain for do_lo
