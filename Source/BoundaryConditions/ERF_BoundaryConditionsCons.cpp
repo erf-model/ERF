@@ -90,6 +90,7 @@ void ERFPhysBCFunct_cons::impose_lateral_cons_bcs (const Array4<Real>& dest_arr,
             bx_xlo, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n)
             {
                 int dest_comp = icomp+n;
+                int k_profile = amrex::min(amrex::max(k, dom_lo.z), dom_hi.z) - dom_lo.z;
                 int bc_comp   = (dest_comp >= RhoScalar_comp && dest_comp < RhoScalar_comp+NSCALARS) ?
                                  BCVars::RhoScalar_bc_comp : dest_comp;
                 if (bc_comp > BCVars::RhoScalar_bc_comp) bc_comp -= (NSCALARS-1);
@@ -99,14 +100,14 @@ void ERFPhysBCFunct_cons::impose_lateral_cons_bcs (const Array4<Real>& dest_arr,
                      (l_bc_type == ERFBCType::ext_dir_upwind && xvel_arr(dom_lo.x,j,k) >= zero) )
                 {
                     if ((dest_comp == RhoTheta_comp) && th_bc_ptr) {
-                        dest_arr(i,j,k,dest_comp) = th_bc_ptr[k];
+                        dest_arr(i,j,k,dest_comp) = th_bc_ptr[k_profile];
                     } else {
                         dest_arr(i,j,k,dest_comp) = l_bc_extdir_vals_d[bc_comp][0];
                     }
                 } else if (l_bc_type == ERFBCType::ext_dir_prim) {
                     Real rho = dest_arr(dom_lo.x,j,k,Rho_comp);
                     if ((dest_comp == RhoTheta_comp) && th_bc_ptr) {
-                        dest_arr(i,j,k,dest_comp) = rho * th_bc_ptr[k];
+                        dest_arr(i,j,k,dest_comp) = rho * th_bc_ptr[k_profile];
                     } else {
                         dest_arr(i,j,k,dest_comp) = rho * l_bc_extdir_vals_d[bc_comp][0];
                     }
@@ -115,6 +116,7 @@ void ERFPhysBCFunct_cons::impose_lateral_cons_bcs (const Array4<Real>& dest_arr,
             bx_xhi, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n)
             {
                 int dest_comp = icomp+n;
+                int k_profile = amrex::min(amrex::max(k, dom_lo.z), dom_hi.z) - dom_lo.z;
                 int bc_comp   = (dest_comp >= RhoScalar_comp && dest_comp < RhoScalar_comp+NSCALARS) ?
                                  BCVars::RhoScalar_bc_comp : dest_comp;
                 if (bc_comp > BCVars::RhoScalar_bc_comp) bc_comp -= (NSCALARS-1);
@@ -124,14 +126,14 @@ void ERFPhysBCFunct_cons::impose_lateral_cons_bcs (const Array4<Real>& dest_arr,
                      (h_bc_type == ERFBCType::ext_dir_upwind && xvel_arr(dom_hi.x+1,j,k) <= zero) )
                 {
                     if ((dest_comp == RhoTheta_comp) && th_bc_ptr) {
-                        dest_arr(i,j,k,dest_comp) = th_bc_ptr[k];
+                        dest_arr(i,j,k,dest_comp) = th_bc_ptr[k_profile];
                     } else {
                         dest_arr(i,j,k,dest_comp) = l_bc_extdir_vals_d[bc_comp][3];
                     }
                 } else if (h_bc_type == ERFBCType::ext_dir_prim) {
                     Real rho = dest_arr(dom_hi.x,j,k,Rho_comp);
                     if ((dest_comp == RhoTheta_comp) && th_bc_ptr) {
-                        dest_arr(i,j,k,dest_comp) = rho * th_bc_ptr[k];
+                        dest_arr(i,j,k,dest_comp) = rho * th_bc_ptr[k_profile];
                     } else {
                         dest_arr(i,j,k,dest_comp) = rho * l_bc_extdir_vals_d[bc_comp][3];
                     }
@@ -156,6 +158,7 @@ void ERFPhysBCFunct_cons::impose_lateral_cons_bcs (const Array4<Real>& dest_arr,
             bx_ylo, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n)
             {
                 int dest_comp = icomp+n;
+                int k_profile = amrex::min(amrex::max(k, dom_lo.z), dom_hi.z) - dom_lo.z;
                 int bc_comp   = (dest_comp >= RhoScalar_comp && dest_comp < RhoScalar_comp+NSCALARS) ?
                                  BCVars::RhoScalar_bc_comp : dest_comp;
                 if (bc_comp > BCVars::RhoScalar_bc_comp) bc_comp -= (NSCALARS-1);
@@ -164,14 +167,14 @@ void ERFPhysBCFunct_cons::impose_lateral_cons_bcs (const Array4<Real>& dest_arr,
                      (l_bc_type == ERFBCType::ext_dir_upwind && yvel_arr(i,dom_lo.y,k) >= zero) )
                 {
                     if ((dest_comp == RhoTheta_comp) && th_bc_ptr) {
-                        dest_arr(i,j,k,dest_comp) = th_bc_ptr[k];
+                        dest_arr(i,j,k,dest_comp) = th_bc_ptr[k_profile];
                     } else {
                         dest_arr(i,j,k,dest_comp) = l_bc_extdir_vals_d[bc_comp][1];
                     }
                 } else if (l_bc_type == ERFBCType::ext_dir_prim) {
                     Real rho = dest_arr(i,dom_lo.y,k,Rho_comp);
                     if ((dest_comp == RhoTheta_comp) && th_bc_ptr) {
-                        dest_arr(i,j,k,dest_comp) = rho * th_bc_ptr[k];
+                        dest_arr(i,j,k,dest_comp) = rho * th_bc_ptr[k_profile];
                     } else {
                         dest_arr(i,j,k,dest_comp) = rho * l_bc_extdir_vals_d[bc_comp][1];
                     }
@@ -180,6 +183,7 @@ void ERFPhysBCFunct_cons::impose_lateral_cons_bcs (const Array4<Real>& dest_arr,
             bx_yhi, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n)
             {
                 int dest_comp = icomp+n;
+                int k_profile = amrex::min(amrex::max(k, dom_lo.z), dom_hi.z) - dom_lo.z;
                 int bc_comp   = (dest_comp >= RhoScalar_comp && dest_comp < RhoScalar_comp+NSCALARS) ?
                                  BCVars::RhoScalar_bc_comp : dest_comp;
                 if (bc_comp > BCVars::RhoScalar_bc_comp) bc_comp -= (NSCALARS-1);
@@ -188,14 +192,14 @@ void ERFPhysBCFunct_cons::impose_lateral_cons_bcs (const Array4<Real>& dest_arr,
                      (h_bc_type == ERFBCType::ext_dir_upwind && yvel_arr(i,dom_hi.y+1,k) <= zero) )
                 {
                     if ((dest_comp == RhoTheta_comp) && th_bc_ptr) {
-                        dest_arr(i,j,k,dest_comp) = th_bc_ptr[k];
+                        dest_arr(i,j,k,dest_comp) = th_bc_ptr[k_profile];
                     } else {
                         dest_arr(i,j,k,dest_comp) = l_bc_extdir_vals_d[bc_comp][4];
                     }
                 } else if (h_bc_type == ERFBCType::ext_dir_prim) {
                     Real rho = dest_arr(i,dom_hi.y,k,Rho_comp);
                     if ((dest_comp == RhoTheta_comp) && th_bc_ptr) {
-                        dest_arr(i,j,k,dest_comp) = rho * th_bc_ptr[k];
+                        dest_arr(i,j,k,dest_comp) = rho * th_bc_ptr[k_profile];
                     } else {
                         dest_arr(i,j,k,dest_comp) = rho * l_bc_extdir_vals_d[bc_comp][4];
                     }
