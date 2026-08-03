@@ -7,14 +7,18 @@
 
 using namespace amrex;
 
-/*
+/**
  * Fill valid and ghost data with the "state data" at the given time
  * NOTE: THIS OPERATES ON VELOCITY (MOMENTA ARE JUST TEMPORARIES)
  *
- * @param[in] lev  level of refinement at which to fill the data
- * @param[in] time time at which the data should be filled
- * @param[out] mfs_vel Vector of MultiFabs to be filled containing, in order: cons, xvel, yvel, and zvel
- * @param[out] mfs_mom Vector of MultiFabs to be filled containing, in order: cons, xmom, ymom, and zmom
+ * @param[in]     lev            level of refinement at which to fill the data
+ * @param[in]     time_d         time at which the data should be filled
+ * @param[in,out] mfs_vel        Vector of MultiFabs to be filled containing, in order: cons, xvel, yvel, and zvel
+ * @param[in,out] mfs_mom        Vector of MultiFabs to be filled containing, in order: cons, xmom, ymom, and zmom
+ * @param[in]     old_base_state base-state data at the old time
+ * @param[in]     new_base_state base-state data at the new time
+ * @param[in]     fillset        whether to fill the coarse-fine set region before standard fillpatch
+ * @param[in]     cons_only      whether to fill only conserved variables
  */
 void
 ERF::FillPatchFineLevel (int lev, double time_d,
@@ -286,6 +290,14 @@ ERF::FillPatchFineLevel (int lev, double time_d,
     }
 }
 
+/**
+ * Fill valid and ghost data on the coarse level with state data at the given time.
+ *
+ * @param[in]     lev       coarse level to fill
+ * @param[in]     time_d    time at which the data should be filled
+ * @param[in,out] mfs_vel   Vector of MultiFabs to be filled containing cons, xvel, yvel, and zvel
+ * @param[in]     cons_only whether to fill only conserved variables
+ */
 void
 ERF::FillPatchCrseLevel (int lev, double time_d,
                          const Vector<MultiFab*>& mfs_vel,     // This includes cc quantities and VELOCITIES

@@ -41,6 +41,11 @@ struct similarity_funs
     //
     // Similarity functions from Jimenez (2012)
     //
+    /**
+     * Compute the Jimenez momentum stability correction.
+     *
+     * @param[in] zeta stability coordinate z/L
+     */
     AMREX_GPU_HOST_DEVICE
     AMREX_FORCE_INLINE
     amrex::Real
@@ -61,6 +66,11 @@ struct similarity_funs
         }
     }
 
+    /**
+     * Compute the Jimenez heat stability correction.
+     *
+     * @param[in] zeta stability coordinate z/L
+     */
     AMREX_GPU_HOST_DEVICE
     AMREX_FORCE_INLINE
     amrex::Real
@@ -84,6 +94,11 @@ struct similarity_funs
     //
     // Similarity functions from Businger & Dyer (1966)
     //
+    /**
+     * Compute the Businger-Dyer momentum stability correction.
+     *
+     * @param[in] zeta stability coordinate z/L
+     */
     AMREX_GPU_HOST_DEVICE
     AMREX_FORCE_INLINE
     amrex::Real
@@ -98,6 +113,11 @@ struct similarity_funs
         }
     }
 
+    /**
+     * Compute the Businger-Dyer heat stability correction.
+     *
+     * @param[in] zeta stability coordinate z/L
+     */
     AMREX_GPU_HOST_DEVICE
     AMREX_FORCE_INLINE
     amrex::Real
@@ -122,6 +142,8 @@ private:
 /**
  * Empirical kinematic viscosity [m2/s] formula from Andreas (1989) CRREL Rep.
  * 89-11, valid between -173 and 277 deg C.
+ *
+ * @param[in] T_degK air temperature in Kelvin
  */
 AMREX_GPU_DEVICE
 AMREX_FORCE_INLINE
@@ -138,6 +160,12 @@ air_viscosity (amrex::Real T_degK)
  */
 struct adiabatic
 {
+    /**
+     * Construct adiabatic constant-roughness MOST data.
+     *
+     * @param[in] Tflux  prescribed heat flux
+     * @param[in] Qvflux prescribed moisture flux
+     */
     adiabatic (amrex::Real Tflux,
                amrex::Real Qvflux)
     {
@@ -145,6 +173,15 @@ struct adiabatic
         mdata.surf_moist_flux = Qvflux;
     }
 
+    /**
+     * Iterate MOST state for one surface point.
+     *
+     * @par Calling sequence
+     * i, j, k, max_iters, zref_arr, z0_arr, umm_arr, tm_arr, tvm_arr,
+     * qvm_arr, u_star_arr, w_star_arr, t_star_arr, q_star_arr,
+     * t_surf_arr, q_surf_arr, olen_arr, pblh_arr, Hwave_arr, Lwave_arr,
+     * eta_arr.
+     */
     AMREX_GPU_DEVICE
     AMREX_FORCE_INLINE
     void
@@ -187,6 +224,14 @@ private:
  */
 struct adiabatic_charnock
 {
+    /**
+     * Construct adiabatic Charnock-roughness MOST data.
+     *
+     * @param[in] Tflux    prescribed heat flux
+     * @param[in] Qvflux   prescribed moisture flux
+     * @param[in] cnk_a    Charnock parameter
+     * @param[in] cnk_visc whether to include viscous roughness
+     */
     adiabatic_charnock (amrex::Real Tflux,
                         amrex::Real Qvflux,
                         amrex::Real cnk_a,
@@ -198,6 +243,15 @@ struct adiabatic_charnock
         mdata.visc  = cnk_visc;
     }
 
+    /**
+     * Iterate MOST state for one surface point.
+     *
+     * @par Calling sequence
+     * i, j, k, max_iters, zref_arr, z0_arr, umm_arr, tm_arr, tvm_arr,
+     * qvm_arr, u_star_arr, w_star_arr, t_star_arr, q_star_arr,
+     * t_surf_arr, q_surf_arr, olen_arr, pblh_arr, Hwave_arr, Lwave_arr,
+     * eta_arr.
+     */
     AMREX_GPU_DEVICE
     AMREX_FORCE_INLINE
     void
@@ -280,6 +334,13 @@ private:
  */
 struct adiabatic_mod_charnock
 {
+    /**
+     * Construct adiabatic modified-Charnock MOST data.
+     *
+     * @param[in] Tflux  prescribed heat flux
+     * @param[in] Qvflux prescribed moisture flux
+     * @param[in] depth  water depth for modified Charnock roughness
+     */
     adiabatic_mod_charnock (amrex::Real Tflux,
                             amrex::Real Qvflux,
                             amrex::Real depth)
@@ -290,6 +351,15 @@ struct adiabatic_mod_charnock
         mdata.Cnk_b = mdata.Cnk_b1 * std::log(mdata.Cnk_b2 / mdata.Cnk_d);
     }
 
+    /**
+     * Iterate MOST state for one surface point.
+     *
+     * @par Calling sequence
+     * i, j, k, max_iters, zref_arr, z0_arr, umm_arr, tm_arr, tvm_arr,
+     * qvm_arr, u_star_arr, w_star_arr, t_star_arr, q_star_arr,
+     * t_surf_arr, q_surf_arr, olen_arr, pblh_arr, Hwave_arr, Lwave_arr,
+     * eta_arr.
+     */
     AMREX_GPU_DEVICE
     AMREX_FORCE_INLINE
     void
@@ -365,6 +435,12 @@ private:
  */
 struct adiabatic_donelan
 {
+    /**
+     * Construct adiabatic Donelan-roughness MOST data.
+     *
+     * @param[in] Tflux  prescribed heat flux
+     * @param[in] Qvflux prescribed moisture flux
+     */
     adiabatic_donelan (amrex::Real Tflux,
                        amrex::Real Qvflux)
     {
@@ -372,6 +448,15 @@ struct adiabatic_donelan
         mdata.surf_moist_flux = Qvflux;
     }
 
+    /**
+     * Iterate MOST state for one surface point.
+     *
+     * @par Calling sequence
+     * i, j, k, max_iters, zref_arr, z0_arr, umm_arr, tm_arr, tvm_arr,
+     * qvm_arr, u_star_arr, w_star_arr, t_star_arr, q_star_arr,
+     * t_surf_arr, q_surf_arr, olen_arr, pblh_arr, Hwave_arr, Lwave_arr,
+     * eta_arr.
+     */
     AMREX_GPU_DEVICE
     AMREX_FORCE_INLINE
     void
@@ -435,6 +520,12 @@ private:
  */
 struct adiabatic_wave_coupled
 {
+    /**
+     * Construct adiabatic wave-coupled roughness MOST data.
+     *
+     * @param[in] Tflux  prescribed heat flux
+     * @param[in] Qvflux prescribed moisture flux
+     */
     adiabatic_wave_coupled (amrex::Real Tflux,
                             amrex::Real Qvflux)
     {
@@ -442,6 +533,15 @@ struct adiabatic_wave_coupled
         mdata.surf_moist_flux = Qvflux;
     }
 
+    /**
+     * Iterate MOST state for one surface point.
+     *
+     * @par Calling sequence
+     * i, j, k, max_iters, zref_arr, z0_arr, umm_arr, tm_arr, tvm_arr,
+     * qvm_arr, u_star_arr, w_star_arr, t_star_arr, q_star_arr,
+     * t_surf_arr, q_surf_arr, olen_arr, pblh_arr, Hwave_arr, Lwave_arr,
+     * eta_arr.
+     */
     AMREX_GPU_DEVICE
     AMREX_FORCE_INLINE
     void
@@ -515,6 +615,13 @@ private:
  */
 struct surface_flux
 {
+    /**
+     * Construct specified-flux, constant-roughness MOST data.
+     *
+     * @param[in] Tflux      prescribed heat flux
+     * @param[in] Qvflux     prescribed moisture flux
+     * @param[in] cons_qflux whether the moisture flux is specified
+     */
     surface_flux (amrex::Real Tflux,
                   amrex::Real Qvflux,
                   bool cons_qflux)
@@ -524,6 +631,15 @@ struct surface_flux
         spec_qflux = cons_qflux;
     }
 
+    /**
+     * Iterate MOST state for one surface point.
+     *
+     * @par Calling sequence
+     * i, j, k, max_iters, zref_arr, z0_arr, umm_arr, tm_arr, tvm_arr,
+     * qvm_arr, u_star_arr, w_star_arr, t_star_arr, q_star_arr,
+     * t_surf_arr, q_surf_arr, olen_arr, pblh_arr, Hwave_arr, Lwave_arr,
+     * eta_arr.
+     */
     AMREX_GPU_DEVICE
     AMREX_FORCE_INLINE
     void
@@ -620,6 +736,15 @@ private:
  */
 struct surface_flux_charnock
 {
+    /**
+     * Construct specified-flux, Charnock-roughness MOST data.
+     *
+     * @param[in] Tflux    prescribed heat flux
+     * @param[in] Qvflux   prescribed moisture flux
+     * @param[in] cnk_a    Charnock parameter
+     * @param[in] cnk_visc whether to include viscous roughness
+     * @param[in] cons_qflux whether the moisture flux is specified
+     */
     surface_flux_charnock (amrex::Real Tflux,
                            amrex::Real Qvflux,
                            amrex::Real cnk_a,
@@ -633,6 +758,15 @@ struct surface_flux_charnock
         spec_qflux = cons_qflux;
     }
 
+    /**
+     * Iterate MOST state for one surface point.
+     *
+     * @par Calling sequence
+     * i, j, k, max_iters, zref_arr, z0_arr, umm_arr, tm_arr, tvm_arr,
+     * qvm_arr, u_star_arr, w_star_arr, t_star_arr, q_star_arr,
+     * t_surf_arr, q_surf_arr, olen_arr, pblh_arr, Hwave_arr, Lwave_arr,
+     * eta_arr.
+     */
     AMREX_GPU_DEVICE
     AMREX_FORCE_INLINE
     void
@@ -739,6 +873,14 @@ private:
  */
 struct surface_flux_mod_charnock
 {
+    /**
+     * Construct specified-flux, modified-Charnock MOST data.
+     *
+     * @param[in] Tflux      prescribed heat flux
+     * @param[in] Qvflux     prescribed moisture flux
+     * @param[in] depth      water depth for modified Charnock roughness
+     * @param[in] cons_qflux whether the moisture flux is specified
+     */
     surface_flux_mod_charnock (amrex::Real Tflux,
                                amrex::Real Qvflux,
                                amrex::Real depth,
@@ -751,6 +893,15 @@ struct surface_flux_mod_charnock
         spec_qflux  = cons_qflux;
     }
 
+    /**
+     * Iterate MOST state for one surface point.
+     *
+     * @par Calling sequence
+     * i, j, k, max_iters, zref_arr, z0_arr, umm_arr, tm_arr, tvm_arr,
+     * qvm_arr, u_star_arr, w_star_arr, t_star_arr, q_star_arr,
+     * t_surf_arr, q_surf_arr, olen_arr, pblh_arr, Hwave_arr, Lwave_arr,
+     * eta_arr.
+     */
     AMREX_GPU_DEVICE
     AMREX_FORCE_INLINE
     void
@@ -850,6 +1001,13 @@ private:
  */
 struct surface_flux_donelan
 {
+    /**
+     * Construct specified-flux, Donelan-roughness MOST data.
+     *
+     * @param[in] Tflux      prescribed heat flux
+     * @param[in] Qvflux     prescribed moisture flux
+     * @param[in] cons_qflux whether the moisture flux is specified
+     */
     surface_flux_donelan (amrex::Real Tflux,
                           amrex::Real Qvflux,
                           bool cons_qflux)
@@ -859,6 +1017,15 @@ struct surface_flux_donelan
         spec_qflux = cons_qflux;
     }
 
+    /**
+     * Iterate MOST state for one surface point.
+     *
+     * @par Calling sequence
+     * i, j, k, max_iters, zref_arr, z0_arr, umm_arr, tm_arr, tvm_arr,
+     * qvm_arr, u_star_arr, w_star_arr, t_star_arr, q_star_arr,
+     * t_surf_arr, q_surf_arr, olen_arr, pblh_arr, Hwave_arr, Lwave_arr,
+     * eta_arr.
+     */
     AMREX_GPU_DEVICE
     AMREX_FORCE_INLINE
     void
@@ -958,6 +1125,13 @@ private:
  */
 struct surface_flux_wave_coupled
 {
+    /**
+     * Construct specified-flux, wave-coupled roughness MOST data.
+     *
+     * @param[in] Tflux      prescribed heat flux
+     * @param[in] Qvflux     prescribed moisture flux
+     * @param[in] cons_qflux whether the moisture flux is specified
+     */
     surface_flux_wave_coupled (amrex::Real Tflux,
                                amrex::Real Qvflux,
                                bool cons_qflux)
@@ -967,6 +1141,15 @@ struct surface_flux_wave_coupled
         spec_qflux = cons_qflux;
     }
 
+    /**
+     * Iterate MOST state for one surface point.
+     *
+     * @par Calling sequence
+     * i, j, k, max_iters, zref_arr, z0_arr, umm_arr, tm_arr, tvm_arr,
+     * qvm_arr, u_star_arr, w_star_arr, t_star_arr, q_star_arr,
+     * t_surf_arr, q_surf_arr, olen_arr, pblh_arr, Hwave_arr, Lwave_arr,
+     * eta_arr.
+     */
     AMREX_GPU_DEVICE
     AMREX_FORCE_INLINE
     void
@@ -1079,6 +1262,13 @@ private:
  */
 struct surface_temp
 {
+    /**
+     * Construct specified-temperature, constant-roughness MOST data.
+     *
+     * @param[in] Tflux      prescribed heat flux
+     * @param[in] Qvflux     prescribed moisture flux
+     * @param[in] cons_qflux whether the moisture flux is specified
+     */
     surface_temp (amrex::Real Tflux,
                   amrex::Real Qvflux,
                   bool cons_qflux)
@@ -1088,6 +1278,15 @@ struct surface_temp
         spec_qflux = cons_qflux;
     }
 
+    /**
+     * Iterate MOST state for one surface point.
+     *
+     * @par Calling sequence
+     * i, j, k, max_iters, zref_arr, z0_arr, umm_arr, tm_arr, tvm_arr,
+     * qvm_arr, u_star_arr, w_star_arr, t_star_arr, q_star_arr,
+     * t_surf_arr, q_surf_arr, olen_arr, pblh_arr, Hwave_arr, Lwave_arr,
+     * eta_arr.
+     */
     AMREX_GPU_DEVICE
     AMREX_FORCE_INLINE
     void
@@ -1213,6 +1412,15 @@ private:
  */
 struct surface_temp_charnock
 {
+    /**
+     * Construct specified-temperature, Charnock-roughness MOST data.
+     *
+     * @param[in] Tflux      prescribed heat flux
+     * @param[in] Qvflux     prescribed moisture flux
+     * @param[in] cnk_a      Charnock parameter
+     * @param[in] cnk_visc   whether to include viscous roughness
+     * @param[in] cons_qflux whether the moisture flux is specified
+     */
     surface_temp_charnock (amrex::Real Tflux,
                            amrex::Real Qvflux,
                            amrex::Real cnk_a,
@@ -1226,6 +1434,15 @@ struct surface_temp_charnock
         spec_qflux  = cons_qflux;
     }
 
+    /**
+     * Iterate MOST state for one surface point.
+     *
+     * @par Calling sequence
+     * i, j, k, max_iters, zref_arr, z0_arr, umm_arr, tm_arr, tvm_arr,
+     * qvm_arr, u_star_arr, w_star_arr, t_star_arr, q_star_arr,
+     * t_surf_arr, q_surf_arr, olen_arr, pblh_arr, Hwave_arr, Lwave_arr,
+     * eta_arr.
+     */
     AMREX_GPU_DEVICE
     AMREX_FORCE_INLINE
     void
@@ -1385,6 +1602,14 @@ private:
  */
 struct surface_temp_mod_charnock
 {
+    /**
+     * Construct specified-temperature, modified-Charnock MOST data.
+     *
+     * @param[in] Tflux      prescribed heat flux
+     * @param[in] Qvflux     prescribed moisture flux
+     * @param[in] depth      water depth for modified Charnock roughness
+     * @param[in] cons_qflux whether the moisture flux is specified
+     */
     surface_temp_mod_charnock (amrex::Real Tflux,
                                amrex::Real Qvflux,
                                amrex::Real depth,
@@ -1397,6 +1622,15 @@ struct surface_temp_mod_charnock
         spec_qflux  = cons_qflux;
     }
 
+    /**
+     * Iterate MOST state for one surface point.
+     *
+     * @par Calling sequence
+     * i, j, k, max_iters, zref_arr, z0_arr, umm_arr, tm_arr, tvm_arr,
+     * qvm_arr, u_star_arr, w_star_arr, t_star_arr, q_star_arr,
+     * t_surf_arr, q_surf_arr, olen_arr, pblh_arr, Hwave_arr, Lwave_arr,
+     * eta_arr.
+     */
     AMREX_GPU_DEVICE
     AMREX_FORCE_INLINE
     void
@@ -1549,6 +1783,13 @@ private:
  */
 struct surface_temp_donelan
 {
+    /**
+     * Construct specified-temperature, Donelan-roughness MOST data.
+     *
+     * @param[in] Tflux      prescribed heat flux
+     * @param[in] Qvflux     prescribed moisture flux
+     * @param[in] cons_qflux whether the moisture flux is specified
+     */
     surface_temp_donelan (amrex::Real Tflux,
                           amrex::Real Qvflux,
                           bool cons_qflux)
@@ -1558,6 +1799,15 @@ struct surface_temp_donelan
         spec_qflux = cons_qflux;
     }
 
+    /**
+     * Iterate MOST state for one surface point.
+     *
+     * @par Calling sequence
+     * i, j, k, max_iters, zref_arr, z0_arr, umm_arr, tm_arr, tvm_arr,
+     * qvm_arr, u_star_arr, w_star_arr, t_star_arr, q_star_arr,
+     * t_surf_arr, q_surf_arr, olen_arr, pblh_arr, Hwave_arr, Lwave_arr,
+     * eta_arr.
+     */
     AMREX_GPU_DEVICE
     AMREX_FORCE_INLINE
     void
@@ -1667,6 +1917,13 @@ private:
  */
 struct surface_temp_wave_coupled
 {
+    /**
+     * Construct specified-temperature, wave-coupled roughness MOST data.
+     *
+     * @param[in] Tflux      prescribed heat flux
+     * @param[in] Qvflux     prescribed moisture flux
+     * @param[in] cons_qflux whether the moisture flux is specified
+     */
     surface_temp_wave_coupled (amrex::Real Tflux,
                                amrex::Real Qvflux,
                                bool cons_qflux)
@@ -1676,6 +1933,15 @@ struct surface_temp_wave_coupled
         spec_qflux = cons_qflux;
     }
 
+    /**
+     * Iterate MOST state for one surface point.
+     *
+     * @par Calling sequence
+     * i, j, k, max_iters, zref_arr, z0_arr, umm_arr, tm_arr, tvm_arr,
+     * qvm_arr, u_star_arr, w_star_arr, t_star_arr, q_star_arr,
+     * t_surf_arr, q_surf_arr, olen_arr, pblh_arr, Hwave_arr, Lwave_arr,
+     * eta_arr.
+     */
     AMREX_GPU_DEVICE
     AMREX_FORCE_INLINE
     void
@@ -1798,8 +2064,18 @@ private:
  */
 struct moeng_flux
 {
+    /**
+     * Construct the Moeng flux calculator.
+     */
     moeng_flux () {}
 
+    /**
+     * Compute moisture flux for one surface point.
+     *
+     * @par Calling sequence
+     * i, j, k, cons_arr, velx_arr, vely_arr, umm_arr, qvm_arr,
+     * u_star_arr, q_star_arr, q_surf_arr.
+     */
     AMREX_GPU_DEVICE
     AMREX_FORCE_INLINE
     amrex::Real
@@ -1838,6 +2114,13 @@ struct moeng_flux
         return moflux;
     }
 
+    /**
+     * Compute heat flux for one surface point.
+     *
+     * @par Calling sequence
+     * i, j, k, cons_arr, velx_arr, vely_arr, umm_arr, tm_arr,
+     * u_star_arr, t_star_arr, t_surf_arr.
+     */
     AMREX_GPU_DEVICE
     AMREX_FORCE_INLINE
     amrex::Real
@@ -1876,6 +2159,13 @@ struct moeng_flux
         return moflux;
     }
 
+    /**
+     * Compute x-momentum flux for one surface face.
+     *
+     * @par Calling sequence
+     * i, j, k, cons_arr, velx_arr, vely_arr, umm_arr, um_arr,
+     * u_star_arr.
+     */
     AMREX_GPU_DEVICE
     AMREX_FORCE_INLINE
     amrex::Real
@@ -1913,6 +2203,13 @@ struct moeng_flux
         return stressx;
     }
 
+    /**
+     * Compute y-momentum flux for one surface face.
+     *
+     * @par Calling sequence
+     * i, j, k, cons_arr, velx_arr, vely_arr, umm_arr, vm_arr,
+     * u_star_arr.
+     */
     AMREX_GPU_DEVICE
     AMREX_FORCE_INLINE
     amrex::Real
@@ -1965,8 +2262,18 @@ private:
  */
 struct donelan_flux
 {
+    /**
+     * Construct the Donelan flux calculator.
+     */
     donelan_flux () {}
 
+    /**
+     * Compute moisture flux for one surface point.
+     *
+     * @par Calling sequence
+     * i, j, k, cons_arr, velx_arr, vely_arr, umm_arr, qvm_arr,
+     * u_star_arr, q_star_arr, q_surf_arr.
+     */
     AMREX_GPU_DEVICE
     AMREX_FORCE_INLINE
     amrex::Real
@@ -1988,6 +2295,13 @@ struct donelan_flux
         return moflux;
     }
 
+    /**
+     * Compute heat flux for one surface point.
+     *
+     * @par Calling sequence
+     * i, j, k, cons_arr, velx_arr, vely_arr, umm_arr, tm_arr,
+     * u_star_arr, t_star_arr, t_surf_arr.
+     */
     AMREX_GPU_DEVICE
     AMREX_FORCE_INLINE
     amrex::Real
@@ -2016,6 +2330,13 @@ struct donelan_flux
         return moflux;
     }
 
+    /**
+     * Compute x-momentum flux for one surface face.
+     *
+     * @par Calling sequence
+     * i, j, k, cons_arr, velx_arr, vely_arr, umm_arr, um_arr,
+     * u_star_arr.
+     */
     AMREX_GPU_DEVICE
     AMREX_FORCE_INLINE
     amrex::Real
@@ -2052,6 +2373,13 @@ struct donelan_flux
         return stressx;
     }
 
+    /**
+     * Compute y-momentum flux for one surface face.
+     *
+     * @par Calling sequence
+     * i, j, k, cons_arr, velx_arr, vely_arr, umm_arr, vm_arr,
+     * u_star_arr.
+     */
     AMREX_GPU_DEVICE
     AMREX_FORCE_INLINE
     amrex::Real
@@ -2098,10 +2426,22 @@ private:
  */
 struct custom_flux
 {
+    /**
+     * Construct the custom flux calculator.
+     *
+     * @param[in] specified_rho_surf whether the supplied custom fluxes include density
+     */
     custom_flux (bool specified_rho_surf)
     : fluxes_include_rho(specified_rho_surf)
     {}
 
+    /**
+     * Compute moisture flux for one surface point.
+     *
+     * @par Calling sequence
+     * i, j, k, cons_arr, velx_arr, vely_arr, umm_arr, qvm_arr,
+     * u_star_arr, q_star_arr, q_surf_arr.
+     */
     AMREX_GPU_DEVICE
     AMREX_FORCE_INLINE
     amrex::Real
@@ -2126,6 +2466,13 @@ struct custom_flux
         return moflux;
     }
 
+    /**
+     * Compute heat flux for one surface point.
+     *
+     * @par Calling sequence
+     * i, j, k, cons_arr, velx_arr, vely_arr, umm_arr, tm_arr,
+     * u_star_arr, t_star_arr, t_surf_arr.
+     */
     AMREX_GPU_DEVICE
     AMREX_FORCE_INLINE
     amrex::Real
@@ -2150,6 +2497,13 @@ struct custom_flux
         return moflux;
     }
 
+    /**
+     * Compute x-momentum flux for one surface face.
+     *
+     * @par Calling sequence
+     * i, j, k, cons_arr, velx_arr, vely_arr, umm_arr, um_arr,
+     * u_star_arr.
+     */
     AMREX_GPU_DEVICE
     AMREX_FORCE_INLINE
     amrex::Real
@@ -2177,6 +2531,13 @@ struct custom_flux
         return stressx;
     }
 
+    /**
+     * Compute y-momentum flux for one surface face.
+     *
+     * @par Calling sequence
+     * i, j, k, cons_arr, velx_arr, vely_arr, umm_arr, vm_arr,
+     * u_star_arr.
+     */
     AMREX_GPU_DEVICE
     AMREX_FORCE_INLINE
     amrex::Real
@@ -2219,6 +2580,13 @@ private:
  */
 struct bulk_coeff_flux
 {
+    /**
+     * Construct the bulk-coefficient flux calculator.
+     *
+     * @param[in] m_Cd drag coefficient
+     * @param[in] m_Ch heat-transfer coefficient
+     * @param[in] m_Cq moisture-transfer coefficient
+     */
     bulk_coeff_flux (amrex::Real m_Cd,
                      amrex::Real m_Ch,
                      amrex::Real m_Cq)
@@ -2228,6 +2596,13 @@ struct bulk_coeff_flux
         mdata.Cq = m_Cq;
     }
 
+    /**
+     * Compute moisture flux for one surface point.
+     *
+     * @par Calling sequence
+     * i, j, k, cons_arr, velx_arr, vely_arr, umm_arr, qvm_arr,
+     * u_star_arr, q_star_arr, q_surf_arr.
+     */
     AMREX_GPU_DEVICE
     AMREX_FORCE_INLINE
     amrex::Real
@@ -2256,6 +2631,13 @@ struct bulk_coeff_flux
         return moflux;
     }
 
+    /**
+     * Compute heat flux for one surface point.
+     *
+     * @par Calling sequence
+     * i, j, k, cons_arr, velx_arr, vely_arr, umm_arr, tm_arr,
+     * u_star_arr, t_star_arr, t_surf_arr.
+     */
     AMREX_GPU_DEVICE
     AMREX_FORCE_INLINE
     amrex::Real
@@ -2284,6 +2666,13 @@ struct bulk_coeff_flux
         return moflux;
     }
 
+    /**
+     * Compute x-momentum flux for one surface face.
+     *
+     * @par Calling sequence
+     * i, j, k, cons_arr, velx_arr, vely_arr, umm_arr, um_arr,
+     * u_star_arr.
+     */
     AMREX_GPU_DEVICE
     AMREX_FORCE_INLINE
     amrex::Real
@@ -2310,6 +2699,13 @@ struct bulk_coeff_flux
         return stressx;
     }
 
+    /**
+     * Compute y-momentum flux for one surface face.
+     *
+     * @par Calling sequence
+     * i, j, k, cons_arr, velx_arr, vely_arr, umm_arr, vm_arr,
+     * u_star_arr.
+     */
     AMREX_GPU_DEVICE
     AMREX_FORCE_INLINE
     amrex::Real
@@ -2346,10 +2742,23 @@ private:
  */
 struct rico_flux
 {
+    /**
+     * Construct the RICO flux calculator.
+     *
+     * @param[in] l_theta_z0 surface reference potential temperature
+     * @param[in] l_qsat_z0  surface saturation specific humidity
+     */
     rico_flux (amrex::Real l_theta_z0, amrex::Real l_qsat_z0)
       : theta_z0{l_theta_z0}, qsat_z0{l_qsat_z0} {}
 
 
+    /**
+     * Compute moisture flux for one surface point.
+     *
+     * @par Calling sequence
+     * i, j, k, cons_arr, velx_arr, vely_arr, umm_arr, qvm_arr,
+     * u_star_arr, q_star_arr, q_surf_arr.
+     */
     AMREX_GPU_DEVICE
     AMREX_FORCE_INLINE
     amrex::Real
@@ -2379,6 +2788,13 @@ struct rico_flux
         return moflux;
     }
 
+    /**
+     * Compute heat flux for one surface point.
+     *
+     * @par Calling sequence
+     * i, j, k, cons_arr, velx_arr, vely_arr, umm_arr, tm_arr,
+     * u_star_arr, t_star_arr, t_surf_arr.
+     */
     AMREX_GPU_DEVICE
     AMREX_FORCE_INLINE
     amrex::Real
@@ -2408,6 +2824,13 @@ struct rico_flux
         return moflux;
     }
 
+    /**
+     * Compute x-momentum flux for one surface face.
+     *
+     * @par Calling sequence
+     * i, j, k, cons_arr, velx_arr, vely_arr, umm_arr, um_arr,
+     * u_star_arr.
+     */
     AMREX_GPU_DEVICE
     AMREX_FORCE_INLINE
     amrex::Real
@@ -2435,6 +2858,13 @@ struct rico_flux
         return stressx;
     }
 
+    /**
+     * Compute y-momentum flux for one surface face.
+     *
+     * @par Calling sequence
+     * i, j, k, cons_arr, velx_arr, vely_arr, umm_arr, vm_arr,
+     * u_star_arr.
+     */
     AMREX_GPU_DEVICE
     AMREX_FORCE_INLINE
     amrex::Real
@@ -2478,8 +2908,18 @@ private:
  */
 struct rotate_flux
 {
+    /**
+     * Construct the rotated-flux calculator.
+     */
     rotate_flux () {}
 
+    /**
+     * Compute moisture flux for one surface point.
+     *
+     * @par Calling sequence
+     * i, j, k, cons_arr, velx_arr, vely_arr, umm_arr, qvm_arr,
+     * u_star_arr, q_star_arr, q_surf_arr.
+     */
     AMREX_GPU_DEVICE
     AMREX_FORCE_INLINE
     amrex::Real
@@ -2505,6 +2945,13 @@ struct rotate_flux
         return moflux;
     }
 
+    /**
+     * Compute heat flux for one surface point.
+     *
+     * @par Calling sequence
+     * i, j, k, cons_arr, velx_arr, vely_arr, umm_arr, tm_arr,
+     * u_star_arr, t_star_arr, t_surf_arr.
+     */
     AMREX_GPU_DEVICE
     AMREX_FORCE_INLINE
     amrex::Real
@@ -2530,6 +2977,13 @@ struct rotate_flux
         return moflux;
     }
 
+    /**
+     * Compute x-momentum flux for one surface face.
+     *
+     * @par Calling sequence
+     * i, j, k, cons_arr, velx_arr, vely_arr, umm_arr, um_arr,
+     * u_star_arr.
+     */
     AMREX_GPU_DEVICE
     AMREX_FORCE_INLINE
     amrex::Real
@@ -2551,6 +3005,13 @@ struct rotate_flux
         return stressx;
     }
 
+    /**
+     * Compute y-momentum flux for one surface face.
+     *
+     * @par Calling sequence
+     * i, j, k, cons_arr, velx_arr, vely_arr, umm_arr, vm_arr,
+     * u_star_arr.
+     */
     AMREX_GPU_DEVICE
     AMREX_FORCE_INLINE
     amrex::Real

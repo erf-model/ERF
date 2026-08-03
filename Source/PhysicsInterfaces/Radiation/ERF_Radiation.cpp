@@ -25,8 +25,9 @@ Radiation::Radiation (const int& lev,
     // Check if we have a valid moisture model
     if (sc.moisture_type != MoistureType::None) { m_moist = true; }
 
-    // Check if we have a moisture model with ice
-    if (sc.moisture_type == MoistureType::SAM)  { m_ice = true; }
+    // Cloud-ice support follows the configured moisture-component mapping.
+    m_qi_comp = sc.moisture_indices.qi;
+    m_ice = (m_qi_comp >= 0);
 
     // Check if we have a land surface model enabled
     if (sc.lsm_type != LandSurfaceType::None) { m_lsm = true; }
@@ -519,6 +520,7 @@ Radiation::mf_to_kokkos_buffers (iMultiFab* lmask,
 
     bool moist = m_moist;
     bool ice   = m_ice;
+    const int qi_comp = m_qi_comp;
     const bool has_lsm = m_lsm;
     const bool has_lat = m_lat;
     const bool has_lon = m_lon;

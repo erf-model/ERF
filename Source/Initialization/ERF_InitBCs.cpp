@@ -268,7 +268,7 @@ void ERF::init_phys_bcs (bool& read_prim_theta)
 
         if (phys_bc_type[ori] == ERF_BC::undefined)
         {
-             if (solverChoice.use_real_bcs) {
+             if (solverChoice.use_real_bcs && ori.coordDir() < 2) {
                  Print() << "We are using real bc's so don't need to set lateral bc's" << std::endl;
              } else {
                  Print() << "BC Type specified for face " << bcid << " is " << bc_type_in << std::endl;
