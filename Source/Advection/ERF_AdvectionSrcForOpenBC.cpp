@@ -253,15 +253,16 @@ AdvectionSrcForOpenBC_Tangent (const int& i,
 
     int sgn = 1; if (do_lo) { sgn = -1; }
 
-    IntVect ivm1(i,j,k); if ( do_lo) { ivm1[dir] -= sgn; } // Mom indexed into domain for do_lo
-
     // NOTE: The indices (i,j,k) passed to this routine correspond to data that resides
-    //       1/2 dx away from the open boundary and into the domain. The momentum gradient
-    //       will use a one-sided difference into the domain. However, the momentum will
-    //       reside at the open boundary since it has one more cell in the tangent direction.
-    //       The ivm1 index is the high side of the gradient so it is indexed with += sgn
-    //       when operating on the high side to reach the cell residing at the physical boundary.
-    IntVect ivm2(i,j,k); if (!do_lo) { ivm1[dir] += sgn; } // Mom indexed to  domain wall for do_hi
+    //       1/2 dx away from the open boundary and into the domain. The momentum is
+    //       face centered in dir, so it has one more cell than the scalar and cell
+    //       (i,j,k) is bounded by the faces (i,j,k) and (i,j,k)+e_dir. One of those two
+    //       faces resides on the physical boundary: the high face at a high open bndry,
+    //       the low face at a low open bndry. Averaging and differencing that same pair
+    //       of faces therefore yields the cell centered momentum and its exact cell
+    //       centered gradient on both sides, so no sgn dependence is needed here.
+    IntVect ivm1(i,j,k); ivm1[dir] += 1; // Mom on the high face of cell (i,j,k)
+    IntVect ivm2(i,j,k);                 // Mom on the low  face of cell (i,j,k)
 
     IntVect ivs1(i,j,k); if ( do_lo) { ivs1[dir] -= sgn; } // Scalar indexed into domain for do_hi
     IntVect ivs2(i,j,k); if (!do_lo) { ivs2[dir] -= sgn; } // Scalar indexed into domain for do_lo
