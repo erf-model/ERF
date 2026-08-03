@@ -90,7 +90,10 @@ read_from_erfbdy(int itime,
         { // X-low boundary
             std::string filename = time_dir + "/BdyData_xlo_var" + std::to_string(ivar);
             std::ifstream ifs(filename.c_str(), std::ios::in | std::ios::binary);
-            FArrayBox tmp_fab;
+            // Keep the file-read buffer host-accessible.  On GPU builds the
+            // default arena is device memory, which cannot be the source of
+            // the RunOn::Host copy below.
+            FArrayBox tmp_fab(Arena_Used);
             tmp_fab.readFrom(ifs);
             bdy_data_xlo[itime][ivar].resize(tmp_fab.box(), tmp_fab.nComp(), Arena_Used);
             bdy_data_xlo[itime][ivar].template copy<RunOn::Host>(tmp_fab, 0, 0, tmp_fab.nComp());
@@ -100,7 +103,7 @@ read_from_erfbdy(int itime,
         { // X-high boundary
             std::string filename = time_dir + "/BdyData_xhi_var" + std::to_string(ivar);
             std::ifstream ifs(filename.c_str(), std::ios::in | std::ios::binary);
-            FArrayBox tmp_fab;
+            FArrayBox tmp_fab(Arena_Used);
             tmp_fab.readFrom(ifs);
             bdy_data_xhi[itime][ivar].resize(tmp_fab.box(), tmp_fab.nComp(), Arena_Used);
             bdy_data_xhi[itime][ivar].template copy<RunOn::Host>(tmp_fab, 0, 0, tmp_fab.nComp());
@@ -110,7 +113,7 @@ read_from_erfbdy(int itime,
         { // Y-low boundary
             std::string filename = time_dir + "/BdyData_ylo_var" + std::to_string(ivar);
             std::ifstream ifs(filename.c_str(), std::ios::in | std::ios::binary);
-            FArrayBox tmp_fab;
+            FArrayBox tmp_fab(Arena_Used);
             tmp_fab.readFrom(ifs);
             bdy_data_ylo[itime][ivar].resize(tmp_fab.box(), tmp_fab.nComp(), Arena_Used);
             bdy_data_ylo[itime][ivar].template copy<RunOn::Host>(tmp_fab, 0, 0, tmp_fab.nComp());
@@ -120,7 +123,7 @@ read_from_erfbdy(int itime,
         { // Y-high boundary
             std::string filename = time_dir + "/BdyData_yhi_var" + std::to_string(ivar);
             std::ifstream ifs(filename.c_str(), std::ios::in | std::ios::binary);
-            FArrayBox tmp_fab;
+            FArrayBox tmp_fab(Arena_Used);
             tmp_fab.readFrom(ifs);
             bdy_data_yhi[itime][ivar].resize(tmp_fab.box(), tmp_fab.nComp(), Arena_Used);
             bdy_data_yhi[itime][ivar].template copy<RunOn::Host>(tmp_fab, 0, 0, tmp_fab.nComp());
