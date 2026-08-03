@@ -2228,8 +2228,9 @@ List of Parameters
 The default moisture-temperature threshold corresponds to the lower limit of
 the ice-saturation derivative fit used by several schemes. WSM6 computes its
 own closed-form saturation relations and may opt into a lower threshold. Such
-an override should remain above any physically plausible model temperature and
-must be recorded with the run configuration; it is not a temperature clip.
+an override should remain below all physically plausible model temperatures,
+but above catastrophic numerical states, and must be recorded with the run
+configuration; it is not a temperature clip.
 
 Reproducibility
 ===============
