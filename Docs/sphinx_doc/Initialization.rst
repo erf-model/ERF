@@ -15,10 +15,12 @@ Custom Initialization
 ----------------------------------
 
 The deterministic rectangular ``Cloud Chamber`` initializer is documented in
-:ref:`CloudChamber`.  It sets the initial physical-temperature profile and,
-when SatAdj is selected, the initial vapor state with zero cloud water before
-adjustment.  Wall temperature and moisture entries are a separate boundary
-condition contract that controls subsequent resolved wall-normal transfer.
+:ref:`CloudChamber`.  Dry mode initializes a physical-temperature profile
+without moisture state variables.  SatAdj mode additionally initializes water
+vapor from the requested relative humidity and sets cloud water to zero before
+the model begins its equilibrium partitioning.  Wall temperature and moisture
+settings are a separate boundary-condition contract that controls subsequent
+resolved wall-normal transfer.
 
 When not reading the initial data as described in the section below,
 the initialization in ERF has two steps: creation of the background state

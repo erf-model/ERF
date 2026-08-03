@@ -279,6 +279,9 @@ inline Config parse_config (const amrex::Real* problo,
         pp_prob.get("initial_temperature_bottom", config.initial_temperature_bottom);
         pp_prob.get("initial_temperature_top", config.initial_temperature_top);
         if (config.cloudy) {
+            if (!pp_prob.contains("initial_relative_humidity")) {
+                amrex::Error("Cloud Chamber: physical SatAdj initialization requires prob.initial_relative_humidity");
+            }
             pp_prob.get("initial_relative_humidity", config.initial_relative_humidity);
         } else if (pp_prob.contains("initial_relative_humidity")) {
             amrex::Error("Cloud Chamber: prob.initial_relative_humidity is only used with erf.moisture_model = SatAdj");
@@ -286,8 +289,9 @@ inline Config parse_config (const amrex::Real* problo,
         pp_prob.query("temperature_perturbation_amplitude",
                       config.temperature_perturbation_amplitude);
         if (pp_prob.contains("theta_bottom") || pp_prob.contains("theta_top") ||
+            pp_prob.contains("theta_perturbation_amplitude") ||
             pp_prob.contains("qv_bottom") || pp_prob.contains("qv_top")) {
-            amrex::Error("Cloud Chamber: physical_temperature_rh cannot be combined with legacy theta/qv keys");
+            amrex::Error("Cloud Chamber: physical_temperature_rh cannot be combined with legacy theta/qv profile keys");
         }
         require_finite("prob.initial_temperature_bottom", config.initial_temperature_bottom);
         require_finite("prob.initial_temperature_top", config.initial_temperature_top);
@@ -306,6 +310,12 @@ inline Config parse_config (const amrex::Real* problo,
         }
     } else if (init_mode == "legacy_theta_qv") {
         config.physical_initialization = false;
+        if (pp_prob.contains("initial_temperature_bottom") ||
+            pp_prob.contains("initial_temperature_top") ||
+            pp_prob.contains("initial_relative_humidity") ||
+            pp_prob.contains("temperature_perturbation_amplitude")) {
+            amrex::Error("Cloud Chamber: legacy_theta_qv cannot be combined with physical temperature/RH profile keys");
+        }
         pp_prob.get("theta_bottom", config.theta_bottom);
         pp_prob.get("theta_top", config.theta_top);
         pp_prob.query("theta_perturbation_amplitude",
