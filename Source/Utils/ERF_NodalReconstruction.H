@@ -120,7 +120,7 @@ public:
                       Vector const& boundary,
                       amrex::FArrayBox& S) const
     {
-        S.setVal(zero);
+        S.setVal<amrex::RunOn::Host>(zero);
         auto const T_arr = T.const_array();
         auto const S_arr = S.array();
         injectBoundary(boundary,S_arr);
@@ -205,7 +205,7 @@ private:
     void computeParticularSolution (amrex::FArrayBox const& T,
                                     amrex::FArrayBox& c) const
     {
-        c.setVal(zero);
+        c.setVal<amrex::RunOn::Host>(zero);
         auto const T_arr=T.const_array();
         auto const c_arr=c.array();
         for (int j=m_jlo; j<=m_jhi; ++j) {
@@ -221,7 +221,7 @@ private:
     void applyG (Vector const& b,
                  amrex::FArrayBox& U) const
     {
-        U.setVal(zero);
+        U.setVal<amrex::RunOn::Host>(zero);
         auto const U_arr = U.array();
         injectBoundary(b,U_arr);
         for (int j=m_jlo; j<=m_jhi; ++j) {
@@ -237,8 +237,8 @@ private:
                  amrex::FArrayBox& difx,
                  amrex::FArrayBox& dify) const
     {
-        difx.setVal(zero);
-        dify.setVal(zero);
+        difx.setVal<amrex::RunOn::Host>(zero);
+        dify.setVal<amrex::RunOn::Host>(zero);
 
         auto const S_arr    = S.const_array();
         auto const difx_arr = difx.array();
@@ -264,7 +264,7 @@ private:
                   amrex::FArrayBox const& dify,
                   amrex::FArrayBox& R) const
     {
-        R.setVal(zero);
+        R.setVal<amrex::RunOn::Host>(zero);
 
         auto const qx_arr = difx.const_array();
         auto const qy_arr = dify.const_array();
@@ -305,7 +305,7 @@ private:
     void applyL (amrex::FArrayBox const& S,
                  amrex::FArrayBox& lap) const
     {
-        lap.setVal(zero);
+        lap.setVal<amrex::RunOn::Host>(zero);
 
         auto const S_arr   = S.const_array();
         auto const lap_arr = lap.array();
@@ -329,7 +329,7 @@ private:
     void applyLT (amrex::FArrayBox const& lap,
                   amrex::FArrayBox& R) const
     {
-        R.setVal(zero);
+        R.setVal<amrex::RunOn::Host>(zero);
 
         auto const q_arr = lap.const_array();
         auto const R_arr = R.array();
@@ -382,7 +382,7 @@ private:
                   Vector& result) const
     {
         amrex::FArrayBox adj(m_nodal_box,1);
-        adj.copy(R,0,0,1);
+        adj.copy<amrex::RunOn::Host>(R,0,0,1);
         auto const a_arr = adj.array();
 
         for (int j=m_jhi; j>=m_jlo; --j) {
