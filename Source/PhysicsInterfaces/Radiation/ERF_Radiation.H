@@ -248,6 +248,7 @@ private:
     // Do we have moisture and cold comps?
     bool m_moist = false;
     bool m_ice   = false;
+    int  m_qi_comp = -1;
     bool m_use_shoc_cldfrac = true;
 
     // Do we have a land surface model?

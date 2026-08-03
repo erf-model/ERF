@@ -559,7 +559,7 @@ Radiation::mf_to_kokkos_buffers (iMultiFab* lmask,
             Real rt = cons_arr(i,j,k,RhoTheta_comp);
             Real qv = (moist) ? std::max(cons_arr(i,j,k,RhoQ1_comp)/r,Real(0.)) : Real(0.);
             Real qc = (moist) ? std::max(cons_arr(i,j,k,RhoQ2_comp)/r,Real(0.)) : Real(0.);
-            Real qi = (ice)   ? std::max(cons_arr(i,j,k,RhoQ3_comp)/r,Real(0.)) : Real(0.);
+            Real qi = (ice && qi_comp >= 0) ? std::max(cons_arr(i,j,k,qi_comp)/r,Real(0.)) : Real(0.);
             const RadiationCloudFractions cloud_fractions =
                 radiation_cloud_fractions(qc, qi,
                                            has_shoc_cldfrac ? shoc_cf_arr(i,j,k) : Real(0.),
