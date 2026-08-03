@@ -209,13 +209,13 @@ void ComputeTurbulentViscosityLES (Vector<std::unique_ptr<MultiFab>>& Tau_lev,
                 Real dtheta_dz;
                 if (use_thetav_grad) {
                     dtheta_dz = myhalf * ( GetThetav(i, j, k+1, cell_data, moisture_indices)
-                                      - GetThetav(i, j, k-1, cell_data, moisture_indices) )*dzInv;
+                                          -GetThetav(i, j, k-1, cell_data, moisture_indices) )*dzInv;
                 } else if (use_thetal_grad) {
                     dtheta_dz = myhalf * ( GetThetal(i, j, k+1, cell_data, moisture_indices)
-                                      - GetThetal(i, j, k-1, cell_data, moisture_indices) )*dzInv;
+                                          -GetThetal(i, j, k-1, cell_data, moisture_indices) )*dzInv;
                 } else {
                     dtheta_dz = myhalf * ( cell_data(i, j, k+1, RhoTheta_comp) / cell_data(i, j, k+1, Rho_comp)
-                                      - cell_data(i, j, k-1, RhoTheta_comp) / cell_data(i, j, k-1, Rho_comp) )*dzInv;
+                                          -cell_data(i, j, k-1, RhoTheta_comp) / cell_data(i, j, k-1, Rho_comp) )*dzInv;
                 }
 
                 // Calculate stratification-dependent mixing length (Deardorff 1980, Eqn. 10a)
@@ -831,10 +831,9 @@ void ComputeTurbulentViscosity (double dt,
         AMREX_ALWAYS_ASSERT(!vert_only);
     }
 
-    bool impose_phys_bcs = false;
+    bool impose_phys_bcs = true;
 
     if (turbChoice.les_type != LESType::None) {
-        impose_phys_bcs = true;
         if (solverChoice.terrain_type == TerrainType::EB) {
             ComputeTurbulentViscosityLES_EB(Tau_lev,
                                         cons_in, eddyViscosity,
@@ -856,7 +855,6 @@ void ComputeTurbulentViscosity (double dt,
     }
 
     if (turbChoice.rans_type != RANSType::None) {
-        impose_phys_bcs = true;
         ComputeTurbulentViscosityRANS(Tau_lev,
                                       cons_in, wdist,
                                       eddyViscosity,
@@ -968,7 +966,7 @@ void ComputeTurbulentViscosity (double dt,
                 int lj = amrex::min(amrex::max(j, domlo.y), domhi.y);
                 int lk = amrex::min(amrex::max(k, domlo.z), domhi.z);
                 if ((mask_arr(i,j,k) == is_notcovered && mask_arr(i_lo,lj,lk) != is_notcovered) ||
-                    (mask_arr(i,j,k) == is_physbnd     && i < domlo.x && impose_phys_bcs)) {
+                    (mask_arr(i,j,k) == is_physbnd    && i < domlo.x && impose_phys_bcs)) {
                     for (int n = 0; n < ncomp; n++) {
                         mu_turb(i,j,k,n) = mu_turb(i_lo,lj,lk,n);
                     }
@@ -979,7 +977,7 @@ void ComputeTurbulentViscosity (double dt,
                 int lj = amrex::min(amrex::max(j, domlo.y), domhi.y);
                 int lk = amrex::min(amrex::max(k, domlo.z), domhi.z);
                 if ((mask_arr(i,j,k) == is_notcovered && mask_arr(i_hi,lj,lk) != is_notcovered) ||
-                    (mask_arr(i,j,k) == is_physbnd     && i > domhi.x && impose_phys_bcs)) {
+                    (mask_arr(i,j,k) == is_physbnd    && i > domhi.x && impose_phys_bcs)) {
                     for (int n = 0; n < ncomp; n++) {
                         mu_turb(i,j,k,n) = mu_turb(i_hi,lj,lk,n);
                     }
@@ -989,7 +987,7 @@ void ComputeTurbulentViscosity (double dt,
             {
                 int lk = amrex::min(amrex::max(k, domlo.z), domhi.z);
                 if ((mask_arr(i,j,k) == is_notcovered && mask_arr(i,j_lo,lk) != is_notcovered) ||
-                    (mask_arr(i,j,k) == is_physbnd     && j < domlo.y && impose_phys_bcs)) {
+                    (mask_arr(i,j,k) == is_physbnd    && j < domlo.y && impose_phys_bcs)) {
                     for (int n = 0; n < ncomp; n++) {
                         mu_turb(i,j,k,n) = mu_turb(i,j_lo,lk,n);
                     }
@@ -999,7 +997,7 @@ void ComputeTurbulentViscosity (double dt,
             {
                 int lk = amrex::min(amrex::max(k, domlo.z), domhi.z);
                 if ((mask_arr(i,j,k) == is_notcovered && mask_arr(i,j_hi,lk) != is_notcovered)||
-                    (mask_arr(i,j,k) == is_physbnd     && j > domhi.y && impose_phys_bcs)) {
+                    (mask_arr(i,j,k) == is_physbnd    && j > domhi.y && impose_phys_bcs)) {
                     for (int n = 0; n < ncomp; n++) {
                         mu_turb(i,j,k,n) = mu_turb(i,j_hi,lk,n);
                     }
@@ -1008,7 +1006,7 @@ void ComputeTurbulentViscosity (double dt,
             ParallelFor(planez_lo, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
                 if ((mask_arr(i,j,k) == is_notcovered && mask_arr(i,j,k_lo) != is_notcovered) ||
-                    (mask_arr(i,j,k) == is_physbnd     && k < domlo.z && impose_phys_bcs)) {
+                    (mask_arr(i,j,k) == is_physbnd    && k < domlo.z && impose_phys_bcs)) {
                     if (mask_arr(i,j,k) == is_physbnd) {
                     }
                     for (int n = 0; n < ncomp; n++) {
@@ -1019,13 +1017,14 @@ void ComputeTurbulentViscosity (double dt,
             ParallelFor(planez_hi, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
                 if ((mask_arr(i,j,k) == is_notcovered && mask_arr(i,j,k_hi) != is_notcovered) ||
-                    (mask_arr(i,j,k) == is_physbnd     && k > domhi.z && impose_phys_bcs)) {
+                    (mask_arr(i,j,k) == is_physbnd    && k > domhi.z && impose_phys_bcs)) {
                     for (int n = 0; n < ncomp; n++) {
                         mu_turb(i,j,k,n) = mu_turb(i,j,k_hi,n);
                     }
                 }
             });
         } // mfi
+
         eddyViscosity.FillBoundary(geom.periodicity());
     }
 }
