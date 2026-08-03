@@ -813,7 +813,9 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
                 } else {
                     t_star_arr(i,j,0) = amrex::max(-hfx3_arr(i,j,klo) / (rho * u_star_arr(i,j,0)),eps);
                 }
-                if (qfx3_arr(i,j,klo)>=zero) {
+                if (!l_use_moisture) {
+                    q_star_arr(i,j,0) = zero;
+                } else if (qfx3_arr(i,j,klo)>=zero) {
                     q_star_arr(i,j,0) = amrex::min(-qfx3_arr(i,j,klo) / (rho * u_star_arr(i,j,0)),-eps);
                 } else {
                     q_star_arr(i,j,0) = amrex::max(-qfx3_arr(i,j,klo) / ( rho * u_star_arr(i,j,0)),eps);
@@ -996,7 +998,7 @@ SurfaceLayer::compute_SurfaceLayer_bcs_EB (const int& lev,
         });
         ParallelFor(bxz, [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
-            if (u_flag_arr(i,j,k).isSingleValued()) {
+            if (w_flag_arr(i,j,k).isSingleValued()) {
                 Real stressx = flux_comp.compute_u_flux(i, j, k,
                                                         cons_arr, velx_arr, vely_arr, velz_arr,
                                                         umm_arr, um_arr, u_star_arr,
