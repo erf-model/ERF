@@ -174,16 +174,16 @@ ERF::FillPatchFineLevel (int lev, double time_d,
         }
 
         if (!amrex::almostEqual(time,ftime[1])) {
-            MultiFab::Add(vars_old[lev][Vars::cons],base_state[lev  ],BaseState::r0_comp,Rho_comp,1,ngvect_cons);
-            MultiFab::Add(vars_old[lev][Vars::cons],base_state[lev  ],BaseState::th0_comp,RhoTheta_comp,1,ngvect_cons);
+            MultiFab::Add(vars_old[lev][Vars::cons],base_state[lev  ],BaseState::r0_comp,Rho_comp,1,IntVect{0});
+            MultiFab::Add(vars_old[lev][Vars::cons],base_state[lev  ],BaseState::th0_comp,RhoTheta_comp,1,IntVect{0});
             MultiFab::Multiply(vars_old[lev][Vars::cons], vars_old[lev][Vars::cons],
-                                   Rho_comp,RhoTheta_comp,1,ngvect_cons);
+                               Rho_comp,RhoTheta_comp,1,IntVect{0});
         }
         if (!amrex::almostEqual(time,ftime[0])) {
-            MultiFab::Add(vars_new[lev][Vars::cons], base_state[lev],BaseState::r0_comp,Rho_comp,1,ngvect_cons);
-            MultiFab::Add(vars_new[lev][Vars::cons], base_state[lev],BaseState::th0_comp,RhoTheta_comp,1,ngvect_cons);
+            MultiFab::Add(vars_new[lev][Vars::cons], base_state[lev],BaseState::r0_comp,Rho_comp,1,IntVect{0});
+            MultiFab::Add(vars_new[lev][Vars::cons], base_state[lev],BaseState::th0_comp,RhoTheta_comp,1,IntVect{0});
             MultiFab::Multiply(vars_new[lev][Vars::cons], vars_new[lev][Vars::cons],
-                               Rho_comp,RhoTheta_comp,1,ngvect_cons);
+                               Rho_comp,RhoTheta_comp,1,IntVect{0});
         }
 
         // Set values in the cells outside the domain boundary so that we can do the Add
