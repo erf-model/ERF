@@ -250,13 +250,18 @@ AdvectionSrcForOpenBC_Tangent (const int& i,
     //       convective storm dynamics, J. Atmos. Sci., 35, 1070-Real(1096.)
     // NOTE: Implementation is for the high bndry side. The low bndry side is obtained
     //       by flipping sgn = -one
-    // NOTE: Indices (i,j,k) correspond to data that is index 1/2 dx off open bdy.
-    //       Therefore, momentum indexing (ivm1/2) have 1 extra cell on the high
-    //       side that should be accessed while scalar indexing (ivs1/2) does not.
+
     int sgn = 1; if (do_lo) { sgn = -1; }
 
     IntVect ivm1(i,j,k); if ( do_lo) { ivm1[dir] -= sgn; } // Mom indexed into domain for do_lo
-    IntVect ivm2(i,j,k); if (!do_lo) { ivm1[dir] += sgn; } // Mom indexed out  domain for do_hi
+
+    // NOTE: The indices (i,j,k) passed to this routine correspond to data that resides
+    //       1/2 dx away from the open boundary and into the domain. The momentum gradient
+    //       will use a one-sided difference into the domain. However, the momentum will
+    //       reside at the open boundary since it has one more cell in the tangent direction.
+    //       The ivm1 index is the high side of the gradient so it is indexed with += sgn
+    //       when operating on the high side to reach the cell residing at the physical boundary.
+    IntVect ivm2(i,j,k); if (!do_lo) { ivm1[dir] += sgn; } // Mom indexed to  domain wall for do_hi
 
     IntVect ivs1(i,j,k); if ( do_lo) { ivs1[dir] -= sgn; } // Scalar indexed into domain for do_hi
     IntVect ivs2(i,j,k); if (!do_lo) { ivs2[dir] -= sgn; } // Scalar indexed into domain for do_lo
