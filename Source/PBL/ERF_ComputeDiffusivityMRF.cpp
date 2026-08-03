@@ -201,6 +201,11 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
         const auto& hgamq_arr       = hgamq_fab.array();
         const auto& wstar_arr       = wstar_fab.array();
         const auto& vpert_arr       = vpert_fab.array();
+        // Publish the PBL height diagnosed by the active MRF closure.  The
+        // generic SurfaceLayer MRF diagnostic is not implemented, so without
+        // this copy the standard 2-D pblh field retains its initialization
+        // sentinel even though MRF has already computed a corrected height.
+        const auto& pblh_diag_arr = SurfLayer->get_pblh(level)->array(mfi);
 
         // Get some data in arrays
         const auto& cell_data = cons_in.const_array(mfi);
@@ -477,6 +482,7 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
                 pblh_corr_arr(i, j, 0) = pblh_min;
                 pbli_arr(i, j, 0) = klo + 1;
             }
+            pblh_diag_arr(i, j, 0) = pblh_corr_arr(i, j, 0);
         });
 
         //
