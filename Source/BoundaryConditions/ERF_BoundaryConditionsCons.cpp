@@ -4,15 +4,19 @@
 
 using namespace amrex;
 
-/*
+/**
  * Impose lateral boundary conditions on conserved scalars (at cell centers)
  *
  * @param[in,out] dest_arr cell-centered data to be filled
+ * @param[in]     xvel_arr x-velocity used to determine upwind Dirichlet inflow
+ * @param[in]     yvel_arr y-velocity used to determine upwind Dirichlet inflow
  * @param[in]     bx       box holding data to be filled
  * @param[in]     domain   simulation domain
  * @param[in]     icomp    index into the MultiFab -- this can be any value from 0 to NVAR-1
  * @param[in]     ncomp    the number of components -- this can be any value from 1 to NVAR
  *                         as long as icomp+ncomp <= NVAR-one
+ * @param[in]     ng       number of ghost cells in each coordinate direction
+ * @param[in]     time     time at which the data should be filled
  */
 
 void ERFPhysBCFunct_cons::impose_lateral_cons_bcs (const Array4<Real>& dest_arr,
@@ -303,17 +307,19 @@ void ERFPhysBCFunct_cons::impose_lateral_cons_bcs (const Array4<Real>& dest_arr,
     Gpu::streamSynchronize();
 }
 
-/*
+/**
  * Impose vertical boundary conditions on conserved scalars (at cell centers)
  *
- * @param[in] dest_arr  the Array4 of the quantity to be filled
- * @param[in] bx        the box associated with this data
- * @param[in] domain    the computational domain
- * @param[in] z_phys_nd height coordinate at nodes
- * @param[in] dxInv     inverse cell size array
- * @param[in] icomp     the index of the first component to be filled
- * @param[in] ncomp     the number of components -- this can be any value from 1 to NVAR
- *                      as long as icomp+ncomp <= NVAR-one
+ * @param[in,out] dest_arr              the Array4 of the quantity to be filled
+ * @param[in]     bx                    the box associated with this data
+ * @param[in]     domain                the computational domain
+ * @param[in]     z_phys_nd             height coordinate at nodes
+ * @param[in]     dxInv                 inverse cell size array
+ * @param[in]     icomp                 the index of the first component to be filled
+ * @param[in]     ncomp                 the number of components -- this can be any value from 1 to NVAR
+ *                                      as long as icomp+ncomp <= NVAR-one
+ * @param[in]     time                  time at which the data should be filled
+ * @param[in]     do_terrain_adjustment whether to apply terrain-aware Neumann adjustments
  */
 
 void ERFPhysBCFunct_cons::impose_vertical_cons_bcs (const Array4<Real>& dest_arr, const Box& bx, const Box& domain,
