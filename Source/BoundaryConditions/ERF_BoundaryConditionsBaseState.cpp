@@ -5,12 +5,14 @@
 
 using namespace amrex;
 
-/*
+/**
  * Impose lateral boundary conditions on the base state
  *
  * @param[in,out] dest_arr cell-centered data to be filled
  * @param[in]     bx       box holding data to be filled
  * @param[in]     domain   simulation domain
+ * @param[in]     ncomp    number of base-state components to fill
+ * @param[in]     nghost   number of ghost cells in each coordinate direction
  */
 
 void ERFPhysBCFunct_base::impose_lateral_basestate_bcs (const Array4<Real>& dest_arr,
@@ -245,6 +247,16 @@ void ERFPhysBCFunct_base::impose_lateral_basestate_bcs (const Array4<Real>& dest
     Gpu::streamSynchronize();
 }
 
+/**
+ * Impose vertical boundary conditions on the base state
+ *
+ * @param[in,out] dest_arr  cell-centered base-state data to be filled
+ * @param[in]     z_phys_nd height coordinate at nodes, unused for base-state fills
+ * @param[in]     bx        box holding data to be filled
+ * @param[in]     domain    simulation domain
+ * @param[in]     ncomp     number of base-state components to fill
+ * @param[in]     nghost    number of ghost cells, unused for base-state fills
+ */
 void ERFPhysBCFunct_base::impose_vertical_basestate_bcs (const Array4<Real>& dest_arr,
                                                          const Array4<Real const>& /*z_phys_nd*/,
                                                          const Box& bx,
