@@ -7,22 +7,20 @@
 
 using namespace amrex;
 
-/*
+/**
  * Fill valid and ghost data
  * This version fills mfs in valid regions with the values in "mfs" when it is passed in;
  * it is used only to compute ghost values for intermediate stages of a time integrator.
  *
- * @param[in]  lev            level of refinement at which to fill the data
- * @param[in]  time           time at which the data should be filled
- * @param[out] mfs_vel        Vector of MultiFabs to be filled containing, in order: cons, xvel, yvel, and zvel
- * @param[out] mfs_mom        Vector of MultiFabs to be filled containing, in order: cons, xmom, ymom, and zmom
- * @param[in]  ng_cons        number of ghost cells to be filled for conserved (cell-centered) variables
- * @param[in]  ng_vel         number of ghost cells to be filled for velocity components
- * @param[in]  cons_only      if 1 then only fill conserved variables
- * @param[in]  icomp_cons     starting component for conserved variables
- * @param[in]  ncomp_cons     number of components for conserved variables
- * @param[in]  eddyDiffs      diffusion coefficients for LES turbulence models
- * @param[in]  allow_most_bcs if true then use MOST bcs at the low boundary
+ * @param[in]     lev         level of refinement at which to fill the data
+ * @param[in]     time_d      time at which the data should be filled
+ * @param[in,out] mfs_vel     Vector of MultiFabs to be filled containing, in order: cons, xvel, yvel, and zvel
+ * @param[in,out] mfs_mom     Vector of MultiFabs to be filled containing, in order: cons, xmom, ymom, and zmom
+ * @param[in]     ng_cons     number of ghost cells to be filled for conserved variables
+ * @param[in]     ng_vel      number of ghost cells to be filled for velocity components
+ * @param[in]     cons_only   if true then only fill conserved variables
+ * @param[in]     icomp_cons  starting component for conserved variables
+ * @param[in]     ncomp_cons  number of components for conserved variables
  */
 void
 ERF::FillIntermediatePatch (int lev, double time_d,

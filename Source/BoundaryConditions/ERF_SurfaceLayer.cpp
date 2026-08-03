@@ -7,7 +7,12 @@ using namespace amrex;
  * Wrapper to update ustar and tstar for Monin Obukhov similarity theory.
  *
  * @param[in] lev Current level
- * @param[in] max_iters maximum iterations to use
+ * @param[in] elapsed_time Current simulation time
+ * @param[in] elapsed_time_since_start_low Time since the start of the lower-boundary data
+ * @param[in,out] cons_in Conserved state, updated when RANS TKE is initialized from surface-layer data
+ * @param[in] z_phys_nd Nodal physical height used by terrain-aware surface calculations
+ * @param[in] walldist Wall distance used when updating boundary TKE
+ * @param[in] max_iters Maximum iterations to use in the MOST flux solve
  */
 void
 SurfaceLayer::update_fluxes (const int& lev,
@@ -266,8 +271,10 @@ SurfaceLayer::update_fluxes (const int& lev,
  * Function to compute the fluxes (u^star and t^star) for Monin Obukhov similarity theory
  *
  * @param[in] lev Current level
- * @param[in] max_iters maximum iterations to use
- * @param[in] most_flux structure to iteratively compute ustar and tstar
+ * @param[in] max_iters Maximum iterations to use
+ * @param[in] cons_in Conserved state whose grids define the surface iteration
+ * @param[in] most_flux Flux-iteration functor used to compute ustar, tstar, qstar, and related fields
+ * @param[in] is_land Selects whether land or sea cells are updated
  */
 template <typename FluxIter>
 void
@@ -382,8 +389,15 @@ SurfaceLayer::compute_fluxes (const int& lev,
  * Wrapper to impose Monin Obukhov similarity theory fluxes by populating ghost cells.
  *
  * @param[in] lev Current level
- * @param[in,out] mfs MultiFabs to populate
- * @param[in] eddyDiffs Diffusion coefficients from turbulence model
+ * @param[in] mfs State MultiFabs used to compute the boundary fluxes
+ * @param[in,out] Tau_lev Diffusive stress MultiFabs populated with surface stresses
+ * @param[in,out] xheat_flux x-face heat-flux MultiFab, used when rotated fluxes are enabled
+ * @param[in,out] yheat_flux y-face heat-flux MultiFab, used when rotated fluxes are enabled
+ * @param[in,out] zheat_flux z-face heat-flux MultiFab populated with vertical surface heat flux
+ * @param[in,out] xqv_flux x-face moisture-flux MultiFab, used when rotated fluxes and moisture are enabled
+ * @param[in,out] yqv_flux y-face moisture-flux MultiFab, used when rotated fluxes and moisture are enabled
+ * @param[in,out] zqv_flux z-face moisture-flux MultiFab populated when moisture is enabled
+ * @param[in] z_phys Nodal physical height used to rotate terrain-following fluxes
  */
 void
 SurfaceLayer::impose_SurfaceLayer_bcs (const int& lev,
@@ -442,8 +456,14 @@ SurfaceLayer::impose_SurfaceLayer_bcs (const int& lev,
  * Wrapper to impose Monin Obukhov similarity theory fluxes by populating ghost cells.
  *
  * @param[in] lev Current level
- * @param[in,out] mfs MultiFabs to populate
- * @param[in] eddyDiffs Diffusion coefficients from turbulence model
+ * @param[in] mfs State MultiFabs used to compute the EB boundary fluxes
+ * @param[in,out] Tau_EB EB diffusive stress MultiFabs populated with surface stresses
+ * @param[in,out] xheat_flux x-face EB heat-flux MultiFab, currently unused
+ * @param[in,out] yheat_flux y-face EB heat-flux MultiFab, currently unused
+ * @param[in,out] Hfx3_EB EB heat-flux MultiFab populated with scalar surface flux
+ * @param[in,out] xqv_flux x-face EB moisture-flux MultiFab, currently unused
+ * @param[in,out] yqv_flux y-face EB moisture-flux MultiFab, currently unused
+ * @param[in,out] zqv_flux z-face EB moisture-flux MultiFab, currently unused
  */
 void
 SurfaceLayer::impose_SurfaceLayer_bcs_EB (const int& lev,
@@ -471,9 +491,16 @@ SurfaceLayer::impose_SurfaceLayer_bcs_EB (const int& lev,
  * Function to calculate MOST fluxes for populating ghost cells.
  *
  * @param[in] lev Current level
- * @param[in,out] mfs MultiFabs to populate
- * @param[in] eddyDiffs Diffusion coefficients from turbulence model
- * @param[in] flux_comp structure to compute fluxes
+ * @param[in] mfs State MultiFabs used to compute the boundary fluxes
+ * @param[in,out] Tau_lev Diffusive stress MultiFabs populated with surface stresses
+ * @param[in,out] xheat_flux x-face heat-flux MultiFab, used when rotated fluxes are enabled
+ * @param[in,out] yheat_flux y-face heat-flux MultiFab, used when rotated fluxes are enabled
+ * @param[in,out] zheat_flux z-face heat-flux MultiFab populated with vertical surface heat flux
+ * @param[in,out] xqv_flux x-face moisture-flux MultiFab, used when rotated fluxes and moisture are enabled
+ * @param[in,out] yqv_flux y-face moisture-flux MultiFab, used when rotated fluxes and moisture are enabled
+ * @param[in,out] zqv_flux z-face moisture-flux MultiFab populated when moisture is enabled
+ * @param[in] z_phys Nodal physical height used to rotate terrain-following fluxes
+ * @param[in] flux_comp Flux-calculation functor used to compute scalar and momentum fluxes
  */
 template <typename FluxCalc>
 void
@@ -509,6 +536,8 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
 
         auto hfx3_arr = zheat_flux->array(mfi);
         auto qfx3_arr = (zqv_flux)  ? zqv_flux->array(mfi)   : Array4<Real>{};
+
+        auto olen_arr   = olen[lev]->array(mfi);
 
         // Rotated stress vars
         auto t11_arr = (m_rotate) ? Tau_lev[TauType::tau11]->array(mfi) : Array4<Real>{};
@@ -593,10 +622,10 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
                                                  cons_arr, velx_arr, vely_arr,
                                                  umm_arr, tm_arr, u_star_arr,
                                                  t_star_arr, t_surf_arr);
-                if (lsm_t_flux_arr) {
-                    lsm_t_flux_arr(i,j,0) = Tflux / cons_arr(i,j,k,Rho_comp);
-                }
-
+                // NOTE: do NOT write the MOST-fallback flux back into lsm_t_flux_arr.
+                // Doing so flips a sentinel (water/unprocessed) cell to "valid LSM"
+                // on the next step, so a MOST-derived value is re-read as an LSM flux
+                // Only Noah-MP should populate the LSM cache.
             }
 
             surface_source_arr(i,j,0) = surface_diagnostics::to_plot_value(
@@ -634,9 +663,8 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
                                                      cons_arr, velx_arr, vely_arr,
                                                      umm_arr, qm_arr, u_star_arr,
                                                      q_star_arr, q_surf_arr);
-                    if (lsm_q_flux_arr) {
-                        lsm_q_flux_arr(i,j,0) = Qflux / cons_arr(i,j,k,Rho_comp);
-                    }
+                    // NOTE: no writeback into lsm_q_flux_arr -- see the matching
+                    // t_flux note above.
                 }
 
                 // Do scalar flux rotations?
@@ -680,23 +708,20 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
                         rho_lo, rho_hi, lsm_tau13_arr(i-1,j,0), lsm_tau13_arr(i,j,0),
                         has_land_and_flux_lo, has_land_and_flux_hi, most_stress);
                     stressx = result.face_stress;
-                    if (!has_land_and_flux_lo) { lsm_tau13_arr(i-1,j,0) = result.low_kinematic_cache; }
-                    if (!has_land_and_flux_hi) { lsm_tau13_arr(i  ,j,0) = result.high_kinematic_cache; }
+                    // NOTE: do NOT write the MOST-fallback stress back into the
+                    // cell-centered lsm_tau13_arr. This face-indexed ParallelFor
+                    // touches cells (i) and (i-1), so each cell is written by two
+                    // adjacent face threads in the same launch -> nondeterministic
+                    // write-write race on GPU (ERF #3446). It also spuriously flips
+                    // a sentinel (water/unprocessed) cell to "valid LSM" for the
+                    // next step. The face stress is fully determined here; the LSM
+                    // cache is (re)filled only by Noah-MP. Matches baseline 3ab899d3.
                 } else if (is_land_hi == 2 || is_land_lo == 2) { // no stress within buildings
                     stressx = zero;
                 } else {
                     stressx = flux_comp.compute_u_flux(i, j, k,
                                                        cons_arr, velx_arr, vely_arr,
                                                        umm_arr, um_arr, u_star_arr);
-                    if (lsm_tau13_arr) {
-                        // LSM tau13 is cell-centered kinematic stress [m2 s-2].
-                        // Tau_lev tau13 is a face-centered conservative stress [N m-2].
-                        // MOST compute_u_flux returns the conservative face stress.
-                        lsm_tau13_arr(i  ,j,0) = surface_layer_stress::conservative_to_kinematic_stress(
-                            stressx, cons_arr(i  ,j,k,Rho_comp));
-                        lsm_tau13_arr(i-1,j,0) = surface_layer_stress::conservative_to_kinematic_stress(
-                            stressx, cons_arr(i-1,j,k,Rho_comp));
-                    }
                 }
 
                 t13_arr(i,j,k) = stressx;
@@ -731,23 +756,15 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
                         rho_lo, rho_hi, lsm_tau23_arr(i,j-1,0), lsm_tau23_arr(i,j,0),
                         has_land_and_flux_lo, has_land_and_flux_hi, most_stress);
                     stressy = result.face_stress;
-                    if (!has_land_and_flux_lo) { lsm_tau23_arr(i,j-1,0) = result.low_kinematic_cache; }
-                    if (!has_land_and_flux_hi) { lsm_tau23_arr(i,j  ,0) = result.high_kinematic_cache; }
+                    // NOTE: no writeback into cell-centered lsm_tau23_arr -- see the
+                    // matching tau13 note above (ERF #3446 write-write race + stale
+                    // sentinel-becomes-valid). Face stress is complete here.
                 } else if (is_land_hi == 2 || is_land_lo == 2) { // no stress within buildings
                     stressy = zero;
                 } else {
                     stressy = flux_comp.compute_v_flux(i, j, k,
                                                        cons_arr, velx_arr, vely_arr,
                                                        umm_arr, vm_arr, u_star_arr);
-                    if (lsm_tau23_arr) {
-                        // LSM tau23 is cell-centered kinematic stress [m2 s-2].
-                        // Tau_lev tau23 is a face-centered conservative stress [N m-2].
-                        // MOST compute_v_flux returns the conservative face stress.
-                        lsm_tau23_arr(i,j  ,0) = surface_layer_stress::conservative_to_kinematic_stress(
-                            stressy, cons_arr(i,j  ,k,Rho_comp));
-                        lsm_tau23_arr(i,j-1,0) = surface_layer_stress::conservative_to_kinematic_stress(
-                            stressy, cons_arr(i,j-1,k,Rho_comp));
-                    }
                 }
 
                 t23_arr(i,j,k) = stressy;
@@ -770,6 +787,44 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
                                      t23_arr, t32_arr);
                 });
         }
+
+        // For models that do not do iterations to yield u*/T*/q*,
+        // fill these values from the fluxes that were computed.
+
+        // NOTE: For LSM, this has been handled in "compute_sfc_params_from_lsm_fluxes"
+        // NOTE: Fluxes here are for conserved quantities, we divide by rho
+        if (flux_type == FluxCalcType::BULK_COEFF ||
+            flux_type == FluxCalcType::DONELAN) {
+            constexpr Real eps = std::numeric_limits<Real>::epsilon();
+            bool l_use_moisture = use_moisture;
+            ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int /*k*/)
+            {
+                Real rho = cons_arr(i,j,klo,Rho_comp);
+                Real Thd = cons_arr(i,j,klo,RhoTheta_comp) / rho;
+                Real qv  = (l_use_moisture) ? cons_arr(i,j,klo,RhoQ1_comp) / rho : zero;
+                Real Thv = Thd * (one + epsv*qv);
+
+                Real tau = std::sqrt( t13_arr(i,j,klo)/rho * t13_arr(i,j,klo)/rho
+                                    + t23_arr(i,j,klo)/rho * t23_arr(i,j,klo)/rho );
+                u_star_arr(i,j,0) = amrex::max(std::sqrt(tau),eps);
+
+                if (hfx3_arr(i,j,klo)>=zero) {
+                    t_star_arr(i,j,0) = amrex::min(-hfx3_arr(i,j,klo) / (rho * u_star_arr(i,j,0)),-eps);
+                } else {
+                    t_star_arr(i,j,0) = amrex::max(-hfx3_arr(i,j,klo) / (rho * u_star_arr(i,j,0)),eps);
+                }
+                if (!l_use_moisture) {
+                    q_star_arr(i,j,0) = zero;
+                } else if (qfx3_arr(i,j,klo)>=zero) {
+                    q_star_arr(i,j,0) = amrex::min(-qfx3_arr(i,j,klo) / (rho * u_star_arr(i,j,0)),-eps);
+                } else {
+                    q_star_arr(i,j,0) = amrex::max(-qfx3_arr(i,j,klo) / ( rho * u_star_arr(i,j,0)),eps);
+                }
+                olen_arr(i,j,0)   = ( u_star_arr(i,j,0) * u_star_arr(i,j,0) * Thv ) /
+                                    ( KAPPA * CONST_GRAV * t_star_arr(i,j,0) );
+            });
+        }
+
     } // mfiter
 
     surface_diagnostic_source[lev]->FillBoundary(m_geom[lev].periodicity());
@@ -779,9 +834,15 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
  * Function to calculate MOST fluxes for EB.
  *
  * @param[in] lev Current level
- * @param[in,out] mfs MultiFabs to populate
- * @param[in] eddyDiffs Diffusion coefficients from turbulence model
- * @param[in] flux_comp structure to compute fluxes
+ * @param[in] mfs State MultiFabs used to compute the EB boundary fluxes
+ * @param[in,out] Tau_EB EB diffusive stress MultiFabs populated with surface stresses
+ * @param[in,out] xheat_flux x-face EB heat-flux MultiFab, currently unused
+ * @param[in,out] yheat_flux y-face EB heat-flux MultiFab, currently unused
+ * @param[in,out] Hfx3_EB EB heat-flux MultiFab populated with scalar surface flux
+ * @param[in,out] xqv_flux x-face EB moisture-flux MultiFab, currently unused
+ * @param[in,out] yqv_flux y-face EB moisture-flux MultiFab, currently unused
+ * @param[in,out] zqv_flux z-face EB moisture-flux MultiFab, currently unused
+ * @param[in] flux_comp EB flux-calculation functor used to compute scalar and momentum fluxes
  */
 template <typename FluxCalc>
 void
@@ -937,7 +998,7 @@ SurfaceLayer::compute_SurfaceLayer_bcs_EB (const int& lev,
         });
         ParallelFor(bxz, [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
-            if (u_flag_arr(i,j,k).isSingleValued()) {
+            if (w_flag_arr(i,j,k).isSingleValued()) {
                 Real stressx = flux_comp.compute_u_flux(i, j, k,
                                                         cons_arr, velx_arr, vely_arr, velz_arr,
                                                         umm_arr, um_arr, u_star_arr,
@@ -987,6 +1048,12 @@ SurfaceLayer::compute_SurfaceLayer_bcs_EB (const int& lev,
 
 }
 
+/**
+ * Compute surface-layer parameters from land-surface-model fluxes.
+ *
+ * @param[in] lev Current level
+ * @param[in] cons_in Conserved state used to derive density, theta, and moisture at the surface
+ */
 void
 SurfaceLayer::compute_sfc_params_from_lsm_fluxes (const int& lev,
                                                   MultiFab& cons_in)
@@ -1054,6 +1121,12 @@ SurfaceLayer::compute_sfc_params_from_lsm_fluxes (const int& lev,
     } // mfi
 }
 
+/**
+ * Fill surface temperature from SST/TSK lower-boundary data.
+ *
+ * @param[in] lev Current level
+ * @param[in] elapsed_time_since_start_low Time since the start of the lower-boundary data
+ */
 void
 SurfaceLayer::fill_tsurf_with_sst_and_tsk (const int& lev,
                                            const double& elapsed_time_since_start_low)
@@ -1141,6 +1214,13 @@ SurfaceLayer::fill_tsurf_with_sst_and_tsk (const int& lev,
     t_surf[lev]->FillBoundary(m_geom[lev].periodicity());
 }
 
+/**
+ * Fill sea-surface moisture with saturation specific humidity.
+ *
+ * @param[in] lev Current level
+ * @param[in] cons_in Conserved state used to derive pressure at the surface
+ * @param[in] z_phys_nd Nodal physical height used to compute terrain-relative surface height
+ */
 void
 SurfaceLayer::fill_qsurf_with_qsat (const int& lev,
                                     const MultiFab& cons_in,
@@ -1184,6 +1264,11 @@ SurfaceLayer::fill_qsurf_with_qsat (const int& lev,
     q_surf[lev]->FillBoundary(m_geom[lev].periodicity());
 }
 
+/**
+ * Fill surface temperature from land-surface-model data.
+ *
+ * @param[in] lev Current level
+ */
 void
 SurfaceLayer::get_lsm_tsurf (const int& lev)
 {
@@ -1222,6 +1307,14 @@ SurfaceLayer::get_lsm_tsurf (const int& lev)
     }
 }
 
+/**
+ * Update PBL height using the configured estimator.
+ *
+ * @param[in] lev Current level
+ * @param[in] vars Level-indexed state MultiFabs passed to the PBL height estimator
+ * @param[in] z_phys_cc Cell-centered physical height used by the PBL height estimator
+ * @param[in] moisture_indices Moisture component indices used by the PBL height estimator
+ */
 void
 SurfaceLayer::update_pblh (const int& lev,
                            Vector<Vector<MultiFab>>& vars,
@@ -1236,6 +1329,15 @@ SurfaceLayer::update_pblh (const int& lev,
     }
 }
 
+/**
+ * Compute PBL height with the supplied estimator.
+ *
+ * @param[in] lev Current level
+ * @param[in] vars Level-indexed state MultiFabs passed to the estimator
+ * @param[in] z_phys_cc Cell-centered physical height used by the estimator
+ * @param[in] est PBL height estimator functor
+ * @param[in] moisture_indices Moisture component indices used by the estimator
+ */
 template <typename PBLHeightEstimator>
 void
 SurfaceLayer::compute_pblh (const int& lev,
@@ -1249,6 +1351,15 @@ SurfaceLayer::compute_pblh (const int& lev,
                      moisture_indices);
 }
 
+/**
+ * Initialize TKE from surface-layer friction velocity.
+ *
+ * @param[in] lev Current level
+ * @param[in,out] cons Conserved state whose RhoKE component is initialized
+ * @param[in] z_phys_nd Nodal physical height used to compute height above ground
+ * @param[in] tkefac Factor multiplying ustar squared for the surface TKE value
+ * @param[in] zscale Scale factor used to taper TKE with height
+ */
 void
 SurfaceLayer::init_tke_from_ustar (const int& lev,
                                    MultiFab& cons,
@@ -1318,6 +1429,12 @@ SurfaceLayer::init_tke_from_ustar (const int& lev,
 }
 
 
+/**
+ * Read or interpolate custom roughness length data.
+ *
+ * @param[in] lev Current level
+ * @param[in] fname Roughness file name; an empty name interpolates from level 0
+ */
 void
 SurfaceLayer::read_custom_roughness (const int& lev,
                                      const std::string& fname)

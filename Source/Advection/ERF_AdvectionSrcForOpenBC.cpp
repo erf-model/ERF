@@ -250,16 +250,22 @@ AdvectionSrcForOpenBC_Tangent (const int& i,
     //       convective storm dynamics, J. Atmos. Sci., 35, 1070-Real(1096.)
     // NOTE: Implementation is for the high bndry side. The low bndry side is obtained
     //       by flipping sgn = -one
-    // NOTE: Indices (i,j,k) correspond to data that is index 1/2 dx off open bdy.
-    //       Therefore, momentum indexing (ivm1/2) have 1 extra cell on the high
-    //       side that should be accessed while scalar indexing (ivs1/2) does not.
+
     int sgn = 1; if (do_lo) { sgn = -1; }
 
-    IntVect ivm1(i,j,k); if ( do_lo) { ivm1[dir] -= sgn; } // Mom indexed into domain for do_lo
-    IntVect ivm2(i,j,k); if (!do_lo) { ivm1[dir] += sgn; } // Mom indexed out  domain for do_hi
+    // NOTE: The indices (i,j,k) passed to this routine correspond to data that resides
+    //       1/2 dx away from the open boundary and into the domain. The momentum is
+    //       face centered in dir, so it has one more cell than the scalar and cell
+    //       (i,j,k) is bounded by the faces (i,j,k) and (i,j,k)+e_dir. One of those two
+    //       faces resides on the physical boundary: the high face at a high open bndry,
+    //       the low face at a low open bndry. Averaging and differencing that same pair
+    //       of faces therefore yields the cell centered momentum and its exact cell
+    //       centered gradient on both sides, so no sgn dependence is needed here.
+    IntVect ivm1(i,j,k); ivm1[dir] += 1; // Mom on the high face of cell (i,j,k)
+    IntVect ivm2(i,j,k);                 // Mom on the low  face of cell (i,j,k)
 
-    IntVect ivs1(i,j,k); if ( do_lo) { ivs1[dir] -= sgn; } // Scalar indexed into domain for do_hi
-    IntVect ivs2(i,j,k); if (!do_lo) { ivs2[dir] -= sgn; } // Scalar indexed into domain for do_lo
+    IntVect ivs1(i,j,k); if ( do_lo) { ivs1[dir] -= sgn; } // Scalar indexed into domain for do_lo
+    IntVect ivs2(i,j,k); if (!do_lo) { ivs2[dir] -= sgn; } // Scalar indexed into domain for do_hi
 
     Real mom_at_cc = myhalf * (mom_norm_arr(ivm1) + mom_norm_arr(ivm2));
     Real mom_star  = Real(sgn) * max( Real(sgn)*mom_at_cc, zero );

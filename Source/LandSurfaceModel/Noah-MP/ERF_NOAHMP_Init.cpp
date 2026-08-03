@@ -1,7 +1,6 @@
 /*
  * NOAHMP::Init: builds the surface (lsm) geometry and coupling MultiFabs, sizes
  * and initializes one NoahmpIO_type per box, and broadcasts the firing parameters.
- * See dev/spec-noahmp-api.md §4.
  */
 
 #include <iostream>
@@ -47,7 +46,6 @@ NOAHMP::Init (const int& lev,
     m_refRatio = refRatio;
 
     Box domain = geom.Domain();
-    khi_lsm    = domain.smallEnd(2) - 1;
 
     // Resolve NSOIL from erf.lsm_nsoil before building the collective LSM fabs (same
     // value the parent used via Lsm_Data_Size()); namelist NSOIL asserted below.
@@ -67,8 +65,8 @@ NOAHMP::Init (const int& lev,
     }
     // Per-layer soil profile: 3 groups of m_nsoil, layer index 1-based (WRF SMOIS_k).
     {
-        const char* group[3] = {"smois", "sh2o", "tslb"};
-        for (int g(0); g < 3; ++g) {
+        const char* group[m_num_soil_groups] = {"smois", "sh2o", "tslb"};
+        for (int g(0); g < m_num_soil_groups; ++g) {
             for (int k(0); k < m_nsoil; ++k) {
                 int idx = soil_data_idx(g,k);
                 LsmDataMap[idx]  = idx;
@@ -77,15 +75,10 @@ NOAHMP::Init (const int& lev,
         }
     }
 
-    LsmFluxMap.resize(m_lsm_flux_size);
-    LsmFluxMap = {LsmFlux_NOAHMP::t_flux         , LsmFlux_NOAHMP::q_flux         ,
+    LsmFluxMap  = {LsmFlux_NOAHMP::t_flux         , LsmFlux_NOAHMP::q_flux         ,
                   LsmFlux_NOAHMP::tau13          , LsmFlux_NOAHMP::tau23          };
-    LsmFluxName.resize(m_lsm_flux_size);
     LsmFluxName = {"t_flux"         , "q_flux"         ,
                    "tau13"          , "tau23"          };
-
-    ParmParse pp("erf");
-    pp.query("plot_int_1" , m_plot_int_1);
 
     // NOTE: relies on all boxes in ba spanning zlo..zhi; otherwise dm/ba no longer
     //       line up and lsm data/flux vars can't be copied directly in a parfor.
@@ -119,7 +112,7 @@ NOAHMP::Init (const int& lev,
 
     // Create the fluxes (CC with ghost cells for averaging)
     for (auto ivar = 0; ivar < LsmFlux_NOAHMP::NumVars; ++ivar) {
-        lsm_fab_flux[ivar] = std::make_shared<MultiFab>(ba_lsm, dm, 1, IntVect(1,1,0));
+        lsm_fab_flux[ivar] = std::make_shared<MultiFab>(ba_lsm, dm, 1, ng);
         lsm_fab_flux[ivar]->setVal(lsm_undefined);
     }
 
@@ -146,14 +139,14 @@ NOAHMP::Init (const int& lev,
 
             Box bx = mfi.tilebox();
 
-            // Only tiles at the lower z boundary
-            if (bx.smallEnd(2) != klo) { continue; }
+            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(bx.smallEnd(2) == klo,
+                "NoahMP Init: box does not start at klo; z-decomposed grids are unsupported.");
 
             bx.makeSlab(2,klo);
 
             // Pinned buffers per box; output carries the 2D outputs + 3 soil groups.
             noahmp_input_tmp[idb]  = std::make_unique<FArrayBox>(bx, NoahmpInputComp::NumComps , The_Pinned_Arena());
-            noahmp_output_tmp[idb] = std::make_unique<FArrayBox>(bx, NoahmpOutputComp::NumComps + 3*m_nsoil, The_Pinned_Arena());
+            noahmp_output_tmp[idb] = std::make_unique<FArrayBox>(bx, NoahmpOutputComp::NumComps + m_num_soil_groups*m_nsoil, The_Pinned_Arena());
 
             NoahmpIO_type* noahmpio = &noahmpio_vect[idb];
 
@@ -182,29 +175,13 @@ NOAHMP::Init (const int& lev,
             noahmpio->ystart = bx.smallEnd(1);
             noahmpio->yend   = bx.bigEnd(1);
 
-            // Domain bounds
-            noahmpio->ids = noahmpio->xstart;
-            noahmpio->ide = noahmpio->xend;
-            noahmpio->jds = noahmpio->ystart;
-            noahmpio->jde = noahmpio->yend;
-            noahmpio->kds = 1;
-            noahmpio->kde = 2;
-
-            // Tile bounds
-            noahmpio->its = noahmpio->xstart;
-            noahmpio->ite = noahmpio->xend;
-            noahmpio->jts = noahmpio->ystart;
-            noahmpio->jte = noahmpio->yend;
-            noahmpio->kts = 1;
-            noahmpio->kte = 2;
-
-            // Memory bounds
-            noahmpio->ims = noahmpio->xstart;
-            noahmpio->ime = noahmpio->xend;
-            noahmpio->jms = noahmpio->ystart;
-            noahmpio->jme = noahmpio->yend;
-            noahmpio->kms = 1;
-            noahmpio->kme = 2;
+            // Domain, tile, and memory bounds are all equal for now (single-slab model).
+            auto set_grid_bounds = [](NoahmpIO_type* io, int x0, int x1, int y0, int y1) {
+                io->ids=io->its=io->ims=x0; io->ide=io->ite=io->ime=x1;
+                io->jds=io->jts=io->jms=y0; io->jde=io->jte=io->jme=y1;
+                io->kds=io->kts=io->kms=1;  io->kde=io->kte=io->kme=2;
+            };
+            set_grid_bounds(noahmpio, noahmpio->xstart, noahmpio->xend, noahmpio->ystart, noahmpio->yend);
 
             // Allocate Fortran IO memory from the bounds above + namelist/header info
             noahmpio->VarInitDefault();
@@ -217,11 +194,12 @@ NOAHMP::Init (const int& lev,
 
             // Compute initial values not supplied by the land file
             noahmpio->InitMain();
-
-            // Initial land plotfile (tag 0)
-            Print() << "Noah-MP writing lnd.nc file at lev: " << lev << std::endl;
-            noahmpio->WriteLand(0);
         }
+
+        // Initial land plotfile (tag 0); must run on the land-owning subcomm, not the
+        // full comm, or a land-free rank never joins the collective nf90_create.
+        Print() << "Noah-MP writing lnd.nc file at lev: " << lev << std::endl;
+        with_land_comm([](NoahmpIO_type& noahmpio) { noahmpio.WriteLand(0); });
 
         // Broadcast DTBL and the initial substep counter so the firing decision is
         // identical on every rank. Land-free ranks use max-reduction-losing sentinels.
