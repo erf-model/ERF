@@ -37,9 +37,20 @@ struct WallFaceParseResult {
     ParsedWallFaceScalars scalars;
     std::string error;
 
+    /**
+     * Return whether parsing completed without an error.
+     */
     [[nodiscard]] bool ok () const noexcept { return error.empty(); }
 };
 
+/**
+ * Resolve a wall scalar value into primitive or conserved storage.
+ *
+ * @param[in] value_specified whether the scalar value was specified
+ * @param[in] primitive_value primitive scalar value from inputs
+ * @param[in] density_specified_on_same_face whether density was specified on the same face
+ * @param[in] density_value density value used for conserved conversion
+ */
 inline ParsedWallScalarBC
 resolve_wall_scalar_value (bool value_specified,
                            amrex::Real primitive_value,
@@ -58,6 +69,12 @@ resolve_wall_scalar_value (bool value_specified,
     return {WallScalarBCIntent::DirichletPrimitive, primitive_value};
 }
 
+/**
+ * Resolve a wall scalar gradient into Neumann storage.
+ *
+ * @param[in] gradient_specified whether the scalar gradient was specified
+ * @param[in] gradient gradient value from inputs
+ */
 inline ParsedWallScalarBC
 resolve_wall_scalar_gradient (bool gradient_specified,
                               amrex::Real gradient)
@@ -68,6 +85,12 @@ resolve_wall_scalar_gradient (bool gradient_specified,
     return {WallScalarBCIntent::Neumann, gradient};
 }
 
+/**
+ * Test whether value and gradient inputs conflict.
+ *
+ * @param[in] value_specified whether a scalar value was specified
+ * @param[in] gradient_specified whether a scalar gradient was specified
+ */
 inline bool
 wall_scalar_value_gradient_conflict (bool value_specified,
                                      bool gradient_specified)
@@ -75,6 +98,12 @@ wall_scalar_value_gradient_conflict (bool value_specified,
     return value_specified && gradient_specified;
 }
 
+/**
+ * Build the error message for mutually exclusive wall scalar inputs.
+ *
+ * @param[in] face face name used in the input keys
+ * @param[in] variable variable name used in the input keys
+ */
 inline std::string
 wall_scalar_value_gradient_error (const std::string& face,
                                   const std::string& variable)
@@ -83,6 +112,13 @@ wall_scalar_value_gradient_error (const std::string& face,
         + "_grad are mutually exclusive";
 }
 
+/**
+ * Build the anelastic-mode density error message for a wall face.
+ *
+ * @param[in] face face name used in the input keys
+ * @param[in] density_specified whether density was specified
+ * @param[in] density_gradient_specified whether density_grad was specified
+ */
 inline std::string
 anelastic_wall_density_error (const std::string& face,
                               bool density_specified,
@@ -104,6 +140,11 @@ anelastic_wall_density_error (const std::string& face,
     return message;
 }
 
+/**
+ * Build the unsupported no-slip density-gradient error message.
+ *
+ * @param[in] face face name used in the input keys
+ */
 inline std::string
 no_slip_density_gradient_error (const std::string& face)
 {
@@ -112,6 +153,14 @@ no_slip_density_gradient_error (const std::string& face)
         "wall density in anelastic mode";
 }
 
+/**
+ * Parse scalar wall boundary-condition inputs for one face.
+ *
+ * @param[in] pp ParmParse object scoped to the wall face
+ * @param[in] face face name used in errors
+ * @param[in] wall_kind no-slip or slip wall type
+ * @param[in] anelastic whether anelastic mode is active
+ */
 inline WallFaceParseResult
 parse_wall_face_scalars (amrex::ParmParse& pp,
                          const std::string& face,
