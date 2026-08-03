@@ -86,6 +86,8 @@ MOSTAverage::MOSTAverage (Vector<Geometry>  geom,
     m_i_indx.resize(m_maxlev);
     m_j_indx.resize(m_maxlev);
     m_k_indx.resize(m_maxlev);
+
+    m_Vsg.resize(m_maxlev, zero);
 }
 
 /**
@@ -264,18 +266,16 @@ MOSTAverage::make_MOSTAverage_at_level (const int& lev,
         m_t_init.resize(m_maxlev,0);
     }
 
-    // Corrections to the mean surface velocity
-    m_Vsg = Vector<Real>(m_maxlev, zero);
+    // Correction to the mean surface velocity at this level
+    m_Vsg[lev] = zero;
     if (include_subgrid_vel) {
-        if (include_subgrid_vel) {
-            Print() << "Subgrid velocity scale correction at level : " << lev << ' ';
-            const auto dxArr = m_geom[lev].CellSizeArray();
-            Real dx = std::sqrt(dxArr[0]*dxArr[1]);
-            if (dx > Real(5000.)) {
-                m_Vsg[lev] = Real(0.32) * std::pow(dx/Real(5000.)-1, Real(0.33));
-            }
-            Print() << m_Vsg[lev] << std::endl;
+        Print() << "Subgrid velocity scale correction at level : " << lev << ' ';
+        const auto dxArr = m_geom[lev].CellSizeArray();
+        Real dx = std::sqrt(dxArr[0]*dxArr[1]);
+        if (dx > Real(5000.)) {
+            m_Vsg[lev] = Real(0.32) * std::pow(dx/Real(5000.)-1, Real(0.33));
         }
+        Print() << m_Vsg[lev] << std::endl;
     }
 }
 
@@ -580,7 +580,7 @@ MOSTAverage::set_z_positions_EB (const int& lev)
     ParmParse pp(m_pp_prefix);
     auto read_z = pp.query("most.zref",zref_tmp);
 
-    if (!read_z) {
+    if (read_z) {
         m_zref[lev]->setVal( zref_tmp );
     // Default behavior is to use the first cell center
     } else {
@@ -792,8 +792,9 @@ MOSTAverage::set_z_positions_T (const int& lev)
     RealVect base;
     const auto dx = m_geom[lev].CellSizeArray();
     IntVect ng = m_x_pos[lev]->nGrowVect(); ng[2]=0;
+    const int position_ng = (m_radius > 1) ? m_radius : 1;
     for (MFIter mfi(*fields[imf_cc], TileNoZ()); mfi.isValid(); ++mfi) {
-        Box npbx  = mfi.tilebox(IntVect(1,1,0),IntVect(1,1,0));
+        Box npbx  = mfi.tilebox(IntVect(1,1,0),IntVect(position_ng,position_ng,0));
         Box gtbx  = mfi.growntilebox(ng);
 
         if (npbx.smallEnd(2) != klo) { continue; }
@@ -855,8 +856,9 @@ MOSTAverage::set_norm_positions_T (const int& lev)
     const auto dx = m_geom[lev].CellSizeArray();
     const auto dxInv  = m_geom[lev].InvCellSizeArray();
     IntVect ng = m_x_pos[lev]->nGrowVect(); ng[2]=0;
+    const int position_ng = (m_radius > 1) ? m_radius : 1;
     for (MFIter mfi(*fields[imf_cc], TileNoZ()); mfi.isValid(); ++mfi) {
-        Box npbx  = mfi.tilebox(IntVect(1,1,0),IntVect(1,1,0));
+        Box npbx  = mfi.tilebox(IntVect(1,1,0),IntVect(position_ng,position_ng,0));
         Box gtbx  = mfi.growntilebox(ng);
         RealBox grb{gtbx,dx.data(),base.dataPtr()};
 
