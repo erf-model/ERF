@@ -198,12 +198,8 @@ NetCDF_check_interface(F77 netcdf.inc netcdff)
 NetCDF_check_interface(F90 netcdf.mod netcdff)
 
 set(NETCDF_LIBRARIES "${NetCDF_libs}" CACHE STRING "All NetCDF libraries required for interface level")
-#set(NETCDF_LINK_LIBRARIES ${NetCDF_libs})
-#set(NETCDF_INCLUDE_DIRS ${NETCDF_INCLUDES})
-set(NETCDF_LINK_LIBRARIES ${NetCDF_libs} ${NETCDF_LIBRARIES_F90})
-set(NETCDF_INCLUDE_DIRS ${NETCDF_INCLUDES} ${NETCDF_INCLUDES_F90})
-set(NETCDF_INCLUDES ${NETCDF_INCLUDES} ${NETCDF_INCLUDES_F90})
-
+set(NETCDF_LINK_LIBRARIES ${NetCDF_libs})
+set(NETCDF_INCLUDE_DIRS ${NETCDF_INCLUDES})
 
 # Check if detection failed - show helpful error BEFORE standard handler
 if(NOT NETCDF_LIBRARIES_C OR NOT NETCDF_INCLUDES)
