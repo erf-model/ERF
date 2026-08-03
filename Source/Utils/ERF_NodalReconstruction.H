@@ -95,10 +95,10 @@ public:
     {
         m_var_op = var_op;
 
-        amrex::FArrayBox c(m_nodal_box,1);
+        amrex::FArrayBox c(m_nodal_box,1,amrex::The_Managed_Arena());
         computeParticularSolution(T,c);
 
-        amrex::FArrayBox vtv_c(m_nodal_box,1);
+        amrex::FArrayBox vtv_c(m_nodal_box,1,amrex::The_Managed_Arena());
         applyVariationOperator(c,vtv_c);
 
         Vector rhs;
@@ -111,7 +111,7 @@ public:
         Vector b = boundary_reference;
         SolveInfo info = conjugateGradient(rhs, b, epsilon, relative_tolerance, max_iterations);
 
-        amrex::FArrayBox S(m_nodal_box,1);
+        amrex::FArrayBox S(m_nodal_box,1,amrex::The_Managed_Arena());
         reconstruct(T,b,S);
         return {std::move(S),info};
     }
@@ -296,8 +296,8 @@ private:
         amrex::Box y_edge_box = m_nodal_box;
         x_edge_box.growHi(0,-1);
         y_edge_box.growHi(1,-1);
-        amrex::FArrayBox difx(x_edge_box, 1);
-        amrex::FArrayBox dify(y_edge_box, 1);
+        amrex::FArrayBox difx(x_edge_box,1,amrex::The_Managed_Arena());
+        amrex::FArrayBox dify(y_edge_box,1,amrex::The_Managed_Arena());
         applyD(S, difx, dify);
         applyDT(difx, dify, R);
     }
@@ -356,7 +356,7 @@ private:
         amrex::Box interior_nodal_box = m_nodal_box;
         interior_nodal_box.grow(0,-1);
         interior_nodal_box.grow(1,-1);
-        amrex::FArrayBox lap(interior_nodal_box, 1);
+        amrex::FArrayBox lap(interior_nodal_box,1,amrex::The_Managed_Arena());
         applyL(S, lap);
         applyLT(lap, R);
     }
@@ -381,7 +381,7 @@ private:
     void applyGT (amrex::FArrayBox const& R,
                   Vector& result) const
     {
-        amrex::FArrayBox adj(m_nodal_box,1);
+        amrex::FArrayBox adj(m_nodal_box,1,amrex::The_Managed_Arena());
         adj.copy<amrex::RunOn::Host>(R,0,0,1);
         auto const a_arr = adj.array();
 
@@ -400,8 +400,8 @@ private:
                  Vector& Hv,
                  Real epsilon) const
     {
-        amrex::FArrayBox Gv(m_nodal_box,1);
-        amrex::FArrayBox q(m_nodal_box,1);
+        amrex::FArrayBox Gv(m_nodal_box,1,amrex::The_Managed_Arena());
+        amrex::FArrayBox  q(m_nodal_box,1,amrex::The_Managed_Arena());
         applyG(v,Gv);
         applyVariationOperator(Gv,q);
         applyGT(q,Hv);
