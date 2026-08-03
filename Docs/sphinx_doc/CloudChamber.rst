@@ -88,26 +88,30 @@ Required configuration
 
 .. important::
 
-   In plain language, Stage 1 models a closed rectangular box on one uniform
-   Cartesian grid.  It uses fixed-density anelastic dynamics with gravity,
-   and all six sides of the box are stationary no-slip walls with prescribed
-   temperatures.  The wall heat and moisture transfer must use ERF's
-   resolved ``ConstantAlpha`` model.
+   Stage 1 uses one uniform Cartesian mesh level with no AMR refinement.
+   ERF may still divide that level into multiple boxes for parallel
+   execution.  The domain is closed in all three directions, gravity and
+   fixed-density anelastic dynamics are enabled, and all six boundaries are
+   stationary ``NoSlipWall`` faces with prescribed temperatures.
 
-   The corresponding input requirements are:
-
-   * ``amr.max_level = 0``: use one grid level; no AMR refinement.
-   * ``erf.mesh_type = ConstantDz``: use the supported Cartesian vertical
-     mesh.
-   * ``geometry.is_periodic = 0 0 0``: close the box with boundaries in all
-     three directions; do not wrap any direction periodically.
+   * ``amr.max_level = 0`` disables AMR refinement.
+   * ``erf.mesh_type = ConstantDz`` selects the supported Cartesian mesh.
+   * ``geometry.is_periodic = 0 0 0`` closes every direction rather than
+     wrapping it periodically.
    * ``erf.init_type = ConstantDensity``, ``erf.anelastic = 1``, and
-     ``erf.use_gravity = true``: use the fixed-density anelastic setup with
-     gravity.
-   * ``xlo``, ``xhi``, ``ylo``, ``yhi``, ``zlo``, and ``zhi`` must each be
-     ``NoSlipWall`` faces with an explicit temperature.
-   * ``erf.molec_diff_type = ConstantAlpha``: use the configured
-     ``alpha_T`` and, for wet-wall vapor transfer, ``alpha_C`` coefficients.
+     ``erf.use_gravity = true`` select the fixed-density anelastic setup
+     with gravity.
+   * ``erf.vert_implicit = false`` selects the explicit vertical-diffusion
+     path supported by the Stage 1 wall treatment.
+   * ``erf.terrain_type`` and ``erf.buildings_type`` must be omitted or set
+     to ``None``; terrain, embedded boundaries, and immersed buildings are
+     outside Stage 1.
+   * All six faces must be stationary ``NoSlipWall`` boundaries with an
+     explicit temperature.
+   * Wall-normal transfer uses
+     ``wall_transfer_model = resolved_molecular`` with
+     ``erf.molec_diff_type = ConstantAlpha`` and the configured
+     ``alpha_T`` and ``alpha_C`` coefficients.
 
 The common solver settings are:
 
@@ -148,6 +152,14 @@ Runnable examples
 
 The following tracked regression inputs are complete runnable examples.
 
+.. note::
+
+   These are complete regression inputs intended to exercise the supported
+   code paths in short tests.  Their grid, timestep, LES settings, and
+   transfer coefficients are not calibrated recommendations for a physical
+   chamber simulation.  Interior LES is optional and does not replace the
+   configured wall-normal ``alpha_T`` and ``alpha_C`` transfer.
+
 Dry thermal chamber
 ~~~~~~~~~~~~~~~~~~~
 
@@ -166,6 +178,18 @@ The shipped fixtures use a 300 K lower wall, a 284 K upper wall, and four
 292 K sidewalls.  All six walls are temperature-controlled.  The warm-lower
 and cool-upper arrangement should produce an unstable thermal profile and a
 bounded buoyancy-driven overturning response.
+
+Scientific scope
+----------------
+
+This configuration can support qualitative buoyancy-driven flow, equilibrium
+vapor--cloud-water thermodynamics, wall-flux verification, and conservation
+testing.
+
+It does not represent droplet activation, number or size distributions,
+rain, sedimentation, collision--coalescence, precipitation, or cloud-water
+deposition at a wall.  It must not be used by itself to claim quantitative
+Pi-Chamber agreement or grid-independent LES behavior.
 
 Initial thermodynamic state
 ---------------------------
@@ -209,9 +233,9 @@ Reference density and pressure
 
 When ``prob.p_inf`` is supplied, it must agree with the 100000 Pa ERF
 reference pressure within the accepted tolerance.  If ``prob.rho_0`` is
-omitted, ``prob.p_inf`` and ``prob.T_0`` are used to construct the constant
-reference density.  These inputs affect the reference density; they do not
-redefine :math:`p_\mathrm{ref}` in the potential-temperature relationship.
+omitted and ``prob.p_inf`` is supplied, ERF computes the constant reference
+density from ``prob.p_inf`` and ``prob.T_0``.  These inputs do not redefine
+:math:`p_\mathrm{ref}` in the potential-temperature relationship.
 
 The legacy ``legacy_theta_qv`` initialization remains available for existing
 numerical inputs.  Do not combine legacy profile keys with physical-mode
@@ -319,7 +343,8 @@ Run checklist
 -------------
 
 1. Choose dry or SatAdj mode.
-2. Configure one nonperiodic Cartesian level.
+2. Configure one nonperiodic Cartesian mesh level; that level may contain
+   multiple AMReX boxes.
 3. Define all six ``NoSlipWall`` faces and their temperatures.
 4. For SatAdj, provide RH as a fraction and choose dry or wet moisture walls.
 5. Set ``alpha_T`` and, when vapor transfer is needed, ``alpha_C``.
@@ -332,7 +357,8 @@ Run checklist
 Stage 1 invariants
 ------------------
 
-* One Cartesian level and no periodic direction.
+* One uniform Cartesian mesh level and no periodic direction; the level may
+  be decomposed into multiple AMReX boxes.
 * Six stationary ``NoSlipWall`` faces.
 * Dry-wall vapor flux is exactly zero.
 * Cloud-water wall flux is exactly zero.

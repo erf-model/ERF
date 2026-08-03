@@ -294,24 +294,24 @@ int main (int argc, char** argv)
         return fail("mode must be dry, cloudy, all_dry, wet_budget, or thermal_budget");
     }
 
-    for (const std::string& name : {"density", "theta", "temp", "x_velocity",
-                                    "y_velocity", "z_velocity"}) {
+    for (const char* name : {"density", "theta", "temp", "x_velocity",
+                             "y_velocity", "z_velocity"}) {
         if (!has_variable(initial, name) || !has_variable(final, name)) {
             amrex::Finalize();
-            return fail("missing required variable " + name);
+            return fail("missing required variable " + std::string(name));
         }
     }
     if (cloudy) {
-        for (const std::string& name : {"qv", "qc"}) {
+        for (const char* name : {"qv", "qc"}) {
             if (!has_variable(initial, name) || !has_variable(final, name)) {
                 amrex::Finalize();
-                return fail("missing cloudy variable " + name);
+                return fail("missing cloudy variable " + std::string(name));
             }
         }
-        for (const std::string& name : {"qsat", "rel_humidity"}) {
+        for (const char* name : {"qsat", "rel_humidity"}) {
             if (!has_variable(initial, name) || !has_variable(final, name)) {
                 amrex::Finalize();
-                return fail("missing cloudy diagnostic " + name);
+                return fail("missing cloudy diagnostic " + std::string(name));
             }
         }
     } else if (has_variable(initial, "qv") || has_variable(initial, "qc")) {
@@ -455,11 +455,11 @@ int main (int argc, char** argv)
                     std::to_string(static_cast<double>(initial_velocity_max)));
     }
 
-    for (const std::string& name : {"density", "theta", "temp", "x_velocity",
-                                    "y_velocity", "z_velocity"}) {
+    for (const char* name : {"density", "theta", "temp", "x_velocity",
+                             "y_velocity", "z_velocity"}) {
         if (!final.get(0, name).is_finite()) {
             amrex::Finalize();
-            return fail("final field is non-finite: " + name);
+            return fail("final field is non-finite: " + std::string(name));
         }
     }
 

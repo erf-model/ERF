@@ -257,6 +257,36 @@ function(add_test_cloud_chamber_config_failure TEST_NAME CASE SOURCE_NAME EXPECT
         ATTACHED_FILES_ON_FAIL "${test_log}")
 endfunction(add_test_cloud_chamber_config_failure)
 
+# Positive startup regression for the retained legacy theta/qv parser path.
+# This intentionally has no physical-temperature or physical-wall keys.
+function(add_test_cloud_chamber_legacy_config TEST_NAME)
+    set(TEST_FILES_DIR "CloudChamber_Legacy_Config")
+    setup_test()
+    resolve_test_exe("" "erf_exec" TEST_EXE)
+    set(test_input "${CURRENT_TEST_BINARY_DIR}/CloudChamber_Legacy_Config.i")
+    set(test_log "${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.log")
+    set(output_directory "${CURRENT_TEST_BINARY_DIR}/legacy_plt00000")
+    set(output_artifact "${output_directory}/Header")
+    add_test(${TEST_NAME} ${CMAKE_COMMAND}
+        -DMPIEXEC=${MPIEXEC_EXECUTABLE}
+        -DMPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}
+        -DMPIEXEC_PREFLAGS=${MPIEXEC_PREFLAGS}
+        -DTEST_EXE=${TEST_EXE}
+        -DINPUT=${test_input}
+        -DWORKING_DIRECTORY=${CURRENT_TEST_BINARY_DIR}
+        -DLOG=${test_log}
+        -DOUTPUT_DIRECTORY=${output_directory}
+        -DOUTPUT_ARTIFACT=${output_artifact}
+        -P ${PROJECT_SOURCE_DIR}/Tests/RunCloudChamberConfigSuccess.cmake)
+    set_tests_properties(${TEST_NAME}
+        PROPERTIES
+        TIMEOUT 180
+        PROCESSORS 1
+        WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
+        LABELS "regression;cloud-chamber;configuration"
+        ATTACHED_FILES_ON_FAIL "${test_log};${output_artifact}")
+endfunction(add_test_cloud_chamber_legacy_config)
+
 function(add_test_cloud_chamber_openmp TEST_NAME)
     set(TEST_FILES_DIR "CloudChamber_SatAdj")
     setup_test()
@@ -402,6 +432,7 @@ add_test_anelastic_wall_diffusion(AnelasticWallDiffusion_X 0)
 add_test_anelastic_wall_diffusion(AnelasticWallDiffusion_Y 1)
 add_test_anelastic_wall_diffusion(AnelasticWallDiffusion_Z 2)
 add_test_cloud_chamber(CloudChamber_Dry dry)
+add_test_cloud_chamber_legacy_config(CloudChamber_Legacy_Config)
 add_test_cloud_chamber_budget(CloudChamber_Dry_ThermalBudget thermal_budget CloudChamber_Dry)
 add_test_cloud_chamber(CloudChamber_SatAdj cloudy)
 add_test_cloud_chamber_parity(CloudChamber_SatAdj_Parity)

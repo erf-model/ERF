@@ -195,7 +195,8 @@ inline void reject_unsupported_face_keys (amrex::ParmParse& pp,
 {
     if (pp.contains("physical_temperature") || pp.contains("relative_humidity") ||
         pp.contains("rh") || pp.contains("roughness")) {
-        amrex::Error("Cloud Chamber: use temperature and moisture for physical walls; "
+        amrex::Error("Cloud Chamber: " + face +
+                     " must use temperature and moisture for physical walls; "
                      "roughness and legacy aliases are unsupported");
     }
 }
