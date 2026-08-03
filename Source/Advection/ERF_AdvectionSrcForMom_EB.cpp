@@ -434,9 +434,9 @@ AdvectionSrcForMom_EB ( const MFIter& mfi,
 
             ParallelFor(bxx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
                 Real mfsq = mf_ux(i,j,0) * mf_uy(i,j,0);
-                rho_u_rhs(i, j, k) = - (flx_u_arr[0](i+1, j  , k  ) - flx_u_arr[0](i, j, k)) * dxInv * mfsq
-                                    + (flx_u_arr[1](i  , j+1, k  ) - flx_u_arr[1](i, j, k)) * dyInv * mfsq
-                                    + (flx_u_arr[2](i  , j  , k+1) - flx_u_arr[2](i, j, k)) * dzInv;
+                rho_u_rhs(i, j, k) = - ( (flx_u_arr[0](i+1, j  , k  ) - flx_u_arr[0](i, j, k)) * dxInv * mfsq
+                                        + (flx_u_arr[1](i  , j+1, k  ) - flx_u_arr[1](i, j, k)) * dyInv * mfsq
+                                        + (flx_u_arr[2](i  , j  , k+1) - flx_u_arr[2](i, j, k)) * dzInv );
             });
 
         } else if (u_type == FabType::singlevalued) {
@@ -551,9 +551,9 @@ AdvectionSrcForMom_EB ( const MFIter& mfi,
 
             ParallelFor(bxy, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
                 Real mfsq = mf_vx(i,j,0) * mf_vy(i,j,0);
-                rho_v_rhs(i, j, k) = - (flx_v_arr[0](i+1, j  , k  ) - flx_v_arr[0](i, j, k)) * dxInv * mfsq
-                                    + (flx_v_arr[1](i  , j+1, k  ) - flx_v_arr[1](i, j, k)) * dyInv * mfsq
-                                    + (flx_v_arr[2](i  , j  , k+1) - flx_v_arr[2](i, j, k)) * dzInv;
+                rho_v_rhs(i, j, k) = - ( (flx_v_arr[0](i+1, j  , k  ) - flx_v_arr[0](i, j, k)) * dxInv * mfsq
+                                        + (flx_v_arr[1](i  , j+1, k  ) - flx_v_arr[1](i, j, k)) * dyInv * mfsq
+                                        + (flx_v_arr[2](i  , j  , k+1) - flx_v_arr[2](i, j, k)) * dzInv );
             });
 
         } else if (v_type == FabType::singlevalued) {
@@ -667,9 +667,9 @@ AdvectionSrcForMom_EB ( const MFIter& mfi,
 
             ParallelFor(bxz, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
                 Real mfsq = mf_mx(i,j,0) * mf_my(i,j,0);
-                rho_w_rhs(i, j, k) = - (flx_w_arr[0](i+1, j  , k  ) - flx_w_arr[0](i, j, k)) * dxInv * mfsq
-                                    + (flx_w_arr[1](i  , j+1, k  ) - flx_w_arr[1](i, j, k)) * dyInv * mfsq
-                                    + (flx_w_arr[2](i  , j  , k+1) - flx_w_arr[2](i, j, k)) * dzInv;
+                rho_w_rhs(i, j, k) = - ( (flx_w_arr[0](i+1, j  , k  ) - flx_w_arr[0](i, j, k)) * dxInv * mfsq
+                                        + (flx_w_arr[1](i  , j+1, k  ) - flx_w_arr[1](i, j, k)) * dyInv * mfsq
+                                        + (flx_w_arr[2](i  , j  , k+1) - flx_w_arr[2](i, j, k)) * dzInv );
             });
 
         } else if (w_type == FabType::singlevalued) {

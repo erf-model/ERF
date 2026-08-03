@@ -4,11 +4,16 @@
 using namespace amrex;
 
 #ifdef ERF_USE_NETCDF
-/*
+/**
  * Impose boundary conditions using data read in from wrfbdy files
  *
- * @param[out] mfs  Vector of MultiFabs to be filled
- * @param[in] time  time at which the data should be filled
+ * @param[in,out] mfs         Vector of MultiFabs to be filled
+ * @param[in]     time        time at which the data should be filled
+ * @param[in]     cons_only   whether to fill only conserved variables
+ * @param[in]     icomp_cons  first conserved component to fill
+ * @param[in]     ncomp_cons  number of conserved components to fill
+ * @param[in]     ngvect_cons ghost-cell vector for conserved variables
+ * @param[in]     ngvect_vels ghost-cell vector for velocity variables
  */
 
 void
