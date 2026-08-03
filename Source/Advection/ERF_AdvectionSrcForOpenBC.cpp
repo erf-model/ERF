@@ -264,8 +264,8 @@ AdvectionSrcForOpenBC_Tangent (const int& i,
     IntVect ivm1(i,j,k); ivm1[dir] += 1; // Mom on the high face of cell (i,j,k)
     IntVect ivm2(i,j,k);                 // Mom on the low  face of cell (i,j,k)
 
-    IntVect ivs1(i,j,k); if ( do_lo) { ivs1[dir] -= sgn; } // Scalar indexed into domain for do_hi
-    IntVect ivs2(i,j,k); if (!do_lo) { ivs2[dir] -= sgn; } // Scalar indexed into domain for do_lo
+    IntVect ivs1(i,j,k); if ( do_lo) { ivs1[dir] -= sgn; } // Scalar indexed into domain for do_lo
+    IntVect ivs2(i,j,k); if (!do_lo) { ivs2[dir] -= sgn; } // Scalar indexed into domain for do_hi
 
     Real mom_at_cc = myhalf * (mom_norm_arr(ivm1) + mom_norm_arr(ivm2));
     Real mom_star  = Real(sgn) * max( Real(sgn)*mom_at_cc, zero );
@@ -273,6 +273,6 @@ AdvectionSrcForOpenBC_Tangent (const int& i,
     Real prim_grad = ( prim_tang_arr(ivs1,nprim) - prim_tang_arr(ivs2,nprim) ) * dxInv;
 
     // NOTE: Negative sign taken care of by wrapper function
-    Real src       = ( mom_star*prim_grad + prim_tang_arr(ivs1,nprim)*mom_grad );
+    Real src       = ( mom_star*prim_grad + prim_tang_arr(i,j,k,nprim)*mom_grad );
     return src;
 }
