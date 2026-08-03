@@ -1,5 +1,5 @@
 # Cloud Chamber Stage 1 dry proof of concept.
-# Closed-water physical-temperature/RH chamber regression.
+# No-moisture physical-temperature thermal chamber regression.
 erf.prob_name = "Cloud Chamber"
 erf.init_type = ConstantDensity
 erf.anelastic = 1
@@ -31,7 +31,6 @@ prob.T_0 = 292.0
 prob.thermodynamic_initialization = physical_temperature_rh
 prob.initial_temperature_bottom = 300.0
 prob.initial_temperature_top = 284.0
-prob.initial_relative_humidity = 0.95
 prob.temperature_perturbation_amplitude = 0.02
 prob.perturbation_mode = deterministic_sine
 

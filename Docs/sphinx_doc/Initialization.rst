@@ -15,9 +15,10 @@ Custom Initialization
 ----------------------------------
 
 The deterministic rectangular ``Cloud Chamber`` initializer is documented in
-:ref:`CloudChamber`.  It is a constrained Stage 1 proof of concept for
-anelastic six-wall scalar transport and optional SatAdj moisture; its
-prescribed theta and qv values do not represent physical wall-transfer laws.
+:ref:`CloudChamber`.  It sets the initial physical-temperature profile and,
+when SatAdj is selected, the initial vapor state with zero cloud water before
+adjustment.  Wall temperature and moisture entries are a separate boundary
+condition contract that controls subsequent resolved wall-normal transfer.
 
 When not reading the initial data as described in the section below,
 the initialization in ERF has two steps: creation of the background state

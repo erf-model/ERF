@@ -243,6 +243,19 @@ inline Config parse_config (const amrex::Real* problo,
             amrex::Error("Cloud Chamber: prob.p_inf must match ERF's p_0 = 100000 Pa within 1e-6 relative tolerance");
         }
     }
+
+    std::string moisture_model;
+    const bool moisture_specified = pp_erf.query("moisture_model", moisture_model);
+    if (moisture_specified) {
+        moisture_model = amrex::toLower(moisture_model);
+        if (moisture_model != "satadj") {
+            amrex::Error("Cloud Chamber: moisture_model must be omitted for dry mode or set to SatAdj");
+        }
+        config.cloudy = true;
+    } else if (pp_prob.contains("qv_bottom") || pp_prob.contains("qv_top")) {
+        amrex::Error("Cloud Chamber: qv_bottom/qv_top require erf.moisture_model = SatAdj");
+    }
+
     std::string init_mode;
     pp_prob.get("thermodynamic_initialization", init_mode);
     init_mode = amrex::toLower(init_mode);
@@ -265,7 +278,11 @@ inline Config parse_config (const amrex::Real* problo,
         }
         pp_prob.get("initial_temperature_bottom", config.initial_temperature_bottom);
         pp_prob.get("initial_temperature_top", config.initial_temperature_top);
-        pp_prob.get("initial_relative_humidity", config.initial_relative_humidity);
+        if (config.cloudy) {
+            pp_prob.get("initial_relative_humidity", config.initial_relative_humidity);
+        } else if (pp_prob.contains("initial_relative_humidity")) {
+            amrex::Error("Cloud Chamber: prob.initial_relative_humidity is only used with erf.moisture_model = SatAdj");
+        }
         pp_prob.query("temperature_perturbation_amplitude",
                       config.temperature_perturbation_amplitude);
         if (pp_prob.contains("theta_bottom") || pp_prob.contains("theta_top") ||
@@ -274,16 +291,18 @@ inline Config parse_config (const amrex::Real* problo,
         }
         require_finite("prob.initial_temperature_bottom", config.initial_temperature_bottom);
         require_finite("prob.initial_temperature_top", config.initial_temperature_top);
-        require_finite("prob.initial_relative_humidity", config.initial_relative_humidity);
         require_finite("prob.temperature_perturbation_amplitude",
                        config.temperature_perturbation_amplitude);
         if (config.initial_temperature_bottom <= amrex::Real(0.0) ||
             config.initial_temperature_top <= amrex::Real(0.0)) {
             amrex::Error("Cloud Chamber: physical initial temperatures must be positive");
         }
-        if (config.initial_relative_humidity < amrex::Real(0.0) ||
-            config.initial_relative_humidity > amrex::Real(1.0)) {
-            amrex::Error("Cloud Chamber: initial_relative_humidity must lie in [0,1]");
+        if (config.cloudy) {
+            require_finite("prob.initial_relative_humidity", config.initial_relative_humidity);
+            if (config.initial_relative_humidity < amrex::Real(0.0) ||
+                config.initial_relative_humidity > amrex::Real(1.0)) {
+                amrex::Error("Cloud Chamber: initial_relative_humidity must lie in [0,1]");
+            }
         }
     } else if (init_mode == "legacy_theta_qv") {
         config.physical_initialization = false;
@@ -310,21 +329,10 @@ inline Config parse_config (const amrex::Real* problo,
         }
     }
 
-    std::string moisture_model;
-    const bool moisture_specified = pp_erf.query("moisture_model", moisture_model);
     if (moisture_specified) {
-        moisture_model = amrex::toLower(moisture_model);
-        if (moisture_model != "satadj") {
-            amrex::Error("Cloud Chamber: moisture_model must be omitted for dry mode or set to SatAdj");
-        }
-        config.cloudy = true;
-        if (config.physical_initialization) {
-            config.cloudy = true;
-        } else {
+        if (!config.physical_initialization) {
             pp_prob.get("qv_bottom", config.qv_bottom);
             pp_prob.get("qv_top", config.qv_top);
-        }
-        if (!config.physical_initialization) {
             require_finite("prob.qv_bottom", config.qv_bottom);
             require_finite("prob.qv_top", config.qv_top);
             if (config.qv_bottom < amrex::Real(0.0) ||
@@ -332,8 +340,6 @@ inline Config parse_config (const amrex::Real* problo,
                 amrex::Error("Cloud Chamber: qv profile values must be nonnegative");
             }
         }
-    } else if (pp_prob.contains("qv_bottom") || pp_prob.contains("qv_top")) {
-        amrex::Error("Cloud Chamber: qv_bottom/qv_top require erf.moisture_model = SatAdj");
     }
 
     const WallFace faces[] = {WallFace::XLo, WallFace::XHi, WallFace::YLo,

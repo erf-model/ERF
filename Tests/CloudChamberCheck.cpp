@@ -9,6 +9,7 @@
 #include <cmath>
 #include <cstdlib>
 #include <fstream>
+#include <iomanip>
 #include <iostream>
 #include <limits>
 #include <sstream>
@@ -96,6 +97,25 @@ bool close_to_zero (Real value, const BudgetRow& row)
     return std::abs(value) <= budget_tolerance(row);
 }
 
+bool is_budget_mode (const std::string& mode)
+{
+    return mode == "all_dry" || mode == "wet_budget" || mode == "thermal_budget";
+}
+
+bool is_checker_mode (const std::string& mode)
+{
+    return mode == "dry" || mode == "cloudy" || mode == "parity" || is_budget_mode(mode);
+}
+
+struct BudgetSummary {
+    int rows = 0;
+    int thermal_rows = 0;
+    int total_rows = 0;
+    int vapor_rows = 0;
+    int cloud_rows = 0;
+    Real max_residual_ratio = Real(0.0);
+};
+
 Real integral (PlotFileData& plotfile, const std::string& scalar)
 {
     MultiFab rho = plotfile.get(0, "density");
@@ -107,15 +127,34 @@ Real integral (PlotFileData& plotfile, const std::string& scalar)
 }
 
 bool check_budget_rows (const std::vector<BudgetRow>& rows,
-                        const std::string& mode, std::string& error)
+                        const std::string& mode, BudgetSummary& summary,
+                        std::string& error)
 {
     const bool all_dry = mode == "all_dry";
     const bool wet = mode == "wet_budget";
     const bool thermal = mode == "thermal_budget";
+    summary = {};
+    summary.rows = static_cast<int>(rows.size());
     int total_rows = 0;
     int vapor_rows = 0;
     int cloud_rows = 0;
     int thermal_rows = 0;
+    const auto check_closure = [&](const BudgetRow& row, const char* name) {
+        if (!std::isfinite(static_cast<double>(row.residual)) ||
+            !std::isfinite(static_cast<double>(row.tolerance)) ||
+            row.tolerance < Real(0.0)) {
+            error = std::string(name) + " budget closure is non-finite or has negative tolerance";
+            return false;
+        }
+        const Real effective_tolerance = budget_tolerance(row);
+        summary.max_residual_ratio = std::max(
+            summary.max_residual_ratio, std::abs(row.residual) / effective_tolerance);
+        if (row.status != "PASS" || std::abs(row.residual) > effective_tolerance) {
+            error = std::string(name) + " budget did not PASS";
+            return false;
+        }
+        return true;
+    };
     for (const auto& row : rows) {
         const Real tol = budget_tolerance(row);
         if (row.scalar == "rhoTheta") {
@@ -130,29 +169,26 @@ bool check_budget_rows (const std::vector<BudgetRow>& rows,
                     std::isfinite(static_cast<double>(row.internal_source)) &&
                     std::isfinite(static_cast<double>(row.residual)) &&
                     std::isfinite(static_cast<double>(row.tolerance));
-                if (!finite || row.status != "PASS" || std::abs(row.residual) > tol) {
+                if (!finite || row.tolerance < Real(0.0) || row.status != "PASS" ||
+                    std::abs(row.residual) > tol) {
                     error = "dry thermal rhoTheta budget did not PASS";
                     return false;
                 }
+                summary.max_residual_ratio = std::max(
+                    summary.max_residual_ratio, std::abs(row.residual) / tol);
             }
-        } else if (row.scalar == "total_nonprecipitating_water") {
+        } else if (!thermal && row.scalar == "total_nonprecipitating_water") {
             ++total_rows;
-            if (row.status != "PASS" || std::abs(row.residual) > tol) {
-                error = "total-water budget did not PASS";
-                return false;
-            }
+            if (!check_closure(row, "total-water")) { return false; }
             if (all_dry && (!close_to_zero(row.net_boundary, row) ||
                             !close_to_zero(row.volume_change, row) ||
                             !close_to_zero(row.internal_source, row))) {
                 error = "all-dry total-water budget is not closed";
                 return false;
             }
-        } else if (row.scalar == "water_vapor") {
+        } else if (!thermal && row.scalar == "water_vapor") {
             ++vapor_rows;
-            if (row.status != "PASS") {
-                error = "water-vapor budget did not PASS";
-                return false;
-            }
+            if (!check_closure(row, "water-vapor")) { return false; }
             if (all_dry) {
                 for (const auto value : row.faces) {
                     if (!close_to_zero(value, row)) {
@@ -173,12 +209,9 @@ bool check_budget_rows (const std::vector<BudgetRow>& rows,
                     return false;
                 }
             }
-        } else if (row.scalar == "cloud_water") {
+        } else if (!thermal && row.scalar == "cloud_water") {
             ++cloud_rows;
-            if (row.status != "PASS") {
-                error = "cloud-water budget did not PASS";
-                return false;
-            }
+            if (!check_closure(row, "cloud-water")) { return false; }
             for (const auto value : row.faces) {
                 if (!close_to_zero(value, row)) {
                     error = "cloud-water wall flux is nonzero";
@@ -192,12 +225,16 @@ bool check_budget_rows (const std::vector<BudgetRow>& rows,
             error = "expected at least three dry rhoTheta budget intervals";
             return false;
         }
+        summary.thermal_rows = thermal_rows;
         return true;
     }
     if (total_rows < 3 || vapor_rows < 3 || cloud_rows < 3) {
         error = "expected at least three budget intervals for every water scalar";
         return false;
     }
+    summary.total_rows = total_rows;
+    summary.vapor_rows = vapor_rows;
+    summary.cloud_rows = cloud_rows;
     return true;
 }
 
@@ -205,7 +242,10 @@ bool check_budget_rows (const std::vector<BudgetRow>& rows,
 
 int main (int argc, char** argv)
 {
-    if (argc != 4 && argc != 5) {
+    const std::string mode = argc > 1 ? argv[1] : std::string();
+    const bool budget_mode = is_budget_mode(mode);
+    const int expected_argc = budget_mode ? 5 : 4;
+    if (!is_checker_mode(mode) || argc != expected_argc) {
         std::cerr << "usage: checker mode initial_plotfile final_plotfile\n"
                   << "       checker parity budget_off_plotfile budget_on_plotfile\n"
                   << "       checker all_dry|wet_budget|thermal_budget initial_plotfile final_plotfile budget_file\n";
@@ -213,7 +253,6 @@ int main (int argc, char** argv)
     }
 
     amrex::Initialize(argc, argv, false);
-    const std::string mode(argv[1]);
     if (mode == "parity") {
         PlotFileData budget_off(argv[2]);
         PlotFileData budget_on(argv[3]);
@@ -443,15 +482,25 @@ int main (int argc, char** argv)
         }
     }
 
-    if (mode == "all_dry" || mode == "wet_budget") {
+    if (is_budget_mode(mode)) {
         std::vector<BudgetRow> rows;
+        BudgetSummary summary;
         std::string budget_error;
-        if (argc != 5 || !read_budget(argv[4], rows, budget_error) ||
-            !check_budget_rows(rows, mode, budget_error)) {
+        if (!read_budget(argv[4], rows, budget_error) ||
+            !check_budget_rows(rows, mode, summary, budget_error)) {
             amrex::Finalize();
             return fail(budget_error.empty() ? "budget validation failed" : budget_error);
         }
-        std::cout << "budget_rows=" << rows.size() << " mode=" << mode << "\n";
+        std::cout << std::setprecision(17)
+                  << "budget_rows=" << summary.rows << " mode=" << mode;
+        if (mode == "thermal_budget") {
+            std::cout << " thermal_rows=" << summary.thermal_rows;
+        } else {
+            std::cout << " total_rows=" << summary.total_rows
+                      << " vapor_rows=" << summary.vapor_rows
+                      << " cloud_rows=" << summary.cloud_rows;
+        }
+        std::cout << " max_residual_ratio=" << summary.max_residual_ratio << "\n";
     }
 
     const MultiFab final_u = final.get(0, "x_velocity");
