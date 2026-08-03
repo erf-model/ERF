@@ -2208,18 +2208,28 @@ are detected. These checks are activated at runtime using the input parameters b
 List of Parameters
 ------------------
 
-+-----------------------------+---------------------------+-------------------+------------+
-| Parameter                   | Definition                | Acceptable Values | Default    |
-+=============================+===========================+===================+============+
-| **erf.check_for_nans**      | Test solution for NaNs    |  int              | 0          |
-+-----------------------------+---------------------------+-------------------+------------+
-| **amrex.fpe_trap_invalid**  | Raise errors for NaNs     |  0 / 1            | 0          |
-+-----------------------------+---------------------------+-------------------+------------+
-| **amrex.fpe_trap_zero**     | Raise errors for divide   |  0 / 1            | 0          |
-|                             | by zero                   |                   |            |
-+-----------------------------+---------------------------+-------------------+------------+
-| **amrex.fpe_trap_overflow** | Raise errors for overflow |  0 / 1            | 0          |
-+-----------------------------+---------------------------+-------------------+------------+
++----------------------------------------------+---------------------------+-------------------+------------+
+| Parameter                                    | Definition                | Acceptable Values | Default    |
++==============================================+===========================+===================+============+
+| **erf.check_for_nans**                       | Test solution for NaNs    |  int              | 0          |
++----------------------------------------------+---------------------------+-------------------+------------+
+| **erf.moisture_temperature_abort_threshold** | Abort below temperature   | Real >= 150 K;    | 188.16 K   |
+|                                              | guard for moist states    | below 188.16 K are|            |
+|                                              |                           | WSM6-only         |            |
++----------------------------------------------+---------------------------+-------------------+------------+
+| **amrex.fpe_trap_invalid**                   | Raise errors for NaNs     |  0 / 1            | 0          |
++----------------------------------------------+---------------------------+-------------------+------------+
+| **amrex.fpe_trap_zero**                      | Raise errors for divide   |  0 / 1            | 0          |
+|                                              | by zero                   |                   |            |
++----------------------------------------------+---------------------------+-------------------+------------+
+| **amrex.fpe_trap_overflow**                  | Raise errors for overflow |  0 / 1            | 0          |
++----------------------------------------------+---------------------------+-------------------+------------+
+
+The default moisture-temperature threshold corresponds to the lower limit of
+the ice-saturation derivative fit used by several schemes. WSM6 computes its
+own closed-form saturation relations and may opt into a lower threshold. Such
+an override should remain above any physically plausible model temperature and
+must be recorded with the run configuration; it is not a temperature clip.
 
 Reproducibility
 ===============

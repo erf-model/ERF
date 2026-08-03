@@ -2880,34 +2880,28 @@ void
 ERF::check_for_low_temp(amrex::MultiFab& S)
 {
     // *****************************************************************************
-    // Test for low temp (low is defined as beyond the microphysics range of validity)
+    // Test for low temp (low is defined as beyond the selected microphysics range
+    // of validity). Reduce on device and abort once on host: aborting and printing
+    // from every failing GPU thread can otherwise generate an unbounded log storm.
     // *****************************************************************************
-    //
-    // This value is defined in erf_dtesati in Source/Utils/ERF_MicrophysicsUtils.H
-    Real t_low = Real(273.16) - Real(85.);
-    //
-    for (MFIter mfi(S); mfi.isValid(); ++mfi)
-    {
-        Box bx = mfi.tilebox();
-        const Array4<Real> &s_arr  = S.array(mfi);
-        ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+    const Real t_low = solverChoice.moisture_temperature_abort_threshold;
+    auto const& state = S.const_arrays();
+    GpuTuple<Real> reduced = ParReduce(TypeList<ReduceOpMin>{},
+                                       TypeList<Real>{},
+                                       S, IntVect(0),
+        [=] AMREX_GPU_DEVICE (int box_no, int i, int j, int k) noexcept
+        -> GpuTuple<Real>
         {
-            const Real rho      = s_arr(i, j, k, Rho_comp);
-            const Real rhotheta = s_arr(i, j, k, RhoTheta_comp);
-            const Real qv       = s_arr(i, j, k, RhoQ1_comp) / rho;
-
-            Real temp = getTgivenRandRTh(rho, rhotheta, qv);
-
-            if (temp < t_low) {
-#ifdef AMREX_USE_GPU
-                AMREX_DEVICE_PRINTF("Temperature too low in cell: %d %d %d %e \n", i,j,k,temp);
-#else
-                printf("Temperature too low in cell: %d %d %d \n", i,j,k);
-                printf("Based on temp / rhotheta / rho / qv %e %e %e %e \n", temp,rhotheta,rho,qv);
-#endif
-                Abort();
-            }
+            const Real rho      = state[box_no](i, j, k, Rho_comp);
+            const Real rhotheta = state[box_no](i, j, k, RhoTheta_comp);
+            const Real qv       = state[box_no](i, j, k, RhoQ1_comp) / rho;
+            return {getTgivenRandRTh(rho, rhotheta, qv)};
         });
+    Real minimum_temperature = get<0>(reduced);
+    if (minimum_temperature < t_low) {
+        Abort("Minimum moist-state temperature " + std::to_string(minimum_temperature) +
+              " K is below erf.moisture_temperature_abort_threshold=" +
+              std::to_string(t_low) + " K");
     }
 }
 

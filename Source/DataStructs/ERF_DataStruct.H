@@ -173,6 +173,14 @@ struct SolverChoice {
         }
 
         pp.query_enum_case_insensitive("moisture_model",moisture_type);
+        pp.query("moisture_temperature_abort_threshold", moisture_temperature_abort_threshold);
+        if (moisture_temperature_abort_threshold < amrex::Real(150.0)) {
+            amrex::Error("moisture_temperature_abort_threshold must be at least 150 K");
+        }
+        if (moisture_temperature_abort_threshold < amrex::Real(188.16) &&
+            moisture_type != MoistureType::WSM6) {
+            amrex::Error("A moisture_temperature_abort_threshold below 188.16 K is only supported with WSM6");
+        }
         if (moisture_type == MoistureType::Morrison) {
             moisture_indices = MoistureComponentIndices(
                 RhoQ1_comp,  // water vapor
@@ -1437,6 +1445,12 @@ struct SolverChoice {
 
     // Microphysics params
     MoistureComponentIndices moisture_indices;
+
+    // Lowest temperature accepted by the per-step moist-state guard. The
+    // default protects schemes that use the -85 C ice-saturation derivative
+    // fit. WSM6 evaluates its own closed-form saturation relations and may use
+    // an explicitly lower, physically audited threshold.
+    amrex::Real moisture_temperature_abort_threshold {amrex::Real(188.16)};
 
     bool moisture_tight_coupling {false};
 
