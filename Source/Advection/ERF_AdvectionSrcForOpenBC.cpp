@@ -273,6 +273,6 @@ AdvectionSrcForOpenBC_Tangent (const int& i,
     Real prim_grad = ( prim_tang_arr(ivs1,nprim) - prim_tang_arr(ivs2,nprim) ) * dxInv;
 
     // NOTE: Negative sign taken care of by wrapper function
-    Real src       = ( mom_star*prim_grad + prim_tang_arr(ivs1,nprim)*mom_grad );
+    Real src       = ( mom_star*prim_grad + prim_tang_arr(i,j,k,nprim)*mom_grad );
     return src;
 }
