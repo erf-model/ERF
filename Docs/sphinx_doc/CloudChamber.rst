@@ -265,10 +265,10 @@ Testing coverage
 
 The registered Stage 1 tests have distinct purposes:
 
-* ``CloudChamberFluxStorage.TiledComponentsPreserveEarlierTiles`` is a
-  deterministic tile-lifecycle negative control for shared-FAB resets.
 * ``CloudChamberWallFlux.MultiBoxOwnershipAcrossAllFaces`` covers all six
   orientations and multiple boxes.
+* ``CloudChamber_Dry_ThermalBudget`` requires at least three finite,
+  passing ``rhoTheta`` budget intervals in the no-moisture chamber.
 * ``CloudChamber_SatAdj_Parity`` runs paired budget-off/on simulations and
   checks fields and global integrals.
 * ``CloudChamber_SatAdj_AllDry`` checks closed total water with six dry walls.

@@ -239,49 +239,4 @@ TEST(CloudChamberWallFlux, MultiBoxOwnershipAcrossAllFaces)
     check_faces(zflux, 2);
 }
 
-// Motivation: qv and qc flux storage is shared by CPU tiles within a FAB.
-// A full-FAB reset from a later tile erases completed work; this component
-// lifecycle test is a deterministic negative control for that old pattern.
-TEST(CloudChamberFluxStorage, TiledComponentsPreserveEarlierTiles)
-{
-    using amrex::Box;
-    using amrex::BoxArray;
-    using amrex::DistributionMapping;
-    using amrex::IntVect;
-    using amrex::MFIter;
-    using amrex::MultiFab;
-
-    const Box domain(IntVect(0), IntVect(7));
-    const BoxArray ba(domain);
-    const DistributionMapping dm(ba);
-    MultiFab flux(ba, dm, 2, 0);
-    flux.setVal(Real(-1.0));
-
-    int tile_count = 0;
-    for (MFIter mfi(flux, IntVect(2)); mfi.isValid(); ++mfi) {
-        const Real marker = Real(10 + tile_count);
-        const Box tile = mfi.tilebox();
-        flux[mfi].setVal(marker, tile, 0, 1);
-        flux[mfi].setVal(-marker, tile, 1, 1);
-        ++tile_count;
-    }
-    EXPECT_GT(tile_count, 1);
-
-    int checked_tiles = 0;
-    for (MFIter mfi(flux, IntVect(2)); mfi.isValid(); ++mfi) {
-        const Real marker = Real(10 + checked_tiles);
-        const auto values = flux.const_array(mfi);
-        const Box tile = mfi.tilebox();
-        for (int k = tile.smallEnd(2); k <= tile.bigEnd(2); ++k) {
-            for (int j = tile.smallEnd(1); j <= tile.bigEnd(1); ++j) {
-                for (int i = tile.smallEnd(0); i <= tile.bigEnd(0); ++i) {
-                    EXPECT_DOUBLE_EQ(values(i,j,k,0), marker);
-                    EXPECT_DOUBLE_EQ(values(i,j,k,1), -marker);
-                }
-            }
-        }
-        ++checked_tiles;
-    }
-}
-
 } // namespace

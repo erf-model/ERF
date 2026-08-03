@@ -111,12 +111,31 @@ bool check_budget_rows (const std::vector<BudgetRow>& rows,
 {
     const bool all_dry = mode == "all_dry";
     const bool wet = mode == "wet_budget";
+    const bool thermal = mode == "thermal_budget";
     int total_rows = 0;
     int vapor_rows = 0;
     int cloud_rows = 0;
+    int thermal_rows = 0;
     for (const auto& row : rows) {
         const Real tol = budget_tolerance(row);
-        if (row.scalar == "total_nonprecipitating_water") {
+        if (row.scalar == "rhoTheta") {
+            if (thermal) {
+                ++thermal_rows;
+                bool finite = true;
+                for (const auto value : row.faces) {
+                    finite = finite && std::isfinite(static_cast<double>(value));
+                }
+                finite = finite && std::isfinite(static_cast<double>(row.net_boundary)) &&
+                    std::isfinite(static_cast<double>(row.volume_change)) &&
+                    std::isfinite(static_cast<double>(row.internal_source)) &&
+                    std::isfinite(static_cast<double>(row.residual)) &&
+                    std::isfinite(static_cast<double>(row.tolerance));
+                if (!finite || row.status != "PASS" || std::abs(row.residual) > tol) {
+                    error = "dry thermal rhoTheta budget did not PASS";
+                    return false;
+                }
+            }
+        } else if (row.scalar == "total_nonprecipitating_water") {
             ++total_rows;
             if (row.status != "PASS" || std::abs(row.residual) > tol) {
                 error = "total-water budget did not PASS";
@@ -168,6 +187,13 @@ bool check_budget_rows (const std::vector<BudgetRow>& rows,
             }
         }
     }
+    if (thermal) {
+        if (thermal_rows < 3) {
+            error = "expected at least three dry rhoTheta budget intervals";
+            return false;
+        }
+        return true;
+    }
     if (total_rows < 3 || vapor_rows < 3 || cloud_rows < 3) {
         error = "expected at least three budget intervals for every water scalar";
         return false;
@@ -182,7 +208,7 @@ int main (int argc, char** argv)
     if (argc != 4 && argc != 5) {
         std::cerr << "usage: checker mode initial_plotfile final_plotfile\n"
                   << "       checker parity budget_off_plotfile budget_on_plotfile\n"
-                  << "       checker all_dry|wet_budget initial_plotfile final_plotfile budget_file\n";
+                  << "       checker all_dry|wet_budget|thermal_budget initial_plotfile final_plotfile budget_file\n";
         return 2;
     }
 
@@ -224,9 +250,9 @@ int main (int argc, char** argv)
     PlotFileData initial(argv[2]);
     PlotFileData final(argv[3]);
     const bool cloudy = (mode == "cloudy" || mode == "all_dry" || mode == "wet_budget");
-    if (!cloudy && mode != "dry") {
+    if (!cloudy && mode != "dry" && mode != "thermal_budget") {
         amrex::Finalize();
-        return fail("mode must be dry, cloudy, all_dry, or wet_budget");
+        return fail("mode must be dry, cloudy, all_dry, wet_budget, or thermal_budget");
     }
 
     for (const std::string& name : {"density", "theta", "temp", "x_velocity",

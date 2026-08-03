@@ -14,12 +14,12 @@ erf.Cs = 0.1
 erf.fixed_dt = 0.001
 erf.sum_interval = -1
 erf.check_int = -1
-erf.cloud_chamber_budget_interval = 1
+erf.cloud_chamber_budget_interval = 2
 erf.plot_file_1 = plt
-erf.plot_int_1 = 1
+erf.plot_int_1 = 2
 erf.plot_vars_1 = density theta temp pressure x_velocity y_velocity z_velocity
 
-max_step = 2
+max_step = 6
 geometry.prob_lo = 0.0 0.0 0.0
 geometry.prob_hi = 2.0 2.0 1.0
 geometry.is_periodic = 0 0 0

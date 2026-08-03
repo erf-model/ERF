@@ -217,11 +217,16 @@ ERF::ERF_shared ()
     erf_probinit_link_anchor_func();
 #endif
     prob = amrex_probinit(geom[0].ProbLo(),geom[0].ProbHi());
-    if (const auto* chamber = prob->cloud_chamber_config()) {
-        cloud_chamber_config = *chamber;
+
+    ParmParse pp_erf("erf");
+    std::string prob_name;
+    pp_erf.query("prob_name", prob_name);
+    const std::string prob_name_ci = amrex::toLower(prob_name);
+    if (prob_name_ci == "cloud chamber" || prob_name_ci == "cloudchamber") {
+        cloud_chamber_config = erf_cloud_chamber::parse_config(
+            geom[0].ProbLo(), geom[0].ProbHi());
     }
     {
-        ParmParse pp_erf("erf");
         int budget_interval = 0;
         pp_erf.query("cloud_chamber_budget_interval", budget_interval);
         if (budget_interval > 0) {

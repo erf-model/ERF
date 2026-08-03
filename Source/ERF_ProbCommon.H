@@ -11,8 +11,6 @@
 #include "ERF_HSEUtils.H"
 #include "ERF_TileNoZ.H"
 
-namespace erf_cloud_chamber { struct Config; }
-
 struct ProbParmDefaults {
     amrex::Real rho_0 = one;
     amrex::Real T_0 = amrex::Real(300.0);
@@ -55,10 +53,6 @@ public:
      * Virtual destructor to avoid data leakage with derived class
      */
     virtual ~ProblemBase () = default;
-
-    // Non-owning access to the parsed, device-copyable chamber wall metadata.
-    // Other problems return nullptr, so the legacy boundary path is untouched.
-    virtual const erf_cloud_chamber::Config* cloud_chamber_config () const { return nullptr; }
 
     /**
      * Function to initialize the hydrostatic reference density
