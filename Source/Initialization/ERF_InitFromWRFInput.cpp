@@ -244,10 +244,10 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev)
         NC_names.push_back("QVAPOR");  // 24
         NC_names.push_back("QCLOUD");  // 25
 
-        // Only read ice species and number concentrations for schemes that need them
+        // Read ice species for schemes that need them from wrfinput
         int n_qstate_moist = micro->Get_Qstate_Moist_Size();
         if (n_qstate_moist >= 6) {
-            // 6-class schemes: WSM6, WDM6, Morrison, etc.
+            // 6+ class schemes (WSM6, WDM6, Morrison): read all ice species
             NC_names.push_back("QICE");    // 26
             NC_names.push_back("QRAIN");   // 27
             NC_names.push_back("QSNOW");   // 28
@@ -547,14 +547,21 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev)
                 } else if (var_name == "QICE") {
                     icomp    = RhoQ3_comp;
                 } else if (var_name == "QRAIN") {
-                    icomp    = RhoQ4_comp;
+                    // For schemes with 6+ species (WDM6, WSM6, Morrison), QRAIN → RhoQ4
+                    // For smaller schemes (Kessler 3-class), QRAIN → RhoQ3
+                    if (n_qstate_moist >= 6) {
+                        icomp = RhoQ4_comp;
+                    } else {
+                        icomp = RhoQ3_comp;
+                        if (n_qstate_moist < 3) { success = 0; }  // Safety check
+                    }
                 } else if (var_name == "QSNOW") {
                     icomp    = RhoQ5_comp;
                 } else if (var_name == "QGRAUP") {
                     icomp    = RhoQ6_comp;
                 }
-                // Note: RhoQ7-RhoQ9 (nc, nn, nr) start at zero and are diagnosed
-                // in Copy_State_to_Micro if qc/qr exist but nc/nr are zero
+                // Note: RhoQ7-RhoQ9 (nc, nn, nr for WDM6) or RhoQ7-RhoQ11 (nc, ni, nr, ns, ng for Morrison)
+                // start at zero and are diagnosed/initialized by the microphysics scheme
 
                 // INITIAL DATA common for "ideal" as well as "real" simulation
                 // Don't tile this since we are operating on full FABs in this routine

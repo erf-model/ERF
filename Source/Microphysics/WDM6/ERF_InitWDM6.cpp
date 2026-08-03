@@ -30,9 +30,25 @@ WDM6::Init(const MultiFab& cons_in,
     MicVarMap.resize(m_qmoist_size);
     MicVarMap = {MicVar_WDM6::rain_accum, MicVar_WDM6::snow_accum, MicVar_WDM6::graup_accum};
 
+    // Select appropriate Arena based on execution mode
+    // - Fortran bridge + GPU: Use managed memory for CPU (Fortran) ↔ GPU data transfer
+    // - Fortran bridge CPU-only: Use pinned memory for CPU efficiency
+    // - C++ GPU kernels: Use standard device memory
+#if defined(ERF_USE_WDM6_FORT) && defined(AMREX_USE_GPU)
+    Arena* Arena_Used = The_Managed_Arena();
+    amrex::Print() << "  WDM6 using managed memory (Fortran bridge + GPU)\n";
+#elif defined(ERF_USE_WDM6_FORT)
+    Arena* Arena_Used = The_Pinned_Arena();
+    amrex::Print() << "  WDM6 using pinned memory (Fortran bridge CPU-only)\n";
+#else
+    Arena* Arena_Used = The_Arena();
+    amrex::Print() << "  WDM6 using device memory (C++ GPU kernels)\n";
+#endif
+
     for (int ivar = 0; ivar < MicVar_WDM6::NumVars; ++ivar) {
         mic_fab_vars[ivar] = std::make_shared<MultiFab>(cons_in.boxArray(), cons_in.DistributionMap(),
-                                                        1, cons_in.nGrowVect());
+                                                        1, cons_in.nGrowVect(),
+                                                        MFInfo().SetArena(Arena_Used));
         mic_fab_vars[ivar]->setVal(0.0);
     }
 
@@ -49,8 +65,10 @@ WDM6::Init(const MultiFab& cons_in,
         auto nn = mic_fab_vars[MicVar_WDM6::nn]->array(mfi);
 
         ParallelFor(box3d, [=] AMREX_GPU_DEVICE(int i, int j, int k) {
-            Real rho = states(i,j,k,Rho_comp);
-            nn(i,j,k) = ccn0_init / rho;
+            // WRF WDM6 initializes nn as a constant specific concentration (#/kg),
+            // not density-dependent (#/m³ / rho). This prevents runaway nn accumulation
+            // at high altitudes where rho is small.
+            nn(i,j,k) = ccn0_init;
         });
     }
     m_nn_initialized = true;  // Mark as initialized so Copy_State_to_Micro doesn't overwrite
