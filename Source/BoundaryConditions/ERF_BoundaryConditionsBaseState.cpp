@@ -269,23 +269,12 @@ void ERFPhysBCFunct_base::impose_vertical_basestate_bcs (const Array4<Real>& des
     const auto& dom_lo = lbound(domain);
     const auto& dom_hi = ubound(domain);
 
-    Box bx_zlo1(bx); bx_zlo1.setBig(2,dom_lo.z-1); if (bx_zlo1.ok()) bx_zlo1.setSmall(2,dom_lo.z-1);
-    ParallelFor(
-        bx_zlo1, [=] AMREX_GPU_DEVICE (int i, int j, int k)
-        {
-            dest_arr(i,j,k,BaseState::r0_comp)  = dest_arr(i,j,dom_lo.z,BaseState::r0_comp);
-            dest_arr(i,j,k,BaseState::p0_comp)  = dest_arr(i,j,dom_lo.z,BaseState::p0_comp);
-            dest_arr(i,j,k,BaseState::pi0_comp) = dest_arr(i,j,dom_lo.z,BaseState::pi0_comp);
-            dest_arr(i,j,k,BaseState::th0_comp) = dest_arr(i,j,dom_lo.z,BaseState::th0_comp);
-        }
-    );
-
-    Box bx_zlo(bx); bx_zlo.setBig(2,dom_lo.z-2);
+    Box bx_zlo(bx); bx_zlo.setBig(2,dom_lo.z-1);
     Box bx_zhi(bx); bx_zhi.setSmall(2,dom_hi.z+1);
     ParallelFor(
         bx_zlo, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n)
         {
-            dest_arr(i,j,k,n) = dest_arr(i,j,dom_lo.z-1,n);
+            dest_arr(i,j,k,n) = dest_arr(i,j,dom_lo.z,n);
         },
         bx_zhi, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n)
         {
