@@ -78,7 +78,7 @@ struct similarity_funs
     {
         if (zeta > 0) {
             amrex::Real x = std::pow(one + std::pow(zeta, amrex::Real(1.1)), one/amrex::Real(1.1));
-            return ( -amrex::Real(6.1)*std::log(zeta + x) );
+            return ( -amrex::Real(5.3)*std::log(zeta + x) );
         } else {
             amrex::Real x = std::sqrt(one - amrex::Real(16.0)*zeta);
             amrex::Real psi_k_h = two * std::log(myhalf * (one + x));
