@@ -8,6 +8,9 @@
 #include <AMReX_Print.H>
 #include <AMReX_Gpu.H>
 
+/**
+ * @brief Molecular diffusion model used for transport coefficients.
+ */
 enum struct MolecDiffType {
     None, Constant, ConstantAlpha
 };
@@ -18,6 +21,10 @@ enum struct MolecDiffType {
 
 struct DiffChoice {
   public:
+    /**
+     * @brief Read diffusion options from the input parameter database.
+     * @param pp_prefix ParmParse prefix for the ERF input namespace.
+     */
     void init_params (std::string pp_prefix)
     {
         amrex::ParmParse pp(pp_prefix);
@@ -64,6 +71,9 @@ struct DiffChoice {
 
     }
 
+    /**
+     * @brief Print the configured diffusion options.
+     */
     void display ()
     {
         amrex::Print() << "Diffusion choices: " << std::endl;
@@ -98,4 +108,27 @@ struct DiffChoice {
     bool eb_diff_constraint_y = false;
     bool eb_diff_constraint_z = false;
 };
+
+/**
+ * @var DiffChoice::molec_diff_type
+ * @brief Selected molecular transport model.
+ * @var DiffChoice::alpha_T
+ * @brief Kinematic temperature diffusivity [m2/s].
+ * @var DiffChoice::alpha_C
+ * @brief Kinematic scalar diffusivity [m2/s].
+ * @var DiffChoice::rho0_trans
+ * @brief Reference density used to compute dynamic diffusion coefficients [kg/m3].
+ * @var DiffChoice::rhoAlpha_T
+ * @brief Dynamic temperature diffusion coefficient [kg/(m-s)].
+ * @var DiffChoice::rhoAlpha_C
+ * @brief Dynamic scalar diffusion coefficient [kg/(m-s)].
+ * @var DiffChoice::dynamic_viscosity
+ * @brief Dynamic viscosity for momentum diffusion [kg/(m-s)].
+ * @var DiffChoice::eb_diff_constraint_x
+ * @brief Whether to constrain EB diffusion in the x direction.
+ * @var DiffChoice::eb_diff_constraint_y
+ * @brief Whether to constrain EB diffusion in the y direction.
+ * @var DiffChoice::eb_diff_constraint_z
+ * @brief Whether to constrain EB diffusion in the z direction.
+ */
 #endif

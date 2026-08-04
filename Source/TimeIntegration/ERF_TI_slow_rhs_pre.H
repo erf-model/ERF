@@ -194,7 +194,9 @@
                          eamxx_shoc_interface[level].get(),
 #endif
                          native_shoc_driver[level].get(),
-                         fr_as_crse, fr_as_fine);
+                         fr_as_crse, fr_as_fine, &base_to_use,
+                         cloud_chamber_config.active ? &cloud_chamber_config : nullptr,
+                         cloud_chamber_budget.get());
 
         Real sdt = static_cast<Real>(slow_dt);
 
