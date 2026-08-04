@@ -454,6 +454,7 @@ ImplicitDiffForMomLU_T (const Box& bx,
                   const Real gam_kp1 = mu_turb(i, j, k+1, hgam_comp);
                   const Real gam_hi  = myhalf * (gam_k + gam_kp1);
                   const Real gam_lo  = myhalf * (gam_k + gam_km1);
+                  // HGAMU/HGAMV store the signed brint*u/v correction, unlike HGAMT/HGAMQ.
                   RHS_a(i,j,k) += Fact * gfac * dz_inv *
                                   (rhoAlpha_hi * gam_hi / met_h_zeta_hi - rhoAlpha_lo * gam_lo / met_h_zeta_lo);
               }
