@@ -32,6 +32,14 @@ This means WDM6 is not yet a validated reusable pattern the way mature WSM6/Morr
 - `nn` is aerosol/CCN number, not Morrison-style ice number.
 - WDM6 introduces `wdm6.ccn0` and `xland` behavior that WSM6 does not have.
 
+## Current Working Artifacts
+- canonical file-order group map:
+  `references/applications/wdm6/group_map.md`
+- use the tracked Fortran source as the frozen kernel reference:
+  `Source/Microphysics/WDM6/ERF_module_mp_wdm6.F90`
+- use the untracked top-level `module_mp_wdm6.F` only as comment/naming guidance,
+  not as the authoritative line-number source
+
 ## Entry Point Comparison
 Framework-level wiring matches WSM6 and Morrison:
 - `MoistureType::WDM6` is registered in ERF moisture-model selection.
