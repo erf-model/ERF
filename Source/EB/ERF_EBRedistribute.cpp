@@ -1,3 +1,7 @@
+/**
+ * \file ERF_EBRedistribute.cpp
+ * \brief Implements EB redistribution for native and auxiliary EB factories.
+ */
 
 #include <AMReX_Config.H>
 #include <AMReX_Geometry.H>
@@ -9,6 +13,9 @@
 
 using namespace amrex;
 
+/**
+ * \brief Apply EB state redistribution to result_tmp and write the redistributed result.
+ */
 template <typename EBFactType>
 void
 redistribute_term ( int ncomp,
@@ -106,6 +113,7 @@ redistribute_term ( int ncomp,
     } // MFIter
 }
 
+//! \cond
 // Explicit template instantiations for the types we use
 template void redistribute_term(int, const Geometry&, MultiFab&, MultiFab&,
                                 MultiFab const&, EBFArrayBoxFactory const&,
@@ -113,3 +121,4 @@ template void redistribute_term(int, const Geometry&, MultiFab&, MultiFab&,
 template void redistribute_term(int, const Geometry&, MultiFab&, MultiFab&,
                                 MultiFab const&, eb_aux_ const&,
                                 BCRec const*, double, int const);
+//! \endcond
