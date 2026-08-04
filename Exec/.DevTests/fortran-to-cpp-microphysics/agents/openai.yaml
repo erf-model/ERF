@@ -1,0 +1,4 @@
+version: 1
+display_name: Fortran-to-C++ Microphysics
+short_description: ERF microphysics porting and validation operator for bridge wiring, native C++ parity, and WSM6/WDM6 campaign discipline.
+default_prompt: Port, audit, or validate an ERF microphysics scheme using the repo-local fortran-to-cpp-microphysics skill and its reference set.
