@@ -6,18 +6,25 @@
  * Function for computing the advective tendency for the x-component of momentum
  * with metric terms and for spatial order > 2
  *
- * @param[in] i,j,k indices of x-face at which to create tendency
+ * @tparam InterpType_H horizontal interpolation type
+ * @tparam InterpType_V vertical interpolation type
+ * @param[in] i i-index of x-face at which to create tendency
+ * @param[in] j j-index of x-face at which to create tendency
+ * @param[in] k k-index of x-face at which to create tendency
  * @param[in] rho_u x-component of momentum
  * @param[in] rho_v y-component of momentum
  * @param[in] Omega component of the momentum normal to the z-coordinate surface
  * @param[in] z_nd height coordinate at nodes
  * @param[in] ax    Area fractions on x-faces
- * @param[in] ay    Area fractions on y-faces
  * @param[in] az    Area fractions on z-faces
  * @param[in] detJ Jacobian of the metric transformation (= 1 if use_terrain is false)
+ * @param[in] interp_u_h horizontal interpolator for x-component velocity
+ * @param[in] interp_u_v vertical interpolator for x-component velocity
  * @param[in] cellSizeInv inverse of the mesh spacing
- * @param[in] mf_u map factor on x-faces
- * @param[in] mf_v map factor on y-faces
+ * @param[in] mf_ux_inv inverse x map factor on x-faces
+ * @param[in] mf_uy_inv inverse y map factor on x-faces
+ * @param[in] mf_vx_inv inverse x map factor on y-faces
+ * @return advective tendency for x-momentum
  */
 template<typename InterpType_H, typename InterpType_V>
 AMREX_GPU_DEVICE
@@ -104,18 +111,25 @@ AdvectionSrcForXMom (int i, int j, int k,
  * Function for computing the advective tendency for the y-component of momentum
  * with metric terms and for spatial order > 2
  *
- * @param[in] i,j,k indices of y-face at which to create tendency
+ * @tparam InterpType_H horizontal interpolation type
+ * @tparam InterpType_V vertical interpolation type
+ * @param[in] i i-index of y-face at which to create tendency
+ * @param[in] j j-index of y-face at which to create tendency
+ * @param[in] k k-index of y-face at which to create tendency
  * @param[in] rho_u x-component of momentum
  * @param[in] rho_v y-component of momentum
  * @param[in] Omega component of the momentum normal to the z-coordinate surface
  * @param[in] z_nd height coordinate at nodes
- * @param[in] ax    Area fractions on x-faces
  * @param[in] ay    Area fractions on y-faces
  * @param[in] az    Area fractions on z-faces
  * @param[in] detJ Jacobian of the metric transformation (= 1 if use_terrain is false)
+ * @param[in] interp_v_h horizontal interpolator for y-component velocity
+ * @param[in] interp_v_v vertical interpolator for y-component velocity
  * @param[in] cellSizeInv inverse of the mesh spacing
- * @param[in] mf_u map factor on x-faces
- * @param[in] mf_v map factor on y-faces
+ * @param[in] mf_uy_inv inverse y map factor on x-faces
+ * @param[in] mf_vx_inv inverse x map factor on y-faces
+ * @param[in] mf_vy_inv inverse y map factor on y-faces
+ * @return advective tendency for y-momentum
  */
 template<typename InterpType_H, typename InterpType_V>
 AMREX_GPU_DEVICE
@@ -202,23 +216,31 @@ AdvectionSrcForYMom (int i, int j, int k,
  * Function for computing the advective tendency for the z-component of momentum
  * with metric terms and for spatial order > 2
  *
- * @param[in] i,j,k indices of z-face at which to create tendency
+ * @tparam InterpType_H horizontal interpolation type
+ * @tparam InterpType_V vertical interpolation type
+ * @tparam WallInterpType wall-aware vertical interpolation type
+ * @param[in] i i-index of z-face at which to create tendency
+ * @param[in] j j-index of z-face at which to create tendency
+ * @param[in] k k-index of z-face at which to create tendency
  * @param[in] rho_u x-component of momentum
  * @param[in] rho_v y-component of momentum
  * @param[in] Omega component of the momentum normal to the z-coordinate surface
  * @param[in] w     z-component of velocity
  * @param[in] z_nd height coordinate at nodes
- * @param[in] ax    Area fractions on x-faces
- * @param[in] ay    Area fractions on y-faces
  * @param[in] az    Area fractions on z-faces
  * @param[in] detJ Jacobian of the metric transformation (= 1 if use_terrain is false)
+ * @param[in] interp_omega_h horizontal interpolator for z-coordinate-normal momentum
+ * @param[in] interp_omega_v vertical interpolator for z-coordinate-normal momentum
+ * @param[in] interp_omega_wall wall-aware vertical interpolator for z-coordinate-normal momentum
  * @param[in] cellSizeInv inverse of the mesh spacing
- * @param[in] mf_m map factor on cell centers
- * @param[in] mf_u map factor on x-faces
- * @param[in] mf_v map factor on y-faces
- * @param[in] vert_adv_type int that defines advection stencil
- * @param[in] lo_z_face minimum k value (z-face-centered)_in the domain at this level
- * @param[in] hi_z_face maximum k value (z-face-centered) in the domain at this level
+ * @param[in] mf_mx x map factor on cell centers
+ * @param[in] mf_my y map factor on cell centers
+ * @param[in] mf_uy_inv inverse y map factor on x-faces
+ * @param[in] mf_vx_inv inverse x map factor on y-faces
+ * @param[in] vert_adv_type vertical advection stencil
+ * @param[in] lo_z_face minimum z-face k-index at this level
+ * @param[in] hi_z_face maximum z-face k-index at this level
+ * @return advective tendency for z-momentum
  */
 template<typename InterpType_H, typename InterpType_V, typename WallInterpType>
 AMREX_GPU_DEVICE
@@ -353,6 +375,39 @@ AdvectionSrcForZMom (int i, int j, int k,
 
 /**
  * Wrapper function for computing the advective tendency w/ spatial order > two
+ *
+ * @tparam InterpType_H horizontal interpolation type
+ * @tparam InterpType_V vertical interpolation type
+ * @tparam WallInterpType wall-aware vertical interpolation type
+ * @param[in] bxx box over which x-momentum is updated
+ * @param[in] bxy box over which y-momentum is updated
+ * @param[in] bxz box over which z-momentum is updated
+ * @param[out] rho_u_rhs tendency for the x-momentum equation
+ * @param[out] rho_v_rhs tendency for the y-momentum equation
+ * @param[out] rho_w_rhs tendency for the z-momentum equation
+ * @param[in] rho_u x-component of momentum
+ * @param[in] rho_v y-component of momentum
+ * @param[in] Omega component of the momentum normal to the z-coordinate surface
+ * @param[in] u x-component of velocity
+ * @param[in] v y-component of velocity
+ * @param[in] w z-component of velocity
+ * @param[in] z_nd height coordinate at nodes
+ * @param[in] ax area fractions on x-faces
+ * @param[in] ay area fractions on y-faces
+ * @param[in] az area fractions on z-faces
+ * @param[in] detJ Jacobian of the metric transformation
+ * @param[in] cellSizeInv inverse mesh spacing
+ * @param[in] mf_mx x map factor on cell centers
+ * @param[in] mf_ux_inv inverse x map factor on x-faces
+ * @param[in] mf_vx_inv inverse x map factor on y-faces
+ * @param[in] mf_my y map factor on cell centers
+ * @param[in] mf_uy_inv inverse y map factor on x-faces
+ * @param[in] mf_vy_inv inverse y map factor on y-faces
+ * @param[in] upw_frac_h horizontal upwind blending fraction
+ * @param[in] upw_frac_v vertical upwind blending fraction
+ * @param[in] vert_adv_type vertical advection stencil
+ * @param[in] lo_z_face minimum z-face k-index at this level
+ * @param[in] hi_z_face maximum z-face k-index at this level
  */
 template<typename InterpType_H, typename InterpType_V, typename WallInterpType>
 void
@@ -417,6 +472,37 @@ AdvectionSrcForMomWrapper (const amrex::Box& bxx, const amrex::Box& bxy, const a
 
 /**
  * Wrapper function for computing the advective tendency w/ spatial order > two
+ *
+ * @tparam InterpType_H horizontal interpolation type
+ * @param[in] bxx box over which x-momentum is updated
+ * @param[in] bxy box over which y-momentum is updated
+ * @param[in] bxz box over which z-momentum is updated
+ * @param[out] rho_u_rhs tendency for the x-momentum equation
+ * @param[out] rho_v_rhs tendency for the y-momentum equation
+ * @param[out] rho_w_rhs tendency for the z-momentum equation
+ * @param[in] rho_u x-component of momentum
+ * @param[in] rho_v y-component of momentum
+ * @param[in] Omega component of the momentum normal to the z-coordinate surface
+ * @param[in] u x-component of velocity
+ * @param[in] v y-component of velocity
+ * @param[in] w z-component of velocity
+ * @param[in] z_nd height coordinate at nodes
+ * @param[in] ax area fractions on x-faces
+ * @param[in] ay area fractions on y-faces
+ * @param[in] az area fractions on z-faces
+ * @param[in] detJ Jacobian of the metric transformation
+ * @param[in] cellSizeInv inverse mesh spacing
+ * @param[in] mf_mx x map factor on cell centers
+ * @param[in] mf_ux_inv inverse x map factor on x-faces
+ * @param[in] mf_vx_inv inverse x map factor on y-faces
+ * @param[in] mf_my y map factor on cell centers
+ * @param[in] mf_uy_inv inverse y map factor on x-faces
+ * @param[in] mf_vy_inv inverse y map factor on y-faces
+ * @param[in] upw_frac_h horizontal upwind blending fraction
+ * @param[in] upw_frac_v vertical upwind blending fraction
+ * @param[in] vert_adv_type vertical advection stencil
+ * @param[in] lo_z_face minimum z-face k-index at this level
+ * @param[in] hi_z_face maximum z-face k-index at this level
  */
 template<typename InterpType_H>
 void

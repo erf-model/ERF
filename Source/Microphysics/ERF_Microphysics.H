@@ -51,7 +51,8 @@ public:
                           const amrex::GpuArray<ERF_BC, AMREX_SPACEDIM*2>& ) = 0;
 
     /*! \brief update microphysics variables from ERF state variables */
-    virtual void Update_Micro_Vars_Lev (const int&, amrex::MultiFab&) = 0;
+    virtual void Update_Micro_Vars_Lev (const int&, amrex::MultiFab&,
+                                        const amrex::MultiFab* base_state = nullptr) = 0;
 
     /*! \brief update ERF state variables from microphysics variables */
     virtual void Update_State_Vars_Lev (const int&, amrex::MultiFab&, const amrex::MultiFab&) = 0;
