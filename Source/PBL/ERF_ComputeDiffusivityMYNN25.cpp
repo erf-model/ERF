@@ -61,7 +61,7 @@ ComputeDiffusivityMYNN25 (const MultiFab& xvel,
 
         const GeometryData gdata = geom.data();
 
-        const Box xybx = PerpendicularBox<ZDir>(bx, IntVect{0,0,0});
+        const Box xybx = makeSlab(bx,2,0);
         FArrayBox qturb(bx,1,The_Async_Arena());
         FArrayBox qintegral(xybx,2,The_Async_Arena());
         qintegral.setVal<RunOn::Device>(zero);
@@ -177,7 +177,7 @@ ComputeDiffusivityMYNN25 (const MultiFab& xvel,
 
             // Buoyancy length scale (NN09, Eqn. 55)
             Real l_B;
-            if (dthetavdz > 0) {
+            if (dthetavdz > zero) {
                 Real N_brunt_vaisala = std::sqrt(CONST_GRAV/theta0 * dthetavdz);
                 if (zeta < zero) {
                     Real qc = CONST_GRAV/theta0 * surface_heat_flux * l_T; // velocity scale
@@ -210,16 +210,16 @@ ComputeDiffusivityMYNN25 (const MultiFab& xvel,
             Real Rf  = level2.calc_Rf(GM, GH);
             Real SM2 = level2.calc_SM(Rf);
             Real qe2 = mynn.B1 * Lm*Lm * SM2 * (one-Rf) * shearProd;
-            Real qe  = (qe2 < zero) ? zero : std::sqrt(qe2);
+            Real qe  = (qe2 < zero) ? zero : amrex::max(std::sqrt(qe2),eps);
 
             // Level 2 limiting introduced by Helfand and Labraga 1988 (NN09, Eqn. 42)
-            Real alphac  = (qvel(i,j,k) >= qe) ? one : qvel(i,j,k) / (qe + eps);
+            Real alphac  = (qvel(i,j,k) >= qe) ? one : qvel(i,j,k) / qe;
 //#if EXTRA_MYNN25_CHECKS
 #if 0
             // VERY verbose diagnostic
             Real lGM = std::copysign(std::max(std::fabs(GM),level2.eps),GM);
             Real Ri  = -GH/lGM;
-            if (alphac < 1) {
+            if (alphac < one) {
                 AllPrint() << "Level 2 limiter at " << IntVect(i,j,k) << " :"
                     << " ustar= " << u_star_arr(i,j,0)
                     << " alphac= " << alphac

@@ -36,7 +36,7 @@ struct MYNNLevel25 {
         amrex::Real D = Phi2*Phi4 + Phi5*Phi3;      // NN09 Eqn. 31
         SM = alphac * A1 * (Phi3 - 3*C1*Phi4) / D;  // NN09 Eqn. 27
         SH = alphac * A2 * (Phi2 + 3*C1*Phi5) / D;  // NN09 Eqn. 28
-        SQ = SQfac * SM;                            // NN09 Eqn. 67
+        SQ = SQfac  * SM;                           // NN09 Eqn. 67
     }
 
     // Closure coefficients (from Nakanishi & Niino 2009 [NN09])
@@ -97,10 +97,20 @@ struct MYNNLevel2 {
     AMREX_FORCE_INLINE
     amrex::Real calc_Rf (const amrex::Real GM, const amrex::Real GH) const
     {
+        // NOTE: Equation from paper: Ri1*(Ri + Ri2 - std::sqrt(Ri*Ri - Ri3*Ri + Ri2*Ri2))
+        //       Denote A = Ri + Ri2  and  B = std::sqrt(Ri*Ri - Ri3*Ri + Ri2*Ri2)
+        //       Write A - B = A^2 - B^2 / (A + B) = ((A + B) (A - B)) / (A + B)
+        //       The above formula is less prone to cancellation errors
         AMREX_ASSERT(initialized);
         amrex::Real lGM = std::copysign(std::max(std::fabs(GM),eps),GM);
         amrex::Real Ri  = -GH/lGM;
-        return Ri1*(Ri + Ri2 - std::sqrt(Ri*Ri - Ri3*Ri + Ri2*Ri2));
+        amrex::Real A   = Ri + Ri2;
+        amrex::Real B   = std::sqrt(Ri*Ri - Ri3*Ri + Ri2*Ri2);
+        if (A >= zero) {
+            return Ri1 * Ri * (two*Ri2 + Ri3) / (A + B);
+        } else {
+            return Ri1 * (A - B);
+        }
     }
 
     AMREX_GPU_DEVICE
@@ -108,7 +118,8 @@ struct MYNNLevel2 {
     amrex::Real calc_SH (const amrex::Real Rf) const
     {
         AMREX_ASSERT(initialized);
-        return three*A2*(gam1+gam2)*(Rfc-Rf)/(one-Rf);
+        amrex::Real ldenom = std::copysign(std::max(std::fabs(one-Rf),eps),(one-Rf));
+        return three*A2*(gam1+gam2)*(Rfc-Rf)/ldenom;
     }
 
     AMREX_GPU_DEVICE
@@ -116,7 +127,8 @@ struct MYNNLevel2 {
     amrex::Real calc_SM (const amrex::Real Rf) const
     {
         AMREX_ASSERT(initialized);
-        return A1*F1/(A2*F2) * (Rf1-Rf) / (Rf2-Rf) * calc_SH(Rf);
+        amrex::Real ldenom = std::copysign(std::max(std::fabs(Rf2-Rf),eps),(Rf2-Rf));
+        return A1*F1/(A2*F2) * (Rf1-Rf) / ldenom * calc_SH(Rf);
     }
 
     bool initialized{false};
