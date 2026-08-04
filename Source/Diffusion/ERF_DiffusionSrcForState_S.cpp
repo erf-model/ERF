@@ -19,18 +19,22 @@ using namespace amrex;
  * @param[in]  xflux flux in x-dir
  * @param[in]  yflux flux in y-dir
  * @param[in]  zflux flux in z-dir
+ * @param[in]  stretched_dz_d array of vertical mesh spacings
  * @param[in]  cellSizeInv inverse cell size array
  * @param[in]  SmnSmn_a strain rate magnitude
- * @param[in]  mf_m map factor at cell center
- * @param[in]  mf_u map factor at x-face
- * @param[in]  mf_v map factor at y-face
+ * @param[in]  mf_mx x map factor at cell centers
+ * @param[in]  mf_ux x map factor at x-faces
+ * @param[in]  mf_vx x map factor at y-faces
+ * @param[in]  mf_my y map factor at cell centers
+ * @param[in]  mf_uy y map factor at x-faces
+ * @param[in]  mf_vy y map factor at y-faces
  * @param[inout]  hfx_z heat flux in z-dir
  * @param[inout]  qfx1_z heat flux in z-dir
  * @param[out]    qfx2_z heat flux in z-dir
  * @param[in]  diss dissipation of TKE
  * @param[in]  mu_turb turbulent viscosity
- * @param[in]  diffChoice container of diffusion parameters
- * @param[in]  turbChoice container of turbulence parameters
+ * @param[in]  solverChoice container of solver and diffusion parameters
+ * @param[in]  level AMR level
  * @param[in]  tm_arr theta mean array
  * @param[in]  grav_gpu gravity vector
  * @param[in]  bc_ptr container with boundary conditions

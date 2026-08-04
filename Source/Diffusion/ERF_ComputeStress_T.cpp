@@ -23,7 +23,14 @@ using namespace amrex;
  * @param[in,out] tau32 32 strain -> stress
  * @param[in]  er_arr expansion rate
  * @param[in]  z_nd nodal array of physical z heights
+ * @param[in]  detJ Jacobian determinant
  * @param[in]  dxInv inverse cell size array
+ * @param[in]  mf_mx x map factor at cell centers
+ * @param[in]  mf_ux x map factor at x-faces
+ * @param[in]  mf_vx x map factor at y-faces
+ * @param[in]  mf_my y map factor at cell centers
+ * @param[in]  mf_uy y map factor at x-faces
+ * @param[in]  mf_vy y map factor at y-faces
  * @param[in,out] tau13i contribution to stress from du/dz
  * @param[in,out] tau23i contribution to stress from dv/dz
  * @param[in,out] tau33i contribution to stress from dw/dz
@@ -354,7 +361,14 @@ ComputeStressConsVisc_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
  * @param[in,out] tau32 32 strain -> stress
  * @param[in]  er_arr expansion rate
  * @param[in]  z_nd nodal array of physical z heights
+ * @param[in]  detJ Jacobian determinant
  * @param[in]  dxInv inverse cell size array
+ * @param[in]  mf_mx x map factor at cell centers
+ * @param[in]  mf_ux x map factor at x-faces
+ * @param[in]  mf_vx x map factor at y-faces
+ * @param[in]  mf_my y map factor at cell centers
+ * @param[in]  mf_uy y map factor at x-faces
+ * @param[in]  mf_vy y map factor at y-faces
  * @param[in,out] tau13i contribution to stress from du/dz
  * @param[in,out] tau23i contribution to stress from dv/dz
  * @param[in,out] tau33i contribution to stress from dw/dz
