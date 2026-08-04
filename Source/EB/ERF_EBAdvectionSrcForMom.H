@@ -1,8 +1,19 @@
+/**
+ * \file ERF_EBAdvectionSrcForMom.H
+ * \brief Defines EB momentum-advection flux builders for higher-order stencils.
+ */
 #include <ERF_IndexDefines.H>
 #include <ERF_Interpolation.H>
 
 /**
- * Wrapper function for computing the advective tendency w/ spatial order > two
+ * \brief Build EB momentum fluxes with selected horizontal and vertical interpolation.
+ *
+ * The wrapper handles the x-, y-, and z-momentum grids separately and reduces
+ * interpolation order near covered EB cells and vertical domain boundaries.
+ *
+ * \tparam InterpType_H Horizontal interpolation functor.
+ * \tparam InterpType_V Vertical interpolation functor.
+ * \tparam WallInterpType Wall interpolation functor retained for interface symmetry.
  */
 template<typename InterpType_H, typename InterpType_V, typename WallInterpType>
 void
@@ -548,7 +559,8 @@ EBAdvectionSrcForMomWrapper (const amrex::Vector<amrex::Box>& bxx_grown,
 }
 
 /**
- * Wrapper function for computing the advective tendency w/ spatial order > two
+ * \brief Dispatch EB momentum flux construction on the vertical advection scheme.
+ * \tparam InterpType_H Horizontal interpolation functor selected by the caller.
  */
 template<typename InterpType_H>
 void
