@@ -65,7 +65,7 @@
                     const bool l_use_mrf_cg = solverChoice.turbChoice[level].enable_mrf_countergradient
                                             && (solverChoice.turbChoice[level].pbl_type == PBLType::MRF);
                     const bool l_use_ysu_mom_cg = solverChoice.turbChoice[level].enable_ysu_countergradient
-                                               && (solverChoice.turbChoice[level].pbl_type == PBLType::YSU);
+                                               && (solverChoice.turbChoice[level].pbl_type == PBLType::YSUNew);
                     if (l_use_stretched_dz) {
                         if (l_do_implicit_theta) {
 
