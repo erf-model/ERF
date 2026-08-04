@@ -58,6 +58,8 @@ struct MYNNLevel25 {
     amrex::Real SMmax = bogus_large_value;
     amrex::Real SHmin = zero;
     amrex::Real SHmax = amrex::Real(4);
+    amrex::Real SQmin = zero;
+    amrex::Real SQmax = SQfac * SHmax;
 
     MYNNConfigType config;
 

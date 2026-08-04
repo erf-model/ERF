@@ -235,6 +235,7 @@ ComputeDiffusivityMYNN25 (const MultiFab& xvel,
             // Clip SM, SH following WRF
             SM = amrex::min(amrex::max(SM, mynn.SMmin), mynn.SMmax);
             SH = amrex::min(amrex::max(SH, mynn.SHmin), mynn.SHmax);
+            SQ = amrex::min(amrex::max(SQ, mynn.SQmin), mynn.SQmax);
 #if EXTRA_MYNN25_CHECKS
             if (SM == mynn.SMmin) {
                 Warning("SM clipped at min val");
