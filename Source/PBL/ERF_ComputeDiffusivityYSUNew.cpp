@@ -1555,9 +1555,9 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
                     const Real zol_ratio = zq_kp1_stable / zl1_stable;  // zq(k+1) / zl1
                     const Real phim_stable_arg = zol1_stable * zol_ratio;  // (z/L) for level k+1
                     // Enable QNSE stable functions if requested, otherwise use default linear form
-                    const Real enable_qnse_d = (enable_qnse_stable_functions) ? Real(1.0) : Real(0.0);
-                    const Real qnse_am_d = qnse_am;
-                    const Real qnse_bm_d = qnse_bm;
+                    const Real enable_qnse_d = (turbChoice.enable_qnse_stable_functions) ? Real(1.0) : Real(0.0);
+                    const Real qnse_am_d = turbChoice.qnse_am;
+                    const Real qnse_bm_d = turbChoice.qnse_bm;
                     const Real phim_stable = (enable_qnse_d > Real(0.5))
                                            ? ((one + qnse_am_d * phim_stable_arg) / (one + qnse_bm_d * phim_stable_arg))
                                            : (one + amrex::Real(5.0) * phim_stable_arg);  // stable: phi_m = 1 + 5*(z/L)
