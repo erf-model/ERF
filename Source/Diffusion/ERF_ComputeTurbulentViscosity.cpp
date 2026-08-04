@@ -1025,8 +1025,6 @@ void ComputeTurbulentViscosity (double dt,
             {
                 if ((mask_arr(i,j,k) == is_notcovered && mask_arr(i,j,k_lo) != is_notcovered) ||
                     (mask_arr(i,j,k) == is_physbnd    && k < domlo.z && impose_phys_bcs)) {
-                    if (mask_arr(i,j,k) == is_physbnd) {
-                    }
                     for (int n = 0; n < ncomp; n++) {
                         mu_turb(i,j,k,n) = mu_turb(i,j,k_lo,n);
                     }
