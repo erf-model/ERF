@@ -73,10 +73,25 @@ read_from_erfbdy(int itime,
     Print() << "Reading ERF boundary data for time index " << itime << std::endl;
     std::string time_dir = bdy_file_name + "/Time_" + Concatenate("", itime, 6);
 
-    Arena* Arena_Used = The_Arena();
+    Arena* read_arena = The_Arena();
 #ifdef AMREX_USE_GPU
-    Arena_Used = The_Pinned_Arena();
+    read_arena = The_Pinned_Arena();
 #endif
+
+    auto read_fab = [read_arena] (const std::string& filename, FArrayBox& bdy_fab)
+    {
+        std::ifstream ifs(filename.c_str(), std::ios::in | std::ios::binary);
+
+        // readFrom performs host I/O, whereas bdy_fab is later captured by
+        // device kernels in fill_from_realbdy.  Stage through pinned host
+        // memory and keep the persistent boundary data in the default arena.
+        FArrayBox host_fab(read_arena);
+        host_fab.readFrom(ifs);
+        bdy_fab.resize(host_fab.box(), host_fab.nComp(), The_Arena());
+        Gpu::copy(Gpu::hostToDevice,
+                  host_fab.dataPtr(), host_fab.dataPtr() + host_fab.size(),
+                  bdy_fab.dataPtr());
+    };
 
     if (bdy_data_xlo[itime].empty()) {
         bdy_data_xlo[itime].resize(nvars);
@@ -89,45 +104,22 @@ read_from_erfbdy(int itime,
     {
         { // X-low boundary
             std::string filename = time_dir + "/BdyData_xlo_var" + std::to_string(ivar);
-            std::ifstream ifs(filename.c_str(), std::ios::in | std::ios::binary);
-            // Keep the file-read buffer host-accessible.  On GPU builds the
-            // default arena is device memory, which cannot be the source of
-            // the RunOn::Host copy below.
-            FArrayBox tmp_fab(Arena_Used);
-            tmp_fab.readFrom(ifs);
-            bdy_data_xlo[itime][ivar].resize(tmp_fab.box(), tmp_fab.nComp(), Arena_Used);
-            bdy_data_xlo[itime][ivar].template copy<RunOn::Host>(tmp_fab, 0, 0, tmp_fab.nComp());
-            ifs.close();
+            read_fab(filename, bdy_data_xlo[itime][ivar]);
         }
 
         { // X-high boundary
             std::string filename = time_dir + "/BdyData_xhi_var" + std::to_string(ivar);
-            std::ifstream ifs(filename.c_str(), std::ios::in | std::ios::binary);
-            FArrayBox tmp_fab(Arena_Used);
-            tmp_fab.readFrom(ifs);
-            bdy_data_xhi[itime][ivar].resize(tmp_fab.box(), tmp_fab.nComp(), Arena_Used);
-            bdy_data_xhi[itime][ivar].template copy<RunOn::Host>(tmp_fab, 0, 0, tmp_fab.nComp());
-            ifs.close();
+            read_fab(filename, bdy_data_xhi[itime][ivar]);
         }
 
         { // Y-low boundary
             std::string filename = time_dir + "/BdyData_ylo_var" + std::to_string(ivar);
-            std::ifstream ifs(filename.c_str(), std::ios::in | std::ios::binary);
-            FArrayBox tmp_fab(Arena_Used);
-            tmp_fab.readFrom(ifs);
-            bdy_data_ylo[itime][ivar].resize(tmp_fab.box(), tmp_fab.nComp(), Arena_Used);
-            bdy_data_ylo[itime][ivar].template copy<RunOn::Host>(tmp_fab, 0, 0, tmp_fab.nComp());
-            ifs.close();
+            read_fab(filename, bdy_data_ylo[itime][ivar]);
         }
 
         { // Y-high boundary
             std::string filename = time_dir + "/BdyData_yhi_var" + std::to_string(ivar);
-            std::ifstream ifs(filename.c_str(), std::ios::in | std::ios::binary);
-            FArrayBox tmp_fab(Arena_Used);
-            tmp_fab.readFrom(ifs);
-            bdy_data_yhi[itime][ivar].resize(tmp_fab.box(), tmp_fab.nComp(), Arena_Used);
-            bdy_data_yhi[itime][ivar].template copy<RunOn::Host>(tmp_fab, 0, 0, tmp_fab.nComp());
-            ifs.close();
+            read_fab(filename, bdy_data_yhi[itime][ivar]);
         }
     }
 
