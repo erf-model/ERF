@@ -793,8 +793,10 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
                     // ux(i,1) and vx(i,1) in WRF = cell-center velocity at lowest level (klo in ERF)
                     const Real u_klo = myhalf * (uvel(i, j, klo) + uvel(i+1, j, klo));
                     const Real v_klo = myhalf * (vvel(i, j, klo) + vvel(i, j+1, klo));
-                    hgamu_arr(i, j, 0) = brint * u_klo;
-                    hgamv_arr(i, j, 0) = brint * v_klo;
+                    //hgamu_arr(i, j, 0) = brint * u_klo;
+                    //hgamv_arr(i, j, 0) = brint * v_klo;
+                    hgamu_arr(i, j, 0) = brint * u_klo / pblh;;
+                    hgamv_arr(i, j, 0) = brint * v_klo / pblh;;
                 }
 
                 // VPERT for Pass 3 diagnostic: unnormalized (not divided by pblh)
