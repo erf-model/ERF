@@ -116,7 +116,6 @@ ImplicitDiffForStateLU_T (const Box& bx,
                             cell_data, mu_turb, d_alpha_eff, d_eddy_diff_idz,
                             prim_index, prim_scal_index, l_consA, l_turb);
 
-                met_h_zeta_lo = Compute_h_zeta_AtKface(i,j,klo  ,cellSizeInv,z_nd);
                 met_h_zeta_hi = Compute_h_zeta_AtKface(i,j,klo+1,cellSizeInv,z_nd);
 
                 a_tmp      = zero;
@@ -183,6 +182,7 @@ ImplicitDiffForStateLU_T (const Box& bx,
                             cell_data, mu_turb, d_alpha_eff, d_eddy_diff_idz,
                             prim_index, prim_scal_index, l_consA, l_turb);
 
+                // Lower-face metric shared with row khi-1.
                 met_h_zeta_lo = Compute_h_zeta_AtKface(i,j,khi  ,cellSizeInv,z_nd);
 
                 a_tmp      = -Fact * rhoAlpha_lo * dz_inv / met_h_zeta_lo;
