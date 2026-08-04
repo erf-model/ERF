@@ -184,9 +184,8 @@ ImplicitDiffForStateLU_T (const Box& bx,
                             prim_index, prim_scal_index, l_consA, l_turb);
 
                 met_h_zeta_lo = Compute_h_zeta_AtKface(i,j,khi  ,cellSizeInv,z_nd);
-                met_h_zeta_hi = Compute_h_zeta_AtKface(i,j,khi+1,cellSizeInv,z_nd);
 
-                a_tmp      = -Fact * rhoAlpha_lo * dz_inv / met_h_zeta_hi;
+                a_tmp      = -Fact * rhoAlpha_lo * dz_inv / met_h_zeta_lo;
                 c_tmp      = zero;
                 b_tmp      = detJ(i,j,khi) * cell_data(i,j,khi,Rho_comp) - a_tmp - c_tmp;
                 inv_b2_tmp = one / (b_tmp - a_tmp * coeffG_a(i,j,khi-1));
