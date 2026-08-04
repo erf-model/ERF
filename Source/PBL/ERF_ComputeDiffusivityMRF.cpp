@@ -254,7 +254,13 @@ pblh_mf.setVal(0.0);
                                               (uvel(i, j, kpbl) + uvel(i + 1, j, kpbl)) +
                                               (vvel(i, j, kpbl) + vvel(i, j + 1, kpbl)) *
                                               (vvel(i, j, kpbl) + vvel(i, j + 1, kpbl)) );
-                const Real ws2 = amrex::max(ws2_raw, Real(1.0));
+                // Vogelezang & Holtslag (1996): Add shear correction term to denominator instead of ad-hoc floor
+                // to better represent shear associated with surface-layer turbulence at low wind speeds.
+                // Reference: Vogelezang, D.H.P., and A.A.M. Holtslag, 1996: Evaluation and model impacts of
+                // alternative boundary-layer height formulations. Boundary-Layer Meteorology, 81, 245–269.
+                const Real ws2 = (turbChoice.enable_vh96_shear_correction)
+                                ? (ws2_raw + turbChoice.vh96_shear_const_b * u_star_arr(i,j,0) * u_star_arr(i,j,0))
+                                : amrex::max(ws2_raw, Real(1.0));
                 Rib = CONST_GRAV * zval * (theta_v - t_layer_v) / (ws2 * theta_v_klo);
             }
 
@@ -275,7 +281,11 @@ pblh_mf.setVal(0.0);
                                               (uvel(i, j, kpbl) + uvel(i + 1, j, kpbl)) +
                                               (vvel(i, j, kpbl) + vvel(i, j + 1, kpbl)) *
                                               (vvel(i, j, kpbl) + vvel(i, j + 1, kpbl)) );
-                const Real ws2 = amrex::max(ws2_raw, Real(1.0));
+                // Vogelezang & Holtslag (1996): Add shear correction term to denominator instead of ad-hoc floor
+                // to better represent shear associated with surface-layer turbulence at low wind speeds.
+                const Real ws2 = (turbChoice.enable_vh96_shear_correction)
+                                ? (ws2_raw + turbChoice.vh96_shear_const_b * u_star_arr(i,j,0) * u_star_arr(i,j,0))
+                                : amrex::max(ws2_raw, Real(1.0));
                 Rib = CONST_GRAV * zval * (theta_v - t_layer_v) / (ws2 * theta_v_klo);
                 above_critical = (Rib >= Ribcr);
             }
@@ -437,7 +447,10 @@ pblh_mf.setVal(0.0);
                                                 (uvel(i, j, kpbl) + uvel(i + 1, j, kpbl)) +
                                                 (vvel(i, j, kpbl) + vvel(i, j + 1, kpbl)) *
                                                 (vvel(i, j, kpbl) + vvel(i, j + 1, kpbl)) );
-                const Real ws2 = amrex::max(ws2_raw, one_d);
+                // Vogelezang & Holtslag (1996): Add shear correction term to denominator instead of ad-hoc floor
+                const Real ws2 = (turbChoice.enable_vh96_shear_correction)
+                                ? (ws2_raw + turbChoice.vh96_shear_const_b * u_star_arr(i,j,0) * u_star_arr(i,j,0))
+                                : amrex::max(ws2_raw, one_d);
                 Rib = CONST_GRAV * zval * (theta_v - t_layer_v) / (ws2 * theta_v_klo);
             }
             Real zval0 = zval, Rib0 = Rib;         // FIX: initialize here, mirrors Pass 1
@@ -458,7 +471,10 @@ pblh_mf.setVal(0.0);
                                                 (uvel(i, j, kpbl) + uvel(i + 1, j, kpbl)) +
                                                 (vvel(i, j, kpbl) + vvel(i, j + 1, kpbl)) *
                                                 (vvel(i, j, kpbl) + vvel(i, j + 1, kpbl)) );
-                const Real ws2 = amrex::max(ws2_raw, one_d);
+                // Vogelezang & Holtslag (1996): Add shear correction term to denominator instead of ad-hoc floor
+                const Real ws2 = (turbChoice.enable_vh96_shear_correction)
+                                ? (ws2_raw + turbChoice.vh96_shear_const_b * u_star_arr(i,j,0) * u_star_arr(i,j,0))
+                                : amrex::max(ws2_raw, one_d);
                 Rib = CONST_GRAV * zval * (theta_v - t_layer_v) / (ws2 * theta_v_klo);
                 above_critical = (Rib >= Ribcr);
             }
@@ -604,7 +620,10 @@ pblh_mf.setVal(0.0);
                                                 (uvel(i, j, kpbl_zero) + uvel(i + 1, j, kpbl_zero)) +
                                                 (vvel(i, j, kpbl_zero) + vvel(i, j + 1, kpbl_zero)) *
                                                 (vvel(i, j, kpbl_zero) + vvel(i, j + 1, kpbl_zero)) );
-                const Real ws2 = amrex::max(ws2_raw, one_d);
+                // Vogelezang & Holtslag (1996): Add shear correction term to denominator instead of ad-hoc floor
+                const Real ws2 = (turbChoice.enable_vh96_shear_correction)
+                                ? (ws2_raw + turbChoice.vh96_shear_const_b * u_star_arr(i,j,0) * u_star_arr(i,j,0))
+                                : amrex::max(ws2_raw, one_d);
                 Rib_zero = CONST_GRAV * zval_zero * (theta_v - t_layer_v_enhanced) / (ws2 * theta_v_klo);
             }
 
@@ -621,7 +640,10 @@ pblh_mf.setVal(0.0);
                                                 (uvel(i, j, kpbl_zero) + uvel(i + 1, j, kpbl_zero)) +
                                                 (vvel(i, j, kpbl_zero) + vvel(i, j + 1, kpbl_zero)) *
                                                 (vvel(i, j, kpbl_zero) + vvel(i, j + 1, kpbl_zero)) );
-                const Real ws2 = amrex::max(ws2_raw, one_d);
+                // Vogelezang & Holtslag (1996): Add shear correction term to denominator instead of ad-hoc floor
+                const Real ws2 = (turbChoice.enable_vh96_shear_correction)
+                                ? (ws2_raw + turbChoice.vh96_shear_const_b * u_star_arr(i,j,0) * u_star_arr(i,j,0))
+                                : amrex::max(ws2_raw, one_d);
                 Rib_zero = CONST_GRAV * zval_zero * (theta_v - t_layer_v_enhanced) / (ws2 * theta_v_klo);
                 above_critical_zero = (Rib_zero >= Ribcr_zero);
             }

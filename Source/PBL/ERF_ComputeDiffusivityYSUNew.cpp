@@ -245,7 +245,13 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
                                         : GetThetav(i,j,klo,cell_data,moisture_indices);
           const amrex::Real ws2_raw   = fourth * ((uvel(i,j,k)+uvel(i+1,j,k))*(uvel(i,j,k)+uvel(i+1,j,k))
                                       + (vvel(i,j,k)+vvel(i,j+1,k))*(vvel(i,j,k)+vvel(i,j+1,k)));
-          const amrex::Real ws2       = amrex::max(ws2_raw, amrex::Real(1.0));
+          // Vogelezang & Holtslag (1996): Add shear correction term to denominator instead of ad-hoc floor
+          // to better represent shear associated with surface-layer turbulence at low wind speeds.
+          // Reference: Vogelezang, D.H.P., and A.A.M. Holtslag, 1996: Evaluation and model impacts of
+          // alternative boundary-layer height formulations. Boundary-Layer Meteorology, 81, 245–269.
+          const amrex::Real ws2       = (turbChoice.enable_vh96_shear_correction)
+                                      ? (ws2_raw + turbChoice.vh96_shear_const_b * u_star_arr(i,j,0) * u_star_arr(i,j,0))
+                                      : amrex::max(ws2_raw, amrex::Real(1.0));
           rib_base_arr(i,j,k)  = CONST_GRAV * zrel * (theta_v - t_layer_v) / (ws2 * theta_v_klo);
           rib_enhan_arr(i,j,k) = CONST_GRAV * zrel * (theta_v - t_enh)     / (ws2 * theta_v_klo);
         });
@@ -844,7 +850,10 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
                                         : GetThetav(i,j,klo,cell_data,moisture_indices);
           const amrex::Real ws2_raw   = fourth * ((uvel(i,j,k)+uvel(i+1,j,k))*(uvel(i,j,k)+uvel(i+1,j,k))
                                       + (vvel(i,j,k)+vvel(i,j+1,k))*(vvel(i,j,k)+vvel(i,j+1,k)));
-          const amrex::Real ws2       = amrex::max(ws2_raw, amrex::Real(1.0));
+          // Vogelezang & Holtslag (1996): Add shear correction term to denominator instead of ad-hoc floor
+          const amrex::Real ws2       = (turbChoice.enable_vh96_shear_correction)
+                                      ? (ws2_raw + turbChoice.vh96_shear_const_b * u_star_arr(i,j,0) * u_star_arr(i,j,0))
+                                      : amrex::max(ws2_raw, amrex::Real(1.0));
           // Recompute ONLY rib_enhan_arr with updated vpert_arr; leave rib_base_arr unchanged
           rib_enhan_arr(i,j,k) = CONST_GRAV * zrel * (theta_v - t_enh) / (ws2 * theta_v_klo);
         });
@@ -959,7 +968,10 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
                     // Velocity shear for Richardson number calculation
                     const Real ws2_raw = fourth * ((uvel(i,j,kk)+uvel(i+1,j,kk))*(uvel(i,j,kk)+uvel(i+1,j,kk))
                                                  + (vvel(i,j,kk)+vvel(i,j+1,kk))*(vvel(i,j,kk)+vvel(i,j+1,kk)));
-                    const Real ws2 = amrex::max(ws2_raw, amrex::Real(1.0));
+                    // Vogelezang & Holtslag (1996): Add shear correction term to denominator instead of ad-hoc floor
+                    const Real ws2 = (turbChoice.enable_vh96_shear_correction)
+                                   ? (ws2_raw + turbChoice.vh96_shear_const_b * u_star_arr(i,j,0) * u_star_arr(i,j,0))
+                                   : amrex::max(ws2_raw, amrex::Real(1.0));
 
                     // Elevation at level kk
                     const Real z_sfc = (use_terrain_fitted_coords)
