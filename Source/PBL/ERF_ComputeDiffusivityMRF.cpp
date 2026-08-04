@@ -570,7 +570,6 @@ pblh_mf.setVal(0.0);
             wstar = amrex::max(wstar, Real(0.01));
             wstar = amrex::min(wstar, Real(5.0));
             wstar_arr(i, j, 0) = wstar;
-
             bool SFCFLG = (obuk_val <= Real(0));
             const Real HGAMT = (SFCFLG && enable_mrf_countergradient)
                              ? amrex::min(-const_b * u_star_arr(i, j, 0) * t_star_arr(i, j, 0) / wstar, GAMCRT)
@@ -617,7 +616,6 @@ pblh_mf.setVal(0.0);
                 }
             }
         });
-
         //
         // PASS 5 (ZERO-RI): Diagnostic PBL height with Ribcr=0, VPERT-enhanced surface temp.
         // Used optionally (pbl_mrf_use_zero_ri_extent) to extend the nonlocal mixing region.
@@ -799,8 +797,8 @@ pblh_mf.setVal(0.0);
                 const Real Prt = amrex::min(amrex::max(Prt_base + const_b * KAPPA * sf, prmin), prmax);
 
                 const Real wstar = wstar_arr(i, j, 0);
-
-                if (SFCFLG) {
+                const bool use_qnse_stable_profile = (obuk_val > Real(0)) && (enable_qnse_d > Real(0.5));
+                if (SFCFLG || use_qnse_stable_profile) {
                     // K-profile: K = rho * wstar * kappa * zrel * (1 - zrel/pblh_rel)^2
                     // WRF Reference: module_bl_mrf.F L976-978
                     const Real z_sfc = (use_terrain_fitted_coords)
