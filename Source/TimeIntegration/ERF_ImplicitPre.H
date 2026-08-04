@@ -64,6 +64,8 @@
                     const Array4<const Real>& hfx_z = Hfx3->const_array(mfi);
                     const bool l_use_mrf_cg = solverChoice.turbChoice[level].enable_mrf_countergradient
                                             && (solverChoice.turbChoice[level].pbl_type == PBLType::MRF);
+                    // TODO: YSUNew populates HGAMU/HGAMV, whereas legacy YSU leaves them zero.
+                    // Revisit this gate after verifying the YSUNew implicit-correction sign and units.
                     const bool l_use_ysu_mom_cg = solverChoice.turbChoice[level].enable_ysu_countergradient
                                                && (solverChoice.turbChoice[level].pbl_type == PBLType::YSU);
                     if (l_use_stretched_dz) {
