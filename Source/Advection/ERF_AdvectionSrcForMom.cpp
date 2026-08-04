@@ -14,6 +14,7 @@ using namespace amrex;
  * functions when either (or both) spatial order(s) is greater than two
  *
  * @param[in] mfi MultiFab Iterator
+ * @param[in] bx cell-centered box used to rebuild open-boundary momentum boxes
  * @param[in] bxx box over which the x-momentum is updated
  * @param[in] bxy box over which the y-momentum is updated
  * @param[in] bxz box over which the z-momentum is updated
@@ -23,31 +24,42 @@ using namespace amrex;
  * @param[out] rho_u_rhs tendency for the x-momentum equation
  * @param[out] rho_v_rhs tendency for the y-momentum equation
  * @param[out] rho_w_rhs tendency for the z-momentum equation
+ * @param[in] cell_data cell-centered conservative state used by open-boundary terms
  * @param[in] u x-component of the velocity
  * @param[in] v y-component of the velocity
  * @param[in] w z-component of the velocity
  * @param[in] rho_u x-component of the momentum
  * @param[in] rho_v y-component of the momentum
- * @param[in] Omega component of the momentum normal to the z-coordinate surface
+ * @param[in] omega component of the momentum normal to the z-coordinate surface
  * @param[in] z_nd height coordinate at nodes
  * @param[in] ax   Area fraction of x-faces
  * @param[in] ay   Area fraction of y-faces
  * @param[in] az   Area fraction of z-faces
  * @param[in] detJ Jacobian of the metric transformation (= 1 if use_terrain_fitted_coords is false)
+ * @param[in] stretched_dz_d device vector of vertical cell spacing
  * @param[in] cellSizeInv inverse of the mesh spacing
- * @param[in] mf_mx map factor at cell centers
- * @param[in] mf_my map factor at cell centers
- * @param[in] mf_ux map factor at x-faces
- * @param[in] mf_vy map factor at y-faces
- * @param[in] ebfact EB factories for cell- and face-centered variables
+ * @param[in] mf_mx x map factor at cell centers
+ * @param[in] mf_ux x map factor at x-faces
+ * @param[in] mf_vx x map factor at y-faces
+ * @param[in] mf_my y map factor at cell centers
+ * @param[in] mf_uy y map factor at x-faces
+ * @param[in] mf_vy y map factor at y-faces
  * @param[in] horiz_adv_type sets the spatial order to be used for lateral derivatives
  * @param[in] vert_adv_type  sets the spatial order to be used for vertical derivatives
+ * @param[in] horiz_upw_frac horizontal upwind blending fraction
+ * @param[in] vert_upw_frac vertical upwind blending fraction
+ * @param[in] mesh_type mesh spacing type
+ * @param[in] terrain_type terrain representation type
  * @param[in] ebfact EB factories for cell- and face-centered variables
- * @param[in] flx_u_arr Container of fluxes for x-momentum
- * @param[in] flx_v_arr Container of fluxes for y-momentum
- * @param[in] flx_w_arr Container of fluxes for z-momentum
+ * @param[in,out] flx_u_arr container of fluxes for x-momentum
+ * @param[in,out] flx_v_arr container of fluxes for y-momentum
+ * @param[in,out] flx_w_arr container of fluxes for z-momentum
  * @param[in] physbnd_mask Vector of masks for flux interpolation (=1 otherwise, =0 if physbnd)
  * @param[in] already_on_centroids flag whether flux interpolation is unnecessary
+ * @param[in] lo_z_face minimum z-face k-index at this level
+ * @param[in] hi_z_face maximum z-face k-index at this level
+ * @param[in] domain computational domain
+ * @param[in] bc_ptr_h boundary condition records on host
  */
 void
 AdvectionSrcForMom (const MFIter& mfi,
