@@ -116,7 +116,6 @@ ImplicitDiffForStateLU_T (const Box& bx,
                             cell_data, mu_turb, d_alpha_eff, d_eddy_diff_idz,
                             prim_index, prim_scal_index, l_consA, l_turb);
 
-                met_h_zeta_lo = Compute_h_zeta_AtKface(i,j,klo  ,cellSizeInv,z_nd);
                 met_h_zeta_hi = Compute_h_zeta_AtKface(i,j,klo+1,cellSizeInv,z_nd);
 
                 a_tmp      = zero;
@@ -183,10 +182,10 @@ ImplicitDiffForStateLU_T (const Box& bx,
                             cell_data, mu_turb, d_alpha_eff, d_eddy_diff_idz,
                             prim_index, prim_scal_index, l_consA, l_turb);
 
+                // Lower-face metric shared with row khi-1.
                 met_h_zeta_lo = Compute_h_zeta_AtKface(i,j,khi  ,cellSizeInv,z_nd);
-                met_h_zeta_hi = Compute_h_zeta_AtKface(i,j,khi+1,cellSizeInv,z_nd);
 
-                a_tmp      = -Fact * rhoAlpha_lo * dz_inv / met_h_zeta_hi;
+                a_tmp      = -Fact * rhoAlpha_lo * dz_inv / met_h_zeta_lo;
                 c_tmp      = zero;
                 b_tmp      = detJ(i,j,khi) * cell_data(i,j,khi,Rho_comp) - a_tmp - c_tmp;
                 inv_b2_tmp = one / (b_tmp - a_tmp * coeffG_a(i,j,khi-1));
@@ -399,7 +398,10 @@ ImplicitDiffForMomLU_T (const Box& bx,
                   } else {
                       // NOTE: wall is 1/2 dz away (2 dz_inv)
                       a_tmp = -two * Fact * rhoAlpha_lo * dz_inv / met_h_zeta_lo;
-                      RHS_a(i,j,klo) += two * rhoAlpha_lo * face_data(i,j,klo-1) * dz_inv * dz_inv / met_h_zeta_lo;
+                      const Real rho_wall = myhalf * ( cell_data(i     ,j     ,klo-1,Rho_comp)
+                                                     + cell_data(i-ioff,j-joff,klo-1,Rho_comp) );
+                      const Real wall_velocity = face_data(i,j,klo-1) / rho_wall;
+                      RHS_a(i,j,klo) -= a_tmp * wall_velocity;
                   }
               } else if (use_SurfLayer) {
                   // NOTE: tau = -mu*d_z(u_i) w/ SL
@@ -489,7 +491,10 @@ ImplicitDiffForMomLU_T (const Box& bx,
                   } else {
                       // NOTE: wall is 1/2 dz away (2 dz_inv)
                       c_tmp = -two * Fact * rhoAlpha_hi * dz_inv / met_h_zeta_hi;
-                      RHS_a(i,j,khi) += two * rhoAlpha_hi * face_data(i,j,khi+1) * dz_inv * dz_inv / met_h_zeta_hi;
+                      const Real rho_wall = myhalf * ( cell_data(i     ,j     ,khi+1,Rho_comp)
+                                                     + cell_data(i-ioff,j-joff,khi+1,Rho_comp) );
+                      const Real wall_velocity = face_data(i,j,khi+1) / rho_wall;
+                      RHS_a(i,j,khi) -= c_tmp * wall_velocity;
                   }
               }
 
