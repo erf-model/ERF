@@ -162,7 +162,7 @@ DiffusionSrcForMom (const Box& bxx, const Box& bxy , const Box& bxz,
             Real Imfy_hi = one / (myhalf * (mf_uy(i+1,j,0) + mf_uy(i+1,j-1,0)));
             Real Imfy_lo = one / (myhalf * (mf_uy(i  ,j,0) + mf_uy(i  ,j-1,0)));
             Real Imfx_hi = one / mf_mx(i  ,j,0);
-            Real Imfx_lo = one / mf_mx(i-1,j,0);
+            Real Imfx_lo = one / mf_mx(i,j-1,0);
             rho_v_rhs(i,j,k) -= ( (tau12(i+1, j  , k  )*Imfy_hi - tau12(i  , j  , k  )*Imfy_lo) * dxinv * mfsq  // Contribution to y-mom eqn from diffusive flux in x-dir
                                 + (tau22(i  , j  , k  )*Imfx_hi - tau22(i  , j-1, k  )*Imfx_lo) * dyinv * mfsq  // Contribution to y-mom eqn from diffusive flux in y-dir
                                 + (tau23(i  , j  , k+1)         - tau23(i  , j  , k  )        ) * dzinv );      // Contribution to y-mom eqn from diffusive flux in z-dir;
