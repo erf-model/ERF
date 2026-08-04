@@ -667,6 +667,7 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
     // NOTE: With terrain, we implicitly treat the leading order vertical gradient (no metric terms)
     // This allows us to do semi-implicit discretization of the vertical diffusive terms
     if (qty_index == RhoTheta_comp ||
+        qty_index == RhoKE_comp    ||
         qty_index == RhoQ1_comp) {
         ParallelFor(zbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
