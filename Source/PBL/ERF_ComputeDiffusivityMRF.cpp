@@ -372,7 +372,20 @@ pblh_mf.setVal(0.0);
             // kernel runs. On cold start, pblh_pred_arr is computed in Pass 1 above;
             // on regrid, SurfaceLayer PBLH may be sentinel — callers must re-run
             // ComputeDiffusivityMRF before consuming wstar or Beljaars correction after regrid.
-            Real wstar = u_star_arr(i, j, 0) / phiM_safe;
+            // Deardorff (1972) convective velocity scale — well-behaved as u_star -> 0.
+            // wstar_conv = (g/theta_v0 * zi * wthv0)^(1/3)
+            const Real theta_v0 = amrex::max(GetThetav(i, j, klo, cell_data, moisture_indices), Real(1.0));
+            const Real wthv0 = amrex::max(-u_star_arr(i,j,0) * t_star_arr(i,j,0), Real(0.0)); // surface buoyancy flux, unstable only
+            const Real zi = amrex::max(pblh_pred_arr(i, j, 0), Real(10.0));  // or pblh_corr_arr in Pass 4
+            const Real wstar_conv = std::cbrt(CONST_GRAV / theta_v0 * zi * wthv0);
+
+            Real wstar_shear = u_star_arr(i, j, 0) / phiM_safe;
+
+            // Blend: standard convective/shear combination (WRF YSU-style),
+            // weighted by cube sum so either term can dominate smoothly
+            Real wstar = std::cbrt(wstar_shear*wstar_shear*wstar_shear +
+                                wstar_conv*wstar_conv*wstar_conv);
+            
             wstar = amrex::max(wstar, Real(0.01));
             wstar = amrex::min(wstar, Real(5.0));
 
@@ -566,7 +579,20 @@ pblh_mf.setVal(0.0);
             const Real phiM_safe = amrex::max(phiM, Real(0.01));
 
             // Absolute bounds [0.01, 5.0] m/s
-            Real wstar = u_star_arr(i, j, 0) / phiM_safe;
+            // Deardorff (1972) convective velocity scale — well-behaved as u_star -> 0.
+            // wstar_conv = (g/theta_v0 * zi * wthv0)^(1/3)
+            const Real theta_v0 = amrex::max(GetThetav(i, j, klo, cell_data, moisture_indices), Real(1.0));
+            const Real wthv0 = amrex::max(-u_star_arr(i,j,0) * t_star_arr(i,j,0), Real(0.0)); // surface buoyancy flux, unstable only
+            const Real zi = amrex::max(pblh_pred_arr(i, j, 0), Real(10.0));  // or pblh_corr_arr in Pass 4
+            const Real wstar_conv = std::cbrt(CONST_GRAV / theta_v0 * zi * wthv0);
+
+            Real wstar_shear = u_star_arr(i, j, 0) / phiM_safe;
+
+            // Blend: standard convective/shear combination (WRF YSU-style),
+            // weighted by cube sum so either term can dominate smoothly
+            Real wstar = std::cbrt(wstar_shear*wstar_shear*wstar_shear +
+                                wstar_conv*wstar_conv*wstar_conv);
+            //Real wstar = u_star_arr(i, j, 0) / phiM_safe;
             wstar = amrex::max(wstar, Real(0.01));
             wstar = amrex::min(wstar, Real(5.0));
             wstar_arr(i, j, 0) = wstar;
