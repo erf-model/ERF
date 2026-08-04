@@ -42,6 +42,19 @@ void write_boundary_fab (const std::filesystem::path& filename, amrex::Real valu
 
 } // namespace
 
+TEST(ReadERFBdy, SelectsBoundaryWindowAtSimulationStart)
+{
+    const auto initial = erfbdy_time_bracket(1342742400.0, 1342569600.0,
+                                              1343077200.0, 10800.0, 48);
+    EXPECT_EQ(initial.first, 16);
+    EXPECT_EQ(initial.second, 17);
+
+    const auto endpoint = erfbdy_time_bracket(1343077200.0, 1342569600.0,
+                                               1343077200.0, 10800.0, 48);
+    EXPECT_EQ(endpoint.first, 47);
+    EXPECT_EQ(endpoint.second, 47);
+}
+
 TEST(ReadERFBdy, KeepsPersistentBoundaryDataDeviceAccessible)
 {
     ScopedTestDirectory test_dir(

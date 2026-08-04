@@ -1159,8 +1159,12 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev)
             bdy_data_ylo.resize(ntimes_erfbdy);
             bdy_data_yhi.resize(ntimes_erfbdy);
 
-            // Load the first 2 times for simulation initialization.
-            for (int itime = 0; itime < std::min(2, ntimes_erfbdy); ++itime) {
+            // Load the two times bracketing the actual simulation start.  A
+            // WRF input snapshot can start well after the first boundary time.
+            const auto [first_bdy_time, second_bdy_time] =
+                erfbdy_time_bracket(start_time, start_bdy_time, final_bdy_time,
+                                    bdy_time_interval, ntimes_erfbdy);
+            for (int itime = first_bdy_time; itime <= second_bdy_time; ++itime) {
                 read_from_erfbdy(itime, erfbdy_file,
                                  bdy_data_xlo, bdy_data_xhi,
                                  bdy_data_ylo, bdy_data_yhi,
@@ -1245,6 +1249,37 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev)
                 }
                 Print() << "Completed writing erfbdy times" << std::endl;
             } // itime
+
+            // The conversion loop keeps the earliest slices resident and may
+            // release later slices after writing them.  Ensure the boundary
+            // window needed by an evolved WRF snapshot is resident before the
+            // first call to fill_from_realbdy.
+            const auto [first_bdy_time, second_bdy_time] =
+                erfbdy_time_bracket(start_time, start_bdy_time, final_bdy_time,
+                                    bdy_time_interval, ntimes_total);
+            for (int itime = first_bdy_time; itime <= second_bdy_time; ++itime) {
+                if (bdy_data_xlo[itime].empty()) {
+                    if (write_erfbdy) {
+                        read_from_erfbdy(itime, erfbdy_file,
+                                         bdy_data_xlo, bdy_data_xhi,
+                                         bdy_data_ylo, bdy_data_yhi,
+                                         nvars_erfbdy, real_width);
+                    } else {
+                        read_and_convert_from_wrfbdy(itime, nc_bdy_file,
+                                                     bdy_data_xlo, bdy_data_xhi,
+                                                     bdy_data_ylo, bdy_data_yhi,
+                                                     wrf_MUB, wrf_C1H, wrf_C2H, wrf_RDNW,
+                                                     wrf_PHB, z_phys_nd[lev],
+                                                     lev_new[Vars::xvel], lev_new[Vars::yvel],
+                                                     lev_new[Vars::cons], r_hse, area_vec,
+                                                     geom[lev], use_moist,
+                                                     solverChoice.rebalance_wrf_input,
+                                                     domain_bcs_type, real_width,
+                                                     bdy_time_interval, is_anelastic);
+                    }
+                    Print() << "Loaded initial boundary time slice " << itime << std::endl;
+                }
+            }
         } // use_erfbdy
 
         //

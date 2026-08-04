@@ -2,9 +2,33 @@
 #include <AMReX_VisMF.H>
 #include <AMReX_ParallelDescriptor.H>
 #include <AMReX_Print.H>
+#include <algorithm>
+#include <cmath>
 #include <fstream>
 
 using namespace amrex;
+
+std::pair<int, int>
+erfbdy_time_bracket(double simulation_start_time,
+                    double start_bdy_time,
+                    double final_bdy_time,
+                    double bdy_time_interval,
+                    int ntimes)
+{
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(ntimes >= 2,
+        "erfbdy must contain at least two time slices");
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(bdy_time_interval > 0.0,
+        "erfbdy boundary time interval must be positive");
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(simulation_start_time >= start_bdy_time &&
+                                     simulation_start_time <= final_bdy_time,
+        "simulation start time is outside erfbdy coverage");
+
+    const double elapsed = simulation_start_time - start_bdy_time;
+    int first = static_cast<int>(std::floor(elapsed / bdy_time_interval));
+    first = std::clamp(first, 0, ntimes - 1);
+    const int second = std::min(first + 1, ntimes - 1);
+    return {first, second};
+}
 
 double
 read_times_from_erfbdy(const std::string& bdy_file_name,

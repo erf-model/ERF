@@ -43,6 +43,17 @@ ERF::fill_from_realbdy (const Vector<MultiFab*>& mfs,
     }
 
     AMREX_ALWAYS_ASSERT( alpha >= zero && alpha <= one);
+    const auto has_time_window = [n_time, n_time_p1] (const auto& bdy_data) {
+        return n_time >= 0 && n_time_p1 >= 0 &&
+               n_time < static_cast<int>(bdy_data.size()) &&
+               n_time_p1 < static_cast<int>(bdy_data.size()) &&
+               !bdy_data[n_time].empty() && !bdy_data[n_time_p1].empty();
+    };
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(has_time_window(bdy_data_xlo) &&
+                                     has_time_window(bdy_data_xhi) &&
+                                     has_time_window(bdy_data_ylo) &&
+                                     has_time_window(bdy_data_yhi),
+        "real boundary time window is not resident");
     Real oma   = one - alpha;
 
     // Flags for read vars and index mapping
@@ -132,6 +143,8 @@ ERF::fill_from_realbdy (const Vector<MultiFab*>& mfs,
             {
                 int ivar    = ind_map[var_idx][comp_idx];
                 int bnd_var = bnd_ind_map[var_idx][comp_idx];
+                AMREX_ALWAYS_ASSERT(ivar < static_cast<int>(bdy_data_xlo[n_time].size()));
+                AMREX_ALWAYS_ASSERT(ivar < static_cast<int>(bdy_data_xlo[n_time_p1].size()));
 
                 // We have data at fixed time intervals we will call dT
                 // Then to interpolate, given time, we can define n = (time/dT)

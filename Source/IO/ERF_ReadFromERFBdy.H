@@ -4,6 +4,16 @@
 #include <AMReX_FArrayBox.H>
 #include <AMReX_Vector.H>
 
+#include <utility>
+
+// Return the two erfbdy time indices bracketing simulation_start_time.
+std::pair<int, int>
+erfbdy_time_bracket(double simulation_start_time,
+                    double start_bdy_time,
+                    double final_bdy_time,
+                    double bdy_time_interval,
+                    int ntimes);
+
 // Read metadata and time values from erfbdy Header.
 // Returns bdy_time_interval.
 double
