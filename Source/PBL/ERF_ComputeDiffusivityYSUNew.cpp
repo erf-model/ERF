@@ -77,6 +77,12 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
        Ri_g-dependent mixing with grid-adaptive length scale
        λ = min(max(0.1*dz, 30m), 300m)
        l = λ * κz / (λ + κz)
+       Optional QNSE stability functions (Sukoriansky et al. 2005):
+       - If enable_qnse_stable_functions=true, replace linear stable stability
+         functions with bounded rational QNSE functions:
+         phi_m = (1 + qnse_am * zeta) / (1 + qnse_bm * zeta)
+         phi_h = (1 + qnse_ah * zeta) / (1 + qnse_bh * zeta)
+         where zeta = sf * h/L, avoiding unbounded growth at large stability
 
     PARAMETER DEFAULTS (Matching WRF-YSU):
     ----------------------------------------
@@ -87,6 +93,7 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
     GAMCRT    = 3.0 K  (max heat countergradient)
     GAMCRQ    = 2e-3   (max moisture countergradient)
     Ribcr land= 0.25   (critical bulk Richardson number over land)
+    QNSE default coefficients: qnse_am/qnse_bm/qnse_ah/qnse_bh = 2.5/0.2/2.5/0.2
     */
 
     // Domain extent in z-dir
@@ -1547,7 +1554,13 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
                     const Real zol1_stable = zol1_arr_cap(i, j, 0);  // stored from Phase 12
                     const Real zol_ratio = zq_kp1_stable / zl1_stable;  // zq(k+1) / zl1
                     const Real phim_stable_arg = zol1_stable * zol_ratio;  // (z/L) for level k+1
-                    const Real phim_stable = one + amrex::Real(5.0) * phim_stable_arg;  // stable: phi_m = 1 + 5*(z/L)
+                    // Enable QNSE stable functions if requested, otherwise use default linear form
+                    const Real enable_qnse_d = (enable_qnse_stable_functions) ? Real(1.0) : Real(0.0);
+                    const Real qnse_am_d = qnse_am;
+                    const Real qnse_bm_d = qnse_bm;
+                    const Real phim_stable = (enable_qnse_d > Real(0.5))
+                                           ? ((one + qnse_am_d * phim_stable_arg) / (one + qnse_bm_d * phim_stable_arg))
+                                           : (one + amrex::Real(5.0) * phim_stable_arg);  // stable: phi_m = 1 + 5*(z/L)
                     const Real wscalek_stable = amrex::max(
                         u_star_arr(i, j, 0) / amrex::max(phim_stable, amrex::Real(0.01)),
                         amrex::Real(0.001));

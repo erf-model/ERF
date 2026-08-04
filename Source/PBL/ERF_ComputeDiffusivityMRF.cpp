@@ -131,7 +131,14 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
       phi_t = (1 - 16 * sf * h/L)^(-1/2)
 
     Stable (L > 0, HOL > 0):
-      phi_m = phi_t = 1 + 5 * sf * h/L
+      Default: phi_m = phi_t = 1 + 5 * sf * h/L
+      QNSE (if enable_qnse_stable_functions=true):
+        phi_m = (1 + qnse_am * zeta) / (1 + qnse_bm * zeta)
+        phi_t = (1 + qnse_ah * zeta) / (1 + qnse_bh * zeta)
+        where zeta = sf * h/L, and default coefficients are from
+        Sukoriansky, Galperin & Perov (2005): qnse_am=2.5, qnse_bm=0.2,
+        qnse_ah=2.5, qnse_bh=0.2. QNSE functions remain bounded as zeta→∞,
+        avoiding over-mixing suppression in very stable conditions.
 
     MIXING ABOVE PBL (Free Atmosphere):
     -----------------------------------
@@ -547,8 +554,14 @@ pblh_mf.setVal(0.0);
             const Real HOL = sf * pblh_corr_arr(i, j, 0) / obuk_val;
             const Real HOL_bounded = amrex::max(amrex::min(HOL, Real(100.0)), Real(-100.0));
             const Real one_quarter = Real(0.25);
+            // Enable QNSE stable functions if requested, otherwise use default linear form
+            const Real enable_qnse_d = (enable_qnse_stable_functions) ? Real(1.0) : Real(0.0);
+            const Real qnse_am_d = qnse_am;
+            const Real qnse_bm_d = qnse_bm;
             const Real phiM = (obuk_val > 0)
-                            ? (1 + 5 * HOL_bounded)
+                            ? (enable_qnse_d > Real(0.5)
+                               ? (1 + qnse_am_d * HOL_bounded) / (1 + qnse_bm_d * HOL_bounded)
+                               : (1 + 5 * HOL_bounded))
                             : std::pow(amrex::max(1 - 16 * HOL_bounded, Real(0.01)), -one_quarter);
             const Real phiM_safe = amrex::max(phiM, Real(0.01));
 
@@ -744,19 +757,35 @@ pblh_mf.setVal(0.0);
                 const Real HOL_bounded = amrex::max(amrex::min(HOL, Real(100.0)), Real(-100.0));
 
                 const Real one_quarter = Real(0.25);
+                // Enable QNSE stable functions if requested, otherwise use default linear form
+                const Real enable_qnse_d = (enable_qnse_stable_functions) ? Real(1.0) : Real(0.0);
+                const Real qnse_am_d = qnse_am;
+                const Real qnse_bm_d = qnse_bm;
+                const Real qnse_ah_d = qnse_ah;
+                const Real qnse_bh_d = qnse_bh;
                 const Real phiM = (obuk_val > 0)
-                                ? (1 + 5 * HOL_bounded)
+                                ? (enable_qnse_d > Real(0.5)
+                                   ? (1 + qnse_am_d * HOL_bounded) / (1 + qnse_bm_d * HOL_bounded)
+                                   : (1 + 5 * HOL_bounded))
                                 : std::pow(amrex::max(1 - 16 * HOL_bounded, Real(0.01)), -one_quarter);
                 const Real phit = (obuk_val > 0)
-                                ? (1 + 5 * HOL_bounded)
+                                ? (enable_qnse_d > Real(0.5)
+                                   ? (1 + qnse_ah_d * HOL_bounded) / (1 + qnse_bh_d * HOL_bounded)
+                                   : (1 + 5 * HOL_bounded))
                                 : std::pow(amrex::max(1 - 16 * HOL_bounded, Real(0.01)), -Real(0.5));
 
                 Real phit_cloud = phit;
                 Real phiM_cloud = phiM;
                 if (has_cloud && obuk_val > Real(0)) {
                     Real reduction_factor = Real(1) - Real(0.15) * amrex::min(total_qcloud / qc_threshold, Real(1));
-                    phiM_cloud = Real(1) + Real(5.0) * reduction_factor * sf * pblh_corr_arr(i, j, 0) / obuk_val;
-                    phit_cloud = Real(1) + Real(5.0) * reduction_factor * sf * pblh_corr_arr(i, j, 0) / obuk_val;
+                    // Apply cloud reduction on top of QNSE if enabled
+                    if (enable_qnse_d > Real(0.5)) {
+                        phiM_cloud = ((1 + qnse_am_d * HOL_bounded * reduction_factor) / (1 + qnse_bm_d * HOL_bounded));
+                        phit_cloud = ((1 + qnse_ah_d * HOL_bounded * reduction_factor) / (1 + qnse_bh_d * HOL_bounded));
+                    } else {
+                        phiM_cloud = Real(1) + Real(5.0) * reduction_factor * sf * pblh_corr_arr(i, j, 0) / obuk_val;
+                        phit_cloud = Real(1) + Real(5.0) * reduction_factor * sf * pblh_corr_arr(i, j, 0) / obuk_val;
+                    }
                 } else if (has_cloud && obuk_val <= Real(0)) {
                     Real cloud_boost = Real(1.0) + Real(0.05) * amrex::min(total_qcloud / qc_threshold, Real(1));
                     phiM_cloud = std::pow(amrex::max(Real(1) - Real(16.0) * HOL_bounded / cloud_boost, Real(0.01)), -one_quarter);

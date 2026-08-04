@@ -244,6 +244,17 @@ public:
         if (enable_pblh_smoothing && (pblh_smoothing_weight < 0 || pblh_smoothing_weight > 1)) {
           amrex::Error("pblh_smoothing_weight must be in [0, 1]");
         }
+        // QNSE stable stability functions (Sukoriansky et al. 2005)
+        query_one_or_per_level(
+          pp, "enable_qnse_stable_functions", enable_qnse_stable_functions, lev, max_level);
+        query_one_or_per_level(
+          pp, "qnse_am", qnse_am, lev, max_level);
+        query_one_or_per_level(
+          pp, "qnse_bm", qnse_bm, lev, max_level);
+        query_one_or_per_level(
+          pp, "qnse_ah", qnse_ah, lev, max_level);
+        query_one_or_per_level(
+          pp, "qnse_bh", qnse_bh, lev, max_level);
       } else if (pbl_type == PBLType::MRF) {
         query_one_or_per_level(
           pp, "pbl_mrf_coriolis_freq", pbl_mrf_coriolis_freq, lev, max_level);
@@ -264,6 +275,17 @@ public:
           pp, "enable_mrf_unbounded_vpert", enable_mrf_unbounded_vpert, lev, max_level);
         query_one_or_per_level(
           pp, "pbl_mrf_use_zero_ri_extent", pbl_mrf_use_zero_ri_extent, lev, max_level);
+        // QNSE stable stability functions (Sukoriansky et al. 2005)
+        query_one_or_per_level(
+          pp, "enable_qnse_stable_functions", enable_qnse_stable_functions, lev, max_level);
+        query_one_or_per_level(
+          pp, "qnse_am", qnse_am, lev, max_level);
+        query_one_or_per_level(
+          pp, "qnse_bm", qnse_bm, lev, max_level);
+        query_one_or_per_level(
+          pp, "qnse_ah", qnse_ah, lev, max_level);
+        query_one_or_per_level(
+          pp, "qnse_bh", qnse_bh, lev, max_level);
         // Scale-aware PBL-LES blending parameters.
         query_one_or_per_level(
           pp, "pbl_blend_length", pbl_blend_length, lev, max_level);
@@ -563,6 +585,14 @@ public:
                      << pblh_smoothing_weight << std::endl;
       amrex::Print() << "    enable_mrf_unbounded_vpert         : "
                      << enable_mrf_unbounded_vpert << std::endl;
+      amrex::Print() << "    enable_qnse_stable_functions       : "
+                     << enable_qnse_stable_functions << std::endl;
+      if (enable_qnse_stable_functions) {
+        amrex::Print() << "      qnse_am (momentum coeff)         : " << qnse_am << std::endl;
+        amrex::Print() << "      qnse_bm (momentum coeff)         : " << qnse_bm << std::endl;
+        amrex::Print() << "      qnse_ah (heat coeff)             : " << qnse_ah << std::endl;
+        amrex::Print() << "      qnse_bh (heat coeff)             : " << qnse_bh << std::endl;
+      }
     } else if (pbl_type == PBLType::MRF) {
       amrex::Print() << "    pbl_mrf_coriolis_freq : " << pbl_mrf_coriolis_freq
                      << std::endl;
@@ -602,6 +632,14 @@ public:
                      << std::endl;
       amrex::Print() << "    pblh_smoothing_weight        : " << pblh_smoothing_weight
                      << std::endl;
+      amrex::Print() << "    enable_qnse_stable_functions       : "
+                     << enable_qnse_stable_functions << std::endl;
+      if (enable_qnse_stable_functions) {
+        amrex::Print() << "      qnse_am (momentum coeff)         : " << qnse_am << std::endl;
+        amrex::Print() << "      qnse_bm (momentum coeff)         : " << qnse_bm << std::endl;
+        amrex::Print() << "      qnse_ah (heat coeff)             : " << qnse_ah << std::endl;
+        amrex::Print() << "      qnse_bh (heat coeff)             : " << qnse_bh << std::endl;
+      }
     }
   }
 
@@ -782,6 +820,17 @@ public:
   bool pbl_mrf_highres_bounds = false; // if true, apply high-resolution grid-dependent diffusivity bounds instead of global forecast bounds
   bool enable_mrf_unbounded_vpert = false; // if true, does not limit VPERT to GAMCRT
   bool pbl_mrf_use_zero_ri_extent = false; // if true, use Ri=0 (pbli_zero_arr) for K-profile extent; default false uses Ri=0.5 corrector (pbli_arr) for WRF compatibility
+  // QNSE (Quasi-Normal Scale Elimination) spectral stable stability functions
+  // Sukoriansky, S., B. Galperin, and V. Perov, 2005: Application of a New Spectral
+  // Theory of Stably Stratified Turbulence to the Atmospheric Boundary Layer over
+  // Sea Ice. Boundary-Layer Meteorology, 117, 231–257.
+  // https://doi.org/10.1007/s10546-004-6848-4
+  bool enable_qnse_stable_functions = false; // if true, use QNSE spectral stability functions
+                                              // instead of linear Businger-Dyer form for stable conditions
+  amrex::Real qnse_am = amrex::Real(2.5);    // QNSE momentum stability function coefficient (dimensionless)
+  amrex::Real qnse_bm = amrex::Real(0.2);    // QNSE momentum stability function coefficient (dimensionless)
+  amrex::Real qnse_ah = amrex::Real(2.5);    // QNSE heat stability function coefficient (dimensionless)
+  amrex::Real qnse_bh = amrex::Real(0.2);    // QNSE heat stability function coefficient (dimensionless)
   // MYNN2.5 PBL model
   // TKE/QKE stuff
   bool advect_tke = true; // if MYNN2.5 PBL is used default is turb transport in
