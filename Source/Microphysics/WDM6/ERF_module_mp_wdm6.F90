@@ -132,8 +132,8 @@
                     refl_10cm, diagflag, do_radar_ref,     &
                     graupel, graupelncv,                   &
                     itimestep,                             &
-                    has_reqc, has_reqi, has_reqs,          &  
-                    re_cloud, re_ice,   re_snow,           &  
+                    has_reqc, has_reqi, has_reqs,          &
+                    re_cloud, re_ice,   re_snow,           &
                     ids,ide, jds,jde, kds,kde,             &
                     ims,ime, jms,jme, kms,kme,             &
                     its,ite, jts,jte, kts,kte              &
@@ -153,7 +153,7 @@
                                                                 ep1, ep2, xls, &
                                                                 xlv0, xlf0,    &
                                                                 cliq, cice,    &
-                                                                psat, denr    
+                                                                psat, denr
    real(kind=kind_phys), dimension(ims:ime,jms:jme)          , intent(in   ) :: xland
    real(kind=kind_phys), dimension(ims:ime,kms:kme,jms:jme)  , intent(in   ) :: den
    real(kind=kind_phys), dimension(ims:ime,kms:kme,jms:jme)  , intent(in   ) :: pii
@@ -201,7 +201,7 @@
 
 
 
-   real(kind=kind_phys), dimension(kts:kte) :: qv1d 
+   real(kind=kind_phys), dimension(kts:kte) :: qv1d
    real(kind=kind_phys), dimension(kts:kte) :: t1d
    real(kind=kind_phys), dimension(kts:kte) :: p1d
    real(kind=kind_phys), dimension(kts:kte) :: qr1d
@@ -216,11 +216,11 @@
    real(kind=kind_phys), dimension(kts:kte) :: qi1d
    real(kind=kind_phys), dimension(kts:kte) :: re_qc, re_qi, re_qs
 
-   if (itimestep .eq. 1) then 
+   if (itimestep .eq. 1) then
      do j = jms,jme
-       do k = kms,kme    
+       do k = kms,kme
          do i = ims,ime
-           nn(i,k,j) = ccn0   
+           nn(i,k,j) = ccn0
          enddo
        enddo
      enddo
@@ -237,13 +237,13 @@
          qrs(i,k,3) = qg(i,k,j)
          ncr(i,k,1) = nn(i,k,j)
          ncr(i,k,2) = nc(i,k,j)
-         ncr(i,k,3) = nr(i,k,j)     
+         ncr(i,k,3) = nr(i,k,j)
        enddo
-     enddo   
-     
-     
-     
-     
+     enddo
+
+
+
+
      call wdm62D(t, q(ims,kms,j), qci, qrs, ncr               &
                 ,den(ims,kms,j)                               &
                 ,p(ims,kms,j), delz(ims,kms,j)                &
@@ -259,7 +259,7 @@
                 ,ims,ime, jms,jme, kms,kme                    &
                 ,its,ite, jts,jte, kts,kte                    &
                 ,snow(ims,j),snowncv(ims,j)                   &
-                ,graupel(ims,j),graupelncv(ims,j)             & 
+                ,graupel(ims,j),graupelncv(ims,j)             &
                                                                )
 
      do k = kts,kte
@@ -272,7 +272,7 @@
          qg(i,k,j) = qrs(i,k,3)
          nn(i,k,j) = ncr(i,k,1)
          nc(i,k,j) = ncr(i,k,2)
-         nr(i,k,j) = ncr(i,k,3)   
+         nr(i,k,j) = ncr(i,k,3)
        enddo
      enddo
 
@@ -325,7 +325,7 @@
          enddo
        enddo
      endif
-   enddo        
+   enddo
 
    end subroutine wdm6
 
@@ -562,8 +562,8 @@
 
 
 
-   diffus(x,y) = 8.794e-5 * exp(log(x)*(1.81)) / y   
-   viscos(x,y) = 1.496e-6 * (x*sqrt(x)) /(x+120.)/y  
+   diffus(x,y) = 8.794e-5 * exp(log(x)*(1.81)) / y
+   viscos(x,y) = 1.496e-6 * (x*sqrt(x)) /(x+120.)/y
    xka(x,y)    = 1.414e3*viscos(x,y)*y
    diffac(a,b,c,d,e) = d*a*a/(xka(c,d)*rv*c*c)+1./(e*diffus(c,b))
    venfac(a,b,c) = exp(log((viscos(b,c)/diffus(b,a)))*((.3333333)))            &
@@ -624,7 +624,7 @@
 
    qcr(:,:) = 0.0
    do i = its,ite
-     if(slmsk(i).eq.2) then      
+     if(slmsk(i).eq.2) then
        qcr(i,:) = qc0
      else
        qcr(i,:) = qc1
@@ -805,7 +805,7 @@
           ncr_tmp(i,k) = ncr(i,k,3)
         enddo
       enddo
-      call slope_wdm6(qrs_tmp,ncr_tmp,den_tmp,denfac,t,rslope,rslopeb,rslope2, & 
+      call slope_wdm6(qrs_tmp,ncr_tmp,den_tmp,denfac,t,rslope,rslopeb,rslope2, &
                      rslope3,work1,workn,its,ite,kts,kte)
 
 
@@ -926,7 +926,7 @@
               coeres = rslope2(i,k,2)*sqrt(rslope(i,k,2)*rslopeb(i,k,2))
               psmlt(i,k) = xka(t(i,k),den(i,k))/xlf*(t0c-t(i,k))*pi/2.       &
                          *n0sfac(i,k)*(precs1*rslope2(i,k,2)                 &
-                         +precs2*work2(i,k)*coeres)/den(i,k)                  
+                         +precs2*work2(i,k)*coeres)/den(i,k)
               psmlt(i,k) = min(max(psmlt(i,k)*dtcld,-qrs(i,k,2)),0.)
 
 
@@ -949,7 +949,7 @@
               coeres = rslope2(i,k,3)*sqrt(rslope(i,k,3)*rslopeb(i,k,3))
               pgmlt(i,k) = xka(t(i,k),den(i,k))/xlf*(t0c-t(i,k))*(precg1     &
                            *rslope2(i,k,3) + precg2*work2(i,k)*coeres)       &
-                           /den(i,k)                                          
+                           /den(i,k)
               pgmlt(i,k) = min(max(pgmlt(i,k)*dtcld,-qrs(i,k,3)),0.)
 
 
@@ -1014,7 +1014,7 @@
         If(fallsum_qsi.gt.0.) then
           tstepsnow(i) = fallsum_qsi*delz(i,kts)/denr*dtcld*1000. + tstepsnow(i)
           IF( PRESENT (snowncv) .AND. PRESENT (snow)) THEN
-            snowncv(i) = fallsum_qsi*delz(i,kts)/denr*dtcld*1000. + snowncv(i)     
+            snowncv(i) = fallsum_qsi*delz(i,kts)/denr*dtcld*1000. + snowncv(i)
             snow(i) = fallsum_qsi*delz(i,kts)/denr*dtcld*1000. + snow(i)
           ENDIF
         ENDIF
@@ -1022,7 +1022,7 @@
           tstepgraup(i) = fallsum_qg*delz(i,kts)/denr*dtcld*1000.              &
                             + tstepgraup(i)
           IF( PRESENT (graupelncv) .AND. PRESENT (graupel)) THEN
-            graupelncv(i) = fallsum_qg*delz(i,kts)/denr*dtcld*1000.            &  
+            graupelncv(i) = fallsum_qg*delz(i,kts)/denr*dtcld*1000.            &
                             + graupelncv(i)
             graupel(i) = fallsum_qg*delz(i,kts)/denr*dtcld*1000. + graupel(i)
           ENDIF
@@ -1063,7 +1063,7 @@
 
 
 
-            if(ncr(i,k,2).gt.0.) ncr(i,k,2) = 0. 
+            if(ncr(i,k,2).gt.0.) ncr(i,k,2) = 0.
             t(i,k) = t(i,k) + xlf/cpm(i,k)*qci(i,k,1)
             qci(i,k,1) = 0.
           endif
@@ -1073,7 +1073,7 @@
 
           if(supcol.gt.0. .and. qci(i,k,1).gt.qmin) then
             supcolt=min(supcol,70.)
-            pfrzdtc = min(pi*pi*pfrz1*(exp(pfrz2*supcolt)-1.)*denr/den(i,k)    & 
+            pfrzdtc = min(pi*pi*pfrz1*(exp(pfrz2*supcolt)-1.)*denr/den(i,k)    &
                      *ncr(i,k,2)*rslopec3(i,k)*rslopec3(i,k)/18.*dtcld         &
                      ,qci(i,k,1))
 
@@ -1088,7 +1088,7 @@
             qci(i,k,2) = qci(i,k,2) + pfrzdtc
             t(i,k) = t(i,k) + xlf/cpm(i,k)*pfrzdtc
             qci(i,k,1) = qci(i,k,1)-pfrzdtc
-          endif 
+          endif
 
 
 
@@ -1096,15 +1096,15 @@
           if(supcol.gt.0. .and. qrs(i,k,1).gt.0.) then
             supcolt=min(supcol,70.)
             pfrzdtr = min(140.*(pi*pi)*pfrz1*ncr(i,k,3)*denr/den(i,k)          &
-                  *(exp(pfrz2*supcolt)-1.)*rslope3(i,k,1)*rslope3(i,k,1)       & 
-                  *dtcld,qrs(i,k,1))        
+                  *(exp(pfrz2*supcolt)-1.)*rslope3(i,k,1)*rslope3(i,k,1)       &
+                  *dtcld,qrs(i,k,1))
 
 
 
 
             if(ncr(i,k,3).gt.nrmin) then
               nfrzdtr = min(4.*pi*pfrz1*ncr(i,k,3)*(exp(pfrz2*supcolt)-1.)     &
-                       *rslope3(i,k,1)*dtcld, ncr(i,k,3)) 
+                       *rslope3(i,k,1)*dtcld, ncr(i,k,3))
               ncr(i,k,3) = ncr(i,k,3) - nfrzdtr
             endif
             qrs(i,k,3) = qrs(i,k,3) + pfrzdtr
@@ -1210,17 +1210,17 @@
                          + 24.*rslope3(i,k,1)),ncr(i,k,2)/dtcld)
               pracw(i,k) = min(pi/6.*(denr/den(i,k))*ncrk1*ncr(i,k,2)          &
                          *ncr(i,k,3)*rslopec3(i,k)*(2.*rslopec3(i,k)           &
-                         + 24.*rslope3(i,k,1)),qci(i,k,1)/dtcld)   
+                         + 24.*rslope3(i,k,1)),qci(i,k,1)/dtcld)
             else
               nracw(i,k) = min(ncrk2*ncr(i,k,2)*ncr(i,k,3)*(2.*rslopec3(i,k)   &
                          *rslopec3(i,k)+5040.*rslope3(i,k,1)                   &
                          *rslope3(i,k,1)),ncr(i,k,2)/dtcld)
               pracw(i,k) = min(pi/6.*(denr/den(i,k))*ncrk2*ncr(i,k,2)          &
-                         *ncr(i,k,3)*rslopec3(i,k)*(6.*rslopec3(i,k)           &     
-                         *rslopec3(i,k)+5040.*rslope3(i,k,1)*rslope3(i,k,1))   & 
+                         *ncr(i,k,3)*rslopec3(i,k)*(6.*rslopec3(i,k)           &
+                         *rslopec3(i,k)+5040.*rslope3(i,k,1)*rslope3(i,k,1))   &
                          ,qci(i,k,1)/dtcld)
             endif
-          endif 
+          endif
 
 
 
@@ -1228,7 +1228,7 @@
           if(avedia(i,k,1).ge.di100) then
             nccol(i,k) = ncrk1*ncr(i,k,2)*ncr(i,k,2)*rslopec3(i,k)
           else
-            nccol(i,k) = 2.*ncrk2*ncr(i,k,2)*ncr(i,k,2)*rslopec3(i,k)        &     
+            nccol(i,k) = 2.*ncrk2*ncr(i,k,2)*ncr(i,k,2)*rslopec3(i,k)        &
                          *rslopec3(i,k)
           endif
 
@@ -1236,13 +1236,13 @@
 
 
           if(qrs(i,k,1).ge.lenconcr) then
-            if(avedia(i,k,2).lt.di100) then 
+            if(avedia(i,k,2).lt.di100) then
               nrcol(i,k) = 5040.*ncrk2*ncr(i,k,3)*ncr(i,k,3)*rslope3(i,k,1)    &
                           *rslope3(i,k,1)
             elseif(avedia(i,k,2).ge.di100 .and. avedia(i,k,2).lt.di600) then
               nrcol(i,k) = 24.*ncrk1*ncr(i,k,3)*ncr(i,k,3)*rslope3(i,k,1)
             elseif(avedia(i,k,2).ge.di600 .and. avedia(i,k,2).lt.di2000) then
-              coecol = -2.5e3*(avedia(i,k,2)-di600) 
+              coecol = -2.5e3*(avedia(i,k,2)-di600)
               nrcol(i,k) = 24.*exp(coecol)*ncrk1*ncr(i,k,3)*ncr(i,k,3)         &
                          *rslope3(i,k,1)
             else
@@ -1314,8 +1314,8 @@
           vt2g=pvtg*rslopeb(i,k,3)*denfac(i,k)
           qsum(i,k) = max((qrs(i,k,2)+qrs(i,k,3)),1.e-15)
           if(qsum(i,k) .gt. 1.e-15) then
-            vt2ave=(vt2s*qrs(i,k,2)+vt2g*qrs(i,k,3))/(qsum(i,k))          
-          else    
+            vt2ave=(vt2s*qrs(i,k,2)+vt2g*qrs(i,k,3))/(qsum(i,k))
+          else
             vt2ave=0.
           endif
           if(supcol.gt.0. .and. qci(i,k,2).gt.qmin) then
@@ -1326,7 +1326,7 @@
 
               acrfac = 6.*rslope2(i,k,1)+4.*diameter*rslope(i,k,1) + diameter**2
               praci(i,k) = pi*qci(i,k,2)*ncr(i,k,3)*abs(vt2r-vt2i)*acrfac/4.
-              
+
               praci(i,k) = praci(i,k)*min(max(0.0,qrs(i,k,1)/qci(i,k,2)),1.)**2
               praci(i,k) = min(praci(i,k),qci(i,k,2)/dtcld)
 
@@ -1336,7 +1336,7 @@
               piacr(i,k) = pi*pi*avtr*ncr(i,k,3)*denr*xni(i,k)*denfac(i,k)     &
                           *g7pbr*rslope3(i,k,1)*rslope2(i,k,1)*rslopeb(i,k,1)  &
                           /24./den(i,k)
-              
+
               piacr(i,k) = piacr(i,k)*min(max(0.0,qci(i,k,2)/qrs(i,k,1)),1.)**2
               piacr(i,k) = min(piacr(i,k),qrs(i,k,1)/dtcld)
             endif
@@ -1347,7 +1347,7 @@
             if(ncr(i,k,3).gt.nrmin) then
               niacr(i,k) = pi*avtr*ncr(i,k,3)*xni(i,k)*denfac(i,k)*g4pbr       &
                           *rslope2(i,k,1)*rslopeb(i,k,1)/4.
-              
+
               niacr(i,k) = niacr(i,k)*min(max(0.0,qci(i,k,2)/qrs(i,k,1)),1.)**2
               niacr(i,k) = min(niacr(i,k),ncr(i,k,3)/dtcld)
             endif
@@ -1380,7 +1380,7 @@
 
           if(qrs(i,k,2).gt.qcrmin .and. qci(i,k,1).gt.qmin) then
             psacw(i,k) = min(pacrc*n0sfac(i,k)*rslope3(i,k,2)*rslopeb(i,k,2)   &
-              
+
                         *min(max(0.0,qrs(i,k,2)/qci(i,k,1)),1.)**2             &
                         *qci(i,k,1)*denfac(i,k),qci(i,k,1)/dtcld)
           endif
@@ -1390,7 +1390,7 @@
 
          if(qrs(i,k,2).gt.qcrmin .and. ncr(i,k,2).gt.ncmin) then
            nsacw(i,k) = min(pacrc*n0sfac(i,k)*rslope3(i,k,2)*rslopeb(i,k,2)    &
-              
+
                        *min(max(0.0,qrs(i,k,2)/qci(i,k,1)),1.)**2              &
                        *ncr(i,k,2)*denfac(i,k),ncr(i,k,2)/dtcld)
          endif
@@ -1400,7 +1400,7 @@
 
           if(qrs(i,k,3).gt.qcrmin .and. qci(i,k,1).gt.qmin) then
             pgacw(i,k) = min(pacrg*rslope3(i,k,3)*rslopeb(i,k,3)*qci(i,k,1)    &
-              
+
                         *min(max(0.0,qrs(i,k,3)/qci(i,k,1)),1.)**2             &
                         *denfac(i,k),qci(i,k,1)/dtcld)
           endif
@@ -1410,7 +1410,7 @@
 
           if(qrs(i,k,3).gt.qcrmin .and. ncr(i,k,2).gt.ncmin) then
             ngacw(i,k) = min(pacrg*rslope3(i,k,3)*rslopeb(i,k,3)*ncr(i,k,2)    &
-              
+
                         *min(max(0.0,qrs(i,k,3)/qci(i,k,1)),1.)**2             &
                         *denfac(i,k),ncr(i,k,2)/dtcld)
           endif
@@ -1425,7 +1425,7 @@
 
 
             naacw(i,k) = (qrs(i,k,2)*nsacw(i,k)+qrs(i,k,3)*ngacw(i,k))/(qsum(i,k))
-          endif      
+          endif
 
 
 
@@ -1437,7 +1437,7 @@
                       + 1.5*rslope2(i,k,2)*rslope2(i,k,2)*rslope2(i,k,1)
               pracs(i,k) = pi*pi*ncr(i,k,3)*n0s*n0sfac(i,k)*abs(vt2r-vt2ave)   &
                           *(dens/den(i,k))*acrfac
-              
+
               pracs(i,k) = pracs(i,k)*min(max(0.0,qrs(i,k,1)/qrs(i,k,2)),1.)**2
               pracs(i,k) = min(pracs(i,k),qrs(i,k,2)/dtcld)
             endif
@@ -1446,11 +1446,11 @@
 
 
             acrfac = 30.*rslope3(i,k,1)*rslope2(i,k,1)*rslope(i,k,2)           &
-                     +10.*rslope2(i,k,1)*rslope2(i,k,1)*rslope2(i,k,2)         & 
+                     +10.*rslope2(i,k,1)*rslope2(i,k,1)*rslope2(i,k,2)         &
                      + 2.*rslope3(i,k,1)*rslope3(i,k,2)
             psacr(i,k) = pi*pi*ncr(i,k,3)*n0s*n0sfac(i,k)*abs(vt2ave-vt2r)     &
                         *(denr/den(i,k))*acrfac
-              
+
             psacr(i,k) = psacr(i,k)*min(max(0.0,qrs(i,k,2)/qrs(i,k,1)),1.)**2
             psacr(i,k) = min(psacr(i,k),qrs(i,k,1)/dtcld)
           endif
@@ -1460,10 +1460,10 @@
 
 
             acrfac = 1.5*rslope2(i,k,1)*rslope(i,k,2)                          &
-                    + 1.0*rslope(i,k,1)*rslope2(i,k,2)+.5*rslope3(i,k,2)        
+                    + 1.0*rslope(i,k,1)*rslope2(i,k,2)+.5*rslope3(i,k,2)
             nsacr(i,k) = pi*ncr(i,k,3)*n0s*n0sfac(i,k)*abs(vt2ave-vt2r)        &
                         *acrfac
-              
+
             nsacr(i,k) = nsacr(i,k)*min(max(0.0,qrs(i,k,2)/qrs(i,k,1)),1.)**2
             nsacr(i,k) = min(nsacr(i,k),ncr(i,k,3)/dtcld)
           endif
@@ -1473,11 +1473,11 @@
 
           if(qrs(i,k,3).gt.qcrmin .and. qrs(i,k,1).gt.qcrmin) then
             acrfac = 30.*rslope3(i,k,1)*rslope2(i,k,1)*rslope(i,k,3)           &
-                    +10.*rslope2(i,k,1)*rslope2(i,k,1)*rslope2(i,k,3)          & 
+                    +10.*rslope2(i,k,1)*rslope2(i,k,1)*rslope2(i,k,3)          &
                     + 2.*rslope3(i,k,1)*rslope3(i,k,3)
             pgacr(i,k) = pi*pi*ncr(i,k,3)*n0g*abs(vt2ave-vt2r)*(denr/den(i,k)) &
                         *acrfac
-              
+
             pgacr(i,k) = pgacr(i,k)*min(max(0.0,qrs(i,k,3)/qrs(i,k,1)),1.)**2
             pgacr(i,k) = min(pgacr(i,k),qrs(i,k,1)/dtcld)
           endif
@@ -1487,9 +1487,9 @@
 
           if(qrs(i,k,3).gt.qcrmin .and. ncr(i,k,3).gt.nrmin) then
             acrfac = 1.5*rslope2(i,k,1)*rslope(i,k,3)                          &
-                    + 1.0*rslope(i,k,1)*rslope2(i,k,3) + .5*rslope3(i,k,3)   
+                    + 1.0*rslope(i,k,1)*rslope2(i,k,3) + .5*rslope3(i,k,3)
             ngacr(i,k) = pi*ncr(i,k,3)*n0g*abs(vt2ave-vt2r)*acrfac
-              
+
             ngacr(i,k) = ngacr(i,k)*min(max(0.0,qrs(i,k,3)/qrs(i,k,1)),1.)**2
             ngacr(i,k) = min(ngacr(i,k),ncr(i,k,3)/dtcld)
           endif
@@ -1500,7 +1500,7 @@
 
 
           if(qrs(i,k,3).gt.qcrmin .and. qrs(i,k,2).gt.qcrmin) then
-            pgacs(i,k) = 0. 
+            pgacs(i,k) = 0.
           endif
           if(supcol.le.0) then
             xlf = xlf0
@@ -1508,7 +1508,7 @@
 
 
 
-            if(qrs(i,k,2).gt.0.)                                               & 
+            if(qrs(i,k,2).gt.0.)                                               &
               pseml(i,k) = min(max(cliq*supcol*(paacw(i,k)+psacr(i,k))         &
                           /xlf,-qrs(i,k,2)/dtcld),0.)
 
@@ -1994,7 +1994,7 @@
                   '  [ACT] k=',k,' ncact,pcact=',ncact(i,k),pcact(i,k),' nc_after=',ncr(i,k,2)
               endif
             endif
-          endif  
+          endif
 
 
 
@@ -2047,16 +2047,16 @@
           if(qci(i,k,1).le.qmin) qci(i,k,1) = 0.0
           if(qci(i,k,2).le.qmin) qci(i,k,2) = 0.0
           if(qrs(i,k,1).ge.qcrmin .and. ncr(i,k,3) .ge. nrmin) then
-            lamdr_tmp(i,k) = exp(log(((pidnr*ncr(i,k,3))                       & 
+            lamdr_tmp(i,k) = exp(log(((pidnr*ncr(i,k,3))                       &
                          /(den(i,k)*qrs(i,k,1))))*((.33333333)))
             if(lamdr_tmp(i,k) .le. lamdarmin) then
               lamdr_tmp(i,k) = lamdarmin
               ncr(i,k,3) = den(i,k)*qrs(i,k,1)*lamdr_tmp(i,k)**3/pidnr
             elseif(lamdr_tmp(i,k) .ge. lamdarmax) then
-              lamdr_tmp(i,k) = lamdarmax 
+              lamdr_tmp(i,k) = lamdarmax
               ncr(i,k,3) = den(i,k)*qrs(i,k,1)*lamdr_tmp(i,k)**3/pidnr
             endif
-          endif  
+          endif
           if(qci(i,k,1).ge.qmin .and. ncr(i,k,2) .ge. ncmin ) then
             lamdc_tmp(i,k) = exp(log(((pidnc*ncr(i,k,2))                       &
                          /(den(i,k)*qci(i,k,1))))*((.33333333)))
@@ -2069,8 +2069,8 @@
             endif
           endif
         enddo
-      enddo 
-   enddo                  
+      enddo
+   enddo
 
    end subroutine wdm62d
 
@@ -2130,16 +2130,16 @@
    real(kind=kind_phys), INTENT(IN) :: den0,denr,dens,cl,cpv,ccn0
    INTEGER, INTENT(IN) :: hail_opt
    LOGICAL, INTENT(IN) :: allowed_to_read
- 
 
 
-      IF (hail_opt .eq. 1) THEN 
+
+      IF (hail_opt .eq. 1) THEN
          n0g       = 4.e4
          deng      = 700.
          avtg      = 285.0
          bvtg      = 0.8
          lamdagmax = 2.e4
-      ELSE 
+      ELSE
          n0g       = 4.e6
          deng      = 500
          avtg      = 330.0
@@ -2152,7 +2152,7 @@
 
    qc0  = 4./3.*pi*denr*r0**3.*xncr0/den0
    qc1  = 4./3.*pi*denr*r0**3.*xncr1/den0
-   qck1 = .104*9.8*peaut/(denr)**(1./3.)/xmyu*den0**(4./3.) 
+   qck1 = .104*9.8*peaut/(denr)**(1./3.)/xmyu*den0**(4./3.)
    pidnc = pi*denr/6.
 
    bvtr1 = 1.+bvtr
@@ -2167,11 +2167,11 @@
    g1pbr = rgmma(bvtr1)
    g2pbr = rgmma(bvtr2)
    g3pbr = rgmma(bvtr3)
-   g4pbr = rgmma(bvtr4)            
+   g4pbr = rgmma(bvtr4)
    g5pbr = rgmma(bvtr5)
    g6pbr = rgmma(bvtr6)
    g7pbr = rgmma(bvtr7)
-   g5pbro2 = rgmma(bvtr2o5) 
+   g5pbro2 = rgmma(bvtr2o5)
    g7pbro2 = rgmma(bvtr3o5)
    pvtr = avtr*g5pbr/24.
    pvtrn = avtr*g2pbr
@@ -2189,9 +2189,9 @@
    bvts2 = 2.5+.5*bvts
    bvts3 = 3.+bvts
    bvts4 = 4.+bvts
-   g1pbs = rgmma(bvts1)    
+   g1pbs = rgmma(bvts1)
    g3pbs = rgmma(bvts3)
-   g4pbs = rgmma(bvts4)    
+   g4pbs = rgmma(bvts4)
    g5pbso2 = rgmma(bvts2)
    pvts = avts*g4pbs/6.
    pacrs = pi*n0s*avts*g3pbs*.25
@@ -2259,11 +2259,11 @@
                                                                        rslope, &
                                                                       rslopeb, &
                                                                       rslope2, &
-                                                                      rslope3, & 
+                                                                      rslope3, &
                                                                            vt
   real(kind=kind_phys), DIMENSION( its:ite , kts:kte) ::                                       &
-                                                                          ncr, & 
-                                                                          vtn, & 
+                                                                          ncr, &
+                                                                          vtn, &
                                                                           den, &
                                                                        denfac, &
                                                                             t
@@ -2278,8 +2278,8 @@
 
 
       lamdar(x,y,z)= exp(log(((pidnr*z)/(x*y)))*((.33333333)))
-      lamdas(x,y,z)= sqrt(sqrt(pidn0s*z/(x*y)))    
-      lamdag(x,y)=   sqrt(sqrt(pidn0g/(x*y)))      
+      lamdas(x,y,z)= sqrt(sqrt(pidn0s*z/(x*y)))
+      lamdag(x,y)=   sqrt(sqrt(pidn0g/(x*y)))
 
       do k = kts, kte
         do i = its, ite
@@ -2325,10 +2325,10 @@
           vt(i,k,2) = pvts*rslopeb(i,k,2)*denfac(i,k)
           vt(i,k,3) = pvtg*rslopeb(i,k,3)*denfac(i,k)
           vtn(i,k) = pvtrn*rslopeb(i,k,1)*denfac(i,k)
-          if(qrs(i,k,1).le.0.0) vt(i,k,1) = 0.0 
+          if(qrs(i,k,1).le.0.0) vt(i,k,1) = 0.0
           if(qrs(i,k,2).le.0.0) vt(i,k,2) = 0.0
           if(qrs(i,k,3).le.0.0) vt(i,k,3) = 0.0
-          if(ncr(i,k).le.0.0) vtn(i,k) = 0.0 
+          if(ncr(i,k).le.0.0) vtn(i,k) = 0.0
         enddo
       enddo
   END subroutine slope_wdm6
@@ -2339,7 +2339,7 @@
   INTEGER       ::               its,ite, jts,jte, kts,kte
   real(kind=kind_phys), DIMENSION( its:ite , kts:kte) ::                                       &
                                                                           qrs, &
-                                                                          ncr, & 
+                                                                          ncr, &
                                                                        rslope, &
                                                                       rslopeb, &
                                                                       rslope2, &
@@ -2375,7 +2375,7 @@
           vt(i,k) = pvtr*rslopeb(i,k)*denfac(i,k)
           vtn(i,k) = pvtrn*rslopeb(i,k)*denfac(i,k)
           if(qrs(i,k).le.0.0) vt(i,k) = 0.0
-          if(ncr(i,k).le.0.0) vtn(i,k) = 0.0 
+          if(ncr(i,k).le.0.0) vtn(i,k) = 0.0
         enddo
       enddo
   END subroutine slope_rain
@@ -2402,7 +2402,7 @@
 
 
 
-      lamdas(x,y,z)= sqrt(sqrt(pidn0s*z/(x*y)))    
+      lamdas(x,y,z)= sqrt(sqrt(pidn0s*z/(x*y)))
 
       do k = kts, kte
         do i = its, ite
@@ -2450,7 +2450,7 @@
 
 
 
-      lamdag(x,y)=   sqrt(sqrt(pidn0g/(x*y)))      
+      lamdag(x,y)=   sqrt(sqrt(pidn0g/(x*y)))
 
       do k = kts, kte
         do i = its, ite
@@ -2717,10 +2717,10 @@
       enddo sum_precip
 
 
-      rql(i,:) = qn(:)     
+      rql(i,:) = qn(:)
 
 
-      enddo i_loop         
+      enddo i_loop
 
   END SUBROUTINE nislfv_rain_plmr
 
@@ -3211,7 +3211,7 @@
       real(kind=kind_phys) :: cdm2
       real(kind=kind_phys) :: temp
       real(kind=kind_phys) :: supcol, n0sfac, lamdas
-      real(kind=kind_phys) :: diai      
+      real(kind=kind_phys) :: diai
       real(kind=kind_phys) :: lamc
       logical :: has_qc, has_qi, has_qs
 
@@ -3229,18 +3229,18 @@
       cdm2 = rgmma(cdm)
 
       do k=kts,kte
-        
+
         rqc(k) = max(R1, qc(k)*rho(k))
         rnc(k) = max(R2, nc(k)*rho(k))
         if (rqc(k).gt.R1 .and. rnc(k).gt.R2) has_qc = .true.
-        
+
         rqi(k) = max(R1, qi(k)*rho(k))
         temp = (rho(k)*max(qi(k),qmin))
         temp = sqrt(sqrt(temp*temp*temp))
         ni(k) = min(max(5.38e7*temp,1.e3),1.e6)
         rni(k)= max(R2, ni(k)*rho(k))
         if (rqi(k).gt.R1 .and. rni(k).gt.R2) has_qi = .true.
-        
+
         rqs(k) = max(R1, qs(k)*rho(k))
         if (rqs(k).gt.R1) has_qs = .true.
       enddo
@@ -3266,7 +3266,7 @@
           if (rqs(k).le.R1) CYCLE
           supcol = t0c-t(k)
           n0sfac = max(min(exp(alpha*supcol),n0smax/n0s),1.)
-          lamdas = sqrt(sqrt(pidn0s*n0sfac/rqs(k))) 
+          lamdas = sqrt(sqrt(pidn0s*n0sfac/rqs(k)))
           re_qs(k) = max(25.e-6,min(0.5*(1./lamdas),999.e-6))
         enddo
       endif
