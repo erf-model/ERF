@@ -23,23 +23,33 @@ WDM6 (WRF Double-Moment 6-class) microphysics scheme for ERF. This implementatio
 
 ## Implementation Status
 
-✅ **Complete:**
-- C++ GPU implementation with full microphysics physics
+✅ **Complete (CPU/Fortran bridge):**
+- Full WRF WDM6 physics via Fortran bridge (enable with -DERF_ENABLE_WDM6_FORT=ON)
+  - Direct port from WRF module_mp_wdm6.F
   - Warm rain processes (double-moment: qc, qr with nc, nr)
   - Ice processes (single-moment: qi, qs, qg)
-  - Sedimentation with mass conservation
+  - WRF sedimentation (nislfv_rain_plm6/plmr routines)
   - CCN activation and aerosol tracking (nn)
+
+⚠️ **Partial (C++ GPU implementation):**
+- Warm rain processes implemented but needs validation:
+  - CCN activation and aerosol tracking (nn)
+  - Condensation/evaporation
+  - Autoconversion and accretion
+  - Sedimentation (simplified, not WRF PLM scheme)
+  - Results may be unphysical - needs debugging
+- Ice processes: stub/placeholder implementations only
+  - Basic freezing/melting transfers present
+  - Not physically accurate
+
+✅ **Infrastructure:**
 - State management (9 moisture variables: qv-qg + nn, nc, nr)
 - Critical bug fixes:
   - nn initialization preventing storm collapse
   - Theta update conserving latent heating
   - Proper CCN/droplet coupling
-- Infrastructure (build system, enums, factory)
+- Build system, enums, factory
 - I/O support
-- Test input files
-
-✅ **Available (optional):**
-- Fortran bridge for WRF validation (enable with -DERF_ENABLE_WDM6_FORT=ON)
 
 ## Physics Implemented
 
@@ -84,17 +94,14 @@ Note: `nn` is NOT ice number (`ni` in Morrison). WDM6 is double-moment for liqui
   - Used for maritime vs continental CCN behavior
 
 ### Physical Bounds
-- `nc >= ncmin = 1e1 m⁻³`
-- `nr >= nrmin = 1e-2 m⁻³`
-- `nn >= 0` (can deplete as CCN activate)
+- `nc >= ncmin = 1e1 #/kg`
+- `nr >= nrmin = 1e-2 #/kg`
+- `nn >= 0 #/kg` (can deplete as CCN activate)
 
 ## Testing
 
 Tested with:
-- Warm bubble simulations (continental and maritime CCN concentrations)
-- Squall line cases
-- Verification against bounds and physical constraints
-- Energy conservation checks
+- 06 June 2023 mesoscale convective system (MCS) gravity wave case from AWAKEN
 
 ## Build Instructions
 
@@ -120,10 +127,10 @@ wdm6.hail_opt = 0     # 0=graupel, 1=hail
 
 ## References
 
-- WRF WDM6 source: `/p/lustre1/wise14/wrf/compiling/WRF/WRF_v4.7.1_clean/phys/module_mp_wdm6.F`
+- WRF WDM6 source: `WRF/phys/module_mp_wdm6.F`
 - Lim & Hong (2010): Development of an effective double-moment cloud microphysics scheme
 - Abdul-Razzak & Ghan (2000): A parameterization of aerosol activation
-- WSM6 ERF implementation: `/g/g10/wise14/compiling/clean/ERF/Source/Microphysics/WSM6/`
+- WSM6 ERF implementation: `/Source/Microphysics/WSM6/`
 
 ## Contact
 
