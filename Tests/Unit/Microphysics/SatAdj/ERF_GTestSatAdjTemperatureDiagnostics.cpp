@@ -235,3 +235,61 @@ TEST(SatAdjTemperatureDiagnostics, ProductionMoistDerivedTemperatureMatchesEOSPr
         }
     }
 }
+
+// Motivation: anelastic SatAdj must use the caller's HSE pressure field.  A
+// hidden EOS pressure would make the result depend on rho*theta and can be
+// inconsistent with the temperature and qsat diagnostics.
+TEST(SatAdjTemperatureDiagnostics, AnelasticPressureContextMatchesReference)
+{
+    const amrex::Geometry geom = make_geometry(2, 1, 1);
+    const amrex::BoxArray ba(geom.Domain());
+    const amrex::DistributionMapping dm(ba);
+    amrex::MultiFab cons(ba, dm, RhoQ2_comp + 1, 0);
+    amrex::MultiFab base(ba, dm, BaseState::num_comps, 0);
+    cons.setVal(amrex::Real(0.0));
+    base.setVal(amrex::Real(0.0));
+    cons.setVal(amrex::Real(1.0), Rho_comp, 1);
+    cons.setVal(amrex::Real(300.0), RhoTheta_comp, 1);
+    cons.setVal(amrex::Real(0.03), RhoQ1_comp, 1);
+    for (amrex::MFIter mfi(base); mfi.isValid(); ++mfi) {
+        const auto bx = mfi.validbox();
+        const auto p0 = base.array(mfi);
+        amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+            p0(i,j,k,BaseState::p0_comp) = (i == 0) ?
+                amrex::Real(100000.0) : amrex::Real(90000.0);
+        });
+    }
+    satadj_test::sync();
+
+    SatAdj satadj;
+    SolverChoice sc = make_solver_choice(false);
+    satadj.Define(sc);
+    run_and_sync([&]() {
+        std::unique_ptr<amrex::MultiFab> z_phys_nd;
+        std::unique_ptr<amrex::MultiFab> detJ_cc;
+        satadj.Init(cons, cons.boxArray(), geom, amrex::Real(1.0), z_phys_nd, detJ_cc);
+        satadj.Update_Micro_Vars(cons, &base);
+        satadj.Advance(amrex::Real(1.0), sc);
+        satadj.Copy_Micro_to_State(cons);
+    });
+
+    const amrex::MultiFab cons_host = make_host_mirror(cons);
+    const amrex::MultiFab base_host = make_host_mirror(base);
+    for (amrex::MFIter mfi(cons_host); mfi.isValid(); ++mfi) {
+        const auto state = cons_host.const_array(mfi);
+        const auto p0 = base_host.const_array(mfi);
+        const auto bx = mfi.validbox();
+        for (int i = bx.smallEnd(0); i <= bx.bigEnd(0); ++i) {
+            const amrex::Real pressure = p0(i,0,0,BaseState::p0_comp);
+            amrex::Real tabs = getTgivenPandTh(pressure, amrex::Real(300.0), kRdOcp);
+            amrex::Real theta = amrex::Real(300.0);
+            amrex::Real qv = amrex::Real(0.03);
+            amrex::Real qc = amrex::Real(0.0);
+            SatAdj::AdjustSatAdjCell(kFacCond, kRdOcp, tabs, pressure*amrex::Real(0.01),
+                                     theta, qv, qc);
+            EXPECT_NEAR(state(i,0,0,RhoTheta_comp), theta, derived_temperature_tol(theta));
+            EXPECT_NEAR(state(i,0,0,RhoQ1_comp), qv, mixing_ratio_tol(qv));
+            EXPECT_NEAR(state(i,0,0,RhoQ2_comp), qc, mixing_ratio_tol(qc));
+        }
+    }
+}

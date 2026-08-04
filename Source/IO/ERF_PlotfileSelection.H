@@ -78,6 +78,7 @@ plot3d_moisture_capabilities (const MoistureType moisture_type)
     case MoistureType::SatAdj:
         caps.vapor = true;
         caps.cloud_liquid = true;
+        caps.relative_humidity_diagnostic = true;
         break;
     case MoistureType::Kessler_NoRain:
         caps.vapor = true;
@@ -343,7 +344,8 @@ plot3d_fixed_variable_available (const std::string& name,
         caps.qmoist_size >= (caps.moisture_type == MoistureType::SuperDroplets ? 7 : 1);
     if (name == "snow_accum") return moisture.snow_accumulation && caps.qmoist_size >= 2;
     if (name == "graup_accum") return moisture.graupel_accumulation && caps.qmoist_size >= 3;
-    if (name == "rel_humidity") return moisture.relative_humidity_diagnostic && caps.qmoist_size >= 6;
+    if (name == "rel_humidity") return moisture.relative_humidity_diagnostic &&
+        (caps.moisture_type == MoistureType::SatAdj || caps.qmoist_size >= 6);
     if (name == "condensation_rate") return moisture.condensation_rate_diagnostic && caps.qmoist_size >= 4;
 
     return plot3d_fixed_unconditional_diagnostic(name);
@@ -355,7 +357,8 @@ plot3d_needs_pressure (const amrex::Vector<std::string>& names)
     for (const auto& name : names) {
         if (name == "pressure" || name == "pert_pres" ||
             name == "dpdx" || name == "dpdy" || name == "dpdz" ||
-            name == "eq_pot_temp" || name == "VPD" || name == "qsat") {
+            name == "eq_pot_temp" || name == "VPD" || name == "qsat" ||
+            name == "rel_humidity") {
             return true;
         }
 #ifdef ERF_COMPUTE_ERROR

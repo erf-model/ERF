@@ -55,7 +55,9 @@
 #endif
                           native_shoc_driver[level].get(),
                           fr_as_crse, fr_as_fine,
-                          m_r2d);
+                          m_r2d, &base_state[level],
+                          cloud_chamber_config.active ? &cloud_chamber_config : nullptr,
+                          cloud_chamber_budget.get());
 
         // Implicit diffusion of moisture
         #include "ERF_ImplicitPost.H"
