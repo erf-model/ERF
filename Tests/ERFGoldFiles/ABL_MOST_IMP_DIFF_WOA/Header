@@ -1,0 +1,37 @@
+HyperCLaw-V1.1
+9
+density
+rhoadv_0
+x_velocity
+y_velocity
+z_velocity
+temp
+theta
+pressure
+qv
+3
+0.099999999999999992
+0
+0 0 0 
+600 40 1000 
+
+((0,0,0) (171,3,50) (0,0,0)) 
+10 
+3.4883720930232558 10 19.607843137254903 
+0
+0
+0 2 0.099999999999999992
+10
+0 300
+0 40
+0 1000.0000000000001
+300 600
+0 40
+0 1000.0000000000001
+Level_0/Cell
+1
+3
+amrexvec_nu_x
+amrexvec_nu_y
+amrexvec_nu_z
+Level_0/Nu_nd
