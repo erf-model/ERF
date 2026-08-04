@@ -7,6 +7,12 @@
 
 using namespace amrex;
 
+/**
+ * Fill boundary ghost cells for cell-centered velocities.
+ *
+ * @param[in,out] mf_cc_vel cell-centered velocity MultiFab to be filled
+ * @param[in]     lev_geom  geometry for the level being filled
+ */
 void
 ERF::FillBdyCCVels (MultiFab& mf_cc_vel, Geometry& lev_geom)
 {

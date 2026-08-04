@@ -23,6 +23,11 @@ enum class SurfaceDiagnosticSource : int
     RICO                 = 6
 };
 
+/**
+ * Convert a diagnostic source enum to its integer code.
+ *
+ * @param[in] source diagnostic source enum value
+ */
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 int
 to_int (SurfaceDiagnosticSource source) noexcept
@@ -30,6 +35,11 @@ to_int (SurfaceDiagnosticSource source) noexcept
     return static_cast<int>(source);
 }
 
+/**
+ * Convert a diagnostic source enum to the Real value written to plotfiles.
+ *
+ * @param[in] source diagnostic source enum value
+ */
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 amrex::Real
 to_plot_value (SurfaceDiagnosticSource source) noexcept
@@ -37,6 +47,15 @@ to_plot_value (SurfaceDiagnosticSource source) noexcept
     return static_cast<amrex::Real>(to_int(source));
 }
 
+/**
+ * Classify the provenance of a scalar surface flux.
+ *
+ * @param[in] is_custom whether the custom flux mode is active
+ * @param[in] is_rico whether the RICO flux mode is active
+ * @param[in] is_land whether the cell is classified as land
+ * @param[in] has_lsm_flux whether an LSM flux array is available
+ * @param[in] lsm_flux_is_valid whether the LSM flux value is valid
+ */
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 SurfaceDiagnosticSource
 classify_scalar_source (bool is_custom,
@@ -63,6 +82,11 @@ classify_scalar_source (bool is_custom,
     return SurfaceDiagnosticSource::SurfaceLayerSea;
 }
 
+/**
+ * Return the string name for a diagnostic source enum value.
+ *
+ * @param[in] source diagnostic source enum value
+ */
 inline const char*
 source_name (SurfaceDiagnosticSource source) noexcept
 {

@@ -7,15 +7,14 @@
 
 using namespace amrex;
 
-/*
+/**
  * Fill valid and ghost data.
  * This version fills an entire MultiFab by interpolating from the coarser level -- this is used
  * only when a new level of refinement is being created during a run (i.e not at initialization)
  * This will never be used with static refinement.
  *
- * @param[in]  lev            level of refinement at which to fill the data
- * @param[in]  time           time at which the data should be filled
- * @param[out] mfs            Vector of MultiFabs to be filled containing, in order: cons, xvel, yvel, and zvel data
+ * @param[in] lev  level of refinement at which to fill the data
+ * @param[in] time time at which the data should be filled
  */
 void
 ERF::FillCoarsePatch (int lev, double time)

@@ -17,13 +17,17 @@ using namespace amrex;
  * @param[in]  Tau_lev strain at this level
  * @param[in]  cons_in cell center conserved quantities
  * @param[out] eddyViscosity turbulent viscosity
- * @param[in]  Hfx1 heat flux in x-dir
- * @param[in]  Hfx2 heat flux in y-dir
- * @param[in]  Hfx3 heat flux in z-dir
- * @param[in]  Diss dissipation of turbulent kinetic energy
+ * @param[out] Hfx1 heat flux in x-dir
+ * @param[out] Hfx2 heat flux in y-dir
+ * @param[out] Hfx3 heat flux in z-dir
+ * @param[out] Diss dissipation of turbulent kinetic energy
  * @param[in]  geom problem geometry
+ * @param[in]  use_terrain_fitted_coords flag for terrain-fitted coordinates
  * @param[in]  mapfac map factors
+ * @param[in]  z_phys_nd nodal physical z coordinates
  * @param[in]  turbChoice container with turbulence parameters
+ * @param[in]  const_grav gravitational acceleration
+ * @param[in]  moisture_indices moisture component indices
  * @param[in]  xvel x-direction velocity (for moist Ri correction)
  * @param[in]  yvel y-direction velocity (for moist Ri correction)
  */
@@ -209,13 +213,13 @@ void ComputeTurbulentViscosityLES (Vector<std::unique_ptr<MultiFab>>& Tau_lev,
                 Real dtheta_dz;
                 if (use_thetav_grad) {
                     dtheta_dz = myhalf * ( GetThetav(i, j, k+1, cell_data, moisture_indices)
-                                      - GetThetav(i, j, k-1, cell_data, moisture_indices) )*dzInv;
+                                          -GetThetav(i, j, k-1, cell_data, moisture_indices) )*dzInv;
                 } else if (use_thetal_grad) {
                     dtheta_dz = myhalf * ( GetThetal(i, j, k+1, cell_data, moisture_indices)
-                                      - GetThetal(i, j, k-1, cell_data, moisture_indices) )*dzInv;
+                                          -GetThetal(i, j, k-1, cell_data, moisture_indices) )*dzInv;
                 } else {
                     dtheta_dz = myhalf * ( cell_data(i, j, k+1, RhoTheta_comp) / cell_data(i, j, k+1, Rho_comp)
-                                      - cell_data(i, j, k-1, RhoTheta_comp) / cell_data(i, j, k-1, Rho_comp) )*dzInv;
+                                          -cell_data(i, j, k-1, RhoTheta_comp) / cell_data(i, j, k-1, Rho_comp) )*dzInv;
                 }
 
                 // Calculate stratification-dependent mixing length (Deardorff 1980, Eqn. 10a)
@@ -555,16 +559,20 @@ void ComputeTurbulentViscosityLES_EB (Vector<std::unique_ptr<MultiFab>>& Tau_lev
 /**
  * Function for computing the eddy viscosity with RANS.
  *
- * @param[in]  Tau_lev strain at this level
  * @param[in]  cons_in cell center conserved quantities
+ * @param[in]  wdist wall distance
  * @param[out] eddyViscosity turbulent viscosity
- * @param[in]  Hfx1 heat flux in x-dir
- * @param[in]  Hfx2 heat flux in y-dir
- * @param[in]  Hfx3 heat flux in z-dir
- * @param[in]  Diss dissipation of turbulent kinetic energy
+ * @param[out] Hfx1 heat flux in x-dir
+ * @param[out] Hfx2 heat flux in y-dir
+ * @param[out] Hfx3 heat flux in z-dir
+ * @param[out] Diss dissipation of turbulent kinetic energy
  * @param[in]  geom problem geometry
- * @param[in]  mapfac map factor
+ * @param[in]  use_terrain_fitted_coords flag for terrain-fitted coordinates
+ * @param[in]  z_phys_nd nodal physical z coordinates
  * @param[in]  turbChoice container with turbulence parameters
+ * @param[in]  const_grav gravitational acceleration
+ * @param[in]  SurfLayer optional surface-layer model
+ * @param[in]  z_0 roughness length
  */
 void ComputeTurbulentViscosityRANS (Vector<std::unique_ptr<MultiFab>>& /*Tau_lev*/,
                                     const MultiFab& cons_in,
@@ -773,19 +781,29 @@ void ComputeTurbulentViscosityRANS (Vector<std::unique_ptr<MultiFab>>& /*Tau_lev
 /**
  * Wrapper to compute turbulent viscosity with LES or PBL.
  *
+ * @param[in]  dt time step
  * @param[in]  xvel velocity in x-dir
  * @param[in]  yvel velocity in y-dir
  * @param[in]  Tau_lev strain at this level
  * @param[in]  cons_in cell center conserved quantities
+ * @param[in]  wdist wall distance
  * @param[out] eddyViscosity turbulent viscosity
- * @param[in]  Hfx1 heat flux in x-dir
- * @param[in]  Hfx2 heat flux in y-dir
- * @param[in]  Hfx3 heat flux in z-dir
- * @param[in]  Diss dissipation of turbulent kinetic energy
+ * @param[out] Hfx1 heat flux in x-dir
+ * @param[out] Hfx2 heat flux in y-dir
+ * @param[out] Hfx3 heat flux in z-dir
+ * @param[out] Diss dissipation of turbulent kinetic energy
  * @param[in]  geom problem geometry
  * @param[in]  mapfac map factors
- * @param[in]  turbChoice container with turbulence parameters
- * @param[in]  most pointer to Monin-Obukhov class if instantiated
+ * @param[in]  z_phys_nd nodal physical z coordinates
+ * @param[in]  z_phys_cc cell-centered physical z coordinates
+ * @param[in]  solverChoice container with solver, diffusion, and turbulence parameters
+ * @param[in]  SurfLayer optional surface-layer model
+ * @param[in]  z_0 roughness length
+ * @param[in]  use_terrain_fitted_coords flag for terrain-fitted coordinates
+ * @param[in]  use_moisture flag for moisture physics
+ * @param[in]  level AMR level
+ * @param[in]  bc_ptr boundary condition records
+ * @param[in]  ebfact EB factories for cell- and face-centered variables
  * @param[in]  vert_only flag for vertical components of eddyViscosity
  * @param[in]  qheating_rates radiation heating rates (SW, LW components)
  */
@@ -831,10 +849,9 @@ void ComputeTurbulentViscosity (double dt,
         AMREX_ALWAYS_ASSERT(!vert_only);
     }
 
-    bool impose_phys_bcs = false;
+    bool impose_phys_bcs = true;
 
     if (turbChoice.les_type != LESType::None) {
-        impose_phys_bcs = true;
         if (solverChoice.terrain_type == TerrainType::EB) {
             ComputeTurbulentViscosityLES_EB(Tau_lev,
                                         cons_in, eddyViscosity,
@@ -856,7 +873,6 @@ void ComputeTurbulentViscosity (double dt,
     }
 
     if (turbChoice.rans_type != RANSType::None) {
-        impose_phys_bcs = true;
         ComputeTurbulentViscosityRANS(Tau_lev,
                                       cons_in, wdist,
                                       eddyViscosity,
@@ -968,7 +984,7 @@ void ComputeTurbulentViscosity (double dt,
                 int lj = amrex::min(amrex::max(j, domlo.y), domhi.y);
                 int lk = amrex::min(amrex::max(k, domlo.z), domhi.z);
                 if ((mask_arr(i,j,k) == is_notcovered && mask_arr(i_lo,lj,lk) != is_notcovered) ||
-                    (mask_arr(i,j,k) == is_physbnd     && i < domlo.x && impose_phys_bcs)) {
+                    (mask_arr(i,j,k) == is_physbnd    && i < domlo.x && impose_phys_bcs)) {
                     for (int n = 0; n < ncomp; n++) {
                         mu_turb(i,j,k,n) = mu_turb(i_lo,lj,lk,n);
                     }
@@ -979,7 +995,7 @@ void ComputeTurbulentViscosity (double dt,
                 int lj = amrex::min(amrex::max(j, domlo.y), domhi.y);
                 int lk = amrex::min(amrex::max(k, domlo.z), domhi.z);
                 if ((mask_arr(i,j,k) == is_notcovered && mask_arr(i_hi,lj,lk) != is_notcovered) ||
-                    (mask_arr(i,j,k) == is_physbnd     && i > domhi.x && impose_phys_bcs)) {
+                    (mask_arr(i,j,k) == is_physbnd    && i > domhi.x && impose_phys_bcs)) {
                     for (int n = 0; n < ncomp; n++) {
                         mu_turb(i,j,k,n) = mu_turb(i_hi,lj,lk,n);
                     }
@@ -989,7 +1005,7 @@ void ComputeTurbulentViscosity (double dt,
             {
                 int lk = amrex::min(amrex::max(k, domlo.z), domhi.z);
                 if ((mask_arr(i,j,k) == is_notcovered && mask_arr(i,j_lo,lk) != is_notcovered) ||
-                    (mask_arr(i,j,k) == is_physbnd     && j < domlo.y && impose_phys_bcs)) {
+                    (mask_arr(i,j,k) == is_physbnd    && j < domlo.y && impose_phys_bcs)) {
                     for (int n = 0; n < ncomp; n++) {
                         mu_turb(i,j,k,n) = mu_turb(i,j_lo,lk,n);
                     }
@@ -999,7 +1015,7 @@ void ComputeTurbulentViscosity (double dt,
             {
                 int lk = amrex::min(amrex::max(k, domlo.z), domhi.z);
                 if ((mask_arr(i,j,k) == is_notcovered && mask_arr(i,j_hi,lk) != is_notcovered)||
-                    (mask_arr(i,j,k) == is_physbnd     && j > domhi.y && impose_phys_bcs)) {
+                    (mask_arr(i,j,k) == is_physbnd    && j > domhi.y && impose_phys_bcs)) {
                     for (int n = 0; n < ncomp; n++) {
                         mu_turb(i,j,k,n) = mu_turb(i,j_hi,lk,n);
                     }
@@ -1008,7 +1024,7 @@ void ComputeTurbulentViscosity (double dt,
             ParallelFor(planez_lo, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
                 if ((mask_arr(i,j,k) == is_notcovered && mask_arr(i,j,k_lo) != is_notcovered) ||
-                    (mask_arr(i,j,k) == is_physbnd     && k < domlo.z && impose_phys_bcs)) {
+                    (mask_arr(i,j,k) == is_physbnd    && k < domlo.z && impose_phys_bcs)) {
                     if (mask_arr(i,j,k) == is_physbnd) {
                     }
                     for (int n = 0; n < ncomp; n++) {
@@ -1019,13 +1035,14 @@ void ComputeTurbulentViscosity (double dt,
             ParallelFor(planez_hi, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
                 if ((mask_arr(i,j,k) == is_notcovered && mask_arr(i,j,k_hi) != is_notcovered) ||
-                    (mask_arr(i,j,k) == is_physbnd     && k > domhi.z && impose_phys_bcs)) {
+                    (mask_arr(i,j,k) == is_physbnd    && k > domhi.z && impose_phys_bcs)) {
                     for (int n = 0; n < ncomp; n++) {
                         mu_turb(i,j,k,n) = mu_turb(i,j,k_hi,n);
                     }
                 }
             });
         } // mfi
+
         eddyViscosity.FillBoundary(geom.periodicity());
     }
 }

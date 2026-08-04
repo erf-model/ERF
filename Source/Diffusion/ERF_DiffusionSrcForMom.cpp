@@ -23,9 +23,16 @@ using namespace amrex;
  * @param[in]  tau31 31 stress
  * @param[in]  tau32 32 stress
  * @param[in]  detJ Jacobian determinant
- * @param[in]  differChoice container with diffusion parameters
+ * @param[in]  stretched_dz_d array of vertical mesh spacings
  * @param[in]  dxInv inverse cell size array
- * @param[in]  mf_m map factor at cell center
+ * @param[in]  mf_mx x map factor at cell centers
+ * @param[in]  mf_ux x map factor at x-faces
+ * @param[in]  mf_vx x map factor at y-faces
+ * @param[in]  mf_my y map factor at cell centers
+ * @param[in]  mf_uy y map factor at x-faces
+ * @param[in]  mf_vy y map factor at y-faces
+ * @param[in]  l_stretched_dz flag for stretched vertical spacing
+ * @param[in]  l_variable_dz flag for terrain-fitted vertical metrics
  */
 void
 DiffusionSrcForMom (const Box& bxx, const Box& bxy , const Box& bxz,

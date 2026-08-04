@@ -14,6 +14,16 @@
 
 class MOSTAverage {
 public:
+    /**
+     * Construct the MOST averaging helper.
+     *
+     * @param[in] geom           geometry for all AMR levels
+     * @param[in] has_zphys      whether nodal physical-height data are available
+     * @param[in] a_pp_prefix    ParmParse prefix
+     * @param[in] m_mesh_type    mesh type
+     * @param[in] m_terrain_type terrain representation
+     * @param[in] eb_vec         optional embedded-boundary geometry data
+     */
     explicit MOSTAverage (amrex::Vector<amrex::Geometry>  geom,
                           const bool& has_zphys,
                           std::string a_pp_prefix,
@@ -22,23 +32,49 @@ public:
                           const amrex::Vector<const eb_*>& eb_vec = {});
 
     // MOSTAverage() = default;
+
+    /**
+     * Destroy the MOST averaging helper.
+     */
     ~MOSTAverage ()
     {}
 
-    // Declare a default move constructor so we ensure the destructor is
-    // not called when we return an object of this class by value
+    /**
+     * Default move constructor.
+     */
     MOSTAverage (MOSTAverage&&)  noexcept = default;
 
-    // Delete the move assignment operator
+    /**
+     * Deleted move-assignment operator.
+     *
+     * @param[in] other source object
+     */
     MOSTAverage& operator=(MOSTAverage&& other)  noexcept = delete;
 
-    // Delete the copy constructor
+    /**
+     * Deleted copy constructor.
+     *
+     * @param[in] other source object
+     */
     MOSTAverage (const MOSTAverage& other) = delete;
 
-    // Delete the copy assignment operator
+    /**
+     * Deleted copy-assignment operator.
+     *
+     * @param[in] other source object
+     */
     MOSTAverage& operator=(const MOSTAverage& other) = delete;
 
-    // Make data structures at level
+    /**
+     * Make MOST-average data structures at one level.
+     *
+     * @param[in] lev        level index
+     * @param[in] vars_old   old-time state and velocity fields
+     * @param[in] Theta_prim primitive potential-temperature field
+     * @param[in] Qv_prim    primitive water-vapor field
+     * @param[in] Qr_prim    primitive rain-water field
+     * @param[in] z_phys_nd  nodal physical-height field
+     */
     void make_MOSTAverage_at_level (const int& lev,
                                     const amrex::Vector<amrex::MultiFab*>& vars_old,
                                     std::unique_ptr<amrex::MultiFab>& Theta_prim,
@@ -46,76 +82,170 @@ public:
                                     std::unique_ptr<amrex::MultiFab>& Qr_prim,
                                     std::unique_ptr<amrex::MultiFab>& z_phys_nd);
 
-    // Reset the pointers to field MFs
+    /**
+     * Reset pointers to field MultiFabs.
+     *
+     * @param[in] lev        level index
+     * @param[in] vars_old   old-time state and velocity fields
+     * @param[in] Theta_prim primitive potential-temperature fields by level
+     * @param[in] Qv_prim    primitive water-vapor fields by level
+     * @param[in] Qr_prim    primitive rain-water fields by level
+     */
     void update_field_ptrs (const int& lev,
                             amrex::Vector<amrex::Vector<amrex::MultiFab>>& vars_old,
                             amrex::Vector<std::unique_ptr<amrex::MultiFab>>& Theta_prim,
                             amrex::Vector<std::unique_ptr<amrex::MultiFab>>& Qv_prim,
                             amrex::Vector<std::unique_ptr<amrex::MultiFab>>& Qr_prim);
 
-    // Update the rotated fields
+    /**
+     * Update the rotated fields.
+     *
+     * @param[in] lev level index
+     */
     void set_rotated_fields (const int& lev);
 
-    // Compute ncells per plane
+    /**
+     * Compute number of cells per averaging plane.
+     *
+     * @param[in] lev level index
+     */
     void set_plane_normalization (const int& lev);
 
-    // Compute total boundary area over EB
+    /**
+     * Compute total embedded-boundary surface area.
+     *
+     * @param[in] lev level index
+     */
     void set_eb_normalization (const int& lev);
 
-    // Compute ncells per plane
+    /**
+     * Compute number of cells in the region average.
+     *
+     * @param[in] lev level index
+     */
     void set_region_normalization (const int& /*lev*/)
     {m_ncell_region = (2 * m_radius + 1) * (2 * m_radius + 1) * (2 * m_radius + 1);}
 
-    // Populate a 2D iMF k_indx (w/o terrain)
+    /**
+     * Populate the 2D k-index iMultiFab without terrain.
+     *
+     * @param[in] lev level index
+     */
     void set_k_indices_N (const int& lev);
 
-    // Populate a 2D iMF k_indx (w/ terrain)
+    /**
+     * Populate the 2D k-index iMultiFab with terrain.
+     *
+     * @param[in] lev level index
+     */
     void set_k_indices_T (const int& lev);
 
-    // Populate all 2D iMFs ijk_indx (w/ terrain)
+    /**
+     * Populate all 2D normal-index iMultiFabs with terrain.
+     *
+     * @param[in] lev level index
+     */
     void set_norm_indices_T (const int& lev);
 
-    // Populate positions (w/ terrain & norm vector & interpolation)
+    /**
+     * Populate terrain-aware z positions.
+     *
+     * @param[in] lev level index
+     */
     void set_z_positions_T (const int& lev);
 
-    // Populate positions (for EB)
+    /**
+     * Populate embedded-boundary z positions.
+     *
+     * @param[in] lev level index
+     */
     void set_z_positions_EB (const int& lev);
 
-    // Populate positions (w/ terrain & norm vector & interpolation)
+    /**
+     * Populate terrain-aware normal positions.
+     *
+     * @param[in] lev level index
+     */
     void set_norm_positions_T (const int& lev);
 
-    // Driver for the different average policies
+    /**
+     * Driver for the selected average policy.
+     *
+     * @param[in] lev level index
+     */
     void compute_averages (const int& lev);
 
-    // Fill averages for policy::plane
+    /**
+     * Fill averages for the plane policy.
+     *
+     * @param[in] lev level index
+     */
     void compute_plane_averages (const int& lev);
 
-    // Fill averages for policy::point
+    /**
+     * Fill averages for the point or region policy.
+     *
+     * @param[in] lev level index
+     */
     void compute_region_averages (const int& lev);
 
-    // Fill averages for policy::EB
+    /**
+     * Fill averages for the embedded-boundary policy.
+     *
+     * @param[in] lev level index
+     */
     void compute_eb_averages (const int& lev);
 
-    // Write k indices
+    /**
+     * Write k-index data.
+     *
+     * @param[in] lev level index
+     */
     void write_k_indices (const int& lev);
 
-    // Write ijk indices
+    /**
+     * Write normal-index data.
+     *
+     * @param[in] lev level index
+     */
     void write_norm_indices (const int& lev);
 
-    // Write XZ planar positions
+    /**
+     * Write XZ planar positions.
+     *
+     * @param[in] lev level index
+     * @param[in] j   y-index of the plane to write
+     */
     void write_xz_positions (const int& lev,
                              const int& j);
 
-    // Write averages on 2D mf
+    /**
+     * Write averages on the 2D MultiFab.
+     *
+     * @param[in] lev level index
+     */
     void write_averages (const int& lev);
 
-    // Get pointer to the 2D mf of averages
+    /**
+     * Return one 2D average MultiFab.
+     *
+     * @param[in] lev  level index
+     * @param[in] comp average component index
+     */
     [[nodiscard]] const amrex::MultiFab* get_average (const int& lev, const int& comp) const { return m_averages[lev][comp].get(); }
 
-    // Get z_ref (may be computed from specified k_indx)
+    /**
+     * Return z_ref, which may be computed from a specified k-index.
+     *
+     * @param[in] lev level index
+     */
     [[nodiscard]] amrex::MultiFab* get_zref (const int& lev) const { return m_zref[lev].get(); }
 
-    // Get pointer to the k-index mf
+    /**
+     * Return the k-index iMultiFab.
+     *
+     * @param[in] lev level index
+     */
     [[nodiscard]] const amrex::iMultiFab* get_k_indices (const int& lev) const { return m_k_indx[lev].get(); }
 
     /**
@@ -123,6 +253,7 @@ public:
      *
      * @param[in] xp X-position
      * @param[in] yp Y-position
+     * @param[in] zp Z-position
      * @param[out] interp_vals Values interpolated
      * @param[in] interp_array Array to interpolate on
      * @param[in] z_arr Physical heights

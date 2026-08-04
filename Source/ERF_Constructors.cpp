@@ -218,6 +218,28 @@ ERF::ERF_shared ()
 #endif
     prob = amrex_probinit(geom[0].ProbLo(),geom[0].ProbHi());
 
+    ParmParse pp_erf("erf");
+    std::string prob_name;
+    pp_erf.query("prob_name", prob_name);
+    const std::string prob_name_ci = amrex::toLower(prob_name);
+    if (prob_name_ci == "cloud chamber" || prob_name_ci == "cloudchamber") {
+        cloud_chamber_config = erf_cloud_chamber::parse_config(
+            geom[0].ProbLo(), geom[0].ProbHi());
+    }
+    {
+        int budget_interval = 0;
+        pp_erf.query("cloud_chamber_budget_interval", budget_interval);
+        if (budget_interval > 0) {
+            if (!cloud_chamber_config.active ||
+                !cloud_chamber_config.physical_initialization ||
+                (solverChoice.moisture_type != MoistureType::None &&
+                 solverChoice.moisture_type != MoistureType::SatAdj)) {
+                Error("Cloud Chamber: cloud_chamber_budget_interval requires physical_temperature_rh with no moisture or SatAdj");
+            }
+            cloud_chamber_budget = std::make_unique<CloudChamberBudget>(budget_interval);
+        }
+    }
+
     // Geometry on all levels has been defined already.
 
     // No valid BoxArray and DistributionMapping have been defined.
