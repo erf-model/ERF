@@ -179,19 +179,20 @@ amrex::Real sam_theta_from_stored_mbar_converted_to_pa (const amrex::Real& tabs,
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-SAMPrimitiveCell sam_cons_to_primitive (const amrex::Real& rho,
-                                        const amrex::Real& rho_theta,
-                                        const amrex::Real& rho_qv,
-                                        const amrex::Real& rho_qcl,
-                                        const amrex::Real& rho_qci,
-                                        const amrex::Real& rho_qpr,
-                                        const amrex::Real& rho_qps,
-                                        const amrex::Real& rho_qpg) noexcept
+SAMPrimitiveCell sam_cons_to_primitive_with_thermo (
+    const amrex::Real& rho,
+    const amrex::Real& rho_theta,
+    const amrex::Real& rho_qv,
+    const amrex::Real& rho_qcl,
+    const amrex::Real& rho_qci,
+    const amrex::Real& rho_qpr,
+    const amrex::Real& rho_qps,
+    const amrex::Real& rho_qpg,
+    const MicrophysicsThermoState& thermo) noexcept
 {
-    // Copy-in reconstructs the SAM primitive cell state from the conserved ERF
-    // state, clips negative moisture defensively, and diagnoses tabs and
-    // pres_mbar from the incoming rho*theta/rho*q state. That diagnosed mbar
-    // pressure is the held pressure for the following source updates.
+    // Copy-in receives pressure and temperature selected by ERF's shared
+    // thermodynamic contract. The pressure is converted to SAM's established
+    // mbar storage only at this boundary and is held during source updates.
     SAMPrimitiveCell result{};
     result.rho = rho;
     result.theta = rho_theta / rho;
@@ -204,9 +205,27 @@ SAMPrimitiveCell sam_cons_to_primitive (const amrex::Real& rho,
     result.qps = amrex::max(amrex::Real(0.0), rho_qps / rho);
     result.qpg = amrex::max(amrex::Real(0.0), rho_qpg / rho);
     result.qp = result.qpr + result.qps + result.qpg;
-    result.tabs = getTgivenRandRTh(rho, rho_theta, result.qv);
-    result.pres_mbar = sam_pa_to_mbar(getPgivenRTh(rho_theta, result.qv));
+    result.tabs = thermo.temperature;
+    result.pres_mbar = sam_pa_to_mbar(thermo.pressure_pa);
     return result;
+}
+
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+SAMPrimitiveCell sam_cons_to_primitive (const amrex::Real& rho,
+                                        const amrex::Real& rho_theta,
+                                        const amrex::Real& rho_qv,
+                                        const amrex::Real& rho_qcl,
+                                        const amrex::Real& rho_qci,
+                                        const amrex::Real& rho_qpr,
+                                        const amrex::Real& rho_qps,
+                                        const amrex::Real& rho_qpg) noexcept
+{
+    const amrex::Real qv = amrex::max(amrex::Real(0.0), rho_qv / rho);
+    const MicrophysicsThermoState thermo = diagnose_microphysics_thermo_state(
+        rho, rho_theta, qv, RdoCp, false);
+    return sam_cons_to_primitive_with_thermo(rho, rho_theta, rho_qv, rho_qcl,
+                                             rho_qci, rho_qpr, rho_qps, rho_qpg,
+                                             thermo);
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE

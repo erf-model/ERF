@@ -62,6 +62,12 @@ void Kessler::Init (const MultiFab& cons_in,
  */
 void Kessler::Copy_State_to_Micro (const MultiFab& cons_in)
 {
+    Copy_State_to_Micro(cons_in, nullptr);
+}
+
+void Kessler::Copy_State_to_Micro (const MultiFab& cons_in,
+                                   const MultiFab* base_state)
+{
     // Get the temperature, density, theta, qt and qp from input
     for ( MFIter mfi(cons_in); mfi.isValid(); ++mfi) {
         const auto& box3d = mfi.tilebox();
@@ -78,23 +84,37 @@ void Kessler::Copy_State_to_Micro (const MultiFab& cons_in)
         auto theta_array = mic_fab_vars[MicVar_Kess::theta]->array(mfi);
         auto tabs_array  = mic_fab_vars[MicVar_Kess::tabs]->array(mfi);
         auto pres_array  = mic_fab_vars[MicVar_Kess::pres]->array(mfi);
+        const auto base_array = base_state ? base_state->const_array(mfi) : Array4<Real const>{};
+        const bool use_anelastic_reference_pressure = (base_state != nullptr);
+        const Real rdOcp = m_rdOcp;
 
-        // getPgivenRTh returns Pa. Kessler stores pressure in mbar / hPa for the
-        // qsat helper path, so convert here after forming temperature and density.
+        // The shared diagnosis returns Pa. Kessler stores pressure in mbar / hPa
+        // for the qsat helper path, so convert once at copy-in.
         ParallelFor( box3d, [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
-            rho_array(i,j,k)   = states_array(i,j,k,Rho_comp);
-            theta_array(i,j,k) = states_array(i,j,k,RhoTheta_comp)/states_array(i,j,k,Rho_comp);
-            qv_array(i,j,k)    = states_array(i,j,k,RhoQ1_comp)/states_array(i,j,k,Rho_comp);
-            qc_array(i,j,k)    = states_array(i,j,k,RhoQ2_comp)/states_array(i,j,k,Rho_comp);
-            qp_array(i,j,k)    = states_array(i,j,k,RhoQ3_comp)/states_array(i,j,k,Rho_comp);
+            const Real rho = states_array(i,j,k,Rho_comp);
+            const Real rho_theta = states_array(i,j,k,RhoTheta_comp);
+            const Real qv = states_array(i,j,k,RhoQ1_comp) / rho;
+
+            rho_array(i,j,k)   = rho;
+            theta_array(i,j,k) = rho_theta / rho;
+            qv_array(i,j,k)    = qv;
+            qc_array(i,j,k)    = states_array(i,j,k,RhoQ2_comp) / rho;
+            qp_array(i,j,k)    = states_array(i,j,k,RhoQ3_comp) / rho;
             qt_array(i,j,k)    = qv_array(i,j,k) + qc_array(i,j,k);
 
-            tabs_array(i,j,k)  = getTgivenRandRTh(states_array(i,j,k,Rho_comp),
-                                                  states_array(i,j,k,RhoTheta_comp),
-                                                  qv_array(i,j,k));
-            pres_array(i,j,k)  = getPgivenRTh(states_array(i,j,k,RhoTheta_comp), qv_array(i,j,k)) * Real(0.01);
+            const Real p0 = use_anelastic_reference_pressure
+                ? base_array(i,j,k,BaseState::p0_comp) : Real(0.0);
+            const MicrophysicsThermoState thermo = diagnose_microphysics_thermo_state(
+                rho, rho_theta, qv, rdOcp, use_anelastic_reference_pressure, p0);
+            tabs_array(i,j,k) = thermo.temperature;
+            pres_array(i,j,k) = thermo.pressure_pa * Real(0.01);
         });
     }
 }
 
+void Kessler::Update_Micro_Vars (MultiFab& cons_in,
+                                 const MultiFab* base_state)
+{
+    Copy_State_to_Micro(cons_in, base_state);
+}

@@ -367,9 +367,9 @@ int main (int argc, char** argv)
     MultiFab velocity_error(theta.boxArray(), theta.DistributionMap(), 1, 0);
     for (amrex::MFIter mfi(theta_error, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
         const auto bx = mfi.tilebox();
+        const auto rho = density.const_array(mfi);
         const auto th = theta.const_array(mfi);
         const auto t = temp.const_array(mfi);
-        const auto p = pressure.const_array(mfi);
         const auto qv = cloudy ? initial_qv.const_array(mfi) : amrex::Array4<const Real>{};
         const auto qsat = cloudy ? initial_qsat.const_array(mfi) : amrex::Array4<const Real>{};
         const auto rh = cloudy ? initial_rh.const_array(mfi) : amrex::Array4<const Real>{};
@@ -391,16 +391,22 @@ int main (int argc, char** argv)
                 amplitude * std::sin(Real(2.0)*Real(3.14159265358979323846)*(x-prob_lo[0])/lx) *
                 std::sin(Real(2.0)*Real(3.14159265358979323846)*(y-prob_lo[1])/ly) *
                 std::sin(Real(3.14159265358979323846)*(z-prob_lo[2])/lz);
+            // Fixed-density anelastic initialization defines theta and RH
+            // against the hydrostatic reference pressure.  The plotfile
+            // pressure is the EOS-reconstructed pressure implied by the
+            // requested temperature, so it is not the pressure for this
+            // initialization contract.
+            const Real reference_pressure = p_0 - rho(i,j,k) * CONST_GRAV * z;
             const Real expected_theta = expected_temperature *
-                std::pow(p_0/p(i,j,k), R_d/Cp_d);
+                std::pow(p_0/reference_pressure, R_d/Cp_d);
             const Real expected_qv = cloudy ?
                 (RdoRv * relative_humidity *
                  (Real(100.0)*erf_esatw(expected_temperature)) /
-                 (p(i,j,k) - relative_humidity *
+                 (reference_pressure - relative_humidity *
                   (Real(100.0)*erf_esatw(expected_temperature)))) : Real(0.0);
             Real expected_qsat = Real(0.0);
             if (cloudy) {
-                erf_qsatw(expected_temperature, p(i,j,k)*Real(0.01), expected_qsat);
+                erf_qsatw(expected_temperature, reference_pressure*Real(0.01), expected_qsat);
             }
             const Real expected_rh = cloudy ? relative_humidity : Real(0.0);
             therr(i,j,k) = std::abs(th(i,j,k)-expected_theta);

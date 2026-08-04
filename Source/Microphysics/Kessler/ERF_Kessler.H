@@ -59,6 +59,7 @@ public:
         // Use one latent-over-cp factor for both the saturation solve and theta
         // update. L_v comes from ERF_Constants.H; c_p comes from SolverChoice.
         m_fac_cond = L_v / sc.c_p;
+        m_rdOcp    = sc.rdOcp;
         m_do_cond  = (!sc.uses_shoc_family());
     }
 
@@ -81,6 +82,14 @@ public:
     // Copy state into micro vars
     void
     Copy_State_to_Micro (const amrex::MultiFab& cons_in) override;
+
+    void
+    Copy_State_to_Micro (const amrex::MultiFab& cons_in,
+                         const amrex::MultiFab* base_state);
+
+    void
+    Update_Micro_Vars (amrex::MultiFab& cons_in,
+                       const amrex::MultiFab* base_state) override;
 
     // Copy state into micro vars
     void
@@ -181,6 +190,7 @@ private:
 
     // constants
     amrex::Real m_fac_cond;
+    amrex::Real m_rdOcp;
     bool m_do_cond;
     MoistureType m_moisture_type = MoistureType::None;
 

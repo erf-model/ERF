@@ -374,6 +374,14 @@ For details, see Morrison and Milbrandt (2015, *J. Atmos. Sci.*, 72, 287–311).
 Super-Droplet Method (SDM) Microphysics Model
 ----------------------------------------------
 
+.. important::
+
+   ``SuperDroplets`` is currently not supported with anelastic dynamics.
+   ERF rejects any configuration that combines ``erf.anelastic = 1`` on an
+   AMR level with this model because its thermodynamic path still reconstructs
+   pressure with the compressible equation of state.  Use compressible dynamics
+   or a supported Eulerian moisture model instead.
+
 The super-droplet method (SDM) is a particle-based, probabilistic approach for the simulation of cloud microphysics.
 Unlike the bulk parametrization and spectral bin methods, SDM directly tracks computational particles (called "super-droplets")
 that represent multiple real droplets with identical attributes. This Lagrangian approach enables accurate simulation of

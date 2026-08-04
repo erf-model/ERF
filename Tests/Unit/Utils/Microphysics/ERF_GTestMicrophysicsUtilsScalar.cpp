@@ -17,6 +17,34 @@ void expect_near_relative (const amrex::Real actual,
 
 } // namespace
 
+// Motivation: Anelastic pressure-dependent microphysics must use the supplied
+// hydrostatic reference pressure and reconstruct temperature from p0 and theta.
+// Identical conserved cells with different p0 values must therefore diagnose
+// different thermodynamic states, while compressible cells retain EOS behavior.
+TEST(MicrophysicsThermodynamics, ReferencePressureContextSelectsAnelasticPressure)
+{
+    const amrex::Real rho = amrex::Real(1.0);
+    const amrex::Real theta = amrex::Real(300.0);
+    const amrex::Real rho_theta = rho * theta;
+    const amrex::Real qv = amrex::Real(1.0e-2);
+    const amrex::Real p0_low = amrex::Real(85000.0);
+    const amrex::Real p0_high = amrex::Real(95000.0);
+
+    const MicrophysicsThermoState low = diagnose_microphysics_thermo_state(
+        rho, rho_theta, qv, RdoCp, true, p0_low);
+    const MicrophysicsThermoState high = diagnose_microphysics_thermo_state(
+        rho, rho_theta, qv, RdoCp, true, p0_high);
+    const MicrophysicsThermoState compressible = diagnose_microphysics_thermo_state(
+        rho, rho_theta, qv, RdoCp, false);
+
+    EXPECT_EQ(low.pressure_pa, p0_low);
+    EXPECT_EQ(high.pressure_pa, p0_high);
+    EXPECT_NE(low.pressure_pa, high.pressure_pa);
+    EXPECT_NE(low.temperature, high.temperature);
+    EXPECT_EQ(compressible.pressure_pa, getPgivenRTh(rho_theta, qv));
+    EXPECT_EQ(compressible.temperature, getTgivenRandRTh(rho, rho_theta, qv));
+}
+
 // Motivation: Morrison and SAM only call this gamma wrapper with positive
 // arguments. The test locks in that positive-only contract and key identities.
 TEST(MicrophysicsGamma, PositiveIdentities)

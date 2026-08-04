@@ -96,6 +96,14 @@ public:
     void
     Copy_State_to_Micro (const amrex::MultiFab& cons_in) override;
 
+    void
+    Copy_State_to_Micro (const amrex::MultiFab& cons_in,
+                         const amrex::MultiFab* base_state);
+
+    void
+    Update_Micro_Vars (amrex::MultiFab& cons_in,
+                       const amrex::MultiFab* base_state) override;
+
     // Copy state into micro vars
     void
     Copy_Micro_to_State (amrex::MultiFab& cons_in) override;

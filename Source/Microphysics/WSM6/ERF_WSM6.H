@@ -45,6 +45,7 @@ public:
     void Define(SolverChoice& sc) override
     {
         m_moisture_type = sc.moisture_type;
+        m_rdOcp = sc.rdOcp;
         m_axis = sc.ave_plane;
         m_do_cond = (!sc.uses_shoc_family());
     }
@@ -84,7 +85,12 @@ public:
     void Set_dzmin(const amrex::Real dz_min) override { m_dzmin = dz_min; }
 
     void Copy_State_to_Micro(const amrex::MultiFab& cons_in) override;
+    void Copy_State_to_Micro(const amrex::MultiFab& cons_in,
+                             const amrex::MultiFab* base_state);
     void Copy_Micro_to_State(amrex::MultiFab& cons_in) override;
+
+    void Update_Micro_Vars(amrex::MultiFab& cons_in,
+                           const amrex::MultiFab* base_state) override;
 
     void Update_Micro_Vars(amrex::MultiFab& cons_in) override
     {
@@ -141,6 +147,8 @@ private:
     int nlev{0}, zlo{0}, zhi{0};
     int m_axis{2};
     bool m_do_cond{true};
+    amrex::Real m_rdOcp{RdoCp};
+    bool m_use_anelastic_reference_pressure{false};
     MoistureType m_moisture_type{MoistureType::None};
 
     amrex::MultiFab* m_z_phys_nd{nullptr};

@@ -36,6 +36,11 @@ elseif(CASE STREQUAL "legacy_physical_temperature")
         "prob.thermodynamic_initialization = physical_temperature_rh"
         "prob.thermodynamic_initialization = legacy_theta_qv\nprob.theta_bottom = 300.0\nprob.theta_top = 284.0\nprob.theta_perturbation_amplitude = 0.02"
         input_text "${input_text}")
+elseif(CASE STREQUAL "anelastic_superdroplets")
+    string(REPLACE
+        "erf.anelastic = 1"
+        "erf.anelastic = 1\nerf.moisture_model = SuperDroplets"
+        input_text "${input_text}")
 else()
     message(FATAL_ERROR "Unknown Cloud Chamber configuration test case: ${CASE}")
 endif()
