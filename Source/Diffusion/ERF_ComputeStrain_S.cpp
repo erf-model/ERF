@@ -5,12 +5,13 @@
 using namespace amrex;
 
 /**
- * Function for computing the strain rates with terrain.
+ * Function for computing the strain rates on a stretched grid.
  *
  * @param[in] bxcc cell center box for tau_ii
  * @param[in] tbxxy nodal xy box for tau_12
  * @param[in] tbxxz nodal xz box for tau_13
  * @param[in] tbxyz nodal yz box for tau_23
+ * @param[in] domain computational domain
  * @param[in] u x-direction velocity
  * @param[in] v y-direction velocity
  * @param[in] w z-direction velocity

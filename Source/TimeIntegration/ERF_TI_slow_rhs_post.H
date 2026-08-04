@@ -39,10 +39,13 @@
 
         MultiFab* new_detJ =
            (solverChoice.terrain_type == TerrainType::MovingFittedMesh) ? (detJ_cc_new[level].get()) : (detJ_cc[level].get());
+        MultiFab* terrain_blank = (solverChoice.terrain_type == TerrainType::ImmersedForcing ||
+                                   solverChoice.buildings_type == BuildingsType::ImmersedForcing) ?
+            terrain_blanking[level].get() : nullptr;
 
         erf_slow_rhs_post(level, finest_level, nrk, slow_dt, micro->Get_Qstate_Moist_Size(),
                           S_rhs, S_old, S_new, S_data, S_prim, avg_xmom[level], avg_ymom[level], avg_zmom[level],
-                          xvel_new, yvel_new, zvel_new, cc_src, SmnSmn, eddyDiffs,
+                          xvel_new, yvel_new, zvel_new, cc_src, terrain_blank, SmnSmn, eddyDiffs,
                           Hfx1, Hfx2, Hfx3, Q1fx1, Q1fx2, Q1fx3, Q2fx3, Diss,
                           fine_geom, solverChoice, m_SurfaceLayer, domain_bcs_type_d, domain_bcs_type,
                           z_phys_nd[level], z_phys_cc[level], ax[level], ay[level], az[level],
@@ -52,7 +55,9 @@
 #endif
                           native_shoc_driver[level].get(),
                           fr_as_crse, fr_as_fine,
-                          m_r2d);
+                          m_r2d, &base_state[level],
+                          cloud_chamber_config.active ? &cloud_chamber_config : nullptr,
+                          cloud_chamber_budget.get());
 
         // Implicit diffusion of moisture
         #include "ERF_ImplicitPost.H"

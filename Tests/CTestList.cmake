@@ -24,7 +24,12 @@ function(resolve_test_exe TEST_DIR TEST_EXE OUT_VAR)
 endfunction()
 
 macro(setup_test)
-    set(CURRENT_TEST_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/test_files/${TEST_NAME})
+    if(DEFINED TEST_FILES_DIR AND NOT "${TEST_FILES_DIR}" STREQUAL "")
+        set(_test_source_dir_name "${TEST_FILES_DIR}")
+    else()
+        set(_test_source_dir_name "${TEST_NAME}")
+    endif()
+    set(CURRENT_TEST_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/test_files/${_test_source_dir_name})
     set(CURRENT_TEST_BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR}/test_files/${TEST_NAME})
     set(PLOT_GOLD ${ERF_TEST_GOLD_FILES_DIRECTORY}/${TEST_NAME})
 
@@ -42,6 +47,41 @@ macro(setup_test)
         unset(MPI_FCOMP_COMMANDS)
     endif()
 endmacro(setup_test)
+
+# Production contract test for native 3D plotfile names and unavailable-name warnings.
+function(add_test_plotfile_header TEST_NAME TEST_DIR TEST_EXE PLTFILE)
+    setup_test()
+
+    resolve_test_exe("${TEST_DIR}" "${TEST_EXE}" TEST_EXE)
+    set(header_checker "${PROJECT_SOURCE_DIR}/Tests/CheckPlotfileHeader.cmake")
+    set(test_log "${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.log")
+    set(header_file "${CURRENT_TEST_BINARY_DIR}/${PLTFILE}/Header")
+    # Regression motivation: this test is launched through `sh -c`, while on
+    # Windows CMAKE_COMMAND normally resides below "C:/Program Files". Keep
+    # checker executable and path-bearing arguments shell-quoted.
+    set(check_command
+        "\"${CMAKE_COMMAND}\""
+        "\"-DHEADER=${header_file}\""
+        "\"-DEXPECTED_NAMES_FILE=${CURRENT_TEST_BINARY_DIR}/expected_names.txt\""
+        "\"-DLOG=${test_log}\""
+        "\"-DEXPECTED_UNAVAILABLE_FILE=${CURRENT_TEST_BINARY_DIR}/expected_unavailable.txt\""
+        "-P"
+        "\"${header_checker}\"")
+    list(JOIN check_command " " check_command_string)
+    set(test_input "${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.i")
+    set(test_command sh -c
+        "${MPI_COMMANDS} ${TEST_EXE} \"${test_input}\" > \"${test_log}\" 2>&1 && ${check_command_string}")
+
+    add_test(${TEST_NAME} ${test_command})
+    set_tests_properties(${TEST_NAME}
+        PROPERTIES
+        TIMEOUT 300
+        PROCESSORS ${NP}
+        WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
+        LABELS "regression;plotfile"
+        ATTACHED_FILES_ON_FAIL "${test_log};${header_file}"
+    )
+endfunction(add_test_plotfile_header)
 
 # Standard regression test
 function(add_test_r TEST_NAME TEST_DIR TEST_EXE PLTFILE)
@@ -74,6 +114,366 @@ function(add_test_r TEST_NAME TEST_DIR TEST_EXE PLTFILE)
         ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.log"
     )
 endfunction(add_test_r)
+
+# Rotated six-wall anelastic manufactured regression. Each case keeps a
+# linear theta profile stationary and checks the full field inventory.
+function(add_test_anelastic_wall_diffusion TEST_NAME TEST_AXIS)
+    set(TEST_FILES_DIR "${TEST_NAME}")
+    setup_test()
+    resolve_test_exe("" "erf_exec" TEST_EXE)
+
+    set(test_input "${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.i")
+    set(test_simulation_log "${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.simulation.log")
+    set(test_checker_log "${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.checker.log")
+    add_test(${TEST_NAME} ${CMAKE_COMMAND}
+        -DMPIEXEC=${MPIEXEC_EXECUTABLE}
+        -DMPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}
+        -DMPIEXEC_PREFLAGS=${MPIEXEC_PREFLAGS}
+        -DNRANKS=${NP}
+        -DTEST_EXE=${TEST_EXE}
+        -DINPUT=${test_input}
+        -DWORKING_DIRECTORY=${CURRENT_TEST_BINARY_DIR}
+        -DSIMULATION_LOG=${test_simulation_log}
+        -DCHECKER_LOG=${test_checker_log}
+        -DCHECKER=${ANELASTIC_WALL_DIFFUSION_CHECKER}
+        -DPLOTFILE=${CURRENT_TEST_BINARY_DIR}/plt00002
+        -DAXIS=${TEST_AXIS}
+        -DTHETA_LO=300.0
+        -DTHETA_HI=301.0
+        -P ${PROJECT_SOURCE_DIR}/Tests/RunAnelasticWallDiffusion.cmake)
+    set_tests_properties(${TEST_NAME}
+        PROPERTIES
+        TIMEOUT 900
+        PROCESSORS ${NP}
+        WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
+        LABELS "regression;anelastic;wall-diffusion"
+        ATTACHED_FILES_ON_FAIL "${test_simulation_log};${test_checker_log}")
+endfunction(add_test_anelastic_wall_diffusion)
+
+# Checker-driven Stage 1 Cloud Chamber tests.  The short run checks the exact
+# initial conserved-state correction and a bounded early buoyant response;
+# it intentionally avoids a fragile turbulent gold file.
+function(add_test_cloud_chamber TEST_NAME MODE)
+    setup_test()
+    resolve_test_exe("" "erf_exec" TEST_EXE)
+    set(test_input "${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.i")
+    set(test_simulation_log "${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.simulation.log")
+    set(test_checker_log "${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.checker.log")
+    add_test(${TEST_NAME} ${CMAKE_COMMAND}
+        -DMPIEXEC=${MPIEXEC_EXECUTABLE}
+        -DMPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}
+        -DMPIEXEC_PREFLAGS=${MPIEXEC_PREFLAGS}
+        -DNRANKS=${NP}
+        -DTEST_EXE=${TEST_EXE}
+        -DINPUT=${test_input}
+        -DWORKING_DIRECTORY=${CURRENT_TEST_BINARY_DIR}
+        -DSIMULATION_LOG=${test_simulation_log}
+        -DCHECKER_LOG=${test_checker_log}
+        -DCHECKER=${CLOUD_CHAMBER_CHECKER}
+        -DMODE=${MODE}
+        -P ${PROJECT_SOURCE_DIR}/Tests/RunCloudChamber.cmake)
+    set_tests_properties(${TEST_NAME}
+        PROPERTIES
+        TIMEOUT 900
+        PROCESSORS ${NP}
+        WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
+        LABELS "regression;cloud-chamber"
+        ATTACHED_FILES_ON_FAIL "${test_simulation_log};${test_checker_log}")
+endfunction(add_test_cloud_chamber)
+
+function(add_test_cloud_chamber_parity TEST_NAME)
+    set(TEST_FILES_DIR "CloudChamber_SatAdj")
+    setup_test()
+    resolve_test_exe("" "erf_exec" TEST_EXE)
+    add_test(${TEST_NAME} ${CMAKE_COMMAND}
+        -DMPIEXEC=${MPIEXEC_EXECUTABLE}
+        -DMPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}
+        -DMPIEXEC_PREFLAGS=${MPIEXEC_PREFLAGS}
+        -DNRANKS=${NP}
+        -DTEST_EXE=${TEST_EXE}
+        -DINPUT=${CURRENT_TEST_BINARY_DIR}/CloudChamber_SatAdj.i
+        -DWORKING_DIRECTORY=${CURRENT_TEST_BINARY_DIR}
+        -DCHECKER=${CLOUD_CHAMBER_CHECKER}
+        -P ${PROJECT_SOURCE_DIR}/Tests/RunCloudChamberParity.cmake)
+    set_tests_properties(${TEST_NAME}
+        PROPERTIES
+        TIMEOUT 1200
+        PROCESSORS ${NP}
+        WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
+        LABELS "regression;cloud-chamber"
+        ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/budget_off/simulation.log;${CURRENT_TEST_BINARY_DIR}/budget_on/simulation.log;${CURRENT_TEST_BINARY_DIR}/parity.log")
+endfunction(add_test_cloud_chamber_parity)
+
+function(add_test_cloud_chamber_budget TEST_NAME MODE SOURCE_NAME)
+    set(_cloud_chamber_input_name "${SOURCE_NAME}")
+    set(TEST_FILES_DIR "${SOURCE_NAME}")
+    setup_test()
+    resolve_test_exe("" "erf_exec" TEST_EXE)
+    add_test(${TEST_NAME} ${CMAKE_COMMAND}
+        -DMPIEXEC=${MPIEXEC_EXECUTABLE}
+        -DMPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}
+        -DMPIEXEC_PREFLAGS=${MPIEXEC_PREFLAGS}
+        -DNRANKS=${NP}
+        -DTEST_EXE=${TEST_EXE}
+        -DINPUT=${CURRENT_TEST_BINARY_DIR}/${_cloud_chamber_input_name}.i
+        -DWORKING_DIRECTORY=${CURRENT_TEST_BINARY_DIR}
+        -DCHECKER=${CLOUD_CHAMBER_CHECKER}
+        -DMODE=${MODE}
+        -P ${PROJECT_SOURCE_DIR}/Tests/RunCloudChamberBudget.cmake)
+    set_tests_properties(${TEST_NAME}
+        PROPERTIES
+        TIMEOUT 900
+        PROCESSORS ${NP}
+        WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
+        LABELS "regression;cloud-chamber"
+        ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/simulation.log;${CURRENT_TEST_BINARY_DIR}/checker.log;${CURRENT_TEST_BINARY_DIR}/cloud_chamber_budget.dat")
+endfunction(add_test_cloud_chamber_budget)
+
+# Negative configuration regressions: each case must reach the Cloud Chamber
+# parser, fail nonzero, and report the intended contract violation.
+function(add_test_cloud_chamber_config_failure TEST_NAME CASE SOURCE_NAME EXPECTED_DIAGNOSTIC)
+    set(TEST_FILES_DIR "${SOURCE_NAME}")
+    setup_test()
+    resolve_test_exe("" "erf_exec" TEST_EXE)
+    set(base_input "${CURRENT_TEST_BINARY_DIR}/${SOURCE_NAME}.i")
+    set(test_log "${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.log")
+    add_test(${TEST_NAME} ${CMAKE_COMMAND}
+        -DMPIEXEC=${MPIEXEC_EXECUTABLE}
+        -DMPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}
+        -DMPIEXEC_PREFLAGS=${MPIEXEC_PREFLAGS}
+        -DTEST_EXE=${TEST_EXE}
+        -DBASE_INPUT=${base_input}
+        -DWORKING_DIRECTORY=${CURRENT_TEST_BINARY_DIR}
+        -DLOG=${test_log}
+        -DCASE=${CASE}
+        "-DEXPECTED_DIAGNOSTIC=${EXPECTED_DIAGNOSTIC}"
+        -P ${PROJECT_SOURCE_DIR}/Tests/RunCloudChamberConfigFailure.cmake)
+    set_tests_properties(${TEST_NAME}
+        PROPERTIES
+        TIMEOUT 180
+        PROCESSORS 1
+        WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
+        LABELS "regression;cloud-chamber;configuration"
+        ATTACHED_FILES_ON_FAIL "${test_log}")
+endfunction(add_test_cloud_chamber_config_failure)
+
+# Positive startup regression for the retained legacy theta/qv parser path.
+# This intentionally has no physical-temperature or physical-wall keys.
+function(add_test_cloud_chamber_legacy_config TEST_NAME)
+    set(TEST_FILES_DIR "CloudChamber_Legacy_Config")
+    setup_test()
+    resolve_test_exe("" "erf_exec" TEST_EXE)
+    set(test_input "${CURRENT_TEST_BINARY_DIR}/CloudChamber_Legacy_Config.i")
+    set(test_log "${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.log")
+    set(output_directory "${CURRENT_TEST_BINARY_DIR}/legacy_plt00000")
+    set(output_artifact "${output_directory}/Header")
+    add_test(${TEST_NAME} ${CMAKE_COMMAND}
+        -DMPIEXEC=${MPIEXEC_EXECUTABLE}
+        -DMPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}
+        -DMPIEXEC_PREFLAGS=${MPIEXEC_PREFLAGS}
+        -DTEST_EXE=${TEST_EXE}
+        -DINPUT=${test_input}
+        -DWORKING_DIRECTORY=${CURRENT_TEST_BINARY_DIR}
+        -DLOG=${test_log}
+        -DOUTPUT_DIRECTORY=${output_directory}
+        -DOUTPUT_ARTIFACT=${output_artifact}
+        -P ${PROJECT_SOURCE_DIR}/Tests/RunCloudChamberConfigSuccess.cmake)
+    set_tests_properties(${TEST_NAME}
+        PROPERTIES
+        TIMEOUT 180
+        PROCESSORS 1
+        WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
+        LABELS "regression;cloud-chamber;configuration"
+        ATTACHED_FILES_ON_FAIL "${test_log};${output_artifact}")
+endfunction(add_test_cloud_chamber_legacy_config)
+
+function(add_test_cloud_chamber_openmp TEST_NAME)
+    set(TEST_FILES_DIR "CloudChamber_SatAdj")
+    setup_test()
+    resolve_test_exe("" "erf_exec" TEST_EXE)
+    add_test(${TEST_NAME} ${CMAKE_COMMAND}
+        -DMPIEXEC=${MPIEXEC_EXECUTABLE}
+        -DMPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}
+        -DMPIEXEC_PREFLAGS=${MPIEXEC_PREFLAGS}
+        -DNRANKS=${NP}
+        -DTEST_EXE=${TEST_EXE}
+        -DINPUT=${CURRENT_TEST_BINARY_DIR}/CloudChamber_SatAdj.i
+        -DWORKING_DIRECTORY=${CURRENT_TEST_BINARY_DIR}
+        -DCHECKER=${CLOUD_CHAMBER_CHECKER}
+        -DCMAKE_COMMAND=${CMAKE_COMMAND}
+        -P ${PROJECT_SOURCE_DIR}/Tests/RunCloudChamberOpenMP.cmake)
+    set_tests_properties(${TEST_NAME}
+        PROPERTIES
+        TIMEOUT 1200
+        PROCESSORS ${NP}
+        WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
+        LABELS "regression;cloud-chamber;openmp"
+        ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/omp_1_thread/simulation.log;${CURRENT_TEST_BINARY_DIR}/omp_2_threads/simulation.log;${CURRENT_TEST_BINARY_DIR}/openmp_parity.log")
+endfunction(add_test_cloud_chamber_openmp)
+
+# Native SHOC regression test.  This intentionally remains separate from
+# add_test_r so existing registrations retain their exact command and
+# fixture behaviour.  TEST_FILES_DIR and INPUT_FILE allow the small SHOC
+# matrix to reuse a physical fixture while keeping unique binary and gold
+# directories.  The checker runs before the selected gold comparison path.
+function(add_test_shoc_r TEST_NAME TEST_DIR TEST_EXE PLTFILE)
+    set(options SKIP_GOLD)
+    set(oneValueArgs "TEST_FILES_DIR" "INPUT_FILE" "CHECK_MODE" "RUNTIME_OPTIONS" "TIMEOUT"
+        "GOLD_COMPARISON" "GOLD_MODE")
+    set(multiValueArgs "LABELS")
+    cmake_parse_arguments(ADD_TEST_SHOC_R "${options}" "${oneValueArgs}"
+        "${multiValueArgs}" ${ARGN})
+
+    set(TEST_FILES_DIR "${ADD_TEST_SHOC_R_TEST_FILES_DIR}")
+    setup_test()
+
+    if("${ADD_TEST_SHOC_R_INPUT_FILE}" STREQUAL "")
+        set(test_input "${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.i")
+    else()
+        set(test_input "${CURRENT_TEST_BINARY_DIR}/${ADD_TEST_SHOC_R_INPUT_FILE}")
+    endif()
+
+    set(RUNTIME_OPTIONS "${ADD_TEST_SHOC_R_RUNTIME_OPTIONS}")
+    resolve_test_exe("${TEST_DIR}" "${TEST_EXE}" TEST_EXE)
+
+    set(test_log "${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.log")
+    if(ADD_TEST_SHOC_R_GOLD_COMPARISON)
+        set(_shoc_gold_comparison "${ADD_TEST_SHOC_R_GOLD_COMPARISON}")
+    else()
+        set(_shoc_gold_comparison "fcompare")
+    endif()
+    add_test(${TEST_NAME} ${CMAKE_COMMAND}
+        -DMPIEXEC=${MPIEXEC_EXECUTABLE}
+        -DMPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}
+        -DMPIEXEC_PREFLAGS=${MPIEXEC_PREFLAGS}
+        -DNRANKS=${NP}
+        -DTEST_EXE=${TEST_EXE}
+        -DINPUT=${test_input}
+        -DRUNTIME_OPTIONS=${RUNTIME_OPTIONS}
+        -DWORKING_DIRECTORY=${CURRENT_TEST_BINARY_DIR}
+        -DLOG=${test_log}
+        -DCHECKER=${SHOC_PLOTFILE_CHECKER}
+        -DCHECK_MODE=${ADD_TEST_SHOC_R_CHECK_MODE}
+        -DINITIAL=${CURRENT_TEST_BINARY_DIR}/plt00000
+        -DMIDPOINT=${CURRENT_TEST_BINARY_DIR}/plt00010
+        -DFINAL=${CURRENT_TEST_BINARY_DIR}/${PLTFILE}
+        -DFCOMPARE=${FCOMPARE_EXE}
+        -DGOLD_DIFFERENTIAL=${SHOC_GOLD_DIFFERENTIAL}
+        -DGOLD_COMPARISON=${_shoc_gold_comparison}
+        -DGOLD_MODE=${ADD_TEST_SHOC_R_GOLD_MODE}
+        -DRTOL=${ERF_TEST_FCOMPARE_RTOL}
+        -DATOL=${ERF_TEST_FCOMPARE_ATOL}
+        -DGOLD=${PLOT_GOLD}
+        -DSKIP_GOLD=${ADD_TEST_SHOC_R_SKIP_GOLD}
+        -P ${PROJECT_SOURCE_DIR}/Tests/RunShocRegression.cmake)
+    if(ADD_TEST_SHOC_R_TIMEOUT)
+        set(_shoc_timeout "${ADD_TEST_SHOC_R_TIMEOUT}")
+    else()
+        set(_shoc_timeout 900)
+    endif()
+    if(ADD_TEST_SHOC_R_LABELS)
+        set(_shoc_labels "${ADD_TEST_SHOC_R_LABELS}")
+    else()
+        set(_shoc_labels "regression;shoc")
+    endif()
+    set_tests_properties(${TEST_NAME}
+        PROPERTIES
+        TIMEOUT ${_shoc_timeout}
+        PROCESSORS ${NP}
+        WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
+        LABELS "${_shoc_labels}"
+        ATTACHED_FILES_ON_FAIL "${test_log}")
+endfunction(add_test_shoc_r)
+
+function(add_test_shoc_mutation TEST_NAME MUTATION_OPTION TARGET_FIELD
+        MIN_FINAL_DIFFERENCE MIN_BASELINE_EVOLUTION MAX_MUTANT_TO_BASELINE_EVOLUTION_RATIO)
+    set(TEST_FILES_DIR "SHOC_Stable_Clear")
+    setup_test()
+    resolve_test_exe("" "erf_exec" TEST_EXE)
+    set(_baseline_dir "${CURRENT_TEST_BINARY_DIR}/baseline")
+    set(_mutant_dir "${CURRENT_TEST_BINARY_DIR}/mutant")
+    file(MAKE_DIRECTORY "${_baseline_dir}" "${_mutant_dir}")
+    file(COPY "${CURRENT_TEST_SOURCE_DIR}/." DESTINATION "${_baseline_dir}")
+    file(COPY "${CURRENT_TEST_SOURCE_DIR}/." DESTINATION "${_mutant_dir}")
+
+    set(_baseline_log "${_baseline_dir}/${TEST_NAME}_baseline.log")
+    set(_mutant_log "${_mutant_dir}/${TEST_NAME}_mutant.log")
+    add_test(${TEST_NAME} ${CMAKE_COMMAND}
+        -DMPIEXEC=${MPIEXEC_EXECUTABLE}
+        -DMPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}
+        -DMPIEXEC_PREFLAGS=${MPIEXEC_PREFLAGS}
+        -DNRANKS=${NP}
+        -DTEST_EXE=${TEST_EXE}
+        -DBASELINE_INPUT=${_baseline_dir}/SHOC_Stable_Clear.i
+        -DMUTANT_INPUT=${_mutant_dir}/SHOC_Stable_Clear.i
+        -DBASELINE_OPTIONS=
+        -DMUTANT_OPTIONS=${MUTATION_OPTION}
+        -DBASELINE_WORKING_DIRECTORY=${_baseline_dir}
+        -DMUTANT_WORKING_DIRECTORY=${_mutant_dir}
+        -DBASELINE_LOG=${_baseline_log}
+        -DMUTANT_LOG=${_mutant_log}
+        -DCHECKER=${SHOC_MUTATION_DIFFERENTIAL}
+        -DTARGET_FIELD=${TARGET_FIELD}
+        -DMIN_FINAL_DIFFERENCE=${MIN_FINAL_DIFFERENCE}
+        -DMIN_BASELINE_EVOLUTION=${MIN_BASELINE_EVOLUTION}
+        -DMAX_MUTANT_TO_BASELINE_EVOLUTION_RATIO=${MAX_MUTANT_TO_BASELINE_EVOLUTION_RATIO}
+        -P ${PROJECT_SOURCE_DIR}/Tests/RunShocMutationRegression.cmake)
+    set_tests_properties(${TEST_NAME}
+        PROPERTIES
+        TIMEOUT 900
+        PROCESSORS ${NP}
+        WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
+        LABELS "regression;shoc;mutation"
+        ATTACHED_FILES_ON_FAIL "${_baseline_log};${_mutant_log}")
+endfunction(add_test_shoc_mutation)
+
+if(ERF_ENABLE_MPI)
+add_test_anelastic_wall_diffusion(AnelasticWallDiffusion_X 0)
+add_test_anelastic_wall_diffusion(AnelasticWallDiffusion_Y 1)
+add_test_anelastic_wall_diffusion(AnelasticWallDiffusion_Z 2)
+add_test_cloud_chamber(CloudChamber_Dry dry)
+add_test_cloud_chamber_legacy_config(CloudChamber_Legacy_Config)
+add_test_cloud_chamber_budget(CloudChamber_Dry_ThermalBudget thermal_budget CloudChamber_Dry)
+add_test_cloud_chamber(CloudChamber_SatAdj cloudy)
+add_test_cloud_chamber_parity(CloudChamber_SatAdj_Parity)
+add_test_cloud_chamber_budget(CloudChamber_SatAdj_AllDry all_dry CloudChamber_SatAdj_AllDry)
+add_test_cloud_chamber_budget(CloudChamber_SatAdj_WetBudget wet_budget CloudChamber_SatAdj_WetBudget)
+add_test_cloud_chamber_config_failure(
+    CloudChamber_Invalid_DryPhysicalRH
+    dry_physical_rh
+    CloudChamber_Dry
+    "initial_relative_humidity is only used with erf.moisture_model = SatAdj")
+add_test_cloud_chamber_config_failure(
+    CloudChamber_Invalid_SatAdjPhysicalMissingRH
+    satadj_physical_missing_rh
+    CloudChamber_SatAdj
+    "physical SatAdj initialization requires prob.initial_relative_humidity")
+add_test_cloud_chamber_config_failure(
+    CloudChamber_Invalid_PhysicalLegacyThetaPerturbation
+    physical_legacy_theta_perturbation
+    CloudChamber_Dry
+    "cannot be combined with legacy")
+add_test_cloud_chamber_config_failure(
+    CloudChamber_Invalid_LegacyPhysicalTemperature
+    legacy_physical_temperature
+    CloudChamber_Dry
+    "cannot be combined with physical")
+if(ERF_ENABLE_OPENMP)
+add_test_cloud_chamber_openmp(CloudChamber_SatAdj_OpenMP)
+endif()
+add_test(SHOC_Unstable_Cloud_SatAdj_vs_NoCond
+    ${MPIEXEC_EXECUTABLE} ${MPIEXEC_NUMPROC_FLAG} 1 ${MPIEXEC_PREFLAGS}
+    ${SHOC_MICROPHYSICS_DIFFERENTIAL}
+    ${CMAKE_CURRENT_BINARY_DIR}/test_files/SHOC_Unstable_Cloud_SatAdj_Property/plt00020
+    ${CMAKE_CURRENT_BINARY_DIR}/test_files/SHOC_Unstable_Cloud_NoCond_Property/plt00020)
+set_tests_properties(SHOC_Unstable_Cloud_SatAdj_vs_NoCond
+    PROPERTIES
+    DEPENDS "SHOC_Unstable_Cloud_SatAdj_Property;SHOC_Unstable_Cloud_NoCond_Property"
+    TIMEOUT 120
+    PROCESSORS 1
+    WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/"
+    LABELS "regression;shoc;microphysics")
+endif()
 
 # Debug regression test with lower tolerance
 function(add_test_d TEST_NAME TEST_DIR TEST_EXE PLTFILE)
@@ -173,7 +573,93 @@ endfunction(add_test_sdm)
 # Regression tests
 #=============================================================================
 
+if(ERF_ENABLE_TESTS AND ERF_ENABLE_MPI)
+    # The checker is a small AMReX PlotFileData consumer and is built only
+    # when regression tests are enabled.  All SHOC cases use explicit
+    # state-update ownership settings in their input fixture.
+    add_test_shoc_r(SHOC_Stable_Clear "" "erf_exec" "plt00020"
+        TEST_FILES_DIR "SHOC_Stable_Clear"
+        CHECK_MODE "stable_clear"
+        GOLD_COMPARISON "fcompare"
+        LABELS regression shoc
+        TIMEOUT 900)
+    add_test_shoc_r(SHOC_Stable_Cloud "" "erf_exec" "plt00020"
+        TEST_FILES_DIR "SHOC_Stable_Cloud"
+        CHECK_MODE "stable_cloud"
+        GOLD_COMPARISON "field_aware"
+        GOLD_MODE "stable_cloud"
+        LABELS regression shoc
+        TIMEOUT 900)
+    add_test_shoc_r(SHOC_Unstable_Clear_BOMEX "" "erf_exec" "plt00020"
+        TEST_FILES_DIR "SHOC_Unstable_Clear_BOMEX"
+        CHECK_MODE "unstable_clear"
+        GOLD_COMPARISON "fcompare"
+        LABELS regression shoc
+        TIMEOUT 900)
+    add_test_shoc_r(SHOC_Unstable_Cloud_SatAdj "" "erf_exec" "plt00020"
+        TEST_FILES_DIR "SHOC_Unstable_Cloud"
+        INPUT_FILE "SHOC_Unstable_Cloud.i"
+        CHECK_MODE "unstable_cloud"
+        GOLD_COMPARISON "field_aware"
+        GOLD_MODE "unstable_cloud"
+        RUNTIME_OPTIONS "erf.moisture_model=SatAdj erf.buoyancy_type=1 "
+        LABELS regression shoc microphysics
+        TIMEOUT 900)
+    add_test_shoc_r(SHOC_Unstable_Cloud_NoCond "" "erf_exec" "plt00020"
+        TEST_FILES_DIR "SHOC_Unstable_Cloud"
+        INPUT_FILE "SHOC_Unstable_Cloud.i"
+        CHECK_MODE "unstable_cloud_nocond"
+        GOLD_COMPARISON "field_aware"
+        GOLD_MODE "unstable_cloud_nocond"
+        RUNTIME_OPTIONS "erf.moisture_model=MoistNoCondensation erf.buoyancy_type=1 "
+        LABELS regression shoc microphysics
+        TIMEOUT 900)
+    add_test_shoc_r(SHOC_Unstable_Cloud_SatAdj_Property "" "erf_exec" "plt00020"
+        TEST_FILES_DIR "SHOC_Unstable_Cloud"
+        INPUT_FILE "SHOC_Unstable_Cloud.i"
+        CHECK_MODE "unstable_cloud"
+        GOLD_COMPARISON "field_aware"
+        GOLD_MODE "unstable_cloud"
+        RUNTIME_OPTIONS "erf.moisture_model=SatAdj erf.buoyancy_type=1 "
+        SKIP_GOLD
+        LABELS regression shoc microphysics property
+        TIMEOUT 900)
+    add_test_shoc_r(SHOC_Unstable_Cloud_NoCond_Property "" "erf_exec" "plt00020"
+        TEST_FILES_DIR "SHOC_Unstable_Cloud"
+        INPUT_FILE "SHOC_Unstable_Cloud.i"
+        CHECK_MODE "unstable_cloud_nocond"
+        GOLD_COMPARISON "field_aware"
+        GOLD_MODE "unstable_cloud_nocond"
+        RUNTIME_OPTIONS "erf.moisture_model=MoistNoCondensation erf.buoyancy_type=1 "
+        SKIP_GOLD
+        LABELS regression shoc microphysics property
+        TIMEOUT 900)
+    add_test_shoc_r(SHOC_Unstable_Cloud_Kessler "" "erf_exec" "plt00020"
+        TEST_FILES_DIR "SHOC_Unstable_Cloud"
+        INPUT_FILE "SHOC_Unstable_Cloud_Kessler.i"
+        CHECK_MODE "unstable_cloud_kessler"
+        GOLD_COMPARISON "field_aware"
+        GOLD_MODE "unstable_cloud_kessler"
+        LABELS regression shoc microphysics
+        TIMEOUT 900)
+    add_test_shoc_r(SHOC_Unstable_Cloud_WSM6 "" "erf_exec" "plt00020"
+        TEST_FILES_DIR "SHOC_Unstable_Cloud"
+        INPUT_FILE "SHOC_Unstable_Cloud_WSM6.i"
+        CHECK_MODE "unstable_cloud_wsm6"
+        GOLD_COMPARISON "field_aware"
+        GOLD_MODE "unstable_cloud_wsm6"
+        LABELS regression shoc microphysics
+        TIMEOUT 900)
+    add_test_shoc_mutation(SHOC_Mutation_Disable_Tke_State_Update
+        "erf.shoc.debug_disable_tke_state_update=true" rhoKE
+        1.0e-3 1.0e-3 0.10)
+    add_test_shoc_mutation(SHOC_Mutation_Disable_Theta_State_Update
+        "erf.shoc.debug_disable_theta_state_update=true" theta
+        1.0e-2 1.0e-2 0.05)
+endif()
+
 # These tests will all be built in Exec
+add_test_plotfile_header(Plotfile3D_DryUnavailableSelection "" "erf_exec" "plt00000")
 add_test_r(DensityCurrent                    ""  "erf_exec" "plt00010" RUNTIME_OPTIONS "erf.vert_implicit=false ")
 add_test_r(DensityCurrent_anelastic          ""  "erf_exec" "plt00010" RUNTIME_OPTIONS "erf.vert_implicit=false ")
 add_test_r(DensityCurrent_detJ2              ""  "erf_exec" "plt00010" RUNTIME_OPTIONS "erf.vert_implicit=false ")
@@ -213,6 +699,9 @@ add_test_r(MoistBubble                       ""  "erf_exec" "plt00010" RUNTIME_O
 add_test_r(SquallLine_2D                     ""  "erf_exec" "plt00010" RUNTIME_OPTIONS "erf.vert_implicit=false ")
 add_test_r(SuperCell_3D                      ""  "erf_exec" "plt00010" RUNTIME_OPTIONS "erf.vert_implicit=false ")
 if(ERF_ENABLE_PARTICLES)
+  # Production regression: protect the fixed SuperDroplets water-field
+  # contract against confusing the constructor sentinel with state width.
+  add_test_plotfile_header(Plotfile3D_SuperDropletsSelection "" "erf_exec" "plt00000")
   add_test_r(ParticleAdvect                  ""  "erf_exec" "plt00010" RUNTIME_OPTIONS "erf.vert_implicit=false ")
   add_test_r(ParticleWoA                     ""  "erf_exec" "plt00010" RUNTIME_OPTIONS "erf.vert_implicit=false ")
   add_test_r(ParticleAdvect_AMR1_box         ""  "erf_exec" "plt00050" RUNTIME_OPTIONS "erf.vert_implicit=false ")

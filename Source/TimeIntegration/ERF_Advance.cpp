@@ -419,4 +419,5 @@ ERF::Advance (int lev, double time, double dt_lev, int iteration, int /*ncycle*/
     if (solverChoice.time_avg_vel) {
         Time_Avg_Vel_atCC(dt[lev], t_avg_cnt[lev], vel_t_avg[lev].get(), U_new, V_new, W_new);
     }
+
 }

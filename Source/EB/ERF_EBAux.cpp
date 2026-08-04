@@ -1,3 +1,7 @@
+/**
+ * \file ERF_EBAux.cpp
+ * \brief Implements auxiliary face-centered EB geometry reconstruction.
+ */
 #include <AMReX_BoxList.H>
 #include <AMReX_ParmParse.H>
 #include <ERF_EBAux.H>
@@ -1176,7 +1180,7 @@ eb_aux_::getBndryCent () const
 }
 
 const MultiFab&
-eb_aux_::getBndryNorm () const
+eb_aux_::getBndryNormal () const
 {
     AMREX_ASSERT(m_bndrynorm != nullptr);
     return *m_bndrynorm;

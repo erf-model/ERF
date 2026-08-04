@@ -230,7 +230,7 @@ NOAHMP::read_results (const MFIter& mfi,
     // Per-layer soil output fabs (3 groups x m_nsoil) in a device-visible vector so
     // the scatter loops over any NSOIL. Layout: g in {0:smois,1:sh2o,2:tslb}, k in [0,nsoil).
     const int nsoil = m_nsoil;
-    const int n_soil_fld = 3*nsoil;
+    const int n_soil_fld = m_num_soil_groups*nsoil;
     Gpu::DeviceVector<Array4<Real>> soil_arr_d(n_soil_fld);
     {
         Vector<Array4<Real>> soil_arr_h(n_soil_fld);

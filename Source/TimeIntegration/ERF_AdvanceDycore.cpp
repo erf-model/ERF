@@ -50,6 +50,10 @@ void ERF::advance_dycore (int level,
 
     const Box& domain = fine_geom.Domain();
 
+    if (cloud_chamber_budget) {
+        cloud_chamber_budget->set_initial_state(state_old[IntVars::cons], fine_geom, 0, old_time);
+    }
+
     DiffChoice dc    = solverChoice.diffChoice;
     TurbChoice tc    = solverChoice.turbChoice[level];
 
@@ -253,7 +257,7 @@ void ERF::advance_dycore (int level,
                                   *walldist[level].get(),
                                   *eddyDiffs, *Hfx1, *Hfx2, *Hfx3, *Diss, // to be updated
                                   fine_geom, mapfac[level],
-                                  z_phys_nd[level], solverChoice,
+                                  z_phys_nd[level], z_phys_cc[level], solverChoice,
                                   m_SurfaceLayer, z_0, l_use_terrain_fitted_coords,
                                   l_use_moisture, level,
                                   bc_ptr_h,

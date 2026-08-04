@@ -5,6 +5,7 @@
 #include <vector>
 #include <memory>
 #include <limits>
+#include <functional>
 
 #include <AMReX_ParmParse.H>
 #include <AMReX_Interpolater.H>
@@ -68,7 +69,7 @@ public:
     void
     Define (SolverChoice& /*sc*/) override
     {
-        // NOTE: We should parse constants from sc here if needed,
+        // Parse solver constants from sc here if needed.
     }
 
     // Initialize data structures
@@ -180,6 +181,7 @@ public:
     Lsm_Set_Lev0_Data_Ptr (const int& varIdx,
                            amrex::MultiFab* lev0_data_ptr) override
     {
+        AMREX_ALWAYS_ASSERT(varIdx >= 0 && varIdx < m_lsm_data_size);
         lsm_lev0_data[varIdx] = lev0_data_ptr;
     }
 
@@ -187,6 +189,7 @@ public:
     Lsm_Set_Lev0_Flux_Ptr (const int& varIdx,
                            amrex::MultiFab* lev0_flux_ptr) override
     {
+        AMREX_ALWAYS_ASSERT(varIdx >= 0 && varIdx < int(LsmFlux_NOAHMP::NumVars));
         lsm_lev0_flux[varIdx] = lev0_flux_ptr;
     }
 
@@ -228,7 +231,7 @@ public:
                       const int& nstep);
 
     // Subcycling gate: true if the model fires this ERF step (advances the lockstep
-    // counter + sets m_updated). Identical on every rank -- dev/spec-noahmp-api.md §5.
+    // counter + sets m_updated). Identical on every rank.
     bool
     time_to_fire (const amrex::Real& elapsed_time);
 
@@ -280,6 +283,9 @@ public:
                                const amrex::Vector<erf_noahmp::ClampedPrecipCell>& clamped_cells,
                                const amrex::Vector<erf_noahmp::InvariantPrecipCell>& invariant_cells);
 
+    // 3 soil variable groups: smois, sh2o, tslb. All 3*nsoil buffer-size occurrences use this.
+    static constexpr int m_num_soil_groups = 3;
+
     // Index of soil field (g in {0:smois,1:sh2o,2:tslb}, k in [0,nsoil)) within
     // lsm_fab_data. Output-buffer index is NoahmpOutputComp::NumComps + g*m_nsoil + k.
     int soil_data_idx (int g, int k) const {
@@ -294,7 +300,7 @@ public:
         amrex::ParmParse pp_nsoil("erf");
         pp_nsoil.query("lsm_nsoil", m_nsoil);
         AMREX_ALWAYS_ASSERT_WITH_MESSAGE(m_nsoil >= 1, "erf.lsm_nsoil must be >= 1");
-        m_lsm_data_size = LsmData_NOAHMP::NumVars + 3*m_nsoil;
+        m_lsm_data_size = LsmData_NOAHMP::NumVars + m_num_soil_groups*m_nsoil;
         m_nsoil_resolved = true;
     }
 
@@ -306,6 +312,11 @@ public:
     }
 
 private:
+
+    // Runs fn(noahmpio) per local block on a land-owning MPI subcommunicator, so a
+    // rank with zero local boxes doesn't join the collective nf90_create in
+    // WriteLand/WriteRestart/ReadRestart. ERF_NOAHMP_IO.cpp.
+    void with_land_comm (const std::function<void(NoahmpIO_type&)>& fn) const;
 
     // lsm data var count = fixed 2D fields + runtime soil profile (3 x m_nsoil).
     // Finalized once m_nsoil is known; the fixed-field count is a safe lower bound.
@@ -352,8 +363,8 @@ private:
     // decision is well-defined on land-free ranks too.
     amrex::Real m_dtbl = std::numeric_limits<amrex::Real>::max();
 
-    // domain klo-1 or lsm khi
-    int khi_lsm;
+    // Default -1; not written at runtime (single-slab LSM has no z extent to track).
+    int khi_lsm = -1;
 
     // Number of grid points in z
     int m_nz_lsm = 1;
@@ -372,7 +383,7 @@ private:
     amrex::Vector<amrex::MultiFab*> lsm_lev0_data;
 
     // LSM flux variables at level 0
-    amrex::Array<amrex::MultiFab*, LsmFlux_NOAHMP::NumVars> lsm_lev0_flux;
+    amrex::Array<amrex::MultiFab*, LsmFlux_NOAHMP::NumVars> lsm_lev0_flux {};
 
     // Number of Noah-MP soil layers, set from erf.lsm_nsoil (identical on every rank,
     // so no broadcast needed for the collective writes). Asserted vs namelist NSOIL.
@@ -396,9 +407,6 @@ private:
 
     // This instance's AMR level (set in Init); keys the per-level snapshot filenames.
     int m_lev = 0;
-
-    // Plot frequency
-    int m_plot_int_1 = -1;
 
     // Update status
     bool m_updated = false;

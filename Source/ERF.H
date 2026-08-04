@@ -25,6 +25,8 @@
 #include <AMReX_EBMultiFabUtil.H>
 
 #include <ERF_EB.H>
+#include "Prob/ERF_CloudChamberBudget.H"
+#include "Prob/ERF_CloudChamber.H"
 
 #ifdef ERF_USE_FFT
 #include <AMReX_FFT_Poisson.H>
@@ -47,6 +49,7 @@
 #include <ERF_WriteBndryPlanes.H>
 #include <ERF_MRI.H>
 #include <ERF_PhysBCFunct.H>
+#include <ERF_WallScalarBC.H>
 #include <ERF_FillPatcher.H>
 #include <ERF_SampleData.H>
 #include <ERF_ForestDrag.H>
@@ -680,9 +683,9 @@ public:
                         int ncomp,
                         bool do_perturbational_and_momenta = true); // NOLINT
 
-    /*! \brief Conservation-preserving fine→coarse average of moist state components
-     *  (RhoTheta and the contiguous moist q range) using detJ/mfac weighting,
-     *  reusing AverageDownTo with perturbational/momenta handling disabled. */
+    /*! \brief Conservation-preserving fine-to-coarse average of RhoTheta and
+     *  the active moist conserved components using detJ/mfac weighting, reusing
+     *  AverageDownTo with perturbational-state and momentum handling disabled. */
     void AverageDownMoistStateTo (int crse_lev);
 
     // Write checkpoint file to disk
@@ -727,7 +730,7 @@ private:
     void init1DArrays ();
 
     void init_bcs ();
-    void init_phys_bcs (bool& rho_read, bool& read_prim_theta);
+    void init_phys_bcs (bool& read_prim_theta);
 
     void init_stuff (int lev, const amrex::BoxArray& ba, const amrex::DistributionMapping& dm,
                      amrex::Vector<amrex::MultiFab>& lev_new, amrex::Vector<amrex::MultiFab>& lev_old,
@@ -970,6 +973,8 @@ private:
     amrex::Vector<amrex::MultiFab> zmom_crse_rhs;
 
     std::unique_ptr<Microphysics> micro;
+    std::unique_ptr<CloudChamberBudget> cloud_chamber_budget;
+    erf_cloud_chamber::Config cloud_chamber_config;
     amrex::Vector<amrex::Vector<amrex::MultiFab*>> qmoist; // (lev,ncomp) rain_accum, snow_accum, graup_accum
 
     // Variables for wind farm parametrization models
@@ -1109,6 +1114,12 @@ private:
 
     // These hold the Neumann values at walls which need them ...
     amrex::Array<amrex::Array<amrex::Real, AMREX_SPACEDIM*2>, AMREX_SPACEDIM+NBCVAR_max> m_bc_neumann_vals;
+
+    // Host-side, face-local metadata for solid-wall scalar inputs. This is
+    // deliberately separate from the values copied into device ghost-fill
+    // kernels so explicit zero values remain distinguishable from omission.
+    amrex::Array<amrex::Array<erf_wall_scalar_bc::WallScalarBCIntent, AMREX_SPACEDIM*2>, NBCVAR_max>
+        m_wall_scalar_bc_intent{};
 
     // Per-face flag: non-reflecting inflow (extrapolate RhoTheta instead of prescribing)
     amrex::Array<bool, AMREX_SPACEDIM*2> m_bc_nonreflecting = {{false}};

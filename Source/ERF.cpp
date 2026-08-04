@@ -281,7 +281,7 @@ ERF::WriteAtFinalTime()
         if (m_plot3d_per_1 > zero) {last_plot3d_file_time_1 += m_plot3d_per_1;}
     }
     if ( (m_plot3d_int_2 > 0 || m_plot3d_per_2 > zero) && istep[0] > last_plot3d_file_step_2) {
-        Write3DPlotFile(2,plotfile3d_type_1,plot3d_var_names_2);
+        Write3DPlotFile(2,plotfile3d_type_2,plot3d_var_names_2);
         if (m_plot3d_per_2 > zero) {last_plot3d_file_time_2 += m_plot3d_per_2;}
     }
     if ( (m_plot2d_int_1 > 0 || m_plot2d_per_1 > zero) && istep[0] > last_plot2d_file_step_1 ) {
@@ -289,7 +289,7 @@ ERF::WriteAtFinalTime()
         if (m_plot2d_per_1 > zero) {last_plot2d_file_time_1 += m_plot2d_per_1;}
     }
     if ( (m_plot2d_int_2 > 0 || m_plot2d_per_2 > zero) && istep[0] > last_plot2d_file_step_2) {
-        Write2DPlotFile(2,plotfile2d_type_1,plot2d_var_names_2);
+        Write2DPlotFile(2,plotfile2d_type_2,plot2d_var_names_2);
         if (m_plot2d_per_2 > zero) {last_plot2d_file_time_2 += m_plot2d_per_2;}
     }
 
@@ -311,6 +311,12 @@ void
 ERF::post_timestep (int nstep, double time, double dt_lev0)
 {
     BL_PROFILE("ERF::post_timestep()");
+
+    if (cloud_chamber_budget) {
+        cloud_chamber_budget->report(
+            nstep + 1, time, vars_new[0][Vars::cons], geom[0],
+            solverChoice.moisture_type == MoistureType::SatAdj);
+    }
 
 #ifdef ERF_USE_PARTICLES
     particleData.Redistribute(z_phys_nd);
@@ -1230,7 +1236,8 @@ ERF::InitData_post ()
     // Update micro vars and finish moisture model initializations before first plot file
     if (solverChoice.moisture_type != MoistureType::None) {
         for (int lev = 0; lev <= finest_level; ++lev) {
-            micro->Update_Micro_Vars_Lev(lev, vars_new[lev][Vars::cons]);
+            const amrex::MultiFab* base = solverChoice.anelastic[lev] ? &base_state[lev] : nullptr;
+            micro->Update_Micro_Vars_Lev(lev, vars_new[lev][Vars::cons], base);
             micro->FinishInit(lev, vars_new[lev][Vars::cons], z_phys_nd);
         }
     }
@@ -1896,6 +1903,18 @@ ERF::init_only (int lev, double elapsed_time)
 
         // Copy rho and rhotheta from rho_hse and p_hse
         init_from_hse(lev);
+
+        if (lev == 0 && cloud_chamber_config.active &&
+            cloud_chamber_config.physical_initialization) {
+            MultiFab p0(base_state[lev], make_alias, BaseState::p0_comp, 1);
+            const Real p0_min = p0.min(0);
+            const Real p0_max = p0.max(0);
+            if (ParallelDescriptor::IOProcessor()) {
+                Print() << "Cloud Chamber base pressure [Pa]: min=" << p0_min
+                        << " max=" << p0_max
+                        << " lower-boundary=" << p0_max << "\n";
+            }
+        }
 
     } else {
         Abort("Unknown init_type!");

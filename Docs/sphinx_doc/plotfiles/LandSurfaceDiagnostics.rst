@@ -24,9 +24,13 @@ The public unified fields are:
 ``near_surface_diagnostic_source``
    Categorical code for the source selected for the requested bundle.
 
-Selection is cell-local and request-aware. ERF chooses one coherent source for
-all requested continuous fields. It never combines native temperature with
-MOST humidity, or MOST temperature with native humidity.
+The requested bundle consists of the requested continuous unified fields:
+temperature, humidity, or both. A source-only request follows the separate
+selection rule documented below. Selection is cell-local and request-aware. ERF
+chooses one coherent source for the complete requested bundle: either all
+required native Noah-MP values or all required SurfaceLayer/MOST values. It
+never combines native temperature with MOST humidity, or MOST temperature with
+native humidity.
 
 The native requirements are minimal for the request:
 
@@ -65,7 +69,7 @@ specific humidity to dry-air mixing ratio:
 
    r_v = \frac{q_v}{1-q_v}.
 
-The 2-D diagnostic layer receives mixing ratio and does not convert it again.
+The 2D diagnostic layer receives mixing ratio and does not convert it again.
 
 Native validation is request-specific:
 
@@ -108,12 +112,14 @@ uses EOS helpers after reconstructing local pressure:
          \left(z_{cc}^{\mathrm{AGL}} - 2\,\mathrm{m}\right).
 
 A humidity-only request does not require pressure, terrain height, conserved
-atmospheric state, or a temperature source. Invalid profile geometry, pressure,
-state, or output produces ``-999``. ERF does not silently clamp an invalid
-profile. MOST fills only unified fields; it never fills raw provider fields.
+atmospheric state, or a temperature source. Pressure, terrain, temperature
+state, and related prerequisites matter only for requests whose reconstruction
+uses them. Invalid required profile geometry, state, or output produces
+``-999``. ERF does not silently clamp an invalid profile. MOST fills only
+unified fields; it never fills raw provider fields.
 
-Exact HFX processed-cell scope
-------------------------------
+Validation of Noah-MP results
+-----------------------------
 
 Noah-MP ``HFX`` gates the following Noah-MP return fields:
 
@@ -138,10 +144,12 @@ Noah-MP ``HFX`` gates the following Noah-MP return fields:
    noahmp_water_vapor_mixing_ratio_2m_bare
    noahmp_vegetation_fraction
 
-It also gates Noah-MP surface-flux results and runtime soil result fields. An
-invalid ``HFX`` means that Noah-MP did not process the cell. ERF invalidates
-that result set. A valid ``HFX`` only establishes that the cell was processed;
-each returned field still passes its own validity rule.
+It also gates Noah-MP surface-flux results and runtime soil result fields. The
+gate rejects nonfinite values and the provider sentinel; it is not a positivity
+test, so a finite zero or negative ``HFX`` remains a processed result. ERF
+invalidates the result set when the gate fails. A valid ``HFX`` only establishes
+that the cell was processed; each returned field still passes its own validity
+rule.
 
 The following radiation-to-LSM forcing fields are not HFX-gated:
 
@@ -155,7 +163,7 @@ The following radiation-to-LSM forcing fields are not HFX-gated:
    sw_flux_dn_dif_nir
    lw_flux_dn
 
-They are stored through the radiation exchange path. Their public 2-D output
+They are stored through the radiation exchange path. Their public 2D output
 still translates absent, nonfinite, or sentinel values to ``-999``.
 
 Provider-specific native fields
@@ -178,7 +186,7 @@ metadata contract.
 Timing and limitations
 ----------------------
 
-ERF assembles these fields when it writes each primary 2-D plotfile. It
+ERF assembles these fields when it writes each primary 2D plotfile. It
 assembles each AMR level from that level's latest available land-surface,
 SurfaceLayer, source-mask, terrain, and atmospheric state. These fields are
 diagnostics, not checkpoint state. They do not change prognostic state or
