@@ -45,6 +45,7 @@ In addition to this documentation, there is API documentation for ERF generated 
    buildingConfiguration.rst
    Inputs.rst
    Initialization.rst
+   CloudChamber.rst
    BestPractices.rst
    AgenticWorkFlow.rst
    ERFKnowledgeAssistant.rst

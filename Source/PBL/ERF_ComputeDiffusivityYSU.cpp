@@ -182,7 +182,7 @@ ComputeDiffusivityYSU (const MultiFab& xvel,
         const Real dz_inv = geom.InvCellSize(2);
         const int izmin = geom.Domain().smallEnd(2);
         const int izmax = geom.Domain().bigEnd(2);
-        const PBLDerivativeDzInv_T pbl_derivative_dz_inv{z_phys_cc->const_array(mfi)};
+        //const PBLDerivativeDzInv_T pbl_derivative_dz_inv{z_phys_cc->const_array(mfi)};
 
         ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
