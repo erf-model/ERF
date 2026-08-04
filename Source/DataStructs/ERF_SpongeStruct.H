@@ -95,6 +95,8 @@ struct SpongeChoice {
     amrex::Real sponge_density = -one;
     amrex::Real sponge_rhotheta = -one;
     amrex::Real sponge_rhomoist = -one;
-    amrex::Real sponge_x_velocity, sponge_y_velocity, sponge_z_velocity;
+    amrex::Real sponge_x_velocity = zero;
+    amrex::Real sponge_y_velocity = zero;
+    amrex::Real sponge_z_velocity = zero;
 };
 #endif

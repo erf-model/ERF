@@ -12,6 +12,7 @@ using namespace amrex;
  * @param[in]  domain box of the whole domain
  * @param[in]  start_comp starting component index
  * @param[in]  num_comp number of components
+ * @param[in]  rotate flag to rotate terrain-aligned fluxes
  * @param[in]  u velocity in x-dir
  * @param[in]  v velocity in y-dir
  * @param[in]  cell_data conserved cell center vars
@@ -21,19 +22,29 @@ using namespace amrex;
  * @param[in]  yflux flux in y-dir
  * @param[in]  zflux flux in z-dir
  * @param[in]  z_nd physical z height
+ * @param[in]  z_cc cell-centered physical z height
+ * @param[in]  ax area fraction of x-faces
+ * @param[in]  ay area fraction of y-faces
  * @param[in]  detJ Jacobian determinant
  * @param[in]  cellSizeInv inverse cell size array
  * @param[in]  SmnSmn_a strain rate magnitude
- * @param[in]  mf_m map factor at cell center
- * @param[in]  mf_u map factor at x-face
- * @param[in]  mf_v map factor at y-face
+ * @param[in]  mf_mx x map factor at cell centers
+ * @param[in]  mf_ux x map factor at x-faces
+ * @param[in]  mf_vx x map factor at y-faces
+ * @param[in]  mf_my y map factor at cell centers
+ * @param[in]  mf_uy y map factor at x-faces
+ * @param[in]  mf_vy y map factor at y-faces
+ * @param[inout]  hfx_x heat flux in x-dir
+ * @param[inout]  hfx_y heat flux in y-dir
  * @param[inout]  hfx_z heat flux in z-dir
+ * @param[inout]  qfx1_x heat flux in x-dir
+ * @param[inout]  qfx1_y heat flux in y-dir
  * @param[inout]  qfx1_z heat flux in z-dir
  * @param[out]    qfx2_z heat flux in z-dir
  * @param[in]  diss dissipation of TKE
  * @param[in]  mu_turb turbulent viscosity
- * @param[in]  diffChoice container of diffusion parameters
- * @param[in]  turbChoice container of turbulence parameters
+ * @param[in]  solverChoice container of solver and diffusion parameters
+ * @param[in]  level AMR level
  * @param[in]  tm_arr theta mean array
  * @param[in]  grav_gpu gravity vector
  * @param[in]  bc_ptr container with boundary conditions
