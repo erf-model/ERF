@@ -5,6 +5,7 @@
 
 #include "AMReX_REAL.H"
 #include "ERF_ProbCommon.H"
+#include "Prob/ERF_CloudChamber.H"
 
 class Problem : public ProblemBase
 {
@@ -15,6 +16,9 @@ public:
 #include "Prob/ERF_InitCustomPert.H"
 #include "Prob/ERF_InitRayleighDamping.H"
 #include "Prob/ERF_UpdateSources.H"
+
+private:
+    erf_cloud_chamber::Config m_cloud_chamber_config;
 };
 
 #endif

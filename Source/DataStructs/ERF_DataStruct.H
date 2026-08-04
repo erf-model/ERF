@@ -19,6 +19,9 @@
 #include <ERF_TurbStruct.H>
 #include <ERF_TurbPertStruct.H>
 
+/**
+ * @brief Indices for map scale factors on mass and face grids.
+ */
 enum MapFacType {
 //  This version assumes isotropic
     m_x, u_x, v_x, num,
@@ -28,81 +31,138 @@ enum MapFacType {
 //  m_y, u_y, v_y, num
 };
 
+/**
+ * @brief Stress tensor component indices.
+ */
 enum TauType {
     tau11, tau22, tau33, tau12, tau13, tau23, tau21, tau31, tau32
 };
 
+/**
+ * @brief Initial-condition source used to populate the ERF state.
+ */
 AMREX_ENUM(InitType,
     None, Input_Sounding, NCFile, WRFInput, Metgrid, Uniform, ConstantDensity, ConstantDensityLinearTheta,
     Isentropic, MoistBaseState, HindCast
 );
 
+/**
+ * @brief Interpretation of input sounding profiles.
+ */
 AMREX_ENUM(SoundingType,
     ConstantDensity, Ideal, Isentropic, DryIsentropic
 );
 
+/**
+ * @brief Large-scale atmospheric boundary-layer driver type.
+ */
 AMREX_ENUM(ABLDriverType,
     None, PressureGradient, GeostrophicWind
 );
 
+/**
+ * @brief Multilevel coupling strategy.
+ */
 AMREX_ENUM(CouplingType,
     OneWay, TwoWay
 );
 
+/**
+ * @brief Acoustic substepping strategy.
+ */
 AMREX_ENUM(SubsteppingType,
     None, Implicit
 );
 
+/**
+ * @brief Vertical mesh representation.
+ */
 AMREX_ENUM(MeshType,
     ConstantDz, StretchedDz, VariableDz
 );
 
+/**
+ * @brief Terrain and immersed-boundary representation.
+ */
 AMREX_ENUM(TerrainType,
     None, StaticFittedMesh, MovingFittedMesh, EB, ImmersedForcing
 );
 
+/**
+ * @brief Building representation.
+ */
 AMREX_ENUM(BuildingsType,
     None, ImmersedForcing
 );
 
+/**
+ * @brief Moisture transport representation.
+ */
 AMREX_ENUM(MoistureModelType,
     Eulerian, Lagrangian, Undefined
 );
 
+/**
+ * @brief Moisture and microphysics model.
+ */
 AMREX_ENUM(MoistureType,
     SAM, SAM_NoIce, SAM_NoPrecip_NoIce, Kessler, Kessler_NoRain, SatAdj, Morrison, Morrison_NoIce, WSM6, SuperDroplets, MoistNoCondensation, None
 );
 
+/**
+ * @brief Wind-farm model.
+ */
 AMREX_ENUM(WindFarmType,
     Fitch, EWP, SimpleAD, GeneralAD, None
 );
 
+/**
+ * @brief Coordinate system used for wind-farm locations.
+ */
 AMREX_ENUM(WindFarmLocType,
     lat_lon, x_y, None
 );
 
+/**
+ * @brief Land-surface model.
+ */
 AMREX_ENUM(LandSurfaceType,
     SLM, MM5, NOAHMP, OceanSurf, None
 );
 
+/**
+ * @brief Radiation model.
+ */
 AMREX_ENUM(RadiationType,
     None, RRTMGP
 );
 
+/**
+ * @brief Coordinate-axis selector.
+ */
 enum struct Coord {
     x, y, z
 };
 
 // These are used as integers so must be enum not enum struct
+/**
+ * @brief Rayleigh damping profile component indices.
+ */
 enum Rayleigh {
     ubar, vbar, wbar, thetabar, nvars
 };
 
 // These are used as integers so must be enum not enum struct
+/**
+ * @brief Sponge reference-state component indices.
+ */
 enum Sponge {
     ubar_sponge, vbar_sponge, nvars_sponge
 };
 
+/**
+ * @brief Component indices for moisture species in the conserved state.
+ */
 struct MoistureComponentIndices {
     int qv = -1;  // Water vapor
     int qc = -1;  // Cloud liquid water
@@ -116,7 +176,20 @@ struct MoistureComponentIndices {
     int ns = -1;  // number concentration for snow
     int ng = -1;  // number concentration for graupel
 
-    // Constructor for easy initialization
+    /**
+     * @brief Construct moisture component indices from conserved-state component numbers.
+     * @param qv_comp Water vapor component index.
+     * @param qc_comp Cloud liquid water component index.
+     * @param qi_comp Cloud ice component index.
+     * @param qr_comp Rain component index.
+     * @param qs_comp Snow component index.
+     * @param qg_comp Graupel component index.
+     * @param nc_comp Cloud liquid water number concentration component index.
+     * @param ni_comp Cloud ice number concentration component index.
+     * @param nr_comp Rain number concentration component index.
+     * @param ns_comp Snow number concentration component index.
+     * @param ng_comp Graupel number concentration component index.
+     */
     MoistureComponentIndices (int qv_comp, int qc_comp,
                               int qi_comp=-1,
                               int qr_comp=-1,
@@ -130,9 +203,36 @@ struct MoistureComponentIndices {
         : qv(qv_comp), qc(qc_comp), qi(qi_comp), qr(qr_comp), qs(qs_comp), qg(qg_comp),
                        nc(nc_comp), ni(ni_comp), nr(nr_comp), ns(ns_comp), ng(ng_comp) {}
 
-    // Default constructor
+    /**
+     * @brief Construct an empty set of moisture component indices.
+     */
     MoistureComponentIndices() = default;
 };
+
+/**
+ * @var MoistureComponentIndices::qv
+ * @brief Water vapor component index.
+ * @var MoistureComponentIndices::qc
+ * @brief Cloud liquid water component index.
+ * @var MoistureComponentIndices::qi
+ * @brief Cloud ice component index.
+ * @var MoistureComponentIndices::qr
+ * @brief Rain component index.
+ * @var MoistureComponentIndices::qs
+ * @brief Snow component index.
+ * @var MoistureComponentIndices::qg
+ * @brief Graupel component index.
+ * @var MoistureComponentIndices::nc
+ * @brief Cloud liquid water number concentration component index.
+ * @var MoistureComponentIndices::ni
+ * @brief Cloud ice number concentration component index.
+ * @var MoistureComponentIndices::nr
+ * @brief Rain number concentration component index.
+ * @var MoistureComponentIndices::ns
+ * @brief Snow number concentration component index.
+ * @var MoistureComponentIndices::ng
+ * @brief Graupel number concentration component index.
+ */
 
 /**
  * Container holding many of the algorithmic options and parameters
@@ -140,6 +240,11 @@ struct MoistureComponentIndices {
 
 struct SolverChoice {
   public:
+    /**
+     * @brief Read solver-wide algorithmic options from the input parameter database.
+     * @param max_level Maximum AMR level configured for the run.
+     * @param pp_prefix ParmParse prefix for the ERF input namespace.
+     */
     void init_params (int max_level, std::string pp_prefix)
     {
         amrex::ParmParse pp(pp_prefix);
@@ -903,6 +1008,12 @@ struct SolverChoice {
         }
     }
 
+    /**
+     * @brief Validate solver options after geometry and boundary conditions are known.
+     * @param max_level Maximum AMR level configured for the run.
+     * @param geom_vect Geometry for each AMR level.
+     * @param phys_bc_type Physical boundary-condition types.
+     */
     void check_params (int max_level, const amrex::Vector<amrex::Geometry>& geom_vect, amrex::GpuArray<ERF_BC, AMREX_SPACEDIM*2> phys_bc_type)
     {
 #if 0
@@ -1013,6 +1124,11 @@ struct SolverChoice {
         }
     }
 
+    /**
+     * @brief Print the configured solver, physics, and transport options.
+     * @param max_level Maximum AMR level configured for the run.
+     * @param pp_prefix ParmParse prefix used to display nested choices.
+     */
     void display (int max_level, std::string pp_prefix)
     {
         amrex::Print() << "SOLVER CHOICE: " << std::endl;
@@ -1150,6 +1266,10 @@ struct SolverChoice {
         }
     }
 
+    /**
+     * @brief Build constant-latitude Coriolis forcing parameters.
+     * @param pp_prefix ParmParse prefix for the ERF input namespace.
+     */
     void build_coriolis_forcings_const_lat (std::string pp_prefix)
     {
         amrex::ParmParse pp(pp_prefix);
@@ -1193,6 +1313,13 @@ struct SolverChoice {
         }
     }
 
+    /**
+     * @brief Read one integer value or one value per AMR level.
+     * @param max_level Maximum AMR level configured for the run.
+     * @param string_to_read ParmParse key to read.
+     * @param vec_to_fill Destination vector with one entry per level.
+     * @param default_int Default value used when the key is absent.
+     */
     void read_int_string (int max_level, const char* string_to_read,
                           amrex::Vector<int>& vec_to_fill, int default_int)
     {
@@ -1233,6 +1360,10 @@ struct SolverChoice {
     inline static
     MeshType mesh_type = MeshType::ConstantDz;
 
+    /**
+     * @brief Override the globally selected mesh type.
+     * @param new_mesh_type Mesh type to store.
+     */
     static
     void set_mesh_type (MeshType new_mesh_type)
     {
@@ -1364,6 +1495,11 @@ struct SolverChoice {
     // User wishes to output time averaged velocity fields
     bool time_avg_vel = false;
 
+    /**
+     * @brief Query whether any turbulent perturbation mode is enabled on a level.
+     * @param lev AMR level index.
+     * @return True if source, direct, CPM, or CPM_W perturbations are enabled.
+     */
     bool use_perturbation (int lev) const
     {
         return pert_type[lev] == PerturbationType::Source ||
@@ -1372,6 +1508,11 @@ struct SolverChoice {
                pert_type[lev] == PerturbationType::CPM_W;
     }
 
+    /**
+     * @brief Query whether direct turbulent perturbations are enabled on a level.
+     * @param lev AMR level index.
+     * @return True if direct, CPM, or CPM_W perturbations are enabled.
+     */
     bool use_direct_perturbation (int lev) const
     {
         return pert_type[lev] == PerturbationType::Direct ||
@@ -1379,26 +1520,48 @@ struct SolverChoice {
                pert_type[lev] == PerturbationType::CPM_W;
     }
 
+    /**
+     * @brief Query whether source-term turbulent perturbations are enabled on a level.
+     * @param lev AMR level index.
+     * @return True if source perturbations are enabled.
+     */
     bool use_source_perturbation (int lev) const
     {
         return pert_type[lev] == PerturbationType::Source;
     }
 
+    /**
+     * @brief Query whether vertical-velocity CPM perturbations are enabled on a level.
+     * @param lev AMR level index.
+     * @return True if CPM_W perturbations are enabled.
+     */
     bool use_wvel_perturbation (int lev) const
     {
         return pert_type[lev] == PerturbationType::CPM_W;
     }
 
+    /**
+     * @brief Query whether any SHOC-family PBL scheme is active.
+     * @return True if native or EAMxx SHOC is active.
+     */
     bool uses_shoc_family () const noexcept
     {
         return use_eamxx_shoc || use_native_shoc;
     }
 
+    /**
+     * @brief Query whether the active PBL scheme suppresses microphysics condensation.
+     * @return True when the active PBL scheme owns condensation handling.
+     */
     bool pbl_suppresses_microphysics_condensation () const noexcept
     {
         return uses_shoc_family();
     }
 
+    /**
+     * @brief Query whether any level uses a turbulent perturbation mode.
+     * @return True if at least one configured level has source, direct, or CPM perturbations.
+     */
     bool any_perturbation () const
     {
         for (const auto& type : pert_type) {
@@ -1482,4 +1645,269 @@ struct SolverChoice {
     amrex::Real ens_pert_amplitude = -1.0;
     std::string coarse_bckgnd_data_file;
 };
+
+/**
+ * @var SolverChoice::init_type
+ * @brief Initial-condition source selected for the run.
+ * @var SolverChoice::sounding_type
+ * @brief Interpretation used for input sounding profiles.
+ * @var SolverChoice::terrain_type
+ * @brief Terrain or immersed-boundary representation.
+ * @var SolverChoice::buildings_type
+ * @brief Building representation.
+ * @var SolverChoice::use_real_bcs
+ * @brief Whether real-data lateral boundary conditions are used.
+ * @var SolverChoice::mesh_type
+ * @brief Vertical mesh representation.
+ * @var SolverChoice::advChoice
+ * @brief Advection-related options.
+ * @var SolverChoice::diffChoice
+ * @brief Diffusion-related options.
+ * @var SolverChoice::dampingChoice
+ * @brief Damping-related options.
+ * @var SolverChoice::spongeChoice
+ * @brief Sponge-layer options.
+ * @var SolverChoice::turbChoice
+ * @brief Turbulence options for each AMR level.
+ * @var SolverChoice::ebChoice
+ * @brief Embedded-boundary options.
+ * @var SolverChoice::force_stage1_single_substep
+ * @brief Flag forcing a single substep in the first RK stage.
+ * @var SolverChoice::substepping_type
+ * @brief Acoustic substepping type for each AMR level.
+ * @var SolverChoice::anelastic
+ * @brief Per-level flag selecting anelastic dynamics.
+ * @var SolverChoice::fixed_density
+ * @brief Per-level flag selecting fixed-density treatment.
+ * @var SolverChoice::project_initial_velocity
+ * @brief Per-level flag for projecting the initial velocity.
+ * @var SolverChoice::buoyancy_type
+ * @brief Per-level buoyancy formulation selector.
+ * @var SolverChoice::is_land
+ * @brief Per-level land/water selector.
+ * @var SolverChoice::substepping_diag
+ * @brief Whether to emit extra CFL diagnostics for compressible substepping.
+ * @var SolverChoice::beta_s
+ * @brief Time off-centering coefficient for forward weighting.
+ * @var SolverChoice::vert_implicit_fac
+ * @brief Per-level, per-stage implicit vertical diffusion factors.
+ * @var SolverChoice::implicit_thermal_diffusion
+ * @brief Whether implicit vertical thermal diffusion is included.
+ * @var SolverChoice::implicit_moisture_diffusion
+ * @brief Whether implicit vertical moisture diffusion is included.
+ * @var SolverChoice::implicit_ke_diffusion
+ * @brief Whether implicit vertical TKE diffusion is included.
+ * @var SolverChoice::implicit_momentum_diffusion
+ * @brief Whether implicit vertical momentum diffusion is included.
+ * @var SolverChoice::implicit_before_substep
+ * @brief Whether implicit diffusion is applied before acoustic substepping.
+ * @var SolverChoice::ncorr
+ * @brief Number of projection correction iterations.
+ * @var SolverChoice::poisson_abstol
+ * @brief Absolute tolerance for the Poisson solve.
+ * @var SolverChoice::poisson_reltol
+ * @brief Relative tolerance for the Poisson solve.
+ * @var SolverChoice::test_mapfactor
+ * @brief Whether to use test map scale factors.
+ * @var SolverChoice::gradp_type
+ * @brief Terrain-fitted horizontal pressure-gradient formulation.
+ * @var SolverChoice::use_pert_pres_gradient
+ * @brief Whether momentum equations use perturbational pressure gradients.
+ * @var SolverChoice::use_gravity
+ * @brief Whether gravitational forcing is enabled.
+ * @var SolverChoice::use_coriolis
+ * @brief Whether Coriolis forcing is enabled.
+ * @var SolverChoice::coriolis_3d
+ * @brief Whether the three-dimensional Coriolis terms are included.
+ * @var SolverChoice::four_stream_radiation
+ * @brief Whether the four-stream radiation approximation is enabled.
+ * @var SolverChoice::immersed_forcing_substep
+ * @brief Whether immersed-forcing source terms are applied only during substeps.
+ * @var SolverChoice::forest_substep
+ * @brief Whether canopy source terms are applied only during substeps.
+ * @var SolverChoice::if_Cd_momentum
+ * @brief Immersed-forcing drag coefficient for momentum.
+ * @var SolverChoice::if_Cd_scalar
+ * @brief Immersed-forcing drag coefficient for scalars.
+ * @var SolverChoice::if_z0
+ * @brief Immersed-forcing roughness length [m].
+ * @var SolverChoice::if_surf_temp_flux
+ * @brief Immersed-forcing surface temperature flux [K m/s].
+ * @var SolverChoice::if_init_surf_temp
+ * @brief Initial immersed-forcing surface temperature [K].
+ * @var SolverChoice::if_surf_heating_rate
+ * @brief Immersed-forcing surface heating rate [K/hr].
+ * @var SolverChoice::if_Olen_in
+ * @brief Input Obukhov length for immersed-forcing MOST [m].
+ * @var SolverChoice::if_use_most
+ * @brief Whether immersed-forcing MOST is enabled.
+ * @var SolverChoice::if_stability_correction
+ * @brief Whether immersed-forcing stability corrections are enabled.
+ * @var SolverChoice::if_ws_floor
+ * @brief Wind-speed floor for immersed-forcing MOST [m/s].
+ * @var SolverChoice::if_damp_alpha
+ * @brief Immersed-forcing damping coefficient.
+ * @var SolverChoice::use_lagged_delta_rt
+ * @brief Whether to use lagged delta terms for moving terrain.
+ * @var SolverChoice::rebalance_wrf_input
+ * @brief Whether to rebalance states from wrfinput and wrfbdy data.
+ * @var SolverChoice::gravity
+ * @brief Effective gravitational acceleration.
+ * @var SolverChoice::c_p
+ * @brief Specific heat at constant pressure for dry air [J/(kg-K)].
+ * @var SolverChoice::rdOcp
+ * @brief Ratio of dry-air gas constant to c_p.
+ * @var SolverChoice::grid_stretching_ratio
+ * @brief Vertical grid stretching ratio.
+ * @var SolverChoice::zsurf
+ * @brief Nominal surface height for stretched-grid setup.
+ * @var SolverChoice::dz0
+ * @brief Initial vertical grid spacing for stretched-grid setup.
+ * @var SolverChoice::coriolis_factor
+ * @brief Twice the planetary rotation rate used for Coriolis forcing.
+ * @var SolverChoice::cosphi
+ * @brief Cosine of the latitude used for Coriolis forcing.
+ * @var SolverChoice::sinphi
+ * @brief Sine of the latitude used for Coriolis forcing.
+ * @var SolverChoice::custom_rhotheta_forcing
+ * @brief Whether custom rho-theta forcing is enabled.
+ * @var SolverChoice::custom_moisture_forcing
+ * @brief Whether custom moisture forcing is enabled.
+ * @var SolverChoice::custom_w_subsidence
+ * @brief Whether custom vertical subsidence is enabled.
+ * @var SolverChoice::do_theta_advection
+ * @brief Whether custom vertical subsidence is applied to rho-theta.
+ * @var SolverChoice::do_mom_advection
+ * @brief Whether custom vertical subsidence is applied to momentum.
+ * @var SolverChoice::custom_geostrophic_profile
+ * @brief Whether a custom geostrophic wind profile is used.
+ * @var SolverChoice::custom_forcing_prim_vars
+ * @brief Whether custom forcing operates on primitive variables.
+ * @var SolverChoice::spatial_rhotheta_forcing
+ * @brief Whether spatially varying rho-theta forcing is enabled.
+ * @var SolverChoice::spatial_moisture_forcing
+ * @brief Whether spatially varying moisture forcing is enabled.
+ * @var SolverChoice::nudging_from_input_sounding
+ * @brief Whether solution fields are nudged toward input sounding data.
+ * @var SolverChoice::use_rotate_surface_flux
+ * @brief Whether MOST surface fluxes are rotated with terrain.
+ * @var SolverChoice::use_eamxx_shoc
+ * @brief Whether any level uses the EAMxx SHOC PBL scheme.
+ * @var SolverChoice::use_native_shoc
+ * @brief Whether any level uses the native SHOC PBL scheme.
+ * @var SolverChoice::transport_scalar
+ * @brief Whether the passive scalar component is transported.
+ * @var SolverChoice::time_avg_vel
+ * @brief Whether time-averaged velocity fields are output.
+ * @var SolverChoice::pert_type
+ * @brief Turbulent perturbation type for each AMR level.
+ * @var SolverChoice::use_num_diff
+ * @brief Whether sixth-order numerical diffusion is enabled.
+ * @var SolverChoice::num_diff_coeff
+ * @brief Numerical diffusion coefficient after input scaling.
+ * @var SolverChoice::coupling_type
+ * @brief Multilevel coupling strategy.
+ * @var SolverChoice::moisture_type
+ * @brief Moisture or microphysics model.
+ * @var SolverChoice::windfarm_type
+ * @brief Wind-farm model.
+ * @var SolverChoice::windfarm_loc_type
+ * @brief Coordinate system for wind-farm turbine locations.
+ * @var SolverChoice::lsm_type
+ * @brief Land-surface model.
+ * @var SolverChoice::rad_type
+ * @brief Radiation model.
+ * @var SolverChoice::abl_driver_type
+ * @brief Atmospheric boundary-layer driver type.
+ * @var SolverChoice::abl_pressure_grad
+ * @brief Applied ABL pressure-gradient forcing vector.
+ * @var SolverChoice::abl_geo_forcing
+ * @brief Applied geostrophic-wind forcing vector.
+ * @var SolverChoice::abl_geo_wind_table
+ * @brief Path to a time-varying geostrophic wind table.
+ * @var SolverChoice::have_geo_wind_profile
+ * @brief Whether a geostrophic wind profile has been configured.
+ * @var SolverChoice::variable_coriolis
+ * @brief Whether spatially varying Coriolis forcing is enabled.
+ * @var SolverChoice::ave_plane
+ * @brief Averaging plane index used by diagnostics.
+ * @var SolverChoice::moisture_indices
+ * @brief Conserved-state component indices for active moisture species.
+ * @var SolverChoice::moisture_tight_coupling
+ * @brief Whether moisture updates use tight coupling.
+ * @var SolverChoice::windfarm_loc_table
+ * @brief Wind-farm location table path.
+ * @var SolverChoice::windfarm_spec_table
+ * @brief Wind-farm turbine specification table path.
+ * @var SolverChoice::windfarm_spec_table_extra
+ * @brief Additional wind-farm turbine specification table path.
+ * @var SolverChoice::windfarm_blade_table
+ * @brief Wind-farm blade table path.
+ * @var SolverChoice::windfarm_airfoil_tables
+ * @brief Wind-farm airfoil table paths.
+ * @var SolverChoice::sampling_distance_by_D
+ * @brief Turbine inflow sampling distance normalized by rotor diameter.
+ * @var SolverChoice::turb_disk_angle
+ * @brief Turbine disk angle from the x axis [deg].
+ * @var SolverChoice::windfarm_x_shift
+ * @brief Wind-farm x-coordinate shift.
+ * @var SolverChoice::windfarm_y_shift
+ * @brief Wind-farm y-coordinate shift.
+ * @var SolverChoice::bdy_nudge_factor
+ * @brief Boundary sponge nudging factor.
+ * @var SolverChoice::bdy_moist_nudge_type
+ * @brief Moist-variable nudging strategy in boundary regions.
+ * @var SolverChoice::do_forest_drag
+ * @brief Whether forest canopy drag is enabled.
+ * @var SolverChoice::const_massflux_u
+ * @brief Target constant mass flux in the x direction.
+ * @var SolverChoice::const_massflux_v
+ * @brief Target constant mass flux in the y direction.
+ * @var SolverChoice::const_massflux_tau
+ * @brief Relaxation time scale for constant-mass-flux forcing.
+ * @var SolverChoice::const_massflux_layer_lo
+ * @brief Lower height of the constant-mass-flux forcing layer.
+ * @var SolverChoice::const_massflux_layer_hi
+ * @brief Upper height of the constant-mass-flux forcing layer.
+ * @var SolverChoice::massflux_klo
+ * @brief Lower vertical index for constant-mass-flux forcing.
+ * @var SolverChoice::massflux_khi
+ * @brief Upper vertical index for constant-mass-flux forcing.
+ * @var SolverChoice::hindcast_boundary_data_dir
+ * @brief Directory containing hindcast lateral boundary data.
+ * @var SolverChoice::hindcast_surface_data_dir
+ * @brief Directory containing hindcast surface boundary data.
+ * @var SolverChoice::hindcast_data_interval_in_hrs
+ * @brief Time interval between hindcast data files [hr].
+ * @var SolverChoice::hindcast_lateral_forcing
+ * @brief Whether hindcast lateral forcing is enabled.
+ * @var SolverChoice::hindcast_surface_bcs
+ * @brief Whether hindcast surface boundary conditions are enabled.
+ * @var SolverChoice::hindcast_lateral_sponge_strength
+ * @brief Strength of the hindcast lateral sponge layer.
+ * @var SolverChoice::hindcast_lateral_sponge_length
+ * @brief Length of the hindcast lateral sponge layer.
+ * @var SolverChoice::hindcast_zhi_sponge_strength
+ * @brief Strength of the upper hindcast sponge layer.
+ * @var SolverChoice::hindcast_zhi_sponge_length
+ * @brief Length of the upper hindcast sponge layer.
+ * @var SolverChoice::hindcast_zhi_sponge_damping
+ * @brief Whether upper-boundary hindcast sponge damping is enabled.
+ * @var SolverChoice::io_hurricane_eye_tracker
+ * @brief Whether hurricane-eye tracking output is enabled.
+ * @var SolverChoice::hurricane_eye_latitude
+ * @brief Initial hurricane-eye latitude.
+ * @var SolverChoice::hurricane_eye_longitude
+ * @brief Initial hurricane-eye longitude.
+ * @var SolverChoice::is_init_for_ensemble
+ * @brief Whether initialization is for an ensemble simulation.
+ * @var SolverChoice::n_ensemble
+ * @brief Number of ensemble members.
+ * @var SolverChoice::ens_pert_correlated_radius
+ * @brief Spatial correlation radius for ensemble perturbations.
+ * @var SolverChoice::ens_pert_amplitude
+ * @brief Amplitude of ensemble initialization perturbations.
+ * @var SolverChoice::coarse_bckgnd_data_file
+ * @brief Coarse background data file used for ensemble initialization.
+ */
 #endif
