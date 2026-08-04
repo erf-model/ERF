@@ -1,3 +1,7 @@
+/**
+ * \file ERF_EBAdvection.H
+ * \brief Declares embedded-boundary advection source-term kernels.
+ */
 #ifndef ERF_EBADVECTION_H_
 #define ERF_EBADVECTION_H_
 
@@ -10,7 +14,12 @@
 #include "ERF_IndexDefines.H"
 #include "ERF_SurfaceLayer.H"
 
-/** Compute advection tendency for density and potential temperature */
+/**
+ * \brief Compute EB advection tendency for density and potential temperature.
+ *
+ * The routine also computes face-averaged momentum arrays reused by scalar
+ * advection and stores directional fluxes in flx_arr.
+ */
 void EBAdvectionSrcForRho (const amrex::Box& bx,
                            const amrex::Array4<amrex::Real>& src,
                            const amrex::Array4<const amrex::Real>& rho_u,    // These are being used
@@ -37,7 +46,12 @@ void EBAdvectionSrcForRho (const amrex::Box& bx,
                            const bool fixed_rho,
                            bool already_on_centroids);
 
-/** Compute advection tendency for all scalars other than density and potential temperature */
+/**
+ * \brief Compute EB advection tendency for scalars other than density.
+ *
+ * The scalar fluxes use momentum averages from EBAdvectionSrcForRho and support
+ * lower-order stencils near covered EB cells.
+ */
 void EBAdvectionSrcForScalars (const amrex::Box& bx,
                                const int icomp, const int ncomp,
                                const amrex::Array4<const amrex::Real>& avg_xmom,
