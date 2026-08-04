@@ -145,7 +145,7 @@
             bool has_moisture = (solverChoice.moisture_type != MoistureType::None);
             m_fire_layer->apply_fire_coupling_to_cc_source(
                 cc_src,
-                S_data[IntVars::cons],
+                S_old[IntVars::cons],
                 *zpc_to_use,
                 fine_geom,
                 has_moisture);
