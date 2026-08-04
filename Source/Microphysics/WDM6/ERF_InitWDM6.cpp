@@ -266,11 +266,11 @@ WDM6::initialize_coeffs()
     m_pidn0g  = m_pi_wdm6 * m_deng * m_n0g;
 
     // Slope parameter limits
-    m_rslopecmax  = Real(1.0) / lamdacmin;
+    m_rslopecmax  = Real(1.0) / lamdacmax;
     m_rslopec2max = m_rslopecmax * m_rslopecmax;
     m_rslopec3max = m_rslopec2max * m_rslopecmax;
 
-    m_rslopermax  = Real(1.0) / lamdarmin;
+    m_rslopermax  = Real(1.0) / lamdarmax;
     m_rslopesmax  = Real(1.0) / lamdasmax;
     m_rslopegmax  = Real(1.0) / m_lamdagmax;
     m_rsloperbmax = std::pow(m_rslopermax, bvtr);

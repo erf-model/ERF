@@ -99,6 +99,46 @@ Real wdm6_lamdac (Real qc, Real den, Real nc, Real pidnc_arg) {
     return std::pow((pidnc_arg * nc * den) / (den * qc), Real(1.0)/Real(3.0));
 }
 
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+Real wdm6_rslopec_exact (Real qc, Real den, Real nc, Real pidnc_arg) {
+    return std::exp(std::log((pidnc_arg * nc) / (den * qc)) * Real(0.33333333));
+}
+
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+Real wdm6_xni_exact (Real qi, Real den, Real qmin_arg) {
+    Real temp = den * amrex::max(qi, qmin_arg);
+    temp = std::sqrt(std::sqrt(temp * temp * temp));
+    return amrex::min(amrex::max(Real(5.38e7) * temp, Real(1.e3)), Real(1.e6));
+}
+
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+void wdm6_slope_rain_cell (Real qr, Real nr, Real den, Real denfac,
+                           Real qcrmin_arg, Real nrmin_arg,
+                           Real rslopermax_arg, Real rsloperbmax_arg,
+                           Real rsloper2max_arg, Real rsloper3max_arg,
+                           Real bvtr_arg, Real pvtr_arg, Real pvtrn_arg,
+                           Real pidnr_arg,
+                           Real& rslope, Real& rslopeb,
+                           Real& rslope2, Real& rslope3,
+                           Real& vt, Real& vtn)
+{
+    if (qr <= qcrmin_arg || nr <= nrmin_arg) {
+        rslope  = rslopermax_arg;
+        rslopeb = rsloperbmax_arg;
+        rslope2 = rsloper2max_arg;
+        rslope3 = rsloper3max_arg;
+    } else {
+        rslope  = amrex::min(Real(1.0) / wdm6_lamdar(qr, den, nr, pidnr_arg), Real(1.e-3));
+        rslopeb = std::pow(rslope, bvtr_arg);
+        rslope2 = rslope * rslope;
+        rslope3 = rslope2 * rslope;
+    }
+    vt = pvtr_arg * rslopeb * denfac;
+    vtn = pvtrn_arg * rslopeb * denfac;
+    if (qr <= Real(0.0)) vt = Real(0.0);
+    if (nr <= Real(0.0)) vtn = Real(0.0);
+}
+
 // ---------------------------------------------------------------
 // Ice slope parameter functions (single-moment from WSM6)
 // ---------------------------------------------------------------
@@ -267,6 +307,23 @@ void WDM6::Advance(const Real& dt_advance,
     }
 #endif
 
+    int microphysics_debug = 0;
+    std::vector<int> micro_diag_target_column;
+    {
+        amrex::ParmParse pp("erf");
+        pp.query("microphysics_debug", microphysics_debug);
+        pp.queryarr("micro_diag_target_column", micro_diag_target_column);
+    }
+    microphysics_debug = std::max(0, std::min(2, microphysics_debug));
+#ifdef ERF_USE_WDM6_FORT
+    bool use_wdm6_cpp_answer = false;
+    {
+        amrex::ParmParse pp("erf");
+        pp.query("use_wdm6_cpp_answer", use_wdm6_cpp_answer);
+    }
+    const bool run_wdm6_fort = !use_wdm6_cpp_answer;
+#endif
+
     // Physical constants
     constexpr double g = static_cast<double>(CONST_GRAV);
     constexpr double cpd = static_cast<double>(Cp_d);
@@ -321,13 +378,22 @@ void WDM6::Advance(const Real& dt_advance,
         const int jmhi = fab_box.bigEnd(1);
         const int kmlo = fab_box.smallEnd(2);
         const int kmhi = fab_box.bigEnd(2);
+        const bool has_target_override = (micro_diag_target_column.size() == 2);
+        const int diag_i = has_target_override ? micro_diag_target_column[0] : ilo;
+        const int diag_j = has_target_override ? micro_diag_target_column[1] : jlo;
+
+#if defined(ERF_USE_WDM6_FORT) && defined(AMREX_USE_GPU)
+        Arena* Arena_Used = run_wdm6_fort ? The_Pinned_Arena() : The_Async_Arena();
+#else
+        Arena* Arena_Used = The_Async_Arena();
+#endif
 
 #ifdef ERF_USE_WDM6_FORT
+        if (run_wdm6_fort) {
         // Fortran bridge path
-
         // Create delz array (cell thickness)
         const Real dz_val = m_geom.CellSize(2);
-        FArrayBox delz_fab(fab_box, 1, The_Pinned_Arena());
+        FArrayBox delz_fab(fab_box, 1, Arena_Used);
         auto const& delz_arr = delz_fab.array();
         ParallelFor(fab_box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
             delz_arr(i,j,k) = dz_val;
@@ -336,7 +402,7 @@ void WDM6::Advance(const Real& dt_advance,
         // Create landmask array (xland: 0=water, 1=land)
         // TODO: Get from ERF's lmask_lev when available
         // For now, default to land (continental CCN)
-        FArrayBox xland_fab(Box(IntVect(imlo,jmlo,0), IntVect(imhi,jmhi,0)), 1, The_Pinned_Arena());
+        FArrayBox xland_fab(Box(IntVect(imlo,jmlo,0), IntVect(imhi,jmhi,0)), 1, Arena_Used);
         auto const& xland_arr = xland_fab.array();
         ParallelFor(Box(IntVect(imlo,jmlo,0), IntVect(imhi,jmhi,0)), [=] AMREX_GPU_DEVICE (int i, int j, int k) {
             xland_arr(i,j,k) = Real(1.0);  // Default to land
@@ -344,13 +410,13 @@ void WDM6::Advance(const Real& dt_advance,
 
         // Create 2D accumulation arrays
         Box box2d(IntVect(imlo,jmlo,0), IntVect(imhi,jmhi,0));
-        FArrayBox rainacc_fab(box2d, 1, The_Pinned_Arena());
-        FArrayBox rainncv_fab(box2d, 1, The_Pinned_Arena());
-        FArrayBox sr_fab(box2d, 1, The_Pinned_Arena());
-        FArrayBox snowacc_fab(box2d, 1, The_Pinned_Arena());
-        FArrayBox snowncv_fab(box2d, 1, The_Pinned_Arena());
-        FArrayBox graupacc_fab(box2d, 1, The_Pinned_Arena());
-        FArrayBox graupelncv_fab(box2d, 1, The_Pinned_Arena());
+        FArrayBox rainacc_fab(box2d, 1, Arena_Used);
+        FArrayBox rainncv_fab(box2d, 1, Arena_Used);
+        FArrayBox sr_fab(box2d, 1, Arena_Used);
+        FArrayBox snowacc_fab(box2d, 1, Arena_Used);
+        FArrayBox snowncv_fab(box2d, 1, Arena_Used);
+        FArrayBox graupacc_fab(box2d, 1, Arena_Used);
+        FArrayBox graupelncv_fab(box2d, 1, Arena_Used);
 
         auto const& rainacc_arr = rainacc_fab.array();
         auto const& rainncv_arr = rainncv_fab.array();
@@ -388,7 +454,7 @@ void WDM6::Advance(const Real& dt_advance,
             graupacc_arr.dataPtr(), graupelncv_arr.dataPtr(),
             imlo, imhi, jmlo, jmhi, kmlo, kmhi,
             ilo, ihi, jlo, jhi, klo, khi,
-            1, 240, 150);  // microphysics_debug=1, diag_i=240, diag_j=150
+            microphysics_debug, diag_i, diag_j);
 
         // CRITICAL: Convert updated temperature back to potential temperature
         // The Fortran WDM6 modifies t_arr (absolute temperature) due to latent heating/cooling
@@ -414,22 +480,25 @@ void WDM6::Advance(const Real& dt_advance,
             snow_arr(i,j,k) += snowacc_arr(i,j,k);
             graup_arr(i,j,k) += graupacc_arr(i,j,k);
         });
-
-#else
+        } else {
+#endif
         // ===================================================================
         // WDM6 C++ GPU kernel path (adapted from WSM6 with double-moment)
         // ===================================================================
 
         // Working FABs (similar to WSM6 but with WDM6-specific additions)
-#if defined(AMREX_USE_GPU)
-        Arena* Arena_Used = The_Async_Arena();
-#else
-        Arena* Arena_Used = The_Async_Arena();
-#endif
-
         // 3D working arrays
         FArrayBox denfac_fab(fab_box,1, Arena_Used);
         FArrayBox xni_fab(fab_box,1, Arena_Used);
+        FArrayBox rslopec_fab(fab_box,1, Arena_Used);
+        FArrayBox rslopec2_fab(fab_box,1, Arena_Used);
+        FArrayBox rslopec3_fab(fab_box,1, Arena_Used);
+        FArrayBox rslope_fab(fab_box,3, Arena_Used);
+        FArrayBox rslopeb_fab(fab_box,3, Arena_Used);
+        FArrayBox rslope2_fab(fab_box,3, Arena_Used);
+        FArrayBox rslope3_fab(fab_box,3, Arena_Used);
+        FArrayBox work1_fab(fab_box,3, Arena_Used);
+        FArrayBox workn_fab(fab_box,1, Arena_Used);
         FArrayBox cpm_fab(fab_box,1, Arena_Used);
         FArrayBox xl_fab(fab_box,1, Arena_Used);
         FArrayBox qsatw_fab(fab_box,1, Arena_Used);
@@ -452,6 +521,15 @@ void WDM6::Advance(const Real& dt_advance,
 
         auto const& denfac_arr = denfac_fab.array();
         auto const& xni_arr = xni_fab.array();
+        auto const& rslopec_arr = rslopec_fab.array();
+        auto const& rslopec2_arr = rslopec2_fab.array();
+        auto const& rslopec3_arr = rslopec3_fab.array();
+        auto const& rslope_arr = rslope_fab.array();
+        auto const& rslopeb_arr = rslopeb_fab.array();
+        auto const& rslope2_arr = rslope2_fab.array();
+        auto const& rslope3_arr = rslope3_fab.array();
+        auto const& work1_arr = work1_fab.array();
+        auto const& workn_arr = workn_fab.array();
         auto const& cpm_arr = cpm_fab.array();
         auto const& xl_arr = xl_fab.array();
         auto const& qsatw_arr = qsatw_fab.array();
@@ -476,9 +554,9 @@ void WDM6::Advance(const Real& dt_advance,
             qs_arr(i,j,k) = amrex::max(qs_arr(i,j,k), Real(0.0));
             qg_arr(i,j,k) = amrex::max(qg_arr(i,j,k), Real(0.0));
 
-            // WDM6: Enforce minimum number concentrations
-            nc_arr(i,j,k) = amrex::max(nc_arr(i,j,k), Real(1.e1));   // ncmin
-            nr_arr(i,j,k) = amrex::max(nr_arr(i,j,k), Real(1.e-2));  // nrmin
+            // Match Fortran pre-G3 behavior: nc is non-negative here, but not floored to ncmin yet.
+            nc_arr(i,j,k) = amrex::max(nc_arr(i,j,k), Real(0.0));
+            nr_arr(i,j,k) = amrex::max(nr_arr(i,j,k), Real(0.0));
             nn_arr(i,j,k) = amrex::max(nn_arr(i,j,k), Real(0.0));
         });
 
@@ -500,6 +578,31 @@ void WDM6::Advance(const Real& dt_advance,
         const Real qck1_loc = m_qck1;
         const Real pidnc_loc = m_pidnc;
         const Real pidnr_loc = m_pidnr;
+        const Real pvtr_loc = m_pvtr;
+        const Real pvtrn_loc = m_pvtrn;
+        const Real pvts_loc = m_pvts;
+        const Real pvtg_loc = m_pvtg;
+        const Real slope_bvtg_loc = m_bvtg;
+        const Real pidn0s_loc = m_pidn0s;
+        const Real pidn0g_loc = m_pidn0g;
+        const Real rslopermax_loc = m_rslopermax;
+        const Real rsloperbmax_loc = m_rsloperbmax;
+        const Real rsloper2max_loc = m_rsloper2max;
+        const Real rsloper3max_loc = m_rsloper3max;
+        const Real rslopesmax_loc = m_rslopesmax;
+        const Real rslopesbmax_loc = m_rslopesbmax;
+        const Real rslopes2max_loc = m_rslopes2max;
+        const Real rslopes3max_loc = m_rslopes3max;
+        const Real rslopegmax_loc = m_rslopegmax;
+        const Real rslopegbmax_loc = m_rslopegbmax;
+        const Real rslopeg2max_loc = m_rslopeg2max;
+        const Real rslopeg3max_loc = m_rslopeg3max;
+        const Real rslopecmax_loc = m_rslopecmax;
+        const Real rslopec2max_loc = m_rslopec2max;
+        const Real rslopec3max_loc = m_rslopec3max;
+        const bool diag_col_in_tile = (diag_i >= ilo && diag_i <= ihi &&
+                                       diag_j >= jlo && diag_j <= jhi);
+        const int diag_k = klo;
 
         for (int loop = 0; loop < wdm6_loops; ++loop) {
             // ============================================================
@@ -560,8 +663,145 @@ void WDM6::Advance(const Real& dt_advance,
             });
 
             // ============================================================
+            // Step 3b: CLOUD_SETUP (G3)
+            // Exact port of the frozen Fortran block:
+            //   - cloud droplet slope parameter rslopec{,2,3}
+            //   - ice number concentration xni
+            // ============================================================
+            ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+                if (qc_arr(i,j,k) <= Real(qmin) || nc_arr(i,j,k) <= Real(1.e1)) {
+                    rslopec_arr(i,j,k)  = rslopecmax_loc;
+                    rslopec2_arr(i,j,k) = rslopec2max_loc;
+                    rslopec3_arr(i,j,k) = rslopec3max_loc;
+                } else {
+                    rslopec_arr(i,j,k) = wdm6_rslopec_exact(qc_arr(i,j,k), den_arr(i,j,k),
+                                                            nc_arr(i,j,k), pidnc_loc);
+                    rslopec2_arr(i,j,k) = rslopec_arr(i,j,k) * rslopec_arr(i,j,k);
+                    rslopec3_arr(i,j,k) = rslopec2_arr(i,j,k) * rslopec_arr(i,j,k);
+                }
+                xni_arr(i,j,k) = wdm6_xni_exact(qi_arr(i,j,k), den_arr(i,j,k), Real(qmin));
+            });
+
+#if !defined(AMREX_USE_GPU)
+            if (microphysics_debug > 0 && diag_col_in_tile) {
+                std::printf("WDM6-CPP_PRE_G3 %3d %24.16E %24.16E %24.16E %24.16E %24.16E %24.16E %24.16E %24.16E\n",
+                            diag_k + 1,
+                            static_cast<double>(rslopec_arr(diag_i,diag_j,diag_k)),
+                            static_cast<double>(rslopec2_arr(diag_i,diag_j,diag_k)),
+                            static_cast<double>(rslopec3_arr(diag_i,diag_j,diag_k)),
+                            static_cast<double>(xni_arr(diag_i,diag_j,diag_k)),
+                            static_cast<double>(qc_arr(diag_i,diag_j,diag_k)),
+                            static_cast<double>(qi_arr(diag_i,diag_j,diag_k)),
+                            static_cast<double>(nc_arr(diag_i,diag_j,diag_k)),
+                            static_cast<double>(den_arr(diag_i,diag_j,diag_k)));
+                std::fflush(stdout);
+            }
+#else
+            amrex::ignore_unused(microphysics_debug, micro_diag_target_column);
+#endif
+
+            // ============================================================
+            // Step 3c: SLOPE1 (G4)
+            // Exact first packed slope_wdm6 surface for rain/snow/graupel.
+            // ============================================================
+#if !defined(AMREX_USE_GPU)
+            if (microphysics_debug > 0 && diag_col_in_tile) {
+                std::printf("WDM6-CPP_PRE_G4 %3d %24.16E %24.16E %24.16E %24.16E %24.16E %24.16E %24.16E\n",
+                            diag_k + 1,
+                            static_cast<double>(qr_arr(diag_i,diag_j,diag_k)),
+                            static_cast<double>(qs_arr(diag_i,diag_j,diag_k)),
+                            static_cast<double>(qg_arr(diag_i,diag_j,diag_k)),
+                            static_cast<double>(nr_arr(diag_i,diag_j,diag_k)),
+                            static_cast<double>(denfac_arr(diag_i,diag_j,diag_k)),
+                            static_cast<double>(t_arr(diag_i,diag_j,diag_k)),
+                            static_cast<double>(den_arr(diag_i,diag_j,diag_k)));
+                std::fflush(stdout);
+            }
+#endif
+            ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+                Real rain_rslope, rain_rslopeb, rain_rslope2, rain_rslope3, rain_vt, rain_vtn;
+                Real snow_rslope, snow_rslopeb, snow_rslope2, snow_rslope3, snow_vt, snow_n0sfac;
+                Real graup_rslope, graup_rslopeb, graup_rslope2, graup_rslope3, graup_vt;
+
+                wdm6_slope_rain_cell(qr_arr(i,j,k), nr_arr(i,j,k), den_arr(i,j,k), denfac_arr(i,j,k),
+                                     Real(qcrmin), Real(nrmin),
+                                     rslopermax_loc, rsloperbmax_loc, rsloper2max_loc, rsloper3max_loc,
+                                     Real(bvtr), pvtr_loc, pvtrn_loc, pidnr_loc,
+                                     rain_rslope, rain_rslopeb, rain_rslope2, rain_rslope3,
+                                     rain_vt, rain_vtn);
+                wdm6_slope_snow_cell(qs_arr(i,j,k), den_arr(i,j,k), denfac_arr(i,j,k), t_arr(i,j,k),
+                                     pidn0s_loc, Real(alpha_wdm6), Real(n0smax), Real(n0s),
+                                     Real(t0c), Real(qcrmin),
+                                     rslopesmax_loc, rslopesbmax_loc, rslopes2max_loc, rslopes3max_loc,
+                                     Real(bvts), pvts_loc,
+                                     snow_rslope, snow_rslopeb, snow_rslope2, snow_rslope3, snow_vt,
+                                     snow_n0sfac);
+                wdm6_slope_graup_cell(qg_arr(i,j,k), den_arr(i,j,k), denfac_arr(i,j,k),
+                                      pidn0g_loc, Real(qcrmin),
+                                      rslopegmax_loc, rslopegbmax_loc, rslopeg2max_loc, rslopeg3max_loc,
+                                      slope_bvtg_loc, pvtg_loc,
+                                      graup_rslope, graup_rslopeb, graup_rslope2, graup_rslope3, graup_vt);
+
+                rslope_arr(i,j,k,0) = rain_rslope;
+                rslope_arr(i,j,k,1) = snow_rslope;
+                rslope_arr(i,j,k,2) = graup_rslope;
+                rslopeb_arr(i,j,k,0) = rain_rslopeb;
+                rslopeb_arr(i,j,k,1) = snow_rslopeb;
+                rslopeb_arr(i,j,k,2) = graup_rslopeb;
+                rslope2_arr(i,j,k,0) = rain_rslope2;
+                rslope2_arr(i,j,k,1) = snow_rslope2;
+                rslope2_arr(i,j,k,2) = graup_rslope2;
+                rslope3_arr(i,j,k,0) = rain_rslope3;
+                rslope3_arr(i,j,k,1) = snow_rslope3;
+                rslope3_arr(i,j,k,2) = graup_rslope3;
+                work1_arr(i,j,k,0) = rain_vt;
+                work1_arr(i,j,k,1) = snow_vt;
+                work1_arr(i,j,k,2) = graup_vt;
+                workn_arr(i,j,k) = rain_vtn;
+            });
+#if !defined(AMREX_USE_GPU)
+            if (microphysics_debug > 0 && diag_col_in_tile) {
+                std::printf("WDM6-CPP_POST_G4 %3d %24.16E %24.16E %24.16E %24.16E %24.16E %24.16E %24.16E %24.16E %24.16E %24.16E %24.16E %24.16E %24.16E %24.16E %24.16E %24.16E %24.16E\n",
+                            diag_k + 1,
+                            static_cast<double>(rslope_arr(diag_i,diag_j,diag_k,0)),
+                            static_cast<double>(rslope_arr(diag_i,diag_j,diag_k,1)),
+                            static_cast<double>(rslope_arr(diag_i,diag_j,diag_k,2)),
+                            static_cast<double>(rslopeb_arr(diag_i,diag_j,diag_k,0)),
+                            static_cast<double>(rslopeb_arr(diag_i,diag_j,diag_k,1)),
+                            static_cast<double>(rslopeb_arr(diag_i,diag_j,diag_k,2)),
+                            static_cast<double>(work1_arr(diag_i,diag_j,diag_k,0)),
+                            static_cast<double>(work1_arr(diag_i,diag_j,diag_k,1)),
+                            static_cast<double>(work1_arr(diag_i,diag_j,diag_k,2)),
+                            static_cast<double>(workn_arr(diag_i,diag_j,diag_k)),
+                            static_cast<double>(qr_arr(diag_i,diag_j,diag_k)),
+                            static_cast<double>(qs_arr(diag_i,diag_j,diag_k)),
+                            static_cast<double>(qg_arr(diag_i,diag_j,diag_k)),
+                            static_cast<double>(nr_arr(diag_i,diag_j,diag_k)),
+                            static_cast<double>(denfac_arr(diag_i,diag_j,diag_k)),
+                            static_cast<double>(t_arr(diag_i,diag_j,diag_k)),
+                            static_cast<double>(den_arr(diag_i,diag_j,diag_k)));
+                std::fflush(stdout);
+            }
+#endif
+
+            // ============================================================
             // Step 4: WDM6 CCN Activation
             // ============================================================
+#if !defined(AMREX_USE_GPU)
+            if (microphysics_debug > 0 && diag_col_in_tile) {
+                std::printf("WDM6-CPP_POST_G3 %3d %24.16E %24.16E %24.16E %24.16E %24.16E %24.16E %24.16E %24.16E\n",
+                            diag_k + 1,
+                            static_cast<double>(rslopec_arr(diag_i,diag_j,diag_k)),
+                            static_cast<double>(rslopec2_arr(diag_i,diag_j,diag_k)),
+                            static_cast<double>(rslopec3_arr(diag_i,diag_j,diag_k)),
+                            static_cast<double>(xni_arr(diag_i,diag_j,diag_k)),
+                            static_cast<double>(qc_arr(diag_i,diag_j,diag_k)),
+                            static_cast<double>(qi_arr(diag_i,diag_j,diag_k)),
+                            static_cast<double>(nc_arr(diag_i,diag_j,diag_k)),
+                            static_cast<double>(den_arr(diag_i,diag_j,diag_k)));
+                std::fflush(stdout);
+            }
+#endif
             // TODO: Need vertical velocity from ERF state
             // For now, use a placeholder (could extract from momentum)
             ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
@@ -884,6 +1124,8 @@ void WDM6::Advance(const Real& dt_advance,
             graup_arr(i,j,klo) += precip_graup;
         });
 
+#ifdef ERF_USE_WDM6_FORT
+        }
 #endif
 
     } // MFIter loop

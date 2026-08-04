@@ -117,10 +117,15 @@ cmake -DERF_ENABLE_WDM6_FORT=ON -DERF_PRECISION=DOUBLE ...
 cmake --build . -j8
 ```
 
+When built with `-DERF_ENABLE_WDM6_FORT=ON`, runtime selection matches WSM6:
+- `erf.use_wdm6_cpp_answer = 0` runs the Fortran bridge
+- `erf.use_wdm6_cpp_answer = 1` runs the native C++ path
+
 ## Usage
 
 ```
 erf.moisture_model = "WDM6"
+erf.use_wdm6_cpp_answer = 1  # native C++; set 0 for Fortran bridge when built with ERF_ENABLE_WDM6_FORT
 wdm6.ccn0 = 100.0e6  # m^-3
 wdm6.hail_opt = 0     # 0=graupel, 1=hail
 ```

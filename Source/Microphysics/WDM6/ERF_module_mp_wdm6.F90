@@ -794,8 +794,29 @@
         enddo
       enddo
 
+      if (debug_local .gt. 0 .and. i_dbg_local .ge. its .and. i_dbg_local .le. ite) then
+        write(*,'(A,1X,I3,8(1X,ES24.16E3))') &
+          'WDM6-FORT_PRE_G3', kts, &
+          rslopec(i_dbg_local,kts), rslopec2(i_dbg_local,kts), rslopec3(i_dbg_local,kts), &
+          xni(i_dbg_local,kts), qci(i_dbg_local,kts,1), qci(i_dbg_local,kts,2), &
+          ncr(i_dbg_local,kts,2), den(i_dbg_local,kts)
+        write(*,'(A,1X,I3,8(1X,ES24.16E3))') &
+          'WDM6-FORT_POST_G3', kts, &
+          rslopec(i_dbg_local,kts), rslopec2(i_dbg_local,kts), rslopec3(i_dbg_local,kts), &
+          xni(i_dbg_local,kts), qci(i_dbg_local,kts,1), qci(i_dbg_local,kts,2), &
+          ncr(i_dbg_local,kts,2), den(i_dbg_local,kts)
+      endif
 
 
+
+
+      if (debug_local .gt. 0 .and. i_dbg_local .ge. its .and. i_dbg_local .le. ite) then
+        write(*,'(A,1X,I3,7(1X,ES24.16E3))') &
+          'WDM6-FORT_PRE_G4', kts, &
+          qrs(i_dbg_local,kts,1), qrs(i_dbg_local,kts,2), qrs(i_dbg_local,kts,3), &
+          ncr(i_dbg_local,kts,3), denfac(i_dbg_local,kts), t(i_dbg_local,kts), &
+          den(i_dbg_local,kts)
+      endif
 
       do k = kts, kte
         do i = its, ite
@@ -807,6 +828,17 @@
       enddo
       call slope_wdm6(qrs_tmp,ncr_tmp,den_tmp,denfac,t,rslope,rslopeb,rslope2, &
                      rslope3,work1,workn,its,ite,kts,kte)
+
+      if (debug_local .gt. 0 .and. i_dbg_local .ge. its .and. i_dbg_local .le. ite) then
+        write(*,'(A,1X,I3,17(1X,ES24.16E3))') &
+          'WDM6-FORT_POST_G4', kts, &
+          rslope(i_dbg_local,kts,1), rslope(i_dbg_local,kts,2), rslope(i_dbg_local,kts,3), &
+          rslopeb(i_dbg_local,kts,1), rslopeb(i_dbg_local,kts,2), rslopeb(i_dbg_local,kts,3), &
+          work1(i_dbg_local,kts,1), work1(i_dbg_local,kts,2), work1(i_dbg_local,kts,3), &
+          workn(i_dbg_local,kts), qrs(i_dbg_local,kts,1), qrs(i_dbg_local,kts,2), &
+          qrs(i_dbg_local,kts,3), ncr(i_dbg_local,kts,3), denfac(i_dbg_local,kts), &
+          t(i_dbg_local,kts), den(i_dbg_local,kts)
+      endif
 
 
 
