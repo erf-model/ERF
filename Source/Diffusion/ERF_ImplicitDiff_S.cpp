@@ -383,8 +383,8 @@ ImplicitDiffForMomLU_S (const Box& bx,
                   } else {
                       // NOTE: wall is 1/2 dz away (2 dz_inv)
                       a_tmp = -two * Fact * rhoAlpha_lo * dz_inv_lo * dz_inv;
-                      const Real rho_wall = myhalf * (cell_data(i,j,klo-1,Rho_comp)
-                                                     + cell_data(i-ioff,j-joff,klo-1,Rho_comp));
+                      const Real rho_wall = myhalf * ( cell_data(i     ,j     ,klo-1,Rho_comp)
+                                                     + cell_data(i-ioff,j-joff,klo-1,Rho_comp) );
                       const Real wall_velocity = face_data(i,j,klo-1) / rho_wall;
                       RHS_a(i,j,klo) -= a_tmp * wall_velocity;
                   }
@@ -472,8 +472,8 @@ ImplicitDiffForMomLU_S (const Box& bx,
                   } else {
                       // NOTE: wall is 1/2 dz away (2 dz_inv)
                       c_tmp = -two * Fact * rhoAlpha_hi * dz_inv_hi * dz_inv;
-                      const Real rho_wall = myhalf * (cell_data(i,j,khi+1,Rho_comp)
-                                                     + cell_data(i-ioff,j-joff,khi+1,Rho_comp));
+                      const Real rho_wall = myhalf * ( cell_data(i     ,j     ,khi+1,Rho_comp)
+                                                     + cell_data(i-ioff,j-joff,khi+1,Rho_comp) );
                       const Real wall_velocity = face_data(i,j,khi+1) / rho_wall;
                       RHS_a(i,j,khi) -= c_tmp * wall_velocity;
                   }
