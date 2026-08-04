@@ -4,6 +4,8 @@
 #include <ERF_ShocDriver.H>
 #include <ERF_EBAdvection.H>
 #include <ERF_EBRedistribute.H>
+#include "ERF_ResolvedWallFlux.H"
+#include "Prob/ERF_CloudChamberBudget.H"
 
 using namespace amrex;
 
@@ -90,7 +92,10 @@ void erf_slow_rhs_post (int level, int finest_level,
                         ShocDriver* native_shoc_lev,
                         YAFluxRegister* fr_as_crse,
                         YAFluxRegister* fr_as_fine,
-                        std::unique_ptr<ReadBndryPlanes>& m_r2d)
+                        std::unique_ptr<ReadBndryPlanes>& m_r2d,
+                        const MultiFab* cloud_chamber_base_state,
+                        const erf_cloud_chamber::Config* cloud_chamber_config,
+                        CloudChamberBudget* cloud_budget)
 {
     BL_PROFILE_REGION("erf_slow_rhs_post()");
 
@@ -158,6 +163,12 @@ void erf_slow_rhs_post (int level, int finest_level,
     int nvars                     = S_data[IntVars::cons].nComp();
     const BoxArray& ba            = S_data[IntVars::cons].boxArray();
     const DistributionMapping& dm = S_data[IntVars::cons].DistributionMap();
+    const bool use_physical_chamber_wall_flux =
+        cloud_chamber_config != nullptr && cloud_chamber_base_state != nullptr &&
+        cloud_chamber_config->physical_initialization;
+    const erf_wall_thermodynamics::Boundary chamber_walls =
+        use_physical_chamber_wall_flux ? cloud_chamber_config->wall_boundary() :
+                                         erf_wall_thermodynamics::Boundary{};
 
     std::unique_ptr<MultiFab> dflux_x;
     std::unique_ptr<MultiFab> dflux_y;
@@ -165,9 +176,23 @@ void erf_slow_rhs_post (int level, int finest_level,
 
     if (l_use_diff) {
         IntVect ng(0,0,1);
-        dflux_x = std::make_unique<MultiFab>(convert(ba,IntVect(1,0,0)), dm, 1, ng);
-        dflux_y = std::make_unique<MultiFab>(convert(ba,IntVect(0,1,0)), dm, 1, ng);
-        dflux_z = std::make_unique<MultiFab>(convert(ba,IntVect(0,0,1)), dm, 1, 0);
+        // The physical chamber needs one persistent component for each moist
+        // state even when budgets are disabled: qv and qc are corrected and
+        // retained independently.  All other configurations retain ERF's
+        // established one-component reusable diffusion storage.
+        const int n_flux_components = use_physical_chamber_wall_flux ?
+            std::max(1, n_qstate) : 1;
+        dflux_x = std::make_unique<MultiFab>(convert(ba,IntVect(1,0,0)), dm, n_flux_components, ng);
+        dflux_y = std::make_unique<MultiFab>(convert(ba,IntVect(0,1,0)), dm, n_flux_components, ng);
+        dflux_z = std::make_unique<MultiFab>(convert(ba,IntVect(0,0,1)), dm, n_flux_components, 0);
+        // Every physical wall override reads the old face flux before
+        // replacing it; make that read deterministic regardless of budget
+        // diagnostics.
+        if (use_physical_chamber_wall_flux) {
+            dflux_x->setVal(0.0);
+            dflux_y->setVal(0.0);
+            dflux_z->setVal(0.0);
+        }
     } else {
         dflux_x = nullptr;
         dflux_y = nullptr;
@@ -462,10 +487,31 @@ void erf_slow_rhs_post (int level, int finest_level,
 
                     const Array4<const Real> tm_arr = t_mean_mf ? t_mean_mf->const_array(mfi) : Array4<const Real>{};
 
+                    // Only the physical chamber needs separate qv/qc calls:
+                    // its wall correction must be applied to distinct flux
+                    // components.  Generic moisture models retain the
+                    // established multi-component diffusion call.
+                    const bool componentwise_moisture =
+                        use_physical_chamber_wall_flux && ivar == RhoQ1_comp;
+                    const int n_diff_calls = componentwise_moisture ? n_qstate : 1;
+                    for (int qstate = 0; qstate < n_diff_calls; ++qstate) {
+                        const int state_comp = componentwise_moisture ?
+                            RhoQ1_comp + qstate : start_comp;
+                        const int diffusion_start = state_comp;
+                        const int diffusion_num = componentwise_moisture ? 1 : num_comp;
+                        const int flux_comp = componentwise_moisture ? qstate : 0;
+                        AMREX_ALWAYS_ASSERT(state_comp >= 0 && state_comp < nvars);
+                        AMREX_ALWAYS_ASSERT(flux_comp < dflux_x->nComp());
+                        AMREX_ALWAYS_ASSERT(flux_comp < dflux_y->nComp());
+                        AMREX_ALWAYS_ASSERT(flux_comp < dflux_z->nComp());
+                        const Array4<Real> diffusion_x = dflux_x->array(mfi, flux_comp);
+                        const Array4<Real> diffusion_y = dflux_y->array(mfi, flux_comp);
+                        const Array4<Real> diffusion_z = dflux_z->array(mfi, flux_comp);
+
                     if (solverChoice.mesh_type == MeshType::StretchedDz) {
-                        DiffusionSrcForState_S(tbx, domain, start_comp, num_comp, u, v,
+                        DiffusionSrcForState_S(tbx, domain, diffusion_start, diffusion_num, u, v,
                                                new_cons, cur_prim, cell_rhs,
-                                               diffflux_x, diffflux_y, diffflux_z,
+                                               diffusion_x, diffusion_y, diffusion_z,
                                                stretched_dz_d, dxInv, SmnSmn_a,
                                                mf_mx, mf_ux, mf_vx,
                                                mf_my, mf_uy, mf_vy,
@@ -473,9 +519,9 @@ void erf_slow_rhs_post (int level, int finest_level,
                                                mu_turb, solverChoice, level,
                                                tm_arr, grav_gpu, bc_ptr_d, l_apply_surface_layer_fluxes_in_diffusion, l_vert_implicit_fac);
                     } else if (l_use_terrain) {
-                        DiffusionSrcForState_T(tbx, domain, start_comp, num_comp, l_rotate, u, v,
+                        DiffusionSrcForState_T(tbx, domain, diffusion_start, diffusion_num, l_rotate, u, v,
                                                new_cons, cur_prim, cell_rhs,
-                                               diffflux_x, diffflux_y, diffflux_z,
+                                               diffusion_x, diffusion_y, diffusion_z,
                                                z_nd, z_cc, ax_arr, ay_arr, az_arr,
                                                detJ_arr, dxInv, SmnSmn_a,
                                                mf_mx, mf_ux, mf_vx,
@@ -484,9 +530,9 @@ void erf_slow_rhs_post (int level, int finest_level,
                                                mu_turb, solverChoice, level,
                                                tm_arr, grav_gpu, bc_ptr_d, l_apply_surface_layer_fluxes_in_diffusion, l_vert_implicit_fac);
                     } else if (l_use_eb) {
-                        DiffusionSrcForState_EB(tbx, domain, start_comp, num_comp, u, v,
+                        DiffusionSrcForState_EB(tbx, domain, diffusion_start, diffusion_num, u, v,
                                                 new_cons, cur_prim, cell_rhs,
-                                                diffflux_x, diffflux_y, diffflux_z,
+                                                diffusion_x, diffusion_y, diffusion_z,
                                                 cfg_arr, ax_arr, ay_arr, az_arr, detJ_arr,
                                                 barea_arr, bcent_arr,
                                                 dx, dxInv,
@@ -494,14 +540,30 @@ void erf_slow_rhs_post (int level, int finest_level,
                                                 mu_turb, solverChoice, level,
                                                 bc_ptr_d, l_apply_surface_layer_fluxes_in_diffusion);
                     } else {
-                        DiffusionSrcForState_N(tbx, domain, start_comp, num_comp, u, v,
+                        DiffusionSrcForState_N(tbx, domain, diffusion_start, diffusion_num, u, v,
                                                new_cons, cur_prim, cell_rhs,
-                                               diffflux_x, diffflux_y, diffflux_z, dxInv, SmnSmn_a,
+                                               diffusion_x, diffusion_y, diffusion_z, dxInv, SmnSmn_a,
                                                mf_mx, mf_ux, mf_vx,
                                                mf_my, mf_uy, mf_vy,
                                                hfx_z, q1fx_z, q2fx_z, diss,
                                                mu_turb, solverChoice, level,
                                                tm_arr, grav_gpu, bc_ptr_d, l_apply_surface_layer_fluxes_in_diffusion, l_vert_implicit_fac);
+                    }
+                    if (use_physical_chamber_wall_flux) {
+                        // Apply the physical wall correction immediately to
+                        // the flux component just computed.  This keeps the
+                        // q-state diffusion path identical with budgets on
+                        // and off and guarantees no stale flux is consumed.
+                        // The diffusion views are component-shifted; the
+                        // wall helper receives the unshifted views and the
+                        // explicit flux component index.
+                        erf_resolved_wall_flux::apply(
+                            tbx, domain, state_comp, flux_comp, new_cons, cur_prim,
+                            cloud_chamber_base_state->const_array(mfi), cell_rhs,
+                            diffflux_x, diffflux_y, diffflux_z, dxInv,
+                            chamber_walls, dc.alpha_T, dc.alpha_C,
+                            solverChoice.rdOcp);
+                    }
                     }
                 } // use_diff
 
@@ -677,4 +739,14 @@ void erf_slow_rhs_post (int level, int finest_level,
         } // end profile
       } // mfi
     } // OMP
+    if (cloud_budget && l_use_diff && n_qstate > 0) {
+        for (int qstate = 0; qstate < n_qstate; ++qstate) {
+            MultiFab qflux_x(*dflux_x, make_alias, qstate, 1);
+            MultiFab qflux_y(*dflux_y, make_alias, qstate, 1);
+            MultiFab qflux_z(*dflux_z, make_alias, qstate, 1);
+            cloud_budget->capture_stage(
+                qstate == 0 ? CloudChamberBudget::RhoQv : CloudChamberBudget::RhoQc,
+                nrk, static_cast<Real>(dt_d), qflux_x, qflux_y, qflux_z, geom);
+        }
+    }
 }
