@@ -148,7 +148,7 @@ void check_output (const std::string& filename, const int expected_lev,
                 continue;
             }
             ++active_cells;
-            // The output is at t=1 s, halfway between forcing records 0 and 2 s.
+            // The output holds the t=0.01 s flux, halfway between records at 0 and 0.02 s.
             const double expected_u = 0.5 * (ustar_value(expected_lev, 0, j, i) +
                                              ustar_value(expected_lev, 1, j, i));
             const double expected_t = 0.5 * (theta_value(expected_lev, 0, j, i) +
