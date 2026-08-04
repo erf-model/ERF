@@ -248,54 +248,6 @@ void WDM6::Advance(const Real& dt_advance,
     call_count++;
     const bool first_call = (call_count == 1);
 
-    // Print header on first call
-    if (first_call) {
-#ifdef ERF_USE_WDM6_FORT
-        amrex::Print() << "=== WDM6::Advance() called with FORTRAN bridge ===\n";
-#else
-        amrex::Print() << "=== WDM6::Advance() called with C++ GPU path ===\n";
-#endif
-        amrex::Print() << "    dt_advance = " << dt_advance << " s\n";
-        amrex::Print() << "    CCN0 = " << m_ccn0 << " #/m^3\n";
-    }
-
-    // Print call number every step
-    amrex::Print() << "WDM6::Advance() call #" << call_count
-                  << " (dt=" << dt_advance << "s)\n";
-
-    // DEBUG: Check nn at the very start of Advance()
-    if (first_call) {
-        Real nn_min_start = mic_fab_vars[MicVar_WDM6::nn]->min(0);
-        Real nn_max_start = mic_fab_vars[MicVar_WDM6::nn]->max(0);
-        amrex::Print() << "  DEBUG: At start of first Advance(), nn min/max = "
-                      << nn_min_start << " / " << nn_max_start << " #/kg\n";
-    }
-
-    // GLOBAL diagnostics BEFORE MFIter loop - check entire domain
-    {
-        Real max_qv = mic_fab_vars[MicVar_WDM6::qv]->max(0);
-        Real max_qc = mic_fab_vars[MicVar_WDM6::qc]->max(0);
-        Real max_qr = mic_fab_vars[MicVar_WDM6::qr]->max(0);
-        Real max_qi = mic_fab_vars[MicVar_WDM6::qi]->max(0);
-        Real max_qs = mic_fab_vars[MicVar_WDM6::qs]->max(0);
-        Real max_qg = mic_fab_vars[MicVar_WDM6::qg]->max(0);
-        Real max_nc = mic_fab_vars[MicVar_WDM6::nc]->max(0);
-        Real max_nr = mic_fab_vars[MicVar_WDM6::nr]->max(0);
-        Real max_nn = mic_fab_vars[MicVar_WDM6::nn]->max(0);
-
-        amrex::Print() << "  GLOBAL max mixing ratios (g/kg): "
-                      << "qv=" << max_qv*1000 << ", "
-                      << "qc=" << max_qc*1000 << ", "
-                      << "qr=" << max_qr*1000 << ", "
-                      << "qi=" << max_qi*1000 << ", "
-                      << "qs=" << max_qs*1000 << ", "
-                      << "qg=" << max_qg*1000 << "\n";
-        amrex::Print() << "  GLOBAL max number conc (#/kg): "
-                      << "nc=" << max_nc << ", "
-                      << "nr=" << max_nr << ", "
-                      << "nn=" << max_nn << "\n";
-    }
-
 #ifdef ERF_USE_WDM6_FORT
     // Fortran bridge mode - initialize once
     static bool wdm6_inited = false;
@@ -309,7 +261,9 @@ void WDM6::Advance(const Real& dt_advance,
         constexpr int hail_opt = 0;                   // Graupel mode
         mp_wdm6_init_c(den0, denr, dens, cl, cpv, ccn0, hail_opt);
         wdm6_inited = true;
-        amrex::Print() << "WDM6 Fortran bridge initialized\n";
+        if (first_call) {
+            amrex::Print() << "WDM6 Fortran bridge initialized\n";
+        }
     }
 #endif
 
@@ -930,24 +884,7 @@ void WDM6::Advance(const Real& dt_advance,
             graup_arr(i,j,klo) += precip_graup;
         });
 
-        amrex::Print() << "WDM6::Advance() - C++ GPU kernels executed\n";
-        amrex::Print() << "  CCN0 = " << m_ccn0 << " m^-3\n";
-        amrex::Print() << "  dt = " << dt_advance << " s\n";
-        amrex::Print() << "  Minor timesteps = " << wdm6_loops << "\n";
-        amrex::Print() << "  Warm rain: double-moment (qc, qr with nc, nr)\n";
-        amrex::Print() << "  Ice: single-moment (qi, qs, qg)\n";
-        amrex::Print() << "  Sedimentation: simplified top-down\n";
-        amrex::Print() << "  For full PLM sedimentation, build with -DERF_ENABLE_WDM6_FORT=ON\n";
-
 #endif
 
     } // MFIter loop
-
-    // GLOBAL precipitation diagnostic AFTER microphysics
-    {
-        Real rain_sum = mic_fab_vars[MicVar_WDM6::rain_accum]->sum(0);
-        Real rain_max = mic_fab_vars[MicVar_WDM6::rain_accum]->max(0);
-        amrex::Print() << "  GLOBAL precip this step: rain_sum=" << rain_sum
-                      << " mm, rain_max=" << rain_max << " mm\n";
-    }
 }

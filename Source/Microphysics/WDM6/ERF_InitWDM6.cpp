@@ -23,9 +23,7 @@ WDM6::Init(const MultiFab& cons_in,
     amrex::ParmParse pp("wdm6");
     pp.query("ccn0", m_ccn0);  // default 100.0e6 m^-3
 
-    amrex::Print() << "WDM6 Initialization:\n"
-                   << "  CCN0 = " << m_ccn0 << " #/m^3\n"
-                   << "  Number concentrations will be initialized from CCN0\n";
+    amrex::Print() << "WDM6 Initialization: CCN0 = " << m_ccn0 << " #/m^3\n";
 
     MicVarMap.resize(m_qmoist_size);
     MicVarMap = {MicVar_WDM6::rain_accum, MicVar_WDM6::snow_accum, MicVar_WDM6::graup_accum};
@@ -36,13 +34,10 @@ WDM6::Init(const MultiFab& cons_in,
     // - C++ GPU kernels: Use standard device memory
 #if defined(ERF_USE_WDM6_FORT) && defined(AMREX_USE_GPU)
     Arena* Arena_Used = The_Managed_Arena();
-    amrex::Print() << "  WDM6 using managed memory (Fortran bridge + GPU)\n";
 #elif defined(ERF_USE_WDM6_FORT)
     Arena* Arena_Used = The_Pinned_Arena();
-    amrex::Print() << "  WDM6 using pinned memory (Fortran bridge CPU-only)\n";
 #else
     Arena* Arena_Used = The_Arena();
-    amrex::Print() << "  WDM6 using device memory (C++ GPU kernels)\n";
 #endif
 
     for (int ivar = 0; ivar < MicVar_WDM6::NumVars; ++ivar) {
@@ -73,11 +68,6 @@ WDM6::Init(const MultiFab& cons_in,
     }
     m_nn_initialized = true;  // Mark as initialized so Copy_State_to_Micro doesn't overwrite
 
-    // Diagnostic: Verify nn was initialized correctly
-    Real max_nn_init = mic_fab_vars[MicVar_WDM6::nn]->max(0);
-    Real min_nn_init = mic_fab_vars[MicVar_WDM6::nn]->min(0);
-    amrex::Print() << "  nn initialized: min=" << min_nn_init << ", max=" << max_nn_init << " #/kg\n";
-
     nlev = m_geom.Domain().length(2);
     zlo = m_geom.Domain().smallEnd(2);
     zhi = m_geom.Domain().bigEnd(2);
@@ -88,50 +78,6 @@ WDM6::Init(const MultiFab& cons_in,
 void
 WDM6::Copy_State_to_Micro(const MultiFab& cons_in)
 {
-    // Diagnostic: Check if state has moisture BEFORE copying
-    static int copy_call_count = 0;
-    static bool copy_diagnostic_done = false;
-    copy_call_count++;
-
-    // DEBUG: Print every call with flag status
-    amrex::Print() << "Copy_State_to_Micro call #" << copy_call_count
-                  << ", m_nn_initialized=" << m_nn_initialized << "\n";
-
-    if (!copy_diagnostic_done && copy_call_count == 1) {
-        copy_diagnostic_done = true;
-
-        // Check what's in the state cons_in using simpler max() function
-        Real max_qv = 0.0;
-        Real max_qc = 0.0;
-
-        for (MFIter mfi(cons_in); mfi.isValid(); ++mfi) {
-            const Box& bx = mfi.validbox();
-            auto const& state_arr = cons_in.const_array(mfi);
-
-            ReduceOps<ReduceOpMax, ReduceOpMax> reduce_ops;
-            ReduceData<Real, Real> reduce_data(reduce_ops);
-            using ReduceTuple = typename decltype(reduce_data)::Type;
-
-            reduce_ops.eval(bx, reduce_data,
-                [=] AMREX_GPU_DEVICE (int i, int j, int k) -> ReduceTuple
-                {
-                    Real qv_state = state_arr(i,j,k,RhoQ1_comp) / state_arr(i,j,k,Rho_comp);
-                    Real qc_state = state_arr(i,j,k,RhoQ2_comp) / state_arr(i,j,k,Rho_comp);
-                    return {qv_state, qc_state};
-                });
-            auto r = reduce_data.value();
-            max_qv = amrex::max(max_qv, amrex::get<0>(r));
-            max_qc = amrex::max(max_qc, amrex::get<1>(r));
-        }
-
-        ParallelDescriptor::ReduceRealMax(max_qv);
-        ParallelDescriptor::ReduceRealMax(max_qc);
-
-        amrex::Print() << "Copy_State_to_Micro diagnostic:\n"
-                      << "  Max qv in state = " << max_qv*1000 << " g/kg\n"
-                      << "  Max qc in state = " << max_qc*1000 << " g/kg\n";
-    }
-
     for (MFIter mfi(cons_in); mfi.isValid(); ++mfi) {
         // Match Morrison behavior: refresh microphysics ghost zones from state.
         const auto& box3d = mfi.growntilebox();
@@ -196,15 +142,6 @@ WDM6::Copy_State_to_Micro(const MultiFab& cons_in)
 
     // After first Copy_State_to_Micro, nn has been preserved from Init().
     // DON'T clear the flag yet - wait until after Copy_Micro_to_State writes nn to state!
-    if (m_nn_initialized) {
-        // Diagnostic: Check nn after first copy
-        Real max_nn_after = mic_fab_vars[MicVar_WDM6::nn]->max(0);
-        Real min_nn_after = mic_fab_vars[MicVar_WDM6::nn]->min(0);
-        amrex::Print() << "  First Copy_State_to_Micro: nn preserved from Init(): "
-                      << "min=" << min_nn_after << ", max=" << max_nn_after << " #/kg\n";
-        // NOTE: Don't clear m_nn_initialized here! It will be cleared in Copy_Micro_to_State
-        // after nn is written to state for the first time.
-    }
 }
 
 void
