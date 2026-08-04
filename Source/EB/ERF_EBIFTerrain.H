@@ -1,3 +1,7 @@
+/**
+ * \file ERF_EBIFTerrain.H
+ * \brief Defines the implicit function used to build EB terrain geometry.
+ */
 #ifndef ERF_TERRAIN_IF_H_
 #define ERF_TERRAIN_IF_H_
 
@@ -7,13 +11,25 @@
 #include <cmath>
 #include <algorithm>
 
-// For all implicit functions, >0: body; =0: boundary; <0: fluid
+//! AMReX EB implicit-function sign convention: >0 is body, 0 is boundary, <0 is fluid.
 
+/**
+ * \brief Terrain implicit function backed by gridded terrain heights.
+ *
+ * The operator interpolates terrain height in x-y, maps the query z coordinate
+ * through stretched vertical spacing, and returns the AMReX EB signed value.
+ */
 class TerrainIF
     : amrex::GPUable
 {
 public:
 
+    /**
+     * \brief Construct a terrain implicit function from height and geometry data.
+     * \param a_z_terrain Terrain elevation values on the horizontal mesh.
+     * \param a_geom Geometry used for mesh spacing and problem bounds.
+     * \param a_dz_stretched Device vector of stretched vertical cell sizes.
+     */
     TerrainIF (amrex::FArrayBox const& a_z_terrain, amrex::Geometry const& a_geom,
                amrex::Gpu::DeviceVector<amrex::Real>& a_dz_stretched)
         : terr_arr(a_z_terrain.const_array()),
@@ -30,6 +46,14 @@ public:
           j_hi(static_cast<int>(std::round((a_geom.ProbHi(1)-a_geom.ProbLo(1))/a_geom.CellSize(1))))
         {}
 
+    /**
+     * \brief Evaluate the signed implicit-function value at physical coordinates.
+     *
+     * The coordinates are passed through AMREX_D_DECL for spatial-dimension
+     * portability.
+     *
+     * \return Positive inside terrain, zero at the terrain surface, negative in fluid.
+     */
     AMREX_GPU_HOST_DEVICE inline
     amrex::Real operator() (AMREX_D_DECL(amrex::Real x, amrex::Real y, amrex::Real z))
         const noexcept
@@ -111,6 +135,11 @@ public:
         return -(z_stretched - terr_z);
     }
 
+    /**
+     * \brief Evaluate the signed implicit-function value at a point array.
+     * \param p Physical coordinate array.
+     * \return Positive inside terrain, zero at the terrain surface, negative in fluid.
+     */
     AMREX_GPU_HOST_DEVICE
     inline amrex::Real operator() (const amrex::RealArray& p) const noexcept
     {
@@ -118,12 +147,42 @@ public:
     }
 
 protected:
+    //! Terrain height array sampled on the horizontal mesh.
     amrex::Array4<amrex::Real const> terr_arr;
+    //! Device pointer to stretched vertical cell sizes.
     amrex::Real const* dz_s;
+    //! Uniform computational mesh spacing in each direction.
     amrex::Real dx, dy, dz;
+    //! Low problem bounds used for interpolation.
     amrex::Real prob_lo_x, prob_lo_y, prob_lo_z;
+    //! High problem bounds used for interpolation.
     amrex::Real prob_hi_x, prob_hi_y;
+    //! Highest terrain-array index in the x and y directions.
     int i_hi, j_hi;
+    /**
+     * \var TerrainIF::dy
+     * \brief Uniform computational mesh spacing in y.
+     */
+    /**
+     * \var TerrainIF::dz
+     * \brief Uniform computational mesh spacing in z.
+     */
+    /**
+     * \var TerrainIF::prob_lo_y
+     * \brief Low problem bound in y.
+     */
+    /**
+     * \var TerrainIF::prob_lo_z
+     * \brief Low problem bound in z.
+     */
+    /**
+     * \var TerrainIF::prob_hi_y
+     * \brief High problem bound in y.
+     */
+    /**
+     * \var TerrainIF::j_hi
+     * \brief Highest terrain-array index in y.
+     */
 };
 
 #endif
