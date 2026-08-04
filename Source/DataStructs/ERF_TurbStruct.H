@@ -228,6 +228,22 @@ public:
           pp, "ysu_moistvars", ysu_moistvars, lev, max_level);
         query_one_or_per_level(
           pp, "pbl_ysunew_highres_bounds", pbl_ysunew_highres_bounds, lev, max_level);
+        // Vogelezang & Holtslag (1996) shear correction
+        query_one_or_per_level(
+          pp, "enable_vh96_shear_correction", enable_vh96_shear_correction, lev, max_level);
+        query_one_or_per_level(
+          pp, "vh96_shear_const_b", vh96_shear_const_b, lev, max_level);
+        // PBLH spatial smoothing
+        query_one_or_per_level(
+          pp, "enable_pblh_smoothing", enable_pblh_smoothing, lev, max_level);
+        query_one_or_per_level(
+          pp, "pblh_smoothing_passes", pblh_smoothing_passes, lev, max_level);
+        query_one_or_per_level(
+          pp, "pblh_smoothing_weight", pblh_smoothing_weight, lev, max_level);
+        // Validate pblh_smoothing_weight is in [0,1]
+        if (enable_pblh_smoothing && (pblh_smoothing_weight < 0 || pblh_smoothing_weight > 1)) {
+          amrex::Error("pblh_smoothing_weight must be in [0, 1]");
+        }
       } else if (pbl_type == PBLType::MRF) {
         query_one_or_per_level(
           pp, "pbl_mrf_coriolis_freq", pbl_mrf_coriolis_freq, lev, max_level);
@@ -257,6 +273,22 @@ public:
           pp, "pbl_blend_c_max", pbl_blend_c_max, lev, max_level);
         query_one_or_per_level(
           pp, "pbl_blend_use_smag", pbl_blend_use_smag, lev, max_level);
+        // Vogelezang & Holtslag (1996) shear correction
+        query_one_or_per_level(
+          pp, "enable_vh96_shear_correction", enable_vh96_shear_correction, lev, max_level);
+        query_one_or_per_level(
+          pp, "vh96_shear_const_b", vh96_shear_const_b, lev, max_level);
+        // PBLH spatial smoothing
+        query_one_or_per_level(
+          pp, "enable_pblh_smoothing", enable_pblh_smoothing, lev, max_level);
+        query_one_or_per_level(
+          pp, "pblh_smoothing_passes", pblh_smoothing_passes, lev, max_level);
+        query_one_or_per_level(
+          pp, "pblh_smoothing_weight", pblh_smoothing_weight, lev, max_level);
+        // Validate pblh_smoothing_weight is in [0,1]
+        if (enable_pblh_smoothing && (pblh_smoothing_weight < 0 || pblh_smoothing_weight > 1)) {
+          amrex::Error("pblh_smoothing_weight must be in [0, 1]");
+        }
       } else if (pbl_type == PBLType::SHOC) {
 #ifndef ERF_USE_SHOC
           amrex::Abort("You set use_shoc to true but didn't build with SHOC; you must rebuild the executable");
@@ -519,6 +551,16 @@ public:
                      << ysu_moistvars << std::endl;
       amrex::Print() << "    pbl_ysunew_highres_bounds          : "
                      << pbl_ysunew_highres_bounds << std::endl;
+      amrex::Print() << "    enable_vh96_shear_correction       : "
+                     << enable_vh96_shear_correction << std::endl;
+      amrex::Print() << "    vh96_shear_const_b                 : "
+                     << vh96_shear_const_b << std::endl;
+      amrex::Print() << "    enable_pblh_smoothing              : "
+                     << enable_pblh_smoothing << std::endl;
+      amrex::Print() << "    pblh_smoothing_passes              : "
+                     << pblh_smoothing_passes << std::endl;
+      amrex::Print() << "    pblh_smoothing_weight              : "
+                     << pblh_smoothing_weight << std::endl;
       amrex::Print() << "    enable_mrf_unbounded_vpert         : "
                      << enable_mrf_unbounded_vpert << std::endl;
     } else if (pbl_type == PBLType::MRF) {
@@ -549,6 +591,16 @@ public:
       amrex::Print() << "    pbl_blend_c_max    : " << pbl_blend_c_max
                      << std::endl;
       amrex::Print() << "    pbl_blend_use_smag : " << pbl_blend_use_smag
+                     << std::endl;
+      amrex::Print() << "    enable_vh96_shear_correction : " << enable_vh96_shear_correction
+                     << std::endl;
+      amrex::Print() << "    vh96_shear_const_b           : " << vh96_shear_const_b
+                     << std::endl;
+      amrex::Print() << "    enable_pblh_smoothing        : " << enable_pblh_smoothing
+                     << std::endl;
+      amrex::Print() << "    pblh_smoothing_passes        : " << pblh_smoothing_passes
+                     << std::endl;
+      amrex::Print() << "    pblh_smoothing_weight        : " << pblh_smoothing_weight
                      << std::endl;
     }
   }
@@ -706,6 +758,12 @@ public:
     amrex::Real(1.0e-4); // Cloud liquid water threshold for YSUNew (kg/kg)
   bool ysu_moistvars = false; // if true, adds turbulence to moisture
   bool pbl_ysunew_highres_bounds = false; // if true, apply high-resolution grid-dependent diffusivity bounds
+  // Vogelezang & Holtslag (1996) shear correction and PBLH smoothing for YSU/YSUNew
+  bool enable_vh96_shear_correction = false; // if true, use VH96 shear correction term instead of ad-hoc floor
+  amrex::Real vh96_shear_const_b = amrex::Real(100.0); // VH96 shear correction constant b
+  bool enable_pblh_smoothing = false; // if true, apply spatial smoothing to diagnosed PBLH
+  int pblh_smoothing_passes = 1; // number of smoothing iterations
+  amrex::Real pblh_smoothing_weight = amrex::Real(0.5); // center-cell weight in smoothing stencil
   // Model coefficients - MRF
   amrex::Real pbl_mrf_coriolis_freq = amrex::Real(1.0e-4);
   amrex::Real pbl_mrf_Ribcr   = amrex::Real(0.5); // Critical Bulk Richardson number for MRF PBL model
@@ -826,6 +884,16 @@ public:
  * @brief Whether YSU applies turbulence to moisture variables.
  * @var TurbChoice::pbl_ysunew_highres_bounds
  * @brief Whether YSUNew applies high-resolution grid-dependent diffusivity bounds.
+ * @var TurbChoice::enable_vh96_shear_correction
+ * @brief Whether Vogelezang & Holtslag (1996) shear-correction term is enabled.
+ * @var TurbChoice::vh96_shear_const_b
+ * @brief Vogelezang & Holtslag (1996) shear-correction constant b.
+ * @var TurbChoice::enable_pblh_smoothing
+ * @brief Whether spatial smoothing of diagnosed PBLH is enabled.
+ * @var TurbChoice::pblh_smoothing_passes
+ * @brief Number of PBLH smoothing iterations to apply.
+ * @var TurbChoice::pblh_smoothing_weight
+ * @brief Center-cell weight in PBLH smoothing stencil (must be in [0,1]).
  * @var TurbChoice::pbl_mrf_coriolis_freq
  * @brief Coriolis frequency used by the MRF PBL scheme.
  * @var TurbChoice::pbl_mrf_Ribcr
