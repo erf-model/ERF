@@ -1,3 +1,7 @@
+/**
+ * \file ERF_EBAdvectionSrcForScalars.H
+ * \brief Defines EB scalar-advection flux builders for higher-order stencils.
+ */
 #include <ERF_IndexDefines.H>
 #include <ERF_Interpolation.H>
 
@@ -6,8 +10,13 @@
 #include <AMReX_Vector.H>
 
 /**
- * When terrain_type == TerrainType::EB,
- * Wrapper function for computing the advective tendency w/ spatial order > 2
+ * \brief Build EB scalar fluxes with selected horizontal and vertical interpolation.
+ *
+ * The wrapper reduces interpolation order locally when covered EB cells truncate
+ * the upwind stencil.
+ *
+ * \tparam InterpType_H Horizontal interpolation functor.
+ * \tparam InterpType_V Vertical interpolation functor.
  */
 template<typename InterpType_H, typename InterpType_V>
 void
@@ -198,8 +207,8 @@ EBAdvectionSrcForScalarsWrapper (const amrex::Box& bx,
 
 
 /**
- * When terrain_type == TerrainType::EB,
- * Wrapper function for templating the vertical advective tendency w/ spatial order > two
+ * \brief Dispatch EB scalar flux construction on the vertical advection scheme.
+ * \tparam InterpType_H Horizontal interpolation functor selected by the caller.
  */
 template<typename InterpType_H>
 void
