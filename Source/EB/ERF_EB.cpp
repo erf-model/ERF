@@ -1,3 +1,7 @@
+/**
+ * \file ERF_EB.cpp
+ * \brief Implements EB factory construction and EB cell-flag connectivity fixes.
+ */
 #include <AMReX_ParmParse.H>
 #include <AMReX_Print.H>
 #include <AMReX_WriteEBSurface.H>
@@ -111,10 +115,11 @@ eb_::make_cc_factory ([[maybe_unused]] int level,
     Print() << "\nDone making EB factory at level " << level << ".\n\n";
 }
 
-/*
-Reset cell flags to disconnect cells with zero volume fraction,
-via non-const reference from EBFArrayBoxFactory.
-*/
+/**
+ * \brief Reset cell flags to disconnect cells with zero volume fraction.
+ *
+ * The factory EBCellFlagFab data are updated through a non-const reference.
+ */
 void
 eb_::set_connection_flags (EBFArrayBoxFactory* factory)
 {

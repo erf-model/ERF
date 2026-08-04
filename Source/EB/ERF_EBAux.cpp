@@ -1,3 +1,7 @@
+/**
+ * \file ERF_EBAux.cpp
+ * \brief Implements auxiliary face-centered EB geometry reconstruction.
+ */
 #include <AMReX_BoxList.H>
 #include <AMReX_ParmParse.H>
 #include <ERF_EBAux.H>
