@@ -1,5 +1,19 @@
-/* This averages rhoAlpha from cell centers to lo/hi z edges of
- * faces with staggering in i (ioff=1) or j (joff=1) */
+/**
+ * Average rhoAlpha from cell centers to lower and upper z-edges of staggered faces.
+ *
+ * @param[in] i face i-index
+ * @param[in] j face j-index
+ * @param[in] k face k-index
+ * @param[in] ioff x-direction staggering offset
+ * @param[in] joff y-direction staggering offset
+ * @param[out] rhoAlpha_lo rhoAlpha averaged to the lower z-edge
+ * @param[out] rhoAlpha_hi rhoAlpha averaged to the upper z-edge
+ * @param[in] cell_data conserved cell-centered state
+ * @param[in] mu_turb turbulent viscosity
+ * @param[in] mu_eff effective molecular viscosity
+ * @param[in] l_consA flag for conservative constant-alpha diffusion
+ * @param[in] l_turb flag for turbulent diffusion
+ */
 AMREX_GPU_HOST_DEVICE
 AMREX_FORCE_INLINE
 void getRhoAlphaForFaces (int i, int j, int k, int ioff, int joff,
@@ -42,8 +56,20 @@ void getRhoAlphaForFaces (int i, int j, int k, int ioff, int joff,
     }
 }
 
-/* This returns rhoAlpha at cell centers surrounding
- * faces with staggering in k */
+/**
+ * Return rhoAlpha at cell centers below and above a z-staggered face.
+ *
+ * @param[in] i face i-index
+ * @param[in] j face j-index
+ * @param[in] k face k-index
+ * @param[out] rhoAlpha_lo rhoAlpha below the face
+ * @param[out] rhoAlpha_hi rhoAlpha above the face
+ * @param[in] cell_data conserved cell-centered state
+ * @param[in] mu_turb turbulent viscosity
+ * @param[in] mu_eff effective molecular viscosity
+ * @param[in] l_consA flag for conservative constant-alpha diffusion
+ * @param[in] l_turb flag for turbulent diffusion
+ */
 AMREX_GPU_HOST_DEVICE
 AMREX_FORCE_INLINE
 void getRhoAlphaForFaces (int i, int j, int k,
