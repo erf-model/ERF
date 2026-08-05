@@ -968,6 +968,21 @@ pblh_mf.setVal(0.0);
                 std::min(K_turb(i, j, k, EddyDiff::Q_v), rhoKmax), rhoKmin);
             K_turb(i, j, k, EddyDiff::Turb_lengthscale) = pblh_corr_arr(i, j, 0);
 
+            // IMPORTANT — units convention for HGAMT_v / HGAMQ_v:
+            // These are stored as (countergradient term / pblh), i.e. already
+            // divided by the PBL height, NOT as a raw physical gradient needing
+            // an extra 1/dz scaling downstream.
+            //
+            // The implicit solver (ERF_ImplicitDiff_T.cpp, ImplicitDiffForStateLU_T)
+            // multiplies this stored value by `Fact = implicit_fac * dt * dz_inv`
+            // and `rhoAlpha / met_h_zeta` ONLY — it must NOT apply an additional
+            // dz_inv factor. `Fact` already carries the single grid-spacing
+            // factor needed to convert the countergradient correction into a
+            // flux-divergence contribution consistent with the K*d(phi)/dz terms
+            // it is being added alongside. Adding a second dz_inv 
+            // double-counts the grid spacing and is
+            // dimensionally incorrect — do NOT "fix" this by inserting dz_inv
+            // into the RHS_a += Fact * gam_hi/lo terms in ERF_ImplicitDiff_T.cpp.
             if (k < pbli_extent) {
                 K_turb(i, j, k, EddyDiff::HGAMT_v) = hgamt_arr(i, j, 0);
                 K_turb(i, j, k, EddyDiff::HGAMQ_v) = hgamq_arr(i, j, 0);

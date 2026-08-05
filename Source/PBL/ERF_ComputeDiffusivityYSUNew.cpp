@@ -1795,6 +1795,26 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
 
             // Store countergradient correction terms (HGAMT/h and HGAMQ/h)
             // Use the selected PBL extent index (pbli_arr or pbli_zero_arr based on pbl_mrf_use_zero_ri_extent)
+            // IMPORTANT — units convention for HGAMT_v / HGAMQ_v / HGAMU_v / HGAMV_v:
+            // HGAMT_v and HGAMQ_v are stored normalized by pblh (i.e. HGAMT/h,
+            // HGAMQ/h), matching the MRF scheme's convention. HGAMU_v/HGAMV_v
+            // store the signed brint*u/v momentum countergradient term directly
+            // (no pblh normalization, since brint already carries the 1/pblh^0
+            // scaling from the WRF formulation — see hgamu_arr/hgamv_arr above).
+            //
+            // None of these four fields require an extra 1/dz (dz_inv) factor
+            // when consumed by the implicit solver. In ERF_ImplicitDiff_T.cpp
+            // (ImplicitDiffForStateLU_T and ImplicitDiffForMomLU_T), the RHS
+            // countergradient contribution is:
+            //     RHS += Fact * rhoAlpha * gam / met_h_zeta
+            // where `Fact = implicit_fac * dt * dz_inv` ALREADY contains the
+            // single grid-spacing factor required. Multiplying by dz_inv a
+            // second time  double-applies the grid spacing and
+            // produces an incorrect (grid-resolution-dependent) correction.
+            // This was verified against Exec/CanonicalTests/ABL/MRF_YSUNew_Enhancements/
+            // canonical/veryunstable_cgcheck_abl — the extra dz_inv breaks the
+            // countergradient balance check in that case. Do NOT re-add dz_inv
+            // to the gam_hi/gam_lo terms in ERF_ImplicitDiff_T.cpp.
             if (k < pbli_extent) {
                 // Inside PBL: store the normalized countergradient terms
                 K_turb(i, j, k, EddyDiff::HGAMT_v) = hgamt_arr(i, j, 0);
