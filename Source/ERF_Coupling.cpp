@@ -7,6 +7,7 @@
 #include <AMReX_Box.H>
 #include <AMReX_MFIter.H>
 #include <AMReX_MultiFab.H>
+#include <AMReX_iMultiFab.H>
 #include <AMReX_MultiFabUtil.H>
 #include <AMReX_ParallelDescriptor.H>
 #include <AMReX_Print.H>
@@ -21,69 +22,52 @@ PrintFluxLaneStats (const char* label, const amrex::MultiFab& mf, int comp = 0)
                    << " max=" << mf.max(comp) << "\n";
 }
 
+// -------------------------------------------------------------------------
+// NEW: Conservative Sparse Matrix Remap Engine
+// -------------------------------------------------------------------------
 void
-AverageDownThenRemap (const amrex::MultiFab& src,
-                      amrex::MultiFab& dst)
+ApplyConservativeRemap (const amrex::MultiFab& src,
+                        amrex::MultiFab& dst,
+                        const amrex::MultiFab& weight_mf,
+                        const amrex::iMultiFab& index_mf,
+                        int max_stencil_size)
 {
     using namespace amrex;
 
-    AMREX_ALWAYS_ASSERT(src.boxArray().ixType() == dst.boxArray().ixType());
+    // 1. Data Routing: Get the ERF source data onto the REMORA destination layout.
+    // We allocate a temporary MultiFab on the destination's BoxArray and DistributionMapping
+    // with a generous ghost cell halo (e.g., 4) to ensure all overlapping ERF source cells 
+    // needed by the stencil are safely pulled onto the local MPI ranks.
+    MultiFab src_on_dst(dst.boxArray(), dst.DistributionMap(), src.nComp(), 4);
+    src_on_dst.setVal(0.0);
+    src_on_dst.ParallelCopy(src);
 
-    const Box src_cells = enclosedCells(src.boxArray().minimalBox());
-    const Box dst_cells = enclosedCells(dst.boxArray().minimalBox());
-    const IntVect src_len = src_cells.length();
-    const IntVect dst_len = dst_cells.length();
+    // Ensure the destination is zeroed out before accumulating the weighted sum
+    dst.setVal(0.0);
 
-    const bool same_layout =
-        (src.boxArray() == dst.boxArray()) &&
-        (src.DistributionMap() == dst.DistributionMap());
-    if (same_layout) {
-        dst.ParallelCopy(src, 0, 0, dst.nComp());
-        return;
-    }
+    // 2. Stencil Application: Execute the local sparse dot product
+    for (MFIter mfi(dst, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+        Box bx = mfi.tilebox();
+        
+        auto const& w_arr   = weight_mf.const_array(mfi);
+        auto const& idx_arr = index_mf.const_array(mfi);
+        auto const& src_arr = src_on_dst.const_array(mfi); 
+        auto        dst_arr = dst.array(mfi);
 
-    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
-        src_len[2] == 1 && dst_len[2] == 1,
-        "AverageDownThenRemap expects one-cell-thick source and destination slabs.");
-    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
-        src_cells.smallEnd(0) == dst_cells.smallEnd(0) &&
-        src_cells.smallEnd(1) == dst_cells.smallEnd(1),
-        "AverageDownThenRemap requires aligned source/destination slab origins.");
-    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
-        src_len[0] >= dst_len[0] && src_len[1] >= dst_len[1] &&
-        src_len[0] % dst_len[0] == 0 && src_len[1] % dst_len[1] == 0,
-        "AverageDownThenRemap requires source/destination slab extents to be integer-ratio compatible.");
-
-    const IntVect ratio(src_len[0] / dst_len[0], src_len[1] / dst_len[1], 1);
-
-    amrex::BoxArray coarsened_src_ba = src.boxArray();
-    for (int i = 0; i < coarsened_src_ba.size(); ++i) {
-        const amrex::Box original = coarsened_src_ba[i];
-        amrex::Box coarsened = original;
-        coarsened.coarsen(ratio);
-        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
-            coarsened.refine(ratio) == original,
-            "AverageDownThenRemap source boxes are not evenly coarsenable by the source/destination ratio.");
-    }
-    coarsened_src_ba.coarsen(ratio);
-
-    const bool direct_average_down_safe = (coarsened_src_ba == dst.boxArray());
-
-    if (direct_average_down_safe) {
-        if (src.boxArray().ixType().cellCentered()) {
-            amrex::average_down(src, dst, 0, dst.nComp(), ratio);
-        } else {
-            amrex::average_down_faces(src, dst, ratio, 0);
-        }
-    } else {
-        MultiFab dst_avg(coarsened_src_ba, src.DistributionMap(), dst.nComp(), 0);
-        if (src.boxArray().ixType().cellCentered()) {
-            amrex::average_down(src, dst_avg, 0, dst.nComp(), ratio);
-        } else {
-            amrex::average_down_faces(src, dst_avg, ratio, 0);
-        }
-
-        dst.ParallelCopy(dst_avg, 0, 0, dst.nComp());
+        ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+            Real sum = 0.0;
+            for (int m = 0; m < max_stencil_size; ++m) {
+                Real w = w_arr(i, j, k, m);
+                if (w > 0.0) {
+                    int src_i = idx_arr(i, j, k, m * 3);
+                    int src_j = idx_arr(i, j, k, m * 3 + 1);
+                    int src_k = idx_arr(i, j, k, m * 3 + 2);
+                    
+                    sum += w * src_arr(src_i, src_j, src_k);
+                }
+            }
+            dst_arr(i, j, k) = sum;
+        });
     }
 }
 }
@@ -167,9 +151,15 @@ ERF::GetOceanToAtmosSurfaceLayout (amrex::BoxArray& ba,
 
 void
 ERF::PackAtmosphericStates (amrex::Vector<amrex::MultiFab*>& states,
-                            double /*time*/)
+                            double /*time*/,
+                            const amrex::MultiFab* weight_mf,
+                            const amrex::iMultiFab* index_mf,
+                            int max_stencil_size)
 {
     using namespace amrex;
+
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(weight_mf != nullptr && index_mf != nullptr, 
+                                     "PackAtmosphericStates requires valid driver remap stencil components.");
 
     // Contract slot indices (mirrors ERFRemoraCouplingContract.H; repeated here
     // to avoid a driver→submodule header dependency).
@@ -247,7 +237,7 @@ ERF::PackAtmosphericStates (amrex::Vector<amrex::MultiFab*>& states,
                     t(i,j,k) = rho_face * tau13(i,j,klo);
                 });
             }
-            AverageDownThenRemap(tmp, *states[iTauX]);
+            ApplyConservativeRemap(tmp, *states[iTauX], *weight_mf, *index_mf, max_stencil_size);
             if (verbose) { PrintFluxLaneStats("tau_x_lane", *states[iTauX]); }
         }
 
@@ -266,7 +256,7 @@ ERF::PackAtmosphericStates (amrex::Vector<amrex::MultiFab*>& states,
                     t(i,j,k) = rho_face * tau23(i,j,klo);
                 });
             }
-            AverageDownThenRemap(tmp, *states[iTauY]);
+            ApplyConservativeRemap(tmp, *states[iTauY], *weight_mf, *index_mf, max_stencil_size);
             if (verbose) { PrintFluxLaneStats("tau_y_lane", *states[iTauY]); }
         }
 
@@ -282,7 +272,7 @@ ERF::PackAtmosphericStates (amrex::Vector<amrex::MultiFab*>& states,
                         hfx(i,j,klo));
                 });
             }
-            AverageDownThenRemap(tmp, *states[iSHflux]);
+            ApplyConservativeRemap(tmp, *states[iSHflux], *weight_mf, *index_mf, max_stencil_size);
             if (verbose) { PrintFluxLaneStats("SHflux_lane", *states[iSHflux]); }
         }
 
@@ -298,7 +288,7 @@ ERF::PackAtmosphericStates (amrex::Vector<amrex::MultiFab*>& states,
                         qfx(i,j,klo));
                 });
             }
-            AverageDownThenRemap(tmp, *states[iLHflux]);
+            ApplyConservativeRemap(tmp, *states[iLHflux], *weight_mf, *index_mf, max_stencil_size);
             if (verbose) { PrintFluxLaneStats("LHflux_lane", *states[iLHflux]); }
         }
 
@@ -306,7 +296,7 @@ ERF::PackAtmosphericStates (amrex::Vector<amrex::MultiFab*>& states,
             if (iFluxSWrad < static_cast<int>(states.size()) && states[iFluxSWrad] != nullptr) {
                 MultiFab tmp(ba2d_lev, dm, 1, 0);
                 tmp.ParallelCopy(*rad_fluxes[lev], 1, 0, 1);
-                AverageDownThenRemap(tmp, *states[iFluxSWrad]);
+                ApplyConservativeRemap(tmp, *states[iFluxSWrad], *weight_mf, *index_mf, max_stencil_size);
                 if (verbose) { PrintFluxLaneStats("SWrad_lane", *states[iFluxSWrad]); }
             }
             if (iFluxLWrad < static_cast<int>(states.size()) && states[iFluxLWrad] != nullptr) {
@@ -319,7 +309,7 @@ ERF::PackAtmosphericStates (amrex::Vector<amrex::MultiFab*>& states,
                         t(i,j,k) = rad_flux(i,j,k,3) - rad_flux(i,j,k,2);
                     });
                 }
-                AverageDownThenRemap(tmp, *states[iFluxLWrad]);
+                ApplyConservativeRemap(tmp, *states[iFluxLWrad], *weight_mf, *index_mf, max_stencil_size);
                 if (verbose) { PrintFluxLaneStats("LWrad_lane", *states[iFluxLWrad]); }
             }
         }
@@ -335,7 +325,7 @@ ERF::PackAtmosphericStates (amrex::Vector<amrex::MultiFab*>& states,
                     t(i,j,k) = qfx(i,j,klo);
                 });
             }
-            AverageDownThenRemap(tmp, *states[iFluxEvap]);
+            ApplyConservativeRemap(tmp, *states[iFluxEvap], *weight_mf, *index_mf, max_stencil_size);
             if (verbose) { PrintFluxLaneStats("evap_lane", *states[iFluxEvap]); }
         }
 
@@ -343,8 +333,7 @@ ERF::PackAtmosphericStates (amrex::Vector<amrex::MultiFab*>& states,
         return;
     }
 
-    // --- Uwind + Vwind: use AMReX's average_face_to_cellcenter which correctly
-    // handles tile boundaries via growntilebox(1) internally. ---
+    // --- Uwind + Vwind ---
     if ((iUwind < static_cast<int>(states.size()) && states[iUwind] != nullptr) ||
         (iVwind < static_cast<int>(states.size()) && states[iVwind] != nullptr)) {
 
@@ -359,16 +348,16 @@ ERF::PackAtmosphericStates (amrex::Vector<amrex::MultiFab*>& states,
 
         if (iUwind < static_cast<int>(states.size()) && states[iUwind] != nullptr) {
             MultiFab u_alias(uv_slab, amrex::make_alias, 0, 1); // alias u component
-            AverageDownThenRemap(u_alias, *states[iUwind]);
+            ApplyConservativeRemap(u_alias, *states[iUwind], *weight_mf, *index_mf, max_stencil_size);
         }
 
         if (iVwind < static_cast<int>(states.size()) && states[iVwind] != nullptr) {
             MultiFab v_alias(uv_slab, amrex::make_alias, 1, 1); // alias v component
-            AverageDownThenRemap(v_alias, *states[iVwind]);
+            ApplyConservativeRemap(v_alias, *states[iVwind], *weight_mf, *index_mf, max_stencil_size);
         }
     }
 
-    // --- Patm: getPgivenRTh(RhoTheta, qv) at k=0 ---
+    // --- Patm ---
     if (iPatm < static_cast<int>(states.size()) && states[iPatm] != nullptr) {
         MultiFab tmp(ba2d_lev, dm, 1, 0);
         for (MFIter mfi(tmp, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
@@ -386,10 +375,10 @@ ERF::PackAtmosphericStates (amrex::Vector<amrex::MultiFab*>& states,
                 });
             }
         }
-        AverageDownThenRemap(tmp, *states[iPatm]);
+        ApplyConservativeRemap(tmp, *states[iPatm], *weight_mf, *index_mf, max_stencil_size);
     }
 
-    // --- Tair: getTgivenRandRTh(rho, RhoTheta, qv) at k=0 [K] ---
+    // --- Tair ---
     if (iTair < static_cast<int>(states.size()) && states[iTair] != nullptr) {
         MultiFab tmp(ba2d_lev, dm, 1, 0);
         for (MFIter mfi(tmp, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
@@ -407,10 +396,10 @@ ERF::PackAtmosphericStates (amrex::Vector<amrex::MultiFab*>& states,
                 });
             }
         }
-        AverageDownThenRemap(tmp, *states[iTair]);
+        ApplyConservativeRemap(tmp, *states[iTair], *weight_mf, *index_mf, max_stencil_size);
     }
 
-    // --- Humidity lane: export relative humidity [0-1] for REMORA bulk fluxes ---
+    // --- Humidity/Cloud/Rain ---
     if (has_moisture) {
 #if 0
         if (iRH < static_cast<int>(states.size()) && states[iRH] != nullptr) {
@@ -460,7 +449,7 @@ ERF::PackAtmosphericStates (amrex::Vector<amrex::MultiFab*>& states,
                         t(i,j,k) = static_cast<Real>(cloudy);
                     });
                 }
-                AverageDownThenRemap(tmp, *states[iCloud]);
+                ApplyConservativeRemap(tmp, *states[iCloud], *weight_mf, *index_mf, max_stencil_size);
             }
         }
 #if 0
@@ -488,18 +477,17 @@ ERF::PackAtmosphericStates (amrex::Vector<amrex::MultiFab*>& states,
     }
     // No moisture: leave RH/Cloud/Rain slabs at their driver-pre-filled values.
 
-    // --- Radiation: sw_flux_dn (comp=1) and lw_flux_dn (comp=3) from rad_fluxes ---
-    // When absent, leave slabs at their driver-pre-filled values.
-        if (has_radiation) {
+    // --- Radiation ---
+    if (has_radiation) {
         if (iSWrad < static_cast<int>(states.size()) && states[iSWrad] != nullptr) {
             MultiFab tmp(ba2d_lev, dm, 1, 0);
             tmp.ParallelCopy(*rad_fluxes[lev], 1, 0, 1);
-            AverageDownThenRemap(tmp, *states[iSWrad]);
+            ApplyConservativeRemap(tmp, *states[iSWrad], *weight_mf, *index_mf, max_stencil_size);
         }
         if (iLWrad < static_cast<int>(states.size()) && states[iLWrad] != nullptr) {
             MultiFab tmp(ba2d_lev, dm, 1, 0);
             tmp.ParallelCopy(*rad_fluxes[lev], 3, 0, 1);
-            AverageDownThenRemap(tmp, *states[iLWrad]);
+            ApplyConservativeRemap(tmp, *states[iLWrad], *weight_mf, *index_mf, max_stencil_size);
         }
     }
 }
