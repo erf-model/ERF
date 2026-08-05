@@ -1,3 +1,6 @@
+/**
+ * \file ERF_Plotfile2DMetadata.H
+ */
 #ifndef ERF_PLOTFILE2DMETADATA_H_
 #define ERF_PLOTFILE2DMETADATA_H_
 
