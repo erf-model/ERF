@@ -10,6 +10,7 @@ on:
 
   pull_request:
     branches: [development]
+    types: [opened, synchronize, reopened, closed]
 
 concurrency:
   group: ${{ github.ref }}-${{ github.head_ref }}-hip
@@ -20,6 +21,8 @@ jobs:
   # https://gitlab.kitware.com/cmake/cmake/-/issues/21968
   # https://github.com/ROCm-Developer-Tools/HIP/issues/2246
   Build-And-Test-HIP:
+    # The closed event exists only to cancel in-progress runs via concurrency.
+    if: github.event.action != 'closed'
     name: HIP ROCm GFortran@9.3 C++17 - Mesh ${{matrix.mesh_precision}} Particles ${{matrix.particles}} ${{matrix.particles_precision}}
     runs-on: ubuntu-22.04
     # Have to have -Wno-deprecated-declarations due to deprecated atomicAddNoRet

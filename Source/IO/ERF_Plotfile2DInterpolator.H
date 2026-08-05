@@ -1,3 +1,6 @@
+/**
+ * \file ERF_Plotfile2DInterpolator.H
+ */
 #ifndef ERF_PLOTFILE2DINTERPOLATOR_H_
 #define ERF_PLOTFILE2DINTERPOLATOR_H_
 
