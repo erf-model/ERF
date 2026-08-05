@@ -1,3 +1,6 @@
+/**
+ * \file ERF_ReadBndryPlanes.H
+ */
 #ifndef ERF_BOUNDARYPLANE_H
 #define ERF_BOUNDARYPLANE_H
 

@@ -213,6 +213,8 @@ ERF::init_from_input_sounding (int lev)
  * @param bx Box specifying the indices we are initializing
  * @param state Array4 specifying the state data we are to initialize
  * @param geomdata GeometryData object specifying the domain geometry
+ * @param z_cc_arr Array4 specifying cell-centered terrain heights, if present
+ * @param l_moist Whether moisture variables should be initialized
  * @param inputSoundingData InputSoundingData object we are to initialize from
  */
 void
@@ -266,10 +268,15 @@ init_state_from_input_sounding (const Box &bx,
  * @param p_hse_arr Array4 specifying the pressure HSE base state data we are to initialize
  * @param pi_hse_arr Array4 specifying the Exner pressure HSE base state data we are to initialize
  * @param th_hse_arr Array4 specifying the base state potential temperature we are to initialize
+ * @param qv_hse_arr Array4 specifying the base state water vapor mixing ratio we are to initialize
  * @param geomdata GeometryData object specifying the domain geometry
- * @param l_gravity Real number specifying the gravitational acceleration constant
+ * The unused gravity argument is retained for interface compatibility.
+ * @param z_cc_arr Array4 specifying cell-centered terrain heights, if present
  * @param l_rdOcp Real number specifying the Rhydberg constant ($R_d$) divided by specific heat at constant pressure ($c_p$)
+ * @param l_moist Whether moisture variables should be initialized
  * @param inputSoundingData InputSoundingData object we are to initialize from
+ * @param l_isentropic Whether to construct an isentropic HSE base state
+ * @param ngz Number of vertical ghost cells to fill in HSE arrays
  */
 void
 init_state_from_input_sounding_hse (const Box &bx,
@@ -399,6 +406,7 @@ init_state_from_input_sounding_hse (const Box &bx,
  * @param y_vel Array4 specifying the y-velocity data we are to initialize
  * @param z_vel Array4 specifying the z-velocity data we are to initialize
  * @param geomdata GeometryData object specifying the domain geometry
+ * @param z_nd_arr Array4 specifying node-centered terrain heights, if present
  * @param inputSoundingData InputSoundingData object we are to initialize from
  */
 void
