@@ -29,8 +29,9 @@ struct MicrophysicsThermoState {
  * microphysics. The pressure mode is uniform for an AMR level; callers resolve
  * the optional base-state array before launching a device kernel.
  *
- * In anelastic mode, p0 is the hydrostatic reference pressure and the local
- * source step therefore holds p0 fixed. In compressible mode, preserve ERF's
+ * In anelastic mode, p0 and pi0 are the hydrostatic reference pressure and
+ * Exner function supplied by BaseState. The local source step therefore holds
+ * both reference quantities fixed. In compressible mode, preserve ERF's
  * existing EOS pressure and temperature formulas.
  */
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
@@ -40,10 +41,15 @@ MicrophysicsThermoState diagnose_microphysics_thermo_state (
     const amrex::Real qv,
     const amrex::Real rdOcp,
     const bool use_anelastic_reference_pressure,
-    const amrex::Real p0 = amrex::Real(0)) noexcept
+    const amrex::Real p0,
+    const amrex::Real pi0) noexcept
 {
     if (use_anelastic_reference_pressure) {
-        return {p0, getTgivenPandTh(p0, rho_theta / rho, rdOcp)};
+        // Anelastic microphysics must consume the stored base-state Exner
+        // function. Do not recompute it from p0 here: pi0 is part of the
+        // initialized/interpolated BaseState contract and this path is used
+        // inside production device kernels.
+        return {p0, (rho_theta / rho) * pi0};
     }
 
     return {getPgivenRTh(rho_theta, qv),

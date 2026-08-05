@@ -83,9 +83,11 @@ WSM6::Copy_State_to_Micro(const MultiFab& cons_in,
             const Real rho_theta = states(i,j,k,RhoTheta_comp);
             const Real p0 = use_anelastic_reference_pressure
                 ? base_array(i,j,k,BaseState::p0_comp) : Real(0.0);
-            const MicrophysicsThermoState thermo = diagnose_microphysics_thermo_state(
+            const Real pi0 = use_anelastic_reference_pressure
+                ? base_array(i,j,k,BaseState::pi0_comp) : Real(0.0);
+            const WSM6ThermoState thermo = wsm6_copy_in_thermo(
                 rho_value, rho_theta, qv(i,j,k), rdOcp,
-                use_anelastic_reference_pressure, p0);
+                use_anelastic_reference_pressure, p0, pi0);
             tabs(i,j,k) = thermo.temperature;
             // WSM6's C++ and Fortran paths both use Pa internally.
             pres(i,j,k) = thermo.pressure_pa;

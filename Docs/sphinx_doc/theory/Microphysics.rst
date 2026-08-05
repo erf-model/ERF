@@ -49,6 +49,34 @@ Model overview and transported quantities in ERF
 +--------------------+-------------------------+-------------+-------------+-----------------+-------------+
 
 
+Anelastic thermodynamic reference state
+----------------------------------------
+
+For the supported Eulerian anelastic microphysics paths, ERF already stores a
+hydrostatic reference state in ``BaseState`` at every cell. ``p0_comp`` is the
+reference pressure in Pa and ``pi0_comp`` is its corresponding Exner function.
+At copy-in, Kessler, SAM, Morrison, and WSM6 read both values from the same
+base-state cell and diagnose
+
+.. math::
+
+   \theta = \frac{\rho\theta}{\rho}, \qquad
+   T = \theta\,\pi_0, \qquad
+   p = p_0.
+
+This uses the initialized and interpolated ``pi0_comp`` directly instead of
+recomputing an Exner power from ``p0_comp`` inside every microphysics cell
+kernel. The optimization changes where the already-established reference
+thermodynamics are read, not the anelastic physical contract. Base-state
+initialization, coarse-to-fine interpolation, ghost filling, and restart
+handling remain responsible for keeping ``p0_comp`` and ``pi0_comp`` finite,
+positive, and mutually consistent.
+
+Kessler stores this pressure as mbar/hPa in its existing working arrays; SAM
+also stores mbar/hPa; Morrison and WSM6 retain Pa. WSM6 copy-out continues to
+reconstruct conserved potential temperature from its updated temperature and
+held pressure. Compressible paths retain their existing local EOS diagnosis.
+
 Surface precipitation accumulations
 -----------------------------------
 

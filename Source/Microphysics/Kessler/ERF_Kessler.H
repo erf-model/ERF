@@ -34,7 +34,30 @@ namespace MicVar_Kess {
       // derived vars
       rain_accum,
       NumVars
-  };
+   };
+}
+
+struct KesslerThermoState {
+    amrex::Real pressure_mbar;
+    amrex::Real temperature;
+};
+
+// This is the scheme-specific copy-in adapter used by the production Kessler
+// path. Kessler stores pressure in mbar / hPa, while the shared diagnosis and
+// BaseState pressure are in Pa.
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+KesslerThermoState kessler_copy_in_thermo (
+    const amrex::Real rho,
+    const amrex::Real rho_theta,
+    const amrex::Real qv,
+    const amrex::Real rdOcp,
+    const bool use_anelastic_reference_pressure,
+    const amrex::Real p0,
+    const amrex::Real pi0) noexcept
+{
+    const MicrophysicsThermoState thermo = diagnose_microphysics_thermo_state(
+        rho, rho_theta, qv, rdOcp, use_anelastic_reference_pressure, p0, pi0);
+    return {thermo.pressure_pa * amrex::Real(0.01), thermo.temperature};
 }
 
 class Kessler : public NullMoist {

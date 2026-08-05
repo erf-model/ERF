@@ -53,7 +53,30 @@ namespace MicVar_Morr {
       graup_accum,
       omega,
       NumVars
-  };
+   };
+}
+
+struct MorrisonThermoState {
+    amrex::Real pressure_pa;
+    amrex::Real temperature;
+};
+
+// Morrison's C++ and Fortran paths use Pa internally. Keep this small adapter
+// beside the scheme so the production copy-in wiring and its unit coverage use
+// exactly the same stored-pi0 diagnosis.
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+MorrisonThermoState morrison_copy_in_thermo (
+    const amrex::Real rho,
+    const amrex::Real rho_theta,
+    const amrex::Real qv,
+    const amrex::Real rdOcp,
+    const bool use_anelastic_reference_pressure,
+    const amrex::Real p0,
+    const amrex::Real pi0) noexcept
+{
+    const MicrophysicsThermoState thermo = diagnose_microphysics_thermo_state(
+        rho, rho_theta, qv, rdOcp, use_anelastic_reference_pressure, p0, pi0);
+    return {thermo.pressure_pa, thermo.temperature};
 }
 
 class Morrison : public NullMoist {

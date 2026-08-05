@@ -29,7 +29,7 @@ WSM6::Copy_Micro_to_State(MultiFab& cons)
         ParallelFor(box3d, [=]
                     AMREX_GPU_DEVICE(int i, int j, int k) {
             theta(i,j,k) = use_anelastic_reference_pressure
-                ? getThgivenTandP(tabs(i,j,k), pres(i,j,k), rdOcp)
+                ? wsm6_theta_from_temperature_pressure(tabs(i,j,k), pres(i,j,k), rdOcp)
                 : getThgivenRandT(rho(i,j,k), tabs(i,j,k), rdOcp, qv(i,j,k));
             states(i,j,k,RhoTheta_comp) = rho(i,j,k) * theta(i,j,k);
             states(i,j,k,RhoQ1_comp) = rho(i,j,k) * amrex::max(Real(0), qv(i,j,k));

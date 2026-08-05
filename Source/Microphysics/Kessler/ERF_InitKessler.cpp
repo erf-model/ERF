@@ -105,10 +105,12 @@ void Kessler::Copy_State_to_Micro (const MultiFab& cons_in,
 
             const Real p0 = use_anelastic_reference_pressure
                 ? base_array(i,j,k,BaseState::p0_comp) : Real(0.0);
-            const MicrophysicsThermoState thermo = diagnose_microphysics_thermo_state(
-                rho, rho_theta, qv, rdOcp, use_anelastic_reference_pressure, p0);
+            const Real pi0 = use_anelastic_reference_pressure
+                ? base_array(i,j,k,BaseState::pi0_comp) : Real(0.0);
+            const KesslerThermoState thermo = kessler_copy_in_thermo(
+                rho, rho_theta, qv, rdOcp, use_anelastic_reference_pressure, p0, pi0);
             tabs_array(i,j,k) = thermo.temperature;
-            pres_array(i,j,k) = thermo.pressure_pa * Real(0.01);
+            pres_array(i,j,k) = thermo.pressure_mbar;
         });
     }
 }

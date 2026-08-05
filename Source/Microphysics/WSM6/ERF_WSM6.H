@@ -35,6 +35,37 @@ namespace MicVar_WSM6 {
    };
 }
 
+struct WSM6ThermoState {
+    amrex::Real pressure_pa;
+    amrex::Real temperature;
+};
+
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+WSM6ThermoState wsm6_copy_in_thermo (
+    const amrex::Real rho,
+    const amrex::Real rho_theta,
+    const amrex::Real qv,
+    const amrex::Real rdOcp,
+    const bool use_anelastic_reference_pressure,
+    const amrex::Real p0,
+    const amrex::Real pi0) noexcept
+{
+    const MicrophysicsThermoState thermo = diagnose_microphysics_thermo_state(
+        rho, rho_theta, qv, rdOcp, use_anelastic_reference_pressure, p0, pi0);
+    return {thermo.pressure_pa, thermo.temperature};
+}
+
+// WSM6 copy-out retains its established pressure-based reconstruction. This
+// adapter makes that contract explicit and gives it focused coverage.
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+amrex::Real wsm6_theta_from_temperature_pressure (
+    const amrex::Real temperature,
+    const amrex::Real pressure_pa,
+    const amrex::Real rdOcp) noexcept
+{
+    return getThgivenTandP(temperature, pressure_pa, rdOcp);
+}
+
 class WSM6 : public NullMoist {
     using FabPtr = std::shared_ptr<amrex::MultiFab>;
 

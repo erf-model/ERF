@@ -135,17 +135,17 @@ SAM::Copy_State_to_Micro (const MultiFab& cons_in,
             const Real qv = max(Real(0.0), states_array(i,j,k,RhoQ1_comp) / rho);
             const Real p0 = use_anelastic_reference_pressure
                 ? base_array(i,j,k,BaseState::p0_comp) : Real(0.0);
-            const MicrophysicsThermoState thermo = diagnose_microphysics_thermo_state(
-                rho, rho_theta, qv, rdOcp, use_anelastic_reference_pressure, p0);
-            const SAMPrimitiveCell primitive =
-                sam_cons_to_primitive_with_thermo(rho, rho_theta,
-                                      states_array(i,j,k,RhoQ1_comp),
-                                      states_array(i,j,k,RhoQ2_comp),
-                                      states_array(i,j,k,RhoQ3_comp),
-                                      states_array(i,j,k,RhoQ4_comp),
-                                      states_array(i,j,k,RhoQ5_comp),
-                                      states_array(i,j,k,RhoQ6_comp),
-                                      thermo);
+            const Real pi0 = use_anelastic_reference_pressure
+                ? base_array(i,j,k,BaseState::pi0_comp) : Real(0.0);
+            const SAMPrimitiveCell primitive = sam_cons_to_primitive_with_base_state(
+                rho, rho_theta,
+                states_array(i,j,k,RhoQ1_comp),
+                states_array(i,j,k,RhoQ2_comp),
+                states_array(i,j,k,RhoQ3_comp),
+                states_array(i,j,k,RhoQ4_comp),
+                states_array(i,j,k,RhoQ5_comp),
+                states_array(i,j,k,RhoQ6_comp),
+                rdOcp, use_anelastic_reference_pressure, p0, pi0);
             rho_array(i,j,k)   = primitive.rho;
             theta_array(i,j,k) = primitive.theta;
             qv_array(i,j,k)    = primitive.qv;

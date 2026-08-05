@@ -740,6 +740,24 @@ ERF::ReadCheckpointFile ()
 
         MultiFab::Copy(base_state[lev],base,0,0,ncomp_base_to_read,ng_base);
 
+        // Legacy checkpoints may not contain the Exner component. Rebuild it
+        // from the stored base pressure before any anelastic consumer sees the
+        // restarted state. Current checkpoints carry all BaseState components
+        // and retain their stored pi0 values unchanged.
+        if (ncomp_base_to_read <= BaseState::pi0_comp) {
+            const Real rdOcp = solverChoice.rdOcp;
+            for (MFIter mfi(base_state[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi)
+            {
+                const Box& bx = mfi.tilebox();
+                Array4<Real> const& fab = base_state[lev].array(mfi);
+                ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+                {
+                    fab(i,j,k,BaseState::pi0_comp) =
+                        getExnergivenP(fab(i,j,k,BaseState::p0_comp), rdOcp);
+                });
+            }
+        }
+
         // Create theta0 from p0, rh0
         if (ncomp_base_to_read < 4) {
             for (MFIter mfi(base_state[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi)

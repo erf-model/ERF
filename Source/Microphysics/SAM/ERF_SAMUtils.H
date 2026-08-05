@@ -211,6 +211,29 @@ SAMPrimitiveCell sam_cons_to_primitive_with_thermo (
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+SAMPrimitiveCell sam_cons_to_primitive_with_base_state (
+    const amrex::Real& rho,
+    const amrex::Real& rho_theta,
+    const amrex::Real& rho_qv,
+    const amrex::Real& rho_qcl,
+    const amrex::Real& rho_qci,
+    const amrex::Real& rho_qpr,
+    const amrex::Real& rho_qps,
+    const amrex::Real& rho_qpg,
+    const amrex::Real& rdOcp,
+    const bool use_anelastic_reference_pressure,
+    const amrex::Real& p0,
+    const amrex::Real& pi0) noexcept
+{
+    const amrex::Real qv = amrex::max(amrex::Real(0.0), rho_qv / rho);
+    const MicrophysicsThermoState thermo = diagnose_microphysics_thermo_state(
+        rho, rho_theta, qv, rdOcp, use_anelastic_reference_pressure, p0, pi0);
+    return sam_cons_to_primitive_with_thermo(rho, rho_theta, rho_qv, rho_qcl,
+                                             rho_qci, rho_qpr, rho_qps, rho_qpg,
+                                             thermo);
+}
+
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 SAMPrimitiveCell sam_cons_to_primitive (const amrex::Real& rho,
                                         const amrex::Real& rho_theta,
                                         const amrex::Real& rho_qv,
@@ -220,12 +243,9 @@ SAMPrimitiveCell sam_cons_to_primitive (const amrex::Real& rho,
                                         const amrex::Real& rho_qps,
                                         const amrex::Real& rho_qpg) noexcept
 {
-    const amrex::Real qv = amrex::max(amrex::Real(0.0), rho_qv / rho);
-    const MicrophysicsThermoState thermo = diagnose_microphysics_thermo_state(
-        rho, rho_theta, qv, RdoCp, false);
-    return sam_cons_to_primitive_with_thermo(rho, rho_theta, rho_qv, rho_qcl,
-                                             rho_qci, rho_qpr, rho_qps, rho_qpg,
-                                             thermo);
+    return sam_cons_to_primitive_with_base_state(
+        rho, rho_theta, rho_qv, rho_qcl, rho_qci, rho_qpr, rho_qps, rho_qpg,
+        RdoCp, false, amrex::Real(0.0), amrex::Real(0.0));
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
