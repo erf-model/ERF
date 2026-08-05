@@ -8,8 +8,9 @@ These are campaign habits and operator-level behaviors that matter but are not c
 - Preserve first-fail artifacts immediately; never rely on overwritable default outputs.
 - Record why a decision changed, not just that it changed.
 - If clean worktree SHA and runtime embedded git hash disagree, treat the run as triage-only until provenance is repaired.
-- Repair provenance with the lightest path first: remove or refresh the generated build-info object first, then its dependency file if needed, and only remove the generated build-info source if object-level refresh fails to repair the embedded hash.
-- After the lightweight build-info refresh, rebuild the build-info target and relink only if needed.
+- Repair provenance with the lightest path first: treat the generated build-info object and dependency file as the first refresh tier, and remove both before the first rebuild check (for example `build_wdm6/Exec/CMakeFiles/buildInfoerf_srclib.dir/__/erf_srclib/AMReX_buildInfo.cpp.o` and `build_wdm6/Exec/CMakeFiles/buildInfoerf_srclib.dir/__/erf_srclib/AMReX_buildInfo.cpp.o.d`). Only remove the generated build-info source as the second-tier fallback if that object+dep refresh still fails to repair the embedded hash (for example `build_wdm6/erf_srclib/AMReX_buildInfo.cpp`).
+- After each build-info refresh tier, rebuild and re-check the embedded runtime hash before escalating to the next file-removal tier.
+- If removing the generated `AMReX_buildInfo.cpp` forces CMake to reconfigure or regenerate build files, allow that regeneration to complete before judging the provenance repair result.
 - Do not run broad reconfigure or near-full rebuild just to refresh embedded hash provenance unless the lightweight build-info refresh fails.
 
 ## Debug Discipline
