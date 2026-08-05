@@ -1,5 +1,5 @@
 /**
- * \file ERF_Init1d.cpp
+ * \file ERF_Init1D.cpp
  */
 #include <ERF_EOS.H>
 #include <ERF.H>
@@ -14,6 +14,8 @@ using namespace amrex;
 
 /**
  * Initialize density and pressure base state in hydrostatic equilibrium.
+ *
+ * @param lev Integer specifying the current level
  */
 void
 ERF::initHSE (int lev)
@@ -188,6 +190,9 @@ ERF::initHSE (int lev)
     (*physbcs_base[lev])(base_state[lev],0,base_state[lev].nComp(),base_state[lev].nGrowVect());
 }
 
+/**
+ * Initialize density and pressure base state on every active AMR level.
+ */
 void
 ERF::initHSE ()
 {
@@ -204,6 +209,8 @@ ERF::initHSE ()
  * @param[out] dens MultiFab storing base state density
  * @param[out] pres MultiFab storing base state pressure
  * @param[out] pi   MultiFab storing base state Exner function
+ * @param[out] th   MultiFab storing base state potential temperature
+ * @param[out] qv   MultiFab storing base state water vapor mixing ratio
  * @param[in]  z_cc Pointer to MultiFab storing cell centered z-coordinates
  */
 void

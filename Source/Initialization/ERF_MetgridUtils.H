@@ -1,3 +1,6 @@
+/**
+ * \file ERF_MetgridUtils.H
+ */
 #ifndef ERF_METGRIDUTIL_H_
 #define ERF_METGRIDUTIL_H_
 
@@ -7,6 +10,9 @@
 #include <ERF_ProbCommon.H>
 #include <ERF_HSEUtils.H>
 
+/**
+ * Read metgrid NetCDF data and populate ERF initialization FABs.
+ */
 void
 read_from_metgrid (int lev,
                    int itime,
@@ -41,10 +47,16 @@ read_from_metgrid (int lev,
                    amrex::IArrayBox& NC_lmask_iab,
                    amrex::Geometry& geom);
 
+/**
+ * Initialize nodal terrain heights from metgrid surface-height data.
+ */
 void
 init_terrain_from_metgrid (amrex::FArrayBox& z_phys_nd_fab,
                            amrex::FArrayBox& NC_hgt_fab);
 
+/**
+ * Initialize ERF state, velocity, and boundary data from metgrid fields.
+ */
 void
 init_state_from_metgrid (const int lev,
                          const int itime,
@@ -86,6 +98,9 @@ init_state_from_metgrid (const int lev,
                          const amrex::Array4<const int>& mask_u_arr,
                          const amrex::Array4<const int>& mask_v_arr);
 
+/**
+ * Initialize map-scale factors from metgrid fields or defaults.
+ */
 void
 init_msfs_from_metgrid (const bool metgrid_debug_msf,
                         amrex::FArrayBox& msfu_fab,
@@ -96,6 +111,9 @@ init_msfs_from_metgrid (const bool metgrid_debug_msf,
                         amrex::FArrayBox& NC_MSFV_fab,
                         amrex::FArrayBox& NC_MSFM_fab);
 
+/**
+ * Initialize hydrostatic base-state quantities from metgrid data.
+ */
 void
 init_base_state_from_metgrid (const bool use_moisture,
                               const bool metgrid_debug_psfc,
@@ -112,6 +130,9 @@ init_base_state_from_metgrid (const bool use_moisture,
                               amrex::FArrayBox& z_phys_cc_fab,
                               const amrex::FArrayBox& NC_psfc_fab);
 
+/**
+ * Interpolate a value with a Lagrange polynomial stencil.
+ */
 AMREX_FORCE_INLINE
 AMREX_GPU_DEVICE
 void
@@ -142,6 +163,9 @@ lagrange_interp (const int& order,
     new_y = Px;
 }
 
+/**
+ * Prepare interpolation stencils and apply Lagrange interpolation or extrapolation.
+ */
 AMREX_FORCE_INLINE
 AMREX_GPU_DEVICE
 void
@@ -446,6 +470,9 @@ lagrange_setup (char var_type,
     }
 }
 
+/**
+ * Compute isothermal pressure at height z.
+ */
 AMREX_FORCE_INLINE
 AMREX_GPU_DEVICE
 void
@@ -455,6 +482,9 @@ calc_p_isothermal (const amrex::Real& z,
     p = p_0*std::exp(-CONST_GRAV*z/(amrex::Real(290.0)*R_d));
 }
 
+/**
+ * Interpolate one metgrid column onto ERF vertical levels with quality control.
+ */
 AMREX_FORCE_INLINE
 AMREX_GPU_DEVICE
 void
@@ -758,6 +788,9 @@ interpolate_column_metgrid (const bool& metgrid_use_below_sfc,
 
 }
 
+/**
+ * Linearly interpolate one metgrid column value onto an ERF point.
+ */
 AMREX_FORCE_INLINE
 AMREX_GPU_DEVICE
 amrex::Real
@@ -916,6 +949,9 @@ interpolate_column_metgrid_linear (const int& i,
     }
 }
 
+/**
+ * Convert relative humidity to vapor mixing ratio using WRF-compatible bounds.
+ */
 AMREX_FORCE_INLINE
 AMREX_GPU_DEVICE
 void

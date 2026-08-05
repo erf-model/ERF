@@ -8,6 +8,13 @@
 
 using namespace amrex;
 
+/**
+ * Initialize a problem-specific terrain profile on the nodal terrain FAB.
+ *
+ * @param geom Geometry defining the domain and physical extents
+ * @param terrain_fab Terrain FAB to fill with surface height data
+ * @param time_d Current simulation time used by time-dependent terrain options
+ */
 void
 init_my_custom_terrain ( const Geometry& geom,
                          FArrayBox& terrain_fab,
