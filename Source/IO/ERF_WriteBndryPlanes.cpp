@@ -1,3 +1,6 @@
+/**
+ * \file ERF_WriteBndryPlanes.cpp
+ */
 #include "AMReX_Gpu.H"
 #include "AMReX_ParmParse.H"
 #include "AMReX_PlotFileUtil.H"
@@ -129,6 +132,7 @@ WriteBndryPlanes::WriteBndryPlanes (Vector<BoxArray>& grids,
  * @param t_step Timestep number
  * @param time Current time
  * @param vars_new Grid data for all variables across the AMR hierarchy
+ * @param is_moist Whether moist state components are included in the output
  */
 void WriteBndryPlanes::write_planes (const int t_step, const double time_d,
                                      Vector<Vector<MultiFab>>& vars_new,

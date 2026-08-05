@@ -1,3 +1,6 @@
+/**
+ * \file ERF_FillZeroAreaFaceFluxes.cpp
+ */
 #include "ERF.H"
 #include "ERF_Utils.H"
 
@@ -5,6 +8,15 @@ using namespace amrex;
 
 /**
  * Compute phi gradients where the area of the face is zero
+ *
+ * @tparam T EB factory or auxiliary EB data type for face-centered grids
+ * @param phi Cell-centered solution used to compute gradients
+ * @param fluxes Face-centered gradient fluxes to fill
+ * @param geom Geometry used for inverse cell spacing
+ * @param ebfact Cell-centered embedded-boundary factory
+ * @param ebfact_u Embedded-boundary data on x-faces
+ * @param ebfact_v Embedded-boundary data on y-faces
+ * @param ebfact_w Embedded-boundary data on z-faces
  */
 template <typename T>
 void

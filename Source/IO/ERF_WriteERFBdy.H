@@ -1,3 +1,6 @@
+/**
+ * \file ERF_WriteERFBdy.H
+ */
 #ifndef ERF_WRITE_ERFBDY_H_
 #define ERF_WRITE_ERFBDY_H_
 

@@ -1,3 +1,6 @@
+/**
+ * \file ERF_ReadFromWRFInput.cpp
+ */
 #include "ERF_NCWpsFile.H"
 #include "AMReX_FArrayBox.H"
 #include "ERF_DataStruct.H"
