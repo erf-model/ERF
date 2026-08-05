@@ -981,24 +981,24 @@ struct SolverChoice {
         if(is_init_for_ensemble) {
             amrex::ParmParse pp_ens("ensemble");
             pp_ens.query("n_members", n_ensemble);
-            pp_ens.query("coarse_bckgnd_data_file", coarse_bckgnd_data_file);
-            pp_ens.query("ens_pert_amplitude", ens_pert_amplitude);
-            pp_ens.query("ens_pert_correlated_radius", ens_pert_correlated_radius);
-            if (n_ensemble < 0) {
-                amrex::Abort("You are running an ensemble simulation, There needs to be an entry in the inputs "
-                             "ensemble.n_ensemble which is the number of ensemble members, and should be greater than 0.");
+            if(n_ensemble < 2) {
+                amrex::Abort("You are using an ensemble run. There needs to be at least 2 ensemble members. "
+                             "erf.n_ensemble must be >=2.");
             }
+            pp_ens.query("coarse_bckgnd_data_file", coarse_bckgnd_data_file);
             if (coarse_bckgnd_data_file.empty()) {
                 amrex::Abort("coarse_bckgnd_data_file is empty! For ensmeble simulations, there needs to be a coarse background file which "
                              "contains the data which will be interpolated onto the fine mesh. There has to a entry ensemble.coarse_bckgnd_data_file "
                              "which contains the filename in the inputs.");
             }
+            pp_ens.query("ens_pert_amplitude", ens_pert_amplitude);
             if(ens_pert_amplitude <= 0.0) {
                 amrex::Error("You are using initialization for ensemble simulations using the inputs option "
                              "ensemble.is_init_for_ensemble=true. In this case, there has to be an option "
                              "ensemble.ens_pert_amplitude which is the value of the amplitude of the perturbation  "
                              "to be added to the background state and has to be greater than 0.0");
             }
+            pp_ens.query("ens_pert_correlated_radius", ens_pert_correlated_radius);
             if(ens_pert_correlated_radius <= 0.0) {
                 amrex::Error("You are using initialization with spatially correlated perturbations using the inputs option "
                              "ensemble.is_init_for_ensemble=true. In this case, there has to be an option "
