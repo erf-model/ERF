@@ -62,6 +62,14 @@ Practical consequence:
 - Bubble is the likely future WDM6 validation surface.
 - SquallLine remains the better-documented in-repo parity precedent because the WSM6 operator corpus is built around it.
 
+## Bubble Lane Conventions
+- For formal Bubble validation, use distinct run roots per path and SHA:
+  `erf.plot_file_1=<campaign>/<path>/plt`
+  `erf.check_file=<campaign>/<path>/chk`
+  `> <campaign>/<path>/run.log 2>&1`
+- Keep Bubble run artifacts in ignored directories or stash them before clean-SHA reruns so the worktree stays suitable for formal evidence capture.
+- When bridge and native runs share the same Bubble input, vary only the intended comparison knobs such as `erf.use_wdm6_cpp_answer`, debug level, and target column.
+
 ## Hardwired or Non-General Assumptions
 - hardwired diagnostic defaults inside the WDM6 bridge path should not become general rules
 - README status text describing “stub/incomplete” state is branch-specific, not reusable skill guidance

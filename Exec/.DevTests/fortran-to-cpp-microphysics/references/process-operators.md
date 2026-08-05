@@ -7,6 +7,9 @@ These are campaign habits and operator-level behaviors that matter but are not c
 - Keep source pointers short and factual in application notes.
 - Preserve first-fail artifacts immediately; never rely on overwritable default outputs.
 - Record why a decision changed, not just that it changed.
+- If clean worktree SHA and runtime embedded git hash disagree, treat the run as triage-only until provenance is repaired.
+- Repair provenance with the lightest path first: refresh generated build-info artifacts or their immediate objects, rebuild the build-info target, and relink only if needed.
+- Do not run broad reconfigure or near-full rebuild just to refresh embedded hash provenance unless the lightweight build-info refresh fails.
 
 ## Debug Discipline
 - Keep compile-time bridge toggles separate from runtime diagnostic levels.

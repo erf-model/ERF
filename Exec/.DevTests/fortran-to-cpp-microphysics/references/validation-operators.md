@@ -50,3 +50,5 @@ These rules govern parity campaigns, retreat, ledgers, and acceptance decisions.
 - Dirty-SHA executions are acceptable for triage and debug only.
 - Use tracked assets only for formal validation outcomes.
 - Archive first-fail compare artifacts immediately and keep provenance attached to the decision record.
+- Formal execution rows must use unique plot, checkpoint, and log roots per run so evidence is non-overwriting and restartable.
+- Prefer dedicated ignored or stashed run directories for validation artifacts so clean-SHA reruns do not require destructive cleanup of prior evidence.
