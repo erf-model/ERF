@@ -1,3 +1,6 @@
+/**
+ * \file ERF_Plotfile2DUtils.H
+ */
 #ifndef ERF_PLOTFILE2DUTILS_H_
 #define ERF_PLOTFILE2DUTILS_H_
 

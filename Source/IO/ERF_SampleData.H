@@ -1,3 +1,6 @@
+/**
+ * \file ERF_SampleData.H
+ */
 #ifndef ERF_SAMPLEDATA_H
 #define ERF_SAMPLEDATA_H
 

@@ -1,3 +1,6 @@
+/**
+ * \file ERF_WriteJobInfo.cpp
+ */
 #include <ERF.H>
 #include <ERF_InputsName.H>
 #include <ERF_EpochTime.H>

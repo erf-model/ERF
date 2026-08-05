@@ -1,3 +1,6 @@
+/**
+ * \file ERF_ImposeBCsOnPhi.cpp
+ */
 #include "ERF.H"
 #include "ERF_Utils.H"
 
@@ -8,6 +11,10 @@ using namespace amrex;
 
 /**
  * Impose bc's on the pressure that comes out of the solve
+ *
+ * @param lev Level index for the pressure field
+ * @param phi Pressure increment with ghost cells to fill
+ * @param subdomain Subdomain over which the solve was performed
  */
 void ERF::ImposeBCsOnPhi (int lev, MultiFab& phi, const Box& subdomain)
 {

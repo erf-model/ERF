@@ -1,3 +1,6 @@
+/**
+ * \file ERF_WriteScalarProfiles.cpp
+ */
 #include <iomanip>
 
 #include "ERF.H"
