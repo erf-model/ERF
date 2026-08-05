@@ -157,8 +157,8 @@ int main (int argc, char* argv[])
    tmp_erf.ComputeAndWriteEnsemblePerturbations();
 
    // Perform data assimilation
-   //int da_iter = 0;
-   //tmp_erf.PerformDataAssimilation(da_iter);
+   int da_iter = 0;
+   tmp_erf.PerformDataAssimilation(da_iter);
 
    BL_PROFILE_VAR_STOP(pmain);
 
