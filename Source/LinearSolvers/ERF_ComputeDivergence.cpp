@@ -1,3 +1,6 @@
+/**
+ * \file ERF_ComputeDivergence.cpp
+ */
 #include "ERF.H"
 #include "ERF_Utils.H"
 
@@ -6,6 +9,11 @@ using namespace amrex;
 /**
  * Project the single-level velocity field to enforce incompressibility
  * Note that the level may or may not be level zero
+ *
+ * @param lev Level index for the projection data
+ * @param rhs Cell-centered divergence field to be filled
+ * @param rho0_u_const Face-centered momentum components to differentiate
+ * @param geom_at_lev Geometry for the level being projected
  */
 void ERF::compute_divergence (int lev, MultiFab& rhs, Array<MultiFab const*,AMREX_SPACEDIM> rho0_u_const, Geometry const& geom_at_lev)
 {
