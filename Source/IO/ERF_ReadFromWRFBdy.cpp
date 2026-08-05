@@ -367,7 +367,7 @@ convert_wrfbdy_data (const int itime,
                 int kstart, kend;
                 Real z_dst, z_hi_src, z_lo_src;
 
-                kstart   = k - amrex::min(5,k);
+                kstart   = klo;
                 z_dst    = bdy_c_z_dst(i,j,k);
                 z_lo_src = bdy_c_z_src(i,j,kstart);
 
@@ -387,12 +387,12 @@ convert_wrfbdy_data (const int itime,
                     Real dz_rat = (z_dst - z_lo_src) / (z_hi_src - z_lo_src);
                     bdy_t_int(i,j,k)  = (  bdy_t_tmp(i,j,kend) -  bdy_t_tmp(i,j,kstart) ) * dz_rat +  bdy_t_tmp(i,j,kstart);
                     bdy_qv_int(i,j,k) = ( bdy_qv_tmp(i,j,kend) - bdy_qv_tmp(i,j,kstart) ) * dz_rat + bdy_qv_tmp(i,j,kstart);
+                    bdy_r_int(i,j,k)  = (  bdy_r_tmp(i,j,kend) -  bdy_r_tmp(i,j,kstart) ) * dz_rat +  bdy_r_tmp(i,j,kstart);
                 } else {
                     bdy_t_int(i,j,k)  =  bdy_t_tmp(i,j,k);
                     bdy_qv_int(i,j,k) = bdy_qv_tmp(i,j,k);
+                    bdy_r_int(i,j,k)  =  bdy_r_tmp(i,j,k);
                 }
-                // NOTE: always copy rho for rebalance
-                bdy_r_int(i,j,k)  =  bdy_r_tmp(i,j,k);
             }
         });
 
@@ -402,7 +402,7 @@ convert_wrfbdy_data (const int itime,
                 int kstart, kend;
                 Real z_dst, z_hi_src, z_lo_src;
 
-                kstart   = k - amrex::min(5,k);
+                kstart   = klo;
                 z_dst    = bdy_u_z_dst(i,j,k);
                 z_lo_src = bdy_u_z_src(i,j,kstart);
 
@@ -433,7 +433,7 @@ convert_wrfbdy_data (const int itime,
                 int kstart, kend;
                 Real z_dst, z_hi_src, z_lo_src;
 
-                kstart   = k - amrex::min(5,k);
+                kstart   = klo;
                 z_dst    = bdy_v_z_dst(i,j,k);
                 z_lo_src = bdy_v_z_src(i,j,kstart);
 
