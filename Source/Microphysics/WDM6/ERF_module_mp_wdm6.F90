@@ -840,6 +840,12 @@
           t(i_dbg_local,kts), den(i_dbg_local,kts)
       endif
 
+      if (debug_local .gt. 0 .and. i_dbg_local .ge. its .and. i_dbg_local .le. ite) then
+        write(*,'(A,1X,I3,4(1X,ES24.16E3))') &
+          'WDM6-FORT_PRE_G5A', kts, &
+          work1(i_dbg_local,kts,1), workn(i_dbg_local,kts), delz(i_dbg_local,kts), dtcld
+      endif
+
 
 
       mstepmax = 1
@@ -855,6 +861,13 @@
       do i = its, ite
         if(mstepmax.le.mstep(i)) mstepmax = mstep(i)
       enddo
+
+      if (debug_local .gt. 0 .and. i_dbg_local .ge. its .and. i_dbg_local .le. ite) then
+        write(*,'(A,1X,I3,7(1X,ES24.16E3))') &
+          'WDM6-FORT_POST_G5A', kts, &
+          work1(i_dbg_local,kts,1), workn(i_dbg_local,kts), dble(mstep(i_dbg_local)), &
+          dble(mstepmax), dble(numdt(i_dbg_local)), delz(i_dbg_local,kts), dtcld
+      endif
 
       do n = 1, mstepmax
         k = kte

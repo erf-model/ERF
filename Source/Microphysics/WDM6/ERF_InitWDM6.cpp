@@ -200,14 +200,14 @@ WDM6::initialize_coeffs()
 
     // Rain coefficients
     m_bvtr1   = Real(1.0) + bvtr;
-    m_bvtr2   = Real(2.5) + Real(0.5) * bvtr;
+    m_bvtr2   = Real(2.0) + bvtr;
     m_bvtr3   = Real(3.0) + bvtr;
     m_bvtr4   = Real(4.0) + bvtr;
     m_bvtr5   = Real(5.0) + bvtr;
     m_bvtr6   = Real(6.0) + bvtr;
     m_bvtr7   = Real(7.0) + bvtr;
-    m_bvtr2o5 = Real(2.5);
-    m_bvtr3o5 = Real(3.5);
+    m_bvtr2o5 = Real(2.5) + Real(0.5) * bvtr;
+    m_bvtr3o5 = Real(3.5) + Real(0.5) * bvtr;
 
     m_g1pbr   = rgmma(m_bvtr1);
     m_g2pbr   = rgmma(m_bvtr2);
@@ -216,21 +216,21 @@ WDM6::initialize_coeffs()
     m_g5pbr   = rgmma(m_bvtr5);
     m_g6pbr   = rgmma(m_bvtr6);
     m_g7pbr   = rgmma(m_bvtr7);
-    m_g5pbro2 = rgmma(m_bvtr2);
-    m_g7pbro2 = rgmma(m_bvtr2o5);
+    m_g5pbro2 = rgmma(m_bvtr2o5);
+    m_g7pbro2 = rgmma(m_bvtr3o5);
 
-    m_pvtr    = avtr * m_g4pbr / Real(6.0);
-    m_pvtrn   = avtr * m_g1pbr;
+    m_pvtr    = avtr * m_g5pbr / Real(24.0);
+    m_pvtrn   = avtr * m_g2pbr;
     m_eacrr   = Real(1.0);
     m_pacrr   = m_pi_wdm6 * n0r * avtr * m_g3pbr * Real(0.25) * m_eacrr;
-    m_precr1  = Real(2.0) * m_pi_wdm6 * n0r * Real(0.78);
+    m_precr1  = Real(2.0) * m_pi_wdm6 * Real(1.56);
     m_precr2  = Real(2.0) * m_pi_wdm6 * n0r * Real(0.31)
-                * std::pow(avtr, Real(0.5)) * m_g5pbro2;
+                * std::pow(avtr, Real(0.5)) * m_g7pbro2;
     m_roqimax = Real(2.08e22) * std::pow(dimax, Real(8.0));
-    m_xmmax   = (m_pi_wdm6/Real(6.0)) * denr * std::pow(di2000, Real(3.0));
+    m_xmmax   = std::pow(dimax / dicon, Real(2.0));
 
     m_pidn0r  = m_pi_wdm6 * denr * n0r;
-    m_pidnr   = m_pi_wdm6 * denr / Real(6.0);
+    m_pidnr   = Real(4.0) * m_pi_wdm6 * denr;
 
     // Snow coefficients
     m_bvts1   = Real(1.0) + bvts;

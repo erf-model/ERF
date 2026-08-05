@@ -1,4 +1,5 @@
 #include "ERF_WDM6.H"
+#include <AMReX_IArrayBox.H>
 #include <AMReX_Reduce.H>
 #include <algorithm>
 #include <array>
@@ -409,7 +410,7 @@ void WDM6::Advance(const Real& dt_advance,
         });
 
         // Create 2D accumulation arrays
-        Box box2d(IntVect(imlo,jmlo,0), IntVect(imhi,jmhi,0));
+        Box box2d(IntVect(ilo,jlo,0), IntVect(ihi,jhi,0));
         FArrayBox rainacc_fab(box2d, 1, Arena_Used);
         FArrayBox rainncv_fab(box2d, 1, Arena_Used);
         FArrayBox sr_fab(box2d, 1, Arena_Used);
@@ -488,6 +489,8 @@ void WDM6::Advance(const Real& dt_advance,
 
         // Working FABs (similar to WSM6 but with WDM6-specific additions)
         // 3D working arrays
+        const Real dz_val = m_geom.CellSize(2);
+        FArrayBox delz_fab(fab_box,1, Arena_Used);
         FArrayBox denfac_fab(fab_box,1, Arena_Used);
         FArrayBox xni_fab(fab_box,1, Arena_Used);
         FArrayBox rslopec_fab(fab_box,1, Arena_Used);
@@ -499,6 +502,9 @@ void WDM6::Advance(const Real& dt_advance,
         FArrayBox rslope3_fab(fab_box,3, Arena_Used);
         FArrayBox work1_fab(fab_box,3, Arena_Used);
         FArrayBox workn_fab(fab_box,1, Arena_Used);
+        Box box2d(IntVect(ilo,jlo,0), IntVect(ihi,jhi,0));
+        IArrayBox mstep_fab(box2d,1, Arena_Used);
+        IArrayBox numdt_fab(box2d,1, Arena_Used);
         FArrayBox cpm_fab(fab_box,1, Arena_Used);
         FArrayBox xl_fab(fab_box,1, Arena_Used);
         FArrayBox qsatw_fab(fab_box,1, Arena_Used);
@@ -519,6 +525,7 @@ void WDM6::Advance(const Real& dt_advance,
         FArrayBox nraccr_fab(fab_box,1, Arena_Used);  // nr gained from accretion
         FArrayBox nrevp_fab(fab_box,1, Arena_Used);   // nr lost to evaporation
 
+        auto const& delz_arr = delz_fab.array();
         auto const& denfac_arr = denfac_fab.array();
         auto const& xni_arr = xni_fab.array();
         auto const& rslopec_arr = rslopec_fab.array();
@@ -530,6 +537,8 @@ void WDM6::Advance(const Real& dt_advance,
         auto const& rslope3_arr = rslope3_fab.array();
         auto const& work1_arr = work1_fab.array();
         auto const& workn_arr = workn_fab.array();
+        auto const& mstep_arr = mstep_fab.array();
+        auto const& numdt_arr = numdt_fab.array();
         auto const& cpm_arr = cpm_fab.array();
         auto const& xl_arr = xl_fab.array();
         auto const& qsatw_arr = qsatw_fab.array();
@@ -548,6 +557,7 @@ void WDM6::Advance(const Real& dt_advance,
 
         // Clamp negative values and enforce minimums
         ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+            delz_arr(i,j,k) = dz_val;
             qc_arr(i,j,k) = amrex::max(qc_arr(i,j,k), Real(0.0));
             qr_arr(i,j,k) = amrex::max(qr_arr(i,j,k), Real(0.0));
             qi_arr(i,j,k) = amrex::max(qi_arr(i,j,k), Real(0.0));
@@ -782,6 +792,65 @@ void WDM6::Advance(const Real& dt_advance,
                             static_cast<double>(den_arr(diag_i,diag_j,diag_k)));
                 std::fflush(stdout);
             }
+#endif
+
+            // ============================================================
+            // Step 3d: Rain sedimentation setup (G5a)
+            // Determine rain/number substep count from normalized work1/workn.
+            // ============================================================
+            ParallelFor(box2d, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+                mstep_arr(i,j,k) = 1;
+                numdt_arr(i,j,k) = 1;
+            });
+#if !defined(AMREX_USE_GPU)
+            if (microphysics_debug > 0 && diag_col_in_tile) {
+                std::printf("WDM6-CPP_PRE_G5A %3d %24.16E %24.16E %24.16E %24.16E\n",
+                            diag_k + 1,
+                            static_cast<double>(work1_arr(diag_i,diag_j,diag_k,0)),
+                            static_cast<double>(workn_arr(diag_i,diag_j,diag_k)),
+                            static_cast<double>(delz_arr(diag_i,diag_j,diag_k)),
+                            static_cast<double>(dtcld));
+                std::fflush(stdout);
+            }
+#endif
+            ParallelFor(box2d, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+                int mstep_loc = 1;
+                int numdt_loc = 1;
+                for (int kk = khi; kk >= klo; --kk) {
+                    work1_arr(i,j,kk,0) = work1_arr(i,j,kk,0) / delz_arr(i,j,kk);
+                    workn_arr(i,j,kk) = workn_arr(i,j,kk) / delz_arr(i,j,kk);
+                    numdt_loc = amrex::max(static_cast<int>(amrex::max(work1_arr(i,j,kk,0),
+                                                                       workn_arr(i,j,kk)) * dtcld + Real(0.5)),
+                                           1);
+                    if (numdt_loc >= mstep_loc) {
+                        mstep_loc = numdt_loc;
+                    }
+                }
+                mstep_arr(i,j,k) = mstep_loc;
+                numdt_arr(i,j,k) = numdt_loc;
+            });
+            ReduceOps<ReduceOpMax> reduce_op;
+            ReduceData<int> reduce_data(reduce_op);
+            reduce_op.eval(box2d, reduce_data,
+            [=] AMREX_GPU_DEVICE (int i, int j, int k) -> GpuTuple<int> {
+                return {mstep_arr(i,j,k)};
+            });
+            int mstepmax = amrex::get<0>(reduce_data.value());
+#if !defined(AMREX_USE_GPU)
+            if (microphysics_debug > 0 && diag_col_in_tile) {
+                std::printf("WDM6-CPP_POST_G5A %3d %24.16E %24.16E %24.16E %24.16E %24.16E %24.16E %24.16E\n",
+                            diag_k + 1,
+                            static_cast<double>(work1_arr(diag_i,diag_j,diag_k,0)),
+                            static_cast<double>(workn_arr(diag_i,diag_j,diag_k)),
+                            static_cast<double>(mstep_arr(diag_i,diag_j,0)),
+                            static_cast<double>(mstepmax),
+                            static_cast<double>(numdt_arr(diag_i,diag_j,0)),
+                            static_cast<double>(delz_arr(diag_i,diag_j,diag_k)),
+                            static_cast<double>(dtcld));
+                std::fflush(stdout);
+            }
+#else
+            amrex::ignore_unused(mstepmax);
 #endif
 
             // ============================================================
