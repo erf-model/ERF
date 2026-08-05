@@ -60,6 +60,46 @@ KesslerThermoState kessler_copy_in_thermo (
     return {thermo.pressure_pa * amrex::Real(0.01), thermo.temperature};
 }
 
+// Array-level copy-in used by production and by the wiring test.  Keeping
+// component selection here makes the test exercise the same base-state and
+// working-array indexing as the Kessler production kernel.
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+void kessler_copy_state_to_micro_cell (
+    const amrex::Array4<const amrex::Real>& states,
+    const amrex::Array4<const amrex::Real>& base,
+    const amrex::Array4<amrex::Real>& rho,
+    const amrex::Array4<amrex::Real>& theta,
+    const amrex::Array4<amrex::Real>& qv,
+    const amrex::Array4<amrex::Real>& qc,
+    const amrex::Array4<amrex::Real>& qp,
+    const amrex::Array4<amrex::Real>& qt,
+    const amrex::Array4<amrex::Real>& tabs,
+    const amrex::Array4<amrex::Real>& pres,
+    const amrex::Real rdOcp,
+    const bool use_anelastic_reference_pressure,
+    const int i, const int j, const int k) noexcept
+{
+    const amrex::Real rho_value = states(i,j,k,Rho_comp);
+    const amrex::Real rho_theta = states(i,j,k,RhoTheta_comp);
+    const amrex::Real qv_value = states(i,j,k,RhoQ1_comp) / rho_value;
+    rho(i,j,k) = rho_value;
+    theta(i,j,k) = rho_theta / rho_value;
+    qv(i,j,k) = qv_value;
+    qc(i,j,k) = states(i,j,k,RhoQ2_comp) / rho_value;
+    qp(i,j,k) = states(i,j,k,RhoQ3_comp) / rho_value;
+    qt(i,j,k) = qv(i,j,k) + qc(i,j,k);
+
+    const amrex::Real p0 = use_anelastic_reference_pressure
+        ? base(i,j,k,BaseState::p0_comp) : amrex::Real(0.0);
+    const amrex::Real pi0 = use_anelastic_reference_pressure
+        ? base(i,j,k,BaseState::pi0_comp) : amrex::Real(0.0);
+    const KesslerThermoState thermo = kessler_copy_in_thermo(
+        rho_value, rho_theta, qv_value, rdOcp,
+        use_anelastic_reference_pressure, p0, pi0);
+    tabs(i,j,k) = thermo.temperature;
+    pres(i,j,k) = thermo.pressure_mbar;
+}
+
 class Kessler : public NullMoist {
 
     using FabPtr = std::shared_ptr<amrex::MultiFab>;

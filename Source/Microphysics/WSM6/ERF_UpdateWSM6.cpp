@@ -28,16 +28,9 @@ WSM6::Copy_Micro_to_State(MultiFab& cons)
 
         ParallelFor(box3d, [=]
                     AMREX_GPU_DEVICE(int i, int j, int k) {
-            theta(i,j,k) = use_anelastic_reference_pressure
-                ? wsm6_theta_from_temperature_pressure(tabs(i,j,k), pres(i,j,k), rdOcp)
-                : getThgivenRandT(rho(i,j,k), tabs(i,j,k), rdOcp, qv(i,j,k));
-            states(i,j,k,RhoTheta_comp) = rho(i,j,k) * theta(i,j,k);
-            states(i,j,k,RhoQ1_comp) = rho(i,j,k) * amrex::max(Real(0), qv(i,j,k));
-            states(i,j,k,RhoQ2_comp) = rho(i,j,k) * amrex::max(Real(0), qc(i,j,k));
-            states(i,j,k,RhoQ3_comp) = rho(i,j,k) * amrex::max(Real(0), qi(i,j,k));
-            states(i,j,k,RhoQ4_comp) = rho(i,j,k) * amrex::max(Real(0), qr(i,j,k));
-            states(i,j,k,RhoQ5_comp) = rho(i,j,k) * amrex::max(Real(0), qs(i,j,k));
-            states(i,j,k,RhoQ6_comp) = rho(i,j,k) * amrex::max(Real(0), qg(i,j,k));
+            wsm6_copy_micro_to_state_cell(
+                states, rho, theta, tabs, pres, qv, qc, qi, qr, qs, qg,
+                use_anelastic_reference_pressure, rdOcp, i, j, k);
         });
     }
 

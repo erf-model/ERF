@@ -55,6 +55,48 @@ WSM6ThermoState wsm6_copy_in_thermo (
     return {thermo.pressure_pa, thermo.temperature};
 }
 
+// Array-level copy-in used by production and by the wiring test.  This keeps
+// the WSM6 canonical arrays and the BaseState component indexing together.
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+void wsm6_copy_state_to_micro_cell (
+    const amrex::Array4<const amrex::Real>& states,
+    const amrex::Array4<const amrex::Real>& base,
+    const amrex::Array4<amrex::Real>& rho,
+    const amrex::Array4<amrex::Real>& theta,
+    const amrex::Array4<amrex::Real>& tabs,
+    const amrex::Array4<amrex::Real>& pres,
+    const amrex::Array4<amrex::Real>& qv,
+    const amrex::Array4<amrex::Real>& qc,
+    const amrex::Array4<amrex::Real>& qi,
+    const amrex::Array4<amrex::Real>& qr,
+    const amrex::Array4<amrex::Real>& qs,
+    const amrex::Array4<amrex::Real>& qg,
+    const amrex::Real rdOcp,
+    const bool use_anelastic_reference_pressure,
+    const int i, const int j, const int k) noexcept
+{
+    const amrex::Real rho_value = states(i,j,k,Rho_comp);
+    const amrex::Real rho_theta = states(i,j,k,RhoTheta_comp);
+    rho(i,j,k) = rho_value;
+    theta(i,j,k) = rho_theta / rho_value;
+    qv(i,j,k) = amrex::max(amrex::Real(0.0), states(i,j,k,RhoQ1_comp) / rho_value);
+    qc(i,j,k) = amrex::max(amrex::Real(0.0), states(i,j,k,RhoQ2_comp) / rho_value);
+    qi(i,j,k) = amrex::max(amrex::Real(0.0), states(i,j,k,RhoQ3_comp) / rho_value);
+    qr(i,j,k) = amrex::max(amrex::Real(0.0), states(i,j,k,RhoQ4_comp) / rho_value);
+    qs(i,j,k) = amrex::max(amrex::Real(0.0), states(i,j,k,RhoQ5_comp) / rho_value);
+    qg(i,j,k) = amrex::max(amrex::Real(0.0), states(i,j,k,RhoQ6_comp) / rho_value);
+
+    const amrex::Real p0 = use_anelastic_reference_pressure
+        ? base(i,j,k,BaseState::p0_comp) : amrex::Real(0.0);
+    const amrex::Real pi0 = use_anelastic_reference_pressure
+        ? base(i,j,k,BaseState::pi0_comp) : amrex::Real(0.0);
+    const WSM6ThermoState thermo = wsm6_copy_in_thermo(
+        rho_value, rho_theta, qv(i,j,k), rdOcp,
+        use_anelastic_reference_pressure, p0, pi0);
+    tabs(i,j,k) = thermo.temperature;
+    pres(i,j,k) = thermo.pressure_pa;
+}
+
 // WSM6 copy-out retains its established pressure-based reconstruction. This
 // adapter makes that contract explicit and gives it focused coverage.
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
@@ -64,6 +106,35 @@ amrex::Real wsm6_theta_from_temperature_pressure (
     const amrex::Real rdOcp) noexcept
 {
     return getThgivenTandP(temperature, pressure_pa, rdOcp);
+}
+
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+void wsm6_copy_micro_to_state_cell (
+    const amrex::Array4<amrex::Real>& states,
+    const amrex::Array4<amrex::Real>& rho,
+    const amrex::Array4<amrex::Real>& theta,
+    const amrex::Array4<const amrex::Real>& tabs,
+    const amrex::Array4<const amrex::Real>& pres,
+    const amrex::Array4<const amrex::Real>& qv,
+    const amrex::Array4<const amrex::Real>& qc,
+    const amrex::Array4<const amrex::Real>& qi,
+    const amrex::Array4<const amrex::Real>& qr,
+    const amrex::Array4<const amrex::Real>& qs,
+    const amrex::Array4<const amrex::Real>& qg,
+    const bool use_anelastic_reference_pressure,
+    const amrex::Real rdOcp,
+    const int i, const int j, const int k) noexcept
+{
+    theta(i,j,k) = use_anelastic_reference_pressure
+        ? wsm6_theta_from_temperature_pressure(tabs(i,j,k), pres(i,j,k), rdOcp)
+        : getThgivenRandT(rho(i,j,k), tabs(i,j,k), rdOcp, qv(i,j,k));
+    states(i,j,k,RhoTheta_comp) = rho(i,j,k) * theta(i,j,k);
+    states(i,j,k,RhoQ1_comp) = rho(i,j,k) * amrex::max(amrex::Real(0), qv(i,j,k));
+    states(i,j,k,RhoQ2_comp) = rho(i,j,k) * amrex::max(amrex::Real(0), qc(i,j,k));
+    states(i,j,k,RhoQ3_comp) = rho(i,j,k) * amrex::max(amrex::Real(0), qi(i,j,k));
+    states(i,j,k,RhoQ4_comp) = rho(i,j,k) * amrex::max(amrex::Real(0), qr(i,j,k));
+    states(i,j,k,RhoQ5_comp) = rho(i,j,k) * amrex::max(amrex::Real(0), qs(i,j,k));
+    states(i,j,k,RhoQ6_comp) = rho(i,j,k) * amrex::max(amrex::Real(0), qg(i,j,k));
 }
 
 class WSM6 : public NullMoist {

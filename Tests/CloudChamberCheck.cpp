@@ -2,6 +2,7 @@
 #include <AMReX_MultiFab.H>
 #include <AMReX_PlotFileUtil.H>
 #include <AMReX_Reduce.H>
+#include "../Source/Prob/ERF_CloudChamber.H"
 #include "../Source/Utils/ERF_EOS.H"
 #include "../Source/Utils/ERF_MicrophysicsUtils.H"
 
@@ -356,6 +357,7 @@ int main (int argc, char** argv)
     const Real temperature_top = Real(284.0);
     const Real amplitude = Real(0.02);
     const Real relative_humidity = Real(0.95);
+    const Real reference_density = erf_cloud_chamber::prescribed_reference_density();
     if (pressure.min(0, 0, false) <= Real(0.0)) {
         amrex::Finalize();
         return fail("initial pressure is not positive");
@@ -384,7 +386,6 @@ int main (int argc, char** argv)
     MultiFab velocity_error(theta.boxArray(), theta.DistributionMap(), 1, 0);
     for (amrex::MFIter mfi(theta_error, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
         const auto bx = mfi.tilebox();
-        const auto rho = density.const_array(mfi);
         const auto th = theta.const_array(mfi);
         const auto t = temp.const_array(mfi);
         const auto p = pressure.const_array(mfi);
@@ -413,7 +414,7 @@ int main (int argc, char** argv)
                 amplitude * std::sin(Real(2.0)*Real(3.14159265358979323846)*(x-prob_lo[0])/lx) *
                 std::sin(Real(2.0)*Real(3.14159265358979323846)*(y-prob_lo[1])/ly) *
                 std::sin(Real(3.14159265358979323846)*(z-prob_lo[2])/lz);
-            const Real reference_pressure = p_0 - rho(i,j,k) * CONST_GRAV * z;
+            const Real reference_pressure = p_0 - reference_density * CONST_GRAV * z;
             const Real plotfile_pressure = p(i,j,k);
             const Real pressure_abs_error = std::abs(plotfile_pressure - reference_pressure);
             const Real pressure_relative_error = pressure_abs_error /
@@ -481,8 +482,11 @@ int main (int argc, char** argv)
         const Long nx = static_cast<Long>(domain.length(0));
         const Long ny = static_cast<Long>(domain.length(1));
         const Long plane = nx * ny;
+        const Real excess_match_tolerance =
+            Real(8.0) * std::numeric_limits<Real>::epsilon() *
+            std::max(Real(1.0), std::abs(pressure_tolerance_excess_max));
         const Long local_worst_code = amrex::ParReduce(
-            amrex::TypeList<amrex::ReduceOpMax>{},
+            amrex::TypeList<amrex::ReduceOpMin>{},
             amrex::TypeList<Long>{}, pressure_tolerance_excess, amrex::IntVect(0),
             [=] AMREX_GPU_DEVICE (int box_no, int i, int j, int k) noexcept
                 -> amrex::GpuTuple<Long>
@@ -490,10 +494,13 @@ int main (int argc, char** argv)
                 const Long code = static_cast<Long>(i - domain.smallEnd(0)) +
                     nx * (static_cast<Long>(j - domain.smallEnd(1)) +
                          ny * static_cast<Long>(k - domain.smallEnd(2)));
-                return {excess_arrays[box_no](i,j,k) > Real(0.0) ? code : Long(-1)};
+                const Real excess = excess_arrays[box_no](i,j,k);
+                const bool is_maximum = excess > Real(0.0) &&
+                    std::abs(excess - pressure_tolerance_excess_max) <= excess_match_tolerance;
+                return {is_maximum ? code : std::numeric_limits<Long>::max()};
             });
         Long worst_code = local_worst_code;
-        amrex::ParallelDescriptor::ReduceLongMax(worst_code);
+        amrex::ParallelDescriptor::ReduceLongMin(worst_code);
 
         const int worst_k = static_cast<int>(worst_code / plane) + domain.smallEnd(2);
         const Long remainder = worst_code % plane;
@@ -502,32 +509,47 @@ int main (int argc, char** argv)
         const Real invalid = -std::numeric_limits<Real>::max();
         Real worst_observed = invalid;
         Real worst_expected = invalid;
+        Real worst_abs_error = invalid;
         Real worst_relative_error = invalid;
+        Real worst_tolerance_excess = invalid;
+        Real worst_z = invalid;
         for (amrex::MFIter mfi(pressure, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
             const auto bx = mfi.tilebox();
             const auto p = pressure.const_array(mfi);
             const auto pref = pressure_reference.const_array(mfi);
+            const auto perr = pressure_error.const_array(mfi);
             const auto prelerr = pressure_relative_error.const_array(mfi);
+            const auto pexcess = pressure_tolerance_excess.const_array(mfi);
             amrex::ReduceOps<amrex::ReduceOpMax, amrex::ReduceOpMax,
-                              amrex::ReduceOpMax> reduce_op;
-            amrex::ReduceData<Real, Real, Real> reduce_data(reduce_op);
+                              amrex::ReduceOpMax, amrex::ReduceOpMax,
+                              amrex::ReduceOpMax, amrex::ReduceOpMax> reduce_op;
+            amrex::ReduceData<Real, Real, Real, Real, Real, Real> reduce_data(reduce_op);
             reduce_op.eval(bx, reduce_data,
                 [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-                    -> amrex::GpuTuple<Real, Real, Real>
+                    -> amrex::GpuTuple<Real, Real, Real, Real, Real, Real>
                 {
                     if (i == worst_i && j == worst_j && k == worst_k) {
-                        return {p(i,j,k), pref(i,j,k), prelerr(i,j,k)};
+                        const Real z = prob_lo[2] +
+                            (Real(k-domain.smallEnd(2)) + Real(0.5))*dx[2];
+                        return {p(i,j,k), pref(i,j,k), perr(i,j,k),
+                                prelerr(i,j,k), pexcess(i,j,k), z};
                     }
-                    return {invalid, invalid, invalid};
+                    return {invalid, invalid, invalid, invalid, invalid, invalid};
                 });
             const auto values = reduce_data.value();
             worst_observed = std::max(worst_observed, amrex::get<0>(values));
             worst_expected = std::max(worst_expected, amrex::get<1>(values));
-            worst_relative_error = std::max(worst_relative_error, amrex::get<2>(values));
+            worst_abs_error = std::max(worst_abs_error, amrex::get<2>(values));
+            worst_relative_error = std::max(worst_relative_error, amrex::get<3>(values));
+            worst_tolerance_excess = std::max(worst_tolerance_excess, amrex::get<4>(values));
+            worst_z = std::max(worst_z, amrex::get<5>(values));
         }
         amrex::ParallelDescriptor::ReduceRealMax(worst_observed);
         amrex::ParallelDescriptor::ReduceRealMax(worst_expected);
+        amrex::ParallelDescriptor::ReduceRealMax(worst_abs_error);
         amrex::ParallelDescriptor::ReduceRealMax(worst_relative_error);
+        amrex::ParallelDescriptor::ReduceRealMax(worst_tolerance_excess);
+        amrex::ParallelDescriptor::ReduceRealMax(worst_z);
 
         std::ostringstream message;
         message << std::setprecision(17)
@@ -538,7 +560,9 @@ int main (int argc, char** argv)
                 << pressure_rel_tolerance << " worst_cell=(" << worst_i << ","
                 << worst_j << "," << worst_k << ") observed="
                 << worst_observed << " expected=" << worst_expected
-                << " relative_error=" << worst_relative_error;
+                << " z=" << worst_z << " abs_error=" << worst_abs_error
+                << " relative_error=" << worst_relative_error
+                << " tolerance_excess=" << worst_tolerance_excess;
         amrex::Finalize();
         return fail(message.str());
     }

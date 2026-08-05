@@ -233,6 +233,57 @@ SAMPrimitiveCell sam_cons_to_primitive_with_base_state (
                                              thermo);
 }
 
+// Array-level copy-in used by production and by the wiring test.  The helper
+// owns both BaseState component selection and the writes to SAM's canonical
+// primitive working arrays; the caller remains responsible for scheme tables.
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+SAMPrimitiveCell sam_copy_state_to_micro_cell (
+    const amrex::Array4<const amrex::Real>& states,
+    const amrex::Array4<const amrex::Real>& base,
+    const amrex::Array4<amrex::Real>& rho,
+    const amrex::Array4<amrex::Real>& theta,
+    const amrex::Array4<amrex::Real>& qv,
+    const amrex::Array4<amrex::Real>& qc,
+    const amrex::Array4<amrex::Real>& qi,
+    const amrex::Array4<amrex::Real>& qn,
+    const amrex::Array4<amrex::Real>& qt,
+    const amrex::Array4<amrex::Real>& qpr,
+    const amrex::Array4<amrex::Real>& qps,
+    const amrex::Array4<amrex::Real>& qpg,
+    const amrex::Array4<amrex::Real>& qp,
+    const amrex::Array4<amrex::Real>& tabs,
+    const amrex::Array4<amrex::Real>& pres,
+    const amrex::Real rdOcp,
+    const bool use_anelastic_reference_pressure,
+    const int i, const int j, const int k) noexcept
+{
+    const amrex::Real rho_value = states(i,j,k,Rho_comp);
+    const amrex::Real p0 = use_anelastic_reference_pressure
+        ? base(i,j,k,BaseState::p0_comp) : amrex::Real(0.0);
+    const amrex::Real pi0 = use_anelastic_reference_pressure
+        ? base(i,j,k,BaseState::pi0_comp) : amrex::Real(0.0);
+    const SAMPrimitiveCell primitive = sam_cons_to_primitive_with_base_state(
+        rho_value, states(i,j,k,RhoTheta_comp),
+        states(i,j,k,RhoQ1_comp), states(i,j,k,RhoQ2_comp),
+        states(i,j,k,RhoQ3_comp), states(i,j,k,RhoQ4_comp),
+        states(i,j,k,RhoQ5_comp), states(i,j,k,RhoQ6_comp), rdOcp,
+        use_anelastic_reference_pressure, p0, pi0);
+    rho(i,j,k) = primitive.rho;
+    theta(i,j,k) = primitive.theta;
+    qv(i,j,k) = primitive.qv;
+    qc(i,j,k) = primitive.qcl;
+    qi(i,j,k) = primitive.qci;
+    qn(i,j,k) = primitive.qn;
+    qt(i,j,k) = primitive.qt;
+    qpr(i,j,k) = primitive.qpr;
+    qps(i,j,k) = primitive.qps;
+    qpg(i,j,k) = primitive.qpg;
+    qp(i,j,k) = primitive.qp;
+    tabs(i,j,k) = primitive.tabs;
+    pres(i,j,k) = primitive.pres_mbar;
+    return primitive;
+}
+
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 SAMPrimitiveCell sam_cons_to_primitive (const amrex::Real& rho,
                                         const amrex::Real& rho_theta,

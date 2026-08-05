@@ -11,6 +11,7 @@
 #include "AMReX_PlotFileUtil.H"
 #include "ERF_ReadFromERFBdy.H"
 #include "ERF_Provenance.H"
+#include "ERF_BaseStateRestart.H"
 
 using namespace amrex;
 
@@ -755,8 +756,8 @@ ERF::ReadCheckpointFile ()
                 Array4<Real> const& fab = base_state[lev].array(mfi);
                 ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
                 {
-                    fab(i,j,k,BaseState::pi0_comp) =
-                        getExnergivenP(fab(i,j,k,BaseState::p0_comp), rdOcp);
+                    erf_checkpoint::reconstruct_missing_pi0(
+                        fab, ncomp_base_to_read, rdOcp, i, j, k);
                 });
             }
         }

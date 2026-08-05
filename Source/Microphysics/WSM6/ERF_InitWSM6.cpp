@@ -69,28 +69,9 @@ WSM6::Copy_State_to_Micro(const MultiFab& cons_in,
         auto qg = mic_fab_vars[MicVar_WSM6::qg]->array(mfi);
 
         ParallelFor(box3d, [=] AMREX_GPU_DEVICE(int i, int j, int k) {
-            rho(i,j,k) = states(i,j,k,Rho_comp);
-            theta(i,j,k) = states(i,j,k,RhoTheta_comp) / states(i,j,k,Rho_comp);
-
-            qv(i,j,k) = amrex::max(Real(0.0), states(i,j,k,RhoQ1_comp) / states(i,j,k,Rho_comp));
-            qc(i,j,k) = amrex::max(Real(0.0), states(i,j,k,RhoQ2_comp) / states(i,j,k,Rho_comp));
-            qi(i,j,k) = amrex::max(Real(0.0), states(i,j,k,RhoQ3_comp) / states(i,j,k,Rho_comp));
-            qr(i,j,k) = amrex::max(Real(0.0), states(i,j,k,RhoQ4_comp) / states(i,j,k,Rho_comp));
-            qs(i,j,k) = amrex::max(Real(0.0), states(i,j,k,RhoQ5_comp) / states(i,j,k,Rho_comp));
-            qg(i,j,k) = amrex::max(Real(0.0), states(i,j,k,RhoQ6_comp) / states(i,j,k,Rho_comp));
-
-            const Real rho_value = states(i,j,k,Rho_comp);
-            const Real rho_theta = states(i,j,k,RhoTheta_comp);
-            const Real p0 = use_anelastic_reference_pressure
-                ? base_array(i,j,k,BaseState::p0_comp) : Real(0.0);
-            const Real pi0 = use_anelastic_reference_pressure
-                ? base_array(i,j,k,BaseState::pi0_comp) : Real(0.0);
-            const WSM6ThermoState thermo = wsm6_copy_in_thermo(
-                rho_value, rho_theta, qv(i,j,k), rdOcp,
-                use_anelastic_reference_pressure, p0, pi0);
-            tabs(i,j,k) = thermo.temperature;
-            // WSM6's C++ and Fortran paths both use Pa internally.
-            pres(i,j,k) = thermo.pressure_pa;
+            wsm6_copy_state_to_micro_cell(
+                states, base_array, rho, theta, tabs, pres, qv, qc, qi, qr,
+                qs, qg, rdOcp, use_anelastic_reference_pressure, i, j, k);
         });
     }
 }

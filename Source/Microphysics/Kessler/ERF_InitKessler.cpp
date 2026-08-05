@@ -92,25 +92,10 @@ void Kessler::Copy_State_to_Micro (const MultiFab& cons_in,
         // for the qsat helper path, so convert once at copy-in.
         ParallelFor( box3d, [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
-            const Real rho = states_array(i,j,k,Rho_comp);
-            const Real rho_theta = states_array(i,j,k,RhoTheta_comp);
-            const Real qv = states_array(i,j,k,RhoQ1_comp) / rho;
-
-            rho_array(i,j,k)   = rho;
-            theta_array(i,j,k) = rho_theta / rho;
-            qv_array(i,j,k)    = qv;
-            qc_array(i,j,k)    = states_array(i,j,k,RhoQ2_comp) / rho;
-            qp_array(i,j,k)    = states_array(i,j,k,RhoQ3_comp) / rho;
-            qt_array(i,j,k)    = qv_array(i,j,k) + qc_array(i,j,k);
-
-            const Real p0 = use_anelastic_reference_pressure
-                ? base_array(i,j,k,BaseState::p0_comp) : Real(0.0);
-            const Real pi0 = use_anelastic_reference_pressure
-                ? base_array(i,j,k,BaseState::pi0_comp) : Real(0.0);
-            const KesslerThermoState thermo = kessler_copy_in_thermo(
-                rho, rho_theta, qv, rdOcp, use_anelastic_reference_pressure, p0, pi0);
-            tabs_array(i,j,k) = thermo.temperature;
-            pres_array(i,j,k) = thermo.pressure_mbar;
+            kessler_copy_state_to_micro_cell(
+                states_array, base_array, rho_array, theta_array, qv_array,
+                qc_array, qp_array, qt_array, tabs_array, pres_array, rdOcp,
+                use_anelastic_reference_pressure, i, j, k);
         });
     }
 }

@@ -80,7 +80,8 @@ if(ERF_ENABLE_TESTS)
     ${CMAKE_CURRENT_SOURCE_DIR}/CloudChamberCheck.cpp)
   target_link_libraries(erf_cloud_chamber_check PRIVATE AMReX::amrex)
   target_include_directories(erf_cloud_chamber_check PRIVATE
-    ${PROJECT_SOURCE_DIR}/Source)
+    ${PROJECT_SOURCE_DIR}/Source
+    ${PROJECT_SOURCE_DIR}/Source/Utils)
   target_compile_features(erf_cloud_chamber_check PRIVATE cxx_std_17)
   set(CLOUD_CHAMBER_CHECKER
       "${CMAKE_CURRENT_BINARY_DIR}/erf_cloud_chamber_check${CMAKE_EXECUTABLE_SUFFIX}")

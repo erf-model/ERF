@@ -115,41 +115,19 @@ Morrison::Copy_State_to_Micro (const MultiFab& cons_in,
         // Get pressure, theta, temperature, density, and qt, qp
         ParallelFor( box3d, [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
-            const Real rho = states_array(i,j,k,Rho_comp);
-            const Real rho_theta = states_array(i,j,k,RhoTheta_comp);
-            const Real qv = std::max(Real(0),states_array(i,j,k,RhoQ1_comp)/rho);
+            morrison_copy_state_to_micro_cell(
+                states_array, base_array, rho_array, theta_array, qv_array,
+                qc_array, qi_array, qn_array, qt_array, qpr_array, qps_array,
+                qpg_array, qp_array, tabs_array, pres_array, rdOcp,
+                use_anelastic_reference_pressure, i, j, k);
 
-            rho_array(i,j,k)   = rho;
-            theta_array(i,j,k) = rho_theta/rho;
-
-            qv_array(i,j,k)    = qv;
-            qc_array(i,j,k)    = std::max(Real(0),states_array(i,j,k,RhoQ2_comp)/rho);
-            qi_array(i,j,k)    = std::max(Real(0),states_array(i,j,k,RhoQ3_comp)/rho);
-            qn_array(i,j,k)    = qc_array(i,j,k) + qi_array(i,j,k);
-            qt_array(i,j,k)    = qv_array(i,j,k) + qn_array(i,j,k);
-
-            qpr_array(i,j,k)   = std::max(Real(0),states_array(i,j,k,RhoQ4_comp)/rho);
-            qps_array(i,j,k)   = std::max(Real(0),states_array(i,j,k,RhoQ5_comp)/rho);
-            qpg_array(i,j,k)   = std::max(Real(0),states_array(i,j,k,RhoQ6_comp)/rho);
-
-             qp_array(i,j,k)   = qpr_array(i,j,k) + qps_array(i,j,k) + qpg_array(i,j,k);
-
+            const Real rho = rho_array(i,j,k);
             nc_array(i,j,k)   = std::max(Real(0),states_array(i,j,k,RhoQ7_comp) /rho);
             ni_array(i,j,k)   = std::max(Real(0),states_array(i,j,k,RhoQ8_comp) /rho);
             nr_array(i,j,k)   = std::max(Real(0),states_array(i,j,k,RhoQ9_comp) /rho);
             ns_array(i,j,k)   = std::max(Real(0),states_array(i,j,k,RhoQ10_comp)/rho);
             ng_array(i,j,k)   = std::max(Real(0),states_array(i,j,k,RhoQ11_comp)/rho);
 
-            const Real p0 = use_anelastic_reference_pressure
-                ? base_array(i,j,k,BaseState::p0_comp) : Real(0.0);
-            const Real pi0 = use_anelastic_reference_pressure
-                ? base_array(i,j,k,BaseState::pi0_comp) : Real(0.0);
-            const MorrisonThermoState thermo = morrison_copy_in_thermo(
-                rho, rho_theta, qv, rdOcp, use_anelastic_reference_pressure, p0, pi0);
-
-            tabs_array(i,j,k) = thermo.temperature;
-            // Morrison's C++ and Fortran paths both use Pa internally.
-            pres_array(i,j,k) = thermo.pressure_pa;
         });
     }
 }

@@ -130,35 +130,11 @@ SAM::Copy_State_to_Micro (const MultiFab& cons_in,
         // Get pressure, theta, temperature, density, and qt, qp
         ParallelFor(box3d, [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
-            const Real rho = states_array(i,j,k,Rho_comp);
-            const Real rho_theta = states_array(i,j,k,RhoTheta_comp);
-            const Real qv = max(Real(0.0), states_array(i,j,k,RhoQ1_comp) / rho);
-            const Real p0 = use_anelastic_reference_pressure
-                ? base_array(i,j,k,BaseState::p0_comp) : Real(0.0);
-            const Real pi0 = use_anelastic_reference_pressure
-                ? base_array(i,j,k,BaseState::pi0_comp) : Real(0.0);
-            const SAMPrimitiveCell primitive = sam_cons_to_primitive_with_base_state(
-                rho, rho_theta,
-                states_array(i,j,k,RhoQ1_comp),
-                states_array(i,j,k,RhoQ2_comp),
-                states_array(i,j,k,RhoQ3_comp),
-                states_array(i,j,k,RhoQ4_comp),
-                states_array(i,j,k,RhoQ5_comp),
-                states_array(i,j,k,RhoQ6_comp),
-                rdOcp, use_anelastic_reference_pressure, p0, pi0);
-            rho_array(i,j,k)   = primitive.rho;
-            theta_array(i,j,k) = primitive.theta;
-            qv_array(i,j,k)    = primitive.qv;
-            qc_array(i,j,k)    = primitive.qcl;
-            qi_array(i,j,k)    = primitive.qci;
-            qn_array(i,j,k)    = primitive.qn;
-            qt_array(i,j,k)    = primitive.qt;
-            qpr_array(i,j,k)   = primitive.qpr;
-            qps_array(i,j,k)   = primitive.qps;
-            qpg_array(i,j,k)   = primitive.qpg;
-            qp_array(i,j,k)    = primitive.qp;
-            tabs_array(i,j,k)  = primitive.tabs;
-            pres_array(i,j,k)  = primitive.pres_mbar;
+            sam_copy_state_to_micro_cell(
+                states_array, base_array, rho_array, theta_array, qv_array,
+                qc_array, qi_array, qn_array, qt_array, qpr_array, qps_array,
+                qpg_array, qp_array, tabs_array, pres_array, rdOcp,
+                use_anelastic_reference_pressure, i, j, k);
         });
     }
 }
