@@ -459,8 +459,6 @@ convert_wrfbdy_data (const int itime,
         });
 
         if (rebalance_wrf_state) {
-            // Rebalance with constant temperature (modifies theta only)
-            // New z values
 #ifdef AMREX_USE_FLOAT
             Real tol  = Real(1.0e-6);
 #else
