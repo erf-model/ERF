@@ -97,20 +97,10 @@ struct MYNNLevel2 {
     AMREX_FORCE_INLINE
     amrex::Real calc_Rf (const amrex::Real GM, const amrex::Real GH) const
     {
-        // NOTE: Equation from paper: Ri1*(Ri + Ri2 - std::sqrt(Ri*Ri - Ri3*Ri + Ri2*Ri2))
-        //       Denote A = Ri + Ri2  and  B = std::sqrt(Ri*Ri - Ri3*Ri + Ri2*Ri2)
-        //       Write A - B = A^2 - B^2 / (A + B) = ((A + B) (A - B)) / (A + B)
-        //       The above formula is less prone to cancellation errors
         AMREX_ASSERT(initialized);
         amrex::Real lGM = std::copysign(std::max(std::fabs(GM),eps),GM);
         amrex::Real Ri  = -GH/lGM;
-        amrex::Real A   = Ri + Ri2;
-        amrex::Real B   = std::sqrt(Ri*Ri - Ri3*Ri + Ri2*Ri2);
-        if (A >= zero) {
-            return Ri1 * Ri * (two*Ri2 + Ri3) / (A + B);
-        } else {
-            return Ri1 * (A - B);
-        }
+        return Ri1*(Ri + Ri2 - std::sqrt(Ri*Ri - Ri3*Ri + Ri2*Ri2));
     }
 
     AMREX_GPU_DEVICE
@@ -118,8 +108,7 @@ struct MYNNLevel2 {
     amrex::Real calc_SH (const amrex::Real Rf) const
     {
         AMREX_ASSERT(initialized);
-        amrex::Real ldenom = std::copysign(std::max(std::fabs(one-Rf),eps),(one-Rf));
-        return three*A2*(gam1+gam2)*(Rfc-Rf)/ldenom;
+        return three*A2*(gam1+gam2)*(Rfc-Rf)/(one-Rf);
     }
 
     AMREX_GPU_DEVICE
@@ -127,8 +116,7 @@ struct MYNNLevel2 {
     amrex::Real calc_SM (const amrex::Real Rf) const
     {
         AMREX_ASSERT(initialized);
-        amrex::Real ldenom = std::copysign(std::max(std::fabs(Rf2-Rf),eps),(Rf2-Rf));
-        return A1*F1/(A2*F2) * (Rf1-Rf) / ldenom * calc_SH(Rf);
+        return A1*F1/(A2*F2) * (Rf1-Rf) / (Rf2-Rf) * calc_SH(Rf);
     }
 
     bool initialized{false};
