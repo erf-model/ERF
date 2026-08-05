@@ -1,3 +1,6 @@
+/**
+ * \file ERF_Checkpoint.cpp
+ */
 
 #include <iostream>
 #include <fstream>
