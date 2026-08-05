@@ -87,10 +87,6 @@ void apply_face (const amrex::Box& bx,
         const amrex::Real old_flux = flux(fi,fj,fk,flux_comp);
         amrex::Real new_flux = amrex::Real(0.0);
         if (!(is_qc || (is_qv && wall.moisture_mode == erf_wall_thermodynamics::MoistureMode::DryImpermeable))) {
-            // nvcc rejects an extended __device__ lambda that first-captures a
-            // variable inside an `if constexpr` context.  alpha and
-            // inv_half_cell are used only in the branches below, so odr-use
-            // them here to force the capture outside of the constexpr-if.
             amrex::ignore_unused(alpha, inv_half_cell);
             if constexpr (HIGH) {
                 new_flux = -rho * alpha * (wall_value - cell_value) * inv_half_cell;
