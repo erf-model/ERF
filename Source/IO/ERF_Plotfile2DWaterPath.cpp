@@ -1,3 +1,6 @@
+/**
+ * \file ERF_Plotfile2DWaterPath.cpp
+ */
 #include "ERF_Plotfile2DWaterPath.H"
 #include "ERF_Plotfile2DPrecip.H"
 
