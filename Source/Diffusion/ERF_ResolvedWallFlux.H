@@ -104,8 +104,6 @@ void apply_face (const amrex::Box& bx,
         // the RHS.  Add only the boundary correction so the state update and
         // the retained flux array use exactly the same physical flux.
         const amrex::Real correction = (new_flux - old_flux) * dx_inv[DIR];
-        // Same as above: rhs is referenced only from the constexpr-if branches,
-        // so odr-use it here to first-capture it outside of that context.
         amrex::ignore_unused(rhs);
         if constexpr (HIGH) {
             rhs(i,j,k,quantity) -= correction;
