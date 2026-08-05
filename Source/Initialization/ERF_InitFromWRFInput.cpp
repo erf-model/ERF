@@ -1939,7 +1939,7 @@ init_terrain_from_wrfinput (int /*lev*/,
     // Process each slice
     int kstart = klo;
     int kend   = (use_wrf_height_grid) ? node_dom.bigEnd(2) : klo + 2;
-    for (int k(kstart); k<kend; ++k) {
+    for (int k(kstart); k<=kend; ++k) {
         z_slice_wrf.setVal<RunOn::Device>(zero);
 
         const Array4<Real>& z_slice_wrf_arr     = z_slice_wrf.array();
@@ -1970,6 +1970,7 @@ init_terrain_from_wrfinput (int /*lev*/,
         NodalReconstruction NR_solver(z_face_dom_slice, geom);
         auto boundary = NR_solver.makeBoundaryFromT(z_slice_wrf);
         std::pair<amrex::FArrayBox,SolveInfo> result = NR_solver.solve(z_slice_wrf, boundary, VariationOperator::Laplacian, tol);
+        if (k==kend) { result.first.setVal<RunOn::Host>(z_top); }
         const Array4<Real>& z_slice_erf_arr = result.first.array();
         if (!result.second.converged) {
             Print() << "WARNING: Nodal reconstruction did not converge at k = " << k
