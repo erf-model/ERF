@@ -14,6 +14,8 @@
 #include "ERF_EBAdvection.H"
 #include "ERF_EB.H"
 #include "ERF_SurfaceLayer.H"
+#include "ERF_ResolvedWallFlux.H"
+#include "Prob/ERF_CloudChamberBudget.H"
 
 using namespace amrex;
 
@@ -112,7 +114,10 @@ void erf_slow_rhs_pre (int level, int finest_level,
 #endif
                        ShocDriver* native_shoc_lev,
                        YAFluxRegister* fr_as_crse,
-                       YAFluxRegister* fr_as_fine)
+                       YAFluxRegister* fr_as_fine,
+                       const MultiFab* cloud_chamber_base_state,
+                       const erf_cloud_chamber::Config* cloud_chamber_config,
+                       CloudChamberBudget* cloud_budget)
 {
     BL_PROFILE_REGION("erf_slow_rhs_pre()");
 
@@ -126,6 +131,12 @@ void erf_slow_rhs_pre (int level, int finest_level,
     if (SurfLayer) { t_mean_mf = SurfLayer->get_mac_avg(level,2); }
 
     const Box& domain = geom.Domain();
+    const bool use_physical_chamber_wall_flux =
+        cloud_chamber_config != nullptr && cloud_chamber_base_state != nullptr &&
+        cloud_chamber_config->physical_initialization;
+    const erf_wall_thermodynamics::Boundary chamber_walls =
+        use_physical_chamber_wall_flux ? cloud_chamber_config->wall_boundary() :
+                                         erf_wall_thermodynamics::Boundary{};
     int klo = domain.smallEnd(2);
     int khi = domain.bigEnd(2);
 
@@ -221,6 +232,14 @@ void erf_slow_rhs_pre (int level, int finest_level,
         dflux_x = std::make_unique<MultiFab>(convert(ba,IntVect(1,0,0)), dm, nvars, ng);
         dflux_y = std::make_unique<MultiFab>(convert(ba,IntVect(0,1,0)), dm, nvars, ng);
         dflux_z = std::make_unique<MultiFab>(convert(ba,IntVect(0,0,1)), dm, nvars, 0);
+        // The physical theta wall override consumes the just-computed face
+        // flux.  Initialize its storage independently of diagnostics so a
+        // budget switch cannot change the state update.
+        if (use_physical_chamber_wall_flux) {
+            dflux_x->setVal(0.0);
+            dflux_y->setVal(0.0);
+            dflux_z->setVal(0.0);
+        }
 
         bool surface_layer_handled = false;
 #ifdef ERF_USE_EAMXX_SHOC
@@ -570,22 +589,23 @@ void erf_slow_rhs_pre (int level, int finest_level,
         Array4<const Real> barea_arr{};
         Array4<const Real> bcent_arr{};
 
-        if (l_use_eb)
-        {
-            EBCellFlagFab const& cfg = (ebfact.get_const_factory())->getMultiEBCellFlagFab()[mfi];
+        if (l_use_eb) {
+            const auto& eb_cc_factory = ebfact.get_const_factory();
+
+            EBCellFlagFab const& cfg = eb_cc_factory->getMultiEBCellFlagFab()[mfi];
             cfg_arr  = cfg.const_array();
             if (cfg.getType(bx) == FabType::singlevalued) {
                 l_eb_terrain_cc = true;
-                ax_arr   = (ebfact.get_const_factory())->getAreaFrac()[0]->const_array(mfi);
-                ay_arr   = (ebfact.get_const_factory())->getAreaFrac()[1]->const_array(mfi);
-                az_arr   = (ebfact.get_const_factory())->getAreaFrac()[2]->const_array(mfi);
-                fcx_arr  = (ebfact.get_const_factory())->getFaceCent()[0]->const_array(mfi);
-                fcy_arr  = (ebfact.get_const_factory())->getFaceCent()[1]->const_array(mfi);
-                fcz_arr  = (ebfact.get_const_factory())->getFaceCent()[2]->const_array(mfi);
-                detJ_arr = (ebfact.get_const_factory())->getVolFrac().const_array(mfi);
+                ax_arr   = eb_cc_factory->getAreaFrac()[0]->const_array(mfi);
+                ay_arr   = eb_cc_factory->getAreaFrac()[1]->const_array(mfi);
+                az_arr   = eb_cc_factory->getAreaFrac()[2]->const_array(mfi);
+                fcx_arr  = eb_cc_factory->getFaceCent()[0]->const_array(mfi);
+                fcy_arr  = eb_cc_factory->getFaceCent()[1]->const_array(mfi);
+                fcz_arr  = eb_cc_factory->getFaceCent()[2]->const_array(mfi);
+                detJ_arr = eb_cc_factory->getVolFrac().const_array(mfi);
                 mask_arr = physbnd_mask[IntVars::cons].const_array(mfi);
-                barea_arr = (ebfact.get_const_factory())->getBndryArea().const_array(mfi);
-                bcent_arr = (ebfact.get_const_factory())->getBndryCent().const_array(mfi);
+                barea_arr = eb_cc_factory->getBndryArea().const_array(mfi);
+                bcent_arr = eb_cc_factory->getBndryCent().const_array(mfi);
             } else {
                 ax_arr   = ax.const_array(mfi);
                 ay_arr   = ay.const_array(mfi);
@@ -706,6 +726,14 @@ void erf_slow_rhs_pre (int level, int finest_level,
                                        hfx_z, q1fx_z, q2fx_z, diss,
                                        mu_turb, solverChoice, level,
                                        tm_arr, grav_gpu, bc_ptr_d, l_apply_surface_layer_fluxes_in_diffusion, l_vert_implicit_fac);
+            }
+            if (use_physical_chamber_wall_flux) {
+                erf_resolved_wall_flux::apply(
+                    bx, domain, RhoTheta_comp, 0, cell_data, cell_prim,
+                    cloud_chamber_base_state->const_array(mfi), cell_rhs,
+                    diffflux_x, diffflux_y, diffflux_z, dxInv,
+                    chamber_walls, dc.alpha_T, dc.alpha_C,
+                    solverChoice.rdOcp);
             }
         }
 
@@ -947,4 +975,9 @@ void erf_slow_rhs_pre (int level, int finest_level,
         } // end profile
     } // mfi
     } // OMP
+    if (cloud_budget && l_use_diff) {
+            cloud_budget->capture_stage(CloudChamberBudget::RhoTheta, nrk,
+                                        static_cast<Real>(dt), *dflux_x, *dflux_y,
+                                        *dflux_z, geom, 0);
+    }
 }

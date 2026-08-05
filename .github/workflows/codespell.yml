@@ -1,6 +1,9 @@
 name: codespell
 
-on: [push, pull_request]
+on:
+  push:
+  pull_request:
+    types: [opened, synchronize, reopened, closed]
 
 concurrency:
   group: ${{ github.ref }}-${{ github.head_ref }}-codespell
@@ -8,6 +11,8 @@ concurrency:
 
 jobs:
   codespell:
+    # The closed event exists only to cancel in-progress runs via concurrency.
+    if: github.event.action != 'closed'
     runs-on: ubuntu-22.04
 
     steps:

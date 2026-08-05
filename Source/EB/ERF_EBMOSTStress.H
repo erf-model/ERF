@@ -1,3 +1,7 @@
+/**
+ * \file ERF_EBMOSTStress.H
+ * \brief Defines EB Monin-Obukhov surface-layer flux functors.
+ */
 #ifndef ERF_EBMOSTStress_H
 #define ERF_EBMOSTStress_H
 
@@ -5,11 +9,14 @@
 #include <ERF_IndexDefines.H>
 
 
-/**
- * Adiabatic with constant roughness
- */
+//! EB surface-layer model for adiabatic constant-roughness fluxes.
 struct adiabatic_eb
 {
+    /**
+     * \brief Construct an adiabatic EB flux functor.
+     * \param Tflux Prescribed surface temperature flux.
+     * \param Qvflux Prescribed surface moisture flux.
+     */
     adiabatic_eb (amrex::Real Tflux,
                amrex::Real Qvflux)
     {
@@ -17,6 +24,7 @@ struct adiabatic_eb
         mdata.surf_moist_flux = Qvflux;
     }
 
+    //! Populate neutral MOST flux scales for an adiabatic EB surface.
     AMREX_GPU_DEVICE
     AMREX_FORCE_INLINE
     void
@@ -54,11 +62,15 @@ private:
 };
 
 
-/**
- * Surface temperature with constant roughness
- */
+//! EB surface-layer model with prescribed surface temperature and constant roughness.
 struct surface_temp_eb
 {
+    /**
+     * \brief Construct a prescribed-temperature EB flux functor.
+     * \param Tflux Prescribed surface temperature flux.
+     * \param Qvflux Prescribed surface moisture flux.
+     * \param cons_qflux Whether the moisture flux is prescribed directly.
+     */
     surface_temp_eb (amrex::Real Tflux,
                   amrex::Real Qvflux,
                   bool cons_qflux)
@@ -68,6 +80,7 @@ struct surface_temp_eb
         spec_qflux = cons_qflux;
     }
 
+    //! Iterate MOST stability functions and update surface flux scales.
     AMREX_GPU_DEVICE
     AMREX_FORCE_INLINE
     void
@@ -189,11 +202,15 @@ private:
     const amrex::Real WSMIN = amrex::Real(0.1); // minimum wind speed
 };
 
-/**
- * Surface flux with constant roughness
- */
+//! EB surface-layer model with prescribed surface fluxes and constant roughness.
 struct surface_flux_eb
 {
+    /**
+     * \brief Construct a prescribed-flux EB functor.
+     * \param Tflux Prescribed surface temperature flux.
+     * \param Qvflux Prescribed surface moisture flux.
+     * \param cons_qflux Whether the moisture flux is prescribed directly.
+     */
     surface_flux_eb (amrex::Real Tflux,
                   amrex::Real Qvflux,
                   bool cons_qflux)
@@ -203,6 +220,7 @@ struct surface_flux_eb
         spec_qflux = cons_qflux;
     }
 
+    //! Iterate MOST stability functions and update implied surface values.
     AMREX_GPU_DEVICE
     AMREX_FORCE_INLINE
     void
@@ -293,13 +311,13 @@ private:
     const amrex::Real WSMIN = amrex::Real(0.1); // minimum wind speed
 };
 
-/**
- * Moeng flux formulation
- */
+//! EB implementation of the Moeng surface-flux formulation.
 struct moeng_flux_eb
 {
+    //! Construct a Moeng EB flux functor.
     moeng_flux_eb () {}
 
+    //! Compute the EB moisture flux at a cell-centered cut-cell surface.
     AMREX_GPU_DEVICE
     AMREX_FORCE_INLINE
     amrex::Real
@@ -350,6 +368,7 @@ struct moeng_flux_eb
         return moflux;
     }
 
+    //! Compute the EB temperature flux at a cell-centered cut-cell surface.
     AMREX_GPU_DEVICE
     AMREX_FORCE_INLINE
     amrex::Real
@@ -420,6 +439,7 @@ struct moeng_flux_eb
         return moflux;
     }
 
+    //! Compute the EB x-momentum stress on a staggered face.
     AMREX_GPU_DEVICE
     AMREX_FORCE_INLINE
     amrex::Real
@@ -625,6 +645,7 @@ struct moeng_flux_eb
         return stressx;
     }
 
+    //! Compute the EB y-momentum stress on a staggered face.
     AMREX_GPU_DEVICE
     AMREX_FORCE_INLINE
     amrex::Real

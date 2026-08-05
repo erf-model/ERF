@@ -86,7 +86,9 @@ void SuperDropletsMoist::readInputs ()
         }
     }
     m_num_species = static_cast<int>(m_species.size());
-    m_qstate_nonmoist_size = (m_num_species-1)*2; // qv, qc for each
+    // Water uses qv, qc, and qr in the moist state. Each additional
+    // condensable species contributes qv and qc to the non-water state.
+    m_qstate_nonmoist_size = (m_num_species-1)*2;
 
     // get aerosol names
     m_aerosols.clear();

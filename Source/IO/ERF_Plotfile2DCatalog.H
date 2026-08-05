@@ -1,3 +1,6 @@
+/**
+ * \file ERF_Plotfile2DCatalog.H
+ */
 #ifndef ERF_PLOTFILE2DCATALOG_H_
 #define ERF_PLOTFILE2DCATALOG_H_
 
@@ -28,6 +31,7 @@ enum class DiagnosticID
     SensFlux,
     LatenFlux,
     SurfPres,
+    SeaLevelPressure,
     PrecipTotalAccum,
     PrecipRainAccum,
     PrecipSnowAccum,

@@ -278,15 +278,51 @@ Immersed forcing to represent buildings
 ---------------------------------------
 
 The immersed forcing capability can also be used to represent buildings.
-Currently, the implementation is similar to the formulation for fully immersed cells for terrain, but is proportional to the volume fraction :math:`V_f` thus implicitly applying a no-slip boundary condition following `Muñoz-Esparza et al. (2020) <https://doi.org/10.1029/2020MS002141>`_.
-A more advanced wall-model for buildings will be added in the near future (see `Wise et al. (2025) <https://ams.confex.com/ams/25BLT/meetingapp.cgi/Paper/460715>`_ for additional details and a demonstration).
-The momentum forcing is defined as follows:
+The user can specify the use of a wall model (``erf.if_use_most = true``), which follows Monin Obukhov similarity theory but is slightly different than the formulation as described above as there are now horizontal wall cells.
+However, the default behavior is to not use the wall model ((``erf.if_use_most = false``)), in which the behavior would be identical to the first equation described in the previous section.
+
+The top-down schematic below can help breakdown the wall-model behavior when using immersed forcing to represent buildings.
+
+.. _fig:ImmersedForcing_Building:
+
+.. figure:: ../figures/IF_schematic.png
+   :width: 600
+   :align: center
+
+   Top-down view of a building footprint when using immersed forcing.
+
+If a cell is fully immersed (:math:`\beta_r = V_f = 1.0`), then the forcing term takes the following form:
 
 .. math::
 
-    F_{\rho u_i} = -C_{d,m} \beta_r V_f \left(\sqrt[3]{\Delta x_1 \Delta x_2 \Delta x_3}\right)^{-1} \rho u_i U
+    F_{\rho u_i} = -C_{d,m} \left(\sqrt[3]{\Delta x_1 \Delta x_2 \Delta x_3}\right)^{-1} \rho u_i U
 
-Temperature forcing for building walls and roofs can similar be specified following the same formulation as immersed forcing for terrain; however, only the option to specify a surface temperature and heating rate is currently available.
+If a cell is partially immersed (:math:`0.0 < V_f < 1.0`), then a target velocity is calculated using MOST:
+
+.. math::
+
+    F_{\rho u_i} = -C_{d,m} \left(\sqrt[3]{\Delta x_1 \Delta x_2 \Delta x_3}\right)^{-1} \rho |U_s| (u_i - u_{i,target})
+
+where :math:`u_{i,target} = \left(1 - V_f\right) u_{i,\textrm{MOST}}`. :math:`u_{i,\textrm{MOST}}` is defined as:
+
+.. math::
+
+      u_{i,\mathrm{MOST}} = \frac{u_{\*,i+1}}{\kappa} \left[ \log \left( \frac{0.5 \Delta x_i}{z_{0,\mathrm{w}}} \right) \right]
+
+with
+
+.. math::
+
+          u_{\*,i+1} = U_{i+1, \textrm{tangent}} \frac{\kappa}{\log \left[\frac{1.5 \Delta x_i}{z_{0,\textrm{w}}} \right]}
+
+This formulation is used for all three direction and we assume walls are orthogonal to cell faces.
+If ``erf.if_stability_correction = false`` (which is the default), then MOST simply becomes the log law.
+The stability corrections are available for the similarity functions ``erf.if_stability_correction = true``; however, they should only be used with extreme caution as their validity for horizontal walls is questionable.
+For additional details on this formulation, please see see `Wise et al. (2025) <https://essopenarchive.org/doi/full/10.22541/essoar.176659709.97467775/v1>`_.
+
+Similar to the previous section, temperature forcing is also available for the building 'surface'.
+However, the user should proceed with caution when specifying a surface flux or Obukhov length as this pathway is more susceptible to numerical instability as there is no temporal or spatial averaging done in the MOST formulation.
+Efforts to have more realistic thermal boundary conditions using building properties and radiation are a subject of ongoing work.
 
 Inputs that can be used with immersed forcing for buildings are as follows:
 
@@ -296,9 +332,23 @@ Inputs that can be used with immersed forcing for buildings are as follows:
         erf.buildings_file_name        = STRING
         erf.if_Cd_scalar               = FLOAT
         erf.if_Cd_momentum             = FLOAT
+        erf.if_z0                      = FLOAT
+        erf.if_surf_temp_flux          = FLOAT
         erf.if_init_surf_temp          = FLOAT
         erf.if_surf_heating_rate       = FLOAT
+        erf.if_Olen                    = FLOAT
+        erf.if_use_most                = BOOL
+        erf.if_stability_correction    = BOOL
         erf.immersed_forcing_substep   = BOOL
+
+The default drag coefficients are different when using the fully compressible solver compared to the anelastic solver.
+This is because the timestep used for the anelastic solver is typically much coarser compared to the substep timestep for the fully compressible solver.
+A larger drag coefficient will more quickly force a cell to the desired value; however, there is a stability limit related to the timestep due to the explicit form of the drag term.
+The recommended values are ``erf.if_Cd_scalar = 50.0`` and ``erf.if_Cd_momentum = 500.0`` for the fully compressible solver and
+``erf.if_Cd_scalar = 5.0`` and ``erf.if_Cd_momentum = 50.0`` (note that these are the default values).
+The immersed forcing formulation for buildings has been rigorously tested at grid spacings of 5.0 m and less.
+Caution is needed when using immersed forcing at coarser grid spacings.
+If immersed forcing is causing your simulations to become unstable, the first recommendation is to reduce the drag coefficients.
 
 Immersed forcing for buildings can be used in conjunction with the ``StaticFittedMesh`` terrain option.
 However, currently, the user must specify the z-coordinates using ``erf.terrain_z_levels``.
@@ -306,6 +356,7 @@ In the future, this requirement will be removed.
 Note that the volume fraction is calculated prior to the grid transformation; therefore, building heights when located in steep terrain should be considered approximate.
 
 An example of immersed forcing for a building located on top of a Witch of Agnesi hill is available in ``Exec/RegTests/ImmersedForcingTest``.
+Additional examples are in ``Exec/RegTests/ImmersedForcingTest/wall_model`` demonstrating the wall model and different idealized thermal boundary conditions.
 
 
 Problem-Specific Forcing

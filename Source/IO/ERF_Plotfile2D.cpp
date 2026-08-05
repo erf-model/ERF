@@ -1,3 +1,6 @@
+/**
+ * \file ERF_Plotfile2D.cpp
+ */
 #include "ERF.H"
 #include "ERF_Plotfile2DCatalog.H"
 #include "ERF_Plotfile2DFill.H"
@@ -13,6 +16,7 @@
 #include "ERF_StormDiagnostics.H"
 #include "ERF_TerrainMetrics.H"
 #include "ERF_Utils.H"
+#include "Diagnostics/ERF_SeaLevelPressure.H"
 
 using namespace amrex;
 
@@ -430,6 +434,13 @@ ERF::Write2DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
             }
             mf_comp++;
         } // surf_pres
+
+        if (containerHasElement(plot_var_names, "sea_level_pressure")) {
+            sea_level_pressure_diagnostics::fill_sea_level_pressure(
+                mf[lev], mf_comp, vars_new[lev][Vars::cons], *z_phys_nd[lev],
+                solverChoice.moisture_indices.qv, klo);
+            mf_comp++;
+        } // sea_level_pressure
 
         const auto precip_sources =
             micro ? micro->Get_Surface_Precip_Accumulation_Ptrs(lev)

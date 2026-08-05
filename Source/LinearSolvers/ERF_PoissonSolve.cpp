@@ -1,3 +1,6 @@
+/**
+ * \file ERF_PoissonSolve.cpp
+ */
 #include "ERF.H"
 #include "ERF_Utils.H"
 
@@ -11,14 +14,15 @@ solve_with_mlmg    (int lev,
                     const amrex::Vector<amrex::IntVect>& ref_ratio,
                     Array<std::string,2*AMREX_SPACEDIM> l_domain_bc_type,
                     int mg_verbose, Real reltol, Real abstol);
+template <typename T>
 void
 solve_with_EB_mlmg (int lev,
                     Vector<amrex::MultiFab>& rhs, Vector<MultiFab>& p,
                     Vector<amrex::Array<MultiFab,AMREX_SPACEDIM>>& fluxes,
                     EBFArrayBoxFactory const& ebfact,
-                    eb_aux_ const& ebfact_u,
-                    eb_aux_ const& ebfact_v,
-                    eb_aux_ const& ebfact_w,
+                    T const& ebfact_u,
+                    T const& ebfact_v,
+                    T const& ebfact_w,
                     const Geometry& geom,
                     const amrex::Vector<amrex::IntVect>& ref_ratio,
                     Array<std::string,2*AMREX_SPACEDIM> l_domain_bc_type,
@@ -27,6 +31,10 @@ solve_with_EB_mlmg (int lev,
 /**
  * Project the single-level velocity field to enforce the anelastic constraint
  * Note that the level may or may not be level zero
+ *
+ * @param lev Level index for the velocity projection
+ * @param time Time at which coarse data are registered
+ * @param l_dt Time step used for coarse data registration
  */
 void ERF::project_initial_velocity (int lev, double time, double l_dt)
 {
@@ -98,6 +106,11 @@ void ERF::project_initial_velocity (int lev, double time, double l_dt)
 /**
  * Project the single-level momenta to enforce the anelastic constraint
  * Note that the level may or may not be level zero
+ *
+ * @param lev Level index for the momentum projection
+ * @param l_time Time used for coarse-fine momentum fills
+ * @param l_dt Time step used in the projection update
+ * @param vars Conserved density and face-centered momenta to project
  */
 void ERF::project_momenta (int lev, double l_time, double l_dt_d, Vector<MultiFab>& mom_mf)
 {

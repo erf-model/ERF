@@ -10,6 +10,7 @@ on:
 
   pull_request:
     branches: [development]
+    types: [opened, synchronize, reopened, closed]
 
 concurrency:
   group: ${{ github.ref }}-${{ github.head_ref }}-ci
@@ -18,6 +19,8 @@ concurrency:
 jobs:
 
   Build-And-Test:
+    # The closed event exists only to cancel in-progress runs via concurrency.
+    if: github.event.action != 'closed'
     runs-on: ${{matrix.os}}
     name: OS ${{matrix.os}} - Particles ${{matrix.particles}}
     env:

@@ -1,3 +1,6 @@
+/**
+ * \file ERF_FillZeroAreaFaceFluxes.cpp
+ */
 #include "ERF.H"
 #include "ERF_Utils.H"
 
@@ -5,11 +8,21 @@ using namespace amrex;
 
 /**
  * Compute phi gradients where the area of the face is zero
+ *
+ * @tparam T EB factory or auxiliary EB data type for face-centered grids
+ * @param phi Cell-centered solution used to compute gradients
+ * @param fluxes Face-centered gradient fluxes to fill
+ * @param geom Geometry used for inverse cell spacing
+ * @param ebfact Cell-centered embedded-boundary factory
+ * @param ebfact_u Embedded-boundary data on x-faces
+ * @param ebfact_v Embedded-boundary data on y-faces
+ * @param ebfact_w Embedded-boundary data on z-faces
  */
+template <typename T>
 void
 FillZeroAreaFaceFluxes (MultiFab& phi, Array<MultiFab,AMREX_SPACEDIM>& fluxes,
                         const Geometry& geom, EBFArrayBoxFactory const& ebfact,
-                        eb_aux_ const& ebfact_u, eb_aux_ const& ebfact_v, eb_aux_ const& ebfact_w)
+                        T const& ebfact_u, T const& ebfact_v, T const& ebfact_w)
 {
     BL_PROFILE("ERF::FillZeroAreaFaceFluxes()");
 
@@ -84,3 +97,15 @@ FillZeroAreaFaceFluxes (MultiFab& phi, Array<MultiFab,AMREX_SPACEDIM>& fluxes,
         } // single-valued
     } // mfi
 }
+
+// Explicit template instantiations for the types we use
+template void FillZeroAreaFaceFluxes(amrex::MultiFab&, amrex::Array<amrex::MultiFab,AMREX_SPACEDIM>&,
+                                     const amrex::Geometry&, amrex::EBFArrayBoxFactory const&,
+                                     amrex::EBFArrayBoxFactory const&,
+                                     amrex::EBFArrayBoxFactory const&,
+                                     amrex::EBFArrayBoxFactory const&);
+template void FillZeroAreaFaceFluxes(amrex::MultiFab&, amrex::Array<amrex::MultiFab,AMREX_SPACEDIM>&,
+                                     const amrex::Geometry&, amrex::EBFArrayBoxFactory const&,
+                                     eb_aux_ const&,
+                                     eb_aux_ const&,
+                                     eb_aux_ const&);

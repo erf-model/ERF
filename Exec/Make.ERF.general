@@ -1,0 +1,690 @@
+AMREX_HOME ?= $(ERF_HOME)/Submodules/AMReX
+
+ERF_ABS_HOME := $(abspath $(ERF_HOME))
+
+# EKAT/Kokkos policy:
+# - If EKAT_HOME is not supplied by the including GNUmakefile, the environment,
+#   or the command line, assume ERF should use the bundled EKAT submodule and
+#   build/install it under Submodules/ekat/build/install when Kokkos is needed.
+# - If EKAT_HOME is supplied, assume it points at a usable EKAT/Kokkos install
+#   and do not rebuild it unless BUILD_EKAT=TRUE is explicitly requested.
+# - EKAT_INSTALL_LIBDIR defaults to lib, but can be set to lib64 or another
+#   install libdir on systems with a different CMake layout.
+DEFAULT_EKAT_HOME := $(ERF_ABS_HOME)/Submodules/ekat/build/install
+
+ifeq ($(origin EKAT_HOME), undefined)
+  EKAT_HOME := $(DEFAULT_EKAT_HOME)
+  BUILD_EKAT ?= TRUE
+else
+  BUILD_EKAT ?= FALSE
+endif
+
+EKAT_SOURCE_DIR ?= $(ERF_ABS_HOME)/Submodules/ekat
+EKAT_BUILD_DIR  ?= $(EKAT_SOURCE_DIR)/build
+EKAT_INSTALL_PREFIX := $(abspath $(EKAT_HOME))
+EKAT_INSTALL_LIBDIR ?= lib
+EKAT_LIB_DIR ?= $(EKAT_INSTALL_PREFIX)/$(EKAT_INSTALL_LIBDIR)
+EAMXX_HOME ?= $(ERF_HOME)/external/E3SM/components/eamxx/src
+
+USE_EAMXX_SHOC  ?= $(USE_SHOC)
+
+# Normalize feature dependencies before Make.defs and Make.package includes.
+# GNUmakefile remains the user-facing switchboard; this block only enforces
+# dependencies that are required by selected features. The overrides are
+# intentional so contradictory command-line settings such as
+# USE_NOAHMP=TRUE USE_RRTMGP=FALSE do not create an inconsistent build graph.
+ifeq ($(USE_NOAHMP), TRUE)
+  override USE_RRTMGP = TRUE
+endif
+ifeq ($(USE_RRTMGP), TRUE)
+  override USE_KOKKOS = TRUE
+  override USE_NETCDF = TRUE
+endif
+ifeq ($(USE_EAMXX_SHOC), TRUE)
+  override USE_KOKKOS = TRUE
+endif
+ifeq ($(USE_P3), TRUE)
+  override USE_KOKKOS = TRUE
+endif
+
+ifeq ($(USE_SHOC), TRUE)
+$(warning USE_SHOC=TRUE is deprecated; use USE_EAMXX_SHOC=TRUE)
+endif
+
+# Default is no Fortran build unless an explicit Fortran bridge/model is enabled.
+# Keep this TRUE when USE_MORR_FORT and USE_WSM6_FORT are both unset.
+BL_NO_FORT = TRUE
+ifeq ($(USE_MORR_FORT), TRUE)
+DEFINES += -DERF_USE_MORR_FORT
+BL_NO_FORT = FALSE
+endif
+ifeq ($(USE_WSM6_FORT), TRUE)
+DEFINES += -DERF_USE_WSM6_FORT
+BL_NO_FORT = FALSE
+endif
+
+ifeq ($(USE_CUDA), TRUE)
+    DEFINES += -DERF_USE_CUDA
+endif
+ifeq ($(USE_HIP), TRUE)
+    DEFINES += -DERF_USE_HIP
+endif
+ifeq ($(USE_SYCL), TRUE)
+    DEFINES += -DERF_USE_SYCL
+endif
+
+USE_EB = TRUE
+
+include $(AMREX_HOME)/Tools/GNUMake/Make.defs
+
+EBASE = ERF
+ifeq ($(USE_NETCDF), TRUE)
+  USERSuffix := $(USERSuffix).NC
+endif
+ifeq ($(USE_PARTICLES), TRUE)
+  USERSuffix := $(USERSuffix).PART
+endif
+ifeq ($(USE_FFT), TRUE)
+  USERSuffix := $(USERSuffix).FFT
+endif
+ifeq ($(USE_RADIATION), TRUE)
+  USERSuffix := $(USERSuffix).RAD
+endif
+
+ERF_SOURCE_DIR = $(ERF_HOME)/Source
+include $(ERF_SOURCE_DIR)/Make.package
+VPATH_LOCATIONS   += $(ERF_SOURCE_DIR)
+INCLUDE_LOCATIONS += $(ERF_SOURCE_DIR)
+
+ERF_BC_DIR = $(ERF_SOURCE_DIR)/BoundaryConditions
+include $(ERF_BC_DIR)/Make.package
+VPATH_LOCATIONS   += $(ERF_BC_DIR)
+INCLUDE_LOCATIONS += $(ERF_BC_DIR)
+
+ERF_ADVECTION_DIR = $(ERF_SOURCE_DIR)/Advection
+include $(ERF_ADVECTION_DIR)/Make.package
+VPATH_LOCATIONS   += $(ERF_ADVECTION_DIR)
+INCLUDE_LOCATIONS += $(ERF_ADVECTION_DIR)
+
+ERF_DIFFUSION_DIR = $(ERF_SOURCE_DIR)/Diffusion
+include $(ERF_DIFFUSION_DIR)/Make.package
+VPATH_LOCATIONS   += $(ERF_DIFFUSION_DIR)
+INCLUDE_LOCATIONS += $(ERF_DIFFUSION_DIR)
+
+ERF_PBL_DIR = $(ERF_SOURCE_DIR)/PBL
+include $(ERF_PBL_DIR)/Make.package
+VPATH_LOCATIONS   += $(ERF_PBL_DIR)
+INCLUDE_LOCATIONS += $(ERF_PBL_DIR)
+
+ERF_INIT_DIR = $(ERF_SOURCE_DIR)/Initialization
+include $(ERF_INIT_DIR)/Make.package
+VPATH_LOCATIONS   += $(ERF_INIT_DIR)
+INCLUDE_LOCATIONS += $(ERF_INIT_DIR)
+
+ERF_DATA_DIR = $(ERF_SOURCE_DIR)/DataStructs
+include $(ERF_DATA_DIR)/Make.package
+VPATH_LOCATIONS   += $(ERF_DATA_DIR)
+INCLUDE_LOCATIONS += $(ERF_DATA_DIR)
+
+ERF_SOLVERS_DIR = $(ERF_SOURCE_DIR)/LinearSolvers
+include $(ERF_SOLVERS_DIR)/Make.package
+VPATH_LOCATIONS   += $(ERF_SOLVERS_DIR)
+INCLUDE_LOCATIONS += $(ERF_SOLVERS_DIR)
+
+ERF_REFINE_DIR = $(ERF_SOURCE_DIR)/Refinement
+include $(ERF_REFINE_DIR)/Make.package
+VPATH_LOCATIONS   += $(ERF_REFINE_DIR)
+INCLUDE_LOCATIONS += $(ERF_REFINE_DIR)
+
+ERF_PHYSICS_DIR = $(ERF_SOURCE_DIR)/PhysicsInterfaces
+include $(ERF_PHYSICS_DIR)/Make.package
+VPATH_LOCATIONS   += $(ERF_PHYSICS_DIR)
+INCLUDE_LOCATIONS += $(ERF_PHYSICS_DIR)
+
+ERF_UTIL_DIR = $(ERF_SOURCE_DIR)/Utils
+include $(ERF_UTIL_DIR)/Make.package
+VPATH_LOCATIONS   += $(ERF_UTIL_DIR)
+INCLUDE_LOCATIONS += $(ERF_UTIL_DIR)
+
+ifeq ($(USE_PARTICLES),TRUE)
+ERF_PARTICLES_DIR = $(ERF_SOURCE_DIR)/Particles
+include $(ERF_PARTICLES_DIR)/Make.package
+VPATH_LOCATIONS   += $(ERF_PARTICLES_DIR)
+INCLUDE_LOCATIONS += $(ERF_PARTICLES_DIR)
+endif
+
+include $(ERF_PROBLEM_DIR)/Make.package
+VPATH_LOCATIONS   += $(ERF_PROBLEM_DIR)
+INCLUDE_LOCATIONS += $(ERF_PROBLEM_DIR)
+
+ERF_EB_DIR = $(ERF_SOURCE_DIR)/EB
+include $(ERF_EB_DIR)/Make.package
+VPATH_LOCATIONS   += $(ERF_EB_DIR)
+INCLUDE_LOCATIONS += $(ERF_EB_DIR)
+
+ERF_SRCTERMS_DIR = $(ERF_SOURCE_DIR)/SourceTerms
+include $(ERF_SRCTERMS_DIR)/Make.package
+VPATH_LOCATIONS   += $(ERF_SRCTERMS_DIR)
+INCLUDE_LOCATIONS += $(ERF_SRCTERMS_DIR)
+
+ERF_TIMEINT_DIR = $(ERF_SOURCE_DIR)/TimeIntegration
+include $(ERF_TIMEINT_DIR)/Make.package
+VPATH_LOCATIONS   += $(ERF_TIMEINT_DIR)
+INCLUDE_LOCATIONS += $(ERF_TIMEINT_DIR)
+
+ERF_IO_DIR = $(ERF_SOURCE_DIR)/IO
+include $(ERF_IO_DIR)/Make.package
+VPATH_LOCATIONS   += $(ERF_IO_DIR)
+INCLUDE_LOCATIONS += $(ERF_IO_DIR)
+
+ERF_DIAGNOSTICS_DIR = $(ERF_SOURCE_DIR)/Diagnostics
+include $(ERF_DIAGNOSTICS_DIR)/Make.package
+VPATH_LOCATIONS   += $(ERF_DIAGNOSTICS_DIR)
+INCLUDE_LOCATIONS += $(ERF_DIAGNOSTICS_DIR)
+
+ERF_MOISTURE_DIR = $(ERF_SOURCE_DIR)/Microphysics
+include $(ERF_MOISTURE_DIR)/Make.package
+VPATH_LOCATIONS   += $(ERF_MOISTURE_DIR)
+INCLUDE_LOCATIONS += $(ERF_MOISTURE_DIR)
+
+ERF_MOISTURE_NULL_DIR = $(ERF_SOURCE_DIR)/Microphysics/Null
+include $(ERF_MOISTURE_NULL_DIR)/Make.package
+VPATH_LOCATIONS   += $(ERF_MOISTURE_NULL_DIR)
+INCLUDE_LOCATIONS += $(ERF_MOISTURE_NULL_DIR)
+
+ERF_MOISTURE_SAM_DIR = $(ERF_SOURCE_DIR)/Microphysics/SAM
+include $(ERF_MOISTURE_SAM_DIR)/Make.package
+VPATH_LOCATIONS   += $(ERF_MOISTURE_SAM_DIR)
+INCLUDE_LOCATIONS += $(ERF_MOISTURE_SAM_DIR)
+
+ERF_MOISTURE_KESSLER_DIR = $(ERF_SOURCE_DIR)/Microphysics/Kessler
+include $(ERF_MOISTURE_KESSLER_DIR)/Make.package
+VPATH_LOCATIONS   += $(ERF_MOISTURE_KESSLER_DIR)
+INCLUDE_LOCATIONS += $(ERF_MOISTURE_KESSLER_DIR)
+
+ERF_MOISTURE_MORRISON_DIR = $(ERF_SOURCE_DIR)/Microphysics/Morrison
+include $(ERF_MOISTURE_MORRISON_DIR)/Make.package
+VPATH_LOCATIONS   += $(ERF_MOISTURE_MORRISON_DIR)
+INCLUDE_LOCATIONS += $(ERF_MOISTURE_MORRISON_DIR)
+
+ERF_MOISTURE_WSM6_DIR = $(ERF_SOURCE_DIR)/Microphysics/WSM6
+include $(ERF_MOISTURE_WSM6_DIR)/Make.package
+VPATH_LOCATIONS   += $(ERF_MOISTURE_WSM6_DIR)
+INCLUDE_LOCATIONS += $(ERF_MOISTURE_WSM6_DIR)
+
+ERF_MOISTURE_SATADJ_DIR = $(ERF_SOURCE_DIR)/Microphysics/SatAdj
+include $(ERF_MOISTURE_SATADJ_DIR)/Make.package
+VPATH_LOCATIONS   += $(ERF_MOISTURE_SATADJ_DIR)
+INCLUDE_LOCATIONS += $(ERF_MOISTURE_SATADJ_DIR)
+
+ERF_MOISTURE_MNOC_DIR = $(ERF_SOURCE_DIR)/Microphysics/MoistNoCondensation
+include $(ERF_MOISTURE_MNOC_DIR)/Make.package
+VPATH_LOCATIONS   += $(ERF_MOISTURE_MNOC_DIR)
+INCLUDE_LOCATIONS += $(ERF_MOISTURE_MNOC_DIR)
+
+ERF_MOISTURE_SUPERDROPLETSMOIST_DIR = $(ERF_SOURCE_DIR)/Microphysics/SuperDropletsMoist
+include $(ERF_MOISTURE_SUPERDROPLETSMOIST_DIR)/Make.package
+VPATH_LOCATIONS   += $(ERF_MOISTURE_SUPERDROPLETSMOIST_DIR)
+INCLUDE_LOCATIONS += $(ERF_MOISTURE_SUPERDROPLETSMOIST_DIR)
+
+# If using windfarm parametrization, then compile all models and choose
+# at runtime from the inputs
+ifeq ($(USE_WINDFARM), TRUE)
+    DEFINES += -DERF_USE_WINDFARM
+    ERF_WINDFARM_DIR        = $(ERF_SOURCE_DIR)/WindFarmParametrization
+    ERF_WINDFARM_NULL_DIR   = $(ERF_WINDFARM_DIR)/Null
+    ERF_WINDFARM_FITCH_DIR = $(ERF_WINDFARM_DIR)/Fitch
+    ERF_WINDFARM_EWP_DIR   = $(ERF_WINDFARM_DIR)/EWP
+    ERF_WINDFARM_SIMPLEAD_DIR   = $(ERF_WINDFARM_DIR)/SimpleActuatorDisk
+    ERF_WINDFARM_GENERALAD_DIR   = $(ERF_WINDFARM_DIR)/GeneralActuatorDisk
+
+    include $(ERF_WINDFARM_DIR)/Make.package
+    include $(ERF_WINDFARM_NULL_DIR)/Make.package
+    include $(ERF_WINDFARM_FITCH_DIR)/Make.package
+    include $(ERF_WINDFARM_EWP_DIR)/Make.package
+    include $(ERF_WINDFARM_SIMPLEAD_DIR)/Make.package
+    include $(ERF_WINDFARM_GENERALAD_DIR)/Make.package
+
+    VPATH_LOCATIONS   += $(ERF_WINDFARM_DIR)
+    INCLUDE_LOCATIONS += $(ERF_WINDFARM_DIR)
+
+    VPATH_LOCATIONS   += $(ERF_WINDFARM_NULL_DIR)
+    INCLUDE_LOCATIONS += $(ERF_WINDFARM_NULL_DIR)
+
+    VPATH_LOCATIONS   += $(ERF_WINDFARM_FITCH_DIR)
+    INCLUDE_LOCATIONS += $(ERF_WINDFARM_FITCH_DIR)
+
+    VPATH_LOCATIONS   += $(ERF_WINDFARM_EWP_DIR)
+    INCLUDE_LOCATIONS += $(ERF_WINDFARM_EWP_DIR)
+
+    VPATH_LOCATIONS   += $(ERF_WINDFARM_SIMPLEAD_DIR)
+    INCLUDE_LOCATIONS += $(ERF_WINDFARM_SIMPLEAD_DIR)
+
+    VPATH_LOCATIONS   += $(ERF_WINDFARM_GENERALAD_DIR)
+    INCLUDE_LOCATIONS += $(ERF_WINDFARM_GENERALAD_DIR)
+endif
+
+ifeq ($(USE_FFT),TRUE)
+    DEFINES += -DERF_USE_FFT
+endif
+
+ifeq ($(USE_WW3_COUPLING), TRUE)
+    DEFINES += -DERF_USE_WW3_COUPLING
+endif
+
+ERF_LSM_DIR = $(ERF_SOURCE_DIR)/LandSurfaceModel
+include $(ERF_LSM_DIR)/Make.package
+VPATH_LOCATIONS   += $(ERF_LSM_DIR)
+INCLUDE_LOCATIONS += $(ERF_LSM_DIR)
+
+ERF_LSM_NULL_DIR = $(ERF_SOURCE_DIR)/LandSurfaceModel/Null
+include $(ERF_LSM_NULL_DIR)/Make.package
+VPATH_LOCATIONS   += $(ERF_LSM_NULL_DIR)
+INCLUDE_LOCATIONS += $(ERF_LSM_NULL_DIR)
+
+ERF_LSM_SLM_DIR = $(ERF_SOURCE_DIR)/LandSurfaceModel/SLM
+include $(ERF_LSM_SLM_DIR)/Make.package
+VPATH_LOCATIONS   += $(ERF_LSM_SLM_DIR)
+INCLUDE_LOCATIONS += $(ERF_LSM_SLM_DIR)
+
+ERF_LSM_OCEANSURF_DIR = $(ERF_SOURCE_DIR)/LandSurfaceModel/OceanSurf
+include $(ERF_LSM_OCEANSURF_DIR)/Make.package
+VPATH_LOCATIONS   += $(ERF_LSM_OCEANSURF_DIR)
+INCLUDE_LOCATIONS += $(ERF_LSM_OCEANSURF_DIR)
+
+ERF_LSM_MM5_DIR = $(ERF_SOURCE_DIR)/LandSurfaceModel/MM5
+include $(ERF_LSM_MM5_DIR)/Make.package
+VPATH_LOCATIONS   += $(ERF_LSM_MM5_DIR)
+INCLUDE_LOCATIONS += $(ERF_LSM_MM5_DIR)
+
+ERF_MATPROP_DIR = $(ERF_SOURCE_DIR)/MaterialProperties
+include $(ERF_MATPROP_DIR)/Make.package
+VPATH_LOCATIONS   += $(ERF_MATPROP_DIR)
+INCLUDE_LOCATIONS += $(ERF_MATPROP_DIR)
+
+# If using Noah-MP model, then compile relevant source and headers
+ifeq ($(USE_NOAHMP), TRUE)
+  DEFINES   += -DERF_USE_NOAHMP
+
+  ifneq ($(PRECISION),FLOAT)
+    DEFINES               += -DDOUBLE_PREC
+    NOAHMP_PRECISION_FLAG := -DDOUBLE_PREC
+  else
+    NOAHMP_PRECISION_FLAG :=
+  endif
+
+  # Try netcdf-fortran => netcdf-fortran_parallel
+  has_netcdf_fortran := $(shell if [ -n "$$MPICH_DIR" ]; then export PKG_CONFIG_PATH="$$MPICH_DIR/lib/pkgconfig:$$PKG_CONFIG_PATH"; fi; pkg-config --exists netcdf-fortran 2>/dev/null; echo $$?)
+  ifeq ($(has_netcdf_fortran),0)
+    includes  += $(shell if [ -n "$$MPICH_DIR" ]; then export PKG_CONFIG_PATH="$$MPICH_DIR/lib/pkgconfig:$$PKG_CONFIG_PATH"; fi; pkg-config --cflags netcdf-fortran)
+    LIBRARIES += $(shell if [ -n "$$MPICH_DIR" ]; then export PKG_CONFIG_PATH="$$MPICH_DIR/lib/pkgconfig:$$PKG_CONFIG_PATH"; fi; pkg-config --libs netcdf-fortran)
+  else
+    has_netcdf_fortran_parallel := $(shell if [ -n "$$MPICH_DIR" ]; then export PKG_CONFIG_PATH="$$MPICH_DIR/lib/pkgconfig:$$PKG_CONFIG_PATH"; fi; pkg-config --exists netcdf-fortran_parallel 2>/dev/null; echo $$?)
+    ifeq ($(has_netcdf_fortran_parallel),0)
+      includes  += $(shell if [ -n "$$MPICH_DIR" ]; then export PKG_CONFIG_PATH="$$MPICH_DIR/lib/pkgconfig:$$PKG_CONFIG_PATH"; fi; pkg-config --cflags netcdf-fortran_parallel)
+      LIBRARIES += $(shell if [ -n "$$MPICH_DIR" ]; then export PKG_CONFIG_PATH="$$MPICH_DIR/lib/pkgconfig:$$PKG_CONFIG_PATH"; fi; pkg-config --libs netcdf-fortran_parallel)
+    else
+      has_netcdf_fortran_parallel := $(shell if [ -n "$$MPICH_DIR" ]; then export PKG_CONFIG_PATH="$$MPICH_DIR/lib/pkgconfig:$$PKG_CONFIG_PATH"; fi; pkg-config --exists netcdf-fortran_parallel 2>/dev/null; echo $$?)
+      ifeq ($(has_netcdf_fortran_parallel),0)
+        includes  += $(shell if [ -n "$$MPICH_DIR" ]; then export PKG_CONFIG_PATH="$$MPICH_DIR/lib/pkgconfig:$$PKG_CONFIG_PATH"; fi; pkg-config --cflags netcdf-fortran_parallel)
+        LIBRARIES += $(shell if [ -n "$$MPICH_DIR" ]; then export PKG_CONFIG_PATH="$$MPICH_DIR/lib/pkgconfig:$$PKG_CONFIG_PATH"; fi; pkg-config --libs netcdf-fortran_parallel)
+      else
+        $(warning NetCDF Fortran not found. Tried netcdf-fortran and netcdf-fortran_parallel)
+      endif
+    endif
+  endif
+
+  NOAHMP_HOME ?= $(ERF_HOME)/Submodules/Noah-MP
+
+  VPATH_LOCATIONS   += $(NOAHMP_HOME)/drivers/erf
+  INCLUDE_LOCATIONS += $(NOAHMP_HOME)/drivers/erf
+  INCLUDE_LOCATIONS += $(NOAHMP_HOME)/drivers/erf/include
+
+  ERF_LSM_NOAHMP_DIR = $(ERF_SOURCE_DIR)/LandSurfaceModel/Noah-MP
+  include $(ERF_LSM_NOAHMP_DIR)/Make.package
+  VPATH_LOCATIONS   += $(ERF_LSM_NOAHMP_DIR)
+  INCLUDE_LOCATIONS += $(ERF_LSM_NOAHMP_DIR)
+
+  LIBRARY_LOCATIONS += $(NOAHMP_HOME)/drivers/erf/lib
+  LIBRARIES += -lnoahmp -lgfortran -lquadmath -lnetcdff
+endif
+
+ERF_RAD_DIR = $(ERF_SOURCE_DIR)/PhysicsInterfaces/Radiation
+include $(ERF_RAD_DIR)/Make.package
+VPATH_LOCATIONS   += $(ERF_RAD_DIR)
+INCLUDE_LOCATIONS += $(ERF_RAD_DIR)
+
+# If using RRTMGP Radiation, compile relevant source and headers
+ifeq ($(USE_RRTMGP), TRUE)
+
+  DEFINES += -DERF_USE_RRTMGP
+  DEFINES += -DRRTMGP_ENABLE_KOKKOS
+
+  RRTMGP_HOME       ?= $(ERF_HOME)/Submodules/RRTMGP
+
+  VPATH_LOCATIONS   += $(RRTMGP_HOME)/cpp/
+  VPATH_LOCATIONS   += $(RRTMGP_HOME)/cpp/rrtmgp
+  VPATH_LOCATIONS   += $(RRTMGP_HOME)/cpp/rrtmgp/kernels
+  VPATH_LOCATIONS   += $(RRTMGP_HOME)/cpp/rte
+  VPATH_LOCATIONS   += $(RRTMGP_HOME)/cpp/rte/kernels
+  VPATH_LOCATIONS   += $(RRTMGP_HOME)/cpp/examples
+  VPATH_LOCATIONS   += $(RRTMGP_HOME)/cpp/examples/all-sky
+  VPATH_LOCATIONS   += $(RRTMGP_HOME)/cpp/extensions/fluxes_byband
+  VPATH_LOCATIONS   += $(RRTMGP_HOME)/cpp/extensions/cloud_optics
+
+  INCLUDE_LOCATIONS += $(RRTMGP_HOME)/cpp/
+  INCLUDE_LOCATIONS += $(RRTMGP_HOME)/cpp/rrtmgp
+  INCLUDE_LOCATIONS += $(RRTMGP_HOME)/cpp/rrtmgp/kernels
+  INCLUDE_LOCATIONS += $(RRTMGP_HOME)/cpp/rte
+  INCLUDE_LOCATIONS += $(RRTMGP_HOME)/cpp/rte/kernels
+  INCLUDE_LOCATIONS += $(RRTMGP_HOME)/cpp/examples
+  INCLUDE_LOCATIONS += $(RRTMGP_HOME)/cpp/examples/all-sky
+  INCLUDE_LOCATIONS += $(RRTMGP_HOME)/cpp/extensions/fluxes_byband
+  INCLUDE_LOCATIONS += $(RRTMGP_HOME)/cpp/extensions/cloud_optics
+endif
+
+DEFINES += -DERF_HAS_SHOC_FAMILY
+
+# If using EAMxx SHOC, compile relevant source and headers
+ifeq ($(USE_EAMXX_SHOC), TRUE)
+
+    DEFINES += -DERF_USE_KOKKOS
+    DEFINES += -DERF_USE_EAMXX_SHOC
+    DEFINES += -DSHOC_ENABLE_KOKKOS
+    DEFINES += -DEKAT_ENABLE_MPI
+    DEFINES += -DSCREAM_SHOC_SMALL_KERNELS
+
+    # Location of EKAT include and library
+    INCLUDE_LOCATIONS += $(EKAT_HOME)/include
+    INCLUDE_LOCATIONS += $(EKAT_HOME)/include/ekat
+    INCLUDE_LOCATIONS += $(ERF_HOME)/Submodules/ekat/src/kokkos
+    INCLUDE_LOCATIONS += $(ERF_HOME)/Submodules/ekat/src/pack
+    INCLUDE_LOCATIONS += $(ERF_HOME)/Submodules/ekat/src/algorithm
+    LIBRARY_LOCATIONS += $(EKAT_LIB_DIR)
+    LIBRARIES += -lekat_core -lspdlog
+
+    # This directory holds the ERF-SHOC interface routines
+    ERF_SHOC_DIR = $(ERF_SOURCE_DIR)/PhysicsInterfaces/Shoc
+    include $(ERF_SHOC_DIR)/Make.package
+    VPATH_LOCATIONS   += $(ERF_SHOC_DIR)
+    INCLUDE_LOCATIONS += $(ERF_SHOC_DIR)
+
+    # This directory holds the SHOC source itself
+    SHOC_HOME = $(EAMXX_HOME)/physics/shoc
+    VPATH_LOCATIONS   += $(SHOC_HOME)/disp
+    VPATH_LOCATIONS   += $(SHOC_HOME)/eti
+    INCLUDE_LOCATIONS += $(SHOC_HOME)
+    INCLUDE_LOCATIONS += $(SHOC_HOME)/eti
+    INCLUDE_LOCATIONS += $(SHOC_HOME)/impl
+
+    # Other things we get from eamxx
+    VPATH_LOCATIONS   += $(EAMXX_HOME)/physics/share
+    INCLUDE_LOCATIONS += $(EAMXX_HOME)
+    INCLUDE_LOCATIONS += $(EAMXX_HOME)/physics
+    INCLUDE_LOCATIONS += $(EAMXX_HOME)/physics/share
+endif
+
+# If using P3, compile relevant source and headers
+ifeq ($(USE_P3), TRUE)
+
+    DEFINES += -DERF_USE_P3
+    DEFINES += -DP3_ENABLE_KOKKOS
+    DEFINES += -DEKAT_ENABLE_MPI
+
+    # Location of EKAT include and library
+    DEFINES   += -DERF_USE_KOKKOS
+    INCLUDE_LOCATIONS += $(EKAT_HOME)/include
+    INCLUDE_LOCATIONS += $(EKAT_HOME)/include/ekat
+    INCLUDE_LOCATIONS += $(ERF_HOME)/Submodules/ekat/src/kokkos
+    INCLUDE_LOCATIONS += $(ERF_HOME)/Submodules/ekat/src/pack
+    INCLUDE_LOCATIONS += $(ERF_HOME)/Submodules/ekat/src/algorithm
+    LIBRARY_LOCATIONS += $(EKAT_LIB_DIR)
+    LIBRARIES += -lekat_core -lspdlog
+
+    # This directory holds the ERF-P3 interface routines
+    ERF_P3_DIR = $(ERF_SOURCE_DIR)/PhysicsInterfaces/P3
+    include $(ERF_P3_DIR)/Make.package
+    VPATH_LOCATIONS   += $(ERF_P3_DIR)
+    INCLUDE_LOCATIONS += $(ERF_P3_DIR)
+
+    # This directory holds the P3 source itself
+    P3_HOME = $(EAMXX_HOME)/physics/p3
+    VPATH_LOCATIONS   += $(P3_HOME)/disp
+    VPATH_LOCATIONS   += $(P3_HOME)/eti
+    VPATH_LOCATIONS   += $(P3_HOME)/impl
+    INCLUDE_LOCATIONS += $(P3_HOME)/disp
+    INCLUDE_LOCATIONS += $(P3_HOME)/eti
+    INCLUDE_LOCATIONS += $(P3_HOME)/impl
+
+    # Other things we get from eamxx
+    INCLUDE_LOCATIONS += $(EAMXX_HOME)
+    INCLUDE_LOCATIONS += $(EAMXX_HOME)/physics
+    INCLUDE_LOCATIONS += $(EAMXX_HOME)/physics/share
+endif
+
+# ---- LAPACK support ----
+USE_LAPACK ?= FALSE
+
+ifeq ($(USE_LAPACK), TRUE)
+  DEFINES += -DUSE_LAPACK  
+  # Try pkg-config first (works on many systems)
+  has_lapack := $(shell pkg-config --exists lapack 2>/dev/null; echo $$?)
+  ifeq ($(has_lapack),0)
+    includes  += $(shell pkg-config --cflags lapack)
+    LIBRARIES += $(shell pkg-config --libs lapack)
+  else
+    # Fallback guesses
+    # Linux (generic)
+    LIBRARIES += -llapack -lblas
+  endif
+
+endif
+# ------------------------
+
+
+include $(AMREX_HOME)/Src/Base/Make.package
+
+AMReXdirs             := Base Boundary AmrCore
+
+ifeq ($(USE_PARTICLES),TRUE)
+AMReXdirs             += Particle
+endif
+
+ifeq ($(USE_EB),TRUE)
+AMReXdirs             += EB
+endif
+
+USE_LINEAR_SOLVERS_INCFLO = TRUE
+USE_LINEAR_SOLVERS_EM     = FALSE
+AMReXdirs                += LinearSolvers
+
+ifeq ($(USE_FFT),TRUE)
+AMReXdirs                += FFT
+endif
+
+AMReXpack             += $(foreach dir, $(AMReXdirs), $(AMREX_HOME)/Src/$(dir)/Make.package)
+
+include $(AMReXpack)
+
+ifeq ($(COMPUTE_ERROR), TRUE)
+  DEFINES += -DERF_COMPUTE_ERROR
+endif
+
+ifeq ($(USE_PARTICLES), TRUE)
+  DEFINES += -DERF_USE_PARTICLES
+endif
+
+ifeq ($(USE_MULTIBLOCK), TRUE)
+  DEFINES += -DERF_USE_MULTIBLOCK
+endif
+
+# NOTE: EKAT provides KOKKOS
+ifeq ($(USE_KOKKOS), TRUE)
+  # Assumes Kokkos comes from the EKAT install selected above. Some platforms
+  # do not need or provide libdl; set KOKKOS_EXTRA_LIBS= in that case.
+  KOKKOS_EXTRA_LIBS ?= -ldl
+  DEFINES   += -DERF_USE_KOKKOS
+  INCLUDE_LOCATIONS += $(EKAT_HOME)/include/kokkos
+  LIBRARY_LOCATIONS += $(EKAT_LIB_DIR)
+  LIBRARIES += -lkokkoscore $(KOKKOS_EXTRA_LIBS)
+endif
+
+ifeq ($(USE_KOKKOS), TRUE)
+# These defaults build the subset of EKAT/Kokkos needed by ERF. Backend choices
+# mirror the AMReX-style USE_OMP/USE_CUDA/USE_HIP/USE_SYCL switches from the
+# including GNUmakefile. Use EKAT_EXTRA_CMAKE_FLAGS for compiler, architecture,
+# or site-specific CMake options that are not represented here.
+EKAT_CMAKE_FLAGS := \
+  -D CMAKE_BUILD_TYPE:STRING=Release \
+  -D CMAKE_CXX_COMPILER:STRING="$(CXX)" \
+  -D CMAKE_CXX_STANDARD:STRING=17 \
+  -D CMAKE_INSTALL_PREFIX:PATH="$(EKAT_INSTALL_PREFIX)" \
+  -D CMAKE_INSTALL_LIBDIR:PATH="$(EKAT_INSTALL_LIBDIR)" \
+  -D CMAKE_DISABLE_FIND_PACKAGE_spdlog:BOOL=TRUE \
+  -D EKAT_ENABLE_MPI:BOOL=ON \
+  -D EKAT_ENABLE_FORTRAN:BOOL=OFF \
+  -D EKAT_ENABLE_TESTS:BOOL=OFF \
+  -D EKAT_ENABLE_KOKKOS:BOOL=ON \
+  -D EKAT_ENABLE_LOGGING:BOOL=ON \
+  -D Kokkos_ENABLE_DEPRECATED_CODE:BOOL=OFF \
+  -D Kokkos_ENABLE_EXPLICIT_INSTANTIATION:BOOL=OFF \
+  -D Kokkos_ENABLE_SERIAL:BOOL=ON
+ifeq ($(USE_OMP), TRUE)
+  EKAT_CMAKE_FLAGS += -D Kokkos_ENABLE_OPENMP:BOOL=ON
+endif
+ifeq ($(USE_CUDA), TRUE)
+  EKAT_CMAKE_FLAGS += \
+    -D Kokkos_ENABLE_CUDA:BOOL=ON \
+    -D Kokkos_ENABLE_CUDA_LAMBDA:BOOL=ON \
+    -D Kokkos_ENABLE_CUDA_RELOCATABLE_DEVICE_CODE:BOOL=ON
+endif
+ifeq ($(USE_HIP), TRUE)
+  EKAT_CMAKE_FLAGS += \
+    -D Kokkos_ENABLE_HIP:BOOL=ON \
+    -D Kokkos_ENABLE_HIP_LAMBDA:BOOL=ON \
+    -D Kokkos_ENABLE_HIP_RELOCATABLE_DEVICE_CODE:BOOL=ON
+endif
+ifeq ($(USE_SYCL), TRUE)
+  EKAT_CMAKE_FLAGS += \
+    -D Kokkos_ENABLE_SYCL:BOOL=ON \
+    -D Kokkos_ENABLE_SYCL_LAMBDA:BOOL=ON
+endif
+EKAT_CMAKE_FLAGS += $(EKAT_EXTRA_CMAKE_FLAGS)
+endif
+
+# Turn on NetCDF macro define
+ifeq ($(USE_NETCDF), TRUE)
+  DEFINES += -DERF_USE_NETCDF
+
+  # Try netcdf-mpi => netcdf => netcdf-cxx4_parallel => netcdf_parallel
+  # We need to add MPICH_DIR to pkg's config path because of a Cray bug.
+  has_netcdf_mpi := $(shell pkg-config --cflags netcdf-mpi > /dev/null 2>&1; echo $$?)
+  ifeq ($(has_netcdf_mpi),0)
+      includes  += $(shell pkg-config --cflags netcdf-mpi)
+      LIBRARIES += $(shell pkg-config --libs netcdf-mpi)
+
+  else
+    has_netcdf := $(shell if [ -n "$$MPICH_DIR" ]; then export PKG_CONFIG_PATH="$$MPICH_DIR/lib/pkgconfig:$$PKG_CONFIG_PATH"; fi; pkg-config --exists netcdf 2>/dev/null; echo $$?)
+    ifeq ($(has_netcdf),0)
+      includes  += $(shell if [ -n "$$MPICH_DIR" ]; then export PKG_CONFIG_PATH="$$MPICH_DIR/lib/pkgconfig:$$PKG_CONFIG_PATH"; fi; pkg-config --cflags netcdf)
+      LIBRARIES += $(shell if [ -n "$$MPICH_DIR" ]; then export PKG_CONFIG_PATH="$$MPICH_DIR/lib/pkgconfig:$$PKG_CONFIG_PATH"; fi; pkg-config --libs netcdf)
+    else
+      has_netcdf_cxx4_parallel := $(shell if [ -n "$$MPICH_DIR" ]; then export PKG_CONFIG_PATH="$$MPICH_DIR/lib/pkgconfig:$$PKG_CONFIG_PATH"; fi; pkg-config --exists netcdf-cxx4_parallel 2>/dev/null; echo $$?)
+      ifeq ($(has_netcdf_cxx4_parallel),0)
+        includes  += $(shell if [ -n "$$MPICH_DIR" ]; then export PKG_CONFIG_PATH="$$MPICH_DIR/lib/pkgconfig:$$PKG_CONFIG_PATH"; fi; pkg-config --cflags netcdf-cxx4_parallel)
+        LIBRARIES += $(shell if [ -n "$$MPICH_DIR" ]; then export PKG_CONFIG_PATH="$$MPICH_DIR/lib/pkgconfig:$$PKG_CONFIG_PATH"; fi; pkg-config --libs netcdf-cxx4_parallel)
+      else
+        has_netcdf_parallel := $(shell if [ -n "$$MPICH_DIR" ]; then export PKG_CONFIG_PATH="$$MPICH_DIR/lib/pkgconfig:$$PKG_CONFIG_PATH"; fi; pkg-config --exists netcdf_parallel 2>/dev/null; echo $$?)
+        ifeq ($(has_netcdf_parallel),0)
+          includes  += $(shell if [ -n "$$MPICH_DIR" ]; then export PKG_CONFIG_PATH="$$MPICH_DIR/lib/pkgconfig:$$PKG_CONFIG_PATH"; fi; pkg-config --cflags netcdf_parallel)
+          LIBRARIES += $(shell if [ -n "$$MPICH_DIR" ]; then export PKG_CONFIG_PATH="$$MPICH_DIR/lib/pkgconfig:$$PKG_CONFIG_PATH"; fi; pkg-config --libs netcdf_parallel)
+        else
+          $(warning NetCDF not found. Tried netcdf-mpi, netcdf, netcdf-cxx4_parallel, and netcdf_parallel)
+        endif
+      endif
+    endif
+  endif
+endif
+
+ifeq ($(USE_TERRAIN_VELOCITY), TRUE)
+  DEFINES += -DERF_USE_TERRAIN_VELOCITY
+endif
+
+ifeq ($(USE_ML_UPHYS_DIAGNOSTICS), TRUE)
+  DEFINES += -DERF_USE_ML_UPHYS_DIAGNOSTICS
+endif
+
+CEXE_sources += AMReX_buildInfo.cpp
+CEXE_headers += $(AMREX_HOME)/Tools/C_scripts/AMReX_buildInfo.H
+INCLUDE_LOCATIONS += $(AMREX_HOME)/Tools/C_scripts
+
+include $(AMREX_HOME)/Tools/GNUMake/Make.rules
+
+# Prebuild targets are feature-gated. In particular, all should not build EKAT
+# unless GNUmakefile selected a Kokkos-using feature, directly or indirectly.
+ERF_PREBUILD_TARGETS :=
+
+.PHONY: build_ekat build_noahmp
+
+ifeq ($(USE_KOKKOS), TRUE)
+ERF_PREBUILD_TARGETS += build_ekat
+
+build_ekat:
+ifeq ($(BUILD_EKAT), TRUE)
+	@# Existence check accepts static or shared Kokkos libraries.
+	@if [ ! -f "$(EKAT_INSTALL_PREFIX)/include/kokkos/Kokkos_Core.hpp" ] || ! ls "$(EKAT_LIB_DIR)"/libkokkoscore.* >/dev/null 2>&1; then \
+	  echo "Building EKAT/Kokkos in $(EKAT_BUILD_DIR)"; \
+	  cmake -S "$(EKAT_SOURCE_DIR)" -B "$(EKAT_BUILD_DIR)" $(EKAT_CMAKE_FLAGS) || exit $$?; \
+	  cmake --build "$(EKAT_BUILD_DIR)" --target install --parallel || exit $$?; \
+	fi
+else
+	@# EKAT_HOME was supplied externally unless BUILD_EKAT=TRUE was requested.
+	@if [ ! -f "$(EKAT_INSTALL_PREFIX)/include/kokkos/Kokkos_Core.hpp" ] || ! ls "$(EKAT_LIB_DIR)"/libkokkoscore.* >/dev/null 2>&1; then \
+	  echo "EKAT/Kokkos install not found under EKAT_HOME=$(EKAT_HOME)"; \
+	  echo "Set BUILD_EKAT=TRUE to build the bundled EKAT install, or set EKAT_HOME to a valid install."; \
+	  exit 1; \
+	fi
+endif
+else
+build_ekat:
+endif
+
+ifeq ($(USE_NOAHMP), TRUE)
+ERF_PREBUILD_TARGETS += build_noahmp
+
+build_noahmp:
+	$(MAKE) -C $(NOAHMP_HOME)/drivers/erf -f Makefile all_noahmp NOAHMP_PRECISION_FLAG="$(NOAHMP_PRECISION_FLAG)"
+
+# Build Noah-MP (codegen + libnoahmp.a) before any ERF object; -j ignores the
+# all prereq order, so an order-only dependency is needed to enforce it.
+
+$(objForExecs): | build_noahmp
+else
+build_noahmp:
+endif
+
+ifeq ($(USE_KOKKOS), TRUE)
+$(objForExecs): | build_ekat
+endif
+
+all: $(ERF_PREBUILD_TARGETS) $(executable)
+	(SILENT) $(RM) AMReX_buildInfo.cpp
+	@echo SUCCESS
+
+AMReX_buildInfo.cpp:
+	$(AMREX_HOME)/Tools/C_scripts/makebuildinfo_C.py \
+          --amrex_home "$(AMREX_HOME)" \
+          --COMP "$(COMP)" --COMP_VERSION "$(COMP_VERSION)" \
+          --CXX_comp_name "$(CXX)" \
+          --CXX_flags "$(CXXFLAGS) $(CXXFLAGS) $(CPPFLAGS) $(includes)" \
+          --link_flags "$(LINKFLAGS) $(CPPFLAGS) $(includes) $(LDFLAGS)" \
+          --libraries "$(FINAL_LIBS)" \
+          --MODULES "$(MNAMES)" \
+          --GIT "$(ERF_HOME) $(AMREX_HOME)" \
+          --GIT_STYLE "--always --dirty"
+
+clean::
+	$(SILENT) $(RM) AMReX_buildInfo.cpp
+ifeq ($(USE_NOAHMP), TRUE)
+	$(MAKE) -C $(NOAHMP_HOME)/drivers/erf -f Makefile clean_noahmp
+endif

@@ -15,7 +15,10 @@ using namespace amrex;
 /**
  * Reads start_time from the first metgrid file
  *
-*/
+ * @param lev Integer specifying the current level
+ * @param fname Path to the metgrid file
+ * @return Epoch time read from the first metgrid file
+ */
 double
 read_start_time_from_metgrid(int lev, const std::string& fname)
 {
@@ -514,6 +517,7 @@ ERF::init_from_metgrid (int lev)
             Box tbxc = mfi.tilebox();
             Box tbxu = mfi.tilebox(IntVect(1,0,0));
             Box tbxv = mfi.tilebox(IntVect(0,1,0));
+            Box tbxw = mfi.tilebox(IntVect(0,0,1));
 
             // Define FABs for holding some of the initial data
             FArrayBox &cons_fab = lev_new[Vars::cons][mfi];
@@ -543,7 +547,7 @@ ERF::init_from_metgrid (int lev)
                                     metgrid_use_below_sfc, metgrid_use_sfc,
                                     metgrid_retain_sfc, metgrid_proximity,
                                     metgrid_order, metgrid_force_sfc_k, l_rdOcp,
-                                    tbxc, tbxu, tbxv,
+                                    tbxc, tbxu, tbxv, tbxw,
                                     cons_fab, xvel_fab, yvel_fab, zvel_fab,
                                     z_phys_nd_fab,
                                     NC_ght_fab, NC_xvel_fab,
@@ -575,7 +579,11 @@ ERF::init_from_metgrid (int lev)
             } // mf
 
             Print() << "[init_base_state_from_metgrid] lev = " << lev << ", itime = " << itime << std::endl;
-            for ( MFIter mfi(lev_new[Vars::cons], TilingIfNotGPU()); mfi.isValid(); ++mfi ) {
+
+            //
+            // NOTE: The code inside this MFIter is not tile-safe so we must set false for the tiling option
+            //
+            for ( MFIter mfi(lev_new[Vars::cons], false); mfi.isValid(); ++mfi ) {
                 FArrayBox&     p_hse_fab = p_hse[mfi];
                 FArrayBox&    pi_hse_fab = pi_hse[mfi];
                 FArrayBox&    th_hse_fab = th_hse[mfi];
@@ -706,6 +714,10 @@ init_terrain_from_metgrid (FArrayBox& z_phys_nd_fab,
  * @param metgrid_order int interpolation order
  * @param metgrid_force_sfc_k int lower levels pruned by quality control
  * @param l_rdOcp Real constant specifying Rhydberg constant ($R_d$) divided by specific heat at constant pressure ($c_p$)
+ * @param tbxc Cell-centered box to initialize
+ * @param tbxu x-face box to initialize
+ * @param tbxv y-face box to initialize
+ * @param tbxw z-face box to initialize
  * @param state_fab FArrayBox holding the state data to initialize
  * @param x_vel_fab FArrayBox holding the x-velocity data to initialize
  * @param y_vel_fab FArrayBox holding the y-velocity data to initialize
@@ -714,18 +726,18 @@ init_terrain_from_metgrid (FArrayBox& z_phys_nd_fab,
  * @param NC_ght_fab  FArrayBox object holding metgrid data for height of cell centers
  * @param NC_xvel_fab FArrayBox object holding metgrid data for x-velocity
  * @param NC_yvel_fab FArrayBox object holding metgrid data for y-velocity
- * @param NC_zvel_fab FArrayBox object holding metgrid data for z-velocity
  * @param NC_temp_fab FArrayBox object holding metgrid data for temperature
  * @param NC_rhum_fab FArrayBox object holding metgrid data for relative humidity
  * @param NC_pres_fab FArrayBox object holding metgrid data for pressure
- * @param p_interp_fab FArrayBox object
- * @param t_interp_fab FArrayBox object
- * @param theta_fab FArrayBox object holding potential temperature calculated from temperature and pressure
- * @param mxrat_fab FArrayBox object holding vapor mixing ratio calculated from relative humidity
- * @param fabs_for_bcs Vector of Vector of FArrayBox objects holding MetGridBdyVars at each met_em time.
- * @param mask_c_arr
- * @param mask_u_arr
- * @param mask_v_arr
+ * @param tmp_src_fab Scratch FArrayBox holding source metgrid variables
+ * @param tmp_dst_fab Scratch FArrayBox holding interpolated destination variables
+ * @param fabs_for_bcs_xlo Boundary-data FABs for the low-x face
+ * @param fabs_for_bcs_xhi Boundary-data FABs for the high-x face
+ * @param fabs_for_bcs_ylo Boundary-data FABs for the low-y face
+ * @param fabs_for_bcs_yhi Boundary-data FABs for the high-y face
+ * @param mask_c_arr Cell-centered land mask data
+ * @param mask_u_arr x-face land mask data
+ * @param mask_v_arr y-face land mask data
  */
 void
 init_state_from_metgrid (const int  lev,
@@ -746,6 +758,7 @@ init_state_from_metgrid (const int  lev,
                          Box& tbxc,
                          Box& tbxu,
                          Box& tbxv,
+                         Box& tbxw,
                          FArrayBox& state_fab,
                          FArrayBox& x_vel_fab,
                          FArrayBox& y_vel_fab,
@@ -874,7 +887,7 @@ init_state_from_metgrid (const int  lev,
     // W
     // ********************************************************
     if (itime == 0) { // update at initialization
-        z_vel_fab.template setVal<RunOn::Device>(0);
+        z_vel_fab.template setVal<RunOn::Device>(0, tbxw, 0, z_vel_fab.nComp());
     }
 
 
@@ -882,7 +895,7 @@ init_state_from_metgrid (const int  lev,
     // Initialize all state_fab variables to zero
     // ********************************************************
     if (itime == 0) { // update at initialization
-        state_fab.template setVal<RunOn::Device>(0);
+        state_fab.template setVal<RunOn::Device>(0, tbxc, 0, state_fab.nComp());
     }
 
 
@@ -1211,7 +1224,6 @@ init_state_from_metgrid (const int  lev,
         } // use_moisture
 
     } // lev==0
-
 }
 
 
@@ -1229,6 +1241,7 @@ init_state_from_metgrid (const int  lev,
  * @param pi_hse_fab FArrayBox object holding the hydrostatic base Exner pressure we are initializing
  * @param th_hse_fab FArrayBox object holding the base state potential temperature we are initializing
  * @param qv_hse_fab FArrayBox object holding the base state qv we are initializing
+ * @param z_phys_nd_fab FArrayBox object holding node-centered z heights for terrain
  * @param z_phys_cc_fab FArrayBox object holding cell center z heights for terrain
  * @param NC_psfc_fab FArrayBox object holding metgrid data for surface pressure
  */
@@ -1542,6 +1555,7 @@ init_base_state_from_metgrid (const bool use_moisture,
 /**
  * Helper function to initialize map factors from metgrid data
  *
+ * @param metgrid_debug_msf Whether to ignore metgrid map factors and use unity factors
  * @param msfu_fab FArrayBox specifying x-velocity map factors
  * @param msfv_fab FArrayBox specifying y-velocity map factors
  * @param msfm_fab FArrayBox specifying z-velocity map factors

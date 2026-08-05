@@ -23,9 +23,16 @@ using namespace amrex;
  * @param[in]  tau31 31 stress
  * @param[in]  tau32 32 stress
  * @param[in]  detJ Jacobian determinant
- * @param[in]  differChoice container with diffusion parameters
+ * @param[in]  stretched_dz_d array of vertical mesh spacings
  * @param[in]  dxInv inverse cell size array
- * @param[in]  mf_m map factor at cell center
+ * @param[in]  mf_mx x map factor at cell centers
+ * @param[in]  mf_ux x map factor at x-faces
+ * @param[in]  mf_vx x map factor at y-faces
+ * @param[in]  mf_my y map factor at cell centers
+ * @param[in]  mf_uy y map factor at x-faces
+ * @param[in]  mf_vy y map factor at y-faces
+ * @param[in]  l_stretched_dz flag for stretched vertical spacing
+ * @param[in]  l_variable_dz flag for terrain-fitted vertical metrics
  */
 void
 DiffusionSrcForMom (const Box& bxx, const Box& bxy , const Box& bxz,
@@ -155,7 +162,7 @@ DiffusionSrcForMom (const Box& bxx, const Box& bxy , const Box& bxz,
             Real Imfy_hi = one / (myhalf * (mf_uy(i+1,j,0) + mf_uy(i+1,j-1,0)));
             Real Imfy_lo = one / (myhalf * (mf_uy(i  ,j,0) + mf_uy(i  ,j-1,0)));
             Real Imfx_hi = one / mf_mx(i  ,j,0);
-            Real Imfx_lo = one / mf_mx(i-1,j,0);
+            Real Imfx_lo = one / mf_mx(i,j-1,0);
             rho_v_rhs(i,j,k) -= ( (tau12(i+1, j  , k  )*Imfy_hi - tau12(i  , j  , k  )*Imfy_lo) * dxinv * mfsq  // Contribution to y-mom eqn from diffusive flux in x-dir
                                 + (tau22(i  , j  , k  )*Imfx_hi - tau22(i  , j-1, k  )*Imfx_lo) * dyinv * mfsq  // Contribution to y-mom eqn from diffusive flux in y-dir
                                 + (tau23(i  , j  , k+1)         - tau23(i  , j  , k  )        ) * dzinv );      // Contribution to y-mom eqn from diffusive flux in z-dir;

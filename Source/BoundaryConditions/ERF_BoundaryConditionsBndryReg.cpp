@@ -2,11 +2,11 @@
 
 using namespace amrex;
 
-/*
+/**
  * Impose boundary conditions using data read in as BndryRegisters from a previous ERF run
  *
- * @param[out] mfs  Vector of MultiFabs to be filled
- * @param[in]  time time at which the data should be filled
+ * @param[in,out] mfs  Vector of MultiFabs to be filled
+ * @param[in]     time time at which the data should be filled
  */
 
 void

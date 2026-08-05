@@ -103,7 +103,7 @@
         // *****************************************************************************
         make_sources(level, nrk, slow_dt, old_stage_time,
                      S_data, S_prim, cc_src, base_state[level], zpc_to_use,
-                     xvel_new, yvel_new,
+                     xvel_new, yvel_new, zvel_new,
                      qheating_rates[level].get(),
                      terrain_blank, fine_geom, solverChoice,
                      mapfac[level],
@@ -195,7 +195,9 @@
                          eamxx_shoc_interface[level].get(),
 #endif
                          native_shoc_driver[level].get(),
-                         fr_as_crse, fr_as_fine);
+                         fr_as_crse, fr_as_fine, &base_to_use,
+                         cloud_chamber_config.active ? &cloud_chamber_config : nullptr,
+                         cloud_chamber_budget.get());
 
         Real sdt = static_cast<Real>(slow_dt);
 
