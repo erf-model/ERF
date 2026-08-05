@@ -293,14 +293,7 @@ SAMPrimitiveCell sam_cons_to_primitive (const amrex::Real& rho,
                                         const amrex::Real& rho_qpr,
                                         const amrex::Real& rho_qps,
                                         const amrex::Real& rho_qpg,
-                                        // Keep the legacy overload device-safe:
-                                        // global RdoCp is not a device symbol in
-                                        // all supported GPU toolchains. This
-                                        // default matches ERF_Constants.H;
-                                        // callers with a different thermodynamic
-                                        // ratio can pass it explicitly.
-                                        const amrex::Real rdOcp =
-                                            amrex::Real(287.0) / amrex::Real(1004.5)) noexcept
+                                        const amrex::Real rdOcp) noexcept
 {
     return sam_cons_to_primitive_with_base_state(
         rho, rho_theta, rho_qv, rho_qcl, rho_qci, rho_qpr, rho_qps, rho_qpg,

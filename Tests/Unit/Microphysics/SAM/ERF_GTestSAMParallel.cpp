@@ -1158,7 +1158,7 @@ TEST(SAMParallel, IceFallSubstepCountUsesGlobalMaximum)
                         public_arr(i,j,k,RhoQ3_comp),
                         public_arr(i,j,k,RhoQ4_comp),
                         public_arr(i,j,k,RhoQ5_comp),
-                        public_arr(i,j,k,RhoQ6_comp));
+                        public_arr(i,j,k,RhoQ6_comp), kRdOcp);
                     const SAMCellState reference_state = sam_cons_to_primitive(
                         reference_arr(i,j,k,Rho_comp),
                         reference_arr(i,j,k,RhoTheta_comp),
@@ -1167,7 +1167,7 @@ TEST(SAMParallel, IceFallSubstepCountUsesGlobalMaximum)
                         reference_arr(i,j,k,RhoQ3_comp),
                         reference_arr(i,j,k,RhoQ4_comp),
                         reference_arr(i,j,k,RhoQ5_comp),
-                        reference_arr(i,j,k,RhoQ6_comp));
+                        reference_arr(i,j,k,RhoQ6_comp), kRdOcp);
 
                     const amrex::Real raw_qci_public = public_arr(i,j,k,RhoQ3_comp);
                     const amrex::Real raw_qci_reference = reference_arr(i,j,k,RhoQ3_comp);

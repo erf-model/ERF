@@ -113,7 +113,7 @@ TEST(SAMScalar, PrimitiveClipsNegativeMoisture)
         rho * amrex::Real(5.0e-4),
         -rho * amrex::Real(1.0e-4),
         rho * amrex::Real(2.0e-4),
-        -rho * amrex::Real(3.0e-4));
+        -rho * amrex::Real(3.0e-4), kRdOcp);
 
     EXPECT_EQ(clipped.qv, amrex::Real(0.0));
     EXPECT_EQ(clipped.qcl, amrex::Real(0.0));
@@ -166,7 +166,8 @@ TEST(SAMScalar, PrimitiveConservedMoistureRoundtrip)
     const amrex::Real qpg = amrex::Real(2.0e-4);
 
     const SAMPrimitiveCell primitive = sam_cons_to_primitive(
-        rho, rho_theta, rho * qv, rho * qcl, rho * qci, rho * qpr, rho * qps, rho * qpg);
+        rho, rho_theta, rho * qv, rho * qcl, rho * qci, rho * qpr, rho * qps, rho * qpg,
+        kRdOcp);
 
     expect_near_roundoff(primitive.theta, theta);
     expect_near_roundoff(primitive.qv, qv);

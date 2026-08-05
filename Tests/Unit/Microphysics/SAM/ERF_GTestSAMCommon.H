@@ -261,7 +261,7 @@ inline void fill_pressure_snapshot_from_cons (const amrex::MultiFab& cons,
                                       arr(i,j,k,RhoQ3_comp),
                                       arr(i,j,k,RhoQ4_comp),
                                       arr(i,j,k,RhoQ5_comp),
-                                      arr(i,j,k,RhoQ6_comp)).pres_mbar;
+                                      arr(i,j,k,RhoQ6_comp), kRdOcp).pres_mbar;
         });
     amrex::Gpu::streamSynchronize();
 }
@@ -303,7 +303,7 @@ inline SAMPressureSnapshotBudget compute_sam_pressure_snapshot_budget (
                                           arr(i,j,k,RhoQ3_comp),
                                           arr(i,j,k,RhoQ4_comp),
                                           arr(i,j,k,RhoQ5_comp),
-                                          arr(i,j,k,RhoQ6_comp));
+                                          arr(i,j,k,RhoQ6_comp), kRdOcp);
                 const amrex::Real pressure0 = pressure_arrays[box_no](i,j,k);
                 const amrex::Real weight = cell_volume * detj_arrays[box_no](i,j,k) * primitive.rho;
                 return {
@@ -346,7 +346,7 @@ inline SAMPressureSnapshotBudget compute_sam_pressure_snapshot_budget (
                                           arr(i,j,k,RhoQ3_comp),
                                           arr(i,j,k,RhoQ4_comp),
                                           arr(i,j,k,RhoQ5_comp),
-                                          arr(i,j,k,RhoQ6_comp));
+                                          arr(i,j,k,RhoQ6_comp), kRdOcp);
                 const amrex::Real pressure0 = pressure_arrays[box_no](i,j,k);
                 const amrex::Real weight = cell_volume * primitive.rho;
                 return {
@@ -426,7 +426,7 @@ inline SAMBudget compute_sam_budget (const amrex::Geometry& geom,
                                           arr(i,j,k,RhoQ3_comp),
                                           arr(i,j,k,RhoQ4_comp),
                                           arr(i,j,k,RhoQ5_comp),
-                                          arr(i,j,k,RhoQ6_comp));
+                                          arr(i,j,k,RhoQ6_comp), kRdOcp);
                 const amrex::Real weight = cell_volume * detj_arrays[box_no](i,j,k);
                 return {weight * primitive.rho * sam_total_water(primitive),
                         weight * primitive.rho * sam_latent_proxy(primitive, kFacCond, kFacFus)};
@@ -448,7 +448,7 @@ inline SAMBudget compute_sam_budget (const amrex::Geometry& geom,
                                           arr(i,j,k,RhoQ3_comp),
                                           arr(i,j,k,RhoQ4_comp),
                                           arr(i,j,k,RhoQ5_comp),
-                                          arr(i,j,k,RhoQ6_comp));
+                                          arr(i,j,k,RhoQ6_comp), kRdOcp);
                 return {cell_volume * primitive.rho * sam_total_water(primitive),
                         cell_volume * primitive.rho * sam_latent_proxy(primitive, kFacCond, kFacFus)};
             });

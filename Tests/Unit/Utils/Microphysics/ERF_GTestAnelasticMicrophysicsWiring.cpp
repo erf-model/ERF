@@ -1,4 +1,5 @@
 #include <AMReX_Gpu.H>
+#include <AMReX_Math.H>
 #include <AMReX_MultiFab.H>
 
 #include <cmath>
@@ -302,42 +303,45 @@ void launch_wsm6_anelastic_copy_out (WorkingArrays& working,
                 states, rho, theta, tabs, pres, qv, qc, qi, qr, qs, qg,
                 true, RdoCp, i, j, k);
         });
+        const auto theta_read = working.theta.const_array(mfi);
         const auto error = errors.array(mfi);
         ParallelFor(mfi.tilebox(), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-            const Real p0 = i == 0 ? Real(90000.0) : Real(82000.0);
-            const Real expected_theta_value = getThgivenTandP(tabs(i,j,k), p0, RdoCp);
+            const Real expected_theta_value = getThgivenTandP(
+                tabs(i,j,k), pres(i,j,k), RdoCp);
             const Real expected_rho_theta = rho(i,j,k) * expected_theta_value;
-            const Real expected_temperature_from_wrong_mode =
+            const Real wrong_mode_theta =
                 getThgivenRandT(rho(i,j,k), tabs(i,j,k), RdoCp,
                                  i == 0 ? Real(0.003) : Real(0.007));
-            error(i,j,k) = normalized_error(
-                states(i,j,k,RhoTheta_comp), expected_rho_theta, kValueRelTol);
-            error(i,j,k) = amrex::max(
-                error(i,j,k),
-                (std::abs(expected_theta_value - expected_rho_theta / rho(i,j,k)) <=
-                 Real(2.0) * kValueRelTol * expected_theta_value) ? Real(0.0) : Real(1.0));
-            error(i,j,k) = amrex::max(
-                error(i,j,k),
-                (std::abs(expected_theta_value - expected_temperature_from_wrong_mode) <=
-                 Real(10.0) * kValueRelTol * expected_theta_value) ? Real(1.0) : Real(0.0));
             const Real expected_qv_value = i == 0 ? Real(0.003) : Real(0.007);
             const Real expected_qc_value = i == 0 ? Real(0.001) : Real(0.002);
             const Real expected_qi_value = i == 0 ? Real(0.0004) : Real(0.0008);
             const Real expected_qr_value = i == 0 ? Real(0.0007) : Real(0.0011);
             const Real expected_qs_value = i == 0 ? Real(0.0002) : Real(0.0005);
             const Real expected_qg_value = i == 0 ? Real(0.0003) : Real(0.0006);
-            error(i,j,k) = amrex::max(error(i,j,k), normalized_error(
-                states(i,j,k,RhoQ1_comp), rho(i,j,k) * expected_qv_value, kValueRelTol));
-            error(i,j,k) = amrex::max(error(i,j,k), normalized_error(
-                states(i,j,k,RhoQ2_comp), rho(i,j,k) * expected_qc_value, kValueRelTol));
-            error(i,j,k) = amrex::max(error(i,j,k), normalized_error(
-                states(i,j,k,RhoQ3_comp), rho(i,j,k) * expected_qi_value, kValueRelTol));
-            error(i,j,k) = amrex::max(error(i,j,k), normalized_error(
-                states(i,j,k,RhoQ4_comp), rho(i,j,k) * expected_qr_value, kValueRelTol));
-            error(i,j,k) = amrex::max(error(i,j,k), normalized_error(
-                states(i,j,k,RhoQ5_comp), rho(i,j,k) * expected_qs_value, kValueRelTol));
-            error(i,j,k) = amrex::max(error(i,j,k), normalized_error(
-                states(i,j,k,RhoQ6_comp), rho(i,j,k) * expected_qg_value, kValueRelTol));
+            error(i,j,k,0) = normalized_error(
+                theta_read(i,j,k), expected_theta_value, kValueRelTol);
+            error(i,j,k,1) = normalized_error(
+                states(i,j,k,RhoTheta_comp), expected_rho_theta, kValueRelTol);
+            error(i,j,k,2) = normalized_error(
+                states(i,j,k,RhoQ1_comp), rho(i,j,k) * expected_qv_value, kValueRelTol);
+            error(i,j,k,3) = normalized_error(
+                states(i,j,k,RhoQ2_comp), rho(i,j,k) * expected_qc_value, kValueRelTol);
+            error(i,j,k,4) = normalized_error(
+                states(i,j,k,RhoQ3_comp), rho(i,j,k) * expected_qi_value, kValueRelTol);
+            error(i,j,k,5) = normalized_error(
+                states(i,j,k,RhoQ4_comp), rho(i,j,k) * expected_qr_value, kValueRelTol);
+            error(i,j,k,6) = normalized_error(
+                states(i,j,k,RhoQ5_comp), rho(i,j,k) * expected_qs_value, kValueRelTol);
+            error(i,j,k,7) = normalized_error(
+                states(i,j,k,RhoQ6_comp), rho(i,j,k) * expected_qg_value, kValueRelTol);
+            const Real mode_scale = amrex::max(Real(1.0),
+                                                amrex::Math::abs(expected_theta_value));
+            const bool mode_separated = amrex::Math::abs(
+                expected_theta_value - wrong_mode_theta) > Real(1.0e-3) * mode_scale;
+            // Keep this logical guard separate from numerical errors: a value
+            // of one must fail directly rather than being accepted by the
+            // numerical error threshold below.
+            error(i,j,k,8) = mode_separated ? Real(0.0) : Real(1.0);
         });
     }
     Gpu::streamSynchronize();
@@ -394,6 +398,23 @@ void populate_hse_base_state (MultiFab& base)
     Gpu::streamSynchronize();
 }
 
+void check_hse_pressure_exner (const MultiFab& base, MultiFab& errors)
+{
+    for (MFIter mfi(errors, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+        const auto base_array = base.const_array(mfi);
+        const auto error = errors.array(mfi);
+        ParallelFor(mfi.tilebox(), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+            const Real pressure = base_array(i,j,k,BaseState::p0_comp);
+            const Real expected_exner = getExnergivenP(pressure, RdoCp);
+            const Real exner_scale = amrex::max(
+                Real(1.0), amrex::Math::abs(expected_exner));
+            error(i,j,k) = amrex::Math::abs(
+                base_array(i,j,k,BaseState::pi0_comp) - expected_exner) / exner_scale;
+        });
+    }
+    Gpu::streamSynchronize();
+}
+
 void populate_legacy_restart_base_state (MultiFab& base, const int legacy_ncomp)
 {
     for (MFIter mfi(base, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
@@ -424,8 +445,8 @@ void check_legacy_restart_ghosts (const MultiFab& base, MultiFab& diagnostics)
             const bool is_valid = i >= ilo && i <= ihi && j >= jlo && j <= jhi &&
                                   k >= klo && k <= khi;
             diag(i,j,k,0) = in_domain ?
-                std::abs(arr(i,j,k,BaseState::pi0_comp) -
-                         getExnergivenP(arr(i,j,k,BaseState::p0_comp), RdoCp)) : Real(0.0);
+                amrex::Math::abs(arr(i,j,k,BaseState::pi0_comp) -
+                                 getExnergivenP(arr(i,j,k,BaseState::p0_comp), RdoCp)) : Real(0.0);
             diag(i,j,k,1) = in_domain && !is_valid ? Real(1.0) : Real(0.0);
         });
     }
@@ -489,20 +510,25 @@ TEST(AnelasticMicrophysicsWiring, WSM6CopyInPopulatesProductionArrays)
     expect_copy_in_outputs(working, Real(1.0), 2);
 }
 
-// Motivation: WSM6 copy-out must write RhoTheta and moisture from updated
-// microphysics variables, reconstructing theta from held pressure in anelastic
-// mode. The compressible branch is checked separately so mode selection cannot
-// become permanently stuck on the anelastic path.
+// Motivation: WSM6 copy-out must independently preserve the updated theta,
+// RhoTheta, and six moisture components. In anelastic mode theta is rebuilt
+// from held pressure, while the compressible branch uses its EOS path; both
+// modes must remain distinguishable.
 TEST(AnelasticMicrophysicsWiring, WSM6CopyOutWritesConservedComponents)
 {
     CellFixture fixture;
     WorkingArrays working(fixture.boxes, fixture.dm);
     MultiFab anelastic_state(fixture.boxes, fixture.dm, RhoQ11_comp + 1, 1);
-    MultiFab errors(fixture.boxes, fixture.dm, 1, 0);
+    MultiFab errors(fixture.boxes, fixture.dm, 9, 0);
     anelastic_state.setVal(Real(0.0));
     prepare_wsm6_anelastic_state(fixture, working);
     launch_wsm6_anelastic_copy_out(working, anelastic_state, errors);
-    EXPECT_LE(errors.max(0, 0, false), Real(2.0));
+    for (int component = 0; component < 8; ++component) {
+        EXPECT_LE(errors.max(component, 0, false), Real(2.0))
+            << " WSM6 anelastic copy-out component=" << component;
+    }
+    EXPECT_EQ(errors.max(8, 0, false), Real(0.0))
+        << " WSM6 anelastic and compressible theta paths are not separated";
 
     MultiFab compressible_state(fixture.boxes, fixture.dm, RhoQ11_comp + 1, 1);
     MultiFab compressible_theta(fixture.boxes, fixture.dm, 1, 1);
@@ -524,6 +550,10 @@ TEST(AnelasticBaseState, ProductionHSEPopulationUsesSharedOperation)
     base.setVal(Real(-777.0));
     populate_hse_base_state(base);
 
+    MultiFab hse_errors(boxes, dm, 1, 0);
+    hse_errors.setVal(Real(0.0));
+    check_hse_pressure_exner(base, hse_errors);
+
     EXPECT_TRUE(base.is_finite());
     EXPECT_GT(base.min(BaseState::p0_comp, 0, false), Real(0.0));
     EXPECT_GT(base.min(BaseState::pi0_comp, 0, false), Real(0.0));
@@ -531,6 +561,9 @@ TEST(AnelasticBaseState, ProductionHSEPopulationUsesSharedOperation)
               base.max(BaseState::p0_comp, 0, false));
     EXPECT_NE(base.min(BaseState::pi0_comp, 0, false),
               base.max(BaseState::pi0_comp, 0, false));
+    EXPECT_LE(hse_errors.max(0, 0, false),
+              Real(64.0) * std::numeric_limits<Real>::epsilon())
+        << " stored pi0 does not match getExnergivenP(p0, RdoCp)";
 }
 
 // Motivation: legacy restart must reconstruct missing pi0, propagate valid
