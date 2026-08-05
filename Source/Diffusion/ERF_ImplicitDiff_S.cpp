@@ -264,8 +264,11 @@ ImplicitDiffForMomLU_S (const Box& bx,
     TurbChoice tc = solverChoice.turbChoice[level];
     bool l_consA  = (dc.molec_diff_type == MolecDiffType::ConstantAlpha);
     bool l_turb   = tc.use_kturb;
-    Real mu_eff = (l_consA) ? two * dc.dynamic_viscosity / dc.rho0_trans
-                            : two * dc.dynamic_viscosity;
+    // The off-diagonal correction strains for u/v contain a factor of 1/2,
+    // while the diagonal correction strain for w does not.
+    constexpr Real molec_fac = (stagdir == 2) ? two : one;
+    Real mu_eff = (l_consA) ? molec_fac * dc.dynamic_viscosity / dc.rho0_trans
+                            : molec_fac * dc.dynamic_viscosity;
 
     // g(S*) coefficient
     // stagdir==0: tau_corr = myhalf * du/dz * mu_tot
@@ -383,7 +386,10 @@ ImplicitDiffForMomLU_S (const Box& bx,
                   } else {
                       // NOTE: wall is 1/2 dz away (2 dz_inv)
                       a_tmp = -two * Fact * rhoAlpha_lo * dz_inv_lo * dz_inv;
-                      RHS_a(i,j,klo) += two * rhoAlpha_lo * face_data(i,j,klo-1) * dz_inv_lo * dz_inv;
+                      const Real rho_wall = myhalf * ( cell_data(i     ,j     ,klo-1,Rho_comp)
+                                                     + cell_data(i-ioff,j-joff,klo-1,Rho_comp) );
+                      const Real wall_velocity = face_data(i,j,klo-1) / rho_wall;
+                      RHS_a(i,j,klo) -= a_tmp * wall_velocity;
                   }
               } else if (use_SurfLayer) {
                   // NOTE: tau = -mu*d_z(u_i) w/ SL
@@ -469,7 +475,10 @@ ImplicitDiffForMomLU_S (const Box& bx,
                   } else {
                       // NOTE: wall is 1/2 dz away (2 dz_inv)
                       c_tmp = -two * Fact * rhoAlpha_hi * dz_inv_hi * dz_inv;
-                      RHS_a(i,j,khi) += two * rhoAlpha_hi * face_data(i,j,khi+1) * dz_inv_hi * dz_inv;
+                      const Real rho_wall = myhalf * ( cell_data(i     ,j     ,khi+1,Rho_comp)
+                                                     + cell_data(i-ioff,j-joff,khi+1,Rho_comp) );
+                      const Real wall_velocity = face_data(i,j,khi+1) / rho_wall;
+                      RHS_a(i,j,khi) -= c_tmp * wall_velocity;
                   }
               }
 
