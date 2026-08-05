@@ -20,6 +20,8 @@ using namespace microphysics_test;
 
 namespace {
 
+void initialize_cell_fixture (MultiFab& states, MultiFab& base);
+
 struct CellFixture {
     BoxArray boxes{Box(IntVect(0, 0, 0), IntVect(1, 0, 0))};
     DistributionMapping dm{boxes};
@@ -30,37 +32,42 @@ struct CellFixture {
     {
         states.setVal(Real(0.0));
         base.setVal(Real(-777.0));
-        for (MFIter mfi(states, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
-            const auto state = states.array(mfi);
-            const auto base_array = base.array(mfi);
-            ParallelFor(mfi.tilebox(), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                const Real rho = (i == 0) ? Real(1.10) : Real(0.90);
-                const Real theta = (i == 0) ? Real(303.0) : Real(287.0);
-                state(i,j,k,Rho_comp) = rho;
-                state(i,j,k,RhoTheta_comp) = rho * theta;
-                state(i,j,k,RhoQ1_comp) = rho * ((i == 0) ? Real(0.003) : Real(0.007));
-                state(i,j,k,RhoQ2_comp) = rho * ((i == 0) ? Real(0.001) : Real(0.002));
-                state(i,j,k,RhoQ3_comp) = rho * ((i == 0) ? Real(0.0004) : Real(0.0008));
-                state(i,j,k,RhoQ4_comp) = rho * ((i == 0) ? Real(0.0007) : Real(0.0011));
-                state(i,j,k,RhoQ5_comp) = rho * ((i == 0) ? Real(0.0002) : Real(0.0005));
-                state(i,j,k,RhoQ6_comp) = rho * ((i == 0) ? Real(0.0003) : Real(0.0006));
-                state(i,j,k,RhoQ7_comp) = rho * Real(0.0001);
-                state(i,j,k,RhoQ8_comp) = rho * Real(0.0002);
-                state(i,j,k,RhoQ9_comp) = rho * Real(0.0003);
-                state(i,j,k,RhoQ10_comp) = rho * Real(0.0004);
-                state(i,j,k,RhoQ11_comp) = rho * Real(0.0005);
-
-                // Deliberately do not make pi0 the EOS value. The production
-                // wiring must consume this stored value rather than rebuild it.
-                base_array(i,j,k,BaseState::p0_comp) =
-                    (i == 0) ? Real(90000.0) : Real(82000.0);
-                base_array(i,j,k,BaseState::pi0_comp) =
-                    (i == 0) ? Real(1.07) : Real(0.93);
-            });
-        }
+        initialize_cell_fixture(states, base);
         Gpu::streamSynchronize();
     }
 };
+
+void initialize_cell_fixture (MultiFab& states, MultiFab& base)
+{
+    for (MFIter mfi(states, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+        const auto state = states.array(mfi);
+        const auto base_array = base.array(mfi);
+        ParallelFor(mfi.tilebox(), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+            const Real rho = (i == 0) ? Real(1.10) : Real(0.90);
+            const Real theta = (i == 0) ? Real(303.0) : Real(287.0);
+            state(i,j,k,Rho_comp) = rho;
+            state(i,j,k,RhoTheta_comp) = rho * theta;
+            state(i,j,k,RhoQ1_comp) = rho * ((i == 0) ? Real(0.003) : Real(0.007));
+            state(i,j,k,RhoQ2_comp) = rho * ((i == 0) ? Real(0.001) : Real(0.002));
+            state(i,j,k,RhoQ3_comp) = rho * ((i == 0) ? Real(0.0004) : Real(0.0008));
+            state(i,j,k,RhoQ4_comp) = rho * ((i == 0) ? Real(0.0007) : Real(0.0011));
+            state(i,j,k,RhoQ5_comp) = rho * ((i == 0) ? Real(0.0002) : Real(0.0005));
+            state(i,j,k,RhoQ6_comp) = rho * ((i == 0) ? Real(0.0003) : Real(0.0006));
+            state(i,j,k,RhoQ7_comp) = rho * Real(0.0001);
+            state(i,j,k,RhoQ8_comp) = rho * Real(0.0002);
+            state(i,j,k,RhoQ9_comp) = rho * Real(0.0003);
+            state(i,j,k,RhoQ10_comp) = rho * Real(0.0004);
+            state(i,j,k,RhoQ11_comp) = rho * Real(0.0005);
+
+            // Deliberately do not make pi0 the EOS value. The production
+            // wiring must consume this stored value rather than rebuild it.
+            base_array(i,j,k,BaseState::p0_comp) =
+                (i == 0) ? Real(90000.0) : Real(82000.0);
+            base_array(i,j,k,BaseState::pi0_comp) =
+                (i == 0) ? Real(1.07) : Real(0.93);
+        });
+    }
+}
 
 struct WorkingArrays {
     MultiFab rho;
@@ -163,15 +170,8 @@ void expect_copy_in_outputs (const WorkingArrays& w, const Real pressure_factor,
     EXPECT_NE(w.pres.min(0, 0, false), w.pres.max(0, 0, false));
 }
 
-} // namespace
-
-// Motivation: Kessler production copy-in must select both base-state
-// components, preserve cell-local values, convert Pa to mbar, and populate its
-// actual working arrays rather than only a scalar adapter.
-TEST(AnelasticMicrophysicsWiring, KesslerPopulatesProductionArrays)
+void launch_kessler_copy_in (const CellFixture& fixture, WorkingArrays& working)
 {
-    CellFixture fixture;
-    WorkingArrays working(fixture.boxes, fixture.dm);
     for (MFIter mfi(fixture.states, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
         const auto states = fixture.states.const_array(mfi);
         const auto base = fixture.base.const_array(mfi);
@@ -190,15 +190,10 @@ TEST(AnelasticMicrophysicsWiring, KesslerPopulatesProductionArrays)
         });
     }
     Gpu::streamSynchronize();
-    expect_copy_in_outputs(working, Real(0.01), 0);
 }
 
-// Motivation: SAM's production copy-in owns its mbar working pressure while
-// taking temperature from theta times the stored base Exner.
-TEST(AnelasticMicrophysicsWiring, SAMPopulatesProductionArrays)
+void launch_sam_copy_in (const CellFixture& fixture, WorkingArrays& working)
 {
-    CellFixture fixture;
-    WorkingArrays working(fixture.boxes, fixture.dm);
     for (MFIter mfi(fixture.states, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
         const auto states = fixture.states.const_array(mfi);
         const auto base = fixture.base.const_array(mfi);
@@ -222,15 +217,10 @@ TEST(AnelasticMicrophysicsWiring, SAMPopulatesProductionArrays)
         });
     }
     Gpu::streamSynchronize();
-    expect_copy_in_outputs(working, Real(0.01), 1);
 }
 
-// Motivation: Morrison's production arrays must retain Pa pressure and its
-// existing nonnegative moisture clipping while using cell-local stored Exner.
-TEST(AnelasticMicrophysicsWiring, MorrisonPopulatesProductionArrays)
+void launch_morrison_copy_in (const CellFixture& fixture, WorkingArrays& working)
 {
-    CellFixture fixture;
-    WorkingArrays working(fixture.boxes, fixture.dm);
     for (MFIter mfi(fixture.states, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
         const auto states = fixture.states.const_array(mfi);
         const auto base = fixture.base.const_array(mfi);
@@ -254,15 +244,10 @@ TEST(AnelasticMicrophysicsWiring, MorrisonPopulatesProductionArrays)
         });
     }
     Gpu::streamSynchronize();
-    expect_copy_in_outputs(working, Real(1.0), 1);
 }
 
-// Motivation: WSM6 copy-in must populate its Pa pressure/temperature arrays
-// from the local p0/pi0 pair, not from a neighboring cell or an EOS Exner.
-TEST(AnelasticMicrophysicsWiring, WSM6CopyInPopulatesProductionArrays)
+void launch_wsm6_copy_in (const CellFixture& fixture, WorkingArrays& working)
 {
-    CellFixture fixture;
-    WorkingArrays working(fixture.boxes, fixture.dm);
     for (MFIter mfi(fixture.states, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
         const auto states = fixture.states.const_array(mfi);
         const auto base = fixture.base.const_array(mfi);
@@ -283,45 +268,25 @@ TEST(AnelasticMicrophysicsWiring, WSM6CopyInPopulatesProductionArrays)
         });
     }
     Gpu::streamSynchronize();
-    expect_copy_in_outputs(working, Real(1.0), 2);
 }
 
-// Motivation: WSM6 copy-out must write RhoTheta and moisture from updated
-// microphysics variables, reconstructing theta from held pressure in anelastic
-// mode. The compressible branch is checked separately so mode selection cannot
-// become permanently stuck on the anelastic path.
-TEST(AnelasticMicrophysicsWiring, WSM6CopyOutWritesConservedComponents)
+void prepare_wsm6_anelastic_state (const CellFixture& fixture, WorkingArrays& working)
 {
-    CellFixture fixture;
-    WorkingArrays working(fixture.boxes, fixture.dm);
-    MultiFab anelastic_state(fixture.boxes, fixture.dm, RhoQ11_comp + 1, 1);
-    MultiFab errors(fixture.boxes, fixture.dm, 1, 0);
-    anelastic_state.setVal(Real(0.0));
-
+    launch_wsm6_copy_in(fixture, working);
     for (MFIter mfi(fixture.states, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
-        const auto states_in = fixture.states.const_array(mfi);
-        const auto base = fixture.base.const_array(mfi);
-        const auto rho = working.rho.array(mfi);
-        const auto theta = working.theta.array(mfi);
         const auto tabs = working.tabs.array(mfi);
-        const auto pres = working.pres.array(mfi);
-        const auto qv = working.qv.array(mfi);
-        const auto qc = working.qc.array(mfi);
-        const auto qi = working.qi.array(mfi);
-        const auto qr = working.qpr.array(mfi);
-        const auto qs = working.qps.array(mfi);
-        const auto qg = working.qpg.array(mfi);
         ParallelFor(mfi.tilebox(), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-            wsm6_copy_state_to_micro_cell(
-                states_in, base, rho, theta, tabs, pres, qv, qc, qi, qr, qs, qg,
-                RdoCp, true, i, j, k);
             tabs(i,j,k) += (i == 0) ? Real(2.0) : Real(-1.5);
         });
     }
     Gpu::streamSynchronize();
+}
 
-    for (MFIter mfi(anelastic_state, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
-        const auto states = anelastic_state.array(mfi);
+void launch_wsm6_anelastic_copy_out (WorkingArrays& working,
+                                     MultiFab& state, MultiFab& errors)
+{
+    for (MFIter mfi(state, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+        const auto states = state.array(mfi);
         const auto rho = working.rho.array(mfi);
         const auto theta = working.theta.array(mfi);
         const auto tabs = working.tabs.const_array(mfi);
@@ -376,16 +341,16 @@ TEST(AnelasticMicrophysicsWiring, WSM6CopyOutWritesConservedComponents)
         });
     }
     Gpu::streamSynchronize();
-    EXPECT_LE(errors.max(0, 0, false), Real(2.0));
+}
 
-    MultiFab compressible_state(fixture.boxes, fixture.dm, RhoQ11_comp + 1, 1);
-    MultiFab compressible_theta(fixture.boxes, fixture.dm, 1, 1);
-    MultiFab compressible_errors(fixture.boxes, fixture.dm, 1, 0);
-    MultiFab::Copy(compressible_state, fixture.states, 0, 0, RhoQ11_comp + 1, 1);
-    for (MFIter mfi(compressible_state, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
-        const auto states = compressible_state.array(mfi);
+void launch_wsm6_compressible_copy_out (WorkingArrays& working,
+                                        MultiFab& state, MultiFab& theta,
+                                        MultiFab& errors)
+{
+    for (MFIter mfi(state, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+        const auto states = state.array(mfi);
         const auto rho = working.rho.array(mfi);
-        const auto theta = compressible_theta.array(mfi);
+        const auto theta_array = theta.array(mfi);
         const auto tabs = working.tabs.const_array(mfi);
         const auto pres = working.pres.const_array(mfi);
         const auto qv = working.qv.const_array(mfi);
@@ -396,11 +361,11 @@ TEST(AnelasticMicrophysicsWiring, WSM6CopyOutWritesConservedComponents)
         const auto qg = working.qpg.const_array(mfi);
         ParallelFor(mfi.tilebox(), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
             wsm6_copy_micro_to_state_cell(
-                states, rho, theta, tabs, pres, qv, qc, qi, qr, qs, qg,
+                states, rho, theta_array, tabs, pres, qv, qc, qi, qr, qs, qg,
                 false, RdoCp, i, j, k);
         });
-        const auto theta_read = compressible_theta.const_array(mfi);
-        const auto error = compressible_errors.array(mfi);
+        const auto theta_read = theta.const_array(mfi);
+        const auto error = errors.array(mfi);
         ParallelFor(mfi.tilebox(), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
             const Real expected = getThgivenRandT(
                 i == 0 ? Real(1.10) : Real(0.90),
@@ -410,18 +375,10 @@ TEST(AnelasticMicrophysicsWiring, WSM6CopyOutWritesConservedComponents)
         });
     }
     Gpu::streamSynchronize();
-    EXPECT_LE(compressible_errors.max(0, 0, false), Real(2.0));
 }
 
-// Motivation: the shared production HSE operation must populate a nontrivial
-// p0/pi0 column. The test chooses the pressure profile independently and only
-// checks the Exner relation after the production setter has filled both arrays.
-TEST(AnelasticBaseState, ProductionHSEPopulationUsesSharedOperation)
+void populate_hse_base_state (MultiFab& base)
 {
-    const BoxArray boxes(Box(IntVect(0, 0, 0), IntVect(0, 0, 1)));
-    const DistributionMapping dm(boxes);
-    MultiFab base(boxes, dm, BaseState::num_comps, 1);
-    base.setVal(Real(-777.0));
     for (MFIter mfi(base, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
         const auto pressure = base.array(mfi, BaseState::p0_comp);
         const auto exner = base.array(mfi, BaseState::pi0_comp);
@@ -435,6 +392,137 @@ TEST(AnelasticBaseState, ProductionHSEPopulationUsesSharedOperation)
     }
     base.FillBoundary(Periodicity::NonPeriodic());
     Gpu::streamSynchronize();
+}
+
+void populate_legacy_restart_base_state (MultiFab& base, const int legacy_ncomp)
+{
+    for (MFIter mfi(base, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+        const auto arr = base.array(mfi);
+        ParallelFor(mfi.tilebox(), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+            arr(i,j,k,BaseState::r0_comp) = Real(1.0);
+            arr(i,j,k,BaseState::p0_comp) = Real(100000.0) -
+                Real(500.0) * i - Real(100.0) * k;
+            erf_checkpoint::reconstruct_missing_pi0(
+                arr, legacy_ncomp, RdoCp, i, j, k);
+        });
+    }
+    base.FillBoundary(Periodicity::NonPeriodic());
+    Gpu::streamSynchronize();
+}
+
+void check_legacy_restart_ghosts (const MultiFab& base, MultiFab& diagnostics)
+{
+    for (MFIter mfi(diagnostics, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+        const auto arr = base.const_array(mfi);
+        const auto diag = diagnostics.array(mfi);
+        const Box valid = mfi.validbox();
+        const int ilo = valid.smallEnd(0), ihi = valid.bigEnd(0);
+        const int jlo = valid.smallEnd(1), jhi = valid.bigEnd(1);
+        const int klo = valid.smallEnd(2), khi = valid.bigEnd(2);
+        ParallelFor(mfi.growntilebox(1), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+            const bool in_domain = i >= 0 && i <= 1 && j == 0 && k >= 0 && k <= 1;
+            const bool is_valid = i >= ilo && i <= ihi && j >= jlo && j <= jhi &&
+                                  k >= klo && k <= khi;
+            diag(i,j,k,0) = in_domain ?
+                std::abs(arr(i,j,k,BaseState::pi0_comp) -
+                         getExnergivenP(arr(i,j,k,BaseState::p0_comp), RdoCp)) : Real(0.0);
+            diag(i,j,k,1) = in_domain && !is_valid ? Real(1.0) : Real(0.0);
+        });
+    }
+    Gpu::streamSynchronize();
+}
+
+void populate_current_restart_base_state (MultiFab& current)
+{
+    for (MFIter mfi(current, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+        const auto arr = current.array(mfi);
+        ParallelFor(mfi.tilebox(), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+            arr(i,j,k,BaseState::p0_comp) = Real(88000.0) + Real(100.0) * i;
+            arr(i,j,k,BaseState::pi0_comp) = Real(0.88) + Real(0.01) * i;
+            erf_checkpoint::reconstruct_missing_pi0(
+                arr, BaseState::num_comps, RdoCp, i, j, k);
+        });
+    }
+    Gpu::streamSynchronize();
+}
+
+} // namespace
+
+// Motivation: Kessler production copy-in must select both base-state
+// components, preserve cell-local values, convert Pa to mbar, and populate its
+// actual working arrays rather than only a scalar adapter.
+TEST(AnelasticMicrophysicsWiring, KesslerPopulatesProductionArrays)
+{
+    CellFixture fixture;
+    WorkingArrays working(fixture.boxes, fixture.dm);
+    launch_kessler_copy_in(fixture, working);
+    expect_copy_in_outputs(working, Real(0.01), 0);
+}
+
+// Motivation: SAM's production copy-in owns its mbar working pressure while
+// taking temperature from theta times the stored base Exner.
+TEST(AnelasticMicrophysicsWiring, SAMPopulatesProductionArrays)
+{
+    CellFixture fixture;
+    WorkingArrays working(fixture.boxes, fixture.dm);
+    launch_sam_copy_in(fixture, working);
+    expect_copy_in_outputs(working, Real(0.01), 1);
+}
+
+// Motivation: Morrison's production arrays must retain Pa pressure and its
+// existing nonnegative moisture clipping while using cell-local stored Exner.
+TEST(AnelasticMicrophysicsWiring, MorrisonPopulatesProductionArrays)
+{
+    CellFixture fixture;
+    WorkingArrays working(fixture.boxes, fixture.dm);
+    launch_morrison_copy_in(fixture, working);
+    expect_copy_in_outputs(working, Real(1.0), 1);
+}
+
+// Motivation: WSM6 copy-in must populate its Pa pressure/temperature arrays
+// from the local p0/pi0 pair, not from a neighboring cell or an EOS Exner.
+TEST(AnelasticMicrophysicsWiring, WSM6CopyInPopulatesProductionArrays)
+{
+    CellFixture fixture;
+    WorkingArrays working(fixture.boxes, fixture.dm);
+    launch_wsm6_copy_in(fixture, working);
+    expect_copy_in_outputs(working, Real(1.0), 2);
+}
+
+// Motivation: WSM6 copy-out must write RhoTheta and moisture from updated
+// microphysics variables, reconstructing theta from held pressure in anelastic
+// mode. The compressible branch is checked separately so mode selection cannot
+// become permanently stuck on the anelastic path.
+TEST(AnelasticMicrophysicsWiring, WSM6CopyOutWritesConservedComponents)
+{
+    CellFixture fixture;
+    WorkingArrays working(fixture.boxes, fixture.dm);
+    MultiFab anelastic_state(fixture.boxes, fixture.dm, RhoQ11_comp + 1, 1);
+    MultiFab errors(fixture.boxes, fixture.dm, 1, 0);
+    anelastic_state.setVal(Real(0.0));
+    prepare_wsm6_anelastic_state(fixture, working);
+    launch_wsm6_anelastic_copy_out(working, anelastic_state, errors);
+    EXPECT_LE(errors.max(0, 0, false), Real(2.0));
+
+    MultiFab compressible_state(fixture.boxes, fixture.dm, RhoQ11_comp + 1, 1);
+    MultiFab compressible_theta(fixture.boxes, fixture.dm, 1, 1);
+    MultiFab compressible_errors(fixture.boxes, fixture.dm, 1, 0);
+    MultiFab::Copy(compressible_state, fixture.states, 0, 0, RhoQ11_comp + 1, 1);
+    launch_wsm6_compressible_copy_out(
+        working, compressible_state, compressible_theta, compressible_errors);
+    EXPECT_LE(compressible_errors.max(0, 0, false), Real(2.0));
+}
+
+// Motivation: the shared production HSE operation must populate a nontrivial
+// p0/pi0 column. The test chooses the pressure profile independently and only
+// checks the Exner relation after the production setter has filled both arrays.
+TEST(AnelasticBaseState, ProductionHSEPopulationUsesSharedOperation)
+{
+    const BoxArray boxes(Box(IntVect(0, 0, 0), IntVect(0, 0, 1)));
+    const DistributionMapping dm(boxes);
+    MultiFab base(boxes, dm, BaseState::num_comps, 1);
+    base.setVal(Real(-777.0));
+    populate_hse_base_state(base);
 
     EXPECT_TRUE(base.is_finite());
     EXPECT_GT(base.min(BaseState::p0_comp, 0, false), Real(0.0));
@@ -459,54 +547,17 @@ TEST(LegacyBaseStateRestart, ReconstructsMissingExnerAndFillsInternalGhosts)
     MultiFab base(boxes, dm, BaseState::num_comps, 1);
     base.setVal(Real(777.0));
     const int legacy_ncomp = BaseState::pi0_comp;
-    for (MFIter mfi(base, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
-        const auto arr = base.array(mfi);
-        ParallelFor(mfi.tilebox(), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-            arr(i,j,k,BaseState::r0_comp) = Real(1.0);
-            arr(i,j,k,BaseState::p0_comp) = Real(100000.0) -
-                Real(500.0) * i - Real(100.0) * k;
-            erf_checkpoint::reconstruct_missing_pi0(
-                arr, legacy_ncomp, RdoCp, i, j, k);
-        });
-    }
-    base.FillBoundary(Periodicity::NonPeriodic());
-    Gpu::streamSynchronize();
+    populate_legacy_restart_base_state(base, legacy_ncomp);
 
     MultiFab diagnostics(boxes, dm, 2, 1);
     diagnostics.setVal(Real(0.0));
-    for (MFIter mfi(diagnostics, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
-        const auto arr = base.const_array(mfi);
-        const auto diag = diagnostics.array(mfi);
-        const Box valid = mfi.validbox();
-        const int ilo = valid.smallEnd(0), ihi = valid.bigEnd(0);
-        const int jlo = valid.smallEnd(1), jhi = valid.bigEnd(1);
-        const int klo = valid.smallEnd(2), khi = valid.bigEnd(2);
-        ParallelFor(mfi.growntilebox(1), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-            const bool in_domain = i >= 0 && i <= 1 && j == 0 && k >= 0 && k <= 1;
-            const bool is_valid = i >= ilo && i <= ihi && j >= jlo && j <= jhi &&
-                                  k >= klo && k <= khi;
-            diag(i,j,k,0) = in_domain ?
-                std::abs(arr(i,j,k,BaseState::pi0_comp) -
-                         getExnergivenP(arr(i,j,k,BaseState::p0_comp), RdoCp)) : Real(0.0);
-            diag(i,j,k,1) = in_domain && !is_valid ? Real(1.0) : Real(0.0);
-        });
-    }
-    Gpu::streamSynchronize();
+    check_legacy_restart_ghosts(base, diagnostics);
     EXPECT_LT(diagnostics.max(0, 1, false), Real(256.0) * std::numeric_limits<Real>::epsilon());
     EXPECT_EQ(diagnostics.max(1, 1, false), Real(1.0));
 
     MultiFab current(boxes, dm, BaseState::num_comps, 0);
     current.setVal(Real(0.0));
-    for (MFIter mfi(current, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
-        const auto arr = current.array(mfi);
-        ParallelFor(mfi.tilebox(), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-            arr(i,j,k,BaseState::p0_comp) = Real(88000.0) + Real(100.0) * i;
-            arr(i,j,k,BaseState::pi0_comp) = Real(0.88) + Real(0.01) * i;
-            erf_checkpoint::reconstruct_missing_pi0(
-                arr, BaseState::num_comps, RdoCp, i, j, k);
-        });
-    }
-    Gpu::streamSynchronize();
+    populate_current_restart_base_state(current);
     EXPECT_EQ(current.min(BaseState::pi0_comp, 0, false), Real(0.88));
     EXPECT_EQ(current.max(BaseState::pi0_comp, 0, false), Real(0.89));
 }
