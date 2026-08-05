@@ -16,8 +16,16 @@ amrex_probinit (const amrex_real* problo, const amrex_real* probhi)
     return std::make_unique<Problem>(problo, probhi);
 }
 
-Problem::Problem (const Real* /*problo*/, const Real* /*probhi*/)
+Problem::Problem (const Real* problo, const Real* probhi)
 {
+    ParmParse pp_erf("erf");
+    std::string prob_name;
+    pp_erf.query("prob_name", prob_name);
+    if (amrex::toLower(prob_name) == "cloud chamber" ||
+        amrex::toLower(prob_name) == "cloudchamber") {
+        m_cloud_chamber_config = erf_cloud_chamber::parse_config(problo, probhi);
+    }
+
     ParmParse pp_prob("prob");
     Real rho_0 =   1.0; int found_rho0 = pp_prob.query("rho_0", rho_0);
     Real p_inf        ; int found_p0   = pp_prob.query("p_inf", p_inf);
@@ -123,6 +131,10 @@ Problem::init_custom_pert (
     }
     else if (my_prob_name_ci == "anelastic wall diffusion") {
 #include "Prob/ERF_InitCustomPert_AnelasticWallDiffusion.H"
+    }
+    else if (my_prob_name_ci == "cloud chamber" ||
+             my_prob_name_ci == "cloudchamber") {
+#include "Prob/ERF_InitCustomPert_CloudChamber.H"
     }
     else if (my_prob_name_ci == "flow in a box") {
 #include "Prob/ERF_InitCustomPert_FlowInABox.H"

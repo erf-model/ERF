@@ -1,3 +1,6 @@
+/**
+ * \file ERF_SolverUtils.H
+ */
 #ifndef ERF_SOLVER_UTILS_H_
 #define ERF_SOLVER_UTILS_H_
 
@@ -8,6 +11,10 @@ using namespace amrex;
 /**
  * Define the domain boundary conditions for the (optional) Poisson solve
  * if we want to enforce that the initial conditions satisfy the constraint
+ *
+ * @param lev_geom Geometry used to identify periodic low-side boundaries
+ * @param l_domain_bc_type Domain boundary-condition names
+ * @return Low-side linear-operator boundary condition in each direction
  */
 inline Array<LinOpBCType,AMREX_SPACEDIM>
 get_lo_projection_bc (Geometry const& lev_geom,
@@ -30,6 +37,13 @@ get_lo_projection_bc (Geometry const& lev_geom,
     return r;
 }
 
+/**
+ * Define high-side domain boundary conditions for the projection solve.
+ *
+ * @param lev_geom Geometry used to identify periodic high-side boundaries
+ * @param l_domain_bc_type Domain boundary-condition names
+ * @return High-side linear-operator boundary condition in each direction
+ */
 inline Array<LinOpBCType,AMREX_SPACEDIM>
 get_hi_projection_bc (Geometry const& lev_geom,
                       Array<std::string,2*AMREX_SPACEDIM> l_domain_bc_type)
@@ -53,6 +67,15 @@ get_hi_projection_bc (Geometry const& lev_geom,
 
 #ifdef ERF_USE_FFT
 
+/**
+ * Define FFT boundary conditions on the specified solve box.
+ *
+ * @param lev_geom Geometry for the full level domain
+ * @param l_domain_bc_type Domain boundary-condition names
+ * @param bounding_box Box covered by the FFT solve
+ * @param use_real_bcs Whether real lateral boundary conditions are active
+ * @return Low/high FFT boundary-condition pair in each direction
+ */
 inline Array<std::pair<FFT::Boundary,FFT::Boundary>,AMREX_SPACEDIM>
 get_fft_bc (Geometry const& lev_geom,
             Array<std::string,2*AMREX_SPACEDIM> l_domain_bc_type,

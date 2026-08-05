@@ -3,14 +3,36 @@
 
 #include <ERF_MYNNStruct.H>
 
+/**
+ * @brief Large-eddy simulation closure type.
+ */
 AMREX_ENUM(LESType, None, Smagorinsky, Smagorinsky2D, Deardorff);
 
+/**
+ * @brief Reynolds-averaged turbulence closure type.
+ */
 AMREX_ENUM(RANSType, None, kEqn);
 
+/**
+ * @brief Planetary boundary-layer closure type.
+ */
 AMREX_ENUM(PBLType, None, MYJ, MYNN25, MYNNEDMF, YSU, YSUNew, MRF, SHOC, EAMXX_SHOC, NATIVE_SHOC);
 
+/**
+ * @brief Thermodynamic variable used for stability stratification.
+ */
 AMREX_ENUM(StratType, theta, thetav, thetal);
 
+/**
+ * @brief Query a scalar or per-level input value.
+ * @tparam T Value type accepted by ParmParse::query.
+ * @param pp ParmParse object to query.
+ * @param query_string Input key to query.
+ * @param query_var Destination value for the requested level.
+ * @param lev AMR level index.
+ * @param maxlev Maximum AMR level configured for the run.
+ * @return ParmParse query result, or zero if the key is absent.
+ */
 template <typename T>
 int
 query_one_or_per_level (
@@ -43,6 +65,16 @@ query_one_or_per_level (
   }
 }
 
+/**
+ * @brief Query a scalar or per-level enum input value using case-insensitive matching.
+ * @tparam T Enum type accepted by ParmParse::query_enum_case_insensitive.
+ * @param pp ParmParse object to query.
+ * @param query_string Input key to query.
+ * @param query_var Destination enum value for the requested level.
+ * @param lev AMR level index.
+ * @param maxlev Maximum AMR level configured for the run.
+ * @return ParmParse query result, or zero if the key is absent.
+ */
 template <typename T>
 int
 query_one_or_per_level_enum_case_insensitive (
@@ -81,6 +113,12 @@ query_one_or_per_level_enum_case_insensitive (
 struct TurbChoice
 {
 public:
+  /**
+   * @brief Read turbulence options for one AMR level from the input parameter database.
+   * @param lev AMR level index.
+   * @param max_level Maximum AMR level configured for the run.
+   * @param pp_prefix ParmParse prefix for the ERF input namespace.
+   */
   void init_params (int lev, int max_level, std::string pp_prefix)
   {
     amrex::ParmParse pp(pp_prefix);
@@ -328,6 +366,10 @@ public:
     }
   }
 
+  /**
+   * @brief Validate turbulence options against physical boundary conditions.
+   * @param phys_bc_type Physical boundary-condition types.
+   */
   void check_params (amrex::GpuArray<ERF_BC, AMREX_SPACEDIM*2>& phys_bc_type)
   {
       // BC compatibility
@@ -344,6 +386,10 @@ public:
       }
   }
 
+  /**
+   * @brief Print turbulence settings for one AMR level.
+   * @param lev AMR level index.
+   */
   void display (int lev)
   {
     amrex::Print() << "Turbulence Settings at level " << lev << std::endl;
@@ -557,21 +603,37 @@ public:
   // PBL model
   PBLType pbl_type = PBLType::None;
 
+  /**
+   * @brief Query whether this level uses the EAMxx SHOC PBL scheme.
+   * @return True if PBLType::EAMXX_SHOC is selected.
+   */
   bool uses_eamxx_shoc () const noexcept
   {
       return pbl_type == PBLType::EAMXX_SHOC;
   }
 
+  /**
+   * @brief Query whether this level uses the native SHOC PBL scheme.
+   * @return True if PBLType::NATIVE_SHOC is selected.
+   */
   bool uses_native_shoc () const noexcept
   {
       return pbl_type == PBLType::NATIVE_SHOC;
   }
 
+  /**
+   * @brief Query whether this level uses any SHOC-family PBL scheme.
+   * @return True if native or EAMxx SHOC is selected.
+   */
   bool uses_shoc_family () const noexcept
   {
       return uses_eamxx_shoc() || uses_native_shoc();
   }
 
+  /**
+   * @brief Query whether the selected PBL scheme requires surface-layer boundary conditions.
+   * @return True if the PBL scheme requires a lower surface-layer boundary.
+   */
   bool pbl_requires_surface_layer () const noexcept
   {
       return (pbl_type == PBLType::MYNN25)   ||
@@ -582,6 +644,10 @@ public:
              uses_shoc_family();
   }
 
+  /**
+   * @brief Query whether the selected PBL scheme suppresses microphysics condensation.
+   * @return True when the PBL scheme owns condensation handling.
+   */
   bool pbl_suppresses_microphysics_condensation () const noexcept
   {
       return uses_shoc_family();
@@ -664,4 +730,125 @@ public:
                           // Z-direction only
   bool diffuse_tke_3D = true; // if numerical diffusion is turned on
 };
+
+/**
+ * @var TurbChoice::les_type
+ * @brief Selected LES closure.
+ * @var TurbChoice::Pr_t
+ * @brief Turbulent Prandtl number.
+ * @var TurbChoice::Pr_t_inv
+ * @brief Inverse turbulent Prandtl number.
+ * @var TurbChoice::Sc_t
+ * @brief Turbulent Schmidt number.
+ * @var TurbChoice::Sc_t_inv
+ * @brief Inverse turbulent Schmidt number.
+ * @var TurbChoice::Cs
+ * @brief Smagorinsky model coefficient.
+ * @var TurbChoice::smag2d
+ * @brief Whether the 2-D Smagorinsky formulation is used.
+ * @var TurbChoice::Ce
+ * @brief Deardorff dissipation coefficient.
+ * @var TurbChoice::Ce_wall
+ * @brief Wall value for the Deardorff dissipation coefficient.
+ * @var TurbChoice::Ck
+ * @brief Deardorff eddy-viscosity coefficient.
+ * @var TurbChoice::Cmu0
+ * @brief One-equation RANS Cmu0 coefficient.
+ * @var TurbChoice::Cb
+ * @brief One-equation RANS buoyancy coefficient.
+ * @var TurbChoice::Rt_crit
+ * @brief Critical turbulent Reynolds number.
+ * @var TurbChoice::Rt_min
+ * @brief Minimum turbulent Reynolds number.
+ * @var TurbChoice::l_g_max
+ * @brief Maximum geometric length scale.
+ * @var TurbChoice::sigma_k
+ * @brief TKE diffusivity coefficient denominator.
+ * @var TurbChoice::theta_ref
+ * @brief Reference potential temperature for stable stratification.
+ * @var TurbChoice::strat_type
+ * @brief Thermodynamic variable used for stability stratification.
+ * @var TurbChoice::mix_isotropic
+ * @brief Whether subgrid mixing uses isotropic length scales.
+ * @var TurbChoice::use_Ri_correction
+ * @brief Whether Richardson-number correction is applied.
+ * @var TurbChoice::Ri_crit
+ * @brief Critical Richardson number for stability correction.
+ * @var TurbChoice::rans_type
+ * @brief Selected RANS closure.
+ * @var TurbChoice::dirichlet_k
+ * @brief Whether TKE uses Dirichlet boundary treatment.
+ * @var TurbChoice::pbl_type
+ * @brief Selected PBL closure.
+ * @var TurbChoice::pbl_mynn
+ * @brief MYNN level-2.5 closure coefficients.
+ * @var TurbChoice::pbl_mynn_level2
+ * @brief MYNN level-2 closure coefficients for limiting.
+ * @var TurbChoice::use_kturb
+ * @brief Whether any turbulence model is active.
+ * @var TurbChoice::use_keqn
+ * @brief Whether a microscale TKE closure is active.
+ * @var TurbChoice::use_pbl_tke
+ * @brief Whether a mesoscale PBL TKE closure is active.
+ * @var TurbChoice::use_tke
+ * @brief Whether any TKE or QKE closure is active.
+ * @var TurbChoice::init_tke_from_ustar
+ * @brief Whether initial TKE/QKE profiles are based on surface friction velocity.
+ * @var TurbChoice::tke_min
+ * @brief Minimum TKE/QKE value.
+ * @var TurbChoice::pbl_ysu_coriolis_freq
+ * @brief Coriolis frequency used by YSU-family PBL schemes.
+ * @var TurbChoice::pbl_ysu_use_consistent_coriolis
+ * @brief Whether YSU uses the ERF Coriolis frequency.
+ * @var TurbChoice::pbl_ysu_force_over_water
+ * @brief Whether YSU is forced to use over-water behavior.
+ * @var TurbChoice::pbl_ysu_land_Ribcr
+ * @brief Critical bulk Richardson number over land for stable YSU conditions.
+ * @var TurbChoice::pbl_ysu_unst_Ribcr
+ * @brief Critical bulk Richardson number for unstable YSU conditions.
+ * @var TurbChoice::enable_ysu_liquid_theta
+ * @brief Whether YSU uses liquid-water virtual potential temperature for stability.
+ * @var TurbChoice::enable_ysu_countergradient
+ * @brief Whether YSU countergradient corrections are enabled.
+ * @var TurbChoice::enable_ysu_terrain_pblh_floor
+ * @brief Whether YSU applies a terrain-following PBL-height floor.
+ * @var TurbChoice::enable_ysu_sat_limiter
+ * @brief Whether YSU applies a saturation limiter to moisture countergradient terms.
+ * @var TurbChoice::enable_ysu_topdown
+ * @brief Whether YSU top-down mixing is enabled.
+ * @var TurbChoice::enable_ysu_entrainment
+ * @brief Whether YSU entrainment-layer parameterization is enabled.
+ * @var TurbChoice::enable_ysu_cloud_pblh
+ * @brief Whether YSU cloud-based PBL-height detection is enabled.
+ * @var TurbChoice::ysu_qcloud_threshold
+ * @brief Cloud liquid water threshold for YSUNew [kg/kg].
+ * @var TurbChoice::ysu_moistvars
+ * @brief Whether YSU applies turbulence to moisture variables.
+ * @var TurbChoice::pbl_ysunew_highres_bounds
+ * @brief Whether YSUNew applies high-resolution grid-dependent diffusivity bounds.
+ * @var TurbChoice::pbl_mrf_coriolis_freq
+ * @brief Coriolis frequency used by the MRF PBL scheme.
+ * @var TurbChoice::pbl_mrf_Ribcr
+ * @brief Critical bulk Richardson number for the MRF PBL scheme.
+ * @var TurbChoice::pbl_mrf_const_b
+ * @brief MRF constant used to compute PBL height.
+ * @var TurbChoice::pbl_mrf_sf
+ * @brief MRF surface flux value used to compute PBL height.
+ * @var TurbChoice::mrf_moistvars
+ * @brief Whether MRF applies turbulence to moisture variables.
+ * @var TurbChoice::enable_mrf_countergradient
+ * @brief Whether MRF countergradient corrections are enabled.
+ * @var TurbChoice::enable_mrf_cloud_adjustment
+ * @brief Whether MRF cloud-aware stability adjustments are enabled.
+ * @var TurbChoice::pbl_mrf_highres_bounds
+ * @brief Whether MRF applies high-resolution grid-dependent diffusivity bounds.
+ * @var TurbChoice::enable_mrf_unbounded_vpert
+ * @brief Whether MRF leaves VPERT unlimited by GAMCRT.
+ * @var TurbChoice::pbl_mrf_use_zero_ri_extent
+ * @brief Whether MRF uses the Ri=0 K-profile extent.
+ * @var TurbChoice::advect_tke
+ * @brief Whether TKE/QKE is advected.
+ * @var TurbChoice::diffuse_tke_3D
+ * @brief Whether three-dimensional numerical diffusion is applied to TKE/QKE.
+ */
 #endif

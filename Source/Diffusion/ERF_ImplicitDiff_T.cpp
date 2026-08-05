@@ -12,13 +12,15 @@ using namespace amrex;
  *
  * @param[in   ] bx cell-centered box to loop over
  * @param[in   ] domain box of the whole domain
- * @param[in   ] dt time step
+ * @param[in   ] level AMR level
+ * @param[in   ] n conserved component index
+ * @param[in   ] dt_d time step
  * @param[in   ] bc_neumann_vals values of derivatives if bc_type == Neumann
  * @param[inout] cell_data conserved cell-centered rho, rho theta
  * @param[in   ] z_nd nodal array of z
  * @param[in   ] detJ Jacobian determinant
  * @param[in   ] cellSizeInv inverse cell size array
- * @param[inout] hfx_z heat flux in z-dir
+ * @param[in   ] scalar_zflux scalar vertical flux in z-dir
  * @param[in   ] mu_turb turbulent viscosity
  * @param[in   ] solverChoice container of parameters
  * @param[in   ] bc_ptr container with boundary conditions
@@ -114,7 +116,6 @@ ImplicitDiffForStateLU_T (const Box& bx,
                             cell_data, mu_turb, d_alpha_eff, d_eddy_diff_idz,
                             prim_index, prim_scal_index, l_consA, l_turb);
 
-                met_h_zeta_lo = Compute_h_zeta_AtKface(i,j,klo  ,cellSizeInv,z_nd);
                 met_h_zeta_hi = Compute_h_zeta_AtKface(i,j,klo+1,cellSizeInv,z_nd);
 
                 a_tmp      = zero;
@@ -181,10 +182,10 @@ ImplicitDiffForStateLU_T (const Box& bx,
                             cell_data, mu_turb, d_alpha_eff, d_eddy_diff_idz,
                             prim_index, prim_scal_index, l_consA, l_turb);
 
+                // Lower-face metric shared with row khi-1.
                 met_h_zeta_lo = Compute_h_zeta_AtKface(i,j,khi  ,cellSizeInv,z_nd);
-                met_h_zeta_hi = Compute_h_zeta_AtKface(i,j,khi+1,cellSizeInv,z_nd);
 
-                a_tmp      = -Fact * rhoAlpha_lo * dz_inv / met_h_zeta_hi;
+                a_tmp      = -Fact * rhoAlpha_lo * dz_inv / met_h_zeta_lo;
                 c_tmp      = zero;
                 b_tmp      = detJ(i,j,khi) * cell_data(i,j,khi,Rho_comp) - a_tmp - c_tmp;
                 inv_b2_tmp = one / (b_tmp - a_tmp * coeffG_a(i,j,khi-1));
@@ -227,10 +228,11 @@ ImplicitDiffForStateLU_T (const Box& bx,
  * remains an experimental feature and has *not* been tested yet with terrain.
  *
  * @param[in   ] bx cell-centered box to loop over
- * @param[in   ] domain box of the whole domain
- * @param[in   ] dt time step
+ * @param[in   ] level AMR level
+ * @param[in   ] dt_d time step
  * @param[in   ] cell_data conserved cell-centered rho
  * @param[inout] face_data conserved momentum
+ * @param[in   ] tau stress contribution to momentum
  * @param[in   ] tau_corr stress contribution to momentum that will be corrected by the implicit solve
  * @param[in   ] z_nd nodal array of z
  * @param[in   ] detJ Jacobian determinant
@@ -240,6 +242,7 @@ ImplicitDiffForStateLU_T (const Box& bx,
  * @param[in   ] bc_ptr container with boundary conditions
  * @param[in   ] use_SurfLayer whether we have turned on subgrid diffusion
  * @param[in   ] implicit_fac if 1 then fully implicit; if 0 then fully explicit
+ * @param[in   ] use_ysu_mom_countergradient whether to include YSU momentum countergradient correction
  */
 template <int stagdir>
 void
@@ -270,8 +273,11 @@ ImplicitDiffForMomLU_T (const Box& bx,
     TurbChoice tc = solverChoice.turbChoice[level];
     bool l_consA  = (dc.molec_diff_type == MolecDiffType::ConstantAlpha);
     bool l_turb   = tc.use_kturb;
-    Real mu_eff = (l_consA) ? two * dc.dynamic_viscosity / dc.rho0_trans
-                            : two * dc.dynamic_viscosity;
+    // The off-diagonal correction strains for u/v contain a factor of 1/2,
+    // while the diagonal correction strain for w does not.
+    constexpr Real molec_fac = (stagdir == 2) ? two : one;
+    Real mu_eff = (l_consA) ? molec_fac * dc.dynamic_viscosity / dc.rho0_trans
+                            : molec_fac * dc.dynamic_viscosity;
 
     // g(S*) coefficient
     // stagdir==0: tau_corr = myhalf * du/dz * mu_tot
@@ -395,7 +401,10 @@ ImplicitDiffForMomLU_T (const Box& bx,
                   } else {
                       // NOTE: wall is 1/2 dz away (2 dz_inv)
                       a_tmp = -two * Fact * rhoAlpha_lo * dz_inv / met_h_zeta_lo;
-                      RHS_a(i,j,klo) += two * rhoAlpha_lo * face_data(i,j,klo-1) * dz_inv * dz_inv / met_h_zeta_lo;
+                      const Real rho_wall = myhalf * ( cell_data(i     ,j     ,klo-1,Rho_comp)
+                                                     + cell_data(i-ioff,j-joff,klo-1,Rho_comp) );
+                      const Real wall_velocity = face_data(i,j,klo-1) / rho_wall;
+                      RHS_a(i,j,klo) -= a_tmp * wall_velocity;
                   }
               } else if (use_SurfLayer) {
                   // NOTE: tau = -mu*d_z(u_i) w/ SL
@@ -485,7 +494,10 @@ ImplicitDiffForMomLU_T (const Box& bx,
                   } else {
                       // NOTE: wall is 1/2 dz away (2 dz_inv)
                       c_tmp = -two * Fact * rhoAlpha_hi * dz_inv / met_h_zeta_hi;
-                      RHS_a(i,j,khi) += two * rhoAlpha_hi * face_data(i,j,khi+1) * dz_inv * dz_inv / met_h_zeta_hi;
+                      const Real rho_wall = myhalf * ( cell_data(i     ,j     ,khi+1,Rho_comp)
+                                                     + cell_data(i-ioff,j-joff,khi+1,Rho_comp) );
+                      const Real wall_velocity = face_data(i,j,khi+1) / rho_wall;
+                      RHS_a(i,j,khi) -= c_tmp * wall_velocity;
                   }
               }
 

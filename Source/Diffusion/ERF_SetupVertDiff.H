@@ -1,3 +1,4 @@
+/** \cond */
     const auto& dom_lo = lbound(domain);
     const auto& dom_hi = ubound(domain);
     amrex::ignore_unused(dom_lo, dom_hi);
@@ -97,3 +98,4 @@
     // Capture pointers for device code
     Real* d_alpha_eff     = alpha_eff_d.data();
     [[maybe_unused]] int*  d_eddy_diff_idz = eddy_diff_idz_d.data();
+/** \endcond */

@@ -1,3 +1,6 @@
+/**
+ * \file ERF_PoissonSolve_tb.cpp
+ */
 #include "ERF.H"
 #include "ERF_Utils.H"
 #include "ERF_SolverUtils.H"
@@ -6,6 +9,12 @@
 
 using namespace amrex;
 
+/**
+ * Test whether any projection boundary condition is Dirichlet.
+ *
+ * @param bcs Boundary condition types for each coordinate direction
+ * @return True if at least one direction uses a Dirichlet condition
+ */
 bool
 projection_has_dirichlet (Array<LinOpBCType,AMREX_SPACEDIM> bcs)
 {
@@ -18,6 +27,10 @@ projection_has_dirichlet (Array<LinOpBCType,AMREX_SPACEDIM> bcs)
 /**
  * Project the single-level velocity field to enforce incompressibility with a
  * thin body
+ *
+ * @param lev Level index for the thin-body projection
+ * @param dt Time step used in the projection update
+ * @param vars State MultiFabs containing the velocity fields to project
  */
 void ERF::project_velocity_tb (int lev, double l_dt_d, Vector<MultiFab>& vmf)
 {
