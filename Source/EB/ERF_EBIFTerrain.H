@@ -73,7 +73,7 @@ public:
         amrex::Real terr_z{amrex::Real(0.0)};
 
         // z_stretched
-        const int k1 = std::min(static_cast<int>(std::floor((z-prob_lo_z) / dz)), k_hi - 1);
+        const int k1 = amrex::Clamp(static_cast<int>(std::floor((z-prob_lo_z) / dz)), 0, k_hi - 1);
         const amrex::Real z1 = prob_lo_z + k1*dz;
         const amrex::Real remainder_z = (z - z1)/dz;
         amrex::Real z_stretched = prob_lo_z;
