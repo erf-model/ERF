@@ -854,6 +854,118 @@ void WDM6::Advance(const Real& dt_advance,
 #endif
 
             // ============================================================
+            // Step 3e: Rain sedimentation substeps (G5b)
+            // Match the bounded top-down rain/nr transport loop and
+            // slope_rain refresh that immediately follows G5a in Fortran.
+            // ============================================================
+#if !defined(AMREX_USE_GPU)
+            if (microphysics_debug > 0 && diag_col_in_tile) {
+                std::printf("WDM6-CPP_PRE_G5B %3d %24.16E %24.16E %24.16E %24.16E %24.16E %24.16E\n",
+                            diag_k + 1,
+                            static_cast<double>(qr_arr(diag_i,diag_j,diag_k)),
+                            static_cast<double>(nr_arr(diag_i,diag_j,diag_k)),
+                            static_cast<double>(work1_arr(diag_i,diag_j,diag_k,0)),
+                            static_cast<double>(workn_arr(diag_i,diag_j,diag_k)),
+                            static_cast<double>(mstep_arr(diag_i,diag_j,0)),
+                            static_cast<double>(delz_arr(diag_i,diag_j,diag_k)));
+                std::fflush(stdout);
+            }
+#endif
+            ParallelFor(box2d, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+                amrex::ignore_unused(k);
+                const int col_mstep = mstep_arr(i,j,0);
+                for (int n = 1; n <= mstepmax; ++n) {
+                    if (n > col_mstep) {
+                        continue;
+                    }
+
+                    const int kk_top = khi;
+                    const Real top_flux_qr = den_arr(i,j,kk_top) * qr_arr(i,j,kk_top)
+                                           * work1_arr(i,j,kk_top,0) / static_cast<Real>(col_mstep);
+                    const Real top_flux_nr = nr_arr(i,j,kk_top)
+                                           * workn_arr(i,j,kk_top) / static_cast<Real>(col_mstep);
+
+                    qr_arr(i,j,kk_top) = amrex::max(
+                        qr_arr(i,j,kk_top) - top_flux_qr * dtcld / den_arr(i,j,kk_top),
+                        Real(0.0));
+                    nr_arr(i,j,kk_top) = amrex::max(
+                        nr_arr(i,j,kk_top) - top_flux_nr * dtcld,
+                        Real(0.0));
+
+                    Real flux_qr_above = top_flux_qr;
+                    Real flux_nr_above = top_flux_nr;
+                    for (int kk = khi - 1; kk >= klo; --kk) {
+                        const Real flux_qr = den_arr(i,j,kk) * qr_arr(i,j,kk)
+                                           * work1_arr(i,j,kk,0) / static_cast<Real>(col_mstep);
+                        const Real flux_nr = nr_arr(i,j,kk)
+                                           * workn_arr(i,j,kk) / static_cast<Real>(col_mstep);
+
+                        const Real dqr_self = amrex::min(
+                            flux_qr * dtcld / den_arr(i,j,kk),
+                            qr_arr(i,j,kk));
+                        const Real dqr_from_above = amrex::min(
+                            flux_qr_above * delz_arr(i,j,kk+1) / delz_arr(i,j,kk)
+                                * dtcld / den_arr(i,j,kk),
+                            qr_arr(i,j,kk+1));
+                        const Real dnr_self = amrex::min(
+                            flux_nr * dtcld,
+                            nr_arr(i,j,kk));
+                        const Real dnr_from_above = amrex::min(
+                            flux_nr_above * delz_arr(i,j,kk+1) / delz_arr(i,j,kk)
+                                * dtcld,
+                            nr_arr(i,j,kk+1));
+
+                        qr_arr(i,j,kk) = amrex::max(
+                            qr_arr(i,j,kk) - dqr_self + dqr_from_above,
+                            Real(0.0));
+                        nr_arr(i,j,kk) = amrex::max(
+                            nr_arr(i,j,kk) - dnr_self + dnr_from_above,
+                            Real(0.0));
+
+                        flux_qr_above = flux_qr;
+                        flux_nr_above = flux_nr;
+                    }
+
+                    for (int kk = klo; kk <= khi; ++kk) {
+                        Real rain_rslope, rain_rslopeb, rain_rslope2, rain_rslope3;
+                        Real rain_vt, rain_vtn;
+                        wdm6_slope_rain_cell(
+                            qr_arr(i,j,kk), nr_arr(i,j,kk),
+                            den_arr(i,j,kk), denfac_arr(i,j,kk),
+                            Real(qcrmin), Real(nrmin),
+                            rslopermax_loc, rsloperbmax_loc,
+                            rsloper2max_loc, rsloper3max_loc,
+                            Real(bvtr), pvtr_loc, pvtrn_loc, pidnr_loc,
+                            rain_rslope, rain_rslopeb, rain_rslope2, rain_rslope3,
+                            rain_vt, rain_vtn);
+                        rslope_arr(i,j,kk,0) = rain_rslope;
+                        rslopeb_arr(i,j,kk,0) = rain_rslopeb;
+                        rslope2_arr(i,j,kk,0) = rain_rslope2;
+                        rslope3_arr(i,j,kk,0) = rain_rslope3;
+                        work1_arr(i,j,kk,0) = rain_vt / delz_arr(i,j,kk);
+                        workn_arr(i,j,kk) = rain_vtn / delz_arr(i,j,kk);
+                    }
+                }
+            });
+#if !defined(AMREX_USE_GPU)
+            if (microphysics_debug > 0 && diag_col_in_tile) {
+                std::printf("WDM6-CPP_POST_G5B %3d %24.16E %24.16E %24.16E %24.16E %24.16E %24.16E %24.16E %24.16E %24.16E %24.16E\n",
+                            diag_k + 1,
+                            static_cast<double>(qr_arr(diag_i,diag_j,diag_k)),
+                            static_cast<double>(nr_arr(diag_i,diag_j,diag_k)),
+                            static_cast<double>(rslope_arr(diag_i,diag_j,diag_k,0)),
+                            static_cast<double>(rslopeb_arr(diag_i,diag_j,diag_k,0)),
+                            static_cast<double>(rslope2_arr(diag_i,diag_j,diag_k,0)),
+                            static_cast<double>(rslope3_arr(diag_i,diag_j,diag_k,0)),
+                            static_cast<double>(work1_arr(diag_i,diag_j,diag_k,0)),
+                            static_cast<double>(workn_arr(diag_i,diag_j,diag_k)),
+                            static_cast<double>(delz_arr(diag_i,diag_j,diag_k)),
+                            static_cast<double>(dtcld));
+                std::fflush(stdout);
+            }
+#endif
+
+            // ============================================================
             // Step 4: WDM6 CCN Activation
             // ============================================================
 #if !defined(AMREX_USE_GPU)
@@ -1098,8 +1210,6 @@ void WDM6::Advance(const Real& dt_advance,
         // WDM6 constants for terminal velocity
         const Real avts_loc = Real(11.72);
         const Real bvts_loc = Real(0.41);
-        const Real avtr_loc = Real(841.9);
-        const Real bvtr_loc = Real(0.8);
         const Real avtg_loc = Real(330.0);  // Graupel fall speed coefficient
         const Real bvtg_loc = Real(0.89);
 
@@ -1112,27 +1222,6 @@ void WDM6::Advance(const Real& dt_advance,
             for (int kk = khi; kk >= klo; --kk) {
                 const Real den_loc = den_arr(i,j,kk);
                 const Real denfac = std::sqrt(Real(1.28) / den_loc);
-
-                // Rain sedimentation (double-moment with nr)
-                if (qr_arr(i,j,kk) > Real(1.e-9) && nr_arr(i,j,kk) > Real(1.e-2)) {
-                    Real lamdar = std::pow(
-                        (pidnr_loc * nr_arr(i,j,kk) * den_loc) / (den_loc * qr_arr(i,j,kk)),
-                        Real(1.0)/Real(3.0)
-                    );
-                    Real vt = avtr_loc * std::pow(Real(1.0) / lamdar, bvtr_loc) * denfac;
-                    Real flux_qr = amrex::min(qr_arr(i,j,kk) * vt * dt_advance / dz_sedi, qr_arr(i,j,kk));
-                    Real flux_nr = amrex::min(nr_arr(i,j,kk) * vt * dt_advance / dz_sedi, nr_arr(i,j,kk));
-
-                    qr_arr(i,j,kk) -= flux_qr;
-                    nr_arr(i,j,kk) -= flux_nr;
-
-                    if (kk > klo) {
-                        qr_arr(i,j,kk-1) += flux_qr;
-                        nr_arr(i,j,kk-1) += flux_nr;
-                    } else {
-                        precip_rain += flux_qr * den_loc * dz_sedi;
-                    }
-                }
 
                 // Snow sedimentation (single-moment)
                 if (qs_arr(i,j,kk) > Real(1.e-9)) {
