@@ -22,6 +22,9 @@ These are campaign habits and operator-level behaviors that matter but are not c
 - Re-opening an early group invalidates downstream closure until the earlier scope is re-established.
 - Use bounded refinement when a coarse milestone fails; do not jump directly to sprawling manual scans.
 - Keep operator workflows small-process and agentic. Avoid replacing judgment with a monolithic automation script.
+- Re-check the source corpus when extracted rules are too vague to choose a low-cost operator action safely.
+- Re-check the source corpus before inventing new campaign habits around provenance, rerun hygiene, artifact layout, or ledger practice.
+- If the same underspecified operator question recurs across turns and the source corpus has a stable answer, promote that answer into the extracted skill package.
 
 ## Extraction Discipline
 - The source corpus includes markdown and TSV files; both must survive the split with clear homes.
