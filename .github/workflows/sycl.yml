@@ -10,6 +10,7 @@ on:
 
   pull_request:
     branches: [development]
+    types: [opened, synchronize, reopened, closed]
 
 concurrency:
   group: ${{ github.ref }}-${{ github.head_ref }}-sycl
@@ -17,6 +18,8 @@ concurrency:
 
 jobs:
   Build-And-Test-SYCL:
+    # The closed event exists only to cancel in-progress runs via concurrency.
+    if: github.event.action != 'closed'
     name: oneAPI SYCL - Mesh ${{matrix.mesh_precision}} Particles ${{matrix.particles}} ${{matrix.particles_precision}}
     runs-on: ubuntu-24.04
     strategy:

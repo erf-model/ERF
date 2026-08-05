@@ -1,3 +1,6 @@
+/**
+ * \file ERF_TerrainPoisson.cpp
+ */
 #ifdef ERF_USE_FFT
 
 #include "ERF_TerrainPoisson.H"

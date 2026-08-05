@@ -20,6 +20,12 @@ using namespace amrex;
 
 #include "ERF_NCWpsFile.H"
 
+/**
+ * Determine which WRF density variables are available in a NetCDF file.
+ *
+ * @param fname Path to the WRF input file
+ * @return 1 when ALT density should be used, 0 when ALB plus AL should be used
+ */
 bool CheckForDensity (const std::string& fname)
 {
     int failed = false;
@@ -91,6 +97,13 @@ init_base_state_from_wrfinput (const Box& subdomain,
                                const Real& TLP_STRAT,
                                const Real& P_STRAT);
 
+/**
+ * Read start_time from the first WRF input file.
+ *
+ * @param lev Integer specifying the current level
+ * @param fname Path to the WRF input file
+ * @return Epoch time read from the file
+ */
 double
 read_start_time_from_wrfinput (int lev, const std::string& fname)
 {
@@ -122,6 +135,17 @@ read_start_time_from_wrfinput (int lev, const std::string& fname)
     return NC_epochTime;
 }
 
+/**
+ * Read WRF base-state thermodynamic parameters from a NetCDF file.
+ *
+ * @param fname Path to the WRF input file
+ * @param T00 Sea-level base-state temperature
+ * @param P00 Sea-level base-state pressure
+ * @param TLP Base-state lapse rate
+ * @param TISO Isothermal stratosphere temperature
+ * @param TLP_STRAT Stratospheric lapse rate
+ * @param P_STRAT Pressure at the stratosphere transition
+ */
 void
 read_base_state_params_from_wrfinput (const std::string& fname,
                                       Real& T00,
@@ -203,6 +227,7 @@ read_base_state_params_from_wrfinput (const std::string& fname,
  * ERF function that initializes data from a WRF dataset
  *
  * @param lev Integer specifying the current level
+ * @param mf_PSFC MultiFab storing surface pressure for this level
  */
 void
 ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev)
@@ -1295,19 +1320,22 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev)
 /**
  * Helper function to initialize hydrostatic base state data from WRF dataset
  *
- * @param subomdain        Box specifying the index space we are to initialize
+ * @param subdomain        Box specifying the index space we are to initialize
  * @param l_rdOcp          Real constant specifying Rhydberg constant ($R_d$) divided by specific heat at constant pressure ($c_p$)
- * @param moisture_type    Number of moist quantities
- * @param n_qstate_moist   Number of moist quantities
- * @param cons             MultiFab of cell-centered variables
  * @param p_hse            MultiFab holding the hydrostatic base state pressure to be initialized
  * @param pi_hse           MultiFab holding the hydrostatic base state Exner pressure to be initialized
  * @param th_hse           MultiFab holding the hydrostatic base state potential temperature to be initialized
  * @param qv_hse           MultiFab holding the hydrostatic base state qv to be initialized
  * @param r_hse            MultiFab holding the hydrostatic base state density to be initialized
  * @param mf_PB            MultiFab holding WRF data specifying base state pressure
- * @param mf_P             MultiFab holding WRF data specifying pressure perturbation -- also used in base state
- * @param use_P_eos        Should we overwrite the pressure we read by the pressure computed from the EOS?
+ * @param mf_ALB           Optional MultiFab holding inverse density perturbation data
+ * @param z_phys_nd        Optional terrain nodal z-coordinate MultiFab
+ * @param T00              Sea-level base-state temperature
+ * @param P00              Sea-level base-state pressure
+ * @param TLP              Base-state lapse rate
+ * @param TISO             Isothermal stratosphere temperature
+ * @param TLP_STRAT        Stratospheric lapse rate
+ * @param P_STRAT          Pressure at the stratosphere transition
  */
 void
 init_base_state_from_wrfinput (const Box& subdomain,
@@ -1513,6 +1541,7 @@ init_base_state_from_wrfinput (const Box& subdomain,
  * @param mf_PH  MultiFab storing WRF terrain coordinate data (PH)
  * @param mf_PHB MultiFab storing WRF terrain coordinate data (PHB)
  * @param domain Box holding index space of computational domain
+ * @return Height assigned to the top of the ERF domain
  */
 Real
 compute_terrain_top_and_bottom (const MultiFab& mf_PH,
@@ -1653,10 +1682,13 @@ compute_terrain_top_and_bottom (const MultiFab& mf_PH,
 /**
  * Helper function for initializing terrain coordinates from a WRF dataset.
  *
- * @param lev Integer specifying the current level
- * @param z_phys FArrayBox specifying the node-centered z coordinates of the terrain
- * @param NC_PH_fab Vector of FArrayBox objects storing WRF terrain coordinate data (PH)
- * @param NC_PHB_fab Vector of FArrayBox objects storing WRF terrain coordinate data (PHB)
+ * The unused level argument is retained for interface compatibility.
+ *
+ * @param z_top Height assigned to the top of the ERF domain
+ * @param subdomain Box specifying the index space we are initializing
+ * @param z_phys MultiFab specifying the node-centered z coordinates of the terrain
+ * @param mf_PH MultiFab storing WRF perturbation geopotential data
+ * @param mf_PHB MultiFab storing WRF base-state geopotential data
  */
 void
 init_terrain_from_wrfinput (int /*lev*/,

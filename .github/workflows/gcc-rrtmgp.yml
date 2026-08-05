@@ -1,6 +1,10 @@
 name: Linux GCC NetCDF RRTMGP
 
-on: [push, pull_request, workflow_dispatch]
+on:
+  push:
+  pull_request:
+    types: [opened, synchronize, reopened, closed]
+  workflow_dispatch:
 
 concurrency:
   group: ${{ github.ref }}-${{ github.head_ref }}-linux-gcc-rrtmgp
@@ -8,6 +12,8 @@ concurrency:
 
 jobs:
   library:
+    # The closed event exists only to cancel in-progress runs via concurrency.
+    if: github.event.action != 'closed'
     name: GNU@9.3 C++17 Release - NetCDF ${{matrix.netcdf}} - Particles ${{matrix.particles}} - RRTMGP ${{matrix.rrtmgp}}
     runs-on: ubuntu-22.04
     permissions:

@@ -1,6 +1,9 @@
 name: MacOS
 
-on: [push, pull_request]
+on:
+  push:
+  pull_request:
+    types: [opened, synchronize, reopened, closed]
 
 concurrency:
   group: ${{ github.ref }}-${{ github.head_ref }}-macos
@@ -8,6 +11,8 @@ concurrency:
 
 jobs:
   MacOS-Clang:
+    # The closed event exists only to cancel in-progress runs via concurrency.
+    if: github.event.action != 'closed'
     name: Apple Clang@11.0 - Mesh ${{matrix.mesh_precision}} Particles ${{matrix.particles}} ${{matrix.particles_precision}}
     runs-on: macos-latest
     # env: {CXXFLAGS: "-fno-operator-names -Werror -Wall -Wextra -Wpedantic -Wnull-dereference -Wfloat-conversion -Wshadow -Woverloaded-virtual"}
