@@ -1,3 +1,6 @@
+/**
+ * \file ERF_PoissonSolve.cpp
+ */
 #include "ERF.H"
 #include "ERF_Utils.H"
 
@@ -28,6 +31,10 @@ solve_with_EB_mlmg (int lev,
 /**
  * Project the single-level velocity field to enforce the anelastic constraint
  * Note that the level may or may not be level zero
+ *
+ * @param lev Level index for the velocity projection
+ * @param time Time at which coarse data are registered
+ * @param l_dt Time step used for coarse data registration
  */
 void ERF::project_initial_velocity (int lev, double time, double l_dt)
 {
@@ -99,6 +106,11 @@ void ERF::project_initial_velocity (int lev, double time, double l_dt)
 /**
  * Project the single-level momenta to enforce the anelastic constraint
  * Note that the level may or may not be level zero
+ *
+ * @param lev Level index for the momentum projection
+ * @param l_time Time used for coarse-fine momentum fills
+ * @param l_dt Time step used in the projection update
+ * @param vars Conserved density and face-centered momenta to project
  */
 void ERF::project_momenta (int lev, double l_time, double l_dt_d, Vector<MultiFab>& mom_mf)
 {

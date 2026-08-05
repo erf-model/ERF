@@ -1,3 +1,6 @@
+/**
+ * \file ERF_SolveWithFFT.cpp
+ */
 #include "ERF.H"
 #include "ERF_SolverUtils.H"
 
@@ -6,6 +9,8 @@ using namespace amrex;
 #ifdef ERF_USE_FFT
 /**
  * Build the FFT solver(s) -- one per subdomain in each level
+ *
+ * @param lev Level index for which FFT solvers are built
  */
 void ERF::build_fft_solvers (int lev)
 {
@@ -113,6 +118,13 @@ void ERF::build_fft_solvers (int lev)
 /**
  * Solve the Poisson equation using FFT
  * Note that the level may or may not be level zero
+ *
+ * @param lev Level index for the solve
+ * @param isub Subdomain index selecting the FFT solver
+ * @param subdomain Box over which the FFT solve is performed
+ * @param rhs Right-hand side field for the Poisson solve
+ * @param p Solution field to fill
+ * @param fluxes Face-centered gradient fluxes to fill
  */
 void ERF::solve_with_fft (int lev, int isub, const Box& subdomain,
                           MultiFab& rhs, MultiFab& phi, Array<MultiFab,AMREX_SPACEDIM>& fluxes)

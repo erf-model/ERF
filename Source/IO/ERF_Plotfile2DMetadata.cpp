@@ -1,3 +1,6 @@
+/**
+ * \file ERF_Plotfile2DMetadata.cpp
+ */
 #include "ERF_Plotfile2DMetadata.H"
 
 #include <fstream>
