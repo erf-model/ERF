@@ -251,7 +251,7 @@ PrecipFallRunDiagnostics compute_precipfall_run_diagnostics (const amrex::Geomet
                         arr(i,j,donor_k,RhoQ3_comp),
                         arr(i,j,donor_k,RhoQ4_comp),
                         arr(i,j,donor_k,RhoQ5_comp),
-                        arr(i,j,donor_k,RhoQ6_comp), kRdOcp);
+                        arr(i,j,donor_k,RhoQ6_comp));
 
                     SAMPrimitiveCell upper = donor;
                     SAMPrimitiveCell lower = donor;
@@ -264,7 +264,7 @@ PrecipFallRunDiagnostics compute_precipfall_run_diagnostics (const amrex::Geomet
                             arr(i,j,k-1,RhoQ3_comp),
                             arr(i,j,k-1,RhoQ4_comp),
                             arr(i,j,k-1,RhoQ5_comp),
-                            arr(i,j,k-1,RhoQ6_comp), kRdOcp);
+                            arr(i,j,k-1,RhoQ6_comp));
                         upper = sam_cons_to_primitive(
                             arr(i,j,k,Rho_comp),
                             arr(i,j,k,RhoTheta_comp),
@@ -273,7 +273,7 @@ PrecipFallRunDiagnostics compute_precipfall_run_diagnostics (const amrex::Geomet
                             arr(i,j,k,RhoQ3_comp),
                             arr(i,j,k,RhoQ4_comp),
                             arr(i,j,k,RhoQ5_comp),
-                            arr(i,j,k,RhoQ6_comp), kRdOcp);
+                            arr(i,j,k,RhoQ6_comp));
                     }
 
                     const SAMPrecipComponentFaceState face_state =
@@ -333,7 +333,7 @@ PrecipFallRunDiagnostics compute_precipfall_run_diagnostics (const amrex::Geomet
                         arr(i,j,donor_k,RhoQ3_comp),
                         arr(i,j,donor_k,RhoQ4_comp),
                         arr(i,j,donor_k,RhoQ5_comp),
-                        arr(i,j,donor_k,RhoQ6_comp), kRdOcp);
+                        arr(i,j,donor_k,RhoQ6_comp));
 
                     SAMPrimitiveCell upper = donor;
                     SAMPrimitiveCell lower = donor;
@@ -346,7 +346,7 @@ PrecipFallRunDiagnostics compute_precipfall_run_diagnostics (const amrex::Geomet
                             arr(i,j,k-1,RhoQ3_comp),
                             arr(i,j,k-1,RhoQ4_comp),
                             arr(i,j,k-1,RhoQ5_comp),
-                            arr(i,j,k-1,RhoQ6_comp), kRdOcp);
+                            arr(i,j,k-1,RhoQ6_comp));
                         upper = sam_cons_to_primitive(
                             arr(i,j,k,Rho_comp),
                             arr(i,j,k,RhoTheta_comp),
@@ -355,7 +355,7 @@ PrecipFallRunDiagnostics compute_precipfall_run_diagnostics (const amrex::Geomet
                             arr(i,j,k,RhoQ3_comp),
                             arr(i,j,k,RhoQ4_comp),
                             arr(i,j,k,RhoQ5_comp),
-                            arr(i,j,k,RhoQ6_comp), kRdOcp);
+                            arr(i,j,k,RhoQ6_comp));
                     }
 
                     const SAMPrecipComponentFaceState face_state =
@@ -563,7 +563,7 @@ PrecipFallBudgetSummary run_precipfall_budget_case (const amrex::Geometry& geom,
                         arr(i,j,k,RhoQ3_comp),
                         arr(i,j,k,RhoQ4_comp),
                         arr(i,j,k,RhoQ5_comp),
-                        arr(i,j,k,RhoQ6_comp), kRdOcp);
+                        arr(i,j,k,RhoQ6_comp));
                     summary.min_qpr_after = std::min(summary.min_qpr_after, primitive.qpr);
                     summary.min_qps_after = std::min(summary.min_qps_after, primitive.qps);
                     summary.min_qpg_after = std::min(summary.min_qpg_after, primitive.qpg);

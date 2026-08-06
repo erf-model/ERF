@@ -39,7 +39,6 @@ MicrophysicsThermoState diagnose_microphysics_thermo_state (
     const amrex::Real rho,
     const amrex::Real rho_theta,
     const amrex::Real qv,
-    const amrex::Real rdOcp,
     const bool use_anelastic_reference_pressure,
     const amrex::Real p0,
     const amrex::Real pi0) noexcept

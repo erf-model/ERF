@@ -45,13 +45,12 @@ WSM6ThermoState wsm6_copy_in_thermo (
     const amrex::Real rho,
     const amrex::Real rho_theta,
     const amrex::Real qv,
-    const amrex::Real rdOcp,
     const bool use_anelastic_reference_pressure,
     const amrex::Real p0,
     const amrex::Real pi0) noexcept
 {
     const MicrophysicsThermoState thermo = diagnose_microphysics_thermo_state(
-        rho, rho_theta, qv, rdOcp, use_anelastic_reference_pressure, p0, pi0);
+        rho, rho_theta, qv, use_anelastic_reference_pressure, p0, pi0);
     return {thermo.pressure_pa, thermo.temperature};
 }
 
@@ -71,7 +70,6 @@ void wsm6_copy_state_to_micro_cell (
     const amrex::Array4<amrex::Real>& qr,
     const amrex::Array4<amrex::Real>& qs,
     const amrex::Array4<amrex::Real>& qg,
-    const amrex::Real rdOcp,
     const bool use_anelastic_reference_pressure,
     const int i, const int j, const int k) noexcept
 {
@@ -91,7 +89,7 @@ void wsm6_copy_state_to_micro_cell (
     const amrex::Real pi0 = use_anelastic_reference_pressure
         ? base(i,j,k,BaseState::pi0_comp) : amrex::Real(0.0);
     const WSM6ThermoState thermo = wsm6_copy_in_thermo(
-        rho_value, rho_theta, qv(i,j,k), rdOcp,
+        rho_value, rho_theta, qv(i,j,k),
         use_anelastic_reference_pressure, p0, pi0);
     tabs(i,j,k) = thermo.temperature;
     pres(i,j,k) = thermo.pressure_pa;

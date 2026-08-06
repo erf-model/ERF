@@ -125,15 +125,13 @@ SAM::Copy_State_to_Micro (const MultiFab& cons_in,
         auto pres_array  = mic_fab_vars[MicVar::pres]->array(mfi);
         const auto base_array = base_state ? base_state->const_array(mfi) : Array4<Real const>{};
         const bool use_anelastic_reference_pressure = (base_state != nullptr);
-        const Real rdOcp = m_rdOcp;
-
         // Get pressure, theta, temperature, density, and qt, qp
         ParallelFor(box3d, [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
             sam_copy_state_to_micro_cell(
                 states_array, base_array, rho_array, theta_array, qv_array,
                 qc_array, qi_array, qn_array, qt_array, qpr_array, qps_array,
-                qpg_array, qp_array, tabs_array, pres_array, rdOcp,
+                qpg_array, qp_array, tabs_array, pres_array,
                 use_anelastic_reference_pressure, i, j, k);
         });
     }

@@ -33,11 +33,11 @@ TEST(MicrophysicsThermodynamics, ReferencePressureContextSelectsAnelasticPressur
     const amrex::Real pi0_high = amrex::Real(1.08);
 
     const MicrophysicsThermoState low = diagnose_microphysics_thermo_state(
-        rho, rho_theta, qv, RdoCp, true, p0_low, pi0_low);
+        rho, rho_theta, qv, true, p0_low, pi0_low);
     const MicrophysicsThermoState high = diagnose_microphysics_thermo_state(
-        rho, rho_theta, qv, RdoCp, true, p0_high, pi0_high);
+        rho, rho_theta, qv, true, p0_high, pi0_high);
     const MicrophysicsThermoState compressible = diagnose_microphysics_thermo_state(
-        rho, rho_theta, qv, RdoCp, false, amrex::Real(0.0), amrex::Real(0.0));
+        rho, rho_theta, qv, false, amrex::Real(0.0), amrex::Real(0.0));
 
     EXPECT_EQ(low.pressure_pa, p0_low);
     EXPECT_EQ(high.pressure_pa, p0_high);

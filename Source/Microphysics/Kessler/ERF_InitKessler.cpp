@@ -86,15 +86,13 @@ void Kessler::Copy_State_to_Micro (const MultiFab& cons_in,
         auto pres_array  = mic_fab_vars[MicVar_Kess::pres]->array(mfi);
         const auto base_array = base_state ? base_state->const_array(mfi) : Array4<Real const>{};
         const bool use_anelastic_reference_pressure = (base_state != nullptr);
-        const Real rdOcp = m_rdOcp;
-
         // The shared diagnosis returns Pa. Kessler stores pressure in mbar / hPa
         // for the qsat helper path, so convert once at copy-in.
         ParallelFor( box3d, [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
             kessler_copy_state_to_micro_cell(
                 states_array, base_array, rho_array, theta_array, qv_array,
-                qc_array, qp_array, qt_array, tabs_array, pres_array, rdOcp,
+                qc_array, qp_array, qt_array, tabs_array, pres_array,
                 use_anelastic_reference_pressure, i, j, k);
         });
     }

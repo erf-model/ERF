@@ -187,7 +187,7 @@ void launch_kessler_copy_in (const CellFixture& fixture, WorkingArrays& working)
         ParallelFor(mfi.tilebox(), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
             kessler_copy_state_to_micro_cell(
                 states, base, rho, theta, qv, qc, qp, qt, tabs, pres,
-                RdoCp, true, i, j, k);
+                true, i, j, k);
         });
     }
     Gpu::streamSynchronize();
@@ -214,7 +214,7 @@ void launch_sam_copy_in (const CellFixture& fixture, WorkingArrays& working)
         ParallelFor(mfi.tilebox(), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
             sam_copy_state_to_micro_cell(
                 states, base, rho, theta, qv, qc, qi, qn, qt, qpr, qps, qpg, qp,
-                tabs, pres, RdoCp, true, i, j, k);
+                tabs, pres, true, i, j, k);
         });
     }
     Gpu::streamSynchronize();
@@ -241,7 +241,7 @@ void launch_morrison_copy_in (const CellFixture& fixture, WorkingArrays& working
         ParallelFor(mfi.tilebox(), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
             morrison_copy_state_to_micro_cell(
                 states, base, rho, theta, qv, qc, qi, qn, qt, qpr, qps, qpg, qp,
-                tabs, pres, RdoCp, true, i, j, k);
+                tabs, pres, true, i, j, k);
         });
     }
     Gpu::streamSynchronize();
@@ -265,7 +265,7 @@ void launch_wsm6_copy_in (const CellFixture& fixture, WorkingArrays& working)
         ParallelFor(mfi.tilebox(), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
             wsm6_copy_state_to_micro_cell(
                 states, base, rho, theta, tabs, pres, qv, qc, qi, qr, qs, qg,
-                RdoCp, true, i, j, k);
+                true, i, j, k);
         });
     }
     Gpu::streamSynchronize();

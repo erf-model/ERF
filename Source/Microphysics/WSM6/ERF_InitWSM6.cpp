@@ -59,8 +59,6 @@ WSM6::Copy_State_to_Micro(const MultiFab& cons_in,
         auto pres = mic_fab_vars[MicVar_WSM6::pres]->array(mfi);
         const auto base_array = base_state ? base_state->const_array(mfi) : Array4<Real const>{};
         const bool use_anelastic_reference_pressure = m_use_anelastic_reference_pressure;
-        const Real rdOcp = m_rdOcp;
-
         auto qv = mic_fab_vars[MicVar_WSM6::qv]->array(mfi);
         auto qc = mic_fab_vars[MicVar_WSM6::qc]->array(mfi);
         auto qi = mic_fab_vars[MicVar_WSM6::qi]->array(mfi);
@@ -71,7 +69,7 @@ WSM6::Copy_State_to_Micro(const MultiFab& cons_in,
         ParallelFor(box3d, [=] AMREX_GPU_DEVICE(int i, int j, int k) {
             wsm6_copy_state_to_micro_cell(
                 states, base_array, rho, theta, tabs, pres, qv, qc, qi, qr,
-                qs, qg, rdOcp, use_anelastic_reference_pressure, i, j, k);
+                qs, qg, use_anelastic_reference_pressure, i, j, k);
         });
     }
 }

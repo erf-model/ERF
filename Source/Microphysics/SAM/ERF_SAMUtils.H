@@ -220,14 +220,13 @@ SAMPrimitiveCell sam_cons_to_primitive_with_base_state (
     const amrex::Real& rho_qpr,
     const amrex::Real& rho_qps,
     const amrex::Real& rho_qpg,
-    const amrex::Real& rdOcp,
     const bool use_anelastic_reference_pressure,
     const amrex::Real& p0,
     const amrex::Real& pi0) noexcept
 {
     const amrex::Real qv = amrex::max(amrex::Real(0.0), rho_qv / rho);
     const MicrophysicsThermoState thermo = diagnose_microphysics_thermo_state(
-        rho, rho_theta, qv, rdOcp, use_anelastic_reference_pressure, p0, pi0);
+        rho, rho_theta, qv, use_anelastic_reference_pressure, p0, pi0);
     return sam_cons_to_primitive_with_thermo(rho, rho_theta, rho_qv, rho_qcl,
                                              rho_qci, rho_qpr, rho_qps, rho_qpg,
                                              thermo);
@@ -253,7 +252,6 @@ SAMPrimitiveCell sam_copy_state_to_micro_cell (
     const amrex::Array4<amrex::Real>& qp,
     const amrex::Array4<amrex::Real>& tabs,
     const amrex::Array4<amrex::Real>& pres,
-    const amrex::Real rdOcp,
     const bool use_anelastic_reference_pressure,
     const int i, const int j, const int k) noexcept
 {
@@ -266,7 +264,7 @@ SAMPrimitiveCell sam_copy_state_to_micro_cell (
         rho_value, states(i,j,k,RhoTheta_comp),
         states(i,j,k,RhoQ1_comp), states(i,j,k,RhoQ2_comp),
         states(i,j,k,RhoQ3_comp), states(i,j,k,RhoQ4_comp),
-        states(i,j,k,RhoQ5_comp), states(i,j,k,RhoQ6_comp), rdOcp,
+        states(i,j,k,RhoQ5_comp), states(i,j,k,RhoQ6_comp),
         use_anelastic_reference_pressure, p0, pi0);
     rho(i,j,k) = primitive.rho;
     theta(i,j,k) = primitive.theta;
@@ -292,12 +290,11 @@ SAMPrimitiveCell sam_cons_to_primitive (const amrex::Real& rho,
                                         const amrex::Real& rho_qci,
                                         const amrex::Real& rho_qpr,
                                         const amrex::Real& rho_qps,
-                                        const amrex::Real& rho_qpg,
-                                        const amrex::Real rdOcp) noexcept
+                                        const amrex::Real& rho_qpg) noexcept
 {
     return sam_cons_to_primitive_with_base_state(
         rho, rho_theta, rho_qv, rho_qcl, rho_qci, rho_qpr, rho_qps, rho_qpg,
-        rdOcp, false, amrex::Real(0.0), amrex::Real(0.0));
+        false, amrex::Real(0.0), amrex::Real(0.0));
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
