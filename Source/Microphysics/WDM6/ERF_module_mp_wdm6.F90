@@ -1017,6 +1017,13 @@
           work1(i_dbg_local,kts,1), work1(i_dbg_local,kts,2), work1(i_dbg_local,kts,3)
       endif
 
+      if (debug_local .gt. 0 .and. i_dbg_local .ge. its .and. i_dbg_local .le. ite) then
+        write(*,'(A,1X,I3,5(1X,ES24.16E3))') &
+          'WDM6-FORT_PRE_G7', kts, &
+          qrs(i_dbg_local,kts,1), qrs(i_dbg_local,kts,2), qrs(i_dbg_local,kts,3), &
+          ncr(i_dbg_local,kts,3), t(i_dbg_local,kts)
+      endif
+
       do k = kte, kts, -1
         do i = its, ite
           supcol = t0c-t(i,k)
@@ -1074,7 +1081,12 @@
         enddo
       enddo
 
-
+      if (debug_local .gt. 0 .and. i_dbg_local .ge. its .and. i_dbg_local .le. ite) then
+        write(*,'(A,1X,I3,5(1X,ES24.16E3))') &
+          'WDM6-FORT_POST_G7', kts, &
+          qrs(i_dbg_local,kts,1), qrs(i_dbg_local,kts,2), qrs(i_dbg_local,kts,3), &
+          ncr(i_dbg_local,kts,3), t(i_dbg_local,kts)
+      endif
 
       do k = kte, kts, -1
         do i = its, ite

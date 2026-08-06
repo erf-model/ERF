@@ -829,6 +829,12 @@ void WDM6::Advance(const Real& dt_advance,
         const Real rslopecmax_loc = m_rslopecmax;
         const Real rslopec2max_loc = m_rslopec2max;
         const Real rslopec3max_loc = m_rslopec3max;
+        const Real precs1_loc = m_precs1;
+        const Real precs2_loc = m_precs2;
+        const Real precg1_loc = m_precg1;
+        const Real precg2_loc = m_precg2;
+        const Real n0g_loc = m_n0g;
+        const Real pi_wdm6_loc = m_pi_wdm6;
         const bool diag_col_in_tile = (diag_i >= ilo && diag_i <= ihi &&
                                        diag_j >= jlo && diag_j <= jhi);
         const int diag_k = klo;
@@ -1343,6 +1349,104 @@ void WDM6::Advance(const Real& dt_advance,
                             static_cast<double>(work1_arr(diag_i,diag_j,diag_k,0)),
                             static_cast<double>(work1_arr(diag_i,diag_j,diag_k,1)),
                             static_cast<double>(work1_arr(diag_i,diag_j,diag_k,2)));
+                std::fflush(stdout);
+            }
+#endif
+
+            // ============================================================
+            // WDM6-CPP_PRE_G7
+            // ============================================================
+#if !defined(AMREX_USE_GPU)
+            if (microphysics_debug > 0 && diag_col_in_tile) {
+                std::printf("WDM6-CPP_PRE_G7 %3d %24.16E %24.16E %24.16E %24.16E %24.16E\n",
+                            diag_k + 1,
+                            static_cast<double>(qr_arr(diag_i,diag_j,diag_k)),
+                            static_cast<double>(qs_arr(diag_i,diag_j,diag_k)),
+                            static_cast<double>(qg_arr(diag_i,diag_j,diag_k)),
+                            static_cast<double>(nr_arr(diag_i,diag_j,diag_k)),
+                            static_cast<double>(t_arr(diag_i,diag_j,diag_k)));
+                std::fflush(stdout);
+            }
+#endif
+
+            // ============================================================
+            // Step 3h: G7 warm-phase snow/graupel melting
+            // ============================================================
+            ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+                // Warm-phase snow and graupel melting (t > t0c)
+                if (t_arr(i,j,k) > t0c) {
+                    const Real supcol = t0c - t_arr(i,j,k);
+                    const Real n0sfac = amrex::max(
+                        amrex::min(std::exp(Real(alpha_wdm6) * supcol),
+                                   Real(n0smax) / Real(n0s)),
+                        Real(1.0));
+
+                    const Real xlf = xlf0;
+                    const Real work2 = wdm6_venfac(p_arr(i,j,k), t_arr(i,j,k),
+                                                    den_arr(i,j,k), Real(den0));
+
+                    // --- Snow melting: psmlt ---
+                    if (qs_arr(i,j,k) > Real(0.0)) {
+                        const Real coeres_s = rslope2_arr(i,j,k,1) *
+                            std::sqrt(rslope_arr(i,j,k,1) * rslopeb_arr(i,j,k,1));
+
+                        Real psmlt = wdm6_xka(t_arr(i,j,k), den_arr(i,j,k)) / xlf *
+                            (t0c - t_arr(i,j,k)) * pi_wdm6_loc * Real(0.5) * n0sfac *
+                            (precs1_loc * rslope2_arr(i,j,k,1) +
+                             precs2_loc * work2 * coeres_s) / den_arr(i,j,k);
+
+                        psmlt = amrex::min(amrex::max(psmlt * dtcld, -qs_arr(i,j,k)),
+                                           Real(0.0));
+
+                        if (qs_arr(i,j,k) > Real(qcrmin)) {
+                            const Real sfac = rslope_arr(i,j,k,1) * Real(n0s) * n0sfac /
+                                              qs_arr(i,j,k);
+                            nr_arr(i,j,k) = amrex::max(nr_arr(i,j,k) - sfac * psmlt, Real(0.0));
+                        }
+
+                        qs_arr(i,j,k) += psmlt;
+                        qr_arr(i,j,k) -= psmlt;
+                        t_arr(i,j,k) += xlf / cpm_arr(i,j,k) * psmlt;
+                    }
+
+                    // --- Graupel melting: pgmlt ---
+                    if (qg_arr(i,j,k) > Real(0.0)) {
+                        const Real coeres_g = rslope2_arr(i,j,k,2) *
+                            std::sqrt(rslope_arr(i,j,k,2) * rslopeb_arr(i,j,k,2));
+
+                        Real pgmlt = wdm6_xka(t_arr(i,j,k), den_arr(i,j,k)) / xlf *
+                            (t0c - t_arr(i,j,k)) *
+                            (precg1_loc * rslope2_arr(i,j,k,2) +
+                             precg2_loc * work2 * coeres_g) / den_arr(i,j,k);
+
+                        pgmlt = amrex::min(amrex::max(pgmlt * dtcld, -qg_arr(i,j,k)),
+                                           Real(0.0));
+
+                        if (qg_arr(i,j,k) > Real(qcrmin)) {
+                            const Real gfac = rslope_arr(i,j,k,2) * n0g_loc /
+                                              qg_arr(i,j,k);
+                            nr_arr(i,j,k) = amrex::max(nr_arr(i,j,k) - gfac * pgmlt, Real(0.0));
+                        }
+
+                        qg_arr(i,j,k) += pgmlt;
+                        qr_arr(i,j,k) -= pgmlt;
+                        t_arr(i,j,k) += xlf / cpm_arr(i,j,k) * pgmlt;
+                    }
+                }
+            });
+
+            // ============================================================
+            // WDM6-CPP_POST_G7
+            // ============================================================
+#if !defined(AMREX_USE_GPU)
+            if (microphysics_debug > 0 && diag_col_in_tile) {
+                std::printf("WDM6-CPP_POST_G7 %3d %24.16E %24.16E %24.16E %24.16E %24.16E\n",
+                            diag_k + 1,
+                            static_cast<double>(qr_arr(diag_i,diag_j,diag_k)),
+                            static_cast<double>(qs_arr(diag_i,diag_j,diag_k)),
+                            static_cast<double>(qg_arr(diag_i,diag_j,diag_k)),
+                            static_cast<double>(nr_arr(diag_i,diag_j,diag_k)),
+                            static_cast<double>(t_arr(diag_i,diag_j,diag_k)));
                 std::fflush(stdout);
             }
 #endif
