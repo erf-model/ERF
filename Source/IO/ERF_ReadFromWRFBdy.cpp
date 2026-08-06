@@ -157,7 +157,7 @@ convert_wrfbdy_data (const int itime,
     // BDY data
     Array4<Real> bdy_u_arr  = bdy_data[itime][WRFBdyVars::U].array();  // This is x-face-centered
     Array4<Real> bdy_v_arr  = bdy_data[itime][WRFBdyVars::V].array();  // This is y-face-centered
-    Array4<Real> bdy_t_arr  = bdy_data[itime][WRFBdyVars::T].array();  // This is cell-centered
+    Array4<Real> bdy_th_arr = bdy_data[itime][WRFBdyVars::T].array();  // This is cell-centered
     Array4<Real> bdy_qv_arr = bdy_data[itime][WRFBdyVars::QV].array(); // This is cell-centered
     Array4<Real> mu_arr     = bdy_data[itime][WRFBdyVars::MU].array(); // This is cell-centered
     Array4<Real> bdy_ph_arr = bdy_data[itime][WRFBdyVars::PH].array(); // This is z-face-centered
@@ -189,23 +189,23 @@ convert_wrfbdy_data (const int itime,
 
         const Box& bx_u  = (xbx & bdy_data[itime][WRFBdyVars::U].box());
         const Box& bx_v  = (ybx & bdy_data[itime][WRFBdyVars::V].box());
-        const Box& bx_t  = (tbx & bdy_data[itime][WRFBdyVars::T].box());
+        const Box& bx_th = (tbx & bdy_data[itime][WRFBdyVars::T].box());
         const Box& bx_qv = (tbx & bdy_data[itime][WRFBdyVars::QV].box());
         const Box& bx_r  = (tbx & bdy_data[itime][WRFBdyVars::R].box());
 
-        const Box& bx_t_slab = amrex::makeSlab(bx_t, 2, klo);
+        const Box& bx_th_slab = amrex::makeSlab(bx_t, 2, klo);
 
         // TMP BDY data
         Array4<Real> bdy_u_tmp  = bdy_data_tmp[WRFBdyVars::U].array();  // This is x-face-centered
         Array4<Real> bdy_v_tmp  = bdy_data_tmp[WRFBdyVars::V].array();  // This is y-face-centered
-        Array4<Real> bdy_t_tmp  = bdy_data_tmp[WRFBdyVars::T].array();  // This is cell-centered
+        Array4<Real> bdy_th_tmp  = bdy_data_tmp[WRFBdyVars::T].array();  // This is cell-centered
         Array4<Real> bdy_qv_tmp = bdy_data_tmp[WRFBdyVars::QV].array(); // This is cell-centered
         Array4<Real> bdy_r_tmp  = bdy_data_tmp[WRFBdyVars::R].array();  // This is cell-centered
 
         // TMP INTERP BDY data
         Array4<Real> bdy_u_int  = bdy_data_int[WRFBdyVars::U].array();  // This is x-face-centered
         Array4<Real> bdy_v_int  = bdy_data_int[WRFBdyVars::V].array();  // This is y-face-centered
-        Array4<Real> bdy_t_int  = bdy_data_int[WRFBdyVars::T].array();  // This is cell-centered
+        Array4<Real> bdy_th_int = bdy_data_int[WRFBdyVars::T].array();  // This is cell-centered
         Array4<Real> bdy_qv_int = bdy_data_int[WRFBdyVars::QV].array(); // This is cell-centered
         Array4<Real> bdy_r_int  = bdy_data_int[WRFBdyVars::R].array();  // This is cell-centered
 
@@ -225,7 +225,7 @@ convert_wrfbdy_data (const int itime,
         const Array4<const Real>& z_arr = z_phys_nd->const_array(mfi);
 
         // New z values
-        ParallelFor(bx_t, bx_u, bx_v,
+        ParallelFor(bx_th, bx_u, bx_v,
         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
             // Mass coupling
@@ -341,15 +341,15 @@ convert_wrfbdy_data (const int itime,
 
         // Convert perturbational moist pot. temp. (Th_m) to dry pot. temp. (Th_d)
         const Real wrf_theta_ref = Real(300.);
-        ParallelFor(bx_t, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        ParallelFor(bx_th, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
             if (mask_c_arr(i,j,k)) {
-                Real xmu         = (mu_arr(i,j,0) + mub_arr(i,j,0));
-                Real xmu_mult    = c1h_arr(0,0,k) * xmu + c2h_arr(0,0,k);
-                Real new_bdy_Th  = bdy_t_arr(i,j,k) / xmu_mult + wrf_theta_ref;
-                Real qv_fac      = (one + RvoRd * bdy_qv_arr(i,j,k) / xmu_mult);
-                new_bdy_Th      /= qv_fac;
-                bdy_t_tmp(i,j,k) = new_bdy_Th;
+                Real xmu          = (mu_arr(i,j,0) + mub_arr(i,j,0));
+                Real xmu_mult     = c1h_arr(0,0,k) * xmu + c2h_arr(0,0,k);
+                Real new_bdy_Th   = bdy_t_arr(i,j,k) / xmu_mult + wrf_theta_ref;
+                Real qv_fac       = (one + RvoRd * bdy_qv_arr(i,j,k) / xmu_mult);
+                new_bdy_Th       /= qv_fac;
+                bdy_th_tmp(i,j,k) = new_bdy_Th;
             }
         });
 
@@ -376,7 +376,7 @@ convert_wrfbdy_data (const int itime,
         });
 
         // Interpolate in height
-        ParallelFor(bx_t, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        ParallelFor(bx_th, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
             if (mask_c_arr(i,j,k)) {
                 int kstart, kend;
@@ -400,10 +400,10 @@ convert_wrfbdy_data (const int itime,
 
                 if (found) {
                     Real dz_rat = (z_dst - z_lo_src) / (z_hi_src - z_lo_src);
-                    bdy_t_int(i,j,k)  = (  bdy_t_tmp(i,j,kend) -  bdy_t_tmp(i,j,kstart) ) * dz_rat +  bdy_t_tmp(i,j,kstart);
+                    bdy_th_int(i,j,k) = ( bdy_th_tmp(i,j,kend) - bdy_th_tmp(i,j,kstart) ) * dz_rat + bdy_th_tmp(i,j,kstart);
                     bdy_qv_int(i,j,k) = ( bdy_qv_tmp(i,j,kend) - bdy_qv_tmp(i,j,kstart) ) * dz_rat + bdy_qv_tmp(i,j,kstart);
                 } else {
-                    bdy_t_int(i,j,k)  =  bdy_t_tmp(i,j,k);
+                    bdy_th_int(i,j,k) = bdy_th_tmp(i,j,k);
                     bdy_qv_int(i,j,k) = bdy_qv_tmp(i,j,k);
                 }
                 // NOTE: always copy rho for rebalance
@@ -474,15 +474,14 @@ convert_wrfbdy_data (const int itime,
         });
 
         if (rebalance_wrf_state) {
-        // Rebalance with constant temperature (modifies theta only)
-        // New z values
+        // Rebalance with constant theta
 #ifdef AMREX_USE_FLOAT
         Real tol  = Real(1.0e-6);
 #else
         Real tol  = Real(1.0e-10);
 #endif
         Real grav = CONST_GRAV;
-        ParallelFor(bx_t_slab,
+        ParallelFor(bx_th_slab,
         [=,RdoCp_d=RdoCp] AMREX_GPU_DEVICE (int i, int j, int /*k*/) noexcept
         {
             // integrate from surface to domain top
@@ -511,7 +510,7 @@ convert_wrfbdy_data (const int itime,
               // Establish known constant
               qt_lo = bdy_qv_int(i,j,k-1);
               qv_lo = bdy_qv_int(i,j,k-1);
-              Th_lo = bdy_t_int(i,j,k-1);
+              Th_lo = bdy_th_int(i,j,k-1);
               R_lo  = getRhogivenThetaPress(Th_lo, P_lo, RdoCp_d, qv_lo);
               rho_tot_lo = R_lo * (one + qt_lo);
               C  = -P_lo + myhalf*rho_tot_lo*grav*dz;
@@ -519,14 +518,14 @@ convert_wrfbdy_data (const int itime,
               // Initial guess and residual
               qt_hi = bdy_qv_int(i,j,k);
               qv_hi = bdy_qv_int(i,j,k);
-              Th_hi = bdy_t_int(i,j,k);
+              Th_hi = bdy_th_int(i,j,k);
               T_hi  = getTgivenPandTh(P_hi, Th_hi, RdoCp_d);
               R_hi  = getRhogivenThetaPress(Th_hi, P_hi, RdoCp_d, qv_hi);
               rho_tot_hi = R_hi * (one + qt_hi);
               F = P_hi + myhalf*rho_tot_hi*grav*dz + C;
 
               // Do iterations
-              bool maintain_Th = false;
+              bool maintain_Th = true;
               HSEutils::Newton_Raphson_hse(tol, RdoCp_d, dz,
                                            grav, C, Th_hi, T_hi,
                                            qt_hi, qv_hi,
@@ -534,7 +533,6 @@ convert_wrfbdy_data (const int itime,
 
               // Assign data
               bdy_r_int(i,j,k) = R_hi;
-              bdy_t_int(i,j,k) = getThgivenTandP(T_hi, P_hi, RdoCp_d);
               P_lo = P_hi;
               z_lo = z_hi;
             }
