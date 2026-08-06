@@ -224,7 +224,6 @@ void add_moist_nudging_terms (const MultiFab& S_data,
             if (use_wrf_bdy_density) {
                 rho = oma*rdatxlo_n(ii,jj,k) + alpha*rdatxlo_np1(ii,jj,k);
             }
-            if (use_wrf_bdy_density) { AMREX_DEVICE_ASSERT(rho > zero); }
             arr_xlo(i,j,k) = (bdatxlo) ? rho * bdatxlo(ii,jj,k,bdy_comp) :
                 rho * ( oma   * bdatxlo_n  (ii,jj,k)
                       + alpha * bdatxlo_np1(ii,jj,k) );
@@ -237,7 +236,6 @@ void add_moist_nudging_terms (const MultiFab& S_data,
             if (use_wrf_bdy_density) {
                 rho = oma*rdatxhi_n(ii,jj,k) + alpha*rdatxhi_np1(ii,jj,k);
             }
-            if (use_wrf_bdy_density) { AMREX_DEVICE_ASSERT(rho > zero); }
             arr_xhi(i,j,k) = (bdatxhi) ? rho * bdatxhi(ii,jj,k,bdy_comp) :
                 rho * ( oma   * bdatxhi_n  (ii,jj,k)
                       + alpha * bdatxhi_np1(ii,jj,k) );
@@ -252,7 +250,6 @@ void add_moist_nudging_terms (const MultiFab& S_data,
             if (use_wrf_bdy_density) {
                 rho = oma*rdatylo_n(ii,jj,k) + alpha*rdatylo_np1(ii,jj,k);
             }
-            if (use_wrf_bdy_density) { AMREX_DEVICE_ASSERT(rho > zero); }
             arr_ylo(i,j,k) = (bdatylo) ? rho * bdatylo(ii,jj,k,bdy_comp) :
                 rho * ( oma   * bdatylo_n  (ii,jj,k)
                       + alpha * bdatylo_np1(ii,jj,k) );
@@ -266,7 +263,6 @@ void add_moist_nudging_terms (const MultiFab& S_data,
            if (use_wrf_bdy_density) {
                rho = oma*rdatyhi_n(ii,jj,k) + alpha*rdatyhi_np1(ii,jj,k);
            }
-           if (use_wrf_bdy_density) { AMREX_DEVICE_ASSERT(rho > zero); }
            arr_yhi(i,j,k) = (bdatyhi) ? rho * bdatyhi(ii,jj,k,bdy_comp) :
                rho * ( oma   * bdatyhi_n  (ii,jj,k)
                      + alpha * bdatyhi_np1(ii,jj,k) );

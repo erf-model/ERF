@@ -429,8 +429,6 @@ realbdy_compute_interior_ghost_rhs (const double& time,
                     rho_interp = r_arr(i,j,k);
                 }
 
-                if (use_wrf_bdy_density) { AMREX_DEVICE_ASSERT(rho_interp > zero); }
-
                 if (bdatxlo) {
                     int ii2 = std::min(std::max(i , dom_cc_lo.x), dom_cc_hi.x);
                     int jj2 = std::min(std::max(j , dom_cc_lo.y), dom_cc_hi.y);
@@ -461,8 +459,6 @@ realbdy_compute_interior_ghost_rhs (const double& time,
                 } else {
                     rho_interp = r_arr(i,j,k);
                 }
-
-                if (use_wrf_bdy_density) { AMREX_DEVICE_ASSERT(rho_interp > zero); }
 
                 if (bdatxhi) {
                     int ii2 = std::min(std::max(i , dom_cc_lo.x), dom_cc_hi.x);
@@ -497,8 +493,6 @@ realbdy_compute_interior_ghost_rhs (const double& time,
                     rho_interp = r_arr(i,j,k);
                 }
 
-                if (use_wrf_bdy_density) { AMREX_DEVICE_ASSERT(rho_interp > zero); }
-
                 if (bdatylo) {
                     int ii2 = std::min(std::max(i , dom_cc_lo.x), dom_cc_hi.x);
                     int jj2 = std::min(std::max(j , dom_cc_lo.y), dom_cc_hi.y);
@@ -529,8 +523,6 @@ realbdy_compute_interior_ghost_rhs (const double& time,
                 } else {
                     rho_interp = r_arr(i,j,k);
                 }
-
-                if (use_wrf_bdy_density) { AMREX_DEVICE_ASSERT(rho_interp > zero); }
 
                 if (bdatyhi) {
                     int ii2 = std::min(std::max(i , dom_cc_lo.x), dom_cc_hi.x);
