@@ -151,6 +151,12 @@ public:
     // explicitly or return the underlying MultiFab pointer/reference instead.
     void GetOceanToAtmosSurfaceLayout (amrex::BoxArray& ba,
                                        amrex::DistributionMapping& dm);
+    // Returns pointers to level-0 lon_m/lat_m coordinate MultiFabs (populated
+    // by the WRF-grid init paths, e.g. ERF_InitFromWRFInput.cpp/ERF_InitFromMetgrid.cpp)
+    // used to build ocean->atmos remap weights. Sets both to nullptr if
+    // unavailable (e.g. idealized/non-WRF configurations).
+    void GetOceanToAtmosCornerCoordinates (const amrex::MultiFab*& x_corner,
+                                           const amrex::MultiFab*& y_corner) const;
 
     void PackAtmosphericStates (amrex::Vector<amrex::MultiFab*>& states, double time);
     void ApplyOceanSurfaceState (const amrex::Vector<amrex::MultiFab*>& state, double time);

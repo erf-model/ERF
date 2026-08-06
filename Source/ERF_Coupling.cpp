@@ -126,6 +126,20 @@ ERF::GetOceanToAtmosSurfaceLayout (amrex::BoxArray& ba,
     dm = sst_ptr->DistributionMap();
 }
 
+void
+ERF::GetOceanToAtmosCornerCoordinates (const amrex::MultiFab*& x_corner,
+                                       const amrex::MultiFab*& y_corner) const
+{
+    if (lon_m.empty() || lat_m.empty() ||
+        lon_m[0] == nullptr || lat_m[0] == nullptr) {
+        x_corner = nullptr;
+        y_corner = nullptr;
+        return;
+    }
+    x_corner = lon_m[0].get();
+    y_corner = lat_m[0].get();
+}
+
 /*
   Coupling reference context (implementation-side):
 
