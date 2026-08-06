@@ -1,3 +1,6 @@
+/**
+ * \file ERF_ReadBndryPlanes.cpp
+ */
 #include "AMReX_Gpu.H"
 #include "AMReX_ParmParse.H"
 #include <AMReX_PlotFileUtil.H>
@@ -80,7 +83,7 @@ void ReadBndryPlanes::define_level_data (int /*lev*/)
  * Function in ReadBndryPlanes class for interpolating boundary
  * data in time.
  *
- * @param time Constant specifying the time for interpolation
+ * @param time_in Constant specifying the time for interpolation
  */
 Vector<std::unique_ptr<PlaneVector>>&
 ReadBndryPlanes::interp_in_time (const double& time_in)
@@ -145,7 +148,7 @@ ReadBndryPlanes::interp_in_time (const double& time_in)
  * Function in ReadBndryPlanes class for interpolating boundary
  * data in time.
  *
- * @param time Constant specifying the time for interpolation
+ * @param time_in Constant specifying the time for interpolation
  */
 Vector<std::unique_ptr<PlaneVector>>&
 ReadBndryPlanes::get_tendency (const double& time_in)

@@ -1,3 +1,6 @@
+/**
+ * \file ERF_NCPlotFile.cpp
+ */
 #include <iomanip>
 #include <iostream>
 #include <string>

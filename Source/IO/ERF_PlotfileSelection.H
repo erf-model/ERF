@@ -1,3 +1,6 @@
+/**
+ * \file ERF_PlotfileSelection.H
+ */
 #ifndef ERF_PLOTFILE_SELECTION_H_
 #define ERF_PLOTFILE_SELECTION_H_
 
