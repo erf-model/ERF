@@ -52,11 +52,20 @@ Model overview and transported quantities in ERF
 Anelastic thermodynamic reference state
 ----------------------------------------
 
-For the supported Eulerian anelastic microphysics paths, ERF already stores a
-hydrostatic reference state in ``BaseState`` at every cell. ``p0_comp`` is the
-reference pressure in Pa and ``pi0_comp`` is its corresponding Exner function.
-At copy-in, Kessler, SAM, Morrison, and WSM6 read both values from the same
-base-state cell and diagnose
+Anelastic dynamics are enabled with ``erf.anelastic = 1``. This option can be
+specified once for all AMR levels or as one value per level; see
+:ref:`sec:Inputs` for the complete input description.
+
+On an anelastic level, the following Eulerian microphysics schemes use ERF's
+hydrostatic thermodynamic reference state:
+
+* the Kessler family: ``Kessler`` and ``Kessler_NoRain``;
+* the SAM family: ``SAM``, ``SAM_NoIce``, and ``SAM_NoPrecip_NoIce``;
+* the Morrison family: ``Morrison`` and ``Morrison_NoIce``; and
+* ``WSM6``.
+
+For these schemes, ERF supplies microphysics with the temperature and
+pressure diagnosed from the local conserved state and the reference state:
 
 .. math::
 
@@ -64,18 +73,28 @@ base-state cell and diagnose
    T = \theta\,\pi_0, \qquad
    p = p_0.
 
-This uses the initialized and interpolated ``pi0_comp`` directly instead of
-recomputing an Exner power from ``p0_comp`` inside every microphysics cell
-kernel. The optimization changes where the already-established reference
-thermodynamics are read, not the anelastic physical contract. Base-state
-initialization, coarse-to-fine interpolation, ghost filling, and restart
-handling remain responsible for keeping ``p0_comp`` and ``pi0_comp`` finite,
-positive, and mutually consistent.
+Here, :math:`p_0` is ERF's hydrostatic reference pressure and :math:`\pi_0`
+is the corresponding reference Exner function. ERF initializes and maintains
+these reference-state quantities as part of the anelastic level state.
 
-Kessler stores this pressure as mbar/hPa in its existing working arrays; SAM
-also stores mbar/hPa; Morrison and WSM6 retain Pa. WSM6 copy-out continues to
-reconstruct conserved potential temperature from its updated temperature and
-held pressure. Compressible paths retain their existing local EOS diagnosis.
+Users do not need to provide a separate pressure field for microphysics, and
+they do not need to convert pressure units in the inputs file. ERF handles
+each scheme's existing internal pressure units at its interface: Kessler and
+SAM use mbar/hPa internally, while Morrison and WSM6 use Pa. This is an
+implementation detail rather than an additional user-configurable input.
+
+Compressible simulations are unchanged: their microphysics continue to use
+ERF's existing local equation-of-state diagnosis for pressure and temperature.
+The anelastic compatibility restriction for ``SuperDroplets`` is documented
+in :ref:`superdroplets-anelastic-compatibility`.
+
+.. note::
+
+   The stored reference Exner function is authoritative for the anelastic
+   temperature diagnosis. It is carried with the reference state through
+   initialization, AMR level construction, and restart handling; legacy
+   checkpoints that do not contain it reconstruct it from the stored
+   reference pressure.
 
 Surface precipitation accumulations
 -----------------------------------
@@ -398,6 +417,8 @@ and microphysical processes.
 .. P3 requires ``USE_P3=TRUE`` at build time and interfaces with E3SM's P3 implementation.
 
 For details, see Morrison and Milbrandt (2015, *J. Atmos. Sci.*, 72, 287–311).
+
+.. _superdroplets-anelastic-compatibility:
 
 Super-Droplet Method (SDM) Microphysics Model
 ----------------------------------------------
