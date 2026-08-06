@@ -417,7 +417,7 @@ realbdy_compute_interior_ghost_rhs (const double& time,
                     rho_interp = myhalf * (rlo(im,j,k) + rlo(amrex::max(i, dom_lo.x),j,k));
                 } else if (use_wrf_bdy_density && ivar==ivarV) {
                     int jm = amrex::max(j-1, dom_lo.y);
-                    rho_interp = myhalf * (rlo(i,jm,k) + rlo(i,amrex::max(j, dom_lo.y),k));
+                    rho_interp = myhalf * (rxlo(i,jm,k) + rxlo(i,amrex::max(j, dom_lo.y),k));
                 } else if (use_wrf_bdy_density) {
                     rho_interp = rxlo(i,j,k);
                 } else if (ivar==ivarU) {
@@ -448,7 +448,7 @@ realbdy_compute_interior_ghost_rhs (const double& time,
                     rho_interp = myhalf * (rhi(im,j,k) + rhi(amrex::max(i, dom_lo.x),j,k));
                 } else if (use_wrf_bdy_density && ivar==ivarV) {
                     int jm = amrex::max(j-1, dom_lo.y);
-                    rho_interp = myhalf * (rhi(i,jm,k) + rhi(i,amrex::max(j, dom_lo.y),k));
+                    rho_interp = myhalf * (rxhi(i,jm,k) + rxhi(i,amrex::max(j, dom_lo.y),k));
                 } else if (use_wrf_bdy_density) {
                     rho_interp = rxhi(i,j,k);
                 } else if (ivar==ivarU) {
