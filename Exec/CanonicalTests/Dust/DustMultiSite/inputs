@@ -1,44 +1,17 @@
-# DustMultiSite regression test — Phase 20 multi-mine PHREEQC tables.
+# Test distributed multi-site dust source configuration.
 #
-# Two named mine sites with non-overlapping bounding boxes.
-# Domain: 3000x3000 m, 8x8 cells -> dx=375 m.
-# Cell centres: x in {187.5, 562.5, ..., 2812.5}, y in {187.5, ..., 2812.5}.
+# This case verifies that multiple independent dust-emission sites can be configured and represented within one simulation.
 #
-# Site 1: "mine_north" x=[0,3000] y=[1500,3000]
-#   -> cells (i,j) where y_c > 1500: j in {4,5,6,7} = 32 cells.
-# Site 2: "mine_south" x=[0,3000] y=[0,1500]
-#   -> cells (i,j) where y_c < 1500: j in {0,1,2,3} = 32 cells.
-# No overlap; all 64 cells assigned (0 unassigned).
+# Expected result:
+#   - All configured sites are accepted and contribute to the domain response.
+#   - Plume structure reflects multiple source locations rather than a single origin.
 #
-# site_phreeqc_files are empty strings -> PHREEQC factor = 1.0 (no reduction).
-# With factor=1.0: Phase 5 u*_t is unchanged by Phase 20 (same as single-site).
+# Configuration:
+#   - Number of sites and their coordinates are the defining parameters.
+#   - Background transport determines how distinct the resulting plumes remain.
 #
-# Expected results:
-#   (1) [DUST DEBUG] Phase 20: 2 mine sites registered.
-#   (2) [DUST DEBUG] Phase 20: unassigned cells = 0.
-#   (3) [DUST DEBUG] Phase 20: site 1 cells=32, site 2 cells=32.
-#   (4) dust_site_id MultiFab: cells j>=4 have value 1.0,
-#       cells j<4 have value 2.0, no cells have value 0.0.
-#   (5) With empty PHREEQC files: u*_t unchanged vs single-site run.
-#   (6) plt_dust_00005 contains 20 variables including dust_site_id.
-#   (7) DustMetadata.json n_variables=20.
-#   (8) [DUST DEBUG] advance shows site_id_max=2 each step.
-#   (9) Run exits code 0.
-#
-# To test PHREEQC reduction: provide real PHREEQC file paths and verify
-# that u*_t differs between site 1 and site 2 cells.
-# To test overlap: set site 2 bbox to cover the whole domain; all cells
-# should be assigned site 2 (last-wins rule).
-#
-# References:
-#   Parkhurst & Appelo (2013). PHREEQC Version 3.
-#     https://pubs.usgs.gov/tm/06/a43/
-#   Marticorena & Bergametti (1995). J. Geophys. Res., 100, 16415.
-#     https://doi.org/10.1029/95JD00690
-#   Shao & Lu (2000). J. Geophys. Res., 105, 22437.
-#     https://doi.org/10.1029/2000JD900304
-#   ERF_FireGrid.H (spatial metadata pattern):
-#     https://github.com/hgopalan/ERF/blob/ERF-Fire/Source/Fire/ERF_FireGrid.H
+# Notes:
+#   - Useful for demonstrating distributed industrial or roadway sources.
 
 erf.prob_name = "ABL"
 max_step = 5

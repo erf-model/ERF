@@ -1,22 +1,17 @@
-# DustHealthIntegration — Test Phase 7 with all three health exposure diagnostics.
+# Combine multiple dust health metrics in one scenario.
 #
-# Exercises all Phase 7 diagnostics simultaneously:
-#   - Phase 6:  saltation emission (test_ustar=0 -> emission from MRF u*)
-#   - Phase 7:  all three diagnostics enabled (visibility, silica, STEL)
-#   - Existing phases: MSHA, NAAQS, etc.
+# This hazard case integrates several dust-health diagnostics, such as silica, visibility, or occupational exposure, within a single workflow.
 #
-# Expected results:
-#   (1) Run exits code 0 at max_step=20.
-#   (2) visibility_diag.csv written with 20 rows
-#   (3) silica_diag.csv written with 20 rows
-#   (4) stel_diag.csv written with 20 rows
-#   (5) All existing DustIntegration outputs still present
-#   (6) All output files created with valid CSV headers.
+# Expected result:
+#   - Multiple health-oriented diagnostic outputs are generated consistently from one run.
+#   - Combined outputs provide a comprehensive hazard picture rather than a single metric.
 #
-# References:
-#   Koschmieder, H. (1924). Beitr. Phys. Atmos., 12, 33-55.
-#   29 CFR 1910.1053: https://www.osha.gov/silica-crystalline
-#   OSHA 29 CFR 1910.1000 Table Z-1.
+# Configuration:
+#   - Health-integration and related diagnostic files are enabled together.
+#   - Dust source schedules create sustained and peak exposures of interest.
+#
+# Notes:
+#   - Use as the primary example for multi-metric hazard reporting.
 
 erf.prob_name = "ABL"
 max_step = 20

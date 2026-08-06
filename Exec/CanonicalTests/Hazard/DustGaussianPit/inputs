@@ -1,17 +1,17 @@
-# DustGaussianPit — Phase 5: dust emission in Gaussian pit (mine analog).
+# Verify dust transport over Gaussian-pit terrain.
 #
-# Negative hill amplitude produces a concave pit. Verifies that ERF terrain
-# infrastructure handles negative z_phys_nd, that MRF stable pool forms at
-# pit bottom in calm conditions, and that dust emission is elevated on pit
-# wall slopes relative to the flat surroundings.
+# This case uses a smooth Gaussian depression to examine sheltered flow, recirculation tendencies, or reduced ventilation effects on dust transport.
 #
-# Expected results:
-#   (1) ERF prints "max of zphys_nd = 0" and pit depth is visible in plotfile
-#   (2) z_phys_nd at domain centre < 0 (pit floor below datum)
-#   (3) [DUST DEBUG] Phase 5: u*_t variation across pit walls
-#   (4) dust_diag.dat: emission_total > 0 from step 1
-#   (5) No NaN in any field
-#   (6) Run exits code 0 at max_step=20
+# Expected result:
+#   - Flow and concentration patterns reflect the confining effect of the pit geometry.
+#   - Simulation remains stable despite terrain-induced stagnation or recirculation.
+#
+# Configuration:
+#   - Terrain configuration selects a Gaussian pit / basin.
+#   - Dust source placement is chosen to interact with the depression flow field.
+#
+# Notes:
+#   - Compare with DustGaussianHill to bracket terrain effects.
 
 erf.prob_name = "ABL"
 max_step = 20

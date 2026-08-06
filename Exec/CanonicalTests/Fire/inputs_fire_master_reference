@@ -1,18 +1,15 @@
-# ============================================================================
-# ERF Fire Module: Master Inputs Configuration Reference
-# ============================================================================
-# This file documents all available fire model parameters with default values,
-# allowed options, and descriptions. Use this as a reference when configuring
-# fire simulations. Uncomment and modify parameters as needed.
+# Document canonical regression case.
 #
-# File organization:
-#   - Core geometry and domain setup
-#   - Fire module control flags
-#   - Fuel model and moisture parameters
-#   - Wind and terrain parameters
-#   - Heat flux and coupling parameters
-#   - Phase 5+: Advanced features (spotting, crown fire, diagnostics)
-# ============================================================================
+# This input file defines a canonical ERF test case and should document its main purpose, expected behavior, and key configuration controls.
+#
+# Expected result:
+#   - Case runs successfully and exhibits the documented qualitative behavior.
+#
+# Configuration:
+#   - Core geometry, forcing, and module-specific settings are defined in the file.
+#
+# Notes:
+#   - Add case-specific details here if the scenario is extended in the future.
 
 # ============================================================================
 # CORE GEOMETRY AND ATMOSPHERIC SETUP

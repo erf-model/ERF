@@ -1,16 +1,17 @@
-# Phase 13 regression test: Rothermel (1972) baseline comparison for Phase 13.
-# Domain: 2 km x 2 km flat, FM1 (short grass), 5 m/s geostrophic wind.
-# Ignition at (1000, 1000), radius 30 m, passive coupling, no acceleration.
-# Identical to inputs_fire_phase13_macarthur except ros_model = "rothermel".
+# Compare alternate fire rate-of-spread models.
 #
-# Direct comparison baseline: at 5 m/s wind and FM1, Rothermel ROS should be
-# higher than MacArthur ROS, since Rothermel is calibrated for North American
-# fuel types while MacArthur is calibrated for Australian forest conditions.
+# This directory exercises several ROS model formulations to confirm configuration wiring and expected qualitative differences among available spread models.
 #
-# Expected checks:
-#   1. Head ROS at t=900 s > MacArthur head ROS (from fire_stats_phase13_macarthur.csv).
-#   2. fire_ros values are typical for Rothermel FM1.
-#   3. No NaN or abort.
+# Expected result:
+#   - Each ROS model runs successfully with its intended option selected.
+#   - Predicted spread differs between models in a physically interpretable way for the same nominal scenario.
+#
+# Configuration:
+#   - ROS model selector is varied across the input files.
+#   - Shared geometry and ignition choices help isolate model-form differences.
+#
+# Notes:
+#   - Use the Rothermel baseline as a reference when comparing alternatives.
 
 geometry.prob_lo = 0.0 0.0 0.0
 geometry.prob_hi = 2000.0 2000.0 500.0

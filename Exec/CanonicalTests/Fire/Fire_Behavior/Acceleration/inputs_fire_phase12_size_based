@@ -1,16 +1,18 @@
-# Phase 12 regression test: size-based fire acceleration.
-# Same domain as phase 9 crown test: 2 km x 2 km, flat, FM1, 5 m/s wind, passive coupling.
-# Ignition at (1000, 1000), radius 30 m.
-# Acceleration: size-based model, L_acc = 100 m.
-# At ignition the effective fire radius is ~30 m << L_acc = 100 m, so alpha << 1.
-# As the fire grows, alpha approaches 1 and full ROS is reached.
+# Test fire acceleration parameterizations.
 #
-# Expected checks:
-#   1. fire_ros at t=10 s is less than fire_ros at t=300 s (acceleration effect visible).
-#   2. At t=900 s, head ROS in fire_stats.csv approaches the quasi-steady-state FM1 value.
-#   3. [FIRE DEBUG] shows alpha < 1.0 at early steps when fire_debug = true.
-#   4. No NaN or abort.
+# These cases compare disabled, size-based, and temporal acceleration options for fire growth, verifying the transient adjustment from ignition toward the steady spread regime.
 #
+# Expected result:
+#   - Acceleration-enabled cases ramp spread differently from the disabled control.
+#   - Selected acceleration mode changes early-time fire growth in the expected qualitative manner.
+#
+# Configuration:
+#   - Acceleration model selection is the primary varying parameter across files.
+#   - Ignition and fuel settings are otherwise comparable.
+#
+# Notes:
+#   - Review all files in this directory together to understand mode-to-mode differences.
+
 geometry.prob_lo = 0.0 0.0 0.0
 geometry.prob_hi = 2000.0 2000.0 500.0
 amr.n_cell = 40 40 50

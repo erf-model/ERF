@@ -1,53 +1,17 @@
-# DustPHREEQCFeedback regression test — Phase 21 PHREEQC deposition feedback.
+# Exercise PHREEQC geochemistry feedback coupling for dust.
 #
-# Tests write_phreeqc_deposition_file and append_phreeqc_site_summary.
-# max_step=7, phreeqc_feedback_interval_s=1.0s (dt=0.5s -> writes at t=1,2,3 s).
-# Final step t=3.5s: write triggered by is_final=true and nstep>last_write_step.
+# This case tests ingestion of PHREEQC-derived geochemical fields and application of those fields to dust behavior or diagnostics.
 #
-# ERF write timing: write_output() called from WriteAtIntermediateTime and
-# WriteAtFinalTime in Source/ERF.cpp (same as Phase 16 pattern).
+# Expected result:
+#   - External PHREEQC-derived inputs are read successfully.
+#   - Feedback variables influence the configured dust pathway without parser errors.
 #
-# Two mine sites (from Phase 20 pattern):
-#   site 1 "mine_north": j=4..7 (32 cells, y=[1500,3000])
-#   site 2 "mine_south": j=0..3 (32 cells, y=[0,1500])
+# Configuration:
+#   - PHREEQC coupling flags and file paths are key controls.
+#   - Dust surface-property modifiers may be derived from the external data.
 #
-# Expected results:
-#   (1) [DUST DEBUG] Phase 21 printed at init with correct params.
-#   (2) [DUST DEBUG] Phase 21 PHREEQC feedback written at steps 2,4,6,7
-#       (t=1.0, 2.0, 3.0 s from interval=1.0 s; step 7 from is_final).
-#   (3) dust_dep_feedback.dat exists after run; contains header + 64 rows
-#       (8x8 dust grid, ni=8, nj=8).
-#   (4) dust_dep_feedback.dat header shows final step/time.
-#       File is overwritten each interval so only final state is retained.
-#   (5) dust_dep_site_summary.csv exists; contains header + rows for each
-#       write event (4 writes * 3 rows each = 12 data rows:
-#       site 0=unassigned, site 1=mine_north, site 2=mine_south).
-#   (6) dust_dep_site_summary.csv total_deposition_kg >= 0 for all rows.
-#   (7) site 1 + site 2 total_deposition_kg + site 0 total =
-#       domain total deposition (mass conservation check).
-#   (8) With phreeqc_feedback_interval_s=0: no feedback files written
-#       except at final step (is_final guard active).
-#   (9) Run exits code 0.
-#
-# File format note: dust_dep_feedback.dat is whitespace-delimited with
-# 3 columns (x_centre_m, y_centre_m, deposition_kg_m2) for use as input
-# to a PHREEQC batch script that maps deposition loading to
-# surface chemistry updates.
-# Reference: Parkhurst & Appelo (2013). https://pubs.usgs.gov/tm/06/a43/
-#
-# References:
-#   Parkhurst & Appelo (2013). PHREEQC Version 3.
-#     https://pubs.usgs.gov/tm/06/a43/
-#   Marticorena & Bergametti (1995). J. Geophys. Res., 100, 16415.
-#     https://doi.org/10.1029/95JD00690
-#   Shao & Lu (2000). J. Geophys. Res., 105, 22437.
-#     https://doi.org/10.1029/2000JD900304
-#   ERF_FirePrerequisites.H (periodic write pattern):
-#     https://github.com/hgopalan/ERF/blob/f264ce7dd0f5e727c71c939659a6a5caf001d21b/
-#     Source/Fire/ERF_FirePrerequisites.H
-#   ERF_FireStatsOutput.H (append CSV pattern):
-#     https://github.com/hgopalan/ERF/blob/f264ce7dd0f5e727c71c939659a6a5caf001d21b/
-#     Source/Fire/ERF_FireStatsOutput.H
+# Notes:
+#   - Cross-reference the standalone PhreeqcReader case for input-format details.
 
 erf.prob_name = "ABL"
 max_step = 7

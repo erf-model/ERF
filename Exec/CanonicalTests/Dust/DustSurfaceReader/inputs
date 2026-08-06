@@ -1,34 +1,17 @@
-# DustSurfaceReader regression test
+# Verify surface property raster readers for dust inputs.
 #
-# Tests read_ascii_surface_map and populate_dust_surface_maps.
-# Pattern follows ERF_FireTerrainReader.cpp and ERF_FuelMap.H.
+# This case validates ingestion of gridded surface-property files such as soil type and silt fraction that influence threshold and emission calculations.
 #
-# Domain: 8x8x16 cells, 1000x1000x1000 m.
-# erf.dust.grid_ratio = 1: dust grid is 8x8x1 (125 m x 125 m per cell).
-# Rasters are 8x8 at 125 m cellsize: bilinear interpolation = direct lookup.
-# max_step = 0: only DustLayer::initialize is exercised.
+# Expected result:
+#   - Surface raster files are read successfully and mapped to dust properties.
+#   - Spatial variation in emissions or thresholds reflects the supplied raster data.
 #
-# Expected results:
-#   (1) verify_dust_prerequisites passes all 8 checks.
-#   (2) populate_dust_surface_maps prints:
-#         [DUST] Loaded soil_type from: test_soil_type.asc
-#         [DUST] Loaded silt_fraction from: test_silt_fraction.asc
-#   (3) dust_soil_type row reversal check:
-#         File row 0 (northernmost, all 100s) -> domain j=7: value 100.0
-#         File row 2 (100 104...104 100) -> domain j=5:
-#           (i=0,j=5)=100.0, (i=1,j=5)=104.0
-#   (4) dust_silt_fraction: outer ring = 0.10, interior = 0.05.
-#   (5) dust_crust_index, dust_moisture_flag, dust_suppression: uniform 0.0.
-#   (6) Exit code 0.
+# Configuration:
+#   - External ASCII surface maps provide soil/silt information.
+#   - Dust threshold and emission settings expose the effect of the imported fields.
 #
-# Row reversal reference: ERF_FuelMap.H and ERF_FireTerrainReader.cpp.
-# ESRI ASCII format: https://desktop.arcgis.com/en/arcmap/latest/
-#   manage-data/raster-and-images/esri-ascii-raster-format.htm
-# Surface codes 100/104: EPA AP-42 Ch. 13.2.2,
-#   https://www.epa.gov/air-emissions-factors-and-quantification/
-#   ap-42-compilation-air-emission-factors
-# MRF PBL: Hong & Pan (1996), https://doi.org/10.1175/
-#   1520-0493(1996)124<2322:NBLVDI>2.0.CO;2
+# Notes:
+#   - Useful when diagnosing file-format or indexing issues in surface readers.
 
 erf.prob_name = "ABL"
 max_step = 0

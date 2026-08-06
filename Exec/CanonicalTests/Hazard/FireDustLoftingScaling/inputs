@@ -1,87 +1,17 @@
-# ============================================================
-# Test: FireDustLoftingScaling
-# Description: Phase 3 lofting sensitivity to fire intensity (fuel model).
-#   Verifies that stronger fires (higher Q_max) trigger the lofting factor
-#   and that the cap (1 + k_loft) is correctly enforced.
+# Verify fire-induced dust lofting scaling laws.
 #
-# This test uses FM4 (chaparral, high heat flux).
-# Compare with FireDustInteraction3 (FM1, low heat flux) at same conditions.
+# This case focuses on the hazard parameters that translate fire-plume buoyancy into dust lofting strength or depth.
 #
-# Settings:
-#   fuel_model_id = 4                -> FM4 chaparral (Q_max ~ 288,713 W/m^2)
-#   crust_index = 0.5                -> uniform (Phase 1 inactive)
-#   fire_dust_crust_reduction = 0.0  -> Phase 1 disabled
-#   fire_dust_wind_to_dust = false   -> Phase 2 disabled
-#   fire_dust_lofting_enabled = true -> Phase 3 active
-#   k_loft = 2.0  Q_threshold = 50 W/m^2  Q_ref = 500 W/m^2
-#   sounding_neutral_abl (u=15 m/s) -> consistent with geo_wind=15.0
-#   fire.coupling_type = "passive"   -> no heat injection into atmosphere
+# Expected result:
+#   - Lofting response changes consistently with the configured scaling parameters.
+#   - Run helps calibrate or regress the magnitude of fire-induced uplift.
 #
-# FM1 vs FM4 lofting comparison at step=20 (15 m/s sounding, Phase 3 only):
+# Configuration:
+#   - Hazard lofting thresholds, velocity scales, or height caps are central controls.
+#   - Other coupling features remain simple enough to isolate lofting behavior.
 #
-#   Metric                        | FM1 (Interaction3) | FM4 (LoftingScaling)
-#   ------------------------------|--------------------|-----------------------
-#   Q_max [W/m^2]                 | 3,520              | 288,712.9252
-#   T_flame_max [K]               | 536.5              | 1304.915032
-#   Max ROS [m/s]                 | 0.216              | 0.8449813953
-#   lofting factor at fire cells  | capped at 3        | capped at 3
-#   emission_flux_max_after [kg/m2/s] | 1.39463e-07    | 1.39463e-07
-#   emission_sum [kg/s]           | 1.4876e-05         | 1.4876e-05
-#   RHO DUST                      | 14.921             | 14.921
-#
-# Key finding: Both FM1 and FM4 saturate the lofting cap (factor = 1+k_loft = 3).
-#   FM4: factor = 1 + 2*(288713-50)/500 = 1+1155 -> capped at 3
-#   FM1: factor = 1 + 2*(3520-50)/500  = 1+13.88 -> capped at 3
-#   Both Q values far exceed Q_ref=500, so identical post-loft emission.
-#   This confirms the cap is enforced correctly for both weak and intense fires.
-#   To differentiate FM1 vs FM4 in emission, raise Q_ref (e.g. 100,000 W/m^2).
-#
-# Expected Results (verified, FM4, step=20, t=10 s, sounding_neutral_abl):
-#
-#   Dynamics:
-#   - Simulation completes 20 steps without errors.
-#   - Fixed dt = 0.5 s.
-#   - u*_max = 1.121392194 m/s  |  u_10m_max = 14.994 m/s  |  PBLH = 534.721 m
-#   - EddyDiff::Scalar_v_max = 2.167818648 m^2/s
-#   - T_sfc_max = 300 K  (passive fire, no heating)
-#
-#   Fire FM4 (step 20):
-#   - 32 active fire cells (ignition_r=600 m)
-#   - Max reference wind = 14.56193684 m/s
-#   - Max effective wind (post-WAF) = 7.962453917 m/s
-#   - Max ROS = 0.8449813953 m/s
-#   - Q_max = 288712.9252 W/m^2  |  I_B_max = 2489.759636 kW/m
-#   - T_flame_max = 1304.915032 K
-#   - phi_min=-1  phi_max=0
-#
-#   Phase 3 output (step 20):
-#   - [DUST DEBUG] Phase 3 fire-lofting:
-#       step=20
-#       fire_heat_max=288712.9252 W/m2
-#       emission_flux_max_after_loft=1.39462757e-07 kg/m2/s
-#   - Pre-loft bin0 max = 4.648758566e-08 kg/m^2/s
-#   - factor = 1 + 2*(288713-50)/500 -> capped at 3
-#   - lofted = 3 * 4.649e-08 = 1.395e-07 (matches output) ✓
-#
-#   Phase 1+2 disabled (step 20):
-#   - crust_min=0.5, crust_max=0.5, reduction=0  (Phase 1 inactive)
-#   - u*_t = 0.005925889388 m/s (uniform, crust=0.5)
-#
-#   Dust Emission (step 20, after lofting):
-#   - emission_sum = 1.487602741e-05 kg/s
-#   - F_dust_atm_max = 4.185084176e-07 kg/m^2/s
-#   - conc_sfc_max = 241.958 ug/m^3  |  PM10 = 229.846 ug/m^3
-#   - RHO DUST = 14.921
-#   - dep_total = 3.556812621e-07 kg/m^2
-#
-#   Mass Budget (step 20):
-#   - MASS = 1.012650226e+10  |  RHO THETA = 3.080452531e+12
-#   - RHO SCALAR = 0
-#
-#   Performance:
-#   - Timestep wall time ~ 5.7e-03 s  |  Total ~ 0.127 s
-#   - NOTE: amrex.max_grid_size_z is unused (use amr.max_grid_size_z instead)
-# ============================================================
+# Notes:
+#   - Compare against FireDustBaseline or a single-interaction case for context.
 
 erf.prob_name = "ABL"
 max_step = 20

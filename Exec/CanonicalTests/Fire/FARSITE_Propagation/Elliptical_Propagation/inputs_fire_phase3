@@ -1,6 +1,17 @@
-# Phase 3 ERF-Fire Regression Test
-# Flat domain, GR1 fuel, 5 m/s wind, 8% moisture
-# Tests FARSITE elliptical propagation with level-set advancement
+# Verify FARSITE elliptical propagation geometry.
+#
+# This case exercises the ellipse-based propagation logic used for directional fire spread, checking head, flank, and backing behavior against the expected FARSITE-style geometry.
+#
+# Expected result:
+#   - Burn perimeter evolves with the expected elongated elliptical shape.
+#   - Head, flank, and backing spread remain qualitatively consistent with the configured ellipse coefficients or defaults.
+#
+# Configuration:
+#   - FARSITE / level-set propagation options are enabled.
+#   - Wind-aligned ignition/spread geometry highlights head-fire elongation.
+#
+# Notes:
+#   - Compare with unit tests for ellipse geometry if a quantitative discrepancy is suspected.
 
 geometry.prob_lo = 0.0 0.0 0.0
 geometry.prob_hi = 2000.0 2000.0 500.0

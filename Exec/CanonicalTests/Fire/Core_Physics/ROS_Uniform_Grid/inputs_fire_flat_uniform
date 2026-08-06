@@ -1,6 +1,17 @@
-# ERF-Fire Regression Test: Flat Uniform Mesh
-# Short grass (FM1), 5 m/s wind, 8% moisture, flat domain
-# Expected: ROS 0.1-1.0 m/s, fire spreads ~100-500 m in 1800 s
+# Check uniform-grid fire spread consistency.
+#
+# This case verifies that fire spread on a flat, uniform grid behaves consistently with the analytical/unit-test benchmark. It is useful for separating physics verification from mesh or terrain complications.
+#
+# Expected result:
+#   - Front propagation rate agrees with the expected uniform-grid benchmark.
+#   - No spurious directional bias appears from the mesh layout.
+#
+# Configuration:
+#   - Flat domain and uniform cell spacing.
+#   - Simple ignition and baseline fire parameters isolate numerical consistency.
+#
+# Notes:
+#   - Related Python regression checks in this directory provide an additional reference.
 
 geometry.prob_lo = 0.0 0.0 0.0
 geometry.prob_hi = 2000.0 2000.0 500.0

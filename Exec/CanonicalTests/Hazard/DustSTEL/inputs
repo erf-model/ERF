@@ -1,18 +1,17 @@
-# DustSTEL — Test Phase 7 15-minute short-term exposure limit (STEL) diagnostics.
+# Check short-term dust exposure limit diagnostics.
 #
-# Exercises STEL tracking from PM10 concentration:
-#   - Phase 6:  saltation emission (test_ustar=0 -> emission from MRF u*)
-#   - Phase 7:  STEL 15-minute running average diagnostics enabled
+# This case validates rolling or short-window occupational exposure metrics analogous to a short-term exposure limit (STEL).
 #
-# Expected results:
-#   (1) Run exits code 0 at max_step=20.
-#   (2) stel_diag.csv written with 20 rows
-#   (3) stel_mean_mg_m3 >= 0
-#   (4) All output files created with valid CSV headers.
+# Expected result:
+#   - STEL-related outputs are generated for the configured averaging window.
+#   - Values can be compared directly with the configured short-term threshold.
 #
-# References:
-#   OSHA 29 CFR 1910.1000 Table Z-1.
-#   ACGIH TLV-STEL guidelines.
+# Configuration:
+#   - STEL threshold and window-length parameters are enabled.
+#   - Dust sources create nontrivial short-term concentration peaks.
+#
+# Notes:
+#   - Best documented in terms of rolling exposure windows rather than instantaneous values alone.
 
 erf.prob_name = "ABL"
 max_step = 20

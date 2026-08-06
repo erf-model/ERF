@@ -1,7 +1,17 @@
-# Phase 7 regression test: passive coupling (baseline).
-# Fire spreads under prescribed atmospheric wind (no feedback).
-# Same configuration as inputs_fire_phase7 except coupling_type = "passive".
-# Use to verify passive mode produces no theta anomaly.
+# Establish passive fire baseline without atmospheric feedback.
+#
+# This control case runs the fire module with atmospheric feedback disabled so that uncoupled fire behavior can be compared against coupled configurations.
+#
+# Expected result:
+#   - Fire spreads without modifying the atmospheric state through feedback terms.
+#   - Results provide a clean baseline for interpreting coupled-response differences.
+#
+# Configuration:
+#   - Feedback multiplier / coupling is disabled or passive.
+#   - Other fire parameters remain close to the coupled comparison cases.
+#
+# Notes:
+#   - Use as the reference case for lagged and synchronous coupling comparisons.
 
 geometry.prob_lo = 0.0 0.0 0.0
 geometry.prob_hi = 2000.0 2000.0 500.0

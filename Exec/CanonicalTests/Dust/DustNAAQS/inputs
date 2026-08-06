@@ -1,48 +1,17 @@
-# DustNAAQS regression test
+# Verify NAAQS particulate-air-quality diagnostics.
 #
-# Tests Phase 17: EPA NAAQS PM2.5/PM10 compliance output.
+# This case documents ambient-air-quality diagnostics for particulate matter, including comparison against NAAQS-style thresholds.
 #
-# Size bin classification (bin_diameters = 7e-6, 2.5e-6, 50e-6 m):
-#   bin 0: d = 7 µm  -> PM10 only (2.5 < 7 <= 10 µm)
-#   bin 1: d = 2.5 µm -> PM2.5 and PM10 (d <= 2.5 µm)
-#   bin 2: d = 50 µm -> neither (d > 10 µm)
+# Expected result:
+#   - PM diagnostics are produced with the configured averaging / threshold settings.
+#   - Reported values can be compared directly to the stated regulatory limits.
 #
-# With transport_bins_separately=false, dust_conc_sfc holds total
-# concentration of all bins combined. In this mode the PM split
-# uses bin 0 diameter (the first bin) for classification.
-# For per-bin PM tracking, set transport_bins_separately=true.
+# Configuration:
+#   - NAAQS diagnostic flags and threshold values are active.
+#   - Dust emissions are sufficient to generate meaningful concentration outputs.
 #
-# Atmospheric configuration: Moeng-Sullivan neutral ABL.
-# MRF u* ~ 0.56 m/s with 15 m/s geostrophic wind.
-#
-# Expected results:
-#   (1) [DUST DEBUG] Phase 17 bin classification printed at init:
-#       bin 0: PM10 only; bin 1: PM2.5+PM10; bin 2: neither.
-#   (2) [DUST DEBUG] Phase 17 step output each step with PM25_max >= 0,
-#       PM10_max >= 0, PM25_max <= PM10_max (PM2.5 subset of PM10).
-#   (3) dust_naaqs.csv created with header + 5 rows (steps 0-4).
-#   (4) n_cells_PM25_exceed = 0 for all steps (concentrations are
-#       far below 35 µg/m^3 threshold after 5 steps of injection).
-#   (5) n_cells_PM10_exceed = 0 for all steps (far below 150 µg/m^3).
-#   (6) PM25_24h_max increases each step (running average building up).
-#   (7) Dust plotfile plt_dust_00000 contains 14 variables including
-#       dust_pm25_ug_m3, dust_pm10_ug_m3, dust_pm25_24h_ug_m3,
-#       dust_pm10_24h_ug_m3, dust_pm25_exceed, dust_pm10_exceed.
-#   (8) With bin_diameters = 1e-6 1e-6 1e-6 (all PM2.5) and high
-#       atm_feedback, PM25_max > 0 and PM25_max = PM10_max.
-#   (9) Run exits with code 0.
-#
-# To test exceedance: set all diameters to 1e-6 (all PM2.5) and
-# run for many steps with high emission rate to push 24h average
-# above 35 µg/m^3. n_cells_PM25_exceed should become > 0.
-#
-# References:
-#   US EPA NAAQS: https://www.epa.gov/pm-pollution/
-#     national-ambient-air-quality-standards-naaqs-particulate-matter-pm
-#   40 CFR Part 50:
-#     https://www.ecfr.gov/current/title-40/chapter-I/subchapter-C/part-50
-#   Watson et al. (1994). Atmos. Environ., 28, 2493.
-#     https://doi.org/10.1016/1352-2310(94)90400-6
+# Notes:
+#   - Describe outcomes in terms of compliance-style indicators where possible.
 
 erf.prob_name = "ABL"
 max_step = 5

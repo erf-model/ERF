@@ -1,16 +1,18 @@
-# Phase 12 regression test: temporal fire acceleration (per-cell VanWagner).
-# Same domain as phase 9 crown test: 2 km x 2 km, flat, FM1, 5 m/s wind, passive coupling.
-# Ignition at (1000, 1000), radius 30 m.
-# Acceleration: temporal model, per-cell R(t) = R_E × (1 - exp(-A × t)).
-# For a point ignition (~30 m perimeter), uses A_point = 0.115 1/min.
-# As perimeter grows, may transition to A_line = 0.886 1/min if it exceeds perim_limit = 500 m.
+# Test fire acceleration parameterizations.
 #
-# Expected checks:
-#   1. [FIRE DEBUG] output shows acceleration constant selection (point vs line based on perimeter).
-#   2. R(t) in fire_stats increases from t=0 over first 5 minutes.
-#   3. At t=900 s, head ROS approaches quasi-steady-state FM1 value.
-#   4. No NaN or abort.
+# These cases compare disabled, size-based, and temporal acceleration options for fire growth, verifying the transient adjustment from ignition toward the steady spread regime.
 #
+# Expected result:
+#   - Acceleration-enabled cases ramp spread differently from the disabled control.
+#   - Selected acceleration mode changes early-time fire growth in the expected qualitative manner.
+#
+# Configuration:
+#   - Acceleration model selection is the primary varying parameter across files.
+#   - Ignition and fuel settings are otherwise comparable.
+#
+# Notes:
+#   - Review all files in this directory together to understand mode-to-mode differences.
+
 geometry.prob_lo = 0.0 0.0 0.0
 geometry.prob_hi = 2000.0 2000.0 500.0
 amr.n_cell = 40 40 50

@@ -1,72 +1,17 @@
-# ============================================================
-# Test: FireDustInteraction1
-# Description: Fire and dust with active fire-dust coupling
-#              (fire_dust_coupling = true) using lagged wind coupling.
-#              Fire burned areas reduce the dust crust index,
-#              leading to modified dust emission in post-fire zones.
-#              Flat terrain, no terrain wind.
+# Test first-level fire-dust interaction scenario.
 #
-# Grid ratios: dust.grid_ratio = fire.grid_ratio = 2
-#   (16x16 dust/fire grid over 3000 m domain, dx=187.5 m)
-#   REQUIRED: dust.grid_ratio must equal fire.grid_ratio when
-#   fire_dust_coupling=true, otherwise burned cells are sub-grid
-#   on the dust grid and crust reduction has no effect. An assertion
-#   in the code enforces this and aborts if they differ.
+# This case introduces a basic fire-induced dust interaction mechanism, such as plume lofting or source enhancement, beyond the baseline hazard setup.
 #
-# Ignition: ignition_r = 600 m marks ~32 burned fire cells at t=0
-#   (~12.5% of the 256-cell fire domain).
+# Expected result:
+#   - Interaction feature activates without destabilizing the run.
+#   - Dust response differs from the baseline in the expected qualitative direction.
 #
-# Crust reduction: fire_dust_crust_reduction = 0.99
-#   Burned cells: crust drops from 1.0 -> 0.01 (nearly bare soil).
-#   Unburned cells: crust = 1.0 (fully protected).
+# Configuration:
+#   - One interaction mode is enabled while others remain off.
+#   - Shared baseline settings support direct comparison.
 #
-# Expected Results (verified step=20, t=10 s, dt=0.5 s, 4096 atm cells):
-#
-#   Dynamics:
-#   - Simulation completes 20 steps without errors.
-#   - Fixed dt = 0.5 s.
-#   - u*_max ~ 1.121 m/s  |  u_10m_max ~ 14.99 m/s
-#   - PBLH_max ~ 535.4 m  |  T_sfc ~ 300 K (slight warming from fire)
-#
-#   Fire (step 20):
-#   - Fire ignites at (1500, 1500) with radius 600 m and spreads outward.
-#   - Number of active fire cells: 32
-#   - Lagged coupling: fire spread uses wind from previous atm timestep.
-#   - Fire heat flux injected: Q_atm_max = 3522 W/m^2 (alfg=45 m)
-#   - RhoTheta tendency sum ~ 2.027 kg K m^-3 s^-1
-#   - EddyDiff::Scalar_v_max = 13.618 m^2/s  (vs 2.168 in baseline: +528%)
-#   - Surface temp max: 300.60 K (heated by fire)
-#
-#   Dust Threshold (step 20):
-#   - Per-cell u*_t varies with crust:
-#     u*_t_min = 0.004741 m/s  (burned cells, crust=0.01)
-#     u*_t_max = 0.007111 m/s  (unburned cells, crust=1.0)
-#   - This confirms per-cell crust modulation is working correctly.
-#
-#   Dust Emission (step 20):
-#   - emission_sum = 1.190330e-05 kg/s
-#   - Compared to FireDustBaseline (1.234186e-05 kg/s): -3.5%
-#   - The coupled emission is LOWER because the fire heat flux raises
-#     EddyDiff 6x (13.6 vs 2.2 m^2/s), increasing PBL mixing and
-#     dispersing near-surface dust faster. The crust reduction in 32
-#     burned cells lowers u*_t locally but the dominant effect at t=10 s
-#     is the fire-driven BL deepening reducing near-surface concentration.
-#   - emission_flux bin0 max = 4.651e-08 kg/m^2/s
-#   - F_dust_atm_max = 1.396e-07 kg/m^2/s (vs 1.447e-07 in baseline)
-#
-#   Dust Concentrations (step 20):
-#   - conc_sfc_max ~ 81.9 ug/m^3  (vs ~84.7 in baseline: -3.3%)
-#   - PM10_max ~ 77.7 ug/m^3
-#   - RHO DUST = 11.944  (vs 12.379 in baseline: -3.5%)
-#   - All dust concentrations non-negative.
-#
-#   Mass Budget (step 20):
-#   - MASS = 1.013e+10  |  RHO THETA = 3.080496e+12  (higher than baseline)
-#   - RHO SCALAR = 0
-#
-#   Performance:
-#   - Timestep wall time ~ 6.2e-03 s  |  Total ~ 0.147 s
-# ============================================================
+# Notes:
+#   - Read together with Interaction2/3 and combined variants.
 
 erf.prob_name = "ABL"
 max_step = 20

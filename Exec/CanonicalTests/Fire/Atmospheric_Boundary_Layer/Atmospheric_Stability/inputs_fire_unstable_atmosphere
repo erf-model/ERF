@@ -1,6 +1,17 @@
-# Atmospheric Stability Test - Unstable Boundary Layer
-# Flat domain, GR1 fuel, 5 m/s wind, 8% moisture, unstable atmosphere
-# Tests fire spread in unstable atmospheric conditions (convective)
+# Compare stable and unstable atmospheric stratification effects on fire.
+#
+# These cases isolate the role of background atmospheric stability in modulating fire behavior, plume response, and near-surface winds.
+#
+# Expected result:
+#   - Stable and unstable cases produce visibly different atmospheric response and fire evolution.
+#   - Both runs remain valid references for atmosphere-sensitivity studies.
+#
+# Configuration:
+#   - Thermodynamic profile / stability settings are the primary varying controls.
+#   - Fire ignition and fuels remain otherwise similar.
+#
+# Notes:
+#   - Treat as paired comparison cases.
 
 geometry.prob_lo = 0.0 0.0 0.0
 geometry.prob_hi = 2000.0 2000.0 500.0

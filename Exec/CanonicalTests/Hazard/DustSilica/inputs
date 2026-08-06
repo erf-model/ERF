@@ -1,17 +1,17 @@
-# DustSilica — Test Phase 7 respirable crystalline silica (RCS) diagnostics.
+# Exercise silica-fraction hazard diagnostics.
 #
-# Exercises RCS calculation from PM10 concentration:
-#   - Phase 6:  saltation emission (test_ustar=0 -> emission from MRF u*)
-#   - Phase 7:  silica RCS diagnostics enabled
+# This case focuses on silica-related hazard metrics derived from the dust field, supporting occupational or health-risk assessments.
 #
-# Expected results:
-#   (1) Run exits code 0 at max_step=20.
-#   (2) silica_diag.csv written with 20 rows
-#   (3) rcs_max_mg_m3 >= 0
-#   (4) All output files created with valid CSV headers.
+# Expected result:
+#   - Silica-specific diagnostic outputs are generated without configuration errors.
+#   - Reported silica hazard metrics scale with the assumed silica fraction and dust loading.
 #
-# References:
-#   29 CFR 1910.1053: https://www.osha.gov/silica-crystalline
+# Configuration:
+#   - Silica fraction or related hazard parameters are active.
+#   - Dust sources are configured to produce measurable exposures.
+#
+# Notes:
+#   - Document alongside DustHealthIntegration when discussing combined health metrics.
 
 erf.prob_name = "ABL"
 max_step = 20

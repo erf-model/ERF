@@ -1,6 +1,17 @@
-# ERF-Fire Regression Test: Flat Terrain, Vertical Refinement
-# Tests that wind interpolation at z_ref=6.1m works correctly
-# with non-uniform vertical spacing (grid_stretching_ratio > 1)
+# Demonstrate vertically refined atmospheric mesh for fire.
+#
+# This case documents a fire configuration with enhanced vertical resolution, used to confirm that the model setup and boundary conditions remain valid under refined z discretization.
+#
+# Expected result:
+#   - Simulation completes with the refined vertical mesh configuration.
+#   - Results remain qualitatively consistent with coarser baselines while resolving more vertical structure.
+#
+# Configuration:
+#   - Vertical grid spacing / domain height differ from simpler baseline cases.
+#   - Fire and atmospheric controls otherwise remain conventional.
+#
+# Notes:
+#   - Useful when checking vertical-resolution sensitivity of coupled plume response.
 
 geometry.prob_lo = 0.0 0.0 0.0
 geometry.prob_hi = 2000.0 2000.0 1000.0

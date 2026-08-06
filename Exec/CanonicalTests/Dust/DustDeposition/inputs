@@ -1,40 +1,17 @@
-# DustDeposition regression test
+# Test dry deposition and near-surface removal.
 #
-# Tests Phase 12 dry deposition BC: apply_dust_deposition_bc at k=klo,
-# and dust_deposition_rate accumulation on the 2D dust grid.
+# This case exercises deposition physics that remove dust from the atmosphere and transfer mass toward the surface or deposition budget.
 #
-# Atmospheric configuration: Moeng-Sullivan neutral ABL.
-# Reference: Exec/CanonicalTests/ABL/MRF_Enhancements/canonical/neutral_abl
-# MRF diagnoses u* ~ 0.56 m/s with 15 m/s geostrophic wind.
+# Expected result:
+#   - Airborne dust decreases or redistributes in a manner consistent with the deposition scheme.
+#   - Deposition diagnostics remain non-negative and numerically stable.
 #
-# Deposition physics (bin 0, d=7 um, u*=0.56 m/s):
-#   v_s = (2650-1.225)*9.81*(7e-6)^2*Cc / (18*1.81e-5) approx 4.0e-3 m/s
-#   r_a = 1 / (0.56 * 0.4) = 4.46 s/m
-#   r_s = 1 / (0.56 * 3e-3) = 595 s/m
-#   denom = 4.46 + 595 + 4.46*595*4e-3 = 4.46 + 595 + 10.6 = 610 s/m
-#   v_d = 4e-3 + 1/610 approx 4e-3 + 1.6e-3 = 5.6e-3 m/s
-#   dep_flux = v_d * RhoDust(k=0)
+# Configuration:
+#   - Deposition coefficients / scheme selection are enabled.
+#   - Other dust source terms are kept simple enough to interpret removal behavior.
 #
-# Expected results:
-#   (1) [DUST DEPOSITION] prints v_d approx 5.6e-3 m/s each step.
-#   (2) [DUST DEBUG] Phase 12 shows deposition_rate_sum > 0 after step 1.
-#   (3) Negative tendency at k=klo larger than Phase 11 alone.
-#   (4) dust_deposition_rate increases monotonically (never decreases).
-#   (5) Setting deposition_E0 = 0 gives v_d approx v_s (no surface collection).
-#   (6) [DUST DEBUG] Phase 10, 11, 12 lines all printed each step.
-#   (7) Run exits with code 0.
-#
-# References:
-#   Seinfeld & Pandis (2006). Atmos. Chem. and Phys., ch. 19. Wiley.
-#   Zhang et al. (2001). Atmos. Environ., 35, 549.
-#     https://doi.org/10.1016/S1352-2310(00)00326-5
-#   Slinn (1982). Atmos. Environ., 16, 1785.
-#     https://doi.org/10.1016/0004-6981(82)90271-2
-#   ERF_FireAtmCoupling.H (structural reference):
-#     https://github.com/hgopalan/ERF/blob/ecb9b7656bbb98fcc5d4f781e486825ee9478a73/
-#     Source/Fire/ERF_FireAtmCoupling.H
-#   Hong & Pan (1996). Mon. Wea. Rev., 124, 2322 (MRF scheme).
-#     https://doi.org/10.1175/1520-0493(1996)124<2322:NBLVDI>2.0.CO;2
+# Notes:
+#   - Compare with DustSettling when separating dry deposition from gravitational settling.
 
 erf.prob_name = "ABL"
 max_step = 5

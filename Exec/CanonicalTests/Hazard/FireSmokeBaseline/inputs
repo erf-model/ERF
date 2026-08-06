@@ -1,20 +1,17 @@
-# ============================================================
-# Test: FireSmokeBaseline
-# Description: Fire burns, heat flux is computed, smoke is
-#              injected at k=0 proportional to heat flux.
-#              No dust. Verifies smoke scalar slot is correctly
-#              injected, transported by MRF wind, and written to
-#              smoke_diag.dat.
+# Establish fire-smoke transport baseline.
 #
-# Expected results:
-#   (1) [FIRE DEBUG] Phase 4 smoke: fire_heat_atm_max > 0 after step 4
-#   (2) [FIRE DEBUG] Phase 4 smoke: smoke_src_max > 0 after step 4
-#   (3) smoke_diag.dat: smoke_total_mass increases monotonically
-#   (4) smoke_conc_max_k0 > 0 after step 4
-#   (5) No NaN in RhoSmoke_comp field
-#   (6) fire_stats.csv: burned_area_ha > 0 and increasing
-#   (7) Run exits code 0 at max_step=20
-# ============================================================
+# This case provides a reference smoke-enabled hazard configuration without extra dust interaction complexity.
+#
+# Expected result:
+#   - Smoke tracer transport behaves as expected under the baseline fire forcing.
+#   - Results support later comparison with dust-coupled smoke cases.
+#
+# Configuration:
+#   - Smoke is enabled while advanced dust interaction is minimal or absent.
+#   - Fire settings remain representative but simple.
+#
+# Notes:
+#   - Use as the control for FireSmokeDustCoupled.
 
 erf.prob_name = "ABL"
 max_step = 20

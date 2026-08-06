@@ -1,7 +1,17 @@
-# Phase 6 ERF-Fire Regression Test: one-way fire-atmosphere coupling
-# with WRF-Fire-style exponential heat distribution and latent heat injection.
-# Flat domain, GR1 fuel, 5 m/s wind, 8% moisture, 30 min runtime.
-# Expected output: theta anomaly above burned area increases with latent heat response.
+# Validate lagged fire-atmosphere coupling.
+#
+# This case verifies the coupled pathway in which fire heat release is injected into the atmosphere with the intended lag. It serves as the standard two-way coupled baseline.
+#
+# Expected result:
+#   - Coupled run completes with atmospheric response to fire heating visible after the designed lag.
+#   - No instability is introduced by the lagged exchange of heat and momentum-related fields.
+#
+# Configuration:
+#   - Fire-atmosphere coupling type is set to lagged.
+#   - Baseline fire and atmospheric settings are otherwise conventional.
+#
+# Notes:
+#   - Compare against Passive_Baseline and Synchronous_Coupling to isolate coupling effects.
 
 geometry.prob_lo = 0.0 0.0 0.0
 geometry.prob_hi = 2000.0 2000.0 500.0

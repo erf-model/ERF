@@ -1,34 +1,17 @@
-# DustWindExtract regression test
+# Test extraction of driving wind for dust physics.
 #
-# Tests Phase 9 wind extraction: fill_dust_wind_from_interpolation and
-# fill_dust_ustar_from_surface_layer, called from DustLayer::advance via
-# the updated ERF.cpp Evolve() which now passes SurfaceLayer and velocity fields.
+# This case checks that near-surface winds and related friction-velocity inputs are diagnosed and passed correctly into dust threshold and emission routines.
 #
-# Algorithm reference: Source/Fire/ERF_FireWindExtract.cpp.
-# SurfaceLayer accessors: get_u_star(0), get_t_surf(0), get_pblh(0).
+# Expected result:
+#   - Extracted wind / friction-velocity fields are populated and physically reasonable.
+#   - Downstream dust calculations respond consistently to the diagnosed forcing.
 #
 # Configuration:
-#   Geostrophic wind = 10 m/s in x. MRF surface layer diagnoses non-zero u*.
-#   erf.dust.zref = 50.0 must equal erf.most.zref = 50.0 (extraction height
-#   must be consistent with the height used by MOST to diagnose u*).
-#   max_step = 5, dt = 1.0 s.
+#   - ABL / surface-layer settings determine the extracted wind fields.
+#   - Dust source activation depends on the resulting friction velocity.
 #
-# Expected results:
-#   (1) [DUST DEBUG] Phase 9 line printed each step with u*_max > 0.
-#   (2) dust_ustar_in max > 0 after step 1 (MRF diagnoses u* from 10 m/s wind).
-#   (3) dust_ustar_in max <= 10 m/s (u* is a fraction of the geostrophic wind).
-#   (4) dust_wind_ref comp 0 max > 0 and <= 10 m/s.
-#   (5) All [DUST DEBUG] Phase 2-8 prints appear confirming debug coverage.
-#   (6) Run exits with code 0.
-#
-# References:
-#   Source/Fire/ERF_FireWindExtract.H (algorithm):
-#     https://github.com/hgopalan/ERF/blob/a2ca3d1a7cea08a480c9d10e93ffdfab1b24b24e/
-#     Source/Fire/ERF_FireWindExtract.H
-#   Hong & Pan (1996). Mon. Wea. Rev., 124, 2322.
-#     https://doi.org/10.1175/1520-0493(1996)124<2322:NBLVDI>2.0.CO;2
-#   Marticorena & Bergametti (1995). J. Geophys. Res., 100, 16415.
-#     https://doi.org/10.1029/95JD00690
+# Notes:
+#   - Use when emission issues may originate from the wind-diagnosis pathway.
 
 erf.prob_name = "ABL"
 

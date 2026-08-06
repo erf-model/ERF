@@ -1,47 +1,17 @@
-# DustMRFDiffusion regression test
+# Exercise MRF-based turbulent diffusion for dust.
 #
-# Tests Phase 14: MRF nonlocal countergradient diffusion applied to dust scalar.
+# This case checks that the MRF boundary-layer parameterization mixes dust as expected under turbulent atmospheric conditions.
 #
-# The MRF scheme (Hong & Pan 1996) sets EddyDiff::Scalar_v = K_h for the
-# passive scalar. The dust scalar (m_dust_scalar_comp) is then diffused
-# vertically by DiffusionSrcForState_N using this diffusivity.
-# No countergradient term is applied to dust (gamma_dust = 0).
+# Expected result:
+#   - Dust plume broadens or redistributes consistently with boundary-layer mixing.
+#   - MRF-related options are accepted and drive the intended transport path.
 #
-# Atmospheric configuration: Moeng-Sullivan neutral ABL.
-# Reference: Exec/CanonicalTests/ABL/MRF_Enhancements/canonical/neutral_abl
-# MRF u* ~ 0.56 m/s with 15 m/s geostrophic wind.
+# Configuration:
+#   - MRF / turbulence configuration is central to the case.
+#   - Dust source terms are kept simple enough to expose diffusion behavior.
 #
-# MRF K_h profile (Hong & Pan 1996):
-#   K_h(z) = w_s * h * (z/h) * (1 - z/h)^2
-#   w_s = mixed-layer velocity scale [m/s]
-#   h   = PBL height [m]
-# For neutral ABL with u* ~ 0.56 m/s and h ~ 500 m (MRF estimate):
-#   w_s ~ u* ~ 0.56 m/s
-#   K_h_peak ~ 0.56 * 500 * (1/3) * (2/3)^2 ~ 27.7 m^2/s (at z/h = 1/3)
-# EddyDiff::Scalar_v_max should be of order 10-30 m^2/s.
-#
-# With dust_mrf_Sc_t = 0 (default): Scalar_v = Theta_v (same as heat).
-# [DUST DEBUG] Phase 14 should show Scalar_v_max ~ Theta_v_max.
-#
-# Expected results:
-#   (1) [DUST DEBUG] Phase 14 printed each step showing Scalar_v_max > 0.
-#   (2) EddyDiff::Scalar_v_max ~ EddyDiff::Theta_v_max (within 1% when
-#       dust_mrf_Sc_t = 0 / same as Pr_t).
-#   (3) gamma_dust = 0 confirmed in debug output.
-#   (4) After several steps, dust concentration profile has a nonzero
-#       vertical gradient reduced by diffusion (mixing away from k=0).
-#   (5) Setting dust_mrf_Sc_t = 2.0 halves Scalar_v relative to Theta_v
-#       and [DUST DEBUG] shows Scalar_v_max ~ 0.5 * Theta_v_max.
-#   (6) [DUST DEBUG] Phase 10, 11, 12, 13, 14 all printed each step.
-#   (7) Run exits with code 0.
-#
-# References:
-#   Hong, S.-Y., & Pan, H.-L. (1996). Mon. Wea. Rev., 124, 2322.
-#     https://doi.org/10.1175/1520-0493(1996)124<2322:NBLVDI>2.0.CO;2
-#   Seinfeld, J.H., & Pandis, S.N. (2006). Atmospheric Chemistry and Physics,
-#     2nd ed., Ch. 16. Wiley. ISBN 978-0-471-72018-8.
-#   Ginoux, P. et al. (2001). J. Geophys. Res., 106, 20255.
-#     https://doi.org/10.1029/2000JD901323
+# Notes:
+#   - Compare with simpler transport baselines when diagnosing mixing changes.
 
 erf.prob_name = "ABL"
 max_step = 5

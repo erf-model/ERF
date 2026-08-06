@@ -1,6 +1,17 @@
-# Wind Speed Variation Test - High Wind
-# Flat domain, GR1 fuel, 10 m/s wind, 8% moisture
-# Tests fire spread behavior at high wind speeds
+# Test fire response to wind-speed changes.
+#
+# These paired configurations verify that stronger imposed wind increases effective spread and weaker wind reduces it, confirming the model sensitivity to wind forcing.
+#
+# Expected result:
+#   - Higher-wind case produces faster head-fire spread than the lower-wind case.
+#   - Both runs remain stable and preserve the expected ordering of ROS with wind speed.
+#
+# Configuration:
+#   - Wind forcing differs between low- and high-wind variants.
+#   - Ignition and fuel settings remain otherwise comparable.
+#
+# Notes:
+#   - Use alongside the baseline ROS case when evaluating wind sensitivity.
 
 geometry.prob_lo = 0.0 0.0 0.0
 geometry.prob_hi = 2000.0 2000.0 500.0
