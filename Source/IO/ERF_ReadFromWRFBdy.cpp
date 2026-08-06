@@ -193,7 +193,7 @@ convert_wrfbdy_data (const int itime,
         const Box& bx_qv = (tbx & bdy_data[itime][WRFBdyVars::QV].box());
         const Box& bx_r  = (tbx & bdy_data[itime][WRFBdyVars::R].box());
 
-        const Box& bx_th_slab = amrex::makeSlab(bx_t, 2, klo);
+        const Box& bx_th_slab = amrex::makeSlab(bx_th, 2, klo);
 
         // TMP BDY data
         Array4<Real> bdy_u_tmp  = bdy_data_tmp[WRFBdyVars::U].array();  // This is x-face-centered
@@ -346,7 +346,7 @@ convert_wrfbdy_data (const int itime,
             if (mask_c_arr(i,j,k)) {
                 Real xmu          = (mu_arr(i,j,0) + mub_arr(i,j,0));
                 Real xmu_mult     = c1h_arr(0,0,k) * xmu + c2h_arr(0,0,k);
-                Real new_bdy_Th   = bdy_t_arr(i,j,k) / xmu_mult + wrf_theta_ref;
+                Real new_bdy_Th   = bdy_th_arr(i,j,k) / xmu_mult + wrf_theta_ref;
                 Real qv_fac       = (one + RvoRd * bdy_qv_arr(i,j,k) / xmu_mult);
                 new_bdy_Th       /= qv_fac;
                 bdy_th_tmp(i,j,k) = new_bdy_Th;
@@ -498,7 +498,7 @@ convert_wrfbdy_data (const int itime,
             // Use SFC state at first CC
             z_lo = Real(0.125) * (z_arr(i,j,klo  ) + z_arr(i+1,j,klo  ) + z_arr(i,j+1,klo  ) + z_arr(i+1,j+1,klo  )
                                  +z_arr(i,j,klo+1) + z_arr(i+1,j,klo+1) + z_arr(i,j+1,klo+1) + z_arr(i+1,j+1,klo+1));
-            P_lo = getPgivenRTh(bdy_r_int(i,j,klo)*bdy_t_int(i,j,klo),bdy_qv_int(i,j,klo));
+            P_lo = getPgivenRTh(bdy_r_int(i,j,klo)*bdy_th_int(i,j,klo),bdy_qv_int(i,j,klo));
             P_hi = P_lo;
 
             for (int k(klo+1); k<=khi; ++k)
