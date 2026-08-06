@@ -1132,7 +1132,12 @@
           den(i_dbg_local,kts)*qci(i_dbg_local,kts,2)
       endif
 
-
+      if (debug_local .gt. 0 .and. i_dbg_local .ge. its .and. i_dbg_local .le. ite) then
+        write(*,'(A,1X,I3,5(1X,ES24.16E3))') &
+          'WDM6-FORT_PRE_G9', kts, &
+          fall(i_dbg_local,kts,1), fall(i_dbg_local,kts,2), fall(i_dbg_local,kts,3), &
+          fallc(i_dbg_local,kts), dtcld
+      endif
 
       do i = its, ite
         fallsum = fall(i,kts,1)+fall(i,kts,2)+fall(i,kts,3)+fallc(i,kts)
@@ -1164,6 +1169,13 @@
           if(fallsum.gt.0.)sr(i)=(tstepsnow(i) + tstepgraup(i))/(rainncv(i)+1.e-12)
         ENDIF
       enddo
+
+      if (debug_local .gt. 0 .and. i_dbg_local .ge. its .and. i_dbg_local .le. ite) then
+        write(*,'(A,1X,I3,4(1X,ES24.16E3))') &
+          'WDM6-FORT_POST_G9', kts, &
+          rain(i_dbg_local), sr(i_dbg_local), &
+          snowncv(i_dbg_local), graupelncv(i_dbg_local)
+      endif
 
 
 

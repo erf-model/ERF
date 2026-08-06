@@ -718,6 +718,7 @@ void WDM6::Advance(const Real& dt_advance,
         Box box2d(IntVect(ilo,jlo,0), IntVect(ihi,jhi,0));
         IArrayBox mstep_fab(box2d,1, Arena_Used);
         IArrayBox numdt_fab(box2d,1, Arena_Used);
+        FArrayBox sr_fab(box2d, 1, Arena_Used);  // Snow ratio for G9 output
         FArrayBox cpm_fab(fab_box,1, Arena_Used);
         FArrayBox xl_fab(fab_box,1, Arena_Used);
         FArrayBox qsatw_fab(fab_box,1, Arena_Used);
@@ -761,6 +762,7 @@ void WDM6::Advance(const Real& dt_advance,
         auto const& workn_arr = workn_fab.array();
         auto const& mstep_arr = mstep_fab.array();
         auto const& numdt_arr = numdt_fab.array();
+        auto const& sr_arr = sr_fab.array();  // Snow ratio for G9
         auto const& cpm_arr = cpm_fab.array();
         auto const& xl_arr = xl_fab.array();
         auto const& qsatw_arr = qsatw_fab.array();
@@ -1036,6 +1038,7 @@ void WDM6::Advance(const Real& dt_advance,
             ParallelFor(box2d, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
                 mstep_arr(i,j,k) = 1;
                 numdt_arr(i,j,k) = 1;
+                sr_arr(i,j,k) = Real(0.0);  // Initialize snow ratio to zero
             });
 #if !defined(AMREX_USE_GPU)
             if (microphysics_debug > 0 && diag_col_in_tile) {
@@ -1537,6 +1540,66 @@ void WDM6::Advance(const Real& dt_advance,
                             static_cast<double>(qi_arr(diag_i,diag_j,diag_k)),
                             static_cast<double>(fallc_arr(diag_i,diag_j,klo)),
                             static_cast<double>(den_arr(diag_i,diag_j,diag_k) * qi_arr(diag_i,diag_j,diag_k)));
+                std::fflush(stdout);
+            }
+#endif
+
+            // ============================================================
+            // Step 3h: G9 Surface precipitation accumulation and sr update
+            // ============================================================
+#if !defined(AMREX_USE_GPU)
+            if (microphysics_debug > 0 && diag_col_in_tile) {
+                std::printf("WDM6-CPP_PRE_G9 %3d %24.16E %24.16E %24.16E %24.16E %24.16E\n",
+                            diag_k + 1,
+                            static_cast<double>(work1_arr(diag_i,diag_j,klo,0)),
+                            static_cast<double>(work1_arr(diag_i,diag_j,klo,1)),
+                            static_cast<double>(work1_arr(diag_i,diag_j,klo,2)),
+                            static_cast<double>(fallc_arr(diag_i,diag_j,klo)),
+                            static_cast<double>(dtcld));
+                std::fflush(stdout);
+            }
+#endif
+
+            // Surface precipitation accumulation from sedimentation fallout
+            ParallelFor(box2d, [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept
+            {
+                const Real fall_r = work1_arr(i,j,klo,0);       // rain fallout
+                const Real fall_s = work1_arr(i,j,klo,1);       // snow fallout
+                const Real fall_g = work1_arr(i,j,klo,2);       // graupel fallout
+                const Real fall_c = fallc_arr(i,j,klo);         // ice fallout
+
+                const Real fallsum     = fall_r + fall_s + fall_g + fall_c;
+                const Real fallsum_qsi = fall_s + fall_c;
+                const Real fallsum_qg  = fall_g;
+
+                const Real conv = delz_arr(i,j,klo) / Real(rhoh2o) * dtcld * Real(1000.0);
+
+                if (fallsum > Real(0.0)) {
+                    rain_arr(i,j,klo) += fallsum * conv;
+                }
+
+                if (fallsum_qsi > Real(0.0)) {
+                    snow_arr(i,j,klo) += fallsum_qsi * conv;
+                }
+
+                if (fallsum_qg > Real(0.0)) {
+                    graup_arr(i,j,klo) += fallsum_qg * conv;
+                }
+
+                if (fallsum > Real(0.0)) {
+                    sr_arr(i,j,klo) = (snow_arr(i,j,klo) + graup_arr(i,j,klo))
+                                    / (rain_arr(i,j,klo) + Real(1.0e-12));
+                }
+            });
+
+#if !defined(AMREX_USE_GPU)
+            if (microphysics_debug > 0 && diag_col_in_tile) {
+                std::printf("WDM6-CPP_POST_G9 %3d %24.16E %24.16E %24.16E %24.16E\n",
+                            diag_k + 1,
+                            static_cast<double>(rain_arr(diag_i,diag_j,klo)),
+                            static_cast<double>(sr_arr(diag_i,diag_j,klo)),
+                            static_cast<double>(snow_arr(diag_i,diag_j,klo)),
+                            static_cast<double>(graup_arr(diag_i,diag_j,klo)));
                 std::fflush(stdout);
             }
 #endif
