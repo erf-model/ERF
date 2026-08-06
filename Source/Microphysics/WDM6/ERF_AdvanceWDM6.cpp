@@ -742,6 +742,11 @@ void WDM6::Advance(const Real& dt_advance,
         FArrayBox qrs_tmp_fab(fab_box,3, Arena_Used);  // Temporary qr, qs, qg (components 0,1,2)
         FArrayBox ncr_tmp_fab(fab_box,1, Arena_Used);  // Temporary nr
 
+        // G8 ice sedimentation arrays
+        FArrayBox work1c_fab(fab_box,1, Arena_Used);   // Ice crystal fall speed
+        FArrayBox fallc_fab(box2d,1, Arena_Used);      // Ice fallout (2D surface)
+        FArrayBox delqi_fab(box2d,1, Arena_Used);      // Ice precipitation at bottom (2D)
+
         auto const& delz_arr = delz_fab.array();
         auto const& denfac_arr = denfac_fab.array();
         auto const& xni_arr = xni_fab.array();
@@ -773,6 +778,11 @@ void WDM6::Advance(const Real& dt_advance,
         auto const& nrevp_arr = nrevp_fab.array();
         auto const& qrs_tmp_arr = qrs_tmp_fab.array();  // G6: temporary qr, qs, qg
         auto const& ncr_tmp_arr = ncr_tmp_fab.array();  // G6: temporary nr
+
+        // G8 array references
+        auto const& work1c_arr = work1c_fab.array();    // Ice crystal fall speed
+        auto const& fallc_arr = fallc_fab.array();      // Ice fallout (2D)
+        auto const& delqi_arr = delqi_fab.array();      // Ice precip at bottom (2D)
 
         // Clamp negative values and enforce minimums
         ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
@@ -1447,6 +1457,86 @@ void WDM6::Advance(const Real& dt_advance,
                             static_cast<double>(qg_arr(diag_i,diag_j,diag_k)),
                             static_cast<double>(nr_arr(diag_i,diag_j,diag_k)),
                             static_cast<double>(t_arr(diag_i,diag_j,diag_k)));
+                std::fflush(stdout);
+            }
+#endif
+
+            // ============================================================
+            // Step 3i: G8 ice fall speed + ice sedimentation
+            // VICE: Ice crystal terminal velocity + nislfv_rain_plmr
+            // ============================================================
+#if !defined(AMREX_USE_GPU)
+            if (microphysics_debug > 0 && diag_col_in_tile) {
+                std::printf("WDM6-CPP_PRE_G8 %3d %24.16E %24.16E %24.16E %24.16E\n",
+                            diag_k + 1,
+                            static_cast<double>(qi_arr(diag_i,diag_j,diag_k)),
+                            static_cast<double>(xni_arr(diag_i,diag_j,diag_k)),
+                            static_cast<double>(den_arr(diag_i,diag_j,diag_k)),
+                            static_cast<double>(t_arr(diag_i,diag_j,diag_k)));
+                std::fflush(stdout);
+            }
+#endif
+
+            // Compute ice crystal fall speed (work1c)
+            ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+                Real work1c = Real(0.0);
+                if (qi_arr(i,j,k) > Real(0.0)) {
+                    const Real xni_safe = amrex::max(xni_arr(i,j,k), Real(1.0e-30));
+                    const Real xmi = den_arr(i,j,k) * qi_arr(i,j,k) / xni_safe;
+                    constexpr Real dicon = Real(11.45e-9);  // Ice diameter coefficient (m kg^-1/3)
+                    constexpr Real dimax = Real(500.e-6);   // Max ice diameter (m)
+                    const Real diameter = amrex::max(amrex::min(dicon * std::sqrt(xmi), dimax), Real(1.0e-25));
+                    work1c = Real(1.49e4) * std::exp(std::log(diameter) * Real(1.31));
+                }
+                work1c_arr(i,j,k) = work1c;
+            });
+
+            // Ice sedimentation via simplified PLM6 scheme
+            ParallelFor(box2d, [=] (int i, int j, int k) {
+                amrex::ignore_unused(k);
+                const int km = khi - klo + 1;
+                std::vector<Real> dz(km), den(km), denfac(km), tk(km), work_ice(km);
+                std::vector<Real> qi_col(km);
+
+                // Fill column arrays
+                for (int kk = 0; kk < km; ++kk) {
+                    const int k3 = klo + kk;
+                    dz[kk] = delz_arr(i,j,k3);
+                    den[kk] = den_arr(i,j,k3);
+                    denfac[kk] = denfac_arr(i,j,k3);
+                    tk[kk] = t_arr(i,j,k3);
+                    work_ice[kk] = work1c_arr(i,j,k3);
+                    qi_col[kk] = den[kk] * qi_arr(i,j,k3);
+                }
+
+                Real delqi_col = Real(0.0);
+
+                // Simple sedimentation: top-down fall with mass conservation
+                wdm6_nislfv_rain_plm6_column(
+                    km, dz.data(), den.data(), denfac.data(), tk.data(),
+                    work_ice.data(), qi_col.data(), qi_col.data(), delqi_col, delqi_col, dtcld, 1,
+                    pidn0s_loc, pidn0g_loc, Real(qcrmin), Real(alpha_wdm6), Real(n0smax), Real(n0s), Real(t0c),
+                    rslopesmax_loc, rslopesbmax_loc, rslopes2max_loc, rslopes3max_loc, Real(bvts), pvts_loc,
+                    rslopegmax_loc, rslopegbmax_loc, rslopeg2max_loc, rslopeg3max_loc, slope_bvtg_loc, pvtg_loc);
+
+                // Update ice concentrations from sedimented state
+                for (int kk = 0; kk < km; ++kk) {
+                    const int k3 = klo + kk;
+                    qi_arr(i,j,k3) = amrex::max(qi_col[kk] / den[kk], Real(0.0));
+                }
+
+                // Ice fallout at surface
+                fallc_arr(i,j,k) = delqi_col / dz[0] / dtcld;
+                delqi_arr(i,j,k) = delqi_col;
+            });
+
+#if !defined(AMREX_USE_GPU)
+            if (microphysics_debug > 0 && diag_col_in_tile) {
+                std::printf("WDM6-CPP_POST_G8 %3d %24.16E %24.16E %24.16E\n",
+                            diag_k + 1,
+                            static_cast<double>(qi_arr(diag_i,diag_j,diag_k)),
+                            static_cast<double>(fallc_arr(diag_i,diag_j,klo)),
+                            static_cast<double>(den_arr(diag_i,diag_j,diag_k) * qi_arr(diag_i,diag_j,diag_k)));
                 std::fflush(stdout);
             }
 #endif

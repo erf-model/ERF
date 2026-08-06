@@ -1088,6 +1088,13 @@
           ncr(i_dbg_local,kts,3), t(i_dbg_local,kts)
       endif
 
+      if (debug_local .gt. 0 .and. i_dbg_local .ge. its .and. i_dbg_local .le. ite) then
+        write(*,'(A,1X,I3,4(1X,ES24.16E3))') &
+          'WDM6-FORT_PRE_G8', kts, &
+          qci(i_dbg_local,kts,2), xni(i_dbg_local,kts), &
+          den(i_dbg_local,kts), t(i_dbg_local,kts)
+      endif
+
       do k = kte, kts, -1
         do i = its, ite
           if(qci(i,k,2).le.0.) then
@@ -1118,6 +1125,12 @@
         fallc(i,1) = delqi(i)/delz(i,1)/dtcld
       enddo
 
+      if (debug_local .gt. 0 .and. i_dbg_local .ge. its .and. i_dbg_local .le. ite) then
+        write(*,'(A,1X,I3,3(1X,ES24.16E3))') &
+          'WDM6-FORT_POST_G8', kts, &
+          qci(i_dbg_local,kts,2), fallc(i_dbg_local,kts), &
+          den(i_dbg_local,kts)*qci(i_dbg_local,kts,2)
+      endif
 
 
 
