@@ -356,6 +356,26 @@ ERF::PackAtmosphericStates (amrex::Vector<amrex::MultiFab*>& states,
             if (verbose) { PrintFluxLaneStats("evap_lane", *states[iFluxEvap]); }
         }
 
+#if 0
+        // Extract Rain Flux using surface qr and a proxy terminal velocity
+        if (has_moisture && iFluxRain < static_cast<int>(states.size()) && states[iFluxRain] != nullptr) {
+            int qr_idx = solverChoice.moisture_indices.qr;
+            if (qr_idx != -1) {
+                MultiFab tmp(ba2d_lev, dm, 1, 0);
+                for (MFIter mfi(tmp, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+                    Box bx = mfi.tilebox();
+                    auto const& c = cons.const_array(mfi);
+                    auto t = tmp.array(mfi);
+                    ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+                        // Rain flux proxy: (rho * qr) * V_terminal (approx 5.0 m/s for rain) -> kg m^-2 s^-1
+                        t(i,j,k) = c(i,j,klo,qr_idx) * Real(5.0);
+                    });
+                }
+                ApplyConservativeRemap(tmp, *states[iFluxRain], *weight_mf, *index_mf, max_stencil_size);
+                if (verbose) { PrintFluxLaneStats("rain_lane", *states[iFluxRain]); }
+            }
+        }
+#endif
         amrex::ignore_unused(iFluxRain);
         return;
     }
