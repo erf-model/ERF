@@ -738,6 +738,10 @@ void WDM6::Advance(const Real& dt_advance,
         FArrayBox nraccr_fab(fab_box,1, Arena_Used);  // nr gained from accretion
         FArrayBox nrevp_fab(fab_box,1, Arena_Used);   // nr lost to evaporation
 
+        // G6 temporary arrays for slope_wdm6 call
+        FArrayBox qrs_tmp_fab(fab_box,3, Arena_Used);  // Temporary qr, qs, qg (components 0,1,2)
+        FArrayBox ncr_tmp_fab(fab_box,1, Arena_Used);  // Temporary nr
+
         auto const& delz_arr = delz_fab.array();
         auto const& denfac_arr = denfac_fab.array();
         auto const& xni_arr = xni_fab.array();
@@ -767,6 +771,8 @@ void WDM6::Advance(const Real& dt_advance,
         auto const& nrauto_arr = nrauto_fab.array();
         auto const& nraccr_arr = nraccr_fab.array();
         auto const& nrevp_arr = nrevp_fab.array();
+        auto const& qrs_tmp_arr = qrs_tmp_fab.array();  // G6: temporary qr, qs, qg
+        auto const& ncr_tmp_arr = ncr_tmp_fab.array();  // G6: temporary nr
 
         // Clamp negative values and enforce minimums
         ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
@@ -1253,6 +1259,90 @@ void WDM6::Advance(const Real& dt_advance,
                             static_cast<double>(den_arr(diag_i,diag_j,diag_k) * qg_arr(diag_i,diag_j,diag_k)),
                             static_cast<double>(work1_arr(diag_i,diag_j,klo,1)),
                             static_cast<double>(work1_arr(diag_i,diag_j,klo,2)));
+                std::fflush(stdout);
+            }
+#endif
+
+            // ============================================================
+            // Step 3g: Second slope_wdm6 call after sedimentation (G6)
+            // Recompute slope parameters for all species after G5c sed.
+            // ============================================================
+#if !defined(AMREX_USE_GPU)
+            if (microphysics_debug > 0 && diag_col_in_tile) {
+                std::printf("WDM6-CPP_PRE_G6 %3d %24.16E %24.16E %24.16E %24.16E\n",
+                            diag_k + 1,
+                            static_cast<double>(qr_arr(diag_i,diag_j,diag_k)),
+                            static_cast<double>(qs_arr(diag_i,diag_j,diag_k)),
+                            static_cast<double>(qg_arr(diag_i,diag_j,diag_k)),
+                            static_cast<double>(nr_arr(diag_i,diag_j,diag_k)));
+                std::fflush(stdout);
+            }
+#endif
+
+            // Copy current state to temporary arrays (qrs_tmp, ncr_tmp)
+            ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+                qrs_tmp_arr(i,j,k,0) = qr_arr(i,j,k);  // Fortran qrs(:,:,1)
+                qrs_tmp_arr(i,j,k,1) = qs_arr(i,j,k);  // Fortran qrs(:,:,2)
+                qrs_tmp_arr(i,j,k,2) = qg_arr(i,j,k);  // Fortran qrs(:,:,3)
+                ncr_tmp_arr(i,j,k)   = nr_arr(i,j,k);  // Fortran ncr(:,:,3)
+            });
+
+            // Call slope_wdm6: compute slope parameters for rain/snow/graupel
+            // This parallels the Fortran call: slope_wdm6(qrs_tmp,ncr_tmp,...)
+            ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+                Real rain_rslope, rain_rslopeb, rain_rslope2, rain_rslope3, rain_vt, rain_vtn;
+                Real snow_rslope, snow_rslopeb, snow_rslope2, snow_rslope3, snow_vt, snow_n0sfac;
+                Real graup_rslope, graup_rslopeb, graup_rslope2, graup_rslope3, graup_vt;
+
+                // Compute slope parameters using temporary (post-sedimentation) values
+                wdm6_slope_rain_cell(qrs_tmp_arr(i,j,k,0), ncr_tmp_arr(i,j,k), den_arr(i,j,k), denfac_arr(i,j,k),
+                                     Real(qcrmin), Real(nrmin),
+                                     rslopermax_loc, rsloperbmax_loc, rsloper2max_loc, rsloper3max_loc,
+                                     Real(bvtr), pvtr_loc, pvtrn_loc, pidnr_loc,
+                                     rain_rslope, rain_rslopeb, rain_rslope2, rain_rslope3,
+                                     rain_vt, rain_vtn);
+                wdm6_slope_snow_cell(qrs_tmp_arr(i,j,k,1), den_arr(i,j,k), denfac_arr(i,j,k), t_arr(i,j,k),
+                                     pidn0s_loc, Real(alpha_wdm6), Real(n0smax), Real(n0s),
+                                     Real(t0c), Real(qcrmin),
+                                     rslopesmax_loc, rslopesbmax_loc, rslopes2max_loc, rslopes3max_loc,
+                                     Real(bvts), pvts_loc,
+                                     snow_rslope, snow_rslopeb, snow_rslope2, snow_rslope3, snow_vt,
+                                     snow_n0sfac);
+                wdm6_slope_graup_cell(qrs_tmp_arr(i,j,k,2), den_arr(i,j,k), denfac_arr(i,j,k),
+                                      pidn0g_loc, Real(qcrmin),
+                                      rslopegmax_loc, rslopegbmax_loc, rslopeg2max_loc, rslopeg3max_loc,
+                                      slope_bvtg_loc, pvtg_loc,
+                                      graup_rslope, graup_rslopeb, graup_rslope2, graup_rslope3, graup_vt);
+
+                // Store results in output slope arrays
+                rslope_arr(i,j,k,0) = rain_rslope;
+                rslope_arr(i,j,k,1) = snow_rslope;
+                rslope_arr(i,j,k,2) = graup_rslope;
+                rslopeb_arr(i,j,k,0) = rain_rslopeb;
+                rslopeb_arr(i,j,k,1) = snow_rslopeb;
+                rslopeb_arr(i,j,k,2) = graup_rslopeb;
+                rslope2_arr(i,j,k,0) = rain_rslope2;
+                rslope2_arr(i,j,k,1) = snow_rslope2;
+                rslope2_arr(i,j,k,2) = graup_rslope2;
+                rslope3_arr(i,j,k,0) = rain_rslope3;
+                rslope3_arr(i,j,k,1) = snow_rslope3;
+                rslope3_arr(i,j,k,2) = graup_rslope3;
+                work1_arr(i,j,k,0) = rain_vt;
+                work1_arr(i,j,k,1) = snow_vt;
+                work1_arr(i,j,k,2) = graup_vt;
+                workn_arr(i,j,k) = rain_vtn;
+            });
+
+#if !defined(AMREX_USE_GPU)
+            if (microphysics_debug > 0 && diag_col_in_tile) {
+                std::printf("WDM6-CPP_POST_G6 %3d %24.16E %24.16E %24.16E %24.16E %24.16E %24.16E\n",
+                            diag_k + 1,
+                            static_cast<double>(rslope_arr(diag_i,diag_j,diag_k,0)),
+                            static_cast<double>(rslope_arr(diag_i,diag_j,diag_k,1)),
+                            static_cast<double>(rslope_arr(diag_i,diag_j,diag_k,2)),
+                            static_cast<double>(work1_arr(diag_i,diag_j,diag_k,0)),
+                            static_cast<double>(work1_arr(diag_i,diag_j,diag_k,1)),
+                            static_cast<double>(work1_arr(diag_i,diag_j,diag_k,2)));
                 std::fflush(stdout);
             }
 #endif

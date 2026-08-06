@@ -992,6 +992,13 @@
           fall(i_dbg_local,1,2), fall(i_dbg_local,1,3)
       endif
 
+      if (debug_local .gt. 0 .and. i_dbg_local .ge. its .and. i_dbg_local .le. ite) then
+        write(*,'(A,1X,I3,4(1X,ES24.16E3))') &
+          'WDM6-FORT_PRE_G6', kts, &
+          qrs(i_dbg_local,kts,1), qrs(i_dbg_local,kts,2), qrs(i_dbg_local,kts,3), &
+          ncr(i_dbg_local,kts,3)
+      endif
+
       do k = kts, kte
         do i = its, ite
           qrs_tmp(i,k,1) = qrs(i,k,1)
@@ -1002,6 +1009,13 @@
       enddo
       call slope_wdm6(qrs_tmp,ncr_tmp,den_tmp,denfac,t,rslope,rslopeb,rslope2, &
                      rslope3,work1,workn,its,ite,kts,kte)
+
+      if (debug_local .gt. 0 .and. i_dbg_local .ge. its .and. i_dbg_local .le. ite) then
+        write(*,'(A,1X,I3,6(1X,ES24.16E3))') &
+          'WDM6-FORT_POST_G6', kts, &
+          rslope(i_dbg_local,kts,1), rslope(i_dbg_local,kts,2), rslope(i_dbg_local,kts,3), &
+          work1(i_dbg_local,kts,1), work1(i_dbg_local,kts,2), work1(i_dbg_local,kts,3)
+      endif
 
       do k = kte, kts, -1
         do i = its, ite
