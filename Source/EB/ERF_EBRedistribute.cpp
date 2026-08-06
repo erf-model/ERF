@@ -82,7 +82,7 @@ redistribute_term ( int ncomp,
 
                 // Extended geometry domain
                 Box domain_grown = geom.Domain();
-                domain_grown.grow(igrid-1, 1); // Extend geometry domain by 1 in the staggering direction
+                domain_grown.growHi(igrid-1, 1); // Extend geometry domain by 1 in the staggering direction
                 geom_used = Geometry(domain_grown, geom.ProbDomain(), geom.Coord(), geom.isPeriodic());
             }
 

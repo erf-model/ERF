@@ -289,9 +289,9 @@ EBAdvectionSrcForScalars (const Box& bx,
     BL_PROFILE_VAR("EBAdvectionSrcForScalars", EBAdvectionSrcForScalars);
     auto dxInv = cellSizeInv[0], dyInv = cellSizeInv[1], dzInv = cellSizeInv[2];
 
-    const Box xbx = surroundingNodes(bx,0);
-    const Box ybx = surroundingNodes(bx,1);
-    const Box zbx = surroundingNodes(bx,2);
+    const Box xbx = surroundingNodes(bx,0).grow(IntVect(0, 1, 1));
+    const Box ybx = surroundingNodes(bx,1).grow(IntVect(1, 0, 1));
+    const Box zbx = surroundingNodes(bx,2).grow(IntVect(1, 1, 0));
 
     // Open bc will be imposed upon all vars (we only access cons here for simplicity)
     const bool xlo_open = (bc_ptr_h[BCVars::cons_bc].lo(0) == ERFBCType::open);
