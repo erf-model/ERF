@@ -158,14 +158,25 @@ public:
     void GetOceanToAtmosCornerCoordinates (const amrex::MultiFab*& x_corner,
                                            const amrex::MultiFab*& y_corner) const;
 
+    // Returns the level-0, current-time land mask (1 = land, 0 = water) used
+    // by the driver to exclude land cells from atmos->ocean remap stencils.
+    // Sets lmask to nullptr if unavailable.
+    void GetLandMask (const amrex::iMultiFab*& lmask) const;
+
     // weight_mf/index_mf are keyed by WeightFamily slot order
     // {SCALAR_CENTERED, TAUX_FACE, TAUY_FACE, WIND_FACE_TO_CENTER} as built by
     // the driver's ERFRemoraMultiBlockContainer::BuildRemapWeights(); each
     // lane below picks the pair matching its own destination stagger.
+    // dst_mskr/dst_msku/dst_mskv are REMORA wet/dry masks (1 = wet, 0 = land)
+    // on the rho/u-face/v-face destination layouts, applied to the scalar,
+    // TauX, and TauY lanes respectively. Pass nullptr to skip masking.
     void PackAtmosphericStates (amrex::Vector<amrex::MultiFab*>& states, double time,
                                 const amrex::Vector<const amrex::MultiFab*>& weight_mf,
                                 const amrex::Vector<const amrex::iMultiFab*>& index_mf,
-                                int max_stencil_size);
+                                int max_stencil_size,
+                                const amrex::MultiFab* dst_mskr = nullptr,
+                                const amrex::MultiFab* dst_msku = nullptr,
+                                const amrex::MultiFab* dst_mskv = nullptr);
     void ApplyOceanSurfaceState (const amrex::Vector<amrex::MultiFab*>& state, double time);
 
     // Tag cells for refinement

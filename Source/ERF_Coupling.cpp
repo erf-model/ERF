@@ -30,13 +30,14 @@ ApplyConservativeRemap (const amrex::MultiFab& src,
                         amrex::MultiFab& dst,
                         const amrex::MultiFab& weight_mf,
                         const amrex::iMultiFab& index_mf,
-                        int max_stencil_size)
+                        int max_stencil_size,
+                        const amrex::MultiFab* dst_mask = nullptr)
 {
     using namespace amrex;
 
     // 1. Data Routing: Get the ERF source data onto the REMORA destination layout.
     // We allocate a temporary MultiFab on the destination's BoxArray and DistributionMapping
-    // with a generous ghost cell halo (e.g., 4) to ensure all overlapping ERF source cells 
+    // with a generous ghost cell halo (e.g., 4) to ensure all overlapping ERF source cells
     // needed by the stencil are safely pulled onto the local MPI ranks.
     MultiFab src_on_dst(dst.boxArray(), dst.DistributionMap(), src.nComp(), 4);
     src_on_dst.setVal(0.0);
@@ -48,11 +49,13 @@ ApplyConservativeRemap (const amrex::MultiFab& src,
     // 2. Stencil Application: Execute the local sparse dot product
     for (MFIter mfi(dst, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
         Box bx = mfi.tilebox();
-        
+
         auto const& w_arr   = weight_mf.const_array(mfi);
         auto const& idx_arr = index_mf.const_array(mfi);
-        auto const& src_arr = src_on_dst.const_array(mfi); 
+        auto const& src_arr = src_on_dst.const_array(mfi);
         auto        dst_arr = dst.array(mfi);
+        const bool has_mask = (dst_mask != nullptr);
+        auto const& mask_arr = has_mask ? dst_mask->const_array(mfi) : Array4<const Real>{};
 
         ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
             Real sum = 0.0;
@@ -62,10 +65,11 @@ ApplyConservativeRemap (const amrex::MultiFab& src,
                     int src_i = idx_arr(i, j, k, m * 3);
                     int src_j = idx_arr(i, j, k, m * 3 + 1);
                     int src_k = idx_arr(i, j, k, m * 3 + 2);
-                    
+
                     sum += w * src_arr(src_i, src_j, src_k);
                 }
             }
+            if (has_mask) { sum *= mask_arr(i, j, k); }
             dst_arr(i, j, k) = sum;
         });
     }
@@ -140,6 +144,16 @@ ERF::GetOceanToAtmosCornerCoordinates (const amrex::MultiFab*& x_corner,
     y_corner = lat_m[0].get();
 }
 
+void
+ERF::GetLandMask (const amrex::iMultiFab*& lmask) const
+{
+    if (lmask_lev.empty() || lmask_lev[0].empty() || lmask_lev[0][0] == nullptr) {
+        lmask = nullptr;
+        return;
+    }
+    lmask = lmask_lev[0][0].get();
+}
+
 /*
   Coupling reference context (implementation-side):
 
@@ -168,7 +182,10 @@ ERF::PackAtmosphericStates (amrex::Vector<amrex::MultiFab*>& states,
                             double /*time*/,
                             const amrex::Vector<const amrex::MultiFab*>& weight_mf_by_family,
                             const amrex::Vector<const amrex::iMultiFab*>& index_mf_by_family,
-                            int max_stencil_size)
+                            int max_stencil_size,
+                            const amrex::MultiFab* dst_mskr,
+                            const amrex::MultiFab* dst_msku,
+                            const amrex::MultiFab* dst_mskv)
 {
     using namespace amrex;
 
@@ -263,7 +280,7 @@ ERF::PackAtmosphericStates (amrex::Vector<amrex::MultiFab*>& states,
                 });
             }
             ApplyConservativeRemap(tmp, *states[iTauX], *weight_mf_by_family[kTauXFamily],
-                                   *index_mf_by_family[kTauXFamily], max_stencil_size);
+                                   *index_mf_by_family[kTauXFamily], max_stencil_size, dst_msku);
             if (verbose) { PrintFluxLaneStats("tau_x_lane", *states[iTauX]); }
         }
 
@@ -283,7 +300,7 @@ ERF::PackAtmosphericStates (amrex::Vector<amrex::MultiFab*>& states,
                 });
             }
             ApplyConservativeRemap(tmp, *states[iTauY], *weight_mf_by_family[kTauYFamily],
-                                   *index_mf_by_family[kTauYFamily], max_stencil_size);
+                                   *index_mf_by_family[kTauYFamily], max_stencil_size, dst_mskv);
             if (verbose) { PrintFluxLaneStats("tau_y_lane", *states[iTauY]); }
         }
 
@@ -299,7 +316,7 @@ ERF::PackAtmosphericStates (amrex::Vector<amrex::MultiFab*>& states,
                         hfx(i,j,klo));
                 });
             }
-            ApplyConservativeRemap(tmp, *states[iSHflux], *weight_mf, *index_mf, max_stencil_size);
+            ApplyConservativeRemap(tmp, *states[iSHflux], *weight_mf, *index_mf, max_stencil_size, dst_mskr);
             if (verbose) { PrintFluxLaneStats("SHflux_lane", *states[iSHflux]); }
         }
 
@@ -315,7 +332,7 @@ ERF::PackAtmosphericStates (amrex::Vector<amrex::MultiFab*>& states,
                         qfx(i,j,klo));
                 });
             }
-            ApplyConservativeRemap(tmp, *states[iLHflux], *weight_mf, *index_mf, max_stencil_size);
+            ApplyConservativeRemap(tmp, *states[iLHflux], *weight_mf, *index_mf, max_stencil_size, dst_mskr);
             if (verbose) { PrintFluxLaneStats("LHflux_lane", *states[iLHflux]); }
         }
 
@@ -323,7 +340,7 @@ ERF::PackAtmosphericStates (amrex::Vector<amrex::MultiFab*>& states,
             if (iFluxSWrad < static_cast<int>(states.size()) && states[iFluxSWrad] != nullptr) {
                 MultiFab tmp(ba2d_lev, dm, 1, 0);
                 tmp.ParallelCopy(*rad_fluxes[lev], 1, 0, 1);
-                ApplyConservativeRemap(tmp, *states[iFluxSWrad], *weight_mf, *index_mf, max_stencil_size);
+                ApplyConservativeRemap(tmp, *states[iFluxSWrad], *weight_mf, *index_mf, max_stencil_size, dst_mskr);
                 if (verbose) { PrintFluxLaneStats("SWrad_lane", *states[iFluxSWrad]); }
             }
             if (iFluxLWrad < static_cast<int>(states.size()) && states[iFluxLWrad] != nullptr) {
@@ -336,7 +353,7 @@ ERF::PackAtmosphericStates (amrex::Vector<amrex::MultiFab*>& states,
                         t(i,j,k) = rad_flux(i,j,k,3) - rad_flux(i,j,k,2);
                     });
                 }
-                ApplyConservativeRemap(tmp, *states[iFluxLWrad], *weight_mf, *index_mf, max_stencil_size);
+                ApplyConservativeRemap(tmp, *states[iFluxLWrad], *weight_mf, *index_mf, max_stencil_size, dst_mskr);
                 if (verbose) { PrintFluxLaneStats("LWrad_lane", *states[iFluxLWrad]); }
             }
         }
@@ -352,7 +369,7 @@ ERF::PackAtmosphericStates (amrex::Vector<amrex::MultiFab*>& states,
                     t(i,j,k) = qfx(i,j,klo);
                 });
             }
-            ApplyConservativeRemap(tmp, *states[iFluxEvap], *weight_mf, *index_mf, max_stencil_size);
+            ApplyConservativeRemap(tmp, *states[iFluxEvap], *weight_mf, *index_mf, max_stencil_size, dst_mskr);
             if (verbose) { PrintFluxLaneStats("evap_lane", *states[iFluxEvap]); }
         }
 
@@ -371,7 +388,7 @@ ERF::PackAtmosphericStates (amrex::Vector<amrex::MultiFab*>& states,
                         t(i,j,k) = c(i,j,klo,qr_idx) * Real(5.0);
                     });
                 }
-                ApplyConservativeRemap(tmp, *states[iFluxRain], *weight_mf, *index_mf, max_stencil_size);
+                ApplyConservativeRemap(tmp, *states[iFluxRain], *weight_mf, *index_mf, max_stencil_size, dst_mskr);
                 if (verbose) { PrintFluxLaneStats("rain_lane", *states[iFluxRain]); }
             }
         }
@@ -424,7 +441,7 @@ ERF::PackAtmosphericStates (amrex::Vector<amrex::MultiFab*>& states,
                 });
             }
         }
-        ApplyConservativeRemap(tmp, *states[iPatm], *weight_mf, *index_mf, max_stencil_size);
+        ApplyConservativeRemap(tmp, *states[iPatm], *weight_mf, *index_mf, max_stencil_size, dst_mskr);
     }
 
     // --- Tair ---
@@ -445,7 +462,7 @@ ERF::PackAtmosphericStates (amrex::Vector<amrex::MultiFab*>& states,
                 });
             }
         }
-        ApplyConservativeRemap(tmp, *states[iTair], *weight_mf, *index_mf, max_stencil_size);
+        ApplyConservativeRemap(tmp, *states[iTair], *weight_mf, *index_mf, max_stencil_size, dst_mskr);
     }
 
     // --- Humidity/Cloud/Rain ---
@@ -498,7 +515,7 @@ ERF::PackAtmosphericStates (amrex::Vector<amrex::MultiFab*>& states,
                         t(i,j,k) = static_cast<Real>(cloudy);
                     });
                 }
-                ApplyConservativeRemap(tmp, *states[iCloud], *weight_mf, *index_mf, max_stencil_size);
+                ApplyConservativeRemap(tmp, *states[iCloud], *weight_mf, *index_mf, max_stencil_size, dst_mskr);
             }
         }
 #if 0
@@ -531,12 +548,12 @@ ERF::PackAtmosphericStates (amrex::Vector<amrex::MultiFab*>& states,
         if (iSWrad < static_cast<int>(states.size()) && states[iSWrad] != nullptr) {
             MultiFab tmp(ba2d_lev, dm, 1, 0);
             tmp.ParallelCopy(*rad_fluxes[lev], 1, 0, 1);
-            ApplyConservativeRemap(tmp, *states[iSWrad], *weight_mf, *index_mf, max_stencil_size);
+            ApplyConservativeRemap(tmp, *states[iSWrad], *weight_mf, *index_mf, max_stencil_size, dst_mskr);
         }
         if (iLWrad < static_cast<int>(states.size()) && states[iLWrad] != nullptr) {
             MultiFab tmp(ba2d_lev, dm, 1, 0);
             tmp.ParallelCopy(*rad_fluxes[lev], 3, 0, 1);
-            ApplyConservativeRemap(tmp, *states[iLWrad], *weight_mf, *index_mf, max_stencil_size);
+            ApplyConservativeRemap(tmp, *states[iLWrad], *weight_mf, *index_mf, max_stencil_size, dst_mskr);
         }
     }
 }
