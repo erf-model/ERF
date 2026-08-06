@@ -1605,6 +1605,52 @@ void WDM6::Advance(const Real& dt_advance,
 #endif
 
             // ============================================================
+            // Step 3j: G10a Cloud-Ice Melt to Cloud Water
+            // Exact port of bounded Fortran block (lines 1189-1197)
+            // ============================================================
+#if !defined(AMREX_USE_GPU)
+            if (microphysics_debug > 0 && diag_col_in_tile) {
+                std::printf("WDM6-CPP_PRE_G10A %3d %24.16E %24.16E %24.16E %24.16E %24.16E\n",
+                            diag_k + 1,
+                            static_cast<double>(qc_arr(diag_i,diag_j,diag_k)),
+                            static_cast<double>(qi_arr(diag_i,diag_j,diag_k)),
+                            static_cast<double>(nc_arr(diag_i,diag_j,diag_k)),
+                            static_cast<double>(xni_arr(diag_i,diag_j,diag_k)),
+                            static_cast<double>(t_arr(diag_i,diag_j,diag_k)));
+                std::fflush(stdout);
+            }
+#endif
+
+            ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+                const Real supcol = t0c - t_arr(i,j,k);
+                Real xlf = xls - xl_arr(i,j,k);
+                if (supcol < Real(0.0)) xlf = xlf0;
+
+                // Cloud-ice melt to cloud water (T > t0c)
+                if (supcol < Real(0.0) && qi_arr(i,j,k) > Real(0.0)) {
+                    const Real qim = qi_arr(i,j,k);  // preserve old ice amount
+
+                    qc_arr(i,j,k)   += qim;                           // qci(:,:,1) += qci(:,:,2)
+                    nc_arr(i,j,k)   += xni_arr(i,j,k);                // ncr(:,:,2) += xni
+                    t_arr(i,j,k)    -= xlf / cpm_arr(i,j,k) * qim;    // latent heat release
+                    qi_arr(i,j,k)    = Real(0.0);                     // zero out ice
+                }
+            });
+
+#if !defined(AMREX_USE_GPU)
+            if (microphysics_debug > 0 && diag_col_in_tile) {
+                std::printf("WDM6-CPP_POST_G10A %3d %24.16E %24.16E %24.16E %24.16E %24.16E\n",
+                            diag_k + 1,
+                            static_cast<double>(qc_arr(diag_i,diag_j,diag_k)),
+                            static_cast<double>(qi_arr(diag_i,diag_j,diag_k)),
+                            static_cast<double>(nc_arr(diag_i,diag_j,diag_k)),
+                            static_cast<double>(xni_arr(diag_i,diag_j,diag_k)),
+                            static_cast<double>(t_arr(diag_i,diag_j,diag_k)));
+                std::fflush(stdout);
+            }
+#endif
+
+            // ============================================================
             // Step 4: WDM6 CCN Activation
             // ============================================================
 #if !defined(AMREX_USE_GPU)

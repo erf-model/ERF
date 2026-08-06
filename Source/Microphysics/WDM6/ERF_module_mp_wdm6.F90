@@ -1177,7 +1177,13 @@
           snowncv(i_dbg_local), graupelncv(i_dbg_local)
       endif
 
-
+      if (debug_local .gt. 0 .and. i_dbg_local .ge. its .and. i_dbg_local .le. ite) then
+        write(*,'(A,1X,I3,5(1X,ES24.16E3))') &
+          'WDM6-FORT_PRE_G10A', kts, &
+          qci(i_dbg_local,kts,1), qci(i_dbg_local,kts,2), &
+          ncr(i_dbg_local,kts,2), xni(i_dbg_local,kts), &
+          t(i_dbg_local,kts)
+      endif
 
 
 
@@ -1197,7 +1203,13 @@
             qci(i,k,2) = 0.
           endif
 
-
+      if (debug_local .gt. 0 .and. i_dbg_local .ge. its .and. i_dbg_local .le. ite) then
+        write(*,'(A,1X,I3,5(1X,ES24.16E3))') &
+          'WDM6-FORT_POST_G10A', kts, &
+          qci(i_dbg_local,kts,1), qci(i_dbg_local,kts,2), &
+          ncr(i_dbg_local,kts,2), xni(i_dbg_local,kts), &
+          t(i_dbg_local,kts)
+      endif
 
 
           if(supcol.gt.40. .and. qci(i,k,1).gt.0.) then
