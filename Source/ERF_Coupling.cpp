@@ -166,14 +166,25 @@ ERF::GetOceanToAtmosCornerCoordinates (const amrex::MultiFab*& x_corner,
 void
 ERF::PackAtmosphericStates (amrex::Vector<amrex::MultiFab*>& states,
                             double /*time*/,
-                            const amrex::MultiFab* weight_mf,
-                            const amrex::iMultiFab* index_mf,
+                            const amrex::Vector<const amrex::MultiFab*>& weight_mf_by_family,
+                            const amrex::Vector<const amrex::iMultiFab*>& index_mf_by_family,
                             int max_stencil_size)
 {
     using namespace amrex;
 
-    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(weight_mf != nullptr && index_mf != nullptr, 
-                                     "PackAtmosphericStates requires valid driver remap stencil components.");
+    // WeightFamily slot order, mirrored from ERFRemoraMultiBlockContainer.H:
+    // {SCALAR_CENTERED, TAUX_FACE, TAUY_FACE, WIND_FACE_TO_CENTER}.
+    constexpr int kScalarFamily = 0, kTauXFamily = 1, kTauYFamily = 2, kWindFamily = 3;
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+        weight_mf_by_family.size() == 4 && index_mf_by_family.size() == 4,
+        "PackAtmosphericStates requires 4 WeightFamily-keyed weight/index pairs.");
+    for (int f = 0; f < 4; ++f) {
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+            weight_mf_by_family[f] != nullptr && index_mf_by_family[f] != nullptr,
+            "PackAtmosphericStates requires valid driver remap stencil components for every WeightFamily slot.");
+    }
+    const amrex::MultiFab* weight_mf = weight_mf_by_family[kScalarFamily];
+    const amrex::iMultiFab* index_mf = index_mf_by_family[kScalarFamily];
 
     // Contract slot indices (mirrors ERFRemoraCouplingContract.H; repeated here
     // to avoid a driver→submodule header dependency).
@@ -251,7 +262,8 @@ ERF::PackAtmosphericStates (amrex::Vector<amrex::MultiFab*>& states,
                     t(i,j,k) = rho_face * tau13(i,j,klo);
                 });
             }
-            ApplyConservativeRemap(tmp, *states[iTauX], *weight_mf, *index_mf, max_stencil_size);
+            ApplyConservativeRemap(tmp, *states[iTauX], *weight_mf_by_family[kTauXFamily],
+                                   *index_mf_by_family[kTauXFamily], max_stencil_size);
             if (verbose) { PrintFluxLaneStats("tau_x_lane", *states[iTauX]); }
         }
 
@@ -270,7 +282,8 @@ ERF::PackAtmosphericStates (amrex::Vector<amrex::MultiFab*>& states,
                     t(i,j,k) = rho_face * tau23(i,j,klo);
                 });
             }
-            ApplyConservativeRemap(tmp, *states[iTauY], *weight_mf, *index_mf, max_stencil_size);
+            ApplyConservativeRemap(tmp, *states[iTauY], *weight_mf_by_family[kTauYFamily],
+                                   *index_mf_by_family[kTauYFamily], max_stencil_size);
             if (verbose) { PrintFluxLaneStats("tau_y_lane", *states[iTauY]); }
         }
 
@@ -362,12 +375,14 @@ ERF::PackAtmosphericStates (amrex::Vector<amrex::MultiFab*>& states,
 
         if (iUwind < static_cast<int>(states.size()) && states[iUwind] != nullptr) {
             MultiFab u_alias(uv_slab, amrex::make_alias, 0, 1); // alias u component
-            ApplyConservativeRemap(u_alias, *states[iUwind], *weight_mf, *index_mf, max_stencil_size);
+            ApplyConservativeRemap(u_alias, *states[iUwind], *weight_mf_by_family[kWindFamily],
+                                   *index_mf_by_family[kWindFamily], max_stencil_size);
         }
 
         if (iVwind < static_cast<int>(states.size()) && states[iVwind] != nullptr) {
             MultiFab v_alias(uv_slab, amrex::make_alias, 1, 1); // alias v component
-            ApplyConservativeRemap(v_alias, *states[iVwind], *weight_mf, *index_mf, max_stencil_size);
+            ApplyConservativeRemap(v_alias, *states[iVwind], *weight_mf_by_family[kWindFamily],
+                                   *index_mf_by_family[kWindFamily], max_stencil_size);
         }
     }
 

@@ -158,7 +158,14 @@ public:
     void GetOceanToAtmosCornerCoordinates (const amrex::MultiFab*& x_corner,
                                            const amrex::MultiFab*& y_corner) const;
 
-    void PackAtmosphericStates (amrex::Vector<amrex::MultiFab*>& states, double time);
+    // weight_mf/index_mf are keyed by WeightFamily slot order
+    // {SCALAR_CENTERED, TAUX_FACE, TAUY_FACE, WIND_FACE_TO_CENTER} as built by
+    // the driver's ERFRemoraMultiBlockContainer::BuildRemapWeights(); each
+    // lane below picks the pair matching its own destination stagger.
+    void PackAtmosphericStates (amrex::Vector<amrex::MultiFab*>& states, double time,
+                                const amrex::Vector<const amrex::MultiFab*>& weight_mf,
+                                const amrex::Vector<const amrex::iMultiFab*>& index_mf,
+                                int max_stencil_size);
     void ApplyOceanSurfaceState (const amrex::Vector<amrex::MultiFab*>& state, double time);
 
     // Tag cells for refinement
