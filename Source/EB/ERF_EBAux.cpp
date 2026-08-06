@@ -857,6 +857,7 @@ define( [[maybe_unused]] int const& a_level,
     Array4<Real>       const& aux_afrac_x = m_areafrac[0]->array(mfi);
     Array4<Real>       const& aux_afrac_y = m_areafrac[1]->array(mfi);
     Array4<Real>       const& aux_afrac_z = m_areafrac[2]->array(mfi);
+    Array4<Real>       const& aux_afrac_idim = m_areafrac[a_idim]->array(mfi);
 
     Array4<Real>       const& aux_vcent = m_volcent->array(mfi);
     Array4<Real>       const& aux_fcent_x = m_facecent[0]->array(mfi);
@@ -970,7 +971,7 @@ define( [[maybe_unused]] int const& a_level,
           for (int d=0; d<AMREX_SPACEDIM; ++d) {
               iv_nearest[d] = Clamp(iv[d], bx_grown_1.smallEnd(d), bx_grown_1.bigEnd(d));
           }
-          aux_afrac_x(iv) = aux_afrac_x(iv_nearest);
+          aux_afrac_idim(iv) = aux_afrac_idim(iv_nearest);
         });
       }
 
