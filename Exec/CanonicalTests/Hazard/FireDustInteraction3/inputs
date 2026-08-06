@@ -1,79 +1,17 @@
-# ============================================================
-# Test: FireDustInteraction3
-# Description: Phase 3 isolated — fire heat flux drives convective dust lofting.
+# Test third-level fire-dust interaction scenario.
 #
-#   After DustLayer::advance() computes the saltation emission flux,
-#   apply_fire_lofting_to_emission_flux multiplies it by:
-#     factor = 1 + k_loft * max(Q_fire - Q_threshold, 0) / Q_ref
-#   capped at (1 + k_loft). Only cells where Q_fire > Q_threshold are enhanced.
+# This case extends the interaction suite with an additional coupling pathway or stronger forcing, broadening the hazard regression matrix.
 #
-# Interactions:
-#   fire_dust_crust_reduction = 0.0  -> Interaction 1 disabled
-#   fire_dust_wind_to_dust = false   -> Interaction 2 disabled
-#   fire_dust_lofting_enabled = true -> Interaction 3 active
+# Expected result:
+#   - The third interaction mode changes lofting, transport, or emission behavior as intended.
+#   - Run remains stable and suitable for qualitative comparison with the other interaction cases.
 #
-# Settings:
-#   fuel_model_id = 1                -> FM1 short grass
-#   crust_index = 0.5                -> partially crusted (uniform, no Phase 1)
-#   k_loft = 2.0                     -> max 3x enhancement (factor = 1 + 2 = 3)
-#   Q_threshold = 50 W/m^2           -> lofting active when Q > 50 W/m^2
-#   Q_ref = 500 W/m^2                -> full enhancement at Q_ref
-#   sounding_neutral_abl (u=15 m/s) -> consistent with geo_wind=15.0
-#   fire.coupling_type = "passive"   -> no heat injection into atmosphere
+# Configuration:
+#   - A distinct interaction control is enabled relative to cases 1 and 2.
+#   - Common baseline settings remain for side-by-side interpretation.
 #
-# Expected Results (verified step=20, t=10 s, dt=0.5 s):
-#
-#   Dynamics:
-#   - Simulation completes 20 steps without errors.
-#   - Fixed dt = 0.5 s.
-#   - u*_max = 1.121392 m/s  |  u_10m_max = 14.994 m/s  |  PBLH = 534.721 m
-#   - EddyDiff::Scalar_v_max = 2.167818648 m^2/s
-#   - T_sfc_max = 300 K  (passive fire, no heating)
-#
-#   Fire (step 20):
-#   - 32 active fire cells (ignition_r=600 m)
-#   - Max reference wind = 14.562 m/s
-#   - Max effective wind (post-WAF) = 5.272939414 m/s
-#   - Max ROS = 0.2160244347 m/s  |  Q_max = 3520.16312 W/m^2
-#   - T_flame_max = 536.5483447 K
-#   - phi_min=-1  phi_max=0
-#
-#   Phase 3 output (step 20):
-#   - [DUST DEBUG] Phase 3 fire-lofting:
-#       step=20
-#       fire_heat_max=3520.16312 W/m2
-#       emission_flux_max_after_loft=1.39462757e-07 kg/m2/s
-#   - Pre-loft emission_flux bin0 max = 4.648758566e-08 kg/m^2/s
-#   - Enhancement factor at fire cells:
-#       factor = 1 + 2.0 * (3520 - 50) / 500 = 1 + 13.88 -> capped at 1+2 = 3
-#       so lofted_flux = 3 * 4.649e-08 = 1.395e-07 kg/m^2/s (matches output)
-#   - C=3x enhancement confirmed correct
-#
-#   Phase 1+2 disabled (step 20):
-#   - crust_min=0.5, crust_max=0.5, reduction=0  (Phase 1 inactive)
-#   - No fire-wind coupling output (Phase 2 inactive)
-#   - u*_t = 0.005925889388 m/s (uniform, crust=0.5)
-#
-#   Dust Emission (step 20, after lofting):
-#   - emission_sum = 1.487602741e-05 kg/s  (vs 1.19e-05 baseline: 25% increase)
-#   - F_dust_atm_max = 4.185084176e-07 kg/m^2/s  (injected to atm)
-#   - conc_sfc_max = 241.958 ug/m^3  |  PM10 = 229.846 ug/m^3
-#   - RHO DUST = 14.921
-#   - dep_total = 3.556812621e-07 kg/m^2
-#
-#   Mass Budget (step 20):
-#   - MASS = 1.012650226e+10  |  RHO THETA = 3.080452531e+12
-#   - RHO SCALAR = 0
-#
-#   Performance:
-#   - Timestep wall time ~ 5.8e-03 s  |  Total ~ 0.139 s
-#   - NOTE: amrex.max_grid_size_z is unused (use amr.max_grid_size_z instead)
-#
-# Comparison vs baseline (FireDustBaseline, step=20, 15 m/s, no fire-dust coupling):
-#   emission_sum: 1.488e-05 vs ~1.189e-05 baseline -> ~25% increase from lofting
-#   RHO DUST:     14.921   vs ~11.9     baseline    -> 25% more dust in domain
-#   conc_sfc:     242 ug/m^3 vs ~82 ug/m^3 baseline -> 3x higher (lofting capped at 3x)
-# ============================================================
+# Notes:
+#   - Use together with the combined-interaction directories.
 
 erf.prob_name = "ABL"
 max_step = 20

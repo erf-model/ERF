@@ -1,55 +1,17 @@
-# DustOutput regression test
+# Check dust-specific outputs and diagnostics.
 #
-# Tests Phase 16: dust plotfile on native dust grid and CSV diagnostics.
+# This case focuses on dust plotfile, statistics, and diagnostic output controls to confirm the module writes the intended fields.
 #
-# Plotfile uses VisMF::Write + WriteGenericPlotfileHeader on the native
-# 2D dust BoxArray and Geometry (not part of ERF AMR hierarchy).
-# Pattern: ERF_FirePlotfile.cpp in Source/Fire/:
-#   https://github.com/hgopalan/ERF/blob/ERF-Fire/Source/Fire/ERF_FirePlotfile.cpp
+# Expected result:
+#   - Requested dust outputs are produced with the configured names and cadence.
+#   - No unexpected omissions occur in the main dust diagnostics.
 #
-# ERF writes at intervals (dust_plot_int) and at the final step even if
-# final step is not a multiple of dust_plot_int. Final-step guard:
-#   is_final=true and nstep > m_last_dust_plot_step
-# Pattern matches WriteAtFinalTime in Source/ERF.cpp.
+# Configuration:
+#   - Output prefix, interval, and variable-selection settings are emphasized.
+#   - Physics setup remains secondary to output verification.
 #
-# max_step = 7, dust_plot_int = 3.
-# Plotfiles at: 0 (InitData_post), 3, 6, 7 (final, not multiple of 3).
-#
-# Atmospheric configuration: Moeng-Sullivan neutral ABL.
-# Reference: Exec/CanonicalTests/ABL/MRF_Enhancements/canonical/neutral_abl
-# MRF u* ~ 0.56 m/s with 15 m/s geostrophic wind.
-#
-# Expected results:
-#   (1) plt_dust_00000/, plt_dust_00003/, plt_dust_00006/ created at
-#       steps 0, 3, 6 (multiples of dust_plot_int=3).
-#   (2) plt_dust_00007/ created at final step 7 (not multiple of 3).
-#   (3) Each plotfile directory contains: Header, Level_0/Cell*,
-#       DustMetadata.json.
-#   (4) Header is standard AMReX format with 8 variable names:
-#       dust_emission_flux, dust_ustar_in, dust_ustar_t,
-#       dust_deposition_rate, dust_conc_sfc, dust_surf_moist,
-#       dust_suppression, dust_retreat_flag.
-#   (5) DustMetadata.json contains format_version, time, step,
-#       grid_ratio=1, n_variables=8.
-#   (6) dust_diag.dat created with header + 8 rows (steps 0-7).
-#   (7) dust_diag.dat emission_total_kg_s > 0 after step 1.
-#   (8) dust_diag.dat deposition_total_kg_m2 increases monotonically.
-#   (9) [DUST DEBUG] Phase 16 plotfile written at steps 0, 3, 6, 7.
-#  (10) Setting dust_plot_int = -1: no plotfile directories created,
-#       dust_diag.dat still written every step.
-#  (11) Run exits with code 0.
-#
-# References:
-#   AMReX plotfile format:
-#     https://amrex-codes.github.io/amrex/docs_html/IO.html
-#   ERF_FirePlotfile.cpp pattern (VisMF + WriteGenericPlotfileHeader):
-#     https://github.com/hgopalan/ERF/blob/ERF-Fire/Source/Fire/ERF_FirePlotfile.cpp
-#   ERF_FireStatsOutput.H pattern (CSV append):
-#     https://github.com/hgopalan/ERF/blob/ERF-Fire/Source/Fire/ERF_FireStatsOutput.H
-#   Ginoux et al. (2001). J. Geophys. Res., 106, 20255.
-#     https://doi.org/10.1029/2000JD901323
-#   Marticorena & Bergametti (1995). J. Geophys. Res., 100, 16415.
-#     https://doi.org/10.1029/95JD00690
+# Notes:
+#   - Use as a documentation anchor for dust post-processing examples.
 
 erf.prob_name = "ABL"
 max_step = 7

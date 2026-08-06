@@ -1,4 +1,17 @@
-# ABL with MRF boundary layer parametrization and fire model
+# Couple fire with representative ABL/MRF boundary-layer states.
+#
+# These cases combine the fire module with multiple atmospheric boundary-layer soundings and MRF settings to test sensitivity across neutral, unstable, diurnal, and shear-driven conditions.
+#
+# Expected result:
+#   - Each sounding-driven scenario runs with the intended atmospheric state.
+#   - Fire behavior changes qualitatively with the background boundary-layer structure and wind profile.
+#
+# Configuration:
+#   - Input sounding files and ABL/MRF parameters define the scenario family.
+#   - Shared fire setup keeps atmospheric forcing as the dominant difference.
+#
+# Notes:
+#   - A directory README already summarizes the scenario matrix; keep per-file headers scenario-specific.
 
 stop_time = 512
 

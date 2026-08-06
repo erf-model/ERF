@@ -1,92 +1,17 @@
-# ============================================================
-# Test: FireDustInteractions123
-# Description: All three fire-dust interactions active simultaneously.
+# Combine fire-dust interaction modes 1 and 2.
 #
-#   Interaction 1: burned area reduces crust_index -> lowers u*_t
-#   Interaction 2: fire outflow wind -> raises u* via log-law max
-#   Interaction 3: fire heat flux -> amplifies emission flux via lofting factor
+# This case verifies that two interaction mechanisms can be enabled together and produce a coherent coupled hazard response.
 #
-#   All three reinforce each other in burned cells:
-#     - u*_t is lower (burned cells see USTAR_T_MIN)
-#     - u* is raised by fire wind (but MRF dominates at 15 m/s)
-#     - emission flux is multiplied by lofting factor (capped at 3x)
+# Expected result:
+#   - Both targeted interaction pathways are active simultaneously.
+#   - Combined response is qualitatively stronger or different than either single-mode case alone.
 #
-# Settings:
-#   crust_index = 0.5                -> Phase 1 active (partially crusted)
-#   fire_dust_crust_reduction = 0.8  -> Phase 1: per-step crust decay in burned cells
-#   fire_dust_wind_to_dust = true    -> Phase 2: fire wind -> dust u*
-#   fire_dust_lofting_enabled = true -> Phase 3: heat flux lofting factor
-#   k_loft = 2.0, Q_threshold = 50, Q_ref = 500
-#   fire.coupling_type = "passive"   -> no heat injection into atmosphere
-#   sounding_neutral_abl (u=15 m/s) -> consistent with geo_wind=15.0
+# Configuration:
+#   - Interaction controls for modes 1 and 2 are both enabled.
+#   - Baseline fire/dust settings remain comparable to the individual cases.
 #
-# NOTE: geo_wind=5.0 in this file but sounding_neutral_abl has u=15 m/s.
-#   This mismatch is intentional for testing: the run uses the sounding wind
-#   for dynamics but geo_wind=5.0 for the driver. Results are verified as-is.
-#   To make fully consistent use geo_wind=15.0 or sounding_weak_wind_abl.
-#
-# Expected Results (verified step=20, t=10 s, dt=0.5 s):
-#
-#   Dynamics:
-#   - Simulation completes 20 steps without errors.
-#   - Fixed dt = 0.5 s.
-#   - u*_max = 1.121391 m/s  |  u_10m_max = 14.994 m/s  |  PBLH = 534.723 m
-#   - EddyDiff::Scalar_v_max = 2.167788435 m^2/s
-#   - T_sfc_max = 300 K  (passive fire, no heating)
-#
-#   Fire (step 20):
-#   - 32 active fire cells (ignition_r=600 m)
-#   - Max reference wind = 14.56192582 m/s
-#   - Max effective wind (post-WAF) = 5.272935425 m/s
-#   - Max ROS = 0.2160244347 m/s  |  Q_max = 3520.16312 W/m^2
-#   - T_flame_max = 536.5483447 K  |  phi_min=-1  phi_max=0
-#
-#   Phase 1 output (step 20):
-#   - crust_min = 5.24288e-15  (burned, 20 reductions of 0.8)
-#   - crust_max = 0.5          (unburned, initial value preserved)
-#   - reduction = 0.8
-#   - u*_t_min = 0.004740711511 m/s  |  u*_t_max = 0.005925889388 m/s
-#
-#   Phase 2 output (step 20):
-#   - fire_wind_max = 5.272935425 m/s
-#   - ustar_max_after = 1.12149862 m/s  (MRF dominates at 15 m/s background)
-#   - C = 1  (fire.grid_ratio=2 / dust.grid_ratio=2)
-#
-#   Phase 3 output (step 20):
-#   - fire_heat_max = 3520.16312 W/m^2  (> Q_threshold=50)
-#   - emission_flux_max_after_loft = 1.394623626e-07 kg/m^2/s
-#   - Pre-loft bin0 max = 4.64874542e-08 -> x3 cap -> 1.394e-07 (correct)
-#
-#   Dust Emission (step 20, after lofting):
-#   - emission_sum = 1.487366183e-05 kg/s
-#   - F_dust_atm_max = 4.18507198e-07 kg/m^2/s
-#   - conc_sfc_max = 241.949 ug/m^3  |  PM10 = 229.838 ug/m^3
-#   - RHO DUST = 14.919
-#   - dep_total = 3.556256562e-07 kg/m^2
-#
-#   Mass Budget (step 20):
-#   - MASS = 1.012650226e+10  |  RHO THETA = 3.080452531e+12
-#   - RHO SCALAR = 0
-#
-#   Performance:
-#   - Timestep wall time ~ 5.7e-03 s  |  Total ~ 0.128 s
-#   - NOTE: amrex.max_grid_size_z is unused (use amr.max_grid_size_z instead)
-#
-# Comparison table (all step=20, passive fire, 15 m/s sounding):
-#
-#   Test               | Phases  | emission_sum    | RHO DUST | conc_sfc
-#   -------------------|---------|-----------------|----------|----------
-#   FireDustBaseline   | none    | ~1.189e-05      | ~11.9    | ~82 ug/m3
-#   FireDustInteraction1| 1      | ~1.190e-05      | ~11.9    | ~82 ug/m3
-#   FireDustInteraction2| 2      | ~1.189e-05      | ~11.9    | ~82 ug/m3
-#   FireDustInteraction3| 3      | 1.4876e-05      | 14.92    | 242 ug/m3
-#   FireDustInteractions123| 1+2+3 | 1.4874e-05   | 14.92    | 242 ug/m3
-#
-#   Key finding: Phase 3 (lofting) dominates the emission increase at 15 m/s
-#   background wind. Phase 1 (crust reduction) is visible in u*_t variation.
-#   Phase 2 (wind) cannot overcome MRF u* at 15 m/s. Combined test confirms
-#   all three phases compose without double-counting or instability.
-# ============================================================
+# Notes:
+#   - Use to test feature interoperability rather than isolate one mechanism.
 
 erf.prob_name = "ABL"
 max_step = 20

@@ -1,18 +1,17 @@
-# DustVisibility — Test Phase 7 Koschmieder visibility diagnostics.
+# Verify visibility diagnostics for airborne dust.
 #
-# Exercises visibility calculation from PM10 concentration:
-#   - Phase 6:  saltation emission (test_ustar=0 -> emission from MRF u*)
-#   - Phase 7:  visibility diagnostics enabled
+# This hazard case tests the conversion from suspended dust concentrations to visibility-oriented diagnostics relevant to environmental and safety analysis.
 #
-# Expected results:
-#   (1) Run exits code 0 at max_step=20.
-#   (2) visibility_diag.csv written with 20 rows
-#   (3) visibility_min_m > 0
-#   (4) All output files created with valid CSV headers.
+# Expected result:
+#   - Visibility-related outputs are written and vary consistently with dust loading.
+#   - Higher particulate concentrations correspond to degraded visibility indicators.
 #
-# References:
-#   Koschmieder, H. (1924). Beitr. Phys. Atmos., 12, 33-55.
-#   OSHA 29 CFR 1926.601: haul road closure < 300 m.
+# Configuration:
+#   - Visibility diagnostics are enabled in the hazard settings.
+#   - Dust source strength is sufficient to produce measurable impacts.
+#
+# Notes:
+#   - Interpret together with concentration diagnostics when possible.
 
 erf.prob_name = "ABL"
 max_step = 20

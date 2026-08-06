@@ -1,18 +1,17 @@
-# HaboobFireFlat — Phase 5 integration: all Phase 1-4 physics on flat terrain.
+# Initialize a haboob-fire interaction over flat terrain.
 #
-# Fire + wind coupling (Interaction 2) + lofting (Interaction 3) + crust
-# reduction (Interaction 1) + smoke (Phase 4) all active simultaneously
-# on flat terrain. This is the reference case for HaboobFireHill and
-# HaboobFirePit — any difference between flat and terrain results is
-# attributable to the terrain effect alone.
+# This case couples an idealized cold-pool / dust-storm initialization with fire on flat ground, verifying the basic haboob-fire workflow.
 #
-# Expected results:
-#   (1) All four [DUST DEBUG] and [FIRE DEBUG] signatures present each step
-#   (2) smoke_diag.dat: smoke_total_mass > 0 after step 4
-#   (3) dust_diag.dat: emission_flux_max > 0 after step 4
-#   (4) Both scalars non-NaN throughout
-#   (5) fire_stats.csv: burned_area_ha increasing after step 4
-#   (6) Run exits code 0 at max_step=20
+# Expected result:
+#   - Cold-pool / haboob initialization activates without configuration errors.
+#   - Fire evolution reflects interaction with the imposed density-current environment.
+#
+# Configuration:
+#   - Haboob parameters define the initial disturbance over flat terrain.
+#   - Terrain effects are intentionally absent.
+#
+# Notes:
+#   - Compare against hill and pit variants to isolate topographic modulation.
 
 erf.prob_name = "ABL"
 max_step = 20

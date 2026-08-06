@@ -1,79 +1,17 @@
-# ============================================================
-# Test: FireDustInteractions12
-# Description: Fire-dust Phase 1 + Phase 2 combined.
-#   Phase 1b: burned area reduces crust_index, lowering u*_t.
-#   Phase 2:  fire outflow wind raises u* via log-law max.
-#   Both effects act simultaneously; verifies correct composition
-#   without double-counting, instability, or sign errors.
+# Combine fire-dust interaction modes 1 and 2.
 #
-# Settings:
-#   crust_index = 0.5                -> partially crusted soil
-#   fire_dust_crust_reduction = 0.8  -> Phase 1 active
-#   fire_dust_wind_to_dust = true    -> Phase 2 active
-#   fire.coupling_type = "passive"   -> no fire heat injection
-#   sounding_weak_wind_abl (u=5 m/s) -> consistent with geo_wind=5.0
+# This case verifies that two interaction mechanisms can be enabled together and produce a coherent coupled hazard response.
 #
-# Expected Results (verified step=20, t=10 s, dt=0.5 s, sounding_weak_wind_abl):
+# Expected result:
+#   - Both targeted interaction pathways are active simultaneously.
+#   - Combined response is qualitatively stronger or different than either single-mode case alone.
 #
-#   Dynamics:
-#   - Simulation completes 20 steps without errors.
-#   - Fixed dt = 0.5 s.
-#   - u*_max = 0.374030 m/s  |  u_10m_max = 4.9999 m/s  |  PBLH = 476.2 m
-#   - EddyDiff::Scalar_v_max = 0.252 m^2/s  (passive fire, low wind)
-#   - T_sfc_max = 300 K
+# Configuration:
+#   - Interaction controls for modes 1 and 2 are both enabled.
+#   - Baseline fire/dust settings remain comparable to the individual cases.
 #
-#   Fire (step 20):
-#   - 32 active fire cells (ignition_r=600 m), passive coupling.
-#   - Max reference wind = 4.949 m/s  |  Max effective wind (post-WAF) = 1.792 m/s
-#   - Max ROS = 0.2160244347 m/s  |  Q_max = 3520 W/m^2 (not injected)
-#   - phi_min=-1  phi_max=0
-#
-#   Phase 1 output (step 20):
-#   - crust_min = 5.24288e-15  (burned cells, 20 reductions: 0.5*(0.2)^20 ~ 0)
-#   - crust_max = 0.5          (unburned cells, initial value preserved)
-#   - reduction = 0.8
-#   - u*_t_min = 0.004740711511 m/s  (burned cells, USTAR_T_MIN floor)
-#   - u*_t_max = 0.005925889388 m/s  (unburned, crust=0.5: 0.00474*(1+0.5*0.5)=0.00593)
-#   - Per-cell u*_t variation confirmed: Phase 1 active and correct.
-#
-#   Phase 2 output (step 20):
-#   - fire_wind_max = 1.792230779 m/s  (post-WAF effective wind)
-#   - ustar_max_after = 0.3740316844 m/s  (MRF u* dominates, correct)
-#   - fire-derived u* = 1.792*0.4/ln(6.1/0.1) = 0.174 m/s < MRF 0.374 m/s
-#   - C = 1  (fire.grid_ratio=2 / dust.grid_ratio=2)
-#
-#   Dust Emission (step 20):
-#   - emission_sum = 4.459640e-07 kg/s
-#   - emission_flux bin0 max = 1.742707e-09 kg/m^2/s
-#   - F_dust_atm_max = 5.228e-09 kg/m^2/s
-#   - conc_sfc_max = 3.095 ug/m^3  |  PM10 = 2.933 ug/m^3
-#   - RHO DUST = 0.4467
-#   - dep_total = 7.405e-09 kg/m^2
-#
-#   Mass Budget (step 20):
-#   - MASS = 1.013e+10  |  RHO THETA = 3.080452531e+12
-#   - RHO SCALAR = 0
-#
-#   Performance:
-#   - Timestep wall time ~ 5.7e-03 s  |  Total ~ 0.127 s
-#
-# Comparison table (all step=20, 5 m/s sounding, passive fire):
-#
-#   Test                  | crust | reduction | emission_sum    | u*_t_min  | u*_t_max  | RHO DUST
-#   ----------------------|-------|-----------|-----------------|-----------|-----------|----------
-#   FireDustInteraction2  | 1.0   | 0.0       | 4.474751e-07    | 0.007111  | 0.007111  | 0.4482
-#   FireDustInteractions12| 0.5   | 0.8       | 4.459640e-07    | 0.004741  | 0.005926  | 0.4467
-#
-#   Key observations:
-#   - Phase 1 active: crust_min=5.24e-15 (burned), crust_max=0.5 (unburned)
-#   - u*_t variation: [0.004741, 0.005926] vs [0.007111, 0.007111] in Interaction2
-#   - emission_sum slightly lower (-0.34%): crust=0.5 raises u*_t in unburned
-#     cells relative to crust=1.0 in Interaction2 (counter-intuitive but correct:
-#     Interaction2 has crust=1.0 fully reduced by burned->0, unburned stays 1.0
-#     giving higher u*_t=0.007111 which in the emission kernel actually gives
-#     the same emission since u* >> u*_t at 5 m/s for all cells)
-#   - No double-counting: no instability, clean exit, mass conserved
-# ============================================================
+# Notes:
+#   - Use to test feature interoperability rather than isolate one mechanism.
 
 erf.prob_name = "ABL"
 max_step = 20

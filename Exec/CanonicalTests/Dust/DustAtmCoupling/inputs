@@ -1,43 +1,17 @@
-# DustAtmCoupling regression test
+# Validate one-way dust-to-atmosphere coupling path.
 #
-# Tests Phase 10 one-way injection: coarsen_dust_flux_to_atm and
-# apply_dust_tendency_to_cc_source, called from ERF_Advance before
-# advance_dycore. Pattern follows ERF_FireAtmCoupling.H from Source/Fire/.
+# This case exercises dust evolution under atmospheric forcing with coupling enabled, focusing on whether the atmospheric state drives dust transport consistently.
+#
+# Expected result:
+#   - Dust responds to atmospheric winds without configuration errors.
+#   - Coupling diagnostics confirm that the intended exchange pathway is active.
 #
 # Configuration:
-#   - 8x8x16 cells, 1000x1000x1000 m domain.
-#   - Geostrophic wind = 10 m/s; MRF diagnoses u* > 0 (from Phase 9).
-#   - erf.dust.test_ustar = 0: Phase 9 extracts actual u* from MRF.
-#   - erf.dust.atm_feedback = 1.0: full injection strength.
-#   - erf.dust.transport_bins_separately = false: single scalar slot.
-#   - max_step = 5.
+#   - Dust-atmosphere coupling flag is enabled.
+#   - Boundary-layer and near-surface wind settings determine the transport response.
 #
-# Expected results:
-#   (1) [DUST DEBUG] Phase 10 line printed each step.
-#   (2) [DUST COUPLING] F_dust_max > 0 after step 1 (u* extracted from MRF,
-#       emission flux non-zero when u* > u*_t = 0.05 m/s).
-#   (3) cc_source at RhoAdv_comp, k=0 is non-zero after step 1.
-#   (4) cc_source at RhoAdv_comp, k>0 is zero (injection only at k=0).
-#   (5) Setting atm_feedback = 0 produces zero tendency; verify this.
-#   (6) Run exits with code 0.
-#
-# Coupling note: the scalar component RhoAdv_comp receives a mass flux
-# tendency d(RhoDust)/dt = F_dust / dz_k0 at k=0. The value depends on
-# the u* extracted from MRF and the Bagnold emission formula from Phase 6.
-# For u* ~ 0.3 m/s (typical for 10 m/s geostrophic wind), F_dust ~9e-10
-# kg/m^2/s (DustEmission test values), and dz_k0 ~ 62.5 m:
-#   RhoDust_tend ~ 9e-10 / 62.5 = 1.4e-11 kg/m^3/s
-# This is physically small but non-zero; the test verifies sign and
-# non-zero value rather than an exact magnitude.
-#
-# References:
-#   ERF_FireAtmCoupling.H (structural pattern):
-#     https://github.com/hgopalan/ERF/blob/7856affedd8bb3c878b62c308f39c36bf2228791/
-#     Source/Fire/ERF_FireAtmCoupling.H
-#   Marticorena & Bergametti (1995). J. Geophys. Res., 100, 16415.
-#     https://doi.org/10.1029/95JD00690
-#   Hong & Pan (1996). Mon. Wea. Rev., 124, 2322.
-#     https://doi.org/10.1175/1520-0493(1996)124<2322:NBLVDI>2.0.CO;2
+# Notes:
+#   - Compare with DustAtmReturn for alternative coupling pathways.
 
 erf.prob_name = "ABL"
 max_step = 5

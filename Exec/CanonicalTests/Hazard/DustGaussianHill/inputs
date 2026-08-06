@@ -1,16 +1,17 @@
-# DustGaussianHill — Phase 5: dust emission on Gaussian hill terrain.
+# Verify dust transport over analytical Gaussian-hill terrain.
 #
-# Verifies that dust slope corrections (Phase 1a) produce higher emission on
-# the windward slope and lower emission in the lee. No fire.
-# Hill height = 200 m, sigma = 600 m — clearly visible slope effect.
+# This hazard case uses smooth Gaussian-hill terrain to test terrain-modified winds, plume lifting, and dust concentration response over idealized topography.
 #
-# Expected results:
-#   (1) ERF prints "max of zphys_nd = 200" at startup (terrain is non-flat)
-#   (2) [DUST DEBUG] Phase 5: u*_t_min < u*_t_max (slope correction active)
-#   (3) emission_flux on windward slope > emission_flux on flat reference
-#   (4) dust_diag.dat: emission_total > 0 from step 1
-#   (5) No NaN in dust_ustar_t, dust_emission_flux, z_phys_nd
-#   (6) Run exits code 0 at max_step=20
+# Expected result:
+#   - Wind speed-up and plume response occur over the hill crest as expected.
+#   - Terrain-induced changes remain smooth and physically interpretable.
+#
+# Configuration:
+#   - Terrain type/file selects a Gaussian hill.
+#   - Dust forcing is kept simple enough to isolate topographic effects.
+#
+# Notes:
+#   - Cross-reference the GaussianTerrain helper files for the terrain shape definition.
 
 erf.prob_name = "ABL"
 max_step = 20

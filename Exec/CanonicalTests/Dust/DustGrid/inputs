@@ -1,42 +1,17 @@
-# DustGrid regression test
+# Test dedicated dust-grid resolution controls.
 #
-# Tests that DustLayer::initialize() completes without error and that
-# the 2D dust grid has the correct dimensions and that MultiFabs are
-# allocated and filled with their default values.
+# This case verifies that a dust grid with its own refinement ratio is configured correctly relative to the atmospheric mesh.
 #
-# Test configuration:
-#   - 8x8x16 atmospheric cells over a 1000 x 1000 x 1000 m domain.
-#   - erf.dust.grid_ratio = 2: dust grid is 16x16x1 cells,
-#     each dust cell covers 62.5 m x 62.5 m horizontally.
-#   - erf.dust.enable = true.
-#   - max_step = 0: DustLayer::advance() is not called.
+# Expected result:
+#   - Dust-grid resolution matches the requested ratio and remains numerically stable.
+#   - Dust fields align with atmospheric forcing despite the differing mesh scales.
 #
-# Expected results at max_step = 0:
-#   (1) verify_dust_prerequisites passes all 8 checks without abort.
-#   (2) create_dust_grid produces a DustGrid with:
-#         ba extent: [0,15] x [0,15] x [0,0]
-#         physical domain: [0,1000] x [0,1000] m (same as atmospheric)
-#         grid_ratio = 2
-#   (3) DustLayer MultiFab dimensions are 16x16x1 cells plus 1 ghost cell
-#       in x and y.
-#   (4) dust_ustar_t is filled with the Bagnold threshold for bin 0
-#       (d = 7.0 um, rho_p = 2650 kg/m^3, A = 0.0123):
-#         u*_t = 0.0123 * sqrt(2650 * 9.81 * 7.0e-6 / 1.225)
-#              = 0.0123 * sqrt(0.14876)
-#              approximately 0.00474 m/s.
-#       Verify this value is uniform across all cells.
-#   (5) dust_silt_fraction is filled with erf.dust.silt_fraction = 0.15
-#       (non-default value to verify ParmParse reading).
-#   (6) dust_emission_flux has ncomp = 3 and is filled with 0.0.
-#   (7) DustLayer::advance() stub executes and returns without error.
-#   (8) Run exits with code 0.
+# Configuration:
+#   - Dust grid ratio is the main control under test.
+#   - Domain size and atmospheric grid are chosen for simple interpretation.
 #
-# Reference:
-#   Bagnold threshold friction velocity:
-#     Bagnold, R. A. (1941). The Physics of Blown Sand and Desert Dunes.
-#     Methuen, London.
-#   Marticorena & Bergametti (1995). J. Geophys. Res., 100, 16415-16430.
-#     https://doi.org/10.1029/95JD00690
+# Notes:
+#   - Useful for checking mesh-alignment regressions in dust coupling.
 
 erf.prob_name = "ABL"
 

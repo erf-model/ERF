@@ -1,19 +1,17 @@
-# ============================================================
-# Test: FireSmokeDustCoupled
-# Description: Fire produces both smoke (Phase 4) and drives
-#              dust emission via Interactions 1 (crust), 2 (wind),
-#              and 3 (lofting) simultaneously. Verifies that smoke
-#              and dust scalar slots do not interfere with each
-#              other and that both smoke_diag.dat and dust_diag.dat
-#              are written correctly.
+# Exercise combined fire, smoke, and dust hazard transport.
 #
-# Expected results:
-#   (1) smoke_total_mass > 0 and increasing after step 4
-#   (2) dust emission_flux_max > 0 and increasing after step 4
-#   (3) Both scalars non-NaN throughout
-#   (4) [FIRE DEBUG] and [DUST DEBUG] output both present each step
-#   (5) Run exits code 0 at max_step=20
-# ============================================================
+# This case validates simultaneous operation of thermal fire forcing, smoke-tracer transport, and dust evolution in one hazard scenario.
+#
+# Expected result:
+#   - Fire, smoke, and dust fields are all active and remain numerically stable.
+#   - Combined diagnostics provide a more complete multi-hazard picture than baseline cases.
+#
+# Configuration:
+#   - Smoke and dust are both enabled alongside fire.
+#   - Coupling and output settings emphasize integrated hazard diagnostics.
+#
+# Notes:
+#   - Useful as an end-to-end multi-physics hazard demonstration.
 
 erf.prob_name = "ABL"
 max_step = 20

@@ -1,15 +1,17 @@
-# Phase 10 regression test: Firebreak barrier preventing fire crossing.
-# Domain: 2 km x 2 km x 500 m, uniform FM1 fuel, lagged coupling, 5 m/s wind.
-# Fire grid: 200 x 200 cells at 10 m resolution (grid_ratio=5).
-# Ignition: centre (300, 1000) m, radius 30 m.
-# Firebreak: rectangular barrier at x in [800, 900] m, spanning full y-extent.
-# Purpose: Verify firebreak barriers prevent fire propagation and phi remains
-#   at sentinel value within barrier zone.
-# Expected checks:
-#   - phi values in firebreak band equal FIREBREAK_PHI_SENTINEL (1.0e6)
-#   - No burned cells east of barrier at stop_time
-#   - Burned area on west side of barrier, zero on east side
-#   - No NaN values or simulation abort
+# Test spatially varying fuel maps and firebreak behavior.
+#
+# These cases validate reading and use of heterogeneous fuel maps, including blended fuels and firebreak regions that should locally suppress spread.
+#
+# Expected result:
+#   - Spread accelerates or stalls in locations consistent with the mapped fuel properties.
+#   - Firebreak or low-fuel zones impede spread relative to surrounding burnable areas.
+#
+# Configuration:
+#   - External fuel-map files define spatial heterogeneity.
+#   - Ignition placement is chosen to force interaction with the mapped features.
+#
+# Notes:
+#   - Check supporting ASCII map files in the sibling Supporting_Files directory for context.
 
 geometry.prob_lo = 0.0 0.0 0.0
 geometry.prob_hi = 2000.0 2000.0 500.0

@@ -1,6 +1,17 @@
-# Fire Behavior - Multiple Ignition Points Test
-# Flat domain, GR1 fuel, 5 m/s wind, 8% moisture
-# Tests fire spread with multiple initial ignition sources and their interaction
+# Verify non-point ignition pattern handling.
+#
+# These cases test the parsing and application of multiple ignition representations, including multiple points, polygons, polylines, and scheduled ignitions.
+#
+# Expected result:
+#   - Specified ignition geometry is honored without parsing errors.
+#   - Fire arrival patterns reflect the configured ignition shape and timing.
+#
+# Configuration:
+#   - External schedule or geometry files may be referenced by the inputs.
+#   - Ignition-related parameters are the key varying controls across the cases.
+#
+# Notes:
+#   - Useful for validating new ignition ingestion changes before broader physics testing.
 
 geometry.prob_lo = 0.0 0.0 0.0
 geometry.prob_hi = 2000.0 2000.0 500.0

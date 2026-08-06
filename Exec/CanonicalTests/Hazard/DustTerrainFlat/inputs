@@ -1,59 +1,17 @@
-# ============================================================
-# Test: DustTerrainFlat
-# Description: Dust emission and transport over a flat terrain
-#              driven by a neutral ABL with geostrophic wind.
-#              No fire coupling. No terrain wind effects.
+# Establish flat-terrain hazard dust baseline.
 #
-# Expected Results (verified step=20, t=10 s, dt=0.5 s, 4096 cells):
+# This case provides a terrain-free hazard reference for comparing the effects of hills, pits, and slopes on dust transport and exposure.
 #
-#   Dynamics:
-#   - Simulation completes 20 steps without errors.
-#   - Fixed dt = 0.5 s (compressible dt ~1.031 s, anelastic ~25.0 s).
-#   - u*_max = 1.121392194 m/s  |  u_10m_max = 14.99421844 m/s
-#   - PBLH_max = 534.72106 m    |  T_sfc_max = 300 K
-#   - EddyDiff::Scalar_v_max = 2.167818648 m^2/s
+# Expected result:
+#   - Results serve as the simplest terrain reference with no terrain-induced wind modification.
+#   - Any later terrain cases can be interpreted relative to this baseline.
 #
-#   Dust Threshold (step 20):
-#   - Phase 7: crust_min=0, crust_max=0
-#     NOTE: crust_index=1.0 is set in inputs but the DustLayer internally
-#     resets crust to 0 at initialization when no fire coupling is active.
-#     This is expected behaviour for this test.
-#   - u*_t_min = u*_t_max = 0.004740711511 m/s  (USTAR_T_MIN floor)
+# Configuration:
+#   - Terrain is flat or terrain coupling is disabled.
+#   - Dust forcing matches nearby terrain comparison cases where possible.
 #
-#   Dust Emission (step 20):
-#   - Only bin 0 (d=7 um) active  |  n_active_bins=1
-#   - emission_flux bin0 max = 4.643917895e-08 kg/m^2/s
-#   - emission_sum = 2.972107453e-06 kg/s
-#   - F_dust_atm_max = 1.393575578e-07 kg/m^2/s
-#   - Emission spatially uniform (flat terrain, periodic domain)
-#
-#   Dust Settling & Deposition (step 20):
-#   - Settling velocity bin0 (d=7 um): v_s = 0.004000674647 m/s
-#   - Deposition velocity: v_d = 0.007310827247 m/s
-#   - dep_flux_max = 6.366110702e-11 kg/m^2/s
-#   - dep_total (accumulated) = 7.106221663e-08 kg/m^2
-#
-#   Dust Concentrations (step 20):
-#   - conc_sfc_max = 81.5574242 ug/m^3
-#   - PM10_max = 77.38250424 ug/m^3  |  PM2.5_max = 0 ug/m^3
-#   - MSHA_TWA = 1.426103634e-05 mg/m^3  (below occupational limit)
-#   - All dust concentrations non-negative.
-#
-#   Mass Budget (step 20):
-#   - RHO DUST = 11.92437804
-#   - MASS = 1.012650226e+10  |  RHO THETA = 3.080452531e+12
-#   - RHO SCALAR = 0  (passive scalar inactive)
-#
-#   MRF Diffusion:
-#   - MRF diffusion active  |  gamma_dust = 0
-#   - moisture_path_active = 0  (use_dynamic_moisture = false)
-#
-#   PHREEQC / suppression:
-#   - do_phreeqc = 1  |  suppression coverage max = 0  |  retreat_flag sum = 0
-#
-#   Performance:
-#   - Timestep wall time ~ 5.4e-03 s  |  Total ~ 0.119 s
-# ============================================================
+# Notes:
+#   - Use as the control for terrain-sensitivity documentation.
 
 erf.prob_name = "ABL"
 max_step = 20

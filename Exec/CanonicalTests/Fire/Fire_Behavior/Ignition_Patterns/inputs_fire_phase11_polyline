@@ -1,14 +1,17 @@
-# Phase 11 regression test: polyline-based line fire ignition.
-# Domain: 2 km x 2 km x 500 m, FM1 (short grass), lagged coupling, 5 m/s wind.
-# Polyline ignition creates an east-west line fire; spreads north/south from the line.
-# Polyline half-width set to 20 m (covers grid cells within 20 m of the line).
-# Primary point ignition disabled by setting ignition_r = 0.
-# Expected checks:
-#   1. At t=0: fire_phi shows a band of burned cells (width ~40 m) along y=1000 m from x=400 to x=1600 m.
-#   2. Fire spreads perpendicular to the line (north/south); main propagation along the line too.
-#   3. No NaN or abort; [FIRE DEBUG] output confirms polyline ignition applied.
-#   4. Burned area increases as fire spreads from the line in both directions.
-#   5. fire_ros shows directional bias based on wind (5 m/s in +x direction).
+# Verify non-point ignition pattern handling.
+#
+# These cases test the parsing and application of multiple ignition representations, including multiple points, polygons, polylines, and scheduled ignitions.
+#
+# Expected result:
+#   - Specified ignition geometry is honored without parsing errors.
+#   - Fire arrival patterns reflect the configured ignition shape and timing.
+#
+# Configuration:
+#   - External schedule or geometry files may be referenced by the inputs.
+#   - Ignition-related parameters are the key varying controls across the cases.
+#
+# Notes:
+#   - Useful for validating new ignition ingestion changes before broader physics testing.
 
 geometry.prob_lo = 0.0 0.0 0.0
 geometry.prob_hi = 2000.0 2000.0 500.0

@@ -1,26 +1,17 @@
-# Phase 8 regression test: Albini (1983) ember spotting.
-# Domain: 2 km x 2 km x 500 m, flat, FM4 (Chaparral), 8 m/s wind, 8% moisture.
-# FM4 produces high fireline intensity (I_B >> 100 kW/m) to trigger spotting.
-# 15-minute simulation (900 s).
+# Exercise ember spotting diagnostics and secondary ignition logic.
 #
-# Expected output checks (manual verification):
-#   1. fire_stats_phase8.csv contains non-zero spot_fires_this_step and
-#      max_spot_dist_m after t > 60 s (fire has grown past threshold intensity).
-#   2. fire_spot_active plotfile field shows isolated phi-negative patches
-#      downwind of the main fire at t = 900 s.
-#   3. With random_seed = 42: two identical runs produce identical spotting locations.
-#   4. With spotting.enable = false: spot_fires_this_step = 0 throughout.
-#   5. No NaN or abort.
+# This case enables the spotting pathway to verify lofting, transport, and potential spot-fire generation from firebrands.
 #
-# ParmParse keys validated against ERF_FireParams.H:
-#   erf.fire.spotting.enable, spotting.I_B_min, spotting.P_base,
-#   spotting.terminal_velocity, spotting.n_traj_steps, spotting.spot_radius,
-#   spotting.P_catch, spotting.random_seed, spotting.spotting_interval,
-#   spotting.fuel_system
+# Expected result:
+#   - Spotting diagnostics are produced when the feature is enabled.
+#   - Secondary ignition behavior, if triggered, is consistent with the configured spotting probabilities and thresholds.
 #
-# CSV output columns: step, time_s, burned_area_ha, perimeter_km,
-#   active_front_cells, head_ros_ms, major_axis_m, minor_axis_m,
-#   heat_flux_max_Wm2, spot_fires_this_step, max_spot_dist_m
+# Configuration:
+#   - Spotting enable flag and associated transport / ignition thresholds are active.
+#   - Baseline fire spread still provides the primary source of ember generation.
+#
+# Notes:
+#   - Interpret probabilistic outcomes with the configured random seed.
 
 geometry.prob_lo = 0.0 0.0 0.0
 geometry.prob_hi = 2000.0 2000.0 500.0

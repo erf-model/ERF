@@ -1,45 +1,17 @@
-# DustRoadSchedule regression test — Phase 22 haul road vehicle emissions.
+# Validate roadway activity schedule driven dust emissions.
 #
-# Two haul roads:
-#   haul_north: x=[0,3000], y=[2000,2500], W=80t, s=10%, vmt=5/h, active all sim.
-#   haul_south: x=[0,3000], y=[500,1000],  W=80t, s=10%, vmt=5/h, active t=[1,2.5s].
+# This case verifies CSV-driven activation of dust sources associated with road activity or haul-road operation.
 #
-# EPA AP-42 Chapter 13.2.2 unpaved road formula:
-#   E_road = 2.6 * (10/12)^0.8 * (80/3)^0.4 = 2.6 * 0.877 * 4.045 ~ 9.22 g/VKT
-#   road_len = max(3000, 500) = 3000 m = 3 km = 3 VKT/pass
-#   VMT = 5/h -> 5 passes/h (1 km assumed)
-#   F_v = 9.22e-3 kg/VKT * 5 VKT/h / (20m * 3000m * 3600 s/h)
-#       = 0.046 / 2.16e8 ~ 2.13e-10 kg/m^2/s (well below FLUX_MAX)
+# Expected result:
+#   - Scheduled road segments or activity flags are read correctly.
+#   - Dust source strength changes in time according to the schedule file.
 #
-# Domain: 3000x3000 m, 8x8 cells, dx=375 m.
-# haul_north covers: all 8 columns, j cells where y_c in [2000,2500]
-#   y_c = 187.5, 562.5, 937.5, 1312.5, 1687.5, 2062.5, 2437.5, 2812.5
-#   j cells 5 and 6 (y_c=2062.5 and 2437.5) are within [2000,2500].
-#   n_active_cells = 8*2 = 16 cells for haul_north.
-# haul_south: j cells 1 and 2 (y_c=562.5 and 937.5) within [500,1000].
-#   Active only at t=[1,2.5s], so steps 2 (t=1.0s) and 3 (t=1.5s) only.
+# Configuration:
+#   - Road schedule CSV is the primary external input.
+#   - Transport settings govern downwind plume development after source activation.
 #
-# Expected results:
-#   (1) [DUST DEBUG] Phase 22 init: n_roads=2, road details printed.
-#   (2) [DUST DEBUG] advance: active_roads=1 at steps 0,1 (haul_north only).
-#   (3) [DUST DEBUG] advance: active_roads=2 at steps 2,3,4 (both roads).
-#       Wait - at step 5 (t=2.5s), haul_south end_s=2.5: check includes/excludes.
-#   (4) haul_north F_v > 0 each step (active all sim).
-#   (5) dust_road_diag.csv created; haul_north row each step; haul_south rows at steps 2-4.
-#   (6) dust_emission_flux higher in j=5,6 cells (haul_north zone) than j outside roads.
-#   (7) Run exits code 0.
-#
-# References:
-#   EPA AP-42 Ch. 13.2.2 (Unpaved Roads):
-#     https://www.epa.gov/air-emissions-factors-and-quantification/
-#     ap-42-compilation-air-emissions-factors
-#   Abu-Allaban et al. (2003). Atmos. Environ., 37, 1417.
-#     https://doi.org/10.1016/S1352-2310(02)01015-8
-#   Watson et al. (1994). Atmos. Environ., 28, 2493.
-#     https://doi.org/10.1016/1352-2310(94)90400-6
-#   ERF_IgnitionSchedule.H (CSV schedule pattern):
-#     https://github.com/hgopalan/ERF/blob/f264ce7dd0f5e727c71c939659a6a5caf001d21b/
-#     Source/Fire/ERF_IgnitionSchedule.H
+# Notes:
+#   - Review the companion road schedule file when summarizing key parameters.
 
 erf.prob_name = "ABL"
 max_step = 5

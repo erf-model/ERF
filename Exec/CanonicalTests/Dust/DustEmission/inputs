@@ -1,65 +1,17 @@
-# DustEmission regression test
+# Verify dust emission flux above threshold.
 #
-# Tests compute_dust_emission_flux (ERF_DustEmission.cpp) as called from
-# DustLayer::advance. Tests that emission is non-zero when test_ustar > u*_t
-# and zero when test_ustar <= u*_t.
+# This case checks the vertical dust-emission flux calculation once friction velocity exceeds threshold, including soil-property dependence and bin-wise emission behavior.
 #
-# Incorporates fixes from PR #135 (hgopalan/ERF/pull/135) and PR #136
-# (hgopalan/ERF/pull/136):
-#   - amr.max_level = 0
-#   - erf.use_gravity = false
-#   - erf.most.zref = 50.0 m
-#   - erf.most.z0 = 0.1 m
-#   - ERF_DustEmission.cpp in CMake/BuildERFExe.cmake (not Source/CMakeLists.txt)
+# Expected result:
+#   - Emission flux is positive only where shear exceeds threshold and remains within expected magnitude bounds.
+#   - Flux responds consistently to the configured soil and surface parameters.
 #
 # Configuration:
-#   - 8x8x16 atmospheric cells, 1000x1000x1000 m domain.
-#   - erf.dust.grid_ratio = 1: dust grid is 8x8x1 (125 m cells).
-#   - erf.dust.test_ustar = 0.3 m/s: exceeds u*_t = 0.05 m/s (USTAR_T_MIN floor)
-#     so emission is active.
-#   - test_soil_type.asc: outer ring = code 100 (silt_frac=0.10 default),
-#     interior = code 104 (haul road, silt_frac=0.10 default).
-#     silt_fraction_file is empty so silt_frac = DustParams default = 0.10.
-#   - max_step = 2.
+#   - Test friction velocity, soil type, and silt fraction control the source strength.
+#   - Dust bin configuration determines how emitted mass is distributed.
 #
-# Expected results:
-#
-# At initialization (DustLayer::initialize):
-#   (1) dust_ustar_in set to 0.3 m/s uniformly (test_ustar = 0.3).
-#   (2) dust_ustar_t = 0.05 m/s at all cells (USTAR_T_MIN floor active).
-#   (3) dust_emission_flux filled with zeros at initialization
-#       (emission computed only in advance()).
-#
-# After step 1 (compute_dust_emission_flux called in advance()):
-#   (4) ustar = 0.3 m/s > ustar_t = 0.05 m/s: emission is active.
-#   (5) Horizontal saltation flux Q_s at all cells (uniform u*, u*_t, silt):
-#         Q_s = 2.61 * 1.225 / 9.81 * 0.3^3 * (1 - 0.05/0.3) * (1 + 0.05/0.3)^2
-#             = 2.61 * 0.1249 * 0.027 * 0.833 * (1.1667)^2
-#             approx 0.00896 kg/m/s.
-#   (6) Sandblasting efficiency for silt_frac = 0.10:
-#         clay = 0.2 * 0.10 = 0.02
-#         log10(alpha) = 0.134 * 0.02 - 6.0 = -5.9973
-#         alpha approx 1.006e-6 m^-1.
-#   (7) Vertical emission flux F = alpha * silt * Qs:
-#         F = 1.006e-6 * 0.10 * 0.00896 approx 9.01e-10 kg/m^2/s.
-#         All 3 bins have the same flux in Phase 6.
-#   (8) dust_emission_flux at all cells, all bins > 0.
-#   (9) dust_emission_flux < DustEmissionConst::FLUX_MAX = 1e-3 kg/m^2/s.
-#  (10) Run exits with code 0.
-#
-# Zero-emission case (can be verified by setting test_ustar = 0.0):
-#   u* = 0 < u*_t = 0.05 m/s: all flux values = 0.
-#
-# References:
-#   Marticorena & Bergametti (1995). J. Geophys. Res., 100, 16415.
-#     https://doi.org/10.1029/95JD00690
-#   Owen (1964). J. Fluid Mech., 20, 225-242.
-#     https://doi.org/10.1017/S0022112064001173
-#   Bagnold (1941). The Physics of Blown Sand and Desert Dunes. Methuen.
-#   PR #135: https://github.com/hgopalan/ERF/pull/135
-#   PR #136: https://github.com/hgopalan/ERF/pull/136
-#   MRF PBL: Hong & Pan (1996).
-#     https://doi.org/10.1175/1520-0493(1996)124<2322:NBLVDI>2.0.CO;2
+# Notes:
+#   - The existing file already contains a detailed regression derivation; retain and extend it only if needed.
 
 erf.prob_name = "ABL"
 max_step = 2

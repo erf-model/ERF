@@ -1,51 +1,17 @@
-# DustCriticalMaterials regression test — Phase 23 DOE CM Assessment output.
+# Exercise critical-materials / composition tracking hooks.
 #
-# Tests compute_cm_flux and append_cm_budget with two mine sites.
+# This case provides a configuration for dust scenarios that track specialized material properties or composition-sensitive behavior relevant to critical-materials applications.
 #
-# cm_fractions = 0.001 0.005 0.0
-#   bin 0 (d=7 um, PM10): 0.001 kg_CM/kg_dust (0.1% CM by mass)
-#   bin 1 (d=2.5 um, PM2.5): 0.005 kg_CM/kg_dust (0.5% CM by mass)
-#   bin 2 (d=50 um, coarse): 0.0 (no CM in coarse fraction)
-# With transport_bins_separately=false: single bin, cm_fraction[0]=0.001.
+# Expected result:
+#   - Simulation accepts the critical-materials-related settings without parser or runtime issues.
+#   - Outputs reflect the configured composition-aware pathway if enabled.
 #
-# Domain: 8x8 cells, 375 m grid. Two sites from Phase 20:
-#   mine_north: j=4..7 (32 cells), mine_south: j=0..3 (32 cells).
+# Configuration:
+#   - Material-specific dust parameters are emphasized.
+#   - General dust transport remains similar to a scaffold or baseline case.
 #
-# Critical material flux:
-#   F_cm = F_dust * 0.001   [kg_CM/m^2/s]
-#   If F_dust ~ 1e-10 kg/m^2/s (typical neutral ABL):
-#     F_cm ~ 1e-13 kg_CM/m^2/s per cell
-#   Domain total ~ 1e-13 * 64 * (375*375) ~ 9e-7 kg_CM/s
-#
-# Expected results:
-#   (1) [DUST DEBUG] Phase 23 init: cm_fractions=0.001 printed.
-#   (2) [DUST DEBUG] advance: cm_flux_max > 0 each step when emission_flux > 0.
-#   (3) dust_cm_budget.csv created with header + rows each step.
-#       Each step: 1 domain row (site_index=-1) + 3 site rows (0,1,2).
-#       After 5 steps: 5*4=20 data rows.
-#   (4) dust_cm_budget.csv domain total = site 1 + site 2 + site 0 total.
-#   (5) plt_dust_00005 contains 21 variables including dust_cm_flux_kg_CM_m2_s.
-#   (6) DustMetadata.json n_variables=21.
-#   (7) With cm_fractions empty: [DUST DEBUG] Phase 23 CM tracking disabled.
-#       cm_flux_max=0, no dust_cm_budget.csv rows written.
-#   (8) Run exits code 0.
-#
-# To test larger CM fractions: set cm_fractions = 0.1 and verify
-# cm_flux_max ~ 0.1 * emission_flux_max.
-#
-# References:
-#   US DOE (2023). Critical Materials Assessment.
-#     https://www.energy.gov/eere/vehicles/articles/
-#     us-doe-critical-materials-assessment
-#   Hofstra et al. (2020). Resources, Conservation and Recycling.
-#     https://doi.org/10.1016/j.resconrec.2020.104802
-#   USGS Mineral Resources:
-#     https://www.usgs.gov/programs/mineral-resources-program
-#   Nriagu & Pacyna (1988). Nature, 333, 134.
-#     https://doi.org/10.1038/333134a0
-#   ERF_FireDiagnostics.H (diagnostic output pattern):
-#     https://github.com/hgopalan/ERF/blob/f264ce7dd0f5e727c71c939659a6a5caf001d21b/
-#     Source/Fire/ERF_FireDiagnostics.H
+# Notes:
+#   - Keep documentation high level unless external composition files are present.
 
 erf.prob_name = "ABL"
 max_step = 5

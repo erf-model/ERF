@@ -1,12 +1,17 @@
-# Phase 11 regression test: schedule-based multi-ignition with time-stamped events.
-# Domain: 2 km x 2 km x 500 m, FM1 (short grass), lagged coupling, 5 m/s wind.
-# Primary ignition at (500, 1000) at t=0; secondary at t=300 s, tertiary at t=600 s.
-# Expected checks:
-#   1. At t=0: fire_phi shows burned region at primary ignition.
-#   2. At t=300: second fire front visible from schedule ignition; two separate burns visible.
-#   3. At t=600: third fire front added from schedule; multiple burn regions merge.
-#   4. No NaN or abort; [FIRE DEBUG] output confirms each event fires.
-#   5. Burned area increases monotonically as fire spreads and additional ignitions activate.
+# Verify non-point ignition pattern handling.
+#
+# These cases test the parsing and application of multiple ignition representations, including multiple points, polygons, polylines, and scheduled ignitions.
+#
+# Expected result:
+#   - Specified ignition geometry is honored without parsing errors.
+#   - Fire arrival patterns reflect the configured ignition shape and timing.
+#
+# Configuration:
+#   - External schedule or geometry files may be referenced by the inputs.
+#   - Ignition-related parameters are the key varying controls across the cases.
+#
+# Notes:
+#   - Useful for validating new ignition ingestion changes before broader physics testing.
 
 geometry.prob_lo = 0.0 0.0 0.0
 geometry.prob_hi = 2000.0 2000.0 500.0

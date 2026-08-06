@@ -1,7 +1,18 @@
-# Phase 9 surface-fire baseline: identical to the crown-fire case but with crown initiation disabled.
-# Domain, fuel, wind, and diagnostic settings are unchanged so this case can be compared directly
-# against inputs_fire_phase9_crown as a surface-fire-only baseline.
+# Exercise crown-fire initiation and surface-only baseline modes.
 #
+# These cases contrast canopy-enabled and surface-only fire behavior to verify crown-initiation criteria, canopy fuel participation, and diagnostic outputs.
+#
+# Expected result:
+#   - Crown-enabled case can transition beyond surface-only behavior when thresholds are met.
+#   - Surface-only control remains limited to ground fuels and provides the comparison baseline.
+#
+# Configuration:
+#   - Canopy properties and crown-fire options determine whether transition is allowed.
+#   - Surface-fuel inputs remain similar between paired cases.
+#
+# Notes:
+#   - Interpret with attention to canopy base height, bulk density, and foliar moisture.
+
 geometry.prob_lo = 0.0 0.0 0.0
 geometry.prob_hi = 2000.0 2000.0 500.0
 amr.n_cell = 40 40 50

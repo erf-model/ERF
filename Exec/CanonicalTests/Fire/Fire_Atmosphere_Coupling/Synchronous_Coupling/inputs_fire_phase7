@@ -1,6 +1,17 @@
-# Phase 7 regression test: synchronous coupling.
-# Fire advances using post-dycore wind (vars_new) each step.
-# Domain: 2 km x 2 km, flat, GR1 fuel, 5 m/s wind, 8% moisture, 30 min.
+# Validate synchronous fire-atmosphere coupling setup.
+#
+# This case exercises the tighter synchronous coupling pathway between fire and atmosphere, where fire uses the updated atmospheric state more directly than in the lagged configuration.
+#
+# Expected result:
+#   - Simulation remains stable with synchronous coupling enabled.
+#   - Atmospheric response is more immediate than in the lagged baseline while preserving physically plausible evolution.
+#
+# Configuration:
+#   - Fire-atmosphere coupling type is set to synchronous.
+#   - Domain and ignition settings mirror the coupled baseline where possible.
+#
+# Notes:
+#   - Direct comparison with Lagged_Coupling highlights sensitivity to coupling chronology.
 
 geometry.prob_lo = 0.0 0.0 0.0
 geometry.prob_hi = 2000.0 2000.0 500.0

@@ -1,15 +1,18 @@
-# Phase 12 regression test: acceleration disabled (baseline).
-# Same domain as phase 9 crown test: 2 km x 2 km, flat, FM1, 5 m/s wind, passive coupling.
-# Ignition at (1000, 1000), radius 30 m.
-# Acceleration: DISABLED (erf.fire.accel.enable = false, which is the default).
-# Used to confirm that disabling acceleration exactly reproduces the unaccelerated Phase 3/4 behaviour.
+# Test fire acceleration parameterizations.
 #
-# Expected checks:
-#   1. No acceleration debug output in fire_debug messages.
-#   2. fire_ros at all timesteps should match the standard FM1 Rothermel ROS without any startup ramp-up.
-#   3. No NaN or abort.
-#   4. This baseline should produce identical results to Phase 3/4 when acceleration is not compiled.
+# These cases compare disabled, size-based, and temporal acceleration options for fire growth, verifying the transient adjustment from ignition toward the steady spread regime.
 #
+# Expected result:
+#   - Acceleration-enabled cases ramp spread differently from the disabled control.
+#   - Selected acceleration mode changes early-time fire growth in the expected qualitative manner.
+#
+# Configuration:
+#   - Acceleration model selection is the primary varying parameter across files.
+#   - Ignition and fuel settings are otherwise comparable.
+#
+# Notes:
+#   - Review all files in this directory together to understand mode-to-mode differences.
+
 geometry.prob_lo = 0.0 0.0 0.0
 geometry.prob_hi = 2000.0 2000.0 500.0
 amr.n_cell = 40 40 50

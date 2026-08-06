@@ -1,6 +1,17 @@
-# Fuel Moisture Sensitivity Test - Wet Conditions
-# Flat domain, GR1 fuel, 5 m/s wind, 15% moisture (wet conditions)
-# Tests fire spread at high fuel moisture content
+# Test fire sensitivity to fuel moisture.
+#
+# These configurations compare otherwise similar fire runs with different dead-fuel moisture contents so that moisture suppression of spread and heat release can be confirmed.
+#
+# Expected result:
+#   - Drier fuel cases spread faster and produce stronger fire intensity than wetter cases.
+#   - Relative ordering of ROS between dry and wet setups is preserved.
+#
+# Configuration:
+#   - Moisture fields are the primary changing parameters between cases.
+#   - Fuel model and geometry remain close to the baseline setup.
+#
+# Notes:
+#   - Use dry vs. wet cases together when documenting moisture sensitivity.
 
 geometry.prob_lo = 0.0 0.0 0.0
 geometry.prob_hi = 2000.0 2000.0 500.0

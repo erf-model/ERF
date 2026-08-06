@@ -1,37 +1,17 @@
-# DustMSHA regression test — Phase 18 MSHA worker exposure tracking.
+# Verify occupational exposure diagnostics against MSHA limits.
 #
-# Physics:
-#   PM_resp = dust_pm10 [ug/m3] / 1000           [mg/m3]
-#   dose   += PM_resp * dt / 3600                [mg/m3/h]
-#   TWA_8h  = dose / 8.0                         [mg/m3]
-#   PEL = 5.0 mg/m3 (30 CFR Part 56).
+# This case exercises mining-style occupational dust exposure calculations and summary diagnostics relative to MSHA thresholds.
 #
-# msha_shift_duration_s=1.0 causes shift resets at t=1.0 s (step 2)
-# and t=2.0 s (step 4) within the 5-step test.
+# Expected result:
+#   - Exposure metrics are reported in the expected units and files.
+#   - Threshold comparisons can be interpreted against the configured MSHA limit values.
 #
-# Two receptors: fence_N at (500,2900) and fence_S at (500,100).
+# Configuration:
+#   - MSHA diagnostic enablement and averaging windows are key controls.
+#   - Dust source strength is chosen to produce nontrivial exposure values.
 #
-# Expected results:
-#   (1) [DUST DEBUG] Phase 18 printed each step with TWA_max >= 0.
-#   (2) Shift resets logged at steps 2 and 4 (t=1.0 and 2.0 s).
-#   (3) msha_exposure.csv: header + 5 rows; TWA_max increases each step.
-#   (4) msha_exposure.csv n_cells_exceed = 0 (far below 5 mg/m3).
-#   (5) msha_shift_summary.csv: 2 rows (shifts at t=1.0 s and 2.0 s).
-#   (6) msha_receptor_fence_N.csv and msha_receptor_fence_S.csv: 5 rows each.
-#   (7) plt_dust_00005 contains 18 variables including
-#       dust_msha_dose_mg_m3_h, dust_msha_twa_mg_m3,
-#       dust_msha_exceed, dust_msha_shift_twa.
-#   (8) DustMetadata.json: n_variables=18.
-#   (9) Setting msha_pel_mg_m3=1e-15: n_cells_exceed > 0 once PM is present.
-#  (10) Run exits code 0.
-#
-# References:
-#   30 CFR Part 56: https://www.ecfr.gov/current/title-30/chapter-I/subchapter-K/part-56
-#   MSHA dust: https://www.msha.gov/rules-regs/dust
-#   Stayner et al. (1998). https://doi.org/10.1164/ajrccm.157.1.9703022
-#   Attfield & Morring (1992). https://doi.org/10.1002/ajim.4700220311
-#   ERF_FireStatsOutput.H (CSV pattern):
-#     https://github.com/hgopalan/ERF/blob/ERF-Fire/Source/Fire/ERF_FireStatsOutput.H
+# Notes:
+#   - Document outputs in terms of occupational exposure rather than plume shape alone.
 
 erf.prob_name = "ABL"
 max_step = 5

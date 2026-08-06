@@ -1,57 +1,17 @@
-# PhreeqcReader regression test
+# Validate PHREEQC CSV reader utilities.
 #
-# Tests read_phreeqc_csv and update_dust_from_phreeqc.
-# Tests that DustLayer::advance triggers the PHREEQC reader at the
-# prescribed interval and that update_ustar_t_from_chemistry applies
-# the Marticorena & Bergametti (1995) reduction correctly.
+# This case focuses on reading and parsing PHREEQC-style external chemistry data needed for optional dust geochemistry coupling.
+#
+# Expected result:
+#   - PHREEQC input file is parsed without format errors.
+#   - Mapped variables are available for downstream dust coupling logic.
 #
 # Configuration:
-#   - 8x8x16 atmospheric cells, 1000x1000x1000 m domain.
-#   - erf.dust.grid_ratio = 1: dust grid is 8x8x1 (125 m per cell).
-#   - phreeqc_update_interval_s = 1.0: reader triggers on every advance call.
-#   - max_step = 2: advance() called twice; reader called on both steps.
-#   - Test CSV has 64 rows (8x8 cells), columns: i,j,crust_index,
-#     silt_fraction,efflorescence,suppression_mod,metal_as_bin0.
+#   - External PHREEQC CSV file path and variable names are the critical settings.
+#   - Other dust features remain simple to isolate the reader behavior.
 #
-# Expected results at max_step = 2:
-#   (1) read_phreeqc_csv finds column crust_index and reads 64 rows.
-#   (2) [DUST] PHREEQC update print appears on step 1 and step 2.
-#   (3) dust_crust_index at (i=2,j=2) = 0.8 (interior high-crust zone).
-#   (4) dust_crust_index at (i=0,j=0) = 0.0 (outer ring, uncrusted).
-#   (5) dust_ustar_t at (i=2,j=2):
-#         u*_t_base computed at init from Bagnold formula for bin 0
-#         (d=7 um, rho_p=2650, A=0.0123): approx 0.00474 m/s.
-#         After update: u*_t = 0.00474 * (1 - 0.5*0.8) * (1 - 0.3*0.4)
-#                            = 0.00474 * 0.6 * 0.88
-#                            = approx 0.00250 m/s.
-#         Verify u*_t at (i=2,j=2) < u*_t at (i=0,j=0).
-#   (6) dust_ustar_t at all cells >= PhreeqcDustConst::USTAR_T_MIN = 0.05 m/s.
-#       Note: if Bagnold u*_t_base < USTAR_T_MIN, floor applies. Verify
-#       that the floor is active when base < 0.05 and chemistry reduction
-#       would push below it.
-#   (7) dust_silt_fraction at (i=2,j=2) = 0.05 (updated from CSV).
-#   (8) dust_emission_flux at (i=2,j=2,comp=0) = 3.0e-6 (metal_as_bin0).
-#   (9) Run exits with code 0.
-#
-# u*_t_base calculation (for reference in expected result 5):
-#   u*_t = A * sqrt(rho_p * g * d / rho_a)
-#         = 0.0123 * sqrt(2650 * 9.81 * 7.0e-6 / 1.225)
-#         = 0.0123 * sqrt(0.14876)
-#         approx 0.00474 m/s
-#   This is less than USTAR_T_MIN = 0.05 m/s, so dust_ustar_t will be
-#   clamped to 0.05 m/s at all cells in this test case.
-#   The test verifies the clamp is applied and that the chemistry
-#   reduction logic executes without error.
-#
-# References:
-#   Marticorena & Bergametti (1995). J. Geophys. Res., 100, 16415.
-#     https://doi.org/10.1029/95JD00690
-#   Bagnold (1941). The Physics of Blown Sand and Desert Dunes.
-#     Methuen, London.
-#   Parkhurst & Appelo (2013). PHREEQC version 3. USGS TM 6-A43.
-#     https://pubs.usgs.gov/tm/06/a43/
-#   MRF PBL: Hong & Pan (1996).
-#     https://doi.org/10.1175/1520-0493(1996)124<2322:NBLVDI>2.0.CO;2
+# Notes:
+#   - Use as the documentation reference for PHREEQC file formatting.
 
 erf.prob_name = "ABL"
 max_step = 2

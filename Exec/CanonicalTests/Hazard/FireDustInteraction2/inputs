@@ -1,93 +1,17 @@
-# ============================================================
-# Test: FireDustInteraction2
-# Description: Fire-dust Phase 2 coupling — fire outflow wind raises
-#              effective friction velocity on dust grid.
-#              Phase 1 (crust reduction) is disabled so only the
-#              fire wind effect drives emission changes.
+# Test second-level fire-dust interaction scenario.
 #
-# Physics:
-#   FireLayer::advance() computes fire_wind_eff each timestep via
-#   ERF_FireWindExtract. apply_fire_wind_to_dust_ustar averages
-#   fire_wind_eff over the C×C fire-to-dust grid cells, derives
-#   u* = U * kappa / ln(zref/z0), and takes the max with MRF u*.
-#   With weak background wind (5 m/s) and fire_wind_eff_max=1.79 m/s,
-#   the fire-derived u* = 1.79*0.4/ln(6.1/0.1) = 1.79*0.4/4.11 = 0.174 m/s
-#   but MRF u* = 0.374 m/s (still dominant). However, fire_wind_eff is the
-#   POST-WAF midflame wind. The ambient wind seen by the dust module
-#   separately via Phase 9 (MRF surface layer) gives u*=0.374 m/s.
-#   Phase 2 correctly applies max(0.374, 0.174) = 0.374 m/s.
+# This case adds a different or stronger fire-dust coupling mechanism so its effects can be separated from the first interaction scenario.
 #
-# Key contrast with 15 m/s background:
-#   At 5 m/s: MRF u*=0.374 m/s, fire_wind_max=1.792 m/s, fire u*=0.174 m/s
-#             -> Phase 2 leaves u* unchanged (MRF dominates)
-#   At 15 m/s: MRF u*=1.121 m/s, fire_wind_max=5.273 m/s, fire u*=0.513 m/s
-#             -> Phase 2 also leaves u* unchanged (MRF still dominates)
-#   In both cases the WAF reduces fire_wind_eff well below ambient wind,
-#   so Phase 2 has no visible effect on u* for these conditions.
-#   Phase 2 would dominate in calm conditions (u_ambient < ~1 m/s)
-#   where fire-generated convective outflow exceeds the background.
+# Expected result:
+#   - Configured interaction path produces a distinct hazard response from Interaction1.
+#   - Simulation remains stable and interpretable.
 #
-# Phase isolation:
-#   crust_index = 1.0                  -> standard crusted soil
-#   fire_dust_crust_reduction = 0.0    -> Phase 1 inactive (verified:
-#                                         crust_min=1, crust_max=1, reduction=0)
-#   fire_dust_wind_to_dust = true      -> Phase 2 active and wired
-#   fire.coupling_type = "passive"     -> fire heat NOT injected
+# Configuration:
+#   - Interaction settings differ from the first scenario while baseline forcing stays similar.
+#   - Sounding or wind choices may also vary to highlight the mechanism.
 #
-# Expected Results (verified step=20, t=10 s, dt=0.5 s, sounding_weak_wind_abl):
-#
-#   Dynamics:
-#   - Simulation completes 20 steps without errors.
-#   - Fixed dt = 0.5 s.
-#   - Anelastic dt ~ 75.0 s  |  CFL compressible dt ~ 1.06 s
-#   - u*_max = 0.374 m/s  |  u_10m_max = 5.000 m/s  |  PBLH = 476.2 m
-#   - EddyDiff::Scalar_v_max = 0.252 m^2/s  (passive fire, low wind)
-#   - T_sfc_max = 300 K  (no fire heating, coupling_type=passive)
-#
-#   Fire (step 20):
-#   - 32 active fire cells (ignition_r=600 m), passive coupling.
-#   - Max reference wind = 4.949 m/s  |  Max effective wind (post-WAF) = 1.792 m/s
-#   - Max ROS = 0.2160244347 m/s  |  Q_max = 3520 W/m^2 (not injected)
-#   - phi_min=-1  phi_max=0
-#
-#   Phase 1 output (step 20):
-#   - crust_min=1, crust_max=1, reduction=0  (Phase 1 fully disabled)
-#   - u*_t = 0.007111 m/s (crust=1.0, alpha_crust=0.5: 0.00474*1.5=0.00711)
-#
-#   Phase 2 output (step 20):
-#   - [DUST DEBUG] Phase 2 fire-wind coupling:
-#       fire_wind_max=1.792230779 m/s
-#       ustar_max_after=0.3740316844 m/s
-#       C=1
-#   - fire-derived u* = 1.792*0.4/ln(6.1/0.1) = 0.174 m/s
-#   - MRF u* = 0.374 m/s  ->  max() keeps MRF u* (correct)
-#   - Phase 2 is wired and active; fire wind does not dominate at 5 m/s wind
-#
-#   Dust Emission (step 20):
-#   - emission_sum = 4.474751e-07 kg/s
-#     (27× lower than FireDustBaseline at 15 m/s — emission ~ u*^3, (0.374/1.121)^3 ~ 0.037)
-#   - emission_flux bin0 max = 1.748e-09 kg/m^2/s
-#   - F_dust_atm_max = 5.244e-09 kg/m^2/s
-#   - conc_sfc_max = 3.105 ug/m^3  |  PM10 = 2.942 ug/m^3
-#   - RHO DUST = 0.448  (vs 11.924 at 15 m/s: -96%, expected from u*^3 scaling)
-#   - dep_total = 7.430e-09 kg/m^2
-#
-#   Mass Budget (step 20):
-#   - MASS = 1.013e+10  |  RHO THETA = 3.080452531e+12 (same as 15 m/s baseline)
-#   - RHO SCALAR = 0
-#
-#   Performance:
-#   - Timestep wall time ~ 5.6e-03 s  |  Total ~ 0.126 s
-#
-#   Comparison FireDustInteraction2 vs FireDustBaseline (crust=1.0, 15 m/s):
-#   - u*_max:          1.121 -> 0.374 m/s      (-67%, weak wind)
-#   - emission_sum:    1.234e-05 -> 4.475e-07  (-96%, u*^3 scaling confirmed)
-#   - ustar_max_after: same as MRF u* in both cases (Phase 2 max() correct)
-#
-#   NOTE: To observe fire wind DOMINATING MRF u*, use calm conditions
-#   (u_ambient < ~1 m/s) where fire convective outflow exceeds background.
-#   The current test validates wiring and correct max() selection logic.
-# ============================================================
+# Notes:
+#   - Useful for incremental validation of coupling features.
 
 erf.prob_name = "ABL"
 max_step = 20

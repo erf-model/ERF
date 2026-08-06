@@ -1,16 +1,17 @@
-# HaboobFireHill — Phase 5 integration: all Phase 1-4 physics on Gaussian hill.
+# Initialize a haboob-fire interaction over hill terrain.
 #
-# Identical to HaboobFireFlat but with Gaussian hill terrain. Fire ignites on
-# the upwind side of the hill. Terrain-channelled wind accelerates over the
-# crest, driving higher fire ROS and stronger dust emission on the windward
-# slope. Smoke plume is deflected over the hill crest.
+# This case adds hill topography to the haboob-fire setup to examine how terrain reshapes the cold-pool flow and resulting fire response.
 #
-# Expected results:
-#   (1) ERF prints "max of zphys_nd = 200" at startup
-#   (2) emission_flux_max > HaboobFireFlat at step 20 (terrain amplifies emission)
-#   (3) smoke plume peak concentration is downwind of hill crest
-#   (4) All Phase 1-4 [DUST DEBUG] and [FIRE DEBUG] signatures present
-#   (5) No NaN in any field, run exits code 0 at max_step=20
+# Expected result:
+#   - Terrain modifies the haboob and fire interaction relative to the flat case.
+#   - Run remains stable with both terrain and haboob forcing active.
+#
+# Configuration:
+#   - Gaussian-hill or hill-like terrain is enabled.
+#   - Haboob parameters remain comparable to the flat baseline.
+#
+# Notes:
+#   - Use with HaboobFireFlat and HaboobFirePit as a terrain comparison set.
 
 erf.prob_name = "ABL"
 max_step = 20

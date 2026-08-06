@@ -1,34 +1,17 @@
-# DustParticles regression test — Phase 19 Lagrangian super-particles.
+# Exercise multi-bin dust particle size handling.
 #
-# One super-particle released per emission cell per step.
-# Advected by ERF face velocities (nearest-cell) + Stokes settling.
-# Deposited when z < z_lo + 0.5*dz; mass to dust_source_map.
+# This case verifies particle-size-bin configuration, including transport or diagnostics across multiple dust classes.
 #
-# Requires ERF_USE_PARTICLES at compile time.
-# Without it, n_particles=0 and test still passes.
+# Expected result:
+#   - Configured size bins are accepted and represented in the run.
+#   - Differences among bins appear in transport, settling, or output fields as expected.
 #
-# MRF u* ~ 0.56 m/s, 15 m/s westerly wind.
-# bin d=7 um: v_settle ~ 4e-3 m/s -> 0.002 m per step (dt=0.5s).
-# Particles stay aloft for many steps; source_map_sum may be 0
-# over only 5 steps with d=7 um.
+# Configuration:
+#   - Number of bins, diameters, and any mass fractions are key controls.
+#   - Other settings remain simple enough to highlight size-bin behavior.
 #
-# Expected results:
-#   (1) [DUST DEBUG] Phase 19 n_particles > 0 after step 1
-#       (when ERF_USE_PARTICLES defined and emission flux > 0).
-#   (2) n_particles non-decreasing over 5 steps (release > deposition).
-#   (3) source_map_sum >= 0 each step.
-#   (4) plt_dust_00005: 19 variables, includes dust_source_map.
-#   (5) DustMetadata.json n_variables=19.
-#   (6) enable_particles=false: n_particles=0, test passes.
-#   (7) bin_diameters=100e-6 (large): source_map_sum > 0 within 5 steps.
-#   (8) Run exits code 0.
-#
-# References:
-#   AMReX particles: https://amrex-codes.github.io/amrex/docs_html/Particles.html
-#   ERFPCEvolve.cpp: Source/Particles/ERFPCEvolve.cpp
-#   Shao (2008). Physics and Modelling of Wind Erosion. Springer.
-#   Seinfeld & Pandis (2006) Ch. 9.
-#     https://doi.org/10.1002/9781118227572
+# Notes:
+#   - Use when validating changes to bin indexing or transport options.
 
 erf.prob_name = "ABL"
 max_step = 5

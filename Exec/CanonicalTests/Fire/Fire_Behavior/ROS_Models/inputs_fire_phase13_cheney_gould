@@ -1,16 +1,17 @@
-# Phase 13 regression test: Cheney-Gould (1998) empirical grassland ROS model.
-# Domain: 2 km x 2 km flat, FM1 (short grass), 5 m/s geostrophic wind.
-# Ignition at (1000, 1000), radius 30 m, passive coupling, no acceleration.
+# Compare alternate fire rate-of-spread models.
 #
-# Uses Cheney-Gould parameters from ERF_FireParams.H CheneyGouldParams struct:
-#   moisture = 10.0 % (placeholder: domain-average dead fine fuel moisture)
-#   curing = 1.0 (fully cured grass)
+# This directory exercises several ROS model formulations to confirm configuration wiring and expected qualitative differences among available spread models.
 #
-# Expected checks:
-#   1. fire_ros is nonzero in burned cells.
-#   2. Head ROS at t=900 s is consistent with Cheney-Gould formula for FM1 at 5 m/s wind.
-#   3. ROS is appropriate for Australian grassland calibration.
-#   4. No NaN or abort.
+# Expected result:
+#   - Each ROS model runs successfully with its intended option selected.
+#   - Predicted spread differs between models in a physically interpretable way for the same nominal scenario.
+#
+# Configuration:
+#   - ROS model selector is varied across the input files.
+#   - Shared geometry and ignition choices help isolate model-form differences.
+#
+# Notes:
+#   - Use the Rothermel baseline as a reference when comparing alternatives.
 
 geometry.prob_lo = 0.0 0.0 0.0
 geometry.prob_hi = 2000.0 2000.0 500.0

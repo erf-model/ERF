@@ -1,47 +1,17 @@
-# DustThreshold regression test
+# Test threshold friction velocity model.
 #
-# Tests ERF_DustThreshold.H: compute_ustar_t_bagnold, compute_ustar_t_full,
-# and recompute_dust_ustar_t as called from DustLayer::initialize and advance.
+# This case verifies the threshold-friction-velocity calculation used to activate dust emission and confirms that emission begins only above threshold.
 #
-# Incorporates fixes from PR #135 (hgopalan/ERF/pull/135):
-#   - amr.max_level = 0 (required for single-level dust tests)
-#   - erf.use_gravity = false (prevents solver crashes in test cases)
-#   - erf.most.zref = 50.0 m (must exceed first cell center; 16 cells / 1000 m = 62.5 m per cell)
-#   - erf.most.z0 = 0.1 m
+# Expected result:
+#   - Emission remains zero at or below threshold and becomes active above threshold.
+#   - Threshold fields are spatially and temporally consistent with the chosen soil parameters.
 #
 # Configuration:
-#   - 8x8x16 atmospheric cells, 1000x1000x1000 m domain.
-#   - erf.dust.grid_ratio = 1: dust grid is 8x8x1 (125 m cells).
-#   - test_phreeqc.csv from PhreeqcReader test provides crust/efflor data.
-#   - phreeqc_update_interval_s = 1.0: reader triggers on every advance (dt=1.0).
-#   - max_step = 2.
+#   - Threshold model parameters and test friction velocity drive the behavior.
+#   - Surface properties such as soil type or crusting may also contribute.
 #
-# Expected results:
-#
-# At initialization (after recompute_dust_ustar_t in DustLayer::initialize):
-#   (1) Bagnold u*_t_base for bin 0 (d=7.0e-6 m, rho_p=2650, A=0.0123, rho_a=1.225):
-#         u*_t_base = 0.0123 * sqrt(2650*9.81*7.0e-6/1.225) approx 0.00474 m/s.
-#         Clamped to DustThresholdConst::USTAR_T_MIN = 0.05 m/s.
-#   (2) All modifiers are zero at init (crust=0, efflor=0, moist=0, supp=0).
-#         u*_t at all cells = 0.05 m/s.
-#
-# After step 1 (PHREEQC update then recompute):
-#   (3) At (i=2,j=2): crust=0.8, efflor=0.4, supp=0.2, moist=0.
-#         Unclamped: 0.00474 * (0.6*0.88) / (1.0*2.2) approx 0.00114 m/s.
-#         Clamped: u*_t = 0.05 m/s.
-#   (4) All cells remain at 0.05 m/s because u*_t_base < USTAR_T_MIN.
-#   (5) No NaN or negative values in dust_ustar_t.
-#   (6) Run exits with code 0.
-#
-# References:
-#   Bagnold (1941). The Physics of Blown Sand and Desert Dunes. Methuen.
-#   Marticorena & Bergametti (1995). J. Geophys. Res., 100, 16415.
-#     https://doi.org/10.1029/95JD00690
-#   Fecan et al. (1999). Ann. Geophys., 17, 149.
-#     https://doi.org/10.1007/s00585-999-0149-7
-#   PR #135: https://github.com/hgopalan/ERF/pull/135
-#   MRF PBL: Hong & Pan (1996).
-#     https://doi.org/10.1175/1520-0493(1996)124<2322:NBLVDI>2.0.CO;2
+# Notes:
+#   - Useful as the first diagnostic when emission appears unexpectedly on or off.
 
 erf.prob_name = "ABL"
 max_step = 2

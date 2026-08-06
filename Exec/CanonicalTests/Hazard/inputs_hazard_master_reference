@@ -1,0 +1,197 @@
+# ============================================================================
+# ERF Hazard Module: Master Inputs Configuration Reference
+# ============================================================================
+# This file documents fire + dust coupling and combined hazard scenario parameters.
+# Refer to Fire/inputs_fire_master_reference and Dust/inputs_dust_master_reference
+# for complete parameter lists within each sub-module.
+# ============================================================================
+
+# ============================================================================
+# CORE GEOMETRY AND ATMOSPHERIC SETUP
+# ============================================================================
+# (standard domain, mesh, time stepping — see fire master reference)
+
+# ============================================================================
+# HAZARD MODULE: MASTER CONTROL FLAGS
+# ============================================================================
+
+# Enable fire simulation
+erf.fire.enable = true
+
+# Enable dust simulation
+erf.dust.enable = false
+
+# Hazard coupling mode: how fire and dust interact
+# Options: "none" (independent), "thermal_lofting" (fire heat plume lifts dust),
+#          "full_coupling" (two-way momentum + thermal + chemistry)
+erf.hazard.coupling_mode = "none"
+
+# ============================================================================
+# FIRE SUB-MODULE (ABBREVIATED REFERENCE)
+# ============================================================================
+# For full fire parameters, see: Exec/CanonicalTests/Fire/inputs_fire_master_reference
+# Key parameters for hazard scenarios:
+
+# Fire enable flag
+erf.fire.enable = true
+
+# Fuel model (Anderson FBFM13 ID 1-13)
+erf.fire.fuel_model_id = 8
+
+# Fuel moisture
+erf.fire.moisture_1hr = 0.08
+erf.fire.moisture_10hr = 0.08
+erf.fire.moisture_100hr = 0.08
+
+# Wind speed / atmospheric coupling
+erf.fire.wind_speed = 5.0  # [m/s] for constant wind baseline
+erf.fire.wind_from = 270.0 # [degrees, 0=N, 90=E, 180=S, 270=W]
+
+# ============================================================================
+# DUST SUB-MODULE (ABBREVIATED REFERENCE)
+# ============================================================================
+# For full dust parameters, see: Exec/CanonicalTests/Dust/inputs_dust_master_reference
+# Key parameters for hazard scenarios:
+
+# Dust enable flag
+erf.dust.enable = false
+
+# Dust emission scheme
+erf.dust.emission_scheme = "Shao"
+
+# Particle size distribution
+erf.dust.n_dust_bins = 3
+
+# Dust coupling
+erf.dust.coupling = "passive"
+
+# ============================================================================
+# FIRE-DUST INTERACTION PARAMETERS
+# ============================================================================
+
+# Enable fire-induced lofting of dust
+erf.hazard.fire_lofting_enable = false
+
+# Heat plume buoyancy threshold for lofting activation [K/m]
+erf.hazard.lofting_buoyancy_threshold = 0.001
+
+# Lofting velocity scale [m/s]
+erf.hazard.lofting_velocity_scale = 1.5
+
+# Lofting height cap [m] — maximum altitude dust can be lifted
+erf.hazard.lofting_height_cap = 1000.0
+
+# Interaction mode for coupled scenarios
+# Options: "none", "thermal_lofting", "full_coupling"
+erf.hazard.fire_dust_interaction = "none"
+
+# ============================================================================
+# TERRAIN CONFIGURATION
+# ============================================================================
+
+# Terrain type
+# Options: "flat", "gaussian_hill", "gaussian_pit", "real_terrain"
+erf.terrain.type = "flat"
+
+# Real terrain file (HDF5 or ASCII format if terrain_type = "real_terrain")
+erf.terrain.file = ""
+
+# Gaussian hill parameters (for terrain_type = "gaussian_hill")
+erf.terrain.gaussian_amplitude = 100.0  # [m]
+erf.terrain.gaussian_sigma_x = 500.0    # [m]
+erf.terrain.gaussian_sigma_y = 500.0    # [m]
+erf.terrain.gaussian_center_x = 1000.0  # [m]
+erf.terrain.gaussian_center_y = 1000.0  # [m]
+
+# Gaussian pit parameters (for terrain_type = "gaussian_pit")
+erf.terrain.gaussian_pit_depth = 50.0   # [m]
+erf.terrain.gaussian_pit_sigma_x = 500.0
+erf.terrain.gaussian_pit_sigma_y = 500.0
+erf.terrain.gaussian_pit_center_x = 1000.0
+erf.terrain.gaussian_pit_center_y = 1000.0
+
+# ============================================================================
+# SMOKE / TRACER TRANSPORT
+# ============================================================================
+
+# Enable smoke tracer (passive scalar from fire)
+erf.smoke.enable = false
+
+# Smoke emission rate from fire [kg/m²/s]
+erf.smoke.emission_rate = 0.01
+
+# Smoke deposition scheme
+# Options: "none", "gravitational", "surface_layer"
+erf.smoke.deposition = "none"
+
+# ============================================================================
+# HEALTH AND REGULATORY DIAGNOSTICS
+# ============================================================================
+
+# NAAQS PM2.5 thresholds
+erf.naaqs.pm25_24hr_limit = 35.0   # [µg/m³]
+erf.naaqs.pm25_annual_limit = 12.0 # [µg/m³]
+erf.naaqs.enable = false
+
+# MSHA occupational dust exposure
+erf.msha.dust_limit = 5.0  # [mg/m³]
+erf.msha.enable = false
+
+# OSHA Short-Term Exposure Limit (STEL)
+erf.osha.stel_threshold = 10.0  # [mg/m³]
+erf.osha.stel_window = 15       # [minutes]
+erf.osha.enable = false
+
+# Silica fraction for silicosis risk assessment [0.0-1.0]
+erf.hazard.silica_fraction = 0.2
+
+# Visibility diagnostic
+erf.hazard.visibility_enable = false
+
+# Health integration output (combined fire + dust exposure)
+erf.hazard.health_integration_output = false
+
+# ============================================================================
+# HABOOB / DUST STORM INITIALIZATION
+# ============================================================================
+
+# Enable haboob (cold pool dust storm) initialization
+erf.haboob.enable = false
+
+# Haboob cold pool depth [m]
+erf.haboob.cold_pool_depth = 500.0
+
+# Haboob density anomaly [kg/m³]
+erf.haboob.density_anomaly = 0.5
+
+# Haboob initial position
+erf.haboob.center_x = 500.0  # [m]
+erf.haboob.center_y = 500.0  # [m]
+
+# ============================================================================
+# MASS CONSERVATION DIAGNOSTICS
+# ============================================================================
+
+# Enable mass conservation check (for coupled fire+dust)
+erf.hazard.mass_conservation_check = false
+
+# Mass conservation reporting interval [steps]
+erf.hazard.mass_conservation_interval = 10
+
+# Mass conservation tolerance [fraction]
+erf.hazard.mass_conservation_tolerance = 0.01
+
+# ============================================================================
+# OUTPUT AND VISUALIZATION
+# ============================================================================
+
+# Enable visualization output (fire + dust combined)
+erf.hazard.visualization_enable = true
+
+# Plot variables (comma-separated list combining fire and dust fields)
+erf.hazard.plot_vars = "theta u v dust_concentration fire_intensity"
+
+# Statistics CSV file for hazard diagnostics
+erf.hazard.stats_file = ""
+
+# ============================================================================

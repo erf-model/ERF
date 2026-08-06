@@ -1,16 +1,17 @@
-# HaboobFirePit — Phase 5 integration: all Phase 1-4 physics in Gaussian pit.
+# Initialize a haboob-fire interaction over pit terrain.
 #
-# Open pit mine analog. Negative hill amplitude produces a concave pit 200 m
-# deep. Fire ignites on the pit floor. Smoke and dust are trapped in the
-# stable air pool at the pit bottom before being lofted by the fire convective
-# column. This is the first ERF-Hazard open pit mine simulation.
+# This case uses bowl-shaped terrain to test confined or sheltered haboob-fire interactions and resulting hazard evolution.
 #
-# Expected results:
-#   (1) z_phys_nd at domain centre < 0 (pit floor below datum)
-#   (2) Smoke and dust concentrations elevated at pit floor (stable pool trapping)
-#   (3) All Phase 1-4 [DUST DEBUG] and [FIRE DEBUG] signatures present
-#   (4) fire_stats.csv: burned_area_ha > 0 and increasing
-#   (5) No NaN in any field, run exits code 0 at max_step=20
+# Expected result:
+#   - Pit terrain changes the cold-pool and fire response relative to the flat and hill cases.
+#   - Simulation remains interpretable despite potentially confined flow.
+#
+# Configuration:
+#   - Gaussian-pit / depression terrain is enabled.
+#   - Haboob forcing is otherwise similar to the other variants.
+#
+# Notes:
+#   - Best interpreted as part of the three-case haboob terrain set.
 
 erf.prob_name = "ABL"
 max_step = 20

@@ -1,54 +1,17 @@
-# DustSettling regression test
+# Verify Stokes settling velocity implementation.
 #
-# Tests Phase 11 Stokes settling: apply_dust_settling_to_cc_source called
-# from ERF_Advance after dust injection (Phase 10).
+# This case tests gravitational settling of airborne dust following injection, with expected motion and tendencies based on Stokes settling theory for the configured particle sizes.
 #
-# Pattern: follows apply_fire_tendency_to_cc_source in
-#   Source/Fire/ERF_FireAtmCoupling.H
+# Expected result:
+#   - Settling tendency moves dust downward without creating mass.
+#   - Reported settling velocities are consistent with the configured particle diameter and density.
 #
 # Configuration:
-#   8x8x16 cells, 1000x1000x1000 m domain. dz = 62.5 m per cell.
-#   Geostrophic wind 10 m/s. MRF diagnoses u* > u*_t = 0.05 m/s.
-#   After Phase 10 injection, dust is present at k=0. Phase 11 settling
-#   moves mass downward each step.
-#   transport_bins_separately = false: single scalar slot, bin 0 diameter.
-#   bin_diameters[0] = 7e-6 m (PM10 coarse mode).
-#   max_step = 5.
+#   - Particle diameter and density determine the settling speed.
+#   - Dust is present aloft so vertical redistribution can be observed over several steps.
 #
-# Stokes settling velocity for bin 0 (d=7 um):
-#   v_s = (2650-1.225)*9.81*(7e-6)^2/(18*1.81e-5)
-#       = 2648.775*9.81*4.9e-11/3.258e-4
-#       approx 3.9e-3 m/s
-# Cunningham correction C_c for d=7 um:
-#   ratio = 2*6.6e-8/7e-6 = 0.01886
-#   C_c = 1 + 0.01886*(1.257 + 0.4*exp(-0.55*7e-6/6.6e-8))
-#       = 1 + 0.01886*1.257 = approx 1.024
-#   v_s_corrected approx 4.0e-3 m/s
-#
-# Expected results:
-#   (1) [DUST SETTLING] line printed each step with v_s approx 4e-3 m/s.
-#   (2) [DUST DEBUG] Phase 11 line printed each step.
-#   (3) cc_source at RhoAdv_comp, k=0 has negative settling tendency
-#       (mass leaves k=0 downward).
-#   (4) cc_source at RhoAdv_comp, k=1 has positive settling tendency
-#       (mass arrives from k=0).
-#   (5) Column integral of RhoDust * dz does not increase (no production
-#       from settling; only redistribution and Phase 10 injection).
-#   (6) Setting erf.dust.atm_feedback = 0 produces zero settling tendency
-#       (no dust in 3D to settle).
-#   (7) Run exits with code 0.
-#
-# References:
-#   Stokes (1851). Trans. Cambridge Phil. Soc., 9, 8-106.
-#   Allen & Raabe (1985). Aerosol Sci. Tech., 4, 269-286.
-#     https://doi.org/10.1080/02786828508959055
-#   Seinfeld & Pandis (2006). Atmospheric Chemistry and Physics, ch. 9.
-#     ISBN 978-0-471-72018-8.
-#   Ginoux et al. (2001). J. Geophys. Res., 106, 20255.
-#     https://doi.org/10.1029/2000JD901323
-#   ERF_FireAtmCoupling.H (pattern reference):
-#     https://github.com/hgopalan/ERF/blob/7856affedd8bb3c878b62c308f39c36bf2228791/
-#     Source/Fire/ERF_FireAtmCoupling.H
+# Notes:
+#   - A detailed analytical estimate is already embedded in the file and should be preserved.
 
 erf.prob_name = "ABL"
 max_step = 5

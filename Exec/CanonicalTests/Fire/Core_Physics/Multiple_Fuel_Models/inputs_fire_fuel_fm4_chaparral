@@ -1,6 +1,17 @@
-# Multiple Fuel Models Test - FM4 Chaparral
-# Flat domain, FM4 fuel (chaparral/brush), 5 m/s wind, 8% moisture
-# Tests fire spread with dense, fast-burning fuel model
+# Exercise alternate fire fuel models.
+#
+# This case verifies that the fire module correctly loads and uses a different fuel-model parameter set, changing the resulting spread behavior in a physically meaningful way.
+#
+# Expected result:
+#   - Simulation runs with the selected alternate fuel model without configuration errors.
+#   - Spread behavior differs qualitatively from the baseline in a manner consistent with the chosen fuel type.
+#
+# Configuration:
+#   - Fuel-model identifier selects a non-baseline Anderson fuel class.
+#   - Other settings remain close enough to isolate fuel-model effects.
+#
+# Notes:
+#   - Useful for regression tests of parameter-table lookup and fuel-specific diagnostics.
 
 geometry.prob_lo = 0.0 0.0 0.0
 geometry.prob_hi = 2000.0 2000.0 500.0

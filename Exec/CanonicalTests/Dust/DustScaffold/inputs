@@ -1,28 +1,17 @@
-# DustScaffold regression test
-# Tests that the ERF-Dust parameter struct compiles, loads defaults,
-# and that the build completes when ERF_ENABLE_DUST=ON.
+# Provide a minimal dust regression scaffold.
 #
-# This test runs zero timesteps. It verifies:
-#   (1) DustParams constructor reads all fields from ParmParse without error.
-#   (2) Default values match the values declared in ERF_DustParams.H:
-#         erf.dust.enable              = false
-#         erf.dust.n_size_bins         = 3
-#         erf.dust.particle_density    = 2650.0 [kg/m^3]
-#         erf.dust.z0_dust             = 0.01   [m]
-#         erf.dust.silt_fraction       = 0.10
-#         erf.dust.threshold_A_coeff   = 0.0123
-#         erf.dust.crust_index         = 0.0
-#         erf.dust.phreeqc_update_interval_s = 86400.0
-#   (3) Overriding erf.dust.enable = true and erf.dust.n_size_bins = 5
-#       produces a DustParams struct with those values without aborting.
-#   (4) No dust-specific plotfile fields are written when erf.dust.enable = false.
+# This case is a compact baseline for dust-module setup, useful for smoke tests and initial configuration validation before adding specialized features.
 #
-# Expected result: run completes with max_step = 0 and exit code 0.
-# No plotfile output is produced for dust variables.
+# Expected result:
+#   - Simulation initializes the dust module with minimal required settings.
+#   - Case is easy to compare against more feature-rich dust scenarios.
 #
-# Reference: ERF-Dust Phase 1 scaffold.
-#   Source/Dust/ERF_DustParams.H
-#   Source/Dust/DUST_DEVELOPMENT.md
+# Configuration:
+#   - Dust is enabled with a simple atmospheric background.
+#   - Optional source, chemistry, and diagnostic features are mostly omitted.
+#
+# Notes:
+#   - Use as the simplest example in top-level documentation.
 
 erf.prob_name = "ABL"
 

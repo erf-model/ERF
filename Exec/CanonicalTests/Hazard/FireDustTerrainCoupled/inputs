@@ -1,92 +1,17 @@
-# ============================================================
-# Test: FireDustTerrainCoupled
-# Description: Full coupling test combining fire spread, dust
-#              emission, and terrain wind effects simultaneously.
-#              Both fire and dust use terrain wind corrections.
-#              Fire-dust coupling is active with crust reduction
-#              in burned zones. Lagged fire-wind coupling.
+# Exercise coupled fire-dust interaction over terrain.
 #
-# Grid ratios: dust.grid_ratio = fire.grid_ratio = 2
-#   REQUIRED: must match when fire_dust_coupling=true.
-#   ignition_r = 600 m marks ~32 burned fire cells at t=0
-#   (~12.5% of 16x16 fire domain), consistent with FireDustInteraction1.
+# This case combines terrain-modified winds with fire-dust coupling to verify the integrated hazard response in non-flat topography.
 #
-# Expected Results:
+# Expected result:
+#   - Terrain influences both fire behavior and dust transport in a coupled manner.
+#   - Simulation remains stable despite the added topographic and coupling complexity.
 #
-# --- Step 20 (t=10 s, verified) ---
+# Configuration:
+#   - Both terrain options and fire-dust interaction controls are active.
+#   - Sounding and ignition setup are chosen to expose topographic effects.
 #
-#   Dynamics:
-#   - u*_max ~ 0.771 m/s  |  u_10m_max ~ 14.99 m/s
-#   - PBLH_max ~ 535.4 m  |  EddyDiff ~ 13.6 m^2/s
-#
-#   Fire: 32 active cells, Q_atm_max=3522 W/m^2, Max ROS=0.216 m/s
-#
-#   Dust Threshold:
-#   - crust_min=1.049e-14 (burned)  crust_max=1.0 (unburned)
-#   - u*_t_min=0.004741 m/s  u*_t_max=0.007111 m/s
-#
-#   Dust Emission:
-#   - emission_sum = 3.874e-06 kg/s
-#   - emission_flux bin0 max = 1.515e-08 kg/m^2/s
-#   - F_dust_atm_max = 4.545e-08 kg/m^2/s
-#
-#   Concentrations: conc_sfc_max~26.6 ug/m^3 | PM10~25.3 | RHO DUST=3.884
-#   dep_total = 7.934e-08 kg/m^2
-#
-# --- Step 100 (t=50 s, verified) ---
-#
-#   Dynamics:
-#   - u*_max = 0.7540620829 m/s  |  u_10m_max = 14.6725621 m/s
-#   - PBLH_max = 537.7656527 m   |  T_sfc_max = 302.5307915 K (fire heating accumulated)
-#   - EddyDiff::Scalar_v_max = 87.90040996 m^2/s  (fire heating over 50 s)
-#
-#   Fire (step 100):
-#   - 32 active fire cells  |  phi_min=-1  phi_max=0
-#   - Q_atm_max = 3363.554097 W/m^2 (lagged, from previous step)
-#   - Q_max = 3361.617029 W/m^2  |  I_B_max = 37.35425503 kW/m
-#   - T_flame_max = 651.7021367 K
-#   - Max ROS = 0.2160244347 m/s
-#   - FARSITE terrain wind corrections applied each step
-#   - Effective wind max = 4.881715714 m/s at step 100
-#     (vs 5.275 at step 20; fire heating modifies near-surface wind over time)
-#
-#   Phase 2 fire-wind coupling (step 100):
-#   - fire_wind_max = 4.874345296 m/s
-#   - ustar_max_after = 0.7543465342 m/s  (terrain-sheltered u*)
-#   - C = 1
-#
-#   Dust Threshold (step 100):
-#   - crust_min = 1.2676506e-70  (burned cells: 1.0*(0.2)^100 ~ 0)
-#   - crust_max = 1.0            (unburned cells)
-#   - u*_t_min = 0.004740711511 m/s  |  u*_t_max = 0.007111067266 m/s
-#
-#   Dust Emission (step 100):
-#   - emission_sum = 3.608593245e-06 kg/s  (vs 3.874e-06 at step 20: -7%)
-#     Slight decrease: fire heating over 50 s deepens PBL, reduces u*
-#   - emission_flux bin0 max = 1.419209899e-08 kg/m^2/s
-#   - F_dust_atm_max = 4.258456244e-08 kg/m^2/s
-#   - u*_in range: [0.7473845596, 0.7540620829] m/s
-#
-#   Dust Concentrations (step 100):
-#   - conc_sfc_max = 110.9365635 ug/m^3  (accumulating; 4x step 20 value)
-#   - PM10_max = 110.9365635 ug/m^3
-#   - MSHA_TWA = 1.050637595e-04 mg/m^3  (growing with time)
-#   - RHO DUST = 19.78663655  (vs 3.884 at step 20: +410% mass accumulated)
-#
-#   Mass Budget (step 100):
-#   - MASS = 1.012650226e+10  (conserved)
-#   - RHO THETA = 3.080674169e+12  (higher than step 20: fire heating)
-#   - dep_total = 4.031589703e-07 kg/m^2  (vs 7.934e-08 at step 20: +408%)
-#
-#   Performance:
-#   - Timestep wall time ~ 6.0e-03 s  |  Total ~ 0.621 s
-#
-# Key comparison: FireDustTerrainCoupled vs FireDustInteraction1 (flat, step 20):
-#   - u*_max:       1.121 -> 0.771 m/s   (-31%, terrain sheltering)
-#   - emission_sum: 1.190e-05 -> 3.874e-06 kg/s  (-67%, u*^3 scaling)
-#   - RHO DUST:    11.944 -> 3.884               (-67%)
-#   - u*_t range:  [0.00474, 0.00711]            (identical, correct)
-# ============================================================
+# Notes:
+#   - Use with flat-terrain coupled cases to interpret terrain contributions.
 
 erf.prob_name = "ABL"
 max_step = 100

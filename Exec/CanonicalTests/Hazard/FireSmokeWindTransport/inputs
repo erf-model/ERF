@@ -1,18 +1,17 @@
-# ============================================================
-# Test: FireSmokeWindTransport
-# Description: Strong geostrophic wind (10 m/s in x). Smoke
-#              injected at ignition location must appear downwind
-#              (positive x direction) of the fire after several
-#              steps. Verifies MRF transport of RhoSmoke_comp is
-#              physically correct.
+# Test wind-driven smoke transport in hazard mode.
 #
-# Expected results:
-#   (1) smoke_conc_max_k0 > 0 after step 4
-#   (2) At step 20, peak smoke concentration is at x > ignition_x
-#       (smoke has advected downwind)
-#   (3) smoke_total_mass conserved to within settling/outflow losses
-#   (4) No NaN, run exits code 0 at max_step=20
-# ============================================================
+# This case highlights advection and dispersion of smoke under imposed winds within the hazard framework.
+#
+# Expected result:
+#   - Smoke plume is transported downwind in the expected direction.
+#   - Dispersion pattern is consistent with the configured wind forcing.
+#
+# Configuration:
+#   - Wind forcing and smoke enablement are the key controls.
+#   - Dust effects are secondary or minimized.
+#
+# Notes:
+#   - Use to interpret smoke-only transport before adding dust interactions.
 
 erf.prob_name = "ABL"
 max_step = 20
