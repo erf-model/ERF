@@ -255,8 +255,8 @@ struct surface_flux_eb
         amrex::Real psi_m = zero;
         amrex::Real psi_h = zero;
         amrex::Real Olen  = zero;
-        amrex::Real zref  = zref_arr(i,j,k);
-        amrex::Real umm   = std::max(umm_arr(i,j,k), WSMIN);
+        amrex::Real zref  = zref_arr(i,j,0);
+        amrex::Real umm   = std::max(umm_arr(i,j,0), WSMIN);
         if (u_star_arr(i,j,k) == bogus_large_value) {
             u_star_arr(i,j,k) = mdata.kappa * umm / std::log(zref / z0_arr(i,j,k));
         } else {
