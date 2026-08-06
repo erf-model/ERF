@@ -198,7 +198,7 @@ convert_wrfbdy_data (const int itime,
         // TMP BDY data
         Array4<Real> bdy_u_tmp  = bdy_data_tmp[WRFBdyVars::U].array();  // This is x-face-centered
         Array4<Real> bdy_v_tmp  = bdy_data_tmp[WRFBdyVars::V].array();  // This is y-face-centered
-        Array4<Real> bdy_th_tmp  = bdy_data_tmp[WRFBdyVars::T].array();  // This is cell-centered
+        Array4<Real> bdy_th_tmp = bdy_data_tmp[WRFBdyVars::T].array();  // This is cell-centered
         Array4<Real> bdy_qv_tmp = bdy_data_tmp[WRFBdyVars::QV].array(); // This is cell-centered
         Array4<Real> bdy_r_tmp  = bdy_data_tmp[WRFBdyVars::R].array();  // This is cell-centered
 
