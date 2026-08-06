@@ -1177,7 +1177,7 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev)
 
             ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
-                int kstart = std::max(klo,k-5);
+                int kstart = klo;
                 Real z_dst = z_cc_arr(i,j,k);
                 Real z_lo_src = Real(0.5) *
                     ( ph_arr(i,j,kstart  ) + phb_arr(i,j,kstart  ) +
@@ -1218,7 +1218,7 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev)
                 int ii  = std::max(std::min(i  ,imax),imin);
                 int iim = std::max(std::min(i-1,imax),imin);
 
-                int kstart = std::max(klo,k-5);
+                int kstart = klo;
                 Real z_dst = Real(0.25) * ( z_nd_arr(i,j,k  ) + z_nd_arr(i,j+1,k  )
                                           + z_nd_arr(i,j,k+1) + z_nd_arr(i,j+1,k+1) );
                 Real z_lo_src = Real(0.25) *
@@ -1263,7 +1263,7 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev)
                 int jj  = std::max(std::min(j  ,jmax),jmin);
                 int jjm = std::max(std::min(j-1,jmax),jmin);
 
-                int kstart = std::max(klo,k-5);
+                int kstart = klo;
                 Real z_dst = Real(0.25) * ( z_nd_arr(i,j,k  ) + z_nd_arr(i+1,j,k  )
                                           + z_nd_arr(i,j,k+1) + z_nd_arr(i+1,j,k+1) );
                 Real z_lo_src = Real(0.25) *
