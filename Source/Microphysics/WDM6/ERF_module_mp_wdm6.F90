@@ -934,6 +934,20 @@
       endif
 
 
+      if (debug_local .gt. 0 .and. i_dbg_local .ge. its .and. i_dbg_local .le. ite) then
+        qsum(i_dbg_local,kts) = max((qrs(i_dbg_local,kts,2)+qrs(i_dbg_local,kts,3)), 1.E-15)
+        if (qsum(i_dbg_local,kts) .gt. 1.e-15) then
+          worka(i_dbg_local,kts) = (work1(i_dbg_local,kts,2)*qrs(i_dbg_local,kts,2) + &
+               work1(i_dbg_local,kts,3)*qrs(i_dbg_local,kts,3)) / qsum(i_dbg_local,kts)
+        else
+          worka(i_dbg_local,kts) = 0.
+        endif
+        write(*,'(A,1X,I3,7(1X,ES24.16E3))') &
+          'WDM6-FORT_PRE_G5C', kts, &
+          qrs(i_dbg_local,kts,2), qrs(i_dbg_local,kts,3), worka(i_dbg_local,kts), &
+          den(i_dbg_local,kts)*qrs(i_dbg_local,kts,2), den(i_dbg_local,kts)*qrs(i_dbg_local,kts,3), &
+          delz(i_dbg_local,kts), dtcld
+      endif
 
       do k = kte, kts, -1
         do i = its, ite
@@ -962,6 +976,22 @@
         fall(i,1,2) = delqrs2(i)/delz(i,1)/dtcld
         fall(i,1,3) = delqrs3(i)/delz(i,1)/dtcld
       enddo
+
+      if (debug_local .gt. 0 .and. i_dbg_local .ge. its .and. i_dbg_local .le. ite) then
+        qsum(i_dbg_local,kts) = max((qrs(i_dbg_local,kts,2)+qrs(i_dbg_local,kts,3)), 1.E-15)
+        if (qsum(i_dbg_local,kts) .gt. 1.e-15) then
+          worka(i_dbg_local,kts) = (work1(i_dbg_local,kts,2)*qrs(i_dbg_local,kts,2) + &
+               work1(i_dbg_local,kts,3)*qrs(i_dbg_local,kts,3)) / qsum(i_dbg_local,kts)
+        else
+          worka(i_dbg_local,kts) = 0.
+        endif
+        write(*,'(A,1X,I3,7(1X,ES24.16E3))') &
+          'WDM6-FORT_POST_G5C', kts, &
+          qrs(i_dbg_local,kts,2), qrs(i_dbg_local,kts,3), worka(i_dbg_local,kts), &
+          den(i_dbg_local,kts)*qrs(i_dbg_local,kts,2), den(i_dbg_local,kts)*qrs(i_dbg_local,kts,3), &
+          fall(i_dbg_local,1,2), fall(i_dbg_local,1,3)
+      endif
+
       do k = kts, kte
         do i = its, ite
           qrs_tmp(i,k,1) = qrs(i,k,1)

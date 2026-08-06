@@ -214,6 +214,219 @@ void wdm6_slope_graup_cell (Real qg, Real den, Real denfac,
     if (qg <= Real(0.0)) vt = Real(0.0);
 }
 
+#if !defined(AMREX_USE_GPU)
+void wdm6_nislfv_rain_plm6_column (
+    int km,
+    const Real* dz,
+    const Real* den,
+    const Real* denfac,
+    const Real* tk,
+    Real* ww,
+    Real* rql,
+    Real* rql2,
+    Real& precip1,
+    Real& precip2,
+    Real dt,
+    int iter,
+    Real pidn0s,
+    Real pidn0g,
+    Real qcrmin,
+    Real alpha,
+    Real n0smax,
+    Real n0s,
+    Real t0c,
+    Real rslopesmax,
+    Real rslopesbmax,
+    Real rslopes2max,
+    Real rslopes3max,
+    Real bvts,
+    Real pvts,
+    Real rslopegmax,
+    Real rslopegbmax,
+    Real rslopeg2max,
+    Real rslopeg3max,
+    Real bvtg,
+    Real pvtg)
+{
+    std::vector<Real> qq(km), qq2(km), wd(km), wa(km), wa2(km), was(km);
+    std::vector<Real> wi(km + 1), zi(km + 1), za(km + 1), dza(km + 1);
+    std::vector<Real> qa(km + 1), qa2(km + 1), qn(km), qn2(km);
+    std::vector<Real> qr(km), qr2(km), qmi(km + 1), qpi(km + 1);
+
+    Real allold = Real(0.0);
+    for (int k = 0; k < km; ++k) {
+        qq[k] = rql[k];
+        qq2[k] = rql2[k];
+        wd[k] = ww[k];
+        allold += qq[k] + qq2[k];
+    }
+
+    precip1 = Real(0.0);
+    precip2 = Real(0.0);
+    if (allold <= Real(0.0)) {
+        return;
+    }
+
+    zi[0] = Real(0.0);
+    for (int k = 0; k < km; ++k) {
+        zi[k + 1] = zi[k] + dz[k];
+    }
+
+    auto rebuild = [&]() {
+        wi[0] = ww[0];
+        if (km > 1) {
+            wi[1] = Real(0.5) * (ww[1] + ww[0]);
+            for (int k = 2; k < km - 1; ++k) {
+                wi[k] = Real(9.0) / Real(16.0) * (ww[k] + ww[k - 1])
+                      - Real(1.0) / Real(16.0) * (ww[k + 1] + ww[k - 2]);
+            }
+            wi[km - 1] = Real(0.5) * (ww[km - 1] + ww[km - 2]);
+        }
+        wi[km] = ww[km - 1];
+        for (int k = 1; k < km; ++k) {
+            if (ww[k] == Real(0.0)) wi[k] = ww[k - 1];
+        }
+
+        constexpr Real con1 = Real(0.05);
+        for (int k = km - 1; k >= 0; --k) {
+            const Real decfl = (wi[k + 1] - wi[k]) * dt / dz[k];
+            if (decfl > con1) {
+                wi[k] = wi[k + 1] - con1 * dz[k] / dt;
+            }
+        }
+
+        for (int k = 0; k <= km; ++k) {
+            za[k] = zi[k] - wi[k] * dt;
+        }
+        for (int k = 0; k < km; ++k) {
+            dza[k] = za[k + 1] - za[k];
+            qa[k] = qq[k] * dz[k] / dza[k];
+            qa2[k] = qq2[k] * dz[k] / dza[k];
+            qr[k] = qa[k] / den[k];
+            qr2[k] = qa2[k] / den[k];
+        }
+        dza[km] = zi[km] - za[km];
+        qa[km] = Real(0.0);
+        qa2[km] = Real(0.0);
+    };
+
+    rebuild();
+
+    if (iter > 0) {
+        for (int k = 0; k < km; ++k) {
+            Real rslope, rslopeb, rslope2, rslope3, vt, n0sfac_dummy;
+            wdm6_slope_snow_cell(qr[k], den[k], denfac[k], tk[k],
+                                 pidn0s, alpha, n0smax, n0s, t0c, qcrmin,
+                                 rslopesmax, rslopesbmax, rslopes2max, rslopes3max,
+                                 bvts, pvts, rslope, rslopeb, rslope2, rslope3, vt,
+                                 n0sfac_dummy);
+            wa[k] = vt;
+            wdm6_slope_graup_cell(qr2[k], den[k], denfac[k],
+                                  pidn0g, qcrmin, rslopegmax, rslopegbmax,
+                                  rslopeg2max, rslopeg3max, bvtg, pvtg,
+                                  rslope, rslopeb, rslope2, rslope3, vt);
+            wa2[k] = vt;
+        }
+        for (int k = 0; k < km; ++k) {
+            const Real tmpq = amrex::max(qr[k] + qr2[k], Real(1.0e-15));
+            wa[k] = (tmpq > Real(1.0e-15))
+                ? (wa[k] * qr[k] + wa2[k] * qr2[k]) / tmpq
+                : Real(0.0);
+            ww[k] = Real(0.5) * (wd[k] + wa[k]);
+            was[k] = wa[k];
+        }
+        rebuild();
+    }
+
+    auto advect_one = [&](std::vector<Real>& qa_src, std::vector<Real>& qn_dst, Real& precip_dst) {
+        qpi[0] = qa_src[0];
+        qmi[0] = qa_src[0];
+        qmi[km] = qa_src[km];
+        qpi[km] = qa_src[km];
+        for (int k = 1; k < km; ++k) {
+            const Real dip = (qa_src[k + 1] - qa_src[k]) / (dza[k + 1] + dza[k]);
+            const Real dim = (qa_src[k] - qa_src[k - 1]) / (dza[k - 1] + dza[k]);
+            if (dip * dim <= Real(0.0)) {
+                qmi[k] = qa_src[k];
+                qpi[k] = qa_src[k];
+            } else {
+                qpi[k] = qa_src[k] + Real(0.5) * (dip + dim) * dza[k];
+                qmi[k] = Real(2.0) * qa_src[k] - qpi[k];
+                if (qpi[k] < Real(0.0) || qmi[k] < Real(0.0)) {
+                    qpi[k] = qa_src[k];
+                    qmi[k] = qa_src[k];
+                }
+            }
+        }
+
+        std::fill(qn_dst.begin(), qn_dst.end(), Real(0.0));
+        int kb = 0;
+        int kt = 0;
+        for (int k = 0; k < km; ++k) {
+            if (zi[k] >= za[km]) break;
+
+            for (int kk = kb; kk < km; ++kk) {
+                if (zi[k] <= za[kk + 1]) {
+                    kb = kk;
+                    break;
+                }
+            }
+            for (int kk = kt; kk < km; ++kk) {
+                if (zi[k + 1] <= za[kk]) {
+                    kt = kk;
+                    break;
+                }
+            }
+            kt = amrex::max(kt - 1, 0);
+
+            if (kt == kb) {
+                const Real tl = (zi[k] - za[kb]) / dza[kb];
+                const Real th = (zi[k + 1] - za[kb]) / dza[kb];
+                const Real qqd = Real(0.5) * (qpi[kb] - qmi[kb]);
+                qn_dst[k] = (qqd * th * th + qmi[kb] * th
+                           - qqd * tl * tl - qmi[kb] * tl) / (th - tl);
+            } else if (kt > kb) {
+                const Real tl = (zi[k] - za[kb]) / dza[kb];
+                const Real qqd = Real(0.5) * (qpi[kb] - qmi[kb]);
+                const Real qql = qqd * tl * tl + qmi[kb] * tl;
+                const Real dql = qa_src[kb] - qql;
+                Real zsum = (Real(1.0) - tl) * dza[kb];
+                Real qsum = dql * dza[kb];
+                for (int m = kb + 1; m < kt; ++m) {
+                    zsum += dza[m];
+                    qsum += qa_src[m] * dza[m];
+                }
+                const Real th = (zi[k + 1] - za[kt]) / dza[kt];
+                const Real dqh = Real(0.5) * (qpi[kt] - qmi[kt]) * th * th + qmi[kt] * th;
+                zsum += th * dza[kt];
+                qsum += dqh * dza[kt];
+                qn_dst[k] = qsum / zsum;
+            }
+        }
+
+        precip_dst = Real(0.0);
+        for (int k = 0; k < km; ++k) {
+            if (za[k] < Real(0.0) && za[k + 1] < Real(0.0)) {
+                precip_dst += qa_src[k] * dza[k];
+            } else if (za[k] < Real(0.0) && za[k + 1] >= Real(0.0)) {
+                precip_dst += qa_src[k] * (Real(0.0) - za[k]);
+                break;
+            } else {
+                break;
+            }
+        }
+    };
+
+    advect_one(qa, qn, precip1);
+    advect_one(qa2, qn2, precip2);
+
+    for (int k = 0; k < km; ++k) {
+        rql[k] = qn[k];
+        rql2[k] = qn2[k];
+    }
+}
+#endif
+
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 Real wdm6_mean_droplet_diameter (Real qc, Real nc, Real den, Real pidnc_arg) {
     // Volume-weighted mean diameter of cloud droplets
@@ -961,6 +1174,85 @@ void WDM6::Advance(const Real& dt_advance,
                             static_cast<double>(workn_arr(diag_i,diag_j,diag_k)),
                             static_cast<double>(delz_arr(diag_i,diag_j,diag_k)),
                             static_cast<double>(dtcld));
+                std::fflush(stdout);
+            }
+#endif
+
+            // ============================================================
+            // Step 3f: Snow/graupel sedimentation (G5c)
+            // Exact bounded NISLFV_SG slice plus lower-boundary slab fall.
+            // ============================================================
+#if !defined(AMREX_USE_GPU)
+            if (microphysics_debug > 0 && diag_col_in_tile) {
+                const Real qsum = amrex::max(qs_arr(diag_i,diag_j,diag_k) + qg_arr(diag_i,diag_j,diag_k), Real(1.0e-15));
+                const Real worka = (qsum > Real(1.0e-15))
+                    ? (work1_arr(diag_i,diag_j,diag_k,1) * qs_arr(diag_i,diag_j,diag_k)
+                     + work1_arr(diag_i,diag_j,diag_k,2) * qg_arr(diag_i,diag_j,diag_k)) / qsum
+                    : Real(0.0);
+                std::printf("WDM6-CPP_PRE_G5C %3d %24.16E %24.16E %24.16E %24.16E %24.16E %24.16E %24.16E\n",
+                            diag_k + 1,
+                            static_cast<double>(qs_arr(diag_i,diag_j,diag_k)),
+                            static_cast<double>(qg_arr(diag_i,diag_j,diag_k)),
+                            static_cast<double>(worka),
+                            static_cast<double>(den_arr(diag_i,diag_j,diag_k) * qs_arr(diag_i,diag_j,diag_k)),
+                            static_cast<double>(den_arr(diag_i,diag_j,diag_k) * qg_arr(diag_i,diag_j,diag_k)),
+                            static_cast<double>(delz_arr(diag_i,diag_j,diag_k)),
+                            static_cast<double>(dtcld));
+                std::fflush(stdout);
+            }
+
+            ParallelFor(box2d, [=] (int i, int j, int k) {
+                amrex::ignore_unused(k);
+                const int km = khi - klo + 1;
+                std::vector<Real> dz(km), den(km), denfac(km), tk(km), worka(km), qs_col(km), qg_col(km);
+                for (int kk = 0; kk < km; ++kk) {
+                    const int k3 = klo + kk;
+                    dz[kk] = delz_arr(i,j,k3);
+                    den[kk] = den_arr(i,j,k3);
+                    denfac[kk] = denfac_arr(i,j,k3);
+                    tk[kk] = t_arr(i,j,k3);
+                    qs_col[kk] = den[kk] * qs_arr(i,j,k3);
+                    qg_col[kk] = den[kk] * qg_arr(i,j,k3);
+                    const Real qsum = amrex::max(qs_arr(i,j,k3) + qg_arr(i,j,k3), Real(1.0e-15));
+                    worka[kk] = (qsum > Real(1.0e-15))
+                        ? (work1_arr(i,j,k3,1) * qs_arr(i,j,k3) + work1_arr(i,j,k3,2) * qg_arr(i,j,k3)) / qsum
+                        : Real(0.0);
+                }
+
+                Real delqrs2 = Real(0.0);
+                Real delqrs3 = Real(0.0);
+                wdm6_nislfv_rain_plm6_column(
+                    km, dz.data(), den.data(), denfac.data(), tk.data(),
+                    worka.data(), qs_col.data(), qg_col.data(), delqrs2, delqrs3, dtcld, 1,
+                    pidn0s_loc, pidn0g_loc, Real(qcrmin), Real(alpha_wdm6), Real(n0smax), Real(n0s), Real(t0c),
+                    rslopesmax_loc, rslopesbmax_loc, rslopes2max_loc, rslopes3max_loc, Real(bvts), pvts_loc,
+                    rslopegmax_loc, rslopegbmax_loc, rslopeg2max_loc, rslopeg3max_loc, slope_bvtg_loc, pvtg_loc);
+
+                for (int kk = 0; kk < km; ++kk) {
+                    const int k3 = klo + kk;
+                    qs_arr(i,j,k3) = amrex::max(qs_col[kk] / den[kk], Real(0.0));
+                    qg_arr(i,j,k3) = amrex::max(qg_col[kk] / den[kk], Real(0.0));
+                }
+
+                work1_arr(i,j,klo,1) = delqrs2 / dz[0] / dtcld;
+                work1_arr(i,j,klo,2) = delqrs3 / dz[0] / dtcld;
+            });
+
+            if (microphysics_debug > 0 && diag_col_in_tile) {
+                const Real qsum = amrex::max(qs_arr(diag_i,diag_j,diag_k) + qg_arr(diag_i,diag_j,diag_k), Real(1.0e-15));
+                const Real worka = (qsum > Real(1.0e-15))
+                    ? (work1_arr(diag_i,diag_j,diag_k,1) * qs_arr(diag_i,diag_j,diag_k)
+                     + work1_arr(diag_i,diag_j,diag_k,2) * qg_arr(diag_i,diag_j,diag_k)) / qsum
+                    : Real(0.0);
+                std::printf("WDM6-CPP_POST_G5C %3d %24.16E %24.16E %24.16E %24.16E %24.16E %24.16E %24.16E\n",
+                            diag_k + 1,
+                            static_cast<double>(qs_arr(diag_i,diag_j,diag_k)),
+                            static_cast<double>(qg_arr(diag_i,diag_j,diag_k)),
+                            static_cast<double>(worka),
+                            static_cast<double>(den_arr(diag_i,diag_j,diag_k) * qs_arr(diag_i,diag_j,diag_k)),
+                            static_cast<double>(den_arr(diag_i,diag_j,diag_k) * qg_arr(diag_i,diag_j,diag_k)),
+                            static_cast<double>(work1_arr(diag_i,diag_j,klo,1)),
+                            static_cast<double>(work1_arr(diag_i,diag_j,klo,2)));
                 std::fflush(stdout);
             }
 #endif
