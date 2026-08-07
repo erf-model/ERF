@@ -1,340 +1,552 @@
-Here's the `RAD_MPI_SKILLS.md` content again, cleanly, for manual copy-paste:
+# Radiation Module: MPI, GPU & Parallelization Skills
 
-```markdown name=RAD_MPI_SKILLS.md
-# ERF Two-Stream Radiation Module — Development Skills & Bug Fix Reference
-
-Complete record of lessons learned during development of the ERF Two-Stream
-Radiation module. Use this as a checklist before merging any new Radiation
-phase. Modeled directly on `Source/UrbanCanopy/UCM_MPI_SKILLS.md` — same
-categories, same discipline, applied to the Radiation module's specific
-bugs and conventions.
-
-This file will grow phase by phase as new technical challenges are
-discovered and documented.
+This document captures essential MPI, GPU, and AMReX parallelization patterns required for radiation module development. It serves as a reference for avoiding common pitfalls and understanding the architectural constraints that shape the radiation solver.
 
 ---
 
-## Part A — Architecture & Design Rules
+## Part A: GPU-Safe Kernel Design
 
-### A1. Follow the UCM/Dust Module Wiring Patterns Exactly
+### A.1 – Mark All Device Functions Properly
 
-Every new Radiation source file must be registered in **both** build
-systems, exactly as required for UCM/Dust (see `UCM_MPI_SKILLS.md` A2).
-
-**Make.package pattern:**
-
-```
-CEXE_sources += Radiation/ERF_NewRadiationFile.cpp
-CEXE_headers += Radiation/ERF_NewRadiationFile.H
-```
-
-**CMake pattern (in `CMake/BuildERFExe.cmake`):**
-
-```
-target_sources(${erf_lib_name} PRIVATE ${SRC_DIR}/Radiation/ERF_NewRadiationFile.cpp)
-```
-
-**Lesson (Phase 1b):** A fully correct file
-(`Source/DataStructs/ERF_RadStruct.H`) sat completely unused for an entire
-merged PR because nothing included it and nothing called
-`init_params(...)`. Neither CMake registration nor `SolverChoice` wiring
-were checked before merge. **Rule:** every PR must grep-confirm both:
-
-```
-grep -rn "radChoice" Source/DataStructs/ERF_DataStruct.H
-grep -rn "ERF_RadiationDiagnostics.cpp" CMake/BuildERFExe.cmake Source/Radiation/Make.package
-```
-
-and paste the output in the PR description (see Contract R2 in
-`RAD_DEVELOPMENT.md`).
-
-### A2. Radiation Type Is Opt-In — Never Break the None Default
-
-`RadType::None` must remain the default, and all `erf.radiation.*`
-sub-option ParmParse queries must be gated behind
-`if (rad_type == RadType::TwoStream)`. This mirrors UCM Contract #37
-("optionality: opt-in preservation") — every new Radiation phase must be
-byte-identical to the previous phase's output when radiation is disabled,
-and any existing non-Radiation ERF test must be completely unaffected.
-
-**Grep check:**
-
-```
-grep -n "pp.query(\"radiation." Source/DataStructs/ERF_RadStruct.H
-```
-
-Every line found here must be inside the `if (rad_type ==
-RadType::TwoStream)` block, never unconditional.
-
-### A3. Diagnostic Stub Call Sites Must Scale With Real Grid State
-
-**Lesson (Phase 1c):** The single most expensive bug in Phase 1 was a
-one-line stub (`tau_cum = rad_choice.tau_per_layer;`) that ignored the
-actual number of vertical layers entirely. The diagnostic signature of
-this bug class is: the wrong answer does not change when you change
-the grid resolution. This is the Radiation-module analog of UCM Lesson
-18 ("numerical impossibility is a coefficient bug, not a physics bug") —
-if a computed flux/quantity is suspicious, first check whether it responds
-correctly to resolution changes before hypothesizing about missing
-physics.
-
-**Rule:** Any per-column loop or "quantity accumulated over N layers" must
-derive N from `geom[lev].Domain().length(2)` (or the equivalent real
-box/column extent) — never a hardcoded constant, and never a value that
-happens to work for one specific test's grid size.
-
-**Diagnostic pattern to use when debugging a suspicious flux value:**
-
-```
-1. Compute the flux/quantity at two different grid resolutions (e.g., n_cell_z = 20 vs 64)
-2. If the result is IDENTICAL despite the resolution change, the bug is a
-   hardcoded/stub value, not a subtle numerical error
-3. If the result changes but not proportionally to the analytical
-   expectation, check loop bounds and accumulation logic
-```
-
-### A4. RegTest Physical Realism Must Be Checked By Hand, Not Just Numerically
-
-**Lesson (Phase 1, manual fix):** A RegTest passed its own internal
-Beer-Lambert self-consistency check while representing a physically
-absurd atmosphere (surface SW flux of ~1 W/m² for a "clear-sky" test).
-Numerical self-consistency (the solver matches its own analytical formula)
-is necessary but not sufficient — the chosen input parameters must
-also be sanity-checked against known physical ranges:
-
-| Quantity | Physically plausible range |
-|---|---|
-| Clear-sky broadband SW optical depth (tau_total) | ~0.1 – 0.3 |
-| Clear-sky surface SW flux (moderate zenith angle) | several hundred W/m² |
-| Tropospheric LW flux (up or down) | a few hundred W/m² |
-| Floating-point relative tolerance (check scripts) | ~1e-6 to 1e-4, never tighter |
-
-**Rule:** After choosing tau_per_layer, tau_lw_per_layer, or any other
-per-layer optical property alongside a chosen amr.n_cell z-resolution,
-compute tau_total = tau_per_layer * n_layers by hand and confirm the
-resulting analytical flux is physically plausible before finalizing the
-inputs file. If a domain's vertical resolution is later changed, the
-per-layer optical property MUST be re-derived to preserve a sane
-tau_total — do not silently let a stale per-layer constant produce
-a wildly different total.
-
-### A5. Sounding and Input File Conventions Must Mirror Exec/CanonicalTests/ABL/*
-
-**Lesson (Phase 1, manual fix, twice):**
-
-1. Sounding files must live inside their own case folder, named after
-   that specific case (e.g., input_sounding_sw_clearsky inside
-   SW_ClearSky_Analytical/) — never shared at the parent module directory
-   and referenced by multiple cases via relative path.
-2. Sounding file format is fixed: line 1 is a 3-column header
-   (Ps/z_ref Ts Qv_s-style surface reference); subsequent lines are
-   5 columns in order z [m], theta [K], qv [kg/kg], u [m/s], v [m/s].
-   Always fetch a real reference sounding from the repo
-   (e.g. Exec/CanonicalTests/ABL/MRF_YSUNew_Enhancements/canonical/sounding_neutral_abl)
-   before writing a new one — never assume the column layout.
-3. inputs files must match the full structure of an established
-   canonical reference (e.g.
-   Exec/CanonicalTests/ABL/MRF_YSUNew_Enhancements/canonical/neutral_abl):
-   descriptive comment header, physically meaningful stop_time, full
-   surface_layer MOST block, PBL parameter block (with commented-out
-   alternates as documentation), Coriolis + geostrophic forcing block,
-   erf.data_log/erf.profile_int diagnostics — not a stripped-down,
-   minimal input file.
-4. When moisture is required, enable it the minimal way
-   Exec/CanonicalTests/Bomex/inputs_bomex does:
-   erf.moisture_model = "SAM" (or a simpler variant if appropriate) +
-   erf.buoyancy_type = 1, with a real non-zero qv column in the
-   sounding — do not restructure the whole input file.
-
-**Grep check before finalizing any new Radiation RegTest:**
-
-```
-# Sounding file must be inside the case folder, not shared at parent level
-ls Exec/CanonicalTests/Radiation/<CaseName>/input_sounding_*
-# Should NOT find a stray shared sounding file at the parent Radiation/ level
-ls Exec/CanonicalTests/Radiation/*.{txt,sounding} 2>/dev/null && echo "WARNING: shared sounding file found outside case folders"
-```
-
----
-
-## Part B — GPU Safety Rules (applies from Phase 2 onward)
-
-### B1. Per-Column Vertical Sweeps Must Be a Single Kernel, Not One Launch Per Level
-
-The two-stream vertical sweep is inherently sequential in k (each level
-depends on the cumulative optical depth from levels above/below it).
-**Rule:** implement it as one amrex::ParallelFor with one GPU thread per
-(i,j) column, looping over the full physical k-range internally within
-the device lambda — never launch a separate kernel per vertical level.
-
-```
-// CORRECT pattern:
-ParallelFor(xy_box, [=] AMREX_GPU_DEVICE (int i, int j, int /*k unused*/) noexcept
+**Pattern:**
+```cpp
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+amrex::Real compute_flux(amrex::Real tau, amrex::Real T)
 {
-    Real tau_cumulative = 0.0;
-    for (int k = kmax; k >= kmin; --k) {
-        tau_cumulative += tau_per_layer;   // real accumulation, not a stub
-        flux_arr(i,j,k) = compute_sw_direct_flux(tau_cumulative, S0, cos_zenith);
+    // Device-safe code only
+    return some_value;
+}
+```
+
+**Why:**
+- `AMREX_GPU_HOST_DEVICE` tells the compiler to generate both host and device versions
+- `AMREX_FORCE_INLINE` improves performance by reducing function call overhead in kernels
+- Without these, the function cannot be called from within a device lambda
+
+**Common Mistake:**
+```cpp
+// ❌ WRONG: Missing GPU markers
+amrex::Real compute_flux(amrex::Real tau, amrex::Real T) { ... }
+
+// Later in kernel:
+amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+    f = compute_flux(tau, T);  // Compile error!
+});
+```
+
+**Lesson:**
+Every helper function intended for device-side use must have GPU markers from day one.
+
+---
+
+### A.2 – No Host-Side I/O in Device Lambdas
+
+**Pattern:**
+```cpp
+// ✅ CORRECT: No I/O inside kernel
+amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+    amrex::Real flux = compute_flux(...);
+    // Compute, don't print
+});
+
+// After kernel, on host:
+if (amrex::ParallelDescriptor::IOProcessor()) {
+    amrex::Print() << "Max flux: " << max_flux << "\n";
+}
+```
+
+**Why:**
+- `amrex::Print()` and file I/O are host-side only; calling them from device code is a runtime error
+- On CPU/OpenMP, this might accidentally work (no device), masking the bug
+
+**Common Mistake:**
+```cpp
+// ❌ WRONG: Printing inside kernel
+amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+    amrex::Real tau = ...;
+    amrex::Print() << "tau = " << tau << "\n";  // Runtime error on GPU!
+});
+```
+
+**Lesson:**
+Reduce diagnostics (compute max/min/sum in kernel), copy back to host, print on host.
+
+---
+
+### A.3 – Reduce Before Copy: Device-Side Reduction Patterns
+
+**Pattern:**
+```cpp
+amrex::Real max_tau_global = 0.0;
+
+// On device: compute per-level max, reduce to global
+amrex::Real max_tau_device = 0.0;
+amrex::ParallelFor(bx, [=, &max_tau_device] AMREX_GPU_DEVICE (int i, int j, int k) {
+    amrex::Real tau_local = ...;
+    amrex::HostDevice::Atomic::Max(&max_tau_device, tau_local);
+});
+
+// Copy from device to host
+amrex::Gpu::synchronize();
+max_tau_global = max_tau_device;
+
+// Print on host
+if (amrex::ParallelDescriptor::IOProcessor()) {
+    amrex::Print() << "Max tau: " << max_tau_global << "\n";
+}
+```
+
+**Why:**
+- Copying every data point is slow; copying one scalar is fast
+- Device atomics allow in-kernel reduction without synchronization
+- `amrex::Gpu::synchronize()` ensures all device work is complete before reading
+
+**Lesson:**
+Aggregate first, copy second, print third.
+
+---
+
+## Part B: Grid-Adaptive Vertical Integration
+
+### B.1 – Query Grid Bounds from Box, Not Constants
+
+**Pattern:**
+```cpp
+amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+    int kmin = bx.smallEnd(2);
+    int kmax = bx.bigEnd(2);
+    
+    for (int kk = kmin; kk <= kmax; ++kk) {
+        // Vertical sweep
     }
 });
 ```
 
-### B2. No Host-Side Debug Output Inside Device Kernels
+**Why:**
+- `bx.smallEnd(2)`, `bx.bigEnd(2)` are the actual grid bounds for this box
+- Different AMR levels or domains may have different resolutions
+- Hardcoded bounds cause silent bugs on coarse grids
 
-Reduce diagnostic scalars (surface flux, TOA flux, max heating rate) on
-device first (e.g., via a scratch MultiFab + host-side .max()/.min()
-reduction, or amrex::ReduceOps), copy back to host, then print/log from
-host only — guarded by amrex::ParallelDescriptor::IOProcessor(). This
-mirrors UCM Part B (MPI Collectives Must Come Before IOProcessor Guard) —
-any MPI-aware reduction must run on all ranks before any single-rank print.
-
-### B3. Loop Bounds From Real Geometry, Never Hardcoded
-
-Every vertical loop bound must come from geom[lev].Domain() or the
-actual box/column extent passed into the kernel — see Contract R3 in
-RAD_DEVELOPMENT.md and Part A3 above. This is the single most repeated
-lesson across Phase 1/1b/1c and must not recur in Phase 2+.
-
-### B4. Mark All Inline Helpers AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-
-Following UCM Lesson 28 (UCM_MPI_SKILLS.md): if a function is intended
-to be inlined at every call site (no external symbol), it must be defined
-in the header, not split between a .H declaration and a .cpp
-definition — mixing the two produces linker errors (one translation unit
-sees the inline definition and emits no symbol, another sees only the
-declaration and emits a call to an undefined external symbol).
-
-**Grep merge-blocker for future Radiation files:**
-
+**Common Mistake (Phase 1c Bug):**
+```cpp
+// ❌ WRONG: Hardcoded bounds
+for (int k = 0; k < 50; ++k) {  // What if domain has only 32 levels?
+    tau_cum += tau_per_layer;
+}
 ```
-for cpp in Source/Radiation/*.cpp; do
-    if grep -q 'AMREX_FORCE_INLINE' "$cpp"; then
-        echo "FAIL: FORCE_INLINE in .cpp file: $cpp — move to header"
-    fi
-done
-```
+
+**Lesson:**
+Always derive loop bounds from the box or geometry; never hardcode them.
 
 ---
 
-## Part C — Testing and Validation
+### B.2 – Vertical Sweep: One Thread per (i,j), Sequential k Loop
 
-### C1. Always Compute the Analytical Reference By Hand Before Finalizing a RegTest
+**Pattern:**
+```cpp
+// ✅ CORRECT: One kernel per (i,j) column
+amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+    // This runs once per (i,j); k is already iterated by AMReX
+    // NO LOOP OVER k HERE!
+});
 
-Before finalizing any inputs file, manually compute:
-
-1. The expected analytical flux/quantity given the chosen parameters.
-2. Confirm it is physically plausible (see Part A4 table above).
-3. Confirm the check script's tolerance is appropriate for floating-point
-   double-precision arithmetic (~1e-6 to 1e-4 relative error, never
-   tighter).
-
-### C2. Sanity-Check Resolution-Independence Bugs by Running at Two Different Grid Sizes
-
-If a computed flux/quantity looks suspicious, rerun the same RegTest with
-a different amr.n_cell z-component. If the result is unchanged, the bug
-is almost certainly a hardcoded/stub value (see Part A3).
-
-### C3. Verify Build/Wiring With Grep Before Claiming a Phase Complete
-
-Per Contract R2, every phase's PR description must include actual
-grep/diff output confirming:
-
-```
-grep -rn "radChoice" Source/DataStructs/ERF_DataStruct.H
-grep -rn "ERF_<NewFile>.cpp" CMake/BuildERFExe.cmake Source/Radiation/Make.package
-grep -rn "RadiationDiagnostics::append" Source/Radiation/*.cpp
+// For a true vertical sweep (stateful tau_cum), use 2D iteration:
+const auto& lo = bx.loVect();
+const auto& hi = bx.hiVect();
+amrex::ParallelFor(amrex::Box(lo[0], lo[1], 0, hi[0], hi[1], 0),
+    [=] AMREX_GPU_DEVICE (int i, int j, int) {
+        amrex::Real tau_cum = 0.0;
+        for (int k = bx.smallEnd(2); k <= bx.bigEnd(2); ++k) {
+            tau_cum += tau_per_layer;
+            // Accumulate and compute fluxes
+        }
+    }
+);
 ```
 
-### C4. Bit-for-Bit Reproducibility Test
+**Why:**
+- Vertical integration is stateful (tau_cum accumulates); needs one thread per column
+- Launching one kernel per level wastes thread blocks and requires thread-block-level reduction
+- 2D parallelism (i, j) is natural; 1D k-loop is sequential within each thread
 
-Run the same inputs file with erf.radiation_type = "None" (default)
-before and after any new phase's changes; plotfiles must be bit-identical
-(no physics regression when radiation is disabled). Mirrors UCM F3.
+**Lesson:**
+Design kernels around the problem structure: horizontal parallelism, vertical sequentiality.
 
 ---
 
-## Quick Checklist for New Radiation Phase
+### B.3 – Extract Box Bounds Correctly
 
-**Before opening PR:**
+**Pattern:**
+```cpp
+const auto& domain = geom[lev].Domain();
+int kmin = domain.smallEnd(2);
+int kmax = domain.bigEnd(2);
 
-- [ ] File header with @file, @brief, References section citing relevant literature
-- [ ] New *Choice struct members (if any) added to SolverChoice with include and init_params(...) call site — confirmed via grep, snippet pasted in PR description
-- [ ] Make.package AND CMake/BuildERFExe.cmake both updated — confirmed via grep, snippet pasted in PR description
-- [ ] All new debug prints follow [RAD][PhaseN][ClassOrFile::function] tagged format, IO-rank-only, gated on erf.radiation.v >= 1
-- [ ] RADIATION_DIAG: lines always print regardless of verbosity
-- [ ] No hardcoded vertical-layer counts or loop bounds — always derived from geom[lev].Domain()
-- [ ] Per-column vertical sweeps implemented as ONE kernel per column, not one launch per level
-- [ ] No host-side amrex::Print() inside device kernels
-- [ ] All inline helper functions defined in the header (never split declaration/definition)
-- [ ] New RegTest inputs/sounding files follow Exec/CanonicalTests/ABL/* conventions
-- [ ] New RegTest inputs files mirror the full structure of the canonical neutral_abl reference
-- [ ] Every new RegTest parameter sanity-checked by hand against known physical ranges
-- [ ] Check-script tolerances are floating-point-safe (~1e-6 to 1e-4)
-- [ ] RadType::None remains default; all new options gated behind TwoStream check
-- [ ] Existing Phase N-1 RegTests re-verified to still pass unchanged
-- [ ] No new compiler warnings
+amrex::ParallelFor(amrex::Box(domain.smallEnd(0), domain.smallEnd(1), 0,
+                              domain.bigEnd(0), domain.bigEnd(1), 0),
+    [=] AMREX_GPU_DEVICE (int i, int j, int) {
+        for (int k = kmin; k <= kmax; ++k) {
+            // Vertical sweep
+        }
+    }
+);
+```
+
+**Why:**
+- `geom[lev].Domain()` is the full domain extent on this level
+- `.smallEnd()`, `.bigEnd()` are 0-indexed inclusive bounds
+- Creating a 2D `Box` with fixed `k` ensures parallel iteration only over (i, j)
+
+**Lesson:**
+Use geometry queries to make code robust to AMR refinement and domain size changes.
 
 ---
 
-## Known Issues & Workarounds
+## Part C: Atmospheric State Access & Validation
 
-### Phase 1 — Bug: SolverChoice/build wiring never connected (Fixed via Phase 1b)
+### C.1 – Safe MultiFab Component Access
 
-**Issue:** ERF_RadStruct.H and Source/Radiation/* were fully correct
-in isolation but never wired into SolverChoice, CMake/BuildERFExe.cmake,
-or a real call site — compiled into nothing, diagnostics CSV never
-produced.
+**Pattern:**
+```cpp
+// Define component indices (typically in ERF.H or a shared header)
+constexpr int Rho_comp = 0;
+constexpr int RhoU_comp = 1;
+constexpr int RhoV_comp = 2;
+constexpr int RhoW_comp = 3;
+constexpr int RhoTheta_comp = 4;
+constexpr int Temp_comp = 5;  // Diagnostic, computed from RhoTheta
 
-**Workaround/Fix:** See RAD_DEVELOPMENT.md Phase 1b. Added include +
-RadChoice radChoice member + init_params(...) call in SolverChoice;
-registered ERF_RadiationDiagnostics.cpp in both build systems; added
-ERF_AdvanceTwoStreamRadiation.cpp as the real call site.
+// In kernel:
+amrex::Real rho = state(i, j, k, Rho_comp);
+amrex::Real T = state(i, j, k, Temp_comp);
 
-**Prevention:** Contract R2 — every future PR must paste grep/diff
-confirmation of all three wiring points.
-
-### Phase 1 — Bug: SW cumulative optical depth hardcoded to single layer (Fixed via Phase 1c)
-
-**Issue:** tau_cum = rad_choice.tau_per_layer; in
-ERF_AdvanceTwoStreamRadiation.cpp ignored the actual vertical grid
-resolution entirely — confirmed because the wrong SW_surface value was
-identical across two different domain resolutions (20 vs 64 layers).
-
-**Workaround/Fix:**
-
-```
-int n_layers = geom[lev].Domain().length(2);
-amrex::Real tau_cum = rad_choice.tau_per_layer * static_cast<amrex::Real>(n_layers);
+// Use with defensive checks
+if (rho <= 0.0) rho = 1.0;  // Clip to safe value
+if (T <= 0.0) T = 288.15;   // Clip to sensible default
 ```
 
-**Prevention:** Contract R3, Part A3/B3 above. Always test a suspicious
-flux value at two different grid resolutions before hypothesizing about
-missing physics.
+**Why:**
+- Named component indices are more readable and less error-prone than magic numbers
+- State variables come from prognostic arrays; defensive clipping prevents NaN/Inf
+- Logging to verbosity helps diagnose physics errors
 
-### Phase 1 (manual, not coding agent) — Sounding file location/format/realism issues
+**Common Mistake:**
+```cpp
+// ❌ WRONG: Magic numbers, no validation
+amrex::Real rho = state(i, j, k, 0);  // What is component 0?
+amrex::Real T = rho / (287.0 * pressure);  // What if pressure is zero?
+```
 
-**Issue:** Shared sounding file at wrong location, wrong column format,
-unrealistic tau_per_layer/domain combination, and an overly tight
-check-script tolerance were all found and fixed manually by the repo
-owner after the coding agent's Phase 1/1b/1c work.
+**Lesson:**
+Use named constants, always validate ranges, log anomalies.
 
-**Workaround/Fix:** See RAD_DEVELOPMENT.md "Manual post-Phase-1
-corrections" section for full details.
+---
 
-**Prevention:** Contracts R4, R5. Part A4/A5 checklist items above must
-be followed by the coding agent for every future phase to prevent
-recurrence.
+### C.2 – Defensive Clipping for Unphysical Values
+
+**Pattern:**
+```cpp
+amrex::Real T = state(i, j, k, Temp_comp);
+if (T <= 0.0 || T > 400.0) {
+    T = 288.15;  // Clip to sensible default
+    if (verbosity >= 1) {
+        // Log once per simulation or to a counter
+        // (avoid spamming if many points are bad)
+    }
+}
+
+// Or for density:
+amrex::Real rho = state(i, j, k, Rho_comp);
+if (rho <= 0.0) {
+    rho = 1.0;  // Typical sea-level density [kg/m^3]
+}
+```
+
+**Why:**
+- Simulation initialization or numerical schemes may produce unphysical intermediate values
+- Crashing on the first bad value halts the run; clipping allows recovery
+- Logging alerts developers to configuration issues
+
+**Lesson:**
+Be defensive in physics kernels; crash-on-error is better than silent NaN propagation, but clipping is better than both.
+
+---
+
+### C.3 – Logging Without Spamming
+
+**Pattern:**
+```cpp
+if (verbosity >= 1 && amrex::ParallelDescriptor::IOProcessor()) {
+    // Log once per time step, not per grid cell
+    // Compute aggregate (max error, number of clipped points) on device
+    // Copy to host, print once
+    amrex::Print() << "Radiation: clipped " << n_clipped << " density values\n";
+}
+```
+
+**Why:**
+- Printing per grid cell generates millions of lines; unusable
+- One message per time step or per level is informative
+- `IOProcessor()` ensures only rank 0 prints (avoids duplicate output in MPI)
+
+**Common Mistake:**
+```cpp
+// ❌ WRONG: Prints per grid cell
+for (int i = ...; i <= ...; ++i) {
+    for (int j = ...; j <= ...; ++j) {
+        for (int k = ...; k <= ...; ++k) {
+            if (T < 0) amrex::Print() << "Bad T at " << i << " " << j << " " << k << "\n";
+        }
+    }
+}
+// Output file becomes gigabytes!
+```
+
+**Lesson:**
+Aggregate errors per level/time step; print summaries, not details.
+
+---
+
+## Part D: Known Issues & Workarounds
+
+### D.1 – Phase 1c Bug: Hardcoded Grid Bounds (FIXED in Phase 2)
+
+**Issue:**
+Early Phase 1 prototypes used `for (int k = 0; k < 50; ++k)` instead of querying the actual domain. On a 32-level domain, this silently accessed out-of-bounds memory.
+
+**Workaround (Phase 1c):**
+Replaced hardcoded `50` with `geom[lev].Domain().length(2)`.
+
+**Fix (Phase 2):**
+All vertical loops now use `bx.smallEnd(2)`, `bx.bigEnd(2)` or domain queries.
+
+**Lesson:**
+Always derive loop bounds dynamically; hardcoded constants are a source of silent bugs.
+
+---
+
+### D.2 – Phase 1→2 Transition: Per-Column Kernel Design
+
+**Issue:**
+Attempting to launch one kernel per (i, j, k) level is tempting but inefficient: each level would need to synchronize, compute isolated flux values, and communicate back to host.
+
+**Phase 2 Solution:**
+Use 2D parallel iteration `(i, j)` with sequential k-loop inside lambda:
+```cpp
+const auto& domain = geom[lev].Domain();
+amrex::ParallelFor(
+    amrex::Box(domain.smallEnd(0), domain.smallEnd(1), 0,
+               domain.bigEnd(0), domain.bigEnd(1), 0),
+    [=] AMREX_GPU_DEVICE (int i, int j, int) {
+        amrex::Real tau_cum = 0.0;
+        for (int k = bx.smallEnd(2); k <= bx.bigEnd(2); ++k) {
+            tau_cum += tau_per_layer;
+            // Compute, reduce within one thread
+        }
+    }
+);
+```
+
+**Lesson:**
+Structure parallelism around the problem geometry: horizontal (embarrassingly parallel), vertical (inherently sequential).
+
+---
+
+### D.3 – Phase 2 Discovery: Temperature Conversion Complexity
+
+**Issue:**
+ERF stores `RhoTheta`, not `Theta`. Converting to temperature requires:
+- Dividing by density: `Theta = RhoTheta / Rho`
+- Accounting for Exner function: `T = Theta * (p / p_ref)^(R_d / cp)`
+
+This requires access to pressure profile, which depends on model (hydrostatic, non-hydrostatic) and background state.
+
+**Phase 2 Simplification:**
+For Phase 2 diagnostics, use simplified conversion:
+```cpp
+amrex::Real theta = rho_theta / rho;
+// Apply defensive clipping
+theta = std::max(theta, 100.0);  // Minimum
+theta = std::min(theta, 400.0);  // Maximum
+```
+
+**Future Fix (Phase 5+):**
+When integrating heating into RhoTheta, use full Exner correction and background pressure profile.
+
+**Lesson:**
+Recognize when a simplification is acceptable (Phase 2: diagnostics only) vs. when full physics is needed (Phase 5+: coupling).
+
+---
+
+### D.4 – Temperature Not Directly Available on State
+
+**Issue:**
+ERF's state arrays typically store `RhoTheta`, not temperature. Computing `T` requires access to pressure, which depends on the model type and background state.
+
+**Workaround:**
+- Check if ERF provides a diagnostic `Temp_comp` component
+- If not, compute locally: `T = (RhoTheta / Rho) * (p / p_ref)^(R_d / cp)`
+- Cache the result to avoid recomputation per column
+
+**Lesson:**
+Know what's in the state arrays; don't assume standard atmospheric variable names.
+
+---
+
+### D.5 – Optical Depth Per Layer Can Vary (Future)
+
+**Issue (Phase 3+):**
+Phase 1/2 assume uniform `tau_per_layer`. Phase 3+ will vary optical depth with height (clouds, aerosols).
+
+**Current Workaround:**
+Use a simple parameter `tau_per_layer` for all levels; plan to generalize to `tau(k)`.
+
+**Future Fix:**
+Create a `tau_profile[k]` array, read per-level values in the vertical sweep.
+
+**Lesson:**
+Design loops to allow future per-level arrays; don't hardcode uniformity into the kernel structure.
+
+---
+
+### D.6 – Phase 2 New Issue: Limited State Access in Diagnostics Function
+
+**Issue:**
+The `compute_twostream_radiation_diagnostics()` function is called from `ERF_Advance.cpp` but doesn't have direct access to state MultiFab arrays.
+
+**Current Workaround (Phase 2):**
+Implemented the `vertical_two_stream_sweep()` kernel structure but cannot fully activate it without passing state as parameter.
+
+**Future Fix (Phase 3+):**
+Modify function signature to accept `const Vector<MultiFab>&` or pass a single-level state reference:
+```cpp
+void compute_twostream_radiation_diagnostics(
+    int lev,
+    int nstep,
+    amrex::Real time_step,
+    const amrex::MultiFab& state);  // Add this
+```
+
+**Lesson:**
+When designing GPU kernels, ensure the calling context has access to required data structures before committing to the kernel design.
+
+---
+
+## Part E: Testing & Validation Checklist
+
+### E.1 – GPU Compilation Check
+- [ ] Code compiles with `CUDA_ARCH=all` (or target GPU arch)
+- [ ] No warnings about uninitialized device memory
+- [ ] No warnings about implicit host→device copies
+
+### E.2 – Grid Adaptivity Check
+- [ ] Run on coarse domain (e.g., 16×16×16 grid)
+- [ ] Run on fine domain (e.g., 256×256×256 grid)
+- [ ] Verify vertical loop counts match expected resolution
+- [ ] Check CSV output reflects correct layer count
+
+### E.3 – Physical Correctness Check
+- [ ] SW flux decreases monotonically from TOA to surface (for increasing optical depth)
+- [ ] LW flux changes smoothly with temperature profile
+- [ ] Heating rates have correct sign and reasonable magnitude
+- [ ] No NaN/Inf in output (run with `IEEE=1` to catch NaN earlier)
+
+### E.4 – State Variable Check
+- [ ] Temperature and density read correctly
+- [ ] No clipping errors in typical runs (verbosity log clean)
+- [ ] Defensive clipping activates only in extreme cases
+
+### E.5 – Performance Check
+- [ ] Kernel time doesn't scale poorly with grid size
+- [ ] No excessive host↔device transfers
+- [ ] Reduction overhead is negligible (~1% of total time)
+
+---
+
+## Part F: Documentation Standards
+
+### F.1 – Function Docstrings
+
+**Pattern:**
+```cpp
+/**
+ * @brief Compute direct-beam solar flux using Beer-Lambert law.
+ *
+ * Implements the formula:
+ *   F_dir(z) = S0 * cos(zenith) * exp(-tau_cumulative(z) / cos(zenith))
+ *
+ * This is a GPU-safe inline function intended for use in device-side kernels.
+ *
+ * @param[in] tau_cumulative Cumulative optical depth from TOA [unitless].
+ * @param[in] S0 Solar constant [W/m^2]. Must be positive.
+ * @param[in] cos_zenith Cosine of solar zenith angle [unitless, 0 ≤ cos_zenith ≤ 1].
+ *
+ * @return Direct-beam flux [W/m^2]. Non-negative.
+ *
+ * @note If cos_zenith ≤ 0 (night), returns 0.
+ * @note This function does NOT handle scattering or diffuse radiation (Phase 1 simplification).
+ */
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+amrex::Real compute_sw_direct_flux(amrex::Real tau_cumulative, amrex::Real S0,
+                                    amrex::Real cos_zenith);
+```
+
+### F.2 – File Header
+
+**Pattern:**
+```cpp
+/**
+ * @file ERF_TwoStreamSW.H
+ * @brief Clear-sky shortwave radiation using Beer-Lambert direct-beam model.
+ *
+ * Implements a simplified, clear-sky shortwave radiation model
+ * using the Beer-Lambert law. Supports both Phase 1 (uniform optical depth)
+ * and Phase 3+ (vertical optical depth profiles).
+ *
+ * All functions are GPU-safe and intended for use in device-side kernels.
+ *
+ * References:
+ * - Beer, A., 1852: ...
+ * - Bird et al., 1984: ...
+ */
+```
+
+### F.3 – Code Comments
+
+**Pattern:**
+```cpp
+// Vertical sweep: accumulate optical depth from TOA downward
+amrex::Real tau_cum = 0.0;
+for (int k = kmin; k <= kmax; ++k) {
+    tau_cum += tau_per_layer;  // Assume uniform for Phase 1/2
+    
+    // Compute direct-beam flux at this level
+    amrex::Real F_dir = compute_sw_direct_flux(tau_cum, S0, cos_zenith);
+    
+    // Store or accumulate heating (Phase 2: diagnostics only)
+    diagnostics[i][j][k] = F_dir;
+}
+```
+
+**Why:**
+- Comments explain *why*, not *what* (code shows what)
+- Phase labels (Phase 1/2, etc.) guide future maintainers
+- References to formulas help with code review
+
+---
+
+## Summary: The Five Sacred Rules
+
+1. **Mark functions:** `AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE` for device use
+2. **No host I/O in kernels:** Reduce, copy, print in that order
+3. **Dynamic bounds:** Query box/domain, never hardcode loop limits
+4. **Per-(i,j) kernels:** Vertical sweep is sequential, horizontal is parallel
+5. **Defensive clipping:** Validate state, clip unphysical values, log aggregates
 
 ---
 
 ## References
 
-- Source/Radiation/RAD_DEVELOPMENT.md — Phase roadmap and history
-- Source/UrbanCanopy/UCM_DEVELOPMENT.md / UCM_MPI_SKILLS.md — structural
-  template and cross-module lessons this file mirrors
-- Exec/CanonicalTests/ABL/MRF_YSUNew_Enhancements/canonical/{neutral_abl,
-  sounding_neutral_abl} — canonical inputs/sounding reference template
-- Exec/CanonicalTests/Bomex/inputs_bomex — minimal moisture-enabling
-  reference pattern
-```
-
+- AMReX GPU Guide: https://amrex-codes.github.io/amrex/docs_html/GPU.html
+- AMReX Parallel Loop Patterns: https://amrex-codes.github.io/amrex/docs_html/GPU_HowTo.html#parallel-for
+- Atomic Operations: https://amrex-codes.github.io/amrex/docs_html/GPU_HowTo.html#atomic-operations
