@@ -14,7 +14,7 @@ This document tracks the development of the two-stream radiation model through p
 | **5** | RhoTheta Coupling | ✅ Complete | N/A (manual) | Per-level SW/LW heating written to `qheating_rates` and injected into `RhoTheta` | Moderate | `Phase5_RhoTheta_Coupling` (+ Phase 1–4 regressions) |
 | **6** | Time-Stepping Integration | ✅ Complete | TBD | TwoStream call-cadence and temporal consistency with slow-step/source application + call_site diagnostics (pre_dycore/post_dycore) | Moderate | TwoStream_TimeStepping_Coupling |
 | **7** | TwoStream Runtime Diagnostics Controls | ✅ Complete | TBD | Runtime controls for diagnostic frequency/stdout/schema toggles (no physics change) | Easy | `TwoStream_DiagControls` |
-| **8** | Validation & Benchmarking | ⏳ Planned | TBD | Canonical benchmark suite and cross-case validation workflow | Moderate | `Radiation_Benchmark_Suite` |
+| **8** | Validation & Benchmarking | ✅ Complete | TBD | Canonical benchmark suite and cross-case validation workflow | Moderate | `Radiation_Benchmark_Suite` |
 | **9** | TwoStream Integration Polish I | ⏳ Planned | TBD | Diagnostic cadence cleanup/de-dup + nonuniform `dz` in heating divergence | Easy | `TwoStream_Cadence_NonuniformDZ` |
 | **10** | TwoStream Integration Polish II | ⏳ Planned | TBD | `MAX_RAD_LEVELS` configurability/near-limit warning + diagnostics schema hardening | Easy | `TwoStream_DiagSchema_BufferGuard` |
 | **11** | Moisture/Cloud-Aware Dynamic Optical Depth | ⏳ Planned | TBD | Diagnose SW/LW `tau(k)` from `qv`, `qc`, `rho`, `dz` with safe fallback | Moderate | `TwoStream_DynamicTau_MoistCloud` |
@@ -1473,6 +1473,269 @@ Expected verification cases:
 
 Phase 7 is fully backward compatible. Simulations run with Phase 6 inputs 
 (no Phase 7 parameters specified) produce identical diagnostics output.
+
+---
+
+## Phase 8: Validation & Benchmarking Suite
+
+### Overview
+
+Phase 8 establishes a canonical validation and benchmarking workflow for TwoStream radiation
+without any physics redesign or implementation changes. The focus is on repeatable test matrix
+definition, metric extraction, pass/fail thresholds, and automated report generation.
+
+The benchmark suite provides:
+- **5 test cases** covering SW, LW, clouds, and coupled scenarios
+- **Automated metric extraction** from diagnostic CSV output
+- **Centralized tolerance configuration** for consistent pass/fail criteria
+- **Machine-readable reports** (JSON) and human-readable summaries (Markdown)
+- **CI-friendly exit codes** (0 = pass, 1 = fail) for automation
+
+Phase 8 **preserves all physics and diagnostics behavior** from Phases 1–7:
+- No changes to TwoStream solver algorithms
+- Phase 6/7 diagnostic controls remain unaffected
+- GPU safety invariants unchanged
+- Backward compatibility maintained (default runtime behavior identical)
+
+---
+
+### Contracts Introduced
+
+#### **R20: No Physics Redesign in Validation Phase**
+
+The benchmark suite is **purely observational and metric-focused**:
+- TwoStream solver calculations unchanged
+- Heating rates unchanged
+- Call-site timing and vertical-sweep logic unchanged
+- Diagnostics output semantics (call_site, cadence modes) unchanged
+- GPU safety contracts (R1–R9) unaffected
+
+**Rationale:** Validation and benchmarking are decoupled from physics. The suite provides 
+external metrics without perturbing the implementation.
+
+#### **R21: Repeatable Test Matrix with Canonical Inputs**
+
+Each benchmark case must have:
+- Fixed timestep (dt) and stop time
+- Explicit diag_file path
+- Explicit diag_callsite_mode setting (one case tests "pre_only" mode)
+- Deterministic initial conditions (from sounding file or analytical setup)
+
+**Rationale:** Reproducibility and traceability. Every case produces the same output 
+given the same ERF executable and input files.
+
+#### **R22: Metrics Extraction Without Physics Coupling**
+
+All extracted metrics (flux, heating, cadence) are **post-hoc** computations from 
+diagnostic CSV output:
+- No modification of ERF source code for metrics
+- No hooks into TwoStream solver
+- No GPU-unsafe operations
+- Metrics computed entirely in Python validation script
+
+**Rationale:** Keeps benchmark infrastructure orthogonal to physics and GPU code.
+
+#### **R23: Central Tolerance Configuration**
+
+All pass/fail thresholds must be defined in a single configuration module 
+(`benchmark_tolerances.py`):
+- SW flux relative error tolerances (%)
+- Heating rate stability (CV) upper bounds
+- Row count deviations (absolute ±)
+- No magic numbers scattered in check scripts
+
+**Rationale:** Enables consistent evaluation across all cases and future phases.
+
+#### **R24: Call-Site Mode Validation in Benchmark Suite**
+
+The suite explicitly tests Phase 6/7 call-site filtering:
+- Cases 1–4: "both" mode (2 rows/step: pre + post)
+- Case 5: "pre_only" mode (1 row/step: pre only)
+- Validates correct mode filtering without physics change
+
+**Rationale:** Ensures Phase 6/7 diagnostics controls work as designed.
+
+---
+
+### Benchmark Case Matrix
+
+| Case | Name | Physics | Mode | Expected Steps |
+|------|------|---------|------|---|
+| 1 | Clear-sky SW baseline | Beer-Lambert direct beam | both | 1 |
+| 2 | LW isothermal baseline | Energy balance test (heating=0) | both | 1 |
+| 3 | Cloud-layer absorption | Height-varying cloud τ | both | 1 |
+| 4 | Cloud scattering | Meador-Weaver approximation | both | 1 |
+| 5 | Coupled SW+LW time-stepping | RhoTheta coupling (10 steps) | pre_only | 10 |
+
+**Key Design Points:**
+- Cases 1–4 reuse existing Phase 1–5 test configurations (SW_ClearSky_Analytical, LW_Isothermal, 
+  SW_Cloud_Layer, SW_Scattering_Cloud)
+- Case 5 extends Phase 6 test with pre_only mode to demonstrate single call-site filtering
+- All cases have explicit fixed dt and stop_time to ensure reproducibility
+- Diagnostic cadence expectations computed deterministically from case parameters
+
+---
+
+### Metrics Computed & Validated
+
+#### Flux Metrics (per case)
+- **SW_TOA**: Top-of-atmosphere shortwave flux [W/m²]
+  - Computed: mean, final, min, max
+  - Check: finite (no NaN/Inf), vs. expected analytical value where applicable
+- **SW_surface**: Surface shortwave flux [W/m²]
+  - Computed: mean, final, min, max
+  - Check: within relative tolerance of expected
+- **LW_surface**: Surface longwave net flux [W/m²]
+  - Computed: mean, final, min, max
+  - Check: within relative tolerance of expected
+
+#### Heating Metrics (per case)
+- **heating_rate_max**: Maximum heating rate across domain [K/s]
+  - Computed: mean, final, min, max, std deviation, coefficient of variation (CV)
+  - Check: finite (no NaN/Inf), nonzero (where physically expected)
+  - Stability check: CV ≤ 5% (allow ±5% variation across timesteps)
+
+#### Cadence Metrics (per case)
+- **row_count**: Total diagnostic records in CSV
+  - Check: within ±2 of expected value
+- **rows_per_step**: Rows per timestep (depends on diag_callsite_mode)
+  - Check: matches mode expectation (2 for "both", 1 for "pre_only"/"post_only")
+- **call_site distribution**: Validates pre/post filtering
+  - Check: correct mode active (pre_only → pre tags only, both → both pre and post)
+
+#### Stability Metrics (per case)
+- **Finite check**: No NaN or Inf in flux or heating values
+- **Monotonicity**: Where physically expected (e.g., cumulative effects)
+
+---
+
+### Tolerance Configuration (`benchmark_tolerances.py`)
+
+Central module defines all pass/fail thresholds:
+
+```python
+# Flux tolerances (relative error %)
+SW_TOA_RELATIVE_TOL_PCT = 0.1           # 0.1% - strict (analytical solution)
+SW_SURFACE_RELATIVE_TOL_PCT = 1.0       # 1.0% - moderate (numerical precision)
+LW_NET_SURFACE_RELATIVE_TOL_PCT = 1.0   # 1.0% - moderate
+
+# Heating rate tolerances
+HEATING_CV_UPPER_BOUND = 0.05           # 5% - stability threshold
+HEATING_NONZERO_TOL = 1.0e-12           # Machine precision
+
+# Cadence tolerances
+ROW_COUNT_ABS_TOL = 2                   # ±2 rows
+ROWS_PER_STEP_TOL = 1                   # ±1 row/step
+
+# Helper functions
+check_relative_error(actual, expected, tol_pct) → (is_pass, error_pct)
+check_absolute_error(actual, expected, tol_abs) → (is_pass, error_abs)
+```
+
+**Design rationale:**
+- Tolerances are physical and achievable (based on Phase 1–7 test results)
+- SW_TOA tolerance is tight (0.1%) because analytical solutions are available
+- Heating rate CV is moderate (5%) to allow transient effects
+- Row count tolerance allows startup/teardown variation
+
+---
+
+### Output Artifacts
+
+#### `benchmark_summary.json`
+Machine-readable report with structure:
+```json
+{
+  "timestamp": "2026-08-07T23:30:07...",
+  "suite": "Phase8_TwoStream_Radiation_Benchmark",
+  "overall_pass": true,
+  "total_cases": 5,
+  "passed_cases": 5,
+  "failed_cases": 0,
+  "cases": [
+    {
+      "case": "sw_clearsky",
+      "case_name": "Clear-sky SW baseline",
+      "is_pass": true,
+      "errors": [],
+      "warnings": [],
+      "metrics": {
+        "row_count": 2,
+        "SW_TOA_mean": 680.5,
+        "SW_TOA_final": 680.5,
+        ...
+      }
+    },
+    ...
+  ]
+}
+```
+
+#### `benchmark_summary.md`
+Human-readable summary with:
+- Case matrix table
+- Per-case pass/fail status
+- Error explanations
+- Key metrics extracted
+- Tolerance reference
+
+#### Optional: `metrics_<case>.csv`
+Raw extracted metrics per case (can be used for time-series visualization)
+
+---
+
+### Files Created/Modified
+
+#### **New Files**
+- `Exec/CanonicalTests/Radiation/Phase8_Benchmark_Suite/`
+  - `run_benchmark_suite.py` – Main orchestration driver
+  - `check_benchmark_metrics.py` – Metrics extraction and validation logic
+  - `benchmark_tolerances.py` – Central tolerance configuration
+  - `benchmark_config.py` – Case definitions
+  - `README.md` – User guide and case descriptions
+  - `cases/` – Test case input files and configurations
+
+#### **Modified Files**
+- `Source/Radiation/RAD_DEVELOPMENT.md` – Added Phase 8 section (this document)
+- `Source/Radiation/RAD_MPI_SKILLS.md` – Added benchmark reproducibility lesson (see below)
+
+---
+
+### Phase 8 Testing & Verification
+
+Expected verification workflow:
+
+1. **Case Execution** (user or CI system)
+   ```bash
+   cd ../SW_ClearSky_Analytical && mpirun -np 1 erf.ex inputs
+   cd ../LW_Isothermal && mpirun -np 1 erf.ex inputs
+   # ... (repeat for all 5 cases)
+   ```
+
+2. **Metric Validation**
+   ```bash
+   cd Phase8_Benchmark_Suite
+   python3 run_benchmark_suite.py --verbose
+   ```
+
+3. **Report Review**
+   - Check `benchmark_summary.md` for human-readable results
+   - Check `benchmark_summary.json` for programmatic processing
+   - Exit code 0 = all pass; 1 = any fail
+
+4. **Phase 6/7 Timing Checker Integration**
+   - Confirm `check_timing_consistency.py` still passes in `both` mode
+   - Case 5 pre_only mode validates single-mode filtering
+
+---
+
+### Backward Compatibility & Constraints
+
+✅ **Physics unchanged**: No modification to TwoStream solver or heating calculation
+✅ **Phase 6/7 diagnostics preserved**: call_site support, mode-aware cadence unaffected
+✅ **GPU safety unchanged**: No host I/O in device code
+✅ **Default runtime behavior**: Identical to Phase 7 (all tests run with default settings)
+✅ **Deterministic**: Same executable + same inputs = same metrics
 
 ---
 
