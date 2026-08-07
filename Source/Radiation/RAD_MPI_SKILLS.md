@@ -973,6 +973,109 @@ void compute_twostream_radiation(...) {
 
 ---
 
+## D.17 – Lesson (Phase 8): Benchmark Reproducibility & Diagnostics-Mode-Aware Validation
+
+**Goal:**
+Phase 8 establishes a canonical benchmark suite for TwoStream radiation. This lesson
+ensures benchmarks are reproducible and validates that Phase 6/7 diagnostics controls
+work correctly without affecting physics.
+
+**Key Challenge:**
+Validation metrics (flux, heating, cadence) are extracted from diagnostic CSV output.
+The CSV structure depends on runtime configuration (especially `diag_callsite_mode`).
+A robust validation suite must:
+1. Be agnostic to physics changes (validate existing behavior, not drive new physics)
+2. Account for diagnostics mode when checking row counts and call-site presence
+3. Provide deterministic pass/fail criteria via centralized tolerance config
+4. Support CI/CD automation with clear exit codes (0=pass, 1=fail)
+
+**Common Mistake:**
+```cpp
+// ❌ WRONG: Benchmark metrics hard-coded to specific mode
+def check_row_count(csv_path, expected_rows):
+    rows = read_csv(csv_path)
+    if len(rows) != expected_rows:
+        fail()  # Fails if mode changes from "both" to "pre_only"!
+```
+
+**Correct Pattern:**
+```cpp
+// ✅ CORRECT: Metrics aware of configured diagnostics mode
+class BenchmarkCase:
+    diag_callsite_mode: str          # "both", "pre_only", or "post_only"
+    rows_per_step: int               # Derived from mode
+    expected_diag_rows: int          # = rows_per_step * num_steps
+
+def validate_case(case, csv_path):
+    rows = read_csv(csv_path)
+    expected = case.expected_diag_rows
+    
+    # Check total row count (±tolerance for startup/teardown)
+    if abs(len(rows) - expected) > ROW_COUNT_ABS_TOL:
+        fail(f"Expected {expected}±{TOL}, got {len(rows)}")
+    
+    # Check per-step multiplicity
+    step_counts = Counter(step for row in rows)
+    if any(count != case.rows_per_step for count in step_counts.values()):
+        fail("Step multiplicity doesn't match mode")
+    
+    # Validate call-site filtering
+    if case.diag_callsite_mode == "pre_only":
+        if not all("pre" in row["call_site"] for row in rows):
+            fail("Expected only pre call-sites for pre_only mode")
+    elif case.diag_callsite_mode == "both":
+        if not (any("pre" in row["call_site"] for row in rows) and
+                any("post" in row["call_site"] for row in rows)):
+            fail("Expected both pre and post call-sites for both mode")
+```
+
+**Why:**
+- Benchmark cases define their diagnostics configuration (mode, frequency)
+- CSV schema depends on this configuration (row count, call_site tags)
+- Tolerances must be physics-independent (pure metric checks)
+- Validation suite must be robust to configuration changes
+- Decoupling configuration (BenchmarkCase) from checks (validate_case()) keeps 
+  code maintainable as diagnostics controls evolve
+
+**Phase 8 Validation Checklist:**
+- [ ] Each benchmark case defines: `diag_callsite_mode`, `rows_per_step`, `expected_diag_rows`
+- [ ] Row count checks use case-specific expected values (not hard-coded)
+- [ ] Call-site validation respects mode ("both" checks for both, "pre_only" checks for pre only)
+- [ ] Metrics extracted are **independent of physics** (purely from CSV)
+- [ ] Tolerances centralized in `benchmark_tolerances.py` (no magic numbers in checks)
+- [ ] Pass/fail logic deterministic and CI-friendly (non-zero exit code on any fail)
+- [ ] Reports machine-readable (JSON) and human-readable (Markdown)
+- [ ] Phase 6/7 "both" mode case passes with Phase 7 `check_timing_consistency.py`
+- [ ] Phase 8 "pre_only" mode case passes with mode-aware row count and call-site checks
+
+**Phase 8 Reproducibility Requirements:**
+- Fixed `dt` and `stop_time` per case (deterministic step count)
+- Explicit `diag_file` path per case (no default inference)
+- Explicit `diag_callsite_mode` per case (documented in case definition)
+- Deterministic case execution order (sorted by case name)
+- Deterministic report row order (sorted by case name)
+- Seed/RNG settings (if applicable) documented
+- Metric tolerances stored in version-controlled config
+
+**Integration with CI/CD:**
+```bash
+#!/bin/bash
+# Run all 5 benchmark cases
+cd Exec/CanonicalTests/Radiation
+for case in SW_ClearSky_Analytical LW_Isothermal SW_Cloud_Layer SW_Scattering_Cloud Phase8_Benchmark_Suite/cases/phase6_timing; do
+    cd $case && mpirun -np 1 erf.ex inputs || exit 1
+    cd -
+done
+
+# Validate all outputs
+cd Phase8_Benchmark_Suite
+python3 run_benchmark_suite.py --verbose
+# Exit code 0 = all pass; 1 = any fail
+exit $?
+```
+
+---
+
 ## References
 
 - AMReX GPU Guide: https://amrex-codes.github.io/amrex/docs_html/GPU.html
