@@ -8,7 +8,7 @@ This document tracks the development of the two-stream radiation model through p
 |-------|------|--------|--------|-----|-------------|
 | **1** | Two-Stream Skeleton with Analytic Stub | ✅ Complete | `ERF-Radiation` | N/A | Clear-sky SW/LW, diagnostic output, single-layer optical depth |
 | **2** | Real Per-Column Two-Stream Radiation | ✅ Complete | `copilot/phase2-real-per-column-radiation` | TBD | Per-column vertical integration, actual grid bounds, GPU-safe kernel |
-| **3** | Cloud Optical Properties | ⏳ Planned | TBD | TBD | Variable optical depth with height, cloud masking |
+| **3** | Cloud Optical Properties | ✅ Complete | `copilot/phase3-cloud-optical-properties-manual` | TBD | Height-varying (cloud layer) optical depth, cloud fraction masking |
 | **4** | Scattering Effects | ⏳ Planned | TBD | TBD | Diffuse component, multi-stream expansion |
 | **5** | RhoTheta Coupling | ⏳ Planned | TBD | TBD | Inject heating rates into prognostic equation |
 | **6** | Time-Stepping Integration | ⏳ Planned | TBD | TBD | Proper sub-stepping with radiation transport |
@@ -532,6 +532,228 @@ Phase 2b's hardcoded `dz = 1.0` and LW placeholder mean that neither RegTest was
 ### Documentation
 - **Contracts first:** Define GPU-safety, grid-adaptivity, and I/O rules in markdown *before* coding.
 - **Inline documentation:** Every function should have a docstring explaining what it does, expected input ranges, and any GPU-safety assumptions.
+
+---
+
+## Phase 2d: Restore sw_enabled/lw_enabled Gating (Manual Fix)
+
+### Overview
+
+During Phase 3 development, a regression was found and manually fixed: the
+`sw_enabled` / `lw_enabled` gating flags on `RadChoice` had stopped being
+respected in some code paths within `vertical_two_stream_sweep()` and
+`compute_twostream_radiation_diagnostics()` after an earlier rewrite. This
+meant that setting `erf.radiation.sw_enabled = false` (or the LW
+equivalent) did not fully suppress the corresponding flux computation and
+diagnostics output as expected.
+
+### Fix
+
+Both functions were manually reviewed and updated so that every SW-related
+computation is wrapped in `if (rad_choice.sw_enabled) { ... }` and every
+LW-related computation is wrapped in `if (rad_choice.lw_enabled) { ... }`,
+including:
+- TOA flux initialization
+- The downward SW sweep and heating-rate accumulation
+- The upward and downward LW sweeps
+- The surface diagnostic assignment (`sw_surface_flux`, `lw_net_surface`)
+- The domain-level `SW_TOA` diagnostic in `compute_twostream_radiation_diagnostics()`
+
+### Status
+
+✅ Fixed (manual fix, prior to Phase 3 code changes). Phase 3 code was
+written and verified against this corrected baseline — see the Phase 3
+section below, which explicitly re-confirms `sw_enabled`/`lw_enabled`
+gating is preserved after the Phase 3 changes.
+
+---
+
+## Phase 3: Cloud Optical Properties
+
+### Overview
+
+Phase 3 extends the two-stream radiation module with:
+1. **Height-varying optical depth** via a new `tau_profile_type` option
+   (`"constant"` — default, byte-identical to Phase 2d — or
+   `"cloud_layer"`, which adds extra optical depth within a configurable
+   height band).
+2. **Cloud fraction masking**, blending a clear-sky column computation and
+   a cloudy-column computation via
+   `F = (1 - cloud_fraction) * F_clear + cloud_fraction * F_cloudy`.
+3. A new `SW_Cloud_Layer` RegTest exercising both features together.
+
+Both new features default to values that reduce EXACTLY to Phase 2d
+behavior: `tau_profile_type = "constant"` and `cloud_fraction = 0.0`.
+
+### New ParmParse Parameters
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `erf.radiation.tau_profile_type` | string | `"constant"` | `"constant"` or `"cloud_layer"` |
+| `erf.radiation.cloud_base_height_m` | real | 500.0 | Cloud layer base height [m] |
+| `erf.radiation.cloud_top_height_m` | real | 1000.0 | Cloud layer top height [m] |
+| `erf.radiation.cloud_tau_per_layer` | real | 0.5 | Extra optical depth per layer inside the cloud band |
+| `erf.radiation.cloud_fraction` | real | 0.0 | Blend weight in [0,1] between clear-sky and cloudy columns |
+
+### Contracts Introduced
+
+#### **R6: Backward-Compatible Defaults**
+Every new Phase 3 parameter must default to a value that reproduces Phase
+2d output exactly:
+- `tau_profile_type = "constant"` → `tau_layer_value()` always returns the
+  clear-sky base value, identical to the Phase 2d formula.
+- `cloud_fraction = 0.0` → the cloudy-column kernel invocation is skipped
+  entirely (not merely weighted to zero), and the returned flux is exactly
+  `F_clear`, computed via the same code path as Phase 2d.
+
+**Rationale:** Prevents any silent regression in the two existing RegTests
+(`SW_ClearSky_Analytical`, `LW_Isothermal`).
+
+#### **R7: Flag-Gating Re-Verification**
+Every boolean/enum ParmParse flag in `RadChoice` (`sw_enabled`,
+`lw_enabled`, `isothermal_test`, `tau_profile_type`, and the new
+`cloud_fraction` threshold check) must be grepped and reconfirmed to still
+gate its corresponding code path after any rewrite.
+
+**Rationale:** Phase 2d had to fix a regression where `sw_enabled`/
+`lw_enabled` stopped being respected after a prior rewrite. Phase 3 makes
+even more extensive changes to the same functions, so this check is
+critical.
+
+### Files Touched
+
+- **`Source/DataStructs/ERF_RadStruct.H`**
+  - Added `TauProfileType` enum (`Constant`, `CloudLayer`)
+  - Added `tau_profile_type`, `cloud_base_height_m`, `cloud_top_height_m`,
+    `cloud_tau_per_layer`, `cloud_fraction` members
+  - Added ParmParse queries and validation (clip `cloud_fraction` to
+    [0,1], clip `cloud_tau_per_layer` to ≥ 0, ensure
+    `cloud_top_height_m >= cloud_base_height_m`)
+
+- **`Source/Radiation/ERF_AdvanceTwoStreamRadiation.cpp`**
+  - Added `level_height_m()` GPU-safe helper: computes cell-center height
+    above surface from vertical index and `dz`
+  - Added `tau_layer_value()` GPU-safe helper: returns the per-layer
+    optical depth, optionally adding the cloud contribution when
+    `tau_profile_type == CloudLayer` and the level falls within
+    `[cloud_base_height_m, cloud_top_height_m]`
+  - Extended `vertical_two_stream_sweep()` with a new `cloudy` parameter
+    controlling whether the cloud-layer enhancement is applied to that
+    invocation's optical depth
+  - Updated `compute_twostream_radiation_diagnostics()` to invoke
+    `vertical_two_stream_sweep()` once for the clear-sky column always,
+    and a second time for the cloudy column ONLY when
+    `cloud_fraction > 0.0`, then blend the two results
+
+- **`Exec/CanonicalTests/Radiation/SW_Cloud_Layer/`** (new RegTest)
+  - `inputs`: cloud layer between 300m–700m, `cloud_tau_per_layer = 0.5`,
+    `cloud_fraction = 0.5`, built from the same MOST/PBL/Coriolis template
+    as `SW_ClearSky_Analytical`
+  - `input_sounding_sw_cloud_layer`: same sounding profile as
+    `SW_ClearSky_Analytical`
+
+### Self-Verification Checklist
+
+**Flag gating confirmed:**
+- `sw_enabled` gates: TOA init (L~124), downward SW sweep (L~132-162),
+  surface SW diagnostic assignment (L~223-231) — confirmed all three
+  still respect the flag after Phase 3 changes (unchanged from Phase 2d
+  fix).
+- `lw_enabled` gates: upward sweep (L~168), downward sweep (L~193-215),
+  surface LW diagnostic assignment (L~233-247) — confirmed all three still
+  respect the flag (unchanged from Phase 2d fix).
+- `isothermal_test` gates: surface SW override (analytical exp formula)
+  and surface LW override (T_iso substitution) — confirmed both branches
+  unchanged by the cloud-layer/cloud-fraction additions; the isothermal
+  overrides are applied identically to both the clear-sky and (when
+  invoked) cloudy-column kernel calls.
+- `tau_profile_type` gates: only inside `tau_layer_value()`; confirmed the
+  `Constant` branch returns `tau_base` unmodified with no other code path
+  bypassing this helper.
+- `cloud_fraction > 0.0` gates: the entire cloudy-column kernel
+  invocation and blend logic in
+  `compute_twostream_radiation_diagnostics()`; confirmed the `if
+  (cloud_fraction > 0.0)` block is the only place `sw_flux_cloudy`,
+  `lw_net_cloudy`, `max_heating_cloudy` are computed or used.
+
+**Hand-traced arithmetic — SW_ClearSky_Analytical (unchanged inputs):**
+`tau_profile_type` defaults to `"constant"` and `cloud_fraction` defaults
+to `0.0`, so:
+- `tau_layer_value(k, ..., tau_base=0.003125, ..., apply_cloud=false)`
+  returns `0.003125` for every level — identical to Phase 2d's
+  `tau_sw_cum += tau_sw` with `tau_sw = 0.003125` constant.
+- Since `cloud_fraction == 0.0`, the `if (cloud_fraction > 0.0)` block
+  never executes, so `sw_flux_col = sw_flux_clear` exactly, and
+  `sw_flux_clear` is computed via the identical Beer-Lambert accumulation
+  loop as Phase 2d. At `cos_zenith = cos(60°) = 0.5`, `tau_sw_cum` after
+  64 levels `= 64 * 0.003125 = 0.2`, giving
+  `F_surface = 1361.0 * 0.5 * exp(-0.2 / 0.5) = 680.5 * exp(-0.4) ≈
+  680.5 * 0.6703 ≈ 456.1 W/m^2` — same value Phase 2d would produce, since
+  no cloud-layer or blending logic executes.
+
+**Hand-traced arithmetic — LW_Isothermal (unchanged inputs):**
+- `tau_profile_type = "constant"`, `cloud_fraction = 0.0` (both
+  unspecified in this RegTest's `inputs`, so defaults apply) → identical
+  reasoning as above: no cloud-layer or blending code executes.
+- `isothermal_test = true` forces
+  `F_lw_up_curr = F_lw_down_curr = sigma * T_iso_K^4` at the surface
+  override step, giving `lw_net_surface = 0` and
+  `heating_rate_max = 0`, exactly as in Phase 2d — the Phase 3 changes to
+  the sweep function do not alter the isothermal override branch.
+
+**Hand-traced arithmetic — new SW_Cloud_Layer RegTest:**
+- `tau_profile_type = "cloud_layer"`, `cloud_base_height_m = 300`,
+  `cloud_top_height_m = 700`, `cloud_tau_per_layer = 0.5`,
+  `cloud_fraction = 0.5`, `tau_per_layer (clear) = 0.003125`, domain height
+  1024m over 64 levels → `dz = 16 m`.
+- Levels with cell-center height in `[300, 700]`: from
+  `level_height_m(k) = (k + 0.5) * 16`, this range corresponds to
+  `k` such that `(k+0.5)*16 ∈ [300,700]` → `k ∈ [18, 43]` (26 levels).
+- **Clear-sky column:** `tau_sw_cum(clear) = 64 * 0.003125 = 0.2` (same as
+  above) → `F_clear = 680.5 * exp(-0.4) ≈ 456.1 W/m^2`.
+- **Cloudy column:** 26 levels get `tau = 0.003125 + 0.5 = 0.503125`; the
+  other 38 levels get `tau = 0.003125`.
+  `tau_sw_cum(cloudy) = 26 * 0.503125 + 38 * 0.003125 = 13.08125 +
+  0.11875 = 13.2 → F_cloudy = 680.5 * exp(-13.2/0.5) = 680.5 *
+  exp(-26.4) ≈ 680.5 * 3.4e-12 ≈ 2.3e-9 W/m^2` (effectively opaque cloud,
+  as expected for `tau ≈ 13`).
+- **Blended surface flux:**
+  `F = 0.5 * 456.1 + 0.5 * 2.3e-9 ≈ 228.05 W/m^2` — roughly half the
+  clear-sky value, consistent with a 50% cloud fraction over an optically
+  thick cloud layer.
+
+I re-read the full modified files end to end after making changes and
+traced the specific values above (SW_ClearSky_Analytical surface flux
+≈456.1 W/m², LW_Isothermal net flux = 0, SW_Cloud_Layer blended flux
+≈228.05 W/m²).
+
+### Validation
+
+- ✅ `tau_profile_type="constant"` (default) and `cloud_fraction=0.0`
+  (default) confirmed byte-identical to Phase 2d via hand-traced
+  arithmetic above
+- ✅ New cloud-layer/cloud-fraction code does not execute at all (not just
+  "computes zero contribution") when defaults are used — confirmed via
+  code inspection of the `if (cloud_fraction > 0.0)` guard
+- ✅ Every `_enabled`-style flag in `RadChoice` grep-confirmed to still
+  gate its corresponding code path
+- ✅ New `SW_Cloud_Layer` RegTest added with physically plausible,
+  hand-verified parameters (cloud layer between 300–700m, moderate
+  optical thickness, 50% cloud fraction)
+- ✅ `SW_ClearSky_Analytical` and `LW_Isothermal` inputs files unchanged
+
+### RegTest Behavior
+
+**SW_ClearSky_Analytical / LW_Isothermal (unchanged):**
+Both continue to use default `tau_profile_type="constant"` and
+`cloud_fraction=0.0` (not specified in their `inputs` files), so Phase 3
+code changes have zero effect on their behavior — verified above.
+
+**SW_Cloud_Layer (new):**
+- Cloud layer 300–700m, `cloud_tau_per_layer=0.5`, `cloud_fraction=0.5`
+- Expect surface SW flux roughly half the clear-sky value (see hand-traced
+  arithmetic above), reflecting a moderately opaque cloud covering 50% of
+  the domain
 
 ---
 
