@@ -104,6 +104,7 @@ void vertical_two_stream_sweep(
     // Convert solar zenith angle to radians
     amrex::Real zenith_rad = rad_choice.solar_zenith_deg * M_PI / 180.0;
     amrex::Real cos_zenith = std::cos(zenith_rad);
+
     
     // TOA values
     amrex::Real S0 = rad_choice.S0;
@@ -120,6 +121,7 @@ void vertical_two_stream_sweep(
     amrex::Real local_max_heating = 0.0;
     
     // TOA: initialize SW direct beam
+    if (rad_choice.sw_enabled) {
     if (cos_zenith > 0.0) {
         F_sw_dir_prev = S0 * cos_zenith;  // TOA incident (tau = 0)
     }
@@ -156,12 +158,14 @@ void vertical_two_stream_sweep(
         
         // Prepare for next iteration
         F_sw_dir_prev = F_sw_dir_curr;
+        }
     }
     
     // ========================================================================
     // UPWARD PASS: Compute LW upwelling flux from surface to TOA
     // ========================================================================
     amrex::Real F_lw_up_curr = 0.0;  // Will be set at k = kmax (surface)
+if (rad_choice.lw_enabled) {
     for (int k = kmax; k >= kmin; --k) {
         // Read state at this level for temperature (needed for LW flux computation)
         amrex::Real rho = state_arr(i, j, k, Rho_comp);
@@ -203,35 +207,45 @@ void vertical_two_stream_sweep(
             // Compute downwelling flux at this level using real two-stream formula
             F_lw_down_curr = compute_lw_flux_down(F_lw_down_curr, T_layer, sigma, tau_lw);
         }
-    } else {
+    } 
+    else {
         // Isothermal test: all levels radiate equally
         // Isothermal condition is handled below
     }
-    
+}
     // ========================================================================
     // SURFACE AND DIAGNOSTICS
     // ========================================================================
     // At surface (k = kmax): store fluxes for diagnostics
-    if (rad_choice.isothermal_test) {
-        // Isothermal test: override with analytical value
-        amrex::Real rho_surface = state_arr(i, j, kmax, Rho_comp);
-        amrex::Real rho_theta_surface = state_arr(i, j, kmax, RhoTheta_comp);
-        if (rho_surface <= 0.0) rho_surface = 1.0;
-        if (rho_theta_surface <= 0.0) rho_theta_surface = 288.15;
-        amrex::Real T_iso = get_temperature_from_rhotheta(rho_theta_surface, rho_surface);
-        amrex::Real I_thermal = compute_thermal_intensity(T_iso, sigma);
-        sw_surface_flux = S0 * std::max(0.0, cos_zenith) * std::exp(-tau_sw_cum);
-        F_lw_up_curr = I_thermal;
-        F_lw_down_curr = I_thermal;
+    // ========================================================================
+    // SURFACE AND DIAGNOSTICS
+    // ========================================================================
+    if (rad_choice.sw_enabled) {
+        if (rad_choice.isothermal_test) {
+            sw_surface_flux = S0 * std::max(0.0, cos_zenith) * std::exp(-tau_sw_cum);
+        } else {
+            sw_surface_flux = F_sw_dir_prev;
+        }
     } else {
-        // Regular case: use computed values
-        sw_surface_flux = F_sw_dir_prev;  // Already at surface after downward pass
+        sw_surface_flux = 0.0;
     }
-    
-    amrex::Real F_net_surface = F_lw_up_curr - F_lw_down_curr;
-    lw_net_surface = F_net_surface;
-    
-    // Store maximum heating rate
+
+    if (rad_choice.lw_enabled) {
+        if (rad_choice.isothermal_test) {
+            amrex::Real rho_surface = state_arr(i, j, kmax, Rho_comp);
+            amrex::Real rho_theta_surface = state_arr(i, j, kmax, RhoTheta_comp);
+            if (rho_surface <= 0.0) rho_surface = 1.0;
+            if (rho_theta_surface <= 0.0) rho_theta_surface = 288.15;
+            amrex::Real T_iso = get_temperature_from_rhotheta(rho_theta_surface, rho_surface);
+            amrex::Real I_thermal = compute_thermal_intensity(T_iso, sigma);
+            F_lw_up_curr = I_thermal;
+            F_lw_down_curr = I_thermal;
+        }
+        lw_net_surface = F_lw_up_curr - F_lw_down_curr;
+    } else {
+        lw_net_surface = 0.0;
+    }
+
     max_heating_rate = local_max_heating;
 }
 
@@ -270,8 +284,9 @@ void ERF::compute_twostream_radiation_diagnostics(
         // Prepare to compute TOA values (used for diagnostics output)
         amrex::Real zenith_rad = rad_choice.solar_zenith_deg * M_PI / 180.0;
         amrex::Real cos_zenith = std::cos(zenith_rad);
-        SW_TOA = rad_choice.S0 * std::max(0.0, cos_zenith);
-        
+        //SW_TOA = rad_choice.S0 * std::max(0.0, cos_zenith);
+        SW_TOA = rad_choice.sw_enabled ? (rad_choice.S0 * std::max(0.0, cos_zenith)) : 0.0;
+
         // Host-side storage for reduction results (will be set by device-side reduction)
         amrex::Real max_heating_global = 0.0;
         amrex::Real sw_surface_sum = 0.0;
@@ -307,9 +322,9 @@ void ERF::compute_twostream_radiation_diagnostics(
             
             using ReduceTuple = typename decltype(reduce_data)::Type;
             
-            // Launch parallel kernel over (i,j) columns
-            amrex::ParallelFor(xy_box,
-                [=, &reduce_data] AMREX_GPU_DEVICE (int i, int j, int /*k_unused*/)
+         // Launch parallel kernel over (i,j) columns
+            reduce_ops.eval(xy_box, reduce_data,
+                [=] AMREX_GPU_DEVICE (int i, int j, int /*k_unused*/) -> ReduceTuple
                 {
                     // Per-column results
                     amrex::Real max_heating_col = 0.0;
@@ -321,8 +336,8 @@ void ERF::compute_twostream_radiation_diagnostics(
                         i, j, bx, geom_lev, state_arr, rad_choice,
                         max_heating_col, sw_flux_col, lw_net_col);
                     
-                    // Accumulate using device-side reduction
-                    reduce_data.join(max_heating_col, sw_flux_col, lw_net_col);
+                    // Return tuple for reduction
+                    return {max_heating_col, sw_flux_col, lw_net_col};
                 }
             );
             
