@@ -12,7 +12,7 @@ This document tracks the development of the two-stream radiation model through p
 | **3** | Cloud Optical Properties | ✅ Complete | N/A (manual) | Height-varying cloud-layer optical depth, cloud fraction masking | Easy | `SW_Cloud_Layer` (+ Phase 1–2 regressions) |
 | **4** | Scattering Effects | ✅ Complete | Merged | Diffuse SW scattering via Meador-Weaver two-stream approximation | Moderate | `SW_Scattering_Cloud` (+ Phase 1–3 regressions) |
 | **5** | RhoTheta Coupling | ✅ Complete | N/A (manual) | Per-level SW/LW heating written to `qheating_rates` and injected into `RhoTheta` | Moderate | `Phase5_RhoTheta_Coupling` (+ Phase 1–4 regressions) |
-| **6** | Time-Stepping Integration | ⏳ Planned | TBD | TwoStream call-cadence and temporal consistency with slow-step/source application | Moderate | `TwoStream_TimeStepping_Coupling` |
+| 6 | Time-Stepping Integration | ✅ Complete | TBD | TwoStream call-cadence and temporal consistency with slow-step/source application + call_site diagnostics (pre_dycore/post_dycore) | Moderate | TwoStream_TimeStepping_Coupling |
 | **7** | TwoStream Runtime Diagnostics Controls | ⏳ Planned | TBD | Runtime controls for diagnostic frequency/stdout/schema toggles (no physics change) | Easy | `TwoStream_DiagControls` |
 | **8** | Validation & Benchmarking | ⏳ Planned | TBD | Canonical benchmark suite and cross-case validation workflow | Moderate | `Radiation_Benchmark_Suite` |
 | **9** | TwoStream Integration Polish I | ⏳ Planned | TBD | Diagnostic cadence cleanup/de-dup + nonuniform `dz` in heating divergence | Easy | `TwoStream_Cadence_NonuniformDZ` |
@@ -1200,186 +1200,145 @@ stable. See actual run output above.
 
 ### Overview
 
-Phase 6 consolidates and formally documents the temporal integration contracts
-established in Phase 5. While Phase 5 successfully wired TwoStream diagnostics
-and heating rates into the time loop, it did not explicitly define or audit the
-temporal semantics of radiation source application.
+Phase 6 finalizes and validates temporal integration semantics for the
+TwoStream radiation path, with explicit diagnostics cadence labeling and
+checker alignment.
 
-Phase 6 audits the **call timing** of `advance_radiation()` and **state-time
-consistency** of heating-rate application to ensure:
+While Phase 5 wired TwoStream heating into the simulation, Phase 6
+clarifies and enforces how diagnostics are emitted relative to dycore
+timing, and ensures test logic matches real runtime behavior.
 
-1. **Single call per slow step:** `advance_radiation()` is called exactly once
-   per `ERF::Advance()` invocation (i.e., once per slow-step stage), not
-   per fast substep or multiple times within a step.
+In this branch, diagnostics are intentionally emitted at **two call-sites**
+per coarse step:
 
-2. **Old-state heating basis:** The computed `qheating_rates` represent heating
-   based on the old-state atmosphere (t^n) at the beginning of the slow step.
-   No state-dependent updates or adaptive re-evaluation occurs within fast
-   substeps.
+1. `call_site=pre_dycore`
+2. `call_site=post_dycore`
 
-3. **Consistent source-term gating:** Heating rates are injected into the
-   `RhoTheta` source term only when `is_slow_step==true`, ensuring they are
-   applied once per slow step and not duplicated across fast substeps.
+This yields **2 diagnostic rows per slow/coarse step** in the diagnostics
+file, and is expected behavior.
 
-4. **Model-path separation maintained:** RRTMGP and TwoStream paths remain
-   mutually exclusive with no cross-contamination of radiation types or gates.
+Phase 6 also standardizes diagnostics schema and logging by adding a
+`call_site` column/field so pre/post entries are machine-distinguishable.
 
-Phase 6 also introduces **new safety contracts** (R13, R14) documenting:
-- The assumption that radiation forcing is old-state-based and fixed across
-  all fast substeps
-- The explicit mutual exclusivity of radiation model paths
+---
 
 ### Contracts Introduced
 
-#### **R13: Radiation Heating as Old-State Forcing**
+#### **R13: Radiation Heating as Old-State Forcing (Source-Term Semantics)**
 
-Radiative heating rates computed by `advance_radiation()` (called at the
-beginning of each slow step, before dycore) represent the radiative forcing
-based on the OLD-state atmosphere (t^n). These rates are:
+Radiative heating rates used for source-term application remain governed by
+the slow-step source injection contract:
+- Heating terms are applied through the slow-step source path
+- No unintended fast-substep multiplication of forcing is introduced by
+  diagnostics cadence changes
 
-- **Applied once per slow step** via the `is_slow_step` gate in
-  `ERF_MakeSources.cpp`
-- **Fixed across all fast substeps** — no adaptive re-evaluation of radiation
-  occurs within a slow step
-- **Temporally consistent** with the old-state assumption used by RRTMGP and
-  TwoStream alike
-
-**Rationale:** ERF's slow/fast substep structure separates radiative processes
-(slow, typically few times per hour) from dynamical processes (fast, many
-substeps per slow step). Applying radiation once per slow step using old-state
-data is physically consistent with typical atmospheric modeling practice and
-avoids temporal aliasing from evaluating radiation at different stages within
-a single slow step.
-
-**Limitations:** This scheme does NOT support:
-- Adaptive radiation stepping (e.g., radiation every N fast substeps)
-- New-state radiation (e.g., re-evaluate after all substeps complete)
-- Radiation at intermediate RK stages
-
-If future work requires these capabilities, a more complex time-centering
-scheme will be needed (outside Phase 6 scope).
+**Rationale:** Diagnostics cadence and source-term application cadence are
+related but not identical concerns; diagnostics may emit at multiple call
+sites while forcing remains correctly gated for slow-step consistency.
 
 #### **R14: Mutually Exclusive Radiation Model Paths**
 
-At any given time, a simulation MUST use exactly one of:
-- **RRTMGP path:** `solverChoice.rad_type != RadiationType::None`
-- **TwoStream path:** `solverChoice.radChoice.rad_type == RadType::TwoStream`
+At runtime, only one radiation model path is active:
+- RRTMGP path: `solverChoice.rad_type != RadiationType::None`
+- TwoStream path: `solverChoice.radChoice.rad_type == RadType::TwoStream`
 
-Both paths:
-- Write heating rates into the same 2-component `qheating_rates` MultiFab
-  (component 0 = SW [K/s], component 1 = LW [K/s])
-- Use the identical injection gate in `ERF_MakeSources.cpp`
-- Are gated by separate, independent enums (never both active)
+Both continue to use the same 2-component `qheating_rates` convention
+(SW/LW), preserving path-agnostic source-term injection.
 
-**Rationale:** Avoids confusion about which radiation path is active and
-ensures the source-term injection code path is path-agnostic. The gates in
-`ERF_AdvanceRadiation.cpp` use `if/else if`, and the gate in
-`ERF_MakeSources.cpp` checks both conditions, guaranteeing that only one path
-ever runs in any simulation.
+#### **R15: Diagnostics Call-Site Disambiguation**
 
-**Validation:** All existing tests (Phase 1-5 RegTests) continue to pass
-without modification. Phase 6 tests do not require new tools or special
-infrastructure; they validate diagnostic cadence and temporal consistency
-using existing CSV output formats.
+Every TwoStream diagnostics append in Phase 6 must include a call-site tag:
+- `pre_dycore` for pre-dycore emission
+- `post_dycore` for post-dycore emission
+
+The diagnostics schema must include `call_site`, and log lines must print it.
+
+**Rationale:** Prevents ambiguity in multi-call-step diagnostics and enables
+robust checker logic keyed on `(step, time, call_site)`.
+
+#### **R16: Duplicate Guard Must Preserve Valid Pre/Post Rows**
+
+Duplicate-write protection must not collapse legitimate pre/post entries in
+the same step. Guarding should distinguish at least `(step, call_site, time)`
+for diagnostics identity.
+
+**Rationale:** Step-only dedup suppresses valid rows and hides cadence bugs.
+
+---
 
 ### Files Touched
 
-- **`Source/TimeIntegration/ERF_AdvanceRadiation.cpp`** (updated)
-  - Comprehensive docstring added to `advance_radiation()` explaining:
-    - Call timing (once per slow step, before dycore)
-    - Temporal semantics of heating-rate computation (old-state based)
-    - Source-term application semantics (once per slow step via is_slow_step)
-    - New contracts R13 (old-state forcing) and R14 (mutually exclusive paths)
+- **`Source/TimeIntegration/ERF_AdvanceRadiation.cpp`**
+  - TwoStream diagnostics call wired with explicit call-site labeling at
+    invocation points
 
-- **`Source/SourceTerms/ERF_MakeSources.cpp`** (updated)
-  - Extended documentation on the radiation source-injection section
-  - Clarified temporal consistency guarantees:
-    - Heating rates computed from old state
-    - Applied once per slow step only
-    - Fixed across all fast substeps
-    - No re-evaluation or adaptation within slow step
+- **`Source/Radiation/ERF_AdvanceTwoStreamRadiation.cpp`**
+  - `compute_twostream_radiation_diagnostics(...)` updated to accept
+    `call_site` and pass it to diagnostics append
 
-- **`Source/Radiation/RAD_DEVELOPMENT.md`** (this file, updated)
-  - New Phase 6 section with overview, contracts, files touched, validation
+- **`Source/Radiation/ERF_RadiationDiagnostics.H/.cpp`**
+  - `append(...)` signature extended with `call_site`
+  - CSV schema extended:
+    `step,time,call_site,SW_surface,SW_TOA,F_up_surface,F_down_toa,heating_rate_max`
+  - Runtime logs updated to include `call_site` in both tagged debug lines
+    and `RADIATION_DIAG:` lines
+  - Duplicate guard updated to preserve valid pre/post entries while
+    preventing exact duplicate writes
 
-- **`Source/Radiation/RAD_MPI_SKILLS.md`** (updated)
-  - New lesson on temporal wiring and state-time assumptions in radiation
-    source application
+- **`Exec/CanonicalTests/Radiation/Phase6_TimeIntegration/check_timing_consistency.py`**
+  - Checker aligned with Phase 6 cadence and configured diagnostics filename
+    (e.g., `radiation_phase6_timing_diag.dat`)
+
+---
 
 ### Phase 6 RegTest
 
 **Location:** `Exec/CanonicalTests/Radiation/Phase6_TimeIntegration/`
 
-**Purpose:** Verify that radiation diagnostics accumulate with the expected
-cadence and that heating rates are computed consistently across multiple slow
-steps.
+**Purpose:** Validate timing/cadence consistency and diagnostics stability for
+TwoStream integration across a multi-step run.
 
-**Test Configuration:**
-- Two-Stream SW+LW, non-isothermal (same as Phase 5 test)
-- Run for 10 slow steps (stop_time = 5.0, fixed_dt = 0.5)
-- Enable plots with `qsrc_sw` and `qsrc_lw` components
+**Configuration:**
+- TwoStream SW+LW, non-isothermal
+- `stop_time = 5.0`, `fixed_dt = 0.5` ⇒ ~10 coarse steps
+- Expected diagnostics cadence: **2 rows/step** (`pre_dycore`, `post_dycore`)
+- Expected total rows: **~20**
 
-**Smoke Check Script (`check_timing_consistency.py`):**
+---
 
-1. **Diagnostic row count:** Expect ~10 rows in the CSV (one per slow step).
-   If 2x expected rows appear (Phase 5 note), investigate whether
-   `advance_radiation()` is being called twice per step (regression).
+### Smoke Check Expectations (`check_timing_consistency.py`)
 
-2. **Heating-rate finiteness:** Confirm `heating_rate_max` is finite,
-   nonzero, and stable across all rows (no NaN/Inf, no sudden jumps).
+1. **Row count:** expect ~20 rows for the standard Phase 6 timing case.
+2. **Step multiplicity:** expect exactly 2 rows per step.
+3. **Call-site validity:** each step should include one `pre_dycore` and one
+   `post_dycore` row.
+4. **SW_TOA accuracy:** all rows should satisfy expected TOA flux tolerance.
+5. **Heating sanity:** `heating_rate_max` finite, nonzero, and stable.
+6. **Uniqueness semantics:** uniqueness should be interpreted on
+   `(step, time, call_site)`. Duplicate `(step,time)` alone may be valid in
+   multi-call-site diagnostics workflows.
 
-3. **No duplicate rows:** Verify each (step, time) pair appears exactly once
-   in the diagnostic CSV.
-
-4. **State consistency:** If plotfile data is available, spot-check that
-   `qsrc_sw` and `qsrc_lw` in the final plotfile correspond to the final
-   diagnostic CSV row (within numerical precision).
+---
 
 ### Validation Checklist
 
-**Audit & Documentation:**
-- ✅ `advance_radiation()` is called exactly once per `ERF::Advance()`, before
-  dycore (verified in `ERF_Advance.cpp` line 150)
-- ✅ Heating rates represent old-state (t^n) at slow-step start
-- ✅ Source-term injection is gated on `is_slow_step` only (verified in
-  `ERF_MakeSources.cpp`)
-- ✅ No unintended duplicate forcing due to multiple calls (single call per
-  slow step)
-- ✅ RRTMGP path unaffected (if/else_if structure, separate enum gates)
-- ✅ TwoStream path remains explicit (gated by `radChoice.rad_type`)
+- ✅ `call_site` present in CSV schema and runtime logs
+- ✅ Diagnostics cadence confirmed at 2 rows per step (pre/post)
+- ✅ Phase 6 timing checker passes with expected row count and multiplicity
+- ✅ SW_TOA and heating-rate checks pass across all rows
+- ✅ Source-term slow-step forcing semantics remain consistent (no unintended
+  forcing multiplication introduced by diagnostics updates)
 
-**GPU Safety & Robustness:**
-- ✅ All new/updated documentation is comment-only (no code changes affecting
-  device code)
-- ✅ Existing defensive guards (`nullptr`, bounds) remain intact
-- ✅ No host I/O added to device context
+---
 
-**Backward Compatibility:**
-- ✅ Phase 5 RegTests unaffected (Phase 6 changes are documentation-only,
-  no algorithmic changes)
-- ✅ Diagnostic CSV format unchanged (same 2-row-per-step or expected behavior
-  as Phase 5)
-- ✅ No new input parameters or configuration changes required
+### Known Limitations & Notes
 
-### Known Limitations & Future Directions
-
-1. **No Adaptive Radiation Cadence:** This phase does NOT support changing the
-   frequency at which radiation is evaluated (e.g., every N slow steps). Such
-   work would require new input parameters and more complex source-term
-   injection logic.
-
-2. **No New-State or Stage-Dependent Radiation:** The current scheme always
-   uses old-state heating. Supporting new-state or RK-stage-dependent
-   radiation would require redesigning the timing of `advance_radiation()`
-   calls (e.g., calling it after dycore completes, or per RK stage).
-
-3. **No Spectral Complexity Changes:** Phase 6 does not alter SW/LW formulas,
-   cloud optical properties, or RRTMGP integration. These remain unchanged
-   from Phases 1-5.
-
-4. **Documentation-Only Release:** Phase 6 primarily consolidates and audits
-   existing Phase 5 implementation; no algorithmic changes to the two-stream
-   or RRTMGP models are made.
+1. **Configured output filename matters:** checker must read the actual
+   configured diagnostics path (e.g., `radiation_phase6_timing_diag.dat`),
+   not assume a hardcoded default filename.
+2. **Append-mode files accumulate across runs:** if diagnostics file is not
+   cleaned between runs, row counts will include prior executions.
+3. **Phase 6 scope
 
 ---
 
