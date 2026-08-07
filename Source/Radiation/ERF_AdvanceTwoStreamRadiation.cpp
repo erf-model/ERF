@@ -554,8 +554,12 @@ void ERF::compute_twostream_radiation_diagnostics(
         return;
     }
 
-    // Create RadiationDiagnostics instance for this level
-    RadiationDiagnostics rad_diag(rad_choice.verbosity, rad_choice.diag_file, lev);
+    // Create RadiationDiagnostics instance for this level with Phase 7 controls
+    RadiationDiagnostics rad_diag(rad_choice.verbosity, rad_choice.diag_file, lev,
+                                   rad_choice.diag_enable, rad_choice.diag_stdout_enable,
+                                   rad_choice.diag_tagged_enable, rad_choice.diag_regtest_line_enable,
+                                   rad_choice.diag_csv_enable, rad_choice.diag_callsite_mode,
+                                   rad_choice.diag_dedup_tol);
 
     // ========================================
     // Phase 5: GPU-Safe ParallelFor Implementation with Cloud Fraction

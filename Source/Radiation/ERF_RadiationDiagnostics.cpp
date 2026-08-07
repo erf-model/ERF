@@ -11,8 +11,20 @@
 
 RadiationDiagnostics::RadiationDiagnostics(int verbosity,
                                            const std::string& diag_file,
-                                           int amr_level)
-  : m_verbosity(verbosity), m_diag_file(diag_file), m_amr_level(amr_level)
+                                           int amr_level,
+                                           bool diag_enable,
+                                           bool diag_stdout_enable,
+                                           bool diag_tagged_enable,
+                                           bool diag_regtest_line_enable,
+                                           bool diag_csv_enable,
+                                           const std::string& diag_callsite_mode,
+                                           amrex::Real diag_dedup_tol)
+  : m_verbosity(verbosity), m_diag_file(diag_file), m_amr_level(amr_level),
+    m_diag_enable(diag_enable), m_diag_stdout_enable(diag_stdout_enable),
+    m_diag_tagged_enable(diag_tagged_enable),
+    m_diag_regtest_line_enable(diag_regtest_line_enable),
+    m_diag_csv_enable(diag_csv_enable), m_diag_callsite_mode(diag_callsite_mode),
+    m_diag_dedup_tol(diag_dedup_tol)
 {
   // Constructor: nothing special needed
   // write_header_if_needed() is called on first append()
@@ -26,7 +38,7 @@ RadiationDiagnostics::~RadiationDiagnostics()
 
 void RadiationDiagnostics::write_header_if_needed()
 {
-  if (m_header_written) {
+  if (m_header_written || !m_diag_csv_enable || !m_diag_enable) {
     return;
   }
 
@@ -61,17 +73,32 @@ void RadiationDiagnostics::append(int step, amrex::Real time, const std::string&
                                   amrex::Real F_up_surface, amrex::Real F_down_toa,
                                   amrex::Real heating_rate_max)
 {
-  // Guard against duplicate writes for the same step
+  // Phase 7: Master enable gate
+  if (!m_diag_enable) {
+    return;
+  }
+
+  // Phase 7: Call-site mode filtering
+  bool should_emit_pre = (m_diag_callsite_mode == "both" || m_diag_callsite_mode == "pre_only");
+  bool should_emit_post = (m_diag_callsite_mode == "both" || m_diag_callsite_mode == "post_only");
+  
+  bool is_pre_site = (call_site.find("pre") != std::string::npos);
+  bool is_post_site = (call_site.find("post") != std::string::npos);
+
+  // Check if this call site should be filtered based on mode
+  if ((is_pre_site && !should_emit_pre) || (is_post_site && !should_emit_post)) {
+    return;
+  }
+
+  // Guard against duplicate writes using time tolerance
   if (step == m_last_write_step &&
-    call_site == m_last_write_call_site &&
-    std::abs(time - m_last_write_time) < 1.0e-12) {
-  return;
-}
+      call_site == m_last_write_call_site &&
+      std::abs(time - m_last_write_time) < m_diag_dedup_tol) {
+    return;
+  }
   m_last_write_step = step;
   m_last_write_call_site = call_site;
   m_last_write_time = time;
-
-  write_header_if_needed();
 
   // Print debug output (if verbosity >= 1, and IOProcessor only)
   //
@@ -83,7 +110,8 @@ void RadiationDiagnostics::append(int step, amrex::Real time, const std::string&
   // even after Phase 2/3/4 functionality was added, misleading anyone
   // grepping logs by phase. Use the module-generic "[RAD]" tag plus the
   // call-site tag, which remains accurate and grepable across all phases.
-  if (m_verbosity >= 1 && amrex::ParallelDescriptor::IOProcessor()) {
+  if (m_verbosity >= 1 && amrex::ParallelDescriptor::IOProcessor() &&
+      m_diag_tagged_enable && m_diag_stdout_enable) {
     amrex::Print() << "[RAD][RadiationDiagnostics::append] step=" << step
                    << " time=" << time 
                    << " call_site=" << call_site
@@ -93,8 +121,9 @@ void RadiationDiagnostics::append(int step, amrex::Real time, const std::string&
                    << " heating_rate_max=" << heating_rate_max << "\n";
   }
 
-  // Print RADIATION_DIAG line (always, for RegTest scripts)
-  if (amrex::ParallelDescriptor::IOProcessor()) {
+  // Print RADIATION_DIAG line (for RegTest scripts)
+  if (amrex::ParallelDescriptor::IOProcessor() && m_diag_regtest_line_enable &&
+      m_diag_stdout_enable) {
     amrex::Print() << "RADIATION_DIAG: step=" << step << " time=" << time
                    << " call_site=" << call_site
                    << " SW_surface=" << std::scientific << std::setprecision(6)
@@ -104,9 +133,11 @@ void RadiationDiagnostics::append(int step, amrex::Real time, const std::string&
   }
 
   // Append CSV row
-  if (!amrex::ParallelDescriptor::IOProcessor()) {
+  if (!amrex::ParallelDescriptor::IOProcessor() || !m_diag_csv_enable) {
     return;
   }
+
+  write_header_if_needed();
 
   std::ofstream outfile(m_diag_file, std::ios::app);
   if (!outfile.good()) {
