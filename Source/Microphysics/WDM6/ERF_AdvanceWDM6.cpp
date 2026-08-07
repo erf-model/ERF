@@ -917,6 +917,22 @@ void WDM6::Advance(const Real& dt_advance,
             //   - cloud droplet slope parameter rslopec{,2,3}
             //   - ice number concentration xni
             // ============================================================
+#if !defined(AMREX_USE_GPU)
+            if (microphysics_debug > 0 && diag_col_in_tile) {
+                std::printf("WDM6-CPP_PRE_G3 %3d %24.16E %24.16E %24.16E %24.16E %24.16E %24.16E %24.16E %24.16E\n",
+                            diag_k + 1,
+                            static_cast<double>(rslopec_arr(diag_i,diag_j,diag_k)),
+                            static_cast<double>(rslopec2_arr(diag_i,diag_j,diag_k)),
+                            static_cast<double>(rslopec3_arr(diag_i,diag_j,diag_k)),
+                            static_cast<double>(xni_arr(diag_i,diag_j,diag_k)),
+                            static_cast<double>(qc_arr(diag_i,diag_j,diag_k)),
+                            static_cast<double>(qi_arr(diag_i,diag_j,diag_k)),
+                            static_cast<double>(nc_arr(diag_i,diag_j,diag_k)),
+                            static_cast<double>(den_arr(diag_i,diag_j,diag_k)));
+                std::fflush(stdout);
+            }
+#endif
+
             ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
                 if (qc_arr(i,j,k) <= Real(qmin) || nc_arr(i,j,k) <= Real(1.e1)) {
                     rslopec_arr(i,j,k)  = rslopecmax_loc;
@@ -933,7 +949,7 @@ void WDM6::Advance(const Real& dt_advance,
 
 #if !defined(AMREX_USE_GPU)
             if (microphysics_debug > 0 && diag_col_in_tile) {
-                std::printf("WDM6-CPP_PRE_G3 %3d %24.16E %24.16E %24.16E %24.16E %24.16E %24.16E %24.16E %24.16E\n",
+                std::printf("WDM6-CPP_POST_G3 %3d %24.16E %24.16E %24.16E %24.16E %24.16E %24.16E %24.16E %24.16E\n",
                             diag_k + 1,
                             static_cast<double>(rslopec_arr(diag_i,diag_j,diag_k)),
                             static_cast<double>(rslopec2_arr(diag_i,diag_j,diag_k)),
@@ -945,8 +961,6 @@ void WDM6::Advance(const Real& dt_advance,
                             static_cast<double>(den_arr(diag_i,diag_j,diag_k)));
                 std::fflush(stdout);
             }
-#else
-            amrex::ignore_unused(microphysics_debug, micro_diag_target_column);
 #endif
 
             // ============================================================
@@ -1653,30 +1667,17 @@ void WDM6::Advance(const Real& dt_advance,
 #endif
 
             // ============================================================
-            // Step 4: WDM6 CCN Activation
+            // DISABLED: Steps 4-8 (CCN, condensation, autoconversion, accretion, evaporation)
             // ============================================================
-#if !defined(AMREX_USE_GPU)
-            if (microphysics_debug > 0 && diag_col_in_tile) {
-                std::printf("WDM6-CPP_POST_G3 %3d %24.16E %24.16E %24.16E %24.16E %24.16E %24.16E %24.16E %24.16E\n",
-                            diag_k + 1,
-                            static_cast<double>(rslopec_arr(diag_i,diag_j,diag_k)),
-                            static_cast<double>(rslopec2_arr(diag_i,diag_j,diag_k)),
-                            static_cast<double>(rslopec3_arr(diag_i,diag_j,diag_k)),
-                            static_cast<double>(xni_arr(diag_i,diag_j,diag_k)),
-                            static_cast<double>(qc_arr(diag_i,diag_j,diag_k)),
-                            static_cast<double>(qi_arr(diag_i,diag_j,diag_k)),
-                            static_cast<double>(nc_arr(diag_i,diag_j,diag_k)),
-                            static_cast<double>(den_arr(diag_i,diag_j,diag_k)));
-                std::fflush(stdout);
-            }
-#endif
-            // TODO: Need vertical velocity from ERF state
-            // For now, use a placeholder (could extract from momentum)
+            // These steps were incorrectly ordered BETWEEN G10a and G10b,
+            // breaking parity with Fortran. They lack proper group boundary tags (WDM6-CPP_PRE_Gxx/POST_Gxx)
+            // and should be ported as bounded groups in correct phase order.
+            // Re-enable after proper group-based porting.
+            // TODO: G11 (slope repack), G13a-G13g (warm-rain, accretion, etc), G16b (pcond+activation)
+#if 0
+            // Step 4: WDM6 CCN Activation
             ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-                // Placeholder: assume small updraft of 0.1 m/s
-                // In production, extract from w-velocity component
                 Real w_velocity = Real(0.1);
-
                 wdm6_ccn_activation(
                     nc_arr(i,j,k), nn_arr(i,j,k),
                     qv_arr(i,j,k), qc_arr(i,j,k),
@@ -1685,18 +1686,14 @@ void WDM6::Advance(const Real& dt_advance,
                 );
             });
 
-            // ============================================================
-            // Step 5: Condensation/Evaporation (adapted from WSM6)
-            // ============================================================
+            // Step 5: Condensation/Evaporation
             ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
                 if (t_arr(i,j,k) > Real(t0c)) {
-                    // Warm rain: condensation/evaporation
                     Real qcond = wdm6_conden(
                         t_arr(i,j,k), qv_arr(i,j,k), qsatw_arr(i,j,k),
                         xl_arr(i,j,k), cpm_arr(i,j,k),
                         Real(qmin), Real(rv)
                     );
-
                     pcond_arr(i,j,k) = qcond / dtcld;
                     qv_arr(i,j,k) -= qcond;
                     qc_arr(i,j,k) += qcond;
@@ -1704,90 +1701,60 @@ void WDM6::Advance(const Real& dt_advance,
                 }
             });
 
-            // ============================================================
-            // Step 6: WDM6 Double-Moment Autoconversion
-            // ============================================================
+            // Step 6: Autoconversion
             ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
                 if (qc_arr(i,j,k) > qc1_loc && nc_arr(i,j,k) > Real(1.e1)) {
-                    // Calculate mean droplet diameter
                     Real mean_dia = wdm6_mean_droplet_diameter(
                         qc_arr(i,j,k), nc_arr(i,j,k), den_arr(i,j,k), pidnc_loc
                     );
-
-                    // Autoconversion only if droplets exceed threshold size
-                    if (mean_dia > Real(15.e-6)) {  // di15
-                        // Mass autoconversion rate (Berry & Reinhardt 1974)
+                    if (mean_dia > Real(15.e-6)) {
                         Real auto_qc = qck1_loc * qc_arr(i,j,k) * qc_arr(i,j,k) * nc_arr(i,j,k);
                         auto_qc = amrex::min(auto_qc * dtcld, qc_arr(i,j,k));
-
-                        // Number autoconversion: Long's collection kernel
-                        // Simplified: convert proportional to mass, with efficiency < 1
                         Real auto_nc = auto_qc * nc_arr(i,j,k) / qc_arr(i,j,k) * Real(0.5);
                         auto_nc = amrex::min(auto_nc, nc_arr(i,j,k));
-
-                        // Number of new raindrops created (much less than droplets consumed)
-                        Real auto_nr = auto_nc * Real(0.01);  // ~1% of droplets become rain drops
-
-                        // Apply autoconversion
+                        Real auto_nr = auto_nc * Real(0.01);
                         praut_arr(i,j,k) = auto_qc / dtcld;
                         qc_arr(i,j,k) -= auto_qc;
                         qr_arr(i,j,k) += auto_qc;
-
                         ncauto_arr(i,j,k) = auto_nc / dtcld;
                         nc_arr(i,j,k) -= auto_nc;
-
                         nrauto_arr(i,j,k) = auto_nr / dtcld;
                         nr_arr(i,j,k) += auto_nr;
                     }
                 }
             });
 
-            // ============================================================
-            // Step 7: Accretion (cloud water collected by rain)
-            // ============================================================
+            // Step 7: Accretion
             ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
                 if (qr_arr(i,j,k) > Real(1.e-9) && qc_arr(i,j,k) > Real(1.e-9)) {
-                    // Accretion rate (continuous collection)
                     Real accr_qc = Real(6.0) * qc_arr(i,j,k) * qr_arr(i,j,k);
                     accr_qc = amrex::min(accr_qc * dtcld, qc_arr(i,j,k));
-
-                    // Cloud droplets collected by rain
                     Real accr_nc = accr_qc * nc_arr(i,j,k) / qc_arr(i,j,k);
                     accr_nc = amrex::min(accr_nc, nc_arr(i,j,k));
-
-                    // Apply accretion
                     pracw_arr(i,j,k) = accr_qc / dtcld;
                     qc_arr(i,j,k) -= accr_qc;
                     qr_arr(i,j,k) += accr_qc;
-
                     ncaccr_arr(i,j,k) = accr_nc / dtcld;
                     nc_arr(i,j,k) -= accr_nc;
-                    // Note: nr unchanged (rain drops grow but don't multiply)
                 }
             });
 
-            // ============================================================
             // Step 8: Rain evaporation
-            // ============================================================
             ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
                 if (qr_arr(i,j,k) > Real(1.e-9) && rhw_arr(i,j,k) < Real(1.0)) {
-                    // Simplified evaporation (full version in WRF)
                     Real qrevp = Real(0.001) * qr_arr(i,j,k) * (Real(1.0) - rhw_arr(i,j,k));
                     qrevp = amrex::min(qrevp * dtcld, qr_arr(i,j,k));
-
-                    // Rain number lost to evaporation
                     Real nrevp = qrevp * nr_arr(i,j,k) / qr_arr(i,j,k);
                     nrevp = amrex::min(nrevp, nr_arr(i,j,k));
-
                     prevp_arr(i,j,k) = qrevp / dtcld;
                     qr_arr(i,j,k) -= qrevp;
                     qv_arr(i,j,k) += qrevp;
                     t_arr(i,j,k) -= qrevp * xl_arr(i,j,k) / cpm_arr(i,j,k);
-
                     nrevp_arr(i,j,k) = nrevp / dtcld;
                     nr_arr(i,j,k) -= nrevp;
                 }
             });
+#endif
 
             // ============================================================
             // Step 3k: G10b Cloud-Water Homogeneous Freezing
