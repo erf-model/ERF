@@ -1,6 +1,6 @@
 # Radiation Module: MPI, GPU & Parallelization Skills
 
-This document captures essential MPI, GPU, and AMReX parallelization patterns required for radiation module development. It serves as a reference for avoiding common pitfalls and understanding the architectural constraints that shape the radiation solver.
+This document captures essential MPI, GPU, and AMReX parallelization patterns required for radiation module development. It serves as a reference for avoiding common pitfalls and understanding the design decisions made throughout the phases.
 
 ---
 
@@ -449,44 +449,6 @@ for (int i = bx.smallEnd(0); i <= bx.bigEnd(0); ++i) {
     }
 }
 ```
----
-### D.8 – Phase 3 Lesson: Re-Verify Every `_enabled`-Style Flag After Any Rewrite
-
-**Issue:**
-Phase 2d discovered that `sw_enabled` / `lw_enabled` gating had silently
-stopped being respected in some code paths after an earlier rewrite of
-`vertical_two_stream_sweep()` and `compute_twostream_radiation_diagnostics()`.
-Because these are simple boolean ParmParse flags with no compiler-enforced
-check, a refactor can easily drop or bypass an `if (rad_choice.X_enabled)`
-guard without causing any build error.
-
-**Prevention Rule:**
-After ANY rewrite of a function containing `_enabled`-style (or
-enum-based, e.g., `tau_profile_type`, `isothermal_test`) gating flags,
-explicitly grep the modified file for every place the flag SHOULD appear,
-and confirm each one still gates the intended code:
-
-```bash
-grep -n "sw_enabled\|lw_enabled\|isothermal_test\|tau_profile_type\|cloud_fraction" \
-  Source/Radiation/ERF_AdvanceTwoStreamRadiation.cpp
-
----
-
-### D.9 – Phase 3 Lesson: A Task Is Not Complete Until It Is Pushed and a PR Exists
-
-**Issue:**
-
-Prior attempts at delivering radiation-module phases have produced fully-correct, well-documented code changes that were never actually pushed to a remote branch, or where a PR was never opened — because the agent misdiagnosed a real remote branch as missing, or encountered a push failure and substituted a written summary in place of completing the actual git operations.
-
-**Prevention Rule:**
-
-    Never use git branch -r alone to conclude a remote branch does not exist — this only lists branches your local repo already has a tracking ref for. Use git ls-remote origin <branch> or git fetch origin <branch> to authoritatively check for a remote branch's existence.
-    After pushing, verify success by checking actual command output for a new/updated ref (not just a zero exit code), and cross-check with git ls-remote origin | grep <branch-name>.
-    If a push fails, retry exactly once. If it fails again, stop and report the exact error message verbatim — do not attempt further workarounds, and do not describe the task as complete.
-    A local commit with no pushed branch, or a pushed branch with no opened pull request, is an incomplete task, regardless of how complete or well-documented the code changes themselves are.
-
-Lesson: Code correctness and delivery mechanics (push + PR) are two independent completion criteria. Verify both explicitly before ending a session.
-
 
 This violates GPU-safety rules in two ways:
 1. Device functions can only be called from device code (e.g., inside a `ParallelFor` lambda)
@@ -526,6 +488,42 @@ grep -B3 "vertical_two_stream_sweep(" Source/Radiation/ERF_AdvanceTwoStreamRadia
 
 **Lesson:**
 Never call a device function from host-side code. Always use AMReX's parallel launch mechanisms (`ParallelFor`, `reduce`, etc.). Device functions can only be called from within device lambdas.
+
+---
+
+### D.8 – Phase 3 Lesson: Re-Verify Every `_enabled`-Style Flag After Any Rewrite
+
+**Issue:**
+Phase 2d discovered that `sw_enabled` / `lw_enabled` gating had silently stopped being respected in some code paths after an earlier rewrite of `vertical_two_stream_sweep()` and `compute_twostream_radiation_diagnostics()`. Because these are simple boolean ParmParse flags with no compiler-enforced check, a refactor can easily drop or bypass an `if (rad_choice.X_enabled)` guard without causing any build error.
+
+**Prevention Rule:**
+After ANY rewrite of a function containing `_enabled`-style (or enum-based, e.g., `tau_profile_type`, `isothermal_test`) gating flags, explicitly grep the modified file for every place the flag SHOULD appear, and confirm each one still gates the intended code:
+
+```bash
+grep -n "sw_enabled\|lw_enabled\|isothermal_test\|tau_profile_type\|cloud_fraction" \
+  Source/Radiation/ERF_AdvanceTwoStreamRadiation.cpp
+```
+
+Then manually confirm, for each match, that it actually wraps the corresponding SW/LW computation rather than merely appearing in an unrelated comment or unused branch.
+
+**Lesson:**
+A boolean flag with no gating effect is a silent physics bug, not a compile error. Every `_enabled`/`_type`-style ParmParse flag must be re-verified — not just re-read — after any rewrite of the function(s) it is supposed to gate. List the specific line numbers confirmed in the PR description; do not just assert "flags still work."
+
+---
+
+### D.9 – Phase 3 Lesson: A Task Is Not Complete Until It Is Pushed and a PR Exists
+
+**Issue:**
+Prior attempts at delivering radiation-module phases have produced fully-correct, well-documented code changes that were never actually pushed to a remote branch, or where a PR was never opened — because the agent misdiagnosed a real remote branch as missing, or encountered a push failure and substituted a written summary in place of completing the actual git operations.
+
+**Prevention Rule:**
+- Never use `git branch -r` alone to conclude a remote branch does not exist — this only lists branches your local repo already has a tracking ref for. Use `git ls-remote origin <branch>` or `git fetch origin <branch>` to authoritatively check for a remote branch's existence.
+- After pushing, verify success by checking actual command output for a new/updated ref (not just a zero exit code), and cross-check with `git ls-remote origin | grep <branch-name>`.
+- If a push fails, retry exactly once. If it fails again, stop and report the exact error message verbatim — do not attempt further workarounds, and do not describe the task as complete.
+- A local commit with no pushed branch, or a pushed branch with no opened pull request, is an **incomplete task**, regardless of how complete or well-documented the code changes themselves are.
+
+**Lesson:**
+Code correctness and delivery mechanics (push + PR) are two independent completion criteria. Verify both explicitly before ending a session.
 
 ---
 
