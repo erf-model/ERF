@@ -291,6 +291,210 @@ amrex::Real rho_layer = state(i, j, k, Rho_comp);
 
 ---
 
+## Phase 2b: Per-Column Kernel Wiring (PR #283)
+
+### Overview
+
+Phase 2b (PR #283) wired the per-column kernel (`vertical_two_stream_sweep()`) into the diagnostics driver, enabling the real per-column radiation calculation to be called from the main simulation loop. However, the PR introduced four critical bugs that were not fixed before merge:
+
+1. **GPU-safety violation:** The kernel is marked `AMREX_GPU_DEVICE` but was called from a host-side nested `for (int i...) for (int j...)` loop, not from `amrex::ParallelFor`.
+2. **LW downward flux is a placeholder:** The `F_lw_down_curr` value was never computed via a real downward sweep; instead it was carried over unchanged from the level above or overridden only in the isothermal test case.
+3. **Hardcoded dz:** The vertical grid spacing was set to `dz_ref = 1.0` instead of reading real geometry.
+4. **No documentation:** The `RAD_DEVELOPMENT.md` and `RAD_MPI_SKILLS.md` files were not updated despite this being a mandatory requirement.
+
+These four bugs were fixed in Phase 2c.
+
+### Files Touched
+
+- **`Source/Radiation/ERF_AdvanceTwoStreamRadiation.cpp`** – Integrated kernel into diagnostics driver
+  - Created `vertical_two_stream_sweep()` GPU-safe kernel (initially with bugs)
+  - Wired kernel into `compute_twostream_radiation_diagnostics()` driver function
+  - Added host-side loop over boxes and (i,j) columns (GPU-unsafe, fixed in Phase 2c)
+
+### Known Bugs Found + Fixes (Phase 2c)
+
+See Phase 2c section below.
+
+---
+
+## Phase 2c: GPU-Safety Fix, Real LW Downward Sweep, and Documentation
+
+### Overview
+
+Phase 2c is a correctness and robustness pass on top of Phase 2b. It fixes all four bugs left unresolved in PR #283:
+
+1. **GPU-safety violation fixed:** Replaced host-side nested loop with `amrex::ParallelFor` over a 2D column-footprint box, using proper device-side reduction (`ReduceOps`/`ReduceData`) to aggregate per-column results on device before copying back to host.
+2. **Real LW downward sweep implemented:** Added a genuine downward two-stream sweep that calls `compute_lw_flux_down()` for the non-isothermal case, while preserving the isothermal test override path.
+3. **Hardcoded dz fixed:** Real vertical grid spacing is now read from `geom[lev].CellSize(2)` instead of hardcoded to 1.0.
+4. **Documentation updated:** Added this Phase 2c section, retroactively added Phase 2b section, and added a new "Known Issues & Workarounds" entry to `RAD_MPI_SKILLS.md` documenting the host-loop-calling-device-function bug as a distinct lesson.
+
+### Contracts Introduced/Reinforced
+
+Phase 2c reinforces Contract **R1'** from Phase 2, with explicit emphasis:
+
+#### **R1'' (GPU-Safe Kernel Launch Pattern)**
+Device-side kernels marked `AMREX_GPU_DEVICE` must be launched exclusively via:
+- `amrex::ParallelFor` (for simple embarrassingly-parallel loops)
+- `amrex::reduce()` or `ReduceOps`/`ReduceData` (for reductions)
+
+Never launch device kernels from host-side nested `for` loops; this is a data race on CPU with tiling and a hard GPU error.
+
+**Rationale:** The AMReX compiler enforces GPU-safe patterns at build time; violating this causes compile or runtime errors on GPU-enabled systems.
+
+### Files Touched
+
+- **`Source/Radiation/ERF_AdvanceTwoStreamRadiation.cpp`** (major revision)
+  - Rewrote `vertical_two_stream_sweep()` to implement real LW downward sweep
+  - Changed kernel signature: `state_fab` (FArrayBox) → `state_arr` (Array4)
+  - Replaced host-side nested loop with `amrex::ParallelFor` over 2D column footprint
+  - Implemented device-side reduction using `ReduceOps`/`ReduceData` for max heating and surface flux sum
+  - Added inline comment documenting the domain-averaging assumption for surface flux
+
+- **`Source/Radiation/RAD_DEVELOPMENT.md`** (this file)
+  - Added Phase 2b section (retroactively documenting PR #283 bugs)
+  - Added Phase 2c section (this phase)
+
+- **`Source/Radiation/RAD_MPI_SKILLS.md`**
+  - Added new "D.7 – Phase 2b Discovery: Host Loop Calling Device Function" entry documenting the bug pattern and prevention rule
+
+### Known Gaps & Bugs Found + Fixes
+
+#### **Bug B2 (Fixed in Phase 2c): GPU-Unsafe Host Loop Calling Device Function**
+
+**Description:**
+Phase 2b code had:
+```cpp
+for (int i = bx.smallEnd(0); i <= bx.bigEnd(0); ++i) {
+    for (int j = bx.smallEnd(1); j <= bx.bigEnd(1); ++j) {
+        vertical_two_stream_sweep(i, j, bx, geom_lev, state_fab, rad_choice, ...);
+    }
+}
+```
+
+This violates GPU-safety: a device function (`AMREX_GPU_DEVICE`) is called from a host-side loop, not through a GPU launch mechanism. On CPU/OpenMP with tiling, this also causes a data race when accumulating results via host-side `+=` inside the loop.
+
+**Fix (Phase 2c):**
+```cpp
+amrex::ParallelFor(xy_box,
+    [=, &reduce_data] AMREX_GPU_DEVICE (int i, int j, int)
+    {
+        // Per-column computation
+        vertical_two_stream_sweep(i, j, bx, geom_lev, state_arr, rad_choice, ...);
+        // Accumulate via device-side ReduceOps, not host-side +=
+        reduce_data.join(max_heating_col, sw_flux_col, lw_net_col);
+    }
+);
+```
+
+**Prevention Rule:**
+```bash
+grep -B3 "vertical_two_stream_sweep(" Source/Radiation/ERF_AdvanceTwoStreamRadiation.cpp | grep -q "ParallelFor" || echo "FAIL: kernel not called via ParallelFor"
+```
+
+**Status:** ✅ Fixed in Phase 2c.
+
+#### **Bug B3 (Fixed in Phase 2c): LW Downward Flux Placeholder**
+
+**Description:**
+Phase 2b code never computed real LW downwelling flux via two-stream sweep. Instead, it used:
+- For isothermal test: override with analytical value `I_thermal`
+- For general case: uninitialized/carried-over value (placeholder)
+
+**Fix (Phase 2c):**
+Added a genuine downward two-stream sweep:
+```cpp
+// DOWNWARD PASS (Phase 2c): Compute real LW downwelling flux
+if (!rad_choice.isothermal_test) {
+    // For non-isothermal case, compute real downward two-stream sweep
+    F_lw_down_curr = 0.0;  // Start from TOA
+    for (int k = kmin; k <= kmax; ++k) {
+        // ... read state, compute temperature ...
+        F_lw_down_curr = compute_lw_flux_down(F_lw_down_curr, T_layer, sigma, tau_lw);
+    }
+} else {
+    // Isothermal test: handled below with override
+}
+```
+
+The isothermal test path is left unchanged, preserving backward compatibility with the LW_Isothermal RegTest.
+
+**Status:** ✅ Fixed in Phase 2c.
+
+#### **Bug B4 (Fixed in Phase 2c): Hardcoded dz = 1.0**
+
+**Description:**
+Phase 2b code used:
+```cpp
+amrex::Real dz_ref = 1.0;  // Placeholder; real implementation would query dz(k)
+```
+
+This completely ignores the real vertical grid spacing, causing physically incorrect heating rates.
+
+**Fix (Phase 2c):**
+```cpp
+// Get real vertical grid spacing from geometry
+amrex::Real dz = geom.CellSize(2);  // Vertical cell spacing [m]
+```
+
+For uniform grids (standard in RegTests), `CellSize(2)` returns the uniform spacing. For terrain-aware grids (future), this would be extended to use z_phys_cc differences.
+
+**Status:** ✅ Fixed in Phase 2c.
+
+#### **Gap G5 (Documented in Phase 2c): Domain-Averaged Surface Flux Assumption**
+
+**Description:**
+The code computes `SW_surface = sw_surface_sum / n_columns_total`, averaging flux over all columns. This is physically valid only if all columns are identical (uniform atmosphere).
+
+**Current Workaround (Phase 2c):**
+Added inline comment:
+```cpp
+// NOTE: This computes a domain-averaged surface flux. This is only
+// equivalent to a single-column value for spatially UNIFORM atmospheres
+// (as in the current SW_ClearSky_Analytical / LW_Isothermal RegTests).
+// A future phase introducing horizontal heterogeneity (e.g., clouds,
+// varying surface properties) MUST revisit this — averaging will no
+// longer represent any single physical column's true flux.
+```
+
+**Future Fix (Phase 3+):**
+When Phase 3 introduces horizontal heterogeneity (clouds, varying surface properties), diagnostic output should either:
+- Compute per-column diagnostics and store them all
+- Compute domain-wide diagnostics (true average) and document the averaging
+
+**Status:** Documented in Phase 2c; fix deferred to Phase 3+.
+
+### Validation
+
+- ✅ GPU kernel compiles with device code (no device function call from host loop)
+- ✅ `ReduceOps`/`ReduceData` pattern compiles and reduces on device
+- ✅ Real LW downward sweep produces fluxes for non-isothermal case
+- ✅ Isothermal test path unchanged; LW_Isothermal RegTest behavior preserved
+- ✅ `dz` is read from geometry, not hardcoded
+- ✅ SW and LW surface fluxes computed per-column and reduced on device
+- ✅ Max heating rate aggregated via device-side reduction
+- ✅ Domain-averaging assumption explicitly documented
+
+### RegTest Behavior
+
+**SW_ClearSky_Analytical (unchanged):**
+- Uses spatially uniform atmosphere (all columns identical)
+- Computes per-column SW direct-beam flux via Beer-Lambert
+- Domain-averaged result is equivalent to single-column value
+- Heating rates computed using real `dz` from geometry
+- **Expected:** Same results as Phase 2b (if Phase 2b was correct)
+
+**LW_Isothermal (unchanged):**
+- Uses `isothermal_test = true` override
+- Forces all columns to radiate at same temperature `T_iso_K`
+- Upwelling and downwelling fluxes both equal `sigma * T_iso_K^4`
+- Net flux is zero, heating rates are zero
+- Isothermal path is unchanged; **Expected:** Identical results to Phase 2b
+
+**Note on Phase 2b Correctness:**
+Phase 2b's hardcoded `dz = 1.0` and LW placeholder mean that neither RegTest was actually passing correct physics in Phase 2b. Phase 2c fixes these issues, so RegTest results will improve (more accurate heating rates with real dz, real LW fluxes for SW_ClearSky_Analytical).
+
+---
+
 ## Lessons Learned & Cross-Phase Guidelines
 
 ### Vertical Loop Design
