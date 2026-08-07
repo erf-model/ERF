@@ -1637,7 +1637,7 @@ struct SolverChoice {
     int bdy_moist_nudge_type = 0;
 
     // Keep the WRF grid or remake our own?
-    bool use_wrf_height_grid {false};
+    bool use_wrf_height_grid {true};
 
     // Use forest canopy model?
     bool do_forest_drag {false};
