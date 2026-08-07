@@ -203,11 +203,11 @@ void ERF::compute_twostream_radiation_diagnostics(
     amrex::Real F_down_toa = 0.0;
     amrex::Real heating_rate_max = 0.0;
 
-    // Get state at this level
-    const auto& state_mf = get_state(State_Type, lev);
+    // Get state at this level (conservative variables: density, RhoTheta, etc.)
+    const auto& state_cons = vars_old[lev][Vars::cons];
     
     // Only compute radiation if we have valid state data
-    if (state_mf.nComp() > 0 && state_mf.nBoxes() > 0) {
+    if (state_cons.nComp() > 0 && state_cons.nBoxes() > 0) {
         
         // Prepare to compute TOA values (used for diagnostics output)
         amrex::Real zenith_rad = rad_choice.solar_zenith_deg * M_PI / 180.0;
@@ -221,10 +221,10 @@ void ERF::compute_twostream_radiation_diagnostics(
         amrex::Long n_columns_total = 0;
 
         // Sequential loop over all boxes (each box handled appropriately)
-        for (MFIter mfi(state_mf, TilingIfNotGPU()); mfi.isValid(); ++mfi)
+        for (MFIter mfi(state_cons, TilingIfNotGPU()); mfi.isValid(); ++mfi)
         {
             const Box& bx = mfi.tilebox();
-            const FArrayBox& state_fab = state_mf[mfi];
+            const FArrayBox& state_fab = state_cons[mfi];
             const Geometry& geom_lev = geom[lev];
             
             // Count columns in this box
