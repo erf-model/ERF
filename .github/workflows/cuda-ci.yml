@@ -90,7 +90,7 @@ jobs:
 
       - name: Report
         run: |
-          grep -Ei "warning:|error:" ${{runner.workspace}}/build-${{matrix.cuda_pkg}}-output.txt \
+          grep -Ei "warning:|warning #|error:|error #" ${{runner.workspace}}/build-${{matrix.cuda_pkg}}-output.txt \
             | grep -Ev "Submodules/(amrex|googletest)" | grep -Ev "lto-wrapper: warning:" | sort | uniq \
             | awk 'BEGIN{i=0}{print $0}{i++}END{print "Warnings: "i}' > ${{runner.workspace}}/build-${{matrix.cuda_pkg}}-output-warnings.txt
           cat ${{runner.workspace}}/build-${{matrix.cuda_pkg}}-output-warnings.txt
