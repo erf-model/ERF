@@ -32,7 +32,7 @@ from pathlib import Path
 # User-tunable test configuration
 # Use environment variables or hardcoded defaults
 # ---------------------------------------------------------------------
-CSV_PATH = Path("radiation_phase7_diag.dat")
+CSV_PATH = Path("radiation_phase6_timing_diag.dat")
 
 S0 = 1361.0
 SOLAR_ZENITH_DEG = 60.0
