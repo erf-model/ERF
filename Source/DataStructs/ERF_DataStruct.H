@@ -776,6 +776,10 @@ struct SolverChoice {
         // What's the strength of the bdy nudging?
         pp.query("bdy_nudge_factor",bdy_nudge_factor);
 
+        // Optionally use the dry-air density reconstructed from wrfbdy.
+        pp.query("use_wrf_bdy_density", use_wrf_bdy_density);
+        pp.query("bdy_rho_nudge_factor", bdy_rho_nudge_factor);
+
         // Which approach to nudging the moist variables in the boundary region?
         pp.query("bdy_moist_nudge_type",bdy_moist_nudge_type);
 
@@ -1623,6 +1627,11 @@ struct SolverChoice {
 
     // Nudging factor for bdy sponging : F1 = 1/(nudge_factor * dt)
     amrex::Real bdy_nudge_factor = amrex::Real(10.0);
+
+    // Use density reconstructed from standard WRF lateral boundary data.
+    bool use_wrf_bdy_density = false;
+    // Density-specific Davies factor; non-positive means use bdy_nudge_factor.
+    amrex::Real bdy_rho_nudge_factor = amrex::Real(-1.0);
 
     // Which approach to nudging the moist variables in the boundary region?
     int bdy_moist_nudge_type = 0;
