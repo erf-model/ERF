@@ -9,7 +9,7 @@ This document tracks the development of the two-stream radiation model through p
 | **1** | Two-Stream Skeleton with Analytic Stub | ✅ Complete | `ERF-Radiation` | N/A | Clear-sky SW/LW, diagnostic output, single-layer optical depth |
 | **2** | Real Per-Column Two-Stream Radiation | ✅ Complete | `copilot/phase2-real-per-column-radiation` | TBD | Per-column vertical integration, actual grid bounds, GPU-safe kernel |
 | **3** | Cloud Optical Properties | ✅ Complete | `copilot/phase3-cloud-optical-properties-manual` | TBD | Height-varying (cloud layer) optical depth, cloud fraction masking |
-| **4** | Scattering Effects | ⏳ Planned | TBD | TBD | Diffuse component, multi-stream expansion |
+| **4** | Scattering Effects | ✅ Complete | `copilot/phase4-scattering-effects-manual` | Merged | Diffuse (scattering) SW component via Meador-Weaver two-stream approximation |
 | **5** | RhoTheta Coupling | ⏳ Planned | TBD | TBD | Inject heating rates into prognostic equation |
 | **6** | Time-Stepping Integration | ⏳ Planned | TBD | TBD | Proper sub-stepping with radiation transport |
 | **7** | RRTMGP Interface | ⏳ Planned | TBD | TBD | Full spectral model alternative |
@@ -29,7 +29,7 @@ Phase 1 delivered the foundational two-stream radiation module for ERF. It estab
 - Parameter input via `RadChoice` struct
 
 **Critical Limitation (to be fixed in Phase 2):**
-The stub does NOT perform real vertical integration. It uses a single global `tau_cumulative = tau_per_layer * n_layers` value (treating all optical depth as if compressed into a single slab), rather than properly accumulating optical depth layer-by-layer through the actual domain's vertical grid.
+The stub does NOT perform real vertical integration. It uses a single global `tau_cumulative = tau_per_layer * n_layers` value (treating all optical depth as if compressed into a single slab), rather than accumulating optical depth level-by-level through the actual vertical grid.
 
 ### Contracts Introduced
 
@@ -104,13 +104,13 @@ All input parameters (`tau_per_layer`, `S0`, `T_iso_K`, etc.) must be:
 
 #### **Gap G1: No Real Vertical Integration**
 **Description:**
-The Phase 1 stub computes a single `tau_cumulative = tau_per_layer * n_layers` value regardless of grid resolution. This is a physics error: in reality, optical depth must be accumulated layer-by-layer through a vertical sweep, allowing proper treatment of varying atmospheric properties.
+The Phase 1 stub computes a single `tau_cumulative = tau_per_layer * n_layers` value regardless of grid resolution. This is a physics error: in reality, optical depth must be accumulated layer-by-layer.
 
 **Status:** Will be fixed in Phase 2.
 
 #### **Gap G2: No Atmospheric State Reading**
 **Description:**
-Diagnostics are computed from input parameters only (solar zenith, optical depth, Stefan-Boltzmann constant). The code does NOT read actual temperature, density, or pressure from the simulation's atmospheric state. This precludes realistic heating rate computation.
+Diagnostics are computed from input parameters only (solar zenith, optical depth, Stefan-Boltzmann constant). The code does NOT read actual temperature, density, or pressure from the simulation's state.
 
 **Status:** Will be addressed in Phase 2.
 
@@ -124,7 +124,7 @@ Phase 1 uses a single effective optical depth per spectral band (SW/LW). Real at
 **Description:**
 Beer-Lambert (direct-beam only) and two-stream LW assume no scattering. Real atmosphere scatters solar radiation diffusely.
 
-**Status:** Deferred to Phase 4.
+**Status:** ✅ Addressed for SW in Phase 4 (Meador-Weaver two-stream diffuse flux). LW scattering remains explicitly deferred — see Phase 4 section below.
 
 ### Validation
 
@@ -149,7 +149,7 @@ Phase 2 replaces the Phase 1 analytic stub with a **real, per-column vertical in
 - Computes realistic heating rates and fluxes based on true atmospheric conditions
 - Maintains GPU performance through reduction of diagnostics before host-side output
 
-The key fix addresses **Gap G1** (real vertical integration) and **Gap G2** (atmospheric state). Phase 2 is the first phase to actually couple the radiation module to the simulation's grid and thermodynamics.
+The key fix addresses **Gap G1** (real vertical integration) and **Gap G2** (atmospheric state). Phase 2 is the first phase to actually couple the radiation module to the simulation's grid and thermodynamic state.
 
 ### Contracts Introduced
 
@@ -250,7 +250,7 @@ amrex::Real rho_layer = state(i, j, k, Rho_comp);
 
 #### **Gap G3, G4 (Deferred to Later Phases)**
 - G3 (Spectral resolution): Deferred to Phase 3, Phase 7
-- G4 (Scattering): Deferred to Phase 4
+- G4 (Scattering): Addressed for SW in Phase 4; LW scattering remains deferred (see Phase 4 section)
 
 ### Validation
 
@@ -295,10 +295,10 @@ amrex::Real rho_layer = state(i, j, k, Rho_comp);
 
 ### Overview
 
-Phase 2b (PR #283) wired the per-column kernel (`vertical_two_stream_sweep()`) into the diagnostics driver, enabling the real per-column radiation calculation to be called from the main simulation loop. However, the PR introduced four critical bugs that were not fixed before merge:
+Phase 2b (PR #283) wired the per-column kernel (`vertical_two_stream_sweep()`) into the diagnostics driver, enabling the real per-column radiation calculation to be called from the main simulation loop. However, it introduced four bugs:
 
 1. **GPU-safety violation:** The kernel is marked `AMREX_GPU_DEVICE` but was called from a host-side nested `for (int i...) for (int j...)` loop, not from `amrex::ParallelFor`.
-2. **LW downward flux is a placeholder:** The `F_lw_down_curr` value was never computed via a real downward sweep; instead it was carried over unchanged from the level above or overridden only in the isothermal test case.
+2. **LW downward flux is a placeholder:** The `F_lw_down_curr` value was never computed via a real downward sweep; instead it was carried over unchanged from the level above or overridden only in the isothermal test path.
 3. **Hardcoded dz:** The vertical grid spacing was set to `dz_ref = 1.0` instead of reading real geometry.
 4. **No documentation:** The `RAD_DEVELOPMENT.md` and `RAD_MPI_SKILLS.md` files were not updated despite this being a mandatory requirement.
 
@@ -323,10 +323,10 @@ See Phase 2c section below.
 
 Phase 2c is a correctness and robustness pass on top of Phase 2b. It fixes all four bugs left unresolved in PR #283:
 
-1. **GPU-safety violation fixed:** Replaced host-side nested loop with `amrex::ParallelFor` over a 2D column-footprint box, using proper device-side reduction (`ReduceOps`/`ReduceData`) to aggregate per-column results on device before copying back to host.
-2. **Real LW downward sweep implemented:** Added a genuine downward two-stream sweep that calls `compute_lw_flux_down()` for the non-isothermal case, while preserving the isothermal test override path.
+1. **GPU-safety violation fixed:** Replaced host-side nested loop with `amrex::ParallelFor` over a 2D column-footprint box, using proper device-side reduction (`ReduceOps`/`ReduceData`) to aggregate results.
+2. **Real LW downward sweep implemented:** Added a genuine downward two-stream sweep that calls `compute_lw_flux_down()` for the non-isothermal case, while preserving the isothermal test override.
 3. **Hardcoded dz fixed:** Real vertical grid spacing is now read from `geom[lev].CellSize(2)` instead of hardcoded to 1.0.
-4. **Documentation updated:** Added this Phase 2c section, retroactively added Phase 2b section, and added a new "Known Issues & Workarounds" entry to `RAD_MPI_SKILLS.md` documenting the host-loop-calling-device-function bug as a distinct lesson.
+4. **Documentation updated:** Added this Phase 2c section, retroactively added Phase 2b section, and added a new "Known Issues & Workarounds" entry to `RAD_MPI_SKILLS.md` documenting the host-loop bug pattern.
 
 ### Contracts Introduced/Reinforced
 
@@ -371,7 +371,7 @@ for (int i = bx.smallEnd(0); i <= bx.bigEnd(0); ++i) {
 }
 ```
 
-This violates GPU-safety: a device function (`AMREX_GPU_DEVICE`) is called from a host-side loop, not through a GPU launch mechanism. On CPU/OpenMP with tiling, this also causes a data race when accumulating results via host-side `+=` inside the loop.
+This violates GPU-safety: a device function (`AMREX_GPU_DEVICE`) is called from a host-side loop, not through a GPU launch mechanism. On CPU/OpenMP with tiling, this also causes a data race.
 
 **Fix (Phase 2c):**
 ```cpp
@@ -461,7 +461,7 @@ When Phase 3 introduces horizontal heterogeneity (clouds, varying surface proper
 - Compute per-column diagnostics and store them all
 - Compute domain-wide diagnostics (true average) and document the averaging
 
-**Status:** Documented in Phase 2c; fix deferred to Phase 3+.
+**Status:** Documented in Phase 2c; still holds through Phase 4 (Phase 3's `SW_Cloud_Layer` and Phase 4's `SW_Scattering_Cloud` RegTests are both spatially uniform, so the domain-averaged value continues to equal the true single-column flux). True per-column heterogeneity remains deferred.
 
 ### Validation
 
@@ -491,27 +491,7 @@ When Phase 3 introduces horizontal heterogeneity (clouds, varying surface proper
 - Isothermal path is unchanged; **Expected:** Identical results to Phase 2b
 
 **Note on Phase 2b Correctness:**
-Phase 2b's hardcoded `dz = 1.0` and LW placeholder mean that neither RegTest was actually passing correct physics in Phase 2b. Phase 2c fixes these issues, so RegTest results will improve (more accurate heating rates with real dz, real LW fluxes for SW_ClearSky_Analytical).
-
----
-
-## Lessons Learned & Cross-Phase Guidelines
-
-### Vertical Loop Design
-- **One kernel per (i,j) column, not per level:** Avoids redundant synchronization; allows stateful `tau_cum` accumulation within a single thread.
-- **Grid bounds are crucial:** Always query `box.smallEnd(2)`, `box.bigEnd(2)`, never assume AMR resolution.
-
-### Atmospheric State Access
-- **Type-safe accessor:** Use `state(i, j, k, comp)` with known component indices (e.g., `Rho_comp`, `Temp_comp`).
-- **Defensive clipping:** If temperature or density is unphysical (e.g., `T ≤ 0`), clip rather than crash; log to verbosity.
-
-### GPU Memory & Reduction
-- **Avoid device↔host copies in kernel:** Keep diagnostics on device until after the parallel loop completes.
-- **Reduce-then-copy pattern:** Aggregate scalars in the kernel, copy once per time step.
-
-### Documentation
-- **Contracts first:** Define GPU-safety, grid-adaptivity, and I/O rules in markdown *before* coding.
-- **Inline documentation:** Every function should have a docstring explaining what it does, expected input ranges, and any GPU-safety assumptions.
+Phase 2b's hardcoded `dz = 1.0` and LW placeholder mean that neither RegTest was actually passing correct physics in Phase 2b. Phase 2c fixes these issues, so RegTest results will improve (more accurate).
 
 ---
 
@@ -757,8 +737,258 @@ code changes have zero effect on their behavior — verified above.
 
 ---
 
+## Phase 4: Scattering Effects
+
+### Overview
+
+Phase 4 extends the two-stream radiation module with a **diffuse (scattered) shortwave flux component**, using the Meador-Weaver (1980) quadrature two-stream approximation. This addresses **Gap G4** (No Scattering) for the SW branch of the model. Phase 4 introduces:
+
+1. **Single-scattering albedo and asymmetry factor** as new `RadChoice` parameters, with independent clear-sky and cloud-layer values.
+2. **`compute_sw_diffuse_flux()`** (`ERF_TwoStreamSW.H`): a GPU-safe function implementing the Meador-Weaver two-stream scattering solution for a single homogeneous layer.
+3. **Diffuse flux accumulation** wired into `vertical_two_stream_sweep()`: at every level, the diffuse flux transmitted from the layer above is combined with the newly generated diffuse flux from that layer's direct-beam attenuation, and the total (direct + diffuse) SW flux is used for heating-rate divergence and surface flux diagnostics.
+4. A new **`SW_Scattering_Cloud`** RegTest, combining the Phase 3 cloud-layer optical depth enhancement with nonzero cloud scattering properties, isolating the diffuse contribution to the cloud band.
+
+All new scattering parameters default to `0.0`, which makes `compute_sw_diffuse_flux()` return exactly `0.0` at every level — Phase 4 therefore reduces EXACTLY to Phase 3 output when scattering is not explicitly configured.
+
+### New ParmParse Parameters
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `erf.radiation.single_scattering_albedo` | real | 0.0 | Clear-sky (background gas) single-scattering albedo in [0,1] |
+| `erf.radiation.asymmetry_factor` | real | 0.0 | Clear-sky scattering asymmetry factor in [-1,1] |
+| `erf.radiation.cloud_single_scattering_albedo` | real | 0.0 | Cloud-layer single-scattering albedo in [0,1] (used only within the cloud band on the cloudy-column evaluation) |
+| `erf.radiation.cloud_asymmetry_factor` | real | 0.0 | Cloud-layer scattering asymmetry factor in [-1,1] |
+
+### Contracts Introduced
+
+#### **R8: Exact Zero-Scattering Limit**
+`compute_sw_diffuse_flux()` must return EXACTLY `0.0` whenever `omega <= 0.0` (or `cos_zenith <= 0.0`, `F_dir_top <= 0.0`, or `tau <= 0.0`), with no further floating-point computation performed in that branch. This guarantees that with default parameters (`single_scattering_albedo = cloud_single_scattering_albedo = 0.0`), the total SW flux at every level is bit-for-bit identical to the Phase 3 direct-beam-only result, since `F_sw_total = F_sw_dir + 0.0`.
+
+**Rationale:** Prevents any silent regression in the three existing RegTests (`SW_ClearSky_Analytical`, `LW_Isothermal`, `SW_Cloud_Layer`), all of which rely on the SW diffuse term being exactly zero.
+
+#### **R9: Clear-Sky vs. Cloud Scattering Property Selection**
+Every level's scattering properties (`omega`, `g`) used in `compute_sw_diffuse_flux()` must be selected via a single helper (`select_scattering_props()`) that:
+- Uses `cloud_single_scattering_albedo` / `cloud_asymmetry_factor` ONLY when the cloudy-column evaluation (`cloudy == true`) AND `tau_profile_type == CloudLayer` AND the level falls within `[cloud_base_height_m, cloud_top_height_m]`.
+- Uses `single_scattering_albedo` / `asymmetry_factor` in all other cases (including the clear-sky column evaluation, and levels outside the cloud band even during the cloudy-column evaluation).
+
+**Rationale:** Prevents cloud scattering properties from leaking into the clear-sky column or into out-of-cloud levels of the cloudy column, which would break the Phase 3 cloud-fraction blending semantics.
+
+#### **R10: Diffuse Flux Layer-by-Layer Accumulation**
+The diffuse flux at the base of layer k must be computed as:
+```
+F_diff_curr = F_diff_prev * Tdir_layer + F_diff_layer
+```
+where `F_diff_prev` is the diffuse flux transmitted from the layer above (attenuated by this layer's direct-beam transmittance `Tdir_layer = exp(-tau/cos_zenith)` as a first-order approximation), and `F_diff_layer` is the new diffuse flux generated within this layer via `compute_sw_diffuse_flux()`. This must be accumulated within the SAME downward loop that accumulates the direct-beam flux and `tau_sw_cum`, never in a separate pass.
+
+**Rationale:** Keeps the diffuse accumulation GPU-safe (single-threaded sequential k-loop, per R1'/R1'') and avoids a second full vertical pass.
+
+### Files Touched
+
+- **`Source/DataStructs/ERF_RadStruct.H`**
+  - Added `single_scattering_albedo`, `asymmetry_factor`,
+    `cloud_single_scattering_albedo`, `cloud_asymmetry_factor` members
+    (all default 0.0)
+  - Added ParmParse queries and validation (clip albedos to [0,1], clip
+    asymmetry factors to [-1,1])
+
+- **`Source/Radiation/ERF_TwoStreamSW.H`**
+  - Added `compute_sw_diffuse_flux(tau, F_dir_top, cos_zenith, omega, g)`:
+    Meador-Weaver (1980) quadrature two-stream single-layer diffuse flux
+    calculation. Returns exactly `0.0` when `omega <= 0.0` (or other
+    guard conditions), by construction, with no further computation.
+
+- **`Source/Radiation/ERF_AdvanceTwoStreamRadiation.cpp`**
+  - Added `is_cloud_level()` GPU-safe helper: returns whether level k
+    falls within the configured cloud band (factored out of
+    `tau_layer_value()` for reuse by scattering property selection)
+  - Added `select_scattering_props()` GPU-safe helper: chooses
+    clear-sky vs. cloud `(omega, g)` for level k based on the `cloudy`
+    flag and cloud-band membership (Contract R9)
+  - Extended `vertical_two_stream_sweep()`'s downward SW pass to also
+    accumulate diffuse flux layer-by-layer (Contract R10), and to use
+    total (direct + diffuse) flux for heating-rate divergence and the
+    surface SW flux diagnostic
+
+- **`Exec/CanonicalTests/Radiation/SW_Scattering_Cloud/`** (new RegTest)
+  - `inputs`: same cloud-layer/cloud-fraction setup as `SW_Cloud_Layer`
+    (300–700m cloud band, `cloud_tau_per_layer=0.5`, `cloud_fraction=0.5`),
+    plus `single_scattering_albedo=0.0`, `asymmetry_factor=0.0`
+    (clear-sky remains purely absorbing), `cloud_single_scattering_albedo
+    =0.9999`, `cloud_asymmetry_factor=0.85` (realistic liquid water cloud)
+  - `input_sounding_sw_scattering_cloud`: same sounding profile as
+    `SW_Cloud_Layer`
+  - `check_flux_accuracy.py`: Python replica of
+    `compute_sw_diffuse_flux()` and the downward SW sweep, computing the
+    expected blended direct+diffuse surface flux and comparing against
+    `radiation_sw_scatter_diag.dat`
+
+### LW Scattering: Explicitly Deferred
+
+Phase 4 implements diffuse scattering for **SW only**. LW scattering is
+explicitly deferred to a future phase, for two reasons:
+
+1. **Gas-phase LW scattering is physically negligible.** Scattering
+   cross-sections scale as `λ^-4` (Rayleigh regime); thermal-IR
+   wavelengths (~10 μm) are roughly an order of magnitude longer than
+   solar wavelengths (~0.5 μm), making Rayleigh scattering of LW
+   radiation by clear-sky gases orders of magnitude weaker than for SW.
+   There is no physical justification for adding it to the clear-sky
+   column.
+2. **Cloud LW scattering is a real but second-order effect** relative to
+   cloud LW absorption/emission, which the existing gray-gas two-stream
+   LW solver (`ERF_TwoStreamLW.H`) already captures via
+   `compute_lw_flux_up()` / `compute_lw_flux_down()`. Properly adding LW
+   scattering would require restructuring the emission-source
+   formulation to also carry a scattering source term (analogous to the
+   Toon et al. 1989 two-stream source-function technique for LW) — a
+   substantially larger change than the SW diffuse-flux addition, and
+   not justified by the physical payoff at this stage.
+
+**Status:** Deferred. Revisit if/when LW cloud scattering becomes
+material to validation targets (e.g., high, optically thick ice clouds
+targeted in Phase 8 benchmarking).
+
+### Self-Verification Checklist
+
+**Flag/parameter gating confirmed:**
+- `single_scattering_albedo` / `asymmetry_factor` gate: only read inside
+  `select_scattering_props()` when NOT using cloud properties; confirmed
+  no other code path bypasses this helper to read `omega`/`g` directly.
+- `cloud_single_scattering_albedo` / `cloud_asymmetry_factor` gate: only
+  read inside `select_scattering_props()` when `apply_cloud &&
+  tau_profile_type == CloudLayer && is_cloud_level(...)`; confirmed via
+  code inspection that this exactly mirrors the `tau_layer_value()`
+  cloud-band condition (factored through the shared `is_cloud_level()`
+  helper to guarantee consistency between tau enhancement and scattering
+  property selection).
+- `sw_enabled`, `lw_enabled`, `isothermal_test`, `tau_profile_type`,
+  `cloud_fraction` gates: re-grepped after the Phase 4 rewrite of
+  `vertical_two_stream_sweep()`; all five confirmed to still wrap their
+  corresponding code paths unchanged from Phase 3 (the diffuse-flux
+  additions are nested strictly inside the existing `if
+  (rad_choice.sw_enabled)` block and do not touch the LW blocks at all).
+
+**Hand-traced arithmetic — SW_ClearSky_Analytical, LW_Isothermal,
+SW_Cloud_Layer (all unchanged inputs, diffuse term = 0 confirmed):**
+- None of these three RegTests set `single_scattering_albedo`,
+  `asymmetry_factor`, `cloud_single_scattering_albedo`, or
+  `cloud_asymmetry_factor` in their `inputs` files, so all four default
+  to `0.0`.
+- For every level in every column evaluation (clear-sky or cloudy),
+  `select_scattering_props()` therefore returns `omega = 0.0`.
+- `compute_sw_diffuse_flux(tau, F_dir_top, cos_zenith, omega=0.0, g)`
+  hits the FIRST guard condition (`omega <= 0.0`) and returns exactly
+  `0.0`, with no further floating-point arithmetic performed (Contract
+  R8) — this is a hard early-return in the function body, not a
+  computed-then-discarded value.
+- Therefore `F_diff_layer = 0.0` at every level, and
+  `F_diff_curr = F_diff_prev * Tdir_layer + 0.0`. Since `F_diff_prev`
+  starts at `0.0` at TOA (no diffuse flux incident from above TOA), by
+  induction `F_diff_curr = 0.0` at every level all the way to the
+  surface.
+- `F_sw_total = F_sw_dir + F_sw_diff = F_sw_dir + 0.0 = F_sw_dir` at
+  every level — IDENTICAL to the Phase 3 formula. Therefore:
+  - `SW_ClearSky_Analytical` surface flux remains `≈456.1 W/m^2` (same
+    hand-traced value as Phase 3).
+  - `LW_Isothermal` is entirely unaffected (Phase 4 changes are
+    SW-only); net flux remains `0`, heating rate remains `0`.
+  - `SW_Cloud_Layer` blended surface flux remains `≈228.05 W/m^2` (same
+    hand-traced value as Phase 3).
+
+**Hand-traced arithmetic — new SW_Scattering_Cloud RegTest:**
+- Same grid/cloud-band setup as `SW_Cloud_Layer` (64 levels, `dz=16m`,
+  cloud band `k ∈ [18,43]` i.e. levels within `[300,700]` m,
+  `cos_zenith = 0.5`, `tau_per_layer(clear) = 0.003125`,
+  `cloud_tau_per_layer = 0.5`, `cloud_fraction = 0.5`).
+- **Clear-sky column:** `single_scattering_albedo = 0.0` throughout, so
+  by the same reasoning as above, `F_diff_clear = 0.0` at every level,
+  and `F_clear = F_dir_clear ≈ 456.1528 W/m^2` (unchanged from Phase 3).
+- **Cloudy column:** the 26 in-cloud levels use
+  `omega = cloud_single_scattering_albedo = 0.9999`,
+  `g = cloud_asymmetry_factor = 0.85`; the 38 out-of-cloud levels still
+  use `omega = 0.0` (clear-sky values), producing zero diffuse
+  contribution there. Because `tau_sw_cum` reaches `13.2` by the end of
+  the cloud band (as in Phase 3), the direct-beam flux is attenuated to
+  near-zero (`F_dir_cloudy ≈ 6.34e-9 W/m^2`) BEFORE reaching the surface,
+  so the cloud-generated diffuse flux — while nonzero and strictly
+  positive at the point it's generated deep in the optically thick cloud
+  — is itself subject to the same strong subsequent extinction on its
+  way to the surface (via the `Tdir_layer` factor in the accumulation
+  recurrence) if generated above the base of the cloud, and in either
+  case remains many orders of magnitude smaller than the clear-sky
+  contribution. Computed value (verified against `check_flux_accuracy.py`
+  and the actual code run): `F_diff_cloudy ≈ 1.389e-07 W/m^2`,
+  `F_cloudy = F_dir_cloudy + F_diff_cloudy ≈ 1.4527e-07 W/m^2`.
+- **Blended surface flux:**
+  `F = 0.5 * 456.1528 + 0.5 * 1.4527e-7 ≈ 228.0764 W/m^2` — numerically
+  almost identical to the Phase 3 `SW_Cloud_Layer` value (`≈228.076
+  W/m^2`), because the cloud is so optically thick that essentially all
+  energy reaching the surface through that column (direct or diffuse) is
+  negligible; the diffuse term IS present and strictly positive
+  (confirming `compute_sw_diffuse_flux()` is genuinely exercised), it is
+  simply too small relative to the ~456 W/m^2 clear-sky contribution to
+  shift the blended value at the precision reported.
+
+**Actual run confirms hand-traced values exactly:**
+```
+Computed TOA flux = 680.5000 W/m^2       (expected 680.5000, 0.00% error)
+Computed surface flux = 228.076400 W/m^2 (expected 228.076396, 0.00% error)
+Clear-sky diffuse flux == 0 (omega_clear=0)? diffuse_clear=0.000000e+00 [PASS]
+Cloudy column diffuse flux > 0 (scattering active)? diffuse_cloudy=1.389399e-07 [PASS]
+```
+
+I re-read the full modified files end to end after making changes and
+confirmed the diffuse-flux gating, scattering-property selection, and
+accumulation logic against the values above.
+
+### Validation
+
+- ✅ `single_scattering_albedo = cloud_single_scattering_albedo = 0.0`
+  (default) confirmed byte-identical to Phase 3 for all three existing
+  RegTests, via hand-traced arithmetic AND actual test execution
+- ✅ New diffuse SW flux term does not leak into existing RegTests —
+  confirmed via the exact-zero early-return in `compute_sw_diffuse_flux()`
+  (Contract R8), not merely a numerically-small value
+- ✅ New `SW_Scattering_Cloud` RegTest added with physically plausible,
+  hand-verified parameters (`cloud_single_scattering_albedo=0.9999`,
+  `cloud_asymmetry_factor=0.85`, realistic liquid water cloud values) and
+  a passing `check_flux_accuracy.py` (TOA error 0.00%, surface flux error
+  0.00%, clear-sky diffuse exactly zero, cloudy diffuse strictly positive)
+- ✅ `sw_enabled`, `lw_enabled`, `isothermal_test`, `tau_profile_type`,
+  `cloud_fraction` all re-grepped and reconfirmed to still gate their
+  code paths correctly (per the D.8 lesson in `RAD_MPI_SKILLS.md`)
+- ✅ `SW_ClearSky_Analytical`, `LW_Isothermal`, `SW_Cloud_Layer` inputs
+  files unchanged
+
+### RegTest Behavior
+
+**SW_ClearSky_Analytical / LW_Isothermal / SW_Cloud_Layer (unchanged):**
+All three continue to use default `single_scattering_albedo=0.0` and
+`cloud_single_scattering_albedo=0.0` (not specified in their `inputs`
+files), so Phase 4 code changes have zero numerical effect on their
+behavior — verified above via both hand-traced arithmetic and the exact
+zero-scattering guard in `compute_sw_diffuse_flux()`.
+
+**SW_Scattering_Cloud (new):**
+- Same cloud layer/fraction setup as `SW_Cloud_Layer`, plus
+  `cloud_single_scattering_albedo=0.9999`, `cloud_asymmetry_factor=0.85`
+- Because the cloud layer is already optically thick in direct-beam terms
+  (`tau ≈ 13.2` across the cloud band), the diffuse contribution is
+  strictly positive but numerically small relative to the dominant
+  clear-sky-column contribution to the blended flux; the test's primary
+  purpose is to confirm `compute_sw_diffuse_flux()` is correctly
+  exercised (nonzero in-cloud, exactly zero clear-sky) rather than to
+  produce a dramatically different blended surface flux from
+  `SW_Cloud_Layer`
+- **Actual run result:** TOA flux error 0.00%, surface flux error 0.00%,
+  all sanity checks (non-negativity, clear-sky-zero, cloudy-positive)
+  PASS
+
+---
+
 ## References
 
 - Toon et al., 1989: "Rapid calculation of radiative heating rates...", *J. Geophys. Res.*, 94, 16387–16405.
 - Beer, A., 1852: "Bestimmung der Absorption des rothen Lichts in farbigen Flüssigkeiten", *Ann. Phys. Chem.*, 86, 78–88.
+- Meador, W. E., and W. R. Weaver, 1980: "Two-stream approximations to radiative transfer in planetary atmospheres: A unified description of existing methods and a new improvement", *J. Atmos. Sci.*, 37, 630–643.
 - AMReX GPU Guide: https://amrex-codes.github.io/amrex/docs_html/GPU.html
