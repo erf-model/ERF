@@ -1211,6 +1211,13 @@
           t(i_dbg_local,kts)
       endif
 
+      if (debug_local .gt. 0 .and. i_dbg_local .ge. its .and. i_dbg_local .le. ite) then
+        write(*,'(A,1X,I3,5(1X,ES24.16E3))') &
+          'WDM6-FORT_PRE_G10B', kts, &
+          qci(i_dbg_local,kts,1), qci(i_dbg_local,kts,2), &
+          ncr(i_dbg_local,kts,2), t(i_dbg_local,kts), &
+          t0c-t(i_dbg_local,kts)
+      endif
 
           if(supcol.gt.40. .and. qci(i,k,1).gt.0.) then
             qci(i,k,2) = qci(i,k,2) + qci(i,k,1)
@@ -1223,8 +1230,13 @@
             qci(i,k,1) = 0.
           endif
 
-
-
+      if (debug_local .gt. 0 .and. i_dbg_local .ge. its .and. i_dbg_local .le. ite) then
+        write(*,'(A,1X,I3,5(1X,ES24.16E3))') &
+          'WDM6-FORT_POST_G10B', kts, &
+          qci(i_dbg_local,kts,1), qci(i_dbg_local,kts,2), &
+          ncr(i_dbg_local,kts,2), t(i_dbg_local,kts), &
+          t0c-t(i_dbg_local,kts)
+      endif
 
           if(supcol.gt.0. .and. qci(i,k,1).gt.qmin) then
             supcolt=min(supcol,70.)

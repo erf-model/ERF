@@ -1788,6 +1788,55 @@ void WDM6::Advance(const Real& dt_advance,
             });
 
             // ============================================================
+            // Step 3k: G10b Cloud-Water Homogeneous Freezing
+            // Exact port of bounded Fortran block (lines 1215-1224)
+            // ============================================================
+#if !defined(AMREX_USE_GPU)
+            if (microphysics_debug > 0 && diag_col_in_tile) {
+                std::printf("WDM6-CPP_PRE_G10B %3d %24.16E %24.16E %24.16E %24.16E %24.16E\n",
+                            diag_k + 1,
+                            static_cast<double>(qc_arr(diag_i,diag_j,diag_k)),
+                            static_cast<double>(qi_arr(diag_i,diag_j,diag_k)),
+                            static_cast<double>(nc_arr(diag_i,diag_j,diag_k)),
+                            static_cast<double>(t_arr(diag_i,diag_j,diag_k)),
+                            static_cast<double>(t0c - t_arr(diag_i,diag_j,diag_k)));
+                std::fflush(stdout);
+            }
+#endif
+
+            ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+                const Real supcol = t0c - t_arr(i,j,k);
+                Real xlf = xls - xl_arr(i,j,k);
+
+                // Homogeneous freezing of cloud water when supcol > 40K (T < -40C)
+                if (supcol > Real(40.0) && qc_arr(i,j,k) > Real(0.0)) {
+                    const Real qc_old = qc_arr(i,j,k);
+
+                    qi_arr(i,j,k) += qc_old;
+
+                    if (nc_arr(i,j,k) > Real(0.0)) {
+                        nc_arr(i,j,k) = Real(0.0);
+                    }
+
+                    t_arr(i,j,k) += xlf / cpm_arr(i,j,k) * qc_old;
+                    qc_arr(i,j,k) = Real(0.0);
+                }
+            });
+
+#if !defined(AMREX_USE_GPU)
+            if (microphysics_debug > 0 && diag_col_in_tile) {
+                std::printf("WDM6-CPP_POST_G10B %3d %24.16E %24.16E %24.16E %24.16E %24.16E\n",
+                            diag_k + 1,
+                            static_cast<double>(qc_arr(diag_i,diag_j,diag_k)),
+                            static_cast<double>(qi_arr(diag_i,diag_j,diag_k)),
+                            static_cast<double>(nc_arr(diag_i,diag_j,diag_k)),
+                            static_cast<double>(t_arr(diag_i,diag_j,diag_k)),
+                            static_cast<double>(t0c - t_arr(diag_i,diag_j,diag_k)));
+                std::fflush(stdout);
+            }
+#endif
+
+            // ============================================================
             // Step 9: Ice physics (simplified)
             // ============================================================
             // These processes handle ice (qi), snow (qs), and graupel (qg)
@@ -1796,16 +1845,6 @@ void WDM6::Advance(const Real& dt_advance,
             ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
                 const Real temp = t_arr(i,j,k);
                 const Real t0c_loc = Real(273.15);
-
-                // Ice nucleation - homogeneous freezing of cloud droplets
-                if (temp < Real(233.15) && qc_arr(i,j,k) > Real(1.e-9)) {
-                    // Below -40C, freeze all cloud water to ice
-                    Real qfrz = qc_arr(i,j,k);
-                    qi_arr(i,j,k) += qfrz;
-                    qc_arr(i,j,k) -= qfrz;
-                    // Latent heat release
-                    t_arr(i,j,k) += qfrz * Real(xlf0) / Real(cpd);
-                }
 
                 // Heterogeneous freezing (cloud → ice) for -40C < T < 0C
                 if (temp < t0c_loc && temp >= Real(233.15) && qc_arr(i,j,k) > Real(1.e-9)) {
