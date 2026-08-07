@@ -66,7 +66,9 @@ void ERF::compute_twostream_radiation_diagnostics(
         // Surface flux from Beer-Lambert: F(surface) = S0 * cos(zenith) * exp(-tau/cos(zenith))
         // Using simplified tau_cumulative = tau_per_layer (single layer)
         if (cos_zenith > 0.0) {
-            amrex::Real tau_cum = rad_choice.tau_per_layer;
+            //amrex::Real tau_cum = rad_choice.tau_per_layer;
+            int n_layers = geom[lev].Domain().length(2);
+            amrex::Real tau_cum = rad_choice.tau_per_layer * static_cast<amrex::Real>(n_layers);
             SW_surface = rad_choice.S0 * cos_zenith * 
                         std::exp(-tau_cum / cos_zenith);
             // Rough estimate of max heating rate (simplified)
