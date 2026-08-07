@@ -242,7 +242,7 @@ void ERF::compute_twostream_radiation_diagnostics(
                     
                     // Call the Phase 2 per-column kernel for this column
                     vertical_two_stream_sweep(
-                        i, j, bx, state_fab, rad_choice,
+                        i, j, bx, geom_lev, state_fab, rad_choice,
                         max_heating_col, sw_flux_col, lw_net_col);
                     
                     // Accumulate results
