@@ -1273,6 +1273,14 @@
           t0c-t(i_dbg_local,kts)
       endif
 
+      if (debug_local .gt. 0 .and. i_dbg_local .ge. its .and. i_dbg_local .le. ite) then
+        write(*,'(A,1X,I3,5(1X,ES24.16E3))') &
+          'WDM6-FORT_PRE_G10D', kts, &
+          qrs(i_dbg_local,kts,1), qrs(i_dbg_local,kts,3), &
+          ncr(i_dbg_local,kts,3), t(i_dbg_local,kts), &
+          t0c-t(i_dbg_local,kts)
+      endif
+
           if(supcol.gt.0. .and. qrs(i,k,1).gt.0.) then
             supcolt=min(supcol,70.)
             pfrzdtr = min(140.*(pi*pi)*pfrz1*ncr(i,k,3)*denr/den(i,k)          &
@@ -1293,6 +1301,14 @@
           endif
         enddo
       enddo
+
+      if (debug_local .gt. 0 .and. i_dbg_local .ge. its .and. i_dbg_local .le. ite) then
+        write(*,'(A,1X,I3,5(1X,ES24.16E3))') &
+          'WDM6-FORT_POST_G10D', kts, &
+          qrs(i_dbg_local,kts,1), qrs(i_dbg_local,kts,3), &
+          ncr(i_dbg_local,kts,3), t(i_dbg_local,kts), &
+          t0c-t(i_dbg_local,kts)
+      endif
 
       do k = kts, kte
         do i = its, ite

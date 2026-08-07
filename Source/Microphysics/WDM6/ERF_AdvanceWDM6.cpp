@@ -1872,6 +1872,69 @@ void WDM6::Advance(const Real& dt_advance,
 #endif
 
             // ============================================================
+            // Step 3m: G10d Rain-to-Graupel Freezing
+            // Exact port of bounded Fortran block (pgfrz, rain freezing)
+            // ============================================================
+#if !defined(AMREX_USE_GPU)
+            if (microphysics_debug > 0 && diag_col_in_tile) {
+                std::printf("WDM6-CPP_PRE_G10D %3d %24.16E %24.16E %24.16E %24.16E %24.16E\n",
+                            diag_k + 1,
+                            static_cast<double>(qr_arr(diag_i,diag_j,diag_k)),
+                            static_cast<double>(qg_arr(diag_i,diag_j,diag_k)),
+                            static_cast<double>(nr_arr(diag_i,diag_j,diag_k)),
+                            static_cast<double>(t_arr(diag_i,diag_j,diag_k)),
+                            static_cast<double>(t0c - t_arr(diag_i,diag_j,diag_k)));
+                std::fflush(stdout);
+            }
+#endif
+
+            ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+                const Real supcol = t0c - t_arr(i,j,k);
+
+                // Rain freezing to graupel: trigger when T < t0c and qr > 0
+                if (supcol > Real(0.0) && qr_arr(i,j,k) > Real(0.0)) {
+                    const Real supcolt = amrex::min(supcol, Real(70.0));
+                    const Real expterm = std::exp(pfrz2_loc * supcolt) - Real(1.0);
+
+                    // Rain slope cubed (from G4/G6 computation)
+                    const Real rs3 = rslope3_arr(i,j,k,0);
+
+                    // Mass freezing rate: 140*pi^2 * pfrz1 * nr * (denr/den) * exp(...) * rs3^2 * dtcld
+                    Real pfrzdtr = Real(140.0) * pi_wdm6_loc * pi_wdm6_loc
+                                 * pfrz1_loc * nr_arr(i,j,k)
+                                 * (denr / den_arr(i,j,k))
+                                 * expterm * rs3 * rs3 * dtcld;
+                    pfrzdtr = amrex::min(pfrzdtr, qr_arr(i,j,k));
+
+                    // Number freezing rate (conditional on nr > nrmin)
+                    if (nr_arr(i,j,k) > Real(nrmin)) {
+                        Real nfrzdtr = Real(4.0) * pi_wdm6_loc * pfrz1_loc
+                                     * nr_arr(i,j,k) * expterm * rs3 * dtcld;
+                        nfrzdtr = amrex::min(nfrzdtr, nr_arr(i,j,k));
+                        nr_arr(i,j,k) -= nfrzdtr;
+                    }
+
+                    // Apply mass and temperature updates
+                    qg_arr(i,j,k) += pfrzdtr;
+                    t_arr(i,j,k)  += xl_arr(i,j,k) / cpm_arr(i,j,k) * pfrzdtr;
+                    qr_arr(i,j,k) -= pfrzdtr;
+                }
+            });
+
+#if !defined(AMREX_USE_GPU)
+            if (microphysics_debug > 0 && diag_col_in_tile) {
+                std::printf("WDM6-CPP_POST_G10D %3d %24.16E %24.16E %24.16E %24.16E %24.16E\n",
+                            diag_k + 1,
+                            static_cast<double>(qr_arr(diag_i,diag_j,diag_k)),
+                            static_cast<double>(qg_arr(diag_i,diag_j,diag_k)),
+                            static_cast<double>(nr_arr(diag_i,diag_j,diag_k)),
+                            static_cast<double>(t_arr(diag_i,diag_j,diag_k)),
+                            static_cast<double>(t0c - t_arr(diag_i,diag_j,diag_k)));
+                std::fflush(stdout);
+            }
+#endif
+
+            // ============================================================
             // Step 9: Ice physics (simplified) — remaining processes
             // ============================================================
             // These processes handle ice (qi), snow (qs), and graupel (qg)
@@ -1881,7 +1944,8 @@ void WDM6::Advance(const Real& dt_advance,
                 const Real temp = t_arr(i,j,k);
                 const Real t0c_loc = Real(273.15);
 
-                // Rain freezing (rain → graupel)
+#if 0
+                // DISABLED: Rain freezing (rain → graupel) — now handled by bounded G10d block above
                 if (temp < t0c_loc && qr_arr(i,j,k) > Real(1.e-9)) {
                     Real frac_frz = (t0c_loc - temp) / Real(20.0) * Real(0.05);  // 5% per 20K
                     Real qfrz = amrex::min(frac_frz * qr_arr(i,j,k) * dtcld, qr_arr(i,j,k));
@@ -1892,6 +1956,7 @@ void WDM6::Advance(const Real& dt_advance,
                     nr_arr(i,j,k) -= amrex::min(nfrz, nr_arr(i,j,k));
                     t_arr(i,j,k) += qfrz * Real(xlf0) / Real(cpd);
                 }
+#endif
 
                 // Ice → snow conversion (aggregation)
                 if (qi_arr(i,j,k) > Real(1.e-6)) {
