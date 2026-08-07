@@ -265,6 +265,50 @@ amrex::Real rho_layer = state(i, j, k, Rho_comp);
 - ✅ CSV diagnostics are updated per time step
 - ✅ No regression in build time or compile errors
 
+### Phase 2 Implementation Notes
+
+**Kernel Structure:**
+- Introduced `vertical_two_stream_sweep()` GPU-safe per-column kernel
+- Uses `AMREX_GPU_DEVICE AMREX_FORCE_INLINE` for GPU compilation
+- Loops over k from `kmin` to `kmax` within a single thread
+- Accumulates `tau_sw_cum` and `tau_lw_cum` across levels
+
+**State Access:**
+- Added `get_temperature_from_rhotheta()` helper to convert RhoTheta → T
+- Includes defensive clipping: `rho > 0`, `T ∈ [100, 400]` K
+- Logs anomalies when `verbosity >= 1`
+
+**Build Registration:**
+- Source files already registered in `Source/Radiation/Make.package`
+  - `CEXE_sources += ERF_AdvanceTwoStreamRadiation.cpp`
+  - Headers included: `ERF_TwoStreamSW.H`, `ERF_TwoStreamLW.H`
+- No additional CMake changes needed (uses Make.package pattern)
+
+**Initialization:**
+- `solverChoice.radChoice` initialized via `RadChoice::init_params()` in `ERF.cpp` or similar
+- Enum `RadType::TwoStream` selected at runtime via input parameter `erf.radiation_type`
+- All optical properties and control flags read from input via `ParmParse`
+
+---
+
+## Lessons Learned & Cross-Phase Guidelines
+
+### Vertical Loop Design
+- **One kernel per (i,j) column, not per level:** Avoids redundant synchronization; allows stateful `tau_cum` accumulation within a single thread.
+- **Grid bounds are crucial:** Always query `box.smallEnd(2)`, `box.bigEnd(2)`, never assume AMR resolution.
+
+### Atmospheric State Access
+- **Type-safe accessor:** Use `state(i, j, k, comp)` with known component indices (e.g., `Rho_comp`, `Temp_comp`).
+- **Defensive clipping:** If temperature or density is unphysical (e.g., `T ≤ 0`), clip rather than crash; log to verbosity.
+
+### GPU Memory & Reduction
+- **Avoid device↔host copies in kernel:** Keep diagnostics on device until after the parallel loop completes.
+- **Reduce-then-copy pattern:** Aggregate scalars in the kernel, copy once per time step.
+
+### Documentation
+- **Contracts first:** Define GPU-safety, grid-adaptivity, and I/O rules in markdown *before* coding.
+- **Inline documentation:** Every function should have a docstring explaining what it does, expected input ranges, and any GPU-safety assumptions.
+
 ---
 
 ## Lessons Learned & Cross-Phase Guidelines
