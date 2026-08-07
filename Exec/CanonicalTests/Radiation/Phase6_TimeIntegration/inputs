@@ -1,0 +1,114 @@
+# Phase 6 Two-Stream Radiation: Time-Stepping Integration Smoke Test
+#
+# Phase 6 audits and formally documents the temporal semantics of radiation
+# forcing in ERF's slow-step/fast-substep time integration scheme. This test
+# exercises the wiring to verify:
+#   1. advance_radiation() is called once per slow step (not per substep or
+#      multiple times)
+#   2. Diagnostic CSV accumulates the expected number of rows (one per slow
+#      step)
+#   3. Heating rates are applied consistently via the is_slow_step gate
+#   4. No unintended temporal aliasing or missing forcing occurs
+#
+# This test is identical in configuration to Phase 5 (SW+LW both enabled,
+# non-isothermal) but runs for more timesteps (10 slow steps instead of 5)
+# to establish temporal consistency and rule out transient effects. The
+# diagnostic cadence and heating-rate finiteness are verified by the check
+# script.
+
+erf.prob_name = "ABL"
+
+stop_time = 5.0
+amrex.fpe_trap_invalid = 0
+
+fabarray.mfiter_tile_size = 1024 1024 1024
+
+geometry.prob_extent = 3000 3000 1024
+amr.n_cell           =  8   8   64
+amrex.max_grid_size_z = 128
+geometry.is_periodic = 1 1 0
+
+
+zlo.type = "surface_layer"
+erf.most.z0   = 0.1      # roughness length [m]
+erf.most.zref = 24.0     # reference height [m]
+erf.most.surf_temp_flux    = 0.0
+zhi.type = "SlipWall"
+zhi.theta_grad = 0.003  # adiabatic upper boundary
+erf.fixed_dt = 0.5  # time step [s]
+
+# DIAGNOSTICS & VERBOSITY
+erf.sum_interval   = 1       # timesteps between computing mass
+erf.v              = 1       # verbosity in ERF.cpp
+amr.v              = 1       # verbosity in Amr.cpp
+
+# REFINEMENT / REGRIDDING
+amr.max_level       = 0       # maximum level number allowed
+
+# CHECKPOINT FILES
+erf.check_file      = chk_neutral     # root name of checkpoint file
+erf.check_int       = -1             # number of timesteps between checkpoints
+
+# DATA COLLECTION
+erf.data_log    = neutral_hist.dat neutral_profiles.dat
+erf.profile_int = 10
+
+# PLOTFILES
+# Include the per-level radiation heating-rate diagnostic fields (Phase 5)
+# so the RhoTheta coupling can be visually/numerically inspected if desired.
+erf.plot_file_1     = plt_neutral      # prefix of plotfile name
+erf.plot_int_1      = 10               # number of timesteps between plotfiles
+erf.plot_vars_1     = x_velocity y_velocity z_velocity theta qsrc_sw qsrc_lw
+
+# SOLVER CHOICE
+erf.use_gravity = true
+
+erf.molec_diff_type = "None"
+# When using a PBL model, LES closure should be disabled
+erf.les_type        = "None"
+erf.Cs = 0.11
+erf.theta_ref = 300.0
+
+# INITIALIZATION - from sounding file
+erf.init_type = "input_sounding"
+erf.sounding_type = Ideal
+
+
+# PBL CONFIGURATION - Baseline MRF (neutral case)
+erf.pbl_type = "MRF"
+
+# MRF PBL PARAMETERS (for MRF model)
+erf.enable_mrf_cloud_adjustment = false
+erf.enable_mrf_countergradient = true
+erf.enable_mrf_unbounded_vpert = false
+erf.mrf_moistvars = false
+erf.pbl_mrf_Ribcr = 0.5
+erf.pbl_mrf_const_b = 7.8
+erf.pbl_mrf_coriolis_freq = 1.0e-4
+erf.pbl_mrf_highres_bounds = false
+erf.pbl_mrf_sf = 0.1
+erf.pbl_mrf_use_zero_ri_extent = false
+
+# CORIOLIS EFFECT
+erf.latitude = 45.0  # mid-latitude (f = 1.0e-4 s^-1)
+
+erf.use_coriolis = true
+
+erf.abl_driver_type = "GeostrophicWind"
+
+erf.abl_geo_wind = 15.0 0.0 0.0
+
+erf.input_sounding_file = "input_sounding_phase6_timing"
+
+# RADIATION - Two-Stream SW + LW, both enabled, non-isothermal (Phase 5)
+# Phase 6: Extended from Phase 5 (stop_time 2.5, dt 0.5, 5 steps) to 10 steps
+# (stop_time 5.0) to verify temporal consistency over a longer simulation.
+erf.radiation_type = "TwoStream"
+erf.radiation.sw_enabled = true
+erf.radiation.lw_enabled = true
+erf.radiation.tau_per_layer = 0.003125
+erf.radiation.tau_lw_per_layer = 1.0
+erf.radiation.solar_zenith = 60.0
+erf.radiation.S0 = 1361.0
+erf.radiation.v = 1
+erf.radiation.diag_file = "radiation_phase6_timing_diag.dat"
