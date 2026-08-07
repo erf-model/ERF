@@ -1,4 +1,5 @@
 CEXE_sources += ERF_RadiationDiagnostics.cpp
+CEXE_sources += ERF_AdvanceTwoStreamRadiation.cpp
 
 CEXE_headers += ERF_RadiationParams.H
 CEXE_headers += ERF_TwoStreamSW.H
