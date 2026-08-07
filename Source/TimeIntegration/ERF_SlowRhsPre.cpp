@@ -470,13 +470,6 @@ void erf_slow_rhs_pre (int level, int finest_level,
 
         const Array4<      Real>& omega_arr = Omega.array(mfi);
 
-        Array4<const Real> z_t;
-        if (z_t_mf) {
-            z_t = z_t_mf->array(mfi);
-        } else {
-            z_t = Array4<const Real>{};
-        }
-
         const Array4<Real>& rho_u_rhs = S_rhs[IntVars::xmom].array(mfi);
         const Array4<Real>& rho_v_rhs = S_rhs[IntVars::ymom].array(mfi);
         const Array4<Real>& rho_w_rhs = S_rhs[IntVars::zmom].array(mfi);
