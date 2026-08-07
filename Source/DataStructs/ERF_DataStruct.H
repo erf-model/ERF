@@ -951,8 +951,8 @@ struct SolverChoice {
                 amrex::Error("ERROR: Missing input parameter 'erf.hindcast_lateral_sponge_length' or it is specified to be less than zero");
             }
 
-            if (hindcast_zhi_sponge_damping and hindcast_zhi_sponge_strength < zero) {
-                amrex::Error("ERROR: Missing input parameter 'erf.hindcast_zhi_sponge_strength' or it is specified to be less than zero");
+            if (hindcast_zhi_sponge_damping and hindcast_zhi_sponge_length < zero) {
+                amrex::Error("ERROR: Missing input parameter 'erf.hindcast_zhi_sponge_length' or it is specified to be less than zero");
             }
 
             if (hindcast_zhi_sponge_damping and hindcast_zhi_sponge_strength < zero) {
