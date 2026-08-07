@@ -1310,12 +1310,24 @@
           t0c-t(i_dbg_local,kts)
       endif
 
+      if (debug_local .gt. 0 .and. i_dbg_local .ge. its .and. i_dbg_local .le. ite) then
+        write(*,'(A,1X,I3,2(1X,ES24.16E3))') &
+          'WDM6-FORT_PRE_G10E', kts, &
+          ncr(i_dbg_local,kts,2), ncr(i_dbg_local,kts,3)
+      endif
+
       do k = kts, kte
         do i = its, ite
           ncr(i,k,2) = max(ncr(i,k,2),0.0)
           ncr(i,k,3) = max(ncr(i,k,3),0.0)
         enddo
       enddo
+
+      if (debug_local .gt. 0 .and. i_dbg_local .ge. its .and. i_dbg_local .le. ite) then
+        write(*,'(A,1X,I3,2(1X,ES24.16E3))') &
+          'WDM6-FORT_POST_G10E', kts, &
+          ncr(i_dbg_local,kts,2), ncr(i_dbg_local,kts,3)
+      endif
 
 
 

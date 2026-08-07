@@ -1935,6 +1935,34 @@ void WDM6::Advance(const Real& dt_advance,
 #endif
 
             // ============================================================
+            // Step 3k: G10e Phase cleanup — clamp number concentrations non-negative
+            // ============================================================
+#if !defined(AMREX_USE_GPU)
+            if (microphysics_debug > 0 && diag_col_in_tile) {
+                std::printf("WDM6-CPP_PRE_G10E %3d %24.16E %24.16E\n",
+                            diag_k + 1,
+                            static_cast<double>(nc_arr(diag_i,diag_j,diag_k)),
+                            static_cast<double>(nr_arr(diag_i,diag_j,diag_k)));
+                std::fflush(stdout);
+            }
+#endif
+
+            ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+                nc_arr(i,j,k) = amrex::max(nc_arr(i,j,k), Real(0.0));
+                nr_arr(i,j,k) = amrex::max(nr_arr(i,j,k), Real(0.0));
+            });
+
+#if !defined(AMREX_USE_GPU)
+            if (microphysics_debug > 0 && diag_col_in_tile) {
+                std::printf("WDM6-CPP_POST_G10E %3d %24.16E %24.16E\n",
+                            diag_k + 1,
+                            static_cast<double>(nc_arr(diag_i,diag_j,diag_k)),
+                            static_cast<double>(nr_arr(diag_i,diag_j,diag_k)));
+                std::fflush(stdout);
+            }
+#endif
+
+            // ============================================================
             // Step 9: Ice physics (simplified) — remaining processes
             // ============================================================
             // These processes handle ice (qi), snow (qs), and graupel (qg)
