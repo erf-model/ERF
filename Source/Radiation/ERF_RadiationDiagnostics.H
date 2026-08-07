@@ -3,6 +3,8 @@
 
 #include <string>
 #include <fstream>
+#include <AMReX.H>
+#include <AMReX_REAL.H>
 
 /**
  * @file ERF_RadiationDiagnostics.H
