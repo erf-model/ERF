@@ -400,7 +400,7 @@ void vertical_two_stream_sweep(
     amrex::Real F_lw_down_profile[MAX_RAD_LEVELS];
 
  if (rad_choice.lw_enabled) {
-    AMREX_ASSERT_WITH_MESSAGE(nlev <= MAX_RAD_LEVELS,
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(nlev <= MAX_RAD_LEVELS,
         "vertical_two_stream_sweep: domain vertical extent exceeds "
         "MAX_RAD_LEVELS; increase the constant in ERF_AdvanceTwoStreamRadiation.cpp");
 
