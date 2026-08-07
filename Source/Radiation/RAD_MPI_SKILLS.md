@@ -555,6 +555,55 @@ A hardcoded phase label is fine in phase-specific narrative comments/documentati
 
 ---
 
+### D.11 – Phase 5 Lesson: "Correct Code" and "Wired-In Code" Are Different Completion Criteria
+
+**Issue:**
+Phases 1-4 of the two-stream radiation module were fully implemented,
+documented, hand-traced, and RegTested — but a repo-wide search at the
+start of Phase 5 confirmed `compute_twostream_radiation_diagnostics()`
+was never called from anywhere in the codebase. `advance_radiation()`
+(`Source/TimeIntegration/ERF_AdvanceRadiation.cpp`) only drove the
+RRTMGP path (`solverChoice.rad_type != RadiationType::None`), which uses
+a completely different enum from the TwoStream path
+(`solverChoice.radChoice.rad_type == RadType::TwoStream`). Additionally,
+`qheating_rates[lev]` was only allocated for the RRTMGP path, so even if
+the TwoStream driver had been called, it would have had nowhere to write
+its heating rates, and the RhoTheta source-term injection in
+`ERF_MakeSources.cpp` was similarly gated on RRTMGP only.
+
+**Root Cause:**
+Four independent, all-or-nothing gates (allocation, driver call, source
+injection, and the underlying per-level output the driver produces) all
+had to individually recognize the new radiation-model enum value. Adding
+correct physics to a driver function does not automatically make that
+function get called, and even if called, its output MultiFab might not
+exist, and even if it exists and is populated, the downstream consumer
+might not read from it for this code path.
+
+**Prevention Rule:**
+Before considering any new physics module "complete," explicitly verify —
+via code search, not just code review of the files you touched — that:
+1. The new driver function is actually invoked somewhere in the
+   simulation's time loop (`grep -rn "function_name(" Source/` and
+   manually confirm at least one call site is unconditionally reachable
+   under the intended `ParmParse` configuration).
+2. Any output data structure it writes into is allocated under the same
+   condition that gates the call (not a different, historically-earlier
+   condition that happened to cover only the previous physics option).
+3. Any downstream consumer of that output data structure is gated to
+   include the new physics option, not just the original one(s) it was
+   written for.
+
+**Lesson:**
+"The math is right and the RegTest for the isolated function passes" and
+"this function affects the simulation" are two independent claims. This
+codebase-wide, four-gate discovery (allocation → driver call → per-level
+computation → source injection) — where physics work from four prior
+phases turned out to be entirely inert — is the strongest possible
+illustration of why the D.9 delivery-mechanics lesson (push + PR are
+independent of code correctness) generalizes: *wiring* is also
+independent of *correctness*, and must be verified with the same rigor.
+
 ## Part E: Testing & Validation Checklist
 
 ### E.1 – GPU Compilation Check
@@ -574,6 +623,11 @@ A hardcoded phase label is fine in phase-specific narrative comments/documentati
 - [ ] Heating rates have correct sign and reasonable magnitude
 - [ ] No NaN/Inf in output (run with `IEEE=1` to catch NaN earlier)
 - [ ] (Phase 4+) Diffuse SW flux is exactly zero when `single_scattering_albedo`/`cloud_single_scattering_albedo` are 0.0, and strictly positive when nonzero and a direct beam is present
+- [ ] (Phase 5+) New driver functions are confirmed CALLED from the time
+      loop via code search (not just present in the source tree), their
+      output MultiFabs confirmed ALLOCATED under the matching gate, and
+      downstream consumers confirmed to READ from them under that same
+      gate — see D.11
 
 ### E.4 – State Variable Check
 - [ ] Temperature and density read correctly
@@ -690,6 +744,13 @@ goes stale. Keep these two categories distinct.
 inside a runtime string in shared, cross-phase-reused code — grep for
 `[Phase#]`-style tags whenever starting a new phase, even in files you
 don't plan to modify.
+
+**Rule 7 (added Phase 5, see D.11):** A new physics driver function is
+not "done" when its internal math is correct — verify via code search
+that it is actually called, that its output buffers are allocated under
+the same gating condition, and that downstream consumers read from those
+buffers under that same condition. Do this for every new radiation model
+or physics option added, not just the one you are actively working on.
 
 ---
 
