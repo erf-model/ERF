@@ -70,8 +70,17 @@ void RadiationDiagnostics::append(int step, amrex::Real time,
   write_header_if_needed();
 
   // Print debug output (if verbosity >= 1, and IOProcessor only)
+  //
+  // NOTE: The bracketed tag below is intentionally NOT hardcoded to a
+  // specific phase (e.g., "[Phase1]"). This diagnostics module is shared
+  // by every phase of the radiation development (Phase 1 through the
+  // current Phase 4 scattering work and beyond); using a static phase
+  // label here was a latent bug — it silently kept printing "[Phase1]"
+  // even after Phase 2/3/4 functionality was added, misleading anyone
+  // grepping logs by phase. Use the module-generic "[RAD]" tag plus the
+  // call-site tag, which remains accurate and grepable across all phases.
   if (m_verbosity >= 1 && amrex::ParallelDescriptor::IOProcessor()) {
-    amrex::Print() << "[RAD][Phase1][RadiationDiagnostics::append] step=" << step
+    amrex::Print() << "[RAD][RadiationDiagnostics::append] step=" << step
                    << " time=" << time << " SW_surface=" << SW_surface
                    << " SW_TOA=" << SW_TOA << " F_up_surface=" << F_up_surface
                    << " F_down_toa=" << F_down_toa
