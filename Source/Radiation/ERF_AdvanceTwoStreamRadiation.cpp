@@ -12,9 +12,9 @@ using namespace amrex;
 
 /**
  * @file ERF_AdvanceTwoStreamRadiation.cpp
- * @brief Phase 3 two-stream radiation driver with real per-column vertical
- * integration, optional height-varying (cloud layer) optical depth, and
- * cloud fraction masking.
+ * @brief Phase 4 two-stream radiation driver with real per-column vertical
+ * integration, optional height-varying (cloud layer) optical depth, cloud
+ * fraction masking, and a diffuse (scattering) SW flux contribution.
  *
  * Computes SW/LW fluxes and heating rates using real, per-column vertical
  * sweeps over the actual atmospheric grid. Reads temperature and density
@@ -31,7 +31,24 @@ using namespace amrex;
  *   EXACTLY to Phase 2d output (see RAD_DEVELOPMENT.md Phase 3 section for
  *   hand-traced verification).
  *
- * Note: Phase 3 still produces diagnostics only; heating injection comes in
+ * Phase 4 improvements over Phase 3:
+ * - Diffuse (scattered) SW flux: during the downward SW sweep, each layer's
+ *   direct-beam attenuation now also generates a diffuse flux contribution
+ *   via compute_sw_diffuse_flux() (Meador-Weaver two-stream scattering),
+ *   accumulated layer-by-layer alongside the direct beam. Clear-sky levels
+ *   use rad_choice.single_scattering_albedo / asymmetry_factor; levels
+ *   within the Phase 3 cloud layer (only on the "cloudy" column evaluation)
+ *   use rad_choice.cloud_single_scattering_albedo / cloud_asymmetry_factor
+ *   instead.
+ * - Total SW flux at any level = direct-beam flux + accumulated diffuse
+ *   flux. Heating rate divergence and surface flux now include both terms.
+ * - Default single_scattering_albedo = cloud_single_scattering_albedo = 0.0
+ *   means compute_sw_diffuse_flux() returns exactly 0.0 at every level, so
+ *   Phase 4 reduces EXACTLY to Phase 3 output when scattering is not
+ *   configured (see RAD_DEVELOPMENT.md Phase 4 section for hand-traced
+ *   verification).
+ *
+ * Note: Phase 4 still produces diagnostics only; heating injection comes in
  * Phase 5+.
  */
 
@@ -84,6 +101,23 @@ amrex::Real level_height_m(int k, int kmin, amrex::Real dz)
 }
 
 /**
+ * @brief GPU-safe helper to determine whether level k falls within the
+ * Phase 3 cloud layer band [cloud_base_height_m, cloud_top_height_m].
+ *
+ * @param[in] k Vertical index.
+ * @param[in] kmin Lowest vertical index.
+ * @param[in] dz Uniform vertical cell spacing [m].
+ * @param[in] rad_choice Radiation parameters.
+ * @return true if this level is inside the configured cloud band.
+ */
+AMREX_GPU_DEVICE AMREX_FORCE_INLINE
+bool is_cloud_level(int k, int kmin, amrex::Real dz, const RadChoice& rad_choice)
+{
+    amrex::Real z = level_height_m(k, kmin, dz);
+    return (z >= rad_choice.cloud_base_height_m && z <= rad_choice.cloud_top_height_m);
+}
+
+/**
  * @brief GPU-safe helper to compute the per-layer optical depth at level k,
  * given the base (clear-sky) optical depth and Phase 3 cloud-layer
  * parameters.
@@ -110,11 +144,50 @@ amrex::Real tau_layer_value(
     if (!apply_cloud || rad_choice.tau_profile_type != TauProfileType::CloudLayer) {
         return tau_base;
     }
-    amrex::Real z = level_height_m(k, kmin, dz);
-    if (z >= rad_choice.cloud_base_height_m && z <= rad_choice.cloud_top_height_m) {
+    if (is_cloud_level(k, kmin, dz, rad_choice)) {
         return tau_base + rad_choice.cloud_tau_per_layer;
     }
     return tau_base;
+}
+
+/**
+ * @brief (Phase 4) GPU-safe helper to select the single-scattering albedo
+ * and asymmetry factor to use for level k's diffuse SW calculation.
+ *
+ * When this column evaluation applies the cloud-layer enhancement
+ * (apply_cloud == true, tau_profile_type == CloudLayer, and level k falls
+ * within the cloud band), the cloud scattering properties
+ * (cloud_single_scattering_albedo, cloud_asymmetry_factor) are used.
+ * Otherwise, the clear-sky scattering properties (single_scattering_albedo,
+ * asymmetry_factor) are used. Both default to 0.0, so by default this
+ * function always yields omega == 0.0, and compute_sw_diffuse_flux()
+ * returns exactly 0.0 (Phase 1-3 direct-beam-only behavior preserved).
+ *
+ * @param[in] k Vertical index.
+ * @param[in] kmin Lowest vertical index.
+ * @param[in] dz Uniform vertical cell spacing [m].
+ * @param[in] rad_choice Radiation parameters.
+ * @param[in] apply_cloud Same flag passed to tau_layer_value(); true for the
+ * cloudy-column evaluation, false for the clear-sky column evaluation.
+ * @param[out] omega Selected single-scattering albedo for this level.
+ * @param[out] g Selected asymmetry factor for this level.
+ */
+AMREX_GPU_DEVICE AMREX_FORCE_INLINE
+void select_scattering_props(
+    int k, int kmin, amrex::Real dz, const RadChoice& rad_choice, bool apply_cloud,
+    amrex::Real& omega, amrex::Real& g)
+{
+    bool use_cloud_props = apply_cloud &&
+        rad_choice.tau_profile_type == TauProfileType::CloudLayer &&
+        is_cloud_level(k, kmin, dz, rad_choice);
+
+    if (use_cloud_props) {
+        omega = rad_choice.cloud_single_scattering_albedo;
+        g = rad_choice.cloud_asymmetry_factor;
+    } else {
+        omega = rad_choice.single_scattering_albedo;
+        g = rad_choice.asymmetry_factor;
+    }
 }
 
 /**
@@ -124,9 +197,10 @@ amrex::Real tau_layer_value(
  *
  * Performs a vertical sweep over each (i,j) column:
  * 1. Initialize fluxes at TOA
- * 2. Sweep downward (k: TOA → surface), accumulating optical depth
- * 3. Compute SW direct-beam and LW two-stream fluxes at each level
- * 4. Compute heating rates from flux divergence
+ * 2. Sweep downward (k: TOA → surface), accumulating optical depth and
+ *    (Phase 4) diffuse SW flux
+ * 3. Compute SW direct-beam + diffuse and LW two-stream fluxes at each level
+ * 4. Compute heating rates from flux divergence (direct + diffuse combined)
  *
  * All arrays are on device; results are accumulated into reduction variables.
  *
@@ -135,11 +209,12 @@ amrex::Real tau_layer_value(
  * @param[in] state_arr Array proxy to state data (read-only)
  * @param[in] rad_choice Radiation parameters
  * @param[in] cloudy If true and tau_profile_type == CloudLayer, apply the
- * cloud-layer optical depth enhancement; if false, always use the clear-sky
- * (constant) tau regardless of tau_profile_type. This lets the caller
- * compute both F_clear and F_cloudy for cloud-fraction blending.
+ * cloud-layer optical depth enhancement (and, Phase 4, cloud scattering
+ * properties); if false, always use the clear-sky (constant) tau and
+ * clear-sky scattering properties regardless of tau_profile_type. This lets
+ * the caller compute both F_clear and F_cloudy for cloud-fraction blending.
  * @param[out] max_heating_rate Maximum heating rate observed (device-side scalar)
- * @param[out] sw_surface_flux Downwelling SW at surface (device-side scalar)
+ * @param[out] sw_surface_flux Downwelling SW at surface (direct + diffuse) (device-side scalar)
  * @param[out] lw_net_surface Net LW at surface (device-side scalar)
  */
 AMREX_GPU_DEVICE AMREX_FORCE_INLINE
@@ -179,6 +254,7 @@ void vertical_two_stream_sweep(
     amrex::Real tau_sw_cum = 0.0;      // Cumulative SW optical depth (TOA → current level)
     amrex::Real tau_lw_cum = 0.0;      // Cumulative LW optical depth (TOA → current level)
     amrex::Real F_sw_dir_prev = 0.0;   // SW direct flux at previous level
+    amrex::Real F_sw_diff_prev = 0.0;  // (Phase 4) SW diffuse flux at previous level
     amrex::Real F_lw_up_prev = 0.0;    // LW upwelling at previous level
     amrex::Real F_lw_down_curr = 0.0;  // LW downwelling at current level (from downward sweep)
 
@@ -189,9 +265,11 @@ void vertical_two_stream_sweep(
     if (cos_zenith > 0.0) {
         F_sw_dir_prev = S0 * cos_zenith;  // TOA incident (tau = 0)
     }
+    F_sw_diff_prev = 0.0;  // No diffuse flux incident from above TOA
 
     // ========================================================================
-    // DOWNWARD PASS: Accumulate optical depth and compute SW direct-beam flux
+    // DOWNWARD PASS: Accumulate optical depth and compute SW direct-beam plus
+    // (Phase 4) diffuse flux
     // ========================================================================
     for (int k = kmin; k <= kmax; ++k) {
         // Read state at this level
@@ -212,18 +290,43 @@ void vertical_two_stream_sweep(
         // Accumulate optical depths
         tau_sw_cum += tau_sw;
 
-        // SW: Compute flux at current level using Beer-Lambert
+        // SW: Compute direct-beam flux at current level using Beer-Lambert
         amrex::Real F_sw_dir_curr = compute_sw_direct_flux(tau_sw_cum, S0, cos_zenith);
+
+        // Phase 4: select scattering properties for this level (clear-sky vs
+        // cloud, depending on the "cloudy" column flag and whether this level
+        // falls within the cloud band), and accumulate diffuse flux generated
+        // by this layer on top of the diffuse flux transmitted from above.
+        amrex::Real omega = 0.0;
+        amrex::Real g = 0.0;
+        select_scattering_props(k, kmin, dz, rad_choice, cloudy, omega, g);
+
+        amrex::Real F_sw_diff_layer =
+            compute_sw_diffuse_flux(tau_sw, F_sw_dir_prev, cos_zenith, omega, g);
+        // Total diffuse flux at this level = diffuse flux transmitted from
+        // above (attenuated by this layer's direct transmittance, as a
+        // simple first-order approximation) + diffuse flux newly generated
+        // within this layer.
+        amrex::Real Tdir_layer = (cos_zenith > 0.0)
+            ? std::exp(-tau_sw / cos_zenith)
+            : 0.0;
+        amrex::Real F_sw_diff_curr = F_sw_diff_prev * Tdir_layer + F_sw_diff_layer;
+
+        // Total SW flux (direct + diffuse) at top and bottom of this layer,
+        // used for heating rate divergence.
+        amrex::Real F_sw_total_prev = F_sw_dir_prev + F_sw_diff_prev;
+        amrex::Real F_sw_total_curr = F_sw_dir_curr + F_sw_diff_curr;
 
         // SW heating in this layer (if not at surface)
         if (k < kmax) {
-            amrex::Real Q_sw = compute_sw_heating_rate(F_sw_dir_prev, F_sw_dir_curr,
+            amrex::Real Q_sw = compute_sw_heating_rate(F_sw_total_prev, F_sw_total_curr,
                                                         dz, rho, cp_air);
             local_max_heating = std::max(local_max_heating, std::abs(Q_sw));
         }
 
         // Prepare for next iteration
         F_sw_dir_prev = F_sw_dir_curr;
+        F_sw_diff_prev = F_sw_diff_curr;
         }
     }
 
@@ -292,7 +395,8 @@ void vertical_two_stream_sweep(
         if (rad_choice.isothermal_test) {
             sw_surface_flux = S0 * std::max(0.0, cos_zenith) * std::exp(-tau_sw_cum);
         } else {
-            sw_surface_flux = F_sw_dir_prev;
+            // Phase 4: surface SW flux includes both direct and diffuse terms.
+            sw_surface_flux = F_sw_dir_prev + F_sw_diff_prev;
         }
     } else {
         sw_surface_flux = 0.0;
@@ -333,7 +437,8 @@ void ERF::compute_twostream_radiation_diagnostics(
     RadiationDiagnostics rad_diag(rad_choice.verbosity, rad_choice.diag_file, lev);
 
     // ========================================
-    // Phase 3: GPU-Safe ParallelFor Implementation with Cloud Fraction Blending
+    // Phase 4: GPU-Safe ParallelFor Implementation with Cloud Fraction
+    // Blending and Diffuse (Scattering) SW Flux
     // ========================================
 
     // Initialize global diagnostics
@@ -451,12 +556,12 @@ void ERF::compute_twostream_radiation_diagnostics(
         // NOTE: This computes a domain-averaged surface flux. This is only
         // equivalent to a single-column value for spatially UNIFORM atmospheres
         // (as in the current SW_ClearSky_Analytical / LW_Isothermal RegTests).
-        // Phase 3's new SW_Cloud_Layer RegTest is ALSO spatially uniform
-        // (identical cloud/tau parameters applied to every column), so the
-        // domain-averaged value still equals the true single-column flux
-        // there. True horizontal heterogeneity (e.g., patchy clouds varying
-        // by column) remains deferred to a future phase; see Gap G5 in
-        // RAD_DEVELOPMENT.md.
+        // Phase 3's SW_Cloud_Layer and Phase 4's SW_Scattering_Cloud RegTests
+        // are ALSO spatially uniform (identical cloud/tau/scattering
+        // parameters applied to every column), so the domain-averaged value
+        // still equals the true single-column flux there. True horizontal
+        // heterogeneity (e.g., patchy clouds varying by column) remains
+        // deferred to a future phase; see Gap G5 in RAD_DEVELOPMENT.md.
         if (n_columns_total > 0) {
             SW_surface = sw_surface_sum / static_cast<amrex::Real>(n_columns_total);
             F_up_surface = lw_net_sum / static_cast<amrex::Real>(n_columns_total);
