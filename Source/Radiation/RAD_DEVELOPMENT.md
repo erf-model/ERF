@@ -10,7 +10,7 @@ This document tracks the development of the two-stream radiation model through p
 | **2** | Real Per-Column Two-Stream Radiation | ✅ Complete | `copilot/phase2-real-per-column-radiation` | TBD | Per-column vertical integration, actual grid bounds, GPU-safe kernel |
 | **3** | Cloud Optical Properties | ✅ Complete | `copilot/phase3-cloud-optical-properties-manual` | TBD | Height-varying (cloud layer) optical depth, cloud fraction masking |
 | **4** | Scattering Effects | ✅ Complete | `copilot/phase4-scattering-effects-manual` | Merged | Diffuse (scattering) SW component via Meador-Weaver two-stream approximation |
-| **5** | RhoTheta Coupling | ⏳ Planned | TBD | TBD | Inject heating rates into prognostic equation |
+| **5** | RhoTheta Coupling | ✅ Complete | `copilot/phase5-rhotheta-coupling` | TBD | Inject heating rates into prognostic equation |
 | **6** | Time-Stepping Integration | ⏳ Planned | TBD | TBD | Proper sub-stepping with radiation transport |
 | **7** | RRTMGP Interface | ⏳ Planned | TBD | TBD | Full spectral model alternative |
 | **8** | Validation & Benchmarking | ⏳ Planned | TBD | TBD | Comparison with observations and other models |
@@ -985,6 +985,152 @@ zero-scattering guard in `compute_sw_diffuse_flux()`.
   PASS
 
 ---
+
+## Phase 5: RhoTheta Coupling
+
+### Overview
+
+Phase 5 wires the previously dead-code Phase 1-4 two-stream radiation
+driver into the actual simulation time loop for the first time, and
+injects the computed per-level heating rates into the `RhoTheta`
+prognostic source term. Prior to Phase 5:
+
+- `compute_twostream_radiation_diagnostics()` was never called anywhere
+  in the codebase (confirmed via repo-wide search before starting this
+  phase) — Phase 1-4 code was fully correct but had zero effect on any
+  simulation.
+- `qheating_rates[lev]` (the shared 2-component SW/LW MultiFab also used
+  by the RRTMGP path) was only allocated when `solverChoice.rad_type !=
+  RadiationType::None` (RRTMGP), never for `solverChoice.radChoice.rad_type
+  == RadType::TwoStream`.
+- `compute_lw_heating_rate()` (defined in `ERF_TwoStreamLW.H` since Phase
+  1) was never called — only the SW path fed the domain-max diagnostic.
+
+Phase 5 fixes all three gaps, in six incremental steps, each pushed and
+verified independently:
+
+1. **Per-level heating-rate output** (`ERF_AdvanceTwoStreamRadiation.cpp`):
+   `vertical_two_stream_sweep()` now writes `qheating_arr(i,j,k,0) = Q_sw`
+   and `qheating_arr(i,j,k,1) = Q_lw` at every level, using the same
+   2-component convention as the RRTMGP `qheating_rates` MultiFab. The LW
+   heating rate is computed for the first time via a net-flux-divergence
+   calculation over fixed-capacity (`MAX_RAD_LEVELS = 512`) per-column
+   buffers storing the full upward/downward LW flux profile.
+2. **Allocation gate extension** (`Source/ERF_MakeNewArrays.cpp`): the
+   `qheating_rates`/`rad_fluxes` allocation condition now also covers
+   `solverChoice.radChoice.rad_type == RadType::TwoStream`, not just
+   RRTMGP.
+3. **Driver wiring** (`Source/TimeIntegration/ERF_AdvanceRadiation.cpp`):
+   `advance_radiation()` now calls `compute_twostream_radiation_diagnostics()`
+   every step when `erf.radiation_type = "TwoStream"`, as a mutually
+   exclusive `else if` branch alongside the existing RRTMGP `Run()` call.
+4. **Source-term injection gate extension**
+   (`Source/SourceTerms/ERF_MakeSources.cpp`): the existing `RhoTheta_comp`
+   heating injection (`cell_src(...) += cell_data(...,Rho_comp) *
+   (qheating_arr(...,0) + qheating_arr(...,1))`) is now gated on either
+   `solverChoice.rad_type != RadiationType::None` OR
+   `solverChoice.radChoice.rad_type == RadType::TwoStream`, plus a
+   defensive `qheating_rates != nullptr` guard.
+5. **Assertion hardening**: the `MAX_RAD_LEVELS` bounds check in
+   `vertical_two_stream_sweep()` was changed from `AMREX_ASSERT_WITH_MESSAGE`
+   to `AMREX_ALWAYS_ASSERT_WITH_MESSAGE`, so a future domain exceeding 512
+   vertical levels aborts with a clear error message in ALL build types
+   (including release builds with `USE_ASSERTION=FALSE`), rather than
+   silently overflowing the fixed-capacity per-column stack buffers.
+6. **New RegTest**: `Exec/CanonicalTests/Radiation/Phase5_RhoTheta_Coupling/`
+   — a smoke test (not a flux-accuracy re-derivation, since Phase 5 does
+   not change the underlying flux formulas already validated by Phases
+   1-4) that runs SW+LW enabled, non-isothermal, for 5 timesteps and
+   confirms the diagnostic CSV accumulates the expected number of rows,
+   `SW_TOA` stays accurate, `heating_rate_max` is finite and nonzero, and
+   no NaN/Inf appears anywhere.
+
+### Contracts Introduced
+
+#### **R11: Shared qheating_rates Convention**
+
+Both radiation paths (RRTMGP via `solverChoice.rad_type` and TwoStream via
+`solverChoice.radChoice.rad_type`) MUST write into the same 2-component
+`qheating_rates` MultiFab using the identical convention: component 0 =
+SW heating rate [K/s], component 1 = LW heating rate [K/s]. No change to
+the injection formula in `ERF_MakeSources.cpp` should ever be needed to
+support a new radiation model — only the allocation and injection gates
+should need extending.
+
+**Rationale:** Keeps the RhoTheta coupling code path-agnostic and avoids
+duplicating the source-term injection logic per radiation model.
+
+#### **R12: Fixed-Capacity Buffer Assertions Must Be Always-On**
+
+Any fixed-capacity per-thread/per-column buffer sized by a compile-time
+constant (like `MAX_RAD_LEVELS`) MUST be guarded by
+`AMREX_ALWAYS_ASSERT_WITH_MESSAGE`, never plain `AMREX_ASSERT_WITH_MESSAGE`,
+because the latter compiles out in release builds
+(`USE_ASSERTION=FALSE`), silently permitting undefined-behavior stack
+buffer overflow instead of a caught, diagnosable error.
+
+**Rationale:** Production/release runs are exactly the runs most likely
+to use large domains that could exceed the buffer capacity, and exactly
+the runs where `USE_ASSERTION=FALSE` is most likely to be set for
+performance — the two conditions compound rather than cancel out.
+
+### Files Touched
+
+- **`Source/Radiation/ERF_AdvanceTwoStreamRadiation.cpp`**
+  - `vertical_two_stream_sweep()`: new `qheating_arr` parameter (mutable
+    `Array4<amrex::Real>`, 2 components); writes per-level SW heating rate
+    during the existing downward SW sweep, and per-level LW heating rate
+    via a new net-flux-divergence loop after the existing upward/downward
+    LW sweeps (using new `F_lw_up_profile[MAX_RAD_LEVELS]` /
+    `F_lw_down_profile[MAX_RAD_LEVELS]` local buffers)
+  - `compute_twostream_radiation_diagnostics()`: obtains
+    `qheating_rates[lev].get()`, passes it (or a throwaway scratch
+    `FArrayBox` if not yet allocated) into both the clear-sky and (when
+    `cloud_fraction > 0`) cloudy-column kernel invocations, blending the
+    per-level heating rates in place exactly as the existing scalar
+    diagnostics are already blended
+  - `MAX_RAD_LEVELS` constant (512) and its `AMREX_ALWAYS_ASSERT_WITH_MESSAGE`
+    bounds check
+
+- **`Source/ERF_MakeNewArrays.cpp`**
+  - Extended the `qheating_rates`/`rad_fluxes` allocation `if` condition
+    to also cover `solverChoice.radChoice.rad_type == RadType::TwoStream`
+
+- **`Source/TimeIntegration/ERF_AdvanceRadiation.cpp`**
+  - Added `else if (solverChoice.radChoice.rad_type == RadType::TwoStream)`
+    branch calling `compute_twostream_radiation_diagnostics(lev,
+    istep[lev], dt_advance)`
+
+- **`Source/SourceTerms/ERF_MakeSources.cpp`**
+  - Extended the `RhoTheta_comp` radiation source-injection `if` condition
+    to include the TwoStream path and a `qheating_rates != nullptr` guard
+
+- **`Exec/CanonicalTests/Radiation/Phase5_RhoTheta_Coupling/`** (new
+  RegTest)
+  - `inputs`: SW+LW enabled, non-isothermal, `stop_time=2.5`,
+    `fixed_dt=0.5` (5 timesteps), includes `qsrc_sw`/`qsrc_lw` in plotfile
+    output
+  - `input_sounding_phase5_coupling`: same sounding profile as the
+    existing Phase 1-4 RegTests
+  - `check_flux_accuracy.py`: smoke-test checker (row count, `SW_TOA`
+    accuracy, `heating_rate_max` finite/nonzero, no NaN/Inf) rather than a
+    flux-formula re-derivation
+
+### Self-Verification Checklist
+
+**Flag/parameter gating confirmed:**
+- `sw_enabled`, `lw_enabled`, `isothermal_test`, `tau_profile_type`,
+  `cloud_fraction` — re-grepped after the Phase 5 rewrite of
+  `vertical_two_stream_sweep()`; all five confirmed to still gate their
+  corresponding code paths unchanged from Phase 4. The new per-level
+  `qheating_arr` writes are nested strictly inside the existing
+  `sw_enabled`/`lw_enabled` blocks (including the isothermal-override
+  branch, which now also explicitly zeroes `qheating_arr(...,1)` at every
+  level to keep the per-level output consistent with the pre-existing
+  `lw_net_surface = 0` scalar diagnostic).
+
+**End-to-end run confirms wiring is active (actual test execution, not
+just hand-traced arithmetic):**
 
 ## References
 
