@@ -123,8 +123,8 @@ void vertical_two_stream_sweep(
     // Downward sweep: k = kmin (TOA) → kmax (surface)
     for (int k = kmin; k <= kmax; ++k) {
         // Read state at this level
-        amrex::Real rho = state_fab(i, j, k, Rho_comp);
-        amrex::Real rho_theta = state_fab(i, j, k, RhoTheta_comp);
+        amrex::Real rho = state_fab(amrex::IntVect(i, j, k), Rho_comp);
+        amrex::Real rho_theta = state_fab(amrex::IntVect(i, j, k), RhoTheta_comp);
         
         // Defensive clipping
         if (rho <= 0.0) rho = 1.0;
