@@ -116,6 +116,54 @@ public:
   std::string diag_file = "radiation_diag.dat";
 
   /**
+   * @brief (Phase 7) Master switch for radiation diagnostics emission.
+   * When false, no diagnostics output (stdout/tagged/regtest/csv).
+   * Default true preserves Phase 6 behavior.
+   */
+  bool diag_enable = true;
+
+  /**
+   * @brief (Phase 7) Enable human-readable stdout diagnostics block.
+   * Controls tagged [RAD][...] debug line emission (when verbosity >= 1).
+   * Default true preserves Phase 6 behavior.
+   */
+  bool diag_stdout_enable = true;
+
+  /**
+   * @brief (Phase 7) Enable tagged [RAD][...] debug lines.
+   * Controls emission of bracketed-tag debug output.
+   * Default true preserves Phase 6 behavior.
+   */
+  bool diag_tagged_enable = true;
+
+  /**
+   * @brief (Phase 7) Enable RADIATION_DIAG: line emission.
+   * Controls regtest-parsing diagnostics line.
+   * Default true preserves Phase 6 behavior.
+   */
+  bool diag_regtest_line_enable = true;
+
+  /**
+   * @brief (Phase 7) Enable CSV file append behavior.
+   * When false, no file writes; other enabled streams may still print.
+   * Default true preserves Phase 6 behavior.
+   */
+  bool diag_csv_enable = true;
+
+  /**
+   * @brief (Phase 7) Call-site filtering mode: "both" (pre+post rows),
+   * "pre_only", or "post_only". Default "both" preserves Phase 6 behavior.
+   */
+  std::string diag_callsite_mode = "both";
+
+  /**
+   * @brief (Phase 7) Tolerance for time equality in duplicate guard [s].
+   * Times within this tolerance are considered equal.
+   * Default 1e-12 preserves Phase 6 behavior.
+   */
+  amrex::Real diag_dedup_tol = 1.0e-12;
+
+  /**
    * @brief (Phase 3) Optical depth profile type: "constant" (default,
    * byte-identical to Phase 1/2) or "cloud_layer" (adds height-varying
    * cloud optical depth between cloud_base_height_m and cloud_top_height_m).
@@ -217,6 +265,13 @@ public:
    * - erf.radiation.asymmetry_factor (real, optional, Phase 4)
    * - erf.radiation.cloud_single_scattering_albedo (real, optional, Phase 4)
    * - erf.radiation.cloud_asymmetry_factor (real, optional, Phase 4)
+   * - erf.radiation.diag_enable (bool, optional, Phase 7, default true)
+   * - erf.radiation.diag_stdout_enable (bool, optional, Phase 7, default true)
+   * - erf.radiation.diag_tagged_enable (bool, optional, Phase 7, default true)
+   * - erf.radiation.diag_regtest_line_enable (bool, optional, Phase 7, default true)
+   * - erf.radiation.diag_csv_enable (bool, optional, Phase 7, default true)
+   * - erf.radiation.diag_callsite_mode (string, optional, Phase 7, default "both")
+   * - erf.radiation.diag_dedup_tol (real, optional, Phase 7, default 1e-12)
    *
    * Sub-option queries are only performed if rad_type == RadType::TwoStream.
    */
@@ -281,6 +336,25 @@ public:
       if (cloud_single_scattering_albedo > 1.0) cloud_single_scattering_albedo = 1.0;
       if (cloud_asymmetry_factor < -1.0) cloud_asymmetry_factor = -1.0;
       if (cloud_asymmetry_factor > 1.0) cloud_asymmetry_factor = 1.0;
+
+      // Phase 7: runtime diagnostics controls (all optional; defaults preserve
+      // exact Phase 6 behavior)
+      pp.query("radiation.diag_enable", diag_enable);
+      pp.query("radiation.diag_stdout_enable", diag_stdout_enable);
+      pp.query("radiation.diag_tagged_enable", diag_tagged_enable);
+      pp.query("radiation.diag_regtest_line_enable", diag_regtest_line_enable);
+      pp.query("radiation.diag_csv_enable", diag_csv_enable);
+      pp.query("radiation.diag_callsite_mode", diag_callsite_mode);
+      pp.query("radiation.diag_dedup_tol", diag_dedup_tol);
+
+      // Parameter validation (Phase 7): validate callsite mode
+      if (diag_callsite_mode != "both" &&
+          diag_callsite_mode != "pre_only" &&
+          diag_callsite_mode != "post_only") {
+        diag_callsite_mode = "both";  // Default on invalid input
+      }
+      // Ensure dedup tolerance is non-negative
+      if (diag_dedup_tol < 0.0) diag_dedup_tol = 0.0;
     }
   }
 

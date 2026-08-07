@@ -925,6 +925,54 @@ goes stale. Keep these two categories distinct.
 
 ---
 
+## D.16 – Lesson (Phase 7): Diagnostics Controls Must Not Alter Physics Path
+
+**Goal:**
+Phase 7 introduces runtime controls for diagnostics output cadence and streams.
+This lesson ensures diagnostics controls remain orthogonal to the physics
+solver and do not leak into heating calculations or source-term application.
+
+**Common Mistake:**
+```cpp
+// ❌ WRONG: Letting diag_callsite_mode affect physics
+void compute_twostream_radiation(...) {
+    // Physics computation
+    if (diag_callsite_mode == "pre_only") {
+        // Only compute heating during pre-step
+        // WRONG: This changes the physics!
+    }
+}
+```
+
+**Correct Pattern:**
+```cpp
+// ✅ CORRECT: Diagnostics gating only affects output, not computation
+void compute_twostream_radiation(...) {
+    // Compute heating unconditionally
+    compute_sw_heating(qheating_rates, ...);
+    compute_lw_heating(qheating_rates, ...);
+    
+    // Only the diagnostics append respects callsite mode:
+    RadiationDiagnostics rad_diag(...);  // controls passed here
+    rad_diag.append(...);  // filters output only
+}
+```
+
+**Why:**
+- Diagnostics controls are for observability; physics must be deterministic
+- Heating rates go into source terms regardless of output mode
+- Reproducibility requires decoupled layers: compute, then observe
+- Users configuring diagnostics must not inadvertently change results
+
+**Phase 7 Validation Checklist:**
+- [ ] All `diag_*` parameters used **only** in `RadiationDiagnostics` append path
+- [ ] No `diag_*` check in physics solver (`vertical_two_stream_sweep`, heating rate computation)
+- [ ] No `diag_*` check in source-term injection code
+- [ ] Heating rates computed and stored identically regardless of `diag_callsite_mode`
+- [ ] CSV/stdout enable flags gate **output only**, not computation
+
+---
+
 ## References
 
 - AMReX GPU Guide: https://amrex-codes.github.io/amrex/docs_html/GPU.html

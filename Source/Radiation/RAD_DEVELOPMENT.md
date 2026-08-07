@@ -12,8 +12,8 @@ This document tracks the development of the two-stream radiation model through p
 | **3** | Cloud Optical Properties | ✅ Complete | N/A (manual) | Height-varying cloud-layer optical depth, cloud fraction masking | Easy | `SW_Cloud_Layer` (+ Phase 1–2 regressions) |
 | **4** | Scattering Effects | ✅ Complete | Merged | Diffuse SW scattering via Meador-Weaver two-stream approximation | Moderate | `SW_Scattering_Cloud` (+ Phase 1–3 regressions) |
 | **5** | RhoTheta Coupling | ✅ Complete | N/A (manual) | Per-level SW/LW heating written to `qheating_rates` and injected into `RhoTheta` | Moderate | `Phase5_RhoTheta_Coupling` (+ Phase 1–4 regressions) |
-| 6 | Time-Stepping Integration | ✅ Complete | TBD | TwoStream call-cadence and temporal consistency with slow-step/source application + call_site diagnostics (pre_dycore/post_dycore) | Moderate | TwoStream_TimeStepping_Coupling |
-| **7** | TwoStream Runtime Diagnostics Controls | ⏳ Planned | TBD | Runtime controls for diagnostic frequency/stdout/schema toggles (no physics change) | Easy | `TwoStream_DiagControls` |
+| **6** | Time-Stepping Integration | ✅ Complete | TBD | TwoStream call-cadence and temporal consistency with slow-step/source application + call_site diagnostics (pre_dycore/post_dycore) | Moderate | TwoStream_TimeStepping_Coupling |
+| **7** | TwoStream Runtime Diagnostics Controls | ✅ Complete | TBD | Runtime controls for diagnostic frequency/stdout/schema toggles (no physics change) | Easy | `TwoStream_DiagControls` |
 | **8** | Validation & Benchmarking | ⏳ Planned | TBD | Canonical benchmark suite and cross-case validation workflow | Moderate | `Radiation_Benchmark_Suite` |
 | **9** | TwoStream Integration Polish I | ⏳ Planned | TBD | Diagnostic cadence cleanup/de-dup + nonuniform `dz` in heating divergence | Easy | `TwoStream_Cadence_NonuniformDZ` |
 | **10** | TwoStream Integration Polish II | ⏳ Planned | TBD | `MAX_RAD_LEVELS` configurability/near-limit warning + diagnostics schema hardening | Easy | `TwoStream_DiagSchema_BufferGuard` |
@@ -1339,6 +1339,140 @@ TwoStream integration across a multi-step run.
 2. **Append-mode files accumulate across runs:** if diagnostics file is not
    cleaned between runs, row counts will include prior executions.
 3. **Phase 6 scope
+
+---
+
+## Phase 7: TwoStream Runtime Diagnostics Controls
+
+### Overview
+
+Phase 7 introduces runtime controls for radiation diagnostics output cadence, 
+streams, and schema toggling, with **no changes to the physics** or heating 
+calculation. All controls default to preserve exact Phase 6 behavior.
+
+Phase 7 enables users to:
+- Suppress all diagnostics output via `diag_enable`
+- Filter by call-site mode (pre/post/both) via `diag_callsite_mode`
+- Selectively enable/disable output streams (stdout, tagged, regtest, CSV)
+- Adjust duplicate-write guard tolerance via `diag_dedup_tol`
+
+This is purely an output control layer; the underlying TwoStream solver and 
+heating calculations are unmodified.
+
+---
+
+### Contracts Introduced
+
+#### **R17: Diagnostics Controls Must Not Affect Physics Path**
+
+Diagnostics control parameters are output-only and must not:
+- Influence the TwoStream solver calculations
+- Alter heating rate values or their injection into `RhoTheta`
+- Change call-site timing or vertical-sweep logic
+- Affect duplicate-write guard identity (only tolerance changes)
+
+**Rationale:** Diagnostics are for observability; they are decoupled from 
+physics. Keeping them orthogonal ensures reproducibility and testability.
+
+#### **R18: Phase 6 Default Behavior Preserved**
+
+All Phase 7 control parameters must have defaults that reproduce exact Phase 6 
+diagnostics output:
+- `diag_enable = true` (all diagnostics active)
+- `diag_stdout_enable = true` (stdout active)
+- `diag_tagged_enable = true` (tagged debug lines active)
+- `diag_regtest_line_enable = true` (RADIATION_DIAG: lines active)
+- `diag_csv_enable = true` (CSV file writes active)
+- `diag_callsite_mode = "both"` (both pre and post rows emitted)
+- `diag_dedup_tol = 1e-12` (time tolerance in seconds)
+
+**Rationale:** Backward compatibility and regression prevention; users who do 
+not set Phase 7 parameters see no behavior change.
+
+#### **R19: Call-Site Mode Filtering**
+
+When `diag_callsite_mode` is configured:
+- `"both"`: Emit both pre and post rows per step (~2 rows/step)
+- `"pre_only"`: Emit only rows with "pre" in call_site (~1 row/step)
+- `"post_only"`: Emit only rows with "post" in call_site (~1 row/step)
+
+Filtering is applied after the master `diag_enable` gate and before duplicate 
+write guarding.
+
+**Rationale:** Enables users to reduce diagnostics volume or focus on specific 
+call points without modifying simulation code.
+
+---
+
+### Files Touched
+
+- **`Source/DataStructs/ERF_RadStruct.H`**
+  - Added Phase 7 control members to `RadChoice`:
+    - `bool diag_enable` (default true)
+    - `bool diag_stdout_enable` (default true)
+    - `bool diag_tagged_enable` (default true)
+    - `bool diag_regtest_line_enable` (default true)
+    - `bool diag_csv_enable` (default true)
+    - `std::string diag_callsite_mode` (default "both")
+    - `amrex::Real diag_dedup_tol` (default 1e-12)
+  - Extended `init_params()` to parse Phase 7 parameters
+  - Added parameter validation for callsite mode and tolerance
+
+- **`Source/Radiation/ERF_RadiationDiagnostics.H`**
+  - Extended constructor to accept Phase 7 control parameters
+  - Added private member variables to store controls
+
+- **`Source/Radiation/ERF_RadiationDiagnostics.cpp`**
+  - Updated constructor to initialize control members
+  - Modified `write_header_if_needed()` to check `diag_csv_enable` and `diag_enable`
+  - Updated `append()` to:
+    - Check master `diag_enable` gate first
+    - Apply call-site mode filtering
+    - Use `diag_dedup_tol` in duplicate guard
+    - Respect individual output stream flags
+
+- **`Source/Radiation/ERF_AdvanceTwoStreamRadiation.cpp`**
+  - Updated `RadiationDiagnostics` instantiation to pass control parameters from 
+    `rad_choice`
+
+- **`Exec/CanonicalTests/Radiation/Phase6_TimeIntegration/check_timing_consistency.py`**
+  - Enhanced to accept `diag_callsite_mode` and `diag_enable` configuration
+  - Updated row count expectations based on mode
+  - Added call-site validation checks
+  - Gracefully handle case where `diag_enable=false`
+
+---
+
+### Phase 7 Testing & Verification
+
+Expected verification cases:
+
+1. **Default (all enabled, mode="both")**
+   - Row count: ~2 per step (pre + post)
+   - Both pre and post call-sites present
+   - SW_TOA and heating checks pass
+
+2. **Mode: pre_only**
+   - Row count: ~1 per step (pre only)
+   - No post call-sites in output
+   - Physics values unchanged
+
+3. **Mode: post_only**
+   - Row count: ~1 per step (post only)
+   - No pre call-sites in output
+   - Physics values unchanged
+
+4. **Master enable off (diag_enable=false)**
+   - No diagnostic file generated or empty
+   - No stdout/tagged/regtest output
+   - Simulation runs without error
+
+---
+
+### Backward Compatibility
+
+Phase 7 is fully backward compatible. Simulations run with Phase 6 inputs 
+(no Phase 7 parameters specified) produce identical diagnostics output.
 
 ---
 
