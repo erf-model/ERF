@@ -1,0 +1,119 @@
+# Phase 5 Two-Stream Radiation: RhoTheta Coupling Smoke Test
+#
+# Unlike the Phase 1-4 RegTests (which validate flux/diagnostic accuracy
+# for a radiation calculation that was never actually wired into the time
+# loop), this test exercises the Phase 5 wiring itself:
+#   1. advance_radiation() now calls compute_twostream_radiation_diagnostics()
+#      every step when erf.radiation_type = "TwoStream" (previously dead code)
+#   2. qheating_rates[lev] is allocated and populated with per-level (SW, LW)
+#      heating rates by vertical_two_stream_sweep()
+#   3. ERF_MakeSources.cpp injects those heating rates into the RhoTheta
+#      source term every slow step
+#
+# This test runs both SW and LW enabled (non-isothermal, so LW heating is
+# genuinely computed from the two-stream sweeps) for several timesteps and
+# checks that:
+#   - The radiation diagnostics CSV accumulates one row per step (confirms
+#     the driver is actually being called repeatedly, not just once/never)
+#   - SW_TOA matches the analytical S0*cos(zenith) value every step
+#   - heating_rate_max is finite and nonzero (confirms qheating_rates is
+#     being populated with real, non-garbage values)
+#   - No NaN/Inf appears in any diagnostic column
+erf.prob_name = "ABL"
+
+stop_time = 2.5
+amrex.fpe_trap_invalid = 0
+
+fabarray.mfiter_tile_size = 1024 1024 1024
+
+geometry.prob_extent = 3000 3000 1024
+amr.n_cell           =  8   8   64
+amrex.max_grid_size_z = 128
+geometry.is_periodic = 1 1 0
+
+
+zlo.type = "surface_layer"
+erf.most.z0   = 0.1      # roughness length [m]
+erf.most.zref = 24.0     # reference height [m]
+erf.most.surf_temp_flux    = 0.0
+zhi.type = "SlipWall"
+zhi.theta_grad = 0.003  # adiabatic upper boundary
+erf.fixed_dt = 0.5  # time step [s]
+
+# DIAGNOSTICS & VERBOSITY
+erf.sum_interval   = 1       # timesteps between computing mass
+erf.v              = 1       # verbosity in ERF.cpp
+amr.v              = 1       # verbosity in Amr.cpp
+
+# REFINEMENT / REGRIDDING
+amr.max_level       = 0       # maximum level number allowed
+
+# CHECKPOINT FILES
+erf.check_file      = chk_neutral     # root name of checkpoint file
+erf.check_int       = -1             # number of timesteps between checkpoints
+
+# DATA COLLECTION
+erf.data_log    = neutral_hist.dat neutral_profiles.dat
+erf.profile_int = 10
+
+# PLOTFILES
+# Include the per-level radiation heating-rate diagnostic fields (Phase 5)
+# so the RhoTheta coupling can be visually/numerically inspected if desired.
+erf.plot_file_1     = plt_neutral      # prefix of plotfile name
+erf.plot_int_1      = 5                # number of timesteps between plotfiles
+erf.plot_vars_1     = x_velocity y_velocity z_velocity theta qsrc_sw qsrc_lw
+
+# SOLVER CHOICE
+erf.use_gravity = true
+
+erf.molec_diff_type = "None"
+# When using a PBL model, LES closure should be disabled
+erf.les_type        = "None"
+erf.Cs = 0.11
+erf.theta_ref = 300.0
+
+# INITIALIZATION - from sounding file
+erf.init_type = "input_sounding"
+erf.sounding_type = Ideal
+
+
+# PBL CONFIGURATION - Baseline MRF (neutral case)
+erf.pbl_type = "MRF"
+
+# MRF PBL PARAMETERS (for MRF model)
+erf.enable_mrf_cloud_adjustment = false
+erf.enable_mrf_countergradient = true
+erf.enable_mrf_unbounded_vpert = false
+erf.mrf_moistvars = false
+erf.pbl_mrf_Ribcr = 0.5
+erf.pbl_mrf_const_b = 7.8
+erf.pbl_mrf_coriolis_freq = 1.0e-4
+erf.pbl_mrf_highres_bounds = false
+erf.pbl_mrf_sf = 0.1
+erf.pbl_mrf_use_zero_ri_extent = false
+
+# CORIOLIS EFFECT
+erf.latitude = 45.0  # mid-latitude (f = 1.0e-4 s^-1)
+
+erf.use_coriolis = true
+
+erf.abl_driver_type = "GeostrophicWind"
+
+erf.abl_geo_wind = 15.0 0.0 0.0
+
+erf.input_sounding_file = "input_sounding_phase5_coupling"
+
+# RADIATION - Two-Stream SW + LW, both enabled, non-isothermal (Phase 5)
+# Non-isothermal (isothermal_test defaults to false) so LW heating is
+# genuinely computed via the two-stream sweeps rather than forced to zero
+# by the isothermal override -- this exercises the real per-level LW
+# heating-rate computation added in Phase 5 Step 1.
+erf.radiation_type = "TwoStream"
+erf.radiation.sw_enabled = true
+erf.radiation.lw_enabled = true
+erf.radiation.tau_per_layer = 0.003125
+erf.radiation.tau_lw_per_layer = 1.0
+erf.radiation.solar_zenith = 60.0
+erf.radiation.S0 = 1361.0
+erf.radiation.v = 1
+erf.radiation.diag_file = "radiation_phase5_coupling_diag.dat"
