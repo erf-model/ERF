@@ -39,7 +39,10 @@ AMREX_ENUM(TauProfileType, Constant, CloudLayer);
  * Phase 1/2: clear-sky, no-scattering physics, uniform optical depth.
  * Phase 3: adds height-varying optical depth (cloud layer) and cloud
  * fraction masking (blend of clear-sky and cloudy-column fluxes).
- * Later phases will extend with scattering and RRTMGP support.
+ * Phase 4: adds a diffuse (scattering) SW component via a two-stream
+ * scattering approximation, parameterized by single-scattering albedo
+ * and asymmetry factor, with independent clear-sky and cloud values.
+ * Later phases will extend with RRTMGP support.
  */
 struct RadChoice
 {
@@ -148,6 +151,45 @@ public:
   amrex::Real cloud_fraction = 0.0;
 
   /**
+   * @brief (Phase 4) Clear-sky (background gas) single-scattering albedo
+   * in [0, 1] for the SW diffuse (scattering) two-stream calculation.
+   * Default 0.0 means the clear-sky column is purely absorbing, and the
+   * diffuse SW contribution from the clear-sky column is exactly zero —
+   * reducing EXACTLY to the Phase 1-3 direct-beam-only result.
+   * Only used when rad_type == RadType::TwoStream and sw_enabled == true.
+   */
+  amrex::Real single_scattering_albedo = 0.0;
+
+  /**
+   * @brief (Phase 4) Clear-sky (background gas) scattering asymmetry
+   * factor in [-1, 1] (0 = isotropic scattering, close to 1 = strongly
+   * forward-scattering). Only meaningful when single_scattering_albedo
+   * > 0. Default 0.0.
+   */
+  amrex::Real asymmetry_factor = 0.0;
+
+  /**
+   * @brief (Phase 4) Cloud single-scattering albedo in [0, 1], used
+   * instead of single_scattering_albedo for levels where the Phase 3
+   * cloud-layer optical depth enhancement applies (i.e., within
+   * [cloud_base_height_m, cloud_top_height_m] on the "cloudy" column
+   * evaluation). Default 0.0 preserves byte-identical Phase 3 behavior
+   * for SW_Cloud_Layer unless explicitly configured otherwise. Typical
+   * liquid water cloud values are close to 1 (e.g., 0.9999).
+   * Only used when tau_profile_type == CloudLayer.
+   */
+  amrex::Real cloud_single_scattering_albedo = 0.0;
+
+  /**
+   * @brief (Phase 4) Cloud scattering asymmetry factor in [-1, 1], used
+   * instead of asymmetry_factor for levels where the Phase 3 cloud-layer
+   * optical depth enhancement applies. Default 0.0. Typical liquid water
+   * cloud droplet values are around 0.85 (strongly forward-scattering).
+   * Only meaningful when cloud_single_scattering_albedo > 0.
+   */
+  amrex::Real cloud_asymmetry_factor = 0.0;
+
+  /**
    * @brief Read radiation options from the input parameter database.
    *
    * @param[in] lev AMR level index.
@@ -171,6 +213,10 @@ public:
    * - erf.radiation.cloud_top_height_m (real, optional, Phase 3)
    * - erf.radiation.cloud_tau_per_layer (real, optional, Phase 3)
    * - erf.radiation.cloud_fraction (real, optional, Phase 3)
+   * - erf.radiation.single_scattering_albedo (real, optional, Phase 4)
+   * - erf.radiation.asymmetry_factor (real, optional, Phase 4)
+   * - erf.radiation.cloud_single_scattering_albedo (real, optional, Phase 4)
+   * - erf.radiation.cloud_asymmetry_factor (real, optional, Phase 4)
    *
    * Sub-option queries are only performed if rad_type == RadType::TwoStream.
    */
@@ -217,6 +263,24 @@ public:
       if (cloud_top_height_m < cloud_base_height_m) {
         cloud_top_height_m = cloud_base_height_m;
       }
+
+      // Phase 4: scattering parameters (all optional; defaults preserve
+      // exact Phase 3 direct-beam-only behavior)
+      pp.query("radiation.single_scattering_albedo", single_scattering_albedo);
+      pp.query("radiation.asymmetry_factor", asymmetry_factor);
+      pp.query("radiation.cloud_single_scattering_albedo", cloud_single_scattering_albedo);
+      pp.query("radiation.cloud_asymmetry_factor", cloud_asymmetry_factor);
+
+      // Parameter validation (R5/R5'): clip albedos to [0, 1] and
+      // asymmetry factors to [-1, 1]
+      if (single_scattering_albedo < 0.0) single_scattering_albedo = 0.0;
+      if (single_scattering_albedo > 1.0) single_scattering_albedo = 1.0;
+      if (asymmetry_factor < -1.0) asymmetry_factor = -1.0;
+      if (asymmetry_factor > 1.0) asymmetry_factor = 1.0;
+      if (cloud_single_scattering_albedo < 0.0) cloud_single_scattering_albedo = 0.0;
+      if (cloud_single_scattering_albedo > 1.0) cloud_single_scattering_albedo = 1.0;
+      if (cloud_asymmetry_factor < -1.0) cloud_asymmetry_factor = -1.0;
+      if (cloud_asymmetry_factor > 1.0) cloud_asymmetry_factor = 1.0;
     }
   }
 
