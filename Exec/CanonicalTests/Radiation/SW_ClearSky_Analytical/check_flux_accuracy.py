@@ -95,7 +95,7 @@ def check_sw_flux_accuracy():
     S0 = 1361.0  # Solar constant [W/m^2]
     zenith_deg = 60.0  # Solar zenith angle [degrees]
     cos_zenith = math.cos(math.radians(zenith_deg))
-    tau_per_layer = 0.05  # Optical depth per layer [1/m]
+    tau_per_layer = 0.003125  # Optical depth per layer [1/m]
     dz = 1024.0 / 64  # Layer thickness from domain setup: 64 layers over 10 km
     
     # Compute tau per unit height
