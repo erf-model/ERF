@@ -1,6 +1,6 @@
 # Radiation Module: MPI, GPU & Parallelization Skills
 
-This document captures essential MPI, GPU, and AMReX parallelization patterns required for radiation module development. It serves as a reference for avoiding common pitfalls and understanding the design decisions made throughout the phases.
+This document captures essential MPI, GPU, and AMReX parallelization patterns required for radiation module development. It serves as a reference for avoiding common pitfalls and understanding the design rationale behind the two-stream radiation implementation.
 
 ---
 
@@ -407,6 +407,11 @@ Create a `tau_profile[k]` array, read per-level values in the vertical sweep.
 **Lesson:**
 Design loops to allow future per-level arrays; don't hardcode uniformity into the kernel structure.
 
+**Status Update (Phase 3):** Implemented via `tau_layer_value()`, which
+adds a cloud-layer contribution based on height rather than a fully
+general `tau(k)` array — sufficient for the height-band cloud model but
+still not a fully arbitrary per-level profile.
+
 ---
 
 ### D.6 – Phase 2 New Issue: Limited State Access in Diagnostics Function
@@ -494,10 +499,10 @@ Never call a device function from host-side code. Always use AMReX's parallel la
 ### D.8 – Phase 3 Lesson: Re-Verify Every `_enabled`-Style Flag After Any Rewrite
 
 **Issue:**
-Phase 2d discovered that `sw_enabled` / `lw_enabled` gating had silently stopped being respected in some code paths after an earlier rewrite of `vertical_two_stream_sweep()` and `compute_twostream_radiation_diagnostics()`. Because these are simple boolean ParmParse flags with no compiler-enforced check, a refactor can easily drop or bypass an `if (rad_choice.X_enabled)` guard without causing any build error.
+Phase 2d discovered that `sw_enabled` / `lw_enabled` gating had silently stopped being respected in some code paths after an earlier rewrite of `vertical_two_stream_sweep()` and `compute_twostream_radiation_diagnostics()`.
 
 **Prevention Rule:**
-After ANY rewrite of a function containing `_enabled`-style (or enum-based, e.g., `tau_profile_type`, `isothermal_test`) gating flags, explicitly grep the modified file for every place the flag SHOULD appear, and confirm each one still gates the intended code:
+After ANY rewrite of a function containing `_enabled`-style (or enum-based, e.g., `tau_profile_type`, `isothermal_test`) gating flags, explicitly grep the modified file for every place the flag SHOULD gate behavior, and confirm each one still does:
 
 ```bash
 grep -n "sw_enabled\|lw_enabled\|isothermal_test\|tau_profile_type\|cloud_fraction" \
@@ -507,23 +512,46 @@ grep -n "sw_enabled\|lw_enabled\|isothermal_test\|tau_profile_type\|cloud_fracti
 Then manually confirm, for each match, that it actually wraps the corresponding SW/LW computation rather than merely appearing in an unrelated comment or unused branch.
 
 **Lesson:**
-A boolean flag with no gating effect is a silent physics bug, not a compile error. Every `_enabled`/`_type`-style ParmParse flag must be re-verified — not just re-read — after any rewrite of the function(s) it is supposed to gate. List the specific line numbers confirmed in the PR description; do not just assert "flags still work."
+A boolean flag with no gating effect is a silent physics bug, not a compile error. Every `_enabled`/`_type`-style ParmParse flag must be re-verified — not just re-read — after any rewrite of the function(s) it's supposed to gate.
 
 ---
 
 ### D.9 – Phase 3 Lesson: A Task Is Not Complete Until It Is Pushed and a PR Exists
 
 **Issue:**
-Prior attempts at delivering radiation-module phases have produced fully-correct, well-documented code changes that were never actually pushed to a remote branch, or where a PR was never opened — because the agent misdiagnosed a real remote branch as missing, or encountered a push failure and substituted a written summary in place of completing the actual git operations.
+Prior attempts at delivering radiation-module phases have produced fully-correct, well-documented code changes that were never actually pushed to a remote branch, or where a PR was never opened despite the branch existing.
 
 **Prevention Rule:**
-- Never use `git branch -r` alone to conclude a remote branch does not exist — this only lists branches your local repo already has a tracking ref for. Use `git ls-remote origin <branch>` or `git fetch origin <branch>` to authoritatively check for a remote branch's existence.
+- Never use `git branch -r` alone to conclude a remote branch does not exist — this only lists branches your local repo already has a tracking ref for. Use `git ls-remote origin <branch>` or an equivalent server-side check instead.
 - After pushing, verify success by checking actual command output for a new/updated ref (not just a zero exit code), and cross-check with `git ls-remote origin | grep <branch-name>`.
 - If a push fails, retry exactly once. If it fails again, stop and report the exact error message verbatim — do not attempt further workarounds, and do not describe the task as complete.
 - A local commit with no pushed branch, or a pushed branch with no opened pull request, is an **incomplete task**, regardless of how complete or well-documented the code changes themselves are.
 
 **Lesson:**
 Code correctness and delivery mechanics (push + PR) are two independent completion criteria. Verify both explicitly before ending a session.
+
+---
+
+### D.10 – Phase 4 Lesson: A Stale Hardcoded Phase Tag in Shared Diagnostics Code Is a Silent, Cross-Phase Bug
+
+**Issue:**
+`RadiationDiagnostics::append()` (`Source/Radiation/ERF_RadiationDiagnostics.cpp`) hardcoded its bracketed debug tag as `[RAD][Phase1][RadiationDiagnostics::append]` from Phase 1 onward. Because this diagnostics class is shared and reused unchanged across every subsequent phase (2, 2b, 2c, 2d, 3, 4, ...), the tag was never updated — every debug print, in every phase, silently claimed to be "Phase1" output. This was discovered when running the Phase 4 `SW_Scattering_Cloud` RegTest with `erf.radiation.v = 1`: the log clearly showed Phase 4 cloud/scattering diagnostics under a `[Phase1]` tag, which would mislead anyone grepping logs by phase to debug a specific phase's behavior.
+
+**Root Cause:**
+Any hardcoded phase/version label embedded in a **shared, cross-phase utility class** (as opposed to phase-specific driver code like `vertical_two_stream_sweep()`) will silently go stale the moment a new phase starts using that utility, because there is no compiler or test failure to catch it — it's a purely cosmetic/logging bug with no functional effect on flux correctness.
+
+**Fix:**
+Removed the hardcoded `[Phase1]` segment; the tag is now the phase-agnostic `[RAD][RadiationDiagnostics::append]`, which remains accurate regardless of which phase's code is calling it. The always-on `RADIATION_DIAG:` line used by RegTest check scripts (`check_flux_accuracy.py` etc.) was left untouched, since it never included a phase tag and is unaffected.
+
+**Prevention Rule:**
+When adding a new phase, grep all touched (and reused-but-unmodified) files for hardcoded phase-number strings, not just files being actively edited:
+```bash
+grep -rn '\[Phase[0-9]\]' Source/Radiation/
+```
+Any hit inside a file that is *shared* across phases (i.e., not itself part of the phase-specific driver logic being changed) should be treated as a latent staleness bug, even if that file isn't otherwise part of the current phase's diff.
+
+**Lesson:**
+A hardcoded phase label is fine in phase-specific narrative comments/documentation (where it's historically accurate and never changes), but must NEVER appear in a runtime string embedded in a class/function that is reused, unmodified, across multiple phases. Prefer phase-agnostic tags (`[RAD][...]`) for anything printed by shared infrastructure code.
 
 ---
 
@@ -545,6 +573,7 @@ Code correctness and delivery mechanics (push + PR) are two independent completi
 - [ ] LW flux changes smoothly with temperature profile
 - [ ] Heating rates have correct sign and reasonable magnitude
 - [ ] No NaN/Inf in output (run with `IEEE=1` to catch NaN earlier)
+- [ ] (Phase 4+) Diffuse SW flux is exactly zero when `single_scattering_albedo`/`cloud_single_scattering_albedo` are 0.0, and strictly positive when nonzero and a direct beam is present
 
 ### E.4 – State Variable Check
 - [ ] Temperature and density read correctly
@@ -555,6 +584,14 @@ Code correctness and delivery mechanics (push + PR) are two independent completi
 - [ ] Kernel time doesn't scale poorly with grid size
 - [ ] No excessive host↔device transfers
 - [ ] Reduction overhead is negligible (~1% of total time)
+
+### E.6 – Cross-Phase Regression Check (Phase 4+)
+- [ ] Grep all shared/reused files (not just newly-modified ones) for
+  hardcoded phase-number labels (`grep -rn '\[Phase[0-9]\]'
+  Source/Radiation/`) — see D.10
+- [ ] Re-run all prior phases' RegTests (not just the new phase's
+  RegTest) and confirm byte-identical or numerically-identical output
+  to the previous phase, per each new phase's own hand-traced arithmetic
 
 ---
 
@@ -579,7 +616,8 @@ Code correctness and delivery mechanics (push + PR) are two independent completi
  * @return Direct-beam flux [W/m^2]. Non-negative.
  *
  * @note If cos_zenith ≤ 0 (night), returns 0.
- * @note This function does NOT handle scattering or diffuse radiation (Phase 1 simplification).
+ * @note This function does NOT handle scattering or diffuse radiation (Phase 1 simplification;
+ *       see compute_sw_diffuse_flux() added in Phase 4 for the diffuse component).
  */
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 amrex::Real compute_sw_direct_flux(amrex::Real tau_cumulative, amrex::Real S0,
@@ -592,17 +630,20 @@ amrex::Real compute_sw_direct_flux(amrex::Real tau_cumulative, amrex::Real S0,
 ```cpp
 /**
  * @file ERF_TwoStreamSW.H
- * @brief Clear-sky shortwave radiation using Beer-Lambert direct-beam model.
+ * @brief Clear-sky shortwave radiation using Beer-Lambert direct-beam model,
+ * plus (Phase 4) a two-stream diffuse (scattering) approximation.
  *
  * Implements a simplified, clear-sky shortwave radiation model
  * using the Beer-Lambert law. Supports both Phase 1 (uniform optical depth)
- * and Phase 3+ (vertical optical depth profiles).
+ * and Phase 3+ (vertical optical depth profiles). Phase 4 adds a diffuse
+ * SW flux term via the Meador-Weaver (1980) two-stream approximation.
  *
  * All functions are GPU-safe and intended for use in device-side kernels.
  *
  * References:
  * - Beer, A., 1852: ...
  * - Bird et al., 1984: ...
+ * - Meador and Weaver, 1980: ...
  */
 ```
 
@@ -628,6 +669,13 @@ for (int k = kmin; k <= kmax; ++k) {
 - Phase labels (Phase 1/2, etc.) guide future maintainers
 - References to formulas help with code review
 
+**Note (Phase 4 addendum, see D.10):** Phase labels in *comments and
+documentation* (like the ones above) are fine and encouraged — they are
+historically accurate and never need to change. The bug D.10 describes is
+specifically about hardcoded phase labels embedded in **runtime debug
+print strings** within shared, reused-across-phases code, which silently
+goes stale. Keep these two categories distinct.
+
 ---
 
 ## Summary: The Five Sacred Rules
@@ -638,6 +686,11 @@ for (int k = kmin; k <= kmax; ++k) {
 4. **Per-(i,j) kernels:** Vertical sweep is sequential, horizontal is parallel
 5. **Defensive clipping:** Validate state, clip unphysical values, log aggregates
 
+**Rule 6 (added Phase 4, see D.10):** Never hardcode a phase/version label
+inside a runtime string in shared, cross-phase-reused code — grep for
+`[Phase#]`-style tags whenever starting a new phase, even in files you
+don't plan to modify.
+
 ---
 
 ## References
@@ -645,3 +698,4 @@ for (int k = kmin; k <= kmax; ++k) {
 - AMReX GPU Guide: https://amrex-codes.github.io/amrex/docs_html/GPU.html
 - AMReX Parallel Loop Patterns: https://amrex-codes.github.io/amrex/docs_html/GPU_HowTo.html#parallel-for
 - Atomic Operations: https://amrex-codes.github.io/amrex/docs_html/GPU_HowTo.html#atomic-operations
+- Meador, W. E., and W. R. Weaver, 1980: "Two-stream approximations to radiative transfer in planetary atmospheres", *J. Atmos. Sci.*, 37, 630–643.
