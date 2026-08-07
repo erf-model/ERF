@@ -466,6 +466,10 @@ public:
                             amrex::MultiFab& cons_in,
                             const double& dt_advance);
 
+    void compute_twostream_radiation_diagnostics (int lev,
+                                                   int nstep,
+                                                   amrex::Real time_step);
+
 #ifdef ERF_USE_EAMXX_SHOC
     void compute_shoc_tendencies (int lev,
                                   amrex::MultiFab* cons,

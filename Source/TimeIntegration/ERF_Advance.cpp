@@ -420,4 +420,9 @@ ERF::Advance (int lev, double time, double dt_lev, int iteration, int /*ncycle*/
         Time_Avg_Vel_atCC(dt[lev], t_avg_cnt[lev], vel_t_avg[lev].get(), U_new, V_new, W_new);
     }
 
+    // ***********************************************************************************************
+    // Compute and write radiation diagnostics (Phase 1 TwoStream only)
+    // ***********************************************************************************************
+    compute_twostream_radiation_diagnostics(lev, iteration, time + dt_lev);
+
 }
