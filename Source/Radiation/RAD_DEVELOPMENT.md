@@ -7,7 +7,7 @@ This document tracks the development of the two-stream radiation model through p
 | Phase | Name | Status | Branch | PR | Key Feature |
 |-------|------|--------|--------|-----|-------------|
 | **1** | Two-Stream Skeleton with Analytic Stub | ✅ Complete | `ERF-Radiation` | N/A | Clear-sky SW/LW, diagnostic output, single-layer optical depth |
-| **2** | Real Per-Column Two-Stream Radiation | 🔄 In Progress | `copilot/phase2-real-per-column-radiation` | TBD | Per-column vertical integration, actual grid bounds, GPU-safe kernel |
+| **2** | Real Per-Column Two-Stream Radiation | ✅ Complete | `copilot/phase2-real-per-column-radiation` | TBD | Per-column vertical integration, actual grid bounds, GPU-safe kernel |
 | **3** | Cloud Optical Properties | ⏳ Planned | TBD | TBD | Variable optical depth with height, cloud masking |
 | **4** | Scattering Effects | ⏳ Planned | TBD | TBD | Diffuse component, multi-stream expansion |
 | **5** | RhoTheta Coupling | ⏳ Planned | TBD | TBD | Inject heating rates into prognostic equation |

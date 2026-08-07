@@ -325,7 +325,60 @@ Always derive loop bounds dynamically; hardcoded constants are a source of silen
 
 ---
 
-### D.2 – Temperature Not Directly Available on State
+### D.2 – Phase 1→2 Transition: Per-Column Kernel Design
+
+**Issue:**
+Attempting to launch one kernel per (i, j, k) level is tempting but inefficient: each level would need to synchronize, compute isolated flux values, and communicate back to host.
+
+**Phase 2 Solution:**
+Use 2D parallel iteration `(i, j)` with sequential k-loop inside lambda:
+```cpp
+const auto& domain = geom[lev].Domain();
+amrex::ParallelFor(
+    amrex::Box(domain.smallEnd(0), domain.smallEnd(1), 0,
+               domain.bigEnd(0), domain.bigEnd(1), 0),
+    [=] AMREX_GPU_DEVICE (int i, int j, int) {
+        amrex::Real tau_cum = 0.0;
+        for (int k = bx.smallEnd(2); k <= bx.bigEnd(2); ++k) {
+            tau_cum += tau_per_layer;
+            // Compute, reduce within one thread
+        }
+    }
+);
+```
+
+**Lesson:**
+Structure parallelism around the problem geometry: horizontal (embarrassingly parallel), vertical (inherently sequential).
+
+---
+
+### D.3 – Phase 2 Discovery: Temperature Conversion Complexity
+
+**Issue:**
+ERF stores `RhoTheta`, not `Theta`. Converting to temperature requires:
+- Dividing by density: `Theta = RhoTheta / Rho`
+- Accounting for Exner function: `T = Theta * (p / p_ref)^(R_d / cp)`
+
+This requires access to pressure profile, which depends on model (hydrostatic, non-hydrostatic) and background state.
+
+**Phase 2 Simplification:**
+For Phase 2 diagnostics, use simplified conversion:
+```cpp
+amrex::Real theta = rho_theta / rho;
+// Apply defensive clipping
+theta = std::max(theta, 100.0);  // Minimum
+theta = std::min(theta, 400.0);  // Maximum
+```
+
+**Future Fix (Phase 5+):**
+When integrating heating into RhoTheta, use full Exner correction and background pressure profile.
+
+**Lesson:**
+Recognize when a simplification is acceptable (Phase 2: diagnostics only) vs. when full physics is needed (Phase 5+: coupling).
+
+---
+
+### D.4 – Temperature Not Directly Available on State
 
 **Issue:**
 ERF's state arrays typically store `RhoTheta`, not temperature. Computing `T` requires access to pressure, which depends on the model type and background state.
@@ -340,7 +393,7 @@ Know what's in the state arrays; don't assume standard atmospheric variable name
 
 ---
 
-### D.3 – Optical Depth Per Layer Can Vary (Future)
+### D.5 – Optical Depth Per Layer Can Vary (Future)
 
 **Issue (Phase 3+):**
 Phase 1/2 assume uniform `tau_per_layer`. Phase 3+ will vary optical depth with height (clouds, aerosols).
@@ -353,6 +406,29 @@ Create a `tau_profile[k]` array, read per-level values in the vertical sweep.
 
 **Lesson:**
 Design loops to allow future per-level arrays; don't hardcode uniformity into the kernel structure.
+
+---
+
+### D.6 – Phase 2 New Issue: Limited State Access in Diagnostics Function
+
+**Issue:**
+The `compute_twostream_radiation_diagnostics()` function is called from `ERF_Advance.cpp` but doesn't have direct access to state MultiFab arrays.
+
+**Current Workaround (Phase 2):**
+Implemented the `vertical_two_stream_sweep()` kernel structure but cannot fully activate it without passing state as parameter.
+
+**Future Fix (Phase 3+):**
+Modify function signature to accept `const Vector<MultiFab>&` or pass a single-level state reference:
+```cpp
+void compute_twostream_radiation_diagnostics(
+    int lev,
+    int nstep,
+    amrex::Real time_step,
+    const amrex::MultiFab& state);  // Add this
+```
+
+**Lesson:**
+When designing GPU kernels, ensure the calling context has access to required data structures before committing to the kernel design.
 
 ---
 
