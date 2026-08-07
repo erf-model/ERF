@@ -207,7 +207,7 @@ void ERF::compute_twostream_radiation_diagnostics(
     const auto& state_cons = vars_old[lev][Vars::cons];
     
     // Only compute radiation if we have valid state data
-    if (state_cons.nComp() > 0 && state_cons.nBoxes() > 0) {
+    if (state_cons.nComp() > 0 ) {
         
         // Prepare to compute TOA values (used for diagnostics output)
         amrex::Real zenith_rad = rad_choice.solar_zenith_deg * M_PI / 180.0;
@@ -242,7 +242,7 @@ void ERF::compute_twostream_radiation_diagnostics(
                     
                     // Call the Phase 2 per-column kernel for this column
                     vertical_two_stream_sweep(
-                        i, j, bx, geom_lev, state_fab, rad_choice,
+                        i, j, bx, state_fab, rad_choice,
                         max_heating_col, sw_flux_col, lw_net_col);
                     
                     // Accumulate results
