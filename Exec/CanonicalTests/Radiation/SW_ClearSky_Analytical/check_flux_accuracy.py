@@ -96,7 +96,7 @@ def check_sw_flux_accuracy():
     zenith_deg = 60.0  # Solar zenith angle [degrees]
     cos_zenith = math.cos(math.radians(zenith_deg))
     tau_per_layer = 0.05  # Optical depth per layer [1/m]
-    dz = 10000.0 / 20  # Layer thickness from domain setup: 20 layers over 10 km
+    dz = 1024.0 / 64  # Layer thickness from domain setup: 64 layers over 10 km
     
     # Compute tau per unit height
     tau_per_m = tau_per_layer / dz  # Convert from per-layer to per-meter
@@ -104,8 +104,8 @@ def check_sw_flux_accuracy():
     # Expected TOA flux (direct beam at top of atmosphere)
     expected_toa_flux = S0 * cos_zenith
     
-    # Expected surface flux (after passing through all 20 layers)
-    tau_total = tau_per_layer * 20
+    # Expected surface flux (after passing through all 64 layers)
+    tau_total = tau_per_layer * 64
     expected_surface_flux = S0 * cos_zenith * math.exp(-tau_total / cos_zenith)
     
     # Tolerance for numerical accuracy (5%)
@@ -119,7 +119,7 @@ def check_sw_flux_accuracy():
     print(f"  Solar zenith angle = {zenith_deg:.1f}°")
     print(f"  cos(zenith) = {cos_zenith:.4f}")
     print(f"  Optical depth per layer = {tau_per_layer:.4f}")
-    print(f"  Total optical depth (20 layers) = {tau_total:.4f}")
+    print(f"  Total optical depth (64 layers) = {tau_total:.4f}")
     print(f"\nExpected Fluxes:")
     print(f"  Expected TOA flux = {expected_toa_flux:.2f} W/m^2")
     print(f"  Expected surface flux = {expected_surface_flux:.2f} W/m^2")
