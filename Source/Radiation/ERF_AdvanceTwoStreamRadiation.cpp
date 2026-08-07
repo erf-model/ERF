@@ -193,63 +193,85 @@ void ERF::compute_twostream_radiation_diagnostics(
     RadiationDiagnostics rad_diag(rad_choice.verbosity, rad_choice.diag_file, lev);
 
     // ========================================
-    // Phase 2: Real per-column vertical integration
+    // Phase 2b: Wire the per-column kernel into diagnostics driver
     // ========================================
     
-    // Aggregate diagnostics across domain (on device, then copy to host)
-    amrex::Real max_heating_rate_global = 0.0;
-    amrex::Real sw_surface_avg = 0.0;
-    amrex::Real lw_net_surface_avg = 0.0;
-    int n_columns = 0;
-    
-    // For now, compute global fluxes using simplified analytical approach
-    // TODO: Integrate real per-column kernel when state access is available
-    
+    // Initialize global diagnostics
     amrex::Real SW_surface = 0.0;
     amrex::Real SW_TOA = 0.0;
     amrex::Real F_up_surface = 0.0;
     amrex::Real F_down_toa = 0.0;
     amrex::Real heating_rate_max = 0.0;
 
-    // Shortwave calculation with improved vertical accumulation
-    if (rad_choice.sw_enabled) {
-        // Convert solar zenith angle to radians
+    // Get state at this level (conservative variables: density, RhoTheta, etc.)
+    const auto& state_cons = vars_old[lev][Vars::cons];
+    
+    // Only compute radiation if we have valid state data
+    if (state_cons.nComp() > 0 && state_cons.nBoxes() > 0) {
+        
+        // Prepare to compute TOA values (used for diagnostics output)
         amrex::Real zenith_rad = rad_choice.solar_zenith_deg * M_PI / 180.0;
         amrex::Real cos_zenith = std::cos(zenith_rad);
-
-        // TOA downwelling SW flux
         SW_TOA = rad_choice.S0 * std::max(0.0, cos_zenith);
+        
+        // Host-side storage for reduction results
+        amrex::Real max_heating_global = 0.0;
+        amrex::Real sw_surface_sum = 0.0;
+        amrex::Real lw_net_sum = 0.0;
+        amrex::Long n_columns_total = 0;
 
-        // Phase 2: Properly accumulate optical depth over all vertical layers
-        if (cos_zenith > 0.0) {
-            // CRITICAL FIX from Phase 1: Use actual grid bounds, not hardcoded constant
-            int n_layers = geom[lev].Domain().length(2);
-            amrex::Real tau_cum = rad_choice.tau_per_layer * static_cast<amrex::Real>(n_layers);
+        // Sequential loop over all boxes (each box handled appropriately)
+        for (MFIter mfi(state_cons, TilingIfNotGPU()); mfi.isValid(); ++mfi)
+        {
+            const Box& bx = mfi.tilebox();
+            const FArrayBox& state_fab = state_cons[mfi];
+            const Geometry& geom_lev = geom[lev];
             
-            SW_surface = rad_choice.S0 * cos_zenith * 
-                        std::exp(-tau_cum / cos_zenith);
+            // Count columns in this box
+            amrex::Long n_cols = static_cast<amrex::Long>(bx.length(0)) * 
+                                 static_cast<amrex::Long>(bx.length(1));
+            n_columns_total += n_cols;
             
-            // Heating rate estimate from flux divergence
-            heating_rate_max = std::abs(SW_TOA - SW_surface) / 1000.0;
+            // Sequential loop over (i,j) columns and call kernel for each column
+            for (int i = bx.smallEnd(0); i <= bx.bigEnd(0); ++i) {
+                for (int j = bx.smallEnd(1); j <= bx.bigEnd(1); ++j) {
+                    // Variables to hold per-column results
+                    amrex::Real max_heating_col = 0.0;
+                    amrex::Real sw_flux_col = 0.0;
+                    amrex::Real lw_net_col = 0.0;
+                    
+                    // Call the Phase 2 per-column kernel for this column
+                    vertical_two_stream_sweep(
+                        i, j, bx, geom_lev, state_fab, rad_choice,
+                        max_heating_col, sw_flux_col, lw_net_col);
+                    
+                    // Accumulate results
+                    max_heating_global = std::max(max_heating_global, max_heating_col);
+                    sw_surface_sum += sw_flux_col;
+                    lw_net_sum += lw_net_col;
+                }
+            }
         }
-    }
-
-    // Longwave calculation (Phase 2)
-    if (rad_choice.lw_enabled) {
-        // For isothermal test, compute LW from Stefan-Boltzmann
-        if (rad_choice.isothermal_test) {
+        
+        // Average the surface fluxes over all columns
+        if (n_columns_total > 0) {
+            SW_surface = sw_surface_sum / static_cast<amrex::Real>(n_columns_total);
+            F_up_surface = lw_net_sum / static_cast<amrex::Real>(n_columns_total);
+        }
+        heating_rate_max = max_heating_global;
+        
+        // For LW: in isothermal test, override with analytical value
+        if (rad_choice.lw_enabled && rad_choice.isothermal_test) {
             amrex::Real sigma = 5.670374419e-8;
             amrex::Real T = rad_choice.T_iso_K;
             amrex::Real I_thermal = sigma * T * T * T * T;
-            
-            // Isothermal: F_up = F_down = I_thermal everywhere
-            F_up_surface = I_thermal;
             F_down_toa = I_thermal;
-            heating_rate_max = 0.0;  // No heating in isothermal case
+            F_up_surface = I_thermal;
+            heating_rate_max = 0.0;
         }
     }
 
-    // Logging (Phase 2: use verbosity to guard output)
+    // Logging (Phase 2b: use verbosity to guard output)
     if (rad_choice.verbosity >= 1 && ParallelDescriptor::IOProcessor()) {
         Print() << "Radiation diagnostics at step " << nstep << ":\n"
                 << "  SW TOA = " << SW_TOA << " W/m^2\n"
