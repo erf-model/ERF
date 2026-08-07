@@ -238,7 +238,7 @@ void make_sources (int level,
                                                                Array4<const Real>{};
 
 
-        // *************************************************************************************
+        /*// *************************************************************************************
         // two Add radiation source terms to (rho theta)
         // *************************************************************************************
         if (solverChoice.rad_type != RadiationType::None && is_slow_step) {
@@ -248,8 +248,31 @@ void make_sources (int level,
                 // Short-wavelength and long-wavelength radiation source terms
                 cell_src(i,j,k,RhoTheta_comp) += cell_data(i,j,k,Rho_comp) * ( qheating_arr(i,j,k,0) + qheating_arr(i,j,k,1) );
             });
-        }
+        }*/
 
+        // *************************************************************************************
+        // two Add radiation source terms to (rho theta)
+        // *************************************************************************************
+        // Phase 5 (Step 4): extend this gate to also cover the Phase 1-5
+        // TwoStream radiation path (solverChoice.radChoice.rad_type), not
+        // just RRTMGP (solverChoice.rad_type). Both paths write into the
+        // same qheating_rates MultiFab using the identical 2-component
+        // (SW, LW) convention (see Source/ERF_MakeNewArrays.cpp and
+        // Source/Radiation/ERF_AdvanceTwoStreamRadiation.cpp), so no change
+        // to the injection formula itself is needed -- only the gate and a
+        // defensive nullptr check (qheating_rates is only allocated when at
+        // least one radiation path is active; guard here in case this is
+        // ever called before that allocation, e.g. during early init).
+        if ((solverChoice.rad_type != RadiationType::None ||
+             solverChoice.radChoice.rad_type == RadType::TwoStream) &&
+            is_slow_step && qheating_rates != nullptr) {
+            auto const& qheating_arr = qheating_rates->const_array(mfi);
+            ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            {
+                // Short-wavelength and long-wavelength radiation source terms
+                cell_src(i,j,k,RhoTheta_comp) += cell_data(i,j,k,Rho_comp) * ( qheating_arr(i,j,k,0) + qheating_arr(i,j,k,1) );
+            });
+        }
 
         // *************************************************************************************
         // three Add Rayleigh damping for (rho theta)

@@ -459,7 +459,16 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
     //*********************************************************
     // Radiation heating source terms
     //*********************************************************
-    if (solverChoice.rad_type != RadiationType::None)
+    // Phase 5: allocate qheating_rates/rad_fluxes whenever EITHER the
+    // RRTMGP radiation path (solverChoice.rad_type) OR the Phase 1-5
+    // TwoStream radiation path (solverChoice.radChoice.rad_type) is
+    // active. Previously this was gated on RRTMGP alone, which meant
+    // compute_twostream_radiation_diagnostics() had nowhere to write its
+    // newly-added (Phase 5, Step 1) per-level (SW, LW) heating rates.
+    // Both paths share the same 2-component (SW, LW) convention, so no
+    // change to the array shape itself is needed -- only the gate.
+    if (solverChoice.rad_type != RadiationType::None ||
+        solverChoice.radChoice.rad_type == RadType::TwoStream)
     {
         qheating_rates[lev] = std::make_unique<MultiFab>(ba, dm, 2, 0);
         rad_fluxes[lev]     = std::make_unique<MultiFab>(ba, dm, 4, 0);

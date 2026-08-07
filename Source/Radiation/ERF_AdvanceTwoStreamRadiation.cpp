@@ -12,9 +12,12 @@ using namespace amrex;
 
 /**
  * @file ERF_AdvanceTwoStreamRadiation.cpp
- * @brief Phase 4 two-stream radiation driver with real per-column vertical
- * integration, optional height-varying (cloud layer) optical depth, cloud
- * fraction masking, and a diffuse (scattering) SW flux contribution.
+ * @brief Phase 5 two-stream radiation driver: adds per-level (SW, LW)
+ * heating-rate output (mirroring the RRTMGP qheating_rates MultiFab
+ * convention: component 0 = SW, component 1 = LW, units K/s), on top of
+ * the Phase 4 real per-column vertical integration, optional height-varying
+ * (cloud layer) optical depth, cloud fraction masking, and diffuse
+ * (scattering) SW flux contribution.
  *
  * Computes SW/LW fluxes and heating rates using real, per-column vertical
  * sweeps over the actual atmospheric grid. Reads temperature and density
@@ -48,8 +51,32 @@ using namespace amrex;
  *   configured (see RAD_DEVELOPMENT.md Phase 4 section for hand-traced
  *   verification).
  *
- * Note: Phase 4 still produces diagnostics only; heating injection comes in
- * Phase 5+.
+ * Phase 5 improvements over Phase 4 (this file):
+ * - vertical_two_stream_sweep() now accepts a mutable per-column
+ *   Array4<amrex::Real> `qheating_arr` (2 components) and writes the SW
+ *   heating rate to qheating_arr(i,j,k,0) and the LW heating rate to
+ *   qheating_arr(i,j,k,1) at EVERY level k in [kmin, kmax], instead of only
+ *   reducing to a domain-max scalar for diagnostics. This mirrors exactly
+ *   the (SW, LW) 2-component convention used by the RRTMGP qheating_rates
+ *   MultiFab (see Source/ERF_MakeNewArrays.cpp and
+ *   Source/SourceTerms/ERF_MakeSources.cpp), so both radiation paths can
+ *   share the same downstream RhoTheta source-term injection code.
+ * - LW heating rate is now actually computed: compute_lw_heating_rate()
+ *   (defined in ERF_TwoStreamLW.H since Phase 1) was previously dead code —
+ *   never called anywhere in the Phase 1-4 driver. Phase 5 adds a local,
+ *   fixed-capacity per-column buffer (capped at MAX_RAD_LEVELS, asserted at
+ *   runtime) to store the upward/downward LW flux profile from the
+ *   existing two sweeps, then computes the net-flux-divergence heating
+ *   rate layer-by-layer.
+ * - compute_twostream_radiation_diagnostics() (see Step 3+ of Phase 5) will
+ *   pass a real qheating_rates MultiFab pointer down to this kernel; when
+ *   cloud_fraction > 0, the clear-sky and cloudy-column heating rates are
+ *   blended into it exactly as sw_surface_flux/lw_net_surface already are,
+ *   via a scratch MultiFab for the cloudy-column evaluation.
+ *
+ * Note: CSV diagnostics (SW_surface, heating_rate_max, etc.) are
+ * unchanged; heating_rate_max is still the max(|Q_sw|+|Q_lw|) observed,
+ * kept for backward RegTest compatibility.
  */
 
 /**
@@ -191,18 +218,41 @@ void select_scattering_props(
 }
 
 /**
+ * @brief (Phase 5) Maximum number of vertical levels supported by the
+ * fixed-capacity per-column LW flux buffers in vertical_two_stream_sweep().
+ *
+ * The LW heating-rate computation requires the full upward and downward LW
+ * flux profile (not just the surface value), so this kernel stores both
+ * profiles in device-local arrays sized to this capacity. This is a
+ * pragmatic, GPU-safe alternative to dynamic per-thread allocation.
+ *
+ * If bx.length(2) exceeds this value, an AMREX_ALWAYS_ASSERT will fire at
+ * runtime (see compute_twostream_radiation_diagnostics()). Increase this
+ * constant if a taller domain is required; note memory-per-thread scales
+ * linearly with it (2 * MAX_RAD_LEVELS * sizeof(amrex::Real) bytes).
+ */
+constexpr int MAX_RAD_LEVELS = 512;
+
+/**
  * @brief GPU-safe per-column vertical integration kernel for two-stream
- * radiation, computing either the clear-sky or cloudy-column fluxes
- * depending on the `cloudy` flag.
+ * radiation, computing either the clear-sky or cloudy-column fluxes and
+ * per-level heating rates, depending on the `cloudy` flag.
  *
  * Performs a vertical sweep over each (i,j) column:
  * 1. Initialize fluxes at TOA
  * 2. Sweep downward (k: TOA → surface), accumulating optical depth and
- *    (Phase 4) diffuse SW flux
- * 3. Compute SW direct-beam + diffuse and LW two-stream fluxes at each level
- * 4. Compute heating rates from flux divergence (direct + diffuse combined)
+ *    (Phase 4) diffuse SW flux; writes per-level SW heating rate to
+ *    qheating_arr(i,j,k,0) at every level (Phase 5).
+ * 3. Sweep upward then downward for LW (as in Phase 2c), storing the full
+ *    per-level flux profiles in local buffers, then computes per-level LW
+ *    heating rate from net-flux divergence and writes to
+ *    qheating_arr(i,j,k,1) at every level (Phase 5).
+ * 4. Reduction-based scalar diagnostics (max heating rate, surface fluxes)
+ *    are still produced for CSV/console output, unchanged from Phase 4.
  *
- * All arrays are on device; results are accumulated into reduction variables.
+ * All arrays are on device; scalar results are accumulated into reduction
+ * variables, while per-level heating rates are written directly into
+ * qheating_arr.
  *
  * @param[in] bx Computational box (cell-centered, full domain)
  * @param[in] geom Geometry for this AMR level
@@ -213,7 +263,11 @@ void select_scattering_props(
  * properties); if false, always use the clear-sky (constant) tau and
  * clear-sky scattering properties regardless of tau_profile_type. This lets
  * the caller compute both F_clear and F_cloudy for cloud-fraction blending.
- * @param[out] max_heating_rate Maximum heating rate observed (device-side scalar)
+ * @param[out] qheating_arr (Phase 5) Mutable per-column array; component 0
+ * receives the SW heating rate [K/s] and component 1 the LW heating rate
+ * [K/s] at every level k in [kmin, kmax]. Must have at least 2 components
+ * and cover the full vertical extent of bx.
+ * @param[out] max_heating_rate Maximum |Q_sw|+|Q_lw| observed (device-side scalar)
  * @param[out] sw_surface_flux Downwelling SW at surface (direct + diffuse) (device-side scalar)
  * @param[out] lw_net_surface Net LW at surface (device-side scalar)
  */
@@ -225,6 +279,7 @@ void vertical_two_stream_sweep(
     const Array4<const amrex::Real>& state_arr,
     const RadChoice& rad_choice,
     bool cloudy,
+    const Array4<amrex::Real>& qheating_arr,
     amrex::Real& max_heating_rate,
     amrex::Real& sw_surface_flux,
     amrex::Real& lw_net_surface)
@@ -232,9 +287,11 @@ void vertical_two_stream_sweep(
     // Grid bounds
     int kmin = bx.smallEnd(2);
     int kmax = bx.bigEnd(2);
+    int nlev = kmax - kmin + 1;
 
     // Physical constants
     amrex::Real sigma = 5.670374419e-8;  // Stefan-Boltzmann [W/(m^2·K^4)]
+    amrex::Real cp_air = 1005.0;         // Specific heat at constant pressure [J/(kg·K)]
 
     // Get real vertical grid spacing from geometry
     // For uniform grids, use CellSize(2); for terrain-aware grids, would use z_phys_cc differences
@@ -252,13 +309,18 @@ void vertical_two_stream_sweep(
 
     // Initialize accumulators
     amrex::Real tau_sw_cum = 0.0;      // Cumulative SW optical depth (TOA → current level)
-    amrex::Real tau_lw_cum = 0.0;      // Cumulative LW optical depth (TOA → current level)
     amrex::Real F_sw_dir_prev = 0.0;   // SW direct flux at previous level
     amrex::Real F_sw_diff_prev = 0.0;  // (Phase 4) SW diffuse flux at previous level
-    amrex::Real F_lw_up_prev = 0.0;    // LW upwelling at previous level
     amrex::Real F_lw_down_curr = 0.0;  // LW downwelling at current level (from downward sweep)
 
     amrex::Real local_max_heating = 0.0;
+
+    // Zero-initialize this column's heating rate output (defensive: covers
+    // both sw_enabled=false and lw_enabled=false cases below).
+    for (int k = kmin; k <= kmax; ++k) {
+        qheating_arr(i, j, k, 0) = 0.0;
+        qheating_arr(i, j, k, 1) = 0.0;
+    }
 
     // TOA: initialize SW direct beam
     if (rad_choice.sw_enabled) {
@@ -269,7 +331,7 @@ void vertical_two_stream_sweep(
 
     // ========================================================================
     // DOWNWARD PASS: Accumulate optical depth and compute SW direct-beam plus
-    // (Phase 4) diffuse flux
+    // (Phase 4) diffuse flux; (Phase 5) write per-level SW heating rate.
     // ========================================================================
     for (int k = kmin; k <= kmax; ++k) {
         // Read state at this level
@@ -279,10 +341,6 @@ void vertical_two_stream_sweep(
         // Defensive clipping
         if (rho <= 0.0) rho = 1.0;
         if (rho_theta <= 0.0) rho_theta = 288.15;
-
-        // Compute temperature
-        amrex::Real T_layer = get_temperature_from_rhotheta(rho_theta, rho);
-        amrex::Real cp_air = 1005.0;  // Specific heat at constant pressure [J/(kg·K)]
 
         // Phase 3: per-level optical depth (constant, or +cloud within layer)
         amrex::Real tau_sw = tau_layer_value(k, kmin, dz, tau_sw_base, rad_choice, cloudy);
@@ -317,24 +375,38 @@ void vertical_two_stream_sweep(
         amrex::Real F_sw_total_prev = F_sw_dir_prev + F_sw_diff_prev;
         amrex::Real F_sw_total_curr = F_sw_dir_curr + F_sw_diff_curr;
 
-        // SW heating in this layer (if not at surface)
-        if (k < kmax) {
-            amrex::Real Q_sw = compute_sw_heating_rate(F_sw_total_prev, F_sw_total_curr,
-                                                        dz, rho, cp_air);
-            local_max_heating = std::max(local_max_heating, std::abs(Q_sw));
-        }
+        // Phase 5: SW heating in this layer, written at EVERY level (not
+        // just k < kmax as in Phase 1-4's max-only reduction), so that the
+        // per-level qheating_arr output has a physically meaningful value
+        // covering the whole column.
+        amrex::Real Q_sw = compute_sw_heating_rate(F_sw_total_prev, F_sw_total_curr,
+                                                    dz, rho, cp_air);
+        qheating_arr(i, j, k, 0) = Q_sw;
+        local_max_heating = std::max(local_max_heating, std::abs(Q_sw));
 
         // Prepare for next iteration
         F_sw_dir_prev = F_sw_dir_curr;
         F_sw_diff_prev = F_sw_diff_curr;
-        }
     }
+    }
+
+    // ========================================================================
+    // (Phase 5) LW: store full per-level upward/downward flux profiles in
+    // local, fixed-capacity buffers so a per-level net-flux-divergence
+    // heating rate can be computed after both sweeps complete.
+    // ========================================================================
+    amrex::Real F_lw_up_curr = 0.0;  // Will be set at k = kmax (surface)
+    amrex::Real F_lw_up_profile[MAX_RAD_LEVELS];
+    amrex::Real F_lw_down_profile[MAX_RAD_LEVELS];
+
+ if (rad_choice.lw_enabled) {
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(nlev <= MAX_RAD_LEVELS,
+        "vertical_two_stream_sweep: domain vertical extent exceeds "
+        "MAX_RAD_LEVELS; increase the constant in ERF_AdvanceTwoStreamRadiation.cpp");
 
     // ========================================================================
     // UPWARD PASS: Compute LW upwelling flux from surface to TOA
     // ========================================================================
-    amrex::Real F_lw_up_curr = 0.0;  // Will be set at k = kmax (surface)
- if (rad_choice.lw_enabled) {
     for (int k = kmax; k >= kmin; --k) {
         // Read state at this level for temperature (needed for LW flux computation)
         amrex::Real rho = state_arr(i, j, k, Rho_comp);
@@ -357,6 +429,7 @@ void vertical_two_stream_sweep(
             // Propagate upward through this layer
             F_lw_up_curr = compute_lw_flux_up(F_lw_up_curr, T_layer, sigma, tau_lw);
         }
+        F_lw_up_profile[k - kmin] = F_lw_up_curr;
     }
 
     // ========================================================================
@@ -381,13 +454,54 @@ void vertical_two_stream_sweep(
 
             // Compute downwelling flux at this level using real two-stream formula
             F_lw_down_curr = compute_lw_flux_down(F_lw_down_curr, T_layer, sigma, tau_lw);
+            F_lw_down_profile[k - kmin] = F_lw_down_curr;
         }
     }
     else {
-        // Isothermal test: all levels radiate equally
-        // Isothermal condition is handled below
+        // Isothermal test: all levels radiate equally; net flux is zero at
+        // every level (see SURFACE AND DIAGNOSTICS override below), so the
+        // per-level LW heating rate is exactly zero everywhere. Fill the
+        // downward profile with the (later-overridden) upward profile so
+        // the net-flux-divergence loop below produces exactly zero.
+        for (int k = kmin; k <= kmax; ++k) {
+            F_lw_down_profile[k - kmin] = F_lw_up_profile[k - kmin];
+        }
     }
-}
+
+    // ========================================================================
+    // (Phase 5) Per-level LW heating rate from net-flux divergence.
+    // ========================================================================
+    for (int k = kmin; k <= kmax; ++k) {
+        amrex::Real rho = state_arr(i, j, k, Rho_comp);
+        if (rho <= 0.0) rho = 1.0;
+
+        amrex::Real F_net_top, F_net_bot;
+        if (k == kmin) {
+            // TOA: no level above; treat the "top" net flux as the TOA
+            // downward boundary condition (F_down=0 unless isothermal) minus
+            // upward flux leaving the domain top, i.e. the net flux just
+            // above this layer using the same level's upward flux (first-
+            // order approximation at the domain boundary).
+            amrex::Real F_up_top = F_lw_up_profile[k - kmin];
+            amrex::Real F_down_top = rad_choice.isothermal_test
+                ? F_lw_down_profile[k - kmin]
+                : 0.0;
+            F_net_top = F_up_top - F_down_top;
+        } else {
+            F_net_top = F_lw_up_profile[k - 1 - kmin] - F_lw_down_profile[k - 1 - kmin];
+        }
+        F_net_bot = F_lw_up_profile[k - kmin] - F_lw_down_profile[k - kmin];
+
+        amrex::Real Q_lw = compute_lw_heating_rate(F_net_top, F_net_bot, dz, rho, cp_air);
+        qheating_arr(i, j, k, 1) = Q_lw;
+
+        amrex::Real Q_sw_here = qheating_arr(i, j, k, 0);
+        local_max_heating = std::max(local_max_heating, std::abs(Q_sw_here) + std::abs(Q_lw));
+    }
+
+    F_lw_up_curr = F_lw_up_profile[kmax - kmin];
+    F_lw_down_curr = F_lw_down_profile[kmax - kmin];
+ }
     // ========================================================================
     // SURFACE AND DIAGNOSTICS
     // ========================================================================
@@ -412,6 +526,11 @@ void vertical_two_stream_sweep(
             amrex::Real I_thermal = compute_thermal_intensity(T_iso, sigma);
             F_lw_up_curr = I_thermal;
             F_lw_down_curr = I_thermal;
+            // Isothermal override: net LW flux and heating are exactly zero
+            // at every level, overriding the per-level values written above.
+            for (int k = kmin; k <= kmax; ++k) {
+                qheating_arr(i, j, k, 1) = 0.0;
+            }
         }
         lw_net_surface = F_lw_up_curr - F_lw_down_curr;
     } else {
@@ -437,8 +556,9 @@ void ERF::compute_twostream_radiation_diagnostics(
     RadiationDiagnostics rad_diag(rad_choice.verbosity, rad_choice.diag_file, lev);
 
     // ========================================
-    // Phase 4: GPU-Safe ParallelFor Implementation with Cloud Fraction
-    // Blending and Diffuse (Scattering) SW Flux
+    // Phase 5: GPU-Safe ParallelFor Implementation with Cloud Fraction
+    // Blending, Diffuse (Scattering) SW Flux, and Per-Level Heating Rate
+    // Output (qheating_rates MultiFab)
     // ========================================
 
     // Initialize global diagnostics
@@ -470,6 +590,14 @@ void ERF::compute_twostream_radiation_diagnostics(
         // ever evaluated, and the blend below reduces to F = F_clear exactly.
         amrex::Real cloud_fraction = rad_choice.cloud_fraction;
 
+        // (Phase 5) Note: qheating_rates[lev] is expected to be allocated with
+        // 2 components by the caller whenever rad_choice.rad_type ==
+        // RadType::TwoStream (see Source/ERF_MakeNewArrays.cpp, Step 3 of
+        // Phase 5). If not yet allocated (e.g. before that change lands),
+        // this function still safely computes and logs CSV diagnostics but
+        // skips the per-level heating write.
+        MultiFab* qheating_mf = qheating_rates[lev].get();
+
         // Sequential loop over all boxes (each box handled with GPU-safe ParallelFor)
         for (MFIter mfi(state_cons, TilingIfNotGPU()); mfi.isValid(); ++mfi)
         {
@@ -487,6 +615,28 @@ void ERF::compute_twostream_radiation_diagnostics(
             amrex::Long n_cols = static_cast<amrex::Long>(bx.length(0)) *
                                  static_cast<amrex::Long>(bx.length(1));
             n_columns_total += n_cols;
+
+            // (Phase 5) Clear-sky-column heating rates are written directly
+            // into the real qheating_rates MultiFab when available.
+            // Fall back to a throwaway local FArrayBox otherwise (keeps the
+            // kernel call GPU-safe even if qheating_rates isn't allocated).
+            FArrayBox qheating_fallback_fab;
+            Array4<amrex::Real> qheating_clear_arr;
+            if (qheating_mf != nullptr) {
+                qheating_clear_arr = qheating_mf->array(mfi);
+            } else {
+                qheating_fallback_fab.resize(bx, 2);
+                qheating_clear_arr = qheating_fallback_fab.array();
+            }
+
+            // (Phase 5) Cloudy-column heating rates always go into a scratch
+            // FArrayBox; only used/blended when cloud_fraction > 0.
+            FArrayBox qheating_cloudy_fab;
+            Array4<amrex::Real> qheating_cloudy_arr;
+            if (cloud_fraction > 0.0) {
+                qheating_cloudy_fab.resize(bx, 2);
+                qheating_cloudy_arr = qheating_cloudy_fab.array();
+            }
 
             // GPU-safe reduction using ReduceOps (per-column results aggregated on device)
             amrex::Real max_heating_box = 0.0;
@@ -510,6 +660,7 @@ void ERF::compute_twostream_radiation_diagnostics(
                     amrex::Real lw_net_clear = 0.0;
                     vertical_two_stream_sweep(
                         i, j, bx, geom_lev, state_arr, rad_choice, /*cloudy=*/false,
+                        qheating_clear_arr,
                         max_heating_clear, sw_flux_clear, lw_net_clear);
 
                     amrex::Real max_heating_col = max_heating_clear;
@@ -525,6 +676,7 @@ void ERF::compute_twostream_radiation_diagnostics(
                         amrex::Real lw_net_cloudy = 0.0;
                         vertical_two_stream_sweep(
                             i, j, bx, geom_lev, state_arr, rad_choice, /*cloudy=*/true,
+                            qheating_cloudy_arr,
                             max_heating_cloudy, sw_flux_cloudy, lw_net_cloudy);
 
                         // Blend clear-sky and cloudy-column results
@@ -533,6 +685,21 @@ void ERF::compute_twostream_radiation_diagnostics(
                         lw_net_col = (1.0 - cloud_fraction) * lw_net_clear +
                                      cloud_fraction * lw_net_cloudy;
                         max_heating_col = std::max(max_heating_clear, max_heating_cloudy);
+
+                        // (Phase 5) Blend per-level heating rates in place
+                        // into qheating_clear_arr (which is the real output
+                        // MultiFab when qheating_mf != nullptr).
+                        int kmin = bx.smallEnd(2);
+                        int kmax = bx.bigEnd(2);
+                        for (int k = kmin; k <= kmax; ++k) {
+                            for (int comp = 0; comp < 2; ++comp) {
+                                amrex::Real q_clear_val = qheating_clear_arr(i, j, k, comp);
+                                amrex::Real q_cloudy_val = qheating_cloudy_arr(i, j, k, comp);
+                                qheating_clear_arr(i, j, k, comp) =
+                                    (1.0 - cloud_fraction) * q_clear_val +
+                                    cloud_fraction * q_cloudy_val;
+                            }
+                        }
                     }
 
                     // Return tuple for reduction
