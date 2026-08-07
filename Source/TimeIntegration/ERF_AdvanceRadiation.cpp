@@ -46,4 +46,18 @@ void ERF::advance_radiation (int lev,
                       z_phys_nd[lev].get()     , lat_ptr, lon_ptr,
                       lsm_updated);
     }
+    // Phase 5 (Step 3): Wire the Phase 1-5 two-stream radiation driver into
+    // the time loop for the first time. Prior to this,
+    // compute_twostream_radiation_diagnostics() was never called anywhere
+    // in the codebase -- Phase 1-4 code was fully correct but dead code
+    // from the simulation's perspective. This is a separate, independent
+    // path from the RRTMGP branch above (mutually exclusive: RRTMGP uses
+    // solverChoice.rad_type; TwoStream uses solverChoice.radChoice.rad_type).
+    //
+    // istep[lev] is used as both the "current step number" and (Phase 1-4
+    // convention) as the CSV diagnostics row index; dt_advance provides the
+    // time_step diagnostic value logged to the CSV/console output.
+    else if (solverChoice.radChoice.rad_type == RadType::TwoStream) {
+        compute_twostream_radiation_diagnostics(lev, istep[lev], dt_advance);
+    }
 }
