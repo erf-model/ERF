@@ -4,30 +4,30 @@ This document tracks the development of the two-stream radiation model through p
 
 ## Roadmap
 
-| Phase | Name | Status | Branch | PR | Key Feature |
-|-------|------|--------|--------|-----|-------------|
-| Phase | Name | Status | Branch | PR | Key Feature | Ease | RegTest |
-|---|---|---|---|---|---|---|---|
-| **1** | Two-Stream Skeleton with Analytic Stub | ✅ Complete | `ERF-Radiation` | N/A | Clear-sky SW/LW, diagnostic output, single-layer optical depth | Easy | `SW_ClearSky_Analytical`, `LW_Isothermal` |
-| **2** | Real Per-Column Two-Stream Radiation | ✅ Complete | `copilot/phase2-real-per-column-radiation` | TBD | Per-column vertical integration, actual grid bounds, GPU-safe kernel | Moderate | `SW_ClearSky_Analytical`, `LW_Isothermal` |
-| **3** | Cloud Optical Properties | ✅ Complete | `copilot/phase3-cloud-optical-properties-manual` | TBD | Height-varying cloud-layer optical depth, cloud fraction masking | Easy | `SW_Cloud_Layer` (+ Phase 1–2 regressions) |
-| **4** | Scattering Effects | ✅ Complete | `copilot/phase4-scattering-effects-manual` | Merged | Diffuse SW scattering via Meador-Weaver two-stream approximation | Moderate | `SW_Scattering_Cloud` (+ Phase 1–3 regressions) |
-| **5** | RhoTheta Coupling | ✅ Complete | `copilot/phase5-rhotheta-coupling` | TBD | Per-level SW/LW heating written to `qheating_rates` and injected into `RhoTheta` | Moderate | `Phase5_RhoTheta_Coupling` (+ Phase 1–4 regressions) |
-| **6** | Time-Stepping Integration | ⏳ Planned | TBD | TBD | TwoStream call-cadence and temporal consistency with slow-step/source application | Moderate | `TwoStream_TimeStepping_Coupling` |
-| **7** | TwoStream Runtime Diagnostics Controls | ⏳ Planned | TBD | TBD | Runtime controls for diagnostic frequency/stdout/schema toggles (no physics change) | Easy | `TwoStream_DiagControls` |
-| **8** | Validation & Benchmarking | ⏳ Planned | TBD | TBD | Canonical benchmark suite and cross-case validation workflow | Moderate | `Radiation_Benchmark_Suite` |
-| **9** | TwoStream Integration Polish I | ⏳ Planned | TBD | TBD | Diagnostic cadence cleanup/de-dup + nonuniform `dz` in heating divergence | Easy | `TwoStream_Cadence_NonuniformDZ` |
-| **10** | TwoStream Integration Polish II | ⏳ Planned | TBD | TBD | `MAX_RAD_LEVELS` configurability/near-limit warning + diagnostics schema hardening | Easy | `TwoStream_DiagSchema_BufferGuard` |
-| **11** | Moisture/Cloud-Aware Dynamic Optical Depth | ⏳ Planned | TBD | TBD | Diagnose SW/LW `tau(k)` from `qv`, `qc`, `rho`, `dz` with safe fallback | Moderate | `TwoStream_DynamicTau_MoistCloud` |
-| **12** | PBL Coupling Focus (MRF/YSU only) | ⏳ Planned | TBD | TBD | MRF/YSU-only radiative tendency smoothing/limiter + PBL diagnostic hooks | Moderate | `TwoStream_PBL_MRF_YSU_Coupling` |
-| **13** | Prognostic Cloud Fraction for Radiation | ⏳ Planned | TBD | TBD | RH/qc-based diagnosed cloud fraction with bounds and simple smoothing | Easy | `TwoStream_ProgCloudFraction` |
-| **14** | Bulk Aerosol/Turbidity Option | ⏳ Planned | TBD | TBD | Prescribed aerosol optical-depth profile (constant/exponential/table), optional LW hook | Easy | `TwoStream_Aerosol_Turbidity` |
-| **15** | Time-Varying Solar Geometry | ⏳ Planned | TBD | TBD | Solar zenith evolution with time/lat/day; fixed-angle fallback retained | Easy | `TwoStream_DiurnalSolarGeometry` |
-| **16** | Simple 2-Band Shortwave Split | ⏳ Planned | TBD | TBD | Visible + near-IR SW split with fixed weights/taus | Easy | `TwoStream_SW_2Band` |
-| **17** | Multi-Band Two-Stream (SW/LW) | ⏳ Planned | TBD | TBD | Expand to ~4–6 SW bands and ~3–5 LW pseudo-bands with legacy fallback | Moderate | `TwoStream_Multiband_SWLW` |
-| **18** | Cloud Optical Diagnostics from Microphysics | ⏳ Planned | TBD | TBD | Derive cloud optical properties from `qc/qi` (optional `reff`) per band | Moderate | `TwoStream_CloudOptics_Microphysics` |
-| **19** | Aerosol Mode Profiles | ⏳ Planned | TBD | TBD | Aerosol presets (`urban`, `dust`, `smoke`, `marine`, `clean`) with vertical profiles and bandwise optics | Easy–Moderate | `TwoStream_AerosolModes` |
-| **20** | SW Delta-Eddington + LW Humidity-Dependent Emissivity | ⏳ Planned | TBD | TBD | SW forward-scattering correction + humidity-aware LW emissivity, backward-compatible defaults | Moderate | `TwoStream_DeltaEddington_LWEmissivity` |
+
+| Phase | Name | Status | PR | Key Feature | Ease | RegTest |
+|---|---|---|---|---|---|---|
+| **1** | Two-Stream Skeleton with Analytic Stub | ✅ Complete | N/A | Clear-sky SW/LW, diagnostic output, single-layer optical depth | Easy | `SW_ClearSky_Analytical`, `LW_Isothermal` |
+| **2** | Real Per-Column Two-Stream Radiation | ✅ Complete | #283 | Per-column vertical integration, actual grid bounds, GPU-safe kernel | Moderate | `SW_ClearSky_Analytical`, `LW_Isothermal` |
+| **3** | Cloud Optical Properties | ✅ Complete | N/A (manual) | Height-varying cloud-layer optical depth, cloud fraction masking | Easy | `SW_Cloud_Layer` (+ Phase 1–2 regressions) |
+| **4** | Scattering Effects | ✅ Complete | Merged | Diffuse SW scattering via Meador-Weaver two-stream approximation | Moderate | `SW_Scattering_Cloud` (+ Phase 1–3 regressions) |
+| **5** | RhoTheta Coupling | ✅ Complete | N/A (manual) | Per-level SW/LW heating written to `qheating_rates` and injected into `RhoTheta` | Moderate | `Phase5_RhoTheta_Coupling` (+ Phase 1–4 regressions) |
+| **6** | Time-Stepping Integration | ⏳ Planned | TBD | TwoStream call-cadence and temporal consistency with slow-step/source application | Moderate | `TwoStream_TimeStepping_Coupling` |
+| **7** | TwoStream Runtime Diagnostics Controls | ⏳ Planned | TBD | Runtime controls for diagnostic frequency/stdout/schema toggles (no physics change) | Easy | `TwoStream_DiagControls` |
+| **8** | Validation & Benchmarking | ⏳ Planned | TBD | Canonical benchmark suite and cross-case validation workflow | Moderate | `Radiation_Benchmark_Suite` |
+| **9** | TwoStream Integration Polish I | ⏳ Planned | TBD | Diagnostic cadence cleanup/de-dup + nonuniform `dz` in heating divergence | Easy | `TwoStream_Cadence_NonuniformDZ` |
+| **10** | TwoStream Integration Polish II | ⏳ Planned | TBD | `MAX_RAD_LEVELS` configurability/near-limit warning + diagnostics schema hardening | Easy | `TwoStream_DiagSchema_BufferGuard` |
+| **11** | Moisture/Cloud-Aware Dynamic Optical Depth | ⏳ Planned | TBD | Diagnose SW/LW `tau(k)` from `qv`, `qc`, `rho`, `dz` with safe fallback | Moderate | `TwoStream_DynamicTau_MoistCloud` |
+| **12** | PBL Coupling Focus (MRF/YSU only) | ⏳ Planned | TBD | MRF/YSU-only radiative tendency smoothing/limiter + PBL diagnostic hooks | Moderate | `TwoStream_PBL_MRF_YSU_Coupling` |
+| **13** | Prognostic Cloud Fraction for Radiation | ⏳ Planned | TBD | RH/qc-based diagnosed cloud fraction with bounds and simple smoothing | Easy | `TwoStream_ProgCloudFraction` |
+| **14** | Bulk Aerosol/Turbidity Option | ⏳ Planned | TBD | Prescribed aerosol optical-depth profile (constant/exponential/table), optional LW hook | Easy | `TwoStream_Aerosol_Turbidity` |
+| **15** | Time-Varying Solar Geometry | ⏳ Planned | TBD | Solar zenith evolution with time/lat/day; fixed-angle fallback retained | Easy | `TwoStream_DiurnalSolarGeometry` |
+| **16** | Simple 2-Band Shortwave Split | ⏳ Planned | TBD | Visible + near-IR SW split with fixed weights/taus | Easy | `TwoStream_SW_2Band` |
+| **17** | Multi-Band Two-Stream (SW/LW) | ⏳ Planned | TBD | Expand to ~4–6 SW bands and ~3–5 LW pseudo-bands with legacy fallback | Moderate | `TwoStream_Multiband_SWLW` |
+| **18** | Cloud Optical Diagnostics from Microphysics | ⏳ Planned | TBD | Derive cloud optical properties from `qc/qi` (optional `reff`) per band | Moderate | `TwoStream_CloudOptics_Microphysics` |
+| **19** | Aerosol Mode Profiles | ⏳ Planned | TBD | Aerosol presets (`urban`, `dust`, `smoke`, `marine`, `clean`) with vertical profiles and bandwise optics | Easy–Moderate | `TwoStream_AerosolModes` |
+| **20** | SW Delta-Eddington + LW Humidity-Dependent Emissivity | ⏳ Planned | TBD | SW forward-scattering correction + humidity-aware LW emissivity, backward-compatible defaults | Moderate | `TwoStream_DeltaEddington_LWEmissivity` |
+
 
 ---
 
