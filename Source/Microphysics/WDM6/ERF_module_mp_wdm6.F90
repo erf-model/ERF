@@ -1329,8 +1329,12 @@
           ncr(i_dbg_local,kts,2), ncr(i_dbg_local,kts,3)
       endif
 
-
-
+      if (debug_local .gt. 0 .and. i_dbg_local .ge. its .and. i_dbg_local .le. ite) then
+        write(*,'(A,1X,I3,4(1X,ES24.16E3))') &
+          'WDM6-FORT_PRE_G11', kts, &
+          qrs(i_dbg_local,kts,1), qrs(i_dbg_local,kts,2), qrs(i_dbg_local,kts,3), &
+          ncr(i_dbg_local,kts,3)
+      endif
 
       do k = kts, kte
         do i = its, ite
@@ -1375,8 +1379,12 @@
         enddo
       enddo
 
-
-
+      if (debug_local .gt. 0 .and. i_dbg_local .ge. its .and. i_dbg_local .le. ite) then
+        write(*,'(A,1X,I3,6(1X,ES24.16E3))') &
+          'WDM6-FORT_POST_G11', kts, &
+          rslope(i_dbg_local,kts,1), avedia(i_dbg_local,kts,2), rslopec(i_dbg_local,kts), &
+          rslopec2(i_dbg_local,kts), avedia(i_dbg_local,kts,1), work2(i_dbg_local,kts)
+      endif
 
 
 

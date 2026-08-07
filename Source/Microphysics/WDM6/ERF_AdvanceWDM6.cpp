@@ -57,6 +57,7 @@ Real wdm6_diffac (Real a, Real b, Real c, Real d, Real e,
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 Real wdm6_venfac (Real a, Real b, Real c, Real den0_arg) {
+    // Fortran: exp(log((viscos(b,c)/diffus(b,a)))*((.3333333))) / sqrt(viscos) * sqrt(sqrt(den0/c))
     return std::exp(std::log(wdm6_viscos(b,c)/wdm6_diffus(b,a))
                    *Real(0.3333333))
           /std::sqrt(wdm6_viscos(b,c))
@@ -715,6 +716,7 @@ void WDM6::Advance(const Real& dt_advance,
         FArrayBox rslope3_fab(fab_box,3, Arena_Used);
         FArrayBox work1_fab(fab_box,3, Arena_Used);
         FArrayBox workn_fab(fab_box,1, Arena_Used);
+        FArrayBox work2_fab(fab_box,1, Arena_Used);  // Ventilation factor for diffusion (G11+)
         Box box2d(IntVect(ilo,jlo,0), IntVect(ihi,jhi,0));
         IArrayBox mstep_fab(box2d,1, Arena_Used);
         IArrayBox numdt_fab(box2d,1, Arena_Used);
@@ -743,6 +745,9 @@ void WDM6::Advance(const Real& dt_advance,
         FArrayBox qrs_tmp_fab(fab_box,3, Arena_Used);  // Temporary qr, qs, qg (components 0,1,2)
         FArrayBox ncr_tmp_fab(fab_box,1, Arena_Used);  // Temporary nr
 
+        // G11 arrays (particle diameter work array)
+        FArrayBox avedia_fab(fab_box,2, Arena_Used);   // avedia(:,:,1:2) for rain and cloud slopes
+
         // G8 ice sedimentation arrays
         FArrayBox work1c_fab(fab_box,1, Arena_Used);   // Ice crystal fall speed
         FArrayBox fallc_fab(box2d,1, Arena_Used);      // Ice fallout (2D surface)
@@ -760,6 +765,7 @@ void WDM6::Advance(const Real& dt_advance,
         auto const& rslope3_arr = rslope3_fab.array();
         auto const& work1_arr = work1_fab.array();
         auto const& workn_arr = workn_fab.array();
+        auto const& work2_arr = work2_fab.array();  // Ventilation factor for diffusion
         auto const& mstep_arr = mstep_fab.array();
         auto const& numdt_arr = numdt_fab.array();
         auto const& sr_arr = sr_fab.array();  // Snow ratio for G9
@@ -780,6 +786,7 @@ void WDM6::Advance(const Real& dt_advance,
         auto const& nrevp_arr = nrevp_fab.array();
         auto const& qrs_tmp_arr = qrs_tmp_fab.array();  // G6: temporary qr, qs, qg
         auto const& ncr_tmp_arr = ncr_tmp_fab.array();  // G6: temporary nr
+        auto const& avedia_arr = avedia_fab.array();    // G11: particle diameter work array
 
         // G8 array references
         auto const& work1c_arr = work1c_fab.array();    // Ice crystal fall speed
@@ -1958,6 +1965,130 @@ void WDM6::Advance(const Real& dt_advance,
                             diag_k + 1,
                             static_cast<double>(nc_arr(diag_i,diag_j,diag_k)),
                             static_cast<double>(nr_arr(diag_i,diag_j,diag_k)));
+                std::fflush(stdout);
+            }
+#endif
+
+            // ============================================================
+            // G11: SLOPE3 — Third slope_wdm6 call + avedia/rslopec recompute
+            // ============================================================
+
+#if !defined(AMREX_USE_GPU)
+            if (microphysics_debug > 0 && diag_col_in_tile) {
+                std::printf("WDM6-CPP_PRE_G11 %3d %24.16E %24.16E %24.16E %24.16E\n",
+                            diag_k + 1,
+                            static_cast<double>(qr_arr(diag_i,diag_j,diag_k)),
+                            static_cast<double>(qs_arr(diag_i,diag_j,diag_k)),
+                            static_cast<double>(qg_arr(diag_i,diag_j,diag_k)),
+                            static_cast<double>(nr_arr(diag_i,diag_j,diag_k)));
+                std::fflush(stdout);
+            }
+#endif
+
+            // G11(a): Repack fields for slope recomputation (Fortran qrs_tmp/ncr_tmp)
+            ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+                qrs_tmp_arr(i,j,k,0) = qr_arr(i,j,k);   // qrs(:,:,1)
+                qrs_tmp_arr(i,j,k,1) = qs_arr(i,j,k);   // qrs(:,:,2)
+                qrs_tmp_arr(i,j,k,2) = qg_arr(i,j,k);   // qrs(:,:,3)
+                ncr_tmp_arr(i,j,k)   = nr_arr(i,j,k);   // ncr(:,:,3)
+            });
+
+            // G11(b): slope_wdm6-equivalent recompute for rain/snow/graupel
+            ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+                Real rain_rslope, rain_rslopeb, rain_rslope2, rain_rslope3, rain_vt, rain_vtn;
+                Real snow_rslope, snow_rslopeb, snow_rslope2, snow_rslope3, snow_vt, snow_n0sfac;
+                Real graup_rslope, graup_rslopeb, graup_rslope2, graup_rslope3, graup_vt;
+
+                // Compute slope parameters using qrs_tmp/ncr_tmp values
+                wdm6_slope_rain_cell(qrs_tmp_arr(i,j,k,0), ncr_tmp_arr(i,j,k), den_arr(i,j,k), denfac_arr(i,j,k),
+                                     Real(qcrmin), Real(nrmin),
+                                     rslopermax_loc, rsloperbmax_loc, rsloper2max_loc, rsloper3max_loc,
+                                     Real(bvtr), pvtr_loc, pvtrn_loc, pidnr_loc,
+                                     rain_rslope, rain_rslopeb, rain_rslope2, rain_rslope3,
+                                     rain_vt, rain_vtn);
+                wdm6_slope_snow_cell(qrs_tmp_arr(i,j,k,1), den_arr(i,j,k), denfac_arr(i,j,k), t_arr(i,j,k),
+                                     pidn0s_loc, Real(alpha_wdm6), Real(n0smax), Real(n0s),
+                                     Real(t0c), Real(qcrmin),
+                                     rslopesmax_loc, rslopesbmax_loc, rslopes2max_loc, rslopes3max_loc,
+                                     Real(bvts), pvts_loc,
+                                     snow_rslope, snow_rslopeb, snow_rslope2, snow_rslope3, snow_vt,
+                                     snow_n0sfac);
+                wdm6_slope_graup_cell(qrs_tmp_arr(i,j,k,2), den_arr(i,j,k), denfac_arr(i,j,k),
+                                      pidn0g_loc, Real(qcrmin),
+                                      rslopegmax_loc, rslopegbmax_loc, rslopeg2max_loc, rslopeg3max_loc,
+                                      slope_bvtg_loc, pvtg_loc,
+                                      graup_rslope, graup_rslopeb, graup_rslope2, graup_rslope3, graup_vt);
+
+                // Store results in output slope arrays
+                rslope_arr(i,j,k,0) = rain_rslope;
+                rslope_arr(i,j,k,1) = snow_rslope;
+                rslope_arr(i,j,k,2) = graup_rslope;
+                rslopeb_arr(i,j,k,0) = rain_rslopeb;
+                rslopeb_arr(i,j,k,1) = snow_rslopeb;
+                rslopeb_arr(i,j,k,2) = graup_rslopeb;
+                rslope2_arr(i,j,k,0) = rain_rslope2;
+                rslope2_arr(i,j,k,1) = snow_rslope2;
+                rslope2_arr(i,j,k,2) = graup_rslope2;
+                rslope3_arr(i,j,k,0) = rain_rslope3;
+                rslope3_arr(i,j,k,1) = snow_rslope3;
+                rslope3_arr(i,j,k,2) = graup_rslope3;
+                work1_arr(i,j,k,0) = rain_vt;
+                work1_arr(i,j,k,1) = snow_vt;
+                work1_arr(i,j,k,2) = graup_vt;
+                workn_arr(i,j,k) = rain_vtn;
+            });
+
+            // G11(c): avedia + rslopec/2/3 recompute (lamdac fallback branch)
+            constexpr Real cbrt24 = Real(2.8844991406148166);  // (24.0)^(1/3)
+            ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+                // avedia component from rain slope: avedia(:,:,2) = rslope(:,:,1) * (24.)^(1/3)
+                avedia_arr(i,j,k,1) = rslope_arr(i,j,k,0) * cbrt24;
+
+                // Cloud water slope parameters: rslopec = 1/lamdac(qci(:,:,1), den, ncr(:,:,2))
+                // Fortran gate: if (qci(:,:,1) <= qmin or ncr(:,:,2) <= ncmin) use maxima, else use lamdac
+                const Real qci_for_lamdac = qc_arr(i,j,k);
+                const Real nc_for_lamdac  = nc_arr(i,j,k);
+
+                if (qci_for_lamdac <= Real(qmin) || nc_for_lamdac <= Real(ncmin)) {
+                    rslopec_arr(i,j,k)  = rslopecmax_loc;
+                    rslopec2_arr(i,j,k) = rslopec2max_loc;
+                    rslopec3_arr(i,j,k) = rslopec3max_loc;
+                } else {
+                    const Real lamc = wdm6_lamdac(qci_for_lamdac, den_arr(i,j,k), nc_for_lamdac, pidnc_loc);
+                    const Real rslc = Real(1.0) / lamc;
+                    rslopec_arr(i,j,k)  = rslc;
+                    rslopec2_arr(i,j,k) = rslc * rslc;
+                    rslopec3_arr(i,j,k) = rslopec2_arr(i,j,k) * rslc;
+                }
+
+                // avedia component from cloud slope: avedia(:,:,1) = rslopec(:,:)
+                avedia_arr(i,j,k,0) = rslopec_arr(i,j,k);
+            });
+
+            // G11(d): work arrays recompute via diffac/venfac
+            // work1(:,:,1) = diffac(xl, p, t, den, qs(:,:,1), rv)
+            // work1(:,:,2) = diffac(xls, p, t, den, qs(:,:,2), rv)
+            // work2(:,:) = venfac(p, t, den, den0) [stored for G13a warm-rain rates]
+            ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+                // Recompute work1 diffusion coefficients using current state
+                work1_arr(i,j,k,0) = wdm6_diffac(xl_arr(i,j,k),  p_arr(i,j,k), t_arr(i,j,k),
+                                                  den_arr(i,j,k), qsatw_arr(i,j,k), Real(rv));  // qs(:,:,1)
+                work1_arr(i,j,k,1) = wdm6_diffac(Real(xls),       p_arr(i,j,k), t_arr(i,j,k),
+                                                  den_arr(i,j,k), qsati_arr(i,j,k), Real(rv));  // qs(:,:,2)
+                // Compute work2 ventilation factor for diffusion (used in G13a warm-rain rates)
+                work2_arr(i,j,k) = wdm6_venfac(p_arr(i,j,k), t_arr(i,j,k), den_arr(i,j,k), Real(den0));
+            });
+
+#if !defined(AMREX_USE_GPU)
+            if (microphysics_debug > 0 && diag_col_in_tile) {
+                std::printf("WDM6-CPP_POST_G11 %3d %24.16E %24.16E %24.16E %24.16E %24.16E %24.16E\n",
+                            diag_k + 1,
+                            static_cast<double>(rslope_arr(diag_i,diag_j,diag_k,0)),
+                            static_cast<double>(avedia_arr(diag_i,diag_j,diag_k,1)),
+                            static_cast<double>(rslopec_arr(diag_i,diag_j,diag_k)),
+                            static_cast<double>(rslopec2_arr(diag_i,diag_j,diag_k)),
+                            static_cast<double>(avedia_arr(diag_i,diag_j,diag_k,0)),
+                            static_cast<double>(work2_arr(diag_i,diag_j,diag_k)));
                 std::fflush(stdout);
             }
 #endif
