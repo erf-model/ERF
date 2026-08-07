@@ -604,6 +604,91 @@ illustration of why the D.9 delivery-mechanics lesson (push + PR are
 independent of code correctness) generalizes: *wiring* is also
 independent of *correctness*, and must be verified with the same rigor.
 
+---
+
+### D.12 – Phase 6 Lesson: Temporal Wiring Errors Hide as Duplicate Rows or Missing Forcing
+
+**Issue:**
+Phase 5 wired `advance_radiation()` into the time loop, successfully computing
+and injecting heating rates. However, without explicit auditing of *when*
+the function is called relative to the slow/fast substep structure, a subtle
+temporal error could occur:
+
+- If `advance_radiation()` were called multiple times per slow step (e.g.,
+  once before dycore and once after), or if the `is_slow_step` gate in
+  `ERF_MakeSources.cpp` were incorrect (e.g., applied on fast steps when
+  it should only apply to slow steps), the radiation forcing could be applied
+  multiple times per physical slow step, resulting in:
+  - Duplicate diagnostic CSV rows per timestep (confusing row counts)
+  - Unintended effective forcing multiplication (2x, 3x the intended heating)
+  - Numerical instability if heating rates are large
+
+- Conversely, if the gate is too restrictive (e.g., gated on fast-step-only),
+  no radiation forcing would occur at all, and the heating-rate diagnostics
+  might still populate the CSV (making the wiring appear active) even though
+  the source term never actually affects the prognostic state.
+
+**Root Cause:**
+A single driver function call (`compute_twostream_radiation_diagnostics()`)
+paired with a single source-term gate (`is_slow_step`) creates TWO independent
+control points that must remain synchronized. Auditing that they are actually
+in sync requires tracing through:
+1. Where and how often `advance_radiation()` is called in the time loop
+2. Where and when `is_slow_step` becomes true/false during the step sequence
+3. Whether diagnostic CSV logging happens once or multiple times per step
+
+This is not primarily a *coding* error (like a missing GPU marker) but a
+*temporal/architectural* error that manifests as unexpected behavior in output.
+
+**Prevention Rule:**
+When wiring a new physics driver into the time loop (especially one with
+both diagnostic output and source-term injection), document and audit:
+
+1. **Call Site Audit:** Grep for where the driver is called and verify
+   manually that it is called exactly as many times per slow step as intended:
+   ```bash
+   grep -rn "advance_radiation\|compute_twostream_radiation" Source/
+   ```
+   Then trace each call site to confirm it is in the intended loop/condition.
+
+2. **Source-Term Gate Audit:** Find where source terms from this driver are
+   injected and verify the gate matches the call site's temporal position:
+   ```bash
+   grep -rn "is_slow_step.*qheating\|qheating.*is_slow_step" Source/
+   ```
+   Confirm that if the driver is called once per slow step, the gate is
+   `is_slow_step==true` (and vice versa).
+
+3. **Diagnostic Output Cadence:** Check the diagnostic CSV file format and
+   expected row count:
+   - If running for N slow steps, expect approximately N rows (or N × M if
+     the driver is called M times per slow step by design).
+   - If the row count is 2x expected or differs unexpectedly, suspect either:
+     - The driver is being called twice per step
+     - The diagnostic logging is happening in two places
+     - The source-term gate is asymmetric relative to the driver call
+
+4. **Cross-Step Consistency:** For multi-step runs, verify that diagnostic
+   values do not have unintended jumps or discontinuities that would suggest
+   the source term is being applied inconsistently across steps.
+
+**Phase 6 Audit Findings (Example):**
+For the TwoStream two-stream radiation:
+- `advance_radiation()` is called once per `ERF::Advance()`, which is once
+  per slow step (line 150 in `ERF_Advance.cpp`, before dycore)
+- `qheating_rates[lev]` is gated on `is_slow_step` in `ERF_MakeSources.cpp`
+  (line 268)
+- Diagnostic CSV output is appended once per call to
+  `compute_twostream_radiation_diagnostics()`
+- Expected row count is 1 row per slow step (verified via Phase 5/6 RegTests)
+
+**Lesson:**
+Temporal wiring errors do not produce compile errors or obvious NaN values.
+Instead, they produce subtle inconsistencies: extra diagnostic rows, apparent
+failure of source terms to affect the solution, or doubling of effective
+forcing. Always audit temporal semantics explicitly; do not assume single
+calls or correct gating without tracing the code paths involved.
+
 ## Part E: Testing & Validation Checklist
 
 ### E.1 – GPU Compilation Check
