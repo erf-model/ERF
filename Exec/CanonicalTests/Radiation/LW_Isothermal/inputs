@@ -47,7 +47,7 @@ erf.theta_ref = 300.0
 # INITIALIZATION - from sounding file
 erf.init_type = "input_sounding"
 erf.sounding_type = Ideal
-erf.input_sounding_file = "sounding_us_standard_atm"
+erf.input_sounding_file = "input_sounding_lw_isothermal"
 
 # RADIATION - Two-Stream Longwave (Isothermal mode)
 erf.radiation_type = "TwoStream"
