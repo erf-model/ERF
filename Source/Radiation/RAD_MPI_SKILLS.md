@@ -691,13 +691,13 @@ calls or correct gating without tracing the code paths involved.
 
 ### D.13 – Phase 6 Lesson: Treat Diagnostics Identity as `(step, time, call_site)`, Not `step` Alone
 
-**Issue:**
+**Issue:**  
 Phase 6 introduced intentional multi-call-site diagnostics per coarse step
 (`pre_dycore`, `post_dycore`). A legacy duplicate guard keyed only on `step`
 silently dropped valid rows, while checker logic keyed only on `(step,time)`
 misinterpreted valid entries as duplicates.
 
-**Root Cause:**
+**Root Cause:**  
 Diagnostics cadence evolved (2 rows/step by design), but identity semantics in
 both writer and checker were still based on earlier single-row assumptions.
 
@@ -722,6 +722,18 @@ if (step == m_last_write_step &&
 m_last_write_step = step;
 m_last_write_call_site = call_site;
 m_last_write_time = time;
+```
+
+**Prevention Rule:**  
+Any time diagnostics cadence changes (new phase hooks, pre/post hooks, nested
+driver calls), update all three together:
+1. Writer schema/fields
+2. Duplicate guard identity key
+3. Checker row-count and uniqueness logic
+
+**Lesson:**  
+A cadence change without an identity-model update creates “false duplicate”
+bugs that look like physics regressions but are actually observability defects.
 
 ---
 
@@ -762,8 +774,6 @@ Never hardcode diagnostics filename in validation scripts when runtime config co
 
 **Lesson:**  
 Path mismatches can masquerade as model failures; validate I/O contract first.
-
----
 
 ## Part E: Testing & Validation Checklist
 
