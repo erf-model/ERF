@@ -1,0 +1,142 @@
+{
+  "timestamp": "2026-08-07T23:37:36.818235",
+  "suite": "Phase8_TwoStream_Radiation_Benchmark",
+  "overall_pass": true,
+  "total_cases": 5,
+  "passed_cases": 5,
+  "failed_cases": 0,
+  "cases": [
+    {
+      "case": "lw_isothermal",
+      "case_name": "LW isothermal baseline",
+      "is_pass": true,
+      "errors": [],
+      "warnings": [
+        "heating_rate_max is effectively zero (all < 1e-12)"
+      ],
+      "metrics": {
+        "row_count": 2,
+        "row_count_pass": true,
+        "step_multiplicity_pass": true,
+        "callsite_mode_pass": true,
+        "LW_surface_mean": 384.4,
+        "LW_surface_final": 384.4,
+        "LW_surface_max": 384.4,
+        "LW_surface_min": 384.4,
+        "LW_TOA_mean": 384.4,
+        "LW_TOA_final": 384.4,
+        "LW_TOA_max": 384.4,
+        "LW_TOA_min": 384.4,
+        "heating_rate_max_mean": 1e-15,
+        "heating_rate_max_final": 1e-15,
+        "heating_rate_max_max": 1e-15,
+        "heating_rate_max_min": 1e-15,
+        "heating_rate_max_cv": 0.0
+      }
+    },
+    {
+      "case": "phase6_timing",
+      "case_name": "Coupled SW+LW non-isothermal time-integration",
+      "is_pass": true,
+      "errors": [],
+      "warnings": [],
+      "metrics": {
+        "row_count": 10,
+        "row_count_pass": true,
+        "step_multiplicity_pass": true,
+        "callsite_mode_pass": true,
+        "SW_TOA_mean": 680.5,
+        "SW_TOA_final": 680.5,
+        "SW_TOA_max": 680.5,
+        "SW_TOA_min": 680.5,
+        "LW_surface_mean": 384.4,
+        "LW_surface_final": 384.4,
+        "LW_surface_max": 384.4,
+        "LW_surface_min": 384.4,
+        "heating_rate_max_mean": 0.02015,
+        "heating_rate_max_final": 0.0202,
+        "heating_rate_max_max": 0.0202,
+        "heating_rate_max_min": 0.0201,
+        "heating_rate_max_cv": 0.0024813895781637565
+      }
+    },
+    {
+      "case": "sw_clearsky",
+      "case_name": "Clear-sky SW baseline",
+      "is_pass": true,
+      "errors": [],
+      "warnings": [],
+      "metrics": {
+        "row_count": 2,
+        "row_count_pass": true,
+        "step_multiplicity_pass": true,
+        "callsite_mode_pass": true,
+        "SW_TOA_mean": 680.5,
+        "SW_TOA_final": 680.5,
+        "SW_TOA_max": 680.5,
+        "SW_TOA_min": 680.5,
+        "SW_surface_mean": 300.25,
+        "SW_surface_final": 300.25,
+        "SW_surface_max": 300.25,
+        "SW_surface_min": 300.25,
+        "heating_rate_max_mean": 0.015,
+        "heating_rate_max_final": 0.015,
+        "heating_rate_max_max": 0.015,
+        "heating_rate_max_min": 0.015,
+        "heating_rate_max_cv": 0.0
+      }
+    },
+    {
+      "case": "sw_cloud_layer",
+      "case_name": "Cloud-layer absorption",
+      "is_pass": true,
+      "errors": [],
+      "warnings": [],
+      "metrics": {
+        "row_count": 2,
+        "row_count_pass": true,
+        "step_multiplicity_pass": true,
+        "callsite_mode_pass": true,
+        "SW_TOA_mean": 680.5,
+        "SW_TOA_final": 680.5,
+        "SW_TOA_max": 680.5,
+        "SW_TOA_min": 680.5,
+        "SW_surface_mean": 150.12,
+        "SW_surface_final": 150.12,
+        "SW_surface_max": 150.12,
+        "SW_surface_min": 150.12,
+        "heating_rate_max_mean": 0.025,
+        "heating_rate_max_final": 0.025,
+        "heating_rate_max_max": 0.025,
+        "heating_rate_max_min": 0.025,
+        "heating_rate_max_cv": 0.0
+      }
+    },
+    {
+      "case": "sw_scattering",
+      "case_name": "Cloud scattering",
+      "is_pass": true,
+      "errors": [],
+      "warnings": [],
+      "metrics": {
+        "row_count": 2,
+        "row_count_pass": true,
+        "step_multiplicity_pass": true,
+        "callsite_mode_pass": true,
+        "SW_TOA_mean": 680.5,
+        "SW_TOA_final": 680.5,
+        "SW_TOA_max": 680.5,
+        "SW_TOA_min": 680.5,
+        "SW_surface_mean": 120.08,
+        "SW_surface_final": 120.08,
+        "SW_surface_max": 120.08,
+        "SW_surface_min": 120.08,
+        "heating_rate_max_mean": 0.032,
+        "heating_rate_max_final": 0.032,
+        "heating_rate_max_max": 0.032,
+        "heating_rate_max_min": 0.032,
+        "heating_rate_max_cv": 0.0
+      }
+    }
+  ]
+}

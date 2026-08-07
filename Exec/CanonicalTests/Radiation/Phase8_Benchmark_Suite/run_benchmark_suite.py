@@ -73,7 +73,13 @@ class BenchmarkSuite:
         self.print_case_header(case)
         
         # Resolve case directory
-        case_dir = self.base_dir.parent / case.base_case_dir
+        # If path starts with "./", resolve relative to base_dir (Phase8_Benchmark_Suite)
+        # Otherwise, resolve relative to base_dir.parent (Radiation level)
+        if case.base_case_dir.startswith("./"):
+            case_dir = (self.base_dir / case.base_case_dir).resolve()
+        else:
+            case_dir = (self.base_dir.parent / case.base_case_dir).resolve()
+        
         if not case_dir.exists():
             print(f"  [ERROR] Case directory not found: {case_dir}")
             self.results.append({
@@ -196,7 +202,7 @@ class BenchmarkSuite:
             
             lines.append(f"| `{case_name}` | {display_name} | {status} | {error_summary} |\n")
         
-        lines.append()
+        lines.append("\n")
         
         # Detailed results
         lines.append("## Detailed Results\n")
@@ -225,7 +231,7 @@ class BenchmarkSuite:
                     else:
                         lines.append(f"- `{key}`: {val}\n")
             
-            lines.append()
+            lines.append("\n")
         
         # Tolerance reference
         lines.append("## Tolerance Configuration\n")
