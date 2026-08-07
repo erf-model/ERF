@@ -689,6 +689,82 @@ failure of source terms to affect the solution, or doubling of effective
 forcing. Always audit temporal semantics explicitly; do not assume single
 calls or correct gating without tracing the code paths involved.
 
+### D.13 – Phase 6 Lesson: Treat Diagnostics Identity as `(step, time, call_site)`, Not `step` Alone
+
+**Issue:**
+Phase 6 introduced intentional multi-call-site diagnostics per coarse step
+(`pre_dycore`, `post_dycore`). A legacy duplicate guard keyed only on `step`
+silently dropped valid rows, while checker logic keyed only on `(step,time)`
+misinterpreted valid entries as duplicates.
+
+**Root Cause:**
+Diagnostics cadence evolved (2 rows/step by design), but identity semantics in
+both writer and checker were still based on earlier single-row assumptions.
+
+**Fix:**
+1. Extend diagnostics schema with `call_site`.
+2. Pass `call_site` through `compute_twostream_radiation_diagnostics(...)`
+   and into `RadiationDiagnostics::append(...)`.
+3. Update duplicate guard to preserve valid pre/post rows while rejecting only
+   true duplicates of the same event.
+4. Update checker expectations to:
+   - expect 2 rows/step in Phase 6 timing test
+   - validate one `pre_dycore` and one `post_dycore` per step
+   - treat `(step,time,call_site)` as uniqueness key
+
+**Recommended guard pattern:**
+```cpp
+if (step == m_last_write_step &&
+    call_site == m_last_write_call_site &&
+    std::abs(time - m_last_write_time) < 1.0e-12) {
+  return;
+}
+m_last_write_step = step;
+m_last_write_call_site = call_site;
+m_last_write_time = time;
+
+---
+
+### D.14 – Phase 6 Lesson: Don’t Infer Call Site from Out-of-Scope Time Variables
+
+**Issue:**  
+An attempted `call_site` inference in `ERF_AdvanceTwoStreamRadiation.cpp` used undeclared variables (e.g., `old_time`, `dt_lev`) and failed compilation.
+
+**Root Cause:**  
+Call-site classification was attempted inside a function that did not own the full time-loop context.
+
+**Fix:**  
+Thread `call_site` explicitly from the caller (time-integration layer) into:
+- `compute_twostream_radiation_diagnostics(...)`
+- `RadiationDiagnostics::append(...)`
+
+**Prevention Rule:**  
+If a function lacks authoritative temporal context, pass semantic context as an explicit argument rather than reconstructing it indirectly.
+
+**Lesson:**  
+Semantic labels (`pre_dycore` / `post_dycore`) belong to call-site ownership, not heuristic inference inside lower-level diagnostics code.
+
+---
+
+### D.15 – Phase 6 Lesson: Checker File Path Must Follow Runtime `diag_file`
+
+**Issue:**  
+Phase 6 checker initially looked for `radiation_diagnostics.csv`, while the run wrote `radiation_phase6_timing_diag.dat`, causing a false failure (`file not found`).
+
+**Root Cause:**  
+Checker used a hardcoded filename instead of following configured output path.
+
+**Fix:**  
+Read the configured diagnostics filename (or support expected candidates), and document the active file in test output.
+
+**Prevention Rule:**  
+Never hardcode diagnostics filename in validation scripts when runtime config controls output naming.
+
+**Lesson:**  
+Path mismatches can masquerade as model failures; validate I/O contract first.
+
+---
+
 ## Part E: Testing & Validation Checklist
 
 ### E.1 – GPU Compilation Check
@@ -731,6 +807,15 @@ calls or correct gating without tracing the code paths involved.
 - [ ] Re-run all prior phases' RegTests (not just the new phase's
   RegTest) and confirm byte-identical or numerically-identical output
   to the previous phase, per each new phase's own hand-traced arithmetic
+
+### E.7 – Phase 6 Diagnostics Cadence Validation (add to checklist)
+
+- [ ] Diagnostics schema includes `call_site` column
+- [ ] `RADIATION_DIAG:` log lines include `call_site`
+- [ ] Phase 6 timing test expects 2 rows per coarse step
+- [ ] Each step has one `pre_dycore` and one `post_dycore`
+- [ ] Duplicate guard preserves distinct pre/post rows
+- [ ] Checker reads configured diagnostics file path (not hardcoded default)
 
 ---
 
@@ -817,25 +902,16 @@ goes stale. Keep these two categories distinct.
 
 ---
 
-## Summary: The Five Sacred Rules
+## Summary: The Eight Sacred Rules (append)
 
-1. **Mark functions:** `AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE` for device use
-2. **No host I/O in kernels:** Reduce, copy, print in that order
-3. **Dynamic bounds:** Query box/domain, never hardcode loop limits
-4. **Per-(i,j) kernels:** Vertical sweep is sequential, horizontal is parallel
-5. **Defensive clipping:** Validate state, clip unphysical values, log aggregates
-
-**Rule 6 (added Phase 4, see D.10):** Never hardcode a phase/version label
-inside a runtime string in shared, cross-phase-reused code — grep for
-`[Phase#]`-style tags whenever starting a new phase, even in files you
-don't plan to modify.
-
-**Rule 7 (added Phase 5, see D.11):** A new physics driver function is
-not "done" when its internal math is correct — verify via code search
-that it is actually called, that its output buffers are allocated under
-the same gating condition, and that downstream consumers read from those
-buffers under that same condition. Do this for every new radiation model
-or physics option added, not just the one you are actively working on.
+1. **Mark functions:** `AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE` for device use  
+2. **No host I/O in kernels:** Reduce, copy, print in that order  
+3. **Dynamic bounds:** Query box/domain, never hardcode loop limits  
+4. **Per-(i,j) kernels:** Vertical sweep is sequential, horizontal is parallel  
+5. **Defensive clipping:** Validate state, clip unphysical values, log aggregates  
+6. **No stale phase tags in shared runtime strings:** Avoid hardcoded `[Phase#]` in cross-phase utility logs  
+7. **Wiring is independent of correctness:** Verify call path, allocation gate, and downstream consumption all match  
+8. **Phase 6 cadence rule:** When diagnostics cadence includes multiple call-sites per step, treat event identity as `(step, time, call_site)`, pass `call_site` explicitly from time-loop call sites, and keep checker file path/row-count logic aligned with runtime configuration.
 
 ---
 
