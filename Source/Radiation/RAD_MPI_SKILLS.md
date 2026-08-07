@@ -432,6 +432,65 @@ When designing GPU kernels, ensure the calling context has access to required da
 
 ---
 
+### D.7 – Phase 2b Discovery: Host Loop Calling Device Function (FIXED in Phase 2c)
+
+**Issue:**
+Phase 2b code had a GPU-safety bug: the device-side kernel `vertical_two_stream_sweep()` (marked `AMREX_GPU_DEVICE`) was called from a host-side nested loop:
+
+```cpp
+// ❌ WRONG: Host loop calling device function
+for (int i = bx.smallEnd(0); i <= bx.bigEnd(0); ++i) {
+    for (int j = bx.smallEnd(1); j <= bx.bigEnd(1); ++j) {
+        vertical_two_stream_sweep(i, j, bx, geom_lev, state_fab, rad_choice,
+                                  max_heating_col, sw_flux_col, lw_net_col);
+        // This is a runtime error on GPU; on CPU/OpenMP with tiling, it's a data race
+        max_heating_global = std::max(max_heating_global, max_heating_col);
+        sw_surface_sum += sw_flux_col;
+    }
+}
+```
+
+This violates GPU-safety rules in two ways:
+1. Device functions can only be called from device code (e.g., inside a `ParallelFor` lambda)
+2. Host-side accumulation (`+=`, `std::max()`) of results inside the loop causes data races when tiling is enabled
+
+**Phase 2c Fix:**
+Use `amrex::ParallelFor` with device-side reduction:
+
+```cpp
+// ✅ CORRECT: ParallelFor with device-side reduction
+amrex::ParallelFor(xy_box,
+    [=, &reduce_data] AMREX_GPU_DEVICE (int i, int j, int)
+    {
+        amrex::Real max_heating_col = 0.0;
+        amrex::Real sw_flux_col = 0.0;
+        amrex::Real lw_net_col = 0.0;
+        
+        vertical_two_stream_sweep(i, j, bx, geom_lev, state_arr, rad_choice,
+                                  max_heating_col, sw_flux_col, lw_net_col);
+        
+        // Accumulate on device via ReduceOps, not on host
+        reduce_data.join(max_heating_col, sw_flux_col, lw_net_col);
+    }
+);
+
+// After kernel completes, copy reduced scalar from device to host
+amrex::Gpu::synchronize();
+auto reduce_tuple = reduce_data.value(reduce_ops);
+max_heating_global = amrex::get<0>(reduce_tuple);
+```
+
+**Prevention Rule:**
+A `grep` check to ensure kernels are called via `ParallelFor`:
+```bash
+grep -B3 "vertical_two_stream_sweep(" Source/Radiation/ERF_AdvanceTwoStreamRadiation.cpp | grep -q "ParallelFor" || echo "FAIL: kernel not called via ParallelFor"
+```
+
+**Lesson:**
+Never call a device function from host-side code. Always use AMReX's parallel launch mechanisms (`ParallelFor`, `reduce`, etc.). Device functions can only be called from within device lambdas.
+
+---
+
 ## Part E: Testing & Validation Checklist
 
 ### E.1 – GPU Compilation Check
