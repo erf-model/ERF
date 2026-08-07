@@ -89,9 +89,13 @@ public:
    * @param[in] F_down_toa     Downwelling LW flux at TOA [W/m^2].
    * @param[in] heating_rate_max Maximum heating rate magnitude [K/s].
    */
-  void append(int step, amrex::Real time, amrex::Real SW_surface,
+  /*void append(int step, amrex::Real time, amrex::Real SW_surface,
               amrex::Real SW_TOA, amrex::Real F_up_surface,
-              amrex::Real F_down_toa, amrex::Real heating_rate_max);
+              amrex::Real F_down_toa, amrex::Real heating_rate_max);*/
+  void append(int step, amrex::Real time, std::string const& call_site,
+            amrex::Real sw_surface, amrex::Real sw_toa,
+            amrex::Real f_up_surface, amrex::Real f_down_toa,
+            amrex::Real heating_rate_max);
 
 private:
   /**
@@ -104,6 +108,8 @@ private:
   int m_amr_level;              ///< AMR level index
   int m_last_write_step = -1;   ///< Guard against duplicate writes
   bool m_header_written = false; ///< Track whether CSV header was written
+  std::string m_last_write_call_site = "";
+  amrex::Real m_last_write_time = -1.0;
 };
 
 #endif // ERF_RADIATION_DIAGNOSTICS_H_

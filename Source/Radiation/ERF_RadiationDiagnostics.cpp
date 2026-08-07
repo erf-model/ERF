@@ -49,23 +49,27 @@ void RadiationDiagnostics::write_header_if_needed()
 
   // Only write header if file is new
   if (!file_exists) {
-    outfile << "step,time,SW_surface,SW_TOA,F_up_surface,F_down_toa,heating_rate_max"
+    outfile << "step,time,call_site,SW_surface,SW_TOA,F_up_surface,F_down_toa,heating_rate_max"
             << "\n";
   }
   outfile.close();
   m_header_written = true;
 }
 
-void RadiationDiagnostics::append(int step, amrex::Real time,
+void RadiationDiagnostics::append(int step, amrex::Real time, const std::string& call_site,
                                   amrex::Real SW_surface, amrex::Real SW_TOA,
                                   amrex::Real F_up_surface, amrex::Real F_down_toa,
                                   amrex::Real heating_rate_max)
 {
   // Guard against duplicate writes for the same step
-  if (step == m_last_write_step) {
-    return;
-  }
+  if (step == m_last_write_step &&
+    call_site == m_last_write_call_site &&
+    std::abs(time - m_last_write_time) < 1.0e-12) {
+  return;
+}
   m_last_write_step = step;
+  m_last_write_call_site = call_site;
+  m_last_write_time = time;
 
   write_header_if_needed();
 
@@ -81,7 +85,9 @@ void RadiationDiagnostics::append(int step, amrex::Real time,
   // call-site tag, which remains accurate and grepable across all phases.
   if (m_verbosity >= 1 && amrex::ParallelDescriptor::IOProcessor()) {
     amrex::Print() << "[RAD][RadiationDiagnostics::append] step=" << step
-                   << " time=" << time << " SW_surface=" << SW_surface
+                   << " time=" << time 
+                   << " call_site=" << call_site
+                   << " SW_surface=" << SW_surface
                    << " SW_TOA=" << SW_TOA << " F_up_surface=" << F_up_surface
                    << " F_down_toa=" << F_down_toa
                    << " heating_rate_max=" << heating_rate_max << "\n";
@@ -90,6 +96,7 @@ void RadiationDiagnostics::append(int step, amrex::Real time,
   // Print RADIATION_DIAG line (always, for RegTest scripts)
   if (amrex::ParallelDescriptor::IOProcessor()) {
     amrex::Print() << "RADIATION_DIAG: step=" << step << " time=" << time
+                   << " call_site=" << call_site
                    << " SW_surface=" << std::scientific << std::setprecision(6)
                    << SW_surface << " SW_TOA=" << SW_TOA
                    << " F_up_surface=" << F_up_surface << " F_down_toa=" << F_down_toa
@@ -110,6 +117,7 @@ void RadiationDiagnostics::append(int step, amrex::Real time,
 
   // Write CSV row with scientific notation for fluxes
   outfile << step << "," << std::scientific << std::setprecision(6) << time << ","
+          << call_site << ","
           << SW_surface << "," << SW_TOA << "," << F_up_surface << "," << F_down_toa
           << "," << heating_rate_max << "\n";
   outfile.close();

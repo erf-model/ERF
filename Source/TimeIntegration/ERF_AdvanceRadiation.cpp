@@ -116,6 +116,6 @@ void ERF::advance_radiation (int lev,
     //   convention) as the CSV diagnostics row index; dt_advance provides the
     //   time_step diagnostic value logged to the CSV/console output.
     else if (solverChoice.radChoice.rad_type == RadType::TwoStream) {
-        compute_twostream_radiation_diagnostics(lev, istep[lev], dt_advance);
+        compute_twostream_radiation_diagnostics(lev, istep[lev], dt_advance,"pre_dycore");
     }
 }

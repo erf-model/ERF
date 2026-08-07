@@ -543,7 +543,9 @@ void vertical_two_stream_sweep(
 void ERF::compute_twostream_radiation_diagnostics(
     int lev,
     int nstep,
-    amrex::Real time_step)
+    amrex::Real time_step,
+    std::string const& call_site
+    )
 {
     const auto& rad_choice = solverChoice.radChoice;
 
@@ -756,7 +758,6 @@ void ERF::compute_twostream_radiation_diagnostics(
                 << "  Max heating rate = " << heating_rate_max << " K/s\n";
     }
 
-    // Append diagnostics to CSV file
-    rad_diag.append(nstep, time_step, SW_surface, SW_TOA,
+    rad_diag.append(nstep, time_step, call_site, SW_surface, SW_TOA,
                     F_up_surface, F_down_toa, heating_rate_max);
 }

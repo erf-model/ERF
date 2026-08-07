@@ -423,6 +423,6 @@ ERF::Advance (int lev, double time, double dt_lev, int iteration, int /*ncycle*/
     // ***********************************************************************************************
     // Compute and write radiation diagnostics (Phase 1 TwoStream only)
     // ***********************************************************************************************
-    compute_twostream_radiation_diagnostics(lev, iteration, time + dt_lev);
+    compute_twostream_radiation_diagnostics(lev, iteration, time + dt_lev,"post_dycore");
 
 }
