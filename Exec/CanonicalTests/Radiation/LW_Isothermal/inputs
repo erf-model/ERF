@@ -1,0 +1,60 @@
+# Phase 1 Two-Stream Radiation: Longwave Isothermal Test
+# Tests gray-gas two-stream LW radiation with uniform temperature
+# Isothermal test mode ensures F_up = F_down = sigma*T^4 everywhere (zero net flux)
+# Verifies solver correctness and energy conservation
+
+erf.prob_name = "ABL"
+
+# SIMULATION TIME & CONTROL
+stop_time = 0.0
+max_step = 1
+amrex.fpe_trap_invalid = 0
+
+fabarray.mfiter_tile_size = 1024 1024 1024
+
+# DOMAIN & MESH
+geometry.prob_extent = 1000 1000 10000
+amr.n_cell           = 8 8 20
+geometry.is_periodic = 1 1 0
+amrex.max_grid_size_z = 128
+
+# BOUNDARY CONDITIONS
+zlo.type = "SlipWall"
+zhi.type = "SlipWall"
+erf.fixed_dt = 0.1  # very small timestep (1 step only)
+
+# DIAGNOSTICS & VERBOSITY
+erf.sum_interval = 1
+erf.v            = 1
+amr.v            = 1
+
+# REFINEMENT
+amr.max_level = 0
+
+# CHECKPOINT & PLOT FILES
+erf.check_file  = chk_lw_isothermal
+erf.check_int   = -1
+erf.plot_file_1 = plt_lw_isothermal
+erf.plot_int_1  = 1
+erf.plot_vars_1 = x_velocity y_velocity z_velocity theta
+
+# SOLVER CHOICE
+erf.use_gravity = false
+erf.molec_diff_type = "None"
+erf.les_type = "None"
+erf.theta_ref = 300.0
+
+# INITIALIZATION - from sounding file
+erf.init_type = "input_sounding"
+erf.sounding_type = Ideal
+erf.input_sounding_file = "sounding_us_standard_atm"
+
+# RADIATION - Two-Stream Longwave (Isothermal mode)
+erf.radiation_type = "TwoStream"
+erf.radiation.sw_enabled = false
+erf.radiation.lw_enabled = true
+erf.radiation.tau_lw_per_layer = 1.0
+erf.radiation.isothermal_test = true
+erf.radiation.T_iso_K = 288.15
+erf.radiation.v = 1
+erf.radiation.diag_file = "radiation_lw_diag.dat"

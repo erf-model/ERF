@@ -1,0 +1,59 @@
+# Phase 1 Two-Stream Radiation: Shortwave Clear-Sky Analytical Test
+# Tests Beer-Lambert direct-beam solar radiation without clouds or scattering
+# Verifies against analytical solution: F(z) = S0 * cos(zenith) * exp(-tau_cumulative / cos(zenith))
+
+erf.prob_name = "ABL"
+
+# SIMULATION TIME & CONTROL
+stop_time = 0.0
+max_step = 1
+amrex.fpe_trap_invalid = 0
+
+fabarray.mfiter_tile_size = 1024 1024 1024
+
+# DOMAIN & MESH
+geometry.prob_extent = 1000 1000 10000
+amr.n_cell           = 8 8 20
+geometry.is_periodic = 1 1 0
+amrex.max_grid_size_z = 128
+
+# BOUNDARY CONDITIONS
+zlo.type = "SlipWall"
+zhi.type = "SlipWall"
+erf.fixed_dt = 0.1  # very small timestep (1 step only)
+
+# DIAGNOSTICS & VERBOSITY
+erf.sum_interval = 1
+erf.v            = 1
+amr.v            = 1
+
+# REFINEMENT
+amr.max_level = 0
+
+# CHECKPOINT & PLOT FILES
+erf.check_file  = chk_sw_clearsky
+erf.check_int   = -1
+erf.plot_file_1 = plt_sw_clearsky
+erf.plot_int_1  = 1
+erf.plot_vars_1 = x_velocity y_velocity z_velocity theta
+
+# SOLVER CHOICE
+erf.use_gravity = false
+erf.molec_diff_type = "None"
+erf.les_type = "None"
+erf.theta_ref = 300.0
+
+# INITIALIZATION - from sounding file
+erf.init_type = "input_sounding"
+erf.sounding_type = Ideal
+erf.input_sounding_file = "sounding_us_standard_atm"
+
+# RADIATION - Two-Stream Shortwave
+erf.radiation_type = "TwoStream"
+erf.radiation.sw_enabled = true
+erf.radiation.lw_enabled = false
+erf.radiation.tau_per_layer = 0.05
+erf.radiation.solar_zenith = 60.0
+erf.radiation.S0 = 1361.0
+erf.radiation.v = 1
+erf.radiation.diag_file = "radiation_sw_diag.dat"

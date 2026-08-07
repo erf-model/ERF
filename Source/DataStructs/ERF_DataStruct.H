@@ -18,6 +18,7 @@
 #include <ERF_SpongeStruct.H>
 #include <ERF_TurbStruct.H>
 #include <ERF_TurbPertStruct.H>
+#include <ERF_RadStruct.H>
 
 /**
  * @brief Indices for map scale factors on mass and face grids.
@@ -729,6 +730,8 @@ struct SolverChoice {
             turbChoice[lev].init_params(lev,max_level,pp_prefix);
         }
 
+        radChoice.init_params(0, max_level, pp_prefix);
+
         vert_implicit_fac.resize(max_level+1);
         for (int lev = 0; lev <= max_level; lev++) {
             vert_implicit_fac[lev].resize(3);
@@ -1378,6 +1381,7 @@ struct SolverChoice {
     SpongeChoice  spongeChoice;
     amrex::Vector<TurbChoice>  turbChoice;
     EBChoice      ebChoice;
+    RadChoice     radChoice;
 
     int         force_stage1_single_substep = 1;
 
