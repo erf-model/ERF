@@ -53,7 +53,79 @@ namespace MicVar_Morr {
       graup_accum,
       omega,
       NumVars
-  };
+   };
+}
+
+struct MorrisonThermoState {
+    amrex::Real pressure_pa;
+    amrex::Real temperature;
+};
+
+// Morrison's C++ and Fortran paths use Pa internally. Keep this small adapter
+// beside the scheme so the production copy-in wiring and its unit coverage use
+// exactly the same stored-pi0 diagnosis.
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+MorrisonThermoState morrison_copy_in_thermo (
+    const amrex::Real rho,
+    const amrex::Real rho_theta,
+    const amrex::Real qv,
+    const bool use_anelastic_reference_pressure,
+    const amrex::Real p0,
+    const amrex::Real pi0) noexcept
+{
+    const MicrophysicsThermoState thermo = diagnose_microphysics_thermo_state(
+        rho, rho_theta, qv, use_anelastic_reference_pressure, p0, pi0);
+    return {thermo.pressure_pa, thermo.temperature};
+}
+
+// Array-level copy-in used by production and by the wiring test.  The number
+// concentration arrays remain in the caller because they are independent of
+// the thermodynamic/base-state contract.
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+void morrison_copy_state_to_micro_cell (
+    const amrex::Array4<const amrex::Real>& states,
+    const amrex::Array4<const amrex::Real>& base,
+    const amrex::Array4<amrex::Real>& rho,
+    const amrex::Array4<amrex::Real>& theta,
+    const amrex::Array4<amrex::Real>& qv,
+    const amrex::Array4<amrex::Real>& qc,
+    const amrex::Array4<amrex::Real>& qi,
+    const amrex::Array4<amrex::Real>& qn,
+    const amrex::Array4<amrex::Real>& qt,
+    const amrex::Array4<amrex::Real>& qpr,
+    const amrex::Array4<amrex::Real>& qps,
+    const amrex::Array4<amrex::Real>& qpg,
+    const amrex::Array4<amrex::Real>& qp,
+    const amrex::Array4<amrex::Real>& tabs,
+    const amrex::Array4<amrex::Real>& pres,
+    const bool use_anelastic_reference_pressure,
+    const int i, const int j, const int k) noexcept
+{
+    const amrex::Real rho_value = states(i,j,k,Rho_comp);
+    const amrex::Real rho_theta = states(i,j,k,RhoTheta_comp);
+    const amrex::Real qv_value =
+        amrex::max(amrex::Real(0.0), states(i,j,k,RhoQ1_comp) / rho_value);
+    rho(i,j,k) = rho_value;
+    theta(i,j,k) = rho_theta / rho_value;
+    qv(i,j,k) = qv_value;
+    qc(i,j,k) = amrex::max(amrex::Real(0.0), states(i,j,k,RhoQ2_comp) / rho_value);
+    qi(i,j,k) = amrex::max(amrex::Real(0.0), states(i,j,k,RhoQ3_comp) / rho_value);
+    qn(i,j,k) = qc(i,j,k) + qi(i,j,k);
+    qt(i,j,k) = qv(i,j,k) + qn(i,j,k);
+    qpr(i,j,k) = amrex::max(amrex::Real(0.0), states(i,j,k,RhoQ4_comp) / rho_value);
+    qps(i,j,k) = amrex::max(amrex::Real(0.0), states(i,j,k,RhoQ5_comp) / rho_value);
+    qpg(i,j,k) = amrex::max(amrex::Real(0.0), states(i,j,k,RhoQ6_comp) / rho_value);
+    qp(i,j,k) = qpr(i,j,k) + qps(i,j,k) + qpg(i,j,k);
+
+    const amrex::Real p0 = use_anelastic_reference_pressure
+        ? base(i,j,k,BaseState::p0_comp) : amrex::Real(0.0);
+    const amrex::Real pi0 = use_anelastic_reference_pressure
+        ? base(i,j,k,BaseState::pi0_comp) : amrex::Real(0.0);
+    const MorrisonThermoState thermo = morrison_copy_in_thermo(
+        rho_value, rho_theta, qv_value,
+        use_anelastic_reference_pressure, p0, pi0);
+    tabs(i,j,k) = thermo.temperature;
+    pres(i,j,k) = thermo.pressure_pa;
 }
 
 class Morrison : public NullMoist {
@@ -95,6 +167,14 @@ public:
     // Copy state into micro vars
     void
     Copy_State_to_Micro (const amrex::MultiFab& cons_in) override;
+
+    void
+    Copy_State_to_Micro (const amrex::MultiFab& cons_in,
+                         const amrex::MultiFab* base_state);
+
+    void
+    Update_Micro_Vars (amrex::MultiFab& cons_in,
+                       const amrex::MultiFab* base_state) override;
 
     // Copy state into micro vars
     void

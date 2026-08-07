@@ -12,6 +12,48 @@
 #include <AMReX_REAL.H>
 #include <AMReX_Array.H>
 #include <ERF_Constants.H>
+#include "ERF_EOS.H"
+
+/**
+ * Pressure and temperature selected for one Eulerian microphysics cell.
+ * Pressure is expressed in Pa at this shared interface. Individual schemes
+ * convert it once at copy-in when their existing native storage uses mbar/hPa.
+ */
+struct MicrophysicsThermoState {
+    amrex::Real pressure_pa;
+    amrex::Real temperature;
+};
+
+/**
+ * Diagnose the thermodynamic pressure and temperature used by Eulerian
+ * microphysics. The pressure mode is uniform for an AMR level; callers resolve
+ * the optional base-state array before launching a device kernel.
+ *
+ * In anelastic mode, p0 and pi0 are the hydrostatic reference pressure and
+ * Exner function supplied by BaseState. The local source step therefore holds
+ * both reference quantities fixed. In compressible mode, preserve ERF's
+ * existing EOS pressure and temperature formulas.
+ */
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+MicrophysicsThermoState diagnose_microphysics_thermo_state (
+    const amrex::Real rho,
+    const amrex::Real rho_theta,
+    const amrex::Real qv,
+    const bool use_anelastic_reference_pressure,
+    const amrex::Real p0,
+    const amrex::Real pi0) noexcept
+{
+    if (use_anelastic_reference_pressure) {
+        // Anelastic microphysics must consume the stored base-state Exner
+        // function. Do not recompute it from p0 here: pi0 is part of the
+        // initialized/interpolated BaseState contract and this path is used
+        // inside production device kernels.
+        return {p0, (rho_theta / rho) * pi0};
+    }
+
+    return {getPgivenRTh(rho_theta, qv),
+            getTgivenRandRTh(rho, rho_theta, qv)};
+}
 
 // Positive-argument gamma wrapper. std::lgamma returns log(abs(Gamma(x))) for
 // negative non-integers, so ERF keeps a positive-only contract here.

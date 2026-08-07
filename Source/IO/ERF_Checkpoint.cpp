@@ -11,6 +11,7 @@
 #include "AMReX_PlotFileUtil.H"
 #include "ERF_ReadFromERFBdy.H"
 #include "ERF_Provenance.H"
+#include "ERF_BaseStateRestart.H"
 
 using namespace amrex;
 
@@ -742,6 +743,24 @@ ERF::ReadCheckpointFile ()
         VisMF::Read(base, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "BaseState"));
 
         MultiFab::Copy(base_state[lev],base,0,0,ncomp_base_to_read,ng_base);
+
+        // Legacy checkpoints may not contain the Exner component. Rebuild it
+        // from the stored base pressure before any anelastic consumer sees the
+        // restarted state. Current checkpoints carry all BaseState components
+        // and retain their stored pi0 values unchanged.
+        if (ncomp_base_to_read <= BaseState::pi0_comp) {
+            const Real rdOcp = solverChoice.rdOcp;
+            for (MFIter mfi(base_state[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi)
+            {
+                const Box& bx = mfi.tilebox();
+                Array4<Real> const& fab = base_state[lev].array(mfi);
+                ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+                {
+                    erf_checkpoint::reconstruct_missing_pi0(
+                        fab, ncomp_base_to_read, rdOcp, i, j, k);
+                });
+            }
+        }
 
         // Create theta0 from p0, rh0
         if (ncomp_base_to_read < 4) {

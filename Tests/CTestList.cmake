@@ -458,6 +458,11 @@ add_test_cloud_chamber_config_failure(
     legacy_physical_temperature
     CloudChamber_Dry
     "cannot be combined with physical")
+add_test_cloud_chamber_config_failure(
+    SuperDroplets_Invalid_Anelastic
+    anelastic_superdroplets
+    CloudChamber_Dry
+    "SuperDroplets is not supported with erf.anelastic = 1")
 if(ERF_ENABLE_OPENMP)
 add_test_cloud_chamber_openmp(CloudChamber_SatAdj_OpenMP)
 endif()

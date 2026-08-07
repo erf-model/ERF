@@ -1,6 +1,8 @@
 #include <AMReX.H>
 #include <AMReX_MultiFab.H>
 #include <AMReX_PlotFileUtil.H>
+#include <AMReX_Reduce.H>
+#include "../Source/Prob/ERF_CloudChamber.H"
 #include "../Source/Utils/ERF_EOS.H"
 #include "../Source/Utils/ERF_MicrophysicsUtils.H"
 
@@ -23,6 +25,7 @@ using amrex::ParallelFor;
 using amrex::PlotFileData;
 using amrex::Real;
 using amrex::TilingIfNotGPU;
+using amrex::Long;
 
 bool has_variable (const PlotFileData& plotfile, const std::string& name)
 {
@@ -294,7 +297,7 @@ int main (int argc, char** argv)
         return fail("mode must be dry, cloudy, all_dry, wet_budget, or thermal_budget");
     }
 
-    for (const char* name : {"density", "theta", "temp", "x_velocity",
+    for (const char* name : {"density", "theta", "temp", "pressure", "x_velocity",
                              "y_velocity", "z_velocity"}) {
         if (!has_variable(initial, name) || !has_variable(final, name)) {
             amrex::Finalize();
@@ -354,8 +357,24 @@ int main (int argc, char** argv)
     const Real temperature_top = Real(284.0);
     const Real amplitude = Real(0.02);
     const Real relative_humidity = Real(0.95);
+    const Real reference_density = erf_cloud_chamber::prescribed_reference_density();
+    if (pressure.min(0, 0, false) <= Real(0.0)) {
+        amrex::Finalize();
+        return fail("initial pressure is not positive");
+    }
+#ifdef AMREX_USE_FLOAT
+    const Real pressure_abs_tolerance = Real(5.0e-2);
+    const Real pressure_rel_tolerance = Real(5.0e-7);
+#else
+    const Real pressure_abs_tolerance = Real(5.0e-7);
+    const Real pressure_rel_tolerance = Real(5.0e-12);
+#endif
     MultiFab theta_error(theta.boxArray(), theta.DistributionMap(), 1, 0);
     MultiFab temperature_error(theta.boxArray(), theta.DistributionMap(), 1, 0);
+    MultiFab pressure_reference(theta.boxArray(), theta.DistributionMap(), 1, 0);
+    MultiFab pressure_error(theta.boxArray(), theta.DistributionMap(), 1, 0);
+    MultiFab pressure_relative_error(theta.boxArray(), theta.DistributionMap(), 1, 0);
+    MultiFab pressure_tolerance_excess(theta.boxArray(), theta.DistributionMap(), 1, 0);
     MultiFab qv_error;
     MultiFab qsat_error;
     MultiFab rh_error;
@@ -378,6 +397,10 @@ int main (int argc, char** argv)
         const auto w = z_velocity.const_array(mfi);
         const auto therr = theta_error.array(mfi);
         const auto terr = temperature_error.array(mfi);
+        const auto pref = pressure_reference.array(mfi);
+        const auto perr = pressure_error.array(mfi);
+        const auto prelerr = pressure_relative_error.array(mfi);
+        const auto pexcess = pressure_tolerance_excess.array(mfi);
         const auto qverr = cloudy ? qv_error.array(mfi) : amrex::Array4<Real>{};
         const auto qsaterr = cloudy ? qsat_error.array(mfi) : amrex::Array4<Real>{};
         const auto rherr = cloudy ? rh_error.array(mfi) : amrex::Array4<Real>{};
@@ -391,16 +414,33 @@ int main (int argc, char** argv)
                 amplitude * std::sin(Real(2.0)*Real(3.14159265358979323846)*(x-prob_lo[0])/lx) *
                 std::sin(Real(2.0)*Real(3.14159265358979323846)*(y-prob_lo[1])/ly) *
                 std::sin(Real(3.14159265358979323846)*(z-prob_lo[2])/lz);
+            const Real reference_pressure = p_0 - reference_density * CONST_GRAV * z;
+            const Real plotfile_pressure = p(i,j,k);
+            const Real pressure_abs_error = std::abs(plotfile_pressure - reference_pressure);
+            const Real pressure_relative_error = pressure_abs_error /
+                std::max(std::abs(reference_pressure), Real(1.0));
+            const Real pressure_allowed_error = pressure_abs_tolerance +
+                pressure_rel_tolerance * std::max(std::abs(reference_pressure), Real(1.0));
+            pref(i,j,k) = reference_pressure;
+            perr(i,j,k) = pressure_abs_error;
+            prelerr(i,j,k) = pressure_relative_error;
+            pexcess(i,j,k) = std::max(Real(0.0), pressure_abs_error - pressure_allowed_error);
+
+            // For anelastic initialization the plotfile pressure is the
+            // initialized hydrostatic base pressure. Once it is validated
+            // against the analytic profile above, use that actual field for
+            // every downstream thermodynamic diagnostic.
+            const Real diagnostic_pressure = plotfile_pressure;
             const Real expected_theta = expected_temperature *
-                std::pow(p_0/p(i,j,k), R_d/Cp_d);
+                std::pow(p_0/diagnostic_pressure, R_d/Cp_d);
             const Real expected_qv = cloudy ?
                 (RdoRv * relative_humidity *
                  (Real(100.0)*erf_esatw(expected_temperature)) /
-                 (p(i,j,k) - relative_humidity *
+                 (diagnostic_pressure - relative_humidity *
                   (Real(100.0)*erf_esatw(expected_temperature)))) : Real(0.0);
             Real expected_qsat = Real(0.0);
             if (cloudy) {
-                erf_qsatw(expected_temperature, p(i,j,k)*Real(0.01), expected_qsat);
+                erf_qsatw(expected_temperature, diagnostic_pressure*Real(0.01), expected_qsat);
             }
             const Real expected_rh = cloudy ? relative_humidity : Real(0.0);
             therr(i,j,k) = std::abs(th(i,j,k)-expected_theta);
@@ -418,6 +458,9 @@ int main (int argc, char** argv)
 
     const Real theta_error_max = theta_error.norm0(0, 0, false);
     const Real temperature_error_max = temperature_error.norm0(0, 0, false);
+    const Real pressure_error_max = pressure_error.norm0(0, 0, false);
+    const Real pressure_relative_error_max = pressure_relative_error.norm0(0, 0, false);
+    const Real pressure_tolerance_excess_max = pressure_tolerance_excess.norm0(0, 0, false);
     const Real qv_error_max = cloudy ? qv_error.norm0(0, 0, false) : Real(0.0);
     const Real qsat_error_max = cloudy ? qsat_error.norm0(0, 0, false) : Real(0.0);
     const Real rh_error_max = cloudy ? rh_error.norm0(0, 0, false) : Real(0.0);
@@ -433,6 +476,95 @@ int main (int argc, char** argv)
         amrex::Finalize();
         return fail("initial temperature mismatch: max error=" +
                     std::to_string(static_cast<double>(temperature_error_max)));
+    }
+    if (pressure_tolerance_excess_max > Real(0.0)) {
+        const auto excess_arrays = pressure_tolerance_excess.const_arrays();
+        const Long nx = static_cast<Long>(domain.length(0));
+        const Long ny = static_cast<Long>(domain.length(1));
+        const Long plane = nx * ny;
+        const Real excess_match_tolerance =
+            Real(8.0) * std::numeric_limits<Real>::epsilon() *
+            std::max(Real(1.0), std::abs(pressure_tolerance_excess_max));
+        const Long local_worst_code = amrex::ParReduce(
+            amrex::TypeList<amrex::ReduceOpMin>{},
+            amrex::TypeList<Long>{}, pressure_tolerance_excess, amrex::IntVect(0),
+            [=] AMREX_GPU_DEVICE (int box_no, int i, int j, int k) noexcept
+                -> amrex::GpuTuple<Long>
+            {
+                const Long code = static_cast<Long>(i - domain.smallEnd(0)) +
+                    nx * (static_cast<Long>(j - domain.smallEnd(1)) +
+                         ny * static_cast<Long>(k - domain.smallEnd(2)));
+                const Real excess = excess_arrays[box_no](i,j,k);
+                const bool is_maximum = excess > Real(0.0) &&
+                    std::abs(excess - pressure_tolerance_excess_max) <= excess_match_tolerance;
+                return {is_maximum ? code : std::numeric_limits<Long>::max()};
+            });
+        Long worst_code = local_worst_code;
+        amrex::ParallelDescriptor::ReduceLongMin(worst_code);
+
+        const int worst_k = static_cast<int>(worst_code / plane) + domain.smallEnd(2);
+        const Long remainder = worst_code % plane;
+        const int worst_j = static_cast<int>(remainder / nx) + domain.smallEnd(1);
+        const int worst_i = static_cast<int>(remainder % nx) + domain.smallEnd(0);
+        const Real invalid = -std::numeric_limits<Real>::max();
+        Real worst_observed = invalid;
+        Real worst_expected = invalid;
+        Real worst_abs_error = invalid;
+        Real worst_relative_error = invalid;
+        Real worst_tolerance_excess = invalid;
+        Real worst_z = invalid;
+        for (amrex::MFIter mfi(pressure, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+            const auto bx = mfi.tilebox();
+            const auto p = pressure.const_array(mfi);
+            const auto pref = pressure_reference.const_array(mfi);
+            const auto perr = pressure_error.const_array(mfi);
+            const auto prelerr = pressure_relative_error.const_array(mfi);
+            const auto pexcess = pressure_tolerance_excess.const_array(mfi);
+            amrex::ReduceOps<amrex::ReduceOpMax, amrex::ReduceOpMax,
+                              amrex::ReduceOpMax, amrex::ReduceOpMax,
+                              amrex::ReduceOpMax, amrex::ReduceOpMax> reduce_op;
+            amrex::ReduceData<Real, Real, Real, Real, Real, Real> reduce_data(reduce_op);
+            reduce_op.eval(bx, reduce_data,
+                [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                    -> amrex::GpuTuple<Real, Real, Real, Real, Real, Real>
+                {
+                    if (i == worst_i && j == worst_j && k == worst_k) {
+                        const Real z = prob_lo[2] +
+                            (Real(k-domain.smallEnd(2)) + Real(0.5))*dx[2];
+                        return {p(i,j,k), pref(i,j,k), perr(i,j,k),
+                                prelerr(i,j,k), pexcess(i,j,k), z};
+                    }
+                    return {invalid, invalid, invalid, invalid, invalid, invalid};
+                });
+            const auto values = reduce_data.value();
+            worst_observed = std::max(worst_observed, amrex::get<0>(values));
+            worst_expected = std::max(worst_expected, amrex::get<1>(values));
+            worst_abs_error = std::max(worst_abs_error, amrex::get<2>(values));
+            worst_relative_error = std::max(worst_relative_error, amrex::get<3>(values));
+            worst_tolerance_excess = std::max(worst_tolerance_excess, amrex::get<4>(values));
+            worst_z = std::max(worst_z, amrex::get<5>(values));
+        }
+        amrex::ParallelDescriptor::ReduceRealMax(worst_observed);
+        amrex::ParallelDescriptor::ReduceRealMax(worst_expected);
+        amrex::ParallelDescriptor::ReduceRealMax(worst_abs_error);
+        amrex::ParallelDescriptor::ReduceRealMax(worst_relative_error);
+        amrex::ParallelDescriptor::ReduceRealMax(worst_tolerance_excess);
+        amrex::ParallelDescriptor::ReduceRealMax(worst_z);
+
+        std::ostringstream message;
+        message << std::setprecision(17)
+                << "initial pressure profile mismatch: max_abs_error="
+                << pressure_error_max << " max_relative_error="
+                << pressure_relative_error_max << " allowed_abs="
+                << pressure_abs_tolerance << " allowed_relative="
+                << pressure_rel_tolerance << " worst_cell=(" << worst_i << ","
+                << worst_j << "," << worst_k << ") observed="
+                << worst_observed << " expected=" << worst_expected
+                << " z=" << worst_z << " abs_error=" << worst_abs_error
+                << " relative_error=" << worst_relative_error
+                << " tolerance_excess=" << worst_tolerance_excess;
+        amrex::Finalize();
+        return fail(message.str());
     }
     if (cloudy && qv_error_max > Real(2.0e-12)) {
         amrex::Finalize();
@@ -455,7 +587,7 @@ int main (int argc, char** argv)
                     std::to_string(static_cast<double>(initial_velocity_max)));
     }
 
-    for (const char* name : {"density", "theta", "temp", "x_velocity",
+    for (const char* name : {"density", "theta", "temp", "pressure", "x_velocity",
                              "y_velocity", "z_velocity"}) {
         if (!final.get(0, name).is_finite()) {
             amrex::Finalize();
@@ -510,6 +642,8 @@ int main (int argc, char** argv)
         std::max(final_v.norm0(0,0,false), final_w.norm0(0,0,false)));
     std::cout << "mode=" << mode << " initial_theta_error=" << theta_error_max
               << " initial_temperature_error=" << temperature_error_max
+              << " initial_pressure_abs_error=" << pressure_error_max
+              << " initial_pressure_relative_error=" << pressure_relative_error_max
               << " evolved_velocity_max=" << evolved_velocity;
     if (cloudy) {
         std::cout << " final_qv_min=" << final.get(0,"qv").min(0)

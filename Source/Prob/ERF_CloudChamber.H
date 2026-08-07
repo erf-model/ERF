@@ -17,6 +17,19 @@
 
 namespace erf_cloud_chamber {
 
+// The physical Cloud Chamber regression decks prescribe the base reference
+// temperature through prob.T_0 = 292 K. Exec/ERF_Prob.cpp consequently derives
+// rho_0 from p_inf/(R_d*T_0) when prob.rho_0 is omitted. Keep that prescribed
+// density available to independent diagnostics instead of borrowing density
+// from the plotfile being checked.
+inline constexpr amrex::Real reference_base_temperature = amrex::Real(292.0);
+
+AMREX_FORCE_INLINE
+amrex::Real prescribed_reference_density () noexcept
+{
+    return p_0 / (R_d * reference_base_temperature);
+}
+
 /**
  * Stage 1 wall metadata.  This is deliberately a small, trivially copyable
  * description: it can be captured by an AMReX device kernel without virtual

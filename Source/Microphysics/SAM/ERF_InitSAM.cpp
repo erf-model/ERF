@@ -93,6 +93,13 @@ SAM::Init (const MultiFab& cons_in,
 void
 SAM::Copy_State_to_Micro (const MultiFab& cons_in)
 {
+    Copy_State_to_Micro(cons_in, nullptr);
+}
+
+void
+SAM::Copy_State_to_Micro (const MultiFab& cons_in,
+                          const MultiFab* base_state)
+{
     // Get the temperature, density, theta, qt and qp from input
     for ( MFIter mfi(cons_in); mfi.isValid(); ++mfi) {
         const auto& box3d = mfi.growntilebox();
@@ -116,34 +123,26 @@ SAM::Copy_State_to_Micro (const MultiFab& cons_in)
         auto theta_array = mic_fab_vars[MicVar::theta]->array(mfi);
         auto tabs_array  = mic_fab_vars[MicVar::tabs]->array(mfi);
         auto pres_array  = mic_fab_vars[MicVar::pres]->array(mfi);
-
+        const auto base_array = base_state ? base_state->const_array(mfi) : Array4<Real const>{};
+        const bool use_anelastic_reference_pressure = (base_state != nullptr);
         // Get pressure, theta, temperature, density, and qt, qp
         ParallelFor(box3d, [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
-            const SAMPrimitiveCell primitive =
-                sam_cons_to_primitive(states_array(i,j,k,Rho_comp),
-                                      states_array(i,j,k,RhoTheta_comp),
-                                      states_array(i,j,k,RhoQ1_comp),
-                                      states_array(i,j,k,RhoQ2_comp),
-                                      states_array(i,j,k,RhoQ3_comp),
-                                      states_array(i,j,k,RhoQ4_comp),
-                                      states_array(i,j,k,RhoQ5_comp),
-                                      states_array(i,j,k,RhoQ6_comp));
-            rho_array(i,j,k)   = primitive.rho;
-            theta_array(i,j,k) = primitive.theta;
-            qv_array(i,j,k)    = primitive.qv;
-            qc_array(i,j,k)    = primitive.qcl;
-            qi_array(i,j,k)    = primitive.qci;
-            qn_array(i,j,k)    = primitive.qn;
-            qt_array(i,j,k)    = primitive.qt;
-            qpr_array(i,j,k)   = primitive.qpr;
-            qps_array(i,j,k)   = primitive.qps;
-            qpg_array(i,j,k)   = primitive.qpg;
-            qp_array(i,j,k)    = primitive.qp;
-            tabs_array(i,j,k)  = primitive.tabs;
-            pres_array(i,j,k)  = primitive.pres_mbar;
+            sam_copy_state_to_micro_cell(
+                states_array, base_array, rho_array, theta_array, qv_array,
+                qc_array, qi_array, qn_array, qt_array, qpr_array, qps_array,
+                qpg_array, qp_array, tabs_array, pres_array,
+                use_anelastic_reference_pressure, i, j, k);
         });
     }
+}
+
+void
+SAM::Update_Micro_Vars (MultiFab& cons_in,
+                        const MultiFab* base_state)
+{
+    Copy_State_to_Micro(cons_in, base_state);
+    Compute_Coefficients();
 }
 
 
@@ -176,42 +175,40 @@ void SAM::Compute_Coefficients ()
 
     // calculate the plane average variables
     PlaneAverage rho_ave(mic_fab_vars[MicVar::rho].get(), m_geom, m_axis);
-    PlaneAverage theta_ave(mic_fab_vars[MicVar::theta].get(), m_geom, m_axis);
-    PlaneAverage qv_ave(mic_fab_vars[MicVar::qv].get(), m_geom, m_axis);
+    PlaneAverage pres_ave(mic_fab_vars[MicVar::pres].get(), m_geom, m_axis);
+    PlaneAverage tabs_ave(mic_fab_vars[MicVar::tabs].get(), m_geom, m_axis);
     rho_ave.compute_averages(ZDir(), rho_ave.field());
-    theta_ave.compute_averages(ZDir(), theta_ave.field());
-    qv_ave.compute_averages(ZDir(), qv_ave.field());
+    pres_ave.compute_averages(ZDir(), pres_ave.field());
+    tabs_ave.compute_averages(ZDir(), tabs_ave.field());
 
     // get host variable rho, and rhotheta
     int ncell = rho_ave.ncell_line();
 
-    Gpu::HostVector<Real> rho_h(ncell), theta_h(ncell), qv_h(ncell);
+    Gpu::HostVector<Real> rho_h(ncell), pres_h(ncell), tabs_h(ncell);
     rho_ave.line_average(0, rho_h);
-    theta_ave.line_average(0, theta_h);
-    qv_ave.line_average(0, qv_h);
+    pres_ave.line_average(0, pres_h);
+    tabs_ave.line_average(0, tabs_h);
 
     // copy data to device
-    Gpu::DeviceVector<Real> rho_d(ncell), theta_d(ncell), qv_d(ncell);
+    Gpu::DeviceVector<Real> rho_d(ncell), pres_d(ncell), tabs_d(ncell);
     Gpu::copyAsync(Gpu::hostToDevice, rho_h.begin(), rho_h.end(), rho_d.begin());
-    Gpu::copyAsync(Gpu::hostToDevice, theta_h.begin(), theta_h.end(), theta_d.begin());
-    Gpu::copyAsync(Gpu::hostToDevice, qv_h.begin(), qv_h.end(), qv_d.begin());
+    Gpu::copyAsync(Gpu::hostToDevice, pres_h.begin(), pres_h.end(), pres_d.begin());
+    Gpu::copyAsync(Gpu::hostToDevice, tabs_h.begin(), tabs_h.end(), tabs_d.begin());
     Gpu::streamSynchronize();
 
     Real* rho_dptr   = rho_d.data();
-    Real* theta_dptr = theta_d.data();
-    Real* qv_dptr    = qv_d.data();
+    Real* pres_dptr  = pres_d.data();
+    Real* tabs_dptr  = tabs_d.data();
 
     ParallelFor(nlev, [=] AMREX_GPU_DEVICE (int k) noexcept
     {
-        Real RhoTheta = rho_dptr[k]*theta_dptr[k];
-        Real pressure = getPgivenRTh(RhoTheta, qv_dptr[k]);
         rho1d_t(k)    = rho_dptr[k];
-        pres1d_t(k)   = sam_pa_to_mbar(pressure);
+        pres1d_t(k)   = pres_dptr[k];
         // NOTE: Limit the temperature to the melting point of ice to avoid a divide by
         //       0 condition when computing the cold evaporation coefficients. This should
         //       not affect results since evaporation requires snow/graupel to be present
         //       and thus T<Real(273.16)
-        tabs1d_t(k)   = std::min(getTgivenRandRTh(rho_dptr[k], RhoTheta, qv_dptr[k]),Real(273.16));
+        tabs1d_t(k)   = std::min(tabs_dptr[k], Real(273.16));
     });
 
     if(round(gam3) != 2) {

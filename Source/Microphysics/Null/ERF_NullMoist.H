@@ -34,8 +34,10 @@ public:
     void
     Update_Micro_Vars (amrex::MultiFab& /*cons_in*/) { }
 
-    // Optional explicit anelastic thermodynamic context.  The default routes
-    // to the legacy model entry point so non-SatAdj models retain behavior.
+    // Optional explicit anelastic thermodynamic context. This compatibility
+    // fallback is appropriate only for pressure-independent/no-op models or
+    // intentionally legacy implementations; pressure-dependent schemes must
+    // override it to consume the supplied base-state context.
     virtual
     void
     Update_Micro_Vars (amrex::MultiFab& cons_in,

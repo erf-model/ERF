@@ -552,6 +552,14 @@ struct SolverChoice {
             }
         }
 
+        if (any_anelastic && moisture_type == MoistureType::SuperDroplets) {
+            amrex::Error("erf.moisture_model = SuperDroplets is not supported with "
+                         "erf.anelastic = 1 because the SuperDroplets thermodynamic "
+                         "path currently reconstructs pressure using the compressible "
+                         "equation of state. Use compressible dynamics or a supported "
+                         "Eulerian moisture model.");
+        }
+
         // Want to have different immersed forcing defaults depending on anelastic or fully compressible.
         // We should have different starting values because the stability of the method is dependent on dt.
         // dt is coarser for anelastic --> need to loosen stiffness of immersed forcing.

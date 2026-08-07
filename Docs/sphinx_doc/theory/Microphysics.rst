@@ -49,6 +49,53 @@ Model overview and transported quantities in ERF
 +--------------------+-------------------------+-------------+-------------+-----------------+-------------+
 
 
+Anelastic thermodynamic reference state
+----------------------------------------
+
+Anelastic dynamics are enabled with ``erf.anelastic = 1``. This option can be
+specified once for all AMR levels or as one value per level; see
+:ref:`sec:Inputs` for the complete input description.
+
+On an anelastic level, the following Eulerian microphysics schemes use ERF's
+hydrostatic thermodynamic reference state:
+
+* the Kessler family: ``Kessler`` and ``Kessler_NoRain``;
+* the SAM family: ``SAM``, ``SAM_NoIce``, and ``SAM_NoPrecip_NoIce``;
+* the Morrison family: ``Morrison`` and ``Morrison_NoIce``; and
+* ``WSM6``.
+
+For these schemes, ERF supplies microphysics with the temperature and
+pressure diagnosed from the local conserved state and the reference state:
+
+.. math::
+
+   \theta = \frac{\rho\theta}{\rho}, \qquad
+   T = \theta\,\pi_0, \qquad
+   p = p_0.
+
+Here, :math:`p_0` is ERF's hydrostatic reference pressure and :math:`\pi_0`
+is the corresponding reference Exner function. ERF initializes and maintains
+these reference-state quantities as part of the anelastic level state.
+
+Users do not need to provide a separate pressure field for microphysics, and
+they do not need to convert pressure units in the inputs file. ERF handles
+each scheme's existing internal pressure units at its interface: Kessler and
+SAM use mbar/hPa internally, while Morrison and WSM6 use Pa. This is an
+implementation detail rather than an additional user-configurable input.
+
+Compressible simulations are unchanged: their microphysics continue to use
+ERF's existing local equation-of-state diagnosis for pressure and temperature.
+The anelastic compatibility restriction for ``SuperDroplets`` is documented
+in :ref:`superdroplets-anelastic-compatibility`.
+
+.. note::
+
+   The stored reference Exner function is authoritative for the anelastic
+   temperature diagnosis. It is carried with the reference state through
+   initialization, AMR level construction, and restart handling; legacy
+   checkpoints that do not contain it reconstruct it from the stored
+   reference pressure.
+
 Surface precipitation accumulations
 -----------------------------------
 
@@ -371,8 +418,18 @@ and microphysical processes.
 
 For details, see Morrison and Milbrandt (2015, *J. Atmos. Sci.*, 72, 287–311).
 
+.. _superdroplets-anelastic-compatibility:
+
 Super-Droplet Method (SDM) Microphysics Model
 ----------------------------------------------
+
+.. important::
+
+   ``SuperDroplets`` is currently not supported with anelastic dynamics.
+   ERF rejects any configuration that combines ``erf.anelastic = 1`` on an
+   AMR level with this model because its thermodynamic path still reconstructs
+   pressure with the compressible equation of state.  Use compressible dynamics
+   or a supported Eulerian moisture model instead.
 
 The super-droplet method (SDM) is a particle-based, probabilistic approach for the simulation of cloud microphysics.
 Unlike the bulk parametrization and spectral bin methods, SDM directly tracks computational particles (called "super-droplets")
