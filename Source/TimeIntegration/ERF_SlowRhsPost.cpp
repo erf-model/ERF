@@ -219,6 +219,13 @@ void erf_slow_rhs_post (int level, int finest_level,
     //       components come from the LES model or are left as zero.
     // *************************************************************************
 
+    // EB Anelastic: Copy projected momentum with ghost-cell synchronization
+    if (l_anelastic && l_use_eb) {
+        avg_xmom.ParallelCopy(S_data[IntVars::xmom], 0, 0, 1, 0, 1, geom.periodicity());
+        avg_ymom.ParallelCopy(S_data[IntVars::ymom], 0, 0, 1, 0, 1, geom.periodicity());
+        avg_zmom.ParallelCopy(S_data[IntVars::zmom], 0, 0, 1, 0, 1, geom.periodicity());
+    }
+
     // *************************************************************************
     // Define updates and fluxes in the current RK stage
     // *************************************************************************
@@ -315,10 +322,8 @@ void erf_slow_rhs_post (int level, int finest_level,
             cur_cons(i,j,k,n) = new_cons(i,j,k,n);
         });
 
-        // We have projected the velocities stored in S_data but we will use
-        //    the velocities stored in {avg_xmom,avg_ymom,avg_zmom} to update the scalars,
-        //    so we need to copy from S_data (projected) into these
-        if (l_anelastic) {
+        // Non-EB Anelastic: Per-tile copy of projected momentum (EB done above)
+        if (l_anelastic && !l_use_eb) {
             Box tbx_inc = mfi.nodaltilebox(0);
             Box tby_inc = mfi.nodaltilebox(1);
             Box tbz_inc = mfi.nodaltilebox(2);
