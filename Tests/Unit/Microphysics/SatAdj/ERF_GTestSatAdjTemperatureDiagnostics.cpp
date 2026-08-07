@@ -50,6 +50,19 @@ const char* diag_name[DIAG_NUM] = {
     "T_fixed_p"
 };
 
+void fill_anelastic_reference_pressure(amrex::MultiFab& base)
+{
+    for (amrex::MFIter mfi(base); mfi.isValid(); ++mfi) {
+        const amrex::Box& bx = mfi.validbox();
+        const auto p0 = base.array(mfi);
+        amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+            p0(i,j,k,BaseState::p0_comp) = (i == 0) ?
+                amrex::Real(100000.0) : amrex::Real(90000.0);
+        });
+    }
+    satadj_test::sync();
+}
+
 } // namespace
 
 // Motivation: The observed artifact appears in thermodynamic temperature but
@@ -251,15 +264,7 @@ TEST(SatAdjTemperatureDiagnostics, AnelasticPressureContextMatchesReference)
     cons.setVal(amrex::Real(1.0), Rho_comp, 1);
     cons.setVal(amrex::Real(300.0), RhoTheta_comp, 1);
     cons.setVal(amrex::Real(0.03), RhoQ1_comp, 1);
-    for (amrex::MFIter mfi(base); mfi.isValid(); ++mfi) {
-        const auto bx = mfi.validbox();
-        const auto p0 = base.array(mfi);
-        amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-            p0(i,j,k,BaseState::p0_comp) = (i == 0) ?
-                amrex::Real(100000.0) : amrex::Real(90000.0);
-        });
-    }
-    satadj_test::sync();
+    fill_anelastic_reference_pressure(base);
 
     SatAdj satadj;
     SolverChoice sc = make_solver_choice(false);
