@@ -844,7 +844,7 @@ ERF::InitData_post ()
                 bool is_anelastic = (solverChoice.anelastic[0] == 1);
                 read_and_convert_from_wrfbdy(itime,nc_bdy_file,
                                              bdy_data_xlo,bdy_data_xhi,bdy_data_ylo,bdy_data_yhi,
-                                             wrf_MUB, wrf_C1H, wrf_C2H, wrf_RDNW, wrf_PHB, z_phys_nd[0],
+                                             wrf_MUB, wrf_C1H, wrf_C2H, wrf_RDNW, wrf_PHB, z_phys_cc[0], z_phys_nd[0],
                                              vars_new[0][Vars::xvel], vars_new[0][Vars::yvel], vars_new[0][Vars::cons],
                                              r_hse, area_vec, geom[0], use_moist, solverChoice.rebalance_wrf_input, domain_bcs_type,
                                              real_width, bdy_time_interval, is_anelastic);
@@ -857,7 +857,7 @@ ERF::InitData_post ()
                 bool is_anelastic = (solverChoice.anelastic[0] == 1);
                 read_and_convert_from_wrfbdy(itime,nc_bdy_file,
                                              bdy_data_xlo,bdy_data_xhi,bdy_data_ylo,bdy_data_yhi,
-                                             wrf_MUB, wrf_C1H, wrf_C2H, wrf_RDNW, wrf_PHB, z_phys_nd[0],
+                                             wrf_MUB, wrf_C1H, wrf_C2H, wrf_RDNW, wrf_PHB, z_phys_cc[0], z_phys_nd[0],
                                              vars_new[0][Vars::xvel], vars_new[0][Vars::yvel], vars_new[0][Vars::cons],
                                              r_hse, area_vec, geom[0], use_moist, solverChoice.rebalance_wrf_input, domain_bcs_type,
                                              real_width, bdy_time_interval, is_anelastic);
@@ -2828,6 +2828,31 @@ ERF::ParameterSanityChecks ()
     // We don't allow use_real_bcs to be true if init_type is not either InitType::WRFInput or InitType::Metgrid
     AMREX_ALWAYS_ASSERT( !solverChoice.use_real_bcs ||
                         ((solverChoice.init_type == InitType::WRFInput) || (solverChoice.init_type == InitType::Metgrid)) );
+
+    if (solverChoice.use_wrf_bdy_density) {
+        if (!solverChoice.use_real_bcs || solverChoice.init_type != InitType::WRFInput) {
+            Abort("erf.use_wrf_bdy_density requires standard WRFInput real boundary conditions");
+        }
+        if (nc_bdy_file.empty()) {
+            Abort("erf.use_wrf_bdy_density requires nc_bdy_file");
+        }
+        if (!solverChoice.anelastic.empty() && solverChoice.anelastic[0] != 0) {
+            Abort("erf.use_wrf_bdy_density is not supported for anelastic simulations");
+        }
+        if (input_bndry_planes) {
+            Abort("erf.use_wrf_bdy_density is not supported with generic boundary-plane input");
+        }
+        const Real rho_factor = (solverChoice.bdy_rho_nudge_factor > zero)
+                              ? solverChoice.bdy_rho_nudge_factor
+                              : solverChoice.bdy_nudge_factor;
+        if (rho_factor <= zero) {
+            Abort("erf.bdy_rho_nudge_factor or erf.bdy_nudge_factor must be positive");
+        }
+        Print() << "WRF lateral boundary density forcing: enabled\n"
+                << "WRF boundary density nudge factor: " << rho_factor << std::endl;
+    } else {
+        Print() << "WRF lateral boundary density forcing: disabled" << std::endl;
+    }
 
     AMREX_ALWAYS_ASSERT(real_width >= 0);
 

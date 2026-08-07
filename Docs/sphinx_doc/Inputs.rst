@@ -1482,6 +1482,14 @@ List of Parameters
 | **erf.bdy_nudge_factor**            | Sets real bc nudging   | Real              | 10.0                |
 |                                     | strength as 1/(VAL*dt) |                   |                     |
 +-------------------------------------+------------------------+-------------------+---------------------+
+| **erf.use_wrf_bdy_density**         | Use WRF-reconstructed  | true / false      | false               |
+|                                     | dry-air density for    |                   |                     |
+|                                     | real WRF boundaries    |                   |                     |
++-------------------------------------+------------------------+-------------------+---------------------+
+| **erf.bdy_rho_nudge_factor**        | Density Davies factor; | Real              | -1.0                |
+|                                     | non-positive uses      |                   |                     |
+|                                     | ``bdy_nudge_factor``   |                   |                     |
++-------------------------------------+------------------------+-------------------+---------------------+
 | **erf.bdy_moist_nudge_type**        | Which strategy for     | int 0,1 or 2      | 0                   |
 |                                     | nudging of moist vars  |                   |                     |
 +-------------------------------------+------------------------+-------------------+---------------------+
@@ -1710,6 +1718,10 @@ List of Parameters
 |                                  | total width if      |                    |                       |
 |                                  | use_real_bcs is     |                    |                       |
 |                                  | true                |                    |                       |
++----------------------------------+---------------------+--------------------+-----------------------+
+| **erf.use_wrf_height_grid**      | use z heights       |  bool              | true                  |
+|                                  | from wrfinput or    |                    |                       |
+|                                  | make our own?       |                    |                       |
 +----------------------------------+---------------------+--------------------+-----------------------+
 | **erf.rebalance_wrf_input**      | rebalance state     |  bool              | true                  |
 |                                  | from wrfinput and   |                    |                       |

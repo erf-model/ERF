@@ -514,8 +514,17 @@ struct SolverChoice {
         // Use lagged_delta_rt in the fast integrator?
         pp.query("use_lagged_delta_rt", use_lagged_delta_rt);
 
+        // Keep the default wrf grid or remake our own
+        pp.query("use_wrf_height_grid",use_wrf_height_grid);
+
         // Rebalance wrf state?
         pp.query("rebalance_wrf_input", rebalance_wrf_input);
+
+        // Must rebalance if not using WRF grid
+        if (!use_wrf_height_grid && !rebalance_wrf_input) {
+            amrex::Print() << "Must rebalance when not using WRF height grid. Setting rebalance_wrf_input to true \n";
+            rebalance_wrf_input = true;
+        }
 
         // These default to true but are used for unit testing
         pp.query("use_gravity", use_gravity);
@@ -766,6 +775,10 @@ struct SolverChoice {
 
         // What's the strength of the bdy nudging?
         pp.query("bdy_nudge_factor",bdy_nudge_factor);
+
+        // Optionally use the dry-air density reconstructed from wrfbdy.
+        pp.query("use_wrf_bdy_density", use_wrf_bdy_density);
+        pp.query("bdy_rho_nudge_factor", bdy_rho_nudge_factor);
 
         // Which approach to nudging the moist variables in the boundary region?
         pp.query("bdy_moist_nudge_type",bdy_moist_nudge_type);
@@ -1615,8 +1628,16 @@ struct SolverChoice {
     // Nudging factor for bdy sponging : F1 = 1/(nudge_factor * dt)
     amrex::Real bdy_nudge_factor = amrex::Real(10.0);
 
+    // Use density reconstructed from standard WRF lateral boundary data.
+    bool use_wrf_bdy_density = false;
+    // Density-specific Davies factor; non-positive means use bdy_nudge_factor.
+    amrex::Real bdy_rho_nudge_factor = amrex::Real(-1.0);
+
     // Which approach to nudging the moist variables in the boundary region?
     int bdy_moist_nudge_type = 0;
+
+    // Keep the WRF grid or remake our own?
+    bool use_wrf_height_grid {true};
 
     // Use forest canopy model?
     bool do_forest_drag {false};

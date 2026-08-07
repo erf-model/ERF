@@ -169,6 +169,7 @@ namespace RealBdyVars {
         V  = 1,
         T  = 2,
         QV = 3,
+        R  = 4,
         NumTypes
     };
 }

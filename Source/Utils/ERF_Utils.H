@@ -183,7 +183,9 @@ void realbdy_compute_interior_ghost_rhs (const double& total_time,
                                          amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_yhi,
                                          std::unique_ptr<ReadBndryPlanes>& m_r2d,
                                          const amrex::Real& c_p,
-                                         const amrex::Real& rdOcp);
+                                         const amrex::Real& rdOcp,
+                                         const bool use_wrf_bdy_density,
+                                         const amrex::Real& bdy_rho_nudge_factor);
 
 /*
  * Compute relaxation region RHS at fine-crse interface
