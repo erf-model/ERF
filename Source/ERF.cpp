@@ -2517,6 +2517,31 @@ ERF::ParameterSanityChecks ()
     AMREX_ALWAYS_ASSERT( !solverChoice.use_real_bcs ||
                         ((solverChoice.init_type == InitType::WRFInput) || (solverChoice.init_type == InitType::Metgrid)) );
 
+    if (solverChoice.use_wrf_bdy_density) {
+        if (!solverChoice.use_real_bcs || solverChoice.init_type != InitType::WRFInput) {
+            Abort("erf.use_wrf_bdy_density requires standard WRFInput real boundary conditions");
+        }
+        if (nc_bdy_file.empty()) {
+            Abort("erf.use_wrf_bdy_density requires nc_bdy_file");
+        }
+        if (!solverChoice.anelastic.empty() && solverChoice.anelastic[0] != 0) {
+            Abort("erf.use_wrf_bdy_density is not supported for anelastic simulations");
+        }
+        if (input_bndry_planes) {
+            Abort("erf.use_wrf_bdy_density is not supported with generic boundary-plane input");
+        }
+        const Real rho_factor = (solverChoice.bdy_rho_nudge_factor > zero)
+                              ? solverChoice.bdy_rho_nudge_factor
+                              : solverChoice.bdy_nudge_factor;
+        if (rho_factor <= zero) {
+            Abort("erf.bdy_rho_nudge_factor or erf.bdy_nudge_factor must be positive");
+        }
+        Print() << "WRF lateral boundary density forcing: enabled\n"
+                << "WRF boundary density nudge factor: " << rho_factor << std::endl;
+    } else {
+        Print() << "WRF lateral boundary density forcing: disabled" << std::endl;
+    }
+
     AMREX_ALWAYS_ASSERT(real_width >= 0);
 
     if (cf_set_width != 0) {
