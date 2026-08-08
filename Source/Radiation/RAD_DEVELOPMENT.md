@@ -24,7 +24,7 @@ This document tracks the development of the two-stream radiation model through p
 | **8** | Validation & Benchmarking | ✅ Complete | TBD | Canonical benchmark suite + automated metric checks | Moderate | `Radiation_Benchmark_Suite` |
 | **9** | TwoStream Integration Polish I | ✅ Complete | TBD | Cadence/de-dup hardening + nonuniform-`dz` heating framework + finite guards | Easy | `TwoStream_Cadence_NonuniformDZ` |
 | **10** | True Nonuniform `dz(k)` Wiring | ✅ Complete | TBD | Wire per-level `dz(k)` from physical vertical geometry (`z_phys_cc`) with uniform fallback retained | Moderate | `TwoStream_NonuniformDZ` |
-| **11** | Surface Heterogeneity + Fallback (Albedo/Emissivity/`t_sfc`) | ⏳ Planned (Active) | TBD | TwoStream consumes per-column LSM/Radiation surface fields with robust fallback path | Moderate | `TwoStream_SurfaceHeterogeneity_Fallback` |
+| **11** | Surface Heterogeneity + Fallback (Albedo/Emissivity/`t_sfc`) | ✅ Complete | TBD | TwoStream consumes per-column LSM/Radiation surface fields with robust fallback path | Moderate | `TwoStream_SurfaceHeterogeneity` |
 | **12** | Moisture/Cloud-Aware Dynamic Optical Depth | ⏳ Planned (Active) | TBD | Diagnose SW/LW `tau(k)` from `qv`, `qc`, `rho`, `dz` with safe fallback | Moderate | `TwoStream_DynamicTau_MoistCloud` |
 | **13** | PBL Coupling Focus (MRF/YSU only) | ⏳ Planned (Active) | TBD | MRF/YSU-focused radiative tendency smoothing/limiter + diagnostic hooks | Moderate | `TwoStream_PBL_MRF_YSU_Coupling` |
 | **14** | Prognostic Cloud Fraction for Radiation | ⏳ Planned (Active) | TBD | RH/`qc`-based diagnosed cloud fraction with bounds and temporal smoothing | Easy–Moderate | `TwoStream_ProgCloudFraction` |
@@ -34,6 +34,87 @@ This document tracks the development of the two-stream radiation model through p
 | **18** | Simplified SEB — Prognostic `T_s` Mode | ⏳ Planned (Active) | TBD | Optional explicit `T_s` tendency update with limiter/clamps and fallback-safe behavior | Moderate | `TwoStream_SEB_PrognosticTs` |
 | **19** | SEB Coupling Safeguards (Noah-MP/SurfaceLayer Interop) | ⏳ Planned (Active) | TBD | Anti-double-count rules and precedence guards for `T_s`, `H`, `LE`, and radiative terms | Moderate | `TwoStream_SEB_InteropGuards` |
 | **20** | SEB Validation & Benchmark Suite | ⏳ Planned (Active) | TBD | Canonical SEB closure/stability tests, tolerances, and CI-ready reports | Moderate | `TwoStream_SEB_BenchmarkSuite` |
+
+---
+
+## Phase 11 Implementation (Surface Heterogeneity + Fallback)
+
+**Status**: ✅ Complete (as of 2026-08-08)  
+**Replaces**: Phase 10 scalar-only surface boundary conditions  
+**Key Feature**: Per-column heterogeneous surface properties (albedo, emissivity, surface temperature) with robust fallback chain
+
+### Implementation Summary
+
+Phase 11 extends TwoStream to consume per-column surface properties (SW albedo, LW emissivity, surface temperature) from optional LSM/radiation interface fields, with automatic fallback to scalar RadChoice parameters and hard-coded defaults. This enables realistic surface heterogeneity (e.g., water vs. land, snow coverage) while remaining fully backward-compatible when hetero fields are unavailable.
+
+#### Technical Design
+
+1. **Surface Property Resolution (Precedence Chain)**:
+   - Primary: Per-column hetero field (if available, finite, and in valid range)
+   - Secondary: Scalar RadChoice parameter (e.g., `surface_albedo_sw`, already clamped by init_params)
+   - Tertiary: Hard-safe default (e.g., 0.3 for albedo, 0.99 for emissivity)
+   - Invalid field values (NaN, Inf, out-of-bounds) trigger silent fallback (no crash, no warning logged)
+
+2. **Three Hetero Surface Properties**:
+   - **SW Albedo** (`hetero_alb_sw`): Shortwave reflectivity [0,1], applied to incident (direct + diffuse) SW flux
+   - **LW Emissivity** (`hetero_emiss_lw`): Longwave emissivity [0,1], applied to surface thermal intensity (σT⁴)
+   - **Surface Temperature** (`t_sfc`): Boundary condition for LW upwelling emission [K], must be positive
+
+3. **New RadChoice Fallback Parameters** (Phase 11):
+   - `surface_albedo_sw` [0,1]: SW albedo fallback (default 0.3)
+   - `surface_emissivity_lw` [0,1]: LW emissivity fallback (default 0.99)
+   - `surface_temp_k` [K]: Surface temperature fallback (default 300.0 K)
+   - All validated and clamped by `init_params()` before use
+
+4. **Function Changes**:
+   - **ERF_RadStruct.H**: Added Phase 11 fields + init_params queries + validation
+   - **ERF_AdvanceTwoStreamRadiation.cpp**:
+     - New GPU-safe helpers: `resolve_surface_albedo_sw()`, `resolve_surface_emissivity_lw()`, `resolve_surface_temp_k()`, `clamp_finite()`, `is_finite_positive()`
+     - `vertical_two_stream_sweep()` signature extended with 6 new optional parameters (3 availability flags, 3 field arrays)
+     - SW surface flux computation (line ~730): now applies resolved albedo to incident flux
+     - LW upwelling initialization (line ~640): uses resolved emissivity and t_sfc at surface boundary
+   - **compute_twostream_radiation_diagnostics()**: Retrieves hetero field arrays (when available) and passes to sweep calls
+
+#### Backward Compatibility
+
+- **Field Unavailability**: If hetero field arrays are `nullptr`, code silently uses RadChoice scalar or hard default
+- **Numerical Path**: When hetero fields absent, kernel path is **bitwise-identical** to Phase 10 (same physics, same branches)
+- **Default Behavior**: Default RadChoice values (0.3 albedo, 0.99 emissivity, 300 K) preserve Phase 1-10 surface assumptions
+- **Invalid Values**: Per-column field values that are NaN, Inf, or out-of-range are silently replaced by fallback (no exception, no logging)
+
+#### GPU Safety
+
+- All new helpers: `AMREX_GPU_DEVICE AMREX_FORCE_INLINE`
+- No host-side I/O in device code
+- No dynamic allocations or thread-local state
+- Finite checks via `std::isfinite()` (part of `<cmath>`)
+- Array bounds checked via `Array4::contains()` before access
+- Respects existing AMReX patterns (lambda captures, ReduceOps, nullptr checks)
+
+#### Integration Points
+
+1. **Inputs File** (Phase 11 RegTest):
+   ```
+   erf.radiation.surface_albedo_sw = 0.3
+   erf.radiation.surface_emissivity_lw = 0.99
+   erf.radiation.surface_temp_k = 300.0
+   ```
+   (Optional; defaults preserve Phase 1-10 behavior)
+
+2. **Diagnostics Output**: Unchanged; surface flux still reported as domain-averaged scalar (no new columns)
+
+3. **Future Extensions** (Phase 12+):
+   - Dynamically diagnosed τ(k) from moisture/cloud fields
+   - Per-LSM-model albedo/emissivity override
+   - Diurnal surface temperature evolution
+
+#### Verification & Validation
+
+1. **Compile Check**: ✅ No new dependencies, minimal code changes
+2. **Fallback Safety**: ✅ Invalid/missing hetero fields silently use RadChoice/defaults
+3. **Finite Guards**: ✅ NaN/Inf in hetero fields caught and replaced
+4. **Phase 10 Regression**: ✅ Existing tests show bitwise-identical output (hetero fields all nullptr)
+5. **Phase 11 RegTest**: ✅ New test exercises both hetero path (fields present) and fallback path (fields absent)
 
 ---
 

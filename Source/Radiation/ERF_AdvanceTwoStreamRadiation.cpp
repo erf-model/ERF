@@ -113,7 +113,142 @@ amrex::Real get_temperature_from_rhotheta(amrex::Real rho_theta, amrex::Real rho
 }
 
 /**
- * @brief (Phase 9) Compute vertical thickness of a single layer.
+ * @brief (Phase 11) Clamp a real value to [min, max], with fallback for invalid (NaN/Inf).
+ *
+ * If the value is not finite (NaN, Inf), returns fallback. Otherwise returns
+ * value clamped to [min, max].
+ *
+ * @param[in] value Input value to clamp
+ * @param[in] min Lower bound
+ * @param[in] max Upper bound
+ * @param[in] fallback Value to use if input is not finite
+ * @return Clamped finite value in [min, max]
+ */
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+amrex::Real clamp_finite(amrex::Real value, amrex::Real min, amrex::Real max,
+                         amrex::Real fallback)
+{
+    if (!std::isfinite(value)) {
+        value = fallback;
+    }
+    if (value < min) value = min;
+    if (value > max) value = max;
+    return value;
+}
+
+/**
+ * @brief (Phase 11) Check if a real value is finite and positive.
+ *
+ * @param[in] value Value to check
+ * @return true if finite and > 0, false otherwise
+ */
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+bool is_finite_positive(amrex::Real value)
+{
+    return std::isfinite(value) && value > 0.0;
+}
+
+/**
+ * @brief (Phase 11) Resolve per-column shortwave surface albedo from hetero field or fallback.
+ *
+ * Precedence:
+ * 1. If hetero_alb_sw array available and value at (i,j) is finite ∈ [0,1], use it
+ * 2. Otherwise, use rad_choice.surface_albedo_sw (already clamped by init_params)
+ * 3. Hard default: 0.3
+ *
+ * @param[in] i,j Column index
+ * @param[in] hetero_alb_sw Heterogeneous SW albedo field (may be nullptr)
+ * @param[in] rad_choice Radiation parameters with fallback surface_albedo_sw
+ * @param[in] has_hetero_alb true if hetero_alb_sw is available
+ * @return SW albedo in [0, 1]
+ */
+AMREX_GPU_DEVICE AMREX_FORCE_INLINE
+amrex::Real resolve_surface_albedo_sw(
+    int i, int j,
+    const Array4<const amrex::Real>& hetero_alb_sw,
+    const RadChoice& rad_choice,
+    bool has_hetero_alb)
+{
+    amrex::Real alb = rad_choice.surface_albedo_sw;  // Default fallback (already clamped)
+    
+    if (has_hetero_alb && hetero_alb_sw.contains(i, j, 0)) {
+        amrex::Real hetero_val = hetero_alb_sw(i, j, 0, 0);  // Assume single component
+        if (std::isfinite(hetero_val)) {
+            alb = clamp_finite(hetero_val, 0.0, 1.0, rad_choice.surface_albedo_sw);
+        }
+    }
+    
+    return alb;
+}
+
+/**
+ * @brief (Phase 11) Resolve per-column longwave surface emissivity from hetero field or fallback.
+ *
+ * Precedence:
+ * 1. If hetero_emiss_lw array available and value at (i,j) is finite ∈ [0,1], use it
+ * 2. Otherwise, use rad_choice.surface_emissivity_lw (already clamped by init_params)
+ * 3. Hard default: 0.99
+ *
+ * @param[in] i,j Column index
+ * @param[in] hetero_emiss_lw Heterogeneous LW emissivity field (may be nullptr)
+ * @param[in] rad_choice Radiation parameters with fallback surface_emissivity_lw
+ * @param[in] has_hetero_emiss true if hetero_emiss_lw is available
+ * @return LW emissivity in [0, 1]
+ */
+AMREX_GPU_DEVICE AMREX_FORCE_INLINE
+amrex::Real resolve_surface_emissivity_lw(
+    int i, int j,
+    const Array4<const amrex::Real>& hetero_emiss_lw,
+    const RadChoice& rad_choice,
+    bool has_hetero_emiss)
+{
+    amrex::Real emiss = rad_choice.surface_emissivity_lw;  // Default fallback (already clamped)
+    
+    if (has_hetero_emiss && hetero_emiss_lw.contains(i, j, 0)) {
+        amrex::Real hetero_val = hetero_emiss_lw(i, j, 0, 0);  // Assume single component
+        if (std::isfinite(hetero_val)) {
+            emiss = clamp_finite(hetero_val, 0.0, 1.0, rad_choice.surface_emissivity_lw);
+        }
+    }
+    
+    return emiss;
+}
+
+/**
+ * @brief (Phase 11) Resolve per-column surface temperature from hetero field or fallback.
+ *
+ * Precedence:
+ * 1. If t_sfc array available and value at (i,j) is finite & positive, use it
+ * 2. Otherwise, use rad_choice.surface_temp_k (already validated by init_params)
+ * 3. Hard default: 300.0 K
+ *
+ * @param[in] i,j Column index
+ * @param[in] t_sfc Heterogeneous surface temperature field (may be nullptr)
+ * @param[in] rad_choice Radiation parameters with fallback surface_temp_k
+ * @param[in] has_t_sfc true if t_sfc is available
+ * @return Surface temperature [K], strictly positive
+ */
+AMREX_GPU_DEVICE AMREX_FORCE_INLINE
+amrex::Real resolve_surface_temp_k(
+    int i, int j,
+    const Array4<const amrex::Real>& t_sfc,
+    const RadChoice& rad_choice,
+    bool has_t_sfc)
+{
+    amrex::Real t_surf = rad_choice.surface_temp_k;  // Default fallback (already validated)
+    
+    if (has_t_sfc && t_sfc.contains(i, j, 0)) {
+        amrex::Real hetero_val = t_sfc(i, j, 0, 0);  // Assume single component
+        if (is_finite_positive(hetero_val)) {
+            t_surf = hetero_val;
+        }
+    }
+    
+    return t_surf;
+}
+
+/**
+ * @brief (Phase 10) Compute vertical thickness of a single layer.
  *
  * For uniform grids: dz = geom.CellSize(2)
  * For nonuniform/terrain-aware grids: dz = z_cc(k) - z_cc(k+1)
@@ -262,10 +397,16 @@ constexpr int MAX_RAD_LEVELS = 512;
  * 4. Reduction-based scalar diagnostics (max heating rate, surface fluxes)
  *    are still produced for CSV/console output, unchanged from Phase 4.
  *
+ * (Phase 11) Integrates per-column heterogeneous surface properties (albedo,
+ * emissivity, surface temperature) from optional fields with robust fallback
+ * to RadChoice scalar parameters. If hetero fields unavailable or contain
+ * invalid values, falls back silently to scalar/hard defaults.
+ *
  * All arrays are on device; scalar results are accumulated into reduction
  * variables, while per-level heating rates are written directly into
  * qheating_arr.
  *
+ * @param[in] i, j Column indices
  * @param[in] bx Computational box (cell-centered, full domain)
  * @param[in] geom Geometry for this AMR level
  * @param[in] state_arr Array proxy to state data (read-only)
@@ -282,6 +423,13 @@ constexpr int MAX_RAD_LEVELS = 512;
  * @param[out] max_heating_rate Maximum |Q_sw|+|Q_lw| observed (device-side scalar)
  * @param[out] sw_surface_flux Downwelling SW at surface (direct + diffuse) (device-side scalar)
  * @param[out] lw_net_surface Net LW at surface (device-side scalar)
+ * @param[in] z_phys_cc (Phase 10) Optional physical height array for nonuniform dz support
+ * @param[in] has_hetero_alb_sw (Phase 11) true if hetero_alb_sw is available
+ * @param[in] hetero_alb_sw (Phase 11) Optional per-column SW surface albedo field
+ * @param[in] has_hetero_emiss_lw (Phase 11) true if hetero_emiss_lw is available
+ * @param[in] hetero_emiss_lw (Phase 11) Optional per-column LW surface emissivity field
+ * @param[in] has_t_sfc (Phase 11) true if t_sfc is available
+ * @param[in] t_sfc (Phase 11) Optional per-column surface temperature field [K]
  */
 AMREX_GPU_DEVICE AMREX_FORCE_INLINE
 void vertical_two_stream_sweep(
@@ -295,7 +443,13 @@ void vertical_two_stream_sweep(
     amrex::Real& max_heating_rate,
     amrex::Real& sw_surface_flux,
     amrex::Real& lw_net_surface,
-    const Array4<const amrex::Real>& z_phys_cc)
+    const Array4<const amrex::Real>& z_phys_cc,
+    bool has_hetero_alb_sw = false,
+    const Array4<const amrex::Real>& hetero_alb_sw = nullptr,
+    bool has_hetero_emiss_lw = false,
+    const Array4<const amrex::Real>& hetero_emiss_lw = nullptr,
+    bool has_t_sfc = false,
+    const Array4<const amrex::Real>& t_sfc = nullptr)
 {
     // Grid bounds
     int kmin = bx.smallEnd(2);
@@ -480,8 +634,13 @@ void vertical_two_stream_sweep(
 
         if (k == kmax) {
             // Surface: initialize upwelling flux
-            amrex::Real I_thermal = compute_thermal_intensity(T_layer, sigma);
-            F_lw_up_curr = I_thermal;
+            // (Phase 11) Resolve surface temperature and emissivity from hetero fields or fallback
+            amrex::Real t_surface = resolve_surface_temp_k(i, j, t_sfc, rad_choice, has_t_sfc);
+            amrex::Real emiss_lw = resolve_surface_emissivity_lw(i, j, hetero_emiss_lw, rad_choice, has_hetero_emiss_lw);
+            
+            // Thermal intensity at surface (Stefan-Boltzmann with emissivity)
+            amrex::Real I_thermal_surface = emiss_lw * compute_thermal_intensity(t_surface, sigma);
+            F_lw_up_curr = I_thermal_surface;
         } else {
             // Propagate upward through this layer
             F_lw_up_curr = compute_lw_flux_up(F_lw_up_curr, T_layer, sigma, tau_lw);
@@ -569,11 +728,15 @@ void vertical_two_stream_sweep(
     // SURFACE AND DIAGNOSTICS
     // ========================================================================
     if (rad_choice.sw_enabled) {
+        // (Phase 11) Resolve per-column SW albedo from hetero field or fallback
+        amrex::Real alb_sw = resolve_surface_albedo_sw(i, j, hetero_alb_sw, rad_choice, has_hetero_alb_sw);
+        
         if (rad_choice.isothermal_test) {
-            sw_surface_flux = S0 * std::max(0.0, cos_zenith) * std::exp(-tau_sw_cum);
+            // Isothermal test: compute direct-beam at surface, apply albedo
+            sw_surface_flux = S0 * std::max(0.0, cos_zenith) * std::exp(-tau_sw_cum) * (1.0 - alb_sw);
         } else {
-            // Phase 4: surface SW flux includes both direct and diffuse terms.
-            sw_surface_flux = F_sw_dir_prev + F_sw_diff_prev;
+            // Normal mode: Phase 4 includes both direct and diffuse terms, apply albedo
+            sw_surface_flux = (F_sw_dir_prev + F_sw_diff_prev) * (1.0 - alb_sw);
         }
     } else {
         sw_surface_flux = 0.0;
@@ -682,6 +845,17 @@ void ERF::compute_twostream_radiation_diagnostics(
                 has_z_phys = true;
             }
 
+            // (Phase 11) Get hetero surface property fields if available
+            // These would typically come from LSM/radiation interface fields
+            // For now, mark as unavailable (fallback to scalar RadChoice parameters)
+            // Future: wire from LSM fields as available
+            bool has_hetero_alb_sw = false;
+            Array4<const amrex::Real> hetero_alb_sw_arr;
+            bool has_hetero_emiss_lw = false;
+            Array4<const amrex::Real> hetero_emiss_lw_arr;
+            bool has_t_sfc_field = false;
+            Array4<const amrex::Real> t_sfc_arr;
+
             // Create a 2D box for (i,j) iteration over the horizontal extent
             // One GPU thread per (i,j) column; k-loop is sequential within each thread
             const auto& lo = bx.loVect();
@@ -739,7 +913,10 @@ void ERF::compute_twostream_radiation_diagnostics(
                         i, j, bx, geom_lev, state_arr, rad_choice, /*cloudy=*/false,
                         qheating_clear_arr,
                         max_heating_clear, sw_flux_clear, lw_net_clear,
-                        has_z_phys,z_phys_cc_arr);
+                        has_z_phys, z_phys_cc_arr,
+                        has_hetero_alb_sw, hetero_alb_sw_arr,
+                        has_hetero_emiss_lw, hetero_emiss_lw_arr,
+                        has_t_sfc_field, t_sfc_arr);
 
                     amrex::Real max_heating_col = max_heating_clear;
                     amrex::Real sw_flux_col = sw_flux_clear;
@@ -756,7 +933,10 @@ void ERF::compute_twostream_radiation_diagnostics(
                             i, j, bx, geom_lev, state_arr, rad_choice, /*cloudy=*/true,
                             qheating_cloudy_arr,
                             max_heating_cloudy, sw_flux_cloudy, lw_net_cloudy,
-                            has_z_phys,z_phys_cc_arr);
+                            has_z_phys, z_phys_cc_arr,
+                            has_hetero_alb_sw, hetero_alb_sw_arr,
+                            has_hetero_emiss_lw, hetero_emiss_lw_arr,
+                            has_t_sfc_field, t_sfc_arr);
 
                         // Blend clear-sky and cloudy-column results
                         sw_flux_col = (1.0 - cloud_fraction) * sw_flux_clear +
