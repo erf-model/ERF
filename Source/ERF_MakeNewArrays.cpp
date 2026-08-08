@@ -476,6 +476,23 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
         rad_fluxes[lev]->setVal(zero);
     }
 
+    // Phase 14A: Allocate standalone 2D MultiFabs for TwoStream fallback surface properties
+    // These are allocated only when TwoStream radiation is active and used to hold constant
+    // fallback values (from RadChoice scalars) when no LSM is present. When LSM is active,
+    // the real LSM fields take precedence via the resolution chain in resolve_surface_*() helpers.
+    if (solverChoice.radChoice.rad_type == RadType::TwoStream)
+    {
+       // Use 2D box array (ba2d) for surface property arrays
+       twostream_alb_sw[lev]   = std::make_unique<MultiFab>(ba2d[lev], dm, 1, 0);
+       twostream_emiss_lw[lev] = std::make_unique<MultiFab>(ba2d[lev], dm, 1, 0);
+       twostream_t_sfc[lev]    = std::make_unique<MultiFab>(ba2d[lev], dm, 1, 0);
+        
+       // Initialize from RadChoice scalar defaults (constant-filled)
+       twostream_alb_sw[lev]->setVal(solverChoice.radChoice.surface_albedo_sw);
+       twostream_emiss_lw[lev]->setVal(solverChoice.radChoice.surface_emissivity_lw);
+       twostream_t_sfc[lev]->setVal(solverChoice.radChoice.surface_temp_k);
+    }
+
     //*********************************************************
     // Turbulent perturbation region initialization
     //*********************************************************

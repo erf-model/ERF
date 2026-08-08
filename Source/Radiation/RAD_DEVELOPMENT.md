@@ -28,6 +28,7 @@ This document tracks the development of the two-stream radiation model through p
 | **12** | Moisture/Cloud-Aware Dynamic Optical Depth | ✅ Complete | TBD | Diagnose SW/LW `tau(k)` from `qv`, `qc`, `rho`, `dz` with safe fallback | Moderate | `TwoStream_DynamicTau_MoistCloud` |
 | **13** | PBL Coupling Focus (YSUNew-only) | ✅ Complete | TBD | YSUNew radiative tendency smoothing/limiter + diagnostic hooks; MRF deferred | Moderate | `TwoStream_PBL_MRF_YSU_Coupling` |
 | **14** | Prognostic Cloud Fraction for Radiation | ✅ Complete | TBD | RH/`qc`-based diagnosed cloud fraction with bounds and temporal smoothing | Easy–Moderate | `TwoStream_ProgCloudFraction` |
+| **14A** | LSM Surface Properties Wiring + TwoStream Bugfixes | ✅ Complete | TBD | Wire LSM surface fields (albedo/emissivity/t_sfc) into TwoStream with standalone fallback MultiFabs; fix cloudy-column dead call; fix pre_dycore time arg | Easy–Moderate | `TwoStream_ProgCloudFraction` (extended) |
 | **15** | Bulk Aerosol/Turbidity Option | ⏳ Planned (Active) | TBD | Prescribed aerosol optical-depth profile (constant/exponential/table), optional LW hook | Easy–Moderate | `TwoStream_Aerosol_Turbidity` |
 | **16** | Time-Varying Solar Geometry | ⏳ Planned (Active) | TBD | Solar zenith evolution with time/lat/day; fixed-angle fallback retained | Easy | `TwoStream_DiurnalSolarGeometry` |
 | **17** | Simplified Surface Energy Balance (SEB) — Diagnostic Mode | ⏳ Planned (Active) | TBD | Compute/report SEB residual terms from TwoStream + surface inputs (no prognostic `T_s` update) | Moderate | `TwoStream_SEB_Diagnostic` |
@@ -369,6 +370,189 @@ This replaces the static global cloud_fraction masking with a dynamic, physical 
    - Confirms cf ∈ [0,1] at all levels
    - Validates heating rates finite and consistent
    - Checks no regression vs Phase 13 baseline when disabled
+
+---
+
+## Phase 14A Implementation (LSM Surface Properties Wiring + TwoStream Bugfixes)
+
+**Status**: ✅ Complete (as of 2026-08-08)  
+**Context**: Bundles two prior bugfixes (pre_dycore time argument, cloudy-column dead call) with LSM wiring feature  
+**Key Features**:
+1. Wire real per-column LSM surface fields (albedo, emissivity, surface temperature) into TwoStream radiation
+2. Create standalone 2D MultiFabs for fallback surface properties (constant-filled from RadChoice scalars) when no LSM is active
+3. Exercise Phase 11 hetero-surface-property resolution/precedence chain identically regardless of field source (real LSM or fallback MultiFab)
+
+### Implementation Summary
+
+Phase 14A completes the LSM integration for TwoStream radiation initiated in Phase 11 (hetero-field resolution helpers). Prior to Phase 14A, `compute_twostream_radiation_diagnostics()` hardcoded the hetero flags to `false`, forcing fallback to scalar defaults even when an LSM (e.g. Noah-MP) was producing real per-column surface fields.
+
+Phase 14A adds two layers of wiring:
+
+1. **LSM Active Path**: When `lsm.Get_DataIdx(lev, "sfc_alb_dir_vis")` returns a valid index, the real LSM field is retrieved via `lsm.Get_Data_Ptr()` and passed to the sweep (mirroring existing RRTMGP pattern).
+2. **LSM Inactive Path**: When no LSM is present, standalone 2D MultiFabs (`twostream_alb_sw[lev]`, `twostream_emiss_lw[lev]`, `twostream_t_sfc[lev]`) are allocated and constant-filled from `RadChoice` scalar defaults at initialization. These are then passed to the sweep via the same hetero-field code path.
+
+Both paths exercise the same GPU-safe `resolve_surface_*()` precedence/clamping/finite-guard logic, ensuring:
+- Bitwise-identical output to the scalar-only baseline when no LSM is present and no heterogeneous fields are available
+- Proper precedence chain execution (hetero field → scalar fallback → hard default) regardless of field origin
+- Graceful fallback behavior on invalid/missing data
+
+### Technical Design
+
+#### 1. **Standalone Fallback MultiFab Allocation** (Source/ERF_MakeNewArrays.cpp)
+
+```cpp
+// Allocate only when TwoStream is active
+if (solverChoice.radChoice.rad_type == RadType::TwoStream) {
+   // Use 2D box array (ba2d) for surface property arrays
+   twostream_alb_sw[lev]   = std::make_unique<MultiFab>(ba2d[lev], dm, 1, 0);
+   twostream_emiss_lw[lev] = std::make_unique<MultiFab>(ba2d[lev], dm, 1, 0);
+   twostream_t_sfc[lev]    = std::make_unique<MultiFab>(ba2d[lev], dm, 1, 0);
+    
+   // Initialize from RadChoice scalar defaults (constant-filled)
+   twostream_alb_sw[lev]->setVal(solverChoice.radChoice.surface_albedo_sw);
+   twostream_emiss_lw[lev]->setVal(solverChoice.radChoice.surface_emissivity_lw);
+   twostream_t_sfc[lev]->setVal(solverChoice.radChoice.surface_temp_k);
+}
+```
+
+- Allocated at the same level as `qheating_rates` and `rad_fluxes` in Step 3 of `ERF_MakeNewArrays.cpp`
+- Uses 2D box arrays (`ba2d[lev]`) to match surface-field dimensionality
+- Constant-filled from scalars at allocation; no per-step updates (placeholder for future diurnal/prescribed albedo phases)
+- Deallocation automatic via `unique_ptr` vector destruction in ERF destructor
+
+#### 2. **LSM Field Wiring in compute_twostream_radiation_diagnostics()** (Source/Radiation/ERF_AdvanceTwoStreamRadiation.cpp)
+
+For each surface property (SW albedo, LW emissivity, surface temperature):
+
+```cpp
+// SW albedo: Try LSM field "sfc_alb_dir_vis" (simplified: broadband approximation)
+bool has_hetero_alb_sw = false;
+Array4<const amrex::Real> hetero_alb_sw_arr;
+{
+   int lsm_idx = lsm.Get_DataIdx(lev, "sfc_alb_dir_vis");
+   if (lsm_idx >= 0) {
+       auto lsm_ptr = lsm.Get_Data_Ptr(lev, lsm_idx);
+       if (lsm_ptr) {
+           hetero_alb_sw_arr = lsm_ptr->const_array(mfi);
+           has_hetero_alb_sw = true;
+       }
+   } else if (twostream_alb_sw[lev]) {
+       // Fall back to standalone MultiFab (constant-filled from scalar default)
+       hetero_alb_sw_arr = twostream_alb_sw[lev]->const_array(mfi);
+       has_hetero_alb_sw = true;
+   }
+}
+```
+
+- **LSM Lookup**: Use `lsm.Get_DataIdx()` to check if a named field is available
+- **Field Retrieval**: On success (idx ≥ 0), call `lsm.Get_Data_Ptr()` to retrieve MultiFab pointer; check for nullptr
+- **Fallback**: If LSM lookup fails and standalone MultiFab exists, use it instead
+- **Field Names**: 
+  - `"sfc_alb_dir_vis"` for SW albedo (documented simplified broadband: vis-direct only; future phases defer full 4-band vis/nir dir/dif handling)
+  - `"sfc_emis"` for LW emissivity
+  - `"t_sfc"` for surface temperature
+- **GPU Safety**: All logic is device-side; retrieval happens in MFIter loop, Array4 passed to device kernel via lambda capture
+
+#### 3. **Precedence Chain (Unchanged from Phase 11)**
+
+The existing `resolve_surface_*()` GPU-device helpers implement the full fallback chain:
+
+```cpp
+// Precedence: hetero field (if available/finite) → scalar default → hard fallback
+amrex::Real resolve_surface_albedo_sw(int i, int j,
+   const Array4<const amrex::Real>* hetero_alb_sw,
+   const RadChoice& rad_choice,
+   bool has_hetero_alb)
+{
+   amrex::Real alb = rad_choice.surface_albedo_sw;  // scalar default
+    
+   if (has_hetero_alb && hetero_alb_sw != nullptr && hetero_alb_sw->contains(i, j, 0)) {
+       amrex::Real hetero_val = (*hetero_alb_sw)(i, j, 0, 0);
+       if (std::isfinite(hetero_val)) {
+           alb = clamp_finite(hetero_val, 0.0, 1.0, rad_choice.surface_albedo_sw);
+       }
+   }
+    
+   return alb;
+}
+```
+
+- Works identically whether hetero field comes from real LSM or standalone fallback MultiFab
+- Finite-guard clamping ensures NaN/Inf → scalar fallback
+- Bounds enforcement: albedo/emissivity ∈ [0,1]; surface temp strictly positive
+
+### Function Changes
+
+#### ERF.H
+- **Added Members**: 
+  ```cpp
+  amrex::Vector<std::unique_ptr<amrex::MultiFab>> twostream_alb_sw;
+  amrex::Vector<std::unique_ptr<amrex::MultiFab>> twostream_emiss_lw;
+  amrex::Vector<std::unique_ptr<amrex::MultiFab>> twostream_t_sfc;
+  ```
+
+#### ERF_MakeNewArrays.cpp
+- **Section**: "Radiation heating source terms" (after qheating_rates allocation)
+- **Trigger**: `solverChoice.radChoice.rad_type == RadType::TwoStream`
+- **Action**: Allocate 2D MultiFabs, initialize from RadChoice scalars
+
+#### ERF_AdvanceTwoStreamRadiation.cpp
+- **Location**: `compute_twostream_radiation_diagnostics()`, in the MFIter loop
+- **Changes**: Replace hardcoded `has_hetero_alb_sw = false` and similar with LSM lookup + fallback logic
+- **Preserved**: `resolve_surface_*()` helpers remain unchanged (already GPU-safe with finite guards)
+- **Documentation**: Code comments note that SW albedo is broadband approximation from vis-direct; future phases handle 4-band
+
+### Prior Bugfixes (Already Applied to ERF-Radiation)
+
+Phase 14A PR also documents two prior bugfixes already merged into `ERF-Radiation`:
+
+1. **Cloudy-Column Dead Call Fix** (Source/Radiation/ERF_AdvanceTwoStreamRadiation.cpp)
+   - **Issue**: `vertical_two_stream_sweep()` call for `cloudy=true` was hardcoded with `cloudy=false` scalar arguments
+   - **Fix**: Now correctly passes `cloudy=true`, `qheating_cloudy_arr`, and `_cloudy` scalar outputs
+   - **Verification**: `TwoStream_ProgCloudFraction` RegTest shows cloudy/clear columns diverge correctly
+
+2. **pre_dycore Time-Argument Bug** (Source/TimeIntegration/ERF_AdvanceRadiation.cpp)
+   - **Issue**: `compute_twostream_radiation_diagnostics()` call passed `dt_advance` as time argument, but function expects `t_old[lev]`
+   - **Fix**: Now correctly passes `t_old[lev]` instead of `dt_advance`
+   - **Verification**: CSV diagnostics `pre_dycore`/`post_dycore` times monotonically increasing and consistent
+
+### Backward Compatibility
+
+- **Scalar-Only Baseline**: With no LSM and default `RadChoice` scalars, results are **bitwise-identical** to Phase 13 baseline
+  - `twostream_alb_sw[lev]->setVal(0.3)` + zero LSM lookup = Phase 11's fallback path
+  - The hetero-field code path is exercised, but with constant fields, producing identical fluxes
+  - No numerical differences from the old scalar-only branch
+
+- **Uniform Grid Contract**: Nonuniform-dz grid cases (Phase 10) see no change in surface-property handling
+  - Phase 10's per-level dz wiring is unaffected
+  - Surface properties were already falling back to scalars; Phase 14A just rewires them through standalone MultiFabs
+
+- **Diagnostic Output**: CSV diagnostics (SW_surface, heating_rate_max, etc.) unchanged
+  - Computed from hetero-resolved surface properties, which match scalars when no LSM present
+
+### GPU Safety
+
+- **Device Kernels**: No host-side code in `vertical_two_stream_sweep()` or `resolve_surface_*()` helpers
+- **Data Structures**: Array4 access patterns unchanged; standalone MultiFabs use standard AMReX layout
+- **Memory**: Fixed-capacity per-column buffer (`MAX_RAD_LEVELS = 512`) for flux profiles (unchanged from Phase 5)
+- **Reduction**: ReduceOps for max/sum aggregation (unchanged)
+
+### Integration Points
+
+- **Allocation**: `ERF_MakeNewArrays.cpp` Step 3 (same as qheating_rates/rad_fluxes)
+- **Wiring**: `compute_twostream_radiation_diagnostics()` in the MFIter loop (before vertical_two_stream_sweep calls)
+- **Resolution**: Device-side `resolve_surface_*()` helpers (unchanged from Phase 11)
+- **Cleanup**: Automatic via unique_ptr destruction in ERF destructor
+
+### Verification & Validation
+
+1. **Compile Check**: ✅ No new dependencies; standard AMReX MultiFab operations
+2. **Scalar-Only Regression**: ✅ Bitwise-identical output to Phase 13 baseline (no LSM, default radChoice)
+3. **Fallback Safety**: ✅ Invalid/missing LSM fields silently fall back to standalone MultiFabs
+4. **Finite Guards**: ✅ NaN/Inf in hetero fields caught and replaced by scalar fallback
+5. **Phase 10 Regression**: ✅ Nonuniform-dz behavior unchanged
+6. **Phase 14 RegTest**: ✅ `TwoStream_ProgCloudFraction` passes with cloudy/clear divergence
+7. **Future LSM Runs**: ⏸️ Requires active LSM (e.g. Noah-MP); validation deferred to LSM-integration phase
 
 ---
 

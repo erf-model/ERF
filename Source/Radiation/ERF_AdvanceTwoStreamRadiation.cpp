@@ -1138,16 +1138,64 @@ void ERF::compute_twostream_radiation_diagnostics(
                 has_z_phys = true;
             }
 
-            // (Phase 11) Get hetero surface property fields if available
-            // These would typically come from LSM/radiation interface fields
-            // For now, mark as unavailable (fallback to scalar RadChoice parameters)
-            // Future: wire from LSM fields as available
+            // (Phase 14A) Wire LSM surface property fields or use standalone fallback MultiFabs
+            // Priority:
+            // 1. If LSM is active (lsm.Get_DataIdx() returns >=0), use real LSM fields
+            // 2. Otherwise, use standalone fallback MultiFabs (allocated and constant-filled from RadChoice scalars)
+            // The resolve_surface_*() helpers implement the full precedence chain with finite guards
+            
+            // SW albedo: Try LSM field "sfc_alb_dir_vis" (simplified: broadband approx from vis-direct only;
+            // future phases may handle full 4-band vis/nir dir/dif; see Phase 14A doc).
             bool has_hetero_alb_sw = false;
             Array4<const amrex::Real> hetero_alb_sw_arr;
+            {
+                int lsm_idx = lsm.Get_DataIdx(lev, "sfc_alb_dir_vis");
+                if (lsm_idx >= 0) {
+                    auto lsm_ptr = lsm.Get_Data_Ptr(lev, lsm_idx);
+                    if (lsm_ptr) {
+                        hetero_alb_sw_arr = lsm_ptr->const_array(mfi);
+                        has_hetero_alb_sw = true;
+                    }
+                } else if (twostream_alb_sw[lev]) {
+                    hetero_alb_sw_arr = twostream_alb_sw[lev]->const_array(mfi);
+                    has_hetero_alb_sw = true;
+                }
+            }
+
+            // LW emissivity: Try LSM field "sfc_emis"
             bool has_hetero_emiss_lw = false;
             Array4<const amrex::Real> hetero_emiss_lw_arr;
+            {
+                int lsm_idx = lsm.Get_DataIdx(lev, "sfc_emis");
+                if (lsm_idx >= 0) {
+                    auto lsm_ptr = lsm.Get_Data_Ptr(lev, lsm_idx);
+                    if (lsm_ptr) {
+                        hetero_emiss_lw_arr = lsm_ptr->const_array(mfi);
+                        has_hetero_emiss_lw = true;
+                    }
+                } else if (twostream_emiss_lw[lev]) {
+                    hetero_emiss_lw_arr = twostream_emiss_lw[lev]->const_array(mfi);
+                    has_hetero_emiss_lw = true;
+                }
+            }
+
+            // Surface temperature: Try LSM field "t_sfc"
             bool has_t_sfc_field = false;
             Array4<const amrex::Real> t_sfc_arr;
+            {
+                int lsm_idx = lsm.Get_DataIdx(lev, "t_sfc");
+                if (lsm_idx >= 0) {
+                    auto lsm_ptr = lsm.Get_Data_Ptr(lev, lsm_idx);
+                    if (lsm_ptr) {
+                        t_sfc_arr = lsm_ptr->const_array(mfi);
+                        has_t_sfc_field = true;
+                    }
+                } else if (twostream_t_sfc[lev]) {
+                    t_sfc_arr = twostream_t_sfc[lev]->const_array(mfi);
+                    has_t_sfc_field = true;
+                }
+            }
+
 
             // Create a 2D box for (i,j) iteration over the horizontal extent
             // One GPU thread per (i,j) column; k-loop is sequential within each thread
