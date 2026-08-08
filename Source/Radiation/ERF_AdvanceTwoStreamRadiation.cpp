@@ -1219,17 +1219,17 @@ void ERF::compute_twostream_radiation_diagnostics(
                     // nonzero cloud fraction; this keeps the cloud_fraction==0
                     // path numerically and computationally identical to Phase 2d.
                     if (cloud_fraction > 0.0) {
-                        amrex::Real max_heating_cloudy = 0.0;
-                        amrex::Real sw_flux_cloudy = 0.0;
-                        amrex::Real lw_net_cloudy = 0.0;
-                        vertical_two_stream_sweep(
-                            i, j, bx, geom_lev, state_arr, rad_choice, /*cloudy=*/false,
-                            qheating_clear_arr,
-                            max_heating_clear, sw_flux_clear, lw_net_clear,
-                            z_phys_cc_arr,
-                            has_hetero_alb_sw, &hetero_alb_sw_arr,
-                            has_hetero_emiss_lw, &hetero_emiss_lw_arr,
-                            has_t_sfc_field, &t_sfc_arr);
+                         amrex::Real max_heating_cloudy = 0.0;
+                         amrex::Real sw_flux_cloudy = 0.0;
+                         amrex::Real lw_net_cloudy = 0.0;
+                         vertical_two_stream_sweep(
+                            i, j, bx, geom_lev, state_arr, rad_choice, /*cloudy=*/true,
+                            qheating_cloudy_arr,
+                            max_heating_cloudy, sw_flux_cloudy, lw_net_cloudy,
+                             z_phys_cc_arr,
+                             has_hetero_alb_sw, &hetero_alb_sw_arr,
+                             has_hetero_emiss_lw, &hetero_emiss_lw_arr,
+                             has_t_sfc_field, &t_sfc_arr);
 
                         // Blend clear-sky and cloudy-column results
                         sw_flux_col = (1.0 - cloud_fraction) * sw_flux_clear +
