@@ -325,6 +325,148 @@ amrex::Real tau_layer_value(
 }
 
 /**
+ * @brief (Phase 12) GPU-safe helper to diagnose dynamic shortwave optical depth
+ * from per-level water vapor and cloud liquid water.
+ *
+ * Computes tau_sw = tau_sw_coeff_qv * qv + tau_sw_coeff_qc * qc + tau_base,
+ * where qv and qc are retrieved from the state array at the given (i,j,k).
+ * When coefficients are 0, reduces exactly to tau_base (Phase 11 behavior).
+ *
+ * Guards against invalid values:
+ * - If qv or qc are NaN/Inf or negative, uses 0 for that field.
+ * - Output tau_sw is clamped to [0, 100] to ensure finite, physically reasonable values.
+ * - Falls back to tau_base if anything goes wrong (defensive).
+ *
+ * @param[in] i, j, k Grid indices
+ * @param[in] state_arr State array proxy (contains qv and qc)
+ * @param[in] tau_base Static SW optical depth per layer [unitless]
+ * @param[in] rad_choice Radiation parameters (contains dynamic tau coefficients)
+ * @return Diagnosed or fallback SW optical depth [unitless]
+ */
+AMREX_GPU_DEVICE AMREX_FORCE_INLINE
+amrex::Real diagnose_tau_sw_dynamic(
+   int i, int j, int k,
+   const Array4<const amrex::Real>& state_arr,
+   amrex::Real tau_base,
+   const RadChoice& rad_choice)
+{
+   // If dynamic SW is disabled, return static value immediately
+   if (!rad_choice.tau_sw_dynamic_enable) {
+       return tau_base;
+   }
+
+   // If both coefficients are 0, dynamic path is a no-op
+   if (rad_choice.tau_sw_coeff_qv <= 0.0 && rad_choice.tau_sw_coeff_qc <= 0.0) {
+       return tau_base;
+   }
+
+   // Retrieve water vapor and cloud liquid water mixing ratios
+   // Assume state_arr has components in order: Rho, RhoTheta, RhoQv, RhoQc, ...
+   // Phase 12 uses hardcoded indices: RhoQv_comp and RhoQc_comp from ERF_Index.H
+   amrex::Real qv = 0.0;
+   amrex::Real qc = 0.0;
+
+   // Extract qv = RhoQv / Rho (safe division with guards)
+   if (state_arr.contains(i, j, k)) {
+       amrex::Real rho = state_arr(i, j, k, Rho_comp);
+       amrex::Real rho_qv = state_arr(i, j, k, RhoQv_comp);
+
+       if (rho > 0.0 && std::isfinite(rho_qv)) {
+           qv = rho_qv / rho;
+           if (qv < 0.0 || !std::isfinite(qv)) qv = 0.0;  // Guard against invalid qv
+       }
+
+       // Extract qc = RhoQc / Rho
+       amrex::Real rho_qc = state_arr(i, j, k, RhoQc_comp);
+       if (rho > 0.0 && std::isfinite(rho_qc)) {
+           qc = rho_qc / rho;
+           if (qc < 0.0 || !std::isfinite(qc)) qc = 0.0;  // Guard against invalid qc
+       }
+   }
+
+   // Compute dynamic tau: tau_sw = tau_base + coeff_qv * qv + coeff_qc * qc
+   amrex::Real tau_dynamic = tau_base + rad_choice.tau_sw_coeff_qv * qv + 
+                              rad_choice.tau_sw_coeff_qc * qc;
+
+   // Safety: clamp to physically reasonable range [0, 100]
+   if (tau_dynamic < 0.0) tau_dynamic = 0.0;
+   if (tau_dynamic > 100.0) tau_dynamic = 100.0;
+
+   // Return finite value; if anything went wrong, this still produces a valid tau
+   return std::isfinite(tau_dynamic) ? tau_dynamic : tau_base;
+}
+
+/**
+ * @brief (Phase 12) GPU-safe helper to diagnose dynamic longwave optical depth
+ * from per-level water vapor and cloud liquid water.
+ *
+ * Computes tau_lw = tau_lw_coeff_qv * qv + tau_lw_coeff_qc * qc + tau_base,
+ * where qv and qc are retrieved from the state array at the given (i,j,k).
+ * When coefficients are 0, reduces exactly to tau_base (Phase 11 behavior).
+ *
+ * Guards against invalid values:
+ * - If qv or qc are NaN/Inf or negative, uses 0 for that field.
+ * - Output tau_lw is clamped to [0, 100] to ensure finite, physically reasonable values.
+ * - Falls back to tau_base if anything goes wrong (defensive).
+ *
+ * @param[in] i, j, k Grid indices
+ * @param[in] state_arr State array proxy (contains qv and qc)
+ * @param[in] tau_base Static LW optical depth per layer [unitless]
+ * @param[in] rad_choice Radiation parameters (contains dynamic tau coefficients)
+ * @return Diagnosed or fallback LW optical depth [unitless]
+ */
+AMREX_GPU_DEVICE AMREX_FORCE_INLINE
+amrex::Real diagnose_tau_lw_dynamic(
+   int i, int j, int k,
+   const Array4<const amrex::Real>& state_arr,
+   amrex::Real tau_base,
+   const RadChoice& rad_choice)
+{
+   // If dynamic LW is disabled, return static value immediately
+   if (!rad_choice.tau_lw_dynamic_enable) {
+       return tau_base;
+   }
+
+   // If both coefficients are 0, dynamic path is a no-op
+   if (rad_choice.tau_lw_coeff_qv <= 0.0 && rad_choice.tau_lw_coeff_qc <= 0.0) {
+       return tau_base;
+   }
+
+   // Retrieve water vapor and cloud liquid water mixing ratios
+   amrex::Real qv = 0.0;
+   amrex::Real qc = 0.0;
+
+   // Extract qv = RhoQv / Rho (safe division with guards)
+   if (state_arr.contains(i, j, k)) {
+       amrex::Real rho = state_arr(i, j, k, Rho_comp);
+       amrex::Real rho_qv = state_arr(i, j, k, RhoQv_comp);
+
+       if (rho > 0.0 && std::isfinite(rho_qv)) {
+           qv = rho_qv / rho;
+           if (qv < 0.0 || !std::isfinite(qv)) qv = 0.0;  // Guard against invalid qv
+       }
+
+       // Extract qc = RhoQc / Rho
+       amrex::Real rho_qc = state_arr(i, j, k, RhoQc_comp);
+       if (rho > 0.0 && std::isfinite(rho_qc)) {
+           qc = rho_qc / rho;
+           if (qc < 0.0 || !std::isfinite(qc)) qc = 0.0;  // Guard against invalid qc
+       }
+   }
+
+   // Compute dynamic tau: tau_lw = tau_base + coeff_qv * qv + coeff_qc * qc
+   amrex::Real tau_dynamic = tau_base + rad_choice.tau_lw_coeff_qv * qv + 
+                              rad_choice.tau_lw_coeff_qc * qc;
+
+   // Safety: clamp to physically reasonable range [0, 100]
+   if (tau_dynamic < 0.0) tau_dynamic = 0.0;
+   if (tau_dynamic > 100.0) tau_dynamic = 100.0;
+
+   // Return finite value; if anything went wrong, this still produces a valid tau
+   return std::isfinite(tau_dynamic) ? tau_dynamic : tau_base;
+}
+
+/**
  * @brief (Phase 4) GPU-safe helper to select the single-scattering albedo
  * and asymmetry factor to use for level k's diffuse SW calculation.
  *
@@ -550,6 +692,11 @@ void vertical_two_stream_sweep(
         // position logic unchanged from prior phases)
         amrex::Real tau_sw = tau_layer_value(k, kmin, dz_uniform, tau_sw_base, rad_choice, cloudy);
 
+        // (Phase 12) Apply dynamic tau diagnosis if enabled
+        if (rad_choice.tau_sw_dynamic_enable) {
+            tau_sw = diagnose_tau_sw_dynamic(i, j, k, state_arr, tau_sw, rad_choice);
+        }
+
         // Accumulate optical depths
         tau_sw_cum += tau_sw;
 
@@ -632,6 +779,11 @@ void vertical_two_stream_sweep(
         // Phase 3: per-level LW optical depth (constant, or +cloud within layer)
         amrex::Real tau_lw = tau_layer_value(k, kmin, dz_uniform, tau_lw_base, rad_choice, cloudy);
 
+        // (Phase 12) Apply dynamic tau diagnosis if enabled
+        if (rad_choice.tau_lw_dynamic_enable) {
+            tau_lw = diagnose_tau_lw_dynamic(i, j, k, state_arr, tau_lw, rad_choice);
+        }
+
         if (k == kmax) {
             // Surface: initialize upwelling flux
             // (Phase 11) Resolve surface temperature and emissivity from hetero fields or fallback
@@ -667,6 +819,11 @@ void vertical_two_stream_sweep(
 
             // Phase 3: per-level LW optical depth (constant, or +cloud within layer)
             amrex::Real tau_lw = tau_layer_value(k, kmin, dz_uniform, tau_lw_base, rad_choice, cloudy);
+
+            // (Phase 12) Apply dynamic tau diagnosis if enabled
+            if (rad_choice.tau_lw_dynamic_enable) {
+                tau_lw = diagnose_tau_lw_dynamic(i, j, k, state_arr, tau_lw, rad_choice);
+            }
 
             // Compute downwelling flux at this level using real two-stream formula
             F_lw_down_curr = compute_lw_flux_down(F_lw_down_curr, T_layer, sigma, tau_lw);
