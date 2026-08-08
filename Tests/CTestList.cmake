@@ -715,6 +715,7 @@ if(ERF_ENABLE_PARTICLES)
 endif( )
 if(ERF_ENABLE_RRGMTP)
   add_test_r(Radiation                       ""  "erf_exec" "plt00010" RUNTIME_OPTIONS "erf.vert_implicit=false ")
+  add_test_r(TwoStream_NonuniformDZ          ""  "erf_exec" "plt00000" RUNTIME_OPTIONS "erf.vert_implicit=false ")
 endif()
 
 add_test_0(CouetteFlow_x                     "" "erf_exec" "plt00050" RUNTIME_OPTIONS "erf.vert_implicit=false ")

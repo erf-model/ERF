@@ -294,7 +294,8 @@ void vertical_two_stream_sweep(
     const Array4<amrex::Real>& qheating_arr,
     amrex::Real& max_heating_rate,
     amrex::Real& sw_surface_flux,
-    amrex::Real& lw_net_surface)
+    amrex::Real& lw_net_surface,
+    const Array4<const amrex::Real>& z_phys_cc = nullptr)
 {
     // Grid bounds
     int kmin = bx.smallEnd(2);
@@ -306,18 +307,43 @@ void vertical_two_stream_sweep(
     amrex::Real cp_air = 1005.0;         // Specific heat at constant pressure [J/(kg·K)]
 
     // Get vertical grid spacing from geometry
-    // Phase 9: For uniform grids, use CellSize(2); for terrain-aware grids,
-    // would use z_phys_cc differences (future implementation).
-    amrex::Real dz_uniform = geom.CellSize(2);  // Uniform vertical cell spacing [m]
+    // Phase 10: Compute per-level dz from z_phys_cc differences for nonuniform grids;
+    // fall back to CellSize(2) if z_phys_cc unavailable.
+    amrex::Real dz_uniform = geom.CellSize(2);  // Uniform vertical cell spacing [m] (fallback)
     
-    // (Phase 9) Per-level dz array for nonuniform grid support.
-    // For now, all levels use uniform spacing; future: would populate from
-    // z_phys_cc(k) - z_phys_cc(k+1) when available.
+    // (Phase 10) Per-level dz array for nonuniform grid support.
+    // Attempt to compute from z_phys_cc; fall back to uniform if unavailable.
     // Defensive: If nlev > MAX_RAD_LEVELS, this will still work but degrade to
     // uniform spacing (the AMREX_ALWAYS_ASSERT in the caller will catch over-tall domains).
     amrex::Real dz_level[MAX_RAD_LEVELS];
-    for (int k = 0; k < nlev && (kmin + k) <= kmax; ++k) {
-        dz_level[k] = dz_uniform;  // Phase 9: Fallback to uniform; future: use z_phys_cc
+    
+    // Phase 10: Compute per-level dz from z_phys_cc if available
+    bool using_nonuniform_dz = false;
+    if (z_phys_cc != nullptr) {
+        using_nonuniform_dz = true;
+        for (int k = 0; k < nlev && (kmin + k) < kmax; ++k) {
+            // Compute layer thickness from cell-centered heights
+            // Layer k extends from z_phys_cc(i,j,k) to z_phys_cc(i,j,k+1)
+            amrex::Real dz_computed = std::abs(z_phys_cc(i,j,kmin+k+1) - z_phys_cc(i,j,kmin+k));
+            
+            // Safety check: ensure positive and reasonable dz
+            if (dz_computed > 0.0) {
+                dz_level[k] = dz_computed;
+            } else {
+                // Fallback to uniform if computed dz is invalid
+                dz_level[k] = dz_uniform;
+                using_nonuniform_dz = false;  // Mark as fallback used
+            }
+        }
+        // Handle top level (kmax): use uniform spacing as fallback
+        if ((kmax - kmin) < MAX_RAD_LEVELS && (kmax - kmin) >= 0) {
+            dz_level[kmax - kmin] = dz_uniform;  // Top level uses uniform fallback
+        }
+    } else {
+        // Fallback: z_phys_cc not available, use uniform spacing
+        for (int k = 0; k < nlev && (kmin + k) <= kmax; ++k) {
+            dz_level[k] = dz_uniform;
+        }
     }
 
     // Convert solar zenith angle to radians
@@ -648,6 +674,14 @@ void ERF::compute_twostream_radiation_diagnostics(
             const auto& state_arr = state_cons.const_array(mfi);
             const Geometry& geom_lev = geom[lev];
 
+            // (Phase 10) Get z_phys_cc for nonuniform dz support if available
+            Array4<const amrex::Real> z_phys_cc_arr;
+            bool has_z_phys = false;
+            if (z_phys_cc[lev] != nullptr) {
+                z_phys_cc_arr = z_phys_cc[lev]->const_array(mfi);
+                has_z_phys = true;
+            }
+
             // Create a 2D box for (i,j) iteration over the horizontal extent
             // One GPU thread per (i,j) column; k-loop is sequential within each thread
             const auto& lo = bx.loVect();
@@ -694,7 +728,7 @@ void ERF::compute_twostream_radiation_diagnostics(
 
          // Launch parallel kernel over (i,j) columns
             reduce_ops.eval(xy_box, reduce_data,
-                [=] AMREX_GPU_DEVICE (int i, int j, int /*k_unused*/) -> ReduceTuple
+                [=, z_phys_cc_arr] AMREX_GPU_DEVICE (int i, int j, int /*k_unused*/) -> ReduceTuple
                 {
                     // Clear-sky column (always evaluated; this is the sole
                     // contributor when cloud_fraction == 0.0, matching Phase 2d)
@@ -704,7 +738,8 @@ void ERF::compute_twostream_radiation_diagnostics(
                     vertical_two_stream_sweep(
                         i, j, bx, geom_lev, state_arr, rad_choice, /*cloudy=*/false,
                         qheating_clear_arr,
-                        max_heating_clear, sw_flux_clear, lw_net_clear);
+                        max_heating_clear, sw_flux_clear, lw_net_clear,
+                        has_z_phys ? z_phys_cc_arr : nullptr);
 
                     amrex::Real max_heating_col = max_heating_clear;
                     amrex::Real sw_flux_col = sw_flux_clear;
@@ -720,7 +755,8 @@ void ERF::compute_twostream_radiation_diagnostics(
                         vertical_two_stream_sweep(
                             i, j, bx, geom_lev, state_arr, rad_choice, /*cloudy=*/true,
                             qheating_cloudy_arr,
-                            max_heating_cloudy, sw_flux_cloudy, lw_net_cloudy);
+                            max_heating_cloudy, sw_flux_cloudy, lw_net_cloudy,
+                            has_z_phys ? z_phys_cc_arr : nullptr);
 
                         // Blend clear-sky and cloudy-column results
                         sw_flux_col = (1.0 - cloud_fraction) * sw_flux_clear +
