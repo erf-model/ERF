@@ -190,16 +190,28 @@ compute_lw_flux_down(amrex::Real F_down_above, amrex::Real T_layer,
  * Note: Positive F_net indicates cooling (more upward than downward flux);
  *       positive dF_net/dz indicates warming within the layer.
  *
+ * **Phase 9: Nonuniform dz Support & Sanity Checks**
+ *
+ * This function accepts per-level dz values to support terrain-aware or
+ * nonuniform vertical grids. When dz <= 0, or rho <= 0, or cp <= 0,
+ * returns 0 (heating rate is undefined or unphysical).
+ *
+ * The computed heating rate is guarded against NaN/Inf via the same
+ * parameter validation.
+ *
  * @param[in] F_net_top Net flux at the top of the layer [W/m^2].
  * @param[in] F_net_bot Net flux at the bottom of the layer [W/m^2].
  * @param[in] dz Vertical thickness of the layer [m]. Must be positive.
+ *              For nonuniform grids (Phase 9+), use per-level spacing.
  * @param[in] rho Density [kg/m^3]. Must be positive.
  * @param[in] cp Specific heat at constant pressure [J/(kg·K)]. Must be positive.
  *
  * @return Heating rate [K/s]. Positive values indicate warming.
+ *         Returns 0 if inputs are unphysical (dz, rho, cp <= 0).
  *
  * @note The sign convention is: positive dF/dz (flux increasing upward)
  *       corresponds to warming (dT/dt > 0).
+ * @note For terrain-aware grids, pass dz = z_cc(k) - z_cc(k+1) for each level.
  */
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 amrex::Real
@@ -212,7 +224,12 @@ compute_lw_heating_rate(amrex::Real F_net_top, amrex::Real F_net_bot,
   // Net flux divergence: (W/m^2) / (m) = W/m^3
   amrex::Real flux_divergence = (F_net_top - F_net_bot) / dz;
   // Heating rate: (W/m^3) / (kg/m^3 * J/(kg*K)) = K/s
-  return flux_divergence / (rho * cp);
+  // Check for NaN/Inf as defensive sanity check
+  amrex::Real heating = flux_divergence / (rho * cp);
+  if (!std::isfinite(heating)) {
+    return 0.0;
+  }
+  return heating;
 }
 
 #endif // ERF_TWO_STREAM_LW_H_

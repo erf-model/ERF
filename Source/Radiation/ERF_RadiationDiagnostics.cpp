@@ -90,11 +90,21 @@ void RadiationDiagnostics::append(int step, amrex::Real time, const std::string&
     return;
   }
 
-  // Guard against duplicate writes using time tolerance
+  // Phase 9: Guard against duplicate writes using 3-tuple identity:
+  //   (step, call_site, time)
+  // This ensures:
+  // 1. Accidental repeated calls at same (step, call_site, time) are suppressed.
+  // 2. Legitimate pre_dycore + post_dycore entries at same step both retained
+  //    (different call_site values, so identity tuple differs).
+  // 3. Mode filtering above already runs first, so pre_only/post_only modes
+  //    naturally prevent unwanted entries from reaching this dedup logic.
+  //
+  // Time tolerance (m_diag_dedup_tol) accounts for floating-point rounding when
+  // multiple diagnostics functions are called at effectively the same time.
   if (step == m_last_write_step &&
       call_site == m_last_write_call_site &&
       std::abs(time - m_last_write_time) < m_diag_dedup_tol) {
-    return;
+    return;  // Duplicate detected; skip write
   }
   m_last_write_step = step;
   m_last_write_call_site = call_site;
