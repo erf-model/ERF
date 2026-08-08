@@ -914,9 +914,9 @@ void ERF::compute_twostream_radiation_diagnostics(
                         qheating_clear_arr,
                         max_heating_clear, sw_flux_clear, lw_net_clear,
                         z_phys_cc_arr,
-                        has_hetero_alb_sw, hetero_alb_sw_arr,
-                        has_hetero_emiss_lw, hetero_emiss_lw_arr,
-                        has_t_sfc_field, t_sfc_arr);
+                        has_hetero_alb_sw, &hetero_alb_sw_arr,
+                        has_hetero_emiss_lw, &hetero_emiss_lw_arr,
+                        has_t_sfc_field, &t_sfc_arr);
 
                     amrex::Real max_heating_col = max_heating_clear;
                     amrex::Real sw_flux_col = sw_flux_clear;
@@ -930,13 +930,13 @@ void ERF::compute_twostream_radiation_diagnostics(
                         amrex::Real sw_flux_cloudy = 0.0;
                         amrex::Real lw_net_cloudy = 0.0;
                         vertical_two_stream_sweep(
-                            i, j, bx, geom_lev, state_arr, rad_choice, /*cloudy=*/true,
-                            qheating_cloudy_arr,
-                            max_heating_cloudy, sw_flux_cloudy, lw_net_cloudy,
+                            i, j, bx, geom_lev, state_arr, rad_choice, /*cloudy=*/false,
+                            qheating_clear_arr,
+                            max_heating_clear, sw_flux_clear, lw_net_clear,
                             z_phys_cc_arr,
-                            has_hetero_alb_sw, hetero_alb_sw_arr,
-                            has_hetero_emiss_lw, hetero_emiss_lw_arr,
-                            has_t_sfc_field, t_sfc_arr);
+                            has_hetero_alb_sw, &hetero_alb_sw_arr,
+                            has_hetero_emiss_lw, &hetero_emiss_lw_arr,
+                            has_t_sfc_field, &t_sfc_arr);
 
                         // Blend clear-sky and cloudy-column results
                         sw_flux_col = (1.0 - cloud_fraction) * sw_flux_clear +
