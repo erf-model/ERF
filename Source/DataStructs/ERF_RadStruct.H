@@ -463,6 +463,7 @@ public:
       if (tau_lw_coeff_qv < 0.0) tau_lw_coeff_qv = 0.0;
       if (tau_lw_coeff_qc < 0.0) tau_lw_coeff_qc = 0.0;
   }
+}
 
   /**
    * @brief Check if two-stream radiation is active.

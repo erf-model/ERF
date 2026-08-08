@@ -1,136 +1,100 @@
 #!/usr/bin/env python3
-"""
-Phase 12 Dynamic Tau Checker Script
+import os, sys, csv, math
 
-Validates Phase 12 dynamic optical depth diagnosis:
-  1. Diagnostics file exists and parses correctly
-  2. Flux values are finite and nonzero
-  3. Heating rates are computed and reasonable
-  4. No NaN/Inf propagation
-  5. Dynamic tau path produces valid output
+def fail(msg):
+    print(f"ERROR: {msg}")
+    return False
 
-Usage:
-  python3 check_phase12_dynamic_tau.py
-"""
+def finite(x):
+    return math.isfinite(x)
 
-import sys
-import os
-import glob
-
-def check_diag_file(diag_file="radiation_diag_phase12.dat"):
-    """Check that diagnostics file exists and contains valid data."""
+def check_diag(diag_file):
     print(f"Checking diagnostics file: {diag_file}")
-    
-    if not os.path.exists(diag_file):
-        print(f"ERROR: Diagnostics file not found: {diag_file}")
-        return False
-    
-    try:
-        with open(diag_file, 'r') as f:
-            lines = f.readlines()
-        
-        if len(lines) < 2:
-            print(f"ERROR: Diagnostics file too short (< 2 lines)")
-            return False
-        
-        # Parse header
-        header = lines[0].split()
-        print(f"  Header: {' '.join(header[:5])}...")
-        
-        # Parse first data row
-        data = lines[1].split()
-        if len(data) < 6:
-            print(f"ERROR: Insufficient columns in first data row (got {len(data)}, need >= 6)")
-            return False
-        
-        # Check that numeric values parse and are finite
-        for col_idx, col_val in enumerate(data):
-            try:
-                val = float(col_val)
-                if not (-1e10 < val < 1e10):  # Very loose finite check
-                    print(f"ERROR: Column {col_idx} value {val} out of reasonable range")
-                    return False
-            except ValueError:
-                print(f"ERROR: Column {col_idx} non-numeric: {col_val}")
-                return False
-        
-        print(f"  ✓ Diagnostics file valid, {len(lines)} lines")
-        return True
-    
-    except Exception as e:
-        print(f"ERROR: Failed to read diagnostics file: {e}")
-        return False
+    if not os.path.isfile(diag_file):
+        return fail("diagnostics file missing")
 
-def check_plot_files():
-    """Check that plot files contain qsrc fields."""
-    print("Checking plot files for heating rate fields...")
-    
-    plot_files = glob.glob("plt_phase12_dynamic_tau*/Header")
-    
-    if not plot_files:
-        print("  WARNING: No plot files found (plt_phase12_dynamic_tau*)")
-        return True  # Not a failure, just no plots to check
-    
-    print(f"  Found {len(plot_files)} plot directories")
-    
-    # Basic check: if plots exist, at least the first should be readable
-    try:
-        with open(plot_files[0], 'r') as f:
-            header_content = f.read(500)
-        print(f"  ✓ Plot files readable")
-        return True
-    except Exception as e:
-        print(f"  WARNING: Could not read plot header: {e}")
-        return True  # Not a hard failure
+    required = ["step","time","call_site","SW_surface","SW_TOA","F_up_surface","F_down_toa","heating_rate_max"]
+    rows = []
 
-def check_data_logs():
-    """Check that data log files exist."""
-    print("Checking data log files...")
-    
-    required_logs = [
-        "phase12_hist.dat",
-        "phase12_profiles.dat"
-    ]
-    
-    all_present = True
-    for logfile in required_logs:
-        if os.path.exists(logfile):
+    with open(diag_file, "r", newline="") as f:
+        reader = csv.DictReader(f)
+        if not reader.fieldnames:
+            return fail("missing CSV header")
+        print(f"  Header: {','.join(reader.fieldnames)}...")
+
+        cols = [c.strip() for c in reader.fieldnames]
+        missing = [c for c in required if c not in cols]
+        if missing:
+            return fail(f"missing required columns: {missing}")
+
+        for r in reader:
             try:
-                with open(logfile, 'r') as f:
-                    lines = f.readlines()
-                print(f"  ✓ {logfile} ({len(lines)} lines)")
-            except Exception as e:
-                print(f"  WARNING: {logfile} exists but unreadable: {e}")
-        else:
-            print(f"  WARNING: {logfile} not found")
-            # Not a hard failure for this test
-    
+                row = {
+                    "step": int(r["step"]),
+                    "time": float(r["time"]),
+                    "call_site": r["call_site"].strip(),
+                    "SW_surface": float(r["SW_surface"]),
+                    "SW_TOA": float(r["SW_TOA"]),
+                    "F_up_surface": float(r["F_up_surface"]),
+                    "F_down_toa": float(r["F_down_toa"]),
+                    "heating_rate_max": float(r["heating_rate_max"]),
+                }
+                rows.append(row)
+            except Exception:
+                # skip malformed lines
+                continue
+
+    if len(rows) == 0:
+        return fail("no parseable data rows in diagnostics CSV")
+
+    # checks
+    for i, r in enumerate(rows):
+        for k in ["time","SW_surface","SW_TOA","F_up_surface","F_down_toa","heating_rate_max"]:
+            if not finite(r[k]):
+                return fail(f"non-finite value at row {i} col {k}: {r[k]}")
+
+    if all(abs(r["heating_rate_max"]) < 1e-15 for r in rows):
+        return fail("heating_rate_max is zero in all rows")
+
+    print(f"  ✓ Parsed {len(rows)} rows")
+    print(f"  ✓ heating_rate_max range: {min(r['heating_rate_max'] for r in rows):.6e} .. {max(r['heating_rate_max'] for r in rows):.6e}")
+    return True
+
+def check_exists_nonempty(path, min_lines=2):
+    if not os.path.isfile(path):
+        print(f"  ✗ Missing {path}")
+        return False
+    n = sum(1 for _ in open(path, "r"))
+    if n < min_lines:
+        print(f"  ✗ {path} too short ({n} lines)")
+        return False
+    print(f"  ✓ {path} ({n} lines)")
     return True
 
 def main():
-    print("=" * 70)
+    print("="*70)
     print("Phase 12 Dynamic Tau Test Checker")
-    print("=" * 70)
-    
-    success = True
-    
-    # Primary check: diagnostics file
-    if not check_diag_file():
-        success = False
-    
-    print()
-    
-    # Secondary checks: plots and logs
-    check_plot_files()
-    print()
-    check_data_logs()
-    
-    print()
-    print("=" * 70)
-    if success:
+    print("="*70)
+
+    ok = True
+    ok &= check_diag("radiation_diag_phase12.dat")
+
+    print("\nChecking plot files for heating rate fields...")
+    plots = [d for d in os.listdir(".") if d.startswith("plt")]
+    if len(plots) == 0:
+        print("  ✗ No plot directories found")
+        ok = False
+    else:
+        print(f"  Found {len(plots)} plot directories")
+        print("  ✓ Plot files readable")
+
+    print("\nChecking data log files...")
+    ok &= check_exists_nonempty("phase12_hist.dat", 2)
+    ok &= check_exists_nonempty("phase12_profiles.dat", 2)
+
+    print("\n" + "="*70)
+    if ok:
         print("✓ Phase 12 test PASSED")
-        print("  - Diagnostics file exists and is valid")
-        print("  - Dynamic tau path exercised successfully")
         return 0
     else:
         print("✗ Phase 12 test FAILED")

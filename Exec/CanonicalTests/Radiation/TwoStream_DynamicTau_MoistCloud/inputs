@@ -103,6 +103,8 @@ erf.latitude = 45.0  # mid-latitude (f = 1.0e-4 s^-1)
 erf.use_coriolis = true
 
 erf.abl_driver_type = "GeostrophicWind"
+erf.moisture_model = "Kessler"    # or repo’s standard moist model
+
 
 
 # RADIATION (Phase 12 Dynamic Tau Test)

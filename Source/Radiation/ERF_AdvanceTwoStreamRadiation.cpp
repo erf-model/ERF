@@ -6,6 +6,7 @@
 #include <AMReX_Print.H>
 #include <AMReX_ParallelDescriptor.H>
 #include <AMReX_Gpu.H>
+#include <ERF_IndexDefines.H>
 #include <cmath>
 
 using namespace amrex;
@@ -369,15 +370,21 @@ amrex::Real diagnose_tau_sw_dynamic(
    // Extract qv = RhoQv / Rho (safe division with guards)
    if (state_arr.contains(i, j, k)) {
        amrex::Real rho = state_arr(i, j, k, Rho_comp);
-       amrex::Real rho_qv = state_arr(i, j, k, RhoQv_comp);
+        if (rho <= 0.0 || !std::isfinite(rho)) rho = 1.0;
 
-       if (rho > 0.0 && std::isfinite(rho_qv)) {
-           qv = rho_qv / rho;
-           if (qv < 0.0 || !std::isfinite(qv)) qv = 0.0;  // Guard against invalid qv
-       }
+        amrex::Real rho_qv = state_arr(i, j, k, RhoQ1_comp);
+        if (std::isfinite(rho_qv)) {
+            qv = rho_qv / rho;
+            if (qv < 0.0 || !std::isfinite(qv)) qv = 0.0;
+        }
 
-       // Extract qc = RhoQc / Rho
-       amrex::Real rho_qc = state_arr(i, j, k, RhoQc_comp);
+        #if defined(RhoQ2_comp)
+        amrex::Real rho_qc = state_arr(i, j, k, RhoQ2_comp);
+        if (std::isfinite(rho_qc)) {
+            qc = rho_qc / rho;
+            if (qc < 0.0 || !std::isfinite(qc)) qc = 0.0;
+        }
+        #endif
        if (rho > 0.0 && std::isfinite(rho_qc)) {
            qc = rho_qc / rho;
            if (qc < 0.0 || !std::isfinite(qc)) qc = 0.0;  // Guard against invalid qc
@@ -439,15 +446,21 @@ amrex::Real diagnose_tau_lw_dynamic(
    // Extract qv = RhoQv / Rho (safe division with guards)
    if (state_arr.contains(i, j, k)) {
        amrex::Real rho = state_arr(i, j, k, Rho_comp);
-       amrex::Real rho_qv = state_arr(i, j, k, RhoQv_comp);
+    if (rho <= 0.0 || !std::isfinite(rho)) rho = 1.0;
 
-       if (rho > 0.0 && std::isfinite(rho_qv)) {
-           qv = rho_qv / rho;
-           if (qv < 0.0 || !std::isfinite(qv)) qv = 0.0;  // Guard against invalid qv
-       }
+    amrex::Real rho_qv = state_arr(i, j, k, RhoQ1_comp);
+    if (std::isfinite(rho_qv)) {
+        qv = rho_qv / rho;
+        if (qv < 0.0 || !std::isfinite(qv)) qv = 0.0;
+    }
 
-       // Extract qc = RhoQc / Rho
-       amrex::Real rho_qc = state_arr(i, j, k, RhoQc_comp);
+    #if defined(RhoQ2_comp)
+    amrex::Real rho_qc = state_arr(i, j, k, RhoQ2_comp);
+    if (std::isfinite(rho_qc)) {
+        qc = rho_qc / rho;
+        if (qc < 0.0 || !std::isfinite(qc)) qc = 0.0;
+    }
+    #endif
        if (rho > 0.0 && std::isfinite(rho_qc)) {
            qc = rho_qc / rho;
            if (qc < 0.0 || !std::isfinite(qc)) qc = 0.0;  // Guard against invalid qc
