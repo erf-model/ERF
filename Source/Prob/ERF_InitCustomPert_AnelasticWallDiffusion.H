@@ -9,10 +9,11 @@ pp_prob.query("axis", axis);
 pp_prob.query("theta_lo", theta_lo);
 pp_prob.query("theta_hi", theta_hi);
 
-const auto prob_lo = geomdata.ProbLo();
-const auto prob_hi = geomdata.ProbHi();
-const auto dx = geomdata.CellSize();
-const Real length = prob_hi[axis] - prob_lo[axis];
+const GpuArray<Real, AMREX_SPACEDIM> prob_lo = {
+    geomdata.ProbLo(0), geomdata.ProbLo(1), geomdata.ProbLo(2)};
+const GpuArray<Real, AMREX_SPACEDIM> dx = {
+    geomdata.CellSize(0), geomdata.CellSize(1), geomdata.CellSize(2)};
+const Real length = geomdata.ProbHi(axis) - geomdata.ProbLo(axis);
 
 ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
 {
