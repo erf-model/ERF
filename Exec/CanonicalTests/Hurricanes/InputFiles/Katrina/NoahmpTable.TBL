@@ -422,7 +422,7 @@
 /
 
 &noahmp_global_parameters
- ! atmospheric constituants
+ ! atmospheric constituents
  CO2                 = 395.0e-06   ! CO2 partial pressure
  O2                  = 0.209       ! O2 partial pressure
  ! runoff parameters used for SIMTOP and SIMGM
@@ -437,7 +437,7 @@
  SNLIQMAXFRAC        = 0.4         ! maximum liquid water fraction in snow
  SWEMAXGLA           = 5000.0      ! Maximum SWE allowed at glaciers (mm)
  SNOWDEN_MAX         = 120.0       ! maximum fresh snowfall density (kg/m3)
- RSURF_SNOW          = 50.0        ! surface resistence for snow [s/m]
+ RSURF_SNOW          = 50.0        ! surface resistance for snow [s/m]
  Z0SNO               = 0.002       ! snow surface roughness length (m)
  ! BATS snow albedo parameters
  SWEMX               = 1.00        ! new snow mass to fully cover old snow (mm), equivalent to 10mm depth (density = 100 kg/m3)
@@ -458,9 +458,9 @@
  CLASS_ALB_NEW       = 0.84        ! fresh snow albedo in CLASS scheme
  ! general snow compaction parameter
  C2_SNOWCOMPACT      = 21.0e-3     ! overburden snow compaction parameter (m3/kg)
- C3_SNOWCOMPACT      = 2.5e-6      ! snow desctructive metamorphism compaction parameter1 [1/s] 
- C4_SNOWCOMPACT      = 0.04        ! snow desctructive metamorphism compaction parameter2 [1/k]
- C5_SNOWCOMPACT      = 2.0         ! snow desctructive metamorphism compaction parameter3
+ C3_SNOWCOMPACT      = 2.5e-6      ! snow destructive metamorphism compaction parameter1 [1/s] 
+ C4_SNOWCOMPACT      = 0.04        ! snow destructive metamorphism compaction parameter2 [1/k]
+ C5_SNOWCOMPACT      = 2.0         ! snow destructive metamorphism compaction parameter3
  DM_SNOWCOMPACT      = 100.0       ! upper Limit on destructive metamorphism compaction [kg/m3]
  ETA0_SNOWCOMPACT    = 1.33e+6     ! snow viscosity coefficient [kg-s/m2], Anderson1979: 0.52e6~1.38e6; 1.33e+6 optimized based on SNOTEL obs (He et al. 2021 JGR)
  ! additional snow compaction parameters for Abolafia-Rosenzweig et al. 2024 (AR24) scheme
@@ -548,7 +548,7 @@
  GDDS2      =  625.0,  675.0,  718.0,  718.0,  450.0,    ! Grow Degree Day (GDD) from seeding to initial vegetative
  GDDS3      =  933.0, 1183.0,  933.0,  933.0,  770.0,    ! Grow Degree Day (GDD) from seeding to post vegetative
  GDDS4      = 1103.0, 1253.0, 1103.0, 1103.0,  950.0,    ! Grow Degree Day (GDD) from seeding to initial reproductive
- GDDS5      = 1555.0, 1605.0, 1555.0, 1555.0, 1120.0,    ! Grow Degree Day (GDD) from seeding to pysical maturity
+ GDDS5      = 1555.0, 1605.0, 1555.0, 1555.0, 1120.0,    ! Grow Degree Day (GDD) from seeding to physical maturity
  C3PSNI     =    0.0,    1.0,    0.0,    1.0,    1.0,    ! photosynthetic pathway: 0.0 = c4, 1.0 = c3; the following 11 *I parameters added by Z. Zhang, 2020/02
  KC25I      =   30.0,   30.0,   30.0,   30.0,   30.0,    ! CO2 michaelis-menten constant at 25 degC (pa)
  AKCI       =    2.1,    2.1,    2.1,    2.1,    2.1,    ! q10 for KC25; change in CO2 Michaelis-Menten constant for every 10-degC temperature change
@@ -568,7 +568,7 @@
  TASSIM2    =   30.0,   30.0,   30.0,   30.0,   30.0,    ! CO2 assmilation rate remain at Aref until temperature reaches T2 [C]
  K          =   0.55,   0.55,   0.55,   0.55,   0.55,    ! light extinction coefficient
  EPSI       =   12.5,   12.5,   12.5,   12.5,   12.5,    ! initial light use efficiency
- Q10MR      =    2.0,    2.0,    2.0,    2.0,    2.0,    ! q10 for maintainance respiration; change in maintainance respiration for every 10-degC temperature change
+ Q10MR      =    2.0,    2.0,    2.0,    2.0,    2.0,    ! q10 for maintenance respiration; change in maintenance respiration for every 10-degC temperature change
  LEFREEZ    =    268,    268,    268,    268,    268,    ! characteristic T for leaf freezing [K]
  DILE_FC_S1 =    0.0,    0.0,    0.0,    0.0,    0.0,    ! coefficient for temperature leaf stress death [1/s] at growth stage 1
  DILE_FC_S2 =    0.0,    0.0,    0.0,    0.0,    0.0,    ! coefficient for temperature leaf stress death [1/s] at growth stage 2
