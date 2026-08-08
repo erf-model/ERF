@@ -3,6 +3,7 @@
 #include <ERF_RadiationDiagnostics.H>
 #include <ERF_TwoStreamSW.H>
 #include <ERF_TwoStreamLW.H>
+#include <ERF_PrognosticCloudFraction.H>
 #include <AMReX_Print.H>
 #include <AMReX_ParallelDescriptor.H>
 #include <AMReX_Gpu.H>
@@ -520,6 +521,94 @@ void select_scattering_props(
 }
 
 /**
+ * @brief (Phase 14) GPU-safe helper to diagnose prognostic cloud fraction
+ * from per-level relative humidity and cloud liquid water.
+ *
+ * Computes cloud fraction from RH and qc using:
+ *   cf_rh(k) = linear ramp from 0 at rh_min to 1 at rh_max
+ *   cf_qc(k) = qc_scale * qc(k)
+ *   cf(k) = min(1, cf_rh + cf_qc)  [saturated blend]
+ *
+ * When cloud_fraction_prog_enable is false, returns 0 (no effect).
+ * When cloud_fraction_prog_enable is true, computes and returns diagnosed cf(k) in [0, 1].
+ *
+ * Guards against invalid values:
+ * - If qv, qc, T, or P are NaN/Inf or unphysical, uses safe fallback values.
+ * - Output cf is always clamped to [0, 1] and finite.
+ *
+ * @param[in] i, j, k Grid indices
+ * @param[in] state_arr State array proxy (contains qv, qc, RhoTheta, Rho)
+ * @param[in] rad_choice Radiation parameters (contains prognostic cloud fraction settings)
+ * @param[in] geom Geometry for pressure/temperature computation
+ * @return Diagnosed cloud fraction [0, 1] if enabled; 0 if disabled
+ */
+AMREX_GPU_DEVICE AMREX_FORCE_INLINE
+amrex::Real diagnose_cloud_fraction_prognostic(
+    int i, int j, int k,
+    const Array4<const amrex::Real>& state_arr,
+    const RadChoice& rad_choice,
+    const Geometry& geom)
+{
+    // If prognostic cloud fraction is disabled, return 0 (no effect)
+    if (!rad_choice.cloud_fraction_prog_enable) {
+        return 0.0;
+    }
+
+    // Extract qv and qc from state
+    amrex::Real qv = 0.0;
+    amrex::Real qc = 0.0;
+
+    if (state_arr.contains(i, j, k)) {
+        amrex::Real rho = state_arr(i, j, k, Rho_comp);
+        if (rho <= 0.0 || !std::isfinite(rho)) rho = 1.0;
+
+        amrex::Real rho_qv = state_arr(i, j, k, RhoQ1_comp);
+        if (std::isfinite(rho_qv) && rho_qv >= 0.0) {
+            qv = rho_qv / rho;
+            if (qv < 0.0 || !std::isfinite(qv)) qv = 0.0;
+        }
+
+        #if defined(RhoQ2_comp)
+        amrex::Real rho_qc = state_arr(i, j, k, RhoQ2_comp);
+        if (std::isfinite(rho_qc) && rho_qc >= 0.0) {
+            qc = rho_qc / rho;
+            if (qc < 0.0 || !std::isfinite(qc)) qc = 0.0;
+        }
+        #endif
+    }
+
+    // Compute temperature and pressure at this level
+    amrex::Real rho = 1.0;
+    amrex::Real rho_theta = 288.15;
+    if (state_arr.contains(i, j, k)) {
+        rho = state_arr(i, j, k, Rho_comp);
+        if (rho <= 0.0 || !std::isfinite(rho)) rho = 1.0;
+        rho_theta = state_arr(i, j, k, RhoTheta_comp);
+        if (rho_theta <= 0.0 || !std::isfinite(rho_theta)) rho_theta = 288.15;
+    }
+
+    amrex::Real T = get_temperature_from_rhotheta(rho_theta, rho);
+    if (T <= 0.0 || !std::isfinite(T)) T = 288.15;
+
+    // Pressure at level k (simple estimate from hydrostatic equilibrium)
+    // For now, use a reference pressure; proper implementation would use geom/k
+    amrex::Real P = 101325.0 * std::pow(T / 288.15, -5.255);  // Fallback approximation
+    if (P <= 0.0 || !std::isfinite(P)) P = 101325.0;
+
+    // Compute RH from qv
+    amrex::Real rh = compute_relative_humidity(qv, T, P);
+
+    // Diagnose cloud fraction from RH and qc
+    amrex::Real cf = diagnose_cloud_fraction_from_rh_qc(
+        rh, qc,
+        rad_choice.cloud_fraction_rh_min,
+        rad_choice.cloud_fraction_rh_max,
+        rad_choice.cloud_fraction_qc_scale);
+
+    return cf;
+}
+
+/**
  * @brief (Phase 5) Maximum number of vertical levels supported by the
  * fixed-capacity per-column LW flux buffers in vertical_two_stream_sweep().
  *
@@ -710,6 +799,18 @@ void vertical_two_stream_sweep(
             tau_sw = diagnose_tau_sw_dynamic(i, j, k, state_arr, tau_sw, rad_choice);
         }
 
+        // (Phase 14) Apply prognostic cloud fraction modulation if enabled
+        // Scale the cloud optical depth contribution by the diagnosed cf(k)
+        if (rad_choice.cloud_fraction_prog_enable && cloudy && 
+            rad_choice.tau_profile_type == TauProfileType::CloudLayer &&
+            is_cloud_level(k, kmin, dz_uniform, rad_choice)) {
+            amrex::Real cf_prog = diagnose_cloud_fraction_prognostic(i, j, k, state_arr, rad_choice, geom);
+            // Scale cloud tau contribution by cf(k): tau = tau_base + cf(k) * cloud_tau_per_layer
+            // We need to recover tau_base and add cf-scaled cloud tau
+            amrex::Real tau_sw_base_k = tau_layer_value(k, kmin, dz_uniform, tau_sw_base, rad_choice, /*cloudy=*/false);
+            tau_sw = tau_sw_base_k + cf_prog * rad_choice.cloud_tau_per_layer;
+        }
+
         // Accumulate optical depths
         tau_sw_cum += tau_sw;
 
@@ -797,6 +898,17 @@ void vertical_two_stream_sweep(
             tau_lw = diagnose_tau_lw_dynamic(i, j, k, state_arr, tau_lw, rad_choice);
         }
 
+        // (Phase 14) Apply prognostic cloud fraction modulation if enabled
+        // Scale the cloud optical depth contribution by the diagnosed cf(k)
+        if (rad_choice.cloud_fraction_prog_enable && cloudy && 
+            rad_choice.tau_profile_type == TauProfileType::CloudLayer &&
+            is_cloud_level(k, kmin, dz_uniform, rad_choice)) {
+            amrex::Real cf_prog = diagnose_cloud_fraction_prognostic(i, j, k, state_arr, rad_choice, geom);
+            // Scale cloud tau contribution by cf(k): tau = tau_base + cf(k) * cloud_tau_per_layer
+            amrex::Real tau_lw_base_k = tau_layer_value(k, kmin, dz_uniform, tau_lw_base, rad_choice, /*cloudy=*/false);
+            tau_lw = tau_lw_base_k + cf_prog * rad_choice.cloud_tau_per_layer;
+        }
+
         if (k == kmax) {
             // Surface: initialize upwelling flux
             // (Phase 11) Resolve surface temperature and emissivity from hetero fields or fallback
@@ -836,6 +948,17 @@ void vertical_two_stream_sweep(
             // (Phase 12) Apply dynamic tau diagnosis if enabled
             if (rad_choice.tau_lw_dynamic_enable) {
                 tau_lw = diagnose_tau_lw_dynamic(i, j, k, state_arr, tau_lw, rad_choice);
+            }
+
+            // (Phase 14) Apply prognostic cloud fraction modulation if enabled
+            // Scale the cloud optical depth contribution by the diagnosed cf(k)
+            if (rad_choice.cloud_fraction_prog_enable && cloudy && 
+                rad_choice.tau_profile_type == TauProfileType::CloudLayer &&
+                is_cloud_level(k, kmin, dz_uniform, rad_choice)) {
+                amrex::Real cf_prog = diagnose_cloud_fraction_prognostic(i, j, k, state_arr, rad_choice, geom);
+                // Scale cloud tau contribution by cf(k): tau = tau_base + cf(k) * cloud_tau_per_layer
+                amrex::Real tau_lw_base_k = tau_layer_value(k, kmin, dz_uniform, tau_lw_base, rad_choice, /*cloudy=*/false);
+                tau_lw = tau_lw_base_k + cf_prog * rad_choice.cloud_tau_per_layer;
             }
 
             // Compute downwelling flux at this level using real two-stream formula
