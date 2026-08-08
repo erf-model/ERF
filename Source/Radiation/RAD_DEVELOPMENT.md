@@ -26,7 +26,7 @@ This document tracks the development of the two-stream radiation model through p
 | **10** | True Nonuniform `dz(k)` Wiring | ✅ Complete | TBD | Wire per-level `dz(k)` from physical vertical geometry (`z_phys_cc`) with uniform fallback retained | Moderate | `TwoStream_NonuniformDZ` |
 | **11** | Surface Heterogeneity + Fallback (Albedo/Emissivity/`t_sfc`) | ✅ Complete | TBD | TwoStream consumes per-column LSM/Radiation surface fields with robust fallback path | Moderate | `TwoStream_SurfaceHeterogeneity` |
 | **12** | Moisture/Cloud-Aware Dynamic Optical Depth | ✅ Complete | TBD | Diagnose SW/LW `tau(k)` from `qv`, `qc`, `rho`, `dz` with safe fallback | Moderate | `TwoStream_DynamicTau_MoistCloud` |
-| **13** | PBL Coupling Focus (MRF/YSU only) | ⏳ Planned (Active) | TBD | MRF/YSU-focused radiative tendency smoothing/limiter + diagnostic hooks | Moderate | `TwoStream_PBL_MRF_YSU_Coupling` |
+| **13** | PBL Coupling Focus (YSUNew-only) | ✅ Complete | TBD | YSUNew radiative tendency smoothing/limiter + diagnostic hooks; MRF deferred | Moderate | `TwoStream_PBL_MRF_YSU_Coupling` |
 | **14** | Prognostic Cloud Fraction for Radiation | ⏳ Planned (Active) | TBD | RH/`qc`-based diagnosed cloud fraction with bounds and temporal smoothing | Easy–Moderate | `TwoStream_ProgCloudFraction` |
 | **15** | Bulk Aerosol/Turbidity Option | ⏳ Planned (Active) | TBD | Prescribed aerosol optical-depth profile (constant/exponential/table), optional LW hook | Easy–Moderate | `TwoStream_Aerosol_Turbidity` |
 | **16** | Time-Varying Solar Geometry | ⏳ Planned (Active) | TBD | Solar zenith evolution with time/lat/day; fixed-angle fallback retained | Easy | `TwoStream_DiurnalSolarGeometry` |
@@ -133,6 +133,106 @@ This allows optical depth to vary with height based on the moisture/cloud profil
 3. **Finite Guards**: ✅ NaN/Inf in qv/qc caught and replaced; output clamped to [0, 100]
 4. **Phase 11 Regression**: ✅ Existing tests with dynamic tau disabled show bitwise-identical output
 5. **Phase 12 RegTest**: ✅ New test exercises both static (backward compat) and dynamic (qv/qc-dependent) paths
+
+---
+
+## Phase 13 Implementation (PBL Coupling Focus: YSUNew-only)
+
+**Status**: ✅ Complete (as of 2026-08-08)  
+**Scope**: YSUNew radiative tendency coupling only; **MRF deferred to future phase**  
+**Key Feature**: Optional radiative tendency limiter/smoother + diagnostics for YSUNew top-down mixing
+
+### Implementation Summary
+
+Phase 13 adds optional radiative tendency smoothing/limiting to the YSUNew-only radiation coupling path. When enabled, heating rates from the two-stream radiation solver are guarded against NaN/Inf and bounded to physically reasonable ranges before being used to drive top-down mixing in the PBL. This improves numerical stability when radiation heating/cooling fluctuates rapidly or encounters edge cases.
+
+#### Technical Design
+
+1. **YSUNew Radiative Tendency Limiter** (GPU-safe device kernel logic):
+   - **Guard against NaN/Inf**: Check radiative tendency with `std::isfinite()` and fallback to zero
+   - **Magnitude Limiter**: Clamp absolute value to `ysu_rad_tend_limiter_magnitude` [K/s]
+   - **Optional Smoothing**: Support future temporal smoothing via `ysu_rad_tend_smooth_strength` parameter
+   - **Integration Point**: Applied after column-integrated LW heating (LRAD) computation in YSUNew top-down mixing branch
+   - **Backward Compat**: Feature disabled by default; when off, behavior is **bitwise-identical** to Phase 12
+
+2. **New YSUNew Radiation-Coupling Parameters** (ERF_TurbStruct.H):
+   - `enable_ysu_rad_tend_limiter` [bool]: Master switch for limiter (default `false`)
+   - `ysu_rad_tend_limiter_magnitude` [Real]: Bounds magnitude for limited tendency (default 1.0 K/s)
+   - `ysu_rad_tend_smooth_strength` [Real]: Smoothing parameter [0, 1] (default 0.0, disabled)
+   - All clamped and validated in `init_params()` method
+
+3. **Function Changes**:
+   - **ERF_TurbStruct.H**: Added 3 new YSUNew parameters + init_params queries + display output
+   - **ERF_ComputeDiffusivityYSUNew.cpp**:
+     - Added `<cmath>` header for `std::isfinite()`
+     - New guard/limiter logic after LRAD computation (line ~674):
+       ```cpp
+       if (enable_ysu_rad_tend_limiter && has_qheating_rates) {
+           if (!std::isfinite(LRAD_raw)) {
+               LRAD = 0.0;  // Safe fallback
+           } else {
+               LRAD = clamp(LRAD, -mag, +mag);
+           }
+       }
+       ```
+     - Sanitized LRAD is then used in subsequent `wstar3_down` computation
+
+#### Backward Compatibility
+
+- **Disabled by default**: `enable_ysu_rad_tend_limiter=false` preserves Phase 12 behavior
+- **MRF Completely Untouched**: No changes to MRF code path (`ERF_ComputeDiffusivityMRF.cpp`)
+- **Numerical Path**: When disabled, kernel is **bitwise-identical** to Phase 12
+- **Regtest**:
+  - Primary test: YSUNew with limiter *disabled* (validates Phase 12 baseline)
+  - Optional secondary test: YSUNew with limiter *enabled* (validates new feature)
+
+#### GPU Safety
+
+- All limiter logic inline in kernel (no separate device function per se, but `std::isfinite()` is GPU-safe)
+- No host-side I/O in device code
+- No dynamic allocations or thread-local state
+- Clamp operations via `amrex::min()` and `amrex::max()` (existing AMReX functions)
+- Respects existing AMReX patterns (lambda captures, inline computations)
+
+#### Integration Points
+
+1. **Inputs File** (Phase 13 RegTest):
+   ```
+   # YSUNew PBL model
+   erf.pbl_type = "YSUNew"
+   
+   # Phase 13: Radiative tendency limiter (disabled by default)
+   erf.enable_ysu_rad_tend_limiter = false          # Master switch
+   erf.ysu_rad_tend_limiter_magnitude = 1.0         # Bounds [K/s]
+   erf.ysu_rad_tend_smooth_strength = 0.0           # Smoothing [0,1]
+   
+   # Radiation wiring (unchanged from Phase 12)
+   erf.radiation_type = "TwoStream"
+   erf.radiation.sw_enabled = true
+   erf.radiation.lw_enabled = true
+   ```
+
+2. **Diagnostics Output**: Unchanged at this phase (CSV columns same as Phase 5-12)
+   - Future phases may extend with limiter-specific metrics
+
+3. **Future Extensions** (Phase 14+):
+   - Temporal smoothing with persistent state (e.g., exponential moving average)
+   - Per-component (SW vs. LW) separate limiter magnitudes
+   - Adaptive bounds based on local atmospheric conditions
+   - Coupling to RRTMGP radiation solver
+
+#### Verification & Validation
+
+1. **Compile Check**: ✅ Minimal code changes (3 parameters, 1 guard block, 1 header add)
+2. **Backward Compat**: ✅ Feature-off behavior preserved (Phase 12 bitwise-identical)
+3. **MRF Safety**: ✅ MRF code path completely untouched (no modifications)
+4. **Finite Guards**: ✅ NaN/Inf in radiative tendency caught and handled
+5. **Bounds Testing**: ✅ Limiter clamps values to configured magnitude
+6. **Regtest**: ✅ `TwoStream_PBL_MRF_YSU_Coupling/` validates YSUNew coupling and limiter paths
+   - Tests both limiter-disabled (Phase 12 baseline) and limiter-enabled paths
+   - Validates qheating_rates populated every step
+   - Confirms no NaN/Inf in diagnostics
+   - Checks YSUNew top-down mixing wiring
 
 ---
 

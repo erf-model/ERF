@@ -7,6 +7,8 @@
 #include "ERF_TileNoZ.H"
 #include "ERF_MoistUtils.H"
 
+#include <cmath>
+
 #ifdef ERF_USE_WINDFARM
 #include "ERF_WindFarm.H"
 #endif
@@ -670,6 +672,26 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
                         // LW component is at index 1
                         LRAD += -qheat_arr(i, j, kk, 1) * ldz;
                     }
+                }
+
+                // Phase 13: YSUNew radiative tendency limiter/smoothing
+                // Apply optional finite guards, bounds checking, and smoothing
+                amrex::Real LRAD_raw = LRAD;  // Store raw value for diagnostics
+                amrex::Real LRAD_limited = LRAD;
+
+                if (enable_ysu_rad_tend_limiter && has_qheating_rates) {
+                    // Step 1: Guard against NaN/Inf in raw heating rate
+                    if (!std::isfinite(LRAD_raw)) {
+                        LRAD_limited = zero;  // Safe fallback: no radiative forcing
+                    } else {
+                        // Step 2: Apply magnitude limiter/bounds
+                        // Clamp LRAD to [-limiter_magnitude, +limiter_magnitude]
+                        const amrex::Real lim_mag = turbChoice.ysu_rad_tend_limiter_magnitude;
+                        LRAD_limited = amrex::min(LRAD_raw,  lim_mag);
+                        LRAD_limited = amrex::max(LRAD_limited, -lim_mag);
+                    }
+                    // Use limited value for subsequent wstar computation
+                    LRAD = LRAD_limited;
                 }
 
                 // Top-down convective velocity (H10 Eq. 12):
