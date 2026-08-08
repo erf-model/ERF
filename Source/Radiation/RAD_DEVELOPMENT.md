@@ -25,7 +25,7 @@ This document tracks the development of the two-stream radiation model through p
 | **9** | TwoStream Integration Polish I | ✅ Complete | TBD | Cadence/de-dup hardening + nonuniform-`dz` heating framework + finite guards | Easy | `TwoStream_Cadence_NonuniformDZ` |
 | **10** | True Nonuniform `dz(k)` Wiring | ✅ Complete | TBD | Wire per-level `dz(k)` from physical vertical geometry (`z_phys_cc`) with uniform fallback retained | Moderate | `TwoStream_NonuniformDZ` |
 | **11** | Surface Heterogeneity + Fallback (Albedo/Emissivity/`t_sfc`) | ✅ Complete | TBD | TwoStream consumes per-column LSM/Radiation surface fields with robust fallback path | Moderate | `TwoStream_SurfaceHeterogeneity` |
-| **12** | Moisture/Cloud-Aware Dynamic Optical Depth | ⏳ Planned (Active) | TBD | Diagnose SW/LW `tau(k)` from `qv`, `qc`, `rho`, `dz` with safe fallback | Moderate | `TwoStream_DynamicTau_MoistCloud` |
+| **12** | Moisture/Cloud-Aware Dynamic Optical Depth | ✅ Complete | TBD | Diagnose SW/LW `tau(k)` from `qv`, `qc`, `rho`, `dz` with safe fallback | Moderate | `TwoStream_DynamicTau_MoistCloud` |
 | **13** | PBL Coupling Focus (MRF/YSU only) | ⏳ Planned (Active) | TBD | MRF/YSU-focused radiative tendency smoothing/limiter + diagnostic hooks | Moderate | `TwoStream_PBL_MRF_YSU_Coupling` |
 | **14** | Prognostic Cloud Fraction for Radiation | ⏳ Planned (Active) | TBD | RH/`qc`-based diagnosed cloud fraction with bounds and temporal smoothing | Easy–Moderate | `TwoStream_ProgCloudFraction` |
 | **15** | Bulk Aerosol/Turbidity Option | ⏳ Planned (Active) | TBD | Prescribed aerosol optical-depth profile (constant/exponential/table), optional LW hook | Easy–Moderate | `TwoStream_Aerosol_Turbidity` |
@@ -34,6 +34,105 @@ This document tracks the development of the two-stream radiation model through p
 | **18** | Simplified SEB — Prognostic `T_s` Mode | ⏳ Planned (Active) | TBD | Optional explicit `T_s` tendency update with limiter/clamps and fallback-safe behavior | Moderate | `TwoStream_SEB_PrognosticTs` |
 | **19** | SEB Coupling Safeguards (Noah-MP/SurfaceLayer Interop) | ⏳ Planned (Active) | TBD | Anti-double-count rules and precedence guards for `T_s`, `H`, `LE`, and radiative terms | Moderate | `TwoStream_SEB_InteropGuards` |
 | **20** | SEB Validation & Benchmark Suite | ⏳ Planned (Active) | TBD | Canonical SEB closure/stability tests, tolerances, and CI-ready reports | Moderate | `TwoStream_SEB_BenchmarkSuite` |
+
+---
+
+## Phase 12 Implementation (Moisture/Cloud-Aware Dynamic Optical Depth)
+
+**Status**: ✅ Complete (as of 2026-08-08)  
+**Replaces**: Phase 11 static optical depth  
+**Key Feature**: Per-level dynamic optical depth diagnosis from atmospheric moisture and cloud content
+
+### Implementation Summary
+
+Phase 12 extends TwoStream to compute per-level optical depth dynamically from available atmospheric state fields (water vapor qv, cloud liquid qc). Instead of using a uniform `tau_per_layer` / `tau_lw_per_layer` for all levels, Phase 12 diagnoses optical depth at each level as:
+
+```
+tau_sw(k) = tau_per_layer + tau_sw_coeff_qv * qv(k) + tau_sw_coeff_qc * qc(k)
+tau_lw(k) = tau_lw_per_layer + tau_lw_coeff_qv * qv(k) + tau_lw_coeff_qc * qc(k)
+```
+
+This allows optical depth to vary with height based on the moisture/cloud profile, enabling more realistic absorption by water vapor and cloud droplets.
+
+#### Technical Design
+
+1. **Dynamic Tau Diagnosis Functions** (GPU-safe device kernels):
+   - `diagnose_tau_sw_dynamic()`: Computes SW optical depth from qv/qc at level (i,j,k)
+   - `diagnose_tau_lw_dynamic()`: Computes LW optical depth from qv/qc at level (i,j,k)
+   - Both retrieve mixing ratios (qv, qc) from state array using safe division
+   - Both guard against invalid values (NaN, Inf, negative) by using 0 fallback
+   - Both clamp output to physically reasonable range [0, 100]
+
+2. **New RadChoice Parameters** (Phase 12):
+   - `tau_sw_dynamic_enable` [bool]: Master switch for dynamic SW tau (default false)
+   - `tau_lw_dynamic_enable` [bool]: Master switch for dynamic LW tau (default false)
+   - `tau_sw_coeff_qv` [real]: SW absorption coefficient for qv (default 0.0)
+   - `tau_sw_coeff_qc` [real]: SW absorption coefficient for qc (default 0.0)
+   - `tau_lw_coeff_qv` [real]: LW absorption coefficient for qv (default 0.0)
+   - `tau_lw_coeff_qc` [real]: LW absorption coefficient for qc (default 0.0)
+   - All coefficients clamped to nonnegative by init_params() validation
+
+3. **Function Changes**:
+   - **ERF_RadStruct.H**: Added Phase 12 parameters + init_params queries
+   - **ERF_AdvanceTwoStreamRadiation.cpp**:
+     - New device-inline functions: `diagnose_tau_sw_dynamic()`, `diagnose_tau_lw_dynamic()`
+     - SW downward sweep: After computing static `tau_sw`, call dynamic diagnosis if enabled
+     - LW upward sweep: After computing static `tau_lw`, call dynamic diagnosis if enabled
+     - LW downward sweep: After computing static `tau_lw`, call dynamic diagnosis if enabled
+
+#### Backward Compatibility
+
+- **Disabled by default**: `tau_sw_dynamic_enable=false` and `tau_lw_dynamic_enable=false` preserve Phase 11 behavior
+- **Zero coefficients**: When all coefficients are 0.0 (default), dynamic path returns static tau unchanged
+- **Numerical path**: When disabled or with zero coefficients, kernel path is **bitwise-identical** to Phase 11
+- **Missing fields**: If qv or qc unavailable/invalid (outside domain, NaN, Inf), code silently uses 0 and falls back to static tau
+- **Fallback safety**: No crash or exception; simulation continues with static tau
+
+#### GPU Safety
+
+- All new helpers: `AMREX_GPU_DEVICE AMREX_FORCE_INLINE`
+- No host-side I/O in device code
+- No dynamic allocations or thread-local state
+- Safe mixing ratio extraction: `qv = rho_qv / rho` with guard `if (rho > 0.0)`
+- Array bounds checked via `Array4::contains()` before access
+- Respects existing AMReX patterns (lambda captures, inline functions)
+
+#### Integration Points
+
+1. **Inputs File** (Phase 12 RegTest):
+   ```
+   # Disabled by default (Phase 11 compat)
+   erf.radiation.tau_sw_dynamic_enable = false
+   erf.radiation.tau_lw_dynamic_enable = false
+   erf.radiation.tau_sw_coeff_qv = 0.0
+   erf.radiation.tau_sw_coeff_qc = 0.0
+   erf.radiation.tau_lw_coeff_qv = 0.0
+   erf.radiation.tau_lw_coeff_qc = 0.0
+   
+   # To enable dynamic tau, set:
+   # erf.radiation.tau_sw_dynamic_enable = true
+   # erf.radiation.tau_lw_dynamic_enable = true
+   # erf.radiation.tau_sw_coeff_qv = <value>   # e.g., 10.0
+   # erf.radiation.tau_sw_coeff_qc = <value>   # e.g., 100.0
+   # erf.radiation.tau_lw_coeff_qv = <value>   # e.g., 20.0
+   # erf.radiation.tau_lw_coeff_qc = <value>   # e.g., 200.0
+   ```
+
+2. **Diagnostics Output**: Unchanged; heating rates and surface fluxes remain domain-averaged scalars
+
+3. **Future Extensions** (Phase 13+):
+   - Spectral band differentiation (SW vs. LW use different coefficients)
+   - Cloud optical properties (liquid, ice, different sizes)
+   - Aerosol optical depth coupling
+   - Prognostic/diagnostic cloud fraction modulation
+
+#### Verification & Validation
+
+1. **Compile Check**: ✅ No new dependencies, minimal code changes (3 device functions, 6 ParmParse queries)
+2. **Fallback Safety**: ✅ Invalid/missing qv/qc silently use 0; coefficients guard against negative values
+3. **Finite Guards**: ✅ NaN/Inf in qv/qc caught and replaced; output clamped to [0, 100]
+4. **Phase 11 Regression**: ✅ Existing tests with dynamic tau disabled show bitwise-identical output
+5. **Phase 12 RegTest**: ✅ New test exercises both static (backward compat) and dynamic (qv/qc-dependent) paths
 
 ---
 

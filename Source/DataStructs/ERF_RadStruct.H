@@ -265,6 +265,54 @@ public:
   amrex::Real surface_temp_k = 300.0;
 
   /**
+   * @brief (Phase 12) Enable dynamic shortwave optical depth diagnosis from moisture/clouds.
+   * When true, SW optical depth is computed per-level from qv and qc.
+   * When false (default), uses static tau_per_layer (Phase 11 behavior).
+   * Only used when rad_type == RadType::TwoStream and sw_enabled == true.
+   */
+  bool tau_sw_dynamic_enable = false;
+
+  /**
+   * @brief (Phase 12) Enable dynamic longwave optical depth diagnosis from moisture/clouds.
+   * When true, LW optical depth is computed per-level from qv and qc.
+   * When false (default), uses static tau_lw_per_layer (Phase 11 behavior).
+   * Only used when rad_type == RadType::TwoStream and lw_enabled == true.
+   */
+  bool tau_lw_dynamic_enable = false;
+
+  /**
+   * @brief (Phase 12) Shortwave optical depth coefficient for water vapor [dimensionless].
+   * Dynamic SW tau = tau_sw_coeff_qv * qv + tau_sw_coeff_qc * qc + tau_per_layer.
+   * Default 0.0 means tau is purely from static tau_per_layer (no dynamic component).
+   * Only used when tau_sw_dynamic_enable == true.
+   */
+  amrex::Real tau_sw_coeff_qv = 0.0;
+
+  /**
+   * @brief (Phase 12) Shortwave optical depth coefficient for cloud liquid water [dimensionless].
+   * Default 0.0. When both coefficients are 0, dynamic path still invoked but yields
+   * tau_per_layer unchanged, preserving Phase 11 behavior.
+   * Only used when tau_sw_dynamic_enable == true.
+   */
+  amrex::Real tau_sw_coeff_qc = 0.0;
+
+  /**
+   * @brief (Phase 12) Longwave optical depth coefficient for water vapor [dimensionless].
+   * Dynamic LW tau = tau_lw_coeff_qv * qv + tau_lw_coeff_qc * qc + tau_lw_per_layer.
+   * Default 0.0 means tau is purely from static tau_lw_per_layer (no dynamic component).
+   * Only used when tau_lw_dynamic_enable == true.
+   */
+  amrex::Real tau_lw_coeff_qv = 0.0;
+
+  /**
+   * @brief (Phase 12) Longwave optical depth coefficient for cloud liquid water [dimensionless].
+   * Default 0.0. When both coefficients are 0, dynamic path still invoked but yields
+   * tau_lw_per_layer unchanged, preserving Phase 11 behavior.
+   * Only used when tau_lw_dynamic_enable == true.
+   */
+  amrex::Real tau_lw_coeff_qc = 0.0;
+
+  /**
    * @brief Read radiation options from the input parameter database.
    *
    * @param[in] lev AMR level index.
@@ -398,7 +446,22 @@ public:
       if (surface_emissivity_lw > 1.0) surface_emissivity_lw = 1.0;
       if (surface_temp_k <= 0.0) surface_temp_k = 300.0;  // Ensure positive
       if (!std::isfinite(surface_temp_k)) surface_temp_k = 300.0;  // Ensure finite
-    }
+
+      // Phase 12: dynamic optical depth diagnosis from moisture/clouds
+      // (all optional; defaults disable dynamic tau, preserving Phase 11 behavior)
+      pp.query("radiation.tau_sw_dynamic_enable", tau_sw_dynamic_enable);
+      pp.query("radiation.tau_lw_dynamic_enable", tau_lw_dynamic_enable);
+      pp.query("radiation.tau_sw_coeff_qv", tau_sw_coeff_qv);
+      pp.query("radiation.tau_sw_coeff_qc", tau_sw_coeff_qc);
+      pp.query("radiation.tau_lw_coeff_qv", tau_lw_coeff_qv);
+      pp.query("radiation.tau_lw_coeff_qc", tau_lw_coeff_qc);
+
+      // Parameter validation (Phase 12): clamp dynamic tau coefficients
+      // to nonnegative (negative would give unphysical behavior)
+      if (tau_sw_coeff_qv < 0.0) tau_sw_coeff_qv = 0.0;
+      if (tau_sw_coeff_qc < 0.0) tau_sw_coeff_qc = 0.0;
+      if (tau_lw_coeff_qv < 0.0) tau_lw_coeff_qv = 0.0;
+      if (tau_lw_coeff_qc < 0.0) tau_lw_coeff_qc = 0.0;
   }
 
   /**
