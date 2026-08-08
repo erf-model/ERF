@@ -913,7 +913,7 @@ void ERF::compute_twostream_radiation_diagnostics(
                         i, j, bx, geom_lev, state_arr, rad_choice, /*cloudy=*/false,
                         qheating_clear_arr,
                         max_heating_clear, sw_flux_clear, lw_net_clear,
-                        has_z_phys, z_phys_cc_arr,
+                        z_phys_cc_arr,
                         has_hetero_alb_sw, hetero_alb_sw_arr,
                         has_hetero_emiss_lw, hetero_emiss_lw_arr,
                         has_t_sfc_field, t_sfc_arr);
@@ -933,7 +933,7 @@ void ERF::compute_twostream_radiation_diagnostics(
                             i, j, bx, geom_lev, state_arr, rad_choice, /*cloudy=*/true,
                             qheating_cloudy_arr,
                             max_heating_cloudy, sw_flux_cloudy, lw_net_cloudy,
-                            has_z_phys, z_phys_cc_arr,
+                            z_phys_cc_arr,
                             has_hetero_alb_sw, hetero_alb_sw_arr,
                             has_hetero_emiss_lw, hetero_emiss_lw_arr,
                             has_t_sfc_field, t_sfc_arr);
