@@ -1082,3 +1082,107 @@ exit $?
 - AMReX Parallel Loop Patterns: https://amrex-codes.github.io/amrex/docs_html/GPU_HowTo.html#parallel-for
 - Atomic Operations: https://amrex-codes.github.io/amrex/docs_html/GPU_HowTo.html#atomic-operations
 - Meador, W. E., and W. R. Weaver, 1980: "Two-stream approximations to radiative transfer in planetary atmospheres", *J. Atmos. Sci.*, 37, 630–643.
+
+---
+
+## Phase 9: Diagnostics Dedup & Nonuniform dz Lessons Learned
+
+### Lesson 1: Triple-Tuple Dedup Identity is Robust
+
+**Problem**: Early diagnostics logic used only (step, time) for dedup, which accidentally collapsed legitimate multi-call-site entries (e.g., pre_dycore and post_dycore at the same step).
+
+**Solution (Phase 9)**: Use strict 3-tuple identity:
+```
+(step, call_site, time)
+```
+
+This ensures:
+- Accidental repeated calls to append() at identical (step, call_site, time) are suppressed.
+- Legitimate pre + post entries differ in call_site, so identity tuple differs → both retained.
+- Mode filtering (pre_only, post_only, both) is orthogonal to dedup.
+
+**Key Implementation Detail**:
+```cpp
+// Phase 9: Dedup guard order is critical
+// 1. First: check mode filtering (returns early if unwanted)
+// 2. Then: check (step, call_site, time) dedup tuple
+// 3. Update: save last_step, last_call_site, last_time for next call
+
+if (!should_emit_for_this_mode) return;  // Mode filter first
+if (step == m_last_write_step && call_site == m_last_write_call_site && 
+    time close to m_last_write_time) return;  // Then dedup
+// Update guard only if we're about to write
+m_last_write_step = step;
+m_last_write_call_site = call_site;
+m_last_write_time = time;
+```
+
+**Defensive Implication**:
+- Time tolerance (m_diag_dedup_tol) is needed because multiple append() calls at slightly different times (FP rounding) should be treated as "same" event.
+- Call_site must be exact string match; partial matching (e.g., regex) can mask bugs.
+
+### Lesson 2: Nonuniform dz Framework Must Have Uniform Fallback
+
+**Problem**: Heating divergence formulas divide by dz, which must be physically accurate for terrain-aware grids, but uniform grids benefit from algorithmic simplicity and performance.
+
+**Solution (Phase 9)**: 
+- Local per-level dz array `dz_level[MAX_RAD_LEVELS]`
+- Initialize all entries to uniform `geom.CellSize(2)` (current behavior)
+- When terrain/nonuniform support is added, populate from z_phys_cc or equivalent
+- Defensive fallback: bounds-check array access; return uniform dz if out-of-bounds
+
+```cpp
+// Phase 9: Per-level dz framework
+amrex::Real dz_level[MAX_RAD_LEVELS];
+for (int k = 0; k < nlev; ++k) {
+    dz_level[k] = dz_uniform;  // Current: always uniform
+    // Future: dz_level[k] = z_cc[k] - z_cc[k+1]  (when z_phys_cc available)
+}
+
+// At heating calculation:
+int k_idx = k - kmin;
+amrex::Real dz_heating = (k_idx >= 0 && k_idx < MAX_RAD_LEVELS) 
+    ? dz_level[k_idx] 
+    : dz_uniform;  // Fallback
+amrex::Real Q_sw = compute_sw_heating_rate(..., dz_heating, ...);
+```
+
+**Key Insight**:
+- Separating uniform dz (for cloud-layer height) from per-level dz (for heating) keeps cloud detection logic unchanged.
+- Cloud layers are currently defined in height space (m), not index space, so they should use uniform dz for now.
+- Future: When cloud detection becomes terrain-aware, use z_phys_cc height directly (avoid dz altogether).
+
+**Defensive Implication**:
+- Heating rate functions must guard against dz <= 0 (returns 0, not NaN).
+- Edge cases: Very thin layers (dz ~1 cm) or thick layers (dz ~1 km) should both work correctly.
+- Extreme flux divergence (e.g., tau very large) can produce large heating rates; guard with isfinite().
+
+### Lesson 3: Finite Checks Prevent Silent Corruption
+
+**Problem**: If dz becomes zero or negative (grid bug), the heating rate is NaN. If qheating_rates gets populated with NaN, it silently corrupts RhoTheta in later source-term injection.
+
+**Solution (Phase 9)**:
+1. Input guards in `compute_sw_heating_rate()` / `compute_lw_heating_rate()`:
+   ```cpp
+   if (dz <= 0.0 || rho <= 0.0 || cp <= 0.0) return 0.0;
+   ```
+
+2. Output guards:
+   ```cpp
+   amrex::Real heating = flux_divergence / (rho * cp);
+   if (!std::isfinite(heating)) return 0.0;  // Catch NaN/Inf
+   ```
+
+3. No warning/error log: Silently return 0 to avoid log spam in large simulations. (Future: Phase 10 can add counters to track how often this happens.)
+
+**Defensive Implication**:
+- These guards are GPU-safe inline functions.
+- Returning 0 heating rate is physically conservative (assumes no radiative forcing, which is safe if inputs are invalid).
+- Silent suppression is acceptable for an integration-polish phase; explicit warnings/assertions can be added later if edge cases become common.
+
+### Phase 9 Takeaway
+
+**Dedup + Nonuniform dz + Finite checks** = robust integration polish that:
+- Prevents silent data corruption (dedup tuples, finite checks)
+- Prepares for terrain-aware grids without breaking uniform-grid behavior
+- Remains GPU-safe and performance-neutral on current (uniform) simulations

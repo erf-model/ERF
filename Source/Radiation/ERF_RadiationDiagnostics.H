@@ -50,7 +50,21 @@
  * - CSV rows for flux/heating diagnostics
  * - RADIATION_DIAG: lines for RegTest parsing
  *
- * Follows the duplicate-write-guard pattern from UCMDiagnostics (m_last_write_step).
+ * **Phase 9 Dedup Contract:**
+ *
+ * Duplicate detection uses a 3-tuple identity (step, call_site, time):
+ * - step: timestep number (int)
+ * - call_site: diagnostic call-site label (e.g., "pre_dycore", "post_dycore")
+ * - time: simulation time with tolerance m_diag_dedup_tol
+ *
+ * This ensures:
+ * 1. Accidental repeated calls at the same (step, call_site, time) are suppressed.
+ * 2. Legitimate pre_dycore + post_dycore entries at the same step are both retained
+ *    (they have different call_site values, so dedup identity differs).
+ * 3. Mode filtering (pre_only, post_only, both) preserves this contract by checking
+ *    whether to emit BEFORE the dedup guard runs.
+ *
+ * Follows the duplicate-write-guard pattern from UCMDiagnostics.
  */
 class RadiationDiagnostics
 {

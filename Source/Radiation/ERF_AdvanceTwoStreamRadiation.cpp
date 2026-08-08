@@ -113,14 +113,26 @@ amrex::Real get_temperature_from_rhotheta(amrex::Real rho_theta, amrex::Real rho
 }
 
 /**
- * @brief GPU-safe helper to compute the height of cell-center level k above
- * the surface (k = kmin is the lowest cell-center level).
+ * @brief (Phase 9) Compute vertical thickness of a single layer.
  *
- * @param[in] k Vertical index.
- * @param[in] kmin Lowest vertical index (surface-adjacent cell).
- * @param[in] dz Uniform vertical cell spacing [m].
- * @return Height of the cell center above the surface [m].
+ * For uniform grids: dz = geom.CellSize(2)
+ * For nonuniform/terrain-aware grids: dz = z_cc(k) - z_cc(k+1)
+ *
+ * Currently, ERF's two-stream radiation uses only uniform geom.CellSize(2).
+ * This helper is prepared for future terrain-aware integration but currently
+ * always returns the uniform spacing.
+ *
+ * @param[in] k Vertical cell index
+ * @param[in] geom Geometry for this level
+ * @return Vertical cell thickness [m]
  */
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+amrex::Real get_dz_for_level(int k, const Geometry& geom)
+{
+    // Phase 9 stub: currently always use uniform grid
+    // Future: when z_phys_cc is available in device scope, use per-level spacing
+    return geom.CellSize(2);
+}
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 amrex::Real level_height_m(int k, int kmin, amrex::Real dz)
 {
@@ -293,9 +305,20 @@ void vertical_two_stream_sweep(
     amrex::Real sigma = 5.670374419e-8;  // Stefan-Boltzmann [W/(m^2·K^4)]
     amrex::Real cp_air = 1005.0;         // Specific heat at constant pressure [J/(kg·K)]
 
-    // Get real vertical grid spacing from geometry
-    // For uniform grids, use CellSize(2); for terrain-aware grids, would use z_phys_cc differences
-    amrex::Real dz = geom.CellSize(2);  // Vertical cell spacing [m]
+    // Get vertical grid spacing from geometry
+    // Phase 9: For uniform grids, use CellSize(2); for terrain-aware grids,
+    // would use z_phys_cc differences (future implementation).
+    amrex::Real dz_uniform = geom.CellSize(2);  // Uniform vertical cell spacing [m]
+    
+    // (Phase 9) Per-level dz array for nonuniform grid support.
+    // For now, all levels use uniform spacing; future: would populate from
+    // z_phys_cc(k) - z_phys_cc(k+1) when available.
+    // Defensive: If nlev > MAX_RAD_LEVELS, this will still work but degrade to
+    // uniform spacing (the AMREX_ALWAYS_ASSERT in the caller will catch over-tall domains).
+    amrex::Real dz_level[MAX_RAD_LEVELS];
+    for (int k = 0; k < nlev && (kmin + k) <= kmax; ++k) {
+        dz_level[k] = dz_uniform;  // Phase 9: Fallback to uniform; future: use z_phys_cc
+    }
 
     // Convert solar zenith angle to radians
     amrex::Real zenith_rad = rad_choice.solar_zenith_deg * M_PI / 180.0;
@@ -342,8 +365,10 @@ void vertical_two_stream_sweep(
         if (rho <= 0.0) rho = 1.0;
         if (rho_theta <= 0.0) rho_theta = 288.15;
 
-        // Phase 3: per-level optical depth (constant, or +cloud within layer)
-        amrex::Real tau_sw = tau_layer_value(k, kmin, dz, tau_sw_base, rad_choice, cloudy);
+    // Phase 3: per-level optical depth (constant, or +cloud within layer)
+        // NOTE: Use uniform dz for cloud-layer height detection (to keep cloud
+        // position logic unchanged from prior phases)
+        amrex::Real tau_sw = tau_layer_value(k, kmin, dz_uniform, tau_sw_base, rad_choice, cloudy);
 
         // Accumulate optical depths
         tau_sw_cum += tau_sw;
@@ -353,11 +378,10 @@ void vertical_two_stream_sweep(
 
         // Phase 4: select scattering properties for this level (clear-sky vs
         // cloud, depending on the "cloudy" column flag and whether this level
-        // falls within the cloud band), and accumulate diffuse flux generated
-        // by this layer on top of the diffuse flux transmitted from above.
+        // falls within the cloud band). Use uniform dz for cloud detection.
         amrex::Real omega = 0.0;
         amrex::Real g = 0.0;
-        select_scattering_props(k, kmin, dz, rad_choice, cloudy, omega, g);
+        select_scattering_props(k, kmin, dz_uniform, rad_choice, cloudy, omega, g);
 
         amrex::Real F_sw_diff_layer =
             compute_sw_diffuse_flux(tau_sw, F_sw_dir_prev, cos_zenith, omega, g);
@@ -371,18 +395,25 @@ void vertical_two_stream_sweep(
         amrex::Real F_sw_diff_curr = F_sw_diff_prev * Tdir_layer + F_sw_diff_layer;
 
         // Total SW flux (direct + diffuse) at top and bottom of this layer,
-        // used for heating rate divergence.
-        amrex::Real F_sw_total_prev = F_sw_dir_prev + F_sw_diff_prev;
-        amrex::Real F_sw_total_curr = F_sw_dir_curr + F_sw_diff_curr;
+         // used for heating rate divergence.
+         amrex::Real F_sw_total_prev = F_sw_dir_prev + F_sw_diff_prev;
+         amrex::Real F_sw_total_curr = F_sw_dir_curr + F_sw_diff_curr;
 
-        // Phase 5: SW heating in this layer, written at EVERY level (not
-        // just k < kmax as in Phase 1-4's max-only reduction), so that the
-        // per-level qheating_arr output has a physically meaningful value
-        // covering the whole column.
-        amrex::Real Q_sw = compute_sw_heating_rate(F_sw_total_prev, F_sw_total_curr,
-                                                    dz, rho, cp_air);
-        qheating_arr(i, j, k, 0) = Q_sw;
-        local_max_heating = std::max(local_max_heating, std::abs(Q_sw));
+         // Phase 5: SW heating in this layer, written at EVERY level (not
+         // just k < kmax as in Phase 1-4's max-only reduction), so that the
+         // per-level qheating_arr output has a physically meaningful value
+         // covering the whole column.
+         // 
+         // Phase 9: Use per-level dz for heating divergence (supports nonuniform grids).
+         // Currently all levels use uniform spacing; fallback is automatic.
+         int k_idx = k - kmin;
+         amrex::Real dz_heating = (k_idx >= 0 && k_idx < MAX_RAD_LEVELS) 
+             ? dz_level[k_idx] 
+             : dz_uniform;  // Defensive fallback
+         amrex::Real Q_sw = compute_sw_heating_rate(F_sw_total_prev, F_sw_total_curr,
+                                                     dz_heating, rho, cp_air);
+         qheating_arr(i, j, k, 0) = Q_sw;
+         local_max_heating = std::max(local_max_heating, std::abs(Q_sw));
 
         // Prepare for next iteration
         F_sw_dir_prev = F_sw_dir_curr;
@@ -492,7 +523,13 @@ void vertical_two_stream_sweep(
         }
         F_net_bot = F_lw_up_profile[k - kmin] - F_lw_down_profile[k - kmin];
 
-        amrex::Real Q_lw = compute_lw_heating_rate(F_net_top, F_net_bot, dz, rho, cp_air);
+        // Phase 9: Use per-level dz for LW heating divergence (supports nonuniform grids).
+        // Currently all levels use uniform spacing; fallback is automatic.
+        int k_idx = k - kmin;
+        amrex::Real dz_heating_lw = (k_idx >= 0 && k_idx < MAX_RAD_LEVELS) 
+            ? dz_level[k_idx] 
+            : dz_uniform;  // Defensive fallback
+        amrex::Real Q_lw = compute_lw_heating_rate(F_net_top, F_net_bot, dz_heating_lw, rho, cp_air);
         qheating_arr(i, j, k, 1) = Q_lw;
 
         amrex::Real Q_sw_here = qheating_arr(i, j, k, 0);

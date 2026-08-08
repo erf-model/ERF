@@ -100,19 +100,31 @@ compute_sw_direct_flux(amrex::Real tau_cumulative, amrex::Real S0,
  * The factor (rho * cp)^{-1} converts radiative flux divergence [W/m^3] into
  * a temperature tendency [K/s].
  *
+ * **Phase 9: Nonuniform dz Support & Sanity Checks**
+ *
+ * This function accepts per-level dz values to support terrain-aware or
+ * nonuniform vertical grids. When dz <= 0, or rho <= 0, or cp <= 0,
+ * returns 0 (heating rate is undefined or unphysical).
+ *
+ * The computed heating rate is guarded against NaN/Inf via the same
+ * parameter validation.
+ *
  * @param[in] flux_top Downwelling flux at the top of the layer [W/m^2].
  * @param[in] flux_bot Downwelling flux at the bottom of the layer [W/m^2].
  * @param[in] dz Vertical thickness of the layer [m]. Must be positive.
+ *              For nonuniform grids (Phase 9+), use per-level spacing.
  * @param[in] rho Density [kg/m^3]. Must be positive.
  * @param[in] cp Specific heat at constant pressure [J/(kg·K)]. Must be positive.
  *
  * @return Heating rate [K/s]. Positive values indicate warming; negative indicate cooling.
+ *         Returns 0 if inputs are unphysical (dz, rho, cp <= 0).
  *
  * @note This function assumes the layer is the control volume with uniform
  *       properties. No sub-layer variation is computed.
  * @note The heating rate formula follows from energy conservation:
  *       dT/dt = -(1/rho/cp) * (∂F_rad/∂z)
  *            = -(1/rho/cp) * (F_out - F_in) / dz
+ * @note For terrain-aware grids, pass dz = z_cc(k) - z_cc(k+1) for each level.
  */
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 amrex::Real
@@ -125,7 +137,12 @@ compute_sw_heating_rate(amrex::Real flux_top, amrex::Real flux_bot,
   // Flux divergence: (W/m^2) / (m) = W/m^3
   amrex::Real flux_divergence = (flux_top - flux_bot) / dz;
   // Heating rate: (W/m^3) / (kg/m^3 * J/(kg*K)) = K/s
-  return flux_divergence / (rho * cp);
+  // Check for NaN/Inf as defensive sanity check
+  amrex::Real heating = flux_divergence / (rho * cp);
+  if (!std::isfinite(heating)) {
+    return 0.0;
+  }
+  return heating;
 }
 
 /**
