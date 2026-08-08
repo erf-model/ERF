@@ -1157,7 +1157,6 @@ void ERF::compute_twostream_radiation_diagnostics(
                         has_hetero_alb_sw = true;
                     }
                 } else if (twostream_alb_sw[lev]) {
-                    // Fall back to standalone MultiFab (constant-filled from scalar default)
                     hetero_alb_sw_arr = twostream_alb_sw[lev]->const_array(mfi);
                     has_hetero_alb_sw = true;
                 }
@@ -1175,7 +1174,6 @@ void ERF::compute_twostream_radiation_diagnostics(
                         has_hetero_emiss_lw = true;
                     }
                 } else if (twostream_emiss_lw[lev]) {
-                    // Fall back to standalone MultiFab (constant-filled from scalar default)
                     hetero_emiss_lw_arr = twostream_emiss_lw[lev]->const_array(mfi);
                     has_hetero_emiss_lw = true;
                 }
@@ -1193,11 +1191,11 @@ void ERF::compute_twostream_radiation_diagnostics(
                         has_t_sfc_field = true;
                     }
                 } else if (twostream_t_sfc[lev]) {
-                    // Fall back to standalone MultiFab (constant-filled from scalar default)
                     t_sfc_arr = twostream_t_sfc[lev]->const_array(mfi);
                     has_t_sfc_field = true;
                 }
             }
+
 
             // Create a 2D box for (i,j) iteration over the horizontal extent
             // One GPU thread per (i,j) column; k-loop is sequential within each thread
