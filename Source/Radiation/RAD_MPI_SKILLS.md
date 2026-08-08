@@ -1186,3 +1186,239 @@ amrex::Real Q_sw = compute_sw_heating_rate(..., dz_heating, ...);
 - Prevents silent data corruption (dedup tuples, finite checks)
 - Prepares for terrain-aware grids without breaking uniform-grid behavior
 - Remains GPU-safe and performance-neutral on current (uniform) simulations
+
+---
+
+## Part D: Phase 14 Lessons (Prognostic Cloud Fraction)
+
+### D.1 – RH/qc-based Cloud Fraction Diagnosis: Physical Consistency
+
+**Pattern (Phase 14):**
+```cpp
+// Diagnose RH from water vapor mixing ratio and T
+amrex::Real rh = compute_relative_humidity(qv, T, P);
+
+// Cloud fraction from RH ramp + qc scaling
+amrex::Real cf = diagnose_cloud_fraction_from_rh_qc(
+    rh, qc, rh_min, rh_max, qc_scale);
+
+// Use cf(k) to scale cloud optical depth at each level
+tau_cloud(k) = cf(k) * cloud_tau_per_layer;
+```
+
+**Why:**
+- RH provides a thermodynamic signal (saturation proximity); qc provides microphysical evidence
+- Per-level cf(k) is more physical than global scalar cloud_fraction
+- Scaling (not binary on/off) allows smooth transitions and sub-grid variability
+- Linear RH ramp + qc blend is computationally efficient and tunable
+
+**Common Mistake:**
+```cpp
+// ❌ WRONG: Hardcoded cloud fraction threshold
+if (qc > 1e-5) cf = 1.0;  // Binary; no gradation with RH
+
+// ❌ WRONG: Unbounded cf from qc alone
+cf = qc_scale * qc;  // Can exceed 1.0 if qc_scale too large
+
+// ❌ WRONG: RH without bounds or fallback
+rh = qv / qsat;  // Divide by zero if qsat=0 or invalid T
+```
+
+**Lesson:**
+- Blend RH and qc signals for physical robustness
+- Always clamp cf ∈ [0, 1] and guard against NaN/Inf
+- Test sensitivity to rh_min, rh_max, qc_scale; provide safe defaults
+
+---
+
+### D.2 – Finite Guards in RH Computation: Magnus Saturation Formula Safety
+
+**Pattern (Phase 14):**
+```cpp
+// Saturation vapor pressure (Magnus formula)
+amrex::Real e_sat = e0 * std::exp(a * (T - T0) / (T - b));
+amrex::Real qsat = epsilon * e_sat / (P - e_sat);
+
+// Guard against overflow and division by zero
+if (arg > 100.0) arg = 100.0;  // Prevent std::exp overflow
+if (qsat < 0.0 || !std::isfinite(qsat)) qsat = 1.0e-6;  // Fallback
+
+// RH clamped to [0, 1]
+amrex::Real rh = amrex::min(1.0, amrex::max(0.0, qv / qsat));
+```
+
+**Why:**
+- Magnus exp argument can overflow if T >> reference (defensive clipping needed)
+- qsat → ∞ as P → e_sat (division by zero risk near saturation)
+- qv/qsat can exceed 1.0 or become NaN if qsat invalid (must clamp)
+- RH approximations work only in reasonable temperature range (~200–350 K)
+
+**Common Mistake:**
+```cpp
+// ❌ WRONG: No clipping on exp argument
+amrex::Real e_sat = e0 * std::exp(a * (T - T0) / (T - b));  // Overflow if T very large
+
+// ❌ WRONG: No fallback for qsat ≈ 0
+amrex::Real rh = qv / qsat;  // NaN if qsat=0 or very small
+```
+
+**Lesson:**
+- Clip exp arguments to avoid overflow; fallback to a large value (e.g., 100)
+- Test with T outside normal range (e.g., T = 500 K or T = 100 K) to verify guards
+- Ensure qsat > 0 before division; use reasonable fallback (e.g., 1 kg/kg)
+
+---
+
+### D.3 – Per-Level Diagnosis in Vertical Sweeps: Integration Complexity
+
+**Pattern (Phase 14):**
+```cpp
+// Inside vertical sweep loop (SW down, LW up/down):
+for (int k = kmin; k <= kmax; ++k) {
+    // Compute state-dependent optical depth for THIS level
+    amrex::Real tau = tau_layer_value(k, ...);  // Base tau
+    
+    if (rad_choice.tau_sw_dynamic_enable) {
+        tau = diagnose_tau_sw_dynamic(i, j, k, state_arr, tau, rad_choice);
+    }
+    
+    // NEW Phase 14: Per-level cloud fraction modulation
+    if (rad_choice.cloud_fraction_prog_enable && cloudy) {
+        amrex::Real cf = diagnose_cloud_fraction_prognostic(i, j, k, state_arr, rad_choice, geom);
+        amrex::Real tau_base = tau_layer_value(k, ..., /*cloudy=*/false);
+        tau = tau_base + cf * cloud_tau_per_layer;  // Scale cloud component
+    }
+    
+    // Apply tau to flux computation
+    amrex::Real flux = compute_flux(tau, ...);
+    // ... accumulate ...
+}
+```
+
+**Why:**
+- Each level has different qv, qc, T → different RH and thus cf
+- Scaling cloud_tau_per_layer by cf(k) makes cloud impact physically local
+- Integration point must be after other tau diagnostics (Phase 12 dynamic tau)
+- Order matters: Phase 12 first, then Phase 14, then flux computation
+
+**Common Mistake:**
+```cpp
+// ❌ WRONG: Compute cf once for whole column, apply globally
+amrex::Real cf_global = diagnose_cf(...);  // Only once, outside loop
+for (int k = kmin; k <= kmax; ++k) {
+    tau = tau_base + cf_global * cloud_tau_per_layer;  // Wrong: ignores level differences
+}
+
+// ❌ WRONG: Apply cf before dynamic tau, losing dynamic effect
+tau = tau_base + cf * cloud_tau_per_layer;  // Phase 14
+tau = diagnose_tau_sw_dynamic(..., tau, ...);  // Phase 12 overwrites!
+```
+
+**Lesson:**
+- Diagnose cf(k) at EVERY level; never hoist out of sweep loop
+- Order integration steps: Phase 3 (base) → Phase 12 (dynamic) → Phase 14 (prognostic cf)
+- Test with varying qv/qc profiles (e.g., dry below 500m, cloud layer 500–2000m) to verify per-level diagnosis
+
+---
+
+### D.4 – Temporal Smoothing State: Future Infrastructure Requirement
+
+**Issue (Phase 14):**
+```cpp
+// Current implementation (Phase 14): NO temporal smoothing at sweep level
+if (rad_choice.cloud_fraction_smooth_enable && rad_choice.cloud_fraction_smooth_alpha > 0.0) {
+    // ❌ BLOCKED: No persistent storage for cf_old(i, j, k) across timesteps
+    // Would require new MultiFab (like qheating_rates) initialized in ERF_MakeNewArrays.cpp
+}
+
+// Smoothing logic is ready (in ERF_PrognosticCloudFraction.H):
+cf_smooth = smooth_cloud_fraction_ema(cf_new, cf_old, alpha);
+// But cf_old is not available in vertical_two_stream_sweep()
+```
+
+**Why:**
+- EMA smoothing requires storing cf from previous timestep: cf_smooth(i,j,k,t-dt)
+- vertical_two_stream_sweep() is device-side with no access to persistent storage
+- Adding per-level state MultiFab requires coordination with ERF initialization and boundary handling
+- Phase 14 focuses on diagnosis; smoothing deferred to Phase 15+ infrastructure work
+
+**Prevention:**
+- Set `cloud_fraction_smooth_enable = false` (default) to disable smoothing
+- Set `cloud_fraction_smooth_alpha = 0.0` (default) to disable smoothing
+- Parameters validated but NOT applied; future phases can add state storage
+
+**Lesson:**
+- Persistent per-level state in radiation solvers requires MultiFab infrastructure
+- Device-side code cannot dynamically allocate or access time-history arrays
+- Plan MultiFab addition (ERF_MakeNewArrays.cpp, boundary handling, diagnostics export) in separate phase
+- Current Phase 14 validates parameters and keeps smoothing logic ready for future use
+
+---
+
+### D.5 – Finite Guards: Saturation and Defensive Fallbacks
+
+**Pattern (Phase 14):**
+```cpp
+// Diagnose cloud fraction with multiple defensive layers
+amrex::Real cf = diagnose_cloud_fraction_from_rh_qc(rh, qc, rh_min, rh_max, qc_scale);
+
+// Inside diagnose_cloud_fraction_from_rh_qc():
+// Guard 1: Input validation
+if (!std::isfinite(rh) || !std::isfinite(qc)) return 0.0;
+
+// Guard 2: Physical range checks
+if (rh < 0.0) rh = 0.0;
+if (rh > 1.0) rh = 1.0;
+if (qc < 0.0) qc = 0.0;
+
+// Guard 3: Compute with saturation (min(1.0, x))
+amrex::Real cf_rh = (rh - rh_min) / (rh_max - rh_min);  // Linear ramp
+if (cf_rh < 0.0) cf_rh = 0.0;
+if (cf_rh > 1.0) cf_rh = 1.0;
+
+amrex::Real cf_qc = qc_scale * qc;
+if (cf_qc > 1.0) cf_qc = 1.0;
+
+amrex::Real cf = cf_rh + cf_qc;  // Sum saturates
+if (cf > 1.0) cf = 1.0;  // Guard 4: Final clamp
+
+// Guard 5: Finiteness check before return
+if (!std::isfinite(cf)) cf = 0.0;
+return cf;
+```
+
+**Why:**
+- qv/qc/T from state arrays may be uninitialized, NaN, or corrupted in edge cases
+- RH formula can fail if P ≈ e_sat (saturation); clamping prevents division singularities
+- cf ∈ [0, 1] is hardened at multiple levels (input, intermediate, output)
+- Silent fallback to 0 (no cloud fraction) is conservative; simulation continues
+
+**Common Mistake:**
+```cpp
+// ❌ WRONG: Minimal guards
+amrex::Real cf = (rh - rh_min) / (rh_max - rh_min) + qc_scale * qc;
+// Missing: divide by zero if rh_max==rh_min, no bounds on cf, no NaN check
+
+// ❌ WRONG: Late clamping only
+amrex::Real cf = rh_contribution + qc_contribution;
+if (cf > 1.0) cf = 1.0;  // Too late; cf > 1 may have already corrupted downstream code
+```
+
+**Lesson:**
+- Apply guards at input, intermediate steps, and output (defense in depth)
+- Always check `std::isfinite()` for any quantity derived from state arrays
+- Saturate (clamp) immediately after combining contributions (RH + qc)
+- Test with invalid states (T=0, P<0, qv=NaN, qc=Inf) to verify guards catch all paths
+
+---
+
+### Phase 14 Takeaway
+
+**Prognostic Cloud Fraction** combines thermodynamic (RH) and microphysical (qc) signals with:
+- Finite-guarded RH diagnosis from Magnus saturation formula
+- Per-level cf(k) diagnosis in vertical sweeps (after Phase 12 dynamic tau)
+- Saturation blending (cf ≤ 1) of RH + qc contributions
+- Temporal smoothing infrastructure ready for Phase 15+ persistent-state addition
+- Multiple defensive guards at input, intermediate, and output stages
+
+Enables physically consistent, per-level cloud fraction modulation of radiation while maintaining backward compatibility and GPU safety.
