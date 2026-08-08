@@ -112,7 +112,7 @@ void ERF::project_velocity_tb (int lev, double l_dt_d, Vector<MultiFab>& vmf)
         // Calculate u + dt*deltaf
         for (int idim = 0; idim < 3; ++idim) {
             MultiFab::Copy(u_plus_dtdf[0][idim], deltaf[0][idim], 0, 0, 1, 0);
-            u_plus_dtdf[0][0].mult(-l_dt,0,1,0);
+            u_plus_dtdf[0][idim].mult(-l_dt,0,1,0);
         }
         MultiFab::Add(u_plus_dtdf[0][0], vmf[Vars::xvel], 0, 0, 1, 0);
         MultiFab::Add(u_plus_dtdf[0][1], vmf[Vars::yvel], 0, 0, 1, 0);
