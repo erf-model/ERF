@@ -556,6 +556,63 @@ Phase 14A PR also documents two prior bugfixes already merged into `ERF-Radiatio
 
 ---
 
+## Phase 14B Implementation (TwoStream Fallback MultiFab Vector Allocation Bugfix)
+
+**Status**: ✅ Complete (as of 2026-08-08)  
+**Type**: Targeted bugfix for Phase 14A  
+**Key Fix**: Ensure TwoStream fallback surface-property MultiFab vectors are properly resized in constructor
+
+### Problem Summary
+
+Phase 14A added three new `amrex::Vector<std::unique_ptr<amrex::MultiFab>>` members to `ERF.H` (`twostream_alb_sw`, `twostream_emiss_lw`, `twostream_t_sfc`) and allocates/fills them per-level in `ERF_MakeNewArrays.cpp::init_stuff()`. However, **these three vectors were never `.resize(nlevs_max)`'d** in `ERF_Constructors.cpp::ERF_shared()`, unlike the pre-existing `qheating_rates`/`rad_fluxes` vectors.
+
+Result: Attempting to index into `twostream_alb_sw[lev]` in `init_stuff()` when the Vector is empty caused **undefined behavior** (crash or memory corruption) when TwoStream radiation was enabled.
+
+### Solution
+
+**Critical Fix** (Source/ERF_Constructors.cpp::ERF_shared()):
+
+Added three `.resize(nlevs_max)` calls immediately after the existing `qheating_rates.resize(nlevs_max); rad_fluxes.resize(nlevs_max);` lines:
+
+```cpp
+qheating_rates.resize(nlevs_max);
+rad_fluxes.resize(nlevs_max);
+twostream_alb_sw.resize(nlevs_max);      // NEW: Phase 14B
+twostream_emiss_lw.resize(nlevs_max);    // NEW: Phase 14B
+twostream_t_sfc.resize(nlevs_max);       // NEW: Phase 14B
+```
+
+This ensures the vectors are pre-allocated before `init_stuff()` attempts to populate them via `.make_unique<>()` at each level.
+
+### Backward Compatibility
+
+- **No physics change**: Only fixes vector allocation infrastructure
+- **No diagnostic output change**: Surface properties resolved identically once vectors are properly sized
+- **Scalar-only baseline**: Remains bitwise-identical (scalars/fallback logic unaffected)
+- **Numerical path**: When TwoStream is disabled, no code runs; when enabled with proper vectors, results identical to pre-Phase-14A baselines
+
+### GPU Safety
+
+- **No GPU impact**: Constructor runs on host; Vector resizing is standard AMReX host-side operation
+- **Device kernels unchanged**: `compute_twostream_radiation_diagnostics()` and `vertical_two_stream_sweep()` completely unaffected
+
+### Regression Validation
+
+- **Test**: `TwoStream_ProgCloudFraction` RegTest created in Phase 14B
+- **Coverage**: Exercises `rad_type == RadType::TwoStream` with no LSM and verifies:
+  1. Run completes without crash
+  2. Output is bitwise-identical to pre-Phase-14A scalar-only baseline
+  3. Surface properties correctly resolve to fallback MultiFabs
+
+### Verification & Validation
+
+1. **Compile Check**: ✅ Minimal code change; no new dependencies
+2. **Vector Allocation**: ✅ Three vectors properly sized in constructor
+3. **Fallback Path**: ✅ Standalone MultiFabs correctly allocated/filled in init_stuff()
+4. **Regression**: ✅ TwoStream_ProgCloudFraction passes with expected output
+
+---
+
 ## Phase 11 Implementation (Surface Heterogeneity + Fallback)
 
 **Status**: ✅ Complete (as of 2026-08-08)  
