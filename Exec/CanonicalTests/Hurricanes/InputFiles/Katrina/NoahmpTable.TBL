@@ -122,9 +122,9 @@
  AQE      =   1.0,   1.0,   1.0,   1.0,   1.0,   1.0,   1.0,   1.0,   1.0,   1.0,   1.0,   1.0,   1.0,   1.0,   1.0,   1.0,   1.0,   1.0,   1.0,   1.0,   1.0,   1.0,   1.0,   1.0,   1.0,   1.0,   1.0,
  ! LTOVRC: leaf turnover [1/s]
  LTOVRC   =   0.0,   1.2,   1.2,   1.2,   1.2,  1.30,  0.50,  0.65,  0.70,  0.65,  0.55,   0.2,  0.55,   0.5,   0.5,   0.0,   1.4,   1.4,   0.0,   1.2,   1.3,   1.4,   1.0,   0.0,   1.0,   0.0,   0.0,
- ! DILEFC: coeficient for leaf stress death [1/s]
+ ! DILEFC: coefficient for leaf stress death [1/s]
  DILEFC   =  0.00,  0.50,  0.50,  0.50,  0.35,  0.20,  0.20,  0.20,  0.50,  0.50,  0.60,  1.80,  0.50,  1.20,  0.80,  0.00,  0.40,  0.40,  0.00,  0.40,  0.30,  0.40,  0.30,  0.00,  0.30,  0.00,  0.00,
- ! DILEFW: coeficient for leaf stress death [1/s]
+ ! DILEFW: coefficient for leaf stress death [1/s]
  DILEFW   =  0.00,  0.20,  0.20,  0.20,  0.20,  0.20,  0.10,  0.20,  0.20,  0.50,  0.20,  0.20,  4.00,  0.20,  0.20,  0.00,  0.20,  0.20,  0.00,  0.20,  0.20,  0.20,  0.20,  0.00,  0.20,  0.00,  0.00,
  ! RMF25: leaf maintenance respiration at 25degC (umol co2/m2/s)
  RMF25    =  0.00,  1.00,  1.40,  1.45,  1.45,  1.45,  1.80,  0.26,  0.26,  0.80,  3.00,  4.00,  0.65,  3.00,  3.00,  0.00,  3.20,  3.20,  0.00,  3.20,  3.00,  3.00,  3.00,  0.00,  3.00,  0.00,  0.00,
@@ -170,11 +170,11 @@
  RSMAX    = 5000., 5000., 5000., 5000., 5000., 5000., 5000., 5000., 5000., 5000., 5000., 5000., 5000., 5000., 5000., 5000., 5000., 5000., 5000., 5000., 5000., 5000., 5000., 5000., 5000., 5000., 5000.,
  ! RTOVRC: root turnover coefficient [1/s]
  RTOVRC   = 2.E-8, 2.E-8, 2.E-8, 2.E-8, 2.E-8, 2.E-8, 2.E-8, 2.E-8, 2.E-8, 2.E-8, 2.E-8, 2.E-8, 2.E-8, 2.E-8, 2.E-8, 2.E-8, 2.E-8, 2.E-8, 2.E-8, 2.E-8, 2.E-8, 2.E-8, 2.E-8, 2.E-8, 2.E-8, 2.E-8, 2.E-8,
- ! RSWOODC: wood respiration coeficient [1/s]
+ ! RSWOODC: wood respiration coefficient [1/s]
  RSWOODC  = 3.E-10,3.E-10,3.E-10,3.E-10,3.E-10,3.E-10,3.E-10,3.E-10,3.E-10,3.E-10,3.E-10,3.E-10,3.E-10,3.E-10,3.E-10,3.E-10,3.E-10,3.E-10,3.E-10,3.E-10,3.E-10,3.E-10,3.E-10,3.E-10,3.E-10,3.E-10,3.E-10,
  ! BF: parameter for present wood allocation
  BF       =  0.90,  0.90,  0.90,  0.90,  0.90,  0.90,  0.90,  0.90,  0.90,  0.90,  0.90,  0.90,  0.90,  0.90,  0.90,  0.90,  0.90,  0.90,  0.90,  0.90,  0.90,  0.90,  0.90,  0.90,  0.90,  0.90,  0.90,
- ! WSTRC: water stress coeficient
+ ! WSTRC: water stress coefficient
  WSTRC    = 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0,
  ! LAIMIN: minimum leaf area index [m2/m2]
  LAIMIN   =  0.05,  0.05,  0.05,  0.05,  0.05,  0.05,  0.05,  0.05,  0.05,  0.05,  0.05,  0.05,  0.05,  0.05,  0.05,  0.05,  0.05,  0.05,  0.05,  0.05,  0.05,  0.05,  0.05,  0.05,  0.05,  0.05,  0.05,
@@ -316,9 +316,9 @@
  AQE      =   1.0,    1.0,    1.0,    1.0,    1.0,    1.0,    1.0,    1.0,    1.0,    1.0,    1.0,    1.0,    1.0,    1.0,    1.0,    1.0,    1.0,    1.0,    1.0,    1.0,
  ! LTOVRC: leaf turnover [1/s]
  LTOVRC   =   0.5,   0.55,    0.2,   0.55,    0.5,   0.65,   0.65,   0.65,   0.65,   0.50,    1.4,    1.6,    0.0,    1.2,    0.0,    0.0,    0.0,    1.3,    1.4,    1.0,
- ! DILEFC: coeficient for leaf stress death [1/s]
+ ! DILEFC: coefficient for leaf stress death [1/s]
  DILEFC   =  1.20,   0.50,   1.80,   0.60,   0.80,   0.20,   0.20,   0.20,   0.50,   0.20,    0.4,   0.50,   0.00,   0.35,   0.00,   0.00,   0.00,   0.30,   0.40,   0.30,
- ! DILEFW: coeficient for leaf stress death [1/s]
+ ! DILEFW: coefficient for leaf stress death [1/s]
  DILEFW   =  0.20,   4.00,   0.20,   0.20,   0.20,   0.20,   0.20,   0.20,   0.50,   0.10,    0.2,   0.20,   0.00,   0.20,   0.00,   0.00,   0.00,   0.20,   0.20,   0.20,
  ! RMF25: leaf maintenance respiration at 25degC (umol co2/m2/s)
  RMF25    =  3.00,   0.65,   4.00,   3.00,   3.00,   0.26,   0.26,   0.26,   0.80,   1.80,    3.2,   1.00,   0.00,   1.45,   0.00,   0.00,   0.00,   3.00,   3.00,   3.00,
@@ -366,11 +366,11 @@
  RSMAX    = 5000.,  5000.,  5000.,  5000.,  5000.,  5000.,  5000.,  5000.,  5000.,  5000.,  5000.,  5000.,  5000.,  5000.,  5000.,  5000.,  5000.,  5000.,  5000.,  5000.,
  ! RTOVRC: root turnover coefficient [1/s]
  RTOVRC   = 2.E-8,  2.E-8,  2.E-8,  2.E-8,  2.E-8,  2.E-8,  2.E-8,  2.E-8,  2.E-8,  2.E-8,  2.E-8,  2.E-8,  2.E-8,  2.E-8,  2.E-8,  2.E-8,  2.E-8,  2.E-8,  2.E-8,  2.E-8,
- ! RSWOODC: wood respiration coeficient [1/s]
+ ! RSWOODC: wood respiration coefficient [1/s]
  RSWOODC  = 3.E-10,3.E-10, 3.E-10, 3.E-10, 3.E-10, 3.E-10, 3.E-10, 3.E-10, 3.E-10, 3.E-10, 3.E-10, 3.E-10, 3.E-10, 3.E-10, 3.E-10, 3.E-10, 3.E-10, 3.E-10, 3.E-10, 3.E-10,
  ! BF: parameter for present wood allocation
  BF       =  0.90,   0.90,   0.90,   0.90,   0.90,   0.90,   0.90,   0.90,   0.90,   0.90,   0.90,   0.90,   0.90,   0.90,   0.90,   0.90,   0.90,   0.90,   0.90,   0.90,
- ! WSTRC: water stress coeficient
+ ! WSTRC: water stress coefficient
  WSTRC    = 100.0,  100.0,  100.0,  100.0,  100.0,  100.0,  100.0,  100.0,  100.0,  100.0,  100.0,  100.0,  100.0,  100.0,  100.0,  100.0,  100.0,  100.0,  100.0,  100.0,
  ! LAIMIN: minimum leaf area index [m2/m2]
  LAIMIN   =  0.05,   0.05,   0.05,   0.05,   0.05,   0.05,   0.05,   0.05,   0.05,   0.05,   0.05,   0.05,   0.05,   0.05,   0.05,   0.05,   0.05,   0.05,   0.05,   0.05,
@@ -547,7 +547,7 @@
  GDDS1      =   50.0,   60.0,   50.0,   50.0,  150.0,    ! Grow Degree Day (GDD) from seeding to emergence
  GDDS2      =  625.0,  675.0,  718.0,  718.0,  450.0,    ! Grow Degree Day (GDD) from seeding to initial vegetative
  GDDS3      =  933.0, 1183.0,  933.0,  933.0,  770.0,    ! Grow Degree Day (GDD) from seeding to post vegetative
- GDDS4      = 1103.0, 1253.0, 1103.0, 1103.0,  950.0,    ! Grow Degree Day (GDD) from seeding to intial reproductive
+ GDDS4      = 1103.0, 1253.0, 1103.0, 1103.0,  950.0,    ! Grow Degree Day (GDD) from seeding to initial reproductive
  GDDS5      = 1555.0, 1605.0, 1555.0, 1555.0, 1120.0,    ! Grow Degree Day (GDD) from seeding to pysical maturity
  C3PSNI     =    0.0,    1.0,    0.0,    1.0,    1.0,    ! photosynthetic pathway: 0.0 = c4, 1.0 = c3; the following 11 *I parameters added by Z. Zhang, 2020/02
  KC25I      =   30.0,   30.0,   30.0,   30.0,   30.0,    ! CO2 michaelis-menten constant at 25 degC (pa)
@@ -570,22 +570,22 @@
  EPSI       =   12.5,   12.5,   12.5,   12.5,   12.5,    ! initial light use efficiency
  Q10MR      =    2.0,    2.0,    2.0,    2.0,    2.0,    ! q10 for maintainance respiration; change in maintainance respiration for every 10-degC temperature change
  LEFREEZ    =    268,    268,    268,    268,    268,    ! characteristic T for leaf freezing [K]
- DILE_FC_S1 =    0.0,    0.0,    0.0,    0.0,    0.0,    ! coeficient for temperature leaf stress death [1/s] at growth stage 1
- DILE_FC_S2 =    0.0,    0.0,    0.0,    0.0,    0.0,    ! coeficient for temperature leaf stress death [1/s] at growth stage 2
- DILE_FC_S3 =    0.0,    0.0,    0.0,    0.0,    0.0,    ! coeficient for temperature leaf stress death [1/s] at growth stage 3
- DILE_FC_S4 =    0.0,    0.0,    0.0,    0.0,    0.0,    ! coeficient for temperature leaf stress death [1/s] at growth stage 4
- DILE_FC_S5 =    0.5,    0.5,    0.5,    0.5,    0.5,    ! coeficient for temperature leaf stress death [1/s] at growth stage 5
- DILE_FC_S6 =    0.5,    0.5,    0.5,    0.5,    0.5,    ! coeficient for temperature leaf stress death [1/s] at growth stage 6
- DILE_FC_S7 =    0.0,    0.0,    0.0,    0.0,    0.0,    ! coeficient for temperature leaf stress death [1/s] at growth stage 7
- DILE_FC_S8 =    0.0,    0.0,    0.0,    0.0,    0.0,    ! coeficient for temperature leaf stress death [1/s] at growth stage 8
- DILE_FW_S1 =    0.0,    0.0,    0.0,    0.0,    0.0,    ! coeficient for water leaf stress death [1/s] at growth stage 1
- DILE_FW_S2 =    0.0,    0.0,    0.0,    0.0,    0.0,    ! coeficient for water leaf stress death [1/s] at growth stage 2
- DILE_FW_S3 =    0.0,    0.0,    0.0,    0.0,    0.0,    ! coeficient for water leaf stress death [1/s] at growth stage 3
- DILE_FW_S4 =    0.0,    0.0,    0.0,    0.0,    0.0,    ! coeficient for water leaf stress death [1/s] at growth stage 4
- DILE_FW_S5 =    0.2,    0.2,    0.2,    0.2,    0.2,    ! coeficient for water leaf stress death [1/s] at growth stage 5
- DILE_FW_S6 =    0.2,    0.2,    0.2,    0.2,    0.2,    ! coeficient for water leaf stress death [1/s] at growth stage 6
- DILE_FW_S7 =    0.0,    0.0,    0.0,    0.0,    0.0,    ! coeficient for water leaf stress death [1/s] at growth stage 7
- DILE_FW_S8 =    0.0,    0.0,    0.0,    0.0,    0.0,    ! coeficient for water leaf stress death [1/s] at growth stage 8
+ DILE_FC_S1 =    0.0,    0.0,    0.0,    0.0,    0.0,    ! coefficient for temperature leaf stress death [1/s] at growth stage 1
+ DILE_FC_S2 =    0.0,    0.0,    0.0,    0.0,    0.0,    ! coefficient for temperature leaf stress death [1/s] at growth stage 2
+ DILE_FC_S3 =    0.0,    0.0,    0.0,    0.0,    0.0,    ! coefficient for temperature leaf stress death [1/s] at growth stage 3
+ DILE_FC_S4 =    0.0,    0.0,    0.0,    0.0,    0.0,    ! coefficient for temperature leaf stress death [1/s] at growth stage 4
+ DILE_FC_S5 =    0.5,    0.5,    0.5,    0.5,    0.5,    ! coefficient for temperature leaf stress death [1/s] at growth stage 5
+ DILE_FC_S6 =    0.5,    0.5,    0.5,    0.5,    0.5,    ! coefficient for temperature leaf stress death [1/s] at growth stage 6
+ DILE_FC_S7 =    0.0,    0.0,    0.0,    0.0,    0.0,    ! coefficient for temperature leaf stress death [1/s] at growth stage 7
+ DILE_FC_S8 =    0.0,    0.0,    0.0,    0.0,    0.0,    ! coefficient for temperature leaf stress death [1/s] at growth stage 8
+ DILE_FW_S1 =    0.0,    0.0,    0.0,    0.0,    0.0,    ! coefficient for water leaf stress death [1/s] at growth stage 1
+ DILE_FW_S2 =    0.0,    0.0,    0.0,    0.0,    0.0,    ! coefficient for water leaf stress death [1/s] at growth stage 2
+ DILE_FW_S3 =    0.0,    0.0,    0.0,    0.0,    0.0,    ! coefficient for water leaf stress death [1/s] at growth stage 3
+ DILE_FW_S4 =    0.0,    0.0,    0.0,    0.0,    0.0,    ! coefficient for water leaf stress death [1/s] at growth stage 4
+ DILE_FW_S5 =    0.2,    0.2,    0.2,    0.2,    0.2,    ! coefficient for water leaf stress death [1/s] at growth stage 5
+ DILE_FW_S6 =    0.2,    0.2,    0.2,    0.2,    0.2,    ! coefficient for water leaf stress death [1/s] at growth stage 6
+ DILE_FW_S7 =    0.0,    0.0,    0.0,    0.0,    0.0,    ! coefficient for water leaf stress death [1/s] at growth stage 7
+ DILE_FW_S8 =    0.0,    0.0,    0.0,    0.0,    0.0,    ! coefficient for water leaf stress death [1/s] at growth stage 8
  FRA_GR     =    0.2,    0.2,    0.2,    0.2,    0.2,    ! fraction of growth respiration
  LF_OVRC_S1 =    0.0,    0.0,    0.0,    0.0,    0.0,    ! fraction of leaf turnover  [1/s] at growth stage 1
  LF_OVRC_S2 =    0.0,    0.0,    0.0,    0.0,    0.0,    ! fraction of leaf turnover  [1/s] at growth stage 2
@@ -815,7 +815,7 @@
  MAXSMC  =    0.339,    0.421,    0.434,    0.476,    0.484,    0.439,    0.404,    0.464,    0.465,    0.406,    0.468,    0.468,    0.439,    1.000,    0.200,    0.421,    0.468,    0.200,    0.339
  ! REFSMC: reference soil moisture (field capacity) (volumetric)
  REFSMC  =    0.192,    0.283,    0.312,    0.360,    0.347,    0.329,    0.315,    0.387,    0.382,    0.338,    0.404,    0.412,    0.329,    0.000,    0.170,    0.283,    0.454,    0.170,    0.192
- ! SATPSI: saturated soil matric potential
+ ! SATPSI: saturated soil metric potential
  SATPSI  =    0.069,    0.036,    0.141,    0.759,    0.955,    0.355,    0.135,    0.617,    0.263,    0.098,    0.324,    0.468,    0.355,    0.000,    0.069,    0.036,    0.468,    0.069,    0.069
  ! SATDK: saturated soil hydraulic conductivity
  SATDK   = 4.66E-05, 1.41E-05, 5.23E-06, 2.81E-06, 2.18E-06, 3.38E-06, 4.45E-06, 2.03E-06, 2.45E-06, 7.22E-06, 1.34E-06, 9.74E-07, 3.38E-06, 0.00E+00, 1.41E-04, 1.41E-05, 9.74E-07, 1.41E-04, 4.66E-05
@@ -875,7 +875,7 @@
  MAXSMC  =    0.395,    0.410,    0.435,    0.485,    0.485,    0.451,    0.420,    0.477,    0.451,    0.426,    0.492,    0.482,    0.451,    1.000,    0.200,    0.435,    0.468,    0.200,    0.339
  ! REFSMC: reference soil moisture (field capacity) (volumetric)
  REFSMC  =    0.174,    0.179,    0.249,    0.369,    0.369,    0.314,    0.299,    0.357,    0.314,    0.316,    0.409,    0.400,    0.314,    1.000,    0.100,    0.249,    0.454,    0.170,    0.236
- ! SATPSI: saturated soil matric potential
+ ! SATPSI: saturated soil metric potential
  SATPSI  =    0.121,    0.090,    0.218,    0.786,    0.786,    0.478,    0.299,    0.356,    0.478,    0.153,    0.490,    0.405,    0.478,    0.000,    0.121,    0.218,    0.468,    0.069,    0.069
  ! SATDK: saturated soil hydraulic conductivity
  SATDK   = 1.76E-04, 1.56E-04, 3.47E-05, 7.20E-06, 7.20E-06, 6.95E-06, 6.30E-06, 1.70E-06, 6.95E-06, 2.17E-06, 1.03E-06, 1.28E-06, 6.95E-06, 0.00E+00, 1.41E-04, 3.47E-05, 9.74E-07, 1.41E-04, 1.76E-04
