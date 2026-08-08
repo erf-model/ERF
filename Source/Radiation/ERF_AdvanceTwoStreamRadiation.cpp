@@ -295,7 +295,7 @@ void vertical_two_stream_sweep(
     amrex::Real& max_heating_rate,
     amrex::Real& sw_surface_flux,
     amrex::Real& lw_net_surface,
-    const Array4<const amrex::Real>& z_phys_cc = nullptr)
+    const Array4<const amrex::Real>& z_phys_cc)
 {
     // Grid bounds
     int kmin = bx.smallEnd(2);
@@ -319,7 +319,7 @@ void vertical_two_stream_sweep(
     
     // Phase 10: Compute per-level dz from z_phys_cc if available
     bool using_nonuniform_dz = false;
-    if (z_phys_cc != nullptr) {
+    if (z_phys_cc) {
         using_nonuniform_dz = true;
         for (int k = 0; k < nlev && (kmin + k) < kmax; ++k) {
             // Compute layer thickness from cell-centered heights
@@ -728,7 +728,7 @@ void ERF::compute_twostream_radiation_diagnostics(
 
          // Launch parallel kernel over (i,j) columns
             reduce_ops.eval(xy_box, reduce_data,
-                [=, z_phys_cc_arr] AMREX_GPU_DEVICE (int i, int j, int /*k_unused*/) -> ReduceTuple
+                [=] AMREX_GPU_DEVICE (int i, int j, int /*k_unused*/) -> ReduceTuple
                 {
                     // Clear-sky column (always evaluated; this is the sole
                     // contributor when cloud_fraction == 0.0, matching Phase 2d)
@@ -739,7 +739,7 @@ void ERF::compute_twostream_radiation_diagnostics(
                         i, j, bx, geom_lev, state_arr, rad_choice, /*cloudy=*/false,
                         qheating_clear_arr,
                         max_heating_clear, sw_flux_clear, lw_net_clear,
-                        has_z_phys ? z_phys_cc_arr : nullptr);
+                        has_z_phys,z_phys_cc_arr);
 
                     amrex::Real max_heating_col = max_heating_clear;
                     amrex::Real sw_flux_col = sw_flux_clear;
@@ -756,7 +756,7 @@ void ERF::compute_twostream_radiation_diagnostics(
                             i, j, bx, geom_lev, state_arr, rad_choice, /*cloudy=*/true,
                             qheating_cloudy_arr,
                             max_heating_cloudy, sw_flux_cloudy, lw_net_cloudy,
-                            has_z_phys ? z_phys_cc_arr : nullptr);
+                            has_z_phys,z_phys_cc_arr);
 
                         // Blend clear-sky and cloudy-column results
                         sw_flux_col = (1.0 - cloud_fraction) * sw_flux_clear +
