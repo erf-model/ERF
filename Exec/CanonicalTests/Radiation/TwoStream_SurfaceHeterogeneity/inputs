@@ -100,11 +100,7 @@ erf.latitude = 45.0  # mid-latitude (f = 1.0e-4 s^-1)
 erf.use_coriolis = true
 
 erf.abl_driver_type = "GeostrophicWind"
-erf.abl_driver_t_0 = 0.0
-erf.abl_driver_tfluc_tuning = 1.0
-erf.abl_geo_wind_table_heights     = 0.0 50.0 100.0 200.0 400.0
-erf.abl_geo_wind_table_velocities  = 0.0 7.7   10.0   10.0   10.0
-erf.abl_geo_wind_table_directions  = 0.0 0.0    0.0    0.0    0.0
+
 
 # RADIATION (Phase 11 Surface Heterogeneity Test)
 erf.radiation_type = "TwoStream"
@@ -143,4 +139,4 @@ erf.radiation.diag_regtest_line_enable = true
 erf.radiation.diag_csv_enable = true
 erf.radiation.diag_file = "radiation_diag_phase11.dat"
 
-erf.v = 1
+
