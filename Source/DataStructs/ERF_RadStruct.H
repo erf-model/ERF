@@ -238,6 +238,33 @@ public:
   amrex::Real cloud_asymmetry_factor = 0.0;
 
   /**
+   * @brief (Phase 11) Shortwave surface albedo fallback [0, 1] for per-column
+   * heterogeneous-surface-property resolution. Used when per-column LSM/radiation
+   * interface albedo field is unavailable or invalid. Default 0.3 represents
+   * typical land/water reflectivity. Only used when hetero surface fields not
+   * present or disabled.
+   */
+  amrex::Real surface_albedo_sw = 0.3;
+
+  /**
+   * @brief (Phase 11) Longwave surface emissivity fallback [0, 1] for per-column
+   * heterogeneous-surface-property resolution. Used when per-column LSM/radiation
+   * interface emissivity field is unavailable or invalid. Default 0.99 represents
+   * typical land/water/ice emissivity (nearly blackbody). Only used when hetero
+   * surface fields not present or disabled.
+   */
+  amrex::Real surface_emissivity_lw = 0.99;
+
+  /**
+   * @brief (Phase 11) Surface temperature fallback [K] for per-column heterogeneous
+   * -surface-property resolution. Used as LW boundary condition when per-column
+   * LSM/radiation interface surface-temperature field is unavailable or invalid.
+   * Default 300.0 K (typical surface temp). Only used when hetero t_sfc field
+   * not present or disabled.
+   */
+  amrex::Real surface_temp_k = 300.0;
+
+  /**
    * @brief Read radiation options from the input parameter database.
    *
    * @param[in] lev AMR level index.
@@ -355,6 +382,22 @@ public:
       }
       // Ensure dedup tolerance is non-negative
       if (diag_dedup_tol < 0.0) diag_dedup_tol = 0.0;
+
+      // Phase 11: surface heterogeneity fallback parameters (all optional;
+      // defaults preserve Phase 1-10 scalar behavior; only used when hetero
+      // LSM/radiation interface fields are absent or invalid)
+      pp.query("radiation.surface_albedo_sw", surface_albedo_sw);
+      pp.query("radiation.surface_emissivity_lw", surface_emissivity_lw);
+      pp.query("radiation.surface_temp_k", surface_temp_k);
+
+      // Parameter validation (Phase 11): clamp albedo/emissivity to [0, 1],
+      // ensure surface temp is positive and finite
+      if (surface_albedo_sw < 0.0) surface_albedo_sw = 0.0;
+      if (surface_albedo_sw > 1.0) surface_albedo_sw = 1.0;
+      if (surface_emissivity_lw < 0.0) surface_emissivity_lw = 0.0;
+      if (surface_emissivity_lw > 1.0) surface_emissivity_lw = 1.0;
+      if (surface_temp_k <= 0.0) surface_temp_k = 300.0;  // Ensure positive
+      if (!std::isfinite(surface_temp_k)) surface_temp_k = 300.0;  // Ensure finite
     }
   }
 
