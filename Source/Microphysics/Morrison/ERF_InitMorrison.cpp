@@ -49,7 +49,7 @@ Morrison::Init (const MultiFab& cons_in,
     }
 
 #ifdef ERF_USE_MORR_FORT
-    bool use_cpp;
+    bool use_cpp = true;
     amrex::ParmParse pp("erf");
     pp.query("use_morr_cpp_answer", use_cpp);
 
