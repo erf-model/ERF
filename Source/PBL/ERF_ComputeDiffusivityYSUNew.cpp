@@ -584,6 +584,8 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
         // Countergradient: HGAMT = min(CFAC * u* * θ*, GAMCRT), where CFAC=7.8, GAMCRT=3K
         // WRF Reference: module_bl_ysu.F lines 220-250
         const bool enable_ysu_sat_limiter = turbChoice.enable_ysu_sat_limiter;
+        const bool enable_ysu_rad_tend_limiter = turbChoice.enable_ysu_rad_tend_limiter;
+        const amrex::Real ysu_rad_tend_limiter_magnitude = turbChoice.ysu_rad_tend_limiter_magnitude;
 
         // ========================================================================
         // Cloud-top detection for top-down mixing (H10 Section 3b)
@@ -686,7 +688,7 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
                     } else {
                         // Step 2: Apply magnitude limiter/bounds
                         // Clamp LRAD to [-limiter_magnitude, +limiter_magnitude]
-                        const amrex::Real lim_mag = turbChoice.ysu_rad_tend_limiter_magnitude;
+                        const amrex::Real lim_mag = ysu_rad_tend_limiter_magnitude;
                         LRAD_limited = amrex::min(LRAD_raw,  lim_mag);
                         LRAD_limited = amrex::max(LRAD_limited, -lim_mag);
                     }
