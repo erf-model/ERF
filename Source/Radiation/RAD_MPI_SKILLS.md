@@ -1422,3 +1422,113 @@ if (cf > 1.0) cf = 1.0;  // Too late; cf > 1 may have already corrupted downstre
 - Multiple defensive guards at input, intermediate, and output stages
 
 Enables physically consistent, per-level cloud fraction modulation of radiation while maintaining backward compatibility and GPU safety.
+
+---
+
+## Part D.3 – Phase 14B Lesson: Multilevel Vector Allocation for Radiation State
+
+### D.3.1 – Allocate Before Use: Radiation Surface-Property MultiFabs
+
+**Pattern:**
+```cpp
+// ERF_Constructors.cpp::ERF_shared() – Constructor stage
+int nlevs_max = max_level + 1;
+
+// Step 1: Resize all radiation state vectors
+qheating_rates.resize(nlevs_max);
+rad_fluxes.resize(nlevs_max);
+twostream_alb_sw.resize(nlevs_max);      // Phase 14A/14B: Fallback surface albedo
+twostream_emiss_lw.resize(nlevs_max);    // Phase 14A/14B: Fallback surface emissivity
+twostream_t_sfc.resize(nlevs_max);       // Phase 14A/14B: Fallback surface temperature
+
+// Later in init_stuff() – Per-level allocation stage
+if (solverChoice.radChoice.rad_type == RadType::TwoStream) {
+    twostream_alb_sw[lev]   = std::make_unique<MultiFab>(ba2d[lev], dm, 1, 0);
+    twostream_emiss_lw[lev] = std::make_unique<MultiFab>(ba2d[lev], dm, 1, 0);
+    twostream_t_sfc[lev]    = std::make_unique<MultiFab>(ba2d[lev], dm, 1, 0);
+    
+    // Initialize from scalar fallbacks
+    twostream_alb_sw[lev]->setVal(solverChoice.radChoice.surface_albedo_sw);
+    twostream_emiss_lw[lev]->setVal(solverChoice.radChoice.surface_emissivity_lw);
+    twostream_t_sfc[lev]->setVal(solverChoice.radChoice.surface_temp_k);
+}
+```
+
+**Why:**
+- `Vector<std::unique_ptr<MultiFab>>` must be **pre-sized in constructor** (ERF_shared)
+- **Before** entering per-level allocation loop (init_stuff)
+- If `.resize(nlevs_max)` is skipped, indexing `vector[lev]` in init_stuff is **undefined behavior**:
+  - Vector capacity is 0; accessing index [lev] accesses unallocated memory
+  - May crash, silently corrupt state, or hang on GPU
+  - Bug not caught at compile-time (Vector allows operator[] without bounds checking)
+
+**Common Mistake:**
+```cpp
+// ❌ WRONG: Forgot to resize in constructor
+// ERF_Constructors.cpp::ERF_shared()
+// (no resize call for twostream_alb_sw)
+
+// Later in init_stuff():
+if (solverChoice.radChoice.rad_type == RadType::TwoStream) {
+    // CRASH: twostream_alb_sw.size() == 0, accessing [lev] is undefined behavior!
+    twostream_alb_sw[lev] = std::make_unique<MultiFab>(ba2d[lev], dm, 1, 0);
+}
+```
+
+**Fix Checklist:**
+1. Identify all radiation state vectors that hold per-level data (MultiFab, FAB, Array, etc.)
+2. For each vector, add a `.resize(nlevs_max)` call in `ERF::ERF_shared()` **after** `int nlevs_max = max_level + 1`
+3. Place all radiation vector resizes together (near qheating_rates/rad_fluxes) for maintainability
+4. Comment with the phase that added the vector (e.g., `// Phase 14A/14B`)
+5. Verify in init_stuff() that vector indices are now valid before calling `.make_unique<>()`
+
+### D.3.2 – Conditional Allocation Requires Unconditional Sizing
+
+**Pattern:**
+```cpp
+// Size unconditionally in constructor (regardless of whether allocation will happen)
+twostream_alb_sw.resize(nlevs_max);  // Done even if TwoStream is disabled!
+
+// Later, allocate conditionally per-level
+for (int lev = 0; lev <= max_level; ++lev) {
+    init_stuff(lev, ...);  // Inside: if (radChoice.rad_type == TwoStream) { allocate }
+}
+```
+
+**Why:**
+- Sizing is cheap (just reserves capacity)
+- Allocation (`.make_unique<>()`) can be expensive and conditional on runtime parameters
+- Decoupling them prevents hard-to-debug indexing bugs
+- Future phase may enable TwoStream conditionally; size() call is already there
+
+**Backward Compatibility:**
+- If TwoStream is disabled, vectors are sized but empty (unique_ptrs are nullptr)
+- No performance cost (empty vectors are negligible)
+- No numerical impact (code never accesses nullptr vectors when TwoStream is off)
+
+### D.3.3 – Phase 14B Regression Test Pattern
+
+**Test Setup** (TwoStream_ProgCloudFraction):
+```
+# Test inputs file: erf.radiation.rad_type = TwoStream
+# Surface properties: fallback scalars (no LSM)
+# Grid: Simple 32×32×16 box; 5 timesteps
+# Purpose: Verify TwoStream vectors are properly sized and allocated
+```
+
+**Validation Checks:**
+1. **No crash on startup**: Constructor properly sizes vectors
+2. **Output bitwise-identical to baseline**: Surface properties via fallback MultiFabs match pre-14A scalar-only runs
+3. **Quiet operation**: No NaN warnings or invalid-value messages
+
+---
+
+### Phase 14B Takeaway
+
+**Multilevel Vector Allocation** for radiation state must follow the two-stage pattern:
+- **Stage 1 (Constructor)**: Resize all vectors in `ERF::ERF_shared()` unconditionally
+- **Stage 2 (Init)**: Allocate individual level MultiFabs conditionally in `init_stuff()` per-level
+- **Decoupling** avoids indexing bugs while maintaining flexibility for conditional features
+- **Comment and document** why each radiation vector needs resizing (for future maintainers)
+
+Enables safe, scalable per-level radiation state management across multiple AMR levels.
