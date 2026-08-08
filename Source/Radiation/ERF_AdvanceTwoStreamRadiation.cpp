@@ -450,7 +450,7 @@ void vertical_two_stream_sweep(
         amrex::Real T_layer = get_temperature_from_rhotheta(rho_theta, rho);
 
         // Phase 3: per-level LW optical depth (constant, or +cloud within layer)
-        amrex::Real tau_lw = tau_layer_value(k, kmin, dz, tau_lw_base, rad_choice, cloudy);
+        amrex::Real tau_lw = tau_layer_value(k, kmin, dz_uniform, tau_lw_base, rad_choice, cloudy);
 
         if (k == kmax) {
             // Surface: initialize upwelling flux
@@ -481,7 +481,7 @@ void vertical_two_stream_sweep(
             amrex::Real T_layer = get_temperature_from_rhotheta(rho_theta, rho);
 
             // Phase 3: per-level LW optical depth (constant, or +cloud within layer)
-            amrex::Real tau_lw = tau_layer_value(k, kmin, dz, tau_lw_base, rad_choice, cloudy);
+            amrex::Real tau_lw = tau_layer_value(k, kmin, dz_uniform, tau_lw_base, rad_choice, cloudy);
 
             // Compute downwelling flux at this level using real two-stream formula
             F_lw_down_curr = compute_lw_flux_down(F_lw_down_curr, T_layer, sigma, tau_lw);
