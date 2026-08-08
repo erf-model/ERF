@@ -189,8 +189,13 @@ TEST(CloudChamberWallFlux, WetLowFaceAndDryHighFaceHaveExactSigns)
     Real qsat = Real(0.0);
     erf_qsatw(Real(300.0), Real(1000.0), qsat);
     const Real expected_flux = Real(0.1) * (qsat - Real(0.01)) * Real(2.0);
-    const amrex::Box low_face(IntVect(0), IntVect(0));
-    const amrex::Box high_face(IntVect(1, 0, 0), IntVect(1, 0, 0));
+    const amrex::Box xflux_box = xflux.boxArray()[0];
+    amrex::Box low_face = xflux_box;
+    low_face.setSmall(amrex::IntVect(0, 0, 0));
+    low_face.setBig(amrex::IntVect(0, 0, 0));
+    amrex::Box high_face = xflux_box;
+    high_face.setSmall(amrex::IntVect(1, 0, 0));
+    high_face.setBig(amrex::IntVect(1, 0, 0));
     EXPECT_NEAR(single_value(xflux, low_face), expected_flux, Real(1.0e-14));
     EXPECT_DOUBLE_EQ(single_value(xflux, high_face), Real(0.0));
     EXPECT_NEAR(single_value(rhs, domain, RhoQ1_comp), expected_flux, Real(1.0e-14));
