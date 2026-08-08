@@ -165,14 +165,14 @@ bool is_finite_positive(amrex::Real value)
 AMREX_GPU_DEVICE AMREX_FORCE_INLINE
 amrex::Real resolve_surface_albedo_sw(
     int i, int j,
-    const Array4<const amrex::Real>& hetero_alb_sw,
+    const Array4<const amrex::Real>* hetero_alb_sw,
     const RadChoice& rad_choice,
     bool has_hetero_alb)
 {
     amrex::Real alb = rad_choice.surface_albedo_sw;  // Default fallback (already clamped)
     
-    if (has_hetero_alb && hetero_alb_sw.contains(i, j, 0)) {
-        amrex::Real hetero_val = hetero_alb_sw(i, j, 0, 0);  // Assume single component
+    if (has_hetero_alb && hetero_alb_sw != nullptr && hetero_alb_sw->contains(i, j, 0)) {
+        amrex::Real hetero_val = (*hetero_alb_sw)(i, j, 0, 0);
         if (std::isfinite(hetero_val)) {
             alb = clamp_finite(hetero_val, 0.0, 1.0, rad_choice.surface_albedo_sw);
         }
@@ -198,14 +198,14 @@ amrex::Real resolve_surface_albedo_sw(
 AMREX_GPU_DEVICE AMREX_FORCE_INLINE
 amrex::Real resolve_surface_emissivity_lw(
     int i, int j,
-    const Array4<const amrex::Real>& hetero_emiss_lw,
+    const Array4<const amrex::Real>* hetero_emiss_lw,
     const RadChoice& rad_choice,
     bool has_hetero_emiss)
 {
     amrex::Real emiss = rad_choice.surface_emissivity_lw;  // Default fallback (already clamped)
     
-    if (has_hetero_emiss && hetero_emiss_lw.contains(i, j, 0)) {
-        amrex::Real hetero_val = hetero_emiss_lw(i, j, 0, 0);  // Assume single component
+    if (has_hetero_emiss && hetero_emiss_lw != nullptr && hetero_emiss_lw->contains(i, j, 0)) {
+        amrex::Real hetero_val = (*hetero_emiss_lw)(i, j, 0, 0);  // Assume single component
         if (std::isfinite(hetero_val)) {
             emiss = clamp_finite(hetero_val, 0.0, 1.0, rad_choice.surface_emissivity_lw);
         }
@@ -231,14 +231,14 @@ amrex::Real resolve_surface_emissivity_lw(
 AMREX_GPU_DEVICE AMREX_FORCE_INLINE
 amrex::Real resolve_surface_temp_k(
     int i, int j,
-    const Array4<const amrex::Real>& t_sfc,
+    const Array4<const amrex::Real>* t_sfc,
     const RadChoice& rad_choice,
     bool has_t_sfc)
 {
     amrex::Real t_surf = rad_choice.surface_temp_k;  // Default fallback (already validated)
     
-    if (has_t_sfc && t_sfc.contains(i, j, 0)) {
-        amrex::Real hetero_val = t_sfc(i, j, 0, 0);  // Assume single component
+    if (has_t_sfc && t_sfc != nullptr && t_sfc->contains(i, j, 0)) {
+        amrex::Real hetero_val = (*t_sfc)(i, j, 0, 0);  // Assume single component
         if (is_finite_positive(hetero_val)) {
             t_surf = hetero_val;
         }
@@ -445,11 +445,11 @@ void vertical_two_stream_sweep(
     amrex::Real& lw_net_surface,
     const Array4<const amrex::Real>& z_phys_cc,
     bool has_hetero_alb_sw = false,
-    const Array4<const amrex::Real>& hetero_alb_sw = nullptr,
+    const Array4<const amrex::Real>* hetero_alb_sw = nullptr,
     bool has_hetero_emiss_lw = false,
-    const Array4<const amrex::Real>& hetero_emiss_lw = nullptr,
+    const Array4<const amrex::Real>* hetero_emiss_lw = nullptr,
     bool has_t_sfc = false,
-    const Array4<const amrex::Real>& t_sfc = nullptr)
+    const Array4<const amrex::Real>* t_sfc = nullptr)
 {
     // Grid bounds
     int kmin = bx.smallEnd(2);
