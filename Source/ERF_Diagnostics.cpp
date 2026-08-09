@@ -262,7 +262,7 @@ ERF::compute_max_pressure_gradient_diagnostic(int lev)
             {
                 Box bx = mfi.validbox();
                 if (bx.bigEnd(2)   == khi) bx.growHi(2,-1);
-                if (bx.smallEnd(2) ==   0) bx.growLo(2,-1);
+                if (bx.smallEnd(2) == 0  ) bx.growLo(2,-1);
                 auto      gpz_arr   = gradp_temp[2].array(mfi);
                 auto const  r_arr   = rho.const_array(mfi);
                 auto const qt_arr   =  qt.const_array(mfi);

@@ -239,7 +239,7 @@ TEST(Plotfile2D, MixedRequestsPreserveValidCanonicalOrder)
 // "nothing requested" from "everything filtered away".
 TEST(Plotfile2D, EmptyRequestsReturnEmptyLists)
 {
-    const amrex::Vector<std::string> requested;
+    const amrex::Vector<std::string> requested{};
     const amrex::Vector<std::string> available{"z_surf", "mapfac"};
 
     const auto selection = select_requested_plot_variables(requested, available);
