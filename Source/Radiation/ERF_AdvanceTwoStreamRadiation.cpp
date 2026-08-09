@@ -1149,7 +1149,9 @@ void ERF::compute_twostream_radiation_diagnostics(
             bool has_hetero_alb_sw = false;
             Array4<const amrex::Real> hetero_alb_sw_arr;
             {
-                int lsm_idx = lsm.Get_DataIdx(lev, "sfc_alb_dir_vis");
+                //int lsm_idx = lsm.Get_DataIdx(lev, "sfc_alb_dir_vis");
+                std::string varname_alb = "sfc_alb_dir_vis";
+                int lsm_idx = lsm.Get_DataIdx(lev, varname_alb);
                 if (lsm_idx >= 0) {
                     auto lsm_ptr = lsm.Get_Data_Ptr(lev, lsm_idx);
                     if (lsm_ptr) {
@@ -1166,7 +1168,9 @@ void ERF::compute_twostream_radiation_diagnostics(
             bool has_hetero_emiss_lw = false;
             Array4<const amrex::Real> hetero_emiss_lw_arr;
             {
-                int lsm_idx = lsm.Get_DataIdx(lev, "sfc_emis");
+                //int lsm_idx = lsm.Get_DataIdx(lev, "sfc_emis");
+                std::string varname_emiss = "sfc_emis";
+                int lsm_idx = lsm.Get_DataIdx(lev, varname_emiss);
                 if (lsm_idx >= 0) {
                     auto lsm_ptr = lsm.Get_Data_Ptr(lev, lsm_idx);
                     if (lsm_ptr) {
@@ -1183,7 +1187,9 @@ void ERF::compute_twostream_radiation_diagnostics(
             bool has_t_sfc_field = false;
             Array4<const amrex::Real> t_sfc_arr;
             {
-                int lsm_idx = lsm.Get_DataIdx(lev, "t_sfc");
+                //int lsm_idx = lsm.Get_DataIdx(lev, "t_sfc");
+                std::string varname_t_sfc = "t_sfc";
+                int lsm_idx = lsm.Get_DataIdx(lev, varname_t_sfc);
                 if (lsm_idx >= 0) {
                     auto lsm_ptr = lsm.Get_Data_Ptr(lev, lsm_idx);
                     if (lsm_ptr) {
