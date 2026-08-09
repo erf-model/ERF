@@ -161,12 +161,12 @@ ERF::FillForecastStateMultiFabs(const int lev,
     // fabPtr(mfi) resolves by local index, so a stale (pre-regrid) z_phys_nd silently
     // returns the wrong FAB rather than failing.
     if (a_z_phys_nd) {
-        AMREX_ALWAYS_ASSERT(a_z_phys_nd->boxArray().convert(amrex::IndexType::TheCellType()) ==
-                            erf_mf_cons.boxArray());
+        AMREX_ALWAYS_ASSERT(amrex::BoxArray(a_z_phys_nd->boxArray()).convert(amrex::IndexType::TheCellType())
+                            == erf_mf_cons.boxArray());
 
         AMREX_ALWAYS_ASSERT(a_z_phys_nd->DistributionMap() ==
                             erf_mf_cons.DistributionMap());
-     }
+    }
 
     // Interpolate the data on to the ERF mesh
 

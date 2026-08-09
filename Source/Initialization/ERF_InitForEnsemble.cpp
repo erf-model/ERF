@@ -570,7 +570,8 @@ MakeFinalMultiFabs (const MultiFab& mf_cc_fine,
                     MultiFab& cons_pert,
                     MultiFab& xvel_pert,
                     MultiFab& yvel_pert,
-                    MultiFab& zvel_pert)
+                    MultiFab& zvel_pert,
+                    const int n_qstate_moist)
 {
 
     for (MFIter mfi(cons_pert, TilingIfNotGPU()); mfi.isValid(); ++mfi)
@@ -589,9 +590,9 @@ MakeFinalMultiFabs (const MultiFab& mf_cc_fine,
             Real tmp_qrain = mf_cc_fine_arr(i,j,k,7);
             cons_pert_arr(i,j,k,Rho_comp)      = tmp_rho;
             cons_pert_arr(i,j,k,RhoTheta_comp) = tmp_rho*tmp_theta;
-            if (n_qstate > 0) cons_pert_arr(i,j,k,RhoQ1_comp)    = tmp_rho*tmp_qv;
-            if (n_qstate > 1) cons_pert_arr(i,j,k,RhoQ2_comp)    = tmp_rho*tmp_qc;
-            if (n_qstate > 2) cons_pert_arr(i,j,k,RhoQ3_comp)    = tmp_rho*tmp_qrain;
+            if (n_qstate_moist > 0) cons_pert_arr(i,j,k,RhoQ1_comp)    = tmp_rho*tmp_qv;
+            if (n_qstate_moist > 1) cons_pert_arr(i,j,k,RhoQ2_comp)    = tmp_rho*tmp_qc;
+            if (n_qstate_moist > 2) cons_pert_arr(i,j,k,RhoQ3_comp)    = tmp_rho*tmp_qrain;
         });
     }
 
@@ -729,5 +730,11 @@ ERF::create_background_state_for_ensemble (int lev,
     AddPertToBckgnd(mf_cc_fine, mf_cc_pert, solverChoice.ens_pert_amplitude);
     ApplyNeumannBCs(geom_fine, mf_cc_fine);
 
-    MakeFinalMultiFabs(mf_cc_fine, cons_pert, xvel_pert, yvel_pert, zvel_pert);
+    bool use_moisture = (solverChoice.moisture_type != MoistureType::None);
+    int n_qstate_moist = 0;
+    if (use_moisture) {
+        n_qstate_moist = micro->Get_Qstate_Moist_Size();
+    }
+
+    MakeFinalMultiFabs(mf_cc_fine, cons_pert, xvel_pert, yvel_pert, zvel_pert, n_qstate_moist);
 }
