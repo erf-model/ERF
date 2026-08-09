@@ -233,7 +233,7 @@ ERF::SurfaceDataInterpolation(const int lev,
        Abort(ss.str());
     }
 
-    /*MultiFab& mf_surf_interp   = surface_state_interp[lev];
+    MultiFab& mf_surf_interp   = surface_state_interp[lev];
 
     // Fill the time-interpolated forecast states
     MultiFab::LinComb(surface_state_interp[lev],
@@ -241,6 +241,7 @@ ERF::SurfaceDataInterpolation(const int lev,
                       alpha2, surface_state_2[lev], 0,
                       0, mf_surf_interp.nComp(), mf_surf_interp.nGrow());
 
+    /* debug plotfile dump follows — leave commented out
     std::string pltname = "plt_interp_surface";
     Vector<std::string> varnames_plot_mf = {"ls_mask", "SST"};
 

@@ -4242,9 +4242,13 @@ ComputeDiffusivityMYNNEDMF (const MultiFab& xvel,
         const GeometryData gdata = geom.data();
 
         const Box xybx = PerpendicularBox<ZDir>(bx, IntVect{0,0,0});
-        FArrayBox qintegral(xybx,2);
+
+        FArrayBox qintegral(xybx,2,The_Async_Arena());
+        FArrayBox qturb(bx,1,The_Async_Arena());
+        FArrayBox qturb_old(bx,1,The_Async_Arena());
+
         qintegral.setVal<RunOn::Device>(0);
-        FArrayBox qturb(bx,1); FArrayBox qturb_old(bx,1);
+
         const Array4<Real> qint = qintegral.array();
         const Array4<Real> qvel = qturb.array();
 
