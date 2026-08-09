@@ -1,4 +1,5 @@
 #include <AMReX_MultiFab.H>
+#include <AMReX_GpuContainers.H>
 #include <AMReX_Reduce.H>
 
 #include <ERF_Diffusion.H>
@@ -149,6 +150,9 @@ DiffusionCase run_case (int axis, bool low_active, bool high_active,
         if (high_active) bcs[BCVars::RhoTheta_bc_comp].setHi(2, active_type);
     }
 
+    Gpu::DeviceVector<BCRec> bcs_d(bcs.size());
+    Gpu::copy(Gpu::hostToDevice, bcs.begin(), bcs.end(), bcs_d.begin());
+
     SolverChoice solver_choice;
     solver_choice.diffChoice.molec_diff_type = MolecDiffType::ConstantAlpha;
     solver_choice.diffChoice.alpha_T = alpha;
@@ -171,7 +175,7 @@ DiffusionCase run_case (int axis, bool low_active, bool high_active,
         smn[0].const_array(), mf_mx[0].const_array(), mf_ux[0].const_array(), mf_vx[0].const_array(),
         mf_my[0].const_array(), mf_uy[0].const_array(), mf_vy[0].const_array(), hfx_arr,
         qfx1_arr, qfx2_arr, diss_arr, mu_turb[0].const_array(), solver_choice, 0,
-        tm_arr, grav, bcs.data(), false, Real(0.0));
+        tm_arr, grav, bcs_d.data(), false, Real(0.0));
     Gpu::streamSynchronize();
 
     MultiFab rhs_error(ba, dm, 1, 0);

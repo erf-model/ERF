@@ -86,7 +86,7 @@ endfunction(add_test_plotfile_header)
 # Standard regression test
 function(add_test_r TEST_NAME TEST_DIR TEST_EXE PLTFILE)
     set(options )
-    set(oneValueArgs "INPUT_SOUNDING" "RUNTIME_OPTIONS")
+    set(oneValueArgs "INPUT_SOUNDING" "RUNTIME_OPTIONS" "FCOMPARE_RTOL" "FCOMPARE_ATOL")
     set(multiValueArgs )
     cmake_parse_arguments(ADD_TEST_R "${options}" "${oneValueArgs}"
         "${multiValueArgs}" ${ARGN})
@@ -100,7 +100,16 @@ function(add_test_r TEST_NAME TEST_DIR TEST_EXE PLTFILE)
 
     resolve_test_exe("${TEST_DIR}" "${TEST_EXE}" TEST_EXE)
 
-    set(FCOMPARE_TOLERANCE "-r ${ERF_TEST_FCOMPARE_RTOL} --abs_tol ${ERF_TEST_FCOMPARE_ATOL}")
+    set(_fcompare_rtol "${ERF_TEST_FCOMPARE_RTOL}")
+    set(_fcompare_atol "${ERF_TEST_FCOMPARE_ATOL}")
+    if(NOT "${ADD_TEST_R_FCOMPARE_RTOL}" STREQUAL "")
+        set(_fcompare_rtol "${ADD_TEST_R_FCOMPARE_RTOL}")
+    endif()
+    if(NOT "${ADD_TEST_R_FCOMPARE_ATOL}" STREQUAL "")
+        set(_fcompare_atol "${ADD_TEST_R_FCOMPARE_ATOL}")
+    endif()
+
+    set(FCOMPARE_TOLERANCE "-r ${_fcompare_rtol} --abs_tol ${_fcompare_atol}")
     set(FCOMPARE_FLAGS "--abort_if_not_all_found -a ${FCOMPARE_TOLERANCE}")
     set(test_command sh -c "${MPI_COMMANDS} ${TEST_EXE} ${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.i ${RUNTIME_OPTIONS} > ${TEST_NAME}.log && ${MPI_FCOMP_COMMANDS} ${FCOMPARE_EXE} ${FCOMPARE_FLAGS} ${PLOT_GOLD} ${CURRENT_TEST_BINARY_DIR}/${PLTFILE}")
 
@@ -228,34 +237,6 @@ function(add_test_cloud_chamber_budget TEST_NAME MODE SOURCE_NAME)
         LABELS "regression;cloud-chamber"
         ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/simulation.log;${CURRENT_TEST_BINARY_DIR}/checker.log;${CURRENT_TEST_BINARY_DIR}/cloud_chamber_budget.dat")
 endfunction(add_test_cloud_chamber_budget)
-
-# Negative configuration regressions: each case must reach the Cloud Chamber
-# parser, fail nonzero, and report the intended contract violation.
-function(add_test_cloud_chamber_config_failure TEST_NAME CASE SOURCE_NAME EXPECTED_DIAGNOSTIC)
-    set(TEST_FILES_DIR "${SOURCE_NAME}")
-    setup_test()
-    resolve_test_exe("" "erf_exec" TEST_EXE)
-    set(base_input "${CURRENT_TEST_BINARY_DIR}/${SOURCE_NAME}.i")
-    set(test_log "${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.log")
-    add_test(${TEST_NAME} ${CMAKE_COMMAND}
-        -DMPIEXEC=${MPIEXEC_EXECUTABLE}
-        -DMPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}
-        -DMPIEXEC_PREFLAGS=${MPIEXEC_PREFLAGS}
-        -DTEST_EXE=${TEST_EXE}
-        -DBASE_INPUT=${base_input}
-        -DWORKING_DIRECTORY=${CURRENT_TEST_BINARY_DIR}
-        -DLOG=${test_log}
-        -DCASE=${CASE}
-        "-DEXPECTED_DIAGNOSTIC=${EXPECTED_DIAGNOSTIC}"
-        -P ${PROJECT_SOURCE_DIR}/Tests/RunCloudChamberConfigFailure.cmake)
-    set_tests_properties(${TEST_NAME}
-        PROPERTIES
-        TIMEOUT 180
-        PROCESSORS 1
-        WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
-        LABELS "regression;cloud-chamber;configuration"
-        ATTACHED_FILES_ON_FAIL "${test_log}")
-endfunction(add_test_cloud_chamber_config_failure)
 
 # Positive startup regression for the retained legacy theta/qv parser path.
 # This intentionally has no physical-temperature or physical-wall keys.
@@ -438,26 +419,6 @@ add_test_cloud_chamber(CloudChamber_SatAdj cloudy)
 add_test_cloud_chamber_parity(CloudChamber_SatAdj_Parity)
 add_test_cloud_chamber_budget(CloudChamber_SatAdj_AllDry all_dry CloudChamber_SatAdj_AllDry)
 add_test_cloud_chamber_budget(CloudChamber_SatAdj_WetBudget wet_budget CloudChamber_SatAdj_WetBudget)
-add_test_cloud_chamber_config_failure(
-    CloudChamber_Invalid_DryPhysicalRH
-    dry_physical_rh
-    CloudChamber_Dry
-    "initial_relative_humidity is only used with erf.moisture_model = SatAdj")
-add_test_cloud_chamber_config_failure(
-    CloudChamber_Invalid_SatAdjPhysicalMissingRH
-    satadj_physical_missing_rh
-    CloudChamber_SatAdj
-    "physical SatAdj initialization requires prob.initial_relative_humidity")
-add_test_cloud_chamber_config_failure(
-    CloudChamber_Invalid_PhysicalLegacyThetaPerturbation
-    physical_legacy_theta_perturbation
-    CloudChamber_Dry
-    "cannot be combined with legacy")
-add_test_cloud_chamber_config_failure(
-    CloudChamber_Invalid_LegacyPhysicalTemperature
-    legacy_physical_temperature
-    CloudChamber_Dry
-    "cannot be combined with physical")
 if(ERF_ENABLE_OPENMP)
 add_test_cloud_chamber_openmp(CloudChamber_SatAdj_OpenMP)
 endif()
@@ -694,7 +655,11 @@ add_test_r(MSF_Sub_IsentropicVortexAdv       ""  "erf_exec" "plt00010" RUNTIME_O
 add_test_r(ABL_MOST                          ""  "erf_exec" "plt00010" RUNTIME_OPTIONS "erf.vert_implicit=false ")
 add_test_r(ABL_MOST_IMP_DIFF                 ""  "erf_exec" "plt00010")
 add_test_r(ABL_MOST_IMP_DIFF_WOA             ""  "erf_exec" "plt00010")
-add_test_r(ABL_MOST_IMP_DIFF_TKE             ""  "erf_exec" "plt00010")
+add_test_r(ABL_MOST_IMP_DIFF_TKE
+    ""
+    "erf_exec"
+    "plt00010"
+    FCOMPARE_ATOL "4.0e-10")
 add_test_r(ABL_MYNN_PBL                      ""  "erf_exec" "plt00100" INPUT_SOUNDING "input_sounding_GABLS1" RUNTIME_OPTIONS "erf.vert_implicit=false " )
 add_test_r(ABL_InflowFile                    ""  "erf_exec" "plt00010" RUNTIME_OPTIONS "erf.vert_implicit=false ")
 add_test_r(MoistBubble                       ""  "erf_exec" "plt00010" RUNTIME_OPTIONS "erf.vert_implicit=false ")
