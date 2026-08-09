@@ -38,7 +38,7 @@ ERF::create_random_perturbations(const int lev,
         [=] AMREX_GPU_DEVICE (int i, int j, int k, int n,
                              const amrex::RandomEngine& engine) noexcept
         {
-            pert_arr(i,j,k,n) = amrex::Random(engine);
+            pert_arr(i,j,k,n) = pert_arr(i,j,k,n) = amrex::Real(2.0) * amrex::Random(engine) - amrex::Real(1.0);
         });
     }
 }
@@ -213,14 +213,11 @@ void ApplyNeumannBCs(const Geometry& geom,
             int kk = k;
 
             // Clamp to domain interior (FOExtrap)
-            ii = amrex::max(domain.smallEnd(0),
-                 amrex::min(i, domain.bigEnd(0)));
+            if (!geom.isPeriodic(0)) { ii = amrex::max(domain.smallEnd(0), amrex::min(i, domain.bigEnd(0))); }
 
-            jj = amrex::max(domain.smallEnd(1),
-                 amrex::min(j, domain.bigEnd(1)));
+            if (!geom.isPeriodic(1)) { jj = amrex::max(domain.smallEnd(1), amrex::min(j, domain.bigEnd(1))); }
 
-            kk = amrex::max(domain.smallEnd(2),
-                 amrex::min(k, domain.bigEnd(2)));
+            if (!geom.isPeriodic(2)) { kk = amrex::max(domain.smallEnd(2), amrex::min(k, domain.bigEnd(2))); }
 
             arr(i,j,k,n) = arr(ii,jj,kk,n);
         });
@@ -592,9 +589,9 @@ MakeFinalMultiFabs (const MultiFab& mf_cc_fine,
             Real tmp_qrain = mf_cc_fine_arr(i,j,k,7);
             cons_pert_arr(i,j,k,Rho_comp)      = tmp_rho;
             cons_pert_arr(i,j,k,RhoTheta_comp) = tmp_rho*tmp_theta;
-            cons_pert_arr(i,j,k,RhoQ1_comp)    = tmp_rho*tmp_qv;
-            cons_pert_arr(i,j,k,RhoQ2_comp)    = tmp_rho*tmp_qc;
-            cons_pert_arr(i,j,k,RhoQ3_comp)    = tmp_rho*tmp_qrain;
+            if (n_qstate > 0) cons_pert_arr(i,j,k,RhoQ1_comp)    = tmp_rho*tmp_qv;
+            if (n_qstate > 1) cons_pert_arr(i,j,k,RhoQ2_comp)    = tmp_rho*tmp_qc;
+            if (n_qstate > 2) cons_pert_arr(i,j,k,RhoQ3_comp)    = tmp_rho*tmp_qrain;
         });
     }
 
