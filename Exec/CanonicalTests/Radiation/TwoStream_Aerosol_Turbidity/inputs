@@ -20,7 +20,7 @@ fabarray.mfiter_tile_size = 1024 1024 1024
 
 # DOMAIN SETUP: Simple 3D domain with stretched vertical grid
 geometry.prob_extent = 3000 3000 4096
-amr.n_cell           =  8   8   64
+amr.n_cell           =  8   8   72
 amrex.max_grid_size_z = 128
 geometry.is_periodic = 1 1 0
 
