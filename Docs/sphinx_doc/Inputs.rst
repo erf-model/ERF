@@ -2007,6 +2007,11 @@ List of Parameters
 |                                 | the dycore has been      |                       |            |
 |                                 | advanced at each timestep|                       |            |
 +---------------------------------+--------------------------+-----------------------+------------+
+| **erf.morrison_ndcnst**         | Constant cloud-droplet   | Positive real         | 250        |
+|                                 | number concentration for | (cm^-3)               | (cm^-3)    |
+|                                 | Morrison when constant   |                       |            |
+|                                 | droplet number is active |                       |            |
++---------------------------------+--------------------------+-----------------------+------------+
 
 Radiation
 =========

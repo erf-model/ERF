@@ -412,7 +412,6 @@ namespace MORRInd {
 
           // Set microphysics control parameters
           m_inum = 1;           // Use constant droplet number concentration
-          m_ndcnst = Real(250.0);     // Droplet number concentration (cm^-3)
           // Mathematical constants
           m_pi = Real(3.1415926535897932384626434);
 

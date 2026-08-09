@@ -208,3 +208,40 @@ TEST(MorrisonPhysicalProperties, NativeShocSuppressesCppSaturationAdjustment)
         EXPECT_NEAR(cons.max(comp), before.max(comp), exact_zero_or_near_zero_tol());
     }
 }
+
+// Motivation: The public Morrison droplet-number input must reach the C++
+// constant-number branch rather than being reset to its default later in Advance.
+TEST(MorrisonPhysicalProperties, CppConstantDropletNumberHonorsRuntimeInput)
+{
+    [[maybe_unused]] ScopedParmParseString use_cpp("erf", "use_morr_cpp_answer", "true");
+    [[maybe_unused]] ScopedParmParseString ndcnst("erf", "morrison_ndcnst", "500.0");
+
+    const amrex::Geometry geom = make_geometry();
+    amrex::BoxArray ba(geom.Domain());
+    amrex::DistributionMapping dm(ba);
+    amrex::MultiFab cons(ba, dm, RhoQ11_comp + 1, 3);
+
+    const amrex::Real tabs = amrex::Real(280.0);
+    const amrex::Real pres_pa = amrex::Real(90000.0);
+    amrex::Real qsatw = amrex::Real(0.0);
+    erf_qsatw(tabs, pres_pa * amrex::Real(0.01), qsatw);
+    fill_single_cell_from_morrison_state(
+        cons, make_morrison_cell_state(tabs, pres_pa, qsatw + amrex::Real(1.0e-4)));
+
+    Morrison morrison;
+    SolverChoice sc = make_morrison_solver_choice();
+    morrison.Define(sc);
+
+    std::unique_ptr<amrex::MultiFab> z_phys_nd;
+    std::unique_ptr<amrex::MultiFab> detJ_cc;
+    morrison.Set_dzmin(geom.CellSize(2));
+    morrison.Init(cons, cons.boxArray(), geom, amrex::Real(1.0), z_phys_nd, detJ_cc);
+    morrison.Copy_State_to_Micro(cons);
+    morrison.Advance(amrex::Real(1.0), sc);
+    morrison.Copy_Micro_to_State(cons);
+    amrex::Gpu::streamSynchronize();
+
+    // rho * nc = rho * (NDCNST * 1e6 / rho), in the current C++ implementation.
+    EXPECT_NEAR(cons.max(RhoQ7_comp), amrex::Real(500.0e6),
+                amrex::Real(1.0e-10) * amrex::Real(500.0e6));
+}
