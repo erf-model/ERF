@@ -77,8 +77,8 @@ ComputeDiffusivityYSU (const MultiFab& xvel,
         // create flattened boxes to store PBL height
         const GeometryData gdata = geom.data();
         const Box xybx = PerpendicularBox<ZDir>(bx, IntVect{0,0,0});
-        FArrayBox pbl_height(xybx,1);
-        IArrayBox pbl_index(xybx,1);
+        FArrayBox pbl_height(xybx,1,The_Async_Arena());
+        IArrayBox pbl_index(xybx,1,The_Async_Arena());
         const auto& pblh_arr = pbl_height.array();
         const auto& pbli_arr = pbl_index.array();
 
