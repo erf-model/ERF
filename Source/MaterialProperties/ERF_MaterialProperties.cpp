@@ -26,7 +26,7 @@ namespace saturation_funcs
     }
 
     AMREX_GPU_HOST
-    void compute_saturation_vapfrac_null ( MultiFab&, const MultiFab&) { }
+    void compute_saturation_vapfrac_null ( MultiFab&, const MultiFab&, const MultiFab&) { }
 
     AMREX_GPU_HOST
     void compute_saturation_vapfrac_H2O ( MultiFab&          a_mf_sat_vapfrac,
