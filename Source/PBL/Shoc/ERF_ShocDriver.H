@@ -171,6 +171,7 @@ private:
     amrex::MultiFab* m_tau23_ptr = nullptr;
     amrex::MultiFab* m_eddy_diffs_ptr = nullptr;
     amrex::Vector<std::unique_ptr<ShocColumnWorkspace>> m_column_workspaces;
+    const amrex::Geometry* m_geom_ptr = nullptr;
     int m_advance_calls = 0;
     bool m_prev_turb_valid = false;
 

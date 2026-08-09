@@ -459,7 +459,8 @@ expect_face_overlap_matches (const MultiFab& mf,
 
     for (MFIter mfi(mf, false); mfi.isValid(); ++mfi) {
         const Box& bx = mfi.validbox();
-        const auto arr = mf.const_array(mfi);
+        const auto arr_host = shoc_test::copy_fab_to_host(mf[mfi]);
+        const auto arr = arr_host.const_array();
 
         if (seam_dir == 0) {
             if (bx.smallEnd(0) == domain.smallEnd(0) &&
@@ -822,7 +823,8 @@ TEST(ShocPreprocess, UsesFourNodeAveragedTerrainGeometry)
         const auto dz = workspace.col.dz.const_array();
         const auto dse = workspace.col.host_dse.const_array();
         const auto tabs = workspace.col.tabs.const_array();
-        const auto zarr = z_phys_nd.const_array(mfi);
+        const auto zarr_host = shoc_test::copy_fab_to_host(z_phys_nd[mfi]);
+        const auto zarr = zarr_host.const_array();
         const auto layout = workspace.col.layout;
 
         for (int j = 0; j < layout.ny; ++j) {

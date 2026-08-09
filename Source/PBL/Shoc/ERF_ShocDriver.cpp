@@ -326,7 +326,23 @@ ShocDriver::ensure_storage (const MultiFab& cons,
                             const MultiFab& yvel,
                             const MultiFab& eddy_diffs)
 {
-    if (!m_theta_tend_cc.isDefined()) {
+    const bool storage_changed =
+        !m_theta_tend_cc.isDefined() ||
+        !m_u_tend_fc.isDefined() ||
+        !m_v_tend_fc.isDefined() ||
+        !m_eddy_coeffs_cc.isDefined() ||
+        m_theta_tend_cc.boxArray() != cons.boxArray() ||
+        m_theta_tend_cc.DistributionMap() != cons.DistributionMap() ||
+        m_u_tend_fc.boxArray() != xvel.boxArray() ||
+        m_u_tend_fc.DistributionMap() != xvel.DistributionMap() ||
+        m_v_tend_fc.boxArray() != yvel.boxArray() ||
+        m_v_tend_fc.DistributionMap() != yvel.DistributionMap() ||
+        m_eddy_coeffs_cc.boxArray() != eddy_diffs.boxArray() ||
+        m_eddy_coeffs_cc.DistributionMap() != eddy_diffs.DistributionMap();
+
+    if (storage_changed) {
+        m_column_workspaces.clear();
+        m_prev_turb_valid = false;
         m_theta_tend_cc.define(cons.boxArray(), cons.DistributionMap(), 1, 0);
         m_qv_tend_cc.define(cons.boxArray(), cons.DistributionMap(), 1, 0);
         m_qc_tend_cc.define(cons.boxArray(), cons.DistributionMap(), 1, 0);
@@ -485,6 +501,7 @@ ShocDriver::advance (MultiFab& cons,
     m_tau13_ptr = tau13;
     m_tau23_ptr = tau23;
     m_eddy_diffs_ptr = eddy_diffs;
+    m_geom_ptr = &geom;
 
     sync_face_multifab_impl(xvel, geom);
     sync_face_multifab_impl(yvel, geom);
@@ -798,6 +815,43 @@ ShocDriver::set_eddy_diffs () const
     } else if (uses_momentum_host_diffusion()) {
         MultiFab::Copy(*m_eddy_diffs_ptr, m_eddy_coeffs_cc,
                        EddyDiff::Mom_v, EddyDiff::Mom_v, 1, 0);
+    }
+    const bool export_host_diff =
+        uses_host_diffusion() || uses_momentum_host_diffusion();
+    if (!export_host_diff) {
+        return;
+    }
+
+    AMREX_ALWAYS_ASSERT(m_geom_ptr != nullptr);
+    const Geometry& geom = *m_geom_ptr;
+    const Box domain = geom.Domain();
+    const bool nonperiodic_x = !geom.isPeriodic(0);
+    const bool nonperiodic_y = !geom.isPeriodic(1);
+    const bool nonperiodic_z = !geom.isPeriodic(2);
+    const int comp = uses_host_diffusion() ? k_shoc_vertical_diff_comp : EddyDiff::Mom_v;
+    const int ncomp = uses_host_diffusion() ? k_shoc_vertical_diff_count : 1;
+
+    // Match ERF's existing first-order extrapolation convention at physical
+    // boundaries after copying inter-box and periodic ghost values.
+    m_eddy_diffs_ptr->FillBoundary(comp, ncomp, geom.periodicity());
+    for (MFIter mfi(*m_eddy_diffs_ptr, false); mfi.isValid(); ++mfi) {
+        const Box vbx = mfi.validbox();
+        const Box gbx = mfi.growntilebox();
+        auto eddy = m_eddy_diffs_ptr->array(mfi);
+        ParallelFor(gbx, ncomp,
+                    [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept {
+            if ((nonperiodic_x && (i < domain.smallEnd(0) || i > domain.bigEnd(0))) ||
+                (nonperiodic_y && (j < domain.smallEnd(1) || j > domain.bigEnd(1))) ||
+                (nonperiodic_z && (k < domain.smallEnd(2) || k > domain.bigEnd(2)))) {
+                const int ii = amrex::max(vbx.smallEnd(0),
+                                          amrex::min(i, vbx.bigEnd(0)));
+                const int jj = amrex::max(vbx.smallEnd(1),
+                                          amrex::min(j, vbx.bigEnd(1)));
+                const int kk = amrex::max(vbx.smallEnd(2),
+                                          amrex::min(k, vbx.bigEnd(2)));
+                eddy(i,j,k,comp+n) = eddy(ii,jj,kk,comp+n);
+            }
+        });
     }
 }
 
