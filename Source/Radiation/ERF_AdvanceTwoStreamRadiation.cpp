@@ -822,10 +822,19 @@ void vertical_two_stream_sweep(
             } else if (rad_choice.aerosol_profile_type == AerosolProfileType::Exponential) {
                 // Get height at current level; use z_phys_cc if available, else compute from dz
                 amrex::Real z_level = 0.0;
-                for (int kk = kmin; kk < k; ++kk) {
-                    z_level += dz_uniform;
+                if (z_phys_cc) {
+                    z_level = std::abs(z_phys_cc(i, j, k) - z_phys_cc(i, j, kmin));  // height above the domain base
+                } else {
+                    z_level = 0.0;
+                    for (int kk = kmin; kk < k; ++kk) {
+                        int kk_idx = kk - kmin;
+                        amrex::Real dz_kk = (kk_idx >= 0 && kk_idx < MAX_RAD_LEVELS) ? dz_level[kk_idx] : dz_uniform;
+                        z_level += dz_kk;
+                    }
                 }
-                tau_aerosol = diagnose_tau_aerosol_exponential(z_level, dz_uniform,rad_choice.aerosol_tau_surface, 
+                int k_idx_aero = k - kmin;
+                amrex::Real dz_aero = (k_idx_aero >= 0 && k_idx_aero < MAX_RAD_LEVELS) ? dz_level[k_idx_aero] : dz_uniform;
+                tau_aerosol = diagnose_tau_aerosol_exponential(z_level, dz_aero, rad_choice.aerosol_tau_surface, 
                                                               rad_choice.aerosol_scale_height_m);
             } else if (rad_choice.aerosol_profile_type == AerosolProfileType::Table) {
                 tau_aerosol = diagnose_tau_aerosol_table(k);
@@ -945,10 +954,19 @@ void vertical_two_stream_sweep(
             } else if (rad_choice.aerosol_profile_type == AerosolProfileType::Exponential) {
                 // Get height at current level; use z_phys_cc if available, else compute from dz
                 amrex::Real z_level = 0.0;
-                for (int kk = kmin; kk < k; ++kk) {
-                    z_level += dz_uniform;
+                if (z_phys_cc) {
+                    z_level = std::abs(z_phys_cc(i, j, k) - z_phys_cc(i, j, kmin));  // height above the domain base
+                } else {
+                    z_level = 0.0;
+                    for (int kk = kmin; kk < k; ++kk) {
+                        int kk_idx = kk - kmin;
+                        amrex::Real dz_kk = (kk_idx >= 0 && kk_idx < MAX_RAD_LEVELS) ? dz_level[kk_idx] : dz_uniform;
+                        z_level += dz_kk;
+                    }
                 }
-                tau_aerosol = diagnose_tau_aerosol_exponential(z_level, dz_uniform,rad_choice.aerosol_tau_surface, 
+                int k_idx_aero = k - kmin;
+                amrex::Real dz_aero = (k_idx_aero >= 0 && k_idx_aero < MAX_RAD_LEVELS) ? dz_level[k_idx_aero] : dz_uniform;
+                tau_aerosol = diagnose_tau_aerosol_exponential(z_level, dz_aero, rad_choice.aerosol_tau_surface, 
                                                               rad_choice.aerosol_scale_height_m);
             } else if (rad_choice.aerosol_profile_type == AerosolProfileType::Table) {
                 tau_aerosol = diagnose_tau_aerosol_table(k);
@@ -1020,10 +1038,19 @@ void vertical_two_stream_sweep(
                 } else if (rad_choice.aerosol_profile_type == AerosolProfileType::Exponential) {
                     // Get height at current level; use z_phys_cc if available, else compute from dz
                     amrex::Real z_level = 0.0;
-                    for (int kk = kmin; kk < k; ++kk) {
-                        z_level += dz_uniform;
+                    if (z_phys_cc) {
+                        z_level = std::abs(z_phys_cc(i, j, k) - z_phys_cc(i, j, kmin));  // height above the domain base
+                    } else {
+                        z_level = 0.0;
+                        for (int kk = kmin; kk < k; ++kk) {
+                            int kk_idx = kk - kmin;
+                            amrex::Real dz_kk = (kk_idx >= 0 && kk_idx < MAX_RAD_LEVELS) ? dz_level[kk_idx] : dz_uniform;
+                            z_level += dz_kk;
+                        }
                     }
-                    tau_aerosol = diagnose_tau_aerosol_exponential(z_level, dz_uniform,rad_choice.aerosol_tau_surface, 
+                int k_idx_aero = k - kmin;
+                amrex::Real dz_aero = (k_idx_aero >= 0 && k_idx_aero < MAX_RAD_LEVELS) ? dz_level[k_idx_aero] : dz_uniform;
+                    tau_aerosol = diagnose_tau_aerosol_exponential(z_level, dz_aero, rad_choice.aerosol_tau_surface, 
                                                                   rad_choice.aerosol_scale_height_m);
                 } else if (rad_choice.aerosol_profile_type == AerosolProfileType::Table) {
                     tau_aerosol = diagnose_tau_aerosol_table(k);
