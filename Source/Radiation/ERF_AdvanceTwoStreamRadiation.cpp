@@ -825,7 +825,7 @@ void vertical_two_stream_sweep(
                 for (int kk = kmin; kk < k; ++kk) {
                     z_level += dz_uniform;
                 }
-                tau_aerosol = diagnose_tau_aerosol_exponential(z_level, rad_choice.aerosol_tau_surface, 
+                tau_aerosol = diagnose_tau_aerosol_exponential(z_level, dz_uniform,rad_choice.aerosol_tau_surface, 
                                                               rad_choice.aerosol_scale_height_m);
             } else if (rad_choice.aerosol_profile_type == AerosolProfileType::Table) {
                 tau_aerosol = diagnose_tau_aerosol_table(k);
@@ -948,7 +948,7 @@ void vertical_two_stream_sweep(
                 for (int kk = kmin; kk < k; ++kk) {
                     z_level += dz_uniform;
                 }
-                tau_aerosol = diagnose_tau_aerosol_exponential(z_level, rad_choice.aerosol_tau_surface, 
+                tau_aerosol = diagnose_tau_aerosol_exponential(z_level, dz_uniform,rad_choice.aerosol_tau_surface, 
                                                               rad_choice.aerosol_scale_height_m);
             } else if (rad_choice.aerosol_profile_type == AerosolProfileType::Table) {
                 tau_aerosol = diagnose_tau_aerosol_table(k);
@@ -1023,7 +1023,7 @@ void vertical_two_stream_sweep(
                     for (int kk = kmin; kk < k; ++kk) {
                         z_level += dz_uniform;
                     }
-                    tau_aerosol = diagnose_tau_aerosol_exponential(z_level, rad_choice.aerosol_tau_surface, 
+                    tau_aerosol = diagnose_tau_aerosol_exponential(z_level, dz_uniform,rad_choice.aerosol_tau_surface, 
                                                                   rad_choice.aerosol_scale_height_m);
                 } else if (rad_choice.aerosol_profile_type == AerosolProfileType::Table) {
                     tau_aerosol = diagnose_tau_aerosol_table(k);

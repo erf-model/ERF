@@ -112,11 +112,15 @@ erf.radiation.cloud_fraction = 0.0
 
 # RADIATION - Phase 15: Bulk Aerosol/Turbidity (disabled by default for Phase 14B compat)
 # Test configuration: Use Constant profile for simple validation
-erf.radiation.aerosol_enable = false
-erf.radiation.aerosol_profile_type = "constant"
-erf.radiation.aerosol_tau_per_layer = 0.0
+erf.radiation.aerosol_enable = true
+erf.radiation.aerosol_profile_type = "exponential"
+# Constant profile test
+#erf.radiation.aerosol_tau_per_layer = 0.01
+erf.radiation.aerosol_tau_per_layer = 0.0012
+# Exponential profile test
 erf.radiation.aerosol_scale_height_m = 2000.0
-erf.radiation.aerosol_tau_surface = 0.0
+erf.radiation.aerosol_tau_surface = 0.15
+
 
 # RADIATION - Diagnostics
 erf.radiation.v = 1

@@ -70,45 +70,39 @@ amrex::Real diagnose_tau_aerosol_constant(amrex::Real tau_aerosol_const)
  */
 AMREX_GPU_DEVICE AMREX_FORCE_INLINE
 amrex::Real diagnose_tau_aerosol_exponential(amrex::Real z_level,
+                                            amrex::Real dz,                // NEW: layer thickness
                                             amrex::Real tau_surface,
                                             amrex::Real scale_height_m)
 {
-    // Guard against invalid inputs
-    if (!std::isfinite(z_level) || !std::isfinite(tau_surface) || !std::isfinite(scale_height_m)) {
+    if (!std::isfinite(z_level) || !std::isfinite(dz) ||
+        !std::isfinite(tau_surface) || !std::isfinite(scale_height_m)) {
         return 0.0;
     }
-    
-    // Ensure positive scale height
-    if (scale_height_m <= 0.0) {
+    if (scale_height_m <= 0.0 || dz <= 0.0) {
         return 0.0;
     }
-    
-    // Ensure nonnegative surface tau
     if (tau_surface < 0.0) {
         return 0.0;
     }
-    
-    // Ensure nonnegative height
     if (z_level < 0.0) {
         z_level = 0.0;
     }
-    
-    // Compute exponential decay
-    // Guard against overflow in exp() by checking argument
+
     amrex::Real arg = -z_level / scale_height_m;
     if (arg < -100.0) {
-        // exp(arg) would underflow to 0, so return 0
         return 0.0;
     }
-    
-    amrex::Real tau_aerosol = tau_surface * std::exp(arg);
-    
-    // Clamp to physically reasonable range [0, 100]
-    if (tau_aerosol < 0.0) tau_aerosol = 0.0;
+
+    // Per-layer contribution = (tau_surface / scale_height) * dz * exp(-z/H)
+    // so the vertical integral over all layers approaches tau_surface as domain height >> H
+    amrex::Real tau_aerosol = (tau_surface / scale_height_m) * dz * std::exp(arg);
+
+    if (tau_aerosol < 0.0)   tau_aerosol = 0.0;
     if (tau_aerosol > 100.0) tau_aerosol = 100.0;
-    
+
     return tau_aerosol;
 }
+
 
 /**
  * @brief Diagnose aerosol optical depth for Table profile (future extension).
