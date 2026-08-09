@@ -3166,6 +3166,7 @@ namespace MORRInd {
                   qci_arr(i,j,k) = morr_arr(i,j,k,MORRInd::qi3d);
                   qps_arr(i,j,k) = morr_arr(i,j,k,MORRInd::qni3d);
                   qpr_arr(i,j,k) = morr_arr(i,j,k,MORRInd::qr3d);
+                  nc_arr(i,j,k)  = morr_arr(i,j,k,MORRInd::nc3d);
                   ni_arr(i,j,k) = morr_arr(i,j,k,MORRInd::ni3d);
                   ns_arr(i,j,k) = morr_arr(i,j,k,MORRInd::ns3d);
                   nr_arr(i,j,k) = morr_arr(i,j,k,MORRInd::nr3d);
