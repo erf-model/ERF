@@ -7,8 +7,9 @@
           // The pointers handed to Fortran are Array4::dataPtr() of the mic_fab_vars, whose
           // origin/strides come from the FAB box. Deriving the declared bounds from anything
           // else (e.g. tilebox grown by a hard-coded 3) mis-declares the strides whenever the
-          // grow count is not 3 or the MFIter tiles the box.
-          const Box& fab_box = mfi.fabbox();
+          // grow count is not 3 or the MFIter tiles the box. fab_box is defined by the caller;
+          // every staging FAB below is allocated on it so the declared bounds describe them
+          // all. The compute window stays ITS..KTE, i.e. the tilebox.
           const int ilom = fab_box.loVect()[0];
           const int ihim = fab_box.hiVect()[0];
           const int jlom = fab_box.loVect()[1];
@@ -23,15 +24,15 @@
 #endif
 
           // Create dummy arrays for cumulus tendencies (if needed)
-          FArrayBox qrcuten_fab(grown_box, 1, Arena_Used);
-          FArrayBox qscuten_fab(grown_box, 1, Arena_Used);
-          FArrayBox qicuten_fab(grown_box, 1, Arena_Used);
+          FArrayBox qrcuten_fab(fab_box, 1, Arena_Used);
+          FArrayBox qscuten_fab(fab_box, 1, Arena_Used);
+          FArrayBox qicuten_fab(fab_box, 1, Arena_Used);
           auto const& qrcuten_arr = qrcuten_fab.array();
           auto const& qscuten_arr = qscuten_fab.array();
           auto const& qicuten_arr = qicuten_fab.array();
 
           // Initialize tendencies to Real(0) (no cumulus parameterization in this example)
-          ParallelFor(grown_box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+          ParallelFor(fab_box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
             qrcuten_arr(i,j,k) = Real(0);
             qscuten_arr(i,j,k) = Real(0);
             qicuten_arr(i,j,k) = Real(0);
@@ -41,13 +42,13 @@
           bool flag_qndrop = false;  // Flag to indicate droplet number prediction
 
           // Now create arrays for other optional variables
-          FArrayBox rainprod_fab(grown_box, 1, Arena_Used);
-          FArrayBox evapprod_fab(grown_box, 1, Arena_Used);
-          FArrayBox qlsink_fab(grown_box, 1, Arena_Used);
-          FArrayBox precr_fab(grown_box, 1, Arena_Used);
-          FArrayBox preci_fab(grown_box, 1, Arena_Used);
-          FArrayBox precs_fab(grown_box, 1, Arena_Used);
-          FArrayBox precg_fab(grown_box, 1, Arena_Used);
+          FArrayBox rainprod_fab(fab_box, 1, Arena_Used);
+          FArrayBox evapprod_fab(fab_box, 1, Arena_Used);
+          FArrayBox qlsink_fab(fab_box, 1, Arena_Used);
+          FArrayBox precr_fab(fab_box, 1, Arena_Used);
+          FArrayBox preci_fab(fab_box, 1, Arena_Used);
+          FArrayBox precs_fab(fab_box, 1, Arena_Used);
+          FArrayBox precg_fab(fab_box, 1, Arena_Used);
 
           auto const& rainprod_arr = rainprod_fab.array();
           auto const& evapprod_arr = evapprod_fab.array();
@@ -58,7 +59,7 @@
           auto const& precg_arr = precg_fab.array();
 
           // Initialize WRF-Chem arrays to Real(0)
-          ParallelFor(grown_box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+          ParallelFor(fab_box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
             rainprod_arr(i,j,k) = Real(0);
             evapprod_arr(i,j,k) = Real(0);
             qlsink_arr(i,j,k)   = Real(0);

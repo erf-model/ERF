@@ -240,6 +240,13 @@ void ERF::project_momenta (int lev, double l_time, double l_dt_d, Vector<MultiFa
         } else {
             fluxes[0][idim].define(convert(ba_tmp[0], IntVect::TheDimensionVector(idim)), dm_tmp[0], 1, 0);
         }
+        //
+        // A subdomain whose RHS is already below poisson_abstol is skipped below, so its
+        // fluxes are never written by a solve. They are still added to the momenta after
+        // the loop, so they must start at zero (FArrayBox data is uninitialized unless
+        // AMREX_DEBUG is set).
+        //
+        fluxes[0][idim].setVal(0.0);
     }
 
     // ****************************************************************************
