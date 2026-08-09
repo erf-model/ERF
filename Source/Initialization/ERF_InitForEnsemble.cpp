@@ -38,7 +38,7 @@ ERF::create_random_perturbations(const int lev,
         [=] AMREX_GPU_DEVICE (int i, int j, int k, int n,
                              const amrex::RandomEngine& engine) noexcept
         {
-            pert_arr(i,j,k,n) = pert_arr(i,j,k,n) = amrex::Real(2.0) * amrex::Random(engine) - amrex::Real(1.0);
+            pert_arr(i,j,k,n) = amrex::Real(2.0) * amrex::Random(engine) - amrex::Real(1.0);
         });
     }
 }
