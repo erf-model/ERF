@@ -301,18 +301,6 @@ inline Config parse_config (const amrex::Real* problo,
     init_mode = amrex::toLower(init_mode);
     if (init_mode == "physical_temperature_rh") {
         config.physical_initialization = true;
-        const InitializationContract contract {
-            InitializationMode::PhysicalTemperatureRH,
-            config.cloudy,
-            pp_prob.contains("initial_relative_humidity"),
-            pp_prob.contains("theta_bottom") || pp_prob.contains("theta_top") ||
-                pp_prob.contains("theta_perturbation_amplitude") ||
-                pp_prob.contains("qv_bottom") || pp_prob.contains("qv_top"),
-            false};
-        const std::string contract_error = initialization_contract_error(contract);
-        if (!contract_error.empty()) {
-            amrex::Error(contract_error);
-        }
         std::string init_type;
         pp_erf.get("init_type", init_type);
         if (amrex::toLower(init_type) != "constantdensity") {
@@ -330,11 +318,34 @@ inline Config parse_config (const amrex::Real* problo,
         }
         pp_prob.get("initial_temperature_bottom", config.initial_temperature_bottom);
         pp_prob.get("initial_temperature_top", config.initial_temperature_top);
+        const bool has_initial_relative_humidity = pp_prob.contains("initial_relative_humidity");
+        auto physical_contract_error = [&](bool has_legacy_profile_keys) {
+            const InitializationContract contract {
+                InitializationMode::PhysicalTemperatureRH,
+                config.cloudy,
+                has_initial_relative_humidity,
+                has_legacy_profile_keys,
+                false};
+            return initialization_contract_error(contract);
+        };
+        std::string contract_error = physical_contract_error(false);
+        if (!contract_error.empty()) {
+            amrex::Error(contract_error);
+        }
         if (config.cloudy) {
             pp_prob.get("initial_relative_humidity", config.initial_relative_humidity);
         }
         pp_prob.query("temperature_perturbation_amplitude",
                       config.temperature_perturbation_amplitude);
+        const bool has_legacy_profile_keys = pp_prob.contains("theta_bottom") ||
+            pp_prob.contains("theta_top") ||
+            pp_prob.contains("theta_perturbation_amplitude") ||
+            pp_prob.contains("qv_bottom") ||
+            pp_prob.contains("qv_top");
+        contract_error = physical_contract_error(has_legacy_profile_keys);
+        if (!contract_error.empty()) {
+            amrex::Error(contract_error);
+        }
         require_finite("prob.initial_temperature_bottom", config.initial_temperature_bottom);
         require_finite("prob.initial_temperature_top", config.initial_temperature_top);
         require_finite("prob.temperature_perturbation_amplitude",
