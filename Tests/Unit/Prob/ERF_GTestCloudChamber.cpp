@@ -128,6 +128,90 @@ TEST(CloudChamberProfile, PhysicalTemperatureAndRelativeHumidityAreExact)
     EXPECT_GT(qv, Real(0.0));
 }
 
+TEST(CloudChamberConfig, RejectsRelativeHumidityInDryPhysicalMode)
+{
+    const erf_cloud_chamber::InitializationContract contract {
+        erf_cloud_chamber::InitializationMode::PhysicalTemperatureRH,
+        false,
+        true,
+        false,
+        false};
+
+    const auto error = erf_cloud_chamber::initialization_contract_error(contract);
+
+    EXPECT_EQ(error,
+              "Cloud Chamber: prob.initial_relative_humidity is only used with erf.moisture_model = SatAdj");
+}
+
+TEST(CloudChamberConfig, RequiresRelativeHumidityForPhysicalSatAdj)
+{
+    const erf_cloud_chamber::InitializationContract contract {
+        erf_cloud_chamber::InitializationMode::PhysicalTemperatureRH,
+        true,
+        false,
+        false,
+        false};
+
+    const auto error = erf_cloud_chamber::initialization_contract_error(contract);
+
+    EXPECT_EQ(error,
+              "Cloud Chamber: physical SatAdj initialization requires prob.initial_relative_humidity");
+}
+
+TEST(CloudChamberConfig, RejectsLegacyKeysInPhysicalMode)
+{
+    const erf_cloud_chamber::InitializationContract contract {
+        erf_cloud_chamber::InitializationMode::PhysicalTemperatureRH,
+        false,
+        false,
+        true,
+        false};
+
+    const auto error = erf_cloud_chamber::initialization_contract_error(contract);
+
+    EXPECT_EQ(error,
+              "Cloud Chamber: physical_temperature_rh cannot be combined with legacy theta/qv profile keys");
+}
+
+TEST(CloudChamberConfig, RejectsPhysicalKeysInLegacyMode)
+{
+    const erf_cloud_chamber::InitializationContract contract {
+        erf_cloud_chamber::InitializationMode::LegacyThetaQv,
+        false,
+        false,
+        false,
+        true};
+
+    const auto error = erf_cloud_chamber::initialization_contract_error(contract);
+
+    EXPECT_EQ(error,
+              "Cloud Chamber: legacy_theta_qv cannot be combined with physical temperature/RH profile keys");
+}
+
+TEST(CloudChamberConfig, AcceptsPhysicalSatAdjWithRelativeHumidity)
+{
+    const erf_cloud_chamber::InitializationContract contract {
+        erf_cloud_chamber::InitializationMode::PhysicalTemperatureRH,
+        true,
+        true,
+        false,
+        false};
+
+    EXPECT_TRUE(erf_cloud_chamber::initialization_contract_error(contract).empty());
+}
+
+TEST(CloudChamberConfig, AcceptsLegacyThetaQvWithoutPhysicalKeys)
+{
+    const erf_cloud_chamber::InitializationContract contract {
+        erf_cloud_chamber::InitializationMode::LegacyThetaQv,
+        false,
+        false,
+        false,
+        false};
+
+    EXPECT_TRUE(erf_cloud_chamber::initialization_contract_error(contract).empty());
+}
+
 // Motivation: the physical wall override must replace the ordinary boundary
 // flux with the signed half-cell molecular flux; dry faces must contribute
 // exactly zero rather than imposing qv=0 as a Dirichlet state.
