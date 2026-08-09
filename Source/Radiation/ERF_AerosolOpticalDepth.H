@@ -1,0 +1,131 @@
+#ifndef ERF_AEROSOL_OPTICAL_DEPTH_H_
+#define ERF_AEROSOL_OPTICAL_DEPTH_H_
+
+#include <AMReX_GpuControl.H>
+#include <AMReX_FArrayBox.H>
+#include <cmath>
+
+/**
+ * @file ERF_AerosolOpticalDepth.H
+ * @brief Phase 15: Prescribed bulk aerosol/turbidity optical depth diagnosis.
+ *
+ * Implements profile-based aerosol optical depth diagnosis for use in TwoStream radiation.
+ * Supports Constant, Exponential, and Table (future) profile types.
+ *
+ * Aerosol optical depth is added on top of existing tau contributions (tau_base + tau_cloud + tau_dynamic).
+ *
+ * Constant profile:
+ *   tau_aerosol(k) = aerosol_tau_per_layer  [uniform at all levels]
+ *
+ * Exponential profile:
+ *   tau_aerosol(k) = aerosol_tau_surface * exp(-z(k) / aerosol_scale_height_m)
+ *   [decay with height]
+ *
+ * Table profile (future):
+ *   tau_aerosol(k) = lookup_table[k]  [per-level prescribed values]
+ *
+ * References:
+ * -----------
+ * - Phase 15 Radiation Development notes (Source/Radiation/RAD_DEVELOPMENT.md)
+ */
+
+/**
+ * @brief Diagnose aerosol optical depth for Constant profile.
+ *
+ * Returns uniform aerosol tau_per_layer (independent of height/level).
+ * Clamped to [0, 100] for physical reasonableness.
+ *
+ * @param[in] tau_aerosol_const Constant aerosol optical depth per layer [dimensionless]
+ * @return Clamped aerosol optical depth [0, 100]
+ */
+AMREX_GPU_DEVICE AMREX_FORCE_INLINE
+amrex::Real diagnose_tau_aerosol_constant(amrex::Real tau_aerosol_const)
+{
+    // Guard against invalid input
+    if (!std::isfinite(tau_aerosol_const)) {
+        return 0.0;
+    }
+    
+    // Clamp to physically reasonable range [0, 100]
+    amrex::Real tau_clipped = tau_aerosol_const;
+    if (tau_clipped < 0.0) tau_clipped = 0.0;
+    if (tau_clipped > 100.0) tau_clipped = 100.0;
+    
+    return tau_clipped;
+}
+
+/**
+ * @brief Diagnose aerosol optical depth for Exponential profile.
+ *
+ * Returns height-dependent aerosol tau via exponential decay:
+ *   tau_aerosol(k) = tau_surface * exp(-z(k) / scale_height)
+ *
+ * Clamped to [0, 100] for physical reasonableness.
+ * Handles invalid parameters safely with fallback to 0.
+ *
+ * @param[in] z_level Height at level k [m]
+ * @param[in] tau_surface Total-column aerosol optical depth at surface [dimensionless]
+ * @param[in] scale_height_m Decay scale height [m]
+ * @return Clamped aerosol optical depth [0, 100]
+ */
+AMREX_GPU_DEVICE AMREX_FORCE_INLINE
+amrex::Real diagnose_tau_aerosol_exponential(amrex::Real z_level,
+                                            amrex::Real tau_surface,
+                                            amrex::Real scale_height_m)
+{
+    // Guard against invalid inputs
+    if (!std::isfinite(z_level) || !std::isfinite(tau_surface) || !std::isfinite(scale_height_m)) {
+        return 0.0;
+    }
+    
+    // Ensure positive scale height
+    if (scale_height_m <= 0.0) {
+        return 0.0;
+    }
+    
+    // Ensure nonnegative surface tau
+    if (tau_surface < 0.0) {
+        return 0.0;
+    }
+    
+    // Ensure nonnegative height
+    if (z_level < 0.0) {
+        z_level = 0.0;
+    }
+    
+    // Compute exponential decay
+    // Guard against overflow in exp() by checking argument
+    amrex::Real arg = -z_level / scale_height_m;
+    if (arg < -100.0) {
+        // exp(arg) would underflow to 0, so return 0
+        return 0.0;
+    }
+    
+    amrex::Real tau_aerosol = tau_surface * std::exp(arg);
+    
+    // Clamp to physically reasonable range [0, 100]
+    if (tau_aerosol < 0.0) tau_aerosol = 0.0;
+    if (tau_aerosol > 100.0) tau_aerosol = 100.0;
+    
+    return tau_aerosol;
+}
+
+/**
+ * @brief Diagnose aerosol optical depth for Table profile (future extension).
+ *
+ * Currently returns 0.0 as a placeholder. Future phases can implement
+ * per-level table lookup via fixed-size array or MultiFab.
+ *
+ * @param[in] k Level index
+ * @return Zero (not yet implemented)
+ */
+AMREX_GPU_DEVICE AMREX_FORCE_INLINE
+amrex::Real diagnose_tau_aerosol_table(int k)
+{
+    // Future extension: implement per-level table lookup
+    // For now, return 0 (no contribution)
+    (void)k;  // Suppress unused parameter warning
+    return 0.0;
+}
+
+#endif // ERF_AEROSOL_OPTICAL_DEPTH_H_
