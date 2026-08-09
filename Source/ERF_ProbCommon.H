@@ -458,17 +458,18 @@ public:
         amrex::ParallelDescriptor::Bcast(&ny,1,amrex::ParallelDescriptor::IOProcessorNumber());
 
         int nz = nx * ny;
+        int nx_vals = is_usgs ? (nx * ny) : nx;
 
-        m_xterrain.resize(nx);
+        m_xterrain.resize(nx_vals);
         m_yterrain.resize(ny);
         m_zterrain.resize(nz);
 
-        amrex::ParallelDescriptor::Bcast(m_xterrain.data(),nx,amrex::ParallelDescriptor::IOProcessorNumber());
+        amrex::ParallelDescriptor::Bcast(m_xterrain.data(),nx_vals,amrex::ParallelDescriptor::IOProcessorNumber());
         amrex::ParallelDescriptor::Bcast(m_yterrain.data(),ny,amrex::ParallelDescriptor::IOProcessorNumber());
         amrex::ParallelDescriptor::Bcast(m_zterrain.data(),nz,amrex::ParallelDescriptor::IOProcessorNumber());
 
         // Copy data to the GPU
-        amrex::Gpu::DeviceVector<amrex::Real> d_xterrain(nx),d_yterrain(ny),d_zterrain(nz);
+        amrex::Gpu::DeviceVector<amrex::Real> d_xterrain(nx_vals),d_yterrain(ny),d_zterrain(nz);
         amrex::Gpu::copy(amrex::Gpu::hostToDevice, m_xterrain.begin(), m_xterrain.end(), d_xterrain.begin());
         amrex::Gpu::copy(amrex::Gpu::hostToDevice, m_yterrain.begin(), m_yterrain.end(), d_yterrain.begin());
         amrex::Gpu::copy(amrex::Gpu::hostToDevice, m_zterrain.begin(), m_zterrain.end(), d_zterrain.begin());
@@ -517,14 +518,17 @@ public:
                 if (jindex_terrain == -1) {
                     jindex_terrain = ny-1;
                 }
+                jindex_terrain = amrex::min(amrex::max(jindex_terrain,0), ny-2);
 
                 int gstart = (jindex_terrain  )*nx;
                 int gend   = (jindex_terrain+1)*nx-1;
                 for (int it = gstart; it <= gend && iindex_terrain == -1; it++) {
                     if (d_xt[it] > x) {
-                        iindex_terrain = it-gstart;
+                        iindex_terrain = it-gstart-1;
                     }
                 }
+                // Keep the 2x2 stencil inside the table
+                iindex_terrain = amrex::min(amrex::max(iindex_terrain,0), nx-2);
 
                 // Define the four values to interpolate between
                 ind11 = jindex_terrain*nx + iindex_terrain; // (x1,y1)
