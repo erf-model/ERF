@@ -4,12 +4,17 @@
           // If using Fortran version, update the Fortran module variable as well
           set_morrison_ndcnst_c(m_ndcnst);
 
-          const int ilom = grown_box.loVect()[0];
-          const int ihim = grown_box.hiVect()[0];
-          const int jlom = grown_box.loVect()[1];
-          const int jhim = grown_box.hiVect()[1];
-          const int klom = grown_box.loVect()[2];
-          const int khim = grown_box.hiVect()[2];
+          // The pointers handed to Fortran are Array4::dataPtr() of the mic_fab_vars, whose
+          // origin/strides come from the FAB box. Deriving the declared bounds from anything
+          // else (e.g. tilebox grown by a hard-coded 3) mis-declares the strides whenever the
+          // grow count is not 3 or the MFIter tiles the box.
+          const Box& fab_box = mfi.fabbox();
+          const int ilom = fab_box.loVect()[0];
+          const int ihim = fab_box.hiVect()[0];
+          const int jlom = fab_box.loVect()[1];
+          const int jhim = fab_box.hiVect()[1];
+          const int klom = fab_box.loVect()[2];
+          const int khim = fab_box.hiVect()[2];
 
 #if defined(ERF_USE_MORR_FORT) && defined(AMREX_USE_GPU)
     Arena* Arena_Used = The_Pinned_Arena();
@@ -63,6 +68,11 @@
             precg_arr(i,j,k)    = Real(0);
           });
 
+#ifdef AMREX_USE_GPU
+          // The staging FABs are pinned (host-accessible) but that says nothing about
+          // ordering: the device kernels that zero/fill them may still be in flight.
+          amrex::Gpu::streamSynchronize();
+#endif
           mp_morr_two_moment_c
           (
               1,  // ITIMESTEP - Use 1 for simplicity

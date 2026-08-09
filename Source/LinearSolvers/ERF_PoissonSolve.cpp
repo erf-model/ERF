@@ -570,7 +570,7 @@ void ERF::project_momenta (int lev, double l_time, double l_dt_d, Vector<MultiFa
         // ****************************************************************************
         // No need to build the solver if RHS == 0
         // ****************************************************************************
-        if (rhsnorm <= solverChoice.poisson_abstol) return;
+        if (rhsnorm <= solverChoice.poisson_abstol) continue; // this subdomain only
 
         double start_step = ParallelDescriptor::second();
 

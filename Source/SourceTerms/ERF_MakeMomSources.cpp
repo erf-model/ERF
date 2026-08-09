@@ -107,7 +107,6 @@ void make_mom_sources (double time_d,
                        const amrex::Real* d_sinesq_stag_at_lev,
                        const Vector<Real*> d_sponge_ptrs_at_lev,
                        const Vector<MultiFab>* forecast_state_at_lev,
-                       const MultiFab* surface_state_at_lev,
                              InputSoundingData& input_sounding_data,
                        const eb_& ebfact,
                              bool is_slow_step)
