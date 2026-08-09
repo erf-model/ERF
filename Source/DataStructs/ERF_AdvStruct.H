@@ -18,6 +18,10 @@
 
 struct AdvChoice {
   public:
+    /**
+     * @brief Read advection options from the input parameter database.
+     * @param pp_prefix ParmParse prefix for the ERF input namespace.
+     */
     void init_params(std::string pp_prefix)
     {
         amrex::ParmParse pp(pp_prefix);
@@ -232,6 +236,10 @@ struct AdvChoice {
         have_zero_flux_faces = ((zero_xflux.size() > 0) || (zero_yflux.size() > 0) || (zero_zflux.size() > 0));
     }
 
+    /**
+     * @brief Print the configured advection choices.
+     * @param pp_prefix ParmParse prefix used to recover input strings for display.
+     */
     void display(std::string& pp_prefix)
     {
         amrex::Print() << "Advection Choices: " << std::endl;
@@ -315,6 +323,11 @@ struct AdvChoice {
         amrex::Print() << std::endl;
     }
 
+    /**
+     * @brief Convert an advection type enum to the corresponding input string.
+     * @param adv_int Advection type enum value.
+     * @return String representation of the advection type.
+     */
     std::string
     adv_type_convert_int_to_string (AdvType adv_int)
     {
@@ -349,6 +362,11 @@ struct AdvChoice {
         }
     }
 
+    /**
+     * @brief Convert an input advection string to the corresponding enum value.
+     * @param adv_string User-facing advection type string.
+     * @return Matching advection type, or AdvType::Unknown if no match is found.
+     */
     AdvType adv_type_convert_string_to_advtype (std::string adv_string)
     {
         if (adv_string == "Centered_2nd") {
@@ -382,6 +400,10 @@ struct AdvChoice {
         }
     }
 
+    /**
+     * @brief Check whether the selected momentum WENO schemes are compatible with embedded boundaries.
+     * @param use_embedded_boundary Whether the run uses embedded-boundary terrain.
+     */
     void validate_weno_momentum_compatibility(bool use_embedded_boundary)
     {
         // Check if any WENO momentum advection is being used
@@ -439,4 +461,41 @@ struct AdvChoice {
     amrex::Vector<amrex::IntVect> zero_zflux;
     bool have_zero_flux_faces = false;
 };
+
+/**
+ * @var AdvChoice::use_efficient_advection
+ * @brief Whether to use the efficient advection implementation.
+ * @var AdvChoice::dycore_horiz_adv_type
+ * @brief Horizontal advection scheme for dynamical-core variables.
+ * @var AdvChoice::dycore_vert_adv_type
+ * @brief Vertical advection scheme for dynamical-core variables.
+ * @var AdvChoice::dryscal_horiz_adv_type
+ * @brief Horizontal advection scheme for dry scalar variables.
+ * @var AdvChoice::dryscal_vert_adv_type
+ * @brief Vertical advection scheme for dry scalar variables.
+ * @var AdvChoice::moistscal_horiz_adv_type
+ * @brief Horizontal advection scheme for moist scalar variables.
+ * @var AdvChoice::moistscal_vert_adv_type
+ * @brief Vertical advection scheme for moist scalar variables.
+ * @var AdvChoice::dycore_horiz_upw_frac
+ * @brief Upwind blending fraction for horizontal dynamical-core advection.
+ * @var AdvChoice::dycore_vert_upw_frac
+ * @brief Upwind blending fraction for vertical dynamical-core advection.
+ * @var AdvChoice::dryscal_horiz_upw_frac
+ * @brief Upwind blending fraction for horizontal dry scalar advection.
+ * @var AdvChoice::dryscal_vert_upw_frac
+ * @brief Upwind blending fraction for vertical dry scalar advection.
+ * @var AdvChoice::moistscal_horiz_upw_frac
+ * @brief Upwind blending fraction for horizontal moist scalar advection.
+ * @var AdvChoice::moistscal_vert_upw_frac
+ * @brief Upwind blending fraction for vertical moist scalar advection.
+ * @var AdvChoice::zero_xflux
+ * @brief Thin immersed-body x-face indices where fluxes are forced to zero.
+ * @var AdvChoice::zero_yflux
+ * @brief Thin immersed-body y-face indices where fluxes are forced to zero.
+ * @var AdvChoice::zero_zflux
+ * @brief Thin immersed-body z-face indices where fluxes are forced to zero.
+ * @var AdvChoice::have_zero_flux_faces
+ * @brief Whether any zero-flux thin immersed-body faces were specified.
+ */
 #endif

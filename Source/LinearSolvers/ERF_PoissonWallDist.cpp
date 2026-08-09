@@ -1,3 +1,6 @@
+/**
+ * \file ERF_PoissonWallDist.cpp
+ */
 #include "ERF.H"
 #include "ERF_Utils.H"
 #include "ERF_TerrainPoisson_3D_K.H"
@@ -18,6 +21,8 @@ using namespace amrex;
  * See Tucker, P. G. (2003). Differential equation-based wall distance
  * computation for DES and RANS. Journal of Computational Physics,
  * 190(1), 229–Real(248.) https://doi.org/Real(10.1016)/S0021-9991(03)00272-9
+ *
+ * @param lev Level index for the wall-distance solve
  */
 void ERF::poisson_wall_dist (int lev)
 {

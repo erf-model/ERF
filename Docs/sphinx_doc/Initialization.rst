@@ -14,6 +14,14 @@ the specification of which initialization pathway ERF will take.
 Custom Initialization
 ----------------------------------
 
+The deterministic rectangular ``Cloud Chamber`` initializer is documented in
+:ref:`CloudChamber`.  Dry mode initializes a physical-temperature profile
+without moisture state variables.  SatAdj mode additionally initializes water
+vapor from the requested relative humidity and sets cloud water to zero before
+the model begins its equilibrium partitioning.  Wall temperature and moisture
+settings are a separate boundary-condition contract that controls subsequent
+resolved wall-normal transfer.
+
 When not reading the initial data as described in the section below,
 the initialization in ERF has two steps: creation of the background state
 and creation of optionally non-zero initial perturbations from the background state.
@@ -45,7 +53,12 @@ provided **erf.input_sounding_file** are used to set initial conditions and the
 base state depending on **erf.sounding_type**.
 For an ``Ideal`` sounding (default), a stratified, hydrostatically balanced base
 state is reconstructed from the 1-D input sounding data as described in
-:ref:`sec:BaseState`. The initial fields match the base state. This
+:ref:`sec:BaseState`. The stored base-state density is dry-air density
+:math:`\rho_0`; base-state pressure is computed from
+:math:`\rho_0\theta_0` and :math:`q_{v,0}` using the equation of state, while
+hydrostatic balance uses the total moist base-state density
+:math:`\rho_0(1 + q_{v,0})`. The initial dry-density,
+:math:`\rho\theta`, and water-vapor fields match the base state. This
 configuration corresponds to WRF's ideal.exe initialization.
 
 If the sounding is ``Isentropic`` or ``DryIsentropic``, a set of

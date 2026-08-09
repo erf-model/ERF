@@ -3,6 +3,18 @@
 
 /**
  * Wrapper function for computing the advective tendency w/ spatial order > two
+ *
+ * @tparam InterpType_H horizontal interpolation type
+ * @tparam InterpType_V vertical interpolation type
+ * @param[in] bx cell-centered box over which scalar fluxes are computed
+ * @param[in] cons_index conserved scalar component to update
+ * @param[out] flx_arr flux arrays for the selected scalar component
+ * @param[in] cell_prim primitive scalar variables
+ * @param[in] avg_xmom x-component of time-averaged momentum
+ * @param[in] avg_ymom y-component of time-averaged momentum
+ * @param[in] avg_zmom z-component of time-averaged momentum
+ * @param[in] horiz_upw_frac horizontal upwind blending fraction
+ * @param[in] vert_upw_frac vertical upwind blending fraction
  */
 template<typename InterpType_H, typename InterpType_V>
 void
@@ -49,6 +61,18 @@ AdvectionSrcForScalarsWrapper (const amrex::Box& bx,
 
 /**
  * Wrapper function for templating the vertical advective tendency w/ spatial order > two
+ *
+ * @tparam InterpType_H horizontal interpolation type
+ * @param[in] bx cell-centered box over which scalar fluxes are computed
+ * @param[in] cons_index conserved scalar component to update
+ * @param[out] flx_arr flux arrays for the selected scalar component
+ * @param[in] cell_prim primitive scalar variables
+ * @param[in] avg_xmom x-component of time-averaged momentum
+ * @param[in] avg_ymom y-component of time-averaged momentum
+ * @param[in] avg_zmom z-component of time-averaged momentum
+ * @param[in] horiz_upw_frac horizontal upwind blending fraction
+ * @param[in] vert_upw_frac vertical upwind blending fraction
+ * @param[in] vert_adv_type vertical advection stencil
  */
 template<typename InterpType_H>
 void

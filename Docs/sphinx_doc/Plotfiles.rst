@@ -6,839 +6,357 @@
 *********
 Plotfiles
 *********
-.. toctree::
-   :maxdepth: 1
 
-There are three types of plotfiles that can be written from ERF.
+ERF provides three plotfile output paths:
 
-The first is the standard type of plotfile which includes 3D data on all levels for those variables
-specified by the user in the inputs file.
+* Standard 3D plotfiles write selected fields on all active AMR levels.
+* 2D plotfiles write one-cell-thick horizontal slabs containing fixed
+  diagnostics and, optionally, fields sampled on user-defined vertical levels.
+* Subvolume plotfiles write selected fields from one or more regular 3D regions.
 
-The second is a pseudo-2D plotfile that contains data that is only defined as a function
-of horizontal position, such as map factors, latitude and longitude.
+The standard 3D and 2D paths each support two independent output streams. Each
+stream has its own format, prefix, schedule, and variable list. Subvolume output
+uses one prefix and one variable list, but it may define more than one region
+and schedule.
 
-The third type of plotfile contains
-3D data on one level only and in a specified region of the domain.   We refer to this
-latter capability as "Subvolumes" below.  The level at which the data is written
-out is determined by the mesh spacing specified by the user.
+Choosing an output type
+=======================
 
-Controlling PlotFile Generation
-===============================
+.. list-table::
+   :header-rows: 1
+   :widths: 22 34 44
 
-Plotfiles can be written very efficiently in parallel in a native AMReX format.
-They can also be written in NetCDF. It is possible to output plotfiles in the
-same or separate formats at two distinct frequencies.
+   * - Output
+     - Use it for
+     - Main controls
+   * - Standard 3D
+     - Full model fields on every active AMR level.
+     - ``erf.plot_file_*``, ``erf.plot_int_*``, ``erf.plot_per_*``, and
+       ``erf.plot_vars_*``.
+   * - 2D diagnostics
+     - Surface, column, and selected vertical-level fields on horizontal slabs.
+     - ``erf.plot2d_file_*``, ``erf.plot2d_int_*``, ``erf.plot2d_per_*``,
+       ``erf.plot2d_vars_*``, and ``erf.plot2d_level_sets_*``.
+   * - 3D subvolume
+     - One or more regular regions smaller than the full model domain.
+     - ``erf.subvol_file``, ``erf.subvol_int``, ``erf.subvol_per``,
+       ``erf.subvol_sampling_vars``, and the ``erf.subvol.*`` geometry controls.
 
-The computational cost associated with writing plotfiles
-in the AMReX native format is typically negligible relative to the overall cost of the simulation;
-in a recent performance study the cost of writing a plotfile was roughly a percent or two
-of the cost of a single timestep.
+Choosing AMReX or NetCDF
+========================
 
-If NetCDF output is preferred, one suggestion is to write the plotfiles in the native AMReX
-format for efficient I/O performance, then to convert the plotfiles to NetCDF files using
-the executable you can build in Exec/Tools (using gmake, or with the ``ERF_ENABLE_TOOLS`` flag
-if using cmake).
+ERF selects the 3D and 2D formats independently. Format names are parsed
+without regard to case. Native AMReX is the effective default for every
+standard 3D and 2D stream. NetCDF requires an ERF build with NetCDF enabled.
 
-The following options in the inputs file control the generation of plotfiles.
-Note that plotfiles can be written at two different frequencies; the names,
-frequency and content of the two streams are controlled separately.
+.. list-table::
+   :header-rows: 1
+   :widths: 32 52 16
 
-.. _list-of-parameters-9:
+   * - Parameter
+     - Meaning
+     - Effective default
+   * - ``erf.plotfile_type``
+     - Backward-compatible shorthand that sets both 3D streams. Do not combine
+       it with ``erf.plotfile_type_1`` or ``erf.plotfile_type_2``.
+     - ``amrex``
+   * - ``erf.plotfile_type_1``
+     - Format for the first 3D stream: ``amrex`` or ``netcdf``.
+     - ``amrex``
+   * - ``erf.plotfile_type_2``
+     - Format for the second 3D stream: ``amrex`` or ``netcdf``.
+     - ``amrex``
+   * - ``erf.plotfile2d_type``
+     - Shorthand that sets both 2D streams. Do not combine it with
+       ``erf.plotfile2d_type_1`` or ``erf.plotfile2d_type_2``.
+     - ``amrex``
+   * - ``erf.plotfile2d_type_1``
+     - Format for the first 2D stream: ``amrex`` or ``netcdf``.
+     - ``amrex``
+   * - ``erf.plotfile2d_type_2``
+     - Format for the second 2D stream: ``amrex`` or ``netcdf``.
+     - ``amrex``
 
-List of Parameters for Both 2D and 3D Plotfiles
------------------------------------------------
+If a shorthand and its corresponding per-stream parameter are both set, ERF
+stops with an input error. A per-stream parameter may be set without setting the
+other stream; the unset stream keeps the AMReX default.
 
-+----------------------------------+------------------+-----------------------+------------+
-| Parameter                        | Definition       | Acceptable            | Default    |
-|                                  |                  | Values                |            |
-+----------------------------------+------------------+-----------------------+------------+
-| **erf.plotfile_type**            | AMReX or NETCDF  | "amrex" or            | "amrex"    |
-|                                  | format           | "netcdf / "NetCDF"    |            |
-+----------------------------------+------------------+-----------------------+------------+
-| **erf.use_real_time_in_pltname** | Use real time    | Boolean               | false      |
-|                                  | instead of time  |                       |            |
-|                                  | step for         |                       |            |
-|                                  | plotfile names   |                       |            |
-+----------------------------------+------------------+-----------------------+------------+
-| **erf.file_name_digits**         | Number of digits | Integer               | 5          |
-|                                  | to be appended   | :math:`> 0`           |            |
-|                                  | to the plotfile  |                       |            |
-|                                  | and checkpoint   |                       |            |
-|                                  | file names if    |                       |            |
-|                                  | using time step  |                       |            |
-+----------------------------------+------------------+-----------------------+------------+
+The configured stream formats apply to ordinary scheduled and startup writes.
+Final-time writes use each stream's configured format independently.
 
-List of Parameters for 3D Plotfiles
------------------------------------
+Primary native AMReX 2D and 3D plotfiles contain an execution and ancestry
+record in ``job_info``. Each output has its own artifact UUID. Native AMReX 2D
+plotfiles also write ``2DMetadata.json``. NetCDF output uses the same public 2D
+variable names but does not provide the equivalent sidecar metadata. See
+:ref:`sec:Provenance` and :ref:`sec:Plotfile2DMetadata`.
 
-+----------------------------------+------------------+-----------------------+------------+
-| Parameter                        | Definition       | Acceptable            | Default    |
-|                                  |                  | Values                |            |
-+==================================+==================+=======================+============+
-| **erf.plot_file_1**              | prefix for       | String                | “*plt_1_*” |
-|                                  | plotfiles        |                       |            |
-|                                  | at first freq.   |                       |            |
-+----------------------------------+------------------+-----------------------+------------+
-| **erf.plot_file_2**              | prefix for       | String                | “*plt_2_*” |
-|                                  | plotfiles        |                       |            |
-|                                  | at seoncd freq.  |                       |            |
-+----------------------------------+------------------+-----------------------+------------+
-| **erf.plot_int_1**               | how often (by    | Integer               | -1         |
-|                                  | level-0 time     | :math:`> 0`           |            |
-|                                  | steps) to write  |                       |            |
-|                                  | plot files       |                       |            |
-|                                  | at first freq.   |                       |            |
-+----------------------------------+------------------+-----------------------+------------+
-| **erf.plot_int_2**               | how often (by    | Integer               | -1         |
-|                                  | level-0 time     | :math:`> 0`           |            |
-|                                  | steps) to write  |                       |            |
-|                                  | plot files       |                       |            |
-|                                  | at second freq.  |                       |            |
-+----------------------------------+------------------+-----------------------+------------+
-| **erf.plot_per_1**               | how often (in    | Real                  | -1.0       |
-|                                  | simulation time) | :math:`> 0`           |            |
-|                                  | to write         |                       |            |
-|                                  | plot files       |                       |            |
-|                                  | at first freq.   |                       |            |
-+----------------------------------+------------------+-----------------------+------------+
-| **erf.plot_per_2**               | how often (in    | Real                  | -1.0       |
-|                                  | simulation time) | :math:`> 0`           |            |
-|                                  | to write         |                       |            |
-|                                  | plot files       |                       |            |
-|                                  | at second freq.  |                       |            |
-+----------------------------------+------------------+-----------------------+------------+
-| **erf.plot_vars_1**              | name of          | list of names         | None       |
-|                                  | variables to     |                       |            |
-|                                  | include in       |                       |            |
-|                                  | plotfiles        |                       |            |
-|                                  | at first freq.   |                       |            |
-+----------------------------------+------------------+-----------------------+------------+
-| **erf.plot_vars_2**              | name of          | list of names         | None       |
-|                                  | variables to     |                       |            |
-|                                  | include in       |                       |            |
-|                                  | plotfiles        |                       |            |
-|                                  | at second freq.  |                       |            |
-+----------------------------------+------------------+-----------------------+------------+
-| **erf.plot_face_vels**           | output plotfiles | Boolean               | false      |
-|                                  | "{prefix}U",     |                       |            |
-|                                  | "{prefix}V", and |                       |            |
-|                                  | "{prefix}W"      |                       |            |
-|                                  | with velocity    |                       |            |
-|                                  | components on the|                       |            |
-|                                  | staggered grid.  |                       |            |
-+----------------------------------+------------------+-----------------------+------------+
+Subvolume output uses the native AMReX single-level plotfile writer. The
+standard 3D and 2D format parameters do not select a NetCDF subvolume format.
 
-List of Parameters for 2D Plotfiles
------------------------------------
+A workflow that needs NetCDF may write native AMReX plotfiles during the run and
+convert them afterward with the tools under ``Exec/Tools``. Build those tools
+with GNU Make or with ``ERF_ENABLE_TOOLS`` in CMake.
 
-+-----------------------------+------------------+-----------------------+--------------+
-| Parameter                   | Definition       | Acceptable            | Default      |
-|                             |                  | Values                |              |
-+=============================+==================+=======================+==============+
-| **erf.plot2d_file_1**       | prefix for       | String                | “*plt2d_1_*” |
-|                             | 2d plotfiles     |                       |              |
-|                             | at first freq.   |                       |              |
-+-----------------------------+------------------+-----------------------+--------------+
-| **erf.plot2d_file_2**       | prefix for       | String                | “*plt2d_2_*” |
-|                             | 2d plotfiles     |                       |              |
-|                             | at seoncd freq.  |                       |              |
-+-----------------------------+------------------+-----------------------+--------------+
-| **erf.plot2d_int_1**        | how often (by    | Integer               | -1           |
-|                             | level-0 time     | :math:`> 0`           |              |
-|                             | steps) to write  |                       |              |
-|                             | 2d plot files    |                       |              |
-|                             | at first freq.   |                       |              |
-+-----------------------------+------------------+-----------------------+--------------+
-| **erf.plot2d_int_2**        | how often (by    | Integer               | -1           |
-|                             | level-0 time     | :math:`> 0`           |              |
-|                             | steps) to write  |                       |              |
-|                             | 2d plot files    |                       |              |
-|                             | at second freq.  |                       |              |
-+-----------------------------+------------------+-----------------------+--------------+
-| **erf.plot2d_per_1**        | how often (in    | Real                  | -1.0         |
-|                             | simulation time) | :math:`> 0`           |              |
-|                             | to write         |                       |              |
-|                             | 2d plot files    |                       |              |
-|                             | at first freq.   |                       |              |
-+-----------------------------+------------------+-----------------------+--------------+
-| **erf.plot2d_per_2**        | how often (in    | Real                  | -1.0         |
-|                             | simulation time) | :math:`> 0`           |              |
-|                             | to write         |                       |              |
-|                             | 2d plot files    |                       |              |
-|                             | at second freq.  |                       |              |
-+-----------------------------+------------------+-----------------------+--------------+
-| **erf.plot2d_vars_1**       | name of          | list of names         | None         |
-|                             | variables to     |                       |              |
-|                             | include in       |                       |              |
-|                             | 2d plotfiles     |                       |              |
-|                             | at first freq.   |                       |              |
-+-----------------------------+------------------+-----------------------+--------------+
-| **erf.plot2d_vars_2**       | name of          | list of names         | None         |
-|                             | variables to     |                       |              |
-|                             | include in       |                       |              |
-|                             | p2d lotfiles     |                       |              |
-|                             | at second freq.  |                       |              |
-+-----------------------------+------------------+-----------------------+--------------+
-| **erf.file_name_digits**    | Number of digits | Integer               | 5            |
-|                             | to be appended   | :math:`> 0`           |              |
-|                             | to the plot file |                       |              |
-|                             | names            |                       |              |
-+-----------------------------+------------------+-----------------------+--------------+
+.. _sec:PlotfileCommonParameters:
 
-List of Parameters for Subvolumes
------------------------------------
+Common naming controls
+======================
 
-+-----------------------------+-------------------+-----------------------+---------------+
-| Parameter                   | Definition        | Acceptable            | Default       |
-|                             |                   | Values                |               |
-+=============================+===================+=======================+===============+
-| **erf.subvol_file**         | prefix for        | String                | “*subvol*”    |
-|                             | subvolume         |                       |               |
-|                             | file names        |                       |               |
-+-----------------------------+-------------------+-----------------------+---------------+
-| **erf.subvol_int**          | how often (by     | Integer               | -1            |
-|                             | level-0 time      | :math:`> 0`           |               |
-|                             | steps) to write   |                       |               |
-|                             | subvol files      |                       |               |
-+-----------------------------+-------------------+-----------------------+---------------+
-| **erf.subvol_per**          | how often (in     | Real                  | -1.0          |
-|                             | simulation time)  | :math:`> 0`           |               |
-|                             | to write          |                       |               |
-|                             | subvol files      |                       |               |
-+-----------------------------+-------------------+-----------------------+---------------+
-| **erf.subvol.origin**       | lower left corner | Reals                 | None -- must  |
-|                             | of region to be   |                       | be specified  |
-|                             | output            |                       | if outputting |
-|                             |                   |                       | subvolumes    |
-+-----------------------------+-------------------+-----------------------+---------------+
-| **erf.subvol.nxnynz**       | dimensions        | Integers              | None -- must  |
-|                             | of region to be   |                       | be specified  |
-|                             | output            |                       | if outputting |
-|                             |                   |                       | subvolumes    |
-+-----------------------------+-------------------+-----------------------+---------------+
-| **erf.subvol.dxdydz**       | resolution        | Reals                 | None -- must  |
-|                             | of region to be   |                       | be specified  |
-|                             | output            |                       | if outputting |
-|                             |                   |                       | subvolumes    |
-+-----------------------------+-------------------+-----------------------+---------------+
+.. list-table::
+   :header-rows: 1
+   :widths: 30 48 12 10
 
-.. _notes-5:
+   * - Parameter
+     - Meaning
+     - Type
+     - Default
+   * - ``erf.use_real_time_in_pltname``
+     - For 3D primary and subvolume outputs, use a UTC calendar timestamp
+       derived from the configured start time plus elapsed model time. 2D
+       output and face-velocity files remain step-numbered.
+     - Boolean
+     - ``false``
+   * - ``erf.file_name_digits``
+     - Number of digits appended to step-based plotfile and checkpoint names.
+     - Integer greater than zero
+     - ``5``
 
-Notes
------
+When ``erf.use_real_time_in_pltname = true``, a primary 3D name uses
+``<prefix>_YYYY-MM-DD_HH:MM:SS`` from ``start_time + elapsed model time`` in
+UTC. A subvolume name uses the same timestamp with six fractional-second digits
+after ``<subvol_file>_<region-index>``. 2D primary names and 3D face-velocity
+names remain step-numbered.
 
--  The NetCDF option for writing plotfiles is only available if ERF has been built with USE_NETCDF enabled.
+Output streams and schedules
+============================
 
-.. _examples-of-usage-8:
+The 3D and 2D paths each provide stream 1 and stream 2. Configure either stream
+independently. An ``*_int_*`` parameter schedules output by level-0 time steps.
+An ``*_per_*`` parameter schedules output by simulation time. Leave an unused
+schedule at its negative default. ERF rejects a 3D or 2D stream for which both
+the interval and period are positive.
 
-Examples of Usage
------------------
+For subvolumes, specify ``erf.subvol_int`` or ``erf.subvol_per``, not both. The
+parser accepts one schedule value or one value per region. With several regions,
+a single value applies only to the first region; supply one value per region to
+schedule every region.
 
--  **erf.plotfile_type** = *amrex*
+Configuring 3D output
+=====================
 
--  **erf.plot_file_1** = *plt_run*
+.. list-table::
+   :header-rows: 1
+   :widths: 28 48 12 12
 
--  **erf.plot_int_1** = 10
+   * - Parameter
+     - Meaning
+     - Type
+     - Default
+   * - ``erf.plot_file_1``
+     - Prefix for the first 3D stream.
+     - String
+     - ``plt_1_``
+   * - ``erf.plot_file_2``
+     - Prefix for the second 3D stream.
+     - String
+     - ``plt_2_``
+   * - ``erf.plot_int_1``
+     - Level-0 step interval for the first 3D stream.
+     - Integer greater than zero
+     - ``-1``
+   * - ``erf.plot_int_2``
+     - Level-0 step interval for the second 3D stream.
+     - Integer greater than zero
+     - ``-1``
+   * - ``erf.plot_per_1``
+     - Simulation-time period for the first 3D stream.
+     - Real greater than zero
+     - ``-1.0``
+   * - ``erf.plot_per_2``
+     - Simulation-time period for the second 3D stream.
+     - Real greater than zero
+     - ``-1.0``
+   * - ``erf.plot_vars_1``
+     - Variables in the first 3D stream.
+     - List of names
+     - None
+   * - ``erf.plot_vars_2``
+     - Variables in the second 3D stream.
+     - List of names
+     - None
+   * - ``erf.plot_face_vels``
+     - Also write the native staggered velocity components.
+     - Boolean
+     - ``false``
 
-   means that native plot files (actually directories) starting with the prefix
-   “*plt_run*” will be generated every 10 level-0 time steps. If using
-   amrex format, that directory names will be *plt_run00000*, *plt_run00010*,
-   *plt_run00020*, etc.  If using NetCDF format, the names will have ".nc" appended.
-
-   In addition, while the amrex plotfiles will contain data at all of the refinement
-   levels,  NetCDF files are separated by level.
-
-PlotFile Outputs
-================
-
-Plotfiles can include the quantities of several simulation parameters as output.
-They are summarized in the list below. Note that temporally averaged quantities
-(e.g., ``u_t_avg, v_t_avg, w_t_avg, umag_t_avg``) require the user to enable the
-storage of the time averaged variables with ``erf.time_avg_vel = true``.
-Some optional quantities are only available when the corresponding compile-time
-option or physics package is enabled; those restrictions are noted in the table.
-
-Subvolumes current default to plotting only the three velocity components but will
-be generalized in future.
-
-Output Options for 3D plotfiles
--------------------------------
-
-+-----------------------------+------------------+
-| Parameter                   | Definition       |
-|                             |                  |
-+=============================+==================+
-| **x_velocity**              | Velocity in x    |
-|                             | direction        |
-|                             | [m/s]            |
-+-----------------------------+------------------+
-| **y_velocity**              | Velocity in y    |
-|                             | direction        |
-|                             | [m/s]            |
-+-----------------------------+------------------+
-| **z_velocity**              | Velocity in z    |
-|                             | direction        |
-|                             | [m/s]            |
-+-----------------------------+------------------+
-| **density**                 | Dry density      |
-|                             | [kg/m^3]         |
-|                             |                  |
-+-----------------------------+------------------+
-| **moist_density**           | Total density    |
-|                             | [kg/m^3]         |
-|                             |                  |
-+-----------------------------+------------------+
-| **dens_hse**                | Hydrostatic      |
-|                             | density          |
-|                             | [kg/m^3]         |
-+-----------------------------+------------------+
-| **pert_dens**               | Perturbational   |
-|                             | density          |
-|                             | [kg/m^3]         |
-+-----------------------------+------------------+
-| **pressure**                | Total pressure   |
-|                             | [Pa]             |
-|                             |                  |
-+-----------------------------+------------------+
-| **pres_hse**                | Hydrostatic      |
-|                             | pressure         |
-|                             | [Pa]             |
-+-----------------------------+------------------+
-| **theta_hse**               | Hydrostatic      |
-|                             | potential        |
-|                             | temperature [K]  |
-+-----------------------------+------------------+
-| **pert_pres**               | Perturbational   |
-|                             | pressure         |
-|                             | [Pa]             |
-+-----------------------------+------------------+
-| **pres_hse_x**              | Derivative of    |
-|                             | hydrostatic      |
-|                             | pressure in x    |
-|                             | [Pa/m]           |
-+-----------------------------+------------------+
-| **pres_hse_y**              | Derivative of    |
-|                             | hydrostatic      |
-|                             | pressure in y    |
-|                             | [Pa/m]           |
-+-----------------------------+------------------+
-| **dpdx**                    | Pressure gradient|
-|                             | in x direction   |
-|                             | [Pa/m]           |
-+-----------------------------+------------------+
-| **dpdy**                    | Pressure gradient|
-|                             | in y direction   |
-|                             | [Pa/m]           |
-+-----------------------------+------------------+
-| **dpdz**                    | Pressure gradient|
-|                             | in z direction   |
-|                             | [Pa/m]           |
-+-----------------------------+------------------+
-| **temp**                    | Temperature      |
-|                             | [K]              |
-|                             |                  |
-+-----------------------------+------------------+
-| **theta**                   | Potential        |
-|                             | temperature [K]  |
-|                             |                  |
-+-----------------------------+------------------+
-| **eq_pot_temp**             | Equivalent       |
-|                             | potential        |
-|                             | temperature [K]  |
-+-----------------------------+------------------+
-| **VPD**                     | Vapor pressure   |
-|                             | deficit [kPa]    |
-|                             |                  |
-+-----------------------------+------------------+
-| **rhotheta**                | Density * theta  |
-|                             | [kg K/m^3]       |
-|                             |                  |
-+-----------------------------+------------------+
-| **KE**                      | SGS turbulent    |
-|                             | kinetic energy   |
-|                             | (from Deardorff  |
-|                             | or MYNN)         |
-|                             | [m^2/s^2]        |
-+-----------------------------+------------------+
-| **rhoKE**                   | Density * KE     |
-|                             | [kg/(m s^2)]     |
-|                             |                  |
-+-----------------------------+------------------+
-| **scalar**                  | Scalar magnitude |
-|                             | [problem-dep.]   |
-|                             |                  |
-+-----------------------------+------------------+
-| **reflectivity**            | reflectivity     |
-|                             | cell-by-cell     |
-|                             | [dBZ]            |
-+-----------------------------+------------------+
-| **max_reflectivity**        | max of           |
-|                             | reflectivity     |
-|                             | over a column    |
-|                             | [dBZ]            |
-+-----------------------------+------------------+
-| **precipitable**            | precipitable     |
-|                             | water (integral  |
-|                             | over column)     |
-|                             | [kg/m^2]         |
-+-----------------------------+------------------+
-| **mucape**                  | most unstable    |
-|                             | CAPE over a      |
-|                             | column [J/kg]    |
-+-----------------------------+------------------+
-| **vorticity_x**             | x-component of   |
-|                             | vorticity [1/s]  |
-|                             |                  |
-+-----------------------------+------------------+
-| **vorticity_y**             | y-component of   |
-|                             | vorticity [1/s]  |
-|                             |                  |
-+-----------------------------+------------------+
-| **vorticity_z**             | z-component of   |
-|                             | vorticity [1/s]  |
-|                             |                  |
-+-----------------------------+------------------+
-| **local_helicity**          | helicity         |
-|                             | cell-by-cell     |
-|                             | [m/s^2]          |
-+-----------------------------+------------------+
-| **helicity**                | helicity         |
-|                             | (integral over   |
-|                             | column)          |
-|                             | [m^2/s^2]        |
-+-----------------------------+------------------+
-| **magvel**                  | magnitude of     |
-|                             | velocity [m/s]   |
-|                             |                  |
-+-----------------------------+------------------+
-| **divU**                    | divergence of    |
-|                             | velocity [1/s]   |
-|                             |                  |
-+-----------------------------+------------------+
-| **u_t_avg**                 | time average of  |
-|                             | x-component of   |
-|                             | velocity [m/s]   |
-+-----------------------------+------------------+
-| **v_t_avg**                 | time average of  |
-|                             | y-component of   |
-|                             | velocity [m/s]   |
-+-----------------------------+------------------+
-| **w_t_avg**                 | time average of  |
-|                             | z-component of   |
-|                             | velocity [m/s]   |
-+-----------------------------+------------------+
-| **umag_t_avg**              | time average of  |
-|                             | velocity mag     |
-|                             | [m/s]            |
-+-----------------------------+------------------+
-| **rhoadv_0**                | Conserved scalar |
-|                             | [problem-dep.]   |
-|                             |                  |
-+-----------------------------+------------------+
-| **soundspeed**              | Sound speed      |
-|                             | [m/s]            |
-|                             |                  |
-+-----------------------------+------------------+
-| **z_phys**                  | Terrain height   |
-|                             | [m]              |
-|                             |                  |
-+-----------------------------+------------------+
-| **detJ**                    | Jacobian         |
-|                             | determinant [1]  |
-|                             |                  |
-+-----------------------------+------------------+
-| **mapfac**                  | Map scale factor |
-|                             | [1]              |
-|                             |                  |
-+-----------------------------+------------------+
-| **lat_m**                   | Latitude at mass |
-|                             | points           |
-|                             | [deg]            |
-+-----------------------------+------------------+
-| **lon_m**                   | Longitude at     |
-|                             | mass points      |
-|                             | [deg]            |
-+-----------------------------+------------------+
-| **nut**                     | Eddy viscosity,  |
-|                             | nu_t [m^2/s]     |
-+-----------------------------+------------------+
-| **Kmv**                     | Vertical         |
-|                             | Eddy Diffusivity |
-|                             | of Momentum      |
-|                             | [kg/(m s)]       |
-+-----------------------------+------------------+
-| **Kmh**                     | Horizontal       |
-|                             | Eddy Diffusivity |
-|                             | of Momentum      |
-|                             | (Note: For LES,  |
-|                             | this is the      |
-|                             | _dynamic_ eddy   |
-|                             | viscosity, mu_t  |
-|                             | = rho * nu_t     |
-|                             | and Kmh==Kmv)    |
-|                             | [kg/(m s)]       |
-+-----------------------------+------------------+
-| **Khv**                     | Vertical         |
-|                             | Eddy Diffusivity |
-|                             | of Heat          |
-|                             | [kg/(m s)]       |
-+-----------------------------+------------------+
-| **Khh**                     | Horizontal       |
-|                             | Eddy Diffusivity |
-|                             | of Heat          |
-|                             | [kg/(m s)]       |
-+-----------------------------+------------------+
-| **Lturb**                   | Turbulence       |
-|                             | length scale     |
-|                             | with             |
-|                             | ``use_kturb``    |
-|                             | [m]              |
-+-----------------------------+------------------+
-| **walldist**                | Wall distance    |
-|                             | for RANS models  |
-|                             | only [m]         |
-+-----------------------------+------------------+
-| **diss**                    | Subfilter-scale  |
-|                             | dissipation      |
-|                             | with diffusion / |
-|                             | turbulence       |
-|                             | [kg/(m s^3)]     |
-+-----------------------------+------------------+
-| **qt**                      | Total water      |
-|                             | [kg/kg]          |
-+-----------------------------+------------------+
-| **qn**                      | Nonprecipitating |
-|                             | water (qv + qc + |
-|                             | qi)              |
-|                             | [kg/kg]          |
-+-----------------------------+------------------+
-| **qp**                      | Precipitating    |
-|                             | water (rain +    |
-|                             | snow + graupel)  |
-|                             | [kg/kg]          |
-+-----------------------------+------------------+
-| **qc**                      | Cloud water      |
-|                             | mixing ratio     |
-|                             | [kg/kg]          |
-+-----------------------------+------------------+
-| **qi**                      | Cloud ice        |
-|                             | mixing ratio     |
-|                             | [kg/kg]          |
-+-----------------------------+------------------+
-| **qv**                      | Water vapor      |
-|                             | mixing ratio     |
-|                             | [kg/kg]          |
-+-----------------------------+------------------+
-| **qsat**                    | Saturation water |
-|                             | vapor mixing     |
-|                             | ratio [kg/kg]    |
-+-----------------------------+------------------+
-| **rain_accum**              | Accumulated rain |
-|                             | amount with      |
-|                             | precipitating    |
-|                             | moisture models  |
-|                             | [mm]             |
-+-----------------------------+------------------+
-| **snow_accum**              | Accumulated snow |
-|                             | amount with SAM  |
-|                             | or Morrison      |
-|                             | microphysics     |
-|                             | [mm]             |
-+-----------------------------+------------------+
-| **graup_accum**             | Accumulated      |
-|                             | graupel amount   |
-|                             | with SAM or      |
-|                             | Morrison         |
-|                             | microphysics     |
-|                             | [mm]             |
-+-----------------------------+------------------+
-| **rel_humidity**            | Relative         |
-|                             | humidity;        |
-|                             | currently filled |
-|                             | only for         |
-|                             | SuperDroplets    |
-|                             | [1]              |
-+-----------------------------+------------------+
-| **condensation_rate**       | Condensation     |
-|                             | rate with        |
-|                             | SuperDroplets    |
-|                             | only             |
-|                             | [kg/kg/s]        |
-+-----------------------------+------------------+
-| **terrain_IB_mask**         | Immersed-boundary|
-|                             | terrain/building |
-|                             | mask; available  |
-|                             | for immersed     |
-|                             | forcing terrain  |
-|                             | or buildings     |
-|                             | [1]              |
-+-----------------------------+------------------+
-| **volfrac**                 | EB / immersed    |
-|                             | boundary volume  |
-|                             | fraction; unity  |
-|                             | elsewhere        |
-|                             | [1]              |
-+-----------------------------+------------------+
-| **qsrc_sw**                 | Shortwave        |
-|                             | radiative        |
-|                             | heating source   |
-|                             | term with        |
-|                             | radiation        |
-|                             | [K/s]            |
-+-----------------------------+------------------+
-| **qsrc_lw**                 | Longwave         |
-|                             | radiative        |
-|                             | heating source   |
-|                             | term with        |
-|                             | radiation        |
-|                             | [K/s]            |
-+-----------------------------+------------------+
-| **tracer_particles_count**  | Tracer particle  |
-|                             | count per cell   |
-|                             | requires         |
-|                             | ERF_USE_PARTICLES|
-|                             | to be defined    |
-|                             | [count]          |
-+-----------------------------+------------------+
-
-Windfarm-only 3D plotfile variables
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-The following quantities are available only in builds with
-``ERF_USE_WINDFARM`` enabled.
-
-+-----------------------------+------------------+
-| Parameter                   | Definition       |
-+=============================+==================+
-| **num_turb**                | Number of wind   |
-|                             | turbines in cell |
-|                             | for Fitch, EWP,  |
-|                             | SimpleAD, and    |
-|                             | GeneralAD        |
-|                             | [count]          |
-+-----------------------------+------------------+
-| **SMark0**                  | Windfarm marker  |
-|                             | component 0 for  |
-|                             | Fitch, EWP,      |
-|                             | SimpleAD, and    |
-|                             | GeneralAD        |
-|                             | [1]              |
-+-----------------------------+------------------+
-| **SMark1**                  | Windfarm marker  |
-|                             | component 1 for  |
-|                             | SimpleAD and     |
-|                             | GeneralAD        |
-|                             | [1]              |
-+-----------------------------+------------------+
-
-Morrison Microphysics Output
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-When using Morrison two-moment microphysics, additional diagnostic variables
-are available for output. These variables provide detailed information about
-cloud and precipitation processes. To enable Morrison output, include any of
-the variables below in your **erf.plot_vars_1** or **erf.plot_vars_2** list.
-
-**Thermodynamic State Variables:**
-
-+-----------------------------+------------------+
-| Parameter                   | Definition       |
-+=============================+==================+
-| **micro_rho**               | Air density      |
-|                             | [kg/m^3]         |
-+-----------------------------+------------------+
-| **micro_theta**             | Potential        |
-|                             | temperature [K]  |
-+-----------------------------+------------------+
-| **micro_temp**              | Absolute         |
-|                             | temperature [K]  |
-+-----------------------------+------------------+
-| **micro_pres**              | Pressure [Pa]    |
-|                             |                  |
-+-----------------------------+------------------+
-
-**Non-Precipitating Moisture Variables (mixing ratios in kg/kg):**
-
-+-----------------------------+------------------+
-| Parameter                   | Definition       |
-+=============================+==================+
-| **micro_qv**                | Water vapor      |
-|                             | mixing ratio     |
-|                             | [kg/kg]          |
-+-----------------------------+------------------+
-| **micro_qc**                | Cloud liquid     |
-|                             | water mixing     |
-|                             | ratio            |
-|                             | [kg/kg]          |
-+-----------------------------+------------------+
-| **micro_qi**                | Cloud ice        |
-|                             | mixing ratio     |
-|                             | [kg/kg]          |
-+-----------------------------+------------------+
-| **micro_qn**                | Total cloud      |
-|                             | condensate       |
-|                             | (qc + qi)        |
-|                             | [kg/kg]          |
-+-----------------------------+------------------+
-| **micro_qt**                | Total water      |
-|                             | mixing ratio     |
-|                             | (qv + qn)        |
-|                             | [kg/kg]          |
-+-----------------------------+------------------+
-
-**Precipitating Hydrometeor Variables (mixing ratios in kg/kg):**
-
-+-----------------------------+------------------+
-| Parameter                   | Definition       |
-+=============================+==================+
-| **micro_qp**                | Total            |
-|                             | precipitation    |
-|                             | (qrain + qsnow + |
-|                             | qgraup)          |
-|                             | [kg/kg]          |
-+-----------------------------+------------------+
-| **micro_qrain**             | Rain water       |
-|                             | mixing ratio     |
-|                             | [kg/kg]          |
-+-----------------------------+------------------+
-| **micro_qsnow**             | Snow mixing      |
-|                             | ratio            |
-|                             | [kg/kg]          |
-+-----------------------------+------------------+
-| **micro_qgraup**            | Graupel mixing   |
-|                             | ratio            |
-|                             | [kg/kg]          |
-+-----------------------------+------------------+
-
-**Number Concentrations (1/kg):**
-
-+-----------------------------+------------------+
-| Parameter                   | Definition       |
-+=============================+==================+
-| **micro_nc**                | Cloud droplet    |
-|                             | number           |
-|                             | concentration    |
-|                             | [1/kg]           |
-+-----------------------------+------------------+
-| **micro_nr**                | Rain drop number |
-|                             | concentration    |
-|                             | [1/kg]           |
-+-----------------------------+------------------+
-| **micro_ni**                | Cloud ice number |
-|                             | concentration    |
-|                             | [1/kg]           |
-+-----------------------------+------------------+
-| **micro_ns**                | Snow number      |
-|                             | concentration    |
-|                             | [1/kg]           |
-+-----------------------------+------------------+
-| **micro_ng**                | Graupel number   |
-|                             | concentration    |
-|                             | [1/kg]           |
-+-----------------------------+------------------+
-
-**Dynamical Variables:**
-
-+-----------------------------+------------------+
-| Parameter                   | Definition       |
-+=============================+==================+
-| **micro_omega**             | Grid-scale       |
-|                             | vertical         |
-|                             | velocity [m/s]   |
-|                             | used as input to |
-|                             | Morrison scheme  |
-+-----------------------------+------------------+
-
-**Example Usage:**
-
-To output Morrison diagnostic variables, add them to your plot variables list:
+Example:
 
 .. code-block:: text
 
-   erf.plot_vars_1 = density theta qv micro_qc micro_qrain micro_nc micro_nr
+   erf.plotfile_type = amrex
+   erf.plot_file_1   = plt
+   erf.plot_int_1    = 10
+   erf.plot_vars_1   = density theta qv x_velocity y_velocity z_velocity
 
-This will output the base ERF variables (density, theta, qv) along with Morrison
-cloud water, rain water, cloud droplet number concentration, and rain drop number
-concentration.
+This writes the selected 3D fields every 10 level-0 steps. See
+:ref:`sec:Plotfile3DReference` for the complete fixed core inventory, dynamic
+provider rules, and physics restrictions.
 
-Output Options for 2D plotfiles
--------------------------------
+Configuring 2D output
+=====================
 
-+-------------------+----------------------------+
-| Parameter         | Definition                 |
-|                   |                            |
-+===================+============================+
-| **z_surf**        | Surface elevation [m]      |
-+-------------------+----------------------------+
-| **landmask**      | Land-sea mask              |
-|                   | (land=1, sea=0)            |
-|                   | [1]                        |
-+-------------------+----------------------------+
-| **mapfac**        | Map factors [1]            |
-+-------------------+----------------------------+
-| **lat_m**         | Latitude (at unstaggered   |
-|                   | "mass" points) [deg]       |
-+-------------------+----------------------------+
-| **u_star**        | Friction velocity          |
-|                   | (with SurfaceLayer only)   |
-|                   | [m/s]                      |
-+-------------------+----------------------------+
-| **w_star**        | Convective velocity scale  |
-|                   | (with SurfaceLayer only)   |
-|                   | [m/s]                      |
-+-------------------+----------------------------+
-| **t_star**        | Temperature scale          |
-|                   | (with SurfaceLayer only)   |
-|                   | [K]                        |
-+-------------------+----------------------------+
-| **q_star**        | Humidity scale             |
-|                   | (with SurfaceLayer only)   |
-|                   | [kg/kg]                    |
-+-------------------+----------------------------+
-| **Olen**          | Obukhov length             |
-|                   | (with SurfaceLayer only)   |
-|                   | [m]                        |
-+-------------------+----------------------------+
-| **pblh**          | Diagnosed PBL height       |
-|                   | (with SurfaceLayer only)   |
-|                   | [m]                        |
-+-------------------+----------------------------+
-| **t_surf**        | Surface temperature        |
-|                   | (with SurfaceLayer only)   |
-|                   | [K]                        |
-+-------------------+----------------------------+
-| **q_surf**        | Surface humidity           |
-|                   | (with SurfaceLayer only)   |
-|                   | [kg/kg]                    |
-+-------------------+----------------------------+
-| **z0**            | Roughness height           |
-|                   | (with SurfaceLayer only)   |
-|                   | [m]                        |
-+-------------------+----------------------------+
-| **OLR**           | Outgoing long wavelength   |
-|                   | radiation (with RRTMGP)    |
-|                   | [W/m^2]                    |
-+-------------------+----------------------------+
-| **sens_flux**     | Sensible heat flux         |
-|                   | (with SurfaceLayer only)   |
-|                   | [kg m^-2 s^-1 K]           |
-+-------------------+----------------------------+
-| **laten_flux**    | Latent heat flux           |
-|                   | (with SurfaceLayer only)   |
-|                   | [kg m^-2 s^-1]             |
-+-------------------+----------------------------+
-| **surf_pres**     | Surface pressure           |
-|                   | [Pa]                       |
-+-------------------+----------------------------+
-| **integrated_qv** | Column-integrated water    |
-|                   | vapor; zero if moisture is |
-|                   | disabled [kg/m^2]          |
-+-------------------+----------------------------+
+.. list-table::
+   :header-rows: 1
+   :widths: 30 46 12 12
 
-Examples of Usage
------------------
+   * - Parameter
+     - Meaning
+     - Type
+     - Default
+   * - ``erf.plot2d_file_1``
+     - Prefix for the first 2D stream.
+     - String
+     - ``plt2d_1_``
+   * - ``erf.plot2d_file_2``
+     - Prefix for the second 2D stream.
+     - String
+     - ``plt2d_2_``
+   * - ``erf.plot2d_int_1``
+     - Level-0 step interval for the first 2D stream.
+     - Integer greater than zero
+     - ``-1``
+   * - ``erf.plot2d_int_2``
+     - Level-0 step interval for the second 2D stream.
+     - Integer greater than zero
+     - ``-1``
+   * - ``erf.plot2d_per_1``
+     - Simulation-time period for the first 2D stream.
+     - Real greater than zero
+     - ``-1.0``
+   * - ``erf.plot2d_per_2``
+     - Simulation-time period for the second 2D stream.
+     - Real greater than zero
+     - ``-1.0``
+   * - ``erf.plot2d_vars_1``
+     - Built-in diagnostics in the first 2D stream.
+     - List of names
+     - None
+   * - ``erf.plot2d_vars_2``
+     - Built-in diagnostics in the second 2D stream.
+     - List of names
+     - None
+   * - ``erf.plot2d_level_sets_1``
+     - Sampled-level sets appended to the first 2D stream.
+     - List of level-set names
+     - None
+   * - ``erf.plot2d_level_sets_2``
+     - Sampled-level sets appended to the second 2D stream.
+     - List of level-set names
+     - None
 
-In an input file, the user can select parameters to plot by supplying a space-delimited
-list to **erf.plot_vars_1** or **erf.plot_vars_2**.
+Example:
 
--  **erf.plot_vars_1** = *option1* *option2* *option3*
+.. code-block:: text
+
+   erf.plotfile2d_type = amrex
+   erf.plot2d_file_1   = plt2d_
+   erf.plot2d_int_1    = 10
+   erf.plot2d_vars_1   = z_surf mapfac lat_m lon_m u_star surf_pres integrated_qv
+
+ERF writes fixed diagnostics in canonical catalog order, not request order. It
+warns and skips unknown or configuration-ineligible names. See
+:ref:`sec:Plotfile2DReference` for the complete fixed and dynamic diagnostic
+contract. See :ref:`sec:Plotfile2DSampledLevels` to add pressure, height, or
+model-index fields.
+
+Configuring subvolume output
+============================
+
+Subvolume output may define one or more regions. The three geometry arrays must
+contain the same number of values, and each must contain three values per
+region. The requested spacing must match an existing AMR level. The origin must
+coincide with a node on that level, and the requested box must lie within the
+level domain.
+
+.. list-table::
+   :header-rows: 1
+   :widths: 30 46 12 12
+
+   * - Parameter
+     - Meaning
+     - Type
+     - Default
+   * - ``erf.subvol_file``
+     - Prefix shared by subvolume outputs; ERF appends the region index.
+     - String
+     - ``subvol``
+   * - ``erf.subvol_int``
+     - Level-0 step interval. Supply one value per configured region when
+       scheduling every region.
+     - Integer list
+     - ``-1``
+   * - ``erf.subvol_per``
+     - Simulation-time period. Supply one value per configured region when
+       scheduling every region.
+     - Real list
+     - ``-1.0``
+   * - ``erf.subvol_sampling_vars``
+     - Variables written in every configured subvolume.
+     - List of names
+     - ``x_velocity y_velocity z_velocity``
+   * - ``erf.subvol.origin``
+     - Lower corner of each output region.
+     - Three real values per region
+     - Required when enabled
+   * - ``erf.subvol.nxnynz``
+     - Number of output cells in each direction for each region.
+     - Three integers per region
+     - Required when enabled
+   * - ``erf.subvol.dxdydz``
+     - Output spacing in each direction for each region.
+     - Three real values per region
+     - Required when enabled
+   * - ``erf.subvol.chunk_size``
+     - Optional maximum box size used to decompose the subvolume output.
+     - Three integers
+     - Model maximum grid size
+
+Subvolume output supports a restricted variable inventory, not the complete 3D
+plotfile catalog. The default fields are the three cell-centered velocity
+components. ``erf.subvol_sampling_vars`` may select supported conserved state
+variables and the derived fields ``temp``, ``theta``, ``KE``, ``scalar``, and
+``soundspeed``. Moisture-state availability follows the active moisture scheme;
+unsupported or unavailable names are omitted by the current selection path.
+
+.. _sec:PlotfileGeneralNotes:
+
+General behavior
+================
+
+* Native AMReX 3D plotfiles contain all active refinement levels in one
+  plotfile hierarchy. NetCDF output is written separately by level.
+* NetCDF output requires an ERF build with NetCDF enabled.
+* A negative interval or period disables that scheduling control.
+* Constructing fixed and sampled 2D diagnostics does not change prognostic
+  state.
+* A 3D write for Lagrangian microphysics with two-way AMR coupling performs a
+  fine-to-coarse consistency average-down before constructing the output. This
+  updates covered coarse state and microphysics storage; it is not a physical
+  time tendency.
+
+.. _sec:PlotfileDetailedReferences:
+
+Detailed references
+===================
+
+.. toctree::
+   :maxdepth: 1
+
+   plotfiles/Plotfile3DReference
+   plotfiles/Plotfile2DReference
+   plotfiles/Plotfile2DSampledLevels
+   plotfiles/LandSurfaceDiagnostics
+
+The reference pages separate variable lookup, sampled-level configuration, and
+land-surface source-selection details. Use them when the common examples above
+are not sufficient.

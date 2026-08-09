@@ -4,15 +4,19 @@
 
 using namespace amrex;
 
-/*
+/**
  * Impose lateral boundary conditions on conserved scalars (at cell centers)
  *
  * @param[in,out] dest_arr cell-centered data to be filled
+ * @param[in]     xvel_arr x-velocity used to determine upwind Dirichlet inflow
+ * @param[in]     yvel_arr y-velocity used to determine upwind Dirichlet inflow
  * @param[in]     bx       box holding data to be filled
  * @param[in]     domain   simulation domain
  * @param[in]     icomp    index into the MultiFab -- this can be any value from 0 to NVAR-1
  * @param[in]     ncomp    the number of components -- this can be any value from 1 to NVAR
  *                         as long as icomp+ncomp <= NVAR-one
+ * @param[in]     ng       number of ghost cells in each coordinate direction
+ * @param[in]     time     time at which the data should be filled
  */
 
 void ERFPhysBCFunct_cons::impose_lateral_cons_bcs (const Array4<Real>& dest_arr,
@@ -20,7 +24,7 @@ void ERFPhysBCFunct_cons::impose_lateral_cons_bcs (const Array4<Real>& dest_arr,
                                                    const Array4<Real const>& yvel_arr,
                                                    const Box& bx, const Box& domain,
                                                    int icomp, int ncomp, IntVect ng,
-                                                   const Real /*time*/)
+                                                   const double /*time*/)
 {
     BL_PROFILE_VAR("impose_lateral_cons_bcs()",impose_lateral_cons_bcs);
     const auto& dom_lo = lbound(domain);
@@ -86,6 +90,7 @@ void ERFPhysBCFunct_cons::impose_lateral_cons_bcs (const Array4<Real>& dest_arr,
             bx_xlo, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n)
             {
                 int dest_comp = icomp+n;
+                int k_profile = amrex::min(amrex::max(k, dom_lo.z), dom_hi.z) - dom_lo.z;
                 int bc_comp   = (dest_comp >= RhoScalar_comp && dest_comp < RhoScalar_comp+NSCALARS) ?
                                  BCVars::RhoScalar_bc_comp : dest_comp;
                 if (bc_comp > BCVars::RhoScalar_bc_comp) bc_comp -= (NSCALARS-1);
@@ -95,14 +100,14 @@ void ERFPhysBCFunct_cons::impose_lateral_cons_bcs (const Array4<Real>& dest_arr,
                      (l_bc_type == ERFBCType::ext_dir_upwind && xvel_arr(dom_lo.x,j,k) >= zero) )
                 {
                     if ((dest_comp == RhoTheta_comp) && th_bc_ptr) {
-                        dest_arr(i,j,k,dest_comp) = th_bc_ptr[k];
+                        dest_arr(i,j,k,dest_comp) = th_bc_ptr[k_profile];
                     } else {
                         dest_arr(i,j,k,dest_comp) = l_bc_extdir_vals_d[bc_comp][0];
                     }
                 } else if (l_bc_type == ERFBCType::ext_dir_prim) {
                     Real rho = dest_arr(dom_lo.x,j,k,Rho_comp);
                     if ((dest_comp == RhoTheta_comp) && th_bc_ptr) {
-                        dest_arr(i,j,k,dest_comp) = rho * th_bc_ptr[k];
+                        dest_arr(i,j,k,dest_comp) = rho * th_bc_ptr[k_profile];
                     } else {
                         dest_arr(i,j,k,dest_comp) = rho * l_bc_extdir_vals_d[bc_comp][0];
                     }
@@ -111,6 +116,7 @@ void ERFPhysBCFunct_cons::impose_lateral_cons_bcs (const Array4<Real>& dest_arr,
             bx_xhi, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n)
             {
                 int dest_comp = icomp+n;
+                int k_profile = amrex::min(amrex::max(k, dom_lo.z), dom_hi.z) - dom_lo.z;
                 int bc_comp   = (dest_comp >= RhoScalar_comp && dest_comp < RhoScalar_comp+NSCALARS) ?
                                  BCVars::RhoScalar_bc_comp : dest_comp;
                 if (bc_comp > BCVars::RhoScalar_bc_comp) bc_comp -= (NSCALARS-1);
@@ -120,14 +126,14 @@ void ERFPhysBCFunct_cons::impose_lateral_cons_bcs (const Array4<Real>& dest_arr,
                      (h_bc_type == ERFBCType::ext_dir_upwind && xvel_arr(dom_hi.x+1,j,k) <= zero) )
                 {
                     if ((dest_comp == RhoTheta_comp) && th_bc_ptr) {
-                        dest_arr(i,j,k,dest_comp) = th_bc_ptr[k];
+                        dest_arr(i,j,k,dest_comp) = th_bc_ptr[k_profile];
                     } else {
                         dest_arr(i,j,k,dest_comp) = l_bc_extdir_vals_d[bc_comp][3];
                     }
                 } else if (h_bc_type == ERFBCType::ext_dir_prim) {
                     Real rho = dest_arr(dom_hi.x,j,k,Rho_comp);
                     if ((dest_comp == RhoTheta_comp) && th_bc_ptr) {
-                        dest_arr(i,j,k,dest_comp) = rho * th_bc_ptr[k];
+                        dest_arr(i,j,k,dest_comp) = rho * th_bc_ptr[k_profile];
                     } else {
                         dest_arr(i,j,k,dest_comp) = rho * l_bc_extdir_vals_d[bc_comp][3];
                     }
@@ -152,6 +158,7 @@ void ERFPhysBCFunct_cons::impose_lateral_cons_bcs (const Array4<Real>& dest_arr,
             bx_ylo, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n)
             {
                 int dest_comp = icomp+n;
+                int k_profile = amrex::min(amrex::max(k, dom_lo.z), dom_hi.z) - dom_lo.z;
                 int bc_comp   = (dest_comp >= RhoScalar_comp && dest_comp < RhoScalar_comp+NSCALARS) ?
                                  BCVars::RhoScalar_bc_comp : dest_comp;
                 if (bc_comp > BCVars::RhoScalar_bc_comp) bc_comp -= (NSCALARS-1);
@@ -160,14 +167,14 @@ void ERFPhysBCFunct_cons::impose_lateral_cons_bcs (const Array4<Real>& dest_arr,
                      (l_bc_type == ERFBCType::ext_dir_upwind && yvel_arr(i,dom_lo.y,k) >= zero) )
                 {
                     if ((dest_comp == RhoTheta_comp) && th_bc_ptr) {
-                        dest_arr(i,j,k,dest_comp) = th_bc_ptr[k];
+                        dest_arr(i,j,k,dest_comp) = th_bc_ptr[k_profile];
                     } else {
                         dest_arr(i,j,k,dest_comp) = l_bc_extdir_vals_d[bc_comp][1];
                     }
                 } else if (l_bc_type == ERFBCType::ext_dir_prim) {
                     Real rho = dest_arr(i,dom_lo.y,k,Rho_comp);
                     if ((dest_comp == RhoTheta_comp) && th_bc_ptr) {
-                        dest_arr(i,j,k,dest_comp) = rho * th_bc_ptr[k];
+                        dest_arr(i,j,k,dest_comp) = rho * th_bc_ptr[k_profile];
                     } else {
                         dest_arr(i,j,k,dest_comp) = rho * l_bc_extdir_vals_d[bc_comp][1];
                     }
@@ -176,6 +183,7 @@ void ERFPhysBCFunct_cons::impose_lateral_cons_bcs (const Array4<Real>& dest_arr,
             bx_yhi, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n)
             {
                 int dest_comp = icomp+n;
+                int k_profile = amrex::min(amrex::max(k, dom_lo.z), dom_hi.z) - dom_lo.z;
                 int bc_comp   = (dest_comp >= RhoScalar_comp && dest_comp < RhoScalar_comp+NSCALARS) ?
                                  BCVars::RhoScalar_bc_comp : dest_comp;
                 if (bc_comp > BCVars::RhoScalar_bc_comp) bc_comp -= (NSCALARS-1);
@@ -184,14 +192,14 @@ void ERFPhysBCFunct_cons::impose_lateral_cons_bcs (const Array4<Real>& dest_arr,
                      (h_bc_type == ERFBCType::ext_dir_upwind && yvel_arr(i,dom_hi.y+1,k) <= zero) )
                 {
                     if ((dest_comp == RhoTheta_comp) && th_bc_ptr) {
-                        dest_arr(i,j,k,dest_comp) = th_bc_ptr[k];
+                        dest_arr(i,j,k,dest_comp) = th_bc_ptr[k_profile];
                     } else {
                         dest_arr(i,j,k,dest_comp) = l_bc_extdir_vals_d[bc_comp][4];
                     }
                 } else if (h_bc_type == ERFBCType::ext_dir_prim) {
                     Real rho = dest_arr(i,dom_hi.y,k,Rho_comp);
                     if ((dest_comp == RhoTheta_comp) && th_bc_ptr) {
-                        dest_arr(i,j,k,dest_comp) = rho * th_bc_ptr[k];
+                        dest_arr(i,j,k,dest_comp) = rho * th_bc_ptr[k_profile];
                     } else {
                         dest_arr(i,j,k,dest_comp) = rho * l_bc_extdir_vals_d[bc_comp][4];
                     }
@@ -303,24 +311,26 @@ void ERFPhysBCFunct_cons::impose_lateral_cons_bcs (const Array4<Real>& dest_arr,
     Gpu::streamSynchronize();
 }
 
-/*
+/**
  * Impose vertical boundary conditions on conserved scalars (at cell centers)
  *
- * @param[in] dest_arr  the Array4 of the quantity to be filled
- * @param[in] bx        the box associated with this data
- * @param[in] domain    the computational domain
- * @param[in] z_phys_nd height coordinate at nodes
- * @param[in] dxInv     inverse cell size array
- * @param[in] icomp     the index of the first component to be filled
- * @param[in] ncomp     the number of components -- this can be any value from 1 to NVAR
- *                      as long as icomp+ncomp <= NVAR-one
+ * @param[in,out] dest_arr              the Array4 of the quantity to be filled
+ * @param[in]     bx                    the box associated with this data
+ * @param[in]     domain                the computational domain
+ * @param[in]     z_phys_nd             height coordinate at nodes
+ * @param[in]     dxInv                 inverse cell size array
+ * @param[in]     icomp                 the index of the first component to be filled
+ * @param[in]     ncomp                 the number of components -- this can be any value from 1 to NVAR
+ *                                      as long as icomp+ncomp <= NVAR-one
+ * @param[in]     time                  time at which the data should be filled
+ * @param[in]     do_terrain_adjustment whether to apply terrain-aware Neumann adjustments
  */
 
 void ERFPhysBCFunct_cons::impose_vertical_cons_bcs (const Array4<Real>& dest_arr, const Box& bx, const Box& domain,
                                                     const Array4<Real const>& z_phys_nd,
                                                     const GpuArray<Real,AMREX_SPACEDIM> dxInv,
                                                     int icomp, int ncomp,
-                                                    const Real /*time*/,
+                                                    const double /*time*/,
                                                     bool do_terrain_adjustment)
 {
     BL_PROFILE_VAR("impose_vertical_cons_bcs()",impose_vertical_cons_bcs);

@@ -27,7 +27,7 @@ void PlotMultiFab(const MultiFab& mf,
     "rho", "uvel", "vvel", "wvel", "theta", "qv", "qc", "qr", "latitude", "longitude"
     }; // Customize variable names
 
-    const Real time = zero;
+    const double time = 0.0;
 
 
     // Assume weather_mf is nodal in all directions
@@ -156,6 +156,14 @@ ERF::FillForecastStateMultiFabs(const int lev,
     erf_mf_yvel.setVal(0.0);
     erf_mf_zvel.setVal(0.0);
     erf_mf_latlon.setVal(0.0);
+
+    // a_z_phys_nd must live on the SAME BoxArray/DistributionMap as the forecast state:
+    // fabPtr(mfi) resolves by local index, so a stale (pre-regrid) z_phys_nd silently
+     // returns the wrong FAB rather than failing.
+     if (a_z_phys_nd) {
+        AMREX_ALWAYS_ASSERT(a_z_phys_nd->boxArray()        == erf_mf_cons.boxArray() &&
+                            a_z_phys_nd->DistributionMap() == erf_mf_cons.DistributionMap());
+     }
 
     // Interpolate the data on to the ERF mesh
 
@@ -297,7 +305,7 @@ ERF::FillForecastStateMultiFabs(const int lev,
     "rho", "rhotheta", "rhoqv", "rhoqc", "rhoqr", "xvel", "yvel", "zvel", "latitude", "longitude"
     }; // Customize variable names
 
-    const Real time = zero;
+    const double time = 0.0;
 
     std::string pltname = "plt_interp";
 
@@ -345,13 +353,13 @@ ERF::FillForecastStateMultiFabs(const int lev,
 
 void
 ERF::WeatherDataInterpolation(const int lev,
-                              const Real time,
+                              const double time,
                               amrex::Vector<std::unique_ptr<amrex::MultiFab>>& a_z_phys_nd,
                               bool regrid_forces_file_read)
 {
 
-    static amrex::Vector<Real> next_read_forecast_time;
-    static amrex::Vector<Real> last_read_forecast_time;
+    static amrex::Vector<double> next_read_forecast_time;
+    static amrex::Vector<double> last_read_forecast_time;
 
     const int nlevs = static_cast<int>(a_z_phys_nd.size());
 
@@ -423,8 +431,8 @@ ERF::WeatherDataInterpolation(const int lev,
         }
     }
 
-    Real prev_read_time = last_read_forecast_time[lev];
-    Real alpha1 = one - (time - prev_read_time)/hindcast_data_interval;
+    double prev_read_time = last_read_forecast_time[lev];
+    Real alpha1 = static_cast<Real>(1.0 - (time - prev_read_time)/hindcast_data_interval);
     Real alpha2 = one - alpha1;
 
     amrex::Print()<< "The values of alpha1 and alpha2 are " << alpha1 << " "<< alpha2 <<std::endl;

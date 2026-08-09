@@ -6,10 +6,9 @@
 using namespace amrex;
 
 /**
- * Function for computing the advective tendency for the update equations for rho and (rho theta)
- * This routine has explicit expressions for all cases (terrain or not) when
- * the horizontal and vertical spatial orders are <= 2, and calls more specialized
- * functions when either (or both) spatial order(s) is greater than two
+ * Function for computing the advective tendency for the density update equation
+ * This routine also constructs the time-averaged momentum fluxes used by
+ * scalar advection.
  *
  * @param[in] bx box over which the scalars are updated
  * @param[out] advectionSrc tendency for the scalar update equation
@@ -19,11 +18,17 @@ using namespace amrex;
  * @param[out] avg_xmom x-component of time-averaged momentum defined in this routine
  * @param[out] avg_ymom y-component of time-averaged momentum defined in this routine
  * @param[out] avg_zmom z-component of time-averaged momentum defined in this routine
+ * @param[in] ax_arr area fraction of x-faces
+ * @param[in] ay_arr area fraction of y-faces
+ * @param[in] az_arr area fraction of z-faces
  * @param[in] detJ Jacobian of the metric transformation (= 1 if use_terrain is false)
  * @param[in] cellSizeInv inverse of the mesh spacing
- * @param[in] mf_m map factor at cell centers
- * @param[in] mf_u map factor at x-faces
- * @param[in] mf_v map factor at y-faces
+ * @param[in] mf_mx x map factor at cell centers
+ * @param[in] mf_my y map factor at cell centers
+ * @param[in] mf_uy y map factor at x-faces
+ * @param[in] mf_vx x map factor at y-faces
+ * @param[out] flx_arr density flux arrays
+ * @param[in] fixed_rho flag to zero the density tendency
  */
 
 void
@@ -94,7 +99,7 @@ AdvectionSrcForRho (const Box& bx,
 }
 
 /**
- * Function for computing the advective tendency for the update equations for all scalars other than rho and (rho theta)
+ * Function for computing the advective tendency for scalar update equations other than density
  * This routine has explicit expressions for all cases (terrain or not) when
  * the horizontal and vertical spatial orders are <= 2, and calls more specialized
  * functions when either (or both) spatial order(s) is greater than two
@@ -109,11 +114,15 @@ AdvectionSrcForRho (const Box& bx,
  * @param[out] advectionSrc tendency for the scalar update equation
  * @param[in] detJ Jacobian of the metric transformation (= 1 if use_terrain is false)
  * @param[in] cellSizeInv inverse of the mesh spacing
- * @param[in] mf_m map factor at cell centers
+ * @param[in] mf_mx x map factor at cell centers
+ * @param[in] mf_my y map factor at cell centers
  * @param[in] horiz_adv_type advection scheme to be used in horiz. directions for dry scalars
  * @param[in] vert_adv_type advection scheme to be used in vert. directions for dry scalars
  * @param[in] horiz_upw_frac upwinding fraction to be used in horiz. directions for dry scalars (for Blended schemes only)
  * @param[in] vert_upw_frac upwinding fraction to be used in vert. directions for dry scalars (for Blended schemes only)
+ * @param[out] flx_arr scalar flux arrays
+ * @param[in] domain computational domain
+ * @param[in] bc_ptr_h boundary condition records on host
  */
 
 void

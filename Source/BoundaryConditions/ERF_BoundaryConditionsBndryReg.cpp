@@ -2,15 +2,15 @@
 
 using namespace amrex;
 
-/*
+/**
  * Impose boundary conditions using data read in as BndryRegisters from a previous ERF run
  *
- * @param[out] mfs  Vector of MultiFabs to be filled
- * @param[in]  time time at which the data should be filled
+ * @param[in,out] mfs  Vector of MultiFabs to be filled
+ * @param[in]     time time at which the data should be filled
  */
 
 void
-ERF::fill_from_bndryregs (const Vector<MultiFab*>& mfs, const Real time)
+ERF::fill_from_bndryregs (const Vector<MultiFab*>& mfs, const double time)
 {
     //
     // We now assume that if we read in on one face, we read in on all faces

@@ -94,9 +94,10 @@ public:
 
     /*! \brief update microphysics variables from ERF state variables */
     void Update_Micro_Vars_Lev (const int& lev, /*! AMR level */
-                                amrex::MultiFab& cons_in /*!< Conserved state variables */) override
+                                amrex::MultiFab& cons_in, /*!< Conserved state variables */
+                                const amrex::MultiFab* base_state = nullptr) override
     {
-        m_moist_model[lev]->Update_Micro_Vars(cons_in);
+        m_moist_model[lev]->Update_Micro_Vars(cons_in, base_state);
     }
 
     /*! \brief update ERF state variables from microphysics variables */
@@ -167,6 +168,12 @@ public:
                             const amrex::Real dz_min) const override
     {
         m_moist_model[a_lev]->Set_dzmin(dz_min);
+    }
+
+    SurfacePrecipAccumulationSources
+    Get_Surface_Precip_Accumulation_Ptrs (const int& lev) const override
+    {
+        return m_moist_model[lev]->Get_Surface_Precip_Accumulation_Ptrs(lev);
     }
 
 protected:

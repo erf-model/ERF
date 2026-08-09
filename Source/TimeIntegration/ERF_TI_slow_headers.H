@@ -17,6 +17,11 @@
 #include "ERF_TileNoZ.H"
 #include "ERF_EB.H"
 #include "ERF_ReadBndryPlanes.H"
+#include "Prob/ERF_CloudChamber.H"
+
+class CloudChamberBudget;
+
+class ShocDriver;
 
 void erf_make_tau_terms (int level, int nrk,
                          const amrex::Vector<amrex::BCRec>& domain_bcs_type,
@@ -48,7 +53,7 @@ void copy_surface_tau_for_implicit (amrex::Vector<std::unique_ptr<amrex::MultiFa
  *
  */
 void erf_slow_rhs_pre (int level, int finest_level, int nrk,
-                      amrex::Real dt,
+                      double dt,
                       amrex::Vector<amrex::MultiFab>& S_rhs,
                       amrex::Vector<amrex::MultiFab>& S_old,
                       amrex::Vector<amrex::MultiFab>& S_data,
@@ -96,18 +101,22 @@ void erf_slow_rhs_pre (int level, int finest_level, int nrk,
                       amrex::Vector<amrex::MultiFab>& gradp,
                       amrex::Vector<std::unique_ptr<amrex::MultiFab>>& mapfac,
                       const eb_& ebfact,
-#ifdef ERF_USE_SHOC
-                      std::unique_ptr<SHOCInterface>& shoc_lev,
+#ifdef ERF_USE_EAMXX_SHOC
+                      SHOCInterface* eamxx_shoc_lev,
 #endif
+                      ShocDriver* native_shoc_lev,
                       amrex::YAFluxRegister* fr_as_crse,
-                      amrex::YAFluxRegister* fr_as_fine);
+                      amrex::YAFluxRegister* fr_as_fine,
+                      const amrex::MultiFab* cloud_chamber_base_state,
+                      const erf_cloud_chamber::Config* cloud_chamber_config,
+                      CloudChamberBudget* cloud_budget);
 
 /**
  * Function for computing the slow RHS for the evolution equations for the scalars other than density or potential temperature
  *
  */
 void erf_slow_rhs_post (int level, int finest_level, int nrk,
-                       amrex::Real dt,
+                       double dt,
                        int n_qstate,
                        amrex::Vector<amrex::MultiFab>& S_rhs,
                        amrex::Vector<amrex::MultiFab>& S_old,
@@ -121,6 +130,7 @@ void erf_slow_rhs_post (int level, int finest_level, int nrk,
                        const amrex::MultiFab& yvel,
                        const amrex::MultiFab& zvel,
                        const amrex::MultiFab& source,
+                             amrex::MultiFab* terrain_blank,
                        const amrex::MultiFab* SmnSmn,
                        const amrex::MultiFab* eddyDiffs,
                              amrex::MultiFab* Hfx1,
@@ -146,11 +156,15 @@ void erf_slow_rhs_post (int level, int finest_level, int nrk,
                        amrex::Gpu::DeviceVector<amrex::Real>& stretched_dz_d,
                        amrex::Vector<std::unique_ptr<amrex::MultiFab>>& mapfac,
                        amrex::EBFArrayBoxFactory const& ebfact,
-#ifdef ERF_USE_SHOC
-                      std::unique_ptr<SHOCInterface>& shoc_lev,
+#ifdef ERF_USE_EAMXX_SHOC
+                       SHOCInterface* eamxx_shoc_lev,
 #endif
+                       ShocDriver* native_shoc_lev,
                        amrex::YAFluxRegister* fr_as_crse,
                        amrex::YAFluxRegister* fr_as_fine,
-                       std::unique_ptr<ReadBndryPlanes>& m_r2d);
+                       std::unique_ptr<ReadBndryPlanes>& m_r2d,
+                       const amrex::MultiFab* cloud_chamber_base_state,
+                       const erf_cloud_chamber::Config* cloud_chamber_config,
+                       CloudChamberBudget* cloud_budget);
 
 #endif

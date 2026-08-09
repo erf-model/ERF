@@ -65,11 +65,12 @@ erf.terrain_type      = ImmersedForcing
 erf.terrain_file_name = WoA_dx5m_h100m_128x128.txt
 erf.immersed_forcing_substep = true
 erf.if_use_most = true
+
 #erf.if_init_surf_temp = 292.0
 #erf.if_surf_heating_rate = 1.0
 #erf.if_Olen = 10
+
 erf.if_surf_temp_flux = 0.3
-#erf.if_surf_temp_flux = -0.3
 
 # Coriolis parameter f = 
 erf.use_coriolis = true

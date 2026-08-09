@@ -8,10 +8,17 @@
 
 using namespace amrex;
 
+/**
+ * Initialize a problem-specific terrain profile on the nodal terrain FAB.
+ *
+ * @param geom Geometry defining the domain and physical extents
+ * @param terrain_fab Terrain FAB to fill with surface height data
+ * @param time_d Current simulation time used by time-dependent terrain options
+ */
 void
 init_my_custom_terrain ( const Geometry& geom,
                          FArrayBox& terrain_fab,
-                         const Real& time )
+                         const double& time_d)
 {
     //
     // We put this here as a convenience for testing the map factor implementation
@@ -196,6 +203,8 @@ init_my_custom_terrain ( const Geometry& geom,
             Real kp          = two * PI / wavelength;
             Real g           = CONST_GRAV;
             Real omega       = std::sqrt(g * kp);
+
+            Real time = static_cast<Real>(time_d);
 
             ParallelFor(zbx, [=] AMREX_GPU_DEVICE (int i, int j, int)
             {

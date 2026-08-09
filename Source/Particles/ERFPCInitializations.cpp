@@ -70,7 +70,7 @@ void ERFPC::readInputs ()
 }
 
 /*! Initialize particles in domain */
-void ERFPC::InitializeParticles (const Real time, const std::unique_ptr<MultiFab>& a_height_ptr)
+void ERFPC::InitializeParticles (const double time, const std::unique_ptr<MultiFab>& a_height_ptr)
 {
     BL_PROFILE("ERFPC::InitializeParticles");
 

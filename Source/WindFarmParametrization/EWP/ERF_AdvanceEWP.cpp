@@ -7,7 +7,7 @@ using namespace amrex;
 
 void
 EWP::advance (const Geometry& geom,
-              const Real& dt_advance,
+              const double& dt_advance,
               MultiFab& cons_in,
               MultiFab& mf_vars_ewp,
               MultiFab& U_old,
@@ -15,7 +15,7 @@ EWP::advance (const Geometry& geom,
               MultiFab& W_old,
               const MultiFab& mf_Nturb,
               const MultiFab& mf_SMark,
-              const Real& time)
+              const double& time)
  {
     AMREX_ALWAYS_ASSERT(mf_SMark.nComp() > 0);
     AMREX_ALWAYS_ASSERT(time > -one);
@@ -32,7 +32,7 @@ EWP::compute_power_output (const MultiFab& cons_in,
                            const MultiFab& W_old,
                            const MultiFab& mf_SMark,
                            const MultiFab& mf_Nturb,
-                           const Real& time)
+                           const double& time)
 {
      get_turb_loc(xloc, yloc);
      get_turb_spec(rotor_rad, hub_height, thrust_coeff_standing,
@@ -91,7 +91,7 @@ EWP::compute_power_output (const MultiFab& cons_in,
 }
 
 void
-EWP::update (const Real& dt_advance,
+EWP::update (const double& dt_advance,
              MultiFab& cons_in,
              MultiFab& U_old, MultiFab& V_old,
              const MultiFab& mf_vars_ewp)

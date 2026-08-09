@@ -100,7 +100,7 @@ getEpochTime (const std::string& dateTime, const std::string& dateTimeFormat)
 
 AMREX_FORCE_INLINE
 std::string
-getTimestamp (const amrex::Real epoch_real, const std::string& datetime_format, bool add_long_frac=true)
+getTimestamp (const double epoch_real, const std::string& datetime_format, bool add_long_frac=true)
 {
     auto epoch_nearest_sec = static_cast<std::time_t>(epoch_real);
     std::tm *time_info = std::gmtime(&epoch_nearest_sec);

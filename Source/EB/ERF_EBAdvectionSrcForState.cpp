@@ -1,3 +1,7 @@
+/**
+ * \file ERF_EBAdvectionSrcForState.cpp
+ * \brief Implements EB advection source terms for density and scalar state.
+ */
 #include <ERF_EBAdvection.H>
 #include <ERF_EBAdvectionSrcForScalars.H>
 #include <ERF_IndexDefines.H>
@@ -8,24 +12,36 @@
 using namespace amrex;
 
 /**
- * Function for computing the advective tendency for the update equations for rho and (rho theta)
- * This routine has explicit expressions for all cases (terrain or not) when
- * the horizontal and vertical spatial orders are <= 2, and calls more specialized
- * functions when either (or both) spatial order(s) is greater than two
+ * \brief Compute the EB advective tendency for rho and rho theta.
  *
- * @param[in] bx box over which the scalars are updated
- * @param[out] advectionSrc tendency for the scalar update equation
- * @param[in] rho_u x-component of momentum
- * @param[in] rho_v y-component of momentum
- * @param[in] Omega component of momentum normal to the z-coordinate surface
- * @param[out] avg_xmom x-component of time-averaged momentum defined in this routine
- * @param[out] avg_ymom y-component of time-averaged momentum defined in this routine
- * @param[out] avg_zmom z-component of time-averaged momentum defined in this routine
- * @param[in] detJ Jacobian of the metric transformation (= 1 if use_terrain is false)
- * @param[in] cellSizeInv inverse of the mesh spacing
- * @param[in] mf_m map factor at cell centers
- * @param[in] mf_u map factor at x-faces
- * @param[in] mf_v map factor at y-faces
+ * This routine forms density fluxes, stores momentum averages for later scalar
+ * advection, and evaluates the EB-aware divergence at cell centers.
+ *
+ * @param[in] bx Box over which the state is updated.
+ * @param[out] advectionSrc Tendency for the density update equation.
+ * @param[in] rho_u x-component of momentum.
+ * @param[in] rho_v y-component of momentum.
+ * @param[in] Omega Momentum component normal to the z-coordinate surface.
+ * @param[out] avg_xmom x-face momentum average defined by this routine.
+ * @param[out] avg_ymom y-face momentum average defined by this routine.
+ * @param[out] avg_zmom z-face momentum average defined by this routine.
+ * @param[in] mask_arr Cell-centered mask used for EB face interpolation.
+ * @param[in] cfg_arr Cell-centered EB flags.
+ * @param[in] ax_arr Area fraction on x-faces.
+ * @param[in] ay_arr Area fraction on y-faces.
+ * @param[in] az_arr Area fraction on z-faces.
+ * @param[in] fcx_arr Face centroid on x-faces.
+ * @param[in] fcy_arr Face centroid on y-faces.
+ * @param[in] fcz_arr Face centroid on z-faces.
+ * @param[in] detJ Jacobian of the metric transformation.
+ * @param[in] cellSizeInv Inverse mesh spacing.
+ * @param[in] mf_mx x-direction map factor at cell centers.
+ * @param[in] mf_my y-direction map factor at cell centers.
+ * @param[in] mf_uy Map factor used for x-momentum fluxes.
+ * @param[in] mf_vx Map factor used for y-momentum fluxes.
+ * @param[out] flx_arr Directional flux arrays.
+ * @param[in] fixed_rho Whether density tendency is forced to zero.
+ * @param[in] already_on_centroids Whether EB geometric data are already centroid-adjusted.
  */
 
 void
@@ -208,32 +224,36 @@ EBAdvectionSrcForRho (const Box& bx,
 }
 
 /**
- * Function for computing the advective tendency for scalars when terrain_type is EB.
+ * \brief Compute the EB advective tendency for scalars.
  *
- * @param[in] bx box over which the scalars are updated if no external boundary conditions
- * @param[in] icomp component of first scalar to be updated
- * @param[in] ncomp number of components to be updated
- * @param[in] avg_xmom x-component of time-averaged momentum defined in this routine
- * @param[in] avg_ymom y-component of time-averaged momentum defined in this routine
- * @param[in] avg_zmom z-component of time-averaged momentum defined in this routine
- * @param[in] cell_prim primitive form of scalar variables, here only potential temperature theta
- * @param[out] advectionSrc tendency for the scalar update equation
- * @param[in] mask_arr Cell-centered masks (=1 otherwise, =0 if physbnd)
- * @param[in] cfg_arr Cell-centered flags
- * @param[in] ax_arr Area fraction of x-face
- * @param[in] ay_arr Area fraction of y-face
- * @param[in] az_arr Area fraction of z-face
- * @param[in] fcx_arr Face centroid of x-face
- * @param[in] fcy_arr Face centroid of y-face
- * @param[in] fcz_arr Face centroid of z-face
- * @param[in] detJ Jacobian of the metric transformation (= 1 if use_terrain is false)
- * @param[in] cellSizeInv inverse of the mesh spacing
- * @param[in] mf_mx map factor at cell centers
- * @param[in] mf_my map factor at cell centers
- * @param[in] horiz_adv_type advection scheme to be used in horiz. directions for dry scalars
- * @param[in] vert_adv_type advection scheme to be used in vert. directions for dry scalars
- * @param[in] horiz_upw_frac upwinding fraction to be used in horiz. directions for dry scalars (for Blended schemes only)
- * @param[in] vert_upw_frac upwinding fraction to be used in vert. directions for dry scalars (for Blended schemes only)
+ * @param[in] bx Box over which the scalars are updated.
+ * @param[in] icomp Component of the first scalar to update.
+ * @param[in] ncomp Number of scalar components to update.
+ * @param[in] avg_xmom x-face momentum average from EBAdvectionSrcForRho.
+ * @param[in] avg_ymom y-face momentum average from EBAdvectionSrcForRho.
+ * @param[in] avg_zmom z-face momentum average from EBAdvectionSrcForRho.
+ * @param[in] cell_prim Primitive scalar variables.
+ * @param[out] advectionSrc Tendency for the scalar update equation.
+ * @param[in] mask_arr Cell-centered mask used for EB face interpolation.
+ * @param[in] cfg_arr Cell-centered EB flags.
+ * @param[in] ax_arr Area fraction on x-faces.
+ * @param[in] ay_arr Area fraction on y-faces.
+ * @param[in] az_arr Area fraction on z-faces.
+ * @param[in] fcx_arr Face centroid on x-faces.
+ * @param[in] fcy_arr Face centroid on y-faces.
+ * @param[in] fcz_arr Face centroid on z-faces.
+ * @param[in] detJ Jacobian of the metric transformation.
+ * @param[in] cellSizeInv Inverse mesh spacing.
+ * @param[in] mf_mx x-direction map factor at cell centers.
+ * @param[in] mf_my y-direction map factor at cell centers.
+ * @param[in] horiz_adv_type Horizontal advection scheme.
+ * @param[in] vert_adv_type Vertical advection scheme.
+ * @param[in] horiz_upw_frac Horizontal upwinding fraction for blended schemes.
+ * @param[in] vert_upw_frac Vertical upwinding fraction for blended schemes.
+ * @param[out] flx_arr Directional flux arrays.
+ * @param[in] domain Problem-domain box used to detect open boundaries.
+ * @param[in] bc_ptr_h Boundary conditions for conserved components.
+ * @param[in] already_on_centroids Whether EB geometric data are already centroid-adjusted.
  */
 
 void
@@ -269,9 +289,9 @@ EBAdvectionSrcForScalars (const Box& bx,
     BL_PROFILE_VAR("EBAdvectionSrcForScalars", EBAdvectionSrcForScalars);
     auto dxInv = cellSizeInv[0], dyInv = cellSizeInv[1], dzInv = cellSizeInv[2];
 
-    const Box xbx = surroundingNodes(bx,0);
-    const Box ybx = surroundingNodes(bx,1);
-    const Box zbx = surroundingNodes(bx,2);
+    const Box xbx = surroundingNodes(bx,0).grow(IntVect(0, 1, 1));
+    const Box ybx = surroundingNodes(bx,1).grow(IntVect(1, 0, 1));
+    const Box zbx = surroundingNodes(bx,2).grow(IntVect(1, 1, 0));
 
     // Open bc will be imposed upon all vars (we only access cons here for simplicity)
     const bool xlo_open = (bc_ptr_h[BCVars::cons_bc].lo(0) == ERFBCType::open);

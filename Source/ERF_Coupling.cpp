@@ -2,6 +2,7 @@
 #include <ERF_EOS.H>
 #include <ERF_IndexDefines.H>
 #include <ERF_MicrophysicsUtils.H>
+#include <Diagnostics/ERF_SurfaceFluxDiagnostics.H>
 
 #include <AMReX_Box.H>
 #include <AMReX_MFIter.H>
@@ -9,16 +10,92 @@
 #include <AMReX_MultiFabUtil.H>
 #include <AMReX_ParallelDescriptor.H>
 #include <AMReX_Print.H>
-#include <AMReX_ParmParse.H>
 
-amrex::Real
-ERF::EvolveOneStep (amrex::Real /*time*/, amrex::Real /*dt_request*/)
+namespace
 {
-    amrex::Real cur_time = t_new[0];
+void
+PrintFluxLaneStats (const char* label, const amrex::MultiFab& mf, int comp = 0)
+{
+    amrex::Print() << "ERF flux-pack " << label
+                   << ": min=" << mf.min(comp)
+                   << " max=" << mf.max(comp) << "\n";
+}
+
+void
+AverageDownThenRemap (const amrex::MultiFab& src,
+                      amrex::MultiFab& dst)
+{
+    using namespace amrex;
+
+    AMREX_ALWAYS_ASSERT(src.boxArray().ixType() == dst.boxArray().ixType());
+
+    const Box src_cells = enclosedCells(src.boxArray().minimalBox());
+    const Box dst_cells = enclosedCells(dst.boxArray().minimalBox());
+    const IntVect src_len = src_cells.length();
+    const IntVect dst_len = dst_cells.length();
+
+    const bool same_layout =
+        (src.boxArray() == dst.boxArray()) &&
+        (src.DistributionMap() == dst.DistributionMap());
+    if (same_layout) {
+        dst.ParallelCopy(src, 0, 0, dst.nComp());
+        return;
+    }
+
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+        src_len[2] == 1 && dst_len[2] == 1,
+        "AverageDownThenRemap expects one-cell-thick source and destination slabs.");
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+        src_cells.smallEnd(0) == dst_cells.smallEnd(0) &&
+        src_cells.smallEnd(1) == dst_cells.smallEnd(1),
+        "AverageDownThenRemap requires aligned source/destination slab origins.");
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+        src_len[0] >= dst_len[0] && src_len[1] >= dst_len[1] &&
+        src_len[0] % dst_len[0] == 0 && src_len[1] % dst_len[1] == 0,
+        "AverageDownThenRemap requires source/destination slab extents to be integer-ratio compatible.");
+
+    const IntVect ratio(src_len[0] / dst_len[0], src_len[1] / dst_len[1], 1);
+
+    amrex::BoxArray coarsened_src_ba = src.boxArray();
+    for (int i = 0; i < coarsened_src_ba.size(); ++i) {
+        const amrex::Box original = coarsened_src_ba[i];
+        amrex::Box coarsened = original;
+        coarsened.coarsen(ratio);
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+            coarsened.refine(ratio) == original,
+            "AverageDownThenRemap source boxes are not evenly coarsenable by the source/destination ratio.");
+    }
+    coarsened_src_ba.coarsen(ratio);
+
+    const bool direct_average_down_safe = (coarsened_src_ba == dst.boxArray());
+
+    if (direct_average_down_safe) {
+        if (src.boxArray().ixType().cellCentered()) {
+            amrex::average_down(src, dst, 0, dst.nComp(), ratio);
+        } else {
+            amrex::average_down_faces(src, dst, ratio, 0);
+        }
+    } else {
+        MultiFab dst_avg(coarsened_src_ba, src.DistributionMap(), dst.nComp(), 0);
+        if (src.boxArray().ixType().cellCentered()) {
+            amrex::average_down(src, dst_avg, 0, dst.nComp(), ratio);
+        } else {
+            amrex::average_down_faces(src, dst_avg, ratio, 0);
+        }
+
+        dst.ParallelCopy(dst_avg, 0, 0, dst.nComp());
+    }
+}
+}
+
+double
+ERF::EvolveOneStep (double /*time*/, double /*dt_request*/)
+{
+    double cur_time = t_new[0];
     const int step = istep[0];
 
     if (start_time + cur_time >= stop_time) {
-        return amrex::Real(0.0);
+        return 0.0;
     }
 
     ComputeDt(step);
@@ -32,45 +109,37 @@ ERF::EvolveOneStep (amrex::Real /*time*/, amrex::Real /*dt_request*/)
     // ****************************************************************************************
     // Write plotfiles at intermediate times
     // ****************************************************************************************
-
-    if (writeNow(cur_time, step+1, m_plot3d_int_1, m_plot3d_per_1, dt[0], last_plot3d_file_time_1)) {
-        last_plot3d_file_step_1 = step+1;
-        Write3DPlotFile(1,plotfile3d_type_1,plot3d_var_names_1);
-        for (int lev = 0; lev <= finest_level; ++lev) {lsm.Plot(lev, step+1);}
-        if (m_plot3d_per_1 > amrex::Real(0.0)) {last_plot3d_file_time_1 += m_plot3d_per_1;}
-    }
-    if (writeNow(cur_time, step+1, m_plot3d_int_2, m_plot3d_per_2, dt[0], last_plot3d_file_time_2)) {
-        last_plot3d_file_step_2 = step+1;
-        Write3DPlotFile(2,plotfile3d_type_2,plot3d_var_names_2);
-        for (int lev = 0; lev <= finest_level; ++lev) {lsm.Plot(lev, step+1);}
-        if (m_plot3d_per_2 > amrex::Real(0.0)) {last_plot3d_file_time_2 += m_plot3d_per_2;}
-    }
-    if (writeNow(cur_time, step+1, m_plot2d_int_1, m_plot2d_per_1, dt[0], last_plot2d_file_time_1)) {
-        last_plot2d_file_step_1 = step+1;
-        Write2DPlotFile(1,plotfile2d_type_1,plot2d_var_names_1);
-        if (m_plot2d_per_1 > amrex::Real(0.0)) {last_plot2d_file_time_1 += m_plot2d_per_1;}
-    }
-    if (writeNow(cur_time, step+1, m_plot2d_int_2, m_plot2d_per_2, dt[0], last_plot2d_file_time_2)) {
-        last_plot2d_file_step_2 = step+1;
-        Write2DPlotFile(2,plotfile2d_type_2,plot2d_var_names_2);
-        if (m_plot2d_per_2 > amrex::Real(0.0)) {last_plot2d_file_time_2 += m_plot2d_per_2;}
-    }
-    for (int i = 0; i < m_subvol_int.size(); i++) {
-        if (writeNow(cur_time, step+1, m_subvol_int[i], m_subvol_per[i], dt[0], last_subvol_time[i])) {
-            last_subvol_step[i] = step+1;
-            WriteSubvolume(i,subvol3d_var_names);
-            if (m_subvol_per[i] > amrex::Real(0.0)) {last_subvol_time[i] += m_subvol_per[i];}
-        }
-    }
-    if (writeNow(cur_time, step+1, m_check_int, m_check_per, dt[0], last_check_file_time)) {
-        last_check_file_step = step+1;
-        WriteCheckpointFile();
-        if (m_check_per > amrex::Real(0.0)) {last_check_file_time += m_check_per;}
-    }
-
-    WriteAtFinalTime();
+    WriteAtIntermediateTime(step, cur_time);
 
     return dt[0];
+}
+
+void
+ERF::ConfigureDriverAtmosToOceanCoupling (bool use_coupling_driver,
+                                          bool use_two_way_coupling,
+                                          bool use_state_contract)
+{
+    m_driver_has_atm2ocn_coupling = use_coupling_driver;
+    m_driver_uses_two_way_coupling = use_two_way_coupling;
+    m_driver_atm2ocn_uses_state_contract = use_state_contract;
+}
+
+void
+ERF::SetDriverAtmosToOceanStateContract (bool use_state_contract)
+{
+    m_driver_atm2ocn_uses_state_contract = use_state_contract;
+}
+
+void
+ERF::GetOceanToAtmosSurfaceLayout (amrex::BoxArray& ba,
+                                   amrex::DistributionMapping& dm)
+{
+    auto* sst_ptr = lsm.Get_Data_Ptr(0, 0);
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+        sst_ptr != nullptr,
+        "ERF::GetOceanToAtmosSurfaceLayout requires OceanSurf level-0 surface storage after InitData.");
+    ba = sst_ptr->boxArray();
+    dm = sst_ptr->DistributionMap();
 }
 
 /*
@@ -90,12 +159,15 @@ ERF::EvolveOneStep (amrex::Real /*time*/, amrex::Real /*dt_request*/)
        - Master/mct_roms_wrf.h
        - ROMS/Nonlinear/atm2ocn_flux.F
        - ROMS/Nonlinear/bulk_flux.F
-     This file currently implements the legacy state-passing test path only.
+     This file uses one pack entrypoint for both contract modes. The driver
+     passes either the 9-lane state view or the 8-lane flux view; this routine
+     branches on the active view shape so the coupling boundary keeps one
+     stable solver-facing API.
 */
 
 void
 ERF::PackAtmosphericStates (amrex::Vector<amrex::MultiFab*>& states,
-                            amrex::Real /*time*/)
+                            double /*time*/)
 {
     using namespace amrex;
 
@@ -103,6 +175,7 @@ ERF::PackAtmosphericStates (amrex::Vector<amrex::MultiFab*>& states,
     // to avoid a driver→submodule header dependency).
     constexpr int iUwind = 0, iVwind = 1, iPatm = 2, iRH = 3, iTair = 4;
     constexpr int iCloud = 5, iRain  = 6, iSWrad = 7, iLWrad = 8;
+    constexpr int nFluxLanes = 8;
 
     const int lev   = 0;
 
@@ -118,6 +191,157 @@ ERF::PackAtmosphericStates (amrex::Vector<amrex::MultiFab*>& states,
     const auto& ba = cons.boxArray();
     const auto& dm = cons.DistributionMap();
     const auto& ba2d_lev = ba2d[lev];
+    const auto& xba2d_lev = amrex::convert(ba2d_lev, IntVect(1,0,0));
+    const auto& yba2d_lev = amrex::convert(ba2d_lev, IntVect(0,1,0));
+    const int klo = ba.minimalBox().smallEnd(2);
+    const Box domain2d = ba2d_lev.minimalBox();
+
+    const bool flux_mode = (states.size() == nFluxLanes);
+    if (flux_mode) {
+        constexpr int iTauX = 0, iTauY = 1, iSHflux = 2, iLHflux = 3;
+        constexpr int iFluxSWrad = 4, iFluxLWrad = 5, iFluxRain = 6, iFluxEvap = 7;
+        if (verbose) {
+            amrex::Print() << "ERF flux-pack: states.size()=" << states.size()
+                           << " has_radiation=" << has_radiation
+                           << " tau13_ptr=" << (Tau[lev][TauType::tau13] != nullptr)
+                           << " tau23_ptr=" << (Tau[lev][TauType::tau23] != nullptr)
+                           << " sfs_hfx3_ptr="
+                           << (!SFS_hfx3_lev.empty() && SFS_hfx3_lev[lev] != nullptr)
+                           << " sfs_q1fx3_ptr="
+                           << (!SFS_q1fx3_lev.empty() && SFS_q1fx3_lev[lev] != nullptr)
+                           << " rad_fluxes_ptr="
+                           << (!rad_fluxes.empty() && rad_fluxes[lev] != nullptr)
+                           << "\n";
+            if (Tau[lev][TauType::tau13] != nullptr) {
+                PrintFluxLaneStats("tau13_src", *Tau[lev][TauType::tau13]);
+            }
+            if (Tau[lev][TauType::tau23] != nullptr) {
+                PrintFluxLaneStats("tau23_src", *Tau[lev][TauType::tau23]);
+            }
+            if (!SFS_hfx3_lev.empty() && SFS_hfx3_lev[lev] != nullptr) {
+                PrintFluxLaneStats("SFS_hfx3_src", *SFS_hfx3_lev[lev]);
+            }
+            if (!SFS_q1fx3_lev.empty() && SFS_q1fx3_lev[lev] != nullptr) {
+                PrintFluxLaneStats("SFS_q1fx3_src", *SFS_q1fx3_lev[lev]);
+            }
+            if (has_radiation) {
+                PrintFluxLaneStats("rad_fluxes_swup_src", *rad_fluxes[lev], 0);
+                PrintFluxLaneStats("rad_fluxes_swdn_src", *rad_fluxes[lev], 1);
+                PrintFluxLaneStats("rad_fluxes_lwup_src", *rad_fluxes[lev], 2);
+                PrintFluxLaneStats("rad_fluxes_lwdn_src", *rad_fluxes[lev], 3);
+            }
+        }
+
+        if (iTauX < static_cast<int>(states.size()) && states[iTauX] != nullptr) {
+            MultiFab tmp(xba2d_lev, dm, 1, 0);
+            for (MFIter mfi(tmp, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+                Box bx = mfi.tilebox();
+                auto const& tau13 = Tau[lev][TauType::tau13]->const_array(mfi);
+                auto const& c = cons.const_array(mfi);
+                auto t = tmp.array(mfi);
+                ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+                    const Real rho_face =
+                        (i <= domain2d.smallEnd(0)) ? c(domain2d.smallEnd(0),j,klo,Rho_comp) :
+                        (i > domain2d.bigEnd(0))   ? c(domain2d.bigEnd(0),j,klo,Rho_comp) :
+                        Real(0.5) * (c(i-1,j,klo,Rho_comp) + c(i,j,klo,Rho_comp));
+                    t(i,j,k) = rho_face * tau13(i,j,klo);
+                });
+            }
+            AverageDownThenRemap(tmp, *states[iTauX]);
+            if (verbose) { PrintFluxLaneStats("tau_x_lane", *states[iTauX]); }
+        }
+
+        if (iTauY < static_cast<int>(states.size()) && states[iTauY] != nullptr) {
+            MultiFab tmp(yba2d_lev, dm, 1, 0);
+            for (MFIter mfi(tmp, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+                Box bx = mfi.tilebox();
+                auto const& tau23 = Tau[lev][TauType::tau23]->const_array(mfi);
+                auto const& c = cons.const_array(mfi);
+                auto t = tmp.array(mfi);
+                ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+                    const Real rho_face =
+                        (j <= domain2d.smallEnd(1)) ? c(i,domain2d.smallEnd(1),klo,Rho_comp) :
+                        (j > domain2d.bigEnd(1))   ? c(i,domain2d.bigEnd(1),klo,Rho_comp) :
+                        Real(0.5) * (c(i,j-1,klo,Rho_comp) + c(i,j,klo,Rho_comp));
+                    t(i,j,k) = rho_face * tau23(i,j,klo);
+                });
+            }
+            AverageDownThenRemap(tmp, *states[iTauY]);
+            if (verbose) { PrintFluxLaneStats("tau_y_lane", *states[iTauY]); }
+        }
+
+        if (iSHflux < static_cast<int>(states.size()) && states[iSHflux] != nullptr &&
+            !SFS_hfx3_lev.empty() && SFS_hfx3_lev[lev] != nullptr) {
+            MultiFab tmp(ba2d_lev, dm, 1, 0);
+            for (MFIter mfi(tmp, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+                Box bx = mfi.tilebox();
+                auto const& hfx = SFS_hfx3_lev[lev]->const_array(mfi);
+                auto t = tmp.array(mfi);
+                ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+                    t(i,j,k) = surface_flux_diagnostics::sensible_heat_flux_wm2_from_rhotheta_flux(
+                        hfx(i,j,klo));
+                });
+            }
+            AverageDownThenRemap(tmp, *states[iSHflux]);
+            if (verbose) { PrintFluxLaneStats("SHflux_lane", *states[iSHflux]); }
+        }
+
+        if (iLHflux < static_cast<int>(states.size()) && states[iLHflux] != nullptr &&
+            !SFS_q1fx3_lev.empty() && SFS_q1fx3_lev[lev] != nullptr) {
+            MultiFab tmp(ba2d_lev, dm, 1, 0);
+            for (MFIter mfi(tmp, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+                Box bx = mfi.tilebox();
+                auto const& qfx = SFS_q1fx3_lev[lev]->const_array(mfi);
+                auto t = tmp.array(mfi);
+                ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+                    t(i,j,k) = surface_flux_diagnostics::latent_heat_flux_wm2_from_rhoqv_flux(
+                        qfx(i,j,klo));
+                });
+            }
+            AverageDownThenRemap(tmp, *states[iLHflux]);
+            if (verbose) { PrintFluxLaneStats("LHflux_lane", *states[iLHflux]); }
+        }
+
+        if (has_radiation) {
+            if (iFluxSWrad < static_cast<int>(states.size()) && states[iFluxSWrad] != nullptr) {
+                MultiFab tmp(ba2d_lev, dm, 1, 0);
+                tmp.ParallelCopy(*rad_fluxes[lev], 1, 0, 1);
+                AverageDownThenRemap(tmp, *states[iFluxSWrad]);
+                if (verbose) { PrintFluxLaneStats("SWrad_lane", *states[iFluxSWrad]); }
+            }
+            if (iFluxLWrad < static_cast<int>(states.size()) && states[iFluxLWrad] != nullptr) {
+                MultiFab tmp(ba2d_lev, dm, 1, 0);
+                for (MFIter mfi(tmp, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+                    Box bx = mfi.tilebox();
+                    auto const& rad_flux = rad_fluxes[lev]->const_array(mfi);
+                    auto t = tmp.array(mfi);
+                    ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+                        t(i,j,k) = rad_flux(i,j,k,3) - rad_flux(i,j,k,2);
+                    });
+                }
+                AverageDownThenRemap(tmp, *states[iFluxLWrad]);
+                if (verbose) { PrintFluxLaneStats("LWrad_lane", *states[iFluxLWrad]); }
+            }
+        }
+
+        if (iFluxEvap < static_cast<int>(states.size()) && states[iFluxEvap] != nullptr &&
+            !SFS_q1fx3_lev.empty() && SFS_q1fx3_lev[lev] != nullptr) {
+            MultiFab tmp(ba2d_lev, dm, 1, 0);
+            for (MFIter mfi(tmp, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+                Box bx = mfi.tilebox();
+                auto const& qfx = SFS_q1fx3_lev[lev]->const_array(mfi);
+                auto t = tmp.array(mfi);
+                ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+                    t(i,j,k) = qfx(i,j,klo);
+                });
+            }
+            AverageDownThenRemap(tmp, *states[iFluxEvap]);
+            if (verbose) { PrintFluxLaneStats("evap_lane", *states[iFluxEvap]); }
+        }
+
+        amrex::ignore_unused(iFluxRain);
+        return;
+    }
 
     // --- Uwind + Vwind: use AMReX's average_face_to_cellcenter which correctly
     // handles tile boundaries via growntilebox(1) internally. ---
@@ -135,16 +359,12 @@ ERF::PackAtmosphericStates (amrex::Vector<amrex::MultiFab*>& states,
 
         if (iUwind < static_cast<int>(states.size()) && states[iUwind] != nullptr) {
             MultiFab u_alias(uv_slab, amrex::make_alias, 0, 1); // alias u component
-            IntVect ratio = ba2d_lev.minimalBox().length()
-                          / states[iUwind]->boxArray().minimalBox().length();
-            amrex::average_down(u_alias, *states[iUwind], 0, 1, ratio);
+            AverageDownThenRemap(u_alias, *states[iUwind]);
         }
 
         if (iVwind < static_cast<int>(states.size()) && states[iVwind] != nullptr) {
             MultiFab v_alias(uv_slab, amrex::make_alias, 1, 1); // alias v component
-            IntVect ratio = ba2d_lev.minimalBox().length()
-                          / states[iVwind]->boxArray().minimalBox().length();
-            amrex::average_down(v_alias, *states[iVwind], 0, 1, ratio);
+            AverageDownThenRemap(v_alias, *states[iVwind]);
         }
     }
 
@@ -166,8 +386,7 @@ ERF::PackAtmosphericStates (amrex::Vector<amrex::MultiFab*>& states,
                 });
             }
         }
-        IntVect ratio = ba2d_lev.minimalBox().length() / states[iPatm]->boxArray().minimalBox().length();
-        amrex::average_down(tmp, *states[iPatm], 0, 1, ratio);
+        AverageDownThenRemap(tmp, *states[iPatm]);
     }
 
     // --- Tair: getTgivenRandRTh(rho, RhoTheta, qv) at k=0 [K] ---
@@ -188,8 +407,7 @@ ERF::PackAtmosphericStates (amrex::Vector<amrex::MultiFab*>& states,
                 });
             }
         }
-        IntVect ratio = ba2d_lev.minimalBox().length() / states[iTair]->boxArray().minimalBox().length();
-        amrex::average_down(tmp, *states[iTair], 0, 1, ratio);
+        AverageDownThenRemap(tmp, *states[iTair]);
     }
 
     // --- Humidity lane: export relative humidity [0-1] for REMORA bulk fluxes ---
@@ -230,7 +448,6 @@ ERF::PackAtmosphericStates (amrex::Vector<amrex::MultiFab*>& states,
                     Box bx = mfi.tilebox();
                     auto const& c = cons.const_array(mfi);
                     auto t = tmp.array(mfi);
-                    const int klo = ba.minimalBox().smallEnd(2);
                     const int khi = ba.minimalBox().bigEnd(2);
                     ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
                         int cloudy = 0;
@@ -243,8 +460,7 @@ ERF::PackAtmosphericStates (amrex::Vector<amrex::MultiFab*>& states,
                         t(i,j,k) = static_cast<Real>(cloudy);
                     });
                 }
-                IntVect ratio = ba2d_lev.minimalBox().length() / states[iCloud]->boxArray().minimalBox().length();
-                amrex::average_down(tmp, *states[iCloud], 0, 1, ratio);
+                AverageDownThenRemap(tmp, *states[iCloud]);
             }
         }
 #if 0
@@ -274,25 +490,23 @@ ERF::PackAtmosphericStates (amrex::Vector<amrex::MultiFab*>& states,
 
     // --- Radiation: sw_flux_dn (comp=1) and lw_flux_dn (comp=3) from rad_fluxes ---
     // When absent, leave slabs at their driver-pre-filled values.
-    if (has_radiation) {
+        if (has_radiation) {
         if (iSWrad < static_cast<int>(states.size()) && states[iSWrad] != nullptr) {
             MultiFab tmp(ba2d_lev, dm, 1, 0);
             tmp.ParallelCopy(*rad_fluxes[lev], 1, 0, 1);
-            IntVect ratio = ba2d_lev.minimalBox().length() / states[iSWrad]->boxArray().minimalBox().length();
-            amrex::average_down(tmp, *states[iSWrad], 0, 1, ratio);
+            AverageDownThenRemap(tmp, *states[iSWrad]);
         }
         if (iLWrad < static_cast<int>(states.size()) && states[iLWrad] != nullptr) {
             MultiFab tmp(ba2d_lev, dm, 1, 0);
             tmp.ParallelCopy(*rad_fluxes[lev], 3, 0, 1);
-            IntVect ratio = ba2d_lev.minimalBox().length() / states[iLWrad]->boxArray().minimalBox().length();
-            amrex::average_down(tmp, *states[iLWrad], 0, 1, ratio);
+            AverageDownThenRemap(tmp, *states[iLWrad]);
         }
     }
 }
 
 void
 ERF::ApplyOceanSurfaceState (const amrex::Vector<amrex::MultiFab*>& state,
-                             amrex::Real time)
+                             double time)
 {
     if (solverChoice.lsm_type != LandSurfaceType::OceanSurf) {
         return;
@@ -300,24 +514,16 @@ ERF::ApplyOceanSurfaceState (const amrex::Vector<amrex::MultiFab*>& state,
 
     if (!state.empty() && state[0] != nullptr && lsm.Get_Data_Ptr(0, 0) != nullptr) {
         auto* dst = lsm.Get_Data_Ptr(0, 0);
+        amrex::MultiFab src_remapped(dst->boxArray(), dst->DistributionMap(), 1, 0);
+        src_remapped.ParallelCopy(*state[0], 0, 0, 1);
         const auto lsm_geom = lsm.Get_Lsm_Geom(0);
         AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
             lsm_geom.isPeriodic(0) == Geom(0).isPeriodic(0) &&
             lsm_geom.isPeriodic(1) == Geom(0).isPeriodic(1) &&
             lsm_geom.isPeriodic(2) == Geom(0).isPeriodic(2),
             "OceanSurf t_surf geometry lost ERF periodic flags.");
-        const int dst_k = dst->boxArray().minimalBox().smallEnd(2);
-        const int src_k = state[0]->boxArray().minimalBox().bigEnd(2);
-        for (amrex::MFIter mfi(*dst, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
-            amrex::Box bx = amrex::makeSlab(mfi.validbox(), 2, dst_k);
-            auto dst_arr = dst->array(mfi);
-            auto src_arr = state[0]->const_array(mfi);
-            amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int) {
-                dst_arr(i,j,dst_k) = src_arr(i,j,src_k);
-            });
-        }
+        dst->ParallelCopy(src_remapped, 0, 0, 1);
         dst->FillBoundary(lsm_geom.periodicity());
-        amrex::Gpu::streamSynchronize();
 
         const amrex::Real src_min = state[0]->min(0);
         const amrex::Real src_max = state[0]->max(0);

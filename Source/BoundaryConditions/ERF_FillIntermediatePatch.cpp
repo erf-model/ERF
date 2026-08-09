@@ -7,25 +7,23 @@
 
 using namespace amrex;
 
-/*
+/**
  * Fill valid and ghost data
  * This version fills mfs in valid regions with the values in "mfs" when it is passed in;
  * it is used only to compute ghost values for intermediate stages of a time integrator.
  *
- * @param[in]  lev            level of refinement at which to fill the data
- * @param[in]  time           time at which the data should be filled
- * @param[out] mfs_vel        Vector of MultiFabs to be filled containing, in order: cons, xvel, yvel, and zvel
- * @param[out] mfs_mom        Vector of MultiFabs to be filled containing, in order: cons, xmom, ymom, and zmom
- * @param[in]  ng_cons        number of ghost cells to be filled for conserved (cell-centered) variables
- * @param[in]  ng_vel         number of ghost cells to be filled for velocity components
- * @param[in]  cons_only      if 1 then only fill conserved variables
- * @param[in]  icomp_cons     starting component for conserved variables
- * @param[in]  ncomp_cons     number of components for conserved variables
- * @param[in]  eddyDiffs      diffusion coefficients for LES turbulence models
- * @param[in]  allow_most_bcs if true then use MOST bcs at the low boundary
+ * @param[in]     lev         level of refinement at which to fill the data
+ * @param[in]     time_d      time at which the data should be filled
+ * @param[in,out] mfs_vel     Vector of MultiFabs to be filled containing, in order: cons, xvel, yvel, and zvel
+ * @param[in,out] mfs_mom     Vector of MultiFabs to be filled containing, in order: cons, xmom, ymom, and zmom
+ * @param[in]     ng_cons     number of ghost cells to be filled for conserved variables
+ * @param[in]     ng_vel      number of ghost cells to be filled for velocity components
+ * @param[in]     cons_only   if true then only fill conserved variables
+ * @param[in]     icomp_cons  starting component for conserved variables
+ * @param[in]     ncomp_cons  number of components for conserved variables
  */
 void
-ERF::FillIntermediatePatch (int lev, Real time,
+ERF::FillIntermediatePatch (int lev, double time_d,
                             const Vector<MultiFab*>& mfs_vel,     // This includes cc quantities and VELOCITIES
                             const Vector<MultiFab*>& mfs_mom,     // This includes cc quantities and MOMENTA
                             int ng_cons, int ng_vel, bool cons_only,
@@ -33,6 +31,8 @@ ERF::FillIntermediatePatch (int lev, Real time,
 {
     BL_PROFILE_VAR("FillIntermediatePatch()",FillIntermediatePatch);
     Interpolater* mapper;
+
+    Real time = static_cast<Real>(time_d);
 
     PhysBCFunctNoOp null_bc;
 
@@ -124,8 +124,8 @@ ERF::FillIntermediatePatch (int lev, Real time,
 
         Vector<MultiFab*> fmf = {mfs_vel[Vars::cons],mfs_vel[Vars::cons]};
         Vector<MultiFab*> cmf = {&vars_old[lev-1][Vars::cons], &vars_new[lev-1][Vars::cons]};
-        Vector<Real> ctime    = {t_old[lev-1], t_new[lev-1]};
-        Vector<Real> ftime    = {time,time};
+        Vector<Real> ctime    = {static_cast<Real>(t_old[lev-1]), static_cast<Real>(t_new[lev-1])};
+        Vector<Real> ftime    = {static_cast<Real>(time), static_cast<Real>(time)};
 
         if (interpolation_type == StateInterpType::Perturbational)
         {

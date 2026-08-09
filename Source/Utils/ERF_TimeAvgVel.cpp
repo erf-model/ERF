@@ -6,15 +6,17 @@ using namespace amrex;
  * Accumulate time averaged velocity fields
  */
 void
-Time_Avg_Vel_atCC (const Real& dt,
-                   Real& t_avg_cnt,
+Time_Avg_Vel_atCC (double dt_d,
+                   double& t_avg_cnt,
                    MultiFab* vel_t_avg,
                    MultiFab& xvel,
                    MultiFab& yvel,
                    MultiFab& zvel)
 {
     // Augment the counter
-    t_avg_cnt += dt;
+    t_avg_cnt += dt_d;
+
+    Real dt = static_cast<Real>(dt_d);
 
 #ifdef _OPENMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())
