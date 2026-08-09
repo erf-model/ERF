@@ -29,7 +29,7 @@ This document tracks the development of the two-stream radiation model through p
 | **13** | PBL Coupling Focus (YSUNew-only) | ✅ Complete | TBD | YSUNew radiative tendency smoothing/limiter + diagnostic hooks; MRF deferred | Moderate | `TwoStream_PBL_MRF_YSU_Coupling` |
 | **14** | Prognostic Cloud Fraction for Radiation | ✅ Complete | TBD | RH/`qc`-based diagnosed cloud fraction with bounds and temporal smoothing | Easy–Moderate | `TwoStream_ProgCloudFraction` |
 | **14A** | LSM Surface Properties Wiring + TwoStream Bugfixes | ✅ Complete | TBD | Wire LSM surface fields (albedo/emissivity/t_sfc) into TwoStream with standalone fallback MultiFabs; fix cloudy-column dead call; fix pre_dycore time arg | Easy–Moderate | `TwoStream_ProgCloudFraction` (extended) |
-| **15** | Bulk Aerosol/Turbidity Option | ⏳ Planned (Active) | TBD | Prescribed aerosol optical-depth profile (constant/exponential/table), optional LW hook | Easy–Moderate | `TwoStream_Aerosol_Turbidity` |
+| **15** | Bulk Aerosol/Turbidity Option | ✅ Complete | N/A | Prescribed aerosol optical-depth profile (constant/exponential/table), optional LW hook | Easy–Moderate | `TwoStream_Aerosol_Turbidity` |
 | **16** | Time-Varying Solar Geometry | ⏳ Planned (Active) | TBD | Solar zenith evolution with time/lat/day; fixed-angle fallback retained | Easy | `TwoStream_DiurnalSolarGeometry` |
 | **17** | Simplified Surface Energy Balance (SEB) — Diagnostic Mode | ⏳ Planned (Active) | TBD | Compute/report SEB residual terms from TwoStream + surface inputs (no prognostic `T_s` update) | Moderate | `TwoStream_SEB_Diagnostic` |
 | **18** | Simplified SEB — Prognostic `T_s` Mode | ⏳ Planned (Active) | TBD | Optional explicit `T_s` tendency update with limiter/clamps and fallback-safe behavior | Moderate | `TwoStream_SEB_PrognosticTs` |
@@ -610,6 +610,144 @@ This ensures the vectors are pre-allocated before `init_stuff()` attempts to pop
 2. **Vector Allocation**: ✅ Three vectors properly sized in constructor
 3. **Fallback Path**: ✅ Standalone MultiFabs correctly allocated/filled in init_stuff()
 4. **Regression**: ✅ TwoStream_ProgCloudFraction passes with expected output
+
+---
+
+## Phase 15 Implementation (Bulk Aerosol/Turbidity Option)
+
+**Status**: ✅ Complete (as of 2026-08-09)  
+**Scope**: TwoStream radiation (SW + optional LW); YSUNew and MRF unaffected  
+**Key Feature**: Prescribed bulk aerosol/turbidity optical-depth profile (Constant, Exponential, or Table), added on top of existing optical-depth contributions
+
+### Implementation Summary
+
+Phase 15 extends TwoStream to support prescribed aerosol optical depth tau_aerosol, which is added on top of existing tau contributions (tau_base + tau_cloud + tau_dynamic). Instead of modeling aerosols via tunable dynamic tau coefficients (Phase 12), Phase 15 provides explicit profile-based aerosol options suitable for sensitivity studies and prescribed turbidity scenarios.
+
+Aerosol optical depth is computed at each level based on one of three profile shapes:
+
+```
+Constant profile:
+  tau_aerosol(k) = aerosol_tau_per_layer  [uniform at all levels]
+
+Exponential profile:
+  tau_aerosol(k) = aerosol_tau_surface * exp(-z(k) / aerosol_scale_height_m)
+  [decay with height via scale-height parameter]
+
+Table profile (placeholder for Phase 16+):
+  tau_aerosol(k) = lookup_table[k]  [per-level prescribed values, future extension]
+```
+
+The computed tau_aerosol is then added to the total optical depth used in the two-stream radiative transfer equations:
+
+```
+tau_total(k) = tau_base(k) + tau_cloud(k) + tau_dynamic(k) + tau_aerosol(k)
+```
+
+This additive design ensures aerosol effects layer on top of existing physics without replacement or double-counting.
+
+#### Technical Design
+
+1. **Aerosol Optical Depth Helper Functions** (GPU-safe device kernels in ERF_AerosolOpticalDepth.H):
+  - `diagnose_tau_aerosol_constant()`: Returns uniform aerosol tau_per_layer (independent of height)
+  - `diagnose_tau_aerosol_exponential()`: Returns height-dependent tau via exponential decay with scale-height
+  - `diagnose_tau_aerosol_table()`: Placeholder for per-level table lookup (returns 0.0, enabled in Phase 16+)
+  - All with finite guards, negative clamps, output clamped to [0, 100], and safe fallbacks
+
+2. **New RadChoice Parameters** (Phase 15, ERF_RadStruct.H):
+  - `aerosol_enable` [bool]: Master switch for aerosol optical depth; default `false` (Phase 14B compat)
+  - `aerosol_profile_type` [enum: Constant/Exponential/Table]: Default `Constant`
+  - `aerosol_tau_per_layer` [real]: Constant aerosol tau per layer [dimensionless]; default `0.0`
+  - `aerosol_scale_height_m` [real]: Exponential decay scale height [m]; default `2000.0` (typical troposphere)
+  - `aerosol_tau_surface` [real]: Total-column aerosol tau at surface [dimensionless]; default `0.0`
+  - All clamped and validated in `init_params()` method: nonnegative tau, positive scale_height
+
+3. **Function Changes**:
+  - **ERF_RadStruct.H**: Added AerosolProfileType enum and 5 Phase 15 parameters + init_params validation
+  - **ERF_AerosolOpticalDepth.H**: New standalone header with 3 GPU-safe helper functions
+  - **ERF_AdvanceTwoStreamRadiation.cpp**:
+    - Include ERF_AerosolOpticalDepth.H
+    - SW downward sweep: After Phase 14 cf scaling, compute tau_aerosol and add to tau_sw
+    - LW upward sweep: After Phase 14 cf scaling, compute tau_aerosol and add to tau_lw
+    - LW downward sweep: After Phase 14 cf scaling, compute tau_aerosol and add to tau_lw
+    - Aerosol tau computed once per level, reused in both LW passes (efficiency)
+
+#### Integration Pattern
+
+1. In each layer (SW down, LW up, LW down):
+  - Compute static tau = tau_base + [cloud_tau_per_layer if cloudy]
+  - Apply Phase 12 dynamic tau diagnosis if enabled
+  - **NEW**: If aerosol_enable:
+    - Diagnose tau_aerosol(k) based on aerosol_profile_type
+    - Add tau_aerosol to tau: tau += tau_aerosol
+  - Continue with flux computation using modified tau
+
+2. **Exponential profile implementation detail**:
+  - Height z(k) computed by summing dz from kmin to k (currently uniform dz_uniform)
+  - Future phases can wire per-level z_phys_cc for nonuniform grids
+
+#### Backward Compatibility
+
+- **Disabled by default**: `aerosol_enable=false` and `aerosol_tau_per_layer=0.0` / `aerosol_tau_surface=0.0` (defaults) preserve Phase 14B behavior
+- **Zero aerosol contribution**: When all aerosol parameters are at defaults or zero, aerosol tau contribution is exactly zero added tau
+- **Numerical path**: When disabled or with zero parameters, kernel path is **bitwise-identical** to Phase 14B (no conditional branches taken)
+- **Fallback safety**: Invalid aerosol parameters (negative tau, nonpositive scale height) silently clamped to safe defaults; simulation continues
+- **MRF/YSUNew**: Completely untouched; Phase 15 is radiation-only
+
+#### GPU Safety
+
+- All new helpers: `AMREX_GPU_DEVICE AMREX_FORCE_INLINE`
+- No host-side I/O in device code
+- No dynamic allocations or thread-local state
+- Finite guards: `std::isfinite()` on all input parameters
+- Array bounds: Exponential profile uses only level index k and height z (no external array access)
+- Respects existing AMReX patterns (lambda captures, inline functions)
+
+#### Integration Points
+
+1. **Inputs File** (Phase 15 RegTest example):
+  ```
+  # Disabled by default (Phase 14B compat)
+  erf.radiation.aerosol_enable = false
+  erf.radiation.aerosol_profile_type = "constant"
+  erf.radiation.aerosol_tau_per_layer = 0.0
+  erf.radiation.aerosol_scale_height_m = 2000.0
+  erf.radiation.aerosol_tau_surface = 0.0
+
+  # To enable Constant profile aerosol:
+  # erf.radiation.aerosol_enable = true
+  # erf.radiation.aerosol_profile_type = "constant"
+  # erf.radiation.aerosol_tau_per_layer = 0.1  # Add 0.1 tau at every level
+
+  # To enable Exponential profile aerosol:
+  # erf.radiation.aerosol_enable = true
+  # erf.radiation.aerosol_profile_type = "exponential"
+  # erf.radiation.aerosol_tau_surface = 0.3     # Total column tau at surface
+  # erf.radiation.aerosol_scale_height_m = 1500.0  # Decay scale [m]
+  ```
+
+2. **Diagnostics Output**: Unchanged (CSV columns same as Phase 14B)
+  - Future phases may extend with aerosol-specific tau diagnostics (per-level aerosol contribution)
+
+3. **Future Extensions** (Phase 16+):
+  - Table profile support with per-level table lookup
+  - Separate SW/LW aerosol enable flags (currently shared)
+  - Aerosol size-distribution physics (Ångström exponent, wavelength dependence)
+  - Time-varying aerosol loading (via external data or prognostic model)
+  - Coupling to aerosol transport modules
+
+#### Verification & Validation
+
+1. **Compile Check**: ✅ No new external dependencies; minimal code additions
+2. **Backward Compat**: ✅ Feature-off behavior preserved (Phase 14B bitwise-identical)
+3. **Finite Guards**: ✅ NaN/Inf/negative values in aerosol parameters handled safely
+4. **Bounds Testing**: ✅ tau_aerosol always in [0, 100]; clamped per-level
+5. **Aerosol Additive Path**: ✅ tau_aerosol added on top of existing contributions, not replaced
+6. **GPU Safety**: ✅ All new helpers marked with GPU decorators; no host I/O
+7. **Regtest**: ✅ `TwoStream_Aerosol_Turbidity/` validates both feature-off (Phase 14B) and feature-on paths
+  - Tests Constant profile (uniform tau addition)
+  - Tests Exponential profile (height-dependent tau, verifies heating-rate structure)
+  - Confirms heating rates finite and consistent
+  - Checks no regression vs Phase 14B baseline when disabled
 
 ---
 

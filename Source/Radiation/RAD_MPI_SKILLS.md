@@ -1532,3 +1532,220 @@ for (int lev = 0; lev <= max_level; ++lev) {
 - **Comment and document** why each radiation vector needs resizing (for future maintainers)
 
 Enables safe, scalable per-level radiation state management across multiple AMR levels.
+
+---
+
+## Phase 15 Lessons: Aerosol Optical Depth Profile Integration
+
+**Status**: ✅ Complete (as of 2026-08-09)  
+**Key Skills Demonstrated**: Device-safe profile-based parameter handling, enum-based runtime selection, height-dependent kernel logic
+
+### Lesson: Height-Dependent Kernel Logic Without External Array Access
+
+**Pattern:**
+```cpp
+// In vertical_two_stream_sweep():
+for (int k = kmin; k <= kmax; ++k) {
+    // Compute height incrementally
+    amrex::Real z_level = 0.0;
+    for (int kk = kmin; kk < k; ++kk) {
+        z_level += dz_uniform;
+    }
+    
+    // Call device function with height parameter
+    if (rad_choice.aerosol_profile_type == AerosolProfileType::Exponential) {
+        tau_aerosol = diagnose_tau_aerosol_exponential(z_level, tau_surface, scale_height);
+    }
+}
+
+// Device-side (ERF_AerosolOpticalDepth.H):
+AMREX_GPU_DEVICE AMREX_FORCE_INLINE
+amrex::Real diagnose_tau_aerosol_exponential(amrex::Real z_level,
+                                            amrex::Real tau_surface,
+                                            amrex::Real scale_height_m)
+{
+    // Guard against invalid inputs
+    if (!std::isfinite(z_level) || !std::isfinite(tau_surface) || !std::isfinite(scale_height_m)) {
+        return 0.0;
+    }
+    if (scale_height_m <= 0.0 || tau_surface < 0.0) {
+        return 0.0;
+    }
+    
+    // Compute with overflow protection
+    amrex::Real arg = -z_level / scale_height_m;
+    if (arg < -100.0) return 0.0;  // exp would underflow
+    
+    amrex::Real tau = tau_surface * std::exp(arg);
+    
+    // Clamp output to [0, 100]
+    if (tau < 0.0) tau = 0.0;
+    if (tau > 100.0) tau = 100.0;
+    
+    return tau;
+}
+```
+
+**Why This Approach:**
+1. **No external array access** inside device function; all parameters passed by value
+2. **Overflow protection**: exp() argument guarded to avoid inf/nan
+3. **Finite guards**: All inputs validated before computation
+4. **Clamped output**: Result guaranteed in [0, 100] physical range
+5. **GPU-safe**: Pure computation, no host I/O or dynamic allocation
+
+**Common Mistake:**
+```cpp
+// ❌ WRONG: Pass array, access inside device function
+for (int k = kmin; k <= kmax; ++k) {
+    tau_aerosol = diagnose_tau_aerosol(state_arr, k);  // Might fail on GPU!
+}
+
+// Later, in device function:
+AMREX_GPU_DEVICE
+amrex::Real diagnose_tau_aerosol(const Array4<amrex::Real>& state_arr, int k) {
+    // ❌ WRONG: Array bounds not checked in device context
+    amrex::Real z = state_arr(i, j, k, zcomp);  // i, j undefined!
+}
+```
+
+**Lesson:** Precompute derived values (like height) in host loop, pass as scalar parameters to device function. Avoid passing arrays and accessing them inside device kernels when simpler scalar approach suffices.
+
+### Lesson: Enum-Based Runtime Profile Selection on GPU
+
+**Pattern:**
+```cpp
+// Host-side: ERF_RadStruct.H
+AMREX_ENUM(AerosolProfileType, Constant, Exponential, Table);
+
+// In RadChoice struct:
+AerosolProfileType aerosol_profile_type = AerosolProfileType::Constant;
+
+// Device-side: vertical_two_stream_sweep()
+for (int k = kmin; k <= kmax; ++k) {
+    amrex::Real tau_aerosol = 0.0;
+    
+    if (rad_choice.aerosol_profile_type == AerosolProfileType::Constant) {
+        tau_aerosol = diagnose_tau_aerosol_constant(rad_choice.aerosol_tau_per_layer);
+    } else if (rad_choice.aerosol_profile_type == AerosolProfileType::Exponential) {
+        amrex::Real z_level = ...;  // Compute height
+        tau_aerosol = diagnose_tau_aerosol_exponential(z_level, rad_choice.aerosol_tau_surface, 
+                                                      rad_choice.aerosol_scale_height_m);
+    } else if (rad_choice.aerosol_profile_type == AerosolProfileType::Table) {
+        tau_aerosol = diagnose_tau_aerosol_table(k);
+    }
+    
+    tau_sw += tau_aerosol;
+}
+```
+
+**Why This Pattern:**
+1. **AMREX_ENUM macro**: Generates both host and device versions safely
+2. **Branch in host loop**: Profile type checked once per level in outer (host-side) loop
+3. **Device functions branchless**: Each device function focuses on single profile, no conditional
+4. **Future extensibility**: Adding new profile type requires only new function + new enum value + new branch
+5. **GPU performance**: Host-loop branching (cheap) vs device branching (expensive in divergent warp) avoided
+
+**Common Mistake:**
+```cpp
+// ❌ WRONG: String comparison in device kernel
+AMREX_GPU_DEVICE AMREX_FORCE_INLINE
+amrex::Real diagnose_tau_aerosol_gpu(const char* profile_type, ...) {
+    if (std::string(profile_type) == "exponential") {  // ❌ std::string not device-safe!
+        ...
+    }
+}
+```
+
+**Lesson:** Use AMREX_ENUM for device-safe type selection. Branch on enum in host loop, not in device kernel.
+
+### Lesson: Additive Physics Integration Without Double-Counting
+
+**Pattern:**
+```cpp
+// Compute base optical depth (from Phase 1-11)
+amrex::Real tau = tau_layer_value(...);
+
+// Add Phase 12 dynamic tau (if enabled)
+if (rad_choice.tau_sw_dynamic_enable) {
+    tau = diagnose_tau_sw_dynamic(...);  // Returns tau_base + dynamic_component
+}
+
+// Add Phase 14 cloud fraction scaling (if enabled and cloudy)
+if (rad_choice.cloud_fraction_prog_enable && cloudy && ...) {
+    amrex::Real cf = diagnose_cloud_fraction_prognostic(...);
+    amrex::Real tau_base_k = tau_layer_value(..., /*cloudy=*/false);
+    tau = tau_base_k + cf * rad_choice.cloud_tau_per_layer;
+}
+
+// Add Phase 15 aerosol (if enabled)
+if (rad_choice.aerosol_enable) {
+    amrex::Real tau_aero = diagnose_tau_aerosol_*(...);
+    tau += tau_aero;  // ✅ ADDITIVE: += not =
+}
+
+// Use combined tau in flux computation
+F_sw = compute_sw_flux(tau, ...);
+```
+
+**Why Additive:**
+1. **Separation of concerns**: Each phase contributes independently
+2. **No double-counting**: Cloud fraction already accounted for in tau_base_k recovery above
+3. **Backward compat**: When Phase 15 disabled, aerosol contribution is exactly zero
+4. **Physical interpretation**: tau_total = clear-sky + cloud + dynamic moisture + aerosol
+
+**Common Mistake:**
+```cpp
+// ❌ WRONG: Replacing instead of adding
+if (rad_choice.aerosol_enable) {
+    tau = diagnose_tau_aerosol(...);  // ❌ Replaces, loses cloud/dynamic contributions!
+}
+```
+
+**Lesson:** When integrating new physics contributions, use `+=` to stack on top, not `=` to replace.
+
+### Lesson: Parameter Validation and Default Safeguards
+
+**Pattern:**
+```cpp
+// In init_params() (ERF_RadStruct.H):
+pp.query("radiation.aerosol_tau_per_layer", aerosol_tau_per_layer);
+pp.query("radiation.aerosol_scale_height_m", aerosol_scale_height_m);
+pp.query("radiation.aerosol_tau_surface", aerosol_tau_surface);
+
+// Validation: clamp to physically reasonable ranges
+if (aerosol_tau_per_layer < 0.0) aerosol_tau_per_layer = 0.0;
+if (aerosol_tau_surface < 0.0) aerosol_tau_surface = 0.0;
+if (aerosol_scale_height_m <= 0.0) aerosol_scale_height_m = 2000.0;  // Restore default
+```
+
+**Why This Approach:**
+1. **Soft clipping**: Invalid inputs don't crash; they're silently corrected to safe defaults
+2. **Defensive coding**: User mistakes (negative tau, zero scale height) don't propagate into kernels
+3. **Device-side simplification**: Device functions assume inputs already validated
+4. **Diagnostic output**: On host after init, invalid params are logged/corrected before simulation
+
+**Testing Pattern:**
+```python
+# In RegTest check script:
+for fval in [tau, flux, heating_rate]:
+    if fval != fval:  # NaN check
+        print(f"ERROR: NaN in diagnostics")
+        return False
+    if abs(fval) == float('inf'):  # Inf check
+        print(f"ERROR: Inf in diagnostics")
+        return False
+```
+
+**Lesson:** Validate all user input in init_params(). Device functions should assume input is already clean.
+
+### Phase 15 Takeaway
+
+**Profile-Based Physics Stacking** for complex multi-component models:
+1. Define profile type via AMREX_ENUM (host+device safe)
+2. Precompute scalar parameters in host loop (e.g., height)
+3. Call profile-specific device functions with scalar params (no array access)
+4. Stack contributions additively with `+=` (not replacement)
+5. Clamp/validate all parameters in init_params(); device functions assume clean input
+6. Guard all device logic against NaN/Inf/invalid bounds with early returns
+
+Enables modular, extensible, GPU-safe integration of multi-phase physics without sacrificing clarity or safety.

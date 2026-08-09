@@ -33,6 +33,16 @@ AMREX_ENUM(RadType, None, TwoStream, RRTMGP);
 AMREX_ENUM(TauProfileType, Constant, CloudLayer);
 
 /**
+ * @brief Aerosol optical depth profile type for the two-stream solver (Phase 15).
+ *
+ * - Constant: uniform aerosol tau_per_layer applied at every level.
+ * - Exponential: aerosol tau decays exponentially with height via
+ *   tau_aerosol(k) = tau_surface * exp(-z(k) / scale_height).
+ * - Table: aerosol tau prescribed per level via lookup (future extension).
+ */
+AMREX_ENUM(AerosolProfileType, Constant, Exponential, Table);
+
+/**
  * @brief Container holding radiation-related choices and parameters.
  *
  * Manages the runtime selection and configuration of radiation solvers.
@@ -362,6 +372,46 @@ public:
   amrex::Real cloud_fraction_smooth_alpha = 0.0;
 
   /**
+   * @brief (Phase 15) Enable prescribed bulk aerosol/turbidity optical depth.
+   * When true, aerosol optical depth is added on top of existing tau_base + cloud + dynamic-moisture contributions.
+   * When false (default), no aerosol contribution (Phase 14B behavior preserved).
+   * Only used when rad_type == RadType::TwoStream and sw_enabled == true (LW optional, Phase 16+).
+   */
+  bool aerosol_enable = false;
+
+  /**
+   * @brief (Phase 15) Aerosol optical depth profile type: Constant, Exponential, or Table.
+   * - Constant: uniform aerosol tau per layer (aerosol_tau_per_layer).
+   * - Exponential: tau decays with height via tau_aerosol(k) = aerosol_tau_surface * exp(-z(k) / aerosol_scale_height_m).
+   * - Table: per-level tau prescribed via lookup (future extension, currently not supported).
+   * Default Constant. Only used when aerosol_enable == true.
+   */
+  AerosolProfileType aerosol_profile_type = AerosolProfileType::Constant;
+
+  /**
+   * @brief (Phase 15) Constant aerosol optical depth per layer [dimensionless].
+   * Used for AerosolProfileType::Constant profile. Default 0.0 (no aerosol contribution).
+   * Only used when aerosol_enable == true and aerosol_profile_type == Constant.
+   */
+  amrex::Real aerosol_tau_per_layer = 0.0;
+
+  /**
+   * @brief (Phase 15) Scale height for exponential aerosol profile [m].
+   * Controls decay rate: tau_aerosol(k) = aerosol_tau_surface * exp(-z(k) / scale_height).
+   * Default 2000.0 m (typical scale height for tropospheric aerosols).
+   * Only used when aerosol_enable == true and aerosol_profile_type == Exponential.
+   */
+  amrex::Real aerosol_scale_height_m = 2000.0;
+
+  /**
+   * @brief (Phase 15) Total-column aerosol optical depth at surface [dimensionless].
+   * Used for AerosolProfileType::Exponential profile as the surface boundary condition.
+   * Default 0.0 (no aerosol contribution).
+   * Only used when aerosol_enable == true and aerosol_profile_type == Exponential.
+   */
+  amrex::Real aerosol_tau_surface = 0.0;
+
+  /**
    * @brief Read radiation options from the input parameter database.
    *
    * @param[in] lev AMR level index.
@@ -408,6 +458,11 @@ public:
    * - erf.radiation.cloud_fraction_qc_scale (real, optional, Phase 14, default 1.0e-3)
    * - erf.radiation.cloud_fraction_smooth_enable (bool, optional, Phase 14, default false)
    * - erf.radiation.cloud_fraction_smooth_alpha (real, optional, Phase 14, default 0.0)
+   * - erf.radiation.aerosol_enable (bool, optional, Phase 15, default false)
+   * - erf.radiation.aerosol_profile_type (string "constant"|"exponential"|"table", optional, Phase 15, default "constant")
+   * - erf.radiation.aerosol_tau_per_layer (real, optional, Phase 15, default 0.0)
+   * - erf.radiation.aerosol_scale_height_m (real, optional, Phase 15, default 2000.0)
+   * - erf.radiation.aerosol_tau_surface (real, optional, Phase 15, default 0.0)
    *
    * Sub-option queries are only performed if rad_type == RadType::TwoStream.
    */
@@ -545,7 +600,33 @@ public:
       if (cloud_fraction_qc_scale < 0.0) cloud_fraction_qc_scale = 0.0;
       if (cloud_fraction_smooth_alpha < 0.0) cloud_fraction_smooth_alpha = 0.0;
       if (cloud_fraction_smooth_alpha > 1.0) cloud_fraction_smooth_alpha = 1.0;
+
+      // Phase 15: prescribed bulk aerosol/turbidity optical depth
+      // (all optional; defaults disable aerosol, preserving Phase 14B behavior)
+      pp.query("radiation.aerosol_enable", aerosol_enable);
+       
+      // Parse aerosol profile type as string
+      std::string aerosol_profile_type_str = "constant";
+      pp.query("radiation.aerosol_profile_type", aerosol_profile_type_str);
+      if (aerosol_profile_type_str == "exponential") {
+        aerosol_profile_type = AerosolProfileType::Exponential;
+      } else if (aerosol_profile_type_str == "table") {
+        aerosol_profile_type = AerosolProfileType::Table;
+      } else {
+        aerosol_profile_type = AerosolProfileType::Constant;
+      }
+       
+      pp.query("radiation.aerosol_tau_per_layer", aerosol_tau_per_layer);
+      pp.query("radiation.aerosol_scale_height_m", aerosol_scale_height_m);
+      pp.query("radiation.aerosol_tau_surface", aerosol_tau_surface);
+
+      // Parameter validation (Phase 15): clamp aerosol parameters
+      // to physically reasonable ranges
+      if (aerosol_tau_per_layer < 0.0) aerosol_tau_per_layer = 0.0;
+      if (aerosol_tau_surface < 0.0) aerosol_tau_surface = 0.0;
+      if (aerosol_scale_height_m <= 0.0) aerosol_scale_height_m = 2000.0;  // Ensure positive
   }
+
 }
 
   /**

@@ -4,6 +4,7 @@
 #include <ERF_TwoStreamSW.H>
 #include <ERF_TwoStreamLW.H>
 #include <ERF_PrognosticCloudFraction.H>
+#include <ERF_AerosolOpticalDepth.H>
 #include <AMReX_Print.H>
 #include <AMReX_ParallelDescriptor.H>
 #include <AMReX_Gpu.H>
@@ -811,6 +812,29 @@ void vertical_two_stream_sweep(
             tau_sw = tau_sw_base_k + cf_prog * rad_choice.cloud_tau_per_layer;
         }
 
+        // (Phase 15) Apply prescribed bulk aerosol optical depth if enabled
+        // Aerosol tau is added on top of existing tau contributions (tau_base + cloud + dynamic)
+        if (rad_choice.aerosol_enable) {
+            amrex::Real tau_aerosol = 0.0;
+             
+            if (rad_choice.aerosol_profile_type == AerosolProfileType::Constant) {
+                tau_aerosol = diagnose_tau_aerosol_constant(rad_choice.aerosol_tau_per_layer);
+            } else if (rad_choice.aerosol_profile_type == AerosolProfileType::Exponential) {
+                // Get height at current level; use z_phys_cc if available, else compute from dz
+                amrex::Real z_level = 0.0;
+                for (int kk = kmin; kk < k; ++kk) {
+                    z_level += dz_uniform;
+                }
+                tau_aerosol = diagnose_tau_aerosol_exponential(z_level, rad_choice.aerosol_tau_surface, 
+                                                              rad_choice.aerosol_scale_height_m);
+            } else if (rad_choice.aerosol_profile_type == AerosolProfileType::Table) {
+                tau_aerosol = diagnose_tau_aerosol_table(k);
+            }
+             
+            // Add aerosol tau on top of existing tau
+            tau_sw += tau_aerosol;
+        }
+
         // Accumulate optical depths
         tau_sw_cum += tau_sw;
 
@@ -909,6 +933,31 @@ void vertical_two_stream_sweep(
             tau_lw = tau_lw_base_k + cf_prog * rad_choice.cloud_tau_per_layer;
         }
 
+        // (Phase 15) Apply prescribed bulk aerosol optical depth if enabled
+        // Aerosol tau is added on top of existing tau contributions (tau_base + cloud + dynamic)
+        // Note: LW aerosol support introduced here as part of full implementation
+        // (separate enable flag for LW-only control can be added in Phase 16 if needed)
+        if (rad_choice.aerosol_enable) {
+            amrex::Real tau_aerosol = 0.0;
+             
+            if (rad_choice.aerosol_profile_type == AerosolProfileType::Constant) {
+                tau_aerosol = diagnose_tau_aerosol_constant(rad_choice.aerosol_tau_per_layer);
+            } else if (rad_choice.aerosol_profile_type == AerosolProfileType::Exponential) {
+                // Get height at current level; use z_phys_cc if available, else compute from dz
+                amrex::Real z_level = 0.0;
+                for (int kk = kmin; kk < k; ++kk) {
+                    z_level += dz_uniform;
+                }
+                tau_aerosol = diagnose_tau_aerosol_exponential(z_level, rad_choice.aerosol_tau_surface, 
+                                                              rad_choice.aerosol_scale_height_m);
+            } else if (rad_choice.aerosol_profile_type == AerosolProfileType::Table) {
+                tau_aerosol = diagnose_tau_aerosol_table(k);
+            }
+             
+            // Add aerosol tau on top of existing tau
+            tau_lw += tau_aerosol;
+        }
+
         if (k == kmax) {
             // Surface: initialize upwelling flux
             // (Phase 11) Resolve surface temperature and emissivity from hetero fields or fallback
@@ -961,10 +1010,34 @@ void vertical_two_stream_sweep(
                 tau_lw = tau_lw_base_k + cf_prog * rad_choice.cloud_tau_per_layer;
             }
 
+            // (Phase 15) Apply prescribed bulk aerosol optical depth if enabled
+            // Aerosol tau is added on top of existing tau contributions (tau_base + cloud + dynamic)
+            if (rad_choice.aerosol_enable) {
+                amrex::Real tau_aerosol = 0.0;
+                 
+                if (rad_choice.aerosol_profile_type == AerosolProfileType::Constant) {
+                    tau_aerosol = diagnose_tau_aerosol_constant(rad_choice.aerosol_tau_per_layer);
+                } else if (rad_choice.aerosol_profile_type == AerosolProfileType::Exponential) {
+                    // Get height at current level; use z_phys_cc if available, else compute from dz
+                    amrex::Real z_level = 0.0;
+                    for (int kk = kmin; kk < k; ++kk) {
+                        z_level += dz_uniform;
+                    }
+                    tau_aerosol = diagnose_tau_aerosol_exponential(z_level, rad_choice.aerosol_tau_surface, 
+                                                                  rad_choice.aerosol_scale_height_m);
+                } else if (rad_choice.aerosol_profile_type == AerosolProfileType::Table) {
+                    tau_aerosol = diagnose_tau_aerosol_table(k);
+                }
+                 
+                // Add aerosol tau on top of existing tau
+                tau_lw += tau_aerosol;
+            }
+
             // Compute downwelling flux at this level using real two-stream formula
             F_lw_down_curr = compute_lw_flux_down(F_lw_down_curr, T_layer, sigma, tau_lw);
             F_lw_down_profile[k - kmin] = F_lw_down_curr;
         }
+
     }
     else {
         // Isothermal test: all levels radiate equally; net flux is zero at

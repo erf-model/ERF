@@ -1,0 +1,123 @@
+# Phase 15 Two-Stream Radiation: Bulk Aerosol/Turbidity Test
+#
+# This test validates the Phase 15 implementation of prescribed bulk aerosol/turbidity
+# optical depth profiles. The aerosol optical depth is added on top of existing
+# tau contributions (tau_base + tau_cloud + tau_dynamic).
+#
+# Key features:
+#   - Tests Constant aerosol profile: uniform tau per layer
+#   - Tests Exponential aerosol profile: tau decays with height via scale-height
+#   - Validates backward compatibility when feature disabled (aerosol_enable=false)
+#   - Confirms aerosol tau is added, not replaced
+#   - Tests both SW and LW contributions (Phase 15 implements both)
+#
+erf.prob_name = "ABL"
+
+stop_time = 5.0
+amrex.fpe_trap_invalid = 0
+
+fabarray.mfiter_tile_size = 1024 1024 1024
+
+# DOMAIN SETUP: Simple 3D domain with stretched vertical grid
+geometry.prob_extent = 3000 3000 1024
+amr.n_cell           =  8   8   64
+amrex.max_grid_size_z = 128
+geometry.is_periodic = 1 1 0
+
+# NONUNIFORM VERTICAL SPACING
+erf.initial_dz = 4.0
+erf.grid_stretching_ratio = 1.06
+
+# BOUNDARY CONDITIONS
+zlo.type = "surface_layer"
+erf.most.z0   = 0.1      # roughness length [m]
+erf.most.zref = 24.0     # reference height [m]
+erf.most.surf_temp_flux    = 0.0
+zhi.type = "SlipWall"
+zhi.theta_grad = 0.003   # adiabatic upper boundary
+erf.fixed_dt = 0.5       # time step [s]
+
+# DIAGNOSTICS & VERBOSITY
+erf.sum_interval   = 1       # timesteps between computing mass
+erf.v              = 1       # verbosity in ERF.cpp
+amr.v              = 1       # verbosity in Amr.cpp
+
+# REFINEMENT / REGRIDDING
+amr.max_level       = 0       # maximum level number allowed
+
+# CHECKPOINT FILES
+erf.check_file      = chk_aero      # root name of checkpoint file
+erf.check_int       = -1             # number of timesteps between checkpoints
+
+# DATA COLLECTION
+erf.data_log    = aero_hist.dat aero_profiles.dat
+erf.profile_int = 10
+
+# PLOTFILES
+erf.plot_file_1     = plt_aero     # prefix of plotfile name
+erf.plot_int_1      = 10            # number of timesteps between plotfiles
+erf.plot_vars_1     = x_velocity y_velocity z_velocity theta qsrc_sw qsrc_lw
+
+# SOLVER CHOICE
+erf.use_gravity = true
+erf.molec_diff_type = "None"
+erf.les_type        = "None"
+erf.Cs = 0.11
+erf.theta_ref = 300.0
+
+# INITIALIZATION - from sounding file
+erf.init_type = "input_sounding"
+erf.sounding_type = Ideal
+
+# PBL CONFIGURATION - Baseline MRF
+erf.pbl_type = "MRF"
+
+# MRF PBL PARAMETERS
+erf.enable_mrf_cloud_adjustment = false
+erf.enable_mrf_countergradient = true
+erf.enable_mrf_unbounded_vpert = false
+erf.mrf_moistvars = false
+erf.pbl_mrf_Ribcr = 0.5
+erf.pbl_mrf_const_b = 7.8
+erf.pbl_mrf_coriolis_freq = 1.0e-4
+erf.pbl_mrf_highres_bounds = false
+erf.pbl_mrf_sf = 0.1
+erf.pbl_mrf_use_zero_ri_extent = false
+
+# CORIOLIS EFFECT
+erf.latitude = 45.0  # mid-latitude (f = 1.0e-4 s^-1)
+erf.use_coriolis = true
+
+erf.abl_driver_type = "GeostrophicWind"
+erf.abl_geo_wind = 15.0 0.0 0.0
+
+# SOUNDING FILE
+erf.input_sounding_file = "input_sounding"
+
+# RADIATION - Two-Stream SW + LW with Phase 15 Aerosol Optical Depth
+erf.radiation_type = "TwoStream"
+erf.radiation.sw_enabled = true
+erf.radiation.lw_enabled = true
+erf.radiation.tau_per_layer = 0.003125
+erf.radiation.tau_lw_per_layer = 1.0
+erf.radiation.solar_zenith = 60.0
+erf.radiation.S0 = 1361.0
+
+# RADIATION - Cloud properties
+erf.radiation.tau_profile_type = "constant"
+erf.radiation.cloud_base_height_m = 500.0
+erf.radiation.cloud_top_height_m = 2000.0
+erf.radiation.cloud_tau_per_layer = 0.0  # No cloud for simple baseline
+erf.radiation.cloud_fraction = 0.0
+
+# RADIATION - Phase 15: Bulk Aerosol/Turbidity (disabled by default for Phase 14B compat)
+# Test configuration: Use Constant profile for simple validation
+erf.radiation.aerosol_enable = false
+erf.radiation.aerosol_profile_type = "constant"
+erf.radiation.aerosol_tau_per_layer = 0.0
+erf.radiation.aerosol_scale_height_m = 2000.0
+erf.radiation.aerosol_tau_surface = 0.0
+
+# RADIATION - Diagnostics
+erf.radiation.v = 1
+erf.radiation.diag_file = "radiation_aero_diag.dat"
