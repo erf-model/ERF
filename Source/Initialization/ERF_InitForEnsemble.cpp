@@ -195,6 +195,10 @@ void ApplyNeumannBCs(const Geometry& geom,
     // -------------------------------------------------
     const Box& domain = geom.Domain();
 
+    const bool periodic_x = geom.isPeriodic(0);
+    const bool periodic_y = geom.isPeriodic(1);
+    const bool periodic_z = geom.isPeriodic(2);
+
     for (MFIter mfi(mf_cc, TilingIfNotGPU()); mfi.isValid(); ++mfi)
     {
         const Box& gbx = mfi.growntilebox();   // includes ghost cells
@@ -212,12 +216,20 @@ void ApplyNeumannBCs(const Geometry& geom,
             int jj = j;
             int kk = k;
 
-            // Clamp to domain interior (FOExtrap)
-            if (!geom.isPeriodic(0)) { ii = amrex::max(domain.smallEnd(0), amrex::min(i, domain.bigEnd(0))); }
+             if (!periodic_x) {
+                ii = amrex::max(domain.smallEnd(0),
+                                amrex::min(i, domain.bigEnd(0)));
+            }
 
-            if (!geom.isPeriodic(1)) { jj = amrex::max(domain.smallEnd(1), amrex::min(j, domain.bigEnd(1))); }
+            if (!periodic_y) {
+                jj = amrex::max(domain.smallEnd(1),
+                                amrex::min(j, domain.bigEnd(1)));
+            }
 
-            if (!geom.isPeriodic(2)) { kk = amrex::max(domain.smallEnd(2), amrex::min(k, domain.bigEnd(2))); }
+            if (!periodic_z) {
+                kk = amrex::max(domain.smallEnd(2),
+                                amrex::min(k, domain.bigEnd(2)));
+            }
 
             arr(i,j,k,n) = arr(ii,jj,kk,n);
         });
