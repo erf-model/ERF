@@ -6,3 +6,5 @@ CEXE_headers += ERF_TwoStreamSW.H
 CEXE_headers += ERF_TwoStreamLW.H
 CEXE_headers += ERF_RadiationCoupling.H
 CEXE_headers += ERF_RadiationDiagnostics.H
+CEXE_headers += ERF_PrognosticCloudFraction.H
+CEXE_headers += ERF_AerosolOpticalDepth.H
