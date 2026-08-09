@@ -1497,7 +1497,7 @@ private:
         // We never have fewer than 2 ghost cells
         int ngrow = 2;
 
-        // This sets the minimum to 3 if using num_diff but we might still need more 
+        // This sets the minimum to 3 if using num_diff but we might still need more
         if (sc.use_num_diff) {
             ngrow = 3;
         }

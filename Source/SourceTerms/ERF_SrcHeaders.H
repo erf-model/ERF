@@ -239,22 +239,4 @@ void ApplyBndryForcing_Forecast (const SolverChoice& solverChoice,
                                  const amrex::Array4<const amrex::Real>& rho_w_initial_state,
                                  const amrex::Array4<const amrex::Real>& cons_initial_state);
 
-void
-ApplySurfaceTreatment_BulkCoeff_Mom (const amrex::Box& tbx,
-                                     const amrex::Box& tby,
-                                     const amrex::Array4<amrex::Real>& rho_u_rhs,
-                                     const amrex::Array4<amrex::Real>& rho_v_rhs,
-                                     const amrex::Array4<const amrex::Real>& rho_u,
-                                     const amrex::Array4<const amrex::Real>& rho_v,
-                                     const amrex::Array4<const amrex::Real>& cons_state,
-                                     const amrex::Array4<const amrex::Real>& z_phys_nd,
-                                     const amrex::Array4<const amrex::Real>& surface_state_arr);
-
-void
-ApplySurfaceTreatment_BulkCoeff_CC (const amrex::Box& bx,
-                                    const amrex::Array4<amrex::Real>& cell_rhs,
-                                    const amrex::Array4<const amrex::Real>& cons_state,
-                                    const amrex::Array4<const amrex::Real>& z_phys_cc,
-                                    const amrex::Array4<const amrex::Real>& surface_state_arr);
-
 #endif
