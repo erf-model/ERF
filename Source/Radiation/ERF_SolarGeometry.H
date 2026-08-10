@@ -170,7 +170,11 @@ amrex::Real compute_solar_hour_angle(
     // Standard meridian offset: each 15 degrees of longitude = 1 hour of time
     // Longitude convention: east of Greenwich is positive, west is negative
     // For solar time, we want solar noon when sun crosses the local meridian
-    amrex::Real time_solar_hours = time_local_hours + longitude_deg / 15.0;
+    // Longitude correction: only the deviation from this time zone's standard meridian
+    // (standard meridian = 15 deg per hour of UTC offset), NOT the full longitude.
+    amrex::Real standard_meridian_deg = 15.0 * time_zone_offset_hours;
+    amrex::Real time_solar_hours = time_local_hours + (longitude_deg - standard_meridian_deg) / 15.0;
+    //    amrex::Real time_solar_hours = time_local_hours + longitude_deg / 15.0;
     
     // Apply equation of time correction [minutes -> hours]
     amrex::Real eqtime_hours = compute_equation_of_time(day_of_year) / 60.0;

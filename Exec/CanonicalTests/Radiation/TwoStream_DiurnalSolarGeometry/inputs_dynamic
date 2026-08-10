@@ -6,7 +6,7 @@
 #   using astronomical formulas.
 # - Confirms that solar zenith angle varies plausibly across the diurnal cycle:
 #   - zenith angle should decrease (sun higher) as time approaches local solar noon
-#   - SW surface flux should increase (up to a max) as sun rises higher
+# - SW surface flux should increase (up to a max) as sun rises higher
 #   - SW surface flux should become zero when sun is below horizon (cos_zenith <= 0)
 #
 erf.prob_name = "ABL"
@@ -34,7 +34,8 @@ erf.most.zref = 24.0     # reference height [m]
 erf.most.surf_temp_flux    = 0.0
 zhi.type = "SlipWall"
 zhi.theta_grad = 0.003   # adiabatic upper boundary
-erf.fixed_dt = 60.0      # time step [s] - larger for full day runtime
+#erf.fixed_dt = 60.0      # time step [s] - larger for full day runtime
+erf.cfl = 0.8
 
 # DIAGNOSTICS & VERBOSITY
 erf.sum_interval   = 1       # timesteps between computing mass

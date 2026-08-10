@@ -49,7 +49,7 @@ erf.profile_int = 10
 
 # PLOTFILES
 erf.plot_file_1     = plt_solar_baseline     # prefix of plotfile name
-erf.plot_int_1      = 10            # number of timesteps between plotfiles
+erf.plot_int_1      = 1000000            # number of timesteps between plotfiles
 erf.plot_vars_1     = x_velocity y_velocity z_velocity theta qsrc_sw qsrc_lw
 
 # SOLVER CHOICE

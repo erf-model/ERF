@@ -25,9 +25,9 @@ def read_radiation_diagnostics(filename):
     
     try:
         data = np.genfromtxt(filename, delimiter=',', skip_header=1,
-                            dtype=[('time', float), ('site', 'U20'), ('sw_surf', float),
-                                   ('sw_toa', float), ('f_up', float), ('f_down', float),
-                                   ('heat_max', float)])
+                    dtype=[('step', int), ('time', float), ('site', 'U20'), ('sw_surf', float),
+                           ('sw_toa', float), ('f_up', float), ('f_down', float),
+                           ('heat_max', float)])        
         return data
     except Exception as e:
         print(f"ERROR: Failed to read file {filename}: {e}")
