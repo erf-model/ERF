@@ -214,10 +214,13 @@ Radiation::set_grids (int& level,
         // Fill the KOKKOS Views from AMReX MFs
         mf_to_kokkos_buffers(lmask, t_surf, lsm_input_ptrs);
 
-        // Initialize datalog MF on first step
-        if (m_first_step) {
-            m_first_step = false;
-            if (datalog_int > 0) {
+        // (Re)define the datalog MF whenever the grids change; this must always
+        // match the layout of cons_in since populateDatalogMF() iterates over it
+        // while indexing m_col_offsets and m_qheating_rates.
+        if (datalog_int > 0) {
+            bool needs_define = ( (datalog_mf.boxArray()        != cons_in->boxArray()) ||
+                                  (datalog_mf.DistributionMap() != cons_in->DistributionMap()) );
+            if (needs_define) {
                 datalog_mf.define(cons_in->boxArray(), cons_in->DistributionMap(), 25, 0);
                 datalog_mf.setVal(0.0);
             }

@@ -240,8 +240,6 @@ private:
     // Are we writing out the fluxes?
     bool m_rad_write_fluxes = false;
 
-    bool m_first_step = true;
-
     // Do we have moisture and cold comps?
     bool m_moist = false;
     bool m_ice   = false;
