@@ -1004,6 +1004,9 @@ WSM6::Advance(const Real& dt_advance,
 
 #ifdef ERF_USE_WSM6_FORT
         if (run_wsm6_fort) {
+            // Host-only Fortran reads mic_fab_vars via dataPtr(), so GPU writes
+            // must complete before crossing the language boundary.
+            Gpu::streamSynchronize();
             mp_wsm6_run_c(
                 t_arr.dataPtr(),
                 qv_arr.dataPtr(), qc_arr.dataPtr(), qi_arr.dataPtr(),

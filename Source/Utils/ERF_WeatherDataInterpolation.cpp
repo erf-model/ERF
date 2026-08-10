@@ -157,6 +157,17 @@ ERF::FillForecastStateMultiFabs(const int lev,
     erf_mf_zvel.setVal(0.0);
     erf_mf_latlon.setVal(0.0);
 
+    // a_z_phys_nd must live on the SAME BoxArray/DistributionMap as the forecast state:
+    // fabPtr(mfi) resolves by local index, so a stale (pre-regrid) z_phys_nd silently
+    // returns the wrong FAB rather than failing.
+    if (a_z_phys_nd) {
+        AMREX_ALWAYS_ASSERT(amrex::BoxArray(a_z_phys_nd->boxArray()).convert(amrex::IndexType::TheCellType())
+                            == erf_mf_cons.boxArray());
+
+        AMREX_ALWAYS_ASSERT(a_z_phys_nd->DistributionMap() ==
+                            erf_mf_cons.DistributionMap());
+    }
+
     // Interpolate the data on to the ERF mesh
 
      for (MFIter mfi(erf_mf_cons); mfi.isValid(); ++mfi) {

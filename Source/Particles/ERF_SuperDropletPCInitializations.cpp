@@ -57,7 +57,11 @@ void SuperDropletPC::readInputs (const double a_dt)
 
     /* Newton solver parameters */
     m_newton_rtol = Real(1.0e-6);
+#ifdef AMREX_USE_FLOAT
+    m_newton_atol = Real(0.0);
+#else
     m_newton_atol = Real(1.0e-99);
+#endif
     m_newton_stol = Real(1.0e-12);
     m_newton_maxits = 10;
 

@@ -118,7 +118,14 @@ SAM::PrecipFall (const SolverChoice& sc)
     dtn  /= Real(n_substep);
 
     // Substep the vertical advection
-    for (int nsub(0); nsub<n_substep; ++nsub) {
+    for (int nsub(0); nsub<n_substep; ++nsub)
+    {
+        // Refresh ghosts so both sides of a shared z face use the same donor values
+        qpr->FillBoundary(m_geom.periodicity());
+        qps->FillBoundary(m_geom.periodicity());
+        qpg->FillBoundary(m_geom.periodicity());
+        mic_fab_vars[MicVar::rho]->FillBoundary(m_geom.periodicity());
+
         for (MFIter mfi(*qp, TileNoZ()); mfi.isValid(); ++mfi) {
             auto qpr_array    = qpr->array(mfi);
             auto qps_array    = qps->array(mfi);

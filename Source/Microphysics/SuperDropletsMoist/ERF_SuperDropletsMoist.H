@@ -194,6 +194,8 @@ class SuperDropletsMoist : public NullMoistLagrangian {
                               const amrex::Vector<MFPtr>& mf_array,
                               const BCTypeArr& bc_arr) override;
 
+        using NullMoist::Update_Micro_Vars;
+
         /*! \brief Update microphysics variables
          * \param[in] a_cons_vars Conservative variables multifab
          */
