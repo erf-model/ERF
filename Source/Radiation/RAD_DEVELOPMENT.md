@@ -32,7 +32,7 @@ This document tracks the development of the two-stream radiation model through p
 | **15** | Bulk Aerosol/Turbidity Option | ✅ Complete | N/A | Prescribed aerosol optical-depth profile (constant/exponential/table), optional LW hook | Easy–Moderate | `TwoStream_Aerosol_Turbidity` |
 | **16** | Time-Varying Solar Geometry | ✅ Complete | PR #PHASE16_PLACEHOLDER | Solar zenith evolution with time/lat/day; fixed-angle fallback retained | Easy | `TwoStream_DiurnalSolarGeometry` |
 | **17** | Simplified SEB — MultiFab Infrastructure + Noah-MP Passthrough | ✅ Complete | PR #PHASE17_PLACEHOLDER | Create SEB MultiFabs, reuse existing surface-property fallbacks, and wire Noah-MP/LSM passthrough with scalar defaults | Moderate | `TwoStream_SEB_MultiFabInfra` |
-| **18** | Simplified SEB — Diagnostic Mode | ⏳ Planned (Active) | TBD | Compute/report SEB residual terms from TwoStream + surface inputs using Phase 17 MultiFabs (no prognostic `T_s` update) | Moderate | `TwoStream_SEB_Diagnostic` |
+| **18** | Simplified SEB — Diagnostic Mode | ✅ Complete | TBD | Compute/report SEB residual terms from TwoStream + surface inputs using Phase 17 MultiFabs (no prognostic `T_s` update) | Moderate | `TwoStream_SEB_Diagnostic` |
 | **19** | Simplified SEB — Prognostic Mode | ⏳ Planned (Active) | TBD | Optional explicit `T_s` (and surface moisture) tendency update with limiter/clamps and fallback-safe behavior | Moderate | `TwoStream_SEB_Prognostic` |
 | **20** | SEB Coupling Safeguards (Noah-MP/SurfaceLayer Interop) | ⏳ Planned (Active) | TBD | Anti-double-count rules and precedence guards for `T_s`, `H`, `LE`, and radiative terms between simplified SEB and Noah-MP/SurfaceLayer | Moderate | `TwoStream_SEB_CouplingSafeguards` |
 
@@ -104,6 +104,110 @@ This document tracks the development of the two-stream radiation model through p
 - [x] Preserved backward compatibility: `seb_enable = false` leaves existing behavior unchanged
 - [x] Added `TwoStream_SEB_MultiFabInfra` regtest inputs and validation script
 - [x] Updated roadmap/documentation for Phase 17 completion
+
+---
+
+## Phase 18 Implementation (Simplified SEB — Diagnostic Mode)
+
+**Status**: ✅ Complete (as of 2026-08-10)  
+**Scope**: Phase 17 SEB MultiFab infrastructure now includes diagnostic SEB residual computation  
+**Key Feature**: Diagnose and report surface energy balance residual from Phase 17 MultiFabs (diagnostic-only, no prognostic update)
+
+### Governing Equation
+
+At each surface column (i,j), diagnose the SEB residual:
+
+```
+R_net(i,j) = SW_net(i,j) + LW_net(i,j)
+           = [sw_flux_sfc(i,j)] + [lw_flux_sfc(i,j)]
+
+SEB_residual(i,j) = R_net(i,j) - hfx_sfc(i,j) - lh_sfc(i,j) - grdflx_sfc(i,j)
+```
+
+Where all terms on the right are the Phase 17 SEB MultiFabs (populated either from Noah-MP passthrough or from `RadChoice` scalar fallback defaults). A perfectly closed budget gives `SEB_residual = 0`; in diagnostic mode this residual is simply computed and reported, never fed back into any prognostic state.
+
+### Technical Design
+
+1. **New GPU-safe helper** (`Source/Radiation/ERF_SimplifiedSEB.H`):
+   - `diagnose_seb_residual(sw_net, lw_net, hfx, lh, grdflx)`: returns the residual per the equation above
+   - Guards all inputs with `std::isfinite()`; if any input is non-finite, returns `0.0` (safe no-op) rather than propagating NaN
+   - `AMREX_GPU_DEVICE AMREX_FORCE_INLINE`, no host-side I/O, no dynamic allocation, matching every prior phase's GPU-safety conventions
+
+2. **New RadChoice parameter** (`seb_diagnostic_enable` [bool], default `false`):
+   - Master switch for diagnostic residual computation
+   - Fully backward compatible when `false` — no residual computation, no new diagnostic output columns
+   - Logically requires `seb_enable=true` to be meaningful; if `seb_diagnostic_enable=true` but `seb_enable=false`, auto-enables `seb_enable` internally with documented behavior
+
+3. **Integration point** in `compute_twostream_radiation_diagnostics()`:
+   - After the main per-level heating-rate loop completes (Phase 17 SEB MultiFabs already populated)
+   - Separate GPU-safe reduction loop computes `SEB_residual_sum` and `SEB_residual_max` over all surface columns
+   - Results reduced to host for diagnostic reporting
+
+4. **Diagnostics output** (extend RadiationDiagnostics CSV writer):
+   - New CSV columns `SEB_residual_mean`, `SEB_residual_max` appended at end
+   - Columns only written when `seb_diagnostic_enable=true`; existing base columns (step, time, call_site, SW_surface, SW_TOA, F_up_surface, F_down_toa, heating_rate_max) remain unchanged in both position and value when feature is off (preserving exact backward-compatibility contract)
+
+### Backward Compatibility (mandatory)
+
+- `seb_diagnostic_enable=false` (default): zero new computation, zero new diagnostic columns, bitwise-identical to Phase 17 baseline
+- `seb_diagnostic_enable=true`, `seb_enable=false` fields (all scalar fallback defaults): residual computed from the constant fallback values only — deterministic, not physically meaningful, but finite and non-crashing; documented clearly as expected diagnostic-mode behavior
+- `seb_diagnostic_enable=true` with active Noah-MP passthrough: residual reflects real Noah-MP flux values; still diagnostic-only, no feedback into any prognostic variable (radiation heating rates, `T_s`, etc. all unaffected)
+
+### GPU Safety (mandatory)
+
+- All residual computation via simple arithmetic device-inline function with finite guards
+- Reduction implemented using standard AMReX ReduceOps (ReduceOpSum for mean, ReduceOpMax for max absolute value)
+- No host I/O in device kernels, matches existing reduction patterns already used for `heating_rate_max`
+
+### New RegTest (`TwoStream_SEB_Diagnostic/`)
+
+Baseline case: `seb_diagnostic_enable=false` — confirm bitwise-identical output to Phase 17 baseline (no new columns, same values).
+
+Feature-on case, no LSM (scalar fallbacks from Phase 17's test defaults):
+- Expected residual from defaults: `(50 + (-25)) - 10 - 20 - 5 = -10` W/m^2
+- Validates that `SEB_residual_mean` equals expected value within tolerance
+- Confirms no NaN/Inf in any diagnostic output across full run duration
+
+### Part A: Prior SEB RegTest Input Bug (Fixed in Phase 18)
+
+The `input_sounding` file used in `TwoStream_SEB_MultiFabInfra` contained unrealistic moisture values (effectively a placeholder/typo, not a physically reasonable mid-latitude atmosphere). This has been corrected:
+
+**Issue**: Moisture profile had qv=0.0 uniformly with height (unphysical).
+
+**Fix**: Replaced with vertically varying profile adapted from Phase 12 moist cloud test:
+- Surface (0 m): qv=0.008 kg/kg (~8 g/kg, typical mid-latitude)
+- Upper levels: decay to 0.004 kg/kg at 1550 m (consistent with exponential moisture profile)
+
+**Implementation Strategy**: Do not hand-author arbitrary moisture values. Instead, base the profile on existing physically reasonable reference soundings already present in the repository (e.g., `TwoStream_DynamicTau_MoistCloud/input_sounding_phase12_moist`), scaled or truncated as needed to match the test's vertical grid.
+
+**Sanity Check**: Added documentation to `TwoStream_SEB_MultiFabInfra/README.md` noting:
+- Expected units: water vapor mixing ratio [kg/kg]
+- Realistic range: typically 0.003–0.015 kg/kg for troposphere (3–15 g/kg)
+- Expected behavior: monotonic decay or flat profile with height (never sharp increases)
+
+### Implementation Checklist
+
+- [x] Created `Source/Radiation/ERF_SimplifiedSEB.H` with `diagnose_seb_residual()` function
+- [x] Added `seb_diagnostic_enable` [bool] parameter to `ERF_RadStruct.H`
+- [x] Added parameter parsing in `init_params()` with auto-enable logic
+- [x] Added `#include <ERF_SimplifiedSEB.H>` to `ERF_AdvanceTwoStreamRadiation.cpp`
+- [x] Integrated SEB residual reduction in `compute_twostream_radiation_diagnostics()` (second loop after main MFIter)
+- [x] Extended `RadiationDiagnostics` append method to accept optional SEB residual values
+- [x] Modified CSV header and row writing to include SEB columns (only when feature enabled)
+- [x] Fixed `input_sounding` in `TwoStream_SEB_MultiFabInfra` with physically reasonable profile
+- [x] Added sanity check documentation to Phase 17 test README
+- [x] Created new `TwoStream_SEB_Diagnostic` RegTest with baseline and feature-on cases
+- [x] Created `check_seb_diagnostic.py` validation script
+- [x] Updated `RAD_DEVELOPMENT.md` roadmap and added Phase 18 implementation section
+
+### Verification & Validation Checklist
+
+- [x] Baseline case produces bitwise-identical output to Phase 17 (no new columns, same values)
+- [x] Feature-on case generates new SEB residual columns in CSV output
+- [x] SEB residual matches hand-computable expected value (-10 W/m^2 for test defaults)
+- [x] No NaN/Inf values in diagnostic output
+- [x] Backward compatibility preserved: when disabled, zero overhead and identical output
+- [x] GPU-safe implementation: device-side kernel with no host I/O
 
 ---
 
