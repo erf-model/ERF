@@ -1587,7 +1587,8 @@ void ERF::compute_twostream_radiation_diagnostics(
         // Only run if prognostic mode is enabled and Noah-MP is NOT driving LSM at this level
         if (rad_choice.seb_prognostic_enable && rad_choice.seb_enable) {
             // Check if Noah-MP is active at this level by attempting to get the LSM t_sfc field
-            int lsm_idx_t_sfc = lsm.Get_DataIdx(lev, "t_sfc");
+            std::string varname_t_sfc_prog = "t_sfc";
+            int lsm_idx_t_sfc = lsm.Get_DataIdx(lev, varname_t_sfc_prog);
             bool noahmp_active = (lsm_idx_t_sfc >= 0);
             
             if (!noahmp_active) {
@@ -1635,7 +1636,15 @@ void ERF::compute_twostream_radiation_diagnostics(
                     using ProgReduceTuple = typename decltype(prog_reduce_data)::Type;
                     
                     prog_reduce_ops.eval(xy_box, prog_reduce_data,
-                        [=] AMREX_GPU_DEVICE (int i, int j, int /*k_unused*/) -> ProgReduceTuple {
+                            [=,  C_s=rad_choice.seb_surface_heat_capacity,
+                            tau=rad_choice.seb_restore_timescale_s,
+                            d_s=rad_choice.seb_moisture_layer_depth_m,
+                            tau_q=rad_choice.seb_moisture_restore_timescale_s,
+                            t_min=rad_choice.seb_prognostic_t_min_k,
+                            t_max=rad_choice.seb_prognostic_t_max_k,
+                            q_min=rad_choice.seb_prognostic_q_min,
+                            q_max=rad_choice.seb_prognostic_q_max] 
+                            AMREX_GPU_DEVICE (int i, int j, int /*k_unused*/) -> ProgReduceTuple {
                             // Read current surface temperature and moisture
                             amrex::Real t_s_old = t_s_arr(i, j, 0);
                             amrex::Real q_s_old = q_s_arr(i, j, 0);
@@ -1672,16 +1681,7 @@ void ERF::compute_twostream_radiation_diagnostics(
                             
                             // Return for reduction: sum T_s, max T_s, sum q_s, max q_s
                             return {t_s_new, std::abs(t_s_new), q_s_new, std::abs(q_s_new)};
-                        },
-                        [C_s=rad_choice.seb_surface_heat_capacity,
-                         tau=rad_choice.seb_restore_timescale_s,
-                         d_s=rad_choice.seb_moisture_layer_depth_m,
-                         tau_q=rad_choice.seb_moisture_restore_timescale_s,
-                         t_min=rad_choice.seb_prognostic_t_min_k,
-                         t_max=rad_choice.seb_prognostic_t_max_k,
-                         q_min=rad_choice.seb_prognostic_q_min,
-                         q_max=rad_choice.seb_prognostic_q_max] () {}
-                    );
+                        });
                     
                     // Copy results from device to host
                     amrex::Gpu::synchronize();

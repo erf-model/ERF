@@ -411,6 +411,7 @@ public:
    * Only used when rad_type == RadType::TwoStream and lw_enabled == true.
    */
   bool tau_lw_dynamic_enable = false;
+  bool tau_sw_dynamic_enable = false;
 
   /**
    * @brief (Phase 12) Shortwave optical depth coefficient for water vapor [dimensionless].
