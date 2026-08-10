@@ -5,6 +5,7 @@
 #include <ERF_TwoStreamLW.H>
 #include <ERF_PrognosticCloudFraction.H>
 #include <ERF_AerosolOpticalDepth.H>
+#include <ERF_SolarGeometry.H>
 #include <AMReX_Print.H>
 #include <AMReX_ParallelDescriptor.H>
 #include <AMReX_Gpu.H>
@@ -689,6 +690,7 @@ void vertical_two_stream_sweep(
     amrex::Real& sw_surface_flux,
     amrex::Real& lw_net_surface,
     const Array4<const amrex::Real>& z_phys_cc,
+    amrex::Real time_utc_seconds = 0.0,
     bool has_hetero_alb_sw = false,
     const Array4<const amrex::Real>* hetero_alb_sw = nullptr,
     bool has_hetero_emiss_lw = false,
@@ -745,10 +747,21 @@ void vertical_two_stream_sweep(
         }
     }
 
-    // Convert solar zenith angle to radians
-    amrex::Real zenith_rad = rad_choice.solar_zenith_deg * M_PI / 180.0;
-    amrex::Real cos_zenith = std::cos(zenith_rad);
-
+    // Compute solar zenith angle (Phase 16: optionally dynamic from solar geometry)
+    amrex::Real cos_zenith;
+    if (rad_choice.solar_geometry_dynamic_enable) {
+        // Phase 16: Compute cos_zenith dynamically from solar position
+        cos_zenith = compute_cos_zenith_angle(
+            time_utc_seconds,
+            rad_choice.latitude_deg,
+            rad_choice.longitude_deg,
+            rad_choice.day_of_year,
+            rad_choice.time_zone_offset_hours);
+    } else {
+        // Phase 15 and earlier: Use fixed solar zenith angle (bitwise-identical)
+        amrex::Real zenith_rad = rad_choice.solar_zenith_deg * M_PI / 180.0;
+        cos_zenith = std::cos(zenith_rad);
+    }
 
     // TOA values
     amrex::Real S0 = rad_choice.S0;
@@ -1199,10 +1212,25 @@ void ERF::compute_twostream_radiation_diagnostics(
     // Only compute radiation if we have valid state data
     if (state_cons.nComp() > 0 ) {
 
-        // Prepare to compute TOA values (used for diagnostics output)
+    // Prepare to compute TOA values (used for diagnostics output)
+    // (Phase 16) Compute dynamic cos_zenith if enabled, otherwise use static value
+    amrex::Real cos_zenith;
+    if (rad_choice.solar_geometry_dynamic_enable) {
+        // Convert absolute simulation time to UTC seconds within the day [0, 86400)
+        amrex::Real time_utc_seconds = std::fmod(t_old[lev], 86400.0);
+        if (time_utc_seconds < 0.0) time_utc_seconds += 86400.0;
+        cos_zenith = compute_cos_zenith_angle(
+            time_utc_seconds,
+            rad_choice.latitude_deg,
+            rad_choice.longitude_deg,
+            rad_choice.day_of_year,
+            rad_choice.time_zone_offset_hours);
+    } else {
+        // Phase 15 and earlier: Use static solar zenith angle
         amrex::Real zenith_rad = rad_choice.solar_zenith_deg * M_PI / 180.0;
-        amrex::Real cos_zenith = std::cos(zenith_rad);
-        SW_TOA = rad_choice.sw_enabled ? (rad_choice.S0 * std::max(0.0, cos_zenith)) : 0.0;
+        cos_zenith = std::cos(zenith_rad);
+    }
+    SW_TOA = rad_choice.sw_enabled ? (rad_choice.S0 * std::max(0.0, cos_zenith)) : 0.0;
 
         // Host-side storage for reduction results (will be set by device-side reduction)
         amrex::Real max_heating_global = 0.0;
@@ -1214,6 +1242,13 @@ void ERF::compute_twostream_radiation_diagnostics(
         // cloud_fraction == 0.0 (default) means only the clear-sky column is
         // ever evaluated, and the blend below reduces to F = F_clear exactly.
         amrex::Real cloud_fraction = rad_choice.cloud_fraction;
+
+        // (Phase 16) Compute UTC seconds within the day for dynamic solar geometry
+        amrex::Real time_utc_seconds = 0.0;
+        if (rad_choice.solar_geometry_dynamic_enable) {
+            time_utc_seconds = std::fmod(t_old[lev], 86400.0);
+            if (time_utc_seconds < 0.0) time_utc_seconds += 86400.0;
+        }
 
         // (Phase 5) Note: qheating_rates[lev] is expected to be allocated with
         // 2 components by the caller whenever rad_choice.rad_type ==
@@ -1361,6 +1396,7 @@ void ERF::compute_twostream_radiation_diagnostics(
                         qheating_clear_arr,
                         max_heating_clear, sw_flux_clear, lw_net_clear,
                         z_phys_cc_arr,
+                        time_utc_seconds,
                         has_hetero_alb_sw, &hetero_alb_sw_arr,
                         has_hetero_emiss_lw, &hetero_emiss_lw_arr,
                         has_t_sfc_field, &t_sfc_arr);
@@ -1381,6 +1417,7 @@ void ERF::compute_twostream_radiation_diagnostics(
                             qheating_cloudy_arr,
                             max_heating_cloudy, sw_flux_cloudy, lw_net_cloudy,
                              z_phys_cc_arr,
+                             time_utc_seconds,
                              has_hetero_alb_sw, &hetero_alb_sw_arr,
                              has_hetero_emiss_lw, &hetero_emiss_lw_arr,
                              has_t_sfc_field, &t_sfc_arr);

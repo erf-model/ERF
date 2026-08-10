@@ -412,6 +412,49 @@ public:
   amrex::Real aerosol_tau_surface = 0.0;
 
   /**
+   * @brief (Phase 16) Enable time-varying solar geometry from diurnal cycle.
+   * When true, solar zenith angle is computed dynamically from simulation time,
+   * latitude, longitude, and day-of-year using astronomical formulas.
+   * When false (default), uses static solar_zenith_deg (Phase 15 behavior).
+   * Only used when rad_type == RadType::TwoStream and sw_enabled == true.
+   */
+  bool solar_geometry_dynamic_enable = false;
+
+  /**
+   * @brief (Phase 16) Site latitude [degrees, -90 to 90, positive north].
+   * Used to compute solar zenith angle when solar_geometry_dynamic_enable == true.
+   * Clamped to [-90, 90] in init_params().
+   * Default 0.0 (equator). Only used when solar_geometry_dynamic_enable == true.
+   */
+  amrex::Real latitude_deg = 0.0;
+
+  /**
+   * @brief (Phase 16) Site longitude [degrees, -180 to 180, positive east].
+   * Used to compute solar hour angle when solar_geometry_dynamic_enable == true.
+   * Clamped to [-180, 180] in init_params().
+   * Default 0.0 (prime meridian). Only used when solar_geometry_dynamic_enable == true.
+   */
+  amrex::Real longitude_deg = 0.0;
+
+  /**
+   * @brief (Phase 16) Reference day-of-year at simulation start [1-366].
+   * Used to compute solar declination and equation-of-time correction.
+   * Default 172 (approx. June 21, summer solstice in Northern Hemisphere).
+   * Clamped to [1, 366] in init_params().
+   * Only used when solar_geometry_dynamic_enable == true.
+   */
+  amrex::Real day_of_year = 172.0;
+
+  /**
+   * @brief (Phase 16) Time zone offset from UTC [hours].
+   * Used to convert UTC simulation time to local solar time.
+   * Positive east of Greenwich, negative west. Default 0.0 (UTC).
+   * No explicit bounds; values outside ±12 hours are allowed (e.g., for
+   * dateline regions). Only used when solar_geometry_dynamic_enable == true.
+   */
+  amrex::Real time_zone_offset_hours = 0.0;
+
+  /**
    * @brief Read radiation options from the input parameter database.
    *
    * @param[in] lev AMR level index.
@@ -463,6 +506,11 @@ public:
    * - erf.radiation.aerosol_tau_per_layer (real, optional, Phase 15, default 0.0)
    * - erf.radiation.aerosol_scale_height_m (real, optional, Phase 15, default 2000.0)
    * - erf.radiation.aerosol_tau_surface (real, optional, Phase 15, default 0.0)
+   * - erf.radiation.solar_geometry_dynamic_enable (bool, optional, Phase 16, default false)
+   * - erf.radiation.latitude_deg (real, optional, Phase 16, default 0.0, clamped to [-90, 90])
+   * - erf.radiation.longitude_deg (real, optional, Phase 16, default 0.0, clamped to [-180, 180])
+   * - erf.radiation.day_of_year (real, optional, Phase 16, default 172.0, clamped to [1, 366])
+   * - erf.radiation.time_zone_offset_hours (real, optional, Phase 16, default 0.0)
    *
    * Sub-option queries are only performed if rad_type == RadType::TwoStream.
    */
@@ -625,6 +673,33 @@ public:
       if (aerosol_tau_per_layer < 0.0) aerosol_tau_per_layer = 0.0;
       if (aerosol_tau_surface < 0.0) aerosol_tau_surface = 0.0;
       if (aerosol_scale_height_m <= 0.0) aerosol_scale_height_m = 2000.0;  // Ensure positive
+
+      // Phase 16: time-varying solar geometry from diurnal cycle
+      // (all optional; defaults disable dynamic solar geometry, preserving Phase 15 behavior)
+      pp.query("radiation.solar_geometry_dynamic_enable", solar_geometry_dynamic_enable);
+      pp.query("radiation.latitude_deg", latitude_deg);
+      pp.query("radiation.longitude_deg", longitude_deg);
+      pp.query("radiation.day_of_year", day_of_year);
+      pp.query("radiation.time_zone_offset_hours", time_zone_offset_hours);
+
+      // Parameter validation (Phase 16): clamp latitude/longitude/day-of-year to valid ranges
+      // Latitude must be in [-90, 90]
+      if (!std::isfinite(latitude_deg)) latitude_deg = 0.0;
+      if (latitude_deg < -90.0) latitude_deg = -90.0;
+      if (latitude_deg > 90.0) latitude_deg = 90.0;
+
+      // Longitude must be in [-180, 180]; wrap if outside
+      if (!std::isfinite(longitude_deg)) longitude_deg = 0.0;
+      while (longitude_deg > 180.0) longitude_deg -= 360.0;
+      while (longitude_deg < -180.0) longitude_deg += 360.0;
+
+      // Day-of-year must be in [1, 366]
+      if (!std::isfinite(day_of_year)) day_of_year = 172.0;
+      if (day_of_year < 1.0) day_of_year = 1.0;
+      if (day_of_year > 366.0) day_of_year = 366.0;
+
+      // Time zone offset: no strict bounds, but ensure finite
+      if (!std::isfinite(time_zone_offset_hours)) time_zone_offset_hours = 0.0;
   }
 
 }

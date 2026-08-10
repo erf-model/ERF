@@ -8,3 +8,4 @@ CEXE_headers += ERF_RadiationCoupling.H
 CEXE_headers += ERF_RadiationDiagnostics.H
 CEXE_headers += ERF_PrognosticCloudFraction.H
 CEXE_headers += ERF_AerosolOpticalDepth.H
+CEXE_headers += ERF_SolarGeometry.H
