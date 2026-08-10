@@ -107,7 +107,6 @@ void make_mom_sources (double time_d,
                        const amrex::Real* d_sinesq_stag_at_lev,
                        const Vector<Real*> d_sponge_ptrs_at_lev,
                        const Vector<MultiFab>* forecast_state_at_lev,
-                       const MultiFab* surface_state_at_lev,
                              InputSoundingData& input_sounding_data,
                        const eb_& ebfact,
                              bool is_slow_step)
@@ -380,7 +379,7 @@ void make_mom_sources (double time_d,
                 {
                     Real rho_on_u_face = myhalf * ( cell_data(i,j,k,Rho_comp) + cell_data(i-1,j,k,Rho_comp) );
                     Real v_loc = fourth * (v(i,j+1,k) + v(i,j,k) + v(i-1,j+1,k) + v(i-1,j,k));
-                    Real w_loc = fourth * (w(i,j,k+1) + w(i,j,k) + w(i,j-1,k+1) + w(i,j-1,k));
+                    Real w_loc = fourth * (w(i,j,k+1) + w(i,j,k) + w(i-1,j,k+1) + w(i-1,j,k));
                     Real latitude = latlon_arr(i,j,k,0);
                     Real sphi_loc = std::sin(latitude*PI/Real(180.0));
                     Real cphi_loc = std::cos(latitude*PI/Real(180.0));
@@ -730,14 +729,6 @@ void make_mom_sources (double time_d,
                                            rho_u, rho_v, rho_w,
                                            rho_u_forecast_state, rho_v_forecast_state, rho_w_forecast_state,
                                            cons_forecast_state);
-            }
-            if(solverChoice.init_type == InitType::HindCast and solverChoice.hindcast_surface_bcs) {
-                const Array4<const Real>& surface_state_arr = (*surface_state_at_lev).array(mfi);
-                ApplySurfaceTreatment_BulkCoeff_Mom(tbx, tby,
-                                                    xmom_src_arr, ymom_src_arr,
-                                                    rho_u, rho_v,
-                                                    cell_data, z_nd_arr,
-                                                    surface_state_arr);
             }
         }
 

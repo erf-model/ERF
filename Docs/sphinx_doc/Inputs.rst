@@ -446,7 +446,7 @@ Time Step
 
 The solver timestep can be fixed by the user or computed dynamically at each timestep based on the user-specified CFL
 number --- i.e., adaptive time stepping. For the compressible equations, the timestep calculation uses the acoustic CFL constraint.
-We note that when using implicit substepping, the vertical mesh spacing does not appear in the time step calculation.
+We note that when using implicit substepping, the vertical grid spacing does not appear in the time step calculation.
 The number of acoustic sub-steps per timestep can also be specified by the user as a fixed value or by specifying the
 number of substeps per RK stage.  For the anelastic equations, the timestep calculation uses the advective CFL constraint,
 which means it is determined by the fluid speed rather than the sound speed and thus allows much larger timesteps.

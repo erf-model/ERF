@@ -34,7 +34,7 @@ using namespace amrex;
  * @param[in] fcy_arr Face centroid on y-faces.
  * @param[in] fcz_arr Face centroid on z-faces.
  * @param[in] detJ Jacobian of the metric transformation.
- * @param[in] cellSizeInv Inverse mesh spacing.
+ * @param[in] cellSizeInv Inverse grid spacing.
  * @param[in] mf_mx x-direction map factor at cell centers.
  * @param[in] mf_my y-direction map factor at cell centers.
  * @param[in] mf_uy Map factor used for x-momentum fluxes.
@@ -243,7 +243,7 @@ EBAdvectionSrcForRho (const Box& bx,
  * @param[in] fcy_arr Face centroid on y-faces.
  * @param[in] fcz_arr Face centroid on z-faces.
  * @param[in] detJ Jacobian of the metric transformation.
- * @param[in] cellSizeInv Inverse mesh spacing.
+ * @param[in] cellSizeInv Inverse grid spacing.
  * @param[in] mf_mx x-direction map factor at cell centers.
  * @param[in] mf_my y-direction map factor at cell centers.
  * @param[in] horiz_adv_type Horizontal advection scheme.

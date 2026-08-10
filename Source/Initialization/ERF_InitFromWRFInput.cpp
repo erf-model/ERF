@@ -163,57 +163,57 @@ read_base_state_params_from_wrfinput (const std::string& fname,
     if (ParallelDescriptor::IOProcessor()) {
         auto ncf = ncutils::NCFile::open(fname, NC_CLOBBER | NC_NETCDF4);
 
+        // Remember what was passed in so we can fall back to it below
+        const Real T00_def = T00;
+        const Real P00_def = P00;
+        const Real TLP_def = TLP;
+        const Real TISO_def = TISO;
+        const Real TLP_STRAT_def = TLP_STRAT;
+        const Real P_STRAT_def   = P_STRAT;
+
         std::vector<size_t> shape;
         std::vector<size_t> start;
-        int success = ncf.has_var("T00");
-        if (success) {
-            Print() << "Reading T00 from wrfinput\n";
-            shape = ncf.var("T00").shape();
+        auto read_scalar = [&] (const std::string& name, Real& val)
+        {
+            if (!ncf.has_var(name)) return;
+            Print() << "Reading " << name << " from wrfinput\n";
+            shape = ncf.var(name).shape();
+            start.clear();
             start.resize(shape.size(), 0);
-            ncf.var("T00").get(&T00 ,start, shape);
-        }
+            ncf.var(name).get(&val, start, shape);
+        };
 
-        success = ncf.has_var("P00");
-        if (success) {
-            Print() << "Reading P00 from wrfinput\n";
-            shape = ncf.var("P00").shape();
-            start.resize(shape.size(), 0);
-            ncf.var("P00").get(&P00 ,start, shape);
-        }
-
-        success = ncf.has_var("TLP");
-        if (success) {
-            Print() << "Reading TLP from wrfinput\n";
-            shape = ncf.var("TLP").shape();
-            start.resize(shape.size(), 0);
-            ncf.var("TLP").get(&TLP ,start, shape);
-        }
-
-        success = ncf.has_var("TISO");
-        if (success) {
-            Print() << "Reading TISO from wrfinput\n";
-            shape = ncf.var("TISO").shape();
-            start.resize(shape.size(), 0);
-            ncf.var("TISO").get(&TISO ,start, shape);
-        }
-
-        success = ncf.has_var("TLP_STRAT");
-        if (success) {
-            Print() << "Reading TLP_STRAT from wrfinput\n";
-            shape = ncf.var("TLP_STRAT").shape();
-            start.resize(shape.size(), 0);
-            ncf.var("TLP_STRAT").get(&TLP_STRAT ,start, shape);
-        }
-
-        success = ncf.has_var("P_STRAT");
-        if (success) {
-            Print() << "Reading P_STRAT from wrfinput\n";
-            shape = ncf.var("P_STRAT").shape();
-            start.resize(shape.size(), 0);
-            ncf.var("P_STRAT").get(&P_STRAT ,start, shape);
-        }
+        read_scalar("T00"      , T00);
+        read_scalar("P00"      , P00);
+        read_scalar("TLP"      , TLP);
+        read_scalar("TISO"     , TISO);
+        read_scalar("TLP_STRAT", TLP_STRAT);
+        read_scalar("P_STRAT"  , P_STRAT);
 
         ncf.close();
+
+        // Idealized WRF cases (and some hand-built wrfinput files) declare these
+        // variables but leave them zero-filled.  T00, P00 and TISO are absolute
+        // temperatures/pressures, so a non-positive value is never meaningful; if
+        // any of them is bad we discard the whole group and keep the defaults.
+        // (TLP, TLP_STRAT and P_STRAT may legitimately be zero, so they are only
+        // reset alongside a bad T00/P00/TISO.)
+        const bool params_ok = std::isfinite(T00)  && (T00  > Real(0)) &&
+                               std::isfinite(P00)  && (P00  > Real(0)) &&
+                               std::isfinite(TISO) && (TISO > Real(0)) &&
+                               std::isfinite(TLP)  && std::isfinite(TLP_STRAT) &&
+                               std::isfinite(P_STRAT);
+
+        if (!params_ok) {
+            Print() << "WARNING: WRF base state parameters read from " << fname
+                    << " are invalid: (T00, P00, TLP, TISO, TLP_STRAT, P_STRAT) = ("
+                    << T00 << ", " << P00 << ", " << TLP << ", " << TISO << ", "
+                    << TLP_STRAT << ", " << P_STRAT << ")\n";
+            Print() << "         T00, P00 and TISO must all be positive and finite; "
+                       "reverting to ERF defaults.\n";
+            T00 = T00_def;   P00 = P00_def;   TLP = TLP_def;
+            TISO = TISO_def; TLP_STRAT = TLP_STRAT_def; P_STRAT = P_STRAT_def;
+        }
 
         Print() << "WRF base state parameters (T00, P00, TLP, TISO, TLP_STRAT, P_STRAT) are: ("
                 << T00 << ", " << P00 << ", " << TLP << ", " << TISO << ", " << TLP_STRAT << ", "
@@ -1628,6 +1628,12 @@ init_base_state_from_wrfinput (const Box& subdomain,
     // **************************************************************************
     int k_dom_lo = dom_lo.z;
     int k_dom_hi = dom_hi.z;
+
+    // The vertical integration below is seeded with the surface values (P00,T00),
+    // so these must be valid regardless of whether ALB was present in the file
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(std::isfinite(P00) && (P00 > Real(0)) &&
+                                     std::isfinite(T00) && (T00 > Real(0)),
+                                     "Cannot rebalance the WRF base state: P00 and T00 must be positive");
 
 #ifdef AMREX_USE_FLOAT
     Real tol  = Real(1.0e-6);

@@ -135,8 +135,15 @@ void Kessler::AdvanceKessler (const SolverChoice &solverChoice)
         coef /= Real(n_substep);
         dtn  /= Real(n_substep);
 
-        for (int nsub(0); nsub<n_substep; ++nsub) {
-            for ( MFIter mfi(*tabs, TilingIfNotGPU()); mfi.isValid(); ++mfi ){
+        for (int nsub(0); nsub<n_substep; ++nsub)
+        {
+            // The face state and the donor-cap limiter read rho/qp at k-1, which is a ghost
+            // cell whenever a box boundary is interior in z. The previous substep updated qp
+            // in valid cells only, so refresh ghosts here; otherwise the two sides of a
+            // shared z face see different donor values and the column budget does not close.
+            mic_fab_vars[MicVar_Kess::qp]->FillBoundary(m_geom.periodicity());
+
+            for ( MFIter mfi(*tabs, TileNoZ()); mfi.isValid(); ++mfi ){
                 auto rho_array = mic_fab_vars[MicVar_Kess::rho]->array(mfi);
                 auto qp_array  = mic_fab_vars[MicVar_Kess::qp]->array(mfi);
                 auto rain_accum_array = mic_fab_vars[MicVar_Kess::rain_accum]->array(mfi);
