@@ -136,11 +136,21 @@ void SuperDropletPC::Recycle ( const int             a_lev,
         {
             const int np = ptrs.num_particles;
             auto zheight = (*z_height)[grid].array();
+            // zeta_from_z below reads this grid's terrain columns, so the
+            // sampled (x,y) must stay inside them
+            const Box& zbx = (*z_height)[grid].box();
+            const Real gx_lo = ctx.plo[0] + Real(zbx.smallEnd(0)  )/ctx.dxi[0];
+            const Real gx_hi = ctx.plo[0] + Real(zbx.bigEnd(0)    )/ctx.dxi[0];
+            const Real gy_lo = ctx.plo[1] + Real(zbx.smallEnd(1)  )/ctx.dxi[1];
+            const Real gy_hi = ctx.plo[1] + Real(zbx.bigEnd(1)    )/ctx.dxi[1];
 
             // Get sampled aerosol mass values based on initialization
             Gpu::DeviceVector<Real> aerosol_mass_d(ctx.num_aerosols*np);
             Gpu::DeviceVector<Real> multiplicity_d(np);
             ParticleReal mult_scale = one_d;
+#ifdef AMREX_USE_OMP
+#pragma omp critical (erf_sdm_recycle_rndeng)
+#endif
             {
                 Vector<Real> multiplicity_h(np, zero_d);
                 for (int i = 0; i < ctx.num_aerosols; i++) {
@@ -196,8 +206,10 @@ void SuperDropletPC::Recycle ( const int             a_lev,
                 // Place particle randomly in physical (x, y, z) within the
                 // user-specified bounds, then map physical z to computational
                 // zeta in the new column for storage in pos(2).
-                const Real x_new = x_min + Random(rnd_engine)*(x_max - x_min);
-                const Real y_new = y_min + Random(rnd_engine)*(y_max - y_min);
+                const Real x_new = amrex::min(amrex::max(x_min + Random(rnd_engine)*(x_max - x_min),
+                                                         gx_lo), gx_hi);
+                const Real y_new = amrex::min(amrex::max(y_min + Random(rnd_engine)*(y_max - y_min),
+                                                         gy_lo), gy_hi);
                 const Real z_new = z_min + Random(rnd_engine)*(z_max - z_min);
                 p.pos(0) = static_cast<ParticleReal>(x_new);
                 p.pos(1) = static_cast<ParticleReal>(y_new);
