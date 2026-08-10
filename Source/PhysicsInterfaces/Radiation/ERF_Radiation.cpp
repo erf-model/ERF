@@ -549,9 +549,11 @@ Radiation::mf_to_kokkos_buffers (iMultiFab* lmask,
                                                   + (z_arr(i+1,j  ,k  ) - z_arr(i+1,j  ,k-1))
                                                   + (z_arr(i  ,j+1,k  ) - z_arr(i  ,j+1,k-1))
                                                   + (z_arr(i+1,j+1,k  ) - z_arr(i+1,j+1,k-1)) ) : Real(0.5)*dz; // Dist from w-face to CC at k-1
-            Real r_avg  = (dz_k*r  + dz_km1*r_lo ) / (dz_k + dz_km1);
-            Real rt_avg = (dz_k*rt + dz_km1*rt_lo) / (dz_k + dz_km1);
-            Real qv_avg = (dz_k*qv + dz_km1*qv_lo) / (dz_k + dz_km1);
+            // NOTE: Linear interpolation to the w-face weights each CC value by the
+            //       distance from the face to the *opposite* CC (inverse distance)
+            Real r_avg  = (dz_km1*r  + dz_k*r_lo ) / (dz_k + dz_km1);
+            Real rt_avg = (dz_km1*rt + dz_k*rt_lo) / (dz_k + dz_km1);
+            Real qv_avg = (dz_km1*qv + dz_k*qv_lo) / (dz_k + dz_km1);
 
             // Views at CC
             r_lay_tab(icol,ilay) = r;
@@ -587,9 +589,9 @@ Radiation::mf_to_kokkos_buffers (iMultiFab* lmask,
                                                       + (z_arr(i+1,j  ,k+2) - z_arr(i+1,j  ,k+1))
                                                       + (z_arr(i  ,j+1,k+2) - z_arr(i  ,j+1,k+1))
                                                       + (z_arr(i+1,j+1,k+2) - z_arr(i+1,j+1,k+1)) ) : Real(0.5)*dz; // Dist from w-face to CC at k+1
-                r_avg  = (dz_k*r  + dz_kp1*r_hi ) / (dz_k + dz_kp1);
-                rt_avg = (dz_k*rt + dz_kp1*rt_hi) / (dz_k + dz_kp1);
-                qv_avg = (dz_k*qv + dz_kp1*qv_hi) / (dz_k + dz_kp1);
+                r_avg  = (dz_kp1*r  + dz_k*r_hi ) / (dz_k + dz_kp1);
+                rt_avg = (dz_kp1*rt + dz_k*rt_hi) / (dz_k + dz_kp1);
+                qv_avg = (dz_kp1*qv + dz_k*qv_hi) / (dz_k + dz_kp1);
                 p_lev_tab(icol,ilay+1) = getPgivenRTh(rt_avg, qv_avg);
                 t_lev_tab(icol,ilay+1) = getTgivenRandRTh(r_avg, rt_avg, qv_avg);
             }

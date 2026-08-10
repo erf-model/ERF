@@ -9,6 +9,7 @@
 #include <ERF_TI_slow_headers.H>
 #include <ERF_TI_fast_headers.H>
 
+#include <algorithm>
 #include <functional>
 
 template<class T>
@@ -225,8 +226,6 @@ public:
         double time_stage = time;
         double old_time_stage;
 
-        const double sub_timestep = timestep / substep_ratio;
-
         if (!anelastic) {
           // RK3 for compressible integrator
           for (int nrk = 0; nrk < 3; nrk++)
@@ -236,29 +235,33 @@ public:
 
             if (nrk == 0) {
                 if (force_stage1_single_substep || no_substepping) {
-                    nsubsteps = 1;               dtau = timestep / three;
+                    nsubsteps = 1;
+                    dtau      = timestep / three;
                 } else {
-                    nsubsteps = substep_ratio/3; dtau = sub_timestep  ;
+                    // Clamp to 1: substep_ratio is only required to be even, so a ratio of 2
+                    // would otherwise give zero substeps and leave S_sum stale in this stage
+                    nsubsteps = std::max(substep_ratio/3, 1);
+                    dtau      = (timestep / three) / static_cast<double>(nsubsteps);
                 }
                 time_stage = time + timestep / three;
             }
             if (nrk == 1) {
                 if (no_substepping) {
-                    nsubsteps =               1; dtau = myhalf * timestep;
+                    nsubsteps = 1;
+                    dtau      = myhalf * timestep;
                 } else {
-                    nsubsteps = substep_ratio/2; dtau =   sub_timestep;
+                    nsubsteps = substep_ratio/2;
+                    dtau      = (myhalf * timestep) / static_cast<double>(nsubsteps);
                 }
                 time_stage = time + timestep / two;
             }
             if (nrk == 2) {
                 if (no_substepping) {
-                    nsubsteps =             1;   dtau =     timestep;
+                    nsubsteps = 1;
+                    dtau      = timestep;
                 } else {
-                    nsubsteps = substep_ratio;   dtau = sub_timestep;
-
-                    // STRT HACK -- this hack can be used to approximate the no-substepping algorithm
-                    // nsubsteps = 1;   dtau = timestep;
-                    // END HACK
+                    nsubsteps = substep_ratio;
+                    dtau      = timestep / static_cast<double>(nsubsteps);
                 }
                 time_stage = time + timestep;
             }

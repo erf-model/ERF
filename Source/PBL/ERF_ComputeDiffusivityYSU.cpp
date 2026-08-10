@@ -91,7 +91,7 @@ ComputeDiffusivityYSU (const MultiFab& xvel,
         ParallelFor(xybx, [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept
         {
             // Reconstruct a surface bulk Richardson number from the surface layer model
-            // In WRF, this value is supplied to YSU by the MM5 surface layer model
+            // In WRF, this value is supplied to YSU by the surface layer model
             const Real t_surf = t_surf_arr(i,j,0);
             const Real t_layer = t10av_arr(i,j,0);
             const Real ws_layer = ws10av_arr(i,j,0);
