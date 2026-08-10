@@ -99,7 +99,8 @@ bool close_to_zero (Real value, const BudgetRow& row)
 
 bool is_budget_mode (const std::string& mode)
 {
-    return mode == "all_dry" || mode == "wet_budget" || mode == "thermal_budget";
+    return mode == "all_dry" || mode == "wet_budget" || mode == "bulk_wet" ||
+        mode == "thermal_budget" || mode == "bulk_thermal";
 }
 
 bool is_checker_mode (const std::string& mode)
@@ -113,6 +114,7 @@ struct BudgetSummary {
     int total_rows = 0;
     int vapor_rows = 0;
     int cloud_rows = 0;
+    bool bulk_face_nonzero = false;
     Real max_residual_ratio = Real(0.0);
 };
 
@@ -131,8 +133,9 @@ bool check_budget_rows (const std::vector<BudgetRow>& rows,
                         std::string& error)
 {
     const bool all_dry = mode == "all_dry";
-    const bool wet = mode == "wet_budget";
-    const bool thermal = mode == "thermal_budget";
+    const bool wet = mode == "wet_budget" || mode == "bulk_wet";
+    const bool thermal = mode == "thermal_budget" || mode == "bulk_thermal";
+    const bool require_bulk_activation = mode == "bulk_thermal";
     summary = {};
     summary.rows = static_cast<int>(rows.size());
     int total_rows = 0;
@@ -176,6 +179,12 @@ bool check_budget_rows (const std::vector<BudgetRow>& rows,
                 }
                 summary.max_residual_ratio = std::max(
                     summary.max_residual_ratio, std::abs(row.residual) / tol);
+                if (require_bulk_activation) {
+                    for (const auto value : row.faces) {
+                        summary.bulk_face_nonzero = summary.bulk_face_nonzero ||
+                            value != Real(0.0);
+                    }
+                }
             }
         } else if (!thermal && row.scalar == "total_nonprecipitating_water") {
             ++total_rows;
@@ -208,6 +217,9 @@ bool check_budget_rows (const std::vector<BudgetRow>& rows,
                     error = "wet-wall vapor flux is non-finite";
                     return false;
                 }
+                if (require_bulk_activation && row.faces[4] != Real(0.0)) {
+                    summary.bulk_face_nonzero = true;
+                }
             }
         } else if (!thermal && row.scalar == "cloud_water") {
             ++cloud_rows;
@@ -225,8 +237,16 @@ bool check_budget_rows (const std::vector<BudgetRow>& rows,
             error = "expected at least three dry rhoTheta budget intervals";
             return false;
         }
+        if (require_bulk_activation && !summary.bulk_face_nonzero) {
+            error = "bulk thermal oracle found no nonzero retained wall flux";
+            return false;
+        }
         summary.thermal_rows = thermal_rows;
         return true;
+    }
+    if (require_bulk_activation && !summary.bulk_face_nonzero) {
+        error = "bulk wet oracle found no nonzero retained zlo vapor flux";
+        return false;
     }
     if (total_rows < 3 || vapor_rows < 3 || cloud_rows < 3) {
         error = "expected at least three budget intervals for every water scalar";
@@ -248,7 +268,7 @@ int main (int argc, char** argv)
     if (!is_checker_mode(mode) || argc != expected_argc) {
         std::cerr << "usage: checker mode initial_plotfile final_plotfile\n"
                   << "       checker parity budget_off_plotfile budget_on_plotfile\n"
-                  << "       checker all_dry|wet_budget|thermal_budget initial_plotfile final_plotfile budget_file\n";
+                  << "       checker all_dry|wet_budget|bulk_wet|thermal_budget|bulk_thermal initial_plotfile final_plotfile budget_file\n";
         return 2;
     }
 
@@ -288,10 +308,11 @@ int main (int argc, char** argv)
     }
     PlotFileData initial(argv[2]);
     PlotFileData final(argv[3]);
-    const bool cloudy = (mode == "cloudy" || mode == "all_dry" || mode == "wet_budget");
-    if (!cloudy && mode != "dry" && mode != "thermal_budget") {
+    const bool cloudy = (mode == "cloudy" || mode == "all_dry" ||
+                         mode == "wet_budget" || mode == "bulk_wet");
+    if (!cloudy && mode != "dry" && mode != "thermal_budget" && mode != "bulk_thermal") {
         amrex::Finalize();
-        return fail("mode must be dry, cloudy, all_dry, wet_budget, or thermal_budget");
+        return fail("mode must be dry, cloudy, all_dry, wet_budget, bulk_wet, thermal_budget, or bulk_thermal");
     }
 
     for (const char* name : {"density", "theta", "temp", "x_velocity",
@@ -493,12 +514,14 @@ int main (int argc, char** argv)
         }
         std::cout << std::setprecision(17)
                   << "budget_rows=" << summary.rows << " mode=" << mode;
-        if (mode == "thermal_budget") {
-            std::cout << " thermal_rows=" << summary.thermal_rows;
+        if (mode == "thermal_budget" || mode == "bulk_thermal") {
+            std::cout << " thermal_rows=" << summary.thermal_rows
+                      << " bulk_face_nonzero=" << summary.bulk_face_nonzero;
         } else {
             std::cout << " total_rows=" << summary.total_rows
                       << " vapor_rows=" << summary.vapor_rows
-                      << " cloud_rows=" << summary.cloud_rows;
+                      << " cloud_rows=" << summary.cloud_rows
+                      << " bulk_face_nonzero=" << summary.bulk_face_nonzero;
         }
         std::cout << " max_residual_ratio=" << summary.max_residual_ratio << "\n";
     }

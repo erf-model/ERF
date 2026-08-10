@@ -4,9 +4,11 @@
 #include <AMReX_Reduce.H>
 
 #include <cmath>
+#include <limits>
 
 #include <gtest/gtest.h>
 
+#include "../../../Source/Diffusion/ERF_CloudChamberWallFlux.H"
 #include "../../../Source/Diffusion/ERF_ResolvedWallFlux.H"
 #include "../../../Source/Prob/ERF_CloudChamber.H"
 
@@ -212,6 +214,146 @@ TEST(CloudChamberConfig, AcceptsLegacyThetaQvWithoutPhysicalKeys)
     EXPECT_TRUE(erf_cloud_chamber::initialization_contract_error(contract).empty());
 }
 
+TEST(CloudChamberWallConfig, RejectsAmbiguousAggregateAndChannelModels)
+{
+    erf_cloud_chamber::WallTransferContract contract;
+    contract.legacy_aggregate_specified = true;
+    contract.heat_model_specified = true;
+    contract.heat_model = "bulk_aero";
+    EXPECT_EQ(erf_cloud_chamber::wall_transfer_contract_error(contract, "zlo"),
+              "Cloud Chamber: zlo cannot combine wall_transfer_model with per-channel wall model keys");
+}
+
+TEST(CloudChamberWallConfig, RequiresFixedCoefficientForBulkChannel)
+{
+    erf_cloud_chamber::WallTransferContract contract;
+    contract.heat_model_specified = true;
+    contract.heat_model = "bulk_aero";
+    EXPECT_EQ(erf_cloud_chamber::wall_transfer_contract_error(contract, "zlo"),
+              "Cloud Chamber: zlo active bulk_aero channels require coefficient_source = fixed");
+
+    contract.coefficient_source_specified = true;
+    contract.coefficient_source = "fixed";
+    EXPECT_EQ(erf_cloud_chamber::wall_transfer_contract_error(contract, "zlo"),
+              "Cloud Chamber: zlo requires C_H when heat_transfer_model = bulk_aero");
+}
+
+TEST(CloudChamberWallConfig, AcceptsIndependentHeatAndVaporBulkChannels)
+{
+    erf_cloud_chamber::WallTransferContract contract;
+    contract.heat_model_specified = true;
+    contract.heat_model = "bulk_aero";
+    contract.vapor_model_specified = true;
+    contract.vapor_model = "resolved_molecular";
+    contract.coefficient_source_specified = true;
+    contract.coefficient_source = "fixed";
+    contract.heat_coefficient_specified = true;
+    contract.heat_coefficient = Real(0.01);
+    EXPECT_TRUE(erf_cloud_chamber::wall_transfer_contract_error(contract, "zlo").empty());
+}
+
+TEST(CloudChamberWallFlux, BulkFormulaeAndHardGates)
+{
+    using namespace erf_cloud_chamber_wall_flux;
+    erf_wall_thermodynamics::FaceWall wall;
+    wall.thermal.mode = erf_wall_thermodynamics::ThermalMode::FixedPhysicalTemperature;
+    wall.thermal.temperature_K = Real(300.0);
+    wall.heat.model = erf_wall_thermodynamics::ScalarModel::BulkAero;
+    wall.heat.coefficient = Real(0.2);
+    const Real rho = Real(1.1);
+    const Real theta_air = Real(290.0);
+    const Real p = Real(100000.0);
+    const Real U = Real(3.0);
+    const auto heat = evaluate_scalar_flux_in(
+        wall, true, false, false, rho, theta_air, p, U,
+        Real(0.0), Real(0.0), Real(1.0), R_d/Cp_d);
+    const Real theta_wall = Real(300.0) * std::pow(p_0/p, R_d/Cp_d);
+    EXPECT_DOUBLE_EQ(heat.rhoTheta_in,
+                     rho * Real(0.2) * U * (theta_wall - theta_air));
+
+    wall.moisture = erf_wall_thermodynamics::MoistureMode::WetEquilibrium;
+    wall.vapor.model = erf_wall_thermodynamics::ScalarModel::BulkAero;
+    wall.vapor.coefficient = Real(0.3);
+    const Real qv_air = Real(0.01);
+    const auto vapor = evaluate_scalar_flux_in(
+        wall, false, true, false, rho, qv_air, p, U,
+        Real(0.0), Real(0.0), Real(1.0), R_d/Cp_d);
+    Real qv_wall = Real(0.0);
+    erf_qsatw(Real(300.0), Real(1000.0), qv_wall);
+    EXPECT_DOUBLE_EQ(vapor.rhoQv_in,
+                     rho * Real(0.3) * U * (qv_wall - qv_air));
+
+    wall.moisture = erf_wall_thermodynamics::MoistureMode::DryImpermeable;
+    wall.vapor.coefficient = std::numeric_limits<Real>::quiet_NaN();
+    const auto dry_vapor = evaluate_scalar_flux_in(
+        wall, false, true, false, rho, std::numeric_limits<Real>::quiet_NaN(),
+        p, std::numeric_limits<Real>::quiet_NaN(), Real(0.0), Real(0.0),
+        Real(1.0), R_d/Cp_d);
+    const auto cloud_water = evaluate_scalar_flux_in(
+        wall, false, false, true, rho, std::numeric_limits<Real>::quiet_NaN(),
+        p, std::numeric_limits<Real>::quiet_NaN(), Real(0.0), Real(0.0),
+        Real(1.0), R_d/Cp_d);
+    EXPECT_DOUBLE_EQ(dry_vapor.rhoQv_in, Real(0.0));
+    EXPECT_DOUBLE_EQ(cloud_water.rhoQc_in, Real(0.0));
+}
+
+TEST(CloudChamberWallFlux, CalmBulkWallIsExactlyZeroAndLinearInCoefficient)
+{
+    using namespace erf_cloud_chamber_wall_flux;
+    erf_wall_thermodynamics::FaceWall wall;
+    wall.thermal.mode = erf_wall_thermodynamics::ThermalMode::FixedPhysicalTemperature;
+    wall.thermal.temperature_K = Real(301.0);
+    wall.heat.model = erf_wall_thermodynamics::ScalarModel::BulkAero;
+    wall.heat.coefficient = Real(0.1);
+    const auto calm = evaluate_scalar_flux_in(
+        wall, true, false, false, Real(1.0), Real(280.0), Real(100000.0),
+        Real(0.0), Real(0.0), Real(0.0), Real(1.0), R_d/Cp_d);
+    EXPECT_DOUBLE_EQ(calm.rhoTheta_in, Real(0.0));
+    const auto one = evaluate_scalar_flux_in(
+        wall, true, false, false, Real(1.0), Real(280.0), Real(100000.0),
+        Real(2.0), Real(0.0), Real(0.0), Real(1.0), R_d/Cp_d);
+    wall.heat.coefficient = Real(0.2);
+    const auto two = evaluate_scalar_flux_in(
+        wall, true, false, false, Real(1.0), Real(280.0), Real(100000.0),
+        Real(2.0), Real(0.0), Real(0.0), Real(1.0), R_d/Cp_d);
+    EXPECT_DOUBLE_EQ(two.rhoTheta_in, Real(2.0) * one.rhoTheta_in);
+}
+
+TEST(CloudChamberWallFlux, OrientationAndTimestepAdaptersCoverAllFaces)
+{
+    using namespace erf_cloud_chamber_wall_flux;
+    for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
+        if (dir == 0) {
+   EXPECT_DOUBLE_EQ((to_coordinate_flux<0,false>(Real(2.0))), Real(2.0));
+   EXPECT_DOUBLE_EQ((to_coordinate_flux<0,true>(Real(2.0))), Real(-2.0));
+            const auto lo = traction_from_local_inward<0,false>(Real(2.0), Real(3.0), Real(4.0));
+            const auto hi = traction_from_local_inward<0,true>(Real(2.0), Real(3.0), Real(4.0));
+            EXPECT_DOUBLE_EQ(lo[0], Real(2.0));
+            EXPECT_DOUBLE_EQ(lo[1], Real(3.0));
+            EXPECT_DOUBLE_EQ(lo[2], Real(4.0));
+            EXPECT_DOUBLE_EQ(hi[0], Real(-2.0));
+            EXPECT_DOUBLE_EQ(hi[1], Real(3.0));
+            EXPECT_DOUBLE_EQ(hi[2], Real(4.0));
+        } else if (dir == 1) {
+   EXPECT_DOUBLE_EQ((to_coordinate_flux<1,false>(Real(2.0))), Real(2.0));
+   EXPECT_DOUBLE_EQ((to_coordinate_flux<1,true>(Real(2.0))), Real(-2.0));
+            const auto hi = traction_from_local_inward<1,true>(Real(2.0), Real(3.0), Real(4.0));
+            EXPECT_DOUBLE_EQ(hi[0], Real(3.0));
+            EXPECT_DOUBLE_EQ(hi[1], Real(-2.0));
+            EXPECT_DOUBLE_EQ(hi[2], Real(4.0));
+        } else {
+   EXPECT_DOUBLE_EQ((to_coordinate_flux<2,false>(Real(2.0))), Real(2.0));
+   EXPECT_DOUBLE_EQ((to_coordinate_flux<2,true>(Real(2.0))), Real(-2.0));
+            const auto hi = traction_from_local_inward<2,true>(Real(2.0), Real(3.0), Real(4.0));
+            EXPECT_DOUBLE_EQ(hi[0], Real(3.0));
+            EXPECT_DOUBLE_EQ(hi[1], Real(4.0));
+            EXPECT_DOUBLE_EQ(hi[2], Real(-2.0));
+        }
+    }
+    EXPECT_DOUBLE_EQ(wall_dt_from_max_rate(Real(0.0)), Real(1.0e30));
+    EXPECT_DOUBLE_EQ(wall_dt_from_max_rate(Real(2.0)), Real(0.25));
+}
+
 // Motivation: the physical wall override must replace the ordinary boundary
 // flux with the signed half-cell molecular flux; dry faces must contribute
 // exactly zero rather than imposing qv=0 as a Dirichlet state.
@@ -251,12 +393,14 @@ TEST(CloudChamberWallFlux, WetLowFaceAndDryHighFaceHaveExactSigns)
 
     erf_cloud_chamber::Config config;
     for (auto& wall : config.walls) {
-        wall.thermodynamics.moisture_mode =
+        wall.wall.moisture =
             erf_wall_thermodynamics::MoistureMode::DryImpermeable;
     }
-    config.walls[0].thermodynamics.moisture_mode =
+    config.walls[0].wall.moisture =
         erf_wall_thermodynamics::MoistureMode::WetEquilibrium;
-    config.walls[0].thermodynamics.physical_temperature_K = Real(300.0);
+    config.walls[0].wall.thermal.mode =
+        erf_wall_thermodynamics::ThermalMode::FixedPhysicalTemperature;
+    config.walls[0].wall.thermal.temperature_K = Real(300.0);
 
     const amrex::GpuArray<Real, AMREX_SPACEDIM> dx_inv =
         {Real(1.0), Real(1.0), Real(1.0)};
@@ -328,9 +472,11 @@ TEST(CloudChamberWallFlux, MultiBoxOwnershipAcrossAllFaces)
 
     erf_cloud_chamber::Config config;
     for (auto& wall : config.walls) {
-        wall.thermodynamics.moisture_mode =
+        wall.wall.moisture =
             erf_wall_thermodynamics::MoistureMode::WetEquilibrium;
-        wall.thermodynamics.physical_temperature_K = Real(300.0);
+        wall.wall.thermal.mode =
+            erf_wall_thermodynamics::ThermalMode::FixedPhysicalTemperature;
+        wall.wall.thermal.temperature_K = Real(300.0);
     }
     const amrex::GpuArray<Real, AMREX_SPACEDIM> dx_inv =
         {Real(1.0), Real(1.0), Real(1.0)};

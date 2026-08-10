@@ -108,10 +108,10 @@ Required configuration
      outside Stage 1.
    * All six faces must be stationary ``NoSlipWall`` boundaries with an
      explicit temperature.
-   * Wall-normal transfer uses
-     ``wall_transfer_model = resolved_molecular`` with
-     ``erf.molec_diff_type = ConstantAlpha`` and the configured
-     ``alpha_T`` and ``alpha_C`` coefficients.
+   * The retained Stage 1 aggregate wall key
+     ``wall_transfer_model = resolved_molecular`` remains supported.  The
+     generalized contract may instead select ``bulk_aero`` independently for
+     heat and vapor with fixed, nonnegative coefficients.
 
 The common solver settings are:
 
@@ -166,6 +166,13 @@ Dry thermal chamber
 .. literalinclude:: ../../Tests/test_files/CloudChamber_Dry/CloudChamber_Dry.i
    :language: none
    :caption: Dry thermal chamber with strict rhoTheta closure
+
+Dry bulk-aerodynamic wall chamber
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. literalinclude:: ../../Tests/test_files/CloudChamber_Dry_BulkMixed/CloudChamber_Dry_BulkMixed.i
+   :language: none
+   :caption: Multi-box dry chamber exercising the bulk heat-wall path
 
 SatAdj wet-wall chamber
 ~~~~~~~~~~~~~~~~~~~~~~~
@@ -251,10 +258,36 @@ Every physical face requires:
    <face>.type = NoSlipWall
    <face>.temperature = <temperature in K>
    <face>.moisture = dry|wet
-   <face>.wall_transfer_model = resolved_molecular
 
 The six face prefixes are ``xlo``, ``xhi``, ``ylo``, ``yhi``, ``zlo``,
 and ``zhi``.
+
+The aggregate key may be used for the retained resolved path:
+
+.. code-block:: none
+
+   <face>.wall_transfer_model = resolved_molecular
+
+For the generalized path, do not combine the aggregate key with channel keys.
+The active production contract is:
+
+.. code-block:: none
+
+   <face>.momentum_transfer_model = resolved_noslip
+   <face>.heat_transfer_model = resolved_molecular|bulk_aero
+   <face>.vapor_transfer_model = resolved_molecular|bulk_aero
+   <face>.coefficient_source = fixed
+   <face>.C_H = 0.1                 # required for bulk heat
+   <face>.C_E = 0.1                 # required for bulk wet vapor
+
+``bulk_aero`` uses the local tangent speed reconstructed from ERF's staggered
+velocity arrays.  The normal velocity is removed, wall velocity metadata is
+currently zero, and a calm wall therefore has exactly zero bulk scalar flux.
+``C_H`` and ``C_E`` are dimensionless fixed bulk transfer coefficients; no
+coefficient clamping is performed.  A future MOST/law-of-the-wall provider is
+represented in the metadata architecture but is rejected as an unsupported
+production input.  Roughness, ``z0``, drag, and MOST keys are likewise rejected
+until a complete provider is implemented.
 
 .. list-table:: Wall transfer contract
    :header-rows: 1
@@ -280,12 +313,34 @@ A wet wall uses saturation at the configured wall temperature and the
 adjacent fluid-cell HSE pressure.  The wall-normal flux is computed using the
 half-cell distance between the cell center and the wall.
 
+All wall evaluators use inward-positive physical fluxes.  The common
+low/high adapter converts that value once to ERF's coordinate-positive stored
+face flux: low faces retain the sign and high faces negate it.  The retained
+flux is also the value used by the RHS correction and by the budget, so a
+budget reports the same wall flux that advanced the state.
+
 .. warning::
 
-   Treat ``alpha_T`` and ``alpha_C`` as prescribed transfer coefficients,
-   not calibrated molecular-property values or engineering wall-law
-   coefficients.  Positive values activate the corresponding transfer and
-   zero disables it.  The current parser does not enforce coefficient signs.
+   Treat ``alpha_T`` and ``alpha_C`` as prescribed resolved-transfer
+   coefficients, not calibrated molecular-property values or engineering
+   wall-law coefficients.  Bulk coefficients are separately named ``C_H``
+   and ``C_E`` and must be finite and nonnegative.
+
+Bulk wall-rate timestep guard
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+When any active wall channel uses ``bulk_aero``, ERF estimates the maximum
+boundary rate
+
+.. math::
+
+   \Lambda = \max_f\left(C_f U_{t,f}\,\Delta x_f^{-1}\right)
+
+over physical boundary cells only and enforces
+``dt_wall = 0.5 / Lambda``.  Adaptive stepping takes the minimum of the
+ordinary CFL estimate and ``dt_wall``.  A fixed ``erf.fixed_dt`` larger than
+the guard aborts at timestep estimation with the measured rate and limit;
+there is no silent coefficient or timestep clamp.
 
 Flux orientation
 ~~~~~~~~~~~~~~~~
@@ -348,11 +403,14 @@ Run checklist
 3. Define all six ``NoSlipWall`` faces and their temperatures.
 4. For SatAdj, provide RH as a fraction and choose dry or wet moisture walls.
 5. Set ``alpha_T`` and, when vapor transfer is needed, ``alpha_C``.
-6. Run a short case and inspect temperature, potential temperature, velocity,
+6. If using ``bulk_aero``, set ``coefficient_source = fixed`` and the required
+   ``C_H``/``C_E`` values; do not combine these keys with the aggregate wall
+   key.
+7. Run a short case and inspect temperature, potential temperature, velocity,
    and, for SatAdj, ``qv``, ``qc``, saturation mixing ratio, and RH.
-7. Enable ``erf.cloud_chamber_budget_interval``.
-8. Require dry thermal closure or total-water closure, as appropriate.
-9. Treat any ``FAIL`` or budget-dependent solution change as invalid.
+8. Enable ``erf.cloud_chamber_budget_interval``.
+9. Require dry thermal closure or total-water closure, as appropriate.
+10. Treat any ``FAIL`` or budget-dependent solution change as invalid.
 
 Stage 1 invariants
 ------------------
@@ -363,6 +421,11 @@ Stage 1 invariants
 * Dry-wall vapor flux is exactly zero.
 * Cloud-water wall flux is exactly zero.
 * Wet walls are permitted only with SatAdj.
+* Bulk heat and vapor models are independently selectable; dry vapor and
+  cloud-water wall fluxes remain exactly zero.
+* Momentum remains resolved no-slip in production; the momentum metadata has
+  explicit ownership/orientation hooks for future wall models.
+* Bulk walls enforce the ``Lambda <= 0.5`` timestep condition.
 * Six dry walls conserve total nonprecipitating water.
 * Enabling budget output does not change the solution.
 * A stable run alone is not quantitative Pi-Chamber validation.
@@ -379,5 +442,7 @@ Troubleshooting
   always add water.
 * Interpret face signs using coordinate orientation before comparing wall
   gain or loss.
+* ``bulk_aero`` requires per-channel fixed coefficients and cannot be mixed
+  with ``wall_transfer_model`` on the same face.
 * Treat ``UNSUPPORTED_SOURCE`` as incomplete cloudy thermal accounting, not
   as a successful budget result.

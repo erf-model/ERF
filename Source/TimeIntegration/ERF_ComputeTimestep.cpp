@@ -1,5 +1,6 @@
 #include <ERF_EOS.H>
 #include <ERF.H>
+#include "Diffusion/ERF_CloudChamberWallFlux.H"
 
 using namespace amrex;
 
@@ -240,6 +241,79 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
      ParallelDescriptor::ReduceRealMax(estdt_lowM_inv);
      if (estdt_lowM_inv > 0.0_rt)
          estdt_lowM = cfl / estdt_lowM_inv;
+
+     Real max_wall_rate = Real(0.0);
+     Real estdt_wall = bogus_large_value;
+     if (cloud_chamber_config.active &&
+         cloud_chamber_config.physical_initialization &&
+         cloud_chamber_config.has_bulk_scalar_wall()) {
+         const auto walls = cloud_chamber_config.wall_boundary();
+         const Box domain = geom[level].Domain();
+         max_wall_rate = ReduceMax(ccvel, 0,
+         [=] AMREX_GPU_HOST_DEVICE (Box const& b,
+                                    Array4<Real const> const& velocity) -> Real
+         {
+             Real rate = Real(0.0);
+             amrex::Loop(b, [=,&rate] (int i, int j, int k) noexcept
+             {
+                 for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
+                     const bool low = (dir == 0 ? i == domain.smallEnd(0) :
+                                       (dir == 1 ? j == domain.smallEnd(1) :
+                                                    k == domain.smallEnd(2)));
+                     const bool high = (dir == 0 ? i == domain.bigEnd(0) :
+                                        (dir == 1 ? j == domain.bigEnd(1) :
+                                                     k == domain.bigEnd(2)));
+                     if (low) {
+                         const auto& wall = walls[2*dir];
+                         const Real U_t =
+                             erf_cloud_chamber_wall_flux::tangential_speed_cell_centered(
+                                 dir, i, j, k, velocity, wall);
+                         if (wall.heat.model ==
+                             erf_wall_thermodynamics::ScalarModel::BulkAero) {
+                             rate = amrex::max(rate, wall.heat.coefficient * U_t * dxinv[dir]);
+                         }
+                         if (wall.vapor.model ==
+                                 erf_wall_thermodynamics::ScalarModel::BulkAero &&
+                             wall.moisture ==
+                                 erf_wall_thermodynamics::MoistureMode::WetEquilibrium) {
+                             rate = amrex::max(rate, wall.vapor.coefficient * U_t * dxinv[dir]);
+                         }
+                     }
+                     if (high) {
+                         const auto& wall = walls[2*dir+1];
+                         const Real U_t =
+                             erf_cloud_chamber_wall_flux::tangential_speed_cell_centered(
+                                 dir, i, j, k, velocity, wall);
+                         if (wall.heat.model ==
+                             erf_wall_thermodynamics::ScalarModel::BulkAero) {
+                             rate = amrex::max(rate, wall.heat.coefficient * U_t * dxinv[dir]);
+                         }
+                         if (wall.vapor.model ==
+                                 erf_wall_thermodynamics::ScalarModel::BulkAero &&
+                             wall.moisture ==
+                                 erf_wall_thermodynamics::MoistureMode::WetEquilibrium) {
+                             rate = amrex::max(rate, wall.vapor.coefficient * U_t * dxinv[dir]);
+                         }
+                     }
+                 }
+             });
+             return rate;
+         });
+         ParallelDescriptor::ReduceRealMax(max_wall_rate);
+         if (max_wall_rate > Real(0.0)) {
+             estdt_wall = erf_cloud_chamber_wall_flux::wall_dt_from_max_rate(max_wall_rate);
+         }
+     }
+     estdt_comp = std::min(estdt_comp, estdt_wall);
+     estdt_lowM = std::min(estdt_lowM, estdt_wall);
+
+     if (fixed_dt[level] > zero && fixed_dt[level] > estdt_wall) {
+         Print() << "Cloud Chamber bulk wall timestep violation at level " << level
+                 << ": fixed_dt=" << fixed_dt[level]
+                 << ", wall_dt=" << estdt_wall
+                 << ", max_wall_rate=" << max_wall_rate << std::endl;
+         Abort("Cloud Chamber bulk wall timestep exceeds the Lambda <= 0.5 limit");
+     }
 
      // Additional vertical diagnostics
      if (l_comp_substepping_diag) {

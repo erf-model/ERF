@@ -192,6 +192,9 @@ endfunction(add_test_cloud_chamber)
 
 function(add_test_cloud_chamber_parity TEST_NAME)
     set(TEST_FILES_DIR "CloudChamber_SatAdj")
+    if (ARGC GREATER 1)
+        set(TEST_FILES_DIR "${ARGV1}")
+    endif()
     setup_test()
     resolve_test_exe("" "erf_exec" TEST_EXE)
     add_test(${TEST_NAME} ${CMAKE_COMMAND}
@@ -200,7 +203,7 @@ function(add_test_cloud_chamber_parity TEST_NAME)
         -DMPIEXEC_PREFLAGS=${MPIEXEC_PREFLAGS}
         -DNRANKS=${NP}
         -DTEST_EXE=${TEST_EXE}
-        -DINPUT=${CURRENT_TEST_BINARY_DIR}/CloudChamber_SatAdj.i
+        -DINPUT=${CURRENT_TEST_BINARY_DIR}/${TEST_FILES_DIR}.i
         -DWORKING_DIRECTORY=${CURRENT_TEST_BINARY_DIR}
         -DCHECKER=${CLOUD_CHAMBER_CHECKER}
         -P ${PROJECT_SOURCE_DIR}/Tests/RunCloudChamberParity.cmake)
@@ -270,6 +273,9 @@ endfunction(add_test_cloud_chamber_legacy_config)
 
 function(add_test_cloud_chamber_openmp TEST_NAME)
     set(TEST_FILES_DIR "CloudChamber_SatAdj")
+    if (ARGC GREATER 1)
+        set(TEST_FILES_DIR "${ARGV1}")
+    endif()
     setup_test()
     resolve_test_exe("" "erf_exec" TEST_EXE)
     add_test(${TEST_NAME} ${CMAKE_COMMAND}
@@ -278,7 +284,7 @@ function(add_test_cloud_chamber_openmp TEST_NAME)
         -DMPIEXEC_PREFLAGS=${MPIEXEC_PREFLAGS}
         -DNRANKS=${NP}
         -DTEST_EXE=${TEST_EXE}
-        -DINPUT=${CURRENT_TEST_BINARY_DIR}/CloudChamber_SatAdj.i
+        -DINPUT=${CURRENT_TEST_BINARY_DIR}/${TEST_FILES_DIR}.i
         -DWORKING_DIRECTORY=${CURRENT_TEST_BINARY_DIR}
         -DCHECKER=${CLOUD_CHAMBER_CHECKER}
         -DCMAKE_COMMAND=${CMAKE_COMMAND}
@@ -415,12 +421,16 @@ add_test_anelastic_wall_diffusion(AnelasticWallDiffusion_Z 2)
 add_test_cloud_chamber(CloudChamber_Dry dry)
 add_test_cloud_chamber_legacy_config(CloudChamber_Legacy_Config)
 add_test_cloud_chamber_budget(CloudChamber_Dry_ThermalBudget thermal_budget CloudChamber_Dry)
+add_test_cloud_chamber_budget(CloudChamber_Dry_Bulk_ThermalBudget bulk_thermal CloudChamber_Dry_BulkMixed)
 add_test_cloud_chamber(CloudChamber_SatAdj cloudy)
 add_test_cloud_chamber_parity(CloudChamber_SatAdj_Parity)
+add_test_cloud_chamber_parity(CloudChamber_SatAdj_BulkParity CloudChamber_SatAdj_BulkMixedWet)
 add_test_cloud_chamber_budget(CloudChamber_SatAdj_AllDry all_dry CloudChamber_SatAdj_AllDry)
 add_test_cloud_chamber_budget(CloudChamber_SatAdj_WetBudget wet_budget CloudChamber_SatAdj_WetBudget)
+add_test_cloud_chamber_budget(CloudChamber_SatAdj_BulkMixedWet bulk_wet CloudChamber_SatAdj_BulkMixedWet)
 if(ERF_ENABLE_OPENMP)
 add_test_cloud_chamber_openmp(CloudChamber_SatAdj_OpenMP)
+add_test_cloud_chamber_openmp(CloudChamber_SatAdj_BulkOpenMP CloudChamber_SatAdj_BulkMixedWet)
 endif()
 add_test(SHOC_Unstable_Cloud_SatAdj_vs_NoCond
     ${MPIEXEC_EXECUTABLE} ${MPIEXEC_NUMPROC_FLAG} 1 ${MPIEXEC_PREFLAGS}

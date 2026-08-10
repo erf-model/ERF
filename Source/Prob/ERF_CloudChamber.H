@@ -28,8 +28,7 @@ enum class WallFace : unsigned char { XLo, XHi, YLo, YHi, ZLo, ZHi };
 
 struct WallSpec {
     WallFace face = WallFace::XLo;
-    erf_wall_thermodynamics::Face thermodynamics;
-    amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> velocity = {};
+    erf_wall_thermodynamics::FaceWall wall;
 };
 
 struct Config {
@@ -53,9 +52,20 @@ struct Config {
     {
         erf_wall_thermodynamics::Boundary boundary{};
         for (int n = 0; n < 2 * AMREX_SPACEDIM; ++n) {
-            boundary[n] = walls[n].thermodynamics;
+            boundary[n] = walls[n].wall;
         }
         return boundary;
+    }
+
+    bool has_bulk_scalar_wall () const noexcept
+    {
+        for (const auto& wall : walls) {
+            if (wall.wall.heat.model == erf_wall_thermodynamics::ScalarModel::BulkAero ||
+                wall.wall.vapor.model == erf_wall_thermodynamics::ScalarModel::BulkAero) {
+                return true;
+            }
+        }
+        return false;
     }
 };
 
@@ -194,6 +204,100 @@ inline std::string face_name (WallFace face)
     return "unknown";
 }
 
+struct WallTransferContract {
+    bool legacy_aggregate_specified = false;
+    bool momentum_model_specified = false;
+    bool heat_model_specified = false;
+    bool vapor_model_specified = false;
+    bool coefficient_source_specified = false;
+    bool heat_coefficient_specified = false;
+    bool vapor_coefficient_specified = false;
+    std::string momentum_model;
+    std::string heat_model;
+    std::string vapor_model;
+    std::string coefficient_source;
+    amrex::Real heat_coefficient = amrex::Real(0.0);
+    amrex::Real vapor_coefficient = amrex::Real(0.0);
+};
+
+inline std::string
+wall_transfer_contract_error (const WallTransferContract& contract,
+                              const std::string& face)
+{
+    const bool any_channel_key =
+        contract.momentum_model_specified ||
+        contract.heat_model_specified ||
+        contract.vapor_model_specified ||
+        contract.coefficient_source_specified ||
+        contract.heat_coefficient_specified ||
+        contract.vapor_coefficient_specified;
+    if (contract.legacy_aggregate_specified && any_channel_key) {
+        return "Cloud Chamber: " + face +
+            " cannot combine wall_transfer_model with per-channel wall model keys";
+    }
+
+    if (contract.momentum_model_specified &&
+        contract.momentum_model != "resolved_noslip") {
+        return "Cloud Chamber: " + face +
+            " supports only momentum_transfer_model = resolved_noslip; "
+            "bulk_aero and law_of_wall_momentum are research hooks";
+    }
+
+    const bool heat_bulk = contract.heat_model_specified &&
+        contract.heat_model == "bulk_aero";
+    const bool vapor_bulk = contract.vapor_model_specified &&
+        contract.vapor_model == "bulk_aero";
+    if (contract.heat_model_specified &&
+        contract.heat_model != "resolved_molecular" && !heat_bulk) {
+        return "Cloud Chamber: " + face +
+            ".heat_transfer_model must be resolved_molecular or bulk_aero";
+    }
+    if (contract.vapor_model_specified &&
+        contract.vapor_model != "resolved_molecular" && !vapor_bulk) {
+        return "Cloud Chamber: " + face +
+            ".vapor_transfer_model must be resolved_molecular or bulk_aero";
+    }
+
+    const bool bulk_active = heat_bulk || vapor_bulk;
+    if (bulk_active) {
+        if (!contract.coefficient_source_specified ||
+            contract.coefficient_source != "fixed") {
+            return "Cloud Chamber: " + face +
+                " active bulk_aero channels require coefficient_source = fixed";
+        }
+    } else if (contract.coefficient_source_specified) {
+        return "Cloud Chamber: " + face +
+            ".coefficient_source is only valid when bulk_aero is active";
+    }
+
+    if (heat_bulk && !contract.heat_coefficient_specified) {
+        return "Cloud Chamber: " + face +
+            " requires C_H when heat_transfer_model = bulk_aero";
+    }
+    if (vapor_bulk && !contract.vapor_coefficient_specified) {
+        return "Cloud Chamber: " + face +
+            " requires C_E when vapor_transfer_model = bulk_aero";
+    }
+    if (contract.heat_coefficient_specified && !heat_bulk) {
+        return "Cloud Chamber: " + face +
+            ".C_H requires heat_transfer_model = bulk_aero";
+    }
+    if (contract.vapor_coefficient_specified && !vapor_bulk) {
+        return "Cloud Chamber: " + face +
+            ".C_E requires vapor_transfer_model = bulk_aero";
+    }
+    if ((contract.heat_coefficient_specified &&
+         (!finite(contract.heat_coefficient) ||
+          contract.heat_coefficient < amrex::Real(0.0))) ||
+        (contract.vapor_coefficient_specified &&
+         (!finite(contract.vapor_coefficient) ||
+          contract.vapor_coefficient < amrex::Real(0.0)))) {
+        return "Cloud Chamber: " + face +
+            " bulk coefficients C_H and C_E must be finite and nonnegative";
+    }
+    return {};
+}
+
 inline void require_zero_periodicity ()
 {
     amrex::ParmParse pp_geom("geometry");
@@ -233,10 +337,13 @@ inline void reject_unsupported_face_keys (amrex::ParmParse& pp,
                                           const std::string& face)
 {
     if (pp.contains("physical_temperature") || pp.contains("relative_humidity") ||
-        pp.contains("rh") || pp.contains("roughness")) {
+        pp.contains("rh") || pp.contains("roughness") ||
+        pp.contains("roughness_length") || pp.contains("z0") ||
+        pp.contains("C_D") || pp.contains("most") ||
+        pp.contains("MOST")) {
         amrex::Error("Cloud Chamber: " + face +
                      " must use temperature and moisture for physical walls; "
-                     "roughness and legacy aliases are unsupported");
+                     "roughness, MOST, and legacy aliases are unsupported");
     }
 }
 
@@ -425,45 +532,101 @@ inline Config parse_config (const amrex::Real* problo,
         }
         WallSpec& wall = config.walls[n];
         wall.face = faces[n];
+        WallTransferContract transfer_contract;
+        std::string transfer = "resolved_molecular";
+        if (pp_face.query("wall_transfer_model", transfer)) {
+            transfer_contract.legacy_aggregate_specified = true;
+            transfer = amrex::toLower(transfer);
+            if (transfer != "resolved_molecular") {
+                amrex::Error("Cloud Chamber: only resolved_molecular wall transfer is supported");
+            }
+        }
+        if (pp_face.query("momentum_transfer_model", transfer_contract.momentum_model)) {
+            transfer_contract.momentum_model_specified = true;
+            transfer_contract.momentum_model = amrex::toLower(transfer_contract.momentum_model);
+        }
+        if (pp_face.query("heat_transfer_model", transfer_contract.heat_model)) {
+            transfer_contract.heat_model_specified = true;
+            transfer_contract.heat_model = amrex::toLower(transfer_contract.heat_model);
+        }
+        if (pp_face.query("vapor_transfer_model", transfer_contract.vapor_model)) {
+            transfer_contract.vapor_model_specified = true;
+            transfer_contract.vapor_model = amrex::toLower(transfer_contract.vapor_model);
+        }
+        if (pp_face.query("coefficient_source", transfer_contract.coefficient_source)) {
+            transfer_contract.coefficient_source_specified = true;
+            transfer_contract.coefficient_source = amrex::toLower(transfer_contract.coefficient_source);
+        }
+        if (pp_face.query("C_H", transfer_contract.heat_coefficient)) {
+            transfer_contract.heat_coefficient_specified = true;
+            require_finite(face + ".C_H", transfer_contract.heat_coefficient);
+        }
+        if (pp_face.query("C_E", transfer_contract.vapor_coefficient)) {
+            transfer_contract.vapor_coefficient_specified = true;
+            require_finite(face + ".C_E", transfer_contract.vapor_coefficient);
+        }
+        const std::string transfer_error =
+            wall_transfer_contract_error(transfer_contract, face);
+        if (!transfer_error.empty()) {
+            amrex::Error(transfer_error);
+        }
+        const bool any_channel_key =
+            transfer_contract.momentum_model_specified ||
+            transfer_contract.heat_model_specified ||
+            transfer_contract.vapor_model_specified ||
+            transfer_contract.coefficient_source_specified ||
+            transfer_contract.heat_coefficient_specified ||
+            transfer_contract.vapor_coefficient_specified;
+        if (!config.physical_initialization && any_channel_key) {
+            amrex::Error("Cloud Chamber: per-channel wall transfer keys require physical temperature initialization");
+        }
         if (config.physical_initialization) {
             if (pp_face.contains("theta") || pp_face.contains("qv") ||
                 pp_face.contains("theta_grad") || pp_face.contains("qv_grad")) {
                 amrex::Error("Cloud Chamber: physical walls cannot combine temperature/moisture with legacy theta/qv wall keys");
             }
-            if (!pp_face.query("temperature", wall.thermodynamics.physical_temperature_K)) {
+            if (!pp_face.query("temperature", wall.wall.thermal.temperature_K)) {
                 amrex::Error("Cloud Chamber: missing required physical " + face + ".temperature");
             }
-            require_finite(face + ".temperature", wall.thermodynamics.physical_temperature_K);
-            if (wall.thermodynamics.physical_temperature_K <= amrex::Real(0.0)) {
+            require_finite(face + ".temperature", wall.wall.thermal.temperature_K);
+            if (wall.wall.thermal.temperature_K <= amrex::Real(0.0)) {
                 amrex::Error("Cloud Chamber: " + face + ".temperature must be positive Kelvin");
             }
             std::string moisture;
             pp_face.get("moisture", moisture);
             moisture = amrex::toLower(moisture);
             if (moisture == "dry") {
-                wall.thermodynamics.moisture_mode = erf_wall_thermodynamics::MoistureMode::DryImpermeable;
+                wall.wall.moisture = erf_wall_thermodynamics::MoistureMode::DryImpermeable;
             } else if (moisture == "wet") {
-                wall.thermodynamics.moisture_mode = erf_wall_thermodynamics::MoistureMode::WetEquilibrium;
+                wall.wall.moisture = erf_wall_thermodynamics::MoistureMode::WetEquilibrium;
                 if (!config.cloudy) {
                     amrex::Error("Cloud Chamber: wet walls require SatAdj moisture");
                 }
             } else {
                 amrex::Error("Cloud Chamber: " + face + ".moisture must be dry or wet");
             }
-            std::string transfer = "resolved_molecular";
-            pp_face.query("wall_transfer_model", transfer);
-            transfer = amrex::toLower(transfer);
-            if (transfer != "resolved_molecular") {
-                amrex::Error("Cloud Chamber: only resolved_molecular wall transfer is supported");
+            wall.wall.thermal.mode = erf_wall_thermodynamics::ThermalMode::FixedPhysicalTemperature;
+            wall.wall.momentum.model = erf_wall_thermodynamics::MomentumModel::ResolvedNoSlip;
+            wall.wall.heat.model = transfer_contract.heat_model == "bulk_aero" ?
+                erf_wall_thermodynamics::ScalarModel::BulkAero :
+                erf_wall_thermodynamics::ScalarModel::ResolvedMolecular;
+            wall.wall.vapor.model = transfer_contract.vapor_model == "bulk_aero" ?
+                erf_wall_thermodynamics::ScalarModel::BulkAero :
+                erf_wall_thermodynamics::ScalarModel::ResolvedMolecular;
+            if (wall.wall.heat.model == erf_wall_thermodynamics::ScalarModel::BulkAero) {
+                wall.wall.heat.provider = erf_wall_thermodynamics::CoefficientProvider::Fixed;
+                wall.wall.heat.coefficient = transfer_contract.heat_coefficient;
             }
-            wall.thermodynamics.thermal_mode = erf_wall_thermodynamics::ThermalMode::FixedPhysicalTemperature;
-            wall.thermodynamics.transfer_model = erf_wall_thermodynamics::TransferModel::ResolvedMolecular;
+            if (wall.wall.vapor.model == erf_wall_thermodynamics::ScalarModel::BulkAero) {
+                wall.wall.vapor.provider = erf_wall_thermodynamics::CoefficientProvider::Fixed;
+                wall.wall.vapor.coefficient = transfer_contract.vapor_coefficient;
+            }
         } else {
-            if (!pp_face.query("theta", config.walls[n].thermodynamics.physical_temperature_K)) {
+            if (!pp_face.query("theta", wall.wall.thermal.temperature_K)) {
                 amrex::Error("Cloud Chamber: missing required " + face + ".theta");
             }
-            wall.thermodynamics.thermal_mode = erf_wall_thermodynamics::ThermalMode::LegacyNumerical;
-            wall.thermodynamics.moisture_mode = config.cloudy ?
+            wall.wall.thermal.mode = erf_wall_thermodynamics::ThermalMode::LegacyNumerical;
+            wall.wall.moisture = config.cloudy ?
                 erf_wall_thermodynamics::MoistureMode::LegacyNumerical :
                 erf_wall_thermodynamics::MoistureMode::DryImpermeable;
             if (config.cloudy && !pp_face.contains("qv")) {
@@ -474,7 +637,7 @@ inline Config parse_config (const amrex::Real* problo,
             if (pp_face.contains("velocity")) {
                 amrex::Error("Cloud Chamber: wall velocity metadata is not active; use NoSlipWall with zero velocity");
             }
-            wall.velocity[d] = amrex::Real(0.0);
+            wall.wall.wall_velocity[d] = amrex::Real(0.0);
         }
     }
     for (int d = 0; d < AMREX_SPACEDIM; ++d) {

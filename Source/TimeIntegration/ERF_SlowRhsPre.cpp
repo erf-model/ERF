@@ -14,7 +14,7 @@
 #include "ERF_EBAdvection.H"
 #include "ERF_EB.H"
 #include "ERF_SurfaceLayer.H"
-#include "ERF_ResolvedWallFlux.H"
+#include "Diffusion/ERF_CloudChamberWallFlux.H"
 #include "Prob/ERF_CloudChamberBudget.H"
 
 using namespace amrex;
@@ -721,9 +721,9 @@ void erf_slow_rhs_pre (int level, int finest_level,
                                        tm_arr, grav_gpu, bc_ptr_d, l_apply_surface_layer_fluxes_in_diffusion, l_vert_implicit_fac);
             }
             if (use_physical_chamber_wall_flux) {
-                erf_resolved_wall_flux::apply(
+                erf_cloud_chamber_wall_flux::apply(
                     bx, domain, RhoTheta_comp, 0, cell_data, cell_prim,
-                    cloud_chamber_base_state->const_array(mfi), cell_rhs,
+                    cloud_chamber_base_state->const_array(mfi), u, v, w, cell_rhs,
                     diffflux_x, diffflux_y, diffflux_z, dxInv,
                     chamber_walls, dc.alpha_T, dc.alpha_C,
                     solverChoice.rdOcp);
