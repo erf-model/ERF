@@ -408,13 +408,13 @@ void SuperDropletPC::SetAttributes (MultiFab& a_rhoc /*!< mass density of conden
             ParticleReal species_mass_total = zero;
             for (int ctr = 0; ctr < num_sp; ctr++) {
                 if (ctr != idx_w) {
-                    species_mass_total += ptrs.sp_mass_ptrs[ctr][np];
+                    species_mass_total += ptrs.sp_mass_ptrs[ctr][i];
                 }
             }
 
             ParticleReal aerosol_mass_total = zero;
             for (int ctr = 0; ctr < num_ae; ctr++) {
-                aerosol_mass_total += ptrs.ae_mass_ptrs[ctr][np];
+                aerosol_mass_total += ptrs.ae_mass_ptrs[ctr][i];
             }
 
             const Real mass_particle = static_cast<Real>(mass_condensate_sd / ptrs.mult_ptr[i] + aerosol_mass_total + species_mass_total);
