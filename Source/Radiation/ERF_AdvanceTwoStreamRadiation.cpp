@@ -1230,6 +1230,8 @@ void ERF::compute_twostream_radiation_diagnostics(
     amrex::Real F_up_surface = 0.0;
     amrex::Real F_down_toa = 0.0;
     amrex::Real heating_rate_max = 0.0;
+    amrex::Real seb_residual_mean = std::numeric_limits<amrex::Real>::quiet_NaN();
+    amrex::Real seb_residual_max  = std::numeric_limits<amrex::Real>::quiet_NaN();
 
     // Get state at this level (conservative variables: density, RhoTheta, etc.)
     const auto& state_cons = vars_old[lev][Vars::cons];
