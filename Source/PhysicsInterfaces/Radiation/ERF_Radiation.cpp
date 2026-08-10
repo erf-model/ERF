@@ -49,11 +49,12 @@ Radiation::Radiation (const int& lev,
         "a value of 0 would allocate no memory.");
 
     // Number of columns per RRTMGP chunk (controls peak GPU memory)
-    pp.query("rad_ncol_chunk", m_ncol_chunk);
-    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(m_ncol_chunk > 0,
+    pp.query("rad_ncol_chunk", m_ncol_chunk_requested);
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(m_ncol_chunk_requested > 0,
         "erf.rad_ncol_chunk must be a positive integer (default 5000). "
         "It controls the number of columns processed per RRTMGP kernel launch; "
         "a value of 0 or negative would produce an infinite loop.");
+    m_ncol_chunk = m_ncol_chunk_requested;
 
     // Flag to write fluxes to plt file
     pp.query("rad_write_fluxes", m_rad_write_fluxes);
@@ -1055,11 +1056,14 @@ Radiation::initialize_impl ()
 
     // Load k-distribution and cloud optics data only once.
     // These are static lookup tables that never change.
-    // Size the memory pool for m_ncol_chunk (not min with current m_ncol) so that
-    // the pool remains valid even if m_ncol grows after regridding/load balancing.
+    // Size the memory pool for the requested chunk size (not the effective one, and
+    // not min with the current m_ncol) so that the pool remains valid even if m_ncol
+    // grows after regridding/load balancing. The pool is created once and never
+    // resized, whereas the effective chunk size is recomputed at every Init() and is
+    // bounded above by the request.
     if (!rrtmgp::initialized) {
         gas_concs_t gas_concs_pool;
-        gas_concs_pool.init(gas_names_offset, m_ncol_chunk, m_nlay);
+        gas_concs_pool.init(gas_names_offset, m_ncol_chunk_requested, m_nlay);
         rrtmgp::rrtmgp_initialize(gas_concs_pool,
                                   rrtmgp_coeffs_file_sw      , rrtmgp_coeffs_file_lw      ,
                                   rrtmgp_cloud_optics_file_sw, rrtmgp_cloud_optics_file_lw,
@@ -1072,6 +1076,11 @@ Radiation::initialize_impl ()
 void
 Radiation::run_impl ()
 {
+    // A rank that owns no boxes on this level has no columns and therefore no
+    // radiation work to do. Bail out before the chunk loop; there are no MPI
+    // collectives in this routine, so returning early cannot deadlock.
+    if (m_ncol == 0) { return; }
+
     // Local copies
     const auto ncol     = m_ncol;
     const auto nlay     = m_nlay;
