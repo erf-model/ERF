@@ -596,7 +596,7 @@ void erf_substep_T (int step, int /*nrk*/,
         ParallelFor(b2d, [=] AMREX_GPU_DEVICE (int i, int j, int)
         {
             // w_klo, w_khi given by specified Dirichlet values
-            RHS_a(i,j,lo.z  ) = dtau * (slow_rhs_rho_w(i,j,lo.z) + zmom_src_arr(i,j,lo.z));
+            RHS_a(i,j,lo.z  ) = dtau * (slow_rhs_rho_w(i,j,lo.z  ) + zmom_src_arr(i,j,lo.z  ));
             RHS_a(i,j,hi.z+1) = dtau * (slow_rhs_rho_w(i,j,hi.z+1) + zmom_src_arr(i,j,hi.z+1));
 
             // w = specified Dirichlet value at k = lo.z
@@ -616,23 +616,23 @@ void erf_substep_T (int step, int /*nrk*/,
             }
         });
 #else
+        // w_klo, w_khi given by specified Dirichlet values
         for (int j = lo.y; j <= hi.y; ++j) {
             AMREX_PRAGMA_SIMD
             for (int i = lo.x; i <= hi.x; ++i)
             {
-                RHS_a(i,j,lo.z) = dtau * (slow_rhs_rho_w(i,j,lo.z) + zmom_src_arr(i,j,lo.z));
-               soln_a(i,j,lo.z) = RHS_a(i,j,lo.z) * inv_coeffB_a(i,j,lo.z);
-            }
-
-            AMREX_PRAGMA_SIMD
-            for (int i = lo.x; i <= hi.x; ++i)
-            {
+                RHS_a(i,j,lo.z  ) = dtau * (slow_rhs_rho_w(i,j,lo.z  ) + zmom_src_arr(i,j,lo.z  ));
                 RHS_a(i,j,hi.z+1) = dtau * (slow_rhs_rho_w(i,j,hi.z+1) + zmom_src_arr(i,j,hi.z+1));
-               soln_a(i,j,hi.z+1) = RHS_a(i,j,hi.z+1) * inv_coeffB_a(i,j,hi.z+1);
+
+                // w = specified Dirichlet value at k = lo.z
+                soln_a(i,j,lo.z) = RHS_a(i,j,lo.z) * inv_coeffB_a(i,j,lo.z);
             }
         }
 
-        for (int k = lo.z+1; k <= hi.z; ++k) {
+        // Transform the RHS from r_i -> rho_i
+        // NOTE: this must include k = hi.z+1 so that the top row picks up the sub-diagonal
+        //       term, which is non-zero when the top of the domain is an outflow boundary
+        for (int k = lo.z+1; k <= hi.z+1; ++k) {
              for (int j = lo.y; j <= hi.y; ++j) {
                  AMREX_PRAGMA_SIMD
                  for (int i = lo.x; i <= hi.x; ++i) {
@@ -640,21 +640,23 @@ void erf_substep_T (int step, int /*nrk*/,
                  }
            }
         }
-        for (int k = hi.z; k > lo.z; --k) {
+
+        for (int j = lo.y; j <= hi.y; ++j) {
+             AMREX_PRAGMA_SIMD
+             for (int i = lo.x; i <= hi.x; ++i) {
+                 cur_zmom(i,j,lo.z  ) = stage_zmom(i,j,lo.z  ) + soln_a(i,j,lo.z  );
+                 cur_zmom(i,j,hi.z+1) = stage_zmom(i,j,hi.z+1) + soln_a(i,j,hi.z+1);
+             }
+        }
+
+        // Back sweep to obtain the solution
+        for (int k = hi.z; k >= lo.z; --k) {
              for (int j = lo.y; j <= hi.y; ++j) {
                  AMREX_PRAGMA_SIMD
                  for (int i = lo.x; i <= hi.x; ++i) {
-                     soln_a(i,j,k) -= (coeffC_a(i,j,k) * inv_coeffB_a(i,j,k)) * soln_a(i,j,k+1);
+                     soln_a(i,j,k) -= ( coeffC_a(i,j,k) * inv_coeffB_a(i,j,k) ) * soln_a(i,j,k+1);
                  }
              }
-        }
-        if (hi.z == domhi.z) {
-            for (int j = lo.y; j <= hi.y; ++j) {
-                 AMREX_PRAGMA_SIMD
-                 for (int i = lo.x; i <= hi.x; ++i) {
-                    cur_zmom(i,j,hi.z+1) = stage_zmom(i,j,hi.z+1) + soln_a(i,j,hi.z+1);
-                }
-            }
         }
 #endif
         } // end profile
