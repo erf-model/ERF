@@ -59,7 +59,7 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 Real wdm6_venfac (Real a, Real b, Real c, Real den0_arg) {
     // Fortran: exp(log((viscos(b,c)/diffus(b,a)))*((.3333333))) / sqrt(viscos) * sqrt(sqrt(den0/c))
     return std::exp(std::log(wdm6_viscos(b,c)/wdm6_diffus(b,a))
-                   *Real(0.3333333))
+                   *Real(0.3333333f))
           /std::sqrt(wdm6_viscos(b,c))
           *std::sqrt(std::sqrt(den0_arg/c));
 }
@@ -2283,7 +2283,7 @@ void WDM6::Advance(const Real& dt_advance,
             });
 
             // G11(c): avedia + rslopec/2/3 recompute (lamdac fallback branch)
-            constexpr Real cbrt24 = Real(2.8844991406148166);  // (24.0)^(1/3)
+            const Real cbrt24 = Real(std::pow(24.0f, 0.3333333f));
             ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
                 // avedia component from rain slope: avedia(:,:,2) = rslope(:,:,1) * (24.)^(1/3)
                 avedia_arr(i,j,k,1) = rslope_arr(i,j,k,0) * cbrt24;
@@ -2561,7 +2561,75 @@ void WDM6::Advance(const Real& dt_advance,
 #endif
                 }
                 // Compute work2 ventilation factor for diffusion (used in G13a warm-rain rates)
+#if !defined(AMREX_USE_GPU)
+                if (i == diag_i && j == diag_j && k == diag_k) {
+                    std::printf("WDM6-CPP_G11V_VENFAC_PRE %3d %24.16E %24.16E %24.16E %24.16E\n",
+                                diag_k + 1,
+                                static_cast<double>(p_arr(i,j,k)),
+                                static_cast<double>(t_arr(i,j,k)),
+                                static_cast<double>(den_arr(i,j,k)),
+                                static_cast<double>(Real(den0)));
+                    std::printf("WDM6-CPP_G11V_VENFAC_INT0 %3d %24.16E\n",
+                                diag_k + 1,
+                                static_cast<double>(wdm6_viscos(t_arr(i,j,k), den_arr(i,j,k))));
+                    std::printf("WDM6-CPP_G11V_VENFAC_INT1 %3d %24.16E\n",
+                                diag_k + 1,
+                                static_cast<double>(wdm6_diffus(t_arr(i,j,k), p_arr(i,j,k))));
+                    std::printf("WDM6-CPP_G11V_VENFAC_INT2 %3d %24.16E\n",
+                                diag_k + 1,
+                                static_cast<double>(wdm6_viscos(t_arr(i,j,k), den_arr(i,j,k))
+                                                   / wdm6_diffus(t_arr(i,j,k), p_arr(i,j,k))));
+                    std::printf("WDM6-CPP_G11V_VENFAC_INT3 %3d %24.16E\n",
+                                diag_k + 1,
+                                static_cast<double>(std::log(wdm6_viscos(t_arr(i,j,k), den_arr(i,j,k))
+                                                   / wdm6_diffus(t_arr(i,j,k), p_arr(i,j,k)))));
+                    std::printf("WDM6-CPP_G11V_VENFAC_INT4 %3d %24.16E\n",
+                                diag_k + 1,
+                                static_cast<double>(std::log(wdm6_viscos(t_arr(i,j,k), den_arr(i,j,k))
+                                                   / wdm6_diffus(t_arr(i,j,k), p_arr(i,j,k)))
+                                                   * Real(0.3333333f)));
+                    std::printf("WDM6-CPP_G11V_VENFAC_INT5 %3d %24.16E\n",
+                                diag_k + 1,
+                                static_cast<double>(std::exp(std::log(wdm6_viscos(t_arr(i,j,k), den_arr(i,j,k))
+                                                   / wdm6_diffus(t_arr(i,j,k), p_arr(i,j,k)))
+                                                   * Real(0.3333333f))));
+                    std::printf("WDM6-CPP_G11V_VENFAC_INT6 %3d %24.16E\n",
+                                diag_k + 1,
+                                static_cast<double>(std::sqrt(wdm6_viscos(t_arr(i,j,k), den_arr(i,j,k)))));
+                    std::printf("WDM6-CPP_G11V_VENFAC_INT7 %3d %24.16E\n",
+                                diag_k + 1,
+                                static_cast<double>(Real(den0) / den_arr(i,j,k)));
+                    std::printf("WDM6-CPP_G11V_VENFAC_INT8 %3d %24.16E\n",
+                                diag_k + 1,
+                                static_cast<double>(std::sqrt(Real(den0) / den_arr(i,j,k))));
+                    std::printf("WDM6-CPP_G11V_VENFAC_INT9 %3d %24.16E\n",
+                                diag_k + 1,
+                                static_cast<double>(std::sqrt(std::sqrt(Real(den0) / den_arr(i,j,k)))));
+                    std::printf("WDM6-CPP_G11V_VENFAC_INT10 %3d %24.16E\n",
+                                diag_k + 1,
+                                static_cast<double>(std::exp(std::log(wdm6_viscos(t_arr(i,j,k), den_arr(i,j,k))
+                                                   / wdm6_diffus(t_arr(i,j,k), p_arr(i,j,k)))
+                                                   * Real(0.3333333f))
+                                                   / std::sqrt(wdm6_viscos(t_arr(i,j,k), den_arr(i,j,k)))));
+                    std::printf("WDM6-CPP_G11V_VENFAC_INT11 %3d %24.16E\n",
+                                diag_k + 1,
+                                static_cast<double>(std::exp(std::log(wdm6_viscos(t_arr(i,j,k), den_arr(i,j,k))
+                                                   / wdm6_diffus(t_arr(i,j,k), p_arr(i,j,k)))
+                                                   * Real(0.3333333f))
+                                                   / std::sqrt(wdm6_viscos(t_arr(i,j,k), den_arr(i,j,k)))
+                                                   * std::sqrt(std::sqrt(Real(den0) / den_arr(i,j,k)))));
+                    std::fflush(stdout);
+                }
+#endif
                 work2_arr(i,j,k) = wdm6_venfac(p_arr(i,j,k), t_arr(i,j,k), den_arr(i,j,k), Real(den0));
+#if !defined(AMREX_USE_GPU)
+                if (i == diag_i && j == diag_j && k == diag_k) {
+                    std::printf("WDM6-CPP_G11V_VENFAC_POST %3d %24.16E\n",
+                                diag_k + 1,
+                                static_cast<double>(work2_arr(i,j,k)));
+                    std::fflush(stdout);
+                }
+#endif
             });
 
 #if !defined(AMREX_USE_GPU)

@@ -56,7 +56,7 @@ public:
     static constexpr amrex::Real dtcldcr    = amrex::Real(120.0);
     static constexpr amrex::Real n0r        = amrex::Real(8.0e6);
     static constexpr amrex::Real avtr       = amrex::Real(841.9);
-    static constexpr amrex::Real bvtr       = amrex::Real(0.8);
+    static constexpr amrex::Real bvtr       = amrex::Real(0.8f);
     static constexpr amrex::Real r0         = amrex::Real(0.8e-5);
     static constexpr amrex::Real peaut      = amrex::Real(0.55);
     static constexpr amrex::Real xncr       = amrex::Real(3.0e8);
@@ -64,7 +64,7 @@ public:
     static constexpr amrex::Real xncr1      = amrex::Real(5.0e8);
     static constexpr amrex::Real xmyu       = amrex::Real(1.718e-5);
     static constexpr amrex::Real avts       = amrex::Real(11.72);
-    static constexpr amrex::Real bvts       = amrex::Real(0.41);
+    static constexpr amrex::Real bvts       = amrex::Real(0.41f);
     static constexpr amrex::Real lamdarmax  = amrex::Real(5.0e4);
     static constexpr amrex::Real lamdarmin  = amrex::Real(2.0e3);
     static constexpr amrex::Real lamdasmax  = amrex::Real(1.0e5);

@@ -1677,7 +1677,58 @@
               'WDM6-FORT_G11V_DIFFAC_POST2', kts, &
               work1(i,k,2)
           endif
+          if (debug_local .gt. 0 .and. i_dbg_local .ge. its .and. i_dbg_local .le. ite .and. &
+              i .eq. i_dbg_local .and. k .eq. kts) then
+            write(*,'(A,1X,I3,4(1X,ES24.16E3))') &
+              'WDM6-FORT_G11V_VENFAC_PRE', kts, &
+              p(i,k), t(i,k), den(i,k), den0
+            write(*,'(A,1X,I3,1(1X,ES24.16E3))') &
+              'WDM6-FORT_G11V_VENFAC_INT0', kts, &
+              viscos(t(i,k),den(i,k))
+            write(*,'(A,1X,I3,1(1X,ES24.16E3))') &
+              'WDM6-FORT_G11V_VENFAC_INT1', kts, &
+              diffus(t(i,k),p(i,k))
+            write(*,'(A,1X,I3,1(1X,ES24.16E3))') &
+              'WDM6-FORT_G11V_VENFAC_INT2', kts, &
+              viscos(t(i,k),den(i,k))/diffus(t(i,k),p(i,k))
+            write(*,'(A,1X,I3,1(1X,ES24.16E3))') &
+              'WDM6-FORT_G11V_VENFAC_INT3', kts, &
+              log((viscos(t(i,k),den(i,k))/diffus(t(i,k),p(i,k))))
+            write(*,'(A,1X,I3,1(1X,ES24.16E3))') &
+              'WDM6-FORT_G11V_VENFAC_INT4', kts, &
+              log((viscos(t(i,k),den(i,k))/diffus(t(i,k),p(i,k))))*((.3333333))
+            write(*,'(A,1X,I3,1(1X,ES24.16E3))') &
+              'WDM6-FORT_G11V_VENFAC_INT5', kts, &
+              exp(log((viscos(t(i,k),den(i,k))/diffus(t(i,k),p(i,k))))*((.3333333)))
+            write(*,'(A,1X,I3,1(1X,ES24.16E3))') &
+              'WDM6-FORT_G11V_VENFAC_INT6', kts, &
+              sqrt(viscos(t(i,k),den(i,k)))
+            write(*,'(A,1X,I3,1(1X,ES24.16E3))') &
+              'WDM6-FORT_G11V_VENFAC_INT7', kts, &
+              den0/den(i,k)
+            write(*,'(A,1X,I3,1(1X,ES24.16E3))') &
+              'WDM6-FORT_G11V_VENFAC_INT8', kts, &
+              sqrt(den0/den(i,k))
+            write(*,'(A,1X,I3,1(1X,ES24.16E3))') &
+              'WDM6-FORT_G11V_VENFAC_INT9', kts, &
+              sqrt(sqrt(den0/den(i,k)))
+            write(*,'(A,1X,I3,1(1X,ES24.16E3))') &
+              'WDM6-FORT_G11V_VENFAC_INT10', kts, &
+              exp(log((viscos(t(i,k),den(i,k))/diffus(t(i,k),p(i,k))))*((.3333333))) &
+              /sqrt(viscos(t(i,k),den(i,k)))
+            write(*,'(A,1X,I3,1(1X,ES24.16E3))') &
+              'WDM6-FORT_G11V_VENFAC_INT11', kts, &
+              exp(log((viscos(t(i,k),den(i,k))/diffus(t(i,k),p(i,k))))*((.3333333))) &
+              /sqrt(viscos(t(i,k),den(i,k))) * sqrt(sqrt(den0/den(i,k)))
+          endif
           work2(i,k) = venfac(p(i,k),t(i,k),den(i,k))
+          if (debug_local .gt. 0 .and. i_dbg_local .ge. its .and. i_dbg_local .le. ite .and. &
+              i .eq. i_dbg_local .and. k .eq. kts) then
+            write(*,'(A,1X,I3,1(1X,ES24.16E3))') &
+              'WDM6-FORT_G11V_VENFAC_POST', kts, &
+              work2(i,k)
+            call flush(6)
+          endif
         enddo
       enddo
 

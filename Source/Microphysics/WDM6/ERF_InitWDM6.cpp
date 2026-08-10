@@ -173,13 +173,13 @@ WDM6::initialize_coeffs()
         m_n0g       = Real(4.0e4);
         m_deng      = Real(700.0);
         m_avtg      = Real(285.0);
-        m_bvtg      = Real(0.8);
+        m_bvtg      = Real(0.8f);
         m_lamdagmax = Real(2.0e4);
     } else {
         m_n0g       = Real(4.0e6);
         m_deng      = Real(500.0);
         m_avtg      = Real(330.0);
-        m_bvtg      = Real(0.8);
+        m_bvtg      = Real(0.8f);
         m_lamdagmax = Real(6.0e4);
     }
 
