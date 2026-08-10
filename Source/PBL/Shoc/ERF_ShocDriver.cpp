@@ -30,6 +30,44 @@ shoc_boxarray_spans_full_height (const BoxArray& ba, const Box& domain)
     return true;
 }
 
+void
+shoc_fill_physical_boundary_ghosts (MultiFab& mf,
+                                    const Geometry& geom,
+                                    int comp,
+                                    int ncomp)
+{
+    mf.FillBoundary(comp, ncomp, geom.periodicity());
+
+    const Box domain = geom.Domain();
+    const bool nonperiodic_x = !geom.isPeriodic(0);
+    const bool nonperiodic_y = !geom.isPeriodic(1);
+    const bool nonperiodic_z = !geom.isPeriodic(2);
+
+    for (MFIter mfi(mf, false); mfi.isValid(); ++mfi) {
+        const Box gbx = mfi.growntilebox();
+        auto data = mf.array(mfi);
+        ParallelFor(gbx, ncomp,
+                    [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept {
+            const int ii = nonperiodic_x
+                ? ((i < domain.smallEnd(0)) ? domain.smallEnd(0)
+                   : ((i > domain.bigEnd(0)) ? domain.bigEnd(0) : i))
+                : i;
+            const int jj = nonperiodic_y
+                ? ((j < domain.smallEnd(1)) ? domain.smallEnd(1)
+                   : ((j > domain.bigEnd(1)) ? domain.bigEnd(1) : j))
+                : j;
+            const int kk = nonperiodic_z
+                ? ((k < domain.smallEnd(2)) ? domain.smallEnd(2)
+                   : ((k > domain.bigEnd(2)) ? domain.bigEnd(2) : k))
+                : k;
+
+            if (ii != i || jj != j || kk != k) {
+                data(i,j,k,comp+n) = data(ii,jj,kk,comp+n);
+            }
+        });
+    }
+}
+
 namespace
 {
     constexpr int k_shoc_vertical_diff_comp = EddyDiff::Mom_v;
@@ -824,35 +862,10 @@ ShocDriver::set_eddy_diffs () const
 
     AMREX_ALWAYS_ASSERT(m_geom_ptr != nullptr);
     const Geometry& geom = *m_geom_ptr;
-    const Box domain = geom.Domain();
-    const bool nonperiodic_x = !geom.isPeriodic(0);
-    const bool nonperiodic_y = !geom.isPeriodic(1);
-    const bool nonperiodic_z = !geom.isPeriodic(2);
     const int comp = uses_host_diffusion() ? k_shoc_vertical_diff_comp : EddyDiff::Mom_v;
     const int ncomp = uses_host_diffusion() ? k_shoc_vertical_diff_count : 1;
 
-    // Match ERF's existing first-order extrapolation convention at physical
-    // boundaries after copying inter-box and periodic ghost values.
-    m_eddy_diffs_ptr->FillBoundary(comp, ncomp, geom.periodicity());
-    for (MFIter mfi(*m_eddy_diffs_ptr, false); mfi.isValid(); ++mfi) {
-        const Box vbx = mfi.validbox();
-        const Box gbx = mfi.growntilebox();
-        auto eddy = m_eddy_diffs_ptr->array(mfi);
-        ParallelFor(gbx, ncomp,
-                    [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept {
-            if ((nonperiodic_x && (i < domain.smallEnd(0) || i > domain.bigEnd(0))) ||
-                (nonperiodic_y && (j < domain.smallEnd(1) || j > domain.bigEnd(1))) ||
-                (nonperiodic_z && (k < domain.smallEnd(2) || k > domain.bigEnd(2)))) {
-                const int ii = amrex::max(vbx.smallEnd(0),
-                                          amrex::min(i, vbx.bigEnd(0)));
-                const int jj = amrex::max(vbx.smallEnd(1),
-                                          amrex::min(j, vbx.bigEnd(1)));
-                const int kk = amrex::max(vbx.smallEnd(2),
-                                          amrex::min(k, vbx.bigEnd(2)));
-                eddy(i,j,k,comp+n) = eddy(ii,jj,kk,comp+n);
-            }
-        });
-    }
+    shoc_fill_physical_boundary_ghosts(*m_eddy_diffs_ptr, geom, comp, ncomp);
 }
 
 void
