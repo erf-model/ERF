@@ -206,15 +206,18 @@ void SuperDropletPC::Recycle ( const int             a_lev,
                 // Place particle randomly in physical (x, y, z) within the
                 // user-specified bounds, then map physical z to computational
                 // zeta in the new column for storage in pos(2).
-                const Real x_new = amrex::min(amrex::max(x_min + Random(rnd_engine)*(x_max - x_min),
-                                                         gx_lo), gx_hi);
-                const Real y_new = amrex::min(amrex::max(y_min + Random(rnd_engine)*(y_max - y_min),
-                                                         gy_lo), gy_hi);
+                const Real x_new = x_min + Random(rnd_engine)*(x_max - x_min);
+                const Real y_new = y_min + Random(rnd_engine)*(y_max - y_min);
                 const Real z_new = z_min + Random(rnd_engine)*(z_max - z_min);
                 p.pos(0) = static_cast<ParticleReal>(x_new);
                 p.pos(1) = static_cast<ParticleReal>(y_new);
+                // the terrain lookup must stay inside this grid's columns; the
+                // stored position is unclamped and Redistribute moves the
+                // particle to its owning grid
+                const Real x_ter = amrex::min(amrex::max(x_new, gx_lo), gx_hi);
+                const Real y_ter = amrex::min(amrex::max(y_new, gy_lo), gy_hi);
                 p.pos(AMREX_SPACEDIM-1) = static_cast<ParticleReal>(
-                    ERF::ParticlePos::zeta_from_z(x_new, y_new, z_new,
+                    ERF::ParticlePos::zeta_from_z(x_ter, y_ter, z_new,
                                                   ctx.plo, ctx.dxi, zheight, k_max));
 
                 // Set velocities to zero

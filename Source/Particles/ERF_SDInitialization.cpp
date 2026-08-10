@@ -491,7 +491,7 @@ void SDInitProperties::getDistribution ( amrex::Vector<amrex::Real>& a_mass,
         amrex::Print() << "Initializing tail: " << a_np_tail << " particles\n";
         auto tail_mult = std::exp(-std::log(rmax/mu)*std::log(rmax/mu)/(two*sigma*sigma)) / (sigma*std::sqrt(amrex::Real(2)*PI));
         for (int n = 0; n < a_np_tail; n++) {
-            int sd_id = static_cast<int>(urd(a_rng) * a_np);
+            int sd_id = amrex::min(static_cast<int>(std::round(urd(a_rng) * a_np)), a_np-1);
             auto tmp = P_max + (one - P_max) * urd(a_rng);
             auto tmp2 = SD_erfinv(amrex::Real(2) * tmp - amrex::Real(1));
             auto dry_r = mu * std::exp(sigma * std::sqrt(amrex::Real(2)) * tmp2);

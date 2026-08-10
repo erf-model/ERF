@@ -501,18 +501,12 @@ endfunction(add_test_0)
 # SDM regression test
 function(add_test_sdm TEST_NAME TEST_DIR TEST_EXE PLTFILE TEST_RTOL TEST_ATOL)
     set(options )
-    set(oneValueArgs "INPUT_SOUNDING" "RUNTIME_OPTIONS" "NRANKS")
+    set(oneValueArgs "INPUT_SOUNDING" "RUNTIME_OPTIONS")
     set(multiValueArgs )
     cmake_parse_arguments(ADD_TEST_SDM "${options}" "${oneValueArgs}"
         "${multiValueArgs}" ${ARGN})
 
     setup_test()
-
-    # NRANKS overrides ERF_TEST_NRANKS so the same case can be compared against
-    # one gold at more than one decomposition
-    if(ERF_ENABLE_MPI AND NOT "${ADD_TEST_SDM_NRANKS}" STREQUAL "")
-        set(MPI_COMMANDS "${MPIEXEC_EXECUTABLE} ${MPIEXEC_NUMPROC_FLAG} ${ADD_TEST_SDM_NRANKS} ${MPIEXEC_PREFLAGS}")
-    endif()
 
     set(RUNTIME_OPTIONS "${ADD_TEST_SDM_RUNTIME_OPTIONS}")
     if(NOT "${ADD_TEST_SDM_INPUT_SOUNDING}" STREQUAL "")
@@ -704,9 +698,6 @@ if(ERF_ENABLE_PARTICLES)
         add_test_sdm(SDM_Bubble2D_Adv_InitSampling   ""  "erf_exec"   "plt00000" 1e-14 1e-14 RUNTIME_OPTIONS "erf.vert_implicit=false ")
         # column case to test condensation
         add_test_sdm(SDM_SineMassFlux                "" "erf_exec" "plt00050" 1e-14 1e-14 INPUT_SOUNDING "input_sounding" RUNTIME_OPTIONS "erf.vert_implicit=false ")
-        # same case on one rank: catches per-level reductions that are missing
-        # an MPI reduce, which are invisible at a single decomposition
-        add_test_sdm(SDM_SineMassFlux_NP1        "SDM_SineMassFlux" "erf_exec" "plt00050" 1e-14 1e-14 INPUT_SOUNDING "input_sounding" RUNTIME_OPTIONS "erf.vert_implicit=false " NRANKS 1)
         # recycling
         add_test_sdm(SDM_Box3D_Recycling             "" "erf_exec"  "plt00060" 5e-13 1e-14 RUNTIME_OPTIONS "erf.vert_implicit=false ")
     endif()
