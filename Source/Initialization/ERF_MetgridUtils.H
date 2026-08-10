@@ -167,14 +167,18 @@ lagrange_interp (const int& order,
 
 /**
  * Prepare interpolation stencils and apply Lagrange interpolation or extrapolation.
+ *
+ * Both orig_npts and new_npts are point counts, not last indices; valid indices
+ * into the orig_* arrays are 0 through orig_npts-1, and into the new_* arrays
+ * are 0 through new_npts-1.
  */
 AMREX_FORCE_INLINE
 AMREX_GPU_DEVICE
 void
 lagrange_setup (char var_type,
                 const bool& exp_interp,
-                const int& orig_n,
-                const int& new_n,
+                const int& orig_npts,
+                const int& new_npts,
                 const int& order,
                 const int& i,
                 const int& j,
@@ -195,7 +199,7 @@ lagrange_setup (char var_type,
     bool debug = false;
 #endif
 
-    for (int new_k=0; new_k < new_n; new_k++) {
+    for (int new_k=0; new_k < new_npts; new_k++) {
 #ifndef AMREX_USE_GPU
         if (debug) amrex::Print() << "new_k=" << new_k;
 #endif
@@ -203,7 +207,7 @@ lagrange_setup (char var_type,
         // If interpolating, find bounding x values and store the indices.
         bool extrapolating = true;
         int kl, kr;
-        for (int ko=0; ko < orig_n-1; ko++) {
+        for (int ko=0; ko < orig_npts-1; ko++) {
             amrex::Real a = new_x_z[new_k]-orig_x_z[ko];
             amrex::Real b = new_x_z[new_k]-orig_x_z[ko+1];
             if (a*b <= zero) {
@@ -234,7 +238,7 @@ lagrange_setup (char var_type,
         }
 
         if (order%2 != 0) {
-            if ((kl-((order+1)/2-1) >= 0) && (kr+((order+1)/2-1) <= orig_n-1)) {
+            if ((kl-((order+1)/2-1) >= 0) && (kr+((order+1)/2-1) <= orig_npts-1)) {
                 // Odd order interpolation.
                 int ksta = kl-(((order+1)/2)-1);
                 int kend = ksta+order;
@@ -301,7 +305,7 @@ lagrange_setup (char var_type,
                 lagrange_interp(1, orig_x_sub_p, orig_y_sub_p, new_x, new_y[new_k]);
             }
         } else if (order%2 == 0) {
-            if ((kl-(order/2) >= 0) && (kr+order/2 <= orig_n-1)) {
+            if ((kl-(order/2) >= 0) && (kr+order/2 <= orig_npts-1)) {
                 // Even order interpolation.
                 // Interpolate twice. Offset the range by 1 the 2nd time. Average the results.
                 amrex::Real new_y_l, new_y_r;
@@ -370,7 +374,7 @@ lagrange_setup (char var_type,
                     lagrange_interp(order, orig_x_sub_p, orig_y_sub_p, new_x, new_y_r);
                 }
                 new_y[new_k] = myhalf*(new_y_l+new_y_r);
-            } else if ((kl-(order/2-1) >= 0) && (kr+order/2 <= orig_n-1)) {
+            } else if ((kl-(order/2-1) >= 0) && (kr+order/2 <= orig_npts-1)) {
                 int ksta = kl-(order/2-1);
                 int kend = ksta+order;
 #ifndef AMREX_USE_GPU
@@ -401,7 +405,7 @@ lagrange_setup (char var_type,
                 }
 #endif
                 lagrange_interp(order, orig_x_sub_p, orig_y_sub_p, new_x, new_y[new_k]);
-            } else if ((kl-order/2 >= 0) && (kr+order/2-1 <= orig_n-1)) {
+            } else if ((kl-order/2 >= 0) && (kr+order/2-1 <= orig_npts-1)) {
                 int ksta = kl-order/2;
                 int kend = ksta+order;
 #ifndef AMREX_USE_GPU
@@ -741,8 +745,9 @@ interpolate_column_metgrid (const bool& metgrid_use_below_sfc,
         calc_p_isothermal(ordered_z_p[k], ordered_p_p[k]);
     }
 
-    int new_n = 0;
-    int zap_final = 0;
+    // kfinal is the index of the topmost level retained in the final_*
+    // arrays, so those arrays hold kfinal+1 points.
+    int kfinal = 0;
     amrex::GpuArray<amrex::Real,256> final_z;
     amrex::GpuArray<amrex::Real,256> final_p;
     amrex::GpuArray<amrex::Real,256> final_data;
@@ -753,21 +758,18 @@ interpolate_column_metgrid (const bool& metgrid_use_below_sfc,
     final_p_p[0] = ordered_p[ksta];
     final_data_p[0] = ordered_data[ksta];
     for (int k=ksta+1; k <= kend; k++) {
-        if ((final_p_p[new_n]-ordered_p_p[k]) < metgrid_proximity) {
-            zap_final++;
-        } else {
-            new_n++;
-            final_z_p[new_n] = ordered_z_p[k];
-            final_p_p[new_n] = ordered_p_p[k];
-            final_data_p[new_n] = ordered_data_p[k];
-        }
+        // Skip levels that are "too close" to the prior retained level.
+        if ((final_p_p[kfinal]-ordered_p_p[k]) < metgrid_proximity) continue;
+        kfinal++;
+        final_z_p[kfinal] = ordered_z_p[k];
+        final_p_p[kfinal] = ordered_p_p[k];
+        final_data_p[kfinal] = ordered_data_p[k];
     }
-    kend -= zap_final;
 
     // Call the interpolator.
     lagrange_setup(var_type,
                    exp_interp,
-                   kend-ksta,
+                   kfinal+1,
                    kmax_new,
                    metgrid_order,
                    i,
