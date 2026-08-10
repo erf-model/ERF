@@ -18,27 +18,20 @@ This document tracks the development of the two-stream radiation model through p
 | **2** | Real Per-Column Two-Stream Radiation | ✅ Complete | #283 | Per-column vertical integration, actual grid bounds, GPU-safe kernel | Moderate | `SW_ClearSky_Analytical`, `LW_Isothermal` |
 | **3** | Cloud Optical Properties | ✅ Complete | N/A (manual) | Height-varying cloud-layer optical depth, cloud fraction masking | Easy | `SW_Cloud_Layer` (+ Phase 1–2 regressions) |
 | **4** | Scattering Effects | ✅ Complete | Merged | Diffuse SW scattering via Meador-Weaver two-stream approximation | Moderate | `SW_Scattering_Cloud` (+ Phase 1–3 regressions) |
-| **5** | RhoTheta Coupling | ✅ Complete | N/A (manual) | Per-level SW/LW heating written to `qheating_rates` and injected into `RhoTheta` | Moderate | `Phase5_RhoTheta_Coupling` (+ Phase 1–4 regr[...]
-| **6** | Time-Stepping Integration | ✅ Complete | TBD | TwoStream call-cadence and temporal consistency with slow-step/source application + call_site diagnostics | Moderate | `Phase6_TimeIntegratio[...]
+| **5** | RhoTheta Coupling | ✅ Complete | N/A (manual) | Per-level SW/LW heating written to `qheating_rates` and injected into `RhoTheta` | Moderate | `Phase5_RhoTheta_Coupling` (+ Phase 1–4 regressions) |
+| **6** | Time-Stepping Integration | ✅ Complete | TBD | TwoStream call-cadence and temporal consistency with slow-step/source application + call_site diagnostics | Moderate | `Phase6_TimeIntegration` |
 | **7** | TwoStream Runtime Diagnostics Controls | ✅ Complete | TBD | Runtime diagnostics controls (mode/streams/schema toggles), no physics change | Easy | `TwoStream_DiagControls` |
 | **8** | Validation & Benchmarking | ✅ Complete | TBD | Canonical benchmark suite + automated metric checks | Moderate | `Radiation_Benchmark_Suite` |
 | **9** | TwoStream Integration Polish I | ✅ Complete | TBD | Cadence/de-dup hardening + nonuniform-`dz` heating framework + finite guards | Easy | `TwoStream_Cadence_NonuniformDZ` |
-| **10** | True Nonuniform `dz(k)` Wiring | ✅ Complete | TBD | Wire per-level `dz(k)` from physical vertical geometry (`z_phys_cc`) with uniform fallback retained | Moderate | `TwoStream_NonuniformD[...]
-| **11** | Surface Heterogeneity + Fallback (Albedo/Emissivity/`t_sfc`) | ✅ Complete | TBD | TwoStream consumes per-column LSM/Radiation surface fields with robust fallback path | Moderate | `TwoStr[...]
+| **10** | True Nonuniform `dz(k)` Wiring | ✅ Complete | TBD | Wire per-level `dz(k)` from physical vertical geometry (`z_phys_cc`) with uniform fallback retained | Moderate | `TwoStream_NonuniformDZ` |
+| **11** | Surface Heterogeneity + Fallback (Albedo/Emissivity/`t_sfc`) | ✅ Complete | TBD | TwoStream consumes per-column LSM/Radiation surface fields with robust fallback path | Moderate | `TwoStream_SurfaceHeterogeneity` |
 | **12** | Moisture/Cloud-Aware Dynamic Optical Depth | ✅ Complete | TBD | Diagnose SW/LW `tau(k)` from `qv`, `qc`, `rho`, `dz` with safe fallback | Moderate | `TwoStream_DynamicTau_MoistCloud` |
 | **13** | PBL Coupling Focus (YSUNew-only) | ✅ Complete | TBD | YSUNew radiative tendency smoothing/limiter + diagnostic hooks; MRF deferred | Moderate | `TwoStream_PBL_MRF_YSU_Coupling` |
 | **14** | Prognostic Cloud Fraction for Radiation | ✅ Complete | TBD | RH/`qc`-based diagnosed cloud fraction with bounds and temporal smoothing | Easy–Moderate | `TwoStream_ProgCloudFraction` |
 | **14A** | LSM Surface Properties Wiring + TwoStream Bugfixes | ✅ Complete | TBD | Wire LSM surface fields (albedo/emissivity/t_sfc) into TwoStream with standalone fallback MultiFabs; fix cloudy-column dead call; fix pre_dycore time arg | Easy–Moderate | `TwoStream_ProgCloudFraction` (extended) |
 | **15** | Bulk Aerosol/Turbidity Option | ✅ Complete | N/A | Prescribed aerosol optical-depth profile (constant/exponential/table), optional LW hook | Easy–Moderate | `TwoStream_Aerosol_Turbidity` |
-| **16** | Time-Varying Solar Geometry | ✅ Complete | TBD | Solar zenith evolution with time/lat/day; fixed-angle fallback retained | Easy | `TwoStream_DiurnalSolarGeometry` |
-| **17** | Simplified Surface Energy Balance (SEB) — Diagnostic Mode | ⏳ Planned (Active) | TBD | Compute/report SEB residual terms from TwoStream + surface inputs (no prognostic `T_s` update) | Moderate | `TwoStream_SEB_Diagnostic` |
-| **18** | Simplified SEB — Prognostic `T_s` Mode | ⏳ Planned (Active) | TBD | Optional explicit `T_s` tendency update with limiter/clamps and fallback-safe behavior | Moderate | `TwoStream_SEB_PrognosticTs` |
-| **19** | SEB Coupling Safeguards (Noah-MP/SurfaceLayer Interop) | ⏳ Planned (Active) | TBD | Anti-double-count rules and precedence guards for `T_s`, `H`, `LE`, and radiative terms | Moderate | `TwoStream_SEB_InteropGuards` |
-| **20** | SEB Validation & Benchmark Suite | ⏳ Planned (Active) | TBD | Canonical SEB closure/stability tests, tolerances, and CI-ready reports | Moderate | `TwoStream_SEB_BenchmarkSuite` |
-| **14A** | LSM Surface Properties Wiring + TwoStream Bugfixes | ✅ Complete | TBD | Wire LSM surface fields (albedo/emissivity/t_sfc) into TwoStream with standalone fallback MultiFabs; fix cloudy-co[...]
-| **15** | Bulk Aerosol/Turbidity Option | ✅ Complete | N/A | Prescribed aerosol optical-depth profile (constant/exponential/table), optional LW hook | Easy–Moderate | `TwoStream_Aerosol_Turbidity[...]
-| **16** | Time-Varying Solar Geometry | ⏳ Planned (Active) | TBD | Solar zenith evolution with time/lat/day; fixed-angle fallback retained | Easy | `TwoStream_DiurnalSolarGeometry` |
-| **17** | Simplified SEB — MultiFab Infrastructure + Noah-MP Passthrough | ⏳ Planned (Active) | TBD | Create all SEB-related MultiFabs (albedo, emissivity, SW, LW, sensible heat, latent heat, ground heat flux, ground/surface temperature, ground/surface moisture, deep soil temperature, deep soil moisture); wire logic to copy values from Noah-MP when active; simplified/standalone SEB computation deferred to Phase 18 | Moderate | `TwoStream_SEB_MultiFabInfra` |
+| **16** | Time-Varying Solar Geometry | ✅ Complete | PR #PHASE16_PLACEHOLDER | Solar zenith evolution with time/lat/day; fixed-angle fallback retained | Easy | `TwoStream_DiurnalSolarGeometry` |
+| **17** | Simplified SEB — MultiFab Infrastructure + Noah-MP Passthrough | ✅ Complete | PR #PHASE17_PLACEHOLDER | Create SEB MultiFabs, reuse existing surface-property fallbacks, and wire Noah-MP/LSM passthrough with scalar defaults | Moderate | `TwoStream_SEB_MultiFabInfra` |
 | **18** | Simplified SEB — Diagnostic Mode | ⏳ Planned (Active) | TBD | Compute/report SEB residual terms from TwoStream + surface inputs using Phase 17 MultiFabs (no prognostic `T_s` update) | Moderate | `TwoStream_SEB_Diagnostic` |
 | **19** | Simplified SEB — Prognostic Mode | ⏳ Planned (Active) | TBD | Optional explicit `T_s` (and surface moisture) tendency update with limiter/clamps and fallback-safe behavior | Moderate | `TwoStream_SEB_Prognostic` |
 | **20** | SEB Coupling Safeguards (Noah-MP/SurfaceLayer Interop) | ⏳ Planned (Active) | TBD | Anti-double-count rules and precedence guards for `T_s`, `H`, `LE`, and radiative terms between simplified SEB and Noah-MP/SurfaceLayer | Moderate | `TwoStream_SEB_CouplingSafeguards` |
@@ -49,11 +42,11 @@ This document tracks the development of the two-stream radiation model through p
 
 ## Phase 17 Implementation (Simplified SEB — MultiFab Infrastructure + Noah-MP Passthrough)
 
-**Status**: ⏳ Planned (Active) — not yet implemented  
-**Scope**: TwoStream radiation + new SEB surface-field infrastructure; Noah-MP passthrough wiring; no new standalone SEB physics computation yet  
-**Key Feature**: Allocate all MultiFabs required for simplified Surface Energy Balance, and wire precedence logic so that when Noah-MP (or another active LSM) provides a field, its value is copied/used; otherwise the field is populated by a placeholder/fallback pending the real simplified SEB solver in Phase 18.
+**Status**: ✅ Complete (as of 2026-08-10)  
+**Scope**: TwoStream radiation + SEB surface-field infrastructure; Noah-MP passthrough wiring; no standalone SEB physics computation yet  
+**Key Feature**: Allocate the SEB-supporting MultiFabs, reuse existing TwoStream fallback surface-property MultiFabs where appropriate, and populate all SEB fields each radiation step from Noah-MP/LSM data when available or scalar defaults otherwise.
 
-### Planned Fields (per-level 2D MultiFabs, following the `twostream_alb_sw`/`ba2d[lev]` pattern from Phase 14A)
+### Implemented Fields (per-level 2D MultiFabs, following the `twostream_alb_sw`/`ba2d[lev]` pattern from Phase 14A)
 
 1. `sfc_alb_sw` — surface shortwave albedo
 2. `sfc_emis_lw` — surface longwave emissivity
@@ -67,7 +60,7 @@ This document tracks the development of the two-stream radiation model through p
 10. `t_deep` — deep soil temperature (force-restore reservoir)
 11. `q_deep` — deep soil moisture (force-restore reservoir; optional/deferred activation, see below)
 
-### Technical Design (planned)
+### Technical Design
 
 1. **Allocation**: All fields allocated in `ERF_MakeNewArrays.cpp`, same step/pattern as `qheating_rates`/`twostream_alb_sw`, gated on `solverChoice.radChoice.rad_type == RadType::TwoStream` and a new master switch (see below). Vector members added to `ERF.H` and resized in `ERF_Constructors.cpp::ERF_shared()` (per the Phase 14B lesson — resize immediately alongside existing `twostream_*` vectors to avoid the same undefined-behavior bug).
 
@@ -75,7 +68,7 @@ This document tracks the development of the two-stream radiation model through p
    - If Noah-MP (or other active LSM) exposes a corresponding named field (e.g., `hfx3`, `q1fx3`/latent heat equivalent, `grdflx`, `tg`/`t_sfc`, soil moisture/temperature layers), copy/reference that value into the corresponding SEB MultiFab each step, using `lsm.Get_DataIdx()` / `lsm.Get_Data_Ptr()` as in Phase 14A.
    - If no LSM is active, or a specific field is unavailable, fall back to a constant-filled placeholder (from new `RadChoice` scalar defaults), matching the Phase 14A standalone-MultiFab fallback pattern. No new physics is computed yet in Phase 17 — this phase is infrastructure + passthrough only.
 
-3. **New RadChoice parameters (planned)**:
+3. **New RadChoice parameters**:
    - `seb_enable` [bool]: master switch for allocating/using SEB infrastructure; default `false` (fully backward compatible, no new MultiFabs allocated when off).
    - Scalar fallback defaults for each new field (e.g., `seb_hfx_default`, `seb_lh_default`, `seb_grdflx_default`, `seb_q_sfc_default`, `seb_t_deep_default`, `seb_q_deep_default`), all validated/clamped in `init_params()`.
 
@@ -95,6 +88,22 @@ This document tracks the development of the two-stream radiation model through p
 - Prognostic `T_s` (and surface moisture) update: **Phase 19**.
 - Anti-double-count precedence/coupling safeguards vs. Noah-MP/SurfaceLayer: **Phase 20**.
 - Full validation/benchmark suite: deferred/deprioritized (see roadmap note above).
+
+---
+
+
+### Verification & Validation Checklist
+
+- [x] Added `seb_enable` and all scalar SEB fallback parameters to `RadChoice`
+- [x] Added validation/clamping for all new Phase 17 parameters in `init_params()`
+- [x] Reused existing `twostream_alb_sw`, `twostream_emiss_lw`, and `twostream_t_sfc` MultiFabs for SEB surface albedo/emissivity/temperature storage
+- [x] Added new 2D MultiFab vectors for `sw_flux_sfc`, `lw_flux_sfc`, `hfx_sfc`, `lh_sfc`, `grdflx_sfc`, `q_sfc`, `t_deep`, and `q_deep`
+- [x] Allocated SEB MultiFabs only when `rad_type == TwoStream` and `seb_enable == true`
+- [x] Resized all new vectors in `ERF_shared()` immediately alongside existing `twostream_*` vectors
+- [x] Wired Noah-MP/LSM passthrough precedence with `lsm.Get_DataIdx()` / `lsm.Get_Data_Ptr()` and constant fallback fill
+- [x] Preserved backward compatibility: `seb_enable = false` leaves existing behavior unchanged
+- [x] Added `TwoStream_SEB_MultiFabInfra` regtest inputs and validation script
+- [x] Updated roadmap/documentation for Phase 17 completion
 
 ---
 
@@ -164,6 +173,10 @@ Phase 16 extends TwoStream to compute solar zenith angle dynamically from simula
 | `day_of_year` | real | 172.0 | [1, 366] | 16 | Reference day-of-year at sim start (summer solstice default) |
 | `time_zone_offset_hours` | real | 0.0 | unconstrained | 16 | Time zone offset from UTC (hours); ensures finite |
 
+#### Longitude/time-zone bug fix
+
+- `compute_solar_hour_angle()` now applies longitude correction using only the deviation from the local standard meridian: `(longitude_deg - 15*time_zone_offset_hours)/15`, instead of the incorrect full-`longitude_deg/15` offset. This fixes the hour-angle bias for non-UTC sites while preserving the static-angle fallback path.
+
 #### Backward Compatibility
 
 - **Disabled by default**: `solar_geometry_dynamic_enable=false` preserves Phase 15 behavior exactly
@@ -226,9 +239,9 @@ Located at `Exec/CanonicalTests/Radiation/TwoStream_DiurnalSolarGeometry/`, with
 
 #### Future Extensions
 
-- **Building/urban-canopy shadowing** (deferred to Phase 18+): azimuth output from this phase is preparatory infrastructure only
+- **Building/urban-canopy shadowing** (deferred to later work): azimuth output from Phase 16 is preparatory infrastructure only
 - **Multi-band solar geometry** (deferred): current implementation assumes broadband solar constant `S0`; future work may extend to per-band declination corrections
-- **Simplified Surface Energy Balance** (Phases 17–19, unaffected by this work): SEB fluxes will use dynamic `cos_zenith` when enabled, naturally improving surface temperature feedback
+- **Simplified Surface Energy Balance** (Phases 18–20): Phase 17 now provides the infrastructure used by later SEB phases
 
 #### Verification & Validation Checklist
 
@@ -245,6 +258,7 @@ Located at `Exec/CanonicalTests/Radiation/TwoStream_DiurnalSolarGeometry/`, with
 - [x] Code builds cleanly with existing CMake (no new dependencies)
 - [x] Existing RegTests continue to pass when feature is disabled (default)
 - [x] New RegTest validates both backward-compat and feature-on behavior
+- [x] Hour-angle longitude/time-zone bug fix documented: `compute_solar_hour_angle()` now uses `(longitude_deg - 15*time_zone_offset_hours)/15` so solar-time correction uses deviation from the standard meridian rather than full longitude
 
 ---
 

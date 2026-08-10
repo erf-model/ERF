@@ -275,6 +275,52 @@ public:
   amrex::Real surface_temp_k = 300.0;
 
   /**
+   * @brief (Phase 17) Master switch for simplified SEB infrastructure.
+   * When false (default), no SEB MultiFabs are allocated and behavior is unchanged.
+   */
+  bool seb_enable = false;
+
+  /**
+   * @brief (Phase 17) Fallback SEB surface net shortwave flux [W/m^2].
+   */
+  amrex::Real seb_sw_flux_default = 0.0;
+
+  /**
+   * @brief (Phase 17) Fallback SEB surface net longwave flux [W/m^2].
+   */
+  amrex::Real seb_lw_flux_default = 0.0;
+
+  /**
+   * @brief (Phase 17) Fallback SEB sensible heat flux [W/m^2].
+   */
+  amrex::Real seb_hfx_default = 0.0;
+
+  /**
+   * @brief (Phase 17) Fallback SEB latent heat flux [W/m^2].
+   */
+  amrex::Real seb_lh_default = 0.0;
+
+  /**
+   * @brief (Phase 17) Fallback SEB ground heat flux [W/m^2].
+   */
+  amrex::Real seb_grdflx_default = 0.0;
+
+  /**
+   * @brief (Phase 17) Fallback SEB surface moisture [kg/kg].
+   */
+  amrex::Real seb_q_sfc_default = 0.0;
+
+  /**
+   * @brief (Phase 17) Fallback SEB deep soil temperature [K].
+   */
+  amrex::Real seb_t_deep_default = 300.0;
+
+  /**
+   * @brief (Phase 17) Fallback SEB deep soil moisture [kg/kg].
+   */
+  amrex::Real seb_q_deep_default = 0.0;
+
+  /**
    * @brief (Phase 12) Enable dynamic shortwave optical depth diagnosis from moisture/clouds.
    * When true, SW optical depth is computed per-level from qv and qc.
    * When false (default), uses static tau_per_layer (Phase 11 behavior).
@@ -700,6 +746,34 @@ public:
 
       // Time zone offset: no strict bounds, but ensure finite
       if (!std::isfinite(time_zone_offset_hours)) time_zone_offset_hours = 0.0;
+
+      // Phase 17: simplified SEB infrastructure fallback parameters
+      pp.query("radiation.seb_enable", seb_enable);
+      pp.query("radiation.seb_sw_flux_default", seb_sw_flux_default);
+      pp.query("radiation.seb_lw_flux_default", seb_lw_flux_default);
+      pp.query("radiation.seb_hfx_default", seb_hfx_default);
+      pp.query("radiation.seb_lh_default", seb_lh_default);
+      pp.query("radiation.seb_grdflx_default", seb_grdflx_default);
+      pp.query("radiation.seb_q_sfc_default", seb_q_sfc_default);
+      pp.query("radiation.seb_t_deep_default", seb_t_deep_default);
+      pp.query("radiation.seb_q_deep_default", seb_q_deep_default);
+
+      if (!std::isfinite(seb_sw_flux_default)) seb_sw_flux_default = 0.0;
+      if (!std::isfinite(seb_lw_flux_default)) seb_lw_flux_default = 0.0;
+      if (!std::isfinite(seb_hfx_default)) seb_hfx_default = 0.0;
+      if (!std::isfinite(seb_lh_default)) seb_lh_default = 0.0;
+      if (!std::isfinite(seb_grdflx_default)) seb_grdflx_default = 0.0;
+      if (!std::isfinite(seb_q_sfc_default)) seb_q_sfc_default = 0.0;
+      if (!std::isfinite(seb_t_deep_default) || seb_t_deep_default <= 0.0) seb_t_deep_default = 300.0;
+      if (!std::isfinite(seb_q_deep_default)) seb_q_deep_default = 0.0;
+
+      seb_sw_flux_default = amrex::max(amrex::Real(-2000.0), amrex::min(amrex::Real(2000.0), seb_sw_flux_default));
+      seb_lw_flux_default = amrex::max(amrex::Real(-2000.0), amrex::min(amrex::Real(2000.0), seb_lw_flux_default));
+      seb_hfx_default = amrex::max(amrex::Real(-2000.0), amrex::min(amrex::Real(2000.0), seb_hfx_default));
+      seb_lh_default = amrex::max(amrex::Real(-2000.0), amrex::min(amrex::Real(2000.0), seb_lh_default));
+      seb_grdflx_default = amrex::max(amrex::Real(-2000.0), amrex::min(amrex::Real(2000.0), seb_grdflx_default));
+      seb_q_sfc_default = amrex::max(amrex::Real(0.0), amrex::min(amrex::Real(1.0), seb_q_sfc_default));
+      seb_q_deep_default = amrex::max(amrex::Real(0.0), amrex::min(amrex::Real(1.0), seb_q_deep_default));
   }
 
 }

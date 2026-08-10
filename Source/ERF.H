@@ -1008,9 +1008,17 @@ private:
     // Phase 14A: Standalone 2D MultiFabs for TwoStream fallback surface properties when no LSM is active
     // These are allocated and constant-filled from RadChoice scalar defaults when TwoStream is enabled and no LSM is available.
     // When LSM is active, the per-column LSM fields take precedence via the resolution chain in resolve_surface_*() helpers.
-    amrex::Vector<std::unique_ptr<amrex::MultiFab>> twostream_alb_sw;      // SW albedo fallback (2D: i,j)
-    amrex::Vector<std::unique_ptr<amrex::MultiFab>> twostream_emiss_lw;    // LW emissivity fallback (2D: i,j)
-    amrex::Vector<std::unique_ptr<amrex::MultiFab>> twostream_t_sfc;       // surface temperature fallback (2D: i,j)
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> twostream_alb_sw;      // SW albedo fallback / SEB sfc_alb_sw (2D: i,j)
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> twostream_emiss_lw;    // LW emissivity fallback / SEB sfc_emis_lw (2D: i,j)
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> twostream_t_sfc;       // surface temperature fallback / SEB t_sfc (2D: i,j)
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> sw_flux_sfc;           // SEB net shortwave flux at surface (2D: i,j)
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> lw_flux_sfc;           // SEB net longwave flux at surface (2D: i,j)
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> hfx_sfc;               // SEB sensible heat flux (2D: i,j)
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> lh_sfc;                // SEB latent heat flux (2D: i,j)
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> grdflx_sfc;            // SEB ground heat flux (2D: i,j)
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> q_sfc;                 // SEB surface moisture (2D: i,j)
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> t_deep;                // SEB deep soil temperature (2D: i,j)
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> q_deep;                // SEB deep soil moisture (2D: i,j)
     
 #ifdef ERF_USE_EAMXX_SHOC
     amrex::Vector<std::unique_ptr<SHOCInterface>> eamxx_shoc_interface; // EAMxx SHOC model at each level
