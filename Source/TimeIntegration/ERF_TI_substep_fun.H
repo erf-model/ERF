@@ -9,7 +9,7 @@ auto acoustic_substepping_fun = [&,one_d=one,zero_d=zero](int fast_step, int n_s
                                     Vector<MultiFab>& S_stage,
                                     Vector<MultiFab>& S_data,
                                     const double dtau,
-                                    const double slow_dt,
+                                    const double /*slow_dt*/, // MRI's full timestep: use n_sub*dtau for this stage
                                     const Real inv_fac,
                                     const double old_substep_time,
                                     const double new_substep_time)
@@ -168,9 +168,12 @@ auto acoustic_substepping_fun = [&,one_d=one,zero_d=zero](int fast_step, int n_s
         // Even if we update all the conserved variables we don't need
         // to fillpatch the slow ones every acoustic substep
 
-        if ( (solverChoice.vert_implicit_fac[level][nrk] > zero_d) && !solverChoice.implicit_before_substep &&
+        if ( (solverChoice.vert_implicit_fac[level][nrk] > zero_d) &&
+             !solverChoice.implicit_before_substep                 &&
              (fast_step == n_sub-1) )
         {
+            // The interval actually advanced by this RK stage -- NOT the full MRI timestep
+            const Real stage_dt = static_cast<Real>(n_sub * dtau);
             MultiFab scratch(S_data[IntVars::cons], make_alias, 0, 2);
             MultiFab scratch_xmom(S_data[IntVars::xmom], make_alias, 0, 1);
             MultiFab scratch_ymom(S_data[IntVars::ymom], make_alias, 0, 1);

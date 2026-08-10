@@ -197,13 +197,12 @@
                          cloud_chamber_config.active ? &cloud_chamber_config : nullptr,
                          cloud_chamber_budget.get());
 
-        Real sdt = static_cast<Real>(slow_dt);
-
         if ((solverChoice.vert_implicit_fac[level][nrk] > zero_d) && solverChoice.implicit_before_substep) {
+            const Real stage_dt = static_cast<Real>(slow_dt);
             MultiFab scratch(S_data[IntVars::cons].boxArray(),S_data[IntVars::cons].DistributionMap(), 2,
                              S_data[IntVars::cons].nGrowVect());
             MultiFab::Copy(scratch, S_old[IntVars::cons], 0, 0, 2, S_data[IntVars::cons].nGrowVect()); // scratch := S_old               (for rho, rhotheta)
-            MultiFab::Saxpy(scratch, sdt, S_rhs[IntVars::cons], 0, 0, 2, 0);                       // scratch := S_old + slow_dt*Src (for rho, rhotheta)
+            MultiFab::Saxpy(scratch, stage_dt, S_rhs[IntVars::cons], 0, 0, 2, 0);                  // scratch := S_old + stage_dt*Src (for rho, rhotheta)
             scratch.FillBoundary(geom[level].periodicity());
 
             MultiFab scratch_xmom(S_data[IntVars::xmom].boxArray(),
@@ -219,15 +218,15 @@
 #endif
             if (solverChoice.implicit_momentum_diffusion) {
                 MultiFab::Copy(scratch_xmom, S_old[IntVars::xmom], 0, 0, 1,  S_data[IntVars::xmom].nGrowVect()); // scratch := S_old
-                MultiFab::Saxpy(scratch_xmom, sdt, S_rhs[IntVars::xmom], 0, 0, 1, 0);                        // scratch := S_old + slow_dt*Src
+                MultiFab::Saxpy(scratch_xmom, stage_dt, S_rhs[IntVars::xmom], 0, 0, 1, 0);                   // scratch := S_old + stage_dt*Src
                 scratch_xmom.FillBoundary(geom[level].periodicity());
 
                 MultiFab::Copy(scratch_ymom, S_old[IntVars::ymom], 0, 0, 1,  S_data[IntVars::ymom].nGrowVect()); // scratch := S_old
-                MultiFab::Saxpy(scratch_ymom, sdt, S_rhs[IntVars::ymom], 0, 0, 1, 0);                        // scratch := S_old + slow_dt*Src
+                MultiFab::Saxpy(scratch_ymom, stage_dt, S_rhs[IntVars::ymom], 0, 0, 1, 0);                   // scratch := S_old + stage_dt*Src
                 scratch_ymom.FillBoundary(geom[level].periodicity());
 #ifdef ERF_IMPLICIT_W
                 MultiFab::Copy(scratch_zmom, S_old[IntVars::zmom], 0, 0, 1,  S_data[IntVars::zmom].nGrowVect()); // scratch := S_old
-                MultiFab::Saxpy(scratch_zmom, sdt, S_rhs[IntVars::zmom], 0, 0, 1, 0);                        // scratch := S_old + slow_dt*Src
+                MultiFab::Saxpy(scratch_zmom, stage_dt, S_rhs[IntVars::zmom], 0, 0, 1, 0);                   // scratch := S_old + stage_dt*Src
                 scratch_zmom.FillBoundary(geom[level].periodicity());
 #endif
             }
@@ -235,21 +234,21 @@
 #include "ERF_ImplicitPre.H"
 
             MultiFab::Saxpy(scratch, -one_d, S_old[IntVars::cons], 1, 1, 1, 0); // scratch  := (S_new - S_old)           (for rhotheta only)
-            scratch.mult(one_d / sdt);                                      // scratch  := (S_new - S_old) / slow_dt
-            MultiFab::Copy(S_rhs[IntVars::cons], scratch, 1, 1, 1, 0);        // slow_rhs := (S_new - S_old) / slow_dt (for rhotheta only)
+            scratch.mult(one_d / stage_dt);                                 // scratch  := (S_new - S_old) / stage_dt
+            MultiFab::Copy(S_rhs[IntVars::cons], scratch, 1, 1, 1, 0);        // slow_rhs := (S_new - S_old) / stage_dt (for rhotheta only)
 
             if (solverChoice.implicit_momentum_diffusion) {
                 MultiFab::Saxpy(scratch_xmom, -one_d, S_old[IntVars::xmom], 0, 0, 1, 0); // scratch  := (S_new - S_old)
-                scratch_xmom.mult(one_d / sdt);                                      // scratch  := (S_new - S_old) / slow_dt
-                MultiFab::Copy(S_rhs[IntVars::xmom], scratch_xmom, 0, 0, 1, 0);        // slow_rhs := (S_new - S_old) / slow_dt
+                scratch_xmom.mult(one_d / stage_dt);                                 // scratch  := (S_new - S_old) / stage_dt
+                MultiFab::Copy(S_rhs[IntVars::xmom], scratch_xmom, 0, 0, 1, 0);        // slow_rhs := (S_new - S_old) / stage_dt
 
                 MultiFab::Saxpy(scratch_ymom, -one_d, S_old[IntVars::ymom], 0, 0, 1, 0); // scratch  := (S_new - S_old)
-                scratch_ymom.mult(one_d / sdt);                                      // scratch  := (S_new - S_old) / slow_dt
-                MultiFab::Copy(S_rhs[IntVars::ymom], scratch_ymom, 0, 0, 1, 0);        // slow_rhs := (S_new - S_old) / slow_dt
+                scratch_ymom.mult(one_d / stage_dt);                                 // scratch  := (S_new - S_old) / stage_dt
+                MultiFab::Copy(S_rhs[IntVars::ymom], scratch_ymom, 0, 0, 1, 0);        // slow_rhs := (S_new - S_old) / stage_dt
 #ifdef ERF_IMPLICIT_W
                 MultiFab::Saxpy(scratch_zmom, -one_d, S_old[IntVars::zmom], 0, 0, 1, 0); // scratch  := (S_new - S_old)
-                scratch_zmom.mult(one_d / sdt);                                      // scratch  := (S_new - S_old) / slow_dt
-                MultiFab::Copy(S_rhs[IntVars::zmom], scratch_zmom, 0, 0, 1, 0);        // slow_rhs := (S_new - S_old) / slow_dt
+                scratch_zmom.mult(one_d / stage_dt);                                 // scratch  := (S_new - S_old) / stage_dt
+                MultiFab::Copy(S_rhs[IntVars::zmom], scratch_zmom, 0, 0, 1, 0);        // slow_rhs := (S_new - S_old) / stage_dt
 #endif
             }
         }
