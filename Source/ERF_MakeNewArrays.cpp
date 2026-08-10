@@ -486,11 +486,32 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
        twostream_alb_sw[lev]   = std::make_unique<MultiFab>(ba2d[lev], dm, 1, 0);
        twostream_emiss_lw[lev] = std::make_unique<MultiFab>(ba2d[lev], dm, 1, 0);
        twostream_t_sfc[lev]    = std::make_unique<MultiFab>(ba2d[lev], dm, 1, 0);
-        
+
        // Initialize from RadChoice scalar defaults (constant-filled)
        twostream_alb_sw[lev]->setVal(solverChoice.radChoice.surface_albedo_sw);
        twostream_emiss_lw[lev]->setVal(solverChoice.radChoice.surface_emissivity_lw);
        twostream_t_sfc[lev]->setVal(solverChoice.radChoice.surface_temp_k);
+
+       if (solverChoice.radChoice.seb_enable)
+       {
+           sw_flux_sfc[lev] = std::make_unique<MultiFab>(ba2d[lev], dm, 1, 0);
+           lw_flux_sfc[lev] = std::make_unique<MultiFab>(ba2d[lev], dm, 1, 0);
+           hfx_sfc[lev]     = std::make_unique<MultiFab>(ba2d[lev], dm, 1, 0);
+           lh_sfc[lev]      = std::make_unique<MultiFab>(ba2d[lev], dm, 1, 0);
+           grdflx_sfc[lev]  = std::make_unique<MultiFab>(ba2d[lev], dm, 1, 0);
+           q_sfc[lev]       = std::make_unique<MultiFab>(ba2d[lev], dm, 1, 0);
+           t_deep[lev]      = std::make_unique<MultiFab>(ba2d[lev], dm, 1, 0);
+           q_deep[lev]      = std::make_unique<MultiFab>(ba2d[lev], dm, 1, 0);
+
+           sw_flux_sfc[lev]->setVal(solverChoice.radChoice.seb_sw_flux_default);
+           lw_flux_sfc[lev]->setVal(solverChoice.radChoice.seb_lw_flux_default);
+           hfx_sfc[lev]->setVal(solverChoice.radChoice.seb_hfx_default);
+           lh_sfc[lev]->setVal(solverChoice.radChoice.seb_lh_default);
+           grdflx_sfc[lev]->setVal(solverChoice.radChoice.seb_grdflx_default);
+           q_sfc[lev]->setVal(solverChoice.radChoice.seb_q_sfc_default);
+           t_deep[lev]->setVal(solverChoice.radChoice.seb_t_deep_default);
+           q_deep[lev]->setVal(solverChoice.radChoice.seb_q_deep_default);
+       }
     }
 
     //*********************************************************

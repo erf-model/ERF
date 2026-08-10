@@ -14,6 +14,29 @@
 
 using namespace amrex;
 
+
+namespace {
+void fill_or_copy_seb_field(
+    MultiFab* seb_mf,
+    LandSurface& lsm,
+    int lev,
+    const char* field_name,
+    amrex::Real fallback_value)
+{
+    if (seb_mf == nullptr) return;
+
+    std::string varname(field_name);
+    int lsm_idx = lsm.Get_DataIdx(lev, varname);
+    if (lsm_idx >= 0) {
+        if (MultiFab* lsm_ptr = lsm.Get_Data_Ptr(lev, lsm_idx)) {
+            MultiFab::Copy(*seb_mf, *lsm_ptr, 0, 0, 1, 0);
+            return;
+        }
+    }
+    seb_mf->setVal(fallback_value);
+}
+}
+
 /**
  * @file ERF_AdvanceTwoStreamRadiation.cpp
  * @brief Phase 5 two-stream radiation driver: adds per-level (SW, LW)
@@ -1257,6 +1280,20 @@ void ERF::compute_twostream_radiation_diagnostics(
         // this function still safely computes and logs CSV diagnostics but
         // skips the per-level heating write.
         MultiFab* qheating_mf = qheating_rates[lev].get();
+
+        if (rad_choice.seb_enable) {
+            fill_or_copy_seb_field(twostream_alb_sw[lev].get(), lsm, lev, "sfc_alb_dir_vis", rad_choice.surface_albedo_sw);
+            fill_or_copy_seb_field(twostream_emiss_lw[lev].get(), lsm, lev, "sfc_emis", rad_choice.surface_emissivity_lw);
+            fill_or_copy_seb_field(twostream_t_sfc[lev].get(), lsm, lev, "t_sfc", rad_choice.surface_temp_k);
+            fill_or_copy_seb_field(sw_flux_sfc[lev].get(), lsm, lev, "sav", rad_choice.seb_sw_flux_default);
+            fill_or_copy_seb_field(lw_flux_sfc[lev].get(), lsm, lev, "fira", rad_choice.seb_lw_flux_default);
+            fill_or_copy_seb_field(hfx_sfc[lev].get(), lsm, lev, "hfx", rad_choice.seb_hfx_default);
+            fill_or_copy_seb_field(lh_sfc[lev].get(), lsm, lev, "lh", rad_choice.seb_lh_default);
+            fill_or_copy_seb_field(grdflx_sfc[lev].get(), lsm, lev, "grdflx", rad_choice.seb_grdflx_default);
+            fill_or_copy_seb_field(q_sfc[lev].get(), lsm, lev, "noahmp_water_vapor_mixing_ratio_2m_vegetated", rad_choice.seb_q_sfc_default);
+            fill_or_copy_seb_field(t_deep[lev].get(), lsm, lev, "smstav", rad_choice.seb_t_deep_default);
+            fill_or_copy_seb_field(q_deep[lev].get(), lsm, lev, "smstot", rad_choice.seb_q_deep_default);
+        }
 
         // Sequential loop over all boxes (each box handled with GPU-safe ParallelFor)
         for (MFIter mfi(state_cons, TilingIfNotGPU()); mfi.isValid(); ++mfi)
