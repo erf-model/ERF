@@ -22,9 +22,17 @@ WSM6::Init(const MultiFab& cons_in,
     MicVarMap.resize(m_qmoist_size);
     MicVarMap = {MicVar_WSM6::rain_accum, MicVar_WSM6::snow_accum, MicVar_WSM6::graup_accum};
 
+#if defined(ERF_USE_WSM6_FORT) && defined(AMREX_USE_GPU)
+    // The host-only Fortran bridge receives dataPtr() from mic_fab_vars.
+    Arena* Arena_Used = The_Managed_Arena();
+#else
+    Arena* Arena_Used = The_Arena();
+#endif
+
     for (int ivar = 0; ivar < MicVar_WSM6::NumVars; ++ivar) {
         mic_fab_vars[ivar] = std::make_shared<MultiFab>(cons_in.boxArray(), cons_in.DistributionMap(),
-                                                        1, cons_in.nGrowVect());
+                                                        1, cons_in.nGrowVect(),
+                                                        MFInfo().SetArena(Arena_Used));
         mic_fab_vars[ivar]->setVal(0.0);
     }
 
