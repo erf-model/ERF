@@ -1652,12 +1652,17 @@ void ERF::compute_twostream_radiation_diagnostics(
                             q_min=rad_choice.seb_prognostic_q_min,
                             q_max=rad_choice.seb_prognostic_q_max] 
                             AMREX_GPU_DEVICE (int i, int j, int /*k_unused*/) -> ProgReduceTuple {
-                            // Read current surface temperature and moisture
                             // TEMPORARY DEBUG - remove after diagnosis
-                            if (ParallelDescriptor::IOProcessor() && nstep < 5) {
-                                Real dbg_val = twostream_t_sfc[lev]->max(0);
+                            // Place this right after line ~1650 (amrex::Real t_s_old = t_s_arr(i, j, 0);)
+                            // inside the device lambda -- but device-side Print() isn't available, so
+                            // instead capture host-side via a single-cell copy BEFORE the reduce_ops.eval(...)
+                            // call, using the same mfi/array already in scope (no new MFIter):
+                            if (ParallelDescriptor::IOProcessor() && nstep < 5 && mfi.index() == 0) {
+                                amrex::Real t_s_probe = t_s_arr(bx.smallEnd(0), bx.smallEnd(1), 0);
+                                amrex::Real t_deep_probe = t_deep_arr(bx.smallEnd(0), bx.smallEnd(1), 0);
                                 Print() << "[DEBUG] step=" << nstep << " call_site=" << call_site
-                                        << " AFTER fill_or_copy, T_sfc(max)=" << dbg_val << std::endl;
+                                        << " BEFORE prognostic update: T_s=" << t_s_probe
+                                        << " T_deep=" << t_deep_probe << std::endl;
                             }
                             amrex::Real t_s_old = t_s_arr(i, j, 0);
                             amrex::Real q_s_old = q_s_arr(i, j, 0);
