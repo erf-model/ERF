@@ -77,8 +77,8 @@ ComputeDiffusivityYSU (const MultiFab& xvel,
         // create flattened boxes to store PBL height
         const GeometryData gdata = geom.data();
         const Box xybx = PerpendicularBox<ZDir>(bx, IntVect{0,0,0});
-        FArrayBox pbl_height(xybx,1);
-        IArrayBox pbl_index(xybx,1);
+        FArrayBox pbl_height(xybx,1,The_Async_Arena());
+        IArrayBox pbl_index(xybx,1,The_Async_Arena());
         const auto& pblh_arr = pbl_height.array();
         const auto& pbli_arr = pbl_index.array();
 
@@ -91,7 +91,7 @@ ComputeDiffusivityYSU (const MultiFab& xvel,
         ParallelFor(xybx, [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept
         {
             // Reconstruct a surface bulk Richardson number from the surface layer model
-            // In WRF, this value is supplied to YSU by the MM5 surface layer model
+            // In WRF, this value is supplied to YSU by the surface layer model
             const Real t_surf = t_surf_arr(i,j,0);
             const Real t_layer = t10av_arr(i,j,0);
             const Real ws_layer = ws10av_arr(i,j,0);

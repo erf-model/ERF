@@ -402,7 +402,7 @@ WindFarm::fill_Nturb_multifab (const Geometry& geom,
     int j_lo = geom.Domain().smallEnd(1); int j_hi = geom.Domain().bigEnd(1);
     auto dx = geom.CellSizeArray();
     if(dx[0]<= 1e-3 or dx[1]<=1e-3 or dx[2]<= 1e-3) {
-        Abort("The value of mesh spacing for wind farm parametrization cannot be less than 1e-3 m. "
+        Abort("The value of grid spacing for wind farm parametrization cannot be less than 1e-3 m. "
               "It should be usually of order 1 m");
     }
     auto ProbLoArr = geom.ProbLoArray();
@@ -508,7 +508,7 @@ WindFarm::fill_SMark_multifab_mesoscale_models (const Geometry& geom,
         auto  SMark_array = mf_SMark.array(mfi);
         auto  Nturb_array = mf_Nturb.array(mfi);
         const Array4<const Real>& z_nd_arr = z_phys_nd->const_array(mfi);
-        int k0 = gbx.smallEnd()[2];
+        int k0 = std::max(gbx.smallEnd(2), geom.Domain().smallEnd(2));
 
         ParallelFor(gbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
             if(Nturb_array(i,j,k,0) > 0) {
@@ -528,6 +528,7 @@ WindFarm::fill_SMark_multifab_mesoscale_models (const Geometry& geom,
     }
 }
 
+
 void
 WindFarm::fill_SMark_multifab (const Geometry& geom,
                                MultiFab& mf_SMark,
@@ -535,31 +536,40 @@ WindFarm::fill_SMark_multifab (const Geometry& geom,
                                const Real& turb_disk_angle,
                                std::unique_ptr<MultiFab>& z_phys_cc)
 {
-    amrex::Gpu::DeviceVector<Real> d_xloc(xloc.size());
-    amrex::Gpu::DeviceVector<Real> d_yloc(yloc.size());
-    amrex::Gpu::DeviceVector<Real> d_zloc(yloc.size());
-    amrex::Gpu::copyAsync(amrex::Gpu::hostToDevice, xloc.begin(), xloc.end(), d_xloc.begin());
-    amrex::Gpu::copyAsync(amrex::Gpu::hostToDevice, yloc.begin(), yloc.end(), d_yloc.begin());
-    amrex::Gpu::copyAsync(amrex::Gpu::hostToDevice, zloc.begin(), zloc.end(), d_zloc.begin());
+    // Copy turbine locations to device
+    Gpu::DeviceVector<Real> d_xloc(xloc.size());
+    Gpu::DeviceVector<Real> d_yloc(yloc.size());
+    Gpu::DeviceVector<Real> d_zloc(zloc.size());
+
+    Gpu::copy(Gpu::hostToDevice, xloc.begin(), xloc.end(), d_xloc.begin());
+
+    Gpu::copy(Gpu::hostToDevice, yloc.begin(), yloc.end(), d_yloc.begin());
+
+    Gpu::copy(Gpu::hostToDevice, zloc.begin(), zloc.end(), d_zloc.begin());
 
     Real d_rotor_rad = rotor_rad;
     Real d_hub_height = hub_height;
-    Real d_sampling_distance = sampling_distance_by_D*two*rotor_rad;
+    Real d_sampling_distance = sampling_distance_by_D * two * rotor_rad;
 
-    Real* d_xloc_ptr     = d_xloc.data();
-    Real* d_yloc_ptr     = d_yloc.data();
-    Real* d_zloc_ptr     = d_zloc.data();
+    Real* d_xloc_ptr = d_xloc.data();
+    Real* d_yloc_ptr = d_yloc.data();
+    Real* d_zloc_ptr = d_zloc.data();
 
     mf_SMark.setVal(-1.0);
 
-    int i_lo = geom.Domain().smallEnd(0); int i_hi = geom.Domain().bigEnd(0);
-    int j_lo = geom.Domain().smallEnd(1); int j_hi = geom.Domain().bigEnd(1);
-    int k_lo = geom.Domain().smallEnd(2); int k_hi = geom.Domain().bigEnd(2);
+    const int i_lo = geom.Domain().smallEnd(0);
+    const int i_hi = geom.Domain().bigEnd(0);
+    const int j_lo = geom.Domain().smallEnd(1);
+    const int j_hi = geom.Domain().bigEnd(1);
+    const int k_lo = geom.Domain().smallEnd(2);
+    const int k_hi = geom.Domain().bigEnd(2);
+
     auto dx = geom.CellSizeArray();
     auto ProbLoArr = geom.ProbLoArray();
-    int num_turb = xloc.size();
 
-    Real theta = turb_disk_angle*M_PI/Real(180.0)-myhalf*M_PI;
+    const int num_turb = static_cast<int>(xloc.size());
+
+    Real theta = turb_disk_angle * M_PI / Real(180.0) - myhalf * M_PI;
 
     set_turb_disk_angle(theta);
     my_turb_disk_angle = theta;
@@ -567,60 +577,152 @@ WindFarm::fill_SMark_multifab (const Geometry& geom,
     Real nx = -std::cos(theta);
     Real ny = -std::sin(theta);
 
-     // Initialize wind farm
-    for ( MFIter mfi(mf_SMark,TilingIfNotGPU()); mfi.isValid(); ++mfi) {
-        const Box& gbx      = mfi.growntilebox(1);
-        auto  SMark_array = mf_SMark.array(mfi);
+    // ------------------------------------------------------------
+    // Device-side overlap information
+    //
+    // overlap_info[0] = overlap flag
+    // overlap_info[1] = first turbine index
+    // overlap_info[2] = second turbine index
+    // ------------------------------------------------------------
+
+    int h_overlap_info[3] = {0, -1, -1};
+
+    Gpu::DeviceVector<int> d_overlap_info(3);
+
+    Gpu::copy(Gpu::hostToDevice, h_overlap_info, h_overlap_info + 3, d_overlap_info.begin());
+
+    int* d_overlap_info_ptr = d_overlap_info.data();
+
+    // ------------------------------------------------------------
+    // Initialize wind farm
+    // ------------------------------------------------------------
+
+    for (MFIter mfi(mf_SMark, TilingIfNotGPU()); mfi.isValid(); ++mfi)
+    {
+        const Box& gbx = mfi.growntilebox(1);
+
+        auto SMark_array = mf_SMark.array(mfi);
 
         const Array4<const Real>& z_cc_arr = z_phys_cc->const_array(mfi);
 
-        ParallelFor(gbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-            int ii = amrex::min(amrex::max(i, i_lo), i_hi);
-            int jj = amrex::min(amrex::max(j, j_lo), j_hi);
-            int kk = amrex::min(amrex::max(k, k_lo), k_hi);
+        ParallelFor(
+            gbx,
+            [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            {
+                int ii = amrex::min(amrex::max(i, i_lo), i_hi);
+                int jj = amrex::min(amrex::max(j, j_lo), j_hi);
+                int kk = amrex::min(amrex::max(k, k_lo), k_hi);
 
-            // The x and y extents of the current mesh cell
+                // ------------------------------------------------
+                // Mesh-cell x/y extents
+                // ------------------------------------------------
 
-            Real x1 = ProbLoArr[0] + ii*dx[0];
-            Real x2 = ProbLoArr[0] + (ii+1)*dx[0];
-            Real y1 = ProbLoArr[1] + jj*dx[1];
-            Real y2 = ProbLoArr[1] + (jj+1)*dx[1];
+                Real x1 = ProbLoArr[0] + ii * dx[0];
+                Real x2 = ProbLoArr[0] + (ii + 1) * dx[0];
 
-            // The mesh cell centered z value
+                Real y1 = ProbLoArr[1] + jj * dx[1];
+                Real y2 = ProbLoArr[1] + (jj + 1) * dx[1];
 
-            Real z = z_cc_arr(ii,jj,kk);
+                // ------------------------------------------------
+                // Cell-centered physical z
+                // ------------------------------------------------
 
-            int turb_indices_overlap[2];
-            int check_int = 0;
-            for(int it=0; it<num_turb; it++){
-                Real x0 = d_xloc_ptr[it] + d_sampling_distance*nx;
-                Real y0 = d_yloc_ptr[it] + d_sampling_distance*ny;
+                Real z = z_cc_arr(ii, jj, kk);
 
-                Real z0 = d_zloc_ptr[it];
+                int check_int = 0;
+                int first_turb = -1;
 
-                bool is_cell_marked = find_if_marked(x1, x2, y1, y2, x0, y0,
-                                                     nx, ny, d_hub_height+z0, d_rotor_rad, z);
-                if(is_cell_marked) {
-                    SMark_array(i,j,k,0) = it;
-                }
-                x0 = d_xloc_ptr[it];
-                y0 = d_yloc_ptr[it];
+                for (int it = 0; it < num_turb; ++it)
+                {
+                    Real z0 = d_zloc_ptr[it];
 
-                is_cell_marked = find_if_marked(x1, x2, y1, y2, x0, y0,
-                                                nx, ny, d_hub_height+z0, d_rotor_rad, z);
-                if(is_cell_marked) {
-                    SMark_array(i,j,k,1) = it;
-                    turb_indices_overlap[check_int] = it;
-                    check_int++;
-                    if(check_int > 1){
-                        printf("Actuator disks with indices %d and %d are overlapping\n",
-                               turb_indices_overlap[0],turb_indices_overlap[1]);
-                        amrex::Error("Actuator disks are overlapping. Visualize actuator_disks.vtk "
-                        " and check the windturbine locations input file. Exiting..");
+                    // ------------------------------------------------
+                    // Sampling point upstream/downstream of turbine
+                    // ------------------------------------------------
+
+                    Real x0 = d_xloc_ptr[it] + d_sampling_distance * nx;
+
+                    Real y0 = d_yloc_ptr[it] + d_sampling_distance * ny;
+
+                    bool is_cell_marked =
+                        find_if_marked(
+                            x1, x2, y1, y2,
+                            x0, y0,
+                            nx, ny,
+                            d_hub_height + z0,
+                            d_rotor_rad,
+                            z);
+
+                    if (is_cell_marked)
+                    {
+                        SMark_array(i, j, k, 0) = it;
+                    }
+
+                    // ------------------------------------------------
+                    // Actual turbine disk
+                    // ------------------------------------------------
+
+                    x0 = d_xloc_ptr[it];
+                    y0 = d_yloc_ptr[it];
+
+                    is_cell_marked =
+                        find_if_marked(
+                            x1, x2, y1, y2,
+                            x0, y0,
+                            nx, ny,
+                            d_hub_height + z0,
+                            d_rotor_rad,
+                            z);
+
+                    if (is_cell_marked)
+                    {
+                        SMark_array(i, j, k, 1) = it;
+
+                        if (check_int == 0)
+                        {
+                            first_turb = it;
+                        }
+
+                        ++check_int;
+
+                        // ------------------------------------------------
+                        // More than one turbine disk marks this cell
+                        // ------------------------------------------------
+
+                        if (check_int > 1)
+                        {
+                            // Set overlap flag.
+                            amrex::Gpu::Atomic::Exch(&d_overlap_info_ptr[0], 1);
+
+                            // Save the turbine indices. Multiple threads
+                            // may write these, so use atomics.
+                            amrex::Gpu::Atomic::Exch(&d_overlap_info_ptr[1], first_turb);
+
+                            amrex::Gpu::Atomic::Exch(&d_overlap_info_ptr[2], it);
+                        }
                     }
                 }
-            }
-        });
+            });
+    }
+
+    // ------------------------------------------------------------
+    // Copy overlap information back to host.
+    // This also synchronizes the GPU work.
+    // ------------------------------------------------------------
+
+    Gpu::copy(Gpu::deviceToHost, d_overlap_info.begin(), d_overlap_info.end(), h_overlap_info);
+
+    // ------------------------------------------------------------
+    // Handle overlap on the HOST, not inside the GPU kernel.
+    // ------------------------------------------------------------
+
+    if (h_overlap_info[0] != 0)
+    {
+        amrex::Error(
+            "Actuator disks with indices " + std::to_string(h_overlap_info[1]) +
+            " and " + std::to_string(h_overlap_info[2]) + " are overlapping. "
+            "Visualize actuator_disks.vtk and check the "
+            "windturbine locations input file. Exiting..");
     }
 }
 

@@ -296,18 +296,20 @@ realbdy_compute_relaxation (const int& icomp,
             rhs_arr(i,j,k,icomp) += Factor*delta;
 
             if (bdy_moist_nudge_type==2) {
+                // NOTE: we only operate on qv (above), qc and qi here; the
+                //       precipitating species (qr/qs/qg) are left untouched.
+
                 // qc and heat source term due to evaporation
-                delta = -data_arr(i,j,k,icomp+1); // This effectively nudges to 0
-                rhs_arr(i,j,k,icomp+1      ) += Factor*delta;
+                delta = -data_arr(i,j,k,RhoQ2_comp); // This effectively nudges to 0
+                rhs_arr(i,j,k,RhoQ2_comp   ) += Factor * delta;
                 rhs_arr(i,j,k,RhoTheta_comp) += Factor * delta * cond_fac / exner_pi;
 
-                for (int n = 2; n < nq; n++) {
-                    delta = -data_arr(i,j,k,icomp+n); // This effectively nudges to 0
-                    rhs_arr(i,j,k,icomp+n) += Factor*delta;
-                    if (nq > 3 && n == 2) { // nq > 3 guarantees that component 2 is ice
-                        rhs_arr(i,j,k,RhoTheta_comp) += Factor * delta * sub_fac / exner_pi;
-                    }
-                } // n
+                // qi and heat source term due to sublimation
+                if (nq > 3) { // nq > 3 guarantees that RhoQ3 is ice
+                    delta = -data_arr(i,j,k,RhoQ3_comp); // This effectively nudges to 0
+                    rhs_arr(i,j,k,RhoQ3_comp   ) += Factor * delta;
+                    rhs_arr(i,j,k,RhoTheta_comp) += Factor * delta * sub_fac / exner_pi;
+                }
             } // moist_nudge_type
         } else {
             for (int n = 0; n < nq; n++) {
@@ -340,18 +342,20 @@ realbdy_compute_relaxation (const int& icomp,
             rhs_arr(i,j,k,icomp) += Factor*delta;
 
             if (bdy_moist_nudge_type==2) {
+                // NOTE: we only operate on qv (above), qc and qi here; the
+                //       precipitating species (qr/qs/qg) are left untouched.
+
                 // qc and heat source term due to evaporation
-                delta = -data_arr(i,j,k,icomp+1); // This effectively nudges to 0
-                rhs_arr(i,j,k,icomp+1      ) += Factor*delta;
+                delta = -data_arr(i,j,k,RhoQ2_comp); // This effectively nudges to 0
+                rhs_arr(i,j,k,RhoQ2_comp   ) += Factor*delta;
                 rhs_arr(i,j,k,RhoTheta_comp) += Factor * delta * cond_fac / exner_pi;
 
-                for (int n = 2; n < nq; n++) {
-                    delta = -data_arr(i,j,k,icomp+n); // This effectively nudges to 0
-                    rhs_arr(i,j,k,icomp+n) += Factor*delta;
-                    if (nq > 3 && n == 2) { // nq > 3 guarantees that component 2 is ice
-                        rhs_arr(i,j,k,RhoTheta_comp) += Factor * delta * sub_fac / exner_pi;
-                    }
-                } // n
+                // qi and heat source term due to sublimation
+                if (nq > 3) { // nq > 3 guarantees that RhoQ3 is ice
+                    delta = -data_arr(i,j,k,RhoQ3_comp); // This effectively nudges to 0
+                    rhs_arr(i,j,k,RhoQ3_comp   ) += Factor * delta;
+                    rhs_arr(i,j,k,RhoTheta_comp) += Factor * delta * sub_fac / exner_pi;
+                }
             } // moist_nudge_type
         } else {
             for (int n = 0; n < nq; n++) {
@@ -379,18 +383,20 @@ realbdy_compute_relaxation (const int& icomp,
             rhs_arr(i,j,k,icomp) += Factor*delta;
 
             if (bdy_moist_nudge_type==2) {
+                // NOTE: we only operate on qv (above), qc and qi here; the
+                //       precipitating species (qr/qs/qg) are left untouched.
+
                 // qc and heat source term due to evaporation
-                delta = -data_arr(i,j,k,icomp+1); // This effectively nudges to 0
-                rhs_arr(i,j,k,icomp+1      ) += Factor*delta;
+                delta = -data_arr(i,j,k,RhoQ2_comp); // This effectively nudges to 0
+                rhs_arr(i,j,k,RhoQ2_comp   ) += Factor*delta;
                 rhs_arr(i,j,k,RhoTheta_comp) += Factor * delta * cond_fac / exner_pi;
 
-                for (int n = 2; n < nq; n++) {
-                    delta = -data_arr(i,j,k,icomp+n); // This effectively nudges to 0
-                    rhs_arr(i,j,k,icomp+n) += Factor*delta;
-                    if (nq > 3 && n == 2) { // nq > 3 guarantees that component 2 is ice
-                        rhs_arr(i,j,k,RhoTheta_comp) += Factor * delta * sub_fac / exner_pi;
-                    }
-                } // n
+                // qi and heat source term due to sublimation
+                if (nq > 3) { // nq > 3 guarantees that RhoQ3 is ice
+                    delta = -data_arr(i,j,k,RhoQ3_comp); // This effectively nudges to 0
+                    rhs_arr(i,j,k,RhoQ3_comp   ) += Factor * delta;
+                    rhs_arr(i,j,k,RhoTheta_comp) += Factor * delta * sub_fac / exner_pi;
+                }
             } // moist_nudge_type
         } else {
             for (int n = 0; n < nq; n++) {
@@ -416,18 +422,20 @@ realbdy_compute_relaxation (const int& icomp,
             rhs_arr(i,j,k,icomp) += Factor*delta;
 
             if (bdy_moist_nudge_type==2) {
+                // NOTE: we only operate on qv (above), qc and qi here; the
+                //       precipitating species (qr/qs/qg) are left untouched.
+
                 // qc and heat source term due to evaporation
-                delta = -data_arr(i,j,k,icomp+1); // This effectively nudges to 0
-                rhs_arr(i,j,k,icomp+1      ) += Factor*delta;
+                delta = -data_arr(i,j,k,RhoQ2_comp); // This effectively nudges to 0
+                rhs_arr(i,j,k,RhoQ2_comp   ) += Factor * delta;
                 rhs_arr(i,j,k,RhoTheta_comp) += Factor * delta * cond_fac / exner_pi;
 
-                for (int n = 2; n < nq; n++) {
-                    delta = -data_arr(i,j,k,icomp+n); // This effectively nudges to 0
-                    rhs_arr(i,j,k,icomp+n) += Factor*delta;
-                    if (nq > 3 && n == 2) { // nq > 3 guarantees that component 2 is ice
-                        rhs_arr(i,j,k,RhoTheta_comp) += Factor * delta * sub_fac / exner_pi;
-                    }
-                } // n
+                // qi and heat source term due to sublimation
+                if (nq > 3) { // nq > 3 guarantees that RhoQ3 is ice
+                    delta = -data_arr(i,j,k,RhoQ3_comp); // This effectively nudges to 0
+                    rhs_arr(i,j,k,RhoQ3_comp   ) += Factor * delta;
+                    rhs_arr(i,j,k,RhoTheta_comp) += Factor * delta * sub_fac / exner_pi;
+                }
             } // moist_nudge_type
         } else {
             for (int n = 0; n < nq; n++) {
