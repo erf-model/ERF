@@ -127,7 +127,7 @@ AMREX_ENUM(WindFarmLocType,
  * @brief Land-surface model.
  */
 AMREX_ENUM(LandSurfaceType,
-    SLM, MM5, NOAHMP, OceanSurf, None
+    SLM, NOAHMP, OceanSurf, None
 );
 
 /**
