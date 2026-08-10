@@ -3,6 +3,7 @@
 
 #include <string>
 #include <fstream>
+#include <limits>
 #include <AMReX.H>
 #include <AMReX_REAL.H>
 
@@ -100,7 +101,8 @@ public:
    * Records a row of Phase 1 radiation diagnostics for the current timestep:
    *
    * CSV columns (order):
-   *   step, time, SW_surface, SW_TOA, F_up_surface, F_down_toa, heating_rate_max
+   *   step, time, call_site, SW_surface, SW_TOA, F_up_surface, F_down_toa, heating_rate_max
+   *   [optional Phase 18]: SEB_residual_mean, SEB_residual_max (only if seb_diagnostic_enable=true)
    *
    * Also prints tagged debug output and RADIATION_DIAG: line for RegTest parsing.
    *
@@ -108,19 +110,25 @@ public:
    *
    * @param[in] step           Current timestep number.
    * @param[in] time           Current simulation time [s].
-   * @param[in] SW_surface     Downwelling SW flux at surface [W/m^2].
-   * @param[in] SW_TOA         Downwelling SW flux at TOA (should match input) [W/m^2].
-   * @param[in] F_up_surface   Upwelling LW flux at surface [W/m^2].
-   * @param[in] F_down_toa     Downwelling LW flux at TOA [W/m^2].
+   * @param[in] call_site      Diagnostic call-site label (e.g., "pre_dycore", "post_dycore").
+   * @param[in] sw_surface     Downwelling SW flux at surface [W/m^2].
+   * @param[in] sw_toa         Downwelling SW flux at TOA (should match input) [W/m^2].
+   * @param[in] f_up_surface   Upwelling LW flux at surface [W/m^2].
+   * @param[in] f_down_toa     Downwelling LW flux at TOA [W/m^2].
    * @param[in] heating_rate_max Maximum heating rate magnitude [K/s].
+   * @param[in] seb_residual_mean [optional] Mean SEB residual [W/m^2]; if non-finite, not written.
+   * @param[in] seb_residual_max  [optional] Max SEB residual [W/m^2]; if non-finite, not written.
    */
-  /*void append(int step, amrex::Real time, amrex::Real SW_surface,
-              amrex::Real SW_TOA, amrex::Real F_up_surface,
-              amrex::Real F_down_toa, amrex::Real heating_rate_max);*/
+  /*void append(int step, amrex::Real time, std::string const& call_site,
+             amrex::Real sw_surface, amrex::Real sw_toa,
+             amrex::Real f_up_surface, amrex::Real f_down_toa,
+             amrex::Real heating_rate_max);*/
   void append(int step, amrex::Real time, std::string const& call_site,
             amrex::Real sw_surface, amrex::Real sw_toa,
             amrex::Real f_up_surface, amrex::Real f_down_toa,
-            amrex::Real heating_rate_max);
+            amrex::Real heating_rate_max,
+            amrex::Real seb_residual_mean = std::numeric_limits<amrex::Real>::quiet_NaN(),
+            amrex::Real seb_residual_max = std::numeric_limits<amrex::Real>::quiet_NaN());
 
 private:
   /**

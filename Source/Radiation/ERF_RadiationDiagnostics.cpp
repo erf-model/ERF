@@ -61,8 +61,11 @@ void RadiationDiagnostics::write_header_if_needed()
 
   // Only write header if file is new
   if (!file_exists) {
-    outfile << "step,time,call_site,SW_surface,SW_TOA,F_up_surface,F_down_toa,heating_rate_max"
-            << "\n";
+    // Base columns (Phase 1-7): always present
+    outfile << "step,time,call_site,SW_surface,SW_TOA,F_up_surface,F_down_toa,heating_rate_max";
+    // Phase 18: SEB diagnostic columns (added at end for backward compatibility)
+    outfile << ",SEB_residual_mean,SEB_residual_max";
+    outfile << "\n";
   }
   outfile.close();
   m_header_written = true;
@@ -71,7 +74,9 @@ void RadiationDiagnostics::write_header_if_needed()
 void RadiationDiagnostics::append(int step, amrex::Real time, const std::string& call_site,
                                   amrex::Real SW_surface, amrex::Real SW_TOA,
                                   amrex::Real F_up_surface, amrex::Real F_down_toa,
-                                  amrex::Real heating_rate_max)
+                                  amrex::Real heating_rate_max,
+                                  amrex::Real seb_residual_mean,
+                                  amrex::Real seb_residual_max)
 {
   // Phase 7: Master enable gate
   if (!m_diag_enable) {
@@ -160,6 +165,10 @@ void RadiationDiagnostics::append(int step, amrex::Real time, const std::string&
   outfile << step << "," << std::scientific << std::setprecision(6) << time << ","
           << call_site << ","
           << SW_surface << "," << SW_TOA << "," << F_up_surface << "," << F_down_toa
-          << "," << heating_rate_max << "\n";
+          << "," << heating_rate_max;
+
+  // Phase 18: Append SEB residual columns if finite (backward compatible: write NaN if not available)
+  outfile << "," << seb_residual_mean << "," << seb_residual_max;
+  outfile << "\n";
   outfile.close();
 }

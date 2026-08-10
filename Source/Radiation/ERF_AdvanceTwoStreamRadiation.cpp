@@ -5,12 +5,14 @@
 #include <ERF_TwoStreamLW.H>
 #include <ERF_PrognosticCloudFraction.H>
 #include <ERF_AerosolOpticalDepth.H>
+#include <ERF_SimplifiedSEB.H>
 #include <ERF_SolarGeometry.H>
 #include <AMReX_Print.H>
 #include <AMReX_ParallelDescriptor.H>
 #include <AMReX_Gpu.H>
 #include <ERF_IndexDefines.H>
 #include <cmath>
+#include <limits>
 
 using namespace amrex;
 
@@ -1261,6 +1263,11 @@ void ERF::compute_twostream_radiation_diagnostics(
         amrex::Real lw_net_sum = 0.0;
         amrex::Long n_columns_total = 0;
 
+        // (Phase 18) SEB residual diagnostics
+        amrex::Real seb_residual_sum = 0.0;
+        amrex::Real seb_residual_max = 0.0;
+        amrex::Long n_seb_columns = 0;
+
         // Phase 3: cloud fraction used to blend clear-sky and cloudy-column results.
         // cloud_fraction == 0.0 (default) means only the clear-sky column is
         // ever evaluated, and the blend below reduces to F = F_clear exactly.
@@ -1500,6 +1507,63 @@ void ERF::compute_twostream_radiation_diagnostics(
             lw_net_sum += lw_sum_box;
         }
 
+        // (Phase 18) Compute SEB residual diagnostics if enabled
+        if (rad_choice.seb_diagnostic_enable && rad_choice.seb_enable) {
+            // Second loop over boxes to compute SEB residual from populated SEB MultiFabs
+            for (MFIter mfi(state_cons, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+                const Box& bx = mfi.tilebox();
+                const auto& lo = bx.loVect();
+                const auto& hi = bx.hiVect();
+                Box xy_box(IntVect(lo[0], lo[1], 0), IntVect(hi[0], hi[1], 0));
+
+                // Get SEB field arrays
+                Array4<const amrex::Real> sw_flux_arr = sw_flux_sfc[lev]->const_array(mfi);
+                Array4<const amrex::Real> lw_flux_arr = lw_flux_sfc[lev]->const_array(mfi);
+                Array4<const amrex::Real> hfx_arr = hfx_sfc[lev]->const_array(mfi);
+                Array4<const amrex::Real> lh_arr = lh_sfc[lev]->const_array(mfi);
+                Array4<const amrex::Real> grdflx_arr = grdflx_sfc[lev]->const_array(mfi);
+
+                // Count columns and compute residuals
+                amrex::Long n_cols_box = static_cast<amrex::Long>(bx.length(0)) *
+                                        static_cast<amrex::Long>(bx.length(1));
+                amrex::Real residual_sum_box = 0.0;
+                amrex::Real residual_max_box = 0.0;
+
+                // GPU-safe reduction for SEB residuals
+                ReduceOps<ReduceOpSum, ReduceOpMax> seb_reduce_ops;
+                ReduceData<amrex::Real, amrex::Real> seb_reduce_data(seb_reduce_ops);
+
+                using SEBReduceTuple = typename decltype(seb_reduce_data)::Type;
+
+                seb_reduce_ops.eval(xy_box, seb_reduce_data,
+                    [=] AMREX_GPU_DEVICE (int i, int j, int /*k_unused*/) -> SEBReduceTuple {
+                        amrex::Real sw_net = sw_flux_arr(i, j, 0);
+                        amrex::Real lw_net = lw_flux_arr(i, j, 0);
+                        amrex::Real hfx = hfx_arr(i, j, 0);
+                        amrex::Real lh = lh_arr(i, j, 0);
+                        amrex::Real grdflx = grdflx_arr(i, j, 0);
+
+                        // Compute residual using Phase 18 helper function
+                        amrex::Real residual = diagnose_seb_residual(sw_net, lw_net, hfx, lh, grdflx);
+
+                        // Return sum and abs(max) of residual
+                        return {residual, std::abs(residual)};
+                    }
+                );
+
+                // Copy results from device to host
+                amrex::Gpu::synchronize();
+                auto seb_reduce_tuple = seb_reduce_data.value(seb_reduce_ops);
+                residual_sum_box = amrex::get<0>(seb_reduce_tuple);
+                residual_max_box = amrex::get<1>(seb_reduce_tuple);
+
+                // Accumulate into global results
+                seb_residual_sum += residual_sum_box;
+                seb_residual_max = std::max(seb_residual_max, residual_max_box);
+                n_seb_columns += n_cols_box;
+            }
+        }
+
         // NOTE: This computes a domain-averaged surface flux. This is only
         // equivalent to a single-column value for spatially UNIFORM atmospheres
         // (as in the current SW_ClearSky_Analytical / LW_Isothermal RegTests).
@@ -1514,6 +1578,16 @@ void ERF::compute_twostream_radiation_diagnostics(
             F_up_surface = lw_net_sum / static_cast<amrex::Real>(n_columns_total);
         }
         heating_rate_max = max_heating_global;
+
+        // (Phase 18) Compute SEB residual mean from sum
+        amrex::Real seb_residual_mean = 0.0;
+        if (rad_choice.seb_diagnostic_enable && rad_choice.seb_enable && n_seb_columns > 0) {
+            seb_residual_mean = seb_residual_sum / static_cast<amrex::Real>(n_seb_columns);
+        } else {
+            // When feature is disabled, use NaN for backward compatibility
+            seb_residual_mean = std::numeric_limits<amrex::Real>::quiet_NaN();
+            seb_residual_max = std::numeric_limits<amrex::Real>::quiet_NaN();
+        }
 
         // For LW: in isothermal test, override with analytical value
         if (rad_choice.lw_enabled && rad_choice.isothermal_test) {
@@ -1534,8 +1608,13 @@ void ERF::compute_twostream_radiation_diagnostics(
                 << "  LW up (surface) = " << F_up_surface << " W/m^2\n"
                 << "  LW down (TOA) = " << F_down_toa << " W/m^2\n"
                 << "  Max heating rate = " << heating_rate_max << " K/s\n";
+        if (rad_choice.seb_diagnostic_enable && std::isfinite(seb_residual_mean)) {
+            Print() << "  SEB residual (mean) = " << seb_residual_mean << " W/m^2\n"
+                    << "  SEB residual (max) = " << seb_residual_max << " W/m^2\n";
+        }
     }
 
     rad_diag.append(nstep, time_step, call_site, SW_surface, SW_TOA,
-                    F_up_surface, F_down_toa, heating_rate_max);
+                    F_up_surface, F_down_toa, heating_rate_max,
+                    seb_residual_mean, seb_residual_max);
 }

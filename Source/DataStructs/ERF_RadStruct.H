@@ -321,6 +321,15 @@ public:
   amrex::Real seb_q_deep_default = 0.0;
 
   /**
+   * @brief (Phase 18) Enable diagnostic SEB residual computation and reporting.
+   * When true, computes and reports SEB residual = (SW_net + LW_net) - H - LE - G.
+   * When false (default), no residual computation or new diagnostic output.
+   * Requires seb_enable=true to be meaningful; if false but seb_enable=true, auto-enables internally.
+   * Note: This is diagnostic-only; no prognostic T_s or flux update (Phase 19).
+   */
+  bool seb_diagnostic_enable = false;
+
+  /**
    * @brief (Phase 12) Enable dynamic shortwave optical depth diagnosis from moisture/clouds.
    * When true, SW optical depth is computed per-level from qv and qc.
    * When false (default), uses static tau_per_layer (Phase 11 behavior).
@@ -757,6 +766,14 @@ public:
       pp.query("radiation.seb_q_sfc_default", seb_q_sfc_default);
       pp.query("radiation.seb_t_deep_default", seb_t_deep_default);
       pp.query("radiation.seb_q_deep_default", seb_q_deep_default);
+
+      // Phase 18: SEB diagnostic mode
+      pp.query("radiation.seb_diagnostic_enable", seb_diagnostic_enable);
+
+      // Auto-enable seb_enable if seb_diagnostic_enable is requested but seb_enable is false
+      if (seb_diagnostic_enable && !seb_enable) {
+          seb_enable = true;  // Internal auto-enable for safety/simplicity
+      }
 
       if (!std::isfinite(seb_sw_flux_default)) seb_sw_flux_default = 0.0;
       if (!std::isfinite(seb_lw_flux_default)) seb_lw_flux_default = 0.0;
