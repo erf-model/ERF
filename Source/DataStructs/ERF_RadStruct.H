@@ -330,12 +330,79 @@ public:
   bool seb_diagnostic_enable = false;
 
   /**
-   * @brief (Phase 12) Enable dynamic shortwave optical depth diagnosis from moisture/clouds.
-   * When true, SW optical depth is computed per-level from qv and qc.
-   * When false (default), uses static tau_per_layer (Phase 11 behavior).
-   * Only used when rad_type == RadType::TwoStream and sw_enabled == true.
+   * @brief (Phase 19b) Enable prognostic SEB surface temperature and moisture evolution.
+   * When true, integrates SEB residual forward in time to evolve T_s and q_s using
+   * force-restore formulation. When false (default), no prognostic update occurs.
+   * Requires seb_enable=true and seb_diagnostic_enable=true; auto-enables internally if needed.
+   * Only active when Noah-MP is NOT driving LSM fields at that level.
    */
-  bool tau_sw_dynamic_enable = false;
+  bool seb_prognostic_enable = false;
+
+  /**
+   * @brief (Phase 19b) Effective surface heat capacity [J/(m^2*K)].
+   * Used in force-restore prognostic T_s equation: dT_s/dt = SEB_residual / C_s - (2*pi/tau)*(T_s - T_deep).
+   * Default 2.0e4 J/(m^2*K) represents a thin surface-active layer.
+   * Only used when seb_prognostic_enable=true. Validated > 0 in init_params().
+   */
+  amrex::Real seb_surface_heat_capacity = 2.0e4;
+
+  /**
+   * @brief (Phase 19b) Force-restore timescale for surface temperature [s].
+   * Relaxation time constant toward T_deep in prognostic T_s equation.
+   * Default 86400.0 s (1 day) provides weak damping on diurnal timescales.
+   * Only used when seb_prognostic_enable=true. Validated > 0 in init_params().
+   */
+  amrex::Real seb_restore_timescale_s = 86400.0;
+
+  /**
+   * @brief (Phase 19b) Effective surface moisture layer depth [m].
+   * Used in force-restore prognostic q_s equation: dq_s/dt = -(LE/(L_v*rho_w*d_s)) - (1/tau_q)*(q_s - q_deep).
+   * Default 0.1 m represents a thin surface-active moisture layer.
+   * Only used when seb_prognostic_enable=true. Validated > 0 in init_params().
+   */
+  amrex::Real seb_moisture_layer_depth_m = 0.1;
+
+  /**
+   * @brief (Phase 19b) Force-restore timescale for surface moisture [s].
+   * Relaxation time constant toward q_deep in prognostic q_s equation.
+   * Default 86400.0 s (1 day) provides weak damping on diurnal timescales.
+   * Only used when seb_prognostic_enable=true. Validated > 0 in init_params().
+   */
+  amrex::Real seb_moisture_restore_timescale_s = 86400.0;
+
+  /**
+   * @brief (Phase 19b) Minimum clamping bound for prognostic surface temperature [K].
+   * After each Euler update, T_s is clamped to [seb_prognostic_t_min_k, seb_prognostic_t_max_k]
+   * to prevent instability if dt is large relative to C_s/tau.
+   * Default 200.0 K (far below realistic surface temperatures).
+   * Only used when seb_prognostic_enable=true.
+   */
+  amrex::Real seb_prognostic_t_min_k = 200.0;
+
+  /**
+   * @brief (Phase 19b) Maximum clamping bound for prognostic surface temperature [K].
+   * After each Euler update, T_s is clamped to [seb_prognostic_t_min_k, seb_prognostic_t_max_k].
+   * Default 340.0 K (above typical surface temperatures, but prevents unrealistic excursions).
+   * Only used when seb_prognostic_enable=true.
+   */
+  amrex::Real seb_prognostic_t_max_k = 340.0;
+
+  /**
+   * @brief (Phase 19b) Minimum clamping bound for prognostic surface moisture [kg/kg].
+   * After each Euler update, q_s is clamped to [seb_prognostic_q_min, seb_prognostic_q_max].
+   * Default 0.0 kg/kg prevents negative moisture.
+   * Only used when seb_prognostic_enable=true.
+   */
+  amrex::Real seb_prognostic_q_min = 0.0;
+
+  /**
+   * @brief (Phase 19b) Maximum clamping bound for prognostic surface moisture [kg/kg].
+   * After each Euler update, q_s is clamped to [seb_prognostic_q_min, seb_prognostic_q_max].
+   * Default 1.0 kg/kg ensures physically meaningful moisture.
+   * Only used when seb_prognostic_enable=true.
+   */
+  amrex::Real seb_prognostic_q_max = 1.0;
+
 
   /**
    * @brief (Phase 12) Enable dynamic longwave optical depth diagnosis from moisture/clouds.
@@ -566,6 +633,25 @@ public:
    * - erf.radiation.longitude_deg (real, optional, Phase 16, default 0.0, clamped to [-180, 180])
    * - erf.radiation.day_of_year (real, optional, Phase 16, default 172.0, clamped to [1, 366])
    * - erf.radiation.time_zone_offset_hours (real, optional, Phase 16, default 0.0)
+   * - erf.radiation.seb_enable (bool, optional, Phase 17, default false)
+   * - erf.radiation.seb_sw_flux_default (real, optional, Phase 17, default 0.0)
+   * - erf.radiation.seb_lw_flux_default (real, optional, Phase 17, default 0.0)
+   * - erf.radiation.seb_hfx_default (real, optional, Phase 17, default 0.0)
+   * - erf.radiation.seb_lh_default (real, optional, Phase 17, default 0.0)
+   * - erf.radiation.seb_grdflx_default (real, optional, Phase 17, default 0.0)
+   * - erf.radiation.seb_q_sfc_default (real, optional, Phase 17, default 0.0)
+   * - erf.radiation.seb_t_deep_default (real, optional, Phase 17, default 300.0)
+   * - erf.radiation.seb_q_deep_default (real, optional, Phase 17, default 0.0)
+   * - erf.radiation.seb_diagnostic_enable (bool, optional, Phase 18, default false)
+   * - erf.radiation.seb_prognostic_enable (bool, optional, Phase 19b, default false)
+   * - erf.radiation.seb_surface_heat_capacity (real, optional, Phase 19b, default 2.0e4, validated > 0)
+   * - erf.radiation.seb_restore_timescale_s (real, optional, Phase 19b, default 86400.0, validated > 0)
+   * - erf.radiation.seb_moisture_layer_depth_m (real, optional, Phase 19b, default 0.1, validated > 0)
+   * - erf.radiation.seb_moisture_restore_timescale_s (real, optional, Phase 19b, default 86400.0, validated > 0)
+   * - erf.radiation.seb_prognostic_t_min_k (real, optional, Phase 19b, default 200.0)
+   * - erf.radiation.seb_prognostic_t_max_k (real, optional, Phase 19b, default 340.0)
+   * - erf.radiation.seb_prognostic_q_min (real, optional, Phase 19b, default 0.0, clamped to [0, 1])
+   * - erf.radiation.seb_prognostic_q_max (real, optional, Phase 19b, default 1.0, clamped to [0, 1])
    *
    * Sub-option queries are only performed if rad_type == RadType::TwoStream.
    */
@@ -775,6 +861,25 @@ public:
           seb_enable = true;  // Internal auto-enable for safety/simplicity
       }
 
+      // Phase 19b: SEB prognostic mode parameters
+      pp.query("radiation.seb_prognostic_enable", seb_prognostic_enable);
+      pp.query("radiation.seb_surface_heat_capacity", seb_surface_heat_capacity);
+      pp.query("radiation.seb_restore_timescale_s", seb_restore_timescale_s);
+      pp.query("radiation.seb_moisture_layer_depth_m", seb_moisture_layer_depth_m);
+      pp.query("radiation.seb_moisture_restore_timescale_s", seb_moisture_restore_timescale_s);
+      pp.query("radiation.seb_prognostic_t_min_k", seb_prognostic_t_min_k);
+      pp.query("radiation.seb_prognostic_t_max_k", seb_prognostic_t_max_k);
+      pp.query("radiation.seb_prognostic_q_min", seb_prognostic_q_min);
+      pp.query("radiation.seb_prognostic_q_max", seb_prognostic_q_max);
+
+      // Auto-enable seb_enable and seb_diagnostic_enable if seb_prognostic_enable is requested
+      if (seb_prognostic_enable && !seb_enable) {
+          seb_enable = true;
+      }
+      if (seb_prognostic_enable && !seb_diagnostic_enable) {
+          seb_diagnostic_enable = true;
+      }
+
       if (!std::isfinite(seb_sw_flux_default)) seb_sw_flux_default = 0.0;
       if (!std::isfinite(seb_lw_flux_default)) seb_lw_flux_default = 0.0;
       if (!std::isfinite(seb_hfx_default)) seb_hfx_default = 0.0;
@@ -791,6 +896,40 @@ public:
       seb_grdflx_default = amrex::max(amrex::Real(-2000.0), amrex::min(amrex::Real(2000.0), seb_grdflx_default));
       seb_q_sfc_default = amrex::max(amrex::Real(0.0), amrex::min(amrex::Real(1.0), seb_q_sfc_default));
       seb_q_deep_default = amrex::max(amrex::Real(0.0), amrex::min(amrex::Real(1.0), seb_q_deep_default));
+
+      // Parameter validation (Phase 19b): validate prognostic parameters
+      if (!std::isfinite(seb_surface_heat_capacity) || seb_surface_heat_capacity <= 0.0) {
+          seb_surface_heat_capacity = 2.0e4;  // Reset to default
+      }
+      if (!std::isfinite(seb_restore_timescale_s) || seb_restore_timescale_s <= 0.0) {
+          seb_restore_timescale_s = 86400.0;  // Reset to default
+      }
+      if (!std::isfinite(seb_moisture_layer_depth_m) || seb_moisture_layer_depth_m <= 0.0) {
+          seb_moisture_layer_depth_m = 0.1;  // Reset to default
+      }
+      if (!std::isfinite(seb_moisture_restore_timescale_s) || seb_moisture_restore_timescale_s <= 0.0) {
+          seb_moisture_restore_timescale_s = 86400.0;  // Reset to default
+      }
+
+      // Clamp temperature bounds
+      if (!std::isfinite(seb_prognostic_t_min_k)) seb_prognostic_t_min_k = 200.0;
+      if (!std::isfinite(seb_prognostic_t_max_k)) seb_prognostic_t_max_k = 340.0;
+      if (seb_prognostic_t_min_k > seb_prognostic_t_max_k) {
+          amrex::Real tmp = seb_prognostic_t_min_k;
+          seb_prognostic_t_min_k = seb_prognostic_t_max_k;
+          seb_prognostic_t_max_k = tmp;
+      }
+
+      // Clamp moisture bounds
+      if (!std::isfinite(seb_prognostic_q_min)) seb_prognostic_q_min = 0.0;
+      if (!std::isfinite(seb_prognostic_q_max)) seb_prognostic_q_max = 1.0;
+      seb_prognostic_q_min = amrex::max(0.0, amrex::min(1.0, seb_prognostic_q_min));
+      seb_prognostic_q_max = amrex::max(0.0, amrex::min(1.0, seb_prognostic_q_max));
+      if (seb_prognostic_q_min > seb_prognostic_q_max) {
+          amrex::Real tmp = seb_prognostic_q_min;
+          seb_prognostic_q_min = seb_prognostic_q_max;
+          seb_prognostic_q_max = tmp;
+      }
   }
 
 }
