@@ -1232,6 +1232,12 @@ void ERF::compute_twostream_radiation_diagnostics(
     amrex::Real heating_rate_max = 0.0;
     amrex::Real seb_residual_mean = std::numeric_limits<amrex::Real>::quiet_NaN();
     amrex::Real seb_residual_max  = std::numeric_limits<amrex::Real>::quiet_NaN();
+    
+    // (Phase 19b) Prognostic SEB surface temperature and moisture diagnostics
+    amrex::Real t_s_mean = std::numeric_limits<amrex::Real>::quiet_NaN();
+    amrex::Real t_s_max  = std::numeric_limits<amrex::Real>::quiet_NaN();
+    amrex::Real q_s_mean = std::numeric_limits<amrex::Real>::quiet_NaN();
+    amrex::Real q_s_max  = std::numeric_limits<amrex::Real>::quiet_NaN();
 
     // Get state at this level (conservative variables: density, RhoTheta, etc.)
     const auto& state_cons = vars_old[lev][Vars::cons];
@@ -1577,7 +1583,143 @@ void ERF::compute_twostream_radiation_diagnostics(
             }
         }
 
-        // NOTE: This computes a domain-averaged surface flux. This is only
+        // (Phase 19b) Prognostic SEB surface temperature and moisture evolution
+        // Only run if prognostic mode is enabled and Noah-MP is NOT driving LSM at this level
+        if (rad_choice.seb_prognostic_enable && rad_choice.seb_enable) {
+            // Check if Noah-MP is active at this level by attempting to get the LSM t_sfc field
+            int lsm_idx_t_sfc = lsm.Get_DataIdx(lev, "t_sfc");
+            bool noahmp_active = (lsm_idx_t_sfc >= 0);
+            
+            if (!noahmp_active) {
+                // Noah-MP is NOT active; proceed with prognostic update
+                
+                // Initialize diagnostics for T_s and q_s
+                amrex::Real t_s_sum = 0.0;
+                amrex::Real t_s_max_val = -std::numeric_limits<amrex::Real>::max();
+                amrex::Real q_s_sum = 0.0;
+                amrex::Real q_s_max_val = -std::numeric_limits<amrex::Real>::max();
+                amrex::Long n_prog_columns = 0;
+                
+                // Third loop over boxes for prognostic SEB update
+                for (MFIter mfi(state_cons, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+                    const Box& bx = mfi.tilebox();
+                    const auto& lo = bx.loVect();
+                    const auto& hi = bx.hiVect();
+                    Box xy_box(IntVect(lo[0], lo[1], 0), IntVect(hi[0], hi[1], 0));
+                    
+                    // Get SEB field arrays (read-only)
+                    Array4<const amrex::Real> sw_flux_arr = sw_flux_sfc[lev]->const_array(mfi);
+                    Array4<const amrex::Real> lw_flux_arr = lw_flux_sfc[lev]->const_array(mfi);
+                    Array4<const amrex::Real> hfx_arr = hfx_sfc[lev]->const_array(mfi);
+                    Array4<const amrex::Real> lh_arr = lh_sfc[lev]->const_array(mfi);
+                    Array4<const amrex::Real> grdflx_arr = grdflx_sfc[lev]->const_array(mfi);
+                    Array4<const amrex::Real> t_deep_arr = t_deep[lev]->const_array(mfi);
+                    Array4<const amrex::Real> q_deep_arr = q_deep[lev]->const_array(mfi);
+                    
+                    // Get SEB state arrays (read-write for prognostic update)
+                    Array4<amrex::Real> t_s_arr = twostream_t_sfc[lev]->array(mfi);
+                    Array4<amrex::Real> q_s_arr = q_sfc[lev]->array(mfi);
+                    
+                    // Count columns and prepare for reductions
+                    amrex::Long n_cols_box = static_cast<amrex::Long>(bx.length(0)) *
+                                             static_cast<amrex::Long>(bx.length(1));
+                    amrex::Real t_s_sum_box = 0.0;
+                    amrex::Real t_s_max_box = -std::numeric_limits<amrex::Real>::max();
+                    amrex::Real q_s_sum_box = 0.0;
+                    amrex::Real q_s_max_box = -std::numeric_limits<amrex::Real>::max();
+                    
+                    // GPU-safe update for prognostic T_s and q_s with reductions
+                    ReduceOps<ReduceOpSum, ReduceOpMax, ReduceOpSum, ReduceOpMax> prog_reduce_ops;
+                    ReduceData<amrex::Real, amrex::Real, amrex::Real, amrex::Real> prog_reduce_data(prog_reduce_ops);
+                    
+                    using ProgReduceTuple = typename decltype(prog_reduce_data)::Type;
+                    
+                    prog_reduce_ops.eval(xy_box, prog_reduce_data,
+                        [=] AMREX_GPU_DEVICE (int i, int j, int /*k_unused*/) -> ProgReduceTuple {
+                            // Read current surface temperature and moisture
+                            amrex::Real t_s_old = t_s_arr(i, j, 0);
+                            amrex::Real q_s_old = q_s_arr(i, j, 0);
+                            
+                            // Read forcing data
+                            amrex::Real sw_net = sw_flux_arr(i, j, 0);
+                            amrex::Real lw_net = lw_flux_arr(i, j, 0);
+                            amrex::Real hfx = hfx_arr(i, j, 0);
+                            amrex::Real lh = lh_arr(i, j, 0);
+                            amrex::Real grdflx = grdflx_arr(i, j, 0);
+                            amrex::Real t_deep = t_deep_arr(i, j, 0);
+                            amrex::Real q_deep = q_deep_arr(i, j, 0);
+                            
+                            // Compute SEB residual
+                            amrex::Real seb_res = diagnose_seb_residual(sw_net, lw_net, hfx, lh, grdflx);
+                            
+                            // Compute tendencies
+                            amrex::Real dT_s_dt = prognostic_dTs_dt(seb_res, t_s_old, t_deep,
+                                                                     C_s, tau);
+                            amrex::Real dq_s_dt = prognostic_dqs_dt(lh, q_s_old, q_deep,
+                                                                     d_s, tau_q);
+                            
+                            // Perform Euler update
+                            amrex::Real t_s_new = t_s_old + time_step * dT_s_dt;
+                            amrex::Real q_s_new = q_s_old + time_step * dq_s_dt;
+                            
+                            // Clamp to valid ranges
+                            t_s_new = amrex::max(t_min, amrex::min(t_max, t_s_new));
+                            q_s_new = amrex::max(q_min, amrex::min(q_max, q_s_new));
+                            
+                            // Write back updated values (this modifies the device array)
+                            t_s_arr(i, j, 0) = t_s_new;
+                            q_s_arr(i, j, 0) = q_s_new;
+                            
+                            // Return for reduction: sum T_s, max T_s, sum q_s, max q_s
+                            return {t_s_new, std::abs(t_s_new), q_s_new, std::abs(q_s_new)};
+                        },
+                        [C_s=rad_choice.seb_surface_heat_capacity,
+                         tau=rad_choice.seb_restore_timescale_s,
+                         d_s=rad_choice.seb_moisture_layer_depth_m,
+                         tau_q=rad_choice.seb_moisture_restore_timescale_s,
+                         t_min=rad_choice.seb_prognostic_t_min_k,
+                         t_max=rad_choice.seb_prognostic_t_max_k,
+                         q_min=rad_choice.seb_prognostic_q_min,
+                         q_max=rad_choice.seb_prognostic_q_max] () {}
+                    );
+                    
+                    // Copy results from device to host
+                    amrex::Gpu::synchronize();
+                    auto prog_reduce_tuple = prog_reduce_data.value(prog_reduce_ops);
+                    t_s_sum_box = amrex::get<0>(prog_reduce_tuple);
+                    t_s_max_box = amrex::get<1>(prog_reduce_tuple);
+                    q_s_sum_box = amrex::get<2>(prog_reduce_tuple);
+                    q_s_max_box = amrex::get<3>(prog_reduce_tuple);
+                    
+                    // Accumulate into global results
+                    t_s_sum += t_s_sum_box;
+                    t_s_max_val = std::max(t_s_max_val, t_s_max_box);
+                    q_s_sum += q_s_sum_box;
+                    q_s_max_val = std::max(q_s_max_val, q_s_max_box);
+                    n_prog_columns += n_cols_box;
+                }
+                
+                // Compute mean values from sums
+                if (n_prog_columns > 0) {
+                    t_s_mean = t_s_sum / static_cast<amrex::Real>(n_prog_columns);
+                    t_s_max = t_s_max_val;
+                    q_s_mean = q_s_sum / static_cast<amrex::Real>(n_prog_columns);
+                    q_s_max = q_s_max_val;
+                } else {
+                    t_s_mean = std::numeric_limits<amrex::Real>::quiet_NaN();
+                    t_s_max = std::numeric_limits<amrex::Real>::quiet_NaN();
+                    q_s_mean = std::numeric_limits<amrex::Real>::quiet_NaN();
+                    q_s_max = std::numeric_limits<amrex::Real>::quiet_NaN();
+                }
+            } else {
+                // Noah-MP is active; skip prognostic update for this level
+                // Leave t_s and q_s as populated by Phase 17 LSM passthrough
+                t_s_mean = std::numeric_limits<amrex::Real>::quiet_NaN();
+                t_s_max = std::numeric_limits<amrex::Real>::quiet_NaN();
+                q_s_mean = std::numeric_limits<amrex::Real>::quiet_NaN();
+                q_s_max = std::numeric_limits<amrex::Real>::quiet_NaN();
+            }
+        }
         // equivalent to a single-column value for spatially UNIFORM atmospheres
         // (as in the current SW_ClearSky_Analytical / LW_Isothermal RegTests).
         // Phase 3's SW_Cloud_Layer and Phase 4's SW_Scattering_Cloud RegTests
@@ -1624,9 +1766,16 @@ void ERF::compute_twostream_radiation_diagnostics(
             Print() << "  SEB residual (mean) = " << seb_residual_mean << " W/m^2\n"
                     << "  SEB residual (max) = " << seb_residual_max << " W/m^2\n";
         }
+        if (rad_choice.seb_prognostic_enable && std::isfinite(t_s_mean)) {
+            Print() << "  Surface temperature (mean) = " << t_s_mean << " K\n"
+                    << "  Surface temperature (max) = " << t_s_max << " K\n"
+                    << "  Surface moisture (mean) = " << q_s_mean << " kg/kg\n"
+                    << "  Surface moisture (max) = " << q_s_max << " kg/kg\n";
+        }
     }
 
     rad_diag.append(nstep, time_step, call_site, SW_surface, SW_TOA,
                     F_up_surface, F_down_toa, heating_rate_max,
-                    seb_residual_mean, seb_residual_max);
+                    seb_residual_mean, seb_residual_max,
+                    t_s_mean, t_s_max, q_s_mean, q_s_max);
 }

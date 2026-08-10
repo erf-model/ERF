@@ -33,7 +33,7 @@ This document tracks the development of the two-stream radiation model through p
 | **16** | Time-Varying Solar Geometry | ✅ Complete | PR #PHASE16_PLACEHOLDER | Solar zenith evolution with time/lat/day; fixed-angle fallback retained | Easy | `TwoStream_DiurnalSolarGeometry` |
 | **17** | Simplified SEB — MultiFab Infrastructure + Noah-MP Passthrough | ✅ Complete | PR #PHASE17_PLACEHOLDER | Create SEB MultiFabs, reuse existing surface-property fallbacks, and wire Noah-MP/LSM passthrough with scalar defaults | Moderate | `TwoStream_SEB_MultiFabInfra` |
 | **18** | Simplified SEB — Diagnostic Mode | ✅ Complete | TBD | Compute/report SEB residual terms from TwoStream + surface inputs using Phase 17 MultiFabs (no prognostic `T_s` update) | Moderate | `TwoStream_SEB_Diagnostic` |
-| **19** | Simplified SEB — Prognostic Mode | ⏳ Planned (Active) | TBD | Optional explicit `T_s` (and surface moisture) tendency update with limiter/clamps and fallback-safe behavior | Moderate | `TwoStream_SEB_Prognostic` |
+| **19** | Simplified SEB — Prognostic Mode | ✅ Complete | PR #[to-be-filled-after-merge] | Optional explicit `T_s` (and surface moisture) tendency update with limiter/clamps and fallback-safe behavior | Moderate | `TwoStream_SEB_Prognostic` |
 | **20** | SEB Coupling Safeguards (Noah-MP/SurfaceLayer Interop) | ⏳ Planned (Active) | TBD | Anti-double-count rules and precedence guards for `T_s`, `H`, `LE`, and radiative terms between simplified SEB and Noah-MP/SurfaceLayer | Moderate | `TwoStream_SEB_CouplingSafeguards` |
 
 **Note (2026-08-10)**: SEB Validation & Benchmark Suite is deferred/deprioritized for now (not currently scheduled as a numbered phase). It may be reinstated as a future phase once Phases 17–20 are complete and stable.
@@ -208,6 +208,135 @@ The `input_sounding` file used in `TwoStream_SEB_MultiFabInfra` contained unreal
 - [x] No NaN/Inf values in diagnostic output
 - [x] Backward compatibility preserved: when disabled, zero overhead and identical output
 - [x] GPU-safe implementation: device-side kernel with no host I/O
+
+---
+
+## Phase 19b Implementation (Simplified SEB — Prognostic Surface Temperature and Moisture)
+
+**Status**: ✅ Complete (as of 2026-08-10)  
+**Scope**: Time-integrate SEB residual to evolve prognostic surface temperature and moisture using force-restore formulation; gate on Noah-MP availability  
+**Key Feature**: Optional explicit `T_s` (and surface moisture) time-stepping with configurable timescales, bounds, and Noah-MP safeguards.
+
+### Governing Equations
+
+#### Prognostic Surface Temperature (Force-Restore)
+
+```
+C_s * dT_s/dt = R_net - H - LE - G - C_s * (2*pi/tau) * (T_s - T_deep)
+
+Rearranged as a tendency:
+dT_s/dt = SEB_residual / C_s - (2*pi/tau) * (T_s - T_deep)
+```
+
+Where:
+- `SEB_residual = R_net - H - LE - G` (from Phase 18)
+- `C_s` [J/(m^2*K)] — effective surface heat capacity (new parameter, default 2.0e4)
+- `tau` [s] — force-restore timescale toward `T_deep` (new parameter, default 86400.0 s)
+- `T_deep` — deep soil temperature from existing `t_deep[lev]` MultiFab (Phase 17)
+
+Explicit Euler update:
+```
+T_s^(n+1) = T_s^n + dt * [ SEB_residual^n / C_s - (2*pi/tau) * (T_s^n - T_deep^n) ]
+           (clamped to [T_min, T_max])
+```
+
+#### Prognostic Surface Moisture (Force-Restore, Bucket-Style)
+
+```
+dq_s/dt = -(LE / (L_v * rho_w * d_s)) - (1/tau_q) * (q_s - q_deep)
+```
+
+Where:
+- `LE` — latent heat flux from `lh_sfc[lev]` (Phase 17)
+- `L_v = 2.5e6` J/kg (hardcoded latent heat of vaporization constant)
+- `rho_w = 1000.0` kg/m^3 (hardcoded water density)
+- `d_s` [m] — effective surface moisture layer depth (new parameter, default 0.1 m)
+- `tau_q` [s] — moisture force-restore timescale toward `q_deep` (new parameter, default 86400.0 s)
+- `q_deep` — deep soil moisture from existing `q_deep[lev]` MultiFab (Phase 17)
+
+Explicit Euler update:
+```
+q_s^(n+1) = q_s^n + dt * [ -LE / (L_v * rho_w * d_s) - (1/tau_q) * (q_s^n - q_deep^n) ]
+           (clamped to [q_min, q_max])
+```
+
+### Technical Design
+
+1. **New GPU-safe helper functions in `ERF_SimplifiedSEB.H`**:
+   - `prognostic_dTs_dt(seb_residual, T_s, T_deep, C_s, tau)`: computes temperature tendency per equation above; guards all inputs with `std::isfinite()` and validates `C_s > 0`, `tau > 0`; returns `0.0` on invalid input (safe no-op).
+   - `prognostic_dqs_dt(LE, q_s, q_deep, d_s, tau_q)`: computes moisture tendency per equation above; guards all inputs with `std::isfinite()` and validates `d_s > 0`, `tau_q > 0`; returns `0.0` on invalid input (safe no-op).
+   - Both functions are `AMREX_GPU_DEVICE AMREX_FORCE_INLINE` with no host-side I/O or dynamic allocation.
+
+2. **New RadChoice parameters** (added to `ERF_RadStruct.H`, parsed in `init_params()` with validation):
+   - `seb_prognostic_enable` [bool]: master switch; default `false` (fully backward compatible).
+   - `seb_surface_heat_capacity` [Real, J/(m^2*K)]: default 2.0e4; validated `> 0` in init_params().
+   - `seb_restore_timescale_s` [Real, s]: default 86400.0; validated `> 0`.
+   - `seb_moisture_layer_depth_m` [Real, m]: default 0.1; validated `> 0`.
+   - `seb_moisture_restore_timescale_s` [Real, s]: default 86400.0; validated `> 0`.
+   - `seb_prognostic_t_min_k`, `seb_prognostic_t_max_k` [Real, K]: clamp bounds for `T_s` after update; defaults 200.0/340.0 K.
+   - `seb_prognostic_q_min`, `seb_prognostic_q_max` [Real, kg/kg]: clamp bounds for `q_s` after update; defaults 0.0/1.0.
+   - **Auto-enable logic**: if `seb_prognostic_enable=true` but `seb_enable=false` or `seb_diagnostic_enable=false`, auto-enable those internally with one-time `Print()` warning (matching Phase 18 pattern).
+
+3. **Noah-MP gating logic** in `compute_twostream_radiation_diagnostics()`:
+   - Before the prognostic update loop, check whether Noah-MP is actively driving the LSM's surface temperature field at this level: `lsm.Get_DataIdx(lev, "t_sfc") >= 0`.
+   - If Noah-MP is active (`noahmp_active=true`), skip the prognostic update entirely for that level; leave `t_sfc`/`q_sfc` as populated by Phase 17 passthrough (Noah-MP's own soil/skin temperature prognostics take precedence).
+   - If Noah-MP is inactive, proceed with prognostic update on scalar fallback SEB fields.
+
+4. **Integration point** in `compute_twostream_radiation_diagnostics()`:
+   - After the existing Phase 18 SEB residual computation loop, add a new third box loop (gated on `rad_choice.seb_prognostic_enable && rad_choice.seb_enable && !noahmp_active_at_this_level`).
+   - Loop structure: standard `MFIter(state_cons, TilingIfNotGPU())` over boxes, extract `(i,j)` columns via `xy_box` projection, then:
+     - Reads: `sw_flux_sfc`, `lw_flux_sfc`, `hfx_sfc`, `lh_sfc`, `grdflx_sfc`, `twostream_t_sfc` (current `T_s`), `t_deep`, `q_sfc` (current `q_s`), `q_deep`.
+     - Computes: `SEB_residual` via existing `diagnose_seb_residual()`.
+     - Computes: `dT_s/dt` and `dq_s/dt` via new helpers.
+     - Updates: `twostream_t_sfc` and `q_sfc` in place via Euler: `field_new = field_old + dt * tendency`, then clamps.
+     - Reduction: sum `T_s` and `q_s` for mean/max diagnostics (matching Phase 18 reduction pattern).
+   - Loop is GPU-safe `ParallelFor` with device-side update lambda (no host I/O).
+
+5. **Diagnostics output**:
+   - Track `T_s_mean`, `T_s_max`, `q_s_mean`, `q_s_max` as reductions over the prognostic-update domain.
+   - Extend CSV diagnostics with four new columns (following Phase 18 pattern): written as NaN when feature is disabled (backward compatible).
+   - Updated `RadiationDiagnostics::append()` signature to accept the four new parameters; header and row-writing logic updated in `.cpp`.
+
+### Backward Compatibility (required)
+
+- `seb_prognostic_enable = false` (default): zero new computation, zero new diagnostic columns (or all NaN), bitwise-identical output to Phase 19a.
+- `seb_prognostic_enable=true` with Noah-MP active at a level: that level's `t_sfc`/`q_sfc` untouched by Phase 19b; no double-counting or conflict with Noah-MP's own prognostics.
+- `seb_prognostic_enable=true` with no Noah-MP (scalar fallback SEB fields): `T_s`/`q_s` evolve deterministically per equations above; must remain finite and bounded throughout run.
+
+### GPU Safety (required)
+
+- All tendency computations are simple device-inline arithmetic (`AMREX_GPU_DEVICE AMREX_FORCE_INLINE` helpers).
+- Update loop follows same `ParallelFor`/`MFIter` pattern as Phase 18 SEB residual loop; no host I/O in device lambda.
+- Reductions (sum/max for diagnostics) use standard AMReX `ReduceOps`/`ReduceData` pattern proven in Phase 18.
+
+### New RegTest: `TwoStream_SEB_Prognostic/`
+
+Based on `TwoStream_SEB_Diagnostic/`, with two scenarios:
+
+1. **Baseline case** (`inputs_seb_prognostic_disabled`):
+   - `seb_prognostic_enable = false` (default)
+   - Expected: bitwise-identical to Phase 19a baseline; no new columns or all NaN.
+
+2. **Feature-on case** (`inputs_seb_prognostic_enabled`):
+   - `seb_prognostic_enable = true`
+   - Uses scalar fallback defaults (deterministic, no LSM active).
+   - Expected: `T_s` evolves away from initial value; `SEB_residual = -10 W/m^2` implies cooling tendency (first-order: `dT_s/dt ≈ -10/2e4 = -0.5 mK/s`).
+   - Validates: all `T_s` within `[200, 340]` K; all `q_s` within `[0.0, 1.0]` kg/kg; with very small timescale (e.g., `tau_q = 100` s), `T_s` asymptotically approaches `T_deep` (sanity check on restore term sign/magnitude).
+
+#### Verification & Validation Checklist
+
+- [x] Helper functions created in `ERF_SimplifiedSEB.H` with finiteness guards and parameter validation
+- [x] All 9 new RadChoice parameters added with defaults and init_params() parsing/validation
+- [x] Auto-enable logic implemented for `seb_enable` and `seb_diagnostic_enable` prerequisites
+- [x] Noah-MP gating check added before prognostic loop (checks `lsm.Get_DataIdx(lev, "t_sfc") >= 0`)
+- [x] Prognostic update loop integrated in `compute_twostream_radiation_diagnostics()` after Phase 18 loop
+- [x] Euler update with clamping applied in device lambda
+- [x] Diagnostics reductions (T_s mean/max, q_s mean/max) computed and tracked
+- [x] RadiationDiagnostics extended with new CSV columns and append() signature update
+- [x] Backward compatibility preserved: when disabled, all new columns are NaN, bitwise-identical to Phase 19a
+- [x] `TwoStream_SEB_Prognostic/` RegTest directory created with README, two input files, and validation script
+- [x] Validation script (`check_seb_prognostic.py`) checks baseline case and feature-on case separately
+- [x] RAD_DEVELOPMENT.md updated with Phase 19b roadmap entry and full implementation section
 
 ---
 
