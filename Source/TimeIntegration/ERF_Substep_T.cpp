@@ -270,6 +270,8 @@ void erf_substep_T (int step, int /*nrk*/,
 
         // Map factors
         const Array4<const Real>& mf_ux = mapfac[MapFacType::u_x]->const_array(mfi);
+        const Array4<const Real>& mf_uy = mapfac[MapFacType::u_y]->const_array(mfi);
+        const Array4<const Real>& mf_vx = mapfac[MapFacType::v_x]->const_array(mfi);
         const Array4<const Real>& mf_vy = mapfac[MapFacType::v_y]->const_array(mfi);
 
         // Create old_drho_u/v/w/theta  = U'', V'', W'', Theta'' in the docs
@@ -318,7 +320,11 @@ void erf_substep_T (int step, int /*nrk*/,
                     new_drho_u(i,j,k+1) = new_drho_u(i,j,k);
                 }
 
-                avg_xmom_arr(i,j,k) += facinv*new_drho_u(i,j,k);
+                // NOTE: met_h_zeta here is identically the x-face area ax computed by
+                //       make_areas, so this matches the base value of avg_xmom defined in
+                //       AdvectionSrcForRho (ax*rho_u/mf_uy) as well as the density flux
+                //       (new_drho_u*h_zeta_cc_xface/mf_uy) formed below.
+                avg_xmom_arr(i,j,k) += facinv * new_drho_u(i,j,k) * met_h_zeta / mf_uy(i,j,0);
 
                 cur_xmom(i,j,k) = stage_xmom(i,j,k) + new_drho_u(i,j,k);
             },
@@ -353,7 +359,11 @@ void erf_substep_T (int step, int /*nrk*/,
                     new_drho_v(i,j,k+1) = new_drho_v(i,j,k);
                 }
 
-                avg_ymom_arr(i,j,k) += facinv*new_drho_v(i,j,k);
+                // NOTE: met_h_zeta here is identically the y-face area ay computed by
+                //       make_areas, so this matches the base value of avg_ymom defined in
+                //       AdvectionSrcForRho (ay*rho_v/mf_vx) as well as the density flux
+                //       (new_drho_v*h_zeta_cc_yface/mf_vx) formed below.
+                avg_ymom_arr(i,j,k) += facinv * new_drho_v(i,j,k) * met_h_zeta / mf_vx(i,j,0);
 
                 cur_ymom(i,j,k) = stage_ymom(i,j,k) + new_drho_v(i,j,k);
             });
