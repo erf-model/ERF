@@ -25,7 +25,7 @@ using namespace amrex;
  * @param[out] tau31 31 strain
  * @param[out] tau32 32 strain
  * @param[in] bc_ptr container with boundary condition types
- * @param[in] stretched_dz_d array of vertical mesh spacings
+ * @param[in] stretched_dz_d array of vertical grid spacings
  * @param[in] dxInv inverse cell size array
  * @param[in] mf_mx map factor at cell center
  * @param[in] mf_ux map factor at x-face

@@ -402,7 +402,7 @@ WindFarm::fill_Nturb_multifab (const Geometry& geom,
     int j_lo = geom.Domain().smallEnd(1); int j_hi = geom.Domain().bigEnd(1);
     auto dx = geom.CellSizeArray();
     if(dx[0]<= 1e-3 or dx[1]<=1e-3 or dx[2]<= 1e-3) {
-        Abort("The value of mesh spacing for wind farm parametrization cannot be less than 1e-3 m. "
+        Abort("The value of grid spacing for wind farm parametrization cannot be less than 1e-3 m. "
               "It should be usually of order 1 m");
     }
     auto ProbLoArr = geom.ProbLoArray();

@@ -10,7 +10,7 @@ using namespace amrex;
  * @param[out] rhs_arr tendency for the boundary-normal momentum equation
  * @param[in] vel_norm_arr velocity component normal to the open boundary
  * @param[in] cell_data_arr cell-centered conservative state
- * @param[in] dxInv inverse mesh spacing
+ * @param[in] dxInv inverse grid spacing
  * @param[in] do_lo flag for a low-side open boundary
  */
 void
@@ -58,7 +58,7 @@ AdvectionSrcForOpenBC_Normal (const Box& bx,
  * @param[in] ax area fraction of x-faces
  * @param[in] az area fraction of z-faces
  * @param[in] detJ Jacobian of the metric transformation
- * @param[in] cellSizeInv inverse mesh spacing
+ * @param[in] cellSizeInv inverse grid spacing
  * @param[in] do_lo flag for a low-side open boundary
  */
 void
@@ -113,7 +113,7 @@ AdvectionSrcForOpenBC_Tangent_Xmom (const Box& bxx,
  * @param[in] ay area fraction of y-faces
  * @param[in] az area fraction of z-faces
  * @param[in] detJ Jacobian of the metric transformation
- * @param[in] cellSizeInv inverse mesh spacing
+ * @param[in] cellSizeInv inverse grid spacing
  * @param[in] do_lo flag for a low-side open boundary
  */
 void
@@ -169,7 +169,7 @@ AdvectionSrcForOpenBC_Tangent_Ymom (const Box& bxy,
  * @param[in] ay area fraction of y-faces
  * @param[in] az area fraction of z-faces
  * @param[in] detJ Jacobian of the metric transformation
- * @param[in] cellSizeInv inverse mesh spacing
+ * @param[in] cellSizeInv inverse grid spacing
  * @param[in] domhi_z maximum cell-centered k-index in the domain
  * @param[in] do_lo flag for a low-side open boundary
  */
@@ -245,7 +245,7 @@ AdvectionSrcForOpenBC_Tangent_Zmom (const Box& bxz,
  * @param[in] avg_ymom y-component of time-averaged momentum
  * @param[in] avg_zmom z-component of time-averaged momentum
  * @param[in] detJ Jacobian of the metric transformation
- * @param[in] cellSizeInv inverse mesh spacing
+ * @param[in] cellSizeInv inverse grid spacing
  * @param[in] do_lo flag for a low-side open boundary
  */
 void
@@ -315,7 +315,7 @@ AdvectionSrcForOpenBC_Tangent_Cons (const Box& bx,
  * @param[in] dir coordinate direction normal to the open boundary
  * @param[in] prim_tang_arr primitive variable tangent to the open boundary
  * @param[in] mom_norm_arr momentum component normal to the open boundary
- * @param[in] dxInv inverse mesh spacing in the open-boundary normal direction
+ * @param[in] dxInv inverse grid spacing in the open-boundary normal direction
  * @param[in] do_lo flag for a low-side open boundary
  * @return source contribution before the wrapper applies its sign convention
  */

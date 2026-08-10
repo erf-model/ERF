@@ -23,7 +23,7 @@ using namespace amrex;
  * @param[in]  tau31 31 stress
  * @param[in]  tau32 32 stress
  * @param[in]  detJ Jacobian determinant
- * @param[in]  stretched_dz_d array of vertical mesh spacings
+ * @param[in]  stretched_dz_d array of vertical grid spacings
  * @param[in]  dxInv inverse cell size array
  * @param[in]  mf_mx x map factor at cell centers
  * @param[in]  mf_ux x map factor at x-faces
