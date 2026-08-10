@@ -151,6 +151,8 @@ public:
         return shoc::diagnose_active_top(tke, ic, nlev);
     }
 
+    // Host-only wrapper: col's FArrayBoxes and all vectors must be host-accessible.
+    // Device-owned column data must be staged before calling this routine.
     static void apply_column (const ShocColumnData& col,
                               int ic,
                               double dt,
