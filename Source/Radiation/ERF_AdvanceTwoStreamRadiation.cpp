@@ -1267,7 +1267,6 @@ void ERF::compute_twostream_radiation_diagnostics(
 
         // (Phase 18) SEB residual diagnostics
         amrex::Real seb_residual_sum = 0.0;
-        amrex::Real seb_residual_max = 0.0;
         amrex::Long n_seb_columns = 0;
 
         // Phase 3: cloud fraction used to blend clear-sky and cloudy-column results.
@@ -1509,6 +1508,17 @@ void ERF::compute_twostream_radiation_diagnostics(
             lw_net_sum += lw_sum_box;
         }
 
+         // (Phase 18) Warn if diagnostic is requested but SEB infrastructure isn't enabled
+        if (rad_choice.seb_diagnostic_enable && !rad_choice.seb_enable) {
+            static bool warned_seb_misconfig = false;
+            if (!warned_seb_misconfig && ParallelDescriptor::IOProcessor()) {
+                Print() << "WARNING: erf.radiation.seb_diagnostic_enable=true but "
+                           "seb_enable=false; SEB residual diagnostics will report NaN. "
+                           "Set erf.radiation.seb_enable=true to enable SEB field "
+                           "population.\n";
+                warned_seb_misconfig = true;
+            }
+        }
         // (Phase 18) Compute SEB residual diagnostics if enabled
         if (rad_choice.seb_diagnostic_enable && rad_choice.seb_enable) {
             // Second loop over boxes to compute SEB residual from populated SEB MultiFabs
@@ -1582,7 +1592,6 @@ void ERF::compute_twostream_radiation_diagnostics(
         heating_rate_max = max_heating_global;
 
         // (Phase 18) Compute SEB residual mean from sum
-        amrex::Real seb_residual_mean = 0.0;
         if (rad_choice.seb_diagnostic_enable && rad_choice.seb_enable && n_seb_columns > 0) {
             seb_residual_mean = seb_residual_sum / static_cast<amrex::Real>(n_seb_columns);
         } else {
