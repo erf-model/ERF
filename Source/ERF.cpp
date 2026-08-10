@@ -2482,9 +2482,6 @@ ERF::ReadParameters ()
     if (solverChoice.lsm_type == LandSurfaceType::SLM) {
         lsm.SetModel<SLM>();
         Print() << "SLM land surface model!\n";
-    } else if (solverChoice.lsm_type == LandSurfaceType::MM5) {
-        lsm.SetModel<MM5>();
-        Print() << "MM5 land surface model!\n";
 #ifdef ERF_USE_NOAHMP
     } else if (solverChoice.lsm_type == LandSurfaceType::NOAHMP) {
         lsm.SetModel<NOAHMP>();

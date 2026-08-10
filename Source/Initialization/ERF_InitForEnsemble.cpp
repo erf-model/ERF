@@ -38,7 +38,7 @@ ERF::create_random_perturbations(const int lev,
         [=] AMREX_GPU_DEVICE (int i, int j, int k, int n,
                              const amrex::RandomEngine& engine) noexcept
         {
-            pert_arr(i,j,k,n) = amrex::Random(engine);
+            pert_arr(i,j,k,n) = amrex::Real(2.0) * amrex::Random(engine) - amrex::Real(1.0);
         });
     }
 }
@@ -195,6 +195,10 @@ void ApplyNeumannBCs(const Geometry& geom,
     // -------------------------------------------------
     const Box& domain = geom.Domain();
 
+    const bool periodic_x = geom.isPeriodic(0);
+    const bool periodic_y = geom.isPeriodic(1);
+    const bool periodic_z = geom.isPeriodic(2);
+
     for (MFIter mfi(mf_cc, TilingIfNotGPU()); mfi.isValid(); ++mfi)
     {
         const Box& gbx = mfi.growntilebox();   // includes ghost cells
@@ -212,15 +216,20 @@ void ApplyNeumannBCs(const Geometry& geom,
             int jj = j;
             int kk = k;
 
-            // Clamp to domain interior (FOExtrap)
-            ii = amrex::max(domain.smallEnd(0),
-                 amrex::min(i, domain.bigEnd(0)));
+             if (!periodic_x) {
+                ii = amrex::max(domain.smallEnd(0),
+                                amrex::min(i, domain.bigEnd(0)));
+            }
 
-            jj = amrex::max(domain.smallEnd(1),
-                 amrex::min(j, domain.bigEnd(1)));
+            if (!periodic_y) {
+                jj = amrex::max(domain.smallEnd(1),
+                                amrex::min(j, domain.bigEnd(1)));
+            }
 
-            kk = amrex::max(domain.smallEnd(2),
-                 amrex::min(k, domain.bigEnd(2)));
+            if (!periodic_z) {
+                kk = amrex::max(domain.smallEnd(2),
+                                amrex::min(k, domain.bigEnd(2)));
+            }
 
             arr(i,j,k,n) = arr(ii,jj,kk,n);
         });
@@ -573,7 +582,8 @@ MakeFinalMultiFabs (const MultiFab& mf_cc_fine,
                     MultiFab& cons_pert,
                     MultiFab& xvel_pert,
                     MultiFab& yvel_pert,
-                    MultiFab& zvel_pert)
+                    MultiFab& zvel_pert,
+                    const int n_qstate_moist)
 {
 
     for (MFIter mfi(cons_pert, TilingIfNotGPU()); mfi.isValid(); ++mfi)
@@ -592,9 +602,9 @@ MakeFinalMultiFabs (const MultiFab& mf_cc_fine,
             Real tmp_qrain = mf_cc_fine_arr(i,j,k,7);
             cons_pert_arr(i,j,k,Rho_comp)      = tmp_rho;
             cons_pert_arr(i,j,k,RhoTheta_comp) = tmp_rho*tmp_theta;
-            cons_pert_arr(i,j,k,RhoQ1_comp)    = tmp_rho*tmp_qv;
-            cons_pert_arr(i,j,k,RhoQ2_comp)    = tmp_rho*tmp_qc;
-            cons_pert_arr(i,j,k,RhoQ3_comp)    = tmp_rho*tmp_qrain;
+            if (n_qstate_moist > 0) cons_pert_arr(i,j,k,RhoQ1_comp)    = tmp_rho*tmp_qv;
+            if (n_qstate_moist > 1) cons_pert_arr(i,j,k,RhoQ2_comp)    = tmp_rho*tmp_qc;
+            if (n_qstate_moist > 2) cons_pert_arr(i,j,k,RhoQ3_comp)    = tmp_rho*tmp_qrain;
         });
     }
 
@@ -732,5 +742,11 @@ ERF::create_background_state_for_ensemble (int lev,
     AddPertToBckgnd(mf_cc_fine, mf_cc_pert, solverChoice.ens_pert_amplitude);
     ApplyNeumannBCs(geom_fine, mf_cc_fine);
 
-    MakeFinalMultiFabs(mf_cc_fine, cons_pert, xvel_pert, yvel_pert, zvel_pert);
+    bool use_moisture = (solverChoice.moisture_type != MoistureType::None);
+    int n_qstate_moist = 0;
+    if (use_moisture) {
+        n_qstate_moist = micro->Get_Qstate_Moist_Size();
+    }
+
+    MakeFinalMultiFabs(mf_cc_fine, cons_pert, xvel_pert, yvel_pert, zvel_pert, n_qstate_moist);
 }

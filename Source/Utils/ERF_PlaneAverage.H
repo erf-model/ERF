@@ -63,7 +63,7 @@ protected:
 
     amrex::Vector<amrex::Real> m_line_xcentroid; /** line storage for centroids of each cell along a line*/
 
-    amrex::Real m_dx;  /** mesh spacing in axis direction*/
+    amrex::Real m_dx;  /** grid spacing in axis direction*/
     amrex::Real m_xlo; /** bottom of domain in axis direction */
 
     int m_ncell_plane; /** number of cells in plane */

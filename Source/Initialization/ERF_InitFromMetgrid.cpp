@@ -1436,6 +1436,7 @@ init_base_state_from_metgrid (const bool use_moisture,
     {
         // Expose for GPU
         int RhoQ_comp = RhoQ1_comp;
+        int klo  = lbound(valid_bx).z;
         int kmax = ubound(valid_bx).z;
 
         Box valid_bx2d = valid_bx;
@@ -1443,6 +1444,7 @@ init_base_state_from_metgrid (const bool use_moisture,
         auto const orig_psfc = NC_psfc_fab.const_array();
         auto       new_data  = state_fab.array();
         auto const new_z     = z_phys_cc_fab.const_array();
+        auto const z_nd      = z_phys_nd_fab.const_array();
 
         ParallelFor(valid_bx2d, [=,RdoCp_d=RdoCp]
                     AMREX_GPU_DEVICE (int i, int j, int) noexcept
@@ -1456,16 +1458,21 @@ init_base_state_from_metgrid (const bool use_moisture,
             Real th_lo, th_hi;
             Real t_hi;
 
+            // Height of the ground (z_phys is nodal). Note that psurf is the
+            // pressure at the ground, not at z = 0, so all heights used in the
+            // hydrostatic integration below must be relative to z_sfc.
+            Real z_sfc = Real(0.25) * ( z_nd(i,j  ,klo) + z_nd(i+1,j  ,klo)
+                                      + z_nd(i,j+1,klo) + z_nd(i+1,j+1,klo) );
+
             // Calculate or use pressure at the surface.
             if (metgrid_debug_psfc) {
                 psurf = amrex::Math::powi<5>(10);
             } else if (flag_psfc == 1) {
                 psurf = orig_psfc(i,j,0);
             } else {
-                z_lo     = new_z(i,j,0);
                 Real t_0 = Real(290.0); // WRF's model_config_rec%base_temp
                 Real a   = Real(50.0);  // WRF's model_config_rec%base_lapse
-                psurf = p_0*std::exp(-t_0/a + std::sqrt(std::pow(t_0/a, two)-two*grav*z_lo/(a*R_d)));
+                psurf = p_0*std::exp(-t_0/a + std::sqrt(std::pow(t_0/a, two)-two*grav*z_sfc/(a*R_d)));
             }
             AMREX_ALWAYS_ASSERT(psurf > zero);
             AMREX_ALWAYS_ASSERT(new_data(i,j,0,RhoTheta_comp) > zero);
@@ -1476,9 +1483,11 @@ init_base_state_from_metgrid (const bool use_moisture,
                 qv_lo = (use_moisture) ? new_data(i,j,0,RhoQ_comp) : zero;
                 rd_lo = zero; // initial guess
                 th_lo = new_data(i,j,0,RhoTheta_comp);
-                // NOTE: The first iteration is from z=0 to z_cc(i,j,0) since the
-                //       reference pressure (psurf) is at the ground.
-                Real myhalf_dz = z_lo;
+                // NOTE: The first iteration is from the ground to z_cc(i,j,0) since
+                //       the reference pressure (psurf) is at the ground. Over terrain
+                //       z_cc is the height above mean sea level, so we must subtract
+                //       the height of the ground to get the height above it.
+                Real myhalf_dz = z_lo - z_sfc;
                 Real qvf       = one+(R_v/R_d)*qv_lo;
                 Real thetam    = th_lo*qvf;
                 for (int it(0); it<maxiter; it++) {
