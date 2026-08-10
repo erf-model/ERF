@@ -1,0 +1,149 @@
+# Phase 19b SEB Prognostic Mode - Feature On (Enabled)
+# Verifies T_s and q_s evolution with force-restore formulation.
+# T_s and q_s should evolve over time steps.
+
+erf.prob_name = "ABL"
+
+stop_time = 36.0
+amrex.fpe_trap_invalid = 0
+
+fabarray.mfiter_tile_size = 1024 1024 1024
+
+# DOMAIN SETUP: Simple 3D domain with stretched vertical grid
+geometry.prob_extent = 3000 3000 4096
+amr.n_cell           =  8   8   72
+amrex.max_grid_size_z = 128
+geometry.is_periodic = 1 1 0
+
+# NONUNIFORM VERTICAL SPACING
+erf.initial_dz = 4.0
+erf.grid_stretching_ratio = 1.06
+
+# BOUNDARY CONDITIONS
+zlo.type = "surface_layer"
+erf.most.z0   = 0.1      # roughness length [m]
+erf.most.zref = 24.0     # reference height [m]
+erf.most.surf_temp_flux    = 0.0
+zhi.type = "SlipWall"
+zhi.theta_grad = 0.003   # adiabatic upper boundary
+erf.fixed_dt = 0.5       # time step [s]
+
+# DIAGNOSTICS & VERBOSITY
+erf.sum_interval   = 1       # timesteps between computing mass
+erf.v              = 1       # verbosity in ERF.cpp
+amr.v              = 1       # verbosity in Amr.cpp
+
+# REFINEMENT / REGRIDDING
+amr.max_level       = 0       # maximum level number allowed
+
+# CHECKPOINT FILES
+erf.check_file      = chk_seb_prog_enabled
+erf.check_int       = -1
+
+# DATA COLLECTION
+erf.data_log    = seb_prog_enabled_hist.dat seb_prog_enabled_profiles.dat
+erf.profile_int = 10
+
+# PLOTFILES
+erf.plot_file_1     = plt_seb_prog_enabled
+erf.plot_int_1      = 1000000
+erf.plot_vars_1     = x_velocity y_velocity z_velocity theta qsrc_sw qsrc_lw
+
+# SOLVER CHOICE
+erf.use_gravity = true
+erf.molec_diff_type = "None"
+erf.les_type        = "None"
+erf.Cs = 0.11
+erf.theta_ref = 300.0
+
+# INITIALIZATION - from sounding file
+erf.init_type = "input_sounding"
+erf.sounding_type = Ideal
+
+# PBL CONFIGURATION
+erf.pbl_type = "MRF"
+erf.enable_mrf_cloud_adjustment = false
+erf.enable_mrf_countergradient = true
+erf.enable_mrf_unbounded_vpert = false
+erf.mrf_moistvars = false
+erf.pbl_mrf_Ribcr = 0.5
+erf.pbl_mrf_const_b = 7.8
+erf.pbl_mrf_coriolis_freq = 1.0e-4
+erf.pbl_mrf_highres_bounds = false
+erf.pbl_mrf_sf = 0.1
+erf.pbl_mrf_use_zero_ri_extent = false
+
+# CORIOLIS
+erf.latitude = 45.0
+erf.use_coriolis = true
+
+erf.abl_driver_type = "GeostrophicWind"
+erf.abl_geo_wind = 15.0 0.0 0.0
+
+# SOUNDING FILE
+erf.input_sounding_file = "input_sounding"
+erf.moisture_model = "Kessler"
+
+# RADIATION - Two-Stream SW + LW
+erf.radiation_type = "TwoStream"
+erf.radiation.sw_enabled = true
+erf.radiation.lw_enabled = true
+erf.radiation.tau_per_layer = 0.003125
+erf.radiation.tau_lw_per_layer = 1.0
+erf.radiation.solar_zenith = 60.0
+erf.radiation.S0 = 1361.0
+
+# RADIATION - Cloud properties
+erf.radiation.tau_profile_type = "constant"
+erf.radiation.cloud_base_height_m = 500.0
+erf.radiation.cloud_top_height_m = 2000.0
+erf.radiation.cloud_tau_per_layer = 0.0
+erf.radiation.cloud_fraction = 0.0
+
+# RADIATION - Phase 17 SEB infrastructure (must be enabled for Phase 18/19 to work)
+erf.radiation.seb_enable = true
+erf.radiation.seb_sw_flux_default = 50.0
+erf.radiation.seb_lw_flux_default = -25.0
+erf.radiation.seb_hfx_default = 10.0
+erf.radiation.seb_lh_default = 20.0
+erf.radiation.seb_grdflx_default = 5.0
+erf.radiation.seb_q_sfc_default = 0.01
+erf.radiation.seb_t_deep_default = 295.0
+erf.radiation.seb_q_deep_default = 0.20
+
+# RADIATION - Phase 18 SEB diagnostic (will be auto-enabled by Phase 19b)
+erf.radiation.seb_diagnostic_enable = true
+
+# RADIATION - Phase 19b SEB prognostic (ENABLED for feature test)
+erf.radiation.seb_prognostic_enable = true
+
+# RADIATION - Phase 19b SEB prognostic parameters (using defaults)
+# Surface heat capacity [J/(m^2*K)], default 2.0e4
+erf.radiation.seb_surface_heat_capacity = 2.0e4
+
+# Force-restore timescale for temperature [s], default 86400.0 (1 day)
+erf.radiation.seb_restore_timescale_s = 86400.0
+
+# Surface moisture layer depth [m], default 0.1
+erf.radiation.seb_moisture_layer_depth_m = 0.1
+
+# Force-restore timescale for moisture [s], default 86400.0 (1 day)
+erf.radiation.seb_moisture_restore_timescale_s = 86400.0
+
+# Temperature bounds [K]
+erf.radiation.seb_prognostic_t_min_k = 200.0
+erf.radiation.seb_prognostic_t_max_k = 340.0
+
+# Moisture bounds [kg/kg]
+erf.radiation.seb_prognostic_q_min = 0.0
+erf.radiation.seb_prognostic_q_max = 1.0
+
+# RADIATION - Solar geometry parameters (for completeness)
+erf.radiation.latitude_deg = 45.0
+erf.radiation.longitude_deg = 0.0
+erf.radiation.day_of_year = 172.0
+erf.radiation.time_zone_offset_hours = 0.0
+
+# RADIATION - Diagnostics
+erf.radiation.v = 1
+erf.radiation.diag_file = "radiation_seb_prog_enabled.dat"
