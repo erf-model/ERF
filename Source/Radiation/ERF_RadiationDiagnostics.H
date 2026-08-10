@@ -118,6 +118,10 @@ public:
    * @param[in] heating_rate_max Maximum heating rate magnitude [K/s].
    * @param[in] seb_residual_mean [optional] Mean SEB residual [W/m^2]; if non-finite, not written.
    * @param[in] seb_residual_max  [optional] Max SEB residual [W/m^2]; if non-finite, not written.
+   * @param[in] t_s_mean          [optional] Mean surface temperature [K]; if non-finite, written as NaN.
+   * @param[in] t_s_max           [optional] Max surface temperature [K]; if non-finite, written as NaN.
+   * @param[in] q_s_mean          [optional] Mean surface moisture [kg/kg]; if non-finite, written as NaN.
+   * @param[in] q_s_max           [optional] Max surface moisture [kg/kg]; if non-finite, written as NaN.
    */
   /*void append(int step, amrex::Real time, std::string const& call_site,
              amrex::Real sw_surface, amrex::Real sw_toa,
@@ -128,7 +132,11 @@ public:
             amrex::Real f_up_surface, amrex::Real f_down_toa,
             amrex::Real heating_rate_max,
             amrex::Real seb_residual_mean = std::numeric_limits<amrex::Real>::quiet_NaN(),
-            amrex::Real seb_residual_max = std::numeric_limits<amrex::Real>::quiet_NaN());
+            amrex::Real seb_residual_max = std::numeric_limits<amrex::Real>::quiet_NaN(),
+            amrex::Real t_s_mean = std::numeric_limits<amrex::Real>::quiet_NaN(),
+            amrex::Real t_s_max = std::numeric_limits<amrex::Real>::quiet_NaN(),
+            amrex::Real q_s_mean = std::numeric_limits<amrex::Real>::quiet_NaN(),
+            amrex::Real q_s_max = std::numeric_limits<amrex::Real>::quiet_NaN());
 
 private:
   /**
