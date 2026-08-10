@@ -4,6 +4,8 @@
 #ifndef ERF_METGRIDUTIL_H_
 #define ERF_METGRIDUTIL_H_
 
+#include <limits>
+
 #include <ERF.H>
 #include <ERF_EOS.H>
 #include <ERF_Utils.H>
@@ -820,7 +822,10 @@ interpolate_column_metgrid_linear (const int& i,
                    new_z(i,j,k+1)+new_z(i,j+1,k+1)+new_z(i+1,j,k+1)+new_z(i+1,j+1,k+1));
     }
 
-    amrex::Real z0, z1;
+    // Initialized to NaN so that any path which fails to set them fails loudly
+    // (with amrex.fpe_trap_invalid=1) rather than returning plausible garbage.
+    amrex::Real z0 = std::numeric_limits<amrex::Real>::quiet_NaN();
+    amrex::Real z1 = std::numeric_limits<amrex::Real>::quiet_NaN();
     int klow   = -1;
     int khi0   = -1;
     amrex::Real dzlow =  amrex::Real(1.0e12);
@@ -868,6 +873,10 @@ interpolate_column_metgrid_linear (const int& i,
 
     // extrapolate below the bottom surface
     if (klow == -1) {
+        // klow was never found, so z0 was never set above. The two levels used
+        // here are khi0 and khi1, both above z, so z0 is the height at khi0 --
+        // which is exactly what the search loop left in z1 before we clobber it.
+        z0 = z1;
         int khi1   = -1;
         amrex::Real dzhi1 = -amrex::Real(1.0e12);
         for (int kk = 0; kk < kmax_orig; kk++) {
@@ -912,6 +921,10 @@ interpolate_column_metgrid_linear (const int& i,
     } else if (khi0 == -1) {
         khi0 = klow - 1;
         int khi1 = klow;
+        // khi0 was never found, so z1 was never set above. The upper level used
+        // here is khi1 = klow, whose height is currently held in z0 -- capture
+        // it before z0 is recomputed at the new (lower) khi0.
+        z1 = z0;
         if (stag == 'M') {
             z0 = orig_z(i,j,khi0);
         }
