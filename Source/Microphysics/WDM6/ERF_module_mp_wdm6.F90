@@ -698,24 +698,128 @@
      xai = -dldti/rv
      xbi = xai+hsub/(rv*ttp)
 
+     if (debug_local .gt. 0 .and. i_dbg_local .ge. its .and. i_dbg_local .le. ite) then
+       write(*,'(A,1X,I3,7(1X,ES24.16E3))') &
+         'WDM6-FORT_G1CV_SAT_INT0', kts, &
+         ttp, dldt, xa, xb, dldti, xai, xbi
+       call flush(6)
+     endif
+
      do k = kts,kte_in
        do i = its,ite
          tr = ttp/t(i,k)
+         if (debug_local .gt. 0 .and. i_dbg_local .ge. its .and. i_dbg_local .le. ite .and. &
+             i .eq. i_dbg_local .and. k .eq. kts) then
+           write(*,'(A,1X,I3,6(1X,ES24.16E3))') &
+             'WDM6-FORT_G1CV_SAT_INT1', kts, &
+             t(i,k), p(i,k), q(i,k), ep2, psat, qmin
+           write(*,'(A,1X,I3,1(1X,ES24.16E3))') &
+             'WDM6-FORT_G1CV_SAT_INT2', kts, &
+             tr
+           write(*,'(A,1X,I3,1(1X,ES24.16E3))') &
+             'WDM6-FORT_G1CV_SAT_INT3', kts, &
+             log(tr)
+           write(*,'(A,1X,I3,1(1X,ES24.16E3))') &
+             'WDM6-FORT_G1CV_SAT_INT4', kts, &
+             log(tr)*(xa)
+           write(*,'(A,1X,I3,1(1X,ES24.16E3))') &
+             'WDM6-FORT_G1CV_SAT_INT5', kts, &
+             exp(log(tr)*(xa))
+           write(*,'(A,1X,I3,1(1X,ES24.16E3))') &
+             'WDM6-FORT_G1CV_SAT_INT6', kts, &
+             1.-tr
+           write(*,'(A,1X,I3,1(1X,ES24.16E3))') &
+             'WDM6-FORT_G1CV_SAT_INT7', kts, &
+             xb*(1.-tr)
+           write(*,'(A,1X,I3,1(1X,ES24.16E3))') &
+             'WDM6-FORT_G1CV_SAT_INT8', kts, &
+             exp(xb*(1.-tr))
+           write(*,'(A,1X,I3,1(1X,ES24.16E3))') &
+             'WDM6-FORT_G1CV_SAT_INT9', kts, &
+             psat*exp(log(tr)*(xa))*exp(xb*(1.-tr))
+         endif
          qs(i,k,1) = psat*exp(log(tr)*(xa))*exp(xb*(1.-tr))
          qs(i,k,1) = min(qs(i,k,1),0.99*p(i,k))
+         if (debug_local .gt. 0 .and. i_dbg_local .ge. its .and. i_dbg_local .le. ite .and. &
+             i .eq. i_dbg_local .and. k .eq. kts) then
+           write(*,'(A,1X,I3,1(1X,ES24.16E3))') &
+             'WDM6-FORT_G1CV_SAT_INT10', kts, &
+             qs(i,k,1)
+         endif
          qs(i,k,1) = ep2*qs(i,k,1)/(p(i,k)-qs(i,k,1))
+         if (debug_local .gt. 0 .and. i_dbg_local .ge. its .and. i_dbg_local .le. ite .and. &
+             i .eq. i_dbg_local .and. k .eq. kts) then
+           write(*,'(A,1X,I3,1(1X,ES24.16E3))') &
+             'WDM6-FORT_G1CV_SAT_INT11', kts, &
+             qs(i,k,1)
+         endif
          qs(i,k,1) = max(qs(i,k,1),qmin)
+         if (debug_local .gt. 0 .and. i_dbg_local .ge. its .and. i_dbg_local .le. ite .and. &
+             i .eq. i_dbg_local .and. k .eq. kts) then
+           write(*,'(A,1X,I3,1(1X,ES24.16E3))') &
+             'WDM6-FORT_G1CV_SAT_INT12', kts, &
+             qs(i,k,1)
+         endif
          rh(i,k,1) = max(q(i,k)/qs(i,k,1),qmin)
+         if (debug_local .gt. 0 .and. i_dbg_local .ge. its .and. i_dbg_local .le. ite .and. &
+             i .eq. i_dbg_local .and. k .eq. kts) then
+           write(*,'(A,1X,I3,1(1X,ES24.16E3))') &
+             'WDM6-FORT_G1CV_SAT_INT13', kts, &
+             rh(i,k,1)
+         endif
          tr=ttp/t(i,k)
+         if (debug_local .gt. 0 .and. i_dbg_local .ge. its .and. i_dbg_local .le. ite .and. &
+             i .eq. i_dbg_local .and. k .eq. kts) then
+           write(*,'(A,1X,I3,1(1X,ES24.16E3))') &
+             'WDM6-FORT_G1CV_SAT_INT20', kts, &
+             tr
+         endif
          if(t(i,k).lt.ttp) then
+           if (debug_local .gt. 0 .and. i_dbg_local .ge. its .and. i_dbg_local .le. ite .and. &
+               i .eq. i_dbg_local .and. k .eq. kts) then
+             write(*,'(A,1X,I3,2(1X,ES24.16E3))') &
+               'WDM6-FORT_G1CV_SAT_INT21', kts, &
+               1.0, psat*exp(log(tr)*(xai))*exp(xbi*(1.-tr))
+           endif
            qs(i,k,2) = psat*exp(log(tr)*(xai))*exp(xbi*(1.-tr))
          else
+           if (debug_local .gt. 0 .and. i_dbg_local .ge. its .and. i_dbg_local .le. ite .and. &
+               i .eq. i_dbg_local .and. k .eq. kts) then
+             write(*,'(A,1X,I3,2(1X,ES24.16E3))') &
+               'WDM6-FORT_G1CV_SAT_INT21', kts, &
+               0.0, psat*exp(log(tr)*(xa))*exp(xb*(1.-tr))
+           endif
            qs(i,k,2) = psat*exp(log(tr)*(xa))*exp(xb*(1.-tr))
          endif
          qs(i,k,2) = min(qs(i,k,2),0.99*p(i,k))
+         if (debug_local .gt. 0 .and. i_dbg_local .ge. its .and. i_dbg_local .le. ite .and. &
+             i .eq. i_dbg_local .and. k .eq. kts) then
+           write(*,'(A,1X,I3,1(1X,ES24.16E3))') &
+             'WDM6-FORT_G1CV_SAT_INT22', kts, &
+             qs(i,k,2)
+         endif
          qs(i,k,2) = ep2*qs(i,k,2)/(p(i,k)-qs(i,k,2))
+         if (debug_local .gt. 0 .and. i_dbg_local .ge. its .and. i_dbg_local .le. ite .and. &
+             i .eq. i_dbg_local .and. k .eq. kts) then
+           write(*,'(A,1X,I3,1(1X,ES24.16E3))') &
+             'WDM6-FORT_G1CV_SAT_INT23', kts, &
+             qs(i,k,2)
+         endif
          qs(i,k,2) = max(qs(i,k,2),qmin)
+         if (debug_local .gt. 0 .and. i_dbg_local .ge. its .and. i_dbg_local .le. ite .and. &
+             i .eq. i_dbg_local .and. k .eq. kts) then
+           write(*,'(A,1X,I3,1(1X,ES24.16E3))') &
+             'WDM6-FORT_G1CV_SAT_INT24', kts, &
+             qs(i,k,2)
+         endif
          rh(i,k,2) = max(q(i,k)/qs(i,k,2),qmin)
+         if (debug_local .gt. 0 .and. i_dbg_local .ge. its .and. i_dbg_local .le. ite .and. &
+             i .eq. i_dbg_local .and. k .eq. kts) then
+           write(*,'(A,1X,I3,1(1X,ES24.16E3))') &
+             'WDM6-FORT_G1CV_SAT_INT25', kts, &
+             rh(i,k,2)
+           call flush(6)
+         endif
        enddo
      enddo
 
@@ -1414,13 +1518,174 @@
         enddo
       enddo
 
+      if (debug_local .gt. 0 .and. i_dbg_local .ge. its .and. i_dbg_local .le. ite) then
+        write(*,'(A,1X,I3,6(1X,ES24.16E3))') &
+          'WDM6-FORT_PRE_G12', kts, &
+          xl(i_dbg_local,kts), p(i_dbg_local,kts), t(i_dbg_local,kts), &
+          den(i_dbg_local,kts), qs(i_dbg_local,kts,1), qs(i_dbg_local,kts,2)
+      endif
+
       do k = kts, kte
         do i = its, ite
+          if (debug_local .gt. 0 .and. i_dbg_local .ge. its .and. i_dbg_local .le. ite .and. &
+              i .eq. i_dbg_local .and. k .eq. kts) then
+            write(*,'(A,1X,I3,6(1X,ES24.16E3))') &
+              'WDM6-FORT_G11V_DIFFAC_PRE1', kts, &
+              xl(i,k), p(i,k), t(i,k), den(i,k), qs(i,k,1)
+            write(*,'(A,1X,I3,1(1X,ES24.16E3))') &
+              'WDM6-FORT_G11V_DIFFAC_INT5', kts, &
+              t(i,k)*sqrt(t(i,k))
+            write(*,'(A,1X,I3,1(1X,ES24.16E3))') &
+              'WDM6-FORT_G11V_DIFFAC_INT6', kts, &
+              t(i,k)+120.
+            write(*,'(A,1X,I3,1(1X,ES24.16E3))') &
+              'WDM6-FORT_G11V_DIFFAC_INT7', kts, &
+              (t(i,k)*sqrt(t(i,k)))/(t(i,k)+120.)
+            write(*,'(A,1X,I3,1(1X,ES24.16E3))') &
+              'WDM6-FORT_G11V_DIFFAC_INT8', kts, &
+              1.496e-6*(t(i,k)*sqrt(t(i,k)))/(t(i,k)+120.)/den(i,k)
+            write(*,'(A,1X,I3,1(1X,ES24.16E3))') &
+              'WDM6-FORT_G11V_DIFFAC_INT21', kts, &
+              1.496e-6
+            write(*,'(A,1X,I3,1(1X,ES24.16E3))') &
+              'WDM6-FORT_G11V_DIFFAC_INT22', kts, &
+              1.496e-6*(t(i,k)*sqrt(t(i,k)))
+            write(*,'(A,1X,I3,1(1X,ES24.16E3))') &
+              'WDM6-FORT_G11V_DIFFAC_INT23', kts, &
+              1.496e-6*(t(i,k)*sqrt(t(i,k)))/(t(i,k)+120.)
+            write(*,'(A,1X,I3,1(1X,ES24.16E3))') &
+              'WDM6-FORT_G11V_DIFFAC_INT24', kts, &
+              log(t(i,k))
+            write(*,'(A,1X,I3,1(1X,ES24.16E3))') &
+              'WDM6-FORT_G11V_DIFFAC_INT25', kts, &
+              log(t(i,k))*(1.81)
+            write(*,'(A,1X,I3,1(1X,ES24.16E3))') &
+              'WDM6-FORT_G11V_DIFFAC_INT26', kts, &
+              exp(log(t(i,k))*(1.81))
+            write(*,'(A,1X,I3,1(1X,ES24.16E3))') &
+              'WDM6-FORT_G11V_DIFFAC_INT27', kts, &
+              8.794e-5*exp(log(t(i,k))*(1.81))/p(i,k)
+            write(*,'(A,1X,I3,1(1X,ES24.16E3))') &
+              'WDM6-FORT_G11V_DIFFAC_INT0', kts, &
+              viscos(t(i,k),den(i,k))
+            write(*,'(A,1X,I3,1(1X,ES24.16E3))') &
+              'WDM6-FORT_G11V_DIFFAC_INT1', kts, &
+              1.414e3*viscos(t(i,k),den(i,k))*den(i,k)
+            write(*,'(A,1X,I3,1(1X,ES24.16E3))') &
+              'WDM6-FORT_G11V_DIFFAC_INT13', kts, &
+              1.414e3*viscos(t(i,k),den(i,k))
+            write(*,'(A,1X,I3,1(1X,ES24.16E3))') &
+              'WDM6-FORT_G11V_DIFFAC_INT14', kts, &
+              1.414e3*viscos(t(i,k),den(i,k))*den(i,k)
+            write(*,'(A,1X,I3,1(1X,ES24.16E3))') &
+              'WDM6-FORT_G11V_DIFFAC_INT15', kts, &
+              1.414e3*viscos(t(i,k),den(i,k))*den(i,k)*rv
+            write(*,'(A,1X,I3,1(1X,ES24.16E3))') &
+              'WDM6-FORT_G11V_DIFFAC_INT16', kts, &
+              1.414e3*viscos(t(i,k),den(i,k))*den(i,k)*rv*t(i,k)*t(i,k)
+            write(*,'(A,1X,I3,1(1X,ES24.16E3))') &
+              'WDM6-FORT_G11V_DIFFAC_INT29', kts, &
+              xl(i,k)*xl(i,k)
+            write(*,'(A,1X,I3,1(1X,ES24.16E3))') &
+              'WDM6-FORT_G11V_DIFFAC_INT30', kts, &
+              den(i,k)*xl(i,k)*xl(i,k)
+            write(*,'(A,1X,I3,1(1X,ES24.16E3))') &
+              'WDM6-FORT_G11V_DIFFAC_INT31', kts, &
+              1.414e3*viscos(t(i,k),den(i,k))*den(i,k)
+            write(*,'(A,1X,I3,1(1X,ES24.16E3))') &
+              'WDM6-FORT_G11V_DIFFAC_INT32', kts, &
+              1.414e3*viscos(t(i,k),den(i,k))*den(i,k)*rv
+            write(*,'(A,1X,I3,1(1X,ES24.16E3))') &
+              'WDM6-FORT_G11V_DIFFAC_INT33', kts, &
+              1.414e3*viscos(t(i,k),den(i,k))*den(i,k)*rv*t(i,k)
+            write(*,'(A,1X,I3,1(1X,ES24.16E3))') &
+              'WDM6-FORT_G11V_DIFFAC_INT34', kts, &
+              1.414e3*viscos(t(i,k),den(i,k))*den(i,k)*rv*t(i,k)*t(i,k)
+            write(*,'(A,1X,I3,1(1X,ES24.16E3))') &
+              'WDM6-FORT_G11V_DIFFAC_INT35', kts, &
+              den(i,k)*xl(i,k)*xl(i,k)/(1.414e3*viscos(t(i,k),den(i,k))*den(i,k)*rv*t(i,k)*t(i,k))
+            write(*,'(A,1X,I3,1(1X,ES24.16E3))') &
+              'WDM6-FORT_G11V_DIFFAC_INT36', kts, &
+              1.0/(qs(i,k,1)*(8.794e-5*exp(log(t(i,k))*(1.81))/p(i,k)))
+            write(*,'(A,1X,I3,1(1X,ES24.16E3))') &
+              'WDM6-FORT_G11V_DIFFAC_INT38', kts, &
+              1.0/qs(i,k,1)
+            write(*,'(A,1X,I3,1(1X,ES24.16E3))') &
+              'WDM6-FORT_G11V_DIFFAC_INT39', kts, &
+              1.0/(8.794e-5*exp(log(t(i,k))*(1.81))/p(i,k))
+            write(*,'(A,1X,I3,1(1X,ES24.16E3))') &
+              'WDM6-FORT_G11V_DIFFAC_INT40', kts, &
+              (1.0/qs(i,k,1))*(1.0/(8.794e-5*exp(log(t(i,k))*(1.81))/p(i,k)))
+            write(*,'(A,1X,I3,1(1X,ES24.16E3))') &
+              'WDM6-FORT_G11V_DIFFAC_INT41', kts, &
+              qs(i,k,1)*(8.794e-5*exp(log(t(i,k))*(1.81))/p(i,k))
+            write(*,'(A,1X,I3,1(1X,ES24.16E3))') &
+              'WDM6-FORT_G11V_DIFFAC_INT37', kts, &
+              den(i,k)*xl(i,k)*xl(i,k)/(1.414e3*viscos(t(i,k),den(i,k))*den(i,k)*rv*t(i,k)*t(i,k)) + &
+              1.0/(qs(i,k,1)*(8.794e-5*exp(log(t(i,k))*(1.81))/p(i,k)))
+            write(*,'(A,1X,I3,1(1X,ES24.16E3))') &
+              'WDM6-FORT_G11V_DIFFAC_INT2', kts, &
+              8.794e-5*exp(log(t(i,k))*(1.81))/p(i,k)
+          endif
           work1(i,k,1) = diffac(xl(i,k),p(i,k),t(i,k),den(i,k),qs(i,k,1))
+          if (debug_local .gt. 0 .and. i_dbg_local .ge. its .and. i_dbg_local .le. ite .and. &
+              i .eq. i_dbg_local .and. k .eq. kts) then
+            write(*,'(A,1X,I3,1(1X,ES24.16E3))') &
+              'WDM6-FORT_G11V_DIFFAC_POST1', kts, &
+              work1(i,k,1)
+          endif
+          if (debug_local .gt. 0 .and. i_dbg_local .ge. its .and. i_dbg_local .le. ite .and. &
+              i .eq. i_dbg_local .and. k .eq. kts) then
+            write(*,'(A,1X,I3,6(1X,ES24.16E3))') &
+              'WDM6-FORT_G11V_DIFFAC_PRE2', kts, &
+              xls, p(i,k), t(i,k), den(i,k), qs(i,k,2)
+            write(*,'(A,1X,I3,1(1X,ES24.16E3))') &
+              'WDM6-FORT_G11V_DIFFAC_INT9', kts, &
+              t(i,k)*sqrt(t(i,k))
+            write(*,'(A,1X,I3,1(1X,ES24.16E3))') &
+              'WDM6-FORT_G11V_DIFFAC_INT10', kts, &
+              t(i,k)+120.
+            write(*,'(A,1X,I3,1(1X,ES24.16E3))') &
+              'WDM6-FORT_G11V_DIFFAC_INT11', kts, &
+              (t(i,k)*sqrt(t(i,k)))/(t(i,k)+120.)
+            write(*,'(A,1X,I3,1(1X,ES24.16E3))') &
+              'WDM6-FORT_G11V_DIFFAC_INT12', kts, &
+              1.496e-6*(t(i,k)*sqrt(t(i,k)))/(t(i,k)+120.)/den(i,k)
+            write(*,'(A,1X,I3,1(1X,ES24.16E3))') &
+              'WDM6-FORT_G11V_DIFFAC_INT3', kts, &
+              den(i,k)*xls*xls/(1.414e3*viscos(t(i,k),den(i,k))*den(i,k)*rv*t(i,k)*t(i,k))
+            write(*,'(A,1X,I3,1(1X,ES24.16E3))') &
+              'WDM6-FORT_G11V_DIFFAC_INT17', kts, &
+              den(i,k)*xls*xls
+            write(*,'(A,1X,I3,1(1X,ES24.16E3))') &
+              'WDM6-FORT_G11V_DIFFAC_INT18', kts, &
+              1.414e3*viscos(t(i,k),den(i,k))
+            write(*,'(A,1X,I3,1(1X,ES24.16E3))') &
+              'WDM6-FORT_G11V_DIFFAC_INT19', kts, &
+              1.414e3*viscos(t(i,k),den(i,k))*den(i,k)
+            write(*,'(A,1X,I3,1(1X,ES24.16E3))') &
+              'WDM6-FORT_G11V_DIFFAC_INT20', kts, &
+              1.414e3*viscos(t(i,k),den(i,k))*den(i,k)*rv
+            write(*,'(A,1X,I3,1(1X,ES24.16E3))') &
+              'WDM6-FORT_G11V_DIFFAC_INT4', kts, &
+              1.0/(qs(i,k,2)*(8.794e-5*exp(log(t(i,k))*(1.81))/p(i,k)))
+          endif
           work1(i,k,2) = diffac(xls,p(i,k),t(i,k),den(i,k),qs(i,k,2))
+          if (debug_local .gt. 0 .and. i_dbg_local .ge. its .and. i_dbg_local .le. ite .and. &
+              i .eq. i_dbg_local .and. k .eq. kts) then
+            write(*,'(A,1X,I3,1(1X,ES24.16E3))') &
+              'WDM6-FORT_G11V_DIFFAC_POST2', kts, &
+              work1(i,k,2)
+          endif
           work2(i,k) = venfac(p(i,k),t(i,k),den(i,k))
         enddo
       enddo
+
+      if (debug_local .gt. 0 .and. i_dbg_local .ge. its .and. i_dbg_local .le. ite) then
+        write(*,'(A,1X,I3,3(1X,ES24.16E3))') &
+          'WDM6-FORT_POST_G12', kts, &
+          work1(i_dbg_local,kts,1), work1(i_dbg_local,kts,2), work2(i_dbg_local,kts)
+      endif
 
       if (debug_local .gt. 0 .and. i_dbg_local .ge. its .and. i_dbg_local .le. ite) then
         write(*,'(A,1X,I3,17(1X,ES24.16E3))') &
