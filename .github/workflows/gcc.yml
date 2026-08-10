@@ -112,3 +112,99 @@ jobs:
       run: |
         ctest -L regression -VV
       working-directory: ${{runner.workspace}}/ERF/build
+
+  openmp-tiled:
+    # Threaded + tiled CPU build: covers OpenMP races and MFIter-tiling bugs
+    # that the MPI-only, untiled production configurations cannot expose.
+    if: github.event.action != 'closed'
+    name: GNU OpenMP + tiled MFIter
+    runs-on: ubuntu-22.04
+    steps:
+
+    - uses: actions/checkout@v7
+      with:
+        submodules: true
+
+    - name: Install Dependencies
+      run: Submodules/AMReX/.github/workflows/dependencies/dependencies.sh
+
+    - name: Install CCache
+      run: Submodules/AMReX/.github/workflows/dependencies/dependencies_ccache.sh
+
+    - name: Set Up Cache
+      uses: actions/cache@v6
+      with:
+        path: ~/.cache/ccache
+        key: ccache-${{ github.workflow }}-${{ github.job }}-git-${{ github.sha }}
+        restore-keys: |
+             ccache-${{ github.workflow }}-${{ github.job }}-git-
+
+    - name: Configure Project and Generate Build System
+      run: |
+        cmake \
+          -B${{runner.workspace}}/ERF/build \
+          -DCMAKE_BUILD_TYPE:STRING=Debug \
+          -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
+          -DERF_DIM:STRING=3 \
+          -DERF_ENABLE_MPI:BOOL=ON \
+          -DERF_ENABLE_OPENMP:BOOL=ON \
+          -DERF_ENABLE_PARTICLES:BOOL=ON \
+          -DERF_ENABLE_TESTS:BOOL=ON \
+          -DERF_ENABLE_FCOMPARE:BOOL=ON \
+          ${{github.workspace}};
+
+    - name: Compile and Link
+      run: |
+        export CCACHE_COMPRESS=1
+        export CCACHE_MAXSIZE=300M
+        cmake --build ${{runner.workspace}}/ERF/build --parallel 2
+
+    # Two threads exposes races on shared RNG state and diagnostic counters.
+    # Tiling is covered by the SDM_Bubble2D_Tiled ctest, which overrides the
+    # mfiter_tile_size pinned in the SDM input decks.
+    - name: SDM and particle regression tests, threaded
+      env:
+        OMP_NUM_THREADS: 2
+      run: |
+        ctest -L regression -R "SDM_|Particle" --output-on-failure --no-tests=error \
+          || ctest -L regression -R "SDM_|Particle" --rerun-failed --output-on-failure
+      working-directory: ${{runner.workspace}}/ERF/build
+
+  address-sanitizer:
+    # ASan catches the heap out-of-bounds accesses that Array4 indexing hides
+    # from -Warray-bounds.
+    if: github.event.action != 'closed'
+    name: GNU AddressSanitizer
+    runs-on: ubuntu-22.04
+    steps:
+
+    - uses: actions/checkout@v7
+      with:
+        submodules: true
+
+    - name: Install Dependencies
+      run: Submodules/AMReX/.github/workflows/dependencies/dependencies.sh
+
+    - name: Configure Project and Generate Build System
+      run: |
+        cmake \
+          -B${{runner.workspace}}/ERF/build \
+          -DCMAKE_BUILD_TYPE:STRING=Debug \
+          -DCMAKE_CXX_FLAGS:STRING="-fsanitize=address -fno-omit-frame-pointer" \
+          -DCMAKE_EXE_LINKER_FLAGS:STRING="-fsanitize=address" \
+          -DERF_DIM:STRING=3 \
+          -DERF_ENABLE_MPI:BOOL=OFF \
+          -DERF_ENABLE_PARTICLES:BOOL=ON \
+          -DERF_ENABLE_TESTS:BOOL=ON \
+          -DERF_ENABLE_FCOMPARE:BOOL=ON \
+          ${{github.workspace}};
+
+    - name: Compile and Link
+      run: cmake --build ${{runner.workspace}}/ERF/build --parallel 2
+
+    - name: SDM and particle regression tests under ASan
+      env:
+        ASAN_OPTIONS: detect_leaks=1:abort_on_error=1
+      run: |
+        ctest -L regression -R "SDM_|Particle" --output-on-failure --no-tests=error
+      working-directory: ${{runner.workspace}}/ERF/build
