@@ -81,6 +81,7 @@ erf.abl_geo_wind = 15.0 0.0 0.0
 
 # SOUNDING FILE
 erf.input_sounding_file = "input_sounding"
+erf.moisture_model = "Kessler"
 
 # RADIATION - Two-Stream SW + LW
 erf.radiation_type = "TwoStream"

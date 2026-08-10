@@ -4,7 +4,7 @@
 
 erf.prob_name = "ABL"
 
-stop_time = 3600.0
+stop_time = 36.0
 amrex.fpe_trap_invalid = 0
 
 fabarray.mfiter_tile_size = 1024 1024 1024
@@ -82,6 +82,7 @@ erf.abl_geo_wind = 15.0 0.0 0.0
 
 # SOUNDING FILE
 erf.input_sounding_file = "input_sounding"
+erf.moisture_model = "Kessler"
 
 # RADIATION - Two-Stream SW + LW
 erf.radiation_type = "TwoStream"
@@ -99,22 +100,21 @@ erf.radiation.cloud_top_height_m = 2000.0
 erf.radiation.cloud_tau_per_layer = 0.0
 erf.radiation.cloud_fraction = 0.0
 
-# RADIATION - Phase 17 SEB infrastructure (enabled)
-erf.radiation.solar_geometry_dynamic_enable = false
+
+# RADIATION - Phase 17 SEB infrastructure (must be enabled for Phase 18 diagnostic to work)
 erf.radiation.seb_enable = true
 erf.radiation.seb_sw_flux_default = 50.0
 erf.radiation.seb_lw_flux_default = -25.0
 erf.radiation.seb_hfx_default = 10.0
 erf.radiation.seb_lh_default = 20.0
-erf.radiation.seb_grdflux_default = 5.0
+erf.radiation.seb_grdflx_default = 5.0
 erf.radiation.seb_q_sfc_default = 0.01
 erf.radiation.seb_t_deep_default = 295.0
 erf.radiation.seb_q_deep_default = 0.20
 
 # RADIATION - Phase 18 SEB diagnostic (ENABLED for feature test)
-# When enabled, computes SEB_residual = (SW_net + LW_net) - H - LE - G
-# With defaults above: (50 + (-25)) - 10 - 20 - 5 = -10 W/m^2
 erf.radiation.seb_diagnostic_enable = true
+
 
 # RADIATION - Solar geometry parameters (for completeness)
 erf.radiation.latitude_deg = 45.0

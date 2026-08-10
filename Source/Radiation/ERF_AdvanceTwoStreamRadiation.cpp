@@ -1521,6 +1521,7 @@ void ERF::compute_twostream_radiation_diagnostics(
         }
         // (Phase 18) Compute SEB residual diagnostics if enabled
         if (rad_choice.seb_diagnostic_enable && rad_choice.seb_enable) {
+            seb_residual_max = 0.0; 
             // Second loop over boxes to compute SEB residual from populated SEB MultiFabs
             for (MFIter mfi(state_cons, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
                 const Box& bx = mfi.tilebox();
