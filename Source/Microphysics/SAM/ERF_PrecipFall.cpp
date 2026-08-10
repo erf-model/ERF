@@ -37,7 +37,13 @@ SAM::PrecipFall (const SolverChoice& sc)
     Real vgrau = (a_grau*gamg3/Real(6.0))*std::pow((PI*rhog*nzerog),-cgrau);
 
     Real dtn  = dt;
-    Real coef = dtn/m_dzmin;
+    // NOTE: coef carries only the reference vertical spacing. The physical
+    //       spacing is supplied by the inverse Jacobian in the tendency below,
+    //       since detJ = dz_phys/CellSize(2). Dividing by m_dzmin here as well
+    //       would apply the vertical metric twice. m_dzmin is still the correct
+    //       length scale for the substep (CFL) count, which must bound the
+    //       thinnest cell in the domain.
+    Real coef = dtn * m_geom.InvCellSize(2);
 
     auto domain = m_geom.Domain();
     int k_lo = domain.smallEnd(2);
