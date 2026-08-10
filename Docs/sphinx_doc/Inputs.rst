@@ -1946,7 +1946,7 @@ List of Parameters
 +================================+============================+====================+=============+
 | **erf.land_surface_model**     | Enables land surface       | "None",            | "None"      |
 |                                | energy and moisture        | "NOAHMP",          |             |
-|                                | fluxes                     | "MM5", "OceanSurf",|             |
+|                                | fluxes                     | "OceanSurf",       |             |
 |                                |                            | "SLM"              |             |
 +--------------------------------+----------------------------+--------------------+-------------+
 
