@@ -774,9 +774,7 @@ SHOCInterface::requested_buffer_size_in_bytes() const
 
     // Number of Reals needed by the WorkspaceManager passed to shoc_main
     const auto policy        = TPF::get_default_team_policy(m_num_cols, nlev_packs);
-    const int n_wind_slots   = ekat::npack<Spack>(m_num_vel_comp)*Spack::n;
-    const int n_trac_slots   = ekat::npack<Spack>(m_num_tracers) *Spack::n;
-    const size_t wsm_request = WSM::get_total_bytes_needed(nlevi_packs, 14+(n_wind_slots+n_trac_slots), policy);
+    const size_t wsm_request = WSM::get_total_bytes_needed(nlevi_packs, wsm_num_slots(), policy);
 
     return ( (interface_request + wsm_request)/sizeof(Real) );
 }
@@ -977,10 +975,20 @@ SHOCInterface::initialize_impl ()
     using TPF = ekat::TeamPolicyFactory<KT::ExeSpace>;
     const auto nlev_packs  = ekat::npack<Spack>(m_num_layers);
     const auto nlevi_packs = ekat::npack<Spack>(m_num_layers+1);
-    const int n_wind_slots = ekat::npack<Spack>(m_num_vel_comp)*Spack::n;
-    const int n_trac_slots = ekat::npack<Spack>(m_num_tracers)*Spack::n;
     const auto default_policy = TPF::get_default_team_policy(m_num_cols, nlev_packs);
-    workspace_mgr.setup(m_buffer.wsm_data, nlevi_packs, 14+(n_wind_slots+n_trac_slots), default_policy);
+    const Int  num_slots      = wsm_num_slots();
+
+    // The WSM data sits at the tail of the contiguous buffer, so the slots we
+    // hand it here must not exceed what requested_buffer_size_in_bytes() set aside.
+    const size_t wsm_offset = static_cast<size_t>(reinterpret_cast<Real*>(m_buffer.wsm_data)
+                                                  - tot_buff_view.data());
+    const size_t wsm_reals  = WSM::get_total_bytes_needed(nlevi_packs, num_slots,
+                                                          default_policy)/sizeof(Real);
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(wsm_offset + wsm_reals <= tot_buff_view.size(),
+                                     "SHOC WSM slots exceed the reserved buffer; "
+                                     "wsm_num_slots() and requested_buffer_size_in_bytes() disagree");
+
+    workspace_mgr.setup(m_buffer.wsm_data, nlevi_packs, num_slots, default_policy);
 
     // NOTE: Vertical indices were permuted, so top and bottom are correct
     // Maximum number of levels in pbl from surface
