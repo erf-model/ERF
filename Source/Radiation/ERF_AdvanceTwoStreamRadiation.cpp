@@ -1299,6 +1299,12 @@ void ERF::compute_twostream_radiation_diagnostics(
             fill_or_copy_seb_field(twostream_alb_sw[lev].get(), lsm, lev, "sfc_alb_dir_vis", rad_choice.surface_albedo_sw);
             fill_or_copy_seb_field(twostream_emiss_lw[lev].get(), lsm, lev, "sfc_emis", rad_choice.surface_emissivity_lw);
             fill_or_copy_seb_field(twostream_t_sfc[lev].get(), lsm, lev, "t_sfc", rad_choice.surface_temp_k);
+                        // TEMPORARY DEBUG - remove after diagnosis
+            if (ParallelDescriptor::IOProcessor() && nstep < 5) {
+                Real dbg_val = twostream_t_sfc[lev]->max(0);
+                Print() << "[DEBUG] step=" << nstep << " call_site=" << call_site
+                        << " AFTER fill_or_copy, T_sfc(max)=" << dbg_val << std::endl;
+            }
             fill_or_copy_seb_field(sw_flux_sfc[lev].get(), lsm, lev, "sav", rad_choice.seb_sw_flux_default);
             fill_or_copy_seb_field(lw_flux_sfc[lev].get(), lsm, lev, "fira", rad_choice.seb_lw_flux_default);
             fill_or_copy_seb_field(hfx_sfc[lev].get(), lsm, lev, "hfx", rad_choice.seb_hfx_default);
@@ -1585,7 +1591,8 @@ void ERF::compute_twostream_radiation_diagnostics(
 
         // (Phase 19b) Prognostic SEB surface temperature and moisture evolution
         // Only run if prognostic mode is enabled and Noah-MP is NOT driving LSM at this level
-        if (rad_choice.seb_prognostic_enable && rad_choice.seb_enable) {
+        if (rad_choice.seb_prognostic_enable && rad_choice.seb_enable &&
+            call_site == "post_dycore") {
             // Check if Noah-MP is active at this level by attempting to get the LSM t_sfc field
             std::string varname_t_sfc_prog = "t_sfc";
             int lsm_idx_t_sfc = lsm.Get_DataIdx(lev, varname_t_sfc_prog);
@@ -1646,6 +1653,12 @@ void ERF::compute_twostream_radiation_diagnostics(
                             q_max=rad_choice.seb_prognostic_q_max] 
                             AMREX_GPU_DEVICE (int i, int j, int /*k_unused*/) -> ProgReduceTuple {
                             // Read current surface temperature and moisture
+                            // TEMPORARY DEBUG - remove after diagnosis
+                            if (ParallelDescriptor::IOProcessor() && nstep < 5) {
+                                Real dbg_val = twostream_t_sfc[lev]->max(0);
+                                Print() << "[DEBUG] step=" << nstep << " call_site=" << call_site
+                                        << " AFTER fill_or_copy, T_sfc(max)=" << dbg_val << std::endl;
+                            }
                             amrex::Real t_s_old = t_s_arr(i, j, 0);
                             amrex::Real q_s_old = q_s_arr(i, j, 0);
                             
