@@ -88,7 +88,16 @@ public:
             m_ncol += nx * ny;
         }
 
-        m_ncol_chunk = amrex::min(m_ncol, m_ncol_chunk);
+        // Recompute the effective chunk size from the user's request rather than
+        // clamping the stored value in place. Init() is called again for every
+        // MakeNewLevelFromScratch / MakeNewLevelFromCoarse / RemakeLevel on the same
+        // Radiation object, so an in-place clamp could only ever shrink: a rank that
+        // owned no boxes at some Init (m_ncol == 0) would pin the chunk size at zero
+        // and then spin forever in the run_impl chunk loop once a regrid handed it
+        // real boxes. Deriving from the immutable request instead lets the chunk size
+        // grow back. It is zero only when m_ncol is zero, and a rank with no columns
+        // does no radiation work.
+        m_ncol_chunk = amrex::min(m_ncol, m_ncol_chunk_requested);
     };
 
     virtual
@@ -240,8 +249,6 @@ private:
     // Are we writing out the fluxes?
     bool m_rad_write_fluxes = false;
 
-    bool m_first_step = true;
-
     // Do we have moisture and cold comps?
     bool m_moist = false;
     bool m_ice   = false;
@@ -376,8 +383,14 @@ private:
     // Rad frequency in number of steps
     int m_rad_freq_in_steps = 1;
 
-    // Number of columns to process per RRTMGP chunk (controls peak memory)
-    int m_ncol_chunk = 1024;
+    // Number of columns to process per RRTMGP chunk (controls peak memory).
+    // m_ncol_chunk_requested is the user's erf.rad_ncol_chunk; it is set once in the
+    // constructor and never modified thereafter, so it is a valid upper bound on the
+    // chunk size for every level and every regrid. m_ncol_chunk is the effective chunk
+    // size for the current grids and is recomputed from the request in each Init();
+    // it is zero exactly when this rank owns no columns.
+    int m_ncol_chunk_requested = 1024;
+    int m_ncol_chunk           = 1024;
 
     // Number of vars for s_mem allocation
     int m_rad_nvar = 12;

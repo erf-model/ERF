@@ -128,9 +128,9 @@ ComputeDiffusivityMYJ (double dt,
 
         // Allocate space for integrals
         const Box xybx = PerpendicularBox<ZDir>(bx, IntVect{0,0,0});
-        FArrayBox qturb(bx,1);
-        FArrayBox qintegral(xybx,2);
-        IArrayBox pbl_k(xybx,1);
+        FArrayBox qturb(bx,1,The_Async_Arena());
+        FArrayBox qintegral(xybx,2,The_Async_Arena());
+        IArrayBox pbl_k(xybx,1,The_Async_Arena());
         qintegral.setVal<RunOn::Device>(0);
         pbl_k.setVal<RunOn::Device>(khi);
         const Array4<Real> qint  = qintegral.array();

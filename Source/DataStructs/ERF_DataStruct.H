@@ -127,7 +127,7 @@ AMREX_ENUM(WindFarmLocType,
  * @brief Land-surface model.
  */
 AMREX_ENUM(LandSurfaceType,
-    SLM, MM5, NOAHMP, OceanSurf, None
+    SLM, NOAHMP, OceanSurf, None
 );
 
 /**
@@ -634,6 +634,7 @@ struct SolverChoice {
         // immersed forcing parameters
         pp.query("if_Cd_momentum", if_Cd_momentum);
         pp.query("if_Cd_scalar", if_Cd_scalar);
+        pp.query("if_implicit_drag", if_implicit_drag); // flag for implicit vs. explicit drag formulation
         pp.query("if_z0", if_z0);
         pp.query("if_surf_temp_flux", if_surf_temp_flux);
         pp.query("if_init_surf_temp", if_init_surf_temp);
@@ -1450,6 +1451,9 @@ struct SolverChoice {
     // immersed forcing parameters
     amrex::Real if_Cd_momentum        = amrex::Real(50.0);
     amrex::Real if_Cd_scalar          = amrex::Real(10.0);
+    // Use a point-implicit (linearly-implicit) formulation of the immersed-forcing
+    // drag. Defaults to false (explicit forward-Euler source).
+    bool        if_implicit_drag      = false;
     // immersed forcing MOST parameters.
     amrex::Real if_z0                    = amrex::Real(0.1);   // [m]
     amrex::Real if_surf_temp_flux        = amrex::Real(1e-8);  // [K m/s]
