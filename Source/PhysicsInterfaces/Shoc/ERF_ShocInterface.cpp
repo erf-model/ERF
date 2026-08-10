@@ -640,7 +640,8 @@ SHOCInterface::set_eddy_diffs ()
         const int kminv  = vbx_cc.smallEnd(2);
         const int kmaxv  = vbx_cc.bigEnd(2);
 
-        const Array4<Real>& mu_arr = m_mu->array(mfi);
+        const Array4<Real>&       mu_arr   = m_mu->array(mfi);
+        const Array4<const Real>& cons_arr = m_cons->const_array(mfi);
 
         ParallelFor(gbx_cc, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
@@ -654,8 +655,10 @@ SHOCInterface::set_eddy_diffs ()
             const int icol   = (jj-jmin)*nx + (ii-imin) + offset;
             const int ilay   = kmax - kk;
 
-            // NOTE: Set mom_v for tau_33, all other vertical comps are 0
-            mu_arr(i,j,k,EddyDiff::Mom_v)   = tk_d(icol,ilay)[0];
+            // NOTE: SHOC provides kinematic diffusivity, while eddyDiffs stores
+            //       density-weighted diffusivity. Set mom_v for tau_33; all
+            //       other vertical components are 0.
+            mu_arr(i,j,k,EddyDiff::Mom_v)   = cons_arr(ii,jj,kk,Rho_comp) * tk_d(icol,ilay)[0];
             mu_arr(i,j,k,EddyDiff::Theta_v) = Real(0.);
             mu_arr(i,j,k,EddyDiff::KE_v)    = Real(0.);
             mu_arr(i,j,k,EddyDiff::Q_v)     = Real(0.);
