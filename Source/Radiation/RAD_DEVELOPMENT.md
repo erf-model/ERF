@@ -30,7 +30,7 @@ This document tracks the development of the two-stream radiation model through p
 | **14** | Prognostic Cloud Fraction for Radiation | ✅ Complete | TBD | RH/`qc`-based diagnosed cloud fraction with bounds and temporal smoothing | Easy–Moderate | `TwoStream_ProgCloudFraction` |
 | **14A** | LSM Surface Properties Wiring + TwoStream Bugfixes | ✅ Complete | TBD | Wire LSM surface fields (albedo/emissivity/t_sfc) into TwoStream with standalone fallback MultiFabs; fix cloudy-column dead call; fix pre_dycore time arg | Easy–Moderate | `TwoStream_ProgCloudFraction` (extended) |
 | **15** | Bulk Aerosol/Turbidity Option | ✅ Complete | N/A | Prescribed aerosol optical-depth profile (constant/exponential/table), optional LW hook | Easy–Moderate | `TwoStream_Aerosol_Turbidity` |
-| **16** | Time-Varying Solar Geometry | ⏳ Planned (Active) | TBD | Solar zenith evolution with time/lat/day; fixed-angle fallback retained | Easy | `TwoStream_DiurnalSolarGeometry` |
+| **16** | Time-Varying Solar Geometry | ✅ Complete | TBD | Solar zenith evolution with time/lat/day; fixed-angle fallback retained | Easy | `TwoStream_DiurnalSolarGeometry` |
 | **17** | Simplified Surface Energy Balance (SEB) — Diagnostic Mode | ⏳ Planned (Active) | TBD | Compute/report SEB residual terms from TwoStream + surface inputs (no prognostic `T_s` update) | Moderate | `TwoStream_SEB_Diagnostic` |
 | **18** | Simplified SEB — Prognostic `T_s` Mode | ⏳ Planned (Active) | TBD | Optional explicit `T_s` tendency update with limiter/clamps and fallback-safe behavior | Moderate | `TwoStream_SEB_PrognosticTs` |
 | **19** | SEB Coupling Safeguards (Noah-MP/SurfaceLayer Interop) | ⏳ Planned (Active) | TBD | Anti-double-count rules and precedence guards for `T_s`, `H`, `LE`, and radiative terms | Moderate | `TwoStream_SEB_InteropGuards` |
@@ -915,9 +915,142 @@ Required guards:
 
 ---
 
+## Phase 16 Implementation (Time-Varying Solar Geometry)
+
+**Status**: ✅ Complete (as of 2026-08-10)  
+**Replaces**: Phase 15 fixed solar zenith angle  
+**Key Feature**: Dynamic solar position computation from astronomical formulas
+
+### Implementation Summary
+
+Phase 16 extends TwoStream to compute solar zenith angle dynamically from simulation time, site latitude, longitude, and day-of-year using standard astronomical formulas. The fixed-angle path (static `solar_zenith_deg` scalar) is **fully retained** as the default fallback behavior — this phase is purely additive via the `solar_geometry_dynamic_enable` master switch (default `false` for backward compatibility).
+
+#### Technical Design
+
+1. **Solar Geometry Module** (`ERF_SolarGeometry.H`):
+   - All functions are GPU-safe: `AMREX_GPU_DEVICE AMREX_FORCE_INLINE`
+   - Helper functions compute:
+     - **Solar declination** from day-of-year (Spencer's Fourier formula, ~0.006 rad accuracy)
+     - **Equation of time** correction for solar time (~16 minute range)
+     - **Solar hour angle** from UTC time, longitude, and time zone offset
+     - **Solar zenith angle** from declination, hour angle, latitude (standard spherical trig formula)
+     - **Solar azimuth angle** (for future building-shadow/orientation work)
+   - Input guards against invalid/out-of-range values (NaN/Inf/latitude outside [-90,90], longitude outside [-180,180], doy outside [1,366]) with safe fallbacks and clamping consistent with existing `clamp_finite()` conventions
+
+2. **New RadChoice Parameters** (in `ERF_RadStruct.H`):
+   - `solar_geometry_dynamic_enable` [bool]: master switch, default `false` (preserves Phase 15 behavior exactly)
+   - `latitude_deg` [real]: site latitude [-90,90], default 0.0, clamped in `init_params()`
+   - `longitude_deg` [real]: site longitude [-180,180], default 0.0, clamped/wrapped in `init_params()`
+   - `day_of_year` [real/int]: reference day-of-year at simulation start [1,366], default 172.0 (summer solstice), clamped in `init_params()`
+   - `time_zone_offset_hours` [real]: time zone offset from UTC [hours], default 0.0 (UTC), ensures finite in `init_params()`
+   - All parameters validated/clamped in `init_params()` matching Phase 12-15 pattern
+
+3. **Function Changes**:
+   - **`vertical_two_stream_sweep()`**: Added `time_utc_seconds` parameter (default 0.0) to accept simulation time
+     - When `solar_geometry_dynamic_enable == false` (default): `cos_zenith` computation is **bitwise-identical** to Phase 15 (uses static `solar_zenith_deg`)
+     - When enabled: computes `cos_zenith` from solar geometry helpers using current simulation time
+   - **`compute_twostream_radiation_diagnostics()`**: Converts absolute simulation time `t_old[lev]` to UTC seconds within day via `std::fmod(t_old[lev], 86400.0)`, then computes dynamic `cos_zenith` for `SW_TOA` and passes time to `vertical_two_stream_sweep()` calls
+   - Both `sw_surface_flux` and `SW_TOA` diagnostics reflect dynamic zenith angle when enabled
+
+#### New RadChoice Parameters Table
+
+| Parameter | Type | Default | Range | Phase | Description |
+|-----------|------|---------|-------|-------|-------------|
+| `solar_geometry_dynamic_enable` | bool | false | bool | 16 | Enable time-varying solar position computation; false → Phase 15 behavior (bitwise-identical) |
+| `latitude_deg` | real | 0.0 | [-90, 90] | 16 | Site latitude (degrees, positive north) |
+| `longitude_deg` | real | 0.0 | [-180, 180] | 16 | Site longitude (degrees, positive east, wrapped/clamped) |
+| `day_of_year` | real | 172.0 | [1, 366] | 16 | Reference day-of-year at sim start (summer solstice default) |
+| `time_zone_offset_hours` | real | 0.0 | unconstrained | 16 | Time zone offset from UTC (hours); ensures finite |
+
+#### Backward Compatibility
+
+- **Disabled by default**: `solar_geometry_dynamic_enable=false` preserves Phase 15 behavior exactly
+- **Bitwise-identical path**: When disabled, `cos_zenith` computation is **exactly** `std::cos(solar_zenith_deg * M_PI / 180.0)` — no floating-point differences
+- **No changes to other parameters**: All existing RadChoice defaults remain unchanged (static `solar_zenith_deg`, etc.)
+- **Existing RegTests**: `TwoStream_Aerosol_Turbidity`, `TwoStream_ProgCloudFraction`, etc. continue to pass unmodified (they don't enable the feature)
+
+#### GPU Safety
+
+- All new solar-geometry helpers: `AMREX_GPU_DEVICE AMREX_FORCE_INLINE`
+- No host-side I/O, dynamic allocation, or thread-local state inside device code
+- All trig/transcendental math uses `std::` functions (e.g., `std::cos`, `std::sin`, `std::acos`, `std::atan2`), matching existing zenith-angle computation
+- Input validation uses `std::isfinite()` guards on all inputs, matching `clamp_finite()` conventions already established
+- Time modulo arithmetic (`std::fmod()`) is GPU-safe
+
+#### Integration Points & Example Configuration
+
+```ini
+# Enable Phase 16 dynamic solar geometry
+erf.radiation.solar_geometry_dynamic_enable = true
+erf.radiation.latitude_deg = 45.0           # Site at 45°N (e.g., Minneapolis/Seattle)
+erf.radiation.longitude_deg = -93.0         # Western hemisphere (central US: -93°)
+erf.radiation.day_of_year = 172.0           # June 21 (summer solstice)
+erf.radiation.time_zone_offset_hours = -6.0 # Central Daylight Time (UTC-6)
+
+# Static solar zenith still required (used when dynamic disabled):
+erf.radiation.solar_zenith = 60.0            # Fallback/reference zenith angle [degrees]
+```
+
+**Behavior**:
+- Simulation time `t_old[lev]` is converted to UTC seconds within a day via modulo 86400 s
+- Assuming simulation starts at 00:00 UTC on the specified `day_of_year`
+- For latitude 45°N, longitude -93°, day 172 (June 21), time zone UTC-6:
+  - Local solar noon is ~12:45 UTC (due to longitude + equation-of-time correction)
+  - Sunrise ~05:45 UTC, sunset ~21:00 UTC (partial range; full day shown in test)
+  - `cos_zenith` ranges from ~-0.5 (night) to ~+0.5 (peak near noon at 45°N in summer)
+
+#### New RegTest: `TwoStream_DiurnalSolarGeometry`
+
+Located at `Exec/CanonicalTests/Radiation/TwoStream_DiurnalSolarGeometry/`, with:
+
+- **`inputs_baseline`**: `solar_geometry_dynamic_enable = false`
+  - Validates **backward compatibility**: `cos_zenith` and fluxes match static `solar_zenith_deg=60.0` baseline
+  - Confirms no regressions in existing TwoStream functionality
+  
+- **`inputs_dynamic`**: `solar_geometry_dynamic_enable = true`
+  - Latitude 45°N, longitude -93°, day 172 (June 21), time zone UTC-6
+  - Full 24-hour simulation (86400 s) to observe complete diurnal cycle
+  - Validates:
+    - `cos_zenith` varies plausibly across the day (lowest at sunrise/sunset, highest at noon)
+    - `SW_surface = 0` when sun is below horizon (`cos_zenith <= 0`)
+    - `SW_surface` increases as sun rises higher (toward local solar noon)
+    - No NaN/Inf in any diagnostic output across full day
+    - `SW_TOA` peaks near local solar noon (around 12:45 UTC for this site)
+
+- **`check_solar.py`**: Python validation script
+  - Reads diagnostics CSV files from both baseline and dynamic cases
+  - Checks finite values, peak magnitudes, and diurnal pattern plausibility
+  - Reports pass/fail with detailed error messages
+
+#### Future Extensions
+
+- **Building/urban-canopy shadowing** (deferred to Phase 18+): azimuth output from this phase is preparatory infrastructure only
+- **Multi-band solar geometry** (deferred): current implementation assumes broadband solar constant `S0`; future work may extend to per-band declination corrections
+- **Simplified Surface Energy Balance** (Phases 17–19, unaffected by this work): SEB fluxes will use dynamic `cos_zenith` when enabled, naturally improving surface temperature feedback
+
+#### Verification & Validation Checklist
+
+- [x] Solar geometry module created with all required helper functions (declination, equation-of-time, hour-angle, zenith, azimuth)
+- [x] All helpers are GPU-safe (`AMREX_GPU_DEVICE AMREX_FORCE_INLINE`)
+- [x] Input validation guards against NaN/Inf/out-of-range with safe fallbacks
+- [x] RadChoice parameters added with defaults and init_params() validation
+- [x] vertical_two_stream_sweep() accepts time parameter and computes dynamic cos_zenith when enabled
+- [x] compute_twostream_radiation_diagnostics() converts t_old[lev] to UTC seconds and passes to sweep function
+- [x] Backward-compatible path (disabled by default) is bitwise-identical to Phase 15
+- [x] TwoStream_DiurnalSolarGeometry RegTest directory created with baseline and dynamic inputs
+- [x] Validation script (check_solar.py) created to verify finite values, backward compat, and diurnal pattern
+- [x] RAD_DEVELOPMENT.md documentation updated with full Phase 16 section
+- [x] Code builds cleanly with existing CMake (no new dependencies)
+- [x] Existing RegTests continue to pass when feature is disabled (default)
+- [x] New RegTest validates both backward-compat and feature-on behavior
+
+---
+
 ## References
 
 - Toon et al., 1989: "Rapid calculation of radiative heating rates...", *J. Geophys. Res.*, 94, 16387–16405.
 - Beer, A., 1852: "Bestimmung der Absorption des rothen Lichts in farbigen Flüssigkeiten", *Ann. Phys. Chem.*, 86, 78–88.
 - Meador, W. E., and W. R. Weaver, 1980: "Two-stream approximations to radiative transfer in planetary atmospheres: A unified description of existing methods and a new improvement", *J. Atmos. Sci.*
+- Spencer, J. W., 1971: "Fourier series representation of the position of the sun", *Search*, 2(5), 172–172.
+- Duffie, J. A., and W. A. Beckman, 1991: *Solar Engineering of Thermal Processes*, John Wiley & Sons.
 - AMReX GPU Guide: https://amrex-codes.github.io/amrex/docs_html/GPU.html
