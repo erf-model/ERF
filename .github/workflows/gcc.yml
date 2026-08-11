@@ -113,11 +113,14 @@ jobs:
         ctest -L regression -VV
       working-directory: ${{runner.workspace}}/ERF/build
 
-  openmp-tiled:
-    # Threaded + tiled CPU build: covers OpenMP races and MFIter-tiling bugs
-    # that the MPI-only, untiled production configurations cannot expose.
+  thread-sanitizer:
+    # ThreadSanitizer reports a race on any execution that reaches the code
+    # concurrently, whether or not that run happened to corrupt anything.
+    # A plain threaded run cannot do this: races manifest only intermittently.
+    # MPI is off so the decomposition still yields several grids per rank,
+    # which is what makes the ParIter loops run multi-threaded.
     if: github.event.action != 'closed'
-    name: GNU OpenMP + tiled MFIter
+    name: GNU ThreadSanitizer (OpenMP)
     runs-on: ubuntu-22.04
     steps:
 
@@ -128,25 +131,15 @@ jobs:
     - name: Install Dependencies
       run: Submodules/AMReX/.github/workflows/dependencies/dependencies.sh
 
-    - name: Install CCache
-      run: Submodules/AMReX/.github/workflows/dependencies/dependencies_ccache.sh
-
-    - name: Set Up Cache
-      uses: actions/cache@v6
-      with:
-        path: ~/.cache/ccache
-        key: ccache-${{ github.workflow }}-${{ github.job }}-git-${{ github.sha }}
-        restore-keys: |
-             ccache-${{ github.workflow }}-${{ github.job }}-git-
-
     - name: Configure Project and Generate Build System
       run: |
         cmake \
           -B${{runner.workspace}}/ERF/build \
           -DCMAKE_BUILD_TYPE:STRING=Debug \
-          -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
+          -DCMAKE_CXX_FLAGS:STRING="-fsanitize=thread -fno-omit-frame-pointer" \
+          -DCMAKE_EXE_LINKER_FLAGS:STRING="-fsanitize=thread" \
           -DERF_DIM:STRING=3 \
-          -DERF_ENABLE_MPI:BOOL=ON \
+          -DERF_ENABLE_MPI:BOOL=OFF \
           -DERF_ENABLE_OPENMP:BOOL=ON \
           -DERF_ENABLE_PARTICLES:BOOL=ON \
           -DERF_ENABLE_TESTS:BOOL=ON \
@@ -154,20 +147,16 @@ jobs:
           ${{github.workspace}};
 
     - name: Compile and Link
-      run: |
-        export CCACHE_COMPRESS=1
-        export CCACHE_MAXSIZE=300M
-        cmake --build ${{runner.workspace}}/ERF/build --parallel 2
+      run: cmake --build ${{runner.workspace}}/ERF/build --parallel 2
 
-    # Two threads exposes races on shared RNG state and diagnostic counters.
-    # Tiling is covered by the SDM_Bubble2D_Tiled ctest, which overrides the
-    # mfiter_tile_size pinned in the SDM input decks.
-    - name: SDM and particle regression tests, threaded
+    # TSan is ~10x slower, so a small SDM subset that exercises recycling and
+    # the particle boundary/diagnostic counters.
+    - name: SDM regression subset under ThreadSanitizer
       env:
         OMP_NUM_THREADS: 2
+        TSAN_OPTIONS: halt_on_error=1:second_deadlock_stack=1
       run: |
-        ctest -L regression -R "SDM_|Particle" --output-on-failure --no-tests=error \
-          || ctest -L regression -R "SDM_|Particle" --rerun-failed --output-on-failure
+        ctest -L regression -R "SDM_Box3D|SDM_Bubble2D_Adv$" --output-on-failure --no-tests=error
       working-directory: ${{runner.workspace}}/ERF/build
 
   address-sanitizer:
