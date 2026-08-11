@@ -1,5 +1,5 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
-erf.prob_name = "TemperatureSourceSpatial_cold"
+erf.prob_name = "SDM_Congestus3D_cold"
 
 stop_time = 8500
 max_step = 50000
@@ -28,7 +28,6 @@ erf.most.zref   = 25.0
 
 # INITIALIZATION
 erf.init_type = input_sounding
-erf.init_sounding_ideal = true
 
 # TIME STEP CONTROL
 erf.fixed_dt = 0.5

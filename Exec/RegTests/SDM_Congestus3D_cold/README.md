@@ -1,4 +1,4 @@
-# TemperatureSourceSpatial_cold
+# SDM_Congestus3D_cold
 
 Idealized convection driven by prescribed, spatially varying source terms of heat and
 moisture (after Trapp), the same forcing approach as `SDM_Congestus3D`. The "cold"

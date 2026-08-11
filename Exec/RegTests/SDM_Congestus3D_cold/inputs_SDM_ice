@@ -1,5 +1,5 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
-erf.prob_name = "TemperatureSourceSpatial_cold"
+erf.prob_name = "SDM_Congestus3D_cold"
 
 stop_time              = 17000
 max_step               = 50000
@@ -27,7 +27,6 @@ erf.most.zref           = 25.0
 
 # INITIALIZATION
 erf.init_type           = input_sounding
-erf.init_sounding_ideal = true
 
 # TIME STEP CONTROL
 erf.fixed_dt            = 0.25
@@ -113,7 +112,6 @@ super_droplets_moisture.1.initial_particles_per_cell = 64
 erf.molec_diff_type = "None"
 erf.les_type        = "Smagorinsky"
 erf.Cs              = 0.17
-erf.use_moist_Ri_correction = "False"
 
 erf.add_custom_rhotheta_forcing = true
 erf.add_custom_moisture_forcing = true

@@ -9,7 +9,7 @@
 # erf.fix_random_seed + stable_redistribute, so the gold is platform-specific. Gated
 # behind ERF_TEST_ENABLE_EXTRA_SDM_TESTS and skipped on GPU.
 
-erf.prob_name                = "TemperatureSourceSpatial_cold"
+erf.prob_name                = "SDM_Congestus3D_cold"
 
 max_step  = 400
 stop_time = 1.0e9

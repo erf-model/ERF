@@ -3,7 +3,7 @@
 # mixed-phase terminal velocity blending from ice to water (Frick 2013). kinematic
 # environment; coalescence off.
 
-erf.prob_name                = "TemperatureSourceSpatial_cold"
+erf.prob_name                = "SDM_Congestus3D_cold"
 
 max_step  = 1000000
 stop_time = 600.0

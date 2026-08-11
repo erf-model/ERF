@@ -3,7 +3,7 @@
 # immersion (Niemand 2012 INAS) as they rise into colder air. kinematic environment;
 # coalescence off.
 
-erf.prob_name                = "TemperatureSourceSpatial_cold"
+erf.prob_name                = "SDM_Congestus3D_cold"
 
 max_step  = 1000000
 stop_time = 4000.0

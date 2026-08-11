@@ -3,7 +3,7 @@
 # and grow by collecting them (riming; Beard-Grover 1974). kinematic environment; phase
 # change off (collection only); cloud LWC ~ 0.7 g/m^3 via initial_number_density.
 
-erf.prob_name                = "TemperatureSourceSpatial_cold"
+erf.prob_name                = "SDM_Congestus3D_cold"
 
 max_step  = 1000000
 stop_time = 300.0

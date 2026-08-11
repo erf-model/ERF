@@ -2,7 +2,7 @@
 # top of an isothermal (-15 C), subsaturated-over-ice column fall and lose mass by
 # vapour diffusion. kinematic (prescribed) environment; coalescence off.
 
-erf.prob_name                = "TemperatureSourceSpatial_cold"
+erf.prob_name                = "SDM_Congestus3D_cold"
 
 max_step  = 1000000
 stop_time = 1000.0

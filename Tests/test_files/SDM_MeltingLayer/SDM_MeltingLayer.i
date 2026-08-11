@@ -8,7 +8,7 @@
 # terminal velocity together. The final plotfile is compared to the gold.
 # Deterministic: monodisperse, deterministic placement, fixed RNG seed.
 
-erf.prob_name      = "TemperatureSourceSpatial_cold"
+erf.prob_name      = "SDM_Congestus3D_cold"
 
 max_step  = 300
 stop_time = 1.0e9
