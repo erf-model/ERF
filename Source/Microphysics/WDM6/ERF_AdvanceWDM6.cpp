@@ -727,6 +727,7 @@ void WDM6::Advance(const Real& dt_advance,
         FArrayBox qsati_fab(fab_box,1, Arena_Used);
         FArrayBox rhw_fab(fab_box,1, Arena_Used);
         FArrayBox rhi_fab(fab_box,1, Arena_Used);
+        FArrayBox qcr_fab(fab_box,1, Arena_Used);
 
         // Process rate arrays
         FArrayBox praut_fab(fab_box,1, Arena_Used);
@@ -740,6 +741,8 @@ void WDM6::Advance(const Real& dt_advance,
         FArrayBox nrauto_fab(fab_box,1, Arena_Used);  // nr gained from autoconversion
         FArrayBox nraccr_fab(fab_box,1, Arena_Used);  // nr gained from accretion
         FArrayBox nrevp_fab(fab_box,1, Arena_Used);   // nr lost to evaporation
+        FArrayBox nccol_fab(fab_box,1, Arena_Used);   // cloud self-collection number sink
+        FArrayBox nrcol_fab(fab_box,1, Arena_Used);   // rain self-collection number sink
 
         // G6 temporary arrays for slope_wdm6 call
         FArrayBox qrs_tmp_fab(fab_box,3, Arena_Used);  // Temporary qr, qs, qg (components 0,1,2)
@@ -775,6 +778,7 @@ void WDM6::Advance(const Real& dt_advance,
         auto const& qsati_arr = qsati_fab.array();
         auto const& rhw_arr = rhw_fab.array();
         auto const& rhi_arr = rhi_fab.array();
+        auto const& qcr_arr = qcr_fab.array();
         auto const& praut_arr = praut_fab.array();
         auto const& pracw_arr = pracw_fab.array();
         auto const& prevp_arr = prevp_fab.array();
@@ -784,6 +788,8 @@ void WDM6::Advance(const Real& dt_advance,
         auto const& nrauto_arr = nrauto_fab.array();
         auto const& nraccr_arr = nraccr_fab.array();
         auto const& nrevp_arr = nrevp_fab.array();
+        auto const& nccol_arr = nccol_fab.array();
+        auto const& nrcol_arr = nrcol_fab.array();
         auto const& qrs_tmp_arr = qrs_tmp_fab.array();  // G6: temporary qr, qs, qg
         auto const& ncr_tmp_arr = ncr_tmp_fab.array();  // G6: temporary nr
         auto const& avedia_arr = avedia_fab.array();    // G11: particle diameter work array
@@ -852,6 +858,8 @@ void WDM6::Advance(const Real& dt_advance,
         const Real precs2_loc = m_precs2;
         const Real precg1_loc = m_precg1;
         const Real precg2_loc = m_precg2;
+        const Real precr1_loc = m_precr1;
+        const Real precr2_loc = m_precr2;
         const Real n0g_loc = m_n0g;
         const Real pi_wdm6_loc = m_pi_wdm6;
         constexpr Real pfrz1_loc = pfrz1;
@@ -859,6 +867,18 @@ void WDM6::Advance(const Real& dt_advance,
         const bool diag_col_in_tile = (diag_i >= ilo && diag_i <= ihi &&
                                        diag_j >= jlo && diag_j <= jhi);
         const int diag_k = klo;
+
+        if (m_lmask != nullptr) {
+            auto const& lmask_arr = m_lmask->const_array(mfi);
+            ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+                qcr_arr(i,j,k) = (lmask_arr(i,j,0) == 2) ? qc0_loc : qc1_loc;
+            });
+        } else {
+            // Match the current bridge posture: default to land when no lmask is wired.
+            ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+                qcr_arr(i,j,k) = qc1_loc;
+            });
+        }
 
         for (int loop = 0; loop < wdm6_loops; ++loop) {
             // ============================================================
@@ -1089,6 +1109,8 @@ void WDM6::Advance(const Real& dt_advance,
                 nrauto_arr(i,j,k) = Real(0.0);
                 nraccr_arr(i,j,k) = Real(0.0);
                 nrevp_arr(i,j,k) = Real(0.0);
+                nccol_arr(i,j,k) = Real(0.0);
+                nrcol_arr(i,j,k) = Real(0.0);
             });
 
 #if !defined(AMREX_USE_GPU)
@@ -2664,6 +2686,126 @@ void WDM6::Advance(const Real& dt_advance,
                             static_cast<double>(rslopec3_arr(diag_i,diag_j,diag_k)),
                             static_cast<double>(work1_arr(diag_i,diag_j,diag_k,0)),
                             static_cast<double>(work1_arr(diag_i,diag_j,diag_k,1)));
+                std::fflush(stdout);
+            }
+#endif
+
+#if !defined(AMREX_USE_GPU)
+            if (microphysics_debug > 0 && diag_col_in_tile) {
+                std::printf("WDM6-CPP_PRE_G13A %3d %24.16E %24.16E %24.16E %24.16E %24.16E %24.16E %24.16E\n",
+                            diag_k + 1,
+                            static_cast<double>(qc_arr(diag_i,diag_j,diag_k)),
+                            static_cast<double>(qr_arr(diag_i,diag_j,diag_k)),
+                            static_cast<double>(nc_arr(diag_i,diag_j,diag_k)),
+                            static_cast<double>(nr_arr(diag_i,diag_j,diag_k)),
+                            static_cast<double>(rslopec3_arr(diag_i,diag_j,diag_k)),
+                            static_cast<double>(work1_arr(diag_i,diag_j,diag_k,0)),
+                            static_cast<double>(work2_arr(diag_i,diag_j,diag_k)));
+                std::fflush(stdout);
+            }
+#endif
+
+            ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+                const Real supsat = amrex::max(qv_arr(i,j,k), Real(qmin)) - qsatw_arr(i,j,k);
+                const Real satdt = supsat / dtcld;
+                const Real lencon = Real(2.7e-2) * den_arr(i,j,k) * qc_arr(i,j,k)
+                    * (Real(1.0e20/16.0) * rslopec2_arr(i,j,k) * rslopec2_arr(i,j,k) - Real(0.4));
+                const Real lenconcr = amrex::max(Real(1.2) * lencon, Real(qcrmin));
+
+                if (qc_arr(i,j,k) > qcr_arr(i,j,k) && nc_arr(i,j,k) > Real(ncmin)) {
+                    praut_arr(i,j,k) = qck1_loc * std::pow(qc_arr(i,j,k), Real(7.0/3.0))
+                        * std::pow(nc_arr(i,j,k), Real(-1.0/3.0));
+                    praut_arr(i,j,k) = amrex::min(praut_arr(i,j,k), qc_arr(i,j,k) / dtcld);
+
+                    nrauto_arr(i,j,k) = Real(3.5e9) * den_arr(i,j,k) * praut_arr(i,j,k);
+                    if (qr_arr(i,j,k) > lenconcr) {
+                        nrauto_arr(i,j,k) = nr_arr(i,j,k) / qr_arr(i,j,k) * praut_arr(i,j,k);
+                    }
+                    nrauto_arr(i,j,k) = amrex::min(nrauto_arr(i,j,k), nc_arr(i,j,k) / dtcld);
+                }
+
+                if (qr_arr(i,j,k) >= lenconcr) {
+                    if (avedia_arr(i,j,k,1) >= Real(di100)) {
+                        nraccr_arr(i,j,k) = amrex::min(
+                            Real(ncrk1) * nc_arr(i,j,k) * nr_arr(i,j,k)
+                                * (rslopec3_arr(i,j,k) + Real(24.0) * rslope3_arr(i,j,k,0)),
+                            nc_arr(i,j,k) / dtcld);
+                        pracw_arr(i,j,k) = amrex::min(
+                            pi_wdm6_loc / Real(6.0) * (Real(denr) / den_arr(i,j,k))
+                                * Real(ncrk1) * nc_arr(i,j,k) * nr_arr(i,j,k)
+                                * rslopec3_arr(i,j,k)
+                                * (Real(2.0) * rslopec3_arr(i,j,k) + Real(24.0) * rslope3_arr(i,j,k,0)),
+                            qc_arr(i,j,k) / dtcld);
+                    } else {
+                        nraccr_arr(i,j,k) = amrex::min(
+                            Real(ncrk2) * nc_arr(i,j,k) * nr_arr(i,j,k)
+                                * (Real(2.0) * rslopec3_arr(i,j,k) * rslopec3_arr(i,j,k)
+                                   + Real(5040.0) * rslope3_arr(i,j,k,0) * rslope3_arr(i,j,k,0)),
+                            nc_arr(i,j,k) / dtcld);
+                        pracw_arr(i,j,k) = amrex::min(
+                            pi_wdm6_loc / Real(6.0) * (Real(denr) / den_arr(i,j,k))
+                                * Real(ncrk2) * nc_arr(i,j,k) * nr_arr(i,j,k)
+                                * rslopec3_arr(i,j,k)
+                                * (Real(6.0) * rslopec3_arr(i,j,k) * rslopec3_arr(i,j,k)
+                                   + Real(5040.0) * rslope3_arr(i,j,k,0) * rslope3_arr(i,j,k,0)),
+                            qc_arr(i,j,k) / dtcld);
+                    }
+                }
+
+                if (avedia_arr(i,j,k,0) >= Real(di100)) {
+                    nccol_arr(i,j,k) = Real(ncrk1) * nc_arr(i,j,k) * nc_arr(i,j,k) * rslopec3_arr(i,j,k);
+                } else {
+                    nccol_arr(i,j,k) = Real(2.0) * Real(ncrk2) * nc_arr(i,j,k) * nc_arr(i,j,k)
+                        * rslopec3_arr(i,j,k) * rslopec3_arr(i,j,k);
+                }
+
+                if (qr_arr(i,j,k) >= lenconcr) {
+                    if (avedia_arr(i,j,k,1) < Real(di100)) {
+                        nrcol_arr(i,j,k) = Real(5040.0) * Real(ncrk2) * nr_arr(i,j,k) * nr_arr(i,j,k)
+                            * rslope3_arr(i,j,k,0) * rslope3_arr(i,j,k,0);
+                    } else if (avedia_arr(i,j,k,1) < Real(di600)) {
+                        nrcol_arr(i,j,k) = Real(24.0) * Real(ncrk1) * nr_arr(i,j,k) * nr_arr(i,j,k)
+                            * rslope3_arr(i,j,k,0);
+                    } else if (avedia_arr(i,j,k,1) < Real(di2000)) {
+                        const Real coecol = -Real(2.5e3) * (avedia_arr(i,j,k,1) - Real(di600));
+                        nrcol_arr(i,j,k) = Real(24.0) * std::exp(coecol) * Real(ncrk1)
+                            * nr_arr(i,j,k) * nr_arr(i,j,k) * rslope3_arr(i,j,k,0);
+                    } else {
+                        nrcol_arr(i,j,k) = Real(0.0);
+                    }
+                }
+
+                if (qr_arr(i,j,k) > Real(0.0)) {
+                    const Real coeres = rslope_arr(i,j,k,0)
+                        * std::sqrt(rslope_arr(i,j,k,0) * rslopeb_arr(i,j,k,0));
+                    prevp_arr(i,j,k) = (rhw_arr(i,j,k) - Real(1.0)) * nr_arr(i,j,k)
+                        * (precr1_loc * rslope_arr(i,j,k,0) + precr2_loc * work2_arr(i,j,k) * coeres)
+                        / work1_arr(i,j,k,0);
+                    if (prevp_arr(i,j,k) < Real(0.0)) {
+                        prevp_arr(i,j,k) = amrex::max(prevp_arr(i,j,k), -qr_arr(i,j,k) / dtcld);
+                        prevp_arr(i,j,k) = amrex::max(prevp_arr(i,j,k), satdt / Real(2.0));
+
+                        if (prevp_arr(i,j,k) == -qr_arr(i,j,k) / dtcld) {
+                            nn_arr(i,j,k) = nn_arr(i,j,k) + nr_arr(i,j,k);
+                            nr_arr(i,j,k) = Real(0.0);
+                        }
+                    } else {
+                        prevp_arr(i,j,k) = amrex::min(prevp_arr(i,j,k), satdt / Real(2.0));
+                    }
+                }
+            });
+
+#if !defined(AMREX_USE_GPU)
+            if (microphysics_debug > 0 && diag_col_in_tile) {
+                std::printf("WDM6-CPP_POST_G13A %3d %24.16E %24.16E %24.16E %24.16E %24.16E %24.16E %24.16E\n",
+                            diag_k + 1,
+                            static_cast<double>(praut_arr(diag_i,diag_j,diag_k)),
+                            static_cast<double>(nrauto_arr(diag_i,diag_j,diag_k)),
+                            static_cast<double>(pracw_arr(diag_i,diag_j,diag_k)),
+                            static_cast<double>(nraccr_arr(diag_i,diag_j,diag_k)),
+                            static_cast<double>(nccol_arr(diag_i,diag_j,diag_k)),
+                            static_cast<double>(nrcol_arr(diag_i,diag_j,diag_k)),
+                            static_cast<double>(prevp_arr(diag_i,diag_j,diag_k)));
                 std::fflush(stdout);
             }
 #endif

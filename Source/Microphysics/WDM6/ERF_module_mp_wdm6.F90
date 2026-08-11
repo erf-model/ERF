@@ -1754,6 +1754,14 @@
 
 
 
+      if (debug_local .gt. 0 .and. i_dbg_local .ge. its .and. i_dbg_local .le. ite) then
+        write(*,'(A,1X,I3,7(1X,ES24.16E3))') &
+          'WDM6-FORT_PRE_G13A', kts, &
+          qci(i_dbg_local,kts,1), qrs(i_dbg_local,kts,1), &
+          ncr(i_dbg_local,kts,2), ncr(i_dbg_local,kts,3), &
+          rslopec3(i_dbg_local,kts), work1(i_dbg_local,kts,1), work2(i_dbg_local,kts)
+      endif
+
       do k = kts, kte
         do i = its, ite
           supsat = max(q(i,k),qmin)-qs(i,k,1)
@@ -1854,6 +1862,14 @@
           endif
         enddo
       enddo
+
+      if (debug_local .gt. 0 .and. i_dbg_local .ge. its .and. i_dbg_local .le. ite) then
+        write(*,'(A,1X,I3,7(1X,ES24.16E3))') &
+          'WDM6-FORT_POST_G13A', kts, &
+          praut(i_dbg_local,kts), nraut(i_dbg_local,kts), pracw(i_dbg_local,kts), &
+          nracw(i_dbg_local,kts), nccol(i_dbg_local,kts), nrcol(i_dbg_local,kts), &
+          prevp(i_dbg_local,kts)
+      endif
 
 
 
