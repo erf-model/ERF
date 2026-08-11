@@ -242,6 +242,9 @@ void SuperDropletPC::MassChange_LV (  int                                       
 
         });
         Gpu::synchronize();
+#ifdef AMREX_USE_OMP
+#pragma omp atomic
+#endif
         m_num_unconverged_particles += static_cast<long>(*(unconverged_particles.copyToHost()));
     }); // end forEachParticleTile
 
