@@ -378,6 +378,9 @@ TEST(CloudChamberWallFlux, EvaluatorOwnershipIsWallAware)
 // Motivation: dry vapor impermeability and cloud-water impermeability are
 // algebraic gates that must run before NaN-prone coefficient or saturation
 // arithmetic; the selected bulk equations must still be evaluated exactly.
+// ScalarModel dispatch is intentionally explicit: adding a model must add a
+// case here rather than silently falling through to resolved physics.
+
 TEST(CloudChamberWallFlux, BulkFormulaeAndHardGates)
 {
     using namespace erf_cloud_chamber_wall_flux;
@@ -874,6 +877,10 @@ TEST(CloudChamberWallFlux, WetLowFaceAndDryHighFaceHaveExactSigns)
     }
     config.walls[0].wall.moisture =
         erf_wall_thermodynamics::MoistureMode::WetEquilibrium;
+    // Dry bulk metadata must not require velocity in the resolved compatibility API.
+    config.walls[1].wall.vapor.model =
+        erf_wall_thermodynamics::ScalarModel::BulkAero;
+
     config.walls[0].wall.thermal.mode =
         erf_wall_thermodynamics::ThermalMode::FixedPhysicalTemperature;
     config.walls[0].wall.thermal.temperature_K = Real(300.0);
@@ -971,6 +978,37 @@ TEST(CloudChamberWallFlux, MultiBoxOwnershipAcrossAllFaces)
     EXPECT_EQ(sentinel_mismatches(xflux, domain, 0, sentinel), 0);
     EXPECT_EQ(sentinel_mismatches(yflux, domain, 1, sentinel), 0);
     EXPECT_EQ(sentinel_mismatches(zflux, domain, 2, sentinel), 0);
+}
+
+// Motivation: the resolved compatibility API supplies empty velocity views,
+// so its classification must follow active closure requirements rather than
+// scalar-model metadata alone.
+TEST(CloudChamberWallFlux, CompatibilityVelocityRequirementIsChannelAware)
+{
+    using namespace erf_cloud_chamber_wall_flux;
+    using namespace erf_wall_thermodynamics;
+
+    Boundary walls{};
+    walls[0].thermal.mode = ThermalMode::FixedPhysicalTemperature;
+    walls[0].moisture = MoistureMode::WetEquilibrium;
+    walls[0].heat.model = ScalarModel::ResolvedMolecular;
+    walls[0].vapor.model = ScalarModel::ResolvedMolecular;
+
+    // A: resolved scalar wall.
+    EXPECT_FALSE(has_velocity_dependent_scalar_wall(walls));
+
+    // B: physical bulk heat.
+    walls[0].heat.model = ScalarModel::BulkAero;
+    EXPECT_TRUE(has_velocity_dependent_scalar_wall(walls));
+
+    // C: wet bulk vapor.
+    walls[0].heat.model = ScalarModel::ResolvedMolecular;
+    walls[0].vapor.model = ScalarModel::BulkAero;
+    EXPECT_TRUE(has_velocity_dependent_scalar_wall(walls));
+
+    // D: dry bulk vapor metadata is an owned exact-zero gate.
+    walls[0].moisture = MoistureMode::DryImpermeable;
+    EXPECT_FALSE(has_velocity_dependent_scalar_wall(walls));
 }
 
 } // namespace

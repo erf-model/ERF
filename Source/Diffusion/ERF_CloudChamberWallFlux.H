@@ -344,16 +344,8 @@ evaluate_scalar_flux_in (
 
     switch (channel) {
     case ScalarChannel::Heat:
-        if (wall.heat.model == ScalarModel::BulkAero) {
-            result.rhoTheta_in = bulk_theta_flux_in(
-                sample.rho,
-                wall.heat.coefficient,
-                sample.U_t,
-                wall.thermal.temperature_K,
-                sample.scalar_air,
-                sample.p_hse,
-                sample.rdOcp);
-        } else {
+        switch (wall.heat.model) {
+        case ScalarModel::ResolvedMolecular:
             result.rhoTheta_in = resolved_theta_flux_in(
                 sample.rho,
                 sample.alpha_T,
@@ -362,22 +354,28 @@ evaluate_scalar_flux_in (
                 sample.p_hse,
                 sample.dx_inv,
                 sample.rdOcp);
+            return result;
+
+        case ScalarModel::BulkAero:
+            result.rhoTheta_in = bulk_theta_flux_in(
+                sample.rho,
+                wall.heat.coefficient,
+                sample.U_t,
+                wall.thermal.temperature_K,
+                sample.scalar_air,
+                sample.p_hse,
+                sample.rdOcp);
+            return result;
         }
+        AMREX_ALWAYS_ASSERT(false);
         return result;
 
     case ScalarChannel::Vapor:
         if (wall.moisture == MoistureMode::DryImpermeable) {
             return result;
         }
-        if (wall.vapor.model == ScalarModel::BulkAero) {
-            result.rhoQv_in = bulk_vapor_flux_in(
-                sample.rho,
-                wall.vapor.coefficient,
-                sample.U_t,
-                wall.thermal.temperature_K,
-                sample.scalar_air,
-                sample.p_hse);
-        } else {
+        switch (wall.vapor.model) {
+        case ScalarModel::ResolvedMolecular:
             result.rhoQv_in = resolved_vapor_flux_in(
                 sample.rho,
                 sample.alpha_C,
@@ -385,7 +383,19 @@ evaluate_scalar_flux_in (
                 sample.scalar_air,
                 sample.p_hse,
                 sample.dx_inv);
+            return result;
+
+        case ScalarModel::BulkAero:
+            result.rhoQv_in = bulk_vapor_flux_in(
+                sample.rho,
+                wall.vapor.coefficient,
+                sample.U_t,
+                wall.thermal.temperature_K,
+                sample.scalar_air,
+                sample.p_hse);
+            return result;
         }
+        AMREX_ALWAYS_ASSERT(false);
         return result;
 
     case ScalarChannel::CloudWater:
@@ -549,12 +559,12 @@ inline void apply (const amrex::Box& bx, const amrex::Box& domain,
     apply_face<2,true >(bx,domain,quantity,flux_comp,state,prim,base_state,u,v,w,rhs,xflux,yflux,zflux,dx_inv,walls,alpha_T,alpha_C,rdOcp);
 }
 
-inline bool has_bulk_scalar_wall (
+inline bool has_velocity_dependent_scalar_wall (
     const erf_wall_thermodynamics::Boundary& walls) noexcept
 {
     for (const auto& wall : walls) {
-        if (wall.heat.model == erf_wall_thermodynamics::ScalarModel::BulkAero ||
-            wall.vapor.model == erf_wall_thermodynamics::ScalarModel::BulkAero) {
+        if (requires_tangential_speed(wall, ScalarChannel::Heat) ||
+            requires_tangential_speed(wall, ScalarChannel::Vapor)) {
             return true;
         }
     }
