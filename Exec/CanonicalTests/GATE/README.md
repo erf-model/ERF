@@ -9,6 +9,12 @@ to zero (w_bar = 0, as required with periodic lateral boundaries). Only the bulk
 surface fluxes use the RICO formulation (see `../RICO`). The case is named for the GARP
 Atlantic Tropical Experiment (GATE, 1974).
 
+## Reference
+
+- Grabowski, W.W., Wu, X. and Moncrieff, M.W. (1996), *Cloud-resolving modeling of tropical cloud
+  systems during Phase III of GATE. Part I: Two-dimensional experiments*, J. Atmos. Sci., **53**,
+  3684-3709. `10.1175/1520-0469(1996)053<3684:CRMOTC>2.0.CO;2`
+
 ## Input files
 
 - `inputs_SDM` - super-droplet (Lagrangian) microphysics with NH4HSO4 aerosol and two
