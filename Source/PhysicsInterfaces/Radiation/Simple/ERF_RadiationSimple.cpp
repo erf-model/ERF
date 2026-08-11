@@ -26,8 +26,8 @@ void RadiationSimple::Init(const amrex::Geometry& geom,
 
 void RadiationSimple::Run(int& level,
                           int& step,
-                          amrex::Real& time,
-                          const amrex::Real& dt,
+                          double& time,
+                          const double& dt,
                           const amrex::BoxArray& ba,
                           amrex::Geometry& geom,
                           amrex::MultiFab* cons_in,
@@ -39,7 +39,8 @@ void RadiationSimple::Run(int& level,
                           amrex::MultiFab* rad_fluxes,
                           amrex::MultiFab* z_phys,
                           amrex::MultiFab* lat,
-                          amrex::MultiFab* lon)
+                          amrex::MultiFab* lon,
+                          const bool /*updated_lsm*/)
 {
 
     constexpr amrex::Real cp_spec = 1015.0;
@@ -168,7 +169,7 @@ void RadiationSimple::Run(int& level,
     }
 }
 
-void RadiationSimple::WriteDataLog(const amrex::Real &time)
+void RadiationSimple::WriteDataLog(const double &time)
 {
     constexpr int datwidth = 14;
     constexpr int datprecision = 9;
