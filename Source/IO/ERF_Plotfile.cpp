@@ -59,7 +59,10 @@ ERF::setPlotVariables (const std::string& pp_plot_var_names, Vector<std::string>
     capabilities.moisture = erf_plotfile::plot3d_moisture_capabilities(
         solverChoice.moisture_type);
     capabilities.time_average_storage = solverChoice.time_avg_vel;
-    capabilities.radiation_heating_storage = solverChoice.rad_type != RadiationType::None;
+    // (Phase 20) radiation_heating_storage: recognize both RRTMGP (via rad_type) and TwoStream (via radChoice.rad_type)
+    capabilities.radiation_heating_storage =
+        (solverChoice.rad_type != RadiationType::None) ||
+        (solverChoice.radChoice.rad_type == RadType::TwoStream);
     capabilities.eddy_diffusivity_storage = true;
     capabilities.dissipation_storage = true;
     capabilities.wall_distance_storage = true;

@@ -1298,19 +1298,26 @@ void ERF::compute_twostream_radiation_diagnostics(
         if (rad_choice.seb_enable) {
             fill_or_copy_seb_field(twostream_alb_sw[lev].get(), lsm, lev, "sfc_alb_dir_vis", rad_choice.surface_albedo_sw);
             fill_or_copy_seb_field(twostream_emiss_lw[lev].get(), lsm, lev, "sfc_emis", rad_choice.surface_emissivity_lw);
-            fill_or_copy_seb_field(twostream_t_sfc[lev].get(), lsm, lev, "t_sfc", rad_choice.surface_temp_k);
-                        // TEMPORARY DEBUG - remove after diagnosis
-            if (ParallelDescriptor::IOProcessor() && nstep < 5) {
-                Real dbg_val = twostream_t_sfc[lev]->max(0);
-                Print() << "[DEBUG] step=" << nstep << " call_site=" << call_site
-                        << " AFTER fill_or_copy, T_sfc(max)=" << dbg_val << std::endl;
+             
+            // (Phase 20) Gate t_sfc fill on prognostic mode: when seb_prognostic_enable is true,
+            // t_sfc is owned and evolved by the prognostic update, not reset by fill_or_copy.
+            // This prevents silently overwriting the prognostic state before the update reads it.
+            if (!rad_choice.seb_prognostic_enable) {
+                fill_or_copy_seb_field(twostream_t_sfc[lev].get(), lsm, lev, "t_sfc", rad_choice.surface_temp_k);
             }
+             
             fill_or_copy_seb_field(sw_flux_sfc[lev].get(), lsm, lev, "sav", rad_choice.seb_sw_flux_default);
             fill_or_copy_seb_field(lw_flux_sfc[lev].get(), lsm, lev, "fira", rad_choice.seb_lw_flux_default);
             fill_or_copy_seb_field(hfx_sfc[lev].get(), lsm, lev, "hfx", rad_choice.seb_hfx_default);
             fill_or_copy_seb_field(lh_sfc[lev].get(), lsm, lev, "lh", rad_choice.seb_lh_default);
             fill_or_copy_seb_field(grdflx_sfc[lev].get(), lsm, lev, "grdflx", rad_choice.seb_grdflx_default);
-            fill_or_copy_seb_field(q_sfc[lev].get(), lsm, lev, "noahmp_water_vapor_mixing_ratio_2m_vegetated", rad_choice.seb_q_sfc_default);
+             
+            // (Phase 20) Gate q_sfc fill on prognostic mode: same reasoning as t_sfc.
+            if (!rad_choice.seb_prognostic_enable) {
+                fill_or_copy_seb_field(q_sfc[lev].get(), lsm, lev, "noahmp_water_vapor_mixing_ratio_2m_vegetated", rad_choice.seb_q_sfc_default);
+            }
+             
+            // t_deep and q_deep are restore targets (not evolved state), and are NOT affected by prognostic mode
             fill_or_copy_seb_field(t_deep[lev].get(), lsm, lev, "smstav", rad_choice.seb_t_deep_default);
             fill_or_copy_seb_field(q_deep[lev].get(), lsm, lev, "smstot", rad_choice.seb_q_deep_default);
         }
@@ -1652,18 +1659,6 @@ void ERF::compute_twostream_radiation_diagnostics(
                             q_min=rad_choice.seb_prognostic_q_min,
                             q_max=rad_choice.seb_prognostic_q_max] 
                             AMREX_GPU_DEVICE (int i, int j, int /*k_unused*/) -> ProgReduceTuple {
-                            // TEMPORARY DEBUG - remove after diagnosis
-                            // Place this right after line ~1650 (amrex::Real t_s_old = t_s_arr(i, j, 0);)
-                            // inside the device lambda -- but device-side Print() isn't available, so
-                            // instead capture host-side via a single-cell copy BEFORE the reduce_ops.eval(...)
-                            // call, using the same mfi/array already in scope (no new MFIter):
-                            if (ParallelDescriptor::IOProcessor() && nstep < 5 && mfi.index() == 0) {
-                                amrex::Real t_s_probe = t_s_arr(bx.smallEnd(0), bx.smallEnd(1), 0);
-                                amrex::Real t_deep_probe = t_deep_arr(bx.smallEnd(0), bx.smallEnd(1), 0);
-                                Print() << "[DEBUG] step=" << nstep << " call_site=" << call_site
-                                        << " BEFORE prognostic update: T_s=" << t_s_probe
-                                        << " T_deep=" << t_deep_probe << std::endl;
-                            }
                             amrex::Real t_s_old = t_s_arr(i, j, 0);
                             amrex::Real q_s_old = q_s_arr(i, j, 0);
                             
