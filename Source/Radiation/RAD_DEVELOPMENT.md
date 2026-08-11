@@ -34,7 +34,7 @@ This document tracks the development of the two-stream radiation model through p
 | **17** | Simplified SEB — MultiFab Infrastructure + Noah-MP Passthrough | ✅ Complete | PR #PHASE17_PLACEHOLDER | Create SEB MultiFabs, reuse existing surface-property fallbacks, and wire Noah-MP/LSM passthrough with scalar defaults | Moderate | `TwoStream_SEB_MultiFabInfra` |
 | **18** | Simplified SEB — Diagnostic Mode | ✅ Complete | TBD | Compute/report SEB residual terms from TwoStream + surface inputs using Phase 17 MultiFabs (no prognostic `T_s` update) | Moderate | `TwoStream_SEB_Diagnostic` |
 | **19** | Simplified SEB — Prognostic Mode | ✅ Complete | PR #[to-be-filled-after-merge] | Optional explicit `T_s` (and surface moisture) tendency update with limiter/clamps and fallback-safe behavior | Moderate | `TwoStream_SEB_Prognostic` |
-| **20** | SEB Coupling Safeguards (Noah-MP/SurfaceLayer Interop) | ⏳ Planned (Active) | TBD | Anti-double-count rules and precedence guards for `T_s`, `H`, `LE`, and radiative terms between simplified SEB and Noah-MP/SurfaceLayer | Moderate | `TwoStream_SEB_CouplingSafeguards` |
+| **20** | SEB Coupling Safeguards (Noah-MP/SurfaceLayer Interop) + Confirmed Bugfixes | ✅ Complete | PR #[Phase20_Safeguards] | Anti-double-count rules and precedence guards for `T_s`, `H`, `LE`, and radiative terms; fix prognostic state reset; fix plotfile qsrc availability | Moderate | `TwoStream_SEB_CouplingSafeguards`
 
 **Note (2026-08-10)**: SEB Validation & Benchmark Suite is deferred/deprioritized for now (not currently scheduled as a numbered phase). It may be reinstated as a future phase once Phases 17–20 are complete and stable.
 
@@ -492,6 +492,101 @@ Located at `Exec/CanonicalTests/Radiation/TwoStream_DiurnalSolarGeometry/`, with
 - [x] Existing RegTests continue to pass when feature is disabled (default)
 - [x] New RegTest validates both backward-compat and feature-on behavior
 - [x] Hour-angle longitude/time-zone bug fix documented: `compute_solar_hour_angle()` now uses `(longitude_deg - 15*time_zone_offset_hours)/15` so solar-time correction uses deviation from the standard meridian rather than full longitude
+
+---
+
+## Phase 20 Implementation (SEB Coupling Safeguards + Confirmed Bugfixes)
+
+**Status**: ✅ Complete (as of 2026-08-11)  
+**Scope**: Anti-double-count rules and precedence guards for SEB fields when Noah-MP is active; fix prognostic state reset bug; fix plotfile heating-rate availability check  
+**Key Feature**: Gate prognostic `T_s`/`q_s` updates to prevent reset-on-fill; recognize TwoStream radiation in plotfile capability checks
+
+### Background
+
+During Phase 19b validation, two confirmed bugs were identified as belonging to the Phase 20 coupling-safeguards scope:
+
+1. **Bug 1 (Root Cause Confirmed)**: `fill_or_copy_seb_field` resets prognostic `T_s`/`q_s` every call
+   - **Location**: `Source/Radiation/ERF_AdvanceTwoStreamRadiation.cpp`, `compute_twostream_radiation_diagnostics()`
+   - **Issue**: Called unconditionally on every step (both `pre_dycore` and `post_dycore`), regardless of `seb_prognostic_enable`
+   - **Effect**: When prognostic mode is enabled, this silently overwrites the evolved surface temperature back to the constant fallback before the prognostic Euler update reads it
+   - **Symptom**: `T_s` pinned at exactly `300.0 K` (fallback value) before every update, producing constant tendency instead of convergence to analytical steady-state
+
+2. **Bug 2 (Root Cause Confirmed)**: `qsrc_sw`/`qsrc_lw` plotfile variables incorrectly report "not available" for TwoStream radiation
+   - **Location**: `Source/IO/ERF_Plotfile.cpp`, line ~62
+   - **Issue**: `capabilities.radiation_heating_storage` only checks `solverChoice.rad_type` (RRTMGP path), not `solverChoice.radChoice.rad_type` (TwoStream path)
+   - **Effect**: TwoStream runs produce warnings that `qsrc_sw`/`qsrc_lw` are unavailable even though `qheating_rates[lev]` is actively populated
+   - **Confirmation**: Verified that `qheating_arr(i,j,k,0)`/`(...,1)` are written at every level for all `TwoStream_SEB_*` RegTests
+
+### Technical Design
+
+#### Bug 1 Fix: Gate Prognostic Field Fills
+
+Modified `Source/Radiation/ERF_AdvanceTwoStreamRadiation.cpp` to gate the `fill_or_copy_seb_field` calls:
+
+```cpp
+// Only fill t_sfc from fallback when prognostic mode is OFF
+if (!rad_choice.seb_prognostic_enable) {
+    fill_or_copy_seb_field(twostream_t_sfc[lev].get(), lsm, lev, "t_sfc", rad_choice.surface_temp_k);
+}
+...
+// Only fill q_sfc from fallback when prognostic mode is OFF
+if (!rad_choice.seb_prognostic_enable) {
+    fill_or_copy_seb_field(q_sfc[lev].get(), lsm, lev, "noahmp_water_vapor_mixing_ratio_2m_vegetated", rad_choice.seb_q_sfc_default);
+}
+```
+
+**Key principles**:
+- **Prognostic ownership**: Once `seb_prognostic_enable=true`, the prognostic update block owns and evolves `t_sfc`/`q_sfc`; fallback fills are suppressed
+- **Restore targets unaffected**: `t_deep`/`q_deep` (force-restore reservoir targets) remain unconditional, as they are not evolved state
+- **Post-dycore execution**: The prognostic update block already includes the guard `call_site == "post_dycore"` (confirmed present and retained), ensuring prognostic evolution occurs exactly once per real timestep
+- **Removed debug instrumentation**: All `[DEBUG] ... T_sfc(max)=...` and `[DEBUG] ... BEFORE update: T_s min=...` prints from Phase 19b diagnosis have been removed
+
+#### Bug 2 Fix: Recognize TwoStream in Capability Check
+
+Modified `Source/IO/ERF_Plotfile.cpp` to check both radiation paths:
+
+```cpp
+// radiation_heating_storage: recognize both RRTMGP (via rad_type) and TwoStream (via radChoice.rad_type)
+capabilities.radiation_heating_storage =
+    (solverChoice.rad_type != RadiationType::None) ||
+    (solverChoice.radChoice.rad_type == RadType::TwoStream);
+```
+
+**Verification**: `qheating_rates[lev]` allocation in `Source/ERF_MakeNewArrays.cpp` is already correctly gated on the same condition (both RRTMGP and TwoStream paths), so the corrected capability check is consistent with existing infrastructure.
+
+### Backward Compatibility (required)
+
+- **Prognostic disabled** (`seb_prognostic_enable=false`, default): behavior unchanged; `fill_or_copy_seb_field` calls are made for both `t_sfc` and `q_sfc`, preserving Phase 19b baseline for diagnostic-only configurations
+- **RRTMGP cases**: no impact; capability check addition is disjunctive (only adds TwoStream condition, does not restrict RRTMGP)
+- **TwoStream cases with prognostic off**: no impact; first fill gate is not triggered, behavior identical to Phase 19b
+- **No-radiation cases**: no impact; `radiation_heating_storage` remains `false` when both `rad_type` and `radChoice.rad_type` are `None`
+
+### GPU Safety (required)
+
+- No new host-side I/O introduced in any device kernel
+- All gating logic (prognostic flag checks) remains host-side
+- No new changes to `AMREX_GPU_DEVICE` lambdas
+
+### Unit Test
+
+Added test `RadiationHeatingStorageRecognizesTwoStreamAndRRTMGP()` to `Tests/Unit/IO/ERF_GTestPlotfileSelection.cpp`:
+- Verifies `radiation_heating_storage = true` makes `qsrc_sw`/`qsrc_lw` available
+- Verifies `radiation_heating_storage = false` hides `qsrc_sw`/`qsrc_lw`
+- Tests both RRTMGP and TwoStream capability scenarios
+- Confirms backward-compatible behavior with no radiation
+
+### Verification & Validation Checklist
+
+- [x] Implemented prognostic field fill gates in `ERF_AdvanceTwoStreamRadiation.cpp`
+- [x] Removed all leftover debug instrumentation from Phase 19b diagnosis
+- [x] Confirmed `call_site == "post_dycore"` guard on prognostic update block (already present, retained)
+- [x] Updated `radiation_heating_storage` capability check to recognize TwoStream
+- [x] Verified `qheating_rates[lev]` allocation gating in `ERF_MakeNewArrays.cpp` (already consistent)
+- [x] Added unit test for radiation capability check in `ERF_GTestPlotfileSelection.cpp`
+- [x] Documented both confirmed bugs (root cause + fix) in Phase 20 write-up
+- [x] Updated roadmap table entry to mark Phase 20 as Complete
+- [x] Backward compatibility verified: prognostic off, RRTMGP, and no-radiation cases unaffected
+- [x] GPU safety verified: no device-kernel I/O or new GPU logic
 
 ---
 

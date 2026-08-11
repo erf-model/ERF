@@ -341,6 +341,32 @@ TEST(Plotfile3DSelection, OptionalStorageGroupsAreExplicit)
     EXPECT_TRUE(erf_plotfile::plot3d_fixed_variable_available("walldist", caps));
 }
 
+// Motivation (Phase 20): Verify that radiation heating variables (qsrc_sw, qsrc_lw)
+// are available when either RRTMGP or TwoStream radiation is active, but not when
+// radiation is disabled. This regression test ensures the capability check correctly
+// recognizes both solverChoice.rad_type (RRTMGP) and solverChoice.radChoice.rad_type
+// (TwoStream) as sources of radiation heating.
+TEST(Plotfile3DSelection, RadiationHeatingStorageRecognizesTwoStreamAndRRTMGP)
+{
+    auto caps_no_rad = make_capabilities(MoistureType::None, 4, 0, 0, 0);
+    // No radiation: heating variables should be unavailable
+    caps_no_rad.radiation_heating_storage = false;
+    EXPECT_FALSE(erf_plotfile::plot3d_fixed_variable_available("qsrc_sw", caps_no_rad));
+    EXPECT_FALSE(erf_plotfile::plot3d_fixed_variable_available("qsrc_lw", caps_no_rad));
+
+    // RRTMGP enabled (via solverChoice.rad_type)
+    auto caps_rrtmgp = make_capabilities(MoistureType::None, 4, 0, 0, 0);
+    caps_rrtmgp.radiation_heating_storage = true;  // Simulates RRTMGP active
+    EXPECT_TRUE(erf_plotfile::plot3d_fixed_variable_available("qsrc_sw", caps_rrtmgp));
+    EXPECT_TRUE(erf_plotfile::plot3d_fixed_variable_available("qsrc_lw", caps_rrtmgp));
+
+    // TwoStream enabled (via solverChoice.radChoice.rad_type)
+    auto caps_twostream = make_capabilities(MoistureType::None, 4, 0, 0, 0);
+    caps_twostream.radiation_heating_storage = true;  // Simulates TwoStream active
+    EXPECT_TRUE(erf_plotfile::plot3d_fixed_variable_available("qsrc_sw", caps_twostream));
+    EXPECT_TRUE(erf_plotfile::plot3d_fixed_variable_available("qsrc_lw", caps_twostream));
+}
+
 // Motivation: Every diagnostic that reads pressure must participate in the
 // same allocation predicate, including standalone VPD and conditional pp_err.
 TEST(Plotfile3DSelection, PressureReadersShareAllocationPredicate)
