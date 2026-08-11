@@ -41,10 +41,139 @@ struct FaceRuntimeCoefficients {
     unsigned char valid = 0;
 };
 
+enum class ScalarChannel : unsigned char {
+    None,
+    Heat,
+    Vapor,
+    CloudWater
+};
+
+struct ScalarWallSample {
+    amrex::Real rho = amrex::Real(0.0);
+    amrex::Real scalar_air = amrex::Real(0.0);
+    amrex::Real p_hse = amrex::Real(0.0);
+    amrex::Real U_t = amrex::Real(0.0);
+    amrex::Real alpha_T = amrex::Real(0.0);
+    amrex::Real alpha_C = amrex::Real(0.0);
+    amrex::Real dx_inv = amrex::Real(0.0);
+    amrex::Real rdOcp = amrex::Real(0.0);
+};
+
+struct ScalarFluxReplacement {
+    amrex::Real coordinate_flux = amrex::Real(0.0);
+    amrex::Real rhs_delta = amrex::Real(0.0);
+};
+
 static_assert(std::is_trivially_copyable_v<WallFlux>);
 static_assert(std::is_standard_layout_v<WallFlux>);
 static_assert(std::is_trivially_copyable_v<FaceRuntimeCoefficients>);
 static_assert(std::is_standard_layout_v<FaceRuntimeCoefficients>);
+static_assert(std::is_trivially_copyable_v<ScalarWallSample>);
+static_assert(std::is_standard_layout_v<ScalarWallSample>);
+static_assert(std::is_trivially_copyable_v<ScalarFluxReplacement>);
+static_assert(std::is_standard_layout_v<ScalarFluxReplacement>);
+
+AMREX_GPU_HOST_DEVICE
+AMREX_FORCE_INLINE
+ScalarChannel
+scalar_channel_from_quantity (int quantity) noexcept
+{
+    if (quantity == RhoTheta_comp) { return ScalarChannel::Heat; }
+    if (quantity == RhoQ1_comp) { return ScalarChannel::Vapor; }
+    if (quantity == RhoQ2_comp) { return ScalarChannel::CloudWater; }
+    return ScalarChannel::None;
+}
+
+AMREX_GPU_HOST_DEVICE
+AMREX_FORCE_INLINE
+int
+primitive_component (ScalarChannel channel) noexcept
+{
+    switch (channel) {
+    case ScalarChannel::Heat:
+        return PrimTheta_comp;
+    case ScalarChannel::Vapor:
+        return PrimQ1_comp;
+    case ScalarChannel::CloudWater:
+        return PrimQ2_comp;
+    case ScalarChannel::None:
+        break;
+    }
+    return -1;
+}
+
+AMREX_GPU_HOST_DEVICE
+AMREX_FORCE_INLINE
+bool
+wall_owns_scalar_channel (
+    const erf_wall_thermodynamics::FaceWall& wall,
+    ScalarChannel channel) noexcept
+{
+    using namespace erf_wall_thermodynamics;
+
+    switch (channel) {
+    case ScalarChannel::Heat:
+        return wall.thermal.mode == ThermalMode::FixedPhysicalTemperature;
+    case ScalarChannel::Vapor:
+    case ScalarChannel::CloudWater:
+        return wall.moisture != MoistureMode::LegacyNumerical;
+    case ScalarChannel::None:
+        return false;
+    }
+
+    return false;
+}
+
+AMREX_GPU_HOST_DEVICE
+AMREX_FORCE_INLINE
+unsigned char
+scalar_channel_mask (ScalarChannel channel) noexcept
+{
+    switch (channel) {
+    case ScalarChannel::Heat:
+        return OwnHeat;
+    case ScalarChannel::Vapor:
+        return OwnVapor;
+    case ScalarChannel::CloudWater:
+        return OwnCloudWater;
+    case ScalarChannel::None:
+        return OwnNone;
+    }
+
+    return OwnNone;
+}
+
+AMREX_GPU_HOST_DEVICE
+AMREX_FORCE_INLINE
+bool
+owns (const WallFlux& flux, ScalarChannel channel) noexcept
+{
+    return (flux.owned_channels & scalar_channel_mask(channel)) != 0;
+}
+
+AMREX_GPU_HOST_DEVICE
+AMREX_FORCE_INLINE
+bool
+requires_tangential_speed (
+    const erf_wall_thermodynamics::FaceWall& wall,
+    ScalarChannel channel) noexcept
+{
+    using namespace erf_wall_thermodynamics;
+
+    switch (channel) {
+    case ScalarChannel::Heat:
+        return wall.thermal.mode == ThermalMode::FixedPhysicalTemperature &&
+               wall.heat.model == ScalarModel::BulkAero;
+    case ScalarChannel::Vapor:
+        return wall.moisture == MoistureMode::WetEquilibrium &&
+               wall.vapor.model == ScalarModel::BulkAero;
+    case ScalarChannel::CloudWater:
+    case ScalarChannel::None:
+        return false;
+    }
+
+    return false;
+}
 
 template <int DIR, bool HIGH>
 AMREX_GPU_HOST_DEVICE
@@ -66,9 +195,9 @@ traction_from_local_inward (amrex::Real normal_in,
                             amrex::Real tangent_a,
                             amrex::Real tangent_b) noexcept
 {
-    // This is an orientation seam for future momentum models. P2 does not
-    // replace the resolved stress, but a future owned traction has one
-    // explicit mapping for all six Cartesian wall orientations.
+    // Physical traction result/orientation support for future momentum
+    // closures. This does not map traction into ERF tau_ij arrays and does
+    // not activate a production Cloud Chamber momentum wall model.
     amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> result{};
     result[DIR] = to_coordinate_flux<DIR,HIGH>(normal_in);
     if constexpr (DIR == 0) {
@@ -160,71 +289,151 @@ tangential_speed_cell_centered (int dir,
 
 AMREX_GPU_HOST_DEVICE
 AMREX_FORCE_INLINE
-WallFlux
-evaluate_scalar_flux_in (const erf_wall_thermodynamics::FaceWall& wall,
-                         bool is_theta, bool is_qv, bool is_qc,
-                         amrex::Real rho,
-                         amrex::Real scalar_air,
-                         amrex::Real p_hse,
-                         amrex::Real U_t,
-                         amrex::Real alpha_T,
-                         amrex::Real alpha_C,
-                         amrex::Real dx_inv,
-                         amrex::Real rdOcp) noexcept
+amrex::Real
+resolved_theta_flux_in (
+    amrex::Real rho,
+    amrex::Real alpha_T,
+    amrex::Real wall_temperature_K,
+    amrex::Real theta_air,
+    amrex::Real p_hse,
+    amrex::Real dx_inv,
+    amrex::Real rdOcp) noexcept
 {
+    const amrex::Real theta_wall =
+        wall_temperature_K * std::pow(p_0 / p_hse, rdOcp);
+    return rho * alpha_T * (theta_wall - theta_air) *
+        amrex::Real(2.0) * dx_inv;
+}
+
+AMREX_GPU_HOST_DEVICE
+AMREX_FORCE_INLINE
+amrex::Real
+resolved_vapor_flux_in (
+    amrex::Real rho,
+    amrex::Real alpha_C,
+    amrex::Real wall_temperature_K,
+    amrex::Real qv_air,
+    amrex::Real p_hse,
+    amrex::Real dx_inv) noexcept
+{
+    amrex::Real qv_wall = amrex::Real(0.0);
+    erf_qsatw(
+        wall_temperature_K,
+        p_hse * amrex::Real(0.01),
+        qv_wall);
+    return rho * alpha_C * (qv_wall - qv_air) *
+        amrex::Real(2.0) * dx_inv;
+}
+
+AMREX_GPU_HOST_DEVICE
+AMREX_FORCE_INLINE
+WallFlux
+evaluate_scalar_flux_in (
+    const erf_wall_thermodynamics::FaceWall& wall,
+    ScalarChannel channel,
+    const ScalarWallSample& sample) noexcept
+{
+    using namespace erf_wall_thermodynamics;
+
     WallFlux result{};
-    if (is_theta) {
-        result.owned_channels = OwnHeat;
-    } else if (is_qv) {
-        result.owned_channels = OwnVapor;
-    } else if (is_qc) {
-        // Cloud-water impermeability is a hard Stage 1 invariant; it is not
-        // a selectable generic scalar model.
-        result.owned_channels = OwnCloudWater;
-    } else {
+    if (!wall_owns_scalar_channel(wall, channel)) {
         return result;
     }
 
-    // These algebraic gates intentionally precede coefficient/provider work,
-    // speed reconstruction, and saturation evaluation.
-    if (is_qc ||
-        (is_qv && wall.moisture ==
-            erf_wall_thermodynamics::MoistureMode::DryImpermeable)) {
-        return result;
-    }
+    result.owned_channels = scalar_channel_mask(channel);
 
-    const amrex::Real wall_temperature = wall.thermal.temperature_K;
-    if (is_theta &&
-        wall.thermal.mode ==
-            erf_wall_thermodynamics::ThermalMode::FixedPhysicalTemperature) {
-        const auto& transfer = wall.heat;
-        if (transfer.model ==
-            erf_wall_thermodynamics::ScalarModel::BulkAero) {
+    switch (channel) {
+    case ScalarChannel::Heat:
+        if (wall.heat.model == ScalarModel::BulkAero) {
             result.rhoTheta_in = bulk_theta_flux_in(
-                rho, transfer.coefficient, U_t, wall_temperature,
-                scalar_air, p_hse, rdOcp);
+                sample.rho,
+                wall.heat.coefficient,
+                sample.U_t,
+                wall.thermal.temperature_K,
+                sample.scalar_air,
+                sample.p_hse,
+                sample.rdOcp);
         } else {
-            result.rhoTheta_in = rho * alpha_T *
-                (wall_temperature * std::pow(p_0 / p_hse, rdOcp) - scalar_air) *
-                amrex::Real(2.0) * dx_inv;
+            result.rhoTheta_in = resolved_theta_flux_in(
+                sample.rho,
+                sample.alpha_T,
+                wall.thermal.temperature_K,
+                sample.scalar_air,
+                sample.p_hse,
+                sample.dx_inv,
+                sample.rdOcp);
         }
-    } else if (is_qv &&
-               wall.moisture ==
-                   erf_wall_thermodynamics::MoistureMode::WetEquilibrium) {
-        const auto& transfer = wall.vapor;
-        if (transfer.model ==
-            erf_wall_thermodynamics::ScalarModel::BulkAero) {
+        return result;
+
+    case ScalarChannel::Vapor:
+        if (wall.moisture == MoistureMode::DryImpermeable) {
+            return result;
+        }
+        if (wall.vapor.model == ScalarModel::BulkAero) {
             result.rhoQv_in = bulk_vapor_flux_in(
-                rho, transfer.coefficient, U_t, wall_temperature,
-                scalar_air, p_hse);
+                sample.rho,
+                wall.vapor.coefficient,
+                sample.U_t,
+                wall.thermal.temperature_K,
+                sample.scalar_air,
+                sample.p_hse);
         } else {
-            amrex::Real qv_wall = amrex::Real(0.0);
-            erf_qsatw(wall_temperature, p_hse * amrex::Real(0.01), qv_wall);
-            result.rhoQv_in = rho * alpha_C * (qv_wall - scalar_air) *
-                amrex::Real(2.0) * dx_inv;
+            result.rhoQv_in = resolved_vapor_flux_in(
+                sample.rho,
+                sample.alpha_C,
+                wall.thermal.temperature_K,
+                sample.scalar_air,
+                sample.p_hse,
+                sample.dx_inv);
         }
+        return result;
+
+    case ScalarChannel::CloudWater:
+        return result;
+
+    case ScalarChannel::None:
+        return result;
     }
+
     return result;
+}
+
+AMREX_GPU_HOST_DEVICE
+AMREX_FORCE_INLINE
+amrex::Real
+scalar_flux_in (const WallFlux& flux, ScalarChannel channel) noexcept
+{
+    switch (channel) {
+    case ScalarChannel::Heat:
+        return flux.rhoTheta_in;
+    case ScalarChannel::Vapor:
+        return flux.rhoQv_in;
+    case ScalarChannel::CloudWater:
+        return flux.rhoQc_in;
+    case ScalarChannel::None:
+        return amrex::Real(0.0);
+    }
+
+    return amrex::Real(0.0);
+}
+
+template <int DIR, bool HIGH>
+AMREX_GPU_HOST_DEVICE
+AMREX_FORCE_INLINE
+ScalarFluxReplacement
+scalar_flux_replacement (
+    amrex::Real old_flux,
+    amrex::Real inward_flux,
+    amrex::Real dx_inv) noexcept
+{
+    const amrex::Real new_flux =
+        to_coordinate_flux<DIR,HIGH>(inward_flux);
+    const amrex::Real correction =
+        (new_flux - old_flux) * dx_inv;
+    return {
+        new_flux,
+        HIGH ? -correction : correction
+    };
 }
 
 template <int DIR, bool HIGH>
@@ -257,6 +466,16 @@ void apply_face (const amrex::Box& bx,
         if (bx.smallEnd(DIR) != domain.smallEnd(DIR)) { return; }
     }
 
+    const ScalarChannel channel =
+        scalar_channel_from_quantity(quantity);
+    if (channel == ScalarChannel::None) { return; }
+
+    const auto wall = walls[2*DIR + (HIGH ? 1 : 0)];
+    if (!wall_owns_scalar_channel(wall, channel)) { return; }
+
+    const int prim_comp = primitive_component(channel);
+    AMREX_ALWAYS_ASSERT(prim_comp >= 0);
+
     const int cell_face = HIGH ? domain.bigEnd(DIR) : domain.smallEnd(DIR);
     amrex::Box face_cells = bx;
     face_cells.setSmall(DIR, cell_face);
@@ -265,61 +484,43 @@ void apply_face (const amrex::Box& bx,
     if (face_cells.isEmpty()) { return; }
     AMREX_ALWAYS_ASSERT(bx.contains(face_cells));
 
-    const auto wall = walls[2*DIR + (HIGH ? 1 : 0)];
-    const bool is_theta = quantity == RhoTheta_comp;
-    const bool is_qv = quantity == RhoQ1_comp;
-    const bool is_qc = quantity == RhoQ2_comp;
-    const bool owns_channel =
-        (is_theta &&
-         wall.thermal.mode ==
-             erf_wall_thermodynamics::ThermalMode::FixedPhysicalTemperature) ||
-        (is_qv && wall.moisture !=
-            erf_wall_thermodynamics::MoistureMode::LegacyNumerical) ||
-        (is_qc && wall.moisture !=
-            erf_wall_thermodynamics::MoistureMode::LegacyNumerical);
-    if (!owns_channel) { return; }
+    const bool needs_speed = requires_tangential_speed(wall, channel);
+    const auto& flux =
+        (DIR == 0) ? xflux : ((DIR == 1) ? yflux : zflux);
 
-    const bool hard_zero = is_qc ||
-        (is_qv && wall.moisture ==
-            erf_wall_thermodynamics::MoistureMode::DryImpermeable);
-    const bool bulk_channel =
-        (is_theta && wall.heat.model ==
-            erf_wall_thermodynamics::ScalarModel::BulkAero) ||
-        (is_qv && wall.vapor.model ==
-            erf_wall_thermodynamics::ScalarModel::BulkAero);
-    const auto& flux = (DIR == 0) ? xflux : ((DIR == 1) ? yflux : zflux);
-
-    amrex::ParallelFor(face_cells, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+    amrex::ParallelFor(face_cells,
+        [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
         const int fi = HIGH && DIR == 0 ? i + 1 : i;
         const int fj = HIGH && DIR == 1 ? j + 1 : j;
         const int fk = HIGH && DIR == 2 ? k + 1 : k;
-        const amrex::Real old_flux = flux(fi,fj,fk,flux_comp);
-        amrex::Real new_flux = amrex::Real(0.0);
-        if (!hard_zero) {
-            const amrex::Real U_t = bulk_channel ?
-                tangential_speed(DIR, i, j, k, u, v, w, wall) :
-                amrex::Real(0.0);
-            const WallFlux physical = evaluate_scalar_flux_in(
-                wall, is_theta, is_qv, is_qc, state(i,j,k,Rho_comp),
-                prim(i,j,k,quantity-1),
-                base_state(i,j,k,BaseState::p0_comp), U_t,
-                alpha_T, alpha_C, dx_inv[DIR], rdOcp);
-            const amrex::Real inward = is_theta ? physical.rhoTheta_in :
-                (is_qv ? physical.rhoQv_in : physical.rhoQc_in);
-            new_flux = to_coordinate_flux<DIR,HIGH>(inward);
-        }
-        flux(fi,fj,fk,flux_comp) = new_flux;
 
-        // DiffusionSrcForState_N has already applied the old boundary flux to
-        // the RHS. Add only the boundary correction so the state update and
-        // retained budget flux use exactly the same physical face value.
-        const amrex::Real correction = (new_flux - old_flux) * dx_inv[DIR];
-        if (HIGH) {
-            rhs(i,j,k,quantity) -= correction;
-        } else {
-            rhs(i,j,k,quantity) += correction;
-        }
+        const amrex::Real old_flux = flux(fi,fj,fk,flux_comp);
+        const ScalarWallSample sample{
+            state(i,j,k,Rho_comp),
+            prim(i,j,k,prim_comp),
+            base_state(i,j,k,BaseState::p0_comp),
+            needs_speed ?
+                tangential_speed(DIR, i, j, k, u, v, w, wall) :
+                amrex::Real(0.0),
+            alpha_T,
+            alpha_C,
+            dx_inv[DIR],
+            rdOcp
+        };
+
+        const WallFlux physical =
+            evaluate_scalar_flux_in(wall, channel, sample);
+        if (!owns(physical, channel)) { return; }
+
+        const ScalarFluxReplacement update =
+            scalar_flux_replacement<DIR,HIGH>(
+                old_flux,
+                scalar_flux_in(physical, channel),
+                dx_inv[DIR]);
+
+        flux(fi,fj,fk,flux_comp) = update.coordinate_flux;
+        rhs(i,j,k,quantity) += update.rhs_delta;
     });
 }
 

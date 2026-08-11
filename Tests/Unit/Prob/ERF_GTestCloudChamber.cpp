@@ -323,6 +323,58 @@ TEST(CloudChamberWallConfig, ActivatesTimestepGuardOnlyForActiveBulkChannels)
     EXPECT_TRUE(config.has_bulk_scalar_wall());
 }
 
+// The evaluator must be authoritative about legacy versus physical
+// ownership, including owned-zero dry vapor and cloud-water channels.
+TEST(CloudChamberWallFlux, EvaluatorOwnershipIsWallAware)
+{
+    using namespace erf_cloud_chamber_wall_flux;
+
+    erf_wall_thermodynamics::FaceWall wall;
+    ScalarWallSample sample;
+    sample.rho = Real(1.0);
+    sample.scalar_air = Real(0.0);
+    sample.p_hse = Real(100000.0);
+    sample.dx_inv = Real(1.0);
+    sample.rdOcp = R_d / Cp_d;
+
+    EXPECT_EQ(
+        evaluate_scalar_flux_in(wall, ScalarChannel::Heat, sample).owned_channels,
+        OwnNone);
+    EXPECT_EQ(
+        evaluate_scalar_flux_in(wall, ScalarChannel::Vapor, sample).owned_channels,
+        OwnNone);
+    EXPECT_EQ(
+        evaluate_scalar_flux_in(wall, ScalarChannel::CloudWater, sample).owned_channels,
+        OwnNone);
+
+    wall.thermal.mode =
+        erf_wall_thermodynamics::ThermalMode::FixedPhysicalTemperature;
+    EXPECT_EQ(
+        evaluate_scalar_flux_in(wall, ScalarChannel::Heat, sample).owned_channels,
+        OwnHeat);
+
+    wall.moisture =
+        erf_wall_thermodynamics::MoistureMode::DryImpermeable;
+    const auto dry =
+        evaluate_scalar_flux_in(wall, ScalarChannel::Vapor, sample);
+    EXPECT_EQ(dry.owned_channels, OwnVapor);
+    EXPECT_EQ(dry.rhoQv_in, Real(0.0));
+
+    const auto cloud =
+        evaluate_scalar_flux_in(wall, ScalarChannel::CloudWater, sample);
+    EXPECT_EQ(cloud.owned_channels, OwnCloudWater);
+    EXPECT_EQ(cloud.rhoQc_in, Real(0.0));
+
+    wall.vapor.model =
+        erf_wall_thermodynamics::ScalarModel::BulkAero;
+    EXPECT_FALSE(requires_tangential_speed(
+        wall, ScalarChannel::Vapor));
+    wall.moisture =
+        erf_wall_thermodynamics::MoistureMode::WetEquilibrium;
+    EXPECT_TRUE(requires_tangential_speed(
+        wall, ScalarChannel::Vapor));
+}
+
 // Motivation: dry vapor impermeability and cloud-water impermeability are
 // algebraic gates that must run before NaN-prone coefficient or saturation
 // arithmetic; the selected bulk equations must still be evaluated exactly.
@@ -338,9 +390,10 @@ TEST(CloudChamberWallFlux, BulkFormulaeAndHardGates)
     const Real theta_air = Real(290.0);
     const Real p = Real(100000.0);
     const Real U = Real(3.0);
+    const ScalarWallSample heat_sample{
+        rho, theta_air, p, U, Real(0.0), Real(0.0), Real(1.0), R_d/Cp_d};
     const auto heat = evaluate_scalar_flux_in(
-        wall, true, false, false, rho, theta_air, p, U,
-        Real(0.0), Real(0.0), Real(1.0), R_d/Cp_d);
+        wall, ScalarChannel::Heat, heat_sample);
     EXPECT_EQ(heat.owned_channels, OwnHeat);
     const Real theta_wall = Real(300.0) * std::pow(p_0/p, R_d/Cp_d);
     EXPECT_DOUBLE_EQ(heat.rhoTheta_in,
@@ -350,9 +403,10 @@ TEST(CloudChamberWallFlux, BulkFormulaeAndHardGates)
     wall.vapor.model = erf_wall_thermodynamics::ScalarModel::BulkAero;
     wall.vapor.coefficient = Real(0.3);
     const Real qv_air = Real(0.01);
+    const ScalarWallSample vapor_sample{
+        rho, qv_air, p, U, Real(0.0), Real(0.0), Real(1.0), R_d/Cp_d};
     const auto vapor = evaluate_scalar_flux_in(
-        wall, false, true, false, rho, qv_air, p, U,
-        Real(0.0), Real(0.0), Real(1.0), R_d/Cp_d);
+        wall, ScalarChannel::Vapor, vapor_sample);
     EXPECT_EQ(vapor.owned_channels, OwnVapor);
     Real qv_wall = Real(0.0);
     erf_qsatw(Real(300.0), Real(1000.0), qv_wall);
@@ -361,19 +415,21 @@ TEST(CloudChamberWallFlux, BulkFormulaeAndHardGates)
 
     wall.moisture = erf_wall_thermodynamics::MoistureMode::DryImpermeable;
     wall.vapor.coefficient = std::numeric_limits<Real>::quiet_NaN();
+    const ScalarWallSample dry_sample{
+        rho, std::numeric_limits<Real>::quiet_NaN(), p,
+        std::numeric_limits<Real>::quiet_NaN(),
+        Real(0.0), Real(0.0), Real(1.0), R_d/Cp_d};
     const auto dry_vapor = evaluate_scalar_flux_in(
-        wall, false, true, false, rho, std::numeric_limits<Real>::quiet_NaN(),
-        p, std::numeric_limits<Real>::quiet_NaN(), Real(0.0), Real(0.0),
-        Real(1.0), R_d/Cp_d);
+        wall, ScalarChannel::Vapor, dry_sample);
     EXPECT_EQ(dry_vapor.owned_channels, OwnVapor);
     const auto cloud_water = evaluate_scalar_flux_in(
-        wall, false, false, true, rho, std::numeric_limits<Real>::quiet_NaN(),
-        p, std::numeric_limits<Real>::quiet_NaN(), Real(0.0), Real(0.0),
-        Real(1.0), R_d/Cp_d);
+        wall, ScalarChannel::CloudWater, dry_sample);
     EXPECT_EQ(cloud_water.owned_channels, OwnCloudWater);
+    const ScalarWallSample unrelated_sample{
+        rho, Real(0.0), p, Real(0.0),
+        Real(0.0), Real(0.0), Real(1.0), R_d/Cp_d};
     const auto unrelated = evaluate_scalar_flux_in(
-        wall, false, false, false, rho, Real(0.0), p, Real(0.0),
-        Real(0.0), Real(0.0), Real(1.0), R_d/Cp_d);
+        wall, ScalarChannel::None, unrelated_sample);
     EXPECT_EQ(unrelated.owned_channels, OwnNone);
     EXPECT_DOUBLE_EQ(dry_vapor.rhoQv_in, Real(0.0));
     EXPECT_DOUBLE_EQ(cloud_water.rhoQc_in, Real(0.0));
@@ -389,17 +445,18 @@ TEST(CloudChamberWallFlux, CalmBulkWallIsExactlyZeroAndLinearInCoefficient)
     wall.thermal.temperature_K = Real(301.0);
     wall.heat.model = erf_wall_thermodynamics::ScalarModel::BulkAero;
     wall.heat.coefficient = Real(0.1);
+    ScalarWallSample sample{
+        Real(1.0), Real(280.0), Real(100000.0), Real(0.0),
+        Real(0.0), Real(0.0), Real(1.0), R_d/Cp_d};
     const auto calm = evaluate_scalar_flux_in(
-        wall, true, false, false, Real(1.0), Real(280.0), Real(100000.0),
-        Real(0.0), Real(0.0), Real(0.0), Real(1.0), R_d/Cp_d);
+        wall, ScalarChannel::Heat, sample);
     EXPECT_DOUBLE_EQ(calm.rhoTheta_in, Real(0.0));
+    sample.U_t = Real(2.0);
     const auto one = evaluate_scalar_flux_in(
-        wall, true, false, false, Real(1.0), Real(280.0), Real(100000.0),
-        Real(2.0), Real(0.0), Real(0.0), Real(1.0), R_d/Cp_d);
+        wall, ScalarChannel::Heat, sample);
     wall.heat.coefficient = Real(0.2);
     const auto two = evaluate_scalar_flux_in(
-        wall, true, false, false, Real(1.0), Real(280.0), Real(100000.0),
-        Real(2.0), Real(0.0), Real(0.0), Real(1.0), R_d/Cp_d);
+        wall, ScalarChannel::Heat, sample);
     EXPECT_DOUBLE_EQ(two.rhoTheta_in, Real(2.0) * one.rhoTheta_in);
 }
 
@@ -544,9 +601,11 @@ TEST(CloudChamberWallFlux, GeneralizedApplyActivatesBulkFluxAndRhsCorrection)
     auto resolved_wall = walls[0];
     resolved_wall.heat.model =
         erf_wall_thermodynamics::ScalarModel::ResolvedMolecular;
+    const ScalarWallSample resolved_sample{
+        rho, theta_air, pressure, U_t,
+        Real(0.05), Real(0.0), dx_inv, R_d/Cp_d};
     const auto resolved = evaluate_scalar_flux_in(
-        resolved_wall, true, false, false, rho, theta_air, pressure, U_t,
-        Real(0.05), Real(0.0), dx_inv, R_d/Cp_d);
+        resolved_wall, ScalarChannel::Heat, resolved_sample);
     EXPECT_GT(std::abs(expected_bulk - resolved.rhoTheta_in),
               scaled_tolerance(expected_bulk));
 
@@ -736,6 +795,39 @@ TEST(CloudChamberWallFlux, OrientationAndTimestepAdaptersCoverAllFaces)
     }
     EXPECT_DOUBLE_EQ(wall_dt_from_max_rate(Real(0.0)), Real(1.0e30));
     EXPECT_DOUBLE_EQ(wall_dt_from_max_rate(Real(2.0)), Real(0.25));
+}
+
+TEST(CloudChamberWallFlux, ScalarReplacementLowHigh)
+{
+    using namespace erf_cloud_chamber_wall_flux;
+
+    const auto low_x =
+        scalar_flux_replacement<0,false>(Real(7.0), Real(3.0), Real(2.0));
+    EXPECT_EQ(low_x.coordinate_flux, Real(3.0));
+    EXPECT_EQ(low_x.rhs_delta, (Real(3.0) - Real(7.0)) * Real(2.0));
+
+    const auto high_x =
+        scalar_flux_replacement<0,true>(Real(7.0), Real(3.0), Real(2.0));
+    EXPECT_EQ(high_x.coordinate_flux, Real(-3.0));
+    EXPECT_EQ(high_x.rhs_delta, -(Real(-3.0) - Real(7.0)) * Real(2.0));
+
+    const auto low_y =
+        scalar_flux_replacement<1,false>(Real(7.0), Real(-2.0), Real(1.0));
+    const auto high_y =
+        scalar_flux_replacement<1,true>(Real(7.0), Real(-2.0), Real(1.0));
+    EXPECT_EQ(low_y.coordinate_flux, Real(-2.0));
+    EXPECT_EQ(low_y.rhs_delta, Real(-9.0));
+    EXPECT_EQ(high_y.coordinate_flux, Real(2.0));
+    EXPECT_EQ(high_y.rhs_delta, Real(5.0));
+
+    const auto low_z =
+        scalar_flux_replacement<2,false>(Real(1.0), Real(4.0), Real(0.5));
+    const auto high_z =
+        scalar_flux_replacement<2,true>(Real(1.0), Real(4.0), Real(0.5));
+    EXPECT_EQ(low_z.coordinate_flux, Real(4.0));
+    EXPECT_EQ(low_z.rhs_delta, Real(1.5));
+    EXPECT_EQ(high_z.coordinate_flux, Real(-4.0));
+    EXPECT_EQ(high_z.rhs_delta, Real(2.5));
 }
 
 // Motivation: the physical wall override must replace the ordinary boundary

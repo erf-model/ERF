@@ -422,6 +422,46 @@ Cloud Chamber budgets use the matching low-minus-high convention.  The
 retained physical face flux is the same value used by the RHS correction and
 the budget; the budget does not recompute a separate wall model.
 
+Developer contract for Cloud Chamber wall closures
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Cloud Chamber wall closures are organized as a sequence of small,
+device-safe contracts:
+
+* **Configuration layer:** host parsing validates the public input and produces
+  compact per-face metadata.
+* **Sampling layer:** the application adapter converts ERF staggered/grid
+  variables into the physical values required by a closure.
+* **Closure layer:** pure closure functions consume physical values and return
+  inward-positive ``WallFlux`` results with authoritative ownership.
+* **Ownership:** ``OwnNone`` means ERF retains its normal numerical treatment.
+  An owned zero means Cloud Chamber replaces the normal wall flux with exactly
+  zero.
+* **Scalar application:** the adapter converts inward-positive flux to ERF's
+  low/high coordinate sign, stores the retained physical flux, and applies
+  only the ``new - old`` correction to the already-computed scalar RHS.
+* **Budgets:** Cloud Chamber budgets consume the same retained diffusion face
+  flux; they do not recompute a second wall closure.
+* **Momentum:** physical traction is a future closure-output contract only. It
+  is not connected to the Cloud Chamber momentum stress operator.
+
+To add a future wall model:
+
+#. Extend validated host configuration.
+#. Preserve GPU-safe face metadata.
+#. Identify the required sampled physical state.
+#. Implement a pure closure evaluator.
+#. Return inward-positive flux and authoritative ownership.
+#. Reuse the scalar application adapter for scalar fluxes.
+#. Do not put closure equations in ``ERF_SlowRhsPre.cpp`` or
+   ``ERF_SlowRhsPost.cpp``.
+#. Derive and validate a separate momentum stress adapter for traction.
+#. Add independent equation tests.
+#. Add orientation/application tests.
+#. Add production-path activation and conservation coverage.
+#. Mutation-test the critical seam.
+#. Document equations, units, validity domain, and limitations.
+
 Per-face input contract
 ~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -668,7 +708,7 @@ Stage 1 invariants
   cloud-water wall fluxes remain exactly zero.
 * Momentum remains resolved no-slip in production; the momentum metadata has
   explicit ownership/orientation hooks for future wall models.
-* Bulk walls enforce the ``Lambda <= 0.5`` timestep condition.
+* Bulk walls enforce ``fixed_dt <= dt_wall = 0.5 / max_wall_rate``.
 * Six dry walls conserve total nonprecipitating water.
 * Enabling budget output does not change the solution.
 * A stable run alone is not quantitative Pi-Chamber validation.
