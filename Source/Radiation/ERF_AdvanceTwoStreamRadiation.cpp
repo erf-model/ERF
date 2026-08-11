@@ -1302,6 +1302,7 @@ void ERF::compute_twostream_radiation_diagnostics(
             // (Phase 20) Gate t_sfc fill on prognostic mode: when seb_prognostic_enable is true,
             // t_sfc is owned and evolved by the prognostic update, not reset by fill_or_copy.
             // This prevents silently overwriting the prognostic state before the update reads it.
+            //fill_or_copy_seb_field(twostream_t_sfc[lev].get(), lsm, lev, "t_sfc", rad_choice.surface_temp_k);
             if (!rad_choice.seb_prognostic_enable) {
                 fill_or_copy_seb_field(twostream_t_sfc[lev].get(), lsm, lev, "t_sfc", rad_choice.surface_temp_k);
             }
@@ -1316,8 +1317,6 @@ void ERF::compute_twostream_radiation_diagnostics(
             if (!rad_choice.seb_prognostic_enable) {
                 fill_or_copy_seb_field(q_sfc[lev].get(), lsm, lev, "noahmp_water_vapor_mixing_ratio_2m_vegetated", rad_choice.seb_q_sfc_default);
             }
-             
-            // t_deep and q_deep are restore targets (not evolved state), and are NOT affected by prognostic mode
             fill_or_copy_seb_field(t_deep[lev].get(), lsm, lev, "smstav", rad_choice.seb_t_deep_default);
             fill_or_copy_seb_field(q_deep[lev].get(), lsm, lev, "smstot", rad_choice.seb_q_deep_default);
         }
@@ -1634,7 +1633,6 @@ void ERF::compute_twostream_radiation_diagnostics(
                     // Get SEB state arrays (read-write for prognostic update)
                     Array4<amrex::Real> t_s_arr = twostream_t_sfc[lev]->array(mfi);
                     Array4<amrex::Real> q_s_arr = q_sfc[lev]->array(mfi);
-                    
                     // Count columns and prepare for reductions
                     amrex::Long n_cols_box = static_cast<amrex::Long>(bx.length(0)) *
                                              static_cast<amrex::Long>(bx.length(1));
