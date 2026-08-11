@@ -34,6 +34,35 @@ single_value (const amrex::MultiFab& mf, const amrex::Box& box, int comp = 0)
     return amrex::get<0>(reduce_data.value());
 }
 
+Real
+scaled_tolerance (Real expected)
+{
+    const Real scale = std::max(Real(1.0), std::abs(expected));
+    return Real(64.0) * std::numeric_limits<Real>::epsilon() * scale;
+}
+
+Real
+staggered_tangential_speed (int dir, const amrex::Box& domain,
+                            const amrex::MultiFab& u,
+                            const amrex::MultiFab& v,
+                            const amrex::MultiFab& w,
+                            const erf_wall_thermodynamics::FaceWall& wall)
+{
+    amrex::ReduceOps<amrex::ReduceOpSum> reduce_op;
+    amrex::ReduceData<Real> reduce_data(reduce_op);
+    for (amrex::MFIter mfi(u); mfi.isValid(); ++mfi) {
+        const auto ua = u.const_array(mfi);
+        const auto va = v.const_array(mfi);
+        const auto wa = w.const_array(mfi);
+        reduce_op.eval(domain, reduce_data,
+            [=] AMREX_GPU_DEVICE (int i, int j, int k) -> amrex::GpuTuple<Real> {
+                return {erf_cloud_chamber_wall_flux::tangential_speed(
+                    dir, i, j, k, ua, va, wa, wall)};
+            });
+    }
+    return amrex::get<0>(reduce_data.value());
+}
+
 int
 sentinel_mismatches (const amrex::MultiFab& flux_mf, const amrex::Box& domain,
                      int dir, Real sentinel)
@@ -80,6 +109,9 @@ TEST(CloudChamberProfile, LinearProfileAndZeroAmplitude)
                      Real(289.5));
 }
 
+// Motivation: the analytic perturbation is bounded and vanishes at the
+// physical vertical endpoints; the tolerance must remain valid in both
+// single- and double-precision builds.
 TEST(CloudChamberProfile, PerturbationIsBoundedAndZeroOnVerticalFaces)
 {
     erf_cloud_chamber::Config config;
@@ -97,8 +129,8 @@ TEST(CloudChamberProfile, PerturbationIsBoundedAndZeroOnVerticalFaces)
     const Real interior = erf_cloud_chamber::deterministic_perturbation(
         Real(0.0), Real(4.0), Real(4.5), config.prob_lo, length, Real(0.2));
 
-    EXPECT_NEAR(low, Real(0.0), Real(1.0e-15));
-    EXPECT_NEAR(high, Real(0.0), Real(1.0e-15));
+    EXPECT_DOUBLE_EQ(low, Real(0.0));
+    EXPECT_NEAR(high, Real(0.0), scaled_tolerance(Real(1.0)));
     EXPECT_LE(std::abs(interior), Real(0.2));
 }
 
@@ -126,10 +158,13 @@ TEST(CloudChamberProfile, PhysicalTemperatureAndRelativeHumidityAreExact)
         (Real(100.0) * erf_esatw(temperature));
 
     EXPECT_DOUBLE_EQ(temperature, Real(296.0));
-    EXPECT_NEAR(recovered_rh, config.initial_relative_humidity, Real(1.0e-14));
+    EXPECT_NEAR(recovered_rh, config.initial_relative_humidity,
+                scaled_tolerance(config.initial_relative_humidity));
     EXPECT_GT(qv, Real(0.0));
 }
 
+// Motivation: dry physical initialization must reject RH rather than
+// silently accepting an input that changes the thermodynamic contract.
 TEST(CloudChamberConfig, RejectsRelativeHumidityInDryPhysicalMode)
 {
     const erf_cloud_chamber::InitializationContract contract {
@@ -145,6 +180,8 @@ TEST(CloudChamberConfig, RejectsRelativeHumidityInDryPhysicalMode)
               "Cloud Chamber: prob.initial_relative_humidity is only used with erf.moisture_model = SatAdj");
 }
 
+// Motivation: cloudy physical initialization needs an explicit RH so the
+// SatAdj state is reproducible instead of relying on an implicit default.
 TEST(CloudChamberConfig, RequiresRelativeHumidityForPhysicalSatAdj)
 {
     const erf_cloud_chamber::InitializationContract contract {
@@ -160,6 +197,8 @@ TEST(CloudChamberConfig, RequiresRelativeHumidityForPhysicalSatAdj)
               "Cloud Chamber: physical SatAdj initialization requires prob.initial_relative_humidity");
 }
 
+// Motivation: mixing physical and legacy profile keys would create an
+// ambiguous initializer precedence that is difficult to audit.
 TEST(CloudChamberConfig, RejectsLegacyKeysInPhysicalMode)
 {
     const erf_cloud_chamber::InitializationContract contract {
@@ -175,6 +214,8 @@ TEST(CloudChamberConfig, RejectsLegacyKeysInPhysicalMode)
               "Cloud Chamber: physical_temperature_rh cannot be combined with legacy theta/qv profile keys");
 }
 
+// Motivation: legacy numerical cases must retain their established input
+// contract and reject physical temperature/RH aliases.
 TEST(CloudChamberConfig, RejectsPhysicalKeysInLegacyMode)
 {
     const erf_cloud_chamber::InitializationContract contract {
@@ -190,6 +231,8 @@ TEST(CloudChamberConfig, RejectsPhysicalKeysInLegacyMode)
               "Cloud Chamber: legacy_theta_qv cannot be combined with physical temperature/RH profile keys");
 }
 
+// Motivation: the valid physical SatAdj contract must remain accepted while
+// the stricter dry/cloudy key checks are enforced.
 TEST(CloudChamberConfig, AcceptsPhysicalSatAdjWithRelativeHumidity)
 {
     const erf_cloud_chamber::InitializationContract contract {
@@ -202,6 +245,8 @@ TEST(CloudChamberConfig, AcceptsPhysicalSatAdjWithRelativeHumidity)
     EXPECT_TRUE(erf_cloud_chamber::initialization_contract_error(contract).empty());
 }
 
+// Motivation: the generalized wall work must not regress the legacy
+// theta/qv initialization path.
 TEST(CloudChamberConfig, AcceptsLegacyThetaQvWithoutPhysicalKeys)
 {
     const erf_cloud_chamber::InitializationContract contract {
@@ -214,6 +259,8 @@ TEST(CloudChamberConfig, AcceptsLegacyThetaQvWithoutPhysicalKeys)
     EXPECT_TRUE(erf_cloud_chamber::initialization_contract_error(contract).empty());
 }
 
+// Motivation: per-channel wall configuration must remain unambiguous; mixing
+// the legacy aggregate key with a channel key must not create precedence.
 TEST(CloudChamberWallConfig, RejectsAmbiguousAggregateAndChannelModels)
 {
     erf_cloud_chamber::WallTransferContract contract;
@@ -224,6 +271,8 @@ TEST(CloudChamberWallConfig, RejectsAmbiguousAggregateAndChannelModels)
               "Cloud Chamber: zlo cannot combine wall_transfer_model with per-channel wall model keys");
 }
 
+// Motivation: a bulk wall must declare its coefficient source and required
+// coefficient explicitly rather than falling back to a hidden default.
 TEST(CloudChamberWallConfig, RequiresFixedCoefficientForBulkChannel)
 {
     erf_cloud_chamber::WallTransferContract contract;
@@ -238,6 +287,8 @@ TEST(CloudChamberWallConfig, RequiresFixedCoefficientForBulkChannel)
               "Cloud Chamber: zlo requires C_H when heat_transfer_model = bulk_aero");
 }
 
+// Motivation: heat and vapor transfer are independent channels, so selecting
+// bulk heat must not force bulk vapor or an unrelated vapor coefficient.
 TEST(CloudChamberWallConfig, AcceptsIndependentHeatAndVaporBulkChannels)
 {
     erf_cloud_chamber::WallTransferContract contract;
@@ -252,6 +303,29 @@ TEST(CloudChamberWallConfig, AcceptsIndependentHeatAndVaporBulkChannels)
     EXPECT_TRUE(erf_cloud_chamber::wall_transfer_contract_error(contract, "zlo").empty());
 }
 
+// Motivation: dry bulk vapor is algebraically impermeable and must not turn
+// on the global wall-rate scan; wet bulk vapor and bulk heat remain active.
+TEST(CloudChamberWallConfig, ActivatesTimestepGuardOnlyForActiveBulkChannels)
+{
+    erf_cloud_chamber::Config config;
+    config.walls[0].wall.vapor.model =
+        erf_wall_thermodynamics::ScalarModel::BulkAero;
+    EXPECT_FALSE(config.has_bulk_scalar_wall());
+
+    config.walls[0].wall.moisture =
+        erf_wall_thermodynamics::MoistureMode::WetEquilibrium;
+    EXPECT_TRUE(config.has_bulk_scalar_wall());
+
+    config.walls[0].wall.moisture =
+        erf_wall_thermodynamics::MoistureMode::DryImpermeable;
+    config.walls[0].wall.heat.model =
+        erf_wall_thermodynamics::ScalarModel::BulkAero;
+    EXPECT_TRUE(config.has_bulk_scalar_wall());
+}
+
+// Motivation: dry vapor impermeability and cloud-water impermeability are
+// algebraic gates that must run before NaN-prone coefficient or saturation
+// arithmetic; the selected bulk equations must still be evaluated exactly.
 TEST(CloudChamberWallFlux, BulkFormulaeAndHardGates)
 {
     using namespace erf_cloud_chamber_wall_flux;
@@ -267,6 +341,7 @@ TEST(CloudChamberWallFlux, BulkFormulaeAndHardGates)
     const auto heat = evaluate_scalar_flux_in(
         wall, true, false, false, rho, theta_air, p, U,
         Real(0.0), Real(0.0), Real(1.0), R_d/Cp_d);
+    EXPECT_EQ(heat.owned_channels, OwnHeat);
     const Real theta_wall = Real(300.0) * std::pow(p_0/p, R_d/Cp_d);
     EXPECT_DOUBLE_EQ(heat.rhoTheta_in,
                      rho * Real(0.2) * U * (theta_wall - theta_air));
@@ -278,6 +353,7 @@ TEST(CloudChamberWallFlux, BulkFormulaeAndHardGates)
     const auto vapor = evaluate_scalar_flux_in(
         wall, false, true, false, rho, qv_air, p, U,
         Real(0.0), Real(0.0), Real(1.0), R_d/Cp_d);
+    EXPECT_EQ(vapor.owned_channels, OwnVapor);
     Real qv_wall = Real(0.0);
     erf_qsatw(Real(300.0), Real(1000.0), qv_wall);
     EXPECT_DOUBLE_EQ(vapor.rhoQv_in,
@@ -289,14 +365,22 @@ TEST(CloudChamberWallFlux, BulkFormulaeAndHardGates)
         wall, false, true, false, rho, std::numeric_limits<Real>::quiet_NaN(),
         p, std::numeric_limits<Real>::quiet_NaN(), Real(0.0), Real(0.0),
         Real(1.0), R_d/Cp_d);
+    EXPECT_EQ(dry_vapor.owned_channels, OwnVapor);
     const auto cloud_water = evaluate_scalar_flux_in(
         wall, false, false, true, rho, std::numeric_limits<Real>::quiet_NaN(),
         p, std::numeric_limits<Real>::quiet_NaN(), Real(0.0), Real(0.0),
         Real(1.0), R_d/Cp_d);
+    EXPECT_EQ(cloud_water.owned_channels, OwnCloudWater);
+    const auto unrelated = evaluate_scalar_flux_in(
+        wall, false, false, false, rho, Real(0.0), p, Real(0.0),
+        Real(0.0), Real(0.0), Real(1.0), R_d/Cp_d);
+    EXPECT_EQ(unrelated.owned_channels, OwnNone);
     EXPECT_DOUBLE_EQ(dry_vapor.rhoQv_in, Real(0.0));
     EXPECT_DOUBLE_EQ(cloud_water.rhoQc_in, Real(0.0));
 }
 
+// Motivation: bulk transfer must vanish exactly at calm conditions and scale
+// linearly with its configured coefficient, with no hidden velocity floor.
 TEST(CloudChamberWallFlux, CalmBulkWallIsExactlyZeroAndLinearInCoefficient)
 {
     using namespace erf_cloud_chamber_wall_flux;
@@ -319,6 +403,175 @@ TEST(CloudChamberWallFlux, CalmBulkWallIsExactlyZeroAndLinearInCoefficient)
     EXPECT_DOUBLE_EQ(two.rhoTheta_in, Real(2.0) * one.rhoTheta_in);
 }
 
+// Motivation: bulk transfer must depend only on velocity tangent to the
+// wall. This uses the production staggered-array helper to catch normal
+// leakage and coordinate-rotation/indexing errors in all three directions.
+TEST(CloudChamberWallFlux, StaggeredTangentialSpeedRotatesAndRemovesNormal)
+{
+    using amrex::Box;
+    using amrex::BoxArray;
+    using amrex::DistributionMapping;
+    using amrex::IntVect;
+    using amrex::MultiFab;
+
+    const Box domain(IntVect(0), IntVect(0));
+    const BoxArray ba(domain);
+    const DistributionMapping dm(ba);
+    BoxArray xba(ba); xba.surroundingNodes(0);
+    BoxArray yba(ba); yba.surroundingNodes(1);
+    BoxArray zba(ba); zba.surroundingNodes(2);
+    MultiFab u(xba, dm, 1, 0);
+    MultiFab v(yba, dm, 1, 0);
+    MultiFab w(zba, dm, 1, 0);
+    erf_wall_thermodynamics::FaceWall low_wall;
+    erf_wall_thermodynamics::FaceWall high_wall;
+
+    for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
+        if (dir == 0) {
+            u.setVal(Real(100.0));
+            v.setVal(Real(3.0));
+            w.setVal(Real(4.0));
+        } else if (dir == 1) {
+            u.setVal(Real(3.0));
+            v.setVal(Real(100.0));
+            w.setVal(Real(4.0));
+        } else {
+            u.setVal(Real(3.0));
+            v.setVal(Real(4.0));
+            w.setVal(Real(100.0));
+        }
+        const Real low_speed = staggered_tangential_speed(
+            dir, domain, u, v, w, low_wall);
+        const Real high_speed = staggered_tangential_speed(
+            dir, domain, u, v, w, high_wall);
+        EXPECT_NEAR(low_speed, Real(5.0), scaled_tolerance(Real(5.0)));
+        EXPECT_NEAR(high_speed, Real(5.0), scaled_tolerance(Real(5.0)));
+    }
+}
+
+// Motivation: conservation alone cannot prove the selected bulk model ran;
+// a no-op or stale resolved flux can still close a domain budget. This test
+// verifies retained low/high face values and RHS corrections at the actual
+// generalized wall-application seam, including coefficient linearity.
+TEST(CloudChamberWallFlux, GeneralizedApplyActivatesBulkFluxAndRhsCorrection)
+{
+    using amrex::Box;
+    using amrex::BoxArray;
+    using amrex::DistributionMapping;
+    using amrex::IntVect;
+    using amrex::MultiFab;
+    using namespace erf_cloud_chamber_wall_flux;
+
+    const Box domain(IntVect(0), IntVect(0));
+    const BoxArray ba(domain);
+    const DistributionMapping dm(ba);
+    MultiFab state(ba, dm, RhoQ2_comp + 1, 0);
+    MultiFab prim(ba, dm, PrimQ2_comp + 1, 0);
+    MultiFab base(ba, dm, BaseState::num_comps, 0);
+    MultiFab rhs(ba, dm, RhoQ2_comp + 1, 0);
+    BoxArray xba(ba); xba.surroundingNodes(0);
+    BoxArray yba(ba); yba.surroundingNodes(1);
+    BoxArray zba(ba); zba.surroundingNodes(2);
+    MultiFab xflux(xba, dm, 1, 0);
+    MultiFab yflux(yba, dm, 1, 0);
+    MultiFab zflux(zba, dm, 1, 0);
+    MultiFab u(xba, dm, 1, 0);
+    MultiFab v(yba, dm, 1, 0);
+    MultiFab w(zba, dm, 1, 0);
+
+    const Real rho = Real(1.2);
+    const Real theta_air = Real(290.0);
+    const Real pressure = Real(100000.0);
+    const Real old_flux = Real(7.0);
+    const Real dx_inv = Real(2.0);
+    const Real U_t = Real(5.0);
+    const Real coefficient = Real(0.1);
+    const Real theta_wall = Real(300.0) * std::pow(p_0 / pressure, R_d / Cp_d);
+    const Real expected_bulk =
+        rho * coefficient * U_t * (theta_wall - theta_air);
+
+    state.setVal(Real(0.0));
+    prim.setVal(Real(0.0));
+    base.setVal(Real(0.0));
+    rhs.setVal(Real(0.0));
+    xflux.setVal(old_flux);
+    yflux.setVal(old_flux);
+    zflux.setVal(old_flux);
+    state.setVal(rho, Rho_comp, 1);
+    prim.setVal(theta_air, PrimTheta_comp, 1);
+    base.setVal(pressure, BaseState::p0_comp, 1);
+    u.setVal(Real(100.0));
+    v.setVal(Real(3.0));
+    w.setVal(Real(4.0));
+
+    erf_wall_thermodynamics::Boundary walls{};
+    for (int face : {0, 1}) {
+        walls[face].thermal.mode =
+            erf_wall_thermodynamics::ThermalMode::FixedPhysicalTemperature;
+        walls[face].thermal.temperature_K = Real(300.0);
+        walls[face].heat.model =
+            erf_wall_thermodynamics::ScalarModel::BulkAero;
+        walls[face].heat.coefficient = coefficient;
+    }
+    const amrex::GpuArray<Real, AMREX_SPACEDIM> dx =
+        {dx_inv, dx_inv, dx_inv};
+
+    for (amrex::MFIter mfi(state); mfi.isValid(); ++mfi) {
+        erf_cloud_chamber_wall_flux::apply(
+            mfi.validbox(), domain, RhoTheta_comp, 0,
+            state.const_array(mfi), prim.const_array(mfi), base.const_array(mfi),
+            u.const_array(mfi), v.const_array(mfi), w.const_array(mfi),
+            rhs.array(mfi), xflux.array(mfi), yflux.array(mfi), zflux.array(mfi),
+            dx, walls, Real(0.0), Real(0.0), R_d/Cp_d);
+    }
+    amrex::Gpu::streamSynchronize();
+
+    Box low_face = xflux.boxArray()[0];
+    low_face.setSmall(0, 0);
+    low_face.setBig(0, 0);
+    Box high_face = xflux.boxArray()[0];
+    high_face.setSmall(0, 1);
+    high_face.setBig(0, 1);
+    EXPECT_NEAR(single_value(xflux, low_face), expected_bulk,
+                scaled_tolerance(expected_bulk));
+    EXPECT_NEAR(single_value(xflux, high_face), -expected_bulk,
+                scaled_tolerance(expected_bulk));
+    const Real expected_rhs =
+        ((expected_bulk - old_flux) - (-expected_bulk - old_flux)) * dx_inv;
+    EXPECT_NEAR(single_value(rhs, domain, RhoTheta_comp), expected_rhs,
+                scaled_tolerance(expected_rhs));
+
+    auto resolved_wall = walls[0];
+    resolved_wall.heat.model =
+        erf_wall_thermodynamics::ScalarModel::ResolvedMolecular;
+    const auto resolved = evaluate_scalar_flux_in(
+        resolved_wall, true, false, false, rho, theta_air, pressure, U_t,
+        Real(0.05), Real(0.0), dx_inv, R_d/Cp_d);
+    EXPECT_GT(std::abs(expected_bulk - resolved.rhoTheta_in),
+              scaled_tolerance(expected_bulk));
+
+    walls[0].heat.coefficient = Real(0.2);
+    walls[1].heat.coefficient = Real(0.2);
+    rhs.setVal(Real(0.0));
+    xflux.setVal(old_flux);
+    const Real doubled_bulk = Real(2.0) * expected_bulk;
+    for (amrex::MFIter mfi(state); mfi.isValid(); ++mfi) {
+        erf_cloud_chamber_wall_flux::apply(
+            mfi.validbox(), domain, RhoTheta_comp, 0,
+            state.const_array(mfi), prim.const_array(mfi), base.const_array(mfi),
+            u.const_array(mfi), v.const_array(mfi), w.const_array(mfi),
+            rhs.array(mfi), xflux.array(mfi), yflux.array(mfi), zflux.array(mfi),
+            dx, walls, Real(0.0), Real(0.0), R_d/Cp_d);
+    }
+    amrex::Gpu::streamSynchronize();
+    EXPECT_NEAR(single_value(xflux, low_face), doubled_bulk,
+                scaled_tolerance(doubled_bulk));
+    EXPECT_NEAR(single_value(xflux, high_face), -doubled_bulk,
+                scaled_tolerance(doubled_bulk));
+}
+
+// Motivation: the single low/high sign adapter and Lambda<=0.5 helper are
+// shared seams; all Cartesian orientations must use the same convention.
 TEST(CloudChamberWallFlux, OrientationAndTimestepAdaptersCoverAllFaces)
 {
     using namespace erf_cloud_chamber_wall_flux;
@@ -424,9 +677,11 @@ TEST(CloudChamberWallFlux, WetLowFaceAndDryHighFaceHaveExactSigns)
     amrex::Box high_face = xflux_box;
     high_face.setSmall(amrex::IntVect(1, 0, 0));
     high_face.setBig(amrex::IntVect(1, 0, 0));
-    EXPECT_NEAR(single_value(xflux, low_face), expected_flux, Real(1.0e-14));
+    EXPECT_NEAR(single_value(xflux, low_face), expected_flux,
+                scaled_tolerance(expected_flux));
     EXPECT_DOUBLE_EQ(single_value(xflux, high_face), Real(0.0));
-    EXPECT_NEAR(single_value(rhs, domain, RhoQ1_comp), expected_flux, Real(1.0e-14));
+    EXPECT_NEAR(single_value(rhs, domain, RhoQ1_comp), expected_flux,
+                scaled_tolerance(expected_flux));
 }
 
 // Motivation: resolved wall kernels receive one local tile at a time; an

@@ -22,6 +22,10 @@ inline void apply (
     const amrex::Real alpha_T, const amrex::Real alpha_C,
     const amrex::Real rdOcp)
 {
+    // This compatibility entry point has no velocity views. Keep its
+    // precondition explicit so a future bulk wall cannot dereference an empty
+    // Array4 through the resolved-only API.
+    AMREX_ALWAYS_ASSERT(!erf_cloud_chamber_wall_flux::has_bulk_scalar_wall(walls));
     erf_cloud_chamber_wall_flux::apply(
         bx, domain, quantity, flux_comp, state, prim, base_state,
         amrex::Array4<const amrex::Real>{},

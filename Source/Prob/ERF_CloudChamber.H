@@ -20,9 +20,10 @@ namespace erf_cloud_chamber {
 /**
  * Stage 1 wall metadata.  This is deliberately a small, trivially copyable
  * description: it can be captured by an AMReX device kernel without virtual
- * dispatch.  PrescribedState is the only active treatment.  A future wall
- * factory can consume the face identity and return momentum, thermal-scalar,
- * and vapor fluxes without changing the chamber initializer.
+ * dispatch.  Resolved molecular transfer and fixed-coefficient scalar
+ * bulk_aero are active production treatments.  A future wall factory can
+ * consume the face identity and add research-only momentum or law-of-the-wall
+ * providers without changing the chamber initializer.
  */
 enum class WallFace : unsigned char { XLo, XHi, YLo, YHi, ZLo, ZHi };
 
@@ -61,7 +62,9 @@ struct Config {
     {
         for (const auto& wall : walls) {
             if (wall.wall.heat.model == erf_wall_thermodynamics::ScalarModel::BulkAero ||
-                wall.wall.vapor.model == erf_wall_thermodynamics::ScalarModel::BulkAero) {
+                (wall.wall.vapor.model == erf_wall_thermodynamics::ScalarModel::BulkAero &&
+                 wall.wall.moisture ==
+                     erf_wall_thermodynamics::MoistureMode::WetEquilibrium)) {
                 return true;
             }
         }
@@ -339,6 +342,7 @@ inline void reject_unsupported_face_keys (amrex::ParmParse& pp,
     if (pp.contains("physical_temperature") || pp.contains("relative_humidity") ||
         pp.contains("rh") || pp.contains("roughness") ||
         pp.contains("roughness_length") || pp.contains("z0") ||
+        pp.contains("z0_m") || pp.contains("z0_h") || pp.contains("z0_q") ||
         pp.contains("C_D") || pp.contains("most") ||
         pp.contains("MOST")) {
         amrex::Error("Cloud Chamber: " + face +

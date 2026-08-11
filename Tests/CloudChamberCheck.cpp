@@ -24,6 +24,12 @@ using amrex::PlotFileData;
 using amrex::Real;
 using amrex::TilingIfNotGPU;
 
+Real scaled_tolerance (Real expected, Real ulps = Real(256.0))
+{
+    const Real scale = std::max(Real(1.0), std::abs(expected));
+    return ulps * std::numeric_limits<Real>::epsilon() * scale;
+}
+
 bool has_variable (const PlotFileData& plotfile, const std::string& name)
 {
     const auto& names = plotfile.varNames();
@@ -135,7 +141,8 @@ bool check_budget_rows (const std::vector<BudgetRow>& rows,
     const bool all_dry = mode == "all_dry";
     const bool wet = mode == "wet_budget" || mode == "bulk_wet";
     const bool thermal = mode == "thermal_budget" || mode == "bulk_thermal";
-    const bool require_bulk_activation = mode == "bulk_thermal";
+    const bool require_bulk_activation =
+        mode == "bulk_thermal" || mode == "bulk_wet";
     summary = {};
     summary.rows = static_cast<int>(rows.size());
     int total_rows = 0;
@@ -443,34 +450,34 @@ int main (int argc, char** argv)
     const Real qsat_error_max = cloudy ? qsat_error.norm0(0, 0, false) : Real(0.0);
     const Real rh_error_max = cloudy ? rh_error.norm0(0, 0, false) : Real(0.0);
     const Real initial_velocity_max = velocity_error.norm0(0, 0, false);
-    const Real theta_tolerance = Real(2.0e-10) * std::max(Real(1.0), temperature_bottom);
+    const Real theta_tolerance = scaled_tolerance(temperature_bottom);
     if (theta_error_max > theta_tolerance) {
         amrex::Finalize();
         return fail("initial theta profile mismatch: max error=" +
                     std::to_string(static_cast<double>(theta_error_max)));
     }
-    const Real temperature_tolerance = Real(2.0e-10) * Real(300.0);
+    const Real temperature_tolerance = scaled_tolerance(temperature_bottom);
     if (temperature_error_max > temperature_tolerance) {
         amrex::Finalize();
         return fail("initial temperature mismatch: max error=" +
                     std::to_string(static_cast<double>(temperature_error_max)));
     }
-    if (cloudy && qv_error_max > Real(2.0e-12)) {
+    if (cloudy && qv_error_max > scaled_tolerance(Real(1.0))) {
         amrex::Finalize();
         return fail("initial qv profile mismatch: max error=" +
                     std::to_string(static_cast<double>(qv_error_max)));
     }
-    if (cloudy && qsat_error_max > Real(2.0e-12)) {
+    if (cloudy && qsat_error_max > scaled_tolerance(Real(1.0))) {
         amrex::Finalize();
         return fail("initial qsat diagnostic mismatch: max error=" +
                     std::to_string(static_cast<double>(qsat_error_max)));
     }
-    if (cloudy && rh_error_max > Real(2.0e-12)) {
+    if (cloudy && rh_error_max > scaled_tolerance(relative_humidity)) {
         amrex::Finalize();
         return fail("initial relative humidity diagnostic mismatch: max error=" +
                     std::to_string(static_cast<double>(rh_error_max)));
     }
-    if (initial_velocity_max > Real(2.0e-12)) {
+    if (initial_velocity_max > scaled_tolerance(Real(1.0))) {
         amrex::Finalize();
         return fail("initial velocity is not zero: max=" +
                     std::to_string(static_cast<double>(initial_velocity_max)));
@@ -493,11 +500,13 @@ int main (int argc, char** argv)
             amrex::Finalize();
             return fail("cloudy scalar is non-finite");
         }
-        if (qv.min(0) < Real(-1.0e-12) || qc.min(0) < Real(-1.0e-12)) {
+        const Real nonnegative_tolerance = scaled_tolerance(Real(1.0));
+        if (qv.min(0) < -nonnegative_tolerance ||
+            qc.min(0) < -nonnegative_tolerance) {
             amrex::Finalize();
             return fail("cloudy scalar became negative");
         }
-        if (initial_qc.max(0) > Real(2.0e-12)) {
+        if (initial_qc.max(0) > scaled_tolerance(Real(1.0))) {
             amrex::Finalize();
             return fail("physical initialization did not start with zero cloud water");
         }
@@ -543,5 +552,9 @@ int main (int argc, char** argv)
     std::cout << "\n";
 
     amrex::Finalize();
-    return evolved_velocity > Real(1.0e-12) ? 0 : fail("thermal perturbation produced no buoyant response");
+    // This is a nonzero-response guard, not a magnitude assertion. A few
+    // ulps are sufficient because the short regression intentionally starts
+    // from a nearly motionless chamber.
+    return evolved_velocity > scaled_tolerance(Real(1.0), Real(4.0)) ? 0 :
+        fail("thermal perturbation produced no buoyant response");
 }

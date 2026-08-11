@@ -269,25 +269,40 @@ The aggregate key may be used for the retained resolved path:
    <face>.wall_transfer_model = resolved_molecular
 
 For the generalized path, do not combine the aggregate key with channel keys.
-The active production contract is:
+The per-channel model selectors are:
 
 .. code-block:: none
 
    <face>.momentum_transfer_model = resolved_noslip
    <face>.heat_transfer_model = resolved_molecular|bulk_aero
    <face>.vapor_transfer_model = resolved_molecular|bulk_aero
+
+If at least one scalar channel uses ``bulk_aero``, also set:
+
+.. code-block:: none
+
    <face>.coefficient_source = fixed
-   <face>.C_H = 0.1                 # required for bulk heat
-   <face>.C_E = 0.1                 # required for bulk wet vapor
+
+Provide ``C_H`` only when heat uses ``bulk_aero`` and ``C_E`` only when
+vapor uses ``bulk_aero``.  For example, a face using bulk heat and resolved
+wet vapor requires:
+
+.. code-block:: none
+
+   <face>.heat_transfer_model = bulk_aero
+   <face>.vapor_transfer_model = resolved_molecular
+   <face>.coefficient_source = fixed
+   <face>.C_H = 0.1
 
 ``bulk_aero`` uses the local tangent speed reconstructed from ERF's staggered
 velocity arrays.  The normal velocity is removed, wall velocity metadata is
-currently zero, and a calm wall therefore has exactly zero bulk scalar flux.
+currently zero.  Thus ``U_t = 0`` gives exactly zero bulk heat and vapor flux;
+there is no hidden gustiness or free-convection velocity floor.
 ``C_H`` and ``C_E`` are dimensionless fixed bulk transfer coefficients; no
 coefficient clamping is performed.  A future MOST/law-of-the-wall provider is
 represented in the metadata architecture but is rejected as an unsupported
-production input.  Roughness, ``z0``, drag, and MOST keys are likewise rejected
-until a complete provider is implemented.
+production input.  Roughness, ``z0``, ``z0_m``, ``z0_h``, ``z0_q``, drag, and
+MOST keys are likewise rejected until a complete provider is implemented.
 
 .. list-table:: Wall transfer contract
    :header-rows: 1
@@ -298,14 +313,24 @@ until a complete provider is implemented.
      - Vapor transfer
      - Cloud-water transfer
      - Allowed modes
-   * - ``dry``
-     - Controlled by ``alpha_T``
+   * - ``dry`` + ``resolved_molecular`` heat
+     - ``alpha_T``
      - Exactly zero
      - Exactly zero
      - Dry or SatAdj
-   * - ``wet``
-     - Controlled by ``alpha_T``
-     - Saturation-based through ``alpha_C``; evaporation or condensation
+   * - ``dry`` + ``bulk_aero`` heat
+     - ``C_H`` and ``U_t``
+     - Exactly zero
+     - Exactly zero
+     - Dry or SatAdj
+   * - ``wet`` + ``resolved_molecular`` vapor
+     - ``alpha_T`` for resolved heat; ``C_H`` and ``U_t`` for bulk heat
+     - ``alpha_C`` with saturation at wall temperature
+     - Exactly zero
+     - SatAdj only
+   * - ``wet`` + ``bulk_aero`` vapor
+     - ``C_H`` and ``U_t`` for bulk heat, or ``alpha_T`` if resolved
+     - ``C_E`` and ``U_t``
      - Exactly zero
      - SatAdj only
 
@@ -330,7 +355,9 @@ Bulk wall-rate timestep guard
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 When any active wall channel uses ``bulk_aero``, ERF estimates the maximum
-boundary rate
+boundary rate.  Only physical-boundary cells contribute to the maximum wall
+rate; the implementation may inspect valid cells and filter them by the
+physical boundary.
 
 .. math::
 

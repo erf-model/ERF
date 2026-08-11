@@ -304,13 +304,17 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
              estdt_wall = erf_cloud_chamber_wall_flux::wall_dt_from_max_rate(max_wall_rate);
          }
      }
-     estdt_comp = std::min(estdt_comp, estdt_wall);
-     estdt_lowM = std::min(estdt_lowM, estdt_wall);
+     // Wall-rate kernels and reductions use amrex::Real, while ERF's host
+     // timestep estimates are double even in ERF_PRECISION=SINGLE builds.
+     const double estdt_wall_host = static_cast<double>(estdt_wall);
+     estdt_comp = std::min(estdt_comp, estdt_wall_host);
+     estdt_lowM = std::min(estdt_lowM, estdt_wall_host);
 
-     if (fixed_dt[level] > zero && fixed_dt[level] > estdt_wall) {
+     const double fixed_dt_level = static_cast<double>(fixed_dt[level]);
+     if (fixed_dt_level > 0.0 && fixed_dt_level > estdt_wall_host) {
          Print() << "Cloud Chamber bulk wall timestep violation at level " << level
                  << ": fixed_dt=" << fixed_dt[level]
-                 << ", wall_dt=" << estdt_wall
+                 << ", wall_dt=" << estdt_wall_host
                  << ", max_wall_rate=" << max_wall_rate << std::endl;
          Abort("Cloud Chamber bulk wall timestep exceeds the Lambda <= 0.5 limit");
      }
