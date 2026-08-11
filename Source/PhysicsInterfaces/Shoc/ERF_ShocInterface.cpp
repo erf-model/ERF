@@ -450,7 +450,7 @@ SHOCInterface::mf_to_kokkos_buffers ()
 
             // W at cc (cannot be 0?; inspection of shoc code...)
             Real w_cc = Real(0.5) * (w_arr(i,j,k) + w_arr(i,j,k+1));
-            w_cc += (w_sub) ? w_sub[k] : Real(0.);
+            w_cc += (w_sub) ? Real(0.5) * (w_sub[k] + w_sub[k+1]) : Real(0.);
             Real w_limited = std::copysign(std::max(std::fabs(w_cc),Real(1.0e-6)),w_cc);
 
             // Input/Output data structures
@@ -558,6 +558,8 @@ SHOCInterface::kokkos_buffers_to_mf (const double dt)
         const Array4<Real>& u_tend_arr     = u_tend.array(mfi);
         const Array4<Real>& v_tend_arr     = v_tend.array(mfi);
 
+        // Interpolate SHOC cell-centered wind increments to faces. Reconstructing the
+        // face winds first would apply a horizontal filter even for a zero increment.
         ParallelFor(vbx_cc, vbx_x, vbx_y,
         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
@@ -589,8 +591,11 @@ SHOCInterface::kokkos_buffers_to_mf (const double dt)
             const int ilay   = kmax - k;
 
             int icolim = (j-jmin)*nx + (i-1-imin) + offset;
-            Real uvel  = Real(0.5) * (horiz_wind_d(icol,0,ilay)[0] + horiz_wind_d(icolim,0,ilay)[0]);
-            u_tend_arr(i,j,k) = ( uvel - u_arr(i,j,k) ) / dt;
+            Real du_cc = horiz_wind_d(icol,0,ilay)[0]
+                       - Real(0.5) * (u_arr(i,j,k) + u_arr(i+1,j,k));
+            Real du_cc_im = horiz_wind_d(icolim,0,ilay)[0]
+                          - Real(0.5) * (u_arr(i-1,j,k) + u_arr(i,j,k));
+            u_tend_arr(i,j,k) = Real(0.5) * (du_cc_im + du_cc) / dt;
         },
         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
@@ -600,8 +605,11 @@ SHOCInterface::kokkos_buffers_to_mf (const double dt)
             const int ilay   = kmax - k;
 
             int icoljm = (j-1-jmin)*nx + (i-imin) + offset;
-            Real vvel  = Real(0.5) * (horiz_wind_d(icol,1,ilay)[0] + horiz_wind_d(icoljm,1,ilay)[0]);
-            v_tend_arr(i,j,k) = ( vvel - v_arr(i,j,k) ) / dt;
+            Real dv_cc = horiz_wind_d(icol,1,ilay)[0]
+                       - Real(0.5) * (v_arr(i,j,k) + v_arr(i,j+1,k));
+            Real dv_cc_jm = horiz_wind_d(icoljm,1,ilay)[0]
+                          - Real(0.5) * (v_arr(i,j-1,k) + v_arr(i,j,k));
+            v_tend_arr(i,j,k) = Real(0.5) * (dv_cc_jm + dv_cc) / dt;
         });
     }
 }
@@ -727,11 +735,15 @@ SHOCInterface::add_fast_tend (Vector<MultiFab>& S_rhs)
         },
         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
-            ru_rhs_arr(i,j,k) += c_arr(i,j,k,Rho_comp) * u_tend_arr(i,j,k);
+            Real rho_on_u_face = Real(0.5) * (c_arr(i-1,j,k,Rho_comp)
+                                              + c_arr(i,j,k,Rho_comp));
+            ru_rhs_arr(i,j,k) += rho_on_u_face * u_tend_arr(i,j,k);
         },
         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
-            rv_rhs_arr(i,j,k) += c_arr(i,j,k,Rho_comp) * v_tend_arr(i,j,k);
+            Real rho_on_v_face = Real(0.5) * (c_arr(i,j-1,k,Rho_comp)
+                                              + c_arr(i,j,k,Rho_comp));
+            rv_rhs_arr(i,j,k) += rho_on_v_face * v_tend_arr(i,j,k);
         });
     }
 }
