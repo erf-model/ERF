@@ -140,13 +140,13 @@ ERF::FillSurfaceStateMultiFabs(const int lev,
 
 void
 ERF::SurfaceDataInterpolation(const int lev,
-                              const Real time,
+                              const double time,
                               amrex::Vector<std::unique_ptr<amrex::MultiFab>>& a_z_phys_nd,
                               bool regrid_forces_file_read)
 {
 
-    static amrex::Vector<Real> next_read_forecast_time;
-    static amrex::Vector<Real> last_read_forecast_time;
+    static amrex::Vector<double> next_read_forecast_time;
+    static amrex::Vector<double> last_read_forecast_time;
 
     const int nlevs = a_z_phys_nd.size();
 
@@ -218,8 +218,8 @@ ERF::SurfaceDataInterpolation(const int lev,
         }
     }
 
-    Real prev_read_time = last_read_forecast_time[lev];
-    Real alpha1 = one - (time - prev_read_time)/hindcast_data_interval;
+    double prev_read_time = last_read_forecast_time[lev];
+    Real alpha1 = static_cast<Real>(1.0 - (time - prev_read_time)/hindcast_data_interval);
     Real alpha2 = one - alpha1;
 
     amrex::Print()<< "The values of alpha1 and alpha2 are " << alpha1 << " "<< alpha2 <<std::endl;
@@ -233,7 +233,7 @@ ERF::SurfaceDataInterpolation(const int lev,
        Abort(ss.str());
     }
 
-    /*MultiFab& mf_surf_interp   = surface_state_interp[lev];
+    MultiFab& mf_surf_interp   = surface_state_interp[lev];
 
     // Fill the time-interpolated forecast states
     MultiFab::LinComb(surface_state_interp[lev],
@@ -241,6 +241,7 @@ ERF::SurfaceDataInterpolation(const int lev,
                       alpha2, surface_state_2[lev], 0,
                       0, mf_surf_interp.nComp(), mf_surf_interp.nGrow());
 
+    /* debug plotfile dump follows — leave commented out
     std::string pltname = "plt_interp_surface";
     Vector<std::string> varnames_plot_mf = {"ls_mask", "SST"};
 

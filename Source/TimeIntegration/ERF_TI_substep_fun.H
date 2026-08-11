@@ -3,16 +3,16 @@
 /**
  *  Wrapper for calling the routine that creates the fast RHS
  */
-auto acoustic_substepping_fun = [&](int fast_step, int n_sub, int nrk,
+auto acoustic_substepping_fun = [&,one_d=one,zero_d=zero](int fast_step, int n_sub, int nrk,
                                     Vector<MultiFab>& S_slow_rhs,
                                     const Vector<MultiFab>& S_old,
                                     Vector<MultiFab>& S_stage,
                                     Vector<MultiFab>& S_data,
-                                    const Real dtau,
-                                    const Real slow_dt,
+                                    const double dtau,
+                                    const double /*slow_dt*/, // MRI's full timestep: use n_sub*dtau for this stage
                                     const Real inv_fac,
-                                    const Real old_substep_time,
-                                    const Real new_substep_time)
+                                    const double old_substep_time,
+                                    const double new_substep_time)
 {
         BL_PROFILE("acoustic_substepping_fun");
         if (verbose) amrex::Print() << "Fast time integration at level " << level
@@ -29,7 +29,7 @@ auto acoustic_substepping_fun = [&](int fast_step, int n_sub, int nrk,
         if (solverChoice.substepping_type[level] == SubsteppingType::Implicit) {
             beta_s = solverChoice.beta_s;
         } else { // Fully explicit
-            beta_s = -one;
+            beta_s = -one_d;
         }
 
         const GpuArray<Real, AMREX_SPACEDIM> dxInv = fine_geom.InvCellSizeArray();
@@ -60,14 +60,13 @@ auto acoustic_substepping_fun = [&](int fast_step, int n_sub, int nrk,
 
         make_sources(level, nrk, dtau, old_substep_time,
                      Svec_to_use, S_prim, cc_src, base_state[level], z_phys_cc[level].get(),
-                     xvel_new, yvel_new,
+                     xvel_new, yvel_new, zvel_new,
                      qheating_rates[level].get(),
                      terrain_blank, fine_geom, solverChoice,
                      mapfac[level],
                      rhotheta_src[level].get(), rhoqt_src[level].get(),
                      dptr_wbar_sub, d_rayleigh_ptrs_at_lev,
                      d_sinesq_at_lev,
-                     (solverChoice.hindcast_surface_bcs? &surface_state_interp[level] : nullptr),
                      input_sounding_data, lsf, turbPert, false);
 
         // *************************************************************************
@@ -105,7 +104,6 @@ auto acoustic_substepping_fun = [&](int fast_step, int n_sub, int nrk,
                          dptr_wbar_sub, d_rayleigh_ptrs_at_lev,
                          d_sinesq_at_lev, d_sinesq_stag_at_lev, d_sponge_ptrs_at_lev,
                          (solverChoice.hindcast_lateral_forcing? &forecast_state_interp[level] : nullptr),
-                         (solverChoice.hindcast_surface_bcs? &surface_state_interp[level] : nullptr),
                          input_sounding_data, lsf, lsf_data[level], nudge_data[level], get_eb(level), false);
 
         // Moving terrain
@@ -141,7 +139,7 @@ auto acoustic_substepping_fun = [&](int fast_step, int n_sub, int nrk,
                              detJ_cc[level],   detJ_cc_new[level],   detJ_cc_src[level],
                            dtau, beta_s, inv_fac, mapfac[level],
                            fr_as_crse, fr_as_fine, l_use_moisture, l_reflux, solverChoice.use_real_bcs,
-                           (l_rayleigh_implicit) ? d_sinesq_ptrs[level].data() : nullptr, l_damp_coef);
+                           (l_rayleigh_implicit) ? d_sinesq_stag_ptrs[level].data() : nullptr, l_damp_coef);
 
         } else if (solverChoice.mesh_type == MeshType::VariableDz) {
 
@@ -153,7 +151,7 @@ auto acoustic_substepping_fun = [&](int fast_step, int n_sub, int nrk,
                           z_phys_nd[level], detJ_cc[level], dtau, beta_s, inv_fac,
                           mapfac[level],
                           fr_as_crse, fr_as_fine, l_use_moisture, l_reflux, solverChoice.use_real_bcs,
-                          (l_rayleigh_implicit) ? d_sinesq_ptrs[level].data() : nullptr, l_damp_coef);
+                          (l_rayleigh_implicit) ? d_sinesq_stag_ptrs[level].data() : nullptr, l_damp_coef);
 
         } else {
 
@@ -164,15 +162,18 @@ auto acoustic_substepping_fun = [&](int fast_step, int n_sub, int nrk,
                            fine_geom, solverChoice.gravity, stretched_dz_d[level],
                            dtau, beta_s, inv_fac, mapfac[level],
                            fr_as_crse, fr_as_fine, l_use_moisture, l_reflux, solverChoice.use_real_bcs,
-                           (l_rayleigh_implicit) ? d_sinesq_ptrs[level].data() : nullptr, l_damp_coef);
+                           (l_rayleigh_implicit) ? d_sinesq_stag_ptrs[level].data() : nullptr, l_damp_coef);
         }
 
         // Even if we update all the conserved variables we don't need
         // to fillpatch the slow ones every acoustic substep
 
-        if ( (solverChoice.vert_implicit_fac[level][nrk] > zero) && !solverChoice.implicit_before_substep &&
+        if ( (solverChoice.vert_implicit_fac[level][nrk] > zero_d) &&
+             !solverChoice.implicit_before_substep                 &&
              (fast_step == n_sub-1) )
         {
+            // The interval actually advanced by this RK stage -- NOT the full MRI timestep
+            const Real stage_dt = static_cast<Real>(n_sub * dtau);
             MultiFab scratch(S_data[IntVars::cons], make_alias, 0, 2);
             MultiFab scratch_xmom(S_data[IntVars::xmom], make_alias, 0, 1);
             MultiFab scratch_ymom(S_data[IntVars::ymom], make_alias, 0, 1);
@@ -230,26 +231,27 @@ auto acoustic_substepping_fun = [&](int fast_step, int n_sub, int nrk,
                         dzInv = dxInv[2];
                     }
 
-                    Real dampcoef = (w_damping_const > 0)
-                                  ? w_damping_const
-                                  : w_damping_coeff / (dzInv * dt_advance * dt_advance);
+                    Real dt_adv = static_cast<Real>(dt_advance);
+
+                    Real dampcoef = (w_damping_const > 0) ? w_damping_const
+                                  : w_damping_coeff / (dzInv * dt_adv * dt_adv);
 
                     Real rho_on_w_face = myhalf * ( cell_data(i,j,k,Rho_comp) + cell_data(i,j,k-1,Rho_comp) );
                     Real wmag = std::abs(rho_w(i,j,k) / rho_on_w_face);
 
                     // This is the dynamics timestep, not the slow or fast dt
-                    Real cflw = wmag * dt_advance * dzInv;
+                    Real cflw = wmag * dt_adv * dzInv;
 
                     if (cflw > cflw_lim) {
                         Real sgn_w = (rho_w(i,j,k) > 0) ? one : -one;
-                        rho_w(i, j, k) -= rho_on_w_face * sgn_w * dampcoef * (cflw - cflw_lim) * dt_advance;
+                        rho_w(i, j, k) -= rho_on_w_face * sgn_w * dampcoef * (cflw - cflw_lim) * dt_adv;
                         // Note: These prints are not immediately flushed to screen
 #ifdef AMREX_USE_GPU
                         AMREX_DEVICE_PRINTF("t=%f w-damping applied at (%d,%d,%d) for w-CFL = %f > %f : %f --> %f\n",
-                               old_time+dt_advance, i,j,k, cflw, cflw_lim, sgn_w*wmag, rho_w(i,j,k)/rho_on_w_face);
+                               old_time+dt_adv, i,j,k, cflw, cflw_lim, sgn_w*wmag, rho_w(i,j,k)/rho_on_w_face);
 #else
                         printf("t=%f w-damping applied at (%d,%d,%d) for w-CFL = %f > %f : %f --> %f\n",
-                               old_time+dt_advance, i,j,k, cflw, cflw_lim, sgn_w*wmag, rho_w(i,j,k)/rho_on_w_face);
+                               old_time+dt_adv, i,j,k, cflw, cflw_lim, sgn_w*wmag, rho_w(i,j,k)/rho_on_w_face);
 #endif
                     }
                 });

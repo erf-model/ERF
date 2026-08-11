@@ -10,9 +10,11 @@ using namespace amrex;
  * Constructor for MOSTAverage class.
  *
  * @param[in] geom Container for geometric information at each level
- * @param[in] vars_old Conserved variables at each level
- * @param[in] Theta_prim Primitive theta component at each level
- * @param[in] z_phys_nd Physical heights at each level
+ * @param[in] has_zphys Whether physical height data is available
+ * @param[in] a_pp_prefix ParmParse prefix for MOST inputs
+ * @param[in] mesh_type Mesh type for the simulation
+ * @param[in] terrain_type Terrain type for the simulation
+ * @param[in] eb_vec Embedded-boundary data at each level
  */
 MOSTAverage::MOSTAverage (Vector<Geometry>  geom,
                           const bool& has_zphys,
@@ -84,8 +86,20 @@ MOSTAverage::MOSTAverage (Vector<Geometry>  geom,
     m_i_indx.resize(m_maxlev);
     m_j_indx.resize(m_maxlev);
     m_k_indx.resize(m_maxlev);
+
+    m_Vsg.resize(m_maxlev, zero);
 }
 
+/**
+ * Make MOSTAverage data structures at one level.
+ *
+ * @param[in] lev Current level
+ * @param[in] vars_old State data used by the average calculator
+ * @param[in] Theta_prim Primitive theta component at this level
+ * @param[in] Qv_prim Primitive water-vapor component at this level
+ * @param[in] Qr_prim Primitive rain-water component at this level
+ * @param[in] z_phys_nd Nodal physical height at this level
+ */
 void
 MOSTAverage::make_MOSTAverage_at_level (const int& lev,
                                         const Vector<MultiFab*>& vars_old,
@@ -243,7 +257,7 @@ MOSTAverage::make_MOSTAverage_at_level (const int& lev,
     //--------------------------------------------------------
     if (m_t_avg) {
         // Exponential filter function
-        m_fact_old = std::exp(-one / m_time_window);
+        m_fact_old = static_cast<amrex::Real>(std::exp(-1.0 / m_time_window));
 
         // Enforce discrete normalization: (mfn*val_new + mfo*val_old)
         m_fact_new = one - m_fact_old;
@@ -252,18 +266,16 @@ MOSTAverage::make_MOSTAverage_at_level (const int& lev,
         m_t_init.resize(m_maxlev,0);
     }
 
-    // Corrections to the mean surface velocity
-    m_Vsg = Vector<Real>(m_maxlev, zero);
+    // Correction to the mean surface velocity at this level
+    m_Vsg[lev] = zero;
     if (include_subgrid_vel) {
-        if (include_subgrid_vel) {
-            Print() << "Subgrid velocity scale correction at level : " << lev << ' ';
-            const auto dxArr = m_geom[lev].CellSizeArray();
-            Real dx = std::sqrt(dxArr[0]*dxArr[1]);
-            if (dx > Real(5000.)) {
-                m_Vsg[lev] = Real(0.32) * std::pow(dx/Real(5000.)-1, Real(0.33));
-            }
-            Print() << m_Vsg[lev] << std::endl;
+        Print() << "Subgrid velocity scale correction at level : " << lev << ' ';
+        const auto dxArr = m_geom[lev].CellSizeArray();
+        Real dx = std::sqrt(dxArr[0]*dxArr[1]);
+        if (dx > Real(5000.)) {
+            m_Vsg[lev] = Real(0.32) * std::pow(dx/Real(5000.)-1, Real(0.33));
         }
+        Print() << m_Vsg[lev] << std::endl;
     }
 }
 
@@ -274,6 +286,8 @@ MOSTAverage::make_MOSTAverage_at_level (const int& lev,
  * @param[in] lev Current level
  * @param[in] vars_old Conserved variables at each level
  * @param[in] Theta_prim Primitive theta component at each level
+ * @param[in] Qv_prim Primitive water-vapor component at each level
+ * @param[in] Qr_prim Primitive rain-water component at each level
  */
 void
 MOSTAverage::update_field_ptrs (const int& lev,
@@ -293,6 +307,7 @@ MOSTAverage::update_field_ptrs (const int& lev,
 /**
  * Function to set the rotated velocities.
  *
+ * @param[in] lev Current level
  */
 void
 MOSTAverage::set_rotated_fields (const int& lev)
@@ -352,6 +367,7 @@ MOSTAverage::set_rotated_fields (const int& lev)
 /**
  * Function to compute normalization for plane average.
  *
+ * @param[in] lev Current level
  */
 void
 MOSTAverage::set_plane_normalization (const int& lev)
@@ -409,6 +425,7 @@ MOSTAverage::set_plane_normalization (const int& lev)
 /**
  * Function to compute normalization for average over EB.
  *
+ * @param[in] lev Current level
  */
 void
 MOSTAverage::set_eb_normalization (const int& lev)
@@ -497,6 +514,7 @@ MOSTAverage::set_eb_normalization (const int& lev)
 /**
  * Function to set K indices without terrain.
  *
+ * @param[in] lev Current level
  */
 void
 MOSTAverage::set_k_indices_N (const int& lev)
@@ -553,6 +571,7 @@ MOSTAverage::set_k_indices_N (const int& lev)
 /**
  * Function to set K indices for EB.
  *
+ * @param[in] lev Current level
  */
 void
 MOSTAverage::set_z_positions_EB (const int& lev)
@@ -561,7 +580,7 @@ MOSTAverage::set_z_positions_EB (const int& lev)
     ParmParse pp(m_pp_prefix);
     auto read_z = pp.query("most.zref",zref_tmp);
 
-    if (!read_z) {
+    if (read_z) {
         m_zref[lev]->setVal( zref_tmp );
     // Default behavior is to use the first cell center
     } else {
@@ -575,6 +594,7 @@ MOSTAverage::set_z_positions_EB (const int& lev)
 /**
  * Function to set K indices with terrain (w/o terrain normals or interpolation).
  *
+ * @param[in] lev Current level
  */
 void
 MOSTAverage::set_k_indices_T (const int& lev)
@@ -655,6 +675,7 @@ MOSTAverage::set_k_indices_T (const int& lev)
 /**
  * Function to set I,J,K indices with terrain normals (w/o interpolation).
  *
+ * @param[in] lev Current level
  */
 void
 MOSTAverage::set_norm_indices_T (const int& lev)
@@ -715,17 +736,17 @@ MOSTAverage::set_norm_indices_T (const int& lev)
 
             // Search for k (grid is stretched in z)
             Real z_bot_face  = fourth * ( z_phys_arr(i  ,j  ,k) + z_phys_arr(i+1,j  ,k)
-                                      + z_phys_arr(i  ,j+1,k) + z_phys_arr(i+1,j+1,k) );
+                                          + z_phys_arr(i  ,j+1,k) + z_phys_arr(i+1,j+1,k) );
             Real z_target    = z_bot_face + delta_z;
             k_arr(i,j,0)     = klo;
             zref_arr(i,j,0)  = myhalf * z_bot_face +
                                Real(0.125) * ( z_phys_arr(i  ,j  ,k+1) + z_phys_arr(i+1,j  ,k+1)
-                                       + z_phys_arr(i  ,j+1,k+1) + z_phys_arr(i+1,j+1,k+1) );
+                                             + z_phys_arr(i  ,j+1,k+1) + z_phys_arr(i+1,j+1,k+1) );
             for (int lk(klo); lk<=kmax; ++lk) {
                 Real z_lo = fourth * ( z_phys_arr(i_new,j_new  ,lk  ) + z_phys_arr(i_new+1,j_new  ,lk  )
-                                   + z_phys_arr(i_new,j_new+1,lk  ) + z_phys_arr(i_new+1,j_new+1,lk  ) );
+                                       + z_phys_arr(i_new,j_new+1,lk  ) + z_phys_arr(i_new+1,j_new+1,lk  ) );
                 Real z_hi = fourth * ( z_phys_arr(i_new,j_new  ,lk+1) + z_phys_arr(i_new+1,j_new  ,lk+1)
-                                   + z_phys_arr(i_new,j_new+1,lk+1) + z_phys_arr(i_new+1,j_new+1,lk+1) );
+                                       + z_phys_arr(i_new,j_new+1,lk+1) + z_phys_arr(i_new+1,j_new+1,lk+1) );
                 if (z_target > z_lo && z_target < z_hi){
                     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(lk >= d_radius,
                                                      "K index must be larger than averaging radius!");
@@ -743,6 +764,7 @@ MOSTAverage::set_norm_indices_T (const int& lev)
 /**
  * Function to set positions with terrain and e_z vector (with interpolation but no terrain normals)
  *
+ * @param[in] lev Current level
  */
 void
 MOSTAverage::set_z_positions_T (const int& lev)
@@ -770,8 +792,9 @@ MOSTAverage::set_z_positions_T (const int& lev)
     RealVect base;
     const auto dx = m_geom[lev].CellSizeArray();
     IntVect ng = m_x_pos[lev]->nGrowVect(); ng[2]=0;
+    const int position_ng = (m_radius > 1) ? m_radius : 1;
     for (MFIter mfi(*fields[imf_cc], TileNoZ()); mfi.isValid(); ++mfi) {
-        Box npbx  = mfi.tilebox(IntVect(1,1,0),IntVect(1,1,0));
+        Box npbx  = mfi.tilebox(IntVect(1,1,0),IntVect(position_ng,position_ng,0));
         Box gtbx  = mfi.growntilebox(ng);
 
         if (npbx.smallEnd(2) != klo) { continue; }
@@ -790,7 +813,7 @@ MOSTAverage::set_z_positions_T (const int& lev)
             x_pos_arr(i,j,0) = plo[0] + ((Real) i + myhalf) * dx[0];
             y_pos_arr(i,j,0) = plo[1] + ((Real) j + myhalf) * dx[1];
             Real z_bot_face  = fourth * ( z_phys_arr(i  ,j  ,k) + z_phys_arr(i+1,j  ,k)
-                                      + z_phys_arr(i  ,j+1,k) + z_phys_arr(i+1,j+1,k) );
+                                          + z_phys_arr(i  ,j+1,k) + z_phys_arr(i+1,j+1,k) );
             z_pos_arr(i,j,0) = z_bot_face + d_zref;
 
             // Destination position must be contained on the current process!
@@ -806,6 +829,7 @@ MOSTAverage::set_z_positions_T (const int& lev)
 /**
  * Function to set positions with terrain and normal vector (with interpolation).
  *
+ * @param[in] lev Current level
  */
 void
 MOSTAverage::set_norm_positions_T (const int& lev)
@@ -832,8 +856,9 @@ MOSTAverage::set_norm_positions_T (const int& lev)
     const auto dx = m_geom[lev].CellSizeArray();
     const auto dxInv  = m_geom[lev].InvCellSizeArray();
     IntVect ng = m_x_pos[lev]->nGrowVect(); ng[2]=0;
+    const int position_ng = (m_radius > 1) ? m_radius : 1;
     for (MFIter mfi(*fields[imf_cc], TileNoZ()); mfi.isValid(); ++mfi) {
-        Box npbx  = mfi.tilebox(IntVect(1,1,0),IntVect(1,1,0));
+        Box npbx  = mfi.tilebox(IntVect(1,1,0),IntVect(position_ng,position_ng,0));
         Box gtbx  = mfi.growntilebox(ng);
         RealBox grb{gtbx,dx.data(),base.dataPtr()};
 
@@ -866,7 +891,7 @@ MOSTAverage::set_norm_positions_T (const int& lev)
             x_pos_arr(i,j,0) = x0 + delta_x;
             y_pos_arr(i,j,0) = y0 + delta_y;
             Real z_bot_face  = fourth * ( z_phys_arr(i  ,j  ,k) + z_phys_arr(i+1,j  ,k)
-                                      + z_phys_arr(i  ,j+1,k) + z_phys_arr(i+1,j+1,k) );
+                                          + z_phys_arr(i  ,j+1,k) + z_phys_arr(i+1,j+1,k) );
             z_pos_arr(i,j,0) = z_bot_face + delta_z;
 
             // NOTE: Normal vector end point can be below the surface for concave regions.
@@ -874,7 +899,7 @@ MOSTAverage::set_norm_positions_T (const int& lev)
             int i_new = (int) ((x_pos_arr(i,j,0) - plo[0]) / dx[0] - myhalf);
             int j_new = (int) ((y_pos_arr(i,j,0) - plo[1]) / dx[1] - myhalf);
             Real z_new_bot_face = fourth * ( z_phys_arr(i_new,j_new  ,k) + z_phys_arr(i_new+1,j_new  ,k)
-                                         + z_phys_arr(i_new,j_new+1,k) + z_phys_arr(i_new+1,j_new+1,k) );
+                                             + z_phys_arr(i_new,j_new+1,k) + z_phys_arr(i_new+1,j_new+1,k) );
             if (z_pos_arr(i,j,0) < z_new_bot_face) {
                 z_pos_arr(i,j,0) = z_new_bot_face + delta_z;
             }
@@ -1097,9 +1122,9 @@ MOSTAverage::compute_plane_averages (const int& lev)
                         Real qr_interp{0};
                         trilinear_interp_T(x_pos_arr(i,j,0), y_pos_arr(i,j,0), z_pos_arr(i,j,0),
                                            &qr_interp, qr_mf_arr, z_phys_arr, plo, dxInv, 1);
-                        vfac = one + Real(0.61)*qv_interp - qr_interp;
+                        vfac = one + epsv*qv_interp - qr_interp;
                     } else {
-                        vfac = one + Real(0.61)*qv_interp;
+                        vfac = one + epsv*qv_interp;
                     }
                     const Real val = T_interp * vfac;
                     Gpu::deviceReduceSum(&plane_avg[iavg], val, handler);
@@ -1117,9 +1142,9 @@ MOSTAverage::compute_plane_averages (const int& lev)
                     Real vfac;
                     if (qr_mf_arr) {
                         // We also have liquid water
-                        vfac = one + Real(0.61)*qv_mf_arr(mi,mj,mk) - qr_mf_arr(mi,mj,mk);
+                        vfac = one + epsv*qv_mf_arr(mi,mj,mk) - qr_mf_arr(mi,mj,mk);
                     } else {
-                        vfac = one + Real(0.61)*qv_mf_arr(mi,mj,mk);
+                        vfac = one + epsv*qv_mf_arr(mi,mj,mk);
                     }
                     const Real val = T_mf_arr(mi,mj,mk) * vfac;
                     Gpu::deviceReduceSum(&plane_avg[iavg], val, handler);
@@ -1181,9 +1206,9 @@ MOSTAverage::compute_plane_averages (const int& lev)
                     Real u_interp{0};
                     Real v_interp{0};
                     trilinear_interp_T(x_pos_arr(i,j,0), y_pos_arr(i,j,0), z_pos_arr(i,j,0),
-                                            &u_interp, u_mf_arr, z_phys_arr, plo, dxInv, 1);
+                                       &u_interp, u_mf_arr, z_phys_arr, plo, dxInv, 1);
                     trilinear_interp_T(x_pos_arr(i,j,0), y_pos_arr(i,j,0), z_pos_arr(i,j,0),
-                                            &v_interp, v_mf_arr, z_phys_arr, plo, dxInv, 1);
+                                       &v_interp, v_mf_arr, z_phys_arr, plo, dxInv, 1);
                     const Real val = std::sqrt(u_interp*u_interp + v_interp*v_interp + Vsg*Vsg);
                     Gpu::deviceReduceSum(&plane_avg[iavg], val, handler);
                 });
@@ -1395,9 +1420,9 @@ MOSTAverage::compute_region_averages (const int& lev)
                                 Real qr_interp{0};
                                 trilinear_interp_T(x_pos_arr(i,j,0), y_pos_arr(i,j,0), z_pos_arr(i,j,0),
                                                    &qr_interp, qr_mf_arr, z_phys_arr, plo, dxInv, 1);
-                                vfac = one + Real(0.61)*qv_interp - qr_interp;
+                                vfac = one + epsv*qv_interp - qr_interp;
                             } else {
-                                vfac = one + Real(0.61)*qv_interp;
+                                vfac = one + epsv*qv_interp;
                             }
                             const Real mag = T_interp * vfac;
                             const Real val = denom * mag * d_fact_new;
@@ -1423,9 +1448,9 @@ MOSTAverage::compute_region_averages (const int& lev)
                             Real vfac;
                             if (qr_mf_arr) {
                                 // We also have liquid water
-                                vfac = one + Real(0.61)*qv_mf_arr(li,lj,lk) - qr_mf_arr(li,lj,lk);
+                                vfac = one + epsv*qv_mf_arr(li,lj,lk) - qr_mf_arr(li,lj,lk);
                             } else {
-                                vfac = one + Real(0.61)*qv_mf_arr(li,lj,lk);
+                                vfac = one + epsv*qv_mf_arr(li,lj,lk);
                             }
                             const Real mag = T_mf_arr(li,lj,lk) * vfac;
                             const Real val = denom * mag * d_fact_new;
@@ -1853,9 +1878,9 @@ MOSTAverage::compute_eb_averages (const int& lev)
                     Real vfac;
                     if (qr_mf_arr) {
                         // We also have liquid water
-                        vfac = one + Real(0.61)*qv_mf_arr(i,j,k) - qr_mf_arr(i,j,k);
+                        vfac = one + epsv*qv_mf_arr(i,j,k) - qr_mf_arr(i,j,k);
                     } else {
-                        vfac = one + Real(0.61)*qv_mf_arr(i,j,k);
+                        vfac = one + epsv*qv_mf_arr(i,j,k);
                     }
                     const Real val = T_mf_arr(i,j,k) * vfac * area;
                     Gpu::deviceReduceSum(&plane_avg[iavg], val, handler);

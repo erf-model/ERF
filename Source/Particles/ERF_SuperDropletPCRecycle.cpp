@@ -15,10 +15,12 @@ using namespace SDPCDefn;
 void SuperDropletPC::Recycle ( const int             a_lev,
                                const Vector<MFPtr>&  a_z_phys_nd,
                                const int             a_iter,
-                               const Real            a_dt,
+                               const double                               a_dt,
                                const bool            a_recycle )
 {
     BL_PROFILE("SuperDropletPC::Recycle()");
+
+    amrex::ignore_unused(a_iter, a_dt);
 
     const auto num_sd_deactivated = NumSDDeactivated();
     const auto num_sd = NumSuperDroplets();
@@ -100,7 +102,7 @@ void SuperDropletPC::Recycle ( const int             a_lev,
         const auto init_r = *(m_initializations[init_idx]);
         const auto sampled_multiplicity = init_r.sampledMultiplicity();
 
-        const auto ctx = buildProcessContext(a_lev);
+        const auto proc_ctx = buildProcessContext(a_lev);
         const auto dx_h = Geom(a_lev).CellSize();
         const Real cell_volume = dx_h[0]*dx_h[1]*dx_h[2];
 
@@ -127,8 +129,8 @@ void SuperDropletPC::Recycle ( const int             a_lev,
         const auto z_min = m_recyc_zmin;
         const auto z_max = m_recyc_zmax;
 
-        forEachParticleTile(a_lev, ctx,
-            [&](ParIterType& /*pti*/, int grid, ParticleType* p_pbox,
+        forEachParticleTile(a_lev, proc_ctx,
+            [&,one_d=one,zero_d=zero](ParIterType& /*pti*/, int grid, ParticleType* p_pbox,
                 const SDProcess::ParticlePointers& ptrs,
                 const SDProcess::ProcessContext& ctx)
         {
@@ -138,9 +140,9 @@ void SuperDropletPC::Recycle ( const int             a_lev,
             // Get sampled aerosol mass values based on initialization
             Gpu::DeviceVector<Real> aerosol_mass_d(ctx.num_aerosols*np);
             Gpu::DeviceVector<Real> multiplicity_d(np);
-            ParticleReal mult_scale = one;
+            ParticleReal mult_scale = one_d;
             {
-                Vector<Real> multiplicity_h(np, zero);
+                Vector<Real> multiplicity_h(np, zero_d);
                 for (int i = 0; i < ctx.num_aerosols; i++) {
                     Vector<Real> aerosol_mass_h;
                     if (sampled_multiplicity) {
@@ -165,7 +167,7 @@ void SuperDropletPC::Recycle ( const int             a_lev,
                 }
                 if (sampled_multiplicity) {
                     // compute multiplicity scale
-                    ParticleReal mult_sum = zero;
+                    ParticleReal mult_sum = zero_d;
                     for (int ctr=0; ctr < multiplicity_h.size(); ctr++) {
                         mult_sum += multiplicity_h[ctr];
                     }
@@ -257,9 +259,9 @@ void SuperDropletPC::Recycle ( const int             a_lev,
 
         amrex::Print() << "Removing inactive particles.\n";
 
-        const auto ctx = buildProcessContext(a_lev);
+        const auto proc_ctx = buildProcessContext(a_lev);
 
-        forEachParticleTile(a_lev, ctx,
+        forEachParticleTile(a_lev, proc_ctx,
             [&](ParIterType& /*pti*/, int /*grid*/, ParticleType* p_pbox,
                 const SDProcess::ParticlePointers& ptrs,
                 const SDProcess::ProcessContext& /*ctx*/)

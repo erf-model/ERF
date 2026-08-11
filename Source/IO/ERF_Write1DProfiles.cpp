@@ -1,3 +1,6 @@
+/**
+ * \file ERF_Write1DProfiles.cpp
+ */
 #include <iomanip>
 
 #include "ERF.H"
@@ -101,7 +104,7 @@ ERF::write_1D_profiles (double time)
                       } else {
                           z = (k + myhalf)* dx[2];
                       }
-                      Real thv = h_avg_th[k] * (1 + Real(0.61)*h_avg_qv[k] - h_avg_qc[k] - h_avg_qr[k]);
+                      Real thv = h_avg_th[k] * (one + epsv*h_avg_qv[k] - h_avg_qc[k] - h_avg_qr[k]);
                       data_log2 << std::setw(datwidth) << std::setprecision(timeprecision) << time << " "
                                 << std::setw(datwidth) << std::setprecision(datprecision) << z << " "
                                 << h_avg_uu[k]   - h_avg_u[k]*h_avg_u[k]  << " "
@@ -195,12 +198,24 @@ ERF::write_1D_profiles (double time)
 /**
  * Computes the profiles for diagnostic quantities.
  *
+ * @param time Current simulation time
  * @param h_avg_u Profile for x-velocity on Host
  * @param h_avg_v Profile for y-velocity on Host
  * @param h_avg_w Profile for z-velocity on Host
  * @param h_avg_rho Profile for density on Host
  * @param h_avg_th Profile for potential temperature on Host
  * @param h_avg_ksgs Profile for Kinetic Energy on Host
+ * @param h_avg_Kmv Profile for vertical turbulent viscosity on Host
+ * @param h_avg_Khv Profile for vertical scalar diffusivity on Host
+ * @param h_avg_qv Profile for water vapor on Host
+ * @param h_avg_qc Profile for cloud water on Host
+ * @param h_avg_qr Profile for rain water on Host
+ * @param h_avg_wqv Profile for vertical velocity * water vapor on Host
+ * @param h_avg_wqc Profile for vertical velocity * cloud water on Host
+ * @param h_avg_wqr Profile for vertical velocity * rain water on Host
+ * @param h_avg_qi Profile for cloud ice on Host
+ * @param h_avg_qs Profile for snow on Host
+ * @param h_avg_qg Profile for graupel on Host
  * @param h_avg_uu Profile for x-velocity squared on Host
  * @param h_avg_uv Profile for x-velocity * y-velocity on Host
  * @param h_avg_uw Profile for x-velocity * z-velocity on Host
@@ -208,13 +223,18 @@ ERF::write_1D_profiles (double time)
  * @param h_avg_vw Profile for y-velocity * z-velocity on Host
  * @param h_avg_ww Profile for z-velocity squared on Host
  * @param h_avg_uth Profile for x-velocity * potential temperature on Host
- * @param h_avg_uiuiu Profile for u_i*u_i*u triple product on Host
- * @param h_avg_uiuiv Profile for u_i*u_i*v triple product on Host
- * @param h_avg_uiuiw Profile for u_i*u_i*w triple product on Host
+ * @param h_avg_vth Profile for y-velocity * potential temperature on Host
+ * @param h_avg_wth Profile for z-velocity * potential temperature on Host
+ * @param h_avg_thth Profile for potential temperature squared on Host
+ * The definition also carries u_i*u_i velocity triple-product accumulators.
+ * @param h_avg_ku Profile for resolved x-momentum kinetic-energy flux on Host
+ * @param h_avg_kv Profile for resolved y-momentum kinetic-energy flux on Host
+ * @param h_avg_kw Profile for resolved z-momentum kinetic-energy flux on Host
  * @param h_avg_p Profile for pressure perturbation on Host
  * @param h_avg_pu Profile for pressure perturbation * x-velocity on Host
  * @param h_avg_pv Profile for pressure perturbation * y-velocity on Host
  * @param h_avg_pw Profile for pressure perturbation * z-velocity on Host
+ * @param h_avg_wthv Profile for vertical velocity * virtual potential temperature on Host
  */
 void
 ERF::derive_diag_profiles(double /*time*/,
@@ -291,6 +311,19 @@ ERF::derive_diag_profiles(double /*time*/,
     MultiFab p_hse (base_state[lev], make_alias, BaseState::p0_comp, 1);
 
     bool use_moisture = (solverChoice.moisture_type != MoistureType::None);
+    const MultiFab* eta_src = nullptr;
+    const bool have_native_shoc_diagnostics =
+        solverChoice.turbChoice[lev].uses_native_shoc() &&
+        native_shoc_driver[lev] &&
+        native_shoc_driver[lev]->has_native_diagnostics();
+    if (l_use_kturb) {
+        if (have_native_shoc_diagnostics) {
+            eta_src = &native_shoc_driver[lev]->native_diagnostics();
+        } else
+        {
+            eta_src = eddyDiffs_lev[lev].get();
+        }
+    }
 
     for ( MFIter mfi(mf_cons,TilingIfNotGPU()); mfi.isValid(); ++mfi)
     {
@@ -301,8 +334,8 @@ ERF::derive_diag_profiles(double /*time*/,
         const Array4<Real>& w_cc_arr =  w_cc.array(mfi);
         const Array4<Real>& cons_arr = mf_cons.array(mfi);
         const Array4<Real>&   p0_arr = p_hse.array(mfi);
-        const Array4<const Real>& eta_arr = (l_use_kturb) ? eddyDiffs_lev[lev]->const_array(mfi) :
-                                                            Array4<const Real>{};
+        const Array4<const Real>& eta_arr = (eta_src) ? eta_src->const_array(mfi) :
+                                                        Array4<const Real>{};
 
         ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {
@@ -414,7 +447,7 @@ ERF::derive_diag_profiles(double /*time*/,
                 }
                 Real ql    = qc + qr;
                 Real theta = cons_arr(i,j,k,RhoTheta_comp) / cons_arr(i,j,k,Rho_comp);
-                Real thv   = theta * (1 + Real(0.61)*qv - ql);
+                Real thv   = theta * (one + epsv*qv - ql);
                 fab_arr(i, j, k,31) = w_cc_arr(i,j,k) * thv; // w*thv
             });
         } // mfi

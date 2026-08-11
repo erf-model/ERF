@@ -1,9 +1,11 @@
 #ifndef ERF_NULLSURF_H
 #define ERF_NULLSURF_H
 
-#include <AMReX_MultiFabUtil.H>
-#include <AMReX_Geometry.H>
-#include <ERF_DataStruct.H>
+#include "AMReX_BCRec.H"
+#include "AMReX_MultiFabUtil.H"
+#include "AMReX_Geometry.H"
+#include "ERF_DataStruct.H"
+#include "ERF_SurfacePrecipitation.H"
 
 class NullSurf {
 
@@ -20,11 +22,15 @@ class NullSurf {
     void Init (const int& /*lev*/,
                const amrex::MultiFab& /*cons_in*/,
                const amrex::Geometry& /*geom*/,
-               const amrex::Real& /*dt_advance*/) { }
+               const amrex::Geometry& /*geom0*/,
+               amrex::Vector<amrex::BCRec>& /*domain_bcs_type*/,
+               amrex::IntVect& /*refRatio*/,
+               const amrex::Real& /*dt_advance*/,
+               amrex::Vector<amrex::Vector<std::string>>& /*nc_init_file*/) { }
 
     virtual
     void
-    Advance (const amrex::Real& /*dt_advance*/) { }
+    Advance (const double& /*dt_advance*/) { }
 
     virtual
     void
@@ -34,9 +40,11 @@ class NullSurf {
                         amrex::MultiFab& /*yvel_in*/,
                         amrex::MultiFab* /*hfx3_out*/,
                         amrex::MultiFab* /*qfx3_out*/,
+                        const SurfacePrecipAccumulationSources& /*precip_sources*/,
                         const amrex::Real& /*elapsed_time*/,
                         const amrex::Real& /*dt_advance*/,
-                        const int& /*nstep*/) { }
+                        const int& /*nstep*/,
+                        const bool /*updated_lev0*/) { }
 
     virtual
     void
@@ -108,9 +116,26 @@ class NullSurf {
 
     virtual
     std::unordered_map<std::string, std::string>&
-    Lsm_WRFInputNames() {
+    Lsm_WRFInputNames()
+    {
         return wrfinput_map;
     }
+
+    virtual
+    void
+    Lsm_Set_Lev0_Data_Ptr (const int& /*varIdx*/,
+                           amrex::MultiFab* /*lev0_data_ptr*/)
+    {}
+
+    virtual
+    void
+    Lsm_Set_Lev0_Flux_Ptr (const int& /*varIdx*/,
+                           amrex::MultiFab* /*lev0_flux_ptr*/)
+    {}
+
+    virtual
+    bool
+    Get_Update_Status () { return false; }
 
     // Scalar LSM step counter (NoahMP itimestep). Persisted in checkpoint so
     // the LSM substepping schedule survives restart. 0 means "uninitialized".

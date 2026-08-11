@@ -10,7 +10,7 @@
 using namespace amrex;
 
 void
-ComputeDiffusivityMYJ (Real dt,
+ComputeDiffusivityMYJ (double dt,
                        const MultiFab& xvel,
                        const MultiFab& yvel,
                        MultiFab& cons_in,
@@ -24,6 +24,7 @@ ComputeDiffusivityMYJ (Real dt,
                        const BCRec* bc_ptr,
                        bool /*vert_only*/,
                        const std::unique_ptr<MultiFab>& z_phys_nd,
+                       const std::unique_ptr<MultiFab>& z_phys_cc,
                        const MoistureComponentIndices& moisture_indices)
 {
     // Dirichlet flags to switch derivative stencil
@@ -127,9 +128,9 @@ ComputeDiffusivityMYJ (Real dt,
 
         // Allocate space for integrals
         const Box xybx = PerpendicularBox<ZDir>(bx, IntVect{0,0,0});
-        FArrayBox qturb(bx,1);
-        FArrayBox qintegral(xybx,2);
-        IArrayBox pbl_k(xybx,1);
+        FArrayBox qturb(bx,1,The_Async_Arena());
+        FArrayBox qintegral(xybx,2,The_Async_Arena());
+        IArrayBox pbl_k(xybx,1,The_Async_Arena());
         qintegral.setVal<RunOn::Device>(0);
         pbl_k.setVal<RunOn::Device>(khi);
         const Array4<Real> qint  = qintegral.array();
@@ -138,6 +139,7 @@ ComputeDiffusivityMYJ (Real dt,
 
         // Terrain and gradient calcs
         const Array4<Real const> &z_nd_arr = z_phys_nd->array(mfi);
+        const PBLDerivativeDzInv_T pbl_derivative_dz_inv{z_phys_cc->const_array(mfi)};
         const auto& dxInv = geom.InvCellSizeArray();
         int izmin = geom.Domain().smallEnd(2);
         int izmax = geom.Domain().bigEnd(2);
@@ -206,7 +208,7 @@ ComputeDiffusivityMYJ (Real dt,
                 const Real met_h_zeta = use_terrain_fitted_coords ? Compute_h_zeta_AtCellCenter(i,j,k,dxInv,z_nd_arr) : one;
                 Real dthetavdz, dudz, dvdz;
                 ComputeVerticalDerivativesPBL(i, j, k,
-                                              uvel, vvel, cell_data, izmin, izmax, dxInv[2]/met_h_zeta,
+                                              uvel, vvel, cell_data, izmin, izmax, pbl_derivative_dz_inv(i,j,k),
                                               c_ext_dir_on_zlo, c_ext_dir_on_zhi,
                                               u_ext_dir_on_zlo, u_ext_dir_on_zhi,
                                               v_ext_dir_on_zlo, v_ext_dir_on_zhi,
@@ -285,7 +287,7 @@ ComputeDiffusivityMYJ (Real dt,
 
                     Real RHSP1=(ARHS*ELOQ51+BRHS*ELOQ31+CRHS*ELOQ11)*RDEN1*RDEN1;
 
-                    Real DTTURBL=dt;
+                    Real DTTURBL = static_cast<Real>(dt);
                     Real ELOQ12=std::max(ELOQ11+(DLOQ1-ELOQ11)*exp(RHSP1*DTTURBL),EPS1);
 
                     Real ELOQ22=ELOQ12*ELOQ12;

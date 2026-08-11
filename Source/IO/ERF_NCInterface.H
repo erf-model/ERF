@@ -1,4 +1,4 @@
-/** \file nc_interface.H
+/** \file ERF_NCInterface.H
  *
  *  Interface to NetCDF library
  *
@@ -9,7 +9,7 @@
 #ifndef ERF_NC_INTERFACE_H
 #define ERF_NC_INTERFACE_H
 
-#ifndef USE_NETCDF
+#ifdef ERF_USE_NETCDF
 #include <string>
 #include <unordered_map>
 #include <vector>

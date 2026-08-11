@@ -27,11 +27,6 @@ amr.v              = 1       # verbosity in Amr.cpp
 # REFINEMENT / REGRIDDING
 amr.max_level       = 0       # maximum level number allowed
 
-erf.refinement_indicators    = my_terrain
-erf.my_terrain.max_level     = 1
-erf.my_terrain.field_name    = terrain_blanking
-erf.my_terrain.value_greater = 0.1
-
 # CHECKPOINT FILES
 erf.check_file      = chk        # root name of checkpoint file
 erf.check_int       = 512         # number of timesteps between checkpoints
@@ -42,8 +37,6 @@ erf.plot_int_1      = 512        # number of timesteps between plotfiles
 erf.plot_vars_1     = density rhoadv_0 x_velocity y_velocity z_velocity pressure temp theta terrain_IB_mask
 
 # SOLVER CHOICE
-erf.alpha_T = 0.0
-erf.alpha_C = 1.0
 erf.use_gravity = false
 
 erf.molec_diff_type = "None"

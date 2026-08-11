@@ -137,7 +137,7 @@ class SuperDropletsMoist : public NullMoistLagrangian {
         {
             m_qmoist_size = 11;
             m_qstate_moist_size = 6; // qv, qc, qi, qrain, qsnow, qgraup
-            m_qstate_nonmoist_size = -1; // intentional
+            m_qstate_nonmoist_size = -1; // sentinel; readInputs() sets the actual count before construction returns
             m_name = "super_droplets_moisture";
             m_idx_w = -1;
             m_num_species = 0;
@@ -204,6 +204,8 @@ class SuperDropletsMoist : public NullMoistLagrangian {
                               amrex::Vector<amrex::Vector<amrex::MultiFab>>& cons_vars,
                               const amrex::Vector<MFPtr>& mf_array,
                               const BCTypeArr& bc_arr) override;
+
+        using NullMoist::Update_Micro_Vars;
 
         /*! \brief Update microphysics variables
          * \param[in] a_cons_vars Conservative variables multifab

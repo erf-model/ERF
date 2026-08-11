@@ -124,6 +124,7 @@ namespace RealBdyVars {
         V  = 1,
         T  = 2,
         QV = 3,
+        R  = 4,
         NumTypes
     };
 }
@@ -134,6 +135,7 @@ namespace WRFBdyVars {
         V  = 1,
         T  = 2,
         QV = 3, // water vapor
+        R  = 4, // density
         PH    , // Perturbational geopotential
         MU    , // bdy perturbation dry air mass in column (we will get mub from the initial data)
         PC    , // p_s - p_top = dry hydrostatic pressure difference between the surface and the model top
@@ -212,6 +214,10 @@ namespace EddyDiff {
         Scalar_v,
         Q_v,
         Turb_lengthscale,
+        HGAMT_v,  // MRF countergradient for heat (HGAMT/h, units K/m), zero outside PBL
+        HGAMQ_v,  // MRF countergradient for moisture (HGAMQ/h, units kg/kg/m), zero outside PBL
+        HGAMU_v,  // YSU countergradient for x-momentum (units m/s/m), zero outside PBL
+        HGAMV_v,  // YSU countergradient for y-momentum (units m/s/m), zero outside PBL
         NumDiffs
     };
 }

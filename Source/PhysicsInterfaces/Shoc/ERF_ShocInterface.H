@@ -90,11 +90,11 @@ public:
 
     // Run the implementation
     void
-    run_impl (const Real dt);
+    run_impl (const double dt);
 
     // Finalize the implementation
     void
-    finalize_impl (const Real dt);
+    finalize_impl (const double dt);
 
     // Allocate buffer space
     void
@@ -110,7 +110,7 @@ public:
 
     // Fill AMReX MultiFabs from KOKKOS Views
     void
-    kokkos_buffers_to_mf (const Real dt);
+    kokkos_buffers_to_mf (const double dt);
 
     // The name of the subcomponent
     std::string
@@ -561,6 +561,26 @@ protected:
     // Set local variables
     void
     init_buffers ();
+
+    // Number of fields SHOC appends to the tracer array before the implicit
+    // solve. shoc_update_prognostics_implicit() transposes (num_qtracers + 3)
+    // fields -- the tracers plus thetal, qw and tke -- so the macro block it
+    // takes from the workspace is wider than the tracer count alone.
+    // See E3SM/components/eamxx/src/physics/shoc/impl/
+    //     shoc_update_prognostics_implicit_impl.hpp
+    static constexpr Int shoc_extra_trac_slots = 3;
+
+    // Number of workspace slots the WSM must reserve for shoc_main. Both the
+    // buffer sizing and the WSM setup must ask for the same count, so it is
+    // computed here to keep the two from drifting apart.
+    Int
+    wsm_num_slots () const
+    {
+        const Int n_wind_slots = ekat::npack<Spack>(m_num_vel_comp)*Spack::n;
+        const Int n_trac_slots = ekat::npack<Spack>(m_num_tracers +
+                                                    shoc_extra_trac_slots)*Spack::n;
+        return ( 14 + (n_wind_slots + n_trac_slots) );
+    }
 
     // Offsets for MultiFab <-> KOKKOS transfer
     amrex::Vector<int> m_col_offsets;

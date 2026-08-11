@@ -39,7 +39,7 @@ void SuperDropletPC::add_superdroplet_attributes()
 }
 
 /*! Read inputs from file */
-void SuperDropletPC::readInputs (const amrex::Real a_dt)
+void SuperDropletPC::readInputs (const double a_dt)
 {
     BL_PROFILE("SuperDropletPC::readInputs");
     ParmParse pp(m_name);
@@ -63,7 +63,11 @@ void SuperDropletPC::readInputs (const amrex::Real a_dt)
 
     /* Newton solver parameters */
     m_newton_rtol = Real(1.0e-6);
-    m_newton_atol = Real(1.0e-30);
+#ifdef AMREX_USE_FLOAT
+    m_newton_atol = Real(0.0);
+#else
+    m_newton_atol = Real(1.0e-99);
+#endif
     m_newton_stol = Real(1.0e-12);
     m_newton_maxits = 10;
 
@@ -238,7 +242,7 @@ void SuperDropletPC::define (  const std::vector<Species::Name>& a_species_mat,
                                const std::vector<Species::Name>& a_aerosol_mat,
                                const BoxArray&                   a_ba,
                                const DistributionMapping&        a_dmap,
-                               const amrex::Real                 a_dt )
+                               const double                      a_dt )
 {
     BL_PROFILE("SuperDropletPC::define()");
     m_num_sd_per_cell = 0;
@@ -308,7 +312,7 @@ void SuperDropletPC::define (  const std::vector<Species::Name>& a_species_mat,
 }
 
 /*! Initialize the particles at AMR level a_lev */
-void SuperDropletPC::InitializeParticles (const int a_lev, const Real a_t, const MFPtr& a_ptr)
+void SuperDropletPC::InitializeParticles (const int a_lev, const double a_t, const MFPtr& a_ptr)
 {
     amrex::ignore_unused(a_t);
     BL_PROFILE("SuperDropletPC::InitializeParticles()");
@@ -392,7 +396,7 @@ void SuperDropletPC::InitializeParticles (const int a_lev, const Real a_t, const
 }
 
 /*! Inject particles */
-void SuperDropletPC::InjectParticles (const Real a_t, const MFPtr& a_ptr, const Real a_dt)
+void SuperDropletPC::InjectParticles (const double a_t, const MFPtr& a_ptr, const double a_dt)
 {
     for (int i = 0; i < m_num_injections; i++) {
         const bool active = (m_injections[i]->m_inj_rate > 0)

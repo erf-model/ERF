@@ -418,7 +418,7 @@ static void rime_update_attribs(const int a_i, /*!< index of particle */
 
 /*! Compute the coalescence of superdroplets in each time step */
 void SuperDropletPC::Coalescence( int   a_lev,
-                                  Real  a_dt,
+                                  double                               a_dt,
                                   const MultiFab& a_pressure,
                                   const MultiFab& a_moist_density,
                                   const MultiFab& a_temperature,

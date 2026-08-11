@@ -50,6 +50,7 @@ void erf_make_tau_terms (int level, int nrk,
                                     tc.pbl_type  == PBLType::MYNN25      ||
                                     tc.pbl_type  == PBLType::MYNNEDMF    ||
                                     tc.pbl_type  == PBLType::YSU  ||
+                                    tc.pbl_type  == PBLType::YSUNew  ||
                                     tc.pbl_type  == PBLType::MRF);
 
     const bool need_SmnSmn      = (tc.les_type  == LESType::Deardorff ||

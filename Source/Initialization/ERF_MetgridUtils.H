@@ -1,5 +1,10 @@
+/**
+ * \file ERF_MetgridUtils.H
+ */
 #ifndef ERF_METGRIDUTIL_H_
 #define ERF_METGRIDUTIL_H_
+
+#include <limits>
 
 #include <ERF.H>
 #include <ERF_EOS.H>
@@ -7,13 +12,16 @@
 #include <ERF_ProbCommon.H>
 #include <ERF_HSEUtils.H>
 
+/**
+ * Read metgrid NetCDF data and populate ERF initialization FABs.
+ */
 void
 read_from_metgrid (int lev,
                    int itime,
                    const amrex::Box& domain,
                    const std::string& fname,
                    std::string& NC_dateTime,
-                   amrex::Real& NC_epochTime,
+                   double& NC_epochTime,
                    int& flag_psfc,
                    int& flag_msf,
                    int& flag_sst,
@@ -41,10 +49,16 @@ read_from_metgrid (int lev,
                    amrex::IArrayBox& NC_lmask_iab,
                    amrex::Geometry& geom);
 
+/**
+ * Initialize nodal terrain heights from metgrid surface-height data.
+ */
 void
 init_terrain_from_metgrid (amrex::FArrayBox& z_phys_nd_fab,
                            amrex::FArrayBox& NC_hgt_fab);
 
+/**
+ * Initialize ERF state, velocity, and boundary data from metgrid fields.
+ */
 void
 init_state_from_metgrid (const int lev,
                          const int itime,
@@ -64,6 +78,7 @@ init_state_from_metgrid (const int lev,
                          amrex::Box& tbxc,
                          amrex::Box& tbxu,
                          amrex::Box& tbxv,
+                         amrex::Box& tbxw,
                          amrex::FArrayBox& state_fab,
                          amrex::FArrayBox& x_vel_fab,
                          amrex::FArrayBox& y_vel_fab,
@@ -85,6 +100,9 @@ init_state_from_metgrid (const int lev,
                          const amrex::Array4<const int>& mask_u_arr,
                          const amrex::Array4<const int>& mask_v_arr);
 
+/**
+ * Initialize map-scale factors from metgrid fields or defaults.
+ */
 void
 init_msfs_from_metgrid (const bool metgrid_debug_msf,
                         amrex::FArrayBox& msfu_fab,
@@ -95,6 +113,9 @@ init_msfs_from_metgrid (const bool metgrid_debug_msf,
                         amrex::FArrayBox& NC_MSFV_fab,
                         amrex::FArrayBox& NC_MSFM_fab);
 
+/**
+ * Initialize hydrostatic base-state quantities from metgrid data.
+ */
 void
 init_base_state_from_metgrid (const bool use_moisture,
                               const bool metgrid_debug_psfc,
@@ -111,6 +132,9 @@ init_base_state_from_metgrid (const bool use_moisture,
                               amrex::FArrayBox& z_phys_cc_fab,
                               const amrex::FArrayBox& NC_psfc_fab);
 
+/**
+ * Interpolate a value with a Lagrange polynomial stencil.
+ */
 AMREX_FORCE_INLINE
 AMREX_GPU_DEVICE
 void
@@ -141,13 +165,20 @@ lagrange_interp (const int& order,
     new_y = Px;
 }
 
+/**
+ * Prepare interpolation stencils and apply Lagrange interpolation or extrapolation.
+ *
+ * Both orig_npts and new_npts are point counts, not last indices; valid indices
+ * into the orig_* arrays are 0 through orig_npts-1, and into the new_* arrays
+ * are 0 through new_npts-1.
+ */
 AMREX_FORCE_INLINE
 AMREX_GPU_DEVICE
 void
 lagrange_setup (char var_type,
                 const bool& exp_interp,
-                const int& orig_n,
-                const int& new_n,
+                const int& orig_npts,
+                const int& new_npts,
                 const int& order,
                 const int& i,
                 const int& j,
@@ -168,7 +199,7 @@ lagrange_setup (char var_type,
     bool debug = false;
 #endif
 
-    for (int new_k=0; new_k < new_n; new_k++) {
+    for (int new_k=0; new_k < new_npts; new_k++) {
 #ifndef AMREX_USE_GPU
         if (debug) amrex::Print() << "new_k=" << new_k;
 #endif
@@ -176,7 +207,7 @@ lagrange_setup (char var_type,
         // If interpolating, find bounding x values and store the indices.
         bool extrapolating = true;
         int kl, kr;
-        for (int ko=0; ko < orig_n-1; ko++) {
+        for (int ko=0; ko < orig_npts-1; ko++) {
             amrex::Real a = new_x_z[new_k]-orig_x_z[ko];
             amrex::Real b = new_x_z[new_k]-orig_x_z[ko+1];
             if (a*b <= zero) {
@@ -193,11 +224,11 @@ lagrange_setup (char var_type,
                 // Comparable to the WRF default, t_extrap_type=two
                 amrex::Real depth_of_extrap_in_p = new_x_p[new_k]-orig_x_p[0];
                 amrex::Real avg_of_extrap_p = myhalf*(new_x_p[new_k]+orig_x_p[0]);
-                amrex::Real temp_extrap_starting_point = orig_y[0]*std::pow(orig_x_p[0]/amrex::Real(100000.0), R_d/Cp_d);
+                amrex::Real temp_extrap_starting_point = orig_y[0]*std::pow(orig_x_p[0]/amrex::Real(100000.0), RdoCp);
                 amrex::Real dZdP = CRC_const1*CRC_const2*std::pow(avg_of_extrap_p/amrex::Real(100.0), CRC_const2-one);
                 amrex::Real dZ = dZdP*(depth_of_extrap_in_p/amrex::Real(100.0));
                 amrex::Real dT = dZ*CRC_const3;
-                new_y[new_k] = (temp_extrap_starting_point+dT)*std::pow(amrex::Real(100000.0)/new_x_p[new_k], R_d/Cp_d);
+                new_y[new_k] = (temp_extrap_starting_point+dT)*std::pow(amrex::Real(100000.0)/new_x_p[new_k], RdoCp);
             } else {
                 // Use a constant value below ground.
                 // Comparable to the WRF default, extrap_type=two
@@ -207,7 +238,7 @@ lagrange_setup (char var_type,
         }
 
         if (order%2 != 0) {
-            if ((kl-((order+1)/2-1) >= 0) && (kr+((order+1)/2-1) <= orig_n-1)) {
+            if ((kl-((order+1)/2-1) >= 0) && (kr+((order+1)/2-1) <= orig_npts-1)) {
                 // Odd order interpolation.
                 int ksta = kl-(((order+1)/2)-1);
                 int kend = ksta+order;
@@ -274,7 +305,7 @@ lagrange_setup (char var_type,
                 lagrange_interp(1, orig_x_sub_p, orig_y_sub_p, new_x, new_y[new_k]);
             }
         } else if (order%2 == 0) {
-            if ((kl-(order/2) >= 0) && (kr+order/2 <= orig_n-1)) {
+            if ((kl-(order/2) >= 0) && (kr+order/2 <= orig_npts-1)) {
                 // Even order interpolation.
                 // Interpolate twice. Offset the range by 1 the 2nd time. Average the results.
                 amrex::Real new_y_l, new_y_r;
@@ -343,7 +374,7 @@ lagrange_setup (char var_type,
                     lagrange_interp(order, orig_x_sub_p, orig_y_sub_p, new_x, new_y_r);
                 }
                 new_y[new_k] = myhalf*(new_y_l+new_y_r);
-            } else if ((kl-(order/2-1) >= 0) && (kr+order/2 <= orig_n-1)) {
+            } else if ((kl-(order/2-1) >= 0) && (kr+order/2 <= orig_npts-1)) {
                 int ksta = kl-(order/2-1);
                 int kend = ksta+order;
 #ifndef AMREX_USE_GPU
@@ -374,7 +405,7 @@ lagrange_setup (char var_type,
                 }
 #endif
                 lagrange_interp(order, orig_x_sub_p, orig_y_sub_p, new_x, new_y[new_k]);
-            } else if ((kl-order/2 >= 0) && (kr+order/2-1 <= orig_n-1)) {
+            } else if ((kl-order/2 >= 0) && (kr+order/2-1 <= orig_npts-1)) {
                 int ksta = kl-order/2;
                 int kend = ksta+order;
 #ifndef AMREX_USE_GPU
@@ -445,6 +476,9 @@ lagrange_setup (char var_type,
     }
 }
 
+/**
+ * Compute isothermal pressure at height z.
+ */
 AMREX_FORCE_INLINE
 AMREX_GPU_DEVICE
 void
@@ -454,6 +488,9 @@ calc_p_isothermal (const amrex::Real& z,
     p = p_0*std::exp(-CONST_GRAV*z/(amrex::Real(290.0)*R_d));
 }
 
+/**
+ * Interpolate one metgrid column onto ERF vertical levels with quality control.
+ */
 AMREX_FORCE_INLINE
 AMREX_GPU_DEVICE
 void
@@ -708,8 +745,9 @@ interpolate_column_metgrid (const bool& metgrid_use_below_sfc,
         calc_p_isothermal(ordered_z_p[k], ordered_p_p[k]);
     }
 
-    int new_n = 0;
-    int zap_final = 0;
+    // kfinal is the index of the topmost level retained in the final_*
+    // arrays, so those arrays hold kfinal+1 points.
+    int kfinal = 0;
     amrex::GpuArray<amrex::Real,256> final_z;
     amrex::GpuArray<amrex::Real,256> final_p;
     amrex::GpuArray<amrex::Real,256> final_data;
@@ -720,21 +758,18 @@ interpolate_column_metgrid (const bool& metgrid_use_below_sfc,
     final_p_p[0] = ordered_p[ksta];
     final_data_p[0] = ordered_data[ksta];
     for (int k=ksta+1; k <= kend; k++) {
-        if ((final_p_p[new_n]-ordered_p_p[k]) < metgrid_proximity) {
-            zap_final++;
-        } else {
-            new_n++;
-            final_z_p[new_n] = ordered_z_p[k];
-            final_p_p[new_n] = ordered_p_p[k];
-            final_data_p[new_n] = ordered_data_p[k];
-        }
+        // Skip levels that are "too close" to the prior retained level.
+        if ((final_p_p[kfinal]-ordered_p_p[k]) < metgrid_proximity) continue;
+        kfinal++;
+        final_z_p[kfinal] = ordered_z_p[k];
+        final_p_p[kfinal] = ordered_p_p[k];
+        final_data_p[kfinal] = ordered_data_p[k];
     }
-    kend -= zap_final;
 
     // Call the interpolator.
     lagrange_setup(var_type,
                    exp_interp,
-                   kend-ksta,
+                   kfinal+1,
                    kmax_new,
                    metgrid_order,
                    i,
@@ -757,6 +792,9 @@ interpolate_column_metgrid (const bool& metgrid_use_below_sfc,
 
 }
 
+/**
+ * Linearly interpolate one metgrid column value onto an ERF point.
+ */
 AMREX_FORCE_INLINE
 AMREX_GPU_DEVICE
 amrex::Real
@@ -786,7 +824,10 @@ interpolate_column_metgrid_linear (const int& i,
                    new_z(i,j,k+1)+new_z(i,j+1,k+1)+new_z(i+1,j,k+1)+new_z(i+1,j+1,k+1));
     }
 
-    amrex::Real z0, z1;
+    // Initialized to NaN so that any path which fails to set them fails loudly
+    // (with amrex.fpe_trap_invalid=1) rather than returning plausible garbage.
+    amrex::Real z0 = std::numeric_limits<amrex::Real>::quiet_NaN();
+    amrex::Real z1 = std::numeric_limits<amrex::Real>::quiet_NaN();
     int klow   = -1;
     int khi0   = -1;
     amrex::Real dzlow =  amrex::Real(1.0e12);
@@ -834,6 +875,10 @@ interpolate_column_metgrid_linear (const int& i,
 
     // extrapolate below the bottom surface
     if (klow == -1) {
+        // klow was never found, so z0 was never set above. The two levels used
+        // here are khi0 and khi1, both above z, so z0 is the height at khi0 --
+        // which is exactly what the search loop left in z1 before we clobber it.
+        z0 = z1;
         int khi1   = -1;
         amrex::Real dzhi1 = -amrex::Real(1.0e12);
         for (int kk = 0; kk < kmax_orig; kk++) {
@@ -878,6 +923,10 @@ interpolate_column_metgrid_linear (const int& i,
     } else if (khi0 == -1) {
         khi0 = klow - 1;
         int khi1 = klow;
+        // khi0 was never found, so z1 was never set above. The upper level used
+        // here is khi1 = klow, whose height is currently held in z0 -- capture
+        // it before z0 is recomputed at the new (lower) khi0.
+        z1 = z0;
         if (stag == 'M') {
             z0 = orig_z(i,j,khi0);
         }
@@ -915,6 +964,9 @@ interpolate_column_metgrid_linear (const int& i,
     }
 }
 
+/**
+ * Convert relative humidity to vapor mixing ratio using WRF-compatible bounds.
+ */
 AMREX_FORCE_INLINE
 AMREX_GPU_DEVICE
 void
@@ -933,7 +985,7 @@ rh_to_mxrat (int i,
     amrex::Real qv_min_p_safe = amrex::Real(110000.0); // WRF default value
     amrex::Real qv_min_flag   = amrex::Real(1.0e-6); // WRF default value
     amrex::Real qv_min_value  = amrex::Real(1.0e-6); // WRF default value
-    amrex::Real eps   = amrex::Real(0.622);
+    amrex::Real eps   = RdoRv;
     amrex::Real svp1  = amrex::Real(0.6112);
     amrex::Real svp2  = amrex::Real(17.67);
     amrex::Real svp3  = amrex::Real(29.65);

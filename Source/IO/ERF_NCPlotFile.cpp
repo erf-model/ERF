@@ -1,3 +1,6 @@
+/**
+ * \file ERF_NCPlotFile.cpp
+ */
 #include <iomanip>
 #include <iostream>
 #include <string>
@@ -8,6 +11,7 @@
 
 #include "ERF_Constants.H"
 #include "ERF_DataStruct.H"
+#include "ERF_NCPlotFile.H"
 #include "ERF_NCInterface.H"
 
 using namespace amrex;
@@ -21,8 +25,8 @@ writeNCPlotFile (int lev, int which_subdomain, const std::string& dir,
                  Array<Real,AMREX_SPACEDIM> prob_hi,
                  Array<Real,AMREX_SPACEDIM> dx_in,
                  const Box& subdomain,
-                 const Real time,
-                 const Real start_bdy_time,
+                 const double& time,
+                 const double& start_bdy_time,
                  const SolverChoice& solverChoice,
                  const Vector<Real>& zlevels_stag)
 {
@@ -178,13 +182,16 @@ writeNCPlotFile (int lev, int which_subdomain, const std::string& dir,
         for (int i = 0; i < ba.size(); ++i) {
             auto bx = ba[i];
             if (subdomain.contains(bx)) {
+                // The loop indices below are box-local, so they must be offset by the
+                // low corner of the box to give the global location of each cell
+                const auto bx_lo = bx.smallEnd();
                 x_grid.clear(); y_grid.clear(); z_grid.clear();
                 for (auto k3 = 0; k3 < bx.length(2); ++k3) {
                     for (auto k2 = 0; k2 < bx.length(1); ++k2) {
                         for (auto k1 = 0; k1 < bx.length(0); ++k1) {
-                            x_grid.push_back(prob_lo[0]+dx[0]*(static_cast<Real>(k1)+myhalf));
-                            y_grid.push_back(prob_lo[1]+dx[1]*(static_cast<Real>(k2)+myhalf));
-                            z_grid.push_back(prob_lo[2]+dx[2]*(static_cast<Real>(k3)+myhalf));
+                            x_grid.push_back(prob_lo[0]+dx[0]*(static_cast<Real>(bx_lo[0]+k1)+myhalf));
+                            y_grid.push_back(prob_lo[1]+dx[1]*(static_cast<Real>(bx_lo[1]+k2)+myhalf));
+                            z_grid.push_back(prob_lo[2]+dx[2]*(static_cast<Real>(bx_lo[2]+k3)+myhalf));
                          }
                     }
                 }
@@ -211,13 +218,17 @@ writeNCPlotFile (int lev, int which_subdomain, const std::string& dir,
         for (int i = 0; i < ba.size(); ++i) {
             auto bx = ba[i];
             if (subdomain.contains(bx)) {
+                // The loop indices below are box-local, so they must be offset by the
+                // low corner of the box to give the global location of each cell;
+                // zlevels_stag is indexed globally as well
+                const auto bx_lo = bx.smallEnd();
                 x_grid.clear(); y_grid.clear(); z_grid.clear();
                 for (auto k3 = 0; k3 < bx.length(2); ++k3) {
                     for (auto k2 = 0; k2 < bx.length(1); ++k2) {
                         for (auto k1 = 0; k1 < bx.length(0); ++k1) {
-                            x_grid.push_back(prob_lo[0]+dx[0]*(static_cast<Real>(k1)+myhalf));
-                            y_grid.push_back(prob_lo[1]+dx[1]*(static_cast<Real>(k2)+myhalf));
-                            z_grid.push_back(myhalf * (zlevels_stag[k3] + zlevels_stag[k3+1]));
+                            x_grid.push_back(prob_lo[0]+dx[0]*(static_cast<Real>(bx_lo[0]+k1)+myhalf));
+                            y_grid.push_back(prob_lo[1]+dx[1]*(static_cast<Real>(bx_lo[1]+k2)+myhalf));
+                            z_grid.push_back(myhalf * (zlevels_stag[bx_lo[2]+k3] + zlevels_stag[bx_lo[2]+k3+1]));
                          }
                     }
                 }

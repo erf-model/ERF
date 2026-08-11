@@ -130,7 +130,7 @@ ERF::build_fine_mask (int level, MultiFab& fine_mask_lev)
     BoxArray cba            = grids[level-1];
     DistributionMapping cdm = dmap[level-1];
 
-    BoxArray fba            = fine_mask_lev.boxArray();
+    BoxArray fba            = grids[level];
 
     iMultiFab ifine_mask_lev = makeFineMask(cba, cdm, fba, ref_ratio[level-1], 1, 0);
 

@@ -97,7 +97,7 @@ Compiler and Tool Requirements
      - Any modern version
    * - **CMake**
      - Build configuration tool
-     - >= 3.14 (>= 3.25 for Cray)
+     - >= 3.20 (>= 3.25 for Cray)
    * - **Python**
      - Build script dependency
      - >= 2.7 (including 3.x)

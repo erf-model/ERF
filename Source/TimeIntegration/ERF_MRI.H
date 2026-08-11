@@ -9,6 +9,7 @@
 #include <ERF_TI_slow_headers.H>
 #include <ERF_TI_fast_headers.H>
 
+#include <algorithm>
 #include <functional>
 
 template<class T>
@@ -18,17 +19,17 @@ private:
    /**
     * \brief rhs is the right-hand-side function the integrator will use.
     */
-    std::function<void(T&, const T&,   const amrex::Real, const amrex::Real     )> rhs;
-    std::function<void(T&, T&, T&,     const amrex::Real, const amrex::Real, const amrex::Real, const int)> slow_rhs_pre;
-    std::function<void(T&, T&, T&, T&, const amrex::Real, const amrex::Real, const amrex::Real, const int )> slow_rhs_post;
-    std::function<void(int, int, int, T&, const T&, T&, T&, const amrex::Real, const amrex::Real,
-                                                            const amrex::Real, const amrex::Real,
-                                                            const amrex::Real)> acoustic_substepping;
+    std::function<void(T&, const T&,   const double, const double)> rhs;
+    std::function<void(T&, T&, T&,     const double, const double, const double, const int)> slow_rhs_pre;
+    std::function<void(T&, T&, T&, T&, const double, const double, const double, const int)> slow_rhs_post;
+    std::function<void(int, int, int, T&, const T&, T&, T&, const double, const double,
+                                                            const amrex::Real, const double,
+                                                            const double)> acoustic_substepping;
 
    /**
     * \brief Integrator timestep size (Real)
     */
-    amrex::Real timestep;
+    double timestep;
 
    /**
     * \brief The ratio of slow timestep size / fast timestep size (int)
@@ -58,7 +59,7 @@ private:
    /**
     * \brief The no_substep function is called when we have no acoustic substepping
     */
-    std::function<void (T&, T&, T&, amrex::Real, amrex::Real, int)> no_substep;
+    std::function<void (T&, T&, T&, const double, const double, int)> no_substep;
 
 
     amrex::Vector<std::unique_ptr<T> > T_store;
@@ -131,19 +132,19 @@ public:
         force_stage1_single_substep = _force_stage1_single_substep;
     }
 
-    void set_slow_rhs_pre (std::function<void(T&, T&, T&, const amrex::Real, const amrex::Real, const amrex::Real, const int)> F)
+    void set_slow_rhs_pre (std::function<void(T&, T&, T&, const double, const double, const double, const int)> F)
     {
         slow_rhs_pre = F;
     }
-    void set_slow_rhs_post (std::function<void(T&, T&, T&, T&, const amrex::Real, const amrex::Real, const amrex::Real, const int)> F)
+    void set_slow_rhs_post (std::function<void(T&, T&, T&, T&, const double, const double, const double, const int)> F)
     {
         slow_rhs_post = F;
     }
 
     void set_acoustic_substepping (std::function<void(int, int, int, T&, const T&, T&, T&,
-                                                      const amrex::Real, const amrex::Real,
-                                                      const amrex::Real, const amrex::Real,
-                                                      const amrex::Real)> F)
+                                                      const double, const double,
+                                                      const amrex::Real, const double,
+                                                      const double)> F)
     {
         acoustic_substepping = F;
     }
@@ -158,17 +159,17 @@ public:
         return slow_fast_timestep_ratio;
     }
 
-    void set_no_substep (std::function<void (T&, T&, T&, amrex::Real, amrex::Real, int)> F)
+    void set_no_substep (std::function<void (T&, T&, T&, const double, const double, int)> F)
     {
         no_substep = F;
     }
 
-    std::function<void(T&, const T&, const amrex::Real, int)> get_rhs ()
+    std::function<void(T&, const T&, const double, const double)> get_rhs ()
     {
         return rhs;
     }
 
-    amrex::Real advance (T& S_old, T& S_new, amrex::Real time, const amrex::Real time_step)
+    double advance (T& S_old, T& S_new, double time, const double time_step)
     {
     BL_PROFILE_REGION("MRI_advance");
         using namespace amrex;
@@ -214,7 +215,7 @@ public:
         }
 
         // Timestep taken by the fast integrator
-        amrex::Real dtau;
+        double dtau;
 
         // How many timesteps taken by the fast integrator
         int nsubsteps;
@@ -222,10 +223,8 @@ public:
         // This is the final time of the full timestep (also the 3rd RK stage)
         // Real new_time = time + timestep;
 
-        amrex::Real time_stage = time;
-        amrex::Real old_time_stage;
-
-        const amrex::Real sub_timestep = timestep / substep_ratio;
+        double time_stage = time;
+        double old_time_stage;
 
         if (!anelastic) {
           // RK3 for compressible integrator
@@ -236,29 +235,33 @@ public:
 
             if (nrk == 0) {
                 if (force_stage1_single_substep || no_substepping) {
-                    nsubsteps = 1;               dtau = timestep / three;
+                    nsubsteps = 1;
+                    dtau      = timestep / three;
                 } else {
-                    nsubsteps = substep_ratio/3; dtau = sub_timestep  ;
+                    // Clamp to 1: substep_ratio is only required to be even, so a ratio of 2
+                    // would otherwise give zero substeps and leave S_sum stale in this stage
+                    nsubsteps = std::max(substep_ratio/3, 1);
+                    dtau      = (timestep / three) / static_cast<double>(nsubsteps);
                 }
                 time_stage = time + timestep / three;
             }
             if (nrk == 1) {
                 if (no_substepping) {
-                    nsubsteps =               1; dtau = myhalf * timestep;
+                    nsubsteps = 1;
+                    dtau      = myhalf * timestep;
                 } else {
-                    nsubsteps = substep_ratio/2; dtau =   sub_timestep;
+                    nsubsteps = substep_ratio/2;
+                    dtau      = (myhalf * timestep) / static_cast<double>(nsubsteps);
                 }
                 time_stage = time + timestep / two;
             }
             if (nrk == 2) {
                 if (no_substepping) {
-                    nsubsteps =             1;   dtau =     timestep;
+                    nsubsteps = 1;
+                    dtau      = timestep;
                 } else {
-                    nsubsteps = substep_ratio;   dtau = sub_timestep;
-
-                    // STRT HACK -- this hack can be used to approximate the no-substepping algorithm
-                    // nsubsteps = 1;   dtau = timestep;
-                    // END HACK
+                    nsubsteps = substep_ratio;
+                    dtau      = timestep / static_cast<double>(nsubsteps);
                 }
                 time_stage = time + timestep;
             }

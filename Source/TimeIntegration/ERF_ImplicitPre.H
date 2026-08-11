@@ -7,7 +7,7 @@
             if (l_vert_implicit_fac > zero) {
 
                 const bool l_do_implicit_theta = solverChoice.implicit_thermal_diffusion;
-                const bool l_do_implicit_mom = solverChoice.implicit_momentum_diffusion;
+                const bool l_do_implicit_mom   = solverChoice.implicit_momentum_diffusion;
 
                 // If we're doing an implicit solve for momenta (u and v only),
                 // then we use the explicit solution at this point to derive
@@ -62,88 +62,104 @@
                     const Array4<const Real> tau23  = Tau[level][TauType::tau23]->array(mfi);
                     [[maybe_unused]] const Array4<const Real> tau33  = Tau[level][TauType::tau33]->array(mfi);
                     const Array4<const Real>& hfx_z = Hfx3->const_array(mfi);
-
+                    const bool l_use_mrf_cg = solverChoice.turbChoice[level].enable_mrf_countergradient
+                                            && (solverChoice.turbChoice[level].pbl_type == PBLType::MRF);
+                    const bool l_use_ysu_mom_cg = solverChoice.turbChoice[level].enable_ysu_countergradient
+                                               && (solverChoice.turbChoice[level].pbl_type == PBLType::YSU);
                     if (l_use_stretched_dz) {
                         if (l_do_implicit_theta) {
+
                             ImplicitDiffForStateLU_S(bx, fine_geom.Domain(), level, RhoTheta_comp,
-                                                     slow_dt, l_bc_neumann_vals_d, cell_data,
+                                                     stage_dt, l_bc_neumann_vals_d, cell_data,
                                                      stretched_dz_d[level], hfx_z,
                                                      mu_turb, solverChoice,
-                                                     bc_ptr_h, l_use_SurfLayer, l_vert_implicit_fac);
+                                                     bc_ptr_h, l_use_SurfLayer, l_vert_implicit_fac,
+                                                     l_use_mrf_cg);
                         }
                         if (l_do_implicit_mom) {
-                            ImplicitDiffForMomLU_S<0>(tbx, fine_geom.Domain(), level, slow_dt,
+                            ImplicitDiffForMomLU_S<0>(tbx, fine_geom.Domain(), level, stage_dt,
                                                       cell_data, rho_u, tau13, tau13_corr,
                                                       stretched_dz_d[level],
                                                       mu_turb, solverChoice,
-                                                      bc_ptr_h, l_use_SurfLayer, l_vert_implicit_fac);
+                                                      bc_ptr_h, l_use_SurfLayer, l_vert_implicit_fac,
+                                                      l_use_ysu_mom_cg);
 
-                            ImplicitDiffForMomLU_S<1>(tby, fine_geom.Domain(), level, slow_dt,
+                            ImplicitDiffForMomLU_S<1>(tby, fine_geom.Domain(), level, stage_dt,
                                                       cell_data, rho_v, tau23, tau23_corr,
                                                       stretched_dz_d[level],
                                                       mu_turb, solverChoice,
-                                                      bc_ptr_h, l_use_SurfLayer, l_vert_implicit_fac);
+                                                      bc_ptr_h, l_use_SurfLayer, l_vert_implicit_fac,
+                                                      l_use_ysu_mom_cg);
 #ifdef ERF_IMPLICIT_W
-                            ImplicitDiffForMomLU_S<2>(tbz, fine_geom.Domain(), level, slow_dt,
+                            ImplicitDiffForMomLU_S<2>(tbz, fine_geom.Domain(), level, stage_dt,
                                                       cell_data, rho_w, tau33, tau33_corr,
                                                       stretched_dz_d[level],
                                                       mu_turb, solverChoice,
-                                                      bc_ptr_h, l_use_SurfLayer, l_vert_implicit_fac);
+                                                      bc_ptr_h, l_use_SurfLayer, l_vert_implicit_fac,
+                                                      l_use_ysu_mom_cg);
 #endif
                         }
                     } else if (l_use_terrain_fitted_coords) {
                         if (l_do_implicit_theta) {
                             ImplicitDiffForStateLU_T(bx, fine_geom.Domain(), level, RhoTheta_comp,
-                                                     slow_dt, l_bc_neumann_vals_d, cell_data,
+                                                     stage_dt, l_bc_neumann_vals_d, cell_data,
                                                      z_nd_arr, detJ_arr, dxInv, hfx_z,
                                                      mu_turb, solverChoice,
-                                                     bc_ptr_h, l_use_SurfLayer, l_vert_implicit_fac);
+                                                     bc_ptr_h, l_use_SurfLayer, l_vert_implicit_fac,
+                                                     l_use_mrf_cg);
                         }
                         if (l_do_implicit_mom) {
-                            ImplicitDiffForMomLU_T<0>(tbx, fine_geom.Domain(), level, slow_dt,
+                            ImplicitDiffForMomLU_T<0>(tbx, fine_geom.Domain(), level, stage_dt,
                                                       cell_data, rho_u, tau13, tau13_corr,
                                                       z_nd_arr, detJ_arr, dxInv,
                                                       mu_turb, solverChoice,
-                                                      bc_ptr_h, l_use_SurfLayer, l_vert_implicit_fac);
+                                                      bc_ptr_h, l_use_SurfLayer, l_vert_implicit_fac,
+                                                      l_use_ysu_mom_cg);
 
-                            ImplicitDiffForMomLU_T<1>(tby, fine_geom.Domain(), level, slow_dt,
+                            ImplicitDiffForMomLU_T<1>(tby, fine_geom.Domain(), level, stage_dt,
                                                       cell_data, rho_v, tau23, tau23_corr,
                                                       z_nd_arr, detJ_arr, dxInv,
                                                       mu_turb, solverChoice,
-                                                      bc_ptr_h, l_use_SurfLayer, l_vert_implicit_fac);
+                                                      bc_ptr_h, l_use_SurfLayer, l_vert_implicit_fac,
+                                                      l_use_ysu_mom_cg);
 #ifdef ERF_IMPLICIT_W
-                            ImplicitDiffForMomLU_T<2>(tbz, fine_geom.Domain(), level, slow_dt,
+                            ImplicitDiffForMomLU_T<2>(tbz, fine_geom.Domain(), level, stage_dt,
                                                       cell_data, rho_w, tau33, tau33_corr,
                                                       z_nd_arr, detJ_arr, dxInv,
                                                       mu_turb, solverChoice,
-                                                      bc_ptr_h, l_use_SurfLayer, l_vert_implicit_fac);
+                                                      bc_ptr_h, l_use_SurfLayer, l_vert_implicit_fac,
+                                                      l_use_ysu_mom_cg);
 #endif
                         }
                     } else { // no terrain
                         if (l_do_implicit_theta) {
                             ImplicitDiffForStateLU_N(bx, fine_geom.Domain(), level, RhoTheta_comp,
-                                                     slow_dt, l_bc_neumann_vals_d, cell_data,
+                                                     stage_dt, l_bc_neumann_vals_d, cell_data,
                                                      dxInv, hfx_z, mu_turb, solverChoice,
-                                                     bc_ptr_h, l_use_SurfLayer, l_vert_implicit_fac);
+                                                     bc_ptr_h, l_use_SurfLayer, l_vert_implicit_fac,
+                                                     l_use_mrf_cg);
                         }
                         if (l_do_implicit_mom) {
-                            ImplicitDiffForMomLU_N<0>(tbx, fine_geom.Domain(), level, slow_dt,
+                            ImplicitDiffForMomLU_N<0>(tbx, fine_geom.Domain(), level, stage_dt,
                                                       cell_data, rho_u, tau13, tau13_corr,
                                                       dxInv,
                                                       mu_turb, solverChoice,
-                                                      bc_ptr_h, l_use_SurfLayer, l_vert_implicit_fac);
+                                                      bc_ptr_h, l_use_SurfLayer, l_vert_implicit_fac,
+                                                      l_use_ysu_mom_cg);
 
-                            ImplicitDiffForMomLU_N<1>(tby, fine_geom.Domain(), level, slow_dt,
+                            ImplicitDiffForMomLU_N<1>(tby, fine_geom.Domain(), level, stage_dt,
                                                       cell_data, rho_v, tau23, tau23_corr,
                                                       dxInv,
                                                       mu_turb, solverChoice,
-                                                      bc_ptr_h, l_use_SurfLayer, l_vert_implicit_fac);
+                                                      bc_ptr_h, l_use_SurfLayer, l_vert_implicit_fac,
+                                                      l_use_ysu_mom_cg);
 #ifdef ERF_IMPLICIT_W
-                            ImplicitDiffForMomLU_N<2>(tbz, fine_geom.Domain(), level, slow_dt,
+                            ImplicitDiffForMomLU_N<2>(tbz, fine_geom.Domain(), level, stage_dt,
                                                       cell_data, rho_w, tau33, tau33_corr,
                                                       dxInv,
                                                       mu_turb, solverChoice,
-                                                      bc_ptr_h, l_use_SurfLayer, l_vert_implicit_fac);
+                                                      bc_ptr_h, l_use_SurfLayer, l_vert_implicit_fac,
+                                                      l_use_ysu_mom_cg);
 #endif
                         }
                     }
