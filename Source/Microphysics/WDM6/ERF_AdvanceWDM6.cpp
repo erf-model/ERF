@@ -554,6 +554,7 @@ void WDM6::Advance(const Real& dt_advance,
     constexpr double xlf0 = static_cast<double>(lat_ice);
     constexpr double den0 = 1.28;
     constexpr double denr = static_cast<double>(rhoh2o);
+    constexpr double dens = static_cast<double>(rhos);
     constexpr double cliq = static_cast<double>(Cp_l);
     constexpr double cice = 2106.0;
     constexpr double psat = 610.78;
@@ -745,6 +746,16 @@ void WDM6::Advance(const Real& dt_advance,
         FArrayBox ngacw_fab(fab_box,1, Arena_Used);
         FArrayBox paacw_fab(fab_box,1, Arena_Used);
         FArrayBox naacw_fab(fab_box,1, Arena_Used);
+        FArrayBox pracs_fab(fab_box,1, Arena_Used);
+        FArrayBox psacr_fab(fab_box,1, Arena_Used);
+        FArrayBox nsacr_fab(fab_box,1, Arena_Used);
+        FArrayBox pgacr_fab(fab_box,1, Arena_Used);
+        FArrayBox ngacr_fab(fab_box,1, Arena_Used);
+        FArrayBox pgacs_fab(fab_box,1, Arena_Used);
+        FArrayBox pseml_fab(fab_box,1, Arena_Used);
+        FArrayBox nseml_fab(fab_box,1, Arena_Used);
+        FArrayBox pgeml_fab(fab_box,1, Arena_Used);
+        FArrayBox ngeml_fab(fab_box,1, Arena_Used);
 
         // Number concentration process rates (WDM6-specific)
         FArrayBox ncauto_fab(fab_box,1, Arena_Used);  // nc lost to autoconversion
@@ -805,6 +816,16 @@ void WDM6::Advance(const Real& dt_advance,
         auto const& ngacw_arr = ngacw_fab.array();
         auto const& paacw_arr = paacw_fab.array();
         auto const& naacw_arr = naacw_fab.array();
+        auto const& pracs_arr = pracs_fab.array();
+        auto const& psacr_arr = psacr_fab.array();
+        auto const& nsacr_arr = nsacr_fab.array();
+        auto const& pgacr_arr = pgacr_fab.array();
+        auto const& ngacr_arr = ngacr_fab.array();
+        auto const& pgacs_arr = pgacs_fab.array();
+        auto const& pseml_arr = pseml_fab.array();
+        auto const& nseml_arr = nseml_fab.array();
+        auto const& pgeml_arr = pgeml_fab.array();
+        auto const& ngeml_arr = ngeml_fab.array();
         auto const& ncauto_arr = ncauto_fab.array();
         auto const& ncaccr_arr = ncaccr_fab.array();
         auto const& nrauto_arr = nrauto_fab.array();
@@ -1141,6 +1162,16 @@ void WDM6::Advance(const Real& dt_advance,
                 ngacw_arr(i,j,k) = Real(0.0);
                 paacw_arr(i,j,k) = Real(0.0);
                 naacw_arr(i,j,k) = Real(0.0);
+                pracs_arr(i,j,k) = Real(0.0);
+                psacr_arr(i,j,k) = Real(0.0);
+                nsacr_arr(i,j,k) = Real(0.0);
+                pgacr_arr(i,j,k) = Real(0.0);
+                ngacr_arr(i,j,k) = Real(0.0);
+                pgacs_arr(i,j,k) = Real(0.0);
+                pseml_arr(i,j,k) = Real(0.0);
+                nseml_arr(i,j,k) = Real(0.0);
+                pgeml_arr(i,j,k) = Real(0.0);
+                ngeml_arr(i,j,k) = Real(0.0);
                 ncauto_arr(i,j,k) = Real(0.0);
                 ncaccr_arr(i,j,k) = Real(0.0);
                 nrauto_arr(i,j,k) = Real(0.0);
@@ -3032,6 +3063,166 @@ void WDM6::Advance(const Real& dt_advance,
                             static_cast<double>(ngacw_arr(diag_i,diag_j,diag_k)),
                             static_cast<double>(paacw_arr(diag_i,diag_j,diag_k)),
                             static_cast<double>(naacw_arr(diag_i,diag_j,diag_k)));
+                std::fflush(stdout);
+            }
+#endif
+
+#if !defined(AMREX_USE_GPU)
+            if (microphysics_debug > 0 && diag_col_in_tile) {
+                const Real diag_supcol = Real(t0c) - t_arr(diag_i,diag_j,diag_k);
+                std::printf("WDM6-CPP_PRE_G13D %3d %24.16E %24.16E %24.16E %24.16E %24.16E %24.16E %24.16E\n",
+                            diag_k + 1,
+                            static_cast<double>(qr_arr(diag_i,diag_j,diag_k)),
+                            static_cast<double>(qs_arr(diag_i,diag_j,diag_k)),
+                            static_cast<double>(qg_arr(diag_i,diag_j,diag_k)),
+                            static_cast<double>(nr_arr(diag_i,diag_j,diag_k)),
+                            static_cast<double>(paacw_arr(diag_i,diag_j,diag_k)),
+                            static_cast<double>(t_arr(diag_i,diag_j,diag_k)),
+                            static_cast<double>(diag_supcol));
+                std::fflush(stdout);
+            }
+#endif
+
+            ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+                const Real supcol = Real(t0c) - t_arr(i,j,k);
+                const Real n0sfac = amrex::max(
+                    amrex::min(std::exp(Real(alpha_wdm6) * supcol),
+                               Real(n0smax) / Real(n0s)),
+                    Real(1.0));
+                const Real qr_val = qr_arr(i,j,k);
+                const Real qs_val = qs_arr(i,j,k);
+                const Real qg_val = qg_arr(i,j,k);
+                const Real nr_val = nr_arr(i,j,k);
+                const Real vt2r = pvtr_loc * rslopeb_arr(i,j,k,0) * denfac_arr(i,j,k);
+                const Real vt2s = pvts_loc * rslopeb_arr(i,j,k,1) * denfac_arr(i,j,k);
+                const Real vt2g = pvtg_loc * rslopeb_arr(i,j,k,2) * denfac_arr(i,j,k);
+                const Real qsum = qs_val + qg_val;
+                const Real vt2ave = (qsum > Real(0.0))
+                    ? (vt2s * qs_val + vt2g * qg_val) / qsum
+                    : Real(0.0);
+
+                if (qs_val > Real(qcrmin) && qr_val > Real(qcrmin)) {
+                    if (supcol > Real(0.0)) {
+                        const Real acrfac =
+                            Real(5.0) * rslope3_arr(i,j,k,1) * rslope3_arr(i,j,k,1)
+                          + Real(4.0) * rslope3_arr(i,j,k,1) * rslope2_arr(i,j,k,1)
+                                * rslope_arr(i,j,k,0)
+                          + Real(1.5) * rslope2_arr(i,j,k,1) * rslope2_arr(i,j,k,1)
+                                * rslope2_arr(i,j,k,0);
+                        pracs_arr(i,j,k) = pi_wdm6_loc * pi_wdm6_loc * nr_val * Real(n0s)
+                            * n0sfac * std::abs(vt2r - vt2ave)
+                            * (Real(dens) / den_arr(i,j,k)) * acrfac;
+                        const Real ratio = amrex::min(
+                            amrex::max(Real(0.0), qr_val / qs_val), Real(1.0));
+                        pracs_arr(i,j,k) *= ratio * ratio;
+                        pracs_arr(i,j,k) = amrex::min(pracs_arr(i,j,k), qs_val / dtcld);
+                    }
+
+                    const Real acrfac =
+                        Real(30.0) * rslope3_arr(i,j,k,0) * rslope2_arr(i,j,k,0)
+                            * rslope_arr(i,j,k,1)
+                      + Real(10.0) * rslope2_arr(i,j,k,0) * rslope2_arr(i,j,k,0)
+                            * rslope2_arr(i,j,k,1)
+                      + Real(2.0) * rslope3_arr(i,j,k,0) * rslope3_arr(i,j,k,1);
+                    psacr_arr(i,j,k) = pi_wdm6_loc * pi_wdm6_loc * nr_val * Real(n0s)
+                        * n0sfac * std::abs(vt2ave - vt2r)
+                        * (Real(denr) / den_arr(i,j,k)) * acrfac;
+                    const Real ratio = amrex::min(
+                        amrex::max(Real(0.0), qs_val / qr_val), Real(1.0));
+                    psacr_arr(i,j,k) *= ratio * ratio;
+                    psacr_arr(i,j,k) = amrex::min(psacr_arr(i,j,k), qr_val / dtcld);
+                }
+
+                if (qs_val > Real(qcrmin) && nr_val > Real(nrmin)) {
+                    const Real acrfac =
+                        Real(1.5) * rslope2_arr(i,j,k,0) * rslope_arr(i,j,k,1)
+                      + rslope_arr(i,j,k,0) * rslope2_arr(i,j,k,1)
+                      + Real(0.5) * rslope3_arr(i,j,k,1);
+                    nsacr_arr(i,j,k) = pi_wdm6_loc * nr_val * Real(n0s) * n0sfac
+                        * std::abs(vt2ave - vt2r) * acrfac;
+                    const Real ratio = amrex::min(
+                        amrex::max(Real(0.0), qs_val / qr_val), Real(1.0));
+                    nsacr_arr(i,j,k) *= ratio * ratio;
+                    nsacr_arr(i,j,k) = amrex::min(nsacr_arr(i,j,k), nr_val / dtcld);
+                }
+
+                if (qg_val > Real(qcrmin) && qr_val > Real(qcrmin)) {
+                    const Real acrfac =
+                        Real(30.0) * rslope3_arr(i,j,k,0) * rslope2_arr(i,j,k,0)
+                            * rslope_arr(i,j,k,2)
+                      + Real(10.0) * rslope2_arr(i,j,k,0) * rslope2_arr(i,j,k,0)
+                            * rslope2_arr(i,j,k,2)
+                      + Real(2.0) * rslope3_arr(i,j,k,0) * rslope3_arr(i,j,k,2);
+                    pgacr_arr(i,j,k) = pi_wdm6_loc * pi_wdm6_loc * nr_val * n0g_loc
+                        * std::abs(vt2ave - vt2r) * (Real(denr) / den_arr(i,j,k))
+                        * acrfac;
+                    const Real ratio = amrex::min(
+                        amrex::max(Real(0.0), qg_val / qr_val), Real(1.0));
+                    pgacr_arr(i,j,k) *= ratio * ratio;
+                    pgacr_arr(i,j,k) = amrex::min(pgacr_arr(i,j,k), qr_val / dtcld);
+                }
+
+                if (qg_val > Real(qcrmin) && nr_val > Real(nrmin)) {
+                    const Real acrfac =
+                        Real(1.5) * rslope2_arr(i,j,k,0) * rslope_arr(i,j,k,2)
+                      + rslope_arr(i,j,k,0) * rslope2_arr(i,j,k,2)
+                      + Real(0.5) * rslope3_arr(i,j,k,2);
+                    ngacr_arr(i,j,k) = pi_wdm6_loc * nr_val * n0g_loc
+                        * std::abs(vt2ave - vt2r) * acrfac;
+                    const Real ratio = amrex::min(
+                        amrex::max(Real(0.0), qg_val / qr_val), Real(1.0));
+                    ngacr_arr(i,j,k) *= ratio * ratio;
+                    ngacr_arr(i,j,k) = amrex::min(ngacr_arr(i,j,k), nr_val / dtcld);
+                }
+
+                if (qg_val > Real(qcrmin) && qs_val > Real(qcrmin)) {
+                    pgacs_arr(i,j,k) = Real(0.0);
+                }
+
+                if (supcol <= Real(0.0)) {
+                    const Real xlf = Real(xlf0);
+                    if (qs_val > Real(0.0)) {
+                        pseml_arr(i,j,k) = amrex::min(
+                            amrex::max(
+                                Real(cliq) * supcol
+                                    * (paacw_arr(i,j,k) + psacr_arr(i,j,k)) / xlf,
+                                -qs_val / dtcld),
+                            Real(0.0));
+                    }
+                    if (qs_val > Real(qcrmin)) {
+                        const Real sfac = rslope_arr(i,j,k,1) * Real(n0s) * n0sfac / qs_val;
+                        nseml_arr(i,j,k) = -sfac * pseml_arr(i,j,k);
+                    }
+
+                    if (qg_val > Real(0.0)) {
+                        pgeml_arr(i,j,k) = amrex::min(
+                            amrex::max(
+                                Real(cliq) * supcol
+                                    * (paacw_arr(i,j,k) + pgacr_arr(i,j,k)) / xlf,
+                                -qg_val / dtcld),
+                            Real(0.0));
+                    }
+                    if (qg_val > Real(qcrmin)) {
+                        const Real gfac = rslope_arr(i,j,k,2) * n0g_loc / qg_val;
+                        ngeml_arr(i,j,k) = -gfac * pgeml_arr(i,j,k);
+                    }
+                }
+            });
+
+#if !defined(AMREX_USE_GPU)
+            if (microphysics_debug > 0 && diag_col_in_tile) {
+                std::printf("WDM6-CPP_POST_G13D %3d %24.16E %24.16E %24.16E %24.16E %24.16E %24.16E %24.16E %24.16E %24.16E %24.16E\n",
+                            diag_k + 1,
+                            static_cast<double>(pracs_arr(diag_i,diag_j,diag_k)),
+                            static_cast<double>(psacr_arr(diag_i,diag_j,diag_k)),
+                            static_cast<double>(nsacr_arr(diag_i,diag_j,diag_k)),
+                            static_cast<double>(pgacr_arr(diag_i,diag_j,diag_k)),
+                            static_cast<double>(ngacr_arr(diag_i,diag_j,diag_k)),
+                            static_cast<double>(pgacs_arr(diag_i,diag_j,diag_k)),
+                            static_cast<double>(pseml_arr(diag_i,diag_j,diag_k)),
+                            static_cast<double>(nseml_arr(diag_i,diag_j,diag_k)),
+                            static_cast<double>(pgeml_arr(diag_i,diag_j,diag_k)),
+                            static_cast<double>(ngeml_arr(diag_i,diag_j,diag_k)));
                 std::fflush(stdout);
             }
 #endif

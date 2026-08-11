@@ -2046,8 +2046,13 @@
           paacw(i_dbg_local,kts), naacw(i_dbg_local,kts)
       endif
 
-
-
+      if (debug_local .gt. 0 .and. i_dbg_local .ge. its .and. i_dbg_local .le. ite) then
+        write(*,'(A,1X,I3,7(1X,ES24.16E3))') &
+          'WDM6-FORT_PRE_G13D', kts, &
+          qrs(i_dbg_local,kts,1), qrs(i_dbg_local,kts,2), qrs(i_dbg_local,kts,3), &
+          ncr(i_dbg_local,kts,3), paacw(i_dbg_local,kts), t(i_dbg_local,kts), &
+          t0c-t(i_dbg_local,kts)
+      endif
 
           if(qrs(i,k,2).gt.qcrmin .and. qrs(i,k,1).gt.qcrmin) then
             if(supcol.gt.0) then
@@ -2154,6 +2159,14 @@
                 ngeml(i,k) = -gfac*pgeml(i,k)
               endif
           endif
+      if (debug_local .gt. 0 .and. i_dbg_local .ge. its .and. i_dbg_local .le. ite) then
+        write(*,'(A,1X,I3,10(1X,ES24.16E3))') &
+          'WDM6-FORT_POST_G13D', kts, &
+          pracs(i_dbg_local,kts), psacr(i_dbg_local,kts), nsacr(i_dbg_local,kts), &
+          pgacr(i_dbg_local,kts), ngacr(i_dbg_local,kts), pgacs(i_dbg_local,kts), &
+          pseml(i_dbg_local,kts), nseml(i_dbg_local,kts), pgeml(i_dbg_local,kts), &
+          ngeml(i_dbg_local,kts)
+      endif
           if(supcol.gt.0) then
 
 
