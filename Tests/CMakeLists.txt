@@ -74,6 +74,16 @@ if(ERF_ENABLE_TESTS)
   set(ANELASTIC_WALL_DIFFUSION_CHECKER
       "${CMAKE_CURRENT_BINARY_DIR}/erf_anelastic_wall_diffusion_check${CMAKE_EXECUTABLE_SUFFIX}")
 
+  # Regression motivation: a z-independent scalar advected by a uniform wind on
+  # a stretched mesh must stay z-independent.  That pins the metric/map-factor
+  # weighting of the substepped mass flux handed to scalar advection.
+  add_executable(erf_column_advection_check
+    ${CMAKE_CURRENT_SOURCE_DIR}/ColumnAdvectionCheck.cpp)
+  target_link_libraries(erf_column_advection_check PRIVATE AMReX::amrex)
+  target_compile_features(erf_column_advection_check PRIVATE cxx_std_17)
+  set(COLUMN_ADVECTION_CHECKER
+      "${CMAKE_CURRENT_BINARY_DIR}/erf_column_advection_check${CMAKE_EXECUTABLE_SUFFIX}")
+
   # Motivation: the chamber regressions must prove the initializer is wired
   # into a real 3-D run and that the SatAdj deck forms finite cloud water.
   add_executable(erf_cloud_chamber_check
@@ -92,6 +102,7 @@ if(ERF_ENABLE_TESTS)
         erf_shoc_mutation_differential
         erf_shoc_gold_differential
         erf_anelastic_wall_diffusion_check
+        erf_column_advection_check
         erf_cloud_chamber_check)
       setup_target_for_cuda_compilation(${_erf_test_tool})
     endforeach()

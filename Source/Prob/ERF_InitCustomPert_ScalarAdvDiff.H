@@ -50,6 +50,13 @@
             state_pert(i, j, k, RhoScalar_comp) = A_0 * fourth * (one + std::cos(PI * std::min(r2d_xz_ell, r0_z) / r0_z));
         } else if (prob_type == 14) {
             state_pert(i, j, k, RhoScalar_comp) = std::cos(PI*x);
+        } else if (prob_type == 15) {
+            // Gaussian in (x,y) that is *independent of z*.  Advected by a uniform
+            // horizontal velocity, the exact solution stays independent of z for all
+            // time, even on a vertically stretched mesh.  Any z-variation that
+            // develops means the time-averaged mass flux handed to scalar advection
+            // is missing its metric / map factor weighting.
+            state_pert(i, j, k, RhoScalar_comp) = A_0 * std::exp(-myhalf*r2d_xy*r2d_xy/(r0*r0));
         } else {
             // Set scalar = A_0 in a ball of radius r0 and 0 elsewhere
             if (r3d < r0) {

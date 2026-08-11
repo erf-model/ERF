@@ -159,6 +159,41 @@ function(add_test_anelastic_wall_diffusion TEST_NAME TEST_AXIS)
         ATTACHED_FILES_ON_FAIL "${test_simulation_log};${test_checker_log}")
 endfunction(add_test_anelastic_wall_diffusion)
 
+# Vertically stretched column-advection property test.  A z-independent Gaussian
+# carried by a uniform horizontal wind has to stay z-independent; the checker
+# owns that oracle so no gold file is needed.
+function(add_test_column_advection TEST_NAME REL_TOLERANCE MIN_AMPLITUDE)
+    set(TEST_FILES_DIR "${TEST_NAME}")
+    setup_test()
+    resolve_test_exe("" "erf_exec" TEST_EXE)
+
+    set(test_input "${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.i")
+    set(test_simulation_log "${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.simulation.log")
+    set(test_checker_log "${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.checker.log")
+    add_test(${TEST_NAME} ${CMAKE_COMMAND}
+        -DMPIEXEC=${MPIEXEC_EXECUTABLE}
+        -DMPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}
+        -DMPIEXEC_PREFLAGS=${MPIEXEC_PREFLAGS}
+        -DNRANKS=${NP}
+        -DTEST_EXE=${TEST_EXE}
+        -DINPUT=${test_input}
+        -DWORKING_DIRECTORY=${CURRENT_TEST_BINARY_DIR}
+        -DSIMULATION_LOG=${test_simulation_log}
+        -DCHECKER_LOG=${test_checker_log}
+        -DCHECKER=${COLUMN_ADVECTION_CHECKER}
+        -DPLOTFILE=${CURRENT_TEST_BINARY_DIR}/plt00040
+        -DREL_TOLERANCE=${REL_TOLERANCE}
+        -DMIN_AMPLITUDE=${MIN_AMPLITUDE}
+        -P ${PROJECT_SOURCE_DIR}/Tests/RunColumnAdvection.cmake)
+    set_tests_properties(${TEST_NAME}
+        PROPERTIES
+        TIMEOUT 900
+        PROCESSORS ${NP}
+        WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
+        LABELS "regression;advection;stretched-mesh"
+        ATTACHED_FILES_ON_FAIL "${test_simulation_log};${test_checker_log}")
+endfunction(add_test_column_advection)
+
 # Checker-driven Stage 1 Cloud Chamber tests.  The short run checks the exact
 # initial conserved-state correction and a bounded early buoyant response;
 # it intentionally avoids a fragile turbulent gold file.
@@ -412,6 +447,7 @@ if(ERF_ENABLE_MPI)
 add_test_anelastic_wall_diffusion(AnelasticWallDiffusion_X 0)
 add_test_anelastic_wall_diffusion(AnelasticWallDiffusion_Y 1)
 add_test_anelastic_wall_diffusion(AnelasticWallDiffusion_Z 2)
+add_test_column_advection(ScalarAdvectionStretchedColumn 1.0e-10 0.5)
 add_test_cloud_chamber(CloudChamber_Dry dry)
 add_test_cloud_chamber_legacy_config(CloudChamber_Legacy_Config)
 add_test_cloud_chamber_budget(CloudChamber_Dry_ThermalBudget thermal_budget CloudChamber_Dry)
