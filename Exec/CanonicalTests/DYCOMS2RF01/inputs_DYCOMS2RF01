@@ -46,7 +46,7 @@ erf.plot_file_1     = plt     # prefix of plotfile name
 erf.plot_int_1      = 1000    # number of timesteps between plotfiles
 erf.plot_vars_1     = density rhotheta x_velocity y_velocity z_velocity pressure temp theta qt \
                       qp qv qc qsat qrain rain_accum super_droplets_moisture_number_density \
-                      rel_humidity super_droplets_moisture_mass_flux_z super_droplets_moisture_sd_number_density qsrc_lw 
+                      rel_humidity super_droplets_moisture_mass_flux_z super_droplets_moisture_sd_number_density qsrc_lw
 
 erf.plotfile_type = "amrex"
 
@@ -77,7 +77,7 @@ erf.rad.datalog = "rad"
 erf.profile_rad_int = 100
 
 # Microphysics INPUTS
-erf.moisture_model = "SuperDroplets" 
+erf.moisture_model = "SuperDroplets"
 
 #sdm parameters
 super_droplets_moisture.initial_distribution_type = "uniform"

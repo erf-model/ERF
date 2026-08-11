@@ -807,7 +807,7 @@ ERF::derive_forcing_profiles_stag(Gpu::HostVector<Real>& h_avg_ttend,  Gpu::Host
     int zdir = 2;
     auto domain = geom[0].Domain();
     int nz = domain.length(2);
-    
+
     // Sum in the horizontal plane
     if (solverChoice.large_scale_forcing) {
         h_avg_ttend   = sumToLine(*lsf_data[lev], 0,1,domain,zdir);
