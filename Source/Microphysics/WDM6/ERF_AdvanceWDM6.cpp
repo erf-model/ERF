@@ -739,6 +739,12 @@ void WDM6::Advance(const Real& dt_advance,
         FArrayBox niacr_fab(fab_box,1, Arena_Used);
         FArrayBox psaci_fab(fab_box,1, Arena_Used);
         FArrayBox pgaci_fab(fab_box,1, Arena_Used);
+        FArrayBox psacw_fab(fab_box,1, Arena_Used);
+        FArrayBox nsacw_fab(fab_box,1, Arena_Used);
+        FArrayBox pgacw_fab(fab_box,1, Arena_Used);
+        FArrayBox ngacw_fab(fab_box,1, Arena_Used);
+        FArrayBox paacw_fab(fab_box,1, Arena_Used);
+        FArrayBox naacw_fab(fab_box,1, Arena_Used);
 
         // Number concentration process rates (WDM6-specific)
         FArrayBox ncauto_fab(fab_box,1, Arena_Used);  // nc lost to autoconversion
@@ -793,6 +799,12 @@ void WDM6::Advance(const Real& dt_advance,
         auto const& niacr_arr = niacr_fab.array();
         auto const& psaci_arr = psaci_fab.array();
         auto const& pgaci_arr = pgaci_fab.array();
+        auto const& psacw_arr = psacw_fab.array();
+        auto const& nsacw_arr = nsacw_fab.array();
+        auto const& pgacw_arr = pgacw_fab.array();
+        auto const& ngacw_arr = ngacw_fab.array();
+        auto const& paacw_arr = paacw_fab.array();
+        auto const& naacw_arr = naacw_fab.array();
         auto const& ncauto_arr = ncauto_fab.array();
         auto const& ncaccr_arr = ncaccr_fab.array();
         auto const& nrauto_arr = nrauto_fab.array();
@@ -872,6 +884,8 @@ void WDM6::Advance(const Real& dt_advance,
         const Real precr2_loc = m_precr2;
         const Real n0g_loc = m_n0g;
         const Real pi_wdm6_loc = m_pi_wdm6;
+        const Real pacrc_loc = m_pacrc;
+        const Real pacrg_loc = m_pacrg;
         const Real g4pbr_loc = m_g4pbr;
         const Real g7pbr_loc = m_g7pbr;
         constexpr Real pfrz1_loc = pfrz1;
@@ -1121,6 +1135,12 @@ void WDM6::Advance(const Real& dt_advance,
                 niacr_arr(i,j,k) = Real(0.0);
                 psaci_arr(i,j,k) = Real(0.0);
                 pgaci_arr(i,j,k) = Real(0.0);
+                psacw_arr(i,j,k) = Real(0.0);
+                nsacw_arr(i,j,k) = Real(0.0);
+                pgacw_arr(i,j,k) = Real(0.0);
+                ngacw_arr(i,j,k) = Real(0.0);
+                paacw_arr(i,j,k) = Real(0.0);
+                naacw_arr(i,j,k) = Real(0.0);
                 ncauto_arr(i,j,k) = Real(0.0);
                 ncaccr_arr(i,j,k) = Real(0.0);
                 nrauto_arr(i,j,k) = Real(0.0);
@@ -2939,6 +2959,83 @@ void WDM6::Advance(const Real& dt_advance,
             }
 #endif
 
+#if !defined(AMREX_USE_GPU)
+            if (microphysics_debug > 0 && diag_col_in_tile) {
+                std::printf("WDM6-CPP_PRE_G13C %3d %24.16E %24.16E %24.16E %24.16E %24.16E\n",
+                            diag_k + 1,
+                            static_cast<double>(qs_arr(diag_i,diag_j,diag_k)),
+                            static_cast<double>(qg_arr(diag_i,diag_j,diag_k)),
+                            static_cast<double>(qc_arr(diag_i,diag_j,diag_k)),
+                            static_cast<double>(nc_arr(diag_i,diag_j,diag_k)),
+                            static_cast<double>(denfac_arr(diag_i,diag_j,diag_k)));
+                std::fflush(stdout);
+            }
+#endif
+
+            ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+                const Real supcol = Real(t0c) - t_arr(i,j,k);
+                const Real n0sfac = amrex::max(
+                    amrex::min(std::exp(Real(alpha_wdm6) * supcol),
+                               Real(n0smax) / Real(n0s)),
+                    Real(1.0));
+                const Real qs_val = qs_arr(i,j,k);
+                const Real qg_val = qg_arr(i,j,k);
+                const Real qc_val = qc_arr(i,j,k);
+                const Real nc_val = nc_arr(i,j,k);
+
+                const Real ratio_s = (qc_val > Real(0.0))
+                    ? amrex::min(amrex::max(Real(0.0), qs_val / qc_val), Real(1.0))
+                    : Real(0.0);
+                const Real ratio_g = (qc_val > Real(0.0))
+                    ? amrex::min(amrex::max(Real(0.0), qg_val / qc_val), Real(1.0))
+                    : Real(0.0);
+
+                if (qs_val > Real(qcrmin) && qc_val > Real(qmin)) {
+                    psacw_arr(i,j,k) = amrex::min(
+                        pacrc_loc * n0sfac * rslope3_arr(i,j,k,1) * rslopeb_arr(i,j,k,1)
+                            * ratio_s * ratio_s * qc_val * denfac_arr(i,j,k),
+                        qc_val / dtcld);
+                }
+                if (qs_val > Real(qcrmin) && nc_val > Real(ncmin)) {
+                    nsacw_arr(i,j,k) = amrex::min(
+                        pacrc_loc * n0sfac * rslope3_arr(i,j,k,1) * rslopeb_arr(i,j,k,1)
+                            * ratio_s * ratio_s * nc_val * denfac_arr(i,j,k),
+                        nc_val / dtcld);
+                }
+                if (qg_val > Real(qcrmin) && qc_val > Real(qmin)) {
+                    pgacw_arr(i,j,k) = amrex::min(
+                        pacrg_loc * rslope3_arr(i,j,k,2) * rslopeb_arr(i,j,k,2)
+                            * qc_val * ratio_g * ratio_g * denfac_arr(i,j,k),
+                        qc_val / dtcld);
+                }
+                if (qg_val > Real(qcrmin) && nc_val > Real(ncmin)) {
+                    ngacw_arr(i,j,k) = amrex::min(
+                        pacrg_loc * rslope3_arr(i,j,k,2) * rslopeb_arr(i,j,k,2)
+                            * nc_val * ratio_g * ratio_g * denfac_arr(i,j,k),
+                        nc_val / dtcld);
+                }
+
+                const Real qsum = amrex::max(qs_val + qg_val, Real(1.0e-15));
+                if (qsum > Real(1.0e-15)) {
+                    paacw_arr(i,j,k) = (qs_val * psacw_arr(i,j,k) + qg_val * pgacw_arr(i,j,k)) / qsum;
+                    naacw_arr(i,j,k) = (qs_val * nsacw_arr(i,j,k) + qg_val * ngacw_arr(i,j,k)) / qsum;
+                }
+            });
+
+#if !defined(AMREX_USE_GPU)
+            if (microphysics_debug > 0 && diag_col_in_tile) {
+                std::printf("WDM6-CPP_POST_G13C %3d %24.16E %24.16E %24.16E %24.16E %24.16E %24.16E\n",
+                            diag_k + 1,
+                            static_cast<double>(psacw_arr(diag_i,diag_j,diag_k)),
+                            static_cast<double>(nsacw_arr(diag_i,diag_j,diag_k)),
+                            static_cast<double>(pgacw_arr(diag_i,diag_j,diag_k)),
+                            static_cast<double>(ngacw_arr(diag_i,diag_j,diag_k)),
+                            static_cast<double>(paacw_arr(diag_i,diag_j,diag_k)),
+                            static_cast<double>(naacw_arr(diag_i,diag_j,diag_k)));
+                std::fflush(stdout);
+            }
+#endif
+
             // ============================================================
             // Step 9: Ice physics (simplified) — remaining processes
             // ============================================================
@@ -2990,16 +3087,37 @@ void WDM6::Advance(const Real& dt_advance,
                     t_arr(i,j,k) -= qmelt * Real(xlf0) / Real(cpd);
                 }
 
-                // Riming: cloud water collected by snow → graupel
-                if (temp < t0c_loc && qs_arr(i,j,k) > Real(1.e-9) && qc_arr(i,j,k) > Real(1.e-9)) {
-                    // Simplified collection
-                    Real qcol = amrex::min(qs_arr(i,j,k) * qc_arr(i,j,k) * Real(10.0) * dtcld, qc_arr(i,j,k));
+                const Real qc_value = amrex::max(qc_arr(i,j,k), Real(qmin));
+                const Real paacw_source = (paacw_arr(i,j,k) + paacw_arr(i,j,k)) * dtcld;
+                if (paacw_source > qc_value) {
+                    const Real factor = qc_value / paacw_source;
+                    paacw_arr(i,j,k) *= factor;
+                }
+
+                const Real nc_value = amrex::max(nc_arr(i,j,k), Real(ncmin));
+                const Real naacw_source = (naacw_arr(i,j,k) + naacw_arr(i,j,k)) * dtcld;
+                if (naacw_source > nc_value) {
+                    const Real factor = nc_value / naacw_source;
+                    naacw_arr(i,j,k) *= factor;
+                }
+
+                if (temp <= t0c_loc) {
+                    const Real qcol = paacw_arr(i,j,k) * dtcld;
+                    const Real ncol = naacw_arr(i,j,k) * dtcld;
+                    const Real xlf = Real(xls) - xl_arr(i,j,k);
+
+                    qc_arr(i,j,k) = amrex::max(qc_arr(i,j,k) - Real(2.0) * qcol, Real(0.0));
+                    qs_arr(i,j,k) += qcol;
                     qg_arr(i,j,k) += qcol;
-                    qc_arr(i,j,k) -= qcol;
-                    // Also remove corresponding cloud droplets
-                    Real ncol = qcol * nc_arr(i,j,k) / amrex::max(qc_arr(i,j,k), Real(1.e-12));
-                    nc_arr(i,j,k) -= amrex::min(ncol, nc_arr(i,j,k));
-                    t_arr(i,j,k) += qcol * Real(xlf0) / Real(cpd);
+                    nc_arr(i,j,k) = amrex::max(nc_arr(i,j,k) - Real(2.0) * ncol, Real(0.0));
+                    t_arr(i,j,k) += Real(2.0) * xlf * qcol / cpm_arr(i,j,k);
+                } else {
+                    const Real qcol = paacw_arr(i,j,k) * dtcld;
+                    const Real ncol = naacw_arr(i,j,k) * dtcld;
+
+                    qc_arr(i,j,k) = amrex::max(qc_arr(i,j,k) - Real(2.0) * qcol, Real(0.0));
+                    qr_arr(i,j,k) += Real(2.0) * qcol;
+                    nc_arr(i,j,k) = amrex::max(nc_arr(i,j,k) - Real(2.0) * ncol, Real(0.0));
                 }
             });
 
