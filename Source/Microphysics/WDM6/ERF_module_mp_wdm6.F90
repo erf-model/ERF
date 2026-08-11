@@ -1877,12 +1877,13 @@
 
 
 
-
-
-
-
-
-
+      if (debug_local .gt. 0 .and. i_dbg_local .ge. its .and. i_dbg_local .le. ite) then
+        write(*,'(A,1X,I3,7(1X,ES24.16E3))') &
+          'WDM6-FORT_PRE_G13B', kts, &
+          t(i_dbg_local,kts), qci(i_dbg_local,kts,2), qrs(i_dbg_local,kts,1), &
+          qrs(i_dbg_local,kts,2), qrs(i_dbg_local,kts,3), &
+          denfac(i_dbg_local,kts), xni(i_dbg_local,kts)
+      endif
 
       do k = kts, kte
         do i = its, ite
@@ -1972,6 +1973,13 @@
 
 
 
+
+      if (debug_local .gt. 0 .and. i_dbg_local .ge. its .and. i_dbg_local .le. ite) then
+        write(*,'(A,1X,I3,5(1X,ES24.16E3))') &
+          'WDM6-FORT_POST_G13B', kts, &
+          praci(i_dbg_local,kts), piacr(i_dbg_local,kts), niacr(i_dbg_local,kts), &
+          psaci(i_dbg_local,kts), pgaci(i_dbg_local,kts)
+      endif
 
           if(qrs(i,k,2).gt.qcrmin .and. qci(i,k,1).gt.qmin) then
             psacw(i,k) = min(pacrc*n0sfac(i,k)*rslope3(i,k,2)*rslopeb(i,k,2)   &
