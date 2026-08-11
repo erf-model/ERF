@@ -21,7 +21,7 @@ foreach(expected IN ITEMS
         "fixed_dt="
         "wall_dt="
         "max_wall_rate="
-        "Cloud Chamber bulk wall timestep exceeds the Lambda <= 0.5 limit")
+        "Cloud Chamber bulk wall timestep exceeds dt_wall = 0.5 / max_wall_rate")
     string(FIND "${output}" "${expected}" position)
     if(position EQUAL -1)
         message(FATAL_ERROR

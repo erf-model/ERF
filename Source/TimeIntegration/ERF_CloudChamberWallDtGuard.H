@@ -27,7 +27,7 @@ enforce_fixed_dt_limit (int level, double fixed_dt, double wall_dt,
                    << ", wall_dt=" << wall_dt
                    << ", max_wall_rate=" << max_wall_rate << std::endl;
     amrex::Abort(
-        "Cloud Chamber bulk wall timestep exceeds the Lambda <= 0.5 limit");
+        "Cloud Chamber bulk wall timestep exceeds dt_wall = 0.5 / max_wall_rate");
 }
 
 } // namespace erf_cloud_chamber_wall_dt_guard

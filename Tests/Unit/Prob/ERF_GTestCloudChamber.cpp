@@ -701,8 +701,8 @@ TEST(CloudChamberWallFlux,
                 scaled_tolerance(Real(2.0) * low_CE));
 }
 
-// Motivation: the single low/high sign adapter and Lambda<=0.5 helper are
-// shared seams; all Cartesian orientations must use the same convention.
+// Motivation: the single low/high sign adapter and dt_wall=0.5/max_rate helper
+// are shared seams; all Cartesian orientations must use the same convention.
 TEST(CloudChamberWallFlux, OrientationAndTimestepAdaptersCoverAllFaces)
 {
     using namespace erf_cloud_chamber_wall_flux;
