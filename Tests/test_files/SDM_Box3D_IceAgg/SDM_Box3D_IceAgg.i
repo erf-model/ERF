@@ -55,7 +55,6 @@ super_droplets_moisture.multiplicity_type             = "constant"
 super_droplets_moisture.aerosols                      = NaCl
 super_droplets_moisture.initial_aerosol_distribution_type_NaCl = "mass_constant"
 super_droplets_moisture.initial_aerosol_mean_mass_NaCl = 1.0e-22
-super_droplets_moisture.species                       = ice
 super_droplets_moisture.initial_species_distribution_type_ice = "mass_exponential"
 super_droplets_moisture.initial_species_mean_mass_ice = 1.19047619e-9
 super_droplets_moisture.ice_apparent_density          = 100.0

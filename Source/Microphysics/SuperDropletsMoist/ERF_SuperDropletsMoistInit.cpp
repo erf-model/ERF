@@ -1,3 +1,5 @@
+#include <algorithm>
+
 #include "ERF_SuperDropletsMoist.H"
 #include "ERF_MaterialProperties.H"
 
@@ -92,6 +94,11 @@ void SuperDropletsMoist::readInputs ()
         Species::Name sp_name;
         for (int i = 0; i < num_species; i++) {
             pp.get(species_input.c_str(), sp_name, i);
+            // water and, with cold processes, ice are already present
+            if (std::find(m_species.begin(), m_species.end(), sp_name) != m_species.end()) {
+                amrex::Abort("SuperDropletsMoist: species "+amrex::getEnumNameString(sp_name)
+                             +" is already modeled; remove it from super_droplets_moisture.species");
+            }
             m_species.push_back(sp_name);
         }
     }
