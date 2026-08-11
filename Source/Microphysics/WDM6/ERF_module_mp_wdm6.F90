@@ -2167,6 +2167,13 @@
           pseml(i_dbg_local,kts), nseml(i_dbg_local,kts), pgeml(i_dbg_local,kts), &
           ngeml(i_dbg_local,kts)
       endif
+      if (debug_local .gt. 0 .and. i_dbg_local .ge. its .and. i_dbg_local .le. ite) then
+        write(*,'(A,1X,I3,7(1X,ES24.16E3))') &
+          'WDM6-FORT_PRE_G13E', kts, &
+          qci(i_dbg_local,kts,2), qrs(i_dbg_local,kts,2), qrs(i_dbg_local,kts,3), &
+          prevp(i_dbg_local,kts), rh(i_dbg_local,kts,2), t0c-t(i_dbg_local,kts), &
+          max(q(i_dbg_local,kts),qmin)-qs(i_dbg_local,kts,2)
+      endif
           if(supcol.gt.0) then
 
 
@@ -2229,6 +2236,12 @@
               pigen(i,k) = max(0.,(roqi0/den(i,k)-max(qci(i,k,2),0.))/dtcld)
               pigen(i,k) = min(min(pigen(i,k),satdt),supice)
             endif
+      if (debug_local .gt. 0 .and. i_dbg_local .ge. its .and. i_dbg_local .le. ite) then
+        write(*,'(A,1X,I3,4(1X,ES24.16E3))') &
+          'WDM6-FORT_POST_G13E', kts, &
+          pidep(i_dbg_local,kts), psdep(i_dbg_local,kts), &
+          pgdep(i_dbg_local,kts), pigen(i_dbg_local,kts)
+      endif
 
 
 
