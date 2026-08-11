@@ -253,9 +253,9 @@ SHOCInterface::alloc_buffers ()
     // Tracer data structures
     //=======================================================
     // NOTE: Use layoutright format
-    Kokkos::LayoutStride layout(m_num_cols   , m_num_cols*m_num_layers,   // stride for dim0
-                                m_num_layers , m_num_layers,              // stride for dim1
-                                m_num_tracers, 1                          // stride for dim2
+    Kokkos::LayoutStride layout(m_num_cols   , m_num_tracers*m_num_layers, // stride for dim0
+                                m_num_tracers, m_num_layers,               // stride for dim1
+                                m_num_layers , 1                           // stride for dim2
                                 );
     qtracers             = view_3d_strided("Qtracers"  , layout);
 
