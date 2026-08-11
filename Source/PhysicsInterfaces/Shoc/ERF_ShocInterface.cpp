@@ -474,11 +474,13 @@ SHOCInterface::mf_to_kokkos_buffers ()
                 // No unit conversion to W/m^2 (ERF_ShocInterface.H L224)
                 surf_sens_flux_d(icol)   = hfx3_arr(ii,jj,k);
                 surf_evap_d(icol)        = (moist) ? qfx3_arr(ii,jj,k) : Real(0.);
-                // Back out the drag coeff
+                // EAMxx TMS expects rho * Cd * |U| [kg/(m^2 s)]. Back it out
+                // from the conservative surface-stress and wind magnitudes.
                 Real wsp = std::sqrt( horiz_wind_d(icol,0,ilay)[0]*horiz_wind_d(icol,0,ilay)[0]
                                + horiz_wind_d(icol,1,ilay)[0]*horiz_wind_d(icol,1,ilay)[0] );
-                surf_drag_coeff_tms_d(icol) = surf_mom_flux_d(icol,0) /
-                                              (-r * wsp * horiz_wind_d(icol,0,ilay)[0]);
+                Real stress_mag = std::sqrt( surf_mom_flux_d(icol,0)*surf_mom_flux_d(icol,0)
+                                           + surf_mom_flux_d(icol,1)*surf_mom_flux_d(icol,1) );
+                surf_drag_coeff_tms_d(icol) = (wsp > Real(1.0e-8)) ? stress_mag / wsp : Real(0.);
             }
             T_mid_d(icol,ilay)          = getTgivenRandRTh(r, rt, qv);
             qv_d(icol,ilay)             = qv;
