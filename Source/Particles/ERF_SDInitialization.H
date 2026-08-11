@@ -658,7 +658,7 @@ class SDInjection : public SDInitProperties
             // Specified number of super-droplets per cell (m_ppc) or from the SD rate.
             Real num_sd;
             if (m_sd_inj_rate > 0) {
-                num_sd = std::max(std::round(m_sd_inj_rate * a_dt * m_cell_volume), one);
+                num_sd = std::max(Real(std::round(m_sd_inj_rate * a_dt * m_cell_volume)), one);
             } else {
                 num_sd = std::max(Real(m_ppc), one);
             }
