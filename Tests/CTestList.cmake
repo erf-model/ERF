@@ -271,6 +271,23 @@ function(add_test_cloud_chamber_legacy_config TEST_NAME)
         ATTACHED_FILES_ON_FAIL "${test_log};${output_artifact}")
 endfunction(add_test_cloud_chamber_legacy_config)
 
+# Regression motivation: this expected-failure test locks the host safety
+# contract that rejects fixed_dt > dt_wall and verifies the user diagnostic.
+function(add_test_cloud_chamber_fixed_dt_guard TEST_NAME)
+    set(test_log "${CMAKE_CURRENT_BINARY_DIR}/${TEST_NAME}.log")
+    add_test(${TEST_NAME} ${CMAKE_COMMAND}
+        -DTEST_EXE=${CLOUD_CHAMBER_WALL_DT_GUARD_CHECK}
+        -DLOG=${test_log}
+        -P ${PROJECT_SOURCE_DIR}/Tests/RunCloudChamberWallDtGuardFailure.cmake)
+    set_tests_properties(${TEST_NAME}
+        PROPERTIES
+        TIMEOUT 120
+        PROCESSORS 1
+        WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/"
+        LABELS "regression;cloud-chamber;configuration"
+        ATTACHED_FILES_ON_FAIL "${test_log}")
+endfunction(add_test_cloud_chamber_fixed_dt_guard)
+
 function(add_test_cloud_chamber_openmp TEST_NAME)
     set(TEST_FILES_DIR "CloudChamber_SatAdj")
     if (ARGC GREATER 1)
@@ -413,6 +430,8 @@ function(add_test_shoc_mutation TEST_NAME MUTATION_OPTION TARGET_FIELD
         LABELS "regression;shoc;mutation"
         ATTACHED_FILES_ON_FAIL "${_baseline_log};${_mutant_log}")
 endfunction(add_test_shoc_mutation)
+
+add_test_cloud_chamber_fixed_dt_guard(CloudChamber_Bulk_FixedDtGuard)
 
 if(ERF_ENABLE_MPI)
 add_test_anelastic_wall_diffusion(AnelasticWallDiffusion_X 0)

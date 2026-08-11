@@ -1,6 +1,7 @@
 #include <ERF_EOS.H>
 #include <ERF.H>
 #include "Diffusion/ERF_CloudChamberWallFlux.H"
+#include "TimeIntegration/ERF_CloudChamberWallDtGuard.H"
 
 using namespace amrex;
 
@@ -311,13 +312,8 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
      estdt_lowM = std::min(estdt_lowM, estdt_wall_host);
 
      const double fixed_dt_level = static_cast<double>(fixed_dt[level]);
-     if (fixed_dt_level > 0.0 && fixed_dt_level > estdt_wall_host) {
-         Print() << "Cloud Chamber bulk wall timestep violation at level " << level
-                 << ": fixed_dt=" << fixed_dt[level]
-                 << ", wall_dt=" << estdt_wall_host
-                 << ", max_wall_rate=" << max_wall_rate << std::endl;
-         Abort("Cloud Chamber bulk wall timestep exceeds the Lambda <= 0.5 limit");
-     }
+     erf_cloud_chamber_wall_dt_guard::enforce_fixed_dt_limit(
+         level, fixed_dt_level, estdt_wall_host, max_wall_rate);
 
      // Additional vertical diagnostics
      if (l_comp_substepping_diag) {

@@ -294,88 +294,304 @@ wet vapor requires:
    <face>.coefficient_source = fixed
    <face>.C_H = 0.1
 
-``bulk_aero`` uses the local tangent speed reconstructed from ERF's staggered
-velocity arrays.  The normal velocity is removed, wall velocity metadata is
-currently zero.  Thus ``U_t = 0`` gives exactly zero bulk heat and vapor flux;
-there is no hidden gustiness or free-convection velocity floor.
-``C_H`` and ``C_E`` are dimensionless fixed bulk transfer coefficients; no
-coefficient clamping is performed.  A future MOST/law-of-the-wall provider is
-represented in the metadata architecture but is rejected as an unsupported
-production input.  Roughness, ``z0``, ``z0_m``, ``z0_h``, ``z0_q``, drag, and
-MOST keys are likewise rejected until a complete provider is implemented.
+Scalar wall-transfer equations
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-.. list-table:: Wall transfer contract
+The Cloud Chamber wall evaluator defines physical scalar fluxes as positive
+**into the chamber fluid**.  Let :math:`\rho` be the adjacent-cell density,
+:math:`T_w` the prescribed wall temperature, :math:`p_\mathrm{hse}` the
+adjacent hydrostatic base-state pressure, and :math:`\Delta n` the cell width
+normal to the wall.  ERF potential temperature uses
+
+.. math::
+
+   \Pi = \left(\frac{p_\mathrm{hse}}{p_\mathrm{ref}}\right)^{R_d/c_p},
+   \qquad
+   \theta_w = \frac{T_w}{\Pi}
+   = T_w\left(\frac{p_\mathrm{ref}}{p_\mathrm{hse}\right)^{R_d/c_p}.
+
+For the stationary Stage 1 wall, the bulk model uses the local tangential
+relative velocity reconstructed from ERF's staggered velocity fields,
+
+.. math::
+
+   \mathbf{u}_t =
+   (\mathbf{I}-\mathbf{n}\mathbf{n}^T)(\mathbf{u}_c-\mathbf{u}_w),
+   \qquad
+   U_t = |\mathbf{u}_t|,
+   \qquad
+   \mathbf{u}_w = 0.
+
+The normal velocity is removed before :math:`U_t` is formed.
+
+For ``heat_transfer_model = resolved_molecular``, the existing half-cell
+resolved transfer is
+
+.. math::
+
+   J_{\rho\theta,\mathrm{in}}
+   = \rho\,\alpha_T\,(\theta_w-\theta_a)\frac{2}{\Delta n}.
+
+For ``heat_transfer_model = bulk_aero`` with
+``coefficient_source = fixed``, ERF applies
+
+.. math::
+
+   J_{\rho\theta,\mathrm{in}}
+   = \rho\,C_H\,U_t\,(\theta_w-\theta_a).
+
+``C_H`` is dimensionless.  The equivalent inward sensible-heat flux is
+
+.. math::
+
+   H_\mathrm{in} = \rho c_p C_H U_t(T_w-T_a),
+
+and, because :math:`T=\Pi\theta`, the conserved potential-temperature flux
+satisfies
+
+.. math::
+
+   J_{\rho\theta,\mathrm{in}}
+   = \frac{H_\mathrm{in}}{c_p\Pi}.
+
+The bulk heat model therefore replaces the physical boundary flux of ERF's
+conserved ``rhoTheta`` scalar; it is not inserted as an independent energy
+source term.
+
+Cloud Chamber ``qv`` and ``qc`` are mixing ratios relative to dry air, not
+specific humidity.  For a wet wall with
+``vapor_transfer_model = resolved_molecular``,
+
+.. math::
+
+   J_{\rho q_v,\mathrm{in}}
+   = \rho\,\alpha_C\,
+     [q_\mathrm{sat}(T_w,p_\mathrm{hse})-q_{v,a}]
+     \frac{2}{\Delta n}.
+
+For a wet wall with ``vapor_transfer_model = bulk_aero`` and
+``coefficient_source = fixed``,
+
+.. math::
+
+   J_{\rho q_v,\mathrm{in}}
+   = \rho\,C_E\,U_t\,
+     [q_\mathrm{sat}(T_w,p_\mathrm{hse})-q_{v,a}].
+
+``C_E`` is dimensionless.  Positive vapor flux adds vapor to the chamber;
+negative vapor flux removes vapor at the wall.
+
+For ``moisture = dry``, vapor impermeability is exact,
+
+.. math::
+
+   J_{\rho q_v,\mathrm{in}} = 0,
+
+and this is not a ``qv_wall = 0`` Dirichlet condition.  For every supported
+Stage 1 wall, cloud-water transfer is also exactly zero,
+
+.. math::
+
+   J_{\rho q_c,\mathrm{in}} = 0.
+
+The dry-qv and qc zero-flux gates are applied before saturation or bulk
+coefficient arithmetic.
+
+For fixed ``bulk_aero``, :math:`U_t=0` gives exactly zero bulk heat and vapor
+flux.  This implementation does not add a hidden minimum speed, gustiness
+velocity, or free-convection term.  The model is therefore a
+**forced/shear-dependent transfer closure**, not a complete natural- or
+mixed-convection wall correlation.  This feature does not calibrate ``C_H``
+or ``C_E`` for a Pi-Chamber or any other laboratory facility.  Numeric values
+in regression inputs are software test parameters, not physical
+recommendations.
+
+ERF stores face flux in the positive coordinate direction.  The single
+low/high storage adapter is
+
+.. math::
+
+   F_\mathrm{coord} =
+   \begin{cases}
+      +J_\mathrm{in}, & \text{low face},\\
+      -J_\mathrm{in}, & \text{high face}.
+   \end{cases}
+
+Thus a high-face chamber influx is stored as a negative coordinate flux.
+Cloud Chamber budgets use the matching low-minus-high convention.  The
+retained physical face flux is the same value used by the RHS correction and
+the budget; the budget does not recompute a separate wall model.
+
+Per-face input contract
+~~~~~~~~~~~~~~~~~~~~~~~
+
+The face prefix is one of ``xlo``, ``xhi``, ``ylo``, ``yhi``, ``zlo``, or
+``zhi``.  The following table describes the physical-temperature Cloud
+Chamber path.
+
+.. list-table:: Cloud Chamber physical-wall input contract
    :header-rows: 1
-   :widths: 14 25 28 20 13
 
-   * - Wall mode
-     - Thermal transfer
-     - Vapor transfer
-     - Cloud-water transfer
-     - Allowed modes
-   * - ``dry`` + ``resolved_molecular`` heat
-     - ``alpha_T``
-     - Exactly zero
-     - Exactly zero
-     - Dry or SatAdj
-   * - ``dry`` + ``bulk_aero`` heat
-     - ``C_H`` and ``U_t``
-     - Exactly zero
-     - Exactly zero
-     - Dry or SatAdj
-   * - ``wet`` + ``resolved_molecular`` vapor
-     - ``alpha_T`` for resolved heat; ``C_H`` and ``U_t`` for bulk heat
-     - ``alpha_C`` with saturation at wall temperature
-     - Exactly zero
-     - SatAdj only
-   * - ``wet`` + ``bulk_aero`` vapor
-     - ``C_H`` and ``U_t`` for bulk heat, or ``alpha_T`` if resolved
-     - ``C_E`` and ``U_t``
-     - Exactly zero
-     - SatAdj only
+   * - Key
+     - Type
+     - Units
+     - Default if omitted
+     - Valid values/domain
+     - Required when
+     - Invalid/unsupported combinations
+   * - ``<face>.type``
+     - string
+     - --
+     - none
+     - ``NoSlipWall`` only
+     - every face
+     - any other wall type
+   * - ``<face>.temperature``
+     - real
+     - K
+     - none
+     - finite and greater than zero
+     - every physical face
+     - legacy ``theta``/``qv`` wall keys in physical mode
+   * - ``<face>.moisture``
+     - string
+     - --
+     - none
+     - ``dry`` or ``wet``
+     - every physical face
+     - ``wet`` without ``erf.moisture_model = SatAdj``
+   * - ``<face>.wall_transfer_model``
+     - string
+     - --
+     - omitted; resolved behavior remains the effective default
+     - ``resolved_molecular`` only
+     - legacy aggregate syntax only
+     - cannot coexist with any per-channel model/coefficient key on the same face
+   * - ``<face>.momentum_transfer_model``
+     - string
+     - --
+     - ``resolved_noslip``
+     - ``resolved_noslip`` only
+     - optional explicit declaration
+     - bulk momentum, law-wall, or other values are unsupported
+   * - ``<face>.heat_transfer_model``
+     - string
+     - --
+     - ``resolved_molecular``
+     - ``resolved_molecular`` or ``bulk_aero``
+     - optional
+     - ``bulk_aero`` requires fixed coefficient source and ``C_H``
+   * - ``<face>.vapor_transfer_model``
+     - string
+     - --
+     - ``resolved_molecular``
+     - ``resolved_molecular`` or ``bulk_aero``
+     - optional
+     - ``bulk_aero`` requires fixed coefficient source and ``C_E``; a dry wall still has exact zero vapor flux
+   * - ``<face>.coefficient_source``
+     - string
+     - --
+     - omitted
+     - ``fixed`` only
+     - at least one scalar channel on that face is ``bulk_aero``
+     - rejected when no bulk scalar channel is active; MOST is unsupported
+   * - ``<face>.C_H``
+     - real
+     - dimensionless
+     - no physical default
+     - finite and nonnegative
+     - heat model is ``bulk_aero``
+     - rejected if heat is not bulk
+   * - ``<face>.C_E``
+     - real
+     - dimensionless
+     - no physical default
+     - finite and nonnegative
+     - vapor model is ``bulk_aero``
+     - rejected if vapor is not bulk
+   * - ``<face>.velocity``
+     - array
+     - m s\ :sup:`-1`
+     - zero internally
+     - unsupported input in Stage 1
+     - never
+     - moving-wall metadata is rejected
+   * - roughness / ``z0`` / ``z0_m`` / ``z0_h`` / ``z0_q``
+     - real
+     - m
+     - none
+     - unsupported in Cloud Chamber Stage 1
+     - never
+     - rejected
+   * - ``<face>.C_D``
+     - real
+     - dimensionless
+     - none
+     - unsupported
+     - never
+     - rejected
+   * - MOST-related Cloud Chamber face inputs
+     - various
+     - --
+     - none
+     - unsupported
+     - never
+     - rejected
 
-A wet wall uses saturation at the configured wall temperature and the
-adjacent fluid-cell HSE pressure.  The wall-normal flux is computed using the
-half-cell distance between the cell center and the wall.
+Do not mix the legacy aggregate key with per-channel keys on the same face.
+For example, this is invalid:
 
-All wall evaluators use inward-positive physical fluxes.  The common
-low/high adapter converts that value once to ERF's coordinate-positive stored
-face flux: low faces retain the sign and high faces negate it.  The retained
-flux is also the value used by the RHS correction and by the budget, so a
-budget reports the same wall flux that advanced the state.
+.. code-block:: none
+
+   zlo.wall_transfer_model = resolved_molecular
+   zlo.heat_transfer_model = bulk_aero
+
+Choose either the retained aggregate resolved syntax or the per-channel
+syntax.
+
+A future Cloud Chamber-specific MOST coefficient provider is represented only
+by the internal ``CoefficientProvider::MOSTFuture`` metadata placeholder.  It
+is not parser-selectable, has no active Cloud Chamber runtime dispatch, and
+has not been validated by this feature.  This placeholder does not describe
+or alter ERF's existing atmospheric SurfaceLayer MOST implementation.
+Cloud Chamber MOST, roughness, bulk-momentum, and law-of-the-wall inputs remain
+unsupported and are rejected.
 
 .. warning::
 
    Treat ``alpha_T`` and ``alpha_C`` as prescribed resolved-transfer
    coefficients, not calibrated molecular-property values or engineering
-   wall-law coefficients.  Bulk coefficients are separately named ``C_H``
-   and ``C_E`` and must be finite and nonnegative.
+   wall-law coefficients.  ``C_H`` and ``C_E`` are user-supplied,
+   dimensionless bulk coefficients.  They must be finite and nonnegative,
+   but this feature does not provide calibrated or recommended physical
+   values.
 
 Bulk wall-rate timestep guard
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-When any active wall channel uses ``bulk_aero``, ERF estimates the maximum
-boundary rate.  Only physical-boundary cells contribute to the maximum wall
-rate; the implementation may inspect valid cells and filter them by the
-physical boundary.
+When any active scalar wall channel uses ``bulk_aero``, ERF estimates the
+maximum physical-boundary relaxation rate
 
 .. math::
 
-   \Lambda = \max_f\left(C_f U_{t,f}\,\Delta x_f^{-1}\right)
+   \lambda_\mathrm{max}
+   = \max_f\left(C_f U_{t,f}\,\Delta n_f^{-1}\right)
 
-over physical boundary cells only and enforces
-``dt_wall = 0.5 / Lambda``.  Adaptive stepping takes the minimum of the
-ordinary CFL estimate and ``dt_wall``.  A fixed ``erf.fixed_dt`` larger than
-the guard aborts at timestep estimation with the measured rate and limit;
-there is no silent coefficient or timestep clamp.
+for active bulk heat and wet bulk-vapor channels.  Dry vapor is excluded from
+the wall-rate scan because its wall flux is exactly zero.  The explicit wall
+guard uses
 
-Flux orientation
-~~~~~~~~~~~~~~~~
+.. math::
 
-A positive stored face flux is positive in the coordinate direction, not
-necessarily into the chamber.  Low-face fluxes point into the domain when
-positive; high-face fluxes point into the domain when negative.  The reported
-net boundary contribution therefore uses low minus high for each axis.
+   dt_\mathrm{wall} = \frac{0.5}{\lambda_\mathrm{max}}.
+
+The value 0.5 is an engineering safety factor for the explicit wall
+relaxation, not a physical constant and not a proof of stability of the fully
+coupled ERF operator.  Adaptive stepping takes the minimum of the ordinary ERF
+limits and ``dt_wall``.  A positive fixed ``erf.fixed_dt`` larger than the
+wall limit aborts with the measured ``fixed_dt``, ``wall_dt``, and
+``max_wall_rate``.  ERF does not silently clip ``C_H``, ``C_E``, or the
+requested fixed timestep.
 
 Conserved-scalar budgets
 ------------------------

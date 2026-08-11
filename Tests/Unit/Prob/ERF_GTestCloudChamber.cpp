@@ -570,6 +570,137 @@ TEST(CloudChamberWallFlux, GeneralizedApplyActivatesBulkFluxAndRhsCorrection)
                 scaled_tolerance(doubled_bulk));
 }
 
+// Motivation: the wet vapor path must prove that selected bulk_aero dispatch
+// reaches the real face-replacement seam. A resolved fallback can be nonzero
+// and conservative, so a generic wet-budget activation check is insufficient.
+// Exercise one face at a time so the seeded old-flux term cannot cancel from
+// the RHS oracle, then require the C_E factor-of-two response.
+TEST(CloudChamberWallFlux,
+     GeneralizedApplyActivatesWetBulkVaporFluxAndRhsCorrection)
+{
+    using amrex::Box;
+    using amrex::BoxArray;
+    using amrex::DistributionMapping;
+    using amrex::IntVect;
+    using amrex::MultiFab;
+    using namespace erf_cloud_chamber_wall_flux;
+
+    const Box domain(IntVect(0), IntVect(0));
+    const BoxArray ba(domain);
+    const DistributionMapping dm(ba);
+    MultiFab state(ba, dm, RhoQ2_comp + 1, 0);
+    MultiFab prim(ba, dm, PrimQ2_comp + 1, 0);
+    MultiFab base(ba, dm, BaseState::num_comps, 0);
+    MultiFab rhs(ba, dm, RhoQ2_comp + 1, 0);
+    BoxArray xba(ba); xba.surroundingNodes(0);
+    BoxArray yba(ba); yba.surroundingNodes(1);
+    BoxArray zba(ba); zba.surroundingNodes(2);
+    MultiFab xflux(xba, dm, 1, 0);
+    MultiFab yflux(yba, dm, 1, 0);
+    MultiFab zflux(zba, dm, 1, 0);
+    MultiFab u(xba, dm, 1, 0);
+    MultiFab v(yba, dm, 1, 0);
+    MultiFab w(zba, dm, 1, 0);
+
+    const Real rho = Real(1.2);
+    const Real qv_air = Real(0.01);
+    const Real pressure = Real(100000.0);
+    const Real wall_temperature = Real(300.0);
+    const Real old_flux = Real(7.0);
+    const Real dx_inv = Real(2.0);
+    const Real U_t = Real(5.0);
+    const Real coefficient = Real(0.1);
+    const amrex::GpuArray<Real, AMREX_SPACEDIM> dx =
+        {dx_inv, dx_inv, dx_inv};
+
+    Real qv_wall = Real(0.0);
+    erf_qsatw(wall_temperature, pressure * Real(0.01), qv_wall);
+    ASSERT_GT(qv_wall, qv_air);
+
+    state.setVal(Real(0.0));
+    prim.setVal(Real(0.0));
+    base.setVal(Real(0.0));
+    state.setVal(rho, Rho_comp, 1);
+    state.setVal(rho * qv_air, RhoQ1_comp, 1);
+    prim.setVal(qv_air, PrimQ1_comp, 1);
+    base.setVal(pressure, BaseState::p0_comp, 1);
+
+    // x is deliberately a large normal velocity. Only v/w should contribute
+    // to the x-wall tangential speed: sqrt(3^2 + 4^2) = 5.
+    u.setVal(Real(100.0));
+    v.setVal(Real(3.0));
+    w.setVal(Real(4.0));
+
+    auto face_box = [&](int face_index) {
+        Box box = xflux.boxArray()[0];
+        box.setSmall(0, face_index);
+        box.setBig(0, face_index);
+        return box;
+    };
+
+    auto run_face = [&](bool high, Real C_E) {
+        rhs.setVal(Real(0.0));
+        xflux.setVal(old_flux);
+        yflux.setVal(old_flux);
+        zflux.setVal(old_flux);
+
+        erf_wall_thermodynamics::Boundary walls{};
+        const int face = high ? 1 : 0;
+        walls[face].thermal.mode =
+            erf_wall_thermodynamics::ThermalMode::FixedPhysicalTemperature;
+        walls[face].thermal.temperature_K = wall_temperature;
+        walls[face].moisture =
+            erf_wall_thermodynamics::MoistureMode::WetEquilibrium;
+        walls[face].vapor.model =
+            erf_wall_thermodynamics::ScalarModel::BulkAero;
+        walls[face].vapor.provider =
+            erf_wall_thermodynamics::CoefficientProvider::Fixed;
+        walls[face].vapor.coefficient = C_E;
+
+        for (amrex::MFIter mfi(state); mfi.isValid(); ++mfi) {
+            erf_cloud_chamber_wall_flux::apply(
+                mfi.validbox(), domain, RhoQ1_comp, 0,
+                state.const_array(mfi), prim.const_array(mfi),
+                base.const_array(mfi),
+                u.const_array(mfi), v.const_array(mfi), w.const_array(mfi),
+                rhs.array(mfi), xflux.array(mfi), yflux.array(mfi),
+                zflux.array(mfi), dx, walls,
+                Real(0.0), Real(0.0), R_d/Cp_d);
+        }
+        amrex::Gpu::streamSynchronize();
+
+        const Real expected_inward =
+            rho * C_E * U_t * (qv_wall - qv_air);
+        const Real expected_coordinate = high ? -expected_inward
+                                              : expected_inward;
+        const Real expected_rhs = high
+            ? -(expected_coordinate - old_flux) * dx_inv
+            :  (expected_coordinate - old_flux) * dx_inv;
+
+        const int active_index = high ? 1 : 0;
+        const int inactive_index = high ? 0 : 1;
+        const Real retained = single_value(
+            xflux, face_box(active_index));
+
+        EXPECT_NEAR(retained, expected_coordinate,
+                    scaled_tolerance(expected_coordinate));
+        EXPECT_NEAR(single_value(rhs, domain, RhoQ1_comp), expected_rhs,
+                    scaled_tolerance(expected_rhs));
+        EXPECT_DOUBLE_EQ(single_value(xflux, face_box(inactive_index)),
+                         old_flux);
+        return retained;
+    };
+
+    const Real low_CE = run_face(false, coefficient);
+    const Real high_CE = run_face(true, coefficient);
+    EXPECT_GT(low_CE, Real(0.0));
+    EXPECT_LT(high_CE, Real(0.0));
+
+    const Real low_2CE = run_face(false, Real(2.0) * coefficient);
+    EXPECT_NEAR(low_2CE, Real(2.0) * low_CE,
+                scaled_tolerance(Real(2.0) * low_CE));
+}
+
 // Motivation: the single low/high sign adapter and Lambda<=0.5 helper are
 // shared seams; all Cartesian orientations must use the same convention.
 TEST(CloudChamberWallFlux, OrientationAndTimestepAdaptersCoverAllFaces)

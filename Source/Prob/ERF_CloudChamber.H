@@ -21,7 +21,9 @@ namespace erf_cloud_chamber {
  * Stage 1 wall metadata.  This is deliberately a small, trivially copyable
  * description: it can be captured by an AMReX device kernel without virtual
  * dispatch.  Resolved molecular transfer and fixed-coefficient scalar
- * bulk_aero are active production treatments.  A future wall factory can
+ * bulk_aero are supported Stage 1 computational treatments; this feature does
+ * not physically calibrate the user-supplied bulk coefficients.  A future
+ * wall factory can
  * consume the face identity and add research-only momentum or law-of-the-wall
  * providers without changing the chamber initializer.
  */

@@ -35,7 +35,7 @@ enum class ScalarModel : unsigned char {
 enum class CoefficientProvider : unsigned char {
     None,
     Fixed,
-    MOSTExperimental
+    MOSTFuture  // Reserved for future Cloud Chamber P3 work; not parser-selectable.
 };
 
 struct ThermalBoundary {
