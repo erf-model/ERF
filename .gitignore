@@ -70,3 +70,6 @@ build_*.log
 *~
 \#*\#
 .#*
+
+# WDM6/WSM6 plotfile-parity campaign roots (run artifacts + logs)
+campaign_*/

@@ -1,0 +1,73 @@
+#!/bin/bash
+#
+# WDM6 Bubble plotfile-parity campaign runner (Rule 35 serial lane).
+#
+# Launches the two run legs with campaign conventions and nothing else.
+# Milestone comparison and adjudication stay agentic on purpose -- see
+# Exec/.DevTests/fortran-to-cpp-microphysics/references/applications/wdm6/bubble_campaign.md
+# and wsm6_validation_operator.md ("Do not introduce a large automation script").
+#
+# Lives beside its spec, bubble_campaign.md, in the wdm6 application notes.
+#
+# Usage, from anywhere:
+#   Exec/.DevTests/fortran-to-cpp-microphysics/references/applications/wdm6/campaign_bubble_wdm6 \
+#       <campaign_id> <pair> <max_step> <plot_int>
+#
+# Example:
+#   ... campaign_bubble_wdm6 campaign_wdm6_bubble_v3 short 10  1
+#   ... campaign_bubble_wdm6 campaign_wdm6_bubble_v3 C     100 100
+#
+# Compare afterwards with an fcompare binary; see bubble_campaign.md for which
+# one is acceptable for formal outcomes.
+
+set -e
+
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+# wdm6 -> applications -> references -> fortran-to-cpp-microphysics -> .DevTests
+#      -> Exec -> repo root
+ERF_ROOT="$( cd "$SCRIPT_DIR/../../../../../.." && pwd )"
+BUILD_DIR="$ERF_ROOT/build_wdm6"
+BUBBLE_DIR="$ERF_ROOT/Exec/RegTests/Bubble"
+
+CAMPAIGN_ID="${1:?usage: campaign_bubble_wdm6 <campaign_id> <pair> <max_step> <plot_int>}"
+PAIR="${2:?missing pair label}"
+MAX_STEP="${3:?missing max_step}"
+PLOT_INT="${4:?missing plot_int}"
+
+# 29 tracked plot_vars_1 entries plus the WDM6 number concentrations.
+# Applied as a run-time override: the tracked input is shared with the nightly
+# Bubble_WSM6 regression test and must not be edited.
+PLOT_VARS="density rhotheta rhoQ1 rhoQ2 rhoQ3 rhoQ4 rhoQ5 rhoQ6 rhoadv_0 \
+x_velocity y_velocity z_velocity pressure theta scalar temp pres_hse dens_hse \
+pert_pres pert_dens eq_pot_temp qt qv qc qi qp qrain qsnow qgraup nc ni nr"
+
+cd "$BUBBLE_DIR"
+mkdir -p "$CAMPAIGN_ID"
+
+# Rule 35: plotfile parity runs use microphysics_debug=0. No mpirun in this
+# campaign. GFORTRAN_UNBUFFERED_ALL=y on the Fortran leg only.
+run_leg() {
+    local leg=$1 answer=$2
+    local root="$CAMPAIGN_ID/${PAIR}_${leg}"
+    echo "[$leg] use_wdm6_cpp_answer=$answer max_step=$MAX_STEP plot_int=$PLOT_INT"
+    mkdir -p "$root"
+    env $3 "$BUILD_DIR/Exec/erf_exec" inputs_BF02_moist_bubble \
+        erf.moisture_model=WDM6 \
+        erf.use_wdm6_cpp_answer="$answer" \
+        erf.microphysics_debug=0 \
+        max_step="$MAX_STEP" \
+        erf.plot_int_1="$PLOT_INT" \
+        erf.check_int="$PLOT_INT" \
+        erf.plot_vars_1="$PLOT_VARS" \
+        erf.plot_file_1="$root/plt" \
+        erf.check_file="$root/chk" \
+        > "$CAMPAIGN_ID/log.${PAIR}_${leg}" 2>&1
+    echo "[$leg] exit=$? log=$CAMPAIGN_ID/log.${PAIR}_${leg}"
+}
+
+run_leg fortran 0 GFORTRAN_UNBUFFERED_ALL=y
+run_leg cpp     1 GFORTRAN_UNBUFFERED_ALL=
+
+echo
+echo "Legs complete under $BUBBLE_DIR/$CAMPAIGN_ID"
+echo "Compare milestones in strict order, zero tolerance first, and stop at first failure."
