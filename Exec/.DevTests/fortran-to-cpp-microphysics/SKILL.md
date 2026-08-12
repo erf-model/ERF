@@ -7,7 +7,9 @@ Use this skill when working on ERF microphysics ports, bridge-vs-native parity, 
 
 ## Workflow
 1. Read [`references/core-rules.md`](references/core-rules.md).
-2. Read the target application note in `references/applications/`.
+2. Read the target application note in `references/applications/`, then its
+   scheme subdirectory `references/applications/<scheme>/` for the group map,
+   campaign definition, lane ledgers, and any handoff note.
 3. Read [`references/validation-operators.md`](references/validation-operators.md) for parity, retreat, restart, milestone, or ledger work.
 4. Read [`references/process-operators.md`](references/process-operators.md) for evidence capture, branch-history use, or debug discipline.
 5. Read [`references/coverage-matrix.md`](references/coverage-matrix.md) before changing the skill package or when justifying a rule/operator.
@@ -19,6 +21,9 @@ Use this skill when working on ERF microphysics ports, bridge-vs-native parity, 
 - `process-operators.md`: campaign habits and operator discipline.
 - `applications/wsm6.md`: mature WSM6 source corpus and extraction guidance.
 - `applications/wdm6.md`: current WDM6 implementation note and divergence list.
+- `applications/<scheme>/`: scheme-local campaign definitions, group maps, lane
+  ledgers, and campaign runners. Milestone ladders and fcompare protocol are
+  scheme-specific by rule and live here, not in the operator files.
 
 ## Non-Negotiable Discipline
 - Treat the tracked Fortran bridge path as oracle until native parity is proven for the active scope.
