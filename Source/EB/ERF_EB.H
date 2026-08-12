@@ -95,7 +95,7 @@ class eb_ {
      * \def USE_FC_FACTORY
      * \brief Select native AMReX face-centered factories instead of ERF auxiliary factories.
      */
-    #define USE_FC_FACTORY 1  // Set to 1: use native AMReX FC factories
+    #define USE_FC_FACTORY 0 //1  // Set to 1: use native AMReX FC factories
     #endif
 
     //! Return the cell-centered EB factory.
