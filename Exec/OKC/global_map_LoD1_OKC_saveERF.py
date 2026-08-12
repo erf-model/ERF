@@ -248,8 +248,8 @@ def main():
     APPLY_GRADIENT_LIMIT_AFTER = False
     GAUSSIAN_SIGMA = 1.5
     MEDIAN_SIZE = 3
-    SLOPE_THRESHOLD = 5.0
-    SLOPE_SIGN_SIGMA = 1.5
+    SLOPE_THRESHOLD = 3.0
+    SLOPE_SIGN_SIGMA = 2.0
     # --------------------------------------------------------------------------
 
     # Set up the transformer for WGS84 to UTM Zone 14N (Oklahoma City)
