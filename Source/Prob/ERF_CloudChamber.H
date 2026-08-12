@@ -72,6 +72,29 @@ struct Config {
         }
         return false;
     }
+
+    bool has_wall_rate_channel () const noexcept
+    {
+        for (const auto& wall : walls) {
+            if (wall.wall.momentum.model ==
+                    erf_wall_thermodynamics::MomentumModel::NeutralRoughnessLog ||
+                wall.wall.heat.model ==
+                    erf_wall_thermodynamics::ScalarModel::BulkAero ||
+                wall.wall.heat.model ==
+                    erf_wall_thermodynamics::ScalarModel::NeutralRoughnessLog ||
+                (wall.wall.vapor.model ==
+                     erf_wall_thermodynamics::ScalarModel::BulkAero &&
+                 wall.wall.moisture ==
+                     erf_wall_thermodynamics::MoistureMode::WetEquilibrium) ||
+                (wall.wall.vapor.model ==
+                     erf_wall_thermodynamics::ScalarModel::NeutralRoughnessLog &&
+                 wall.wall.moisture ==
+                     erf_wall_thermodynamics::MoistureMode::WetEquilibrium)) {
+                return true;
+            }
+        }
+        return false;
+    }
 };
 
 enum class InitializationMode : unsigned char {
@@ -217,34 +240,51 @@ struct WallTransferContract {
     bool coefficient_source_specified = false;
     bool heat_coefficient_specified = false;
     bool vapor_coefficient_specified = false;
+    bool z0_m_specified = false;
+    bool z0_h_specified = false;
+    bool z0_q_specified = false;
     std::string momentum_model;
     std::string heat_model;
     std::string vapor_model;
     std::string coefficient_source;
     amrex::Real heat_coefficient = amrex::Real(0.0);
     amrex::Real vapor_coefficient = amrex::Real(0.0);
+    amrex::Real z0_m = amrex::Real(0.0);
+    amrex::Real z0_h = amrex::Real(0.0);
+    amrex::Real z0_q = amrex::Real(0.0);
 };
 
 inline std::string
 wall_transfer_contract_error (const WallTransferContract& contract,
                               const std::string& face)
 {
+    const bool momentum_neutral = contract.momentum_model_specified &&
+        contract.momentum_model == "neutral_roughness_log";
+    const bool heat_neutral = contract.heat_model_specified &&
+        contract.heat_model == "neutral_roughness_log";
+    const bool vapor_neutral = contract.vapor_model_specified &&
+        contract.vapor_model == "neutral_roughness_log";
+    const bool any_neutral = momentum_neutral || heat_neutral || vapor_neutral;
+
     const bool any_channel_key =
         contract.momentum_model_specified ||
         contract.heat_model_specified ||
         contract.vapor_model_specified ||
         contract.coefficient_source_specified ||
         contract.heat_coefficient_specified ||
-        contract.vapor_coefficient_specified;
+        contract.vapor_coefficient_specified ||
+        contract.z0_m_specified ||
+        contract.z0_h_specified ||
+        contract.z0_q_specified;
     if (contract.legacy_aggregate_specified && any_channel_key) {
         return "Cloud Chamber: " + face +
             " cannot combine wall_transfer_model with per-channel wall model keys";
     }
 
     if (contract.momentum_model_specified &&
-        contract.momentum_model != "resolved_noslip") {
+        contract.momentum_model != "resolved_noslip" && !momentum_neutral) {
         return "Cloud Chamber: " + face +
-            " supports only momentum_transfer_model = resolved_noslip; "
+            " supports only momentum_transfer_model = resolved_noslip or neutral_roughness_log; "
             "bulk_aero and law_of_wall_momentum are research hooks";
     }
 
@@ -253,14 +293,48 @@ wall_transfer_contract_error (const WallTransferContract& contract,
     const bool vapor_bulk = contract.vapor_model_specified &&
         contract.vapor_model == "bulk_aero";
     if (contract.heat_model_specified &&
-        contract.heat_model != "resolved_molecular" && !heat_bulk) {
+        contract.heat_model != "resolved_molecular" && !heat_bulk && !heat_neutral) {
         return "Cloud Chamber: " + face +
-            ".heat_transfer_model must be resolved_molecular or bulk_aero";
+            ".heat_transfer_model must be resolved_molecular, bulk_aero, or neutral_roughness_log";
     }
     if (contract.vapor_model_specified &&
-        contract.vapor_model != "resolved_molecular" && !vapor_bulk) {
+        contract.vapor_model != "resolved_molecular" && !vapor_bulk && !vapor_neutral) {
         return "Cloud Chamber: " + face +
-            ".vapor_transfer_model must be resolved_molecular or bulk_aero";
+            ".vapor_transfer_model must be resolved_molecular, bulk_aero, or neutral_roughness_log";
+    }
+
+    if (any_neutral && !contract.z0_m_specified) {
+        return "Cloud Chamber: " + face +
+            " requires z0_m when any channel uses neutral_roughness_log";
+    }
+    if (heat_neutral && !contract.z0_h_specified) {
+        return "Cloud Chamber: " + face +
+            " requires z0_h when heat_transfer_model = neutral_roughness_log";
+    }
+    if (vapor_neutral && !contract.z0_q_specified) {
+        return "Cloud Chamber: " + face +
+            " requires z0_q when vapor_transfer_model = neutral_roughness_log";
+    }
+    if (contract.z0_m_specified && !any_neutral) {
+        return "Cloud Chamber: " + face +
+            ".z0_m requires a neutral_roughness_log channel";
+    }
+    if (contract.z0_h_specified && !heat_neutral) {
+        return "Cloud Chamber: " + face +
+            ".z0_h requires heat_transfer_model = neutral_roughness_log";
+    }
+    if (contract.z0_q_specified && !vapor_neutral) {
+        return "Cloud Chamber: " + face +
+            ".z0_q requires vapor_transfer_model = neutral_roughness_log";
+    }
+    if ((contract.z0_m_specified &&
+         (!finite(contract.z0_m) || contract.z0_m <= amrex::Real(0.0))) ||
+        (contract.z0_h_specified &&
+         (!finite(contract.z0_h) || contract.z0_h <= amrex::Real(0.0))) ||
+        (contract.z0_q_specified &&
+         (!finite(contract.z0_q) || contract.z0_q <= amrex::Real(0.0)))) {
+        return "Cloud Chamber: " + face +
+            " neutral roughness lengths z0_m, z0_h, and z0_q must be finite and positive";
     }
 
     const bool bulk_active = heat_bulk || vapor_bulk;
@@ -344,13 +418,63 @@ inline void reject_unsupported_face_keys (amrex::ParmParse& pp,
     if (pp.contains("physical_temperature") || pp.contains("relative_humidity") ||
         pp.contains("rh") || pp.contains("roughness") ||
         pp.contains("roughness_length") || pp.contains("z0") ||
-        pp.contains("z0_m") || pp.contains("z0_h") || pp.contains("z0_q") ||
         pp.contains("C_D") || pp.contains("most") ||
         pp.contains("MOST")) {
         amrex::Error("Cloud Chamber: " + face +
                      " must use temperature and moisture for physical walls; "
-                     "roughness, MOST, and legacy aliases are unsupported");
+                     "roughness aliases, MOST, and legacy aliases are unsupported");
     }
+}
+
+inline std::string
+neutral_roughness_geometry_error (
+    const erf_wall_thermodynamics::Boundary& walls,
+    const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& dx)
+{
+    for (int n = 0; n < 2 * AMREX_SPACEDIM; ++n) {
+        const auto& wall = walls[n];
+        const int dir = n / 2;
+        const amrex::Real z_ref = amrex::Real(0.5) * dx[dir];
+        const std::string face = face_name(static_cast<WallFace>(n));
+        const auto check = [&](bool active, const char* key,
+                               amrex::Real z0) -> std::string {
+            if (!active) { return {}; }
+            if (!finite(z_ref) || !finite(z0) ||
+                !(z0 > amrex::Real(0.0)) || !(z_ref > z0)) {
+                return "Cloud Chamber: " + face + " " + key +
+                    " requires 0 < " + key + " < z_ref; " + key + "=" +
+                    std::to_string(static_cast<double>(z0)) +
+                    ", z_ref=" +
+                    std::to_string(static_cast<double>(z_ref));
+            }
+            return {};
+        };
+        const auto momentum_error = check(
+            wall.momentum.model ==
+                erf_wall_thermodynamics::MomentumModel::NeutralRoughnessLog,
+            "z0_m", wall.momentum.z0_m);
+        if (!momentum_error.empty()) { return momentum_error; }
+        const auto heat_error = check(
+            wall.heat.model ==
+                erf_wall_thermodynamics::ScalarModel::NeutralRoughnessLog,
+            "z0_h", wall.heat.z0);
+        if (!heat_error.empty()) { return heat_error; }
+        const auto vapor_error = check(
+            wall.vapor.model ==
+                erf_wall_thermodynamics::ScalarModel::NeutralRoughnessLog,
+            "z0_q", wall.vapor.z0);
+        if (!vapor_error.empty()) { return vapor_error; }
+    }
+    return {};
+}
+
+inline void
+validate_neutral_wall_geometry (
+    const erf_wall_thermodynamics::Boundary& walls,
+    const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& dx)
+{
+    const auto error = neutral_roughness_geometry_error(walls, dx);
+    if (!error.empty()) { amrex::Error(error); }
 }
 
 inline Config parse_config (const amrex::Real* problo,
@@ -571,6 +695,18 @@ inline Config parse_config (const amrex::Real* problo,
             transfer_contract.vapor_coefficient_specified = true;
             require_finite(face + ".C_E", transfer_contract.vapor_coefficient);
         }
+        if (pp_face.query("z0_m", transfer_contract.z0_m)) {
+            transfer_contract.z0_m_specified = true;
+            require_finite(face + ".z0_m", transfer_contract.z0_m);
+        }
+        if (pp_face.query("z0_h", transfer_contract.z0_h)) {
+            transfer_contract.z0_h_specified = true;
+            require_finite(face + ".z0_h", transfer_contract.z0_h);
+        }
+        if (pp_face.query("z0_q", transfer_contract.z0_q)) {
+            transfer_contract.z0_q_specified = true;
+            require_finite(face + ".z0_q", transfer_contract.z0_q);
+        }
         const std::string transfer_error =
             wall_transfer_contract_error(transfer_contract, face);
         if (!transfer_error.empty()) {
@@ -582,7 +718,10 @@ inline Config parse_config (const amrex::Real* problo,
             transfer_contract.vapor_model_specified ||
             transfer_contract.coefficient_source_specified ||
             transfer_contract.heat_coefficient_specified ||
-            transfer_contract.vapor_coefficient_specified;
+            transfer_contract.vapor_coefficient_specified ||
+            transfer_contract.z0_m_specified ||
+            transfer_contract.z0_h_specified ||
+            transfer_contract.z0_q_specified;
         if (!config.physical_initialization && any_channel_key) {
             amrex::Error("Cloud Chamber: per-channel wall transfer keys require physical temperature initialization");
         }
@@ -612,13 +751,25 @@ inline Config parse_config (const amrex::Real* problo,
                 amrex::Error("Cloud Chamber: " + face + ".moisture must be dry or wet");
             }
             wall.wall.thermal.mode = erf_wall_thermodynamics::ThermalMode::FixedPhysicalTemperature;
-            wall.wall.momentum.model = erf_wall_thermodynamics::MomentumModel::ResolvedNoSlip;
-            wall.wall.heat.model = transfer_contract.heat_model == "bulk_aero" ?
+            wall.wall.momentum.model =
+                transfer_contract.momentum_model == "neutral_roughness_log" ?
+                erf_wall_thermodynamics::MomentumModel::NeutralRoughnessLog :
+                erf_wall_thermodynamics::MomentumModel::ResolvedNoSlip;
+            wall.wall.heat.model =
+                transfer_contract.heat_model == "bulk_aero" ?
                 erf_wall_thermodynamics::ScalarModel::BulkAero :
-                erf_wall_thermodynamics::ScalarModel::ResolvedMolecular;
-            wall.wall.vapor.model = transfer_contract.vapor_model == "bulk_aero" ?
+                (transfer_contract.heat_model == "neutral_roughness_log" ?
+                 erf_wall_thermodynamics::ScalarModel::NeutralRoughnessLog :
+                 erf_wall_thermodynamics::ScalarModel::ResolvedMolecular);
+            wall.wall.vapor.model =
+                transfer_contract.vapor_model == "bulk_aero" ?
                 erf_wall_thermodynamics::ScalarModel::BulkAero :
-                erf_wall_thermodynamics::ScalarModel::ResolvedMolecular;
+                (transfer_contract.vapor_model == "neutral_roughness_log" ?
+                 erf_wall_thermodynamics::ScalarModel::NeutralRoughnessLog :
+                 erf_wall_thermodynamics::ScalarModel::ResolvedMolecular);
+            wall.wall.momentum.z0_m = transfer_contract.z0_m;
+            wall.wall.heat.z0 = transfer_contract.z0_h;
+            wall.wall.vapor.z0 = transfer_contract.z0_q;
             if (wall.wall.heat.model == erf_wall_thermodynamics::ScalarModel::BulkAero) {
                 wall.wall.heat.provider = erf_wall_thermodynamics::CoefficientProvider::Fixed;
                 wall.wall.heat.coefficient = transfer_contract.heat_coefficient;

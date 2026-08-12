@@ -5,10 +5,13 @@
 
 #include <cmath>
 #include <limits>
+#include <string>
 
 #include <gtest/gtest.h>
 
 #include "../../../Source/Diffusion/ERF_CloudChamberWallFlux.H"
+#include "../../../Source/Diffusion/ERF_Diffusion.H"
+#include "../../../Source/Diffusion/ERF_CloudChamberWallStress.H"
 #include "../../../Source/Diffusion/ERF_ResolvedWallFlux.H"
 #include "../../../Source/Prob/ERF_CloudChamber.H"
 
@@ -81,6 +84,27 @@ sentinel_mismatches (const amrex::MultiFab& flux_mf, const amrex::Box& domain,
                 const bool mismatch = physical_face ? (flux(i,j,k,0) == sentinel)
                                                     : (flux(i,j,k,0) != sentinel);
                 return { mismatch ? 1 : 0 };
+            });
+    }
+    return amrex::get<0>(reduce_data.value());
+}
+
+
+int
+nonphysical_stress_changes (const amrex::MultiFab& stress_mf,
+                            const amrex::Box& domain, int dir,
+                            int allowed_coordinate, Real sentinel)
+{
+    amrex::ReduceOps<amrex::ReduceOpSum> reduce_op;
+    amrex::ReduceData<int> reduce_data(reduce_op);
+    for (amrex::MFIter mfi(stress_mf); mfi.isValid(); ++mfi) {
+        const amrex::Box box = mfi.validbox();
+        const auto stress = stress_mf.const_array(mfi);
+        reduce_op.eval(box, reduce_data,
+            [=] AMREX_GPU_DEVICE (int i, int j, int k) -> amrex::GpuTuple<int> {
+                const int coordinate = (dir == 0) ? i : ((dir == 1) ? j : k);
+                return {(coordinate != allowed_coordinate &&
+                         stress(i,j,k,0) != sentinel) ? 1 : 0};
             });
     }
     return amrex::get<0>(reduce_data.value());
@@ -1009,6 +1033,608 @@ TEST(CloudChamberWallFlux, CompatibilityVelocityRequirementIsChannelAware)
     // D: dry bulk vapor metadata is an owned exact-zero gate.
     walls[0].moisture = MoistureMode::DryImpermeable;
     EXPECT_FALSE(has_velocity_dependent_scalar_wall(walls));
+}
+
+
+TEST(CloudChamberNeutralLog, MomentumAndScalarClosures)
+{
+    using namespace erf_cloud_chamber_wall_flux;
+    using namespace erf_wall_thermodynamics;
+
+    FaceWall wall;
+    wall.thermal.mode = ThermalMode::FixedPhysicalTemperature;
+    wall.thermal.temperature_K = Real(300.0);
+    wall.moisture = MoistureMode::WetEquilibrium;
+    wall.momentum.model = MomentumModel::NeutralRoughnessLog;
+    wall.momentum.z0_m = Real(0.01);
+    wall.heat.model = ScalarModel::NeutralRoughnessLog;
+    wall.heat.z0 = Real(0.02);
+    wall.vapor.model = ScalarModel::NeutralRoughnessLog;
+    wall.vapor.z0 = Real(0.03);
+
+    MomentumWallSample momentum;
+    momentum.rho = Real(1.2);
+    momentum.u_t = {Real(3.0), Real(4.0), Real(0.0)};
+    momentum.U_t = Real(5.0);
+    momentum.wall_distance = Real(0.5);
+    const Real log_m = std::log(Real(50.0));
+    const Real C_D = std::pow(KAPPA / log_m, Real(2.0));
+    const auto neutral = neutral_log_momentum_state(
+        momentum.U_t, momentum.wall_distance, wall.momentum.z0_m);
+    EXPECT_NEAR(neutral.log_m, log_m, scaled_tolerance(log_m));
+    EXPECT_NEAR(neutral.C_D, C_D, scaled_tolerance(C_D));
+    const auto traction = evaluate_momentum_traction(wall, momentum);
+    EXPECT_EQ(traction.owned_channels, OwnMomentum);
+    EXPECT_NEAR(traction.traction_on_fluid[0], -Real(1.2)*C_D*Real(5.0)*Real(3.0),
+                scaled_tolerance(C_D));
+    EXPECT_NEAR(traction.traction_on_fluid[1], -Real(1.2)*C_D*Real(5.0)*Real(4.0),
+                scaled_tolerance(C_D));
+    EXPECT_DOUBLE_EQ(traction.traction_on_fluid[2], Real(0.0));
+
+    ScalarWallSample scalar;
+    scalar.rho = Real(1.1);
+    scalar.scalar_air = Real(290.0);
+    scalar.p_hse = Real(100000.0);
+    scalar.U_t = Real(4.0);
+    scalar.rdOcp = R_d / Cp_d;
+    scalar.wall_distance = Real(0.5);
+    const Real C_H = neutral_log_scalar_coefficient(
+        scalar.wall_distance, wall.momentum.z0_m, wall.heat.z0);
+    const auto heat = evaluate_scalar_flux_in(wall, ScalarChannel::Heat, scalar);
+    EXPECT_EQ(heat.owned_channels, OwnHeat);
+    EXPECT_NEAR(heat.rhoTheta_in,
+                bulk_theta_flux_in(scalar.rho, C_H, scalar.U_t,
+                                   wall.thermal.temperature_K, scalar.scalar_air,
+                                   scalar.p_hse, scalar.rdOcp),
+                scaled_tolerance(heat.rhoTheta_in));
+
+    scalar.scalar_air = Real(0.01);
+    const Real C_E = neutral_log_scalar_coefficient(
+        scalar.wall_distance, wall.momentum.z0_m, wall.vapor.z0);
+    const auto vapor = evaluate_scalar_flux_in(wall, ScalarChannel::Vapor, scalar);
+    EXPECT_EQ(vapor.owned_channels, OwnVapor);
+    EXPECT_NEAR(vapor.rhoQv_in,
+                bulk_vapor_flux_in(scalar.rho, C_E, scalar.U_t,
+                                   wall.thermal.temperature_K, scalar.scalar_air,
+                                   scalar.p_hse),
+                scaled_tolerance(vapor.rhoQv_in));
+
+    wall.moisture = MoistureMode::DryImpermeable;
+    scalar.U_t = std::numeric_limits<Real>::quiet_NaN();
+    scalar.p_hse = std::numeric_limits<Real>::quiet_NaN();
+    const auto dry = evaluate_scalar_flux_in(wall, ScalarChannel::Vapor, scalar);
+    EXPECT_EQ(dry.owned_channels, OwnVapor);
+    EXPECT_DOUBLE_EQ(dry.rhoQv_in, Real(0.0));
+    EXPECT_FALSE(requires_tangential_speed(wall, ScalarChannel::Vapor));
+}
+
+TEST(CloudChamberNeutralLog, ContractGeometryAndRateGates)
+{
+    using namespace erf_cloud_chamber_wall_flux;
+    using namespace erf_wall_thermodynamics;
+    using erf_cloud_chamber::WallTransferContract;
+
+    WallTransferContract contract;
+    contract.momentum_model_specified = true;
+    contract.momentum_model = "neutral_roughness_log";
+    contract.heat_model_specified = true;
+    contract.heat_model = "neutral_roughness_log";
+    contract.vapor_model_specified = true;
+    contract.vapor_model = "neutral_roughness_log";
+    contract.z0_m_specified = true;
+    contract.z0_h_specified = true;
+    contract.z0_q_specified = true;
+    contract.z0_m = Real(0.01);
+    contract.z0_h = Real(0.02);
+    contract.z0_q = Real(0.03);
+    EXPECT_TRUE(erf_cloud_chamber::wall_transfer_contract_error(contract, "xlo").empty());
+
+    contract.z0_h_specified = false;
+    EXPECT_NE(erf_cloud_chamber::wall_transfer_contract_error(contract, "xlo").find("z0_h"),
+              std::string::npos);
+    contract.z0_h_specified = true;
+    contract.z0_m = Real(0.0);
+    EXPECT_NE(erf_cloud_chamber::wall_transfer_contract_error(contract, "xlo").find("finite and positive"),
+              std::string::npos);
+
+    Boundary walls{};
+    walls[0].momentum.model = MomentumModel::NeutralRoughnessLog;
+    walls[0].momentum.z0_m = Real(0.49);
+    const amrex::GpuArray<Real, AMREX_SPACEDIM> dx = {Real(1.0), Real(2.0), Real(3.0)};
+    EXPECT_TRUE(erf_cloud_chamber::neutral_roughness_geometry_error(walls, dx).empty());
+    walls[0].momentum.z0_m = Real(0.5);
+    const auto geometry_error = erf_cloud_chamber::neutral_roughness_geometry_error(walls, dx);
+    EXPECT_NE(geometry_error.find("xlo"), std::string::npos);
+    EXPECT_NE(geometry_error.find("z0_m"), std::string::npos);
+    EXPECT_NE(geometry_error.find("z_ref"), std::string::npos);
+
+    FaceWall rate_wall;
+    rate_wall.momentum.model = MomentumModel::NeutralRoughnessLog;
+    rate_wall.momentum.z0_m = Real(0.01);
+    EXPECT_TRUE(wall_rate_requires_tangential_speed(rate_wall));
+    const Real U_t = Real(3.0);
+    const Real dx_inv = Real(2.0);
+    const Real cd = neutral_log_momentum_state(U_t, Real(0.5)/dx_inv,
+                                                rate_wall.momentum.z0_m).C_D;
+    EXPECT_NEAR(wall_rate_for_face(rate_wall, U_t, dx_inv),
+                neutral_momentum_rate(cd, U_t, dx_inv),
+                scaled_tolerance(cd));
+    EXPECT_NEAR(neutral_momentum_rate(cd, U_t, dx_inv),
+                Real(2.0) * cd * U_t * dx_inv,
+                scaled_tolerance(cd * U_t * dx_inv));
+    EXPECT_DOUBLE_EQ(neutral_scalar_rate(Real(0.3), Real(0.0), dx_inv), Real(0.0));
+    FaceWall dry_vapor;
+    dry_vapor.moisture = MoistureMode::DryImpermeable;
+    dry_vapor.vapor.model = ScalarModel::NeutralRoughnessLog;
+    dry_vapor.vapor.z0 = Real(0.02);
+    EXPECT_FALSE(wall_rate_requires_tangential_speed(dry_vapor));
+    EXPECT_DOUBLE_EQ(wall_rate_for_face(
+        dry_vapor, std::numeric_limits<Real>::quiet_NaN(), dx_inv), Real(0.0));
+}
+
+
+TEST(CloudChamberNeutralLog, HostParserContractMatrix)
+{
+    using erf_cloud_chamber::WallTransferContract;
+
+    const auto momentum_only = [] {
+        WallTransferContract c;
+        c.momentum_model_specified = true;
+        c.momentum_model = "neutral_roughness_log";
+        c.z0_m_specified = true;
+        c.z0_m = Real(0.01);
+        return c;
+    };
+    const auto heat_only = [] {
+        WallTransferContract c;
+        c.heat_model_specified = true;
+        c.heat_model = "neutral_roughness_log";
+        c.z0_m_specified = true;
+        c.z0_m = Real(0.01);
+        c.z0_h_specified = true;
+        c.z0_h = Real(0.005);
+        return c;
+    };
+    const auto vapor_only = [] {
+        WallTransferContract c;
+        c.vapor_model_specified = true;
+        c.vapor_model = "neutral_roughness_log";
+        c.z0_m_specified = true;
+        c.z0_m = Real(0.01);
+        c.z0_q_specified = true;
+        c.z0_q = Real(0.005);
+        return c;
+    };
+
+    EXPECT_TRUE(erf_cloud_chamber::wall_transfer_contract_error(
+        momentum_only(), "xlo").empty());
+    EXPECT_TRUE(erf_cloud_chamber::wall_transfer_contract_error(
+        heat_only(), "ylo").empty());
+    EXPECT_TRUE(erf_cloud_chamber::wall_transfer_contract_error(
+        vapor_only(), "zlo").empty());
+
+    auto mixed = momentum_only();
+    mixed.heat_model_specified = true;
+    mixed.heat_model = "bulk_aero";
+    mixed.coefficient_source_specified = true;
+    mixed.coefficient_source = "fixed";
+    mixed.heat_coefficient_specified = true;
+    mixed.heat_coefficient = Real(0.01);
+    EXPECT_TRUE(erf_cloud_chamber::wall_transfer_contract_error(
+        mixed, "xhi").empty());
+
+    auto all_neutral = momentum_only();
+    all_neutral.heat_model_specified = true;
+    all_neutral.heat_model = "neutral_roughness_log";
+    all_neutral.z0_h_specified = true;
+    all_neutral.z0_h = Real(0.005);
+    all_neutral.vapor_model_specified = true;
+    all_neutral.vapor_model = "neutral_roughness_log";
+    all_neutral.z0_q_specified = true;
+    all_neutral.z0_q = Real(0.005);
+    EXPECT_TRUE(erf_cloud_chamber::wall_transfer_contract_error(
+        all_neutral, "zhi").empty());
+
+    auto missing_momentum_z0 = momentum_only();
+    missing_momentum_z0.z0_m_specified = false;
+    EXPECT_NE(erf_cloud_chamber::wall_transfer_contract_error(
+        missing_momentum_z0, "xlo").find("z0_m"), std::string::npos);
+
+    auto missing_heat_z0 = heat_only();
+    missing_heat_z0.z0_h_specified = false;
+    EXPECT_NE(erf_cloud_chamber::wall_transfer_contract_error(
+        missing_heat_z0, "ylo").find("z0_h"), std::string::npos);
+
+    auto missing_vapor_z0 = vapor_only();
+    missing_vapor_z0.z0_q_specified = false;
+    EXPECT_NE(erf_cloud_chamber::wall_transfer_contract_error(
+        missing_vapor_z0, "zlo").find("z0_q"), std::string::npos);
+
+    auto nonfinite_z0 = momentum_only();
+    nonfinite_z0.z0_m = std::numeric_limits<Real>::quiet_NaN();
+    EXPECT_NE(erf_cloud_chamber::wall_transfer_contract_error(
+        nonfinite_z0, "xlo").find("finite and positive"), std::string::npos);
+
+    auto zero_z0 = momentum_only();
+    zero_z0.z0_m = Real(0.0);
+    EXPECT_NE(erf_cloud_chamber::wall_transfer_contract_error(
+        zero_z0, "xlo").find("finite and positive"), std::string::npos);
+
+    auto negative_z0 = momentum_only();
+    negative_z0.z0_m = Real(-0.01);
+    EXPECT_NE(erf_cloud_chamber::wall_transfer_contract_error(
+        negative_z0, "xlo").find("finite and positive"), std::string::npos);
+
+    auto unused_z0 = momentum_only();
+    unused_z0.z0_h_specified = true;
+    unused_z0.z0_h = Real(0.005);
+    EXPECT_NE(erf_cloud_chamber::wall_transfer_contract_error(
+        unused_z0, "xlo").find("z0_h"), std::string::npos);
+
+    auto neutral_ch = heat_only();
+    neutral_ch.heat_coefficient_specified = true;
+    neutral_ch.heat_coefficient = Real(0.01);
+    EXPECT_NE(erf_cloud_chamber::wall_transfer_contract_error(
+        neutral_ch, "xlo").find("C_H"), std::string::npos);
+
+    auto neutral_ce = vapor_only();
+    neutral_ce.vapor_coefficient_specified = true;
+    neutral_ce.vapor_coefficient = Real(0.01);
+    EXPECT_NE(erf_cloud_chamber::wall_transfer_contract_error(
+        neutral_ce, "xlo").find("C_E"), std::string::npos);
+
+    auto neutral_provider = momentum_only();
+    neutral_provider.coefficient_source_specified = true;
+    neutral_provider.coefficient_source = "fixed";
+    EXPECT_NE(erf_cloud_chamber::wall_transfer_contract_error(
+        neutral_provider, "xlo").find("coefficient_source"), std::string::npos);
+
+    auto most = momentum_only();
+    most.momentum_model = "MOSTFuture";
+    EXPECT_NE(erf_cloud_chamber::wall_transfer_contract_error(
+        most, "xlo").find("supports only"), std::string::npos);
+
+    auto smooth = momentum_only();
+    smooth.momentum_model = "law_of_wall_momentum";
+    EXPECT_NE(erf_cloud_chamber::wall_transfer_contract_error(
+        smooth, "xlo").find("supports only"), std::string::npos);
+
+    // Strict parsing still requires z0_q for a dry wall; the runtime dry
+    // vapor gate is tested independently by MomentumAndScalarClosures.
+    EXPECT_TRUE(erf_cloud_chamber::wall_transfer_contract_error(
+        vapor_only(), "xlo").empty());
+}
+
+TEST(CloudChamberNeutralLog, GeometryValidationUsesEveryActiveFace)
+{
+    using namespace erf_wall_thermodynamics;
+
+    Boundary walls{};
+    walls[0].momentum.model = MomentumModel::NeutralRoughnessLog;
+    walls[0].momentum.z0_m = Real(0.49);
+    walls[2].heat.model = ScalarModel::NeutralRoughnessLog;
+    walls[2].heat.z0 = Real(0.99);
+    walls[4].vapor.model = ScalarModel::NeutralRoughnessLog;
+    walls[4].vapor.z0 = Real(1.49);
+    const amrex::GpuArray<Real, AMREX_SPACEDIM> dx = {
+        Real(1.0), Real(2.0), Real(3.0)};
+    EXPECT_TRUE(erf_cloud_chamber::neutral_roughness_geometry_error(
+        walls, dx).empty());
+
+    walls[0].momentum.z0_m = Real(0.5);
+    auto error = erf_cloud_chamber::neutral_roughness_geometry_error(walls, dx);
+    EXPECT_NE(error.find("xlo"), std::string::npos);
+    EXPECT_NE(error.find("z0_m"), std::string::npos);
+    walls[0].momentum.z0_m = Real(0.49);
+
+    walls[2].heat.z0 = Real(1.0);
+    error = erf_cloud_chamber::neutral_roughness_geometry_error(walls, dx);
+    EXPECT_NE(error.find("ylo"), std::string::npos);
+    EXPECT_NE(error.find("z0_h"), std::string::npos);
+    walls[2].heat.z0 = Real(0.99);
+
+    walls[4].vapor.z0 = Real(1.5);
+    error = erf_cloud_chamber::neutral_roughness_geometry_error(walls, dx);
+    EXPECT_NE(error.find("zlo"), std::string::npos);
+    EXPECT_NE(error.find("z0_q"), std::string::npos);
+}
+
+template <int DIR>
+void expect_neutral_tau_mapping()
+{
+    using namespace erf_cloud_chamber_wall_stress;
+    EXPECT_DOUBLE_EQ((stored_tau_from_physical_traction<DIR,false>(Real(2.5))), Real(2.5));
+    EXPECT_DOUBLE_EQ((stored_tau_from_physical_traction<DIR,true>(Real(2.5))), Real(-2.5));
+}
+
+TEST(CloudChamberNeutralLog, StoredStressMappingCoversAllSixFaces)
+{
+    expect_neutral_tau_mapping<0>();
+    expect_neutral_tau_mapping<1>();
+    expect_neutral_tau_mapping<2>();
+}
+
+TEST(CloudChamberNeutralLog, AdapterWritesBoundaryCrossStressOnly)
+{
+    using namespace erf_wall_thermodynamics;
+    const amrex::Box domain(amrex::IntVect(0), amrex::IntVect(1));
+    const amrex::BoxArray ba(domain);
+    const amrex::DistributionMapping dm(ba);
+    amrex::MultiFab state(ba, dm, Rho_comp + 1, 1);
+    amrex::BoxArray xba(ba); xba.surroundingNodes(0);
+    amrex::BoxArray yba(ba); yba.surroundingNodes(1);
+    amrex::BoxArray zba(ba); zba.surroundingNodes(2);
+    amrex::MultiFab u(xba, dm, 1, 1);
+    amrex::MultiFab v(yba, dm, 1, 1);
+    amrex::MultiFab w(zba, dm, 1, 1);
+    amrex::BoxArray ba12(ba); ba12.surroundingNodes(0); ba12.surroundingNodes(1);
+    amrex::BoxArray ba13(ba); ba13.surroundingNodes(0); ba13.surroundingNodes(2);
+    amrex::BoxArray ba23(ba); ba23.surroundingNodes(1); ba23.surroundingNodes(2);
+    amrex::MultiFab tau12(ba12, dm, 1, 1);
+    amrex::MultiFab tau13(ba13, dm, 1, 1);
+    amrex::MultiFab tau23(ba23, dm, 1, 1);
+
+    state.setVal(Real(1.2), Rho_comp, 1);
+    u.setVal(Real(1.0));
+    v.setVal(Real(2.0));
+    w.setVal(Real(3.0));
+    constexpr Real sentinel = Real(-17.0);
+    tau12.setVal(sentinel); tau13.setVal(sentinel); tau23.setVal(sentinel);
+
+    Boundary walls{};
+    walls[0].momentum.model = MomentumModel::NeutralRoughnessLog;
+    walls[0].momentum.z0_m = Real(0.01);
+    const amrex::GpuArray<Real, AMREX_SPACEDIM> dx_inv = {Real(2.0), Real(2.0), Real(2.0)};
+    for (amrex::MFIter mfi(state); mfi.isValid(); ++mfi) {
+        erf_cloud_chamber_wall_stress::apply(
+            mfi.validbox(), domain, state.const_array(mfi), u.const_array(mfi),
+            v.const_array(mfi), w.const_array(mfi), tau12.array(mfi),
+            tau13.array(mfi), tau23.array(mfi), dx_inv, walls);
+    }
+    amrex::Gpu::streamSynchronize();
+
+    const Real U_t = std::sqrt(Real(13.0));
+    const Real cd = std::pow(KAPPA/std::log(Real(25.0)), Real(2.0));
+    const Real tau12_expected = -Real(1.2)*cd*U_t*Real(2.0);
+    const Real tau13_expected = -Real(1.2)*cd*U_t*Real(3.0);
+    amrex::Box xlo12 = amrex::surroundingNodes(domain, 1);
+    xlo12.setSmall(0, 0); xlo12.setBig(0, 0);
+    amrex::Box xinside12 = amrex::surroundingNodes(domain, 1);
+    xinside12.setSmall(0, 1); xinside12.setBig(0, 1);
+    amrex::Box xlo13 = amrex::surroundingNodes(domain, 2);
+    xlo13.setSmall(0, 0); xlo13.setBig(0, 0);
+    amrex::Box xinside13 = amrex::surroundingNodes(domain, 2);
+    xinside13.setSmall(0, 1); xinside13.setBig(0, 1);
+
+    EXPECT_NEAR(single_value(tau12, xlo12), Real(6.0)*tau12_expected,
+                scaled_tolerance(tau12_expected));
+    EXPECT_NEAR(single_value(tau13, xlo13), Real(6.0)*tau13_expected,
+                scaled_tolerance(tau13_expected));
+    EXPECT_DOUBLE_EQ(single_value(tau12, xinside12), Real(6.0)*sentinel);
+    EXPECT_DOUBLE_EQ(single_value(tau13, xinside13), Real(6.0)*sentinel);
+    EXPECT_DOUBLE_EQ(single_value(tau23, domain), Real(8.0)*sentinel);
+}
+
+
+TEST(CloudChamberNeutralLog, AdapterMapsAllTwelveFaceComponents)
+{
+    using namespace erf_wall_thermodynamics;
+    const amrex::Box domain(amrex::IntVect(0), amrex::IntVect(2));
+    const amrex::BoxArray ba(domain);
+    const amrex::DistributionMapping dm(ba);
+    amrex::MultiFab state(ba, dm, Rho_comp + 1, 1);
+    amrex::BoxArray xba(ba); xba.surroundingNodes(0);
+    amrex::BoxArray yba(ba); yba.surroundingNodes(1);
+    amrex::BoxArray zba(ba); zba.surroundingNodes(2);
+    amrex::MultiFab u(xba, dm, 1, 1);
+    amrex::MultiFab v(yba, dm, 1, 1);
+    amrex::MultiFab w(zba, dm, 1, 1);
+    amrex::BoxArray ba12(ba); ba12.surroundingNodes(0); ba12.surroundingNodes(1);
+    amrex::BoxArray ba13(ba); ba13.surroundingNodes(0); ba13.surroundingNodes(2);
+    amrex::BoxArray ba23(ba); ba23.surroundingNodes(1); ba23.surroundingNodes(2);
+    amrex::MultiFab tau12(ba12, dm, 1, 1);
+    amrex::MultiFab tau13(ba13, dm, 1, 1);
+    amrex::MultiFab tau23(ba23, dm, 1, 1);
+
+    state.setVal(Real(1.2), Rho_comp, 1);
+    u.setVal(Real(1.0));
+    v.setVal(Real(2.0));
+    w.setVal(Real(3.0));
+    constexpr Real sentinel = Real(-17.0);
+    tau12.setVal(sentinel); tau13.setVal(sentinel); tau23.setVal(sentinel);
+
+    Boundary walls{};
+    for (auto& wall : walls) {
+        wall.momentum.model = MomentumModel::NeutralRoughnessLog;
+        wall.momentum.z0_m = Real(0.01);
+    }
+    const amrex::GpuArray<Real, AMREX_SPACEDIM> dx_inv = {Real(2.0), Real(2.0), Real(2.0)};
+    for (amrex::MFIter mfi(state); mfi.isValid(); ++mfi) {
+        erf_cloud_chamber_wall_stress::apply(
+            mfi.validbox(), domain, state.const_array(mfi), u.const_array(mfi),
+            v.const_array(mfi), w.const_array(mfi), tau12.array(mfi),
+            tau13.array(mfi), tau23.array(mfi), dx_inv, walls);
+    }
+    amrex::Gpu::streamSynchronize();
+
+    const Real cd = std::pow(KAPPA/std::log(Real(25.0)), Real(2.0));
+    const Real U_x = std::sqrt(Real(13.0));
+    const Real U_y = std::sqrt(Real(10.0));
+    const Real U_z = std::sqrt(Real(5.0));
+    const Real tau_x_y = -Real(1.2)*cd*U_x*Real(2.0);
+    const Real tau_x_z = -Real(1.2)*cd*U_x*Real(3.0);
+    const Real tau_y_x = -Real(1.2)*cd*U_y*Real(1.0);
+    const Real tau_y_z = -Real(1.2)*cd*U_y*Real(3.0);
+    const Real tau_z_x = -Real(1.2)*cd*U_z*Real(1.0);
+    const Real tau_z_y = -Real(1.2)*cd*U_z*Real(2.0);
+    const auto check = [](const amrex::MultiFab& mf, const amrex::IntVect& iv,
+                          Real expected) {
+        const amrex::Box point(iv, iv);
+        EXPECT_NEAR(single_value(mf, point), expected,
+                    scaled_tolerance(expected));
+    };
+
+    check(tau12, amrex::IntVect(0,1,1), tau_x_y);
+    check(tau12, amrex::IntVect(3,1,1), -tau_x_y);
+    check(tau13, amrex::IntVect(0,1,1), tau_x_z);
+    check(tau13, amrex::IntVect(3,1,1), -tau_x_z);
+    check(tau12, amrex::IntVect(1,0,1), tau_y_x);
+    check(tau12, amrex::IntVect(1,3,1), -tau_y_x);
+    check(tau23, amrex::IntVect(1,0,1), tau_y_z);
+    check(tau23, amrex::IntVect(1,3,1), -tau_y_z);
+    check(tau13, amrex::IntVect(1,1,0), tau_z_x);
+    check(tau13, amrex::IntVect(1,1,3), -tau_z_x);
+    check(tau23, amrex::IntVect(1,1,0), tau_z_y);
+    check(tau23, amrex::IntVect(1,1,3), -tau_z_y);
+
+    check(tau12, amrex::IntVect(1,1,1), sentinel);
+    check(tau13, amrex::IntVect(1,1,1), sentinel);
+    check(tau23, amrex::IntVect(1,1,1), sentinel);
+}
+
+
+TEST(CloudChamberNeutralLog, AdapterRespectsMultiBoxPhysicalOwnership)
+{
+    using namespace erf_wall_thermodynamics;
+    const amrex::Box domain(amrex::IntVect(0), amrex::IntVect(3));
+    amrex::BoxArray ba(domain);
+    ba.maxSize(2);
+    const amrex::DistributionMapping dm(ba);
+    amrex::MultiFab state(ba, dm, Rho_comp + 1, 1);
+    amrex::BoxArray xba(ba); xba.surroundingNodes(0);
+    amrex::BoxArray yba(ba); yba.surroundingNodes(1);
+    amrex::BoxArray zba(ba); zba.surroundingNodes(2);
+    amrex::MultiFab u(xba, dm, 1, 1);
+    amrex::MultiFab v(yba, dm, 1, 1);
+    amrex::MultiFab w(zba, dm, 1, 1);
+    amrex::BoxArray ba12(ba); ba12.surroundingNodes(0); ba12.surroundingNodes(1);
+    amrex::BoxArray ba13(ba); ba13.surroundingNodes(0); ba13.surroundingNodes(2);
+    amrex::BoxArray ba23(ba); ba23.surroundingNodes(1); ba23.surroundingNodes(2);
+    amrex::MultiFab tau12(ba12, dm, 1, 1);
+    amrex::MultiFab tau13(ba13, dm, 1, 1);
+    amrex::MultiFab tau23(ba23, dm, 1, 1);
+
+    state.setVal(Real(1.2), Rho_comp, 1);
+    u.setVal(Real(1.0));
+    v.setVal(Real(2.0));
+    w.setVal(Real(3.0));
+    constexpr Real sentinel = Real(-23.0);
+    tau12.setVal(sentinel);
+    tau13.setVal(sentinel);
+    tau23.setVal(sentinel);
+
+    Boundary walls{};
+    walls[0].momentum.model = MomentumModel::NeutralRoughnessLog;
+    walls[0].momentum.z0_m = Real(0.01);
+    const amrex::GpuArray<Real, AMREX_SPACEDIM> dx_inv = {
+        Real(2.0), Real(2.0), Real(2.0)};
+    for (amrex::MFIter mfi(state); mfi.isValid(); ++mfi) {
+        erf_cloud_chamber_wall_stress::apply(
+            mfi.validbox(), domain, state.const_array(mfi), u.const_array(mfi),
+            v.const_array(mfi), w.const_array(mfi), tau12.array(mfi),
+            tau13.array(mfi), tau23.array(mfi), dx_inv, walls);
+    }
+    amrex::Gpu::streamSynchronize();
+
+    EXPECT_NE(single_value(tau12, amrex::Box(
+        amrex::IntVect(0,1,1), amrex::IntVect(0,1,1))), sentinel);
+    EXPECT_NE(single_value(tau13, amrex::Box(
+        amrex::IntVect(0,1,1), amrex::IntVect(0,1,1))), sentinel);
+    EXPECT_EQ(nonphysical_stress_changes(tau12, domain, 0, 0, sentinel), 0);
+    EXPECT_EQ(nonphysical_stress_changes(tau13, domain, 0, 0, sentinel), 0);
+    EXPECT_EQ(nonphysical_stress_changes(tau23, domain, 0, 0, sentinel), 0);
+}
+
+TEST(CloudChamberNeutralLog, SingleWallImpulseUsesDiffusionOperator)
+{
+    const auto run_face = [](bool high) {
+        const amrex::Box cell_box(amrex::IntVect(0), amrex::IntVect(1));
+        const amrex::BoxArray ba(cell_box);
+        const amrex::DistributionMapping dm(ba);
+        amrex::MultiFab rho_u_rhs(amrex::BoxArray(
+            amrex::surroundingNodes(cell_box, 0)), dm, 1, 0);
+        amrex::MultiFab rho_v_rhs(amrex::BoxArray(
+            amrex::surroundingNodes(cell_box, 1)), dm, 1, 0);
+        amrex::MultiFab rho_w_rhs(amrex::BoxArray(
+            amrex::surroundingNodes(cell_box, 2)), dm, 1, 0);
+        rho_u_rhs.setVal(Real(0.0));
+        rho_v_rhs.setVal(Real(0.0));
+        rho_w_rhs.setVal(Real(0.0));
+
+        amrex::MultiFab tau11(ba, dm, 1, 1);
+        amrex::MultiFab tau22(ba, dm, 1, 1);
+        amrex::MultiFab tau33(ba, dm, 1, 1);
+        amrex::MultiFab tau12(amrex::BoxArray(
+            amrex::convert(cell_box, amrex::IntVect(1,1,0))), dm, 1, 1);
+        amrex::MultiFab tau21(amrex::BoxArray(
+            amrex::convert(cell_box, amrex::IntVect(1,1,0))), dm, 1, 1);
+        amrex::MultiFab tau13(amrex::BoxArray(
+            amrex::convert(cell_box, amrex::IntVect(1,0,1))), dm, 1, 1);
+        amrex::MultiFab tau31(amrex::BoxArray(
+            amrex::convert(cell_box, amrex::IntVect(1,0,1))), dm, 1, 1);
+        amrex::MultiFab tau23(amrex::BoxArray(
+            amrex::convert(cell_box, amrex::IntVect(0,1,1))), dm, 1, 1);
+        amrex::MultiFab tau32(amrex::BoxArray(
+            amrex::convert(cell_box, amrex::IntVect(0,1,1))), dm, 1, 1);
+        tau11.setVal(Real(0.0));
+        tau22.setVal(Real(0.0));
+        tau33.setVal(Real(0.0));
+        tau12.setVal(Real(0.0));
+        tau21.setVal(Real(0.0));
+        tau13.setVal(Real(0.0));
+        tau31.setVal(Real(0.0));
+        tau23.setVal(Real(0.0));
+        tau32.setVal(Real(0.0));
+
+        constexpr Real physical_traction = Real(-1.7);
+        const int i_face = high ? 2 : 0;
+        const amrex::Box sample(
+            amrex::IntVect(i_face, 1, 0), amrex::IntVect(i_face, 1, 0));
+        const Real stored_traction = high ? -physical_traction : physical_traction;
+        tau12.setVal(stored_traction, sample, 0, 1, 0);
+
+        amrex::MultiFab detJ(ba, dm, 1, 1);
+        amrex::MultiFab mf_mx(ba, dm, 1, 1);
+        amrex::MultiFab mf_ux(ba, dm, 1, 1);
+        amrex::MultiFab mf_vx(ba, dm, 1, 1);
+        amrex::MultiFab mf_my(ba, dm, 1, 1);
+        amrex::MultiFab mf_uy(ba, dm, 1, 1);
+        amrex::MultiFab mf_vy(ba, dm, 1, 1);
+        detJ.setVal(Real(1.0));
+        mf_mx.setVal(Real(1.0));
+        mf_ux.setVal(Real(1.0));
+        mf_vx.setVal(Real(1.0));
+        mf_my.setVal(Real(1.0));
+        mf_uy.setVal(Real(1.0));
+        mf_vy.setVal(Real(1.0));
+        amrex::Gpu::DeviceVector<Real> stretched_dz_d;
+        amrex::GpuArray<Real, AMREX_SPACEDIM> dx_inv = {
+            Real(1.0), Real(1.0), Real(1.0)};
+
+        DiffusionSrcForMom(
+            amrex::surroundingNodes(cell_box, 0),
+            amrex::surroundingNodes(cell_box, 1),
+            amrex::surroundingNodes(cell_box, 2),
+            rho_u_rhs[0].array(), rho_v_rhs[0].array(), rho_w_rhs[0].array(),
+            tau11[0].const_array(), tau22[0].const_array(),
+            tau33[0].const_array(), tau12[0].const_array(),
+            tau21[0].const_array(), tau13[0].const_array(),
+            tau31[0].const_array(), tau23[0].const_array(),
+            tau32[0].const_array(), detJ[0].const_array(), stretched_dz_d,
+            dx_inv, mf_mx[0].const_array(), mf_ux[0].const_array(),
+            mf_vx[0].const_array(), mf_my[0].const_array(),
+            mf_uy[0].const_array(), mf_vy[0].const_array(), false, false);
+        amrex::Gpu::streamSynchronize();
+
+        const int i_rhs = high ? 1 : 0;
+        const amrex::Box point(
+            amrex::IntVect(i_rhs, 1, 0), amrex::IntVect(i_rhs, 1, 0));
+        return single_value(rho_v_rhs, point);
+    };
+
+    constexpr Real expected = Real(-1.7);
+    EXPECT_NEAR(run_face(false), expected, scaled_tolerance(expected));
+    EXPECT_NEAR(run_face(true), expected, scaled_tolerance(expected));
 }
 
 } // namespace

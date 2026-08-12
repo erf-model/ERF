@@ -24,12 +24,14 @@ enum class MoistureMode : unsigned char {
 enum class MomentumModel : unsigned char {
     ResolvedNoSlip,
     BulkAero,
-    LawOfWallMomentum
+    LawOfWallMomentum,
+    NeutralRoughnessLog
 };
 
 enum class ScalarModel : unsigned char {
     ResolvedMolecular,
-    BulkAero
+    BulkAero,
+    NeutralRoughnessLog
 };
 
 enum class CoefficientProvider : unsigned char {

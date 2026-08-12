@@ -255,8 +255,10 @@ Problem::init_custom_pert_vels (
               (my_prob_name_ci == "supercell") ) {
 #include "Prob/ERF_InitCustomPertVels_SquallLine.H"
     }
-    else if (my_prob_name_ci == "userdefined") {
-#include "Prob/ERF_InitCustomPertVels_UserDefined.H"
+    else if (my_prob_name_ci == "cloud chamber" ||
+             my_prob_name_ci == "cloudchamber" ||
+             my_prob_name_ci == "userdefined") {
+#include "Prob/ERF_InitCustomPertVels_CloudChamber.H"
     }
      else if  (my_prob_name_ci == "data_assimilation_isv") {
 #include "Prob/ERF_InitCustomPertVels_DataAssimilation_ISV.H"

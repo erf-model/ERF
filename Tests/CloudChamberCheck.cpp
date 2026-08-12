@@ -12,6 +12,7 @@
 #include <iomanip>
 #include <iostream>
 #include <limits>
+#include <memory>
 #include <sstream>
 #include <string>
 #include <vector>
@@ -106,12 +107,14 @@ bool close_to_zero (Real value, const BudgetRow& row)
 bool is_budget_mode (const std::string& mode)
 {
     return mode == "all_dry" || mode == "wet_budget" || mode == "bulk_wet" ||
-        mode == "thermal_budget" || mode == "bulk_thermal";
+        mode == "neutral_wet" || mode == "thermal_budget" ||
+        mode == "bulk_thermal" || mode == "neutral_thermal";
 }
 
 bool is_checker_mode (const std::string& mode)
 {
-    return mode == "dry" || mode == "cloudy" || mode == "parity" || is_budget_mode(mode);
+    return mode == "dry" || mode == "cloudy" || mode == "parity" ||
+        mode == "neutral_momentum" || is_budget_mode(mode);
 }
 
 struct BudgetSummary {
@@ -139,10 +142,13 @@ bool check_budget_rows (const std::vector<BudgetRow>& rows,
                         std::string& error)
 {
     const bool all_dry = mode == "all_dry";
-    const bool wet = mode == "wet_budget" || mode == "bulk_wet";
-    const bool thermal = mode == "thermal_budget" || mode == "bulk_thermal";
-    const bool require_bulk_activation =
-        mode == "bulk_thermal" || mode == "bulk_wet";
+    const bool wet = mode == "wet_budget" || mode == "bulk_wet" ||
+        mode == "neutral_wet";
+    const bool thermal = mode == "thermal_budget" || mode == "bulk_thermal" ||
+        mode == "neutral_thermal";
+    const bool require_transfer_activation =
+        mode == "bulk_thermal" || mode == "bulk_wet" ||
+        mode == "neutral_thermal" || mode == "neutral_wet";
     summary = {};
     summary.rows = static_cast<int>(rows.size());
     int total_rows = 0;
@@ -186,7 +192,7 @@ bool check_budget_rows (const std::vector<BudgetRow>& rows,
                 }
                 summary.max_residual_ratio = std::max(
                     summary.max_residual_ratio, std::abs(row.residual) / tol);
-                if (require_bulk_activation) {
+                if (require_transfer_activation) {
                     for (const auto value : row.faces) {
                         summary.bulk_face_nonzero = summary.bulk_face_nonzero ||
                             value != Real(0.0);
@@ -224,7 +230,7 @@ bool check_budget_rows (const std::vector<BudgetRow>& rows,
                     error = "wet-wall vapor flux is non-finite";
                     return false;
                 }
-                if (require_bulk_activation && row.faces[4] != Real(0.0)) {
+                if (require_transfer_activation && row.faces[4] != Real(0.0)) {
                     summary.bulk_face_nonzero = true;
                 }
             }
@@ -244,14 +250,14 @@ bool check_budget_rows (const std::vector<BudgetRow>& rows,
             error = "expected at least three dry rhoTheta budget intervals";
             return false;
         }
-        if (require_bulk_activation && !summary.bulk_face_nonzero) {
+        if (require_transfer_activation && !summary.bulk_face_nonzero) {
             error = "bulk thermal oracle found no nonzero retained wall flux";
             return false;
         }
         summary.thermal_rows = thermal_rows;
         return true;
     }
-    if (require_bulk_activation && !summary.bulk_face_nonzero) {
+    if (require_transfer_activation && !summary.bulk_face_nonzero) {
         error = "bulk wet oracle found no nonzero retained zlo vapor flux";
         return false;
     }
@@ -271,11 +277,13 @@ int main (int argc, char** argv)
 {
     const std::string mode = argc > 1 ? argv[1] : std::string();
     const bool budget_mode = is_budget_mode(mode);
-    const int expected_argc = budget_mode ? 5 : 4;
+    const bool activation_mode = mode == "neutral_momentum";
+    const int expected_argc = (budget_mode || activation_mode) ? 5 : 4;
     if (!is_checker_mode(mode) || argc != expected_argc) {
         std::cerr << "usage: checker mode initial_plotfile final_plotfile\n"
                   << "       checker parity budget_off_plotfile budget_on_plotfile\n"
-                  << "       checker all_dry|wet_budget|bulk_wet|thermal_budget|bulk_thermal initial_plotfile final_plotfile budget_file\n";
+                  << "       checker all_dry|wet_budget|bulk_wet|neutral_wet|thermal_budget|bulk_thermal|neutral_thermal initial_plotfile final_plotfile budget_file\n"
+                  << "       checker neutral_momentum initial_plotfile final_a final_b\n";
         return 2;
     }
 
@@ -315,16 +323,24 @@ int main (int argc, char** argv)
     }
     PlotFileData initial(argv[2]);
     PlotFileData final(argv[3]);
+    std::unique_ptr<PlotFileData> alternate;
+    if (activation_mode) {
+        alternate = std::make_unique<PlotFileData>(argv[4]);
+    }
     const bool cloudy = (mode == "cloudy" || mode == "all_dry" ||
-                         mode == "wet_budget" || mode == "bulk_wet");
-    if (!cloudy && mode != "dry" && mode != "thermal_budget" && mode != "bulk_thermal") {
+                         mode == "wet_budget" || mode == "bulk_wet" ||
+                         mode == "neutral_wet");
+    if (!cloudy && mode != "dry" && mode != "neutral_momentum" &&
+        mode != "thermal_budget" && mode != "bulk_thermal" &&
+        mode != "neutral_thermal") {
         amrex::Finalize();
         return fail("mode must be dry, cloudy, all_dry, wet_budget, bulk_wet, thermal_budget, or bulk_thermal");
     }
 
     for (const char* name : {"density", "theta", "temp", "x_velocity",
                              "y_velocity", "z_velocity"}) {
-        if (!has_variable(initial, name) || !has_variable(final, name)) {
+        if (!has_variable(initial, name) || !has_variable(final, name) ||
+            (activation_mode && !has_variable(*alternate, name))) {
             amrex::Finalize();
             return fail("missing required variable " + std::string(name));
         }
@@ -477,7 +493,7 @@ int main (int argc, char** argv)
         return fail("initial relative humidity diagnostic mismatch: max error=" +
                     std::to_string(static_cast<double>(rh_error_max)));
     }
-    if (initial_velocity_max > scaled_tolerance(Real(1.0))) {
+    if (!activation_mode && initial_velocity_max > scaled_tolerance(Real(1.0))) {
         amrex::Finalize();
         return fail("initial velocity is not zero: max=" +
                     std::to_string(static_cast<double>(initial_velocity_max)));
@@ -485,7 +501,8 @@ int main (int argc, char** argv)
 
     for (const char* name : {"density", "theta", "temp", "x_velocity",
                              "y_velocity", "z_velocity"}) {
-        if (!final.get(0, name).is_finite()) {
+        if (!final.get(0, name).is_finite() ||
+            (activation_mode && !alternate->get(0, name).is_finite())) {
             amrex::Finalize();
             return fail("final field is non-finite: " + std::string(name));
         }
@@ -543,6 +560,18 @@ int main (int argc, char** argv)
     std::cout << "mode=" << mode << " initial_theta_error=" << theta_error_max
               << " initial_temperature_error=" << temperature_error_max
               << " evolved_velocity_max=" << evolved_velocity;
+    Real activation_difference = Real(0.0);
+    if (activation_mode) {
+        for (const auto& name : {std::string("x_velocity"),
+                                 std::string("y_velocity"),
+                                 std::string("z_velocity")}) {
+            MultiFab difference = final.get(0, name);
+            MultiFab::Subtract(difference, alternate->get(0, name), 0, 0, 1, 0);
+            activation_difference = std::max(activation_difference,
+                                              difference.norm0(0, 0, false));
+        }
+        std::cout << " alternate_velocity_difference=" << activation_difference;
+    }
     if (cloudy) {
         std::cout << " final_qv_min=" << final.get(0,"qv").min(0)
                   << " final_qc_max=" << final.get(0,"qc").max(0)
@@ -552,6 +581,10 @@ int main (int argc, char** argv)
     std::cout << "\n";
 
     amrex::Finalize();
+    if (activation_mode &&
+        activation_difference <= scaled_tolerance(Real(1.0), Real(16.0))) {
+        return fail("neutral momentum roughness change produced no production response");
+    }
     // This is a nonzero-response guard, not a magnitude assertion. A few
     // ulps are sufficient because the short regression intentionally starts
     // from a nearly motionless chamber.

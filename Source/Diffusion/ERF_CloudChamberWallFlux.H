@@ -57,6 +57,21 @@ struct ScalarWallSample {
     amrex::Real alpha_C = amrex::Real(0.0);
     amrex::Real dx_inv = amrex::Real(0.0);
     amrex::Real rdOcp = amrex::Real(0.0);
+    // Explicit distance of this scalar sample from the physical wall.
+    amrex::Real wall_distance = amrex::Real(0.0);
+};
+
+struct NeutralLogMomentumState {
+    amrex::Real log_m = amrex::Real(0.0);
+    amrex::Real C_D = amrex::Real(0.0);
+    amrex::Real u_star = amrex::Real(0.0);
+};
+
+struct MomentumWallSample {
+    amrex::Real rho = amrex::Real(0.0);
+    amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> u_t{};
+    amrex::Real U_t = amrex::Real(0.0);
+    amrex::Real wall_distance = amrex::Real(0.0);
 };
 
 struct ScalarFluxReplacement {
@@ -70,6 +85,10 @@ static_assert(std::is_trivially_copyable_v<FaceRuntimeCoefficients>);
 static_assert(std::is_standard_layout_v<FaceRuntimeCoefficients>);
 static_assert(std::is_trivially_copyable_v<ScalarWallSample>);
 static_assert(std::is_standard_layout_v<ScalarWallSample>);
+static_assert(std::is_trivially_copyable_v<NeutralLogMomentumState>);
+static_assert(std::is_standard_layout_v<NeutralLogMomentumState>);
+static_assert(std::is_trivially_copyable_v<MomentumWallSample>);
+static_assert(std::is_standard_layout_v<MomentumWallSample>);
 static_assert(std::is_trivially_copyable_v<ScalarFluxReplacement>);
 static_assert(std::is_standard_layout_v<ScalarFluxReplacement>);
 
@@ -153,6 +172,64 @@ owns (const WallFlux& flux, ScalarChannel channel) noexcept
 
 AMREX_GPU_HOST_DEVICE
 AMREX_FORCE_INLINE
+NeutralLogMomentumState
+neutral_log_momentum_state (amrex::Real U_t,
+                           amrex::Real wall_distance,
+                           amrex::Real z0_m) noexcept
+{
+    const amrex::Real log_m = std::log(wall_distance / z0_m);
+    const amrex::Real k_over_log = KAPPA / log_m;
+    return {log_m, k_over_log * k_over_log, k_over_log * U_t};
+}
+
+AMREX_GPU_HOST_DEVICE
+AMREX_FORCE_INLINE
+amrex::Real
+neutral_log_scalar_coefficient (amrex::Real wall_distance,
+                                amrex::Real z0_m,
+                                amrex::Real z0_scalar) noexcept
+{
+    const amrex::Real log_m = std::log(wall_distance / z0_m);
+    const amrex::Real log_s = std::log(wall_distance / z0_scalar);
+    return (KAPPA * KAPPA) / (log_m * log_s);
+}
+
+AMREX_GPU_HOST_DEVICE
+AMREX_FORCE_INLINE
+amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>
+neutral_log_traction_on_fluid (const MomentumWallSample& sample,
+                               const NeutralLogMomentumState& neutral) noexcept
+{
+    const amrex::Real factor =
+        -sample.rho * neutral.C_D * sample.U_t;
+    return {factor * sample.u_t[0],
+            factor * sample.u_t[1],
+            factor * sample.u_t[2]};
+}
+
+AMREX_GPU_HOST_DEVICE
+AMREX_FORCE_INLINE
+amrex::Real
+neutral_scalar_rate (amrex::Real coefficient,
+                     amrex::Real U_t,
+                     amrex::Real dx_inv) noexcept
+{
+    return coefficient * U_t * dx_inv;
+}
+
+AMREX_GPU_HOST_DEVICE
+AMREX_FORCE_INLINE
+amrex::Real
+neutral_momentum_rate (amrex::Real C_D,
+                       amrex::Real U_t,
+                       amrex::Real dx_inv) noexcept
+{
+    // The velocity-parallel Jacobian eigenvalue of |u_t|u_t is 2 U_t.
+    return amrex::Real(2.0) * C_D * U_t * dx_inv;
+}
+
+AMREX_GPU_HOST_DEVICE
+AMREX_FORCE_INLINE
 bool
 requires_tangential_speed (
     const erf_wall_thermodynamics::FaceWall& wall,
@@ -163,16 +240,82 @@ requires_tangential_speed (
     switch (channel) {
     case ScalarChannel::Heat:
         return wall.thermal.mode == ThermalMode::FixedPhysicalTemperature &&
-               wall.heat.model == ScalarModel::BulkAero;
+               (wall.heat.model == ScalarModel::BulkAero ||
+                wall.heat.model == ScalarModel::NeutralRoughnessLog);
     case ScalarChannel::Vapor:
         return wall.moisture == MoistureMode::WetEquilibrium &&
-               wall.vapor.model == ScalarModel::BulkAero;
+               (wall.vapor.model == ScalarModel::BulkAero ||
+                wall.vapor.model == ScalarModel::NeutralRoughnessLog);
     case ScalarChannel::CloudWater:
     case ScalarChannel::None:
         return false;
     }
 
     return false;
+}
+
+AMREX_GPU_HOST_DEVICE
+AMREX_FORCE_INLINE
+bool
+requires_tangential_momentum (
+    const erf_wall_thermodynamics::FaceWall& wall) noexcept
+{
+    return wall.momentum.model ==
+        erf_wall_thermodynamics::MomentumModel::NeutralRoughnessLog;
+}
+
+AMREX_GPU_HOST_DEVICE
+AMREX_FORCE_INLINE
+bool
+wall_rate_requires_tangential_speed (
+    const erf_wall_thermodynamics::FaceWall& wall) noexcept
+{
+    return requires_tangential_momentum(wall) ||
+        requires_tangential_speed(wall, ScalarChannel::Heat) ||
+        requires_tangential_speed(wall, ScalarChannel::Vapor);
+}
+
+AMREX_GPU_HOST_DEVICE
+AMREX_FORCE_INLINE
+amrex::Real
+wall_rate_for_face (
+    const erf_wall_thermodynamics::FaceWall& wall,
+    amrex::Real U_t,
+    amrex::Real dx_inv) noexcept
+{
+    using namespace erf_wall_thermodynamics;
+    const amrex::Real wall_distance = amrex::Real(0.5) / dx_inv;
+    amrex::Real rate = amrex::Real(0.0);
+
+    if (wall.momentum.model == MomentumModel::NeutralRoughnessLog) {
+        const auto neutral = neutral_log_momentum_state(
+            U_t, wall_distance, wall.momentum.z0_m);
+        rate = amrex::max(rate, neutral_momentum_rate(
+            neutral.C_D, U_t, dx_inv));
+    }
+    if (wall.thermal.mode == ThermalMode::FixedPhysicalTemperature) {
+        if (wall.heat.model == ScalarModel::BulkAero) {
+            rate = amrex::max(rate, neutral_scalar_rate(
+                wall.heat.coefficient, U_t, dx_inv));
+        } else if (wall.heat.model == ScalarModel::NeutralRoughnessLog) {
+            rate = amrex::max(rate, neutral_scalar_rate(
+                neutral_log_scalar_coefficient(
+                    wall_distance, wall.momentum.z0_m, wall.heat.z0),
+                U_t, dx_inv));
+        }
+    }
+    if (wall.moisture == MoistureMode::WetEquilibrium) {
+        if (wall.vapor.model == ScalarModel::BulkAero) {
+            rate = amrex::max(rate, neutral_scalar_rate(
+                wall.vapor.coefficient, U_t, dx_inv));
+        } else if (wall.vapor.model == ScalarModel::NeutralRoughnessLog) {
+            rate = amrex::max(rate, neutral_scalar_rate(
+                neutral_log_scalar_coefficient(
+                    wall_distance, wall.momentum.z0_m, wall.vapor.z0),
+                U_t, dx_inv));
+        }
+    }
+    return rate;
 }
 
 template <int DIR, bool HIGH>
@@ -246,6 +389,36 @@ bulk_vapor_flux_in (amrex::Real rho,
 
 AMREX_GPU_HOST_DEVICE
 AMREX_FORCE_INLINE
+amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>
+relative_tangential_velocity_cell_centered (
+    int dir, int i, int j, int k,
+    const amrex::Array4<const amrex::Real>& u,
+    const amrex::Array4<const amrex::Real>& v,
+    const amrex::Array4<const amrex::Real>& w,
+    const erf_wall_thermodynamics::FaceWall& wall) noexcept
+{
+    const amrex::Real uc =
+        amrex::Real(0.5) * (u(i,j,k) + u(i+1,j,k)) - wall.wall_velocity[0];
+    const amrex::Real vc =
+        amrex::Real(0.5) * (v(i,j,k) + v(i,j+1,k)) - wall.wall_velocity[1];
+    const amrex::Real wc =
+        amrex::Real(0.5) * (w(i,j,k) + w(i,j,k+1)) - wall.wall_velocity[2];
+    amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> result{uc, vc, wc};
+    result[dir] = amrex::Real(0.0);
+    return result;
+}
+
+AMREX_GPU_HOST_DEVICE
+AMREX_FORCE_INLINE
+amrex::Real
+tangential_magnitude (
+    const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& u_t) noexcept
+{
+    return std::sqrt(u_t[0]*u_t[0] + u_t[1]*u_t[1] + u_t[2]*u_t[2]);
+}
+
+AMREX_GPU_HOST_DEVICE
+AMREX_FORCE_INLINE
 amrex::Real
 tangential_speed (int dir,
                   int i, int j, int k,
@@ -254,19 +427,8 @@ tangential_speed (int dir,
                   const amrex::Array4<const amrex::Real>& w,
                   const erf_wall_thermodynamics::FaceWall& wall) noexcept
 {
-    // x/y/z velocities are staggered. These averages are the established
-    // Cartesian face-to-cell convention used by ERF's scalar path.
-    const amrex::Real uc =
-        amrex::Real(0.5) * (u(i,j,k) + u(i+1,j,k)) - wall.wall_velocity[0];
-    const amrex::Real vc =
-        amrex::Real(0.5) * (v(i,j,k) + v(i,j+1,k)) - wall.wall_velocity[1];
-    const amrex::Real wc =
-        amrex::Real(0.5) * (w(i,j,k) + w(i,j,k+1)) - wall.wall_velocity[2];
-    const amrex::Real normal = (dir == 0) ? uc : ((dir == 1) ? vc : wc);
-    const amrex::Real t0 = uc - ((dir == 0) ? normal : amrex::Real(0.0));
-    const amrex::Real t1 = vc - ((dir == 1) ? normal : amrex::Real(0.0));
-    const amrex::Real t2 = wc - ((dir == 2) ? normal : amrex::Real(0.0));
-    return std::sqrt(t0*t0 + t1*t1 + t2*t2);
+    return tangential_magnitude(
+        relative_tangential_velocity_cell_centered(dir, i, j, k, u, v, w, wall));
 }
 
 AMREX_GPU_HOST_DEVICE
@@ -328,6 +490,35 @@ resolved_vapor_flux_in (
 AMREX_GPU_HOST_DEVICE
 AMREX_FORCE_INLINE
 WallFlux
+evaluate_momentum_traction (
+    const erf_wall_thermodynamics::FaceWall& wall,
+    const MomentumWallSample& sample) noexcept
+{
+    using namespace erf_wall_thermodynamics;
+
+    WallFlux result{};
+    switch (wall.momentum.model) {
+    case MomentumModel::ResolvedNoSlip:
+        return result;
+    case MomentumModel::NeutralRoughnessLog: {
+        result.owned_channels = OwnMomentum;
+        const auto neutral = neutral_log_momentum_state(
+            sample.U_t, sample.wall_distance, wall.momentum.z0_m);
+        result.traction_on_fluid =
+            neutral_log_traction_on_fluid(sample, neutral);
+        return result;
+    }
+    case MomentumModel::BulkAero:
+    case MomentumModel::LawOfWallMomentum:
+        break;
+    }
+    AMREX_ALWAYS_ASSERT(false);
+    return result;
+}
+
+AMREX_GPU_HOST_DEVICE
+AMREX_FORCE_INLINE
+WallFlux
 evaluate_scalar_flux_in (
     const erf_wall_thermodynamics::FaceWall& wall,
     ScalarChannel channel,
@@ -366,6 +557,19 @@ evaluate_scalar_flux_in (
                 sample.p_hse,
                 sample.rdOcp);
             return result;
+        case ScalarModel::NeutralRoughnessLog:
+            result.rhoTheta_in = bulk_theta_flux_in(
+                sample.rho,
+                neutral_log_scalar_coefficient(
+                    sample.wall_distance,
+                    wall.momentum.z0_m,
+                    wall.heat.z0),
+                sample.U_t,
+                wall.thermal.temperature_K,
+                sample.scalar_air,
+                sample.p_hse,
+                sample.rdOcp);
+            return result;
         }
         AMREX_ALWAYS_ASSERT(false);
         return result;
@@ -389,6 +593,18 @@ evaluate_scalar_flux_in (
             result.rhoQv_in = bulk_vapor_flux_in(
                 sample.rho,
                 wall.vapor.coefficient,
+                sample.U_t,
+                wall.thermal.temperature_K,
+                sample.scalar_air,
+                sample.p_hse);
+            return result;
+        case ScalarModel::NeutralRoughnessLog:
+            result.rhoQv_in = bulk_vapor_flux_in(
+                sample.rho,
+                neutral_log_scalar_coefficient(
+                    sample.wall_distance,
+                    wall.momentum.z0_m,
+                    wall.vapor.z0),
                 sample.U_t,
                 wall.thermal.temperature_K,
                 sample.scalar_air,
@@ -516,7 +732,8 @@ void apply_face (const amrex::Box& bx,
             alpha_T,
             alpha_C,
             dx_inv[DIR],
-            rdOcp
+            rdOcp,
+            amrex::Real(0.5) / dx_inv[DIR]
         };
 
         const WallFlux physical =

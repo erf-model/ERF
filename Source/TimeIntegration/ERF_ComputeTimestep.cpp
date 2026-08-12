@@ -247,7 +247,7 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
      Real estdt_wall = bogus_large_value;
      if (cloud_chamber_config.active &&
          cloud_chamber_config.physical_initialization &&
-         cloud_chamber_config.has_bulk_scalar_wall()) {
+         cloud_chamber_config.has_wall_rate_channel()) {
          const auto walls = cloud_chamber_config.wall_boundary();
          const Box domain = geom[level].Domain();
          max_wall_rate = ReduceMax(ccvel, 0,
@@ -266,34 +266,28 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
                                                      k == domain.bigEnd(2)));
                      if (low) {
                          const auto& wall = walls[2*dir];
-                         const Real U_t =
-                             erf_cloud_chamber_wall_flux::tangential_speed_cell_centered(
-                                 dir, i, j, k, velocity, wall);
-                         if (wall.heat.model ==
-                             erf_wall_thermodynamics::ScalarModel::BulkAero) {
-                             rate = amrex::max(rate, wall.heat.coefficient * U_t * dxinv[dir]);
-                         }
-                         if (wall.vapor.model ==
-                                 erf_wall_thermodynamics::ScalarModel::BulkAero &&
-                             wall.moisture ==
-                                 erf_wall_thermodynamics::MoistureMode::WetEquilibrium) {
-                             rate = amrex::max(rate, wall.vapor.coefficient * U_t * dxinv[dir]);
+                         if (erf_cloud_chamber_wall_flux::
+                             wall_rate_requires_tangential_speed(wall)) {
+                             const Real U_t =
+                                 erf_cloud_chamber_wall_flux::
+                                 tangential_speed_cell_centered(
+                                     dir, i, j, k, velocity, wall);
+                             rate = amrex::max(rate,
+                                 erf_cloud_chamber_wall_flux::wall_rate_for_face(
+                                     wall, U_t, dxinv[dir]));
                          }
                      }
                      if (high) {
                          const auto& wall = walls[2*dir+1];
-                         const Real U_t =
-                             erf_cloud_chamber_wall_flux::tangential_speed_cell_centered(
-                                 dir, i, j, k, velocity, wall);
-                         if (wall.heat.model ==
-                             erf_wall_thermodynamics::ScalarModel::BulkAero) {
-                             rate = amrex::max(rate, wall.heat.coefficient * U_t * dxinv[dir]);
-                         }
-                         if (wall.vapor.model ==
-                                 erf_wall_thermodynamics::ScalarModel::BulkAero &&
-                             wall.moisture ==
-                                 erf_wall_thermodynamics::MoistureMode::WetEquilibrium) {
-                             rate = amrex::max(rate, wall.vapor.coefficient * U_t * dxinv[dir]);
+                         if (erf_cloud_chamber_wall_flux::
+                             wall_rate_requires_tangential_speed(wall)) {
+                             const Real U_t =
+                                 erf_cloud_chamber_wall_flux::
+                                 tangential_speed_cell_centered(
+                                     dir, i, j, k, velocity, wall);
+                             rate = amrex::max(rate,
+                                 erf_cloud_chamber_wall_flux::wall_rate_for_face(
+                                     wall, U_t, dxinv[dir]));
                          }
                      }
                  }

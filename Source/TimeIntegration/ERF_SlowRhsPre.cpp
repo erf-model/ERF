@@ -15,6 +15,7 @@
 #include "ERF_EB.H"
 #include "ERF_SurfaceLayer.H"
 #include "Diffusion/ERF_CloudChamberWallFlux.H"
+#include "Diffusion/ERF_CloudChamberWallStress.H"
 #include "Prob/ERF_CloudChamberBudget.H"
 
 using namespace amrex;
@@ -773,6 +774,13 @@ void erf_slow_rhs_pre (int level, int finest_level,
                            lo_z_face, hi_z_face, domain, bc_ptr_h);
 
         if (l_use_diff) {
+            if (!l_use_eb && use_physical_chamber_wall_flux &&
+                erf_cloud_chamber_wall_stress::has_neutral_momentum_wall(chamber_walls)) {
+                erf_cloud_chamber_wall_stress::apply(
+                    bx, domain, cell_data, u, v, w,
+                    tau12, tau13, tau23, dxInv, chamber_walls);
+            }
+
             // Note: tau** were calculated with calls to
             // ComputeStress[Cons|Var]Visc_[N|S|T] in which ConsVisc ("constant
             // viscosity") means that there is no contribution from a
