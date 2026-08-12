@@ -2313,6 +2313,13 @@
 
 
 
+      if (debug_local .gt. 0 .and. i_dbg_local .ge. its .and. i_dbg_local .le. ite) then
+        write(*,'(A,1X,I3,9(1X,ES24.16E3))') &
+          'WDM6-FORT_PRE_G14', kts, &
+          q(i_dbg_local,kts), qci(i_dbg_local,kts,1), qci(i_dbg_local,kts,2), &
+          qrs(i_dbg_local,kts,1), qrs(i_dbg_local,kts,2), qrs(i_dbg_local,kts,3), &
+          ncr(i_dbg_local,kts,2), ncr(i_dbg_local,kts,3), t(i_dbg_local,kts)
+      endif
       do k = kts, kte
         do i = its, ite
 
@@ -2563,6 +2570,13 @@
           endif
         enddo
       enddo
+      if (debug_local .gt. 0 .and. i_dbg_local .ge. its .and. i_dbg_local .le. ite) then
+        write(*,'(A,1X,I3,9(1X,ES24.16E3))') &
+          'WDM6-FORT_POST_G14', kts, &
+          q(i_dbg_local,kts), qci(i_dbg_local,kts,1), qci(i_dbg_local,kts,2), &
+          qrs(i_dbg_local,kts,1), qrs(i_dbg_local,kts,2), qrs(i_dbg_local,kts,3), &
+          ncr(i_dbg_local,kts,2), ncr(i_dbg_local,kts,3), t(i_dbg_local,kts)
+      endif
 
 
 

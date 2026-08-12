@@ -3497,12 +3497,341 @@ void WDM6::Advance(const Real& dt_advance,
             }
 #endif
 
+#if !defined(AMREX_USE_GPU)
+            if (microphysics_debug > 0 && diag_col_in_tile) {
+                std::printf("WDM6-CPP_PRE_G14 %3d %24.16E %24.16E %24.16E %24.16E %24.16E %24.16E %24.16E %24.16E %24.16E\n",
+                            diag_k + 1,
+                            static_cast<double>(qv_arr(diag_i,diag_j,diag_k)),
+                            static_cast<double>(qc_arr(diag_i,diag_j,diag_k)),
+                            static_cast<double>(qi_arr(diag_i,diag_j,diag_k)),
+                            static_cast<double>(qr_arr(diag_i,diag_j,diag_k)),
+                            static_cast<double>(qs_arr(diag_i,diag_j,diag_k)),
+                            static_cast<double>(qg_arr(diag_i,diag_j,diag_k)),
+                            static_cast<double>(nc_arr(diag_i,diag_j,diag_k)),
+                            static_cast<double>(nr_arr(diag_i,diag_j,diag_k)),
+                            static_cast<double>(t_arr(diag_i,diag_j,diag_k)));
+                std::fflush(stdout);
+            }
+#endif
+
+            ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+                const Real qmin_l = Real(qmin);
+                const Real qcrmin_l = Real(qcrmin);
+                const Real ncmin_l = Real(ncmin);
+                const Real nrmin_l = Real(nrmin);
+                const Real t0c_l = Real(t0c);
+                const Real one = Real(1.0);
+                const Real zero = Real(0.0);
+                const Real delta2 =
+                    (qr_arr(i,j,k) < Real(1.0e-4) && qs_arr(i,j,k) < Real(1.0e-4))
+                    ? one : zero;
+                const Real delta3 =
+                    (qr_arr(i,j,k) < Real(1.0e-4)) ? one : zero;
+
+                if (t_arr(i,j,k) <= t0c_l) {
+                    Real value, source, factor, xlf, xlwork2;
+
+                    value = amrex::max(qmin_l, qc_arr(i,j,k));
+                    source = (praut_arr(i,j,k) + pracw_arr(i,j,k)
+                            + paacw_arr(i,j,k) + paacw_arr(i,j,k)) * dtcld;
+                    if (source > value) {
+                        factor = value / source;
+                        praut_arr(i,j,k) = praut_arr(i,j,k) * factor;
+                        pracw_arr(i,j,k) = pracw_arr(i,j,k) * factor;
+                        paacw_arr(i,j,k) = paacw_arr(i,j,k) * factor;
+                    }
+
+                    value = amrex::max(qmin_l, qi_arr(i,j,k));
+                    source = (psaut_arr(i,j,k) - pigen_arr(i,j,k)
+                            - pidep_arr(i,j,k) + praci_arr(i,j,k)
+                            + psaci_arr(i,j,k) + pgaci_arr(i,j,k)) * dtcld;
+                    if (source > value) {
+                        factor = value / source;
+                        psaut_arr(i,j,k) = psaut_arr(i,j,k) * factor;
+                        pigen_arr(i,j,k) = pigen_arr(i,j,k) * factor;
+                        pidep_arr(i,j,k) = pidep_arr(i,j,k) * factor;
+                        praci_arr(i,j,k) = praci_arr(i,j,k) * factor;
+                        psaci_arr(i,j,k) = psaci_arr(i,j,k) * factor;
+                        pgaci_arr(i,j,k) = pgaci_arr(i,j,k) * factor;
+                    }
+
+                    value = amrex::max(qmin_l, qr_arr(i,j,k));
+                    source = (-praut_arr(i,j,k) - prevp_arr(i,j,k)
+                            - pracw_arr(i,j,k) + piacr_arr(i,j,k)
+                            + psacr_arr(i,j,k) + pgacr_arr(i,j,k)) * dtcld;
+                    if (source > value) {
+                        factor = value / source;
+                        praut_arr(i,j,k) = praut_arr(i,j,k) * factor;
+                        prevp_arr(i,j,k) = prevp_arr(i,j,k) * factor;
+                        pracw_arr(i,j,k) = pracw_arr(i,j,k) * factor;
+                        piacr_arr(i,j,k) = piacr_arr(i,j,k) * factor;
+                        psacr_arr(i,j,k) = psacr_arr(i,j,k) * factor;
+                        pgacr_arr(i,j,k) = pgacr_arr(i,j,k) * factor;
+                    }
+
+                    value = amrex::max(qmin_l, qs_arr(i,j,k));
+                    source = -(psdep_arr(i,j,k) + psaut_arr(i,j,k)
+                             - pgaut_arr(i,j,k) + paacw_arr(i,j,k)
+                             + piacr_arr(i,j,k) * delta3
+                             + praci_arr(i,j,k) * delta3
+                             - pracs_arr(i,j,k) * (one - delta2)
+                             + psacr_arr(i,j,k) * delta2
+                             + psaci_arr(i,j,k) - pgacs_arr(i,j,k)) * dtcld;
+                    if (source > value) {
+                        factor = value / source;
+                        psdep_arr(i,j,k) = psdep_arr(i,j,k) * factor;
+                        psaut_arr(i,j,k) = psaut_arr(i,j,k) * factor;
+                        pgaut_arr(i,j,k) = pgaut_arr(i,j,k) * factor;
+                        paacw_arr(i,j,k) = paacw_arr(i,j,k) * factor;
+                        piacr_arr(i,j,k) = piacr_arr(i,j,k) * factor;
+                        praci_arr(i,j,k) = praci_arr(i,j,k) * factor;
+                        psaci_arr(i,j,k) = psaci_arr(i,j,k) * factor;
+                        pracs_arr(i,j,k) = pracs_arr(i,j,k) * factor;
+                        psacr_arr(i,j,k) = psacr_arr(i,j,k) * factor;
+                        pgacs_arr(i,j,k) = pgacs_arr(i,j,k) * factor;
+                    }
+
+                    value = amrex::max(qmin_l, qg_arr(i,j,k));
+                    source = -(pgdep_arr(i,j,k) + pgaut_arr(i,j,k)
+                             + piacr_arr(i,j,k) * (one - delta3)
+                             + praci_arr(i,j,k) * (one - delta3)
+                             + psacr_arr(i,j,k) * (one - delta2)
+                             + pracs_arr(i,j,k) * (one - delta2)
+                             + pgaci_arr(i,j,k) + paacw_arr(i,j,k)
+                             + pgacr_arr(i,j,k) + pgacs_arr(i,j,k)) * dtcld;
+                    if (source > value) {
+                        factor = value / source;
+                        pgdep_arr(i,j,k) = pgdep_arr(i,j,k) * factor;
+                        pgaut_arr(i,j,k) = pgaut_arr(i,j,k) * factor;
+                        piacr_arr(i,j,k) = piacr_arr(i,j,k) * factor;
+                        praci_arr(i,j,k) = praci_arr(i,j,k) * factor;
+                        psacr_arr(i,j,k) = psacr_arr(i,j,k) * factor;
+                        pracs_arr(i,j,k) = pracs_arr(i,j,k) * factor;
+                        paacw_arr(i,j,k) = paacw_arr(i,j,k) * factor;
+                        pgaci_arr(i,j,k) = pgaci_arr(i,j,k) * factor;
+                        pgacr_arr(i,j,k) = pgacr_arr(i,j,k) * factor;
+                        pgacs_arr(i,j,k) = pgacs_arr(i,j,k) * factor;
+                    }
+
+                    value = amrex::max(ncmin_l, nc_arr(i,j,k));
+                    source = (nrauto_arr(i,j,k) + nccol_arr(i,j,k)
+                            + nraccr_arr(i,j,k) + naacw_arr(i,j,k)
+                            + naacw_arr(i,j,k)) * dtcld;
+                    if (source > value) {
+                        factor = value / source;
+                        nrauto_arr(i,j,k) = nrauto_arr(i,j,k) * factor;
+                        nccol_arr(i,j,k) = nccol_arr(i,j,k) * factor;
+                        nraccr_arr(i,j,k) = nraccr_arr(i,j,k) * factor;
+                        naacw_arr(i,j,k) = naacw_arr(i,j,k) * factor;
+                    }
+
+                    value = amrex::max(nrmin_l, nr_arr(i,j,k));
+                    source = (-nrauto_arr(i,j,k) + nrcol_arr(i,j,k)
+                            + niacr_arr(i,j,k) + nsacr_arr(i,j,k)
+                            + ngacr_arr(i,j,k)) * dtcld;
+                    if (source > value) {
+                        factor = value / source;
+                        nrauto_arr(i,j,k) = nrauto_arr(i,j,k) * factor;
+                        nrcol_arr(i,j,k) = nrcol_arr(i,j,k) * factor;
+                        niacr_arr(i,j,k) = niacr_arr(i,j,k) * factor;
+                        nsacr_arr(i,j,k) = nsacr_arr(i,j,k) * factor;
+                        ngacr_arr(i,j,k) = ngacr_arr(i,j,k) * factor;
+                    }
+
+                    work2_arr(i,j,k) = -(prevp_arr(i,j,k) + psdep_arr(i,j,k)
+                                       + pgdep_arr(i,j,k) + pigen_arr(i,j,k)
+                                       + pidep_arr(i,j,k));
+                    qv_arr(i,j,k) = qv_arr(i,j,k) + work2_arr(i,j,k) * dtcld;
+                    qc_arr(i,j,k) = amrex::max(
+                        qc_arr(i,j,k) - (praut_arr(i,j,k) + pracw_arr(i,j,k)
+                                       + paacw_arr(i,j,k) + paacw_arr(i,j,k))
+                                       * dtcld,
+                        zero);
+                    qr_arr(i,j,k) = amrex::max(
+                        qr_arr(i,j,k) + (praut_arr(i,j,k) + pracw_arr(i,j,k)
+                                       + prevp_arr(i,j,k) - piacr_arr(i,j,k)
+                                       - pgacr_arr(i,j,k) - psacr_arr(i,j,k))
+                                       * dtcld,
+                        zero);
+                    qi_arr(i,j,k) = amrex::max(
+                        qi_arr(i,j,k) - (psaut_arr(i,j,k) + praci_arr(i,j,k)
+                                       + psaci_arr(i,j,k) + pgaci_arr(i,j,k)
+                                       - pigen_arr(i,j,k) - pidep_arr(i,j,k))
+                                       * dtcld,
+                        zero);
+                    qs_arr(i,j,k) = amrex::max(
+                        qs_arr(i,j,k) + (psdep_arr(i,j,k) + psaut_arr(i,j,k)
+                                       + paacw_arr(i,j,k) - pgaut_arr(i,j,k)
+                                       + piacr_arr(i,j,k) * delta3
+                                       + praci_arr(i,j,k) * delta3
+                                       + psaci_arr(i,j,k) - pgacs_arr(i,j,k)
+                                       - pracs_arr(i,j,k) * (one - delta2)
+                                       + psacr_arr(i,j,k) * delta2) * dtcld,
+                        zero);
+                    qg_arr(i,j,k) = amrex::max(
+                        qg_arr(i,j,k) + (pgdep_arr(i,j,k) + pgaut_arr(i,j,k)
+                                       + piacr_arr(i,j,k) * (one - delta3)
+                                       + praci_arr(i,j,k) * (one - delta3)
+                                       + psacr_arr(i,j,k) * (one - delta2)
+                                       + pracs_arr(i,j,k) * (one - delta2)
+                                       + pgaci_arr(i,j,k) + paacw_arr(i,j,k)
+                                       + pgacr_arr(i,j,k) + pgacs_arr(i,j,k))
+                                       * dtcld,
+                        zero);
+                    nc_arr(i,j,k) = amrex::max(
+                        nc_arr(i,j,k) + (-nrauto_arr(i,j,k) - nccol_arr(i,j,k)
+                                       - nraccr_arr(i,j,k) - naacw_arr(i,j,k)
+                                       - naacw_arr(i,j,k)) * dtcld,
+                        zero);
+                    nr_arr(i,j,k) = amrex::max(
+                        nr_arr(i,j,k) + (nrauto_arr(i,j,k) - nrcol_arr(i,j,k)
+                                       - niacr_arr(i,j,k) - nsacr_arr(i,j,k)
+                                       - ngacr_arr(i,j,k)) * dtcld,
+                        zero);
+                    xlf = Real(xls) - xl_arr(i,j,k);
+                    xlwork2 = -Real(xls) * (psdep_arr(i,j,k) + pgdep_arr(i,j,k)
+                                          + pidep_arr(i,j,k) + pigen_arr(i,j,k))
+                            - xl_arr(i,j,k) * prevp_arr(i,j,k)
+                            - xlf * (piacr_arr(i,j,k) + paacw_arr(i,j,k)
+                                   + paacw_arr(i,j,k) + pgacr_arr(i,j,k)
+                                   + psacr_arr(i,j,k));
+                    t_arr(i,j,k) = t_arr(i,j,k) - xlwork2 / cpm_arr(i,j,k) * dtcld;
+                } else {
+                    Real value, source, factor, xlf, xlwork2;
+
+                    value = amrex::max(qmin_l, qc_arr(i,j,k));
+                    source = (praut_arr(i,j,k) + pracw_arr(i,j,k)
+                            + paacw_arr(i,j,k) + paacw_arr(i,j,k)) * dtcld;
+                    if (source > value) {
+                        factor = value / source;
+                        praut_arr(i,j,k) = praut_arr(i,j,k) * factor;
+                        pracw_arr(i,j,k) = pracw_arr(i,j,k) * factor;
+                        paacw_arr(i,j,k) = paacw_arr(i,j,k) * factor;
+                    }
+
+                    value = amrex::max(qmin_l, qr_arr(i,j,k));
+                    source = (-paacw_arr(i,j,k) - praut_arr(i,j,k)
+                            + pseml_arr(i,j,k) + pgeml_arr(i,j,k)
+                            - pracw_arr(i,j,k) - paacw_arr(i,j,k)
+                            - prevp_arr(i,j,k)) * dtcld;
+                    if (source > value) {
+                        factor = value / source;
+                        praut_arr(i,j,k) = praut_arr(i,j,k) * factor;
+                        prevp_arr(i,j,k) = prevp_arr(i,j,k) * factor;
+                        pracw_arr(i,j,k) = pracw_arr(i,j,k) * factor;
+                        paacw_arr(i,j,k) = paacw_arr(i,j,k) * factor;
+                        pseml_arr(i,j,k) = pseml_arr(i,j,k) * factor;
+                        pgeml_arr(i,j,k) = pgeml_arr(i,j,k) * factor;
+                    }
+
+                    value = amrex::max(qcrmin_l, qs_arr(i,j,k));
+                    source = (pgacs_arr(i,j,k) - pseml_arr(i,j,k)
+                            - psevp_arr(i,j,k)) * dtcld;
+                    if (source > value) {
+                        factor = value / source;
+                        pgacs_arr(i,j,k) = pgacs_arr(i,j,k) * factor;
+                        psevp_arr(i,j,k) = psevp_arr(i,j,k) * factor;
+                        pseml_arr(i,j,k) = pseml_arr(i,j,k) * factor;
+                    }
+
+                    value = amrex::max(qcrmin_l, qg_arr(i,j,k));
+                    source = -(pgacs_arr(i,j,k) + pgevp_arr(i,j,k)
+                             + pgeml_arr(i,j,k)) * dtcld;
+                    if (source > value) {
+                        factor = value / source;
+                        pgacs_arr(i,j,k) = pgacs_arr(i,j,k) * factor;
+                        pgevp_arr(i,j,k) = pgevp_arr(i,j,k) * factor;
+                        pgeml_arr(i,j,k) = pgeml_arr(i,j,k) * factor;
+                    }
+
+                    value = amrex::max(ncmin_l, nc_arr(i,j,k));
+                    source = (nrauto_arr(i,j,k) + nccol_arr(i,j,k)
+                            + nraccr_arr(i,j,k) + naacw_arr(i,j,k)
+                            + naacw_arr(i,j,k)) * dtcld;
+                    if (source > value) {
+                        factor = value / source;
+                        nrauto_arr(i,j,k) = nrauto_arr(i,j,k) * factor;
+                        nccol_arr(i,j,k) = nccol_arr(i,j,k) * factor;
+                        nraccr_arr(i,j,k) = nraccr_arr(i,j,k) * factor;
+                        naacw_arr(i,j,k) = naacw_arr(i,j,k) * factor;
+                    }
+
+                    value = amrex::max(nrmin_l, nr_arr(i,j,k));
+                    source = (-nrauto_arr(i,j,k) + nrcol_arr(i,j,k)
+                            - nseml_arr(i,j,k) - ngeml_arr(i,j,k)) * dtcld;
+                    if (source > value) {
+                        factor = value / source;
+                        nrauto_arr(i,j,k) = nrauto_arr(i,j,k) * factor;
+                        nrcol_arr(i,j,k) = nrcol_arr(i,j,k) * factor;
+                        nseml_arr(i,j,k) = nseml_arr(i,j,k) * factor;
+                        ngeml_arr(i,j,k) = ngeml_arr(i,j,k) * factor;
+                    }
+
+                    work2_arr(i,j,k) = -(prevp_arr(i,j,k) + psevp_arr(i,j,k)
+                                       + pgevp_arr(i,j,k));
+                    qv_arr(i,j,k) = qv_arr(i,j,k) + work2_arr(i,j,k) * dtcld;
+                    qc_arr(i,j,k) = amrex::max(
+                        qc_arr(i,j,k) - (praut_arr(i,j,k) + pracw_arr(i,j,k)
+                                       + paacw_arr(i,j,k) + paacw_arr(i,j,k))
+                                       * dtcld,
+                        zero);
+                    qr_arr(i,j,k) = amrex::max(
+                        qr_arr(i,j,k) + (praut_arr(i,j,k) + pracw_arr(i,j,k)
+                                       + prevp_arr(i,j,k) + paacw_arr(i,j,k)
+                                       + paacw_arr(i,j,k) - pseml_arr(i,j,k)
+                                       - pgeml_arr(i,j,k)) * dtcld,
+                        zero);
+                    qs_arr(i,j,k) = amrex::max(
+                        qs_arr(i,j,k) + (psevp_arr(i,j,k) - pgacs_arr(i,j,k)
+                                       + pseml_arr(i,j,k)) * dtcld,
+                        zero);
+                    qg_arr(i,j,k) = amrex::max(
+                        qg_arr(i,j,k) + (pgacs_arr(i,j,k) + pgevp_arr(i,j,k)
+                                       + pgeml_arr(i,j,k)) * dtcld,
+                        zero);
+                    nc_arr(i,j,k) = amrex::max(
+                        nc_arr(i,j,k) + (-nrauto_arr(i,j,k) - nccol_arr(i,j,k)
+                                       - nraccr_arr(i,j,k) - naacw_arr(i,j,k)
+                                       - naacw_arr(i,j,k)) * dtcld,
+                        zero);
+                    nr_arr(i,j,k) = amrex::max(
+                        nr_arr(i,j,k) + (nrauto_arr(i,j,k) - nrcol_arr(i,j,k)
+                                       + nseml_arr(i,j,k) + ngeml_arr(i,j,k))
+                                       * dtcld,
+                        zero);
+                    xlf = Real(xls) - xl_arr(i,j,k);
+                    xlwork2 = -xl_arr(i,j,k) * (prevp_arr(i,j,k)
+                                              + psevp_arr(i,j,k)
+                                              + pgevp_arr(i,j,k))
+                            - xlf * (pseml_arr(i,j,k) + pgeml_arr(i,j,k));
+                    t_arr(i,j,k) = t_arr(i,j,k) - xlwork2 / cpm_arr(i,j,k) * dtcld;
+                }
+            });
+
+#if !defined(AMREX_USE_GPU)
+            if (microphysics_debug > 0 && diag_col_in_tile) {
+                std::printf("WDM6-CPP_POST_G14 %3d %24.16E %24.16E %24.16E %24.16E %24.16E %24.16E %24.16E %24.16E %24.16E\n",
+                            diag_k + 1,
+                            static_cast<double>(qv_arr(diag_i,diag_j,diag_k)),
+                            static_cast<double>(qc_arr(diag_i,diag_j,diag_k)),
+                            static_cast<double>(qi_arr(diag_i,diag_j,diag_k)),
+                            static_cast<double>(qr_arr(diag_i,diag_j,diag_k)),
+                            static_cast<double>(qs_arr(diag_i,diag_j,diag_k)),
+                            static_cast<double>(qg_arr(diag_i,diag_j,diag_k)),
+                            static_cast<double>(nc_arr(diag_i,diag_j,diag_k)),
+                            static_cast<double>(nr_arr(diag_i,diag_j,diag_k)),
+                            static_cast<double>(t_arr(diag_i,diag_j,diag_k)));
+                std::fflush(stdout);
+            }
+#endif
+
             // ============================================================
             // Step 9: Ice physics (simplified) — remaining processes
             // ============================================================
             // These processes handle ice (qi), snow (qs), and graupel (qg)
             // following simplified versions of WSM6 processes
 
+#if 0
             ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
                 const Real temp = t_arr(i,j,k);
                 const Real t0c_loc = Real(273.15);
@@ -3581,6 +3910,7 @@ void WDM6::Advance(const Real& dt_advance,
                     nc_arr(i,j,k) = amrex::max(nc_arr(i,j,k) - Real(2.0) * ncol, Real(0.0));
                 }
             });
+#endif
 
             // ============================================================
             // Step 10: Enforce bounds
