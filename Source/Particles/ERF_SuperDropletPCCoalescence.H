@@ -304,7 +304,7 @@ struct CollisionKernel
         }
 
         //air mean free path [m]
-        RT lambda_crs = (two*vis_crs) / (p_crs*std::sqrt(RT(8.0)*mwdair*RT(1.E-3)/(PI*R_d*t_crs)));
+        RT lambda_crs = (two*vis_crs) / (p_crs*std::sqrt(RT(8.0)*mwdair/(PI*boltz*avogadro*t_crs)));
 
         // temporary var
         RT dtmp = zero;
