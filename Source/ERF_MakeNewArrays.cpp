@@ -102,6 +102,7 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
         terrain_blanking[lev] = std::make_unique<MultiFab>(ba,dm,1,ngrow);
         terrain_blanking[lev]->setVal(one);
 
+#if USE_FC_FACTORY
         // Face-centered terrain blanking for momentum forcing
         terrain_blanking_xface[lev] = std::make_unique<MultiFab>(convert(ba,IntVect(1,0,0)),dm,1,ngrow);
         terrain_blanking_yface[lev] = std::make_unique<MultiFab>(convert(ba,IntVect(0,1,0)),dm,1,ngrow);
@@ -109,6 +110,7 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
         terrain_blanking_xface[lev]->setVal(one);
         terrain_blanking_yface[lev]->setVal(one);
         terrain_blanking_zface[lev]->setVal(one);
+#endif
     }
 
     // We use these area arrays regardless of terrain, EB or none of the above
@@ -821,6 +823,7 @@ ERF::init_zphys (int lev, double elapsed_time)
         }
         terrain_blanking[lev]->FillBoundary(geom[lev].periodicity());
 
+#if USE_FC_FACTORY
         // Face-centered terrain blanking from face-centered EB volume fractions
         terrain_blanking_xface[lev]->setVal(one);
         terrain_blanking_yface[lev]->setVal(one);
@@ -865,6 +868,7 @@ ERF::init_zphys (int lev, double elapsed_time)
         terrain_blanking_xface[lev]->FillBoundary(geom[lev].periodicity());
         terrain_blanking_yface[lev]->FillBoundary(geom[lev].periodicity());
         terrain_blanking_zface[lev]->FillBoundary(geom[lev].periodicity());
+#endif
 
         init_immersed_forcing(lev); // needed for real cases
 
@@ -972,10 +976,11 @@ ERF::remake_zphys (int lev, std::unique_ptr<MultiFab>& temp_zphys_nd)
 
         // Face-centered terrain blanking from face-centered EB volume fractions
         const int ng_sub = std::min(ComputeGhostCells(solverChoice) + 2, EBFactory(lev).getVolFrac().nGrow());
+
+#if USE_FC_FACTORY
         terrain_blanking_xface[lev]->setVal(one);
         terrain_blanking_yface[lev]->setVal(one);
         terrain_blanking_zface[lev]->setVal(one);
-
         // Check if face factories are available before using them
         auto const* u_factory = eb[lev]->get_u_const_factory();
         auto const* v_factory = eb[lev]->get_v_const_factory();
@@ -1020,6 +1025,7 @@ ERF::remake_zphys (int lev, std::unique_ptr<MultiFab>& temp_zphys_nd)
                 }
             }
         }
+#endif
     }
 
     // Compute the min dz and pass to the micro model

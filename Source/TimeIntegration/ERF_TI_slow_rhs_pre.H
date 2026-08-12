@@ -60,7 +60,6 @@
         MultiFab* terrain_blank = (solverChoice.terrain_type == TerrainType::ImmersedForcing ||
                                    solverChoice.buildings_type == BuildingsType::ImmersedForcing) ?
             terrain_blanking[level].get() : nullptr;
-
         MultiFab* terrain_blank_xface = (solverChoice.terrain_type == TerrainType::ImmersedForcing ||
                                          solverChoice.buildings_type == BuildingsType::ImmersedForcing) ?
             terrain_blanking_xface[level].get() : nullptr;
