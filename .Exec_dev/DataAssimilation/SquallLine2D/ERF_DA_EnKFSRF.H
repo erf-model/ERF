@@ -206,5 +206,6 @@ void compute_S_matrix(Matrix& S,
                       const amrex::Vector<amrex::Real>& R_diag,
                       const std::string& last_pf_name,
                       const amrex::Vector<std::string>& varnames);
-
+std::string
+MakeEnsembleCheckpointName (int da_iter, int ens_no);
 #endif

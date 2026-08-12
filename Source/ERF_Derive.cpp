@@ -430,7 +430,7 @@ erf_dervortz ( const Box& bx,
     auto tfab      = derfab.array(); // cell-centered vorticity z-component
 
     const Real dx = geomdata.CellSize(0);
-    const Real dy = geomdata.CellSize(2);
+    const Real dy = geomdata.CellSize(1);
 
     ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
     {

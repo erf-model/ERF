@@ -356,7 +356,9 @@ void erf_slow_rhs_pre (int level, int finest_level,
             const Array4<const Real>& mf_vy     = mapfac[MapFacType::v_y]->const_array(mfi);
 
             if (z_t_mf) { // Note we never do anelastic with moving terrain
-                Box gbxo_mid = gbxo; gbxo_mid.setSmall(2,1); gbxo_mid.setBig(2,gbxo.bigEnd(2)-1);
+                Box gbxo_mid = gbxo;
+                if (gbxo_mid.smallEnd(2) <= domain.smallEnd(2)) { gbxo_mid.setSmall(2,1); }
+                if (gbxo_mid.bigEnd(2)   >= domain.bigEnd(2)+1) { gbxo_mid.setBig(2,gbxo.bigEnd(2)-1); }
                       Array4<const Real> z_t        = z_t_mf->array(mfi);
                 const Array4<const Real>& cell_data = S_data[IntVars::cons].array(mfi);
                 ParallelFor(gbxo_mid, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
@@ -469,13 +471,6 @@ void erf_slow_rhs_pre (int level, int finest_level,
         const Array4<const Real>& mf_vy  = mapfac[MapFacType::v_y]->const_array(mfi);
 
         const Array4<      Real>& omega_arr = Omega.array(mfi);
-
-        Array4<const Real> z_t;
-        if (z_t_mf) {
-            z_t = z_t_mf->array(mfi);
-        } else {
-            z_t = Array4<const Real>{};
-        }
 
         const Array4<Real>& rho_u_rhs = S_rhs[IntVars::xmom].array(mfi);
         const Array4<Real>& rho_v_rhs = S_rhs[IntVars::ymom].array(mfi);

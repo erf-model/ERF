@@ -1,3 +1,7 @@
+/**
+ * \file ERF_EBCutCell.cpp
+ * \brief Implements CPU diagnostics for EB cut-cell geometry.
+ */
 #include <AMReX_Print.H>
 #include <ERF_EBCutCell.H>
 

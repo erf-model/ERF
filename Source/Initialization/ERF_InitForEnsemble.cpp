@@ -10,6 +10,12 @@
 using namespace amrex;
 namespace fs = std::filesystem;
 
+/**
+ * Create a cell-centered MultiFab of random perturbations for one AMR level.
+ *
+ * @param lev Integer specifying the current level
+ * @param mf_cc_pert MultiFab filled with random perturbation components
+ */
 void
 ERF::create_random_perturbations(const int lev,
                                  MultiFab& mf_cc_pert)
@@ -32,11 +38,16 @@ ERF::create_random_perturbations(const int lev,
         [=] AMREX_GPU_DEVICE (int i, int j, int k, int n,
                              const amrex::RandomEngine& engine) noexcept
         {
-            pert_arr(i,j,k,n) = amrex::Random(engine);
+            pert_arr(i,j,k,n) = amrex::Real(2.0) * amrex::Random(engine) - amrex::Real(1.0);
         });
     }
 }
 
+/**
+ * Normalize each component of a perturbation MultiFab by its global RMS value.
+ *
+ * @param mf_cc_pert MultiFab whose components are normalized in place
+ */
 void NormalizeMultiFabRMS_PerComponent(MultiFab& mf_cc_pert)
 {
     const int ncomp = mf_cc_pert.nComp();
@@ -82,6 +93,12 @@ void NormalizeMultiFabRMS_PerComponent(MultiFab& mf_cc_pert)
     }
 }
 
+/**
+ * Apply horizontal Gaussian smoothing to cell-centered perturbations.
+ *
+ * @param lev Integer specifying the current level
+ * @param mf_cc_pert MultiFab containing perturbations to smooth in place
+ */
 void
 ERF::apply_gaussian_smoothing_to_perturbations(const int lev,
                                                MultiFab& mf_cc_pert)
@@ -159,6 +176,12 @@ ERF::apply_gaussian_smoothing_to_perturbations(const int lev,
     NormalizeMultiFabRMS_PerComponent(mf_cc_pert);
 }
 
+/**
+ * Fill periodic ghost cells and apply first-order extrapolation at boundaries.
+ *
+ * @param geom Geometry defining domain bounds and periodicity
+ * @param mf_cc Cell-centered MultiFab whose ghost cells are filled in place
+ */
 void ApplyNeumannBCs(const Geometry& geom,
                      MultiFab& mf_cc)
 {
@@ -171,6 +194,10 @@ void ApplyNeumannBCs(const Geometry& geom,
     // 3. Apply FOExtrap (Neumann) at domain boundaries
     // -------------------------------------------------
     const Box& domain = geom.Domain();
+
+    const bool periodic_x = geom.isPeriodic(0);
+    const bool periodic_y = geom.isPeriodic(1);
+    const bool periodic_z = geom.isPeriodic(2);
 
     for (MFIter mfi(mf_cc, TilingIfNotGPU()); mfi.isValid(); ++mfi)
     {
@@ -189,15 +216,20 @@ void ApplyNeumannBCs(const Geometry& geom,
             int jj = j;
             int kk = k;
 
-            // Clamp to domain interior (FOExtrap)
-            ii = amrex::max(domain.smallEnd(0),
-                 amrex::min(i, domain.bigEnd(0)));
+             if (!periodic_x) {
+                ii = amrex::max(domain.smallEnd(0),
+                                amrex::min(i, domain.bigEnd(0)));
+            }
 
-            jj = amrex::max(domain.smallEnd(1),
-                 amrex::min(j, domain.bigEnd(1)));
+            if (!periodic_y) {
+                jj = amrex::max(domain.smallEnd(1),
+                                amrex::min(j, domain.bigEnd(1)));
+            }
 
-            kk = amrex::max(domain.smallEnd(2),
-                 amrex::min(k, domain.bigEnd(2)));
+            if (!periodic_z) {
+                kk = amrex::max(domain.smallEnd(2),
+                                amrex::min(k, domain.bigEnd(2)));
+            }
 
             arr(i,j,k,n) = arr(ii,jj,kk,n);
         });
@@ -205,6 +237,26 @@ void ApplyNeumannBCs(const Geometry& geom,
 }
 
 
+/**
+ * Read binary custom ensemble background data into host vectors.
+ *
+ * @param filename_custom Path to the custom binary data file
+ * @param nx Number of cells in the x-direction read from the file
+ * @param ny Number of cells in the y-direction read from the file
+ * @param nz Number of cells in the z-direction read from the file
+ * @param ng Number of ghost cells read from the file
+ * @param ncomp Number of stored components read from the file
+ * @param problo_ext Physical lower bounds read from the file
+ * @param probhi_ext Physical upper bounds read from the file
+ * @param data_rho Density values read from the file
+ * @param data_theta Potential temperature values read from the file
+ * @param data_xvel x-velocity values read from the file
+ * @param data_yvel y-velocity values read from the file
+ * @param data_zvel z-velocity values read from the file
+ * @param data_qv Water vapor values read from the file
+ * @param data_qc Cloud water values read from the file
+ * @param data_qrain Rain water values read from the file
+ */
 void
 ReadCustomDataFile(const std::string& filename_custom,
                         int& nx, int& ny, int& nz,
@@ -300,6 +352,16 @@ ReadCustomDataFile(const std::string& filename_custom,
 
 AMREX_GPU_HOST_DEVICE
 AMREX_FORCE_INLINE
+/**
+ * Convert a three-dimensional cell index into a flattened array index.
+ *
+ * @param i x-index
+ * @param j y-index
+ * @param k z-index
+ * @param nx Number of cells in the x-direction
+ * @param ny Number of cells in the y-direction
+ * @return Flattened index into a row-major 3D array
+ */
 int idx(int i, int j, int k, int nx, int ny)
 {
     return i + nx * (j + ny * k);
@@ -307,6 +369,21 @@ int idx(int i, int j, int k, int nx, int ny)
 
 AMREX_GPU_HOST_DEVICE
 AMREX_FORCE_INLINE
+/**
+ * Trilinearly interpolate one scalar component from a flattened array.
+ *
+ * @param f Flattened source data
+ * @param i Lower x-index of the interpolation cell
+ * @param j Lower y-index of the interpolation cell
+ * @param k Lower z-index of the interpolation cell
+ * @param tx Fractional x-coordinate within the cell
+ * @param ty Fractional y-coordinate within the cell
+ * @param tz Fractional z-coordinate within the cell
+ * @param nx Number of cells in the x-direction
+ * @param ny Number of cells in the y-direction
+ * @param nz Number of cells in the z-direction
+ * @return Interpolated scalar value
+ */
 Real interp_trilinear(
     const Real* f,      // <-- raw pointer
     int i, int j, int k,
@@ -337,6 +414,25 @@ Real interp_trilinear(
     return c0*(1-tz) + c1*tz;
 }
 
+/**
+ * Interpolate coarse custom background data onto the fine cell-centered grid.
+ *
+ * @param data_rho Coarse density values
+ * @param data_theta Coarse potential temperature values
+ * @param data_xvel Coarse x-velocity values
+ * @param data_yvel Coarse y-velocity values
+ * @param data_zvel Coarse z-velocity values
+ * @param data_qv Coarse water vapor values
+ * @param data_qc Coarse cloud water values
+ * @param data_qrain Coarse rain water values
+ * @param nx Number of coarse cells in the x-direction
+ * @param ny Number of coarse cells in the y-direction
+ * @param nz Number of coarse cells in the z-direction
+ * @param problo Physical lower bounds of the coarse data
+ * @param probhi Physical upper bounds of the coarse data
+ * @param mf_fine Fine-grid cell-centered MultiFab to fill
+ * @param geom_fine Geometry of the fine grid
+ */
 void
 InterpolateToFineMF(
     const Vector<Real>& data_rho,
@@ -472,12 +568,22 @@ InterpolateToFineMF(
     }
 }
 
+/**
+ * Split cell-centered interpolated background data into ERF state and face velocities.
+ *
+ * @param mf_cc_fine Fine-grid cell-centered source data
+ * @param cons_pert Conserved-state perturbation MultiFab to fill
+ * @param xvel_pert x-face velocity perturbation MultiFab to fill
+ * @param yvel_pert y-face velocity perturbation MultiFab to fill
+ * @param zvel_pert z-face velocity perturbation MultiFab to fill
+ */
 void
 MakeFinalMultiFabs (const MultiFab& mf_cc_fine,
                     MultiFab& cons_pert,
                     MultiFab& xvel_pert,
                     MultiFab& yvel_pert,
-                    MultiFab& zvel_pert)
+                    MultiFab& zvel_pert,
+                    const int n_qstate_moist)
 {
 
     for (MFIter mfi(cons_pert, TilingIfNotGPU()); mfi.isValid(); ++mfi)
@@ -496,9 +602,9 @@ MakeFinalMultiFabs (const MultiFab& mf_cc_fine,
             Real tmp_qrain = mf_cc_fine_arr(i,j,k,7);
             cons_pert_arr(i,j,k,Rho_comp)      = tmp_rho;
             cons_pert_arr(i,j,k,RhoTheta_comp) = tmp_rho*tmp_theta;
-            cons_pert_arr(i,j,k,RhoQ1_comp)    = tmp_rho*tmp_qv;
-            cons_pert_arr(i,j,k,RhoQ2_comp)    = tmp_rho*tmp_qc;
-            cons_pert_arr(i,j,k,RhoQ3_comp)    = tmp_rho*tmp_qrain;
+            if (n_qstate_moist > 0) cons_pert_arr(i,j,k,RhoQ1_comp)    = tmp_rho*tmp_qv;
+            if (n_qstate_moist > 1) cons_pert_arr(i,j,k,RhoQ2_comp)    = tmp_rho*tmp_qc;
+            if (n_qstate_moist > 2) cons_pert_arr(i,j,k,RhoQ3_comp)    = tmp_rho*tmp_qrain;
         });
     }
 
@@ -542,6 +648,13 @@ MakeFinalMultiFabs (const MultiFab& mf_cc_fine,
     }
 }
 
+/**
+ * Add normalized perturbations to the interpolated background state.
+ *
+ * @param mf_cc_fine Background state modified in place
+ * @param mf_cc_pert Perturbation field to apply
+ * @param ens_pert_amplitude Relative perturbation amplitude
+ */
 void
 AddPertToBckgnd(MultiFab& mf_cc_fine,
                 const MultiFab& mf_cc_pert,
@@ -568,6 +681,16 @@ AddPertToBckgnd(MultiFab& mf_cc_fine,
     }
 }
 
+/**
+ * Build ensemble background perturbation MultiFabs from custom coarse data.
+ *
+ * @param lev Integer specifying the current level
+ * @param mf_cc_pert Cell-centered perturbations to apply to the background
+ * @param cons_pert Conserved-state perturbation MultiFab to fill
+ * @param xvel_pert x-face velocity perturbation MultiFab to fill
+ * @param yvel_pert y-face velocity perturbation MultiFab to fill
+ * @param zvel_pert z-face velocity perturbation MultiFab to fill
+ */
 void
 ERF::create_background_state_for_ensemble (int lev,
                                            MultiFab& mf_cc_pert,
@@ -619,5 +742,11 @@ ERF::create_background_state_for_ensemble (int lev,
     AddPertToBckgnd(mf_cc_fine, mf_cc_pert, solverChoice.ens_pert_amplitude);
     ApplyNeumannBCs(geom_fine, mf_cc_fine);
 
-    MakeFinalMultiFabs(mf_cc_fine, cons_pert, xvel_pert, yvel_pert, zvel_pert);
+    bool use_moisture = (solverChoice.moisture_type != MoistureType::None);
+    int n_qstate_moist = 0;
+    if (use_moisture) {
+        n_qstate_moist = micro->Get_Qstate_Moist_Size();
+    }
+
+    MakeFinalMultiFabs(mf_cc_fine, cons_pert, xvel_pert, yvel_pert, zvel_pert, n_qstate_moist);
 }

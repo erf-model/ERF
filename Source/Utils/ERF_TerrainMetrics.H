@@ -671,10 +671,13 @@ rotate_stress_tensor (const int& i,
     amrex::Real Inormn = one/std::sqrt(one + h_xi*h_xi + h_eta*h_eta);
     n_hat(0) = Inormn*h_xi; n_hat(1) = Inormn*h_eta; n_hat(2) = -Inormn;
 
-    // Populate the tangent vectors
+    // Populate the tangent vectors: t_1 ~ (1,0,h_xi) and t_2 ~ (0,1,h_eta).
+    // NOTE: the out-of-plane component of each is identically zero and must be
+    //       set explicitly since Array1D is an aggregate with no default init.
     amrex::Real Inorm1 = one/std::sqrt(one + h_xi*h_xi);
     amrex::Real Inorm2 = one/std::sqrt(one + h_eta*h_eta);
-    t_hat_1(0) = -Inorm1;      t_hat_2(1) = -Inorm2;
+    t_hat_1(0) = -Inorm1;      t_hat_2(0) = zero;
+    t_hat_1(1) = zero;         t_hat_2(1) = -Inorm2;
     t_hat_1(2) = -Inorm1*h_xi; t_hat_2(2) = -Inorm2*h_eta;
 
     // Populate the u_t vector
@@ -685,8 +688,14 @@ rotate_stress_tensor (const int& i,
         u_t_hat(icol) = mag1*t_hat_1(icol) + mag2*t_hat_2(icol);
         Norm_u_t  += u_t_hat(icol)*u_t_hat(icol);
     }
+    // NOTE: the direction of the tangential velocity is undefined when that
+    //       velocity vanishes (a quiescent surface cell, or flow normal to the
+    //       terrain), so we cannot normalize. Leaving u_t_hat as the zero vector
+    //       is the only rotation-invariant choice, and it is the right limit for
+    //       a quiescent cell since the flux vanishes with the surface wind too.
+    amrex::Real Inorm_u_t = (Norm_u_t > zero) ? one/std::sqrt(Norm_u_t) : zero;
     for (int icol(0); icol<3; ++icol) {
-        u_t_hat(icol) /= std::sqrt(Norm_u_t);
+        u_t_hat(icol) *= Inorm_u_t;
     }
 
     // Populate the a_hat vector
@@ -723,7 +732,7 @@ rotate_stress_tensor (const int& i,
     tau33_arr(i,j,klo) = -h_xi*T13 - h_eta*T23 + T33;
 
     tau12_arr(i,j,klo) = h_zeta*T12;
-    tau21_arr(i,j,klo) = tau21_arr(i,j,klo);
+    tau21_arr(i,j,klo) = h_zeta*T12; // the body-fixed tensor is symmetric: T21 == T12
 
     tau13_arr(i,j,klo) = -h_xi*T11 - h_eta*T12 + T13;
     tau31_arr(i,j,klo) = h_zeta*T13;

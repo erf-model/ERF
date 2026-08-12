@@ -43,6 +43,7 @@ void add_moist_nudging_terms (const MultiFab& S_data,
                               std::unique_ptr<ReadBndryPlanes>& m_r2d,
                               const Real& c_p,
                               const Real& rdOcp,
+                              const bool use_wrf_bdy_density,
                               const int bdy_moist_nudge_type)
 
 {
@@ -51,11 +52,20 @@ void add_moist_nudging_terms (const MultiFab& S_data,
     const Box domain = geom.Domain();
     IntVect ng  = S_data.nGrowVect();
 
-    // Temporary MF so we can nudge qv + qc to the bdy data
-    MultiFab S_tmp(S_data.boxArray(), S_data.DistributionMap(), S_data.nComp(), ng);
-    MultiFab::Copy(S_tmp, S_data, Rho_comp, Rho_comp, 1, ng);
-
     AMREX_ALWAYS_ASSERT((bdy_moist_nudge_type == 0) || (bdy_moist_nudge_type == 1) || (bdy_moist_nudge_type == 2) );
+    AMREX_ALWAYS_ASSERT(RhoQ1_comp + n_qstate <= S_data.nComp());
+
+    // Temporary MF so we can nudge qv + qc to the bdy data
+    //
+    // NOTE: realbdy_compute_relaxation reads Rho_comp, RhoTheta_comp (for the Exner
+    //       function) and RhoQ1_comp..RhoQ3_comp out of this buffer, so every one of
+    //       those components must be filled here.  Rho and RhoTheta are contiguous,
+    //       so they come over in a single copy.  The setVal is belt-and-braces so
+    //       that any component we do not use is deterministic rather than recycled
+    //       arena memory.
+    MultiFab S_tmp(S_data.boxArray(), S_data.DistributionMap(), S_data.nComp(), ng);
+    S_tmp.setVal(zero);
+    MultiFab::Copy(S_tmp, S_data, Rho_comp, Rho_comp, 2, ng);
 
     if (bdy_moist_nudge_type == 0) {
 
@@ -72,7 +82,7 @@ void add_moist_nudging_terms (const MultiFab& S_data,
 
         MultiFab::Copy(S_tmp, S_data, RhoQ1_comp, RhoQ1_comp, 1, ng);
         MultiFab::Add (S_tmp, S_data, RhoQ2_comp, RhoQ1_comp, 1, ng);
-        if (S_data.nComp() > RhoQ6_comp) {
+        if (n_qstate > 3) { // n_qstate > 3 guarantees that RhoQ3 is ice
             MultiFab::Add (S_tmp, S_data, RhoQ3_comp, RhoQ1_comp, 1, ng);
         }
 
@@ -83,10 +93,11 @@ void add_moist_nudging_terms (const MultiFab& S_data,
        // and also nudge qc (and qi) to 0.   The removal of qc (and qi) is treated
        // as if it is converted into qv to generate a source term for (rho theta),
        // but qv itself is not increased by the change in qc (and qi).
-        MultiFab::Copy(S_tmp, S_data, RhoQ1_comp, RhoQ1_comp, 2, ng);
-        if (S_data.nComp() > RhoQ6_comp) {
-            MultiFab::Copy(S_tmp, S_data, RhoQ3_comp, RhoQ3_comp, 1, ng);
-        }
+       //
+       // NOTE: the relaxation reads qv and qc, plus qi when there is an ice
+       //       species; it does not touch the precipitating species.
+        int ncomp_q = (n_qstate > 3) ? 3 : 2;
+        MultiFab::Copy(S_tmp, S_data, RhoQ1_comp, RhoQ1_comp, ncomp_q, ng);
 
     }
 
@@ -189,6 +200,18 @@ void add_moist_nudging_terms (const MultiFab& S_data,
         const auto& bdatylo_np1 = bdy_data_ylo[n_time_p1][WRFBdyVars::QV].const_array();
         const auto& bdatyhi_n   = bdy_data_yhi[n_time   ][WRFBdyVars::QV].const_array();
         const auto& bdatyhi_np1 = bdy_data_yhi[n_time_p1][WRFBdyVars::QV].const_array();
+        Array4<const Real> rdatxlo_n, rdatxlo_np1, rdatxhi_n, rdatxhi_np1;
+        Array4<const Real> rdatylo_n, rdatylo_np1, rdatyhi_n, rdatyhi_np1;
+        if (use_wrf_bdy_density) {
+            rdatxlo_n   = bdy_data_xlo[n_time   ][WRFBdyVars::R].const_array();
+            rdatxlo_np1 = bdy_data_xlo[n_time_p1][WRFBdyVars::R].const_array();
+            rdatxhi_n   = bdy_data_xhi[n_time   ][WRFBdyVars::R].const_array();
+            rdatxhi_np1 = bdy_data_xhi[n_time_p1][WRFBdyVars::R].const_array();
+            rdatylo_n   = bdy_data_ylo[n_time   ][WRFBdyVars::R].const_array();
+            rdatylo_np1 = bdy_data_ylo[n_time_p1][WRFBdyVars::R].const_array();
+            rdatyhi_n   = bdy_data_yhi[n_time   ][WRFBdyVars::R].const_array();
+            rdatyhi_np1 = bdy_data_yhi[n_time_p1][WRFBdyVars::R].const_array();
+        }
 
         // Get Array4 of interpolated values
         Array4<Real> arr_xlo = QV_xlo.array();  Array4<Real> arr_xhi = QV_xhi.array();
@@ -207,17 +230,25 @@ void add_moist_nudging_terms (const MultiFab& S_data,
         {
             int ii = std::min(std::max(i , dom_lo.x), dom_lo.x+offset);
             int jj = std::min(std::max(j , dom_lo.y), dom_hi.y       );
-            arr_xlo(i,j,k) = (bdatxlo) ? cons_arr(i,j,k,Rho_comp) * bdatxlo(ii,jj,k,bdy_comp) :
-                cons_arr(i,j,k,Rho_comp) * ( oma   * bdatxlo_n  (ii,jj,k)
-                                           + alpha * bdatxlo_np1(ii,jj,k) );
+            Real rho = cons_arr(i,j,k,Rho_comp);
+            if (use_wrf_bdy_density) {
+                rho = oma*rdatxlo_n(ii,jj,k) + alpha*rdatxlo_np1(ii,jj,k);
+            }
+            arr_xlo(i,j,k) = (bdatxlo) ? rho * bdatxlo(ii,jj,k,bdy_comp) :
+                rho * ( oma   * bdatxlo_n  (ii,jj,k)
+                      + alpha * bdatxlo_np1(ii,jj,k) );
         }    ,
         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
             int ii = std::min(std::max(i , dom_hi.x-offset), dom_hi.x);
             int jj = std::min(std::max(j , dom_lo.y       ), dom_hi.y);
-            arr_xhi(i,j,k) = (bdatxhi) ? cons_arr(i,j,k,Rho_comp) * bdatxhi(ii,jj,k,bdy_comp) :
-                cons_arr(i,j,k,Rho_comp) * ( oma   * bdatxhi_n  (ii,jj,k)
-                                           + alpha * bdatxhi_np1(ii,jj,k) );
+            Real rho = cons_arr(i,j,k,Rho_comp);
+            if (use_wrf_bdy_density) {
+                rho = oma*rdatxhi_n(ii,jj,k) + alpha*rdatxhi_np1(ii,jj,k);
+            }
+            arr_xhi(i,j,k) = (bdatxhi) ? rho * bdatxhi(ii,jj,k,bdy_comp) :
+                rho * ( oma   * bdatxhi_n  (ii,jj,k)
+                      + alpha * bdatxhi_np1(ii,jj,k) );
         });
 
         ParallelFor(tbx_ylo, tbx_yhi,
@@ -225,18 +256,26 @@ void add_moist_nudging_terms (const MultiFab& S_data,
         {
             int ii = std::min(std::max(i , dom_lo.x), dom_hi.x       );
             int jj = std::min(std::max(j , dom_lo.y), dom_lo.y+offset);
-            arr_ylo(i,j,k) = (bdatylo) ? cons_arr(i,j,k,Rho_comp) * bdatylo(ii,jj,k,bdy_comp) :
-                cons_arr(i,j,k,Rho_comp) * ( oma   * bdatylo_n  (ii,jj,k)
-                                           + alpha * bdatylo_np1(ii,jj,k) );
+            Real rho = cons_arr(i,j,k,Rho_comp);
+            if (use_wrf_bdy_density) {
+                rho = oma*rdatylo_n(ii,jj,k) + alpha*rdatylo_np1(ii,jj,k);
+            }
+            arr_ylo(i,j,k) = (bdatylo) ? rho * bdatylo(ii,jj,k,bdy_comp) :
+                rho * ( oma   * bdatylo_n  (ii,jj,k)
+                      + alpha * bdatylo_np1(ii,jj,k) );
         },
        [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
        {
            int ii = std::min(std::max(i , dom_lo.x       ), dom_hi.x);
            int jj = std::min(std::max(j , dom_hi.y-offset), dom_hi.y);
                jj = std::min(jj, dom_hi.y);
-               arr_yhi(i,j,k) = (bdatyhi) ? cons_arr(i,j,k,Rho_comp) * bdatyhi(ii,jj,k,bdy_comp) :
-                   cons_arr(i,j,k,Rho_comp) * ( oma   * bdatyhi_n  (ii,jj,k)
-                                              + alpha * bdatyhi_np1(ii,jj,k) );
+           Real rho = cons_arr(i,j,k,Rho_comp);
+           if (use_wrf_bdy_density) {
+               rho = oma*rdatyhi_n(ii,jj,k) + alpha*rdatyhi_np1(ii,jj,k);
+           }
+           arr_yhi(i,j,k) = (bdatyhi) ? rho * bdatyhi(ii,jj,k,bdy_comp) :
+               rho * ( oma   * bdatyhi_n  (ii,jj,k)
+                     + alpha * bdatyhi_np1(ii,jj,k) );
        });
 
        realbdy_interior_bxs_xy(tbx, domain, width,

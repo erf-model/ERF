@@ -85,6 +85,18 @@ if(ERF_ENABLE_TESTS)
   set(CLOUD_CHAMBER_CHECKER
       "${CMAKE_CURRENT_BINARY_DIR}/erf_cloud_chamber_check${CMAKE_EXECUTABLE_SUFFIX}")
 
+  if(ERF_ENABLE_CUDA)
+    foreach(_erf_test_tool IN ITEMS
+        erf_shoc_plotfile_check
+        erf_shoc_microphysics_differential
+        erf_shoc_mutation_differential
+        erf_shoc_gold_differential
+        erf_anelastic_wall_diffusion_check
+        erf_cloud_chamber_check)
+      setup_target_for_cuda_compilation(${_erf_test_tool})
+    endforeach()
+  endif()
+
   include(${CMAKE_CURRENT_SOURCE_DIR}/CTestList.cmake)
 endif()
 

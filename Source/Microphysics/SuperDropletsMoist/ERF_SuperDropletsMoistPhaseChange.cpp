@@ -59,8 +59,7 @@ void SuperDropletsMoist::phaseChange ( const Real& a_dt,
                                                     (*m_mic_fab_vars[a_lev][MicVar_SD::temperature]),
                                                     (*m_mic_fab_vars[a_lev][MicVar_SD::pressure]) );
 
-            for (   MFIter mfi((*sr_ptr),
-                    TilingIfNotGPU()); mfi.isValid();
+            for (   MFIter mfi(*sr_ptr); mfi.isValid();
                     ++mfi ) {
 
                 Box bx = mfi.tilebox();
@@ -184,8 +183,7 @@ void SuperDropletsMoist::phaseChange ( const Real& a_dt,
                                                         (*m_mic_fab_vars[a_lev][MicVar_SD::temperature]),
                                                         (*m_mic_fab_vars[a_lev][MicVar_SD::pressure]) );
 
-                for (   MFIter mfi((*m_mic_fab_vars[a_lev][MicVar_SD::rh]),
-                        TilingIfNotGPU()); mfi.isValid();
+                for (   MFIter mfi(*m_mic_fab_vars[a_lev][MicVar_SD::rh]); mfi.isValid();
                         ++mfi ) {
 
                     Box bx = mfi.tilebox();
