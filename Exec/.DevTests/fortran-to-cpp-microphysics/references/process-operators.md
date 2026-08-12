@@ -28,6 +28,17 @@ These are campaign habits and operator-level behaviors that matter but are not c
 - Re-check the source corpus before inventing new campaign habits around provenance, rerun hygiene, artifact layout, or ledger practice.
 - If the same underspecified operator question recurs across turns and the source corpus has a stable answer, promote that answer into the extracted skill package.
 
+## Campaign Artifact Naming
+- Use a unique `<campaign_id>` root per campaign, never reused.
+- Name the root for the validation lane, not the word "campaign": `plotfile_parity_v1c`, `plotfile_parity_v1d`. Add scheme and case when one ledger serves more than one of them.
+- Version the root as `v<number><letter>`. The letter advances within a campaign generation as scope or SHA changes; the number advances for a new generation.
+- Derive the ledger ids from the root so artifacts and rows stay greppable together:
+  - `run_pair_id` = `<campaign_id>_<pair><scope token>`
+  - `execution_id` = `<UTC timestamp>Z_<activity>_<version>_<pair>_<leg>_dbg<level>`
+- Encode build type in the id as a `_debug` or `_release` token and record it in notes as `build_type=debug` or `build_type=release`. Do not add build_type as a TSV column — the notes token is enough.
+- Bake the clean short SHA into the directory name for retreat and forensic sub-runs, whose provenance varies run to run. Omit it when a whole campaign sits at one SHA that `git_sha` already records.
+- Keep the ignore rule aligned with the naming scheme. A root that is not matched by `.gitignore` puts run artifacts into the worktree and breaks the clean-SHA gate.
+
 ## Extraction Discipline
 - The source corpus includes markdown and TSV files; both must survive the split with clear homes.
 - No “good summary” is enough without provenance. Use `source-ledger.md` and `coverage-matrix.md`.

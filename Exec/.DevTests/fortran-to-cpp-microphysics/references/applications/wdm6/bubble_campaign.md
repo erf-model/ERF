@@ -123,8 +123,29 @@ comparison surface either.
 ## Campaign directory discipline
 
 Unique `campaign_id` root per execution, never reused. `.gitignore` carries
-`campaign_*/` so run artifacts and logs are untracked and clean-SHA reruns need
-no destructive cleanup.
+`plotfile_parity_*/` so run artifacts and logs are untracked and clean-SHA reruns
+need no destructive cleanup.
+
+Naming follows the WSM6 convention promoted into `process-operators.md`. The
+WDM6/Bubble instantiation:
+
+| Field | Value |
+| --- | --- |
+| campaign root | `plotfile_parity_wdm6_bubble_v<N><letter>` |
+| `campaign_id` | same as the root |
+| `run_pair_id` | `<campaign_id>_short<max_step>`, or `<campaign_id>_r36_chk<NNNNN>_step<N>` |
+| `execution_id` | `<UTC>Z_plotparity_wdm6_bubble_v<N><letter>_<pair>_<leg>_dbg<level>` |
+| `run_pair` | `short` / `r36` / `r37` — the runner's second argument |
+
+Scheme and case stay in the name because `campaign_id` is a ledger column read
+out of context. Omit the clean-SHA token WSM6 used on retreat sub-runs when a
+whole campaign sits at one SHA; `git_sha` already carries it in full.
+
+This supersedes the earlier `campaign_wdm6_bubble_v*` roots. Those were invented
+without a corpus check and their numbering is not a reliable index into the
+ledgers — v3/v4/v5 were run but never recorded. Rows and reports already written
+against `campaign_wdm6_bubble_v1`/`v2` remain valid history under the naming in
+force at the time; do not rewrite them.
 
 ## Command templates
 

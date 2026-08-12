@@ -14,8 +14,10 @@
 #       <campaign_id> <pair> <max_step> <plot_int>
 #
 # Example:
-#   ... campaign_bubble_wdm6 campaign_wdm6_bubble_v3 short 10  1
-#   ... campaign_bubble_wdm6 campaign_wdm6_bubble_v3 C     100 100
+#   ... campaign_bubble_wdm6 plotfile_parity_wdm6_bubble_v1a short 10  1
+#   ... campaign_bubble_wdm6 plotfile_parity_wdm6_bubble_v1a C     100 100
+#
+# Root naming follows bubble_campaign.md "Campaign directory discipline".
 #
 # Compare afterwards with an fcompare binary; see bubble_campaign.md for which
 # one is acceptable for formal outcomes.

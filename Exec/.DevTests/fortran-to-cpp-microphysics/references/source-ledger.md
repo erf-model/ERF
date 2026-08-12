@@ -63,3 +63,4 @@ This ledger records the source corpus and the major extracted items that must su
 | IMPL_ARCHIVE_DIFF | `rules_audit_summary.md` | archive diff output | markdown summary | process operator | preserved | `process-operators.md` |
 | IMPL_RESTART_REPRO | `rules_audit_summary.md` | restart reproducibility appendix | markdown summary | validation operator | preserved | `validation-operators.md` |
 | IMPL_BOUNDED_REFINEMENT | `rules_audit_summary.md` | bounded per-step refinement | markdown summary | process operator | preserved | `process-operators.md` |
+| IMPL_CAMPAIGN_NAMING | `wsm6_implementation_notes.md` | `:426` run root, `:444-452` build-type id convention | markdown notes | process operator | late extraction 2026-08-12 | `process-operators.md` |
