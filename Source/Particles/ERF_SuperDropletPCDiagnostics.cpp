@@ -398,8 +398,8 @@ void SuperDropletPC::Diagnostics( const int a_iter,
                                       [=] AMREX_GPU_HOST_DEVICE (const SDTDType& ptd, const int i) -> Real
                                       {
                                           auto n = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::multiplicity][i];
-                                          auto r = ptd.m_runtime_rdata[ridx_ice_Tfz(na,ns)][i];
-                                          return n*r;
+                                          auto val = ptd.m_runtime_rdata[ridx_ice_Tfz(na,ns)][i];
+                                          return n*val;
                                       } );
 
         auto min_par_a   = ReduceMin( *this,
@@ -414,8 +414,8 @@ void SuperDropletPC::Diagnostics( const int a_iter,
                                       [=] AMREX_GPU_HOST_DEVICE (const SDTDType& ptd, const int i) -> Real
                                       {
                                           auto n = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::multiplicity][i];
-                                          auto r = ptd.m_runtime_rdata[ridx_ice_a(na,ns)][i];
-                                          return n*r;
+                                          auto val = ptd.m_runtime_rdata[ridx_ice_a(na,ns)][i];
+                                          return n*val;
                                       } );
 
         auto min_par_c   = ReduceMin( *this,
@@ -430,8 +430,8 @@ void SuperDropletPC::Diagnostics( const int a_iter,
                                       [=] AMREX_GPU_HOST_DEVICE (const SDTDType& ptd, const int i) -> Real
                                       {
                                           auto n = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::multiplicity][i];
-                                          auto r = ptd.m_runtime_rdata[ridx_ice_c(na,ns)][i];
-                                          return n*r;
+                                          auto val = ptd.m_runtime_rdata[ridx_ice_c(na,ns)][i];
+                                          return n*val;
                                       } );
 
         auto min_par_rho = ReduceMin( *this,
@@ -454,10 +454,10 @@ void SuperDropletPC::Diagnostics( const int a_iter,
                                       [=] AMREX_GPU_HOST_DEVICE (const SDTDType& ptd, const int i) -> Real
                                       {
                                           auto n = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::multiplicity][i];
-                                          auto r = ice_rho(ptd.m_runtime_rdata[ridx_ice_a(na,ns)][i],
+                                          auto val = ice_rho(ptd.m_runtime_rdata[ridx_ice_a(na,ns)][i],
                                                            ptd.m_runtime_rdata[ridx_ice_c(na,ns)][i],
                                                            ptd.m_runtime_rdata[ridx_s(idx_i,na,ns)][i]);
-                                          return n*r;
+                                          return n*val;
                                       } );
 
         auto min_par_mrime = ReduceMin( *this,
@@ -472,8 +472,8 @@ void SuperDropletPC::Diagnostics( const int a_iter,
                                         [=] AMREX_GPU_HOST_DEVICE (const SDTDType& ptd, const int i) -> Real
                                         {
                                             auto n = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::multiplicity][i];
-                                            auto r = ptd.m_runtime_rdata[ridx_ice_mrime(na,ns)][i];
-                                            return n*r;
+                                            auto val = ptd.m_runtime_rdata[ridx_ice_mrime(na,ns)][i];
+                                            return n*val;
                                         } );
 
         auto min_par_nmono = ReduceMin( *this,
@@ -488,8 +488,8 @@ void SuperDropletPC::Diagnostics( const int a_iter,
                                         [=] AMREX_GPU_HOST_DEVICE (const SDTDType& ptd, const int i) -> Real
                                         {
                                             auto n = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::multiplicity][i];
-                                            auto r = ptd.m_runtime_rdata[ridx_ice_nmono(na,ns)][i];
-                                            return n*r;
+                                            auto val = ptd.m_runtime_rdata[ridx_ice_nmono(na,ns)][i];
+                                            return n*val;
                                         } );
 
         ParallelDescriptor::ReduceRealMin(&min_par_Tfz,1);
