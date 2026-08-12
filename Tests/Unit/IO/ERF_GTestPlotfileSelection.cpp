@@ -228,7 +228,7 @@ TEST(Plotfile3DSelection, MoistureCapabilityTruthTable)
          true, true, true, true, true, true, true, true},
         {MoistureType::WSM6, true, true, true, true, true, true,
          false, false, false, false, false, true, true, true},
-        {MoistureType::SuperDroplets, true, true, false, true, false, false,
+        {MoistureType::SuperDroplets, true, true, true, true, true, true,
          false, false, false, false, false, true, false, false}
     }};
 
