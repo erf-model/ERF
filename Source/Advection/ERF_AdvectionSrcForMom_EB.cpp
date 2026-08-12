@@ -27,7 +27,7 @@ using namespace amrex;
  * @param[in] rho_u x-component of the momentum
  * @param[in] rho_v y-component of the momentum
  * @param[in] omega component of the momentum normal to the z-coordinate surface
- * @param[in] cellSizeInv inverse of the mesh spacing
+ * @param[in] cellSizeInv inverse of the grid spacing
  * @param[in] mf_mx x map factor at cell centers
  * @param[in] mf_ux x map factor at x-faces
  * @param[in] mf_vx x map factor at y-faces

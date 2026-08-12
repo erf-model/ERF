@@ -37,6 +37,7 @@ namespace saturation_funcs
     void compute_saturation_vapfrac_null ( amrex::MultiFab&,
                                            const amrex::MultiFab&,
                                            const amrex::MultiFab& );
+
     /*! \brief Compute saturation vapour fraction for moist air */
     AMREX_GPU_HOST
     void compute_saturation_vapfrac_H2O  ( amrex::MultiFab&,
@@ -174,6 +175,7 @@ struct MaterialProperties : public MaterialPropertiesCore {
 
     /*! pointer to function to compute saturation pressure */
     decltype(saturation_funcs::compute_saturation_pressure_null)* m_saturation_pressure_func = nullptr;
+
     /*! pointer to function to compute vapour fraction */
     decltype(saturation_funcs::compute_saturation_vapfrac_null)* m_saturation_vapfrac_func = nullptr;
 

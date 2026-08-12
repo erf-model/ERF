@@ -127,7 +127,7 @@ AMREX_ENUM(WindFarmLocType,
  * @brief Land-surface model.
  */
 AMREX_ENUM(LandSurfaceType,
-    SLM, MM5, NOAHMP, OceanSurf, None
+    SLM, NOAHMP, OceanSurf, None
 );
 
 /**
@@ -514,8 +514,17 @@ struct SolverChoice {
         // Use lagged_delta_rt in the fast integrator?
         pp.query("use_lagged_delta_rt", use_lagged_delta_rt);
 
+        // Keep the default wrf grid or remake our own
+        pp.query("use_wrf_height_grid",use_wrf_height_grid);
+
         // Rebalance wrf state?
         pp.query("rebalance_wrf_input", rebalance_wrf_input);
+
+        // Must rebalance if not using WRF grid
+        if (!use_wrf_height_grid && !rebalance_wrf_input) {
+            amrex::Print() << "Must rebalance when not using WRF height grid. Setting rebalance_wrf_input to true \n";
+            rebalance_wrf_input = true;
+        }
 
         // These default to true but are used for unit testing
         pp.query("use_gravity", use_gravity);
@@ -625,6 +634,7 @@ struct SolverChoice {
         // immersed forcing parameters
         pp.query("if_Cd_momentum", if_Cd_momentum);
         pp.query("if_Cd_scalar", if_Cd_scalar);
+        pp.query("if_implicit_drag", if_implicit_drag); // flag for implicit vs. explicit drag formulation
         pp.query("if_z0", if_z0);
         pp.query("if_surf_temp_flux", if_surf_temp_flux);
         pp.query("if_init_surf_temp", if_init_surf_temp);
@@ -766,6 +776,10 @@ struct SolverChoice {
 
         // What's the strength of the bdy nudging?
         pp.query("bdy_nudge_factor",bdy_nudge_factor);
+
+        // Optionally use the dry-air density reconstructed from wrfbdy.
+        pp.query("use_wrf_bdy_density", use_wrf_bdy_density);
+        pp.query("bdy_rho_nudge_factor", bdy_rho_nudge_factor);
 
         // Which approach to nudging the moist variables in the boundary region?
         pp.query("bdy_moist_nudge_type",bdy_moist_nudge_type);
@@ -951,8 +965,8 @@ struct SolverChoice {
                 amrex::Error("ERROR: Missing input parameter 'erf.hindcast_lateral_sponge_length' or it is specified to be less than zero");
             }
 
-            if (hindcast_zhi_sponge_damping and hindcast_zhi_sponge_strength < zero) {
-                amrex::Error("ERROR: Missing input parameter 'erf.hindcast_zhi_sponge_strength' or it is specified to be less than zero");
+            if (hindcast_zhi_sponge_damping and hindcast_zhi_sponge_length < zero) {
+                amrex::Error("ERROR: Missing input parameter 'erf.hindcast_zhi_sponge_length' or it is specified to be less than zero");
             }
 
             if (hindcast_zhi_sponge_damping and hindcast_zhi_sponge_strength < zero) {
@@ -1437,6 +1451,9 @@ struct SolverChoice {
     // immersed forcing parameters
     amrex::Real if_Cd_momentum        = amrex::Real(50.0);
     amrex::Real if_Cd_scalar          = amrex::Real(10.0);
+    // Use a point-implicit (linearly-implicit) formulation of the immersed-forcing
+    // drag. Defaults to false (explicit forward-Euler source).
+    bool        if_implicit_drag      = false;
     // immersed forcing MOST parameters.
     amrex::Real if_z0                    = amrex::Real(0.1);   // [m]
     amrex::Real if_surf_temp_flux        = amrex::Real(1e-8);  // [K m/s]
@@ -1615,8 +1632,16 @@ struct SolverChoice {
     // Nudging factor for bdy sponging : F1 = 1/(nudge_factor * dt)
     amrex::Real bdy_nudge_factor = amrex::Real(10.0);
 
+    // Use density reconstructed from standard WRF lateral boundary data.
+    bool use_wrf_bdy_density = false;
+    // Density-specific Davies factor; non-positive means use bdy_nudge_factor.
+    amrex::Real bdy_rho_nudge_factor = amrex::Real(-1.0);
+
     // Which approach to nudging the moist variables in the boundary region?
     int bdy_moist_nudge_type = 0;
+
+    // Keep the WRF grid or remake our own?
+    bool use_wrf_height_grid {true};
 
     // Use forest canopy model?
     bool do_forest_drag {false};

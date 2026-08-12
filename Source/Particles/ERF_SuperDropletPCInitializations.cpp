@@ -57,7 +57,11 @@ void SuperDropletPC::readInputs (const double a_dt)
 
     /* Newton solver parameters */
     m_newton_rtol = Real(1.0e-6);
+#ifdef AMREX_USE_FLOAT
+    m_newton_atol = Real(0.0);
+#else
     m_newton_atol = Real(1.0e-99);
+#endif
     m_newton_stol = Real(1.0e-12);
     m_newton_maxits = 10;
 
@@ -404,13 +408,13 @@ void SuperDropletPC::SetAttributes (MultiFab& a_rhoc /*!< mass density of conden
             ParticleReal species_mass_total = zero;
             for (int ctr = 0; ctr < num_sp; ctr++) {
                 if (ctr != idx_w) {
-                    species_mass_total += ptrs.sp_mass_ptrs[ctr][np];
+                    species_mass_total += ptrs.sp_mass_ptrs[ctr][i];
                 }
             }
 
             ParticleReal aerosol_mass_total = zero;
             for (int ctr = 0; ctr < num_ae; ctr++) {
-                aerosol_mass_total += ptrs.ae_mass_ptrs[ctr][np];
+                aerosol_mass_total += ptrs.ae_mass_ptrs[ctr][i];
             }
 
             const Real mass_particle = static_cast<Real>(mass_condensate_sd / ptrs.mult_ptr[i] + aerosol_mass_total + species_mass_total);

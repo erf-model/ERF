@@ -35,7 +35,7 @@ ShocEnergyFixer::apply_column (const ShocColumnData& col,
                                const Vector<Real>& tke_new)
 {
     ShocColumnData tmp;
-    define_shoc_column_data(tmp, col.layout, amrex::The_Arena(), shoc::InitRunOn::Host);
+    define_shoc_column_data(tmp, col.layout, amrex::The_Cpu_Arena(), shoc::InitRunOn::Host);
 
     auto rho = tmp.rho.array();
     auto dz = tmp.dz.array();

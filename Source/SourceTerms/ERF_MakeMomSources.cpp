@@ -107,7 +107,6 @@ void make_mom_sources (double time_d,
                        const amrex::Real* d_sinesq_stag_at_lev,
                        const Vector<Real*> d_sponge_ptrs_at_lev,
                        const Vector<MultiFab>* forecast_state_at_lev,
-                       const MultiFab* surface_state_at_lev,
                              InputSoundingData& input_sounding_data,
                        const eb_& ebfact,
                              bool is_slow_step)
@@ -380,7 +379,7 @@ void make_mom_sources (double time_d,
                 {
                     Real rho_on_u_face = myhalf * ( cell_data(i,j,k,Rho_comp) + cell_data(i-1,j,k,Rho_comp) );
                     Real v_loc = fourth * (v(i,j+1,k) + v(i,j,k) + v(i-1,j+1,k) + v(i-1,j,k));
-                    Real w_loc = fourth * (w(i,j,k+1) + w(i,j,k) + w(i,j-1,k+1) + w(i,j-1,k));
+                    Real w_loc = fourth * (w(i,j,k+1) + w(i,j,k) + w(i-1,j,k+1) + w(i-1,j,k));
                     Real latitude = latlon_arr(i,j,k,0);
                     Real sphi_loc = std::sin(latitude*PI/Real(180.0));
                     Real cphi_loc = std::cos(latitude*PI/Real(180.0));
@@ -731,14 +730,6 @@ void make_mom_sources (double time_d,
                                            rho_u_forecast_state, rho_v_forecast_state, rho_w_forecast_state,
                                            cons_forecast_state);
             }
-            if(solverChoice.init_type == InitType::HindCast and solverChoice.hindcast_surface_bcs) {
-                const Array4<const Real>& surface_state_arr = (*surface_state_at_lev).array(mfi);
-                ApplySurfaceTreatment_BulkCoeff_Mom(tbx, tby,
-                                                    xmom_src_arr, ymom_src_arr,
-                                                    rho_u, rho_v,
-                                                    cell_data, z_nd_arr,
-                                                    surface_state_arr);
-            }
         }
 
         // *****************************************************************************
@@ -794,6 +785,7 @@ void make_mom_sources (double time_d,
             const Real alpha_m = solverChoice.if_Cd_momentum;
             const Real tiny = std::numeric_limits<amrex::Real>::epsilon();
             const Real U_s = one; // unit velocity scale
+            const bool l_implicit_drag = solverChoice.if_implicit_drag;
 
             // MOST parameters
             similarity_funs sfuns;
@@ -855,9 +847,13 @@ void make_mom_sources (double time_d,
                     const Real uTarget  = ustar / kappa * (std::log(myhalf * dx_z / z0) - psi_m);
                     Real uxTarget = uTarget * ux2r / (tiny + h_windspeed2r);
                     const Real bc_forcing_x = -(uxTarget - ux); // BC forcing pushes nonrelative velocity toward target velocity
-                    xmom_src_arr(i, j, k) -= (1-t_blank) * rho_xface * CdM * U_s * bc_forcing_x; // if Vf low, force more strongly to MOST. If high, less forcing.
+                    const Real lambda = (1-t_blank) * CdM * U_s; // affine relaxation rate toward MOST target [1/s]
+                    const Real fac    = l_implicit_drag ? lambda / (one + lambda*dt) : lambda; // point-implicit rescale (else explicit)
+                    xmom_src_arr(i, j, k) -= fac * rho_xface * bc_forcing_x; // if Vf low, force more strongly to MOST. If high, less forcing.
                 } else {
-                    xmom_src_arr(i, j, k) -= t_blank * rho_xface * CdM * ux * windspeed;
+                    const Real lambda = t_blank * CdM * windspeed; // linear drag rate [1/s]
+                    const Real fac    = l_implicit_drag ? lambda / (one + lambda*dt) : lambda; // point-implicit rescale (else explicit)
+                    xmom_src_arr(i, j, k) -= fac * rho_xface * ux;
                 }
             });
             ParallelFor(tby, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
@@ -911,9 +907,13 @@ void make_mom_sources (double time_d,
                     const Real uTarget  = ustar / kappa * (std::log(myhalf * dx_z / z0) - psi_m);
                     Real uyTarget = uTarget * uy2r / (tiny + h_windspeed2r);
                     const Real bc_forcing_y = -(uyTarget - uy);  // BC forcing pushes nonrelative velocity toward target velocity
-                    ymom_src_arr(i, j, k) -= (1 - t_blank) * rho_yface * CdM * U_s * bc_forcing_y; // if Vf low, force more strongly to MOST. If high, less forcing.
+                    const Real lambda = (1 - t_blank) * CdM * U_s; // affine relaxation rate toward MOST target [1/s]
+                    const Real fac    = l_implicit_drag ? lambda / (one + lambda*dt) : lambda; // point-implicit rescale (else explicit)
+                    ymom_src_arr(i, j, k) -= fac * rho_yface * bc_forcing_y; // if Vf low, force more strongly to MOST. If high, less forcing.
                 } else {
-                    ymom_src_arr(i, j, k) -= t_blank * rho_yface * CdM * uy * windspeed;
+                    const Real lambda = t_blank * CdM * windspeed; // linear drag rate [1/s]
+                    const Real fac    = l_implicit_drag ? lambda / (one + lambda*dt) : lambda; // point-implicit rescale (else explicit)
+                    ymom_src_arr(i, j, k) -= fac * rho_yface * uy;
                 }
             });
             ParallelFor(tbz, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
@@ -931,7 +931,9 @@ void make_mom_sources (double time_d,
                 const Real CdM = std::min(drag_coefficient / (windspeed + tiny), drag_coefficient);
 
                 const Real rho_zface =  myhalf * ( cell_data(i,j,k,Rho_comp) + cell_data(i,j,k-1,Rho_comp) );
-                zmom_src_arr(i, j, k) -= t_blank * rho_zface * CdM * uz * windspeed;
+                const Real lambda = t_blank * CdM * windspeed; // linear drag rate [1/s]
+                const Real fac    = l_implicit_drag ? lambda / (one + lambda*dt) : lambda; // point-implicit rescale (else explicit)
+                zmom_src_arr(i, j, k) -= fac * rho_zface * uz;
             });
         }
 
@@ -962,6 +964,8 @@ void make_mom_sources (double time_d,
             // To limit stiffness of drag when using anelastic
             const Real ws_floor           = solverChoice.if_ws_floor;
             const Real damp_alpha         = solverChoice.if_damp_alpha;
+            // Point-implicit alternative to the clamp above; stabilizes both compressible and anelastic
+            const bool l_implicit_drag    = solverChoice.if_implicit_drag;
 
             ParallelFor(tbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
             {
@@ -1047,8 +1051,14 @@ void make_mom_sources (double time_d,
                 // interior cell forcing
                 drag               += interior_mask * rho_xface * CdM * ux * windspeed;
 
-                // limit drag term for anelastic for numerical stability
-                if (is_slow_step && !use_ImmersedForcing_fast) {
+                if (l_implicit_drag) {
+                    // point-implicit rescale of the aggregated drag
+                    const Real lambda = CdM * ( (roof_mask + south_mask + north_mask) * U_s
+                                               + wall_mask * t_blank * windspeed
+                                               + interior_mask * windspeed );
+                    xmom_src_arr(i,j,k) -= drag / (one + lambda*dt);
+                } else if (is_slow_step && !use_ImmersedForcing_fast) {
+                    // limit drag term for anelastic for numerical stability
                     Real d_drag = dt * -drag; // time step * acceleration like tendency
                     Real wsmax_change = damp_alpha * amrex::max(amrex::Math::abs(ux), ws_floor); // aims to prevent oscillations around 0.
                     if (amrex::Math::abs(ux) < 0.1){ // no damping for smaller velocities
@@ -1144,8 +1154,14 @@ void make_mom_sources (double time_d,
                 // interior cell forcing
                 drag               += interior_mask * rho_yface * CdM * uy * windspeed;
 
-                // limit drag term for anelastic for numerical stability
-                if (is_slow_step && !use_ImmersedForcing_fast) {
+                if (l_implicit_drag) {
+                    // point-implicit rescale of the aggregated drag
+                    const Real lambda = CdM * ( (roof_mask + west_mask + east_mask) * U_s
+                                               + wall_mask * t_blank * windspeed
+                                               + interior_mask * windspeed );
+                    ymom_src_arr(i,j,k) -= drag / (one + lambda*dt);
+                } else if (is_slow_step && !use_ImmersedForcing_fast) {
+                    // limit drag term for anelastic for numerical stability
                     Real d_drag = dt * -drag; // time step * acceleration like tendency
                     Real wsmax_change = damp_alpha * amrex::max(amrex::Math::abs(uy), ws_floor); // aims to prevent oscillations around 0.
                     if (amrex::Math::abs(uy) < 0.1){ // no damping for smaller velocities
@@ -1258,8 +1274,14 @@ void make_mom_sources (double time_d,
                 // interior cell forcing
                 drag               += interior_mask * rho_zface * CdM * uz * windspeed;
 
-                // limit drag term for anelastic for numerical stability
-                if (is_slow_step && !use_ImmersedForcing_fast) {
+                if (l_implicit_drag) {
+                    // point-implicit rescale of the aggregated drag
+                    const Real lambda = CdM * ( (south_mask + north_mask + west_mask + east_mask) * U_s
+                                               + wall_mask * t_blank * windspeed
+                                               + interior_mask * windspeed );
+                    zmom_src_arr(i,j,k) -= drag / (one + lambda*dt);
+                } else if (is_slow_step && !use_ImmersedForcing_fast) {
+                    // limit drag term for anelastic for numerical stability
                     Real d_drag = dt * -drag; // time step * acceleration like tendency
                     Real wsmax_change = damp_alpha * amrex::max(amrex::Math::abs(uz), ws_floor); // aims to prevent oscillations around 0.
                     if (amrex::Math::abs(uz) < 0.1){ // no damping for smaller velocities

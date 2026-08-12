@@ -18,9 +18,9 @@
  * @param[in] mf_ux_inv inverse x map factor on x-faces
  * @param[in] mf_uy_inv inverse y map factor on x-faces
  * @param[in] mf_vx_inv inverse x map factor on y-faces
- * @param[in] dxInv inverse mesh spacing in x
- * @param[in] dyInv inverse mesh spacing in y
- * @param[in] dzInv inverse mesh spacing in z
+ * @param[in] dxInv inverse grid spacing in x
+ * @param[in] dyInv inverse grid spacing in y
+ * @param[in] dzInv inverse grid spacing in z
  * @return advective tendency for x-momentum
  */
 template<typename InterpType_H, typename InterpType_V>
@@ -100,9 +100,9 @@ AdvectionSrcForXMom_N (int i, int j, int k,
  * @param[in] mf_uy_inv inverse y map factor on x-faces
  * @param[in] mf_vx_inv inverse x map factor on y-faces
  * @param[in] mf_vy_inv inverse y map factor on y-faces
- * @param[in] dxInv inverse mesh spacing in x
- * @param[in] dyInv inverse mesh spacing in y
- * @param[in] dzInv inverse mesh spacing in z
+ * @param[in] dxInv inverse grid spacing in x
+ * @param[in] dyInv inverse grid spacing in y
+ * @param[in] dzInv inverse grid spacing in z
  * @return advective tendency for y-momentum
  */
 template<typename InterpType_H, typename InterpType_V>
@@ -189,9 +189,9 @@ AdvectionSrcForYMom_N (int i, int j, int k,
  * @param[in] vert_adv_type vertical advection stencil
  * @param[in] lo_z_face minimum z-face k-index at this level
  * @param[in] hi_z_face maximum z-face k-index at this level
- * @param[in] dxInv inverse mesh spacing in x
- * @param[in] dyInv inverse mesh spacing in y
- * @param[in] dzInv inverse mesh spacing in z
+ * @param[in] dxInv inverse grid spacing in x
+ * @param[in] dyInv inverse grid spacing in y
+ * @param[in] dzInv inverse grid spacing in z
  * @return advective tendency for z-momentum
  */
 template<typename InterpType_H, typename InterpType_V, typename WallInterpType>
@@ -316,7 +316,7 @@ AdvectionSrcForZMom_N (int i, int j, int k,
  * @param[in] u x-component of velocity
  * @param[in] v y-component of velocity
  * @param[in] w z-component of velocity
- * @param[in] cellSizeInv inverse mesh spacing
+ * @param[in] cellSizeInv inverse grid spacing
  * @param[in] stretched_dz_d device vector of vertical cell spacing
  * @param[in] mf_mx x map factor on cell centers
  * @param[in] mf_ux_inv inverse x map factor on x-faces
@@ -414,7 +414,7 @@ AdvectionSrcForMomWrapper_N (const amrex::Box& bxx, const amrex::Box& bxy, const
  * @param[in] u x-component of velocity
  * @param[in] v y-component of velocity
  * @param[in] w z-component of velocity
- * @param[in] cellSizeInv inverse mesh spacing
+ * @param[in] cellSizeInv inverse grid spacing
  * @param[in] stretched_dz_d device vector of vertical cell spacing
  * @param[in] mf_mx x map factor on cell centers
  * @param[in] mf_ux_inv inverse x map factor on x-faces

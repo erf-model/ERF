@@ -182,8 +182,7 @@ void SuperDropletsMoist::Copy_State_to_Micro (const MultiFab& a_cons_vars)
                                              (*m_mic_fab_vars[lev][MicVar_SD::temperature]),
                                              (*m_mic_fab_vars[lev][MicVar_SD::pressure]) );
 
-        for (   MFIter mfi((*m_mic_fab_vars[lev][MicVar_SD::rh]),
-                TilingIfNotGPU()); mfi.isValid();
+        for (   MFIter mfi(*m_mic_fab_vars[lev][MicVar_SD::rh]); mfi.isValid();
                 ++mfi ) {
 
             Box bx = mfi.tilebox();
@@ -204,8 +203,7 @@ void SuperDropletsMoist::Copy_State_to_Micro (const MultiFab& a_cons_vars)
         vapour_mat.computeSaturationVapFrac((*m_mic_fab_vars[lev][s_sr_idx(is)]),
                                             (*m_mic_fab_vars[lev][MicVar_SD::temperature]),
                                             (*m_mic_fab_vars[lev][MicVar_SD::pressure]) );
-        for (   MFIter mfi((*m_mic_fab_vars[lev][s_sr_idx(is)]),
-                TilingIfNotGPU()); mfi.isValid();
+        for (   MFIter mfi(*m_mic_fab_vars[lev][s_sr_idx(is)]); mfi.isValid();
                 ++mfi ) {
 
             Box bx = mfi.tilebox();

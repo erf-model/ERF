@@ -136,11 +136,21 @@ void SuperDropletPC::Recycle ( const int             a_lev,
         {
             const int np = ptrs.num_particles;
             auto zheight = (*z_height)[grid].array();
+            // zeta_from_z below reads this grid's terrain columns, so the
+            // sampled (x,y) must stay inside them
+            const Box& zbx = (*z_height)[grid].box();
+            const Real gx_lo = ctx.plo[0] + Real(zbx.smallEnd(0)  )/ctx.dxi[0];
+            const Real gx_hi = ctx.plo[0] + Real(zbx.bigEnd(0)    )/ctx.dxi[0];
+            const Real gy_lo = ctx.plo[1] + Real(zbx.smallEnd(1)  )/ctx.dxi[1];
+            const Real gy_hi = ctx.plo[1] + Real(zbx.bigEnd(1)    )/ctx.dxi[1];
 
             // Get sampled aerosol mass values based on initialization
             Gpu::DeviceVector<Real> aerosol_mass_d(ctx.num_aerosols*np);
             Gpu::DeviceVector<Real> multiplicity_d(np);
             ParticleReal mult_scale = one_d;
+#ifdef AMREX_USE_OMP
+#pragma omp critical (erf_sdm_recycle_rndeng)
+#endif
             {
                 Vector<Real> multiplicity_h(np, zero_d);
                 for (int i = 0; i < ctx.num_aerosols; i++) {
@@ -201,8 +211,13 @@ void SuperDropletPC::Recycle ( const int             a_lev,
                 const Real z_new = z_min + Random(rnd_engine)*(z_max - z_min);
                 p.pos(0) = static_cast<ParticleReal>(x_new);
                 p.pos(1) = static_cast<ParticleReal>(y_new);
+                // the terrain lookup must stay inside this grid's columns; the
+                // stored position is unclamped and Redistribute moves the
+                // particle to its owning grid
+                const Real x_ter = amrex::min(amrex::max(x_new, gx_lo), gx_hi);
+                const Real y_ter = amrex::min(amrex::max(y_new, gy_lo), gy_hi);
                 p.pos(AMREX_SPACEDIM-1) = static_cast<ParticleReal>(
-                    ERF::ParticlePos::zeta_from_z(x_new, y_new, z_new,
+                    ERF::ParticlePos::zeta_from_z(x_ter, y_ter, z_new,
                                                   ctx.plo, ctx.dxi, zheight, k_max));
 
                 // Set velocities to zero
