@@ -416,12 +416,17 @@ public:
           }
       }
       int n_valid_lsm_flux = 0;
+      bool has_soil_t_flux = false;
       for (int n(0); n < nflux; ++n) {
           m_lsm_flux_name[n]     = lsm_flux_name[n];
           m_lsm_flux_lev[lev][n] = lsm_flux[n];
           if (m_lsm_flux_lev[lev][n]) { ++n_valid_lsm_flux; }
+          if (amrex::toLower(m_lsm_flux_name[n]) == "soil_t_flux") {
+              has_soil_t_flux = true;
+          }
       }
-      AMREX_ALWAYS_ASSERT((n_valid_lsm_flux==0 || n_valid_lsm_flux>=4));
+      AMREX_ALWAYS_ASSERT((n_valid_lsm_flux==0 || n_valid_lsm_flux>=4 ||
+                           (n_valid_lsm_flux==1 && has_soil_t_flux)));
       if (n_valid_lsm_flux>=4) { m_has_lsm_fluxes = true; }
 
       // Check if there is a user-specified roughness file to be read
@@ -519,6 +524,8 @@ public:
           amrex::Print() << "Using MOST with specified surface temperature ";
           if (m_has_ocean_lsm_tsurf) {
               amrex::Print() << "(OceanSurf: t_surf)" << std::endl;
+          } else if (m_has_lsm_tsurf && !use_sst && !use_tsk) {
+              amrex::Print() << "(SLM: theta)" << std::endl;
           } else {
               // NOTE: SST from the LOW file populates TSK in update_sst_tsk.
               //       So if we have TSK, it contains everything and has been
