@@ -426,11 +426,23 @@ ERF::post_timestep (int nstep, double time, double dt_lev0)
          int lev_column = 0;
          for (int lev = finest_level; lev >= 0; lev--)
          {
-            Real dx_lev = geom[lev].CellSize(0);
-            Real dy_lev = geom[lev].CellSize(1);
-            int i_lev = static_cast<int>(std::floor(column_loc_x / dx_lev));
-            int j_lev = static_cast<int>(std::floor(column_loc_y / dy_lev));
-            if (grids[lev].contains(IntVect(i_lev,j_lev,0))) lev_column = lev;
+            const Box& probBox = geom[lev].Domain();
+            const Real x_cell_loc = probBox.smallEnd(0)
+                                  + (column_loc_x - geom[lev].ProbLo(0)) * geom[lev].InvCellSize(0);
+            const Real y_cell_loc = probBox.smallEnd(1)
+                                  + (column_loc_y - geom[lev].ProbLo(1)) * geom[lev].InvCellSize(1);
+            const int iloc = static_cast<int>(std::floor(x_cell_loc - myhalf));
+            const int jloc = static_cast<int>(std::floor(y_cell_loc - myhalf));
+            const Box column_box(IntVect{iloc, jloc, probBox.smallEnd(2)},
+                                 IntVect{iloc+1, jloc+1, probBox.bigEnd(2)});
+
+            // writeToNCColumnFile() samples one level for the full column.
+            // Choose the finest level that covers that in-domain stencil;
+            // otherwise keep the level-0 fallback.
+            if (grids[lev].contains(column_box & probBox)) {
+               lev_column = lev;
+               break;
+            }
          }
          writeToNCColumnFile(lev_column, column_file_name, column_loc_x, column_loc_y, time);
       }
