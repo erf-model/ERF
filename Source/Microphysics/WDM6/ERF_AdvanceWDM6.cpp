@@ -3825,6 +3825,70 @@ void WDM6::Advance(const Real& dt_advance,
             }
 #endif
 
+#if !defined(AMREX_USE_GPU)
+            if (microphysics_debug > 0 && diag_col_in_tile) {
+                std::printf("WDM6-CPP_PRE_G15 %3d %24.16E %24.16E %24.16E %24.16E %24.16E %24.16E\n",
+                            diag_k + 1,
+                            static_cast<double>(qv_arr(diag_i,diag_j,diag_k)),
+                            static_cast<double>(p_arr(diag_i,diag_j,diag_k)),
+                            static_cast<double>(t_arr(diag_i,diag_j,diag_k)),
+                            static_cast<double>(qsatw_arr(diag_i,diag_j,diag_k)),
+                            static_cast<double>(qsati_arr(diag_i,diag_j,diag_k)),
+                            static_cast<double>(rhw_arr(diag_i,diag_j,diag_k)));
+                std::fflush(stdout);
+            }
+#endif
+
+            const Real hsub = Real(xls);
+            const Real hvap = Real(xlv0);
+            const Real cvap = Real(cpv);
+            const Real ttp = Real(t0c) + Real(0.01f);
+            const Real dldt = cvap - Real(cliq);
+            const Real xa = -dldt / Real(rv);
+            const Real xb = xa + hvap / (Real(rv) * ttp);
+            const Real dldti = cvap - Real(cice);
+            const Real xai = -dldti / Real(rv);
+            const Real xbi = xai + hsub / (Real(rv) * ttp);
+
+            ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+                const Real tr = ttp / t_arr(i,j,k);
+                Real qsw = Real(psat) * std::exp(std::log(tr) * xa)
+                                     * std::exp(xb * (Real(1.) - tr));
+                qsw = amrex::min(qsw, Real(0.99) * p_arr(i,j,k));
+                qsw = Real(ep2) * qsw / (p_arr(i,j,k) - qsw);
+                qsw = amrex::max(qsw, Real(qmin));
+                qsatw_arr(i,j,k) = qsw;
+
+                Real qsi;
+                if (t_arr(i,j,k) < ttp) {
+                    qsi = Real(psat) * std::exp(std::log(tr) * xai)
+                        * std::exp(xbi * (Real(1.) - tr));
+                } else {
+                    qsi = Real(psat) * std::exp(std::log(tr) * xa)
+                        * std::exp(xb * (Real(1.) - tr));
+                }
+                qsi = amrex::min(qsi, Real(0.99) * p_arr(i,j,k));
+                qsi = Real(ep2) * qsi / (p_arr(i,j,k) - qsi);
+                qsi = amrex::max(qsi, Real(qmin));
+                qsati_arr(i,j,k) = qsi;
+
+                rhw_arr(i,j,k) = amrex::max(qv_arr(i,j,k) / qsw, Real(qmin));
+            });
+
+#if !defined(AMREX_USE_GPU)
+            if (microphysics_debug > 0 && diag_col_in_tile) {
+                std::printf("WDM6-CPP_POST_G15 %3d %24.16E %24.16E %24.16E %24.16E %24.16E %24.16E\n",
+                            diag_k + 1,
+                            static_cast<double>(qv_arr(diag_i,diag_j,diag_k)),
+                            static_cast<double>(p_arr(diag_i,diag_j,diag_k)),
+                            static_cast<double>(t_arr(diag_i,diag_j,diag_k)),
+                            static_cast<double>(qsatw_arr(diag_i,diag_j,diag_k)),
+                            static_cast<double>(qsati_arr(diag_i,diag_j,diag_k)),
+                            static_cast<double>(rhw_arr(diag_i,diag_j,diag_k)));
+                std::fflush(stdout);
+            }
+#endif
+
             // ============================================================
             // Step 9: Ice physics (simplified) — remaining processes
             // ============================================================

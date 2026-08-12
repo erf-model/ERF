@@ -2581,6 +2581,12 @@
 
 
 
+      if (debug_local .gt. 0 .and. i_dbg_local .ge. its .and. i_dbg_local .le. ite) then
+        write(*,'(A,1X,I3,6(1X,ES24.16E3))') &
+          'WDM6-FORT_PRE_G15', kts, &
+          q(i_dbg_local,kts), p(i_dbg_local,kts), t(i_dbg_local,kts), &
+          qs(i_dbg_local,kts,1), qs(i_dbg_local,kts,2), rh(i_dbg_local,kts,1)
+      endif
       hsub = xls
       hvap = xlv0
       cvap = cpv
@@ -2610,6 +2616,12 @@
           rh(i,k,1) = max(q(i,k) / qs(i,k,1),qmin)
         enddo
       enddo
+      if (debug_local .gt. 0 .and. i_dbg_local .ge. its .and. i_dbg_local .le. ite) then
+        write(*,'(A,1X,I3,6(1X,ES24.16E3))') &
+          'WDM6-FORT_POST_G15', kts, &
+          q(i_dbg_local,kts), p(i_dbg_local,kts), t(i_dbg_local,kts), &
+          qs(i_dbg_local,kts,1), qs(i_dbg_local,kts,2), rh(i_dbg_local,kts,1)
+      endif
 
      do k = kts,kte_in
        do i = its,ite
