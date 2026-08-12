@@ -65,6 +65,9 @@ void erf_slow_rhs_post (int level, int finest_level,
                         const MultiFab& /*zvel*/,
                         const MultiFab& source,
                               MultiFab* terrain_blank,
+                              MultiFab* terrain_blank_xface,
+                              MultiFab* terrain_blank_yface,
+                              MultiFab* terrain_blank_zface,
                         const MultiFab* SmnSmn,
                         const MultiFab* eddyDiffs,
                         MultiFab* Hfx1, MultiFab* Hfx2, MultiFab* Hfx3,
@@ -294,6 +297,12 @@ void erf_slow_rhs_post (int level, int finest_level,
 
         const Array4<const Real>& t_blank_arr = (terrain_blank) ? terrain_blank->const_array(mfi) :
                                                                 Array4<const Real>{};
+        const Array4<const Real>& t_blank_xface_arr = (terrain_blank_xface) ? terrain_blank_xface->const_array(mfi) :
+                                                                              Array4<const Real>{};
+        const Array4<const Real>& t_blank_yface_arr = (terrain_blank_yface) ? terrain_blank_yface->const_array(mfi) :
+                                                                              Array4<const Real>{};
+        const Array4<const Real>& t_blank_zface_arr = (terrain_blank_zface) ? terrain_blank_zface->const_array(mfi) :
+                                                                              Array4<const Real>{};
 
         // Map factors
         const Array4<const Real>& mf_mx = mapfac[MapFacType::m_x]->const_array(mfi);
@@ -673,7 +682,9 @@ void erf_slow_rhs_post (int level, int finest_level,
         if (l_anelastic && terrain_blank) { // explicitly set fully immersed cells to have 0 velocities for anelastic (unstable for fully compressible).
             ParallelFor(xtbx, ytbx, ztbx,
             [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                Real t_blank       = myhalf * (t_blank_arr(i, j, k  ) + t_blank_arr(i-1, j, k  ));
+                // Use face-centered terrain_blanking if available, otherwise average from cell centers
+                Real t_blank = (t_blank_xface_arr) ? t_blank_xface_arr(i, j, k) :
+                               myhalf * (t_blank_arr(i, j, k) + t_blank_arr(i-1, j, k));
                 if (t_blank == one) {
                     new_xmom(i,j,k) = zero;
                 } else {
@@ -681,7 +692,9 @@ void erf_slow_rhs_post (int level, int finest_level,
                 }
             },
             [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                Real t_blank       = myhalf* (t_blank_arr(i, j, k  ) + t_blank_arr(i, j-1, k  ));
+                // Use face-centered terrain_blanking if available, otherwise average from cell centers
+                Real t_blank = (t_blank_yface_arr) ? t_blank_yface_arr(i, j, k) :
+                               myhalf * (t_blank_arr(i, j, k) + t_blank_arr(i, j-1, k));
                 if (t_blank == one) {
                     new_ymom(i,j,k) = zero;
                 } else {
@@ -689,7 +702,9 @@ void erf_slow_rhs_post (int level, int finest_level,
                 }
             },
             [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                Real t_blank       = myhalf * (t_blank_arr(i, j, k  ) + t_blank_arr(i, j, k-1));
+                // Use face-centered terrain_blanking if available, otherwise average from cell centers
+                Real t_blank = (t_blank_zface_arr) ? t_blank_zface_arr(i, j, k) :
+                               myhalf * (t_blank_arr(i, j, k) + t_blank_arr(i, j, k-1));
                 if (t_blank == one) {
                     new_zmom(i,j,k) = zero;
                 } else {
