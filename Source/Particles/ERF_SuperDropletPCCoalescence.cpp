@@ -245,7 +245,7 @@ static void rime_update_attribs(const int a_i, /*!< index of particle */
                                 const ParticleReal* const a_rmndr, /*!< coalescence remainder*/
                                 const SDPhase a_phase_i, /*!< phase of particle i */
                                 const SDPhase a_phase_j, /*!< phase of particle j (partner) */
-                                const GpuArray<ParticleReal*,AMREX_SPACEDIM>& a_vel, /*!< velocity */
+                                const GpuArray<ParticleReal*,AMREX_SPACEDIM>& /*a_vel*/, /*!< velocity */
                                 ParticleReal* const a_vterm, /*!< terminal velocity */
                                 ParticleReal* const a_radius, /*!< radius */
                                 ParticleReal* const a_Tfz, /*!< freezing temperature */

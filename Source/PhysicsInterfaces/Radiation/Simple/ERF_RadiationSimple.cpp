@@ -24,22 +24,22 @@ void RadiationSimple::Init(const amrex::Geometry& geom,
     radqrlw->setVal(0.0);
 }
 
-void RadiationSimple::Run(int& level,
-                          int& step,
-                          double& time,
-                          const double& dt,
-                          const amrex::BoxArray& ba,
+void RadiationSimple::Run(int& /*level*/,
+                          int& /*step*/,
+                          double& /*time*/,
+                          const double& /*dt*/,
+                          const amrex::BoxArray& /*ba*/,
                           amrex::Geometry& geom,
                           amrex::MultiFab* cons_in,
-                          amrex::iMultiFab* lmask,
-                          amrex::MultiFab* t_surf,
-                          amrex::Vector<amrex::MultiFab*>& lsm_input_ptrs,
-                          amrex::Vector<amrex::MultiFab*>& lsm_output_ptrs,
+                          amrex::iMultiFab* /*lmask*/,
+                          amrex::MultiFab* /*t_surf*/,
+                          amrex::Vector<amrex::MultiFab*>& /*lsm_input_ptrs*/,
+                          amrex::Vector<amrex::MultiFab*>& /*lsm_output_ptrs*/,
                           amrex::MultiFab* qheating_rates,
                           amrex::MultiFab* rad_fluxes,
                           amrex::MultiFab* z_phys,
-                          amrex::MultiFab* lat,
-                          amrex::MultiFab* lon,
+                          amrex::MultiFab* /*lat*/,
+                          amrex::MultiFab* /*lon*/,
                           const bool /*updated_lsm*/)
 {
 
@@ -49,7 +49,6 @@ void RadiationSimple::Run(int& level,
     constexpr amrex::Real f0=3.75e-6;
     constexpr amrex::Real xk = 85.0;
 
-    const int zlo = geom.Domain().smallEnd(2);
     const Real fixed_dz = geom.CellSize(2);
     const int nz = geom.Domain().length(2);
 

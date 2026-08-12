@@ -64,7 +64,7 @@ public:
         num_times = 0;
         nz_lsf = 0;
 
-        amrex::Real start_time = zero; // first time in file, in days, other inputs are relative to this time
+        amrex::Real file_start_time = zero; // first time in file, in days, other inputs are relative to this time
 
         amrex::Real pres0;
         while(std::getline(ifs, line)) {
@@ -87,9 +87,9 @@ public:
                 // convert time to seconds (relative to first time), and pres from mb to Pa
                 if (num_times == 0)
                 {
-                    start_time = time;
+                    file_start_time = time;
                 }
-                time = (time - start_time) * amrex::Real(86400.0);
+                time = (time - file_start_time) * amrex::Real(86400.0);
 
                 if (times_lsf.size() > 0 && time != times_lsf.back())
                 {

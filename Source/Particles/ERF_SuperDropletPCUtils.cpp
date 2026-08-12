@@ -519,10 +519,6 @@ void SuperDropletPC::SplitParticlesForRefinement (int finest_level)
     for (int lev = 1; lev <= finest_level; lev++) {
 
         const int lev_native = lev + 1;
-        const auto& lev_geom = m_gdb->Geom(lev);
-        const auto lev_plo    = lev_geom.ProbLoArray();
-        const auto lev_dxi    = lev_geom.InvCellSizeArray();
-        const auto lev_domain = lev_geom.Domain();
 
         for (int source_tag = 1; source_tag < lev_native; source_tag++) {
             const int source_lev = source_tag - 1;

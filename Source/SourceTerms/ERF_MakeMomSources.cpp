@@ -110,7 +110,7 @@ void make_mom_sources (double time_d,
                              InputSoundingData& input_sounding_data,
                              LargeScaleForcingData &lsf_data,
                        std::unique_ptr<amrex::MultiFab>& lsf_tendencies,
-                       std::unique_ptr<amrex::MultiFab>& nudge_data,
+                       std::unique_ptr<amrex::MultiFab>& /*nudge_data*/,
                        const eb_& ebfact,
                        bool is_slow_step)
 {
