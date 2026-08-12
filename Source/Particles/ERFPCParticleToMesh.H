@@ -22,6 +22,9 @@ void ERFPC::ERFPCParticleToMesh(amrex::MultiFab& a_mf,
     AMREX_ASSERT(OK());
     AMREX_ASSERT(numParticlesOutOfRange(*this, 0) == 0);
 
+    // CIC deposition writes one cell outside the particle's own cell
+    AMREX_ALWAYS_ASSERT(a_mf.nGrowVect().allGE(amrex::IntVect(1)));
+
     const auto& geom = Geom(a_lev);
     const auto plo = geom.ProbLoArray();
     const auto dxi = geom.InvCellSizeArray();
