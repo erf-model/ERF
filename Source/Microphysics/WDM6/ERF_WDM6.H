@@ -83,9 +83,9 @@ public:
     static constexpr amrex::Real n0smax     = amrex::Real(1.0e11);
     static constexpr amrex::Real n0s        = amrex::Real(2.0e6);
     static constexpr amrex::Real alpha_wdm6 = amrex::Real(0.12);
-    static constexpr amrex::Real satmax     = amrex::Real(1.0048);
-    static constexpr amrex::Real actk       = amrex::Real(0.6);
-    static constexpr amrex::Real actr       = amrex::Real(1.5);
+    static constexpr amrex::Real satmax     = amrex::Real(1.0048f);
+    static constexpr amrex::Real actk       = amrex::Real(0.6f);
+    static constexpr amrex::Real actr       = amrex::Real(1.5f);
     static constexpr amrex::Real ncrk1      = amrex::Real(3.03e3);
     static constexpr amrex::Real ncrk2      = amrex::Real(2.59e15);
     static constexpr amrex::Real di100      = amrex::Real(1.0e-4);

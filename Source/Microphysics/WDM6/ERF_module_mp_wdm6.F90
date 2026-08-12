@@ -2759,6 +2759,12 @@
             if (k >= 40 .and. k <= 42) then
               write(*,'(A,I3,A,ES12.4,A,ES12.4,A,2ES12.4)') &
                 'WDM6-FORT_T2_G16B_ACT_PRE k=',k,' RH=',rh(i,k,1),' qc=',qci(i,k,1),' nn,nc=',ncr(i,k,1),ncr(i,k,2)
+              write(*,'(A,I3,4(A,ES24.16E3))') &
+                'WDM6-FORT_T2_G16B_ACT_PRE_EXACT k=',k, &
+                ' rh=',rh(i,k,1), &
+                ' qc=',qci(i,k,1), &
+                ' nn=',ncr(i,k,1), &
+                ' nc=',ncr(i,k,2)
             endif
           endif
 

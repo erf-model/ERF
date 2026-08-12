@@ -4098,6 +4098,12 @@ void WDM6::Advance(const Real& dt_advance,
                                 static_cast<double>(qc_arr(diag_i,diag_j,kk)),
                                 static_cast<double>(nn_arr(diag_i,diag_j,kk)),
                                 static_cast<double>(nc_arr(diag_i,diag_j,kk)));
+                    std::printf("WDM6-CPP_T2_G16B_ACT_PRE_EXACT k=%3d rh=%24.16E qc=%24.16E nn=%24.16E nc=%24.16E\n",
+                                kk + 1,
+                                static_cast<double>(rhw_arr(diag_i,diag_j,kk)),
+                                static_cast<double>(qc_arr(diag_i,diag_j,kk)),
+                                static_cast<double>(nn_arr(diag_i,diag_j,kk)),
+                                static_cast<double>(nc_arr(diag_i,diag_j,kk)));
                 }
                 std::fflush(stdout);
             }
