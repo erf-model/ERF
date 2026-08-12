@@ -12,6 +12,7 @@ import matplotlib.colors as colors
 from matplotlib import cm
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 from pyproj import Transformer
+from scipy.ndimage import gaussian_filter, laplace, median_filter
 
 
 # ---DETERMINE IF A POINT IS WITHIN A POLYGON-------------------------------
@@ -31,7 +32,226 @@ def inpolygon(xy, p):
     return n % 2
 
 
+def spike_targeted_smoothing(h,
+                            valley_threshold=2.0, valley_sigma=1.5,
+                            peak_threshold=None, peak_sigma=None):
+    """
+    Apply smoothing to high-curvature regions with separate control for valleys and peaks.
+    Preserves building edges and corners.
+
+    Parameters:
+    -----------
+    h : ndarray
+        Height field to smooth
+    valley_threshold : float
+        Laplacian threshold for detecting valleys (concave) [m]
+        Lower = more aggressive, Higher = only extreme valleys
+    valley_sigma : float
+        Gaussian sigma for smoothing valleys (1.0-3.0)
+    peak_threshold : float or None
+        Laplacian threshold for detecting peaks (convex) [m]
+        If None, peaks are not smoothed
+    peak_sigma : float or None
+        Gaussian sigma for smoothing peaks (1.0-3.0)
+        If None, same as valley_sigma
+
+    Returns:
+    --------
+    h_result : ndarray
+        Smoothed height field
+    valley_mask : ndarray (bool)
+        Mask showing where valleys were smoothed
+    peak_mask : ndarray (bool)
+        Mask showing where peaks were smoothed
+    """
+    # Calculate curvature (Laplacian = second derivative)
+    laplacian = laplace(h.astype(float))
+
+    # Detect valleys (positive Laplacian = concave)
+    valley_mask = laplacian > valley_threshold
+
+    # Detect peaks (negative Laplacian = convex)
+    if peak_threshold is not None:
+        peak_mask = laplacian < -peak_threshold
+    else:
+        peak_mask = np.zeros_like(valley_mask, dtype=bool)
+
+    # Start with original height field
+    h_result = h.copy()
+
+    # Smooth valleys
+    if valley_sigma > 0 and np.any(valley_mask):
+        h_valley_smoothed = gaussian_filter(h, sigma=valley_sigma)
+        h_result[valley_mask] = h_valley_smoothed[valley_mask]
+
+    # Smooth peaks (if enabled)
+    if peak_threshold is not None and np.any(peak_mask):
+        sigma_peak = peak_sigma if peak_sigma is not None else valley_sigma
+        h_peak_smoothed = gaussian_filter(h, sigma=sigma_peak)
+        h_result[peak_mask] = h_peak_smoothed[peak_mask]
+
+    return h_result, valley_mask, peak_mask
+
+
+def slope_sign_change_smoothing(h, dx, dy, slope_threshold=3.0, smoothing_sigma=1.5):
+    """
+    Detect and smooth points where slope sign changes sharply between neighbors.
+    Targets V-shaped valleys (slope: -5 to +5) and sharp peaks (slope: +5 to -5).
+
+    Parameters:
+    -----------
+    h : ndarray
+        Height field to smooth
+    dx, dy : float
+        Grid spacing in x and y directions [m]
+    slope_threshold : float
+        Minimum absolute slope magnitude to consider (e.g., 3.0 means both slopes must be > 3.0)
+    smoothing_sigma : float
+        Gaussian sigma for smoothing detected points (1.0-2.0)
+
+    Returns:
+    --------
+    h_smoothed : ndarray
+        Smoothed height field
+    mask : ndarray (bool)
+        Mask showing where slope-sign-changes were detected and smoothed
+    """
+    h_smoothed = h.copy().astype(float)
+    mask = np.zeros_like(h, dtype=bool)
+
+    ny, nx = h.shape
+
+    # Compute slopes in x-direction (forward difference)
+    slope_x = np.zeros_like(h)
+    slope_x[:, :-1] = (h[:, 1:] - h[:, :-1]) / dx
+
+    # Compute slopes in y-direction (forward difference)
+    slope_y = np.zeros_like(h)
+    slope_y[:-1, :] = (h[1:, :] - h[:-1, :]) / dy
+
+    # Detect slope sign changes in x-direction
+    for j in range(ny):
+        for i in range(1, nx-1):
+            slope_left = slope_x[j, i-1]
+            slope_right = slope_x[j, i]
+
+            # Check for sign change with large magnitude
+            if (slope_left * slope_right < 0 and
+                abs(slope_left) > slope_threshold and
+                abs(slope_right) > slope_threshold):
+                mask[j, i] = True
+
+    # Detect slope sign changes in y-direction
+    for j in range(1, ny-1):
+        for i in range(nx):
+            slope_bottom = slope_y[j-1, i]
+            slope_top = slope_y[j, i]
+
+            # Check for sign change with large magnitude
+            if (slope_bottom * slope_top < 0 and
+                abs(slope_bottom) > slope_threshold and
+                abs(slope_top) > slope_threshold):
+                mask[j, i] = True
+
+    # Apply smoothing only to detected points
+    if np.any(mask):
+        h_temp = gaussian_filter(h, sigma=smoothing_sigma)
+        h_smoothed[mask] = h_temp[mask]
+
+    return h_smoothed, mask
+
+
+def limit_gradients(h, dx, dy, max_slope=1.0, max_iterations=50):
+    """
+    Enforce maximum slope constraint between adjacent cells.
+    Iteratively adjusts heights to ensure no slope exceeds max_slope.
+
+    Parameters:
+    -----------
+    h : ndarray
+        Height field to process
+    dx, dy : float
+        Grid spacing in x and y directions [m]
+    max_slope : float
+        Maximum allowed dh/dx (e.g., 0.5 = 26.6°, 1.0 = 45°, 1.5 = 56.3°)
+    max_iterations : int
+        Maximum number of iterations (usually converges in 5-20)
+
+    Returns:
+    --------
+    h_limited : ndarray
+        Height field with slope constraints enforced
+    num_iterations : int
+        Number of iterations needed for convergence
+    """
+    h_limited = h.copy().astype(float)
+    max_dh = max_slope * min(dx, dy)
+
+    for iteration in range(max_iterations):
+        changed = False
+        h_new = h_limited.copy()
+
+        for j in range(1, h.shape[0]-1):
+            for i in range(1, h.shape[1]-1):
+                # Check all 8 neighbors (including diagonals)
+                neighbors = [
+                    (h_limited[j-1, i], 1.0),       # N
+                    (h_limited[j+1, i], 1.0),       # S
+                    (h_limited[j, i-1], 1.0),       # W
+                    (h_limited[j, i+1], 1.0),       # E
+                    (h_limited[j-1, i-1], 1.414),   # NW (sqrt(2) distance)
+                    (h_limited[j-1, i+1], 1.414),   # NE
+                    (h_limited[j+1, i-1], 1.414),   # SW
+                    (h_limited[j+1, i+1], 1.414),   # SE
+                ]
+
+                for neighbor_h, dist in neighbors:
+                    max_dh_neighbor = max_dh * dist
+
+                    # If current cell is too high relative to neighbor, lower it
+                    if h_limited[j, i] - neighbor_h > max_dh_neighbor:
+                        new_height = neighbor_h + max_dh_neighbor
+                        if new_height < h_new[j, i]:
+                            h_new[j, i] = new_height
+                            changed = True
+
+        h_limited = h_new
+
+        if not changed:
+            return h_limited, iteration + 1
+
+    print(f"WARNING: Gradient limiting did not converge after {max_iterations} iterations")
+    return h_limited, max_iterations
+
+
 def main():
+    # ---SMOOTHING CONFIGURATION------------------------------------------------
+    # SMOOTHING_METHOD: 'none'|'gaussian'|'median'|'laplacian'|'gradient_limit'|'slope_sign'|'combined' (combined = laplacian + gradient limit)
+    # VALLEY_THRESHOLD: Laplacian threshold [m] for valley detection (1.0-2.0=aggressive, 5.0-10.0=conservative)
+    # VALLEY_SIGMA: Gaussian sigma for valleys (1.0-1.5=light, 2.0-2.5=moderate, 3.0+=heavy)
+    # PEAK_THRESHOLD: Laplacian threshold [m] for peak detection (None=don't smooth peaks, recommended)
+    # PEAK_SIGMA: Gaussian sigma for peaks (None=use VALLEY_SIGMA)
+    # MAX_SLOPE: Maximum slope (0.5=26.6°, 1.0=45°, 1.5=56.3°)
+    # APPLY_GRADIENT_LIMIT_AFTER: Apply gradient limiting after primary smoothing (True=safety net)
+    # GAUSSIAN_SIGMA: Gaussian sigma (only for 'gaussian' method)
+    # MEDIAN_SIZE: Median filter kernel size (3=3x3 light, 5=5x5 moderate, 7=7x7 heavy, only for 'median' method)
+    # SLOPE_THRESHOLD: Minimum slope magnitude for sign-change detection (3.0-5.0=moderate, 8.0-10.0=only extreme)
+    # SLOPE_SIGN_SIGMA: Gaussian sigma for slope-sign-change smoothing (1.0-2.0)
+    #
+    # --- PARAMETER VALUES (select and copy this block) -----------------------
+    SMOOTHING_METHOD = 'slope_sign'
+    VALLEY_THRESHOLD = 10.0
+    VALLEY_SIGMA = 1.5
+    PEAK_THRESHOLD = 30.0
+    PEAK_SIGMA = 1.0
+    MAX_SLOPE = 2.0
+    APPLY_GRADIENT_LIMIT_AFTER = False
+    GAUSSIAN_SIGMA = 1.5
+    MEDIAN_SIZE = 3
+    SLOPE_THRESHOLD = 5.0
+    SLOPE_SIGN_SIGMA = 1.5
+    # --------------------------------------------------------------------------
+
     # Set up the transformer for WGS84 to UTM Zone 14N (Oklahoma City)
     transformer_check = Transformer.from_crs("epsg:4326", "epsg:32614", always_xy=True)
 
@@ -53,13 +273,13 @@ def main():
     # ---GRID PARAMETERS--------------------------------------------------------
     dx = 2.5                 # Grid spacing in x-direction [m]
     dy = 2.5                 # Grid spacing in y-direction [m]
-    e_we = 100              # Number of grid cells in x-direction (west-east)
-    e_sn = 100              # Number of grid cells in y-direction (south-north)
-    bbxs = 633000 + 1600          # Bounding box x start (UTM easting) [m]
-    bbys = 3923800 + 2450    # Bounding box y start (UTM northing) [m]
+    e_we = 800              # Number of grid cells in x-direction (west-east)
+    e_sn = 1680               # Number of grid cells in y-direction (south-north)
+    bbxs = 633000 + 500          # Bounding box x start (UTM easting) [m]
+    bbys = 3923800 + 400    # Bounding box y start (UTM northing) [m]
     
     # ---GLOBAL MAP LOD1 SHAPE FILE---------------------------------------------
-    output_file = "GBA_SK_2.5m_100.txt"
+    output_file = f"GBA_SK_2.5m_800_{SMOOTHING_METHOD}.txt"
 
     pn_shp = "/Users/kang18/2024_01_ERF-EB/discretization_urban/OKC_LoD1_v2"
     fn_shp = "GUF04_DLR_v02_w100_n40_w095_n35_OGR04_lod1.shp"
@@ -323,6 +543,170 @@ def main():
         plt.show()
     plt.close()
 
+    # ---APPLY SMOOTHING--------------------------------------------------------
+    if SMOOTHING_METHOD == 'gaussian':
+        if debug:
+            print(f"Applying Gaussian smoothing with sigma={GAUSSIAN_SIGMA}")
+        h_nowalkways = gaussian_filter(h_nowalkways, sigma=GAUSSIAN_SIGMA)
+    elif SMOOTHING_METHOD == 'median':
+        if debug:
+            print(f"Applying median filter with kernel size={MEDIAN_SIZE}x{MEDIAN_SIZE}")
+        h_nowalkways = median_filter(h_nowalkways, size=MEDIAN_SIZE)
+        if debug:
+            print(f"  Median filter applied to entire grid")
+    elif SMOOTHING_METHOD == 'laplacian':
+        if debug:
+            print(f"Applying Laplacian-weighted smoothing (spike-targeted)")
+            print(f"  Valleys: threshold={VALLEY_THRESHOLD}, sigma={VALLEY_SIGMA}")
+            if PEAK_THRESHOLD is not None:
+                peak_sig = PEAK_SIGMA if PEAK_SIGMA is not None else VALLEY_SIGMA
+                print(f"  Peaks:   threshold={PEAK_THRESHOLD}, sigma={peak_sig}")
+            else:
+                print(f"  Peaks:   not smoothed")
+
+        h_nowalkways, valley_mask, peak_mask = spike_targeted_smoothing(
+            h_nowalkways,
+            valley_threshold=VALLEY_THRESHOLD,
+            valley_sigma=VALLEY_SIGMA,
+            peak_threshold=PEAK_THRESHOLD,
+            peak_sigma=PEAK_SIGMA
+        )
+
+        if debug:
+            num_valley_cells = np.sum(valley_mask)
+            num_peak_cells = np.sum(peak_mask)
+            total_cells = valley_mask.size
+            valley_percent = 100.0 * num_valley_cells / total_cells
+            peak_percent = 100.0 * num_peak_cells / total_cells
+            print(f"  Smoothed {num_valley_cells} valley cells ({valley_percent:.1f}% of grid)")
+            print(f"  Smoothed {num_peak_cells} peak cells ({peak_percent:.1f}% of grid)")
+
+            # Save spike mask visualization
+            fig, ax = plt.subplots(figsize=(12, 12))
+
+            # Create combined mask with different colors
+            # 0 = no smoothing, 1 = valley, 2 = peak
+            combined_mask = np.zeros_like(valley_mask, dtype=float)
+            combined_mask[valley_mask] = 1.0
+            combined_mask[peak_mask] = 2.0
+
+            im = ax.imshow(combined_mask, cmap='RdYlBu_r', alpha=0.7, vmin=0, vmax=2,
+                          extent=[xmin, xmax, ymin, ymax], origin='lower')
+            ax.set_xlabel('UTM easting')
+            ax.set_ylabel('UTM northing')
+            ax.set_title('Detected regions (red=valleys, blue=peaks)')
+            ax.set_xlim(634000, 635000)
+            ax.set_ylim(3925000, 3927000)
+            cbar = plt.colorbar(im, ax=ax, ticks=[0, 1, 2])
+            cbar.ax.set_yticklabels(['None', 'Valley', 'Peak'])
+            plt.savefig(f'spike_mask_{SMOOTHING_METHOD}.png', dpi=dpi)
+            if showTF:
+                plt.show()
+            plt.close()
+    elif SMOOTHING_METHOD == 'slope_sign':
+        if debug:
+            print(f"Applying slope-sign-change smoothing")
+            print(f"  Slope threshold={SLOPE_THRESHOLD}, sigma={SLOPE_SIGN_SIGMA}")
+        h_nowalkways, slope_mask = slope_sign_change_smoothing(
+            h_nowalkways, dx, dy,
+            slope_threshold=SLOPE_THRESHOLD,
+            smoothing_sigma=SLOPE_SIGN_SIGMA
+        )
+        if debug:
+            num_smoothed = np.sum(slope_mask)
+            total_cells = slope_mask.size
+            smoothed_percent = 100.0 * num_smoothed / total_cells
+            print(f"  Smoothed {num_smoothed} cells with slope-sign-changes ({smoothed_percent:.1f}% of grid)")
+
+            # Save mask visualization
+            fig, ax = plt.subplots(figsize=(12, 12))
+            im = ax.imshow(slope_mask.astype(float), cmap='Reds', alpha=0.7,
+                          extent=[xmin, xmax, ymin, ymax], origin='lower')
+            ax.set_xlabel('UTM easting')
+            ax.set_ylabel('UTM northing')
+            ax.set_title('Detected slope-sign-change points (red=smoothed)')
+            ax.set_xlim(634000, 635000)
+            ax.set_ylim(3925000, 3927000)
+            cbar = plt.colorbar(im, ax=ax)
+            plt.savefig(f'slope_sign_mask_{SMOOTHING_METHOD}.png', dpi=dpi)
+            if showTF:
+                plt.show()
+            plt.close()
+    elif SMOOTHING_METHOD == 'gradient_limit':
+        if debug:
+            print(f"Applying gradient limiting with max_slope={MAX_SLOPE} ({np.degrees(np.arctan(MAX_SLOPE)):.1f}°)")
+        h_nowalkways, num_iters = limit_gradients(h_nowalkways, dx, dy, max_slope=MAX_SLOPE)
+        if debug:
+            print(f"  Converged in {num_iters} iterations")
+    elif SMOOTHING_METHOD == 'combined':
+        if debug:
+            print(f"Applying combined smoothing (Laplacian + Gradient Limiting)")
+            print(f"  Step 1 - Laplacian-weighted smoothing:")
+            print(f"    Valleys: threshold={VALLEY_THRESHOLD}, sigma={VALLEY_SIGMA}")
+            if PEAK_THRESHOLD is not None:
+                peak_sig = PEAK_SIGMA if PEAK_SIGMA is not None else VALLEY_SIGMA
+                print(f"    Peaks:   threshold={PEAK_THRESHOLD}, sigma={peak_sig}")
+            else:
+                print(f"    Peaks:   not smoothed")
+
+        # Step 1: Laplacian smoothing
+        h_nowalkways, valley_mask, peak_mask = spike_targeted_smoothing(
+            h_nowalkways,
+            valley_threshold=VALLEY_THRESHOLD,
+            valley_sigma=VALLEY_SIGMA,
+            peak_threshold=PEAK_THRESHOLD,
+            peak_sigma=PEAK_SIGMA
+        )
+
+        if debug:
+            num_valley_cells = np.sum(valley_mask)
+            num_peak_cells = np.sum(peak_mask)
+            total_cells = valley_mask.size
+            valley_percent = 100.0 * num_valley_cells / total_cells
+            peak_percent = 100.0 * num_peak_cells / total_cells
+            print(f"    Smoothed {num_valley_cells} valley cells ({valley_percent:.1f}% of grid)")
+            print(f"    Smoothed {num_peak_cells} peak cells ({peak_percent:.1f}% of grid)")
+
+        # Step 2: Gradient limiting
+        if debug:
+            print(f"  Step 2 - Gradient limiting: max_slope={MAX_SLOPE} ({np.degrees(np.arctan(MAX_SLOPE)):.1f}°)")
+        h_nowalkways, num_iters = limit_gradients(h_nowalkways, dx, dy, max_slope=MAX_SLOPE)
+        if debug:
+            print(f"    Converged in {num_iters} iterations")
+
+        # Save spike mask visualization
+        if debug:
+            fig, ax = plt.subplots(figsize=(12, 12))
+            combined_mask = np.zeros_like(valley_mask, dtype=float)
+            combined_mask[valley_mask] = 1.0
+            combined_mask[peak_mask] = 2.0
+            im = ax.imshow(combined_mask, cmap='RdYlBu_r', alpha=0.7, vmin=0, vmax=2,
+                          extent=[xmin, xmax, ymin, ymax], origin='lower')
+            ax.set_xlabel('UTM easting')
+            ax.set_ylabel('UTM northing')
+            ax.set_title('Detected regions before gradient limiting (red=valleys, blue=peaks)')
+            ax.set_xlim(634000, 635000)
+            ax.set_ylim(3925000, 3927000)
+            cbar = plt.colorbar(im, ax=ax, ticks=[0, 1, 2])
+            cbar.ax.set_yticklabels(['None', 'Valley', 'Peak'])
+            plt.savefig(f'spike_mask_{SMOOTHING_METHOD}.png', dpi=dpi)
+            if showTF:
+                plt.show()
+            plt.close()
+    elif SMOOTHING_METHOD == 'none':
+        if debug:
+            print("No smoothing applied")
+    else:
+        print(f"WARNING: Unknown smoothing method '{SMOOTHING_METHOD}', skipping smoothing")
+
+    # ---OPTIONAL POST-PROCESSING: GRADIENT LIMITING----------------------------
+    if SMOOTHING_METHOD not in ['none', 'gradient_limit', 'combined'] and APPLY_GRADIENT_LIMIT_AFTER:
+        if debug:
+            print(f"Applying gradient limiting post-process: max_slope={MAX_SLOPE} ({np.degrees(np.arctan(MAX_SLOPE)):.1f}°)")
+        h_nowalkways, num_iters = limit_gradients(h_nowalkways, dx, dy, max_slope=MAX_SLOPE)
+        if debug:
+            print(f"  Converged in {num_iters} iterations")
+
     # ---PLOT MODIFIED HEIGHTS--------------------------------------------------
     if (debug):
         print("plotting unmodified grid heights")
@@ -343,7 +727,7 @@ def main():
     cbar.set_label("height AGL [m]")
     ax.set_xlim(634000, 635000)
     ax.set_ylim(3925000, 3927000)
-    plt.savefig('heights_modified.png', dpi=dpi)
+    plt.savefig(f'heights_modified_{SMOOTHING_METHOD}.png', dpi=dpi)
     if showTF:
         plt.show()
     plt.close()
