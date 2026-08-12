@@ -2276,6 +2276,12 @@
 
 
 
+      if (debug_local .gt. 0 .and. i_dbg_local .ge. its .and. i_dbg_local .le. ite) then
+        write(*,'(A,1X,I3,4(1X,ES24.16E3))') &
+          'WDM6-FORT_PRE_G13G', kts, &
+          qrs(i_dbg_local,kts,2), qrs(i_dbg_local,kts,3), &
+          rh(i_dbg_local,kts,1), t0c-t(i_dbg_local,kts)
+      endif
           if(supcol.lt.0.) then
             if(qrs(i,k,2).gt.0. .and. rh(i,k,1).lt.1.) then
               coeres = rslope2(i,k,2)*sqrt(rslope(i,k,2)*rslopeb(i,k,2))
@@ -2294,6 +2300,11 @@
               pgevp(i,k) = min(max(pgevp(i,k),-qrs(i,k,3)/dtcld),0.)
             endif
           endif
+      if (debug_local .gt. 0 .and. i_dbg_local .ge. its .and. i_dbg_local .le. ite) then
+        write(*,'(A,1X,I3,2(1X,ES24.16E3))') &
+          'WDM6-FORT_POST_G13G', kts, &
+          psevp(i_dbg_local,kts), pgevp(i_dbg_local,kts)
+      endif
         enddo
       enddo
 

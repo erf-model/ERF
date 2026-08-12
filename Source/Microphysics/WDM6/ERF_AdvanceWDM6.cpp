@@ -762,6 +762,8 @@ void WDM6::Advance(const Real& dt_advance,
         FArrayBox nseml_fab(fab_box,1, Arena_Used);
         FArrayBox pgeml_fab(fab_box,1, Arena_Used);
         FArrayBox ngeml_fab(fab_box,1, Arena_Used);
+        FArrayBox psevp_fab(fab_box,1, Arena_Used);
+        FArrayBox pgevp_fab(fab_box,1, Arena_Used);
 
         // Number concentration process rates (WDM6-specific)
         FArrayBox ncauto_fab(fab_box,1, Arena_Used);  // nc lost to autoconversion
@@ -838,6 +840,8 @@ void WDM6::Advance(const Real& dt_advance,
         auto const& nseml_arr = nseml_fab.array();
         auto const& pgeml_arr = pgeml_fab.array();
         auto const& ngeml_arr = ngeml_fab.array();
+        auto const& psevp_arr = psevp_fab.array();
+        auto const& pgevp_arr = pgevp_fab.array();
         auto const& ncauto_arr = ncauto_fab.array();
         auto const& ncaccr_arr = ncaccr_fab.array();
         auto const& nrauto_arr = nrauto_fab.array();
@@ -1190,6 +1194,8 @@ void WDM6::Advance(const Real& dt_advance,
                 nseml_arr(i,j,k) = Real(0.0);
                 pgeml_arr(i,j,k) = Real(0.0);
                 ngeml_arr(i,j,k) = Real(0.0);
+                psevp_arr(i,j,k) = Real(0.0);
+                pgevp_arr(i,j,k) = Real(0.0);
                 ncauto_arr(i,j,k) = Real(0.0);
                 ncaccr_arr(i,j,k) = Real(0.0);
                 nrauto_arr(i,j,k) = Real(0.0);
@@ -3423,6 +3429,70 @@ void WDM6::Advance(const Real& dt_advance,
                             diag_k + 1,
                             static_cast<double>(psaut_arr(diag_i,diag_j,diag_k)),
                             static_cast<double>(pgaut_arr(diag_i,diag_j,diag_k)));
+                std::fflush(stdout);
+            }
+#endif
+
+#if !defined(AMREX_USE_GPU)
+            if (microphysics_debug > 0 && diag_col_in_tile) {
+                const Real diag_supcol = Real(t0c) - t_arr(diag_i,diag_j,diag_k);
+                std::printf("WDM6-CPP_PRE_G13G %3d %24.16E %24.16E %24.16E %24.16E\n",
+                            diag_k + 1,
+                            static_cast<double>(qs_arr(diag_i,diag_j,diag_k)),
+                            static_cast<double>(qg_arr(diag_i,diag_j,diag_k)),
+                            static_cast<double>(rhw_arr(diag_i,diag_j,diag_k)),
+                            static_cast<double>(diag_supcol));
+                std::fflush(stdout);
+            }
+#endif
+
+            ParallelFor(box, [=, this] AMREX_GPU_DEVICE (int i, int j, int k) {
+                const Real supcol = Real(t0c) - t_arr(i,j,k);
+                if (supcol < Real(0.0)) {
+                    const Real n0sfac = amrex::max(
+                        amrex::min(std::exp(Real(alpha_wdm6) * supcol),
+                                   Real(n0smax) / Real(n0s)),
+                        Real(1.0));
+
+                    if (qs_arr(i,j,k) > Real(0.0)
+                        && rhw_arr(i,j,k) < Real(1.0)) {
+                        const Real coeres = rslope2_arr(i,j,k,1)
+                                          * std::sqrt(rslope_arr(i,j,k,1)
+                                                      * rslopeb_arr(i,j,k,1));
+                        psevp_arr(i,j,k) = (rhw_arr(i,j,k) - Real(1.0))
+                            * n0sfac
+                            * (Real(m_precs1) * rslope2_arr(i,j,k,1)
+                               + Real(m_precs2) * work2_arr(i,j,k) * coeres)
+                            / work1_arr(i,j,k,0);
+                        psevp_arr(i,j,k) = amrex::min(
+                            amrex::max(psevp_arr(i,j,k),
+                                       -qs_arr(i,j,k) / dtcld),
+                            Real(0.0));
+                    }
+
+                    if (qg_arr(i,j,k) > Real(0.0)
+                        && rhw_arr(i,j,k) < Real(1.0)) {
+                        const Real coeres = rslope2_arr(i,j,k,2)
+                                          * std::sqrt(rslope_arr(i,j,k,2)
+                                                      * rslopeb_arr(i,j,k,2));
+                        pgevp_arr(i,j,k) = (rhw_arr(i,j,k) - Real(1.0))
+                            * (Real(m_precg1) * rslope2_arr(i,j,k,2)
+                               + Real(m_precg2) * work2_arr(i,j,k) * coeres)
+                            / work1_arr(i,j,k,0);
+                        pgevp_arr(i,j,k) = amrex::min(
+                            amrex::max(pgevp_arr(i,j,k),
+                                       -qg_arr(i,j,k) / dtcld),
+                            Real(0.0));
+                    }
+                }
+            });
+
+#if !defined(AMREX_USE_GPU)
+            if (microphysics_debug > 0 && diag_col_in_tile) {
+                std::printf("WDM6-CPP_POST_G13G %3d %24.16E %24.16E\n",
+                            diag_k + 1,
+                            static_cast<double>(psevp_arr(diag_i,diag_j,diag_k)),
+                            static_cast<double>(pgevp_arr(diag_i,diag_j,diag_k)));
                 std::fflush(stdout);
             }
 #endif
