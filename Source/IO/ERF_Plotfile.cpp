@@ -1830,7 +1830,8 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
 
             if (m_plot_face_terrain_blanking &&
                 (solverChoice.terrain_type == TerrainType::ImmersedForcing ||
-                 solverChoice.buildings_type == BuildingsType::ImmersedForcing)) {
+                 solverChoice.buildings_type == BuildingsType::ImmersedForcing) &&
+                terrain_blanking_xface[0]) {  // Check if face arrays are allocated
                 Print() << "Writing face terrain blanking" << std::endl;
                 std::string plotfilenameTBX = plotfilename; plotfilenameTBX += "_terrain_blank_xface";
                 std::string plotfilenameTBY = plotfilename; plotfilenameTBY += "_terrain_blank_yface";
