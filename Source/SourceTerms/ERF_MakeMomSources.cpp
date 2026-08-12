@@ -21,7 +21,7 @@ compute_if_most_target_vel(
     const amrex::Real delta,
     const amrex::Real z0,
     const amrex::Real t_blank,
-    const amrex::Real theta_xface,
+    const amrex::Real theta_face,
     const amrex::Real theta_surf,
     const amrex::Real tflux_in,
     const amrex::Real Olen_in,
@@ -34,8 +34,8 @@ compute_if_most_target_vel(
     Real tang_windspeed2r       = std::sqrt(u1_2r * u1_2r + u2_2r * u2_2r);
 
     Real ustar = tang_windspeed2r * KAPPA / (std::log(1.5 * delta / z0) - psi_m);
-    Real tflux = (tflux_in != Real(1.e-8)) ? tflux_in : -(theta_xface - theta_surf) * ustar * KAPPA / (std::log(1.5 * delta / z0) - psi_h);
-    Real Olen  = (Olen_in != Real(1.e-8))  ? Olen_in  : -ustar * ustar * ustar * theta_xface / (KAPPA * CONST_GRAV * tflux + tiny);
+    Real tflux = (tflux_in != Real(1.e-8)) ? tflux_in : -(theta_face - theta_surf) * ustar * KAPPA / (std::log(1.5 * delta / z0) - psi_h);
+    Real Olen  = (Olen_in != Real(1.e-8))  ? Olen_in  : -ustar * ustar * ustar * theta_face / (KAPPA * CONST_GRAV * tflux + tiny);
     Real zeta  = 1.5 * delta / Olen;
 
     // similarity functions
