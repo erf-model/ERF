@@ -4109,6 +4109,8 @@ void WDM6::Advance(const Real& dt_advance,
             }
 #endif
 
+            const Real g16b_pi = Real(4.0f * std::atan(1.0f));
+
             ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
                 if (rhw_arr(i,j,k) > Real(1.0)) {
                     const Real ratio = rhw_arr(i,j,k) / Real(satmax);
@@ -4119,9 +4121,9 @@ void WDM6::Advance(const Real& dt_advance,
                     ncact /= dtcld;
                     const Real ncact_cap = amrex::max(nn_arr(i,j,k), Real(0.0)) / dtcld;
                     ncact = amrex::min(ncact, ncact_cap);
-                    const Real actr_um = Real(actr) * Real(1.0e-6);
+                    const Real actr_um = Real(actr) * Real(1.0e-6f);
                     const Real pcact = amrex::min(
-                        Real(4.0) * amrex::Math::pi<Real>() * Real(denr)
+                        Real(4.0) * g16b_pi * Real(denr)
                             * actr_um * actr_um * actr_um * ncact
                             / (Real(3.0) * den_arr(i,j,k)),
                         amrex::max(qv_arr(i,j,k), Real(0.0)) / dtcld);
@@ -4204,6 +4206,71 @@ void WDM6::Advance(const Real& dt_advance,
                                     static_cast<double>(qc_arr(diag_i,diag_j,kk)));
                     }
                 }
+                std::fflush(stdout);
+            }
+#endif
+
+            const Real g17_pi = Real(4.0f * std::atan(1.0f));
+            const Real g17_pidnc = g17_pi * Real(denr) / Real(6.0);
+            const Real g17_pidnr = Real(4.0) * g17_pi * Real(denr);
+
+#if !defined(AMREX_USE_GPU)
+            if (microphysics_debug > 0 && diag_col_in_tile) {
+                std::printf("WDM6-CPP_PRE_G17 %3d %24.16E %24.16E %24.16E %24.16E %24.16E\n",
+                            diag_k + 1,
+                            static_cast<double>(qc_arr(diag_i,diag_j,diag_k)),
+                            static_cast<double>(qi_arr(diag_i,diag_j,diag_k)),
+                            static_cast<double>(qr_arr(diag_i,diag_j,diag_k)),
+                            static_cast<double>(nc_arr(diag_i,diag_j,diag_k)),
+                            static_cast<double>(nr_arr(diag_i,diag_j,diag_k)));
+                std::fflush(stdout);
+            }
+#endif
+
+            ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+                if (qc_arr(i,j,k) <= Real(qmin)) qc_arr(i,j,k) = Real(0.0);
+                if (qi_arr(i,j,k) <= Real(qmin)) qi_arr(i,j,k) = Real(0.0);
+
+                if (qr_arr(i,j,k) >= Real(qcrmin) && nr_arr(i,j,k) >= Real(nrmin)) {
+                    Real lamdr = std::exp(std::log(
+                        (g17_pidnr * nr_arr(i,j,k)) / (den_arr(i,j,k) * qr_arr(i,j,k))
+                    ) * Real(0.33333333f));
+                    if (lamdr <= Real(lamdarmin)) {
+                        lamdr = Real(lamdarmin);
+                        nr_arr(i,j,k) = den_arr(i,j,k) * qr_arr(i,j,k)
+                                      * std::pow(lamdr, Real(3.0)) / g17_pidnr;
+                    } else if (lamdr >= Real(lamdarmax)) {
+                        lamdr = Real(lamdarmax);
+                        nr_arr(i,j,k) = den_arr(i,j,k) * qr_arr(i,j,k)
+                                      * std::pow(lamdr, Real(3.0)) / g17_pidnr;
+                    }
+                }
+
+                if (qc_arr(i,j,k) >= Real(qmin) && nc_arr(i,j,k) >= Real(ncmin)) {
+                    Real lamdc = std::exp(std::log(
+                        (g17_pidnc * nc_arr(i,j,k)) / (den_arr(i,j,k) * qc_arr(i,j,k))
+                    ) * Real(0.33333333f));
+                    if (lamdc <= Real(lamdacmin)) {
+                        lamdc = Real(lamdacmin);
+                        nc_arr(i,j,k) = den_arr(i,j,k) * qc_arr(i,j,k)
+                                      * std::pow(lamdc, Real(3.0)) / g17_pidnc;
+                    } else if (lamdc >= Real(lamdacmax)) {
+                        lamdc = Real(lamdacmax);
+                        nc_arr(i,j,k) = den_arr(i,j,k) * qc_arr(i,j,k)
+                                      * std::pow(lamdc, Real(3.0)) / g17_pidnc;
+                    }
+                }
+            });
+
+#if !defined(AMREX_USE_GPU)
+            if (microphysics_debug > 0 && diag_col_in_tile) {
+                std::printf("WDM6-CPP_POST_G17 %3d %24.16E %24.16E %24.16E %24.16E %24.16E\n",
+                            diag_k + 1,
+                            static_cast<double>(qc_arr(diag_i,diag_j,diag_k)),
+                            static_cast<double>(qi_arr(diag_i,diag_j,diag_k)),
+                            static_cast<double>(qr_arr(diag_i,diag_j,diag_k)),
+                            static_cast<double>(nc_arr(diag_i,diag_j,diag_k)),
+                            static_cast<double>(nr_arr(diag_i,diag_j,diag_k)));
                 std::fflush(stdout);
             }
 #endif

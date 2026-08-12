@@ -2854,6 +2854,14 @@
 
 
 
+      if (debug_local .gt. 0 .and. i_dbg_local .ge. its .and. i_dbg_local .le. ite) then
+        write(*,'(A,1X,I3,5(1X,ES24.16E3))') &
+          'WDM6-FORT_PRE_G17', kts, &
+          qci(i_dbg_local,kts,1), qci(i_dbg_local,kts,2), &
+          qrs(i_dbg_local,kts,1), ncr(i_dbg_local,kts,2), &
+          ncr(i_dbg_local,kts,3)
+      endif
+
       do k = kts, kte
         do i = its, ite
           if(qci(i,k,1).le.qmin) qci(i,k,1) = 0.0
@@ -2882,6 +2890,14 @@
           endif
         enddo
       enddo
+
+      if (debug_local .gt. 0 .and. i_dbg_local .ge. its .and. i_dbg_local .le. ite) then
+        write(*,'(A,1X,I3,5(1X,ES24.16E3))') &
+          'WDM6-FORT_POST_G17', kts, &
+          qci(i_dbg_local,kts,1), qci(i_dbg_local,kts,2), &
+          qrs(i_dbg_local,kts,1), ncr(i_dbg_local,kts,2), &
+          ncr(i_dbg_local,kts,3)
+      endif
    enddo
 
    end subroutine wdm62d
