@@ -3889,6 +3889,95 @@ void WDM6::Advance(const Real& dt_advance,
             }
 #endif
 
+            const Real g16a_cbrt24 = Real(std::pow(24.0f, 0.3333333f));
+
+#if !defined(AMREX_USE_GPU)
+            if (microphysics_debug > 0 && diag_col_in_tile) {
+                std::printf("WDM6-CPP_PRE_G16A %3d %24.16E %24.16E %24.16E %24.16E\n",
+                            diag_k + 1,
+                            static_cast<double>(qr_arr(diag_i,diag_j,diag_k)),
+                            static_cast<double>(qc_arr(diag_i,diag_j,diag_k)),
+                            static_cast<double>(nc_arr(diag_i,diag_j,diag_k)),
+                            static_cast<double>(nr_arr(diag_i,diag_j,diag_k)));
+                std::fflush(stdout);
+            }
+#endif
+
+            ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+                qrs_tmp_arr(i,j,k,0) = qr_arr(i,j,k);
+                qrs_tmp_arr(i,j,k,1) = qs_arr(i,j,k);
+                qrs_tmp_arr(i,j,k,2) = qg_arr(i,j,k);
+                ncr_tmp_arr(i,j,k)   = nr_arr(i,j,k);
+            });
+
+            ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+                Real rain_rslope, rain_rslopeb, rain_rslope2, rain_rslope3, rain_vt, rain_vtn;
+                Real snow_rslope, snow_rslopeb, snow_rslope2, snow_rslope3, snow_vt, snow_n0sfac;
+                Real graup_rslope, graup_rslopeb, graup_rslope2, graup_rslope3, graup_vt;
+
+                wdm6_slope_rain_cell(qrs_tmp_arr(i,j,k,0), ncr_tmp_arr(i,j,k),
+                                     den_arr(i,j,k), denfac_arr(i,j,k),
+                                     Real(qcrmin), Real(nrmin),
+                                     rslopermax_loc, rsloperbmax_loc,
+                                     rsloper2max_loc, rsloper3max_loc,
+                                     Real(bvtr), pvtr_loc, pvtrn_loc, pidnr_loc,
+                                     rain_rslope, rain_rslopeb, rain_rslope2, rain_rslope3,
+                                     rain_vt, rain_vtn);
+                wdm6_slope_snow_cell(qrs_tmp_arr(i,j,k,1), den_arr(i,j,k), denfac_arr(i,j,k),
+                                     t_arr(i,j,k), pidn0s_loc, Real(alpha_wdm6),
+                                     Real(n0smax), Real(n0s), Real(t0c), Real(qcrmin),
+                                     rslopesmax_loc, rslopesbmax_loc,
+                                     rslopes2max_loc, rslopes3max_loc,
+                                     Real(bvts), pvts_loc,
+                                     snow_rslope, snow_rslopeb, snow_rslope2, snow_rslope3,
+                                     snow_vt, snow_n0sfac);
+                wdm6_slope_graup_cell(qrs_tmp_arr(i,j,k,2), den_arr(i,j,k), denfac_arr(i,j,k),
+                                      pidn0g_loc, Real(qcrmin),
+                                      rslopegmax_loc, rslopegbmax_loc,
+                                      rslopeg2max_loc, rslopeg3max_loc,
+                                      slope_bvtg_loc, pvtg_loc,
+                                      graup_rslope, graup_rslopeb, graup_rslope2, graup_rslope3,
+                                      graup_vt);
+
+                rslope_arr(i,j,k,0) = rain_rslope;
+                rslope_arr(i,j,k,1) = snow_rslope;
+                rslope_arr(i,j,k,2) = graup_rslope;
+                rslopeb_arr(i,j,k,0) = rain_rslopeb;
+                rslopeb_arr(i,j,k,1) = snow_rslopeb;
+                rslopeb_arr(i,j,k,2) = graup_rslopeb;
+                rslope2_arr(i,j,k,0) = rain_rslope2;
+                rslope2_arr(i,j,k,1) = snow_rslope2;
+                rslope2_arr(i,j,k,2) = graup_rslope2;
+                rslope3_arr(i,j,k,0) = rain_rslope3;
+                rslope3_arr(i,j,k,1) = snow_rslope3;
+                rslope3_arr(i,j,k,2) = graup_rslope3;
+                work1_arr(i,j,k,0) = rain_vt;
+                work1_arr(i,j,k,1) = snow_vt;
+                work1_arr(i,j,k,2) = graup_vt;
+                workn_arr(i,j,k) = rain_vtn;
+
+                avedia_arr(i,j,k,1) = rslope_arr(i,j,k,0) * g16a_cbrt24;
+                if (avedia_arr(i,j,k,1) <= Real(di82)) {
+                    nc_arr(i,j,k) += nr_arr(i,j,k);
+                    nr_arr(i,j,k) = Real(0.0);
+                    qc_arr(i,j,k) += qr_arr(i,j,k);
+                    qr_arr(i,j,k) = Real(0.0);
+                }
+            });
+
+#if !defined(AMREX_USE_GPU)
+            if (microphysics_debug > 0 && diag_col_in_tile) {
+                std::printf("WDM6-CPP_POST_G16A %3d %24.16E %24.16E %24.16E %24.16E %24.16E\n",
+                            diag_k + 1,
+                            static_cast<double>(qr_arr(diag_i,diag_j,diag_k)),
+                            static_cast<double>(qc_arr(diag_i,diag_j,diag_k)),
+                            static_cast<double>(nc_arr(diag_i,diag_j,diag_k)),
+                            static_cast<double>(nr_arr(diag_i,diag_j,diag_k)),
+                            static_cast<double>(avedia_arr(diag_i,diag_j,diag_k,1)));
+                std::fflush(stdout);
+            }
+#endif
+
             // ============================================================
             // Step 9: Ice physics (simplified) — remaining processes
             // ============================================================

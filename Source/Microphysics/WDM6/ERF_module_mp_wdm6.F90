@@ -2623,6 +2623,13 @@
           qs(i_dbg_local,kts,1), qs(i_dbg_local,kts,2), rh(i_dbg_local,kts,1)
       endif
 
+      if (debug_local .gt. 0 .and. i_dbg_local .ge. its .and. i_dbg_local .le. ite) then
+        write(*,'(A,1X,I3,4(1X,ES24.16E3))') &
+          'WDM6-FORT_PRE_G16A', kts, &
+          qrs(i_dbg_local,kts,1), qci(i_dbg_local,kts,1), &
+          ncr(i_dbg_local,kts,2), ncr(i_dbg_local,kts,3)
+      endif
+
      do k = kts,kte_in
        do i = its,ite
          qrs_tmp(i,k,1) = qrs(i,k,1)
@@ -2657,6 +2664,14 @@
           endif
         enddo
       enddo
+
+      if (debug_local .gt. 0 .and. i_dbg_local .ge. its .and. i_dbg_local .le. ite) then
+        write(*,'(A,1X,I3,5(1X,ES24.16E3))') &
+          'WDM6-FORT_POST_G16A', kts, &
+          qrs(i_dbg_local,kts,1), qci(i_dbg_local,kts,1), &
+          ncr(i_dbg_local,kts,2), ncr(i_dbg_local,kts,3), &
+          avedia(i_dbg_local,kts,2)
+      endif
 
       do k = kts, kte
         do i = its, ite
