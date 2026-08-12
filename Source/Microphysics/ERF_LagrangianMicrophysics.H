@@ -152,9 +152,9 @@ public:
     }
 
     SurfacePrecipAccumulationSources
-    Get_Surface_Precip_Accumulation_Ptrs (const int&) const override
+    Get_Surface_Precip_Accumulation_Ptrs (const int& lev) const override
     {
-        return {};
+        return m_moist_model->Get_Surface_Precip_Accumulation_Ptrs(lev);
     }
 
     /*! \brief initialize particles in particle container at level a_lev */
