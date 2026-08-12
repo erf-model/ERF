@@ -239,6 +239,18 @@ class SuperDropletsMoist : public NullMoistLagrangian {
             return m_qmoist_size;
         }
 
+        /*! \brief returns the surface rain accumulation (mm, i.e. kg/m^2 of liquid water) */
+        SurfacePrecipAccumulationSources
+        Get_Surface_Precip_Accumulation_Ptrs (const int& a_lev) const override
+        {
+            SurfacePrecipAccumulationSources sources;
+            if (a_lev >= 0 && a_lev < static_cast<int>(m_mic_fab_vars.size())) {
+                sources.rain = { m_mic_fab_vars[a_lev][MicVar_SD::rain_accum].get(),
+                                 amrex::Real(1.0) };
+            }
+            return sources;
+        }
+
         /*! \brief returns number of moist conserved variables */
         inline virtual int Qstate_Moist_Size () override
         {
