@@ -738,6 +738,8 @@ void WDM6::Advance(const Real& dt_advance,
         FArrayBox psdep_fab(fab_box,1, Arena_Used);
         FArrayBox pgdep_fab(fab_box,1, Arena_Used);
         FArrayBox pigen_fab(fab_box,1, Arena_Used);
+        FArrayBox psaut_fab(fab_box,1, Arena_Used);
+        FArrayBox pgaut_fab(fab_box,1, Arena_Used);
         FArrayBox pcond_fab(fab_box,1, Arena_Used);
         FArrayBox praci_fab(fab_box,1, Arena_Used);
         FArrayBox piacr_fab(fab_box,1, Arena_Used);
@@ -812,6 +814,8 @@ void WDM6::Advance(const Real& dt_advance,
         auto const& psdep_arr = psdep_fab.array();
         auto const& pgdep_arr = pgdep_fab.array();
         auto const& pigen_arr = pigen_fab.array();
+        auto const& psaut_arr = psaut_fab.array();
+        auto const& pgaut_arr = pgaut_fab.array();
         auto const& pcond_arr = pcond_fab.array();
         auto const& praci_arr = praci_fab.array();
         auto const& piacr_arr = piacr_fab.array();
@@ -1162,6 +1166,8 @@ void WDM6::Advance(const Real& dt_advance,
                 psdep_arr(i,j,k) = Real(0.0);
                 pgdep_arr(i,j,k) = Real(0.0);
                 pigen_arr(i,j,k) = Real(0.0);
+                psaut_arr(i,j,k) = Real(0.0);
+                pgaut_arr(i,j,k) = Real(0.0);
                 pcond_arr(i,j,k) = Real(0.0);
                 praci_arr(i,j,k) = Real(0.0);
                 piacr_arr(i,j,k) = Real(0.0);
@@ -3378,6 +3384,45 @@ void WDM6::Advance(const Real& dt_advance,
                             static_cast<double>(psdep_arr(diag_i,diag_j,diag_k)),
                             static_cast<double>(pgdep_arr(diag_i,diag_j,diag_k)),
                             static_cast<double>(pigen_arr(diag_i,diag_j,diag_k)));
+                std::fflush(stdout);
+            }
+#endif
+
+#if !defined(AMREX_USE_GPU)
+            if (microphysics_debug > 0 && diag_col_in_tile) {
+                std::printf("WDM6-CPP_PRE_G13F %3d %24.16E %24.16E\n",
+                            diag_k + 1,
+                            static_cast<double>(qi_arr(diag_i,diag_j,diag_k)),
+                            static_cast<double>(qs_arr(diag_i,diag_j,diag_k)));
+                std::fflush(stdout);
+            }
+#endif
+
+            ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+                const Real supcol = Real(t0c) - t_arr(i,j,k);
+
+                if (qi_arr(i,j,k) > Real(0.0)) {
+                    const Real qimax = Real(m_roqimax) / den_arr(i,j,k);
+                    psaut_arr(i,j,k) = amrex::max(
+                        Real(0.0), (qi_arr(i,j,k) - qimax) / dtcld);
+                }
+
+                if (qs_arr(i,j,k) > Real(0.0)) {
+                    const Real alpha2 = Real(1.e-3)
+                        * std::exp(Real(0.09) * (-supcol));
+                    pgaut_arr(i,j,k) = amrex::min(
+                        amrex::max(
+                            Real(0.0), alpha2 * (qs_arr(i,j,k) - Real(qs0))),
+                        qs_arr(i,j,k) / dtcld);
+                }
+            });
+
+#if !defined(AMREX_USE_GPU)
+            if (microphysics_debug > 0 && diag_col_in_tile) {
+                std::printf("WDM6-CPP_POST_G13F %3d %24.16E %24.16E\n",
+                            diag_k + 1,
+                            static_cast<double>(psaut_arr(diag_i,diag_j,diag_k)),
+                            static_cast<double>(pgaut_arr(diag_i,diag_j,diag_k)));
                 std::fflush(stdout);
             }
 #endif

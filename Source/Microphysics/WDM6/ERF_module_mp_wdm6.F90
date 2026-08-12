@@ -2247,6 +2247,11 @@
 
 
 
+      if (debug_local .gt. 0 .and. i_dbg_local .ge. its .and. i_dbg_local .le. ite) then
+        write(*,'(A,1X,I3,2(1X,ES24.16E3))') &
+          'WDM6-FORT_PRE_G13F', kts, &
+          qci(i_dbg_local,kts,2), qrs(i_dbg_local,kts,2)
+      endif
             if(qci(i,k,2).gt.0.) then
               qimax = roqimax/den(i,k)
               psaut(i,k) = max(0.,(qci(i,k,2)-qimax)/dtcld)
@@ -2260,6 +2265,11 @@
               alpha2 = 1.e-3*exp(0.09*(-supcol))
               pgaut(i,k) = min(max(0.,alpha2*(qrs(i,k,2)-qs0)),qrs(i,k,2)/dtcld)
             endif
+      if (debug_local .gt. 0 .and. i_dbg_local .ge. its .and. i_dbg_local .le. ite) then
+        write(*,'(A,1X,I3,2(1X,ES24.16E3))') &
+          'WDM6-FORT_POST_G13F', kts, &
+          psaut(i_dbg_local,kts), pgaut(i_dbg_local,kts)
+      endif
           endif
 
 
