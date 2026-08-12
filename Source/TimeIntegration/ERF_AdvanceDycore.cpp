@@ -259,7 +259,6 @@ void ERF::advance_dycore (int level,
             Box bx  = mfi.growntilebox(IntVect(1, 1, 0));
             const Array4<Real>& cell_data = state_old[IntVars::cons].array(mfi);
             const Array4<Real>& lsf_arr = lsf_data[0]->array(mfi);
-            Real zlo = fine_geom.ProbLo(2);
             Real dzInv = fine_geom.InvCellSize(2);
             const int kmin = domain.smallEnd(2) + 1; // minimum k for vertical subsidence
             const int kmax = domain.bigEnd(2) - 1;   // maximum k for vertical subsidence
@@ -313,7 +312,7 @@ void ERF::advance_dycore (int level,
             {
                 // directly apply tendencies for theta and qv
                 cell_data(i, j, k, RhoTheta_comp) += cell_data(i, j, k, Rho_comp) * lsf_arr(i, j, k, 0) * dt_advance;
-                cell_data(i, j, k, RhoQ1_comp) = max(Real(0), cell_data(i, j, k, RhoQ1_comp) + cell_data(i, j, k, Rho_comp) * lsf_arr(i, j, k, 1) * dt_advance);
+                cell_data(i, j, k, RhoQ1_comp) = max(Real(0), cell_data(i, j, k, RhoQ1_comp) + cell_data(i, j, k, Rho_comp) * lsf_arr(i, j, k, 1) * Real(dt_advance));
                 cell_data(i, j, k, RhoQ2_comp) += cell_data(i, j, k, Rho_comp) * lsf_arr(i, j, k, 7) * dt_advance;
             });
 
