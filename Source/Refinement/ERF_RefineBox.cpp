@@ -311,7 +311,7 @@ ERF::read_box_for_refinement (std::string& ref_prefix, int& lev_for_box, RealBox
                               solverChoice.turbChoice[lev_for_box].pbl_type == PBLType::YSU      ||
                               solverChoice.turbChoice[lev_for_box].pbl_type == PBLType::MRF);
 
-            const Box& domain = geom[lev_for_box].Domain();
+            const Box& domain = geom[lev_for_box-1].Domain();
             if ( using_pbl && ( (box_lo[2] > 0) || (box_hi[2] < domain.bigEnd(2)) ) ) {
                 amrex::Print() << "PBL models need refinement boxes that go from the bottom to the top of the domain for calculation of PBLH" << std::endl;
                 amrex::Print() << "Please set in_box_lo_indices_crse to 0 in z and in_box_hi_indices_crse  to amr.n_cell-1 in z and try again" << std::endl;

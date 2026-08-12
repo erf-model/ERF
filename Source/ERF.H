@@ -256,7 +256,12 @@ public:
     void WriteMyEBSurface ();
 
     // Compute the divergence -- whether EB, no-terrain, flat terrain or general terrain
-    void compute_divergence (int lev, amrex::MultiFab& rhs, amrex::Array<amrex::MultiFab const*,AMREX_SPACEDIM> rho0_u_const,
+    void compute_divergence (int lev, amrex::MultiFab& rhs,
+                             amrex::Array<amrex::MultiFab const*,AMREX_SPACEDIM> rho0_u_const,
+                             amrex::MultiFab const& mf_mx, amrex::MultiFab const& mf_my,
+                             amrex::MultiFab const& mf_vx, amrex::MultiFab const& mf_uy,
+                             amrex::MultiFab const& ax_in, amrex::MultiFab const& ay_in,
+                             amrex::MultiFab const& dJ_in,
                              amrex::Geometry const& geom_at_lev);
 
     // Project the velocities to be divergence-free -- this is only relevant if anelastic == 1
