@@ -615,24 +615,31 @@ void WDM6::Advance(const Real& dt_advance,
             delz_arr(i,j,k) = dz_val;
         });
 
+        Box box2d(box);
+        box2d.makeSlab(2, 0);
+        Box fab_box2d(fab_box);
+        fab_box2d.makeSlab(2, 0);
+
         // Create landmask array (xland: 0=water, 1=land)
         // TODO: Get from ERF's lmask_lev when available
         // For now, default to land (continental CCN)
-        FArrayBox xland_fab(Box(IntVect(imlo,jmlo,0), IntVect(imhi,jmhi,0)), 1, Arena_Used);
+        FArrayBox xland_fab(fab_box2d, 1, Arena_Used);
         auto const& xland_arr = xland_fab.array();
-        ParallelFor(Box(IntVect(imlo,jmlo,0), IntVect(imhi,jmhi,0)), [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+        ParallelFor(fab_box2d, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
             xland_arr(i,j,k) = Real(1.0);  // Default to land
         });
 
         // Create 2D accumulation arrays
-        Box box2d(IntVect(ilo,jlo,0), IntVect(ihi,jhi,0));
-        FArrayBox rainacc_fab(box2d, 1, Arena_Used);
-        FArrayBox rainncv_fab(box2d, 1, Arena_Used);
-        FArrayBox sr_fab(box2d, 1, Arena_Used);
-        FArrayBox snowacc_fab(box2d, 1, Arena_Used);
-        FArrayBox snowncv_fab(box2d, 1, Arena_Used);
-        FArrayBox graupacc_fab(box2d, 1, Arena_Used);
-        FArrayBox graupelncv_fab(box2d, 1, Arena_Used);
+        // Fortran bridge uses ims:ime, jms:jme storage bounds; these buffers must
+        // therefore be allocated on fab_box extents even if C++ kernels only
+        // update the valid tile slab (box2d).
+        FArrayBox rainacc_fab(fab_box2d, 1, Arena_Used);
+        FArrayBox rainncv_fab(fab_box2d, 1, Arena_Used);
+        FArrayBox sr_fab(fab_box2d, 1, Arena_Used);
+        FArrayBox snowacc_fab(fab_box2d, 1, Arena_Used);
+        FArrayBox snowncv_fab(fab_box2d, 1, Arena_Used);
+        FArrayBox graupacc_fab(fab_box2d, 1, Arena_Used);
+        FArrayBox graupelncv_fab(fab_box2d, 1, Arena_Used);
 
         auto const& rainacc_arr = rainacc_fab.array();
         auto const& rainncv_arr = rainncv_fab.array();
@@ -642,8 +649,9 @@ void WDM6::Advance(const Real& dt_advance,
         auto const& graupacc_arr = graupacc_fab.array();
         auto const& graupelncv_arr = graupelncv_fab.array();
 
-        // Initialize 2D arrays to zero
-        ParallelFor(box2d, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+        // Initialize 2D arrays to zero over the full storage slab so the Fortran
+        // bridge never reads ghost entries that were never written.
+        ParallelFor(fab_box2d, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
             rainacc_arr(i,j,k) = Real(0.0);
             rainncv_arr(i,j,k) = Real(0.0);
             sr_arr(i,j,k) = Real(0.0);
