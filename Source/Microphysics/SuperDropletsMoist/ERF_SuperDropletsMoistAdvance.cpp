@@ -115,7 +115,7 @@ void SuperDropletsMoist::Advance ( const Real& a_dt,
 
     // Diagnostics on level 0 only (avoids double-counting)
     if (current_lev == 0) {
-        m_super_droplets->Diagnostics(a_iter, current_lev, a_time, (((a_iter+1)%m_diagnostics_iter==0) && (m_diagnostics_iter>0)));
+        m_super_droplets->Diagnostics(a_iter, current_lev, a_time, ((m_diagnostics_iter>0) && ((a_iter+1)%m_diagnostics_iter==0)));
     }
 }
 
