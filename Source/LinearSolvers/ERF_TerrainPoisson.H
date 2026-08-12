@@ -37,7 +37,8 @@ public:
      * @param z_phys_nd Node-centered physical height field
      * @param use_real_bcs Whether real lateral boundary conditions are active
      */
-    TerrainPoisson (amrex::Geometry const& geom, amrex::BoxArray const& ba,
+    TerrainPoisson (amrex::Geometry const& geom, amrex::Geometry const& lev_geom,
+                    amrex::BoxArray const& ba,
                     amrex::DistributionMapping const& dm,
                     amrex::Array<std::string,2*AMREX_SPACEDIM>& domain_bcs_type,
                     amrex::Gpu::DeviceVector<amrex::Real>& stretched_dz_lev_d,
