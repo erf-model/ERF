@@ -797,12 +797,7 @@ ERF::init_zphys (int lev, double elapsed_time)
     if (solverChoice.terrain_type == TerrainType::ImmersedForcing ||
         solverChoice.buildings_type == BuildingsType::ImmersedForcing) {
         // Read the small_volfrac threshold from eb2 namespace
-        Real small_volfrac = 0.0;
-#ifdef AMREX_USE_FLOAT
-        small_volfrac = 1.e-5_rt;
-#else
-        small_volfrac = 1.e-14;
-#endif
+        Real small_volfrac = 0.005;
         ParmParse pp_eb2("eb2");
         pp_eb2.query("small_volfrac", small_volfrac);
 
@@ -949,12 +944,7 @@ ERF::remake_zphys (int lev, std::unique_ptr<MultiFab>& temp_zphys_nd)
         // This assumes we have already remade the EBGeometry
         //
         // Read the small_volfrac threshold from eb2 namespace
-        Real small_volfrac = 0.0;
-#ifdef AMREX_USE_FLOAT
-        small_volfrac = 1.e-5_rt;
-#else
-        small_volfrac = 1.e-14;
-#endif
+        Real small_volfrac = 0.005;
         ParmParse pp_eb2("eb2");
         pp_eb2.query("small_volfrac", small_volfrac);
 
