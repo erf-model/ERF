@@ -2233,7 +2233,30 @@
               supice = satdt-prevp(i,k)-pidep(i,k)-psdep(i,k)-pgdep(i,k)
               xni0 = 1.e3*exp(0.1*supcol)
               roqi0 = 4.92e-11*xni0**1.33
+              if (debug_local .ge. 1 .and. i == i_dbg_local .and. lat == j_dbg_local) then
+                if (k >= 40 .and. k <= 42) then
+                  write(*,'(A,I3,8(A,ES24.16E3))') &
+                    'WDM6-FORT_T2_G13E_PIGEN_EXACT k=',k, &
+                    ' supsat=',supsat, &
+                    ' satdt=',satdt, &
+                    ' supice=',supice, &
+                    ' supcol=',supcol, &
+                    ' xni0=',xni0, &
+                    ' roqi0=',roqi0, &
+                    ' den=',den(i,k), &
+                    ' qi=',max(qci(i,k,2),0.)
+                endif
+              endif
               pigen(i,k) = max(0.,(roqi0/den(i,k)-max(qci(i,k,2),0.))/dtcld)
+              if (debug_local .ge. 1 .and. i == i_dbg_local .and. lat == j_dbg_local) then
+                if (k >= 40 .and. k <= 42) then
+                  write(*,'(A,I3,3(A,ES24.16E3))') &
+                    'WDM6-FORT_T2_G13E_PIGEN_POST k=',k, &
+                    ' pigen_raw=',max(0.,(roqi0/den(i,k)-max(qci(i,k,2),0.))/dtcld), &
+                    ' satdt=',satdt, &
+                    ' supice=',supice
+                endif
+              endif
               pigen(i,k) = min(min(pigen(i,k),satdt),supice)
             endif
       if (debug_local .gt. 0 .and. i_dbg_local .ge. its .and. i_dbg_local .le. ite) then
@@ -2441,6 +2464,19 @@
             endif
 
             work2(i,k)=-(prevp(i,k)+psdep(i,k)+pgdep(i,k)+pigen(i,k)+pidep(i,k))
+            if (debug_local .ge. 1 .and. i == i_dbg_local .and. lat == j_dbg_local) then
+              if (k >= 40 .and. k <= 42) then
+                write(*,'(A,I3,7(A,ES24.16E3))') &
+                  'WDM6-FORT_T2_G14_COLD_VAPOR k=',k, &
+                  ' work2=',work2(i,k), &
+                  ' prevp=',prevp(i,k), &
+                  ' psdep=',psdep(i,k), &
+                  ' pgdep=',pgdep(i,k), &
+                  ' pigen=',pigen(i,k), &
+                  ' pidep=',pidep(i,k), &
+                  ' dtcld=',dtcld
+              endif
+            endif
 
             q(i,k) = q(i,k)+work2(i,k)*dtcld
             qci(i,k,1) = max(qci(i,k,1)-(praut(i,k)+pracw(i,k)                 &
@@ -2469,6 +2505,21 @@
             xlwork2 = -xls*(psdep(i,k)+pgdep(i,k)+pidep(i,k)+pigen(i,k))       &
                       -xl(i,k)*prevp(i,k)-xlf*(piacr(i,k)+paacw(i,k)           &
                       +paacw(i,k)+pgacr(i,k)+psacr(i,k))
+            if (debug_local .ge. 1 .and. i == i_dbg_local .and. lat == j_dbg_local) then
+              if (k >= 40 .and. k <= 42) then
+                write(*,'(A,I3,9(A,ES24.16E3))') &
+                  'WDM6-FORT_T2_G14_COLD_THERMO k=',k, &
+                  ' xlwork2=',xlwork2, &
+                  ' prevp=',prevp(i,k), &
+                  ' psdep=',psdep(i,k), &
+                  ' pgdep=',pgdep(i,k), &
+                  ' pigen=',pigen(i,k), &
+                  ' pidep=',pidep(i,k), &
+                  ' piacr=',piacr(i,k), &
+                  ' paacw=',paacw(i,k), &
+                  ' pgacr=',pgacr(i,k)
+              endif
+            endif
             t(i,k) = t(i,k)-xlwork2/cpm(i,k)*dtcld
           else
 
@@ -2577,6 +2628,17 @@
           qrs(i_dbg_local,kts,1), qrs(i_dbg_local,kts,2), qrs(i_dbg_local,kts,3), &
           ncr(i_dbg_local,kts,2), ncr(i_dbg_local,kts,3), t(i_dbg_local,kts)
       endif
+      if (debug_local .ge. 1 .and. i_dbg_local .ge. its .and. i_dbg_local .le. ite) then
+        do k = max(kts,40), min(kte,42)
+          write(*,'(A,I3,5(A,ES24.16E3))') &
+            'WDM6-FORT_T2_G14_POST k=',k, &
+            ' qv=',q(i_dbg_local,k), &
+            ' qc=',qci(i_dbg_local,k,1), &
+            ' nn=',ncr(i_dbg_local,k,1), &
+            ' nc=',ncr(i_dbg_local,k,2), &
+            ' t=',t(i_dbg_local,k)
+        enddo
+      endif
 
 
 
@@ -2621,6 +2683,16 @@
           'WDM6-FORT_POST_G15', kts, &
           q(i_dbg_local,kts), p(i_dbg_local,kts), t(i_dbg_local,kts), &
           qs(i_dbg_local,kts,1), qs(i_dbg_local,kts,2), rh(i_dbg_local,kts,1)
+      endif
+      if (debug_local .ge. 1 .and. i_dbg_local .ge. its .and. i_dbg_local .le. ite) then
+        do k = max(kts,40), min(kte,42)
+          write(*,'(A,I3,4(A,ES24.16E3))') &
+            'WDM6-FORT_T2_G15_POST k=',k, &
+            ' qv=',q(i_dbg_local,k), &
+            ' qsatw=',qs(i_dbg_local,k,1), &
+            ' rhw=',rh(i_dbg_local,k,1), &
+            ' t=',t(i_dbg_local,k)
+        enddo
       endif
 
       if (debug_local .gt. 0 .and. i_dbg_local .ge. its .and. i_dbg_local .le. ite) then
@@ -2686,11 +2758,22 @@
           if (debug_local >= 1 .and. i == i_dbg_local .and. lat == j_dbg_local) then
             if (k >= 40 .and. k <= 42) then
               write(*,'(A,I3,A,ES12.4,A,ES12.4,A,2ES12.4)') &
-                '  [ACT] k=',k,' RH=',rh(i,k,1),' qc=',qci(i,k,1),' nn,nc=',ncr(i,k,1),ncr(i,k,2)
+                'WDM6-FORT_T2_G16B_ACT_PRE k=',k,' RH=',rh(i,k,1),' qc=',qci(i,k,1),' nn,nc=',ncr(i,k,1),ncr(i,k,2)
             endif
           endif
 
           if(rh(i,k,1).gt.1.) then
+            if (debug_local >= 1 .and. i == i_dbg_local .and. lat == j_dbg_local) then
+              if (k >= 40 .and. k <= 42) then
+                write(*,'(A,I3,4(A,ES24.16E3))') &
+                  'WDM6-FORT_T2_G16B_ACT_EXACT k=',k, &
+                  ' ratio=',rh(i,k,1)/satmax, &
+                  ' frac=',min(1.,(rh(i,k,1)/satmax)**actk), &
+                  ' raw=',((ncr(i,k,1)+ncr(i,k,2))                       &
+                       *min(1.,(rh(i,k,1)/satmax)**actk) - ncr(i,k,2)), &
+                  ' cap=',max(ncr(i,k,1),0.)/dtcld
+              endif
+            endif
             ncact(i,k) = max(0.,((ncr(i,k,1)+ncr(i,k,2))                       &
                        *min(1.,(rh(i,k,1)/satmax)**actk) - ncr(i,k,2)))/dtcld
             ncact(i,k) =min(ncact(i,k),max(ncr(i,k,1),0.)/dtcld)
@@ -2704,8 +2787,9 @@
             ! Diagnostic: Print activation result
             if (debug_local >= 1 .and. i == i_dbg_local .and. lat == j_dbg_local) then
               if (k >= 40 .and. k <= 42) then
-                write(*,'(A,I3,A,2ES12.4,A,ES12.4)') &
-                  '  [ACT] k=',k,' ncact,pcact=',ncact(i,k),pcact(i,k),' nc_after=',ncr(i,k,2)
+                write(*,'(A,I3,A,2ES12.4,A,ES12.4,A,2ES24.16E3)') &
+                  'WDM6-FORT_T2_G16B_ACT_POST k=',k,' ncact,pcact=',ncact(i,k),pcact(i,k),' nc_after=',ncr(i,k,2), &
+                  ' nn_after,nc_after_exact=',ncr(i,k,1),ncr(i,k,2)
               endif
             endif
           endif
@@ -2730,7 +2814,7 @@
           if (debug_local >= 1 .and. i == i_dbg_local .and. lat == j_dbg_local) then
             if (k >= 40 .and. k <= 42 .and. abs(pcond(i,k)) > 1.e-20) then
               write(*,'(A,I3,A,3ES12.4,A,ES12.4)') &
-                '  [COND] k=',k,' work1,pcond,qc=',work1(i,k,1),pcond(i,k),qci(i,k,1),' nc=',ncr(i,k,2)
+                'WDM6-FORT_T2_G16B_COND_POST k=',k,' work1,pcond,qc=',work1(i,k,1),pcond(i,k),qci(i,k,1),' nc=',ncr(i,k,2)
             endif
           endif
 
