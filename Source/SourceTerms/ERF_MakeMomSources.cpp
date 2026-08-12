@@ -951,7 +951,6 @@ void make_mom_sources (double time_d,
         {
             const Real alpha_m          = solverChoice.if_Cd_momentum;
             const Real tiny             = std::numeric_limits<amrex::Real>::epsilon();
-            const Real min_t_blank      = Real(1.e-4); // threshold for where immersed forcing acts
             const Real U_s              = one; // unit velocity scale
 
             // MOST parameters
@@ -979,23 +978,11 @@ void make_mom_sources (double time_d,
                 const Real rho_xface   = myhalf * ( cell_data(i,j,k,Rho_comp) + cell_data(i-1,j,k,Rho_comp) );
                 const Real theta_xface = (myhalf * (cell_data(i,j,k,RhoTheta_comp) + cell_data(i-1,j,k, RhoTheta_comp))) / rho_xface;
 
-                Real t_blank             = myhalf * (t_blank_arr(i, j  , k  ) + t_blank_arr(i-1, j  , k  ));
-                Real t_blank_below       = myhalf * (t_blank_arr(i, j  , k-1) + t_blank_arr(i-1, j  , k-1));
-                Real t_blank_above       = myhalf * (t_blank_arr(i, j  , k+1) + t_blank_arr(i-1, j  , k+1));
-                Real t_blank_north       = myhalf * (t_blank_arr(i, j+1, k  ) + t_blank_arr(i-1, j+1, k  ));
-                Real t_blank_south       = myhalf * (t_blank_arr(i, j-1, k  ) + t_blank_arr(i-1, j-1, k  ));
-                if (t_blank < min_t_blank) { t_blank = zero; }
-                if (k == 0) { t_blank_below = zero; }
-                if (t_blank_below < min_t_blank) { t_blank_below = zero; }
-                if (t_blank_above < min_t_blank) { t_blank_above = zero; }
-                if (t_blank_north < min_t_blank) { t_blank_north = zero; }
-                if (t_blank_south < min_t_blank) { t_blank_south = zero; }
-                // round to four decimal places to avoid issues for cells with very small volfracs.
-                t_blank       = std::round(t_blank       * Real(10000.0)) / Real(10000.0);
-                t_blank_below = std::round(t_blank_below * Real(10000.0)) / Real(10000.0);
-                t_blank_above = std::round(t_blank_above * Real(10000.0)) / Real(10000.0);
-                t_blank_north = std::round(t_blank_north * Real(10000.0)) / Real(10000.0);
-                t_blank_south = std::round(t_blank_south * Real(10000.0)) / Real(10000.0);
+                const Real t_blank       = myhalf * (t_blank_arr(i, j  , k  ) + t_blank_arr(i-1, j  , k  ));
+                const Real t_blank_below = (k == 0) ? zero : myhalf * (t_blank_arr(i, j  , k-1) + t_blank_arr(i-1, j  , k-1));
+                const Real t_blank_above = myhalf * (t_blank_arr(i, j  , k+1) + t_blank_arr(i-1, j  , k+1));
+                const Real t_blank_north = myhalf * (t_blank_arr(i, j+1, k  ) + t_blank_arr(i-1, j+1, k  ));
+                const Real t_blank_south = myhalf * (t_blank_arr(i, j-1, k  ) + t_blank_arr(i-1, j-1, k  ));
 
                 const Real dx_z = (z_cc_arr) ? (z_cc_arr(i,j,k) - z_cc_arr(i,j,k-1)) : dx_arr[2];
                 const Real drag_coefficient = alpha_m / std::pow(dx_x*dx_y*dx_z, one/three);
@@ -1082,23 +1069,11 @@ void make_mom_sources (double time_d,
                 const Real rho_yface   = myhalf * ( cell_data(i,j,k,Rho_comp) + cell_data(i,j-1,k,Rho_comp) );
                 const Real theta_yface = (myhalf * (cell_data(i,j,k  ,RhoTheta_comp) + cell_data(i,j-1,k,RhoTheta_comp))) / rho_yface;
 
-                Real t_blank             = myhalf * (t_blank_arr(i  , j  , k  ) + t_blank_arr(i-1, j  , k  ));
-                Real t_blank_below       = myhalf * (t_blank_arr(i  , j  , k-1) + t_blank_arr(i-1, j  , k-1));
-                Real t_blank_above       = myhalf * (t_blank_arr(i  , j  , k+1) + t_blank_arr(i-1, j  , k+1));
-                Real t_blank_east        = myhalf * (t_blank_arr(i+1, j  , k  ) + t_blank_arr(i+1, j-1, k  ));
-                Real t_blank_west        = myhalf * (t_blank_arr(i-1, j  , k  ) + t_blank_arr(i-1, j-1, k  ));
-                if (t_blank < min_t_blank) { t_blank = zero; }
-                if (k == 0) { t_blank_below = zero; }
-                if (t_blank_below < min_t_blank) { t_blank_below = zero; }
-                if (t_blank_above < min_t_blank) { t_blank_above = zero; }
-                if (t_blank_east < min_t_blank) { t_blank_east = zero; }
-                if (t_blank_west < min_t_blank) { t_blank_west = zero; }
-                // round to four decimal places to avoid issues for cells with very small volfracs.
-                t_blank       = std::round(t_blank       * Real(10000.0)) / Real(10000.0);
-                t_blank_below = std::round(t_blank_below * Real(10000.0)) / Real(10000.0);
-                t_blank_above = std::round(t_blank_above * Real(10000.0)) / Real(10000.0);
-                t_blank_east  = std::round(t_blank_east  * Real(10000.0)) / Real(10000.0);
-                t_blank_west  = std::round(t_blank_west  * Real(10000.0)) / Real(10000.0);
+                const Real t_blank       = myhalf * (t_blank_arr(i  , j  , k  ) + t_blank_arr(i-1, j  , k  ));
+                const Real t_blank_below = (k == 0) ? zero : myhalf * (t_blank_arr(i  , j  , k-1) + t_blank_arr(i-1, j  , k-1));
+                const Real t_blank_above = myhalf * (t_blank_arr(i  , j  , k+1) + t_blank_arr(i-1, j  , k+1));
+                const Real t_blank_east  = myhalf * (t_blank_arr(i+1, j  , k  ) + t_blank_arr(i+1, j-1, k  ));
+                const Real t_blank_west  = myhalf * (t_blank_arr(i-1, j  , k  ) + t_blank_arr(i-1, j-1, k  ));
 
                 const Real dx_z = (z_cc_arr) ? (z_cc_arr(i,j,k) - z_cc_arr(i,j,k-1)) : dx_arr[2];
                 const Real drag_coefficient = alpha_m / std::pow(dx_x*dx_y*dx_z, one/three);
@@ -1185,29 +1160,13 @@ void make_mom_sources (double time_d,
                 const Real rho_zface   = myhalf * ( cell_data(i,j,k,Rho_comp) + cell_data(i,j,k-1,Rho_comp) );
                 const Real theta_zface = (myhalf * (cell_data(i,j,k,RhoTheta_comp) + cell_data(i,j,k-1,RhoTheta_comp))) / rho_zface;
 
-                Real t_blank        = myhalf * (t_blank_arr(i  ,j  , k)   + t_blank_arr(i  , j  , k-1));
-                Real t_blank_below  = myhalf * (t_blank_arr(i  ,j  , k-1) + t_blank_arr(i  , j  , k-2));
-                Real t_blank_above  = myhalf * (t_blank_arr(i  ,j  , k)   + t_blank_arr(i  , j  , k+1));
-                Real t_blank_north  = myhalf * (t_blank_arr(i  ,j+1, k)   + t_blank_arr(i  , j+1, k-1));
-                Real t_blank_south  = myhalf * (t_blank_arr(i  ,j-1, k)   + t_blank_arr(i  , j-1, k-1));
-                Real t_blank_east   = myhalf * (t_blank_arr(i+1,j  , k)   + t_blank_arr(i+1, j  , k-1));
-                Real t_blank_west   = myhalf * (t_blank_arr(i-1,j  , k)   + t_blank_arr(i-1, j  , k-1));
-                if (t_blank < min_t_blank) { t_blank = zero; }
-                if (k == 0) { t_blank_below = zero; }
-                if (t_blank_below < min_t_blank) { t_blank_below = zero; }
-                if (t_blank_above < min_t_blank) { t_blank_above = zero; }
-                if (t_blank_north < min_t_blank) { t_blank_north = zero; }
-                if (t_blank_south < min_t_blank) { t_blank_south = zero; }
-                if (t_blank_east < min_t_blank)  { t_blank_east = zero; }
-                if (t_blank_west < min_t_blank)  { t_blank_west = zero; }
-                // round to four decimal places to avoid issues for cells with very small volfracs.
-                t_blank       = std::round(t_blank       * Real(10000.0)) / Real(10000.0);
-                t_blank_below = std::round(t_blank_below * Real(10000.0)) / Real(10000.0);
-                t_blank_above = std::round(t_blank_above * Real(10000.0)) / Real(10000.0);
-                t_blank_north = std::round(t_blank_north * Real(10000.0)) / Real(10000.0);
-                t_blank_south = std::round(t_blank_south * Real(10000.0)) / Real(10000.0);
-                t_blank_east  = std::round(t_blank_east  * Real(10000.0)) / Real(10000.0);
-                t_blank_west  = std::round(t_blank_west  * Real(10000.0)) / Real(10000.0);
+                const Real t_blank       = myhalf * (t_blank_arr(i  ,j  , k)   + t_blank_arr(i  , j  , k-1));
+                const Real t_blank_below = (k == 0) ? zero : myhalf * (t_blank_arr(i  ,j  , k-1) + t_blank_arr(i  , j  , k-2));
+                const Real t_blank_above = myhalf * (t_blank_arr(i  ,j  , k)   + t_blank_arr(i  , j  , k+1));
+                const Real t_blank_north = myhalf * (t_blank_arr(i  ,j+1, k)   + t_blank_arr(i  , j+1, k-1));
+                const Real t_blank_south = myhalf * (t_blank_arr(i  ,j-1, k)   + t_blank_arr(i  , j-1, k-1));
+                const Real t_blank_east  = myhalf * (t_blank_arr(i+1,j  , k)   + t_blank_arr(i+1, j  , k-1));
+                const Real t_blank_west  = myhalf * (t_blank_arr(i-1,j  , k)   + t_blank_arr(i-1, j  , k-1));
 
                 const Real dx_z = (z_cc_arr) ? (z_cc_arr(i,j,k) - z_cc_arr(i,j,k-1)) : dx_arr[2];
                 const Real drag_coefficient = alpha_m / std::pow(dx_x*dx_y*dx_z, one/three);

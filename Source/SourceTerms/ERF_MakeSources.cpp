@@ -618,7 +618,6 @@ void make_sources (int level,
             const Real alpha_h          = solverChoice.if_Cd_scalar;
             const Real U_s              = one; // unit velocity scale
             const Real tiny             = std::numeric_limits<amrex::Real>::epsilon();
-            const Real min_t_blank      = Real(1.e-4);
 
             // MOST parameters
             similarity_funs sfuns;
@@ -632,19 +631,13 @@ void make_sources (int level,
 
             ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
             {
-                Real t_blank       = t_blank_arr(i, j, k);
-                Real t_blank_below = t_blank_arr(i, j, k-1);
-                Real t_blank_above = t_blank_arr(i, j, k+1);
-                Real t_blank_north  = t_blank_arr(i  , j+1, k);
-                Real t_blank_south  = t_blank_arr(i  , j-1, k);
-                Real t_blank_east   = t_blank_arr(i+1, j  , k);
-                Real t_blank_west   = t_blank_arr(i-1, j  , k);
-                if (t_blank < min_t_blank) { t_blank = zero; } // deal with situations where very small volfrac exist
-                if (t_blank_below < min_t_blank) { t_blank_below = zero; }
-                if (t_blank_north < min_t_blank) { t_blank_north = zero; }
-                if (t_blank_south < min_t_blank) { t_blank_south = zero; }
-                if (t_blank_east < min_t_blank) { t_blank_east = zero; }
-                if (t_blank_west < min_t_blank) { t_blank_west = zero; }
+                const Real t_blank       = t_blank_arr(i, j, k);
+                const Real t_blank_below = t_blank_arr(i, j, k-1);
+                const Real t_blank_above = t_blank_arr(i, j, k+1);
+                const Real t_blank_north = t_blank_arr(i  , j+1, k);
+                const Real t_blank_south = t_blank_arr(i  , j-1, k);
+                const Real t_blank_east  = t_blank_arr(i+1, j  , k);
+                const Real t_blank_west  = t_blank_arr(i-1, j  , k);
 
                 const Real dx_z = (z_cc_arr) ? (z_cc_arr(i,j,k) - z_cc_arr(i,j,k-1)) : dx_arr[2];
                 Real drag_coefficient = alpha_h / std::pow(dx_x*dx_y*dx_z, one/three);
