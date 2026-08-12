@@ -94,6 +94,9 @@ void make_mom_sources (double time_d,
                        const MultiFab& base_state,
                              MultiFab* forest_drag,
                              MultiFab* terrain_blank,
+                             MultiFab* terrain_blank_xface,
+                             MultiFab* terrain_blank_yface,
+                             MultiFab* terrain_blank_zface,
                              MultiFab* cosPhi_mf,
                              MultiFab* sinPhi_mf,
                        const Geometry geom,
@@ -357,6 +360,12 @@ void make_mom_sources (double time_d,
         const Array4<const Real>& f_drag_arr = (forest_drag) ? forest_drag->const_array(mfi) :
                                                                Array4<const Real>{};
         const Array4<const Real>& t_blank_arr = (terrain_blank) ? terrain_blank->const_array(mfi) :
+                                                               Array4<const Real>{};
+        const Array4<const Real>& t_blank_xface_arr = (terrain_blank_xface) ? terrain_blank_xface->const_array(mfi) :
+                                                               Array4<const Real>{};
+        const Array4<const Real>& t_blank_yface_arr = (terrain_blank_yface) ? terrain_blank_yface->const_array(mfi) :
+                                                               Array4<const Real>{};
+        const Array4<const Real>& t_blank_zface_arr = (terrain_blank_zface) ? terrain_blank_zface->const_array(mfi) :
                                                                Array4<const Real>{};
 
         const Array4<const Real>& cphi_arr = (cosPhi_mf) ? cosPhi_mf->const_array(mfi) :
@@ -804,8 +813,11 @@ void make_mom_sources (double time_d,
                 const Real uz = fourth * ( w(i, j  , k  ) + w(i-1, j  , k  )
                                        + w(i, j  , k+1) + w(i-1, j  , k+1) );
                 const Real windspeed = std::sqrt(ux * ux + uy * uy + uz * uz);
-                const Real t_blank = myhalf * (t_blank_arr(i, j, k) + t_blank_arr(i-1, j, k));
-                const Real t_blank_above = myhalf * (t_blank_arr(i, j, k+1) + t_blank_arr(i-1, j, k+1));
+                // Use face-centered terrain_blanking if available, otherwise average from cell centers
+                const Real t_blank = (t_blank_xface_arr) ? t_blank_xface_arr(i, j, k) :
+                                     myhalf * (t_blank_arr(i, j, k) + t_blank_arr(i-1, j, k));
+                const Real t_blank_above = (t_blank_xface_arr) ? t_blank_xface_arr(i, j, k+1) :
+                                           myhalf * (t_blank_arr(i, j, k+1) + t_blank_arr(i-1, j, k+1));
 
                 const Real dx_z = (z_cc_arr) ? (z_cc_arr(i,j,k) - z_cc_arr(i,j,k-1)) : dx_arr[2];
                 const Real drag_coefficient = alpha_m / std::pow(dx_x*dx_y*dx_z, one/three);
@@ -864,8 +876,11 @@ void make_mom_sources (double time_d,
                 const Real uz = fourth * ( w(i  , j  , k  ) + w(i  , j-1, k  )
                                        + w(i  , j  , k+1) + w(i  , j-1, k+1) );
                 const Real windspeed = std::sqrt(ux * ux + uy * uy + uz * uz);
-                const Real t_blank = myhalf * (t_blank_arr(i, j, k) + t_blank_arr(i, j-1, k));
-                const Real t_blank_above = myhalf * (t_blank_arr(i, j, k+1) + t_blank_arr(i, j-1, k+1));
+                // Use face-centered terrain_blanking if available, otherwise average from cell centers
+                const Real t_blank = (t_blank_yface_arr) ? t_blank_yface_arr(i, j, k) :
+                                     myhalf * (t_blank_arr(i, j, k) + t_blank_arr(i, j-1, k));
+                const Real t_blank_above = (t_blank_yface_arr) ? t_blank_yface_arr(i, j, k+1) :
+                                           myhalf * (t_blank_arr(i, j, k+1) + t_blank_arr(i, j-1, k+1));
 
                 const Real dx_z = (z_cc_arr) ? (z_cc_arr(i,j,k) - z_cc_arr(i,j,k-1)) : dx_arr[2];
                 const Real drag_coefficient = alpha_m / std::pow(dx_x*dx_y*dx_z, one/three);
@@ -924,7 +939,9 @@ void make_mom_sources (double time_d,
                                          + v(i  , j  , k-1) + v(i  , j+1, k-1) );
                 const Real uz = w(i, j, k);
                 const Real windspeed = std::sqrt(ux * ux + uy * uy + uz * uz);
-                const Real t_blank = myhalf * (t_blank_arr(i, j, k) + t_blank_arr(i, j, k-1));
+                // Use face-centered terrain_blanking if available, otherwise average from cell centers
+                const Real t_blank = (t_blank_zface_arr) ? t_blank_zface_arr(i, j, k) :
+                                     myhalf * (t_blank_arr(i, j, k) + t_blank_arr(i, j, k-1));
 
                 const Real dx_z = (z_cc_arr) ? (z_cc_arr(i,j,k) - z_cc_arr(i,j,k-1)) : dx_arr[2];
                 const Real drag_coefficient = alpha_m / std::pow(dx_x*dx_y*dx_z, one/three);
@@ -978,11 +995,17 @@ void make_mom_sources (double time_d,
                 const Real rho_xface   = myhalf * ( cell_data(i,j,k,Rho_comp) + cell_data(i-1,j,k,Rho_comp) );
                 const Real theta_xface = (myhalf * (cell_data(i,j,k,RhoTheta_comp) + cell_data(i-1,j,k, RhoTheta_comp))) / rho_xface;
 
-                const Real t_blank       = myhalf * (t_blank_arr(i, j  , k  ) + t_blank_arr(i-1, j  , k  ));
-                const Real t_blank_below = (k == 0) ? zero : myhalf * (t_blank_arr(i, j  , k-1) + t_blank_arr(i-1, j  , k-1));
-                const Real t_blank_above = myhalf * (t_blank_arr(i, j  , k+1) + t_blank_arr(i-1, j  , k+1));
-                const Real t_blank_north = myhalf * (t_blank_arr(i, j+1, k  ) + t_blank_arr(i-1, j+1, k  ));
-                const Real t_blank_south = myhalf * (t_blank_arr(i, j-1, k  ) + t_blank_arr(i-1, j-1, k  ));
+                // Use face-centered terrain_blanking if available, otherwise average from cell centers
+                const Real t_blank       = (t_blank_xface_arr) ? t_blank_xface_arr(i, j  , k  ) :
+                                           myhalf * (t_blank_arr(i, j  , k  ) + t_blank_arr(i-1, j  , k  ));
+                const Real t_blank_below = (k == 0) ? zero : (t_blank_xface_arr) ? t_blank_xface_arr(i, j  , k-1) :
+                                           myhalf * (t_blank_arr(i, j  , k-1) + t_blank_arr(i-1, j  , k-1));
+                const Real t_blank_above = (t_blank_xface_arr) ? t_blank_xface_arr(i, j  , k+1) :
+                                           myhalf * (t_blank_arr(i, j  , k+1) + t_blank_arr(i-1, j  , k+1));
+                const Real t_blank_north = (t_blank_xface_arr) ? t_blank_xface_arr(i, j+1, k  ) :
+                                           myhalf * (t_blank_arr(i, j+1, k  ) + t_blank_arr(i-1, j+1, k  ));
+                const Real t_blank_south = (t_blank_xface_arr) ? t_blank_xface_arr(i, j-1, k  ) :
+                                           myhalf * (t_blank_arr(i, j-1, k  ) + t_blank_arr(i-1, j-1, k  ));
 
                 const Real dx_z = (z_cc_arr) ? (z_cc_arr(i,j,k) - z_cc_arr(i,j,k-1)) : dx_arr[2];
                 const Real drag_coefficient = alpha_m / std::pow(dx_x*dx_y*dx_z, one/three);
@@ -1069,11 +1092,17 @@ void make_mom_sources (double time_d,
                 const Real rho_yface   = myhalf * ( cell_data(i,j,k,Rho_comp) + cell_data(i,j-1,k,Rho_comp) );
                 const Real theta_yface = (myhalf * (cell_data(i,j,k  ,RhoTheta_comp) + cell_data(i,j-1,k,RhoTheta_comp))) / rho_yface;
 
-                const Real t_blank       = myhalf * (t_blank_arr(i  , j  , k  ) + t_blank_arr(i-1, j  , k  ));
-                const Real t_blank_below = (k == 0) ? zero : myhalf * (t_blank_arr(i  , j  , k-1) + t_blank_arr(i-1, j  , k-1));
-                const Real t_blank_above = myhalf * (t_blank_arr(i  , j  , k+1) + t_blank_arr(i-1, j  , k+1));
-                const Real t_blank_east  = myhalf * (t_blank_arr(i+1, j  , k  ) + t_blank_arr(i+1, j-1, k  ));
-                const Real t_blank_west  = myhalf * (t_blank_arr(i-1, j  , k  ) + t_blank_arr(i-1, j-1, k  ));
+                // Use face-centered terrain_blanking if available, otherwise average from cell centers
+                const Real t_blank       = (t_blank_yface_arr) ? t_blank_yface_arr(i  , j  , k  ) :
+                                           myhalf * (t_blank_arr(i  , j  , k  ) + t_blank_arr(i-1, j  , k  ));
+                const Real t_blank_below = (k == 0) ? zero : (t_blank_yface_arr) ? t_blank_yface_arr(i  , j  , k-1) :
+                                           myhalf * (t_blank_arr(i  , j  , k-1) + t_blank_arr(i-1, j  , k-1));
+                const Real t_blank_above = (t_blank_yface_arr) ? t_blank_yface_arr(i  , j  , k+1) :
+                                           myhalf * (t_blank_arr(i  , j  , k+1) + t_blank_arr(i-1, j  , k+1));
+                const Real t_blank_east  = (t_blank_yface_arr) ? t_blank_yface_arr(i+1, j  , k  ) :
+                                           myhalf * (t_blank_arr(i+1, j  , k  ) + t_blank_arr(i+1, j-1, k  ));
+                const Real t_blank_west  = (t_blank_yface_arr) ? t_blank_yface_arr(i-1, j  , k  ) :
+                                           myhalf * (t_blank_arr(i-1, j  , k  ) + t_blank_arr(i-1, j-1, k  ));
 
                 const Real dx_z = (z_cc_arr) ? (z_cc_arr(i,j,k) - z_cc_arr(i,j,k-1)) : dx_arr[2];
                 const Real drag_coefficient = alpha_m / std::pow(dx_x*dx_y*dx_z, one/three);
@@ -1160,13 +1189,21 @@ void make_mom_sources (double time_d,
                 const Real rho_zface   = myhalf * ( cell_data(i,j,k,Rho_comp) + cell_data(i,j,k-1,Rho_comp) );
                 const Real theta_zface = (myhalf * (cell_data(i,j,k,RhoTheta_comp) + cell_data(i,j,k-1,RhoTheta_comp))) / rho_zface;
 
-                const Real t_blank       = myhalf * (t_blank_arr(i  ,j  , k)   + t_blank_arr(i  , j  , k-1));
-                const Real t_blank_below = (k == 0) ? zero : myhalf * (t_blank_arr(i  ,j  , k-1) + t_blank_arr(i  , j  , k-2));
-                const Real t_blank_above = myhalf * (t_blank_arr(i  ,j  , k)   + t_blank_arr(i  , j  , k+1));
-                const Real t_blank_north = myhalf * (t_blank_arr(i  ,j+1, k)   + t_blank_arr(i  , j+1, k-1));
-                const Real t_blank_south = myhalf * (t_blank_arr(i  ,j-1, k)   + t_blank_arr(i  , j-1, k-1));
-                const Real t_blank_east  = myhalf * (t_blank_arr(i+1,j  , k)   + t_blank_arr(i+1, j  , k-1));
-                const Real t_blank_west  = myhalf * (t_blank_arr(i-1,j  , k)   + t_blank_arr(i-1, j  , k-1));
+                // Use face-centered terrain_blanking if available, otherwise average from cell centers
+                const Real t_blank       = (t_blank_zface_arr) ? t_blank_zface_arr(i  ,j  , k  ) :
+                                           myhalf * (t_blank_arr(i  ,j  , k)   + t_blank_arr(i  , j  , k-1));
+                const Real t_blank_below = (k == 0) ? zero : (t_blank_zface_arr) ? t_blank_zface_arr(i  ,j  , k-1) :
+                                           myhalf * (t_blank_arr(i  ,j  , k-1) + t_blank_arr(i  , j  , k-2));
+                const Real t_blank_above = (t_blank_zface_arr) ? t_blank_zface_arr(i  ,j  , k+1) :
+                                           myhalf * (t_blank_arr(i  ,j  , k)   + t_blank_arr(i  , j  , k+1));
+                const Real t_blank_north = (t_blank_zface_arr) ? t_blank_zface_arr(i  , j+1, k  ) :
+                                           myhalf * (t_blank_arr(i  ,j+1, k)   + t_blank_arr(i  , j+1, k-1));
+                const Real t_blank_south = (t_blank_zface_arr) ? t_blank_zface_arr(i  , j-1, k  ) :
+                                           myhalf * (t_blank_arr(i  ,j-1, k)   + t_blank_arr(i  , j-1, k-1));
+                const Real t_blank_east  = (t_blank_zface_arr) ? t_blank_zface_arr(i+1, j  , k  ) :
+                                           myhalf * (t_blank_arr(i+1,j  , k)   + t_blank_arr(i+1, j  , k-1));
+                const Real t_blank_west  = (t_blank_zface_arr) ? t_blank_zface_arr(i-1, j  , k  ) :
+                                           myhalf * (t_blank_arr(i-1,j  , k)   + t_blank_arr(i-1, j  , k-1));
 
                 const Real dx_z = (z_cc_arr) ? (z_cc_arr(i,j,k) - z_cc_arr(i,j,k-1)) : dx_arr[2];
                 const Real drag_coefficient = alpha_m / std::pow(dx_x*dx_y*dx_z, one/three);
