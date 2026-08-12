@@ -1,6 +1,7 @@
 #include "ERF_Prob.H"
 #include "ERF_EOS.H"
 #include "ERF_TerrainMetrics.H"
+#include "Prob/ERF_ProblemDispatch.H"
 
 using namespace amrex;
 
@@ -255,10 +256,13 @@ Problem::init_custom_pert_vels (
               (my_prob_name_ci == "supercell") ) {
 #include "Prob/ERF_InitCustomPertVels_SquallLine.H"
     }
-    else if (my_prob_name_ci == "cloud chamber" ||
-             my_prob_name_ci == "cloudchamber" ||
-             my_prob_name_ci == "userdefined") {
+    else if (erf_problem_dispatch::custom_velocity_initializer(my_prob_name_ci) ==
+             erf_problem_dispatch::CustomVelocityInitializer::CloudChamber) {
 #include "Prob/ERF_InitCustomPertVels_CloudChamber.H"
+    }
+    else if (erf_problem_dispatch::custom_velocity_initializer(my_prob_name_ci) ==
+             erf_problem_dispatch::CustomVelocityInitializer::UserDefined) {
+#include "Prob/ERF_InitCustomPertVels_UserDefined.H"
     }
      else if  (my_prob_name_ci == "data_assimilation_isv") {
 #include "Prob/ERF_InitCustomPertVels_DataAssimilation_ISV.H"

@@ -264,7 +264,8 @@ wall_transfer_contract_error (const WallTransferContract& contract,
         contract.heat_model == "neutral_roughness_log";
     const bool vapor_neutral = contract.vapor_model_specified &&
         contract.vapor_model == "neutral_roughness_log";
-    const bool any_neutral = momentum_neutral || heat_neutral || vapor_neutral;
+    const bool any_neutral =
+        momentum_neutral || heat_neutral || vapor_neutral;
 
     const bool any_channel_key =
         contract.momentum_model_specified ||
@@ -449,10 +450,19 @@ neutral_roughness_geometry_error (
             }
             return {};
         };
-        const auto momentum_error = check(
+        const bool momentum_neutral =
             wall.momentum.model ==
-                erf_wall_thermodynamics::MomentumModel::NeutralRoughnessLog,
-            "z0_m", wall.momentum.z0_m);
+                erf_wall_thermodynamics::MomentumModel::NeutralRoughnessLog;
+        const bool heat_neutral =
+            wall.heat.model ==
+                erf_wall_thermodynamics::ScalarModel::NeutralRoughnessLog;
+        const bool vapor_neutral =
+            wall.vapor.model ==
+                erf_wall_thermodynamics::ScalarModel::NeutralRoughnessLog;
+        const bool any_neutral =
+            momentum_neutral || heat_neutral || vapor_neutral;
+        const auto momentum_error = check(
+            any_neutral, "z0_m", wall.momentum.z0_m);
         if (!momentum_error.empty()) { return momentum_error; }
         const auto heat_error = check(
             wall.heat.model ==

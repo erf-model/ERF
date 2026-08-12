@@ -31,6 +31,18 @@ Real scaled_tolerance (Real expected, Real ulps = Real(256.0))
     return ulps * std::numeric_limits<Real>::epsilon() * scale;
 }
 
+Real tangential_energy (const MultiFab& tangent_a, const MultiFab& tangent_b)
+{
+    MultiFab energy(tangent_a.boxArray(), tangent_a.DistributionMap(), 1, 0);
+    MultiFab other(tangent_b.boxArray(), tangent_b.DistributionMap(), 1, 0);
+    MultiFab::Copy(energy, tangent_a, 0, 0, 1, 0);
+    MultiFab::Copy(other, tangent_b, 0, 0, 1, 0);
+    MultiFab::Multiply(energy, tangent_a, 0, 0, 1, 0);
+    MultiFab::Multiply(other, tangent_b, 0, 0, 1, 0);
+    MultiFab::Add(energy, other, 0, 0, 1, 0);
+    return energy.sum(0, true);
+}
+
 bool has_variable (const PlotFileData& plotfile, const std::string& name)
 {
     const auto& names = plotfile.varNames();
@@ -557,6 +569,9 @@ int main (int argc, char** argv)
     const MultiFab final_w = final.get(0, "z_velocity");
     const Real evolved_velocity = std::max(final_u.norm0(0,0,false),
         std::max(final_v.norm0(0,0,false), final_w.norm0(0,0,false)));
+    Real baseline_tangential_energy = Real(0.0);
+    Real changed_tangential_energy = Real(0.0);
+    Real initial_tangential_energy = Real(0.0);
     std::cout << "mode=" << mode << " initial_theta_error=" << theta_error_max
               << " initial_temperature_error=" << temperature_error_max
               << " evolved_velocity_max=" << evolved_velocity;
@@ -570,7 +585,18 @@ int main (int argc, char** argv)
             activation_difference = std::max(activation_difference,
                                               difference.norm0(0, 0, false));
         }
-        std::cout << " alternate_velocity_difference=" << activation_difference;
+        const MultiFab initial_v_for_energy = initial.get(0, "y_velocity");
+        const MultiFab initial_w_for_energy = initial.get(0, "z_velocity");
+        const MultiFab changed_v = alternate->get(0, "y_velocity");
+        const MultiFab changed_w = alternate->get(0, "z_velocity");
+        initial_tangential_energy = tangential_energy(
+            initial_v_for_energy, initial_w_for_energy);
+        baseline_tangential_energy = tangential_energy(final_v, final_w);
+        changed_tangential_energy = tangential_energy(changed_v, changed_w);
+        std::cout << " alternate_velocity_difference=" << activation_difference
+                  << " xlo_initial_tangential_energy=" << initial_tangential_energy
+                  << " xlo_baseline_tangential_energy=" << baseline_tangential_energy
+                  << " xlo_changed_tangential_energy=" << changed_tangential_energy;
     }
     if (cloudy) {
         std::cout << " final_qv_min=" << final.get(0,"qv").min(0)
@@ -584,6 +610,25 @@ int main (int argc, char** argv)
     if (activation_mode &&
         activation_difference <= scaled_tolerance(Real(1.0), Real(16.0))) {
         return fail("neutral momentum roughness change produced no production response");
+    }
+    if (activation_mode) {
+        const Real energy_tolerance = scaled_tolerance(
+            std::max(Real(1.0), initial_tangential_energy), Real(128.0));
+        if (!std::isfinite(static_cast<double>(initial_tangential_energy)) ||
+            !std::isfinite(static_cast<double>(baseline_tangential_energy)) ||
+            !std::isfinite(static_cast<double>(changed_tangential_energy))) {
+            return fail("neutral momentum tangential-energy oracle is non-finite");
+        }
+        if (changed_tangential_energy >= baseline_tangential_energy - energy_tolerance) {
+            return fail("larger xlo roughness did not produce stronger tangential damping: baseline=" +
+                        std::to_string(static_cast<double>(baseline_tangential_energy)) +
+                        " changed=" +
+                        std::to_string(static_cast<double>(changed_tangential_energy)));
+        }
+        if (initial_tangential_energy > energy_tolerance &&
+            changed_tangential_energy > initial_tangential_energy + energy_tolerance) {
+            return fail("neutral xlo roughness oracle detected tangential acceleration");
+        }
     }
     // This is a nonzero-response guard, not a magnitude assertion. A few
     // ulps are sufficient because the short regression intentionally starts

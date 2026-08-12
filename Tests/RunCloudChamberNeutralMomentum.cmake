@@ -22,7 +22,7 @@ endif()
 
 execute_process(
     COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${NRANKS} ${MPIEXEC_PREFLAGS}
-            ${TEST_EXE} ${INPUT} xlo.z0_m=0.01
+            ${TEST_EXE} ${INPUT} xlo.z0_m=0.05
     WORKING_DIRECTORY "${CHANGED_DIR}"
     OUTPUT_FILE "${CHANGED_DIR}/simulation.log"
     ERROR_FILE "${CHANGED_DIR}/simulation.log"

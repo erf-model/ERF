@@ -257,40 +257,64 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
              Real rate = Real(0.0);
              amrex::Loop(b, [=,&rate] (int i, int j, int k) noexcept
              {
-                 for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
-                     const bool low = (dir == 0 ? i == domain.smallEnd(0) :
-                                       (dir == 1 ? j == domain.smallEnd(1) :
-                                                    k == domain.smallEnd(2)));
-                     const bool high = (dir == 0 ? i == domain.bigEnd(0) :
-                                        (dir == 1 ? j == domain.bigEnd(1) :
-                                                     k == domain.bigEnd(2)));
-                     if (low) {
-                         const auto& wall = walls[2*dir];
-                         if (erf_cloud_chamber_wall_flux::
-                             wall_rate_requires_tangential_speed(wall)) {
-                             const Real U_t =
-                                 erf_cloud_chamber_wall_flux::
-                                 tangential_speed_cell_centered(
-                                     dir, i, j, k, velocity, wall);
-                             rate = amrex::max(rate,
-                                 erf_cloud_chamber_wall_flux::wall_rate_for_face(
-                                     wall, U_t, dxinv[dir]));
+                 // A free staggered component can receive tangential traction
+                 // from every active perpendicular wall at an edge/corner.
+                 // Each tangent reconstruction and stress-node average is a
+                 // convex average, so the row-sum bound is the sum of the
+                 // per-wall velocity-parallel Jacobian bounds.
+                 Real momentum_rate = Real(0.0);
+                 amrex::GpuArray<Real, AMREX_SPACEDIM> low_momentum_rates{};
+                 amrex::GpuArray<Real, AMREX_SPACEDIM> high_momentum_rates{};
+                 for (int component = 0; component < AMREX_SPACEDIM; ++component) {
+                     Real component_rate = Real(0.0);
+                     for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
+                         if (dir == component) { continue; }
+                         const bool low = (dir == 0 ? i == domain.smallEnd(0) :
+                                           (dir == 1 ? j == domain.smallEnd(1) :
+                                                        k == domain.smallEnd(2)));
+                         const bool high = (dir == 0 ? i == domain.bigEnd(0) :
+                                            (dir == 1 ? j == domain.bigEnd(1) :
+                                                         k == domain.bigEnd(2)));
+                         if (low) {
+                             const auto& wall = walls[2*dir];
+                             if (erf_cloud_chamber_wall_flux::
+                                 wall_rate_requires_tangential_speed(wall)) {
+                                 const Real U_t =
+                                     erf_cloud_chamber_wall_flux::
+                                     tangential_speed_cell_centered(
+                                         dir, i, j, k, velocity, wall);
+                                 rate = amrex::max(rate,
+                                     erf_cloud_chamber_wall_flux::wall_rate_for_face(
+                                         wall, U_t, dxinv[dir]));
+                                 low_momentum_rates[dir] =
+                                     erf_cloud_chamber_wall_flux::
+                                     neutral_momentum_rate_for_face(
+                                         wall, U_t, dxinv[dir]);
+                             }
+                         }
+                         if (high) {
+                             const auto& wall = walls[2*dir+1];
+                             if (erf_cloud_chamber_wall_flux::wall_rate_requires_tangential_speed(wall)) {
+                                 const Real U_t =
+                                     erf_cloud_chamber_wall_flux::
+                                     tangential_speed_cell_centered(
+                                         dir, i, j, k, velocity, wall);
+                                 rate = amrex::max(rate,
+                                     erf_cloud_chamber_wall_flux::wall_rate_for_face(
+                                         wall, U_t, dxinv[dir]));
+                                 high_momentum_rates[dir] =
+                                     erf_cloud_chamber_wall_flux::
+                                     neutral_momentum_rate_for_face(
+                                         wall, U_t, dxinv[dir]);
+                             }
                          }
                      }
-                     if (high) {
-                         const auto& wall = walls[2*dir+1];
-                         if (erf_cloud_chamber_wall_flux::
-                             wall_rate_requires_tangential_speed(wall)) {
-                             const Real U_t =
-                                 erf_cloud_chamber_wall_flux::
-                                 tangential_speed_cell_centered(
-                                     dir, i, j, k, velocity, wall);
-                             rate = amrex::max(rate,
-                                 erf_cloud_chamber_wall_flux::wall_rate_for_face(
-                                     wall, U_t, dxinv[dir]));
-                         }
-                     }
+                     component_rate =
+                         erf_cloud_chamber_wall_flux::neutral_momentum_row_sum_rate(
+                             component, low_momentum_rates, high_momentum_rates);
+                     momentum_rate = amrex::max(momentum_rate, component_rate);
                  }
+                 rate = amrex::max(rate, momentum_rate);
              });
              return rate;
          });

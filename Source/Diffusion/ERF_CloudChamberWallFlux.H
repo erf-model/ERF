@@ -230,6 +230,41 @@ neutral_momentum_rate (amrex::Real C_D,
 
 AMREX_GPU_HOST_DEVICE
 AMREX_FORCE_INLINE
+amrex::Real
+neutral_momentum_row_sum_rate (
+    int component,
+    const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& low_rate,
+    const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& high_rate) noexcept
+{
+    amrex::Real result = amrex::Real(0.0);
+    for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
+        if (dir != component) {
+            result += low_rate[dir] + high_rate[dir];
+        }
+    }
+    return result;
+}
+
+AMREX_GPU_HOST_DEVICE
+AMREX_FORCE_INLINE
+amrex::Real
+neutral_momentum_rate_for_face (
+    const erf_wall_thermodynamics::FaceWall& wall,
+    amrex::Real U_t,
+    amrex::Real dx_inv) noexcept
+{
+    if (wall.momentum.model !=
+        erf_wall_thermodynamics::MomentumModel::NeutralRoughnessLog) {
+        return amrex::Real(0.0);
+    }
+    const amrex::Real wall_distance = amrex::Real(0.5) / dx_inv;
+    const auto neutral = neutral_log_momentum_state(
+        U_t, wall_distance, wall.momentum.z0_m);
+    return neutral_momentum_rate(neutral.C_D, U_t, dx_inv);
+}
+
+AMREX_GPU_HOST_DEVICE
+AMREX_FORCE_INLINE
 bool
 requires_tangential_speed (
     const erf_wall_thermodynamics::FaceWall& wall,

@@ -413,7 +413,7 @@ low/high storage adapter is
 
    F_\mathrm{coord} =
    \begin{cases}
-      +J_\mathrm{in}, & \text{low face},\
+      +J_\mathrm{in}, & \text{low face},\\
       -J_\mathrm{in}, & \text{high face}.
    \end{cases}
 
@@ -479,7 +479,9 @@ The existing Exner convention is used,
 routine and pressure conversion. Dry vapor and cloud-water wall fluxes remain
 owned exact zeros before unrelated saturation or velocity arithmetic.
 
-Every active neutral roughness length is host-validated:
+Every active neutral roughness length is host-validated. A scalar-only
+neutral heat or vapor channel still requires ``z0_m`` because its resistance
+contains ``ln(z_ref/z0_m)``:
 
 .. math::
 
@@ -779,15 +781,19 @@ For neutral momentum, the local tangential drag equation is
 
 The Jacobian has eigenvalues ``C_D U_t Delta n^-1`` in the two directions
 orthogonal to :math:`\mathbf u_t` and ``2 C_D U_t Delta n^{-1}`` in the
-velocity-parallel direction. The implemented conservative wall rate is
-therefore
+velocity-parallel direction. At an edge or corner, one free staggered velocity
+component can receive tangent traction from more than one perpendicular wall.
+The tangent reconstruction and stress-node average are convex averages, so a
+conservative row-sum bound for that component is
 
 .. math::
 
-   \lambda_m = 2 C_D U_t\,\Delta n^{-1}.
+   \lambda_{m,c} = \sum_{f:\,n_f \ne c}
+      2 C_{D,f} U_{t,f}\,\Delta n_f^{-1},
+   \qquad\lambda_m = \max_c \lambda_{m,c}.
 
-The scan takes the maximum over active scalar and neutral-momentum channels,
-then applies the existing explicit safety factor,
+The scan takes the maximum over cells, components, active scalar channels, and
+neutral-momentum row sums, then applies the existing explicit safety factor,
 
 .. math::
 
