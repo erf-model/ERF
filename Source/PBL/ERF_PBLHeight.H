@@ -5,6 +5,9 @@
 #include <ERF_TileNoZ.H>
 #include <ERF_MoistUtils.H>
 
+/**
+ * @brief Diagnostic utility for the planetary boundary layer height.
+ */
 struct MYNNPBLH {
     /*
      * Diagnose the PBL height
@@ -257,6 +260,18 @@ struct MYNNPBLH {
         }//MFIter
     }
 
+    /**
+     * @var MYNNPBLH::thetamin_height
+     * @brief Height below which minimum theta-v is determined [m].
+     * @var MYNNPBLH::theta_incr_land
+     * @brief Theta increase determining the capping inversion height over land [K].
+     * @var MYNNPBLH::theta_incr_water
+     * @brief Theta increase determining the capping inversion height over water [K].
+     * @var MYNNPBLH::sbl_lim
+     * @brief Upper limit of the stable boundary layer height [m].
+     * @var MYNNPBLH::sbl_damp
+     * @brief Transition length for blending [m].
+     */
     static constexpr amrex::Real thetamin_height  = amrex::Real(200.0); // [m] height below which min thetav is determined
     static constexpr amrex::Real theta_incr_land  = amrex::Real(1.25);  // [K] theta increase that determines the height of the capping inversion over land
     static constexpr amrex::Real theta_incr_water = one;   // [K] theta increase that determines the height of the capping inversion over water
