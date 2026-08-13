@@ -223,6 +223,13 @@ namespace SDMassChangeUtils_LV
     /*! \brief Implicit and explicit time integrators for the phase change equation */
     template<   typename ODE /*!< ODE */,
                 typename NewtonSolver /*!< Newton solver */,
+                /**
+                 * @brief Implicit and explicit time integrators for the phase change equation.
+                 *
+                 * @tparam ODE ODE type.
+                 * @tparam NewtonSolver Newton solver type.
+                 * @tparam RT Real-type.
+                 */
                 typename RT /*!< real-type */ >
     struct TI
     {
