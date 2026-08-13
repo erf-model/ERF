@@ -1,0 +1,4 @@
+milestone	stop_step	milestone_time_s	status	first_failing_var	zone_ijk	max_rel_error	vars_compared	vars_bitwise_equal	restart_repro_status	clean_sha_basis	last_campaign_id	notes
+A	1	0.5	FAIL_ICE_RESIDUAL_ONLY	qi	(199,3,99)	4.189783629e-07	32	18	MATCH	7ec9dc4838324f905f5e596ba50058ba2ad0c37e	plotfile_parity_wdm6_bubble_v1e	Thermodynamics resolved by the theta writeback fix (commit 7ec9dc483): temp/theta/rhotheta/pressure/eq_pot_temp now 1e-13 to 1e-12, improvements of 5.3e9 to 2.1e10. nc/nn/nr in exact bitwise parity. Sole remaining outlier is qi/rhoQ3 at ~4.2e-07, about 100x above the next-largest residual. Not PASS: would need a growth adjudication, and :32 does not cover moisture residuals.
+B	10	5	NOT_RUN	NA	NA	NA	NA	NA	NA	NA	NA	Never executed. Blocked by stop-diff-retreat while A fails.
+C	100	50	NOT_RUN	NA	NA	NA	NA	NA	NA	NA	NA	Never executed. Nightly Bubble_WSM6 equivalence point and the PR gate.
