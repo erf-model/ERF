@@ -8,6 +8,22 @@
 
 using namespace amrex;
 
+/**
+ * @brief Construct a terrain-following Poisson operator.
+ *
+ * @param[in] geom Geometry defining the domain.
+ * @param[in] lev_geom Geometry of the level, used to determine the FFT boundary conditions.
+ * @param[in] ba BoxArray for the grid hierarchy.
+ * @param[in] dm Distribution mapping for the grid.
+ * @param[in] domain_bcs_type Boundary condition types for the domain.
+ * @param[in] stretched_dz_lev_d Device vector of stretched vertical grid spacings.
+ * @param[in] ax Metric term ax.
+ * @param[in] ay Metric term ay.
+ * @param[in] az Metric term az.
+ * @param[in] dJ Jacobian of the coordinate transformation.
+ * @param[in] z_phys_nd Nodal physical height field.
+ * @param[in] use_real_bcs Flag to use real boundary conditions.
+ */
 TerrainPoisson::TerrainPoisson (Geometry const& geom, Geometry const& lev_geom,
                                 BoxArray const& ba,
                                 DistributionMapping const& dm,

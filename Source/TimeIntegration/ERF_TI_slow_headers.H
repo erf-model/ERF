@@ -19,8 +19,14 @@
 #include "ERF_ReadBndryPlanes.H"
 #include "Prob/ERF_CloudChamber.H"
 
+/**
+ * @brief Budget tracking for the cloud chamber simulation.
+ */
 class CloudChamberBudget;
 
+/**
+ * @brief Driver for the SHOC physics model.
+ */
 class ShocDriver;
 
 void erf_make_tau_terms (int level, int nrk,

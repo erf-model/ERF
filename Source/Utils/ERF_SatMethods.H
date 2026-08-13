@@ -34,10 +34,19 @@
 
 #include "ERF_Constants.H"
 
+/**
+ * @brief Methods for estimating the saturation vapor pressure of water.
+ */
 class SatMethods {
 public:
     // Get saturation specific humidity given pressure and SVP.
     // Specific humidity is limited to range 0-1
+    /**
+     * @brief Get saturation specific humidity given pressure and SVP.
+     * @param[in] es Saturation vapor pressure.
+     * @param[in] p Total pressure.
+     * @return Saturation specific humidity.
+     */
     AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
     static amrex::Real wv_sat_svp_to_qsat (const amrex::Real& es, const amrex::Real& p) {
         // If pressure is less than SVP, set qs to maximum of amrex::Real(1)
@@ -47,6 +56,14 @@ public:
             return epsilo*es / (p - omeps*es);
     }
 
+    /**
+     * @brief Calculate SVP over water and saturation specific humidity.
+     * @param[in] t Temperature.
+     * @param[in] p Total pressure.
+     * @param[out] es Saturation vapor pressure.
+     * @param[out] qs Saturation specific humidity.
+     * @param[in] idx Scheme index.
+     */
     AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
     static void wv_sat_qsat_water (const amrex::Real& t, const amrex::Real& p,
                                    amrex::Real &es, amrex::Real &qs, const int idx = 1) {
@@ -62,6 +79,14 @@ public:
         es = std::min(es, p);
     }
 
+    /**
+     * @brief Calculate SVP over ice and saturation specific humidity.
+     * @param[in] t Temperature.
+     * @param[in] p Total pressure.
+     * @param[out] es Saturation vapor pressure.
+     * @param[out] qs Saturation specific humidity.
+     * @param[in] idx Scheme index.
+     */
     AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
     static void wv_sat_qsat_ice (const amrex::Real& t, const amrex::Real& p,
                                  amrex::Real &es, amrex::Real &qs, const int idx = 1) {
@@ -77,6 +102,14 @@ public:
         es = std::min(es, p);
     }
 
+    /**
+     * @brief Calculate transition SVP and saturation specific humidity.
+     * @param[in] t Temperature.
+     * @param[in] p Total pressure.
+     * @param[out] es Saturation vapor pressure.
+     * @param[out] qs Saturation specific humidity.
+     * @param[in] idx Scheme index.
+     */
     AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
     static void wv_sat_qsat_trans (const amrex::Real& t, const amrex::Real& p,
                                    amrex::Real &es, amrex::Real &qs, const int idx = 1) {
@@ -93,6 +126,12 @@ public:
     }
 
     // SVP INTERFACE FUNCTIONS
+    /**
+     * @brief Dispatcher for saturation vapor pressure over water.
+     * @param[in] t Temperature.
+     * @param[in] idx Scheme index.
+     * @return Saturation vapor pressure over water.
+     */
     AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
     static amrex::Real wv_sat_svp_water (const amrex::Real& t, const int idx = 1) {
         amrex::Real es;
@@ -110,6 +149,12 @@ public:
         return es;
     }
 
+    /**
+     * @brief Dispatcher for saturation vapor pressure over ice.
+     * @param[in] t Temperature.
+     * @param[in] idx Scheme index.
+     * @return Saturation vapor pressure over ice.
+     */
     AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
     static amrex::Real wv_sat_svp_ice (const amrex::Real& t, const int idx = 1) {
         amrex::Real es;
@@ -127,6 +172,12 @@ public:
         return es;
     }
 
+    /**
+     * @brief Calculate transition saturation vapor pressure.
+     * @param[in] t Temperature.
+     * @param[in] idx Scheme index.
+     * @return Transition saturation vapor pressure.
+     */
     AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
     static amrex::Real wv_sat_svp_trans (const amrex::Real& t, const int idx = 1) {
         amrex::Real esice;      // Saturation vapor pressure over ice
@@ -154,6 +205,11 @@ public:
 
 
     // Goff & Gratch (1946)
+    /**
+     * @brief Goff & Gratch (1946) saturation vapor pressure over water.
+     * @param[in] t Temperature.
+     * @return Saturation vapor pressure.
+     */
     AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
     static amrex::Real GoffGratch_svp_water (const amrex::Real& t) {
         // uncertain below -70 C
@@ -164,6 +220,11 @@ public:
                          std::log10(amrex::Real(1013.246))))*amrex::Real(100.);
     }
 
+    /**
+     * @brief Goff & Gratch (1946) saturation vapor pressure over ice.
+     * @param[in] t Temperature.
+     * @return Saturation vapor pressure.
+     */
     AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
     static amrex::Real GoffGratch_svp_ice (const amrex::Real& t) {
         // good down to -100 C
@@ -173,6 +234,11 @@ public:
     }
 
     // Murphy & Koop (2005)
+    /**
+     * @brief Murphy & Koop (2005) saturation vapor pressure over water.
+     * @param[in] t Temperature.
+     * @return Saturation vapor pressure.
+     */
     AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
     static amrex::Real MurphyKoop_svp_water (const amrex::Real& t) {
         // (good for 123 < T < 332 K)
@@ -182,6 +248,11 @@ public:
                                       amrex::Real(0.014025) * t)));
     }
 
+    /**
+     * @brief Murphy & Koop (2005) saturation vapor pressure over ice.
+     * @param[in] t Temperature.
+     * @return Saturation vapor pressure.
+     */
     AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
     static amrex::Real MurphyKoop_svp_ice (const amrex::Real& t) {
         // (good down to 110 K)
@@ -203,6 +274,11 @@ public:
     // A curious fact: although using the melting point of water was
     // probably a mistake, it mildly improves accuracy for ice svp,
     // since it compensates for a systematic error in Goff & Gratch.
+    /**
+     * @brief Old CAM implementation of Goff & Gratch (1946) SVP over water.
+     * @param[in] t Temperature.
+     * @return Saturation vapor pressure.
+     */
     AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
     static amrex::Real OldGoffGratch_svp_water (const amrex::Real& t) {
         auto ps = amrex::Real(1013.246);
@@ -217,6 +293,11 @@ public:
         return (pow(amrex::Real(10.0), f))*amrex::Real(100.0);
     }
 
+    /**
+     * @brief Old CAM implementation of Goff & Gratch (1946) SVP over ice.
+     * @param[in] t Temperature.
+     * @return Saturation vapor pressure.
+     */
     AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
     static amrex::Real OldGoffGratch_svp_ice (const amrex::Real& t) {
         auto term1 = amrex::Real(2.01889049)/(tmelt/t);
@@ -233,6 +314,11 @@ public:
 
     // The original formula used degrees C, but this function
     // takes Kelvin and internally converts.
+    /**
+     * @brief Bolton (1980) saturation vapor pressure over water.
+     * @param[in] t Temperature.
+     * @return Saturation vapor pressure.
+     */
     AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
     static amrex::Real Bolton_svp_water (const amrex::Real& t) {
         constexpr auto c1 = amrex::Real(611.2);

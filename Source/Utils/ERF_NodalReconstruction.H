@@ -21,6 +21,9 @@ enum class VariationOperator
     Laplacian
 };
 
+/**
+ * @brief Convergence and diagnostic information for the reconstruction solve.
+ */
 struct SolveInfo {
     int  iterations           = 0;     //!< total CG iterations, summed over attempts
     amrex::Real final_residual = zero; //!< CG residual of the accepted solve
@@ -121,6 +124,11 @@ class NodalReconstruction
 public:
     using Real = amrex::Real;
 
+    /**
+     * @brief Construct a nodal reconstruction object for a given face box.
+     * @param face_box Box specifying the cell-centered data region.
+     * @param geom Geometry used for grid spacing and anisotropy weights.
+     */
     explicit NodalReconstruction (amrex::Box const& face_box,
                                   amrex::Geometry const& geom)
         : m_face_box(face_box),
@@ -170,6 +178,9 @@ public:
      */
     [[nodiscard]] amrex::FArrayBox makeReference (amrex::FArrayBox const& T) const
     {
+        /**
+         * @brief Local storage for the reference nodal field.
+         */
         amrex::FArrayBox R(m_nodal_box,1,amrex::The_Managed_Arena());
         auto const T_arr = T.const_array();
         auto const R_arr = R.array();
@@ -227,6 +238,9 @@ public:
         SolveInfo info;
 
         // Misfit of the plain interpolation, and the cap it earns the solve.
+        /**
+         * @brief Local storage for the interpolation misfit.
+         */
         amrex::FArrayBox misfit(m_face_box,1,amrex::The_Managed_Arena());
         Real misfit_max = zero;
         Real t_min      =  std::numeric_limits<Real>::max();
@@ -249,10 +263,19 @@ public:
                                       relief_factor * (t_max - t_min));
 
         // rhs = A^T (T - A S_ref); the correction solves M E = rhs from E = 0.
+        /**
+         * @brief Local storage for the right-hand side of the normal equations.
+         */
         amrex::FArrayBox rhs(m_nodal_box,1,amrex::The_Managed_Arena());
         applyAT(misfit,rhs);
 
+        /**
+         * @brief Local storage for the nodal correction.
+         */
         amrex::FArrayBox E(m_nodal_box,1,amrex::The_Managed_Arena());
+        /**
+         * @brief Local storage for the reconstructed nodal field.
+         */
         amrex::FArrayBox S(m_nodal_box,1,amrex::The_Managed_Arena());
 
         m_mu = min_regularization;
@@ -357,6 +380,11 @@ private:
     mutable amrex::FArrayBox m_nd_scratch;
 
     //! (A S)(i,j) = 1/4 [ S(i,j) + S(i+1,j) + S(i,j+1) + S(i+1,j+1) ]
+    /**
+     * @brief Apply the four-node averaging operator A.
+     * @param[in] S Nodal field to be averaged.
+     * @param[out] T Resulting cell-centered field.
+     */
     void applyA (amrex::FArrayBox const& S,
                  amrex::FArrayBox& T) const
     {
@@ -371,6 +399,11 @@ private:
     }
 
     //! Adjoint of applyA: scatter each cell value to its four nodes.
+    /**
+     * @brief Apply the adjoint of the averaging operator A.
+     * @param[in] T Cell-centered field to be scattered.
+     * @param[out] R Resulting nodal field.
+     */
     void applyAT (amrex::FArrayBox const& T,
                   amrex::FArrayBox& R) const
     {
@@ -388,6 +421,12 @@ private:
         }
     }
 
+    /**
+     * @brief Compute the first derivatives of the nodal field.
+     * @param[in] S Nodal field.
+     * @param[out] difx Resulting x-derivatives.
+     * @param[out] dify Resulting y-derivatives.
+     */
     void applyD (amrex::FArrayBox const& S,
                  amrex::FArrayBox& difx,
                  amrex::FArrayBox& dify) const
@@ -412,6 +451,12 @@ private:
         }
     }
 
+    /**
+     * @brief Apply the adjoint of the derivative operator.
+     * @param[in] difx X-derivatives.
+     * @param[in] dify Y-derivatives.
+     * @param[out] R Resulting nodal field.
+     */
     void applyDT (amrex::FArrayBox const& difx,
                   amrex::FArrayBox const& dify,
                   amrex::FArrayBox& R) const
@@ -437,6 +482,11 @@ private:
         }
     }
 
+    /**
+     * @brief Apply the product of the derivative operator and its adjoint.
+     * @param[in] S Nodal field.
+     * @param[out] R Resulting nodal field.
+     */
     void applyDTD (amrex::FArrayBox const& S,
                    amrex::FArrayBox& R) const
     {
@@ -450,6 +500,11 @@ private:
         applyDT(difx, dify, R);
     }
 
+    /**
+     * @brief Apply the Laplacian operator to a nodal field.
+     * @param[in] S Nodal field.
+     * @param[out] lap Resulting Laplacian field.
+     */
     void applyL (amrex::FArrayBox const& S,
                  amrex::FArrayBox& lap) const
     {
@@ -470,6 +525,11 @@ private:
         }
     }
 
+    /**
+     * @brief Apply the adjoint of the Laplacian operator.
+     * @param[in] lap Laplacian field.
+     * @param[out] R Resulting nodal field.
+     */
     void applyLT (amrex::FArrayBox const& lap,
                   amrex::FArrayBox& R) const
     {
@@ -490,6 +550,11 @@ private:
         }
     }
 
+    /**
+     * @brief Apply the product of the Laplacian operator and its adjoint.
+     * @param[in] S Nodal field.
+     * @param[out] R Resulting nodal field.
+     */
     void applyLTL (amrex::FArrayBox const& S,
                    amrex::FArrayBox& R) const
     {
@@ -507,6 +572,11 @@ private:
         applyLT(lap, R);
     }
 
+    /**
+     * @brief Apply the selected variation operator (first derivative or Laplacian).
+     * @param[in] S Nodal field.
+     * @param[out] R Resulting nodal field.
+     */
     void applyVariationOperator (amrex::FArrayBox const& S,
                                  amrex::FArrayBox& R) const
     {
@@ -525,6 +595,11 @@ private:
     }
 
     //! R = ( A^T A + lambda V^T V + mu I ) S
+    /**
+     * @brief Apply the full system operator M = A^T A + lambda V^T V + mu I.
+     * @param[in] S Nodal field.
+     * @param[out] R Resulting nodal field.
+     */
     void applyM (amrex::FArrayBox const& S,
                  amrex::FArrayBox& R) const
     {
@@ -594,6 +669,12 @@ private:
         }
     }
 
+    /**
+     * @brief Compute diagnostic metrics for the reconstructed nodal field.
+     * @param[in] T Cell-centered data.
+     * @param[in] S Reconstructed nodal field.
+     * @param[in,out] info Structure to store diagnostics.
+     */
     void computeDiagnostics (amrex::FArrayBox const& T,
                              amrex::FArrayBox const& S,
                              SolveInfo& info) const
@@ -632,12 +713,27 @@ private:
                                                Real relative_tolerance,
                                                int max_iterations) const
     {
+        /**
+         * @brief Local storage for the operator diagonal.
+         */
         amrex::FArrayBox diag(m_nodal_box,1,amrex::The_Managed_Arena());
         computeDiagonal(diag);
 
+        /**
+         * @brief Local storage for the residual.
+         */
         amrex::FArrayBox r (m_nodal_box,1,amrex::The_Managed_Arena());
+        /**
+         * @brief Local storage for the preconditioned residual.
+         */
         amrex::FArrayBox z (m_nodal_box,1,amrex::The_Managed_Arena());
+        /**
+         * @brief Local storage for the search direction.
+         */
         amrex::FArrayBox p (m_nodal_box,1,amrex::The_Managed_Arena());
+        /**
+         * @brief Local storage for the product of the operator and the search direction.
+         */
         amrex::FArrayBox Mp(m_nodal_box,1,amrex::The_Managed_Arena());
 
         x.setVal<amrex::RunOn::Host>(zero);
@@ -701,6 +797,12 @@ private:
         return info;
     }
 
+    /**
+     * @brief Apply the Jacobi preconditioner.
+     * @param[in] diag Operator diagonal.
+     * @param[in] r Residual field.
+     * @param[out] z Preconditioned residual field.
+     */
     void applyJacobi (amrex::FArrayBox const& diag,
                       amrex::FArrayBox const& r,
                       amrex::FArrayBox& z) const

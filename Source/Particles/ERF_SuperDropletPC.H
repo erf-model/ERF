@@ -13,6 +13,9 @@
 /*! \brief Ice category for density calculations */
 enum class IceCategory { Ice, Snow, Graupel, Total };
 
+/**
+ * Particle container for the super-droplet method.
+ */
 class SuperDropletPC : public ERFPC
 {
     using MFPtr = std::unique_ptr<amrex::MultiFab>;

@@ -54,6 +54,9 @@ namespace saturation_funcs
                                            const amrex::MultiFab& );
 }
 
+/**
+ * @brief Base structure containing material property constants and methods for GPU usage.
+ */
 struct MaterialPropertiesCore { // For GPU
 
     static constexpr amrex::Real s_N_av = amrex::Real(6.02214076e23); /*!< Avogadro's number */

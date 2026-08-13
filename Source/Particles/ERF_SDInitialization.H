@@ -16,6 +16,9 @@
 #include "ERF_Constants.H"
 #include "ERF_MaterialProperties.H"
 
+/**
+ * @brief Initial distribution shape for super-droplets.
+ */
 AMREX_ENUM(SDInitShape,
     uniform,
     bubble,
@@ -40,6 +43,9 @@ namespace SupDropInit
     const int num_aerosols_max = 8;
 }
 
+/**
+ * @brief Multiplicity type for super-droplet initialization.
+ */
 AMREX_ENUM(SDMultiplicityType,
     constant, sampled
 );
