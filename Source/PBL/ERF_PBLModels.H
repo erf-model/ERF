@@ -527,10 +527,10 @@ ApplyPBLHSmoothing (amrex::FArrayBox& pblh_fab,
 
         // Swap arrays for next iteration (or final result)
         if (pass < passes - 1) {
-            pblh_fab.copy(pblh_temp, 0, 0, 1);
+            pblh_fab.copy<RunOn::Device>(pblh_temp, 0, 0, 1);
         } else {
             // Copy final result back
-            pblh_fab.copy(pblh_temp, 0, 0, 1);
+            pblh_fab.copy<RunOn::Device>(pblh_temp, 0, 0, 1);
         }
     }
 }
