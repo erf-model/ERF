@@ -51,7 +51,7 @@ ForestDrag::define_drag_field (const BoxArray& ba,
 
     bool all_boxes_touch_bottom = true;
     for (int i = 0; i < ba.size(); i++) {
-        if (ba[i].smallEnd(2) != geom.ProbLo(2)) {
+        if (ba[i].smallEnd(2) != geom.Domain().smallEnd(2)) {
             all_boxes_touch_bottom = false;
         }
     }
