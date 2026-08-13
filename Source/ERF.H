@@ -163,6 +163,15 @@ public:
     // Sets lmask to nullptr if unavailable.
     void GetLandMask (const amrex::iMultiFab*& lmask) const;
 
+    // True when a radiation model is active and producing fluxes at level 0. A
+    // coupling driver needs this to know whether the SWrad/LWrad lanes it would
+    // hand an ocean model carry real values or just zeros: passing zeros is worse
+    // than passing nothing, because the ocean model then suppresses its own
+    // radiative forcing in favour of them.
+    [[nodiscard]] bool HasRadiation () const {
+        return (!rad_fluxes.empty() && rad_fluxes[0] != nullptr);
+    }
+
     // weight_mf/index_mf are keyed by WeightFamily slot order
     // {SCALAR_CENTERED, TAUX_FACE, TAUY_FACE, WIND_FACE_TO_CENTER} as built by
     // the driver's ERFRemoraMultiBlockContainer::BuildRemapWeights(); each
