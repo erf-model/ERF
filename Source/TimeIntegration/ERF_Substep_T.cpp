@@ -105,13 +105,28 @@ void erf_substep_T (int step, int /*nrk*/,
     const auto& ba = S_stage_data[IntVars::cons].boxArray();
     const auto& dm = S_stage_data[IntVars::cons].DistributionMap();
 
+    /**
+     * @brief Change in x-momentum.
+     */
     MultiFab Delta_rho_u(    convert(ba,IntVect(1,0,0)), dm, 1, 1);
+    /**
+     * @brief Change in y-momentum.
+     */
     MultiFab Delta_rho_v(    convert(ba,IntVect(0,1,0)), dm, 1, 1);
+    /**
+     * @brief Change in z-momentum.
+     */
     MultiFab Delta_rho_w(    convert(ba,IntVect(0,0,1)), dm, 1, IntVect(1,1,0));
     MultiFab Delta_rho  (            ba                , dm, 1, 1);
     MultiFab Delta_rho_theta(        ba                , dm, 1, 1);
 
+    /**
+     * @brief Updated change in x-momentum.
+     */
     MultiFab New_rho_u(convert(ba,IntVect(1,0,0)), dm, 1, 1);
+    /**
+     * @brief Updated change in y-momentum.
+     */
     MultiFab New_rho_v(convert(ba,IntVect(0,1,0)), dm, 1, 1);
 
     MultiFab     coeff_A_mf(fast_coeffs, make_alias, 0, 1);
