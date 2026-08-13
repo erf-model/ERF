@@ -40,12 +40,15 @@ ChopGrids2D (BoxArray& ba, const Box& domain, int target_size)
     {
         IntVect chunk_prev = chunk;
 
-        std::array<std::pair<int,int>,AMREX_SPACEDIM>
+        // We only decompose in x and y, so this array holds only those two directions;
+        //     sizing it with AMREX_SPACEDIM would leave a default {0,0} entry that sorts
+        //     to the front and pushes the largest direction out of the loop below
+        std::array<std::pair<int,int>,2>
             chunk_dir{std::make_pair(chunk[0],int(0)),
                       std::make_pair(chunk[1],int(1))};
         std::sort(chunk_dir.begin(), chunk_dir.end());
 
-        // We only decompose in and y
+        // Try the largest direction first, then the smaller one
         for (int idx = 1; idx >= 0; idx--) {
             int idim = chunk_dir[idx].second;
             int new_chunk_size = chunk[idim] / 2;

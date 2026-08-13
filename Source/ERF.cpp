@@ -31,6 +31,7 @@ double ERF::startCPUTime        = 0.0;
 double ERF::previousCPUTimeUsed = 0.0;
 
 Vector<AMRErrorTag> ERF::ref_tags;
+Vector<std::string> ERF::ref_tag_indicator_names;
 
 SolverChoice ERF::solverChoice;
 
@@ -426,11 +427,20 @@ ERF::post_timestep (int nstep, double time, double dt_lev0)
          int lev_column = 0;
          for (int lev = finest_level; lev >= 0; lev--)
          {
+            const Box& domain_lev = geom[lev].Domain();
             Real dx_lev = geom[lev].CellSize(0);
             Real dy_lev = geom[lev].CellSize(1);
-            int i_lev = static_cast<int>(std::floor(column_loc_x / dx_lev));
-            int j_lev = static_cast<int>(std::floor(column_loc_y / dy_lev));
-            if (grids[lev].contains(IntVect(i_lev,j_lev,0))) lev_column = lev;
+            // Cell containing (column_loc_x,column_loc_y) -- note that these locations are
+            //     measured from ProbLo, which need not be at the origin
+            int i_lev = domain_lev.smallEnd(0) +
+                static_cast<int>(std::floor((column_loc_x - geom[lev].ProbLo(0)) / dx_lev));
+            int j_lev = domain_lev.smallEnd(1) +
+                static_cast<int>(std::floor((column_loc_y - geom[lev].ProbLo(1)) / dy_lev));
+            // Loop runs from finest to coarsest, so stop at the first (finest) level
+            //     that contains the column
+            if (grids[lev].contains(IntVect(i_lev,j_lev,domain_lev.smallEnd(2)))) {
+                lev_column = lev; break;
+            }
          }
          writeToNCColumnFile(lev_column, column_file_name, column_loc_x, column_loc_y, time);
       }
