@@ -26,12 +26,18 @@ namespace erf_cloud_chamber {
  */
 enum class WallFace : unsigned char { XLo, XHi, YLo, YHi, ZLo, ZHi };
 
+/**
+ * @brief Metadata describing a chamber wall.
+ */
 struct WallSpec {
     WallFace face = WallFace::XLo;
     erf_wall_thermodynamics::Face thermodynamics;
     amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> velocity = {};
 };
 
+/**
+ * @brief Configuration parameters for cloud chamber initialization.
+ */
 struct Config {
     bool active = false;
     bool cloudy = false;
@@ -49,6 +55,10 @@ struct Config {
     amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> prob_hi = {};
     amrex::GpuArray<WallSpec, 2 * AMREX_SPACEDIM> walls = {};
 
+    /**
+     * @brief Collect thermodynamic boundary conditions for all chamber walls.
+     * @return Boundary array containing thermodynamics for each face.
+     */
     erf_wall_thermodynamics::Boundary wall_boundary () const noexcept
     {
         erf_wall_thermodynamics::Boundary boundary{};
@@ -64,6 +74,9 @@ enum class InitializationMode : unsigned char {
     LegacyThetaQv
 };
 
+/**
+ * @brief Contract used to validate initialization parameter consistency.
+ */
 struct InitializationContract {
     InitializationMode mode = InitializationMode::PhysicalTemperatureRH;
     bool cloudy = false;
@@ -72,6 +85,11 @@ struct InitializationContract {
     bool has_physical_profile_keys = false;
 };
 
+/**
+ * @brief Validate the initialization contract and return an error message if violated.
+ * @param[in] contract The contract to validate.
+ * @return Error message string, empty if valid.
+ */
 inline std::string
 initialization_contract_error (const InitializationContract& contract)
 {
@@ -98,6 +116,15 @@ initialization_contract_error (const InitializationContract& contract)
     return {};
 }
 
+/**
+ * @brief Compute a linear profile between two values.
+ * @param[in] bottom Value at the lower boundary.
+ * @param[in] top Value at the upper boundary.
+ * @param[in] coordinate Current coordinate.
+ * @param[in] lower Lower boundary coordinate.
+ * @param[in] length Length of the domain.
+ * @return Interpolated value.
+ */
 AMREX_FORCE_INLINE
 AMREX_GPU_HOST_DEVICE
 amrex::Real
@@ -108,6 +135,16 @@ linear_profile (amrex::Real bottom, amrex::Real top,
     return bottom + (top - bottom) * (coordinate - lower) / length;
 }
 
+/**
+ * @brief Compute a deterministic 3D sine perturbation.
+ * @param[in] x x-coordinate.
+ * @param[in] y y-coordinate.
+ * @param[in] z z-coordinate.
+ * @param[in] lo Lower boundary coordinates.
+ * @param[in] length Domain lengths.
+ * @param[in] amplitude Perturbation amplitude.
+ * @return Perturbation value at the given coordinates.
+ */
 AMREX_FORCE_INLINE
 AMREX_GPU_HOST_DEVICE
 amrex::Real
@@ -123,6 +160,14 @@ deterministic_perturbation (amrex::Real x, amrex::Real y, amrex::Real z,
     return amplitude * sx * sy * sz;
 }
 
+/**
+ * @brief Compute the potential temperature at a given location.
+ * @param[in] config Configuration parameters.
+ * @param[in] x x-coordinate.
+ * @param[in] y y-coordinate.
+ * @param[in] z z-coordinate.
+ * @return Potential temperature at the specified location.
+ */
 AMREX_FORCE_INLINE
 AMREX_GPU_HOST_DEVICE
 amrex::Real
@@ -145,6 +190,12 @@ theta_at (const Config& config, amrex::Real x, amrex::Real y,
                                       amplitude);
 }
 
+/**
+ * @brief Compute the water vapor mixing ratio at a given height.
+ * @param[in] config Configuration parameters.
+ * @param[in] z Vertical coordinate.
+ * @return Vapor mixing ratio at the specified height.
+ */
 AMREX_FORCE_INLINE
 AMREX_GPU_HOST_DEVICE
 amrex::Real
@@ -155,6 +206,13 @@ qv_at (const Config& config, amrex::Real z) noexcept
                           config.prob_hi[2] - config.prob_lo[2]);
 }
 
+/**
+ * @brief Convert relative humidity to water vapor mixing ratio.
+ * @param[in] temperature_K Temperature in Kelvin.
+ * @param[in] pressure_Pa Pressure in Pascals.
+ * @param[in] relative_humidity Relative humidity [0,1].
+ * @return Water vapor mixing ratio.
+ */
 AMREX_FORCE_INLINE
 AMREX_GPU_HOST_DEVICE
 amrex::Real

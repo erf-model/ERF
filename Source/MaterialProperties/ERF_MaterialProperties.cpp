@@ -8,6 +8,12 @@ namespace saturation_funcs
     AMREX_GPU_HOST
     void compute_saturation_pressure_null ( MultiFab&, const MultiFab&) { }
 
+    /**
+     * Compute saturation pressure for H2O.
+     *
+     * @param[out] a_mf_sat_pressure MultiFab to store saturation pressure.
+     * @param[in] a_mf_temperature MultiFab containing temperature.
+     */
     AMREX_GPU_HOST
     void compute_saturation_pressure_H2O  ( MultiFab&       a_mf_sat_pressure,
                                             const MultiFab& a_mf_temperature)
@@ -28,6 +34,13 @@ namespace saturation_funcs
     AMREX_GPU_HOST
     void compute_saturation_vapfrac_null ( MultiFab&, const MultiFab&, const MultiFab&) { }
 
+    /**
+     * Compute saturation vapor fraction for H2O.
+     *
+     * @param[out] a_mf_sat_vapfrac MultiFab to store saturation vapor fraction.
+     * @param[in] a_mf_temperature MultiFab containing temperature.
+     * @param[in] a_mf_pressure MultiFab containing pressure.
+     */
     AMREX_GPU_HOST
     void compute_saturation_vapfrac_H2O ( MultiFab&          a_mf_sat_vapfrac,
                                           const MultiFab&    a_mf_temperature,
@@ -52,6 +65,11 @@ namespace saturation_funcs
     }
 }
 
+/**
+ * Initialize material properties based on species name.
+ *
+ * @param[in] a_name Name of the species.
+ */
 AMREX_GPU_HOST_DEVICE
 MaterialProperties::MaterialProperties ( const Species::Name& a_name )
 {
@@ -77,6 +95,11 @@ MaterialProperties::MaterialProperties ( const Species::Name& a_name )
     m_is_soluble = (m_ionization > 0);
 }
 
+/**
+ * Copy constructor for material properties.
+ *
+ * @param[in] a_matprop Source material properties.
+ */
 AMREX_GPU_HOST_DEVICE
 MaterialProperties::MaterialProperties ( const MaterialProperties& a_matprop )
 {

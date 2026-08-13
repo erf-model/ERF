@@ -10,6 +10,24 @@
 
 using namespace amrex;
 
+/**
+ * Compute vertical diffusivity using the Medium-Range Forecast (MRF) boundary layer scheme.
+ *
+ * @param[in] xvel x-velocity field.
+ * @param[in] yvel y-velocity field.
+ * @param[in] cons_in Input conserved variables.
+ * @param[out] eddyViscosity Eddy viscosity and diffusivity coefficients.
+ * @param[in] geom Grid geometry.
+ * @param[in] turbChoice Turbulence model options.
+ * @param[in] SurfLayer Surface layer data.
+ * @param[in] use_terrain_fitted_coords Use terrain-fitted coordinates.
+ * @param[in] use_moisture Enable moisture components.
+ * @param[in] level Current AMR level.
+ * @param[in] bc_ptr Boundary condition records.
+ * @param[in] z_phys_nd Nodal physical heights.
+ * @param[in] z_phys_cc Cell-centered physical heights.
+ * @param[in] moisture_indices Indices for moisture variables.
+ */
 void
 ComputeDiffusivityMRF (const MultiFab& xvel,
                        const MultiFab& yvel,
