@@ -215,9 +215,14 @@ group ids:
 Retreat order is the canonical file order in `group_map.md`.
 
 Sites **outside** every group tag, and therefore invisible to the frontier —
-check these before group retreat:
-- pre-kernel pack / post-kernel unpack in `mp_wdm6_run_c`
-- the T -> theta conversion after the bridge call
-  (`ERF_AdvanceWDM6.cpp` Fortran branch only)
-- `Copy_Micro_to_State` / `Copy_State_to_Micro`
-- the retained disabled legacy Step 9 heuristic region in the native path
+check these before group retreat. They now have a declared namespace and tag
+surface; see "Bridge-wrapper sites" in `group_map.md`:
+- `W1_THETAWB` — the T -> theta conversion after the bridge call
+  (`ERF_AdvanceWDM6.cpp` Fortran branch only). Instrumented.
+- `W2_PACKUNPACK` — pre-kernel pack / post-kernel unpack in `mp_wdm6_run_c`
+- `W3_STATECOPY` — `Copy_Micro_to_State` / `Copy_State_to_Micro`
+- `W4_LEGACY` — the retained `#if 0` pre-group regions in the native path
+  (Steps 4-8, 9, and now 10 and 11). Compiled out, so eliminated by inspection.
+
+These are not `G*` groups and must not be added to the `P0..G17` file-order
+sequence: they have no Fortran counterpart at all.

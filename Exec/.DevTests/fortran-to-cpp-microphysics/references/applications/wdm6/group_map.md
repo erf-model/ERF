@@ -53,6 +53,43 @@ for naming and block intent only.
 | `G16b` | 1969-2040 | `PCOND` + activation | `ncact`, `pcact`, final `pcond`, cloud evaporation returning `nc -> nn` | Not yet ported faithfully |
 | `G17` | 2045-2072 | Padding/bounds | Zero tiny condensate; enforce rain/cloud slope bounds by adjusting `ncr` | Not yet ported faithfully |
 
+## Bridge-wrapper sites (outside the Fortran kernel span)
+
+These are **not** file-order groups and must never be added to the `P0..G17`
+sequence: they have no counterpart in `ERF_module_mp_wdm6.F90`, so the
+`Fortran lines` column is `NA` by definition. They live in the ERF bridge
+caller, outside the `wdm6` driver wrapper and outside the 560-2075 kernel span,
+which is exactly why no `PRE_G*`/`POST_G*` pair can observe them. They are the
+sites `bubble_campaign.md` directs you to check **before** group retreat.
+
+Numbering is declaration order, not call order.
+
+| Site | Fortran lines | Location | Purpose | Instrumented |
+| --- | --- | --- | --- | --- |
+| `W1_THETAWB` | NA | `ERF_AdvanceWDM6.cpp`, after `mp_wdm6_run_c` | T -> theta writeback (`theta = t / exner`). Fortran branch only; the native branch never writes `mic_fab_vars[theta]` | yes |
+| `W2_PACKUNPACK` | NA | `ERF_module_mp_wdm6_isohelper.F90`, `mp_wdm6_run_c` | Pre-kernel pack / post-kernel unpack across the storage/active bounds split | no |
+| `W3_STATECOPY` | NA | `ERF_UpdateWDM6.cpp` | `Copy_Micro_to_State` / `Copy_State_to_Micro` | no |
+| `W4_LEGACY` | NA | `ERF_AdvanceWDM6.cpp`, native branch | Retained `#if 0` pre-group regions: Steps 4-8, 9, 10, 11 | n/a, compiled out |
+
+Tag surface, same shape and tier as a canonical group tag but in its own
+namespace so it cannot collide with `P0..G17` or be mis-ingested by
+`tools/build_ci` as a group closure:
+
+```
+WDM6-<FORT|CPP>_<PRE|POST>_<Wn>_<NAME> k <field...>
+```
+
+Emit the full column `kts..kte` at `erf.micro_diag_target_column`, per the WSM6
+all-k print contract. Gate at `erf.microphysics_debug >= 1`, the Tier 1 gate:
+these are forward-validation surfaces, not line-level forensics. Escalate to
+Tier 2 only to narrow *within* a site once its pair shows a divergence, and note
+that WDM6 has no `micro_diag_mode` plumbing today, so the `WSM6-DIAG-T2`
+forensic gate does not yet exist here.
+
+`W1_THETAWB` field order is contractual: `k theta t p exner t_over_exner`.
+`t_over_exner` is the decisive column — it is what `theta` should equal if the
+writeback ran.
+
 ## Port Order
 
 Use these groups in strict file order for bounded native slices:

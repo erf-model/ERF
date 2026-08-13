@@ -539,6 +539,17 @@ void WDM6::Advance(const Real& dt_advance,
     const bool run_wdm6_fort = !use_wdm6_cpp_answer;
 #endif
 
+    // Leg label for bridge-wrapper site tags. These sites live in the bridge
+    // caller and have no Fortran counterpart, so both legs are emitted from C++;
+    // the label follows erf.use_wdm6_cpp_answer, i.e. which answer path ran, not
+    // which file did the printing. A single emission path serves both legs so the
+    // two records cannot drift in format.
+#ifdef ERF_USE_WDM6_FORT
+    const char* const w1_leg = run_wdm6_fort ? "FORT" : "CPP";
+#else
+    const char* const w1_leg = "CPP";
+#endif
+
     // Physical constants
     constexpr double g = static_cast<double>(CONST_GRAV);
     constexpr double cpd = static_cast<double>(Cp_d);
@@ -597,6 +608,41 @@ void WDM6::Advance(const Real& dt_advance,
         const bool has_target_override = (micro_diag_target_column.size() == 2);
         const int diag_i = has_target_override ? micro_diag_target_column[0] : ilo;
         const int diag_j = has_target_override ? micro_diag_target_column[1] : jlo;
+
+        // ------------------------------------------------------------------
+        // Bridge-wrapper site W1_THETAWB (see group_map.md, "Bridge-wrapper
+        // sites"). NOT a file-order group: no counterpart exists in
+        // ERF_module_mp_wdm6.F90, so it can never join the P0..G17 sequence.
+        // Contractual schema, one emitter for both legs:
+        //     WDM6-<FORT|CPP>_<PRE|POST>_W1_THETAWB k theta t p exner t_over_exner
+        // Full column kts..kte per the WSM6 all-k print contract; the failing
+        // Milestone A zone is k=90, which a kts-only tag cannot observe.
+        // ------------------------------------------------------------------
+        auto const& w1_theta = mic_fab_vars[MicVar_WDM6::theta]->array(mfi);
+        const bool w1_diag = (microphysics_debug > 0 &&
+                              diag_i >= ilo && diag_i <= ihi &&
+                              diag_j >= jlo && diag_j <= jhi);
+        auto emit_w1 = [&] (const char* stage)
+        {
+#if !defined(AMREX_USE_GPU)
+            if (!w1_diag) return;
+            constexpr Real p0_w1 = 1.e5;
+            constexpr Real rdOcp_w1 = R_d / Cp_d;
+            for (int k = klo; k <= khi; ++k) {
+                const Real ex = std::pow(p_arr(diag_i,diag_j,k) / p0_w1, rdOcp_w1);
+                std::printf("WDM6-%s_%s_W1_THETAWB %3d %24.16E %24.16E %24.16E %24.16E %24.16E\n",
+                            w1_leg, stage, k + 1,
+                            static_cast<double>(w1_theta(diag_i,diag_j,k)),
+                            static_cast<double>(t_arr(diag_i,diag_j,k)),
+                            static_cast<double>(p_arr(diag_i,diag_j,k)),
+                            static_cast<double>(ex),
+                            static_cast<double>(t_arr(diag_i,diag_j,k) / ex));
+            }
+            std::fflush(stdout);
+#else
+            amrex::ignore_unused(stage);
+#endif
+        };
 
 #if defined(ERF_USE_WDM6_FORT) && defined(AMREX_USE_GPU)
         Arena* Arena_Used = run_wdm6_fort ? The_Pinned_Arena() : The_Async_Arena();
@@ -688,6 +734,10 @@ void WDM6::Advance(const Real& dt_advance,
         auto const& theta_arr = mic_fab_vars[MicVar_WDM6::theta]->array(mfi);
         constexpr Real p0 = 1.e5;       // Reference pressure (Pa)
         constexpr Real rdOcp = R_d / Cp_d;  // R/cp = 0.286
+
+        // Bridge-wrapper site W1_THETAWB brackets the writeback below.
+        emit_w1("PRE");
+
         ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
             // Recompute theta from updated temperature
             // exner = (p/p0)^(R/cp)
@@ -695,6 +745,8 @@ void WDM6::Advance(const Real& dt_advance,
             Real exner = std::pow(p_arr(i,j,k) / p0, rdOcp);
             theta_arr(i,j,k) = t_arr(i,j,k) / exner;
         });
+
+        emit_w1("POST");
 
         // (Tile-based precipitation diagnostics removed - using global diagnostics instead)
 
@@ -4486,6 +4538,15 @@ void WDM6::Advance(const Real& dt_advance,
             graup_arr(i,j,klo) += precip_graup;
         });
 #endif
+
+        // Bridge-wrapper site W1_THETAWB, native leg. Same emitter, same schema,
+        // same kts..kte column, at the equivalent point: end of the kernel,
+        // immediately before Copy_Micro_to_State forms RhoTheta = rho * theta
+        // from mic_fab_vars[theta]. The native path performs no T -> theta
+        // writeback, so PRE and POST are expected to be identical here. That
+        // identity is the evidence the retreat needs, not a gap in the trace.
+        emit_w1("PRE");
+        emit_w1("POST");
 
 #ifdef ERF_USE_WDM6_FORT
         }
