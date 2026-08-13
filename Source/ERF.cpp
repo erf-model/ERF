@@ -874,7 +874,7 @@ ERF::InitData_post ()
     {
         lsf.read_forcing_file();
         lsf.interp_forcing(geom[0].data(), zlevels_stag[0], input_sounding_data);
-        //lsf.start_time = start_time;
+        lsf.start_time = start_time;
     }
 
     if (solverChoice.dampingChoice.rayleigh_damp_U ||solverChoice.dampingChoice.rayleigh_damp_V ||

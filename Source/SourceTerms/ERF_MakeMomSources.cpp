@@ -647,11 +647,11 @@ void make_mom_sources (double time_d,
             auto lsf_arr = lsf_tendencies->const_array(mfi);
 
             const int kmin = domain.smallEnd(2) + 1; // minimum k for vertical subsidence
-            const int kmax = domain.bigEnd(2) - 2;   // maximum k for vertical subsidence
+            const int kmax = domain.bigEnd(2) - 1;   // maximum k for vertical subsidence
 
             ParallelFor(tbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
-                if (k > kmin && k < kmax) {
+                if (k >= kmin && k <= kmax) {
                     int k1, k2;
                     if (lsf_arr(i, j, k, 2) >= 0.0)
                     {
@@ -662,13 +662,14 @@ void make_mom_sources (double time_d,
                         k2 = k;
                     }
 
-                    Real dzInv = myhalf*dxInv[2];
+                    // one-sided difference over the single cell k1->k2
+                    Real dzInv = dxInv[2];
                     if (z_nd_arr) {
-                        Real z_xf_lo = fourth * ( z_nd_arr(i,j,k  ) + z_nd_arr(i,j+1,k  )
-                                                + z_nd_arr(i,j,k-1) + z_nd_arr(i,j+1,k-1) );
-                        Real z_xf_hi = fourth * ( z_nd_arr(i,j,k+1) + z_nd_arr(i,j+1,k+1)
-                                                + z_nd_arr(i,j,k+2) + z_nd_arr(i,j+1,k+2) );
-                        dzInv = one / (z_xf_hi - z_xf_lo);
+                        Real z_uf_1 = fourth * ( z_nd_arr(i,j,k1  ) + z_nd_arr(i,j+1,k1  )
+                                               + z_nd_arr(i,j,k1+1) + z_nd_arr(i,j+1,k1+1) );
+                        Real z_uf_2 = fourth * ( z_nd_arr(i,j,k2  ) + z_nd_arr(i,j+1,k2  )
+                                               + z_nd_arr(i,j,k2+1) + z_nd_arr(i,j+1,k2+1) );
+                        dzInv = one / (z_uf_1 - z_uf_2);
                     }
                     Real rho_on_u_face = myhalf * ( cell_data(i,j,k,Rho_comp) + cell_data(i-1,j,k,Rho_comp) );
                     amrex::Real utend = -(dzInv * lsf_arr(i, j, k, 2)) * ( u(i, j, k1) - u(i, j, k2) );
@@ -678,7 +679,7 @@ void make_mom_sources (double time_d,
 
             ParallelFor(tby, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
-                if (k > kmin && k < kmax) {
+                if (k >= kmin && k <= kmax) {
                     int k1, k2;
                     if (lsf_arr(i, j, k, 2) >= 0.0)
                     {
@@ -689,13 +690,14 @@ void make_mom_sources (double time_d,
                         k2 = k;
                     }
 
-                    Real dzInv = 0.5*dxInv[2];
+                    // one-sided difference over the single cell k1->k2
+                    Real dzInv = dxInv[2];
                     if (z_nd_arr) {
-                        Real z_yf_lo = 0.25 * ( z_nd_arr(i,j,k  ) + z_nd_arr(i+1,j,k  )
-                                                + z_nd_arr(i,j,k-1) + z_nd_arr(i+1,j,k-1) );
-                        Real z_yf_hi = 0.25 * ( z_nd_arr(i,j,k+1) + z_nd_arr(i+1,j,k+1)
-                                                + z_nd_arr(i,j,k+2) + z_nd_arr(i+1,j,k+2) );
-                        dzInv = 1.0 / (z_yf_hi - z_yf_lo);
+                        Real z_vf_1 = fourth * ( z_nd_arr(i,j,k1  ) + z_nd_arr(i+1,j,k1  )
+                                               + z_nd_arr(i,j,k1+1) + z_nd_arr(i+1,j,k1+1) );
+                        Real z_vf_2 = fourth * ( z_nd_arr(i,j,k2  ) + z_nd_arr(i+1,j,k2  )
+                                               + z_nd_arr(i,j,k2+1) + z_nd_arr(i+1,j,k2+1) );
+                        dzInv = one / (z_vf_1 - z_vf_2);
                     }
                     Real rho_on_v_face = 0.5 * ( cell_data(i,j,k,Rho_comp) + cell_data(i,j-1,k,Rho_comp) );
                     amrex::Real vtend = -(dzInv * lsf_arr(i, j, k, 2)) * ( v(i, j, k1) - v(i, j, k2) );

@@ -279,7 +279,7 @@ void ERF::advance_dycore (int level,
                 lsf_arr(i, j, k, 3) = ttend;
                 lsf_arr(i, j, k, 4) = qtend;
 
-                if (k > kmin && k < kmax) {
+                if (k >= kmin && k <= kmax) {
                     int k1, k2;
                     amrex::Real rdz;
                     if (wsub >= 0.0)
