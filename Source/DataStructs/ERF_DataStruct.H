@@ -115,6 +115,11 @@ struct MoistureComponentIndices {
     int nr = -1;  // number concentration for rain
     int ns = -1;  // number concentration for snow
     int ng = -1;  // number concentration for graupel
+    // CCN / total aerosol number. Unlike every other number concentration above,
+    // this has no companion mass species: it is an aerosol reservoir that
+    // exchanges number with nc and nr through activation and evaporation rather
+    // than a hydrometeor count. Kept distinct from ni, which is cloud ice number.
+    int nn = -1;  // number concentration for CCN / total aerosol
 
     // Constructor for easy initialization
     MoistureComponentIndices (int qv_comp, int qc_comp,
@@ -126,9 +131,11 @@ struct MoistureComponentIndices {
                               int ni_comp=-1,
                               int nr_comp=-1,
                               int ns_comp=-1,
-                              int ng_comp=-1)
+                              int ng_comp=-1,
+                              int nn_comp=-1)
         : qv(qv_comp), qc(qc_comp), qi(qi_comp), qr(qr_comp), qs(qs_comp), qg(qg_comp),
-                       nc(nc_comp), ni(ni_comp), nr(nr_comp), ns(ns_comp), ng(ng_comp) {}
+                       nc(nc_comp), ni(ni_comp), nr(nr_comp), ns(ns_comp), ng(ng_comp),
+                       nn(nn_comp) {}
 
     // Default constructor
     MoistureComponentIndices() = default;
@@ -207,7 +214,10 @@ struct SolverChoice {
                 RhoQ6_comp,  // graupel (qg)
                 RhoQ7_comp,  // cloud droplet number concentration (nc)
                 -1,          // ice number (ni) not used - WDM6 uses nn for total aerosol
-                RhoQ9_comp   // rain number concentration (nr)
+                RhoQ9_comp,  // rain number concentration (nr)
+                -1,          // snow number (ns) not used
+                -1,          // graupel number (ng) not used
+                RhoQ8_comp   // CCN / total aerosol number (nn)
             );
         } else if ( (moisture_type == MoistureType::Morrison_NoIce) ||
                     (moisture_type == MoistureType::SAM_NoIce) ) {

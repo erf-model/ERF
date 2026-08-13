@@ -1389,6 +1389,18 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
                 mf_comp += 1;
             }
 
+            // CCN / total aerosol number. The slot is taken from the per-scheme
+            // registry rather than hardcoded, because it overlaps the slot that
+            // Morrison uses for cloud ice number; the two are mutually exclusive.
+            if(containerHasElement(plot_var_names, "nn") &&
+               (solverChoice.moisture_indices.nn >= 0))
+            {
+                MultiFab::Copy(  mf[lev], vars_new[lev][Vars::cons],
+                                 solverChoice.moisture_indices.nn, mf_comp, 1, 0);
+                MultiFab::Divide(mf[lev], vars_new[lev][Vars::cons], Rho_comp, mf_comp, 1, 0);
+                mf_comp += 1;
+            }
+
             if (solverChoice.moisture_type == MoistureType::SatAdj &&
                 containerHasElement(plot_var_names, "rel_humidity"))
             {

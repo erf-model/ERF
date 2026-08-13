@@ -25,6 +25,9 @@ struct Plot3DMoistureCapabilities
     bool rain_number = false;
     bool snow_number = false;
     bool graupel_number = false;
+    // CCN / total aerosol number, distinct from ice_number: it is an aerosol
+    // reservoir with no companion mass species, not a hydrometeor count.
+    bool ccn_number = false;
 
     bool rain_accumulation = false;
     bool snow_accumulation = false;
@@ -155,6 +158,7 @@ plot3d_moisture_capabilities (const MoistureType moisture_type)
         caps.graupel = true;
         caps.cloud_number = true;
         caps.rain_number = true;
+        caps.ccn_number = true;
         caps.rain_accumulation = true;
         caps.snow_accumulation = true;
         caps.graupel_accumulation = true;
@@ -333,6 +337,9 @@ plot3d_fixed_variable_available (const std::string& name,
     if (name == "nr") return moisture.rain_number && plot3d_moist_q_component_available(caps, 9);
     if (name == "ns") return moisture.snow_number && plot3d_moist_q_component_available(caps, 10);
     if (name == "ng") return moisture.graupel_number && plot3d_moist_q_component_available(caps, 11);
+    // nn shares slot 8 with ni, but the two are mutually exclusive by scheme:
+    // WDM6 declares ccn_number and leaves ice_number false, Morrison the reverse.
+    if (name == "nn") return moisture.ccn_number && plot3d_moist_q_component_available(caps, 8);
     if (name == "qt") {
         return moisture.vapor &&
             plot3d_q_range_available(
