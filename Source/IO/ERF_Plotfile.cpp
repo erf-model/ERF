@@ -1452,11 +1452,19 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
             else if(solverChoice.moisture_type == MoistureType::SuperDroplets)
             {
                 if (containerHasElement(plot_var_names, "rain_accum")) {
-                    MultiFab::Copy(mf[lev],*(qmoist[lev][6]),0,mf_comp,1,0);
+                    MultiFab::Copy(mf[lev],*(qmoist[lev][8]),0,mf_comp,1,0);
+                    mf_comp += 1;
+                }
+                if (containerHasElement(plot_var_names, "snow_accum")) {
+                    MultiFab::Copy(mf[lev],*(qmoist[lev][10]),0,mf_comp,1,0);
+                    mf_comp += 1;
+                }
+                if (containerHasElement(plot_var_names, "graup_accum")) {
+                    MultiFab::Copy(mf[lev],*(qmoist[lev][9]),0,mf_comp,1,0);
                     mf_comp += 1;
                 }
                 if (containerHasElement(plot_var_names, "rel_humidity")) {
-                    MultiFab::Copy(mf[lev],*(qmoist[lev][5]),0,mf_comp,1,0);
+                    MultiFab::Copy(mf[lev],*(qmoist[lev][7]),0,mf_comp,1,0);
                     mf_comp += 1;
                 }
                 if (containerHasElement(plot_var_names, "condensation_rate")) {

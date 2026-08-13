@@ -189,6 +189,8 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
                 input_sounding_data.read_from_file(geom[lev], zlevels_stag[lev], n, is_moist);
             }
 
+            input_sounding_data.set_start_time(start_time);
+
             // this will calculate the hydrostatically balanced density and pressure
             // profiles following WRF ideal.exe
             if (solverChoice.sounding_type == SoundingType::Ideal) {
