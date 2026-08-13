@@ -721,6 +721,12 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
     // ********************************************************************************************
     update_diffusive_arrays(lev, ba, dm);
 
+    // ********************************************************************************************
+    // Thin immersed body -- thin_[xyz]force and [xyz]flux_imask must be re-defined on the new
+    //                       (ba,dm), otherwise they still live on the pre-regrid grids
+    // ********************************************************************************************
+    init_thin_body(lev, ba, dm);
+
     //********************************************************************************************
     // Microphysics
     // *******************************************************************************************
