@@ -2,6 +2,13 @@
 
 using namespace amrex;
 
+/**
+ * Read the refinement box from the inputs file.
+ *
+ * @param[in] ref_prefix Prefix for parsing input parameters.
+ * @param[out] lev_for_box Level associated with the refinement box.
+ * @param[out] real_box Real-space coordinates of the refinement box.
+ */
 void
 ERF::read_box_for_refinement (std::string& ref_prefix, int& lev_for_box, RealBox& real_box)
 {
@@ -332,6 +339,14 @@ ERF::read_box_for_refinement (std::string& ref_prefix, int& lev_for_box, RealBox
     }
 }
 
+/**
+ * Update the refinement box position for moving grids.
+ *
+ * @param[in] ref_prefix Prefix for parsing input parameters.
+ * @param[out] lev_for_box Level associated with the refinement box.
+ * @param[out] real_box Updated real-space coordinates of the refinement box.
+ * @param[in] time Current simulation time.
+ */
 void
 ERF::update_box_for_refinement (std::string& ref_prefix, int& lev_for_box, RealBox& real_box, const double time)
 {
