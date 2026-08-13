@@ -13,6 +13,21 @@
 using namespace amrex;
 
 // helper function for immersed forcing wall model
+/**
+ * Compute the target velocity using Monin-Obukhov Similarity Theory for immersed forcing.
+ *
+ * @param[in] u1_2r First tangential velocity component.
+ * @param[in] u2_2r Second tangential velocity component.
+ * @param[in] delta Distance from the surface.
+ * @param[in] z0 Roughness length.
+ * @param[in] t_blank Volume fraction.
+ * @param[in] theta_xface Potential temperature at the face.
+ * @param[in] theta_surf Potential temperature at the surface.
+ * @param[in] tflux_in Surface heat flux.
+ * @param[in] Olen_in Obukhov length.
+ * @param[in] stability_correction Whether to apply stability corrections.
+ * @return Target velocity component.
+ */
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 amrex::Real
 compute_if_most_target_vel(
@@ -221,6 +236,9 @@ void make_mom_sources (double time_d,
         MultiFab cons(S_data[IntVars::cons], make_alias, 0, 1);
 
         IntVect ng_c = S_data[IntVars::cons].nGrowVect(); ng_c[2] = offset;
+        /**
+         * @brief Planar average for density.
+         */
         PlaneAverage r_ave(&cons, geom, solverChoice.ave_plane, ng_c);
         r_ave.compute_averages(ZDir(), r_ave.field());
 
@@ -245,9 +263,15 @@ void make_mom_sources (double time_d,
 
         // U and V momentum
         IntVect ng_u = S_data[IntVars::xmom].nGrowVect(); ng_u[2] = u_offset;
+        /**
+         * @brief Planar average for x-momentum.
+         */
         PlaneAverage u_ave(&(S_data[IntVars::xmom]), geom, solverChoice.ave_plane, ng_u);
 
         IntVect ng_v = S_data[IntVars::ymom].nGrowVect(); ng_v[2] = v_offset;
+        /**
+         * @brief Planar average for y-momentum.
+         */
         PlaneAverage v_ave(&(S_data[IntVars::ymom]), geom, solverChoice.ave_plane, ng_v);
 
         u_ave.compute_averages(ZDir(), u_ave.field());
