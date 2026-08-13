@@ -217,15 +217,15 @@ neutral_scalar_rate (amrex::Real coefficient,
     return coefficient * U_t * dx_inv;
 }
 
+
 AMREX_GPU_HOST_DEVICE
 AMREX_FORCE_INLINE
 amrex::Real
-neutral_momentum_rate (amrex::Real C_D,
-                       amrex::Real U_t,
-                       amrex::Real dx_inv) noexcept
+neutral_momentum_infinity_row_sum_factor () noexcept
 {
-    // The velocity-parallel Jacobian eigenvalue of |u_t|u_t is 2 U_t.
-    return amrex::Real(2.0) * C_D * U_t * dx_inv;
+    // The maximum absolute row sum of the two-component tangential
+    // Jacobian of C_D |u_t| u_t is (3 + sqrt(2))/2 * C_D |u_t|.
+    return (amrex::Real(3.0) + std::sqrt(amrex::Real(2.0))) / amrex::Real(2.0);
 }
 
 AMREX_GPU_HOST_DEVICE
@@ -260,7 +260,9 @@ neutral_momentum_rate_for_face (
     const amrex::Real wall_distance = amrex::Real(0.5) / dx_inv;
     const auto neutral = neutral_log_momentum_state(
         U_t, wall_distance, wall.momentum.z0_m);
-    return neutral_momentum_rate(neutral.C_D, U_t, dx_inv);
+    // Replace the legacy velocity-parallel spectral rate (2 C_D U_t) with
+    // the exact induced-infinity-norm row-sum rate for the composed operator.
+    return neutral_momentum_infinity_row_sum_factor() * neutral.C_D * U_t * dx_inv;
 }
 
 AMREX_GPU_HOST_DEVICE
@@ -325,8 +327,8 @@ wall_rate_for_face (
     if (wall.momentum.model == MomentumModel::NeutralRoughnessLog) {
         const auto neutral = neutral_log_momentum_state(
             U_t, wall_distance, wall.momentum.z0_m);
-        rate = amrex::max(rate, neutral_momentum_rate(
-            neutral.C_D, U_t, dx_inv));
+        rate = amrex::max(rate, neutral_momentum_infinity_row_sum_factor() *
+            neutral.C_D * U_t * dx_inv);
     }
     if (wall.thermal.mode == ThermalMode::FixedPhysicalTemperature) {
         if (wall.heat.model == ScalarModel::BulkAero) {

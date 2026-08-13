@@ -779,19 +779,43 @@ For neutral momentum, the local tangential drag equation is
    \frac{d\mathbf u_t}{dt}
    =-C_D\,\Delta n^{-1}|\mathbf u_t|\mathbf u_t.
 
-The Jacobian has eigenvalues ``C_D U_t Delta n^-1`` in the two directions
-orthogonal to :math:`\mathbf u_t` and ``2 C_D U_t Delta n^{-1}`` in the
-velocity-parallel direction. At an edge or corner, one free staggered velocity
-component can receive tangent traction from more than one perpendicular wall.
-The tangent reconstruction and stress-node average are convex averages, so a
-conservative row-sum bound for that component is
+The nonlinear tangential closure has Jacobian
+
+.. math::
+
+   J = C_D \left(U_t I + \frac{\mathbf u_t \mathbf u_t^T}{U_t}\right),
+
+whose two eigenvalues are ``C_D U_t Delta n^-1`` and ``2 C_D U_t
+Delta n^-1`` after the wall-normal divergence scaling.  The timestep guard
+uses the induced infinity norm (the maximum absolute row sum), not the
+spectral norm.  For a two-component tangential vector its exact local bound
+is
+
+.. math::
+
+   K_\infty C_D U_t = \frac{3+\sqrt{2}}{2} C_D U_t.
+
+Each staggered tangential reconstruction is a nonnegative average whose
+weights sum to one.  Each boundary stress-node reconstruction is also a
+nonnegative average with weights summing to one.  These maps are therefore
+non-expansive in the infinity norm.  In the Cartesian Cloud Chamber
+operator, the density multiplying the physical traction is the mass
+weight of the conserved momentum source, so the mass-weighted momentum
+Jacobian has no additional density ratio.  At an edge or corner, one free
+staggered component can receive contributions from every active perpendicular
+wall, so the conservative composed-operator bound is
 
 .. math::
 
    \lambda_{m,c} = \sum_{f:\,n_f \ne c}
-      2 C_{D,f} U_{t,f}\,\Delta n_f^{-1},
-   \qquad\lambda_m = \max_c \lambda_{m,c}.
+      K_\infty C_{D,f} U_{t,f} \Delta n_f^{-1},
+   \qquad \lambda_m = \max_c \lambda_{m,c}.
 
+The implementation computes this bound with
+``neutral_momentum_infinity_row_sum_factor()`` and a finite-difference
+check exercises the actual wall-stress adapter followed by
+``DiffusionSrcForMom`` at an oblique state.  Low/high storage signs do not
+change the absolute row sum; they only determine the physical drag sign.
 The scan takes the maximum over cells, components, active scalar channels, and
 neutral-momentum row sums, then applies the existing explicit safety factor,
 
@@ -800,12 +824,10 @@ neutral-momentum row sums, then applies the existing explicit safety factor,
    \lambda_\mathrm{max}=\max_f(\lambda_{m,f},\lambda_{s,f}),
    \qquad dt_\mathrm{wall}=\frac{0.5}{\lambda_\mathrm{max}}.
 
-The factor two is the velocity-parallel eigenvalue of the quadratic drag
-Jacobian; 0.5 is the existing explicit wall-relaxation safety factor. Adaptive
-stepping takes the minimum of ordinary ERF limits and ``dt_wall``. A positive
-fixed ``erf.fixed_dt`` larger than the wall limit aborts with the measured
-``fixed_dt``, ``wall_dt``, and ``max_wall_rate``. ERF does not silently clip
-roughness, coefficients, or a requested fixed step.
+Adaptive stepping takes the minimum of ordinary ERF limits and
+``dt_wall``. A positive fixed ``erf.fixed_dt`` larger than the wall limit
+aborts with the measured ``fixed_dt``, ``wall_dt``, and ``max_wall_rate``. ERF
+does not silently clip roughness, coefficients, or a requested fixed step.
 
 Conserved-scalar budgets
 ------------------------
