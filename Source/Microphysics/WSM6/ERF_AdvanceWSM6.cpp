@@ -2010,26 +2010,31 @@ WSM6::Advance(const Real& dt_advance,
                         psacr_arr(i,j,k) = amrex::min(
                             psacr_arr(i,j,k), qr_arr(i,j,k) / dtcld);
                     }
+                }
 
-                    if (qg_arr(i,j,k) > Real(qcrmin)) {
-                        const Real acrfac =
-                            Real(5.0) * rslope3_r_arr(i,j,k) * rslope3_r_arr(i,j,k)
-                                * rslope_g_arr(i,j,k)
-                          + Real(2.0) * rslope3_r_arr(i,j,k) * rslope2_r_arr(i,j,k)
-                                * rslope2_g_arr(i,j,k)
-                          + Real(0.5) * rslope2_r_arr(i,j,k) * rslope2_r_arr(i,j,k)
-                                * rslope3_g_arr(i,j,k);
-                        pgacr_arr(i,j,k) = Real(pi) * Real(pi) * Real(n0r)
-                            * n0g_loc * std::abs(vt2ave - vt2r)
-                            * (Real(denr) / den_arr(i,j,k)) * acrfac;
-                        pgacr_arr(i,j,k) *= std::pow(
-                            amrex::min(
-                                amrex::max(Real(0.0), qg_arr(i,j,k) / qr_arr(i,j,k)),
-                                Real(1.0)),
-                            Real(2.0));
-                        pgacr_arr(i,j,k) = amrex::min(
-                            pgacr_arr(i,j,k), qr_arr(i,j,k) / dtcld);
-                    }
+                // pgacr: accretion of rain by graupel [HL A12] [LFO 42]
+                //        (T<T0: R->G) (T>=T0: enhance melting of graupel)
+                // This depends only on graupel and rain, so it must not be nested inside
+                //     the (qs,qr) test above -- otherwise a rain/graupel column with
+                //     negligible snow would never accrete rain onto graupel
+                if (qg_arr(i,j,k) > Real(qcrmin) && qr_arr(i,j,k) > Real(qcrmin)) {
+                    const Real acrfac =
+                        Real(5.0) * rslope3_r_arr(i,j,k) * rslope3_r_arr(i,j,k)
+                            * rslope_g_arr(i,j,k)
+                      + Real(2.0) * rslope3_r_arr(i,j,k) * rslope2_r_arr(i,j,k)
+                            * rslope2_g_arr(i,j,k)
+                      + Real(0.5) * rslope2_r_arr(i,j,k) * rslope2_r_arr(i,j,k)
+                            * rslope3_g_arr(i,j,k);
+                    pgacr_arr(i,j,k) = Real(pi) * Real(pi) * Real(n0r)
+                        * n0g_loc * std::abs(vt2ave - vt2r)
+                        * (Real(denr) / den_arr(i,j,k)) * acrfac;
+                    pgacr_arr(i,j,k) *= std::pow(
+                        amrex::min(
+                            amrex::max(Real(0.0), qg_arr(i,j,k) / qr_arr(i,j,k)),
+                            Real(1.0)),
+                        Real(2.0));
+                    pgacr_arr(i,j,k) = amrex::min(
+                        pgacr_arr(i,j,k), qr_arr(i,j,k) / dtcld);
                 }
 
                 if (qg_arr(i,j,k) > Real(qcrmin) && qs_arr(i,j,k) > Real(qcrmin)) {
