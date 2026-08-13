@@ -2,6 +2,11 @@
 
 using namespace amrex;
 
+/**
+ * @brief Group a list of boxes into subdomains based on adjacency.
+ * @param[in] bl List of boxes to partition.
+ * @param[out] bins Vector of BoxArrays containing the grouped subdomains.
+ */
 void
 ERF::make_subdomains(const BoxList& bl, Vector<BoxArray>& bins)
 {

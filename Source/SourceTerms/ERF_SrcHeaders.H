@@ -95,6 +95,30 @@ void make_sources (int level, int nrk,
                    bool is_slow_step);
 
 #if defined(ERF_USE_NETCDF)
+/**
+ * Add moisture nudging terms to the source.
+ *
+ * @param[in] S_data State data.
+ * @param[in,out] source Source terms to be updated.
+ * @param[in] n_qstate Number of moisture species.
+ * @param[in] dt Time step.
+ * @param[in] old_stage_time_total Total time at current stage.
+ * @param[in] start_bdy_time Start time for boundary data.
+ * @param[in] final_bdy_time Final time for boundary data.
+ * @param[in] bdy_time_interval Interval between boundary data files.
+ * @param[in] bdy_factor Nudging strength factor.
+ * @param[in] width Nudging width.
+ * @param[in] geom Grid geometry.
+ * @param[in] bdy_data_xlo Boundary data for x-low face.
+ * @param[in] bdy_data_xhi Boundary data for x-high face.
+ * @param[in] bdy_data_ylo Boundary data for y-low face.
+ * @param[in] bdy_data_yhi Boundary data for y-high face.
+ * @param[in] m_r2d Pointer to boundary plane reader.
+ * @param[in] c_p Specific heat at constant pressure.
+ * @param[in] rdOcp Ratio of gas constants to specific heat.
+ * @param[in] use_wrf_bdy_density Use WRF boundary density.
+ * @param[in] bdy_moist_nudge_type Type of moisture nudging.
+ */
 void
 add_moist_nudging_terms (const amrex::MultiFab& S_data,
                                amrex::MultiFab& source,
@@ -161,6 +185,28 @@ void add_thin_body_sources (amrex::MultiFab& xmom_source,
                             std::unique_ptr<amrex::MultiFab>& thin_zforce_lev);
 
 #if defined(ERF_USE_NETCDF)
+/**
+ * Set the right-hand side for moist variables.
+ *
+ * @param[in] geom Grid geometry.
+ * @param[in] tbx Local box.
+ * @param[in] new_cons Current conservative variables.
+ * @param[in,out] cell_rhs Right-hand side to be updated.
+ * @param[in] n_qstate Number of moisture species.
+ * @param[in] time Current simulation time.
+ * @param[in] dt Time step.
+ * @param[in] start_bdy_time Start time for boundary data.
+ * @param[in] final_bdy_time Final time for boundary data.
+ * @param[in] bdy_time_interval Interval between boundary data files.
+ * @param[in] nudge_factor Nudging strength factor.
+ * @param[in] width Nudging width.
+ * @param[in] domain Global domain box.
+ * @param[in] bdy_data_xlo Boundary data for x-low face.
+ * @param[in] bdy_data_xhi Boundary data for x-high face.
+ * @param[in] bdy_data_ylo Boundary data for y-low face.
+ * @param[in] bdy_data_yhi Boundary data for y-high face.
+ * @param[in] m_r2d Pointer to boundary plane reader.
+ */
 void
 moist_set_rhs (const amrex::Geometry& geom,
                const amrex::Box& tbx,

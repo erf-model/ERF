@@ -15,6 +15,13 @@
 using namespace amrex;
 namespace fs = std::filesystem;
 
+/**
+ * Read surface state data from a binary file and interpolate onto MultiFabs.
+ *
+ * @param[in] lev Current level.
+ * @param[in] filename Path to the binary data file.
+ * @param[out] surface_state MultiFabs to be filled with interpolated surface data.
+ */
 void
 ERF::FillSurfaceStateMultiFabs(const int lev,
                                const std::string& filename,
@@ -130,14 +137,22 @@ ERF::FillSurfaceStateMultiFabs(const int lev,
                                           x, y,
                                           sst_d_ptr, tmp_sst);
 
-                surf_arr(i, j, 0) = std::min(tmp_ls_mask, amrex::Real(1.0));
-                surf_arr(i, j, 1) = tmp_sst;
+                surf_arr(i, j, 0, 0) = std::min(tmp_ls_mask, amrex::Real(1.0));
+                surf_arr(i, j, 0, 1) = tmp_sst;
             }
         });
     }
 
 }
 
+/**
+ * Interpolate weather forecast surface data in time and space onto the simulation grid.
+ *
+ * @param[in] lev Current level.
+ * @param[in] time Current simulation time.
+ * @param[in] a_z_phys_nd Physical height MultiFabs.
+ * @param[in] regrid_forces_file_read Flag indicating if a regrid requires a file read.
+ */
 void
 ERF::SurfaceDataInterpolation(const int lev,
                               const double time,
