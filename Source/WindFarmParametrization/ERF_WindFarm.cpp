@@ -501,6 +501,8 @@ WindFarm::fill_Nturb_multifab (const Geometry& geom,
         });
     }
 
+    mf_Nturb.FillBoundary(geom.periodicity());
+
     Gpu::copy(Gpu::deviceToHost, d_zloc.begin(), d_zloc.end(), zloc.begin());
     Gpu::copy(Gpu::deviceToHost, d_is_counted.begin(), d_is_counted.end(), is_counted.begin());
 
