@@ -1111,6 +1111,9 @@ ERF::InitData_post ()
                                    solverChoice.advChoice.zero_zflux,
                                    geom[lev],
                                    z_phys_cc[lev]);
+
+                // The correction is only applied on the valid region
+                fill_wall_dist_ghost_cells(*walldist[lev], geom[lev]);
             }
         }
     }
