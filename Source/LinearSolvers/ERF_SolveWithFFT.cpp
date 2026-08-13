@@ -75,6 +75,9 @@ void ERF::build_fft_solvers (int lev)
                 //   1) my_geom.Domain()
                 //   2) my_geom.CellSize()
                 //   3) my_geom.isAllPeriodic() / my_geom.periodicity()
+                /**
+                 * Physical bounding box of the subdomain.
+                 */
                 RealBox rb( sub_lo.x   *dx[0],  sub_lo.y   *dx[1],  sub_lo.z   *dx[2],
                            (sub_hi.x+1)*dx[0], (sub_hi.y+1)*dx[1], (sub_hi.z+1)*dx[2]);
                 my_geom.define(subdomain, rb, coord_sys, is_per);

@@ -158,6 +158,9 @@ void ERF::project_velocity_tb (int lev, double l_dt_d, Vector<MultiFab>& vmf)
         // Initialize phi to 0
         phi[0].setVal(0.0);
 
+        /**
+         * Multi-level multigrid solver for the Poisson equation.
+         */
         MLMG mlmg(*p_mlpoisson);
         int max_iter = 100;
         mlmg.setMaxIter(max_iter);

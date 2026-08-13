@@ -6,6 +6,20 @@
 
 using namespace amrex;
 
+/**
+ * Solve the Poisson equation using the MLMG solver.
+ *
+ * @param lev Level index.
+ * @param[in] rhs Right hand side of the Poisson equation.
+ * @param[out] p Solution field.
+ * @param[out] fluxes Gradient fluxes.
+ * @param geom Geometry used for inverse cell spacing.
+ * @param ref_ratio Refinement ratios.
+ * @param l_domain_bc_type Domain boundary condition names.
+ * @param mg_verbose Verbosity level for the solver.
+ * @param reltol Relative tolerance.
+ * @param abstol Absolute tolerance.
+ */
 void
 solve_with_mlmg    (int lev,
                     Vector<amrex::MultiFab>& rhs, Vector<MultiFab>& p,
@@ -14,6 +28,25 @@ solve_with_mlmg    (int lev,
                     const amrex::Vector<amrex::IntVect>& ref_ratio,
                     Array<std::string,2*AMREX_SPACEDIM> l_domain_bc_type,
                     int mg_verbose, Real reltol, Real abstol);
+/**
+ * Solve the Poisson equation with embedded boundary using the MLMG solver.
+ *
+ * @tparam T EB data type.
+ * @param lev Level index.
+ * @param[in] rhs Right hand side of the Poisson equation.
+ * @param[out] p Solution field.
+ * @param[out] fluxes Gradient fluxes.
+ * @param ebfact EB factory.
+ * @param ebfact_u EB data for x-faces.
+ * @param ebfact_v EB data for y-faces.
+ * @param ebfact_w EB data for z-faces.
+ * @param geom Geometry used for inverse cell spacing.
+ * @param ref_ratio Refinement ratios.
+ * @param l_domain_bc_type Domain boundary condition names.
+ * @param mg_verbose Verbosity level for the solver.
+ * @param reltol Relative tolerance.
+ * @param abstol Absolute tolerance.
+ */
 template <typename T>
 void
 solve_with_EB_mlmg (int lev,
@@ -327,6 +360,9 @@ void ERF::project_momenta (int lev, double l_time, double l_dt_d, Vector<MultiFa
         for (auto& b : bl2d_sub) {
             b.setRange(2,0);
         }
+        /**
+         * BoxArray representing the 2D horizontal slice of the subdomain.
+         */
         BoxArray ba2d_sub(std::move(bl2d_sub));
 
         // Define MultiFabs that hold only the data in this particular subdomain
