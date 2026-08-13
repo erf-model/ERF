@@ -170,7 +170,7 @@ public:
         w_lsf.push_back(w_in);
 
         num_times = times_lsf.size();
-        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(z_lsf.size() == static_cast<size_t>(num_times),
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(z_lsf.size() == num_times,
                                          "repeated timestamp in the large-scale forcing file");
         amrex::Print() << "  Read " << nz_lsf << " levels at " << num_times << " times" << std::endl;
     }
