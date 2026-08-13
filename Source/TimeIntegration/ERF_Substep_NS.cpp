@@ -109,9 +109,6 @@ void erf_substep_NS (int step, int nrk,
     const auto& dm = S_stage_data[IntVars::cons].DistributionMap();
 
     MultiFab Delta_rho_theta(        ba                , dm, 1, 1);
-    /**
-     * @brief Difference in vertical momentum between the previous and current stage.
-     */
     MultiFab Delta_rho_w    (convert(ba,IntVect(0,0,1)), dm, 1, IntVect(1,1,0));
 
     MultiFab     coeff_A_mf(fast_coeffs, make_alias, 0, 1);

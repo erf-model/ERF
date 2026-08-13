@@ -104,9 +104,6 @@ void ERFPC::initializeParticlesUniformDistributionInBox (const std::unique_ptr<M
 
     int particles_per_cell = m_ppc_init;
 
-    /**
-     * Number of particles to be initialized in each cell.
-     */
     iMultiFab num_particles( ParticleBoxArray(lev),
                              ParticleDistributionMap(lev),
                              1, 0 );
@@ -155,9 +152,6 @@ void ERFPC::initializeParticlesUniformDistributionInBox (const std::unique_ptr<M
         }
     }
 
-    /**
-     * Starting index for particles in each cell within the particle container.
-     */
     iMultiFab offsets( ParticleBoxArray(lev),
                        ParticleDistributionMap(lev),
                        1, 0 );

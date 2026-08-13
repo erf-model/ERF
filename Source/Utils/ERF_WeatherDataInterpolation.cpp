@@ -35,9 +35,6 @@ void PlotMultiFab(const MultiFab& mf,
         BoxArray cba = mf.boxArray();
         cba = amrex::convert(mf.boxArray(), IntVect::TheCellVector());
 
-        /**
-         * Cell-centered MultiFab for averaging nodal data before plotting.
-         */
         MultiFab cc_mf(cba, mf.DistributionMap(),
                mf.nComp(), 0);
 

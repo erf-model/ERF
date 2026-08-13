@@ -746,11 +746,8 @@ void erf_slow_rhs_post (int level, int finest_level,
     } // OMP
     if (cloud_budget && l_use_diff && n_qstate > 0) {
         for (int qstate = 0; qstate < n_qstate; ++qstate) {
-            /** Diffusion flux alias for the x-direction of the current moisture state. */
             MultiFab qflux_x(*dflux_x, make_alias, qstate, 1);
-            /** Diffusion flux alias for the y-direction of the current moisture state. */
             MultiFab qflux_y(*dflux_y, make_alias, qstate, 1);
-            /** Diffusion flux alias for the z-direction of the current moisture state. */
             MultiFab qflux_z(*dflux_z, make_alias, qstate, 1);
             cloud_budget->capture_stage(
                 qstate == 0 ? CloudChamberBudget::RhoQv : CloudChamberBudget::RhoQc,

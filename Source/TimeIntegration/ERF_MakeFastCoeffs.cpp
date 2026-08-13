@@ -49,25 +49,10 @@ void make_fast_coeffs (int /*level*/,
 
     const Box &domain = geom.Domain();
 
-    /**
-     * Alias for the lower-diagonal coefficients of the tridiagonal solver.
-     */
     MultiFab coeff_A_mf(fast_coeffs, amrex::make_alias, 0, 1);
-    /**
-     * Alias for the main-diagonal coefficients of the tridiagonal solver.
-     */
     MultiFab coeff_B_mf(fast_coeffs, amrex::make_alias, 1, 1);
-    /**
-     * Alias for the upper-diagonal coefficients of the tridiagonal solver.
-     */
     MultiFab coeff_C_mf(fast_coeffs, amrex::make_alias, 2, 1);
-    /**
-     * Alias for the P coefficients of the tridiagonal system.
-     */
     MultiFab coeff_P_mf(fast_coeffs, amrex::make_alias, 3, 1);
-    /**
-     * Alias for the Q coefficients of the tridiagonal system.
-     */
     MultiFab coeff_Q_mf(fast_coeffs, amrex::make_alias, 4, 1);
 
 

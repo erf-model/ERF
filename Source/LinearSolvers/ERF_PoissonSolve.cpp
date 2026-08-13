@@ -360,9 +360,6 @@ void ERF::project_momenta (int lev, double l_time, double l_dt_d, Vector<MultiFa
         for (auto& b : bl2d_sub) {
             b.setRange(2,0);
         }
-        /**
-         * BoxArray representing the 2D horizontal slice of the subdomain.
-         */
         BoxArray ba2d_sub(std::move(bl2d_sub));
 
         // Define MultiFabs that hold only the data in this particular subdomain

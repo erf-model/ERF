@@ -44,9 +44,6 @@ void SuperDropletPC::MassChange ( int                                         a_
     }
     AMREX_ALWAYS_ASSERT(idx_vap >= 0);
     AMREX_ALWAYS_ASSERT(mat_density >= 0);
-    /**
-     * @brief Material properties for the vapour species.
-     */
     const MaterialProperties vapour_mat(*(m_species_mat[idx_vap]));
     const MaterialPropertiesCore& vapour_mat_core = vapour_mat;
 

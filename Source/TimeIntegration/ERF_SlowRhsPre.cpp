@@ -198,9 +198,6 @@ void erf_slow_rhs_pre (int level, int finest_level,
     const DistributionMapping& dm = S_data[IntVars::cons].DistributionMap();
 
     int nGhost = (l_use_eb) ? 2 : 1;
-    /**
-     * Vertical mass flux used in the continuity equation.
-     */
     MultiFab Omega(convert(ba,IntVect(0,0,1)), dm, 1, nGhost);
 
     std::unique_ptr<MultiFab> expr;

@@ -113,9 +113,6 @@ void make_sources (int level,
         //
         // We need just one ghost cell in the vertical
         //
-        /**
-         * Ghost cell growth vector for conserved variables, restricted to one cell in the vertical direction.
-         */
         IntVect ng_c(S_data[IntVars::cons].nGrowVect()); ng_c[2] = 1;
         //
         // With no moisture we only (rho) and (rho theta); with moisture we also do qv and qc
@@ -124,9 +121,6 @@ void make_sources (int level,
         int ncomp = (!has_moisture) ? 2 : RhoQ2_comp+1;
         MultiFab cons(S_data[IntVars::cons], make_alias, 0, ncomp);
 
-        /**
-         * Plane averaging object for the conserved variables.
-         */
         PlaneAverage cons_ave(&cons, geom, solverChoice.ave_plane, ng_c);
         cons_ave.compute_averages(ZDir(), cons_ave.field());
 

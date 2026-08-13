@@ -90,7 +90,6 @@ void SuperDropletPC::Coalescence( int   a_lev,
                                   const MultiFab& a_temperature )
 {
 #ifndef _WIN32
-    /** @brief Start and end times for the total coalescence process. */
     struct timeval total_start, total_end;
     gettimeofday(&total_start, NULL);
 #endif
@@ -218,7 +217,6 @@ void SuperDropletPC::Coalescence( int   a_lev,
         auto offsets = bins.offsetsPtr();
 
 #ifndef _WIN32
-        /** @brief Start and end times for the Monte Carlo shuffle step. */
         struct timeval mcshuffle_start, mcshuffle_end;
         gettimeofday(&mcshuffle_start, NULL);
 #endif
@@ -324,7 +322,6 @@ void SuperDropletPC::Coalescence( int   a_lev,
         Gpu::synchronize();
 
 #ifndef _WIN32
-        /** @brief Start and end times for the Monte Carlo pairing step. */
         struct timeval mcpairing_start, mcpairing_end;
         gettimeofday(&mcpairing_start, NULL);
 #endif
@@ -366,7 +363,6 @@ void SuperDropletPC::Coalescence( int   a_lev,
                             - (mcpairing_start.tv_sec * 1000000 + mcpairing_start.tv_usec) );
         mcpairing_wtime_sec += (double) mcpairing_wtime / Real(1000000.0);
 
-        /** @brief Start and end times for the coalescence rate calculation. */
         struct timeval coalescence_start, coalescence_end;
         gettimeofday(&coalescence_start, NULL);
 #endif

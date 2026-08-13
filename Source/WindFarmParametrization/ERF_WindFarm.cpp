@@ -339,9 +339,6 @@ WindFarm::read_windfarm_airfoil_tables (const std::string windfarm_airfoil_table
                                         const std::string windfarm_blade_table)
 {
     DIR* dir;
-    /**
-     * @brief Pointer to the current directory entry.
-     */
     struct dirent* entry;
     std::vector<std::string> files;
 

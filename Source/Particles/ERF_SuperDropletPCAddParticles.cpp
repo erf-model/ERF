@@ -44,7 +44,6 @@ void SuperDropletPC::setNumSDBoxDistribution (int a_lev,
             {
                 bool flag = false;
                 if (a_subgrid) {
-                    /** Bounding box of the grid cell for terrain-following coordinates. */
                     RealBox gridcell( plo[0]+i*dx[0],
                                       plo[1]+j*dx[1],
                                       height_arr(i,j,k),
@@ -71,7 +70,6 @@ void SuperDropletPC::setNumSDBoxDistribution (int a_lev,
             {
                 bool flag = false;
                 if (a_subgrid) {
-                    /** Bounding box of the grid cell for Cartesian coordinates. */
                     RealBox gridcell( plo[0]+i*dx[0],
                                       plo[1]+j*dx[1],
                                       plo[2]+k*dx[2],
@@ -119,7 +117,6 @@ void SuperDropletPC::setNumSDBubbleDistribution ( int a_lev,
             {
                 bool flag = false;
                 if (a_subgrid) {
-                    /** Bounding box of the grid cell for terrain-following coordinates. */
                     RealBox gridcell( plo[0]+i*dx[0],
                                       plo[1]+j*dx[1],
                                       height_arr(i,j,k),
@@ -154,7 +151,6 @@ void SuperDropletPC::setNumSDBubbleDistribution ( int a_lev,
             {
                 bool flag = false;
                 if (a_subgrid) {
-                    /** Bounding box of the grid cell for Cartesian coordinates. */
                     RealBox gridcell( plo[0]+i*dx[0],
                                       plo[1]+j*dx[1],
                                       plo[2]+k*dx[2],
@@ -228,7 +224,6 @@ void SuperDropletPC::addParticles ( int a_lev,
 
     const auto sampled_multiplicity = a_init.sampledMultiplicity();
 
-    /** MultiFab containing the number of super-droplets per cell. */
     iMultiFab num_superdroplets( ParticleBoxArray(a_lev),
                                  ParticleDistributionMap(a_lev),
                                  1, 0 );
@@ -256,7 +251,6 @@ void SuperDropletPC::addParticles ( int a_lev,
         amrex::Error("See error message!");
     }
 
-    /** MultiFab containing the prefix sum offsets for super-droplet indices. */
     iMultiFab offsets( ParticleBoxArray(a_lev),
                        ParticleDistributionMap(a_lev),
                        1, 0 );

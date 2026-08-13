@@ -236,9 +236,6 @@ void make_mom_sources (double time_d,
         MultiFab cons(S_data[IntVars::cons], make_alias, 0, 1);
 
         IntVect ng_c = S_data[IntVars::cons].nGrowVect(); ng_c[2] = offset;
-        /**
-         * @brief Planar average for density.
-         */
         PlaneAverage r_ave(&cons, geom, solverChoice.ave_plane, ng_c);
         r_ave.compute_averages(ZDir(), r_ave.field());
 
@@ -263,15 +260,9 @@ void make_mom_sources (double time_d,
 
         // U and V momentum
         IntVect ng_u = S_data[IntVars::xmom].nGrowVect(); ng_u[2] = u_offset;
-        /**
-         * @brief Planar average for x-momentum.
-         */
         PlaneAverage u_ave(&(S_data[IntVars::xmom]), geom, solverChoice.ave_plane, ng_u);
 
         IntVect ng_v = S_data[IntVars::ymom].nGrowVect(); ng_v[2] = v_offset;
-        /**
-         * @brief Planar average for y-momentum.
-         */
         PlaneAverage v_ave(&(S_data[IntVars::ymom]), geom, solverChoice.ave_plane, ng_v);
 
         u_ave.compute_averages(ZDir(), u_ave.field());
