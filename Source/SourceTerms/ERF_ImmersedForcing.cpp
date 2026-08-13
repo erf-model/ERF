@@ -506,6 +506,7 @@ void ImmersedForcingBuildings_Ymom (const Box& tby,
 
     const bool is_slow_step = true;  // This is determined by calling context
     const bool use_ImmersedForcing_fast = solverChoice.immersed_forcing_substep;
+    const Real small_volfrac = Real(0.005);
 
     ParallelFor(tby, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
     {
@@ -519,17 +520,26 @@ void ImmersedForcingBuildings_Ymom (const Box& tby,
         const Real rho_yface   = myhalf * ( cell_data(i,j,k,Rho_comp) + cell_data(i,j-1,k,Rho_comp) );
         const Real theta_yface = (myhalf * (cell_data(i,j,k  ,RhoTheta_comp) + cell_data(i,j-1,k,RhoTheta_comp))) / rho_yface;
 
-        // Use face-centered terrain_blanking if available, otherwise average from cell centers
-        const Real t_blank       = (t_blank_yface_arr) ? t_blank_yface_arr(i  , j  , k  ) :
-                                   myhalf * (t_blank_arr(i  , j  , k  ) + t_blank_arr(i-1, j  , k  ));
-        const Real t_blank_below = (k == 0) ? zero : (t_blank_yface_arr) ? t_blank_yface_arr(i  , j  , k-1) :
-                                   myhalf * (t_blank_arr(i  , j  , k-1) + t_blank_arr(i-1, j  , k-1));
-        const Real t_blank_above = (t_blank_yface_arr) ? t_blank_yface_arr(i  , j  , k+1) :
-                                   myhalf * (t_blank_arr(i  , j  , k+1) + t_blank_arr(i-1, j  , k+1));
-        const Real t_blank_east  = (t_blank_yface_arr) ? t_blank_yface_arr(i+1, j  , k  ) :
-                                   myhalf * (t_blank_arr(i+1, j  , k  ) + t_blank_arr(i+1, j-1, k  ));
-        const Real t_blank_west  = (t_blank_yface_arr) ? t_blank_yface_arr(i-1, j  , k  ) :
-                                   myhalf * (t_blank_arr(i-1, j  , k  ) + t_blank_arr(i-1, j-1, k  ));
+        // Use face-centered terrain_blanking if available, otherwise average from cell centers with threshold
+        Real t_blank_raw       = (t_blank_yface_arr) ? t_blank_yface_arr(i  , j  , k  ) :
+                                 myhalf * (t_blank_arr(i  , j  , k  ) + t_blank_arr(i  , j-1, k  ));
+        const Real t_blank     = (t_blank_raw < small_volfrac) ? zero : t_blank_raw;
+
+        Real t_blank_below_raw = (k == 0) ? zero : (t_blank_yface_arr) ? t_blank_yface_arr(i  , j  , k-1) :
+                                 myhalf * (t_blank_arr(i  , j  , k-1) + t_blank_arr(i  , j-1, k-1));
+        const Real t_blank_below = (t_blank_below_raw < small_volfrac) ? zero : t_blank_below_raw;
+
+        Real t_blank_above_raw = (t_blank_yface_arr) ? t_blank_yface_arr(i  , j  , k+1) :
+                                 myhalf * (t_blank_arr(i  , j  , k+1) + t_blank_arr(i  , j-1, k+1));
+        const Real t_blank_above = (t_blank_above_raw < small_volfrac) ? zero : t_blank_above_raw;
+
+        Real t_blank_east_raw  = (t_blank_yface_arr) ? t_blank_yface_arr(i+1, j  , k  ) :
+                                 myhalf * (t_blank_arr(i+1, j  , k  ) + t_blank_arr(i+1, j-1, k  ));
+        const Real t_blank_east = (t_blank_east_raw < small_volfrac) ? zero : t_blank_east_raw;
+
+        Real t_blank_west_raw  = (t_blank_yface_arr) ? t_blank_yface_arr(i-1, j  , k  ) :
+                                 myhalf * (t_blank_arr(i-1, j  , k  ) + t_blank_arr(i-1, j-1, k  ));
+        const Real t_blank_west = (t_blank_west_raw < small_volfrac) ? zero : t_blank_west_raw;
 
         const Real dx_z = (z_cc_arr) ? (z_cc_arr(i,j,k) - z_cc_arr(i,j,k-1)) : dx_arr[2];
         const Real drag_coefficient = alpha_m / std::pow(dx_x*dx_y*dx_z, one/three);
@@ -647,6 +657,7 @@ void ImmersedForcingBuildings_Zmom (const Box& tbz,
 
     const bool is_slow_step = true;  // This is determined by calling context
     const bool use_ImmersedForcing_fast = solverChoice.immersed_forcing_substep;
+    const Real small_volfrac = Real(0.005);
 
     ParallelFor(tbz, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
     {
@@ -660,21 +671,34 @@ void ImmersedForcingBuildings_Zmom (const Box& tbz,
         const Real rho_zface   = myhalf * ( cell_data(i,j,k,Rho_comp) + cell_data(i,j,k-1,Rho_comp) );
         const Real theta_zface = (myhalf * (cell_data(i,j,k,RhoTheta_comp) + cell_data(i,j,k-1,RhoTheta_comp))) / rho_zface;
 
-        // Use face-centered terrain_blanking if available, otherwise average from cell centers
-        const Real t_blank       = (t_blank_zface_arr) ? t_blank_zface_arr(i  ,j  , k  ) :
-                                   myhalf * (t_blank_arr(i  ,j  , k)   + t_blank_arr(i  , j  , k-1));
-        const Real t_blank_below = (k == 0) ? zero : (t_blank_zface_arr) ? t_blank_zface_arr(i  ,j  , k-1) :
-                                   myhalf * (t_blank_arr(i  ,j  , k-1) + t_blank_arr(i  , j  , k-2));
-        const Real t_blank_above = (t_blank_zface_arr) ? t_blank_zface_arr(i  ,j  , k+1) :
-                                   myhalf * (t_blank_arr(i  ,j  , k)   + t_blank_arr(i  , j  , k+1));
-        const Real t_blank_north = (t_blank_zface_arr) ? t_blank_zface_arr(i  , j+1, k  ) :
-                                   myhalf * (t_blank_arr(i  ,j+1, k)   + t_blank_arr(i  , j+1, k-1));
-        const Real t_blank_south = (t_blank_zface_arr) ? t_blank_zface_arr(i  , j-1, k  ) :
-                                   myhalf * (t_blank_arr(i  ,j-1, k)   + t_blank_arr(i  , j-1, k-1));
-        const Real t_blank_east  = (t_blank_zface_arr) ? t_blank_zface_arr(i+1, j  , k  ) :
-                                   myhalf * (t_blank_arr(i+1,j  , k)   + t_blank_arr(i+1, j  , k-1));
-        const Real t_blank_west  = (t_blank_zface_arr) ? t_blank_zface_arr(i-1, j  , k  ) :
-                                   myhalf * (t_blank_arr(i-1,j  , k)   + t_blank_arr(i-1, j  , k-1));
+        // Use face-centered terrain_blanking if available, otherwise average from cell centers with threshold
+        Real t_blank_raw       = (t_blank_zface_arr) ? t_blank_zface_arr(i  ,j  , k  ) :
+                                 myhalf * (t_blank_arr(i  ,j  , k)   + t_blank_arr(i  , j  , k-1));
+        const Real t_blank     = (t_blank_raw < small_volfrac) ? zero : t_blank_raw;
+
+        Real t_blank_below_raw = (k == 0) ? zero : (t_blank_zface_arr) ? t_blank_zface_arr(i  ,j  , k-1) :
+                                 myhalf * (t_blank_arr(i  ,j  , k-1) + t_blank_arr(i  , j  , k-2));
+        const Real t_blank_below = (t_blank_below_raw < small_volfrac) ? zero : t_blank_below_raw;
+
+        Real t_blank_above_raw = (t_blank_zface_arr) ? t_blank_zface_arr(i  ,j  , k+1) :
+                                 myhalf * (t_blank_arr(i  ,j  , k)   + t_blank_arr(i  , j  , k+1));
+        const Real t_blank_above = (t_blank_above_raw < small_volfrac) ? zero : t_blank_above_raw;
+
+        Real t_blank_north_raw = (t_blank_zface_arr) ? t_blank_zface_arr(i  , j+1, k  ) :
+                                 myhalf * (t_blank_arr(i  ,j+1, k)   + t_blank_arr(i  , j+1, k-1));
+        const Real t_blank_north = (t_blank_north_raw < small_volfrac) ? zero : t_blank_north_raw;
+
+        Real t_blank_south_raw = (t_blank_zface_arr) ? t_blank_zface_arr(i  , j-1, k  ) :
+                                 myhalf * (t_blank_arr(i  ,j-1, k)   + t_blank_arr(i  , j-1, k-1));
+        const Real t_blank_south = (t_blank_south_raw < small_volfrac) ? zero : t_blank_south_raw;
+
+        Real t_blank_east_raw  = (t_blank_zface_arr) ? t_blank_zface_arr(i+1, j  , k  ) :
+                                 myhalf * (t_blank_arr(i+1,j  , k)   + t_blank_arr(i+1, j  , k-1));
+        const Real t_blank_east = (t_blank_east_raw < small_volfrac) ? zero : t_blank_east_raw;
+
+        Real t_blank_west_raw  = (t_blank_zface_arr) ? t_blank_zface_arr(i-1, j  , k  ) :
+                                 myhalf * (t_blank_arr(i-1,j  , k)   + t_blank_arr(i-1, j  , k-1));
+        const Real t_blank_west = (t_blank_west_raw < small_volfrac) ? zero : t_blank_west_raw;
 
         const Real dx_z = (z_cc_arr) ? (z_cc_arr(i,j,k) - z_cc_arr(i,j,k-1)) : dx_arr[2];
         const Real drag_coefficient = alpha_m / std::pow(dx_x*dx_y*dx_z, one/three);
