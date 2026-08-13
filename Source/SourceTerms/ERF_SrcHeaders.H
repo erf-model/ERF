@@ -91,8 +91,6 @@ void make_sources (int level, int nrk,
                    const amrex::Real* dptr_wbar_sub,
                    const amrex::Vector<amrex::Real*> d_rayleigh_ptrs_at_lev,
                    const amrex::Real* sinesq_at_lev_d,
-                   InputSoundingData& input_sounding_data,
-                   LargeScaleForcingData &lsf_data,
                    TurbulentPerturbation& turbPert,
                    bool is_slow_step);
 
@@ -151,7 +149,6 @@ void make_mom_sources (double time,
                              InputSoundingData& input_sounding_data,
                              LargeScaleForcingData &lsf_data,
                        std::unique_ptr<amrex::MultiFab>& lsf_tendencies,
-                       std::unique_ptr<amrex::MultiFab>& nudge_data,
                        const eb_& ebfact,
                        bool is_slow_step);
 

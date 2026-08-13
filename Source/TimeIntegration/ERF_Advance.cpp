@@ -313,7 +313,7 @@ ERF::Advance (int lev, double time, double dt_lev, int iteration, int /*ncycle*/
         // S_new ghost cells are stale after the dycore RK stages; refresh
         // them before microphysics (Lagrangian particle interpolation reads
         // the ghost region for cells along level boundaries).
-        if (solverChoice.moisture_type != MoistureType::None) {
+        if (Microphysics::modelType(solverChoice.moisture_type) == MoistureModelType::Lagrangian) {
             if (lev == 0) {
                 FillPatchCrseLevel(lev, t_new[lev],
                                    {&S_new, &U_new, &V_new, &W_new},

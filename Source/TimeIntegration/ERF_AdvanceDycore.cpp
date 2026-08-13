@@ -309,8 +309,6 @@ void ERF::advance_dycore (int level,
                 }
             });
 
-            amrex::Gpu::streamSynchronize();
-
             // subsidence
             ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
@@ -321,8 +319,6 @@ void ERF::advance_dycore (int level,
                     cell_data(i, j, k, RhoQ2_comp) += cell_data(i, j, k, Rho_comp) * lsf_arr(i, j, k, 7) * dt_advance;
                 }
             });
-
-            amrex::Gpu::streamSynchronize();
         }
         }
     }

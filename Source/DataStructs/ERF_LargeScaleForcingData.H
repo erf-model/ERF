@@ -170,6 +170,8 @@ public:
         w_lsf.push_back(w_in);
 
         num_times = times_lsf.size();
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(z_lsf.size() == static_cast<size_t>(num_times),
+                                         "repeated timestamp in the large-scale forcing file");
         amrex::Print() << "  Read " << nz_lsf << " levels at " << num_times << " times" << std::endl;
     }
 
@@ -353,7 +355,6 @@ public:
 
     // interpolated data from file
     amrex::Vector<amrex::Vector<amrex::Real>> z_int_lsf;
-    amrex::Vector<amrex::Vector<amrex::Real>> p_int_lsf;
     amrex::Vector<amrex::Vector<amrex::Real>> t_int_lsf;
     amrex::Vector<amrex::Vector<amrex::Real>> q_int_lsf;
     amrex::Vector<amrex::Vector<amrex::Real>> u_int_lsf;

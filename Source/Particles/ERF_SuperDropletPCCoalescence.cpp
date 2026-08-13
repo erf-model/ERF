@@ -218,7 +218,7 @@ static void aggr_update_attribs(const int a_i, /*!< index of particle */
             a_mrime[a_i] += gamma * a_mrime[a_j];
             a_nmono[a_i] += gamma * a_nmono[a_j];
             update_common_positive_rmndr(a_i, a_j, gamma, a_Tfz, a_n_sp, a_sp_m, a_n_ae, a_ae_m);
-            AMREX_ALWAYS_ASSERT(m_new == a_sp_m[a_sp_idx_i][a_i]);
+            AMREX_ASSERT(m_new == a_sp_m[a_sp_idx_i][a_i]);
         }
     } else {
         if (a_prey[a_i]) {
@@ -227,7 +227,7 @@ static void aggr_update_attribs(const int a_i, /*!< index of particle */
             a_mrime[a_j] += gamma * a_mrime[a_i]; a_mrime[a_i] = a_mrime[a_j];
             a_nmono[a_j] += gamma * a_nmono[a_i]; a_nmono[a_i] = a_nmono[a_j];
             update_common_zero_rmndr(a_i, a_j, gamma, a_mult, a_Tfz, a_n_sp, a_sp_m, a_n_ae, a_ae_m);
-            AMREX_ALWAYS_ASSERT(m_new == a_sp_m[a_sp_idx_i][a_i]);
+            AMREX_ASSERT(m_new == a_sp_m[a_sp_idx_i][a_i]);
         }
     }
 }
@@ -386,7 +386,7 @@ static void rime_update_attribs(const int a_i, /*!< index of particle */
                 else { a_sp_m[n][a_i] += gamma*a_sp_m[n][a_j]; }
             }
             for (int n = 0; n < a_n_ae; n++) { a_ae_m[n][a_i] += gamma * a_ae_m[n][a_j]; }
-            AMREX_ALWAYS_ASSERT(mi_new == a_sp_m[a_sp_idx_i][a_i]);
+            AMREX_ASSERT(mi_new == a_sp_m[a_sp_idx_i][a_i]);
         }
     } else {
         if (a_prey[a_i]) {
@@ -413,7 +413,7 @@ static void rime_update_attribs(const int a_i, /*!< index of particle */
                 a_ae_m[n][a_j] += gamma * a_ae_m[n][a_i];
                 a_ae_m[n][a_i] = a_ae_m[n][a_j];
             }
-            AMREX_ALWAYS_ASSERT(mi_new == a_sp_m[a_sp_idx_i][a_i]);
+            AMREX_ASSERT(mi_new == a_sp_m[a_sp_idx_i][a_i]);
         }
     }
 }
