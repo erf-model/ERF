@@ -4371,8 +4371,15 @@ void WDM6::Advance(const Real& dt_advance,
 #endif
 
             // ============================================================
-            // Step 10: Enforce bounds
+            // DISABLED: Step 10 (enforce bounds)
             // ============================================================
+            // Pre-group legacy clamps. The nc/nr floors (1.e1, 1.e-2) have no
+            // Fortran counterpart and inject a divergence: they pin the native
+            // nc/nr minima to exactly the floor values while the bridge leaves
+            // them free. Non-negativity for the mixing ratios is already handled
+            // by G10e (phase cleanup) and G17 (lambda-bound ncr recompute).
+            // Re-enable only if a bounded group is shown to require it.
+#if 0
             ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
                 qc_arr(i,j,k) = amrex::max(qc_arr(i,j,k), Real(0.0));
                 qr_arr(i,j,k) = amrex::max(qr_arr(i,j,k), Real(0.0));
@@ -4383,12 +4390,23 @@ void WDM6::Advance(const Real& dt_advance,
                 nr_arr(i,j,k) = amrex::max(nr_arr(i,j,k), Real(1.e-2));
                 nn_arr(i,j,k) = amrex::max(nn_arr(i,j,k), Real(0.0));
             });
+#endif
 
         } // End minor timestep loop
 
         // ============================================================
-        // Step 11: Simplified sedimentation for all species
+        // DISABLED: Step 11 (simplified sedimentation for all species)
         // ============================================================
+        // Pre-group legacy sedimentation, redundant with the bounded groups that
+        // superseded it: G5b/G5c (nislfv rain/snow/graupel) and G8 (ice fall).
+        // Those run inside the minor timestep loop via
+        // wdm6_nislfv_rain_plm6_column; this block ran once more afterwards on
+        // qs/qg/qi with hardcoded fall-speed constants, double-sedimenting them.
+        // It sits after POST_G17, outside every group tag, so no tag observed it.
+        // Ablation at Milestone A: rhoQ3 2.608e-3 -> 4.135e-7,
+        // rhoQ5 6.374e-4 -> 3.920e-9, thermodynamics bit-identical.
+        // Its rain branch was already hollow (precip_rain never accumulated).
+#if 0
         // Simplified top-down sedimentation for rain, snow, graupel, and ice
         const Real dz_sedi = m_geom.CellSize(2);
         const Real t0c_sed = Real(273.15);
@@ -4467,6 +4485,7 @@ void WDM6::Advance(const Real& dt_advance,
             snow_arr(i,j,klo) += precip_snow;
             graup_arr(i,j,klo) += precip_graup;
         });
+#endif
 
 #ifdef ERF_USE_WDM6_FORT
         }
