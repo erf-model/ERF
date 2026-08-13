@@ -94,7 +94,7 @@ init_base_state_from_wrfinput (const Box& subdomain,
                                MultiFab& r_hse,
                                MultiFab& mf_PB,
                                MultiFab* mf_ALB,
-                               MultiFab* z_phys,
+                               MultiFab* z_phys_cc,
                                const Real& T00,
                                const Real& P00,
                                const Real& TLP,
@@ -1347,7 +1347,7 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev)
 
     init_base_state_from_wrfinput(boxes_at_level[lev][0], l_rdOcp,
                                   p_hse, pi_hse, th_hse, qv_hse, r_hse,
-                                  mf_PB, mf_ALB.get(), z_phys_nd[lev].get(),
+                                  mf_PB, mf_ALB.get(), z_phys_cc[lev].get(),
                                   T00, P00, TLP, TISO, TLP_STRAT, P_STRAT);
 
     // FillBoundary to populate the internal ghost cells (no averaging in above call)
@@ -1557,9 +1557,9 @@ init_base_state_from_wrfinput (const Box& subdomain,
                                MultiFab& th_hse,
                                MultiFab& qv_hse,
                                MultiFab& r_hse,
-                               MultiFab& mf_PB,
-                               MultiFab* mf_ALB,
-                               MultiFab* z_phys_nd,
+                               MultiFab& /*mf_PB*/,
+                               MultiFab* /*mf_ALB*/,
+                               MultiFab* z_phys_cc,
                                const Real& T00,
                                const Real& P00,
                                const Real& TLP,
@@ -1575,56 +1575,33 @@ init_base_state_from_wrfinput (const Box& subdomain,
 #endif
     for (MFIter mfi(p_hse,TilingIfNotGPU()); mfi.isValid(); ++mfi ) {
 
-        Box gtbx = mfi.growntilebox();
+        Box gtbx = mfi.tilebox();
 
-        const Array4<Real      >&  p_hse_arr = p_hse.array(mfi);
-        const Array4<Real      >& pi_hse_arr = pi_hse.array(mfi);
         const Array4<Real      >& th_hse_arr = th_hse.array(mfi);
         const Array4<Real      >& qv_hse_arr = qv_hse.array(mfi);
-        const Array4<Real      >&  r_hse_arr = r_hse.array(mfi);
 
-        const Array4<Real const>&      PB_arr = mf_PB.const_array(mfi);
-        const Array4<Real const>&     ALB_arr = (mf_ALB) ? mf_ALB->const_array(mfi) :
-                                                           Array4<const Real> {};
+        const Array4<const Real>& z_cc_arr = z_phys_cc->const_array(mfi);
 
-        ParallelFor(gtbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+        ParallelFor(gtbx, [=,zero_d=zero] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {
-            // Base state needs ghost cells filled, protect FAB access
-            int ii = std::max(i , dom_lo.x);
-                ii = std::min(ii, dom_hi.x);
-            int jj = std::max(j , dom_lo.y);
-                jj = std::min(jj, dom_hi.y);
-            int kk = std::max(k , dom_lo.z);
-                kk = std::min(kk, dom_hi.z);
-
-            Real Rd, Td, Thd;
-            Real Pd = PB_arr(ii,jj,kk);
-            // Have inverse base density
-            if (ALB_arr) {
-                Rd  = Real(1.0) / ALB_arr(ii,jj,kk);
-                Td  = Pd / (R_d * Rd);
-                Thd = getThgivenTandP(Td, Pd, l_rdOcp);
-            } else {
-                Td  = std::max(TISO, T00 + TLP * std::log(Pd/P00));
-                if (P_STRAT > Real(0.) && Pd <= P_STRAT) {
-                    Td = TISO + TLP_STRAT * std::log(Pd/P_STRAT);
-                }
-                Thd = getThgivenTandP(Td, Pd, l_rdOcp);
-                Rd  = getRhogivenThetaPress (Thd, Pd, l_rdOcp);
+            // Analytical function with true CC heights
+            Real ToA  = T00 / TLP;
+            Real disc = amrex::max(ToA * ToA - two * CONST_GRAV * z_cc_arr(i,j,k) / (TLP * R_d), zero_d);
+            Real Pd   = P00 * std::exp(-ToA + std::sqrt(disc));
+            Real Td  = std::max(TISO, T00 + TLP * std::log(Pd/P00));
+            if (P_STRAT > zero_d && Pd <= P_STRAT) {
+                Td = TISO + TLP_STRAT * std::log(Pd/P_STRAT);
             }
 
-            // Fill HSE arrays (FOEXTRAP ghost cells)
-             r_hse_arr(i,j,k) = Rd;
-            th_hse_arr(i,j,k) = Thd;
-            qv_hse_arr(i,j,k) = Real(0.);
-             p_hse_arr(i,j,k) = Pd;
-            pi_hse_arr(i,j,k) = getExnergivenP(p_hse_arr(i,j,k), l_rdOcp);
+            // Fill HSE arrays for balancing
+            th_hse_arr(i,j,k) = getThgivenTandP(Td, Pd, l_rdOcp);
+            qv_hse_arr(i,j,k) = zero;
         });
     }
 
     // **************************************************************************
-    // Rebalance the base state since state from WRFInput does not discretely
-    // satisfy dp0/dz = -rho0 g
+    // Rebalance the base state since state from WRFInput since it does not
+    // discretely satisfy dp0/dz = -rho0 g on the ERF grid
     // **************************************************************************
     int k_dom_lo = dom_lo.z;
     int k_dom_hi = dom_hi.z;
@@ -1652,12 +1629,12 @@ init_base_state_from_wrfinput (const Box& subdomain,
             AMREX_ALWAYS_ASSERT((klo == k_dom_lo) && (khi == k_dom_hi));
             bx.makeSlab(2,klo);
 
+            const Array4<Real>&  r_hse_arr = r_hse.array(mfi);
             const Array4<Real>&  p_hse_arr = p_hse.array(mfi);
             const Array4<Real>& pi_hse_arr = pi_hse.array(mfi);
-            const Array4<Real>& th_hse_arr = th_hse.array(mfi);
-            const Array4<Real>&  r_hse_arr = r_hse.array(mfi);
 
-            const Array4<const Real>& z_arr = z_phys_nd->const_array(mfi);
+            const Array4<const Real>& th_hse_arr = th_hse.const_array(mfi);
+            const Array4<const Real>& z_cc_arr   = z_phys_cc->const_array(mfi);
 
             ParallelFor(bx, [=,RdoCp_d=RdoCp]
                         AMREX_GPU_DEVICE(int i, int j, int /*k*/) noexcept
@@ -1678,8 +1655,7 @@ init_base_state_from_wrfinput (const Box& subdomain,
                 {
                     // Vertical grid spacing
                     z_lo = zero; // corresponding to p_0
-                    z_hi = Real(0.125) * ( z_arr(i,j,klo  ) + z_arr(i+1,j,klo  ) + z_arr(i,j+1,klo  ) + z_arr(i+1,j+1,klo  )
-                                         + z_arr(i,j,klo+1) + z_arr(i+1,j,klo+1) + z_arr(i,j+1,klo+1) + z_arr(i+1,j+1,klo+1) );
+                    z_hi = z_cc_arr(i,j,klo);
 
                     // dz == height of first cell center
                     dz = z_hi - z_lo;
@@ -1717,8 +1693,7 @@ init_base_state_from_wrfinput (const Box& subdomain,
 
                 for (int k(klo+1); k<=khi; ++k) {
 
-                  z_hi = Real(0.125) * (z_arr(i,j,k  ) + z_arr(i+1,j,k  ) + z_arr(i,j+1,k  ) + z_arr(i+1,j+1,k  )
-                                       +z_arr(i,j,k+1) + z_arr(i+1,j,k+1) + z_arr(i,j+1,k+1) + z_arr(i+1,j+1,k+1));
+                  z_hi = z_cc_arr(i,j,k);
                   dz   = z_hi - z_lo;
 
                   // Establish known constant
