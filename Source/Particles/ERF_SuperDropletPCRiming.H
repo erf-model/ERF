@@ -108,11 +108,11 @@ namespace SDRiming
                                         const ParticleReal a_D, /*!< diffusivity coeff */
                                         const SDMassChangeUtils_SV::dMdt<ParticleReal>& a_dmdt /*!< mass change utilities */)
     {
-        // erf_qsati takes pressure in mbar; a_P arrives in Pa
+        // erf_qsati takes pressure in mbar and erf_esati returns mbar; a_P arrives in Pa
         Real qsat_r = Real(zero); erf_qsati(a_T, a_P/Real(100.0), qsat_r);
         ParticleReal qsat = ParticleReal(qsat_r);
         auto sup_sat  = a_qv/qsat - ParticleReal(one);
-        auto drho  = sup_sat / (a_D * a_dmdt.Fk_plus_Fd(a_T, ParticleReal(erf_esati(a_T)), a_D));
+        auto drho  = sup_sat / (a_D * a_dmdt.Fk_plus_Fd(a_T, ParticleReal(erf_esati(a_T)*Real(100.0)), a_D));
         auto dT = (a_dmdt.L * a_D / a_dmdt.K) * drho;
         return a_T + dT;
     }

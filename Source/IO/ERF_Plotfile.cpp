@@ -1455,12 +1455,12 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
                     MultiFab::Copy(mf[lev],*(qmoist[lev][8]),0,mf_comp,1,0);
                     mf_comp += 1;
                 }
-                if (containerHasElement(plot_var_names, "graup_accum")) {
-                    MultiFab::Copy(mf[lev],*(qmoist[lev][9]),0,mf_comp,1,0);
-                    mf_comp += 1;
-                }
                 if (containerHasElement(plot_var_names, "snow_accum")) {
                     MultiFab::Copy(mf[lev],*(qmoist[lev][10]),0,mf_comp,1,0);
+                    mf_comp += 1;
+                }
+                if (containerHasElement(plot_var_names, "graup_accum")) {
+                    MultiFab::Copy(mf[lev],*(qmoist[lev][9]),0,mf_comp,1,0);
                     mf_comp += 1;
                 }
                 if (containerHasElement(plot_var_names, "rel_humidity")) {

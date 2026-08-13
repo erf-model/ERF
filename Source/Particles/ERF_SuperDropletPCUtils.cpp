@@ -389,7 +389,7 @@ void SuperDropletPC::iceCategoryDensity(MultiFab& a_mf, const MultiFab& a_z_phys
 
             if (!include) { return amrex::ParticleReal(0); }
 
-            auto ai = ptd.m_runtime_idata[SuperDropletsIntIdxSoA_RT::active][i];
+            int ai = (ptd.m_runtime_idata[SuperDropletsIntIdxSoA_RT::active][i] > 0) ? 1 : 0;
             auto num_par = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::multiplicity][i];
             return ai * num_par * mass;
         });

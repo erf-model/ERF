@@ -380,6 +380,7 @@ void SuperDropletsMoist::Update_State_Vars (MultiFab& a_cons_vars, const MultiFa
     computeQiQgQsWater(a_z_phys_nd);
     computeQtWater();
     rainAccumulation(a_z_phys_nd);
+    snowAccumulation(a_z_phys_nd);
 
     computeQcSpecies(a_z_phys_nd);
     computeQtSpecies();
@@ -586,7 +587,8 @@ void SuperDropletsMoist::rainAccumulation (const MultiFab& a_z_phys_nd)
     }
 }
 
-/*! Compute snow accumulation */
+/*! Compute frozen precipitation accumulation; this is the whole ice species,
+    not the snow category alone */
 void SuperDropletsMoist::snowAccumulation (const MultiFab& a_z_phys_nd)
 {
     BL_PROFILE("SuperDropletsMoist::snowAccumulation()");

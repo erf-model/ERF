@@ -157,6 +157,8 @@ plot3d_moisture_capabilities (const MoistureType moisture_type)
         caps.snow = true;
         caps.graupel = true;
         caps.rain_accumulation = true;
+        // graupel accumulation is not advertised because nothing writes it
+        caps.snow_accumulation = true;
         caps.relative_humidity_diagnostic = true;
         caps.condensation_rate_diagnostic = true;
         break;

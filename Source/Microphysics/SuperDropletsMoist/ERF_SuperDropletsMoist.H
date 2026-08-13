@@ -29,7 +29,7 @@ namespace MicVar_SD {
         rh_w,        /*!< relative humidity (water) */
         rh_i,        /*!< relative humidity (ice) */
         rain_accum,  /*!< rain accumulation (mm) */
-        graup_accum,  /*!< rain accumulation (mm) */
+        graup_accum,  /*!< graupel accumulation (mm) */
         snow_accum,  /*!< snow accumulation (mm) */
         NumVars
     };
