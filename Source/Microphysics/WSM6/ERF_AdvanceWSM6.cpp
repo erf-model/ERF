@@ -1860,7 +1860,10 @@ WSM6::Advance(const Real& dt_advance,
                 const Real vt2g = Real(pvtg) * rslopeb_g_arr(i,j,k)
                                 * denfac_arr(i,j,k);
 
-                const Real qsum = amrex::max(qsum_arr(i,j,k), Real(1.0e-15));
+                // Recompute qsum from the current qs/qg (they have changed since
+                // qsum_arr was set in G5a) -- mirrors ERF_module_mp_wsm6.F90 l.1008
+                const Real qsum = amrex::max(qs_arr(i,j,k) + qg_arr(i,j,k), Real(1.0e-15));
+                qsum_arr(i,j,k) = qsum;
                 const Real vt2ave = (qsum > Real(1.0e-15))
                     ? (vt2s * qs_arr(i,j,k) + vt2g * qg_arr(i,j,k)) / qsum
                     : Real(0.0);
