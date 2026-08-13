@@ -85,19 +85,25 @@ void ImmersedForcingTerrain_Xmom (const Box& tbx,
     const Real Olen_in            = solverChoice.if_Olen_in;
     const bool l_use_most         = solverChoice.if_use_most;
 
+    const Real small_volfrac = Real(0.005);
+
     ParallelFor(tbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
     {
         const Real ux = u(i, j, k);
         const Real uy = fourth * ( v(i, j  , k  ) + v(i-1, j  , k  )
-                               + v(i, j+1, k  ) + v(i-1, j+1, k  ) );
+                               + v(i, j  , k+1) + v(i-1, j+1, k  ) );
         const Real uz = fourth * ( w(i, j  , k  ) + w(i-1, j  , k  )
                                + w(i, j  , k+1) + w(i-1, j  , k+1) );
         const Real windspeed = std::sqrt(ux * ux + uy * uy + uz * uz);
         // Use face-centered terrain_blanking if available, otherwise average from cell centers
-        const Real t_blank = (t_blank_xface_arr) ? t_blank_xface_arr(i, j, k) :
-                             myhalf * (t_blank_arr(i, j, k) + t_blank_arr(i-1, j, k));
-        const Real t_blank_above = (t_blank_xface_arr) ? t_blank_xface_arr(i, j, k+1) :
-                                   myhalf * (t_blank_arr(i, j, k+1) + t_blank_arr(i-1, j, k+1));
+        Real t_blank_raw = (t_blank_xface_arr) ? t_blank_xface_arr(i, j, k) :
+                           myhalf * (t_blank_arr(i, j, k) + t_blank_arr(i-1, j, k));
+        // Threshold: if averaged value is below small_volfrac, set to zero
+        const Real t_blank = (t_blank_raw < small_volfrac) ? zero : t_blank_raw;
+
+        Real t_blank_above_raw = (t_blank_xface_arr) ? t_blank_xface_arr(i, j, k+1) :
+                                 myhalf * (t_blank_arr(i, j, k+1) + t_blank_arr(i-1, j, k+1));
+        const Real t_blank_above = (t_blank_above_raw < small_volfrac) ? zero : t_blank_above_raw;
 
         const Real dx_z = (z_cc_arr) ? (z_cc_arr(i,j,k) - z_cc_arr(i,j,k-1)) : dx_arr[2];
         const Real drag_coefficient = alpha_m / std::pow(dx_x*dx_y*dx_z, one/three);
@@ -186,6 +192,8 @@ void ImmersedForcingTerrain_Ymom (const Box& tby,
     const Real Olen_in            = solverChoice.if_Olen_in;
     const bool l_use_most         = solverChoice.if_use_most;
 
+    const Real small_volfrac = Real(0.005);
+
     ParallelFor(tby, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
     {
         const Real ux = fourth * ( u(i  , j  , k  ) + u(i  , j-1, k  )
@@ -195,10 +203,13 @@ void ImmersedForcingTerrain_Ymom (const Box& tby,
                                + w(i  , j  , k+1) + w(i  , j-1, k+1) );
         const Real windspeed = std::sqrt(ux * ux + uy * uy + uz * uz);
         // Use face-centered terrain_blanking if available, otherwise average from cell centers
-        const Real t_blank = (t_blank_yface_arr) ? t_blank_yface_arr(i, j, k) :
-                             myhalf * (t_blank_arr(i, j, k) + t_blank_arr(i, j-1, k));
-        const Real t_blank_above = (t_blank_yface_arr) ? t_blank_yface_arr(i, j, k+1) :
-                                   myhalf * (t_blank_arr(i, j, k+1) + t_blank_arr(i, j-1, k+1));
+        Real t_blank_raw = (t_blank_yface_arr) ? t_blank_yface_arr(i, j, k) :
+                           myhalf * (t_blank_arr(i, j, k) + t_blank_arr(i, j-1, k));
+        const Real t_blank = (t_blank_raw < small_volfrac) ? zero : t_blank_raw;
+
+        Real t_blank_above_raw = (t_blank_yface_arr) ? t_blank_yface_arr(i, j, k+1) :
+                                 myhalf * (t_blank_arr(i, j, k+1) + t_blank_arr(i, j-1, k+1));
+        const Real t_blank_above = (t_blank_above_raw < small_volfrac) ? zero : t_blank_above_raw;
 
         const Real dx_z = (z_cc_arr) ? (z_cc_arr(i,j,k) - z_cc_arr(i,j,k-1)) : dx_arr[2];
         const Real drag_coefficient = alpha_m / std::pow(dx_x*dx_y*dx_z, one/three);
@@ -277,6 +288,8 @@ void ImmersedForcingTerrain_Zmom (const Box& tbz,
     const Real tiny = std::numeric_limits<amrex::Real>::epsilon();
     const bool l_implicit_drag = solverChoice.if_implicit_drag;
 
+    const Real small_volfrac = Real(0.005);
+
     ParallelFor(tbz, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
     {
         const Real ux = fourth * ( u(i  , j  , k  ) + u(i+1, j  , k  )
@@ -286,8 +299,9 @@ void ImmersedForcingTerrain_Zmom (const Box& tbz,
         const Real uz = w(i, j, k);
         const Real windspeed = std::sqrt(ux * ux + uy * uy + uz * uz);
         // Use face-centered terrain_blanking if available, otherwise average from cell centers
-        const Real t_blank = (t_blank_zface_arr) ? t_blank_zface_arr(i, j, k) :
-                             myhalf * (t_blank_arr(i, j, k) + t_blank_arr(i, j, k-1));
+        Real t_blank_raw = (t_blank_zface_arr) ? t_blank_zface_arr(i, j, k) :
+                           myhalf * (t_blank_arr(i, j, k) + t_blank_arr(i, j, k-1));
+        const Real t_blank = (t_blank_raw < small_volfrac) ? zero : t_blank_raw;
 
         const Real dx_z = (z_cc_arr) ? (z_cc_arr(i,j,k) - z_cc_arr(i,j,k-1)) : dx_arr[2];
         const Real drag_coefficient = alpha_m / std::pow(dx_x*dx_y*dx_z, one/three);
@@ -341,6 +355,7 @@ void ImmersedForcingBuildings_Xmom (const Box& tbx,
 
     const bool is_slow_step = true;  // This is determined by calling context
     const bool use_ImmersedForcing_fast = solverChoice.immersed_forcing_substep;
+    const Real small_volfrac = Real(0.005);
 
     ParallelFor(tbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
     {
@@ -354,17 +369,26 @@ void ImmersedForcingBuildings_Xmom (const Box& tbx,
         const Real rho_xface   = myhalf * ( cell_data(i,j,k,Rho_comp) + cell_data(i-1,j,k,Rho_comp) );
         const Real theta_xface = (myhalf * (cell_data(i,j,k,RhoTheta_comp) + cell_data(i-1,j,k, RhoTheta_comp))) / rho_xface;
 
-        // Use face-centered terrain_blanking if available, otherwise average from cell centers
-        const Real t_blank       = (t_blank_xface_arr) ? t_blank_xface_arr(i, j  , k  ) :
-                                   myhalf * (t_blank_arr(i, j  , k  ) + t_blank_arr(i-1, j  , k  ));
-        const Real t_blank_below = (k == 0) ? zero : (t_blank_xface_arr) ? t_blank_xface_arr(i, j  , k-1) :
-                                   myhalf * (t_blank_arr(i, j  , k-1) + t_blank_arr(i-1, j  , k-1));
-        const Real t_blank_above = (t_blank_xface_arr) ? t_blank_xface_arr(i, j  , k+1) :
-                                   myhalf * (t_blank_arr(i, j  , k+1) + t_blank_arr(i-1, j  , k+1));
-        const Real t_blank_north = (t_blank_xface_arr) ? t_blank_xface_arr(i, j+1, k  ) :
-                                   myhalf * (t_blank_arr(i, j+1, k  ) + t_blank_arr(i-1, j+1, k  ));
-        const Real t_blank_south = (t_blank_xface_arr) ? t_blank_xface_arr(i, j-1, k  ) :
-                                   myhalf * (t_blank_arr(i, j-1, k  ) + t_blank_arr(i-1, j-1, k  ));
+        // Use face-centered terrain_blanking if available, otherwise average from cell centers with threshold
+        Real t_blank_raw       = (t_blank_xface_arr) ? t_blank_xface_arr(i, j  , k  ) :
+                                 myhalf * (t_blank_arr(i, j  , k  ) + t_blank_arr(i-1, j  , k  ));
+        const Real t_blank     = (t_blank_raw < small_volfrac) ? zero : t_blank_raw;
+
+        Real t_blank_below_raw = (k == 0) ? zero : (t_blank_xface_arr) ? t_blank_xface_arr(i, j  , k-1) :
+                                 myhalf * (t_blank_arr(i, j  , k-1) + t_blank_arr(i-1, j  , k-1));
+        const Real t_blank_below = (t_blank_below_raw < small_volfrac) ? zero : t_blank_below_raw;
+
+        Real t_blank_above_raw = (t_blank_xface_arr) ? t_blank_xface_arr(i, j  , k+1) :
+                                 myhalf * (t_blank_arr(i, j  , k+1) + t_blank_arr(i-1, j  , k+1));
+        const Real t_blank_above = (t_blank_above_raw < small_volfrac) ? zero : t_blank_above_raw;
+
+        Real t_blank_north_raw = (t_blank_xface_arr) ? t_blank_xface_arr(i, j+1, k  ) :
+                                 myhalf * (t_blank_arr(i, j+1, k  ) + t_blank_arr(i-1, j+1, k  ));
+        const Real t_blank_north = (t_blank_north_raw < small_volfrac) ? zero : t_blank_north_raw;
+
+        Real t_blank_south_raw = (t_blank_xface_arr) ? t_blank_xface_arr(i, j-1, k  ) :
+                                 myhalf * (t_blank_arr(i, j-1, k  ) + t_blank_arr(i-1, j-1, k  ));
+        const Real t_blank_south = (t_blank_south_raw < small_volfrac) ? zero : t_blank_south_raw;
 
         const Real dx_z = (z_cc_arr) ? (z_cc_arr(i,j,k) - z_cc_arr(i,j,k-1)) : dx_arr[2];
         const Real drag_coefficient = alpha_m / std::pow(dx_x*dx_y*dx_z, one/three);
@@ -739,9 +763,9 @@ void ImmersedForcingBuildings_Zmom (const Box& tbz,
 }
 
 /**
- * Apply terrain immersed forcing to scalars (RhoTheta)
+ * Apply terrain immersed forcing to scalars (Rho, RhoTheta)
  */
-void ImmersedForcingTerrain_Theta (const Box& bx,
+void ImmersedForcingTerrain_Scalar (const Box& bx,
                                    const Array4<const Real>& u,
                                    const Array4<const Real>& v,
                                    const Array4<const Real>& cell_data,
@@ -750,6 +774,8 @@ void ImmersedForcingTerrain_Theta (const Box& bx,
                                    const Array4<      Real>& cell_src,
                                    const Geometry& geom,
                                    const SolverChoice& solverChoice,
+                                   const Table1D<Real>& r_avg,
+                                   const Table1D<Real>& t_avg,
                                    const Real time)
 {
     // geometric properties
@@ -854,13 +880,25 @@ void ImmersedForcingTerrain_Theta (const Box& bx,
             }
         }
 
+        // Force fully immersed cells to planar average rho and theta
+        if (t_blank == one && r_avg && t_avg) {
+            const Real rho_avg = r_avg(k);
+            const Real theta_avg = t_avg(k) / rho_avg;  // Convert from RhoTheta to Theta
+            const Real rho_cell = cell_data(i,j,k,Rho_comp);
+            const Real theta_cell = cell_data(i,j,k,RhoTheta_comp) / rho_cell;
+            const Real bc_forcing_r = -(rho_avg - rho_cell);
+            const Real bc_forcing_rt = -(rho_avg * theta_avg - cell_data(i,j,k,RhoTheta_comp));
+
+            cell_src(i, j, k, Rho_comp) -= drag_coefficient * U_s * bc_forcing_r;
+            cell_src(i, j, k, RhoTheta_comp) -= drag_coefficient * U_s * bc_forcing_rt;
+        }
     });
 }
 
 /**
- * Apply buildings immersed forcing to scalars (RhoTheta)
+ * Apply buildings immersed forcing to scalars (Rho, RhoTheta)
  */
-void ImmersedForcingBuildings_Theta (const Box& bx,
+void ImmersedForcingBuildings_Scalar (const Box& bx,
                                      const Array4<const Real>& u,
                                      const Array4<const Real>& v,
                                      const Array4<const Real>& w,
@@ -870,6 +908,8 @@ void ImmersedForcingBuildings_Theta (const Box& bx,
                                      const Array4<      Real>& cell_src,
                                      const Geometry& geom,
                                      const SolverChoice& solverChoice,
+                                     const Table1D<Real>& r_avg,
+                                     const Table1D<Real>& t_avg,
                                      const Real time)
 {
     // geometric properties
@@ -1081,6 +1121,26 @@ void ImmersedForcingBuildings_Theta (const Box& bx,
                 const Real bc_forcing_rt = -(cell_data(i,j,k,Rho_comp) * tTarget - cell_data(i,j,k,RhoTheta_comp));
                 cell_src(i, j, k, RhoTheta_comp) -= drag_coefficient * U_s * bc_forcing_rt;
             }
+        }
+
+        // Force fully immersed cells to planar average rho and theta
+        if (t_blank == 1.0) {
+            const Real rho_avg = r_avg(k);
+            const Real theta_avg = t_avg(k) / rho_avg;  // Convert from RhoTheta to Theta
+            const Real rho_cell = cell_data(i,j,k,Rho_comp);
+            const Real theta_cell = cell_data(i,j,k,RhoTheta_comp) / rho_cell;
+            const Real bc_forcing_r = -(rho_avg - rho_cell);
+            const Real bc_forcing_rt = -(rho_avg * theta_avg - cell_data(i,j,k,RhoTheta_comp));
+
+            cell_src(i, j, k, Rho_comp) -= drag_coefficient * U_s * bc_forcing_r;
+            cell_src(i, j, k, RhoTheta_comp) -= drag_coefficient * U_s * bc_forcing_rt;
+        } else {
+            const Real rho_avg = r_avg(k);
+            const Real theta_avg = t_avg(k) / rho_avg;  // Convert from RhoTheta to Theta
+            const Real rho_cell = cell_data(i,j,k,Rho_comp);
+            const Real theta_cell = cell_data(i,j,k,RhoTheta_comp) / rho_cell;
+            const Real bc_forcing_r = -(rho_avg - rho_cell);
+            const Real bc_forcing_rt = -(rho_avg * theta_avg - cell_data(i,j,k,RhoTheta_comp));
         }
     });
 }

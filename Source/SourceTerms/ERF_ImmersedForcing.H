@@ -4,6 +4,7 @@
 #include <AMReX.H>
 #include <ERF_DataStruct.H>
 #include <AMReX_MultiFab.H>
+#include <AMReX_TableData.H>
 
 // Terrain immersed forcing - MOMENTUM
 void ImmersedForcingTerrain_Xmom (const amrex::Box& tbx,
@@ -86,7 +87,7 @@ void ImmersedForcingBuildings_Zmom (const amrex::Box& tbz,
                                     const amrex::Real fac);
 
 // Terrain immersed forcing - SCALARS
-void ImmersedForcingTerrain_Theta (const amrex::Box& bx,
+void ImmersedForcingTerrain_Scalar (const amrex::Box& bx,
                                    const amrex::Array4<const amrex::Real>& u,
                                    const amrex::Array4<const amrex::Real>& v,
                                    const amrex::Array4<const amrex::Real>& cell_data,
@@ -95,10 +96,12 @@ void ImmersedForcingTerrain_Theta (const amrex::Box& bx,
                                    const amrex::Array4<      amrex::Real>& cell_src,
                                    const amrex::Geometry& geom,
                                    const SolverChoice& solverChoice,
+                                   const amrex::Table1D<amrex::Real>& r_avg,
+                                   const amrex::Table1D<amrex::Real>& t_avg,
                                    const amrex::Real time);
 
 // Buildings immersed forcing - SCALARS
-void ImmersedForcingBuildings_Theta (const amrex::Box& bx,
+void ImmersedForcingBuildings_Scalar (const amrex::Box& bx,
                                      const amrex::Array4<const amrex::Real>& u,
                                      const amrex::Array4<const amrex::Real>& v,
                                      const amrex::Array4<const amrex::Real>& w,
@@ -108,6 +111,8 @@ void ImmersedForcingBuildings_Theta (const amrex::Box& bx,
                                      const amrex::Array4<      amrex::Real>& cell_src,
                                      const amrex::Geometry& geom,
                                      const SolverChoice& solverChoice,
+                                     const amrex::Table1D<amrex::Real>& r_avg,
+                                     const amrex::Table1D<amrex::Real>& t_avg,
                                      const amrex::Real time);
 
 #endif
