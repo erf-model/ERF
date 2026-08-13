@@ -302,7 +302,7 @@ void ERF::project_momenta (int lev, double l_time, double l_dt_d, Vector<MultiFa
     Vector<Array<MultiFab,AMREX_SPACEDIM>> fluxes_sub; fluxes_sub.resize(1);
 
     MultiFab ax_sub, ay_sub, az_sub, dJ_sub, znd_sub;
-    MultiFab mfmx_sub, mfmy_sub;
+    MultiFab mfmx_sub, mfmy_sub, mfvx_sub, mfuy_sub;
 
     Array<MultiFab,AMREX_SPACEDIM> rho0_u_sub;
     Array<MultiFab const*, AMREX_SPACEDIM> rho0_u_const;
@@ -372,6 +372,8 @@ void ERF::project_momenta (int lev, double l_time, double l_dt_d, Vector<MultiFa
 
             mfmx_sub.define(ba2d_sub, DistributionMapping(dm_sub), 1, mapfac[lev][MapFacType::m_x]->nGrowVect(), MFInfo{}.SetAlloc(false), EBFactory(lev));
             mfmy_sub.define(ba2d_sub, DistributionMapping(dm_sub), 1, mapfac[lev][MapFacType::m_y]->nGrowVect(), MFInfo{}.SetAlloc(false), EBFactory(lev));
+            mfvx_sub.define(convert(ba2d_sub, IntVect(0,1,0)), DistributionMapping(dm_sub), 1, mapfac[lev][MapFacType::v_x]->nGrowVect(), MFInfo{}.SetAlloc(false), EBFactory(lev));
+            mfuy_sub.define(convert(ba2d_sub, IntVect(1,0,0)), DistributionMapping(dm_sub), 1, mapfac[lev][MapFacType::u_y]->nGrowVect(), MFInfo{}.SetAlloc(false), EBFactory(lev));
               dJ_sub.define(ba_sub, DistributionMapping(dm_sub), 1, detJ_cc[lev]->nGrowVect(), MFInfo{}.SetAlloc(false), EBFactory(lev));
 
             for (int idim = 0; idim < AMREX_SPACEDIM; ++idim) {
@@ -390,6 +392,8 @@ void ERF::project_momenta (int lev, double l_time, double l_dt_d, Vector<MultiFa
 
             mfmx_sub.define(ba2d_sub, DistributionMapping(dm_sub), 1, mapfac[lev][MapFacType::m_x]->nGrowVect(), MFInfo{}.SetAlloc(false));
             mfmy_sub.define(ba2d_sub, DistributionMapping(dm_sub), 1, mapfac[lev][MapFacType::m_y]->nGrowVect(), MFInfo{}.SetAlloc(false));
+            mfvx_sub.define(convert(ba2d_sub, IntVect(0,1,0)), DistributionMapping(dm_sub), 1, mapfac[lev][MapFacType::v_x]->nGrowVect(), MFInfo{}.SetAlloc(false));
+            mfuy_sub.define(convert(ba2d_sub, IntVect(1,0,0)), DistributionMapping(dm_sub), 1, mapfac[lev][MapFacType::u_y]->nGrowVect(), MFInfo{}.SetAlloc(false));
               dJ_sub.define(ba_sub, DistributionMapping(dm_sub), 1, detJ_cc[lev]->nGrowVect(), MFInfo{}.SetAlloc(false));
 
             for (int idim = 0; idim < AMREX_SPACEDIM; ++idim) {
@@ -413,6 +417,8 @@ void ERF::project_momenta (int lev, double l_time, double l_dt_d, Vector<MultiFa
 
             mfmx_sub.setFab(mfi, FArrayBox((*mapfac[lev][MapFacType::m_x])[orig_index], amrex::make_alias, 0, 1));
             mfmy_sub.setFab(mfi, FArrayBox((*mapfac[lev][MapFacType::m_y])[orig_index], amrex::make_alias, 0, 1));
+            mfvx_sub.setFab(mfi, FArrayBox((*mapfac[lev][MapFacType::v_x])[orig_index], amrex::make_alias, 0, 1));
+            mfuy_sub.setFab(mfi, FArrayBox((*mapfac[lev][MapFacType::u_y])[orig_index], amrex::make_alias, 0, 1));
 
             fluxes_sub[0][0].setFab(mfi,FArrayBox(fluxes[0][0][orig_index], amrex::make_alias, 0, 1));
             fluxes_sub[0][1].setFab(mfi,FArrayBox(fluxes[0][1][orig_index], amrex::make_alias, 0, 1));
@@ -459,7 +465,8 @@ void ERF::project_momenta (int lev, double l_time, double l_dt_d, Vector<MultiFa
         // Note that we replace "rho0w" with the contravariant momentum, Omega
         // ****************************************************************************
 
-        compute_divergence(lev, rhs_sub[0], rho0_u_const, geom_tmp[0]);
+        compute_divergence(lev, rhs_sub[0], rho0_u_const, mfmx_sub, mfmy_sub, mfvx_sub, mfuy_sub,
+                           ax_sub, ay_sub, dJ_sub, geom_tmp[0]);
 
         Real rhsnorm;
 
@@ -548,7 +555,10 @@ void ERF::project_momenta (int lev, double l_time, double l_dt_d, Vector<MultiFa
                 });
             } // mfi
 
-            compute_divergence(lev, rhs_lev, rho0_u_const, geom_tmp[0]);
+            compute_divergence(lev, rhs_lev, rho0_u_const, *mapfac[lev][MapFacType::m_x],
+                               *mapfac[lev][MapFacType::m_y], *mapfac[lev][MapFacType::v_x],
+                               *mapfac[lev][MapFacType::u_y], *ax[lev], *ay[lev],
+                               *detJ_cc[lev], geom_tmp[0]);
 
             // Re-define max norm over the entire MultiFab
             rhsnorm = rhs_lev.norm0();
@@ -804,7 +814,10 @@ void ERF::project_momenta (int lev, double l_time, double l_dt_d, Vector<MultiFa
         rho0_u_const[1] = &mom_mf[IntVars::ymom];
         rho0_u_const[2] = &mom_mf[IntVars::zmom];
 
-        compute_divergence(lev, rhs_lev, rho0_u_const, geom_tmp[0]);
+        compute_divergence(lev, rhs_lev, rho0_u_const, *mapfac[lev][MapFacType::m_x],
+                           *mapfac[lev][MapFacType::m_y], *mapfac[lev][MapFacType::v_x],
+                           *mapfac[lev][MapFacType::u_y], *ax[lev], *ay[lev],
+                           *detJ_cc[lev], geom_tmp[0]);
 
         bool local = false;
         Real sum = volWgtSumMF(lev,rhs_lev,0,*detJ_cc[lev],*mapfac[lev][MapFacType::m_x],*mapfac[lev][MapFacType::m_y],false,local);

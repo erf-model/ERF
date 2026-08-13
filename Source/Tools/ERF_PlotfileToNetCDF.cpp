@@ -23,7 +23,7 @@
 
 #include "ERF_NCInterface.H"
 
-// Do not re-declare writeNCPlotFile here -- pull in the real declaration so the
+// Do not redeclare writeNCPlotFile here -- pull in the real declaration so the
 // tool cannot drift out of sync with the definition in Source/IO/ERF_NCPlotFile.cpp
 #include "ERF_NCPlotFile.H"
 

@@ -481,38 +481,6 @@ void SuperDropletPC::addParticles ( int a_lev,
             }
         });
 
-        const auto height_arr = (*a_height_ptr)[mfi].array();
-        ParallelFor(tile_box, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-        {
-            int num_sd_this_cell = num_superdroplets_arr(i,j,k);
-            int start = offset_arr(i,j,k);
-            for (int n = start; n < start+num_sd_this_cell; n++) {
-                auto& p = aos[n+size_old];
-                Real x = static_cast<Real>(p.pos(0));
-                Real y = static_cast<Real>(p.pos(1));
-                Real z = static_cast<Real>(p.pos(2));
-                Real r[3] = { (x-plo[0])/dx[0] - i,
-                              (y-plo[1])/dx[1] - j,
-                              (z-plo[2])/dx[2] - k };
-
-                Real sx[] = { one - r[0], r[0]};
-                Real sy[] = { one - r[1], r[1]};
-
-                Real height_at_pxy_lo = zero;
-                Real height_at_pxy_hi = zero;
-                for (int ii = 0; ii < 2; ++ii) {
-                    for (int jj = 0; jj < 2; ++jj) {
-                        height_at_pxy_lo += sx[ii] * sy[jj]
-                                            * height_arr(i+ii,j+jj,k);
-                        height_at_pxy_hi += sx[ii] * sy[jj]
-                                            * height_arr(i+ii,j+jj,k+1);
-                    }
-                }
-
-                p.pos(2) = height_at_pxy_lo
-                           + r[2] * (height_at_pxy_hi - height_at_pxy_lo);
-           }
-        });
         Gpu::synchronize();
     }
 
