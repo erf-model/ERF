@@ -29,6 +29,15 @@ ForestDrag::ForestDrag (std::string forestfile)
     file.close();
 }
 
+/**
+ * Define the forest drag field based on tree parameters and terrain.
+ *
+ * @param[in] ba Array of boxes for the grid.
+ * @param[in] dm Distribution mapping for the grid.
+ * @param[in] geom Geometry defining the domain.
+ * @param[in] z_phys_cc Cell-centered physical height field.
+ * @param[in] z_phys_nd Node-centered physical height field.
+ */
 void
 ForestDrag::define_drag_field (const BoxArray& ba,
                                const DistributionMapping& dm,
