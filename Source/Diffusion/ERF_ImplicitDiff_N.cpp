@@ -388,7 +388,7 @@ ImplicitDiffForMomLU_N (const Box& bx,
               if (use_ysu_mom_countergradient && stagdir < 2) {
                   const int hgam_comp = (stagdir == 0) ? EddyDiff::HGAMU_v : EddyDiff::HGAMV_v;
                   const Real gam_hi = myhalf * (mu_turb(i,j,klo,hgam_comp) + mu_turb(i,j,klo+1,hgam_comp));
-                  RHS_a(i,j,klo) += Fact * gfac  * rhoAlpha_hi * gam_hi;
+                  RHS_a(i,j,klo) -= Fact * gfac  * rhoAlpha_hi * gam_hi;
               }
 
               b_tmp      = rhoface - a_tmp - c_tmp;
