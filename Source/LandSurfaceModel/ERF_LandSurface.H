@@ -14,6 +14,9 @@
 #include <ERF_NOAHMP.H>
 #endif
 
+/**
+ * @brief Wrapper class for managing land surface models across AMR levels.
+ */
 class LandSurface {
 
 public:

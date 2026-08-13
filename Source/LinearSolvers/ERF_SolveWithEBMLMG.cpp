@@ -11,6 +11,18 @@
 
 using namespace amrex;
 
+/**
+ * Compute phi gradients where the area of the face is zero.
+ *
+ * @tparam T EB factory or auxiliary EB data type for face-centered grids
+ * @param[in] phi Cell-centered solution used to compute gradients
+ * @param[out] fluxes Face-centered gradient fluxes to fill
+ * @param[in] geom Geometry used for inverse cell spacing
+ * @param[in] ebfact Cell-centered embedded-boundary factory
+ * @param[in] ebfact_u Embedded-boundary data on x-faces
+ * @param[in] ebfact_v Embedded-boundary data on y-faces
+ * @param[in] ebfact_w Embedded-boundary data on z-faces
+ */
 template <typename T>
 void
 FillZeroAreaFaceFluxes (MultiFab& phi,

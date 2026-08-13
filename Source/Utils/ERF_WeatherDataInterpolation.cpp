@@ -60,6 +60,14 @@ void PlotMultiFab(const MultiFab& mf,
     }
 }
 
+/**
+ * Fill forecast state MultiFabs by interpolating from binary forecast files.
+ *
+ * @param[in] lev Level index.
+ * @param[in] filename Path to the binary forecast data file.
+ * @param[in] a_z_phys_nd Nodal physical height field.
+ * @param[out] forecast_state MultiFabs to be filled with interpolated forecast data.
+ */
 void
 ERF::FillForecastStateMultiFabs(const int lev,
                                 const std::string& filename,
@@ -354,6 +362,14 @@ ERF::FillForecastStateMultiFabs(const int lev,
         );*/
 }
 
+/**
+ * Interpolate weather forecast data onto the simulation mesh.
+ *
+ * @param[in] lev Level index.
+ * @param[in] time Current simulation time.
+ * @param[in] a_z_phys_nd Nodal physical height fields across all levels.
+ * @param[in] regrid_forces_file_read Flag to force reading of forecast files during regridding.
+ */
 void
 ERF::WeatherDataInterpolation(const int lev,
                               const double time,

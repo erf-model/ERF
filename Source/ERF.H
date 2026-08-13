@@ -42,6 +42,7 @@
 #include <ERF_DataStruct.H>
 #include <ERF_TurbPertStruct.H>
 #include <ERF_InputSoundingData.H>
+#include <ERF_LargeScaleForcingData.H>
 #include <ERF_InputSpongeData.H>
 #include <ERF_SurfaceLayer.H>
 #include <ERF_Derive.H>
@@ -392,6 +393,13 @@ public:
                                       amrex::Gpu::HostVector<amrex::Real>& h_avg_tau23, amrex::Gpu::HostVector<amrex::Real>& h_avg_tau33,
                                       amrex::Gpu::HostVector<amrex::Real>& h_avg_hfx3,  amrex::Gpu::HostVector<amrex::Real>& h_avg_q1fx3,
                                       amrex::Gpu::HostVector<amrex::Real>& h_avg_q2fx3, amrex::Gpu::HostVector<amrex::Real>& h_avg_diss);
+
+    void derive_forcing_profiles_stag(amrex::Gpu::HostVector<amrex::Real>& h_avg_ttend,  amrex::Gpu::HostVector<amrex::Real>& h_avg_qtend,
+                                      amrex::Gpu::HostVector<amrex::Real>& h_avg_wsub,   amrex::Gpu::HostVector<amrex::Real>& h_avg_thtend,
+                                      amrex::Gpu::HostVector<amrex::Real>& h_avg_qhtend, amrex::Gpu::HostVector<amrex::Real>& h_avg_tvtend,
+                                      amrex::Gpu::HostVector<amrex::Real>& h_avg_qvtend, amrex::Gpu::HostVector<amrex::Real>& h_avg_qcvtend,
+                                      amrex::Gpu::HostVector<amrex::Real>& h_avg_tnudge, amrex::Gpu::HostVector<amrex::Real>& h_avg_qnudge,
+                                      amrex::Gpu::HostVector<amrex::Real>& h_avg_unudge, amrex::Gpu::HostVector<amrex::Real>& h_avg_vnudge);
 
     // Perform the volume-weighted sum
     amrex::Real
@@ -1000,6 +1008,10 @@ private:
     amrex::Vector<amrex::Vector<amrex::MultiFab*>> lsm_data; // (lev,ncomp) Data for LSM coupling
     amrex::Vector<std::string> lsm_flux_name;                // (ncomp) -- e.g., hfx3, q1fx3, tau13, tau23
     amrex::Vector<amrex::Vector<amrex::MultiFab*>> lsm_flux; // (lev,ncomp) Fluxes from LSM needed by DYCORE
+
+    LargeScaleForcingData lsf;
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> nudge_data; // holds nudging inputs: tnudge, qnudge, unudge, vnudge
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> lsf_data; //  holds large scale forcing tendencies: ttend, qtend, wsub
 
     amrex::Vector<std::unique_ptr<IRadiation>> rad; // Radiation model at each level
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> qheating_rates;  // radiation heating rate source terms (SW, LW) (DYCORE)
