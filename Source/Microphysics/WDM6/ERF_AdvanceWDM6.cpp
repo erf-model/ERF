@@ -4542,10 +4542,27 @@ void WDM6::Advance(const Real& dt_advance,
         // Bridge-wrapper site W1_THETAWB, native leg. Same emitter, same schema,
         // same kts..kte column, at the equivalent point: end of the kernel,
         // immediately before Copy_Micro_to_State forms RhoTheta = rho * theta
-        // from mic_fab_vars[theta]. The native path performs no T -> theta
-        // writeback, so PRE and POST are expected to be identical here. That
-        // identity is the evidence the retreat needs, not a gap in the trace.
+        // from mic_fab_vars[theta].
         emit_w1("PRE");
+
+        // Convert updated temperature back to potential temperature, mirroring
+        // the bridge leg above. Without this the native path left
+        // mic_fab_vars[theta] at its pre-microphysics value while the bridge
+        // leg advanced it, and Copy_Micro_to_State then formed
+        // RhoTheta = rho * theta from the stale field, dropping microphysical
+        // latent heating from the thermodynamic state. Confirmed by the
+        // W1_THETAWB retreat: native PRE theta equalled POST theta at 100/100
+        // levels, and the resulting divergence 6.625510053 at k=90 matched the
+        // Milestone A theta error exactly.
+        {
+            constexpr Real p0_nat = 1.e5;           // Reference pressure (Pa)
+            constexpr Real rdOcp_nat = R_d / Cp_d;  // R/cp = 0.286
+            ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+                Real exner = std::pow(p_arr(i,j,k) / p0_nat, rdOcp_nat);
+                w1_theta(i,j,k) = t_arr(i,j,k) / exner;
+            });
+        }
+
         emit_w1("POST");
 
 #ifdef ERF_USE_WDM6_FORT
