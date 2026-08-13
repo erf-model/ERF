@@ -3454,6 +3454,40 @@ void WDM6::Advance(const Real& dt_advance,
                         ifsat = 1;
                     }
                 }
+#if !defined(AMREX_USE_GPU)
+                // Tier 2 forensic decomposition of pidep, native leg. One var
+                // per line in the WSM6-DIAG-T2 schema; field order and the
+                // 20-fractional-digit value token are contractual and must
+                // match wdm6_emit_t2 in ERF_module_mp_wdm6.F90 exactly.
+                if (microphysics_debug >= 2 && loop == 0 &&
+                    i == diag_i && j == diag_j && (k + 1) >= 88 && (k + 1) <= 100) {
+                    auto emit_t2 = [&] (const char* var, Real value) {
+                        std::printf("WDM6-DIAG-T2 diag_schema=1 tag=G13E phase=pidep"
+                                    " source_layer=NATIVE_CPP path_id=cpp expr_id=pidep"
+                                    " store_id=%s loop=%d i_dbg=%d j_dbg=%d"
+                                    " k_dbg=%d k_raw=%d debug_level=%d var=%s value=%+.20E\n",
+                                    var, loop, diag_i, diag_j,
+                                    k - klo + 1, k, microphysics_debug,
+                                    var, static_cast<double>(value));
+                    };
+                    emit_t2("supcol",    supcol);
+                    emit_t2("qi",        qi_val);
+                    emit_t2("xni",       xni);
+                    emit_t2("xmi",       xmi);
+                    emit_t2("diameter",  diameter);
+                    emit_t2("rhi",       rhi);
+                    emit_t2("work1i",    work1i);
+                    emit_t2("supsat",    supsat);
+                    emit_t2("satdt",     satdt);
+                    emit_t2("prevp",     prevp_arr(i,j,k));
+                    emit_t2("pidep_raw", Real(4.0) * diameter * xni
+                                         * (rhi - Real(1.0)) / work1i);
+                    emit_t2("supice",    satdt - prevp_arr(i,j,k));
+                    emit_t2("pidep",     pidep_arr(i,j,k));
+                    emit_t2("ifsat",     Real(ifsat));
+                    std::fflush(stdout);
+                }
+#endif
 
                 if (qs_val > Real(0.0) && ifsat != 1) {
                     const Real coeres_s = rslope2_arr(i,j,k,1)

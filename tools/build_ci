@@ -8,6 +8,8 @@
 #   --all-tags                 Run once, report all canonical groups
 #   --target-column "I J"      Diagnostic column (default "100 0")
 #   --max-step N               Steps to advance (default 1)
+#   --debug N                  microphysics_debug level (default 1). 2 enables
+#                              the Tier 2 WDM6-DIAG-T2 forensic records.
 #   --jobs N                   Build parallelism (default 1; the box is RAM-bound)
 #
 # Example:
@@ -39,6 +41,7 @@ SKIP_BUILD=false
 ALL_TAGS=false
 TARGET_COLUMN="100 0"
 MAX_STEP=1
+DEBUG_LEVEL=1
 BUILD_JOBS=1
 WDM6_GROUPS=(
     P0 G1a G1b G1c G2 G3 G4 G5a G5b G5c G6 G7 G8 G9
@@ -64,6 +67,7 @@ while [[ $# -gt 0 ]]; do
         --all-tags)       ALL_TAGS=true ;;
         --target-column)  TARGET_COLUMN="$2"; shift ;;
         --max-step)       MAX_STEP="$2"; shift ;;
+        --debug)          DEBUG_LEVEL="$2"; shift ;;
         --jobs)           BUILD_JOBS="$2"; shift ;;
         *) echo "WARNING: unrecognized argument '$1'" ;;
     esac
@@ -76,8 +80,8 @@ case "$GROUP" in
     --*)         GROUP="G7" ;;
 esac
 
-# A run label that keeps artifacts from different columns/steps apart
-RUN_SUFFIX="c$(echo "$TARGET_COLUMN" | tr -d ' ')_s${MAX_STEP}"
+# A run label that keeps artifacts from different columns/steps/levels apart
+RUN_SUFFIX="c$(echo "$TARGET_COLUMN" | tr -d ' ')_s${MAX_STEP}_d${DEBUG_LEVEL}"
 
 # ============================================================
 # Helper function: run one WDM6 bridge/native pair
@@ -99,7 +103,7 @@ run_wdm6_pair() {
     "$BUILD_DIR/Exec/erf_exec" inputs_BF02_moist_bubble \
         erf.moisture_model=WDM6 \
         erf.use_wdm6_cpp_answer=0 \
-        erf.microphysics_debug=1 \
+        erf.microphysics_debug="$DEBUG_LEVEL" \
         erf.micro_diag_target_column="$TARGET_COLUMN" \
         max_step="$MAX_STEP" \
         erf.plot_file_1="plt_wdm6_bubble_${RUN_LABEL}_${RUN_SUFFIX}_fortran" \
@@ -112,7 +116,7 @@ run_wdm6_pair() {
     "$BUILD_DIR/Exec/erf_exec" inputs_BF02_moist_bubble \
         erf.moisture_model=WDM6 \
         erf.use_wdm6_cpp_answer=1 \
-        erf.microphysics_debug=1 \
+        erf.microphysics_debug="$DEBUG_LEVEL" \
         erf.micro_diag_target_column="$TARGET_COLUMN" \
         max_step="$MAX_STEP" \
         erf.plot_file_1="plt_wdm6_bubble_${RUN_LABEL}_${RUN_SUFFIX}_cpp" \

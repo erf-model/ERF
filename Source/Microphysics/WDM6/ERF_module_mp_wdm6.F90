@@ -2243,6 +2243,50 @@
               endif
               if(abs(prevp(i,k)+pidep(i,k)).ge.abs(satdt)) ifsat = 1
             endif
+            ! Tier 2 forensic decomposition of pidep, the first materially
+            ! failing expression per the tag-frontier retreat. One var per line
+            ! in the WSM6-DIAG-T2 schema, which the corpus makes contractual for
+            ! new Tier 2 records; the multi-var WDM6-FORT_T2_* tags elsewhere in
+            ! this file predate that and do not conform. Scoped to the failing
+            ! column and a k window around the divergence, per the rule that
+            ! Tier 2 is narrow-and-deep rather than broad. pidep_raw and supice
+            ! are recomputed inline so the surrounding physics is untouched.
+            if (debug_local .ge. 2 .and. loop .eq. 1 .and. &
+                i == i_dbg_local .and. lat == j_dbg_local .and. &
+                k >= 88 .and. k <= 100) then
+              call wdm6_emit_t2('G13E','pidep','INCORE_FORTRAN','fort', &
+                   loop, i_dbg_local, lat, k-kts+1, k, debug_local, 'supcol', supcol)
+              call wdm6_emit_t2('G13E','pidep','INCORE_FORTRAN','fort', &
+                   loop, i_dbg_local, lat, k-kts+1, k, debug_local, 'qi', qci(i,k,2))
+              call wdm6_emit_t2('G13E','pidep','INCORE_FORTRAN','fort', &
+                   loop, i_dbg_local, lat, k-kts+1, k, debug_local, 'xni', xni(i,k))
+              call wdm6_emit_t2('G13E','pidep','INCORE_FORTRAN','fort', &
+                   loop, i_dbg_local, lat, k-kts+1, k, debug_local, 'xmi', &
+                   den(i,k)*qci(i,k,2)/xni(i,k))
+              call wdm6_emit_t2('G13E','pidep','INCORE_FORTRAN','fort', &
+                   loop, i_dbg_local, lat, k-kts+1, k, debug_local, 'diameter', diameter)
+              call wdm6_emit_t2('G13E','pidep','INCORE_FORTRAN','fort', &
+                   loop, i_dbg_local, lat, k-kts+1, k, debug_local, 'rhi', rh(i,k,2))
+              call wdm6_emit_t2('G13E','pidep','INCORE_FORTRAN','fort', &
+                   loop, i_dbg_local, lat, k-kts+1, k, debug_local, 'work1i', work1(i,k,2))
+              call wdm6_emit_t2('G13E','pidep','INCORE_FORTRAN','fort', &
+                   loop, i_dbg_local, lat, k-kts+1, k, debug_local, 'supsat', supsat)
+              call wdm6_emit_t2('G13E','pidep','INCORE_FORTRAN','fort', &
+                   loop, i_dbg_local, lat, k-kts+1, k, debug_local, 'satdt', satdt)
+              call wdm6_emit_t2('G13E','pidep','INCORE_FORTRAN','fort', &
+                   loop, i_dbg_local, lat, k-kts+1, k, debug_local, 'prevp', prevp(i,k))
+              call wdm6_emit_t2('G13E','pidep','INCORE_FORTRAN','fort', &
+                   loop, i_dbg_local, lat, k-kts+1, k, debug_local, 'pidep_raw', &
+                   4.*diameter*xni(i,k)*(rh(i,k,2)-1.)/work1(i,k,2))
+              call wdm6_emit_t2('G13E','pidep','INCORE_FORTRAN','fort', &
+                   loop, i_dbg_local, lat, k-kts+1, k, debug_local, 'supice', &
+                   satdt-prevp(i,k))
+              call wdm6_emit_t2('G13E','pidep','INCORE_FORTRAN','fort', &
+                   loop, i_dbg_local, lat, k-kts+1, k, debug_local, 'pidep', pidep(i,k))
+              call wdm6_emit_t2('G13E','pidep','INCORE_FORTRAN','fort', &
+                   loop, i_dbg_local, lat, k-kts+1, k, debug_local, 'ifsat', &
+                   real(ifsat,kind=kind_phys))
+            endif
 
 
 
@@ -4296,5 +4340,57 @@
        errflg = 0
      end subroutine mp_wdm6_run
 
+  !------------------------------------------------------------------
+  ! Tier 2 forensic record emitter.
+  !
+  ! Mirrors the WSM6 contract in ERF_module_mp_wsm6_isohelper.F90: one
+  ! variable per line, contractual field order, and a value token carrying
+  ! 20 fractional digits with an explicit sign and fixed exponent width so
+  ! that ULP-level differences in a double remain distinguishable. The
+  ! 16-digit ES24.16E3 used by the Tier 1 group tags is NOT sufficient for
+  ! this: a one-ULP difference on a value near unity would print identically
+  ! on both legs, which is exactly what a Tier 2 retreat must not do.
+  !------------------------------------------------------------------
+  subroutine wdm6_diag_value_string(val, sout)
+    real(kind=kind_phys), intent(in) :: val
+    character(len=*), intent(out) :: sout
+    character(len=64) :: tmp
+    write(tmp,'(SP,ES30.20E3)') val
+    sout = trim(adjustl(tmp))
+  end subroutine wdm6_diag_value_string
+
+  subroutine wdm6_emit_t2(tag, phase, source_layer, path_id, &
+                          loop_out, i_dbg, j_dbg, k_dbg, k_raw, debug_level, var, value)
+    character(len=*), intent(in) :: tag, phase, source_layer, path_id, var
+    integer, intent(in) :: loop_out, i_dbg, j_dbg, k_dbg, k_raw, debug_level
+    real(kind=kind_phys), intent(in) :: value
+
+    character(len=32) :: s_loop, s_i, s_j, s_kdbg, s_kraw, s_dbg
+    character(len=64) :: s_value
+
+    write(s_loop,'(I0)') loop_out
+    write(s_i   ,'(I0)') i_dbg
+    write(s_j   ,'(I0)') j_dbg
+    write(s_kdbg,'(I0)') k_dbg
+    write(s_kraw,'(I0)') k_raw
+    write(s_dbg ,'(I0)') debug_level
+    call wdm6_diag_value_string(value, s_value)
+
+    write(*,'(A)') 'WDM6-DIAG-T2 diag_schema=1'// &
+                   ' tag='//trim(tag)// &
+                   ' phase='//trim(phase)// &
+                   ' source_layer='//trim(source_layer)// &
+                   ' path_id='//trim(path_id)// &
+                   ' expr_id='//trim(phase)// &
+                   ' store_id='//trim(var)// &
+                   ' loop='//trim(s_loop)// &
+                   ' i_dbg='//trim(s_i)// &
+                   ' j_dbg='//trim(s_j)// &
+                   ' k_dbg='//trim(s_kdbg)// &
+                   ' k_raw='//trim(s_kraw)// &
+                   ' debug_level='//trim(s_dbg)// &
+                   ' var='//trim(var)// &
+                   ' value='//trim(s_value)
+  end subroutine wdm6_emit_t2
 
        END MODULE mp_wdm6
