@@ -495,7 +495,7 @@ void make_sources (int level,
                     if (t_blank > 0 && (t_blank_above == zero)) { // force to MOST value
                         const Real surf_temp    = init_surf_temp + surf_heating_rate*time;
                         const Real bc_forcing_rt_srf = -(cell_data(i,j,k-1,Rho_comp) * surf_temp - cell_data(i,j,k-1,RhoTheta_comp));
-                        cell_src(i, j, k-1, RhoTheta_comp) -= drag_coefficient * U_s * bc_forcing_rt_srf; // k-1
+                        cell_src(i, j, k, RhoTheta_comp) -= drag_coefficient * U_s * bc_forcing_rt_srf;
                     }
                 }
 

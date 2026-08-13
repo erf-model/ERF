@@ -8,7 +8,8 @@
 
 using namespace amrex;
 
-TerrainPoisson::TerrainPoisson (Geometry const& geom, BoxArray const& ba,
+TerrainPoisson::TerrainPoisson (Geometry const& geom, Geometry const& lev_geom,
+                                BoxArray const& ba,
                                 DistributionMapping const& dm,
                                 Array<std::string,2*AMREX_SPACEDIM>& domain_bcs_type,
                                 Gpu::DeviceVector<Real>& stretched_dz_lev_d,
@@ -29,7 +30,7 @@ TerrainPoisson::TerrainPoisson (Geometry const& geom, BoxArray const& ba,
 {
     if (!m_2D_fft_precond) {
         Box bounding_box = ba.minimalBox();
-        bc_fft = get_fft_bc(geom,domain_bcs_type,bounding_box,use_real_bcs);
+        bc_fft = get_fft_bc(lev_geom,domain_bcs_type,bounding_box,use_real_bcs);
         m_2D_fft_precond = std::make_unique<FFT::PoissonHybrid<MultiFab>>(geom,bc_fft);
     }
 }
