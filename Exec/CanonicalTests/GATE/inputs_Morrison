@@ -1,0 +1,140 @@
+# ------------------  INPUTS TO MAIN PROGRAM  -------------------
+erf.prob_name = "GATE"
+
+stop_time = 129600   #  36 hours
+
+amrex.fpe_trap_invalid = 1
+
+fabarray.mfiter_tile_size = 1024 1024 1024
+
+# PROBLEM SIZE & GEOMETRY
+geometry.prob_lo = 0. 0.  0.
+geometry.prob_hi =  100000.  100000.  21000 # zhi not used with grid stretching
+amr.n_cell           =    200       200      230
+
+geometry.is_periodic = 1 1 0
+
+erf.terrain_z_levels = 0.000000 50.000000 100.000000 150.000000 200.000000 250.000000 300.000000 350.000000 400.000000 450.000000 500.000000 550.000000 600.000000 650.000000 700.000000 750.000000 800.000000 850.000000 900.000000 950.000000 1000.000000 1050.000000 1100.000000 1150.000000 1200.000000 1250.000000 1300.657895 1351.982341 1403.982108 1456.666083 1510.043269 1564.122785 1618.913875 1674.425899 1730.668345 1787.650824 1845.383071 1903.874954 1963.136466 2023.177736 2084.009022 2145.640719 2208.083360 2271.347615 2335.444294 2400.384351 2466.178882 2532.839130 2600.376487 2668.802494 2738.128842 2808.367380 2879.530108 2951.629189 3024.676941 3098.685848 3173.668557 3249.637880 3326.606799 3404.588468 3483.596211 3563.643529 3644.744102 3726.911788 3810.160627 3894.504846 3979.958857 4066.537263 4154.254858 4243.126633 4333.167773 4424.393665 4516.819897 4610.462264 4705.336768 4801.459620 4898.847246 4997.516289 5097.483609 5197.483609 5297.483609 5397.483609 5497.483609 5597.483609 5697.483609 5797.483609 5897.483609 5997.483609 6097.483609 6197.483609 6297.483609 6397.483609 6497.483609 6597.483609 6697.483609 6797.483609 6897.483609 6997.483609 7097.483609 7197.483609 7297.483609 7397.483609 7497.483609 7597.483609 7697.483609 7797.483609 7897.483609 7997.483609 8097.483609 8197.483609 8297.483609 8397.483609 8497.483609 8597.483609 8697.483609 8797.483609 8897.483609 8997.483609 9097.483609 9197.483609 9297.483609 9397.483609 9497.483609 9597.483609 9697.483609 9797.483609 9897.483609 9997.483609 10097.483609 10197.483609 10297.483609 10397.483609 10497.483609 10597.483609 10697.483609 10797.483609 10897.483609 10997.483609 11097.483609 11197.483609 11297.483609 11397.483609 11497.483609 11597.483609 11697.483609 11797.483609 11897.483609 11997.483609 12097.483609 12197.483609 12297.483609 12397.483609 12497.483609 12597.483609 12697.483609 12797.483609 12897.483609 12997.483609 13097.483609 13197.483609 13297.483609 13397.483609 13497.483609 13597.483609 13697.483609 13797.483609 13897.483609 13997.483609 14097.483609 14197.483609 14297.483609 14397.483609 14497.483609 14597.483609 14697.483609 14797.483609 14897.483609 14997.483609 15097.483609 15197.483609 15297.483609 15397.483609 15497.483609 15597.483609 15697.483609 15797.483609 15897.483609 15997.483609 16097.483609 16197.483609 16297.483609 16397.483609 16497.483609 16597.483609 16697.483609 16797.483609 16897.483609 16997.483609 17097.483609 17197.483609 17297.483609 17397.483609 17497.483609 17597.483609 17697.483609 17797.483609 17897.483609 17997.483609 18097.483609 18199.649911 18304.086576 18410.844055 18519.973923 18631.528899 18745.562875 18862.130939 18981.289404 19103.095835 19227.609076 19354.889277 19484.997928 19617.997882 19753.953391 19892.930133 20034.995247 20180.217363 20328.666638 20480.414785 20635.535114 20794.102561 20956.193729
+
+# MOST BOUNDARY (DEFAULT IS ADIABATIC FOR THETA)
+zlo.type = "surface_layer"
+erf.surface_layer.flux_type = "rico"
+erf.most.ustar  = 0.001229 # Cm
+erf.most.tstar  = 0.001094 # Ch
+erf.most.qstar  = 0.001133 # Cq
+erf.most.z0     = 0.1 # from BOMEX
+erf.most.zref   = 25.0 # from BOMEX
+
+erf.most.rico.theta_z0 = 298.7
+erf.most.rico.qsat_z0 = 0.021833
+
+zhi.type = "SlipWall"
+
+# RAYLEIGH DAMPING
+erf.rayleigh_damp_W = true
+erf.rayleigh_damp_U = true
+erf.rayleigh_damp_V = true
+erf.rayleigh_damp_T = true
+erf.rayleigh_dampcoef = 0.2
+erf.rayleigh_zdamp = 2000.
+
+# TIME STEP CONTROL
+erf.fixed_dt = 3.0
+erf.fixed_fast_dt = 0.6
+
+# DIAGNOSTICS & VERBOSITY
+erf.sum_interval   = 1       # timesteps between computing mass
+erf.v              = 1       # verbosity in ERF.cpp
+amr.v              = 1       # verbosity in Amr.cpp
+erf.data_log       = "surf" "mean" "flux" "subgrid"
+erf.profile_int    = 200     # (every minute with dt = 0.075)
+
+# REFINEMENT / REGRIDDING
+amr.max_level       = 0       # maximum level number allowed
+
+# CHECKPOINT FILES
+erf.check_file      = chk     # root name of checkpoint file
+erf.check_int       = 20000    # number of timesteps between checkpoints
+
+# PLOTFILES
+erf.plot_file_1     = plt     # prefix of plotfile name
+erf.plot_int_1      = 100    # number of timesteps between plotfiles
+erf.plot_vars_1     = density rhotheta x_velocity y_velocity z_velocity pressure temp theta qt qp qv qc qsat qrain rain_accum qsnow qgraup qi
+particles.disable_plt = true
+
+# SOLVER CHOICE
+erf.alpha_T = 0.0
+erf.alpha_C = 0.0
+erf.use_gravity = true
+
+erf.use_coriolis    = true
+erf.coriolis_3d     = false
+erf.latitude        = 14.982176712702886  # f = 0.376e-4 1/s
+
+erf.moisture_model  = "SuperDroplets"
+erf.buoyancy_type   = 2
+
+erf.molec_diff_type = "None"
+
+erf.les_type        = "Smagorinsky"
+erf.Cs              = 0.17
+
+erf.init_type = "input_sounding"
+
+# SDM parameters
+super_droplets_moisture.initial_distribution_type = "uniform"
+super_droplets_moisture.diagnostics_interval = -1
+super_droplets_moisture.coalescence_kernel = "Halls"
+super_droplets_moisture.aerosols = NH4HSO4 soil
+super_droplets_moisture.num_initializations = 2
+super_droplets_moisture.density_scaling = true
+
+super_droplets_moisture.0.initial_aerosol_distribution_type_NH4HSO4 = "radius_log_normal"
+super_droplets_moisture.0.initial_aerosol_mean_radius_NH4HSO4 = 30.0e-9 # 0.03 mu-m
+super_droplets_moisture.0.initial_aerosol_geomstd_radius_NH4HSO4 = 1.28
+super_droplets_moisture.0.initial_number_density = 9.0e7 # m^{-3}
+super_droplets_moisture.0.initial_particles_per_cell = 64
+
+super_droplets_moisture.1.initial_aerosol_distribution_type_NH4HSO4 = "radius_log_normal"
+super_droplets_moisture.1.initial_aerosol_mean_radius_NH4HSO4 = 140.0e-9 # 0.14 mu-m
+super_droplets_moisture.1.initial_aerosol_geomstd_radius_NH4HSO4 = 1.75
+super_droplets_moisture.1.initial_number_density = 1.5e7 # m^{-3}
+super_droplets_moisture.1.initial_particles_per_cell = 64
+
+super_droplets_moisture.0.initial_aerosol_distribution_type_soil = "radius_log_normal"
+super_droplets_moisture.0.initial_aerosol_mean_radius_soil = 30.0e-9 # 0.03 mu-m
+super_droplets_moisture.0.initial_aerosol_geomstd_radius_soil = 1.28
+
+super_droplets_moisture.1.initial_aerosol_distribution_type_soil = "radius_log_normal"
+super_droplets_moisture.1.initial_aerosol_mean_radius_soil = 140.0e-9 # 0.14 mu-m
+super_droplets_moisture.1.initial_aerosol_geomstd_radius_soil = 1.75
+
+erf.add_custom_rhotheta_forcing        = true
+erf.add_custom_moisture_forcing        = true
+erf.add_custom_geostrophic_profile     = true
+erf.add_custom_w_subsidence            = true
+erf.custom_forcing_uses_primitive_vars = false
+
+# Higher values of perturbations lead to instability
+# Instability seems to be coming from BC
+prob.U_0_Pert_Mag = 0.01
+prob.V_0_Pert_Mag = 0.01
+prob.W_0_Pert_Mag = 0.0
+
+prob.pert_ref_height = 1600.0
+prob.T_0_Pert_Mag    = 0.1
+prob.qv_0_Pert_Mag   = 0.000025
+
+prob.advection_heating_rate   = -2.8935E-5
+prob.source_cutoff            = 1500.0
+prob.source_cutoff_transition = 1500.0
+
+prob.advection_moisture_rate            = -1.157E-8
+prob.moisture_source_cutoff            	= 2980.0
+prob.moisture_source_cutoff_transition 	= 200.0
+
+prob.wbar_sub_max    = -0.005
+prob.wbar_cutoff_max = 2260.0
+prob.wbar_cutoff_min = 2500.0
+
+prob.custom_TKE      = true

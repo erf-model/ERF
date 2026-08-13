@@ -134,7 +134,7 @@ AMREX_ENUM(LandSurfaceType,
  * @brief Radiation model.
  */
 AMREX_ENUM(RadiationType,
-    None, RRTMGP
+    None, RRTMGP, Simple
 );
 
 /**
@@ -329,8 +329,10 @@ struct SolverChoice {
             moisture_indices = MoistureComponentIndices(
                 RhoQ1_comp,  // water vapor
                 RhoQ2_comp,  // cloud water
-                -1,          // cloud ice
-                RhoQ3_comp   // rain
+                RhoQ3_comp,  // cloud ice
+                RhoQ4_comp,  // rain
+                RhoQ5_comp,  // snow
+                RhoQ6_comp   // graupel
             );
         }
 
@@ -710,6 +712,13 @@ struct SolverChoice {
         pp.query("spatial_moisture_forcing", spatial_moisture_forcing);
 
         pp.query("nudging_from_input_sounding", nudging_from_input_sounding);
+
+        pp.query("nudging_q_z1", nudging_q_z1);
+        pp.query("nudging_q_z2", nudging_q_z2);
+        pp.query("nudging_t_z1", nudging_t_z1);
+        pp.query("nudging_t_z2", nudging_t_z2);
+
+        pp.query("large_scale_forcing", large_scale_forcing);
 
         have_geo_wind_profile = (!abl_geo_wind_table.empty() || custom_geostrophic_profile);
         AMREX_ALWAYS_ASSERT_WITH_MESSAGE(!(!abl_geo_wind_table.empty() && custom_geostrophic_profile),
@@ -1203,6 +1212,8 @@ struct SolverChoice {
             amrex::Print() << "Moisture Model: Kessler No Rain" << std::endl;
         } else if (moisture_type == MoistureType::SatAdj) {
             amrex::Print() << "Moisture Model: Saturation Adjustment" << std::endl;
+        } else if (moisture_type == MoistureType::SuperDroplets) {
+            amrex::Print() << "Moisture Model: SuperDroplets" << std::endl;
         } else if (moisture_type == MoistureType::MoistNoCondensation) {
             amrex::Print() << "Moisture Model: MoistNoCondensation" << std::endl;
         } else {
@@ -1262,6 +1273,8 @@ struct SolverChoice {
 
         if (rad_type == RadiationType::RRTMGP) {
             amrex::Print() << "Radiation Model: RRTMGP" << std::endl;
+        } else if (rad_type == RadiationType::Simple) {
+            amrex::Print() << "Radiation Model: Simple" << std::endl;
         } else {
             amrex::Print() << "Radiation Model: None" << std::endl;
         }
@@ -1500,6 +1513,15 @@ struct SolverChoice {
     // Do we use source terms to nudge the solution towards
     //    the time-varying data provided in input sounding files?
     bool nudging_from_input_sounding = false;
+
+    amrex::Real nudging_q_z1 = zero;
+    amrex::Real nudging_q_z2 = amrex::Real(10000.0); // TODO: reasonable defaults here?
+    amrex::Real nudging_t_z1 = zero;
+    amrex::Real nudging_t_z2 = amrex::Real(10000.0);
+
+    bool large_scale_forcing = false;
+    std::string lsf_file = "";
+    amrex::Real lsf_timescale = zero;
 
     // MOST stress rotations
     bool use_rotate_surface_flux = false;

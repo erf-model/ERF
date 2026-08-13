@@ -1472,6 +1472,36 @@ List of Parameters
 |                                     | initial sounding       |                   |                     |
 |                                     | profile                |                   |                     |
 +-------------------------------------+------------------------+-------------------+---------------------+
+| **erf.nudging_t_z1**                | Bottom of the height   | Real [m]          | 0.0                 |
+|                                     | range over which       |                   |                     |
+|                                     | potential temperature  |                   |                     |
+|                                     | is nudged              |                   |                     |
++-------------------------------------+------------------------+-------------------+---------------------+
+| **erf.nudging_t_z2**                | Top of the same        | Real [m]          | 10000.0             |
+|                                     | range                  |                   |                     |
++-------------------------------------+------------------------+-------------------+---------------------+
+| **erf.nudging_q_z1**                | Bottom of the height   | Real [m]          | 0.0                 |
+|                                     | range over which       |                   |                     |
+|                                     | water vapor is         |                   |                     |
+|                                     | nudged                 |                   |                     |
++-------------------------------------+------------------------+-------------------+---------------------+
+| **erf.nudging_q_z2**                | Top of the same        | Real [m]          | 10000.0             |
+|                                     | range                  |                   |                     |
++-------------------------------------+------------------------+-------------------+---------------------+
+| **erf.large_scale_forcing**         | Apply time-varying     | true / false      | false               |
+|                                     | large-scale tendencies |                   |                     |
+|                                     | and subsidence read    |                   |                     |
+|                                     | from a forcing file    |                   |                     |
++-------------------------------------+------------------------+-------------------+---------------------+
+| **erf.large_scale_forcing_file**    | Name of the            | String            | None                |
+|                                     | large-scale forcing    |                   |                     |
+|                                     | file                   |                   |                     |
++-------------------------------------+------------------------+-------------------+---------------------+
+| **erf.forcing_timescale**           | Relaxation time scale  | Real [s]          | 0.0                 |
+|                                     | for the u and v        |                   |                     |
+|                                     | large-scale nudging;   |                   |                     |
+|                                     | 0 disables it          |                   |                     |
++-------------------------------------+------------------------+-------------------+---------------------+
 | **erf.input_sounding_file**         | Name(s) of the         | String(s)         | input_sounding      |
 |                                     | input sounding file(s) |                   |                     |
 +-------------------------------------+------------------------+-------------------+---------------------+
@@ -2037,7 +2067,9 @@ List of Parameters
 +-------------------------------------+----------------------------------------+-------------------+-----------------------------------+
 | Parameter                           | Definition                             | Acceptable Values | Default / Notes                   |
 +=====================================+========================================+===================+===================================+
-| **erf.radiation_model**             | Enable radiation model                 | "None", "RRTMGP"  | "None"                            |
+| **erf.radiation_model**             | Enable radiation model                 | "None", "RRTMGP", | "None". "Simple" is a prescribed  |
+|                                     |                                        | "Simple"          | cooling/heating profile with no   |
+|                                     |                                        |                   | radiative transfer.               |
 +-------------------------------------+----------------------------------------+-------------------+-----------------------------------+
 | **erf.rad_nvar**                    | Size of block memory allocation        | Integer > 0       | 12                                |
 +-------------------------------------+----------------------------------------+-------------------+-----------------------------------+
@@ -2354,6 +2386,11 @@ List of Parameters
 +==========================+===============================+=====================+=========+
 | **erf.fix_random_seed**  | Use a fixed random seed for   | 0 or 1              | 0       |
 |                          | reproducible runs             |                     |         |
++--------------------------+-------------------------------+---------------------+---------+
+| **erf.random_seed**      | Seed for the random number    | Integer >= 0        | -1      |
+|                          | generator, offset by MPI      |                     |         |
+|                          | rank; ignored if              |                     |         |
+|                          | ``erf.fix_random_seed`` is 1  |                     |         |
 +--------------------------+-------------------------------+---------------------+---------+
 
 Embedded Boundary (EB) Tuning

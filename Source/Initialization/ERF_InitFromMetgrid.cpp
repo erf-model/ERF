@@ -692,8 +692,10 @@ init_terrain_from_metgrid (FArrayBox& z_phys_nd_fab,
 
    ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
    {
-       int ii = std::max(std::min(i,ihi-1),ilo+1);
-       int jj = std::max(std::min(j,jhi-1),jlo+1);
+       // Node (i,j) averages cells (i-1,i) x (j-1,j), so the valid range for the
+       // upper cell index is [ilo+1,ihi] in x and [jlo+1,jhi] in y
+       int ii = std::max(std::min(i,ihi),ilo+1);
+       int jj = std::max(std::min(j,jhi),jlo+1);
        z_arr(i,j,k) =  fourth * ( nc_hgt_arr (ii,jj  ,k) + nc_hgt_arr(ii-1,jj  ,k) +
                                 nc_hgt_arr (ii,jj-1,k) + nc_hgt_arr(ii-1,jj-1,k) );
    });

@@ -109,7 +109,7 @@
                      mapfac[level],
                      rhotheta_src[level].get(), rhoqt_src[level].get(),
                      dptr_wbar_sub, d_rayleigh_ptrs_at_lev, d_sinesq_at_lev,
-                     input_sounding_data, turbPert, true);
+                     turbPert, true);
 
         // *****************************************************************************
         // Add nudging terms on moist variables if we have a non-zero relaxation region
@@ -166,7 +166,7 @@
                          dptr_wbar_sub, d_rayleigh_ptrs_at_lev, d_sinesq_at_lev, d_sinesq_stag_at_lev,
                          d_sponge_ptrs_at_lev,
                          (solverChoice.hindcast_lateral_forcing? &forecast_state_interp[level] : nullptr),
-                         input_sounding_data, get_eb(level), true);
+                         input_sounding_data, lsf, lsf_data[level], get_eb(level), true);
 
         // *****************************************************************************
         // Add body sources if doing flow around a body
@@ -199,19 +199,31 @@
 
         if ((solverChoice.vert_implicit_fac[level][nrk] > zero_d) && solverChoice.implicit_before_substep) {
             const Real stage_dt = static_cast<Real>(slow_dt);
+            /**
+             * @brief Temporary MultiFab for conserved variable updates.
+             */
             MultiFab scratch(S_data[IntVars::cons].boxArray(),S_data[IntVars::cons].DistributionMap(), 2,
                              S_data[IntVars::cons].nGrowVect());
             MultiFab::Copy(scratch, S_old[IntVars::cons], 0, 0, 2, S_data[IntVars::cons].nGrowVect()); // scratch := S_old               (for rho, rhotheta)
             MultiFab::Saxpy(scratch, stage_dt, S_rhs[IntVars::cons], 0, 0, 2, 0);                  // scratch := S_old + stage_dt*Src (for rho, rhotheta)
             scratch.FillBoundary(geom[level].periodicity());
 
+            /**
+             * @brief Temporary MultiFab for x-momentum updates.
+             */
             MultiFab scratch_xmom(S_data[IntVars::xmom].boxArray(),
                                   S_data[IntVars::xmom].DistributionMap(), 1,
                                   S_data[IntVars::xmom].nGrowVect());
+            /**
+             * @brief Temporary MultiFab for y-momentum updates.
+             */
             MultiFab scratch_ymom(S_data[IntVars::ymom].boxArray(),
                                   S_data[IntVars::ymom].DistributionMap(), 1,
                                   S_data[IntVars::ymom].nGrowVect());
 #ifdef ERF_IMPLICIT_W
+            /**
+             * @brief Temporary MultiFab for z-momentum updates.
+             */
             MultiFab scratch_zmom(S_data[IntVars::zmom].boxArray(),
                                   S_data[IntVars::zmom].DistributionMap(), 1,
                                   S_data[IntVars::zmom].nGrowVect());

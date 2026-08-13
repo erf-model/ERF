@@ -125,7 +125,7 @@
 
             // Cold microphysics are present
             int nstate = state_pert.nComp();
-            if (nstate == NVAR_max) {
+            if (nstate == NVAR_MOIST_max) {
                 Real omn;
                 if(moisture_type == 1) {
                     omn = std::max(zero_d,std::min(one_d,(T-tbgmin_d)*a_bg_d));

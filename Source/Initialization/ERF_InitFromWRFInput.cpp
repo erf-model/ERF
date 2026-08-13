@@ -63,16 +63,45 @@ bool CheckForDensity (const std::string& fname)
     return use_alt_density;
 }
 
+/**
+ * Read the subdomain index space from a WRF input file.
+ *
+ * @param lev Current level (unused).
+ * @param fname Path to the WRF input file.
+ * @param[out] ratio Grid ratio read from the file.
+ * @return Box specifying the subdomain index space.
+ */
 Box
 read_subdomain_from_wrfinput(int /*lev*/,
                              const std::string& fname,
                              int& ratio);
 
+/**
+ * Compute the top height of the domain from WRF geopotential data.
+ *
+ * @param[in] mf_PH MultiFab storing WRF perturbation geopotential data.
+ * @param[in] mf_PHB MultiFab storing WRF base-state geopotential data.
+ * @param[in] domain Box holding the index space of the computational domain.
+ * @return Height assigned to the top of the ERF domain.
+ */
 Real
 compute_terrain_top_and_bottom (const MultiFab& mf_PH,
                                 const MultiFab& mf_PHB,
                                 const Box& domain);
 
+/**
+ * Initialize nodal terrain coordinates from WRF input data.
+ *
+ * @param lev Current level.
+ * @param[in,out] geom Geometry object defining the domain.
+ * @param[in] z_top Height assigned to the top of the ERF domain.
+ * @param[in] subdomain Box specifying the index space to initialize.
+ * @param[out] z_phys MultiFab specifying the node-centered z coordinates.
+ * @param[in] NC_PH_fab MultiFab storing WRF perturbation geopotential data.
+ * @param[in] NC_PHB_fab MultiFab storing WRF base-state geopotential data.
+ * @param[out] dz0_max Maximum first-layer thickness.
+ * @param[in] use_wrf_height_grid Whether to use the WRF height grid directly.
+ */
 void
 init_terrain_from_wrfinput (int lev,
                             Geometry& geom,
@@ -84,6 +113,26 @@ init_terrain_from_wrfinput (int lev,
                             Real& dz0_max,
                             const bool& use_wrf_height_grid);
 
+/**
+ * Initialize hydrostatic base state data from a WRF dataset.
+ *
+ * @param[in] subdomain Box specifying the index space to initialize.
+ * @param[in] l_rdOcp Constant $R_d/c_p$.
+ * @param[out] p_hse MultiFab holding the hydrostatic base state pressure.
+ * @param[out] pi_hse MultiFab holding the hydrostatic base state Exner pressure.
+ * @param[out] th_hse MultiFab holding the hydrostatic base state potential temperature.
+ * @param[out] qv_hse MultiFab holding the hydrostatic base state qv.
+ * @param[out] r_hse MultiFab holding the hydrostatic base state density.
+ * @param[in] mf_PB MultiFab holding WRF data specifying base state pressure.
+ * @param[in] mf_ALB Optional MultiFab holding inverse density perturbation data.
+ * @param[in] z_phys Optional terrain nodal z-coordinate MultiFab.
+ * @param[in] T00 Sea-level base-state temperature.
+ * @param[in] P00 Sea-level base-state pressure.
+ * @param[in] TLP Base-state lapse rate.
+ * @param[in] TISO Isothermal stratosphere temperature.
+ * @param[in] TLP_STRAT Stratospheric lapse rate.
+ * @param[in] P_STRAT Pressure at the stratosphere transition.
+ */
 void
 init_base_state_from_wrfinput (const Box& subdomain,
                                const Real& l_rdOcp,
