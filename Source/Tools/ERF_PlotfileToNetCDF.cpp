@@ -34,7 +34,7 @@ writeNCPlotFile (int lev, int which, const std::string& dir,
                  amrex::Array<amrex::Real,AMREX_SPACEDIM> prob_hi,
                  amrex::Array<amrex::Real,AMREX_SPACEDIM> dx,
                  const amrex::Box& bounding_region,
-                 amrex::Real time, amrex::Real start_bdy_time);
+                 double time, double start_bdy_time);
 
 static
 void
@@ -103,14 +103,14 @@ main_main()
     const Vector<std::string>& varnames = pf_data.varNames();
 
     Vector<int> istep{3};
-    Real time = pf_data.time();
+    double time = pf_data.time();
 
     int max_grid_size = 64;
 
     Vector<MultiFab> mfvec(finest_level+1);
     Vector<Geometry> geom(finest_level+1);
 
-    Real start_bdy_time = time;
+    double start_bdy_time = time;
 
     for (int lev = 0; lev <= finest_level; lev++)
     {

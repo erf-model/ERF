@@ -18,7 +18,7 @@ void
 NumericalDiffusion_Scal (const Box& bx,
                          const int  start_comp,
                          const int  num_comp,
-                         const Real dt,
+                         const double dt,
                          const Real num_diff_coeff,
                          const Array4<const Real>& prim_data,
                          const Array4<const Real>& cell_data,
@@ -29,7 +29,7 @@ NumericalDiffusion_Scal (const Box& bx,
     BL_PROFILE_VAR("NumericalDiffusion_Scal()",NumericalDiffusion_Scal);
 
     // Capture diffusion coeff
-    Real coeff6 = num_diff_coeff / (two * dt);
+    Real coeff6 = num_diff_coeff / (two * static_cast<Real>(dt));
 
     // Compute 5th order derivative and augment RHS
     ParallelFor(bx, num_comp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int m) noexcept
@@ -83,7 +83,7 @@ NumericalDiffusion_Scal (const Box& bx,
  */
 void
 NumericalDiffusion_Xmom (const Box& bx,
-                         const Real dt,
+                         const double dt,
                          const Real num_diff_coeff,
                          const Array4<const Real>& prim_data,
                          const Array4<const Real>& cell_data,
@@ -94,7 +94,7 @@ NumericalDiffusion_Xmom (const Box& bx,
     BL_PROFILE_VAR("NumericalDiffusion_Xmom()",NumericalDiffusion_Xmom);
 
     // Capture diffusion coeff
-    Real coeff6 = num_diff_coeff / (two * dt);
+    Real coeff6 = num_diff_coeff / (two * static_cast<Real>(dt));
 
     // Compute 5th order derivative and augment RHS
     ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
@@ -149,7 +149,7 @@ NumericalDiffusion_Xmom (const Box& bx,
  */
 void
 NumericalDiffusion_Ymom (const Box& bx,
-                         const Real dt,
+                         const double dt,
                          const Real num_diff_coeff,
                          const Array4<const Real>& prim_data,
                          const Array4<const Real>& cell_data,
@@ -160,7 +160,7 @@ NumericalDiffusion_Ymom (const Box& bx,
     BL_PROFILE_VAR("NumericalDiffusion_Ymom()",NumericalDiffusion_Ymom);
 
     // Capture diffusion coeff
-    Real coeff6 = num_diff_coeff / (two * dt);
+    Real coeff6 = num_diff_coeff / (two * static_cast<Real>(dt));
 
     // Compute 5th order derivative and augment RHS
     ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept

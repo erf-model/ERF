@@ -97,7 +97,9 @@ void SuperDropletsMoist::readInputs ()
     }
     m_num_species = static_cast<int>(m_species.size());
     m_num_nonmoist_sp = m_num_species - m_istart_sp;
-    m_qstate_nonmoist_size = (m_num_nonmoist_sp)*2; // qv, qc for each
+    // Water uses qv, qc, and qr in the moist state. Each additional
+    // condensable species contributes qv and qc to the non-water state.
+    m_qstate_nonmoist_size = (m_num_nonmoist_sp)*2;
 
     if (m_num_nonmoist_sp > 5) {
         amrex::Abort("SuperDropletsMoist: cannot run with more than 5 non-moist species (see ERF_IndexDefines.H, definitions of NBCVAR_max and NVAR_max).");

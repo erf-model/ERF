@@ -1,0 +1,111 @@
+# ------------------  INPUTS TO MAIN PROGRAM  -------------------
+stop_time = 300 # [s]
+
+amrex.fpe_trap_invalid = 1
+
+fabarray.mfiter_tile_size = 1024 1024 1024
+
+erf.check_for_nans = 1
+
+# PROBLEM SIZE & GEOMETRY
+geometry.prob_lo     =  -720.0 -360 0    0.0
+geometry.prob_hi     =   720.0  360.0  800.0  
+amr.n_cell           =     288    144    160 
+
+geometry.is_periodic = 0 0 0
+
+xlo.type = "Inflow"
+xhi.type = "Outflow"
+xlo.dirichlet_file = "NBL.txt"
+
+ylo.type = "SlipWall"
+yhi.type = "SlipWall"
+
+#zlo.type = "NoSlipWall"
+zlo.type                    = "surface_layer"
+erf.most.z0                 = 0.1
+erf.most.k_arr_in = 0
+
+zhi.type = "SlipWall"
+zhi.theta_grad = 0.003
+
+# TIME STEP CONTROL
+erf.substepping_type   = None
+erf.cfl                = 0.4
+
+# DIAGNOSTICS & VERBOSITY
+erf.sum_interval   = 1       # timesteps between computing mass
+erf.v              = 1       # verbosity in ERF.cpp
+amr.v              = 1       # verbosity in Amr.cpp
+
+# REFINEMENT / REGRIDDING
+amr.max_level = 0
+
+# TERRRAIN GRID TYPE
+erf.buildings_type = ImmersedForcing
+erf.immersed_forcing_substep = false
+erf.if_Cd_momentum = 50.0
+erf.if_Cd_scalar   =  5.0
+erf.if_stability_correction = false
+erf.if_use_most = true
+erf.if_z0 = 2.49
+erf.if_ws_floor = 0.001 ### wind speed floor for anelastic limiter
+erf.if_damp_alpha = 0.75 ### non-dimensional coefficient limiting immersed forcing. Higher -> stiffer
+erf.if_init_surf_temp = 305.0
+erf.if_surf_heating_rate = 1.0
+
+# EB GEOMETRY
+eb2.geometry = "box"
+eb2.small_volfrac = 1.e-4
+eb2.box_lo =   -0.25 -60.25 -1.0
+eb2.box_hi =  120.25  60.25 120.25
+
+# CHECKPOINT FILES
+erf.check_file      = chk        # root name of checkpoint file
+erf.check_int       = -1       # number of timesteps between checkpoints
+
+# PLOTFILES
+erf.time_avg_vel    = true
+erf.plot_file_1     = plt        # prefix of plotfile name
+erf.plot_int_1      = 100        # number of timesteps between plotfiles
+erf.plot_vars_1     = terrain_IB_mask x_velocity y_velocity z_velocity pressure theta u_t_avg v_t_avg w_t_avg umag_t_avg
+
+#erf.plot2d_file_1   = sfc
+#erf.plot2d_int_1    = 100
+#erf.plot2d_vars_1   = u_star
+
+# SOLVER CHOICE
+erf.anelastic = 1
+#erf.mg_v = 2
+erf.use_fft   = true
+
+erf.les_type        = "Smagorinsky"
+erf.Cs              = 0.17
+#erf.les_type = "Deardorff"
+#erf.Ck       = 0.1  # Coefficient in Moeng1984, Eqn. 19
+#erf.Ce       = 0.7  # Note: Ce_lcoeff = C_e - 1.9*C_k
+#erf.Ce_wall  = 3.9  # To account for "wall effects"
+#erf.sigma_k  = 0.5  # TKE diffusion coeff = 2*Km = Km * inv_sigma_k, Moeng1984, Eqn. 15
+#erf.theta_ref = 300.0 # don't specify for variable theta when diagnosing stability
+
+erf.use_gravity = true
+
+# INITIALIZATION 
+erf.init_type           = "input_sounding"
+erf.init_sounding_ideal = 1
+erf.input_sounding_file = "sounding.txt"
+
+# Higher values of perturbations lead to instability
+# Instability seems to be coming from BC
+prob.T_0_Pert_Mag    = 0.5 # [K]
+prob.pert_ref_height = 500. # [m]
+
+## Turbulent inflow generation
+erf.perturbation_type = "CPM"
+erf.perturbation_direction = 1 0 0 0 0 0
+erf.perturbation_layers = 3
+erf.perturbation_offset = 5
+erf.perturbation_box_dims = 8 8 3
+erf.perturbation_klo    = 1
+erf.perturbation_khi    = 100
+erf.perturbation_Ug = 10.0

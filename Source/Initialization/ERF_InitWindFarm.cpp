@@ -12,7 +12,7 @@ using namespace amrex;
  * @param lev Integer specifying the current level
  */
 
-// Explicit instantiation
+// Wind farm initialization entry point.
 
 void
 ERF::init_windfarm (int lev)
@@ -60,9 +60,23 @@ ERF::init_windfarm (int lev)
     }
 }
 
+/**
+ * Advance the wind farm model and apply its source terms.
+ *
+ * @param a_geom Geometry for the current level
+ * @param dt_advance Timestep over which to advance the wind farm model
+ * @param cons_in Conserved state receiving wind farm tendencies
+ * @param U_old x-velocity state used by the wind farm model
+ * @param V_old y-velocity state used by the wind farm model
+ * @param W_old z-velocity state used by the wind farm model
+ * @param mf_vars_windfarm Wind farm work and diagnostic variables
+ * @param mf_Nturb MultiFab storing turbine counts
+ * @param mf_SMark MultiFab storing source-marker data
+ * @param time Current simulation time
+ */
 void
 ERF::advance_windfarm (const Geometry& a_geom,
-                       const Real& dt_advance,
+                       const double& dt_advance,
                        MultiFab& cons_in,
                        MultiFab& U_old,
                        MultiFab& V_old,
@@ -70,7 +84,7 @@ ERF::advance_windfarm (const Geometry& a_geom,
                        MultiFab& mf_vars_windfarm,
                        const MultiFab& mf_Nturb,
                        const MultiFab& mf_SMark,
-                       const Real& time)
+                       const double& time)
 {
         windfarm->advance(a_geom, dt_advance, cons_in, mf_vars_windfarm,
                           U_old, V_old, W_old, mf_Nturb, mf_SMark, time);

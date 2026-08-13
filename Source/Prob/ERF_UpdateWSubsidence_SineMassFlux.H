@@ -23,7 +23,8 @@
     // Sinusoidal mass flux: w = 2*sin(pi*t/amrex::Real(600))/rho for t < 600
     for (int k = 0; k <= khi+1; k++) {
         if (time < amrex::Real(600)) {
-            wbar[k] = two*std::sin(PI*time/amrex::Real(600))/rho_stag[k];
+            Real real_time = static_cast<Real>(time) / amrex::Real(600);
+            wbar[k] = two*std::sin(PI*real_time) / rho_stag[k];
         } else {
             wbar[k] = zero;
         }

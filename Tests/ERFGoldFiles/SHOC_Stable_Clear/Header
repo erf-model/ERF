@@ -1,0 +1,42 @@
+HyperCLaw-V1.1
+20
+density
+rhoKE
+x_velocity
+y_velocity
+z_velocity
+temp
+theta
+pressure
+Kmv
+Khv
+Lturb
+shoc_cldfrac
+shoc_ql
+shoc_cond
+brunt
+shear_prod
+buoy_prod
+diss_tke
+qv
+qc
+3
+20
+0
+0 0 0 
+400 400 480 
+
+((0,0,0) (3,3,47) (0,0,0)) 
+20 
+100 100 10 
+0
+0
+0 2 20
+20
+0 400
+0 200
+0 480
+0 400
+200 400
+0 480
+Level_0/Cell

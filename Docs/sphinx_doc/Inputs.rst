@@ -635,6 +635,19 @@ PlotFiles
 See :ref:`sec:Plotfiles` for how to control the types and frequency of plotfile
 generation.
 
+Boundary Files
+==============
+
++----------------------+------------------------------+-------------------+----------------------+
+| Parameter            | Definition                   | Acceptable Values | Default              |
++======================+==============================+===================+======================+
+| **erf.write_erfbdy** | Write AMReX-native format    | true / false      | true for non-restart |
+|                      | boundary file for real-data  |                   | real data cases,     |
+|                      | cases only                   |                   | otherwise false      |
++----------------------+------------------------------+-------------------+----------------------+
+| **erf.erfbdy_file**  | Name of the boundary file    | String            | "erfbdy"             |
++----------------------+------------------------------+-------------------+----------------------+
+
 Additional Plotfile Controls
 ----------------------------
 
@@ -900,6 +913,14 @@ prefixes "plt_line" and "plt_plane", respectively. Names for sampled data may op
 be provided with ``sample_line_name`` and/or ``sample_plane_name`` -- if provided, each
 line and/or plane must be named.
 
+Plane samples are written as true multi-level AMReX plotfiles: every refinement level
+whose grids intersect the plane is written (``Level_0``, ``Level_1``, ...), so a plane
+that cuts through static refinement patches retains the finer in-plane resolution there.
+By default all intersecting levels are written; ``erf.plane_sampling_max_level = <int>``
+caps the finest level (``0`` forces level-0-only output). The slice-normal direction is
+resolved natively on each level by replicating the sampled plane across the level's cells,
+so the resulting dataset has an isotropic refinement ratio and loads cleanly in yt/amrvis.
+
 Line and plane samples will be default be written to plotfiles, one plotfile per output
 snapshot, with all output variables in the same file. Alternatively, line sampling has
 the ``erf.line_sampling_text_output`` option, which writes one text file per output
@@ -968,6 +989,11 @@ List of Parameters
 +-----------------------------------+------------------+----------------+----------------+
 | **erf.plane_sampling_vars**       | Specify sampled  | List of strings| theta, magvel  |
 |                                   | variables        |                |                |
++-----------------------------------+------------------+----------------+----------------+
+| **erf.plane_sampling_max_level**  | Cap on finest    | Integer        | -1 (all        |
+|                                   | level written to |                | intersecting   |
+|                                   | the plane        |                | levels)        |
+|                                   | plotfile         |                |                |
 +-----------------------------------+------------------+----------------+----------------+
 
 .. _examples-of-usage-10b:
@@ -1281,6 +1307,21 @@ List of Parameters
 |                                         | modeled eddy       |                     |             |
 |                                         | diffusivity        |                     |             |
 +-----------------------------------------+--------------------+---------------------+-------------+
+| **erf.enable_mrf_countergradient**      | Enable             | bool                | 0           |
+|                                         | countergradient    |                     |             |
+|                                         | correction terms   |                     |             |
+|                                         | in MRF PBL scheme  |                     |             |
++-----------------------------------------+--------------------+---------------------+-------------+
+| **erf.pbl_mrf_highres_bounds**         | Enable alternative | bool                | 0           |
+|                                         | high-resolution    |                     |             |
+|                                         | grid-dependent     |                     |             |
+|                                         | diffusivity bounds |                     |             |
++-----------------------------------------+--------------------+---------------------+-------------+
+| **erf.enable_mrf_unbounded_vpert**      | Enable physically  | bool                | 0           |
+|                                         | superior           |                     |             |
+|                                         | unbounded VPERT    |                     |             |
+|                                         | in MRF PBL scheme  |                     |             |
++-----------------------------------------+--------------------+---------------------+-------------+
 
 Note that both PBL schemes must be used in conjunction with a MOST boundary condition
 at the surface (Zlo) boundary. The YSU scheme is work in progress currently.
@@ -1388,10 +1429,10 @@ List of Parameters
 | **erf.coriolis_3d**                 | Include z component in | true / false      | true                |
 |                                     | the Coriolis forcing   |                   |                     |
 +-------------------------------------+------------------------+-------------------+---------------------+
-| **erf.rayleigh_damping_type**       | Rayleigh damping       | "None",           | "SlowExplicit"      |
-|                                     | type                   | "SlowExplicit",   |                     |
-|                                     |                        | "FastExplicit"    |                     |
-|                                     |                        | "FastImplicit"    |                     |
+| **erf.rayleigh_damping_type**       | Rayleigh damping       | "SlowExplicit",   | "SlowExplicit"      |
+|                                     | type. Leave all        | "FastExplicit",   |                     |
+|                                     | rayleigh_damp_* flags  | "FastImplicit"    |                     |
+|                                     | false to disable       |                   |                     |
 +-------------------------------------+------------------------+-------------------+---------------------+
 | **erf.rayleigh_damp_U**             | Include explicit       | true / false      | false               |
 |                                     | Rayleigh damping in    |                   |                     |
@@ -1410,13 +1451,15 @@ List of Parameters
 |                                     | the potential          |                   |                     |
 |                                     | temperature equation   |                   |                     |
 +-------------------------------------+------------------------+-------------------+---------------------+
-| **erf.rayleigh_dampcoef**           | Rayleigh damping       | Real              | 0.2                 |
-|                                     | coefficient, an inverse|                   |                     |
-|                                     | timescale              |                   |                     |
+| **erf.rayleigh_dampcoef**           | Inverse damping        | Real [1/s]        | 0.2                 |
+|                                     | timescale multiplying  |                   |                     |
+|                                     | the vertical damping   |                   |                     |
+|                                     | weight                 |                   |                     |
 +-------------------------------------+------------------------+-------------------+---------------------+
-| **erf.rayleigh_zdamp**              | Rayleigh damping       | Real              | 500.0               |
-|                                     | layer depth measured   |                   |                     |
-|                                     | from the top of domain |                   |                     |
+| **erf.rayleigh_zdamp**              | Depth of upper damping | Real [m]          | 500.0               |
+|                                     | layer below model top  |                   |                     |
+|                                     | where sine-squared     |                   |                     |
+|                                     | ramp is nonzero        |                   |                     |
 +-------------------------------------+------------------------+-------------------+---------------------+
 | **erf.nudging_from_input_sounding** | Add momentum source    | true / false      | false               |
 |                                     | terms to nudge the     |                   |                     |
@@ -1438,6 +1481,14 @@ List of Parameters
 +-------------------------------------+------------------------+-------------------+---------------------+
 | **erf.bdy_nudge_factor**            | Sets real bc nudging   | Real              | 10.0                |
 |                                     | strength as 1/(VAL*dt) |                   |                     |
++-------------------------------------+------------------------+-------------------+---------------------+
+| **erf.use_wrf_bdy_density**         | Use WRF-reconstructed  | true / false      | false               |
+|                                     | dry-air density for    |                   |                     |
+|                                     | real WRF boundaries    |                   |                     |
++-------------------------------------+------------------------+-------------------+---------------------+
+| **erf.bdy_rho_nudge_factor**        | Density Davies factor; | Real              | -1.0                |
+|                                     | non-positive uses      |                   |                     |
+|                                     | ``bdy_nudge_factor``   |                   |                     |
 +-------------------------------------+------------------------+-------------------+---------------------+
 | **erf.bdy_moist_nudge_type**        | Which strategy for     | int 0,1 or 2      | 0                   |
 |                                     | nudging of moist vars  |                   |                     |
@@ -1669,7 +1720,8 @@ List of Parameters
 |                                  | true                |                    |                       |
 +----------------------------------+---------------------+--------------------+-----------------------+
 | **erf.rebalance_wrf_input**      | rebalance state     |  bool              | true                  |
-|                                  | from wrf input?     |                    |                       |
+|                                  | from wrfinput and   |                    |                       |
+|                                  | wrfbdy?             |                    |                       |
 +----------------------------------+---------------------+--------------------+-----------------------+
 | **erf.real_extrap_w**            | First-order         | bool               | true                  |
 |                                  | extrapolation of    |                    |                       |

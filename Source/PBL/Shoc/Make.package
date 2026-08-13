@@ -1,0 +1,22 @@
+CEXE_sources += ERF_ShocDriver.cpp
+CEXE_sources += ERF_ShocPreprocess.cpp
+CEXE_sources += ERF_ShocStructure.cpp
+CEXE_sources += ERF_ShocTKE.cpp
+CEXE_sources += ERF_ShocMoments.cpp
+CEXE_sources += ERF_ShocPDF.cpp
+CEXE_sources += ERF_ShocEnergyFixer.cpp
+CEXE_sources += ERF_ShocImplicit.cpp
+CEXE_sources += ERF_ShocDiagnostics.cpp
+CEXE_sources += ERF_ShocCoupling.cpp
+
+CEXE_headers += ERF_ShocTypes.H
+CEXE_headers += ERF_ShocColumnData.H
+CEXE_headers += ERF_ShocPreprocess.H
+CEXE_headers += ERF_ShocStructure.H
+CEXE_headers += ERF_ShocTKE.H
+CEXE_headers += ERF_ShocMoments.H
+CEXE_headers += ERF_ShocPDF.H
+CEXE_headers += ERF_ShocEnergyFixer.H
+CEXE_headers += ERF_ShocImplicit.H
+CEXE_headers += ERF_ShocDiagnostics.H
+CEXE_headers += ERF_ShocDriver.H

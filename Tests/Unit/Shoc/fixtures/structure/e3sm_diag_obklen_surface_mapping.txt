@@ -1,0 +1,11 @@
+# E3SM source provenance:
+#   components/eamxx/src/physics/shoc/tests/shoc_diag_obklen_tests.cpp
+# Translated into ERF conserved-state surface inputs used by
+# `ShocStructure::diagnose_surface_layer`.
+# The Obukhov length value reflects ERF thermodynamic constants in the native
+# translation, not a literal E3SM host-physics constant set.
+# Values are:
+#   ustar, kbfs (= wthv_sec at the surface), obklen
+0.223606797749979
+0.056659633648581
+-14.817193158785221

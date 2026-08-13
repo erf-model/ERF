@@ -24,7 +24,7 @@ AMREX_ENUM(InterpFieldsSV, e_sat, e_sat_ratio_wi, sat_ratio, density, temperatur
 /*! Compute mass change of particles due to evaporation and condensation
  *  (liquid <--> vapour) */
 void SuperDropletPC::MassChange_LV (  int                                         a_lev,
-                                      Real                                        a_dt,
+                                      double                               a_dt,
                                       const Species::Name&                        a_vap_name,
                                       const MultiFab&                             a_temperature,
                                       const MultiFab&                             a_pressure,
@@ -37,7 +37,7 @@ void SuperDropletPC::MassChange_LV (  int                                       
 
     BL_PROFILE("SuperDropletPC::MassChange_LV()");
 
-    const auto ctx = buildProcessContext(a_lev);
+    const auto proc_ctx = buildProcessContext(a_lev);
 
     const std::unique_ptr<MultiFab>& z_height = a_z_phys_nd[a_lev];
 
@@ -88,7 +88,7 @@ void SuperDropletPC::MassChange_LV (  int                                       
     constexpr int rtoff_r = SuperDropletsRealIdx::ncomps;
 #endif
 
-    forEachParticleTile(a_lev, ctx,
+    forEachParticleTile(a_lev, proc_ctx,
         [&](ParIterType& pti, int grid, ParticleType* p_pbox,
             const SDProcess::ParticlePointers& ptrs,
             const SDProcess::ProcessContext& ctx)

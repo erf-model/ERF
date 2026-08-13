@@ -150,6 +150,8 @@ class SDInitProperties
 {
     public:
 
+        virtual ~SDInitProperties() = default;
+
         using MatVec = std::vector<std::unique_ptr<MaterialProperties>>;
 
         /*!< Initial number of super-droplets per cell */
@@ -625,7 +627,7 @@ class SDInjection : public SDInitProperties
          * \param[in] a_dt Timestep size in seconds
          * \param[in] a_active True while the injection time window is open
          */
-        inline void updateDt (const amrex::Real a_dt, const bool a_active)
+        inline void updateDt (const double a_dt, const bool a_active)
         {
             using amrex::Real;
 
@@ -656,7 +658,7 @@ class SDInjection : public SDInitProperties
             // Specified number of super-droplets per cell (m_ppc) or from the SD rate.
             Real num_sd;
             if (m_sd_inj_rate > 0) {
-                num_sd = std::max(std::round(m_sd_inj_rate * a_dt * m_cell_volume), one);
+                num_sd = std::max(std::round(m_sd_inj_rate * a_dt * m_cell_volume), 1.);
             } else {
                 num_sd = std::max(Real(m_ppc), one);
             }
@@ -735,7 +737,7 @@ class SDInjection : public SDInitProperties
                           const amrex::Geometry& a_geom,
                           const MatVec& a_species_mat,
                           const MatVec& a_aerosol_mat,
-                          const amrex::Real a_dt );
+                          const double a_dt );
 
         /*! print super-droplets injection parameters to screen */
         void printParameters ( const MatVec&, const MatVec& ) const override;

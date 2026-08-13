@@ -10,13 +10,19 @@
 using namespace amrex;
 namespace fs = std::filesystem;
 
+/**
+ * Create a cell-centered MultiFab of random perturbations for one AMR level.
+ *
+ * @param lev Integer specifying the current level
+ * @param mf_cc_pert MultiFab filled with random perturbation components
+ */
 void
 ERF::create_random_perturbations(const int lev,
                                  MultiFab& mf_cc_pert)
 {
     const MultiFab& src = vars_new[lev][Vars::cons];
 
-    int ncomp = 5;
+    int ncomp = 8;
     mf_cc_pert.define(src.boxArray(), src.DistributionMap(),
                       ncomp, src.nGrow());
 
@@ -37,6 +43,11 @@ ERF::create_random_perturbations(const int lev,
     }
 }
 
+/**
+ * Normalize each component of a perturbation MultiFab by its global RMS value.
+ *
+ * @param mf_cc_pert MultiFab whose components are normalized in place
+ */
 void NormalizeMultiFabRMS_PerComponent(MultiFab& mf_cc_pert)
 {
     const int ncomp = mf_cc_pert.nComp();
@@ -82,6 +93,12 @@ void NormalizeMultiFabRMS_PerComponent(MultiFab& mf_cc_pert)
     }
 }
 
+/**
+ * Apply horizontal Gaussian smoothing to cell-centered perturbations.
+ *
+ * @param lev Integer specifying the current level
+ * @param mf_cc_pert MultiFab containing perturbations to smooth in place
+ */
 void
 ERF::apply_gaussian_smoothing_to_perturbations(const int lev,
                                                MultiFab& mf_cc_pert)
@@ -159,6 +176,12 @@ ERF::apply_gaussian_smoothing_to_perturbations(const int lev,
     NormalizeMultiFabRMS_PerComponent(mf_cc_pert);
 }
 
+/**
+ * Fill periodic ghost cells and apply first-order extrapolation at boundaries.
+ *
+ * @param geom Geometry defining domain bounds and periodicity
+ * @param mf_cc Cell-centered MultiFab whose ghost cells are filled in place
+ */
 void ApplyNeumannBCs(const Geometry& geom,
                      MultiFab& mf_cc)
 {
@@ -205,7 +228,28 @@ void ApplyNeumannBCs(const Geometry& geom,
 }
 
 
-void ReadCustomDataFile(const std::string& filename_custom,
+/**
+ * Read binary custom ensemble background data into host vectors.
+ *
+ * @param filename_custom Path to the custom binary data file
+ * @param nx Number of cells in the x-direction read from the file
+ * @param ny Number of cells in the y-direction read from the file
+ * @param nz Number of cells in the z-direction read from the file
+ * @param ng Number of ghost cells read from the file
+ * @param ncomp Number of stored components read from the file
+ * @param problo_ext Physical lower bounds read from the file
+ * @param probhi_ext Physical upper bounds read from the file
+ * @param data_rho Density values read from the file
+ * @param data_theta Potential temperature values read from the file
+ * @param data_xvel x-velocity values read from the file
+ * @param data_yvel y-velocity values read from the file
+ * @param data_zvel z-velocity values read from the file
+ * @param data_qv Water vapor values read from the file
+ * @param data_qc Cloud water values read from the file
+ * @param data_qrain Rain water values read from the file
+ */
+void
+ReadCustomDataFile(const std::string& filename_custom,
                         int& nx, int& ny, int& nz,
                         int& ng, int& ncomp,
                         std::array<Real,3>& problo_ext,
@@ -214,7 +258,10 @@ void ReadCustomDataFile(const std::string& filename_custom,
                         Vector<Real>& data_theta,
                         Vector<Real>& data_xvel,
                         Vector<Real>& data_yvel,
-                        Vector<Real>& data_zvel)
+                        Vector<Real>& data_zvel,
+                        Vector<Real>& data_qv,
+                        Vector<Real>& data_qc,
+                        Vector<Real>& data_qrain)
 {
     std::ifstream ifs(filename_custom, std::ios::binary);
     if (!ifs.is_open()) {
@@ -249,6 +296,9 @@ void ReadCustomDataFile(const std::string& filename_custom,
     data_xvel.resize(ncell);
     data_yvel.resize(ncell);
     data_zvel.resize(ncell);
+    data_qv.resize(ncell);
+    data_qc.resize(ncell);
+    data_qrain.resize(ncell);
 
     // ----------------------------
     // Read data
@@ -273,7 +323,16 @@ void ReadCustomDataFile(const std::string& filename_custom,
                 ifs.read(reinterpret_cast<char*>(&data_xvel[idx]),  sizeof(Real));
                 ifs.read(reinterpret_cast<char*>(&data_yvel[idx]),  sizeof(Real));
                 ifs.read(reinterpret_cast<char*>(&data_zvel[idx]),  sizeof(Real));
+                ifs.read(reinterpret_cast<char*>(&data_qv[idx]),  sizeof(Real));
+                ifs.read(reinterpret_cast<char*>(&data_qc[idx]),  sizeof(Real));
+                ifs.read(reinterpret_cast<char*>(&data_qrain[idx]),  sizeof(Real));
 
+                /*if(ParallelDescriptor::IOProcessor()) {
+                    std::cout << "Values are " << data_rho[idx] << " " << data_theta[idx] << " "
+                                               << data_xvel[idx] << " " << data_yvel[idx] << " "
+                                               << data_zvel[idx] << " " << data_qv[idx] << " "
+                                               << data_qc[idx] << " " << data_qrain[idx] << std::endl;
+                }*/
                 ++idx;
             }
         }
@@ -284,6 +343,16 @@ void ReadCustomDataFile(const std::string& filename_custom,
 
 AMREX_GPU_HOST_DEVICE
 AMREX_FORCE_INLINE
+/**
+ * Convert a three-dimensional cell index into a flattened array index.
+ *
+ * @param i x-index
+ * @param j y-index
+ * @param k z-index
+ * @param nx Number of cells in the x-direction
+ * @param ny Number of cells in the y-direction
+ * @return Flattened index into a row-major 3D array
+ */
 int idx(int i, int j, int k, int nx, int ny)
 {
     return i + nx * (j + ny * k);
@@ -291,6 +360,21 @@ int idx(int i, int j, int k, int nx, int ny)
 
 AMREX_GPU_HOST_DEVICE
 AMREX_FORCE_INLINE
+/**
+ * Trilinearly interpolate one scalar component from a flattened array.
+ *
+ * @param f Flattened source data
+ * @param i Lower x-index of the interpolation cell
+ * @param j Lower y-index of the interpolation cell
+ * @param k Lower z-index of the interpolation cell
+ * @param tx Fractional x-coordinate within the cell
+ * @param ty Fractional y-coordinate within the cell
+ * @param tz Fractional z-coordinate within the cell
+ * @param nx Number of cells in the x-direction
+ * @param ny Number of cells in the y-direction
+ * @param nz Number of cells in the z-direction
+ * @return Interpolated scalar value
+ */
 Real interp_trilinear(
     const Real* f,      // <-- raw pointer
     int i, int j, int k,
@@ -321,6 +405,25 @@ Real interp_trilinear(
     return c0*(1-tz) + c1*tz;
 }
 
+/**
+ * Interpolate coarse custom background data onto the fine cell-centered grid.
+ *
+ * @param data_rho Coarse density values
+ * @param data_theta Coarse potential temperature values
+ * @param data_xvel Coarse x-velocity values
+ * @param data_yvel Coarse y-velocity values
+ * @param data_zvel Coarse z-velocity values
+ * @param data_qv Coarse water vapor values
+ * @param data_qc Coarse cloud water values
+ * @param data_qrain Coarse rain water values
+ * @param nx Number of coarse cells in the x-direction
+ * @param ny Number of coarse cells in the y-direction
+ * @param nz Number of coarse cells in the z-direction
+ * @param problo Physical lower bounds of the coarse data
+ * @param probhi Physical upper bounds of the coarse data
+ * @param mf_fine Fine-grid cell-centered MultiFab to fill
+ * @param geom_fine Geometry of the fine grid
+ */
 void
 InterpolateToFineMF(
     const Vector<Real>& data_rho,
@@ -328,6 +431,9 @@ InterpolateToFineMF(
     const Vector<Real>& data_xvel,
     const Vector<Real>& data_yvel,
     const Vector<Real>& data_zvel,
+    const Vector<Real>& data_qv,
+    const Vector<Real>& data_qc,
+    const Vector<Real>& data_qrain,
     int nx, int ny, int nz,
     const std::array<Real,3>& problo,
     const std::array<Real,3>& probhi,
@@ -349,6 +455,9 @@ InterpolateToFineMF(
     amrex::Gpu::DeviceVector<Real> d_xvel(data_xvel.size());
     amrex::Gpu::DeviceVector<Real> d_yvel(data_yvel.size());
     amrex::Gpu::DeviceVector<Real> d_zvel(data_zvel.size());
+    amrex::Gpu::DeviceVector<Real> d_qv(data_qv.size());
+    amrex::Gpu::DeviceVector<Real> d_qc(data_qc.size());
+    amrex::Gpu::DeviceVector<Real> d_qrain(data_qrain.size());
 
     // Step 2: copy data from host to device
     amrex::Gpu::copyAsync(amrex::Gpu::hostToDevice,
@@ -371,11 +480,27 @@ InterpolateToFineMF(
                       data_zvel.begin(), data_zvel.end(),
                       d_zvel.begin());
 
+    amrex::Gpu::copyAsync(amrex::Gpu::hostToDevice,
+                      data_qv.begin(), data_qv.end(),
+                      d_qv.begin());
+
+    amrex::Gpu::copyAsync(amrex::Gpu::hostToDevice,
+                      data_qc.begin(), data_qc.end(),
+                      d_qc.begin());
+
+    amrex::Gpu::copyAsync(amrex::Gpu::hostToDevice,
+                      data_qrain.begin(), data_qrain.end(),
+                      d_qrain.begin());
+
     const Real* rho_ptr   = d_rho.data();
     const Real* theta_ptr = d_theta.data();
     const Real* xvel_ptr  = d_xvel.data();
     const Real* yvel_ptr  = d_yvel.data();
     const Real* zvel_ptr  = d_zvel.data();
+    const Real* qv_ptr    = d_qv.data();
+    const Real* qc_ptr    = d_qc.data();
+    const Real* qrain_ptr = d_qrain.data();
+
     // -------------------------------
     // GPU kernel over MultiFab
     // -------------------------------
@@ -392,23 +517,28 @@ InterpolateToFineMF(
             Real y = problo_f[1] + (j + myhalf) * dx_f[1];
             Real z = problo_f[2] + (k + myhalf) * dx_f[2];
 
-            // map to coarse index space
+            // map to coarse index space (cell centers)
             Real rx = (x - problo[0]) / dx_c[0] - myhalf;
             Real ry = (y - problo[1]) / dx_c[1] - myhalf;
             Real rz = (z - problo[2]) / dx_c[2] - myhalf;
 
-            int ic = static_cast<int>(floor(rx));
-            int jc = static_cast<int>(floor(ry));
-            int kc = static_cast<int>(floor(rz));
+            // clamp coordinates into valid coarse cell-center range
+            rx = amrex::max(Real(0), amrex::min(rx, Real(nx-1)));
+            ry = amrex::max(Real(0), amrex::min(ry, Real(ny-1)));
+            rz = amrex::max(Real(0), amrex::min(rz, Real(nz-1)));
+
+            int ic = static_cast<int>(amrex::Math::floor(rx));
+            int jc = static_cast<int>(amrex::Math::floor(ry));
+            int kc = static_cast<int>(amrex::Math::floor(rz));
 
             Real tx = rx - ic;
             Real ty = ry - jc;
             Real tz = rz - kc;
 
-            // clamp
-            ic = amrex::max(0, amrex::min(ic, nx-1));
-            jc = amrex::max(0, amrex::min(jc, ny-1));
-            kc = amrex::max(0, amrex::min(kc, nz-1));
+            // optional: avoid degenerate interpolation at upper edge
+            if (ic == nx-1) tx = Real(0);
+            if (jc == ny-1) ty = Real(0);
+            if (kc == nz-1) tz = Real(0);
 
             //printf("The values are x, y, z, rx, ry, rz = %0.15g %0.15g %0.15g %0.15g %0.15g %0.15g\n", x, y, z, rx, ry, rz);
 
@@ -418,10 +548,26 @@ InterpolateToFineMF(
             arr(i,j,k,2) = interp_trilinear(xvel_ptr,  ic,jc,kc, tx,ty,tz, nx,ny,nz);
             arr(i,j,k,3) = interp_trilinear(yvel_ptr,  ic,jc,kc, tx,ty,tz, nx,ny,nz);
             arr(i,j,k,4) = interp_trilinear(zvel_ptr,  ic,jc,kc, tx,ty,tz, nx,ny,nz);
+            arr(i,j,k,5) = interp_trilinear(qv_ptr,  ic,jc,kc, tx,ty,tz, nx,ny,nz);
+            arr(i,j,k,6) = interp_trilinear(qc_ptr,  ic,jc,kc, tx,ty,tz, nx,ny,nz);
+            arr(i,j,k,7) = interp_trilinear(qrain_ptr,  ic,jc,kc, tx,ty,tz, nx,ny,nz);
+
+            /*printf("Values are %0.15g %0.15g %0.15g %0.15g %0.15g %0.15g %0.15g %0.15g\n",
+                    arr(i,j,k,0), arr(i,j,k,1), arr(i,j,k,2), arr(i,j,k,3),
+                    arr(i,j,k,4), arr(i,j,k,5), arr(i,j,k,6), arr(i,j,k,7));*/
         });
     }
 }
 
+/**
+ * Split cell-centered interpolated background data into ERF state and face velocities.
+ *
+ * @param mf_cc_fine Fine-grid cell-centered source data
+ * @param cons_pert Conserved-state perturbation MultiFab to fill
+ * @param xvel_pert x-face velocity perturbation MultiFab to fill
+ * @param yvel_pert y-face velocity perturbation MultiFab to fill
+ * @param zvel_pert z-face velocity perturbation MultiFab to fill
+ */
 void
 MakeFinalMultiFabs (const MultiFab& mf_cc_fine,
                     MultiFab& cons_pert,
@@ -439,10 +585,16 @@ MakeFinalMultiFabs (const MultiFab& mf_cc_fine,
 
         amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
-            Real tmp_rho = mf_cc_fine_arr(i,j,k,0);
+            Real tmp_rho   = mf_cc_fine_arr(i,j,k,0);
             Real tmp_theta = mf_cc_fine_arr(i,j,k,1);
-            cons_pert_arr(i,j,k,Rho_comp) = tmp_rho;
+            Real tmp_qv    = mf_cc_fine_arr(i,j,k,5);
+            Real tmp_qc    = mf_cc_fine_arr(i,j,k,6);
+            Real tmp_qrain = mf_cc_fine_arr(i,j,k,7);
+            cons_pert_arr(i,j,k,Rho_comp)      = tmp_rho;
             cons_pert_arr(i,j,k,RhoTheta_comp) = tmp_rho*tmp_theta;
+            cons_pert_arr(i,j,k,RhoQ1_comp)    = tmp_rho*tmp_qv;
+            cons_pert_arr(i,j,k,RhoQ2_comp)    = tmp_rho*tmp_qc;
+            cons_pert_arr(i,j,k,RhoQ3_comp)    = tmp_rho*tmp_qrain;
         });
     }
 
@@ -486,9 +638,17 @@ MakeFinalMultiFabs (const MultiFab& mf_cc_fine,
     }
 }
 
+/**
+ * Add normalized perturbations to the interpolated background state.
+ *
+ * @param mf_cc_fine Background state modified in place
+ * @param mf_cc_pert Perturbation field to apply
+ * @param ens_pert_amplitude Relative perturbation amplitude
+ */
 void
 AddPertToBckgnd(MultiFab& mf_cc_fine,
-                const MultiFab& mf_cc_pert)
+                const MultiFab& mf_cc_pert,
+                const Real& ens_pert_amplitude)
 {
     const int ncomp = mf_cc_fine.nComp();
 
@@ -505,12 +665,22 @@ AddPertToBckgnd(MultiFab& mf_cc_fine,
         amrex::ParallelFor(bx, ncomp,
         [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
         {
-            Real ens_amp = Real(0.02)*std::abs(bg(i,j,k,n));
+            Real ens_amp = ens_pert_amplitude*std::abs(bg(i,j,k,n));
             bg(i,j,k,n) += ens_amp*pert(i,j,k,n);
         });
     }
 }
 
+/**
+ * Build ensemble background perturbation MultiFabs from custom coarse data.
+ *
+ * @param lev Integer specifying the current level
+ * @param mf_cc_pert Cell-centered perturbations to apply to the background
+ * @param cons_pert Conserved-state perturbation MultiFab to fill
+ * @param xvel_pert x-face velocity perturbation MultiFab to fill
+ * @param yvel_pert y-face velocity perturbation MultiFab to fill
+ * @param zvel_pert z-face velocity perturbation MultiFab to fill
+ */
 void
 ERF::create_background_state_for_ensemble (int lev,
                                            MultiFab& mf_cc_pert,
@@ -526,36 +696,41 @@ ERF::create_background_state_for_ensemble (int lev,
     std::array<Real,3> problo_ext, probhi_ext;
 
     Vector<Real> data_rho, data_theta, data_xvel, data_yvel, data_zvel;
+    Vector<Real> data_qv, data_qc, data_qrain;
 
     ReadCustomDataFile(solverChoice.coarse_bckgnd_data_file,
                        nx_crse, ny_crse, nz_crse, ng_crse, ncomp_crse,
                        problo_ext, probhi_ext,
-                       data_rho, data_theta, data_xvel, data_yvel, data_zvel);
+                       data_rho, data_theta,
+                       data_xvel, data_yvel, data_zvel,
+                       data_qv, data_qc, data_qrain);
 
     Geometry& geom_fine = geom[0];
     // Create a cell-centered multifab on the fine mesh - ie. something with the same boxarray,
     // distributed mapping, nGrow, but with 5 components
     MultiFab mf_cc_fine;
     const MultiFab& src = vars_new[0][0];
-    int ncomp = 5;
+    int ncomp = 8;
     mf_cc_fine.define(src.boxArray(), src.DistributionMap(),
-                                           ncomp, src.nGrow());
+                      ncomp, src.nGrow());
 
-    InterpolateToFineMF(data_rho, data_theta, data_xvel, data_yvel, data_zvel,
+    InterpolateToFineMF(data_rho, data_theta,
+                        data_xvel, data_yvel, data_zvel,
+                        data_qv, data_qc, data_qrain,
                         nx_crse, ny_crse, nz_crse,
                         problo_ext, probhi_ext,
                         mf_cc_fine,
                         geom_fine);
 
+
+    Vector<std::string> varnames = {"density","theta", "x_velocity","y_velocity","z_velocity", "qv", "qc", "qrain"};
+    WriteSingleLevelPlotfile("1_plt_final_interp", mf_cc_fine, varnames, geom_fine, zero, 0);
+
     ApplyNeumannBCs(geom_fine, mf_cc_fine);
-
-    Vector<std::string> varnames = {"density","theta", "x_velocity","y_velocity","z_velocity"};
-
      // Add pertubrations stored in the "pert" variables in the function arguments
     // (multiplied by the corresponding amplitude)
-    AddPertToBckgnd(mf_cc_fine, mf_cc_pert);
+    AddPertToBckgnd(mf_cc_fine, mf_cc_pert, solverChoice.ens_pert_amplitude);
     ApplyNeumannBCs(geom_fine, mf_cc_fine);
-    //WriteSingleLevelPlotfile("1_plt_final", mf_cc_fine, varnames, geom_fine, zero, 0);
 
     MakeFinalMultiFabs(mf_cc_fine, cons_pert, xvel_pert, yvel_pert, zvel_pert);
 }

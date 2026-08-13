@@ -46,7 +46,8 @@ public:
                      amrex::MultiFab* rad_fluxes,
                      amrex::MultiFab* z_phys,
                      amrex::MultiFab* lat,
-                     amrex::MultiFab* lon) override;
+                     amrex::MultiFab* lon,
+                     const bool updated_lsm) override;
 
     virtual void WriteDataLog(const amrex::Real &time) override;
 

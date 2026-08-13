@@ -8,10 +8,10 @@ amrex.fpe_trap_invalid = 1
 fabarray.mfiter_tile_size = 1024 1024 1024
 
 # PROBLEM SIZE & GEOMETRY
-geometry.prob_extent = 3200.0  3200.0  1600.0
-amr.n_cell           =   32      32      16
-
-geometry.is_periodic = 1 1 0
+erf.prob_lo          =    0.0     0.0     0.0
+erf.prob_hi          = 3200.0  3200.0  1600.0
+erf.n_cell           =   32      32      16
+erf.is_periodic      = 1 1 0
 
 zlo.type = "surface_layer"
 erf.surface_layer.flux_type = "bulk_coeff"

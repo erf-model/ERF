@@ -4,16 +4,21 @@
 using namespace amrex;
 
 #ifdef ERF_USE_NETCDF
-/*
+/**
  * Impose boundary conditions using data read in from wrfbdy files
  *
- * @param[out] mfs  Vector of MultiFabs to be filled
- * @param[in] time  time at which the data should be filled
+ * @param[in,out] mfs         Vector of MultiFabs to be filled
+ * @param[in]     time        time at which the data should be filled
+ * @param[in]     cons_only   whether to fill only conserved variables
+ * @param[in]     icomp_cons  first conserved component to fill
+ * @param[in]     ncomp_cons  number of conserved components to fill
+ * @param[in]     ngvect_cons ghost-cell vector for conserved variables
+ * @param[in]     ngvect_vels ghost-cell vector for velocity variables
  */
 
 void
 ERF::fill_from_realbdy (const Vector<MultiFab*>& mfs,
-                        const Real time,
+                        const double time,
                         bool cons_only,
                         int icomp_cons,
                         int ncomp_cons,
@@ -27,13 +32,13 @@ ERF::fill_from_realbdy (const Vector<MultiFab*>& mfs,
     ngvect_vels[2] = 0;
 
     // Time interpolation
-    Real dT = bdy_time_interval;
+    double dT = bdy_time_interval;
 
-    Real time_tot = time + start_time;
-    Real time_since_start_bdy = time_tot - start_bdy_time;
+    double time_tot = time + start_time;
+    double time_since_start_bdy = time_tot - start_bdy_time;
     int n_time    = static_cast<int>( time_since_start_bdy /  dT);
     int n_time_p1 = n_time + 1;
-    Real alpha    = (time_since_start_bdy - n_time * dT) / dT;
+    Real alpha  = static_cast<Real>((time_since_start_bdy - n_time * dT) / dT);
 
     // Do not over run the last bdy file
     if (time_tot >= final_bdy_time) {
@@ -46,7 +51,9 @@ ERF::fill_from_realbdy (const Vector<MultiFab*>& mfs,
     Real oma   = one - alpha;
 
     // Flags for read vars and index mapping
-    Vector<int> cons_read = {0, 1, 0, 0,
+    const bool read_wrf_density = solverChoice.use_wrf_bdy_density;
+    int rho_is_read = (read_wrf_density) ? 1 : 0;
+    Vector<int> cons_read = {rho_is_read, 1, 0, 0,
                              1, 0, 0,
                              0, 0, 0,
                              0, 0, 0,
@@ -58,7 +65,8 @@ ERF::fill_from_realbdy (const Vector<MultiFab*>& mfs,
     is_read.push_back( {0} ); // zvel
 
     // Real BC mapping (WRF/MetGrid)
-    Vector<int> cons_map = {Rho_comp, RealBdyVars::T, RhoKE_comp, RhoScalar_comp,
+    int rho_index = (read_wrf_density) ? RealBdyVars::R : Rho_comp;
+    Vector<int> cons_map = {rho_index, RealBdyVars::T, RhoKE_comp, RhoScalar_comp,
                             RealBdyVars::QV, RhoQ2_comp, RhoQ3_comp,
                             RhoQ4_comp, RhoQ5_comp, RhoQ6_comp,
                             RhoQ7_comp, RhoQ8_comp, RhoQ9_comp,
@@ -175,7 +183,9 @@ ERF::fill_from_realbdy (const Vector<MultiFab*>& mfs,
                                 dest_arr(i,j,k,comp_idx) = oma   * bdatxlo_n  (ii,jj,k,0)
                                                          + alpha * bdatxlo_np1(ii,jj,k,0);
                         }
-                        if (var_idx == Vars::cons) dest_arr(i,j,k,comp_idx) *= dest_arr(i,j,k,Rho_comp);
+                        if (var_idx == Vars::cons && comp_idx != Rho_comp) {
+                            dest_arr(i,j,k,comp_idx) *= dest_arr(i,j,k,Rho_comp);
+                        }
                     },
                     [=] AMREX_GPU_DEVICE (int i, int j, int k)
                     {
@@ -190,7 +200,9 @@ ERF::fill_from_realbdy (const Vector<MultiFab*>& mfs,
                                 dest_arr(i,j,k,comp_idx) = oma   * bdatxhi_n  (ii,jj,k,0)
                                                          + alpha * bdatxhi_np1(ii,jj,k,0);
                         }
-                        if (var_idx == Vars::cons) dest_arr(i,j,k,comp_idx) *= dest_arr(i,j,k,Rho_comp);
+                        if (var_idx == Vars::cons && comp_idx != Rho_comp) {
+                            dest_arr(i,j,k,comp_idx) *= dest_arr(i,j,k,Rho_comp);
+                        }
                     });
 
                     // y-faces (do not include exterior x ghost cells)
@@ -206,7 +218,9 @@ ERF::fill_from_realbdy (const Vector<MultiFab*>& mfs,
                             dest_arr(i,j,k,comp_idx) = oma   * bdatylo_n  (i,jj,k,0)
                                                      + alpha * bdatylo_np1(i,jj,k,0);
                         }
-                        if (var_idx == Vars::cons) dest_arr(i,j,k,comp_idx) *= dest_arr(i,j,k,Rho_comp);
+                        if (var_idx == Vars::cons && comp_idx != Rho_comp) {
+                            dest_arr(i,j,k,comp_idx) *= dest_arr(i,j,k,Rho_comp);
+                        }
                     },
                     [=] AMREX_GPU_DEVICE (int i, int j, int k)
                     {
@@ -219,7 +233,9 @@ ERF::fill_from_realbdy (const Vector<MultiFab*>& mfs,
                             dest_arr(i,j,k,comp_idx) = oma   * bdatyhi_n  (i,jj,k,0)
                                                      + alpha * bdatyhi_np1(i,jj,k,0);
                         }
-                        if (var_idx == Vars::cons) dest_arr(i,j,k,comp_idx) *= dest_arr(i,j,k,Rho_comp);
+                        if (var_idx == Vars::cons && comp_idx != Rho_comp) {
+                            dest_arr(i,j,k,comp_idx) *= dest_arr(i,j,k,Rho_comp);
+                        }
                     });
                 } // mfi
 

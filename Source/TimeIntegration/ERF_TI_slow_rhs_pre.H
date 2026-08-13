@@ -3,12 +3,12 @@
 /**
  *  Wrapper for calling the routine that creates the slow RHS
  */
-    auto slow_rhs_fun_pre = [&](Vector<MultiFab>& S_rhs,
+    auto slow_rhs_fun_pre = [&,zero_d=zero,one_d=one](Vector<MultiFab>& S_rhs,
                                 Vector<MultiFab>& S_old,
                                 Vector<MultiFab>& S_data,
-                                const Real old_step_time,
-                                const Real old_stage_time,
-                                const Real new_stage_time,
+                                const double old_step_time,
+                                const double old_stage_time,
+                                const double new_stage_time,
                                 const int nrk)
     {
         BL_PROFILE("slow_rhs_fun_pre");
@@ -29,7 +29,7 @@
                              << " for fast variables advancing from " << old_step_time
                              << " to " << new_stage_time << std::endl;
 
-        Real slow_dt = new_stage_time - old_step_time;
+        double slow_dt = new_stage_time - old_step_time;
 
         const GpuArray<Real, AMREX_SPACEDIM> dxInv = fine_geom.InvCellSizeArray();
 
@@ -103,7 +103,7 @@
         // *****************************************************************************
         make_sources(level, nrk, slow_dt, old_stage_time,
                      S_data, S_prim, cc_src, base_state[level], zpc_to_use,
-                     xvel_new, yvel_new,
+                     xvel_new, yvel_new, zvel_new,
                      qheating_rates[level].get(),
                      terrain_blank, fine_geom, solverChoice,
                      mapfac[level],
@@ -132,7 +132,8 @@
                                     start_bdy_time, final_bdy_time, bdy_time_interval,
                                     bdy_factor, real_width, geom[level],
                                     bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi,
-                                    m_r2d, l_c_p, l_rdOcp, moist_nudge_type);
+                                    m_r2d, l_c_p, l_rdOcp,
+                                    solverChoice.use_wrf_bdy_density, moist_nudge_type);
         }
 #endif
 
@@ -190,16 +191,21 @@
                          *zpn_to_use, *zpc_to_use, *ax_to_use, *ay_to_use, *az_to_use, *dJ_to_use,
                          stretched_dz_d[level], gradp[level],
                          mapfac[level], get_eb(level),
-#ifdef ERF_USE_SHOC
-                         shoc_interface[level],
+#ifdef ERF_USE_EAMXX_SHOC
+                         eamxx_shoc_interface[level].get(),
 #endif
-                         fr_as_crse, fr_as_fine);
+                         native_shoc_driver[level].get(),
+                         fr_as_crse, fr_as_fine, &base_to_use,
+                         cloud_chamber_config.active ? &cloud_chamber_config : nullptr,
+                         cloud_chamber_budget.get());
 
-        if ((solverChoice.vert_implicit_fac[level][nrk] > zero) && solverChoice.implicit_before_substep) {
+        Real sdt = static_cast<Real>(slow_dt);
+
+        if ((solverChoice.vert_implicit_fac[level][nrk] > zero_d) && solverChoice.implicit_before_substep) {
             MultiFab scratch(S_data[IntVars::cons].boxArray(),S_data[IntVars::cons].DistributionMap(), 2,
                              S_data[IntVars::cons].nGrowVect());
             MultiFab::Copy(scratch, S_old[IntVars::cons], 0, 0, 2, S_data[IntVars::cons].nGrowVect()); // scratch := S_old               (for rho, rhotheta)
-            MultiFab::Saxpy(scratch, slow_dt, S_rhs[IntVars::cons], 0, 0, 2, 0);                       // scratch := S_old + slow_dt*Src (for rho, rhotheta)
+            MultiFab::Saxpy(scratch, sdt, S_rhs[IntVars::cons], 0, 0, 2, 0);                       // scratch := S_old + slow_dt*Src (for rho, rhotheta)
             scratch.FillBoundary(geom[level].periodicity());
 
             MultiFab scratch_xmom(S_data[IntVars::xmom].boxArray(),
@@ -215,46 +221,50 @@
 #endif
             if (solverChoice.implicit_momentum_diffusion) {
                 MultiFab::Copy(scratch_xmom, S_old[IntVars::xmom], 0, 0, 1,  S_data[IntVars::xmom].nGrowVect()); // scratch := S_old
-                MultiFab::Saxpy(scratch_xmom, slow_dt, S_rhs[IntVars::xmom], 0, 0, 1, 0);                        // scratch := S_old + slow_dt*Src
+                MultiFab::Saxpy(scratch_xmom, sdt, S_rhs[IntVars::xmom], 0, 0, 1, 0);                        // scratch := S_old + slow_dt*Src
                 scratch_xmom.FillBoundary(geom[level].periodicity());
 
                 MultiFab::Copy(scratch_ymom, S_old[IntVars::ymom], 0, 0, 1,  S_data[IntVars::ymom].nGrowVect()); // scratch := S_old
-                MultiFab::Saxpy(scratch_ymom, slow_dt, S_rhs[IntVars::ymom], 0, 0, 1, 0);                        // scratch := S_old + slow_dt*Src
+                MultiFab::Saxpy(scratch_ymom, sdt, S_rhs[IntVars::ymom], 0, 0, 1, 0);                        // scratch := S_old + slow_dt*Src
                 scratch_ymom.FillBoundary(geom[level].periodicity());
 #ifdef ERF_IMPLICIT_W
                 MultiFab::Copy(scratch_zmom, S_old[IntVars::zmom], 0, 0, 1,  S_data[IntVars::zmom].nGrowVect()); // scratch := S_old
-                MultiFab::Saxpy(scratch_zmom, slow_dt, S_rhs[IntVars::zmom], 0, 0, 1, 0);                        // scratch := S_old + slow_dt*Src
+                MultiFab::Saxpy(scratch_zmom, sdt, S_rhs[IntVars::zmom], 0, 0, 1, 0);                        // scratch := S_old + slow_dt*Src
                 scratch_zmom.FillBoundary(geom[level].periodicity());
 #endif
             }
 
 #include "ERF_ImplicitPre.H"
 
-            MultiFab::Saxpy(scratch, -one, S_old[IntVars::cons], 1, 1, 1, 0); // scratch  := (S_new - S_old)           (for rhotheta only)
-            scratch.mult(one / slow_dt);                                      // scratch  := (S_new - S_old) / slow_dt
+            MultiFab::Saxpy(scratch, -one_d, S_old[IntVars::cons], 1, 1, 1, 0); // scratch  := (S_new - S_old)           (for rhotheta only)
+            scratch.mult(one_d / sdt);                                      // scratch  := (S_new - S_old) / slow_dt
             MultiFab::Copy(S_rhs[IntVars::cons], scratch, 1, 1, 1, 0);        // slow_rhs := (S_new - S_old) / slow_dt (for rhotheta only)
 
             if (solverChoice.implicit_momentum_diffusion) {
-                MultiFab::Saxpy(scratch_xmom, -one, S_old[IntVars::xmom], 0, 0, 1, 0); // scratch  := (S_new - S_old)
-                scratch_xmom.mult(one / slow_dt);                                      // scratch  := (S_new - S_old) / slow_dt
+                MultiFab::Saxpy(scratch_xmom, -one_d, S_old[IntVars::xmom], 0, 0, 1, 0); // scratch  := (S_new - S_old)
+                scratch_xmom.mult(one_d / sdt);                                      // scratch  := (S_new - S_old) / slow_dt
                 MultiFab::Copy(S_rhs[IntVars::xmom], scratch_xmom, 0, 0, 1, 0);        // slow_rhs := (S_new - S_old) / slow_dt
 
-                MultiFab::Saxpy(scratch_ymom, -one, S_old[IntVars::ymom], 0, 0, 1, 0); // scratch  := (S_new - S_old)
-                scratch_ymom.mult(one / slow_dt);                                      // scratch  := (S_new - S_old) / slow_dt
+                MultiFab::Saxpy(scratch_ymom, -one_d, S_old[IntVars::ymom], 0, 0, 1, 0); // scratch  := (S_new - S_old)
+                scratch_ymom.mult(one_d / sdt);                                      // scratch  := (S_new - S_old) / slow_dt
                 MultiFab::Copy(S_rhs[IntVars::ymom], scratch_ymom, 0, 0, 1, 0);        // slow_rhs := (S_new - S_old) / slow_dt
 #ifdef ERF_IMPLICIT_W
-                MultiFab::Saxpy(scratch_zmom, -one, S_old[IntVars::zmom], 0, 0, 1, 0); // scratch  := (S_new - S_old)
-                scratch_zmom.mult(one / slow_dt);                                      // scratch  := (S_new - S_old) / slow_dt
+                MultiFab::Saxpy(scratch_zmom, -one_d, S_old[IntVars::zmom], 0, 0, 1, 0); // scratch  := (S_new - S_old)
+                scratch_zmom.mult(one_d / sdt);                                      // scratch  := (S_new - S_old) / slow_dt
                 MultiFab::Copy(S_rhs[IntVars::zmom], scratch_zmom, 0, 0, 1, 0);        // slow_rhs := (S_new - S_old) / slow_dt
 #endif
             }
         }
 
-#ifdef ERF_USE_SHOC
-        if (solverChoice.use_shoc) {
-            shoc_interface[level]->add_fast_tend(S_rhs);
+#ifdef ERF_USE_EAMXX_SHOC
+        if (solverChoice.turbChoice[level].uses_eamxx_shoc() && eamxx_shoc_interface[level]) {
+            eamxx_shoc_interface[level]->add_fast_tend(S_rhs);
         }
 #endif
+        if (solverChoice.turbChoice[level].uses_native_shoc() && native_shoc_driver[level]) {
+            // Native SHOC applies its increment directly to state; ERF no
+            // longer adds a separate fast RHS contribution.
+        }
 
         // *****************************************************************************
         // Update for moving terrain
@@ -283,7 +293,7 @@
             AMREX_ALWAYS_ASSERT(solverChoice.advChoice.dycore_horiz_adv_type == AdvType::Centered_2nd);
             AMREX_ALWAYS_ASSERT(solverChoice.advChoice.dycore_vert_adv_type  == AdvType::Centered_2nd);
 
-            Real dt_base  = (new_stage_time - old_step_time);
+            double dt_base = new_stage_time - old_step_time;
 
             const Real l_rdOcp   = solverChoice.rdOcp;
 
@@ -332,8 +342,9 @@
                    Real src_r  = - invdetJ * ( zflux_r_hi  - zflux_r_lo  ) * dxInv[2];
                    Real src_rt = - invdetJ * ( zflux_rt_hi - zflux_rt_lo ) * dxInv[2];
 
-                   Real rho0_new     = dJ_old_arr(i,j,k) *  r0_arr(i,j,k) + dt_base * dJ_src_arr(i,j,k) * src_r;
-                   Real rt0_tmp_new  = dJ_old_arr(i,j,k) * rt0_arr(i,j,k) + dt_base * dJ_src_arr(i,j,k) * src_rt;
+                   Real dt_b = static_cast<Real>(dt_base);
+                   Real rho0_new     = dJ_old_arr(i,j,k) *  r0_arr(i,j,k) + dt_b * dJ_src_arr(i,j,k) * src_r;
+                   Real rt0_tmp_new  = dJ_old_arr(i,j,k) * rt0_arr(i,j,k) + dt_b * dJ_src_arr(i,j,k) * src_rt;
 
                    r0_new_arr(i,j,k) = rho0_new / dJ_new_arr(i,j,k);
                    rt0_tmp_new      /=            dJ_new_arr(i,j,k);
@@ -357,7 +368,7 @@
                 // Note that old_stage_time is elapsed time, but (start_time+old_stage_time) is total time
                 //           start_bdy_time and final_bdy_time are total time
                 //
-                Real total_time = start_time + old_stage_time;
+                double total_time = start_time + old_stage_time;
                 Real l_rdOcp    = solverChoice.rdOcp;
                 Real l_c_p      = solverChoice.c_p;
                 realbdy_compute_interior_ghost_rhs(total_time, slow_dt,
@@ -366,7 +377,9 @@
                                                    S_rhs, S_data,
                                                    bdy_data_xlo, bdy_data_xhi,
                                                    bdy_data_ylo, bdy_data_yhi,
-                                                   m_r2d, l_c_p, l_rdOcp);
+                                                   m_r2d, l_c_p, l_rdOcp,
+                                                   solverChoice.use_wrf_bdy_density,
+                                                   solverChoice.bdy_rho_nudge_factor);
             }
         }
 #endif

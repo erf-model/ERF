@@ -10,6 +10,10 @@ Construction of hydrostatically stratified base state
 Here we describe how ERF initializes base state values of density
 and potential temperature such that the density, pressure and potential
 temperature satisfy both the hydrostatic balance and the equation of state.
+The base-state density stored in ERF is the dry-air density
+:math:`\rho_{d,0}`. The only moisture variable carried in the base state is
+the water vapor mixing ratio :math:`q_{v,0}`; when total base-state density is
+needed, ERF forms :math:`\rho_{d,0}(1 + q_{v,0})`.
 
 Users have the option to define a dry or moist background state.
 
@@ -89,7 +93,7 @@ We have the hydrostatic equation given by
 
     \frac{\partial p}{\partial z} = -\rho g,
 
-where :math:`\rho = \rho_d(1 + q_t)`, :math:`\rho_d` is the dry density, and :math:`q_t` is the total mass mixing ratio -- water vapor and liquid water. Using an average value of :math:`\rho` for the integration from :math:`z = z(k-1)` to :math:`z(k)`, we get
+where :math:`\rho = \rho_d(1 + q_v)`, :math:`\rho_d` is the dry density, and :math:`q_v` is the water vapor mixing ratio carried in the base state. Using an average value of :math:`\rho` for the integration from :math:`z = z(k-1)` to :math:`z(k)`, we get
 
 .. math::
 

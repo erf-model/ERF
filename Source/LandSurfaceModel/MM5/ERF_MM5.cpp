@@ -7,7 +7,11 @@ void
 MM5::Init (const int& /*lev*/,
            const MultiFab& cons_in,
            const Geometry& geom,
-           const Real& dt)
+           const Geometry& /*geom0*/,
+           Vector<BCRec>& /*domain_bcs_type*/,
+           IntVect& /*refRatio*/,
+           const Real& dt,
+           Vector<Vector<std::string>>& /*nc_init_file*/)
 {
     m_dt = dt;
     m_geom = geom;
@@ -108,7 +112,7 @@ void
 MM5::AdvanceMM5 ()
 {
     // Expose for GPU copy
-    Real dt = m_dt;
+    Real dt = static_cast<Real>(m_dt);
     Real dzInv = m_lsm_geom.InvCellSize(2);
 
     for ( MFIter mfi(*(lsm_fab_vars[LsmVar_MM5::theta])); mfi.isValid(); ++mfi) {

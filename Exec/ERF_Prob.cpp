@@ -16,8 +16,16 @@ amrex_probinit (const amrex_real* problo, const amrex_real* probhi)
     return std::make_unique<Problem>(problo, probhi);
 }
 
-Problem::Problem (const Real* /*problo*/, const Real* /*probhi*/)
+Problem::Problem (const Real* problo, const Real* probhi)
 {
+    ParmParse pp_erf("erf");
+    std::string prob_name;
+    pp_erf.query("prob_name", prob_name);
+    if (amrex::toLower(prob_name) == "cloud chamber" ||
+        amrex::toLower(prob_name) == "cloudchamber") {
+        m_cloud_chamber_config = erf_cloud_chamber::parse_config(problo, probhi);
+    }
+
     ParmParse pp_prob("prob");
     Real rho_0 =   1.0; int found_rho0 = pp_prob.query("rho_0", rho_0);
     Real p_inf        ; int found_p0   = pp_prob.query("p_inf", p_inf);
@@ -51,7 +59,7 @@ Real vapor_mixing_ratio (const Real p_b, const Real T_b, const Real RH)
 {
     Real p_s = compute_saturation_pressure(T_b);
     Real p_v = compute_vapor_pressure(p_s, RH);
-    Real q_v = Rd_on_Rv*p_v/(p_b - p_v);
+    Real q_v = RdoRv*p_v/(p_b - p_v);
     return q_v;
 }
 
@@ -90,6 +98,8 @@ Problem::init_custom_pert (
 
     if (my_prob_name_ci == "abl") {
 #include "Prob/ERF_InitCustomPert_ABL.H"
+    } else if (my_prob_name_ci == "constant_rhotheta_src") {
+#include "Prob/ERF_InitCustomPert_ABL.H"
     } else if (my_prob_name_ci == "density current") {
 #include "Prob/ERF_InitCustomPert_DensityCurrent.H"
     }
@@ -118,6 +128,13 @@ Problem::init_custom_pert (
     }
     else if (my_prob_name_ci == "eb poiseuille") {
 #include "Prob/ERF_InitCustomPert_EBPoiseuille.H"
+    }
+    else if (my_prob_name_ci == "anelastic wall diffusion") {
+#include "Prob/ERF_InitCustomPert_AnelasticWallDiffusion.H"
+    }
+    else if (my_prob_name_ci == "cloud chamber" ||
+             my_prob_name_ci == "cloudchamber") {
+#include "Prob/ERF_InitCustomPert_CloudChamber.H"
     }
     else if (my_prob_name_ci == "flow in a box") {
 #include "Prob/ERF_InitCustomPert_FlowInABox.H"
@@ -270,7 +287,7 @@ Problem::init_custom_pert_vels (
 }
 
 void
-Problem::update_rhotheta_sources (const Real& time,
+Problem::update_rhotheta_sources (const double& time,
                                   amrex::MultiFab* src,
                                   const Geometry& geom,
                                   std::unique_ptr<MultiFab>& z_phys_cc)
@@ -318,7 +335,7 @@ Problem::update_rhotheta_sources (const Real& time,
 }
 
 void
-Problem::update_rhoqt_sources (const Real& time,
+Problem::update_rhoqt_sources (const double& time,
                                amrex::MultiFab* qsrc,
                                const Geometry& geom,
                                std::unique_ptr<MultiFab>& z_phys_cc)
@@ -367,7 +384,7 @@ Problem::update_rhoqt_sources (const Real& time,
 // USER-DEFINED FUNCTION
 //=============================================================================
 void
-Problem::update_w_subsidence (const Real& time,
+Problem::update_w_subsidence (const double& time,
                               Vector<Real>& wbar,
                               Gpu::DeviceVector<Real>& d_wbar,
                               const amrex::MultiFab& state,
@@ -409,7 +426,7 @@ Problem::update_w_subsidence (const Real& time,
 // USER-DEFINED FUNCTION
 //=============================================================================
 void
-Problem::update_geostrophic_profile (const Real& /*time*/,
+Problem::update_geostrophic_profile (const double& /*time*/,
                                      Vector<Real>& u_geos,
                                      Gpu::DeviceVector<Real>& d_u_geos,
                                      Vector<Real>& v_geos,

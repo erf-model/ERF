@@ -95,8 +95,8 @@ public:
     void
     Run (int& level,
          int& step,
-         amrex::Real& time,
-         const amrex::Real& dt,
+         double& time,
+         const double& dt,
          const amrex::BoxArray& ba,
          amrex::Geometry& geom,
          amrex::MultiFab* cons_in,
@@ -108,12 +108,14 @@ public:
          amrex::MultiFab* rad_fluxes,
          amrex::MultiFab* z_phys,
          amrex::MultiFab* lat_ptr,
-         amrex::MultiFab* lon_ptr) override
+         amrex::MultiFab* lon_ptr,
+         const bool updated_lsm) override
     {
         set_grids(level, step, time, dt, ba, geom,
                   cons_in, lmask, t_surf,
                   lsm_input_ptrs, qheating_rates,
-                  rad_fluxes, z_phys, lat_ptr, lon_ptr);
+                  rad_fluxes, z_phys, lat_ptr, lon_ptr,
+                  updated_lsm);
         rad_run_impl(lsm_output_ptrs);
     }
 
@@ -121,8 +123,8 @@ public:
     void
     set_grids (int& level,
                int& step,
-               amrex::Real& time,
-               const amrex::Real& dt,
+               double& time,
+               const double& dt,
                const amrex::BoxArray& ba,
                amrex::Geometry& geom,
                amrex::MultiFab* cons_in,
@@ -133,7 +135,8 @@ public:
                amrex::MultiFab* rad_fluxes,
                amrex::MultiFab* z_phys,
                amrex::MultiFab* lat,
-               amrex::MultiFab* lon);
+               amrex::MultiFab* lon,
+               const bool updated_lsm);
 
     // Initialize the temporary variables
     void
@@ -206,7 +209,7 @@ public:
     // Write datalog
     virtual
     void
-    WriteDataLog (const amrex::Real &time) override;
+    WriteDataLog (const double &time) override;
 
 private:
 
@@ -220,10 +223,10 @@ private:
     int m_step;
 
     // Current time
-    amrex::Real m_time;
+    double m_time;
 
     // Timestep at given level
-    amrex::Real m_dt;
+    double m_dt;
 
     // Geometry at given level
     amrex::Geometry m_geom;
@@ -242,6 +245,7 @@ private:
     // Do we have moisture and cold comps?
     bool m_moist = false;
     bool m_ice   = false;
+    int  m_qi_comp = -1;
 
     // Do we have a land surface model?
     bool m_lsm   = false;

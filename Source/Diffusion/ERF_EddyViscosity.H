@@ -11,12 +11,13 @@
 #include "ERF_EOS.H"
 #include "ERF_EB.H"
 
-#ifdef ERF_USE_SHOC
+#ifdef ERF_USE_EAMXX_SHOC
 #include "ERF_ShocInterface.H"
 #endif
 
+/** Compute turbulent viscosity and related flux fields for the configured turbulence model. */
 void
-ComputeTurbulentViscosity (amrex::Real dt,
+ComputeTurbulentViscosity (double dt,
                            const amrex::MultiFab& xvel ,
                            const amrex::MultiFab& yvel ,
                            amrex::Vector<std::unique_ptr<amrex::MultiFab>>& Tau_lev,
@@ -30,6 +31,7 @@ ComputeTurbulentViscosity (amrex::Real dt,
                            const amrex::Geometry& geom,
                            amrex::Vector<std::unique_ptr<amrex::MultiFab>>& mapfac,
                            const std::unique_ptr<amrex::MultiFab>& z_phys_nd,
+                           const std::unique_ptr<amrex::MultiFab>& z_phys_cc,
                            const SolverChoice& solverChoice,
                            std::unique_ptr<SurfaceLayer>& SurfLayer,
                            const amrex::MultiFab* z_0,
@@ -38,8 +40,10 @@ ComputeTurbulentViscosity (amrex::Real dt,
                            int level,
                            const amrex::BCRec* bc_ptr,
                            const eb_& ebfact,
-                           bool vert_only = false);
+                           bool vert_only = false,
+                           const amrex::MultiFab* qheating_rates = nullptr);
 
+/** Compute LES turbulent viscosity, heat fluxes, and dissipation. */
 void
 ComputeTurbulentViscosityLES (amrex::Vector<std::unique_ptr<amrex::MultiFab>>& Tau_lev,
                               const amrex::MultiFab& cons_in,
@@ -59,6 +63,7 @@ ComputeTurbulentViscosityLES (amrex::Vector<std::unique_ptr<amrex::MultiFab>>& T
                               const amrex::MultiFab* xvel = nullptr,
                               const amrex::MultiFab* yvel = nullptr);
 
+/** Compute LES turbulent viscosity and heat fluxes for embedded-boundary cells. */
 void
 ComputeTurbulentViscosityLES_EB (amrex::Vector<std::unique_ptr<amrex::MultiFab>>& Tau_lev,
                               const amrex::MultiFab& cons_in,
@@ -77,6 +82,20 @@ ComputeTurbulentViscosityLES_EB (amrex::Vector<std::unique_ptr<amrex::MultiFab>>
                               const amrex::MultiFab* xvel = nullptr,
                               const amrex::MultiFab* yvel = nullptr);
 
+/**
+ * Compute twice-contracted strain-rate magnitude from stress-like strain components.
+ *
+ * @param[in] i cell-centered i-index
+ * @param[in] j cell-centered j-index
+ * @param[in] k cell-centered k-index
+ * @param[in] tau11 11 strain component
+ * @param[in] tau22 22 strain component
+ * @param[in] tau33 33 strain component
+ * @param[in] tau12 12 strain component
+ * @param[in] tau13 13 strain component
+ * @param[in] tau23 23 strain component
+ * @return S_mn S_mn at cell centers
+ */
 AMREX_GPU_DEVICE
 AMREX_FORCE_INLINE
 amrex::Real
@@ -104,6 +123,24 @@ ComputeSmnSmn (int& i, int& j, int& k,
     return SmnSmn;
 }
 
+/**
+ * Compute twice-contracted strain-rate magnitude for embedded-boundary cells.
+ *
+ * @param[in] i cell-centered i-index
+ * @param[in] j cell-centered j-index
+ * @param[in] k cell-centered k-index
+ * @param[in] tau11 11 strain component
+ * @param[in] tau22 22 strain component
+ * @param[in] tau33 33 strain component
+ * @param[in] tau12 12 strain component
+ * @param[in] tau13 13 strain component
+ * @param[in] tau23 23 strain component
+ * @param[in] c_cflag cell-centered EB flags
+ * @param[in] u_cflag x-face EB flags
+ * @param[in] v_cflag y-face EB flags
+ * @param[in] w_cflag z-face EB flags
+ * @return S_mn S_mn at uncovered cell centers
+ */
 AMREX_GPU_DEVICE
 AMREX_FORCE_INLINE
 amrex::Real
@@ -198,6 +235,17 @@ ComputeSmnSmn_EB (int& i, int& j, int& k,
     return SmnSmn;
 }
 
+/**
+ * Compute horizontal two-dimensional strain-rate magnitude.
+ *
+ * @param[in] i cell-centered i-index
+ * @param[in] j cell-centered j-index
+ * @param[in] k cell-centered k-index
+ * @param[in] tau11 11 strain component
+ * @param[in] tau22 22 strain component
+ * @param[in] tau12 12 strain component
+ * @return horizontal S_mn S_mn contribution
+ */
 AMREX_GPU_DEVICE
 AMREX_FORCE_INLINE
 amrex::Real

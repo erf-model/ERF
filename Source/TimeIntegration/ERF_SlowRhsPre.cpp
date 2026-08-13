@@ -7,12 +7,15 @@
 #include "AMReX_GpuPrint.H"
 
 #include "ERF_TI_slow_headers.H"
+#include "ERF_ShocDriver.H"
 #include "ERF_EOS.H"
 #include "ERF_Utils.H"
 #include "ERF_Diffusion.H"
 #include "ERF_EBAdvection.H"
 #include "ERF_EB.H"
 #include "ERF_SurfaceLayer.H"
+#include "ERF_ResolvedWallFlux.H"
+#include "Prob/ERF_CloudChamberBudget.H"
 
 using namespace amrex;
 
@@ -64,7 +67,7 @@ using namespace amrex;
 
 void erf_slow_rhs_pre (int level, int finest_level,
                        int nrk,
-                       Real dt,
+                       double dt,
                        Vector<MultiFab>& S_rhs,
                        Vector<MultiFab>& S_old,
                        Vector<MultiFab>& S_data,
@@ -106,11 +109,15 @@ void erf_slow_rhs_pre (int level, int finest_level,
                        Vector<MultiFab>& gradp,
                        Vector<std::unique_ptr<MultiFab>>& mapfac,
                        const eb_& ebfact,
-#ifdef ERF_USE_SHOC
-                       std::unique_ptr<SHOCInterface>& shoc_lev,
+#ifdef ERF_USE_EAMXX_SHOC
+                       SHOCInterface* eamxx_shoc_lev,
 #endif
+                       ShocDriver* native_shoc_lev,
                        YAFluxRegister* fr_as_crse,
-                       YAFluxRegister* fr_as_fine)
+                       YAFluxRegister* fr_as_fine,
+                       const MultiFab* cloud_chamber_base_state,
+                       const erf_cloud_chamber::Config* cloud_chamber_config,
+                       CloudChamberBudget* cloud_budget)
 {
     BL_PROFILE_REGION("erf_slow_rhs_pre()");
 
@@ -125,6 +132,12 @@ void erf_slow_rhs_pre (int level, int finest_level,
     if (SurfLayer[Orientation(Direction::z, Orientation::low)]) { t_mean_mf = SurfLayer[Orientation(Direction::z, Orientation::low)]->get_mac_avg(level,3); }
 
     const Box& domain = geom.Domain();
+    const bool use_physical_chamber_wall_flux =
+        cloud_chamber_config != nullptr && cloud_chamber_base_state != nullptr &&
+        cloud_chamber_config->physical_initialization;
+    const erf_wall_thermodynamics::Boundary chamber_walls =
+        use_physical_chamber_wall_flux ? cloud_chamber_config->wall_boundary() :
+                                         erf_wall_thermodynamics::Boundary{};
     int klo = domain.smallEnd(2);
     int khi = domain.bigEnd(2);
 
@@ -157,9 +170,8 @@ void erf_slow_rhs_pre (int level, int finest_level,
         return false;
     };
 
-    //const bool l_use_SurfLayer = (SurfLayer[Orientation(Direction::z, Orientation::low)] != nullptr);
     const bool l_use_SurfLayer = any_SurfLayer();
-
+    bool l_apply_surface_layer_fluxes_in_diffusion = l_use_SurfLayer;
     const bool l_rotate        = (solverChoice.use_rotate_surface_flux);
 
     const bool l_anelastic = (solverChoice.anelastic[level]     == 1);
@@ -204,12 +216,21 @@ void erf_slow_rhs_pre (int level, int finest_level,
     std::unique_ptr<MultiFab> dflux_z;
 
     if (l_use_diff) {
-#ifdef ERF_USE_SHOC
-        if (solverChoice.use_shoc) {
-            // Populate vertical component of eddyDiffs
-            shoc_lev->set_eddy_diffs();
+#ifdef ERF_USE_EAMXX_SHOC
+        if (tc.uses_eamxx_shoc()) {
+            AMREX_ALWAYS_ASSERT(eamxx_shoc_lev != nullptr);
+            // SHOC either supplies host-applied vertical SGS coefficients or
+            // clears them so the host does not re-apply SHOC transport.
+            eamxx_shoc_lev->set_eddy_diffs();
         }
 #endif
+        if (tc.uses_native_shoc()) {
+            AMREX_ALWAYS_ASSERT(native_shoc_lev != nullptr);
+            // Native SHOC always owns the scalar fluxes in state_update mode.
+            // When it also owns momentum stresses, we skip the generic
+            // SurfaceLayer call entirely so the host does not re-apply them.
+            native_shoc_lev->set_eddy_diffs();
+        }
 
         erf_make_tau_terms(level,nrk,domain_bcs_type_h,z_phys_nd,
                            S_data,xvel,yvel,zvel,
@@ -221,34 +242,44 @@ void erf_slow_rhs_pre (int level, int finest_level,
         dflux_x = std::make_unique<MultiFab>(convert(ba,IntVect(1,0,0)), dm, nvars, ng);
         dflux_y = std::make_unique<MultiFab>(convert(ba,IntVect(0,1,0)), dm, nvars, ng);
         dflux_z = std::make_unique<MultiFab>(convert(ba,IntVect(0,0,1)), dm, nvars, 0);
-
-#ifdef ERF_USE_SHOC
-        if (solverChoice.use_shoc) {
-            // Zero out the surface stresses of tau13/tau23/hfx/qfx
-            shoc_lev->set_diff_stresses();
-        } else if (l_use_SurfLayer) {
-            // Set surface shear stresses, update heat and moisture fluxes
-            // (fluxes will be later applied in the diffusion source update)
-            Vector<const MultiFab*> mfs = {&S_data[IntVars::cons], &xvel, &yvel, &zvel};
-            SurfLayer->impose_SurfaceLayer_bcs(level, mfs, Tau_lev,
-                                               Hfx1, Hfx2, Hfx3,
-                                               Q1fx1, Q1fx2, Q1fx3,
-                                               &z_phys_nd);
+        // The physical theta wall override consumes the just-computed face
+        // flux.  Initialize its storage independently of diagnostics so a
+        // budget switch cannot change the state update.
+        if (use_physical_chamber_wall_flux) {
+            dflux_x->setVal(0.0);
+            dflux_y->setVal(0.0);
+            dflux_z->setVal(0.0);
         }
-#else
-        // This is computed pre step in Advance if we use SHOC
-        if (l_use_SurfLayer) {
+
+        bool surface_layer_handled = false;
+#ifdef ERF_USE_EAMXX_SHOC
+        if (tc.uses_eamxx_shoc()) {
+            AMREX_ALWAYS_ASSERT(eamxx_shoc_lev != nullptr);
+            // EAMxx SHOC owns the overlapping lower-boundary fluxes here, so
+            // do not fall through to the generic SurfaceLayer path.
+            eamxx_shoc_lev->set_diff_stresses();
+            surface_layer_handled = true;
+        }
+#endif
+        if (tc.uses_native_shoc()) {
+            AMREX_ALWAYS_ASSERT(native_shoc_lev != nullptr);
+            if (native_shoc_lev->owns_scalar_surface_fluxes()) {
+                l_apply_surface_layer_fluxes_in_diffusion = false;
+            }
+            if (!native_shoc_lev->needs_host_surface_momentum_stresses()) {
+                surface_layer_handled = true;
+            }
+        }
+        if (!surface_layer_handled && l_use_SurfLayer) {
+            Vector<const MultiFab*> mfs = {&S_data[IntVars::cons], &xvel, &yvel, &zvel};
             if (!l_use_eb) {
-                // Set surface shear stresses, update heat and moisture fluxes
-                // (fluxes will be later applied in the diffusion source update)
-                Vector<const MultiFab*> mfs = {&S_data[IntVars::cons], &xvel, &yvel, &zvel};
                 for (OrientationIter oit; oit; ++oit) {
                     Orientation ori = oit();
-                    if (SurfLayer[ori])  {
-                            SurfLayer[ori]->impose_SurfaceLayer_bcs(level, mfs, Tau_lev,
-                                                                    Hfx1, Hfx2, Hfx3,
-                                                                    Q1fx1, Q1fx2, Q1fx3,
-                                                                    &z_phys_nd);
+                    if (SurfLayer[ori]) {
+                        SurfLayer[ori]->impose_SurfaceLayer_bcs(level, mfs, Tau_lev,
+                                                                            Hfx1, Hfx2, Hfx3,
+                                                                            Q1fx1, Q1fx2, Q1fx3,
+                                                                            &z_phys_nd);
                     }
                 }
 
@@ -256,13 +287,17 @@ void erf_slow_rhs_pre (int level, int finest_level,
                 //    copy_surface_tau_for_implicit(Tau_lev, Tau_corr_lev);
                 //}
             } else {
-                Vector<const MultiFab*> mfs = {&S_data[IntVars::cons], &xvel, &yvel, &zvel};
                 SurfLayer[Orientation(Direction::z,Orientation::low)]->impose_SurfaceLayer_bcs_EB(level, mfs, Tau_EB,
-                                                   Hfx1, Hfx2, Hfx3_EB,
-                                                   Q1fx1, Q1fx2, Q1fx3);
+                                                                                                  Hfx1, Hfx2, Hfx3_EB,
+                                                                                                  Q1fx1, Q1fx2, Q1fx3);
             }
         }
-#endif
+        if (tc.uses_native_shoc() && native_shoc_lev && native_shoc_lev->owns_scalar_surface_fluxes()) {
+            // SHOC-owned scalar fluxes must not be reused by the host
+            // diffusion source, even if the host SurfaceLayer path was also
+            // evaluated for momentum stress ownership.
+            native_shoc_lev->set_diff_stresses();
+        }
     } // l_use_diff
 
     // This is just cautionary to deal with grid boundaries that aren't domain boundaries
@@ -337,7 +372,6 @@ void erf_slow_rhs_pre (int level, int finest_level,
 
             if (z_t_mf) { // Note we never do anelastic with moving terrain
                 Box gbxo_mid = gbxo; gbxo_mid.setSmall(2,1); gbxo_mid.setBig(2,gbxo.bigEnd(2)-1);
-                // Array4<const Real> z_t;
                       Array4<const Real> z_t        = z_t_mf->array(mfi);
                 const Array4<const Real>& cell_data = S_data[IntVars::cons].array(mfi);
                 ParallelFor(gbxo_mid, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
@@ -575,22 +609,23 @@ void erf_slow_rhs_pre (int level, int finest_level,
         Array4<const Real> barea_arr{};
         Array4<const Real> bcent_arr{};
 
-        if (l_use_eb)
-        {
-            EBCellFlagFab const& cfg = (ebfact.get_const_factory())->getMultiEBCellFlagFab()[mfi];
+        if (l_use_eb) {
+            const auto& eb_cc_factory = ebfact.get_const_factory();
+
+            EBCellFlagFab const& cfg = eb_cc_factory->getMultiEBCellFlagFab()[mfi];
             cfg_arr  = cfg.const_array();
             if (cfg.getType(bx) == FabType::singlevalued) {
                 l_eb_terrain_cc = true;
-                ax_arr   = (ebfact.get_const_factory())->getAreaFrac()[0]->const_array(mfi);
-                ay_arr   = (ebfact.get_const_factory())->getAreaFrac()[1]->const_array(mfi);
-                az_arr   = (ebfact.get_const_factory())->getAreaFrac()[2]->const_array(mfi);
-                fcx_arr  = (ebfact.get_const_factory())->getFaceCent()[0]->const_array(mfi);
-                fcy_arr  = (ebfact.get_const_factory())->getFaceCent()[1]->const_array(mfi);
-                fcz_arr  = (ebfact.get_const_factory())->getFaceCent()[2]->const_array(mfi);
-                detJ_arr = (ebfact.get_const_factory())->getVolFrac().const_array(mfi);
+                ax_arr   = eb_cc_factory->getAreaFrac()[0]->const_array(mfi);
+                ay_arr   = eb_cc_factory->getAreaFrac()[1]->const_array(mfi);
+                az_arr   = eb_cc_factory->getAreaFrac()[2]->const_array(mfi);
+                fcx_arr  = eb_cc_factory->getFaceCent()[0]->const_array(mfi);
+                fcy_arr  = eb_cc_factory->getFaceCent()[1]->const_array(mfi);
+                fcz_arr  = eb_cc_factory->getFaceCent()[2]->const_array(mfi);
+                detJ_arr = eb_cc_factory->getVolFrac().const_array(mfi);
                 mask_arr = physbnd_mask[IntVars::cons].const_array(mfi);
-                barea_arr = (ebfact.get_const_factory())->getBndryArea().const_array(mfi);
-                bcent_arr = (ebfact.get_const_factory())->getBndryCent().const_array(mfi);
+                barea_arr = eb_cc_factory->getBndryArea().const_array(mfi);
+                bcent_arr = eb_cc_factory->getBndryCent().const_array(mfi);
             } else {
                 ax_arr   = ax.const_array(mfi);
                 ay_arr   = ay.const_array(mfi);
@@ -679,7 +714,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
                                        mf_my, mf_uy, mf_vy,
                                        hfx_x, hfx_y, hfx_z, q1fx_x, q1fx_y, q1fx_z, q2fx_z, diss,
                                        mu_turb, solverChoice, level,
-                                       tm_arr, grav_gpu, bc_ptr_d, l_use_SurfLayer, SurfLayer, l_vert_implicit_fac);
+                                       tm_arr, grav_gpu, bc_ptr_d, l_apply_surface_layer_fluxes_in_diffusion, SurfLayer, l_vert_implicit_fac);
             } else if (l_use_terrain_fitted_coords) {
                 DiffusionSrcForState_T(bx, domain, n_start, n_comp, l_rotate, u, v,
                                        cell_data, cell_prim, cell_rhs,
@@ -690,7 +725,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
                                        mf_my, mf_uy, mf_vy,
                                        hfx_x, hfx_y, hfx_z, q1fx_x, q1fx_y, q1fx_z, q2fx_z, diss,
                                        mu_turb, solverChoice, level,
-                                       tm_arr, grav_gpu, bc_ptr_d, l_use_SurfLayer, SurfLayer, l_vert_implicit_fac);
+                                       tm_arr, grav_gpu, bc_ptr_d, l_apply_surface_layer_fluxes_in_diffusion, SurfLayer, l_vert_implicit_fac);
             } else if (l_use_eb) {
                 DiffusionSrcForState_EB(bx, domain, n_start, n_comp, u, v,
                                        cell_data, cell_prim, cell_rhs,
@@ -700,7 +735,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
                                        dx, dxInv,
                                        hfx_z, q1fx_z, q2fx_z, hfx_EB,
                                        mu_turb, solverChoice, level,
-                                       bc_ptr_d, l_use_SurfLayer, SurfLayer);
+                                       bc_ptr_d, l_apply_surface_layer_fluxes_in_diffusion, SurfLayer);
             } else {
                 DiffusionSrcForState_N(bx, domain, n_start, n_comp, u, v,
                                        cell_data, cell_prim, cell_rhs,
@@ -710,7 +745,15 @@ void erf_slow_rhs_pre (int level, int finest_level,
                                        mf_my, mf_uy, mf_vy,
                                        hfx_x, hfx_y, hfx_z, q1fx_x, q1fx_y, q1fx_z, q2fx_z, diss,
                                        mu_turb, solverChoice, level,
-                                       tm_arr, grav_gpu, bc_ptr_d, l_use_SurfLayer, SurfLayer, l_vert_implicit_fac);
+                                       tm_arr, grav_gpu, bc_ptr_d, l_apply_surface_layer_fluxes_in_diffusion, SurfLayer, l_vert_implicit_fac);
+            }
+            if (use_physical_chamber_wall_flux) {
+                erf_resolved_wall_flux::apply(
+                    bx, domain, RhoTheta_comp, 0, cell_data, cell_prim,
+                    cloud_chamber_base_state->const_array(mfi), cell_rhs,
+                    diffflux_x, diffflux_y, diffflux_z, dxInv,
+                    chamber_walls, dc.alpha_T, dc.alpha_C,
+                    solverChoice.rdOcp);
             }
         }
 
@@ -721,6 +764,8 @@ void erf_slow_rhs_pre (int level, int finest_level,
             cell_rhs(i,j,k,RhoTheta_comp) += source_arr(i,j,k,RhoTheta_comp);
         });
 
+        Real half_dt = static_cast<Real>(myhalf/dt);
+
         // If anelastic and in second RK stage, take average of old-time and new-time source
         if ( l_anelastic && (nrk == 1) )
         {
@@ -729,8 +774,8 @@ void erf_slow_rhs_pre (int level, int finest_level,
                 cell_rhs(i,j,k,     Rho_comp) *= myhalf;
                 cell_rhs(i,j,k,RhoTheta_comp) *= myhalf;
 
-                cell_rhs(i,j,k,     Rho_comp) += myhalf / dt * (cell_data(i,j,k,     Rho_comp) - cell_old(i,j,k,     Rho_comp));
-                cell_rhs(i,j,k,RhoTheta_comp) += myhalf / dt * (cell_data(i,j,k,RhoTheta_comp) - cell_old(i,j,k,RhoTheta_comp));
+                cell_rhs(i,j,k,     Rho_comp) += half_dt * (cell_data(i,j,k,     Rho_comp) - cell_old(i,j,k,     Rho_comp));
+                cell_rhs(i,j,k,RhoTheta_comp) += half_dt * (cell_data(i,j,k,RhoTheta_comp) - cell_old(i,j,k,RhoTheta_comp));
             });
         }
 
@@ -803,7 +848,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
 
             if ( l_anelastic && (nrk == 1) ) {
                 rho_u_rhs(i,j,k) *= myhalf;
-                rho_u_rhs(i,j,k) += myhalf / dt * (rho_u(i,j,k) - rho_u_old(i,j,k));
+                rho_u_rhs(i,j,k) += half_dt * (rho_u(i,j,k) - rho_u_old(i,j,k));
             }
         },
         [=] AMREX_GPU_DEVICE (int i, int j, int k)
@@ -822,7 +867,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
 
             if ( l_anelastic && (nrk == 1) ) {
                 rho_v_rhs(i,j,k) *= myhalf;
-                rho_v_rhs(i,j,k) += myhalf / dt * (rho_v(i,j,k) - rho_v_old(i,j,k));
+                rho_v_rhs(i,j,k) += half_dt * (rho_v(i,j,k) - rho_v_old(i,j,k));
             }
         });
 
@@ -938,16 +983,21 @@ void erf_slow_rhs_pre (int level, int finest_level,
             if (level < finest_level) {
                 fr_as_crse->CrseAdd(mfi,
                     {{AMREX_D_DECL(&(flux[0]), &(flux[1]), &(flux[2]))}},
-                    dx, dt, strt_comp_reflux, strt_comp_reflux, num_comp_reflux, RunOn::Device);
+                    dx, static_cast<Real>(dt), strt_comp_reflux, strt_comp_reflux, num_comp_reflux, RunOn::Device);
             }
             if (level > 0) {
                 fr_as_fine->FineAdd(mfi,
                     {{AMREX_D_DECL(&(flux[0]), &(flux[1]), &(flux[2]))}},
-                    dx, dt, strt_comp_reflux, strt_comp_reflux, num_comp_reflux, RunOn::Device);
+                    dx, static_cast<Real>(dt), strt_comp_reflux, strt_comp_reflux, num_comp_reflux, RunOn::Device);
             }
 
         } // two-way coupling
         } // end profile
     } // mfi
     } // OMP
+    if (cloud_budget && l_use_diff) {
+            cloud_budget->capture_stage(CloudChamberBudget::RhoTheta, nrk,
+                                        static_cast<Real>(dt), *dflux_x, *dflux_y,
+                                        *dflux_z, geom, 0);
+    }
 }

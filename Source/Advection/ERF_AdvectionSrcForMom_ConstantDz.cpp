@@ -21,13 +21,22 @@ using namespace amrex;
  * @param[in] w z-component of the velocity
  * @param[in] rho_u x-component of the momentum
  * @param[in] rho_v y-component of the momentum
- * @param[in] Omega component of the momentum normal to the z-coordinate surface
+ * @param[in] omega component of the momentum normal to the z-coordinate surface
  * @param[in] cellSizeInv inverse of the mesh spacing
- * @param[in] mf_m map factor at cell centers
- * @param[in] mf_u map factor at x-faces
- * @param[in] mf_v map factor at y-faces
+ * @param[in] stretched_dz_d device vector of vertical cell spacing
+ * @param[in] mf_mx x map factor at cell centers
+ * @param[in] mf_ux x map factor at x-faces
+ * @param[in] mf_vx x map factor at y-faces
+ * @param[in] mf_my y map factor at cell centers
+ * @param[in] mf_uy y map factor at x-faces
+ * @param[in] mf_vy y map factor at y-faces
  * @param[in] horiz_adv_type sets the spatial order to be used for lateral derivatives
  * @param[in] vert_adv_type  sets the spatial order to be used for vertical derivatives
+ * @param[in] horiz_upw_frac horizontal upwind blending fraction
+ * @param[in] vert_upw_frac vertical upwind blending fraction
+ * @param[in] terrain_type terrain representation type
+ * @param[in] lo_z_face minimum z-face k-index at this level
+ * @param[in] hi_z_face maximum z-face k-index at this level
  */
 void
 AdvectionSrcForMom_ConstantDz (const Box& bxx, const Box& bxy, const Box& bxz,

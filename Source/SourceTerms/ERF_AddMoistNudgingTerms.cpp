@@ -28,11 +28,11 @@ using namespace amrex;
 void add_moist_nudging_terms (const MultiFab& S_data,
                                     MultiFab & source,
                               const int n_qstate,
-                              const Real& dt,
-                              const Real& time,
-                              const Real& start_bdy_time,
-                              const Real& final_bdy_time,
-                              const Real& bdy_time_interval,
+                              const double& dt,
+                              const double& time,
+                              const double& start_bdy_time,
+                              const double& final_bdy_time,
+                              const double& bdy_time_interval,
                               const Real& nudge_factor,
                               const int width,
                               const Geometry& geom,
@@ -43,6 +43,7 @@ void add_moist_nudging_terms (const MultiFab& S_data,
                               std::unique_ptr<ReadBndryPlanes>& m_r2d,
                               const Real& c_p,
                               const Real& rdOcp,
+                              const bool use_wrf_bdy_density,
                               const int bdy_moist_nudge_type)
 
 {
@@ -94,7 +95,7 @@ void add_moist_nudging_terms (const MultiFab& S_data,
     Array4<Real> bdatxlo, bdatxhi, bdatylo, bdatyhi;
 
     // Relaxation constants
-    Real F1 = one/(nudge_factor*dt);
+    Real F1 = one/(nudge_factor*static_cast<Real>(dt));
 
     // Domain bounds
     const auto& dom_hi = ubound(domain);
@@ -104,7 +105,8 @@ void add_moist_nudging_terms (const MultiFab& S_data,
     auto ProbLo = geom.ProbLoArray();
 
     // Time interpolation
-    Real dT = bdy_time_interval;
+    double dT_d = bdy_time_interval;
+    Real   dT   = static_cast<Real>(dT_d);
 
     //
     // Note that time (= start_time+old_stage_time)  is measured as total time
@@ -113,7 +115,7 @@ void add_moist_nudging_terms (const MultiFab& S_data,
 
     int n_time    = static_cast<int>( (time-start_bdy_time) /  dT);
     int n_time_p1 = n_time + 1;
-    Real alpha    = ((time-start_bdy_time) - n_time * dT) / dT;
+    Real alpha    = static_cast<Real>(((time-start_bdy_time) - n_time * dT) / dT);
 
     // Do not over run the last bdy file
     if (time >= final_bdy_time) {
@@ -188,6 +190,18 @@ void add_moist_nudging_terms (const MultiFab& S_data,
         const auto& bdatylo_np1 = bdy_data_ylo[n_time_p1][WRFBdyVars::QV].const_array();
         const auto& bdatyhi_n   = bdy_data_yhi[n_time   ][WRFBdyVars::QV].const_array();
         const auto& bdatyhi_np1 = bdy_data_yhi[n_time_p1][WRFBdyVars::QV].const_array();
+        Array4<const Real> rdatxlo_n, rdatxlo_np1, rdatxhi_n, rdatxhi_np1;
+        Array4<const Real> rdatylo_n, rdatylo_np1, rdatyhi_n, rdatyhi_np1;
+        if (use_wrf_bdy_density) {
+            rdatxlo_n   = bdy_data_xlo[n_time   ][WRFBdyVars::R].const_array();
+            rdatxlo_np1 = bdy_data_xlo[n_time_p1][WRFBdyVars::R].const_array();
+            rdatxhi_n   = bdy_data_xhi[n_time   ][WRFBdyVars::R].const_array();
+            rdatxhi_np1 = bdy_data_xhi[n_time_p1][WRFBdyVars::R].const_array();
+            rdatylo_n   = bdy_data_ylo[n_time   ][WRFBdyVars::R].const_array();
+            rdatylo_np1 = bdy_data_ylo[n_time_p1][WRFBdyVars::R].const_array();
+            rdatyhi_n   = bdy_data_yhi[n_time   ][WRFBdyVars::R].const_array();
+            rdatyhi_np1 = bdy_data_yhi[n_time_p1][WRFBdyVars::R].const_array();
+        }
 
         // Get Array4 of interpolated values
         Array4<Real> arr_xlo = QV_xlo.array();  Array4<Real> arr_xhi = QV_xhi.array();
@@ -206,17 +220,25 @@ void add_moist_nudging_terms (const MultiFab& S_data,
         {
             int ii = std::min(std::max(i , dom_lo.x), dom_lo.x+offset);
             int jj = std::min(std::max(j , dom_lo.y), dom_hi.y       );
-            arr_xlo(i,j,k) = (bdatxlo) ? cons_arr(i,j,k,Rho_comp) * bdatxlo(ii,jj,k,bdy_comp) :
-                cons_arr(i,j,k,Rho_comp) * ( oma   * bdatxlo_n  (ii,jj,k)
-                                           + alpha * bdatxlo_np1(ii,jj,k) );
+            Real rho = cons_arr(i,j,k,Rho_comp);
+            if (use_wrf_bdy_density) {
+                rho = oma*rdatxlo_n(ii,jj,k) + alpha*rdatxlo_np1(ii,jj,k);
+            }
+            arr_xlo(i,j,k) = (bdatxlo) ? rho * bdatxlo(ii,jj,k,bdy_comp) :
+                rho * ( oma   * bdatxlo_n  (ii,jj,k)
+                      + alpha * bdatxlo_np1(ii,jj,k) );
         }    ,
         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
             int ii = std::min(std::max(i , dom_hi.x-offset), dom_hi.x);
             int jj = std::min(std::max(j , dom_lo.y       ), dom_hi.y);
-            arr_xhi(i,j,k) = (bdatxhi) ? cons_arr(i,j,k,Rho_comp) * bdatxhi(ii,jj,k,bdy_comp) :
-                cons_arr(i,j,k,Rho_comp) * ( oma   * bdatxhi_n  (ii,jj,k)
-                                           + alpha * bdatxhi_np1(ii,jj,k) );
+            Real rho = cons_arr(i,j,k,Rho_comp);
+            if (use_wrf_bdy_density) {
+                rho = oma*rdatxhi_n(ii,jj,k) + alpha*rdatxhi_np1(ii,jj,k);
+            }
+            arr_xhi(i,j,k) = (bdatxhi) ? rho * bdatxhi(ii,jj,k,bdy_comp) :
+                rho * ( oma   * bdatxhi_n  (ii,jj,k)
+                      + alpha * bdatxhi_np1(ii,jj,k) );
         });
 
         ParallelFor(tbx_ylo, tbx_yhi,
@@ -224,18 +246,26 @@ void add_moist_nudging_terms (const MultiFab& S_data,
         {
             int ii = std::min(std::max(i , dom_lo.x), dom_hi.x       );
             int jj = std::min(std::max(j , dom_lo.y), dom_lo.y+offset);
-            arr_ylo(i,j,k) = (bdatylo) ? cons_arr(i,j,k,Rho_comp) * bdatylo(ii,jj,k,bdy_comp) :
-                cons_arr(i,j,k,Rho_comp) * ( oma   * bdatylo_n  (ii,jj,k)
-                                           + alpha * bdatylo_np1(ii,jj,k) );
+            Real rho = cons_arr(i,j,k,Rho_comp);
+            if (use_wrf_bdy_density) {
+                rho = oma*rdatylo_n(ii,jj,k) + alpha*rdatylo_np1(ii,jj,k);
+            }
+            arr_ylo(i,j,k) = (bdatylo) ? rho * bdatylo(ii,jj,k,bdy_comp) :
+                rho * ( oma   * bdatylo_n  (ii,jj,k)
+                      + alpha * bdatylo_np1(ii,jj,k) );
         },
        [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
        {
            int ii = std::min(std::max(i , dom_lo.x       ), dom_hi.x);
            int jj = std::min(std::max(j , dom_hi.y-offset), dom_hi.y);
                jj = std::min(jj, dom_hi.y);
-               arr_yhi(i,j,k) = (bdatyhi) ? cons_arr(i,j,k,Rho_comp) * bdatyhi(ii,jj,k,bdy_comp) :
-                   cons_arr(i,j,k,Rho_comp) * ( oma   * bdatyhi_n  (ii,jj,k)
-                                              + alpha * bdatyhi_np1(ii,jj,k) );
+           Real rho = cons_arr(i,j,k,Rho_comp);
+           if (use_wrf_bdy_density) {
+               rho = oma*rdatyhi_n(ii,jj,k) + alpha*rdatyhi_np1(ii,jj,k);
+           }
+           arr_yhi(i,j,k) = (bdatyhi) ? rho * bdatyhi(ii,jj,k,bdy_comp) :
+               rho * ( oma   * bdatyhi_n  (ii,jj,k)
+                     + alpha * bdatyhi_np1(ii,jj,k) );
        });
 
        realbdy_interior_bxs_xy(tbx, domain, width,

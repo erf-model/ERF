@@ -31,7 +31,7 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
     //
     // Here is where we set the number of ghost cells for the base state!
     // ********************************************************************************************
-    int ngb = (solverChoice.terrain_type == TerrainType::EB) ? ComputeGhostCells(solverChoice)+1 : 3;
+    int ngb = ComputeGhostCells(solverChoice) + 1;
     tmp_base_state.define(ba,dm,BaseState::num_comps,ngb);
     tmp_base_state.setVal(zero);
 
@@ -363,9 +363,11 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
     IntVect ng  = vars_new[lev][Vars::cons].nGrowVect();
 
     if (lev == 0) {
-        wrf_C1H = std::make_unique<MultiFab>(ba1d[lev],dm,1,IntVect(ng[0],ng[1],ng[2]));
-        wrf_C2H = std::make_unique<MultiFab>(ba1d[lev],dm,1,IntVect(ng[0],ng[1],ng[2]));
-        wrf_MUB = std::make_unique<MultiFab>(ba2d[lev],dm,1,IntVect(ng[0],ng[1],ng[2]));
+        wrf_C1H  = std::make_unique<MultiFab>(ba1d[lev],dm,1,IntVect(ng[0],ng[1],ng[2]));
+        wrf_C2H  = std::make_unique<MultiFab>(ba1d[lev],dm,1,IntVect(ng[0],ng[1],ng[2]));
+        wrf_RDNW = std::make_unique<MultiFab>(ba1d[lev],dm,1,IntVect(ng[0],ng[1],ng[2]));
+        wrf_MUB  = std::make_unique<MultiFab>(ba2d[lev],dm,1,IntVect(ng[0],ng[1],ng[2]));
+        wrf_PHB  = std::make_unique<MultiFab>(convert(ba,IntVect(0,0,1)),dm,1,IntVect(ngrow+1,ngrow+1,0));
     }
 
     mf_PSFC[lev] = std::make_unique<MultiFab>(ba2d[lev],dm,1,ng);
@@ -584,39 +586,22 @@ ERF::update_diffusive_arrays (int lev, const BoxArray& ba, const DistributionMap
         // NOTE: We require ghost cells in the vertical when allowing grids that don't
         //       cover the entire vertical extent of the domain at this level
         //
-        for (int i = 0; i < 3; i++) {
-            Tau[lev][i] = std::make_unique<MultiFab>( ba  , dm, 1, IntVect(1,1,1) );
-        }
-        Tau[lev][TauType::tau12] = std::make_unique<MultiFab>( ba12, dm, 1, IntVect(1,1,1) );
-        Tau[lev][TauType::tau13] = std::make_unique<MultiFab>( ba13, dm, 1, IntVect(1,1,1) );
-        Tau[lev][TauType::tau23] = std::make_unique<MultiFab>( ba23, dm, 1, IntVect(1,1,1) );
-        Tau[lev][TauType::tau12]->setVal(zero);
-        Tau[lev][TauType::tau13]->setVal(zero);
-        Tau[lev][TauType::tau23]->setVal(zero);
-        Tau[lev][TauType::tau21] = std::make_unique<MultiFab>( ba12, dm, 1, IntVect(1,1,1) );
-        if (l_use_terrain || l_Surf_X) {
-            //Tau[lev][TauType::tau21] = std::make_unique<MultiFab>( ba12, dm, 1, IntVect(1,1,1) );
-            Tau[lev][TauType::tau31] = std::make_unique<MultiFab>( ba13, dm, 1, IntVect(1,1,1) );
-        } else {
-            //Tau[lev][TauType::tau21] = nullptr;
-            Tau[lev][TauType::tau31] = nullptr;
-        }
-        if (l_use_terrain || l_Surf_Y) {
-            Tau[lev][TauType::tau32] = std::make_unique<MultiFab>( ba23, dm, 1, IntVect(1,1,1) );
-            Tau[lev][TauType::tau21]->setVal(zero);
-            Tau[lev][TauType::tau31]->setVal(zero);
-            Tau[lev][TauType::tau32]->setVal(zero);
+        Tau[lev][TauType::tau11] = std::make_unique<MultiFab>( ba  , dm, 1, IntVect(1,1,1) ); Tau[lev][TauType::tau11]->setVal(zero);
+        Tau[lev][TauType::tau22] = std::make_unique<MultiFab>( ba  , dm, 1, IntVect(1,1,1) ); Tau[lev][TauType::tau22]->setVal(zero);
+        Tau[lev][TauType::tau33] = std::make_unique<MultiFab>( ba  , dm, 1, IntVect(1,1,1) ); Tau[lev][TauType::tau33]->setVal(zero);
+
+        Tau[lev][TauType::tau12] = std::make_unique<MultiFab>( ba12, dm, 1, IntVect(1,1,1) ); Tau[lev][TauType::tau12]->setVal(zero);
+        Tau[lev][TauType::tau13] = std::make_unique<MultiFab>( ba13, dm, 1, IntVect(1,1,1) ); Tau[lev][TauType::tau13]->setVal(zero);
+        Tau[lev][TauType::tau23] = std::make_unique<MultiFab>( ba23, dm, 1, IntVect(1,1,1) ); Tau[lev][TauType::tau23]->setVal(zero);
+        if (l_use_terrain || (l_Surf_X || l_Surf_Y)) {
+            Tau[lev][TauType::tau21] = std::make_unique<MultiFab>( ba12, dm, 1, IntVect(1,1,1) ); Tau[lev][TauType::tau21]->setVal(zero);
+            Tau[lev][TauType::tau31] = std::make_unique<MultiFab>( ba13, dm, 1, IntVect(1,1,1) ); Tau[lev][TauType::tau31]->setVal(zero);
+            Tau[lev][TauType::tau32] = std::make_unique<MultiFab>( ba23, dm, 1, IntVect(1,1,1) ); Tau[lev][TauType::tau32]->setVal(zero);
         } else if (l_implicit_diff) {
-            Tau[lev][TauType::tau31] = std::make_unique<MultiFab>( ba13, dm, 1, IntVect(1,1,1) );
-            Tau[lev][TauType::tau32] = std::make_unique<MultiFab>( ba23, dm, 1, IntVect(1,1,1) );
-            Tau[lev][TauType::tau31]->setVal(zero);
-            Tau[lev][TauType::tau32]->setVal(zero);
+            Tau[lev][TauType::tau31] = std::make_unique<MultiFab>( ba13, dm, 1, IntVect(1,1,1) ); Tau[lev][TauType::tau31]->setVal(zero);
+            Tau[lev][TauType::tau32] = std::make_unique<MultiFab>( ba23, dm, 1, IntVect(1,1,1) ); Tau[lev][TauType::tau32]->setVal(zero);
         } else {
             Tau[lev][TauType::tau32] = nullptr;
-        }
-
-        for (int i = 0; i < 9; i++) {
-            Tau[lev][i]->setVal(0.0);
         }
 
         // EB diffusive stresses - allocate for all three staggered grids
@@ -682,25 +667,17 @@ ERF::update_diffusive_arrays (int lev, const BoxArray& ba, const DistributionMap
             SFS_q2fx3_lev[lev] = std::make_unique<MultiFab>( convert(ba,IntVect(0,0,1)), dm, 1, IntVect(1,1,1) );
             SFS_q1fx3_lev[lev]->setVal(zero);
             SFS_q2fx3_lev[lev]->setVal(zero);
-            //if (l_rotate || l_Surf_X) {
+            if (l_rotate || (l_Surf_X || l_Surf_Y)) {
                 amrex::Print() << "  Creating diffusive arrays for Q1FX1" << std::endl;
                 SFS_q1fx1_lev[lev] = std::make_unique<MultiFab>( convert(ba,IntVect(1,0,0)), dm, 1, IntVect(1,1,1) );
-                SFS_q1fx1_lev[lev]->setVal(0.0);
-            /*
-            } else {
-                SFS_q1fx1_lev[lev] = nullptr;
-            }
-            */
-            //if (l_rotate || l_Surf_Y) {
+                SFS_q1fx1_lev[lev]->setVal(zero);
                 amrex::Print() << "  Creating diffusive arrays for Q1FX2" << std::endl;
                 SFS_q1fx2_lev[lev] = std::make_unique<MultiFab>( convert(ba,IntVect(0,1,0)), dm, 1, IntVect(1,1,1) );
-                SFS_q1fx2_lev[lev]->setVal(0.0);
-            /*
+                SFS_q1fx2_lev[lev]->setVal(zero);
             } else {
+                SFS_q1fx1_lev[lev] = nullptr;
                 SFS_q1fx2_lev[lev] = nullptr;
-
             }
-            */
         } else {
             SFS_q1fx1_lev[lev] = nullptr;
             SFS_q1fx2_lev[lev] = nullptr;
@@ -731,7 +708,7 @@ ERF::update_diffusive_arrays (int lev, const BoxArray& ba, const DistributionMap
 }
 
 void
-ERF::init_zphys (int lev, Real elapsed_time)
+ERF::init_zphys (int lev, double elapsed_time)
 {
     // For EB, z_phys_nd was already initialized with the correct z_offset by init_default_zphys.
     // The terrain-fitting (BTF) done below is irrelevant for a flat EB mesh and would clobber
@@ -799,6 +776,15 @@ ERF::init_zphys (int lev, Real elapsed_time)
                 amrex::Print() << "max of zlevels  " << zlevels_stag[0][zlevels_stag[0].size()-1] << std::endl;
                 AMREX_ALWAYS_ASSERT_WITH_MESSAGE(rel_diff < Real(1.e-8), "Terrain is taller than domain top!");
             }
+
+#if 0
+            // This remains commented out until we verify that the stretched and variable dz pathways
+            //   in fact give the same answer when appropriate
+            if (SolverChoice::mesh_type == MeshType::VariableDz)
+            {
+                check_mesh_type(lev);
+            }
+#endif
         } // lev == 0
 
     } else {
@@ -828,6 +814,20 @@ ERF::init_zphys (int lev, Real elapsed_time)
         MultiFab::Subtract(*terrain_blanking[lev], EBFactory(lev).getVolFrac(), 0, 0, 1, ComputeGhostCells(solverChoice) + 2);
         terrain_blanking[lev]->FillBoundary(geom[lev].periodicity());
         init_immersed_forcing(lev); // needed for real cases
+
+        // buildings are landmask = 2
+        for (MFIter mfi(*lmask_lev[lev][0]); mfi.isValid(); ++mfi) {
+            const Box& bx2d = mfi.growntilebox();
+            auto lmask_arr = lmask_lev[lev][0]->array(mfi);
+            const auto& t_blank_arr = terrain_blanking[lev]->array(mfi);
+
+            amrex::ParallelFor(bx2d, [=] AMREX_GPU_DEVICE(int i, int j, int k) {
+                // Use k=0 for the terrain_blanking field
+                if (t_blank_arr(i, j, 0) > 0.0) {
+                    lmask_arr(i, j, k) = 2;
+                }
+            });
+        }
     }
 
     // Compute the min dz and pass to the micro model
