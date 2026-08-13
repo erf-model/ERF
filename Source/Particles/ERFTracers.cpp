@@ -30,6 +30,9 @@ void ERF::initializeTracers ( ParGDBBase* a_gdb,
 
     for (auto it = namelist_unalloc.begin(); it != namelist_unalloc.end(); ++it) {
 
+        /**
+         * Name of the particle species.
+         */
         std::string species_name( *it );
 
         if ( (species_name == ERFParticleNames::tracers) && (!particleData.HasSpecies(species_name)) ) {
@@ -59,6 +62,9 @@ void ERF::restartTracers ( ParGDBBase* a_gdb,
 
     for (auto it = namelist_unalloc.begin(); it != namelist_unalloc.end(); ++it) {
 
+        /**
+         * Name of the particle species.
+         */
         std::string species_name( *it );
 
         if (species_name == ERFParticleNames::tracers)
