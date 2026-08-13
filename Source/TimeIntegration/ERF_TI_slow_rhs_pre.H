@@ -109,7 +109,7 @@
                      mapfac[level],
                      rhotheta_src[level].get(), rhoqt_src[level].get(),
                      dptr_wbar_sub, d_rayleigh_ptrs_at_lev, d_sinesq_at_lev,
-                     input_sounding_data, turbPert, true);
+                     turbPert, true);
 
         // *****************************************************************************
         // Add nudging terms on moist variables if we have a non-zero relaxation region
@@ -166,7 +166,7 @@
                          dptr_wbar_sub, d_rayleigh_ptrs_at_lev, d_sinesq_at_lev, d_sinesq_stag_at_lev,
                          d_sponge_ptrs_at_lev,
                          (solverChoice.hindcast_lateral_forcing? &forecast_state_interp[level] : nullptr),
-                         input_sounding_data, get_eb(level), true);
+                         input_sounding_data, lsf, lsf_data[level], get_eb(level), true);
 
         // *****************************************************************************
         // Add body sources if doing flow around a body

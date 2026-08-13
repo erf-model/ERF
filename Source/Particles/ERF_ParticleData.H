@@ -143,13 +143,17 @@ class ParticleData
             }
         }
 
-        /*! Redistribute after AMR regrid. */
+        /*! Redistribute after AMR regrid.  Also runs each species'
+         *  SplitMergeAtLevelBoundary so new entrants on fine levels and
+         *  departees on coarse levels are split/merged appropriately. */
         inline void Redistribute (
             const amrex::Vector<std::unique_ptr<amrex::MultiFab>>& /*a_z_phys_nd*/)
         {
             BL_PROFILE("ParticleData::Redistribute(z_phys_nd)");
             for (ParticlesNamesVector::size_type i = 0; i < m_namelist.size(); i++) {
-                m_particle_species[m_namelist[i]]->Redistribute();
+                auto* pc = m_particle_species[m_namelist[i]];
+                pc->Redistribute();
+                pc->SplitMergeAtLevelBoundary();
             }
         }
 

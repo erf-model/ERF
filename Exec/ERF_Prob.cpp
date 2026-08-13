@@ -151,7 +151,9 @@ Problem::init_custom_pert (
     else if  (my_prob_name_ci == "bomex") {
 #include "Prob/ERF_InitCustomPert_Bomex.H"
     }
-    else if  (my_prob_name_ci == "rico") {
+    else if  (   my_prob_name_ci == "rico"
+              || my_prob_name_ci == "dycoms2rf01"
+              || my_prob_name_ci == "dycoms2rf02") {
 #include "Prob/ERF_InitCustomPert_RICO.H"
     }
     else if  (my_prob_name_ci == "sdm_congestus3d") {
@@ -163,7 +165,13 @@ Problem::init_custom_pert (
     else if  (my_prob_name_ci == "supercell") {
 #include "Prob/ERF_InitCustomPert_SuperCell.H"
     }
-     else if  (my_prob_name_ci == "data_assimilation_isv") {
+    else if  (my_prob_name_ci == "gate") {
+#include "Prob/ERF_InitCustomPert_GATE.H"
+    }
+    else if  (my_prob_name_ci == "sdm_congestus3d_cold") {
+#include "Prob/ERF_InitCustomPert_SDMCongestus3DCold.H"
+    }
+    else if  (my_prob_name_ci == "data_assimilation_isv") {
 #include "Prob/ERF_InitCustomPert_DataAssimilation_ISV.H"
     }
     else if  (my_prob_name_ci == "sinusoidalmassflux") {
@@ -245,7 +253,9 @@ Problem::init_custom_pert_vels (
     else if  (my_prob_name_ci == "bomex") {
 #include "Prob/ERF_InitCustomPertVels_Bomex.H"
     }
-    else if  (my_prob_name_ci == "rico") {
+    else if  (   my_prob_name_ci == "rico"
+              || my_prob_name_ci == "dycoms2rf01"
+              || my_prob_name_ci == "dycoms2rf02") {
 #include "Prob/ERF_InitCustomPertVels_RICO.H"
     }
     else if  (my_prob_name_ci == "sdm_congestus3d") {
@@ -258,7 +268,11 @@ Problem::init_custom_pert_vels (
     else if (my_prob_name_ci == "userdefined") {
 #include "Prob/ERF_InitCustomPertVels_UserDefined.H"
     }
-     else if  (my_prob_name_ci == "data_assimilation_isv") {
+    else if ( (my_prob_name_ci == "gate") ||
+              (my_prob_name_ci == "sdm_congestus3d_cold") ) {
+#include "Prob/ERF_InitCustomPertVels_Bomex.H"
+    }
+    else if  (my_prob_name_ci == "data_assimilation_isv") {
 #include "Prob/ERF_InitCustomPertVels_DataAssimilation_ISV.H"
     }
     else if  (my_prob_name_ci == "sinusoidalmassflux") {
@@ -292,8 +306,10 @@ Problem::update_rhotheta_sources (const double& time,
     Gpu::DeviceVector<Real> d_zlevels;
     d_zlevels.resize(khi+1);
 
-    reduce_to_max_per_height(zlevels, z_phys_cc);
-    amrex::Gpu::copy(amrex::Gpu::hostToDevice, zlevels.begin(), zlevels.end(), d_zlevels.begin());
+    if (z_phys_cc) {
+        reduce_to_max_per_height(zlevels, z_phys_cc);
+        amrex::Gpu::copy(amrex::Gpu::hostToDevice, zlevels.begin(), zlevels.end(), d_zlevels.begin());
+    }
 
     const Real* d_zlevels_arr = d_zlevels.dataPtr();
 
@@ -309,6 +325,10 @@ Problem::update_rhotheta_sources (const double& time,
 #include "Prob/ERF_UpdateRhoThetaSources_RICO.H"
     } else if  (my_prob_name_ci == "sdm_congestus3d") {
 #include "Prob/ERF_UpdateRhoThetaSources_SDMCongestus3D.H"
+    } else if  (my_prob_name_ci == "gate") {
+#include "Prob/ERF_UpdateRhoThetaSources_GATE.H"
+    } else if  (my_prob_name_ci == "sdm_congestus3d_cold") {
+#include "Prob/ERF_UpdateRhoThetaSources_SDMCongestus3DCold.H"
     } else if  (my_prob_name_ci == "sinusoidalmassflux") {
 #include "Prob/ERF_UpdateRhoThetaSources_SineMassFlux.H"
     }
@@ -334,8 +354,10 @@ Problem::update_rhoqt_sources (const double& time,
     Gpu::DeviceVector<Real> d_zlevels;
     d_zlevels.resize(khi+1);
 
-    reduce_to_max_per_height(zlevels, z_phys_cc);
-    amrex::Gpu::copy(amrex::Gpu::hostToDevice, zlevels.begin(), zlevels.end(), d_zlevels.begin());
+    if (z_phys_cc) {
+        reduce_to_max_per_height(zlevels, z_phys_cc);
+        amrex::Gpu::copy(amrex::Gpu::hostToDevice, zlevels.begin(), zlevels.end(), d_zlevels.begin());
+    }
 
     const Real* d_zlevels_arr = d_zlevels.dataPtr();
 
@@ -349,6 +371,10 @@ Problem::update_rhoqt_sources (const double& time,
 #include "Prob/ERF_UpdateRhoQtSources_RICO.H"
     } else if  (my_prob_name_ci == "sdm_congestus3d") {
 #include "Prob/ERF_UpdateRhoQtSources_SDMCongestus3D.H"
+    } else if  (my_prob_name_ci == "gate") {
+#include "Prob/ERF_UpdateRhoQtSources_GATE.H"
+    } else if  (my_prob_name_ci == "sdm_congestus3d_cold") {
+#include "Prob/ERF_UpdateRhoQtSources_SDMCongestus3DCold.H"
     } else if  (my_prob_name_ci == "sinusoidalmassflux") {
 #include "Prob/ERF_UpdateRhoQtSources_SineMassFlux.H"
     }
@@ -374,7 +400,9 @@ Problem::update_w_subsidence (const double& time,
     // grid stretching exists.
     Vector<Real> zlevels;
     zlevels.resize(khi+2);
-    reduce_to_max_per_height(zlevels, z_phys_nd);
+    if (z_phys_nd) {
+        reduce_to_max_per_height(zlevels, z_phys_nd);
+    }
 
     ParmParse pp_erf("erf");
     std::string my_prob_name; pp_erf.get("prob_name",my_prob_name);
@@ -384,6 +412,11 @@ Problem::update_w_subsidence (const double& time,
 #include "Prob/ERF_UpdateWSubsidence_Bomex.H"
     } else if  (my_prob_name_ci == "rico") {
 #include "Prob/ERF_UpdateWSubsidence_RICO.H"
+    } else if  (   my_prob_name_ci == "dycoms2rf01"
+                || my_prob_name_ci == "dycoms2rf02") {
+#include "Prob/ERF_UpdateWSubsidence_DYCOMS2RF01.H"
+    } else if  (my_prob_name_ci == "gate") {
+#include "Prob/ERF_UpdateWSubsidence_GATE.H"
     } else if  (my_prob_name_ci == "sinusoidalmassflux") {
 #include "Prob/ERF_UpdateWSubsidence_SineMassFlux.H"
     }
@@ -410,7 +443,9 @@ Problem::update_geostrophic_profile (const double& /*time*/,
     // grid stretching exists.
     Vector<Real> zlevels;
     zlevels.resize(khi+1);
-    reduce_to_max_per_height(zlevels, z_phys_cc);
+    if (z_phys_cc) {
+        reduce_to_max_per_height(zlevels, z_phys_cc);
+    }
 
     ParmParse pp_erf("erf");
     std::string my_prob_name; pp_erf.get("prob_name",my_prob_name);
@@ -420,6 +455,12 @@ Problem::update_geostrophic_profile (const double& /*time*/,
 #include "Prob/ERF_UpdateGeostrophicProfile_Bomex.H"
     } else if  (my_prob_name_ci == "rico") {
 #include "Prob/ERF_UpdateGeostrophicProfile_RICO.H"
+    } else if  (my_prob_name_ci == "dycoms2rf01") {
+#include "Prob/ERF_UpdateGeostrophicProfile_DYCOMS2RF01.H"
+    } else if  (my_prob_name_ci == "dycoms2rf02") {
+#include "Prob/ERF_UpdateGeostrophicProfile_DYCOMS2RF02.H"
+    } else if  (my_prob_name_ci == "gate") {
+#include "Prob/ERF_UpdateGeostrophicProfile_GATE.H"
     } else if  (my_prob_name_ci == "sinusoidalmassflux") {
 #include "Prob/ERF_UpdateGeostrophicProfile_SineMassFlux.H"
     }
