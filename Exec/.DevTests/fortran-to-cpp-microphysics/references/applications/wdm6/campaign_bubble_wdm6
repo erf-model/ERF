@@ -39,9 +39,11 @@ PLOT_INT="${4:?missing plot_int}"
 # 29 tracked plot_vars_1 entries plus the WDM6 number concentrations.
 # Applied as a run-time override: the tracked input is shared with the nightly
 # Bubble_WSM6 regression test and must not be edited.
+# nn, not ni: WDM6 has no ice number, RhoQ8 is CCN/total aerosol. See
+# bubble_campaign.md "Compared variable set".
 PLOT_VARS="density rhotheta rhoQ1 rhoQ2 rhoQ3 rhoQ4 rhoQ5 rhoQ6 rhoadv_0 \
 x_velocity y_velocity z_velocity pressure theta scalar temp pres_hse dens_hse \
-pert_pres pert_dens eq_pot_temp qt qv qc qi qp qrain qsnow qgraup nc ni nr"
+pert_pres pert_dens eq_pot_temp qt qv qc qi qp qrain qsnow qgraup nc nn nr"
 
 cd "$BUBBLE_DIR"
 mkdir -p "$CAMPAIGN_ID"

@@ -58,14 +58,34 @@ number concentrations:
 erf.plot_vars_1="<29 input vars> nc ni nr"
 ```
 
-ERF names these `nc`/`ni`/`nr`, gated on `n_qstate_moist >= 7/8/9`
-(`Source/IO/ERF_Plotfile.cpp:1263-1282`). Naming caveat: WDM6's `RhoQ8` is
-CCN/aerosol `nn`, but ERF's plot label for that slot is `ni`. Do not rename
-anything; record the mismatch here.
+Use `nc nn nr`, not `nc ni nr`. WDM6 carries **no ice number**: `RhoQ8` is
+CCN/total aerosol `nn`.
 
-**Known gap:** with the override above, `nc` and `nr` appear in the `fcompare`
-table but `ni` does not — 31 variables, not 32. `RhoQ8`/`nn` is therefore still
-uncompared. Resolve before treating any milestone as full-coverage.
+Earlier revisions of this note claimed "ERF's plot label for that slot is `ni`.
+Do not rename anything." That was wrong on both counts and is retracted. ERF has
+never labelled WDM6's `RhoQ8` as `ni` — `ERF_DataStruct.H` sets `ni = -1` for
+WDM6 with the comment *"ice number (ni) not used - WDM6 uses nn for total
+aerosol"*, so the selection gate drops `ni` and the slot went unnamed entirely.
+`ni` is bound to cloud ice number ERF-wide by Morrison
+(`ERF_Morrison.H:47`, `ERF_UpdateMorrison.cpp:55-59`), and the two are
+physically different: every other number concentration pairs with a mass species
+(`nc`/`qc`, `nr`/`qr`, `ni`/`qi`), while `nn` has none — it is an aerosol
+reservoir that exchanges number with `nc` and `nr` through activation
+(`ERF_module_mp_wdm6.F90:2790`) and evaporation (`:2835`, `:1855`), bounded to
+1e8-2e10 m^-3 (`:602`). Magnitudes differ by three to five orders.
+
+`nn` is now a first-class plot variable: `MoistureComponentIndices::nn`, a
+`ccn_number` capability, and a writer block that reads the slot from the
+per-scheme registry rather than hardcoding `RhoQ8`. Morrison is untouched.
+
+**Resolved:** the earlier "31 variables, not 32" gap had two independent causes,
+both fixed. `ni` was correctly absent (WDM6 has no ice number) — the missing
+field was `nn`, which had no name at all. Separately, the columns after `qgraup`
+were rotated because the writer emitted `nc..ng` before `qt/qn/qp/qsat` while the
+header names came from `derived_names` in `ERF.H`, which declares the reverse;
+`qt`, `qp`, `nc` and `nr` each reported another field's data. That defect shipped
+with PR #3218 (30 May 2026) and also affects Morrison. Any `qt`/`qp`/`nc`/`nr`
+value recorded before that fix is void.
 
 ## Milestone table (WDM6 Bubble)
 
