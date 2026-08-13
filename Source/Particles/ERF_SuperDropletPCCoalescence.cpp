@@ -309,7 +309,9 @@ static void rime_update_attribs(const int a_i, /*!< index of particle */
         mwater_new = gamma_ice * m_wat_ice + gamma_water * m_wat_drop;
         mrime_new  = gamma_ice * a_mrime[id_ice];
     } else {
-        mi_new     = gamma_ice * a_sp_m[a_sp_idx_i][id_ice] + gamma_water * m_wat_drop;
+        // Sub-freezing: the collected droplet rimes onto the core, and any meltwater
+        // already carried by the particle refreezes back onto it.
+        mi_new     = gamma_ice * (a_sp_m[a_sp_idx_i][id_ice] + m_wat_ice) + gamma_water * m_wat_drop;
         mwater_new = ParticleReal(zero);
         mrime_new  = gamma_ice * a_mrime[id_ice] + gamma_water * m_wat_drop;
     }
