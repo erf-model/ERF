@@ -38,6 +38,22 @@ namespace MicVar_WDM6 {
    };
 }
 
+// Selects how the WDM6 parameter literals are interpreted. See the LITERAL
+// PRECISION CONTRACT comment on the constant block below for the full
+// rationale. Namespace scope, not a class member, because a constexpr member
+// function cannot be used in a constant expression within its own class body.
+constexpr amrex::Real wdm6_literal (double d)
+{
+#ifdef ERF_WDM6_F32_LITERALS
+    // Match the Fortran as compiled today: its literals carry no kind suffix,
+    // so they are evaluated in single precision and then widened.
+    return amrex::Real(static_cast<float>(d));
+#else
+    // True doubles. Correct when the Fortran is built -fdefault-real-8.
+    return amrex::Real(d);
+#endif
+}
+
 class WDM6 : public NullMoist {
     using FabPtr = std::shared_ptr<amrex::MultiFab>;
 
@@ -53,46 +69,87 @@ public:
     }
 
     // WDM6 module parameter constants (from WRF module_mp_wdm6.F)
-    static constexpr amrex::Real dtcldcr    = amrex::Real(120.0);
-    static constexpr amrex::Real n0r        = amrex::Real(8.0e6);
-    static constexpr amrex::Real avtr       = amrex::Real(841.9);
-    static constexpr amrex::Real bvtr       = amrex::Real(0.8f);
-    static constexpr amrex::Real r0         = amrex::Real(0.8e-5);
-    static constexpr amrex::Real peaut      = amrex::Real(0.55);
-    static constexpr amrex::Real xncr       = amrex::Real(3.0e8);
-    static constexpr amrex::Real xncr0      = amrex::Real(5.0e7);
-    static constexpr amrex::Real xncr1      = amrex::Real(5.0e8);
-    static constexpr amrex::Real xmyu       = amrex::Real(1.718e-5);
-    static constexpr amrex::Real avts       = amrex::Real(11.72);
-    static constexpr amrex::Real bvts       = amrex::Real(0.41f);
-    static constexpr amrex::Real lamdarmax  = amrex::Real(5.0e4);
-    static constexpr amrex::Real lamdarmin  = amrex::Real(2.0e3);
-    static constexpr amrex::Real lamdasmax  = amrex::Real(1.0e5);
-    static constexpr amrex::Real lamdacmax  = amrex::Real(5.0e5);
-    static constexpr amrex::Real lamdacmin  = amrex::Real(2.0e4);
-    static constexpr amrex::Real dicon      = amrex::Real(11.9);
-    static constexpr amrex::Real dimax      = amrex::Real(500.0e-6);
-    static constexpr amrex::Real pfrz1      = amrex::Real(100.0);
-    static constexpr amrex::Real pfrz2      = amrex::Real(0.66);
-    static constexpr amrex::Real qcrmin     = amrex::Real(1.0e-9);
-    static constexpr amrex::Real ncmin      = amrex::Real(1.0e1);
-    static constexpr amrex::Real nrmin      = amrex::Real(1.0e-2);
-    static constexpr amrex::Real eacrc      = amrex::Real(1.0);
-    static constexpr amrex::Real dens_snow  = amrex::Real(100.0);
-    static constexpr amrex::Real qs0        = amrex::Real(6.0e-4);
-    static constexpr amrex::Real n0smax     = amrex::Real(1.0e11);
-    static constexpr amrex::Real n0s        = amrex::Real(2.0e6);
-    static constexpr amrex::Real alpha_wdm6 = amrex::Real(0.12);
-    static constexpr amrex::Real satmax     = amrex::Real(1.0048f);
-    static constexpr amrex::Real actk       = amrex::Real(0.6f);
-    static constexpr amrex::Real actr       = amrex::Real(1.5f);
-    static constexpr amrex::Real ncrk1      = amrex::Real(3.03e3);
-    static constexpr amrex::Real ncrk2      = amrex::Real(2.59e15);
-    static constexpr amrex::Real di100      = amrex::Real(1.0e-4);
-    static constexpr amrex::Real di600      = amrex::Real(6.0e-4);
-    static constexpr amrex::Real di2000     = amrex::Real(2000.0e-6);
-    static constexpr amrex::Real di82       = amrex::Real(82.0e-6);
-    static constexpr amrex::Real di15       = amrex::Real(15.0e-6);
+    //
+    // LITERAL PRECISION CONTRACT
+    // --------------------------
+    // Every constant below is initialised through wdm6_literal() rather than
+    // written directly, because the two implementations do not agree on what
+    // these literals mean.
+    //
+    // In ERF_module_mp_wdm6.F90 the parameters are declared
+    //     real(kind=kind_phys), parameter :: dimax = 500.e-6
+    // with NO kind suffix on the literal. Fortran therefore evaluates the
+    // literal as a default (single-precision) real and only then widens it to
+    // kind_phys, so the stored value carries float32 rounding permanently.
+    // All 22 parameters in that module are written this way; none is suffixed.
+    // dimax for instance is +5.00000023748725652695E-04 in the Fortran, which
+    // is bit-for-bit float32(5e-4) widened, against a true double
+    // +5.00000000000000010408E-04 here.
+    //
+    // That single 2.37e-11 difference is the confirmed root cause of the first
+    // materially failing group in the tag-frontier retreat: it clamps
+    // diameter, which drives pidep in G13e, which amplifies into psaut in G13f
+    // and on into the Milestone A and B plotfile failures.
+    //
+    // ERF_WDM6_F32_LITERALS selects which side to match:
+    //   defined    reproduce the Fortran-as-compiled-today values bit-for-bit
+    //   undefined  use true doubles, which is correct when the Fortran side is
+    //              built with -fdefault-real-8 so its literals are doubles too
+    //
+    // Four constants (actk, bvtr, bvts, satmax) previously carried a hand-added
+    // 'f' suffix. That was an undocumented partial fix covering 4 of 22 and it
+    // would have silently fought a -fdefault-real-8 build. Those suffixes are
+    // absorbed here so the choice is made in exactly one place.
+    //
+    // Note r0, peaut and alpha_wdm6 have no matching Fortran parameter of the
+    // same name and value, so their correspondence is unverified; they are
+    // routed through the same helper for uniformity, not because a match is
+    // established.
+    //
+    // wdm6_literal is defined at namespace scope above rather than as a member:
+    // a constexpr member function cannot be called in a constant expression
+    // inside its own class body, because the class is incomplete until the
+    // closing brace.
+    static constexpr amrex::Real dtcldcr    = wdm6_literal(120.0);
+    static constexpr amrex::Real n0r        = wdm6_literal(8.0e6);
+    static constexpr amrex::Real avtr       = wdm6_literal(841.9);
+    static constexpr amrex::Real bvtr       = wdm6_literal(0.8);
+    static constexpr amrex::Real r0         = wdm6_literal(0.8e-5);
+    static constexpr amrex::Real peaut      = wdm6_literal(0.55);
+    static constexpr amrex::Real xncr       = wdm6_literal(3.0e8);
+    static constexpr amrex::Real xncr0      = wdm6_literal(5.0e7);
+    static constexpr amrex::Real xncr1      = wdm6_literal(5.0e8);
+    static constexpr amrex::Real xmyu       = wdm6_literal(1.718e-5);
+    static constexpr amrex::Real avts       = wdm6_literal(11.72);
+    static constexpr amrex::Real bvts       = wdm6_literal(0.41);
+    static constexpr amrex::Real lamdarmax  = wdm6_literal(5.0e4);
+    static constexpr amrex::Real lamdarmin  = wdm6_literal(2.0e3);
+    static constexpr amrex::Real lamdasmax  = wdm6_literal(1.0e5);
+    static constexpr amrex::Real lamdacmax  = wdm6_literal(5.0e5);
+    static constexpr amrex::Real lamdacmin  = wdm6_literal(2.0e4);
+    static constexpr amrex::Real dicon      = wdm6_literal(11.9);
+    static constexpr amrex::Real dimax      = wdm6_literal(500.0e-6);
+    static constexpr amrex::Real pfrz1      = wdm6_literal(100.0);
+    static constexpr amrex::Real pfrz2      = wdm6_literal(0.66);
+    static constexpr amrex::Real qcrmin     = wdm6_literal(1.0e-9);
+    static constexpr amrex::Real ncmin      = wdm6_literal(1.0e1);
+    static constexpr amrex::Real nrmin      = wdm6_literal(1.0e-2);
+    static constexpr amrex::Real eacrc      = wdm6_literal(1.0);
+    static constexpr amrex::Real dens_snow  = wdm6_literal(100.0);
+    static constexpr amrex::Real qs0        = wdm6_literal(6.0e-4);
+    static constexpr amrex::Real n0smax     = wdm6_literal(1.0e11);
+    static constexpr amrex::Real n0s        = wdm6_literal(2.0e6);
+    static constexpr amrex::Real alpha_wdm6 = wdm6_literal(0.12);
+    static constexpr amrex::Real satmax     = wdm6_literal(1.0048);
+    static constexpr amrex::Real actk       = wdm6_literal(0.6);
+    static constexpr amrex::Real actr       = wdm6_literal(1.5);
+    static constexpr amrex::Real ncrk1      = wdm6_literal(3.03e3);
+    static constexpr amrex::Real ncrk2      = wdm6_literal(2.59e15);
+    static constexpr amrex::Real di100      = wdm6_literal(1.0e-4);
+    static constexpr amrex::Real di600      = wdm6_literal(6.0e-4);
+    static constexpr amrex::Real di2000     = wdm6_literal(2000.0e-6);
+    static constexpr amrex::Real di82       = wdm6_literal(82.0e-6);
+    static constexpr amrex::Real di15       = wdm6_literal(15.0e-6);
 
     void Init(const amrex::MultiFab& cons_in,
               const amrex::BoxArray& grids,

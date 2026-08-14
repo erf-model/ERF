@@ -129,6 +129,34 @@ function(build_erf_lib erf_lib_name)
 
   target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_MOISTURE)
 
+  # WDM6 literal precision. The Fortran parameters in ERF_module_mp_wdm6.F90
+  # are written without kind suffixes, so as compiled today they carry float32
+  # rounding. ON reproduces that in the native path; OFF uses true doubles and
+  # is the correct pairing when the Fortran is built -fdefault-real-8.
+  # See the LITERAL PRECISION CONTRACT comment in Source/Microphysics/WDM6/ERF_WDM6.H.
+  #
+  # Defaults ON because the Fortran is the oracle and is unmodified: matching it
+  # is the parity-preserving choice. Turning this OFF without also setting
+  # ERF_WDM6_FORTRAN_REAL8 puts the two paths back out of agreement. Verified to
+  # close the G13e pidep divergence bit-for-bit, 14/14 quantities equal.
+  option(ERF_WDM6_F32_LITERALS
+         "Reproduce the Fortran unsuffixed-literal float32 rounding in native WDM6 constants" ON)
+  if(ERF_WDM6_F32_LITERALS)
+    target_compile_definitions(${erf_lib_name} PUBLIC ERF_WDM6_F32_LITERALS)
+  endif()
+
+  # Build the WDM6 Fortran with promoted default reals so its unsuffixed
+  # literals evaluate in double. Scoped to the WDM6 sources only, so WSM6,
+  # Morrison and SAM are untouched. The module declares every variable
+  # real(kind=kind_phys) and the isohelper uses explicit real(c_double), so
+  # this affects literals and nothing else.
+  if(ERF_WDM6_FORTRAN_REAL8)
+    set_source_files_properties(
+      ${PROJECT_SOURCE_DIR}/Source/Microphysics/WDM6/ERF_module_mp_wdm6.F90
+      ${PROJECT_SOURCE_DIR}/Source/Microphysics/WDM6/ERF_module_mp_wdm6_isohelper.F90
+      PROPERTIES COMPILE_OPTIONS "-fdefault-real-8;-fdefault-double-8")
+  endif()
+
   # NOTE: EKAT provides KOKKOS
   if(ERF_ENABLE_EKAT)
     target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_KOKKOS)
