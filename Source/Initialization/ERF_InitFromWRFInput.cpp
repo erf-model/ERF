@@ -1629,6 +1629,7 @@ init_base_state_from_wrfinput (const Box& subdomain,
         const Array4<Real      >&  p_hse_arr =  p_hse.array(mfi);
         const Array4<Real      >& th_hse_arr = th_hse.array(mfi);
         const Array4<Real      >& qv_hse_arr = qv_hse.array(mfi);
+        const Array4<Real      >&  r_hse_arr =  p_hse.array(mfi);
         const Array4<Real      >& pi_hse_arr = pi_hse.array(mfi);
 
         const Array4<const Real>& z_cc_arr   = z_phys_cc->const_array(mfi);
@@ -1649,6 +1650,7 @@ init_base_state_from_wrfinput (const Box& subdomain,
              p_hse_arr(i,j,k) = Pd;
             th_hse_arr(i,j,k) = getThgivenTandP(Td, Pd, RdoCp_d);
             qv_hse_arr(i,j,k) = zero;
+             r_hse_arr(i,j,k) = getRhogivenThetaPress(th_hse_arr(i,j,k), Pd, RdoCp_d);
             pi_hse_arr(i,j,k) = getExnergivenP(Pd, RdoCp_d);
         });
     }
