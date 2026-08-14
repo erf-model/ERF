@@ -85,7 +85,7 @@ void ImmersedForcingTerrain_Xmom (const Box& tbx,
     const Real Olen_in            = solverChoice.if_Olen_in;
     const bool l_use_most         = solverChoice.if_use_most;
 
-    const Real small_volfrac = Real(0.005);
+    const Real small_volfrac = 0.005;
 
     ParallelFor(tbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
     {
@@ -192,7 +192,7 @@ void ImmersedForcingTerrain_Ymom (const Box& tby,
     const Real Olen_in            = solverChoice.if_Olen_in;
     const bool l_use_most         = solverChoice.if_use_most;
 
-    const Real small_volfrac = Real(0.005);
+    const Real small_volfrac = 0.005;
 
     ParallelFor(tby, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
     {
@@ -288,7 +288,7 @@ void ImmersedForcingTerrain_Zmom (const Box& tbz,
     const Real tiny = std::numeric_limits<amrex::Real>::epsilon();
     const bool l_implicit_drag = solverChoice.if_implicit_drag;
 
-    const Real small_volfrac = Real(0.005);
+    const Real small_volfrac = 0.005;
 
     ParallelFor(tbz, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
     {
@@ -355,7 +355,7 @@ void ImmersedForcingBuildings_Xmom (const Box& tbx,
 
     const bool is_slow_step = true;  // This is determined by calling context
     const bool use_ImmersedForcing_fast = solverChoice.immersed_forcing_substep;
-    const Real small_volfrac = Real(0.005);
+    const Real small_volfrac = 0.005;
 
     ParallelFor(tbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
     {
@@ -506,7 +506,7 @@ void ImmersedForcingBuildings_Ymom (const Box& tby,
 
     const bool is_slow_step = true;  // This is determined by calling context
     const bool use_ImmersedForcing_fast = solverChoice.immersed_forcing_substep;
-    const Real small_volfrac = Real(0.005);
+    const Real small_volfrac = 0.005;
 
     ParallelFor(tby, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
     {
@@ -657,7 +657,7 @@ void ImmersedForcingBuildings_Zmom (const Box& tbz,
 
     const bool is_slow_step = true;  // This is determined by calling context
     const bool use_ImmersedForcing_fast = solverChoice.immersed_forcing_substep;
-    const Real small_volfrac = Real(0.005);
+    const Real small_volfrac = 0.005;
 
     ParallelFor(tbz, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
     {
