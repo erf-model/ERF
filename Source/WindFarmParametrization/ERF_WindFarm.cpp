@@ -467,12 +467,16 @@ WindFarm::fill_Nturb_multifab (const Geometry& geom,
 
     bool is_terrain = z_phys_nd ? true: false;
 
+    // The ground is at the bottom of the domain, not at the bottom of each box --
+    //    these differ for every box that doesn't touch the ground, which happens
+    //    whenever the grids are decomposed in the vertical direction
+    const int k0 = geom.Domain().smallEnd(2);
+
      // Initialize wind farm
     for ( MFIter mfi(mf_Nturb,TilingIfNotGPU()); mfi.isValid(); ++mfi) {
         const Box& bx     = mfi.tilebox();
         auto  Nturb_array = mf_Nturb.array(mfi);
         const Array4<const Real>& z_nd_arr = z_phys_nd->const_array(mfi);
-        int k0 = bx.smallEnd()[2];
         ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
             int li = amrex::min(amrex::max(i, i_lo), i_hi);
             int lj = amrex::min(amrex::max(j, j_lo), j_hi);
@@ -486,8 +490,14 @@ WindFarm::fill_Nturb_multifab (const Geometry& geom,
                 if( d_xloc_ptr[it]+1e-3 > x1 and d_xloc_ptr[it]+1e-3 < x2 and
                     d_yloc_ptr[it]+1e-3 > y1 and d_yloc_ptr[it]+1e-3 < y2){
                     Nturb_array(i,j,k,0) = Nturb_array(i,j,k,0) + 1;
-                    // Perform atomic operations to ensure "increment only once"
-                    if (is_terrain) {
+                    //
+                    // Only the cell at the bottom of the domain counts this turbine and
+                    //    stores its surface elevation.  d_is_counted is a per-rank array
+                    //    which is summed over all ranks below, so if we counted at every k
+                    //    then a column spread over more than one rank (which happens when
+                    //    the grids are decomposed in z) would be counted more than once.
+                    //
+                    if (is_terrain and k == k0) {
                         int expected = 0;
                         int desired = 1;
                         // Atomic Compare-And-Swap: Increment only if d_is_counted_ptr[it] was 0
