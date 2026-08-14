@@ -102,11 +102,11 @@ void make_sources (int level,
     TableData<Real, 1>  r_plane_tab,  t_plane_tab,  qv_plane_tab,  qc_plane_tab;
     bool use_immersed_forcing = (solverChoice.terrain_type == TerrainType::ImmersedForcing ||
                                   solverChoice.buildings_type == BuildingsType::ImmersedForcing);
-    // Compute averages on slow step for nudging/subsidence, or whenever immersed forcing runs
+    // Compute averages on slow step for subsidence, or whenever immersed forcing runs
     // NOTE: We recompute planar averages every substep when immersed forcing uses substeps.
     //       This is simpler than passing persistent storage through the call chain, and
     //       the cost is relatively small compared to the full solve.
-    bool compute_averages = ( (is_slow_step && (dptr_wbar_sub || solverChoice.nudging_from_input_sounding)) ||
+    bool compute_averages = ( (is_slow_step && dptr_wbar_sub) ||
                               (use_immersed_forcing && ((is_slow_step && !use_ImmersedForcing_fast) ||
                                                         (!is_slow_step && use_ImmersedForcing_fast))) );
 
