@@ -63,6 +63,7 @@ erf.input_sounding_file = "input_sounding_CBL"
 erf.buildings_type = ImmersedForcing
 erf.buildings_file_name = skyscraper_5m_128x128.txt
 erf.immersed_forcing_substep = true
+eb2.small_volfrac = 0.005
 
 # Coriolis parameter f = 
 erf.use_coriolis = true
