@@ -157,6 +157,22 @@ void wdm6_slope_rain_cell (Real qr, Real nr, Real den, Real denfac,
 // Ice slope parameter functions (single-moment from WSM6)
 // ---------------------------------------------------------------
 
+// The four slope routines -- slope_wdm6 :3290, slope_rain :3372, slope_snow
+// :3417 and slope_graup :3465 -- each declare their OWN
+//     real(kind=kind_phys), PARAMETER :: t0c = 273.15
+// shadowing the t0c the caller passes in. That local literal is unsuffixed, so
+// it is float32(273.15) = 273.149993896484375 against the caller's true double
+// 273.14999999999997726, a difference of -6.104e-06. Inside those routines t0c
+// feeds only supcol and hence n0sfac, so only the SNOW slope is affected;
+// everywhere else in the scheme the caller's double t0c is the correct value
+// and must be left alone.
+//
+// Confirmed by reconstruction at (199,3,91) with all PRE_G4 inputs bitwise
+// equal, matching both legs to 20 digits:
+//     caller t0c, double  -> rslope 0.00068326407135771243233  = native
+//     local  t0c, float32 -> rslope 0.000683264196467108691    = bridge
+constexpr amrex::Real wdm6_slope_t0c = wdm6_literal(273.15);
+
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 Real wdm6_lamdas (Real x, Real y, Real z, Real pidn0s_arg) {
     // Snow slope parameter (single-moment)
@@ -1420,7 +1436,7 @@ void WDM6::Advance(const Real& dt_advance,
                                      rain_vt, rain_vtn);
                 wdm6_slope_snow_cell(qs_arr(i,j,k), den_arr(i,j,k), denfac_arr(i,j,k), t_arr(i,j,k),
                                      pidn0s_loc, Real(alpha_wdm6), Real(n0smax), Real(n0s),
-                                     Real(t0c), Real(qcrmin),
+                                     wdm6_slope_t0c, Real(qcrmin),
                                      rslopesmax_loc, rslopesbmax_loc, rslopes2max_loc, rslopes3max_loc,
                                      Real(bvts), pvts_loc,
                                      snow_rslope, snow_rslopeb, snow_rslope2, snow_rslope3, snow_vt,
@@ -1713,7 +1729,7 @@ void WDM6::Advance(const Real& dt_advance,
                 wdm6_nislfv_rain_plm6_column(
                     km, dz.data(), den.data(), denfac.data(), tk.data(),
                     worka.data(), qs_col.data(), qg_col.data(), delqrs2, delqrs3, dtcld, 1,
-                    pidn0s_loc, pidn0g_loc, Real(qcrmin), Real(alpha_wdm6), Real(n0smax), Real(n0s), Real(t0c),
+                    pidn0s_loc, pidn0g_loc, Real(qcrmin), Real(alpha_wdm6), Real(n0smax), Real(n0s), wdm6_slope_t0c,
                     rslopesmax_loc, rslopesbmax_loc, rslopes2max_loc, rslopes3max_loc, Real(bvts), pvts_loc,
                     rslopegmax_loc, rslopegbmax_loc, rslopeg2max_loc, rslopeg3max_loc, slope_bvtg_loc, pvtg_loc);
 
@@ -1793,7 +1809,7 @@ void WDM6::Advance(const Real& dt_advance,
                                      rain_vt, rain_vtn);
                 wdm6_slope_snow_cell(qrs_tmp_arr(i,j,k,1), den_arr(i,j,k), denfac_arr(i,j,k), t_arr(i,j,k),
                                      pidn0s_loc, Real(alpha_wdm6), Real(n0smax), Real(n0s),
-                                     Real(t0c), Real(qcrmin),
+                                     wdm6_slope_t0c, Real(qcrmin),
                                      rslopesmax_loc, rslopesbmax_loc, rslopes2max_loc, rslopes3max_loc,
                                      Real(bvts), pvts_loc,
                                      snow_rslope, snow_rslopeb, snow_rslope2, snow_rslope3, snow_vt,
@@ -2072,7 +2088,7 @@ void WDM6::Advance(const Real& dt_advance,
                 wdm6_nislfv_rain_plm6_column(
                     km, dz.data(), den.data(), denfac.data(), tk.data(),
                     work_ice.data(), qi_col.data(), qi_col.data(), delqi_col, delqi_col, dtcld, 0,
-                    pidn0s_loc, pidn0g_loc, Real(qcrmin), Real(alpha_wdm6), Real(n0smax), Real(n0s), Real(t0c),
+                    pidn0s_loc, pidn0g_loc, Real(qcrmin), Real(alpha_wdm6), Real(n0smax), Real(n0s), wdm6_slope_t0c,
                     rslopesmax_loc, rslopesbmax_loc, rslopes2max_loc, rslopes3max_loc, Real(bvts), pvts_loc,
                     rslopegmax_loc, rslopegbmax_loc, rslopeg2max_loc, rslopeg3max_loc, slope_bvtg_loc, pvtg_loc);
 
@@ -2617,7 +2633,7 @@ void WDM6::Advance(const Real& dt_advance,
                                      rain_vt, rain_vtn);
                 wdm6_slope_snow_cell(qrs_tmp_arr(i,j,k,1), den_arr(i,j,k), denfac_arr(i,j,k), t_arr(i,j,k),
                                      pidn0s_loc, Real(alpha_wdm6), Real(n0smax), Real(n0s),
-                                     Real(t0c), Real(qcrmin),
+                                     wdm6_slope_t0c, Real(qcrmin),
                                      rslopesmax_loc, rslopesbmax_loc, rslopes2max_loc, rslopes3max_loc,
                                      Real(bvts), pvts_loc,
                                      snow_rslope, snow_rslopeb, snow_rslope2, snow_rslope3, snow_vt,
@@ -4347,7 +4363,7 @@ void WDM6::Advance(const Real& dt_advance,
                                      rain_vt, rain_vtn);
                 wdm6_slope_snow_cell(qrs_tmp_arr(i,j,k,1), den_arr(i,j,k), denfac_arr(i,j,k),
                                      t_arr(i,j,k), pidn0s_loc, Real(alpha_wdm6),
-                                     Real(n0smax), Real(n0s), Real(t0c), Real(qcrmin),
+                                     Real(n0smax), Real(n0s), wdm6_slope_t0c, Real(qcrmin),
                                      rslopesmax_loc, rslopesbmax_loc,
                                      rslopes2max_loc, rslopes3max_loc,
                                      Real(bvts), pvts_loc,
