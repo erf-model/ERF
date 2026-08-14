@@ -402,13 +402,6 @@ void ImmersedForcingBuildings_Xmom (const Box& tbx,
         const Real east_west_mask = (t_blank > zero && t_blank < one && l_use_most && most_mask == zero) ? one : zero; // partial cells not covered by MOST (east/west walls)
         const Real interior_mask = (t_blank == 1.0) ? one : zero; // interior cell
 
-        // Debug print for specific cells
-        if (k == 1 && i >= 55 && i <= 58 && j >= 69 && j <= 72) {
-            printf("BLDG_XMOM [%d,%d,%d]: t_blank=%8.5f t_below=%8.5f t_above=%8.5f t_north=%8.5f t_south=%8.5f | roof=%1.0f south=%1.0f north=%1.0f wall=%1.0f ew=%1.0f interior=%1.0f\n",
-                   i, j, k, t_blank, t_blank_below, t_blank_above, t_blank_north, t_blank_south,
-                   roof_mask, south_mask, north_mask, wall_mask, east_west_mask, interior_mask);
-        }
-
         Real drag             = zero;
         Real u1_cellaway      = zero;
         Real u2_cellaway      = zero;
