@@ -35,12 +35,12 @@ Real wdm6_xlcal (Real x, Real xlv0_arg, Real xlv1_arg, Real t0c_arg) {
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 Real wdm6_diffus (Real x, Real y) {
-    return (Real(8.794e-5f)*std::exp(std::log(x)*Real(1.81f)))/y;
+    return (wdm6_literal(8.794e-5)*std::exp(std::log(x)*wdm6_literal(1.81)))/y;
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 Real wdm6_viscos (Real x, Real y) {
-    return Real(1.496e-6f)*(x*std::sqrt(x))/(x+Real(120.0))/y;
+    return wdm6_literal(1.496e-6)*(x*std::sqrt(x))/(x+Real(120.0))/y;
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
@@ -59,7 +59,7 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 Real wdm6_venfac (Real a, Real b, Real c, Real den0_arg) {
     // Fortran: exp(log((viscos(b,c)/diffus(b,a)))*((.3333333))) / sqrt(viscos) * sqrt(sqrt(den0/c))
     return std::exp(std::log(wdm6_viscos(b,c)/wdm6_diffus(b,a))
-                   *Real(0.3333333f))
+                   *wdm6_literal(0.3333333))
           /std::sqrt(wdm6_viscos(b,c))
           *std::sqrt(std::sqrt(den0_arg/c));
 }
@@ -1072,7 +1072,7 @@ void WDM6::Advance(const Real& dt_advance,
             }
 #endif
             {
-                const Real ttp = Real(t0c) + Real(0.01f);
+                const Real ttp = Real(t0c) + wdm6_literal(0.01);
                 const Real dldt = Real(cpv) - Real(cliq);
                 const Real xa = -dldt / Real(rv);
                 const Real xb = xa + Real(xlv0) / (Real(rv) * ttp);
@@ -2662,7 +2662,7 @@ void WDM6::Advance(const Real& dt_advance,
                                                    /(t_arr(i,j,k) + Real(120.0))));
                     std::printf("WDM6-CPP_G11V_DIFFAC_INT24 %3d %24.16E\n",
                                 diag_k + 1,
-                                static_cast<double>(Real(1.496e-6f)
+                                static_cast<double>(wdm6_literal(1.496e-6)
                                                    * (t_arr(i,j,k) * std::sqrt(t_arr(i,j,k)))
                                                    /(t_arr(i,j,k) + Real(120.0))
                                                    / den_arr(i,j,k)));
@@ -2723,28 +2723,28 @@ void WDM6::Advance(const Real& dt_advance,
                                 diag_k + 1,
                                 static_cast<double>(Real(1.0)
                                                    /(qsatw_arr(i,j,k)
-                                                     * (Real(8.794e-5f)
-                                                        * std::exp(std::log(t_arr(i,j,k)) * Real(1.81f))
+                                                     * (wdm6_literal(8.794e-5)
+                                                        * std::exp(std::log(t_arr(i,j,k)) * wdm6_literal(1.81))
                                                         / p_arr(i,j,k)))));
                     std::printf("WDM6-CPP_G11V_DIFFAC_INT38 %3d %24.16E\n",
                                 diag_k + 1,
                                 static_cast<double>(Real(1.0)/qsatw_arr(i,j,k)));
                     std::printf("WDM6-CPP_G11V_DIFFAC_INT39 %3d %24.16E\n",
                                 diag_k + 1,
-                                static_cast<double>(Real(1.0)/(Real(8.794e-5f)
-                                                       * std::exp(std::log(t_arr(i,j,k)) * Real(1.81f))
+                                static_cast<double>(Real(1.0)/(wdm6_literal(8.794e-5)
+                                                       * std::exp(std::log(t_arr(i,j,k)) * wdm6_literal(1.81))
                                                        / p_arr(i,j,k))));
                     std::printf("WDM6-CPP_G11V_DIFFAC_INT40 %3d %24.16E\n",
                                 diag_k + 1,
                                 static_cast<double>((Real(1.0)/qsatw_arr(i,j,k))
-                                                   *(Real(1.0)/(Real(8.794e-5f)
-                                                      * std::exp(std::log(t_arr(i,j,k)) * Real(1.81f))
+                                                   *(Real(1.0)/(wdm6_literal(8.794e-5)
+                                                      * std::exp(std::log(t_arr(i,j,k)) * wdm6_literal(1.81))
                                                       / p_arr(i,j,k)))));
                     std::printf("WDM6-CPP_G11V_DIFFAC_INT41 %3d %24.16E\n",
                                 diag_k + 1,
                                 static_cast<double>(qsatw_arr(i,j,k)
-                                                   * (Real(8.794e-5f)
-                                                      * std::exp(std::log(t_arr(i,j,k)) * Real(1.81f))
+                                                   * (wdm6_literal(8.794e-5)
+                                                      * std::exp(std::log(t_arr(i,j,k)) * wdm6_literal(1.81))
                                                       / p_arr(i,j,k))));
                     std::printf("WDM6-CPP_G11V_DIFFAC_INT37 %3d %24.16E\n",
                                 diag_k + 1,
@@ -2754,28 +2754,28 @@ void WDM6::Advance(const Real& dt_advance,
                                                      * t_arr(i,j,k) * t_arr(i,j,k))
                                                    + Real(1.0)
                                                    /(qsatw_arr(i,j,k)
-                                                     * (Real(8.794e-5f)
-                                                        * std::exp(std::log(t_arr(i,j,k)) * Real(1.81f))
+                                                     * (wdm6_literal(8.794e-5)
+                                                        * std::exp(std::log(t_arr(i,j,k)) * wdm6_literal(1.81))
                                                         / p_arr(i,j,k)))));
                     std::printf("WDM6-CPP_G11V_DIFFAC_INT2 %3d %24.16E\n",
                                 diag_k + 1,
-                                static_cast<double>(Real(8.794e-5f) * std::exp(std::log(t_arr(i,j,k)) * Real(1.81f)) / p_arr(i,j,k)));
+                                static_cast<double>(wdm6_literal(8.794e-5) * std::exp(std::log(t_arr(i,j,k)) * wdm6_literal(1.81)) / p_arr(i,j,k)));
                     std::printf("WDM6-CPP_G11V_DIFFAC_INT24 %3d %24.16E\n",
                                 diag_k + 1,
                                 static_cast<double>(std::log(t_arr(i,j,k))));
                     std::printf("WDM6-CPP_G11V_DIFFAC_INT25 %3d %24.16E\n",
                                 diag_k + 1,
-                                static_cast<double>(std::log(t_arr(i,j,k)) * Real(1.81f)));
+                                static_cast<double>(std::log(t_arr(i,j,k)) * wdm6_literal(1.81)));
                     std::printf("WDM6-CPP_G11V_DIFFAC_INT26 %3d %24.16E\n",
                                 diag_k + 1,
-                                static_cast<double>(std::exp(std::log(t_arr(i,j,k)) * Real(1.81f))));
+                                static_cast<double>(std::exp(std::log(t_arr(i,j,k)) * wdm6_literal(1.81))));
                     std::printf("WDM6-CPP_G11V_DIFFAC_INT27 %3d %24.16E\n",
                                 diag_k + 1,
-                                static_cast<double>(Real(8.794e-5f) * std::exp(std::log(t_arr(i,j,k)) * Real(1.81f))
+                                static_cast<double>(wdm6_literal(8.794e-5) * std::exp(std::log(t_arr(i,j,k)) * wdm6_literal(1.81))
                                                    / p_arr(i,j,k)));
                     std::printf("WDM6-CPP_G11V_DIFFAC_INT28 %3d %24.16E\n",
                                 diag_k + 1,
-                                static_cast<double>(Real(8.794e-5f) * std::exp(std::log(t_arr(i,j,k)) * Real(1.81f))
+                                static_cast<double>(wdm6_literal(8.794e-5) * std::exp(std::log(t_arr(i,j,k)) * wdm6_literal(1.81))
                                                    / p_arr(i,j,k)));
                     std::fflush(stdout);
 #endif
@@ -2881,12 +2881,12 @@ void WDM6::Advance(const Real& dt_advance,
                                 diag_k + 1,
                                 static_cast<double>(std::log(wdm6_viscos(t_arr(i,j,k), den_arr(i,j,k))
                                                    / wdm6_diffus(t_arr(i,j,k), p_arr(i,j,k)))
-                                                   * Real(0.3333333f)));
+                                                   * wdm6_literal(0.3333333)));
                     std::printf("WDM6-CPP_G11V_VENFAC_INT5 %3d %24.16E\n",
                                 diag_k + 1,
                                 static_cast<double>(std::exp(std::log(wdm6_viscos(t_arr(i,j,k), den_arr(i,j,k))
                                                    / wdm6_diffus(t_arr(i,j,k), p_arr(i,j,k)))
-                                                   * Real(0.3333333f))));
+                                                   * wdm6_literal(0.3333333))));
                     std::printf("WDM6-CPP_G11V_VENFAC_INT6 %3d %24.16E\n",
                                 diag_k + 1,
                                 static_cast<double>(std::sqrt(wdm6_viscos(t_arr(i,j,k), den_arr(i,j,k)))));
@@ -2903,13 +2903,13 @@ void WDM6::Advance(const Real& dt_advance,
                                 diag_k + 1,
                                 static_cast<double>(std::exp(std::log(wdm6_viscos(t_arr(i,j,k), den_arr(i,j,k))
                                                    / wdm6_diffus(t_arr(i,j,k), p_arr(i,j,k)))
-                                                   * Real(0.3333333f))
+                                                   * wdm6_literal(0.3333333))
                                                    / std::sqrt(wdm6_viscos(t_arr(i,j,k), den_arr(i,j,k)))));
                     std::printf("WDM6-CPP_G11V_VENFAC_INT11 %3d %24.16E\n",
                                 diag_k + 1,
                                 static_cast<double>(std::exp(std::log(wdm6_viscos(t_arr(i,j,k), den_arr(i,j,k))
                                                    / wdm6_diffus(t_arr(i,j,k), p_arr(i,j,k)))
-                                                   * Real(0.3333333f))
+                                                   * wdm6_literal(0.3333333))
                                                    / std::sqrt(wdm6_viscos(t_arr(i,j,k), den_arr(i,j,k)))
                                                    * std::sqrt(std::sqrt(Real(den0) / den_arr(i,j,k)))));
                     std::fflush(stdout);
@@ -3607,8 +3607,8 @@ void WDM6::Advance(const Real& dt_advance,
                 if (supsat > Real(0.0) && ifsat != 1) {
                     const Real supice = satdt - prevp_arr(i,j,k) - pidep_arr(i,j,k)
                                       - psdep_arr(i,j,k) - pgdep_arr(i,j,k);
-                    const Real xni0 = Real(1.0e3f) * std::exp(Real(0.1f) * supcol);
-                    const Real roqi0 = Real(4.92e-11f) * std::pow(xni0, Real(1.33f));
+                    const Real xni0 = wdm6_literal(1.0e3) * std::exp(wdm6_literal(0.1) * supcol);
+                    const Real roqi0 = wdm6_literal(4.92e-11) * std::pow(xni0, wdm6_literal(1.33));
                     const Real pigen_raw = amrex::max(
                         Real(0.0),
                         (roqi0 / den_arr(i,j,k) - amrex::max(qi_val, Real(0.0))) / dtcld);
@@ -4149,7 +4149,7 @@ void WDM6::Advance(const Real& dt_advance,
             const Real hsub = Real(xls);
             const Real hvap = Real(xlv0);
             const Real cvap = Real(cpv);
-            const Real ttp = Real(t0c) + Real(0.01f);
+            const Real ttp = Real(t0c) + wdm6_literal(0.01);
             const Real dldt = cvap - Real(cliq);
             const Real xa = -dldt / Real(rv);
             const Real xb = xa + hvap / (Real(rv) * ttp);
@@ -4341,7 +4341,7 @@ void WDM6::Advance(const Real& dt_advance,
                     ncact /= dtcld;
                     const Real ncact_cap = amrex::max(nn_arr(i,j,k), Real(0.0)) / dtcld;
                     ncact = amrex::min(ncact, ncact_cap);
-                    const Real actr_um = Real(actr) * Real(1.0e-6f);
+                    const Real actr_um = Real(actr) * wdm6_literal(1.0e-6);
                     const Real pcact = amrex::min(
                         Real(4.0) * g16b_pi * Real(denr)
                             * actr_um * actr_um * actr_um * ncact
@@ -4454,7 +4454,7 @@ void WDM6::Advance(const Real& dt_advance,
                 if (qr_arr(i,j,k) >= Real(qcrmin) && nr_arr(i,j,k) >= Real(nrmin)) {
                     Real lamdr = std::exp(std::log(
                         (g17_pidnr * nr_arr(i,j,k)) / (den_arr(i,j,k) * qr_arr(i,j,k))
-                    ) * Real(0.33333333f));
+                    ) * wdm6_literal(0.33333333));
                     if (lamdr <= Real(lamdarmin)) {
                         lamdr = Real(lamdarmin);
                         nr_arr(i,j,k) = den_arr(i,j,k) * qr_arr(i,j,k)
@@ -4469,7 +4469,7 @@ void WDM6::Advance(const Real& dt_advance,
                 if (qc_arr(i,j,k) >= Real(qmin) && nc_arr(i,j,k) >= Real(ncmin)) {
                     Real lamdc = std::exp(std::log(
                         (g17_pidnc * nc_arr(i,j,k)) / (den_arr(i,j,k) * qc_arr(i,j,k))
-                    ) * Real(0.33333333f));
+                    ) * wdm6_literal(0.33333333));
                     if (lamdc <= Real(lamdacmin)) {
                         lamdc = Real(lamdacmin);
                         nc_arr(i,j,k) = den_arr(i,j,k) * qc_arr(i,j,k)

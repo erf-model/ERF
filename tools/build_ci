@@ -10,7 +10,12 @@
 #   --max-step N               Steps to advance (default 1)
 #   --debug N                  microphysics_debug level (default 1). 2 enables
 #                              the Tier 2 WDM6-DIAG-T2 forensic records.
-#   --jobs N                   Build parallelism (default 1; the box is RAM-bound)
+#   --jobs N                   Build parallelism (default 1; check free -g first)
+#   --build-dir DIR            Build to drive (default build_wdm6). Use
+#                              build_wdm6_doubleliteral for the Option B
+#                              diagnostic mode. Artifact names carry a tag
+#                              derived from this, so the two modes never
+#                              overwrite each other.
 #
 # Example:
 #   ./build_ci G7                                  # build and validate G7
@@ -32,6 +37,11 @@ set -e
 
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 ERF_ROOT="$(dirname "$SCRIPT_DIR")"
+# Overridable with --build-dir so the same sweep can be driven against the
+# Option B diagnostic build (build_wdm6_doubleliteral, ERF_WDM6_F32_LITERALS=OFF
+# plus ERF_WDM6_FORTRAN_REAL8=ON) as well as the F32 shipping build. A build tag
+# derived from this is appended to every artifact name so the two modes cannot
+# overwrite each other's logs or plotfiles.
 BUILD_DIR="$ERF_ROOT/build_wdm6"
 BUBBLE_DIR="$ERF_ROOT/Exec/RegTests/Bubble"
 
@@ -64,6 +74,7 @@ shift || true
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --no-build)       SKIP_BUILD=true ;;
+        --build-dir)      BUILD_DIR="$2"; shift ;;
         --all-tags)       ALL_TAGS=true ;;
         --target-column)  TARGET_COLUMN="$2"; shift ;;
         --max-step)       MAX_STEP="$2"; shift ;;
@@ -80,8 +91,32 @@ case "$GROUP" in
     --*)         GROUP="G7" ;;
 esac
 
-# A run label that keeps artifacts from different columns/steps/levels apart
-RUN_SUFFIX="c$(echo "$TARGET_COLUMN" | tr -d ' ')_s${MAX_STEP}_d${DEBUG_LEVEL}"
+# Resolve to an absolute path so a relative --build-dir still works after the
+# run function cd's into the Bubble directory.
+case "$BUILD_DIR" in
+    /*) ;;
+    *)  BUILD_DIR="$(cd "$BUILD_DIR" 2>/dev/null && pwd)" || {
+            echo "ERROR: --build-dir not found"; exit 1; } ;;
+esac
+if [[ ! -x "$BUILD_DIR/Exec/erf_exec" ]]; then
+    echo "ERROR: no executable at $BUILD_DIR/Exec/erf_exec"
+    exit 1
+fi
+
+# Fail loudly if the build has no Fortran bridge: without it there is no oracle
+# leg and use_wdm6_cpp_answer=0 silently runs the native path on both legs.
+# build_wdm6_doubleliteral shipped in exactly that state and looked usable.
+if [[ -f "$BUILD_DIR/CMakeCache.txt" ]] && \
+   grep -q '^ERF_ENABLE_WDM6_FORT:BOOL=OFF' "$BUILD_DIR/CMakeCache.txt"; then
+    echo "ERROR: $BUILD_DIR was configured ERF_ENABLE_WDM6_FORT=OFF."
+    echo "       It has no Fortran bridge, so there is no oracle leg to compare against."
+    exit 1
+fi
+
+# A run label that keeps artifacts from different columns/steps/levels apart.
+# BUILD_TAG keeps the F32 and Option B modes from colliding.
+BUILD_TAG="$(basename "$BUILD_DIR" | sed 's/^build_//')"
+RUN_SUFFIX="c$(echo "$TARGET_COLUMN" | tr -d ' ')_s${MAX_STEP}_d${DEBUG_LEVEL}_${BUILD_TAG}"
 
 # ============================================================
 # Helper function: run one WDM6 bridge/native pair
