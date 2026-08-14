@@ -26,8 +26,8 @@ compute_if_most_target_vel(
     Real tang_windspeed2r       = std::sqrt(u1_2r * u1_2r + u2_2r * u2_2r);
 
     Real ustar = tang_windspeed2r * KAPPA / (std::log(1.5 * delta / z0) - psi_m);
-    Real tflux = (tflux_in != Real(1.e-8)) ? tflux_in : -(theta_face - theta_surf) * ustar * KAPPA / (std::log(1.5 * delta / z0) - psi_h);
-    Real Olen  = (Olen_in != Real(1.e-8))  ? Olen_in  : -ustar * ustar * ustar * theta_face / (KAPPA * CONST_GRAV * tflux + tiny);
+    Real tflux = (tflux_in != 1.e-8) ? tflux_in : -(theta_face - theta_surf) * ustar * KAPPA / (std::log(1.5 * delta / z0) - psi_h);
+    Real Olen  = (Olen_in != 1.e-8)  ? Olen_in  : -ustar * ustar * ustar * theta_face / (KAPPA * CONST_GRAV * tflux + tiny);
     Real zeta  = 1.5 * delta / Olen;
 
     // similarity functions
@@ -126,15 +126,15 @@ void ImmersedForcingTerrain_Xmom (const Box& tbx,
 
             Real psi_m = zero;
             Real psi_h = zero;
-            Real ustar = h_windspeed2r * kappa / (std::log(Real(1.5) * dx_z / z0) - psi_m); // calculated from bottom of cell. Maintains flexibility for different Vf values
-            Real tflux = (tflux_in != Real(1e-8)) ? tflux_in : -(theta_xface - theta_surf) * ustar * kappa / (std::log(Real(1.5) * dx_z / z0) - psi_h);
-            Real Olen  = (Olen_in  != Real(1e-8)) ? Olen_in  : -ustar * ustar * ustar * theta_xface / (kappa * ggg * tflux + tiny);
-            Real zeta  = Real(1.5) * dx_z / Olen;
+            Real ustar = h_windspeed2r * kappa / (std::log(1.5 * dx_z / z0) - psi_m); // calculated from bottom of cell. Maintains flexibility for different Vf values
+            Real tflux = (tflux_in != 1e-8) ? tflux_in : -(theta_xface - theta_surf) * ustar * kappa / (std::log(1.5 * dx_z / z0) - psi_h);
+            Real Olen  = (Olen_in  != 1e-8) ? Olen_in  : -ustar * ustar * ustar * theta_xface / (kappa * ggg * tflux + tiny);
+            Real zeta  = 1.5 * dx_z / Olen;
 
             // similarity functions
             psi_m          = sfuns.calc_psi_m(zeta);
             psi_h          = sfuns.calc_psi_h(zeta);
-            ustar = h_windspeed2r * kappa / (std::log(Real(1.5) * dx_z / z0) - psi_m);
+            ustar = h_windspeed2r * kappa / (std::log(1.5 * dx_z / z0) - psi_m);
 
             // prevent some unphysical math
             if (!(ustar > zero && !std::isnan(ustar))) { ustar = zero; }
@@ -232,15 +232,15 @@ void ImmersedForcingTerrain_Ymom (const Box& tby,
 
             Real psi_m = zero;
             Real psi_h = zero;
-            Real ustar = h_windspeed2r * kappa / (std::log(Real(1.5) * dx_z / z0) - psi_m); // calculated from bottom of cell. Maintains flexibility for different Vf values
-            Real tflux = (tflux_in != Real(1e-8)) ? tflux_in : -(theta_yface - theta_surf) * ustar * kappa / (std::log(Real(1.5) * dx_z / z0) - psi_h);
-            Real Olen  = (Olen_in  != Real(1e-8)) ? Olen_in  : -ustar * ustar * ustar * theta_yface / (kappa * ggg * tflux + tiny);
-            Real zeta  = Real(1.5) * dx_z / Olen;
+            Real ustar = h_windspeed2r * kappa / (std::log(1.5 * dx_z / z0) - psi_m); // calculated from bottom of cell. Maintains flexibility for different Vf values
+            Real tflux = (tflux_in != 1e-8) ? tflux_in : -(theta_yface - theta_surf) * ustar * kappa / (std::log(1.5 * dx_z / z0) - psi_h);
+            Real Olen  = (Olen_in  != 1e-8) ? Olen_in  : -ustar * ustar * ustar * theta_yface / (kappa * ggg * tflux + tiny);
+            Real zeta  = 1.5 * dx_z / Olen;
 
             // similarity functions
             psi_m          = sfuns.calc_psi_m(zeta);
             psi_h          = sfuns.calc_psi_h(zeta);
-            ustar = h_windspeed2r * kappa / (std::log(Real(1.5) * dx_z / z0) - psi_m);
+            ustar = h_windspeed2r * kappa / (std::log(1.5 * dx_z / z0) - psi_m);
 
             // prevent some unphysical math
             if (!(ustar > zero && !std::isnan(ustar))) { ustar = zero; }
@@ -849,31 +849,31 @@ void ImmersedForcingTerrain_Scalar (const Box& bx,
         }
 
         // SURFACE HEAT FLUX
-        if (tflux != Real(1e-8)){
+        if (tflux != 1e-8){
             if (t_blank > 0 && (t_blank_above == zero)) { // force to MOST value
                 Real psi_m           = zero;
                 Real psi_h           = zero;
                 Real psi_h_neighbor  = zero;
-                Real ustar = h_windspeed2r * kappa / (std::log((Real(1.5)) * dx_z / z0) - psi_m);
+                Real ustar = h_windspeed2r * kappa / (std::log((1.5) * dx_z / z0) - psi_m);
                 const Real Olen  = -ustar * ustar * ustar * theta / (kappa * ggg * tflux + tiny);
                 const Real zeta          = (myhalf) * dx_z / Olen;
-                const Real zeta_neighbor = (Real(1.5)) * dx_z / Olen;
+                const Real zeta_neighbor = (1.5) * dx_z / Olen;
 
                 // similarity functions
                 psi_m          = sfuns.calc_psi_m(zeta);
                 psi_h          = sfuns.calc_psi_h(zeta);
                 psi_h_neighbor = sfuns.calc_psi_h(zeta_neighbor);
-                ustar = h_windspeed2r * kappa / (std::log((Real(1.5)) * dx_z / z0) - psi_m);
+                ustar = h_windspeed2r * kappa / (std::log((1.5) * dx_z / z0) - psi_m);
 
                 // prevent some unphysical math
                 if (!(ustar > zero && !std::isnan(ustar))) { ustar = zero; }
                 if (!(ustar < two && !std::isnan(ustar))) { ustar = two; }
-                if (psi_h_neighbor > std::log(Real(1.5) * dx_z / z0)) { psi_h_neighbor = std::log(Real(1.5) * dx_z / z0); }
+                if (psi_h_neighbor > std::log(1.5 * dx_z / z0)) { psi_h_neighbor = std::log(1.5 * dx_z / z0); }
                 if (psi_h > std::log(myhalf * dx_z / z0)) { psi_h = std::log(myhalf * dx_z / z0); }
 
                 // We do not know the actual temperature so use cell above
                 const Real thetastar    = theta * ustar * ustar / (kappa * ggg * Olen);
-                const Real surf_temp    = theta_neighbor - thetastar / kappa * (std::log((Real(1.5)) * dx_z / z0) - psi_h_neighbor);
+                const Real surf_temp    = theta_neighbor - thetastar / kappa * (std::log((1.5) * dx_z / z0) - psi_h_neighbor);
                 const Real tTarget      = surf_temp + thetastar / kappa * (std::log((myhalf) * dx_z / z0) - psi_h);
 
                 const Real bc_forcing_rt = -(cell_data(i,j,k,Rho_comp) * tTarget - cell_data(i,j,k,RhoTheta_comp));
@@ -882,21 +882,21 @@ void ImmersedForcingTerrain_Scalar (const Box& bx,
         }
 
         // OBUKHOV LENGTH
-        if (Olen_in != Real(1e-8)){
+        if (Olen_in != 1e-8){
             if (t_blank > 0 && (t_blank_above == zero)) { // force to MOST value
                 const Real Olen  = Olen_in;
                 const Real zeta          = (myhalf) * dx_z / Olen;
-                const Real zeta_neighbor = (Real(1.5)) * dx_z / Olen;
+                const Real zeta_neighbor = (1.5) * dx_z / Olen;
 
                 // similarity functions
                 const Real psi_m          = sfuns.calc_psi_m(zeta);
                 const Real psi_h          = sfuns.calc_psi_h(zeta);
                 const Real psi_h_neighbor = sfuns.calc_psi_h(zeta_neighbor);
-                const Real ustar = h_windspeed2r * kappa / (std::log((Real(1.5)) * dx_z / z0) - psi_m);
+                const Real ustar = h_windspeed2r * kappa / (std::log((1.5) * dx_z / z0) - psi_m);
 
                 // We do not know the actual temperature so use cell above
                 const Real thetastar    = theta * ustar * ustar / (kappa * ggg * Olen);
-                const Real surf_temp    = theta_neighbor - thetastar / kappa * (std::log((Real(1.5)) * dx_z / z0) - psi_h_neighbor);
+                const Real surf_temp    = theta_neighbor - thetastar / kappa * (std::log((1.5) * dx_z / z0) - psi_h_neighbor);
                 const Real tTarget      = surf_temp + thetastar / kappa * (std::log((myhalf) * dx_z / z0) - psi_h);
 
                 const Real bc_forcing_rt = -(cell_data(i,j,k,Rho_comp) * tTarget - cell_data(i,j,k,RhoTheta_comp));
@@ -1010,7 +1010,7 @@ void ImmersedForcingBuildings_Scalar (const Box& bx,
         }
 
         // SURFACE HEAT FLUX
-        if (tflux != Real(1.e-8)){
+        if (tflux != 1.e-8){
             const Real ux_cc_2r = myhalf * (u(i  ,j  ,k+1) + u(i+1,j  ,k+1));
             const Real uy_cc_2r = myhalf * (v(i  ,j  ,k+1) + v(i  ,j+1,k+1));
             const Real h_windspeed2r  = std::sqrt(ux_cc_2r * ux_cc_2r + uy_cc_2r * uy_cc_2r);
@@ -1023,7 +1023,7 @@ void ImmersedForcingBuildings_Scalar (const Box& bx,
                 Real psi_h           = zero;
                 Real psi_h_neighbor  = zero;
                 Real ustar           = h_windspeed2r * kappa / (std::log((1.5) * dx_z / z0) - psi_m);
-                Real Olen            = (Olen_in  != Real(1e-8)) ? Olen_in  : -ustar * ustar * ustar * theta / (kappa * ggg * tflux + tiny);
+                Real Olen            = (Olen_in  != 1e-8) ? Olen_in  : -ustar * ustar * ustar * theta / (kappa * ggg * tflux + tiny);
 
                 for (int iter = 0; iter < 2; ++iter) {
                     if (iter > 0) { Olen  = -ustar * ustar * ustar * theta / (kappa * ggg * tflux + tiny); }
@@ -1117,7 +1117,7 @@ void ImmersedForcingBuildings_Scalar (const Box& bx,
                 Real psi_h           = zero;
                 Real psi_h_neighbor  = zero;
                 Real ustar           = tan_wspd * kappa / (std::log(1.5 * delta / z0) - psi_m);
-                Real Olen            = (Olen_in  != Real(1e-8)) ? Olen_in  : -ustar * ustar * ustar * theta / (kappa * ggg * tflux + tiny);
+                Real Olen            = (Olen_in  != 1e-8) ? Olen_in  : -ustar * ustar * ustar * theta / (kappa * ggg * tflux + tiny);
 
                 for (int iter = 0; iter < 2; ++iter) {
                     if (iter > 0) { Olen  = -ustar * ustar * ustar * theta / (kappa * ggg * tflux + tiny); }
