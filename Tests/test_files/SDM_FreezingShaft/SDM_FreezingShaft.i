@@ -12,7 +12,7 @@
 # Stochastic Tfz sampling is made reproducible by erf.fix_random_seed; the gold is
 # platform-specific, so this test is gated behind ERF_TEST_ENABLE_EXTRA_SDM_TESTS.
 
-erf.prob_name      = "TemperatureSourceSpatial_cold"
+erf.prob_name      = "SDM_Congestus3D_cold"
 max_step  = 1
 stop_time = 1.0e9
 amrex.fpe_trap_invalid = 1

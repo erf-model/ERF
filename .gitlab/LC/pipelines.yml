@@ -19,7 +19,7 @@ matrix-build-and-test:
 tioga-build-and-test:
   variables:
     CI_MACHINE: "tioga"
-    ON_TIOGA: "OFF"
+    ON_TIOGA: "ON"
   extends: [.build-and-test]
   rules:
     # Runs unless we explicitly deactivate this system

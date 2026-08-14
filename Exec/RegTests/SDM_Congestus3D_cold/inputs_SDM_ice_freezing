@@ -1,0 +1,73 @@
+# 1D freezing shaft: monodisperse supercooled droplets carrying an insoluble INP,
+# injected at the warm bottom and carried up by a prescribed updraft, freeze by
+# immersion (Niemand 2012 INAS) as they rise into colder air. kinematic environment;
+# coalescence off.
+
+erf.prob_name                = "SDM_Congestus3D_cold"
+
+max_step  = 1000000
+stop_time = 4000.0
+amrex.fpe_trap_invalid = 1
+fabarray.mfiter_tile_size = 1024 1024 1024
+
+geometry.prob_lo     =  0.0   0.0   0.0
+geometry.prob_hi     =  80.0  80.0  4000.0
+amr.n_cell           =  4     4     100     # dz = 40 m
+geometry.is_periodic =  1 1 0
+zlo.type = "SlipWall"
+zhi.type = "SlipWall"
+
+erf.fixed_dt       = 0.5
+erf.init_type      = input_sounding
+erf.input_sounding_file = input_sounding_freezing
+erf.use_gravity    = true
+erf.buoyancy_type  = 2
+erf.moisture_model = "SuperDroplets"
+erf.les_type       = "None"
+erf.pbl_type       = "None"
+
+amr.max_level    = 0
+erf.sum_interval = -1
+erf.v            = 1
+amr.v            = 1
+erf.check_int    = -1
+erf.plot_file_1  = plt
+erf.plot_int_1   = 2000
+erf.plot_vars_1  = density temp theta pressure qv qc qi rel_humidity \
+                   super_droplets_moisture_number_density \
+                   super_droplets_moisture_species_mass_density_ice \
+                   super_droplets_moisture_species_mass_density_H2O
+particles.disable_plt = false
+
+# ---- Super-droplet method: prescribed updraft, freezing only -------------------
+super_droplets_moisture.kinematic_mode        = true
+super_droplets_moisture.initial_distribution_type = "uniform"
+super_droplets_moisture.place_randomly_in_cells = false
+super_droplets_moisture.diagnostics_interval  = -1
+super_droplets_moisture.include_phase_change  = true     # freezing (MassChange_SL)
+super_droplets_moisture.include_coalescence   = false
+super_droplets_moisture.advect_with_flow      = true     # advection step runs ...
+super_droplets_moisture.advect_with_gravity   = false    # ... but no settling
+super_droplets_moisture.prescribed_advection  = true     # steady vertical velocity:
+super_droplets_moisture.prescribed_w          = 2.0      #   2 m/s updraft
+super_droplets_moisture.density_scaling       = false
+super_droplets_moisture.aerosols              = soil      # insoluble INP
+
+# No initial particles -- the column is populated by injection at the bottom.
+super_droplets_moisture.num_initializations   = 0
+
+# ---- Steady droplet flux from the warm bottom ----------------------------------
+super_droplets_moisture.num_injections = 1
+super_droplets_moisture.injection.distribution_type = "uniform"
+super_droplets_moisture.injection.multiplicity_type = "constant"
+super_droplets_moisture.injection.domain_velocity   = 0.0 0.0 0.0
+super_droplets_moisture.injection.particle_box_lo   = 0.0  0.0  0.0
+super_droplets_moisture.injection.particle_box_hi   = 20.0 20.0 20.0      # bottom cell
+super_droplets_moisture.injection.species_distribution_type_H2O = "mass_constant"
+super_droplets_moisture.injection.species_mean_mass_H2O = 4.189e-12       # 10 um droplet
+super_droplets_moisture.injection.species_distribution_type_ice = "mass_constant"
+super_droplets_moisture.injection.species_mean_mass_ice         = 0.0
+super_droplets_moisture.injection.aerosol_distribution_type_soil = "mass_constant"
+super_droplets_moisture.injection.aerosol_mean_mass_soil = 4.0e-13        # INP -> A = 2.3e-10 m^2
+super_droplets_moisture.injection.rate              = 5.0e1   # # m^-3 s^-1
+super_droplets_moisture.injection.particles_per_cell = 20

@@ -389,7 +389,7 @@ void SuperDropletPC::iceCategoryDensity(MultiFab& a_mf, const MultiFab& a_z_phys
 
             if (!include) { return amrex::ParticleReal(0); }
 
-            auto ai = ptd.m_runtime_idata[SuperDropletsIntIdxSoA_RT::active][i];
+            int ai = (ptd.m_runtime_idata[SuperDropletsIntIdxSoA_RT::active][i] > 0) ? 1 : 0;
             auto num_par = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::multiplicity][i];
             return ai * num_par * mass;
         });
@@ -519,10 +519,6 @@ void SuperDropletPC::SplitParticlesForRefinement (int finest_level)
     for (int lev = 1; lev <= finest_level; lev++) {
 
         const int lev_native = lev + 1;
-        const auto& lev_geom = m_gdb->Geom(lev);
-        const auto lev_plo    = lev_geom.ProbLoArray();
-        const auto lev_dxi    = lev_geom.InvCellSizeArray();
-        const auto lev_domain = lev_geom.Domain();
 
         for (int source_tag = 1; source_tag < lev_native; source_tag++) {
             const int source_lev = source_tag - 1;
@@ -1193,14 +1189,14 @@ void SuperDropletPC::SplitMergeAtLevelBoundary ()
                     const int pj = gj / rr[1];
                     const int pk = gk / rr[2];
 
-                    const int fo[6][3] = {
+                    const int nbr_off[6][3] = {
                         {-1,0,0},{1,0,0},{0,-1,0},{0,1,0},{0,0,-1},{0,0,1}
                     };
                     // Prefer neighbors with >=2 active particles (steal one)
                     for (int n = 0; n < 6; n++) {
-                        int nx = bx + fo[n][0];
-                        int ny = by + fo[n][1];
-                        int nz = bz + fo[n][2];
+                        int nx = bx + nbr_off[n][0];
+                        int ny = by + nbr_off[n][1];
+                        int nz = bz + nbr_off[n][2];
                         if (nx < 0 || nx >= blen[0] || ny < 0 || ny >= blen[1] ||
                             nz < 0 || nz >= blen[2]) { continue; }
                         const int ngi = blo[0] + nx;
@@ -1215,9 +1211,9 @@ void SuperDropletPC::SplitMergeAtLevelBoundary ()
                     }
                     // Fall back: clone from any same-parent neighbor with >=1 active
                     for (int n = 0; n < 6; n++) {
-                        int nx = bx + fo[n][0];
-                        int ny = by + fo[n][1];
-                        int nz = bz + fo[n][2];
+                        int nx = bx + nbr_off[n][0];
+                        int ny = by + nbr_off[n][1];
+                        int nz = bz + nbr_off[n][2];
                         if (nx < 0 || nx >= blen[0] || ny < 0 || ny >= blen[1] ||
                             nz < 0 || nz >= blen[2]) { continue; }
                         const int ngi = blo[0] + nx;

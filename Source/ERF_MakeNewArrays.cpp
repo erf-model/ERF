@@ -556,8 +556,6 @@ ERF::update_diffusive_arrays (int lev, const BoxArray& ba, const DistributionMap
     bool l_need_SmnSmn = solverChoice.turbChoice[lev].use_keqn;
     bool l_use_moist   = (  solverChoice.moisture_type != MoistureType::None  );
     bool l_rotate      = (  solverChoice.use_rotate_surface_flux  );
-    //bool l_Surf_X      = m_SurfaceLayer[0] || m_SurfaceLayer[3];
-    //bool l_Surf_Y      = m_SurfaceLayer[1] || m_SurfaceLayer[4];
     bool l_Surf_X      = phys_bc_type[0] == ERF_BC::surface_layer || phys_bc_type[3] == ERF_BC::surface_layer;
     bool l_Surf_Y      = phys_bc_type[1] == ERF_BC::surface_layer || phys_bc_type[4] == ERF_BC::surface_layer;
 
@@ -601,6 +599,8 @@ ERF::update_diffusive_arrays (int lev, const BoxArray& ba, const DistributionMap
             Tau[lev][TauType::tau31] = std::make_unique<MultiFab>( ba13, dm, 1, IntVect(1,1,1) ); Tau[lev][TauType::tau31]->setVal(zero);
             Tau[lev][TauType::tau32] = std::make_unique<MultiFab>( ba23, dm, 1, IntVect(1,1,1) ); Tau[lev][TauType::tau32]->setVal(zero);
         } else {
+            Tau[lev][TauType::tau21] = nullptr;
+            Tau[lev][TauType::tau31] = nullptr;
             Tau[lev][TauType::tau32] = nullptr;
         }
 
@@ -668,11 +668,9 @@ ERF::update_diffusive_arrays (int lev, const BoxArray& ba, const DistributionMap
             SFS_q1fx3_lev[lev]->setVal(zero);
             SFS_q2fx3_lev[lev]->setVal(zero);
             if (l_rotate || (l_Surf_X || l_Surf_Y)) {
-                amrex::Print() << "  Creating diffusive arrays for Q1FX1" << std::endl;
                 SFS_q1fx1_lev[lev] = std::make_unique<MultiFab>( convert(ba,IntVect(1,0,0)), dm, 1, IntVect(1,1,1) );
-                SFS_q1fx1_lev[lev]->setVal(zero);
-                amrex::Print() << "  Creating diffusive arrays for Q1FX2" << std::endl;
                 SFS_q1fx2_lev[lev] = std::make_unique<MultiFab>( convert(ba,IntVect(0,1,0)), dm, 1, IntVect(1,1,1) );
+                SFS_q1fx1_lev[lev]->setVal(zero);
                 SFS_q1fx2_lev[lev]->setVal(zero);
             } else {
                 SFS_q1fx1_lev[lev] = nullptr;
@@ -771,12 +769,11 @@ ERF::init_zphys (int lev, double elapsed_time)
         if (lev == 0) {
             Real zmax = z_phys_nd[0]->max(0,0,false);
             Real rel_diff = (zmax - zlevels_stag[0][zlevels_stag[0].size()-1]) / zmax;
-            if (rel_diff < Real(1.e-8)) {
+            if (rel_diff > Real(1.e-8)) {
                 amrex::Print() << "max of zphys_nd " << zmax << std::endl;
                 amrex::Print() << "max of zlevels  " << zlevels_stag[0][zlevels_stag[0].size()-1] << std::endl;
-                AMREX_ALWAYS_ASSERT_WITH_MESSAGE(rel_diff < Real(1.e-8), "Terrain is taller than domain top!");
+                amrex::Abort("Terrain is taller than domain top!");
             }
-
 #if 0
             // This remains commented out until we verify that the stretched and variable dz pathways
             //   in fact give the same answer when appropriate
@@ -811,7 +808,8 @@ ERF::init_zphys (int lev, double elapsed_time)
     if (solverChoice.terrain_type == TerrainType::ImmersedForcing ||
         solverChoice.buildings_type == BuildingsType::ImmersedForcing) {
         terrain_blanking[lev]->setVal(one);
-        MultiFab::Subtract(*terrain_blanking[lev], EBFactory(lev).getVolFrac(), 0, 0, 1, ComputeGhostCells(solverChoice) + 2);
+        const int ng_sub = std::min(ComputeGhostCells(solverChoice) + 2, EBFactory(lev).getVolFrac().nGrow());
+        MultiFab::Subtract(*terrain_blanking[lev], EBFactory(lev).getVolFrac(), 0, 0, 1, ng_sub);
         terrain_blanking[lev]->FillBoundary(geom[lev].periodicity());
         init_immersed_forcing(lev); // needed for real cases
 

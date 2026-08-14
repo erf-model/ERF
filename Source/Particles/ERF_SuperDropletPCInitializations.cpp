@@ -63,7 +63,11 @@ void SuperDropletPC::readInputs (const double a_dt)
 
     /* Newton solver parameters */
     m_newton_rtol = Real(1.0e-6);
-    m_newton_atol = Real(1.0e-30);
+#ifdef AMREX_USE_FLOAT
+    m_newton_atol = Real(0.0);
+#else
+    m_newton_atol = Real(1.0e-99);
+#endif
     m_newton_stol = Real(1.0e-12);
     m_newton_maxits = 10;
 
@@ -274,10 +278,18 @@ void SuperDropletPC::define (  const std::vector<Species::Name>& a_species_mat,
     {
         unsigned long int seed;
         int fix_seed = 0;
-        ParmParse pp_erf("erf"); pp_erf.query("fix_random_seed", fix_seed);
+        long user_seed = -1;
+        ParmParse pp_erf("erf");
+        pp_erf.query("fix_random_seed", fix_seed);
+        pp_erf.query("random_seed", user_seed);
         if (fix_seed) {
             Print() << "Using fixed seed for SuperDropletPC random engine.\n";
             seed = 1024UL;
+        } else if (user_seed >= 0) {
+            // Seed the collision engine from the user seed so each ensemble realization is a
+            // reproducible draw, offset by rank so the ranks draw independent streams.
+            seed = static_cast<unsigned long int>(user_seed)
+                 + static_cast<unsigned long int>(amrex::ParallelDescriptor::MyProc()) + 1UL;
         } else {
             std::random_device rd;
             std::uniform_int_distribution<unsigned long int> dist(0, std::numeric_limits<unsigned long int>::max());
@@ -445,13 +457,13 @@ void SuperDropletPC::SetAttributes (MultiFab& a_rhoc /*!< mass density of conden
             ParticleReal species_mass_total = zero;
             for (int ctr = 0; ctr < num_sp; ctr++) {
                 if (ctr != idx_w) {
-                    species_mass_total += ptrs.sp_mass_ptrs[ctr][np];
+                    species_mass_total += ptrs.sp_mass_ptrs[ctr][i];
                 }
             }
 
             ParticleReal aerosol_mass_total = zero;
             for (int ctr = 0; ctr < num_ae; ctr++) {
-                aerosol_mass_total += ptrs.ae_mass_ptrs[ctr][np];
+                aerosol_mass_total += ptrs.ae_mass_ptrs[ctr][i];
             }
 
             const Real mass_particle = static_cast<Real>(mass_condensate_sd / ptrs.mult_ptr[i] + aerosol_mass_total + species_mass_total);

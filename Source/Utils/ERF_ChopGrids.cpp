@@ -2,6 +2,13 @@
 
 using namespace amrex;
 
+/**
+ * Decompose the base grids to avoid creating too many grids for the number of processors.
+ *
+ * @param domain Box specifying the domain to decompose.
+ * @param decompose_in_z Whether to decompose in the z-direction.
+ * @return BoxArray of the decomposed grids.
+ */
 BoxArray
 ERFPostProcessBaseGrids (const Box& domain, bool decompose_in_z)
 {
@@ -17,6 +24,13 @@ ERFPostProcessBaseGrids (const Box& domain, bool decompose_in_z)
     return ba0;
 }
 
+/**
+ * Iteratively decompose grids in 2D until the target number of grids is reached.
+ *
+ * @param[in,out] ba BoxArray to be decomposed.
+ * @param domain Box specifying the domain.
+ * @param target_size Target number of grids.
+ */
 void
 ChopGrids2D (BoxArray& ba, const Box& domain, int target_size)
 {

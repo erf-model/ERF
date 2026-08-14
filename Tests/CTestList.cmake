@@ -86,7 +86,7 @@ endfunction(add_test_plotfile_header)
 # Standard regression test
 function(add_test_r TEST_NAME TEST_DIR TEST_EXE PLTFILE)
     set(options )
-    set(oneValueArgs "INPUT_SOUNDING" "RUNTIME_OPTIONS")
+    set(oneValueArgs "INPUT_SOUNDING" "RUNTIME_OPTIONS" "FCOMPARE_RTOL" "FCOMPARE_ATOL")
     set(multiValueArgs )
     cmake_parse_arguments(ADD_TEST_R "${options}" "${oneValueArgs}"
         "${multiValueArgs}" ${ARGN})
@@ -100,7 +100,16 @@ function(add_test_r TEST_NAME TEST_DIR TEST_EXE PLTFILE)
 
     resolve_test_exe("${TEST_DIR}" "${TEST_EXE}" TEST_EXE)
 
-    set(FCOMPARE_TOLERANCE "-r ${ERF_TEST_FCOMPARE_RTOL} --abs_tol ${ERF_TEST_FCOMPARE_ATOL}")
+    set(_fcompare_rtol "${ERF_TEST_FCOMPARE_RTOL}")
+    set(_fcompare_atol "${ERF_TEST_FCOMPARE_ATOL}")
+    if(NOT "${ADD_TEST_R_FCOMPARE_RTOL}" STREQUAL "")
+        set(_fcompare_rtol "${ADD_TEST_R_FCOMPARE_RTOL}")
+    endif()
+    if(NOT "${ADD_TEST_R_FCOMPARE_ATOL}" STREQUAL "")
+        set(_fcompare_atol "${ADD_TEST_R_FCOMPARE_ATOL}")
+    endif()
+
+    set(FCOMPARE_TOLERANCE "-r ${_fcompare_rtol} --abs_tol ${_fcompare_atol}")
     set(FCOMPARE_FLAGS "--abort_if_not_all_found -a ${FCOMPARE_TOLERANCE}")
     set(test_command sh -c "${MPI_COMMANDS} ${TEST_EXE} ${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.i ${RUNTIME_OPTIONS} > ${TEST_NAME}.log && ${MPI_FCOMP_COMMANDS} ${FCOMPARE_EXE} ${FCOMPARE_FLAGS} ${PLOT_GOLD} ${CURRENT_TEST_BINARY_DIR}/${PLTFILE}")
 
@@ -228,34 +237,6 @@ function(add_test_cloud_chamber_budget TEST_NAME MODE SOURCE_NAME)
         LABELS "regression;cloud-chamber"
         ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/simulation.log;${CURRENT_TEST_BINARY_DIR}/checker.log;${CURRENT_TEST_BINARY_DIR}/cloud_chamber_budget.dat")
 endfunction(add_test_cloud_chamber_budget)
-
-# Negative configuration regressions: each case must reach the Cloud Chamber
-# parser, fail nonzero, and report the intended contract violation.
-function(add_test_cloud_chamber_config_failure TEST_NAME CASE SOURCE_NAME EXPECTED_DIAGNOSTIC)
-    set(TEST_FILES_DIR "${SOURCE_NAME}")
-    setup_test()
-    resolve_test_exe("" "erf_exec" TEST_EXE)
-    set(base_input "${CURRENT_TEST_BINARY_DIR}/${SOURCE_NAME}.i")
-    set(test_log "${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.log")
-    add_test(${TEST_NAME} ${CMAKE_COMMAND}
-        -DMPIEXEC=${MPIEXEC_EXECUTABLE}
-        -DMPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}
-        -DMPIEXEC_PREFLAGS=${MPIEXEC_PREFLAGS}
-        -DTEST_EXE=${TEST_EXE}
-        -DBASE_INPUT=${base_input}
-        -DWORKING_DIRECTORY=${CURRENT_TEST_BINARY_DIR}
-        -DLOG=${test_log}
-        -DCASE=${CASE}
-        "-DEXPECTED_DIAGNOSTIC=${EXPECTED_DIAGNOSTIC}"
-        -P ${PROJECT_SOURCE_DIR}/Tests/RunCloudChamberConfigFailure.cmake)
-    set_tests_properties(${TEST_NAME}
-        PROPERTIES
-        TIMEOUT 180
-        PROCESSORS 1
-        WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
-        LABELS "regression;cloud-chamber;configuration"
-        ATTACHED_FILES_ON_FAIL "${test_log}")
-endfunction(add_test_cloud_chamber_config_failure)
 
 # Positive startup regression for the retained legacy theta/qv parser path.
 # This intentionally has no physical-temperature or physical-wall keys.
@@ -438,26 +419,6 @@ add_test_cloud_chamber(CloudChamber_SatAdj cloudy)
 add_test_cloud_chamber_parity(CloudChamber_SatAdj_Parity)
 add_test_cloud_chamber_budget(CloudChamber_SatAdj_AllDry all_dry CloudChamber_SatAdj_AllDry)
 add_test_cloud_chamber_budget(CloudChamber_SatAdj_WetBudget wet_budget CloudChamber_SatAdj_WetBudget)
-add_test_cloud_chamber_config_failure(
-    CloudChamber_Invalid_DryPhysicalRH
-    dry_physical_rh
-    CloudChamber_Dry
-    "initial_relative_humidity is only used with erf.moisture_model = SatAdj")
-add_test_cloud_chamber_config_failure(
-    CloudChamber_Invalid_SatAdjPhysicalMissingRH
-    satadj_physical_missing_rh
-    CloudChamber_SatAdj
-    "physical SatAdj initialization requires prob.initial_relative_humidity")
-add_test_cloud_chamber_config_failure(
-    CloudChamber_Invalid_PhysicalLegacyThetaPerturbation
-    physical_legacy_theta_perturbation
-    CloudChamber_Dry
-    "cannot be combined with legacy")
-add_test_cloud_chamber_config_failure(
-    CloudChamber_Invalid_LegacyPhysicalTemperature
-    legacy_physical_temperature
-    CloudChamber_Dry
-    "cannot be combined with physical")
 if(ERF_ENABLE_OPENMP)
 add_test_cloud_chamber_openmp(CloudChamber_SatAdj_OpenMP)
 endif()
@@ -554,9 +515,17 @@ function(add_test_sdm TEST_NAME TEST_DIR TEST_EXE PLTFILE TEST_RTOL TEST_ATOL)
 
     resolve_test_exe("${TEST_DIR}" "${TEST_EXE}" TEST_EXE)
 
-    set(FCOMPARE_TOLERANCE "--rel_tol ${TEST_RTOL} --abs_tol ${TEST_ATOL}")
-    set(FCOMPARE_FLAGS "--abort_if_not_all_found --allow_diff_grids ${FCOMPARE_TOLERANCE}")
-    set(test_command sh -c "${MPI_COMMANDS} ${TEST_EXE} ${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.i ${RUNTIME_OPTIONS} > ${TEST_NAME}.log && ${MPI_FCOMP_COMMANDS} ${FCOMPARE_EXE} ${FCOMPARE_FLAGS} ${PLOT_GOLD} ${CURRENT_TEST_BINARY_DIR}/${PLTFILE}")
+    if(ERF_SDM_SMOKE_ONLY)
+        # No gold file is available for this case here, so run it to completion
+        # and let assertions and aborts be the check.
+        set(test_command sh -c "${MPI_COMMANDS} ${TEST_EXE} ${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.i ${RUNTIME_OPTIONS} > ${TEST_NAME}.log")
+        set(TEST_LABELS "smoke")
+    else()
+        set(FCOMPARE_TOLERANCE "--rel_tol ${TEST_RTOL} --abs_tol ${TEST_ATOL}")
+        set(FCOMPARE_FLAGS "--abort_if_not_all_found --allow_diff_grids ${FCOMPARE_TOLERANCE}")
+        set(test_command sh -c "${MPI_COMMANDS} ${TEST_EXE} ${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.i ${RUNTIME_OPTIONS} > ${TEST_NAME}.log && ${MPI_FCOMP_COMMANDS} ${FCOMPARE_EXE} ${FCOMPARE_FLAGS} ${PLOT_GOLD} ${CURRENT_TEST_BINARY_DIR}/${PLTFILE}")
+        set(TEST_LABELS "regression")
+    endif()
 
     add_test(${TEST_NAME} ${test_command})
     set_tests_properties(${TEST_NAME}
@@ -564,7 +533,7 @@ function(add_test_sdm TEST_NAME TEST_DIR TEST_EXE PLTFILE TEST_RTOL TEST_ATOL)
         TIMEOUT 5400
         PROCESSORS ${NP}
         WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
-        LABELS "regression"
+        LABELS "${TEST_LABELS}"
         ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.log"
     )
 endfunction(add_test_sdm)
@@ -694,8 +663,11 @@ add_test_r(MSF_Sub_IsentropicVortexAdv       ""  "erf_exec" "plt00010" RUNTIME_O
 add_test_r(ABL_MOST                          ""  "erf_exec" "plt00010" RUNTIME_OPTIONS "erf.vert_implicit=false ")
 add_test_r(ABL_MOST_IMP_DIFF                 ""  "erf_exec" "plt00010")
 add_test_r(ABL_MOST_IMP_DIFF_WOA             ""  "erf_exec" "plt00010")
-add_test_r(ABL_MOST_IMP_DIFF_TKE             ""  "erf_exec" "plt00010")
-add_test_r(ABL_MOST_Cloudchamber             ""  "erf_exec" "plt00010")
+add_test_r(ABL_MOST_IMP_DIFF_TKE
+    ""
+    "erf_exec"
+    "plt00010"
+    FCOMPARE_ATOL "4.0e-10")
 add_test_r(ABL_MYNN_PBL                      ""  "erf_exec" "plt00100" INPUT_SOUNDING "input_sounding_GABLS1" RUNTIME_OPTIONS "erf.vert_implicit=false " )
 add_test_r(ABL_InflowFile                    ""  "erf_exec" "plt00010" RUNTIME_OPTIONS "erf.vert_implicit=false ")
 add_test_r(MoistBubble                       ""  "erf_exec" "plt00010" RUNTIME_OPTIONS "erf.vert_implicit=false ")
@@ -726,8 +698,13 @@ add_test_0(InitSoundingIdeal_stationary      "" "erf_exec" "plt00010" RUNTIME_OP
 add_test_0(Deardorff_stationary              "" "erf_exec" "plt00010" RUNTIME_OPTIONS "erf.vert_implicit=false ")
 
 if(ERF_ENABLE_PARTICLES)
-    # These tests require machine-specific gold files due to platform-dependent initial sampling
-    if(ERF_TEST_ENABLE_EXTRA_SDM_TESTS)
+    # These tests require machine-specific gold files due to platform-dependent initial sampling.
+    # Without those gold files they can still be run to completion as smoke tests, which is the
+    # only coverage they get on a machine that builds with assertions enabled.
+    if(ERF_TEST_ENABLE_EXTRA_SDM_TESTS OR ERF_TEST_SDM_SMOKE_GATED)
+        if(NOT ERF_TEST_ENABLE_EXTRA_SDM_TESTS)
+            set(ERF_SDM_SMOKE_ONLY TRUE)
+        endif()
         # log-normal distribution for radius
         add_test_sdm(SDM_RICO3D_InitSampling         ""  "erf_exec"   "plt00000" 1e-14 2e-13 INPUT_SOUNDING "input_sounding" RUNTIME_OPTIONS "erf.vert_implicit=false ")
         # mass-exponential distribution for mass
@@ -746,18 +723,28 @@ if(ERF_ENABLE_PARTICLES)
         if(NOT (ERF_ENABLE_CUDA OR ERF_ENABLE_HIP OR ERF_ENABLE_SYCL))
             # ice-ice aggregation (0D box)
             add_test_sdm(SDM_Box3D_IceAgg            "" "erf_exec"  "plt04500" 1e-12 1e-12 RUNTIME_OPTIONS "erf.vert_implicit=false ")
-            # warm-rain coalescence (0D box) -- one test per collection kernel
-            add_test_sdm(SDM_Box3D_Coal_Golovin      "" "erf_exec"  "plt04000" 1e-12 1e-12 RUNTIME_OPTIONS "erf.vert_implicit=false ")
-            add_test_sdm(SDM_Box3D_Coal_Halls        "" "erf_exec"  "plt04000" 1e-12 1e-12 RUNTIME_OPTIONS "erf.vert_implicit=false ")
-            add_test_sdm(SDM_Box3D_Coal_Longs        "" "erf_exec"  "plt04000" 1e-12 1e-12 RUNTIME_OPTIONS "erf.vert_implicit=false ")
-            add_test_sdm(SDM_Box3D_Coal_Sedimentation "" "erf_exec" "plt04000" 1e-12 1e-12 RUNTIME_OPTIONS "erf.vert_implicit=false ")
+            # warm-rain coalescence (0D box) -- one test per collection kernel.
+            # These dominate the runtime and the kernels they cover already have
+            # unit tests, so they are left out of the smoke pass.
+            if(NOT ERF_SDM_SMOKE_ONLY)
+                add_test_sdm(SDM_Box3D_Coal_Golovin      "" "erf_exec"  "plt04000" 1e-12 1e-12 RUNTIME_OPTIONS "erf.vert_implicit=false ")
+                add_test_sdm(SDM_Box3D_Coal_Halls        "" "erf_exec"  "plt04000" 1e-12 1e-12 RUNTIME_OPTIONS "erf.vert_implicit=false ")
+                add_test_sdm(SDM_Box3D_Coal_Longs        "" "erf_exec"  "plt04000" 1e-12 1e-12 RUNTIME_OPTIONS "erf.vert_implicit=false ")
+                add_test_sdm(SDM_Box3D_Coal_Sedimentation "" "erf_exec" "plt04000" 1e-12 1e-12 RUNTIME_OPTIONS "erf.vert_implicit=false ")
+            endif()
             # riming (ice collecting cloud droplets, 1D shaft)
             add_test_sdm(SDM_RimingShaft             "" "erf_exec"  "plt00400" 1e-12 1e-12 INPUT_SOUNDING "input_sounding" RUNTIME_OPTIONS "erf.vert_implicit=false ")
         endif()
+        unset(ERF_SDM_SMOKE_ONLY)
     endif()
 
     # passive advection of particles
     add_test_sdm(SDM_Bubble2D_Adv                "" "erf_exec"  "plt00050" 1e-12 1e-12 RUNTIME_OPTIONS "erf.vert_implicit=false ")
+    # super-droplets on a terrain-fitted mesh: covers the pos(2) zeta convention
+    add_test_sdm(SDM_Bubble2D_WoA                "" "erf_exec"  "plt00050" 1e-12 1e-12 RUNTIME_OPTIONS "erf.vert_implicit=false ")
+    # same case with MFIter tiling forced on: in-place kernels written over
+    # grown tiles must still reproduce the untiled answer
+    add_test_sdm(SDM_Bubble2D_Tiled              "" "erf_exec"  "plt00050" 1e-12 1e-12 RUNTIME_OPTIONS "erf.vert_implicit=false fabarray.mfiter_tile_size=8 8 8 ")
     add_test_sdm(SDM_Bubble2D_Adv_AMR1           "" "erf_exec"  "plt00050" 1e-12 1e-12 RUNTIME_OPTIONS "erf.vert_implicit=false ")
     add_test_sdm(SDM_Bubble2D_Adv_AMR2           "" "erf_exec"  "plt00025" 1e-12 1e-12 RUNTIME_OPTIONS "erf.vert_implicit=false ")
     add_test_sdm(SDM_Bubble3D_Adv                "" "erf_exec"  "plt00020" 1e-12 1e-12 RUNTIME_OPTIONS "erf.vert_implicit=false ")

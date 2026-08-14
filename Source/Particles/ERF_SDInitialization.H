@@ -16,6 +16,9 @@
 #include "ERF_Constants.H"
 #include "ERF_MaterialProperties.H"
 
+/**
+ * @brief Initial distribution shape for super-droplets.
+ */
 AMREX_ENUM(SDInitShape,
     uniform,
     bubble,
@@ -40,6 +43,9 @@ namespace SupDropInit
     const int num_aerosols_max = 8;
 }
 
+/**
+ * @brief Multiplicity type for super-droplet initialization.
+ */
 AMREX_ENUM(SDMultiplicityType,
     constant, sampled
 );
@@ -658,7 +664,7 @@ class SDInjection : public SDInitProperties
             // Specified number of super-droplets per cell (m_ppc) or from the SD rate.
             Real num_sd;
             if (m_sd_inj_rate > 0) {
-                num_sd = std::max(std::round(m_sd_inj_rate * a_dt * m_cell_volume), 1.);
+                num_sd = std::max(Real(std::round(m_sd_inj_rate * a_dt * m_cell_volume)), one);
             } else {
                 num_sd = std::max(Real(m_ppc), one);
             }

@@ -28,6 +28,9 @@ struct GetParticleBinERF
     }
 };
 
+/**
+ * @brief Index mapping for integer particle attributes.
+ */
 struct ERFParticlesIntIdx
 {
     enum {
@@ -35,6 +38,9 @@ struct ERFParticlesIntIdx
     };
 };
 
+/**
+ * @brief Index mapping for real-valued particle attributes.
+ */
 struct ERFParticlesRealIdx
 {
     enum {
@@ -58,6 +64,9 @@ namespace ERFParticleNames
     const std::string tracers = "tracer_particles";
 }
 
+/**
+ * @brief Particle container for ERF particles.
+ */
 class ERFPC : public amrex::ParticleContainer<  0,                              // AoS real attributes
                                                 0,                              // AoS integer attributes
                                                 ERFParticlesRealIdx::ncomps,    // SoA real attributes

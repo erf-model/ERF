@@ -41,6 +41,7 @@ namespace saturation_funcs
     void compute_saturation_vapfrac_null ( amrex::MultiFab&,
                                            const amrex::MultiFab&,
                                            const amrex::MultiFab& );
+
     /*! \brief Compute saturation vapour fraction for moist air */
     AMREX_GPU_HOST
     void compute_saturation_vapfrac_H2O  ( amrex::MultiFab&,
@@ -53,6 +54,9 @@ namespace saturation_funcs
                                            const amrex::MultiFab& );
 }
 
+/**
+ * @brief Base structure containing material property constants and methods for GPU usage.
+ */
 struct MaterialPropertiesCore { // For GPU
 
     static constexpr amrex::Real s_N_av = amrex::Real(6.02214076e23); /*!< Avogadro's number */
@@ -186,6 +190,7 @@ struct MaterialProperties : public MaterialPropertiesCore {
 
     /*! pointer to function to compute saturation pressure */
     decltype(saturation_funcs::compute_saturation_pressure_null)* m_saturation_pressure_func = nullptr;
+
     /*! pointer to function to compute vapour fraction */
     decltype(saturation_funcs::compute_saturation_vapfrac_null)* m_saturation_vapfrac_func = nullptr;
 

@@ -24,23 +24,23 @@ void RadiationSimple::Init(const amrex::Geometry& geom,
     radqrlw->setVal(0.0);
 }
 
-void RadiationSimple::Run(int& level,
-                          int& step,
-                          amrex::Real& time,
-                          const amrex::Real& dt,
-                          const amrex::BoxArray& ba,
+void RadiationSimple::Run(int& /*level*/,
+                          int& /*step*/,
+                          double& /*time*/,
+                          const double& /*dt*/,
+                          const amrex::BoxArray& /*ba*/,
                           amrex::Geometry& geom,
                           amrex::MultiFab* cons_in,
-                          amrex::iMultiFab* lmask,
-                          amrex::MultiFab* t_surf,
-                          amrex::Vector<amrex::MultiFab*>& lsm_input_ptrs,
-                          amrex::Vector<amrex::MultiFab*>& lsm_output_ptrs,
+                          amrex::iMultiFab* /*lmask*/,
+                          amrex::MultiFab* /*t_surf*/,
+                          amrex::Vector<amrex::MultiFab*>& /*lsm_input_ptrs*/,
+                          amrex::Vector<amrex::MultiFab*>& /*lsm_output_ptrs*/,
                           amrex::MultiFab* qheating_rates,
                           amrex::MultiFab* rad_fluxes,
                           amrex::MultiFab* z_phys,
-                          amrex::MultiFab* lat,
-                          amrex::MultiFab* lon,
-                          const bool updated_lsm)
+                          amrex::MultiFab* /*lat*/,
+                          amrex::MultiFab* /*lon*/,
+                          const bool /*updated_lsm*/)
 {
 
     constexpr amrex::Real cp_spec = 1015.0;
@@ -49,7 +49,6 @@ void RadiationSimple::Run(int& level,
     constexpr amrex::Real f0=3.75e-6;
     constexpr amrex::Real xk = 85.0;
 
-    const int zlo = geom.Domain().smallEnd(2);
     const Real fixed_dz = geom.CellSize(2);
     const int nz = geom.Domain().length(2);
 
@@ -169,7 +168,7 @@ void RadiationSimple::Run(int& level,
     }
 }
 
-void RadiationSimple::WriteDataLog(const amrex::Real &time)
+void RadiationSimple::WriteDataLog(const double &time)
 {
     constexpr int datwidth = 14;
     constexpr int datprecision = 9;

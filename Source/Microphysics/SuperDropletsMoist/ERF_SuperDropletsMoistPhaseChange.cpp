@@ -13,7 +13,7 @@ static void saturation_ratio (MultiFab& a_sr,
                               const MaterialProperties& a_species_mat )
 {
     a_species_mat.computeSaturationVapFrac(a_sr, a_temperature, a_pressure);
-    for (MFIter mfi(a_sr, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+    for (MFIter mfi(a_sr); mfi.isValid(); ++mfi) {
         Box bx = mfi.tilebox();
         bx.grow( a_sr.nGrowVect() );
         const Array4<Real>& sr_arr = a_sr.array(mfi);

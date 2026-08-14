@@ -315,20 +315,20 @@ void terrpoisson_adotx (int i, int j, int k, amrex::Array4<T> const& y,
 
     // On y-edges
     Real pz_hi_md_hi  = myhalf  * (  x(i+1,j  ,k+1) +  x(i  ,j  ,k+1)
-                                       -x(i+1,j  ,k  ) -  x(i  ,j  ,k  ) );
+                                    -x(i+1,j  ,k  ) -  x(i  ,j  ,k  ) );
          h_xi         = fourth * ( zp(i+1,j  ,k+1) - zp(i-1,j  ,k+1)
-                                      +zp(i+1,j+1,k+1) - zp(i-1,j+1,k+1) ) * dxinv;
+                                  +zp(i+1,j+1,k+1) - zp(i-1,j+1,k+1) ) * dxinv;
          h_zeta       = fourth * ( zp(i+1,j  ,k+2) - zp(i+1,j  ,k  )
-                                      +zp(i+1,j+1,k+2) - zp(i+1,j+1,k  ) );
+                                  +zp(i+1,j+1,k+2) - zp(i+1,j+1,k  ) );
          pz_hi_md_hi *= h_xi / h_zeta;
 
     // On y-edges
     Real pz_hi_md_lo  = myhalf  *  ( x(i+1,j  ,k  ) +  x(i  ,j  ,k  )
-                                       -x(i+1,j  ,k-1) -  x(i  ,j  ,k-1) );
+                                    -x(i+1,j  ,k-1) -  x(i  ,j  ,k-1) );
          h_xi         = fourth * ( zp(i+1,j  ,k  ) - zp(i-1,j  ,k  )
-                                      +zp(i+1,j+1,k  ) - zp(i-1,j+1,k  ) ) * dxinv;
+                                  +zp(i+1,j+1,k  ) - zp(i-1,j+1,k  ) ) * dxinv;
          h_zeta       = fourth * ( zp(i+1,j  ,k+1) - zp(i+1,j  ,k-1)
-                                      +zp(i+1,j+1,k+1) - zp(i+1,j+1,k-1) );
+                                  +zp(i+1,j+1,k+1) - zp(i+1,j+1,k-1) );
          pz_hi_md_lo *= h_xi / h_zeta;
 
     // On x-face
@@ -341,20 +341,20 @@ void terrpoisson_adotx (int i, int j, int k, amrex::Array4<T> const& y,
 
     // On y-edges
     Real pz_lo_md_hi  = myhalf  * (  x(i,j,k+1) + x(i-1,j,k+1)
-                                       -x(i,j,k  ) - x(i-1,j,k  ) );
+                                    -x(i,j,k  ) - x(i-1,j,k  ) );
          h_xi         = fourth * ( zp(i,j  ,k+1) - zp(i-2,j  ,k+1)
-                                      +zp(i,j+1,k+1) - zp(i-2,j+1,k+1) ) * dxinv;
+                                  +zp(i,j+1,k+1) - zp(i-2,j+1,k+1) ) * dxinv;
          h_zeta       = fourth * ( zp(i,j  ,k+2) - zp(i  ,j  ,k  )
-                                      +zp(i,j+1,k+2) - zp(i  ,j+1,k  ) );
+                                  +zp(i,j+1,k+2) - zp(i  ,j+1,k  ) );
          pz_lo_md_hi *= h_xi / h_zeta;
 
     // On y-edges
     Real pz_lo_md_lo  = myhalf  * (  x(i,j,k  ) + x(i-1,j,k  )
-                                       -x(i,j,k-1) - x(i-1,j,k-1) );
+                                    -x(i,j,k-1) - x(i-1,j,k-1) );
          h_xi         = fourth * ( zp(i,j  ,k  ) - zp(i-2,j  ,k  )
-                                      +zp(i,j+1,k  ) - zp(i-2,j+1,k  ) ) * dxinv;
+                                  +zp(i,j+1,k  ) - zp(i-2,j+1,k  ) ) * dxinv;
          h_zeta       = fourth * ( zp(i,j  ,k+1) - zp(i  ,j  ,k-1)
-                                      +zp(i,j+1,k+1) - zp(i  ,j+1,k-1) );
+                                  +zp(i,j+1,k+1) - zp(i  ,j+1,k-1) );
          pz_lo_md_lo *= h_xi / h_zeta;
 
     // On x-face

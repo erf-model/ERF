@@ -192,8 +192,7 @@ void SuperDropletsMoist::Copy_State_to_Micro (const MultiFab& a_cons_vars)
                                              (*m_mic_fab_vars[lev][MicVar_SD::temperature]),
                                              (*m_mic_fab_vars[lev][MicVar_SD::pressure]) );
 
-        for (   MFIter mfi((*m_mic_fab_vars[lev][MicVar_SD::rh_w]),
-                TilingIfNotGPU()); mfi.isValid();
+        for (   MFIter mfi(*m_mic_fab_vars[lev][MicVar_SD::rh_w]); mfi.isValid();
                 ++mfi ) {
 
             Box bx = mfi.tilebox();
@@ -216,8 +215,7 @@ void SuperDropletsMoist::Copy_State_to_Micro (const MultiFab& a_cons_vars)
                                              (*m_mic_fab_vars[lev][MicVar_SD::temperature]),
                                              (*m_mic_fab_vars[lev][MicVar_SD::pressure]) );
 
-        for (   MFIter mfi((*m_mic_fab_vars[lev][MicVar_SD::rh_i]),
-                TilingIfNotGPU()); mfi.isValid();
+        for (   MFIter mfi(*m_mic_fab_vars[lev][MicVar_SD::rh_i]); mfi.isValid();
                 ++mfi ) {
 
             Box bx = mfi.tilebox();
@@ -238,8 +236,7 @@ void SuperDropletsMoist::Copy_State_to_Micro (const MultiFab& a_cons_vars)
         vapour_mat_sp.computeSaturationVapFrac((*m_mic_fab_vars[lev][s_sr_idx(is,m_istart_sp)]),
                                             (*m_mic_fab_vars[lev][MicVar_SD::temperature]),
                                             (*m_mic_fab_vars[lev][MicVar_SD::pressure]) );
-        for (   MFIter mfi((*m_mic_fab_vars[lev][s_sr_idx(is,m_istart_sp)]),
-                TilingIfNotGPU()); mfi.isValid();
+        for (   MFIter mfi(*m_mic_fab_vars[lev][s_sr_idx(is,m_istart_sp)]); mfi.isValid();
                 ++mfi ) {
 
             Box bx = mfi.tilebox();
@@ -383,6 +380,7 @@ void SuperDropletsMoist::Update_State_Vars (MultiFab& a_cons_vars, const MultiFa
     computeQiQgQsWater(a_z_phys_nd);
     computeQtWater();
     rainAccumulation(a_z_phys_nd);
+    snowAccumulation(a_z_phys_nd);
 
     computeQcSpecies(a_z_phys_nd);
     computeQtSpecies();
@@ -589,7 +587,8 @@ void SuperDropletsMoist::rainAccumulation (const MultiFab& a_z_phys_nd)
     }
 }
 
-/*! Compute snow accumulation */
+/*! Compute frozen precipitation accumulation; this is the whole ice species,
+    not the snow category alone */
 void SuperDropletsMoist::snowAccumulation (const MultiFab& a_z_phys_nd)
 {
     BL_PROFILE("SuperDropletsMoist::snowAccumulation()");

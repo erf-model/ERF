@@ -325,7 +325,7 @@ void SDInitProperties::printParameters ( const MatVec& a_species_mat,
                     << " (distribution: " << getEnumNameString(m_aerosol_init_type[i]);
             if (m_aerosol_init_type[i] == SDDistributionType::mass_constant) {
                 Print() << ", value=" << m_mass_aerosol_mean[i];
-                AMREX_ALWAYS_ASSERT(m_mass_aerosol_mean[i] > zero);
+                AMREX_ALWAYS_ASSERT(m_mass_aerosol_mean[i] >= zero);
             } else if (m_aerosol_init_type[i] == SDDistributionType::mass_exponential) {
                 Print() << ", min=" << m_mass_aerosol_min[i]
                         << ", mean=" << m_mass_aerosol_mean[i]
@@ -350,6 +350,18 @@ void SDInitProperties::printParameters ( const MatVec& a_species_mat,
             }
             Print() << ")" << "\n";
         }
+
+        // At least one aerosol must carry non-zero dry mass; individual aerosols
+        // may be empty (e.g. a pure-CCN mode with no dust core).
+        bool any_aerosol_nonzero = false;
+        for (unsigned long i=0; i < a_aerosol_mat.size(); i++) {
+            if (m_aerosol_init_type[i] == SDDistributionType::mass_constant) {
+                if (m_mass_aerosol_mean[i] > zero) { any_aerosol_nonzero = true; }
+            } else {
+                any_aerosol_nonzero = true;
+            }
+        }
+        AMREX_ALWAYS_ASSERT(any_aerosol_nonzero);
     }
 }
 
@@ -534,7 +546,8 @@ void SDInitProperties::getDistribution ( amrex::Vector<amrex::Real>& a_mass,
         amrex::Print() << "Initializing tail: " << a_np_tail << " particles\n";
         auto tail_mult = std::exp(-std::log(rmax/mu)*std::log(rmax/mu)/(two*sigma*sigma)) / (sigma*std::sqrt(amrex::Real(2)*PI));
         for (int n = 0; n < a_np_tail; n++) {
-            int sd_id = static_cast<int>(std::round(urd(a_rng) * a_np));
+            int sd_id = amrex::min(static_cast<int>(std::round(urd(a_rng) * a_np)), a_np-1);
+            AMREX_ASSERT(sd_id >= 0 && sd_id < a_np);
             auto tmp = P_max + (one - P_max) * urd(a_rng);
             auto tmp2 = SD_erfinv(amrex::Real(2) * tmp - amrex::Real(1));
             auto dry_r = mu * std::exp(sigma * std::sqrt(amrex::Real(2)) * tmp2);

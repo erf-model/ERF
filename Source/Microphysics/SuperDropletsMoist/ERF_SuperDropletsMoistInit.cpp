@@ -1,3 +1,5 @@
+#include <algorithm>
+
 #include "ERF_SuperDropletsMoist.H"
 #include "ERF_MaterialProperties.H"
 
@@ -92,14 +94,17 @@ void SuperDropletsMoist::readInputs ()
         Species::Name sp_name;
         for (int i = 0; i < num_species; i++) {
             pp.get(species_input.c_str(), sp_name, i);
+            // water and, with cold processes, ice are already present
+            if (std::find(m_species.begin(), m_species.end(), sp_name) != m_species.end()) {
+                amrex::Abort("SuperDropletsMoist: species "+amrex::getEnumNameString(sp_name)
+                             +" is already modeled; remove it from super_droplets_moisture.species");
+            }
             m_species.push_back(sp_name);
         }
     }
     m_num_species = static_cast<int>(m_species.size());
     m_num_nonmoist_sp = m_num_species - m_istart_sp;
-    // Water uses qv, qc, and qr in the moist state. Each additional
-    // condensable species contributes qv and qc to the non-water state.
-    m_qstate_nonmoist_size = (m_num_nonmoist_sp)*2;
+    m_qstate_nonmoist_size = (m_num_nonmoist_sp)*2; // qv, qc for each
 
     if (m_num_nonmoist_sp > 5) {
         amrex::Abort("SuperDropletsMoist: cannot run with more than 5 non-moist species (see ERF_IndexDefines.H, definitions of NBCVAR_max and NVAR_max).");

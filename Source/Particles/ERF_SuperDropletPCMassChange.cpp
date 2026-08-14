@@ -24,7 +24,7 @@ AMREX_ENUM(InterpFieldsSV, e_sat, e_sat_ratio_wi, sat_ratio, density, temperatur
 /*! Compute mass change of particles due to evaporation and condensation
  *  (liquid <--> vapour) */
 void SuperDropletPC::MassChange_LV (  int                                         a_lev,
-                                      double                               a_dt,
+                                      double                                      a_dt,
                                       const Species::Name&                        a_vap_name,
                                       const MultiFab&                             a_temperature,
                                       const MultiFab&                             a_pressure,
@@ -242,6 +242,9 @@ void SuperDropletPC::MassChange_LV (  int                                       
 
         });
         Gpu::synchronize();
+#ifdef AMREX_USE_OMP
+#pragma omp atomic
+#endif
         m_num_unconverged_particles += static_cast<long>(*(unconverged_particles.copyToHost()));
     }); // end forEachParticleTile
 
@@ -250,7 +253,7 @@ void SuperDropletPC::MassChange_LV (  int                                       
 /*! Compute mass change of particles due to freezing/melting
  *  (solid <--> liquid) */
 void SuperDropletPC::MassChange_SL (  int                                         a_lev,
-                                      Real                                        a_dt,
+                                      double                                      a_dt,
                                       const MultiFab&                             a_temperature,
                                       const MultiFab&                             a_sat_ratio,
                                       const MultiFab&                             a_moist_density,
@@ -261,11 +264,11 @@ void SuperDropletPC::MassChange_SL (  int                                       
 
     if (m_idx_i < 0) { return; } // ice not being modeled
 
-    const auto ctx = buildProcessContext(a_lev);
+    const auto proc_ctx = buildProcessContext(a_lev);
 
     const std::unique_ptr<MultiFab>& z_height = a_z_phys_nd[a_lev];
 
-    AMREX_ALWAYS_ASSERT((ctx.idx_water >= 0) && (ctx.idx_ice >= 0) && (ctx.idx_water != ctx.idx_ice));
+    AMREX_ALWAYS_ASSERT((proc_ctx.idx_water >= 0) && (proc_ctx.idx_ice >= 0) && (proc_ctx.idx_water != proc_ctx.idx_ice));
 
     // Water material and constants for the gradual melt rate (Seifert-Beheng 2006)
     const MaterialProperties water_mat(*(m_species_mat[m_idx_w]));
@@ -279,7 +282,7 @@ void SuperDropletPC::MassChange_SL (  int                                       
                                                     static_cast<ParticleReal>(water_core.m_density) };
     const ParticleReal ice_mass_min = static_cast<ParticleReal>(3.8403e-24); // ~1nm ice sphere
 
-    forEachParticleTile(a_lev, ctx,
+    forEachParticleTile(a_lev, proc_ctx,
         [&](ParIterType& /*pti*/, int grid, ParticleType* p_pbox,
             const SDProcess::ParticlePointers& ptrs,
             const SDProcess::ProcessContext& ctx)
@@ -396,7 +399,7 @@ void SuperDropletPC::MassChange_SL (  int                                       
 /*! Compute mass change of particles due to deposition and sublimation
  *  (solid <--> vapour) */
 void SuperDropletPC::MassChange_SV (  int                                      a_lev,
-                                      Real                                     a_dt,
+                                      double                                   a_dt,
                                       const MultiFab&                          a_density,
                                       const MultiFab&                          a_temperature,
                                       const MultiFab&                          a_pressure,
@@ -411,11 +414,11 @@ void SuperDropletPC::MassChange_SV (  int                                      a
     BL_PROFILE("SuperDropletPC::MassChange_SV()");
     AMREX_ASSERT(a_lev >= 0 && a_lev <= finestLevel());
 
-    const auto ctx = buildProcessContext(a_lev);
+    const auto proc_ctx = buildProcessContext(a_lev);
 
     const std::unique_ptr<MultiFab>& z_height = a_z_phys_nd[a_lev];
 
-    AMREX_ALWAYS_ASSERT((ctx.idx_water >= 0) && (ctx.idx_ice >= 0) && (ctx.idx_water != ctx.idx_ice));
+    AMREX_ALWAYS_ASSERT((proc_ctx.idx_water >= 0) && (proc_ctx.idx_ice >= 0) && (proc_ctx.idx_water != proc_ctx.idx_ice));
     const MaterialProperties mat_prop(*(m_species_mat[m_idx_i]));
     const MaterialPropertiesCore& mat_prop_core = mat_prop;
 
@@ -425,7 +428,7 @@ void SuperDropletPC::MassChange_SV (  int                                      a
                              static_cast<ParticleReal>(mat_prop_core.m_Rv),
                              static_cast<ParticleReal>(mat_prop_core.m_density) };
 
-    forEachParticleTile(a_lev, ctx,
+    forEachParticleTile(a_lev, proc_ctx,
         [&](ParIterType& /*pti*/, int grid, ParticleType* p_pbox,
             const SDProcess::ParticlePointers& ptrs,
             const SDProcess::ProcessContext& ctx)

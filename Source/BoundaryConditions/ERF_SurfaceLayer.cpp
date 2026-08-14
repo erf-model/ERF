@@ -653,14 +653,16 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
         // Get LSM fluxes
         auto lmask_arr      = (m_lmask_lev[lev][0]) ? m_lmask_lev[lev][0]->array(mfi) :
                                                       Array4<int> {};
-        auto lsm_t_flux_arr = Array4<Real> {};
+        auto lsm_t_flux_arr  = Array4<Real> {};
+        auto soil_t_flux_arr = Array4<Real> {};
         auto lsm_q_flux_arr = Array4<Real> {};
         auto lsm_tau13_arr  = Array4<Real> {};
         auto lsm_tau23_arr  = Array4<Real> {};
         // LSM tau fields are cell-centered kinematic stresses [m2 s-2].
         // Tau_lev tau13/tau23 are face-centered conservative stresses [N m-2].
         for (int n(0); n<m_lsm_flux_lev[lev].size(); ++n) {
-            if (toLower(m_lsm_flux_name[n]) == "t_flux") { lsm_t_flux_arr = m_lsm_flux_lev[lev][n]->array(mfi); }
+            if (toLower(m_lsm_flux_name[n]) == "t_flux")      { lsm_t_flux_arr  = m_lsm_flux_lev[lev][n]->array(mfi); }
+            if (toLower(m_lsm_flux_name[n]) == "soil_t_flux") { soil_t_flux_arr = m_lsm_flux_lev[lev][n]->array(mfi); }
             if (toLower(m_lsm_flux_name[n]) == "q_flux") { lsm_q_flux_arr = m_lsm_flux_lev[lev][n]->array(mfi); }
             if (toLower(m_lsm_flux_name[n]) == "tau13")  { lsm_tau13_arr  = m_lsm_flux_lev[lev][n]->array(mfi); }
             if (toLower(m_lsm_flux_name[n]) == "tau23")  { lsm_tau23_arr  = m_lsm_flux_lev[lev][n]->array(mfi); }
@@ -715,6 +717,10 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
                 // Doing so flips a sentinel (water/unprocessed) cell to "valid LSM"
                 // on the next step, so a MOST-derived value is re-read as an LSM flux
                 // Only Noah-MP should populate the LSM cache.
+            }
+
+            if (soil_t_flux_arr && is_land == 1) {
+                soil_t_flux_arr(i,j,k) = Tflux / cons_arr(i,j,k,Rho_comp);
             }
 
             surface_source_arr(i,j,k) = surface_diagnostics::to_plot_value(
@@ -829,23 +835,37 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
                 // whose LSM flux is the sentinel (sea-ice / open water) is treated
                 // as non-LSM so that side uses the MOST stress instead.
                 Real stressx;
-                int is_land_hi = ((lmask_arr) ? lmask_arr(i  ,j,0) : 1)
-                               && (!lsm_tau13_arr || lsm_tau13_arr(i  ,j,0) < lsm_undefined);
-                int is_land_lo = ((lmask_arr) ? lmask_arr(i-1,j,0) : 1)
-                               && (!lsm_tau13_arr || lsm_tau13_arr(i-1,j,0) < lsm_undefined);
-                if (lsm_tau13_arr && (is_land_hi || is_land_lo)) {
+                int is_land_hi = (lmask_arr) ? lmask_arr(i  ,j,0) : 1;
+                int is_land_lo = (lmask_arr) ? lmask_arr(i-1,j,0) : 1;
+                const bool lsm_hi_flux_is_valid = surface_layer_stress::lsm_flux_is_valid(
+                    static_cast<bool>(lsm_tau13_arr), is_land_hi == 1,
+                    lsm_tau13_arr ? lsm_tau13_arr(i  ,j,0) : zero, lsm_undefined);
+                const bool lsm_lo_flux_is_valid = surface_layer_stress::lsm_flux_is_valid(
+                    static_cast<bool>(lsm_tau13_arr), is_land_lo == 1,
+                    lsm_tau13_arr ? lsm_tau13_arr(i-1,j,0) : zero, lsm_undefined);
+                const bool has_land_and_flux_hi = (is_land_hi == 1 && lsm_hi_flux_is_valid);
+                const bool has_land_and_flux_lo = (is_land_lo == 1 && lsm_lo_flux_is_valid);
+                if (lsm_tau13_arr && (has_land_and_flux_hi || has_land_and_flux_lo)) {
+                    const Real rho_hi = cons_arr(i  ,j,k,Rho_comp);
+                    const Real rho_lo = cons_arr(i-1,j,k,Rho_comp);
+                    const Real most_stress = (!has_land_and_flux_hi || !has_land_and_flux_lo) ?
+                        flux_comp.compute_u_flux(i, j, k, dir,
+                                                 cons_arr, velx_arr, vely_arr, velz_arr,
+                                                 dir_umm_arr, um_arr, vm_arr, wm_arr, u_star_arr) : zero;
+                    const auto result = surface_layer_stress::combine_lsm_and_most_stress(
+                        rho_lo, rho_hi, lsm_tau13_arr(i-1,j,0), lsm_tau13_arr(i,j,0),
+                        has_land_and_flux_lo, has_land_and_flux_hi, most_stress);
+                    stressx = result.face_stress;
+                    // NOTE: do NOT write the MOST-fallback stress back into the
+                    // cell-centered lsm_tau13_arr. This face-indexed ParallelFor
+                    // touches cells (i) and (i-1), so each cell is written by two
+                    // adjacent face threads in the same launch -> nondeterministic
+                    // write-write race on GPU (ERF #3446). It also spuriously flips
+                    // a sentinel (water/unprocessed) cell to "valid LSM" for the
+                    // next step. The face stress is fully determined here; the LSM
+                    // cache is (re)filled only by Noah-MP. Matches baseline 3ab899d3.
+                } else if (is_land_hi == 2 || is_land_lo == 2) { // no stress within buildings
                     stressx = zero;
-                    if (!is_land_hi || !is_land_lo) {
-                        stressx += myhalf * flux_comp.compute_u_flux(i, j, k, dir,
-                                                                     cons_arr, velx_arr, vely_arr, velz_arr,
-                                                                     dir_umm_arr, um_arr, vm_arr, wm_arr, u_star_arr);
-                    }
-                    if (is_land_hi) {
-                        stressx += myhalf * lsm_tau13_arr(i  ,j,0);
-                    }
-                    if (is_land_lo) {
-                        stressx += myhalf * lsm_tau13_arr(i-1,j,0);
-                    }
                 } else {
                     stressx = flux_comp.compute_u_flux(i, j, k, dir,
                                                        cons_arr, velx_arr, vely_arr, velz_arr,
@@ -880,23 +900,32 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
             {
                 // Valid tau23 from LSM and over land (sentinel side -> MOST stress)
                 Real stressy;
-                int is_land_hi = ((lmask_arr) ? lmask_arr(i,j  ,0) : 1)
-                               && (!lsm_tau23_arr || lsm_tau23_arr(i,j  ,0) < lsm_undefined);
-                int is_land_lo = ((lmask_arr) ? lmask_arr(i,j-1,0) : 1)
-                               && (!lsm_tau23_arr || lsm_tau23_arr(i,j-1,0) < lsm_undefined);
-                if (lsm_tau23_arr && (is_land_hi || is_land_lo)) {
+                int is_land_hi = (lmask_arr) ? lmask_arr(i,j  ,0) : 1;
+                int is_land_lo = (lmask_arr) ? lmask_arr(i,j-1,0) : 1;
+                const bool lsm_hi_flux_is_valid = surface_layer_stress::lsm_flux_is_valid(
+                    static_cast<bool>(lsm_tau23_arr), is_land_hi == 1,
+                    lsm_tau23_arr ? lsm_tau23_arr(i,j  ,0) : zero, lsm_undefined);
+                const bool lsm_lo_flux_is_valid = surface_layer_stress::lsm_flux_is_valid(
+                    static_cast<bool>(lsm_tau23_arr), is_land_lo == 1,
+                    lsm_tau23_arr ? lsm_tau23_arr(i,j-1,0) : zero, lsm_undefined);
+                const bool has_land_and_flux_hi = (is_land_hi == 1 && lsm_hi_flux_is_valid);
+                const bool has_land_and_flux_lo = (is_land_lo == 1 && lsm_lo_flux_is_valid);
+                if (lsm_tau23_arr && (has_land_and_flux_hi || has_land_and_flux_lo)) {
+                    const Real rho_hi = cons_arr(i,j  ,k,Rho_comp);
+                    const Real rho_lo = cons_arr(i,j-1,k,Rho_comp);
+                    const Real most_stress = (!has_land_and_flux_hi || !has_land_and_flux_lo) ?
+                        flux_comp.compute_v_flux(i, j, k, dir,
+                                                 cons_arr, velx_arr, vely_arr, velz_arr,
+                                                 dir_umm_arr, um_arr, vm_arr, wm_arr, u_star_arr) : zero;
+                    const auto result = surface_layer_stress::combine_lsm_and_most_stress(
+                        rho_lo, rho_hi, lsm_tau23_arr(i,j-1,0), lsm_tau23_arr(i,j,0),
+                        has_land_and_flux_lo, has_land_and_flux_hi, most_stress);
+                    stressy = result.face_stress;
+                    // NOTE: no writeback into cell-centered lsm_tau23_arr -- see the
+                    // matching tau13 note above (ERF #3446 write-write race + stale
+                    // sentinel-becomes-valid). Face stress is complete here.
+                } else if (is_land_hi == 2 || is_land_lo == 2) { // no stress within buildings
                     stressy = zero;
-                    if (!is_land_hi || !is_land_lo) {
-                        stressy += myhalf * flux_comp.compute_v_flux(i, j, k, dir,
-                                                                     cons_arr, velx_arr, vely_arr, velz_arr,
-                                                                     dir_umm_arr, um_arr, vm_arr, wm_arr, u_star_arr);
-                    }
-                    if (is_land_hi) {
-                        stressy += myhalf * lsm_tau23_arr(i,j  ,0);
-                    }
-                    if (is_land_lo) {
-                        stressy += myhalf * lsm_tau23_arr(i,j-1,0);
-                    }
                 } else {
                     stressy = flux_comp.compute_v_flux(i, j, k, dir,
                                                        cons_arr, velx_arr, vely_arr, velz_arr,

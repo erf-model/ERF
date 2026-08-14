@@ -151,16 +151,16 @@ TEST(TerminalVelocityScalar, EvalFromCsv)
         GTEST_SKIP() << "set ERF_TV_EVAL_IN and ERF_TV_EVAL_OUT to evaluate a CSV";
     }
     std::ifstream fi(in);
-    std::ofstream fo(out);
-    ASSERT_TRUE(fi.is_open() && fo.is_open());
+    std::ofstream ofs(out);
+    ASSERT_TRUE(fi.is_open() && ofs.is_open());
 
     const TerminalVelocity<amrex::Real> tv{kRhoWater, kRhoIce};
     const amrex::Real f43pi = four_thirds_pi;
 
     std::string line;
     std::getline(fi, line);  // header
-    fo << "m_ice,m_water,a,c,rho,p,T,vterm,phase\n";
-    fo.precision(8);
+    ofs << "m_ice,m_water,a,c,rho,p,T,vterm,phase\n";
+    ofs.precision(8);
     while (std::getline(fi, line)) {
         if (line.empty()) { continue; }
         amrex::Real m_ice, m_water, a, c, rho, p, T;
@@ -188,9 +188,9 @@ TEST(TerminalVelocityScalar, EvalFromCsv)
                 phase = 1;
             }
         }
-        fo << m_ice << ',' << m_water << ',' << a << ',' << c << ',' << rho << ','
+        ofs << m_ice << ',' << m_water << ',' << a << ',' << c << ',' << rho << ','
            << p << ',' << T << ',' << vterm << ',' << phase << '\n';
     }
-    fo.close();
-    EXPECT_TRUE(fo.good());
+    ofs.close();
+    EXPECT_TRUE(ofs.good());
 }

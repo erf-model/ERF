@@ -13,6 +13,9 @@
 /*! \brief Ice category for density calculations */
 enum class IceCategory { Ice, Snow, Graupel, Total };
 
+/**
+ * Particle container for the super-droplet method.
+ */
 class SuperDropletPC : public ERFPC
 {
     using MFPtr = std::unique_ptr<amrex::MultiFab>;
@@ -247,7 +250,7 @@ class SuperDropletPC : public ERFPC
 
         /*! \brief Freezing/melting for one time step */
         virtual void MassChange_SL (int,
-                                    amrex::Real,
+                                    double,
                                     const amrex::MultiFab&,
                                     const amrex::MultiFab&,
                                     const amrex::MultiFab&,
@@ -255,7 +258,7 @@ class SuperDropletPC : public ERFPC
 
         /*! \brief Deposition and sublimation growth/shrinking for one time step */
         virtual void MassChange_SV (int,
-                                    amrex::Real,
+                                    double,
                                     const amrex::MultiFab&,
                                     const amrex::MultiFab&,
                                     const amrex::MultiFab&,

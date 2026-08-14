@@ -104,6 +104,7 @@ void ERF::advance_dycore (int level,
     const MultiFab* z_0      = (use_SurfLayer) ? m_SurfaceLayer[Orientation(Direction::z, Orientation::low)]->get_z0(level) : nullptr;
 
     const bool use_nudging = solverChoice.nudging_from_input_sounding;
+    const bool has_moisture = (solverChoice.moisture_type != MoistureType::None);
     const bool use_lsf = solverChoice.large_scale_forcing;
 
     const BoxArray& ba            = state_old[IntVars::cons].boxArray();
@@ -231,7 +232,7 @@ void ERF::advance_dycore (int level,
     }
 
     if (use_lsf) {
-        lsf_data[0]->setVal(0.0);
+        lsf_data[level]->setVal(0.0);
 
         int itime_curr = 0;
         int itime_next = 0;
@@ -256,14 +257,13 @@ void ERF::advance_dycore (int level,
         {
         for ( MFIter mfi(state_old[IntVars::cons],TileNoZ()); mfi.isValid(); ++mfi)
         {
-            Box bx  = mfi.growntilebox(IntVect(1, 1, 0));
+            Box bx  = mfi.tilebox();
             const Array4<Real>& cell_data = state_old[IntVars::cons].array(mfi);
-            const Array4<Real>& lsf_arr = lsf_data[0]->array(mfi);
-            Real zlo = fine_geom.ProbLo(2);
+            const Array4<Real>& lsf_arr = lsf_data[level]->array(mfi);
             Real dzInv = fine_geom.InvCellSize(2);
             const int kmin = domain.smallEnd(2) + 1; // minimum k for vertical subsidence
             const int kmax = domain.bigEnd(2) - 1;   // maximum k for vertical subsidence
-            const Array4<const Real>& z_cc_arr = (l_use_terrain_fitted_coords) ? z_phys_cc[0]->const_array(mfi) : Array4<Real>{};
+            const Array4<const Real>& z_cc_arr = (l_use_terrain_fitted_coords) ? z_phys_cc[level]->const_array(mfi) : Array4<Real>{};
 
             ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
@@ -279,7 +279,7 @@ void ERF::advance_dycore (int level,
                 lsf_arr(i, j, k, 3) = ttend;
                 lsf_arr(i, j, k, 4) = qtend;
 
-                if (k > kmin && k < kmax) {
+                if (k >= kmin && k <= kmax) {
                     int k1, k2;
                     amrex::Real rdz;
                     if (wsub >= 0.0)
@@ -294,8 +294,11 @@ void ERF::advance_dycore (int level,
                     rdz *= wsub;
 
                     amrex::Real tvtend = -rdz * ( (cell_data(i, j, k1, RhoTheta_comp) / cell_data(i, j, k1, Rho_comp)) - (cell_data(i, j, k2, RhoTheta_comp) / cell_data(i, j, k2, Rho_comp)));
-                    amrex::Real qvtend = -rdz * ( (cell_data(i, j, k1, RhoQ1_comp) / cell_data(i, j, k1, Rho_comp)) - (cell_data(i, j, k2, RhoQ1_comp) / cell_data(i, j, k2, Rho_comp)));
-                    amrex::Real qctend = -rdz * ( (cell_data(i, j, k1, RhoQ2_comp) / cell_data(i, j, k1, Rho_comp)) - (cell_data(i, j, k2, RhoQ2_comp) / cell_data(i, j, k2, Rho_comp)));
+                    amrex::Real qvtend = zero, qctend = zero;
+                    if (has_moisture) {
+                        qvtend = -rdz * ( (cell_data(i, j, k1, RhoQ1_comp) / cell_data(i, j, k1, Rho_comp)) - (cell_data(i, j, k2, RhoQ1_comp) / cell_data(i, j, k2, Rho_comp)));
+                        qctend = -rdz * ( (cell_data(i, j, k1, RhoQ2_comp) / cell_data(i, j, k1, Rho_comp)) - (cell_data(i, j, k2, RhoQ2_comp) / cell_data(i, j, k2, Rho_comp)));
+                    }
 
                     lsf_arr(i, j, k, 0) += tvtend;
                     lsf_arr(i, j, k, 1) += qvtend;
@@ -306,24 +309,22 @@ void ERF::advance_dycore (int level,
                 }
             });
 
-            amrex::Gpu::streamSynchronize();
-
             // subsidence
             ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
                 // directly apply tendencies for theta and qv
                 cell_data(i, j, k, RhoTheta_comp) += cell_data(i, j, k, Rho_comp) * lsf_arr(i, j, k, 0) * dt_advance;
-                cell_data(i, j, k, RhoQ1_comp) = max(Real(0), cell_data(i, j, k, RhoQ1_comp) + cell_data(i, j, k, Rho_comp) * lsf_arr(i, j, k, 1) * dt_advance);
-                cell_data(i, j, k, RhoQ2_comp) += cell_data(i, j, k, Rho_comp) * lsf_arr(i, j, k, 7) * dt_advance;
+                if (has_moisture) {
+                    cell_data(i, j, k, RhoQ1_comp) = max(Real(0), cell_data(i, j, k, RhoQ1_comp) + cell_data(i, j, k, Rho_comp) * lsf_arr(i, j, k, 1) * Real(dt_advance));
+                    cell_data(i, j, k, RhoQ2_comp) += cell_data(i, j, k, Rho_comp) * lsf_arr(i, j, k, 7) * dt_advance;
+                }
             });
-
-            amrex::Gpu::streamSynchronize();
         }
         }
     }
 
     if (use_nudging) {
-        nudge_data[0]->setVal(0.0);
+        nudge_data[level]->setVal(0.0);
 
         int itime_n    = 0;
         int itime_np1  = 0;
@@ -367,10 +368,10 @@ void ERF::advance_dycore (int level,
         {
         for ( MFIter mfi(state_old[IntVars::cons],TileNoZ()); mfi.isValid(); ++mfi)
         {
-            Box bx = mfi.growntilebox(IntVect(1, 1, 0));
+            Box bx = mfi.tilebox();
             const Array4<Real>& cell_data  = state_old[IntVars::cons].array(mfi);
-            const Array4<const Real>& z_cc_arr = (l_use_terrain_fitted_coords) ? z_phys_cc[0]->const_array(mfi) : Array4<Real>{};
-            const Array4<Real>& nudge_arr = nudge_data[0]->array(mfi);
+            const Array4<const Real>& z_cc_arr = (l_use_terrain_fitted_coords) ? z_phys_cc[level]->const_array(mfi) : Array4<Real>{};
+            const Array4<Real>& nudge_arr = nudge_data[level]->array(mfi);
             Real zlo = fine_geom.ProbLo(2);
             Real dz = fine_geom.CellSize(2);
 
@@ -390,7 +391,7 @@ void ERF::advance_dycore (int level,
                 }
 
                 // Nudging for qv
-                if (z >= q_z1 && z <= q_z2) {
+                if (has_moisture && z >= q_z1 && z <= q_z2) {
                     Real nudge = (coeff_n*qv_inp_sound_n[k] + coeff_np1*qv_inp_sound_np1[k]) - (dptr_qv_plane(k)/dptr_r_plane(k));
                     nudge_arr(i, j, k, 1) = nudge * tau_inv;
                     //if (i == 0 && j == 0)

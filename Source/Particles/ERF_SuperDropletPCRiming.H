@@ -54,10 +54,14 @@ namespace SDRiming
     auto impactVelocity_RasmussenHeymsfield1985( const ParticleReal a_Re, /*!< Reynolds number */
                                                  const ParticleReal a_St  /*!< Stokes number */ )
     {
-        auto w = std::log10(a_St);
-        auto w2 = w*w;
-        auto w3 = w2*w;
-        auto w4 = w3*w;
+        // the fits only apply for St >= 0.1; log10(0) raises FE_DIVBYZERO under fpe_trap_zero
+        ParticleReal w(zero), w2(zero), w3(zero), w4(zero);
+        if (a_St >= ParticleReal(0.1)) {
+            w  = std::log10(a_St);
+            w2 = w*w;
+            w3 = w2*w;
+            w4 = w3*w;
+        }
         ParticleReal retval = ParticleReal(zero);
         if(a_Re < (ParticleReal(10.0)+ParticleReal(30.0))*ParticleReal(myhalf)) {
             if (a_St < ParticleReal(0.4)) {
@@ -104,10 +108,11 @@ namespace SDRiming
                                         const ParticleReal a_D, /*!< diffusivity coeff */
                                         const SDMassChangeUtils_SV::dMdt<ParticleReal>& a_dmdt /*!< mass change utilities */)
     {
-        Real qsat_r = Real(zero); erf_qsati(a_T, a_P, qsat_r);
+        // erf_qsati takes pressure in mbar and erf_esati returns mbar; a_P arrives in Pa
+        Real qsat_r = Real(zero); erf_qsati(a_T, a_P/Real(100.0), qsat_r);
         ParticleReal qsat = ParticleReal(qsat_r);
         auto sup_sat  = a_qv/qsat - ParticleReal(one);
-        auto drho  = sup_sat / (a_D * a_dmdt.Fk_plus_Fd(a_T, ParticleReal(erf_esati(a_T)), a_D));
+        auto drho  = sup_sat / (a_D * a_dmdt.Fk_plus_Fd(a_T, ParticleReal(erf_esati(a_T)*Real(100.0)), a_D));
         auto dT = (a_dmdt.L * a_D / a_dmdt.K) * drho;
         return a_T + dT;
     }
@@ -122,7 +127,7 @@ namespace SDRiming
      *  J. Atmos. Sci., 42, 2264-2274.
      *
      *  Two regimes based on surface temperature and Y parameter:
-     *  - Low-density (T_surf <= -5 degC or Y < 1.6): rho = (0.30*Y)^0.44  [Eq. 8]
+     *  - Low-density (T_surf <= -5 degC or Y < 1.6): rho = 0.30*Y^0.44  [Eq. 8]
      *  - High-density (otherwise): rho = exp(-0.03115 - 1.703*Y + 0.9116*Y^2 - 0.1224*Y^3) [Eq. 9]
      *
      *  Output bounded to 0.1 <= rho_rime <= 0.91 g/cm^3 (100-910 kg/m^3)

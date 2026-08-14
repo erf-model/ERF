@@ -33,8 +33,8 @@ public:
 
     virtual void Run(int& level,
                      int& step,
-                     amrex::Real& time,
-                     const amrex::Real& dt,
+                     double& time,
+                     const double& dt,
                      const amrex::BoxArray& ba,
                      amrex::Geometry& geom,
                      amrex::MultiFab* cons_in,
@@ -49,7 +49,7 @@ public:
                      amrex::MultiFab* lon,
                      const bool updated_lsm) override;
 
-    virtual void WriteDataLog(const amrex::Real &time) override;
+    virtual void WriteDataLog(const double &time) override;
 
     const amrex::MultiFab *get_radlwdn() { return radlwdn.get(); }
     const amrex::MultiFab *get_radqrlw() { return radqrlw.get(); }

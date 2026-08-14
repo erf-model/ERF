@@ -63,7 +63,7 @@ amrex::Real rime_rho (const amrex::Real T, const amrex::Real vz_w, const amrex::
     const dMdt<ParticleReal> dm = ice_dmdt();
     const ParticleReal e_sw = ParticleReal(erf_esatw(T) * amrex::Real(100.0));
     const ParticleReal e_si = ParticleReal(erf_esati(T) * amrex::Real(100.0));
-    amrex::Real qsat_i = amrex::Real(0.0); erf_qsati(T, kP, qsat_i);
+    amrex::Real qsat_i = amrex::Real(0.0); erf_qsati(T, kP*amrex::Real(0.01), qsat_i);  // erf_qsati wants mbar
     const ParticleReal qv   = ParticleReal(qsat_i) * (e_sw/e_si);   // water-saturated mixing ratio
     const ParticleReal rhom = ParticleReal(kP) / ParticleReal(R_d * T);
 
@@ -79,7 +79,7 @@ amrex::Real ice_surf_T (const amrex::Real T, const amrex::Real s) noexcept
 {
     using amrex::ParticleReal;
     const dMdt<ParticleReal> dm = ice_dmdt();
-    amrex::Real qsat_i = amrex::Real(0.0); erf_qsati(T, kP, qsat_i);
+    amrex::Real qsat_i = amrex::Real(0.0); erf_qsati(T, kP*amrex::Real(0.01), qsat_i);  // erf_qsati wants mbar
     const ParticleReal qv = ParticleReal(qsat_i) * ParticleReal(s);
     return amrex::Real( iceSurfaceTemperature(ParticleReal(T), ParticleReal(kP), qv,
                                               ParticleReal(diffelq), dm) );

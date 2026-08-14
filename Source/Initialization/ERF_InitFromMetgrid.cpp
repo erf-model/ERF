@@ -75,45 +75,6 @@ ERF::init_from_metgrid (int lev)
         nvars_erfbdy = use_moisture ? MetGridBdyVars::NumTypes : (MetGridBdyVars::NumTypes - 1);
     }
 
-    // If the erfbdy file exists, load boundary data and skip met_em processing.
-    if (lev == 0 && use_erfbdy) {
-        Print() << "Loading boundary data from erfbdy file: " << erfbdy_file << std::endl;
-
-        int ntimes_erfbdy;
-        Vector<double> bdy_times;
-        bdy_time_interval = read_times_from_erfbdy(erfbdy_file,
-                                                   ntimes_erfbdy, nvars_erfbdy, real_width,
-                                                   bdy_times, start_bdy_time, final_bdy_time);
-
-        AMREX_ALWAYS_ASSERT(ntimes_erfbdy >= 2);
-
-        Print() << "erfbdy file has " << ntimes_erfbdy << " times" << std::endl;
-        Print() << "start_bdy_time = " << start_bdy_time << std::endl;
-        Print() << "final_bdy_time = " << final_bdy_time << std::endl;
-        Print() << "bdy_time_interval = " << bdy_time_interval << std::endl;
-
-        bdy_data_xlo.resize(ntimes_erfbdy);
-        bdy_data_xhi.resize(ntimes_erfbdy);
-        bdy_data_ylo.resize(ntimes_erfbdy);
-        bdy_data_yhi.resize(ntimes_erfbdy);
-
-        // Load the first 2 times.
-        for (int itime = 0; itime < 2; ++itime) {
-            read_from_erfbdy(itime, erfbdy_file,
-                             bdy_data_xlo, bdy_data_xhi,
-                             bdy_data_ylo, bdy_data_yhi,
-                             nvars_erfbdy, real_width);
-            Print() << "Loaded erfbdy time slice " << itime << std::endl;
-        }
-
-        // Set the simulation start time.
-        t_new[lev] = zero;
-        t_old[lev] = -Real(1.e200);
-
-        Print() << "Loaded boundaries from erfbdy, skipping met_em processing" << std::endl;
-        return; // Skip the rest of met_em processing.
-    }
-
     use_erfbdy = true;
 
     int ntimes = num_files_at_level[lev];
@@ -656,6 +617,48 @@ ERF::init_from_metgrid (int lev)
     pi_hse.FillBoundary(geom[lev].periodicity());
     th_hse.FillBoundary(geom[lev].periodicity());
     qv_hse.FillBoundary(geom[lev].periodicity());
+
+    // If a preexisting erfbdy file is available, use it for boundary data only
+    // after the metgrid path has initialized the interior state and metrics.
+    if (lev == 0 && !write_erfbdy) {
+        std::string erfbdy_header = erfbdy_file + "/Header";
+        if (FileSystem::Exists(erfbdy_header)) {
+            Print() << "Loading boundary data from erfbdy file: " << erfbdy_file << std::endl;
+
+            int ntimes_erfbdy;
+            Vector<double> bdy_times;
+            bdy_time_interval = read_times_from_erfbdy(erfbdy_file,
+                                                       ntimes_erfbdy, nvars_erfbdy, real_width,
+                                                       bdy_times, start_bdy_time, final_bdy_time);
+
+            AMREX_ALWAYS_ASSERT(ntimes_erfbdy >= 2);
+
+            Print() << "erfbdy file has " << ntimes_erfbdy << " times" << std::endl;
+            Print() << "start_bdy_time = " << start_bdy_time << std::endl;
+            Print() << "final_bdy_time = " << final_bdy_time << std::endl;
+            Print() << "bdy_time_interval = " << bdy_time_interval << std::endl;
+
+            bdy_data_xlo.clear();
+            bdy_data_xhi.clear();
+            bdy_data_ylo.clear();
+            bdy_data_yhi.clear();
+            bdy_data_xlo.resize(ntimes_erfbdy);
+            bdy_data_xhi.resize(ntimes_erfbdy);
+            bdy_data_ylo.resize(ntimes_erfbdy);
+            bdy_data_yhi.resize(ntimes_erfbdy);
+
+            // Load the first 2 times for initialization; more are loaded as needed later.
+            for (int itime = 0; itime < 2; ++itime) {
+                read_from_erfbdy(itime, erfbdy_file,
+                                 bdy_data_xlo, bdy_data_xhi,
+                                 bdy_data_ylo, bdy_data_yhi,
+                                 nvars_erfbdy, real_width);
+                Print() << "Loaded erfbdy time slice " << itime << std::endl;
+            }
+
+            Print() << "Loaded boundaries from erfbdy after metgrid state initialization" << std::endl;
+        }
+    }
 
     Print() << "Running with relaxation width: " << real_width << std::endl;
 }
@@ -1436,6 +1439,7 @@ init_base_state_from_metgrid (const bool use_moisture,
     {
         // Expose for GPU
         int RhoQ_comp = RhoQ1_comp;
+        int klo  = lbound(valid_bx).z;
         int kmax = ubound(valid_bx).z;
 
         Box valid_bx2d = valid_bx;
@@ -1443,6 +1447,7 @@ init_base_state_from_metgrid (const bool use_moisture,
         auto const orig_psfc = NC_psfc_fab.const_array();
         auto       new_data  = state_fab.array();
         auto const new_z     = z_phys_cc_fab.const_array();
+        auto const z_nd      = z_phys_nd_fab.const_array();
 
         ParallelFor(valid_bx2d, [=,RdoCp_d=RdoCp]
                     AMREX_GPU_DEVICE (int i, int j, int) noexcept
@@ -1456,16 +1461,21 @@ init_base_state_from_metgrid (const bool use_moisture,
             Real th_lo, th_hi;
             Real t_hi;
 
+            // Height of the ground (z_phys is nodal). Note that psurf is the
+            // pressure at the ground, not at z = 0, so all heights used in the
+            // hydrostatic integration below must be relative to z_sfc.
+            Real z_sfc = Real(0.25) * ( z_nd(i,j  ,klo) + z_nd(i+1,j  ,klo)
+                                      + z_nd(i,j+1,klo) + z_nd(i+1,j+1,klo) );
+
             // Calculate or use pressure at the surface.
             if (metgrid_debug_psfc) {
                 psurf = amrex::Math::powi<5>(10);
             } else if (flag_psfc == 1) {
                 psurf = orig_psfc(i,j,0);
             } else {
-                z_lo     = new_z(i,j,0);
                 Real t_0 = Real(290.0); // WRF's model_config_rec%base_temp
                 Real a   = Real(50.0);  // WRF's model_config_rec%base_lapse
-                psurf = p_0*std::exp(-t_0/a + std::sqrt(std::pow(t_0/a, two)-two*grav*z_lo/(a*R_d)));
+                psurf = p_0*std::exp(-t_0/a + std::sqrt(std::pow(t_0/a, two)-two*grav*z_sfc/(a*R_d)));
             }
             AMREX_ALWAYS_ASSERT(psurf > zero);
             AMREX_ALWAYS_ASSERT(new_data(i,j,0,RhoTheta_comp) > zero);
@@ -1476,9 +1486,11 @@ init_base_state_from_metgrid (const bool use_moisture,
                 qv_lo = (use_moisture) ? new_data(i,j,0,RhoQ_comp) : zero;
                 rd_lo = zero; // initial guess
                 th_lo = new_data(i,j,0,RhoTheta_comp);
-                // NOTE: The first iteration is from z=0 to z_cc(i,j,0) since the
-                //       reference pressure (psurf) is at the ground.
-                Real myhalf_dz = z_lo;
+                // NOTE: The first iteration is from the ground to z_cc(i,j,0) since
+                //       the reference pressure (psurf) is at the ground. Over terrain
+                //       z_cc is the height above mean sea level, so we must subtract
+                //       the height of the ground to get the height above it.
+                Real myhalf_dz = z_lo - z_sfc;
                 Real qvf       = one+(R_v/R_d)*qv_lo;
                 Real thetam    = th_lo*qvf;
                 for (int it(0); it<maxiter; it++) {

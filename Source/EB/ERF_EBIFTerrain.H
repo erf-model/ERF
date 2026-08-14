@@ -27,7 +27,7 @@ public:
     /**
      * \brief Construct a terrain implicit function from height and geometry data.
      * \param a_z_terrain Terrain elevation values on the horizontal mesh.
-     * \param a_geom Geometry used for mesh spacing and problem bounds.
+     * \param a_geom Geometry used for grid spacing and problem bounds.
      * \param a_dz_stretched Device vector of stretched vertical cell sizes.
      */
     TerrainIF (amrex::FArrayBox const& a_z_terrain, amrex::Geometry const& a_geom,
@@ -152,7 +152,7 @@ protected:
     amrex::Array4<amrex::Real const> terr_arr;
     //! Device pointer to stretched vertical cell sizes.
     amrex::Real const* dz_s;
-    //! Uniform computational mesh spacing in each direction.
+    //! Uniform computational grid spacing in each direction.
     amrex::Real dx, dy, dz;
     //! Low problem bounds used for interpolation.
     amrex::Real prob_lo_x, prob_lo_y, prob_lo_z;
@@ -164,11 +164,11 @@ protected:
     int k_hi;
     /**
      * \var TerrainIF::dy
-     * \brief Uniform computational mesh spacing in y.
+     * \brief Uniform computational grid spacing in y.
      */
     /**
      * \var TerrainIF::dz
-     * \brief Uniform computational mesh spacing in z.
+     * \brief Uniform computational grid spacing in z.
      */
     /**
      * \var TerrainIF::prob_lo_y

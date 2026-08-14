@@ -9,6 +9,15 @@ double read_start_time_from_wrfinput (int lev, const std::string& fname);
 Box read_subdomain_from_metgrid (int lev, const std::string& fname, int& ratio, int& klo, int& khi);
 #endif
 
+/**
+ * @brief Tag cells based on 2D distance from the storm eye.
+ *
+ * @param[in] cgeom Geometry defining the domain.
+ * @param[out] tags Array of tagged cells for refinement.
+ * @param[in] eye_x X-coordinate of the eye center.
+ * @param[in] eye_y Y-coordinate of the eye center.
+ * @param[in] rad_tag Radius within which cells are tagged.
+ */
 void
 tag_on_distance_from_eye(const Geometry& cgeom, TagBoxArray* tags,
                          const Real eye_x, const Real eye_y, const Real rad_tag);

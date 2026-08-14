@@ -23,19 +23,15 @@
 
 #include "ERF_NCInterface.H"
 
+// Do not redeclare writeNCPlotFile here -- pull in the real declaration so the
+// tool cannot drift out of sync with the definition in Source/IO/ERF_NCPlotFile.cpp
+#include "ERF_NCPlotFile.H"
+
 using namespace amrex;
 
-void
-writeNCPlotFile (int lev, int which, const std::string& dir,
-                 const amrex::Vector<const amrex::MultiFab*> &mf,
-                 const amrex::Vector<std::string> &plot_var_names,
-                 const amrex::Vector<int>& level_steps,
-                 amrex::Array<amrex::Real,AMREX_SPACEDIM> prob_lo,
-                 amrex::Array<amrex::Real,AMREX_SPACEDIM> prob_hi,
-                 amrex::Array<amrex::Real,AMREX_SPACEDIM> dx,
-                 const amrex::Box& bounding_region,
-                 double time, double start_bdy_time);
-
+/**
+ * Print the usage message and exit.
+ */
 static
 void
 PrintUsage ()
@@ -52,7 +48,12 @@ PrintUsage ()
   exit(1);
 }
 
-void
+/**
+ * Convert a multilevel AMReX plotfile into NetCDF format.
+ *
+ * @return 0 on success, otherwise an error code.
+ */
+int
 main_main()
 {
     const int narg = amrex::command_argument_count();
@@ -79,7 +80,7 @@ main_main()
 
     if (iFile.empty()) {
         amrex::Print() << "No plotfilename specified " << std::endl;
-        return;
+        return 1;
     } else {
         // Remove trailing backslash if present
         if (iFile.back() == '/') {
@@ -112,6 +113,13 @@ main_main()
 
     double start_bdy_time = time;
 
+    // A plotfile does not carry the solver configuration, and the only thing
+    // writeNCPlotFile takes from it is the mesh type.  A plotfile also does not
+    // record the staggered z levels needed for a stretched mesh, so we can only
+    // write the (x,y,z) grid for a constant-dz mesh -- which is the default.
+    SolverChoice solverChoice;
+    Vector<Real> zlevels_stag;
+
     for (int lev = 0; lev <= finest_level; lev++)
     {
         mfvec[lev].define(pf_data.boxArray(lev), pf_data.DistributionMap(lev), ncomp, 0);
@@ -129,17 +137,27 @@ main_main()
         int which = 0;
 
         writeNCPlotFile(lev, which, iFile, GetVecOfConstPtrs(mfvec), varnames, istep,
-                        pf_data.probLo(), pf_data.probHi(), pf_data.cellSize(lev), bounding_region, time, start_bdy_time);
+                        pf_data.probLo(), pf_data.probHi(), pf_data.cellSize(lev), bounding_region,
+                        time, start_bdy_time, solverChoice, zlevels_stag);
     }
+
+    return 0;
 }
 
+/**
+ * Application entry point.
+ *
+ * @param[in] argc Argument count.
+ * @param[in] argv Argument vector.
+ * @return Execution status.
+ */
 int
 main (int   argc,
       char* argv[])
 {
     amrex::SetVerbose(0);
     amrex::Initialize(argc, argv, false);
-    main_main();
+    int status = main_main();
     amrex::Finalize();
-    return 1;
+    return status;
 }

@@ -168,8 +168,8 @@ Problem::init_custom_pert (
     else if  (my_prob_name_ci == "gate") {
 #include "Prob/ERF_InitCustomPert_GATE.H"
     }
-    else if  (my_prob_name_ci == "temperaturesourcespatial_cold") {
-#include "Prob/ERF_InitCustomPert_TempSrcCold.H"
+    else if  (my_prob_name_ci == "sdm_congestus3d_cold") {
+#include "Prob/ERF_InitCustomPert_SDMCongestus3DCold.H"
     }
     else if  (my_prob_name_ci == "data_assimilation_isv") {
 #include "Prob/ERF_InitCustomPert_DataAssimilation_ISV.H"
@@ -269,7 +269,7 @@ Problem::init_custom_pert_vels (
 #include "Prob/ERF_InitCustomPertVels_UserDefined.H"
     }
     else if ( (my_prob_name_ci == "gate") ||
-              (my_prob_name_ci == "temperaturesourcespatial_cold") ) {
+              (my_prob_name_ci == "sdm_congestus3d_cold") ) {
 #include "Prob/ERF_InitCustomPertVels_Bomex.H"
     }
     else if  (my_prob_name_ci == "data_assimilation_isv") {
@@ -327,8 +327,8 @@ Problem::update_rhotheta_sources (const double& time,
 #include "Prob/ERF_UpdateRhoThetaSources_SDMCongestus3D.H"
     } else if  (my_prob_name_ci == "gate") {
 #include "Prob/ERF_UpdateRhoThetaSources_GATE.H"
-    } else if  (my_prob_name_ci == "temperaturesourcespatial_cold") {
-#include "Prob/ERF_UpdateRhoThetaSources_TempSrcCold.H"
+    } else if  (my_prob_name_ci == "sdm_congestus3d_cold") {
+#include "Prob/ERF_UpdateRhoThetaSources_SDMCongestus3DCold.H"
     } else if  (my_prob_name_ci == "sinusoidalmassflux") {
 #include "Prob/ERF_UpdateRhoThetaSources_SineMassFlux.H"
     }
@@ -373,8 +373,8 @@ Problem::update_rhoqt_sources (const double& time,
 #include "Prob/ERF_UpdateRhoQtSources_SDMCongestus3D.H"
     } else if  (my_prob_name_ci == "gate") {
 #include "Prob/ERF_UpdateRhoQtSources_GATE.H"
-    } else if  (my_prob_name_ci == "temperaturesourcespatial_cold") {
-#include "Prob/ERF_UpdateRhoQtSources_TempSrcCold.H"
+    } else if  (my_prob_name_ci == "sdm_congestus3d_cold") {
+#include "Prob/ERF_UpdateRhoQtSources_SDMCongestus3DCold.H"
     } else if  (my_prob_name_ci == "sinusoidalmassflux") {
 #include "Prob/ERF_UpdateRhoQtSources_SineMassFlux.H"
     }

@@ -449,8 +449,8 @@ Within each grid cell, super-droplet positions can be assigned in two ways contr
 
 - **Fixed placement**: Particles are placed at the cell center or initialization region center.
 
-For terrain-following coordinates, particle positions in the vertical direction are adjusted to account for the terrain height
-using bilinear interpolation of the terrain surface at the particle's horizontal position.
+For terrain-following coordinates, the vertical particle position is stored as the computational coordinate, so no terrain
+adjustment is applied at initialization; the mapping to physical height is performed where the particle interacts with the mesh.
 
 Attribute Distribution
 ^^^^^^^^^^^^^^^^^^^^^^
@@ -1317,7 +1317,7 @@ the ``inactive_threshold`` (default 1%), the recycling process is triggered:
 1. **Selection**: Inactive super-droplets are identified as candidates for recycling.
 
 2. **Repositioning**: Selected particles are repositioned within the domain. The new positions are sampled from the original
-   initialization distribution. If a recycling bounding box is specified (``recycle_box_lo`` and ``recycle_box_hi``), particles
+   initialization distribution. If a recycling bounding box is specified (``recycle_xmin`` through ``recycle_zmax``), particles
    are constrained to this region; otherwise, the entire domain is used.
 
 3. **Attribute Resampling**: Particle attributes (species masses, aerosol masses) are resampled from the original initialization
@@ -1349,12 +1349,15 @@ Recycling behavior is controlled by parameters with prefix ``super_droplets_mois
    * - ``inactive_threshold``
      - ``0.01``
      - Fraction of inactive particles (0.01 = 1%) that triggers recycling
-   * - ``recycle_box_lo``
-     - domain lower bounds
-     - Lower corner of recycling region
-   * - ``recycle_box_hi``
-     - domain upper bounds
-     - Upper corner of recycling region
+   * - ``recycle_xmin``, ``recycle_xmax``
+     - domain bounds in x
+     - Extent of the recycling region in x
+   * - ``recycle_ymin``, ``recycle_ymax``
+     - domain bounds in y
+     - Extent of the recycling region in y
+   * - ``recycle_zmin``, ``recycle_zmax``
+     - domain bounds in z
+     - Extent of the recycling region in z
 
 Use Cases
 ^^^^^^^^^
@@ -1375,8 +1378,12 @@ Example Configuration
    super_droplets_moisture.inactive_threshold = 0.01
 
    # Constrain recycled particles to upper portion of domain
-   super_droplets_moisture.recycle_box_lo = 0.0 0.0 8000.0
-   super_droplets_moisture.recycle_box_hi = 20000.0 400.0 10000.0
+   super_droplets_moisture.recycle_xmin = 0.0
+   super_droplets_moisture.recycle_xmax = 20000.0
+   super_droplets_moisture.recycle_ymin = 0.0
+   super_droplets_moisture.recycle_ymax = 400.0
+   super_droplets_moisture.recycle_zmin = 8000.0
+   super_droplets_moisture.recycle_zmax = 10000.0
 
 Material Properties and Aerosol Species
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

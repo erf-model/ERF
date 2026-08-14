@@ -53,9 +53,6 @@ void make_sources (int level,
                    const Real* dptr_wbar_sub,
                    const Vector<Real*> d_rayleigh_ptrs_at_lev,
                    const Real* d_sinesq_at_lev,
-                   const MultiFab* surface_state_at_lev,
-                   InputSoundingData& input_sounding_data,
-                   LargeScaleForcingData& /*lsf_data*/,
                    TurbulentPerturbation& turbPert,
                    bool is_slow_step)
 {
@@ -102,7 +99,7 @@ void make_sources (int level,
     // *****************************************************************************
     Table1D<Real>      dptr_r_plane, dptr_t_plane, dptr_qv_plane, dptr_qc_plane;
     TableData<Real, 1>  r_plane_tab,  t_plane_tab,  qv_plane_tab,  qc_plane_tab;
-    bool compute_averages = ( is_slow_step && (dptr_wbar_sub || solverChoice.nudging_from_input_sounding) );
+    bool compute_averages = ( is_slow_step && dptr_wbar_sub );
 
     if (compute_averages)
     {
@@ -438,12 +435,6 @@ void make_sources (int level,
             ApplySpongeZoneBCsForCC(solverChoice.spongeChoice, geom, bx, cell_src, cell_data, r0, th0, qv0, z_cc_arr, n_qstate);
         }
 
-        if (solverChoice.init_type == InitType::HindCast and solverChoice.hindcast_surface_bcs) {
-            const Array4<const Real>& surface_state_arr = (*surface_state_at_lev).array(mfi);
-            ApplySurfaceTreatment_BulkCoeff_CC(bx, cell_src, cell_data, z_cc_arr, surface_state_arr);
-        }
-
-
         // *************************************************************************************
         // 8. Add perturbation
         // *************************************************************************************
@@ -451,46 +442,6 @@ void make_sources (int level,
             auto m_ixtype = S_data[IntVars::cons].boxArray().ixType(); // Conserved term
             const amrex::Array4<const amrex::Real>& pert_cell = turbPert.pb_cell[level].const_array(mfi);
             turbPert.apply_tpi(level, bx, RhoTheta_comp, m_ixtype, cell_src, pert_cell); // Applied as source term
-        }
-
-        // *************************************************************************************
-        // 9. Add nudging towards value specified in input sounding
-        // *************************************************************************************
-        if (solverChoice.nudging_from_input_sounding && is_slow_step)
-        {
-            int itime_n    = 0;
-            int itime_np1  = 0;
-            Real coeff_n   = one;
-            Real coeff_np1 = zero;
-
-            Real tau_inv = one / input_sounding_data.tau_nudging;
-
-            int n_sounding_times = input_sounding_data.input_sounding_time.size();
-
-            for (int nt = 1; nt < n_sounding_times; nt++) {
-                if (time > input_sounding_data.input_sounding_time[nt]) itime_n = nt;
-            }
-            if (itime_n == n_sounding_times-1) {
-                itime_np1 = itime_n;
-            } else {
-                itime_np1 = itime_n+1;
-                coeff_np1 = (time                                               - input_sounding_data.input_sounding_time[itime_n]) /
-                            (input_sounding_data.input_sounding_time[itime_np1] - input_sounding_data.input_sounding_time[itime_n]);
-                coeff_n   = one - coeff_np1;
-            }
-
-            const Real* theta_inp_sound_n   = input_sounding_data.theta_inp_sound_d[itime_n].dataPtr();
-            const Real* theta_inp_sound_np1 = input_sounding_data.theta_inp_sound_d[itime_np1].dataPtr();
-
-            const int n  = RhoTheta_comp;
-            const int nr = Rho_comp;
-
-            ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-            {
-                Real nudge = (coeff_n*theta_inp_sound_n[k] + coeff_np1*theta_inp_sound_np1[k]) - (dptr_t_plane(k)/dptr_r_plane(k));
-                nudge *= tau_inv;
-                cell_src(i, j, k, n) += cell_data(i, j, k, nr) * nudge;
-            });
         }
 
         // *************************************************************************************
@@ -544,7 +495,7 @@ void make_sources (int level,
                     if (t_blank > 0 && (t_blank_above == zero)) { // force to MOST value
                         const Real surf_temp    = init_surf_temp + surf_heating_rate*time;
                         const Real bc_forcing_rt_srf = -(cell_data(i,j,k-1,Rho_comp) * surf_temp - cell_data(i,j,k-1,RhoTheta_comp));
-                        cell_src(i, j, k-1, RhoTheta_comp) -= drag_coefficient * U_s * bc_forcing_rt_srf; // k-1
+                        cell_src(i, j, k, RhoTheta_comp) -= drag_coefficient * U_s * bc_forcing_rt_srf;
                     }
                 }
 
