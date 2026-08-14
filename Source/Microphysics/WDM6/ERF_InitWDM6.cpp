@@ -183,7 +183,25 @@ WDM6::initialize_coeffs()
         m_lamdagmax = Real(6.0e4);
     }
 
-    m_pi_wdm6 = Real(4.0) * std::atan(Real(1.0));
+    // LITERAL PRECISION CONTRACT, second hazard class. The Fortran writes
+    //     pi = 4.*atan(1.)
+    // at ERF_module_mp_wdm6.F90:3111. Neither literal carries a kind suffix, so
+    // `1.` is a default REAL and the generic ATAN resolves to its SINGLE
+    // precision specific; the whole expression is evaluated in float32 and only
+    // then widened to kind_phys. Measured with gfortran:
+    //     4.*atan(1.)         = 3.14159274101257324219
+    //     4._kp*atan(1._kp)   = 3.14159265358979311600
+    //     relative difference = 2.7828e-08
+    // This is distinct from the unsuffixed-parameter hazard the contract already
+    // covers: nothing here is a rounded constant, it is an intrinsic whose result
+    // kind is chosen by its argument kind. pi is load-bearing -- it feeds pidn0s,
+    // pidnc, pidnr, pidn0r, pidn0s, pidn0g, pacrs, pacrc and the pi*pi in G10c's
+    // pfrzdtc -- so the error propagates broadly.
+    // Routed through wdm6_literal like every other constant: it is constexpr but
+    // not restricted to constant expressions, so it applies the same rounding to
+    // a runtime value. Do not re-expand the toggle inline here; the contract is
+    // that ERF_WDM6_F32_LITERALS is honoured in exactly one place.
+    m_pi_wdm6 = wdm6_literal(Real(4.0) * std::atan(Real(1.0)));
     m_xlv1    = cl - cpv_loc;
 
     // Cloud droplet parameters (WDM6 uses different xncr for maritime vs continental)
