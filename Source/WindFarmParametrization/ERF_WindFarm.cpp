@@ -72,6 +72,9 @@ WindFarm::init_windfarm_lat_lon (const std::string windfarm_loc_table,
                                  const Real windfarm_x_shift,
                                  const Real windfarm_y_shift)
 {
+    // Re-reading the file must not append to a previous level's list.
+    xloc.clear();
+    yloc.clear();
 
     // Read turbine locations from windturbines.txt
     std::ifstream file(windfarm_loc_table);
@@ -182,6 +185,10 @@ WindFarm::init_windfarm_x_y (const std::string windfarm_loc_table)
     }
     // Vector of vectors to store the matrix
     Real value1, value2;
+
+    // Re-reading the file must not append to a previous level's list.
+    xloc.clear();
+    yloc.clear();
 
     while (file >> value1 >> value2) {
         value1 = value1 + 1e-3;
@@ -493,6 +500,8 @@ WindFarm::fill_Nturb_multifab (const Geometry& geom,
             }
         });
     }
+
+    mf_Nturb.FillBoundary(geom.periodicity());
 
     Gpu::copy(Gpu::deviceToHost, d_zloc.begin(), d_zloc.end(), zloc.begin());
     Gpu::copy(Gpu::deviceToHost, d_is_counted.begin(), d_is_counted.end(), is_counted.begin());
