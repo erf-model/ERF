@@ -367,6 +367,15 @@ void wdm6_nislfv_rain_plm6_column (
         int kb = 0;
         int kt = 0;
         for (int k = 0; k < km; ++k) {
+            // Fortran backs both brackets off by one at the TOP of every k
+            // before searching forward:
+            //     kb=max(kb-1,1) ; kt=max(kt-1,1)
+            // Omitting this let the forward search start above the correct
+            // bracket, so cells whose departure interval reaches back below the
+            // previous k's bracket were remapped from the wrong donor.
+            kb = amrex::max(kb - 1, 0);
+            kt = amrex::max(kt - 1, 0);
+
             if (zi[k] >= za[km]) break;
 
             for (int kk = kb; kk < km; ++kk) {
@@ -381,7 +390,14 @@ void wdm6_nislfv_rain_plm6_column (
                     break;
                 }
             }
-            kt = amrex::max(kt - 1, 0);
+            // Fortran writes a bare kt = kt - 1 with no floor. Clamping it to 0
+            // is not equivalent: when the decrement should drop kt BELOW kb,
+            // the Fortran falls through both branches and leaves qn(k) at zero,
+            // whereas the clamp can make kt equal kb and take the single-cell
+            // branch against the wrong donor. kt is only used as an index
+            // inside the two branches, both of which require kt >= kb >= 0, so
+            // a negative value here is safe.
+            kt = kt - 1;
 
             if (kt == kb) {
                 const Real tl = (zi[k] - za[kb]) / dza[kb];
