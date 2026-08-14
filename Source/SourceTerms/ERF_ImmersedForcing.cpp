@@ -397,8 +397,17 @@ void ImmersedForcingBuildings_Xmom (const Box& tbx,
         const Real roof_mask     = (t_blank > zero && t_blank <  t_blank_below && t_blank_above == zero && l_use_most) ? one : zero; // roof cell
         const Real south_mask    = (t_blank > zero && t_blank <= t_blank_north && t_blank_south == zero && l_use_most) ? one : zero; // south wall cell
         const Real north_mask    = (t_blank > zero && t_blank <= t_blank_south && t_blank_north == zero && l_use_most) ? one : zero; // north wall cell
-        const Real wall_mask     = (t_blank > zero && t_blank < one && !l_use_most) ? one : zero; // wall cell (not using most)
+        const Real wall_mask     = (t_blank > zero && t_blank < one && !l_use_most) ? one : zero; // all walls when NOT using MOST
+        const Real most_mask     = roof_mask + south_mask + north_mask; // cells getting MOST treatment
+        const Real east_west_mask = (t_blank > zero && t_blank < one && l_use_most && most_mask == zero) ? one : zero; // partial cells not covered by MOST (east/west walls)
         const Real interior_mask = (t_blank == 1.0) ? one : zero; // interior cell
+
+        // Debug print for specific cells
+        if (k == 1 && i >= 55 && i <= 58 && j >= 69 && j <= 72) {
+            printf("BLDG_XMOM [%d,%d,%d]: t_blank=%8.5f t_below=%8.5f t_above=%8.5f t_north=%8.5f t_south=%8.5f | roof=%1.0f south=%1.0f north=%1.0f wall=%1.0f ew=%1.0f interior=%1.0f\n",
+                   i, j, k, t_blank, t_blank_below, t_blank_above, t_blank_north, t_blank_south,
+                   roof_mask, south_mask, north_mask, wall_mask, east_west_mask, interior_mask);
+        }
 
         Real drag             = zero;
         Real u1_cellaway      = zero;
@@ -438,8 +447,8 @@ void ImmersedForcingBuildings_Xmom (const Box& tbx,
         bc_forcing_x        = -(u_target - ux); // BC forcing pushes nonrelative velocity toward target velocity
         drag               += bc_forcing_x * north_mask * rho_xface * CdM * U_s;
 
-        // wall forcing (if not using most)
-        drag               += wall_mask * t_blank * rho_xface * CdM * ux * windspeed;
+        // wall forcing (if not using most) or east/west walls when using MOST
+        drag               += (wall_mask + east_west_mask) * t_blank * rho_xface * CdM * ux * windspeed;
 
         // interior cell forcing
         drag               += interior_mask * rho_xface * CdM * ux * windspeed;
@@ -447,7 +456,7 @@ void ImmersedForcingBuildings_Xmom (const Box& tbx,
         if (l_implicit_drag) {
             // point-implicit rescale of the aggregated drag
             const Real lambda = CdM * ( (roof_mask + south_mask + north_mask) * U_s
-                                       + wall_mask * t_blank * windspeed
+                                       + (wall_mask + east_west_mask) * t_blank * windspeed
                                        + interior_mask * windspeed );
             xmom_src_arr(i,j,k) -= drag / (one + lambda*dt);
         } else if (is_slow_step && !use_ImmersedForcing_fast) {
@@ -548,7 +557,9 @@ void ImmersedForcingBuildings_Ymom (const Box& tby,
         const Real roof_mask     = (t_blank > zero && t_blank <  t_blank_below && t_blank_above == zero && l_use_most) ? one : zero; // roof cell
         const Real west_mask     = (t_blank > zero && t_blank <= t_blank_east  && t_blank_west  == zero && l_use_most) ? one : zero; // west wall cell
         const Real east_mask     = (t_blank > zero && t_blank <= t_blank_west  && t_blank_east  == zero && l_use_most) ? one : zero; // east wall cell
-        const Real wall_mask     = (t_blank > zero && t_blank < one && !l_use_most) ? one : zero; // wall cell (not using most)
+        const Real wall_mask     = (t_blank > zero && t_blank < one && !l_use_most) ? one : zero; // all walls when NOT using MOST
+        const Real most_mask     = roof_mask + west_mask + east_mask; // cells getting MOST treatment
+        const Real north_south_mask = (t_blank > zero && t_blank < one && l_use_most && most_mask == zero) ? one : zero; // partial cells not covered by MOST (north/south walls)
         const Real interior_mask = (t_blank == 1.0) ? one : zero; // interior cell
 
         Real drag             = zero;
@@ -589,8 +600,8 @@ void ImmersedForcingBuildings_Ymom (const Box& tby,
         bc_forcing_y        = -(u_target - uy); // BC forcing pushes nonrelative velocity toward target velocity
         drag               += bc_forcing_y * east_mask * rho_yface * CdM * U_s;
 
-        // wall forcing (if not using most)
-        drag               += wall_mask * t_blank * rho_yface * CdM * uy * windspeed;
+        // wall forcing (if not using most) or north/south walls when using MOST
+        drag               += (wall_mask + north_south_mask) * t_blank * rho_yface * CdM * uy * windspeed;
 
         // interior cell forcing
         drag               += interior_mask * rho_yface * CdM * uy * windspeed;
@@ -598,7 +609,7 @@ void ImmersedForcingBuildings_Ymom (const Box& tby,
         if (l_implicit_drag) {
             // point-implicit rescale of the aggregated drag
             const Real lambda = CdM * ( (roof_mask + west_mask + east_mask) * U_s
-                                       + wall_mask * t_blank * windspeed
+                                       + (wall_mask + north_south_mask) * t_blank * windspeed
                                        + interior_mask * windspeed );
             ymom_src_arr(i,j,k) -= drag / (one + lambda*dt);
         } else if (is_slow_step && !use_ImmersedForcing_fast) {
@@ -708,7 +719,9 @@ void ImmersedForcingBuildings_Zmom (const Box& tbz,
         const Real north_mask    = (t_blank > zero && t_blank <= t_blank_south && t_blank_north == zero && l_use_most && k >= 1) ? one : zero; // north wall cell
         const Real west_mask     = (t_blank > zero && t_blank <= t_blank_east  && t_blank_west  == zero && l_use_most && k >= 1) ? one : zero; // west wall cell
         const Real east_mask     = (t_blank > zero && t_blank <= t_blank_west  && t_blank_east  == zero && l_use_most && k >= 1) ? one : zero; // east wall cell
-        const Real wall_mask     = (t_blank > zero && t_blank < one && !l_use_most) ? one : zero; // wall cell (not using most)
+        const Real wall_mask     = (t_blank > zero && t_blank < one && !l_use_most) ? one : zero; // all walls when NOT using MOST
+        const Real most_mask     = south_mask + north_mask + west_mask + east_mask; // cells getting MOST treatment
+        const Real roof_mask     = (t_blank > zero && t_blank_above == zero && l_use_most) ? one : zero; // roof cell (horizontal surface) - uses simple drag
         const Real interior_mask = (t_blank == 1.0) ? one : zero; // interior cell
 
         Real drag             = zero;
@@ -759,8 +772,8 @@ void ImmersedForcingBuildings_Zmom (const Box& tbz,
         bc_forcing_z        = -(u_target - uz); // BC forcing pushes nonrelative velocity toward target velocity
         drag               += bc_forcing_z * east_mask * rho_zface * CdM * U_s;
 
-        // wall forcing (if not using most)
-        drag               += wall_mask * t_blank * rho_zface * CdM * uz * windspeed;
+        // wall forcing (if not using most) or roof when using MOST
+        drag               += (wall_mask + roof_mask) * t_blank * rho_zface * CdM * uz * windspeed;
 
         // interior cell forcing
         drag               += interior_mask * rho_zface * CdM * uz * windspeed;
@@ -768,7 +781,7 @@ void ImmersedForcingBuildings_Zmom (const Box& tbz,
         if (l_implicit_drag) {
             // point-implicit rescale of the aggregated drag
             const Real lambda = CdM * ( (south_mask + north_mask + west_mask + east_mask) * U_s
-                                       + wall_mask * t_blank * windspeed
+                                       + (wall_mask + roof_mask) * t_blank * windspeed
                                        + interior_mask * windspeed );
             zmom_src_arr(i,j,k) -= drag / (one + lambda*dt);
         } else if (is_slow_step && !use_ImmersedForcing_fast) {
