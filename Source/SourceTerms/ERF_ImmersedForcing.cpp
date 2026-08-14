@@ -5,6 +5,21 @@
 using namespace amrex;
 
 // helper function for immersed forcing wall model
+/**
+ * Compute the target velocity using Monin-Obukhov Similarity Theory for immersed forcing.
+ *
+ * @param[in] u1_2r First tangential velocity component.
+ * @param[in] u2_2r Second tangential velocity component.
+ * @param[in] delta Distance from the surface.
+ * @param[in] z0 Roughness length.
+ * @param[in] t_blank Volume fraction.
+ * @param[in] theta_face Potential temperature at the face.
+ * @param[in] theta_surf Potential temperature at the surface.
+ * @param[in] tflux_in Surface heat flux.
+ * @param[in] Olen_in Obukhov length.
+ * @param[in] stability_correction Whether to apply stability corrections.
+ * @return Target velocity component.
+ */
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 amrex::Real
 compute_if_most_target_vel(
