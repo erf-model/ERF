@@ -36,9 +36,31 @@ void ChopGrids2D (amrex::BoxArray& ba, const amrex::Box& domain, int target_size
 amrex::BoxArray
 ERFPostProcessBaseGrids (const amrex::Box& domain, bool decompose_in_z);
 
+/**
+ * Convert conservative state to primitive variables.
+ * @param[in] cons_state Conservative state MultiFab.
+ * @param[out] S_prim Primitive state MultiFab.
+ * @param[in] ng Number of ghost cells.
+ */
 void
 cons_to_prim(const amrex::MultiFab& cons_state, amrex::MultiFab& S_prim, int ng);
 
+/**
+ * Fill the ghost cells of the wall distance field, which is only computed on
+ * the valid region, so that operators reading from grown boxes do not see the
+ * sentinel value used to initialize it.
+ * @param[inout] wdist MultiFab holding the wall distance.
+ * @param[in] geom Geometry at this level.
+ */
+void
+fill_wall_dist_ghost_cells (amrex::MultiFab& wdist, const amrex::Geometry& geom);
+
+/**
+ * Compute total water mixing ratio from conservative state.
+ * @param[in] cons_state Conservative state MultiFab.
+ * @param[out] qt MultiFab to store total water.
+ * @param[in] n_qstate_into_total Number of components to include in total water.
+ */
 void
 make_qt(const amrex::MultiFab& cons_state, amrex::MultiFab& qt, int n_qstate_into_total);
 
@@ -471,6 +493,12 @@ ApplyMask (amrex::MultiFab& dst,
     }
 }
 
+/**
+ * Multiply a MultiFab by the inverse of an integer mask.
+ * @param[in,out] dst MultiFab to be masked.
+ * @param[in] imask Integer mask MultiFab.
+ * @param[in] nghost Number of ghost cells to include.
+ */
 AMREX_GPU_HOST
 AMREX_FORCE_INLINE
 void
@@ -493,6 +521,15 @@ ApplyInvertedMask (amrex::MultiFab& dst,
     }
 }
 
+/**
+ * Compute the distance to thin-body walls.
+ * @param[out] wdist MultiFab to store wall distances.
+ * @param[in] xfaces Indices of x-faces forming walls.
+ * @param[in] yfaces Indices of y-faces forming walls.
+ * @param[in] zfaces Indices of z-faces forming walls.
+ * @param[in] geomdata Geometry used for physical distance.
+ * @param[in] z_phys_cc Cell-centered physical height.
+ */
 void
 thinbody_wall_dist (std::unique_ptr<amrex::MultiFab>& wdist,
                     amrex::Vector<amrex::IntVect>& xfaces,
@@ -504,6 +541,17 @@ thinbody_wall_dist (std::unique_ptr<amrex::MultiFab>& wdist,
 
 void WeatherDataInterpolation(const double time);
 
+/**
+ * Perform quadratic interpolation in one dimension.
+ * @param[in] z Interpolation coordinate.
+ * @param[in] z0 Coordinate of first point.
+ * @param[in] p0 Value at first point.
+ * @param[in] z1 Coordinate of second point.
+ * @param[in] p1 Value at second point.
+ * @param[in] z2 Coordinate of third point.
+ * @param[in] p2 Value at third point.
+ * @return Interpolated value.
+ */
 AMREX_GPU_HOST_DEVICE
 AMREX_FORCE_INLINE
 amrex::Real

@@ -1,0 +1,26 @@
+HyperCLaw-V1.1
+7
+density
+rhotheta
+temp
+pressure
+super_droplets_moisture_number_density
+super_droplets_moisture_sd_number_density
+super_droplets_moisture_aerosol_mass_density_NaCl
+3
+25
+0
+0 0 0 
+20000 400 10000 
+
+((0,0,0) (199,3,99) (0,0,0)) 
+50 
+100 100 100 
+0
+0
+0 1 25
+50
+0 20000
+0 400
+0 10000
+Level_0/Cell

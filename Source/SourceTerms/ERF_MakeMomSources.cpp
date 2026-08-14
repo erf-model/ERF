@@ -67,8 +67,10 @@ void make_mom_sources (double time_d,
                        const Vector<Real*> d_sponge_ptrs_at_lev,
                        const Vector<MultiFab>* forecast_state_at_lev,
                              InputSoundingData& input_sounding_data,
+                             LargeScaleForcingData &lsf_data,
+                       std::unique_ptr<amrex::MultiFab>& lsf_tendencies,
                        const eb_& ebfact,
-                             bool is_slow_step)
+                       bool is_slow_step)
 {
     BL_PROFILE_REGION("erf_make_mom_sources()");
 
@@ -603,50 +605,125 @@ void make_mom_sources (double time_d,
             }
         }
 
+        if (solverChoice.large_scale_forcing && is_slow_step)
+        {
+            // subsidence terms for U and V
+            auto lsf_arr = lsf_tendencies->const_array(mfi);
+
+            const int kmin = domain.smallEnd(2) + 1; // minimum k for vertical subsidence
+            const int kmax = domain.bigEnd(2) - 1;   // maximum k for vertical subsidence
+
+            ParallelFor(tbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            {
+                if (k >= kmin && k <= kmax) {
+                    int k1, k2;
+                    if (lsf_arr(i, j, k, 2) >= 0.0)
+                    {
+                        k1 = k;
+                        k2 = k-1;
+                    } else {
+                        k1 = k+1;
+                        k2 = k;
+                    }
+
+                    // one-sided difference over the single cell k1->k2
+                    Real dzInv = dxInv[2];
+                    if (z_nd_arr) {
+                        Real z_uf_1 = fourth * ( z_nd_arr(i,j,k1  ) + z_nd_arr(i,j+1,k1  )
+                                               + z_nd_arr(i,j,k1+1) + z_nd_arr(i,j+1,k1+1) );
+                        Real z_uf_2 = fourth * ( z_nd_arr(i,j,k2  ) + z_nd_arr(i,j+1,k2  )
+                                               + z_nd_arr(i,j,k2+1) + z_nd_arr(i,j+1,k2+1) );
+                        dzInv = one / (z_uf_1 - z_uf_2);
+                    }
+                    Real rho_on_u_face = myhalf * ( cell_data(i,j,k,Rho_comp) + cell_data(i-1,j,k,Rho_comp) );
+                    amrex::Real utend = -(dzInv * lsf_arr(i, j, k, 2)) * ( u(i, j, k1) - u(i, j, k2) );
+                    xmom_src_arr(i, j, k) += utend * rho_on_u_face;
+                }
+            });
+
+            ParallelFor(tby, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            {
+                if (k >= kmin && k <= kmax) {
+                    int k1, k2;
+                    if (lsf_arr(i, j, k, 2) >= 0.0)
+                    {
+                        k1 = k;
+                        k2 = k-1;
+                    } else {
+                        k1 = k+1;
+                        k2 = k;
+                    }
+
+                    // one-sided difference over the single cell k1->k2
+                    Real dzInv = dxInv[2];
+                    if (z_nd_arr) {
+                        Real z_vf_1 = fourth * ( z_nd_arr(i,j,k1  ) + z_nd_arr(i+1,j,k1  )
+                                               + z_nd_arr(i,j,k1+1) + z_nd_arr(i+1,j,k1+1) );
+                        Real z_vf_2 = fourth * ( z_nd_arr(i,j,k2  ) + z_nd_arr(i+1,j,k2  )
+                                               + z_nd_arr(i,j,k2+1) + z_nd_arr(i+1,j,k2+1) );
+                        dzInv = one / (z_vf_1 - z_vf_2);
+                    }
+                    Real rho_on_v_face = 0.5 * ( cell_data(i,j,k,Rho_comp) + cell_data(i,j-1,k,Rho_comp) );
+                    amrex::Real vtend = -(dzInv * lsf_arr(i, j, k, 2)) * ( v(i, j, k1) - v(i, j, k2) );
+                    ymom_src_arr(i, j, k) += vtend * rho_on_v_face;
+                }
+            });
+        }
+
         // *************************************************************************************
         // 5. Add nudging towards value specified in input sounding
         // *************************************************************************************
         if (solverChoice.nudging_from_input_sounding && is_slow_step)
         {
-            int itime_n    = 0;
-            int itime_np1  = 0;
-            Real coeff_n   = one;
-            Real coeff_np1 = zero;
+            Real uv_coeff_n = 1.0;
+            Real uv_coeff_np1 = 0.0;
+            Real tau = Real(1.0) / input_sounding_data.tau_nudging;
+            Real* u_nudge_n, *u_nudge_np1, *v_nudge_n, *v_nudge_np1;
+            if (!solverChoice.large_scale_forcing)
+            {
+                int itime_n    = 0;
+                int itime_np1  = 0;
+                int n_sounding_times = input_sounding_data.input_sounding_time.size();
 
-            Real tau_inv = one / input_sounding_data.tau_nudging;
-
-            int n_sounding_times = input_sounding_data.input_sounding_time.size();
-
-            for (int nt = 1; nt < n_sounding_times; nt++) {
-                if (time > input_sounding_data.input_sounding_time[nt]) itime_n = nt;
-            }
-            if (itime_n == n_sounding_times-1) {
-                itime_np1 = itime_n;
+                for (int nt = 1; nt < n_sounding_times; nt++) {
+                    if (time > input_sounding_data.input_sounding_time[nt]) itime_n = nt;
+                }
+                if (itime_n == n_sounding_times-1) {
+                    itime_np1 = itime_n;
+                } else {
+                    itime_np1 = itime_n+1;
+                    uv_coeff_np1 = (time                                           - input_sounding_data.input_sounding_time[itime_n]) /
+                                (input_sounding_data.input_sounding_time[itime_np1] - input_sounding_data.input_sounding_time[itime_n]);
+                    uv_coeff_n   = Real(1.0) - uv_coeff_np1;
+                }
+                u_nudge_n = input_sounding_data.U_inp_sound_d[itime_n].dataPtr() + 1;
+                u_nudge_np1 = input_sounding_data.U_inp_sound_d[itime_np1].dataPtr() + 1;
+                v_nudge_n  = input_sounding_data.V_inp_sound_d[itime_n].dataPtr() + 1;
+                v_nudge_np1 = input_sounding_data.V_inp_sound_d[itime_np1].dataPtr() + 1;
             } else {
-                itime_np1 = itime_n+1;
-                coeff_np1 = (time                                               - input_sounding_data.input_sounding_time[itime_n]) /
-                            (input_sounding_data.input_sounding_time[itime_np1] - input_sounding_data.input_sounding_time[itime_n]);
-                coeff_n   = one - coeff_np1;
+                int itime_curr = 0;
+                int itime_next = 0;
+                uv_coeff_n = 1.0;
+                uv_coeff_np1 = 0.0;
+                tau = 1.0 / lsf_data.tau_lsf; // only applies to u,v LSF nudging
+
+                lsf_data.get_forcing_time_coeffs(time, itime_curr, itime_next, uv_coeff_n, uv_coeff_np1);
+                u_nudge_n   = lsf_data.u_int_lsf_d[itime_curr].dataPtr();
+                u_nudge_np1 = lsf_data.u_int_lsf_d[itime_next].dataPtr();
+                v_nudge_n   = lsf_data.v_int_lsf_d[itime_curr].dataPtr();
+                v_nudge_np1 = lsf_data.v_int_lsf_d[itime_next].dataPtr();
             }
 
-            int nr = Rho_comp;
+            ParallelFor(tbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            {
+                Real unudge = -((dptr_u_plane(k)/dptr_r_plane(k)) - (uv_coeff_n*u_nudge_n[k] + uv_coeff_np1*u_nudge_np1[k]));
+                xmom_src_arr(i, j, k) += tau * unudge * dptr_r_plane(k);
+            });
 
-            const Real* u_inp_sound_n   = input_sounding_data.U_inp_sound_d[itime_n].dataPtr();
-            const Real* u_inp_sound_np1 = input_sounding_data.U_inp_sound_d[itime_np1].dataPtr();
-            const Real* v_inp_sound_n   = input_sounding_data.V_inp_sound_d[itime_n].dataPtr();
-            const Real* v_inp_sound_np1 = input_sounding_data.V_inp_sound_d[itime_np1].dataPtr();
-            ParallelFor(tbx, tby,
-            [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            ParallelFor(tby, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
-                Real nudge_u = (coeff_n*u_inp_sound_n[k] + coeff_np1*u_inp_sound_np1[k]) - (dptr_u_plane(k)/dptr_r_plane(k));
-                nudge_u *= tau_inv;
-                xmom_src_arr(i, j, k) += cell_data(i, j, k, nr) * nudge_u;
-            },
-            [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-            {
-                Real nudge_v = (coeff_n*v_inp_sound_n[k] + coeff_np1*v_inp_sound_np1[k]) - (dptr_v_plane(k)/dptr_r_plane(k));
-                nudge_v *= tau_inv;
-                ymom_src_arr(i, j, k) += cell_data(i, j, k, nr) * nudge_v;
+                Real vnudge = -((dptr_v_plane(k)/dptr_r_plane(k)) - (uv_coeff_n*v_nudge_n[k] + uv_coeff_np1*v_nudge_np1[k]));
+                ymom_src_arr(i, j, k) += tau * vnudge * dptr_r_plane(k);
             });
         }
 
