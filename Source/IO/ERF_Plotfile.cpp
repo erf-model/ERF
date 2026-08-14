@@ -365,22 +365,18 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
 
         for (int lev = 0; lev <= finest_level; ++lev) {
             mf_cc_tau[lev].define(grids[lev], dmap[lev], 9, IntVect(1,1,1));
-            mf_cc_tau[lev].setVal(-1.e20);
+            mf_cc_tau[lev].setVal(bogus_large_value);
 
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
             for ( MFIter mfi(mf_cc_tau[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi)
             {
-                const Box& bxcc_ba12 = mfi.tilebox();
-                const Box& bxcc_ba13 = mfi.tilebox(); // IntVect(1,0,1)
-                const Box& bxcc_ba23 = mfi.tilebox();
-
+                // todo - clean this up
                 const Box& bxcc= mfi.tilebox();
 
                 const Array4<Real>& tau12 = (Tau[lev][TauType::tau12]) ? Tau[lev][TauType::tau12]->array(mfi) : Array4<Real>{};
                 const Array4<Real>& tau21 = (Tau[lev][TauType::tau21]) ? Tau[lev][TauType::tau21]->array(mfi) : Array4<Real>{};
-
 
                 const Array4<Real>& tau13 = (Tau[lev][TauType::tau13]) ? Tau[lev][TauType::tau13]->array(mfi) : Array4<Real>{};
                 const Array4<Real>& tau31 = (Tau[lev][TauType::tau31]) ? Tau[lev][TauType::tau31]->array(mfi) : Array4<Real>{};
@@ -388,34 +384,21 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
                 const Array4<Real>& tau23 = (Tau[lev][TauType::tau23]) ? Tau[lev][TauType::tau23]->array(mfi) : Array4<Real>{};
                 const Array4<Real>& tau32 = (Tau[lev][TauType::tau32]) ? Tau[lev][TauType::tau32]->array(mfi) : Array4<Real>{};
 
-                //const Array4<Real>& tau11 = (Tau[lev][TauType::tau11]) ? Tau[lev][TauType::tau11]->array(mfi) : Array4<Real>{};
-                //const Array4<Real>& tau22 = (Tau[lev][TauType::tau22]) ? Tau[lev][TauType::tau22]->array(mfi) : Array4<Real>{};
-                //const Array4<Real>& tau33 = (Tau[lev][TauType::tau33]) ? Tau[lev][TauType::tau33]->array(mfi) : Array4<Real>{};
-
                 const Array4<Real>& tau_cc   = mf_cc_tau[lev].array(mfi);
-                ParallelFor(bxcc_ba12, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                ParallelFor(bxcc, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
                     tau_cc(i, j, k, TauType::tau12) = 0.25 * (tau12(i, j, k) + tau12(i, j+1, k) + tau12(i+1,j+1,k) + tau12(i+1, j, k));
                     tau_cc(i, j, k, TauType::tau21) = 0.25 * (tau21(i, j, k) + tau21(i, j+1, k) + tau21(i+1,j+1,k) + tau21(i+1, j, k));
                 });
 
-                ParallelFor(bxcc_ba13, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                ParallelFor(bxcc, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
                     tau_cc(i, j, k, TauType::tau13) = 0.25 * (tau13(i, j, k) + tau13(i, j, k+1) + tau13(i+1,j,k+1) + tau13(i+1, j, k));
                     tau_cc(i, j, k, TauType::tau31) = 0.25 * (tau31(i, j, k) + tau31(i, j, k+1) + tau31(i+1,j,k+1) + tau31(i+1, j, k));
                 });
 
-
-                ParallelFor(bxcc_ba23, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                ParallelFor(bxcc, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
                     tau_cc(i, j, k, TauType::tau23) = 0.25 * (tau23(i, j, k) + tau23(i, j, k+1) + tau23(i,j+1,k+1) + tau23(i, j+1, k));
                     tau_cc(i, j, k, TauType::tau32) = 0.25 * (tau32(i, j, k) + tau32(i, j, k+1) + tau32(i,j+1,k+1) + tau32(i, j+1, k));
                 });
-
-                /*
-                ParallelFor(bxcc, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-                    tau_cc(i, j, k, TauType::tau11) = tau11(i, j, k);
-                    tau_cc(i, j, k, TauType::tau22) = 0.25 * (tau22(i, j, k) + tau22(i, j+1, k) + tau22(i+1,j+1,k) + tau22(i+1, j, k));
-                    tau_cc(i, j, k, TauType::tau33) = 0.25 * (tau33(i, j, k) + tau33(i, j+1, k) + tau33(i+1,j+1,k) + tau33(i+1, j, k));
-                });
-                */
             }
         }
     }
@@ -430,7 +413,7 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
     {
         for (int lev = 0; lev <= finest_level; ++lev) {
             mf_cc_fx[lev].define(grids[lev], dmap[lev], 7, IntVect(1,1,1));
-            mf_cc_fx[lev].setVal(-1.e20);
+            mf_cc_fx[lev].setVal(bogus_large_value);
 
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())

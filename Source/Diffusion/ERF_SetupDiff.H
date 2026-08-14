@@ -5,17 +5,12 @@
     const Real dx_inv = cellSizeInv[0];
     const Real dy_inv = cellSizeInv[1];
 
-    const bool SurfLayer_xlo = SurfLayer[0] != nullptr;
-    const bool SurfLayer_ylo = SurfLayer[1] != nullptr;
-    const bool SurfLayer_zlo = SurfLayer[2] != nullptr;
-    const bool SurfLayer_xhi = SurfLayer[3] != nullptr;
-    const bool SurfLayer_yhi = SurfLayer[4] != nullptr;
-    const bool SurfLayer_zhi = SurfLayer[5] != nullptr;
-
-    //amrex::Print() << " DiffusionSrcForState_N: " << std::endl;
-    //amrex::Print() << "    SurfaceLayer on XLO = " << SurfLayer_xlo << " XHI = " << SurfLayer_xhi << std::endl;
-    //amrex::Print() << "    SurfaceLayer on YLO = " << SurfLayer_ylo << " YHI = " << SurfLayer_yhi << std::endl;
-    //amrex::Print() << "    SurfaceLayer on ZLO = " << SurfLayer_zlo << " ZHI = " << SurfLayer_zhi << std::endl;
+    [[maybe_unused]] const bool SurfLayer_xlo = SurfLayer[0] != nullptr;
+    [[maybe_unused]] const bool SurfLayer_ylo = SurfLayer[1] != nullptr;
+    [[maybe_unused]] const bool SurfLayer_zlo = SurfLayer[2] != nullptr;
+    [[maybe_unused]] const bool SurfLayer_xhi = SurfLayer[3] != nullptr;
+    [[maybe_unused]] const bool SurfLayer_yhi = SurfLayer[4] != nullptr;
+    [[maybe_unused]] const bool SurfLayer_zhi = SurfLayer[5] != nullptr;
 
     const Box xbx = surroundingNodes(bx,0);
     const Box ybx = surroundingNodes(bx,1);

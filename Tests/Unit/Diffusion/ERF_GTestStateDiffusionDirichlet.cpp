@@ -176,7 +176,7 @@ DiffusionCase run_case (int axis, bool low_active, bool high_active,
     auto qfx1_z_arr = qfx1_z[0].array();
     auto qfx2_arr = qfx2_z[0].array();
     auto diss_arr = diss[0].array();
-    Vector<std::unique_ptr<SurfaceLayer>> surfLayer(6, nullptr);
+    Vector<std::unique_ptr<SurfaceLayer>> surfLayer(6);
     DiffusionSrcForState_N(
         domain, domain, RhoTheta_comp, 1,
         xvel[0].const_array(), yvel[0].const_array(), cell_data[0].const_array(), cell_prim[0].const_array(),

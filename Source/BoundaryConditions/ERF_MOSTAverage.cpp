@@ -702,6 +702,9 @@ MOSTAverage::set_k_indices_T (const int& lev)
     Real d_zref   = zref_tmp;
     Real d_radius = static_cast<Real>(m_radius);
     amrex::ignore_unused(d_radius);
+    // todo - generalize below for the faces
+    amrex::ignore_unused(imf_cc);
+    amrex::ignore_unused(fields);
 
     const int dir = m_face.coordDir();
     const bool is_lo_face = m_face.isLow();
@@ -750,7 +753,6 @@ MOSTAverage::set_k_indices_T (const int& lev)
                         k_arr(i,j,k) = 0;
                         bool found = false;
                         Real face = prob_lo;
-                        int index = (dir == 0) ? i : j;
 
                         Real z_target = (face + d_zref);
 
@@ -777,7 +779,6 @@ MOSTAverage::set_k_indices_T (const int& lev)
                         bool found = false;
 
                         Real face = prob_hi;
-                        int index = (dir == 0) ? i : j;
 
                         Real z_target = (face - d_zref);
 
@@ -1207,7 +1208,6 @@ MOSTAverage::compute_plane_averages (const int& lev)
         d_fact_old = zero;
     }
 
-    int klo = m_geom[lev].Domain().smallEnd(2);
 
     // GPU array to accumulate averages into
     Gpu::DeviceVector<Real> pavg(plane_average.size(), zero);
@@ -2543,7 +2543,6 @@ MOSTAverage::write_averages (const int& lev)
     // MFIter on CC
     int imf_cc = 3;
 
-    int klo = m_geom[lev].Domain().smallEnd(2);
 
     int navg = m_navg - 4;
 

@@ -25,9 +25,8 @@ SurfaceLayer::update_fluxes (const int& lev,
 {
     bool zlo = (int) m_face == Orientation::zlo();
     // Update with SST/TSK data if we have a valid pointer
-//    if (m_sst_lev[lev][0] && zlo) fill_tsurf_with_sst_and_tsk(lev, time);
     if (!m_has_ocean_lsm_tsurf &&
-        !m_sst_lev[lev].empty() && m_sst_lev[lev][0]) {
+        !m_sst_lev[lev].empty() && m_sst_lev[lev][0] && zlo) {
         fill_tsurf_with_sst_and_tsk(lev, elapsed_time_since_start_low);
     }
 
@@ -43,9 +42,7 @@ SurfaceLayer::update_fluxes (const int& lev,
     }
 
     // Update land surface temp if we have a valid pointer
-    //if (m_has_lsm_tsurf && zlo) get_lsm_tsurf(lev);
-    if (m_has_lsm_tsurf) { get_lsm_tsurf(lev); }
-
+    if (m_has_lsm_tsurf && zlo) get_lsm_tsurf(lev);
 
     // Fill interior ghost cells
     t_surf[lev]->FillBoundary(m_geom[lev].periodicity());
@@ -1433,8 +1430,6 @@ SurfaceLayer::fill_qsurf_with_qsat (const int& lev,
     {
         Box gtbx = mfi.growntilebox();
         Box vbx = mfi.validbox();
-
-        const int face_lo = vbx.smallEnd(dir);
 
         // Since lmask is used in the MFIter, the Z dimensions of the box is 0!
         // X and Y faces need the entire domain Z range, so resize the box accordingly
