@@ -2432,11 +2432,14 @@
 
 
 
-      if (debug_local .gt. 0 .and. i_dbg_local .ge. its .and. i_dbg_local .le. ite) then
+      if (debug_local .gt. 0 .and. loop .eq. 1 .and. &
+          i_dbg_local .ge. its .and. i_dbg_local .le. ite) then
+        do k_dbg = kts, kte
         write(*,'(A,1X,I3,4(1X,ES24.16E3))') &
-          'WDM6-FORT_PRE_G13G', kts, &
-          qrs(i_dbg_local,kts,2), qrs(i_dbg_local,kts,3), &
-          rh(i_dbg_local,kts,1), t0c-t(i_dbg_local,kts)
+          'WDM6-FORT_PRE_G13G', k_dbg, &
+          qrs(i_dbg_local,k_dbg,2), qrs(i_dbg_local,k_dbg,3), &
+          rh(i_dbg_local,k_dbg,1), t0c-t(i_dbg_local,k_dbg)
+        enddo
       endif
           if(supcol.lt.0.) then
             if(qrs(i,k,2).gt.0. .and. rh(i,k,1).lt.1.) then
@@ -2456,10 +2459,13 @@
               pgevp(i,k) = min(max(pgevp(i,k),-qrs(i,k,3)/dtcld),0.)
             endif
           endif
-      if (debug_local .gt. 0 .and. i_dbg_local .ge. its .and. i_dbg_local .le. ite) then
+      if (debug_local .gt. 0 .and. loop .eq. 1 .and. &
+          i_dbg_local .ge. its .and. i_dbg_local .le. ite) then
+        do k_dbg = kts, kte
         write(*,'(A,1X,I3,2(1X,ES24.16E3))') &
-          'WDM6-FORT_POST_G13G', kts, &
-          psevp(i_dbg_local,kts), pgevp(i_dbg_local,kts)
+          'WDM6-FORT_POST_G13G', k_dbg, &
+          psevp(i_dbg_local,k_dbg), pgevp(i_dbg_local,k_dbg)
+        enddo
       endif
         enddo
       enddo
@@ -2469,12 +2475,15 @@
 
 
 
-      if (debug_local .gt. 0 .and. i_dbg_local .ge. its .and. i_dbg_local .le. ite) then
+      if (debug_local .gt. 0 .and. loop .eq. 1 .and. &
+          i_dbg_local .ge. its .and. i_dbg_local .le. ite) then
+        do k_dbg = kts, kte
         write(*,'(A,1X,I3,9(1X,ES24.16E3))') &
-          'WDM6-FORT_PRE_G14', kts, &
-          q(i_dbg_local,kts), qci(i_dbg_local,kts,1), qci(i_dbg_local,kts,2), &
-          qrs(i_dbg_local,kts,1), qrs(i_dbg_local,kts,2), qrs(i_dbg_local,kts,3), &
-          ncr(i_dbg_local,kts,2), ncr(i_dbg_local,kts,3), t(i_dbg_local,kts)
+          'WDM6-FORT_PRE_G14', k_dbg, &
+          q(i_dbg_local,k_dbg), qci(i_dbg_local,k_dbg,1), qci(i_dbg_local,k_dbg,2), &
+          qrs(i_dbg_local,k_dbg,1), qrs(i_dbg_local,k_dbg,2), qrs(i_dbg_local,k_dbg,3), &
+          ncr(i_dbg_local,k_dbg,2), ncr(i_dbg_local,k_dbg,3), t(i_dbg_local,k_dbg)
+        enddo
       endif
       do k = kts, kte
         do i = its, ite
@@ -2754,12 +2763,15 @@
           endif
         enddo
       enddo
-      if (debug_local .gt. 0 .and. i_dbg_local .ge. its .and. i_dbg_local .le. ite) then
+      if (debug_local .gt. 0 .and. loop .eq. 1 .and. &
+          i_dbg_local .ge. its .and. i_dbg_local .le. ite) then
+        do k_dbg = kts, kte
         write(*,'(A,1X,I3,9(1X,ES24.16E3))') &
-          'WDM6-FORT_POST_G14', kts, &
-          q(i_dbg_local,kts), qci(i_dbg_local,kts,1), qci(i_dbg_local,kts,2), &
-          qrs(i_dbg_local,kts,1), qrs(i_dbg_local,kts,2), qrs(i_dbg_local,kts,3), &
-          ncr(i_dbg_local,kts,2), ncr(i_dbg_local,kts,3), t(i_dbg_local,kts)
+          'WDM6-FORT_POST_G14', k_dbg, &
+          q(i_dbg_local,k_dbg), qci(i_dbg_local,k_dbg,1), qci(i_dbg_local,k_dbg,2), &
+          qrs(i_dbg_local,k_dbg,1), qrs(i_dbg_local,k_dbg,2), qrs(i_dbg_local,k_dbg,3), &
+          ncr(i_dbg_local,k_dbg,2), ncr(i_dbg_local,k_dbg,3), t(i_dbg_local,k_dbg)
+        enddo
       endif
       if (debug_local .ge. 1 .and. i_dbg_local .ge. its .and. i_dbg_local .le. ite) then
         do k = max(kts,40), min(kte,42)
@@ -2776,11 +2788,14 @@
 
 
 
-      if (debug_local .gt. 0 .and. i_dbg_local .ge. its .and. i_dbg_local .le. ite) then
+      if (debug_local .gt. 0 .and. loop .eq. 1 .and. &
+          i_dbg_local .ge. its .and. i_dbg_local .le. ite) then
+        do k_dbg = kts, kte
         write(*,'(A,1X,I3,6(1X,ES24.16E3))') &
-          'WDM6-FORT_PRE_G15', kts, &
-          q(i_dbg_local,kts), p(i_dbg_local,kts), t(i_dbg_local,kts), &
-          qs(i_dbg_local,kts,1), qs(i_dbg_local,kts,2), rh(i_dbg_local,kts,1)
+          'WDM6-FORT_PRE_G15', k_dbg, &
+          q(i_dbg_local,k_dbg), p(i_dbg_local,k_dbg), t(i_dbg_local,k_dbg), &
+          qs(i_dbg_local,k_dbg,1), qs(i_dbg_local,k_dbg,2), rh(i_dbg_local,k_dbg,1)
+        enddo
       endif
       hsub = xls
       hvap = xlv0
@@ -2811,11 +2826,14 @@
           rh(i,k,1) = max(q(i,k) / qs(i,k,1),qmin)
         enddo
       enddo
-      if (debug_local .gt. 0 .and. i_dbg_local .ge. its .and. i_dbg_local .le. ite) then
+      if (debug_local .gt. 0 .and. loop .eq. 1 .and. &
+          i_dbg_local .ge. its .and. i_dbg_local .le. ite) then
+        do k_dbg = kts, kte
         write(*,'(A,1X,I3,6(1X,ES24.16E3))') &
-          'WDM6-FORT_POST_G15', kts, &
-          q(i_dbg_local,kts), p(i_dbg_local,kts), t(i_dbg_local,kts), &
-          qs(i_dbg_local,kts,1), qs(i_dbg_local,kts,2), rh(i_dbg_local,kts,1)
+          'WDM6-FORT_POST_G15', k_dbg, &
+          q(i_dbg_local,k_dbg), p(i_dbg_local,k_dbg), t(i_dbg_local,k_dbg), &
+          qs(i_dbg_local,k_dbg,1), qs(i_dbg_local,k_dbg,2), rh(i_dbg_local,k_dbg,1)
+        enddo
       endif
       if (debug_local .ge. 1 .and. i_dbg_local .ge. its .and. i_dbg_local .le. ite) then
         do k = max(kts,40), min(kte,42)
@@ -2828,11 +2846,14 @@
         enddo
       endif
 
-      if (debug_local .gt. 0 .and. i_dbg_local .ge. its .and. i_dbg_local .le. ite) then
+      if (debug_local .gt. 0 .and. loop .eq. 1 .and. &
+          i_dbg_local .ge. its .and. i_dbg_local .le. ite) then
+        do k_dbg = kts, kte
         write(*,'(A,1X,I3,4(1X,ES24.16E3))') &
-          'WDM6-FORT_PRE_G16A', kts, &
-          qrs(i_dbg_local,kts,1), qci(i_dbg_local,kts,1), &
-          ncr(i_dbg_local,kts,2), ncr(i_dbg_local,kts,3)
+          'WDM6-FORT_PRE_G16A', k_dbg, &
+          qrs(i_dbg_local,k_dbg,1), qci(i_dbg_local,k_dbg,1), &
+          ncr(i_dbg_local,k_dbg,2), ncr(i_dbg_local,k_dbg,3)
+        enddo
       endif
 
      do k = kts,kte_in
@@ -2870,19 +2891,25 @@
         enddo
       enddo
 
-      if (debug_local .gt. 0 .and. i_dbg_local .ge. its .and. i_dbg_local .le. ite) then
+      if (debug_local .gt. 0 .and. loop .eq. 1 .and. &
+          i_dbg_local .ge. its .and. i_dbg_local .le. ite) then
+        do k_dbg = kts, kte
         write(*,'(A,1X,I3,5(1X,ES24.16E3))') &
-          'WDM6-FORT_POST_G16A', kts, &
-          qrs(i_dbg_local,kts,1), qci(i_dbg_local,kts,1), &
-          ncr(i_dbg_local,kts,2), ncr(i_dbg_local,kts,3), &
-          avedia(i_dbg_local,kts,2)
+          'WDM6-FORT_POST_G16A', k_dbg, &
+          qrs(i_dbg_local,k_dbg,1), qci(i_dbg_local,k_dbg,1), &
+          ncr(i_dbg_local,k_dbg,2), ncr(i_dbg_local,k_dbg,3), &
+          avedia(i_dbg_local,k_dbg,2)
+        enddo
       endif
 
-      if (debug_local .gt. 0 .and. i_dbg_local .ge. its .and. i_dbg_local .le. ite) then
+      if (debug_local .gt. 0 .and. loop .eq. 1 .and. &
+          i_dbg_local .ge. its .and. i_dbg_local .le. ite) then
+        do k_dbg = kts, kte
         write(*,'(A,1X,I3,4(1X,ES24.16E3))') &
-          'WDM6-FORT_PRE_G16B', kts, &
-          rh(i_dbg_local,kts,1), qci(i_dbg_local,kts,1), &
-          ncr(i_dbg_local,kts,1), ncr(i_dbg_local,kts,2)
+          'WDM6-FORT_PRE_G16B', k_dbg, &
+          rh(i_dbg_local,k_dbg,1), qci(i_dbg_local,k_dbg,1), &
+          ncr(i_dbg_local,k_dbg,1), ncr(i_dbg_local,k_dbg,2)
+        enddo
       endif
 
       do k = kts, kte
@@ -2976,23 +3003,29 @@
         enddo
       enddo
 
-      if (debug_local .gt. 0 .and. i_dbg_local .ge. its .and. i_dbg_local .le. ite) then
+      if (debug_local .gt. 0 .and. loop .eq. 1 .and. &
+          i_dbg_local .ge. its .and. i_dbg_local .le. ite) then
+        do k_dbg = kts, kte
         write(*,'(A,1X,I3,5(1X,ES24.16E3))') &
-          'WDM6-FORT_POST_G16B', kts, &
-          q(i_dbg_local,kts), qci(i_dbg_local,kts,1), &
-          ncr(i_dbg_local,kts,1), ncr(i_dbg_local,kts,2), &
-          pcond(i_dbg_local,kts)
+          'WDM6-FORT_POST_G16B', k_dbg, &
+          q(i_dbg_local,k_dbg), qci(i_dbg_local,k_dbg,1), &
+          ncr(i_dbg_local,k_dbg,1), ncr(i_dbg_local,k_dbg,2), &
+          pcond(i_dbg_local,k_dbg)
+        enddo
       endif
 
 
 
 
-      if (debug_local .gt. 0 .and. i_dbg_local .ge. its .and. i_dbg_local .le. ite) then
+      if (debug_local .gt. 0 .and. loop .eq. 1 .and. &
+          i_dbg_local .ge. its .and. i_dbg_local .le. ite) then
+        do k_dbg = kts, kte
         write(*,'(A,1X,I3,5(1X,ES24.16E3))') &
-          'WDM6-FORT_PRE_G17', kts, &
-          qci(i_dbg_local,kts,1), qci(i_dbg_local,kts,2), &
-          qrs(i_dbg_local,kts,1), ncr(i_dbg_local,kts,2), &
-          ncr(i_dbg_local,kts,3)
+          'WDM6-FORT_PRE_G17', k_dbg, &
+          qci(i_dbg_local,k_dbg,1), qci(i_dbg_local,k_dbg,2), &
+          qrs(i_dbg_local,k_dbg,1), ncr(i_dbg_local,k_dbg,2), &
+          ncr(i_dbg_local,k_dbg,3)
+        enddo
       endif
 
       do k = kts, kte
@@ -3024,12 +3057,15 @@
         enddo
       enddo
 
-      if (debug_local .gt. 0 .and. i_dbg_local .ge. its .and. i_dbg_local .le. ite) then
+      if (debug_local .gt. 0 .and. loop .eq. 1 .and. &
+          i_dbg_local .ge. its .and. i_dbg_local .le. ite) then
+        do k_dbg = kts, kte
         write(*,'(A,1X,I3,5(1X,ES24.16E3))') &
-          'WDM6-FORT_POST_G17', kts, &
-          qci(i_dbg_local,kts,1), qci(i_dbg_local,kts,2), &
-          qrs(i_dbg_local,kts,1), ncr(i_dbg_local,kts,2), &
-          ncr(i_dbg_local,kts,3)
+          'WDM6-FORT_POST_G17', k_dbg, &
+          qci(i_dbg_local,k_dbg,1), qci(i_dbg_local,k_dbg,2), &
+          qrs(i_dbg_local,k_dbg,1), ncr(i_dbg_local,k_dbg,2), &
+          ncr(i_dbg_local,k_dbg,3)
+        enddo
       endif
    enddo
 

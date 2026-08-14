@@ -77,15 +77,24 @@ Real wdm6_conden (Real a, Real b, Real c, Real d, Real e,
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 Real wdm6_lamdar (Real qr, Real den, Real nr, Real pidnr_arg) {
-    // Rain slope parameter using number concentration nr
-    // qr = rain mixing ratio (kg/kg)
-    // den = air density (kg/m^3)
-    // nr = rain number concentration (#/kg)
-    // Returns 1/lambda (m)
-    if (qr <= Real(1.e-9) || nr <= Real(1.e-2)) {
-        return Real(1.0) / Real(5.0e4);  // lamdarmax
-    }
-    return std::pow((pidnr_arg * nr * den) / (den * qr), Real(1.0)/Real(3.0));
+    // Fortran statement function, ERF_module_mp_wdm6.F90:3277 and :3357:
+    //     lamdar(x,y,z) = exp(log(((pidnr*z)/(x*y)))*((.33333333)))
+    // called as lamdar(qrs(i,k,1), den(i,k), ncr(i,k)), so x=qr, y=den, z=nr:
+    // the denominator is qr*den, NOT qr alone.
+    //
+    // This carried the identical defect already fixed in wdm6_lamdac: it wrote
+    // (pidnr*nr*den)/(den*qr), in which den cancels, dropping the /den entirely
+    // and inflating rslope by den^(-1/3). Measured at (199,3,43): the rain slope
+    // was 3.098e-05 native against 2.833e-05 on the bridge, a ratio of 1.0936
+    // against den = 0.765, matching den^(-1/3) exactly. That pushed avedia
+    // across the di82 threshold in G16a, 8.9365e-05 native against 8.1717e-05,
+    // so the bridge collapsed rain back into cloud (qr and nr to zero, qc and nc
+    // incremented) while the native path left the cell untouched.
+    //
+    // The old qr/nr guard is dropped: every caller already gates on
+    // qr <= qcrmin || nr <= nrmin with the same values, and the branch returned
+    // 1/5.0e4, a slope, where the caller expects a lamda and inverts it again.
+    return std::exp(std::log((pidnr_arg * nr) / (qr * den)) * wdm6_literal(0.33333333));
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
@@ -3720,15 +3729,17 @@ void WDM6::Advance(const Real& dt_advance,
 #endif
 
 #if !defined(AMREX_USE_GPU)
-            if (microphysics_debug > 0 && diag_col_in_tile) {
-                const Real diag_supcol = Real(t0c) - t_arr(diag_i,diag_j,diag_k);
+            if (microphysics_debug > 0 && loop == 0 && diag_col_in_tile) {
+                for (int kdbg = klo; kdbg <= khi; ++kdbg) {
+                const Real diag_supcol = Real(t0c) - t_arr(diag_i,diag_j,kdbg);
                 std::printf("WDM6-CPP_PRE_G13G %3d %24.16E %24.16E %24.16E %24.16E\n",
-                            diag_k + 1,
-                            static_cast<double>(qs_arr(diag_i,diag_j,diag_k)),
-                            static_cast<double>(qg_arr(diag_i,diag_j,diag_k)),
-                            static_cast<double>(rhw_arr(diag_i,diag_j,diag_k)),
+                            kdbg + 1,
+                            static_cast<double>(qs_arr(diag_i,diag_j,kdbg)),
+                            static_cast<double>(qg_arr(diag_i,diag_j,kdbg)),
+                            static_cast<double>(rhw_arr(diag_i,diag_j,kdbg)),
                             static_cast<double>(diag_supcol));
                 std::fflush(stdout);
+                }
             }
 #endif
 
@@ -3774,29 +3785,33 @@ void WDM6::Advance(const Real& dt_advance,
             });
 
 #if !defined(AMREX_USE_GPU)
-            if (microphysics_debug > 0 && diag_col_in_tile) {
+            if (microphysics_debug > 0 && loop == 0 && diag_col_in_tile) {
+                for (int kdbg = klo; kdbg <= khi; ++kdbg) {
                 std::printf("WDM6-CPP_POST_G13G %3d %24.16E %24.16E\n",
-                            diag_k + 1,
-                            static_cast<double>(psevp_arr(diag_i,diag_j,diag_k)),
-                            static_cast<double>(pgevp_arr(diag_i,diag_j,diag_k)));
+                            kdbg + 1,
+                            static_cast<double>(psevp_arr(diag_i,diag_j,kdbg)),
+                            static_cast<double>(pgevp_arr(diag_i,diag_j,kdbg)));
                 std::fflush(stdout);
+                }
             }
 #endif
 
 #if !defined(AMREX_USE_GPU)
-            if (microphysics_debug > 0 && diag_col_in_tile) {
+            if (microphysics_debug > 0 && loop == 0 && diag_col_in_tile) {
+                for (int kdbg = klo; kdbg <= khi; ++kdbg) {
                 std::printf("WDM6-CPP_PRE_G14 %3d %24.16E %24.16E %24.16E %24.16E %24.16E %24.16E %24.16E %24.16E %24.16E\n",
-                            diag_k + 1,
-                            static_cast<double>(qv_arr(diag_i,diag_j,diag_k)),
-                            static_cast<double>(qc_arr(diag_i,diag_j,diag_k)),
-                            static_cast<double>(qi_arr(diag_i,diag_j,diag_k)),
-                            static_cast<double>(qr_arr(diag_i,diag_j,diag_k)),
-                            static_cast<double>(qs_arr(diag_i,diag_j,diag_k)),
-                            static_cast<double>(qg_arr(diag_i,diag_j,diag_k)),
-                            static_cast<double>(nc_arr(diag_i,diag_j,diag_k)),
-                            static_cast<double>(nr_arr(diag_i,diag_j,diag_k)),
-                            static_cast<double>(t_arr(diag_i,diag_j,diag_k)));
+                            kdbg + 1,
+                            static_cast<double>(qv_arr(diag_i,diag_j,kdbg)),
+                            static_cast<double>(qc_arr(diag_i,diag_j,kdbg)),
+                            static_cast<double>(qi_arr(diag_i,diag_j,kdbg)),
+                            static_cast<double>(qr_arr(diag_i,diag_j,kdbg)),
+                            static_cast<double>(qs_arr(diag_i,diag_j,kdbg)),
+                            static_cast<double>(qg_arr(diag_i,diag_j,kdbg)),
+                            static_cast<double>(nc_arr(diag_i,diag_j,kdbg)),
+                            static_cast<double>(nr_arr(diag_i,diag_j,kdbg)),
+                            static_cast<double>(t_arr(diag_i,diag_j,kdbg)));
                 std::fflush(stdout);
+                }
             }
 #endif
 
@@ -4095,19 +4110,21 @@ void WDM6::Advance(const Real& dt_advance,
             });
 
 #if !defined(AMREX_USE_GPU)
-            if (microphysics_debug > 0 && diag_col_in_tile) {
+            if (microphysics_debug > 0 && loop == 0 && diag_col_in_tile) {
+                for (int kdbg = klo; kdbg <= khi; ++kdbg) {
                 std::printf("WDM6-CPP_POST_G14 %3d %24.16E %24.16E %24.16E %24.16E %24.16E %24.16E %24.16E %24.16E %24.16E\n",
-                            diag_k + 1,
-                            static_cast<double>(qv_arr(diag_i,diag_j,diag_k)),
-                            static_cast<double>(qc_arr(diag_i,diag_j,diag_k)),
-                            static_cast<double>(qi_arr(diag_i,diag_j,diag_k)),
-                            static_cast<double>(qr_arr(diag_i,diag_j,diag_k)),
-                            static_cast<double>(qs_arr(diag_i,diag_j,diag_k)),
-                            static_cast<double>(qg_arr(diag_i,diag_j,diag_k)),
-                            static_cast<double>(nc_arr(diag_i,diag_j,diag_k)),
-                            static_cast<double>(nr_arr(diag_i,diag_j,diag_k)),
-                            static_cast<double>(t_arr(diag_i,diag_j,diag_k)));
+                            kdbg + 1,
+                            static_cast<double>(qv_arr(diag_i,diag_j,kdbg)),
+                            static_cast<double>(qc_arr(diag_i,diag_j,kdbg)),
+                            static_cast<double>(qi_arr(diag_i,diag_j,kdbg)),
+                            static_cast<double>(qr_arr(diag_i,diag_j,kdbg)),
+                            static_cast<double>(qs_arr(diag_i,diag_j,kdbg)),
+                            static_cast<double>(qg_arr(diag_i,diag_j,kdbg)),
+                            static_cast<double>(nc_arr(diag_i,diag_j,kdbg)),
+                            static_cast<double>(nr_arr(diag_i,diag_j,kdbg)),
+                            static_cast<double>(t_arr(diag_i,diag_j,kdbg)));
                 std::fflush(stdout);
+                }
             }
             if (microphysics_debug >= 1 && diag_col_in_tile) {
                 const int k_lo = amrex::max(klo, 39);
@@ -4162,16 +4179,18 @@ void WDM6::Advance(const Real& dt_advance,
 #endif
 
 #if !defined(AMREX_USE_GPU)
-            if (microphysics_debug > 0 && diag_col_in_tile) {
+            if (microphysics_debug > 0 && loop == 0 && diag_col_in_tile) {
+                for (int kdbg = klo; kdbg <= khi; ++kdbg) {
                 std::printf("WDM6-CPP_PRE_G15 %3d %24.16E %24.16E %24.16E %24.16E %24.16E %24.16E\n",
-                            diag_k + 1,
-                            static_cast<double>(qv_arr(diag_i,diag_j,diag_k)),
-                            static_cast<double>(p_arr(diag_i,diag_j,diag_k)),
-                            static_cast<double>(t_arr(diag_i,diag_j,diag_k)),
-                            static_cast<double>(qsatw_arr(diag_i,diag_j,diag_k)),
-                            static_cast<double>(qsati_arr(diag_i,diag_j,diag_k)),
-                            static_cast<double>(rhw_arr(diag_i,diag_j,diag_k)));
+                            kdbg + 1,
+                            static_cast<double>(qv_arr(diag_i,diag_j,kdbg)),
+                            static_cast<double>(p_arr(diag_i,diag_j,kdbg)),
+                            static_cast<double>(t_arr(diag_i,diag_j,kdbg)),
+                            static_cast<double>(qsatw_arr(diag_i,diag_j,kdbg)),
+                            static_cast<double>(qsati_arr(diag_i,diag_j,kdbg)),
+                            static_cast<double>(rhw_arr(diag_i,diag_j,kdbg)));
                 std::fflush(stdout);
+                }
             }
 #endif
 
@@ -4212,16 +4231,18 @@ void WDM6::Advance(const Real& dt_advance,
             });
 
 #if !defined(AMREX_USE_GPU)
-            if (microphysics_debug > 0 && diag_col_in_tile) {
+            if (microphysics_debug > 0 && loop == 0 && diag_col_in_tile) {
+                for (int kdbg = klo; kdbg <= khi; ++kdbg) {
                 std::printf("WDM6-CPP_POST_G15 %3d %24.16E %24.16E %24.16E %24.16E %24.16E %24.16E\n",
-                            diag_k + 1,
-                            static_cast<double>(qv_arr(diag_i,diag_j,diag_k)),
-                            static_cast<double>(p_arr(diag_i,diag_j,diag_k)),
-                            static_cast<double>(t_arr(diag_i,diag_j,diag_k)),
-                            static_cast<double>(qsatw_arr(diag_i,diag_j,diag_k)),
-                            static_cast<double>(qsati_arr(diag_i,diag_j,diag_k)),
-                            static_cast<double>(rhw_arr(diag_i,diag_j,diag_k)));
+                            kdbg + 1,
+                            static_cast<double>(qv_arr(diag_i,diag_j,kdbg)),
+                            static_cast<double>(p_arr(diag_i,diag_j,kdbg)),
+                            static_cast<double>(t_arr(diag_i,diag_j,kdbg)),
+                            static_cast<double>(qsatw_arr(diag_i,diag_j,kdbg)),
+                            static_cast<double>(qsati_arr(diag_i,diag_j,kdbg)),
+                            static_cast<double>(rhw_arr(diag_i,diag_j,kdbg)));
                 std::fflush(stdout);
+                }
             }
             if (microphysics_debug >= 1 && diag_col_in_tile) {
                 const int k_lo = amrex::max(klo, 39);
@@ -4241,14 +4262,16 @@ void WDM6::Advance(const Real& dt_advance,
             const Real g16a_cbrt24 = Real(std::pow(24.0f, 0.3333333f));
 
 #if !defined(AMREX_USE_GPU)
-            if (microphysics_debug > 0 && diag_col_in_tile) {
+            if (microphysics_debug > 0 && loop == 0 && diag_col_in_tile) {
+                for (int kdbg = klo; kdbg <= khi; ++kdbg) {
                 std::printf("WDM6-CPP_PRE_G16A %3d %24.16E %24.16E %24.16E %24.16E\n",
-                            diag_k + 1,
-                            static_cast<double>(qr_arr(diag_i,diag_j,diag_k)),
-                            static_cast<double>(qc_arr(diag_i,diag_j,diag_k)),
-                            static_cast<double>(nc_arr(diag_i,diag_j,diag_k)),
-                            static_cast<double>(nr_arr(diag_i,diag_j,diag_k)));
+                            kdbg + 1,
+                            static_cast<double>(qr_arr(diag_i,diag_j,kdbg)),
+                            static_cast<double>(qc_arr(diag_i,diag_j,kdbg)),
+                            static_cast<double>(nc_arr(diag_i,diag_j,kdbg)),
+                            static_cast<double>(nr_arr(diag_i,diag_j,kdbg)));
                 std::fflush(stdout);
+                }
             }
 #endif
 
@@ -4315,27 +4338,31 @@ void WDM6::Advance(const Real& dt_advance,
             });
 
 #if !defined(AMREX_USE_GPU)
-            if (microphysics_debug > 0 && diag_col_in_tile) {
+            if (microphysics_debug > 0 && loop == 0 && diag_col_in_tile) {
+                for (int kdbg = klo; kdbg <= khi; ++kdbg) {
                 std::printf("WDM6-CPP_POST_G16A %3d %24.16E %24.16E %24.16E %24.16E %24.16E\n",
-                            diag_k + 1,
-                            static_cast<double>(qr_arr(diag_i,diag_j,diag_k)),
-                            static_cast<double>(qc_arr(diag_i,diag_j,diag_k)),
-                            static_cast<double>(nc_arr(diag_i,diag_j,diag_k)),
-                            static_cast<double>(nr_arr(diag_i,diag_j,diag_k)),
-                            static_cast<double>(avedia_arr(diag_i,diag_j,diag_k,1)));
+                            kdbg + 1,
+                            static_cast<double>(qr_arr(diag_i,diag_j,kdbg)),
+                            static_cast<double>(qc_arr(diag_i,diag_j,kdbg)),
+                            static_cast<double>(nc_arr(diag_i,diag_j,kdbg)),
+                            static_cast<double>(nr_arr(diag_i,diag_j,kdbg)),
+                            static_cast<double>(avedia_arr(diag_i,diag_j,kdbg,1)));
                 std::fflush(stdout);
+                }
             }
 #endif
 
 #if !defined(AMREX_USE_GPU)
-            if (microphysics_debug > 0 && diag_col_in_tile) {
+            if (microphysics_debug > 0 && loop == 0 && diag_col_in_tile) {
+                for (int kdbg = klo; kdbg <= khi; ++kdbg) {
                 std::printf("WDM6-CPP_PRE_G16B %3d %24.16E %24.16E %24.16E %24.16E\n",
-                            diag_k + 1,
-                            static_cast<double>(rhw_arr(diag_i,diag_j,diag_k)),
-                            static_cast<double>(qc_arr(diag_i,diag_j,diag_k)),
-                            static_cast<double>(nn_arr(diag_i,diag_j,diag_k)),
-                            static_cast<double>(nc_arr(diag_i,diag_j,diag_k)));
+                            kdbg + 1,
+                            static_cast<double>(rhw_arr(diag_i,diag_j,kdbg)),
+                            static_cast<double>(qc_arr(diag_i,diag_j,kdbg)),
+                            static_cast<double>(nn_arr(diag_i,diag_j,kdbg)),
+                            static_cast<double>(nc_arr(diag_i,diag_j,kdbg)));
                 std::fflush(stdout);
+                }
             }
             if (microphysics_debug >= 1 && diag_col_in_tile) {
                 const int k_lo = amrex::max(klo, 39);
@@ -4422,15 +4449,17 @@ void WDM6::Advance(const Real& dt_advance,
             });
 
 #if !defined(AMREX_USE_GPU)
-            if (microphysics_debug > 0 && diag_col_in_tile) {
+            if (microphysics_debug > 0 && loop == 0 && diag_col_in_tile) {
+                for (int kdbg = klo; kdbg <= khi; ++kdbg) {
                 std::printf("WDM6-CPP_POST_G16B %3d %24.16E %24.16E %24.16E %24.16E %24.16E\n",
-                            diag_k + 1,
-                            static_cast<double>(qv_arr(diag_i,diag_j,diag_k)),
-                            static_cast<double>(qc_arr(diag_i,diag_j,diag_k)),
-                            static_cast<double>(nn_arr(diag_i,diag_j,diag_k)),
-                            static_cast<double>(nc_arr(diag_i,diag_j,diag_k)),
-                            static_cast<double>(pcond_arr(diag_i,diag_j,diag_k)));
+                            kdbg + 1,
+                            static_cast<double>(qv_arr(diag_i,diag_j,kdbg)),
+                            static_cast<double>(qc_arr(diag_i,diag_j,kdbg)),
+                            static_cast<double>(nn_arr(diag_i,diag_j,kdbg)),
+                            static_cast<double>(nc_arr(diag_i,diag_j,kdbg)),
+                            static_cast<double>(pcond_arr(diag_i,diag_j,kdbg)));
                 std::fflush(stdout);
+                }
             }
             if (microphysics_debug >= 1 && diag_col_in_tile) {
                 const int k_lo = amrex::max(klo, 39);
@@ -4464,15 +4493,17 @@ void WDM6::Advance(const Real& dt_advance,
             const Real g17_pidnr = Real(4.0) * g17_pi * Real(denr);
 
 #if !defined(AMREX_USE_GPU)
-            if (microphysics_debug > 0 && diag_col_in_tile) {
+            if (microphysics_debug > 0 && loop == 0 && diag_col_in_tile) {
+                for (int kdbg = klo; kdbg <= khi; ++kdbg) {
                 std::printf("WDM6-CPP_PRE_G17 %3d %24.16E %24.16E %24.16E %24.16E %24.16E\n",
-                            diag_k + 1,
-                            static_cast<double>(qc_arr(diag_i,diag_j,diag_k)),
-                            static_cast<double>(qi_arr(diag_i,diag_j,diag_k)),
-                            static_cast<double>(qr_arr(diag_i,diag_j,diag_k)),
-                            static_cast<double>(nc_arr(diag_i,diag_j,diag_k)),
-                            static_cast<double>(nr_arr(diag_i,diag_j,diag_k)));
+                            kdbg + 1,
+                            static_cast<double>(qc_arr(diag_i,diag_j,kdbg)),
+                            static_cast<double>(qi_arr(diag_i,diag_j,kdbg)),
+                            static_cast<double>(qr_arr(diag_i,diag_j,kdbg)),
+                            static_cast<double>(nc_arr(diag_i,diag_j,kdbg)),
+                            static_cast<double>(nr_arr(diag_i,diag_j,kdbg)));
                 std::fflush(stdout);
+                }
             }
 #endif
 
@@ -4512,15 +4543,17 @@ void WDM6::Advance(const Real& dt_advance,
             });
 
 #if !defined(AMREX_USE_GPU)
-            if (microphysics_debug > 0 && diag_col_in_tile) {
+            if (microphysics_debug > 0 && loop == 0 && diag_col_in_tile) {
+                for (int kdbg = klo; kdbg <= khi; ++kdbg) {
                 std::printf("WDM6-CPP_POST_G17 %3d %24.16E %24.16E %24.16E %24.16E %24.16E\n",
-                            diag_k + 1,
-                            static_cast<double>(qc_arr(diag_i,diag_j,diag_k)),
-                            static_cast<double>(qi_arr(diag_i,diag_j,diag_k)),
-                            static_cast<double>(qr_arr(diag_i,diag_j,diag_k)),
-                            static_cast<double>(nc_arr(diag_i,diag_j,diag_k)),
-                            static_cast<double>(nr_arr(diag_i,diag_j,diag_k)));
+                            kdbg + 1,
+                            static_cast<double>(qc_arr(diag_i,diag_j,kdbg)),
+                            static_cast<double>(qi_arr(diag_i,diag_j,kdbg)),
+                            static_cast<double>(qr_arr(diag_i,diag_j,kdbg)),
+                            static_cast<double>(nc_arr(diag_i,diag_j,kdbg)),
+                            static_cast<double>(nr_arr(diag_i,diag_j,kdbg)));
                 std::fflush(stdout);
+                }
             }
 #endif
 
