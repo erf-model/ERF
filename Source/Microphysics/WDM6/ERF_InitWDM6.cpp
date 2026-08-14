@@ -204,16 +204,31 @@ WDM6::initialize_coeffs()
     m_pi_wdm6 = wdm6_literal(Real(4.0) * std::atan(Real(1.0)));
     m_xlv1    = cl - cpv_loc;
 
-    // Cloud droplet parameters (WDM6 uses different xncr for maritime vs continental)
-    const Real xncr_use = (m_ccn0 > Real(1.0e8)) ? xncr1 : xncr0;
-
-    m_qc0  = Real(4.0)/Real(3.0) * m_pi_wdm6 * denr
-              * std::pow(r0, Real(3.0)) * xncr / den0;
-    m_qc1  = Real(4.0)/Real(3.0) * m_pi_wdm6 * denr
-              * std::pow(r0, Real(3.0)) * xncr_use / den0;
-    m_qck1 = Real(0.104) * Real(9.8) * peaut
-              / std::pow(xncr * denr, Real(1.0)/Real(3.0))
-              / xmyu * std::pow(den0, Real(4.0)/Real(3.0));
+    // Cloud droplet parameters. The Fortran, ERF_module_mp_wdm6.F90:3114-3116:
+    //     qc0  = 4./3.*pi*denr*r0**3.*xncr0/den0
+    //     qc1  = 4./3.*pi*denr*r0**3.*xncr1/den0
+    //     qck1 = .104*9.8*peaut/(denr)**(1./3.)/xmyu*den0**(4./3.)
+    // qc0 takes xncr0 and qc1 takes xncr1, unconditionally: the maritime versus
+    // continental choice is made downstream by the slmsk branch that sets
+    // qcr = qc0 or qc1 (:628-632), not here. The previous code used xncr for qc0
+    // and a ccn0-dependent xncr_use for qc1, so with the default ccn0 = 1.0e8 it
+    // selected xncr0 for BOTH.
+    //
+    // qck1 is the consequential one. WDM6 divides by denr**(1./3.) alone; the
+    // previous code divided by (xncr*denr)**(1./3.), which is the WSM6 form at
+    // ERF_module_mp_wsm6.F90:105. WSM6 is single-moment and folds its fixed
+    // droplet number xncr into qck1; WDM6 is double-moment and already carries
+    // number explicitly as ncr(:,:,2)**(-1./3.) in praut, so the WSM6 form
+    // double-counts it. The error is exactly xncr**(1./3.) = (3.0e8)**(1/3) =
+    // 669.4, and praut and nraut were both measured low by that factor at
+    // (199,3,43) from bitwise-equal inputs.
+    m_qc0  = wdm6_literal(4.0/3.0) * m_pi_wdm6 * denr
+              * std::pow(r0, Real(3.0)) * xncr0 / den0;
+    m_qc1  = wdm6_literal(4.0/3.0) * m_pi_wdm6 * denr
+              * std::pow(r0, Real(3.0)) * xncr1 / den0;
+    m_qck1 = wdm6_literal(0.104) * wdm6_literal(9.8) * peaut
+              / std::pow(denr, wdm6_literal(1.0/3.0))
+              / xmyu * std::pow(den0, wdm6_literal(4.0/3.0));
     m_pidnc = m_pi_wdm6 * denr / Real(6.0);
 
     // Rain coefficients
