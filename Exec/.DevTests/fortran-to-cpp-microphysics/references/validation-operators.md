@@ -37,6 +37,24 @@ These rules govern parity campaigns, retreat, ledgers, and acceptance decisions.
 - Tier 2 forensic traces are required for proven line-level attribution.
 - Host-side diagnostic prints after GPU work must synchronize first.
 - Diagnostic field order is contractual once a trace schema is declared.
+- Measure a diagnostic surface by coverage per tag, never by tag count. Coverage
+  has three independent axes and none of them implies the others: the `k` range
+  a tag spans, the field set it prints, and whether the two legs emit a matched
+  shape that can actually be compared. A scheme can carry three times as many
+  tags as a well-instrumented one and still be strictly weaker on every axis.
+- A tag that reads zero where its inputs cannot activate the block it guards is a
+  NULL RESULT, not a closure. Establish that a group's inputs are non-null at the
+  step and the level being sampled before reading agreement as evidence. Two
+  forms recur and both must be checked:
+  - temporal, when the case starts from rest and a gated branch has not yet
+    received nonzero input at the sampled step;
+  - spatial, when a single-cell tag samples a level at which the species that
+    group consumes are identically zero.
+- Prefer converting the remaining single-cell tags over opening a retreat on a
+  downstream group, whenever an unconverted group sits upstream of the candidate
+  and produces anything the candidate consumes. Attribution to a group that
+  merely displays an inherited divergence is the characteristic failure of an
+  incomplete tag surface.
 
 ## Ledger Model
 - `validation_manifest.tsv`: compact current frontier state, not append-only history.

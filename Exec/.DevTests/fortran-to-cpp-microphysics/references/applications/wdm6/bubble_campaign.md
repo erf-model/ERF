@@ -140,6 +140,24 @@ Exception: `G10A`/`G10B`/`G10C` emit ~20,000 Fortran lines (full i-k plane)
 while the C++ side emits one line per group, so those groups have no matched
 comparison surface either.
 
+### Measured tier inventory
+
+Taken 13 Aug 2026. WDM6 counts predate the phase-2 all-k conversion of 14 groups,
+so the `kts` figure is lower now; the structure is unchanged.
+
+| | Tier 1 canonical | Tier 1.5 block signature | Tier 2 forensic |
+| --- | --- | --- | --- |
+| WSM6 (`wsm6-mpi-cpu`) | 17 sites. `WSM6-FORT_<NAME>`, gate `mpdbg_level>=1 .and. loop==1`, `do k=kts,kte`, one column `its`, positional `(A,I3,6E24.16)` | 48 sites. `WSM6-FORT PRE/POST-<G>`, gate `>=2`, loops **k and i**, labelled `' qv=',q(i,k)`, 7 fields | 79 F90 + 104 C++ calls to `wsm6_emit_diag_t2_blocksig_line`. Gate `>=2`, selected k only (1-4, 29, 30), one var per line, full `DIAG-T2` schema |
+| Morrison | none | none | none live. Historical only: `d131c5fc`/`1720371b` wrote to a file with 24-field payloads and hardcoded cell lists, `#if 0`'d; `357ab3b6` added `MPDBG`, `0e3749e6` removed it |
+| WDM6 | **none** | 153 F90 tags / 157 C++ — but **142 indexed at `kts`**, so one cell each. Zero `loop==1` guards | **none** |
+
+**WDM6 is not under-instrumented by count** — 153 tags against WSM6's 48. It is
+under-instrumented in coverage per tag: one flat surface doing the job of three.
+That is the quantitative basis for the caveat above, and it is the reason four
+defects survived a bitwise-clean step 1 and a fifth group set (`G4`-`G7`) still
+cannot be adjudicated at all. See the Diagnostic Contract in
+`validation-operators.md` for the two rules extracted from this.
+
 ## Campaign directory discipline
 
 Unique `campaign_id` root per execution, never reused. `.gitignore` carries
