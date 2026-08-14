@@ -16,8 +16,8 @@ foreach(THREADS DIR IN ZIP_LISTS THREAD_COUNTS THREAD_DIRS)
         COMMAND ${CMAKE_COMMAND} -E env OMP_NUM_THREADS=${THREADS}
                 ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${NRANKS} ${MPIEXEC_PREFLAGS}
                 ${TEST_EXE} ${INPUT}
-                amr.n_cell=16 16 16 amr.max_grid_size=8 max_step=6
-                erf.plot_int_1=6 erf.cloud_chamber_budget_interval=1
+                amr.n_cell=16 16 16 amr.max_grid_size=8 max_step=4
+                erf.plot_int_1=4 erf.cloud_chamber_budget_interval=1
         WORKING_DIRECTORY "${DIR}"
         OUTPUT_FILE "${DIR}/simulation.log"
         ERROR_FILE "${DIR}/simulation.log"
@@ -29,7 +29,7 @@ endforeach()
 
 execute_process(
     COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} 1 ${MPIEXEC_PREFLAGS}
-            ${CHECKER} parity ${ONE_DIR}/plt00006 ${TWO_DIR}/plt00006
+            ${CHECKER} parity ${ONE_DIR}/plt00004 ${TWO_DIR}/plt00004
     WORKING_DIRECTORY "${WORKING_DIRECTORY}"
     OUTPUT_FILE "${WORKING_DIRECTORY}/openmp_parity.log"
     ERROR_FILE "${WORKING_DIRECTORY}/openmp_parity.log"

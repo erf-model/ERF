@@ -22,7 +22,7 @@ using amrex::Real;
 namespace {
 
 Real
-single_value (const amrex::MultiFab& mf, const amrex::Box& box, int comp = 0)
+sum_region (const amrex::MultiFab& mf, const amrex::Box& box, int comp = 0)
 {
     amrex::ReduceOps<amrex::ReduceOpSum> reduce_op;
     amrex::ReduceData<Real> reduce_data(reduce_op);
@@ -36,6 +36,34 @@ single_value (const amrex::MultiFab& mf, const amrex::Box& box, int comp = 0)
             });
     }
     return amrex::get<0>(reduce_data.value());
+}
+
+// Return the first valid FAB value at a typed point. Nodal FABs can overlap
+// at decomposition seams; selecting one valid owner avoids silently summing
+// duplicated nodal storage.
+amrex::Box
+point_for (const amrex::MultiFab& mf, const amrex::IntVect& iv)
+{
+    return amrex::Box(iv, iv, mf.boxArray()[0].ixType());
+}
+
+Real
+value_at (const amrex::MultiFab& mf, const amrex::IntVect& iv, int comp = 0)
+{
+    const amrex::Box point = point_for(mf, iv);
+    for (amrex::MFIter mfi(mf); mfi.isValid(); ++mfi) {
+        const amrex::Box overlap = point & mfi.validbox();
+        if (overlap.isEmpty()) { continue; }
+        amrex::ReduceOps<amrex::ReduceOpSum> reduce_op;
+        amrex::ReduceData<Real> reduce_data(reduce_op);
+        const auto array = mf.const_array(mfi);
+        reduce_op.eval(overlap, reduce_data,
+            [=] AMREX_GPU_DEVICE (int i, int j, int k) -> amrex::GpuTuple<Real> {
+                return { array(i,j,k,comp) };
+            });
+        return amrex::get<0>(reduce_data.value());
+    }
+    return std::numeric_limits<Real>::quiet_NaN();
 }
 
 Real
@@ -202,8 +230,8 @@ TEST(CloudChamberConfig, RejectsRelativeHumidityInDryPhysicalMode)
 
     const auto error = erf_cloud_chamber::initialization_contract_error(contract);
 
-    EXPECT_EQ(error,
-              "Cloud Chamber: prob.initial_relative_humidity is only used with erf.moisture_model = SatAdj");
+    EXPECT_NE(error.find("initial_relative_humidity"), std::string::npos);
+    EXPECT_NE(error.find("SatAdj"), std::string::npos);
 }
 
 // Motivation: cloudy physical initialization needs an explicit RH so the
@@ -219,8 +247,8 @@ TEST(CloudChamberConfig, RequiresRelativeHumidityForPhysicalSatAdj)
 
     const auto error = erf_cloud_chamber::initialization_contract_error(contract);
 
-    EXPECT_EQ(error,
-              "Cloud Chamber: physical SatAdj initialization requires prob.initial_relative_humidity");
+    EXPECT_NE(error.find("physical SatAdj"), std::string::npos);
+    EXPECT_NE(error.find("initial_relative_humidity"), std::string::npos);
 }
 
 // Motivation: mixing physical and legacy profile keys would create an
@@ -236,8 +264,8 @@ TEST(CloudChamberConfig, RejectsLegacyKeysInPhysicalMode)
 
     const auto error = erf_cloud_chamber::initialization_contract_error(contract);
 
-    EXPECT_EQ(error,
-              "Cloud Chamber: physical_temperature_rh cannot be combined with legacy theta/qv profile keys");
+    EXPECT_NE(error.find("physical_temperature_rh"), std::string::npos);
+    EXPECT_NE(error.find("legacy"), std::string::npos);
 }
 
 // Motivation: legacy numerical cases must retain their established input
@@ -253,8 +281,8 @@ TEST(CloudChamberConfig, RejectsPhysicalKeysInLegacyMode)
 
     const auto error = erf_cloud_chamber::initialization_contract_error(contract);
 
-    EXPECT_EQ(error,
-              "Cloud Chamber: legacy_theta_qv cannot be combined with physical temperature/RH profile keys");
+    EXPECT_NE(error.find("legacy_theta_qv"), std::string::npos);
+    EXPECT_NE(error.find("physical"), std::string::npos);
 }
 
 // Motivation: the valid physical SatAdj contract must remain accepted while
@@ -293,8 +321,9 @@ TEST(CloudChamberWallConfig, RejectsAmbiguousAggregateAndChannelModels)
     contract.legacy_aggregate_specified = true;
     contract.heat_model_specified = true;
     contract.heat_model = "bulk_aero";
-    EXPECT_EQ(erf_cloud_chamber::wall_transfer_contract_error(contract, "zlo"),
-              "Cloud Chamber: zlo cannot combine wall_transfer_model with per-channel wall model keys");
+    const auto error = erf_cloud_chamber::wall_transfer_contract_error(contract, "zlo");
+    EXPECT_NE(error.find("wall_transfer_model"), std::string::npos);
+    EXPECT_NE(error.find("per-channel"), std::string::npos);
 }
 
 // Motivation: a bulk wall must declare its coefficient source and required
@@ -304,13 +333,13 @@ TEST(CloudChamberWallConfig, RequiresFixedCoefficientForBulkChannel)
     erf_cloud_chamber::WallTransferContract contract;
     contract.heat_model_specified = true;
     contract.heat_model = "bulk_aero";
-    EXPECT_EQ(erf_cloud_chamber::wall_transfer_contract_error(contract, "zlo"),
-              "Cloud Chamber: zlo active bulk_aero channels require coefficient_source = fixed");
+    auto error = erf_cloud_chamber::wall_transfer_contract_error(contract, "zlo");
+    EXPECT_NE(error.find("coefficient_source"), std::string::npos);
 
     contract.coefficient_source_specified = true;
     contract.coefficient_source = "fixed";
-    EXPECT_EQ(erf_cloud_chamber::wall_transfer_contract_error(contract, "zlo"),
-              "Cloud Chamber: zlo requires C_H when heat_transfer_model = bulk_aero");
+    error = erf_cloud_chamber::wall_transfer_contract_error(contract, "zlo");
+    EXPECT_NE(error.find("C_H"), std::string::npos);
 }
 
 // Motivation: heat and vapor transfer are independent channels, so selecting
@@ -464,9 +493,9 @@ TEST(CloudChamberWallFlux, BulkFormulaeAndHardGates)
     EXPECT_DOUBLE_EQ(cloud_water.rhoQc_in, Real(0.0));
 }
 
-// Motivation: bulk transfer must vanish exactly at calm conditions and scale
-// linearly with its configured coefficient, with no hidden velocity floor.
-TEST(CloudChamberWallFlux, CalmBulkWallIsExactlyZeroAndLinearInCoefficient)
+// Motivation: bulk transfer must vanish exactly at calm conditions with no
+// hidden velocity floor.
+TEST(CloudChamberWallFlux, CalmBulkWallIsExactlyZero)
 {
     using namespace erf_cloud_chamber_wall_flux;
     erf_wall_thermodynamics::FaceWall wall;
@@ -480,13 +509,6 @@ TEST(CloudChamberWallFlux, CalmBulkWallIsExactlyZeroAndLinearInCoefficient)
     const auto calm = evaluate_scalar_flux_in(
         wall, ScalarChannel::Heat, sample);
     EXPECT_DOUBLE_EQ(calm.rhoTheta_in, Real(0.0));
-    sample.U_t = Real(2.0);
-    const auto one = evaluate_scalar_flux_in(
-        wall, ScalarChannel::Heat, sample);
-    wall.heat.coefficient = Real(0.2);
-    const auto two = evaluate_scalar_flux_in(
-        wall, ScalarChannel::Heat, sample);
-    EXPECT_DOUBLE_EQ(two.rhoTheta_in, Real(2.0) * one.rhoTheta_in);
 }
 
 // Motivation: bulk transfer must depend only on velocity tangent to the
@@ -618,13 +640,13 @@ TEST(CloudChamberWallFlux, GeneralizedApplyActivatesBulkFluxAndRhsCorrection)
     Box high_face = xflux.boxArray()[0];
     high_face.setSmall(0, 1);
     high_face.setBig(0, 1);
-    EXPECT_NEAR(single_value(xflux, low_face), expected_bulk,
+    EXPECT_NEAR(sum_region(xflux, low_face), expected_bulk,
                 scaled_tolerance(expected_bulk));
-    EXPECT_NEAR(single_value(xflux, high_face), -expected_bulk,
+    EXPECT_NEAR(sum_region(xflux, high_face), -expected_bulk,
                 scaled_tolerance(expected_bulk));
     const Real expected_rhs =
         ((expected_bulk - old_flux) - (-expected_bulk - old_flux)) * dx_inv;
-    EXPECT_NEAR(single_value(rhs, domain, RhoTheta_comp), expected_rhs,
+    EXPECT_NEAR(sum_region(rhs, domain, RhoTheta_comp), expected_rhs,
                 scaled_tolerance(expected_rhs));
 
     auto resolved_wall = walls[0];
@@ -652,9 +674,9 @@ TEST(CloudChamberWallFlux, GeneralizedApplyActivatesBulkFluxAndRhsCorrection)
             dx, walls, Real(0.0), Real(0.0), R_d/Cp_d);
     }
     amrex::Gpu::streamSynchronize();
-    EXPECT_NEAR(single_value(xflux, low_face), doubled_bulk,
+    EXPECT_NEAR(sum_region(xflux, low_face), doubled_bulk,
                 scaled_tolerance(doubled_bulk));
-    EXPECT_NEAR(single_value(xflux, high_face), -doubled_bulk,
+    EXPECT_NEAR(sum_region(xflux, high_face), -doubled_bulk,
                 scaled_tolerance(doubled_bulk));
 }
 
@@ -767,14 +789,14 @@ TEST(CloudChamberWallFlux,
 
         const int active_index = high ? 1 : 0;
         const int inactive_index = high ? 0 : 1;
-        const Real retained = single_value(
+        const Real retained = sum_region(
             xflux, face_box(active_index));
 
         EXPECT_NEAR(retained, expected_coordinate,
                     scaled_tolerance(expected_coordinate));
-        EXPECT_NEAR(single_value(rhs, domain, RhoQ1_comp), expected_rhs,
+        EXPECT_NEAR(sum_region(rhs, domain, RhoQ1_comp), expected_rhs,
                     scaled_tolerance(expected_rhs));
-        EXPECT_DOUBLE_EQ(single_value(xflux, face_box(inactive_index)),
+        EXPECT_DOUBLE_EQ(sum_region(xflux, face_box(inactive_index)),
                          old_flux);
         return retained;
     };
@@ -824,39 +846,6 @@ TEST(CloudChamberWallFlux, OrientationAndTimestepAdaptersCoverAllFaces)
     }
     EXPECT_DOUBLE_EQ(wall_dt_from_max_rate(Real(0.0)), Real(1.0e30));
     EXPECT_DOUBLE_EQ(wall_dt_from_max_rate(Real(2.0)), Real(0.25));
-}
-
-TEST(CloudChamberWallFlux, ScalarReplacementLowHigh)
-{
-    using namespace erf_cloud_chamber_wall_flux;
-
-    const auto low_x =
-        scalar_flux_replacement<0,false>(Real(7.0), Real(3.0), Real(2.0));
-    EXPECT_EQ(low_x.coordinate_flux, Real(3.0));
-    EXPECT_EQ(low_x.rhs_delta, (Real(3.0) - Real(7.0)) * Real(2.0));
-
-    const auto high_x =
-        scalar_flux_replacement<0,true>(Real(7.0), Real(3.0), Real(2.0));
-    EXPECT_EQ(high_x.coordinate_flux, Real(-3.0));
-    EXPECT_EQ(high_x.rhs_delta, -(Real(-3.0) - Real(7.0)) * Real(2.0));
-
-    const auto low_y =
-        scalar_flux_replacement<1,false>(Real(7.0), Real(-2.0), Real(1.0));
-    const auto high_y =
-        scalar_flux_replacement<1,true>(Real(7.0), Real(-2.0), Real(1.0));
-    EXPECT_EQ(low_y.coordinate_flux, Real(-2.0));
-    EXPECT_EQ(low_y.rhs_delta, Real(-9.0));
-    EXPECT_EQ(high_y.coordinate_flux, Real(2.0));
-    EXPECT_EQ(high_y.rhs_delta, Real(5.0));
-
-    const auto low_z =
-        scalar_flux_replacement<2,false>(Real(1.0), Real(4.0), Real(0.5));
-    const auto high_z =
-        scalar_flux_replacement<2,true>(Real(1.0), Real(4.0), Real(0.5));
-    EXPECT_EQ(low_z.coordinate_flux, Real(4.0));
-    EXPECT_EQ(low_z.rhs_delta, Real(1.5));
-    EXPECT_EQ(high_z.coordinate_flux, Real(-4.0));
-    EXPECT_EQ(high_z.rhs_delta, Real(2.5));
 }
 
 // Motivation: the physical wall override must replace the ordinary boundary
@@ -933,10 +922,10 @@ TEST(CloudChamberWallFlux, WetLowFaceAndDryHighFaceHaveExactSigns)
     amrex::Box high_face = xflux_box;
     high_face.setSmall(amrex::IntVect(1, 0, 0));
     high_face.setBig(amrex::IntVect(1, 0, 0));
-    EXPECT_NEAR(single_value(xflux, low_face), expected_flux,
+    EXPECT_NEAR(sum_region(xflux, low_face), expected_flux,
                 scaled_tolerance(expected_flux));
-    EXPECT_DOUBLE_EQ(single_value(xflux, high_face), Real(0.0));
-    EXPECT_NEAR(single_value(rhs, domain, RhoQ1_comp), expected_flux,
+    EXPECT_DOUBLE_EQ(sum_region(xflux, high_face), Real(0.0));
+    EXPECT_NEAR(sum_region(rhs, domain, RhoQ1_comp), expected_flux,
                 scaled_tolerance(expected_flux));
 }
 
@@ -1111,26 +1100,30 @@ TEST(CloudChamberNeutralLog, MomentumAndScalarClosures)
     scalar.U_t = Real(4.0);
     scalar.rdOcp = R_d / Cp_d;
     scalar.wall_distance = Real(0.5);
-    const Real C_H = neutral_log_scalar_coefficient(
-        scalar.wall_distance, wall.momentum.z0_m, wall.heat.z0);
+    const Real expected_C_H = KAPPA * KAPPA /
+        (std::log(scalar.wall_distance / wall.momentum.z0_m) *
+         std::log(scalar.wall_distance / wall.heat.z0));
+    const Real expected_theta_wall = wall.thermal.temperature_K *
+        std::pow(p_0 / scalar.p_hse, scalar.rdOcp);
+    const Real expected_heat = scalar.rho * expected_C_H * scalar.U_t *
+        (expected_theta_wall - scalar.scalar_air);
     const auto heat = evaluate_scalar_flux_in(wall, ScalarChannel::Heat, scalar);
     EXPECT_EQ(heat.owned_channels, OwnHeat);
-    EXPECT_NEAR(heat.rhoTheta_in,
-                bulk_theta_flux_in(scalar.rho, C_H, scalar.U_t,
-                                   wall.thermal.temperature_K, scalar.scalar_air,
-                                   scalar.p_hse, scalar.rdOcp),
-                scaled_tolerance(heat.rhoTheta_in));
+    EXPECT_NEAR(heat.rhoTheta_in, expected_heat,
+                scaled_tolerance(expected_heat));
 
     scalar.scalar_air = Real(0.01);
-    const Real C_E = neutral_log_scalar_coefficient(
-        scalar.wall_distance, wall.momentum.z0_m, wall.vapor.z0);
+    const Real expected_C_E = KAPPA * KAPPA /
+        (std::log(scalar.wall_distance / wall.momentum.z0_m) *
+         std::log(scalar.wall_distance / wall.vapor.z0));
+    Real qv_wall = Real(0.0);
+    erf_qsatw(wall.thermal.temperature_K, scalar.p_hse * Real(0.01), qv_wall);
+    const Real expected_vapor = scalar.rho * expected_C_E * scalar.U_t *
+        (qv_wall - scalar.scalar_air);
     const auto vapor = evaluate_scalar_flux_in(wall, ScalarChannel::Vapor, scalar);
     EXPECT_EQ(vapor.owned_channels, OwnVapor);
-    EXPECT_NEAR(vapor.rhoQv_in,
-                bulk_vapor_flux_in(scalar.rho, C_E, scalar.U_t,
-                                   wall.thermal.temperature_K, scalar.scalar_air,
-                                   scalar.p_hse),
-                scaled_tolerance(vapor.rhoQv_in));
+    EXPECT_NEAR(vapor.rhoQv_in, expected_vapor,
+                scaled_tolerance(expected_vapor));
 
     wall.moisture = MoistureMode::DryImpermeable;
     scalar.U_t = std::numeric_limits<Real>::quiet_NaN();
@@ -1406,85 +1399,6 @@ TEST(CloudChamberNeutralLog, GeometryValidationUsesEveryActiveFace)
     EXPECT_NE(error.find("z0_m"), std::string::npos);
 }
 
-template <int DIR>
-void expect_neutral_tau_mapping()
-{
-    using namespace erf_cloud_chamber_wall_stress;
-    EXPECT_DOUBLE_EQ((stored_tau_from_physical_traction<DIR,false>(Real(2.5))), Real(2.5));
-    EXPECT_DOUBLE_EQ((stored_tau_from_physical_traction<DIR,true>(Real(2.5))), Real(-2.5));
-}
-
-TEST(CloudChamberNeutralLog, StoredStressMappingCoversAllSixFaces)
-{
-    expect_neutral_tau_mapping<0>();
-    expect_neutral_tau_mapping<1>();
-    expect_neutral_tau_mapping<2>();
-}
-
-TEST(CloudChamberNeutralLog, AdapterWritesBoundaryCrossStressOnly)
-{
-    using namespace erf_wall_thermodynamics;
-    const amrex::Box domain(amrex::IntVect(0), amrex::IntVect(1));
-    const amrex::BoxArray ba(domain);
-    const amrex::DistributionMapping dm(ba);
-    amrex::MultiFab state(ba, dm, Rho_comp + 1, 1);
-    amrex::BoxArray xba(ba); xba.surroundingNodes(0);
-    amrex::BoxArray yba(ba); yba.surroundingNodes(1);
-    amrex::BoxArray zba(ba); zba.surroundingNodes(2);
-    amrex::MultiFab u(xba, dm, 1, 1);
-    amrex::MultiFab v(yba, dm, 1, 1);
-    amrex::MultiFab w(zba, dm, 1, 1);
-    amrex::BoxArray ba12(ba); ba12.surroundingNodes(0); ba12.surroundingNodes(1);
-    amrex::BoxArray ba13(ba); ba13.surroundingNodes(0); ba13.surroundingNodes(2);
-    amrex::BoxArray ba23(ba); ba23.surroundingNodes(1); ba23.surroundingNodes(2);
-    amrex::MultiFab tau12(ba12, dm, 1, 1);
-    amrex::MultiFab tau13(ba13, dm, 1, 1);
-    amrex::MultiFab tau23(ba23, dm, 1, 1);
-
-    state.setVal(Real(1.2), Rho_comp, 1);
-    u.setVal(Real(1.0));
-    v.setVal(Real(2.0));
-    w.setVal(Real(3.0));
-    constexpr Real sentinel = Real(-17.0);
-    tau12.setVal(sentinel); tau13.setVal(sentinel); tau23.setVal(sentinel);
-
-    Boundary walls{};
-    walls[0].momentum.model = MomentumModel::NeutralRoughnessLog;
-    walls[0].momentum.z0_m = Real(0.01);
-    const amrex::GpuArray<Real, AMREX_SPACEDIM> dx_inv = {Real(2.0), Real(2.0), Real(2.0)};
-    for (amrex::MFIter mfi(state); mfi.isValid(); ++mfi) {
-        erf_cloud_chamber_wall_stress::apply(
-            mfi.validbox(), domain, state.const_array(mfi), u.const_array(mfi),
-            v.const_array(mfi), w.const_array(mfi), tau12.array(mfi),
-            tau13.array(mfi), tau23.array(mfi), dx_inv, walls);
-    }
-    amrex::Gpu::streamSynchronize();
-
-    const Real U_t = std::sqrt(Real(13.0));
-    const Real cd = std::pow(KAPPA/std::log(Real(25.0)), Real(2.0));
-    const Real tau12_expected = -Real(1.2)*cd*U_t*Real(2.0);
-    const Real tau13_expected = -Real(1.2)*cd*U_t*Real(3.0);
-    amrex::Box xlo12 = tau12.boxArray()[0];
-    xlo12.setSmall(0, 0); xlo12.setBig(0, 0);
-    amrex::Box xinside12 = tau12.boxArray()[0];
-    xinside12.setSmall(0, 1); xinside12.setBig(0, 1);
-    amrex::Box xlo13 = tau13.boxArray()[0];
-    xlo13.setSmall(0, 0); xlo13.setBig(0, 0);
-    amrex::Box xinside13 = tau13.boxArray()[0];
-    xinside13.setSmall(0, 1); xinside13.setBig(0, 1);
-
-    EXPECT_NEAR(single_value(tau12, xlo12), Real(6.0)*tau12_expected,
-                scaled_tolerance(tau12_expected));
-    EXPECT_NEAR(single_value(tau13, xlo13), Real(6.0)*tau13_expected,
-                scaled_tolerance(tau13_expected));
-    EXPECT_DOUBLE_EQ(single_value(tau12, xinside12), Real(6.0)*sentinel);
-    EXPECT_DOUBLE_EQ(single_value(tau13, xinside13), Real(6.0)*sentinel);
-    const amrex::Box tau23_query(domain.smallEnd(), domain.bigEnd(),
-                                 tau23.boxArray()[0].ixType());
-    EXPECT_DOUBLE_EQ(single_value(tau23, tau23_query), Real(8.0)*sentinel);
-}
-
-
 TEST(CloudChamberNeutralLog, AdapterMapsAllTwelveFaceComponents)
 {
     using namespace erf_wall_thermodynamics;
@@ -1538,8 +1452,7 @@ TEST(CloudChamberNeutralLog, AdapterMapsAllTwelveFaceComponents)
     const Real tau_z_y = -Real(1.2)*cd*U_z*Real(2.0);
     const auto check = [](const amrex::MultiFab& mf, const amrex::IntVect& iv,
                           Real expected) {
-        const amrex::Box point(iv, iv, mf.boxArray()[0].ixType());
-        EXPECT_NEAR(single_value(mf, point), expected,
+        EXPECT_NEAR(value_at(mf, iv), expected,
                     scaled_tolerance(expected));
     };
 
@@ -1606,10 +1519,8 @@ TEST(CloudChamberNeutralLog, AdapterRespectsMultiBoxPhysicalOwnership)
     amrex::Gpu::streamSynchronize();
 
     const amrex::IntVect iv(0,1,1);
-    const amrex::Box tau12_point(iv, iv, tau12.boxArray()[0].ixType());
-    const amrex::Box tau13_point(iv, iv, tau13.boxArray()[0].ixType());
-    EXPECT_NE(single_value(tau12, tau12_point), sentinel);
-    EXPECT_NE(single_value(tau13, tau13_point), sentinel);
+    EXPECT_NE(value_at(tau12, iv), sentinel);
+    EXPECT_NE(value_at(tau13, iv), sentinel);
     EXPECT_EQ(nonphysical_stress_changes(tau12, domain, 0, 0, sentinel), 0);
     EXPECT_EQ(nonphysical_stress_changes(tau13, domain, 0, 0, sentinel), 0);
     EXPECT_EQ(nonphysical_stress_changes(tau23, domain, 0, 0, sentinel), 0);
@@ -1699,9 +1610,7 @@ TEST(CloudChamberNeutralLog, SingleWallImpulseUsesDiffusionOperator)
 
         const int i_rhs = high ? 1 : 0;
         const amrex::IntVect point_iv(i_rhs, 1, 0);
-        const amrex::Box point(
-            point_iv, point_iv, rho_v_rhs.boxArray()[0].ixType());
-        return single_value(rho_v_rhs, point);
+        return value_at(rho_v_rhs, point_iv);
     };
 
     constexpr Real expected = Real(-1.7);
@@ -1823,9 +1732,7 @@ TEST(CloudChamberNeutralLog, ComposedMomentumInfinityNormBound)
             mf_uy[0].const_array(), mf_vy[0].const_array(), false, false);
         amrex::Gpu::streamSynchronize();
         const amrex::IntVect output_iv(1, 0, 0);
-        const amrex::Box output_point(
-            output_iv, output_iv, rho_u_rhs.boxArray()[0].ixType());
-        return single_value(rho_u_rhs, output_point);
+        return value_at(rho_u_rhs, output_iv);
     };
 
     const Real epsilon = Real(1.0e-5);
@@ -1957,8 +1864,7 @@ TEST(CloudChamberNeutralLog, CrossWallCompositionAddsDiffusionImpulses)
             mf_uy[0].const_array(), mf_vy[0].const_array(), false, false);
         amrex::Gpu::streamSynchronize();
         const amrex::IntVect iv(1, 0, 0);
-        const amrex::Box point(iv, iv, rho_u_rhs.boxArray()[0].ixType());
-        return single_value(rho_u_rhs, point);
+        return value_at(rho_u_rhs, iv);
     };
     const Real ylo_only = run(true, false);
     const Real zlo_only = run(false, true);

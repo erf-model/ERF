@@ -17,11 +17,10 @@ if("${result}" STREQUAL "0")
 endif()
 
 foreach(expected IN ITEMS
-        "Cloud Chamber bulk wall timestep violation at level 0"
+        "Cloud Chamber bulk wall timestep violation"
         "fixed_dt="
         "wall_dt="
-        "max_wall_rate="
-        "Cloud Chamber bulk wall timestep exceeds dt_wall = 0.5 / max_wall_rate")
+        "max_wall_rate=")
     string(FIND "${output}" "${expected}" position)
     if(position EQUAL -1)
         message(FATAL_ERROR

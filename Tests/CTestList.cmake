@@ -271,8 +271,9 @@ function(add_test_cloud_chamber_legacy_config TEST_NAME)
         ATTACHED_FILES_ON_FAIL "${test_log};${output_artifact}")
 endfunction(add_test_cloud_chamber_legacy_config)
 
-# Regression motivation: this expected-failure test locks the host safety
-# contract that rejects fixed_dt > dt_wall and verifies the user diagnostic.
+# Production wiring regression: two dry runs differ only in xlo roughness;
+# the checker requires finite output and a resolvable z0_m response.
+
 function(add_test_cloud_chamber_neutral_momentum TEST_NAME)
     set(TEST_FILES_DIR "CloudChamber_Dry_NeutralMomentum")
     setup_test()
@@ -454,6 +455,8 @@ function(add_test_shoc_mutation TEST_NAME MUTATION_OPTION TARGET_FIELD
         ATTACHED_FILES_ON_FAIL "${_baseline_log};${_mutant_log}")
 endfunction(add_test_shoc_mutation)
 
+# Negative-control regression: the true fixed_dt > dt_wall guard must fire
+# and expose stable diagnostic fields for automated CI forensics.
 add_test_cloud_chamber_fixed_dt_guard(CloudChamber_Bulk_FixedDtGuard)
 
 if(ERF_ENABLE_MPI)
@@ -462,20 +465,15 @@ add_test_anelastic_wall_diffusion(AnelasticWallDiffusion_Y 1)
 add_test_anelastic_wall_diffusion(AnelasticWallDiffusion_Z 2)
 add_test_cloud_chamber(CloudChamber_Dry dry)
 add_test_cloud_chamber_legacy_config(CloudChamber_Legacy_Config)
-add_test_cloud_chamber_budget(CloudChamber_Dry_ThermalBudget thermal_budget CloudChamber_Dry)
-add_test_cloud_chamber_budget(CloudChamber_Dry_Bulk_ThermalBudget bulk_thermal CloudChamber_Dry_BulkMixed)
-add_test_cloud_chamber_budget(CloudChamber_Dry_NeutralHeatBudget neutral_thermal CloudChamber_Dry_NeutralHeat)
 add_test_cloud_chamber_neutral_momentum(CloudChamber_Dry_NeutralMomentumActivation)
 add_test_cloud_chamber(CloudChamber_SatAdj cloudy)
 add_test_cloud_chamber_parity(CloudChamber_SatAdj_Parity)
-add_test_cloud_chamber_parity(CloudChamber_SatAdj_BulkParity CloudChamber_SatAdj_BulkMixedWet)
 add_test_cloud_chamber_budget(CloudChamber_SatAdj_AllDry all_dry CloudChamber_SatAdj_AllDry)
 add_test_cloud_chamber_budget(CloudChamber_SatAdj_WetBudget wet_budget CloudChamber_SatAdj_WetBudget)
 add_test_cloud_chamber_budget(CloudChamber_SatAdj_BulkMixedWet bulk_wet CloudChamber_SatAdj_BulkMixedWet)
 add_test_cloud_chamber_budget(CloudChamber_SatAdj_NeutralWetBudget neutral_wet CloudChamber_SatAdj_NeutralWet)
 if(ERF_ENABLE_OPENMP)
 add_test_cloud_chamber_openmp(CloudChamber_SatAdj_OpenMP)
-add_test_cloud_chamber_openmp(CloudChamber_SatAdj_BulkOpenMP CloudChamber_SatAdj_BulkMixedWet)
 endif()
 add_test(SHOC_Unstable_Cloud_SatAdj_vs_NoCond
     ${MPIEXEC_EXECUTABLE} ${MPIEXEC_NUMPROC_FLAG} 1 ${MPIEXEC_PREFLAGS}

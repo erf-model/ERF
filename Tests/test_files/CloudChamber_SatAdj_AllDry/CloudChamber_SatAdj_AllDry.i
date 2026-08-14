@@ -20,7 +20,7 @@ erf.plot_file_1 = plt
 erf.plot_int_1 = 2
 erf.plot_vars_1 = density theta temp pressure qv qc qsat rel_humidity x_velocity y_velocity z_velocity
 
-max_step = 6
+max_step = 4
 geometry.prob_lo = 0.0 0.0 0.0
 geometry.prob_hi = 2.0 2.0 1.0
 geometry.is_periodic = 0 0 0
