@@ -485,10 +485,15 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
         {
             if (containerHasElement(plot_var_names, der_name)) {
                 MultiFab dmf(mf[lev], make_alias, mf_comp, 1);
+                //
+                // NOTE: we must not tile in z here because some of the derived quantities
+                //       ("precipitable", "mucape", "helicity", "max_reflectivity") are
+                //       whole-column operations and require the full column in each box
+                //
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
-                for (MFIter mfi(dmf, TilingIfNotGPU()); mfi.isValid(); ++mfi)
+                for (MFIter mfi(dmf, TileNoZ()); mfi.isValid(); ++mfi)
                 {
                     const Box& bx = mfi.tilebox();
                     auto& dfab = dmf[mfi];
