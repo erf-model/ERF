@@ -364,6 +364,11 @@ ERF::WriteCheckpointFile () const
                 MultiFab::Copy(m_var,*src,0,0,1,ng);
                 VisMF::Write(m_var, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "Olen" + face));
 
+                // Tsurf
+                src = m_SurfaceLayer[ori]->get_t_surf(lev);
+                MultiFab::Copy(m_var,*src,0,0,1,ng);
+                VisMF::Write(m_var, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "Tsurf" + face));
+
                 // Qsurf
                 src = m_SurfaceLayer[ori]->get_q_surf(lev);
                 MultiFab::Copy(m_var,*src,0,0,1,ng);
@@ -1328,6 +1333,9 @@ ERF::ReadCheckpointFileSurfaceLayer ()
 
                 // Olen
                 read_most_var("Olen" + face, m_SurfaceLayer[ori]->get_olen(lev));
+
+                // T*
+                read_most_var("Tsurf" + face, m_SurfaceLayer[ori]->get_t_surf(lev));
 
                 // Qsurf
                 read_most_var("Qsurf" + face, m_SurfaceLayer[ori]->get_q_surf(lev));

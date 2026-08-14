@@ -93,8 +93,6 @@ void ERFPhysBCFunct_w::impose_lateral_zvel_bcs (const Array4<Real      >& dest_a
                     dest_arr(i,j,k) =  dest_arr(iflip,j,k);
                 } else if (bc_ptr_w[0].lo(0) == ERFBCType::reflect_odd) {
                     dest_arr(i,j,k) = -dest_arr(iflip,j,k);
-                } else if (bc_ptr_w[0].lo(0) == ERFBCType::hoextrap) {
-                    dest_arr(i,j,k) =  dest_arr(dom_lo.x,j,k);
                 }
             },
             [=] AMREX_GPU_DEVICE (int i, int j, int k) {
@@ -116,8 +114,6 @@ void ERFPhysBCFunct_w::impose_lateral_zvel_bcs (const Array4<Real      >& dest_a
                     dest_arr(i,j,k) =  dest_arr(iflip,j,k);
                 } else if (bc_ptr_w[0].hi(0) == ERFBCType::reflect_odd) {
                     dest_arr(i,j,k) = -dest_arr(iflip,j,k);
-                } else if (bc_ptr_w[0].hi(0) == ERFBCType::hoextrap) {
-                    dest_arr(i,j,k) =  dest_arr(dom_hi.x,j,k);
                 }
             }
         );
@@ -149,8 +145,6 @@ void ERFPhysBCFunct_w::impose_lateral_zvel_bcs (const Array4<Real      >& dest_a
                     dest_arr(i,j,k) =  dest_arr(i,jflip,k);
                 } else if (bc_ptr_w[0].lo(1) == ERFBCType::reflect_odd) {
                     dest_arr(i,j,k) = -dest_arr(i,jflip,k);
-                } else if (bc_ptr_w[0].lo(1) == ERFBCType::hoextrap) {
-                    dest_arr(i,j,k) =  dest_arr(i,dom_lo.y,k);
                 }
             },
             [=] AMREX_GPU_DEVICE (int i, int j, int k) {
@@ -172,8 +166,6 @@ void ERFPhysBCFunct_w::impose_lateral_zvel_bcs (const Array4<Real      >& dest_a
                     dest_arr(i,j,k) =  dest_arr(i,jflip,k);
                 } else if (bc_ptr_w[0].hi(1) == ERFBCType::reflect_odd) {
                     dest_arr(i,j,k) = -dest_arr(i,jflip,k);
-                } else if (bc_ptr_w[0].hi(1) == ERFBCType::hoextrap) {
-                    dest_arr(i,j,k) =  dest_arr(i,dom_hi.y,k);
                 }
             });
     }

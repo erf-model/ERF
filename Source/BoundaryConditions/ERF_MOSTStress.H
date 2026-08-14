@@ -1338,8 +1338,6 @@ struct surface_temp
         amrex::Real t_surf   = t_surf_arr(i,j,k);
         amrex::Real t_mean   = tm_arr(i,j,k);
         amrex::Real tvm      = tvm_arr(i,j,k);
-        //amrex::Real qv_s     = q_surf_arr(i,j,k);
-        //amrex::Real qv_a     = qvm_arr(i,j,k);
 
         // Water vapor in atmos and surface
         amrex::Real qv_s, qv_a;
@@ -1357,9 +1355,8 @@ struct surface_temp
 
         if (dir == 2 && !is_low) {
             // On the hi-Z face, swap surf and mean values to force unstable condition
-            //tvm = t_surf_arr(i,j,k) * (1.0 + 0.61*qv_s);
             thv_a = thv_s;
-            thv_s = tm_arr(i,j,k) * (1.0 + 0.61*qv_a);
+            thv_s = tm_arr(i,j,k) * (one + epsv*qv_a);
             t_mean = t_surf;
             t_surf = tm_arr(i,j,k);
             qv_a = qv_s;
@@ -1392,19 +1389,6 @@ struct surface_temp
         do {
             // Transfer curr to old
             zeta_old = zeta;
-
-            /* 
-            // TODO: check if this still applies to new psi_m/psi_h functions?
-            if (zeta >= 0.0) {  // Stable
-                zeta = std::min(0.5, std::max(zeta, 0.01));
-            } else {  // Unstable
-                zeta = std::max(-100.0, std::min(zeta, -0.01));
-            }
-            if (dir != 2) {
-                // side faces: set zeta = 0.0 (neutral)
-                zeta = 0.0;
-            }
-            */
 
             // Stability functions
             psi_m = sfuns.calc_psi_m2(zeta_old);
@@ -2139,8 +2123,6 @@ struct moeng_flux
     {
         amrex::Real rho   = cons_arr(i,j,k,Rho_comp);
         amrex::Real qv    = cons_arr(i,j,k,RhoQ1_comp) / rho;
-        //amrex::Real velx  = myhalf * ( velx_arr(i,j,k) + velx_arr(i+1,j  ,k) );
-        //amrex::Real vely  = myhalf * ( vely_arr(i,j,k) + vely_arr(i  ,j+1,k) );
 
         amrex::Real velx, vely;
         if (dir == 0) {
@@ -2206,9 +2188,6 @@ struct moeng_flux
     {
         amrex::Real rho   = cons_arr(i,j,k,Rho_comp);
         amrex::Real theta = cons_arr(i,j,k,RhoTheta_comp) / rho;
-        //amrex::Real velx  = myhalf * ( velx_arr(i,j,k) + velx_arr(i+1,j  ,k) );
-        //amrex::Real vely  = myhalf * ( vely_arr(i,j,k) + vely_arr(i  ,j+1,k) );
-        amrex::Real velz  = myhalf * ( velz_arr(i,j,k) + velz_arr(i  ,j  ,k+1) );
 
         amrex::Real velx, vely;
         if (dir == 0) {
@@ -2239,7 +2218,7 @@ struct moeng_flux
 
         wsp_mean = std::max(wsp_mean, WSMIN);
 
-        amrex::Real wsp     = std::sqrt(velx*velx+vely*vely); // FIX ---
+        amrex::Real wsp     = std::sqrt(velx*velx+vely*vely);
         amrex::Real num1    = wsp * (theta_mean-theta_surf);
         amrex::Real num2    = wsp_mean * (theta-tm_arr(i,j,k));
 
@@ -2279,22 +2258,21 @@ struct moeng_flux
             // X-face: y/z velocity, velx = vely, vely = velz here
             velx  = fourth * ( vely_arr(i  ,j,k) + vely_arr(i  ,j+1,k)
                              + vely_arr(i-1,j,k) + vely_arr(i-1,j+1,k) );
-            vely  = fourth * ( velz_arr(i  ,j,k) + velz_arr(i  ,j,k+1)
-                           + velz_arr(i-1,j,k) + velz_arr(i-1,j,k+1) );
+            vely  = fourth * ( velz_arr(i  ,j,k) + velz_arr(i  ,j  ,k+1)
+                             + velz_arr(i-1,j,k) + velz_arr(i-1,j  ,k+1) );
         } else if (dir == 1) {
             // Y-face: x/z velocity, vely = velz here
             velx  = velx_arr(i,j,k);
             vely  = fourth * ( velz_arr(i  ,j,k) + velz_arr(i  ,j,k+1)
-                           + velz_arr(i-1,j,k) + velz_arr(i-1,j,k+1) );
+                             + velz_arr(i-1,j,k) + velz_arr(i-1,j,k+1) );
         } else {
             // Z face: x/y velocity
             velx = velx_arr(i,j,k);
             vely = fourth * ( vely_arr(i  ,j,k) + vely_arr(i  ,j+1,k)
-                          + vely_arr(i-1,j,k) + vely_arr(i-1,j+1,k) );
+                            + vely_arr(i-1,j,k) + vely_arr(i-1,j+1,k) );
         }
         amrex::Real rho   = myhalf  * ( cons_arr(i-1,j,k,Rho_comp) + cons_arr(i,j,k,Rho_comp) );
 
-        //amrex::Real umean    = um_arr(i,j,k);
         amrex::Real umean;
         if (dir == 0) {
             umean = vm_arr(i, j, k);
@@ -2302,6 +2280,7 @@ struct moeng_flux
             umean = um_arr(i, j, k);
         }
         amrex::Real ustar    = myhalf * ( u_star_arr(i-1,j,k) + u_star_arr(i,j,k) );
+        // NOTE: umm here will be either mean x/y velocity if on a Z-face, x/z velocity if on a Y-face, or y/z velocity if on an X-face
         amrex::Real wsp_mean = myhalf * (    umm_arr(i-1,j,k) +    umm_arr(i,j,k) );
         wsp_mean = std::max(wsp_mean, WSMIN);
 
@@ -2347,25 +2326,22 @@ struct moeng_flux
         if (dir == 0) {
             // X-face: y/z velocity, velx = vely, vely = velz here
             velx  = vely_arr(i,j,k);
-            vely  = fourth * ( velz_arr(i,j,  k) + velz_arr(i  ,j,k+1)
+            vely  = fourth * ( velz_arr(i,j  ,k) + velz_arr(i  ,j  ,k+1)
                              + velz_arr(i,j-1,k) + velz_arr(i  ,j-1,k+1) );
         } else if (dir == 1) {
             // Y-face: x/z velocity, vely = velz here
             velx  = fourth * ( velx_arr(i,j  ,k) + velx_arr(i+1,j  ,k)
-                               + velx_arr(i,j-1,k) + velx_arr(i+1,j-1,k) );
-            vely  = fourth * ( velz_arr(i,j,  k) + velz_arr(i  ,j,k+1)
-                           + velz_arr(i,j-1,k) + velz_arr(i  ,j-1,k+1) );
+                             + velx_arr(i,j-1,k) + velx_arr(i+1,j-1,k) );
+            vely  = fourth * ( velz_arr(i,j  ,k) + velz_arr(i  ,j  ,k+1)
+                             + velz_arr(i,j-1,k) + velz_arr(i  ,j-1,k+1) );
         } else {
             velx  = fourth * ( velx_arr(i,j  ,k) + velx_arr(i+1,j  ,k)
                              + velx_arr(i,j-1,k) + velx_arr(i+1,j-1,k) );
             vely  = vely_arr(i,j,k);
         }
-        //amrex::Real velx  = fourth * ( velx_arr(i,j  ,k) + velx_arr(i+1,j  ,k)
-        //                           + velx_arr(i,j-1,k) + velx_arr(i+1,j-1,k) );
-        //amrex::Real vely  = vely_arr(i,j,k);
+
         amrex::Real rho   = myhalf  * ( cons_arr(i,j-1,k,Rho_comp) + cons_arr(i,j,k,Rho_comp) );
 
-        //amrex::Real vmean     = vm_arr(i,j,k);
         amrex::Real vmean;
         if (dir == 2) {
             vmean = vm_arr(i, j, k);
@@ -2374,6 +2350,7 @@ struct moeng_flux
         }
 
         amrex::Real ustar     = myhalf * ( u_star_arr(i,j-1,k) + u_star_arr(i,j,k) );
+        // NOTE: umm here will be either mean x/y velocity if on a Z-face, x/z velocity if on a Y-face, or y/z velocity if on an X-face
         amrex::Real wsp_mean  = myhalf * (    umm_arr(i,j-1,k) +    umm_arr(i,j,k) );
         wsp_mean = std::max(wsp_mean, WSMIN);
 
@@ -2506,20 +2483,20 @@ struct donelan_flux
         amrex::Real velx, vely;
         if (dir == 0) {
             // X-face: y/z velocity, velx = velz here
-            velx  = fourth * ( velz_arr(i  ,j,k) + velz_arr(i  ,j,k+1)
-                           + velz_arr(i-1,j,k) + velz_arr(i-1,j,k+1) );
+            velx  = fourth * ( velz_arr(i  ,j,k) + velz_arr(i  ,j  ,k+1)
+                             + velz_arr(i-1,j,k) + velz_arr(i-1,j  ,k+1) );
             vely  = fourth * ( vely_arr(i  ,j,k) + vely_arr(i  ,j+1,k)
                              + vely_arr(i-1,j,k) + vely_arr(i-1,j+1,k) );
         } else if (dir == 1) {
             // Y-face: x/z velocity, vely = velz here
             velx  = velx_arr(i,j,k);
             vely  = fourth * ( velz_arr(i  ,j,k) + velz_arr(i  ,j,k+1)
-                           + velz_arr(i-1,j,k) + velz_arr(i-1,j,k+1) );
+                             + velz_arr(i-1,j,k) + velz_arr(i-1,j,k+1) );
         } else {
             // Z face: x/y velocity
             velx = velx_arr(i,j,k);
             vely = fourth * ( vely_arr(i  ,j,k) + vely_arr(i  ,j+1,k)
-                          + vely_arr(i-1,j,k) + vely_arr(i-1,j+1,k) );
+                            + vely_arr(i-1,j,k) + vely_arr(i-1,j+1,k) );
         }
         amrex::Real rho   = myhalf  * ( cons_arr(i-1,j,k,Rho_comp) + cons_arr(i,j,k,Rho_comp) );
 
@@ -2570,17 +2547,17 @@ struct donelan_flux
         if (dir == 0) {
             // X-face: y/z velocity, velx = velz here
             velx  = fourth * ( velz_arr(i,j,  k) + velz_arr(i  ,j,k+1)
-                           + velz_arr(i,j-1,k) + velz_arr(i  ,j-1,k+1) );
+                             + velz_arr(i,j-1,k) + velz_arr(i  ,j-1,k+1) );
             vely  = vely_arr(i,j,k);
         } else if (dir == 1) {
             // Y-face: x/z velocity, vely = velz here
             velx  = fourth * ( velx_arr(i,j  ,k) + velx_arr(i+1,j  ,k)
                              + velx_arr(i,j-1,k) + velx_arr(i+1,j-1,k) );
             vely  = fourth * ( velz_arr(i,j,  k) + velz_arr(i  ,j,k+1)
-                           + velz_arr(i,j-1,k) + velz_arr(i  ,j-1,k+1) );
+                             + velz_arr(i,j-1,k) + velz_arr(i  ,j-1,k+1) );
         } else {
             velx  = fourth * ( velx_arr(i,j  ,k) + velx_arr(i+1,j  ,k)
-                           + velx_arr(i,j-1,k) + velx_arr(i+1,j-1,k) );
+                             + velx_arr(i,j-1,k) + velx_arr(i+1,j-1,k) );
             vely  = vely_arr(i,j,k);
         }
 

@@ -93,14 +93,6 @@ void ComputeTurbulentViscosityLES (Vector<std::unique_ptr<MultiFab>>& Tau_lev,
             Array4<Real const> u_arr = (l_has_xvel) ? xvel->const_array(mfi) : Array4<Real const>{};
             Array4<Real const> v_arr = (l_has_yvel) ? yvel->const_array(mfi) : Array4<Real const>{};
 
-            if (SurfLayer) {
-                // TODO: fix - this adjusts the box if using SurfLayer on all sides to avoid overwriting hfx,hfy,hfz on each sides
-                bxcc.growLo(0, -1);
-                bxcc.growHi(0, -1);
-                bxcc.growLo(1, -1);
-                bxcc.growHi(1, -1);
-                bxcc.growLo(2, -1);
-            }
 
             ParallelFor(bxcc, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {

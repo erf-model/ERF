@@ -226,7 +226,7 @@ public:
      *
      * @param[in] lev level index
      */
-    void write_averages (const int& lev, const int step = 0);
+    void write_averages (const int& lev);
 
     /**
      * Return one 2D average MultiFab.

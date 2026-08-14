@@ -1116,16 +1116,23 @@ ERF::InitData_post ()
     // Configure SurfaceLayer params if used
     // NOTE: we must set up the MOST routine after calling FillPatch
     //       in order to have lateral ghost cells filled (MOST + terrain interp).
-    //if (phys_bc_type[Orientation(Direction::z,Orientation::low)] == ERF_BC::surface_layer)
     m_SurfaceLayer.resize(AMREX_SPACEDIM*2);
     bool updated_prim = false;
+    // Count number of surface layer boundaries to determine correct parm parse prefix
+    int n_faces = 0;
+    for (OrientationIter oit; oit; ++oit) {
+        Orientation ori = oit();
+        if (phys_bc_type[ori] == ERF_BC::surface_layer) {
+            n_faces += 1;
+        }
+    }
     for (OrientationIter oit; oit; ++oit) {
         Orientation ori = oit();
         if (phys_bc_type[ori] == ERF_BC::surface_layer) {
             bool has_diff = ( (solverChoice.diffChoice.molec_diff_type != MolecDiffType::None) ||
-                          (solverChoice.turbChoice[0].les_type  != LESType::None)          ||
-                          (solverChoice.turbChoice[0].rans_type != RANSType::None)         ||
-                          (solverChoice.turbChoice[0].pbl_type  != PBLType::None) );
+                              (solverChoice.turbChoice[0].les_type  != LESType::None)          ||
+                              (solverChoice.turbChoice[0].rans_type != RANSType::None)         ||
+                              (solverChoice.turbChoice[0].pbl_type  != PBLType::None) );
             AMREX_ALWAYS_ASSERT(has_diff);
 
             bool rotate = solverChoice.use_rotate_surface_flux;
@@ -1142,12 +1149,19 @@ ERF::InitData_post ()
             amrex::Vector<const eb_*> eb_ptrs;
             eb_ptrs.resize(finest_level + 1, nullptr);
             if (solverChoice.terrain_type == TerrainType::EB) {
+                AMREX_ALWAYS_ASSERT_WITH_MESSAGE(ori.coordDir() == 2 && ori.faceDir() == Orientation::Side::low,
+                                                 "Surface layer with EB can only be enabled for the bottom z face");
                 for (int lev = 0; lev <= finest_level; lev++) {
                     eb_ptrs[lev] = eb[lev] ? eb[lev].get() : nullptr;
                 }
             }
 
-            m_SurfaceLayer[ori] = std::make_unique<SurfaceLayer>(ori, geom, rotate, pp_prefix, Qv_prim,
+            // If only one surface layer, assume it is on zlo and omit the face prefix to be backwards compatible
+            std::string face_pp_prefix(pp_prefix + "." + BoundaryFaceName[ori]);
+            if (n_faces == 1 && static_cast<int>(ori) == Orientation::zlo()) {
+                face_pp_prefix = pp_prefix;
+            }
+            m_SurfaceLayer[ori] = std::make_unique<SurfaceLayer>(ori, geom, rotate, face_pp_prefix, Qv_prim,
                                                                  z_phys_nd,
                                                                  solverChoice.mesh_type,
                                                                  solverChoice.terrain_type,
@@ -1175,16 +1189,17 @@ ERF::InitData_post ()
 
             // If initializing from an input_sounding, make sure the surface layer
             // is using the same surface conditions
-            /*
-            if (solverChoice.init_type == InitType::Input_Sounding) {
-                const Real theta0 = input_sounding_data.theta_ref_inp_sound;
-                const Real qv0    = input_sounding_data.qv_ref_inp_sound;
-                for (int lev = 0; lev <= finest_level; lev++) {
-                    m_SurfaceLayer[ori]->set_t_surf(lev, theta0);
-                    m_SurfaceLayer[ori]->set_q_surf(lev, qv0);
+            // Note: do this only if using a single face on zlo, otherwise this will overwrite user specified wall values
+            if (n_faces == 1 && static_cast<int>(ori) == Orientation::zlo()) {
+                if (solverChoice.init_type == InitType::Input_Sounding) {
+                    const Real theta0 = input_sounding_data.theta_ref_inp_sound;
+                    const Real qv0    = input_sounding_data.qv_ref_inp_sound;
+                    for (int lev = 0; lev <= finest_level; lev++) {
+                        m_SurfaceLayer[ori]->set_t_surf(lev, theta0);
+                        m_SurfaceLayer[ori]->set_q_surf(lev, qv0);
+                    }
                 }
             }
-            */
 
             if (restart_chkfile != "") {
                 // Update surface fields if needed (and available)
@@ -1195,7 +1210,7 @@ ERF::InitData_post ()
             // Note we don't fill ghost cells here because this is just for diagnostics
             for (int lev = 0; lev <= finest_level; ++lev)
             {
-                    IntVect ng = Theta_prim[lev]->nGrowVect();
+                IntVect ng = Theta_prim[lev]->nGrowVect();
 
                 if (!updated_prim) {
                     // This only needs to be done once (Theta,Qv_prim,Qr_prim should only be calculated once and reused for other faces)
@@ -1231,9 +1246,9 @@ ERF::InitData_post ()
                     double elapsed_time_since_start_low = t_new[lev] + start_time;
 #endif
                     m_SurfaceLayer[ori]->update_fluxes(lev, t_new[lev], elapsed_time_since_start_low,
-                                                vars_new[lev][Vars::cons],
-                                                z_phys_nd[lev],
-                                                walldist[lev]);
+                                                       vars_new[lev][Vars::cons],
+                                                       z_phys_nd[lev],
+                                                       walldist[lev]);
     
                     if (ori.coordDir() == 2 && ori.faceDir() == Orientation::Side::low) {
                         // Initialize tke(x,y,z) as a function of u*(x,y)

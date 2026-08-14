@@ -78,7 +78,7 @@ public:
       use_moisture = (Qv_prim[0].get());
 
       // Get roughness
-      amrex::ParmParse pp("erf." + BoundaryFaceName[face]);
+      amrex::ParmParse pp(a_pp_prefix);
       pp.query("most.z0", z0_const);
 
       // Specify how to compute the flux
