@@ -89,21 +89,24 @@ Real wdm6_lamdar (Real qr, Real den, Real nr, Real pidnr_arg) {
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-Real wdm6_lamdac (Real qc, Real den, Real nc, Real pidnc_arg) {
-    // Cloud droplet slope parameter using number concentration nc
-    // qc = cloud mixing ratio (kg/kg)
-    // den = air density (kg/m^3)
-    // nc = cloud droplet number concentration (#/kg)
-    // Returns 1/lambda (m)
-    if (qc <= Real(1.e-9) || nc <= Real(1.e1)) {
-        return Real(1.0) / Real(5.0e5);  // lamdacmax
-    }
-    return std::pow((pidnc_arg * nc * den) / (den * qc), Real(1.0)/Real(3.0));
+Real wdm6_lamdac_exact (Real qc, Real den, Real nc, Real pidnc_arg) {
+    // Fortran statement function, ERF_module_mp_wdm6.F90:562:
+    //     lamdac(x,y,z) = exp(log(((pidnc*z)/(x*y)))*((.33333333)))
+    // called as lamdac(qci(i,k,1), den(i,k), ncr(i,k,2)), so x=qc, y=den, z=nc.
+    // The exponent literal is unsuffixed in the Fortran and therefore obeys the
+    // LITERAL PRECISION CONTRACT; it is not 1/3.
+    return std::exp(std::log((pidnc_arg * nc) / (qc * den)) * wdm6_literal(0.33333333));
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 Real wdm6_rslopec_exact (Real qc, Real den, Real nc, Real pidnc_arg) {
-    return std::exp(std::log((pidnc_arg * nc) / (den * qc)) * Real(0.33333333));
+    // rslopec is the RECIPROCAL of lamdac: the Fortran writes
+    //     rslopec(i,k) = 1./lamdac(qci(i,k,1),den(i,k),ncr(i,k,2))
+    // at both of its two sites (G3 at :915 and G11 at :1544). Returning lamdac
+    // itself here put rslopec off by 1/lamdac^2, about nine orders of magnitude
+    // once cloud water exists. It was invisible until cloud water first formed,
+    // because with qc <= qmin both legs take the rslopecmax branch instead.
+    return Real(1.0) / wdm6_lamdac_exact(qc, den, nc, pidnc_arg);
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
@@ -942,7 +945,17 @@ void WDM6::Advance(const Real& dt_advance,
             // Match Fortran pre-G3 behavior: nc is non-negative here, but not floored to ncmin yet.
             nc_arr(i,j,k) = amrex::max(nc_arr(i,j,k), Real(0.0));
             nr_arr(i,j,k) = amrex::max(nr_arr(i,j,k), Real(0.0));
-            nn_arr(i,j,k) = amrex::max(nn_arr(i,j,k), Real(0.0));
+            // CCN is clamped into [1.e8, 2.e10], not merely floored at zero:
+            //     ncr(i,k,1) = min(max(ncr(i,k,1),1.e8),2.e10)
+            // at ERF_module_mp_wdm6.F90:604. This re-seeds the aerosol field to
+            // the background concentration at the top of every macro timestep,
+            // so activation depletion never carries across steps. A plain
+            // max(.,0) is a no-op on step 1, where Init() has just set nn to
+            // ccn0 = 1.e8 everywhere, and only diverges from step 2 onward once
+            // activation has drawn nn below the floor. Both literals are exact
+            // in float32, so the precision contract is satisfied either way.
+            nn_arr(i,j,k) = amrex::min(amrex::max(nn_arr(i,j,k), wdm6_literal(1.0e8)),
+                                       wdm6_literal(2.0e10));
         });
 
         // Compute cpm and xl once from initial state
@@ -2276,6 +2289,11 @@ void WDM6::Advance(const Real& dt_advance,
 
             ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
                 const Real supcol = t0c - t_arr(i,j,k);
+                // Latent heat of FUSION, per the Fortran's per-k prologue:
+                //     xlf = xls-xl(i,k) ;  if(supcol.lt.0.) xlf = xlf0
+                // shared by G10a-G10d. Freezing releases xlf, not xl.
+                Real xlf = xls - xl_arr(i,j,k);
+                if (supcol < Real(0.0)) xlf = xlf0;
 
                 // Heterogeneous freezing (Biggs, contact/immersion): 0 > T > -40C
                 // Trigger: supcol > 0 (T < T0c) AND qc > qmin
@@ -2283,16 +2301,26 @@ void WDM6::Advance(const Real& dt_advance,
                     const Real supcolt = amrex::min(supcol, Real(70.0));
                     const Real expterm = std::exp(pfrz2_loc * supcolt) - Real(1.0);
 
-                    // Cloud droplet slope parameter cubed
-                    const Real rs3 = rslopec_arr(i,j,k) * rslopec_arr(i,j,k) * rslopec_arr(i,j,k);
+                    // Use the stored rslopec3, as the Fortran does: in the
+                    // rslopecmax branch it is the precomputed rslopec3max
+                    // constant, which need not equal rslopecmax cubed.
+                    const Real rs3 = rslopec3_arr(i,j,k);
 
-                    // Mass freezing rate: π² · pfrz1 · (exp(pfrz2·supcolt)-1) · (denr/den) · nc · rs3/18 · dtcld
+                    // pfrzdtc = min(pi*pi*pfrz1*(exp(pfrz2*supcolt)-1.)*denr/den
+                    //               *ncr(:,:,2)*rslopec3*rslopec3/18.*dtcld, qci(:,:,1))
+                    // rslopec3 appears TWICE. Using it once left the rate about
+                    // 1/rslopec3 too large -- roughly 8e12 for a typical cloud
+                    // droplet slope -- so pfrzdtc always saturated at its qc cap
+                    // and every cell below freezing lost all its cloud water to
+                    // ice in a single substep. Factor order follows the Fortran
+                    // left to right so the roundings agree.
                     Real pfrzdtc = pi_wdm6_loc * pi_wdm6_loc * pfrz1_loc * expterm
-                                 * (denr / den_arr(i,j,k)) * nc_arr(i,j,k) * rs3
+                                 * denr / den_arr(i,j,k) * nc_arr(i,j,k) * rs3 * rs3
                                  / Real(18.0) * dtcld;
                     pfrzdtc = amrex::min(pfrzdtc, qc_arr(i,j,k));
 
-                    // Number freezing rate: π · pfrz1 · (exp(pfrz2·supcolt)-1) · nc · rs3/6 · dtcld
+                    // nfrzdtc = min(pi*pfrz1*(exp(pfrz2*supcolt)-1.)*ncr(:,:,2)
+                    //               *rslopec3/6.*dtcld, ncr(:,:,2)) -- one factor here.
                     Real nfrzdtc = pi_wdm6_loc * pfrz1_loc * expterm
                                  * nc_arr(i,j,k) * rs3
                                  / Real(6.0) * dtcld;
@@ -2305,7 +2333,7 @@ void WDM6::Advance(const Real& dt_advance,
 
                     // Apply mass and temperature updates
                     qi_arr(i,j,k) += pfrzdtc;
-                    t_arr(i,j,k)  += xl_arr(i,j,k) / cpm_arr(i,j,k) * pfrzdtc;
+                    t_arr(i,j,k)  += xlf / cpm_arr(i,j,k) * pfrzdtc;
                     qc_arr(i,j,k) -= pfrzdtc;
                 }
             });
@@ -2352,6 +2380,9 @@ void WDM6::Advance(const Real& dt_advance,
 
             ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
                 const Real supcol = t0c - t_arr(i,j,k);
+                // Latent heat of fusion, as in G10a-G10c above.
+                Real xlf = xls - xl_arr(i,j,k);
+                if (supcol < Real(0.0)) xlf = xlf0;
 
                 // Rain freezing to graupel: trigger when T < t0c and qr > 0
                 if (supcol > Real(0.0) && qr_arr(i,j,k) > Real(0.0)) {
@@ -2361,10 +2392,12 @@ void WDM6::Advance(const Real& dt_advance,
                     // Rain slope cubed (from G4/G6 computation)
                     const Real rs3 = rslope3_arr(i,j,k,0);
 
-                    // Mass freezing rate: 140*pi^2 * pfrz1 * nr * (denr/den) * exp(...) * rs3^2 * dtcld
-                    Real pfrzdtr = Real(140.0) * pi_wdm6_loc * pi_wdm6_loc
+                    // pfrzdtr = min(140.*(pi*pi)*pfrz1*ncr(:,:,3)*denr/den
+                    //               *(exp(pfrz2*supcolt)-1.)*rslope3*rslope3*dtcld, qrs(:,:,1))
+                    // Factor order follows the Fortran left to right.
+                    Real pfrzdtr = Real(140.0) * (pi_wdm6_loc * pi_wdm6_loc)
                                  * pfrz1_loc * nr_arr(i,j,k)
-                                 * (denr / den_arr(i,j,k))
+                                 * denr / den_arr(i,j,k)
                                  * expterm * rs3 * rs3 * dtcld;
                     pfrzdtr = amrex::min(pfrzdtr, qr_arr(i,j,k));
 
@@ -2378,7 +2411,7 @@ void WDM6::Advance(const Real& dt_advance,
 
                     // Apply mass and temperature updates
                     qg_arr(i,j,k) += pfrzdtr;
-                    t_arr(i,j,k)  += xl_arr(i,j,k) / cpm_arr(i,j,k) * pfrzdtr;
+                    t_arr(i,j,k)  += xlf / cpm_arr(i,j,k) * pfrzdtr;
                     qr_arr(i,j,k) -= pfrzdtr;
                 }
             });
@@ -2527,8 +2560,14 @@ void WDM6::Advance(const Real& dt_advance,
                     rslopec2_arr(i,j,k) = rslopec2max_loc;
                     rslopec3_arr(i,j,k) = rslopec3max_loc;
                 } else {
-                    const Real lamc = wdm6_lamdac(qci_for_lamdac, den_arr(i,j,k), nc_for_lamdac, pidnc_loc);
-                    const Real rslc = Real(1.0) / lamc;
+                    // Same expression as G3; share the one exact port. The
+                    // previous wdm6_lamdac() here differed from the Fortran on
+                    // three counts: it cancelled den out of the argument, it
+                    // used std::pow with a true 1/3 rather than exp/log with the
+                    // unsuffixed .33333333, and it carried a qc/nc guard of its
+                    // own that fired inside this block's own gate.
+                    const Real rslc = wdm6_rslopec_exact(qci_for_lamdac, den_arr(i,j,k),
+                                                         nc_for_lamdac, pidnc_loc);
                     rslopec_arr(i,j,k)  = rslc;
                     rslopec2_arr(i,j,k) = rslc * rslc;
                     rslopec3_arr(i,j,k) = rslopec2_arr(i,j,k) * rslc;
