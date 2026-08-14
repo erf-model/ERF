@@ -1337,7 +1337,6 @@ struct surface_temp
 
         amrex::Real t_surf   = t_surf_arr(i,j,k);
         amrex::Real t_mean   = tm_arr(i,j,k);
-        amrex::Real tvm      = tvm_arr(i,j,k);
 
         // Water vapor in atmos and surface
         amrex::Real qv_s, qv_a;
