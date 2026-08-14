@@ -166,11 +166,18 @@ public:
     // Sets lmask to nullptr if unavailable.
     void GetLandMask (const amrex::iMultiFab*& lmask) const;
 
-    // True when a radiation model is active and producing fluxes at level 0. A
-    // coupling driver needs this to know whether the SWrad/LWrad lanes it would
-    // hand an ocean model carry real values or just zeros: passing zeros is worse
-    // than passing nothing, because the ocean model then suppresses its own
-    // radiative forcing in favour of them.
+    // True when a radiation model is *configured* at level 0. A coupling driver
+    // needs this to know whether the SWrad/LWrad lanes it would hand an ocean
+    // model carry real values or just zeros: passing zeros is worse than passing
+    // nothing, because the ocean model then suppresses its own radiative forcing
+    // in favour of them.
+    //
+    // Note this is a configuration predicate, not a data-validity one. rad_fluxes
+    // is allocated and zero-filled as soon as solverChoice.rad_type != None, so
+    // this returns true from level-0 allocation onward - including before the
+    // first AdvanceRadiation, when the fluxes are still exactly zero. A caller
+    // that needs "the lanes hold real radiation" must additionally know that a
+    // radiation step has run.
     [[nodiscard]] bool HasRadiation () const {
         return (!rad_fluxes.empty() && rad_fluxes[0] != nullptr);
     }
@@ -180,8 +187,13 @@ public:
     // the driver's ERFRemoraMultiBlockContainer::BuildRemapWeights(); each
     // lane below picks the pair matching its own destination stagger.
     // dst_mskr/dst_msku/dst_mskv are REMORA wet/dry masks (1 = wet, 0 = land)
-    // on the rho/u-face/v-face destination layouts, applied to the scalar,
-    // TauX, and TauY lanes respectively. Pass nullptr to skip masking.
+    // on the rho/u-face/v-face destination layouts. dst_msku/dst_mskv are applied
+    // to the TauX/TauY lanes; dst_mskr is applied to the rho-centred *scalar* lanes
+    // (Patm, Tair, cloud, and the scalar flux lanes) but deliberately NOT to
+    // Uwind/Vwind, which are also rho-centred - so the wind lanes carry live
+    // atmospheric values over REMORA land while Patm/Tair carry fallbacks there.
+    // REMORA re-masks on its own side, so this asymmetry is currently harmless.
+    // Pass nullptr to skip masking.
     void PackAtmosphericStates (amrex::Vector<amrex::MultiFab*>& states, double time,
                                 const amrex::Vector<const amrex::MultiFab*>& weight_mf,
                                 const amrex::Vector<const amrex::iMultiFab*>& index_mf,

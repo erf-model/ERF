@@ -105,6 +105,13 @@ StagedSourceBoxArray (const amrex::MultiFab& src,
             need = Box(IntVect(lo[2*b], lo[2*b+1], src_domain.smallEnd(2)),
                        IntVect(hi[2*b], hi[2*b+1], src_domain.bigEnd(2)),
                        src_ixtype);
+            // The intersection below silently drops any index outside the source
+            // domain, but the stencil kernel dereferences it regardless - so a
+            // weight generator that emitted an out-of-domain index would turn into
+            // an out-of-bounds read instead of a diagnosable failure. Assert first.
+            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+                src_domain.contains(need),
+                "StagedSourceBoxArray: a remap stencil references a source index outside the source domain.");
             need &= src_domain;
         }
         bl.push_back(need);
@@ -116,10 +123,12 @@ StagedSourceBoxArray (const amrex::MultiFab& src,
 //
 // Zero is the wrong default for a physical field: the receiving model cannot tell
 // "no data here" from "the atmosphere says zero", and for an intensive quantity
-// zero is not merely inaccurate, it is singular. A pressure of 0 mb and an air
-// temperature of 0 K reach REMORA_bulk_flux.cpp:221 as
-// rhoAir = PairM*100/(Rgas*TairK*(1+0.61*Q)) = 0/0, and the resulting NaN
-// survives every subsequent land-mask multiplication. Uncovered cells are
+// zero is not merely inaccurate, it drives the receiver's flux formulas outside
+// their valid domain. A lane of 0 Pa / 0 K arrives in REMORA as PairM = 0 mb and
+// (after the K->C conversion) TairK = 0.01 K, which poisons the bulk-flux chain -
+// candidates include sqrt(vap_p) at REMORA_bulk_flux.cpp:145 and
+// pow(Bf*blk_Zabl, 1/3) at :314 - and any NaN produced there survives every
+// subsequent land-mask multiplication. Uncovered cells are
 // unavoidable wherever the two land masks disagree along a coastline or the ocean
 // grid reaches past the atmosphere's footprint, so every lane carrying an
 // intensive field needs a physically admissible value here.
@@ -189,8 +198,8 @@ ApplyConservativeRemap (const amrex::MultiFab& src,
             // receive no coupled information either way; they just stay
             // physically admissible.
             if (has_mask) {
-                const Real m = mask_arr(i, j, k);
-                sum = m * sum + (Real(1.0) - m) * fallback_val;
+                const Real mask = mask_arr(i, j, k);
+                sum = mask * sum + (Real(1.0) - mask) * fallback_val;
             }
             dst_arr(i, j, k) = sum;
         });
@@ -321,6 +330,18 @@ ERF::PackAtmosphericStates (amrex::Vector<amrex::MultiFab*>& states,
         AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
             weight_mf_by_family[f] != nullptr && index_mf_by_family[f] != nullptr,
             "PackAtmosphericStates requires valid driver remap stencil components for every WeightFamily slot.");
+        // The stencil loops read max_stencil_size weights and 3*max_stencil_size
+        // index components. Nothing else checks that the driver allocated that
+        // many, so a driver/submodule version skew would read past the component
+        // count and silently return garbage rather than failing.
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+            weight_mf_by_family[f]->nComp() >= max_stencil_size &&
+            index_mf_by_family[f]->nComp() >= 3 * max_stencil_size,
+            "PackAtmosphericStates: driver remap stencil arrays have too few components for max_stencil_size.");
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+            weight_mf_by_family[f]->boxArray() == index_mf_by_family[f]->boxArray() &&
+            weight_mf_by_family[f]->DistributionMap() == index_mf_by_family[f]->DistributionMap(),
+            "PackAtmosphericStates: weight and index arrays for a WeightFamily slot disagree on layout.");
     }
     const amrex::MultiFab* weight_mf = weight_mf_by_family[kScalarFamily];
     const amrex::iMultiFab* index_mf = index_mf_by_family[kScalarFamily];
@@ -348,7 +369,8 @@ ERF::PackAtmosphericStates (amrex::Vector<amrex::MultiFab*>& states,
     auto& yvel = vars_new[lev][Vars::yvel]; // YFace
 
     const bool has_moisture  = (solverChoice.moisture_type != MoistureType::None);
-    const bool has_radiation = (!rad_fluxes.empty() && rad_fluxes[lev] != nullptr);
+    // Level 0 only, matching HasRadiation(); lev is 0 throughout this routine.
+    const bool has_radiation = HasRadiation();
 
     amrex::ignore_unused(has_moisture, has_radiation);
 
@@ -406,6 +428,62 @@ ERF::PackAtmosphericStates (amrex::Vector<amrex::MultiFab*>& states,
         // NOTE: Tau is only allocated when diffusion is active, so the pointers
         //       have to be checked before they are dereferenced.
         //
+
+        // TAU LANE STAGGER: unresolved, see the parked block below.
+        //
+        // ERF tau13/tau23 live on x-/y-faces and REMORA vec_sustr/vec_svstr live on
+        // u-/v-faces, so the physically meaningful transfer is face -> face: a
+        // stagger-matched transfer with no averaging on a conformal grid. That is
+        // what the live code below does, and what the driver's WeightFamily comment
+        // describes.
+        //
+        // The defect is on the weight side, not here: the driver builds its remap
+        // stencils from source *cell* polygons and stores ERF *cell* indices for
+        // every family (ERFRemoraMultiBlockContainer.cpp, the ExtractCellQuadFromCoords
+        // / CellBoundsFromGeom calls in BuildAtmosToOceanWeights). So the index this
+        // face-staggered source is read with was computed for a cell, displacing tau
+        // by ~dx/2 and leaving the outermost face column unreachable.
+        //
+        // The parked block below "fixed" that by averaging tau to cell centres so the
+        // source would match the cell-based weights. That is the wrong direction: it
+        // smooths the stress twice (face -> cell, then cell -> face via area weights)
+        // and throws away the face alignment. Keeping it only as a record of the
+        // attempt. The correct fix is to build ERF *face* control-volume source
+        // polygons for the TAUX/TAUY families in the driver, so the weights match the
+        // face source that is already being passed here.
+#if 0
+        if (iTauX < static_cast<int>(states.size()) && states[iTauX] != nullptr) {
+            MultiFab tmp(ba2d_lev, dm, 1, 0);
+            for (MFIter mfi(tmp, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+                Box bx = mfi.tilebox();
+                auto const& tau13 = Tau[lev][TauType::tau13]->const_array(mfi);
+                auto const& c = cons.const_array(mfi);
+                auto t = tmp.array(mfi);
+                ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+                    t(i,j,k) = c(i,j,klo,Rho_comp)
+                             * Real(0.5) * (tau13(i,j,klo) + tau13(i+1,j,klo));
+                });
+            }
+            ApplyConservativeRemap(tmp, *states[iTauX], *weight_mf_by_family[kTauXFamily],
+                                   *index_mf_by_family[kTauXFamily], max_stencil_size, dst_msku);
+        }
+        if (iTauY < static_cast<int>(states.size()) && states[iTauY] != nullptr) {
+            MultiFab tmp(ba2d_lev, dm, 1, 0);
+            for (MFIter mfi(tmp, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+                Box bx = mfi.tilebox();
+                auto const& tau23 = Tau[lev][TauType::tau23]->const_array(mfi);
+                auto const& c = cons.const_array(mfi);
+                auto t = tmp.array(mfi);
+                ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+                    t(i,j,k) = c(i,j,klo,Rho_comp)
+                             * Real(0.5) * (tau23(i,j,klo) + tau23(i,j+1,klo));
+                });
+            }
+            ApplyConservativeRemap(tmp, *states[iTauY], *weight_mf_by_family[kTauYFamily],
+                                   *index_mf_by_family[kTauYFamily], max_stencil_size, dst_mskv);
+        }
+#endif
+
         if (iTauX < static_cast<int>(states.size()) && states[iTauX] != nullptr) {
             AMREX_ALWAYS_ASSERT_WITH_MESSAGE(Tau[lev][TauType::tau13] != nullptr,
                 "Flux-mode coupling of tau_x requires Tau; enable diffusion or a surface_layer bc");
