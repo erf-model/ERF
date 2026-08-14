@@ -1600,7 +1600,7 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev)
  */
 void
 init_base_state_from_wrfinput (const Box& subdomain,
-                               const Real& l_rdOcp,
+                               const Real& /*l_rdOcp*/,
                                MultiFab& p_hse,
                                MultiFab& pi_hse,
                                MultiFab& th_hse,
@@ -1626,24 +1626,29 @@ init_base_state_from_wrfinput (const Box& subdomain,
 
         Box gtbx = mfi.tilebox();
 
+        const Array4<Real      >&  r_hse_arr =  r_hse.array(mfi);
+        const Array4<Real      >&  p_hse_arr =  p_hse.array(mfi);
         const Array4<Real      >& th_hse_arr = th_hse.array(mfi);
         const Array4<Real      >& qv_hse_arr = qv_hse.array(mfi);
 
-        const Array4<const Real>& z_cc_arr = z_phys_cc->const_array(mfi);
+        const Array4<const Real>& z_cc_arr   = z_phys_cc->const_array(mfi);
 
-        ParallelFor(gtbx, [=,zero_d=zero] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+        ParallelFor(gtbx, [=,zero_d=zero,RdoCp_d=RdoCp]
+                    AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {
             // Analytical function with true CC heights
             Real ToA  = T00 / TLP;
             Real disc = amrex::max(ToA * ToA - two * CONST_GRAV * z_cc_arr(i,j,k) / (TLP * R_d), zero_d);
             Real Pd   = P00 * std::exp(-ToA + std::sqrt(disc));
-            Real Td  = std::max(TISO, T00 + TLP * std::log(Pd/P00));
+            Real Td   = std::max(TISO, T00 + TLP * std::log(Pd/P00));
             if (P_STRAT > zero_d && Pd <= P_STRAT) {
                 Td = TISO + TLP_STRAT * std::log(Pd/P_STRAT);
             }
 
             // Fill HSE arrays for balancing
-            th_hse_arr(i,j,k) = getThgivenTandP(Td, Pd, l_rdOcp);
+             p_hse_arr(i,j,k) = Pd;
+            th_hse_arr(i,j,k) = getThgivenTandP(Td, Pd, RdoCp_d);
+             r_hse_arr(i,j,k) = getRhogivenThetaPress(th_hse_arr(i,j,k), Pd, RdoCp_d);
             qv_hse_arr(i,j,k) = zero;
         });
     }
@@ -1688,39 +1693,36 @@ init_base_state_from_wrfinput (const Box& subdomain,
             ParallelFor(bx, [=,RdoCp_d=RdoCp]
                         AMREX_GPU_DEVICE(int i, int j, int /*k*/) noexcept
             {
-                // integrate from surface to domain top
-                Real dz, F, C;
-                Real rho_tot_hi, rho_tot_lo;
+                // Integrate from surface to domain top
+                Real T_hi;
                 Real z_lo, z_hi;
                 Real R_lo, R_hi;
                 Real Th_lo, Th_hi;
-                Real T_hi;
                 Real P_lo, P_hi;
+                Real rho_tot_hi, rho_tot_lo;
+
+                Real dz, F, C;
 
                 Real qv_lo = zero;
                 Real qv_hi = zero;
 
-                // First integrate from surface to first CC at klo
-                {
-                    // Vertical grid spacing
-                    z_lo = zero; // corresponding to p_0
-                    z_hi = z_cc_arr(i,j,klo);
+                for (int k(klo+1); k<=khi; ++k) {
+                    z_lo = z_cc_arr(i,j,k-1);
+                    z_hi = z_cc_arr(i,j,k  );
+                    dz   = z_hi - z_lo;
 
-                    // dz == height of first cell center
-                    dz = z_hi - z_lo;
-
-                    // Known surface values
-                    P_lo  = P00;
-                    Th_lo = getThgivenTandP(T00, P00, RdoCp_d);
-                    R_lo  = getRhogivenThetaPress(Th_lo, P_lo, RdoCp_d);
+                    // Establish known constant
+                    P_lo  =  p_hse_arr(i,j,k-1);
+                    Th_lo = th_hse_arr(i,j,k-1);
+                    R_lo  = getRhogivenThetaPress(Th_lo, P_lo, RdoCp_d, qv_lo);
                     rho_tot_lo = R_lo;
                     C  = -P_lo + myhalf*rho_tot_lo*grav*dz;
 
                     // Initial guess and residual
-                    P_hi  = P_lo;
-                    Th_hi = th_hse_arr(i,j,klo);
+                    P_hi  =  p_hse_arr(i,j,k);
+                    Th_hi = th_hse_arr(i,j,k);
                     T_hi  = getTgivenPandTh(P_hi, Th_hi, RdoCp_d);
-                    R_hi  = getRhogivenThetaPress(Th_hi, P_hi, RdoCp_d);
+                    R_hi  = getRhogivenThetaPress(Th_hi, P_hi, RdoCp_d, qv_hi);
                     rho_tot_hi = R_hi;
                     F = P_hi + myhalf*rho_tot_hi*grav*dz + C;
 
@@ -1731,47 +1733,13 @@ init_base_state_from_wrfinput (const Box& subdomain,
                                                  qv_hi, qv_hi,
                                                  P_hi, R_hi, F, maintain_Th);
 
-                    // At first cell center
-                     r_hse_arr(i,j,klo) = R_hi;
-                     p_hse_arr(i,j,klo) = P_hi;
-                    pi_hse_arr(i,j,klo) = getExnergivenP(p_hse_arr(i,j,klo), l_rdOcp);
+                    // Assign data
+                     r_hse_arr(i,j,k) = R_hi;
+                     p_hse_arr(i,j,k) = P_hi;
+                    pi_hse_arr(i,j,k) = getExnergivenP(P_hi, RdoCp_d);
 
                     P_lo = P_hi;
                     z_lo = z_hi;
-                }
-
-                for (int k(klo+1); k<=khi; ++k) {
-
-                  z_hi = z_cc_arr(i,j,k);
-                  dz   = z_hi - z_lo;
-
-                  // Establish known constant
-                  Th_lo = th_hse_arr(i,j,k-1);
-                  R_lo  = getRhogivenThetaPress(Th_lo, P_lo, RdoCp_d, qv_lo);
-                  rho_tot_lo = R_lo;
-                  C  = -P_lo + myhalf*rho_tot_lo*grav*dz;
-
-                  // Initial guess and residual
-                  Th_hi = th_hse_arr(i,j,k);
-                  T_hi  = getTgivenPandTh(P_hi, Th_hi, RdoCp_d);
-                  R_hi  = getRhogivenThetaPress(Th_hi, P_hi, RdoCp_d, qv_hi);
-                  rho_tot_hi = R_hi;
-                  F = P_hi + myhalf*rho_tot_hi*grav*dz + C;
-
-                  // Do iterations
-                  bool maintain_Th = true;
-                  HSEutils::Newton_Raphson_hse(tol, RdoCp_d, dz,
-                                               grav, C, Th_hi, T_hi,
-                                               qv_hi, qv_hi,
-                                               P_hi, R_hi, F, maintain_Th);
-
-                  // Assign data
-                   r_hse_arr(i,j,k) = R_hi;
-                   p_hse_arr(i,j,k) = P_hi;
-                  pi_hse_arr(i,j,k) = getExnergivenP(p_hse_arr(i,j,k), l_rdOcp);
-
-                  P_lo = P_hi;
-                  z_lo = z_hi;
                 }
             });
     } // mfi
