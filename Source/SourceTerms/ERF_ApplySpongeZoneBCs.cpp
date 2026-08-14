@@ -3,6 +3,20 @@
 
 using namespace amrex;
 
+/**
+ * @brief Apply sponge zone damping to cell-centered state variables.
+ *
+ * @param[in] spongeChoice Sponge configuration.
+ * @param[in] geom Domain geometry.
+ * @param[in] bx Box of indices to process.
+ * @param[in,out] cell_rhs Right-hand side for state variables.
+ * @param[in] cell_data Current state data.
+ * @param[in] r0 Base state density.
+ * @param[in] th0 Base state potential temperature.
+ * @param[in] qv0 Base state moisture.
+ * @param[in] z_phys_cc Cell-centered physical height.
+ * @param[in] n_qstate Number of additional scalar state variables.
+ */
 void
 ApplySpongeZoneBCsForCC (const SpongeChoice& spongeChoice,
                          const Geometry geom,
@@ -165,6 +179,24 @@ ApplySpongeZoneBCsForCC (const SpongeChoice& spongeChoice,
     });
 }
 
+/**
+ * @brief Apply sponge zone damping to momentum variables.
+ *
+ * @param[in] spongeChoice Sponge configuration.
+ * @param[in] geom Domain geometry.
+ * @param[in] tbx Processing box for x-momentum.
+ * @param[in] tby Processing box for y-momentum.
+ * @param[in] tbz Processing box for z-momentum.
+ * @param[in,out] rho_u_rhs Right-hand side for x-momentum.
+ * @param[in,out] rho_v_rhs Right-hand side for y-momentum.
+ * @param[in,out] rho_w_rhs Right-hand side for z-momentum.
+ * @param[in] rho_u Current x-momentum data.
+ * @param[in] rho_v Current y-momentum data.
+ * @param[in] rho_w Current z-momentum data.
+ * @param[in] r0 Base state density.
+ * @param[in] z_phys_nd Node-centered physical height.
+ * @param[in] z_phys_cc Cell-centered physical height.
+ */
 void
 ApplySpongeZoneBCsForMom (const SpongeChoice& spongeChoice,
                           const Geometry geom,

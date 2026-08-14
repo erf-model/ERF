@@ -52,11 +52,20 @@ void add_moist_nudging_terms (const MultiFab& S_data,
     const Box domain = geom.Domain();
     IntVect ng  = S_data.nGrowVect();
 
-    // Temporary MF so we can nudge qv + qc to the bdy data
-    MultiFab S_tmp(S_data.boxArray(), S_data.DistributionMap(), S_data.nComp(), ng);
-    MultiFab::Copy(S_tmp, S_data, Rho_comp, Rho_comp, 1, ng);
-
     AMREX_ALWAYS_ASSERT((bdy_moist_nudge_type == 0) || (bdy_moist_nudge_type == 1) || (bdy_moist_nudge_type == 2) );
+    AMREX_ALWAYS_ASSERT(RhoQ1_comp + n_qstate <= S_data.nComp());
+
+    // Temporary MF so we can nudge qv + qc to the bdy data
+    //
+    // NOTE: realbdy_compute_relaxation reads Rho_comp, RhoTheta_comp (for the Exner
+    //       function) and RhoQ1_comp..RhoQ3_comp out of this buffer, so every one of
+    //       those components must be filled here.  Rho and RhoTheta are contiguous,
+    //       so they come over in a single copy.  The setVal is belt-and-braces so
+    //       that any component we do not use is deterministic rather than recycled
+    //       arena memory.
+    MultiFab S_tmp(S_data.boxArray(), S_data.DistributionMap(), S_data.nComp(), ng);
+    S_tmp.setVal(zero);
+    MultiFab::Copy(S_tmp, S_data, Rho_comp, Rho_comp, 2, ng);
 
     if (bdy_moist_nudge_type == 0) {
 
@@ -73,7 +82,7 @@ void add_moist_nudging_terms (const MultiFab& S_data,
 
         MultiFab::Copy(S_tmp, S_data, RhoQ1_comp, RhoQ1_comp, 1, ng);
         MultiFab::Add (S_tmp, S_data, RhoQ2_comp, RhoQ1_comp, 1, ng);
-        if (S_data.nComp() > RhoQ6_comp) {
+        if (n_qstate > 3) { // n_qstate > 3 guarantees that RhoQ3 is ice
             MultiFab::Add (S_tmp, S_data, RhoQ3_comp, RhoQ1_comp, 1, ng);
         }
 
@@ -84,10 +93,11 @@ void add_moist_nudging_terms (const MultiFab& S_data,
        // and also nudge qc (and qi) to 0.   The removal of qc (and qi) is treated
        // as if it is converted into qv to generate a source term for (rho theta),
        // but qv itself is not increased by the change in qc (and qi).
-        MultiFab::Copy(S_tmp, S_data, RhoQ1_comp, RhoQ1_comp, 2, ng);
-        if (S_data.nComp() > RhoQ6_comp) {
-            MultiFab::Copy(S_tmp, S_data, RhoQ3_comp, RhoQ3_comp, 1, ng);
-        }
+       //
+       // NOTE: the relaxation reads qv and qc, plus qi when there is an ice
+       //       species; it does not touch the precipitating species.
+        int ncomp_q = (n_qstate > 3) ? 3 : 2;
+        MultiFab::Copy(S_tmp, S_data, RhoQ1_comp, RhoQ1_comp, ncomp_q, ng);
 
     }
 

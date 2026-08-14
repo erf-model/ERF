@@ -9,6 +9,15 @@ double read_start_time_from_wrfinput (int lev, const std::string& fname);
 Box read_subdomain_from_metgrid (int lev, const std::string& fname, int& ratio, int& klo, int& khi);
 #endif
 
+/**
+ * @brief Tag cells based on 2D distance from the storm eye.
+ *
+ * @param[in] cgeom Geometry defining the domain.
+ * @param[out] tags Array of tagged cells for refinement.
+ * @param[in] eye_x X-coordinate of the eye center.
+ * @param[in] eye_y Y-coordinate of the eye center.
+ * @param[in] rad_tag Radius within which cells are tagged.
+ */
 void
 tag_on_distance_from_eye(const Geometry& cgeom, TagBoxArray* tags,
                          const Real eye_x, const Real eye_y, const Real rad_tag);
@@ -181,9 +190,10 @@ ERF::ErrorEst (int levc, TagBoxArray& tags, Real time, int /*ngrow*/)
 
         RealBox real_box = ref_tags[t].GetInfo().m_realbox;
         if (real_box.ok()) {
-            ParmParse pp(pp_prefix); int lev_for_box; Vector<std::string> refinement_indicators;
-            pp.queryarr("refinement_indicators",refinement_indicators,0,pp.countval("refinement_indicators"));
-            std::string ref_prefix = pp_prefix + "." + refinement_indicators[t];
+            // Use the indicator name stored when this tag was created; the tags do not
+            // correspond one-to-one with the entries of erf.refinement_indicators.
+            int lev_for_box;
+            std::string ref_prefix = pp_prefix + "." + ref_tag_indicator_names[t];
             update_box_for_refinement(ref_prefix, lev_for_box, real_box, time);
             ref_tags[t].GetInfo().SetRealBox(real_box);
         }
@@ -538,11 +548,17 @@ ERF::refinement_criteria_setup ()
                 }
             }
 
+            // Every push_back into ref_tags must be matched by a push_back into
+            // ref_tag_indicator_names so that ErrorEst can recover the ParmParse
+            // prefix of the indicator that created each tag.  Indicators such as
+            // "storm_tracker" create no ref_tag at all, so the index into ref_tags
+            // is not in general the index into refinement_indicators.
             if (ppr.countval("value_greater")) {
                 int num_val = ppr.countval("value_greater");
                 Vector<Real> value(num_val);
                 ppr.getarr("value_greater",value,0,num_val);
                 ref_tags.push_back(AMRErrorTag(value,AMRErrorTag::GREATER,field,info));
+                ref_tag_indicator_names.push_back(refinement_indicators[i]);
             }
             else if (ppr.countval("value_less"))
             {
@@ -550,6 +566,7 @@ ERF::refinement_criteria_setup ()
                 Vector<Real> value(num_val);
                 ppr.getarr("value_less",value,0,num_val);
                 ref_tags.push_back(AMRErrorTag(value,AMRErrorTag::LESS,field,info));
+                ref_tag_indicator_names.push_back(refinement_indicators[i]);
             }
             else if (ppr.countval("adjacent_difference_greater"))
             {
@@ -557,15 +574,18 @@ ERF::refinement_criteria_setup ()
                 Vector<Real> value(num_val);
                 ppr.getarr("adjacent_difference_greater",value,0,num_val);
                 ref_tags.push_back(AMRErrorTag(value,AMRErrorTag::GRAD,field,info));
+                ref_tag_indicator_names.push_back(refinement_indicators[i]);
             }
             else if (real_box.ok())
             {
                 ref_tags.push_back(AMRErrorTag(info));
+                ref_tag_indicator_names.push_back(refinement_indicators[i]);
             }
             else if ( (lev_for_box > 0) && (refinement_indicators[i] != "storm_tracker") )
             {
                 Abort(std::string("Unrecognized refinement indicator for " + refinement_indicators[i]).c_str());
             }
+            AMREX_ALWAYS_ASSERT(ref_tags.size() == ref_tag_indicator_names.size());
         } // loop over criteria
     } // if max_level > 0
 }

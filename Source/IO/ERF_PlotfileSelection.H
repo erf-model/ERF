@@ -152,8 +152,13 @@ plot3d_moisture_capabilities (const MoistureType moisture_type)
     case MoistureType::SuperDroplets:
         caps.vapor = true;
         caps.cloud_liquid = true;
+        caps.cloud_ice = true;
         caps.rain = true;
+        caps.snow = true;
+        caps.graupel = true;
         caps.rain_accumulation = true;
+        // graupel accumulation is not advertised because nothing writes it
+        caps.snow_accumulation = true;
         caps.relative_humidity_diagnostic = true;
         caps.condensation_rate_diagnostic = true;
         break;

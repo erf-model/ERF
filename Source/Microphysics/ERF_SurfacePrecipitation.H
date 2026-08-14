@@ -11,12 +11,25 @@
 // precipitation plus frozen-species subset accumulations. The IO layer uses
 // these typed slots to build public kg/m^2 fields without double-counting.
 
+/**
+ * @brief Precipitation accumulation field and its conversion factor.
+ * @var SurfacePrecipAccumulationSource::accum Pointer to the accumulation MultiFab.
+ * @var SurfacePrecipAccumulationSource::native_to_kg_m2 Conversion factor from native units to kg/m^2.
+ */
 struct SurfacePrecipAccumulationSource
 {
     const amrex::MultiFab* accum = nullptr;
     amrex::Real native_to_kg_m2 = amrex::Real(1.0);
 };
 
+/**
+ * @brief Collection of precipitation accumulation sources for different species.
+ * @var SurfacePrecipAccumulationSources::total Total precipitation source.
+ * @var SurfacePrecipAccumulationSources::rain Rain precipitation source.
+ * @var SurfacePrecipAccumulationSources::snow Snow precipitation source.
+ * @var SurfacePrecipAccumulationSources::graupel Graupel precipitation source.
+ * @var SurfacePrecipAccumulationSources::hail Hail precipitation source.
+ */
 struct SurfacePrecipAccumulationSources
 {
     SurfacePrecipAccumulationSource total{};

@@ -368,11 +368,11 @@ ERF::FillIntermediatePatch (int lev, double time_d,
     // NOTE: There are not FillBoundary calls here for the following reasons:
     // Removal of the FillBoundary (FB) calls has bee completed for the following reasons:
     //
-    // one physbc_cons is called before VelocityToMomentum and a FB is completed in that functor.
+    // 1. physbc_cons is called before VelocityToMomentum and a FB is completed in that functor.
     //    Therefore, the conserved CC vars have their inter-rank ghost cells filled and then their
     //    domain ghost cells filled from the BC operations. We should not call FB on this MF again.
     //
-    // two physbc_u/v/w is also called before VelocityToMomentum and a FB is completed those functors.
+    // 2. physbc_u/v/w is also called before VelocityToMomentum and a FB is completed those functors.
     //    Furthermore, VelocityToMomentum operates on a growntilebox so we exit that routine with momentum
     //    filled everywhere---i.e., physbc_u/v/w fills velocity ghost cells (inter-rank and domain)
     //    and then V2M does the conversion to momenta everywhere; so there is again no need to do a FB on momenta.

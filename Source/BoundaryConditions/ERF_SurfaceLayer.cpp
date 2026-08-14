@@ -578,14 +578,16 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
         // Get LSM fluxes
         auto lmask_arr      = (m_lmask_lev[lev][0]) ? m_lmask_lev[lev][0]->array(mfi) :
                                                       Array4<int> {};
-        auto lsm_t_flux_arr = Array4<Real> {};
+        auto lsm_t_flux_arr  = Array4<Real> {};
+        auto soil_t_flux_arr = Array4<Real> {};
         auto lsm_q_flux_arr = Array4<Real> {};
         auto lsm_tau13_arr  = Array4<Real> {};
         auto lsm_tau23_arr  = Array4<Real> {};
         // LSM tau fields are cell-centered kinematic stresses [m2 s-2].
         // Tau_lev tau13/tau23 are face-centered conservative stresses [N m-2].
         for (int n(0); n<m_lsm_flux_lev[lev].size(); ++n) {
-            if (toLower(m_lsm_flux_name[n]) == "t_flux") { lsm_t_flux_arr = m_lsm_flux_lev[lev][n]->array(mfi); }
+            if (toLower(m_lsm_flux_name[n]) == "t_flux")      { lsm_t_flux_arr  = m_lsm_flux_lev[lev][n]->array(mfi); }
+            if (toLower(m_lsm_flux_name[n]) == "soil_t_flux") { soil_t_flux_arr = m_lsm_flux_lev[lev][n]->array(mfi); }
             if (toLower(m_lsm_flux_name[n]) == "q_flux") { lsm_q_flux_arr = m_lsm_flux_lev[lev][n]->array(mfi); }
             if (toLower(m_lsm_flux_name[n]) == "tau13")  { lsm_tau13_arr  = m_lsm_flux_lev[lev][n]->array(mfi); }
             if (toLower(m_lsm_flux_name[n]) == "tau23")  { lsm_tau23_arr  = m_lsm_flux_lev[lev][n]->array(mfi); }
@@ -626,6 +628,10 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
                 // Doing so flips a sentinel (water/unprocessed) cell to "valid LSM"
                 // on the next step, so a MOST-derived value is re-read as an LSM flux
                 // Only Noah-MP should populate the LSM cache.
+            }
+
+            if (soil_t_flux_arr && is_land == 1) {
+                soil_t_flux_arr(i,j,k) = Tflux / cons_arr(i,j,k,Rho_comp);
             }
 
             surface_source_arr(i,j,0) = surface_diagnostics::to_plot_value(

@@ -8,13 +8,15 @@
 
 #include <ERF_NullSurf.H>
 #include <ERF_SLM.H>
-#include <ERF_MM5.H>
 #include <ERF_OceanSurf.H>
 
 #if ERF_USE_NOAHMP
 #include <ERF_NOAHMP.H>
 #endif
 
+/**
+ * @brief Wrapper class for managing land surface models across AMR levels.
+ */
 class LandSurface {
 
 public:

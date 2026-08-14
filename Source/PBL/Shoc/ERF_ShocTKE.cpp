@@ -198,8 +198,9 @@ ShocTKE::diagnose_tke_and_diffusivities (ShocColumnData& col,
             }
 
             const Real old_tke = amrex::max(0.0_rt, tke(ic,k,0));
+            const Real lagged_tkh = tkh(ic,k,0);
             const Real buoy_prod = opts.shoc_1p5tke
-                ? -old_tke * brunt(ic,k,0)
+                ? -lagged_tkh * brunt(ic,k,0)
                 : (CONST_GRAV / shoc_base_temp()) * wthv_sec(ic,k,0);
             const Real shear_prod = tk(ic,k,0) * sterm(ic,k,0);
             const Real mix = amrex::max(shoc_mix(ic,k,0), 1.0e-12_rt);

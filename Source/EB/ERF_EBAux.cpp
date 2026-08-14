@@ -573,14 +573,14 @@ define( [[maybe_unused]] int const& a_level,
 
             aux_flag(i,j,k).setSingleValued();
 
-            // one Volume Fraction
+            // 1. Volume Fraction
 
             Real lo_vol {lo_eb_cc.volume()}; AMREX_ASSERT(lo_vol >= zero && lo_vol <= myhalf);
             Real hi_vol {hi_eb_cc.volume()}; AMREX_ASSERT(hi_vol >= zero && hi_vol <= myhalf);
 
             aux_vfrac(i,j,k) = lo_vol + hi_vol;
 
-            // two Volume Centroid
+            // 2. Volume Centroid
 
             /* centVol() returns the coordinates based on m_rbx.
               The coordinates in the a_idim direction are in [zero,myhalf] for the low cell and in [-myhalf,zero] for the hi cell.
@@ -600,7 +600,7 @@ define( [[maybe_unused]] int const& a_level,
             aux_vcent(i,j,k,1) = ( lo_vol * lo_vcent[1] + hi_vol * hi_vcent[1] ) / aux_vfrac(i,j,k);
             aux_vcent(i,j,k,2) = ( lo_vol * lo_vcent[2] + hi_vol * hi_vcent[2] ) / aux_vfrac(i,j,k);
 
-            // three Area Fraction
+            // 3. Area Fraction
 
             Real lo_areaLo_x {lo_eb_cc.areaLo(0)};
             Real lo_areaLo_y {lo_eb_cc.areaLo(1)};
@@ -630,7 +630,7 @@ define( [[maybe_unused]] int const& a_level,
               aux_afrac_z(i,j,k+1) = (a_idim == 2) ? hi_areaHi_z : lo_areaHi_z + hi_areaHi_z;
             }
 
-            // Real(4.) Face Centroid
+            // 4. Face Centroid
 
             /* fcentLo returns the coordinates based on m_rbx.
               The coordinates in the a_idim direction are in [zero,myhalf] for the low cell and in [-myhalf,zero] for the hi cell.
@@ -792,14 +792,14 @@ define( [[maybe_unused]] int const& a_level,
               }
             }
 
-            // Real(5.) Boundary Area
+            // 5. Boundary Area
 
             Real lo_areaBoun {lo_eb_cc.areaBoun()};
             Real hi_areaBoun {hi_eb_cc.areaBoun()};
 
             aux_barea(i,j,k) = lo_areaBoun + hi_areaBoun;
 
-            // Real(6.) Boundary Centroid
+            // 6. Boundary Centroid
 
             RealVect lo_centBoun {lo_eb_cc.centBoun()};
             RealVect hi_centBoun {hi_eb_cc.centBoun()};
@@ -818,7 +818,7 @@ define( [[maybe_unused]] int const& a_level,
               aux_bcent(i,j,k,2) = ( lo_areaBoun * (lo_centBoun[2]-myhalf) + hi_areaBoun * (hi_centBoun[2]+myhalf) ) / aux_barea(i,j,k);  // z (mapped)
             }
 
-            // Real(7.) Boundary Normal
+            // 7. Boundary Normal
 
             RealVect eb_normal = ( lo_areaBoun * lo_normal + hi_areaBoun * hi_normal )/ aux_barea(i,j,k);
 

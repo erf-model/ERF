@@ -1,0 +1,32 @@
+HyperCLaw-V1.1
+4
+density
+super_droplets_moisture_number_density
+super_droplets_moisture_mass_density
+super_droplets_moisture_species_mass_density_H2O
+3
+200.00000000001123
+0
+0 0 0 
+200 200 100 
+
+((0,0,0) (7,7,3) (0,0,0)) 
+4000 
+25 25 25 
+0
+0
+0 4 200.00000000001123
+4000
+0 100
+0 100
+0 100
+100 200
+0 100
+0 100
+0 100
+100 200
+0 100
+100 200
+100 200
+0 100
+Level_0/Cell

@@ -57,6 +57,7 @@ void ERF::poisson_wall_dist (int lev)
                     dist_arr(i, j, k) = prob_lo[2] + (k + myhalf) * dx[2];
                 });
             }
+            fill_wall_dist_ghost_cells(*walldist[lev], geom[lev]);
             return;
         }
 
@@ -71,6 +72,7 @@ void ERF::poisson_wall_dist (int lev)
                     dist_arr(i, j, k) = zcc_arr(i, j, k) - znd_arr(i, j, 0);
                 });
             }
+            fill_wall_dist_ghost_cells(*walldist[lev], geom[lev]);
             return;
         }
 #endif
@@ -491,4 +493,7 @@ void ERF::poisson_wall_dist (int lev)
             }
         });
     } // corrector loop
+
+    // The solve only fills the valid region, so fill the ghost cells here
+    fill_wall_dist_ghost_cells(*walldist[lev], geom[lev]);
 }

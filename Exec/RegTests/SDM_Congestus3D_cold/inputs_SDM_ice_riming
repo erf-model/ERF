@@ -1,0 +1,81 @@
+# 1D riming shaft: solid ice spheres (D = 2 mm) injected at the top of a cold (-10 C),
+# water-saturated column fall through a supercooled cloud of monodisperse 10 um droplets
+# and grow by collecting them (riming; Beard-Grover 1974). kinematic environment; phase
+# change off (collection only); cloud LWC ~ 0.7 g/m^3 via initial_number_density.
+
+erf.prob_name                = "SDM_Congestus3D_cold"
+
+max_step  = 1000000
+stop_time = 300.0
+amrex.fpe_trap_invalid = 1
+fabarray.mfiter_tile_size = 1024 1024 1024
+
+geometry.prob_lo     =  0.0   0.0   0.0
+geometry.prob_hi     =  80.0  80.0  1000.0
+amr.n_cell           =  4     4     100     # dz = 10 m
+geometry.is_periodic =  1 1 0
+zlo.type = "SlipWall"
+zhi.type = "SlipWall"
+
+erf.fixed_dt       = 0.25
+erf.init_type      = input_sounding
+erf.input_sounding_file = input_sounding_riming
+erf.use_gravity    = true
+erf.buoyancy_type  = 2
+erf.moisture_model = "SuperDroplets"
+erf.les_type       = "None"
+erf.pbl_type       = "None"
+
+amr.max_level    = 0
+erf.sum_interval = -1
+erf.v            = 1
+amr.v            = 1
+erf.check_int    = -1
+erf.plot_file_1  = plt
+erf.plot_int_1   = 400
+erf.plot_vars_1  = density temp theta pressure qv qc qi rel_humidity \
+                   super_droplets_moisture_number_density \
+                   super_droplets_moisture_species_mass_density_ice \
+                   super_droplets_moisture_species_mass_density_H2O
+particles.disable_plt = false
+
+# ---- Super-droplet method: prescribed environment, collection only -------------
+super_droplets_moisture.kinematic_mode        = true
+super_droplets_moisture.initial_distribution_type = "uniform"
+super_droplets_moisture.place_randomly_in_cells = false
+super_droplets_moisture.diagnostics_interval  = -1
+super_droplets_moisture.include_phase_change  = false    # no condensation/deposition
+super_droplets_moisture.include_coalescence   = true     # riming (ice-water collection)
+super_droplets_moisture.coalescence_bin_size  = 4 4 1    # one bin per height level
+super_droplets_moisture.advect_with_flow      = true
+super_droplets_moisture.advect_with_gravity   = true
+super_droplets_moisture.prescribed_advection  = false
+super_droplets_moisture.density_scaling       = false
+super_droplets_moisture.aerosols              = NaCl
+
+# ---- Seeded supercooled cloud: monodisperse 10 um droplets ---------------------
+super_droplets_moisture.num_initializations   = 1
+super_droplets_moisture.multiplicity_type     = "constant"
+super_droplets_moisture.initial_number_density = 1.671e8         # LWC ~ 0.7 g/m^3
+super_droplets_moisture.initial_particles_per_cell = 25
+super_droplets_moisture.initial_species_distribution_type_H2O = "mass_constant"
+super_droplets_moisture.initial_species_mean_mass_H2O = 4.189e-12   # 10 um radius droplet
+super_droplets_moisture.initial_aerosol_distribution_type_NaCl = "mass_constant"
+super_droplets_moisture.initial_aerosol_mean_mass_NaCl = 1.0e-19
+
+# ---- Steady, sparse ice flux from the top --------------------------------------
+super_droplets_moisture.num_injections = 1
+super_droplets_moisture.injection.distribution_type = "uniform"
+super_droplets_moisture.injection.multiplicity_type = "constant"
+super_droplets_moisture.injection.domain_velocity   = 0.0 0.0 0.0
+super_droplets_moisture.injection.particle_box_lo   = 0.0  0.0  990.0
+super_droplets_moisture.injection.particle_box_hi   = 20.0 20.0 1000.0    # single column
+super_droplets_moisture.injection.ice_apparent_density = 916.8     # solid ice seed
+super_droplets_moisture.injection.species_distribution_type_ice = "mass_constant"
+super_droplets_moisture.injection.species_mean_mass_ice         = 3.8418e-06   # D = 2 mm solid
+super_droplets_moisture.injection.species_distribution_type_H2O = "mass_constant"
+super_droplets_moisture.injection.species_mean_mass_H2O         = 0.0
+super_droplets_moisture.injection.aerosol_distribution_type_NaCl = "mass_constant"
+super_droplets_moisture.injection.aerosol_mean_mass_NaCl         = 1.0e-19
+super_droplets_moisture.injection.rate              = 2.0e0   # sparse (# m^-3 s^-1)
+super_droplets_moisture.injection.particles_per_cell = 1

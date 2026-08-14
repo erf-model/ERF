@@ -35,6 +35,9 @@ thinbody_wall_dist (std::unique_ptr<MultiFab>& wdist,
     auto const* xfaces_d_ptr = xfaces_d.data();
     auto const* yfaces_d_ptr = yfaces_d.data();
     auto const* zfaces_d_ptr = zfaces_d.data();
+    const auto n_xfaces = xfaces_d.size();
+    const auto n_yfaces = yfaces_d.size();
+    const auto n_zfaces = zfaces_d.size();
 
     for (MFIter mfi(*wdist); mfi.isValid(); ++mfi) {
         const Box& bx = mfi.validbox();
@@ -48,7 +51,7 @@ thinbody_wall_dist (std::unique_ptr<MultiFab>& wdist,
                 Real yr = prob_lo[1] + (j + Real(0.5)) * dx[1];
                 Real zr = prob_lo[2] + (k + Real(0.5)) * dx[2];
 
-                for (std::size_t iface=0; iface < xfaces_d_ptr->size(); ++iface) {
+                for (std::size_t iface=0; iface < n_xfaces; ++iface) {
                     int ii = xfaces_d_ptr[iface][0];
                     int jj = xfaces_d_ptr[iface][1];
                     int kk = xfaces_d_ptr[iface][2];
@@ -68,7 +71,7 @@ thinbody_wall_dist (std::unique_ptr<MultiFab>& wdist,
                     wd_arr(i, j, k) = std::sqrt(wd2);
                 }
 
-                for (std::size_t iface=0; iface < yfaces_d_ptr->size(); ++iface) {
+                for (std::size_t iface=0; iface < n_yfaces; ++iface) {
                     int ii = yfaces_d_ptr[iface][0];
                     int jj = yfaces_d_ptr[iface][1];
                     int kk = yfaces_d_ptr[iface][2];
@@ -88,7 +91,7 @@ thinbody_wall_dist (std::unique_ptr<MultiFab>& wdist,
                     wd_arr(i, j, k) = std::sqrt(wd2);
                 }
 
-                for (std::size_t iface=0; iface < zfaces_d_ptr->size(); ++iface) {
+                for (std::size_t iface=0; iface < n_zfaces; ++iface) {
                     int ii = zfaces_d_ptr[iface][0];
                     int jj = zfaces_d_ptr[iface][1];
                     int kk = zfaces_d_ptr[iface][2];
@@ -102,9 +105,9 @@ thinbody_wall_dist (std::unique_ptr<MultiFab>& wdist,
                     Real wd2 = wd_arr(i, j, k) * wd_arr(i, j, k);
                     wd2 = min(wd2, (xfc-xr)*(xfc-xr) + (yfc-yr)*(yfc-yr) + (zfc-zr)*(zfc-zr));
                     wd2 = min(wd2, ( x0-xr)*( x0-xr) + ( y0-yr)*( y0-yr) + (zfc-zr)*(zfc-zr));
-                    wd2 = min(wd2, ( x0-xr)*( x0-xr) + ( y0-yr)*( y0-yr) + (zfc-zr)*(zfc-zr));
+                    wd2 = min(wd2, ( x0-xr)*( x0-xr) + ( y1-yr)*( y1-yr) + (zfc-zr)*(zfc-zr));
                     wd2 = min(wd2, ( x1-xr)*( x1-xr) + ( y1-yr)*( y1-yr) + (zfc-zr)*(zfc-zr));
-                    wd2 = min(wd2, ( x1-xr)*( x1-xr) + ( y1-yr)*( y1-yr) + (zfc-zr)*(zfc-zr));
+                    wd2 = min(wd2, ( x1-xr)*( x1-xr) + ( y0-yr)*( y0-yr) + (zfc-zr)*(zfc-zr));
                     wd_arr(i, j, k) = std::sqrt(wd2);
                 }
             });

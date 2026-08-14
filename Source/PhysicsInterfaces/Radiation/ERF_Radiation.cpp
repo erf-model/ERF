@@ -49,11 +49,12 @@ Radiation::Radiation (const int& lev,
         "a value of 0 would allocate no memory.");
 
     // Number of columns per RRTMGP chunk (controls peak GPU memory)
-    pp.query("rad_ncol_chunk", m_ncol_chunk);
-    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(m_ncol_chunk > 0,
+    pp.query("rad_ncol_chunk", m_ncol_chunk_requested);
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(m_ncol_chunk_requested > 0,
         "erf.rad_ncol_chunk must be a positive integer (default 5000). "
         "It controls the number of columns processed per RRTMGP kernel launch; "
         "a value of 0 or negative would produce an infinite loop.");
+    m_ncol_chunk = m_ncol_chunk_requested;
 
     // Flag to write fluxes to plt file
     pp.query("rad_write_fluxes", m_rad_write_fluxes);
@@ -214,10 +215,13 @@ Radiation::set_grids (int& level,
         // Fill the KOKKOS Views from AMReX MFs
         mf_to_kokkos_buffers(lmask, t_surf, lsm_input_ptrs);
 
-        // Initialize datalog MF on first step
-        if (m_first_step) {
-            m_first_step = false;
-            if (datalog_int > 0) {
+        // (Re)define the datalog MF whenever the grids change; this must always
+        // match the layout of cons_in since populateDatalogMF() iterates over it
+        // while indexing m_col_offsets and m_qheating_rates.
+        if (datalog_int > 0) {
+            bool needs_define = ( (datalog_mf.boxArray()        != cons_in->boxArray()) ||
+                                  (datalog_mf.DistributionMap() != cons_in->DistributionMap()) );
+            if (needs_define) {
                 datalog_mf.define(cons_in->boxArray(), cons_in->DistributionMap(), 25, 0);
                 datalog_mf.setVal(0.0);
             }
@@ -545,9 +549,11 @@ Radiation::mf_to_kokkos_buffers (iMultiFab* lmask,
                                                   + (z_arr(i+1,j  ,k  ) - z_arr(i+1,j  ,k-1))
                                                   + (z_arr(i  ,j+1,k  ) - z_arr(i  ,j+1,k-1))
                                                   + (z_arr(i+1,j+1,k  ) - z_arr(i+1,j+1,k-1)) ) : Real(0.5)*dz; // Dist from w-face to CC at k-1
-            Real r_avg  = (dz_k*r  + dz_km1*r_lo ) / (dz_k + dz_km1);
-            Real rt_avg = (dz_k*rt + dz_km1*rt_lo) / (dz_k + dz_km1);
-            Real qv_avg = (dz_k*qv + dz_km1*qv_lo) / (dz_k + dz_km1);
+            // NOTE: Linear interpolation to the w-face weights each CC value by the
+            //       distance from the face to the *opposite* CC (inverse distance)
+            Real r_avg  = (dz_km1*r  + dz_k*r_lo ) / (dz_k + dz_km1);
+            Real rt_avg = (dz_km1*rt + dz_k*rt_lo) / (dz_k + dz_km1);
+            Real qv_avg = (dz_km1*qv + dz_k*qv_lo) / (dz_k + dz_km1);
 
             // Views at CC
             r_lay_tab(icol,ilay) = r;
@@ -583,9 +589,9 @@ Radiation::mf_to_kokkos_buffers (iMultiFab* lmask,
                                                       + (z_arr(i+1,j  ,k+2) - z_arr(i+1,j  ,k+1))
                                                       + (z_arr(i  ,j+1,k+2) - z_arr(i  ,j+1,k+1))
                                                       + (z_arr(i+1,j+1,k+2) - z_arr(i+1,j+1,k+1)) ) : Real(0.5)*dz; // Dist from w-face to CC at k+1
-                r_avg  = (dz_k*r  + dz_kp1*r_hi ) / (dz_k + dz_kp1);
-                rt_avg = (dz_k*rt + dz_kp1*rt_hi) / (dz_k + dz_kp1);
-                qv_avg = (dz_k*qv + dz_kp1*qv_hi) / (dz_k + dz_kp1);
+                r_avg  = (dz_kp1*r  + dz_k*r_hi ) / (dz_k + dz_kp1);
+                rt_avg = (dz_kp1*rt + dz_k*rt_hi) / (dz_k + dz_kp1);
+                qv_avg = (dz_kp1*qv + dz_k*qv_hi) / (dz_k + dz_kp1);
                 p_lev_tab(icol,ilay+1) = getPgivenRTh(rt_avg, qv_avg);
                 t_lev_tab(icol,ilay+1) = getTgivenRandRTh(r_avg, rt_avg, qv_avg);
             }
@@ -1050,11 +1056,14 @@ Radiation::initialize_impl ()
 
     // Load k-distribution and cloud optics data only once.
     // These are static lookup tables that never change.
-    // Size the memory pool for m_ncol_chunk (not min with current m_ncol) so that
-    // the pool remains valid even if m_ncol grows after regridding/load balancing.
+    // Size the memory pool for the requested chunk size (not the effective one, and
+    // not min with the current m_ncol) so that the pool remains valid even if m_ncol
+    // grows after regridding/load balancing. The pool is created once and never
+    // resized, whereas the effective chunk size is recomputed at every Init() and is
+    // bounded above by the request.
     if (!rrtmgp::initialized) {
         gas_concs_t gas_concs_pool;
-        gas_concs_pool.init(gas_names_offset, m_ncol_chunk, m_nlay);
+        gas_concs_pool.init(gas_names_offset, m_ncol_chunk_requested, m_nlay);
         rrtmgp::rrtmgp_initialize(gas_concs_pool,
                                   rrtmgp_coeffs_file_sw      , rrtmgp_coeffs_file_lw      ,
                                   rrtmgp_cloud_optics_file_sw, rrtmgp_cloud_optics_file_lw,
@@ -1067,6 +1076,11 @@ Radiation::initialize_impl ()
 void
 Radiation::run_impl ()
 {
+    // A rank that owns no boxes on this level has no columns and therefore no
+    // radiation work to do. Bail out before the chunk loop; there are no MPI
+    // collectives in this routine, so returning early cannot deadlock.
+    if (m_ncol == 0) { return; }
+
     // Local copies
     const auto ncol     = m_ncol;
     const auto nlay     = m_nlay;

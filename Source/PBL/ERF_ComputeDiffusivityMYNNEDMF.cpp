@@ -4173,6 +4173,23 @@ void mym_initialize_cc(const int &kts,const int &kte,const Real &xland, Real *dz
 
 #endif
 
+/**
+ * @brief Compute eddy viscosity and diffusivity coefficients using the MYNN-EDMF closure.
+ * @param[in] xvel Horizontal x-velocity field.
+ * @param[in] yvel Horizontal y-velocity field.
+ * @param[in] cons_in Field of conservative variables.
+ * @param[out] eddyViscosity MultiFab to be filled with computed eddy diffusivities.
+ * @param[in] geom Grid geometry.
+ * @param[in] turbChoice Turbulence closure options and parameters.
+ * @param[in] SurfLayer Surface layer data for MOST parameters.
+ * @param[in] use_terrain_fitted_coords Flag to use terrain-fitted vertical coordinates.
+ * @param[in] use_moisture Flag to include moisture in buoyancy calculations.
+ * @param[in] level Current level index.
+ * @param[in] bc_ptr Pointer to boundary condition records.
+ * @param[in] z_phys_nd Physical height field at nodes.
+ * @param[in] z_phys_cc Physical height field at cell centers.
+ * @param[in] moisture_indices Indices for mapping moisture variables in the conservative field.
+ */
 void
 ComputeDiffusivityMYNNEDMF (const MultiFab& xvel,
                             const MultiFab& yvel,

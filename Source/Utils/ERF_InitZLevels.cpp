@@ -7,6 +7,18 @@
 
 using namespace amrex;
 
+/**
+ * Initialize staggered z-levels and grid spacing for all levels.
+ *
+ * @param[out] zlevels_stag Staggered z-level coordinates.
+ * @param[out] stretched_dz_h Host-side cell heights in z.
+ * @param[out] stretched_dz_d Device-side cell heights in z.
+ * @param[in] geom Geometry describing the domain.
+ * @param[in] ref_ratio Refinement ratios between levels.
+ * @param[in] grid_stretching_ratio Ratio used for stretching the vertical grid.
+ * @param[in] zsurf Height of the surface.
+ * @param[in] dz0 Initial cell height at the surface.
+ */
 void
 init_zlevels (Vector<Vector<Real>>& zlevels_stag,
               Vector<Vector<Real>>& stretched_dz_h,

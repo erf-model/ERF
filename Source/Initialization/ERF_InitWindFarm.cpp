@@ -14,6 +14,10 @@ using namespace amrex;
 
 // Wind farm initialization entry point.
 
+/**
+ * @brief Initialize wind farm configuration and turbine data.
+ * @param lev Level to initialize.
+ */
 void
 ERF::init_windfarm (int lev)
 {

@@ -724,7 +724,7 @@ SAMCoefficientRow sam_compute_coefficient_row (const amrex::Real& rho,
     row.coefice = coef2;
 
     coef1 = (lsub / (tabs * R_v) - one) * lsub / (therco * tabs);
-    coef2 = R_v * R_d / (diffelq * esti);
+    coef2 = R_v * tabs / (diffelq * esti);
     prefactor = two * PI * nzeros / (rho * (coef1 + coef2));
     prefactor *= (two / PI);
     row.evaps1 = prefactor * amrex::Real(0.65) * std::sqrt(rho / (PI * rhos * nzeros));
@@ -738,7 +738,7 @@ SAMCoefficientRow sam_compute_coefficient_row (const amrex::Real& rho,
     row.accrgc = coef1 * egccoef;
 
     coef1 = (lsub / (tabs * R_v) - one) * lsub / (therco * tabs);
-    coef2 = R_v * R_d / (diffelq * esti);
+    coef2 = R_v * tabs / (diffelq * esti);
     prefactor = two * PI * nzerog / (rho * (coef1 + coef2));
     row.evapg1 = prefactor * amrex::Real(0.78) * std::sqrt(rho / (PI * rhog * nzerog));
     row.evapg2 = prefactor * amrex::Real(0.31) * std::sqrt(a_grau * rho / muelq) * gamg2
@@ -748,7 +748,7 @@ SAMCoefficientRow sam_compute_coefficient_row (const amrex::Real& rho,
         / std::pow((PI * rhor * nzeror / rho), ((three + b_rain) / amrex::Real(4.0))) * erccoef;
 
     coef1 = (lcond / (tabs * R_v) - one) * lcond / (therco * tabs);
-    coef2 = R_v * R_d / (diffelq * estw);
+    coef2 = R_v * tabs / (diffelq * estw);
     prefactor = two * PI * nzeror / (rho * (coef1 + coef2));
     row.evapr1 = prefactor * amrex::Real(0.78) * std::sqrt(rho / (PI * rhor * nzeror));
     row.evapr2 = prefactor * amrex::Real(0.31) * std::sqrt(a_rain * rho / muelq) * gamr2

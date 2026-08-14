@@ -10,6 +10,12 @@
 #include "ERF_SuperDropletPCProcess.H"
 #include <AMReX_StructOfArrays.H>
 
+/*! \brief Ice category for density calculations */
+enum class IceCategory { Ice, Snow, Graupel, Total };
+
+/**
+ * Particle container for the super-droplet method.
+ */
 class SuperDropletPC : public ERFPC
 {
     using MFPtr = std::unique_ptr<amrex::MultiFab>;
@@ -58,8 +64,9 @@ class SuperDropletPC : public ERFPC
         virtual void setSpeciesMaterial ( const Species::Name& a_name )
         {
             if (a_name == Species::Name::H2O) { m_idx_w = m_species_mat.size(); }
+            if (a_name == Species::Name::ice) { m_idx_i = m_species_mat.size(); }
             m_species_mat.push_back(std::make_unique<MaterialProperties>(a_name));
-            m_device_props_initialized = false;
+            m_device_props_initialized = false;  // Properties have changed, need to reinitialize
         }
 
         /*! \brief Set species material */
@@ -80,12 +87,13 @@ class SuperDropletPC : public ERFPC
             return *m_species_mat[0];
         }
 
+
         /*! \brief Set aerosol material */
         AMREX_FORCE_INLINE
         virtual void setAerosolMaterial ( const Species::Name& a_name )
         {
             m_aerosol_mat.push_back(std::make_unique<MaterialProperties>(a_name));
-            m_device_props_initialized = false;
+            m_device_props_initialized = false;  // Properties have changed, need to reinitialize
         }
 
         /*! \brief Set aerosol material */
@@ -172,6 +180,13 @@ class SuperDropletPC : public ERFPC
                                       const amrex::RealBox&,
                                       const bool );
 
+        /*! \brief Scatter a box-level count of super-droplets over the injection box */
+        void setNumSDPerBox( int a_lev,
+                             amrex::iMultiFab&,
+                             const int,
+                             const amrex::RealBox&,
+                             const unsigned int );
+
         /*! \brief Set initial number of superdroplets per cell as a bubble with uniform density */
         void setNumSDBubbleDistribution( int a_lev,
                                       amrex::iMultiFab&,
@@ -199,7 +214,18 @@ class SuperDropletPC : public ERFPC
             amrex::Abort("SuperDropletPC::EvolveParticles() is intentionally disabled.");
         }
 
-        /*! \brief Advect particles for one time step */
+        /*! \brief Advect particles for one time step
+         * \param[in] a_lev AMR level
+         * \param[in] a_time Current simulation time
+         * \param[in] a_dt Timestep for advection
+         * \param[in] a_flow_vel Array of face-based velocities
+         * \param[in] a_density Density field
+         * \param[in] a_pressure Pressure field
+         * \param[in] a_temperature Temperature field
+         * \param[in] a_z_phys_nd Array of terrain heights
+         * \param[in] a_bctypes Array of boundary condition types
+         * \param[in] a_recycle Flag to enable particle recycling
+         */
         virtual void AdvectParticles (   int a_lev,
                                          double a_time,
                                          double a_dt,
@@ -211,24 +237,53 @@ class SuperDropletPC : public ERFPC
                                          const BCTypeArr& a_bctypes,
                                          const bool a_recycle);
 
-        /*! \brief Grow/shrink particles for one time step */
-        virtual void MassChange (   int a_lev,
-                                    double a_dt,
-                                    const Species::Name& a_vap_name,
-                                    const amrex::MultiFab& a_temperature,
-                                    const amrex::MultiFab& a_pressure,
-                                    const amrex::MultiFab& a_sat_pressure,
-                                    const amrex::MultiFab& a_sat_ratio,
-                                    const amrex::Vector<MFPtr>& a_z_phys_nd,
-                                    const bool a_is_water);
+        /*! \brief Condensation and evaporation growth/shrinking for one time step */
+        virtual void MassChange_LV (int,
+                                    double,
+                                    const Species::Name&,
+                                    const amrex::MultiFab&,
+                                    const amrex::MultiFab&,
+                                    const amrex::MultiFab&,
+                                    const amrex::MultiFab&,
+                                    const amrex::Vector<MFPtr>&,
+                                    const bool );
+
+        /*! \brief Freezing/melting for one time step */
+        virtual void MassChange_SL (int,
+                                    double,
+                                    const amrex::MultiFab&,
+                                    const amrex::MultiFab&,
+                                    const amrex::MultiFab&,
+                                    const amrex::Vector<MFPtr>& );
+
+        /*! \brief Deposition and sublimation growth/shrinking for one time step */
+        virtual void MassChange_SV (int,
+                                    double,
+                                    const amrex::MultiFab&,
+                                    const amrex::MultiFab&,
+                                    const amrex::MultiFab&,
+                                    const amrex::MultiFab&,
+                                    const amrex::MultiFab&,
+                                    const amrex::MultiFab&,
+                                    const amrex::MultiFab&,
+                                    const amrex::Vector<MFPtr>& );
 
         /*! \brief Coalescence of super-droplets */
-        virtual void Coalescence (  int a_lev,
-                                    double a_dt,
-                                    const amrex::MultiFab& a_pressure,
-                                    const amrex::MultiFab& a_temperature);
+        virtual void Coalescence (  int,
+                                    double,
+                                    const amrex::MultiFab&,
+                                    const amrex::MultiFab&,
+                                    const amrex::MultiFab&,
+                                    const amrex::MultiFab&,
+                                    const amrex::Vector<MFPtr>& );
 
-        /*! \brief Recycle super-droplets */
+        /*! \brief Recycle super-droplets
+         * \param[in] a_lev AMR level
+         * \param[in] a_z_phys_nd Array of terrain heights
+         * \param[in] a_iter Current iteration number
+         * \param[in] a_dt Timestep size
+         * \param[in] a_recycle Flag to enable recycling
+         */
         virtual void Recycle ( const int a_lev,
                                const amrex::Vector<MFPtr>& a_z_phys_nd,
                                const int a_iter,
@@ -285,6 +340,27 @@ class SuperDropletPC : public ERFPC
                                         amrex::Real,
                                         const int a_comp = 0) const;
 
+        /*! \brief Compute ice category mass density on a mesh (ice, snow, graupel, or total) */
+        virtual void iceCategoryDensity ( amrex::MultiFab&, const amrex::MultiFab& a_z_phys_nd,
+                                          int a_lev, IceCategory, amrex::Real,
+                                          const int a_comp = 0) const;
+
+        /*! \brief Compute the ice mass density on a mesh */
+        virtual void iceDensity ( amrex::MultiFab&, const amrex::MultiFab& a_z_phys_nd,
+                                  int a_lev, amrex::Real, const int a_comp = 0) const;
+
+        /*! \brief Compute the snow mass density on a mesh */
+        virtual void snowDensity ( amrex::MultiFab&, const amrex::MultiFab& a_z_phys_nd,
+                                   int a_lev, amrex::Real, const int a_comp = 0) const;
+
+        /*! \brief Compute the graupel mass density on a mesh */
+        virtual void graupelDensity ( amrex::MultiFab&, const amrex::MultiFab& a_z_phys_nd,
+                                      int a_lev, amrex::Real, const int a_comp = 0) const;
+
+        /*! \brief Compute the frozen water mass density on a mesh */
+        virtual void totalIceDensity ( amrex::MultiFab&, const amrex::MultiFab& a_z_phys_nd,
+                                       int a_lev, const int a_comp = 0) const;
+
         /*! \brief Compute the species mass flux component on a mesh */
         virtual void speciesMassFlux ( amrex::MultiFab&, const amrex::MultiFab& a_z_phys_nd, int a_lev, const int, const int, const int a_comp=0 ) const;
 
@@ -299,17 +375,45 @@ class SuperDropletPC : public ERFPC
         /*! \brief Applies boundary treatment to the particle container */
         virtual void applyBoundaryTreatment ( int, const amrex::Vector<MFPtr>&, const BCTypeArr&, const bool );
 
+        /*! \brief Split coarse-level particles in newly-refined cells after AMR
+         *  regrid to restore per-cell SD count.  Cascades correctly across
+         *  multiple new levels: a coarse particle under L2 is split by the
+         *  cumulative refRatio(0)*refRatio(1) and tagged for L2.  Skips
+         *  particles whose multiplicity is below the relevant split factor. */
+        void SplitParticlesForRefinement ( int a_finest_level ) override;
+
+        /*! \brief Continuously split new entrants on fine levels and merge
+         *  excess-tag super-droplets back into native hosts (tag = level + 1).
+         *  Per-step departees and regrid-time leftovers from disappeared finer
+         *  levels are folded into the same per-level tag-normalizing sweep. */
+        void SplitMergeAtLevelBoundary () override;
+
+        /*! \brief Regrid-time merge in cells that lost fine-level coverage.
+         *  Reduces super-droplet count to `np_bin / merge_factor` so the
+         *  coarse-level density is restored after de-refinement. */
+        void MergeParticlesAtDerefinement ( int a_lev,
+                                            const amrex::BoxArray& a_old_fine_ba,
+                                            const amrex::IntVect& a_ref_ratio ) override;
+
+        /*! \brief Whether split/merge across AMR levels is enabled. */
+        bool splitMergeAMR () const { return m_split_merge_amr; }
+
     protected:
 
         SDCoalescenceKernelType m_coalescence_kernel; /*!< Coalescence kernel */
+        amrex::Real m_ice_agg_eff; /*!< Ice-ice aggregation (collection) efficiency */
         bool m_include_brownian_coalescence; /*!< Include Brownian coalescence? */
+        SDKernelRelativeVelocityType m_kernel_relative_velocity; /*!< Kernel relative velocity type */
 
         SDTerminalVelocityType m_term_vel_type_w; /*!< Terminal velocity model for water droplets */
+        SDTerminalVelocityType m_term_vel_type_i; /*!< Terminal velocity model for ice particles */
 
         int m_num_sd_per_cell;  /*!< Number of super-droplets per cell */
         bool m_density_scaling; /*!< Scale initial number density with air density */
         bool m_nucleate_particles;  /*!< nucleate new superdroplets from vapour */
         bool m_prescribed_advection; /*!< move particles with prescribed vertical velocity */
+        amrex::Real m_prescribed_w = 0.0; /*!< constant prescribed updraft [m/s]; 0 -> sinusoidal pulse */
+        bool m_split_merge_amr = false; /*!< split/merge particles across AMR level boundaries */
 
         int m_num_species; /*!< Number of vapour/condensate species */
         std::vector<std::unique_ptr<MaterialProperties>> m_species_mat; /*!< Vapour/condensate material */
@@ -330,6 +434,14 @@ class SuperDropletPC : public ERFPC
         amrex::Real m_mass_change_cfl; /*!< CFL for phase change equation */
         SDMassChangeTIMethod m_mass_change_ti; /*!< time integrator for mass change ODE */
         long m_num_unconverged_particles; /*!< total number of unconverged particles */
+
+        /* Ventilation factor for phase change (water species) */
+        bool m_mass_change_ventilation; /*!< include ventilation factor in phase change */
+        amrex::Real m_vent_alpha1; /*!< ventilation factor fit coefficient alpha_1 */
+        amrex::Real m_vent_beta1;  /*!< ventilation factor fit exponent beta_1 */
+        amrex::Real m_vent_alpha2; /*!< ventilation factor fit coefficient alpha_2 */
+        amrex::Real m_vent_beta2;  /*!< ventilation factor fit exponent beta_2 */
+        amrex::Real m_vent_fcap;   /*!< maximum ventilation factor */
 
         amrex::IntVect m_coalescence_bin_size; /*!< bin size for coalescence */
 
@@ -372,6 +484,9 @@ class SuperDropletPC : public ERFPC
         /*! species index of water */
         int m_idx_w = -1;
 
+        /*! species index of ice */
+        int m_idx_i = -1;
+
         /*! inactive particles threshold */
         amrex::Real m_deac_threshold;
 
@@ -379,15 +494,17 @@ class SuperDropletPC : public ERFPC
         bool m_save_inactive;
 
         /*! Persistent device vectors for material properties */
-        amrex::Gpu::DeviceVector<amrex::ParticleReal> m_sp_density;
-        amrex::Gpu::DeviceVector<int> m_sp_solubility;
-        amrex::Gpu::DeviceVector<amrex::ParticleReal> m_sp_ionization;
-        amrex::Gpu::DeviceVector<amrex::ParticleReal> m_sp_mol_weight;
+        amrex::Gpu::DeviceVector<amrex::ParticleReal> m_sp_density;    // Species densities
+        amrex::Gpu::DeviceVector<int> m_sp_solubility;                 // Species solubilities
+        amrex::Gpu::DeviceVector<amrex::ParticleReal> m_sp_ionization; // Species ionization
+        amrex::Gpu::DeviceVector<amrex::ParticleReal> m_sp_mol_weight; // Species molecular weight
+        amrex::Gpu::DeviceVector<int> m_sp_is_INP;                     // Species ice nucleating particle flags
 
-        amrex::Gpu::DeviceVector<amrex::ParticleReal> m_ae_density;
-        amrex::Gpu::DeviceVector<int> m_ae_solubility;
-        amrex::Gpu::DeviceVector<amrex::ParticleReal> m_ae_ionization;
-        amrex::Gpu::DeviceVector<amrex::ParticleReal> m_ae_mol_weight;
+        amrex::Gpu::DeviceVector<amrex::ParticleReal> m_ae_density;    // Aerosol densities
+        amrex::Gpu::DeviceVector<int> m_ae_solubility;                 // Aerosol solubilities
+        amrex::Gpu::DeviceVector<amrex::ParticleReal> m_ae_ionization; // Aerosol ionization
+        amrex::Gpu::DeviceVector<amrex::ParticleReal> m_ae_mol_weight; // Aerosol molecular weight
+        amrex::Gpu::DeviceVector<int> m_ae_is_INP;                     // Aerosol ice nucleating particle flags
 
         /*! Flag to track if device properties are initialized */
         bool m_device_props_initialized = false;
@@ -421,7 +538,11 @@ class SuperDropletPC : public ERFPC
             ctx.num_species = m_num_species;
             ctx.num_aerosols = m_num_aerosols;
             ctx.idx_water = m_idx_w;
+            ctx.idx_ice = m_idx_i;
             ctx.rho_water = m_species_mat[m_idx_w]->m_density;
+            if (m_idx_i >= 0) {
+                ctx.rho_ice = m_species_mat[m_idx_i]->m_density;
+            }
             return ctx;
         }
 
@@ -446,6 +567,12 @@ class SuperDropletPC : public ERFPC
             ptrs.v_ptr[2] = soa.GetRealData(SuperDropletsRealIdx::vz).data();
             ptrs.vterm_ptr = soa.GetRealData(rtoff_r + SuperDropletsRealIdxSoA_RT::term_vel).data();
             ptrs.mult_ptr = soa.GetRealData(rtoff_r + SuperDropletsRealIdxSoA_RT::multiplicity).data();
+            // Always set ice-related pointers: SoA always has these comps; water-only coalescence uses Tfz_ptr
+            ptrs.Tfz_ptr = soa.GetRealData(idx_ice_Tfz(m_num_aerosols, m_num_species)).data();
+            ptrs.a_ptr = soa.GetRealData(idx_ice_a(m_num_aerosols, m_num_species)).data();
+            ptrs.c_ptr = soa.GetRealData(idx_ice_c(m_num_aerosols, m_num_species)).data();
+            ptrs.mrime_ptr = soa.GetRealData(idx_ice_mrime(m_num_aerosols, m_num_species)).data();
+            ptrs.nmono_ptr = soa.GetRealData(idx_ice_nmono(m_num_aerosols, m_num_species)).data();
             setupMassPointers(soa, ptrs.sp_mass_ptrs, ptrs.ae_mass_ptrs);
             if (!m_device_props_initialized) {
                 const_cast<SuperDropletPC*>(this)->initializeDeviceProperties();
@@ -454,10 +581,12 @@ class SuperDropletPC : public ERFPC
             ptrs.sp_sol_arr = m_sp_solubility.data();
             ptrs.sp_ion_arr = m_sp_ionization.data();
             ptrs.sp_mw_arr = m_sp_mol_weight.data();
+            ptrs.sp_INP_arr = m_sp_is_INP.data();
             ptrs.ae_rho_arr = m_ae_density.data();
             ptrs.ae_sol_arr = m_ae_solubility.data();
             ptrs.ae_ion_arr = m_ae_ionization.data();
             ptrs.ae_mw_arr = m_ae_mol_weight.data();
+            ptrs.ae_INP_arr = m_ae_is_INP.data();
         }
 
         /*! \brief Common body for forEachParticleTile iterations */

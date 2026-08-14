@@ -53,7 +53,6 @@ void make_sources (int level,
                    const Real* dptr_wbar_sub,
                    const Vector<Real*> d_rayleigh_ptrs_at_lev,
                    const Real* d_sinesq_at_lev,
-                   InputSoundingData& input_sounding_data,
                    TurbulentPerturbation& turbPert,
                    bool is_slow_step)
 {
@@ -100,7 +99,7 @@ void make_sources (int level,
     // *****************************************************************************
     Table1D<Real>      dptr_r_plane, dptr_t_plane, dptr_qv_plane, dptr_qc_plane;
     TableData<Real, 1>  r_plane_tab,  t_plane_tab,  qv_plane_tab,  qc_plane_tab;
-    bool compute_averages = ( is_slow_step && (dptr_wbar_sub || solverChoice.nudging_from_input_sounding) );
+    bool compute_averages = ( is_slow_step && dptr_wbar_sub );
 
     if (compute_averages)
     {
@@ -198,15 +197,15 @@ void make_sources (int level,
 
     // *****************************************************************************
     // Define source term for cell-centered conserved variables, from
-    //    one user-defined source terms for (rho theta) and (rho q_t)
-    //    two radiation           for (rho theta)
-    //    three Rayleigh damping    for (rho theta)
-    //    Real(4.) custom forcing      for (rho theta) and (rho Q1)
-    //    Real(5.) custom subsidence   for (rho theta) and (rho Q1)
-    //    Real(6.) numerical diffusion for (rho theta)
-    //    Real(7.) sponging
-    //    Real(8.) turbulent perturbation
-    //    Real(9.) nudging towards input sounding values (only for theta)
+    //    1. user-defined source terms for (rho theta) and (rho q_t)
+    //    2. radiation           for (rho theta)
+    //    3. Rayleigh damping    for (rho theta)
+    //    4. custom forcing      for (rho theta) and (rho Q1)
+    //    5. custom subsidence   for (rho theta) and (rho Q1)
+    //    6. numerical diffusion for (rho theta)
+    //    7. sponging
+    //    8. turbulent perturbation
+    //    9. nudging towards input sounding values (only for theta)
     //   10a. Immersed forcing for terrain
     //   10b. Immersed forcing for buildings
     //   Real(11.) Four stream radiation source for (rho theta)
@@ -238,7 +237,7 @@ void make_sources (int level,
 
 
         // *************************************************************************************
-        // two Add radiation source terms to (rho theta)
+        // 2. Add radiation source terms to (rho theta)
         // *************************************************************************************
         if (solverChoice.rad_type != RadiationType::None && is_slow_step) {
             auto const& qheating_arr = qheating_rates->const_array(mfi);
@@ -251,7 +250,7 @@ void make_sources (int level,
 
 
         // *************************************************************************************
-        // three Add Rayleigh damping for (rho theta)
+        // 3. Add Rayleigh damping for (rho theta)
         // *************************************************************************************
         Real dampcoef = solverChoice.dampingChoice.rayleigh_dampcoef;
 
@@ -271,7 +270,7 @@ void make_sources (int level,
         }
 
         // *************************************************************************************
-        // Real(4.) Add custom forcing for (rho theta)
+        // 4. Add custom forcing for (rho theta)
         // *************************************************************************************
         if (solverChoice.custom_rhotheta_forcing && is_slow_step) {
             const int n = RhoTheta_comp;
@@ -307,7 +306,7 @@ void make_sources (int level,
         }
 
         // *************************************************************************************
-        // Real(4.) Add custom forcing for RhoQ1
+        // 4. Add custom forcing for RhoQ1
         // *************************************************************************************
         if (solverChoice.custom_moisture_forcing && is_slow_step) {
             const int n = RhoQ1_comp;
@@ -343,7 +342,7 @@ void make_sources (int level,
         }
 
         // *************************************************************************************
-        // Real(5.) Add custom subsidence for (rho theta)
+        // 5. Add custom subsidence for (rho theta)
         // *************************************************************************************
         if (solverChoice.custom_w_subsidence && is_slow_step && solverChoice.do_theta_advection) {
             const int n = RhoTheta_comp;
@@ -370,7 +369,7 @@ void make_sources (int level,
         }
 
         // *************************************************************************************
-        // Real(5.) Add custom subsidence for RhoQ1 and RhoQ2
+        // 5. Add custom subsidence for RhoQ1 and RhoQ2
         // *************************************************************************************
         if (solverChoice.custom_w_subsidence && (solverChoice.moisture_type != MoistureType::None) && is_slow_step) {
             const int nv = RhoQ1_comp;
@@ -403,7 +402,7 @@ void make_sources (int level,
         }
 
         // *************************************************************************************
-        // Real(6.) Add numerical diffusion for rho and (rho theta)
+        // 6. Add numerical diffusion for rho and (rho theta)
         // *************************************************************************************
         if (l_use_ndiff && is_slow_step)
         {
@@ -429,7 +428,7 @@ void make_sources (int level,
         }
 
         // *************************************************************************************
-        // Real(7.) Add sponging
+        // 7. Add sponging
         // *************************************************************************************
         if ( (solverChoice.spongeChoice.sponge_type != SpongeType::None) && is_slow_step) {
             const int n_qstate = S_data[IntVars::cons].nComp() - (NDRY + NSCALARS);
@@ -437,52 +436,12 @@ void make_sources (int level,
         }
 
         // *************************************************************************************
-        // Real(8.) Add perturbation
+        // 8. Add perturbation
         // *************************************************************************************
         if (solverChoice.use_source_perturbation(level) && is_slow_step) {
             auto m_ixtype = S_data[IntVars::cons].boxArray().ixType(); // Conserved term
             const amrex::Array4<const amrex::Real>& pert_cell = turbPert.pb_cell[level].const_array(mfi);
             turbPert.apply_tpi(level, bx, RhoTheta_comp, m_ixtype, cell_src, pert_cell); // Applied as source term
-        }
-
-        // *************************************************************************************
-        // Real(9.) Add nudging towards value specified in input sounding
-        // *************************************************************************************
-        if (solverChoice.nudging_from_input_sounding && is_slow_step)
-        {
-            int itime_n    = 0;
-            int itime_np1  = 0;
-            Real coeff_n   = one;
-            Real coeff_np1 = zero;
-
-            Real tau_inv = one / input_sounding_data.tau_nudging;
-
-            int n_sounding_times = input_sounding_data.input_sounding_time.size();
-
-            for (int nt = 1; nt < n_sounding_times; nt++) {
-                if (time > input_sounding_data.input_sounding_time[nt]) itime_n = nt;
-            }
-            if (itime_n == n_sounding_times-1) {
-                itime_np1 = itime_n;
-            } else {
-                itime_np1 = itime_n+1;
-                coeff_np1 = (time                                               - input_sounding_data.input_sounding_time[itime_n]) /
-                            (input_sounding_data.input_sounding_time[itime_np1] - input_sounding_data.input_sounding_time[itime_n]);
-                coeff_n   = one - coeff_np1;
-            }
-
-            const Real* theta_inp_sound_n   = input_sounding_data.theta_inp_sound_d[itime_n].dataPtr();
-            const Real* theta_inp_sound_np1 = input_sounding_data.theta_inp_sound_d[itime_np1].dataPtr();
-
-            const int n  = RhoTheta_comp;
-            const int nr = Rho_comp;
-
-            ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-            {
-                Real nudge = (coeff_n*theta_inp_sound_n[k] + coeff_np1*theta_inp_sound_np1[k]) - (dptr_t_plane(k)/dptr_r_plane(k));
-                nudge *= tau_inv;
-                cell_src(i, j, k, n) += cell_data(i, j, k, nr) * nudge;
-            });
         }
 
         // *************************************************************************************
@@ -536,7 +495,7 @@ void make_sources (int level,
                     if (t_blank > 0 && (t_blank_above == zero)) { // force to MOST value
                         const Real surf_temp    = init_surf_temp + surf_heating_rate*time;
                         const Real bc_forcing_rt_srf = -(cell_data(i,j,k-1,Rho_comp) * surf_temp - cell_data(i,j,k-1,RhoTheta_comp));
-                        cell_src(i, j, k-1, RhoTheta_comp) -= drag_coefficient * U_s * bc_forcing_rt_srf; // k-1
+                        cell_src(i, j, k, RhoTheta_comp) -= drag_coefficient * U_s * bc_forcing_rt_srf;
                     }
                 }
 

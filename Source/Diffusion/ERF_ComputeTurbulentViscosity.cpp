@@ -96,7 +96,7 @@ void ComputeTurbulentViscosityLES (Vector<std::unique_ptr<MultiFab>>& Tau_lev,
             ParallelFor(bxcc, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
                 // =====================================================================
-                // one STRAIN RATE MAGNITUDE CALCULATION
+                // 1. STRAIN RATE MAGNITUDE CALCULATION
                 // =====================================================================
                 Real SmnSmn;
                 if (smag2d) {
@@ -107,7 +107,7 @@ void ComputeTurbulentViscosityLES (Vector<std::unique_ptr<MultiFab>>& Tau_lev,
                 Real strain_rate_magnitude = std::sqrt(two * SmnSmn);
 
                 // =====================================================================
-                // two GRID SCALE CALCULATION (filter width Δ)
+                // 2. GRID SCALE CALCULATION (filter width Δ)
                 // =====================================================================
                 Real dxInv = cellSizeInv[0];
                 Real dyInv = cellSizeInv[1];

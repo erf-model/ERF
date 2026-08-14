@@ -3,8 +3,25 @@
 
 #include <algorithm>
 #include "ERF_Constants.H"
+#include "ERF_SuperDropletPCDefinitions.H"
 
 #ifdef ERF_USE_PARTICLES
+
+/*! \brief Field indices for 2-field interpolation (ice-water collision efficiency) */
+AMREX_ENUM(InterpFieldsTR,
+    temperature,
+    moist_density,
+    NUM_FIELDS
+);
+
+/*! \brief Field indices for 4-field interpolation (riming) */
+AMREX_ENUM(InterpFieldsFull,
+    temperature,
+    pressure,
+    moist_density,
+    qv,
+    NUM_FIELDS
+);
 
 /*! \brief Coalescence kernels
 
@@ -17,6 +34,12 @@
 template<typename RT, int SPACEDIM>
 struct CollisionKernel
 {
+    const RT lambda_mfp = RT(6.62e-8); // mean free path of air
+    const RT para_Asc = RT(2.51);
+    const RT para_Bsc = RT(0.8);
+    const RT para_Csc = RT(0.55);
+    const RT k_coeff = RT(1.0);
+
     /*! \brief Golovin kernel */
     AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
     RT golovin ( const RT a_r1, /*!< radius of droplet 1 */
@@ -40,21 +63,42 @@ struct CollisionKernel
      * \param[in] a_r2 Radius of particle 2 (m)
      * \param[in] a_v1 Pointer to velocity vector of particle 1 (m/s)
      * \param[in] a_v2 Pointer to velocity vector of particle 2 (m/s)
+     * \param[in] a_x1 Pointer to position vector of particle 1 (m)
+     * \param[in] a_x2 Pointer to position vector of particle 2 (m)
+     * \param[in] a_vel_type Kernel relative velocity type
      * \return Collision kernel value (m³/s)
      */
     AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
     RT sedimentation (  const RT a_r1,
                         const RT a_r2,
                         const RT* const a_v1,
-                        const RT* const a_v2 ) const noexcept
+                        const RT* const a_v2,
+                        const RT* const a_x1,
+                        const RT* const a_x2,
+                        const SDKernelRelativeVelocityType a_vel_type ) const noexcept
     {
         auto p = std::min(a_r1,a_r2) / std::max(a_r1,a_r2);
         auto E = RT(0.5)*p*p / ((RT(1.0)+p)*(RT(1.0)+p));
+
         RT dv = 0;
-        for (int d = 0; d < SPACEDIM; d++) {
-            dv += (a_v1[d]-a_v2[d])*(a_v1[d]-a_v2[d]);
+        if (a_vel_type == SDKernelRelativeVelocityType::radial_velocity) {
+            RT dr = 0, dv2 = 0;
+            for (int d = 0; d < SPACEDIM; d++) {
+                const RT ddv = a_v1[d]-a_v2[d];
+                const RT ddx = a_x1[d]-a_x2[d];
+                dv  += ddv*ddx;
+                dr  += ddx*ddx;
+                dv2 += ddv*ddv;
+            }
+            // radial component; fall back to the full relative speed for coincident pairs
+            dv = (dr > RT(0)) ? std::abs(dv) / std::sqrt(dr) : std::sqrt(dv2);
+        } else {
+            for (int d = 0; d < SPACEDIM; d++) {
+                dv += (a_v1[d]-a_v2[d])*(a_v1[d]-a_v2[d]);
+            }
+            dv = std::sqrt(dv);
         }
-        dv = std::sqrt(dv);
+
         return PI*(a_r1+a_r2)*(a_r1+a_r2)*E*dv;
     }
 
@@ -67,19 +111,25 @@ struct CollisionKernel
      * effective for smaller cloud droplets where hydrodynamic effects are important.
      *
      * Reference: Long, A. B., 1974: Solutions to the droplet collection equation
-     * for polynomial kernels. J. Atmos. Sci., 31, 1040-RT(1052.)
+     * for polynomial kernels. J. Atmos. Sci., 31, 1040-1052.
      *
      * \param[in] a_r1 Radius of particle 1 (m)
      * \param[in] a_r2 Radius of particle 2 (m)
      * \param[in] a_v1 Pointer to velocity vector of particle 1 (m/s)
      * \param[in] a_v2 Pointer to velocity vector of particle 2 (m/s)
+     * \param[in] a_x1 Pointer to position vector of particle 1 (m)
+     * \param[in] a_x2 Pointer to position vector of particle 2 (m)
+     * \param[in] a_vel_type Kernel relative velocity type
      * \return Collision kernel value (m³/s)
      */
     AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
     RT Longs ( const RT a_r1,
                const RT a_r2,
                const RT* const a_v1,
-               const RT* const a_v2 ) const noexcept
+               const RT* const a_v2,
+               const RT* const a_x1,
+               const RT* const a_x2,
+               const SDKernelRelativeVelocityType a_vel_type ) const noexcept
     {
         auto r1 = std::max( a_r1, a_r2 );  // large
         auto r2 = std::min( a_r1, a_r2 );  // small
@@ -92,10 +142,23 @@ struct CollisionKernel
         c_rate *= (PI*sumr*sumr);
 
         RT dv = 0;
-        for (int d = 0; d < SPACEDIM; d++) {
-            dv += (a_v1[d]-a_v2[d])*(a_v1[d]-a_v2[d]);
+        if (a_vel_type == SDKernelRelativeVelocityType::radial_velocity) {
+            RT dr = 0, dv2 = 0;
+            for (int d = 0; d < SPACEDIM; d++) {
+                const RT ddv = a_v1[d]-a_v2[d];
+                const RT ddx = a_x1[d]-a_x2[d];
+                dv  += ddv*ddx;
+                dr  += ddx*ddx;
+                dv2 += ddv*ddv;
+            }
+            // radial component; fall back to the full relative speed for coincident pairs
+            dv = (dr > RT(0)) ? std::abs(dv) / std::sqrt(dr) : std::sqrt(dv2);
+        } else {
+            for (int d = 0; d < SPACEDIM; d++) {
+                dv += (a_v1[d]-a_v2[d])*(a_v1[d]-a_v2[d]);
+            }
+            dv = std::sqrt(dv);
         }
-        dv = std::sqrt(dv);
 
         return c_rate*dv;
     }
@@ -221,7 +284,10 @@ struct CollisionKernel
     RT Halls ( const RT a_r1, /*!< radius of particle 1 */
                const RT a_r2, /*!< radius of particle 2 */
                const RT* const a_v1, /*!< velocity of particle 1 */
-               const RT* const a_v2  /*!< velocity of particle 2 */) const noexcept
+               const RT* const a_v2, /*!< velocity of particle 2 */
+               const RT* const a_x1, /*!< position of particle 1 */
+               const RT* const a_x2, /*!< position of particle 2 */
+               const SDKernelRelativeVelocityType a_vel_type /*!< velocity type */) const noexcept
     {
         auto r1 = std::max( a_r1, a_r2 );  // large
         auto r2 = std::min( a_r1, a_r2 );  // small
@@ -231,14 +297,14 @@ struct CollisionKernel
         int irr = Halls_data_r0col(r1);
         int iqq = Halls_data_ratcol(ratio);
 
-        RT c_rate = one;
+        RT c_rate = RT(1.0);
 
         if( irr >= 15 ) {
 
             RT q  =   ( ratio                  - Halls_data_ratcol(iqq-1) )
                     / ( Halls_data_ratcol(iqq) - Halls_data_ratcol(iqq-1) );
 
-            RT ek =   (one-q) * Halls_data_ecoll(iqq-1,14)
+            RT ek =   (RT(1.0)-q) * Halls_data_ecoll(iqq-1,14)
                     + q       * Halls_data_ecoll(iqq  ,14);
 
             c_rate = std::min( ek, RT(1.0) );
@@ -251,9 +317,9 @@ struct CollisionKernel
             RT q =   ( ratio                  - Halls_data_ratcol(iqq-1) )
                    / ( Halls_data_ratcol(iqq) - Halls_data_ratcol(iqq-1) );
 
-            c_rate =   (one-p) * (one-q) * Halls_data_ecoll(iqq-1,irr-1)
-                     + p       * (one-q) * Halls_data_ecoll(iqq-1,irr  )
-                     + (one-p) * q       * Halls_data_ecoll(iqq  ,irr-1)
+            c_rate =   (RT(1.0)-p) * (RT(1.0)-q) * Halls_data_ecoll(iqq-1,irr-1)
+                     + p       * (RT(1.0)-q) * Halls_data_ecoll(iqq-1,irr  )
+                     + (RT(1.0)-p) * q       * Halls_data_ecoll(iqq  ,irr-1)
                      + p       * q       * Halls_data_ecoll(iqq  ,irr  );
 
         } else {
@@ -261,24 +327,49 @@ struct CollisionKernel
             RT q =  ( ratio                  - Halls_data_ratcol(iqq-1) )
                   / ( Halls_data_ratcol(iqq) - Halls_data_ratcol(iqq-1) );
 
-            c_rate =   (one-q) * Halls_data_ecoll(iqq-1,0)
+            c_rate =   (RT(1.0)-q) * Halls_data_ecoll(iqq-1,0)
                      + q       * Halls_data_ecoll(iqq  ,0);
 
         }
         c_rate *= (PI*sumr*sumr);
 
         RT dv = 0;
-        for (int d = 0; d < SPACEDIM; d++) {
-            dv += (a_v1[d]-a_v2[d])*(a_v1[d]-a_v2[d]);
+        if (a_vel_type == SDKernelRelativeVelocityType::radial_velocity) {
+            RT dr = 0, dv2 = 0;
+            for (int d = 0; d < SPACEDIM; d++) {
+                const RT ddv = a_v1[d]-a_v2[d];
+                const RT ddx = a_x1[d]-a_x2[d];
+                dv  += ddv*ddx;
+                dr  += ddx*ddx;
+                dv2 += ddv*ddv;
+            }
+            // radial component; fall back to the full relative speed for coincident pairs
+            dv = (dr > RT(0)) ? std::abs(dv) / std::sqrt(dr) : std::sqrt(dv2);
+        } else {
+            for (int d = 0; d < SPACEDIM; d++) {
+                dv += (a_v1[d]-a_v2[d])*(a_v1[d]-a_v2[d]);
+            }
+            dv = std::sqrt(dv);
         }
-        dv = std::sqrt(dv);
 
         return c_rate*dv;
     }
 
     /* The following code is adapted from SCALE-SDM:
      * Copyright (c) 2012-2014, Team SCALE, All rights reserved. */
-    /*! \brief Brownian kernel */
+    /*! \brief Brownian coagulation kernel from Seinfeld and Pandis
+     *
+     *  Computes the Brownian coagulation coefficient K12 [m³/s] for two particles
+     *  using the interpolation formula that accounts for both continuum and
+     *  free-molecular regimes.
+     *
+     *  Reference: Seinfeld, J. H., and S. N. Pandis, 2016: Atmospheric Chemistry
+     *  and Physics: From Air Pollution to Climate Change, 3rd ed. Wiley, 1152 pp.
+     *  Chapter 13, Eq. 13.56 (Fuchs interpolation formula)
+     *
+     *  Dynamic viscosity from Pruppacher & Klett (1997), Eq. 3-11.
+     *  Slip correction coefficients: 1.257, 0.40, 0.55 (Table 13.1)
+     */
     AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
     RT Brownian_SeinfeldPandis ( const RT a_r1, /*!< radius of particle 1 */
                                  const RT a_r2, /*!< radius of particle 2 */
@@ -296,27 +387,27 @@ struct CollisionKernel
 
         // dynamic viscosity [Pa*s] (Pruppacher & Klett,1997)
         RT T_degC = t_crs - RT(273.15); // [K] => [degC]
-        RT vis_crs = zero;
-        if( T_degC >= zero ) {
+        RT vis_crs = RT(0.0);
+        if( T_degC >= RT(0.0) ) {
             vis_crs = ( RT(1.7180) + RT(4.9E-3)*T_degC ) * RT(1.E-5);
         } else {
             vis_crs = ( RT(1.7180) + RT(4.9E-3)*T_degC -RT(1.2E-5)*T_degC*T_degC ) * RT(1.E-5);
         }
 
         //air mean free path [m]
-        RT lambda_crs = (two*vis_crs) / (p_crs*std::sqrt(RT(8.0)*mwdair*RT(1.E-3)/(PI*R_d*t_crs)));
+        RT lambda_crs = (two*vis_crs) / (p_crs*std::sqrt(RT(8.0)*mwdair/(PI*boltz*avogadro*t_crs)));
 
         // temporary var
-        RT dtmp = zero;
+        RT dtmp = RT(0.0);
 
         // slip correction of droplets [-]
         dtmp   = RT(1.2570) + RT(0.40) * exp(-RT(0.550)*diameter_1/lambda_crs);
-        RT slip_corr_1 = one + (two*lambda_crs*dtmp)/(diameter_1);
+        RT slip_corr_1 = RT(1.0) + (RT(2.0)*lambda_crs*dtmp)/(diameter_1);
         dtmp   = RT(1.2570) + RT(0.40) * exp(-RT(0.550)*diameter_2/lambda_crs);
-        RT slip_corr_2 = one + (two*lambda_crs*dtmp)/(diameter_2);
+        RT slip_corr_2 = RT(1.0) + (RT(2.0)*lambda_crs*dtmp)/(diameter_2);
 
         // diffusion term [m*m/s]
-        dtmp = (boltz*t_crs)/(three*PI*vis_crs);
+        dtmp = (boltz*t_crs)/(RT(3.0)*PI*vis_crs);
         RT diff_term_1 = dtmp * (slip_corr_1/diameter_1);
         RT diff_term_2 = dtmp * (slip_corr_2/diameter_2);
 
@@ -331,27 +422,193 @@ struct CollisionKernel
         RT lambda_2 = dtmp * (diff_term_2/vel_term_2);
 
         //length term [m]
+        RT d1l1_sq = diameter_1*diameter_1+lambda_1*lambda_1;
         dtmp = (diameter_1+lambda_1)*(diameter_1+lambda_1)*(diameter_1+lambda_1)
-               - std::exp(RT(1.5)*std::log(diameter_1*diameter_1+lambda_1*lambda_1));
-        RT length_term_1 = dtmp/(three*diameter_1*lambda_1) - diameter_1;
+               - d1l1_sq*std::sqrt(d1l1_sq);  // x^1.5 = x*sqrt(x)
+        RT length_term_1 = dtmp/(RT(3.0)*diameter_1*lambda_1) - diameter_1;
+        RT d2l2_sq = diameter_2*diameter_2+lambda_2*lambda_2;
         dtmp = (diameter_2+lambda_2)*(diameter_2+lambda_2)*(diameter_2+lambda_2)
-               - std::exp(RT(1.5)*std::log(diameter_2*diameter_2+lambda_2*lambda_2));
-        RT length_term_2 = dtmp/(three*diameter_2*lambda_2) - diameter_2;
+               - d2l2_sq*std::sqrt(d2l2_sq);  // x^1.5 = x*sqrt(x)
+        RT length_term_2 = dtmp/(RT(3.0)*diameter_2*lambda_2) - diameter_2;
 
         // Brownian Coagulation Coefficient K12 [m3/s]
         RT sumdia = diameter_1 + diameter_2;
         RT sumd   = diff_term_1   + diff_term_2;
         RT sumc   = std::sqrt( vel_term_1*vel_term_1 + vel_term_2*vel_term_2 );
-        RT sumg   = std::sqrt( two*length_term_1*length_term_1 + two*length_term_2*length_term_2 );
+        RT sumg   = std::sqrt( RT(2.0)*length_term_1*length_term_1 + RT(2.0)*length_term_2*length_term_2 );
 
-        dtmp = sumdia/(sumdia+two*sumg) + (RT(8.0)*sumd)/(sumdia*sumc);
-        RT k12 = two*PI * sumdia*sumd/dtmp;
+        dtmp = sumdia/(sumdia+RT(2.0)*sumg) + (RT(8.0)*sumd)/(sumdia*sumc);
+        RT k12 = RT(2.0)*PI * sumdia*sumd/dtmp;
 
         return k12;
+    }
+
+    /* The following code is adapted from SCALE-SDM:
+     * Copyright (c) 2012-2014, Team SCALE, All rights reserved. */
+    /*! \brief Collision efficiency for riming from Beard and Grover (1974)
+     *
+     *  Computes the collision efficiency between ice particles and cloud droplets
+     *  based on Reynolds number, Froude number, and size ratio.
+     *
+     *  Reference: Beard, K. V., and S. N. Grover, 1974: Numerical collision
+     *  efficiencies for small raindrops colliding with micron size particles.
+     *  J. Atmos. Sci., 31, 543-550.
+     *  https://doi.org/10.1175/1520-0469(1974)031<0543:NCEFSR>2.0.CO;2
+     *
+     *  Coefficients:
+     *  - K0 fit: A0=-0.1007, A1=-0.358, A2=0.0261 (Re ≤ 400), K0=0.21 (Re > 400)
+     *  - yc0 fit: B0=0.1465, B1=1.302, B2=-0.607, B3=0.293
+     *  - E = ((yc0+p)/(1+p))² where p = size ratio
+     */
+    AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+    RT BeardGrover1974 ( const RT a_sr, /*!< Size ratio (r_droplet/r_ice) */
+                         const RT a_Re, /*!< Reynolds number of ice particle */
+                         const RT a_Fr  /*!< Froude number */ ) const noexcept
+    {
+        // riming efficiency of Beard and Grover (1974)
+        const RT A0 = -RT(0.1007);
+        const RT A1 = -RT(0.358);
+        const RT A2 =  RT(0.0261);
+        const RT B0 =  RT(0.1465);
+        const RT B1 =  RT(1.302);
+        const RT B2 = -RT(0.607);
+        const RT B3 =  RT(0.293);
+
+        RT K0 = RT(0.0);
+        if ( a_Re > RT(400.0)) {
+            K0 = RT(0.21);
+        } else {
+            auto F = std::log(a_Re);
+            auto G = A0 + A1*F + A2*F*F;
+            K0 = std::exp(G);
+        }
+
+        auto z = std::log(a_Fr/K0);
+        auto H = std::max(B0 + B1*z + B2*z*z + B3*z*z*z,RT(0.0));
+        auto yc0 = (RT(2.0)/PI)*std::atan(H);
+
+        auto retval = (yc0+a_sr)*(yc0+a_sr) / ((RT(1.0)+a_sr)*(RT(1.0)+a_sr));
+        return retval;
+    }
+
+    /* The following code is adapted from SCALE-SDM:
+     * Copyright (c) 2012-2014, Team SCALE, All rights reserved. */
+    /*! \brief Collision efficiency for plate-like ice crystals from Erfani and Mitchell (2017)
+     *
+     *  Computes the collision efficiency between plate-like ice crystals and
+     *  cloud droplets based on Reynolds and Froude numbers.
+     *
+     *  Reference: Erfani, E., and D. L. Mitchell, 2017: Growth of ice particle
+     *  mass and projected area during riming. Atmos. Chem. Phys., 17, 1241-1257.
+     *  https://doi.org/10.5194/acp-17-1241-2017
+     *
+     *  Valid for Re ≥ 1, with polynomial fits for K_t (transition Froude number)
+     *  and K_c (critical Froude number). Three regimes based on Fr vs K_t.
+     */
+    AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+    RT ErfaniMitchell2017_Plate ( const RT a_Re, /*!< Reynolds number of ice crystal */
+                                  const RT a_Fr  /*!< Froude number */ ) const noexcept
+    {
+        if (a_Re < RT(1.0)) {
+            return RT(0.0);
+        } else {
+
+            auto Re_l = std::min(a_Re,RT(120.0));
+            auto Fr_l = std::min(a_Fr,RT(35.0));
+            auto Re_l_2 = Re_l*Re_l;
+            auto Re_l_3 = Re_l_2*Re_l;
+            auto Re_l_4 = Re_l_2*Re_l_2;
+            auto Re_l_5 = Re_l_4*Re_l;
+            auto K_t = -RT(5.07e-10)*Re_l_5
+                       +RT(1.73e-7) *Re_l_4
+                       -RT(2.17e-5) *Re_l_3
+                       +RT(0.0013)  *Re_l_2
+                       -RT(0.037)   *Re_l
+                       +RT(0.8355);
+
+            RT K_c = RT(0.0);
+            if      (Re_l <=  RT(10.0)) { K_c = RT(1.250) * std::pow(Re_l, RT(-0.350)); }
+            else if (Re_l <=  RT(40.0)) { K_c = RT(1.072) * std::pow(Re_l, RT(-0.301)); }
+            else if (Re_l <= RT(120.0)) { K_c = RT(0.356) * std::pow(Re_l, RT(-0.003)); }
+
+            auto retval = RT(0.0);
+            if (Fr_l <= RT(0.35)) {
+                retval = RT(0.787) * std::pow(Fr_l, RT(0.988)) * std::max(RT(0.263)*std::log(Re_l)-RT(0.264), RT(0.0));
+            } else if(Fr_l <= K_t) {
+                retval = (RT(0.7475)*std::log10(Fr_l)+RT(0.620)) * std::max(RT(0.263)*std::log(Re_l)-RT(0.264), RT(0.0));
+            } else {
+                auto E_1 = (RT(0.7475)*std::log10(K_t)+RT(0.620)) * std::max(RT(0.263)*std::log(Re_l)-RT(0.264), RT(0.0));
+                auto E_2 = std::sqrt( std::max(RT(1.0) - RT(0.2)*(std::log10(Fr_l/K_c)-std::sqrt(RT(5.0)))
+                                                        *(std::log10(Fr_l/K_c)-std::sqrt(RT(5.0))),
+                                               RT(0.0)) );
+                retval = std::max(E_1,E_2);
+            }
+            return retval;
+        }
+    }
+
+    /* The following code is adapted from SCALE-SDM:
+     * Copyright (c) 2012-2014, Team SCALE, All rights reserved. */
+    /*! \brief Collision efficiency for columnar ice crystals from Erfani and Mitchell (2017)
+     *
+     *  Computes the collision efficiency between columnar ice crystals and
+     *  cloud droplets based on Reynolds and Froude numbers.
+     *
+     *  Reference: Erfani, E., and D. L. Mitchell, 2017: Growth of ice particle
+     *  mass and projected area during riming. Atmos. Chem. Phys., 17, 1241-1257.
+     *  https://doi.org/10.5194/acp-17-1241-2017
+     *
+     *  Valid for Re ≥ 0.2. Uses different polynomial fits than the plate version
+     *  for K_t (transition Froude) and K_c (critical Froude). Two regimes based on Fr vs K_t.
+     */
+    AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+    RT ErfaniMitchell2017_Column ( const RT a_Re, /*!< Reynolds number of ice crystal */
+                                   const RT a_Fr  /*!< Froude number */ ) const noexcept
+    {
+        if (a_Re < RT(0.2)) {
+            return RT(0.0);
+        } else {
+
+            auto Re_l = std::min(a_Re,RT(20.0));
+            auto Fr_l = std::min(a_Fr,RT(20.0));
+
+            auto K_t = RT(0.0);
+            if (Re_l <= RT(2.0)) {
+                K_t =   RT(0.0251)*Re_l*Re_l
+                      - RT(0.0144)*Re_l
+                      + RT(0.811);
+            } else {
+                K_t = -RT(0.0003)*Re_l*Re_l*Re_l
+                      +RT(0.0124)*Re_l*Re_l
+                      -RT(0.1634)*Re_l
+                      +RT(1.0075);
+            }
+
+            auto para_r = RT(0.0), K_c = RT(0.0);
+            if (Re_l <= RT(1.7)) {
+                para_r = RT(0.7422) * std::pow(Re_l, RT(0.2111));
+                K_c = RT(0.7797) * std::pow(Re_l, RT(-0.009));
+            } else {
+                para_r = RT(0.8025) * std::pow(Re_l, RT(0.0604));
+                K_c = RT(1.0916) * std::pow(Re_l, RT(-0.635));
+            }
+
+            auto retval = RT(0.0);
+            if (Fr_l <= K_t) {
+                if (Re_l <= RT(3.0)) {
+                    retval= RT(0.787) * std::pow(Fr_l, RT(0.988)) * (-RT(0.0121)*Re_l*Re_l + RT(0.1297)*Re_l + RT(0.0598));
+                } else {
+                    retval = RT(0.787) * std::pow(Fr_l, RT(0.988)) * (-RT(0.0005)*Re_l*Re_l + RT(0.1028)*Re_l + RT(0.0359));
+                }
+            } else {
+                auto tmp = std::log10(Fr_l/K_c)-std::sqrt(RT(3.5));
+                retval = para_r * std::sqrt( std::max(RT(1.0)-tmp*tmp/RT(3.5), RT(0.0)) );
+            }
+            return retval;
+        }
     }
 
 };
 
 #endif
 #endif
-

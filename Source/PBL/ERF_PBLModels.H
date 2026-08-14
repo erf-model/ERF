@@ -248,6 +248,29 @@ struct PBLDerivativeDzInv
     amrex::Real dirichlet_hi;
 };
 
+/**
+ * Compute vertical derivatives of potential temperature and velocity for PBL models.
+ *
+ * @param i x-index
+ * @param j y-index
+ * @param k z-index
+ * @param[in] uvel x-velocity
+ * @param[in] vvel y-velocity
+ * @param[in] cell_data conserved cell-center variables
+ * @param[in] izmin lower z-index limit
+ * @param[in] izmax upper z-index limit
+ * @param[in] dz_inv inverse physical distance spacings
+ * @param[in] c_ext_dir_on_zlo Dirichlet condition on z-low face for cell data
+ * @param[in] c_ext_dir_on_zhi Dirichlet condition on z-high face for cell data
+ * @param[in] u_ext_dir_on_zlo Dirichlet condition on z-low face for u-velocity
+ * @param[in] u_ext_dir_on_zhi Dirichlet condition on z-high face for u-velocity
+ * @param[in] v_ext_dir_on_zlo Dirichlet condition on z-low face for v-velocity
+ * @param[in] v_ext_dir_on_zhi Dirichlet condition on z-high face for v-velocity
+ * @param[out] dthetadz computed vertical derivative of potential temperature
+ * @param[out] dudz computed vertical derivative of x-velocity
+ * @param[out] dvdz computed vertical derivative of y-velocity
+ * @param[in] moisture_indices moisture variable component indices
+ */
 AMREX_GPU_DEVICE
 AMREX_FORCE_INLINE
 void
@@ -383,10 +406,17 @@ ComputeQKESourceTerms (int i, int j, int k,
     return source_term;
 }
 
+/**
+ * @brief Functor for inverse vertical spacings with constant grid spacing.
+ */
 struct PBLDerivativeDzInv_N
 {
     amrex::Real value;
 
+    /**
+     * Return inverse vertical spacings for constant grid spacing.
+     * @return PBLDerivativeDzInv inverse spacing values
+     */
     AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
     PBLDerivativeDzInv operator() (int, int, int) const noexcept
     {
@@ -394,12 +424,20 @@ struct PBLDerivativeDzInv_N
     }
 };
 
+/**
+ * @brief Functor for inverse vertical spacings for stretched grids using a spacing array.
+ */
 struct PBLDerivativeDzInv_S
 {
     const amrex::Real* dz;
     int klo;
     int khi;
 
+    /**
+     * Return inverse vertical spacings for stretched grids.
+     * @param k z-index
+     * @return PBLDerivativeDzInv inverse spacing values
+     */
     AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
     PBLDerivativeDzInv operator() (int, int, int k) const noexcept
     {
@@ -412,10 +450,20 @@ struct PBLDerivativeDzInv_S
     }
 };
 
+/**
+ * @brief Functor for inverse vertical spacings for terrain-following grids using cell-center heights.
+ */
 struct PBLDerivativeDzInv_T
 {
     amrex::Array4<const amrex::Real> z_cc;
 
+    /**
+     * Return inverse vertical spacings for terrain-following grids.
+     * @param i x-index
+     * @param j y-index
+     * @param k z-index
+     * @return PBLDerivativeDzInv inverse spacing values
+     */
     AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
     PBLDerivativeDzInv operator() (int i, int j, int k) const noexcept
     {

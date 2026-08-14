@@ -33,10 +33,24 @@ public:
     explicit CloudChamberBudget (int interval) : m_interval(interval) {}
 
     bool enabled () const noexcept { return m_interval > 0; }
+    /**
+     * Determine if a budget report is due for the given timestep.
+     *
+     * @param step Current timestep
+     * @return True if a report is due, false otherwise
+     */
     bool due (int step) const noexcept {
         return enabled() && step > 0 && (step % m_interval == 0);
     }
 
+    /**
+     * Initialize the base state for the budget accumulation period.
+     *
+     * @param cons Conserved variable MultiFab
+     * @param geom Geometry used for volume calculation
+     * @param step Timestep at the start of the interval
+     * @param time Simulation time at the start of the interval
+     */
     void set_initial_state (const amrex::MultiFab& cons,
                             const amrex::Geometry& geom,
                             int step = 0,
@@ -53,6 +67,18 @@ public:
         m_have_initial = true;
     }
 
+    /**
+     * Integrate boundary fluxes for a specific Runge-Kutta stage.
+     *
+     * @param scalar Index of the scalar being tracked
+     * @param nrk Runge-Kutta stage index
+     * @param dt Timestep size
+     * @param xflux Fluxes in the x-direction
+     * @param yflux Fluxes in the y-direction
+     * @param zflux Fluxes in the z-direction
+     * @param geom Geometry used for face area calculation
+     * @param flux_comp Component index of the flux
+     */
     void capture_stage (int scalar, int nrk, amrex::Real dt,
                         const amrex::MultiFab& xflux,
                         const amrex::MultiFab& yflux,
@@ -103,6 +129,12 @@ public:
         return result;
     }
 
+    /**
+     * Accumulate internal source terms for the tracked scalars.
+     *
+     * @param before State of scalars before source application
+     * @param after State of scalars after source application
+     */
     void record_internal_source (const std::array<amrex::Real, NumScalars>& before,
                                  const std::array<amrex::Real, NumScalars>& after)
     {
@@ -111,6 +143,15 @@ public:
         }
     }
 
+    /**
+     * Perform global reduction and write the budget report to file.
+     *
+     * @param step Current timestep
+     * @param time Current simulation time
+     * @param cons Current conserved variable MultiFab
+     * @param geom Geometry used for state integration
+     * @param cloudy Flag indicating if the state is cloudy
+     */
     void report (int step, double time, const amrex::MultiFab& cons,
                  const amrex::Geometry& geom, bool cloudy)
     {

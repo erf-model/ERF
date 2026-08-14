@@ -13,6 +13,26 @@
 
 using namespace amrex;
 
+/**
+ * Compute vertical eddy viscosity coefficients using the Yonsei University (YSU) boundary layer scheme.
+ *
+ * @param[in] xvel X-velocity field.
+ * @param[in] yvel Y-velocity field.
+ * @param[in] cons_in Input conservative variables.
+ * @param[out] eddyViscosity MultiFab to store computed eddy viscosity and countergradient terms.
+ * @param[in] geom Geometry used for grid spacings and domain extent.
+ * @param[in] turbChoice Turbulence model configuration and parameters.
+ * @param[in] SurfLayer Pointer to surface layer data.
+ * @param[in] use_terrain_fitted_coords Use terrain-fitted coordinates if true.
+ * @param[in] use_moisture Include moisture in the diffusivity calculation.
+ * @param[in] level Current AMR level.
+ * @param[in] bc_ptr Boundary condition records.
+ * @param[in] vert_only Reserved flag for vertical-only computation.
+ * @param[in] z_phys_nd Nodal physical height field.
+ * @param[in] z_phys_cc Cell-centered physical height field.
+ * @param[in] moisture_indices Indices for moisture variables in the state vector.
+ * @param[in] qheating_rates Optional heating rates for cloud-top mixing.
+ */
 void
 ComputeDiffusivityYSUNew (const MultiFab& xvel,
                        const MultiFab& yvel,

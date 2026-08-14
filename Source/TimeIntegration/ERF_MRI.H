@@ -9,8 +9,13 @@
 #include <ERF_TI_slow_headers.H>
 #include <ERF_TI_fast_headers.H>
 
+#include <algorithm>
 #include <functional>
 
+/**
+ * @brief Split integrator for MRI simulations handling slow and fast timescales.
+ * @tparam T State type.
+ */
 template<class T>
 class MRISplitIntegrator
 {
@@ -65,6 +70,10 @@ private:
     T* S_sum;
     T* F_slow;
 
+    /**
+     * @brief Allocate internal storage for integrator variables.
+     * @param[in] S_data Reference state used to determine storage size.
+     */
     void initialize_data (const T& S_data)
     {
         // TODO: We can optimize memory by making the cell-centered part of S_sum
@@ -87,6 +96,10 @@ public:
         initialize_data(S_data);
     }
 
+    /**
+     * @brief Initialize integrator storage.
+     * @param[in] S_data Reference state used to determine storage size.
+     */
     void initialize (const T& S_data)
     {
         initialize_data(S_data);
@@ -111,26 +124,46 @@ public:
     // Delete the copy assignment operator
     MRISplitIntegrator& operator=(const MRISplitIntegrator& other) = delete;
 
+    /**
+     * @brief Set the number of conservative components.
+     * @param[in] _ncomp_cons Number of conservative components.
+     */
     void setNcompCons(int _ncomp_cons)
     {
         ncomp_cons = _ncomp_cons;
     }
 
+    /**
+     * @brief Set whether to use the anelastic integrator.
+     * @param[in] _anelastic Integer flag (1 for anelastic, 0 for compressible).
+     */
     void setAnelastic(int _anelastic)
     {
         anelastic = _anelastic;
     }
 
+    /**
+     * @brief Set whether acoustic substepping is disabled.
+     * @param[in] _no_substepping Integer flag (1 to disable substepping).
+     */
     void setNoSubstepping(int _no_substepping)
     {
         no_substepping = _no_substepping;
     }
 
+    /**
+     * @brief Force the first RK stage to perform only a single substep.
+     * @param[in] _force_stage1_single_substep Integer flag to enable this behavior.
+     */
     void setForceFirstStageSingleSubstep(int _force_stage1_single_substep)
     {
         force_stage1_single_substep = _force_stage1_single_substep;
     }
 
+    /**
+     * @brief Set the pre-substepping slow RHS function.
+     * @param[in] F Function to compute the pre-substepping slow RHS.
+     */
     void set_slow_rhs_pre (std::function<void(T&, T&, T&, const double, const double, const double, const int)> F)
     {
         slow_rhs_pre = F;
@@ -140,6 +173,10 @@ public:
         slow_rhs_post = F;
     }
 
+    /**
+     * @brief Set the acoustic substepping function.
+     * @param[in] F Function to perform the acoustic substepping update.
+     */
     void set_acoustic_substepping (std::function<void(int, int, int, T&, const T&, T&, T&,
                                                       const double, const double,
                                                       const amrex::Real, const double,
@@ -148,16 +185,28 @@ public:
         acoustic_substepping = F;
     }
 
+    /**
+     * @brief Set the ratio of slow to fast timestep sizes.
+     * @param[in] timestep_ratio Ratio of slow/fast timesteps.
+     */
     void set_slow_fast_timestep_ratio (const int timestep_ratio = 1)
     {
         slow_fast_timestep_ratio = timestep_ratio;
     }
 
+    /**
+     * @brief Get the current slow-to-fast timestep ratio.
+     * @return The slow/fast timestep ratio.
+     */
     int get_slow_fast_timestep_ratio ()
     {
         return slow_fast_timestep_ratio;
     }
 
+    /**
+     * @brief Set the function to be called when acoustic substepping is disabled.
+     * @param[in] F Function to use in place of substepping.
+     */
     void set_no_substep (std::function<void (T&, T&, T&, const double, const double, int)> F)
     {
         no_substep = F;
@@ -168,6 +217,14 @@ public:
         return rhs;
     }
 
+    /**
+     * @brief Advance the state from time to time + time_step.
+     * @param[in,out] S_old Current state.
+     * @param[in,out] S_new State to be updated.
+     * @param[in] time Current simulation time.
+     * @param[in] time_step Timestep size.
+     * @return The actual timestep taken.
+     */
     double advance (T& S_old, T& S_new, double time, const double time_step)
     {
     BL_PROFILE_REGION("MRI_advance");
@@ -176,7 +233,7 @@ public:
         // *******************************************************************************
         // !no_substepping: we only update the fast variables every fast timestep, then update
         //                  the slow variables after the acoustic sub-stepping.  This has
-        //                  two calls to slow_rhs so that we can update the slow variables
+        //                  2 calls to slow_rhs so that we can update the slow variables
         //                  with the velocity field after the acoustic substepping using
         //                  the time-averaged velocity from the substepping
         // no_substepping:  we don't do any acoustic subcycling so we only make one call per RK
@@ -225,8 +282,6 @@ public:
         double time_stage = time;
         double old_time_stage;
 
-        const double sub_timestep = timestep / substep_ratio;
-
         if (!anelastic) {
           // RK3 for compressible integrator
           for (int nrk = 0; nrk < 3; nrk++)
@@ -236,29 +291,33 @@ public:
 
             if (nrk == 0) {
                 if (force_stage1_single_substep || no_substepping) {
-                    nsubsteps = 1;               dtau = timestep / three;
+                    nsubsteps = 1;
+                    dtau      = timestep / three;
                 } else {
-                    nsubsteps = substep_ratio/3; dtau = sub_timestep  ;
+                    // Clamp to 1: substep_ratio is only required to be even, so a ratio of 2
+                    // would otherwise give zero substeps and leave S_sum stale in this stage
+                    nsubsteps = std::max(substep_ratio/3, 1);
+                    dtau      = (timestep / three) / static_cast<double>(nsubsteps);
                 }
                 time_stage = time + timestep / three;
             }
             if (nrk == 1) {
                 if (no_substepping) {
-                    nsubsteps =               1; dtau = myhalf * timestep;
+                    nsubsteps = 1;
+                    dtau      = myhalf * timestep;
                 } else {
-                    nsubsteps = substep_ratio/2; dtau =   sub_timestep;
+                    nsubsteps = substep_ratio/2;
+                    dtau      = (myhalf * timestep) / static_cast<double>(nsubsteps);
                 }
                 time_stage = time + timestep / two;
             }
             if (nrk == 2) {
                 if (no_substepping) {
-                    nsubsteps =             1;   dtau =     timestep;
+                    nsubsteps = 1;
+                    dtau      = timestep;
                 } else {
-                    nsubsteps = substep_ratio;   dtau = sub_timestep;
-
-                    // STRT HACK -- this hack can be used to approximate the no-substepping algorithm
-                    // nsubsteps = 1;   dtau = timestep;
-                    // END HACK
+                    nsubsteps = substep_ratio;
+                    dtau      = timestep / static_cast<double>(nsubsteps);
                 }
                 time_stage = time + timestep;
             }
@@ -329,6 +388,10 @@ public:
         return timestep;
     }
 
+    /**
+     * @brief Apply a mapping function to all internal stored data.
+     * @param[in] Map Mapping function to apply to each stored state object.
+     */
     void map_data (std::function<void(T&)> Map)
     {
         for (auto& F : T_store) {

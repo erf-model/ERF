@@ -24,6 +24,9 @@ typedef std::map<std::string, ERFPC*> ParticleSpeciesMap;
 typedef std::vector<std::string> ParticlesNamesVector;
 typedef std::list<std::string> ParticlesNamesList;
 
+/**
+ * @brief Container holding particle-related data and options for multiple species.
+ */
 class ParticleData
 {
     public:
@@ -100,6 +103,13 @@ class ParticleData
             }
         }
 
+        /**
+         * @brief Compute a mesh-based plot variable from particle data.
+         * @param[in] a_var_name Name of the variable to be computed.
+         * @param[out] a_mf MultiFab to store the resulting mesh variable.
+         * @param[in] a_z_phys_nd Nodal physical height field.
+         * @param[in] a_lev Current level.
+         */
         void GetMeshPlotVar (   const std::string&      a_var_name,
                                 amrex::MultiFab&        a_mf,
                                 const amrex::MultiFab&  a_z_phys_nd,
@@ -133,13 +143,17 @@ class ParticleData
             }
         }
 
-        /*! Redistribute after AMR regrid. */
+        /*! Redistribute after AMR regrid.  Also runs each species'
+         *  SplitMergeAtLevelBoundary so new entrants on fine levels and
+         *  departees on coarse levels are split/merged appropriately. */
         inline void Redistribute (
             const amrex::Vector<std::unique_ptr<amrex::MultiFab>>& /*a_z_phys_nd*/)
         {
             BL_PROFILE("ParticleData::Redistribute(z_phys_nd)");
             for (ParticlesNamesVector::size_type i = 0; i < m_namelist.size(); i++) {
-                m_particle_species[m_namelist[i]]->Redistribute();
+                auto* pc = m_particle_species[m_namelist[i]];
+                pc->Redistribute();
+                pc->SplitMergeAtLevelBoundary();
             }
         }
 

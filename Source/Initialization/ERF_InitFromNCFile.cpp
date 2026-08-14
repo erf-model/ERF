@@ -331,8 +331,8 @@ ERF::init_from_ncfile (int lev)
                     dz   = z_hi - z_lo;
 
                     // Establish known constant
-                    qv_lo = (have_moisture) ? con_arr(i,j,k,RhoQ1_comp) / con_arr(i,j,k,Rho_comp) : zero;
-                    Th_lo = con_arr(i,j,k,RhoTheta_comp) / con_arr(i,j,k,Rho_comp);
+                    qv_lo = (have_moisture) ? con_arr(i,j,k-1,RhoQ1_comp) / con_arr(i,j,k-1,Rho_comp) : zero;
+                    Th_lo = con_arr(i,j,k-1,RhoTheta_comp) / con_arr(i,j,k-1,Rho_comp);
                     R_lo  = getRhogivenThetaPress(Th_lo, P_lo, RdoCp_d, qv_lo);
                     rho_tot_lo = R_lo * (one + qv_lo);
                     C  = -P_lo + myhalf*rho_tot_lo*grav*dz;

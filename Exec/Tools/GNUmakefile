@@ -43,6 +43,20 @@ VPATH_LOCATIONS   += $(ERF_HOME)/Source/Tools
 INCLUDE_LOCATIONS += $(ERF_HOME)/Source/IO
 VPATH_LOCATIONS   += $(ERF_HOME)/Source/IO
 
+# ERF_NCPlotFile.{H,cpp} need ERF_Constants.H and ERF_DataStruct.H (and the
+# structs the latter pulls in)
+INCLUDE_LOCATIONS += $(ERF_HOME)/Source
+VPATH_LOCATIONS   += $(ERF_HOME)/Source
+
+INCLUDE_LOCATIONS += $(ERF_HOME)/Source/DataStructs
+VPATH_LOCATIONS   += $(ERF_HOME)/Source/DataStructs
+
+INCLUDE_LOCATIONS += $(ERF_HOME)/Source/PBL
+VPATH_LOCATIONS   += $(ERF_HOME)/Source/PBL
+
+INCLUDE_LOCATIONS += $(ERF_HOME)/Source/Utils
+VPATH_LOCATIONS   += $(ERF_HOME)/Source/Utils
+
 include $(AMREX_HOME)/Src/Base/Make.package
 INCLUDE_LOCATIONS += $(AMREX_HOME)/Src/Base
 

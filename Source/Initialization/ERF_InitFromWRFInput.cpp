@@ -63,16 +63,45 @@ bool CheckForDensity (const std::string& fname)
     return use_alt_density;
 }
 
+/**
+ * Read the subdomain index space from a WRF input file.
+ *
+ * @param lev Current level (unused).
+ * @param fname Path to the WRF input file.
+ * @param[out] ratio Grid ratio read from the file.
+ * @return Box specifying the subdomain index space.
+ */
 Box
 read_subdomain_from_wrfinput(int /*lev*/,
                              const std::string& fname,
                              int& ratio);
 
+/**
+ * Compute the top height of the domain from WRF geopotential data.
+ *
+ * @param[in] mf_PH MultiFab storing WRF perturbation geopotential data.
+ * @param[in] mf_PHB MultiFab storing WRF base-state geopotential data.
+ * @param[in] domain Box holding the index space of the computational domain.
+ * @return Height assigned to the top of the ERF domain.
+ */
 Real
 compute_terrain_top_and_bottom (const MultiFab& mf_PH,
                                 const MultiFab& mf_PHB,
                                 const Box& domain);
 
+/**
+ * Initialize nodal terrain coordinates from WRF input data.
+ *
+ * @param lev Current level.
+ * @param[in,out] geom Geometry object defining the domain.
+ * @param[in] z_top Height assigned to the top of the ERF domain.
+ * @param[in] subdomain Box specifying the index space to initialize.
+ * @param[out] z_phys MultiFab specifying the node-centered z coordinates.
+ * @param[in] NC_PH_fab MultiFab storing WRF perturbation geopotential data.
+ * @param[in] NC_PHB_fab MultiFab storing WRF base-state geopotential data.
+ * @param[out] dz0_max Maximum first-layer thickness.
+ * @param[in] use_wrf_height_grid Whether to use the WRF height grid directly.
+ */
 void
 init_terrain_from_wrfinput (int lev,
                             Geometry& geom,
@@ -84,6 +113,26 @@ init_terrain_from_wrfinput (int lev,
                             Real& dz0_max,
                             const bool& use_wrf_height_grid);
 
+/**
+ * Initialize hydrostatic base state data from a WRF dataset.
+ *
+ * @param[in] subdomain Box specifying the index space to initialize.
+ * @param[in] l_rdOcp Constant $R_d/c_p$.
+ * @param[out] p_hse MultiFab holding the hydrostatic base state pressure.
+ * @param[out] pi_hse MultiFab holding the hydrostatic base state Exner pressure.
+ * @param[out] th_hse MultiFab holding the hydrostatic base state potential temperature.
+ * @param[out] qv_hse MultiFab holding the hydrostatic base state qv.
+ * @param[out] r_hse MultiFab holding the hydrostatic base state density.
+ * @param[in] mf_PB MultiFab holding WRF data specifying base state pressure.
+ * @param[in] mf_ALB Optional MultiFab holding inverse density perturbation data.
+ * @param[in] z_phys Optional terrain nodal z-coordinate MultiFab.
+ * @param[in] T00 Sea-level base-state temperature.
+ * @param[in] P00 Sea-level base-state pressure.
+ * @param[in] TLP Base-state lapse rate.
+ * @param[in] TISO Isothermal stratosphere temperature.
+ * @param[in] TLP_STRAT Stratospheric lapse rate.
+ * @param[in] P_STRAT Pressure at the stratosphere transition.
+ */
 void
 init_base_state_from_wrfinput (const Box& subdomain,
                                const Real& l_rdOcp,
@@ -2054,18 +2103,62 @@ init_terrain_from_wrfinput (int /*lev*/,
                                    z_slice_wrf.size(),
                                    ParallelContext::CommunicatorAll());
 
-            // Solve for node values that average to WRF z-face values
-            // while minimizing the first derivative
-            const Real tol = std::numeric_limits<Real>::epsilon();
+            // Solve for node values that reproduce the WRF z-face values as
+            // closely as a bounded, smooth nodal field can.  We deliberately do
+            // *not* invert the four-node averaging operator exactly: its symbol
+            // vanishes at the grid Nyquist mode, so exact de-averaging amplifies
+            // grid-scale content of the WRF terrain without bound and returns
+            // nodal heights that are kilometers away from the WRF terrain.
+            // See ERF_NodalReconstruction.H for the regularized least-squares
+            // formulation used instead.
+            const Real tol = Real(1.e-10);
             NodalReconstruction NR_solver(z_face_dom_slice, geom);
-            auto boundary = NR_solver.makeBoundaryFromT(z_slice_wrf);
-            std::pair<amrex::FArrayBox,SolveInfo> result = NR_solver.solve(z_slice_wrf, boundary,
-                                                                           VariationOperator::Laplacian, tol);
+            FArrayBox z_slice_ref = NR_solver.makeReference(z_slice_wrf);
+            std::pair<amrex::FArrayBox,SolveInfo> result = NR_solver.solve(z_slice_wrf, z_slice_ref,
+                                                                           VariationOperator::FirstDeriv, tol);
             const Array4<Real>& z_slice_erf_arr = result.first.array();
-            if (!result.second.converged) {
+            const SolveInfo& info = result.second;
+            if (!info.converged) {
                 Print() << "WARNING: Nodal reconstruction did not converge at k = " << k
-                        << "; residual is: " << result.second.final_residual
+                        << "; residual is: " << info.final_residual
                         << " and requested tolerance was: " << tol << "\n";
+            }
+
+            // Range check on the reconstructed heights.  This is the check that
+            // has teeth: comparing the four-node average against WRF (done at
+            // the end of this routine) is close to satisfied by construction and
+            // cannot detect a blown-up reconstruction.
+            {
+                Real wrf_min =  std::numeric_limits<Real>::max();
+                Real wrf_max = -std::numeric_limits<Real>::max();
+                LoopOnCpu(z_face_dom_slice, [=,&wrf_min,&wrf_max] (int i, int j, int /*k*/) noexcept
+                {
+                    wrf_min = amrex::min(wrf_min, z_slice_wrf_arr(i,j,0));
+                    wrf_max = amrex::max(wrf_max, z_slice_wrf_arr(i,j,0));
+                });
+
+                Print() << "Nodal reconstruction at k = " << k << ": "
+                        << info.iterations << " CG iterations, " << info.refinements
+                        << " refinements, regularization " << info.regularization
+                        << "\n    nodal heights in [" << info.min_value << ", " << info.max_value
+                        << "] m vs WRF z-faces in [" << wrf_min << ", " << wrf_max << "] m"
+                        << "\n    max |avg4(nodal) - WRF| = " << info.max_average_error
+                        << " m (direct interpolation gives " << info.interp_average_error << " m)"
+                        << "\n    max deviation from direct interpolation = " << info.deviation
+                        << " m (cap " << info.deviation_cap << " m)" << std::endl;
+
+                // Nodes may legitimately over/undershoot the cell values where
+                // the terrain is under-resolved, but only by a fraction of the
+                // relief of the layer itself.
+                const Real relief = amrex::max(wrf_max - wrf_min, Real(1.0));
+                const Real slack  = amrex::max(Real(0.5) * relief, Real(10.0));
+
+                if ( !std::isfinite(info.min_value) || !std::isfinite(info.max_value) ||
+                     (info.min_value < wrf_min - slack) || (info.max_value > wrf_max + slack) )
+                {
+                    Error("Nodal reconstruction produced heights far outside the range of the "
+                          "WRF z-face heights; the reconstruction is not usable as terrain.");
+                }
             }
 
             // Store the surface
@@ -2106,40 +2199,64 @@ init_terrain_from_wrfinput (int /*lev*/,
             }
         } // k
 
-        // Sanity check
-        Print() << "Verifying nodal heights average to WRF z-face heights" << std::endl;
-        for ( MFIter mfi(mf_PHB); mfi.isValid(); ++mfi ) {
-            Box vbx = mfi.validbox();
+        // Sanity check.
+        //
+        // The nodal heights are a regularized least-squares fit to the WRF
+        // z-face heights, not an exact de-averaging of them.  The four-node average
+        // therefore no longer reproduces WRF to round-off, and the size of the
+        // mismatch is a genuine diagnostic of how much grid-scale terrain the
+        // WRF field carries.  We report it, and we abort only on failures that
+        // make the mesh unusable: non-finite heights, or a layer that is not
+        // strictly increasing in z.
+        Print() << "Verifying reconstructed nodal heights" << std::endl;
+        {
+            ReduceOps<ReduceOpMax, ReduceOpMin> reduce_op;
+            ReduceData<Real, Real> reduce_data(reduce_op);
+            using ReduceTuple = typename decltype(reduce_data)::Type;
 
-            if (!use_wrf_height_grid) { vbx.setBig(2,klo+1); }
+            for ( MFIter mfi(mf_PHB); mfi.isValid(); ++mfi ) {
+                Box vbx = mfi.validbox();
+                if (vbx.smallEnd(2) > klo+1) { continue; }
+                vbx.setBig(2,klo+1);
 
-            const Array4<const Real>& nc_phb_arr = mf_PHB.const_array(mfi);
-            const Array4<const Real>& nc_ph_arr  = mf_PH.const_array(mfi);
-            const Array4<const Real>& z_arr      = z_phys->const_array(mfi);
+                const Array4<const Real>& nc_phb_arr = mf_PHB.const_array(mfi);
+                const Array4<const Real>& nc_ph_arr  = mf_PH.const_array(mfi);
+                const Array4<const Real>& z_arr      = z_phys->const_array(mfi);
 
-#ifdef AMREX_USE_FLOAT
-            const Real tol = Real(1.e-4);
-#else
-            const Real tol = Real(1.e-8);
-#endif
-            ParallelFor(vbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
-            {
-                Real z_face_wrf = ( nc_ph_arr(i,j,k) + nc_phb_arr(i,j,k) ) / CONST_GRAV;
-                Real z_face_erf = fourth * ( z_arr(i, j  , k) + z_arr(i+1, j  , k)
-                                           + z_arr(i, j+1, k) + z_arr(i+1, j+1, k) );
-                if ((std::fabs(z_face_erf-z_face_wrf) > tol) && (k < khi)) {
-#ifdef AMREX_USE_GPU
-                    AMREX_DEVICE_PRINTF("z-face does not match WRF at (%d,%d,%d). ERF and WRF values are: %f, %f\n",
-                                        i,j,k, z_face_erf, z_face_wrf);
-#else
-                    printf("z-face does not match WRF at (%d,%d,%d). ERF and WRF values are: %f, %f\n",
-                           i,j,k, z_face_erf, z_face_wrf);
+                reduce_op.eval(vbx, reduce_data,
+                [=] AMREX_GPU_DEVICE (int i, int j, int k) -> ReduceTuple
+                {
+                    Real z_face_wrf = ( nc_ph_arr(i,j,k) + nc_phb_arr(i,j,k) ) / CONST_GRAV;
+                    Real z_face_erf = fourth * ( z_arr(i, j  , k) + z_arr(i+1, j  , k)
+                                               + z_arr(i, j+1, k) + z_arr(i+1, j+1, k) );
+                    Real avg_err = (k < khi) ? std::fabs(z_face_erf-z_face_wrf) : zero;
 
-#endif
-                    Error("Grid integrity issue detected");
-                }
-            });
-        } // mfi
+                    // Nodal layer thickness; only defined once we are at klo
+                    Real dz = (k == klo) ? (z_arr(i,j,klo+1) - z_arr(i,j,klo))
+                                         : std::numeric_limits<Real>::max();
+                    return {avg_err, dz};
+                });
+            } // mfi
+
+            ReduceTuple hv = reduce_data.value(reduce_op);
+            Real max_avg_err = amrex::max(amrex::get<0>(hv), zero);
+            Real min_dz      = amrex::get<1>(hv);
+            ParallelAllReduce::Max(max_avg_err, ParallelContext::CommunicatorAll());
+            ParallelAllReduce::Min(min_dz     , ParallelContext::CommunicatorAll());
+
+            Print() << "Max |avg4(nodal z) - WRF z-face| over the reconstructed levels: "
+                    << max_avg_err << " m" << std::endl;
+            Print() << "Min nodal thickness of the first layer: " << min_dz << " m" << std::endl;
+
+            if (!std::isfinite(max_avg_err) || !std::isfinite(min_dz)) {
+                Error("Non-finite nodal heights produced by the terrain reconstruction");
+            }
+            if (min_dz <= zero) {
+                Error("Reconstructed nodal terrain gives a non-positive first layer thickness; "
+                      "the WRF terrain is too rough to represent on the ERF nodal mesh. "
+                      "Consider running with erf.use_wrf_height_grid = true.");
+            }
+        }
     } // use wrf grid
 }
 #endif // ERF_USE_NETCDF

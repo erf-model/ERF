@@ -194,7 +194,6 @@ ERF::PackAtmosphericStates (amrex::Vector<amrex::MultiFab*>& states,
     const auto& xba2d_lev = amrex::convert(ba2d_lev, IntVect(1,0,0));
     const auto& yba2d_lev = amrex::convert(ba2d_lev, IntVect(0,1,0));
     const int klo = ba.minimalBox().smallEnd(2);
-    const Box domain2d = ba2d_lev.minimalBox();
 
     const bool flux_mode = (states.size() == nFluxLanes);
     if (flux_mode) {
@@ -232,19 +231,27 @@ ERF::PackAtmosphericStates (amrex::Vector<amrex::MultiFab*>& states,
             }
         }
 
+        //
+        // NOTE: Tau tau13/tau23 already hold CONSERVATIVE stress in [N m-2] --
+        //       compute_u_flux in ERF_MOSTStress.H returns rho*<u'w'>, and
+        //       ComputeStress_*_N/T scale the strain by rho_bar*mu_eff or by
+        //       mu_turb (= rho*K).  They must therefore be exported as-is,
+        //       without another factor of density.  This also matches the
+        //       SH/LH lanes below, which apply only Cp_d / L_v.
+        //
+        // NOTE: Tau is only allocated when diffusion is active, so the pointers
+        //       have to be checked before they are dereferenced.
+        //
         if (iTauX < static_cast<int>(states.size()) && states[iTauX] != nullptr) {
+            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(Tau[lev][TauType::tau13] != nullptr,
+                "Flux-mode coupling of tau_x requires Tau; enable diffusion or a surface_layer bc");
             MultiFab tmp(xba2d_lev, dm, 1, 0);
             for (MFIter mfi(tmp, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
                 Box bx = mfi.tilebox();
                 auto const& tau13 = Tau[lev][TauType::tau13]->const_array(mfi);
-                auto const& c = cons.const_array(mfi);
                 auto t = tmp.array(mfi);
                 ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-                    const Real rho_face =
-                        (i <= domain2d.smallEnd(0)) ? c(domain2d.smallEnd(0),j,klo,Rho_comp) :
-                        (i > domain2d.bigEnd(0))   ? c(domain2d.bigEnd(0),j,klo,Rho_comp) :
-                        Real(0.5) * (c(i-1,j,klo,Rho_comp) + c(i,j,klo,Rho_comp));
-                    t(i,j,k) = rho_face * tau13(i,j,klo);
+                    t(i,j,k) = tau13(i,j,klo);
                 });
             }
             AverageDownThenRemap(tmp, *states[iTauX]);
@@ -252,18 +259,15 @@ ERF::PackAtmosphericStates (amrex::Vector<amrex::MultiFab*>& states,
         }
 
         if (iTauY < static_cast<int>(states.size()) && states[iTauY] != nullptr) {
+            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(Tau[lev][TauType::tau23] != nullptr,
+                "Flux-mode coupling of tau_y requires Tau; enable diffusion or a surface_layer bc");
             MultiFab tmp(yba2d_lev, dm, 1, 0);
             for (MFIter mfi(tmp, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
                 Box bx = mfi.tilebox();
                 auto const& tau23 = Tau[lev][TauType::tau23]->const_array(mfi);
-                auto const& c = cons.const_array(mfi);
                 auto t = tmp.array(mfi);
                 ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-                    const Real rho_face =
-                        (j <= domain2d.smallEnd(1)) ? c(i,domain2d.smallEnd(1),klo,Rho_comp) :
-                        (j > domain2d.bigEnd(1))   ? c(i,domain2d.bigEnd(1),klo,Rho_comp) :
-                        Real(0.5) * (c(i,j-1,klo,Rho_comp) + c(i,j,klo,Rho_comp));
-                    t(i,j,k) = rho_face * tau23(i,j,klo);
+                    t(i,j,k) = tau23(i,j,klo);
                 });
             }
             AverageDownThenRemap(tmp, *states[iTauY]);

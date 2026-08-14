@@ -9,6 +9,24 @@ using namespace amrex;
 
 #define EXTRA_MYNN25_CHECKS 0
 
+/**
+ * Compute eddy diffusivities using the MYNN PBL model.
+ *
+ * @param[in] xvel X-velocity MultiFab.
+ * @param[in] yvel Y-velocity MultiFab.
+ * @param[in] cons_in Conserved variables MultiFab.
+ * @param[out] eddyViscosity MultiFab for storing computed eddy diffusivities.
+ * @param[in] geom Grid geometry.
+ * @param[in] turbChoice Turbulence model options and configuration.
+ * @param[in] SurfLayer Surface layer data.
+ * @param[in] use_terrain_fitted_coords Flag to use terrain-fitted coordinates.
+ * @param[in] use_moisture Flag to include moisture.
+ * @param[in] level Level index.
+ * @param[in] bc_ptr Boundary condition record pointers.
+ * @param[in] z_phys_nd Nodal physical height.
+ * @param[in] z_phys_cc Cell-centered physical height.
+ * @param[in] moisture_indices Moisture component indices.
+ */
 void
 ComputeDiffusivityMYNN25 (const MultiFab& xvel,
                           const MultiFab& yvel,

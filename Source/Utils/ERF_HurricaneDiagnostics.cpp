@@ -32,6 +32,19 @@ struct {
     } in, out;
 
 
+/**
+ * Compute the global minimum and its location across all ranks.
+ *
+ * @param[in] sc Solver choices
+ * @param[in] lev_geom Geometry of the current level
+ * @param[in] S_data Conservative state data
+ * @param[in] d_val_min_ptr Device pointer to local minimum value
+ * @param[in] d_i_min_ptr Device pointer to local minimum i-index
+ * @param[in] d_j_min_ptr Device pointer to local minimum j-index
+ * @param[out] global_val_min Global minimum value
+ * @param[out] global_i_min Global minimum i-index
+ * @param[out] global_j_min Global minimum j-index
+ */
 void
 ERF::ComputeGlobalMinLocation (const SolverChoice& sc,
                                const Geometry& lev_geom,
@@ -145,6 +158,9 @@ ERF::ComputeGlobalMinLocation (const SolverChoice& sc,
     hurricane_eye_track_latlon.push_back({eye_lon, eye_lat});
 }
 
+/**
+ * Generate a circular set of points around the last known eye position.
+ */
 void
 ERF::HurricaneTrackerCircle ()
 {
@@ -171,6 +187,15 @@ ERF::HurricaneTrackerCircle ()
     }
 }
 
+/**
+ * Initialize the hurricane eye tracker using a given latitude and longitude.
+ *
+ * @param[in] sc Solver choices
+ * @param[in] lev_geom Geometry of the current level
+ * @param[in] S_data Conservative state data
+ * @param[in] hurricane_eye_latitude Target latitude for the eye
+ * @param[in] hurricane_eye_longitude Target longitude for the eye
+ */
 void
 ERF::HurricaneEyeTrackerInitial (const SolverChoice& sc,
                                  const Geometry& lev_geom,
@@ -246,6 +271,14 @@ ERF::HurricaneEyeTrackerInitial (const SolverChoice& sc,
                              global_val_min, global_i_min, global_j_min);
 }
 
+/**
+ * Track the hurricane eye by searching for minimum pressure near the previous position.
+ *
+ * @param[in] sc Solver choices
+ * @param[in] lev_geom Geometry of the current level
+ * @param[in] S_data Conservative state data
+ * @param[in] moisture_type Moisture model type
+ */
 void
 ERF::HurricaneEyeTrackerNotInitial (const SolverChoice& sc,
                                     const Geometry& lev_geom,
@@ -311,6 +344,9 @@ ERF::HurricaneEyeTrackerNotInitial (const SolverChoice& sc,
                              global_val_min, global_i_min, global_j_min);
 }
 
+/**
+ * Read hurricane tracking history from restart files.
+ */
 void
 ERF::ReadStormTrackerRestart ()
 {
@@ -471,6 +507,11 @@ ERF::ReadStormTrackerRestart ()
     }
 }
 
+/**
+ * Wrapper to track the hurricane eye position over time.
+ *
+ * @param[in] sc Solver choices
+ */
 void
 ERF::HurricaneEyeTracker (const SolverChoice& sc)
 {
@@ -497,6 +538,13 @@ ERF::HurricaneEyeTracker (const SolverChoice& sc)
     HurricaneTrackerCircle();
 }
 
+/**
+ * Compute and track the maximum wind velocity near the hurricane eye.
+ *
+ * @param[in] lev_geom Geometry of the current level
+ * @param[in] mf_cc_vel MultiFab containing cell-centered velocity
+ * @param[in] time Current simulation time
+ */
 void
 ERF::HurricaneMaxVelTracker(const Geometry& lev_geom,
                             const MultiFab& mf_cc_vel,
@@ -552,6 +600,14 @@ ERF::HurricaneMaxVelTracker(const Geometry& lev_geom,
     hurricane_maxvel_vs_time.push_back({static_cast<Real>(time_in_hrs), h_val_max_global});
 }
 
+/**
+ * Compute and track the minimum pressure near the hurricane eye.
+ *
+ * @param[in] moisture_type Moisture model type
+ * @param[in] lev_geom Geometry of the current level
+ * @param[in] mf_cons_var MultiFab containing conservative variables
+ * @param[in] time Current simulation time
+ */
 void
 ERF::HurricaneMinPressureTracker (MoistureType moisture_type,
                                   const Geometry& lev_geom,

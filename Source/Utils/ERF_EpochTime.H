@@ -11,6 +11,13 @@
 #define timegm _mkgmtime
 #endif
 
+/**
+ * Parse an integer of fixed width from a string.
+ * @param[in,out] dt String to parse from; advanced by width on success.
+ * @param[in] width Number of characters to parse.
+ * @param[out] value Parsed integer value.
+ * @return True if parsing was successful, false otherwise.
+ */
 AMREX_GPU_HOST AMREX_FORCE_INLINE
 bool
 parse_fixed_width_int (const char*& dt, int width, int& value)
@@ -29,6 +36,12 @@ parse_fixed_width_int (const char*& dt, int width, int& value)
     return true;
 }
 
+/**
+ * Convert a formatted date-time string to epoch time.
+ * @param[in] dateTime String containing the date and time.
+ * @param[in] dateTimeFormat Format string describing the layout of dateTime.
+ * @return Epoch time as std::time_t, or -1 on failure.
+ */
 AMREX_GPU_HOST AMREX_FORCE_INLINE
 std::time_t
 getEpochTime (const std::string& dateTime, const std::string& dateTimeFormat)
@@ -98,6 +111,13 @@ getEpochTime (const std::string& dateTime, const std::string& dateTimeFormat)
     return timegm(&tmTime);
 }
 
+/**
+ * Convert epoch time to a formatted timestamp string.
+ * @param[in] epoch_real Epoch time in seconds.
+ * @param[in] datetime_format Format string for the resulting timestamp.
+ * @param[in] add_long_frac Whether to append fractional seconds to the output.
+ * @return Formatted timestamp string.
+ */
 AMREX_FORCE_INLINE
 std::string
 getTimestamp (const double epoch_real, const std::string& datetime_format, bool add_long_frac=true)

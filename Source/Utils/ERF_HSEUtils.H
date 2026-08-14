@@ -633,6 +633,25 @@ Real compute_p_k_in_zone (Real &p_k, const Real p_k_minus_1, Real &theta_k, Real
     return p_k;
 }
 
+/**
+ * Initialize an isentropic hydrostatic equilibrium base state without terrain.
+ *
+ * @param[out] theta Potential temperature profile.
+ * @param[out] r Density profile.
+ * @param[out] p Pressure profile.
+ * @param[out] q_v Water vapor mixing ratio profile.
+ * @param[in] dz Vertical grid spacing.
+ * @param[in] khi Top index of the domain.
+ * @param[in] q_t Total water mixing ratio.
+ * @param[in] eq_pot_temp Equilibrium potential temperature.
+ * @param[in] use_empirical Use empirical saturation formulas.
+ * @param[in] T_from_theta Whether temperature is derived from potential temperature.
+ * @param[in] z_tr_1 First transition height.
+ * @param[in] z_tr_2 Second transition height.
+ * @param[in] theta_0 Surface potential temperature.
+ * @param[in] theta_tr Potential temperature at transition height.
+ * @param[in] T_tr Temperature at transition height.
+ */
 AMREX_FORCE_INLINE
 AMREX_GPU_HOST_DEVICE
 void

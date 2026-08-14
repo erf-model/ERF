@@ -144,6 +144,7 @@ namespace
         const auto lflux = col.surf_lat_flux.const_array();
         const auto tauu = col.surf_tau_u.const_array();
         const auto tauv = col.surf_tau_v.const_array();
+        const auto pblh = col.pblh.const_array();
 
         const auto layout = col.layout;
         const Box col_box(IntVect(0,0,0), IntVect(layout.ncell - 1, 0, 0));
@@ -154,8 +155,9 @@ namespace
             const Real uw_sfc = tauu(ic,0,0);
             const Real vw_sfc = tauv(ic,0,0);
             const Real ustar2 = std::sqrt(uw_sfc * uw_sfc + vw_sfc * vw_sfc);
-            const Real wstar = (wthl_sfc >= 0.0_rt)
-                ? std::cbrt((CONST_GRAV / shoc_base_temp()) * wthl_sfc)
+            const Real convective_depth = amrex::max(0.0_rt, pblh(ic,0,0));
+            const Real wstar = (wthl_sfc > 0.0_rt)
+                ? std::cbrt((CONST_GRAV / shoc_base_temp()) * wthl_sfc * convective_depth)
                 : 0.0_rt;
             const Real uf = amrex::max(shoc_ufmin(),
                                        std::sqrt(ustar2 + 0.3_rt * wstar * wstar));

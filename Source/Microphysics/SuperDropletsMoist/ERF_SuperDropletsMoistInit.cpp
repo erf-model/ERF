@@ -1,6 +1,5 @@
-#ifndef _WIN32
-#include <sys/time.h>
-#endif
+#include <algorithm>
+
 #include "ERF_SuperDropletsMoist.H"
 #include "ERF_MaterialProperties.H"
 
@@ -49,6 +48,10 @@ void SuperDropletsMoist::readInputs ()
     m_flag_coalescence = true; //default
     pp.query("include_coalescence", m_flag_coalescence);
 
+    // include cold processes?
+    m_with_ice = true;
+    pp.query("include_cold_processes", m_with_ice);
+
     // initial distribution type
     m_init_type = SDMoistInit::uniform;
     pp.query("distribution_type", m_init_type);
@@ -56,6 +59,9 @@ void SuperDropletsMoist::readInputs ()
     // minimum radius for rain
     m_r_rain = Real(4.0e-5); // 40 micrometers
     pp.query("radius_raindrop", m_r_rain);
+
+    m_rime_ratio = 0.3;
+    pp.query("rime_mass_ratio", m_rime_ratio);
 
     // whether to run in kinematic mode
     m_kinematic_mode = false;
@@ -75,20 +81,34 @@ void SuperDropletsMoist::readInputs ()
     // add water
     m_idx_w = static_cast<int>(m_species.size());
     m_species.push_back(Species::Name::H2O);
+    // add ice
+    if (m_with_ice) {
+        m_idx_i = m_species.size();
+        m_species.push_back(Species::Name::ice);
+    }
     // add other species
+    m_istart_sp = m_species.size();
     std::string species_input = "species";
     if (pp.contains(species_input.c_str())) {
         int num_species = pp.countval(species_input.c_str());
         Species::Name sp_name;
         for (int i = 0; i < num_species; i++) {
             pp.get(species_input.c_str(), sp_name, i);
+            // water and, with cold processes, ice are already present
+            if (std::find(m_species.begin(), m_species.end(), sp_name) != m_species.end()) {
+                amrex::Abort("SuperDropletsMoist: species "+amrex::getEnumNameString(sp_name)
+                             +" is already modeled; remove it from super_droplets_moisture.species");
+            }
             m_species.push_back(sp_name);
         }
     }
     m_num_species = static_cast<int>(m_species.size());
-    // Water uses qv, qc, and qr in the moist state. Each additional
-    // condensable species contributes qv and qc to the non-water state.
-    m_qstate_nonmoist_size = (m_num_species-1)*2;
+    m_num_nonmoist_sp = m_num_species - m_istart_sp;
+    m_qstate_nonmoist_size = (m_num_nonmoist_sp)*2; // qv, qc for each
+
+    if (m_num_nonmoist_sp > 5) {
+        amrex::Abort("SuperDropletsMoist: cannot run with more than 5 non-moist species (see ERF_IndexDefines.H, definitions of NBCVAR_max and NVAR_max).");
+    }
 
     // get aerosol names
     m_aerosols.clear();
@@ -125,9 +145,9 @@ void SuperDropletsMoist::readInputs ()
  *
  * Allocates the moisture model variable MultiFabs and creates the
  * super-droplet particle container. This function sets up:
- * one The mapping between moisture variable indices and internal arrays
- * two MultiFabs for all moisture model variables
- * three The SuperDropletPC particle container
+ * 1. The mapping between moisture variable indices and internal arrays
+ * 2. MultiFabs for all moisture model variables
+ * 3. The SuperDropletPC particle container
  *
  * After initialization, it prints configuration summary to output.
  *
@@ -151,13 +171,17 @@ void SuperDropletsMoist::Init ( const MultiFab&   a_cons_vars,
                         MicVar_SD::q_c,
                         MicVar_SD::dqcdt,
                         MicVar_SD::q_r,
-                        MicVar_SD::rh,
-                        MicVar_SD::rain_accum };
+                        MicVar_SD::q_i,
+                        MicVar_SD::q_g,
+                        MicVar_SD::rh_w,
+                        MicVar_SD::rain_accum,
+                        MicVar_SD::graup_accum,
+                        MicVar_SD::snow_accum };
     AMREX_ALWAYS_ASSERT(m_qmoist_size == m_mic_var_map.size());
 
     /* allocate microphysics multifabs */
     const int num_mic_vars =   MicVar_SD::NumVars
-                             + (m_num_species-1) * MicVar_SD_Species::NumVars
+                             + m_num_nonmoist_sp * MicVar_SD_Species::NumVars
                              + m_num_aerosols * MicVar_SD_Aerosols::NumVars;
     m_mic_fab_vars.resize(1);
     m_mic_fab_vars[0].resize(num_mic_vars);
@@ -180,6 +204,7 @@ void SuperDropletsMoist::Init ( const MultiFab&   a_cons_vars,
 
     amrex::Print() << "SuperDropletsMoist:\n"
                    << "    diagnostics_interval: " << m_diagnostics_iter << "\n"
+                   << "    include cold processes: " << (m_with_ice ? "true" : "false") << "\n"
                    << "    cloud/rain radius: " << m_r_rain << " [m]\n"
                    << "    kinematic mode: " << (m_kinematic_mode?"true":"false") << "\n"
                    << "    dimensionality: " << amrex::getEnumNameString(m_dimensionality)  << "\n"
@@ -229,10 +254,10 @@ void SuperDropletsMoist::InitParticles ( const int a_lev, MFPtr& a_z_phys_nd )
  *
  * This function restarts superdroplet particles from a checkpoint file.
  * It performs the following operations:
- * one Reads particle data from the specified restart file
- * two Redistributes particles to appropriate processors/grids
- * three Measures and reports the time taken to perform the restart
- * Real(4.) Outputs statistics about the restarted particle population
+ * 1. Reads particle data from the specified restart file
+ * 2. Redistributes particles to appropriate processors/grids
+ * 3. Measures and reports the time taken to perform the restart
+ * 4. Outputs statistics about the restarted particle population
  *
  * \param[in] a_gdb Unused particle grid database pointer
  * \param[in] a_fname File name for the checkpoint file to restart from
@@ -243,43 +268,26 @@ void SuperDropletsMoist::RestartParticles ( ParGDBBase* /* a_gdb */, const std::
 
     amrex::Print() << "Reading in " << m_name << " particle data from restart file.\n";
 
-#ifndef _WIN32
-    struct timeval total_start, total_end;
-    gettimeofday(&total_start, NULL);
-#endif
     m_super_droplets->Restart(a_fname, m_name);
     m_super_droplets->Redistribute();
-#ifndef _WIN32
-    gettimeofday(&total_end,NULL);
-    long long total_wtime;
-    total_wtime = (   (total_end.tv_sec   * 1000000 + total_end.tv_usec  )
-                   -  (total_start.tv_sec * 1000000 + total_start.tv_usec) );
-    Real total_wtime_sec = (double) total_wtime / Real(1000000.0);
-    ParallelDescriptor::ReduceRealMax( &total_wtime_sec,
-                                       1,
-                                       ParallelDescriptor::IOProcessorNumber() );
-#else
-    Real total_wtime_sec = zero;
-#endif
 
     amrex::Print() << "Restarted "
                    << m_super_droplets->NumSuperDroplets()
                    << " super-droplets representing "
                    << m_super_droplets->TotalNumberOfParticles()
-                   << " particles in super-droplets moisture model "
-                   << "(" << total_wtime_sec << " seconds).\n";
+                   << " particles in super-droplets moisture model.\n";
 }
 
 /*! \brief Complete initialization using now-available state variables
  *
  * This function finalizes initialization steps that depend on conserved state
  * variables that were not available during Init(). It performs:
- * one Particle density scaling based on air density
- * two For condensate_density initialization type: sets particle attributes from condensate density
- * three For other initialization types: optionally performs initial phase change relaxation
- * Real(4.) Computes cloud/rain water and total water content for all species
- * Real(5.) Updates the rhoq2 component in conserved variables with computed cloud water
- * Real(6.) Runs initial diagnostics for superdroplets
+ * 1. Particle density scaling based on air density
+ * 2. For condensate_density initialization type: sets particle attributes from condensate density
+ * 3. For other initialization types: optionally performs initial phase change relaxation
+ * 4. Computes cloud/rain water and total water content for all species
+ * 5. Updates the rhoq2 component in conserved variables with computed cloud water
+ * 6. Runs initial diagnostics for superdroplets
  *
  * \param[in] a_lev Unused AMR level parameter
  * \param[in,out] a_cons_vars Conserved variables MultiFab to be updated
@@ -320,6 +328,7 @@ void SuperDropletsMoist::FinishInit (const int& /* a_lev */,
     }
 
     computeQcQrWater(*a_z_phys_nd[lev]);
+    computeQiQgQsWater(*a_z_phys_nd[lev]);
     computeQtWater();
 
     for ( MFIter mfi(a_cons_vars); mfi.isValid(); ++mfi) {
@@ -327,22 +336,28 @@ void SuperDropletsMoist::FinishInit (const int& /* a_lev */,
         auto states_arr = a_cons_vars.array(mfi);
         auto q_c_arr = m_mic_fab_vars[lev][MicVar_SD::q_c]->array(mfi);
         auto q_r_arr = m_mic_fab_vars[lev][MicVar_SD::q_r]->array(mfi);
+        auto q_i_arr = m_mic_fab_vars[lev][MicVar_SD::q_i]->array(mfi);
+        auto q_g_arr = m_mic_fab_vars[lev][MicVar_SD::q_g]->array(mfi);
+        auto q_s_arr = m_mic_fab_vars[lev][MicVar_SD::q_s]->array(mfi);
         ParallelFor( box, [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
             states_arr(i,j,k,RhoQ2_comp) = states_arr(i,j,k,Rho_comp)*q_c_arr(i,j,k);
-            states_arr(i,j,k,RhoQ3_comp) = states_arr(i,j,k,Rho_comp)*q_r_arr(i,j,k);
+            states_arr(i,j,k,RhoQ3_comp) = states_arr(i,j,k,Rho_comp)*q_i_arr(i,j,k);
+            states_arr(i,j,k,RhoQ4_comp) = states_arr(i,j,k,Rho_comp)*q_r_arr(i,j,k);
+            states_arr(i,j,k,RhoQ5_comp) = states_arr(i,j,k,Rho_comp)*q_s_arr(i,j,k);
+            states_arr(i,j,k,RhoQ6_comp) = states_arr(i,j,k,Rho_comp)*q_g_arr(i,j,k);
         });
     }
 
     computeQcSpecies(*a_z_phys_nd[lev]);
     computeQtSpecies();
 
-    for (int is = 1; is < m_num_species; is++) {
+    for (int is = m_istart_sp; is < m_num_species; is++) {
         for ( MFIter mfi(a_cons_vars); mfi.isValid(); ++mfi) {
             const auto& box = mfi.tilebox();
             auto states_arr = a_cons_vars.array(mfi);
-            auto q_c_arr = m_mic_fab_vars[lev][s_qc_idx(is)]->array(mfi);
-            auto qc_comp = q_qc_idx(is);
+            auto q_c_arr = m_mic_fab_vars[lev][s_qc_idx(is,m_istart_sp)]->array(mfi);
+            auto qc_comp = q_qc_idx(is,m_istart_sp);
             ParallelFor( box, [=] AMREX_GPU_DEVICE (int i, int j, int k)
             {
                 states_arr(i,j,k,qc_comp) = states_arr(i,j,k,Rho_comp)*q_c_arr(i,j,k);

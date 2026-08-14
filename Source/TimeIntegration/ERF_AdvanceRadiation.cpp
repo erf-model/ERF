@@ -34,7 +34,7 @@ void ERF::advance_radiation (int lev,
         }
 
         // Force radiation update to sync with lsm?
-        bool lsm_updated = (lev==0) ? lsm.Get_LSM_Update_Status(lev) : false;
+        bool lsm_updated = (lev==0 && max_level>0) ? lsm.Get_LSM_Update_Status(lev) : false;
 
         // Enter radiation class driver
         double time_for_rad = t_old[lev] + start_time;

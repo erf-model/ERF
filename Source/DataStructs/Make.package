@@ -8,3 +8,4 @@ CEXE_headers += ERF_InputSpongeData.H
 CEXE_headers += ERF_SpongeStruct.H
 CEXE_headers += ERF_TurbStruct.H
 CEXE_headers += ERF_TurbPertStruct.H
+CEXE_headers += ERF_LargeScaleForcingData.H

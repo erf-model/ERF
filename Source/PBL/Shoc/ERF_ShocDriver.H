@@ -7,12 +7,18 @@
 #include "ERF_ShocColumnData.H"
 
 #include <AMReX_BoxArray.H>
+#include <AMReX_Geometry.H>
 #include <AMReX_MultiFab.H>
 
 #include <memory>
 
 bool shoc_boxarray_spans_full_height (const amrex::BoxArray& ba,
                                       const amrex::Box& domain);
+
+void shoc_fill_physical_boundary_ghosts (amrex::MultiFab& mf,
+                                         const amrex::Geometry& geom,
+                                         int comp,
+                                         int ncomp);
 
 inline bool
 shoc_layout_requires_number_closure (const MoistureComponentIndices& indices,
@@ -171,6 +177,7 @@ private:
     amrex::MultiFab* m_tau23_ptr = nullptr;
     amrex::MultiFab* m_eddy_diffs_ptr = nullptr;
     amrex::Vector<std::unique_ptr<ShocColumnWorkspace>> m_column_workspaces;
+    const amrex::Geometry* m_geom_ptr = nullptr;
     int m_advance_calls = 0;
     bool m_prev_turb_valid = false;
 

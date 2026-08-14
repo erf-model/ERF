@@ -2,6 +2,7 @@
 #include <ERF_Utils.H>
 #include <ERF_ReadFromWRFBdy.H>
 #include <ERF_ReadFromERFBdy.H>
+#include <ERF_LagrangianMicrophysics.H>
 
 using namespace amrex;
 
@@ -166,10 +167,55 @@ ERF::timeStep (int lev, double time, int /*iteration*/)
                     }
                 }
 
+#ifdef ERF_USE_PARTICLES
+                // Snapshot the per-level particle BoxArrays before regrid so
+                // we can identify cells that lost fine coverage and merge
+                // them down to the coarse-level SD density.
+                Vector<BoxArray> old_pc_ba;
+                if (Microphysics::modelType(solverChoice.moisture_type) == MoistureModelType::Lagrangian) {
+                    auto* pc = dynamic_cast<LagrangianMicrophysics&>(*micro).getParticleContainer();
+                    AMREX_ALWAYS_ASSERT(pc != nullptr);
+                    old_pc_ba.resize(old_finest + 1);
+                    for (int k = 0; k <= old_finest; k++) {
+                        old_pc_ba[k] = pc->ParticleBoxArray(k);
+                    }
+                }
+#endif
+
                 regrid(lev, static_cast<Real>(time));
 
 #ifdef ERF_USE_PARTICLES
+                if (Microphysics::modelType(solverChoice.moisture_type) == MoistureModelType::Lagrangian) {
+                    auto* pc = dynamic_cast<LagrangianMicrophysics&>(*micro).getParticleContainer();
+                    AMREX_ALWAYS_ASSERT(pc != nullptr);
+                    // Sync the particle container's per-level storage with
+                    // the post-regrid BoxArrays/DistributionMaps before any
+                    // iMultiFab-based work touches it.  Note: this is the
+                    // bare ParticleContainer::Redistribute (no SplitMerge);
+                    // tag-based splitting and merging still run below.
+                    pc->Redistribute();
+                    // Split super-droplets that ended up on a level deeper
+                    // than their tag indicates (cumulative cascading split
+                    // for L0-natives that landed directly on L1 or L2 after
+                    // the regrid created multiple new levels in one shot).
+                    pc->SplitParticlesForRefinement(finest_level);
+                }
+                // Redistribute moves split daughters to their destination
+                // sub-cells and runs each species' SplitMergeAtLevelBoundary,
+                // whose per-level tag-normalizing merge sweep cleans up any
+                // leftover super-droplets from levels that have just vanished.
                 particleData.Redistribute(z_phys_nd);
+
+                if (Microphysics::modelType(solverChoice.moisture_type) == MoistureModelType::Lagrangian) {
+                    auto* pc = dynamic_cast<LagrangianMicrophysics&>(*micro).getParticleContainer();
+                    AMREX_ALWAYS_ASSERT(pc != nullptr);
+                    // Reduce SD count in cells that lost fine-level coverage.
+                    // Walks old_finest..1 so each level's masked merge runs
+                    // while clev = k-1 still holds the just-moved fines.
+                    for (int k = old_finest; k >= 1; k--) {
+                        pc->MergeParticlesAtDerefinement(k, old_pc_ba[k], refRatio(k-1));
+                    }
+                }
 #endif
 
                 // mark that we have regridded this level already

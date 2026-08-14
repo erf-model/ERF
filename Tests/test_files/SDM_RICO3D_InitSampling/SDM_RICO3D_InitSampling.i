@@ -111,6 +111,7 @@ super_droplets_moisture.place_randomly_in_cells = false
 super_droplets_moisture.distribution_type = "uniform"
 super_droplets_moisture.diagnostics_interval = 1
 super_droplets_moisture.coalescence_kernel = "Halls"
+super_droplets_moisture.kernel_relative_velocity = "absolute_velocity"
 super_droplets_moisture.aerosols = NH4HSO4
 super_droplets_moisture.density_scaling = true
 
@@ -133,17 +134,10 @@ erf.molec_diff_type = "None"
 erf.les_type        = "Smagorinsky"
 erf.Cs              = 0.17
 
-#erf.les_type = "Deardorff"
-#erf.Ck       = 0.1
-#erf.sigma_k  = 1.0
-#erf.Ce       = 0.1
-
 erf.Pr_t      = 0.33333333333333
 erf.Sc_t      = 0.33333333333333
 
 erf.init_type = "input_sounding"
-
-#erf.restart = chk160000
 
 erf.add_custom_rhotheta_forcing        = true
 erf.add_custom_moisture_forcing        = true

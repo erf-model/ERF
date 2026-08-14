@@ -10,6 +10,16 @@ using namespace amrex;
 
 namespace
 {
+/**
+ * @brief Scale the normal boundary velocity by the base state density.
+ *
+ * @param[in] rho0 Base state density.
+ * @param[in,out] bdy_fab Boundary data FAB to be scaled.
+ * @param[in] dir Coordinate direction.
+ * @param[in] domain Computational domain.
+ * @param[in] domain_bcs_type_h Boundary condition types for the domain.
+ * @param[in] multiply_by_rho0 Whether to multiply (true) or divide (false) by rho0.
+ */
 void
 scale_bdy_normal_by_rho0 (const MultiFab& rho0,
                           FArrayBox& bdy_fab,
@@ -96,6 +106,16 @@ scale_bdy_normal_by_rho0 (const MultiFab& rho0,
     bdy_fab.template copy<RunOn::Device>(bdy_tmp, 0, 0, 1);
 }
 
+/**
+ * @brief Correct outflow values on a boundary face.
+ *
+ * @param[in,out] bdy_fab Boundary data FAB.
+ * @param[in] dir Coordinate direction.
+ * @param[in] is_low True if operating on the low side of the domain.
+ * @param[in] domain Computational domain.
+ * @param[in] alpha_fcf Flux correction factor.
+ * @param[in] n Width index for the correction.
+ */
 void
 correct_bdy_outflow_on_face (FArrayBox& bdy_fab,
                              const int dir,

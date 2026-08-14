@@ -25,7 +25,8 @@ TEST(ShocTke, ShearProductionRespectsBoundariesAndShear)
     shoc_test::run_and_sync([&] {
         ShocTKE::compute_shear_production(col, sterm_iface);
     });
-    const auto sterm = sterm_iface.const_array();
+    const auto sterm_host = shoc_test::copy_fab_to_host(sterm_iface);
+    const auto sterm = sterm_host.const_array();
 
     EXPECT_DOUBLE_EQ(sterm(0,0,0,0), 0.0);
     EXPECT_DOUBLE_EQ(sterm(0,col.layout.nlev,0,0), 0.0);
@@ -41,8 +42,10 @@ TEST(ShocTke, ShearProductionRespectsBoundariesAndShear)
     shoc_test::run_and_sync([&] {
         ShocTKE::compute_shear_production(col, sterm_iface);
     });
+    const auto sterm_host_second = shoc_test::copy_fab_to_host(sterm_iface);
+    const auto sterm_second = sterm_host_second.const_array();
     for (int k = 0; k <= col.layout.nlev; ++k) {
-        EXPECT_DOUBLE_EQ(sterm_iface.const_array()(0,k,0,0), 0.0);
+        EXPECT_DOUBLE_EQ(sterm_second(0,k,0,0), 0.0);
     }
 }
 
@@ -76,6 +79,7 @@ TEST(ShocTke, HelperKernelsMatchTranslatedE3smFixtures)
     shoc_test::run_and_sync([&] {
         ShocTKE::compute_shear_production(col, sterm_iface);
     });
+    const auto sterm_host = shoc_test::copy_fab_to_host(sterm_iface);
     amrex::Vector<amrex::Real> brunt_int;
     ShocTKE::integrate_column_stability(col, brunt_int);
 
@@ -87,7 +91,7 @@ TEST(ShocTke, HelperKernelsMatchTranslatedE3smFixtures)
     ASSERT_EQ(shear_fixture.size(), static_cast<std::size_t>(col.layout.nlev + 1));
     ASSERT_EQ(stab_fixture.size(), 1);
     for (int k = 0; k <= col.layout.nlev; ++k) {
-        EXPECT_NEAR(sterm_iface.const_array()(0,k,0,0), shear_fixture[k], 1.0e-15);
+        EXPECT_NEAR(sterm_host.const_array()(0,k,0,0), shear_fixture[k], 1.0e-15);
     }
     ASSERT_EQ(brunt_int.size(), 1);
     EXPECT_NEAR(brunt_int[0], stab_fixture[0], 1.0e-15);
@@ -252,12 +256,14 @@ TEST(ShocTke, OnePointFiveClosureUsesBruntInsteadOfBuoyancyFlux)
     auto wthv_15 = col_15.wthv_sec.array();
     auto tk_default = col_default.tk.array();
     auto tk_15 = col_15.tk.array();
+    auto tkh_15 = col_15.tkh.array();
     for (int k = 0; k < col_default.layout.nlev; ++k) {
         wthv_default(0,k,0,0) = 0.03;
         wthv_15(0,k,0,0) = 0.0;
         brunt(0,k,0,0) = 2.5e-3;
         tk_default(0,k,0,0) = 0.5;
         tk_15(0,k,0,0) = 0.5;
+        tkh_15(0,k,0,0) = 0.5;
     }
 
     const Real tke_default_before = col_default.tke.const_array()(0,0,0,0);
@@ -298,6 +304,7 @@ TEST(ShocTke, OnePointFiveClosureNegativeBruntActsAsPositiveBuoyancySource)
     auto tk_15 = col_15.tk.array();
     auto tke_default = col_default.tke.array();
     auto tke_15 = col_15.tke.array();
+    auto tkh_15 = col_15.tkh.array();
     for (int k = 0; k < col_default.layout.nlev; ++k) {
         brunt_default(0,k,0,0) = -2.5e-3;
         brunt_15(0,k,0,0) = -2.5e-3;
@@ -307,6 +314,7 @@ TEST(ShocTke, OnePointFiveClosureNegativeBruntActsAsPositiveBuoyancySource)
         tk_15(0,k,0,0) = 0.0;
         tke_default(0,k,0,0) = 1.0e-3;
         tke_15(0,k,0,0) = 1.0e-3;
+        tkh_15(0,k,0,0) = 0.5;
     }
 
     const Real tke_default_before = col_default.tke.const_array()(0,0,0,0);

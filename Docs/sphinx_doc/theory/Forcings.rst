@@ -268,11 +268,14 @@ The following inputs are available when representing terrain using immersed forc
         erf.if_surf_heating_rate       = FLOAT
         erf.if_Olen                    = FLOAT
         erf.if_use_most                = BOOL
+        erf.if_implicit_drag           = BOOL
         erf.immersed_forcing_substep   = BOOL
 
 An example of using immersed forcing for a Witch of Agnesi hill is available in ``Exec/RegTests/ImmersedForcingTest``.
 
 .. note:: When using fully compressible simulations, it is recommended to apply immersed forcing on the substep for numerical stability.
+
+.. note:: By default (``erf.if_implicit_drag = false``) the momentum drag is applied with an explicit (forward-Euler) source term. Setting ``erf.if_implicit_drag = true`` switches to a point-implicit (linearly-implicit) formulation of the same drag, which is unconditionally stable and prevents momentum overshoot in stiff (high :math:`C_{d,m}`) or large-timestep regimes such as anelastic runs without acoustic substepping.
 
 Immersed forcing to represent buildings
 ---------------------------------------
@@ -339,6 +342,7 @@ Inputs that can be used with immersed forcing for buildings are as follows:
         erf.if_Olen                    = FLOAT
         erf.if_use_most                = BOOL
         erf.if_stability_correction    = BOOL
+        erf.if_implicit_drag           = BOOL
         erf.immersed_forcing_substep   = BOOL
 
 The default drag coefficients are different when using the fully compressible solver compared to the anelastic solver.

@@ -10,6 +10,17 @@
 
 #include "ERF_HSEUtils.H"
 
+/**
+ * @brief Initialize density in hydrostatic equilibrium for dry cases.
+ *
+ * @param[out] rho_hse MultiFab to be filled with HSE density.
+ * @param z_phys_nd Unused nodal physical height MultiFab.
+ * @param[in] z_phys_cc Cell-centered physical height MultiFab.
+ * @param[in] geom Geometry defining the domain.
+ * @param[in] stretched_dz_h Vector of stretched grid spacings.
+ * @param[in] is_constant_dz Whether the grid spacing is constant.
+ * @param[in] is_stretched_dz Whether the grid spacing is stretched.
+ */
 void
 erf_init_dens_hse_dry (amrex::MultiFab& rho_hse,
                        std::unique_ptr<amrex::MultiFab>& /*z_phys_nd*/,
@@ -115,6 +126,13 @@ erf_init_dens_hse_dry (amrex::MultiFab& rho_hse,
     }
 }
 
+/**
+ * @brief Initialize density in hydrostatic equilibrium for moist cases.
+ *
+ * @param[out] rho_hse MultiFab to be filled with HSE density.
+ * @param z_phys_nd Unused nodal physical height MultiFab.
+ * @param[in] geom Geometry defining the domain.
+ */
 void
 erf_init_dens_hse_moist (amrex::MultiFab& rho_hse,
                          std::unique_ptr<amrex::MultiFab>& /*z_phys_nd*/,
@@ -179,6 +197,11 @@ erf_init_dens_hse_moist (amrex::MultiFab& rho_hse,
     } // mfi
 }
 
+/**
+ * @brief Initialize HSE density as a constant value.
+ *
+ * @param[out] rho_hse MultiFab to be filled with constant HSE density.
+ */
 void
 erf_init_const_dens_hse (amrex::MultiFab& rho_hse) override
 {
@@ -193,6 +216,16 @@ erf_init_const_dens_hse (amrex::MultiFab& rho_hse) override
        });
     }
 }
+/**
+ * @brief Initialize constant density and potential temperature in HSE.
+ *
+ * @param[out] rho_hse MultiFab for HSE density.
+ * @param[out] p_hse MultiFab for HSE pressure.
+ * @param[out] pi_hse MultiFab for HSE internal energy.
+ * @param[out] th_hse MultiFab for HSE potential temperature.
+ * @param[out] qv_hse MultiFab for HSE water vapor mixing ratio.
+ * @param[in] l_rdOcp Constant R_d/Cp.
+ */
 void
 erf_init_const_dens_and_th_hse (amrex::MultiFab& rho_hse, amrex::MultiFab&  p_hse,
                                 amrex::MultiFab&  pi_hse, amrex::MultiFab& th_hse,
@@ -220,6 +253,17 @@ erf_init_const_dens_and_th_hse (amrex::MultiFab& rho_hse, amrex::MultiFab&  p_hs
     qv_hse.setVal(0.0);
 }
 
+/**
+ * @brief Initialize constant density and linearly varying potential temperature in HSE.
+ *
+ * @param[out] rho_hse MultiFab for HSE density.
+ * @param[out] p_hse MultiFab for HSE pressure.
+ * @param[out] pi_hse MultiFab for HSE internal energy.
+ * @param[out] th_hse MultiFab for HSE potential temperature.
+ * @param[out] qv_hse MultiFab for HSE water vapor mixing ratio.
+ * @param[in] l_rdOcp Constant R_d/Cp.
+ * @param[in] z_phys_cc Cell-centered physical height MultiFab.
+ */
 void
 erf_init_const_dens_and_linear_th_hse (amrex::MultiFab& rho_hse, amrex::MultiFab&  p_hse,
                                        amrex::MultiFab&  pi_hse, amrex::MultiFab& th_hse,

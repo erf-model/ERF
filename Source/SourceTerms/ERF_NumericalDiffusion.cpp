@@ -192,7 +192,7 @@ NumericalDiffusion_Ymom (const Box& bx,
         Real yflux_hi = rho_y_hi * calc_fifth_order_deriv(prim_data(i,j+3,k), prim_data(i,j+2,k),
                                                           prim_data(i,j+1,k), prim_data(i,j  ,k),
                                                           prim_data(i,j-1,k), prim_data(i,j-2,k));
-        if ( (yflux_hi * (prim_data(i,j ,k) - prim_data(i,j,k)) ) < zero) yflux_hi = zero;
+        if ( (yflux_hi * (prim_data(i,j+1,k) - prim_data(i,j,k)) ) < zero) yflux_hi = zero;
 
 
         rhs(i,j,k,0) += coeff6 * ( mfx_arr(i,j,0) * (xflux_hi - xflux_lo)
