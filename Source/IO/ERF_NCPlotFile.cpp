@@ -253,6 +253,20 @@ writeNCPlotFile (int lev, int which_subdomain, const std::string& dir,
 
    const int ncomp = plotMF[lev]->nComp();
 
+   // *******************************************************************************
+   // The data below is written from inside an MFIter loop, so each rank makes one
+   // put call per box that it owns.  Ranks can own different numbers of boxes when
+   // the domain does not decompose evenly, so the sequence of put calls does not
+   // match across ranks -- we must therefore use independent rather than collective
+   // access, otherwise the write hangs waiting for ranks that have no box left.
+   //
+   // Note also that the access mode is a property of the variable, so it only needs
+   // to be set once per variable rather than once per box per component.
+   // *******************************************************************************
+   for (int k(0); k < ncomp; ++k) {
+       ncf.var(plot_var_names[k]).par_access(NC_INDEPENDENT);
+   }
+
    for (MFIter mfi(*plotMF[lev]); mfi.isValid(); ++mfi)
    {
        auto bx = mfi.validbox();
@@ -278,7 +292,6 @@ writeNCPlotFile (int lev, int which_subdomain, const std::string& dir,
                Gpu::streamSynchronize();
 
                auto nc_plot_var = ncf.var(plot_var_names[k]);
-               nc_plot_var.par_access(NC_COLLECTIVE);
                nc_plot_var.put(tmp.dataPtr(), {local_start_z,local_start_y,local_start_x},
                                               {local_nz, local_ny, local_nx});
            }

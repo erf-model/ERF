@@ -485,10 +485,15 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
         {
             if (containerHasElement(plot_var_names, der_name)) {
                 MultiFab dmf(mf[lev], make_alias, mf_comp, 1);
+                //
+                // NOTE: we must not tile in z here because some of the derived quantities
+                //       ("precipitable", "mucape", "helicity", "max_reflectivity") are
+                //       whole-column operations and require the full column in each box
+                //
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
-                for (MFIter mfi(dmf, TilingIfNotGPU()); mfi.isValid(); ++mfi)
+                for (MFIter mfi(dmf, TileNoZ()); mfi.isValid(); ++mfi)
                 {
                     const Box& bx = mfi.tilebox();
                     auto& dfab = dmf[mfi];
@@ -580,7 +585,10 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
             u[0] = &(vars_new[lev][Vars::xvel]);
             u[1] = &(vars_new[lev][Vars::yvel]);
             u[2] = &(vars_new[lev][Vars::zvel]);
-            compute_divergence (lev, dmf, u, geom[lev]);
+            compute_divergence(lev, dmf, u, *mapfac[lev][MapFacType::m_x],
+                               *mapfac[lev][MapFacType::m_y], *mapfac[lev][MapFacType::v_x],
+                               *mapfac[lev][MapFacType::u_y], *ax[lev], *ay[lev],
+                               *detJ_cc[lev], geom[lev]);
             mf_comp += 1;
         }
 
@@ -1449,11 +1457,19 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
             else if(solverChoice.moisture_type == MoistureType::SuperDroplets)
             {
                 if (containerHasElement(plot_var_names, "rain_accum")) {
-                    MultiFab::Copy(mf[lev],*(qmoist[lev][6]),0,mf_comp,1,0);
+                    MultiFab::Copy(mf[lev],*(qmoist[lev][8]),0,mf_comp,1,0);
+                    mf_comp += 1;
+                }
+                if (containerHasElement(plot_var_names, "snow_accum")) {
+                    MultiFab::Copy(mf[lev],*(qmoist[lev][10]),0,mf_comp,1,0);
+                    mf_comp += 1;
+                }
+                if (containerHasElement(plot_var_names, "graup_accum")) {
+                    MultiFab::Copy(mf[lev],*(qmoist[lev][9]),0,mf_comp,1,0);
                     mf_comp += 1;
                 }
                 if (containerHasElement(plot_var_names, "rel_humidity")) {
-                    MultiFab::Copy(mf[lev],*(qmoist[lev][5]),0,mf_comp,1,0);
+                    MultiFab::Copy(mf[lev],*(qmoist[lev][7]),0,mf_comp,1,0);
                     mf_comp += 1;
                 }
                 if (containerHasElement(plot_var_names, "condensation_rate")) {
@@ -1778,7 +1794,7 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
 
     // LSM writes it's own data
     if (which==1 && plot_lsm) {
-        lsm.Plot_Lsm_Data(tnew, istep, refRatio());
+        lsm.Plot_Lsm_Data(tnew, finest_level, istep, refRatio());
     }
 
 #ifdef ERF_USE_RRTMGP
@@ -1825,6 +1841,28 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
                 WriteMultiLevelPlotfile(plotfilenameW, finest_level+1,
                                         GetVecOfConstPtrs(mf_w),
                                         {"z_velocity_stag"},
+                                        Geom(), tnew, istep, refRatio());
+            }
+
+            if (m_plot_face_terrain_blanking &&
+                (solverChoice.terrain_type == TerrainType::ImmersedForcing ||
+                 solverChoice.buildings_type == BuildingsType::ImmersedForcing) &&
+                terrain_blanking_xface[0]) {  // Check if face arrays are allocated
+                Print() << "Writing face terrain blanking" << std::endl;
+                std::string plotfilenameTBX = plotfilename; plotfilenameTBX += "_terrain_blank_xface";
+                std::string plotfilenameTBY = plotfilename; plotfilenameTBY += "_terrain_blank_yface";
+                std::string plotfilenameTBZ = plotfilename; plotfilenameTBZ += "_terrain_blank_zface";
+                WriteMultiLevelPlotfile(plotfilenameTBX, finest_level+1,
+                                        GetVecOfConstPtrs(terrain_blanking_xface),
+                                        {"terrain_blank_xface"},
+                                        Geom(), tnew, istep, refRatio());
+                WriteMultiLevelPlotfile(plotfilenameTBY, finest_level+1,
+                                        GetVecOfConstPtrs(terrain_blanking_yface),
+                                        {"terrain_blank_yface"},
+                                        Geom(), tnew, istep, refRatio());
+                WriteMultiLevelPlotfile(plotfilenameTBZ, finest_level+1,
+                                        GetVecOfConstPtrs(terrain_blanking_zface),
+                                        {"terrain_blank_zface"},
                                         Geom(), tnew, istep, refRatio());
             }
 

@@ -40,6 +40,13 @@ struct ParticlePointers {
     ParticleReal* vterm_ptr{nullptr};
     ParticleReal* mult_ptr{nullptr};
 
+    // Ice properties
+    ParticleReal* Tfz_ptr{nullptr};
+    ParticleReal* a_ptr{nullptr};     // equatorial radius
+    ParticleReal* c_ptr{nullptr};     // polar radius
+    ParticleReal* mrime_ptr{nullptr};
+    ParticleReal* nmono_ptr{nullptr};
+
     // Species and aerosol mass arrays
     SDSpeciesMassArr sp_mass_ptrs{};
     SDAerosolMassArr ae_mass_ptrs{};
@@ -49,11 +56,13 @@ struct ParticlePointers {
     const int* sp_sol_arr{nullptr};
     const ParticleReal* sp_ion_arr{nullptr};
     const ParticleReal* sp_mw_arr{nullptr};
+    const int* sp_INP_arr{nullptr};
 
     const ParticleReal* ae_rho_arr{nullptr};
     const int* ae_sol_arr{nullptr};
     const ParticleReal* ae_ion_arr{nullptr};
     const ParticleReal* ae_mw_arr{nullptr};
+    const int* ae_INP_arr{nullptr};
 };
 
 /*! \brief Context data that doesn't change per-tile */
@@ -71,9 +80,11 @@ struct ProcessContext {
     int num_species{0};
     int num_aerosols{0};
     int idx_water{-1};
+    int idx_ice{-1};
 
     // Material densities (commonly used)
     ParticleReal rho_water{0.0};
+    ParticleReal rho_ice{0.0};
 };
 
 } // namespace SDProcess

@@ -81,7 +81,11 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
             eb[lev]->make_all_factories(lev, geom[lev], grids[lev], dmap[lev], eb_level);
         } else if (solverChoice.terrain_type == TerrainType::ImmersedForcing ||
                    solverChoice.buildings_type == BuildingsType::ImmersedForcing) {
+#if USE_FC_FACTORY
+            eb[lev]->make_all_factories(lev, geom[lev], grids[lev], dmap[lev], eb_level);
+#else
             eb[lev]->make_cc_factory(lev, geom[lev], grids[lev], dmap[lev], eb_level);
+#endif
         }
     }
 
@@ -188,6 +192,8 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
             for (int n = 0; n < input_sounding_data.n_sounding_files; n++) {
                 input_sounding_data.read_from_file(geom[lev], zlevels_stag[lev], n, is_moist);
             }
+
+            input_sounding_data.set_start_time(start_time);
 
             // this will calculate the hydrostatically balanced density and pressure
             // profiles following WRF ideal.exe
@@ -325,7 +331,11 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
             eb[lev]->make_all_factories(lev, geom[lev], ba, dm, eb_level);
         } else if (solverChoice.terrain_type == TerrainType::ImmersedForcing ||
                    solverChoice.buildings_type == BuildingsType::ImmersedForcing) {
+#if USE_FC_FACTORY
+            eb[lev]->make_all_factories(lev, geom[lev], ba, dm, eb_level);
+#else
             eb[lev]->make_cc_factory(lev, geom[lev], ba, dm, eb_level);
+#endif
         }
     }
     init_zphys(lev, time);
@@ -615,7 +625,11 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
             eb[lev]->make_all_factories(lev, geom[lev], ba, dm, eb_level);
         } else if (solverChoice.terrain_type == TerrainType::ImmersedForcing ||
                    solverChoice.buildings_type == BuildingsType::ImmersedForcing) {
+#if USE_FC_FACTORY
+            eb[lev]->make_all_factories(lev, geom[lev], ba, dm, eb_level);
+#else
             eb[lev]->make_cc_factory(lev, geom[lev], ba, dm, eb_level);
+#endif
         }
     }
     remake_zphys(lev, temp_zphys_nd);
@@ -718,6 +732,12 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
     // Build the data structures for calculating diffusive/turbulent terms
     // ********************************************************************************************
     update_diffusive_arrays(lev, ba, dm);
+
+    // ********************************************************************************************
+    // Thin immersed body -- thin_[xyz]force and [xyz]flux_imask must be re-defined on the new
+    //                       (ba,dm), otherwise they still live on the pre-regrid grids
+    // ********************************************************************************************
+    init_thin_body(lev, ba, dm);
 
     //********************************************************************************************
     // Microphysics
