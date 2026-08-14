@@ -590,6 +590,42 @@ void ERF::advance_dycore (int level,
                                   get_eb(level),
                                   false, // vert_only
                                   qheating_rates[level].get());
+
+        // Zero turbulent mixing in fully immersed cells
+        MultiFab* terrain_blank = (solverChoice.terrain_type == TerrainType::ImmersedForcing ||
+                                   solverChoice.buildings_type == BuildingsType::ImmersedForcing) ?
+            terrain_blanking[level].get() : nullptr;
+
+        if (terrain_blank) {
+            for (MFIter mfi(*eddyDiffs, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+                const Box& bx = mfi.tilebox();
+                auto const& t_blank_arr = terrain_blank->const_array(mfi);
+                auto const& eddy_arr = eddyDiffs->array(mfi);
+
+                ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+                    if (t_blank_arr(i,j,k) == Real(1.0)) {
+                        for (int n = 0; n < EddyDiff::NumDiffs; ++n) {
+                            eddy_arr(i,j,k,n) = Real(0.0);
+                        }
+                    }
+                });
+            }
+
+            // Also zero SmnSmn if it exists
+            if (SmnSmn) {
+                for (MFIter mfi(*SmnSmn, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+                    const Box& bx = mfi.tilebox();
+                    auto const& t_blank_arr = terrain_blank->const_array(mfi);
+                    auto const& smn_arr = SmnSmn->array(mfi);
+
+                    ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+                        if (t_blank_arr(i,j,k) == Real(1.0)) {
+                            smn_arr(i,j,k) = Real(0.0);
+                        }
+                    });
+                }
+            }
+        }
     }
 
     // ***********************************************************************************************

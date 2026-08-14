@@ -4,6 +4,7 @@
 #include <AMReX_TableData.H>
 #include <AMReX_GpuContainers.H>
 
+#include <ERF_ImmersedForcing.H>
 #include <ERF_NumericalDiffusion.H>
 #include <ERF_PlaneAverage.H>
 #include <ERF_SrcHeaders.H>
@@ -95,11 +96,19 @@ void make_sources (int level,
     bool has_moisture = (solverChoice.moisture_type != MoistureType::None);
 
     // *****************************************************************************
-    // Planar averages for subsidence terms
+    // Planar averages for subsidence terms and immersed forcing
     // *****************************************************************************
     Table1D<Real>      dptr_r_plane, dptr_t_plane, dptr_qv_plane, dptr_qc_plane;
     TableData<Real, 1>  r_plane_tab,  t_plane_tab,  qv_plane_tab,  qc_plane_tab;
-    bool compute_averages = ( is_slow_step && dptr_wbar_sub );
+    bool use_immersed_forcing = (solverChoice.terrain_type == TerrainType::ImmersedForcing ||
+                                  solverChoice.buildings_type == BuildingsType::ImmersedForcing);
+    // Compute averages on slow step for subsidence, or whenever immersed forcing runs
+    // NOTE: We recompute planar averages every substep when immersed forcing uses substeps.
+    //       This is simpler than passing persistent storage through the call chain, and
+    //       the cost is relatively small compared to the full solve.
+    bool compute_averages = ( (is_slow_step && dptr_wbar_sub) ||
+                              (use_immersed_forcing && ((is_slow_step && !use_ImmersedForcing_fast) ||
+                                                        (!is_slow_step && use_ImmersedForcing_fast))) );
 
     if (compute_averages)
     {
@@ -448,114 +457,13 @@ void make_sources (int level,
         // 10a. Add immersed source terms for terrain
         // *************************************************************************************
         if (solverChoice.terrain_type == TerrainType::ImmersedForcing &&
-           ((is_slow_step && !use_ImmersedForcing_fast) || (!is_slow_step && use_ImmersedForcing_fast)))
-        {
+           ((is_slow_step && !use_ImmersedForcing_fast) || (!is_slow_step && use_ImmersedForcing_fast))) {
+
             const Array4<const Real>& u = xvel.array(mfi);
             const Array4<const Real>& v = yvel.array(mfi);
 
-            // geometric properties
-            const Real* dx_arr = geom.CellSize();
-            const Real dx_x = dx_arr[0];
-            const Real dx_y = dx_arr[1];
-
-            const Real alpha_h          = solverChoice.if_Cd_scalar;
-            const Real tiny             = std::numeric_limits<amrex::Real>::epsilon();
-            const Real U_s              = one; // unit velocity scale
-
-            // MOST parameters
-            similarity_funs sfuns;
-            const Real ggg                = CONST_GRAV;
-            const Real kappa              = KAPPA;
-            const Real z0                 = solverChoice.if_z0;
-            const Real tflux              = solverChoice.if_surf_temp_flux;
-            const Real init_surf_temp     = solverChoice.if_init_surf_temp;
-
-            // Note this has been converted to K / s when it was read in;
-            const Real surf_heating_rate  = solverChoice.if_surf_heating_rate;
-
-            const Real Olen_in            = solverChoice.if_Olen_in;
-
-            ParallelFor(bx, [=]
-                        AMREX_GPU_DEVICE(int i, int j, int k) noexcept
-            {
-                const Real dx_z = (z_cc_arr) ? (z_cc_arr(i,j,k) - z_cc_arr(i,j,k-1)) : dx_arr[2];
-                const Real drag_coefficient = alpha_h / std::pow(dx_x*dx_y*dx_z, one/three);
-
-                const Real t_blank       = t_blank_arr(i, j, k);
-                const Real t_blank_above = t_blank_arr(i, j, k+1);
-                const Real ux_cc_2r = myhalf * (u(i  ,j  ,k+1) + u(i+1,j  ,k+1));
-                const Real uy_cc_2r = myhalf * (v(i  ,j  ,k+1) + v(i  ,j+1,k+1));
-                const Real h_windspeed2r  = std::sqrt(ux_cc_2r * ux_cc_2r + uy_cc_2r * uy_cc_2r);
-
-                const Real theta          = cell_data(i,j,k  ,RhoTheta_comp) / cell_data(i,j,k  ,Rho_comp);
-                const Real theta_neighbor = cell_data(i,j,k+1,RhoTheta_comp) / cell_data(i,j,k+1,Rho_comp);
-
-                // SURFACE TEMP AND HEATING/COOLING RATE
-                if (init_surf_temp > zero) {
-                    if (t_blank > 0 && (t_blank_above == zero)) { // force to MOST value
-                        const Real surf_temp    = init_surf_temp + surf_heating_rate*time;
-                        const Real bc_forcing_rt_srf = -(cell_data(i,j,k-1,Rho_comp) * surf_temp - cell_data(i,j,k-1,RhoTheta_comp));
-                        cell_src(i, j, k, RhoTheta_comp) -= drag_coefficient * U_s * bc_forcing_rt_srf;
-                    }
-                }
-
-                // SURFACE HEAT FLUX
-                if (tflux != Real(1e-8)){
-                    if (t_blank > 0 && (t_blank_above == zero)) { // force to MOST value
-                        Real psi_m           = zero;
-                        Real psi_h           = zero;
-                        Real psi_h_neighbor  = zero;
-                        Real ustar = h_windspeed2r * kappa / (std::log((Real(1.5)) * dx_z / z0) - psi_m);
-                        const Real Olen  = -ustar * ustar * ustar * theta / (kappa * ggg * tflux + tiny);
-                        const Real zeta          = (myhalf) * dx_z / Olen;
-                        const Real zeta_neighbor = (Real(1.5)) * dx_z / Olen;
-
-                        // similarity functions
-                        psi_m          = sfuns.calc_psi_m(zeta);
-                        psi_h          = sfuns.calc_psi_h(zeta);
-                        psi_h_neighbor = sfuns.calc_psi_h(zeta_neighbor);
-                        ustar = h_windspeed2r * kappa / (std::log((Real(1.5)) * dx_z / z0) - psi_m);
-
-                        // prevent some unphysical math
-                        if (!(ustar > zero && !std::isnan(ustar))) { ustar = zero; }
-                        if (!(ustar < two && !std::isnan(ustar))) { ustar = two; }
-                        if (psi_h_neighbor > std::log(Real(1.5) * dx_z / z0)) { psi_h_neighbor = std::log(Real(1.5) * dx_z / z0); }
-                        if (psi_h > std::log(myhalf * dx_z / z0)) { psi_h = std::log(myhalf * dx_z / z0); }
-
-                        // We do not know the actual temperature so use cell above
-                        const Real thetastar    = theta * ustar * ustar / (kappa * ggg * Olen);
-                        const Real surf_temp    = theta_neighbor - thetastar / kappa * (std::log((Real(1.5)) * dx_z / z0) - psi_h_neighbor);
-                        const Real tTarget      = surf_temp + thetastar / kappa * (std::log((myhalf) * dx_z / z0) - psi_h);
-
-                        const Real bc_forcing_rt = -(cell_data(i,j,k,Rho_comp) * tTarget - cell_data(i,j,k,RhoTheta_comp));
-                        cell_src(i, j, k, RhoTheta_comp) -= drag_coefficient * U_s * bc_forcing_rt;
-                    }
-                }
-
-                // OBUKHOV LENGTH
-                if (Olen_in != Real(1e-8)){
-                    if (t_blank > 0 && (t_blank_above == zero)) { // force to MOST value
-                        const Real Olen  = Olen_in;
-                        const Real zeta          = (myhalf) * dx_z / Olen;
-                        const Real zeta_neighbor = (Real(1.5)) * dx_z / Olen;
-
-                        // similarity functions
-                        const Real psi_m          = sfuns.calc_psi_m(zeta);
-                        const Real psi_h          = sfuns.calc_psi_h(zeta);
-                        const Real psi_h_neighbor = sfuns.calc_psi_h(zeta_neighbor);
-                        const Real ustar = h_windspeed2r * kappa / (std::log((Real(1.5)) * dx_z / z0) - psi_m);
-
-                        // We do not know the actual temperature so use cell above
-                        const Real thetastar    = theta * ustar * ustar / (kappa * ggg * Olen);
-                        const Real surf_temp    = theta_neighbor - thetastar / kappa * (std::log((Real(1.5)) * dx_z / z0) - psi_h_neighbor);
-                        const Real tTarget      = surf_temp + thetastar / kappa * (std::log((myhalf) * dx_z / z0) - psi_h);
-
-                        const Real bc_forcing_rt = -(cell_data(i,j,k,Rho_comp) * tTarget - cell_data(i,j,k,RhoTheta_comp));
-                        cell_src(i, j, k, RhoTheta_comp) -= drag_coefficient * U_s * bc_forcing_rt;
-                    }
-                }
-
-            });
+            ImmersedForcingTerrain_Scalar(bx, u, v, cell_data, t_blank_arr, z_cc_arr,
+                                         cell_src, geom, solverChoice, dptr_r_plane, dptr_t_plane, time);
         }
 
         // *************************************************************************************
@@ -563,230 +471,18 @@ void make_sources (int level,
         // *************************************************************************************
         // geometric properties
         const Real* dx_arr = geom.CellSize();
-        const Real dx_x = dx_arr[0];
-        const Real dx_y = dx_arr[1];
-        const Real delta_xy = std::pow(dx_x*dx_y, myhalf);
-        if ((solverChoice.buildings_type == BuildingsType::ImmersedForcing ) &&
+        const Real delta_xy = std::sqrt(dx_arr[0] * dx_arr[1]);
+
+        if ((solverChoice.buildings_type == BuildingsType::ImmersedForcing) &&
            ((is_slow_step && !use_ImmersedForcing_fast) || (!is_slow_step && use_ImmersedForcing_fast)) &&
-            (delta_xy <= 50.0)) // only apply immersed forcing when grid spacing is less than 50m
-        {
+            (delta_xy <= 50.0)) { // only apply immersed forcing when grid spacing is less than 50m
+
             const Array4<const Real>& u = xvel.array(mfi);
             const Array4<const Real>& v = yvel.array(mfi);
             const Array4<const Real>& w = zvel.array(mfi);
 
-            const Real alpha_h          = solverChoice.if_Cd_scalar;
-            const Real U_s              = one; // unit velocity scale
-            const Real tiny             = std::numeric_limits<amrex::Real>::epsilon();
-            const Real min_t_blank      = Real(1.e-4);
-
-            // MOST parameters
-            similarity_funs sfuns;
-            const Real ggg                = CONST_GRAV;
-            const Real kappa              = KAPPA;
-            const Real z0                 = solverChoice.if_z0;
-            const Real tflux              = solverChoice.if_surf_temp_flux;
-            const Real init_surf_temp     = solverChoice.if_init_surf_temp;
-            const Real surf_heating_rate  = solverChoice.if_surf_heating_rate; // Note this has been converted to K / s when it was read in;
-            const Real Olen_in            = solverChoice.if_Olen_in;
-
-            ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
-            {
-                Real t_blank       = t_blank_arr(i, j, k);
-                Real t_blank_below = t_blank_arr(i, j, k-1);
-                Real t_blank_above = t_blank_arr(i, j, k+1);
-                Real t_blank_north  = t_blank_arr(i  , j+1, k);
-                Real t_blank_south  = t_blank_arr(i  , j-1, k);
-                Real t_blank_east   = t_blank_arr(i+1, j  , k);
-                Real t_blank_west   = t_blank_arr(i-1, j  , k);
-                if (t_blank < min_t_blank) { t_blank = zero; } // deal with situations where very small volfrac exist
-                if (t_blank_below < min_t_blank) { t_blank_below = zero; }
-                if (t_blank_north < min_t_blank) { t_blank_north = zero; }
-                if (t_blank_south < min_t_blank) { t_blank_south = zero; }
-                if (t_blank_east < min_t_blank) { t_blank_east = zero; }
-                if (t_blank_west < min_t_blank) { t_blank_west = zero; }
-
-                const Real dx_z = (z_cc_arr) ? (z_cc_arr(i,j,k) - z_cc_arr(i,j,k-1)) : dx_arr[2];
-                Real drag_coefficient = alpha_h / std::pow(dx_x*dx_y*dx_z, one/three);
-
-                const Real ux_cc_2r = myhalf * (u(i  ,j  ,k+1) + u(i+1,j  ,k+1));
-                const Real uy_cc_2r = myhalf * (v(i  ,j  ,k+1) + v(i  ,j+1,k+1));
-                const Real h_windspeed2r  = std::sqrt(ux_cc_2r * ux_cc_2r + uy_cc_2r * uy_cc_2r);
-
-                const Real theta          = cell_data(i,j,k  ,RhoTheta_comp) / cell_data(i,j,k  ,Rho_comp);
-                Real theta_neighbor       = cell_data(i,j,k+1,RhoTheta_comp) / cell_data(i,j,k+1,Rho_comp);
-
-                // SURFACE TEMP AND HEATING/COOLING RATE
-                if (init_surf_temp > zero) {
-                    const Real surf_temp    = init_surf_temp + surf_heating_rate*time;
-                    if (t_blank > 0 && (t_blank_above == zero) && (t_blank_below == one)) { // building roof
-                        const Real bc_forcing_rt_srf = -(cell_data(i,j,k,Rho_comp) * surf_temp - cell_data(i,j,k,RhoTheta_comp));
-                        cell_src(i, j, k, RhoTheta_comp) -= drag_coefficient * U_s * bc_forcing_rt_srf;
-
-                    } else if (((t_blank > zero && t_blank < t_blank_west && t_blank_east == zero) ||
-                                (t_blank > zero && t_blank < t_blank_east && t_blank_west == zero) ||
-                                (t_blank > zero && t_blank < t_blank_north && t_blank_south == zero) ||
-                                (t_blank > zero && t_blank < t_blank_south && t_blank_north == zero))) {
-                        // this should enter for just building walls
-                        // walls are currently separated to allow for flexibility in the future to heat walls differently
-
-                        // south face
-                        if ((t_blank < t_blank_north) && (t_blank_north == one)) {
-                            const Real bc_forcing_rt_srf = -(cell_data(i,j,k,Rho_comp) * surf_temp - cell_data(i,j,k,RhoTheta_comp));
-                            cell_src(i, j, k, RhoTheta_comp) -= drag_coefficient * U_s * bc_forcing_rt_srf;
-                        }
-
-                        // north face
-                        if ((t_blank < t_blank_south) && (t_blank_south == one)) {
-                            const Real bc_forcing_rt_srf = -(cell_data(i,j,k,Rho_comp) * surf_temp - cell_data(i,j,k,RhoTheta_comp));
-                            cell_src(i, j, k, RhoTheta_comp) -= drag_coefficient * U_s * bc_forcing_rt_srf;
-                        }
-
-                        // west face
-                        if ((t_blank < t_blank_east) && (t_blank_east == one)) {
-                            const Real bc_forcing_rt_srf = -(cell_data(i,j,k,Rho_comp) * surf_temp - cell_data(i,j,k,RhoTheta_comp));
-                            cell_src(i, j, k, RhoTheta_comp) -= drag_coefficient * U_s * bc_forcing_rt_srf;
-                        }
-
-                        // east face
-                        if ((t_blank < t_blank_west) && (t_blank_west == one)) {
-                            const Real bc_forcing_rt_srf = -(cell_data(i,j,k,Rho_comp) * surf_temp - cell_data(i,j,k,RhoTheta_comp));
-                            cell_src(i, j, k, RhoTheta_comp) -= drag_coefficient * U_s * bc_forcing_rt_srf;
-                        }
-
-                    }
-                }
-
-                // SURFACE HEAT FLUX
-                if (tflux != Real(1.e-8)){
-                    if (t_blank > zero && (t_blank_above == zero)) { // building roof
-                        Real psi_m           = zero;
-                        Real psi_h           = zero;
-                        Real psi_h_neighbor  = zero;
-                        Real ustar           = h_windspeed2r * kappa / (std::log((1.5) * dx_z / z0) - psi_m);
-                        Real Olen            = (Olen_in  != Real(1e-8)) ? Olen_in  : -ustar * ustar * ustar * theta / (kappa * ggg * tflux + tiny);
-
-                        for (int iter = 0; iter < 2; ++iter) {
-                            if (iter > 0) { Olen  = -ustar * ustar * ustar * theta / (kappa * ggg * tflux + tiny); }
-                            Real zeta          = (myhalf) * dx_z / Olen;
-                            Real zeta_neighbor = (1.5)    * dx_z / Olen;
-
-                            // similarity functions
-                            psi_m          = sfuns.calc_psi_m(zeta);
-                            psi_h          = sfuns.calc_psi_h(zeta);
-                            psi_h_neighbor = sfuns.calc_psi_h(zeta_neighbor);
-                            ustar = h_windspeed2r * kappa / (std::log((1.5) * dx_z / z0) - psi_m);
-                        }
-
-                        // prevent some unphysical math
-                        if (!(ustar > zero && !std::isnan(ustar))) { ustar = zero; }
-                        if (!(ustar < 2.0  && !std::isnan(ustar))) { ustar = 2.0; }
-                        if (psi_h_neighbor > std::log(1.5 * dx_z / z0)) { psi_h_neighbor = std::log(1.5 * dx_z / z0); }
-                        if (psi_h > std::log(myhalf * dx_z / z0)) { psi_h = std::log(myhalf * dx_z / z0); }
-
-                        // We do not know the actual temperature so use cell above
-                        const Real thetastar    = theta * ustar * ustar / (kappa * ggg * Olen);
-                        const Real surf_temp    = theta_neighbor - thetastar / kappa * (std::log((1.5) * dx_z / z0) - psi_h_neighbor);
-                        const Real tTarget      = surf_temp + thetastar / kappa * (std::log((myhalf) * dx_z / z0) - psi_h);
-
-                        const Real bc_forcing_rt = -(cell_data(i,j,k,Rho_comp) * tTarget - cell_data(i,j,k,RhoTheta_comp));
-                        cell_src(i, j, k, RhoTheta_comp) -= drag_coefficient * U_s * bc_forcing_rt;
-
-                    } else if (((t_blank > zero && t_blank < t_blank_west && t_blank_east == zero) ||
-                                (t_blank > zero && t_blank < t_blank_east && t_blank_west == zero) ||
-                                (t_blank > zero && t_blank < t_blank_north && t_blank_south == zero) ||
-                                (t_blank > zero && t_blank < t_blank_south && t_blank_north == zero))) { // this should enter for just building walls
-
-                        Real ux_cellaway = zero;
-                        Real uy_cellaway = zero;
-                        Real uz_cellaway = zero;
-                        Real u1          = zero;
-                        Real u2          = zero;
-                        Real delta       = zero;
-
-                        // south face
-                        if (t_blank > zero && t_blank < t_blank_north && t_blank_south == zero) {
-                            ux_cellaway = myhalf * (u(i  ,j-1,k) + u(i+1,j-1,k  ));
-                            uz_cellaway = myhalf * (w(i  ,j-1,k) + w(i  ,j-1,k+1));
-                            u1 = ux_cellaway;
-                            u2 = uz_cellaway;
-                            delta = dx_y;
-
-                            // MOST
-                            theta_neighbor = cell_data(i,j-1,k,RhoTheta_comp) / cell_data(i,j-1,k,Rho_comp);
-                        }
-
-                        // north face
-                        if (t_blank > zero && t_blank < t_blank_south && t_blank_north == zero) {
-                            ux_cellaway = myhalf * (u(i  ,j+1,k) + u(i+1,j+1,k  ));
-                            uz_cellaway = myhalf * (w(i  ,j+1,k) + w(i  ,j+1,k+1));
-                            u1 = ux_cellaway;
-                            u2 = uz_cellaway;
-                            delta = dx_y;
-
-                            // MOST
-                            theta_neighbor = cell_data(i,j+1,k,RhoTheta_comp) / cell_data(i,j+1,k,Rho_comp);
-                        }
-
-                        // west face
-                        if (t_blank > zero && t_blank < t_blank_east && t_blank_west == zero) {
-                            uy_cellaway = myhalf * (u(i-1,j  ,k) + u(i-1,j+1,k  ));
-                            uz_cellaway = myhalf * (w(i-1,j  ,k) + w(i-1,j  ,k+1));
-                            u1 = uy_cellaway;
-                            u2 = uz_cellaway;
-                            delta = dx_x;
-
-                            // MOST
-                            theta_neighbor = cell_data(i-1,j,k,RhoTheta_comp) / cell_data(i-1,j,k,Rho_comp);
-                        }
-
-                        // east face
-                        if (t_blank > zero && t_blank < t_blank_west && t_blank_east == zero) {
-                            uy_cellaway = myhalf * (u(i+1,j  ,k) + u(i+1,j+1,k  ));
-                            uz_cellaway = myhalf * (w(i+1,j  ,k) + w(i+1,j  ,k+1));
-                            u1 = uy_cellaway;
-                            u2 = uz_cellaway;
-                            delta = dx_x;
-
-                            // MOST
-                            theta_neighbor = cell_data(i+1,j,k,RhoTheta_comp) / cell_data(i+1,j,k,Rho_comp);
-                        }
-
-                        Real tan_wspd = std::sqrt(u1 * u1 + u2 * u2);
-
-                        Real psi_m           = zero;
-                        Real psi_h           = zero;
-                        Real psi_h_neighbor  = zero;
-                        Real ustar           = tan_wspd * kappa / (std::log(1.5 * delta / z0) - psi_m);
-                        Real Olen            = (Olen_in  != Real(1e-8)) ? Olen_in  : -ustar * ustar * ustar * theta / (kappa * ggg * tflux + tiny);
-
-                        for (int iter = 0; iter < 2; ++iter) {
-                            if (iter > 0) { Olen  = -ustar * ustar * ustar * theta / (kappa * ggg * tflux + tiny); }
-                            Real zeta          = (myhalf) * delta / Olen;
-                            Real zeta_neighbor = (1.5)    * delta / Olen;
-
-                            // similarity functions
-                            psi_m          = sfuns.calc_psi_m(zeta);
-                            psi_h          = sfuns.calc_psi_h(zeta);
-                            psi_h_neighbor = sfuns.calc_psi_h(zeta_neighbor);
-                            ustar = tan_wspd * kappa / (std::log((1.5) * delta / z0) - psi_m);
-                        }
-
-                        // prevent some unphysical math
-                        if (!(ustar > zero && !std::isnan(ustar))) { ustar = zero; }
-                        if (!(ustar < 2.0  && !std::isnan(ustar))) { ustar = 2.0; }
-                        if (psi_h_neighbor > std::log(1.5 * delta / z0)) { psi_h_neighbor = std::log(1.5 * delta / z0); }
-                        if (psi_h > std::log(myhalf * delta / z0)) { psi_h = std::log(myhalf * delta / z0); }
-
-                        // We do not know the actual temperature so use cell above
-                        const Real thetastar    = theta * ustar * ustar / (kappa * ggg * Olen);
-                        const Real surf_temp    = theta_neighbor - thetastar / kappa * (std::log((1.5) * delta / z0) - psi_h_neighbor);
-                        const Real tTarget      = surf_temp + thetastar / kappa * (std::log((myhalf) * delta / z0) - psi_h);
-
-                        const Real bc_forcing_rt = -(cell_data(i,j,k,Rho_comp) * tTarget - cell_data(i,j,k,RhoTheta_comp));
-                        cell_src(i, j, k, RhoTheta_comp) -= drag_coefficient * U_s * bc_forcing_rt;
-                    }
-                }
-            });
+            ImmersedForcingBuildings_Scalar(bx, u, v, w, cell_data, t_blank_arr, z_cc_arr,
+                                           cell_src, geom, solverChoice, dptr_r_plane, dptr_t_plane, time);
         }
 
         // *************************************************************************************

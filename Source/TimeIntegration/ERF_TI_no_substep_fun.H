@@ -28,7 +28,20 @@
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
         {
-            for ( MFIter mfi(S_sum[IntVars::cons],TilingIfNotGPU()); mfi.isValid(); ++mfi)
+            //
+            // NOTE: we must not tile if the terrain is moving because the update of zmom at
+            //       k = 0 below calls WFromOmega, which reads the x- and y-momenta at
+            //       (i+1,j) and (i,j+1).  Those faces are written on nodaltilebox(0) and
+            //       nodaltilebox(1), which exclude a tile's upper faces, so with tiling
+            //       they would still hold the values from the previous stage -- and, under
+            //       OpenMP, would be written by another thread at the same time.
+            //       (The substepping version in ERF_Substep_MT.cpp leaves tiling off for
+            //        this same reason.)
+            //
+            const bool do_tiling = (solverChoice.terrain_type == TerrainType::MovingFittedMesh)
+                                 ? false : TilingIfNotGPU();
+
+            for ( MFIter mfi(S_sum[IntVars::cons],do_tiling); mfi.isValid(); ++mfi)
             {
                 const Box bx = mfi.tilebox();
                 Box tbx = mfi.nodaltilebox(0);

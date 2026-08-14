@@ -485,10 +485,15 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
         {
             if (containerHasElement(plot_var_names, der_name)) {
                 MultiFab dmf(mf[lev], make_alias, mf_comp, 1);
+                //
+                // NOTE: we must not tile in z here because some of the derived quantities
+                //       ("precipitable", "mucape", "helicity", "max_reflectivity") are
+                //       whole-column operations and require the full column in each box
+                //
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
-                for (MFIter mfi(dmf, TilingIfNotGPU()); mfi.isValid(); ++mfi)
+                for (MFIter mfi(dmf, TileNoZ()); mfi.isValid(); ++mfi)
                 {
                     const Box& bx = mfi.tilebox();
                     auto& dfab = dmf[mfi];
@@ -660,7 +665,14 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
             if (solverChoice.moisture_type != MoistureType::None) {
                 make_qt(vars_new[lev][Vars::cons], qt, n_qstate_into_total);
             }
-            cons_to_prim(vars_new[lev][Vars::cons], S_prim, 0);
+            //
+            // NOTE: we must fill one ghost cell of S_prim here because make_buoyancy
+            //       reads cell_prim(i,j,k-1) at the lower z face of every box -- with
+            //       ng = 0 those ghost cells hold uninitialized data at the bottom of
+            //       any box that doesn't touch the bottom of the domain.  (The ghost
+            //       cells of vars_new[cons] are valid since we fillpatched above.)
+            //
+            cons_to_prim(vars_new[lev][Vars::cons], S_prim, 1);
 
             b.setVal(0.); // Need to initialize to zero because buoyancy not defined on faces at top and bottom of domain
             make_buoyancy(lev, vars_new[lev], S_prim, qt, b, geom[lev], solverChoice, base_state[lev], n_qstate_into_total,
@@ -1789,7 +1801,7 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
 
     // LSM writes it's own data
     if (which==1 && plot_lsm) {
-        lsm.Plot_Lsm_Data(tnew, istep, refRatio());
+        lsm.Plot_Lsm_Data(tnew, finest_level, istep, refRatio());
     }
 
 #ifdef ERF_USE_RRTMGP
@@ -1836,6 +1848,28 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
                 WriteMultiLevelPlotfile(plotfilenameW, finest_level+1,
                                         GetVecOfConstPtrs(mf_w),
                                         {"z_velocity_stag"},
+                                        Geom(), tnew, istep, refRatio());
+            }
+
+            if (m_plot_face_terrain_blanking &&
+                (solverChoice.terrain_type == TerrainType::ImmersedForcing ||
+                 solverChoice.buildings_type == BuildingsType::ImmersedForcing) &&
+                terrain_blanking_xface[0]) {  // Check if face arrays are allocated
+                Print() << "Writing face terrain blanking" << std::endl;
+                std::string plotfilenameTBX = plotfilename; plotfilenameTBX += "_terrain_blank_xface";
+                std::string plotfilenameTBY = plotfilename; plotfilenameTBY += "_terrain_blank_yface";
+                std::string plotfilenameTBZ = plotfilename; plotfilenameTBZ += "_terrain_blank_zface";
+                WriteMultiLevelPlotfile(plotfilenameTBX, finest_level+1,
+                                        GetVecOfConstPtrs(terrain_blanking_xface),
+                                        {"terrain_blank_xface"},
+                                        Geom(), tnew, istep, refRatio());
+                WriteMultiLevelPlotfile(plotfilenameTBY, finest_level+1,
+                                        GetVecOfConstPtrs(terrain_blanking_yface),
+                                        {"terrain_blank_yface"},
+                                        Geom(), tnew, istep, refRatio());
+                WriteMultiLevelPlotfile(plotfilenameTBZ, finest_level+1,
+                                        GetVecOfConstPtrs(terrain_blanking_zface),
+                                        {"terrain_blank_zface"},
                                         Geom(), tnew, istep, refRatio());
             }
 

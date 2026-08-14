@@ -826,6 +826,18 @@ public:
   amrex::MultiFab* get_w_star (const int& lev) { return w_star[lev].get(); }
 
   /**
+   * Do we actually compute w*?  If not then the field returned by get_w_star holds
+   * only the value it was initialized with, and must not be reported as a diagnostic.
+   */
+  [[nodiscard]] bool computes_w_star () const { return m_include_wstar; }
+
+  /**
+   * Do we actually compute the PBL height?  If not then the field returned by get_pblh
+   * holds only the value it was initialized with, and must not be reported as a diagnostic.
+   */
+  [[nodiscard]] bool computes_pblh () const { return (pblh_type != PBLHeightCalcType::None); }
+
+  /**
    * Return the temperature scale field.
    *
    * @param[in] lev level index

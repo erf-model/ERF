@@ -39,13 +39,34 @@ ERF::read_box_for_refinement (std::string& ref_prefix, int& lev_for_box, RealBox
         amrex::Abort("Must only specify box for refinement using real OR index space with fine/coarse grid indices");
     }
 
-    // Clear stale data
     lev_for_box = max_level;
     if (num_real_lo > 0) {
         ppr.query("max_level",lev_for_box);
     } else if (num_indx_lo > 0 || num_indx_lo_crse > 0) {
         ppr.get("max_level",lev_for_box);
     }
+
+    // If this indicator doesn't specify a box at all then there is nothing to do here --
+    //    in particular we must not touch num_boxes_at_level / boxes_at_level, since
+    //    lev_for_box has just defaulted to max_level and we would wipe out the boxes
+    //    registered by a previously processed indicator
+    if (num_real_lo == 0 && num_indx_lo == 0 && num_indx_lo_crse == 0) {
+        return;
+    }
+
+    // Validate lev_for_box *before* using it to index the per-level containers, which
+    //    are only sized (max_level+1).  We tolerate an out-of-range level -- e.g. an
+    //    inputs file written for more levels than we are currently running with --
+    //    but we must not read or write out of bounds, so we simply ignore this box.
+    if (lev_for_box < 1 || lev_for_box > max_level) {
+        Print() << "Refinement indicator " << ref_prefix << " specifies max_level = " << lev_for_box
+                << " which is outside the range of refined levels [1," << max_level
+                << "] in this run -- ignoring the box specified there" << std::endl;
+        return;
+    }
+
+    // Clear stale data at this level (this matters when we are moving boxes and
+    //    therefore re-reading them at every regrid)
     num_boxes_at_level[lev_for_box] = 0;
     boxes_at_level[lev_for_box].clear();
 

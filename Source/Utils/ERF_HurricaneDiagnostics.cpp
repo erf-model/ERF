@@ -590,8 +590,9 @@ ERF::HurricaneMaxVelTracker(const Geometry& lev_geom,
     Gpu::copy(Gpu::deviceToHost, d_val_max.begin(), d_val_max.end(), &h_val_max_local);
 
     Real h_val_max_global = -bogus_large_value;
-     #ifdef AMREX_USE_MPI
-        MPI_Allreduce(&h_val_max_local, &h_val_max_global, 1, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
+    #ifdef AMREX_USE_MPI
+        h_val_max_global = h_val_max_local;
+        amrex::ParallelDescriptor::ReduceRealMax(h_val_max_global);
     #else
         h_val_max_global = h_val_max_local;
     #endif

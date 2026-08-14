@@ -50,20 +50,25 @@ erf_init_dens_hse_dry (amrex::MultiFab& rho_hse,
             b2d.grow(0,1); b2d.grow(1,1); // Grow by one in the lateral directions
             b2d.setRange(2,0);
 
-            const int ilo = tbz.smallEnd(0);
-            const int jlo = tbz.smallEnd(1);
             const int klo = tbz.smallEnd(2);
             const int khi = tbz.bigEnd(2)-1;
 
-            amrex::Real rho_local_sfc;
-            if (klo == 0) {
-                rho_local_sfc = rho_sfc;
-            } else {
-                rho_local_sfc = rho_arr(ilo,jlo,klo-1);
-            }
-
             amrex::ParallelFor(b2d, [=] AMREX_GPU_DEVICE (int i, int j, int)
             {
+                //
+                // The density we start each column's integration from.  If this box does
+                //    not reach the bottom of the domain then that is the density in the
+                //    ghost cell below the box, which has been interpolated from the
+                //    coarser level.
+                //
+                // NOTE: we must do this lookup here, inside the kernel, for two reasons:
+                //       rho_arr is device memory, so reading it on the host is invalid in
+                //       a GPU build, and -- more importantly -- each column has its own
+                //       surface density, so we must not use the value at one corner of
+                //       the box for every column.
+                //
+                const amrex::Real rho_local_sfc = (klo == 0) ? rho_sfc : rho_arr(i,j,klo-1);
+
                 amrex::Array1D<amrex::Real,0,255> r;
                 amrex::Array1D<amrex::Real,0,255> p;
                 HSEutils::init_isentropic_hse_terrain(i,j,rho_local_sfc,Thetabar,&(r(0)),&(p(0)),z_cc_arr,klo,khi);

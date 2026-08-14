@@ -20,6 +20,45 @@ ERF::read_waves (int lev)
          double clkStart, timedif;
          clkStart = (double) clock() / CLOCKS_PER_SEC;
 
+    int rank_offset = amrex::MPMD::MyProc() - amrex::ParallelDescriptor::MyProc();
+    int this_root, other_root;
+    if (rank_offset == 0) { // First program
+        this_root = 0;
+        other_root = amrex::ParallelDescriptor::NProcs();
+    } else {
+        this_root = rank_offset;
+        other_root = 0;
+    }
+
+    int nx=2147483647;
+    int ny=2147483647; // sanity check
+
+    //
+    // JUST RECEIVED -- only the root of this program receives the dimensions from WW3.
+    //
+    // NOTE: the broadcast of those dimensions must happen outside this test *and* outside
+    //       the MFIter below, because it is a collective over this program's communicator
+    //       while both the test and the MFIter (whose MultiFab has a single box, owned by
+    //       rank 0) are entered by exactly one rank.
+    //
+    if (amrex::MPMD::MyProc() == this_root) {
+        if (rank_offset == 0) // First program
+        {
+            MPI_Recv(&nx, 1, MPI_INT, other_root, 1, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+            MPI_Recv(&ny, 1, MPI_INT, other_root, 7, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+        }
+        else // Second program
+        {
+            MPI_Recv(&nx, 1, MPI_INT, other_root, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+            MPI_Recv(&ny, 1, MPI_INT, other_root, 6, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+        }
+    }
+
+    // The receives above are done by the root of this program, which is rank 0 of this
+    //    program's communicator, so that is the root of the broadcast
+    ParallelDescriptor::Bcast(&nx, 1, ParallelDescriptor::IOProcessorNumber());
+    ParallelDescriptor::Bcast(&ny, 1, ParallelDescriptor::IOProcessorNumber());
+
     for ( MFIter mfi(*Hwave_onegrid[lev],false); mfi.isValid(); ++mfi)
     {
         const auto & bx = mfi.validbox();
@@ -30,36 +69,6 @@ ERF::read_waves (int lev)
 
         Real* my_H_ptr = my_H_arr.dataPtr();
         Real* my_L_ptr = my_L_arr.dataPtr();
-
-        int rank_offset = amrex::MPMD::MyProc() - amrex::ParallelDescriptor::MyProc();
-        int this_root, other_root;
-        if (rank_offset == 0) { // First program
-            this_root = 0;
-            other_root = amrex::ParallelDescriptor::NProcs();
-        } else {
-            this_root = rank_offset;
-            other_root = 0;
-        }
-
-        int nx=2147483647;
-        int ny=2147483647; // sanity check
-
-        //JUST RECEIVED
-        if (amrex::MPMD::MyProc() == this_root) {
-            if (rank_offset == 0) // First program
-            {
-                MPI_Recv(&nx, 1, MPI_INT, other_root, 1, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-                MPI_Recv(&ny, 1, MPI_INT, other_root, 7, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-            }
-            else // Second program
-            {
-                MPI_Recv(&nx, 1, MPI_INT, other_root, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-                MPI_Recv(&ny, 1, MPI_INT, other_root, 6, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-            }
-            //This may not be necessary
-            ParallelDescriptor::Bcast(&nx, 1);
-            ParallelDescriptor::Bcast(&ny, 1);
-        }
 
         if((nx)*(ny) > 0) {
             int nsealm = (nx)*ny;

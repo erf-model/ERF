@@ -68,6 +68,7 @@ erf.terrain_z_levels = 0.00 4.22 8.44 12.66 16.88 21.09 25.31 29.53 33.75 37.97 
 erf.buildings_type = ImmersedForcing
 erf.buildings_file_name = skyscraper_5m_128x128.txt
 erf.immersed_forcing_substep = true
+eb2.small_volfrac = 0.005
 erf.if_Cd_momentum = 500.0
 erf.if_Cd_scalar   =  50.0
 erf.if_init_surf_temp = 292.0
