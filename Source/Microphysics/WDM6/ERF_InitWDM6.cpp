@@ -256,9 +256,22 @@ WDM6::initialize_coeffs()
     m_pvtrn   = avtr * m_g2pbr;
     m_eacrr   = Real(1.0);
     m_pacrr   = m_pi_wdm6 * n0r * avtr * m_g3pbr * Real(0.25) * m_eacrr;
-    m_precr1  = Real(2.0) * m_pi_wdm6 * Real(1.56);
-    m_precr2  = Real(2.0) * m_pi_wdm6 * n0r * Real(0.31)
-                * std::pow(avtr, Real(0.5)) * m_g7pbro2;
+    // Fortran WDM6 :3200-3201
+    //     precr1 = 2.*pi*1.56
+    //     precr2 = 2.*pi*.31*avtr**.5*g7pbro2
+    // NEITHER carries n0r. WSM6 :121-122 does -- precr1 = 2.*pi*n0r*.78 and
+    // precr2 = 2.*pi*n0r*.31*avtr**.5*g5pbro2 -- for the same reason qck1
+    // differs between the schemes: WSM6 is single-moment and folds the fixed
+    // intercept n0r into its coefficients, while WDM6 is double-moment and
+    // multiplies by ncr(:,:,3) explicitly at the use site in prevp. precr1 had
+    // already been ported from the WDM6 form; precr2 kept WSM6's n0r, making it
+    // 8.0e6 times too large. That drove the raw prevp far enough negative to
+    // hit its satdt/2 clamp on the native leg only: at (103,3,34) on step 3 the
+    // bridge held prevp at -8.3286e-09 while the native leg sat exactly on the
+    // clamp at -2.5824185419052320E-06, 310x larger.
+    m_precr1  = wdm6_literal(2.0) * m_pi_wdm6 * wdm6_literal(1.56);
+    m_precr2  = wdm6_literal(2.0) * m_pi_wdm6 * wdm6_literal(0.31)
+                * std::pow(avtr, wdm6_literal(0.5)) * m_g7pbro2;
     // Fortran: roqimax = 2.08e22*dimax**8
     // Two mismatches, both confirmed against the Tier 2 psaut trace:
     //   - 2.08e22 is unsuffixed there, so it is float32-rounded before being
