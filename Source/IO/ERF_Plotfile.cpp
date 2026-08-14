@@ -1,3 +1,6 @@
+/**
+ * \file ERF_Plotfile.cpp
+ */
 #include "ERF.H"
 #include "ERF_EpochTime.H"
 #include "ERF_NCPlotFile.H"
@@ -94,12 +97,17 @@ ERF::setPlotVariables (const std::string& pp_plot_var_names, Vector<std::string>
     // If the model we are running doesn't have the variable listed in the inputs file,
     //     just ignore it rather than aborting
     //
+#ifdef ERF_USE_WINDFARM
+    // NOTE: these mirror the conditions guarding the Nturb/SMark fills in Write3DPlotFile;
+    //       if they diverge, the names and the filled components will not line up.
+    const bool wf_is_AD  = (solverChoice.windfarm_type == WindFarmType::SimpleAD ||
+                            solverChoice.windfarm_type == WindFarmType::GeneralAD);
+    const bool wf_active = (solverChoice.windfarm_type == WindFarmType::Fitch ||
+                            solverChoice.windfarm_type == WindFarmType::EWP   || wf_is_AD);
+#endif
+
     for (int i = 0; i < derived_names.size(); ++i) {
         if ( containerHasElement(plot_var_names, derived_names[i]) ) {
-            const bool is_windfarm_name =
-                derived_names[i] == "num_turb" || derived_names[i] == "SMark0" ||
-                derived_names[i] == "SMark1";
-            if (is_windfarm_name) continue;
             bool ok_to_add = ( (solverChoice.terrain_type == TerrainType::ImmersedForcing || solverChoice.buildings_type == BuildingsType::ImmersedForcing ) ||
                                (derived_names[i] != "terrain_IB_mask") );
             ok_to_add     &= ( (SolverChoice::terrain_type == TerrainType::StaticFittedMesh) ||
@@ -108,12 +116,13 @@ ERF::setPlotVariables (const std::string& pp_plot_var_names, Vector<std::string>
             ok_to_add     &= ( (SolverChoice::terrain_type == TerrainType::StaticFittedMesh) ||
                                (SolverChoice::terrain_type == TerrainType::MovingFittedMesh) ||
                                (derived_names[i] != "z_phys") );
-#ifndef ERF_USE_WINDFARM
-            ok_to_add     &= (derived_names[i] != "SMark0" && derived_names[i] != "SMark1");
+#ifdef ERF_USE_WINDFARM
+            // NOTE: the windfarm names must be added here, in derived_names order, since
+            //       that is where Write3DPlotFile fills them (see ERF.H "MUST MATCH THE ORDER").
+            ok_to_add     &= ( wf_active ||
+                               (derived_names[i] != "num_turb" && derived_names[i] != "SMark0") );
+            ok_to_add     &= ( wf_is_AD  || (derived_names[i] != "SMark1") );
 #endif
-            ok_to_add     &= (derived_names[i] != "num_turb" &&
-                              derived_names[i] != "SMark0" &&
-                              derived_names[i] != "SMark1");
             if (ok_to_add)
             {
                 if (erf_plotfile::plot3d_fixed_variable_available(derived_names[i], capabilities)) {
@@ -122,24 +131,6 @@ ERF::setPlotVariables (const std::string& pp_plot_var_names, Vector<std::string>
             } // use_terrain?
         } // hasElement
     }
-
-#ifdef ERF_USE_WINDFARM
-    for (int i = 0; i < derived_names.size(); ++i) {
-        if ( containerHasElement(plot_var_names, derived_names[i]) ) {
-            if(solverChoice.windfarm_type == WindFarmType::Fitch or solverChoice.windfarm_type == WindFarmType::EWP) {
-                if(derived_names[i] == "num_turb" or derived_names[i] == "SMark0") {
-                    tmp_plot_names.push_back(derived_names[i]);
-                }
-            }
-            if( solverChoice.windfarm_type == WindFarmType::SimpleAD or
-                solverChoice.windfarm_type == WindFarmType::GeneralAD ) {
-                if(derived_names[i] == "num_turb" or derived_names[i] == "SMark0" or derived_names[i] == "SMark1") {
-                    tmp_plot_names.push_back(derived_names[i]);
-                }
-            }
-        }
-    }
-#endif
 
 #ifdef ERF_USE_PARTICLES
     Vector<std::string> configured_particle_names;
@@ -516,7 +507,27 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
         //       defined in ERF.H
         // *****************************************************************************************
 
-        if (use_moisture) {
+        if (solverChoice.anelastic[lev]) {
+            if (containerHasElement(plot_var_names, "temp")) {
+                MultiFab dmf(mf[lev], make_alias, mf_comp, 1);
+                const Real rdOcp = solverChoice.rdOcp;
+#ifdef _OPENMP
+#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#endif
+                for (MFIter mfi(dmf, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+                    const Box& bx = mfi.tilebox();
+                    const auto temp = dmf.array(mfi);
+                    const auto state = vars_new[lev][Vars::cons].const_array(mfi);
+                    const auto p0 = p_hse.const_array(mfi);
+                    ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                        const Real theta = state(i,j,k,RhoTheta_comp) /
+                                           state(i,j,k,Rho_comp);
+                        temp(i,j,k,0) = getTgivenPandTh(p0(i,j,k), theta, rdOcp);
+                    });
+                }
+                ++mf_comp;
+            }
+        } else if (use_moisture) {
             calculate_derived("temp",        vars_new[lev][Vars::cons], derived::erf_dermoisttemp);
         } else {
             calculate_derived("temp",        vars_new[lev][Vars::cons], derived::erf_dertemp);
@@ -569,7 +580,10 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
             u[0] = &(vars_new[lev][Vars::xvel]);
             u[1] = &(vars_new[lev][Vars::yvel]);
             u[2] = &(vars_new[lev][Vars::zvel]);
-            compute_divergence (lev, dmf, u, geom[lev]);
+            compute_divergence(lev, dmf, u, *mapfac[lev][MapFacType::m_x],
+                               *mapfac[lev][MapFacType::m_y], *mapfac[lev][MapFacType::v_x],
+                               *mapfac[lev][MapFacType::u_y], *ax[lev], *ay[lev],
+                               *detJ_cc[lev], geom[lev]);
             mf_comp += 1;
         }
 
@@ -667,10 +681,15 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
                 const Array4<Real const>& S_arr = vars_new[lev][Vars::cons].const_array(mfi);
                 const Array4<Real const>& p_arr = pressure.const_array(mfi);
                 const int ncomp = vars_new[lev][Vars::cons].nComp();
+                const bool anelastic = solverChoice.anelastic[lev];
+                const Real rdOcp = solverChoice.rdOcp;
                 ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
                     Real qv = (use_moisture && (ncomp > RhoQ1_comp)) ? S_arr(i,j,k,RhoQ1_comp)/S_arr(i,j,k,Rho_comp) : zero;
                     Real qc = (use_moisture && (ncomp > RhoQ2_comp)) ? S_arr(i,j,k,RhoQ2_comp)/S_arr(i,j,k,Rho_comp) : zero;
-                    Real T = getTgivenRandRTh(S_arr(i,j,k,Rho_comp), S_arr(i,j,k,RhoTheta_comp), qv);
+                    Real T = anelastic ?
+                        getTgivenPandTh(p_arr(i,j,k), S_arr(i,j,k,RhoTheta_comp) /
+                                        S_arr(i,j,k,Rho_comp), rdOcp) :
+                        getTgivenRandRTh(S_arr(i,j,k,Rho_comp), S_arr(i,j,k,RhoTheta_comp), qv);
                     Real fac = Cp_d + Cp_l*(qv + qc);
                     Real pv = erf_esatw(T)*Real(100.0);
 
@@ -692,15 +711,20 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
                 const Array4<Real const>& S_arr = vars_new[lev][Vars::cons].const_array(mfi);
                 const Array4<Real const>& p_arr = pressure.const_array(mfi);
                 const int ncomp = vars_new[lev][Vars::cons].nComp();
+                const bool anelastic = solverChoice.anelastic[lev];
+                const Real rdOcp = solverChoice.rdOcp;
                 ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
                 {
                     const Real qv       = (use_moisture && (ncomp > RhoQ1_comp)) ? S_arr(i,j,k,RhoQ1_comp)/S_arr(i,j,k,Rho_comp) : zero;
 
-                    const Real T        = getTgivenRandRTh(S_arr(i,j,k,Rho_comp), S_arr(i,j,k,RhoTheta_comp), qv);
+                    const Real T        = anelastic ?
+                        getTgivenPandTh(p_arr(i,j,k), S_arr(i,j,k,RhoTheta_comp) /
+                                        S_arr(i,j,k,Rho_comp), rdOcp) :
+                        getTgivenRandRTh(S_arr(i,j,k,Rho_comp), S_arr(i,j,k,RhoTheta_comp), qv);
                     const Real e_sat = Real(100.0) * erf_esatw_cc(T);
 
                     const Real P     = p_arr(i,j,k);
-                    const Real e_act = P * qv / (Real(0.622) + qv);
+                    const Real e_act = P * qv / (RdoRv + qv);
 
                     derdat(i,j,k,mf_comp) = std::max(amrex::Real(0), e_sat - e_act) * Real(0.001);
                 });
@@ -1228,40 +1252,9 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
                 mf_comp += 1;
             }
 
-            if(containerHasElement(plot_var_names, "nc") && (n_qstate_moist >= 7))
-            {
-                MultiFab::Copy(  mf[lev], vars_new[lev][Vars::cons], RhoQ7_comp, mf_comp, 1, 0);
-                MultiFab::Divide(mf[lev], vars_new[lev][Vars::cons],   Rho_comp, mf_comp, 1, 0);
-                mf_comp += 1;
-            }
-
-            if(containerHasElement(plot_var_names, "ni") && (n_qstate_moist >= 8))
-            {
-                MultiFab::Copy(  mf[lev], vars_new[lev][Vars::cons], RhoQ8_comp, mf_comp, 1, 0);
-                MultiFab::Divide(mf[lev], vars_new[lev][Vars::cons],   Rho_comp, mf_comp, 1, 0);
-                mf_comp += 1;
-            }
-
-            if(containerHasElement(plot_var_names, "nr") && (n_qstate_moist >= 9))
-            {
-                MultiFab::Copy(  mf[lev], vars_new[lev][Vars::cons], RhoQ9_comp, mf_comp, 1, 0);
-                MultiFab::Divide(mf[lev], vars_new[lev][Vars::cons],   Rho_comp, mf_comp, 1, 0);
-                mf_comp += 1;
-            }
-
-            if(containerHasElement(plot_var_names, "ns") && (n_qstate_moist >= 10))
-            {
-                MultiFab::Copy(  mf[lev], vars_new[lev][Vars::cons], RhoQ10_comp, mf_comp, 1, 0);
-                MultiFab::Divide(mf[lev], vars_new[lev][Vars::cons],    Rho_comp, mf_comp, 1, 0);
-                mf_comp += 1;
-            }
-
-            if(containerHasElement(plot_var_names, "ng") && (n_qstate_moist >= 11))
-            {
-                MultiFab::Copy(  mf[lev], vars_new[lev][Vars::cons], RhoQ11_comp, mf_comp, 1, 0);
-                MultiFab::Divide(mf[lev], vars_new[lev][Vars::cons],    Rho_comp, mf_comp, 1, 0);
-                mf_comp += 1;
-            }
+            // NOTE: the number concentrations nc/ni/nr/ns/ng follow qt/qn/qp/qsat in
+            //       derived_names (see ERF.H "MUST MATCH THE ORDER"), so they are filled
+            //       after the qsat block below -- not here.
 
             // Precipitating + non-precipitating components
             //--------------------------------------------------------------------------
@@ -1327,6 +1320,8 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
 
             if (containerHasElement(plot_var_names, "qsat"))
             {
+                const bool anelastic = solverChoice.anelastic[lev];
+                const Real rdOcp = solverChoice.rdOcp;
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
@@ -1339,12 +1334,79 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
                     ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
                     {
                         Real qv = S_arr(i,j,k,RhoQ1_comp) / S_arr(i,j,k,Rho_comp);
-                        Real T  = getTgivenRandRTh(S_arr(i,j,k,Rho_comp), S_arr(i,j,k,RhoTheta_comp), qv);
+                        Real T  = anelastic ?
+                            getTgivenPandTh(p_arr(i,j,k), S_arr(i,j,k,RhoTheta_comp) /
+                                            S_arr(i,j,k,Rho_comp), rdOcp) :
+                            getTgivenRandRTh(S_arr(i,j,k,Rho_comp), S_arr(i,j,k,RhoTheta_comp), qv);
                         Real p  = p_arr(i,j,k) * Real(0.01);
                         erf_qsatw(T, p, derdat(i,j,k,mf_comp));
                     });
                 }
                 mf_comp ++;
+            }
+
+            // Number concentrations
+            //--------------------------------------------------------------------------
+            if(containerHasElement(plot_var_names, "nc") && (n_qstate_moist >= 7))
+            {
+                MultiFab::Copy(  mf[lev], vars_new[lev][Vars::cons], RhoQ7_comp, mf_comp, 1, 0);
+                MultiFab::Divide(mf[lev], vars_new[lev][Vars::cons],   Rho_comp, mf_comp, 1, 0);
+                mf_comp += 1;
+            }
+
+            if(containerHasElement(plot_var_names, "ni") && (n_qstate_moist >= 8))
+            {
+                MultiFab::Copy(  mf[lev], vars_new[lev][Vars::cons], RhoQ8_comp, mf_comp, 1, 0);
+                MultiFab::Divide(mf[lev], vars_new[lev][Vars::cons],   Rho_comp, mf_comp, 1, 0);
+                mf_comp += 1;
+            }
+
+            if(containerHasElement(plot_var_names, "nr") && (n_qstate_moist >= 9))
+            {
+                MultiFab::Copy(  mf[lev], vars_new[lev][Vars::cons], RhoQ9_comp, mf_comp, 1, 0);
+                MultiFab::Divide(mf[lev], vars_new[lev][Vars::cons],   Rho_comp, mf_comp, 1, 0);
+                mf_comp += 1;
+            }
+
+            if(containerHasElement(plot_var_names, "ns") && (n_qstate_moist >= 10))
+            {
+                MultiFab::Copy(  mf[lev], vars_new[lev][Vars::cons], RhoQ10_comp, mf_comp, 1, 0);
+                MultiFab::Divide(mf[lev], vars_new[lev][Vars::cons],    Rho_comp, mf_comp, 1, 0);
+                mf_comp += 1;
+            }
+
+            if(containerHasElement(plot_var_names, "ng") && (n_qstate_moist >= 11))
+            {
+                MultiFab::Copy(  mf[lev], vars_new[lev][Vars::cons], RhoQ11_comp, mf_comp, 1, 0);
+                MultiFab::Divide(mf[lev], vars_new[lev][Vars::cons],    Rho_comp, mf_comp, 1, 0);
+                mf_comp += 1;
+            }
+
+            if (solverChoice.moisture_type == MoistureType::SatAdj &&
+                containerHasElement(plot_var_names, "rel_humidity"))
+            {
+                for (MFIter mfi(mf[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+                    const Box& bx = mfi.tilebox();
+                    const auto derdat = mf[lev].array(mfi);
+                    const auto state = vars_new[lev][Vars::cons].const_array(mfi);
+                    const auto p0 = p_hse.const_array(mfi);
+                    const auto pfield = pressure.const_array(mfi);
+                    const Real rdOcp = solverChoice.rdOcp;
+                    const bool anelastic = solverChoice.anelastic[lev];
+                    ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                        const Real rho = state(i,j,k,Rho_comp);
+                        const Real qv = state(i,j,k,RhoQ1_comp) / rho;
+                        const Real theta = state(i,j,k,RhoTheta_comp) / rho;
+                        const Real p = anelastic ? p0(i,j,k) : pfield(i,j,k);
+                        const Real T = anelastic ?
+                            getTgivenPandTh(p0(i,j,k), theta, rdOcp) :
+                            getTgivenRandRTh(rho, state(i,j,k,RhoTheta_comp), qv);
+                        const Real vapor_pressure = p * qv / (RdoRv + qv);
+                        derdat(i,j,k,mf_comp) = vapor_pressure /
+                            (Real(100.0) * erf_esatw(T));
+                    });
+                }
+                ++mf_comp;
             }
 
             if ( (solverChoice.moisture_type == MoistureType::Kessler) ||
@@ -1390,11 +1452,19 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
             else if(solverChoice.moisture_type == MoistureType::SuperDroplets)
             {
                 if (containerHasElement(plot_var_names, "rain_accum")) {
-                    MultiFab::Copy(mf[lev],*(qmoist[lev][6]),0,mf_comp,1,0);
+                    MultiFab::Copy(mf[lev],*(qmoist[lev][8]),0,mf_comp,1,0);
+                    mf_comp += 1;
+                }
+                if (containerHasElement(plot_var_names, "snow_accum")) {
+                    MultiFab::Copy(mf[lev],*(qmoist[lev][10]),0,mf_comp,1,0);
+                    mf_comp += 1;
+                }
+                if (containerHasElement(plot_var_names, "graup_accum")) {
+                    MultiFab::Copy(mf[lev],*(qmoist[lev][9]),0,mf_comp,1,0);
                     mf_comp += 1;
                 }
                 if (containerHasElement(plot_var_names, "rel_humidity")) {
-                    MultiFab::Copy(mf[lev],*(qmoist[lev][5]),0,mf_comp,1,0);
+                    MultiFab::Copy(mf[lev],*(qmoist[lev][7]),0,mf_comp,1,0);
                     mf_comp += 1;
                 }
                 if (containerHasElement(plot_var_names, "condensation_rate")) {

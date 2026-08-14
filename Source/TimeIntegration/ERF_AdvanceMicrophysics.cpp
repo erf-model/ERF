@@ -20,10 +20,18 @@ void ERF::advance_microphysics (int lev,
         } else {
             cons.FillBoundary(geom[lev].periodicity());
         }
-        micro->Update_Micro_Vars_Lev(lev, cons);
+        const auto micro_state_before = cloud_chamber_budget ?
+            cloud_chamber_budget->state_integrals(cons, geom[lev]) :
+            std::array<Real, CloudChamberBudget::NumScalars>{};
+        const amrex::MultiFab* base = solverChoice.anelastic[lev] ? &base_state[lev] : nullptr;
+        micro->Update_Micro_Vars_Lev(lev, cons, base);
         micro->Advance(lev, static_cast<Real>(dt_advance), iteration,
                        static_cast<Real>(time), solverChoice, vars_new, z_phys_nd, phys_bc_type);
         micro->Update_State_Vars_Lev(lev, cons, *z_phys_nd[lev]);
+        if (cloud_chamber_budget) {
+            cloud_chamber_budget->record_internal_source(
+                micro_state_before, cloud_chamber_budget->state_integrals(cons, geom[lev]));
+        }
 
         // Sync cons[lev-1] covered cells with the moist state just written
         // to cons[lev].  Without this, the next sub-cycle's FillPatchFineLevel

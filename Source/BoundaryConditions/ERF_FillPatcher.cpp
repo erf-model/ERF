@@ -4,18 +4,19 @@
 
 using namespace amrex;
 
-/*
+/**
  * Fill valid and ghost data with the "state data" at the given time
  *
- * @param[in] fba    BoxArray of data to be filled at fine level
- * @param[in] fdm    DistributionMapping of data to be filled at fine level
- * @param[in] fgeom  container of geometry information at fine level
- * @param[in] cba    BoxArray of data to be filled at coarse level
- * @param[in] cdm    DistributionMapping of data to be filled at coarse level
- * @param[in] cgeom  container of geometry information at coarse level
- * @param[in] nghost number of ghost cells to be filled
- * @param[in] ncomp  number of components to be filled
- * @param[in] interp interpolation operator to be used
+ * @param[in] fba        BoxArray of data to be filled at fine level
+ * @param[in] fdm        DistributionMapping of data to be filled at fine level
+ * @param[in] fgeom      container of geometry information at fine level
+ * @param[in] cba        BoxArray of data to be filled at coarse level
+ * @param[in] cdm        DistributionMapping of data to be filled at coarse level
+ * @param[in] cgeom      container of geometry information at coarse level
+ * @param[in] nghost     number of ghost cells to be filled
+ * @param[in] nghost_set number of ghost cells in the set region
+ * @param[in] ncomp      number of components to be filled
+ * @param[in] interp     interpolation operator to be used
  */
 
 ERFFillPatcher::ERFFillPatcher (BoxArray const& fba, DistributionMapping const& fdm,
@@ -41,18 +42,19 @@ ERFFillPatcher::ERFFillPatcher (BoxArray const& fba, DistributionMapping const& 
 }
 
 
-/*
+/**
  * Redefine the coarse and fine patch MultiFabs.
  *
- * @param[in] fba    BoxArray of data to be filled at fine level
- * @param[in] fdm    DistributionMapping of data to be filled at fine level
- * @param[in] fgeom  container of geometry information at fine level
- * @param[in] cba    BoxArray of data to be filled at coarse level
- * @param[in] cdm    DistributionMapping of data to be filled at coarse level
- * @param[in] cgeom  container of geometry information at coarse level
- * @param[in] nghost number of ghost cells to be filled
- * @param[in] ncomp  number of components to be filled
- * @param[in] interp interpolation operator to be used
+ * @param[in] fba        BoxArray of data to be filled at fine level
+ * @param[in] fdm        DistributionMapping of data to be filled at fine level
+ * @param[in] fgeom      container of geometry information at fine level
+ * @param[in] cba        BoxArray of data to be filled at coarse level
+ * @param[in] cdm        DistributionMapping of data to be filled at coarse level
+ * @param[in] cgeom      container of geometry information at coarse level
+ * @param[in] nghost     number of ghost cells to be filled
+ * @param[in] nghost_set number of ghost cells in the set region
+ * @param[in] ncomp      number of components to be filled
+ * @param[in] interp     interpolation operator to be used
  */
 void ERFFillPatcher::Define (BoxArray const& fba, DistributionMapping const& fdm,
                              Geometry const& fgeom,
@@ -116,6 +118,13 @@ void ERFFillPatcher::Define (BoxArray const& fba, DistributionMapping const& fdm
     }
 }
 
+/**
+ * Build the coarse-fine mask for set and relax regions.
+ *
+ * @param[in] fba      BoxArray of data to be filled at fine level
+ * @param[in] nghost   number of ghost cells defining the region width
+ * @param[in] mask_val value assigned to selected mask cells
+ */
 void ERFFillPatcher::BuildMask (BoxArray const& fba,
                                 int nghost,
                                 int mask_val)
@@ -212,7 +221,7 @@ void ERFFillPatcher::BuildMask (BoxArray const& fba,
     }
 }
 
-/*
+/**
  * Register the coarse data to be used by the ERFFillPatcher
  *
  * @param[in] crse_data data at old and new time at coarse level
@@ -243,6 +252,13 @@ void ERFFillPatcher::RegisterCoarseData (Vector<MultiFab const*> const& crse_dat
     m_dt_crse = crse_time[1] - crse_time[0];
 }
 
+/**
+ * Interpolate coarse data to fine face-centered data selected by the mask.
+ *
+ * @param[in,out] fine     fine-level data to fill
+ * @param[in]     crse     coarse-level data to interpolate from
+ * @param[in]     mask_val mask value selecting cells to fill
+ */
 void ERFFillPatcher::InterpFace (MultiFab& fine,
                                  MultiFab const& crse,
                                  int mask_val)
@@ -361,6 +377,14 @@ void ERFFillPatcher::InterpFace (MultiFab& fine,
     } // MFiter
 }
 
+/**
+ * Interpolate coarse data to fine cell-centered data selected by the mask.
+ *
+ * @param[in,out] fine     fine-level data to fill
+ * @param[in]     crse     coarse-level data to interpolate from
+ * @param[in]     bcr      boundary-condition records used by the interpolater
+ * @param[in]     mask_val mask value selecting cells to fill
+ */
 void ERFFillPatcher::InterpCell (MultiFab& fine,
                                  MultiFab const& crse,
                                  Vector<BCRec> const& bcr,

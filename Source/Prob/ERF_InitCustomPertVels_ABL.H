@@ -103,10 +103,14 @@
         {
             z_vel_pert(i, j, k) = zero;
         }
-        else if (W_0_Pert_Mag != zero)
+        else
         {
-            Real rand_double = amrex::Random(engine); // Between zero and one
-            Real z_vel_prime = (rand_double*two - one)*W_0_Pert_Mag;
-            z_vel_pert(i, j, k) = W_0 + z_vel_prime;
+            z_vel_pert(i, j, k) = W_0;
+            if (W_0_Pert_Mag != zero)
+            {
+                Real rand_double = amrex::Random(engine); // Between zero and one
+                Real z_vel_prime = (rand_double*two - one)*W_0_Pert_Mag;
+                z_vel_pert(i, j, k) += z_vel_prime;
+            }
         }
     });

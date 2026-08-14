@@ -1,6 +1,9 @@
 name: DocHTML -- Build and Deploy
 
-on: [push, pull_request]
+on:
+  push:
+  pull_request:
+    types: [opened, synchronize, reopened, closed]
 
 concurrency:
   group: ${{ github.ref }}-${{ github.head_ref }}-docs
@@ -8,6 +11,8 @@ concurrency:
 
 jobs:
   build-and-deploy:
+    # The closed event exists only to cancel in-progress runs via concurrency.
+    if: github.event.action != 'closed'
     runs-on: ubuntu-22.04
     steps:
       - name: Checkout
@@ -30,7 +35,7 @@ jobs:
 
       - name: Deploy to Webpage
         if: github.event_name == 'push' && github.repository == 'erf-model/ERF' && github.ref == 'refs/heads/development'
-        uses: JamesIves/github-pages-deploy-action@v4.8.0
+        uses: JamesIves/github-pages-deploy-action@v4.9.0
         with:
           ssh-key: ${{ secrets.DEPLOY_KEY }}
           repository-name: erf-model/docs

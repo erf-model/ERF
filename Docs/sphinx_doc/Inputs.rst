@@ -446,7 +446,7 @@ Time Step
 
 The solver timestep can be fixed by the user or computed dynamically at each timestep based on the user-specified CFL
 number --- i.e., adaptive time stepping. For the compressible equations, the timestep calculation uses the acoustic CFL constraint.
-We note that when using implicit substepping, the vertical mesh spacing does not appear in the time step calculation.
+We note that when using implicit substepping, the vertical grid spacing does not appear in the time step calculation.
 The number of acoustic sub-steps per timestep can also be specified by the user as a fixed value or by specifying the
 number of substeps per RK stage.  For the anelastic equations, the timestep calculation uses the advective CFL constraint,
 which means it is determined by the fluid speed rather than the sound speed and thus allows much larger timesteps.
@@ -1222,8 +1222,13 @@ List of Parameters
 +=========================================+====================+=====================+=============+
 | **erf.pbl_type**                        | Name of PBL Scheme | "None", "MYNN25",   | "None"      |
 |                                         | to be used         | "MYNNEDMF", "MYJ",  |             |
-|                                         |                    | "YSU", "MRF",       |             |
-|                                         |                    | "SHOC"              |             |
+|                                         |                    | "YSU", "YSUNew",    |             |
+|                                         |                    | "MRF",              |             |
+|                                         |                    | "NATIVE_SHOC",      |             |
+|                                         |                    | "EAMXX_SHOC";       |             |
+|                                         |                    | legacy "SHOC" is    |             |
+|                                         |                    | deprecated and maps |             |
+|                                         |                    | to "EAMXX_SHOC"     |             |
 +-----------------------------------------+--------------------+---------------------+-------------+
 | **erf.tke_min**                         | Minimum initial    | Real                | 1.e-6       |
 |                                         | TKE used when a    |                     |             |
@@ -1467,6 +1472,36 @@ List of Parameters
 |                                     | initial sounding       |                   |                     |
 |                                     | profile                |                   |                     |
 +-------------------------------------+------------------------+-------------------+---------------------+
+| **erf.nudging_t_z1**                | Bottom of the height   | Real [m]          | 0.0                 |
+|                                     | range over which       |                   |                     |
+|                                     | potential temperature  |                   |                     |
+|                                     | is nudged              |                   |                     |
++-------------------------------------+------------------------+-------------------+---------------------+
+| **erf.nudging_t_z2**                | Top of the same        | Real [m]          | 10000.0             |
+|                                     | range                  |                   |                     |
++-------------------------------------+------------------------+-------------------+---------------------+
+| **erf.nudging_q_z1**                | Bottom of the height   | Real [m]          | 0.0                 |
+|                                     | range over which       |                   |                     |
+|                                     | water vapor is         |                   |                     |
+|                                     | nudged                 |                   |                     |
++-------------------------------------+------------------------+-------------------+---------------------+
+| **erf.nudging_q_z2**                | Top of the same        | Real [m]          | 10000.0             |
+|                                     | range                  |                   |                     |
++-------------------------------------+------------------------+-------------------+---------------------+
+| **erf.large_scale_forcing**         | Apply time-varying     | true / false      | false               |
+|                                     | large-scale tendencies |                   |                     |
+|                                     | and subsidence read    |                   |                     |
+|                                     | from a forcing file    |                   |                     |
++-------------------------------------+------------------------+-------------------+---------------------+
+| **erf.large_scale_forcing_file**    | Name of the            | String            | None                |
+|                                     | large-scale forcing    |                   |                     |
+|                                     | file                   |                   |                     |
++-------------------------------------+------------------------+-------------------+---------------------+
+| **erf.forcing_timescale**           | Relaxation time scale  | Real [s]          | 0.0                 |
+|                                     | for the u and v        |                   |                     |
+|                                     | large-scale nudging;   |                   |                     |
+|                                     | 0 disables it          |                   |                     |
++-------------------------------------+------------------------+-------------------+---------------------+
 | **erf.input_sounding_file**         | Name(s) of the         | String(s)         | input_sounding      |
 |                                     | input sounding file(s) |                   |                     |
 +-------------------------------------+------------------------+-------------------+---------------------+
@@ -1481,6 +1516,14 @@ List of Parameters
 +-------------------------------------+------------------------+-------------------+---------------------+
 | **erf.bdy_nudge_factor**            | Sets real bc nudging   | Real              | 10.0                |
 |                                     | strength as 1/(VAL*dt) |                   |                     |
++-------------------------------------+------------------------+-------------------+---------------------+
+| **erf.use_wrf_bdy_density**         | Use WRF-reconstructed  | true / false      | false               |
+|                                     | dry-air density for    |                   |                     |
+|                                     | real WRF boundaries    |                   |                     |
++-------------------------------------+------------------------+-------------------+---------------------+
+| **erf.bdy_rho_nudge_factor**        | Density Davies factor; | Real              | -1.0                |
+|                                     | non-positive uses      |                   |                     |
+|                                     | ``bdy_nudge_factor``   |                   |                     |
 +-------------------------------------+------------------------+-------------------+---------------------+
 | **erf.bdy_moist_nudge_type**        | Which strategy for     | int 0,1 or 2      | 0                   |
 |                                     | nudging of moist vars  |                   |                     |
@@ -1711,6 +1754,10 @@ List of Parameters
 |                                  | use_real_bcs is     |                    |                       |
 |                                  | true                |                    |                       |
 +----------------------------------+---------------------+--------------------+-----------------------+
+| **erf.use_wrf_height_grid**      | use z heights       |  bool              | true                  |
+|                                  | from wrfinput or    |                    |                       |
+|                                  | make our own?       |                    |                       |
++----------------------------------+---------------------+--------------------+-----------------------+
 | **erf.rebalance_wrf_input**      | rebalance state     |  bool              | true                  |
 |                                  | from wrfinput and   |                    |                       |
 |                                  | wrfbdy?             |                    |                       |
@@ -1929,7 +1976,7 @@ List of Parameters
 +================================+============================+====================+=============+
 | **erf.land_surface_model**     | Enables land surface       | "None",            | "None"      |
 |                                | energy and moisture        | "NOAHMP",          |             |
-|                                | fluxes                     | "MM5", "OceanSurf",|             |
+|                                | fluxes                     | "OceanSurf",       |             |
 |                                |                            | "SLM"              |             |
 +--------------------------------+----------------------------+--------------------+-------------+
 
@@ -2020,7 +2067,9 @@ List of Parameters
 +-------------------------------------+----------------------------------------+-------------------+-----------------------------------+
 | Parameter                           | Definition                             | Acceptable Values | Default / Notes                   |
 +=====================================+========================================+===================+===================================+
-| **erf.radiation_model**             | Enable radiation model                 | "None", "RRTMGP"  | "None"                            |
+| **erf.radiation_model**             | Enable radiation model                 | "None", "RRTMGP", | "None". "Simple" is a prescribed  |
+|                                     |                                        | "Simple"          | cooling/heating profile with no   |
+|                                     |                                        |                   | radiative transfer.               |
 +-------------------------------------+----------------------------------------+-------------------+-----------------------------------+
 | **erf.rad_nvar**                    | Size of block memory allocation        | Integer > 0       | 12                                |
 +-------------------------------------+----------------------------------------+-------------------+-----------------------------------+
@@ -2099,94 +2148,202 @@ The lookup data may be downloaded as a package from `here <https://doi.org/10.22
 SHOC
 ======================
 
-SHOC inputs are provided under the ``erf.shoc`` prefix. These options control
-runtime tuning and diagnostics for the SHOC PBL scheme.
+ERF provides two SHOC implementations. Select the ERF-native implementation with
+``erf.pbl_type = NATIVE_SHOC``. Select the optional EAMxx implementation with
+``erf.pbl_type = EAMXX_SHOC``. The legacy value ``SHOC`` is deprecated and is
+interpreted as ``EAMXX_SHOC``; it does not select native SHOC.
 
-List of Parameters
-------------------
+Both SHOC implementations use the ``erf.shoc`` namespace for closure tuning.
+Native SHOC also has transport and native-only numerical controls. EAMxx SHOC
+has a small number of interface-only controls. See :ref:`SHOC` for the model
+description, coupling restrictions, transport behavior, and diagnostic output.
+
+Shared SHOC closure inputs
+--------------------------
+
+The following option names are read by both native SHOC and EAMxx SHOC. The two
+implementations are separate code paths, so identical input values do not imply
+bit-for-bit identical calculations.
 
 .. list-table::
    :header-rows: 1
-   :widths: 36 40 16 8
+   :widths: 36 44 18 12
 
    * - Parameter
      - Definition
      - Acceptable Values
      - Default
    * - **erf.shoc.lambda_low**
-     - Minimum stability correction
-     - Real
+     - Lower bound for the SHOC stability-correction coefficient
+     - Real > 0
      - 0.001
    * - **erf.shoc.lambda_high**
-     - Maximum stability correction
-     - Real
+     - Upper bound for the SHOC stability-correction coefficient
+     - Real >= ``lambda_low``
      - 0.04
    * - **erf.shoc.lambda_slope**
-     - Slope from low to high correction
+     - Slope used to vary the stability-correction coefficient
      - Real
      - 2.65
    * - **erf.shoc.lambda_thresh**
-     - Stability threshold for correction
+     - Threshold used in the stability-correction calculation
      - Real
      - 0.02
    * - **erf.shoc.thl2tune**
-     - Temperature variance tuning factor
+     - Liquid-water potential-temperature variance tuning factor
      - Real
      - 1.0
    * - **erf.shoc.qw2tune**
-     - Moisture variance tuning factor
+     - Total-water variance tuning factor
      - Real
      - 1.0
    * - **erf.shoc.qwthl2tune**
-     - Temperature-moisture covariance tuning
+     - Total-water / liquid-water-potential-temperature covariance tuning factor
      - Real
      - 1.0
    * - **erf.shoc.w2tune**
-     - Vertical velocity variance tuning
+     - Vertical-velocity variance tuning factor
      - Real
      - 1.0
    * - **erf.shoc.length_fac**
-     - Length-scale factor
-     - Real
+     - Turbulent length-scale tuning factor
+     - Real > 0
      - 0.5
    * - **erf.shoc.c_diag_3rd_mom**
-     - 3rd-moment vertical velocity damping
+     - Diagnostic third-moment closure coefficient
      - Real
      - 7.0
    * - **erf.shoc.coeff_kh**
-     - Eddy diffusivity coefficient for heat
-     - Real
+     - Scalar / heat diffusivity tuning coefficient
+     - Real >= 0
      - 0.1
    * - **erf.shoc.coeff_km**
-     - Eddy diffusivity coefficient for momentum
-     - Real
+     - Momentum diffusivity tuning coefficient
+     - Real >= 0
      - 0.1
    * - **erf.shoc.shoc_1p5tke**
-     - Reduce to 1.5 TKE closure
+     - Use the reduced 1.5-order TKE form instead of the higher-order SHOC moment form
      - true / false
      - false
    * - **erf.shoc.extra_shoc_diags**
-     - Enable extra SHOC diagnostics
+     - Enable additional SHOC diagnostic calculations; plot variables must still be requested explicitly
      - true / false
      - false
+
+Native SHOC inputs
+------------------
+
+The following controls apply to ``erf.pbl_type = NATIVE_SHOC``.
+
+.. list-table::
+   :header-rows: 1
+   :widths: 36 52 24 14
+
+   * - Parameter
+     - Definition
+     - Acceptable Values
+     - Default
+   * - **erf.shoc.transport_mode**
+     - Selects how native SHOC transports thermodynamic variables, moisture/cloud state, and TKE
+     - ``state_update``, ``host_diffusion``
+     - ``state_update``
+   * - **erf.shoc.momentum_transport**
+     - Selects how native SHOC applies horizontal-momentum transport
+     - ``none``, ``state_update``, ``host_diffusion``
+     - ``host_diffusion``
+   * - **erf.shoc.top_taper_depth**
+     - Depth below the model top over which native SHOC smoothly tapers TKE/diffusivity and higher-order turbulence quantities [m]; zero disables the taper
+     - Real >= 0
+     - 0.0
+   * - **erf.shoc.top_taper_min_factor**
+     - Multiplicative factor at the model top when the native top taper is enabled; the factor reaches 1 below the taper layer
+     - Real in [0, 1]
+     - 0.0
+   * - **erf.shoc.signed_tke_production**
+     - If false, clip the sum of native SHOC shear and buoyancy production at zero before dissipation; if true, retain the signed production sum
+     - true / false
+     - false
+   * - **erf.shoc.debug_summary**
+     - Print a synchronized min/max summary after each native SHOC advance; intended for debugging rather than routine production
+     - true / false
+     - false
+
+For moist native SHOC runs, use ``erf.shoc.transport_mode = state_update``.
+The full ``host_diffusion`` transport mode is currently supported only when
+``erf.moisture_model = None`` because native SHOC does not own cloud
+macrophysics in this mode while SHOC-family microphysics condensation is
+suppressed. It also requires ``erf.shoc.momentum_transport = host_diffusion``.
+Native ``state_update`` rejects moisture layouts containing cloud-water or
+cloud-ice number concentrations because a number closure has not yet been
+implemented.
+
+Native SHOC ``pblh`` is reported in metres above local ground (AGL).
+
+The old value ``erf.shoc.transport_mode = tendencies`` is no longer accepted.
+Use ``state_update`` instead.
+
+EAMxx SHOC interface inputs
+---------------------------
+
+The following controls have a verified runtime effect in the optional
+``EAMXX_SHOC`` interface and are not native-SHOC controls.
+
+.. list-table::
+   :header-rows: 1
+   :widths: 36 52 18 12
+
+   * - Parameter
+     - Definition
+     - Acceptable Values
+     - Default
    * - **erf.shoc.apply_tms**
-     - Apply TMS (turbulent mountain stress)
+     - Apply the turbulent mountain stress contribution in the EAMxx SHOC interface
      - true / false
      - false
    * - **erf.shoc.check_flux_state**
-     - Flux state consistency check
-     - true / false
-     - false
-   * - **erf.shoc.column_conservation_check**
-     - Column conservation check
+     - Run the EAMxx SHOC interface flux/state consistency check
      - true / false
      - false
 
-Notes
------
+Only options documented above are part of the supported SHOC user-facing
+runtime contract. Some historical or development ``erf.shoc`` keys may still
+be parsed internally but are intentionally not documented as active features.
 
-- Defaults are set in ``Source/PhysicsInterfaces/Shoc/ERF_ShocInterface.cpp`` and may
-  be adjusted in the inputs file using the ``erf.shoc`` prefix.
+Minimal native SHOC setup
+-------------------------
+
+A native SHOC run requires a surface-layer lower boundary:
+
+.. code-block:: text
+
+   zlo.type = "surface_layer"
+   erf.pbl_type = NATIVE_SHOC
+
+The native transport defaults are:
+
+.. code-block:: text
+
+   erf.shoc.transport_mode = state_update
+   erf.shoc.momentum_transport = host_diffusion
+
+These two transport lines may be omitted when the defaults are desired.
+
+Minimal EAMxx SHOC setup
+------------------------
+
+The EAMxx SHOC path requires an executable built with the CMake option
+``ERF_ENABLE_EAMXX_SHOC=ON``. For example:
+
+.. code-block:: bash
+
+   cmake -DERF_ENABLE_EAMXX_SHOC=ON ...
+
+The corresponding runtime selection is:
+
+.. code-block:: text
+
+   zlo.type = "surface_layer"
+   erf.pbl_type = EAMXX_SHOC
 
 Runtime Error Checking
 ======================
@@ -2229,6 +2386,11 @@ List of Parameters
 +==========================+===============================+=====================+=========+
 | **erf.fix_random_seed**  | Use a fixed random seed for   | 0 or 1              | 0       |
 |                          | reproducible runs             |                     |         |
++--------------------------+-------------------------------+---------------------+---------+
+| **erf.random_seed**      | Seed for the random number    | Integer >= 0        | -1      |
+|                          | generator, offset by MPI      |                     |         |
+|                          | rank; ignored if              |                     |         |
+|                          | ``erf.fix_random_seed`` is 1  |                     |         |
 +--------------------------+-------------------------------+---------------------+---------+
 
 Embedded Boundary (EB) Tuning

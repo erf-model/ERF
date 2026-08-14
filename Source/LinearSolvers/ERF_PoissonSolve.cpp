@@ -1,8 +1,25 @@
+/**
+ * \file ERF_PoissonSolve.cpp
+ */
 #include "ERF.H"
 #include "ERF_Utils.H"
 
 using namespace amrex;
 
+/**
+ * Solve the Poisson equation using the MLMG solver.
+ *
+ * @param lev Level index.
+ * @param[in] rhs Right hand side of the Poisson equation.
+ * @param[out] p Solution field.
+ * @param[out] fluxes Gradient fluxes.
+ * @param geom Geometry used for inverse cell spacing.
+ * @param ref_ratio Refinement ratios.
+ * @param l_domain_bc_type Domain boundary condition names.
+ * @param mg_verbose Verbosity level for the solver.
+ * @param reltol Relative tolerance.
+ * @param abstol Absolute tolerance.
+ */
 void
 solve_with_mlmg    (int lev,
                     Vector<amrex::MultiFab>& rhs, Vector<MultiFab>& p,
@@ -11,6 +28,25 @@ solve_with_mlmg    (int lev,
                     const amrex::Vector<amrex::IntVect>& ref_ratio,
                     Array<std::string,2*AMREX_SPACEDIM> l_domain_bc_type,
                     int mg_verbose, Real reltol, Real abstol);
+/**
+ * Solve the Poisson equation with embedded boundary using the MLMG solver.
+ *
+ * @tparam T EB data type.
+ * @param lev Level index.
+ * @param[in] rhs Right hand side of the Poisson equation.
+ * @param[out] p Solution field.
+ * @param[out] fluxes Gradient fluxes.
+ * @param ebfact EB factory.
+ * @param ebfact_u EB data for x-faces.
+ * @param ebfact_v EB data for y-faces.
+ * @param ebfact_w EB data for z-faces.
+ * @param geom Geometry used for inverse cell spacing.
+ * @param ref_ratio Refinement ratios.
+ * @param l_domain_bc_type Domain boundary condition names.
+ * @param mg_verbose Verbosity level for the solver.
+ * @param reltol Relative tolerance.
+ * @param abstol Absolute tolerance.
+ */
 template <typename T>
 void
 solve_with_EB_mlmg (int lev,
@@ -28,6 +64,10 @@ solve_with_EB_mlmg (int lev,
 /**
  * Project the single-level velocity field to enforce the anelastic constraint
  * Note that the level may or may not be level zero
+ *
+ * @param lev Level index for the velocity projection
+ * @param time Time at which coarse data are registered
+ * @param l_dt Time step used for coarse data registration
  */
 void ERF::project_initial_velocity (int lev, double time, double l_dt)
 {
@@ -99,6 +139,11 @@ void ERF::project_initial_velocity (int lev, double time, double l_dt)
 /**
  * Project the single-level momenta to enforce the anelastic constraint
  * Note that the level may or may not be level zero
+ *
+ * @param lev Level index for the momentum projection
+ * @param l_time Time used for coarse-fine momentum fills
+ * @param l_dt Time step used in the projection update
+ * @param vars Conserved density and face-centered momenta to project
  */
 void ERF::project_momenta (int lev, double l_time, double l_dt_d, Vector<MultiFab>& mom_mf)
 {
@@ -228,6 +273,13 @@ void ERF::project_momenta (int lev, double l_time, double l_dt_d, Vector<MultiFa
         } else {
             fluxes[0][idim].define(convert(ba_tmp[0], IntVect::TheDimensionVector(idim)), dm_tmp[0], 1, 0);
         }
+        //
+        // A subdomain whose RHS is already below poisson_abstol is skipped below, so its
+        // fluxes are never written by a solve. They are still added to the momenta after
+        // the loop, so they must start at zero (FArrayBox data is uninitialized unless
+        // AMREX_DEBUG is set).
+        //
+        fluxes[0][idim].setVal(0.0);
     }
 
     // ****************************************************************************
@@ -250,7 +302,7 @@ void ERF::project_momenta (int lev, double l_time, double l_dt_d, Vector<MultiFa
     Vector<Array<MultiFab,AMREX_SPACEDIM>> fluxes_sub; fluxes_sub.resize(1);
 
     MultiFab ax_sub, ay_sub, az_sub, dJ_sub, znd_sub;
-    MultiFab mfmx_sub, mfmy_sub;
+    MultiFab mfmx_sub, mfmy_sub, mfvx_sub, mfuy_sub;
 
     Array<MultiFab,AMREX_SPACEDIM> rho0_u_sub;
     Array<MultiFab const*, AMREX_SPACEDIM> rho0_u_const;
@@ -320,6 +372,8 @@ void ERF::project_momenta (int lev, double l_time, double l_dt_d, Vector<MultiFa
 
             mfmx_sub.define(ba2d_sub, DistributionMapping(dm_sub), 1, mapfac[lev][MapFacType::m_x]->nGrowVect(), MFInfo{}.SetAlloc(false), EBFactory(lev));
             mfmy_sub.define(ba2d_sub, DistributionMapping(dm_sub), 1, mapfac[lev][MapFacType::m_y]->nGrowVect(), MFInfo{}.SetAlloc(false), EBFactory(lev));
+            mfvx_sub.define(convert(ba2d_sub, IntVect(0,1,0)), DistributionMapping(dm_sub), 1, mapfac[lev][MapFacType::v_x]->nGrowVect(), MFInfo{}.SetAlloc(false), EBFactory(lev));
+            mfuy_sub.define(convert(ba2d_sub, IntVect(1,0,0)), DistributionMapping(dm_sub), 1, mapfac[lev][MapFacType::u_y]->nGrowVect(), MFInfo{}.SetAlloc(false), EBFactory(lev));
               dJ_sub.define(ba_sub, DistributionMapping(dm_sub), 1, detJ_cc[lev]->nGrowVect(), MFInfo{}.SetAlloc(false), EBFactory(lev));
 
             for (int idim = 0; idim < AMREX_SPACEDIM; ++idim) {
@@ -338,6 +392,8 @@ void ERF::project_momenta (int lev, double l_time, double l_dt_d, Vector<MultiFa
 
             mfmx_sub.define(ba2d_sub, DistributionMapping(dm_sub), 1, mapfac[lev][MapFacType::m_x]->nGrowVect(), MFInfo{}.SetAlloc(false));
             mfmy_sub.define(ba2d_sub, DistributionMapping(dm_sub), 1, mapfac[lev][MapFacType::m_y]->nGrowVect(), MFInfo{}.SetAlloc(false));
+            mfvx_sub.define(convert(ba2d_sub, IntVect(0,1,0)), DistributionMapping(dm_sub), 1, mapfac[lev][MapFacType::v_x]->nGrowVect(), MFInfo{}.SetAlloc(false));
+            mfuy_sub.define(convert(ba2d_sub, IntVect(1,0,0)), DistributionMapping(dm_sub), 1, mapfac[lev][MapFacType::u_y]->nGrowVect(), MFInfo{}.SetAlloc(false));
               dJ_sub.define(ba_sub, DistributionMapping(dm_sub), 1, detJ_cc[lev]->nGrowVect(), MFInfo{}.SetAlloc(false));
 
             for (int idim = 0; idim < AMREX_SPACEDIM; ++idim) {
@@ -361,6 +417,8 @@ void ERF::project_momenta (int lev, double l_time, double l_dt_d, Vector<MultiFa
 
             mfmx_sub.setFab(mfi, FArrayBox((*mapfac[lev][MapFacType::m_x])[orig_index], amrex::make_alias, 0, 1));
             mfmy_sub.setFab(mfi, FArrayBox((*mapfac[lev][MapFacType::m_y])[orig_index], amrex::make_alias, 0, 1));
+            mfvx_sub.setFab(mfi, FArrayBox((*mapfac[lev][MapFacType::v_x])[orig_index], amrex::make_alias, 0, 1));
+            mfuy_sub.setFab(mfi, FArrayBox((*mapfac[lev][MapFacType::u_y])[orig_index], amrex::make_alias, 0, 1));
 
             fluxes_sub[0][0].setFab(mfi,FArrayBox(fluxes[0][0][orig_index], amrex::make_alias, 0, 1));
             fluxes_sub[0][1].setFab(mfi,FArrayBox(fluxes[0][1][orig_index], amrex::make_alias, 0, 1));
@@ -407,7 +465,8 @@ void ERF::project_momenta (int lev, double l_time, double l_dt_d, Vector<MultiFa
         // Note that we replace "rho0w" with the contravariant momentum, Omega
         // ****************************************************************************
 
-        compute_divergence(lev, rhs_sub[0], rho0_u_const, geom_tmp[0]);
+        compute_divergence(lev, rhs_sub[0], rho0_u_const, mfmx_sub, mfmy_sub, mfvx_sub, mfuy_sub,
+                           ax_sub, ay_sub, dJ_sub, geom_tmp[0]);
 
         Real rhsnorm;
 
@@ -496,7 +555,10 @@ void ERF::project_momenta (int lev, double l_time, double l_dt_d, Vector<MultiFa
                 });
             } // mfi
 
-            compute_divergence(lev, rhs_lev, rho0_u_const, geom_tmp[0]);
+            compute_divergence(lev, rhs_lev, rho0_u_const, *mapfac[lev][MapFacType::m_x],
+                               *mapfac[lev][MapFacType::m_y], *mapfac[lev][MapFacType::v_x],
+                               *mapfac[lev][MapFacType::u_y], *ax[lev], *ay[lev],
+                               *detJ_cc[lev], geom_tmp[0]);
 
             // Re-define max norm over the entire MultiFab
             rhsnorm = rhs_lev.norm0();
@@ -558,7 +620,7 @@ void ERF::project_momenta (int lev, double l_time, double l_dt_d, Vector<MultiFa
         // ****************************************************************************
         // No need to build the solver if RHS == 0
         // ****************************************************************************
-        if (rhsnorm <= solverChoice.poisson_abstol) return;
+        if (rhsnorm <= solverChoice.poisson_abstol) continue; // this subdomain only
 
         double start_step = ParallelDescriptor::second();
 
@@ -752,7 +814,10 @@ void ERF::project_momenta (int lev, double l_time, double l_dt_d, Vector<MultiFa
         rho0_u_const[1] = &mom_mf[IntVars::ymom];
         rho0_u_const[2] = &mom_mf[IntVars::zmom];
 
-        compute_divergence(lev, rhs_lev, rho0_u_const, geom_tmp[0]);
+        compute_divergence(lev, rhs_lev, rho0_u_const, *mapfac[lev][MapFacType::m_x],
+                           *mapfac[lev][MapFacType::m_y], *mapfac[lev][MapFacType::v_x],
+                           *mapfac[lev][MapFacType::u_y], *ax[lev], *ay[lev],
+                           *detJ_cc[lev], geom_tmp[0]);
 
         bool local = false;
         Real sum = volWgtSumMF(lev,rhs_lev,0,*detJ_cc[lev],*mapfac[lev][MapFacType::m_x],*mapfac[lev][MapFacType::m_y],false,local);

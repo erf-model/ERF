@@ -25,6 +25,8 @@
 #include <AMReX_EBMultiFabUtil.H>
 
 #include <ERF_EB.H>
+#include "Prob/ERF_CloudChamberBudget.H"
+#include "Prob/ERF_CloudChamber.H"
 
 #ifdef ERF_USE_FFT
 #include <AMReX_FFT_Poisson.H>
@@ -40,6 +42,7 @@
 #include <ERF_DataStruct.H>
 #include <ERF_TurbPertStruct.H>
 #include <ERF_InputSoundingData.H>
+#include <ERF_LargeScaleForcingData.H>
 #include <ERF_InputSpongeData.H>
 #include <ERF_SurfaceLayer.H>
 #include <ERF_Derive.H>
@@ -287,7 +290,12 @@ public:
     void WriteMyEBSurface ();
 
     // Compute the divergence -- whether EB, no-terrain, flat terrain or general terrain
-    void compute_divergence (int lev, amrex::MultiFab& rhs, amrex::Array<amrex::MultiFab const*,AMREX_SPACEDIM> rho0_u_const,
+    void compute_divergence (int lev, amrex::MultiFab& rhs,
+                             amrex::Array<amrex::MultiFab const*,AMREX_SPACEDIM> rho0_u_const,
+                             amrex::MultiFab const& mf_mx, amrex::MultiFab const& mf_my,
+                             amrex::MultiFab const& mf_vx, amrex::MultiFab const& mf_uy,
+                             amrex::MultiFab const& ax_in, amrex::MultiFab const& ay_in,
+                             amrex::MultiFab const& dJ_in,
                              amrex::Geometry const& geom_at_lev);
 
     // Project the velocities to be divergence-free -- this is only relevant if anelastic == 1
@@ -418,6 +426,13 @@ public:
                                       amrex::Gpu::HostVector<amrex::Real>& h_avg_tau23, amrex::Gpu::HostVector<amrex::Real>& h_avg_tau33,
                                       amrex::Gpu::HostVector<amrex::Real>& h_avg_hfx3,  amrex::Gpu::HostVector<amrex::Real>& h_avg_q1fx3,
                                       amrex::Gpu::HostVector<amrex::Real>& h_avg_q2fx3, amrex::Gpu::HostVector<amrex::Real>& h_avg_diss);
+
+    void derive_forcing_profiles_stag(amrex::Gpu::HostVector<amrex::Real>& h_avg_ttend,  amrex::Gpu::HostVector<amrex::Real>& h_avg_qtend,
+                                      amrex::Gpu::HostVector<amrex::Real>& h_avg_wsub,   amrex::Gpu::HostVector<amrex::Real>& h_avg_thtend,
+                                      amrex::Gpu::HostVector<amrex::Real>& h_avg_qhtend, amrex::Gpu::HostVector<amrex::Real>& h_avg_tvtend,
+                                      amrex::Gpu::HostVector<amrex::Real>& h_avg_qvtend, amrex::Gpu::HostVector<amrex::Real>& h_avg_qcvtend,
+                                      amrex::Gpu::HostVector<amrex::Real>& h_avg_tnudge, amrex::Gpu::HostVector<amrex::Real>& h_avg_qnudge,
+                                      amrex::Gpu::HostVector<amrex::Real>& h_avg_unudge, amrex::Gpu::HostVector<amrex::Real>& h_avg_vnudge);
 
     // Perform the volume-weighted sum
     amrex::Real
@@ -1004,6 +1019,8 @@ private:
     amrex::Vector<amrex::MultiFab> zmom_crse_rhs;
 
     std::unique_ptr<Microphysics> micro;
+    std::unique_ptr<CloudChamberBudget> cloud_chamber_budget;
+    erf_cloud_chamber::Config cloud_chamber_config;
     amrex::Vector<amrex::Vector<amrex::MultiFab*>> qmoist; // (lev,ncomp) rain_accum, snow_accum, graup_accum
 
     // Variables for wind farm parametrization models
@@ -1024,6 +1041,10 @@ private:
     amrex::Vector<amrex::Vector<amrex::MultiFab*>> lsm_data; // (lev,ncomp) Data for LSM coupling
     amrex::Vector<std::string> lsm_flux_name;                // (ncomp) -- e.g., hfx3, q1fx3, tau13, tau23
     amrex::Vector<amrex::Vector<amrex::MultiFab*>> lsm_flux; // (lev,ncomp) Fluxes from LSM needed by DYCORE
+
+    LargeScaleForcingData lsf;
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> nudge_data; // holds nudging inputs: tnudge, qnudge, unudge, vnudge
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> lsf_data; //  holds large scale forcing tendencies: ttend, qtend, wsub
 
     amrex::Vector<std::unique_ptr<IRadiation>> rad; // Radiation model at each level
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> qheating_rates;  // radiation heating rate source terms (SW, LW) (DYCORE)
@@ -1515,6 +1536,14 @@ private:
     //
     static amrex::Vector<amrex::AMRErrorTag> ref_tags;
 
+    //
+    // Name of the refinement indicator that generated each entry of ref_tags.
+    // Not every indicator generates a ref_tag (e.g. "storm_tracker" does not),
+    // so this must be carried alongside ref_tags rather than re-deriving it
+    // from the positional index into erf.refinement_indicators.
+    //
+    static amrex::Vector<std::string> ref_tag_indicator_names;
+
     amrex::Vector<amrex::Vector<amrex::BoxArray>> subdomains;
 
     amrex::Vector<amrex::Real> dz_min;
@@ -1523,57 +1552,68 @@ private:
     int
     ComputeGhostCells (const SolverChoice& sc)
     {
-        int ngrow = 0;
+        // We never have fewer than 2 ghost cells
+        int ngrow = 2;
 
-        if (sc.use_num_diff)
-        {
+        // This sets the minimum to 3 if using num_diff but we might still need more
+        if (sc.use_num_diff) {
             ngrow = 3;
-        } else {
-            if (
-                 (sc.advChoice.dycore_horiz_adv_type    == AdvType::Centered_6th)
-              || (sc.advChoice.dycore_vert_adv_type     == AdvType::Centered_6th)
-              || (sc.advChoice.moistscal_horiz_adv_type == AdvType::Centered_6th)
-              || (sc.advChoice.moistscal_horiz_adv_type == AdvType::Centered_6th)
-              || (sc.advChoice.dryscal_horiz_adv_type   == AdvType::Centered_6th)
-              || (sc.advChoice.dryscal_vert_adv_type    == AdvType::Centered_6th) )
-            { ngrow = 3; }
-            else if (
-                 (sc.advChoice.dycore_horiz_adv_type    == AdvType::Upwind_5th)
-              || (sc.advChoice.dycore_vert_adv_type     == AdvType::Upwind_5th)
-              || (sc.advChoice.moistscal_horiz_adv_type == AdvType::Upwind_5th)
-              || (sc.advChoice.moistscal_horiz_adv_type == AdvType::Upwind_5th)
-              || (sc.advChoice.dryscal_horiz_adv_type   == AdvType::Upwind_5th)
-              || (sc.advChoice.dryscal_vert_adv_type    == AdvType::Upwind_5th) )
-            { ngrow = 3; }
-            else if (
-                  (sc.advChoice.dryscal_horiz_adv_type   == AdvType::Weno_5)
-               || (sc.advChoice.dryscal_vert_adv_type    == AdvType::Weno_5)
-               || (sc.advChoice.moistscal_horiz_adv_type == AdvType::Weno_5)
-               || (sc.advChoice.moistscal_vert_adv_type  == AdvType::Weno_5)
-               || (sc.advChoice.moistscal_horiz_adv_type == AdvType::Weno_5Z)
-               || (sc.advChoice.moistscal_vert_adv_type  == AdvType::Weno_5Z)
-               || (sc.advChoice.dryscal_horiz_adv_type   == AdvType::Weno_5Z)
-               || (sc.advChoice.dryscal_vert_adv_type    == AdvType::Weno_5Z) )
-            { ngrow = 3; }
-            else if (
-                  (sc.advChoice.dryscal_horiz_adv_type   == AdvType::Weno_7)
-               || (sc.advChoice.dryscal_vert_adv_type    == AdvType::Weno_7)
-               || (sc.advChoice.moistscal_horiz_adv_type == AdvType::Weno_7)
-               || (sc.advChoice.moistscal_vert_adv_type  == AdvType::Weno_7)
-               || (sc.advChoice.moistscal_horiz_adv_type == AdvType::Weno_7Z)
-               || (sc.advChoice.moistscal_vert_adv_type  == AdvType::Weno_7Z)
-               || (sc.advChoice.dryscal_horiz_adv_type   == AdvType::Weno_7Z)
-               || (sc.advChoice.dryscal_vert_adv_type    == AdvType::Weno_7Z) )
-            { ngrow = 4; }
-            else
-            {
-                if (sc.terrain_type == TerrainType::EB){
-                    ngrow = 4;
-                } else {
-                    ngrow = 2;
-                }
-            }
         }
+
+        // With EB we always have 4 so no need to do further tests
+        if (sc.terrain_type == TerrainType::EB) {
+            ngrow = 4;
+            return ngrow;
+        }
+
+        if (
+             (sc.advChoice.dycore_horiz_adv_type    == AdvType::Centered_6th)
+          || (sc.advChoice.dycore_vert_adv_type     == AdvType::Centered_6th)
+          || (sc.advChoice.moistscal_horiz_adv_type == AdvType::Centered_6th)
+          || (sc.advChoice.moistscal_horiz_adv_type == AdvType::Centered_6th)
+          || (sc.advChoice.dryscal_horiz_adv_type   == AdvType::Centered_6th)
+          || (sc.advChoice.dryscal_vert_adv_type    == AdvType::Centered_6th) )
+        { ngrow = 3; }
+        else if (
+             (sc.advChoice.dycore_horiz_adv_type    == AdvType::Upwind_5th)
+          || (sc.advChoice.dycore_vert_adv_type     == AdvType::Upwind_5th)
+          || (sc.advChoice.moistscal_horiz_adv_type == AdvType::Upwind_5th)
+          || (sc.advChoice.moistscal_horiz_adv_type == AdvType::Upwind_5th)
+          || (sc.advChoice.dryscal_horiz_adv_type   == AdvType::Upwind_5th)
+          || (sc.advChoice.dryscal_vert_adv_type    == AdvType::Upwind_5th) )
+        { ngrow = 3; }
+        else if (
+              (sc.advChoice.dycore_horiz_adv_type    == AdvType::Weno_5)
+           || (sc.advChoice.dycore_vert_adv_type     == AdvType::Weno_5)
+           || (sc.advChoice.dryscal_horiz_adv_type   == AdvType::Weno_5)
+           || (sc.advChoice.dryscal_vert_adv_type    == AdvType::Weno_5)
+           || (sc.advChoice.moistscal_horiz_adv_type == AdvType::Weno_5)
+           || (sc.advChoice.moistscal_vert_adv_type  == AdvType::Weno_5) )
+        { ngrow = 3; }
+        else if (
+              (sc.advChoice.dycore_horiz_adv_type    == AdvType::Weno_5Z)
+           || (sc.advChoice.dycore_vert_adv_type     == AdvType::Weno_5Z)
+           || (sc.advChoice.dryscal_horiz_adv_type   == AdvType::Weno_5Z)
+           || (sc.advChoice.dryscal_vert_adv_type    == AdvType::Weno_5Z)
+           || (sc.advChoice.moistscal_horiz_adv_type == AdvType::Weno_5Z)
+           || (sc.advChoice.moistscal_vert_adv_type  == AdvType::Weno_5Z) )
+        { ngrow = 3; }
+        else if (
+              (sc.advChoice.dycore_horiz_adv_type    == AdvType::Weno_7)
+           || (sc.advChoice.dycore_vert_adv_type     == AdvType::Weno_7)
+           || (sc.advChoice.dryscal_horiz_adv_type   == AdvType::Weno_7)
+           || (sc.advChoice.dryscal_vert_adv_type    == AdvType::Weno_7)
+           || (sc.advChoice.moistscal_horiz_adv_type == AdvType::Weno_7)
+           || (sc.advChoice.moistscal_vert_adv_type  == AdvType::Weno_7) )
+        { ngrow = 3; }
+        else if (
+              (sc.advChoice.dycore_horiz_adv_type    == AdvType::Weno_7Z)
+           || (sc.advChoice.dycore_vert_adv_type     == AdvType::Weno_7Z)
+           || (sc.advChoice.dryscal_horiz_adv_type   == AdvType::Weno_7Z)
+           || (sc.advChoice.dryscal_vert_adv_type    == AdvType::Weno_7Z)
+           || (sc.advChoice.moistscal_horiz_adv_type == AdvType::Weno_7Z)
+           || (sc.advChoice.moistscal_vert_adv_type  == AdvType::Weno_7Z) )
+        { ngrow = 4; }
 
         return ngrow;
     }

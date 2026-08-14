@@ -1,0 +1,63 @@
+# SatAdj all-dry chamber regression.  Total non-precipitating water is closed
+# at all six physical walls while thermal diffusion drives buoyancy.
+erf.prob_name = "Cloud Chamber"
+erf.init_type = ConstantDensity
+erf.anelastic = 1
+erf.use_gravity = true
+erf.moisture_model = SatAdj
+erf.vert_implicit = false
+erf.molec_diff_type = ConstantAlpha
+erf.dynamic_viscosity = 0.0
+erf.alpha_T = 0.001
+erf.alpha_C = 0.001
+erf.les_type = Smagorinsky
+erf.Cs = 0.1
+erf.fixed_dt = 0.001
+erf.sum_interval = -1
+erf.check_int = -1
+erf.cloud_chamber_budget_interval = 2
+erf.plot_file_1 = plt
+erf.plot_int_1 = 2
+erf.plot_vars_1 = density theta temp pressure qv qc qsat rel_humidity x_velocity y_velocity z_velocity
+
+max_step = 6
+geometry.prob_lo = 0.0 0.0 0.0
+geometry.prob_hi = 2.0 2.0 1.0
+geometry.is_periodic = 0 0 0
+amr.n_cell = 16 16 16
+amr.max_level = 0
+amr.max_grid_size = 8
+
+prob.p_inf = 100000.0
+prob.T_0 = 292.0
+prob.thermodynamic_initialization = physical_temperature_rh
+prob.initial_temperature_bottom = 300.0
+prob.initial_temperature_top = 284.0
+prob.initial_relative_humidity = 0.95
+prob.temperature_perturbation_amplitude = 0.02
+prob.perturbation_mode = deterministic_sine
+
+xlo.type = NoSlipWall
+xhi.type = NoSlipWall
+ylo.type = NoSlipWall
+yhi.type = NoSlipWall
+zlo.type = NoSlipWall
+zhi.type = NoSlipWall
+xlo.temperature = 292.0
+xlo.moisture = dry
+xlo.wall_transfer_model = resolved_molecular
+xhi.temperature = 292.0
+xhi.moisture = dry
+xhi.wall_transfer_model = resolved_molecular
+ylo.temperature = 292.0
+ylo.moisture = dry
+ylo.wall_transfer_model = resolved_molecular
+yhi.temperature = 292.0
+yhi.moisture = dry
+yhi.wall_transfer_model = resolved_molecular
+zlo.temperature = 300.0
+zlo.moisture = dry
+zlo.wall_transfer_model = resolved_molecular
+zhi.temperature = 284.0
+zhi.moisture = dry
+zhi.wall_transfer_model = resolved_molecular

@@ -1,3 +1,6 @@
+/**
+ * \file ERF_InitBCs.cpp
+ */
 #include <AMReX_Vector.H>
 #include <AMReX_BC_TYPES.H>
 #include <AMReX_ParmParse.H>
@@ -16,6 +19,9 @@ using namespace amrex;
  *
  * Stores this information in both host and device vectors
  * so it is available for GPU kernels.
+ *
+ * @param[in,out] read_prim_theta Whether external Dirichlet theta values
+ *                                should be read as primitive theta.
  */
 void ERF::init_phys_bcs (bool& read_prim_theta)
 {
@@ -285,6 +291,9 @@ void ERF::init_phys_bcs (bool& read_prim_theta)
     f("zhi", Orientation(Direction::z,Orientation::high));
 }
 
+/**
+ * Initialize ERF physical and component boundary condition data.
+ */
 void ERF::init_bcs ()
 {
     bool read_prim_theta  = true;
@@ -686,6 +695,11 @@ void ERF::init_bcs ()
     Gpu::copy(Gpu::hostToDevice, domain_bcs_type.begin(), domain_bcs_type.end(), domain_bcs_type_d.begin());
 }
 
+/**
+ * Read vertical Dirichlet boundary data and interpolate it to ERF levels.
+ *
+ * @param input_file Path to the Dirichlet input profile file
+ */
 void ERF::init_Dirichlet_bc_data (const std::string input_file)
 {
     // Read the dirichlet_input file
@@ -807,7 +821,7 @@ void ERF::init_Dirichlet_bc_data (const std::string input_file)
         const int Ninp = z_inp_tmp.size();
         for (int k(0); k<Nz; ++k) {
             zcc_inp[k] = myhalf * (zlevels_stag[lev][k] + zlevels_stag[lev][k+1]);
-            znd_inp[k] = zlevels_stag[lev][k+1];
+            znd_inp[k] = zlevels_stag[lev][k];
             u_inp[k]   = interpolate_1d(z_inp_tmp.dataPtr(), u_inp_tmp.dataPtr(), zcc_inp[k], Ninp);
             v_inp[k]   = interpolate_1d(z_inp_tmp.dataPtr(), v_inp_tmp.dataPtr(), zcc_inp[k], Ninp);
             w_inp[k]   = interpolate_1d(z_inp_tmp.dataPtr(), w_inp_tmp.dataPtr(), znd_inp[k], Ninp);

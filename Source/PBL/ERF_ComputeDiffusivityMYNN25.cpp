@@ -9,6 +9,24 @@ using namespace amrex;
 
 #define EXTRA_MYNN25_CHECKS 0
 
+/**
+ * Compute eddy diffusivities using the MYNN PBL model.
+ *
+ * @param[in] xvel X-velocity MultiFab.
+ * @param[in] yvel Y-velocity MultiFab.
+ * @param[in] cons_in Conserved variables MultiFab.
+ * @param[out] eddyViscosity MultiFab for storing computed eddy diffusivities.
+ * @param[in] geom Grid geometry.
+ * @param[in] turbChoice Turbulence model options and configuration.
+ * @param[in] SurfLayer Surface layer data.
+ * @param[in] use_terrain_fitted_coords Flag to use terrain-fitted coordinates.
+ * @param[in] use_moisture Flag to include moisture.
+ * @param[in] level Level index.
+ * @param[in] bc_ptr Boundary condition record pointers.
+ * @param[in] z_phys_nd Nodal physical height.
+ * @param[in] z_phys_cc Cell-centered physical height.
+ * @param[in] moisture_indices Moisture component indices.
+ */
 void
 ComputeDiffusivityMYNN25 (const MultiFab& xvel,
                           const MultiFab& yvel,
@@ -45,9 +63,9 @@ ComputeDiffusivityMYNN25 (const MultiFab& xvel,
 #ifdef _OPENMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())
 #endif
-    for ( MFIter mfi(eddyViscosity,false); mfi.isValid(); ++mfi) {
+    for ( MFIter mfi(eddyViscosity,TileNoZ()); mfi.isValid(); ++mfi) {
 
-        const Box &bx = mfi.growntilebox(1);
+        const Box& bx = mfi.tilebox();
         const Array4<Real const>& cell_data = cons_in.array(mfi);
         const Array4<Real      >& K_turb    = eddyViscosity.array(mfi);
         const Array4<Real const>& uvel      = xvel.array(mfi);
@@ -56,17 +74,15 @@ ComputeDiffusivityMYNN25 (const MultiFab& xvel,
         // Compute some quantities that are constant in each column
         // Sbox is shrunk to only include the interior of the domain in the vertical direction to compute integrals
         // Box includes one ghost cell in each direction
-        const Box &dbx = geom.Domain();
-        Box sbx(bx.smallEnd(), bx.bigEnd());
-        sbx.grow(2,-1);
-        AMREX_ALWAYS_ASSERT(sbx.smallEnd(2) == dbx.smallEnd(2) && sbx.bigEnd(2) == dbx.bigEnd(2));
+        const Box& dbx = geom.Domain();
+        AMREX_ALWAYS_ASSERT(bx.smallEnd(2) == dbx.smallEnd(2) && bx.bigEnd(2) == dbx.bigEnd(2));
 
         const GeometryData gdata = geom.data();
 
-        const Box xybx = PerpendicularBox<ZDir>(bx, IntVect{0,0,0});
-        FArrayBox qturb(bx,1);
-        FArrayBox qintegral(xybx,2);
-        qintegral.setVal<RunOn::Device>(0);
+        const Box xybx = makeSlab(bx,2,0);
+        FArrayBox qturb(bx,1,The_Async_Arena());
+        FArrayBox qintegral(xybx,2,The_Async_Arena());
+        qintegral.setVal<RunOn::Device>(zero);
         const Array4<Real> qint = qintegral.array();
         const Array4<Real> qvel = qturb.array();
 
@@ -80,11 +96,10 @@ ComputeDiffusivityMYNN25 (const MultiFab& xvel,
                 qvel(i,j,k) = std::sqrt(two * cell_data(i,j,k,RhoKE_comp) / cell_data(i,j,k,Rho_comp));
                 AMREX_ALWAYS_ASSERT_WITH_MESSAGE(qvel(i,j,k) > zero, "KE must have a positive value");
 
-                Real fac = (sbx.contains(i,j,k)) ? one : zero;
                 const Real Zval = Compute_Zrel_AtCellCenter(i,j,k,z_nd_arr);
                 const Real dz   = Compute_h_zeta_AtCellCenter(i,j,k,invCellSize,z_nd_arr);
-                Gpu::Atomic::Add(&qint(i,j,0,0), Zval*qvel(i,j,k)*dz*fac);
-                Gpu::Atomic::Add(&qint(i,j,0,1),      qvel(i,j,k)*dz*fac);
+                Gpu::Atomic::Add(&qint(i,j,0,0), Zval*qvel(i,j,k)*dz);
+                Gpu::Atomic::Add(&qint(i,j,0,1),      qvel(i,j,k)*dz);
             });
         } else {
             ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
@@ -95,10 +110,9 @@ ComputeDiffusivityMYNN25 (const MultiFab& xvel,
 
                 // Not multiplying by dz: it's constant and would fall out when we divide qint0/qint1 anyway
 
-                Real fac = (sbx.contains(i,j,k)) ? one : zero;
                 const Real Zval = gdata.ProbLo(2) + (k + myhalf)*gdata.CellSize(2);
-                Gpu::Atomic::Add(&qint(i,j,0,0), Zval*qvel(i,j,k)*fac);
-                Gpu::Atomic::Add(&qint(i,j,0,1),      qvel(i,j,k)*fac);
+                Gpu::Atomic::Add(&qint(i,j,0,0), Zval*qvel(i,j,k));
+                Gpu::Atomic::Add(&qint(i,j,0,1),      qvel(i,j,k));
             });
         }
 
@@ -145,8 +159,8 @@ ComputeDiffusivityMYNN25 (const MultiFab& xvel,
             if (use_moisture) {
                 // Compute buoyancy flux (Stull Eqn. 4.4.5d)
                 surface_latent_heat = -u_star_arr(i,j,0) * q_star_arr(i,j,0);
-                surface_heat_flux *= (one + Real(0.61)*qv0);
-                surface_heat_flux += Real(0.61) * theta0 * surface_latent_heat;
+                surface_heat_flux *= (one + epsv*qv0);
+                surface_heat_flux += epsv * theta0 * surface_latent_heat;
             }
 
             Real l_obukhov;
@@ -159,15 +173,14 @@ ComputeDiffusivityMYNN25 (const MultiFab& xvel,
 
             // Surface-layer length scale (NN09, Eqn. 53)
             AMREX_ASSERT(l_obukhov != 0);
-            int lk = amrex::max(k,0);
-            const Real zval = use_terrain_fitted_coords ? Compute_Zrel_AtCellCenter(i,j,lk,z_nd_arr)
-                                          : gdata.ProbLo(2) + (lk + myhalf)*gdata.CellSize(2);
+            const Real zval = use_terrain_fitted_coords ? Compute_Zrel_AtCellCenter(i,j,k,z_nd_arr) :
+                                                          gdata.ProbLo(2) + (k + myhalf)*gdata.CellSize(2);
             const Real zeta = zval/l_obukhov;
             Real l_S;
             if (zeta >= one) {
                 l_S = KAPPA*zval/Real(3.7);
             } else if (zeta >= 0) {
-                l_S = KAPPA*zval/(1+Real(2.7)*zeta);
+                l_S = KAPPA*zval/(one + Real(2.7) * zeta);
             } else {
                 l_S = KAPPA*zval*std::pow(one - Real(100.0) * zeta, Real(0.2));
             }
@@ -182,9 +195,9 @@ ComputeDiffusivityMYNN25 (const MultiFab& xvel,
 
             // Buoyancy length scale (NN09, Eqn. 55)
             Real l_B;
-            if (dthetavdz > 0) {
+            if (dthetavdz > zero) {
                 Real N_brunt_vaisala = std::sqrt(CONST_GRAV/theta0 * dthetavdz);
-                if (zeta < 0) {
+                if (zeta < zero) {
                     Real qc = CONST_GRAV/theta0 * surface_heat_flux * l_T; // velocity scale
                     qc = std::pow(qc,one/three);
                     l_B = (one + Real(5.0)*std::sqrt(qc/(N_brunt_vaisala * l_T))) * qvel(i,j,k)/N_brunt_vaisala;
@@ -215,15 +228,16 @@ ComputeDiffusivityMYNN25 (const MultiFab& xvel,
             Real Rf  = level2.calc_Rf(GM, GH);
             Real SM2 = level2.calc_SM(Rf);
             Real qe2 = mynn.B1 * Lm*Lm * SM2 * (one-Rf) * shearProd;
-            Real qe  = (qe2 < zero) ? zero : std::sqrt(qe2);
+            Real qe  = (qe2 < zero) ? zero : amrex::max(std::sqrt(qe2),eps);
 
             // Level 2 limiting introduced by Helfand and Labraga 1988 (NN09, Eqn. 42)
-            Real alphac  = (qvel(i,j,k) >= qe) ? one : qvel(i,j,k) / (qe + eps);
+            Real alphac  = (qvel(i,j,k) >= qe) ? one : qvel(i,j,k) / qe;
 //#if EXTRA_MYNN25_CHECKS
 #if 0
             // VERY verbose diagnostic
-            Real Ri = -GH/(GM+level2.eps);
-            if (alphac < 1) {
+            Real lGM = std::copysign(std::max(std::fabs(GM),level2.eps),GM);
+            Real Ri  = -GH/lGM;
+            if (alphac < one) {
                 AllPrint() << "Level 2 limiter at " << IntVect(i,j,k) << " :"
                     << " ustar= " << u_star_arr(i,j,0)
                     << " alphac= " << alphac
@@ -239,6 +253,7 @@ ComputeDiffusivityMYNN25 (const MultiFab& xvel,
             // Clip SM, SH following WRF
             SM = amrex::min(amrex::max(SM, mynn.SMmin), mynn.SMmax);
             SH = amrex::min(amrex::max(SH, mynn.SHmin), mynn.SHmax);
+            SQ = amrex::min(amrex::max(SQ, mynn.SQmin), mynn.SQmax);
 #if EXTRA_MYNN25_CHECKS
             if (SM == mynn.SMmin) {
                 Warning("SM clipped at min val");

@@ -211,7 +211,11 @@ return code;
 #else
     amrex::Initialize(argc,argv,true,MPI_COMM_WORLD,add_par);
 #endif
-    CheckForDuplicateInputs(argv[1]);
+
+    // Only when argv[1] is actually an inputs file (same test the surrounding code uses).
+    if (argc > 1 && std::string(argv[1]).find('=') == std::string::npos) {
+        CheckForDuplicateInputs(argv[1]);
+    }
 
 #ifdef ERF_USE_KOKKOS
     // Initialize kokkos

@@ -29,6 +29,11 @@ void SuperDropletPC::add_superdroplet_attributes()
         AddRealComp(communicate_this_comp);
         count++;
     }
+    /* Always add ice comps so SoA layout matches varNames() and coalescence ptrs are valid when cold processes are off */
+    for (int i = 0; i < SDIceRealIdxSoA_RT::ncomps; i++) {
+        AddRealComp(communicate_this_comp);
+        count++;
+    }
     Print() << "SuperDropletPC(" << m_name << "): added " << count << " real-type attribute(s).\n";
     return;
 }
@@ -45,6 +50,7 @@ void SuperDropletPC::readInputs (const double a_dt)
     m_advect_w_flow = true;
     m_advect_w_gravity = true;
     m_prescribed_advection = false;
+    m_prescribed_w = 0.0;
     m_distribution_grid_size = 100;
 #ifdef ERF_USE_ML_UPHYS_DIAGNOSTICS
     m_bindist_rmin = 1e-6;
@@ -57,13 +63,25 @@ void SuperDropletPC::readInputs (const double a_dt)
 
     /* Newton solver parameters */
     m_newton_rtol = Real(1.0e-6);
+#ifdef AMREX_USE_FLOAT
+    m_newton_atol = Real(0.0);
+#else
     m_newton_atol = Real(1.0e-99);
+#endif
     m_newton_stol = Real(1.0e-12);
     m_newton_maxits = 10;
 
     /* phase change eqn time integration */
     m_mass_change_cfl = Real(1000.0);
     m_mass_change_ti = SDMassChangeTIMethod::BE; // backward Euler
+
+    /* ventilation factor (Bayley et al., 2025, Eq. 3); off by default */
+    m_mass_change_ventilation = false;
+    m_vent_alpha1 = Real(6.954e7);
+    m_vent_beta1  = Real(1.963);
+    m_vent_alpha2 = Real(1.069e3);
+    m_vent_beta2  = Real(0.702);
+    m_vent_fcap   = Real(20.0);
 
     /* log file for unconverged particles */
     m_mass_change_logging = false;
@@ -84,8 +102,11 @@ void SuperDropletPC::readInputs (const double a_dt)
 
     m_coalescence_kernel = SDCoalescenceKernelType::sedimentation;
     coal_kernel_name = "sedimentation";
+    m_ice_agg_eff = amrex::Real(0.1);
     m_include_brownian_coalescence = false;
+    m_kernel_relative_velocity = SDKernelRelativeVelocityType::terminal_velocity;
     m_term_vel_type_w = SDTerminalVelocityType::CloudRainShima;
+    m_term_vel_type_i = SDTerminalVelocityType::IceBohm;
 
     /* read these parameters if specified */
     pp.query("density_scaling", m_density_scaling);
@@ -93,6 +114,8 @@ void SuperDropletPC::readInputs (const double a_dt)
     pp.query("advect_with_flow", m_advect_w_flow);
     pp.query("advect_with_gravity", m_advect_w_gravity);
     pp.query("prescribed_advection", m_prescribed_advection);
+    pp.query("prescribed_w", m_prescribed_w);
+    pp.query("split_merge_amr", m_split_merge_amr);
     pp.query("newton_solver_rtol", m_newton_rtol);
     pp.query("newton_solver_atol", m_newton_atol);
     pp.query("newton_solver_stol", m_newton_stol);
@@ -125,6 +148,12 @@ void SuperDropletPC::readInputs (const double a_dt)
     std::string ti_name = "backward_euler";
     pp.query("mass_change_cfl", m_mass_change_cfl);
     pp.query("mass_change_ti_method", ti_name);
+    pp.query("mass_change_ventilation", m_mass_change_ventilation);
+    pp.query("ventilation_alpha1", m_vent_alpha1);
+    pp.query("ventilation_beta1",  m_vent_beta1);
+    pp.query("ventilation_alpha2", m_vent_alpha2);
+    pp.query("ventilation_beta2",  m_vent_beta2);
+    pp.query("ventilation_fcap",   m_vent_fcap);
     if (ti_name == "rk3bs") {
         m_mass_change_ti = SDMassChangeTIMethod::RK3BS;
     } else if (ti_name == "rk4") {
@@ -152,10 +181,18 @@ void SuperDropletPC::readInputs (const double a_dt)
         amrex::Abort("Error in SuperDropletPC::readInputs() - invalid kernel choice!");
     }
 
+    pp.query("kernel_relative_velocity", m_kernel_relative_velocity);
+
+    // ice-ice aggregation collection efficiency (kernel prefactor; default 0.1)
+    pp.query("ice_aggregation_efficiency", m_ice_agg_eff);
+
     {
         std::string inp_string = "terminal_velocity_model";
         if (pp.contains(inp_string.c_str())) {
-            pp.get(inp_string.c_str(), m_term_vel_type_w);
+            int num_inputs = pp.countval(inp_string.c_str());
+            AMREX_ALWAYS_ASSERT((num_inputs == 1) || (num_inputs == 2));
+            pp.get(inp_string.c_str(), m_term_vel_type_w, 0);
+            if (num_inputs > 1) { pp.get(inp_string.c_str(), m_term_vel_type_i, 1); }
         }
     }
 
@@ -241,10 +278,18 @@ void SuperDropletPC::define (  const std::vector<Species::Name>& a_species_mat,
     {
         unsigned long int seed;
         int fix_seed = 0;
-        ParmParse pp_erf("erf"); pp_erf.query("fix_random_seed", fix_seed);
+        long user_seed = -1;
+        ParmParse pp_erf("erf");
+        pp_erf.query("fix_random_seed", fix_seed);
+        pp_erf.query("random_seed", user_seed);
         if (fix_seed) {
             Print() << "Using fixed seed for SuperDropletPC random engine.\n";
             seed = 1024UL;
+        } else if (user_seed >= 0) {
+            // Seed the collision engine from the user seed so each ensemble realization is a
+            // reproducible draw, offset by rank so the ranks draw independent streams.
+            seed = static_cast<unsigned long int>(user_seed)
+                 + static_cast<unsigned long int>(amrex::ParallelDescriptor::MyProc()) + 1UL;
         } else {
             std::random_device rd;
             std::uniform_int_distribution<unsigned long int> dist(0, std::numeric_limits<unsigned long int>::max());
@@ -285,6 +330,7 @@ void SuperDropletPC::InitializeParticles (const int a_lev, const double a_t, con
                 << "  Advect with flow: " << (m_advect_w_flow ? "true" : "false") << "\n"
                 << "  Advect with gravity: " << (m_advect_w_gravity ? "true" : "false") << "\n"
                 << "  Prescribed advection: " << (m_prescribed_advection ? "true" : "false") << "\n"
+                << "  Prescribed updraft [m/s]: " << m_prescribed_w << "\n"
                 << "  Random initial placement: " << (m_place_randomly_in_cells ? "true" : "false") << "\n"
                 << "  Coalescence bin size: " << m_coalescence_bin_size << "\n"
                 << "  Include Brownian coaslescence: "
@@ -299,6 +345,8 @@ void SuperDropletPC::InitializeParticles (const int a_lev, const double a_t, con
         } else if (m_coalescence_kernel == SDCoalescenceKernelType::Halls) {
             Print() << "Halls" << "\n";
         }
+        Print() << "  Kernel relative velocity: "
+                << getEnumNameString(m_kernel_relative_velocity) << "\n";
         Print() << "  Mass change time integrator: ";
         if (m_mass_change_ti == SDMassChangeTIMethod::RK3BS) {
             Print() << "rk3bs";
@@ -312,8 +360,14 @@ void SuperDropletPC::InitializeParticles (const int a_lev, const double a_t, con
             Print() << "dirk2";
         }
         Print() << " (cfl = " << m_mass_change_cfl << ")\n";
-        Print() << "    Terminal velocity model: "
-                << getEnumNameString(m_term_vel_type_w) << "\n";
+        Print() << "    Ventilation factor: "
+                << (m_mass_change_ventilation ? "true" : "false") << "\n";
+        Print() << "    Terminal velocity model(s): "
+                << getEnumNameString(m_term_vel_type_w) << " (water)";
+        if (m_idx_i >= 0) {
+            Print() << ", " << getEnumNameString(m_term_vel_type_i) << " (ice)";
+        }
+        Print() << "\n";
     }
 
     Print() << "SuperDropletPC(" << m_name << ") InitializeParticles at level " << a_lev << ":\n";
@@ -344,13 +398,12 @@ void SuperDropletPC::InitializeParticles (const int a_lev, const double a_t, con
 /*! Inject particles */
 void SuperDropletPC::InjectParticles (const double a_t, const MFPtr& a_ptr, const double a_dt)
 {
-    amrex::ignore_unused(a_t);
-
     for (int i = 0; i < m_num_injections; i++) {
-        m_injections[i]->updateDt(a_dt);
-        if (    (m_injections[i]->m_inj_rate > 0)
-             && (a_t >= m_injections[i]->m_tstart)
-             && (a_t <= m_injections[i]->m_tstop) ) {
+        const bool active = (m_injections[i]->m_inj_rate > 0)
+                         && (a_t >= m_injections[i]->m_tstart)
+                         && (a_t <= m_injections[i]->m_tstop);
+        m_injections[i]->updateDt(a_dt, active);
+        if (active) {
             Print() << "SuperDropletPC(" << m_name << "): "
                     << " injecting particles (" << i << ").\n";
             addParticles( 0, a_ptr, *(m_injections[i]) );
@@ -404,13 +457,13 @@ void SuperDropletPC::SetAttributes (MultiFab& a_rhoc /*!< mass density of conden
             ParticleReal species_mass_total = zero;
             for (int ctr = 0; ctr < num_sp; ctr++) {
                 if (ctr != idx_w) {
-                    species_mass_total += ptrs.sp_mass_ptrs[ctr][np];
+                    species_mass_total += ptrs.sp_mass_ptrs[ctr][i];
                 }
             }
 
             ParticleReal aerosol_mass_total = zero;
             for (int ctr = 0; ctr < num_ae; ctr++) {
-                aerosol_mass_total += ptrs.ae_mass_ptrs[ctr][np];
+                aerosol_mass_total += ptrs.ae_mass_ptrs[ctr][i];
             }
 
             const Real mass_particle = static_cast<Real>(mass_condensate_sd / ptrs.mult_ptr[i] + aerosol_mass_total + species_mass_total);
@@ -446,7 +499,7 @@ void SuperDropletPC::DensityScaling (const MultiFab& a_rho /*!< density of air *
             auto iv = getParticleCell(p, plo, dxi, domain);
 
             auto rho_air = density(iv[0],iv[1],iv[2],0);
-            ptrs.mult_ptr[i] *= rho_air;
+            ptrs.mult_ptr[i] = std::ceil(ptrs.mult_ptr[i]*rho_air);
         });
     }); // end forEachParticleTile
 }

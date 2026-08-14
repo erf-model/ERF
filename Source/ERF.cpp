@@ -31,6 +31,7 @@ double ERF::startCPUTime        = 0.0;
 double ERF::previousCPUTimeUsed = 0.0;
 
 Vector<AMRErrorTag> ERF::ref_tags;
+Vector<std::string> ERF::ref_tag_indicator_names;
 
 SolverChoice ERF::solverChoice;
 
@@ -312,6 +313,12 @@ ERF::post_timestep (int nstep, double time, double dt_lev0)
 {
     BL_PROFILE("ERF::post_timestep()");
 
+    if (cloud_chamber_budget) {
+        cloud_chamber_budget->report(
+            nstep + 1, time, vars_new[0][Vars::cons], geom[0],
+            solverChoice.moisture_type == MoistureType::SatAdj);
+    }
+
 #ifdef ERF_USE_PARTICLES
     particleData.Redistribute(z_phys_nd);
 #endif
@@ -420,11 +427,20 @@ ERF::post_timestep (int nstep, double time, double dt_lev0)
          int lev_column = 0;
          for (int lev = finest_level; lev >= 0; lev--)
          {
+            const Box& domain_lev = geom[lev].Domain();
             Real dx_lev = geom[lev].CellSize(0);
             Real dy_lev = geom[lev].CellSize(1);
-            int i_lev = static_cast<int>(std::floor(column_loc_x / dx_lev));
-            int j_lev = static_cast<int>(std::floor(column_loc_y / dy_lev));
-            if (grids[lev].contains(IntVect(i_lev,j_lev,0))) lev_column = lev;
+            // Cell containing (column_loc_x,column_loc_y) -- note that these locations are
+            //     measured from ProbLo, which need not be at the origin
+            int i_lev = domain_lev.smallEnd(0) +
+                static_cast<int>(std::floor((column_loc_x - geom[lev].ProbLo(0)) / dx_lev));
+            int j_lev = domain_lev.smallEnd(1) +
+                static_cast<int>(std::floor((column_loc_y - geom[lev].ProbLo(1)) / dy_lev));
+            // Loop runs from finest to coarsest, so stop at the first (finest) level
+            //     that contains the column
+            if (grids[lev].contains(IntVect(i_lev,j_lev,domain_lev.smallEnd(2)))) {
+                lev_column = lev; break;
+            }
          }
          writeToNCColumnFile(lev_column, column_file_name, column_loc_x, column_loc_y, time);
       }
@@ -468,7 +484,7 @@ ERF::post_timestep (int nstep, double time, double dt_lev0)
     }
 
     if (solverChoice.io_hurricane_eye_tracker and
-         (nstep == 0 or (nstep+1)%m_plot3d_int_1 == 0)) {
+         (nstep == 0 or (m_plot3d_int_1 > 0 and (nstep+1)%m_plot3d_int_1 == 0))) {
 
         int levc=finest_level;
 
@@ -679,7 +695,7 @@ ERF::InitData_post ()
                 bool is_anelastic = (solverChoice.anelastic[0] == 1);
                 read_and_convert_from_wrfbdy(itime,nc_bdy_file,
                                              bdy_data_xlo,bdy_data_xhi,bdy_data_ylo,bdy_data_yhi,
-                                             wrf_MUB, wrf_C1H, wrf_C2H, wrf_RDNW, wrf_PHB, z_phys_nd[0],
+                                             wrf_MUB, wrf_C1H, wrf_C2H, wrf_RDNW, wrf_PHB, z_phys_cc[0], z_phys_nd[0],
                                              vars_new[0][Vars::xvel], vars_new[0][Vars::yvel], vars_new[0][Vars::cons],
                                              r_hse, area_vec, geom[0], use_moist, solverChoice.rebalance_wrf_input, domain_bcs_type,
                                              real_width, bdy_time_interval, is_anelastic);
@@ -692,7 +708,7 @@ ERF::InitData_post ()
                 bool is_anelastic = (solverChoice.anelastic[0] == 1);
                 read_and_convert_from_wrfbdy(itime,nc_bdy_file,
                                              bdy_data_xlo,bdy_data_xhi,bdy_data_ylo,bdy_data_yhi,
-                                             wrf_MUB, wrf_C1H, wrf_C2H, wrf_RDNW, wrf_PHB, z_phys_nd[0],
+                                             wrf_MUB, wrf_C1H, wrf_C2H, wrf_RDNW, wrf_PHB, z_phys_cc[0], z_phys_nd[0],
                                              vars_new[0][Vars::xvel], vars_new[0][Vars::yvel], vars_new[0][Vars::cons],
                                              r_hse, area_vec, geom[0], use_moist, solverChoice.rebalance_wrf_input, domain_bcs_type,
                                              real_width, bdy_time_interval, is_anelastic);
@@ -862,6 +878,15 @@ ERF::InitData_post ()
                                       h_w_subsid[lev], d_w_subsid[lev], base_state[lev],
                                       geom[lev], z_phys_nd[lev]);
         }
+    }
+
+    if (solverChoice.large_scale_forcing)
+    {
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(!solverChoice.nudging_from_input_sounding || lsf.tau_lsf > 0.0,
+                                         "erf.forcing_timescale must be positive when nudging with large-scale forcing");
+        lsf.read_forcing_file();
+        lsf.interp_forcing(geom[0].data(), zlevels_stag[0], input_sounding_data);
+        lsf.start_time = start_time;
     }
 
     if (solverChoice.dampingChoice.rayleigh_damp_U ||solverChoice.dampingChoice.rayleigh_damp_V ||
@@ -1096,6 +1121,9 @@ ERF::InitData_post ()
                                    solverChoice.advChoice.zero_zflux,
                                    geom[lev],
                                    z_phys_cc[lev]);
+
+                // The correction is only applied on the valid region
+                fill_wall_dist_ghost_cells(*walldist[lev], geom[lev]);
             }
         }
     }
@@ -1230,7 +1258,8 @@ ERF::InitData_post ()
     // Update micro vars and finish moisture model initializations before first plot file
     if (solverChoice.moisture_type != MoistureType::None) {
         for (int lev = 0; lev <= finest_level; ++lev) {
-            micro->Update_Micro_Vars_Lev(lev, vars_new[lev][Vars::cons]);
+            const amrex::MultiFab* base = solverChoice.anelastic[lev] ? &base_state[lev] : nullptr;
+            micro->Update_Micro_Vars_Lev(lev, vars_new[lev][Vars::cons], base);
             micro->FinishInit(lev, vars_new[lev][Vars::cons], z_phys_nd);
         }
     }
@@ -1785,17 +1814,25 @@ ERF::restart ()
 #endif
 
     double cur_time = t_new[0];
-    if (m_check_per    > zero) {last_check_file_time    = cur_time;}
+    if (m_check_per    > zero) {last_check_file_time    = std::floor(cur_time/m_check_per   ) * m_check_per;}
     if (m_plot2d_per_1 > zero) {last_plot2d_file_time_1 = std::floor(cur_time/m_plot2d_per_1) * m_plot2d_per_1;}
     if (m_plot2d_per_2 > zero) {last_plot2d_file_time_2 = std::floor(cur_time/m_plot2d_per_2) * m_plot2d_per_2;}
     if (m_plot3d_per_1 > zero) {last_plot3d_file_time_1 = std::floor(cur_time/m_plot3d_per_1) * m_plot3d_per_1;}
     if (m_plot3d_per_2 > zero) {last_plot3d_file_time_2 = std::floor(cur_time/m_plot3d_per_2) * m_plot3d_per_2;}
+
+    for (int i = 0; i < m_subvol_per.size(); i++) {
+        if (m_subvol_per[i] > zero) {last_subvol_time[i] = std::floor(cur_time/m_subvol_per[i]) * m_subvol_per[i];}
+    }
 
     if (m_check_int    > zero) {last_check_file_step    = istep[0];}
     if (m_plot2d_int_1 > zero) {last_plot2d_file_step_1 = istep[0];}
     if (m_plot2d_int_2 > zero) {last_plot2d_file_step_2 = istep[0];}
     if (m_plot3d_int_1 > zero) {last_plot3d_file_step_1 = istep[0];}
     if (m_plot3d_int_2 > zero) {last_plot3d_file_step_2 = istep[0];}
+
+    for (int i = 0; i < m_subvol_int.size(); i++) {
+        if (m_subvol_int[i] > 0) {last_subvol_step[i] = istep[0];}
+    }
 
     if (verbose > 0)
     {
@@ -1896,6 +1933,18 @@ ERF::init_only (int lev, double elapsed_time)
 
         // Copy rho and rhotheta from rho_hse and p_hse
         init_from_hse(lev);
+
+        if (lev == 0 && cloud_chamber_config.active &&
+            cloud_chamber_config.physical_initialization) {
+            MultiFab p0(base_state[lev], make_alias, BaseState::p0_comp, 1);
+            const Real p0_min = p0.min(0);
+            const Real p0_max = p0.max(0);
+            if (ParallelDescriptor::IOProcessor()) {
+                Print() << "Cloud Chamber base pressure [Pa]: min=" << p0_min
+                        << " max=" << p0_max
+                        << " lower-boundary=" << p0_max << "\n";
+            }
+        }
 
     } else {
         Abort("Unknown init_type!");
@@ -2215,7 +2264,6 @@ ERF::ReadParameters ()
                 Abort("WriteSubvolume: origin, nxnynz, and dxdydz must have multiples of AMReX_SPACEDIM");
             }
             nsub = n1/AMREX_SPACEDIM;
-            m_subvol_int.resize(nsub);
             last_subvol_step.resize(nsub);
             last_subvol_time.resize(nsub);
             m_subvol_int.resize(nsub);
@@ -2223,10 +2271,12 @@ ERF::ReadParameters ()
         }
 
         if (nsi > 0) {
-            for (int i = 1; i < nsub; i++) m_subvol_per[i] = -one;
+            for (int i = 0; i < nsub; i++) m_subvol_per[i] = -one;
             if ( nsi == 1) {
                 m_subvol_int[0] = -1;
                 pp.get("subvol_int" , m_subvol_int[0]);
+                // A single value applies to every subdomain
+                for (int i = 1; i < nsub; i++) m_subvol_int[i] = m_subvol_int[0];
             } else if ( nsi == nsub) {
                 pp.getarr("subvol_int" , m_subvol_int);
             } else {
@@ -2235,10 +2285,12 @@ ERF::ReadParameters ()
         }
 
         if (nsr > 0) {
-            for (int i = 1; i < nsub; i++) m_subvol_int[i] = -static_cast<int>(one);
+            for (int i = 0; i < nsub; i++) m_subvol_int[i] = -1;
             if ( nsr == 1) {
                 m_subvol_per[0] = -one;
                 pp.get("subvol_per" , m_subvol_per[0]);
+                // A single value applies to every subdomain
+                for (int i = 1; i < nsub; i++) m_subvol_per[i] = m_subvol_per[0];
             } else if ( nsr == nsub) {
                 pp.getarr("subvol_per" , m_subvol_per);
             } else {
@@ -2463,9 +2515,6 @@ ERF::ReadParameters ()
     if (solverChoice.lsm_type == LandSurfaceType::SLM) {
         lsm.SetModel<SLM>();
         Print() << "SLM land surface model!\n";
-    } else if (solverChoice.lsm_type == LandSurfaceType::MM5) {
-        lsm.SetModel<MM5>();
-        Print() << "MM5 land surface model!\n";
 #ifdef ERF_USE_NOAHMP
     } else if (solverChoice.lsm_type == LandSurfaceType::NOAHMP) {
         lsm.SetModel<NOAHMP>();
@@ -2497,6 +2546,31 @@ ERF::ParameterSanityChecks ()
     // We don't allow use_real_bcs to be true if init_type is not either InitType::WRFInput or InitType::Metgrid
     AMREX_ALWAYS_ASSERT( !solverChoice.use_real_bcs ||
                         ((solverChoice.init_type == InitType::WRFInput) || (solverChoice.init_type == InitType::Metgrid)) );
+
+    if (solverChoice.use_wrf_bdy_density) {
+        if (!solverChoice.use_real_bcs || solverChoice.init_type != InitType::WRFInput) {
+            Abort("erf.use_wrf_bdy_density requires standard WRFInput real boundary conditions");
+        }
+        if (nc_bdy_file.empty()) {
+            Abort("erf.use_wrf_bdy_density requires nc_bdy_file");
+        }
+        if (!solverChoice.anelastic.empty() && solverChoice.anelastic[0] != 0) {
+            Abort("erf.use_wrf_bdy_density is not supported for anelastic simulations");
+        }
+        if (input_bndry_planes) {
+            Abort("erf.use_wrf_bdy_density is not supported with generic boundary-plane input");
+        }
+        const Real rho_factor = (solverChoice.bdy_rho_nudge_factor > zero)
+                              ? solverChoice.bdy_rho_nudge_factor
+                              : solverChoice.bdy_nudge_factor;
+        if (rho_factor <= zero) {
+            Abort("erf.bdy_rho_nudge_factor or erf.bdy_nudge_factor must be positive");
+        }
+        Print() << "WRF lateral boundary density forcing: enabled\n"
+                << "WRF boundary density nudge factor: " << rho_factor << std::endl;
+    } else {
+        Print() << "WRF lateral boundary density forcing: disabled" << std::endl;
+    }
 
     AMREX_ALWAYS_ASSERT(real_width >= 0);
 

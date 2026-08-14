@@ -11,7 +11,7 @@ from collections import Counter
 from IO import write_binary_vtk_structured_grid
 
 from Thunderstorm_Squall_HeavyRain import compute_Thunderstorm_Squall_HeavyRain
-from PlotImages import PlotMaxDBZ_LCC
+from PlotImages import PlotVar
 
 const_g = 9.81
 
@@ -288,16 +288,16 @@ def ReadHRRR3DData(file_path, area, lambert_conformal):
      # Extract the filename from the full path
     filename = os.path.basename(file_path)
 
-    output_vtk = "./Output/VTK/3D/HRRRDomain/HRRR_" + date_time_forecast_str + ".vtk"
+    #output_vtk = "./Output/VTK/3D/HRRRDomain/HRRR_" + date_time_forecast_str + ".vtk"
 
     #write_binary_vtk_structured_grid(output_vtk, x_grid, y_grid, z_grid, scalars)
 
-    output_png = "./Output/Thunderstorm/max_dbz_" + date_time_forecast_str + ".png"
+    #output_png = "./Output/Thunderstorm/max_dbz_" + date_time_forecast_str + ".png"
 
-    PlotMaxDBZ_LCC(
-    max_dbz_2d,
-    x_grid,
-    y_grid,
-    lambert_conformal,
-    output_png)
+    #PlotVar(
+    #max_dbz_2d,
+    #x_grid,
+    #y_grid,
+    #lambert_conformal,
+    #output_png)
 

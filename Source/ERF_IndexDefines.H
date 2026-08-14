@@ -21,12 +21,15 @@
 // This is the number of components if using moisture
 // We use this to allocate the 1d arrays of boundary condition types,
 //    but not to allocate actual solution data
-#define NVAR_max (NDRY + NSCALARS + NMOIST_max)
+// Full moist state with no additional non-moist species
+#define NVAR_MOIST_max (NDRY + NSCALARS + NMOIST_max)
+
+#define NVAR_max ((NDRY + NSCALARS + NMOIST_max) + 2*5) // allow up to 5 non-moist species
 
 // This is the number of components if we assume there is only one passive scalar
 // We can use this when we assume all passive scalars have the same bc's
 // We also assume (the final "+1" that the base state components have the same bcs)
-#define NBCVAR_max (NDRY + 1 + NMOIST_max + 1)
+#define NBCVAR_max ((NDRY + 1 + NMOIST_max + 1) + 2*5) // allow up to 5 non-moist species
 
 // This is the number of components if we assume there is only one passive scalar
 // We can use this when we assume all passive scalars have the same diffusion coefficients
@@ -124,6 +127,7 @@ namespace RealBdyVars {
         V  = 1,
         T  = 2,
         QV = 3,
+        R  = 4,
         NumTypes
     };
 }
