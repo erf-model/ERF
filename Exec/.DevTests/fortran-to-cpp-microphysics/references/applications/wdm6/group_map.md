@@ -17,7 +17,23 @@ for naming and block intent only.
 
 ## File-Order Groups
 
-| Group | Fortran lines | Block | Purpose | Native C++ status |
+The first four columns describe the frozen Fortran and are current by
+construction: they change only when the tracked source does.
+
+The fifth column does **not** track current state and must not be read as though
+it does. It is a first-port impression, written when each group was first
+surveyed and never systematically refreshed. Port status is owned by
+`campaign_decisions.tsv`, per the ledger model in `validation-operators.md`
+(`validation_manifest.tsv` for frontier state, `decisions.tsv` for the mutations
+that produced it). Two sources of truth for one fact is a drift generator, and
+this column lost the race: by 14 August 2026 it was stale on five rows whose
+defects had been closed, and on one row it contradicted the manifest outright.
+
+To answer "where does this group actually stand", grep the group id in
+`campaign_decisions.tsv` and read the latest `after_status`. Do not refresh the
+column below to match; leave it as the historical impression it is.
+
+| Group | Fortran lines | Block | Purpose | First-port impression (NOT current — see `campaign_decisions.tsv`) |
 | --- | --- | --- | --- | --- |
 | `P0` | 592-659 | Prelude/setup | Clamp incoming state, derive `dend`, `cpm`, `xl`, `qcr`, `delz_tmp`, `den_tmp`, reset precip accumulators, compute `loops/dtcld` | Partial scaffolding present; not grouped explicitly |
 | `G1a` | 665-669 | Minor-step init | Reset `mstep`, `mnstep`, `flgcld` for the active minor loop | Present implicitly |
@@ -40,7 +56,7 @@ for naming and block intent only.
 | `G10e` | 1117-1122 | Phase cleanup | Clamp `ncr(:, :, 2:3)` non-negative after phase changes | Present implicitly |
 | `G11` | 1127-1159 | `SLOPE3` | Repack, third `slope_wdm6`, recompute `avedia` and `rslopec` | Not yet ported faithfully |
 | `G12` | 1162-1167 | `WORKDIFF` | Compute `diffac` and `venfac` work arrays | Not yet ported faithfully |
-| `G13a` | 1178-1277 | Warm-rain rates | `praut`, `nraut`, `pracw`, `nracw`, `nccol`, `nrcol`, `prevp` | Present but still heuristic; first strong bounded frontier candidate |
+| `G13a` | 1178-1277 | Warm-rain rates | `praut`, `nraut`, `pracw`, `nracw`, `nccol`, `nrcol`, `prevp` | Present but still heuristic |
 | `G13b` | 1292-1376 | Ice/rain and ice/snow/graupel accretion | `praci`, `piacr`, `niacr`, `psaci`, `pgaci` | Not yet ported faithfully |
 | `G13c` | 1381-1428 | Cloud-water accretion by frozen precip | `psacw`, `nsacw`, `pgacw`, `ngacw`, `paacw`, `naacw` | Not yet ported faithfully |
 | `G13d` | 1433-1537 | Rain/snow/graupel collection and enhanced melting | `pracs`, `psacr`, `nsacr`, `pgacr`, `ngacr`, `pgacs`, `pseml`, `nseml`, `pgeml`, `ngeml` | Not yet ported faithfully |
