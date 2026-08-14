@@ -55,6 +55,7 @@ eb_::make_all_factories ([[maybe_unused]] int level,
             a_eb_level, a_geom, ba, dm,
             Vector<int>{nghost_basic(), nghost_volume(), nghost_full()},
             m_support_level, idim);
+        eb_::mask_fc_from_cc(m_u_factory_fc.get(), m_factory.get(), idim);
         eb_::set_connection_flags(m_u_factory_fc.get());
     }
 
@@ -64,6 +65,7 @@ eb_::make_all_factories ([[maybe_unused]] int level,
             a_eb_level, a_geom, ba, dm,
             Vector<int>{nghost_basic(), nghost_volume(), nghost_full()},
             m_support_level, idim);
+        eb_::mask_fc_from_cc(m_v_factory_fc.get(), m_factory.get(), idim);
         eb_::set_connection_flags(m_v_factory_fc.get());
     }
 
@@ -73,6 +75,7 @@ eb_::make_all_factories ([[maybe_unused]] int level,
             a_eb_level, a_geom, ba, dm,
             Vector<int>{nghost_basic(), nghost_volume(), nghost_full()},
             m_support_level, idim);
+        eb_::mask_fc_from_cc(m_w_factory_fc.get(), m_factory.get(), idim);
         eb_::set_connection_flags(m_w_factory_fc.get());
     }
 #else
@@ -154,5 +157,55 @@ eb_::set_connection_flags (EBFArrayBoxFactory* factory)
             }
         });
 
+    }
+}
+
+/**
+ * \brief Mask FC faces as covered when both neighboring CC cells are covered.
+ *
+ * For each face in the FC factory, if BOTH neighboring cell-centered cells
+ * are marked as covered, this function sets the FC face's volume fraction to zero
+ * and marks it as covered. This maintains consistency between CC and FC EB representations.
+ */
+void
+eb_::mask_fc_from_cc (EBFArrayBoxFactory* fc_factory,
+                      const EBFArrayBoxFactory* cc_factory,
+                      int idim)
+{
+
+    FabArray<EBCellFlagFab>& fc_cellflag = getNonConstEBCellFlags(*fc_factory);
+    MultiFab& fc_volfrac = getNonConstVolFrac(*fc_factory);
+    const FabArray<EBCellFlagFab>& cc_cellflag = cc_factory->getMultiEBCellFlagFab();
+
+    for (MFIter mfi(fc_cellflag, false); mfi.isValid(); ++mfi) {
+        const Box face_box = mfi.nodaltilebox(idim);
+        const Box gbx = amrex::grow(face_box, fc_cellflag.nGrow()-1);
+
+        Array4<EBCellFlag> const& fc_flag = fc_cellflag.array(mfi);
+        Array4<Real> const& fc_vfrac = fc_volfrac.array(mfi);
+        Array4<EBCellFlag const> const& cc_flag = cc_cellflag.const_array(mfi);
+
+        if (idim == 0) {
+            ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                if (cc_flag(i-1,j,k).isCovered() && cc_flag(i,j,k).isCovered()) {
+                    fc_vfrac(i,j,k) = Real(0.0);
+                    fc_flag(i,j,k).setCovered();
+                }
+            });
+        } else if (idim == 1) {
+            ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                if (cc_flag(i,j-1,k).isCovered() && cc_flag(i,j,k).isCovered()) {
+                    fc_vfrac(i,j,k) = Real(0.0);
+                    fc_flag(i,j,k).setCovered();
+                }
+            });
+        } else if (idim == 2) {
+            ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                if (cc_flag(i,j,k-1).isCovered() && cc_flag(i,j,k).isCovered()) {
+                    fc_vfrac(i,j,k) = Real(0.0);
+                    fc_flag(i,j,k).setCovered();
+                }
+            });
+        }
     }
 }

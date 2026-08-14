@@ -95,7 +95,7 @@ class eb_ {
      * \def USE_FC_FACTORY
      * \brief Select native AMReX face-centered factories instead of ERF auxiliary factories.
      */
-    #define USE_FC_FACTORY 0  // Default to 0: use eb_aux_ (original)
+    #define USE_FC_FACTORY 1  // Default to 0: use eb_aux_ (original)
     #endif
 
     //! Return the cell-centered EB factory.
@@ -106,6 +106,16 @@ class eb_ {
      * \param factory Factory whose non-const flag data are updated.
      */
     void set_connection_flags (amrex::EBFArrayBoxFactory* factory);
+
+    /**
+     * \brief Enforce FC-CC consistency by marking FC faces as covered when both CC neighbors are covered.
+     * \param fc_factory Face-centered factory to modify (non-const)
+     * \param cc_factory Cell-centered factory to read neighbor states (const)
+     * \param idim Direction of face centering (0=x, 1=y, 2=z)
+     */
+    void mask_fc_from_cc (amrex::EBFArrayBoxFactory* fc_factory,
+                          const amrex::EBFArrayBoxFactory* cc_factory,
+                          int idim);
 
     #if USE_FC_FACTORY
     //! Return the native AMReX x-face EB factory.
