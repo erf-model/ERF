@@ -1662,7 +1662,7 @@ init_base_state_from_wrfinput (const Box& subdomain,
             // Analytical inversion with true CC heights, branching on the layer
             Real Pd, Td;
             const Real z = z_cc_arr(i,j,k);
-            if (z <= z_iso_) {
+            if (z <= z_iso) {
                 // Troposphere: z = -(R_d/g) * (T00*x + TLP*x^2/2), x = ln(p/P00)
                 const Real ToA  = T00 / TLP;
                 const Real disc = amrex::max(ToA*ToA - two*CONST_GRAV*z/(TLP*R_d), zero_d);
