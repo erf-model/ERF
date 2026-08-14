@@ -4240,7 +4240,10 @@ ComputeDiffusivityMYNNEDMF (const MultiFab& xvel,
 #ifdef _OPENMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())
 #endif
-    for ( MFIter mfi(eddyViscosity,TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+    // NOTE: we must not tile in z here because the body of this loop assumes that each
+    //       iterate spans the entire column: it grows the box by one in z and accumulates
+    //       vertical integrals into a per-iterate qintegral fab (as in MYNN25)
+    for ( MFIter mfi(eddyViscosity,TileNoZ()); mfi.isValid(); ++mfi) {
 
         const Box &bx = mfi.growntilebox(1);
         const Array4<Real const>& cell_data = cons_in.array(mfi);

@@ -295,9 +295,12 @@ function(build_erf_lib erf_lib_name)
   if(ERF_BUILD_LIBRARY_ONLY)
     # In library-only superbuild mode, archive extraction + weak amrex_probinit
     # requires a forced reference path (see ERF.cpp/ERF_Prob.cpp link anchor).
+    # Avoid cross-library symbol collisions when ERF and REMORA both enable
+    # their NetCDF helper layers inside one parent executable.
     target_compile_definitions(${erf_lib_name} PRIVATE
                    ERF_REMORA_FORCE_PROBINIT_LINK=1
-                   amrex_probinit=erf_probinit)
+                   amrex_probinit=erf_probinit
+                   ncutils=erf_ncutils)
     target_compile_definitions(${erf_lib_name} PRIVATE
                    Problem=ERFProblem
                    ProblemBase=ERFProblemBase
@@ -458,6 +461,7 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/SourceTerms/ERF_MakeMomSources.cpp
        ${SRC_DIR}/SourceTerms/ERF_MakeSources.cpp
        ${SRC_DIR}/SourceTerms/ERF_NumericalDiffusion.cpp
+       ${SRC_DIR}/SourceTerms/ERF_ImmersedForcing.cpp
        ${SRC_DIR}/SourceTerms/ERF_ForestDrag.cpp
        ${SRC_DIR}/TimeIntegration/ERF_ComputeTimestep.cpp
        ${SRC_DIR}/TimeIntegration/ERF_Advance.cpp
