@@ -1091,6 +1091,9 @@ private:
 
     // Data structures for terrain immersed forcing
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> terrain_blanking;
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> terrain_blanking_xface;
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> terrain_blanking_yface;
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> terrain_blanking_zface;
 
     // Wall distance function
     amrex::Vector<std::unique_ptr<amrex::MultiFab>>  walldist;
@@ -1239,6 +1242,7 @@ private:
     double m_plot2d_per_1 = -1.0;
     double m_plot2d_per_2 = -1.0;
     bool m_plot_face_vels = false;
+    bool m_plot_face_terrain_blanking = false;
 
     bool plot_lsm = false;
 

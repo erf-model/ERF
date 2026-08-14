@@ -81,7 +81,11 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
             eb[lev]->make_all_factories(lev, geom[lev], grids[lev], dmap[lev], eb_level);
         } else if (solverChoice.terrain_type == TerrainType::ImmersedForcing ||
                    solverChoice.buildings_type == BuildingsType::ImmersedForcing) {
+#if USE_FC_FACTORY
+            eb[lev]->make_all_factories(lev, geom[lev], grids[lev], dmap[lev], eb_level);
+#else
             eb[lev]->make_cc_factory(lev, geom[lev], grids[lev], dmap[lev], eb_level);
+#endif
         }
     }
 
@@ -327,7 +331,11 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
             eb[lev]->make_all_factories(lev, geom[lev], ba, dm, eb_level);
         } else if (solverChoice.terrain_type == TerrainType::ImmersedForcing ||
                    solverChoice.buildings_type == BuildingsType::ImmersedForcing) {
+#if USE_FC_FACTORY
+            eb[lev]->make_all_factories(lev, geom[lev], ba, dm, eb_level);
+#else
             eb[lev]->make_cc_factory(lev, geom[lev], ba, dm, eb_level);
+#endif
         }
     }
     init_zphys(lev, time);
@@ -617,7 +625,11 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
             eb[lev]->make_all_factories(lev, geom[lev], ba, dm, eb_level);
         } else if (solverChoice.terrain_type == TerrainType::ImmersedForcing ||
                    solverChoice.buildings_type == BuildingsType::ImmersedForcing) {
+#if USE_FC_FACTORY
+            eb[lev]->make_all_factories(lev, geom[lev], ba, dm, eb_level);
+#else
             eb[lev]->make_cc_factory(lev, geom[lev], ba, dm, eb_level);
+#endif
         }
     }
     remake_zphys(lev, temp_zphys_nd);
