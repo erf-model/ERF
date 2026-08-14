@@ -1789,7 +1789,7 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
 
     // LSM writes it's own data
     if (which==1 && plot_lsm) {
-        lsm.Plot_Lsm_Data(tnew, istep, refRatio());
+        lsm.Plot_Lsm_Data(tnew, finest_level, istep, refRatio());
     }
 
 #ifdef ERF_USE_RRTMGP
@@ -1836,6 +1836,28 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
                 WriteMultiLevelPlotfile(plotfilenameW, finest_level+1,
                                         GetVecOfConstPtrs(mf_w),
                                         {"z_velocity_stag"},
+                                        Geom(), tnew, istep, refRatio());
+            }
+
+            if (m_plot_face_terrain_blanking &&
+                (solverChoice.terrain_type == TerrainType::ImmersedForcing ||
+                 solverChoice.buildings_type == BuildingsType::ImmersedForcing) &&
+                terrain_blanking_xface[0]) {  // Check if face arrays are allocated
+                Print() << "Writing face terrain blanking" << std::endl;
+                std::string plotfilenameTBX = plotfilename; plotfilenameTBX += "_terrain_blank_xface";
+                std::string plotfilenameTBY = plotfilename; plotfilenameTBY += "_terrain_blank_yface";
+                std::string plotfilenameTBZ = plotfilename; plotfilenameTBZ += "_terrain_blank_zface";
+                WriteMultiLevelPlotfile(plotfilenameTBX, finest_level+1,
+                                        GetVecOfConstPtrs(terrain_blanking_xface),
+                                        {"terrain_blank_xface"},
+                                        Geom(), tnew, istep, refRatio());
+                WriteMultiLevelPlotfile(plotfilenameTBY, finest_level+1,
+                                        GetVecOfConstPtrs(terrain_blanking_yface),
+                                        {"terrain_blank_yface"},
+                                        Geom(), tnew, istep, refRatio());
+                WriteMultiLevelPlotfile(plotfilenameTBZ, finest_level+1,
+                                        GetVecOfConstPtrs(terrain_blanking_zface),
+                                        {"terrain_blank_zface"},
                                         Geom(), tnew, istep, refRatio());
             }
 
