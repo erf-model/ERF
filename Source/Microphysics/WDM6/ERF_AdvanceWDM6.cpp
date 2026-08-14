@@ -2005,6 +2005,35 @@ void WDM6::Advance(const Real& dt_advance,
                     work1c = wdm6_literal(1.49e4) * std::exp(std::log(diameter) * wdm6_literal(1.31));
                 }
                 work1c_arr(i,j,k) = work1c;
+#if !defined(AMREX_USE_GPU)
+                // Tier 2 forensic decomposition of the G8 ice fall speed, native
+                // leg. Field order and the 20-fractional-digit value token are
+                // contractual and must match wdm6_emit_t2 in
+                // ERF_module_mp_wdm6.F90 exactly.
+                if (microphysics_debug >= 2 && loop == 0 &&
+                    i == diag_i && j == diag_j && (k + 1) >= 85 && (k + 1) <= 100) {
+                    auto emit_t2 = [&] (const char* var, Real value) {
+                        std::printf("WDM6-DIAG-T2 diag_schema=1 tag=G8 phase=vice"
+                                    " source_layer=NATIVE_CPP path_id=cpp expr_id=vice"
+                                    " store_id=%s loop=%d i_dbg=%d j_dbg=%d"
+                                    " k_dbg=%d k_raw=%d debug_level=%d var=%s value=%+.20E\n",
+                                    var, loop, diag_i, diag_j,
+                                    k - klo + 1, k, microphysics_debug,
+                                    var, static_cast<double>(value));
+                    };
+                    const Real xni_s = amrex::max(xni_arr(i,j,k), Real(1.0e-30));
+                    const Real xmi_t = den_arr(i,j,k) * qi_arr(i,j,k) / xni_s;
+                    emit_t2("qi",       qi_arr(i,j,k));
+                    emit_t2("xni",      xni_arr(i,j,k));
+                    emit_t2("den",      den_arr(i,j,k));
+                    emit_t2("xmi",      xmi_t);
+                    emit_t2("sqrt_xmi", std::sqrt(xmi_t));
+                    emit_t2("dicon",    dicon_loc);
+                    emit_t2("diameter", amrex::max(amrex::min(dicon_loc * std::sqrt(xmi_t), dimax_loc),
+                                                  wdm6_literal(1.0e-25)));
+                    emit_t2("work1c",   work1c);
+                }
+#endif
             });
 
             // Ice sedimentation via simplified PLM6 scheme
@@ -2027,10 +2056,22 @@ void WDM6::Advance(const Real& dt_advance,
 
                 Real delqi_col = Real(0.0);
 
-                // Simple sedimentation: top-down fall with mass conservation
+                // Ice sedimentation. ITER MUST BE 0 HERE. The Fortran calls
+                //     nislfv_rain_plmr(...,work1c,denqci,denqci,delqi,dtcld,1,0,0)
+                // whose trailing arguments are dt, id, iter, rid -- so id=1 and
+                // iter=0. This helper's signature has no id parameter and reads
+                // (..., dt, iter, ...), so passing the Fortran's id of 1 in that
+                // slot silently set iter=1 and ran the velocity-iteration block
+                // that G8 is supposed to skip, recomputing the ICE fall speed
+                // from the snow and graupel slope routines. Contrast G5c, which
+                // genuinely passes iter=1 (Fortran :1122 ends dtcld,1,1).
+                // Confirmed by Tier 2: every input to this call -- qi, xni, den,
+                // xmi, dicon, diameter, work1c -- is bitwise equal at every k in
+                // the 85..100 window, so the kernel invocation was the only
+                // remaining candidate.
                 wdm6_nislfv_rain_plm6_column(
                     km, dz.data(), den.data(), denfac.data(), tk.data(),
-                    work_ice.data(), qi_col.data(), qi_col.data(), delqi_col, delqi_col, dtcld, 1,
+                    work_ice.data(), qi_col.data(), qi_col.data(), delqi_col, delqi_col, dtcld, 0,
                     pidn0s_loc, pidn0g_loc, Real(qcrmin), Real(alpha_wdm6), Real(n0smax), Real(n0s), Real(t0c),
                     rslopesmax_loc, rslopesbmax_loc, rslopes2max_loc, rslopes3max_loc, Real(bvts), pvts_loc,
                     rslopegmax_loc, rslopegbmax_loc, rslopeg2max_loc, rslopeg3max_loc, slope_bvtg_loc, pvtg_loc);

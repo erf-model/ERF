@@ -1287,6 +1287,35 @@
             diameter  = max(min(dicon * sqrt(xmi),dimax), 1.e-25)
             work1c(i,k) = 1.49e4*exp(log(diameter)*(1.31))
           endif
+
+          ! Tier 2 forensic decomposition of the G8 ice fall speed. work1c is
+          ! absent from both the PRE_G8 and POST_G8 field sets, so block-level
+          ! narrowing cannot reach it and the Diagnostic Contract calls for
+          ! escalation. Narrow-and-deep per the same rule: one column, one
+          ! variable per line, k window around the k=90 divergence.
+          if (debug_local .ge. 2 .and. loop .eq. 1 .and. &
+              i == i_dbg_local .and. lat == j_dbg_local .and. &
+              k >= 85 .and. k <= 100) then
+            call wdm6_emit_t2('G8','vice','INCORE_FORTRAN','fort', &
+                 loop, i_dbg_local, lat, k-kts+1, k, debug_local, 'qi', qci(i,k,2))
+            call wdm6_emit_t2('G8','vice','INCORE_FORTRAN','fort', &
+                 loop, i_dbg_local, lat, k-kts+1, k, debug_local, 'xni', xni(i,k))
+            call wdm6_emit_t2('G8','vice','INCORE_FORTRAN','fort', &
+                 loop, i_dbg_local, lat, k-kts+1, k, debug_local, 'den', den(i,k))
+            call wdm6_emit_t2('G8','vice','INCORE_FORTRAN','fort', &
+                 loop, i_dbg_local, lat, k-kts+1, k, debug_local, 'xmi', &
+                 den(i,k)*qci(i,k,2)/xni(i,k))
+            call wdm6_emit_t2('G8','vice','INCORE_FORTRAN','fort', &
+                 loop, i_dbg_local, lat, k-kts+1, k, debug_local, 'sqrt_xmi', &
+                 sqrt(den(i,k)*qci(i,k,2)/xni(i,k)))
+            call wdm6_emit_t2('G8','vice','INCORE_FORTRAN','fort', &
+                 loop, i_dbg_local, lat, k-kts+1, k, debug_local, 'dicon', dicon)
+            call wdm6_emit_t2('G8','vice','INCORE_FORTRAN','fort', &
+                 loop, i_dbg_local, lat, k-kts+1, k, debug_local, 'diameter', &
+                 max(min(dicon*sqrt(den(i,k)*qci(i,k,2)/xni(i,k)),dimax), 1.e-25))
+            call wdm6_emit_t2('G8','vice','INCORE_FORTRAN','fort', &
+                 loop, i_dbg_local, lat, k-kts+1, k, debug_local, 'work1c', work1c(i,k))
+          endif
         enddo
       enddo
 
