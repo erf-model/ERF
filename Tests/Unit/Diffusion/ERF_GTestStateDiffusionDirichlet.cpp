@@ -74,7 +74,11 @@ DiffusionCase run_case (int axis, bool low_active, bool high_active,
     MultiFab xflux(BoxArray(surroundingNodes(domain, 0)), dm, 1, 0);
     MultiFab yflux(BoxArray(surroundingNodes(domain, 1)), dm, 1, 0);
     MultiFab zflux(BoxArray(surroundingNodes(domain, 2)), dm, 1, 0);
+    MultiFab hfx_x(BoxArray(surroundingNodes(domain, 0)), dm, 1, 0);
+    MultiFab hfx_y(BoxArray(surroundingNodes(domain, 1)), dm, 1, 0);
     MultiFab hfx_z(BoxArray(surroundingNodes(domain, 2)), dm, 1, 0);
+    MultiFab qfx1_x(BoxArray(surroundingNodes(domain, 0)), dm, 1, 0);
+    MultiFab qfx1_y(BoxArray(surroundingNodes(domain, 1)), dm, 1, 0);
     MultiFab qfx1_z(BoxArray(surroundingNodes(domain, 2)), dm, 1, 0);
     MultiFab qfx2_z(BoxArray(surroundingNodes(domain, 2)), dm, 1, 0);
     MultiFab diss(ba, dm, 1, 1);
@@ -164,18 +168,23 @@ DiffusionCase run_case (int axis, bool low_active, bool high_active,
         Real(1.0)/dx[0], Real(1.0)/dx[1], Real(1.0)/dx[2]};
     const GpuArray<Real, AMREX_SPACEDIM> grav = {Real(0.0), Real(0.0), Real(0.0)};
     Array4<const Real> tm_arr{};
-    auto hfx_arr = hfx_z[0].array();
-    auto qfx1_arr = qfx1_z[0].array();
+    auto hfx_x_arr = hfx_x[0].array();
+    auto hfx_y_arr = hfx_y[0].array();
+    auto hfx_z_arr = hfx_z[0].array();
+    auto qfx1_x_arr = qfx1_x[0].array();
+    auto qfx1_y_arr = qfx1_y[0].array();
+    auto qfx1_z_arr = qfx1_z[0].array();
     auto qfx2_arr = qfx2_z[0].array();
     auto diss_arr = diss[0].array();
+    Vector<std::unique_ptr<SurfaceLayer>> surfLayer(6, nullptr);
     DiffusionSrcForState_N(
         domain, domain, RhoTheta_comp, 1,
         xvel[0].const_array(), yvel[0].const_array(), cell_data[0].const_array(), cell_prim[0].const_array(),
         cell_rhs[0].array(), xflux[0].array(), yflux[0].array(), zflux[0].array(), dx_inv,
         smn[0].const_array(), mf_mx[0].const_array(), mf_ux[0].const_array(), mf_vx[0].const_array(),
-        mf_my[0].const_array(), mf_uy[0].const_array(), mf_vy[0].const_array(), hfx_arr,
-        qfx1_arr, qfx2_arr, diss_arr, mu_turb[0].const_array(), solver_choice, 0,
-        tm_arr, grav, bcs_d.data(), false, Real(0.0));
+        mf_my[0].const_array(), mf_uy[0].const_array(), mf_vy[0].const_array(), hfx_x_arr, hfx_y_arr, hfx_z_arr,
+        qfx1_x_arr, qfx1_y_arr, qfx1_z_arr, qfx2_arr, diss_arr, mu_turb[0].const_array(), solver_choice, 0,
+        tm_arr, grav, bcs_d.data(), false, surfLayer, Real(0.0));
     Gpu::streamSynchronize();
 
     MultiFab rhs_error(ba, dm, 1, 0);
