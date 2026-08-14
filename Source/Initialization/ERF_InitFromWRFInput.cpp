@@ -1619,6 +1619,28 @@ init_base_state_from_wrfinput (const Box& subdomain,
     const auto& dom_lo = lbound(subdomain);
     const auto& dom_hi = ubound(subdomain);
 
+    // **************************************************************************
+    // The WRF reference state is piecewise in log-pressure:
+    //   (1) troposphere      T = T00  + TLP       * ln(p/P00)         p >  P_iso
+    //   (2) isothermal layer T = TISO                       P_STRAT < p <= P_iso
+    //   (3) stratosphere     T = TISO + TLP_STRAT * ln(p/P_STRAT)     p <= P_STRAT
+    // Each piece inverts to p(z) in closed form under dp/dz = -rho g; here we
+    // precompute the two interface heights so the inversion can branch on z.
+    // **************************************************************************
+    const Real x_iso = (TISO - T00) / TLP;
+    const Real P_iso = P00 * std::exp(x_iso);
+    const Real z_iso = -(R_d/CONST_GRAV) * (T00*x_iso + myhalf*TLP*x_iso*x_iso);
+
+    // The upper stratospheric layer is optional (P_STRAT == 0 disables it) and
+    // is only meaningful if it begins above the isothermal layer.
+    const bool use_strat = (P_STRAT > zero) && (P_STRAT < P_iso) && (TLP_STRAT != zero);
+    const Real z_strat   = (use_strat) ? z_iso + (R_d*TISO/CONST_GRAV)*std::log(P_iso/P_STRAT)
+                                       : z_iso;
+
+    Print() << "WRF base state layer interfaces: z_iso = " << z_iso << " m";
+    if (use_strat) Print() << ", z_strat = " << z_strat << " m";
+    Print() << "\n";
+
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
@@ -1637,12 +1659,29 @@ init_base_state_from_wrfinput (const Box& subdomain,
         ParallelFor(gtbx, [=,zero_d=zero,RdoCp_d=RdoCp]
                     AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {
-            // Analytical function with true CC heights
-            Real ToA  = T00 / TLP;
-            Real disc = amrex::max(ToA * ToA - two * CONST_GRAV * z_cc_arr(i,j,k) / (TLP * R_d), zero_d);
-            Real Pd   = P00 * std::exp(-ToA + std::sqrt(disc));
-            Real Td   = std::max(TISO, T00 + TLP * std::log(Pd/P00));
-            if (P_STRAT > zero_d && Pd <= P_STRAT) {
+            // Analytical inversion with true CC heights, branching on the layer
+            Real Pd, Td;
+            const Real z = z_cc_arr(i,j,k);
+            if (z <= z_iso_) {
+                // Troposphere: z = -(R_d/g) * (T00*x + TLP*x^2/2), x = ln(p/P00)
+                const Real ToA  = T00 / TLP;
+                const Real disc = amrex::max(ToA*ToA - two*CONST_GRAV*z/(TLP*R_d), zero_d);
+                Pd = P00 * std::exp(-ToA + std::sqrt(disc));
+                Td = T00 + TLP * std::log(Pd/P00);
+            }
+            else if (!use_strat || z <= z_strat) {
+                // Isothermal layer: exponential decay with scale height R_d*TISO/g
+                Pd = P_iso * std::exp(-CONST_GRAV*(z - z_iso)/(R_d*TISO));
+                Td = TISO;
+            }
+            else {
+                // Upper stratosphere. Same quadratic as the troposphere with
+                // (TISO, TLP_STRAT, P_STRAT, z_strat) in place of (T00, TLP, P00, 0).
+                // NOTE: TLP_STRAT is negative, so the root must NOT be folded as
+                // sqrt(X)/TLP_STRAT -> sqrt(X/TLP_STRAT^2); that drops the sign.
+                const Real disc = amrex::max(TISO*TISO
+                                  - two*TLP_STRAT*CONST_GRAV*(z - z_strat)/R_d, zero_d);
+                Pd = P_STRAT * std::exp((-TISO + std::sqrt(disc))/TLP_STRAT);
                 Td = TISO + TLP_STRAT * std::log(Pd/P_STRAT);
             }
 
