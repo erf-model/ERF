@@ -1622,14 +1622,14 @@ init_base_state_from_wrfinput (const Box& subdomain,
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
-    for (MFIter mfi(p_hse,TilingIfNotGPU()); mfi.isValid(); ++mfi ) {
+    for (MFIter mfi(p_hse,TilingIfNotGPU()); mfi.isValid(); ++mfi) {
 
         Box gtbx = mfi.tilebox();
 
-        const Array4<Real      >&  r_hse_arr =  r_hse.array(mfi);
         const Array4<Real      >&  p_hse_arr =  p_hse.array(mfi);
         const Array4<Real      >& th_hse_arr = th_hse.array(mfi);
         const Array4<Real      >& qv_hse_arr = qv_hse.array(mfi);
+        const Array4<Real      >& pi_hse_arr = pi_hse.array(mfi);
 
         const Array4<const Real>& z_cc_arr   = z_phys_cc->const_array(mfi);
 
@@ -1648,8 +1648,8 @@ init_base_state_from_wrfinput (const Box& subdomain,
             // Fill HSE arrays for balancing
              p_hse_arr(i,j,k) = Pd;
             th_hse_arr(i,j,k) = getThgivenTandP(Td, Pd, RdoCp_d);
-             r_hse_arr(i,j,k) = getRhogivenThetaPress(th_hse_arr(i,j,k), Pd, RdoCp_d);
             qv_hse_arr(i,j,k) = zero;
+            pi_hse_arr(i,j,k) = getExnergivenP(Pd, RdoCp_d);
         });
     }
 
@@ -1706,13 +1706,13 @@ init_base_state_from_wrfinput (const Box& subdomain,
                 Real qv_lo = zero;
                 Real qv_hi = zero;
 
+                z_lo =  z_cc_arr(i,j,klo);
+                P_lo = p_hse_arr(i,j,klo);
                 for (int k(klo+1); k<=khi; ++k) {
-                    z_lo = z_cc_arr(i,j,k-1);
-                    z_hi = z_cc_arr(i,j,k  );
+                    z_hi = z_cc_arr(i,j,k);
                     dz   = z_hi - z_lo;
 
                     // Establish known constant
-                    P_lo  =  p_hse_arr(i,j,k-1);
                     Th_lo = th_hse_arr(i,j,k-1);
                     R_lo  = getRhogivenThetaPress(Th_lo, P_lo, RdoCp_d, qv_lo);
                     rho_tot_lo = R_lo;
