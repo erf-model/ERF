@@ -1955,16 +1955,29 @@ void WDM6::Advance(const Real& dt_advance,
             }
 #endif
 
-            // Compute ice crystal fall speed (work1c)
+            // Compute ice crystal fall speed (work1c). Fortran:
+            //     xmi = den*qci(:,:,2)/xni
+            //     diameter = max(min(dicon*sqrt(xmi),dimax),1.e-25)
+            //     work1c   = 1.49e4*exp(log(diameter)*(1.31))
+            // dicon and dimax are the CLASS constants, already routed through
+            // wdm6_literal. This block previously declared its own locals that
+            // shadowed them, and both were wrong: dicon was 11.45e-9 against the
+            // Fortran's 11.9, nine orders of magnitude small, which collapsed the
+            // ice fall speed to ~5e-13 m/s so the native path effectively did not
+            // sediment ice at all; and dimax was a true double, reintroducing at
+            // this site exactly the literal-precision defect already closed in
+            // G13e. Hoisted out of the lambda in the established _loc style so no
+            // capture of `this` is needed on device.
+            constexpr Real dicon_loc = dicon;
+            constexpr Real dimax_loc = dimax;
             ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
                 Real work1c = Real(0.0);
                 if (qi_arr(i,j,k) > Real(0.0)) {
                     const Real xni_safe = amrex::max(xni_arr(i,j,k), Real(1.0e-30));
                     const Real xmi = den_arr(i,j,k) * qi_arr(i,j,k) / xni_safe;
-                    constexpr Real dicon = Real(11.45e-9);  // Ice diameter coefficient (m kg^-1/3)
-                    constexpr Real dimax = Real(500.e-6);   // Max ice diameter (m)
-                    const Real diameter = amrex::max(amrex::min(dicon * std::sqrt(xmi), dimax), Real(1.0e-25));
-                    work1c = Real(1.49e4) * std::exp(std::log(diameter) * Real(1.31));
+                    const Real diameter = amrex::max(amrex::min(dicon_loc * std::sqrt(xmi), dimax_loc),
+                                                     wdm6_literal(1.0e-25));
+                    work1c = wdm6_literal(1.49e4) * std::exp(std::log(diameter) * wdm6_literal(1.31));
                 }
                 work1c_arr(i,j,k) = work1c;
             });
