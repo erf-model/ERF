@@ -123,8 +123,8 @@ ComputeDiffusivityMYNN25 (const MultiFab& xvel,
         Real d_kappa   = KAPPA;
         Real d_gravity = CONST_GRAV;
 
-        const auto& t_mean_mf = SurfLayer->get_mac_avg(level,4); // theta_v
-        const auto& q_mean_mf = SurfLayer->get_mac_avg(level,3); // q_v
+        const auto& t_mean_mf = SurfLayer->get_mac_avg(level,5); // theta_v
+        const auto& q_mean_mf = SurfLayer->get_mac_avg(level,4); // q_v
         const auto& u_star_mf = SurfLayer->get_u_star(level);
         const auto& t_star_mf = SurfLayer->get_t_star(level);
         const auto& q_star_mf = SurfLayer->get_q_star(level);
