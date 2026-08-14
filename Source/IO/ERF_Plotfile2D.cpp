@@ -611,6 +611,11 @@ ERF::Write2DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
         }
 
         const int static_output_count = static_cast<int>(plot_var_names.size());
+        // If this level is anelastic then the base state pressure -- not the compressible
+        //    EOS -- defines the pressure, both for the sampled "pressure" field and for
+        //    the pressure vertical coordinate.  This matches the 3-D plotfile path.
+        MultiFab p_hse(base_state[lev], make_alias, BaseState::p0_comp, 1);
+        const MultiFab* p_hse_ptr = (solverChoice.anelastic[lev] == 1) ? &p_hse : nullptr;
         for (int out_idx = static_output_count; out_idx < static_cast<int>(output_descriptors.size()); ++out_idx) {
             const auto& descriptor = output_descriptors[out_idx];
             // Sampled-level descriptors are dynamic. The interpolator owns
@@ -628,7 +633,8 @@ ERF::Write2DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
                 z_phys_cc[lev] != nullptr,
                 solverChoice.moisture_indices,
                 klo, khi,
-                wind_sources);
+                wind_sources,
+                p_hse_ptr);
             mf_comp++;
         }
 
