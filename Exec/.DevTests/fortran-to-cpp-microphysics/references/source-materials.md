@@ -17,6 +17,10 @@ Historical origin:
   - process/operator notes, debug discipline, harness pointers, and evidence practices
 - `source-corpus/rules_audit_summary.md`
   - curated summary of what is generic, what should move, and what remains scheme-local
+- `source-corpus/wdm6_diagnostic_tier_inventory.md`
+  - measured Tier 1/1.5/2 site inventory for WSM6, Morrison and WDM6, per-call
+    volume estimates, and concrete tier shapes. Added 14 Aug 2026 by verbatim
+    recovery from a session transcript; see its Provenance section
 
 ## TSV Sources
 - `source-corpus/rules_audit.tsv`

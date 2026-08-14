@@ -64,6 +64,7 @@ This ledger records the source corpus and the major extracted items that must su
 | IMPL_RESTART_REPRO | `rules_audit_summary.md` | restart reproducibility appendix | markdown summary | validation operator | preserved | `validation-operators.md` |
 | IMPL_BOUNDED_REFINEMENT | `rules_audit_summary.md` | bounded per-step refinement | markdown summary | process operator | preserved | `process-operators.md` |
 | IMPL_CAMPAIGN_NAMING | `wsm6_implementation_notes.md` | `:426` run root, `:444-452` build-type id convention | markdown notes | process operator | late extraction 2026-08-12 | `process-operators.md` |
-| EVID_TIER_INVENTORY | `~/.claude/projects/-home-jmsexton-codes-ERF/8c9b33e6-...jsonl` | `2026-08-13T21:25` assistant message | session transcript | evidence pointer | late extraction 2026-08-14 | `applications/wdm6/bubble_campaign.md` |
-| RULE_TAG_COVERAGE | `~/.claude/projects/-home-jmsexton-codes-ERF/8c9b33e6-...jsonl` | `2026-08-13T21:25` assistant message | session transcript | validation operator | late extraction 2026-08-14 | `validation-operators.md` |
+| SRC_FILE_TIER_INVENTORY | `wdm6_diagnostic_tier_inventory.md` | file | markdown notes | evidence pointer | preserved | `applications/wdm6/bubble_campaign.md` |
+| EVID_TIER_INVENTORY | `wdm6_diagnostic_tier_inventory.md` | tier structure table | markdown notes | evidence pointer | late extraction 2026-08-14 | `applications/wdm6/bubble_campaign.md` |
+| RULE_TAG_COVERAGE | `wdm6_diagnostic_tier_inventory.md` | coverage-per-tag finding | markdown notes | validation operator | late extraction 2026-08-14 | `validation-operators.md` |
 | RULE_NULL_TAG | `campaign_decisions.tsv` | `20260814T104000Z_wdm6_step2_discontinuity_reframed`, `20260814T111500Z_wdm6_step2_frontier_corrected` | TSV ledger | validation operator | late extraction 2026-08-14 | `validation-operators.md` |
