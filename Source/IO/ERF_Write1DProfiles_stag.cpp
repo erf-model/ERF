@@ -564,9 +564,9 @@ ERF::derive_diag_profiles_stag (double /*time*/,
                 Real qv1 = cons_arr(i,j,k-1,RhoQ1_comp) / cons_arr(i,j,k-1,Rho_comp);
                 Real qc0 = cons_arr(i,j,k  ,RhoQ2_comp) / cons_arr(i,j,k  ,Rho_comp);
                 Real qc1 = cons_arr(i,j,k-1,RhoQ2_comp) / cons_arr(i,j,k-1,Rho_comp);
-                Real qr0 = (rhoqr_comp > -1) ? cons_arr(i,j,k  ,RhoQ3_comp) / cons_arr(i,j,k  ,Rho_comp) :
+                Real qr0 = (rhoqr_comp > -1) ? cons_arr(i,j,k  ,rhoqr_comp) / cons_arr(i,j,k  ,Rho_comp) :
                                                zero;
-                Real qr1 = (rhoqr_comp > -1) ? cons_arr(i,j,k-1,RhoQ3_comp) / cons_arr(i,j,k-1,Rho_comp) :
+                Real qr1 = (rhoqr_comp > -1) ? cons_arr(i,j,k-1,rhoqr_comp) / cons_arr(i,j,k-1,Rho_comp) :
                                                zero;
                 Real qvface = myhalf * (qv0 + qv1);
                 Real qcface = myhalf * (qc0 + qc1);
