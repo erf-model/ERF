@@ -226,8 +226,26 @@ WDM6::initialize_coeffs()
     m_precr1  = Real(2.0) * m_pi_wdm6 * Real(1.56);
     m_precr2  = Real(2.0) * m_pi_wdm6 * n0r * Real(0.31)
                 * std::pow(avtr, Real(0.5)) * m_g7pbro2;
-    m_roqimax = Real(2.08e22) * std::pow(dimax, Real(8.0));
-    m_xmmax   = std::pow(dimax / dicon, Real(2.0));
+    // Fortran: roqimax = 2.08e22*dimax**8
+    // Two mismatches, both confirmed against the Tier 2 psaut trace:
+    //   - 2.08e22 is unsuffixed there, so it is float32-rounded before being
+    //     promoted. Route it through wdm6_literal so it follows the same
+    //     switch as the ERF_WDM6.H constants.
+    //   - dimax**8 has an INTEGER exponent, which gfortran expands to repeated
+    //     multiplication, not a libm pow call. Written as explicit squaring
+    //     here so the two sides agree structurally rather than by luck. For
+    //     this value the two routes happen to agree bitwise, but that is not
+    //     guaranteed in general and should not be relied on.
+    {
+        const Real d2 = dimax * dimax;
+        const Real d4 = d2 * d2;
+        m_roqimax = wdm6_literal(2.08e22) * (d4 * d4);
+    }
+    // Fortran: xmmax = (dimax/dicon)**2, again an integer exponent.
+    {
+        const Real r = dimax / dicon;
+        m_xmmax = r * r;
+    }
 
     m_pidn0r  = m_pi_wdm6 * denr * n0r;
     m_pidnr   = Real(4.0) * m_pi_wdm6 * denr;
