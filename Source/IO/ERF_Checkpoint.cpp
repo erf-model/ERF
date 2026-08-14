@@ -315,6 +315,16 @@ ERF::WriteCheckpointFile () const
         }
 #endif
 
+
+        // Count number of surface layer boundaries to determine face prefix
+        int n_faces = 0;
+        for (OrientationIter oit; oit; ++oit) {
+            Orientation ori = oit();
+            if (phys_bc_type[ori] == ERF_BC::surface_layer) {
+                n_faces += 1;
+            }
+        }
+
         for (OrientationIter oit; oit; ++oit) {
             Orientation ori = oit();
             if (m_SurfaceLayer[ori])  {
@@ -338,6 +348,10 @@ ERF::WriteCheckpointFile () const
                 MultiFab* src = nullptr;
 
                 std::string face = "_" + std::to_string(ori);
+                // if we only use a single surface layer, don't add the face prefix
+                if (n_faces == 1 && static_cast<int>(ori) == Orientation::zlo()) {
+                    face = "";
+                }
 
                 // U*
                 src = m_SurfaceLayer[ori]->get_u_star(lev);
@@ -1298,6 +1312,15 @@ ERF::ReadVelsOnlyFromCheckpointFile (int lev_to_fill, std::string& chkfile_for_v
 void
 ERF::ReadCheckpointFileSurfaceLayer ()
 {
+    // Count number of surface layer boundaries to determine face prefix
+    int n_faces = 0;
+    for (OrientationIter oit; oit; ++oit) {
+        Orientation ori = oit();
+        if (phys_bc_type[ori] == ERF_BC::surface_layer) {
+            n_faces += 1;
+        }
+    }
+
     for (OrientationIter oit; oit; ++oit) {
         Orientation ori = oit();
         if (m_SurfaceLayer[ori])  {
@@ -1307,8 +1330,12 @@ ERF::ReadCheckpointFileSurfaceLayer ()
 
                 //IntVect ng(1,1,0);
                 IntVect ng = vars_new[lev][Vars::cons].nGrowVect(); ng[2]=0;
-                const int dir = ori.coordDir();
+
                 std::string face = "_" + std::to_string(ori);
+                // if we only use a single surface layer, don't add the face prefix
+                if (n_faces == 1 && static_cast<int>(ori) == Orientation::zlo()) {
+                    face = "";
+                }
 
                 auto read_most_var = [&] (const std::string& name, MultiFab* dst) {
                     const std::string mf_name = MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", name);
