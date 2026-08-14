@@ -112,13 +112,25 @@ StagedSourceBoxArray (const amrex::MultiFab& src,
     return BoxArray(std::move(bl));
 }
 
+// fallback_val fills destination cells that no source cell overlaps.
+//
+// Zero is the wrong default for a physical field: the receiving model cannot tell
+// "no data here" from "the atmosphere says zero", and for an intensive quantity
+// zero is not merely inaccurate, it is singular. A pressure of 0 mb and an air
+// temperature of 0 K reach REMORA_bulk_flux.cpp:221 as
+// rhoAir = PairM*100/(Rgas*TairK*(1+0.61*Q)) = 0/0, and the resulting NaN
+// survives every subsequent land-mask multiplication. Uncovered cells are
+// unavoidable wherever the two land masks disagree along a coastline or the ocean
+// grid reaches past the atmosphere's footprint, so every lane carrying an
+// intensive field needs a physically admissible value here.
 void
 ApplyConservativeRemap (const amrex::MultiFab& src,
                         amrex::MultiFab& dst,
                         const amrex::MultiFab& weight_mf,
                         const amrex::iMultiFab& index_mf,
                         int max_stencil_size,
-                        const amrex::MultiFab* dst_mask = nullptr)
+                        const amrex::MultiFab* dst_mask = nullptr,
+                        amrex::Real fallback_val = amrex::Real(0.0))
 {
     using namespace amrex;
 
@@ -145,6 +157,16 @@ ApplyConservativeRemap (const amrex::MultiFab& src,
         auto const& mask_arr = has_mask ? dst_mask->const_array(mfi) : Array4<const Real>{};
 
         ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+            // No stencil entry at all means no source cell overlapped this
+            // destination cell. Hand back the fallback rather than an accumulated
+            // zero, and do not apply the mask to it: a masked-out cell still gets
+            // evaluated by the receiving model's flux formulas before the mask is
+            // applied, so it too must hold an admissible value.
+            if (idx_arr(i, j, k, 0) < 0) {
+                dst_arr(i, j, k) = fallback_val;
+                return;
+            }
+
             Real sum = 0.0;
             for (int m = 0; m < max_stencil_size; ++m) {
                 Real w = w_arr(i, j, k, m);
@@ -293,6 +315,16 @@ ERF::PackAtmosphericStates (amrex::Vector<amrex::MultiFab*>& states,
     // Contract slot indices (mirrors ERFRemoraCouplingContract.H; repeated here
     // to avoid a driver→submodule header dependency).
     constexpr int iUwind = 0, iVwind = 1, iPatm = 2, iRH = 3, iTair = 4;
+
+    // Values for destination cells no source cell overlaps (see
+    // ApplyConservativeRemap). These are standard-atmosphere placeholders, not
+    // physics: they exist so the receiving model's flux formulas stay in their
+    // valid domain over cells the atmosphere grid never covered. Wind is the one
+    // field where zero is genuinely meaningful (calm), so it needs no special
+    // value. Units are the driver contract's: Pa and K, converted downstream.
+    constexpr Real fallback_pressure_pa = Real(101325.0);   // sea-level standard
+    constexpr Real fallback_temp_k      = Real(288.15);     // 15 C, standard
+    constexpr Real fallback_wind_ms     = Real(0.0);        // calm
     constexpr int iCloud = 5, iRain  = 6, iSWrad = 7, iLWrad = 8;
     constexpr int nFluxLanes = 8;
 
@@ -500,13 +532,15 @@ ERF::PackAtmosphericStates (amrex::Vector<amrex::MultiFab*>& states,
         if (iUwind < static_cast<int>(states.size()) && states[iUwind] != nullptr) {
             MultiFab u_alias(uv_slab, amrex::make_alias, 0, 1); // alias u component
             ApplyConservativeRemap(u_alias, *states[iUwind], *weight_mf_by_family[kWindFamily],
-                                   *index_mf_by_family[kWindFamily], max_stencil_size);
+                                   *index_mf_by_family[kWindFamily], max_stencil_size,
+                                   nullptr, fallback_wind_ms);
         }
 
         if (iVwind < static_cast<int>(states.size()) && states[iVwind] != nullptr) {
             MultiFab v_alias(uv_slab, amrex::make_alias, 1, 1); // alias v component
             ApplyConservativeRemap(v_alias, *states[iVwind], *weight_mf_by_family[kWindFamily],
-                                   *index_mf_by_family[kWindFamily], max_stencil_size);
+                                   *index_mf_by_family[kWindFamily], max_stencil_size,
+                                   nullptr, fallback_wind_ms);
         }
     }
 
@@ -528,7 +562,8 @@ ERF::PackAtmosphericStates (amrex::Vector<amrex::MultiFab*>& states,
                 });
             }
         }
-        ApplyConservativeRemap(tmp, *states[iPatm], *weight_mf, *index_mf, max_stencil_size, dst_mskr);
+        ApplyConservativeRemap(tmp, *states[iPatm], *weight_mf, *index_mf, max_stencil_size, dst_mskr,
+                               fallback_pressure_pa);
     }
 
     // --- Tair ---
@@ -549,7 +584,8 @@ ERF::PackAtmosphericStates (amrex::Vector<amrex::MultiFab*>& states,
                 });
             }
         }
-        ApplyConservativeRemap(tmp, *states[iTair], *weight_mf, *index_mf, max_stencil_size, dst_mskr);
+        ApplyConservativeRemap(tmp, *states[iTair], *weight_mf, *index_mf, max_stencil_size, dst_mskr,
+                               fallback_temp_k);
     }
 
     // --- Humidity/Cloud/Rain ---
