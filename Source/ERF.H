@@ -154,8 +154,53 @@ public:
     // explicitly or return the underlying MultiFab pointer/reference instead.
     void GetOceanToAtmosSurfaceLayout (amrex::BoxArray& ba,
                                        amrex::DistributionMapping& dm);
+    // Returns pointers to level-0 lon_m/lat_m coordinate MultiFabs (populated
+    // by the WRF-grid init paths, e.g. ERF_InitFromWRFInput.cpp/ERF_InitFromMetgrid.cpp)
+    // used to build ocean->atmos remap weights. Sets both to nullptr if
+    // unavailable (e.g. idealized/non-WRF configurations).
+    void GetOceanToAtmosCornerCoordinates (const amrex::MultiFab*& x_corner,
+                                           const amrex::MultiFab*& y_corner) const;
 
-    void PackAtmosphericStates (amrex::Vector<amrex::MultiFab*>& states, double time);
+    // Returns the level-0, current-time land mask (1 = land, 0 = water) used
+    // by the driver to exclude land cells from atmos->ocean remap stencils.
+    // Sets lmask to nullptr if unavailable.
+    void GetLandMask (const amrex::iMultiFab*& lmask) const;
+
+    // True when a radiation model is *configured* at level 0. A coupling driver
+    // needs this to know whether the SWrad/LWrad lanes it would hand an ocean
+    // model carry real values or just zeros: passing zeros is worse than passing
+    // nothing, because the ocean model then suppresses its own radiative forcing
+    // in favour of them.
+    //
+    // Note this is a configuration predicate, not a data-validity one. rad_fluxes
+    // is allocated and zero-filled as soon as solverChoice.rad_type != None, so
+    // this returns true from level-0 allocation onward - including before the
+    // first AdvanceRadiation, when the fluxes are still exactly zero. A caller
+    // that needs "the lanes hold real radiation" must additionally know that a
+    // radiation step has run.
+    [[nodiscard]] bool HasRadiation () const {
+        return (!rad_fluxes.empty() && rad_fluxes[0] != nullptr);
+    }
+
+    // weight_mf/index_mf are keyed by WeightFamily slot order
+    // {SCALAR_CENTERED, TAUX_FACE, TAUY_FACE, WIND_FACE_TO_CENTER} as built by
+    // the driver's ERFRemoraMultiBlockContainer::BuildRemapWeights(); each
+    // lane below picks the pair matching its own destination stagger.
+    // dst_mskr/dst_msku/dst_mskv are REMORA wet/dry masks (1 = wet, 0 = land)
+    // on the rho/u-face/v-face destination layouts. dst_msku/dst_mskv are applied
+    // to the TauX/TauY lanes; dst_mskr is applied to the rho-centred *scalar* lanes
+    // (Patm, Tair, cloud, and the scalar flux lanes) but deliberately NOT to
+    // Uwind/Vwind, which are also rho-centred - so the wind lanes carry live
+    // atmospheric values over REMORA land while Patm/Tair carry fallbacks there.
+    // REMORA re-masks on its own side, so this asymmetry is currently harmless.
+    // Pass nullptr to skip masking.
+    void PackAtmosphericStates (amrex::Vector<amrex::MultiFab*>& states, double time,
+                                const amrex::Vector<const amrex::MultiFab*>& weight_mf,
+                                const amrex::Vector<const amrex::iMultiFab*>& index_mf,
+                                int max_stencil_size,
+                                const amrex::MultiFab* dst_mskr = nullptr,
+                                const amrex::MultiFab* dst_msku = nullptr,
+                                const amrex::MultiFab* dst_mskv = nullptr);
     void ApplyOceanSurfaceState (const amrex::Vector<amrex::MultiFab*>& state, double time);
 
     // Tag cells for refinement
