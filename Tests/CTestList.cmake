@@ -299,8 +299,8 @@ endfunction(add_test_cloud_chamber_neutral_momentum)
 
 function(add_test_cloud_chamber_fixed_dt_guard TEST_NAME)
     set(test_log "${CMAKE_CURRENT_BINARY_DIR}/${TEST_NAME}.log")
-    add_test(${TEST_NAME} ${CMAKE_COMMAND}
-        -DTEST_EXE=${CLOUD_CHAMBER_WALL_DT_GUARD_CHECK}
+    add_test(NAME ${TEST_NAME} COMMAND ${CMAKE_COMMAND}
+        "-DTEST_EXE=$<TARGET_FILE:erf_cloud_chamber_wall_dt_guard_check>"
         -DLOG=${test_log}
         -P ${PROJECT_SOURCE_DIR}/Tests/RunCloudChamberWallDtGuardFailure.cmake)
     set_tests_properties(${TEST_NAME}

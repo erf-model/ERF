@@ -95,8 +95,6 @@ if(ERF_ENABLE_TESTS)
   target_include_directories(erf_cloud_chamber_wall_dt_guard_check PRIVATE
     ${PROJECT_SOURCE_DIR}/Source)
   target_compile_features(erf_cloud_chamber_wall_dt_guard_check PRIVATE cxx_std_17)
-  set(CLOUD_CHAMBER_WALL_DT_GUARD_CHECK
-      "${CMAKE_CURRENT_BINARY_DIR}/erf_cloud_chamber_wall_dt_guard_check${CMAKE_EXECUTABLE_SUFFIX}")
 
   if(ERF_ENABLE_CUDA)
     foreach(_erf_test_tool IN ITEMS
