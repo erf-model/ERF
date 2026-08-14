@@ -665,7 +665,14 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
             if (solverChoice.moisture_type != MoistureType::None) {
                 make_qt(vars_new[lev][Vars::cons], qt, n_qstate_into_total);
             }
-            cons_to_prim(vars_new[lev][Vars::cons], S_prim, 0);
+            //
+            // NOTE: we must fill one ghost cell of S_prim here because make_buoyancy
+            //       reads cell_prim(i,j,k-1) at the lower z face of every box -- with
+            //       ng = 0 those ghost cells hold uninitialized data at the bottom of
+            //       any box that doesn't touch the bottom of the domain.  (The ghost
+            //       cells of vars_new[cons] are valid since we fillpatched above.)
+            //
+            cons_to_prim(vars_new[lev][Vars::cons], S_prim, 1);
 
             b.setVal(0.); // Need to initialize to zero because buoyancy not defined on faces at top and bottom of domain
             make_buoyancy(lev, vars_new[lev], S_prim, qt, b, geom[lev], solverChoice, base_state[lev], n_qstate_into_total,
