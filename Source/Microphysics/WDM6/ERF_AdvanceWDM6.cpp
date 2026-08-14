@@ -3070,8 +3070,17 @@ void WDM6::Advance(const Real& dt_advance,
                 const Real lenconcr = amrex::max(Real(1.2) * lencon, Real(qcrmin));
 
                 if (qc_arr(i,j,k) > qcr_arr(i,j,k) && nc_arr(i,j,k) > Real(ncmin)) {
-                    praut_arr(i,j,k) = qck1_loc * std::pow(qc_arr(i,j,k), Real(7.0/3.0))
-                        * std::pow(nc_arr(i,j,k), Real(-1.0/3.0));
+                    // Fortran :1889
+                    //   praut(i,k) = qck1*qci(i,k,1)**(7./3.)*ncr(i,k,2)**(-1./3.)
+                    // Both exponents are unsuffixed, so they are float32 values
+                    // widened, not true thirds: 7./3. is 2.3333332538604736
+                    // against 2.3333333333333335, and 1./3. is 0.3333333432674408
+                    // against 0.33333333333333331. Exponents amplify: the error
+                    // enters as ln(base)*delta, and with qc about 1.6e-02 and nc
+                    // about 1.8e+08 those logs are -4.2 and +19.0, which is why a
+                    // 3e-08 exponent difference produced 1.86e-07 on praut.
+                    praut_arr(i,j,k) = qck1_loc * std::pow(qc_arr(i,j,k), wdm6_literal(7.0/3.0))
+                        * std::pow(nc_arr(i,j,k), wdm6_literal(-1.0/3.0));
                     praut_arr(i,j,k) = amrex::min(praut_arr(i,j,k), qc_arr(i,j,k) / dtcld);
 
                     nrauto_arr(i,j,k) = Real(3.5e9) * den_arr(i,j,k) * praut_arr(i,j,k);
