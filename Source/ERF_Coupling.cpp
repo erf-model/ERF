@@ -178,7 +178,20 @@ ApplyConservativeRemap (const amrex::MultiFab& src,
                     sum += w * src_arr(src_i, src_j, src_k);
                 }
             }
-            if (has_mask) { sum *= mask_arr(i, j, k); }
+            // Blend toward the fallback rather than multiplying by the mask.
+            //
+            // Multiplying drives masked cells to exactly zero, which is right for
+            // a flux lane (fallback_val = 0, so this reduces to sum *= mask and is
+            // bit-identical) but destructive for an intensive state lane: a land
+            // cell would hold 0 Pa and 0 K, and the receiving model evaluates its
+            // bulk formulas over land before applying its own mask, so those
+            // zeros become NaN and the NaN outlives the masking. Land cells still
+            // receive no coupled information either way; they just stay
+            // physically admissible.
+            if (has_mask) {
+                const Real m = mask_arr(i, j, k);
+                sum = m * sum + (Real(1.0) - m) * fallback_val;
+            }
             dst_arr(i, j, k) = sum;
         });
     }
