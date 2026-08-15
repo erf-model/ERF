@@ -32,6 +32,15 @@ These are the reusable, cross-scheme rules that should survive beyond WSM6.
 - Translate intent, not dead Fortran scaffolding. Omit dead code paths and inline truly trivial helpers only when parity is preserved.
 
 ## Numerical Fidelity Rules
+- When the source Fortran writes unsuffixed literals, the float assumption
+  applies to the whole literal **expression**, not to each literal separately.
+  `.104*9.8` is a default-REAL expression: the product is evaluated in single
+  precision and only then widened. A port that converts each literal
+  individually and multiplies in double does not reproduce it. Convert the
+  operands, then apply the same conversion to their product; do not instead
+  convert the double-precision product, which is a different and generally
+  worse value. Check for shadowed constants on both sides of the port while
+  reading these declarations.
 - Port init-time special functions exactly when they influence later parity. Approximate replacements are not acceptable unless separately validated.
 - Treat helper semantics as part of parity, not as harmless cleanup.
 - Respect slab/box allocation patterns for 2D accumulators and other mixed-dimensional storage.

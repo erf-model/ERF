@@ -34,7 +34,36 @@ These rules govern parity campaigns, retreat, ledgers, and acceptance decisions.
 ## Diagnostic Contract
 - Tier 1 canonical tags are the default forward-validation surface.
 - Tier 1.5 block signatures sit between canonical tags and full line traces.
-- Tier 2 forensic traces are required for proven line-level attribution.
+- Tier 2 forensic traces are required for proven line-level attribution, except
+  under the Tier 1-R reconstruction clause below.
+
+### Tier 1-R: reconstruction as line-level proof
+
+A closed-form reconstruction from printed Tier 1 inputs may stand in for a Tier 2
+trace, but only when every one of these holds. Reconstruction is cheaper than
+instrumentation and does not perturb the build, so the conditions are what keep
+it from becoming a general escape hatch.
+
+- Inputs to the retreat site are bitwise equal at `PRE_<site>` across both legs,
+  established over the full printed `k` range, not at a single cell.
+- The reconstruction reproduces **both** legs bitwise, to the full precision of
+  the print contract, under the two competing hypotheses. Matching only the leg
+  you believe is wrong proves nothing; it is matching the oracle *and* the port
+  from one arithmetic model that excludes alternatives.
+- Every cell is accounted for. Cells that do not reproduce must be explained by
+  a named mechanism, such as a clamp or a gate, and that mechanism must itself
+  be shown to make the two legs agree.
+- The divergence is a constant factor or another closed form that can be
+  evaluated exactly outside the code. State-dependent or iterative divergence is
+  not eligible; use Tier 1.5 or Tier 2.
+- The reconstruction is recorded in `decisions.tsv` with the cell count, the
+  columns and steps covered, and `first_line_divergence=<file>:<line>`.
+
+Prefer Tier 1-R over Tier 2 when a scheme has no Tier 2 plumbing, rather than
+treating the absence of the instrument as permission to patch on block-level
+evidence alone. Two confirming cases in the WDM6 Bubble campaign: the `slope_*`
+local `t0c` shadow (G4) and the `qck1` literal-product evaluation (G13a); in both
+the planned Tier 2 decomposition was rendered unnecessary by reconstruction.
 - Host-side diagnostic prints after GPU work must synchronize first.
 - Diagnostic field order is contractual once a trace schema is declared.
 - Measure a diagnostic surface by coverage per tag, never by tag count. Coverage
