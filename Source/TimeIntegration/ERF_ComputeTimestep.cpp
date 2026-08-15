@@ -206,18 +206,18 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
 
                    Real idz_loc = dxinv[2] / h_zeta;
 
+                   // NOTE: even when moisture is present,
+                   //       we only use the partial pressure of the dry air
+                   //       to compute the soundspeed
+                   Real pressure = getPgivenRTh(rhotheta);
+                   Real c = std::sqrt(Gamma * pressure / rho);
+
                    Real Uacoustic = c * std::sqrt( (dxinv[0] + dxinv[2] * (h_xi/h_zeta)) *
                                                    (dxinv[0] + dxinv[2] * (h_xi/h_zeta)) );
                    Real Vacoustic = c * std::sqrt( (dxinv[1] + dxinv[2] * (h_eta/h_zeta)) *
                                                    (dxinv[1] + dxinv[2] * (h_eta/h_zeta)) );
                    Real Oacoustic = c * std::sqrt( (dxinv[2] * (one/h_zeta)) *
                                                    (dxinv[2] * (one/h_zeta)) );
-
-                   // NOTE: even when moisture is present,
-                   //       we only use the partial pressure of the dry air
-                   //       to compute the soundspeed
-                   Real pressure = getPgivenRTh(rhotheta);
-                   Real c = std::sqrt(Gamma * pressure / rho);
 
                    // If we are doing implicit acoustic substepping, then the z-direction is not constrained
                    //    by the speed of sound for the computation of the time step
