@@ -431,7 +431,10 @@ namespace MORRInd {
 
           // Set microphysics control parameters
           m_inum = 1;           // Use constant droplet number concentration
-          m_ndcnst = Real(250.0);     // Droplet number concentration (cm^-3)
+          // NOTE: m_ndcnst is NOT reset here. It carries the value queried from
+          //       erf.morrison_ndcnst above (default 250 cm^-3); overwriting it
+          //       here silently discarded the user's setting on every box, in
+          //       both the C++ and the Fortran path.
           // Mathematical constants
           m_pi = Real(3.1415926535897932384626434);
 
