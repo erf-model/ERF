@@ -83,7 +83,7 @@ erf.terrain_type = StaticFittedMesh
 
 # TIME STEP CONTROL
 erf.anelastic = 1
-erf.use_fft = 1 
+#erf.use_fft = 1 
 erf.fixed_dt           = 0.025  # fixed time step depending on grid resolution
 erf.fixed_mri_dt_ratio = 4
 
