@@ -317,49 +317,23 @@ ERF::WriteCheckpointFile () const
 
         if (m_SurfaceLayer)  {
             amrex::Print() << "Writing SurfaceLayer variables at level " << lev << std::endl;
-            ng = IntVect(1,1,0);
-            MultiFab m_var(ba2d[lev],dmap[lev],1,ng);
-            MultiFab* src = nullptr;
 
-            // U*
-            src = m_SurfaceLayer->get_u_star(lev);
-            MultiFab::Copy(m_var,*src,0,0,1,ng);
-            VisMF::Write(m_var, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "Ustar"));
+            // These MultiFabs live on a 2D BoxArray for planar terrain but on the full 3D
+            // BoxArray (with a z ghost cell) for EB terrain, so we write each one on its own
+            // BoxArray -- copying into a hard-wired 2D MultiFab would silently drop everything
+            // above k=0 for EB (issue #3560)
+            auto write_sl_var = [&] (MultiFab* src, const std::string& name) {
+                VisMF::Write(*src, MultiFabFileFullPrefix(lev, checkpointname, "Level_", name));
+            };
 
-            // W*
-            src = m_SurfaceLayer->get_w_star(lev);
-            MultiFab::Copy(m_var,*src,0,0,1,ng);
-            VisMF::Write(m_var, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "Wstar"));
-
-            // T*
-            src = m_SurfaceLayer->get_t_star(lev);
-            MultiFab::Copy(m_var,*src,0,0,1,ng);
-            VisMF::Write(m_var, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "Tstar"));
-
-            // Q*
-            src = m_SurfaceLayer->get_q_star(lev);
-            MultiFab::Copy(m_var,*src,0,0,1,ng);
-            VisMF::Write(m_var, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "Qstar"));
-
-            // Olen
-            src = m_SurfaceLayer->get_olen(lev);
-            MultiFab::Copy(m_var,*src,0,0,1,ng);
-            VisMF::Write(m_var, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "Olen"));
-
-            // Qsurf
-            src = m_SurfaceLayer->get_q_surf(lev);
-            MultiFab::Copy(m_var,*src,0,0,1,ng);
-            VisMF::Write(m_var, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "Qsurf"));
-
-            // PBLH
-            src = m_SurfaceLayer->get_pblh(lev);
-            MultiFab::Copy(m_var,*src,0,0,1,ng);
-            VisMF::Write(m_var, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "PBLH"));
-
-            // Z0
-            src = m_SurfaceLayer->get_z0(lev);
-            MultiFab::Copy(m_var,*src,0,0,1,ng);
-            VisMF::Write(m_var, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "Z0"));
+            write_sl_var(m_SurfaceLayer->get_u_star(lev), "Ustar");
+            write_sl_var(m_SurfaceLayer->get_w_star(lev), "Wstar");
+            write_sl_var(m_SurfaceLayer->get_t_star(lev), "Tstar");
+            write_sl_var(m_SurfaceLayer->get_q_star(lev), "Qstar");
+            write_sl_var(m_SurfaceLayer->get_olen(lev)  , "Olen");
+            write_sl_var(m_SurfaceLayer->get_q_surf(lev), "Qsurf");
+            write_sl_var(m_SurfaceLayer->get_pblh(lev)  , "PBLH");
+            write_sl_var(m_SurfaceLayer->get_z0(lev)    , "Z0");
         }
 
         if (sst_lev[lev][0]) {
@@ -1278,13 +1252,16 @@ ERF::ReadCheckpointFileSurfaceLayer ()
     {
         amrex::Print() << "Reading MOST variables" << std::endl;
 
-        IntVect ng(1,1,0);
-
         auto read_most_var = [&] (const std::string& name, MultiFab* dst) {
             const std::string mf_name = MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", name);
             if (amrex::FileExists(mf_name + "_H")) {
                 MultiFab m_var;
                 VisMF::Read(m_var, mf_name);
+                // The number of ghost cells depends on whether these live on a 2D or a 3D
+                // BoxArray (see WriteCheckpointFile), and a checkpoint written before the
+                // fix for issue #3560 may have fewer than the destination holds, so only
+                // fill as many ghost cells as both sides have
+                IntVect ng = amrex::min(m_var.nGrowVect(), dst->nGrowVect());
                 dst->ParallelCopy(m_var, 0, 0, 1, ng, ng, geom[lev].periodicity());
             }
         };
