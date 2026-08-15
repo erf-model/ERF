@@ -186,12 +186,12 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
        });
 
     } else {
-       const MultiFab& detJ = *detJ_cc[level];
-       estdt_comp_inv = ReduceMax(S_new, ccvel, detJ, 0,
+       const MultiFab& z_nd_mf = *z_phys_nd[level];
+       estdt_comp_inv = ReduceMax(S_new, ccvel, z_nd_mf, 0,
        [=] AMREX_GPU_HOST_DEVICE (Box const& b,
                                   Array4<Real const> const& s,
                                   Array4<Real const> const& u,
-                                  Array4<Real const> const& dJ) -> Real
+                                  Array4<Real const> const& z_nd) -> Real
        {
            Real new_comp_dt = -bogus_large_value;
            amrex::Loop(b, [=,&new_comp_dt] (int i, int j, int k) noexcept
@@ -200,7 +200,18 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
                    const Real rho      = s(i, j, k, Rho_comp);
                    const Real rhotheta = s(i, j, k, RhoTheta_comp);
 
-                   Real idz_loc = dxinv[2] / dJ(i,j,k);
+                   Real h_xi   =   Compute_h_xi_AtCellCenter(i,j,k,dxinv,z_nd);
+                   Real h_eta  =  Compute_h_eta_AtCellCenter(i,j,k,dxinv,z_nd);
+                   Real h_zeta = Compute_h_zeta_AtCellCenter(i,j,k,dxinv,z_nd);
+
+                   Real idz_loc = dxinv[2] / h_zeta;
+
+                   Real Uacoustic = c * std::sqrt( (dxinv[0] + dxinv[2] * (h_xi/h_zeta)) *
+                                                   (dxinv[0] + dxinv[2] * (h_xi/h_zeta)) );
+                   Real Vacoustic = c * std::sqrt( (dxinv[1] + dxinv[2] * (h_eta/h_zeta)) *
+                                                   (dxinv[1] + dxinv[2] * (h_eta/h_zeta)) );
+                   Real Oacoustic = c * std::sqrt( (dxinv[2] * (one/h_zeta)) *
+                                                   (dxinv[2] * (one/h_zeta)) );
 
                    // NOTE: even when moisture is present,
                    //       we only use the partial pressure of the dry air
@@ -213,32 +224,38 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
                    if (l_substepping) {
                        if ((nxc > 1) && (nyc==1)) {
                            // 2-D in x-z
-                           new_comp_dt = amrex::max(((amrex::Math::abs(u(i,j,k,0))+c)*dxinv[0]), new_comp_dt);
+                           new_comp_dt = amrex::max(amrex::Math::abs(u(i,j,k,0))*dxinv[0] + Uacoustic,
+                                                    amrex::Math::abs(u(i,j,k,2))*idz_loc             , new_comp_dt);
                        } else if ((nyc > 1) && (nxc==1)) {
                            // 2-D in y-z
-                           new_comp_dt = amrex::max(((amrex::Math::abs(u(i,j,k,1))+c)*dxinv[1]), new_comp_dt);
+                           new_comp_dt = amrex::max(amrex::Math::abs(u(i,j,k,1))*dxinv[1] + Vacoustic,
+                                                    amrex::Math::abs(u(i,j,k,2))*idz_loc             , new_comp_dt);
                        } else {
                            // 3-D
-                           new_comp_dt = amrex::max(((amrex::Math::abs(u(i,j,k,0))+c)*dxinv[0]),
-                                                    ((amrex::Math::abs(u(i,j,k,1))+c)*dxinv[1]),
-                                                    ((amrex::Math::abs(u(i,j,k,2))  )*idz_loc ),new_comp_dt);
+                           new_comp_dt = amrex::max(amrex::Math::abs(u(i,j,k,0))*dxinv[0] + Uacoustic,
+                                                    amrex::Math::abs(u(i,j,k,1))*dxinv[1] + Vacoustic,
+                                                    amrex::Math::abs(u(i,j,k,2))*idz_loc             , new_comp_dt);
                        }
 
-                   // If we are not doing implicit acoustic substepping, then the z-direction contributes
-                   //    to the computation of the time step
+                   // If we are not doing implicit acoustic substepping, then the z-direction is constrained
+                   //    by the speed of sound for the computation of the time step
                    } else {
                        if (nxc > 1 && nyc > 1) {
-                           new_comp_dt = amrex::max(((amrex::Math::abs(u(i,j,k,0))+c)*dxinv[0]),
-                                                    ((amrex::Math::abs(u(i,j,k,1))+c)*dxinv[1]),
-                                                    ((amrex::Math::abs(u(i,j,k,2))+c)*dzinv   ), new_comp_dt);
+                           // 3-D
+                           new_comp_dt = amrex::max(amrex::Math::abs(u(i,j,k,0))*dxinv[0] + Uacoustic,
+                                                    amrex::Math::abs(u(i,j,k,1))*dxinv[1] + Vacoustic,
+                                                    amrex::Math::abs(u(i,j,k,2))*dxinv[2] + Oacoustic, new_comp_dt);
                        } else if (nxc > 1) {
-                           new_comp_dt = amrex::max(((amrex::Math::abs(u(i,j,k,0))+c)*dxinv[0]),
-                                                    ((amrex::Math::abs(u(i,j,k,2))+c)*dzinv   ), new_comp_dt);
+                           // 2-D in x-z
+                           new_comp_dt = amrex::max(amrex::Math::abs(u(i,j,k,0))*dxinv[0] + Uacoustic,
+                                                    amrex::Math::abs(u(i,j,k,2))*dxinv[2] + Oacoustic, new_comp_dt);
                        } else if (nyc > 1) {
-                           new_comp_dt = amrex::max(((amrex::Math::abs(u(i,j,k,1))+c)*dxinv[1]),
-                                                    ((amrex::Math::abs(u(i,j,k,2))+c)*dzinv   ), new_comp_dt);
+                           // 2-D in y-z
+                           new_comp_dt = amrex::max(amrex::Math::abs(u(i,j,k,1))*dxinv[1] + Vacoustic,
+                                                    amrex::Math::abs(u(i,j,k,2))*dxinv[2] + Oacoustic, new_comp_dt);
                        } else {
-                           new_comp_dt = amrex::max(((amrex::Math::abs(u(i,j,k,2))+c)*dzinv   ), new_comp_dt);
+                           // 1-D in z
+                           new_comp_dt = amrex::max(amrex::Math::abs(u(i,j,k,2))*dxinv[2] + Oacoustic, new_comp_dt);
                        }
 
                    }
