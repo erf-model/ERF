@@ -53,20 +53,41 @@ WDM6::Init(const MultiFab& cons_in,
     // Copy_Micro_to_State will write it back to state after the first microphysics call.
     // IMPORTANT: Use growntilebox to include ghost zones, since Copy_State_to_Micro will
     // skip reading nn and expect it to be initialized everywhere.
-    const Real ccn0_init = m_ccn0;
-    for (MFIter mfi(cons_in); mfi.isValid(); ++mfi) {
-        const auto& box3d = mfi.growntilebox();  // Include ghost zones!
-        auto states = cons_in.array(mfi);
-        auto nn = mic_fab_vars[MicVar_WDM6::nn]->array(mfi);
-
-        ParallelFor(box3d, [=] AMREX_GPU_DEVICE(int i, int j, int k) {
-            // WRF WDM6 initializes nn as a constant specific concentration (#/kg),
-            // not density-dependent (#/m³ / rho). This prevents runaway nn accumulation
-            // at high altitudes where rho is small.
-            nn(i,j,k) = ccn0_init;
-        });
+    // RESTART GATE. Init also runs when restarting, so this seeding must be
+    // skipped then. Ungated, it discards the checkpoint's evolved RhoQ8 and the
+    // first Copy_State_to_Micro below keeps the uniform background instead of
+    // the restored field, silently resetting the aerosol reservoir on every
+    // restart. Measured before the gate, restarting from chk00002 and advancing
+    // one step moved nn by 2.925481587e-04 relative against the unrestarted run,
+    // identically on both legs, while every other variable stayed bitwise and
+    // the restart point itself agreed. WRF gates the same seeding on
+    // itimestep==1; this is the ERF equivalent.
+    std::string restart_chkfile;
+    {
+        amrex::ParmParse pp_erf("erf");
+        amrex::ParmParse pp_amr("amr");
+        pp_erf.query("restart", restart_chkfile);
+        pp_amr.query("restart", restart_chkfile);
     }
-    m_nn_initialized = true;  // Mark as initialized so Copy_State_to_Micro doesn't overwrite
+
+    if (restart_chkfile.empty()) {
+        const Real ccn0_init = m_ccn0;
+        for (MFIter mfi(cons_in); mfi.isValid(); ++mfi) {
+            const auto& box3d = mfi.growntilebox();  // Include ghost zones!
+            auto nn = mic_fab_vars[MicVar_WDM6::nn]->array(mfi);
+
+            ParallelFor(box3d, [=] AMREX_GPU_DEVICE(int i, int j, int k) {
+                // WRF WDM6 initializes nn as a constant specific concentration (#/kg),
+                // not density-dependent (#/m³ / rho). This prevents runaway nn accumulation
+                // at high altitudes where rho is small.
+                nn(i,j,k) = ccn0_init;
+            });
+        }
+        // Mark as initialized so Copy_State_to_Micro doesn't overwrite. On a
+        // restart the flag stays false, so nn is read from RhoQ8 like every
+        // other state variable.
+        m_nn_initialized = true;
+    }
 
     nlev = m_geom.Domain().length(2);
     zlo = m_geom.Domain().smallEnd(2);
