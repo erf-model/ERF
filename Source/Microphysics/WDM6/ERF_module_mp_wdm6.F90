@@ -1519,6 +1519,49 @@
                   *(exp(pfrz2*supcolt)-1.)*rslope3(i,k,1)*rslope3(i,k,1)       &
                   *dtcld,qrs(i,k,1))
 
+            ! Tier 2 forensic decomposition of pgfrz, the first materially
+            ! failing expression for the rhoQ6 step-6 event. Same wdm6_emit_t2
+            ! helper and WSM6-DIAG-T2 schema as the pidep, psaci and psdep
+            ! decompositions. Emitted BEFORE the ncr(:,:,3) update below so the
+            ! printed nr is the value pfrzdtr actually consumed.
+            !
+            ! Reconstruction from the printed PRE_G10D inputs reproduces the
+            ! NATIVE leg exactly under float32 pi and pfrz2, but reproduces the
+            ! bridge under NO combination of those two, sitting 4.908593e-06
+            ! high -- matching neither and larger than both. Declaration reading
+            ! found no shadow in wdm62D, so the constants themselves are printed
+            ! here to settle which factor carries it.
+            if (debug_local .ge. 2 .and. loop .eq. 1 .and.                     &
+                i == i_dbg_local .and. lat == j_dbg_local .and.                &
+                k >= 40 .and. k <= 50) then
+              call wdm6_emit_t2('G10D','pgfrz','INCORE_FORTRAN','fort',        &
+                   loop, i_dbg_local, lat, k-kts+1, k, debug_local, 'pi', pi)
+              call wdm6_emit_t2('G10D','pgfrz','INCORE_FORTRAN','fort',        &
+                   loop, i_dbg_local, lat, k-kts+1, k, debug_local, 'pisq', pi*pi)
+              call wdm6_emit_t2('G10D','pgfrz','INCORE_FORTRAN','fort',        &
+                   loop, i_dbg_local, lat, k-kts+1, k, debug_local, 'pfrz1', pfrz1)
+              call wdm6_emit_t2('G10D','pgfrz','INCORE_FORTRAN','fort',        &
+                   loop, i_dbg_local, lat, k-kts+1, k, debug_local, 'pfrz2', pfrz2)
+              call wdm6_emit_t2('G10D','pgfrz','INCORE_FORTRAN','fort',        &
+                   loop, i_dbg_local, lat, k-kts+1, k, debug_local, 'denr', denr)
+              call wdm6_emit_t2('G10D','pgfrz','INCORE_FORTRAN','fort',        &
+                   loop, i_dbg_local, lat, k-kts+1, k, debug_local, 'dtcld', dtcld)
+              call wdm6_emit_t2('G10D','pgfrz','INCORE_FORTRAN','fort',        &
+                   loop, i_dbg_local, lat, k-kts+1, k, debug_local, 'supcolt', supcolt)
+              call wdm6_emit_t2('G10D','pgfrz','INCORE_FORTRAN','fort',        &
+                   loop, i_dbg_local, lat, k-kts+1, k, debug_local, 'expterm', &
+                   exp(pfrz2*supcolt)-1.)
+              call wdm6_emit_t2('G10D','pgfrz','INCORE_FORTRAN','fort',        &
+                   loop, i_dbg_local, lat, k-kts+1, k, debug_local, 'rslope3r',&
+                   rslope3(i,k,1))
+              call wdm6_emit_t2('G10D','pgfrz','INCORE_FORTRAN','fort',        &
+                   loop, i_dbg_local, lat, k-kts+1, k, debug_local, 'nr', ncr(i,k,3))
+              call wdm6_emit_t2('G10D','pgfrz','INCORE_FORTRAN','fort',        &
+                   loop, i_dbg_local, lat, k-kts+1, k, debug_local, 'den', den(i,k))
+              call wdm6_emit_t2('G10D','pgfrz','INCORE_FORTRAN','fort',        &
+                   loop, i_dbg_local, lat, k-kts+1, k, debug_local, 'pfrzdtr', pfrzdtr)
+            endif
+
 
 
 

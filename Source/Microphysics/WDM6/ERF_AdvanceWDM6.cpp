@@ -2520,6 +2520,39 @@ void WDM6::Advance(const Real& dt_advance,
                                  * expterm * rs3 * rs3 * dtcld;
                     pfrzdtr = amrex::min(pfrzdtr, qr_arr(i,j,k));
 
+#if !defined(AMREX_USE_GPU)
+                    // Tier 2 forensic decomposition of pgfrz, native leg. One
+                    // var per line in the WSM6-DIAG-T2 schema; field order and
+                    // the 20-fractional-digit value token are contractual and
+                    // must match wdm6_emit_t2 in ERF_module_mp_wdm6.F90.
+                    // Emitted before the nr update below so the printed nr is
+                    // the value pfrzdtr consumed.
+                    if (microphysics_debug >= 2 && loop == 0 &&
+                        i == diag_i && j == diag_j && (k + 1) >= 40 && (k + 1) <= 50) {
+                        auto emit_t2 = [&] (const char* var, Real value) {
+                            std::printf("WDM6-DIAG-T2 diag_schema=1 tag=G10D phase=pgfrz"
+                                        " source_layer=NATIVE_CPP path_id=cpp expr_id=pgfrz"
+                                        " store_id=%s loop=%d i_dbg=%d j_dbg=%d"
+                                        " k_dbg=%d k_raw=%d debug_level=%d var=%s value=%+.20E\n",
+                                        var, loop, diag_i, diag_j,
+                                        k - klo + 1, k, microphysics_debug,
+                                        var, static_cast<double>(value));
+                        };
+                        emit_t2("pi",       pi_wdm6_loc);
+                        emit_t2("pisq",     pi_wdm6_loc * pi_wdm6_loc);
+                        emit_t2("pfrz1",    pfrz1_loc);
+                        emit_t2("pfrz2",    pfrz2_loc);
+                        emit_t2("denr",     denr);
+                        emit_t2("dtcld",    dtcld);
+                        emit_t2("supcolt",  supcolt);
+                        emit_t2("expterm",  expterm);
+                        emit_t2("rslope3r", rs3);
+                        emit_t2("nr",       nr_arr(i,j,k));
+                        emit_t2("den",      den_arr(i,j,k));
+                        emit_t2("pfrzdtr",  pfrzdtr);
+                    }
+#endif
+
                     // Number freezing rate (conditional on nr > nrmin)
                     if (nr_arr(i,j,k) > Real(nrmin)) {
                         Real nfrzdtr = Real(4.0) * pi_wdm6_loc * pfrz1_loc
