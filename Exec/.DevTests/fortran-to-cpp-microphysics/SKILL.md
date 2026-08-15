@@ -31,6 +31,28 @@ Use this skill when working on ERF microphysics ports, bridge-vs-native parity, 
 - Treat TSV ledgers as source-of-truth validation infrastructure, not as optional notes.
 - Use tracked assets only for formal validation outcomes.
 - Prefer repo facts, branch history, and GitHub evidence over memory.
+- **Do not reinvent. Grep the package and the tree first.** This is the most
+  frequently violated rule in this skill and it has cost real time every time:
+  an existing `orchestrator_mandatory` rule renamed as a new idea, a tracked
+  campaign runner reimplemented as a scratch script, a `build_ci` feature the
+  corpus explicitly forbids, and a Tier 2 print format invented while a
+  conforming emit helper already sat in the same source file. Naming a rule is
+  not applying it, and an empty-looking inventory in a note is not proof that
+  the instrument is absent.
+- **State the governing rule before using a method.** Before running prints,
+  traces, or a retreat step, name the rule in `validation-operators.md`,
+  `process-operators.md`, `core-rules.md`, or the source corpus that authorizes
+  it. If no rule covers it, say so explicitly rather than proceeding on handoff
+  precedent or a prior `decisions.tsv` row; neither is the rule package.
+- **When a gap forces an invention, promote the missing rule up into THIS
+  file**, not only into the reference where it belongs. Inventions happen
+  because this compressed document is what gets read; a rule that exists only
+  in a reference file did not prevent anything. Cite the evidence in
+  `decisions.tsv` and, if the wording changes, in the coverage matrix.
+- **A missing instrument is not a blocker.** If a scheme lacks a diagnostic
+  tier, spot-add it narrowly at the site that needs it. Do not stand up a
+  scheme-wide framework in advance, and do not treat its absence as permission
+  to patch on weaker evidence.
 
 ## Tool Expectations
 - Use local repo inspection and git history by default.

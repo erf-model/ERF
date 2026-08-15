@@ -41,6 +41,23 @@ These are the reusable, cross-scheme rules that should survive beyond WSM6.
   convert the double-precision product, which is a different and generally
   worse value. Check for shadowed constants on both sides of the port while
   reading these declarations.
+- Route **every** unsuffixed source literal through the single conversion
+  helper, including inline literals inside kernels, not just named parameters.
+  Filter attention to literals that are not binary-exact and are used in
+  arithmetic; integers and dyadic fractions such as `2.`, `4.`, `24.`, `0.5`
+  and `1.e3` need no routing. Prioritize **exponents**, which amplify: the
+  error enters as `ln(base) * delta`, so a 4e-08 exponent difference became
+  4.3e-07 on the result, and then 2.1e-06 after a downstream subtractive
+  cancellation.
+- The audit is not only a defect hunt: **it is the precondition for the
+  double-literal comparison build to mean anything.** An unrouted literal is
+  already a true double on the C++ side, so it accidentally agrees with the
+  Fortran under the double-literal configuration and disagrees only under the
+  float configuration. Every unrouted literal therefore silently removes the
+  discrimination that build exists to provide, and a clean comparison across
+  the two modes can indicate uniform routing rather than genuine agreement.
+  Complete the routing audit before drawing any conclusion from a mode-to-mode
+  comparison.
 - Port init-time special functions exactly when they influence later parity. Approximate replacements are not acceptable unless separately validated.
 - Treat helper semantics as part of parity, not as harmless cleanup.
 - Respect slab/box allocation patterns for 2D accumulators and other mixed-dimensional storage.
