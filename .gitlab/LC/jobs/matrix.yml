@@ -19,4 +19,6 @@ matrix_cuda_12.9.1:
     BUILD_TYPE: "RelWithDebInfo"
     CMAKE_CXX_COMPILER: g++
     CMAKE_C_COMPILER: gcc
+
+    ERF_ENABLE_FFT: "ON"
   extends: .job_on_matrix
