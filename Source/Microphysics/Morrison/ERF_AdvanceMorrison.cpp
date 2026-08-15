@@ -431,7 +431,10 @@ namespace MORRInd {
 
           // Set microphysics control parameters
           m_inum = 1;           // Use constant droplet number concentration
-          m_ndcnst = Real(250.0);     // Droplet number concentration (cm^-3)
+          // NOTE: m_ndcnst is NOT reset here. It carries the value queried from
+          //       erf.morrison_ndcnst above (default 250 cm^-3); overwriting it
+          //       here silently discarded the user's setting on every box, in
+          //       both the C++ and the Fortran path.
           // Mathematical constants
           m_pi = Real(3.1415926535897932384626434);
 
@@ -3186,6 +3189,7 @@ namespace MORRInd {
                   qci_arr(i,j,k) = morr_arr(i,j,k,MORRInd::qi3d);
                   qps_arr(i,j,k) = morr_arr(i,j,k,MORRInd::qni3d);
                   qpr_arr(i,j,k) = morr_arr(i,j,k,MORRInd::qr3d);
+                  nc_arr(i,j,k) = morr_arr(i,j,k,MORRInd::nc3d);
                   ni_arr(i,j,k) = morr_arr(i,j,k,MORRInd::ni3d);
                   ns_arr(i,j,k) = morr_arr(i,j,k,MORRInd::ns3d);
                   nr_arr(i,j,k) = morr_arr(i,j,k,MORRInd::nr3d);
