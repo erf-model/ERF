@@ -75,10 +75,33 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
 
     MultiFab ccvel(grids[level],dmap[level],3,0);
 
+    MultiFab omega(convert(grids[level],IntVect(0,0,1)),dmap[level],1,0);
+    for (MFIter mfi(vars_new[level][Vars::zvel]); mfi.isValid(); ++mfi)
+    {
+        Box vbx = mfi.validbox();
+
+        const Array4<      Real>& omega_arr = omega.array(mfi);
+        const Array4<const Real>& u_arr     = vars_new[level][IntVars::xmom].const_array(mfi);
+        const Array4<const Real>& v_arr     = vars_new[level][IntVars::ymom].const_array(mfi);
+        const Array4<const Real>& w_arr     = vars_new[level][IntVars::zmom].const_array(mfi);
+
+        const Array4<const Real>& z_nd_arr  = z_phys_nd[level]->const_array(mfi);
+
+        const Array4<const Real>& mf_ux     = mapfac[level][MapFacType::u_x]->const_array(mfi);
+        const Array4<const Real>& mf_vy     = mapfac[level][MapFacType::v_y]->const_array(mfi);
+
+        ParallelFor(vbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            omega_arr(i,j,k) = OmegaFromW(i,j,k,w_arr(i,j,k),
+                                          u_arr,v_arr,mf_ux,mf_vy,
+                                          z_nd_arr,dxinv);
+        });
+    }
+
     average_face_to_cellcenter(ccvel,0,
                                Array<const MultiFab*,3>{&vars_new[level][Vars::xvel],
                                                         &vars_new[level][Vars::yvel],
-                                                        &vars_new[level][Vars::zvel]});
+                                                        &omega});
 
     bool l_substepping = (solverChoice.substepping_type[level] == SubsteppingType::Implicit);
     int  l_anelastic   = solverChoice.anelastic[level];
