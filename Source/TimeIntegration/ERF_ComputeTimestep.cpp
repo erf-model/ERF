@@ -75,6 +75,8 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
 
     MultiFab ccvel(grids[level],dmap[level],3,0);
 
+    int klo = geom[level].Domain().smallEnd(2);
+    int khi = geom[level].Domain().bigEnd(2);
     MultiFab omega(convert(grids[level],IntVect(0,0,1)),dmap[level],1,0);
     for (MFIter mfi(vars_new[level][Vars::zvel]); mfi.isValid(); ++mfi)
     {
@@ -92,9 +94,13 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
 
         ParallelFor(vbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
-            omega_arr(i,j,k) = OmegaFromW(i,j,k,w_arr(i,j,k),
-                                          u_arr,v_arr,mf_ux,mf_vy,
-                                          z_nd_arr,dxinv);
+            if (k==klo || k==khi) {
+                omega_arr(i,j,k) = zero;
+            } else {
+                omega_arr(i,j,k) = OmegaFromW(i,j,k,w_arr(i,j,k),
+                                              u_arr,v_arr,mf_ux,mf_vy,
+                                              z_nd_arr,dxinv);
+            }
         });
     }
 
