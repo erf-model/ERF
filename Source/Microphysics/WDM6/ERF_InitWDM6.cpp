@@ -333,8 +333,17 @@ WDM6::initialize_coeffs()
     m_g5pbso2 = rgmma(m_bvts2);
     m_pvts    = avts * m_g4pbs / Real(6.0);
     m_pacrs   = m_pi_wdm6 * n0s * avts * m_g3pbs * Real(0.25);
-    m_precs1  = Real(4.0) * n0s * Real(0.65);
-    m_precs2  = Real(4.0) * n0s * Real(0.44)
+    // Fortran :3248-3249
+    //     precs1 = 4.*n0s*.65
+    //     precs2 = 4.*n0s*.44*avts**.5*g5pbso2
+    // .65 and .44 are unsuffixed so they carry the float assumption; 4. and
+    // avts**.5 are binary-exact and need no routing. Proven at Tier 2 on the
+    // G13E psdep decomposition at (199,3), k=85..98: coeres, rh-1 and work1
+    // are all bitwise, precs1 diverged exactly 3.667978e-08 and precs2 exactly
+    // 5.418604e-09, matching float32(.65) and float32(.44), and psdep's
+    // 2.523449e-08 is the term-weighted mix of the two.
+    m_precs1  = Real(4.0) * n0s * wdm6_literal(0.65);
+    m_precs2  = Real(4.0) * n0s * wdm6_literal(0.44)
                 * std::pow(avts, Real(0.5)) * m_g5pbso2;
     m_pidn0s  = m_pi_wdm6 * dens_arg * n0s;
     m_pacrc   = m_pi_wdm6 * n0s * avts * m_g3pbs * Real(0.25) * eacrc;
@@ -350,8 +359,12 @@ WDM6::initialize_coeffs()
     m_pacrg   = m_pi_wdm6 * m_n0g * m_avtg * m_g3pbg * Real(0.25);
     m_g5pbgo2 = rgmma(m_bvtg2);
     m_pvtg    = m_avtg * m_g4pbg / Real(6.0);
-    m_precg1  = Real(2.0) * m_pi_wdm6 * m_n0g * Real(0.78);
-    m_precg2  = Real(2.0) * m_pi_wdm6 * m_n0g * Real(0.31)
+    // Fortran :3264-3265, the graupel analogues of precs1/precs2 with the same
+    // unsuffixed .78 and .31. Routed on the same evidence class as precs1 and
+    // precs2 rather than on separate measurements: pgdep reads bitwise in the
+    // current column only because its branch is inactive there.
+    m_precg1  = Real(2.0) * m_pi_wdm6 * m_n0g * wdm6_literal(0.78);
+    m_precg2  = Real(2.0) * m_pi_wdm6 * m_n0g * wdm6_literal(0.31)
                 * std::pow(m_avtg, Real(0.5)) * m_g5pbgo2;
     m_pidn0g  = m_pi_wdm6 * m_deng * m_n0g;
 

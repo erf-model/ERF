@@ -3724,6 +3724,31 @@ void WDM6::Advance(const Real& dt_advance,
                                  + psdep_arr(i,j,k)) >= std::abs(satdt)) {
                         ifsat = 1;
                     }
+#if !defined(AMREX_USE_GPU)
+                    // Tier 2 forensic decomposition of psdep, native leg. Must
+                    // match wdm6_emit_t2 in ERF_module_mp_wdm6.F90 exactly in
+                    // field order and value token.
+                    if (microphysics_debug >= 2 && loop == 0 &&
+                        i == diag_i && j == diag_j && (k + 1) >= 85 && (k + 1) <= 98) {
+                        auto emit_t2 = [&] (const char* var, Real value) {
+                            std::printf("WDM6-DIAG-T2 diag_schema=1 tag=G13E phase=psdep"
+                                        " source_layer=NATIVE_CPP path_id=cpp expr_id=psdep"
+                                        " store_id=%s loop=%d i_dbg=%d j_dbg=%d"
+                                        " k_dbg=%d k_raw=%d debug_level=%d var=%s value=%+.20E\n",
+                                        var, loop, diag_i, diag_j,
+                                        k - klo + 1, k, microphysics_debug,
+                                        var, static_cast<double>(value));
+                        };
+                        emit_t2("precs1", precs1_loc);
+                        emit_t2("precs2", precs2_loc);
+                        emit_t2("coeres", coeres_s);
+                        emit_t2("term1",  precs1_loc * rslope2_arr(i,j,k,1));
+                        emit_t2("term2",  precs2_loc * work2_arr(i,j,k) * coeres_s);
+                        emit_t2("rhm1",   rhi - Real(1.0));
+                        emit_t2("work1s", work1i);
+                        emit_t2("psdep",  psdep_arr(i,j,k));
+                    }
+#endif
                 }
 
                 if (qg_val > Real(0.0) && ifsat != 1) {

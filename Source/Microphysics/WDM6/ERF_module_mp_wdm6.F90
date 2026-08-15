@@ -2398,6 +2398,36 @@
                 psdep(i,k) = min(min(psdep(i,k),satdt/2),supice)
               endif
               if(abs(prevp(i,k)+pidep(i,k)+psdep(i,k)).ge.abs(satdt)) ifsat = 1
+            ! Tier 2 forensic decomposition of psdep, the first materially
+            ! failing expression after G13b closed. Same wdm6_emit_t2 helper and
+            ! WSM6-DIAG-T2 schema as the pidep and psaci decompositions. The two
+            ! terms are separated because the hypothesis under test is that
+            ! precs1 and precs2 carry DIFFERENT relative errors, so psdep's
+            ! error should be their term-weighted mix rather than a constant.
+              if (debug_local .ge. 2 .and. loop .eq. 1 .and.                   &
+                  i == i_dbg_local .and. lat == j_dbg_local .and.              &
+                  k >= 85 .and. k <= 98) then
+                call wdm6_emit_t2('G13E','psdep','INCORE_FORTRAN','fort',      &
+                     loop, i_dbg_local, lat, k-kts+1, k, debug_local, 'precs1', precs1)
+                call wdm6_emit_t2('G13E','psdep','INCORE_FORTRAN','fort',      &
+                     loop, i_dbg_local, lat, k-kts+1, k, debug_local, 'precs2', precs2)
+                call wdm6_emit_t2('G13E','psdep','INCORE_FORTRAN','fort',      &
+                     loop, i_dbg_local, lat, k-kts+1, k, debug_local, 'coeres', coeres)
+                call wdm6_emit_t2('G13E','psdep','INCORE_FORTRAN','fort',      &
+                     loop, i_dbg_local, lat, k-kts+1, k, debug_local, 'term1', &
+                     precs1*rslope2(i,k,2))
+                call wdm6_emit_t2('G13E','psdep','INCORE_FORTRAN','fort',      &
+                     loop, i_dbg_local, lat, k-kts+1, k, debug_local, 'term2', &
+                     precs2*work2(i,k)*coeres)
+                call wdm6_emit_t2('G13E','psdep','INCORE_FORTRAN','fort',      &
+                     loop, i_dbg_local, lat, k-kts+1, k, debug_local, 'rhm1',  &
+                     rh(i,k,2)-1.)
+                call wdm6_emit_t2('G13E','psdep','INCORE_FORTRAN','fort',      &
+                     loop, i_dbg_local, lat, k-kts+1, k, debug_local, 'work1s',&
+                     work1(i,k,2))
+                call wdm6_emit_t2('G13E','psdep','INCORE_FORTRAN','fort',      &
+                     loop, i_dbg_local, lat, k-kts+1, k, debug_local, 'psdep', psdep(i,k))
+              endif
             endif
 
 
