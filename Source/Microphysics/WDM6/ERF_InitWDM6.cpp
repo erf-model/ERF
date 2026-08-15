@@ -226,7 +226,33 @@ WDM6::initialize_coeffs()
               * std::pow(r0, Real(3.0)) * xncr0 / den0;
     m_qc1  = wdm6_literal(4.0/3.0) * m_pi_wdm6 * denr
               * std::pow(r0, Real(3.0)) * xncr1 / den0;
-    m_qck1 = wdm6_literal(0.104) * wdm6_literal(9.8) * peaut
+    // A FOURTH HAZARD CLASS under the literal precision contract: the float
+    // assumptions apply to the whole literal PRODUCT, not merely to each
+    // literal. In the Fortran, .104 and 9.8 are both default REAL, so
+    // `.104*9.8` is itself a default-REAL expression and the PRODUCT is
+    // evaluated in single precision before anything widens it:
+    //     float32(float32(.104)*float32(9.8)) = 1.01920008659362792969
+    // Applying the float assumption to each operand separately and then
+    // multiplying performs the product in double:
+    //     float32(.104)*float32(9.8)          = 1.01920004086494486728
+    // a 4.486723e-08 relative difference. It lands on qck1 as a constant
+    // multiplicative factor, so praut carries exactly that relative error at
+    // every k, and nraut = 3.5e9*den*praut inherits it unchanged.
+    //
+    // Proven by reconstruction at clean SHA ac1e445fa from bitwise-equal
+    // PRE_G13A inputs, no Tier 2 instrumentation: of 61 live G13a cells across
+    // columns (108,3) and (199,3) over two steps, 59 reproduce BOTH legs'
+    // printed praut bitwise to 20 digits from the two qck1 variants; the other
+    // 2 are cells where the min(praut, qc/dtcld) clamp binds and the legs
+    // already agree bitwise.
+    //
+    // The nesting is load-bearing. wdm6_literal(0.104 * 9.8) is NOT equivalent
+    // and is worse at 1.169636e-07: it rounds the double product, whereas the
+    // Fortran rounds the product of already-rounded operands. Round the
+    // operands first, then round their product. Under Option B the helper is
+    // the identity, so this collapses to 0.104*9.8 in double, which is what
+    // -fdefault-real-8 gives on the Fortran side.
+    m_qck1 = wdm6_literal(wdm6_literal(0.104) * wdm6_literal(9.8)) * peaut
               / std::pow(denr, wdm6_literal(1.0/3.0))
               / xmyu * std::pow(den0, wdm6_literal(4.0/3.0));
     m_pidnc = m_pi_wdm6 * denr / Real(6.0);
