@@ -53,41 +53,13 @@ WDM6::Init(const MultiFab& cons_in,
     // Copy_Micro_to_State will write it back to state after the first microphysics call.
     // IMPORTANT: Use growntilebox to include ghost zones, since Copy_State_to_Micro will
     // skip reading nn and expect it to be initialized everywhere.
-    // RESTART GATE. Init also runs when restarting, so this seeding must be
-    // skipped then. Ungated, it discards the checkpoint's evolved RhoQ8 and the
-    // first Copy_State_to_Micro below keeps the uniform background instead of
-    // the restored field, silently resetting the aerosol reservoir on every
-    // restart. Measured before the gate, restarting from chk00002 and advancing
-    // one step moved nn by 2.925481587e-04 relative against the unrestarted run,
-    // identically on both legs, while every other variable stayed bitwise and
-    // the restart point itself agreed. WRF gates the same seeding on
-    // itimestep==1; this is the ERF equivalent.
-    std::string restart_chkfile;
-    {
-        amrex::ParmParse pp_erf("erf");
-        amrex::ParmParse pp_amr("amr");
-        pp_erf.query("restart", restart_chkfile);
-        pp_amr.query("restart", restart_chkfile);
-    }
-
-    if (restart_chkfile.empty()) {
-        const Real ccn0_init = m_ccn0;
-        for (MFIter mfi(cons_in); mfi.isValid(); ++mfi) {
-            const auto& box3d = mfi.growntilebox();  // Include ghost zones!
-            auto nn = mic_fab_vars[MicVar_WDM6::nn]->array(mfi);
-
-            ParallelFor(box3d, [=] AMREX_GPU_DEVICE(int i, int j, int k) {
-                // WRF WDM6 initializes nn as a constant specific concentration (#/kg),
-                // not density-dependent (#/m³ / rho). This prevents runaway nn accumulation
-                // at high altitudes where rho is small.
-                nn(i,j,k) = ccn0_init;
-            });
-        }
-        // Mark as initialized so Copy_State_to_Micro doesn't overwrite. On a
-        // restart the flag stays false, so nn is read from RhoQ8 like every
-        // other state variable.
-        m_nn_initialized = true;
-    }
+    // nn is NOT seeded here. The Fortran seeds it inside the per-step driver
+    // wdm6 (:219), immediately before the kernel, not in wdm6init, so the
+    // faithful ERF home is Copy_State_to_Micro, which is the per-step pack.
+    // Seeding here instead was also wrong on restart: Init runs again on a
+    // restart, so it discarded the checkpoint's evolved RhoQ8 and the first
+    // Copy_State_to_Micro kept the uniform background. See the state-based
+    // seeding in Copy_State_to_Micro below for the condition and its rationale.
 
     nlev = m_geom.Domain().length(2);
     zlo = m_geom.Domain().smallEnd(2);
@@ -121,7 +93,6 @@ WDM6::Copy_State_to_Micro(const MultiFab& cons_in)
         auto nr = mic_fab_vars[MicVar_WDM6::nr]->array(mfi);
 
         const Real ccn0_local = m_ccn0;  // CCN concentration in #/m³
-        const bool nn_already_initialized = m_nn_initialized;  // Capture flag for GPU kernel
 
         ParallelFor(box3d, [=] AMREX_GPU_DEVICE(int i, int j, int k) {
             rho(i,j,k) = states(i,j,k,Rho_comp);
@@ -138,15 +109,22 @@ WDM6::Copy_State_to_Micro(const MultiFab& cons_in)
             nc(i,j,k) = amrex::max(Real(0.0), states(i,j,k,RhoQ7_comp) / states(i,j,k,Rho_comp));
             nr(i,j,k) = amrex::max(Real(0.0), states(i,j,k,RhoQ9_comp) / states(i,j,k,Rho_comp));
 
-            // nn initialization: Skip reading from state on first call if already initialized in Init()
-            if (nn_already_initialized) {
-                // nn was set in Init(), don't overwrite it by reading from state (which is still zero)
-                // After this first Copy_State_to_Micro, nn will be written to state and subsequent
-                // calls will correctly read the evolved value
-            } else {
-                // Normal case: read nn from state
-                nn(i,j,k) = amrex::max(Real(0.0), states(i,j,k,RhoQ8_comp) / states(i,j,k,Rho_comp));
-            }
+            // nn: seed the CCN reservoir where state carries nothing yet,
+            // otherwise read it like every other state variable.
+            //
+            // This mirrors the Fortran, which does its seeding in the per-step
+            // driver wdm6 (:219) rather than in wdm6init, so this is the
+            // faithful location. The Fortran gates on itimestep == 1; RhoQ8 == 0
+            // is equivalent for every reachable case and needs no step plumbed
+            // through the Init interface. Cold start and restart from a step-0
+            // checkpoint both have RhoQ8 == 0 and seed, matching itimestep == 1;
+            // every later restart has RhoQ8 > 0 and restores. A genuine zero
+            // cannot occur after initialization because Advance bounds nn well
+            // above zero (:602). Note the Fortran block is in fact unreachable
+            // from ERF: the bridge enters wdm62D directly via mp_wdm6_run and
+            // skips the wdm6 wrapper, so BOTH legs take their nn from here.
+            const Real nn_state = states(i,j,k,RhoQ8_comp) / states(i,j,k,Rho_comp);
+            nn(i,j,k) = (nn_state > Real(0.0)) ? nn_state : ccn0_local;
 
             // WDM6: DO NOT enforce nc/nr minimums here!
             // WRF starts with nc=0, nr=0 and lets CCN activation build nc naturally during

@@ -227,8 +227,8 @@ private:
 
     amrex::Array<FabPtr, MicVar_WDM6::NumVars> mic_fab_vars;
 
-    // WDM6-specific: Track if nn has been initialized (WRF does this only on itimestep==1)
-    bool m_nn_initialized{false};
+    // No nn-initialized flag: Copy_State_to_Micro decides per cell from RhoQ8,
+    // which is restart-correct and needs no cross-call bookkeeping.
 
     // WDM6 init coefficients (hail_opt-dependent)
     bool m_hail_opt{false};

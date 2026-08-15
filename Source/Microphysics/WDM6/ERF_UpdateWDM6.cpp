@@ -48,12 +48,9 @@ WDM6::Copy_Micro_to_State(MultiFab& cons)
         });
     }
 
-    // After first Copy_Micro_to_State, nn has been written to state (RhoQ8).
-    // Now it's safe to clear the flag so subsequent Copy_State_to_Micro calls
-    // will read nn from state like any other variable.
-    if (m_nn_initialized) {
-        m_nn_initialized = false;
-    }
+    // No nn bookkeeping needed here. Copy_State_to_Micro decides per cell from
+    // the state itself, so once RhoQ8 has been written by the copyback above it
+    // is read back like any other variable.
 
     cons.FillBoundary(m_geom.periodicity());
 }
