@@ -1505,6 +1505,14 @@ private:
     //
     static amrex::Vector<amrex::AMRErrorTag> ref_tags;
 
+    //
+    // Name of the refinement indicator that generated each entry of ref_tags.
+    // Not every indicator generates a ref_tag (e.g. "storm_tracker" does not),
+    // so this must be carried alongside ref_tags rather than re-deriving it
+    // from the positional index into erf.refinement_indicators.
+    //
+    static amrex::Vector<std::string> ref_tag_indicator_names;
+
     amrex::Vector<amrex::Vector<amrex::BoxArray>> subdomains;
 
     amrex::Vector<amrex::Real> dz_min;
