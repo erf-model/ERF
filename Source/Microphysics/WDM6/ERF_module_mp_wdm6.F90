@@ -2075,6 +2075,36 @@
               psaci(i,k) = pi*qci(i,k,2)*eacrs*n0s*n0sfac(i,k)                 &
                           *abs(vt2ave-vt2i)*acrfac/4.
               psaci(i,k) = min(psaci(i,k),qci(i,k,2)/dtcld)
+
+            ! Tier 2 forensic decomposition of psaci, the first materially
+            ! failing expression after G13a closed. Same one-var-per-line
+            ! WSM6-DIAG-T2 schema and the same wdm6_emit_t2 helper as the G13E
+            ! pidep decomposition above; field order and the 20-fractional-digit
+            ! value token are contractual. Scoped to the failing column and a k
+            ! window around the divergence, per the rule that Tier 2 is
+            ! narrow-and-deep rather than broad.
+            if (debug_local .ge. 2 .and. loop .eq. 1 .and.                     &
+                i == i_dbg_local .and. lat == j_dbg_local .and.                &
+                k >= 85 .and. k <= 95) then
+              call wdm6_emit_t2('G13B','psaci','INCORE_FORTRAN','fort',        &
+                   loop, i_dbg_local, lat, k-kts+1, k, debug_local, 'eacrs', eacrs)
+              call wdm6_emit_t2('G13B','psaci','INCORE_FORTRAN','fort',        &
+                   loop, i_dbg_local, lat, k-kts+1, k, debug_local, 'diameter', diameter)
+              call wdm6_emit_t2('G13B','psaci','INCORE_FORTRAN','fort',        &
+                   loop, i_dbg_local, lat, k-kts+1, k, debug_local, 'vt2i', vt2i)
+              call wdm6_emit_t2('G13B','psaci','INCORE_FORTRAN','fort',        &
+                   loop, i_dbg_local, lat, k-kts+1, k, debug_local, 'vt2ave', vt2ave)
+              call wdm6_emit_t2('G13B','psaci','INCORE_FORTRAN','fort',        &
+                   loop, i_dbg_local, lat, k-kts+1, k, debug_local, 'vt2diff', &
+                   abs(vt2ave-vt2i))
+              call wdm6_emit_t2('G13B','psaci','INCORE_FORTRAN','fort',        &
+                   loop, i_dbg_local, lat, k-kts+1, k, debug_local, 'acrfac', acrfac)
+              call wdm6_emit_t2('G13B','psaci','INCORE_FORTRAN','fort',        &
+                   loop, i_dbg_local, lat, k-kts+1, k, debug_local, 'n0sfac', &
+                   n0sfac(i,k))
+              call wdm6_emit_t2('G13B','psaci','INCORE_FORTRAN','fort',        &
+                   loop, i_dbg_local, lat, k-kts+1, k, debug_local, 'psaci', psaci(i,k))
+            endif
             endif
 
 

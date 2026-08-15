@@ -3230,11 +3230,24 @@ void WDM6::Advance(const Real& dt_advance,
                 temp = std::sqrt(std::sqrt(temp * temp * temp));
                 xni_arr(i,j,k) = amrex::min(amrex::max(Real(5.38e7) * temp, Real(1.e3)), Real(1.e6));
 
-                const Real eacrs = std::exp(Real(0.07) * (-supcol));
+                // Fortran :2021 eacrs = exp(0.07*(-supcol)); 0.07 is unsuffixed
+                // so it carries the float assumption. Proven at Tier 2 on the
+                // G13B psaci decomposition: eacrs diverged 1.03e-08 to 1.14e-08
+                // relative across k=89..95, matching delta(0.07)*(-supcol).
+                const Real eacrs = std::exp(wdm6_literal(0.07) * (-supcol));
                 const Real xni_safe = amrex::max(xni_arr(i,j,k), Real(1.0e-30));
                 const Real xmi = den_arr(i,j,k) * qi_val / xni_safe;
                 const Real diameter = amrex::min(Real(dicon) * std::sqrt(xmi), Real(dimax));
-                const Real vt2i = Real(1.49e4) * std::pow(diameter, Real(1.31));
+                // Fortran :2025 vt2i = 1.49e4*diameter**1.31. 1.49e4 is exactly
+                // representable in float32 so it needs no routing, but the 1.31
+                // EXPONENT does, and exponents amplify: the error enters as
+                // ln(diameter)*delta, and with diameter at the dimax cap of
+                // 5e-4 that is ln(5e-4) = -7.60 times -5.722e-08, i.e. 4.349e-07.
+                // Tier 2 measured exactly 4.349270e-07 on vt2i across k=91..95.
+                // It then amplifies again through the |vt2ave - vt2i|
+                // cancellation in psaci: at k=89 vt2diff is 0.139 against vt2i
+                // 0.681, a 4.90x factor giving the observed 2.14e-06.
+                const Real vt2i = Real(1.49e4) * std::pow(diameter, wdm6_literal(1.31));
                 const Real vt2r = pvtr_loc * rslopeb_arr(i,j,k,0) * denfac_arr(i,j,k);
                 const Real vt2s = pvts_loc * rslopeb_arr(i,j,k,1) * denfac_arr(i,j,k);
                 const Real vt2g = pvtg_loc * rslopeb_arr(i,j,k,2) * denfac_arr(i,j,k);
@@ -3281,10 +3294,42 @@ void WDM6::Advance(const Real& dt_advance,
                     psaci_arr(i,j,k) = pi_wdm6_loc * qi_val * eacrs * Real(n0s) * n0sfac
                         * std::abs(vt2ave - vt2i) * acrfac / Real(4.0);
                     psaci_arr(i,j,k) = amrex::min(psaci_arr(i,j,k), qi_val / dtcld);
+
+#if !defined(AMREX_USE_GPU)
+                    // Tier 2 forensic decomposition of psaci, native leg. One
+                    // var per line in the WSM6-DIAG-T2 schema; field order and
+                    // the 20-fractional-digit value token are contractual and
+                    // must match wdm6_emit_t2 in ERF_module_mp_wdm6.F90
+                    // exactly. Same shape as the G13E pidep decomposition.
+                    if (microphysics_debug >= 2 && loop == 0 &&
+                        i == diag_i && j == diag_j && (k + 1) >= 85 && (k + 1) <= 95) {
+                        auto emit_t2 = [&] (const char* var, Real value) {
+                            std::printf("WDM6-DIAG-T2 diag_schema=1 tag=G13B phase=psaci"
+                                        " source_layer=NATIVE_CPP path_id=cpp expr_id=psaci"
+                                        " store_id=%s loop=%d i_dbg=%d j_dbg=%d"
+                                        " k_dbg=%d k_raw=%d debug_level=%d var=%s value=%+.20E\n",
+                                        var, loop, diag_i, diag_j,
+                                        k - klo + 1, k, microphysics_debug,
+                                        var, static_cast<double>(value));
+                        };
+                        emit_t2("eacrs",    eacrs);
+                        emit_t2("diameter", diameter);
+                        emit_t2("vt2i",     vt2i);
+                        emit_t2("vt2ave",   vt2ave);
+                        emit_t2("vt2diff",  std::abs(vt2ave - vt2i));
+                        emit_t2("acrfac",   acrfac);
+                        emit_t2("n0sfac",   n0sfac);
+                        emit_t2("psaci",    psaci_arr(i,j,k));
+                    }
+#endif
                 }
 
                 if (qg_arr(i,j,k) > Real(qcrmin)) {
-                    const Real egi = std::exp(Real(0.07) * (-supcol));
+                    // Fortran :2114, the same unsuffixed 0.07 as eacrs above.
+                    // pgaci reads bitwise-equal in the current column only
+                    // because the branch is inactive there; routed for the same
+                    // reason, not on separate evidence.
+                    const Real egi = std::exp(wdm6_literal(0.07) * (-supcol));
                     const Real acrfac = Real(2.0) * rslope3_arr(i,j,k,2)
                         + Real(2.0) * diameter * rslope2_arr(i,j,k,2)
                         + diameter * diameter * rslope_arr(i,j,k,2);
