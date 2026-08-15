@@ -309,10 +309,14 @@ static void rime_update_attribs(const int a_i, /*!< index of particle */
         mwater_new = gamma_ice * m_wat_ice + gamma_water * m_wat_drop;
         mrime_new  = gamma_ice * a_mrime[id_ice];
     } else {
-        // Sub-freezing: the collected droplet rimes onto the core, and any meltwater
-        // already carried by the particle refreezes back onto it.
-        mi_new     = gamma_ice * (a_sp_m[a_sp_idx_i][id_ice] + m_wat_ice) + gamma_water * m_wat_drop;
-        mwater_new = ParticleReal(zero);
+        // Sub-freezing: the collected droplet rimes onto the core. Meltwater already
+        // carried by the particle stays liquid and is carried forward, which conserves
+        // mass; refreezing it is left to the phase-change step, which owns freezing and
+        // has the heat balance. Folding it into the ice core here would add mass to the
+        // ice skeleton without a matching term in V_new below, so the apparent ice
+        // density m_ice/((4/3)pi a^2 c) would exceed the density of solid ice.
+        mi_new     = gamma_ice * a_sp_m[a_sp_idx_i][id_ice] + gamma_water * m_wat_drop;
+        mwater_new = gamma_ice * m_wat_ice;
         mrime_new  = gamma_ice * a_mrime[id_ice] + gamma_water * m_wat_drop;
     }
 
