@@ -3844,8 +3844,18 @@ void WDM6::Advance(const Real& dt_advance,
                 }
 
                 if (qs_arr(i,j,k) > Real(0.0)) {
-                    const Real alpha2 = Real(1.e-3)
-                        * std::exp(Real(0.09) * (-supcol));
+                    // Fortran :2510 alpha2 = 1.e-3*exp(0.09*(-supcol)). Both
+                    // literals are unsuffixed and they push OPPOSITE ways, so
+                    // neither can be judged alone: 1.e-3 contributes +4.749745e-08
+                    // and 0.09 contributes -3.5763e-09*supcol, and the residual
+                    // is their signed sum. Verified with zero free parameters
+                    // against measured supcol at (199,3), k=91..98: predicted
+                    // and measured relative error agree to 7 digits at every
+                    // cell, ratio 1.0000. At k=91 that value is 7.652614e-08,
+                    // which is exactly the step-2 rhoQ6/qgraup plotfile
+                    // residual, so this literal pair is that residual.
+                    const Real alpha2 = wdm6_literal(1.e-3)
+                        * std::exp(wdm6_literal(0.09) * (-supcol));
                     pgaut_arr(i,j,k) = amrex::min(
                         amrex::max(
                             Real(0.0), alpha2 * (qs_arr(i,j,k) - Real(qs0))),
