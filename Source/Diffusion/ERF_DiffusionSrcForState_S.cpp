@@ -284,7 +284,6 @@ DiffusionSrcForState_S (const Box& bx, const Box& domain,
             bool SurfLayer_on_xhi = ( SurfLayer_xhi && i == dom_hi.x + 1);
 
             bool SurfLayer_on_zlo = ( SurfLayer_zlo && k == dom_lo.z);
-            bool SurfLayer_on_zhi = ( SurfLayer_zhi && k == dom_hi.z);
 
             Real GradCx = dx_inv * ( cell_prim(i, j, k  , prim_index)        - cell_prim(i-1, j, k  , prim_index) );
 
@@ -328,7 +327,6 @@ DiffusionSrcForState_S (const Box& bx, const Box& domain,
             bool SurfLayer_on_yhi = ( SurfLayer_yhi && j == dom_hi.y + 1);
 
             bool SurfLayer_on_zlo = ( SurfLayer_zlo && k == dom_lo.z);
-            bool SurfLayer_on_zhi = ( SurfLayer_zhi && k == dom_hi.z);
 
             Real GradCy = dy_inv * ( cell_prim(i, j, k  , prim_index)        - cell_prim(i, j-1, k  , prim_index) );
 
@@ -376,9 +374,6 @@ DiffusionSrcForState_S (const Box& bx, const Box& domain,
                                     && k == dom_hi.z+1);
             bool SurfLayer_on_zlo = ( SurfLayer_zlo && k == dom_lo.z);
             bool SurfLayer_on_zhi = ( SurfLayer_zhi && k == dom_hi.z + 1);
-
-            bool SurfLayer_on_ylo = ( SurfLayer_ylo && j == dom_lo.y);
-            bool SurfLayer_on_yhi = ( SurfLayer_yhi && j == dom_hi.y);
 
             if (ext_dir_on_zlo) {
                 // Third order stencil with variable dz

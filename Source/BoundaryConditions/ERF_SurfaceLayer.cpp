@@ -289,13 +289,13 @@ SurfaceLayer::compute_fluxes (const int& lev,
                               bool is_land)
 {
     // Pointers to the computed averages
-    const auto *const tm_ptr   = m_ma.get_average(lev,3); // potential temperature
-    const auto *const qvm_ptr  = m_ma.get_average(lev,4); // water vapor mixing ratio
-    const auto *const tvm_ptr  = m_ma.get_average(lev,5); // virtual potential temperature
-    const auto *const umm_ptr  = m_ma.get_average(lev,6); // horizontal velocity magnitude
+    const auto *const tm_ptr      = m_ma.get_average(lev,3); // potential temperature
+    const auto *const qvm_ptr     = m_ma.get_average(lev,4); // water vapor mixing ratio
+    const auto *const tvm_ptr     = m_ma.get_average(lev,5); // virtual potential temperature
+    const auto *const umm_ptr     = m_ma.get_average(lev,6); // horizontal velocity magnitude
     const auto *const uw_mag_mean = m_ma.get_average(lev,7); // x/z velocity magnitude
     const auto *const vw_mag_mean = m_ma.get_average(lev,8); // y/z velocity magnitude
-    const auto *const zref_ptr = m_ma.get_zref(lev);     // reference height
+    const auto *const zref_ptr    = m_ma.get_zref(lev);      // reference height
     const bool l_use_eb = (m_terrain_type == TerrainType::EB);
 
     const int dir = m_face.coordDir();
@@ -313,7 +313,6 @@ SurfaceLayer::compute_fluxes (const int& lev,
     {
         Box vbx = mfi.tilebox();
         Box gtbx = mfi.growntilebox();
-        const int face_lo = vbx.smallEnd(dir);
 
         // Since lmask is used in the MFIter, the Z dimensions of the box is 0!
         // X and Y faces need the entire domain Z range, so resize the box accordingly
