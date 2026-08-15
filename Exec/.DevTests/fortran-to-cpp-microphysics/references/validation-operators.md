@@ -64,6 +64,14 @@ treating the absence of the instrument as permission to patch on block-level
 evidence alone. Two confirming cases in the WDM6 Bubble campaign: the `slope_*`
 local `t0c` shadow (G4) and the `qck1` literal-product evaluation (G13a); in both
 the planned Tier 2 decomposition was rendered unnecessary by reconstruction.
+
+A scheme having no Tier 2 surface is not a blocker to be cleared before retreat
+can continue. **Spot-add Tier 2 at the site that needs it, when it needs it.**
+Add the records for the one failing sub-expression, at one target column and a
+narrow k-window, and no more. Do not stand up a scheme-wide forensic framework
+in advance of a site that demands it: that is the broad-trace and
+large-automation failure the corpus already prohibits, and most sites are closed
+by Tier 1-R or by reading declarations before any trace is added.
 - Host-side diagnostic prints after GPU work must synchronize first.
 - Diagnostic field order is contractual once a trace schema is declared.
 - Measure a diagnostic surface by coverage per tag, never by tag count. Coverage
