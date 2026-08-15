@@ -3379,9 +3379,30 @@ void WDM6::Advance(const Real& dt_advance,
                 const Real qc_val = qc_arr(i,j,k);
                 const Real nc_val = nc_arr(i,j,k);
 
+                // The Fortran (:2143, :2152) writes these ratios UNGUARDED:
+                //     min(max(0.0, qrs(i,k,2)/qci(i,k,1)), 1.)
+                // so when qc == 0 and qs > 0 the division yields IEEE +Inf,
+                // max(0,Inf) is Inf, and the clamp returns 1.0. Returning 0.0
+                // for that case instead -- as a defensive divide-by-zero guard
+                // naturally does -- lands on the OPPOSITE end of the clamp and
+                // silently changes the physics.
+                //
+                // It hides in psacw, which is gated on qc > qmin and so never
+                // sees qc == 0, but nsacw is gated on nc > ncmin, which passes
+                // with qc == 0, and there the ratio is load-bearing. Measured
+                // at (199,3,88) from a bitwise-identical PRE_G13C with qc = 0,
+                // qs = 1.935e-02 and nc = 1.048e+06: the bridge produced
+                // nsacw = 9.6929949510183156e+04 and the native leg exactly 0.
+                // That single term is the entire step-6 nn discontinuity.
+                //
+                // The division is still avoided rather than allowed to produce
+                // Inf, so builds with FP-exception trapping stay clean. The
+                // qc == 0 and qs == 0 case cannot be reached by any consumer --
+                // every use is gated on qs > qcrmin, qg > qcrmin or qc > qmin --
+                // and 0.0 is returned there only for definiteness.
                 const Real ratio_s = (qc_val > Real(0.0))
                     ? amrex::min(amrex::max(Real(0.0), qs_val / qc_val), Real(1.0))
-                    : Real(0.0);
+                    : (qs_val > Real(0.0) ? Real(1.0) : Real(0.0));
                 const Real ratio_g = (qc_val > Real(0.0))
                     ? amrex::min(amrex::max(Real(0.0), qg_val / qc_val), Real(1.0))
                     : Real(0.0);
