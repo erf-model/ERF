@@ -94,7 +94,7 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
 
         ParallelFor(vbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
-            if (k==klo || k==khi) {
+            if (k==klo || k==(khi+1)) {
                 omega_arr(i,j,k) = zero;
             } else {
                 omega_arr(i,j,k) = OmegaFromW(i,j,k,w_arr(i,j,k),
