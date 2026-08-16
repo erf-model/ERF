@@ -142,7 +142,20 @@ void wdm6_slope_rain_cell (Real qr, Real nr, Real den, Real denfac,
         rslope2 = rsloper2max_arg;
         rslope3 = rsloper3max_arg;
     } else {
-        rslope  = amrex::min(Real(1.0) / wdm6_lamdar(qr, den, nr, pidnr_arg), Real(1.e-3));
+        // The rain-slope cap is unsuffixed in the Fortran at BOTH of its sites,
+        // slope_wdm6 :3420 and slope_rain :3493:
+        //     rslope(i,k,1) = min(1./lamdar(...),1.e-3)
+        // so it obeys the LITERAL PRECISION CONTRACT: float32(1.e-3) widens to
+        // 0.0010000000474974513, not the exact double 1e-3. The cap therefore
+        // sits +4.749745e-08 relative ABOVE the port's, and the gap propagates
+        // as a power: rslopeb = rslope**bvtr, rslope2, rslope3, so rslope3
+        // carries 3x it at 1.424924e-07.
+        //
+        // This is a min(), so it binds only where 1./lamdar exceeds the cap --
+        // rare, and identically zero for the first fifteen steps of the Bubble
+        // case, which is why a bitwise-clean Milestone B did not expose it.
+        rslope  = amrex::min(Real(1.0) / wdm6_lamdar(qr, den, nr, pidnr_arg),
+                             wdm6_literal(1.e-3));
         rslopeb = std::pow(rslope, bvtr_arg);
         rslope2 = rslope * rslope;
         rslope3 = rslope2 * rslope;
