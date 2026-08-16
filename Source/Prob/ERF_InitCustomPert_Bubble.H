@@ -107,25 +107,25 @@
             if (rad <= amrex::Real(1)) {
                 delta_theta = theta_pert*amrex::Math::powi<2>(std::cos(PI*rad/two));
             } else {
-                 delta_theta = zero;
+                 delta_theta = zero_d;
             }
 
             theta_total  = theta_back[k]*(delta_theta/amrex::Real(300.0) + 1);
             Real T = getTgivenPandTh(p_back[k], theta_total, RdoCp);
-            rho    = p_back[k]/(R_d*T*(one + RvoRd*q_v_back[k]));
+            rho    = p_back[k]/(R_d*T*(one_d + RvoRd*q_v_back[k]));
             RH     = compute_relative_humidity(use_empirical);
             Real q_v_hot = vapor_mixing_ratio(p_back[k], T, RH);
 
             // Compute background quantities
             Real T_back   = getTgivenPandTh(p_back[k], theta_back[k], RdoCp);
-            Real rho_back = p_back[k]/(R_d*T_back*(one + RvoRd*q_v_back[k]));
+            Real rho_back = p_back[k]/(R_d*T_back*(one_d + RvoRd*q_v_back[k]));
 
             // This version perturbs rho but not p
-            state_pert(i, j, k, RhoTheta_comp) = rho*theta_total - rho_back*theta_back[k]*(one + RvoRd*q_v_back[k]);
-            state_pert(i, j, k, Rho_comp)      = rho - rho_back*(one + qt_init);
+            state_pert(i, j, k, RhoTheta_comp) = rho*theta_total - rho_back*theta_back[k]*(one_d + RvoRd*q_v_back[k]);
+            state_pert(i, j, k, Rho_comp)      = rho - rho_back*(one_d + qt_init);
 
             // Set scalar = 0 everywhere
-            state_pert(i, j, k, RhoScalar_comp) = zero;
+            state_pert(i, j, k, RhoScalar_comp) = zero_d;
 
             // mean states
             state_pert(i, j, k, RhoQ1_comp) = rho*q_v_hot;
@@ -137,11 +137,11 @@
                 Real omn = std::max(zero_d,std::min(one_d,(T-tbgmin_d)*a_bg_d));
                 Real qn  = state_pert(i, j, k, RhoQ2_comp);
                 state_pert(i, j, k, RhoQ2_comp) = qn * omn;
-                state_pert(i, j, k, qci_comp)   = qn * (one - omn);
+                state_pert(i, j, k, qci_comp)   = qn * (one_d - omn);
             }
         });
     } else {
-        ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+        ParallelFor(bx, [=,zero_d=zero,one_d=one] AMREX_GPU_DEVICE(int i, int j, int k)
         {
             // Geometry (note we must include these here to get the data on device)
             const auto prob_lo         = geomdata.ProbLo();
@@ -159,14 +159,14 @@
             // - The bubble is either cylindrical (for 2-D problems, if two
             //   radial extents are specified) or an ellipsoid (if all three
             //   radial extents are specified).
-            Real L = zero;
+            Real L = zero_d;
             if (x_r > 0) L += amrex::Math::powi<2>((x - x_c)/x_r);
             if (y_r > 0) L += amrex::Math::powi<2>((y - y_c)/y_r);
             if (z_r > 0) L += amrex::Math::powi<2>((z - z_c)/z_r);
             L = std::sqrt(L);
             Real dT;
             if (L > amrex::Real(1)) {
-                dT = zero;
+                dT = zero_d;
             } else {
                 dT = T_pert * amrex::Math::powi<2>(std::cos(PI*L/two));
             }
@@ -190,12 +190,12 @@
                 // - hydrostatic rebalance is needed (TODO: is this true?)
                 // - this is the approach taken in the density current problem
                 state_pert(i,j,k,Rho_comp)      = getRhoThetagivenP(p_hse(i,j,k)) / theta_perturbed - r_hse(i,j,k);
-                state_pert(i,j,k,RhoTheta_comp) = zero; // i.e., hydrostatically balanced pressure stays const
+                state_pert(i,j,k,RhoTheta_comp) = zero_d; // i.e., hydrostatically balanced pressure stays const
             }
             else
             {
                 // this version perturbs rho*theta (i.e., p) but not rho
-                state_pert(i,j,k,Rho_comp)      = zero; // i.e., hydrostatically balanced density stays const
+                state_pert(i,j,k,Rho_comp)      = zero_d; // i.e., hydrostatically balanced density stays const
                 state_pert(i,j,k,RhoTheta_comp) = r_hse(i,j,k) * theta_perturbed - getRhoThetagivenP(p_hse(i,j,k));
             }
         });
