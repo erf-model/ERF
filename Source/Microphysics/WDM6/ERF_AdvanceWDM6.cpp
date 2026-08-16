@@ -3352,9 +3352,16 @@ void WDM6::Advance(const Real& dt_advance,
                 const Real ratio_s = (qc_val > Real(0.0))
                     ? amrex::min(amrex::max(Real(0.0), qs_val / qc_val), Real(1.0))
                     : (qs_val > Real(0.0) ? Real(1.0) : Real(0.0));
+                // Same treatment as ratio_s above, and for the same reason. This
+                // was MISSED when ratio_s was fixed: that edit replaced only the
+                // ratio_s else-branch while its comment claimed both, so ngacw
+                // kept returning 0 where the Fortran returns 1.0. Surfaced by the
+                // step-8 retreat as POST_G13C field 4 at relative error exactly
+                // 1.0, bridge 8.85033631487811001e-02 against native 0, which was
+                // the whole remaining Milestone B nn residual.
                 const Real ratio_g = (qc_val > Real(0.0))
                     ? amrex::min(amrex::max(Real(0.0), qg_val / qc_val), Real(1.0))
-                    : Real(0.0);
+                    : (qg_val > Real(0.0) ? Real(1.0) : Real(0.0));
 
                 if (qs_val > Real(qcrmin) && qc_val > Real(qmin)) {
                     psacw_arr(i,j,k) = amrex::min(
