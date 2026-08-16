@@ -30,6 +30,26 @@ These are the reusable, cross-scheme rules that should survive beyond WSM6.
   - device struct with inline methods
 - Survey naming conventions before minting new enum entries or persistent state names.
 - Translate intent, not dead Fortran scaffolding. Omit dead code paths and inline truly trivial helpers only when parity is preserved.
+- **The source is the oracle for STRUCTURE AND PLACEMENT, not only for values.**
+  Before deciding where a computation lives, what gates it, or how a loop is
+  split, locate the corresponding source construct and quote it. Answer three
+  questions explicitly:
+  - *Where* does the source do this — which routine, and at what point in the
+    per-step sequence?
+  - *What* does the source gate it on — the actual condition, not a proxy that
+    happens to agree in the common case?
+  - *How* is it nested — one loop or several, and which values are computed once
+    per cell and reused across sub-blocks?
+
+  This is cheap, usually one grep, and it is the highest-value check available
+  because a structural error is invisible to value comparison until it fires.
+  Four distinct defects in the WDM6 campaign traced to skipping it: seeding
+  placed in `Init` when the source does it in the per-step driver; a restart
+  string used as a proxy for the source's step condition; a per-cell scratch
+  value proposed where the source shares one loop nest; and a sibling scheme
+  assumed to have a precedent it did not have. Each was confidently wrong rather
+  than uncertain, so more deliberation would not have caught any of them — only
+  the check does.
 
 ## Numerical Fidelity Rules
 - When the source Fortran writes unsuffixed literals, the float assumption

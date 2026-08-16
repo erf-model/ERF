@@ -53,6 +53,16 @@ Use this skill when working on ERF microphysics ports, bridge-vs-native parity, 
   tier, spot-add it narrowly at the site that needs it. Do not stand up a
   scheme-wide framework in advance, and do not treat its absence as permission
   to patch on weaker evidence.
+- **The source is the oracle for structure and placement, not only values.**
+  Before deciding where a computation lives, what gates it, or how a loop is
+  split, quote the source construct: *where* it sits in the per-step sequence,
+  *what* it actually gates on rather than a proxy, and *how* it is nested. One
+  grep. Four WDM6 defects traced to skipping it, and each was confidently wrong
+  rather than uncertain — so deliberation does not substitute for the check.
+- **When one edit covers N sites, grep for the other N-1 afterwards.** An
+  incomplete `ratio_s`/`ratio_g` fix survived a build, a Tier 2 verification and
+  a milestone gate because the sibling was genuinely fixed and the comment
+  claimed both. A comment asserting a fix is not evidence of one.
 
 ## Tool Expectations
 - Use local repo inspection and git history by default.

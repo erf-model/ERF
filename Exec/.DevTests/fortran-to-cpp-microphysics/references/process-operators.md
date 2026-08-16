@@ -12,6 +12,13 @@ These are campaign habits and operator-level behaviors that matter but are not c
 - After each build-info refresh tier, rebuild and re-check the embedded runtime hash before escalating to the next file-removal tier.
 - If removing the generated `AMReX_buildInfo.cpp` forces CMake to reconfigure or regenerate build files, allow that regeneration to complete before judging the provenance repair result.
 - Do not run broad reconfigure or near-full rebuild just to refresh embedded hash provenance unless the lightweight build-info refresh fails.
+- Batch commits before repairing provenance, and repair immediately before the
+  formal run rather than after each commit. On a CMake build the embedded hash
+  is captured at configure time, so **every** commit re-stales it, including
+  ledger-only ones. Repairing per commit multiplies the cost by the number of
+  commits for no benefit. The correct order is: land all code commits, repair
+  once, run the formal gate, then commit the ledger rows the gate produced.
+  Repairing provenance needs no confirmation; it is a routine step of the gate.
 
 ## Debug Discipline
 - Keep compile-time bridge toggles separate from runtime diagnostic levels.
