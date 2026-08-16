@@ -1,5 +1,6 @@
 #include "ERF_Prob.H"
 #include "ERF_EOS.H"
+#include "ERF_Microphysics.H"
 #include "ERF_TerrainMetrics.H"
 
 using namespace amrex;

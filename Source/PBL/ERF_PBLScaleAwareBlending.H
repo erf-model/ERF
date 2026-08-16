@@ -38,11 +38,18 @@
 /**
  * @brief Boutle et al. (2014) blending factor.
  *
- * f = 1 / (1 + (dx/L_blend)^2)
+ * f = (dx/L_blend)^2 / (1 + (dx/L_blend)^2)
  *
  * Returns 1 when L_blend <= 0 (gate: no blending).
  * Asymptotes to 1 as dx >> L_blend (mesoscale grid, full PBL K_h).
  * Asymptotes to 0 as dx << L_blend (LES grid, no PBL K_h contribution).
+ *
+ * This is the weight on the parameterized (subgrid) part of the turbulence, so it
+ * must grow with dx: the coarser the grid, the less of the boundary layer overturning
+ * is resolved and the more the PBL scheme has to supply. It was previously written as
+ * 1/(1+(dx/L_blend)^2), which has both limits backwards -- it switched the PBL scheme
+ * off at mesoscale resolution and left it at full strength at LES resolution, on top of
+ * whatever the resolved motions were already doing (issue #3619).
  *
  * @param dx       Horizontal grid spacing [m].
  * @param L_blend  Blending length scale [m]. Typical: 750 m. 0 = disabled.
@@ -53,7 +60,7 @@ amrex::Real pbl_blend_factor(amrex::Real dx,
 {
     if (L_blend <= 0.0) return 1.0;
     const amrex::Real r = dx / L_blend;
-    return 1.0 / (1.0 + r * r);
+    return (r * r) / (1.0 + r * r);
 }
 
 /**
