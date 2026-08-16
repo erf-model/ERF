@@ -200,10 +200,9 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
                    const Real rho      = s(i, j, k, Rho_comp);
                    const Real rhotheta = s(i, j, k, RhoTheta_comp);
 
-                   Real h_xi   =   Compute_h_xi_AtCellCenter(i,j,k,dxinv,z_nd);
-                   Real h_eta  =  Compute_h_eta_AtCellCenter(i,j,k,dxinv,z_nd);
-                   Real h_zeta = Compute_h_zeta_AtCellCenter(i,j,k,dxinv,z_nd);
-
+                   Real h_xi    =   Compute_h_xi_AtCellCenter(i,j,k,dxinv,z_nd);
+                   Real h_eta   =  Compute_h_eta_AtCellCenter(i,j,k,dxinv,z_nd);
+                   Real h_zeta  = Compute_h_zeta_AtCellCenter(i,j,k,dxinv,z_nd);
                    Real idz_loc = dxinv[2] / h_zeta;
 
                    // NOTE: even when moisture is present,
@@ -212,16 +211,14 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
                    Real pressure = getPgivenRTh(rhotheta);
                    Real c = std::sqrt(Gamma * pressure / rho);
 
-                   Real Uacoustic = c * std::sqrt( (dxinv[0] + dxinv[2] * (h_xi/h_zeta)) *
-                                                   (dxinv[0] + dxinv[2] * (h_xi/h_zeta)) );
-                   Real Vacoustic = c * std::sqrt( (dxinv[1] + dxinv[2] * (h_eta/h_zeta)) *
-                                                   (dxinv[1] + dxinv[2] * (h_eta/h_zeta)) );
-                   Real Oacoustic = c * std::sqrt( (dxinv[2] * (one/h_zeta)) *
-                                                   (dxinv[2] * (one/h_zeta)) );
-
                    // If we are doing implicit acoustic substepping, then the z-direction is not constrained
                    //    by the speed of sound for the computation of the time step
                    if (l_substepping) {
+                       // Implicit substepping removes the g33 metric
+                       Real Uacoustic = c * std::sqrt(  dxinv[0] * (dxinv[0] + dxinv[2] * (h_xi/h_zeta)) );
+                       Real Vacoustic = c * std::sqrt(  dxinv[1] * (dxinv[1] + dxinv[2] * (h_eta/h_zeta)) );
+                       Real Oacoustic = c * std::sqrt( (dxinv[2] * (one/h_zeta)) *
+                                                       (dxinv[2] * (one/h_zeta)) );
                        if ((nxc > 1) && (nyc==1)) {
                            // 2-D in x-z
                            new_comp_dt = amrex::max(amrex::Math::abs(u(i,j,k,0))*dxinv[0] + Uacoustic,
@@ -240,6 +237,13 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
                    // If we are not doing implicit acoustic substepping, then the z-direction is constrained
                    //    by the speed of sound for the computation of the time step
                    } else {
+                       // All the metric terms
+                       Real Uacoustic = c * std::sqrt( (dxinv[0] + dxinv[2] * (h_xi/h_zeta)) *
+                                                       (dxinv[0] + dxinv[2] * (h_xi/h_zeta)) );
+                       Real Vacoustic = c * std::sqrt( (dxinv[1] + dxinv[2] * (h_eta/h_zeta)) *
+                                                       (dxinv[1] + dxinv[2] * (h_eta/h_zeta)) );
+                       Real Oacoustic = c * std::sqrt( (dxinv[2] * (one/h_zeta)) *
+                                                       (dxinv[2] * (one/h_zeta)) );
                        if (nxc > 1 && nyc > 1) {
                            // 3-D
                            new_comp_dt = amrex::max(amrex::Math::abs(u(i,j,k,0))*dxinv[0] + Uacoustic,
