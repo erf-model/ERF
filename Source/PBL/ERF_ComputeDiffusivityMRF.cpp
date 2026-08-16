@@ -838,15 +838,23 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
             // Scale-aware blending for grey-zone resolution (Boutle et al. 2014).
             // ERF_PBLScaleAwareBlending.H. Gated by pbl_blend_length > 0.
             // Applied to Theta_v and Q_v. Mom_v is not modified.
+            //
+            // K_turb holds rho*K [kg/m/s], but the ceiling applied inside
+            // pbl_kh_blend_and_cap is a bare diffusivity [m^2/s].  Hand the helper the
+            // kinematic value and restore the density weighting on the way out; passing
+            // rho*K straight through would make the effective cap scale like 1/rho and
+            // hence increase with height (issue #3580).
             if (l_blend_length > 0.0) {
+                const Real rho_inv = Real(1.0) / rho;
+
                 // For MRF, use power-law ceiling (SmnSmn not available)
-                K_turb(i, j, k, EddyDiff::Theta_v) = pbl_kh_blend_and_cap(
-                    K_turb(i, j, k, EddyDiff::Theta_v),
+                K_turb(i, j, k, EddyDiff::Theta_v) = rho * pbl_kh_blend_and_cap(
+                    K_turb(i, j, k, EddyDiff::Theta_v) * rho_inv,
                     l_dx, l_blend_length, l_blend_cs, l_blend_cmax,
                     amrex::Real(-1.0), false);
 
-                K_turb(i, j, k, EddyDiff::Q_v) = pbl_kh_blend_and_cap(
-                    K_turb(i, j, k, EddyDiff::Q_v),
+                K_turb(i, j, k, EddyDiff::Q_v) = rho * pbl_kh_blend_and_cap(
+                    K_turb(i, j, k, EddyDiff::Q_v) * rho_inv,
                     l_dx, l_blend_length, l_blend_cs, l_blend_cmax,
                     amrex::Real(-1.0), false);
             }
