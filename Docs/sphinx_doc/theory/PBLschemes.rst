@@ -784,13 +784,17 @@ PBL contribution at LES scales:
 
 .. math::
 
-   f_{blend} = \frac{1}{1 + \left(\frac{dx}{L_{blend}}\right)^2}
+   f_{blend} = \frac{\left(\frac{dx}{L_{blend}}\right)^2}{1 + \left(\frac{dx}{L_{blend}}\right)^2}
 
 where:
   - :math:`dx` is horizontal grid spacing [m]
   - :math:`L_{blend}` is the blending length scale [m]. Typical: 750 m.
   - When :math:`dx >> L_{blend}` (mesoscale): :math:`f_{blend} \to 1` (full PBL)
   - When :math:`dx << L_{blend}` (LES): :math:`f_{blend} \to 0` (no PBL contribution)
+
+:math:`f_{blend}` is the weight on the parameterized part of the turbulence, so it increases
+with :math:`dx`: the coarser the grid, the less of the boundary layer overturning is resolved
+and the more the PBL scheme has to supply.
 
 **K_h Ceiling (Smagorinsky or Power-Law Fallback):**
 
@@ -844,7 +848,7 @@ code duplication.
 Two ABL tests in ``Exec/CanonicalTests/ABL/MRF_Enhancements/`` verify the implementation:
 
 1. ``blending_disabled``: Confirms ``pbl_blend_length=0`` is a strict no-op (identical to standard MRF).
-2. ``blending_active``: Verifies blending reduces K_h by expected factor (0.8 at dx=375 m, L=750 m).
+2. ``blending_active``: Verifies blending reduces K_h by expected factor (0.2 at dx=375 m, L=750 m).
 
 **Physical References:**
 
