@@ -69,32 +69,21 @@
         Real* q_v_back = d_q_v.data();
 
         //
-        // The liquid/ice partition below uses the SAM formulation, so we only know how
-        //    to do it for the SAM family of models -- anything else leaves this as 0
+        // Do we split the initial condensate into cloud water and cloud ice?  We ask the
+        //    model for its cloud ice component rather than testing on the name of the
+        //    model, since that component is -1 for every model that doesn't carry one.
+        //    The partition itself uses the SAM formulation -- a linear ramp in temperature
+        //    between tbgmin and tbgmax -- which is generic enough for any of the Eulerian
+        //    models that do carry cloud ice.
         //
-        int moisture_type = 0;
-
-        if (sc.moisture_type == MoistureType::SAM) {
-            moisture_type = 1;
-        } else if (sc.moisture_type == MoistureType::SAM_NoIce ||
-                   sc.moisture_type == MoistureType::SAM_NoPrecip_NoIce) {
-            moisture_type = 2;
-        }
-
-        //
-        // Do we split the initial condensate into cloud water and cloud ice?
-        //
-        // NOTE: we must not test this by comparing the number of state components to
-        //       NVAR_MOIST_max -- the state is allocated with only as many moisture
-        //       components as the chosen model actually has, i.e.
-        //       NDRY + NSCALARS + Get_Qstate_Size() (10 for SAM), never NVAR_MOIST_max
-        //       (15), so such a test never fires.  We ask for the cloud ice component
-        //       instead, which is -1 for every model that doesn't carry one.  (Note the
-        //       component holding cloud ice for SAM holds rain for Kessler, and doesn't
-        //       exist at all for e.g. Kessler_NoRain.)
+        // We exclude the Lagrangian models: they seed their particles from the cloud water
+        //    we set here and then overwrite the Eulerian condensate from those particles,
+        //    so splitting it now would lose the ice and shrink the initial droplets.
         //
         const int  qci_comp = sc.moisture_indices.qi;
-        const bool split_condensate = (moisture_type > 0) && (qci_comp >= 0);
+        const bool is_eulerian = (Microphysics::modelType(sc.moisture_type)
+                                  == MoistureModelType::Eulerian);
+        const bool split_condensate = (qci_comp >= 0) && is_eulerian;
 
         ParallelFor(bx, [=,zero_d=zero,one_d=one,tbgmin_d=tbgmin,a_bg_d=a_bg]
                     AMREX_GPU_DEVICE(int i, int j, int k)
@@ -144,15 +133,8 @@
 
             // Cold microphysics are present
             if (split_condensate) {
-                Real omn;
-                if(moisture_type == 1) {
-                    omn = std::max(zero_d,std::min(one_d,(T-tbgmin_d)*a_bg_d));
-                } else if(moisture_type == 2) {
-                    omn = one;
-                } else {
-                    omn = zero;
-                    Abort("Invalid moisture type specified");
-                }
+                // Liquid fraction of the condensate: 1 above tbgmax, 0 below tbgmin
+                Real omn = std::max(zero_d,std::min(one_d,(T-tbgmin_d)*a_bg_d));
                 Real qn  = state_pert(i, j, k, RhoQ2_comp);
                 state_pert(i, j, k, RhoQ2_comp) = qn * omn;
                 state_pert(i, j, k, qci_comp)   = qn * (one - omn);

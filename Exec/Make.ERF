@@ -8,6 +8,15 @@ ifeq ($(USE_SHOC), TRUE)
 $(warning USE_SHOC=TRUE is deprecated; use USE_EAMXX_SHOC=TRUE)
 endif
 
+# The checked-in Source/PhysicsInterfaces/eamxx_config.h defines SCREAM_DOUBLE_PRECISION, so the
+# EAMxx ETI files instantiate the SHOC templates for double only, while ERF instantiates them
+# with amrex::Real.  Refuse a single-precision build here rather than failing at link time.
+ifeq ($(USE_EAMXX_SHOC), TRUE)
+  ifeq ($(PRECISION), FLOAT)
+    $(error USE_EAMXX_SHOC=TRUE requires PRECISION=DOUBLE because the vendored eamxx_config.h builds EAMxx in double precision)
+  endif
+endif
+
 # Default is no Fortran build unless an explicit Fortran bridge/model is enabled.
 # Keep this TRUE when USE_MORR_FORT and USE_WSM6_FORT are both unset.
 BL_NO_FORT = TRUE
