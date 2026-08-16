@@ -69,6 +69,16 @@ These are the reusable, cross-scheme rules that should survive beyond WSM6.
   error enters as `ln(base) * delta`, so a 4e-08 exponent difference became
   4.3e-07 on the result, and then 2.1e-06 after a downstream subtractive
   cancellation.
+- **A literal inside a clamp or a gate is a NULL RESULT until something
+  reaches it, so an early clean milestone says nothing about it.** The WDM6
+  rain-slope cap, `min(1./lamdar(...),1.e-3)` at `ERF_module_mp_wdm6.F90:3420`
+  and `:3493`, was unrouted on the C++ side for the whole campaign and cost
+  nothing until step 16, because before that no cell's slope reached the cap.
+  Milestone B was bitwise-clean through all ten of its steps *and stayed
+  numerically identical after the fix* — the invariance is what proves the
+  clamp never bound there. Do not read an early milestone pass, or a fix that
+  leaves it unmoved, as evidence about a clamped or gated literal. Audit these
+  by reading the source, not by watching a metric.
 - The audit is not only a defect hunt: **it is the precondition for the
   double-literal comparison build to mean anything.** An unrouted literal is
   already a true double on the C++ side, so it accidentally agrees with the

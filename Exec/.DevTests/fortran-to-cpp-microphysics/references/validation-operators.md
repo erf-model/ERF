@@ -30,6 +30,21 @@ These rules govern parity campaigns, retreat, ledgers, and acceptance decisions.
 - Serial-first scope remains the default until serial acceptance is complete.
 - Treat milestone parity as a campaign with explicit stop/go gates, not as an ad hoc sequence of runs.
 - Use variable-aware growth adjudication for epsilon-scale thermo/pressure residuals so numerical quantization is not over-classified.
+- **A jump in a per-step growth table is a lead, not a finding — confirm it with
+  the shared-source one-step check before opening a retreat.** The growth metric
+  is a max over cells, so it also jumps when a new cell enters the field, which
+  is not a defect. Only the one-step check, both legs restarted from the *same*
+  oracle checkpoint, separates divergence injected at that step from divergence
+  amplified out of earlier roundoff.
+- **To adjudicate a milestone, run the one-step check at EVERY window in it, not
+  only at the earliest jump.** Cost is one restart plus one step per window and
+  it converts the whole milestone from inference into measurement: a sweep whose
+  worst window is roundoff proves no code path diverges anywhere in the interval,
+  which no accumulated metric can show. On WDM6 Bubble step 10-100 this was 90
+  windows, median 7.358e-16 and max 1.668921e-14, and it both located the G5B
+  defect (windows 16 and 23-25 injecting 1.9e-11 and ~7e-08 from bitwise-equal
+  input) and, after the fix, licensed the `EPSILON_OK` call that the still-jumpy
+  accumulated table would have refused.
 
 ## Diagnostic Contract
 - Tier 1 canonical tags are the default forward-validation surface.

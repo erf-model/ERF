@@ -214,6 +214,23 @@ Use variable-aware acceptance:
 If residuals remain ULP-scale relative and non-growing, adjudicate as
 `EPSILON_OK` and continue the plotfile lane.
 
+At a LATE milestone, apply the ULP-scale test PER CELL against the local
+double ULP, not to the field-normalized metric. After many steps of a chaotic
+flow the field-normalized figure is the accumulated product of amplification;
+requiring it to stay at one or two eps would demand bitwise determinism through
+chaos, which no correct port can deliver. What must stay ULP-scale is each
+cell's residual against its own quantum. Pair it with the all-window
+shared-source one-step sweep, which is what supplies the assurance that no code
+path diverges; without that sweep this reading is not licensed.
+
+Recorded so the boundary is not lost: WDM6 Bubble Milestone B was REJECTED under
+this clause with a worst cell six orders off the lattice the rest of the field
+sat on and an 82x one-step jump, and a real defect was behind both. Milestone C
+was ACCEPTED at 1.285451261e-11 field-relative, about 5.8e+04 eps, because every
+one of 28812 differing cells across the two worst variables sat exactly on the
+local ULP lattice, the residual peaked at step 72 and decayed to step 100, and
+all 90 one-step windows were roundoff.
+
 This is a read-only artifact adjudication path unless new ERF runs are
 actually launched.
 

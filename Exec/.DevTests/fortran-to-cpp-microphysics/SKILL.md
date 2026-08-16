@@ -62,7 +62,24 @@ Use this skill when working on ERF microphysics ports, bridge-vs-native parity, 
 - **When one edit covers N sites, grep for the other N-1 afterwards.** An
   incomplete `ratio_s`/`ratio_g` fix survived a build, a Tier 2 verification and
   a milestone gate because the sibling was genuinely fixed and the comment
-  claimed both. A comment asserting a fix is not evidence of one.
+  claimed both. A comment asserting a fix is not evidence of one. The same rule
+  caught the rain-slope cap: `1.e-3` had already been routed at the G13F
+  `alpha2` site, and the unrouted sibling in the slope helper survived six more
+  milestones.
+- **A literal inside a clamp or a gate is invisible until the clamp binds.** A
+  clean early milestone is not evidence about it, and neither is a fix that
+  leaves that milestone unmoved. The WDM6 rain-slope cap cost nothing for
+  fifteen steps because no cell reached it, then produced the entire Milestone C
+  residual; Milestone B was bitwise-identical before and after the fix. Find
+  these by reading the source, never by watching a metric.
+- **A jump in a growth table is a lead, not a finding.** The metric is a max
+  over cells, so it also jumps when a new cell enters the field. Confirm with
+  the shared-source one-step check — both legs restarted from the *same* oracle
+  checkpoint — which separates divergence injected at that step from divergence
+  amplified out of earlier roundoff. To adjudicate a milestone rather than a
+  single step, run that check at **every** window in it: it is one restart plus
+  one step per window, and it turns the whole interval from inference into
+  measurement.
 
 ## Tool Expectations
 - Use local repo inspection and git history by default.
