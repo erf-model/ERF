@@ -1,0 +1,1 @@
+This test case checks the countergradient implementation on flat and stretched profiles. The surface history files should show close enough MOL, u* and theta*. The profiles may slightly differ depending on the stretching ratio. 
