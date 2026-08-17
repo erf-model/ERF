@@ -12,6 +12,11 @@
  * Usage in an MFIter loop after K_h is computed:
  *   K_h_eff = pbl_kh_blend_and_cap(K_h, dx, L_blend, C_s, c_max, SmnSmn, use_smag);
  *
+ * K_h is a kinematic diffusivity [m^2/s], because that is the unit of the ceilings
+ * applied here.  Schemes that carry rho*K in K_turb (all of the ERF PBL models do)
+ * must divide by rho on the way in and multiply by rho on the way out, or the cap
+ * ends up scaling like 1/rho instead of being a constant diffusivity.
+ *
  * Gating: pbl_kh_blend_and_cap returns K_h unchanged when L_blend <= 0.
  * Setting L_blend = 0 recovers original PBL behaviour exactly.
  *
