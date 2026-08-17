@@ -31,8 +31,9 @@ void
 ImplicitDiffForStateLU_N (const Box& bx,
                           const Box& domain,
                           const int level,
-                          const int n,
-                          const double dt_d,
+                          const int tmp_index,
+                          const int qty_index,
+                          const Real dt,
                           const GpuArray<Real, AMREX_SPACEDIM*2>& bc_neumann_vals,
                           const Array4<      Real>& cell_data,
                           const GpuArray<Real, AMREX_SPACEDIM>& cellSizeInv,
@@ -46,11 +47,8 @@ ImplicitDiffForStateLU_N (const Box& bx,
 {
     BL_PROFILE_VAR("ImplicitDiffForState_N()",ImplicitDiffForState_N);
 
-    Real dt = static_cast<Real>(dt_d);
-
     // setup quantities for getRhoAlpha()
 #include "ERF_SetupVertDiff.H"
-    const int qty_index  = n;
     const int prim_index = qty_index - 1;
     const int prim_scal_index = (qty_index >= RhoScalar_comp && qty_index < RhoScalar_comp+NSCALARS) ? PrimScalar_comp : prim_index;
 
@@ -113,7 +111,7 @@ ImplicitDiffForStateLU_N (const Box& bx,
                 b_tmp      = cell_data(i,j,klo,Rho_comp) - a_tmp - c_tmp;
                 inv_b2_tmp = one;
 
-                RHS_a(i,j,klo) = cell_data(i,j,klo,n); // NOTE: this is rho*phi; solution is phi
+                RHS_a(i,j,klo) = cell_data(i,j,klo,tmp_index); // NOTE: this is rho*phi; solution is phi
                 if (use_SurfLayer && scalar_zflux) {
                     RHS_a(i,j,klo) +=  Fact * scalar_zflux(i,j,klo); // NOTE: scalar_zflux = -K*d_z(\phi)
                 } else if (neumann_on_zlo) {
@@ -122,8 +120,8 @@ ImplicitDiffForStateLU_N (const Box& bx,
 
                 // Add countergradient correction to RHS at bottom boundary
                 // Only upper face contributes (no flux below surface)
-                if (use_mrf_countergradient && (n == RhoTheta_comp || n == RhoQ1_comp)) {
-                    const int gam_comp = (n == RhoTheta_comp) ? EddyDiff::HGAMT_v : EddyDiff::HGAMQ_v;
+                if (use_mrf_countergradient && (qty_index == RhoTheta_comp || qty_index == RhoQ1_comp)) {
+                    const int gam_comp = (qty_index == RhoTheta_comp) ? EddyDiff::HGAMT_v : EddyDiff::HGAMQ_v;
                     const Real gam_hi = myhalf * (mu_turb(i, j, klo, gam_comp) + mu_turb(i, j, klo+1, gam_comp));
                     RHS_a(i,j,klo) -= Fact * rhoAlpha_hi * gam_hi;
                 }
@@ -144,11 +142,11 @@ ImplicitDiffForStateLU_N (const Box& bx,
                 b_tmp      = cell_data(i,j,k,Rho_comp) - a_tmp - c_tmp;
                 inv_b2_tmp = one / (b_tmp - a_tmp * coeffG_a(i,j,k-1));
 
-                RHS_a(i,j,k)    = cell_data(i,j,k,n); // NOTE: this is rho*phi; solution is phi
+                RHS_a(i,j,k)    = cell_data(i,j,k,tmp_index); // NOTE: this is rho*phi; solution is phi
 
                 // Add countergradient correction to RHS in interior
-                if (use_mrf_countergradient && (n == RhoTheta_comp || n == RhoQ1_comp)) {
-                    const int gam_comp = (n == RhoTheta_comp) ? EddyDiff::HGAMT_v : EddyDiff::HGAMQ_v;
+                if (use_mrf_countergradient && (qty_index == RhoTheta_comp || qty_index == RhoQ1_comp)) {
+                    const int gam_comp = (qty_index == RhoTheta_comp) ? EddyDiff::HGAMT_v : EddyDiff::HGAMQ_v;
                     const Real gam_k   = mu_turb(i, j, k,   gam_comp);
                     const Real gam_km1 = mu_turb(i, j, k-1, gam_comp);
                     const Real gam_kp1 = mu_turb(i, j, k+1, gam_comp);
@@ -175,7 +173,7 @@ ImplicitDiffForStateLU_N (const Box& bx,
                 b_tmp      = cell_data(i,j,khi,Rho_comp) - a_tmp - c_tmp;
                 inv_b2_tmp = one / (b_tmp - a_tmp * coeffG_a(i,j,khi-1));
 
-                RHS_a(i,j,khi) = cell_data(i,j,khi,n); // NOTE: this is rho*phi; solution is phi
+                RHS_a(i,j,khi) = cell_data(i,j,khi,tmp_index); // NOTE: this is rho*phi; solution is phi
                 if (neumann_on_zhi) {
                     RHS_a(i,j,khi) -= -Fact * rhoAlpha_hi * bc_neumann_vals[5]; // NOTE: N_val = d_z(\phi)
                 }
@@ -193,7 +191,7 @@ ImplicitDiffForStateLU_N (const Box& bx,
             // Convert back to rho*theta
             //===================================================
             for (int k(klo); k<=khi; ++k) {
-                cell_data(i,j,k,n) = cell_data(i,j,k,Rho_comp) * soln_a(i,j,k);
+                cell_data(i,j,k,tmp_index) = cell_data(i,j,k,Rho_comp) * soln_a(i,j,k);
             }
 
 #ifdef AMREX_USE_GPU

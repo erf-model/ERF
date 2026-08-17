@@ -6,7 +6,9 @@
 
             if (l_vert_implicit_fac > zero) {
 
+                const bool has_moisture = (solverChoice.moisture_type != MoistureType::None);
                 const bool l_do_implicit_theta = solverChoice.implicit_thermal_diffusion;
+                const bool l_do_implicit_moist = solverChoice.implicit_moisture_diffusion;
                 const bool l_do_implicit_mom   = solverChoice.implicit_momentum_diffusion;
 
                 // If we're doing an implicit solve for momenta (u and v only),
@@ -22,11 +24,16 @@
                 MultiFab* Tau33corr = (l_do_implicit_mom) ? Tau_corr[level][2].get() : nullptr;
 #endif
 
-                // BCs
                 const BCRec* bc_ptr_h = domain_bcs_type.data();
-                GpuArray<Real, AMREX_SPACEDIM*2> l_bc_neumann_vals_d;
+
+                GpuArray<Real, AMREX_SPACEDIM*2> l_th_bc_neumann_vals_d;
                 for (int ori = 0; ori < 2*AMREX_SPACEDIM; ori++) {
-                    l_bc_neumann_vals_d[ori] = m_bc_neumann_vals[RhoTheta_comp][ori];
+                    l_th_bc_neumann_vals_d[ori] = m_bc_neumann_vals[RhoTheta_comp][ori];
+                }
+
+                GpuArray<Real, AMREX_SPACEDIM*2> l_qv_bc_neumann_vals_d;
+                for (int ori = 0; ori < 2*AMREX_SPACEDIM; ori++) {
+                    l_qv_bc_neumann_vals_d[ori] = m_bc_neumann_vals[RhoQ1_comp][ori];
                 }
                 const bool l_use_SurfLayer = (m_SurfaceLayer != nullptr);
 
@@ -62,6 +69,8 @@
                     const Array4<const Real> tau23  = Tau[level][TauType::tau23]->array(mfi);
                     [[maybe_unused]] const Array4<const Real> tau33  = Tau[level][TauType::tau33]->array(mfi);
                     const Array4<const Real>& hfx_z = Hfx3->const_array(mfi);
+                    const Array4<const Real> qfx_z = Q1fx3 ? Q1fx3->const_array(mfi) :
+                                                            Array4<const Real>{};
                     const bool l_use_mrf_cg = solverChoice.turbChoice[level].enable_mrf_countergradient
                                             && (solverChoice.turbChoice[level].pbl_type == PBLType::MRF);
                     const bool l_use_ysu_mom_cg = solverChoice.turbChoice[level].enable_ysu_countergradient
@@ -69,9 +78,17 @@
                     if (l_use_stretched_dz) {
                         if (l_do_implicit_theta) {
 
-                            ImplicitDiffForStateLU_S(bx, fine_geom.Domain(), level, RhoTheta_comp,
-                                                     stage_dt, l_bc_neumann_vals_d, cell_data,
+                            ImplicitDiffForStateLU_S(bx, fine_geom.Domain(), level, 1, RhoTheta_comp,
+                                                     stage_dt, l_th_bc_neumann_vals_d, cell_data,
                                                      stretched_dz_d[level], hfx_z,
+                                                     mu_turb, solverChoice,
+                                                     bc_ptr_h, l_use_SurfLayer, l_vert_implicit_fac,
+                                                     l_use_mrf_cg);
+                        }
+                        if (l_do_implicit_moist && has_moisture) {
+                            ImplicitDiffForStateLU_S(bx, fine_geom.Domain(), level, 2, RhoQ1_comp,
+                                                     stage_dt, l_qv_bc_neumann_vals_d, cell_data,
+                                                     stretched_dz_d[level], qfx_z,
                                                      mu_turb, solverChoice,
                                                      bc_ptr_h, l_use_SurfLayer, l_vert_implicit_fac,
                                                      l_use_mrf_cg);
@@ -101,9 +118,17 @@
                         }
                     } else if (l_use_terrain_fitted_coords) {
                         if (l_do_implicit_theta) {
-                            ImplicitDiffForStateLU_T(bx, fine_geom.Domain(), level, RhoTheta_comp,
-                                                     stage_dt, l_bc_neumann_vals_d, cell_data,
+                            ImplicitDiffForStateLU_T(bx, fine_geom.Domain(), level, 1, RhoTheta_comp,
+                                                     stage_dt, l_th_bc_neumann_vals_d, cell_data,
                                                      z_nd_arr, detJ_arr, dxInv, hfx_z,
+                                                     mu_turb, solverChoice,
+                                                     bc_ptr_h, l_use_SurfLayer, l_vert_implicit_fac,
+                                                     l_use_mrf_cg);
+                        }
+                        if (l_do_implicit_moist && has_moisture) {
+                            ImplicitDiffForStateLU_T(bx, fine_geom.Domain(), level, 2, RhoQ1_comp,
+                                                     stage_dt, l_qv_bc_neumann_vals_d, cell_data,
+                                                     z_nd_arr, detJ_arr, dxInv, qfx_z,
                                                      mu_turb, solverChoice,
                                                      bc_ptr_h, l_use_SurfLayer, l_vert_implicit_fac,
                                                      l_use_mrf_cg);
@@ -133,9 +158,16 @@
                         }
                     } else { // no terrain
                         if (l_do_implicit_theta) {
-                            ImplicitDiffForStateLU_N(bx, fine_geom.Domain(), level, RhoTheta_comp,
-                                                     stage_dt, l_bc_neumann_vals_d, cell_data,
+                            ImplicitDiffForStateLU_N(bx, fine_geom.Domain(), level, 1, RhoTheta_comp,
+                                                     stage_dt, l_th_bc_neumann_vals_d, cell_data,
                                                      dxInv, hfx_z, mu_turb, solverChoice,
+                                                     bc_ptr_h, l_use_SurfLayer, l_vert_implicit_fac,
+                                                     l_use_mrf_cg);
+                        }
+                        if (l_do_implicit_moist && has_moisture) {
+                            ImplicitDiffForStateLU_N(bx, fine_geom.Domain(), level, 2, RhoQ1_comp,
+                                                     stage_dt, l_qv_bc_neumann_vals_d, cell_data,
+                                                     dxInv, qfx_z, mu_turb, solverChoice,
                                                      bc_ptr_h, l_use_SurfLayer, l_vert_implicit_fac,
                                                      l_use_mrf_cg);
                         }
