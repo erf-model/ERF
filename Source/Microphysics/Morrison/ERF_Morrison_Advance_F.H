@@ -119,7 +119,7 @@
 
               // WRF-Chem flags
               flag_qndrop,              // F_QNDROP
-              nullptr,                  // qndrop (not used here)
+              nc_arr.dataPtr(),         // qndrop output; flag remains false for constant-number mode
               // ht_arr.dataPtr(),         // HT (terrain height - not used)
 
               // Domain dimensions
