@@ -118,6 +118,8 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
     Real estdt_vert_comp_inv;
     Real estdt_vert_lowM_inv;
 
+    const MultiFab& z_nd_mf = *z_phys_nd[level];
+
     if (l_substepping && (nxc==1) && (nyc==1)) {
         // SCM -- should not depend on dx or dy; force minimum number of substeps
         estdt_comp_inv = std::numeric_limits<Real>::min();
@@ -186,7 +188,6 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
        });
 
     } else {
-       const MultiFab& z_nd_mf = *z_phys_nd[level];
        estdt_comp_inv = ReduceMax(S_new, ccvel, z_nd_mf, 0,
        [=] AMREX_GPU_HOST_DEVICE (Box const& b,
                                   Array4<Real const> const& s,
@@ -220,8 +221,6 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
                                                                (dxinv[0] + dxinv[2] * (h_xi/h_zeta)) );
                        Real Vacoustic = third * c * std::sqrt(  dxinv[1] *
                                                                (dxinv[1] + dxinv[2] * (h_eta/h_zeta)) );
-                       Real Oacoustic = third * c * std::sqrt( (dxinv[2] * (one/h_zeta)) *
-                                                               (dxinv[2] * (one/h_zeta)) );
                        if ((nxc > 1) && (nyc==1)) {
                            // 2-D in x-z
                            new_comp_dt = amrex::max(amrex::Math::abs(u(i,j,k,0))*dxinv[0] + Uacoustic,
@@ -251,18 +250,18 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
                            // 3-D
                            new_comp_dt = amrex::max(amrex::Math::abs(u(i,j,k,0))*dxinv[0] + Uacoustic,
                                                     amrex::Math::abs(u(i,j,k,1))*dxinv[1] + Vacoustic,
-                                                    amrex::Math::abs(u(i,j,k,2))*dxinv[2] + Oacoustic, new_comp_dt);
+                                                    amrex::Math::abs(u(i,j,k,2))*idz_loc  + Oacoustic, new_comp_dt);
                        } else if (nxc > 1) {
                            // 2-D in x-z
                            new_comp_dt = amrex::max(amrex::Math::abs(u(i,j,k,0))*dxinv[0] + Uacoustic,
-                                                    amrex::Math::abs(u(i,j,k,2))*dxinv[2] + Oacoustic, new_comp_dt);
+                                                    amrex::Math::abs(u(i,j,k,2))*idz_loc  + Oacoustic, new_comp_dt);
                        } else if (nyc > 1) {
                            // 2-D in y-z
                            new_comp_dt = amrex::max(amrex::Math::abs(u(i,j,k,1))*dxinv[1] + Vacoustic,
                                                     amrex::Math::abs(u(i,j,k,2))*dxinv[2] + Oacoustic, new_comp_dt);
                        } else {
                            // 1-D in z
-                           new_comp_dt = amrex::max(amrex::Math::abs(u(i,j,k,2))*dxinv[2] + Oacoustic, new_comp_dt);
+                           new_comp_dt = amrex::max(amrex::Math::abs(u(i,j,k,2))*idz_loc  + Oacoustic, new_comp_dt);
                        }
 
                    }
@@ -276,16 +275,19 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
     // Globally empty level -> ReduceMax = lowest(); treat level as non-constraining.
     estdt_comp = (estdt_comp_inv > Real(0.0)) ? (cfl / estdt_comp_inv) : bogus_large_value;
 
-     Real estdt_lowM_inv = ReduceMax(ccvel, 0,
+     Real estdt_lowM_inv = ReduceMax(ccvel, z_nd_mf, 0,
        [=] AMREX_GPU_HOST_DEVICE (Box const& b,
-                                  Array4<Real const> const& u) -> Real
+                                  Array4<Real const> const& u,
+                                  Array4<Real const> const& z_nd) -> Real
        {
            Real new_lm_dt = -bogus_large_value;
            Loop(b, [=,&new_lm_dt] (int i, int j, int k) noexcept
            {
+               Real h_zeta  = Compute_h_zeta_AtCellCenter(i,j,k,dxinv,z_nd);
+               Real idz_loc = dxinv[2] / h_zeta;
                new_lm_dt = amrex::max(((amrex::Math::abs(u(i,j,k,0)))*dxinv[0]),
                                       ((amrex::Math::abs(u(i,j,k,1)))*dxinv[1]),
-                                      ((amrex::Math::abs(u(i,j,k,2)))*dxinv[2]), new_lm_dt);
+                                      ((amrex::Math::abs(u(i,j,k,2)))*idz_loc ), new_lm_dt);
            });
            return new_lm_dt;
        });
@@ -296,10 +298,11 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
 
      // Additional vertical diagnostics
      if (l_comp_substepping_diag) {
-         estdt_vert_comp_inv = ReduceMax(S_new, ccvel, 0,
+         estdt_vert_comp_inv = ReduceMax(S_new, ccvel, z_nd_mf, 0,
          [=] AMREX_GPU_HOST_DEVICE (Box const& b,
                                     Array4<Real const> const& s,
-                                    Array4<Real const> const& u) -> Real
+                                    Array4<Real const> const& u,
+                                    Array4<Real const> const& z_nd) -> Real
          {
              Real new_comp_dt = -bogus_large_value;
              amrex::Loop(b, [=,&new_comp_dt] (int i, int j, int k) noexcept
@@ -314,21 +317,27 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
                      Real pressure = getPgivenRTh(rhotheta);
                      Real c = std::sqrt(Gamma * pressure / rho);
 
+                     Real h_zeta  = Compute_h_zeta_AtCellCenter(i,j,k,dxinv,z_nd);
+                     Real idz_loc = dxinv[2] / h_zeta;
+
                      // Look at z-direction only
-                     new_comp_dt = amrex::max((amrex::Math::abs(u(i,j,k,2)) + c) * dzinv, new_comp_dt);
+                     new_comp_dt = amrex::max((amrex::Math::abs(u(i,j,k,2)) + c) * idz_loc, new_comp_dt);
                  }
              });
              return new_comp_dt;
          });
 
-         estdt_vert_lowM_inv = ReduceMax(ccvel, 0,
+         estdt_vert_lowM_inv = ReduceMax(ccvel, z_nd_mf, 0,
          [=] AMREX_GPU_HOST_DEVICE (Box const& b,
-                                    Array4<Real const> const& u) -> Real
+                                    Array4<Real const> const& u,
+                                    Array4<Real const> const& z_nd) -> Real
          {
              Real new_lowM_dt = -bogus_large_value;
              amrex::Loop(b, [=,&new_lowM_dt] (int i, int j, int k) noexcept
              {
-                 new_lowM_dt = amrex::max((amrex::Math::abs(u(i,j,k,2))) * dzinv, new_lowM_dt);
+                 Real h_zeta  = Compute_h_zeta_AtCellCenter(i,j,k,dxinv,z_nd);
+                 Real idz_loc = dxinv[2] / h_zeta;
+                 new_lowM_dt = amrex::max((amrex::Math::abs(u(i,j,k,2))) * idz_loc, new_lowM_dt);
              });
              return new_lowM_dt;
          });
