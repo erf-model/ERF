@@ -695,10 +695,6 @@ void ImmersedForcingBuildings_Zmom (const Box& tbz,
                                  myhalf * (t_blank_arr(i  ,j  , k)   + t_blank_arr(i  , j  , k-1));
         const Real t_blank     = (t_blank_raw < small_volfrac) ? zero : t_blank_raw;
 
-        Real t_blank_below_raw = (k == 0) ? zero : (t_blank_zface_arr) ? t_blank_zface_arr(i  ,j  , k-1) :
-                                 myhalf * (t_blank_arr(i  ,j  , k-1) + t_blank_arr(i  , j  , k-2));
-        const Real t_blank_below = (t_blank_below_raw < small_volfrac) ? zero : t_blank_below_raw;
-
         Real t_blank_above_raw = (t_blank_zface_arr) ? t_blank_zface_arr(i  ,j  , k+1) :
                                  myhalf * (t_blank_arr(i  ,j  , k)   + t_blank_arr(i  , j  , k+1));
         const Real t_blank_above = (t_blank_above_raw < small_volfrac) ? zero : t_blank_above_raw;
@@ -728,7 +724,6 @@ void ImmersedForcingBuildings_Zmom (const Box& tbz,
         const Real west_mask     = (t_blank > zero && t_blank <= t_blank_east  && t_blank_west  == zero && l_use_most && k >= 1) ? one : zero; // west wall cell
         const Real east_mask     = (t_blank > zero && t_blank <= t_blank_west  && t_blank_east  == zero && l_use_most && k >= 1) ? one : zero; // east wall cell
         const Real wall_mask     = (t_blank > zero && t_blank < one && !l_use_most) ? one : zero; // all walls when NOT using MOST
-        const Real most_mask     = south_mask + north_mask + west_mask + east_mask; // cells getting MOST treatment
         const Real roof_mask     = (t_blank > zero && t_blank_above == zero && l_use_most) ? one : zero; // roof cell (horizontal surface) - uses simple drag
         const Real interior_mask = (t_blank == 1.0) ? one : zero; // interior cell
 
