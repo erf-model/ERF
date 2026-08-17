@@ -336,28 +336,13 @@ struct SolverChoice {
             );
         }
 
-        // Set a default for dry
+        // Set a default for both dry and moist
         buoyancy_type.resize(max_level+1);
         for (int i = 0; i <= max_level; ++i) {
             buoyancy_type[i] = 1; // uses Rhoprime
         }
 
-        // Set a default for moist
         if (moisture_type != MoistureType::None) {
-            if ( !(moisture_type == MoistureType::Kessler_NoRain     ||
-                   moisture_type == MoistureType::SAM                ||
-                   moisture_type == MoistureType::SAM_NoIce          ||
-                   moisture_type == MoistureType::SAM_NoPrecip_NoIce ||
-                   moisture_type == MoistureType::Morrison ||
-                   moisture_type == MoistureType::Morrison_NoIce ||
-                   moisture_type == MoistureType::WSM6 ||
-                   moisture_type == MoistureType::SatAdj) )
-            {
-                for (int i = 0; i <= max_level; ++i) {
-                    buoyancy_type[i] = 2; // uses Tprime
-                }
-            }
-
             pp.query("moisture_tight_coupling",moisture_tight_coupling);
         }
 
