@@ -287,12 +287,43 @@ function(build_erf_lib erf_lib_name)
     target_compile_definitions(${erf_lib_name} PUBLIC SCREAM_SHOC_SMALL_KERNELS)
   endif()
 
+  # Shared Fortran support modules. module_libmassv and mp_radar exist as
+  # byte-identical copies under WSM6 and WDM6, and module_model_constants under
+  # Morrison and WDM6. Adding two copies to one target compiles the same module
+  # twice, which races on the .mod output and duplicates the link symbols, so
+  # each module is added exactly once here and left out of the per-scheme blocks
+  # below. Which copy is picked is arbitrary; they are the same bytes.
+  set(ERF_SHARED_FORT_SOURCES)
+  if(ERF_ENABLE_WSM6_FORT OR ERF_ENABLE_WDM6_FORT)
+    if(ERF_ENABLE_WSM6_FORT)
+      set(_erf_massv_dir WSM6)
+    else()
+      set(_erf_massv_dir WDM6)
+    endif()
+    list(APPEND ERF_SHARED_FORT_SOURCES
+         ${SRC_DIR}/Microphysics/${_erf_massv_dir}/ERF_module_libmassv.F90
+         ${SRC_DIR}/Microphysics/${_erf_massv_dir}/ERF_mp_radar.F90
+         )
+  endif()
+  if(ERF_ENABLE_MORR_FORT OR ERF_ENABLE_WDM6_FORT)
+    if(ERF_ENABLE_MORR_FORT)
+      set(_erf_const_dir Morrison)
+    else()
+      set(_erf_const_dir WDM6)
+    endif()
+    list(APPEND ERF_SHARED_FORT_SOURCES
+         ${SRC_DIR}/Microphysics/${_erf_const_dir}/ERF_module_model_constants.F90
+         )
+  endif()
+  if(ERF_SHARED_FORT_SOURCES)
+    target_sources(${erf_lib_name} PRIVATE ${ERF_SHARED_FORT_SOURCES})
+  endif()
+
   if(ERF_ENABLE_MORR_FORT)
   target_sources(${erf_lib_name}
      PRIVATE
        ${SRC_DIR}/Microphysics/Morrison/ERF_module_mp_morr_two_moment.F90
        ${SRC_DIR}/Microphysics/Morrison/ERF_module_mp_morr_two_moment_isohelper.F90
-       ${SRC_DIR}/Microphysics/Morrison/ERF_module_model_constants.F90
        )
   target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_MORR_FORT)
   endif()
@@ -300,8 +331,6 @@ function(build_erf_lib erf_lib_name)
   if(ERF_ENABLE_WSM6_FORT)
     target_sources(${erf_lib_name}
        PRIVATE
-         ${SRC_DIR}/Microphysics/WSM6/ERF_module_libmassv.F90
-         ${SRC_DIR}/Microphysics/WSM6/ERF_mp_radar.F90
          ${SRC_DIR}/Microphysics/WSM6/ERF_module_mp_wsm6.F90
          ${SRC_DIR}/Microphysics/WSM6/ERF_module_mp_wsm6_isohelper.F90
          )
@@ -311,9 +340,6 @@ function(build_erf_lib erf_lib_name)
   if(ERF_ENABLE_WDM6_FORT)
     target_sources(${erf_lib_name}
        PRIVATE
-         ${SRC_DIR}/Microphysics/WDM6/ERF_module_model_constants.F90
-         ${SRC_DIR}/Microphysics/WDM6/ERF_module_libmassv.F90
-         ${SRC_DIR}/Microphysics/WDM6/ERF_mp_radar.F90
          ${SRC_DIR}/Microphysics/WDM6/ERF_module_mp_wdm6.F90
          ${SRC_DIR}/Microphysics/WDM6/ERF_module_mp_wdm6_isohelper.F90
          )
