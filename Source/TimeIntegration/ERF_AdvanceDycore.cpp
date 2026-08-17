@@ -10,6 +10,7 @@
 #include <ERF_TileNoZ.H>
 #include <ERF_Utils.H>
 #include <ERF_EBRedistribute.H>
+#include <ERF_PlaneAverage.H>
 
 using namespace amrex;
 
@@ -102,6 +103,10 @@ void ERF::advance_dycore (int level,
     const bool use_SurfLayer = (m_SurfaceLayer != nullptr);
     const MultiFab* z_0     = (use_SurfLayer) ? m_SurfaceLayer->get_z0(level) : nullptr;
 
+    const bool use_nudging = solverChoice.nudging_from_input_sounding;
+    const bool has_moisture = (solverChoice.moisture_type != MoistureType::None);
+    const bool use_lsf = solverChoice.large_scale_forcing;
+
     const BoxArray& ba            = state_old[IntVars::cons].boxArray();
     const BoxArray& ba_z          = zvel_old.boxArray();
     const DistributionMapping& dm = state_old[IntVars::cons].DistributionMap();
@@ -114,6 +119,327 @@ void ERF::advance_dycore (int level,
 
     MultiFab* eddyDiffs = eddyDiffs_lev[level].get();
     MultiFab* SmnSmn    = SmnSmn_lev[level].get();
+
+    // *****************************************************************************
+    // Planar averages for subsidence terms
+    // *****************************************************************************
+    Table1D<Real> dptr_r_plane, dptr_t_plane, dptr_qv_plane;
+    TableData<Real, 1> r_plane_tab, t_plane_tab,  qv_plane_tab;
+
+    Table1D<Real> dptr_u_plane, dptr_v_plane;
+    TableData<Real, 1> u_plane_tab, v_plane_tab;
+    if (use_nudging)
+    {
+        // Rho
+        IntVect ng_c(state_old[IntVars::cons].nGrowVect()); ng_c[2] = 1;
+        int ncomp = (solverChoice.moisture_type == MoistureType::None) ? 2 : RhoQ2_comp;
+        MultiFab cons(state_old[IntVars::cons], make_alias, 0, ncomp);
+
+        PlaneAverage cons_ave(&cons, fine_geom, solverChoice.ave_plane, ng_c);
+        cons_ave.compute_averages(ZDir(), cons_ave.field());
+
+        int ncell = cons_ave.ncell_line();
+
+        Gpu::HostVector<    Real> r_plane_h(ncell);
+        Gpu::DeviceVector<  Real> r_plane_d(ncell);
+        Gpu::HostVector<    Real> t_plane_h(ncell);
+        Gpu::DeviceVector<  Real> t_plane_d(ncell);
+
+        cons_ave.line_average(Rho_comp, r_plane_h);
+        cons_ave.line_average(RhoTheta_comp, t_plane_h);
+
+        Gpu::copy(Gpu::hostToDevice, r_plane_h.begin(), r_plane_h.end(), r_plane_d.begin());
+        Gpu::copy(Gpu::hostToDevice, t_plane_h.begin(), t_plane_h.end(), t_plane_d.begin());
+
+        Real* dptr_r = r_plane_d.data();
+        Real* dptr_t = t_plane_d.data();
+
+        Box tdomain  = domain; tdomain.grow(2,ng_c[2]);
+        r_plane_tab.resize({tdomain.smallEnd(2)}, {tdomain.bigEnd(2)});
+        t_plane_tab.resize({tdomain.smallEnd(2)}, {tdomain.bigEnd(2)});
+
+        int offset = ng_c[2];
+
+        dptr_r_plane = r_plane_tab.table();
+        dptr_t_plane = t_plane_tab.table();
+
+        ParallelFor(ncell, [=] AMREX_GPU_DEVICE (int k) noexcept
+        {
+            dptr_r_plane(k-offset) = dptr_r[k];
+            dptr_t_plane(k-offset) = dptr_t[k];
+        });
+
+        if (solverChoice.moisture_type != MoistureType::None)
+        {
+            Gpu::HostVector<  Real> qv_plane_h(ncell), qc_plane_h(ncell);
+            Gpu::DeviceVector<Real> qv_plane_d(ncell), qc_plane_d(ncell);
+
+            // Water vapor
+            cons_ave.line_average(RhoQ1_comp, qv_plane_h);
+            Gpu::copy(Gpu::hostToDevice, qv_plane_h.begin(), qv_plane_h.end(), qv_plane_d.begin());
+
+            Real* dptr_qv = qv_plane_d.data();
+            qv_plane_tab.resize({tdomain.smallEnd(2)}, {tdomain.bigEnd(2)});
+            dptr_qv_plane = qv_plane_tab.table();
+            ParallelFor(ncell, [=] AMREX_GPU_DEVICE (int k) noexcept
+            {
+                dptr_qv_plane(k-offset) = dptr_qv[k];
+            });
+        }
+
+        // U and V velocity
+        IntVect ng_u = xvel_old.nGrowVect(); ng_u[2] = 1;
+        IntVect ng_v = yvel_old.nGrowVect(); ng_v[2] = 1;
+
+        PlaneAverage u_ave(&(xvel_old), fine_geom, solverChoice.ave_plane, ng_u);
+        PlaneAverage v_ave(&(yvel_old), fine_geom, solverChoice.ave_plane, ng_v);
+
+        u_ave.compute_averages(ZDir(), u_ave.field());
+        v_ave.compute_averages(ZDir(), v_ave.field());
+
+        int u_ncell = u_ave.ncell_line();
+        int v_ncell = v_ave.ncell_line();
+        Gpu::HostVector<    Real> u_plane_h(u_ncell), v_plane_h(v_ncell);
+        Gpu::DeviceVector<  Real> u_plane_d(u_ncell), v_plane_d(v_ncell);
+
+        u_ave.line_average(0, u_plane_h);
+        v_ave.line_average(0, v_plane_h);
+
+        Gpu::copy(Gpu::hostToDevice, u_plane_h.begin(), u_plane_h.end(), u_plane_d.begin());
+        Gpu::copy(Gpu::hostToDevice, v_plane_h.begin(), v_plane_h.end(), v_plane_d.begin());
+
+        Real* dptr_u = u_plane_d.data();
+        Real* dptr_v = v_plane_d.data();
+
+        Box udomain = domain; udomain.grow(2,ng_u[2]);
+        Box vdomain = domain; vdomain.grow(2,ng_v[2]);
+        u_plane_tab.resize({udomain.smallEnd(2)}, {udomain.bigEnd(2)});
+        v_plane_tab.resize({vdomain.smallEnd(2)}, {vdomain.bigEnd(2)});
+
+        int u_offset = ng_u[2];
+        dptr_u_plane = u_plane_tab.table();
+        ParallelFor(u_ncell, [=] AMREX_GPU_DEVICE (int k) noexcept
+        {
+            dptr_u_plane(k-u_offset) = dptr_u[k];
+        });
+
+        int v_offset = ng_v[2];
+        dptr_v_plane = v_plane_tab.table();
+        ParallelFor(v_ncell, [=] AMREX_GPU_DEVICE (int k) noexcept
+        {
+            dptr_v_plane(k-v_offset) = dptr_v[k];
+        });
+    }
+
+    if (use_lsf) {
+        lsf_data[level]->setVal(0.0);
+
+        int itime_curr = 0;
+        int itime_next = 0;
+        amrex::Real coeff_curr = 1.0;
+        amrex::Real coeff_next = 0.0;
+
+        lsf.get_forcing_time_coeffs(old_time, itime_curr, itime_next, coeff_curr, coeff_next);
+
+        // ttend, qtend, wsub = lsf
+        // ug0, vg0 = lsf - avg u,v
+
+        const Real* theta_lsf_n   = lsf.t_int_lsf_d[itime_curr].dataPtr();
+        const Real* theta_lsf_np1 = lsf.t_int_lsf_d[itime_next].dataPtr();
+        const Real* qv_lsf_n   = lsf.q_int_lsf_d[itime_curr].dataPtr();
+        const Real* qv_lsf_np1 = lsf.q_int_lsf_d[itime_next].dataPtr();
+        const Real* w_lsf_n   = lsf.w_int_lsf_d[itime_curr].dataPtr();
+        const Real* w_lsf_np1 = lsf.w_int_lsf_d[itime_next].dataPtr();
+
+#ifdef _OPENMP
+#pragma omp parallel if (Gpu::notInLaunchRegion())
+#endif
+        {
+        for ( MFIter mfi(state_old[IntVars::cons],TileNoZ()); mfi.isValid(); ++mfi)
+        {
+            Box bx  = mfi.tilebox();
+            const Array4<Real>& cell_data = state_old[IntVars::cons].array(mfi);
+            const Array4<Real>& lsf_arr = lsf_data[level]->array(mfi);
+            Real dzInv = fine_geom.InvCellSize(2);
+            const int kmin = domain.smallEnd(2) + 1; // minimum k for vertical subsidence
+            const int kmax = domain.bigEnd(2) - 1;   // maximum k for vertical subsidence
+            const Array4<const Real>& z_cc_arr = (l_use_terrain_fitted_coords) ? z_phys_cc[level]->const_array(mfi) : Array4<Real>{};
+
+            ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            {
+                amrex::Real ttend = coeff_curr*theta_lsf_n[k] + coeff_next*theta_lsf_np1[k];
+                amrex::Real qtend = coeff_curr*qv_lsf_n[k] + coeff_next*qv_lsf_np1[k];
+                amrex::Real wsub  = coeff_curr*w_lsf_n[k] + coeff_next*w_lsf_np1[k];
+
+                lsf_arr(i, j, k, 0) = ttend;
+                lsf_arr(i, j, k, 1) = qtend;
+                lsf_arr(i, j, k, 2) = wsub;
+
+                // horizontal tendencies
+                lsf_arr(i, j, k, 3) = ttend;
+                lsf_arr(i, j, k, 4) = qtend;
+
+                if (k >= kmin && k <= kmax) {
+                    int k1, k2;
+                    amrex::Real rdz;
+                    if (wsub >= 0.0)
+                    {
+                        k1 = k;
+                        k2 = k-1;
+                    } else {
+                        k1 = k+1;
+                        k2 = k;
+                    }
+                    rdz = (z_cc_arr) ? 1.0 / (z_cc_arr(i,j,k1) - z_cc_arr(i,j,k2)) : dzInv;
+                    rdz *= wsub;
+
+                    amrex::Real tvtend = -rdz * ( (cell_data(i, j, k1, RhoTheta_comp) / cell_data(i, j, k1, Rho_comp)) - (cell_data(i, j, k2, RhoTheta_comp) / cell_data(i, j, k2, Rho_comp)));
+                    amrex::Real qvtend = zero, qctend = zero;
+                    if (has_moisture) {
+                        qvtend = -rdz * ( (cell_data(i, j, k1, RhoQ1_comp) / cell_data(i, j, k1, Rho_comp)) - (cell_data(i, j, k2, RhoQ1_comp) / cell_data(i, j, k2, Rho_comp)));
+                        qctend = -rdz * ( (cell_data(i, j, k1, RhoQ2_comp) / cell_data(i, j, k1, Rho_comp)) - (cell_data(i, j, k2, RhoQ2_comp) / cell_data(i, j, k2, Rho_comp)));
+                    }
+
+                    lsf_arr(i, j, k, 0) += tvtend;
+                    lsf_arr(i, j, k, 1) += qvtend;
+
+                    lsf_arr(i, j, k, 5) = tvtend;
+                    lsf_arr(i, j, k, 6) = qvtend;
+                    lsf_arr(i, j, k, 7) = qctend;
+                }
+            });
+
+            // subsidence
+            ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            {
+                // directly apply tendencies for theta and qv
+                cell_data(i, j, k, RhoTheta_comp) += cell_data(i, j, k, Rho_comp) * lsf_arr(i, j, k, 0) * dt_advance;
+                if (has_moisture) {
+                    cell_data(i, j, k, RhoQ1_comp) = max(Real(0), cell_data(i, j, k, RhoQ1_comp) + cell_data(i, j, k, Rho_comp) * lsf_arr(i, j, k, 1) * Real(dt_advance));
+                    cell_data(i, j, k, RhoQ2_comp) += cell_data(i, j, k, Rho_comp) * lsf_arr(i, j, k, 7) * dt_advance;
+                }
+            });
+        }
+        }
+    }
+
+    if (use_nudging) {
+        nudge_data[level]->setVal(0.0);
+
+        int itime_n    = 0;
+        int itime_np1  = 0;
+        Real coeff_n   = Real(1.0);
+        Real coeff_np1 = Real(0.0);
+        Real tau_inv = Real(1.0) / input_sounding_data.tau_nudging;
+
+        int n_sounding_times = input_sounding_data.input_sounding_time.size();
+
+        for (int nt = 1; nt < n_sounding_times; nt++) {
+            if (old_time > input_sounding_data.input_sounding_time[nt]) itime_n = nt;
+        }
+        if (itime_n == n_sounding_times-1) {
+            itime_np1 = itime_n;
+        } else {
+            itime_np1 = itime_n+1;
+            coeff_np1 = (old_time                                           - input_sounding_data.input_sounding_time[itime_n]) /
+                        (input_sounding_data.input_sounding_time[itime_np1] - input_sounding_data.input_sounding_time[itime_n]);
+            coeff_n   = Real(1.0) - coeff_np1;
+        }
+
+        const Real* theta_inp_sound_n   = input_sounding_data.theta_inp_sound_d[itime_n].dataPtr() + 1;
+        const Real* theta_inp_sound_np1 = input_sounding_data.theta_inp_sound_d[itime_np1].dataPtr() + 1;
+        const Real* qv_inp_sound_n   = input_sounding_data.qv_inp_sound_d[itime_n].dataPtr() + 1;
+        const Real* qv_inp_sound_np1 = input_sounding_data.qv_inp_sound_d[itime_np1].dataPtr() + 1;
+
+        const int n  = RhoTheta_comp;
+        const int nq  = RhoQ1_comp;
+
+        // lower and upper bounds to apply theta nudging
+        const Real t_z1 = solverChoice.nudging_t_z1;
+        const Real t_z2 = solverChoice.nudging_t_z2;
+
+        // lower and upper bounds to apply qv nudging
+        const Real q_z1 = solverChoice.nudging_q_z1;
+        const Real q_z2 = solverChoice.nudging_q_z2;
+
+#ifdef _OPENMP
+#pragma omp parallel if (Gpu::notInLaunchRegion())
+#endif
+        {
+        for ( MFIter mfi(state_old[IntVars::cons],TileNoZ()); mfi.isValid(); ++mfi)
+        {
+            Box bx = mfi.tilebox();
+            const Array4<Real>& cell_data  = state_old[IntVars::cons].array(mfi);
+            const Array4<const Real>& z_cc_arr = (l_use_terrain_fitted_coords) ? z_phys_cc[level]->const_array(mfi) : Array4<Real>{};
+            const Array4<Real>& nudge_arr = nudge_data[level]->array(mfi);
+            Real zlo = fine_geom.ProbLo(2);
+            Real dz = fine_geom.CellSize(2);
+
+            ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            {
+                Real z = (z_cc_arr) ? z_cc_arr(i,j,k) : zlo + (k+0.5)*dz;
+
+                // nudge_data = tnudge, qnudge, unudge, vnudge
+
+                // Nudging for theta
+                if (z >= t_z1 && z <= t_z2) {
+                    Real nudge = (coeff_n*theta_inp_sound_n[k] + coeff_np1*theta_inp_sound_np1[k]) - (dptr_t_plane(k)/dptr_r_plane(k));
+                    nudge_arr(i, j, k, 0) = nudge * tau_inv;
+                    //if (i == 0 && j == 0)
+                    //    amrex::Print() << "   nudge i = " << i << " j = " << j << " k = " << k << ": theta_n = " << theta_inp_sound_n[k] << " theta_np1 = " << theta_inp_sound_np1[k] << " t / r plane(k) = " << dptr_t_plane(k) / dptr_r_plane(k) << ": nudge = " << nudge << " nudge*tau = " << nudge*tau_inv << " gamaz = " << gamaz << std::endl;
+                    cell_data(i, j, k, n) += nudge * dptr_r_plane(k) * tau_inv * dt_advance;
+                }
+
+                // Nudging for qv
+                if (has_moisture && z >= q_z1 && z <= q_z2) {
+                    Real nudge = (coeff_n*qv_inp_sound_n[k] + coeff_np1*qv_inp_sound_np1[k]) - (dptr_qv_plane(k)/dptr_r_plane(k));
+                    nudge_arr(i, j, k, 1) = nudge * tau_inv;
+                    //if (i == 0 && j == 0)
+                    //    amrex::Print() << "   nudge i = " << i << " j = " << j << " k = " << k << " z = " << z << ": q_n = " << qv_inp_sound_n[k] << " qv_np1 = " << qv_inp_sound_np1[k] << " q / r plane(k) = " << dptr_qv_plane(k) / dptr_r_plane(k) << ": nudge = " << nudge << " nudge*tau = " << nudge*tau_inv << " dptr_qv_plane(k) = " << dptr_qv_plane(k) << " dptr_r_plane(k) = " << dptr_r_plane(k) << std::endl;
+                    cell_data(i, j, k, nq) += nudge * dptr_r_plane(k) * tau_inv * dt_advance;
+                }
+            });
+
+            // Nudging for u and v
+            // NOTE: if LSF is enabled, then the U,V nudging here uses the LSF values, not U and V from the input sounding
+            Real uv_coeff_n = coeff_n;
+            Real uv_coeff_np1 = coeff_np1;
+            Real tau = tau_inv;
+            Real* u_nudge_n, *u_nudge_np1, *v_nudge_n, *v_nudge_np1;
+            if (!use_lsf)
+            {
+                u_nudge_n = input_sounding_data.U_inp_sound_d[itime_n].dataPtr() + 1;
+                u_nudge_np1 = input_sounding_data.U_inp_sound_d[itime_np1].dataPtr() + 1;
+                v_nudge_n  = input_sounding_data.V_inp_sound_d[itime_n].dataPtr() + 1;
+                v_nudge_np1 = input_sounding_data.V_inp_sound_d[itime_np1].dataPtr() + 1;
+            } else {
+                int itime_curr = 0;
+                int itime_next = 0;
+                uv_coeff_n = 1.0;
+                uv_coeff_np1 = 0.0;
+                tau = 1.0 / lsf.tau_lsf; // only applies to u,v LSF nudging
+
+                lsf.get_forcing_time_coeffs(old_time, itime_curr, itime_next, uv_coeff_n, uv_coeff_np1);
+                u_nudge_n   = lsf.u_int_lsf_d[itime_curr].dataPtr();
+                u_nudge_np1 = lsf.u_int_lsf_d[itime_next].dataPtr();
+                v_nudge_n   = lsf.v_int_lsf_d[itime_curr].dataPtr();
+                v_nudge_np1 = lsf.v_int_lsf_d[itime_next].dataPtr();
+            }
+
+            ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            {
+                Real unudge = -(dptr_u_plane(k) - (uv_coeff_n*u_nudge_n[k] + uv_coeff_np1*u_nudge_np1[k]));
+                unudge *= tau;
+
+                Real vnudge = -(dptr_v_plane(k) - (uv_coeff_n*v_nudge_n[k] + uv_coeff_np1*v_nudge_np1[k]));
+                vnudge *= tau;
+
+                nudge_arr(i, j, k, 2) = unudge;
+                nudge_arr(i, j, k, 3) = vnudge;
+            });
+        }
+        }
+    }
 
     // **************************************************************************************
     // Compute strain for use in slow RHS and Smagorinsky model
@@ -264,6 +590,42 @@ void ERF::advance_dycore (int level,
                                   get_eb(level),
                                   false, // vert_only
                                   qheating_rates[level].get());
+
+        // Zero turbulent mixing in fully immersed cells
+        MultiFab* terrain_blank = (solverChoice.terrain_type == TerrainType::ImmersedForcing ||
+                                   solverChoice.buildings_type == BuildingsType::ImmersedForcing) ?
+            terrain_blanking[level].get() : nullptr;
+
+        if (terrain_blank) {
+            for (MFIter mfi(*eddyDiffs, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+                const Box& bx = mfi.tilebox();
+                auto const& t_blank_arr = terrain_blank->const_array(mfi);
+                auto const& eddy_arr = eddyDiffs->array(mfi);
+
+                ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+                    if (t_blank_arr(i,j,k) == Real(1.0)) {
+                        for (int n = 0; n < EddyDiff::NumDiffs; ++n) {
+                            eddy_arr(i,j,k,n) = Real(0.0);
+                        }
+                    }
+                });
+            }
+
+            // Also zero SmnSmn if it exists
+            if (SmnSmn) {
+                for (MFIter mfi(*SmnSmn, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+                    const Box& bx = mfi.tilebox();
+                    auto const& t_blank_arr = terrain_blank->const_array(mfi);
+                    auto const& smn_arr = SmnSmn->array(mfi);
+
+                    ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+                        if (t_blank_arr(i,j,k) == Real(1.0)) {
+                            smn_arr(i,j,k) = Real(0.0);
+                        }
+                    });
+                }
+            }
+        }
     }
 
     // ***********************************************************************************************

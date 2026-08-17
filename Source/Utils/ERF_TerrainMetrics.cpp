@@ -163,6 +163,14 @@ make_terrain_fitted_coords (int lev,
     }
 } // make_terrain_fitted_coords
 
+/**
+ * Initialize the terrain grid using the selected model (BTF, STF, or Sullivan TF).
+ *
+ * @param[in] lev Level in the AMR hierarchy.
+ * @param[in] geom Geometry defining the domain.
+ * @param[out] z_phys_nd MultiFab to be filled with nodal physical heights.
+ * @param[in] z_levels_h Reference z-levels for grid stretching.
+ */
 void
 init_which_terrain_grid (int lev,
                          Geometry const& geom,

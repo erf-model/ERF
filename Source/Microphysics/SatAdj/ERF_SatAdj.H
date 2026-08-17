@@ -14,6 +14,7 @@
 #include <string>
 #include <vector>
 #include <memory>
+#include <limits>
 
 #include <AMReX_FArrayBox.H>
 #include <AMReX_Geometry.H>
@@ -201,10 +202,33 @@ public:
             ++niter;
         }
 
-        bool valid_solution = (std::abs(F) <= tol && niter < max_iter);
+        // NOTE: the while loop already enforces the iteration limit, so the
+        //       residual alone determines whether we found a valid root; testing
+        //       niter < max_iter here would spuriously fail a solve that
+        //       converged on exactly the last allowed iteration.
+        bool valid_solution = (std::abs(F) <= tol);
         AMREX_ALWAYS_ASSERT_WITH_MESSAGE(valid_solution, "SatAdj single phase saturation adjustment failed to converge.");
 
         return tabs;
+    }
+
+    // Round-off tolerance for the debug-only moisture consistency and
+    // conservation checks, scaled to the working precision.
+    //
+    // NOTE: a hard-coded absolute tolerance (this used to be 1.e-14) is well
+    //       below single-precision round-off -- for mixing ratios of order 1.e-2
+    //       one ULP is roughly 1.e-9 in float -- so such a check fires
+    //       spuriously in an AMREX_USE_FLOAT + AMREX_DEBUG build while still
+    //       being far looser than round-off in double. Scaling by machine
+    //       epsilon and the magnitude of the quantities compared keeps the
+    //       check meaningful in both precisions.
+    AMREX_GPU_HOST_DEVICE
+    AMREX_FORCE_INLINE
+    static amrex::Real
+    SatAdjMoistureTol (const amrex::Real qtot)
+    {
+        return amrex::Real(100.0) * std::numeric_limits<amrex::Real>::epsilon()
+             * amrex::max(amrex::Real(1.0), std::abs(qtot));
     }
 
     AMREX_GPU_HOST_DEVICE
@@ -252,8 +276,9 @@ public:
 #if defined(AMREX_DEBUG)
             amrex::Real qsatnew;
             erf_qsatw(tabs, pres_mbar, qsatnew);
-            AMREX_ASSERT(std::abs(qv-qsatnew) < 1e-12);
-            AMREX_ASSERT(std::abs(qv+qc-qvprev-qcprev) < 1e-14);
+            const amrex::Real qtol = SatAdjMoistureTol(qvprev + qcprev);
+            AMREX_ASSERT(std::abs(qv-qsatnew) <= qtol);
+            AMREX_ASSERT(std::abs(qv+qc-qvprev-qcprev) <= qtol);
 #endif
 
             theta = getThgivenTandP(tabs, amrex::Real(100.0)*pres_mbar, rdOcp);
@@ -286,11 +311,12 @@ public:
 #if defined(AMREX_DEBUG)
                 amrex::Real qsatnew;
                 erf_qsatw(tabs, pres_mbar, qsatnew);
+                const amrex::Real qtol = SatAdjMoistureTol(qvprev + qcprev);
                 AMREX_ASSERT(qv < qvprev);
                 AMREX_ASSERT(qc > qcprev);
                 AMREX_ASSERT(tabs > Tprev);
-                AMREX_ASSERT(std::abs(qv-qsatnew) < 1e-14);
-                AMREX_ASSERT(std::abs(qv+qc-qvprev-qcprev) < 1e-14);
+                AMREX_ASSERT(std::abs(qv-qsatnew) <= qtol);
+                AMREX_ASSERT(std::abs(qv+qc-qvprev-qcprev) <= qtol);
 #endif
 
                 theta = getThgivenTandP(tabs, amrex::Real(100.0)*pres_mbar, rdOcp);

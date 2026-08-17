@@ -675,7 +675,10 @@ realbdy_compute_interior_ghost_rhs (const double& time,
             },
         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
-            Real rho_tend = rhs_cons(i,j,k);
+            // NOTE: (i,j,k) is the hi face of the domain, so the cell (i,j,k) is
+            //       an exterior ghost cell for which the cons RHS is never filled;
+            //       use the adjacent interior cell, mirroring the lo side.
+            Real rho_tend = rhs_cons(i-1,j,k);
             Real rho_val  = Real(0.5) * (cons_arr(i,j,k) + cons_arr(i-1,j,k));
             Real u_tend, u_val;
             if (btenxhi) {
@@ -705,7 +708,10 @@ realbdy_compute_interior_ghost_rhs (const double& time,
         },
         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
-            Real rho_tend = rhs_cons(i,j,k);
+            // NOTE: (i,j,k) is the hi face of the domain, so the cell (i,j,k) is
+            //       an exterior ghost cell for which the cons RHS is never filled;
+            //       use the adjacent interior cell, mirroring the lo side.
+            Real rho_tend = rhs_cons(i,j-1,k);
             Real rho_val  = Real(0.5) * (cons_arr(i,j,k) + cons_arr(i,j-1,k));
             Real v_tend, v_val;
             if (btenyhi) {

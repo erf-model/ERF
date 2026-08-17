@@ -8,13 +8,15 @@
 
 #include <ERF_NullSurf.H>
 #include <ERF_SLM.H>
-#include <ERF_MM5.H>
 #include <ERF_OceanSurf.H>
 
 #if ERF_USE_NOAHMP
 #include <ERF_NOAHMP.H>
 #endif
 
+/**
+ * @brief Wrapper class for managing land surface models across AMR levels.
+ */
 class LandSurface {
 
 public:
@@ -208,10 +210,15 @@ public:
 
     void
     Plot_Lsm_Data (double time,
+                   int finest_level,
                    const amrex::Vector<int> &level_steps,
                    const amrex::Vector<amrex::IntVect> &ref_ratio)
     {
-        int nlev = m_lsm_model.size();
+        // Note we must use finest_level here rather than m_lsm_model.size(), which is
+        //    (max_level+1) -- the models at levels that have not (yet) been created
+        //    have been allocated but not Define'd or Init'ed, so their data pointers
+        //    are still null
+        int nlev = finest_level + 1;
         int nvar = this->Get_Data_Size();
         amrex::Vector<std::string> varnames;
 

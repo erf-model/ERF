@@ -31,6 +31,7 @@ double ERF::startCPUTime        = 0.0;
 double ERF::previousCPUTimeUsed = 0.0;
 
 Vector<AMRErrorTag> ERF::ref_tags;
+Vector<std::string> ERF::ref_tag_indicator_names;
 
 SolverChoice ERF::solverChoice;
 
@@ -426,11 +427,20 @@ ERF::post_timestep (int nstep, double time, double dt_lev0)
          int lev_column = 0;
          for (int lev = finest_level; lev >= 0; lev--)
          {
+            const Box& domain_lev = geom[lev].Domain();
             Real dx_lev = geom[lev].CellSize(0);
             Real dy_lev = geom[lev].CellSize(1);
-            int i_lev = static_cast<int>(std::floor(column_loc_x / dx_lev));
-            int j_lev = static_cast<int>(std::floor(column_loc_y / dy_lev));
-            if (grids[lev].contains(IntVect(i_lev,j_lev,0))) lev_column = lev;
+            // Cell containing (column_loc_x,column_loc_y) -- note that these locations are
+            //     measured from ProbLo, which need not be at the origin
+            int i_lev = domain_lev.smallEnd(0) +
+                static_cast<int>(std::floor((column_loc_x - geom[lev].ProbLo(0)) / dx_lev));
+            int j_lev = domain_lev.smallEnd(1) +
+                static_cast<int>(std::floor((column_loc_y - geom[lev].ProbLo(1)) / dy_lev));
+            // Loop runs from finest to coarsest, so stop at the first (finest) level
+            //     that contains the column
+            if (grids[lev].contains(IntVect(i_lev,j_lev,domain_lev.smallEnd(2)))) {
+                lev_column = lev; break;
+            }
          }
          writeToNCColumnFile(lev_column, column_file_name, column_loc_x, column_loc_y, time);
       }
@@ -474,7 +484,7 @@ ERF::post_timestep (int nstep, double time, double dt_lev0)
     }
 
     if (solverChoice.io_hurricane_eye_tracker and
-         (nstep == 0 or (nstep+1)%m_plot3d_int_1 == 0)) {
+         (nstep == 0 or (m_plot3d_int_1 > 0 and (nstep+1)%m_plot3d_int_1 == 0))) {
 
         int levc=finest_level;
 
@@ -870,6 +880,15 @@ ERF::InitData_post ()
         }
     }
 
+    if (solverChoice.large_scale_forcing)
+    {
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(!solverChoice.nudging_from_input_sounding || lsf.tau_lsf > 0.0,
+                                         "erf.forcing_timescale must be positive when nudging with large-scale forcing");
+        lsf.read_forcing_file();
+        lsf.interp_forcing(geom[0].data(), zlevels_stag[0], input_sounding_data);
+        lsf.start_time = start_time;
+    }
+
     if (solverChoice.dampingChoice.rayleigh_damp_U ||solverChoice.dampingChoice.rayleigh_damp_V ||
         solverChoice.dampingChoice.rayleigh_damp_W ||solverChoice.dampingChoice.rayleigh_damp_T)
     {
@@ -1102,6 +1121,9 @@ ERF::InitData_post ()
                                    solverChoice.advChoice.zero_zflux,
                                    geom[lev],
                                    z_phys_cc[lev]);
+
+                // The correction is only applied on the valid region
+                fill_wall_dist_ghost_cells(*walldist[lev], geom[lev]);
             }
         }
     }
@@ -1265,6 +1287,7 @@ ERF::InitData_post ()
         for (int lev = 0; lev <= finest_level; ++lev) {
             if (lev == 0) {
                 compute_max_pressure_gradient_diagnostic(lev);
+                compute_max_buoyancy_gradp_diagnostic(lev);
             }
         }
     }
@@ -1792,17 +1815,25 @@ ERF::restart ()
 #endif
 
     double cur_time = t_new[0];
-    if (m_check_per    > zero) {last_check_file_time    = cur_time;}
+    if (m_check_per    > zero) {last_check_file_time    = std::floor(cur_time/m_check_per   ) * m_check_per;}
     if (m_plot2d_per_1 > zero) {last_plot2d_file_time_1 = std::floor(cur_time/m_plot2d_per_1) * m_plot2d_per_1;}
     if (m_plot2d_per_2 > zero) {last_plot2d_file_time_2 = std::floor(cur_time/m_plot2d_per_2) * m_plot2d_per_2;}
     if (m_plot3d_per_1 > zero) {last_plot3d_file_time_1 = std::floor(cur_time/m_plot3d_per_1) * m_plot3d_per_1;}
     if (m_plot3d_per_2 > zero) {last_plot3d_file_time_2 = std::floor(cur_time/m_plot3d_per_2) * m_plot3d_per_2;}
+
+    for (int i = 0; i < m_subvol_per.size(); i++) {
+        if (m_subvol_per[i] > zero) {last_subvol_time[i] = std::floor(cur_time/m_subvol_per[i]) * m_subvol_per[i];}
+    }
 
     if (m_check_int    > zero) {last_check_file_step    = istep[0];}
     if (m_plot2d_int_1 > zero) {last_plot2d_file_step_1 = istep[0];}
     if (m_plot2d_int_2 > zero) {last_plot2d_file_step_2 = istep[0];}
     if (m_plot3d_int_1 > zero) {last_plot3d_file_step_1 = istep[0];}
     if (m_plot3d_int_2 > zero) {last_plot3d_file_step_2 = istep[0];}
+
+    for (int i = 0; i < m_subvol_int.size(); i++) {
+        if (m_subvol_int[i] > 0) {last_subvol_step[i] = istep[0];}
+    }
 
     if (verbose > 0)
     {
@@ -2234,7 +2265,6 @@ ERF::ReadParameters ()
                 Abort("WriteSubvolume: origin, nxnynz, and dxdydz must have multiples of AMReX_SPACEDIM");
             }
             nsub = n1/AMREX_SPACEDIM;
-            m_subvol_int.resize(nsub);
             last_subvol_step.resize(nsub);
             last_subvol_time.resize(nsub);
             m_subvol_int.resize(nsub);
@@ -2242,10 +2272,12 @@ ERF::ReadParameters ()
         }
 
         if (nsi > 0) {
-            for (int i = 1; i < nsub; i++) m_subvol_per[i] = -one;
+            for (int i = 0; i < nsub; i++) m_subvol_per[i] = -one;
             if ( nsi == 1) {
                 m_subvol_int[0] = -1;
                 pp.get("subvol_int" , m_subvol_int[0]);
+                // A single value applies to every subdomain
+                for (int i = 1; i < nsub; i++) m_subvol_int[i] = m_subvol_int[0];
             } else if ( nsi == nsub) {
                 pp.getarr("subvol_int" , m_subvol_int);
             } else {
@@ -2254,10 +2286,12 @@ ERF::ReadParameters ()
         }
 
         if (nsr > 0) {
-            for (int i = 1; i < nsub; i++) m_subvol_int[i] = -static_cast<int>(one);
+            for (int i = 0; i < nsub; i++) m_subvol_int[i] = -1;
             if ( nsr == 1) {
                 m_subvol_per[0] = -one;
                 pp.get("subvol_per" , m_subvol_per[0]);
+                // A single value applies to every subdomain
+                for (int i = 1; i < nsub; i++) m_subvol_per[i] = m_subvol_per[0];
             } else if ( nsr == nsub) {
                 pp.getarr("subvol_per" , m_subvol_per);
             } else {
@@ -2270,6 +2304,7 @@ ERF::ReadParameters ()
         pp.query("expand_plotvars_to_unif_rr",m_expand_plotvars_to_unif_rr);
 
         pp.query("plot_face_vels",m_plot_face_vels);
+        pp.query("plot_face_terrain_blanking",m_plot_face_terrain_blanking);
 
         if ( (m_plot3d_int_1 > 0 && m_plot3d_per_1 > 0) ||
              (m_plot3d_int_2 > 0 && m_plot3d_per_2 > zero) ) {
@@ -2482,9 +2517,6 @@ ERF::ReadParameters ()
     if (solverChoice.lsm_type == LandSurfaceType::SLM) {
         lsm.SetModel<SLM>();
         Print() << "SLM land surface model!\n";
-    } else if (solverChoice.lsm_type == LandSurfaceType::MM5) {
-        lsm.SetModel<MM5>();
-        Print() << "MM5 land surface model!\n";
 #ifdef ERF_USE_NOAHMP
     } else if (solverChoice.lsm_type == LandSurfaceType::NOAHMP) {
         lsm.SetModel<NOAHMP>();

@@ -126,6 +126,15 @@ public:
           amrex::Abort("Undefined PBLH calc type!");
       }
 
+      // The w* correction is computed from the PBL height, so it needs a scheme that
+      // actually diagnoses one.  With pblh_calc = "none" the pblh MultiFab keeps the
+      // bogus_large_value it was initialized with and calc_wstar turns that into a
+      // convective velocity scale of ~1e50, which destroys the surface fluxes.
+      if (m_include_wstar && (pblh_type == PBLHeightCalcType::None)) {
+          amrex::Abort("erf.most.include_wstar requires a PBL height: set "
+                       "erf.most.pblh_calc (MYNN25 is the only scheme implemented)");
+      }
+
       // Get surface temperature
       auto erf_st = pp.query("most.surf_temp", surf_temp);
       if (erf_st) { default_land_surf_temp  = surf_temp; }
@@ -416,12 +425,17 @@ public:
           }
       }
       int n_valid_lsm_flux = 0;
+      bool has_soil_t_flux = false;
       for (int n(0); n < nflux; ++n) {
           m_lsm_flux_name[n]     = lsm_flux_name[n];
           m_lsm_flux_lev[lev][n] = lsm_flux[n];
           if (m_lsm_flux_lev[lev][n]) { ++n_valid_lsm_flux; }
+          if (amrex::toLower(m_lsm_flux_name[n]) == "soil_t_flux") {
+              has_soil_t_flux = true;
+          }
       }
-      AMREX_ALWAYS_ASSERT((n_valid_lsm_flux==0 || n_valid_lsm_flux>=4));
+      AMREX_ALWAYS_ASSERT((n_valid_lsm_flux==0 || n_valid_lsm_flux>=4 ||
+                           (n_valid_lsm_flux==1 && has_soil_t_flux)));
       if (n_valid_lsm_flux>=4) { m_has_lsm_fluxes = true; }
 
       // Check if there is a user-specified roughness file to be read
@@ -519,6 +533,8 @@ public:
           amrex::Print() << "Using MOST with specified surface temperature ";
           if (m_has_ocean_lsm_tsurf) {
               amrex::Print() << "(OceanSurf: t_surf)" << std::endl;
+          } else if (m_has_lsm_tsurf && !use_sst && !use_tsk) {
+              amrex::Print() << "(SLM: theta)" << std::endl;
           } else {
               // NOTE: SST from the LOW file populates TSK in update_sst_tsk.
               //       So if we have TSK, it contains everything and has been
@@ -817,6 +833,18 @@ public:
    * @param[in] lev level index
    */
   amrex::MultiFab* get_w_star (const int& lev) { return w_star[lev].get(); }
+
+  /**
+   * Do we actually compute w*?  If not then the field returned by get_w_star holds
+   * only the value it was initialized with, and must not be reported as a diagnostic.
+   */
+  [[nodiscard]] bool computes_w_star () const { return m_include_wstar; }
+
+  /**
+   * Do we actually compute the PBL height?  If not then the field returned by get_pblh
+   * holds only the value it was initialized with, and must not be reported as a diagnostic.
+   */
+  [[nodiscard]] bool computes_pblh () const { return (pblh_type != PBLHeightCalcType::None); }
 
   /**
    * Return the temperature scale field.

@@ -97,12 +97,17 @@ ERF::setPlotVariables (const std::string& pp_plot_var_names, Vector<std::string>
     // If the model we are running doesn't have the variable listed in the inputs file,
     //     just ignore it rather than aborting
     //
+#ifdef ERF_USE_WINDFARM
+    // NOTE: these mirror the conditions guarding the Nturb/SMark fills in Write3DPlotFile;
+    //       if they diverge, the names and the filled components will not line up.
+    const bool wf_is_AD  = (solverChoice.windfarm_type == WindFarmType::SimpleAD ||
+                            solverChoice.windfarm_type == WindFarmType::GeneralAD);
+    const bool wf_active = (solverChoice.windfarm_type == WindFarmType::Fitch ||
+                            solverChoice.windfarm_type == WindFarmType::EWP   || wf_is_AD);
+#endif
+
     for (int i = 0; i < derived_names.size(); ++i) {
         if ( containerHasElement(plot_var_names, derived_names[i]) ) {
-            const bool is_windfarm_name =
-                derived_names[i] == "num_turb" || derived_names[i] == "SMark0" ||
-                derived_names[i] == "SMark1";
-            if (is_windfarm_name) continue;
             bool ok_to_add = ( (solverChoice.terrain_type == TerrainType::ImmersedForcing || solverChoice.buildings_type == BuildingsType::ImmersedForcing ) ||
                                (derived_names[i] != "terrain_IB_mask") );
             ok_to_add     &= ( (SolverChoice::terrain_type == TerrainType::StaticFittedMesh) ||
@@ -111,12 +116,13 @@ ERF::setPlotVariables (const std::string& pp_plot_var_names, Vector<std::string>
             ok_to_add     &= ( (SolverChoice::terrain_type == TerrainType::StaticFittedMesh) ||
                                (SolverChoice::terrain_type == TerrainType::MovingFittedMesh) ||
                                (derived_names[i] != "z_phys") );
-#ifndef ERF_USE_WINDFARM
-            ok_to_add     &= (derived_names[i] != "SMark0" && derived_names[i] != "SMark1");
+#ifdef ERF_USE_WINDFARM
+            // NOTE: the windfarm names must be added here, in derived_names order, since
+            //       that is where Write3DPlotFile fills them (see ERF.H "MUST MATCH THE ORDER").
+            ok_to_add     &= ( wf_active ||
+                               (derived_names[i] != "num_turb" && derived_names[i] != "SMark0") );
+            ok_to_add     &= ( wf_is_AD  || (derived_names[i] != "SMark1") );
 #endif
-            ok_to_add     &= (derived_names[i] != "num_turb" &&
-                              derived_names[i] != "SMark0" &&
-                              derived_names[i] != "SMark1");
             if (ok_to_add)
             {
                 if (erf_plotfile::plot3d_fixed_variable_available(derived_names[i], capabilities)) {
@@ -125,24 +131,6 @@ ERF::setPlotVariables (const std::string& pp_plot_var_names, Vector<std::string>
             } // use_terrain?
         } // hasElement
     }
-
-#ifdef ERF_USE_WINDFARM
-    for (int i = 0; i < derived_names.size(); ++i) {
-        if ( containerHasElement(plot_var_names, derived_names[i]) ) {
-            if(solverChoice.windfarm_type == WindFarmType::Fitch or solverChoice.windfarm_type == WindFarmType::EWP) {
-                if(derived_names[i] == "num_turb" or derived_names[i] == "SMark0") {
-                    tmp_plot_names.push_back(derived_names[i]);
-                }
-            }
-            if( solverChoice.windfarm_type == WindFarmType::SimpleAD or
-                solverChoice.windfarm_type == WindFarmType::GeneralAD ) {
-                if(derived_names[i] == "num_turb" or derived_names[i] == "SMark0" or derived_names[i] == "SMark1") {
-                    tmp_plot_names.push_back(derived_names[i]);
-                }
-            }
-        }
-    }
-#endif
 
 #ifdef ERF_USE_PARTICLES
     Vector<std::string> configured_particle_names;
@@ -497,10 +485,15 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
         {
             if (containerHasElement(plot_var_names, der_name)) {
                 MultiFab dmf(mf[lev], make_alias, mf_comp, 1);
+                //
+                // NOTE: we must not tile in z here because some of the derived quantities
+                //       ("precipitable", "mucape", "helicity", "max_reflectivity") are
+                //       whole-column operations and require the full column in each box
+                //
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
-                for (MFIter mfi(dmf, TilingIfNotGPU()); mfi.isValid(); ++mfi)
+                for (MFIter mfi(dmf, TileNoZ()); mfi.isValid(); ++mfi)
                 {
                     const Box& bx = mfi.tilebox();
                     auto& dfab = dmf[mfi];
@@ -592,7 +585,10 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
             u[0] = &(vars_new[lev][Vars::xvel]);
             u[1] = &(vars_new[lev][Vars::yvel]);
             u[2] = &(vars_new[lev][Vars::zvel]);
-            compute_divergence (lev, dmf, u, geom[lev]);
+            compute_divergence(lev, dmf, u, *mapfac[lev][MapFacType::m_x],
+                               *mapfac[lev][MapFacType::m_y], *mapfac[lev][MapFacType::v_x],
+                               *mapfac[lev][MapFacType::u_y], *ax[lev], *ay[lev],
+                               *detJ_cc[lev], geom[lev]);
             mf_comp += 1;
         }
 
@@ -669,7 +665,14 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
             if (solverChoice.moisture_type != MoistureType::None) {
                 make_qt(vars_new[lev][Vars::cons], qt, n_qstate_into_total);
             }
-            cons_to_prim(vars_new[lev][Vars::cons], S_prim, 0);
+            //
+            // NOTE: we must fill one ghost cell of S_prim here because make_buoyancy
+            //       reads cell_prim(i,j,k-1) at the lower z face of every box -- with
+            //       ng = 0 those ghost cells hold uninitialized data at the bottom of
+            //       any box that doesn't touch the bottom of the domain.  (The ghost
+            //       cells of vars_new[cons] are valid since we fillpatched above.)
+            //
+            cons_to_prim(vars_new[lev][Vars::cons], S_prim, 1);
 
             b.setVal(0.); // Need to initialize to zero because buoyancy not defined on faces at top and bottom of domain
             make_buoyancy(lev, vars_new[lev], S_prim, qt, b, geom[lev], solverChoice, base_state[lev], n_qstate_into_total,
@@ -1261,40 +1264,9 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
                 mf_comp += 1;
             }
 
-            if(containerHasElement(plot_var_names, "nc") && (n_qstate_moist >= 7))
-            {
-                MultiFab::Copy(  mf[lev], vars_new[lev][Vars::cons], RhoQ7_comp, mf_comp, 1, 0);
-                MultiFab::Divide(mf[lev], vars_new[lev][Vars::cons],   Rho_comp, mf_comp, 1, 0);
-                mf_comp += 1;
-            }
-
-            if(containerHasElement(plot_var_names, "ni") && (n_qstate_moist >= 8))
-            {
-                MultiFab::Copy(  mf[lev], vars_new[lev][Vars::cons], RhoQ8_comp, mf_comp, 1, 0);
-                MultiFab::Divide(mf[lev], vars_new[lev][Vars::cons],   Rho_comp, mf_comp, 1, 0);
-                mf_comp += 1;
-            }
-
-            if(containerHasElement(plot_var_names, "nr") && (n_qstate_moist >= 9))
-            {
-                MultiFab::Copy(  mf[lev], vars_new[lev][Vars::cons], RhoQ9_comp, mf_comp, 1, 0);
-                MultiFab::Divide(mf[lev], vars_new[lev][Vars::cons],   Rho_comp, mf_comp, 1, 0);
-                mf_comp += 1;
-            }
-
-            if(containerHasElement(plot_var_names, "ns") && (n_qstate_moist >= 10))
-            {
-                MultiFab::Copy(  mf[lev], vars_new[lev][Vars::cons], RhoQ10_comp, mf_comp, 1, 0);
-                MultiFab::Divide(mf[lev], vars_new[lev][Vars::cons],    Rho_comp, mf_comp, 1, 0);
-                mf_comp += 1;
-            }
-
-            if(containerHasElement(plot_var_names, "ng") && (n_qstate_moist >= 11))
-            {
-                MultiFab::Copy(  mf[lev], vars_new[lev][Vars::cons], RhoQ11_comp, mf_comp, 1, 0);
-                MultiFab::Divide(mf[lev], vars_new[lev][Vars::cons],    Rho_comp, mf_comp, 1, 0);
-                mf_comp += 1;
-            }
+            // NOTE: the number concentrations nc/ni/nr/ns/ng follow qt/qn/qp/qsat in
+            //       derived_names (see ERF.H "MUST MATCH THE ORDER"), so they are filled
+            //       after the qsat block below -- not here.
 
             // Precipitating + non-precipitating components
             //--------------------------------------------------------------------------
@@ -1385,6 +1357,43 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
                 mf_comp ++;
             }
 
+            // Number concentrations
+            //--------------------------------------------------------------------------
+            if(containerHasElement(plot_var_names, "nc") && (n_qstate_moist >= 7))
+            {
+                MultiFab::Copy(  mf[lev], vars_new[lev][Vars::cons], RhoQ7_comp, mf_comp, 1, 0);
+                MultiFab::Divide(mf[lev], vars_new[lev][Vars::cons],   Rho_comp, mf_comp, 1, 0);
+                mf_comp += 1;
+            }
+
+            if(containerHasElement(plot_var_names, "ni") && (n_qstate_moist >= 8))
+            {
+                MultiFab::Copy(  mf[lev], vars_new[lev][Vars::cons], RhoQ8_comp, mf_comp, 1, 0);
+                MultiFab::Divide(mf[lev], vars_new[lev][Vars::cons],   Rho_comp, mf_comp, 1, 0);
+                mf_comp += 1;
+            }
+
+            if(containerHasElement(plot_var_names, "nr") && (n_qstate_moist >= 9))
+            {
+                MultiFab::Copy(  mf[lev], vars_new[lev][Vars::cons], RhoQ9_comp, mf_comp, 1, 0);
+                MultiFab::Divide(mf[lev], vars_new[lev][Vars::cons],   Rho_comp, mf_comp, 1, 0);
+                mf_comp += 1;
+            }
+
+            if(containerHasElement(plot_var_names, "ns") && (n_qstate_moist >= 10))
+            {
+                MultiFab::Copy(  mf[lev], vars_new[lev][Vars::cons], RhoQ10_comp, mf_comp, 1, 0);
+                MultiFab::Divide(mf[lev], vars_new[lev][Vars::cons],    Rho_comp, mf_comp, 1, 0);
+                mf_comp += 1;
+            }
+
+            if(containerHasElement(plot_var_names, "ng") && (n_qstate_moist >= 11))
+            {
+                MultiFab::Copy(  mf[lev], vars_new[lev][Vars::cons], RhoQ11_comp, mf_comp, 1, 0);
+                MultiFab::Divide(mf[lev], vars_new[lev][Vars::cons],    Rho_comp, mf_comp, 1, 0);
+                mf_comp += 1;
+            }
+
             if (solverChoice.moisture_type == MoistureType::SatAdj &&
                 containerHasElement(plot_var_names, "rel_humidity"))
             {
@@ -1455,11 +1464,19 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
             else if(solverChoice.moisture_type == MoistureType::SuperDroplets)
             {
                 if (containerHasElement(plot_var_names, "rain_accum")) {
-                    MultiFab::Copy(mf[lev],*(qmoist[lev][6]),0,mf_comp,1,0);
+                    MultiFab::Copy(mf[lev],*(qmoist[lev][8]),0,mf_comp,1,0);
+                    mf_comp += 1;
+                }
+                if (containerHasElement(plot_var_names, "snow_accum")) {
+                    MultiFab::Copy(mf[lev],*(qmoist[lev][10]),0,mf_comp,1,0);
+                    mf_comp += 1;
+                }
+                if (containerHasElement(plot_var_names, "graup_accum")) {
+                    MultiFab::Copy(mf[lev],*(qmoist[lev][9]),0,mf_comp,1,0);
                     mf_comp += 1;
                 }
                 if (containerHasElement(plot_var_names, "rel_humidity")) {
-                    MultiFab::Copy(mf[lev],*(qmoist[lev][5]),0,mf_comp,1,0);
+                    MultiFab::Copy(mf[lev],*(qmoist[lev][7]),0,mf_comp,1,0);
                     mf_comp += 1;
                 }
                 if (containerHasElement(plot_var_names, "condensation_rate")) {
@@ -1784,7 +1801,7 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
 
     // LSM writes it's own data
     if (which==1 && plot_lsm) {
-        lsm.Plot_Lsm_Data(tnew, istep, refRatio());
+        lsm.Plot_Lsm_Data(tnew, finest_level, istep, refRatio());
     }
 
 #ifdef ERF_USE_RRTMGP
@@ -1831,6 +1848,28 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
                 WriteMultiLevelPlotfile(plotfilenameW, finest_level+1,
                                         GetVecOfConstPtrs(mf_w),
                                         {"z_velocity_stag"},
+                                        Geom(), tnew, istep, refRatio());
+            }
+
+            if (m_plot_face_terrain_blanking &&
+                (solverChoice.terrain_type == TerrainType::ImmersedForcing ||
+                 solverChoice.buildings_type == BuildingsType::ImmersedForcing) &&
+                terrain_blanking_xface[0]) {  // Check if face arrays are allocated
+                Print() << "Writing face terrain blanking" << std::endl;
+                std::string plotfilenameTBX = plotfilename; plotfilenameTBX += "_terrain_blank_xface";
+                std::string plotfilenameTBY = plotfilename; plotfilenameTBY += "_terrain_blank_yface";
+                std::string plotfilenameTBZ = plotfilename; plotfilenameTBZ += "_terrain_blank_zface";
+                WriteMultiLevelPlotfile(plotfilenameTBX, finest_level+1,
+                                        GetVecOfConstPtrs(terrain_blanking_xface),
+                                        {"terrain_blank_xface"},
+                                        Geom(), tnew, istep, refRatio());
+                WriteMultiLevelPlotfile(plotfilenameTBY, finest_level+1,
+                                        GetVecOfConstPtrs(terrain_blanking_yface),
+                                        {"terrain_blank_yface"},
+                                        Geom(), tnew, istep, refRatio());
+                WriteMultiLevelPlotfile(plotfilenameTBZ, finest_level+1,
+                                        GetVecOfConstPtrs(terrain_blanking_zface),
+                                        {"terrain_blank_zface"},
                                         Geom(), tnew, istep, refRatio());
             }
 

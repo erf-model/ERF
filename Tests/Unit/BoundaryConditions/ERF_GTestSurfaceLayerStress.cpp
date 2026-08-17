@@ -1,5 +1,6 @@
 #include "AMReX.H"
 #include "AMReX_MultiFab.H"
+#include "AMReX_Reduce.H"
 
 #include "ERF_Diffusion.H"
 #include "ERF_SurfaceLayerStress.H"
@@ -15,6 +16,38 @@ constexpr Real rho_high = Real(1.3);
 constexpr Real k_low = Real(-0.7);
 constexpr Real k_high = Real(0.45);
 constexpr Real most = Real(-2.6);
+
+Real
+single_value (const MultiFab& mf, const Box& box, int comp = 0)
+{
+  ReduceOps<ReduceOpSum> reduce_op;
+  ReduceData<Real> reduce_data(reduce_op);
+  for (MFIter mfi(mf); mfi.isValid(); ++mfi) {
+    const Box overlap = box & mfi.validbox();
+    if (overlap.isEmpty()) { continue; }
+    const auto array = mf.const_array(mfi);
+    reduce_op.eval(overlap, reduce_data,
+      [=] AMREX_GPU_DEVICE (int i, int j, int k) -> GpuTuple<Real>
+      {
+        return { array(i,j,k,comp) };
+      });
+  }
+  return get<0>(reduce_data.value());
+}
+
+void
+set_single_value (MultiFab& mf, const Box& box, Real value)
+{
+  for (MFIter mfi(mf); mfi.isValid(); ++mfi) {
+    const Box overlap = box & mfi.validbox();
+    if (overlap.isEmpty()) { continue; }
+    auto array = mf.array(mfi);
+    ParallelFor(overlap, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+    {
+      array(i,j,k) = value;
+    });
+  }
+}
 
 void
 expect_result(
@@ -162,8 +195,19 @@ TEST(SurfaceLayerStress, DiffusionSrcForMomAppliesSignedBottomStresses)
 
   const Real tx = Real(-1.7);
   const Real ty = Real(-0.9);
-  tau13[0].array()(0, 0, 0) = tx;
-  tau23[0].array()(0, 0, 0) = ty;
+  const Box tau13_box = tau13.boxArray()[0];
+  const Box tau23_box = tau23.boxArray()[0];
+  Box tau13_sample = tau13_box;
+  tau13_sample.setSmall(tau13_box.smallEnd());
+  tau13_sample.setBig(tau13_box.smallEnd());
+  Box tau23_sample = tau23_box;
+  tau23_sample.setSmall(tau23_box.smallEnd());
+  tau23_sample.setBig(tau23_box.smallEnd());
+  set_single_value(tau13, tau13_sample, tx);
+  set_single_value(tau23, tau23_sample, ty);
+  Gpu::streamSynchronize();
+  EXPECT_NEAR(single_value(tau13, tau13_sample), tx, Real(1.e-12));
+  EXPECT_NEAR(single_value(tau23, tau23_sample), ty, Real(1.e-12));
 
   MultiFab detJ(ba, dm, 1, 1);
   MultiFab mf_mx(ba, dm, 1, 1);
@@ -195,14 +239,22 @@ TEST(SurfaceLayerStress, DiffusionSrcForMomAppliesSignedBottomStresses)
     false, false);
   Gpu::streamSynchronize();
 
-  EXPECT_NEAR(rho_u_rhs[0].array()(0, 0, 0), tx, Real(1.e-12));
-  EXPECT_NEAR(rho_v_rhs[0].array()(0, 0, 0), ty, Real(1.e-12));
+  const Box u_box = rho_u_rhs[0].box();
+  const Box v_box = rho_v_rhs[0].box();
+  Box u_sample = u_box;
+  u_sample.setSmall(u_box.smallEnd());
+  u_sample.setBig(u_box.smallEnd());
+  Box v_sample = v_box;
+  v_sample.setSmall(v_box.smallEnd());
+  v_sample.setBig(v_box.smallEnd());
+  const Real u_rhs = single_value(rho_u_rhs, u_sample);
+  const Real v_rhs = single_value(rho_v_rhs, v_sample);
+  EXPECT_NEAR(u_rhs, tx, Real(1.e-12));
+  EXPECT_NEAR(v_rhs, ty, Real(1.e-12));
 
   const Real dt = Real(0.25);
   const Real old_u = Real(2.0);
   const Real old_v = Real(1.0);
-  EXPECT_NEAR(
-    old_u + dt * rho_u_rhs[0].array()(0, 0, 0), old_u + dt * tx, Real(1.e-12));
-  EXPECT_NEAR(
-    old_v + dt * rho_v_rhs[0].array()(0, 0, 0), old_v + dt * ty, Real(1.e-12));
+  EXPECT_NEAR(old_u + dt * u_rhs, old_u + dt * tx, Real(1.e-12));
+  EXPECT_NEAR(old_v + dt * v_rhs, old_v + dt * ty, Real(1.e-12));
 }

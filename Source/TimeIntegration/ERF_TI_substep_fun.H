@@ -9,7 +9,7 @@ auto acoustic_substepping_fun = [&,one_d=one,zero_d=zero](int fast_step, int n_s
                                     Vector<MultiFab>& S_stage,
                                     Vector<MultiFab>& S_data,
                                     const double dtau,
-                                    const double slow_dt,
+                                    const double /*slow_dt*/, // MRI's full timestep: use n_sub*dtau for this stage
                                     const Real inv_fac,
                                     const double old_substep_time,
                                     const double new_substep_time)
@@ -42,6 +42,15 @@ auto acoustic_substepping_fun = [&,one_d=one,zero_d=zero](int fast_step, int n_s
         MultiFab* terrain_blank = (solverChoice.terrain_type == TerrainType::ImmersedForcing ||
                                    solverChoice.buildings_type == BuildingsType::ImmersedForcing ) ?
             terrain_blanking[level].get() : nullptr;
+        MultiFab* terrain_blank_xface = (solverChoice.terrain_type == TerrainType::ImmersedForcing ||
+                                         solverChoice.buildings_type == BuildingsType::ImmersedForcing ) ?
+            terrain_blanking_xface[level].get() : nullptr;
+        MultiFab* terrain_blank_yface = (solverChoice.terrain_type == TerrainType::ImmersedForcing ||
+                                         solverChoice.buildings_type == BuildingsType::ImmersedForcing ) ?
+            terrain_blanking_yface[level].get() : nullptr;
+        MultiFab* terrain_blank_zface = (solverChoice.terrain_type == TerrainType::ImmersedForcing ||
+                                         solverChoice.buildings_type == BuildingsType::ImmersedForcing ) ?
+            terrain_blanking_zface[level].get() : nullptr;
 
         Vector<MultiFab> Svec_to_use;
         if (fast_step == 0) {
@@ -67,8 +76,7 @@ auto acoustic_substepping_fun = [&,one_d=one,zero_d=zero](int fast_step, int n_s
                      rhotheta_src[level].get(), rhoqt_src[level].get(),
                      dptr_wbar_sub, d_rayleigh_ptrs_at_lev,
                      d_sinesq_at_lev,
-                     (solverChoice.hindcast_surface_bcs? &surface_state_interp[level] : nullptr),
-                     input_sounding_data, turbPert, false);
+                     turbPert, false);
 
         // *************************************************************************
         // Set up flux registers if using two_way coupling
@@ -98,6 +106,7 @@ auto acoustic_substepping_fun = [&,one_d=one,zero_d=zero](int fast_step, int n_s
                          xvel_new, yvel_new, zvel_new,
                          xmom_src, ymom_src, zmom_src,
                          base_to_use, forest_drag, terrain_blank,
+                         terrain_blank_xface, terrain_blank_yface, terrain_blank_zface,
                          cosPhi_m[level].get(), sinPhi_m[level].get(), fine_geom, solverChoice,
                          mapfac[level],
                          (solverChoice.have_geo_wind_profile) ? d_u_geos[level].data() : nullptr,
@@ -105,8 +114,7 @@ auto acoustic_substepping_fun = [&,one_d=one,zero_d=zero](int fast_step, int n_s
                          dptr_wbar_sub, d_rayleigh_ptrs_at_lev,
                          d_sinesq_at_lev, d_sinesq_stag_at_lev, d_sponge_ptrs_at_lev,
                          (solverChoice.hindcast_lateral_forcing? &forecast_state_interp[level] : nullptr),
-                         (solverChoice.hindcast_surface_bcs? &surface_state_interp[level] : nullptr),
-                         input_sounding_data, get_eb(level), false);
+                         input_sounding_data, lsf, lsf_data[level], get_eb(level), false);
 
         // Moving terrain
         std::unique_ptr<MultiFab> z_t_pert;
@@ -141,7 +149,7 @@ auto acoustic_substepping_fun = [&,one_d=one,zero_d=zero](int fast_step, int n_s
                              detJ_cc[level],   detJ_cc_new[level],   detJ_cc_src[level],
                            dtau, beta_s, inv_fac, mapfac[level],
                            fr_as_crse, fr_as_fine, l_use_moisture, l_reflux, solverChoice.use_real_bcs,
-                           (l_rayleigh_implicit) ? d_sinesq_ptrs[level].data() : nullptr, l_damp_coef);
+                           (l_rayleigh_implicit) ? d_sinesq_stag_ptrs[level].data() : nullptr, l_damp_coef);
 
         } else if (solverChoice.mesh_type == MeshType::VariableDz) {
 
@@ -153,7 +161,7 @@ auto acoustic_substepping_fun = [&,one_d=one,zero_d=zero](int fast_step, int n_s
                           z_phys_nd[level], detJ_cc[level], dtau, beta_s, inv_fac,
                           mapfac[level],
                           fr_as_crse, fr_as_fine, l_use_moisture, l_reflux, solverChoice.use_real_bcs,
-                          (l_rayleigh_implicit) ? d_sinesq_ptrs[level].data() : nullptr, l_damp_coef);
+                          (l_rayleigh_implicit) ? d_sinesq_stag_ptrs[level].data() : nullptr, l_damp_coef);
 
         } else {
 
@@ -164,15 +172,18 @@ auto acoustic_substepping_fun = [&,one_d=one,zero_d=zero](int fast_step, int n_s
                            fine_geom, solverChoice.gravity, stretched_dz_d[level],
                            dtau, beta_s, inv_fac, mapfac[level],
                            fr_as_crse, fr_as_fine, l_use_moisture, l_reflux, solverChoice.use_real_bcs,
-                           (l_rayleigh_implicit) ? d_sinesq_ptrs[level].data() : nullptr, l_damp_coef);
+                           (l_rayleigh_implicit) ? d_sinesq_stag_ptrs[level].data() : nullptr, l_damp_coef);
         }
 
         // Even if we update all the conserved variables we don't need
         // to fillpatch the slow ones every acoustic substep
 
-        if ( (solverChoice.vert_implicit_fac[level][nrk] > zero_d) && !solverChoice.implicit_before_substep &&
+        if ( (solverChoice.vert_implicit_fac[level][nrk] > zero_d) &&
+             !solverChoice.implicit_before_substep                 &&
              (fast_step == n_sub-1) )
         {
+            // The interval actually advanced by this RK stage -- NOT the full MRI timestep
+            const Real stage_dt = static_cast<Real>(n_sub * dtau);
             MultiFab scratch(S_data[IntVars::cons], make_alias, 0, 2);
             MultiFab scratch_xmom(S_data[IntVars::xmom], make_alias, 0, 1);
             MultiFab scratch_ymom(S_data[IntVars::ymom], make_alias, 0, 1);

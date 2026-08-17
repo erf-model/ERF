@@ -60,6 +60,15 @@
         MultiFab* terrain_blank = (solverChoice.terrain_type == TerrainType::ImmersedForcing ||
                                    solverChoice.buildings_type == BuildingsType::ImmersedForcing) ?
             terrain_blanking[level].get() : nullptr;
+        MultiFab* terrain_blank_xface = (solverChoice.terrain_type == TerrainType::ImmersedForcing ||
+                                         solverChoice.buildings_type == BuildingsType::ImmersedForcing) ?
+            terrain_blanking_xface[level].get() : nullptr;
+        MultiFab* terrain_blank_yface = (solverChoice.terrain_type == TerrainType::ImmersedForcing ||
+                                         solverChoice.buildings_type == BuildingsType::ImmersedForcing) ?
+            terrain_blanking_yface[level].get() : nullptr;
+        MultiFab* terrain_blank_zface = (solverChoice.terrain_type == TerrainType::ImmersedForcing ||
+                                         solverChoice.buildings_type == BuildingsType::ImmersedForcing) ?
+            terrain_blanking_zface[level].get() : nullptr;
 
         // Update the total moisture variable *before* computing sources since this is used in
         //    the buoyancy calculation
@@ -109,8 +118,7 @@
                      mapfac[level],
                      rhotheta_src[level].get(), rhoqt_src[level].get(),
                      dptr_wbar_sub, d_rayleigh_ptrs_at_lev, d_sinesq_at_lev,
-                      (solverChoice.hindcast_surface_bcs? &surface_state_interp[level] : nullptr),
-                     input_sounding_data, turbPert, true);
+                     turbPert, true);
 
         // *****************************************************************************
         // Add nudging terms on moist variables if we have a non-zero relaxation region
@@ -160,6 +168,7 @@
                          xvel_new, yvel_new, zvel_new,
                          xmom_src, ymom_src, zmom_src,
                          base_to_use, forest_drag, terrain_blank,
+                         terrain_blank_xface, terrain_blank_yface, terrain_blank_zface,
                          cosPhi_m[level].get(), sinPhi_m[level].get(), fine_geom, solverChoice,
                          mapfac[level],
                          (solverChoice.have_geo_wind_profile) ? d_u_geos[level].data(): nullptr,
@@ -167,8 +176,7 @@
                          dptr_wbar_sub, d_rayleigh_ptrs_at_lev, d_sinesq_at_lev, d_sinesq_stag_at_lev,
                          d_sponge_ptrs_at_lev,
                          (solverChoice.hindcast_lateral_forcing? &forecast_state_interp[level] : nullptr),
-                         (solverChoice.hindcast_surface_bcs? &surface_state_interp[level] : nullptr),
-                         input_sounding_data, get_eb(level), true);
+                         input_sounding_data, lsf, lsf_data[level], get_eb(level), true);
 
         // *****************************************************************************
         // Add body sources if doing flow around a body
@@ -199,37 +207,48 @@
                          cloud_chamber_config.active ? &cloud_chamber_config : nullptr,
                          cloud_chamber_budget.get());
 
-        Real sdt = static_cast<Real>(slow_dt);
-
         if ((solverChoice.vert_implicit_fac[level][nrk] > zero_d) && solverChoice.implicit_before_substep) {
+            const Real stage_dt = static_cast<Real>(slow_dt);
+            /**
+             * @brief Temporary MultiFab for conserved variable updates.
+             */
             MultiFab scratch(S_data[IntVars::cons].boxArray(),S_data[IntVars::cons].DistributionMap(), 2,
                              S_data[IntVars::cons].nGrowVect());
             MultiFab::Copy(scratch, S_old[IntVars::cons], 0, 0, 2, S_data[IntVars::cons].nGrowVect()); // scratch := S_old               (for rho, rhotheta)
-            MultiFab::Saxpy(scratch, sdt, S_rhs[IntVars::cons], 0, 0, 2, 0);                       // scratch := S_old + slow_dt*Src (for rho, rhotheta)
+            MultiFab::Saxpy(scratch, stage_dt, S_rhs[IntVars::cons], 0, 0, 2, 0);                  // scratch := S_old + stage_dt*Src (for rho, rhotheta)
             scratch.FillBoundary(geom[level].periodicity());
 
+            /**
+             * @brief Temporary MultiFab for x-momentum updates.
+             */
             MultiFab scratch_xmom(S_data[IntVars::xmom].boxArray(),
                                   S_data[IntVars::xmom].DistributionMap(), 1,
                                   S_data[IntVars::xmom].nGrowVect());
+            /**
+             * @brief Temporary MultiFab for y-momentum updates.
+             */
             MultiFab scratch_ymom(S_data[IntVars::ymom].boxArray(),
                                   S_data[IntVars::ymom].DistributionMap(), 1,
                                   S_data[IntVars::ymom].nGrowVect());
 #ifdef ERF_IMPLICIT_W
+            /**
+             * @brief Temporary MultiFab for z-momentum updates.
+             */
             MultiFab scratch_zmom(S_data[IntVars::zmom].boxArray(),
                                   S_data[IntVars::zmom].DistributionMap(), 1,
                                   S_data[IntVars::zmom].nGrowVect());
 #endif
             if (solverChoice.implicit_momentum_diffusion) {
                 MultiFab::Copy(scratch_xmom, S_old[IntVars::xmom], 0, 0, 1,  S_data[IntVars::xmom].nGrowVect()); // scratch := S_old
-                MultiFab::Saxpy(scratch_xmom, sdt, S_rhs[IntVars::xmom], 0, 0, 1, 0);                        // scratch := S_old + slow_dt*Src
+                MultiFab::Saxpy(scratch_xmom, stage_dt, S_rhs[IntVars::xmom], 0, 0, 1, 0);                   // scratch := S_old + stage_dt*Src
                 scratch_xmom.FillBoundary(geom[level].periodicity());
 
                 MultiFab::Copy(scratch_ymom, S_old[IntVars::ymom], 0, 0, 1,  S_data[IntVars::ymom].nGrowVect()); // scratch := S_old
-                MultiFab::Saxpy(scratch_ymom, sdt, S_rhs[IntVars::ymom], 0, 0, 1, 0);                        // scratch := S_old + slow_dt*Src
+                MultiFab::Saxpy(scratch_ymom, stage_dt, S_rhs[IntVars::ymom], 0, 0, 1, 0);                   // scratch := S_old + stage_dt*Src
                 scratch_ymom.FillBoundary(geom[level].periodicity());
 #ifdef ERF_IMPLICIT_W
                 MultiFab::Copy(scratch_zmom, S_old[IntVars::zmom], 0, 0, 1,  S_data[IntVars::zmom].nGrowVect()); // scratch := S_old
-                MultiFab::Saxpy(scratch_zmom, sdt, S_rhs[IntVars::zmom], 0, 0, 1, 0);                        // scratch := S_old + slow_dt*Src
+                MultiFab::Saxpy(scratch_zmom, stage_dt, S_rhs[IntVars::zmom], 0, 0, 1, 0);                   // scratch := S_old + stage_dt*Src
                 scratch_zmom.FillBoundary(geom[level].periodicity());
 #endif
             }
@@ -237,21 +256,21 @@
 #include "ERF_ImplicitPre.H"
 
             MultiFab::Saxpy(scratch, -one_d, S_old[IntVars::cons], 1, 1, 1, 0); // scratch  := (S_new - S_old)           (for rhotheta only)
-            scratch.mult(one_d / sdt);                                      // scratch  := (S_new - S_old) / slow_dt
-            MultiFab::Copy(S_rhs[IntVars::cons], scratch, 1, 1, 1, 0);        // slow_rhs := (S_new - S_old) / slow_dt (for rhotheta only)
+            scratch.mult(one_d / stage_dt);                                 // scratch  := (S_new - S_old) / stage_dt
+            MultiFab::Copy(S_rhs[IntVars::cons], scratch, 1, 1, 1, 0);        // slow_rhs := (S_new - S_old) / stage_dt (for rhotheta only)
 
             if (solverChoice.implicit_momentum_diffusion) {
                 MultiFab::Saxpy(scratch_xmom, -one_d, S_old[IntVars::xmom], 0, 0, 1, 0); // scratch  := (S_new - S_old)
-                scratch_xmom.mult(one_d / sdt);                                      // scratch  := (S_new - S_old) / slow_dt
-                MultiFab::Copy(S_rhs[IntVars::xmom], scratch_xmom, 0, 0, 1, 0);        // slow_rhs := (S_new - S_old) / slow_dt
+                scratch_xmom.mult(one_d / stage_dt);                                 // scratch  := (S_new - S_old) / stage_dt
+                MultiFab::Copy(S_rhs[IntVars::xmom], scratch_xmom, 0, 0, 1, 0);        // slow_rhs := (S_new - S_old) / stage_dt
 
                 MultiFab::Saxpy(scratch_ymom, -one_d, S_old[IntVars::ymom], 0, 0, 1, 0); // scratch  := (S_new - S_old)
-                scratch_ymom.mult(one_d / sdt);                                      // scratch  := (S_new - S_old) / slow_dt
-                MultiFab::Copy(S_rhs[IntVars::ymom], scratch_ymom, 0, 0, 1, 0);        // slow_rhs := (S_new - S_old) / slow_dt
+                scratch_ymom.mult(one_d / stage_dt);                                 // scratch  := (S_new - S_old) / stage_dt
+                MultiFab::Copy(S_rhs[IntVars::ymom], scratch_ymom, 0, 0, 1, 0);        // slow_rhs := (S_new - S_old) / stage_dt
 #ifdef ERF_IMPLICIT_W
                 MultiFab::Saxpy(scratch_zmom, -one_d, S_old[IntVars::zmom], 0, 0, 1, 0); // scratch  := (S_new - S_old)
-                scratch_zmom.mult(one_d / sdt);                                      // scratch  := (S_new - S_old) / slow_dt
-                MultiFab::Copy(S_rhs[IntVars::zmom], scratch_zmom, 0, 0, 1, 0);        // slow_rhs := (S_new - S_old) / slow_dt
+                scratch_zmom.mult(one_d / stage_dt);                                 // scratch  := (S_new - S_old) / stage_dt
+                MultiFab::Copy(S_rhs[IntVars::zmom], scratch_zmom, 0, 0, 1, 0);        // slow_rhs := (S_new - S_old) / stage_dt
 #endif
             }
         }

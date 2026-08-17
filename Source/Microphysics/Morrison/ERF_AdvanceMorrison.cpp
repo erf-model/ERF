@@ -159,6 +159,19 @@ namespace MORRInd {
     };
 }
 
+namespace {
+
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+Real ndcnst_to_number_mixing_ratio (const Real ndcnst, const Real rho_erf) noexcept
+{
+    // NDCNST: #/cm^3 -> #/m^3
+    // rho_erf: kg_dry/m^3
+    // nc: #/kg_dry
+    return ndcnst * Real(1.0e6) / rho_erf;
+}
+
+} // namespace
+
     // wrapper to do all the updating
     void
     Morrison::Advance (const Real& dt_advance,
@@ -187,7 +200,13 @@ namespace MORRInd {
         pp.query("morrison_ndcnst", m_ndcnst);
 
         // Loop through the grids
-        for (MFIter mfi(*mic_fab_vars[MicVar_Morr::qcl],TileNoZ()); mfi.isValid(); ++mfi)
+        //
+        // The Fortran bridge is a whole-FAB interface: it declares every array over the fab
+        // box and would stage a full-FAB copy of ~14 scratch arrays per tile. Iterate one
+        // box at a time on that path.
+        //
+        const IntVect morr_tile_size = run_morr_fort ? IntVect::TheZeroVector() : TileNoZ();
+        for (MFIter mfi(*mic_fab_vars[MicVar_Morr::qcl],morr_tile_size); mfi.isValid(); ++mfi)
         {
           auto box = mfi.tilebox();
 
@@ -212,9 +231,7 @@ namespace MORRInd {
           auto const& ns_arr = mic_fab_vars[MicVar_Morr::ns]->array(mfi);
           auto const& ng_arr = mic_fab_vars[MicVar_Morr::ng]->array(mfi);
 
-#ifdef ERF_USE_MORR_FORT
           auto const& rho_arr         = mic_fab_vars[MicVar_Morr::rho]->array(mfi);
-#endif
           auto const& pres_arr        = mic_fab_vars[MicVar_Morr::pres]->array(mfi);
           auto const& rain_accum_arr  = mic_fab_vars[MicVar_Morr::rain_accum]->array(mfi);
           auto const& snow_accum_arr  = mic_fab_vars[MicVar_Morr::snow_accum]->array(mfi);
@@ -235,6 +252,15 @@ namespace MORRInd {
 
           Box grown_box(box); grown_box.grow(3);
 
+          // Every array handed to the Fortran bridge -- both the mic_fab_vars and the staging
+          // FABs below -- is declared there as DIMENSION(ims:ime,jms:jme,kms:kme), and those
+          // bounds are taken from mfi.fabbox(). So the staging FABs must be allocated on the
+          // fab box too; sizing them from a tilebox grown by a hard-coded 3 mis-declares the
+          // strides whenever ngrow_state != 3 or the MFIter tiles the box.
+          // Note fab_box always contains grown_box (ComputeGhostCells() >= 2, so the state
+          // carries at least 3 ghost cells), so this only ever widens the staged region.
+          const Box& fab_box = mfi.fabbox();
+
 #if defined(ERF_USE_MORR_FORT) && defined(AMREX_USE_GPU)
           Arena* Arena_Used = The_Pinned_Arena();
 #else
@@ -243,7 +269,7 @@ namespace MORRInd {
 
           // Calculate Exner function (PII) to convert potential temperature to temperature
           // PII = (P/P0)^(R/cp)
-          FArrayBox pii_fab(grown_box, 1, Arena_Used);
+          FArrayBox pii_fab(fab_box, 1, Arena_Used);
           auto const& pii_arr = pii_fab.array();
 
           const Real p0 = Real(100000.0); // Reference pressure (Pa)
@@ -251,33 +277,37 @@ namespace MORRInd {
           const Real rdcp = m_rdOcp; // R/cp ratio
 
           // Calculate Exner function
-          ParallelFor(grown_box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+          ParallelFor(fab_box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
             // NOTE: the Morrison Fortran version uses Pa not hPa so we didn't divide p by 100
             //       so we don't need to multiply by 100 here
             pii_arr(i,j,k) = std::pow((pres_arr(i,j,k)) / p0, rdcp);
           });
 
           // Create arrays for height differences (dz)
-          FArrayBox dz_fab(grown_box, 1, Arena_Used);
+          FArrayBox dz_fab(fab_box, 1, Arena_Used);
           auto const& dz_arr = dz_fab.array();
 
           // Calculate height differences
           const Real dz_val = m_geom.CellSize(2);
           const Array4<const Real> z_arr = (m_z_phys_nd) ? m_z_phys_nd->const_array(mfi) : Array4<const Real> {};
-          ParallelFor(grown_box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+          // z_phys_nd carries ComputeGhostCells()+2 ghost nodes, i.e. one more than the state,
+          // so the (i+1,j+1,k+1) reads stay in bounds over the whole fab box.
+          ParallelFor(fab_box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
             dz_arr(i,j,k) = (z_arr) ? Real(0.25) * ( (z_arr(i  ,j  ,k+1) - z_arr(i  ,j  ,k))
                                                    + (z_arr(i+1,j  ,k+1) - z_arr(i+1,j  ,k))
                                                    + (z_arr(i  ,j+1,k+1) - z_arr(i  ,j+1,k))
                                                    + (z_arr(i+1,j+1,k+1) - z_arr(i+1,j+1,k)) ) : dz_val;
           });
 
-          Box grown_boxD(grown_box); grown_boxD.makeSlab(2,0);
+          // The 2D Fortran arrays are declared DIMENSION(ims:ime,jms:jme), so this slab must
+          // carry the fab box extents in x and y.
+          Box fab_boxD(fab_box); fab_boxD.makeSlab(2,0);
 
           // Arrays to store precipitation rates
-          FArrayBox    rainncv_fab(grown_boxD, 1, Arena_Used);
-          FArrayBox         sr_fab(grown_boxD, 1, Arena_Used);     // Ratio of snow to total precipitation
-          FArrayBox    snowncv_fab(grown_boxD, 1, Arena_Used);
-          FArrayBox graupelncv_fab(grown_boxD, 1, Arena_Used);
+          FArrayBox    rainncv_fab(fab_boxD, 1, Arena_Used);
+          FArrayBox         sr_fab(fab_boxD, 1, Arena_Used);     // Ratio of snow to total precipitation
+          FArrayBox    snowncv_fab(fab_boxD, 1, Arena_Used);
+          FArrayBox graupelncv_fab(fab_boxD, 1, Arena_Used);
 
           auto const& rainncv_arr = rainncv_fab.array();
           auto const& sr_arr      = sr_fab.array();
@@ -285,7 +315,7 @@ namespace MORRInd {
           auto const& graupelncv_arr = graupelncv_fab.array();
 
           // Initialize precipitation rate arrays to Real(0)
-          ParallelFor(grown_boxD, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+          ParallelFor(fab_boxD, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
             rainncv_arr(i,j,k)    = Real(0);
             sr_arr(i,j,k)         = Real(0);
             snowncv_arr(i,j,k)    = Real(0);
@@ -412,6 +442,10 @@ namespace MORRInd {
 
           // Set microphysics control parameters
           m_inum = 1;           // Use constant droplet number concentration
+          // NOTE: m_ndcnst is NOT reset here. It carries the value queried from
+          //       erf.morrison_ndcnst above (default 250 cm^-3); overwriting it
+          //       here silently discarded the user's setting on every box, in
+          //       both the C++ and the Fortran path.
           // Mathematical constants
           m_pi = Real(3.1415926535897932384626434);
 
@@ -1005,8 +1039,8 @@ namespace MORRInd {
 
               if (m_inum == 1) {
                 // CONVERT NDCNST FROM CM-3 TO KG-1
-                // Note: NDCNST constant would need to be defined elsewhere
-                morr_arr(i,j,k,MORRInd::nc3d) = m_ndcnst * Real(1.0e6) / morr_arr(i,j,k,MORRInd::rho); // Set cloud droplet number concentration
+                morr_arr(i,j,k,MORRInd::nc3d) =
+                    ndcnst_to_number_mixing_ratio(m_ndcnst, rho_arr(i,j,k));
               }
 
               // GET SIZE DISTRIBUTION PARAMETERS
@@ -1494,8 +1528,8 @@ namespace MORRInd {
 
               if (m_inum == 1) {
                 // CONVERT NDCNST FROM CM-3 TO KG-1
-                // Note: NDCNST constant would need to be defined elsewhere
-                morr_arr(i,j,k,MORRInd::nc3d) = m_ndcnst * Real(1.0e6) / morr_arr(i,j,k,MORRInd::rho); // Set cloud droplet number concentration
+                morr_arr(i,j,k,MORRInd::nc3d) =
+                    ndcnst_to_number_mixing_ratio(m_ndcnst, rho_arr(i,j,k));
               }
 
               morr_arr(i,j,k,MORRInd::ni3d) = amrex::max(Real(0),morr_arr(i,j,k,MORRInd::ni3d));
@@ -2236,7 +2270,7 @@ namespace MORRInd {
                   prdg = Real(0);
                 }
                 // CONSERVATION OF WATER
-                // THIS IS ADOPTED LOOSELY FROM MM5 RESINER CODE. HOWEVER, HERE WE
+                // THIS IS ADOPTED LOOSELY FROM RESINER CODE. HOWEVER, HERE WE
                 // ONLY ADJUST PROCESSES THAT ARE NEGATIVE, RATHER THAN ALL PROCESSES.
 
                 // IF MIXING RATIOS LESS THAN QSMALL, THEN NO DEPLETION OF WATER
@@ -3149,7 +3183,8 @@ namespace MORRInd {
               // SWITCH FOR CONSTANT DROPLET NUMBER
               if (iinum == 1) {
                 // CHANGE NDCNST FROM CM-3 TO KG-1
-                morr_arr(i,j,k,MORRInd::nc3d) = m_ndcnst * Real(1.0e6) / morr_arr(i,j,k,MORRInd::rho);
+                morr_arr(i,j,k,MORRInd::nc3d) =
+                    ndcnst_to_number_mixing_ratio(m_ndcnst, rho_arr(i,j,k));
               }
             }
 
@@ -3166,7 +3201,7 @@ namespace MORRInd {
                   qci_arr(i,j,k) = morr_arr(i,j,k,MORRInd::qi3d);
                   qps_arr(i,j,k) = morr_arr(i,j,k,MORRInd::qni3d);
                   qpr_arr(i,j,k) = morr_arr(i,j,k,MORRInd::qr3d);
-                  nc_arr(i,j,k)  = morr_arr(i,j,k,MORRInd::nc3d);
+                  nc_arr(i,j,k) = morr_arr(i,j,k,MORRInd::nc3d);
                   ni_arr(i,j,k) = morr_arr(i,j,k,MORRInd::ni3d);
                   ns_arr(i,j,k) = morr_arr(i,j,k,MORRInd::ns3d);
                   nr_arr(i,j,k) = morr_arr(i,j,k,MORRInd::nr3d);

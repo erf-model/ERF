@@ -8,6 +8,15 @@ ifeq ($(USE_SHOC), TRUE)
 $(warning USE_SHOC=TRUE is deprecated; use USE_EAMXX_SHOC=TRUE)
 endif
 
+# The checked-in Source/PhysicsInterfaces/eamxx_config.h defines SCREAM_DOUBLE_PRECISION, so the
+# EAMxx ETI files instantiate the SHOC templates for double only, while ERF instantiates them
+# with amrex::Real.  Refuse a single-precision build here rather than failing at link time.
+ifeq ($(USE_EAMXX_SHOC), TRUE)
+  ifeq ($(PRECISION), FLOAT)
+    $(error USE_EAMXX_SHOC=TRUE requires PRECISION=DOUBLE because the vendored eamxx_config.h builds EAMxx in double precision)
+  endif
+endif
+
 # Default is no Fortran build unless an explicit Fortran bridge/model is enabled.
 # Keep this TRUE when USE_MORR_FORT and USE_WSM6_FORT are both unset.
 BL_NO_FORT = TRUE
@@ -249,11 +258,6 @@ include $(ERF_LSM_OCEANSURF_DIR)/Make.package
 VPATH_LOCATIONS   += $(ERF_LSM_OCEANSURF_DIR)
 INCLUDE_LOCATIONS += $(ERF_LSM_OCEANSURF_DIR)
 
-ERF_LSM_MM5_DIR = $(ERF_SOURCE_DIR)/LandSurfaceModel/MM5
-include $(ERF_LSM_MM5_DIR)/Make.package
-VPATH_LOCATIONS   += $(ERF_LSM_MM5_DIR)
-INCLUDE_LOCATIONS += $(ERF_LSM_MM5_DIR)
-
 ERF_MATPROP_DIR = $(ERF_SOURCE_DIR)/MaterialProperties
 include $(ERF_MATPROP_DIR)/Make.package
 VPATH_LOCATIONS   += $(ERF_MATPROP_DIR)
@@ -428,11 +432,16 @@ ifeq ($(USE_P3), TRUE)
     INCLUDE_LOCATIONS += $(EAMXX_HOME)/physics/share
 endif
 
+ERF_RAD_SIMPLE_DIR = $(ERF_SOURCE_DIR)/PhysicsInterfaces/Radiation/Simple
+include $(ERF_RAD_SIMPLE_DIR)/Make.package
+VPATH_LOCATIONS   += $(ERF_RAD_SIMPLE_DIR)
+INCLUDE_LOCATIONS += $(ERF_RAD_SIMPLE_DIR)
+
 # ---- LAPACK support ----
 USE_LAPACK ?= FALSE
 
 ifeq ($(USE_LAPACK), TRUE)
-  DEFINES += -DUSE_LAPACK  
+  DEFINES += -DUSE_LAPACK
   # Try pkg-config first (works on many systems)
   has_lapack := $(shell pkg-config --exists lapack 2>/dev/null; echo $$?)
   ifeq ($(has_lapack),0)
@@ -446,6 +455,7 @@ ifeq ($(USE_LAPACK), TRUE)
 
 endif
 # ------------------------
+
 
 
 include $(AMREX_HOME)/Src/Base/Make.package

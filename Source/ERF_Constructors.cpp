@@ -20,15 +20,6 @@ using namespace amrex;
 //             - initializes BCRec boundary condition object
 ERF::ERF ()
 {
-    int fix_random_seed = 0;
-    ParmParse pp("erf"); pp.query("fix_random_seed", fix_random_seed);
-    // Note that the value of 1024UL is not significant -- the point here is just to set the
-    // same seed for all MPI processes for the purpose of regression testing
-    if (fix_random_seed) {
-        Print() << "Fixing the random seed" << std::endl;
-        InitRandom(1024UL, ParallelDescriptor::NProcs(), 1024UL);
-    }
-
     ERF_shared();
 }
 
@@ -60,6 +51,28 @@ ERF::ERF (const RealBox& rb, int max_level_in,
 void
 ERF::ERF_shared ()
 {
+    // Seeding lives here so every constructor gets it
+    int fix_random_seed = 0;
+    long random_seed = -1;
+    {
+        ParmParse pp("erf");
+        pp.query("fix_random_seed", fix_random_seed);
+        pp.query("random_seed", random_seed);
+    }
+    // Note that the value of 1024UL is not significant -- the point here is just to set the
+    // same seed for all MPI processes for the purpose of regression testing
+    if (fix_random_seed) {
+        Print() << "Fixing the random seed" << std::endl;
+        InitRandom(1024UL, ParallelDescriptor::NProcs(), 1024UL);
+    } else if (random_seed >= 0) {
+        // User-supplied seed: vary the random sampling per run (e.g. across ensemble
+        // realizations), still offset by rank so the ranks draw independent streams.
+        Print() << "Using user random seed " << random_seed << std::endl;
+        auto s = static_cast<unsigned long>(random_seed);
+        InitRandom(s + static_cast<unsigned long>(ParallelDescriptor::MyProc()) + 1UL,
+                   ParallelDescriptor::NProcs(), s * 1234567UL + 12345UL);
+    }
+
     if (ParallelDescriptor::IOProcessor()) {
         const char* erf_hash = buildInfoGetGitHash(1);
         const char* amrex_hash = buildInfoGetGitHash(2);
@@ -95,6 +108,9 @@ ERF::ERF_shared ()
     lsm.ReSize(nlevs_max);
     lsm_data.resize(nlevs_max);
     lsm_flux.resize(nlevs_max);
+
+    nudge_data.resize(nlevs_max);
+    lsf_data.resize(nlevs_max);
 
     rhotheta_src.resize(nlevs_max);
     rhoqt_src.resize(nlevs_max);
@@ -137,6 +153,9 @@ ERF::ERF_shared ()
             // pass radiation datalog frequency to model - RRTMGP needs to know when to save data for profiles
             rad[lev]->setDataLogFrequency(rad_datalog_int);
 #endif
+        } else if (solverChoice.rad_type == RadiationType::Simple) {
+            rad[lev] = std::make_unique<RadiationSimple>(lev, solverChoice);
+            rad[lev]->setDataLogFrequency(rad_datalog_int);
         } else if (solverChoice.rad_type != RadiationType::None) {
             Abort("Don't know this radiation model!");
         }
@@ -342,6 +361,9 @@ ERF::ERF_shared ()
     z_t_rk.resize(nlevs_max);
 
     terrain_blanking.resize(nlevs_max);
+    terrain_blanking_xface.resize(nlevs_max);
+    terrain_blanking_yface.resize(nlevs_max);
+    terrain_blanking_zface.resize(nlevs_max);
 
     // Wall distance
     walldist.resize(nlevs_max);
@@ -538,6 +560,9 @@ ERF::ERF_shared ()
             TerrainIF implicit_fun(buildings_fab, geom[max_level], stretched_dz_d[max_level]);
             auto gshop = EB2::makeShop(implicit_fun);
             EB2::Build(gshop, this->Geom(), ngrow_for_eb);
+#if USE_FC_FACTORY
+            EB2::BuildFC();
+#endif
         } else if (geometry == "plane") {
             amrex::Abort("plane geometry is not supported with ImmersedForcing for buildings");
         } else if (geometry == "box") {
@@ -548,6 +573,9 @@ ERF::ERF_shared ()
             EB2::BoxIF implicit_fun(box_lo, box_hi, false);
             auto gshop = EB2::makeShop(implicit_fun);
             EB2::Build(gshop, this->Geom(), ngrow_for_eb);
+#if USE_FC_FACTORY
+            EB2::BuildFC();
+#endif
         } else if (geometry == "sphere") {
             amrex::Abort("sphere geometry is not supported with ImmersedForcing for buildings");
         }

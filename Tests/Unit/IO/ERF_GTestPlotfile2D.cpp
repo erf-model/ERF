@@ -239,7 +239,7 @@ TEST(Plotfile2D, MixedRequestsPreserveValidCanonicalOrder)
 // "nothing requested" from "everything filtered away".
 TEST(Plotfile2D, EmptyRequestsReturnEmptyLists)
 {
-    const amrex::Vector<std::string> requested;
+    const amrex::Vector<std::string> requested{};
     const amrex::Vector<std::string> available{"z_surf", "mapfac"};
 
     const auto selection = select_requested_plot_variables(requested, available);
@@ -1839,6 +1839,130 @@ TEST(Plotfile2DInterpolator, PressureInterpolatesMonotonicColumn)
     plotfile2d::fill_sampled_level_component(dst, 0, descriptor,
                                              cons, nullptr, z_phys_nd, false,
                                              MoistureComponentIndices(), 0, 2);
+    amrex::Gpu::streamSynchronize();
+
+    EXPECT_DOUBLE_EQ(dst.min(0), amrex::Real(305.0));
+    EXPECT_DOUBLE_EQ(dst.max(0), amrex::Real(305.0));
+}
+
+// Motivation: In an anelastic run the compressible EOS is not the pressure of
+// the system -- rho is the frozen base state density, so getPgivenRTh responds
+// to theta perturbations.  The sampled pressure field must report the base
+// state pressure instead, as the 3D plotfile path does.
+TEST(Plotfile2DSampledField, AnelasticPressureUsesBaseState)
+{
+    const auto ba = make_test_boxarray();
+    amrex::DistributionMapping dm(ba);
+    amrex::MultiFab cons(ba, dm, RhoQ6_comp + 1, 0);
+    amrex::MultiFab z_phys_cc(ba, dm, 1, 0);
+    amrex::MultiFab z_phys_nd(make_test_nodal_boxarray(), dm, 1, 0);
+    amrex::MultiFab p_hse(ba, dm, 1, 0);
+    amrex::MultiFab dst(ba, dm, 1, 0);
+
+    cons.setVal(amrex::Real(0.0));
+    z_phys_cc.setVal(amrex::Real(0.0));
+    z_phys_nd.setVal(amrex::Real(0.0));
+    dst.setVal(amrex::Real(-7.0));
+
+    set_component_value_at_k(cons, Rho_comp, 0, amrex::Real(2.0));
+    set_component_value_at_k(cons, RhoTheta_comp, 0, amrex::Real(500.0));
+    set_component_value_at_k(p_hse, 0, 0, amrex::Real(85000.0));
+
+    Plotfile2DOutputDescriptor descriptor;
+    descriptor.name = "pressure_k_0";
+    descriptor.long_name = "Pressure sampled on model index levels";
+    descriptor.units = "Pa";
+    descriptor.category = DiagnosticCategory::SampledLevel;
+    descriptor.missing_policy = MissingPolicy::FillMinus999WhenUnavailable;
+    descriptor.missing_value = amrex::Real(-999.0);
+    descriptor.sampled_level = SampledLevelMetadata{
+        "anelastic_run",
+        "pressure",
+        SampledVerticalCoordinateMetadata{
+            "model_index",
+            amrex::Real(0.0),
+            "1",
+            amrex::Real(0.0),
+            "1",
+            "none"
+        }
+    };
+
+    // Passing the base state pressure selects the anelastic behavior
+    plotfile2d::fill_sampled_level_component(dst, 0, descriptor,
+                                             cons, &z_phys_cc, z_phys_nd, true,
+                                             MoistureComponentIndices(), 0, 2,
+                                             plotfile2d::SampledWindSources{}, &p_hse);
+    amrex::Gpu::streamSynchronize();
+
+    EXPECT_DOUBLE_EQ(dst.min(0), amrex::Real(85000.0));
+    EXPECT_DOUBLE_EQ(dst.max(0), amrex::Real(85000.0));
+
+    // Without the base state we must still get the compressible EOS value
+    dst.setVal(amrex::Real(-7.0));
+    plotfile2d::fill_sampled_level_component(dst, 0, descriptor,
+                                             cons, &z_phys_cc, z_phys_nd, true,
+                                             MoistureComponentIndices(), 0, 2);
+    amrex::Gpu::streamSynchronize();
+
+    EXPECT_DOUBLE_EQ(dst.min(0), getPgivenRTh(amrex::Real(500.0), amrex::Real(0.0)));
+}
+
+// Motivation: The pressure vertical coordinate is built on the same field, so
+// an anelastic run must locate its sampled levels using the base state
+// pressure as well -- otherwise the level itself moves.
+TEST(Plotfile2DInterpolator, AnelasticPressureCoordinateUsesBaseState)
+{
+    const auto ba = make_test_boxarray();
+    amrex::DistributionMapping dm(ba);
+    amrex::MultiFab cons(ba, dm, RhoQ6_comp + 1, 0);
+    amrex::MultiFab z_phys_nd(make_test_nodal_boxarray(), dm, 1, 0);
+    amrex::MultiFab p_hse(ba, dm, 1, 0);
+    amrex::MultiFab dst(ba, dm, 1, 0);
+
+    cons.setVal(amrex::Real(0.0));
+    z_phys_nd.setVal(amrex::Real(0.0));
+    dst.setVal(amrex::Real(-7.0));
+
+    set_component_value_at_k(cons, Rho_comp, 0, amrex::Real(300.0));
+    set_component_value_at_k(cons, Rho_comp, 1, amrex::Real(310.0));
+    set_component_value_at_k(cons, Rho_comp, 2, amrex::Real(320.0));
+
+    // The base state brackets 850 hPa ...
+    set_component_value_at_k(p_hse, 0, 0, amrex::Real(90000.0));
+    set_component_value_at_k(p_hse, 0, 1, amrex::Real(80000.0));
+    set_component_value_at_k(p_hse, 0, 2, amrex::Real(70000.0));
+
+    // ... while the compressible EOS applied to this state does not, so if the
+    //     coordinate were built from the EOS the target would not be found
+    set_component_value_at_k(cons, RhoTheta_comp, 0, getRhoThetagivenP(amrex::Real(50000.0), amrex::Real(0.0)));
+    set_component_value_at_k(cons, RhoTheta_comp, 1, getRhoThetagivenP(amrex::Real(50000.0), amrex::Real(0.0)));
+    set_component_value_at_k(cons, RhoTheta_comp, 2, getRhoThetagivenP(amrex::Real(50000.0), amrex::Real(0.0)));
+
+    Plotfile2DOutputDescriptor descriptor;
+    descriptor.name = "rho_p_85000Pa";
+    descriptor.long_name = "Density sampled on pressure levels";
+    descriptor.units = "kg/m^3";
+    descriptor.category = DiagnosticCategory::SampledLevel;
+    descriptor.missing_policy = MissingPolicy::FillMinus999WhenUnavailable;
+    descriptor.missing_value = amrex::Real(-999.0);
+    descriptor.sampled_level = SampledLevelMetadata{
+        "upper_air",
+        "rho",
+        SampledVerticalCoordinateMetadata{
+            "pressure",
+            amrex::Real(85000.0),
+            "Pa",
+            amrex::Real(85000.0),
+            "Pa",
+            "linear"
+        }
+    };
+
+    plotfile2d::fill_sampled_level_component(dst, 0, descriptor,
+                                             cons, nullptr, z_phys_nd, false,
+                                             MoistureComponentIndices(), 0, 2,
+                                             plotfile2d::SampledWindSources{}, &p_hse);
     amrex::Gpu::streamSynchronize();
 
     EXPECT_DOUBLE_EQ(dst.min(0), amrex::Real(305.0));
