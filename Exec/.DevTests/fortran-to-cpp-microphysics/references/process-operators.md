@@ -19,6 +19,10 @@ These are campaign habits and operator-level behaviors that matter but are not c
   commits for no benefit. The correct order is: land all code commits, repair
   once, run the formal gate, then commit the ledger rows the gate produced.
   Repairing provenance needs no confirmation; it is a routine step of the gate.
+- A **dirty-SHA row does not identify a tree**, so it is not reproducible even
+  in principle. When a dirty triage run turns out to be worth keeping, record
+  which committed SHA its tree matches, or it becomes unusable the moment the
+  working tree moves.
 
 ## Debug Discipline
 - Keep compile-time bridge toggles separate from runtime diagnostic levels.
@@ -45,6 +49,23 @@ These are campaign habits and operator-level behaviors that matter but are not c
 - Encode build type in the id as a `_debug` or `_release` token and record it in notes as `build_type=debug` or `build_type=release`. Do not add build_type as a TSV column — the notes token is enough.
 - Bake the clean short SHA into the directory name for retreat and forensic sub-runs, whose provenance varies run to run. Omit it when a whole campaign sits at one SHA that `git_sha` already records.
 - Keep the ignore rule aligned with the naming scheme. A root that is not matched by `.gitignore` puts run artifacts into the worktree and breaks the clean-SHA gate.
+- Record the build **configuration**, not just the build type, in `notes`. A
+  scheme gated on a compile-time flag is not reproducible from `git_sha` alone:
+  the same commit built without the flag produces different numbers. WDM6's
+  `ERF_WDM6_F32_LITERALS=ON` is the flag the entire literal-precision contract
+  depends on, and it appears in neither the TSV columns nor the plotfile
+  `job_info`, which carries the inputs and a UUID lineage block but no CMake
+  options. So the notes token is the only durable record. Same reason the
+  `build_type` token exists, one level deeper.
+- **Prune only uncited artifact roots, and verify path integrity afterwards.**
+  Cross-reference every run root against the ledgers and the handoff notes
+  before deleting, then re-resolve every `plot_path`, `checkpoint_path` and
+  `log_path` in `executions.tsv` to confirm nothing dangles. A root with zero
+  ledger and zero handoff references costs nothing to remove; one that is cited
+  takes provenance with it, because the plotfile is where `job_info` lives.
+  Retain, at minimum: the diff artifact named by the manifest, the current
+  clean-SHA gate pair, any checkpoint another row lists as `restart_from`, and
+  the tag logs behind a recorded root cause.
 
 ## Extraction Discipline
 - The source corpus includes markdown and TSV files; both must survive the split with clear homes.
