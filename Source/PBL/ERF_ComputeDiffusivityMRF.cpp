@@ -785,7 +785,16 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
 
                     Pr_rich = std::max(amrex::Real(0.25), std::min(Pr_rich, Real(4.0)));
 
-                    K_turb(i, j, k, EddyDiff::Mom_v)   = rl2wsp * fm;
+                    // In the stable regime fm and ft are the same function, so the
+                    // Prandtl number has to be applied explicitly or momentum and heat
+                    // mix identically.  WRF (module_bl_mrf.F) takes heat as primary and
+                    // scales momentum up by it:
+                    //     XKZH = DK/(1+5*RI)**2 ; XKZM = XKZH*PRNUM
+                    // In the unstable regime fm and ft already differ (1.746 vs 1.286)
+                    // and WRF applies no Prandtl factor there.
+                    const Real Pr_mom = (grad_Ri_safe > 0) ? Pr_rich : Real(1);
+
+                    K_turb(i, j, k, EddyDiff::Mom_v)   = rl2wsp * fm * Pr_mom;
                     K_turb(i, j, k, EddyDiff::Theta_v) = rl2wsp * ft;
                     if (use_moisture && turbChoice.mrf_moistvars) {
                         K_turb(i, j, k, EddyDiff::Q_v) = rl2wsp * ft;
@@ -826,7 +835,16 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
 
                 Pr = std::max(amrex::Real(0.25), std::min(Pr, Real(4.0)));
 
-                K_turb(i, j, k, EddyDiff::Mom_v)   = rl2wsp * fm;
+                // In the stable regime fm and ft are the same function, so the Prandtl
+                // number has to be applied explicitly or momentum and heat mix
+                // identically.  WRF (module_bl_mrf.F) takes heat as primary and scales
+                // momentum up by it:
+                //     XKZH = DK/(1+5*RI)**2 ; XKZM = XKZH*PRNUM
+                // In the unstable regime fm and ft already differ (1.746 vs 1.286) and
+                // WRF applies no Prandtl factor there.
+                const Real Pr_mom = (grad_Ri_safe > 0) ? Pr : Real(1);
+
+                K_turb(i, j, k, EddyDiff::Mom_v)   = rl2wsp * fm * Pr_mom;
                 K_turb(i, j, k, EddyDiff::Theta_v) = rl2wsp * ft;
                 if (use_moisture && turbChoice.mrf_moistvars) {
                     K_turb(i, j, k, EddyDiff::Q_v) = rl2wsp * ft;
