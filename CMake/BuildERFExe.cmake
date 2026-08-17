@@ -311,9 +311,9 @@ function(build_erf_lib erf_lib_name)
 
   # Coupling source is present only on coupling branches.
   # Build/link branches should compile without requiring this file.
-  if(EXISTS "${SRC_DIR}/ERF_Coupling.cpp")
+  if(EXISTS "${SRC_DIR}/Coupling/ERF_to_REMORA.cpp")
     target_sources(${erf_lib_name} PRIVATE
-                   ${SRC_DIR}/ERF_Coupling.cpp)
+                   ${SRC_DIR}/Coupling/ERF_to_REMORA.cpp)
   endif()
 
   target_sources(${erf_lib_name}
@@ -324,7 +324,6 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/ERF_Diagnostics.cpp
        ${SRC_DIR}/ERF_MakeNewArrays.cpp
        ${SRC_DIR}/ERF_MakeNewLevel.cpp
-       ${SRC_DIR}/ERF_ReadWaves.cpp
        ${SRC_DIR}/Advection/ERF_AdvectionSrcForMom.cpp
        ${SRC_DIR}/Advection/ERF_AdvectionSrcForMom_ConstantDz.cpp
        ${SRC_DIR}/Advection/ERF_AdvectionSrcForMom_StretchedDz.cpp
@@ -347,6 +346,7 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/BoundaryConditions/ERF_FillBdyCCVels.cpp
        ${SRC_DIR}/BoundaryConditions/ERF_FillPatcher.cpp
        ${SRC_DIR}/BoundaryConditions/ERF_PhysBCFunct.cpp
+       ${SRC_DIR}/Coupling/ERF_ReadWaves.cpp
        ${SRC_DIR}/Diffusion/ERF_DiffusionSrcForMom.cpp
        ${SRC_DIR}/Diffusion/ERF_DiffusionSrcForMom_EB.cpp
        ${SRC_DIR}/Diffusion/ERF_DiffusionSrcForState_N.cpp
