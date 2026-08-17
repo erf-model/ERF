@@ -218,9 +218,9 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
                        // Implicit substepping removes the g33 metric
                        // Acoustic contribution limits dtau, whose max is in the first RK stage (1/3 dt)
                        Real Uacoustic = third * c * std::sqrt( dxinv[0] *
-                                                              (dxinv[0] + dxinv[2] * (std::fabs(h_xi )/h_zeta)) );
+                                                              (dxinv[0] + two * dxinv[2] * (std::fabs(h_xi )/h_zeta)) );
                        Real Vacoustic = third * c * std::sqrt( dxinv[1] *
-                                                              (dxinv[1] + dxinv[2] * (std::fabs(h_eta)/h_zeta)) );
+                                                              (dxinv[1] + two * dxinv[2] * (std::fabs(h_eta)/h_zeta)) );
                        if ((nxc > 1) && (nyc==1)) {
                            // 2-D in x-z
                            new_comp_dt = amrex::max(amrex::Math::abs(u(i,j,k,0))*dxinv[0] + Uacoustic,
