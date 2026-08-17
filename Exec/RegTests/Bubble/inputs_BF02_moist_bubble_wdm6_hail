@@ -53,3 +53,8 @@ erf.moisture_model = WDM6
 
 # Hail regime rather than the default graupel regime.
 wdm6.hail_opt = 1
+
+# plot_vars_1 is deliberately NOT overridden: the campaign runner supplies the
+# 32-entry list including nc/nn/nr. A standalone invocation inherits the base
+# input's list, which omits the number concentrations -- pass them explicitly if
+# you need them outside the runner.
