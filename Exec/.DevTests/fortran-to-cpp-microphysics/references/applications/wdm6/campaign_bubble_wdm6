@@ -11,11 +11,20 @@
 #
 # Usage, from anywhere:
 #   Exec/.DevTests/fortran-to-cpp-microphysics/references/applications/wdm6/campaign_bubble_wdm6 \
-#       <campaign_id> <pair> <max_step> <plot_int>
+#       <campaign_id> <pair> <max_step> <plot_int> [inputs_file]
 #
 # Example:
 #   ... campaign_bubble_wdm6 plotfile_parity_wdm6_bubble_v1a short 10  1
 #   ... campaign_bubble_wdm6 plotfile_parity_wdm6_bubble_v1a C     100 100
+#
+# The optional 5th argument selects the inputs file, relative to
+# Exec/RegTests/Bubble, and defaults to inputs_BF02_moist_bubble. Added for the
+# Phase 0b-2 coverage variants, which need a different grid or a different
+# hail_opt but the same two legs, campaign conventions and plot_vars:
+#   ... campaign_bubble_wdm6 <id> C 100 100 inputs_BF02_moist_bubble_wdm6_stretched_z
+#   ... campaign_bubble_wdm6 <id> C 100 100 inputs_BF02_moist_bubble_wdm6_hail
+# Omitting it reproduces every pre-0b-2 invocation byte for byte, so the closed
+# serial ladder's commands are unchanged.
 #
 # Root naming follows bubble_campaign.md "Campaign directory discipline".
 #
@@ -31,10 +40,11 @@ ERF_ROOT="$( cd "$SCRIPT_DIR/../../../../../.." && pwd )"
 BUILD_DIR="$ERF_ROOT/build_wdm6"
 BUBBLE_DIR="$ERF_ROOT/Exec/RegTests/Bubble"
 
-CAMPAIGN_ID="${1:?usage: campaign_bubble_wdm6 <campaign_id> <pair> <max_step> <plot_int>}"
+CAMPAIGN_ID="${1:?usage: campaign_bubble_wdm6 <campaign_id> <pair> <max_step> <plot_int> [inputs_file]}"
 PAIR="${2:?missing pair label}"
 MAX_STEP="${3:?missing max_step}"
 PLOT_INT="${4:?missing plot_int}"
+INPUTS="${5:-inputs_BF02_moist_bubble}"
 
 # 29 tracked plot_vars_1 entries plus the WDM6 number concentrations.
 # Applied as a run-time override: the tracked input is shared with the nightly
@@ -46,6 +56,14 @@ x_velocity y_velocity z_velocity pressure theta scalar temp pres_hse dens_hse \
 pert_pres pert_dens eq_pot_temp qt qv qc qi qp qrain qsnow qgraup nc nn nr"
 
 cd "$BUBBLE_DIR"
+
+# Fail loudly on a mistyped variant name rather than letting ERF report it as a
+# missing-file abort halfway into leg 1.
+if [ ! -f "$INPUTS" ]; then
+    echo "error: inputs file '$INPUTS' not found in $BUBBLE_DIR" >&2
+    exit 1
+fi
+
 mkdir -p "$CAMPAIGN_ID"
 
 # Rule 35: plotfile parity runs use microphysics_debug=0. No mpirun in this
@@ -53,9 +71,9 @@ mkdir -p "$CAMPAIGN_ID"
 run_leg() {
     local leg=$1 answer=$2
     local root="$CAMPAIGN_ID/${PAIR}_${leg}"
-    echo "[$leg] use_wdm6_cpp_answer=$answer max_step=$MAX_STEP plot_int=$PLOT_INT"
+    echo "[$leg] inputs=$INPUTS use_wdm6_cpp_answer=$answer max_step=$MAX_STEP plot_int=$PLOT_INT"
     mkdir -p "$root"
-    env $3 "$BUILD_DIR/Exec/erf_exec" inputs_BF02_moist_bubble \
+    env $3 "$BUILD_DIR/Exec/erf_exec" "$INPUTS" \
         erf.moisture_model=WDM6 \
         erf.use_wdm6_cpp_answer="$answer" \
         erf.microphysics_debug=0 \
