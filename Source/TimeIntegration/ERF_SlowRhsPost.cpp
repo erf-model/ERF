@@ -116,10 +116,16 @@ void erf_slow_rhs_post (int level, int finest_level,
 
     const bool l_use_terrain      = (solverChoice.mesh_type != MeshType::ConstantDz);
     const bool l_moving_terrain   = (solverChoice.terrain_type == TerrainType::MovingFittedMesh);
-    const bool l_reflux = ( (solverChoice.coupling_type == CouplingType::TwoWay) && (nrk == 2) && (finest_level > 0) );
     if (l_moving_terrain) AMREX_ALWAYS_ASSERT(l_use_terrain);
 
     const bool l_anelastic   = solverChoice.anelastic[level];
+
+    // Only add to the flux registers on the final RK stage.  The anelastic integrator
+    // takes two stages (nrk = 0,1) and the compressible one takes three (nrk = 0,1,2),
+    // so testing nrk == 2 alone would never reflux the scalar and moisture fluxes in an
+    // anelastic run.  This matches the condition used in erf_slow_rhs_pre.
+    const bool l_reflux = ( (solverChoice.coupling_type == CouplingType::TwoWay) && (finest_level > 0) &&
+                            ( (l_anelastic && nrk == 1) || (!l_anelastic && nrk == 2) ) );
 
     const bool l_use_KE         = ( tc.use_tke );
     const bool l_need_SmnSmn    = ( tc.les_type  == LESType::Deardorff ||
@@ -164,6 +170,12 @@ void erf_slow_rhs_post (int level, int finest_level,
     // Pre-computed quantities
     // *************************************************************************
     int nvars                     = S_data[IntVars::cons].nComp();
+
+    // Total number of q state components.  This is n_qstate (the water species) plus
+    // any non-water species that the microphysics model appends after them, and is the
+    // count that the advection, diffusion, state update and reflux all work over.
+    const int n_qstate_total      = nvars - RhoQ1_comp;
+
     const BoxArray& ba            = S_data[IntVars::cons].boxArray();
     const DistributionMapping& dm = S_data[IntVars::cons].DistributionMap();
     const bool use_physical_chamber_wall_flux =
@@ -184,7 +196,7 @@ void erf_slow_rhs_post (int level, int finest_level,
         // retained independently.  All other configurations retain ERF's
         // established one-component reusable diffusion storage.
         const int n_flux_components = use_physical_chamber_wall_flux ?
-            std::max(1, n_qstate) : 1;
+            std::max(1, n_qstate_total) : 1;
         dflux_x = std::make_unique<MultiFab>(convert(ba,IntVect(1,0,0)), dm, n_flux_components, ng);
         dflux_y = std::make_unique<MultiFab>(convert(ba,IntVect(0,1,0)), dm, n_flux_components, ng);
         dflux_z = std::make_unique<MultiFab>(convert(ba,IntVect(0,0,1)), dm, n_flux_components, 0);
@@ -447,7 +459,13 @@ void erf_slow_rhs_post (int level, int finest_level,
                           vert_adv_type = EfficientAdvType(nrk,ac.moistscal_vert_adv_type);
                     }
 
-                    num_comp = n_qstate;
+                    // Every state component from RhoQ1_comp to the end of the state, not
+                    // just the n_qstate water species: a microphysics model may append
+                    // non-water species after those (SuperDropletsMoist does), and they
+                    // are advanced by the state update below and included in the reflux.
+                    // Computing residuals for only the first n_qstate would leave the
+                    // rest to be updated with a residual nothing ever wrote.
+                    num_comp = n_qstate_total;
 
                 } else {
                     horiz_adv_type = ac.dryscal_horiz_adv_type;
@@ -507,7 +525,7 @@ void erf_slow_rhs_post (int level, int finest_level,
                     // established multi-component diffusion call.
                     const bool componentwise_moisture =
                         use_physical_chamber_wall_flux && ivar == RhoQ1_comp;
-                    const int n_diff_calls = componentwise_moisture ? n_qstate : 1;
+                    const int n_diff_calls = componentwise_moisture ? n_qstate_total : 1;
                     for (int qstate = 0; qstate < n_diff_calls; ++qstate) {
                         const int state_comp = componentwise_moisture ?
                             RhoQ1_comp + qstate : start_comp;
@@ -605,7 +623,7 @@ void erf_slow_rhs_post (int level, int finest_level,
                 start_comp = ivar;
                 num_comp = 1;
                 if (ivar == RhoQ1_comp) {
-                    num_comp = nvars - RhoQ1_comp;
+                    num_comp = n_qstate_total;
                 } else if (ivar == RhoScalar_comp) {
                     num_comp = NSCALARS;
                 }
