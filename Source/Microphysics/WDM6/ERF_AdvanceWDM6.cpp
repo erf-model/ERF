@@ -579,7 +579,12 @@ void WDM6::Advance(const Real& dt_advance,
         constexpr double cl = static_cast<double>(Cp_l);
         constexpr double cpv = static_cast<double>(Cp_v);
         const double ccn0 = static_cast<double>(m_ccn0);
-        constexpr int hail_opt = 0;                   // Graupel mode
+        // Honour wdm6.hail_opt on this leg too. m_hail_opt is resolved in Init
+        // from the same input the native coefficients branch on, so the two
+        // legs cannot disagree about the regime. The bool maps back to {0,1}
+        // losslessly with respect to the Fortran, whose only test is
+        // `hail_opt .eq. 1` (ERF_module_mp_wdm6.F90:3259).
+        const int hail_opt = m_hail_opt ? 1 : 0;
         mp_wdm6_init_c(den0, denr, dens, cl, cpv, ccn0, hail_opt);
         wdm6_inited = true;
         if (first_call) {
@@ -719,7 +724,13 @@ void WDM6::Advance(const Real& dt_advance,
 #ifdef ERF_USE_WDM6_FORT
         if (run_wdm6_fort) {
         // Fortran bridge path
-        // Create delz array (cell thickness)
+        // Create delz array (cell thickness). Uniform dz over the storage box,
+        // then the physical thickness over the valid tile where a terrain /
+        // stretched-mesh nodal height field exists. Mirrors the WSM6 delz_arr
+        // fill (ERF_AdvanceWSM6.cpp:948-961) including the four-corner average.
+        // The ghost entries keep dz_val because the isohelper repacks delz only
+        // over its:ite / kts:kte (ERF_module_mp_wdm6_isohelper.F90:140), so no
+        // ghost value ever reaches the Fortran.
         const Real dz_val = m_geom.CellSize(2);
         FArrayBox delz_fab(fab_box, 1, Arena_Used);
         auto const& delz_arr = delz_fab.array();
@@ -727,19 +738,42 @@ void WDM6::Advance(const Real& dt_advance,
             delz_arr(i,j,k) = dz_val;
         });
 
+        const Array4<const Real> z_arr = (m_z_phys_nd) ? m_z_phys_nd->const_array(mfi) : Array4<const Real> {};
+        ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+            delz_arr(i,j,k) = (z_arr) ? Real(0.25) * ( (z_arr(i  ,j  ,k+1) - z_arr(i  ,j  ,k))
+                                                     + (z_arr(i+1,j  ,k+1) - z_arr(i+1,j  ,k))
+                                                     + (z_arr(i  ,j+1,k+1) - z_arr(i  ,j+1,k))
+                                                     + (z_arr(i+1,j+1,k+1) - z_arr(i+1,j+1,k)) ) : dz_val;
+        });
+
         Box box2d(box);
         box2d.makeSlab(2, 0);
         Box fab_box2d(fab_box);
         fab_box2d.makeSlab(2, 0);
 
-        // Create landmask array (xland: 0=water, 1=land)
-        // TODO: Get from ERF's lmask_lev when available
-        // For now, default to land (continental CCN)
+        // Create landmask array in the WRF xland encoding: 1 = land, 2 = water.
+        // xland is handed to wdm62D's slmsk dummy unconverted (see the comment
+        // in mp_wdm6_run), and its only consumer is the maritime/continental
+        // autoconversion threshold at ERF_module_mp_wdm6.F90:628-633, which
+        // tests `slmsk .eq. 2`.
+        //
+        // ERF's lmask uses a DIFFERENT encoding -- 0 = water, 1 = land,
+        // 2 = building (ERF_MakeNewArrays.cpp:488 and :804) -- so the two
+        // cannot be passed through unmapped. Only lmask == 0 is water; a
+        // building cell is land as far as CCN is concerned.
         FArrayBox xland_fab(fab_box2d, 1, Arena_Used);
         auto const& xland_arr = xland_fab.array();
-        ParallelFor(fab_box2d, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-            xland_arr(i,j,k) = Real(1.0);  // Default to land
-        });
+        if (m_lmask != nullptr) {
+            auto const& lmask_arr = m_lmask->const_array(mfi);
+            ParallelFor(fab_box2d, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+                xland_arr(i,j,k) = (lmask_arr(i,j,0) == 0) ? Real(2.0) : Real(1.0);
+            });
+        } else {
+            // No mask wired (e.g. a restart path that has not set it): land.
+            ParallelFor(fab_box2d, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+                xland_arr(i,j,k) = Real(1.0);
+            });
+        }
 
         // Create 2D accumulation arrays
         // Fortran bridge uses ims:ime, jms:jme storage bounds; these buffers must
@@ -831,6 +865,10 @@ void WDM6::Advance(const Real& dt_advance,
         // Working FABs (similar to WSM6 but with WDM6-specific additions)
         // 3D working arrays
         const Real dz_val = m_geom.CellSize(2);
+        // Nodal physical heights, when a terrain / stretched mesh supplies them.
+        // Consumed in the delz_arr fill below; kept identical to the bridge
+        // leg's four-corner average so the two legs see the same thickness.
+        const Array4<const Real> z_arr = (m_z_phys_nd) ? m_z_phys_nd->const_array(mfi) : Array4<const Real> {};
         FArrayBox delz_fab(fab_box,1, Arena_Used);
         FArrayBox denfac_fab(fab_box,1, Arena_Used);
         FArrayBox xni_fab(fab_box,1, Arena_Used);
@@ -998,7 +1036,10 @@ void WDM6::Advance(const Real& dt_advance,
 
         // Clamp negative values and enforce minimums
         ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-            delz_arr(i,j,k) = dz_val;
+            delz_arr(i,j,k) = (z_arr) ? Real(0.25) * ( (z_arr(i  ,j  ,k+1) - z_arr(i  ,j  ,k))
+                                                     + (z_arr(i+1,j  ,k+1) - z_arr(i+1,j  ,k))
+                                                     + (z_arr(i  ,j+1,k+1) - z_arr(i  ,j+1,k))
+                                                     + (z_arr(i+1,j+1,k+1) - z_arr(i+1,j+1,k)) ) : dz_val;
             qc_arr(i,j,k) = amrex::max(qc_arr(i,j,k), Real(0.0));
             qr_arr(i,j,k) = amrex::max(qr_arr(i,j,k), Real(0.0));
             qi_arr(i,j,k) = amrex::max(qi_arr(i,j,k), Real(0.0));
@@ -1079,13 +1120,20 @@ void WDM6::Advance(const Real& dt_advance,
                                        diag_j >= jlo && diag_j <= jhi);
         const int diag_k = klo;
 
+        // Maritime/continental autoconversion threshold. The Fortran selects on
+        // `slmsk .eq. 2` (ERF_module_mp_wdm6.F90:628-633) where slmsk is xland
+        // in the WRF encoding, so 2 means WATER and picks qc0. ERF's lmask
+        // encodes water as 0, not 2 (ERF_MakeNewArrays.cpp:488, :804), so the
+        // test must be against 0 here. Testing == 2 would select maritime for
+        // building cells and would disagree with the bridge leg, which maps
+        // lmask == 0 to xland = 2.0.
         if (m_lmask != nullptr) {
             auto const& lmask_arr = m_lmask->const_array(mfi);
             ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-                qcr_arr(i,j,k) = (lmask_arr(i,j,0) == 2) ? qc0_loc : qc1_loc;
+                qcr_arr(i,j,k) = (lmask_arr(i,j,0) == 0) ? qc0_loc : qc1_loc;
             });
         } else {
-            // Match the current bridge posture: default to land when no lmask is wired.
+            // Match the bridge leg's no-mask posture: default to land.
             ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
                 qcr_arr(i,j,k) = qc1_loc;
             });

@@ -23,7 +23,18 @@ WDM6::Init(const MultiFab& cons_in,
     amrex::ParmParse pp("wdm6");
     pp.query("ccn0", m_ccn0);  // default 100.0e6 m^-3
 
-    amrex::Print() << "WDM6 Initialization: CCN0 = " << m_ccn0 << " #/m^3\n";
+    // Graupel/hail regime selector. The Fortran gates on `hail_opt .eq. 1`
+    // (ERF_module_mp_wdm6.F90:3259), so every value other than 1 selects the
+    // graupel branch; the bool below reproduces that test exactly rather than
+    // inventing a stricter 0/1 validation the Fortran does not perform.
+    // Must be resolved before initialize_coeffs(), which branches on it.
+    int hail_opt_in = 0;
+    pp.query("hail_opt", hail_opt_in);  // default 0 = graupel
+    m_hail_opt = (hail_opt_in == 1);
+
+    amrex::Print() << "WDM6 Initialization: CCN0 = " << m_ccn0 << " #/m^3"
+                   << ", hail_opt = " << (m_hail_opt ? 1 : 0)
+                   << (m_hail_opt ? " (hail)" : " (graupel)") << "\n";
 
     MicVarMap.resize(m_qmoist_size);
     MicVarMap = {MicVar_WDM6::rain_accum, MicVar_WDM6::snow_accum, MicVar_WDM6::graup_accum};

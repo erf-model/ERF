@@ -173,6 +173,13 @@ public:
         m_moist_model[a_lev]->Set_dzmin(dz_min);
     }
 
+    /*! \brief Populates ERF's land/water mask in the micro model */
+    virtual void Set_Lmask (const int a_lev,
+                            amrex::iMultiFab* lmask) const override
+    {
+        m_moist_model[a_lev]->Set_Lmask(lmask);
+    }
+
     SurfacePrecipAccumulationSources
     Get_Surface_Precip_Accumulation_Ptrs (const int& lev) const override
     {

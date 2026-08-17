@@ -4455,7 +4455,6 @@
        real(kind=kind_phys), dimension(its:ite, kts:kte, 2) :: qci_tmp  ! qc, qi
        real(kind=kind_phys), dimension(its:ite, kts:kte, 3) :: qrs_tmp  ! qr, qs, qg
        real(kind=kind_phys), dimension(its:ite, kts:kte, 3) :: ncr_tmp  ! nn, nc, nr (reordered)
-       real(kind=kind_phys), dimension(its:ite) :: slmsk
        integer :: ids, ide, jds, jde, kds, kde
        integer :: ims, ime, jms, jme, kms, kme
        integer :: jts, jte
@@ -4494,14 +4493,16 @@
          end do
        end do
 
-       ! Convert xland (1=land, 2=water) to slmsk (1=land, 0=water)
-       do i = its, ite
-         if (xland(i) < 1.5_kind_phys) then
-           slmsk(i) = 1.0_kind_phys  ! land
-         else
-           slmsk(i) = 0.0_kind_phys  ! water
-         end if
-       end do
+       ! xland is passed straight through to wdm62D's slmsk dummy. Do NOT
+       ! rescale it here. wdm62D's only use of slmsk is the maritime/continental
+       ! selection at :628-633,
+       !     if(slmsk(i).eq.2) then ; qcr(i,:) = qc0 ; else ; qcr(i,:) = qc1
+       ! which tests against the WRF xland encoding (1=land, 2=water), and the
+       ! upstream wdm6 driver at :255 supplies it unconverted as xland(ims,j).
+       ! An earlier version of this wrapper mapped xland to a 1=land/0=water
+       ! slmsk, which made .eq.2 unreachable and forced the continental qc1
+       ! everywhere, including over water. Nothing in wdm62D reads slmsk except
+       ! that test, so there is no other convention to satisfy.
 
        ! Call wdm62D
        call wdm62D(t, q, qci_tmp, qrs_tmp, ncr_tmp, den, p, delz, &
@@ -4510,7 +4511,7 @@
                    xls, xlv0, xlf0, den0, denr, &
                    cliq, cice, psat, &
                    diag_j_dbg, &
-                   slmsk, &
+                   xland, &
                    rain, rainncv, &
                    sr, &
                    ids, ide, jds, jde, kds, kde, &
