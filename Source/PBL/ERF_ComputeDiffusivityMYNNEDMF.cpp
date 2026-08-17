@@ -4424,9 +4424,13 @@ ComputeDiffusivityMYNNEDMF (const MultiFab& xvel,
             Real SM, SH, SQ;
             mynn.calc_stability_funcs(SM,SH,SQ,GM,GH,alphac);
 
-            // Clip SM, SH following WRF
+            // Clip SM, SH, SQ following WRF.  SQ is proportional to the *unclipped*
+            // SM (NN09 Eqn. 67 is evaluated before SM is limited), so it needs its own
+            // bounds; without them the TKE diffusivity below can go negative and turn
+            // the vertical TKE diffusion anti-diffusive.
             SM = amrex::min(amrex::max(SM,mynn.SMmin), mynn.SMmax);
             SH = amrex::min(amrex::max(SH,mynn.SHmin), mynn.SHmax);
+            SQ = amrex::min(amrex::max(SQ,mynn.SQmin), mynn.SQmax);
 
             // Finally, compute the eddy viscosity/diffusivities
             const Real rho = cell_data(i,j,k,Rho_comp);

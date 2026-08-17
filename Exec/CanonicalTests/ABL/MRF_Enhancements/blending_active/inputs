@@ -2,22 +2,23 @@
 #
 # Domain: 3000x3000x1024 m, 8x8x64 cells -> dx = 375 m.
 # pbl_blend_length = 750 m.
-# f_blend = 1 / (1 + (375/750)^2) = 1 / (1 + 0.25) = 0.8
+# f_blend = (375/750)^2 / (1 + (375/750)^2) = 0.25 / 1.25 = 0.2
 #
 # K_h ceiling (power-law, pbl_blend_use_smag=false):
 #   K_h_max = 0.1 * 375^(4/3) = 0.1 * 2610 ~ 261 m^2/s
 # MRF peak K_h for neutral ABL ~ 27 m^2/s << 261 m^2/s.
 # Ceiling is not active here; only the Boutle factor applies.
-# K_h_eff = 27 * 0.8 = 21.6 m^2/s (20% reduction).
+# K_h_eff = 27 * 0.2 = 5.4 m^2/s (80% reduction).
 #
 # Expected results:
 #   (1) Run exits code 0.
-#   (2) EddyDiff::Theta_v peak ~ 0.8 * (blending_disabled Theta_v peak).
-#       Approximately 20% reduction relative to blending_disabled.
-#   (3) EddyDiff::Q_v peak ~ 0.8 * (blending_disabled Q_v peak).
+#   (2) EddyDiff::Theta_v peak ~ 0.2 * (blending_disabled Theta_v peak).
+#       Approximately 80% reduction relative to blending_disabled.
+#   (3) EddyDiff::Q_v peak ~ 0.2 * (blending_disabled Q_v peak).
 #   (4) EddyDiff::Mom_v unchanged relative to blending_disabled.
-#   (5) pbl_blend_length = 1e10: f -> 1.0, recovers blending_disabled.
-#   (6) pbl_blend_length = 1.0: f -> 0 at dx=375 m (375>>1),
+#   (5) pbl_blend_length = 1.0: f -> 1.0 at dx=375 m (375>>1),
+#       recovers blending_disabled.
+#   (6) pbl_blend_length = 1e10: f -> 0 at dx=375 m (375<<1e10),
 #       K_h_eff -> min(K_h*~0, K_h_max) ~ 0.
 #
 # References:
@@ -68,7 +69,7 @@ erf.use_coriolis = true
 erf.latitude = 45.0
 erf.abl_driver_type = "GeostrophicWind"
 erf.abl_geo_wind = 15.0 0.0 0.0
-# Blending active: dx=375 m, L_blend=750 m -> f=0.8 -> 20% K_h reduction.
+# Blending active: dx=375 m, L_blend=750 m -> f=0.2 -> 80% K_h reduction.
 erf.pbl_blend_length   = 750.0
 erf.pbl_blend_cs       = 0.17
 erf.pbl_blend_c_max    = 0.1

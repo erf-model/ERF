@@ -2042,6 +2042,11 @@ List of Parameters
 |                                 | the dycore has been      |                       |            |
 |                                 | advanced at each timestep|                       |            |
 +---------------------------------+--------------------------+-----------------------+------------+
+| **erf.morrison_ndcnst**         | Constant cloud-droplet   | Positive real         | 250        |
+|                                 | number concentration for | (cm^-3)               | (cm^-3)    |
+|                                 | Morrison when constant   |                       |            |
+|                                 | droplet number is active |                       |            |
++---------------------------------+--------------------------+-----------------------+------------+
 
 Radiation
 =========
@@ -2137,7 +2142,10 @@ Notes
 
 - ``erf.fixed_solar_zenith_angle`` is passed directly as ``mu0`` (cosine of the zenith angle).
 - If ``erf.rad_orbital_year`` is negative, the orbital year is taken from the simulation timestamp.
-- When orbital parameters are negative, values are computed from the orbital year.
+  This is keyed off the value itself, not off whether the input was specified.
+- When orbital parameters are negative, values are computed from the orbital year.  Each of
+  ``erf.rad_orbital_eccentricity``, ``erf.rad_orbital_obliquity`` and ``erf.rad_orbital_mvelp``
+  is honored independently, so specifying one does not change how the others are obtained.
 
 The lookup data may be downloaded as a package from `here <https://doi.org/10.22002/ppv8a-4q131>`_.
 
