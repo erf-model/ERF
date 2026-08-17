@@ -361,6 +361,9 @@ ERF::ERF_shared ()
     z_t_rk.resize(nlevs_max);
 
     terrain_blanking.resize(nlevs_max);
+    terrain_blanking_xface.resize(nlevs_max);
+    terrain_blanking_yface.resize(nlevs_max);
+    terrain_blanking_zface.resize(nlevs_max);
 
     // Wall distance
     walldist.resize(nlevs_max);
@@ -557,6 +560,9 @@ ERF::ERF_shared ()
             TerrainIF implicit_fun(buildings_fab, geom[max_level], stretched_dz_d[max_level]);
             auto gshop = EB2::makeShop(implicit_fun);
             EB2::Build(gshop, this->Geom(), ngrow_for_eb);
+#if USE_FC_FACTORY
+            EB2::BuildFC();
+#endif
         } else if (geometry == "plane") {
             amrex::Abort("plane geometry is not supported with ImmersedForcing for buildings");
         } else if (geometry == "box") {
@@ -567,6 +573,9 @@ ERF::ERF_shared ()
             EB2::BoxIF implicit_fun(box_lo, box_hi, false);
             auto gshop = EB2::makeShop(implicit_fun);
             EB2::Build(gshop, this->Geom(), ngrow_for_eb);
+#if USE_FC_FACTORY
+            EB2::BuildFC();
+#endif
         } else if (geometry == "sphere") {
             amrex::Abort("sphere geometry is not supported with ImmersedForcing for buildings");
         }

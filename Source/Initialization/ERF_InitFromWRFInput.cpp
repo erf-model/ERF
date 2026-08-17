@@ -1186,7 +1186,32 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev)
         //
         // NOTE: z_cc must be averaged to the destination location when interpolating.
         //        This is due to the fact that z_cc is conserved WRT WRF heights.
+        //
+        // NOTE: W is intentionally *not* remapped below, unlike the cell-centered state
+        //       and the horizontal velocities.  ERF initializes from wrfinput files
+        //       produced by real.exe / ideal.exe (see Docs/sphinx_doc/Initialization.rst),
+        //       and those preprocessors leave W identically zero -- they carry no vertical
+        //       velocity from the driving analysis.  If a file
+        //       carrying a non-zero W were ever fed in here (a WRF history or restart file
+        //       rather than a preprocessor wrfinput), W would need a zvel_tmp remap onto
+        //       the z-faces exactly as xvel and yvel get below, or it would be left at
+        //       WRF's z-face heights while everything else moved to ERF's.
         // **************************************************************************
+#ifdef AMREX_DEBUG
+        // Hold the assumption stated in the note above to account.  A non-zero W here
+        // means the input is not a real.exe/ideal.exe wrfinput, and silently skipping
+        // its remap would leave the velocity field inconsistent at initialization.
+        // W is copied verbatim from the file and only ever divided by the map factor,
+        // so a genuinely zero W stays exactly zero and the exact test is safe.
+        {
+            const Real w_norm = lev_new[Vars::zvel].norm0();
+            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(w_norm == Real(0),
+                "init_from_wrfinput: the input file carries a non-zero W, which is not "
+                "remapped onto the ERF grid (see issue 3655).  A zvel_tmp remap onto the "
+                "z-faces must be added before such a file can be used here.");
+        }
+#endif
+
         int ncons = lev_new[Vars::cons].nComp();
         int imin  = mf_PH.boxArray().minimalBox().smallEnd(0);
         int imax  = mf_PH.boxArray().minimalBox().bigEnd(0);

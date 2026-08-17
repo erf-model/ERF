@@ -1319,6 +1319,7 @@ ERF::InitData_post ()
         for (int lev = 0; lev <= finest_level; ++lev) {
             if (lev == 0) {
                 compute_max_pressure_gradient_diagnostic(lev);
+                compute_max_buoyancy_gradp_diagnostic(lev);
             }
         }
     }
@@ -2335,6 +2336,7 @@ ERF::ReadParameters ()
         pp.query("expand_plotvars_to_unif_rr",m_expand_plotvars_to_unif_rr);
 
         pp.query("plot_face_vels",m_plot_face_vels);
+        pp.query("plot_face_terrain_blanking",m_plot_face_terrain_blanking);
 
         if ( (m_plot3d_int_1 > 0 && m_plot3d_per_1 > 0) ||
              (m_plot3d_int_2 > 0 && m_plot3d_per_2 > zero) ) {

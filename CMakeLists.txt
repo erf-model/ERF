@@ -150,6 +150,15 @@ if(ERF_ENABLE_SHOC AND NOT ERF_ENABLE_EAMXX_SHOC)
   set(ERF_ENABLE_EAMXX_SHOC ON CACHE BOOL "Build EAMxx SHOC parameterization" FORCE)
 endif()
 
+# The checked-in Source/PhysicsInterfaces/eamxx_config.h defines SCREAM_DOUBLE_PRECISION, so
+# scream::Real is double and the EAMxx ETI files we compile only instantiate the SHOC templates
+# for double.  ERF instantiates them with amrex::Real, so a SINGLE precision build would ask for
+# Functions<float,...> and fail to link.  Refuse the combination here rather than at link time.
+if(ERF_ENABLE_EAMXX_SHOC AND NOT ERF_PRECISION STREQUAL "DOUBLE")
+  message(FATAL_ERROR "ERF_ENABLE_EAMXX_SHOC requires ERF_PRECISION=DOUBLE because the vendored "
+                      "eamxx_config.h builds EAMxx in double precision")
+endif()
+
 #Options for performance
 option(ERF_ENABLE_MPI "Enable MPI" OFF)
 option(ERF_ENABLE_OPENMP "Enable OpenMP" OFF)
