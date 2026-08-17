@@ -133,7 +133,20 @@ solve_with_EB_mlmg (int lev, Vector<MultiFab>& rhs, Vector<MultiFab>& phi,
 
     // Add the flux values (gradient phi) to the face-centered cell with zero area fraction
     // (mlmg.getFluxes does not fill gradient phi at faces with zero area fraction)
-    FillZeroAreaFaceFluxes(phi[0], fluxes[0], geom, ebfact, ebfact_u, ebfact_v, ebfact_w);
+    //
+    // That routine extrapolates the gradient onto a zero-area face from three cells on the
+    // uncovered side, and at a face on the edge of a box the stencil reaches three cells
+    // past the box -- well beyond the single ghost cell phi carries, and beyond whatever
+    // the solve happened to leave in it (issue #3699). Do the extrapolation out of a
+    // three-ghost-cell scratch copy instead of widening phi itself, which would cost MLMG
+    // its alias fast path for the solution. Ghost cells outside the domain in a
+    // non-periodic direction are still unfilled; FillZeroAreaFaceFluxes detects that and
+    // drops to a lower order one-sided form there.
+    MultiFab phi_ext(phi[0].boxArray(), phi[0].DistributionMap(), 1, 3);
+    MultiFab::Copy(phi_ext, phi[0], 0, 0, 1, 0);
+    phi_ext.FillBoundary(geom.periodicity());
+
+    FillZeroAreaFaceFluxes(phi_ext, fluxes[0], geom, ebfact, ebfact_u, ebfact_v, ebfact_w);
 
     // ImposeBCsOnPhi(lev,phi[0], geom[lev].Domain());
 
