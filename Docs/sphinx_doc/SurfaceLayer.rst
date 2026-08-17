@@ -251,3 +251,37 @@ where :math:`w_*` is the (Deardorff) convective velocity scale and
    V_{sg} = 0.32 \left(\frac{\Delta x}{5000} - 1 \right)^{0.33}
 
 which vanishes for grid spacings of :math:`\Delta x < 5` km.
+
+Surface Layer boundary on all faces
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+While the surface layer boundary condition is primarily used on the bottom z face (zlo), it can also be applied to all other domain sides.
+This can allow MOST theory to be used on faces for simulating closed environments (e.g, cloud chamber).
+
+To use the surface layer boundary on different faces, all existing MOST options are prefixed with the corresponding face name (`xlo`, `ylo`, `zlo`, `xhi`, `yhi` `zhi`).
+For example,
+
+::
+
+    xlo.type = "surface_layer"
+    ylo.type = "surface_layer"
+
+    erf.xlo.surface_layer.flux_type = MOENG
+    erf.xlo.most.surf_temp = 289.5
+    erf.xlo.most.surf_moist = 0.00765
+    erf.xlo.most.z0 = 0.000035
+    erf.xlo.most.zref = 0.03125
+    erf.xlo.most.average_policy = 1
+    erf.xlo.most.radius = 0
+
+    erf.ylo.surface_layer.flux_type = MOENG
+    erf.ylo.most.surf_temp = 289.5
+    erf.ylo.most.surf_moist = 0.00765
+    erf.ylo.most.z0 = 0.000035
+    erf.ylo.most.zref = 0.03125
+    erf.ylo.most.average_policy = 1
+    erf.ylo.most.radius = 0
+
+
+Note that not all existing options are supported when using MOST on other faces (such as interpolation and time averaging).
+Currently the `MEONG` flux type is supported on all faces.
