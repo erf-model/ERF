@@ -1264,7 +1264,7 @@ ERF::InitData_post ()
                                                        vars_new[lev][Vars::cons],
                                                        z_phys_nd[lev],
                                                        walldist[lev]);
-    
+
                     if (ori.coordDir() == 2 && ori.faceDir() == Orientation::Side::low) {
                         // Initialize tke(x,y,z) as a function of u*(x,y)
                         if (solverChoice.turbChoice[lev].init_tke_from_ustar) {

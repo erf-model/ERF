@@ -583,7 +583,7 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
         // Z-faces: hfx3   qfx3   t13   t23
 
         // Output stresses nodal locations:
-        //            T     Q         
+        //            T     Q
         // X-faces: hfx1   qfx1(1,0,0)   t31(W)(1,0,1)   t21(V)(1,1,0)
         // Y-faces: hfx2   qfx2(0,1,0)   t12(U)(1,1,0)   t32(W)(0,1,1)
         // Z-faces: hfx3   qfx3(0,0,1)   t13(U)(1,0,1)   t23(V)(0,1,1)

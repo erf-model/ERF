@@ -439,7 +439,7 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
                     tau_fx(i, j, k, 4) = (q1fx2) ? 0.5 * (q1fx2(i, j, k) + q1fx2(i  , j+1, k)) : 0.0;
                     tau_fx(i, j, k, 5) = 0.5 * (q1fx3(i, j, k) + q1fx3(i  , j  , k+1));
                     tau_fx(i, j, k, 6) = 0.5 * (q2fx3(i, j, k) + q2fx3(i  , j  , k+1));
-                }); 
+                });
             }
         }
     }
