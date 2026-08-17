@@ -34,6 +34,15 @@ Real wdm6_xlcal (Real x, Real xlv0_arg, Real xlv1_arg, Real t0c_arg) {
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+Real wdm6_default_real_pow (double base, double exponent) {
+#ifdef ERF_WDM6_F32_LITERALS
+    return Real(std::pow(static_cast<float>(base), static_cast<float>(exponent)));
+#else
+    return Real(std::pow(base, exponent));
+#endif
+}
+
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 Real wdm6_diffus (Real x, Real y) {
     return (wdm6_literal(8.794e-5)*std::exp(std::log(x)*wdm6_literal(1.81)))/y;
 }
@@ -329,7 +338,7 @@ void wdm6_nislfv_rain_plm6_column (
             if (ww[k] == Real(0.0)) wi[k] = ww[k - 1];
         }
 
-        constexpr Real con1 = Real(0.05);
+        constexpr Real con1 = wdm6_literal(0.05);
         for (int k = km - 1; k >= 0; --k) {
             const Real decfl = (wi[k + 1] - wi[k]) * dt / dz[k];
             if (decfl > con1) {
@@ -1191,7 +1200,7 @@ void WDM6::Advance(const Real& dt_advance,
                     }
 #endif
                     Real qsw = Real(psat) * std::exp(std::log(tr) * xa) * std::exp(xb * (Real(1.0) - tr));
-                    qsw = amrex::min(qsw, Real(0.99) * p_arr(i,j,k));
+                    qsw = amrex::min(qsw, wdm6_literal(0.99) * p_arr(i,j,k));
 #if !defined(AMREX_USE_GPU)
                     if (i == diag_i && j == diag_j && k == diag_k) {
                         std::printf("WDM6-CPP_G1CV_SAT_INT10 %3d %24.16E\n",
@@ -1242,7 +1251,7 @@ void WDM6::Advance(const Real& dt_advance,
                     Real qsi = (t_arr(i,j,k) < ttp)
                         ? Real(psat) * std::exp(std::log(tr) * xai) * std::exp(xbi * (Real(1.0) - tr))
                         : Real(psat) * std::exp(std::log(tr) * xa) * std::exp(xb * (Real(1.0) - tr));
-                    qsi = amrex::min(qsi, Real(0.99) * p_arr(i,j,k));
+                    qsi = amrex::min(qsi, wdm6_literal(0.99) * p_arr(i,j,k));
 #if !defined(AMREX_USE_GPU)
                     if (i == diag_i && j == diag_j && k == diag_k) {
                         std::printf("WDM6-CPP_G1CV_SAT_INT22 %3d %24.16E\n",
@@ -2183,7 +2192,7 @@ void WDM6::Advance(const Real& dt_advance,
 
                 if (fallsum > Real(0.0)) {
                     sr_arr(i,j,klo) = (snow_arr(i,j,klo) + graup_arr(i,j,klo))
-                                    / (rain_arr(i,j,klo) + Real(1.0e-12));
+                                    / (rain_arr(i,j,klo) + wdm6_literal(1.0e-12));
                 }
             });
 
@@ -2626,7 +2635,7 @@ void WDM6::Advance(const Real& dt_advance,
             });
 
             // G11(c): avedia + rslopec/2/3 recompute (lamdac fallback branch)
-            const Real cbrt24 = Real(std::pow(24.0f, 0.3333333f));
+            const Real cbrt24 = wdm6_default_real_pow(24.0, 0.3333333);
             ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
                 // avedia component from rain slope: avedia(:,:,2) = rslope(:,:,1) * (24.)^(1/3)
                 avedia_arr(i,j,k,1) = rslope_arr(i,j,k,0) * cbrt24;
@@ -2701,20 +2710,20 @@ void WDM6::Advance(const Real& dt_advance,
                                                    /(t_arr(i,j,k) + Real(120.0))));
                     std::printf("WDM6-CPP_G11V_DIFFAC_INT8 %3d %24.16E\n",
                                 diag_k + 1,
-                                static_cast<double>(Real(1.496e-6)
+                                static_cast<double>(wdm6_literal(1.496e-6)
                                                    * (t_arr(i,j,k) * std::sqrt(t_arr(i,j,k)))
                                                    /(t_arr(i,j,k) + Real(120.0))
                                                    / den_arr(i,j,k)));
                     std::printf("WDM6-CPP_G11V_DIFFAC_INT21 %3d %24.16E\n",
                                 diag_k + 1,
-                                static_cast<double>(Real(1.496e-6)));
+                                static_cast<double>(wdm6_literal(1.496e-6)));
                     std::printf("WDM6-CPP_G11V_DIFFAC_INT22 %3d %24.16E\n",
                                 diag_k + 1,
-                                static_cast<double>(Real(1.496e-6)
+                                static_cast<double>(wdm6_literal(1.496e-6)
                                                    * (t_arr(i,j,k) * std::sqrt(t_arr(i,j,k)))));
                     std::printf("WDM6-CPP_G11V_DIFFAC_INT23 %3d %24.16E\n",
                                 diag_k + 1,
-                                static_cast<double>(Real(1.496e-6)
+                                static_cast<double>(wdm6_literal(1.496e-6)
                                                    * (t_arr(i,j,k) * std::sqrt(t_arr(i,j,k)))
                                                    /(t_arr(i,j,k) + Real(120.0))));
                     std::printf("WDM6-CPP_G11V_DIFFAC_INT24 %3d %24.16E\n",
@@ -2869,7 +2878,7 @@ void WDM6::Advance(const Real& dt_advance,
                                                    /(t_arr(i,j,k) + Real(120.0))));
                     std::printf("WDM6-CPP_G11V_DIFFAC_INT12 %3d %24.16E\n",
                                 diag_k + 1,
-                                static_cast<double>(Real(1.496e-6)
+                                static_cast<double>(wdm6_literal(1.496e-6)
                                                    * (t_arr(i,j,k) * std::sqrt(t_arr(i,j,k)))
                                                    /(t_arr(i,j,k) + Real(120.0))
                                                    / den_arr(i,j,k)));
@@ -2896,7 +2905,7 @@ void WDM6::Advance(const Real& dt_advance,
                     std::printf("WDM6-CPP_G11V_DIFFAC_INT4 %3d %24.16E\n",
                                 diag_k + 1,
                                 static_cast<double>(Real(1.0) / (qsati_arr(i,j,k)
-                                                   * (Real(8.794e-5) * std::exp(std::log(t_arr(i,j,k)) * Real(1.81))
+                                                   * (wdm6_literal(8.794e-5) * std::exp(std::log(t_arr(i,j,k)) * wdm6_literal(1.81))
                                                       / p_arr(i,j,k)))));
                     std::fflush(stdout);
 #endif
@@ -3043,9 +3052,10 @@ void WDM6::Advance(const Real& dt_advance,
             ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
                 const Real supsat = amrex::max(qv_arr(i,j,k), Real(qmin)) - qsatw_arr(i,j,k);
                 const Real satdt = supsat / dtcld;
-                const Real lencon = Real(2.7e-2) * den_arr(i,j,k) * qc_arr(i,j,k)
-                    * (Real(1.0e20/16.0) * rslopec2_arr(i,j,k) * rslopec2_arr(i,j,k) - Real(0.4));
-                const Real lenconcr = amrex::max(Real(1.2) * lencon, Real(qcrmin));
+                const Real lencon = wdm6_literal(2.7e-2) * den_arr(i,j,k) * qc_arr(i,j,k)
+                    * (wdm6_literal(1.0e20/16.0) * rslopec2_arr(i,j,k) * rslopec2_arr(i,j,k)
+                       - wdm6_literal(0.4));
+                const Real lenconcr = amrex::max(wdm6_literal(1.2) * lencon, Real(qcrmin));
 
                 if (qc_arr(i,j,k) > qcr_arr(i,j,k) && nc_arr(i,j,k) > Real(ncmin)) {
                     // Fortran :1889
@@ -3972,10 +3982,10 @@ void WDM6::Advance(const Real& dt_advance,
                 const Real one = Real(1.0);
                 const Real zero = Real(0.0);
                 const Real delta2 =
-                    (qr_arr(i,j,k) < Real(1.0e-4) && qs_arr(i,j,k) < Real(1.0e-4))
+                    (qr_arr(i,j,k) < wdm6_literal(1.0e-4) && qs_arr(i,j,k) < wdm6_literal(1.0e-4))
                     ? one : zero;
                 const Real delta3 =
-                    (qr_arr(i,j,k) < Real(1.0e-4)) ? one : zero;
+                    (qr_arr(i,j,k) < wdm6_literal(1.0e-4)) ? one : zero;
 
                 if (t_arr(i,j,k) <= t0c_l) {
                     Real value, source, factor, xlf, xlwork2;
@@ -4357,7 +4367,7 @@ void WDM6::Advance(const Real& dt_advance,
                 const Real tr = ttp / t_arr(i,j,k);
                 Real qsw = Real(psat) * std::exp(std::log(tr) * xa)
                                      * std::exp(xb * (Real(1.) - tr));
-                qsw = amrex::min(qsw, Real(0.99) * p_arr(i,j,k));
+                qsw = amrex::min(qsw, wdm6_literal(0.99) * p_arr(i,j,k));
                 qsw = Real(ep2) * qsw / (p_arr(i,j,k) - qsw);
                 qsw = amrex::max(qsw, Real(qmin));
                 qsatw_arr(i,j,k) = qsw;
@@ -4370,7 +4380,7 @@ void WDM6::Advance(const Real& dt_advance,
                     qsi = Real(psat) * std::exp(std::log(tr) * xa)
                         * std::exp(xb * (Real(1.) - tr));
                 }
-                qsi = amrex::min(qsi, Real(0.99) * p_arr(i,j,k));
+                qsi = amrex::min(qsi, wdm6_literal(0.99) * p_arr(i,j,k));
                 qsi = Real(ep2) * qsi / (p_arr(i,j,k) - qsi);
                 qsi = amrex::max(qsi, Real(qmin));
                 qsati_arr(i,j,k) = qsi;
@@ -4407,7 +4417,7 @@ void WDM6::Advance(const Real& dt_advance,
             }
 #endif
 
-            const Real g16a_cbrt24 = Real(std::pow(24.0f, 0.3333333f));
+            const Real g16a_cbrt24 = wdm6_default_real_pow(24.0, 0.3333333);
 
 #if !defined(AMREX_USE_GPU)
             if (microphysics_debug > 0 && loop == 0 && diag_col_in_tile) {
@@ -4533,8 +4543,6 @@ void WDM6::Advance(const Real& dt_advance,
             }
 #endif
 
-            const Real g16b_pi = Real(4.0f * std::atan(1.0f));
-
             ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
                 if (rhw_arr(i,j,k) > Real(1.0)) {
                     const Real ratio = rhw_arr(i,j,k) / Real(satmax);
@@ -4547,7 +4555,7 @@ void WDM6::Advance(const Real& dt_advance,
                     ncact = amrex::min(ncact, ncact_cap);
                     const Real actr_um = Real(actr) * wdm6_literal(1.0e-6);
                     const Real pcact = amrex::min(
-                        Real(4.0) * g16b_pi * Real(denr)
+                        Real(4.0) * pi_wdm6_loc * Real(denr)
                             * actr_um * actr_um * actr_um * ncact
                             / (Real(3.0) * den_arr(i,j,k)),
                         amrex::max(qv_arr(i,j,k), Real(0.0)) / dtcld);
@@ -4568,7 +4576,7 @@ void WDM6::Advance(const Real& dt_advance,
                 const Real tr = ttp / t_arr(i,j,k);
                 Real qsw = Real(psat) * std::exp(std::log(tr) * xa)
                                      * std::exp(xb * (Real(1.0) - tr));
-                qsw = amrex::min(qsw, Real(0.99) * p_arr(i,j,k));
+                qsw = amrex::min(qsw, wdm6_literal(0.99) * p_arr(i,j,k));
                 qsw = Real(ep2) * qsw / (p_arr(i,j,k) - qsw);
                 qsw = amrex::max(qsw, Real(qmin));
                 qsatw_arr(i,j,k) = qsw;
@@ -4625,7 +4633,7 @@ void WDM6::Advance(const Real& dt_advance,
                                 static_cast<double>(pcact_arr(diag_i,diag_j,kk)),
                                 static_cast<double>(nn_arr(diag_i,diag_j,kk)),
                                 static_cast<double>(nc_arr(diag_i,diag_j,kk)));
-                    if (std::abs(static_cast<double>(pcond_arr(diag_i,diag_j,kk))) > 1.e-20) {
+                    if (std::abs(static_cast<double>(pcond_arr(diag_i,diag_j,kk))) > wdm6_literal(1.e-20)) {
                         std::printf("WDM6-CPP_T2_G16B_COND_POST k=%3d pcond=%12.4E qc=%12.4E\n",
                                     kk + 1,
                                     static_cast<double>(pcond_arr(diag_i,diag_j,kk)),
@@ -4636,9 +4644,8 @@ void WDM6::Advance(const Real& dt_advance,
             }
 #endif
 
-            const Real g17_pi = Real(4.0f * std::atan(1.0f));
-            const Real g17_pidnc = g17_pi * Real(denr) / Real(6.0);
-            const Real g17_pidnr = Real(4.0) * g17_pi * Real(denr);
+            const Real g17_pidnc = pi_wdm6_loc * Real(denr) / Real(6.0);
+            const Real g17_pidnr = Real(4.0) * pi_wdm6_loc * Real(denr);
 
 #if !defined(AMREX_USE_GPU)
             if (microphysics_debug > 0 && loop == 0 && diag_col_in_tile) {
