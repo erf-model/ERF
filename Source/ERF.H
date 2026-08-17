@@ -351,6 +351,10 @@ public:
 
     void compute_max_pressure_gradient_diagnostic(int lev);
 
+    // Max of (buoyancy - vertical gradient of perturbational pressure);
+    //    this is identically zero if the state is in HSE and buoyancy_type = 1
+    void compute_max_buoyancy_gradp_diagnostic(int lev);
+
     void check_mesh_type(int lev);
 
     // Is it time to write a plotfile or checkpoint?
