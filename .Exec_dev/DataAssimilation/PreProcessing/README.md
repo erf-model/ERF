@@ -1,12 +1,12 @@
-# Pre-processing for Data Assimilation (2D Squall Line)
+# Pre-processing for Data Assimilation
 
 This directory contains the pre-processing code that generates the background initial conditions for ensemble-based data assimilation.
 
 ## Overview
 
-The code takes a fine-mesh "ground truth" plotfile and a coarse-mesh plotfile, then interpolates the fine-mesh data onto the coarse mesh. 
+The code takes a fine-mesh "ground truth" plotfile and a coarse-mesh plotfile, then interpolates the fine-mesh data onto the coarse mesh and writes out a custom-written binary file with the coarse data, that can be read-in by the data assimilation code. 
 
-**Concept:** Satellite observations capture coarse representations of flow features—the features are present, but at a lower resolution. To mimic this, this tool generates a coarsened version of the ground truth and exports it to a custom binary data file used as input for ensemble simulations.
+**Concept:** Satellite observations capture coarse representations of flow features ie. the features are present, but at a lower resolution. To mimic this, this tool generates a coarsened version of the ground truth and exports it to a custom binary data file used as input for ensemble simulations.
 
 ## Build and Run
 
@@ -14,8 +14,9 @@ The code takes a fine-mesh "ground truth" plotfile and a coarse-mesh plotfile, t
    ```bash
    make -j8
    ```
+2. `vars.txt` should contain the list of variables to be included in the coarsened data.
 
-2. **Execute:**
+3. **Execute:**
    ```bash
    ./out -- <fine-mesh-plt-file> <coarse-mesh-plt-file>
    ```
