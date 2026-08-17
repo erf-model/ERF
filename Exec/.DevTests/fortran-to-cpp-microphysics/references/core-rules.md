@@ -79,6 +79,25 @@ These are the reusable, cross-scheme rules that should survive beyond WSM6.
   clamp never bound there. Do not read an early milestone pass, or a fix that
   leaves it unmoved, as evidence about a clamped or gated literal. Audit these
   by reading the source, not by watching a metric.
+- **A shared literal in a floor-and-gate pair is not inert just because the
+  floored value cannot pass the gate.** The Fortran idiom
+  `x = max(a+b, 1.e-15)` followed by `if (x .gt. 1.e-15)` is self-consistent
+  within one leg: the floored value never passes. But if the port routes that
+  literal differently, the **threshold** differs between legs, and any input in
+  the gap between the two thresholds takes the branch on one leg and skips it on
+  the other. That is branch divergence, not a rounding difference, and it is
+  invisible to the reasoning that declares the floor harmless. Audit the gate
+  literal, not just the floored value. WDM6 carried this at 12 sites on an
+  unsuffixed `1.e-15`, where `float32(1e-15)` is larger than the double by
+  3.63e-09 relative.
+- **A declaration does not make a literal a double.** In Fortran,
+  `real(kind=kind_phys), parameter :: qcrmin = 1.e-9` evaluates its unsuffixed
+  right-hand side in single precision and only then widens, so `qcrmin` is
+  `float32(1e-9)`, not `1e-9`. Named parameters therefore need the same routing
+  as inline literals, and reading the declaration's kind is not sufficient — read
+  the initializer. This is the inverse of the `euler` trap, where an explicit
+  `_kind_phys` suffix makes the literal a genuine double and routing it would
+  introduce a defect. Both mistakes come from reading one half of the declaration.
 - The audit is not only a defect hunt: **it is the precondition for the
   double-literal comparison build to mean anything.** An unrouted literal is
   already a true double on the C++ side, so it accidentally agrees with the
@@ -102,22 +121,3 @@ These are the reusable, cross-scheme rules that should survive beyond WSM6.
 ## Extraction Policy
 - Promote only rules that generalize cleanly beyond a single scheme or test case.
 - Keep scheme-local execution orderings, tag tables, milestone step numbers, and variable-to-tag mappings out of this file unless multiple schemes confirm them.
-- **A shared literal in a floor-and-gate pair is not inert just because the
-  floored value cannot pass the gate.** The Fortran idiom
-  `x = max(a+b, 1.e-15)` followed by `if (x .gt. 1.e-15)` is self-consistent
-  within one leg: the floored value never passes. But if the port routes that
-  literal differently, the **threshold** differs between legs, and any input in
-  the gap between the two thresholds takes the branch on one leg and skips it on
-  the other. That is branch divergence, not a rounding difference, and it is
-  invisible to the reasoning that declares the floor harmless. Audit the gate
-  literal, not just the floored value. WDM6 carried this at 12 sites on an
-  unsuffixed `1.e-15`, where `float32(1e-15)` is larger than the double by
-  3.63e-09 relative.
-- **A declaration does not make a literal a double.** In Fortran,
-  `real(kind=kind_phys), parameter :: qcrmin = 1.e-9` evaluates its unsuffixed
-  right-hand side in single precision and only then widens, so `qcrmin` is
-  `float32(1e-9)`, not `1e-9`. Named parameters therefore need the same routing
-  as inline literals, and reading the declaration's kind is not sufficient — read
-  the initializer. This is the inverse of the `euler` trap, where an explicit
-  `_kind_phys` suffix makes the literal a genuine double and routing it would
-  introduce a defect. Both mistakes come from reading one half of the declaration.
