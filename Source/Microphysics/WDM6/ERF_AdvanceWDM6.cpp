@@ -370,8 +370,8 @@ void wdm6_nislfv_rain_plm6_column (
             wa2[k] = vt;
         }
         for (int k = 0; k < km; ++k) {
-            const Real tmpq = amrex::max(qr[k] + qr2[k], Real(1.0e-15));
-            wa[k] = (tmpq > Real(1.0e-15))
+            const Real tmpq = amrex::max(qr[k] + qr2[k], wdm6_literal(1.0e-15));
+            wa[k] = (tmpq > wdm6_literal(1.0e-15))
                 ? (wa[k] * qr[k] + wa2[k] * qr2[k]) / tmpq
                 : Real(0.0);
             ww[k] = Real(0.5) * (wd[k] + wa[k]);
@@ -1699,8 +1699,8 @@ void WDM6::Advance(const Real& dt_advance,
 #if !defined(AMREX_USE_GPU)
             if (microphysics_debug > 0 && loop == 0 && diag_col_in_tile) {
                 for (int kdbg = klo; kdbg <= khi; ++kdbg) {
-                const Real qsum = amrex::max(qs_arr(diag_i,diag_j,kdbg) + qg_arr(diag_i,diag_j,kdbg), Real(1.0e-15));
-                const Real worka = (qsum > Real(1.0e-15))
+                const Real qsum = amrex::max(qs_arr(diag_i,diag_j,kdbg) + qg_arr(diag_i,diag_j,kdbg), wdm6_literal(1.0e-15));
+                const Real worka = (qsum > wdm6_literal(1.0e-15))
                     ? (work1_arr(diag_i,diag_j,kdbg,1) * qs_arr(diag_i,diag_j,kdbg)
                      + work1_arr(diag_i,diag_j,kdbg,2) * qg_arr(diag_i,diag_j,kdbg)) / qsum
                     : Real(0.0);
@@ -1731,8 +1731,8 @@ void WDM6::Advance(const Real& dt_advance,
                     tk[kk] = t_arr(i,j,k3);
                     qs_col[kk] = den[kk] * qs_arr(i,j,k3);
                     qg_col[kk] = den[kk] * qg_arr(i,j,k3);
-                    const Real qsum = amrex::max(qs_arr(i,j,k3) + qg_arr(i,j,k3), Real(1.0e-15));
-                    worka[kk] = (qsum > Real(1.0e-15))
+                    const Real qsum = amrex::max(qs_arr(i,j,k3) + qg_arr(i,j,k3), wdm6_literal(1.0e-15));
+                    worka[kk] = (qsum > wdm6_literal(1.0e-15))
                         ? (work1_arr(i,j,k3,1) * qs_arr(i,j,k3) + work1_arr(i,j,k3,2) * qg_arr(i,j,k3)) / qsum
                         : Real(0.0);
                 }
@@ -1758,8 +1758,8 @@ void WDM6::Advance(const Real& dt_advance,
 
             if (microphysics_debug > 0 && loop == 0 && diag_col_in_tile) {
                 for (int kdbg = klo; kdbg <= khi; ++kdbg) {
-                const Real qsum = amrex::max(qs_arr(diag_i,diag_j,kdbg) + qg_arr(diag_i,diag_j,kdbg), Real(1.0e-15));
-                const Real worka = (qsum > Real(1.0e-15))
+                const Real qsum = amrex::max(qs_arr(diag_i,diag_j,kdbg) + qg_arr(diag_i,diag_j,kdbg), wdm6_literal(1.0e-15));
+                const Real worka = (qsum > wdm6_literal(1.0e-15))
                     ? (work1_arr(diag_i,diag_j,kdbg,1) * qs_arr(diag_i,diag_j,kdbg)
                      + work1_arr(diag_i,diag_j,kdbg,2) * qg_arr(diag_i,diag_j,kdbg)) / qsum
                     : Real(0.0);
@@ -3213,8 +3213,20 @@ void WDM6::Advance(const Real& dt_advance,
                 const Real vt2r = pvtr_loc * rslopeb_arr(i,j,k,0) * denfac_arr(i,j,k);
                 const Real vt2s = pvts_loc * rslopeb_arr(i,j,k,1) * denfac_arr(i,j,k);
                 const Real vt2g = pvtg_loc * rslopeb_arr(i,j,k,2) * denfac_arr(i,j,k);
-                const Real qsum = amrex::max(qs_arr(i,j,k) + qg_arr(i,j,k), Real(1.0e-15));
-                const Real vt2ave = (qsum > Real(1.0e-15))
+                // The 1.e-15 qsum floor is unsuffixed in the Fortran (:1110, :2072,
+                // :2223, :3979), so it is float32(1e-15) = 1.0000000036274937e-15,
+                // which is LARGER than the exact double by 3.63e-09 relative.
+                //
+                // It was previously judged inert because the floor and the gate use
+                // the same literal, so a floored qsum can never pass `> literal`.
+                // That reasoning holds WITHIN a leg but misses the cross-leg case:
+                // the THRESHOLD itself differed between legs, so a cell with
+                // qs+qg in (1e-15, 1.0000000036274937e-15) took the branch on the
+                // port and skipped it on the oracle. A narrow window, but a branch
+                // divergence rather than a rounding difference, so it is routed
+                // rather than argued about.
+                const Real qsum = amrex::max(qs_arr(i,j,k) + qg_arr(i,j,k), wdm6_literal(1.0e-15));
+                const Real vt2ave = (qsum > wdm6_literal(1.0e-15))
                     ? (vt2s * qs_arr(i,j,k) + vt2g * qg_arr(i,j,k)) / qsum
                     : Real(0.0);
 
@@ -3401,8 +3413,8 @@ void WDM6::Advance(const Real& dt_advance,
                         nc_val / dtcld);
                 }
 
-                const Real qsum = amrex::max(qs_val + qg_val, Real(1.0e-15));
-                if (qsum > Real(1.0e-15)) {
+                const Real qsum = amrex::max(qs_val + qg_val, wdm6_literal(1.0e-15));
+                if (qsum > wdm6_literal(1.0e-15)) {
                     paacw_arr(i,j,k) = (qs_val * psacw_arr(i,j,k) + qg_val * pgacw_arr(i,j,k)) / qsum;
                     naacw_arr(i,j,k) = (qs_val * nsacw_arr(i,j,k) + qg_val * ngacw_arr(i,j,k)) / qsum;
                 }
