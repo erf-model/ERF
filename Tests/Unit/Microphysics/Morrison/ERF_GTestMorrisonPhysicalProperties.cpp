@@ -61,6 +61,32 @@ private:
     bool m_had_previous = false;
 };
 
+class ScopedParmParseRemoval
+{
+public:
+    ScopedParmParseRemoval (const char* prefix,
+                            const char* name)
+        : m_pp(prefix),
+          m_name(name)
+    {
+        m_had_previous = m_pp.query(m_name, m_previous);
+        m_pp.remove(m_name);
+    }
+
+    ~ScopedParmParseRemoval ()
+    {
+        if (m_had_previous) {
+            m_pp.add(m_name, m_previous);
+        }
+    }
+
+private:
+    amrex::ParmParse m_pp;
+    std::string m_name;
+    std::string m_previous;
+    bool m_had_previous = false;
+};
+
 struct MorrisonCellState {
     amrex::Real rho;
     amrex::Real theta;
@@ -211,11 +237,10 @@ TEST(MorrisonPhysicalProperties, NativeShocSuppressesCppSaturationAdjustment)
 
 namespace {
 
-// Advance a single supersaturated cell through the C++ Morrison path and return
-// rho*nc afterwards.  The constant-droplet-number branch (INUM = 1) sets
-// nc = NDCNST*1e6/rho just before handing the state back, so this quantity is
-// directly proportional to erf.morrison_ndcnst.
-amrex::Real advance_morrison_and_get_rho_nc ()
+// Advance a single humid, supersaturated cell through the selected Morrison
+// path and return ERF's conserved physical droplet-number concentration.
+amrex::Real advance_morrison_and_get_rho_nc (
+    const amrex::Real excess_qv = amrex::Real(1.0e-4))
 {
     const amrex::Geometry geom = make_geometry();
     amrex::BoxArray ba(geom.Domain());
@@ -227,7 +252,7 @@ amrex::Real advance_morrison_and_get_rho_nc ()
     amrex::Real qsatw = amrex::Real(0.0);
     erf_qsatw(tabs, pres_pa * amrex::Real(0.01), qsatw);
     fill_single_cell_from_morrison_state(
-        cons, make_morrison_cell_state(tabs, pres_pa, qsatw + amrex::Real(1.0e-4)));
+        cons, make_morrison_cell_state(tabs, pres_pa, qsatw + excess_qv));
 
     Morrison morrison;
     SolverChoice sc = make_morrison_solver_choice();
@@ -245,24 +270,27 @@ amrex::Real advance_morrison_and_get_rho_nc ()
     return cons.max(RhoQ7_comp);
 }
 
+amrex::Real physical_concentration_tolerance (const amrex::Real expected)
+{
+    // The corrected conversion is one division followed by one multiplication.
+    // Allow modest extra headroom for CPU/GPU and float/double evaluation details.
+    return amrex::Real(128.0) * std::numeric_limits<amrex::Real>::epsilon() * expected;
+}
+
 } // namespace
 
 // Motivation: The public Morrison droplet-number input must reach the C++
 // constant-number branch rather than being reset to its 250 cm^-3 default later
-// in Advance.  Comparing a default run against one at twice the default tests
-// exactly that, and unlike an absolute expectation it does not bake in
-// Morrison's internal density convention (it carries nc per unit *dry* air
-// density, while Rho_comp is the moist density, so rho*nc is not simply
-// NDCNST*1e6).  If the hard-coded reset returned, both runs would be identical
-// and the ratio would collapse to one.
+// in Advance.  Comparing a default run against one at twice the default retains
+// a focused guard against that reset: if it returned, the ratio would collapse
+// to one.
 TEST(MorrisonPhysicalProperties, CppConstantDropletNumberHonorsRuntimeInput)
 {
     [[maybe_unused]] ScopedParmParseString use_cpp("erf", "use_morr_cpp_answer", "true");
 
     amrex::Real rho_nc_default = amrex::Real(0.0);
     {
-        amrex::ParmParse pp("erf");
-        pp.remove("morrison_ndcnst");  // fall back on the documented 250 cm^-3
+        [[maybe_unused]] ScopedParmParseRemoval ndcnst("erf", "morrison_ndcnst");
         rho_nc_default = advance_morrison_and_get_rho_nc();
     }
 
@@ -275,3 +303,47 @@ TEST(MorrisonPhysicalProperties, CppConstantDropletNumberHonorsRuntimeInput)
     ASSERT_GT(rho_nc_default, amrex::Real(0.0));
     EXPECT_NEAR(rho_nc_doubled / rho_nc_default, amrex::Real(2.0), amrex::Real(1.0e-5));
 }
+
+// The public input is a physical concentration in cm^-3.  A humid state makes
+// this distinguish ERF dry-air density from Morrison's p/(R_d*T) density.
+TEST(MorrisonPhysicalProperties, CppConstantDropletNumberMatchesPhysicalConcentration)
+{
+    [[maybe_unused]] ScopedParmParseString use_cpp("erf", "use_morr_cpp_answer", "true");
+
+    const amrex::Real expected_default = amrex::Real(250.0e6);
+    {
+        [[maybe_unused]] ScopedParmParseRemoval ndcnst("erf", "morrison_ndcnst");
+        EXPECT_NEAR(advance_morrison_and_get_rho_nc(), expected_default,
+                    physical_concentration_tolerance(expected_default));
+    }
+
+    const amrex::Real expected_custom = amrex::Real(500.0e6);
+    {
+        [[maybe_unused]] ScopedParmParseString ndcnst("erf", "morrison_ndcnst", "500.0");
+        EXPECT_NEAR(advance_morrison_and_get_rho_nc(), expected_custom,
+                    physical_concentration_tolerance(expected_custom));
+        EXPECT_NEAR(advance_morrison_and_get_rho_nc(amrex::Real(3.0e-3)), expected_custom,
+                    physical_concentration_tolerance(expected_custom));
+    }
+}
+
+#ifdef ERF_USE_MORR_FORT
+TEST(MorrisonPhysicalProperties, FortranConstantDropletNumberMatchesPhysicalConcentration)
+{
+    [[maybe_unused]] ScopedParmParseString use_cpp("erf", "use_morr_cpp_answer", "false");
+
+    const amrex::Real expected_default = amrex::Real(250.0e6);
+    {
+        [[maybe_unused]] ScopedParmParseRemoval ndcnst("erf", "morrison_ndcnst");
+        EXPECT_NEAR(advance_morrison_and_get_rho_nc(), expected_default,
+                    physical_concentration_tolerance(expected_default));
+    }
+
+    const amrex::Real expected_custom = amrex::Real(500.0e6);
+    {
+        [[maybe_unused]] ScopedParmParseString ndcnst("erf", "morrison_ndcnst", "500.0");
+        EXPECT_NEAR(advance_morrison_and_get_rho_nc(), expected_custom,
+                    physical_concentration_tolerance(expected_custom));
+    }
+}
+#endif
