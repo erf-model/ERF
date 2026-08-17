@@ -208,3 +208,70 @@ TEST(MorrisonPhysicalProperties, NativeShocSuppressesCppSaturationAdjustment)
         EXPECT_NEAR(cons.max(comp), before.max(comp), exact_zero_or_near_zero_tol());
     }
 }
+
+namespace {
+
+// Advance a single supersaturated cell through the C++ Morrison path and return
+// rho*nc afterwards.  The constant-droplet-number branch (INUM = 1) sets
+// nc = NDCNST*1e6/rho just before handing the state back, so this quantity is
+// directly proportional to erf.morrison_ndcnst.
+amrex::Real advance_morrison_and_get_rho_nc ()
+{
+    const amrex::Geometry geom = make_geometry();
+    amrex::BoxArray ba(geom.Domain());
+    amrex::DistributionMapping dm(ba);
+    amrex::MultiFab cons(ba, dm, RhoQ11_comp + 1, 3);
+
+    const amrex::Real tabs = amrex::Real(280.0);
+    const amrex::Real pres_pa = amrex::Real(90000.0);
+    amrex::Real qsatw = amrex::Real(0.0);
+    erf_qsatw(tabs, pres_pa * amrex::Real(0.01), qsatw);
+    fill_single_cell_from_morrison_state(
+        cons, make_morrison_cell_state(tabs, pres_pa, qsatw + amrex::Real(1.0e-4)));
+
+    Morrison morrison;
+    SolverChoice sc = make_morrison_solver_choice();
+    morrison.Define(sc);
+
+    std::unique_ptr<amrex::MultiFab> z_phys_nd;
+    std::unique_ptr<amrex::MultiFab> detJ_cc;
+    morrison.Set_dzmin(geom.CellSize(2));
+    morrison.Init(cons, cons.boxArray(), geom, amrex::Real(1.0), z_phys_nd, detJ_cc);
+    morrison.Copy_State_to_Micro(cons);
+    morrison.Advance(amrex::Real(1.0), sc);
+    morrison.Copy_Micro_to_State(cons);
+    amrex::Gpu::streamSynchronize();
+
+    return cons.max(RhoQ7_comp);
+}
+
+} // namespace
+
+// Motivation: The public Morrison droplet-number input must reach the C++
+// constant-number branch rather than being reset to its 250 cm^-3 default later
+// in Advance.  Comparing a default run against one at twice the default tests
+// exactly that, and unlike an absolute expectation it does not bake in
+// Morrison's internal density convention (it carries nc per unit *dry* air
+// density, while Rho_comp is the moist density, so rho*nc is not simply
+// NDCNST*1e6).  If the hard-coded reset returned, both runs would be identical
+// and the ratio would collapse to one.
+TEST(MorrisonPhysicalProperties, CppConstantDropletNumberHonorsRuntimeInput)
+{
+    [[maybe_unused]] ScopedParmParseString use_cpp("erf", "use_morr_cpp_answer", "true");
+
+    amrex::Real rho_nc_default = amrex::Real(0.0);
+    {
+        amrex::ParmParse pp("erf");
+        pp.remove("morrison_ndcnst");  // fall back on the documented 250 cm^-3
+        rho_nc_default = advance_morrison_and_get_rho_nc();
+    }
+
+    amrex::Real rho_nc_doubled = amrex::Real(0.0);
+    {
+        [[maybe_unused]] ScopedParmParseString ndcnst("erf", "morrison_ndcnst", "500.0");
+        rho_nc_doubled = advance_morrison_and_get_rho_nc();
+    }
+
+    ASSERT_GT(rho_nc_default, amrex::Real(0.0));
+    EXPECT_NEAR(rho_nc_doubled / rho_nc_default, amrex::Real(2.0), amrex::Real(1.0e-5));
+}
