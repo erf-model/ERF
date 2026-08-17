@@ -21,6 +21,9 @@
  */
 struct InputSoundingData {
 public:
+    /**
+     * @brief Construct input sounding metadata from the ERF input namespace.
+     */
     InputSoundingData ()
     {
         amrex::ParmParse pp("erf");
@@ -57,6 +60,9 @@ public:
         input_sounding_time.resize(n);
     }
 
+    /**
+     * @brief Resize host and device sounding arrays for the configured sounding times.
+     */
     void resize_arrays ()
     {
         ntimes = n_sounding_files;
@@ -74,6 +80,13 @@ public:
         V_inp_sound_d.resize(ntimes);
     }
 
+    /**
+     * @brief Read and interpolate one input sounding profile onto level-0 heights.
+     * @param geom Geometry defining the level-0 vertical domain.
+     * @param zlevels_stag Staggered vertical coordinates used for interpolation.
+     * @param itime Sounding time/file index to read.
+     * @param is_moist Whether the selected physics permits nonzero water vapor.
+     */
     void read_from_file (const amrex::Geometry &geom,
                          const amrex::Vector<amrex::Real>& zlevels_stag,
                          int itime, bool is_moist)
@@ -202,6 +215,10 @@ public:
         host_to_device(itime);
     }
 
+    /**
+     * @brief Hydrostatically integrate density and pressure for one sounding.
+     * @param itime Sounding time/file index to integrate.
+     */
     void calc_rho_p (int itime)
     {
         /* Calculate density and pressure, roughly following the procedure in
@@ -294,6 +311,10 @@ public:
         host_to_device(itime);
     }
 
+    /**
+     * @brief Compute density and pressure for an isentropic sounding profile.
+     * @param itime Sounding time/file index to integrate.
+     */
     void calc_rho_p_isentropic (int itime)
     {
         /* Calculate density and pressure assuming isentropic (constant theta)
@@ -375,6 +396,10 @@ public:
         host_to_device(itime);
     }
 
+    /**
+     * @brief Copy host sounding arrays for one time index to device storage.
+     * @param itime Sounding time/file index to copy.
+     */
     void host_to_device (int itime)
     {
         const int Ninp = size(itime);
@@ -414,6 +439,11 @@ public:
         }
     }
 
+    /**
+     * @brief Return the number of interpolated samples for one sounding time.
+     * @param itime Sounding time/file index to query.
+     * @return Number of stored sounding profile levels.
+     */
     int size (int itime) const
     {
         AMREX_ALWAYS_ASSERT(z_inp_sound[itime].size() == theta_inp_sound[itime].size());
@@ -451,4 +481,55 @@ public:
     // - to set solution fields
     amrex::Gpu::DeviceVector<amrex::Real> p_inp_sound_d, rho_inp_sound_d;
 };
+
+/**
+ * @var InputSoundingData::ntimes
+ * @brief Number of sounding times represented in the arrays.
+ * @var InputSoundingData::tau_nudging
+ * @brief Nudging time scale for relaxing toward input sounding data.
+ * @var InputSoundingData::input_sounding_file
+ * @brief Sounding file path for each configured sounding time.
+ * @var InputSoundingData::input_sounding_time
+ * @brief Physical time associated with each input sounding file.
+ * @var InputSoundingData::n_sounding_files
+ * @brief Number of input sounding files.
+ * @var InputSoundingData::n_sounding_times
+ * @brief Number of input sounding times.
+ * @var InputSoundingData::assume_dry
+ * @brief Whether to ignore moisture in isentropic pressure integration.
+ * @var InputSoundingData::press_ref_inp_sound
+ * @brief Surface reference pressure read from the input sounding [Pa].
+ * @var InputSoundingData::theta_ref_inp_sound
+ * @brief Surface reference potential temperature read from the input sounding [K].
+ * @var InputSoundingData::qv_ref_inp_sound
+ * @brief Surface reference water vapor mixing ratio read from the input sounding [kg/kg].
+ * @var InputSoundingData::z_inp_sound
+ * @brief Interpolated host sounding heights for each sounding time [m].
+ * @var InputSoundingData::theta_inp_sound
+ * @brief Interpolated host potential temperature profiles [K].
+ * @var InputSoundingData::qv_inp_sound
+ * @brief Interpolated host water vapor mixing ratio profiles [kg/kg].
+ * @var InputSoundingData::U_inp_sound
+ * @brief Interpolated host x velocity profiles.
+ * @var InputSoundingData::V_inp_sound
+ * @brief Interpolated host y velocity profiles.
+ * @var InputSoundingData::z_inp_sound_d
+ * @brief Device sounding heights for each sounding time [m].
+ * @var InputSoundingData::theta_inp_sound_d
+ * @brief Device potential temperature profiles [K].
+ * @var InputSoundingData::qv_inp_sound_d
+ * @brief Device water vapor mixing ratio profiles [kg/kg].
+ * @var InputSoundingData::U_inp_sound_d
+ * @brief Device x velocity profiles.
+ * @var InputSoundingData::V_inp_sound_d
+ * @brief Device y velocity profiles.
+ * @var InputSoundingData::pm_integ
+ * @brief Hydrostatically integrated moist pressure profile.
+ * @var InputSoundingData::rhod_integ
+ * @brief Hydrostatically integrated dry density profile.
+ * @var InputSoundingData::p_inp_sound_d
+ * @brief Device pressure profile used to initialize solution fields.
+ * @var InputSoundingData::rho_inp_sound_d
+ * @brief Device density profile used to initialize solution fields.
+ */
 #endif

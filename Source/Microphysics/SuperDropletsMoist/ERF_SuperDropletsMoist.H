@@ -194,6 +194,8 @@ class SuperDropletsMoist : public NullMoistLagrangian {
                               const amrex::Vector<MFPtr>& mf_array,
                               const BCTypeArr& bc_arr) override;
 
+        using NullMoist::Update_Micro_Vars;
+
         /*! \brief Update microphysics variables
          * \param[in] a_cons_vars Conservative variables multifab
          */
@@ -235,6 +237,18 @@ class SuperDropletsMoist : public NullMoistLagrangian {
         inline virtual int Qmoist_Size () override
         {
             return m_qmoist_size;
+        }
+
+        /*! \brief returns the surface rain accumulation (mm, i.e. kg/m^2 of liquid water) */
+        SurfacePrecipAccumulationSources
+        Get_Surface_Precip_Accumulation_Ptrs (const int& a_lev) const override
+        {
+            SurfacePrecipAccumulationSources sources;
+            if (a_lev >= 0 && a_lev < static_cast<int>(m_mic_fab_vars.size())) {
+                sources.rain = { m_mic_fab_vars[a_lev][MicVar_SD::rain_accum].get(),
+                                 amrex::Real(1.0) };
+            }
+            return sources;
         }
 
         /*! \brief returns number of moist conserved variables */

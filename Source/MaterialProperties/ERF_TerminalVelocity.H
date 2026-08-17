@@ -5,6 +5,10 @@
 #include <AMReX_Gpu.H>
 #include "ERF_Constants.H"
 
+/**
+ * @brief Provide terminal velocity calculations for atmospheric particles.
+ * @tparam RT Real-valued type.
+ */
 template <typename RT /*!< real-type */>
 struct TerminalVelocity
 {

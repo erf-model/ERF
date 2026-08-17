@@ -2,6 +2,13 @@
 
 using namespace amrex;
 
+/**
+ * Convert conservative variables to primitive variables.
+ *
+ * @param[in] cons_state MultiFab containing conservative state variables
+ * @param[out] S_prim MultiFab to be filled with primitive state variables
+ * @param[in] ng Number of ghost cells
+ */
 void
 cons_to_prim(const MultiFab& cons_state, MultiFab& S_prim, int ng)
 {
@@ -33,6 +40,13 @@ cons_to_prim(const MultiFab& cons_state, MultiFab& S_prim, int ng)
     } // mfi
 }
 
+/**
+ * Compute the total water mixing ratio from conservative variables.
+ *
+ * @param[in] cons_state MultiFab containing conservative state variables
+ * @param[out] qt MultiFab to store the total water mixing ratio
+ * @param[in] n_qstate_into_total Number of moisture components to include in the total
+ */
 void
 make_qt(const MultiFab& cons_state, MultiFab& qt, int n_qstate_into_total)
 {

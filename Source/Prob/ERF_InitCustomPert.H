@@ -40,6 +40,12 @@ erf_vortex_Gaussian(
 }
 
 #ifdef ERF_USE_TERRAIN_VELOCITY
+/**
+ * Compute the terrain-induced velocity at a given time.
+ *
+ * @param[in] time Current simulation time.
+ * @return Terrain-induced velocity.
+ */
 amrex::Real
 Problem::compute_terrain_velocity (const double time)
 {

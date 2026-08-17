@@ -53,7 +53,6 @@ void make_sources (int level,
                    const Real* dptr_wbar_sub,
                    const Vector<Real*> d_rayleigh_ptrs_at_lev,
                    const Real* d_sinesq_at_lev,
-                   const MultiFab* surface_state_at_lev,
                    InputSoundingData& input_sounding_data,
                    TurbulentPerturbation& turbPert,
                    bool is_slow_step)
@@ -437,12 +436,6 @@ void make_sources (int level,
             ApplySpongeZoneBCsForCC(solverChoice.spongeChoice, geom, bx, cell_src, cell_data, r0, th0, qv0, z_cc_arr, n_qstate);
         }
 
-        if (solverChoice.init_type == InitType::HindCast and solverChoice.hindcast_surface_bcs) {
-            const Array4<const Real>& surface_state_arr = (*surface_state_at_lev).array(mfi);
-            ApplySurfaceTreatment_BulkCoeff_CC(bx, cell_src, cell_data, z_cc_arr, surface_state_arr);
-        }
-
-
         // *************************************************************************************
         // Real(8.) Add perturbation
         // *************************************************************************************
@@ -543,7 +536,7 @@ void make_sources (int level,
                     if (t_blank > 0 && (t_blank_above == zero)) { // force to MOST value
                         const Real surf_temp    = init_surf_temp + surf_heating_rate*time;
                         const Real bc_forcing_rt_srf = -(cell_data(i,j,k-1,Rho_comp) * surf_temp - cell_data(i,j,k-1,RhoTheta_comp));
-                        cell_src(i, j, k-1, RhoTheta_comp) -= drag_coefficient * U_s * bc_forcing_rt_srf; // k-1
+                        cell_src(i, j, k, RhoTheta_comp) -= drag_coefficient * U_s * bc_forcing_rt_srf;
                     }
                 }
 

@@ -1,3 +1,6 @@
+/**
+ * \file ERF_PoissonSolve_tb.cpp
+ */
 #include "ERF.H"
 #include "ERF_Utils.H"
 #include "ERF_SolverUtils.H"
@@ -6,6 +9,12 @@
 
 using namespace amrex;
 
+/**
+ * Test whether any projection boundary condition is Dirichlet.
+ *
+ * @param bcs Boundary condition types for each coordinate direction
+ * @return True if at least one direction uses a Dirichlet condition
+ */
 bool
 projection_has_dirichlet (Array<LinOpBCType,AMREX_SPACEDIM> bcs)
 {
@@ -18,6 +27,10 @@ projection_has_dirichlet (Array<LinOpBCType,AMREX_SPACEDIM> bcs)
 /**
  * Project the single-level velocity field to enforce incompressibility with a
  * thin body
+ *
+ * @param lev Level index for the thin-body projection
+ * @param dt Time step used in the projection update
+ * @param vars State MultiFabs containing the velocity fields to project
  */
 void ERF::project_velocity_tb (int lev, double l_dt_d, Vector<MultiFab>& vmf)
 {
@@ -99,7 +112,7 @@ void ERF::project_velocity_tb (int lev, double l_dt_d, Vector<MultiFab>& vmf)
         // Calculate u + dt*deltaf
         for (int idim = 0; idim < 3; ++idim) {
             MultiFab::Copy(u_plus_dtdf[0][idim], deltaf[0][idim], 0, 0, 1, 0);
-            u_plus_dtdf[0][0].mult(-l_dt,0,1,0);
+            u_plus_dtdf[0][idim].mult(-l_dt,0,1,0);
         }
         MultiFab::Add(u_plus_dtdf[0][0], vmf[Vars::xvel], 0, 0, 1, 0);
         MultiFab::Add(u_plus_dtdf[0][1], vmf[Vars::yvel], 0, 0, 1, 0);

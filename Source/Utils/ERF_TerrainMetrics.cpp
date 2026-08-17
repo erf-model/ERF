@@ -12,7 +12,10 @@ using namespace amrex;
  * This will be over-written if we use z_levels, or grid stretching, or terrain-fitted grids
  */
 void
-init_default_zphys (int /*lev*/, const Geometry& geom, MultiFab& z_phys_nd, MultiFab& z_phys_cc,
+init_default_zphys (int /*lev*/,
+                    const Geometry& geom,
+                    MultiFab& z_phys_nd,
+                    MultiFab& z_phys_cc,
                     Real z_offset)
 {
     const auto& dx = geom.CellSize();
@@ -44,7 +47,9 @@ init_default_zphys (int /*lev*/, const Geometry& geom, MultiFab& z_phys_nd, Mult
  */
 
 void
-make_terrain_fitted_coords (int lev, const Geometry& geom, MultiFab& z_phys_nd,
+make_terrain_fitted_coords (int lev,
+                            const Geometry& geom,
+                            MultiFab& z_phys_nd,
                             Vector<Real> const& z_levels_h,
                             GpuArray<ERF_BC, AMREX_SPACEDIM*2>& phys_bc_type)
 {
@@ -158,8 +163,18 @@ make_terrain_fitted_coords (int lev, const Geometry& geom, MultiFab& z_phys_nd,
     }
 } // make_terrain_fitted_coords
 
+/**
+ * Initialize the terrain grid using the selected model (BTF, STF, or Sullivan TF).
+ *
+ * @param[in] lev Level in the AMR hierarchy.
+ * @param[in] geom Geometry defining the domain.
+ * @param[out] z_phys_nd MultiFab to be filled with nodal physical heights.
+ * @param[in] z_levels_h Reference z-levels for grid stretching.
+ */
 void
-init_which_terrain_grid (int lev, Geometry const& geom, MultiFab& z_phys_nd,
+init_which_terrain_grid (int lev,
+                         Geometry const& geom,
+                         MultiFab& z_phys_nd,
                          Vector<Real> const& z_levels_h)
 {
     // User-selected method from inputs file (BTF default)
@@ -399,14 +414,14 @@ init_which_terrain_grid (int lev, Geometry const& geom, MultiFab& z_phys_nd,
 
                 iter++;
 
-                //fill ghost points
+                // Fill ghost points
                 h_mf_old.FillBoundary(geom.periodicity());
 
-            } //while
+            } // while
 
             auto const& z_lev_d = z_levels_d.data();
 
-            //Populate z_phys_nd by solving z_arr(i,j,k) = z + A*h_s(i,j,k)
+            // Populate z_phys_nd by solving z_arr(i,j,k) = z + A*h_s(i,j,k)
             for ( MFIter mfi(z_phys_nd, TilingIfNotGPU()); mfi.isValid(); ++mfi )
             {
                 // Grown box with no z range
@@ -430,7 +445,7 @@ init_which_terrain_grid (int lev, Geometry const& geom, MultiFab& z_phys_nd,
                     }
                 });
             } // mfi
-            } // k
+        } // k
 
             Gpu::streamSynchronize();
 

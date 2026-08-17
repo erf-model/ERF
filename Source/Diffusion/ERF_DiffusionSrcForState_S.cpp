@@ -19,7 +19,7 @@ using namespace amrex;
  * @param[in]  xflux flux in x-dir
  * @param[in]  yflux flux in y-dir
  * @param[in]  zflux flux in z-dir
- * @param[in]  stretched_dz_d array of vertical mesh spacings
+ * @param[in]  stretched_dz_d array of vertical grid spacings
  * @param[in]  cellSizeInv inverse cell size array
  * @param[in]  SmnSmn_a strain rate magnitude
  * @param[in]  mf_mx x map factor at cell centers
@@ -566,6 +566,7 @@ DiffusionSrcForState_S (const Box& bx, const Box& domain,
 
     // This allows us to do semi-implicit discretization of the vertical diffusive terms
     if (qty_index == RhoTheta_comp ||
+        qty_index == RhoKE_comp    ||
         qty_index == RhoQ1_comp) {
         ParallelFor(zbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {

@@ -1,0 +1,48 @@
+Host Name: manda
+=== If no file names and line numbers are shown below, one can run
+            addr2line -Cpfie my_exefile my_line_address
+    to convert `my_line_address` (e.g., 0x4a6b) into file name and line number.
+    Or one can use amrex/Tools/Backtrace/parse_bt.py.
+
+=== Please note that the line number reported by addr2line may not be accurate.
+    One can use
+            readelf -wl my_exefile | grep my_line_address'
+    to find out the offset for that line.
+
+ 0: ./PlotfileToNetCDF3d.gnu.MPI.ex(+0x223266) [0x577996732266]
+    amrex::BLBackTrace::print_backtrace_info(_IO_FILE*) at /usr/include/x86_64-linux-gnu/bits/unistd.h:145 (discriminator 7)
+ (inlined by) amrex::BLBackTrace::print_backtrace_info(_IO_FILE*) at /home/almgren/GitCode/amrex/Src/Base/AMReX_BLBackTrace.cpp:215 (discriminator 7)
+
+ 1: ./PlotfileToNetCDF3d.gnu.MPI.ex(+0x228021) [0x577996737021]
+    amrex::BLBackTrace::handler(int) at /home/almgren/GitCode/amrex/Src/Base/AMReX_BLBackTrace.cpp:103
+
+ 2: ./PlotfileToNetCDF3d.gnu.MPI.ex(+0x87189) [0x577996596189]
+    std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >::_M_data() const at /usr/include/c++/13/bits/basic_string.h:223
+ (inlined by) std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >::_M_is_local() const at /usr/include/c++/13/bits/basic_string.h:264
+ (inlined by) std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >::_M_dispose() at /usr/include/c++/13/bits/basic_string.h:282
+ (inlined by) std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >::~basic_string() at /usr/include/c++/13/bits/basic_string.h:804
+ (inlined by) amrex::FileOpenFailed(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&) at /home/almgren/GitCode/amrex/Src/Base/AMReX_Utility.cpp:121
+
+ 3: ./PlotfileToNetCDF3d.gnu.MPI.ex(+0xc3eb8) [0x5779965d2eb8]
+    amrex::ParallelDescriptor::ReadAndBcastFile(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&, amrex::Vector<char, std::allocator<char> >&, bool, ompi_communicator_t* const&) at /home/almgren/GitCode/amrex/Src/Base/AMReX_ParallelDescriptor.cpp:1518
+
+ 4: ./PlotfileToNetCDF3d.gnu.MPI.ex(+0x21e61c) [0x57799672d61c]
+    std::vector<char, std::allocator<char> >::data() at /usr/include/c++/13/bits/stl_vector.h:1261
+ (inlined by) amrex::Vector<char, std::allocator<char> >::dataPtr() at /home/almgren/GitCode/amrex/Src/Base/AMReX_Vector.H:50
+ (inlined by) amrex::PlotFileDataImpl::PlotFileDataImpl(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&) at /home/almgren/GitCode/amrex/Src/Base/AMReX_PlotFileDataImpl.cpp:23
+
+ 5: ./PlotfileToNetCDF3d.gnu.MPI.ex(+0x2625e) [0x57799653525e]
+    amrex::PlotFileDataImpl::nComp() const at /home/almgren/GitCode/amrex/Src/Base/AMReX_PlotFileDataImpl.H:57
+ (inlined by) amrex::PlotFileData::nComp() const at /home/almgren/GitCode/amrex/Src/Base/AMReX_PlotFileUtil.H:198
+ (inlined by) main_main() at /home/almgren/GitCode/ERF/Exec/Tools/../../Source/Tools/ERF_PlotfileToNetCDF.cpp:90
+
+ 6: ./PlotfileToNetCDF3d.gnu.MPI.ex(+0x24937) [0x577996533937]
+    main at /home/almgren/GitCode/ERF/Exec/Tools/../../Source/Tools/ERF_PlotfileToNetCDF.cpp:145
+
+ 7: /lib/x86_64-linux-gnu/libc.so.6(+0x2a1ca) [0x7c424062a1ca]
+
+ 8: /lib/x86_64-linux-gnu/libc.so.6(__libc_start_main+0x8b) [0x7c424062a28b]
+
+ 9: ./PlotfileToNetCDF3d.gnu.MPI.ex(+0x25be5) [0x577996534be5]
+    ?? ??:0
+

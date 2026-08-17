@@ -55,9 +55,22 @@ namespace HSEutils
                         Real& F,
                         const bool& maintain_Th)
     {
+        // A non-finite residual (or a non-positive initial guess) would make the
+        // convergence test below evaluate to false on the very first pass, so we
+        // would silently return the initial guess and leave, e.g., an all-zero
+        // base state.  Trap that here rather than propagating it downstream.
+        if (!(P > amrex::Real(0)) || !(rd > amrex::Real(0)) || !std::isfinite(F)) {
+            AMREX_DEVICE_PRINTF("ERROR: HSE Newton started from an invalid state: P = %e, rd = %e, F = %e\n",
+                                double(P), double(rd), double(F));
+            AMREX_DEVICE_PRINTF("       Check the surface pressure/temperature used to seed the integration%s\n", "");
+        }
+        AMREX_ALWAYS_ASSERT(P > amrex::Real(0) && rd > amrex::Real(0) && std::isfinite(F));
+
         int iter=0;
         int max_iter=20;
-        while (std::abs(F)>m_tol && iter<max_iter) {
+        // Written as !(|F| <= tol) so that a NaN residual enters the loop instead
+        // of being mistaken for convergence
+        while (!(std::abs(F)<=m_tol) && iter<max_iter) {
             // Compute change in pressure
             Real dRdP = (maintain_Th) ? iGamma * rd / P : rd / P;
             Real dFdp = one + myhalf*dRdP*g*dz;
@@ -620,6 +633,25 @@ Real compute_p_k_in_zone (Real &p_k, const Real p_k_minus_1, Real &theta_k, Real
     return p_k;
 }
 
+/**
+ * Initialize an isentropic hydrostatic equilibrium base state without terrain.
+ *
+ * @param[out] theta Potential temperature profile.
+ * @param[out] r Density profile.
+ * @param[out] p Pressure profile.
+ * @param[out] q_v Water vapor mixing ratio profile.
+ * @param[in] dz Vertical grid spacing.
+ * @param[in] khi Top index of the domain.
+ * @param[in] q_t Total water mixing ratio.
+ * @param[in] eq_pot_temp Equilibrium potential temperature.
+ * @param[in] use_empirical Use empirical saturation formulas.
+ * @param[in] T_from_theta Whether temperature is derived from potential temperature.
+ * @param[in] z_tr_1 First transition height.
+ * @param[in] z_tr_2 Second transition height.
+ * @param[in] theta_0 Surface potential temperature.
+ * @param[in] theta_tr Potential temperature at transition height.
+ * @param[in] T_tr Temperature at transition height.
+ */
 AMREX_FORCE_INLINE
 AMREX_GPU_HOST_DEVICE
 void

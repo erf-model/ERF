@@ -1,3 +1,6 @@
+/**
+ * \file ERF_Plotfile.cpp
+ */
 #include "ERF.H"
 #include "ERF_EpochTime.H"
 #include "ERF_NCPlotFile.H"
@@ -94,12 +97,17 @@ ERF::setPlotVariables (const std::string& pp_plot_var_names, Vector<std::string>
     // If the model we are running doesn't have the variable listed in the inputs file,
     //     just ignore it rather than aborting
     //
+#ifdef ERF_USE_WINDFARM
+    // NOTE: these mirror the conditions guarding the Nturb/SMark fills in Write3DPlotFile;
+    //       if they diverge, the names and the filled components will not line up.
+    const bool wf_is_AD  = (solverChoice.windfarm_type == WindFarmType::SimpleAD ||
+                            solverChoice.windfarm_type == WindFarmType::GeneralAD);
+    const bool wf_active = (solverChoice.windfarm_type == WindFarmType::Fitch ||
+                            solverChoice.windfarm_type == WindFarmType::EWP   || wf_is_AD);
+#endif
+
     for (int i = 0; i < derived_names.size(); ++i) {
         if ( containerHasElement(plot_var_names, derived_names[i]) ) {
-            const bool is_windfarm_name =
-                derived_names[i] == "num_turb" || derived_names[i] == "SMark0" ||
-                derived_names[i] == "SMark1";
-            if (is_windfarm_name) continue;
             bool ok_to_add = ( (solverChoice.terrain_type == TerrainType::ImmersedForcing || solverChoice.buildings_type == BuildingsType::ImmersedForcing ) ||
                                (derived_names[i] != "terrain_IB_mask") );
             ok_to_add     &= ( (SolverChoice::terrain_type == TerrainType::StaticFittedMesh) ||
@@ -108,12 +116,13 @@ ERF::setPlotVariables (const std::string& pp_plot_var_names, Vector<std::string>
             ok_to_add     &= ( (SolverChoice::terrain_type == TerrainType::StaticFittedMesh) ||
                                (SolverChoice::terrain_type == TerrainType::MovingFittedMesh) ||
                                (derived_names[i] != "z_phys") );
-#ifndef ERF_USE_WINDFARM
-            ok_to_add     &= (derived_names[i] != "SMark0" && derived_names[i] != "SMark1");
+#ifdef ERF_USE_WINDFARM
+            // NOTE: the windfarm names must be added here, in derived_names order, since
+            //       that is where Write3DPlotFile fills them (see ERF.H "MUST MATCH THE ORDER").
+            ok_to_add     &= ( wf_active ||
+                               (derived_names[i] != "num_turb" && derived_names[i] != "SMark0") );
+            ok_to_add     &= ( wf_is_AD  || (derived_names[i] != "SMark1") );
 #endif
-            ok_to_add     &= (derived_names[i] != "num_turb" &&
-                              derived_names[i] != "SMark0" &&
-                              derived_names[i] != "SMark1");
             if (ok_to_add)
             {
                 if (erf_plotfile::plot3d_fixed_variable_available(derived_names[i], capabilities)) {
@@ -122,24 +131,6 @@ ERF::setPlotVariables (const std::string& pp_plot_var_names, Vector<std::string>
             } // use_terrain?
         } // hasElement
     }
-
-#ifdef ERF_USE_WINDFARM
-    for (int i = 0; i < derived_names.size(); ++i) {
-        if ( containerHasElement(plot_var_names, derived_names[i]) ) {
-            if(solverChoice.windfarm_type == WindFarmType::Fitch or solverChoice.windfarm_type == WindFarmType::EWP) {
-                if(derived_names[i] == "num_turb" or derived_names[i] == "SMark0") {
-                    tmp_plot_names.push_back(derived_names[i]);
-                }
-            }
-            if( solverChoice.windfarm_type == WindFarmType::SimpleAD or
-                solverChoice.windfarm_type == WindFarmType::GeneralAD ) {
-                if(derived_names[i] == "num_turb" or derived_names[i] == "SMark0" or derived_names[i] == "SMark1") {
-                    tmp_plot_names.push_back(derived_names[i]);
-                }
-            }
-        }
-    }
-#endif
 
 #ifdef ERF_USE_PARTICLES
     Vector<std::string> configured_particle_names;
@@ -591,7 +582,10 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
             u[0] = &(vars_new[lev][Vars::xvel]);
             u[1] = &(vars_new[lev][Vars::yvel]);
             u[2] = &(vars_new[lev][Vars::zvel]);
-            compute_divergence (lev, dmf, u, geom[lev]);
+            compute_divergence(lev, dmf, u, *mapfac[lev][MapFacType::m_x],
+                               *mapfac[lev][MapFacType::m_y], *mapfac[lev][MapFacType::v_x],
+                               *mapfac[lev][MapFacType::u_y], *ax[lev], *ay[lev],
+                               *detJ_cc[lev], geom[lev]);
             mf_comp += 1;
         }
 
@@ -1259,6 +1253,10 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
                 MultiFab::Divide(mf[lev], vars_new[lev][Vars::cons],   Rho_comp, mf_comp, 1, 0);
                 mf_comp += 1;
             }
+
+            // NOTE: the number concentrations nc/ni/nr/ns/ng follow qt/qn/qp/qsat in
+            //       derived_names (see ERF.H "MUST MATCH THE ORDER"), so they are filled
+            //       after the qsat block below -- not here.
 
             // Precipitating + non-precipitating components
             //--------------------------------------------------------------------------

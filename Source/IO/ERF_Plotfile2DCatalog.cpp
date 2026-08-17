@@ -1,3 +1,6 @@
+/**
+ * \file ERF_Plotfile2DCatalog.cpp
+ */
 #include "ERF_Plotfile2DCatalog.H"
 
 #include <deque>

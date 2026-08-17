@@ -142,8 +142,9 @@ ERF::compute_max_pressure_gradient_diagnostic(int lev)
 
     if (solverChoice.terrain_type != TerrainType::EB) {
         for (MFIter mfi(gradp_temp[2]); mfi.isValid(); ++mfi) {
-            Box bx = mfi.validbox(); bx.growHi(2,-1);
-            if (bx.smallEnd(2) == 0) bx.growLo(2,-1);
+            Box bx = mfi.validbox();
+            if (bx.bigEnd(2)   == khi) bx.growHi(2,-1);
+            if (bx.smallEnd(2) == 0  ) bx.growLo(2,-1);
             auto        gpz_arr  = gradp_temp[2].array(mfi);
             auto const  rhse_arr  =  r_hse.const_array(mfi);
             auto const qvhse_arr  = qv_hse.const_array(mfi);
@@ -155,8 +156,9 @@ ERF::compute_max_pressure_gradient_diagnostic(int lev)
     // EB case: check HSE only for uncovered cells
     } else {
         for (MFIter mfi(gradp_temp[2]); mfi.isValid(); ++mfi) {
-            Box bx = mfi.validbox(); bx.growHi(2,-1);
-            if (bx.smallEnd(2) == 0) bx.growLo(2,-1);
+            Box bx = mfi.validbox();
+            if (bx.bigEnd(2)   == khi) bx.growHi(2,-1);
+            if (bx.smallEnd(2) == 0  ) bx.growLo(2,-1);
             auto        gpz_arr  = gradp_temp[2].array(mfi);
             auto const  rhse_arr  =  r_hse.const_array(mfi);
             auto const qvhse_arr  = qv_hse.const_array(mfi);
@@ -258,8 +260,9 @@ ERF::compute_max_pressure_gradient_diagnostic(int lev)
 
             for (MFIter mfi(gradp_temp[2]); mfi.isValid(); ++mfi)
             {
-                Box bx = mfi.validbox(); bx.growHi(2,-1);
-                if (bx.smallEnd(2) == 0) bx.growLo(2,-1);
+                Box bx = mfi.validbox();
+                if (bx.bigEnd(2)   == khi) bx.growHi(2,-1);
+                if (bx.smallEnd(2) == 0  ) bx.growLo(2,-1);
                 auto      gpz_arr   = gradp_temp[2].array(mfi);
                 auto const  r_arr   = rho.const_array(mfi);
                 auto const qt_arr   =  qt.const_array(mfi);

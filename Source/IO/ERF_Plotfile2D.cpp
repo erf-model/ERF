@@ -1,3 +1,6 @@
+/**
+ * \file ERF_Plotfile2D.cpp
+ */
 #include "ERF.H"
 #include "ERF_Plotfile2DCatalog.H"
 #include "ERF_Plotfile2DFill.H"
