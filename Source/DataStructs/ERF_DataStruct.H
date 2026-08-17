@@ -773,6 +773,11 @@ struct SolverChoice {
 
         // Optionally use the dry-air density reconstructed from wrfbdy.
         pp.query("use_wrf_bdy_density", use_wrf_bdy_density);
+
+        if (!solverChoice.use_real_bcs || solverChoice.init_type != InitType::WRFInput) {
+            use_wrf_bdy_density = false;
+        }
+
         pp.query("bdy_rho_nudge_factor", bdy_rho_nudge_factor);
 
         // Which approach to nudging the moist variables in the boundary region?
