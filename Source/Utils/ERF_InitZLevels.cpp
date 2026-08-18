@@ -118,3 +118,34 @@ init_zlevels (Vector<Vector<Real>>& zlevels_stag,
         Gpu::copy(Gpu::hostToDevice, stretched_dz_h[lev].begin(), stretched_dz_h[lev].end(), stretched_dz_d[lev].begin());
     }
 }
+
+/**
+ * Re-derive the cell heights at one level from the nominal staggered z-levels.
+ *
+ * @param[in] lev Level index.
+ * @param[in] zlevels_stag Staggered z-level coordinates.
+ * @param[out] stretched_dz_h Host-side cell heights in z.
+ * @param[out] stretched_dz_d Device-side cell heights in z.
+ */
+void
+update_stretched_dz (int lev,
+                     Vector<Vector<Real>> const& zlevels_stag,
+                     Vector<Vector<Real>>& stretched_dz_h,
+                     Vector<Gpu::DeviceVector<Real>>& stretched_dz_d)
+{
+    AMREX_ALWAYS_ASSERT(lev < static_cast<int>(zlevels_stag.size()));
+    AMREX_ALWAYS_ASSERT(lev < static_cast<int>(stretched_dz_h.size()));
+    AMREX_ALWAYS_ASSERT(lev < static_cast<int>(stretched_dz_d.size()));
+
+    const int nz = static_cast<int>(zlevels_stag[lev].size()) - 1;
+    AMREX_ALWAYS_ASSERT(nz > 0);
+
+    stretched_dz_h[lev].resize(nz);
+    for (int k = 0; k < nz; k++) {
+        stretched_dz_h[lev][k] = zlevels_stag[lev][k+1] - zlevels_stag[lev][k];
+    }
+
+    stretched_dz_d[lev].resize(nz);
+    Gpu::copy(Gpu::hostToDevice, stretched_dz_h[lev].begin(), stretched_dz_h[lev].end(),
+              stretched_dz_d[lev].begin());
+}
