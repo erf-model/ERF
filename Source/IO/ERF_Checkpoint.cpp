@@ -1,3 +1,6 @@
+/**
+ * \file ERF_Checkpoint.cpp
+ */
 
 #include <iostream>
 #include <fstream>
@@ -447,7 +450,7 @@ ERF::WriteCheckpointFile () const
 
                 MultiFab tmp3d(convert(grids[0],IntVect(0,0,1)),dmap[0],1,wrf_PHB->nGrowVect());
 
-                MultiFab::Copy(tmp3d,*wrf_PHB,0,0,1,ng);
+                MultiFab::Copy(tmp3d,*wrf_PHB,0,0,1,wrf_PHB->nGrowVect());
                 VisMF::Write(tmp3d, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "PHB"));
             }
         }
@@ -1012,7 +1015,7 @@ ERF::ReadCheckpointFile ()
                 MultiFab tmp3d(convert(grids[0],IntVect(0,0,1)),dmap[0],1,wrf_PHB->nGrowVect());
 
                 VisMF::Read(tmp3d, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "PHB"));
-                MultiFab::Copy(*wrf_PHB,tmp3d,0,0,1,ng);
+                MultiFab::Copy(*wrf_PHB,tmp3d,0,0,1,wrf_PHB->nGrowVect());
             }
         }
 #endif

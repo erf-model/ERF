@@ -1,3 +1,6 @@
+/**
+ * \file ERF_TrackerOutput.cpp
+ */
 #include <iomanip>
 
 #include "ERF.H"
@@ -123,7 +126,7 @@ ERF::WriteVTKPolyline(const std::string& filename,
     // Write points (Z=0 assumed)
     vtkfile << "POINTS " << num_points << " float\n";
     for (const auto& pt : points_xy) {
-        vtkfile << pt[0] << " " << pt[1] << 10000.0 << std::endl;
+        vtkfile << pt[0] << " " << pt[1] << " " << 10000.0 << std::endl;
     }
 
     // Write polyline connectivity

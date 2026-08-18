@@ -18,6 +18,9 @@
  */
 struct InputSpongeData {
 public:
+    /**
+     * @brief Construct input sponge metadata from the ERF input namespace.
+     */
     InputSpongeData ()
     {
         // Text input_sounding file
@@ -25,6 +28,11 @@ public:
         pp.query("input_sponge_file", input_sponge_file);
     }
 
+    /**
+     * @brief Read and interpolate the input sponge profile onto level-0 heights.
+     * @param geom Geometry defining the level-0 vertical domain.
+     * @param zlevels_stag Staggered vertical coordinates used for interpolation.
+     */
     void read_from_file (const amrex::Geometry &geom,
                          const amrex::Vector<amrex::Real>& zlevels_stag)
     {
@@ -96,6 +104,10 @@ public:
         input_sponge_reader.close();
     }
 
+    /**
+     * @brief Return the number of interpolated input sponge samples.
+     * @return Number of stored sponge profile levels.
+     */
     int size () const
     {
         AMREX_ALWAYS_ASSERT(z_inp_sponge.size() == U_inp_sponge.size());
@@ -110,4 +122,15 @@ public:
     // - read from file
     amrex::Vector<amrex::Real> z_inp_sponge, U_inp_sponge, V_inp_sponge;
 };
+
+/**
+ * @var InputSpongeData::input_sponge_file
+ * @brief Path to the text file containing the sponge profile.
+ * @var InputSpongeData::z_inp_sponge
+ * @brief Interpolated sponge profile heights [m].
+ * @var InputSpongeData::U_inp_sponge
+ * @brief Interpolated target x velocity for sponge damping.
+ * @var InputSpongeData::V_inp_sponge
+ * @brief Interpolated target y velocity for sponge damping.
+ */
 #endif

@@ -30,8 +30,10 @@ if (m_cloud_chamber_config.cloudy) {
         "Cloud Chamber: dry mode requires no active moisture model");
 }
 
-const auto prob_lo = geomdata.ProbLo();
-const auto dx = geomdata.CellSize();
+const GpuArray<Real, AMREX_SPACEDIM> prob_lo = {
+    geomdata.ProbLo(0), geomdata.ProbLo(1), geomdata.ProbLo(2)};
+const GpuArray<Real, AMREX_SPACEDIM> dx = {
+    geomdata.CellSize(0), geomdata.CellSize(1), geomdata.CellSize(2)};
 const auto config = m_cloud_chamber_config;
 const Real rdOcp = sc.rdOcp;
 

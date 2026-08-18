@@ -1,3 +1,6 @@
+/**
+ * \file ERF_ReadFromERFBdy.cpp
+ */
 #include "ERF_ReadFromERFBdy.H"
 #include <AMReX_VisMF.H>
 #include <AMReX_ParallelDescriptor.H>
@@ -90,7 +93,12 @@ read_from_erfbdy(int itime,
         { // X-low boundary
             std::string filename = time_dir + "/BdyData_xlo_var" + std::to_string(ivar);
             std::ifstream ifs(filename.c_str(), std::ios::in | std::ios::binary);
-            FArrayBox tmp_fab;
+
+            // A default-constructed FArrayBox allocates from The_Arena(), which is DEVICE
+            // memory unless amrex.the_arena_is_managed=true. readFrom() then htod_memcpy's
+            // into it and the copy<RunOn::Host> below host-reads that device pointer.
+            FArrayBox tmp_fab(amrex::The_Pinned_Arena());
+
             tmp_fab.readFrom(ifs);
             bdy_data_xlo[itime][ivar].resize(tmp_fab.box(), tmp_fab.nComp(), Arena_Used);
             bdy_data_xlo[itime][ivar].template copy<RunOn::Host>(tmp_fab, 0, 0, tmp_fab.nComp());
@@ -100,7 +108,12 @@ read_from_erfbdy(int itime,
         { // X-high boundary
             std::string filename = time_dir + "/BdyData_xhi_var" + std::to_string(ivar);
             std::ifstream ifs(filename.c_str(), std::ios::in | std::ios::binary);
-            FArrayBox tmp_fab;
+
+            // A default-constructed FArrayBox allocates from The_Arena(), which is DEVICE
+            // memory unless amrex.the_arena_is_managed=true. readFrom() then htod_memcpy's
+            // into it and the copy<RunOn::Host> below host-reads that device pointer.
+            FArrayBox tmp_fab(amrex::The_Pinned_Arena());
+
             tmp_fab.readFrom(ifs);
             bdy_data_xhi[itime][ivar].resize(tmp_fab.box(), tmp_fab.nComp(), Arena_Used);
             bdy_data_xhi[itime][ivar].template copy<RunOn::Host>(tmp_fab, 0, 0, tmp_fab.nComp());
@@ -110,7 +123,12 @@ read_from_erfbdy(int itime,
         { // Y-low boundary
             std::string filename = time_dir + "/BdyData_ylo_var" + std::to_string(ivar);
             std::ifstream ifs(filename.c_str(), std::ios::in | std::ios::binary);
-            FArrayBox tmp_fab;
+
+            // A default-constructed FArrayBox allocates from The_Arena(), which is DEVICE
+            // memory unless amrex.the_arena_is_managed=true. readFrom() then htod_memcpy's
+            // into it and the copy<RunOn::Host> below host-reads that device pointer.
+            FArrayBox tmp_fab(amrex::The_Pinned_Arena());
+
             tmp_fab.readFrom(ifs);
             bdy_data_ylo[itime][ivar].resize(tmp_fab.box(), tmp_fab.nComp(), Arena_Used);
             bdy_data_ylo[itime][ivar].template copy<RunOn::Host>(tmp_fab, 0, 0, tmp_fab.nComp());
@@ -120,7 +138,12 @@ read_from_erfbdy(int itime,
         { // Y-high boundary
             std::string filename = time_dir + "/BdyData_yhi_var" + std::to_string(ivar);
             std::ifstream ifs(filename.c_str(), std::ios::in | std::ios::binary);
-            FArrayBox tmp_fab;
+
+            // A default-constructed FArrayBox allocates from The_Arena(), which is DEVICE
+            // memory unless amrex.the_arena_is_managed=true. readFrom() then htod_memcpy's
+            // into it and the copy<RunOn::Host> below host-reads that device pointer.
+            FArrayBox tmp_fab(amrex::The_Pinned_Arena());
+
             tmp_fab.readFrom(ifs);
             bdy_data_yhi[itime][ivar].resize(tmp_fab.box(), tmp_fab.nComp(), Arena_Used);
             bdy_data_yhi[itime][ivar].template copy<RunOn::Host>(tmp_fab, 0, 0, tmp_fab.nComp());

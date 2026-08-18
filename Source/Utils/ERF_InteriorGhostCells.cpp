@@ -174,7 +174,9 @@ realbdy_compute_interior_ghost_rhs (const double& time,
                                     Vector<Vector<FArrayBox>>& bdy_data_yhi,
                                     std::unique_ptr<ReadBndryPlanes>& m_r2d,
                                     const Real& c_p,
-                                    const Real& rdOcp)
+                                    const Real& rdOcp,
+                                    const bool use_wrf_bdy_density,
+                                    const Real& bdy_rho_nudge_factor)
 {
     BL_PROFILE_REGION("realbdy_compute_interior_ghost_RHS()");
 
@@ -206,6 +208,7 @@ realbdy_compute_interior_ghost_rhs (const double& time,
 
     // Relaxation constants
     Real F1 = one/(nudge_factor*delta_t);
+    Real F1_rho = one/((bdy_rho_nudge_factor > zero ? bdy_rho_nudge_factor : nudge_factor) * delta_t);
 
     // Time interpolation
     double dT_d = bdy_time_interval;
@@ -228,6 +231,8 @@ realbdy_compute_interior_ghost_rhs (const double& time,
     FArrayBox U_xlo, U_xhi, U_ylo, U_yhi;
     FArrayBox V_xlo, V_xhi, V_ylo, V_yhi;
     FArrayBox T_xlo, T_xhi, T_ylo, T_yhi;
+    FArrayBox R_xlo, R_xhi, R_ylo, R_yhi;
+    Array4<Real> r_xlo_arr, r_xhi_arr, r_ylo_arr, r_yhi_arr;
 
     // Variable index map (WRFBdyVars -> Vars)
     Vector<int> var_map  = {Vars::xvel,    Vars::yvel,    Vars::cons   };
@@ -240,8 +245,7 @@ realbdy_compute_interior_ghost_rhs (const double& time,
     int  ivarU = RealBdyVars::U;
     int  ivarV = RealBdyVars::V;
     int  ivarT = RealBdyVars::T;
-    int BdyEnd = RealBdyVars::NumTypes-1;
-
+    int BdyEnd = RealBdyVars::NumTypes-2; // No loop over rho
 
     // NOTE: The sizing of the temporary BDY FABS is
     //       GLOBAL and occurs over the entire BDY region.
@@ -278,6 +282,56 @@ realbdy_compute_interior_ghost_rhs (const double& time,
             continue;
         }
     } // ivar
+
+    if (use_wrf_bdy_density) {
+        Box domain = geom.Domain();
+        const IntVect ng_vect(0);
+        Box bx_xlo, bx_xhi, bx_ylo, bx_yhi;
+        realbdy_interior_bxs_xy(domain, domain, width,
+                                bx_xlo, bx_xhi, bx_ylo, bx_yhi, ng_vect, true);
+        R_xlo.resize(bx_xlo, 1, The_Async_Arena());
+        R_xhi.resize(bx_xhi, 1, The_Async_Arena());
+        R_ylo.resize(bx_ylo, 1, The_Async_Arena());
+        R_yhi.resize(bx_yhi, 1, The_Async_Arena());
+
+        const auto& r_xlo_n = bdy_data_xlo[n_time][WRFBdyVars::R].const_array();
+        const auto& r_xlo_np1 = bdy_data_xlo[n_time_p1][WRFBdyVars::R].const_array();
+        const auto& r_xhi_n = bdy_data_xhi[n_time][WRFBdyVars::R].const_array();
+        const auto& r_xhi_np1 = bdy_data_xhi[n_time_p1][WRFBdyVars::R].const_array();
+        const auto& r_ylo_n = bdy_data_ylo[n_time][WRFBdyVars::R].const_array();
+        const auto& r_ylo_np1 = bdy_data_ylo[n_time_p1][WRFBdyVars::R].const_array();
+        const auto& r_yhi_n = bdy_data_yhi[n_time][WRFBdyVars::R].const_array();
+        const auto& r_yhi_np1 = bdy_data_yhi[n_time_p1][WRFBdyVars::R].const_array();
+        const auto& rbx = lbound(domain);
+        const auto& rhi = ubound(domain);
+        r_xlo_arr = R_xlo.array();
+        r_xhi_arr = R_xhi.array();
+        r_ylo_arr = R_ylo.array();
+        r_yhi_arr = R_yhi.array();
+
+        ParallelFor(bx_xlo, bx_xhi,
+        [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+            int ii = amrex::max(i, rbx.x); ii = amrex::min(ii, rbx.x + width - 1);
+            int jj = amrex::max(j, rbx.y); jj = amrex::min(jj, rhi.y);
+            r_xlo_arr(i,j,k) = oma*r_xlo_n(ii,jj,k) + alpha*r_xlo_np1(ii,jj,k);
+        },
+        [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+            int ii = amrex::max(i, rhi.x - width + 1); ii = amrex::min(ii, rhi.x);
+            int jj = amrex::max(j, rbx.y); jj = amrex::min(jj, rhi.y);
+            r_xhi_arr(i,j,k) = oma*r_xhi_n(ii,jj,k) + alpha*r_xhi_np1(ii,jj,k);
+        });
+        ParallelFor(bx_ylo, bx_yhi,
+        [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+            int ii = amrex::max(i, rbx.x); ii = amrex::min(ii, rhi.x);
+            int jj = amrex::max(j, rbx.y); jj = amrex::min(jj, rbx.y + width - 1);
+            r_ylo_arr(i,j,k) = oma*r_ylo_n(ii,jj,k) + alpha*r_ylo_np1(ii,jj,k);
+        },
+        [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+            int ii = amrex::max(i, rbx.x); ii = amrex::min(ii, rhi.x);
+            int jj = amrex::max(j, rhi.y - width + 1); jj = amrex::min(jj, rhi.y);
+            r_yhi_arr(i,j,k) = oma*r_yhi_n(ii,jj,k) + alpha*r_yhi_np1(ii,jj,k);
+        });
+    }
 
 
     // NOTE: These operations use the BDY FABS and RHO. The
@@ -347,6 +401,10 @@ realbdy_compute_interior_ghost_rhs (const double& time,
             int offset = width - 1;
 
             // Populate with interpolation (protect from ghost cells)
+            const auto rxlo = r_xlo_arr;
+            const auto rxhi = r_xhi_arr;
+            const auto rylo = r_ylo_arr;
+            const auto ryhi = r_yhi_arr;
             ParallelFor(tbx_xlo, tbx_xhi,
             [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
@@ -354,7 +412,15 @@ realbdy_compute_interior_ghost_rhs (const double& time,
                 int jj = std::max(j , dom_lo.y); jj = std::min(jj, dom_hi.y);
 
                 Real rho_interp;
-                if (ivar==ivarU) {
+                if (use_wrf_bdy_density && ivar==ivarU) {
+                    int im = amrex::max(i-1, dom_lo.x);
+                    rho_interp = myhalf * (rxlo(im,j,k) + rxlo(amrex::max(i, dom_lo.x),j,k));
+                } else if (use_wrf_bdy_density && ivar==ivarV) {
+                    int jm = amrex::max(j-1, dom_lo.y);
+                    rho_interp = myhalf * (rxlo(i,jm,k) + rxlo(i,amrex::max(j, dom_lo.y),k));
+                } else if (use_wrf_bdy_density) {
+                    rho_interp = rxlo(i,j,k);
+                } else if (ivar==ivarU) {
                     rho_interp = myhalf * ( r_arr(i-1,j  ,k) + r_arr(i,j,k) );
                 } else if (ivar==ivarV) {
                     rho_interp = myhalf * ( r_arr(i  ,j-1,k) + r_arr(i,j,k) );
@@ -377,7 +443,15 @@ realbdy_compute_interior_ghost_rhs (const double& time,
                 int jj = std::max(j , dom_lo.y);        jj = std::min(jj, dom_hi.y);
 
                 Real rho_interp;
-                if (ivar==ivarU) {
+                if (use_wrf_bdy_density && ivar==ivarU) {
+                    int im = amrex::max(i-1, dom_lo.x);
+                    rho_interp = myhalf * (rxhi(im,j,k) + rxhi(amrex::max(i, dom_lo.x),j,k));
+                } else if (use_wrf_bdy_density && ivar==ivarV) {
+                    int jm = amrex::max(j-1, dom_lo.y);
+                    rho_interp = myhalf * (rxhi(i,jm,k) + rxhi(i,amrex::max(j, dom_lo.y),k));
+                } else if (use_wrf_bdy_density) {
+                    rho_interp = rxhi(i,j,k);
+                } else if (ivar==ivarU) {
                     rho_interp = myhalf * ( r_arr(i-1,j  ,k) + r_arr(i,j,k) );
                 } else if (ivar==ivarV) {
                     rho_interp = myhalf * ( r_arr(i  ,j-1,k) + r_arr(i,j,k) );
@@ -402,7 +476,15 @@ realbdy_compute_interior_ghost_rhs (const double& time,
                 int jj = std::max(j , dom_lo.y); jj = std::min(jj, dom_lo.y+offset);
 
                 Real rho_interp;
-                if (ivar==ivarU) {
+                if (use_wrf_bdy_density && ivar==ivarU) {
+                    int im = amrex::max(i-1, dom_lo.x);
+                    rho_interp = myhalf * (rylo(im,j,k) + rylo(amrex::max(i, dom_lo.x),j,k));
+                } else if (use_wrf_bdy_density && ivar==ivarV) {
+                    int jm = amrex::max(j-1, dom_lo.y);
+                    rho_interp = myhalf * (rylo(i,jm,k) + rylo(i,amrex::max(j, dom_lo.y),k));
+                } else if (use_wrf_bdy_density) {
+                    rho_interp = rylo(i,j,k);
+                } else if (ivar==ivarU) {
                     rho_interp = myhalf * ( r_arr(i-1,j  ,k) + r_arr(i,j,k) );
                 } else if (ivar==ivarV) {
                     rho_interp = myhalf * ( r_arr(i  ,j-1,k) + r_arr(i,j,k) );
@@ -425,7 +507,15 @@ realbdy_compute_interior_ghost_rhs (const double& time,
                 int jj = std::max(j , dom_hi.y-offset); jj = std::min(jj, dom_hi.y);
 
                 Real rho_interp;
-                if (ivar==ivarU) {
+                if (use_wrf_bdy_density && ivar==ivarU) {
+                    int im = amrex::max(i-1, dom_lo.x);
+                    rho_interp = myhalf * (ryhi(im,j,k) + ryhi(amrex::max(i, dom_lo.x),j,k));
+                } else if (use_wrf_bdy_density && ivar==ivarV) {
+                    int jm = amrex::max(j-1, dom_lo.y);
+                    rho_interp = myhalf * (ryhi(i,jm,k) + ryhi(i,amrex::max(j, dom_lo.y),k));
+                } else if (use_wrf_bdy_density) {
+                    rho_interp = ryhi(i,j,k);
+                } else if (ivar==ivarU) {
                     rho_interp = myhalf * ( r_arr(i-1,j  ,k) + r_arr(i,j,k) );
                 } else if (ivar==ivarV) {
                     rho_interp = myhalf * ( r_arr(i  ,j-1,k) + r_arr(i,j,k) );
@@ -502,6 +592,20 @@ realbdy_compute_interior_ghost_rhs (const double& time,
         } // mfi
     } // ivar
 
+    if (use_wrf_bdy_density) {
+        for (MFIter mfi(S_cur_data[IntVars::cons], TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+            Box domain = geom.Domain();
+            Box tbx_xlo, tbx_xhi, tbx_ylo, tbx_yhi;
+            realbdy_interior_bxs_xy(mfi.tilebox(), domain, width,
+                                    tbx_xlo, tbx_xhi, tbx_ylo, tbx_yhi);
+            realbdy_compute_relaxation(Rho_comp, 1, width, dx, ProbLo, ProbHi, F1_rho,
+                                       tbx_xlo, tbx_xhi, tbx_ylo, tbx_yhi,
+                                       r_xlo_arr, r_xhi_arr, r_ylo_arr, r_yhi_arr,
+                                       S_cur_data[IntVars::cons].const_array(mfi),
+                                       S_rhs[IntVars::cons].array(mfi), c_p, rdOcp);
+        }
+    }
+
     // Set normal velocity RHS at the boundary
     //==========================================================
     Box domain  = geom.Domain();
@@ -571,7 +675,10 @@ realbdy_compute_interior_ghost_rhs (const double& time,
             },
         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
-            Real rho_tend = rhs_cons(i,j,k);
+            // NOTE: (i,j,k) is the hi face of the domain, so the cell (i,j,k) is
+            //       an exterior ghost cell for which the cons RHS is never filled;
+            //       use the adjacent interior cell, mirroring the lo side.
+            Real rho_tend = rhs_cons(i-1,j,k);
             Real rho_val  = Real(0.5) * (cons_arr(i,j,k) + cons_arr(i-1,j,k));
             Real u_tend, u_val;
             if (btenxhi) {
@@ -601,7 +708,10 @@ realbdy_compute_interior_ghost_rhs (const double& time,
         },
         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
-            Real rho_tend = rhs_cons(i,j,k);
+            // NOTE: (i,j,k) is the hi face of the domain, so the cell (i,j,k) is
+            //       an exterior ghost cell for which the cons RHS is never filled;
+            //       use the adjacent interior cell, mirroring the lo side.
+            Real rho_tend = rhs_cons(i,j-1,k);
             Real rho_val  = Real(0.5) * (cons_arr(i,j,k) + cons_arr(i,j-1,k));
             Real v_tend, v_val;
             if (btenyhi) {

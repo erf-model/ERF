@@ -27,7 +27,7 @@ using namespace amrex;
  * @param[in] ay   Area fraction of y-faces
  * @param[in] az   Area fraction of z-faces
  * @param[in] detJ Jacobian of the metric transformation
- * @param[in] cellSizeInv inverse of the mesh spacing
+ * @param[in] cellSizeInv inverse of the grid spacing
  * @param[in] mf_mx x map factor at cell centers
  * @param[in] mf_ux x map factor at x-faces
  * @param[in] mf_vx x map factor at y-faces

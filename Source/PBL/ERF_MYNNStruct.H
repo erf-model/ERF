@@ -8,6 +8,9 @@ enum struct MYNNConfigType {
     CHEN2021  // Chen & Bryan 2021, JAS
 };
 
+/**
+ * @brief Coefficients and stability functions for the Level 2.5 MYNN closure.
+ */
 struct MYNNLevel25 {
 
     /*
@@ -16,12 +19,12 @@ struct MYNNLevel25 {
      */
     AMREX_GPU_DEVICE
     AMREX_FORCE_INLINE
-    void calc_stability_funcs(amrex::Real& SM,
-                              amrex::Real& SH,
-                              amrex::Real& SQ,
-                              const amrex::Real GM,
-                              const amrex::Real GH,
-                              const amrex::Real alphac = one) const
+    void calc_stability_funcs (amrex::Real& SM,
+                               amrex::Real& SH,
+                               amrex::Real& SQ,
+                               const amrex::Real GM,
+                               const amrex::Real GH,
+                               const amrex::Real alphac = one) const
     {
         amrex::Real alphac2 = alphac * alphac;
 
@@ -36,7 +39,7 @@ struct MYNNLevel25 {
         amrex::Real D = Phi2*Phi4 + Phi5*Phi3;      // NN09 Eqn. 31
         SM = alphac * A1 * (Phi3 - 3*C1*Phi4) / D;  // NN09 Eqn. 27
         SH = alphac * A2 * (Phi2 + 3*C1*Phi5) / D;  // NN09 Eqn. 28
-        SQ = SQfac * SM;                            // NN09 Eqn. 67
+        SQ = SQfac  * SM;                           // NN09 Eqn. 67
     }
 
     // Closure coefficients (from Nakanishi & Niino 2009 [NN09])
@@ -58,6 +61,8 @@ struct MYNNLevel25 {
     amrex::Real SMmax = bogus_large_value;
     amrex::Real SHmin = zero;
     amrex::Real SHmax = amrex::Real(4);
+    amrex::Real SQmin = zero;
+    amrex::Real SQmax = SQfac * SHmax;
 
     MYNNConfigType config;
 
@@ -65,7 +70,21 @@ struct MYNNLevel25 {
     bool diffuse_moistvars = false;
 };
 
+/**
+ * @brief Coefficients and stability functions for the Level 2 MYNN closure.
+ */
 struct MYNNLevel2 {
+    /**
+     * @brief Initialize Level 2 closure coefficients from Level 2.5 coefficients.
+     * @param[in] A1_lvl25 Level 2.5 coefficient A1.
+     * @param[in] A2_lvl25 Level 2.5 coefficient A2.
+     * @param[in] B1 Closure coefficient B1.
+     * @param[in] B2 Closure coefficient B2.
+     * @param[in] C1 Closure coefficient C1.
+     * @param[in] C2 Closure coefficient C2.
+     * @param[in] C3 Closure coefficient C3.
+     * @param[in] C5 Closure coefficient C5.
+     */
     void init_coeffs (amrex::Real A1_lvl25,
                       amrex::Real A2_lvl25,
                       amrex::Real B1,
@@ -91,15 +110,27 @@ struct MYNNLevel2 {
         initialized = true;
     }
 
+    /**
+     * @brief Calculate the reduced Richardson number.
+     * @param[in] GM Momentum gradient.
+     * @param[in] GH Heat gradient.
+     * @return Reduced Richardson number.
+     */
     AMREX_GPU_DEVICE
     AMREX_FORCE_INLINE
     amrex::Real calc_Rf (const amrex::Real GM, const amrex::Real GH) const
     {
         AMREX_ASSERT(initialized);
-        amrex::Real Ri = -GH/(GM + eps);
+        amrex::Real lGM = std::copysign(std::max(std::fabs(GM),eps),GM);
+        amrex::Real Ri  = -GH/lGM;
         return Ri1*(Ri + Ri2 - std::sqrt(Ri*Ri - Ri3*Ri + Ri2*Ri2));
     }
 
+    /**
+     * @brief Calculate the heat stability function.
+     * @param[in] Rf Reduced Richardson number.
+     * @return Heat stability function.
+     */
     AMREX_GPU_DEVICE
     AMREX_FORCE_INLINE
     amrex::Real calc_SH (const amrex::Real Rf) const
@@ -108,9 +139,14 @@ struct MYNNLevel2 {
         return three*A2*(gam1+gam2)*(Rfc-Rf)/(one-Rf);
     }
 
+    /**
+     * @brief Calculate the momentum stability function.
+     * @param[in] Rf Reduced Richardson number.
+     * @return Momentum stability function.
+     */
     AMREX_GPU_DEVICE
     AMREX_FORCE_INLINE
-    amrex::Real calc_SM(const amrex::Real Rf) const
+    amrex::Real calc_SM (const amrex::Real Rf) const
     {
         AMREX_ASSERT(initialized);
         return A1*F1/(A2*F2) * (Rf1-Rf) / (Rf2-Rf) * calc_SH(Rf);

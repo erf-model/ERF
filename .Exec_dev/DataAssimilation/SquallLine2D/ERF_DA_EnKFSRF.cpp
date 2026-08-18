@@ -176,15 +176,18 @@ ERF::PerformDataAssimilation(int da_iter)
                             0.0,   // time
                             0);    // level
 
-    exit(0);
-
     Matrix T_mat(Nens);
     compute_T_matrix(S_mat, T_mat);
 
     for(int n=0; n< Nens; n++) {
+        Print() << "Updating for ensemble " << n << std::endl;
         MultiFab mf_ens_pert;
         update_ensemble(Nens, last_pf_name, varnames, xf_bar, T_mat, n, mf_ens_pert);
         MultiFab mf_ens_updated;
         add_multifabs(mf_ens_pert, xf_bar_updated, mf_ens_updated);
+        check_file = "chk";
+        InitData();
+        check_file = MakeEnsembleCheckpointName(da_iter, n);
+        WriteCheckpointFile();
     }
 }

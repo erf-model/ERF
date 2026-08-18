@@ -1,3 +1,6 @@
+/**
+ * \file ERF_SolveWithEBMLMG.cpp
+ */
 #include "ERF.H"
 #include "ERF_EB.H"
 #include "ERF_Utils.H"
@@ -8,6 +11,18 @@
 
 using namespace amrex;
 
+/**
+ * Compute phi gradients where the area of the face is zero.
+ *
+ * @tparam T EB factory or auxiliary EB data type for face-centered grids
+ * @param[in] phi Cell-centered solution used to compute gradients
+ * @param[out] fluxes Face-centered gradient fluxes to fill
+ * @param[in] geom Geometry used for inverse cell spacing
+ * @param[in] ebfact Cell-centered embedded-boundary factory
+ * @param[in] ebfact_u Embedded-boundary data on x-faces
+ * @param[in] ebfact_v Embedded-boundary data on y-faces
+ * @param[in] ebfact_w Embedded-boundary data on z-faces
+ */
 template <typename T>
 void
 FillZeroAreaFaceFluxes (MultiFab& phi,
@@ -24,6 +39,21 @@ FillZeroAreaFaceFluxes (MultiFab& phi,
  *
  * Important: we solve on the whole level even if there are disjoint regions
  *
+ * @tparam T EB factory or auxiliary EB data type for face-centered grids
+ * @param lev Level index for the solve
+ * @param rhs Right-hand side MultiFab vector
+ * @param phi Solution MultiFab vector to fill
+ * @param fluxes Face-centered gradient fluxes to fill
+ * @param ebfact Cell-centered embedded-boundary factory
+ * @param ebfact_u Embedded-boundary data on x-faces
+ * @param ebfact_v Embedded-boundary data on y-faces
+ * @param ebfact_w Embedded-boundary data on z-faces
+ * @param geom Geometry for the solve level
+ * @param ref_ratio Coarse-fine refinement ratios
+ * @param domain_bc_type Domain boundary-condition names
+ * @param mg_verbose MLMG verbosity level
+ * @param reltol Relative solver tolerance
+ * @param abstol Absolute solver tolerance
  */
 template <typename T>
 void

@@ -748,12 +748,11 @@ ERF::init_zphys (int lev, double elapsed_time)
         if (lev == 0) {
             Real zmax = z_phys_nd[0]->max(0,0,false);
             Real rel_diff = (zmax - zlevels_stag[0][zlevels_stag[0].size()-1]) / zmax;
-            if (rel_diff < Real(1.e-8)) {
+            if (rel_diff > Real(1.e-8)) {
                 amrex::Print() << "max of zphys_nd " << zmax << std::endl;
                 amrex::Print() << "max of zlevels  " << zlevels_stag[0][zlevels_stag[0].size()-1] << std::endl;
-                AMREX_ALWAYS_ASSERT_WITH_MESSAGE(rel_diff < Real(1.e-8), "Terrain is taller than domain top!");
+                amrex::Abort("Terrain is taller than domain top!");
             }
-
 #if 0
             // This remains commented out until we verify that the stretched and variable dz pathways
             //   in fact give the same answer when appropriate
@@ -788,7 +787,8 @@ ERF::init_zphys (int lev, double elapsed_time)
     if (solverChoice.terrain_type == TerrainType::ImmersedForcing ||
         solverChoice.buildings_type == BuildingsType::ImmersedForcing) {
         terrain_blanking[lev]->setVal(one);
-        MultiFab::Subtract(*terrain_blanking[lev], EBFactory(lev).getVolFrac(), 0, 0, 1, ComputeGhostCells(solverChoice) + 2);
+        const int ng_sub = std::min(ComputeGhostCells(solverChoice) + 2, EBFactory(lev).getVolFrac().nGrow());
+        MultiFab::Subtract(*terrain_blanking[lev], EBFactory(lev).getVolFrac(), 0, 0, 1, ng_sub);
         terrain_blanking[lev]->FillBoundary(geom[lev].periodicity());
         init_immersed_forcing(lev); // needed for real cases
 

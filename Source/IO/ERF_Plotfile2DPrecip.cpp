@@ -1,3 +1,6 @@
+/**
+ * \file ERF_Plotfile2DPrecip.cpp
+ */
 #include "ERF_Plotfile2DPrecip.H"
 
 #include <AMReX.H>

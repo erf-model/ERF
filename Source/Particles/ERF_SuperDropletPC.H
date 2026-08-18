@@ -10,6 +10,9 @@
 #include "ERF_SuperDropletPCProcess.H"
 #include <AMReX_StructOfArrays.H>
 
+/**
+ * Particle container for the super-droplet method.
+ */
 class SuperDropletPC : public ERFPC
 {
     using MFPtr = std::unique_ptr<amrex::MultiFab>;
