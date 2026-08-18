@@ -284,23 +284,26 @@ realbdy_compute_interior_ghost_rhs (const double& time,
     } // ivar
 
     if (use_wrf_bdy_density) {
+        const IntVect ng_vect(1,1,0);
         Box domain = geom.Domain();
-        const IntVect ng_vect(0);
+        Box gdom(domain); gdom.grow(ng_vect);
         Box bx_xlo, bx_xhi, bx_ylo, bx_yhi;
-        realbdy_interior_bxs_xy(domain, domain, width,
-                                bx_xlo, bx_xhi, bx_ylo, bx_yhi, ng_vect, true);
+        realbdy_interior_bxs_xy(gdom, domain, width,
+                                bx_xlo, bx_xhi, bx_ylo, bx_yhi,
+                                ng_vect, true);
+
         R_xlo.resize(bx_xlo, 1, The_Async_Arena());
         R_xhi.resize(bx_xhi, 1, The_Async_Arena());
         R_ylo.resize(bx_ylo, 1, The_Async_Arena());
         R_yhi.resize(bx_yhi, 1, The_Async_Arena());
 
-        const auto& r_xlo_n = bdy_data_xlo[n_time][WRFBdyVars::R].const_array();
+        const auto& r_xlo_n   = bdy_data_xlo[n_time   ][WRFBdyVars::R].const_array();
         const auto& r_xlo_np1 = bdy_data_xlo[n_time_p1][WRFBdyVars::R].const_array();
-        const auto& r_xhi_n = bdy_data_xhi[n_time][WRFBdyVars::R].const_array();
+        const auto& r_xhi_n   = bdy_data_xhi[n_time   ][WRFBdyVars::R].const_array();
         const auto& r_xhi_np1 = bdy_data_xhi[n_time_p1][WRFBdyVars::R].const_array();
-        const auto& r_ylo_n = bdy_data_ylo[n_time][WRFBdyVars::R].const_array();
+        const auto& r_ylo_n   = bdy_data_ylo[n_time   ][WRFBdyVars::R].const_array();
         const auto& r_ylo_np1 = bdy_data_ylo[n_time_p1][WRFBdyVars::R].const_array();
-        const auto& r_yhi_n = bdy_data_yhi[n_time][WRFBdyVars::R].const_array();
+        const auto& r_yhi_n   = bdy_data_yhi[n_time   ][WRFBdyVars::R].const_array();
         const auto& r_yhi_np1 = bdy_data_yhi[n_time_p1][WRFBdyVars::R].const_array();
         const auto& rbx = lbound(domain);
         const auto& rhi = ubound(domain);

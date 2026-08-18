@@ -452,6 +452,32 @@ ERF::WriteCheckpointFile () const
 #endif
     } // for lev
 
+    // Write zlevels to its own directory and read it as well, similar to bdy data
+    if (ParallelDescriptor::IOProcessor()) {
+        std::string ZLevelsFileName(checkpointname + "/zlevels");
+        std::ofstream ZLevelsFile;
+        ZLevelsFile.open(ZLevelsFileName.c_str(), std::ofstream::out   |
+                                                  std::ofstream::trunc |
+                                                  std::ofstream::binary);
+        if(! ZLevelsFile.good()) {
+            FileOpenFailed(ZLevelsFileName);
+        } else {
+            ZLevelsFile.precision(17);
+
+            // Write every level we hold (max_level+1) rather than finest_level+1, so
+            // that levels which are not currently active are still restored.
+            ZLevelsFile << zlevels_stag.size() << "\n";
+
+            for (int lev = 0; lev < static_cast<int>(zlevels_stag.size()); ++lev) {
+                ZLevelsFile << zlevels_stag[lev].size();
+                for (int k = 0; k < static_cast<int>(zlevels_stag[lev].size()); ++k) {
+                    ZLevelsFile << " " << zlevels_stag[lev][k];
+                }
+                ZLevelsFile << "\n";
+            }
+        }
+    }
+
 #ifdef ERF_USE_PARTICLES
    particleData.Checkpoint(checkpointname);
 #endif
@@ -618,6 +644,46 @@ ERF::ReadCheckpointFile ()
         while (lis >> word) {
             t_new[i++] = std::stod(word);
         }
+    }
+
+    // Read zlevels from its own directory
+    // NOTE: This read should occur before MakeNewLevelFromScratch
+    {
+        std::string ZLevelsFile(restart_chkfile + "/zlevels");
+        if (amrex::FileExists(ZLevelsFile)) {
+            Vector<char> ZLevelsfileCharPtr;
+            ParallelDescriptor::ReadAndBcastFile(ZLevelsFile, ZLevelsfileCharPtr);
+            std::string ZLevelsfileCharPtrString(ZLevelsfileCharPtr.dataPtr());
+            std::istringstream isz(ZLevelsfileCharPtrString, std::istringstream::in);
+
+            int nlevs_in_chk = 0;
+            isz >> nlevs_in_chk;
+
+            for (int lev = 0; lev < nlevs_in_chk; ++lev) {
+                int nz_stag = 0;
+                isz >> nz_stag;
+
+                Vector<Real> zlevels_from_chk(nz_stag);
+                for (int k = 0; k < nz_stag; ++k) {
+                    isz >> zlevels_from_chk[k];
+                }
+
+                // A checkpoint from a run with more levels than we hold: read past it
+                if (lev >= static_cast<int>(zlevels_stag.size())) { continue; }
+
+                if (static_cast<int>(zlevels_stag[lev].size()) != nz_stag) {
+                    Print() << "Checkpoint holds " << nz_stag << " staggered z levels at level "
+                            << lev << " but this run expects "
+                            << zlevels_stag[lev].size() << std::endl;
+                    Abort("Cannot restart with a different number of cells in z");
+                }
+
+                zlevels_stag[lev] = zlevels_from_chk;
+
+                // Keep the cell heights consistent with the levels we just read in
+                update_stretched_dz(lev, zlevels_stag, stretched_dz_h, stretched_dz_d);
+            }
+        } // zlevels file exists
     }
 
     for (int lev = 0; lev <= finest_level; ++lev) {
@@ -1097,6 +1163,8 @@ ERF::ReadCheckpointFile ()
                            << std::endl;
         }
     }
+
+
 
 #ifdef ERF_USE_PARTICLES
     restartTracers((ParGDBBase*)GetParGDB(),restart_chkfile);

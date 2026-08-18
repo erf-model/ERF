@@ -773,6 +773,11 @@ struct SolverChoice {
 
         // Optionally use the dry-air density reconstructed from wrfbdy.
         pp.query("use_wrf_bdy_density", use_wrf_bdy_density);
+
+        if (!use_real_bcs || init_type != InitType::WRFInput) {
+            use_wrf_bdy_density = false;
+        }
+
         pp.query("bdy_rho_nudge_factor", bdy_rho_nudge_factor);
 
         // Which approach to nudging the moist variables in the boundary region?
@@ -1640,15 +1645,16 @@ struct SolverChoice {
     amrex::Real bdy_nudge_factor = amrex::Real(10.0);
 
     // Use density reconstructed from standard WRF lateral boundary data.
-    bool use_wrf_bdy_density = false;
+    bool use_wrf_bdy_density = true;
+
     // Density-specific Davies factor; non-positive means use bdy_nudge_factor.
     amrex::Real bdy_rho_nudge_factor = amrex::Real(-1.0);
 
     // Which approach to nudging the moist variables in the boundary region?
-    int bdy_moist_nudge_type = 0;
+    int bdy_moist_nudge_type = 1;
 
     // Keep the WRF grid or remake our own?
-    bool use_wrf_height_grid {true};
+    bool use_wrf_height_grid {false};
 
     // Use forest canopy model?
     bool do_forest_drag {false};
