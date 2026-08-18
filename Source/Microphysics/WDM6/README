@@ -31,16 +31,21 @@ WDM6 (WRF Double-Moment 6-class) microphysics scheme for ERF. This implementatio
   - WRF sedimentation (nislfv_rain_plm6/plmr routines)
   - CCN activation and aerosol tracking (nn)
 
-⚠️ **Partial (C++ GPU implementation):**
-- Warm rain processes implemented but needs validation:
+✅ **Complete and validated (native C++, serial CPU):**
+- Full warm-rain and ice process set, not a simplified subset
   - CCN activation and aerosol tracking (nn)
-  - Condensation/evaporation
-  - Autoconversion and accretion
-  - Sedimentation (simplified, not WRF PLM scheme)
-  - Results may be unphysical - needs debugging
-- Ice processes: stub/placeholder implementations only
-  - Basic freezing/melting transfers present
-  - Not physically accurate
+  - Condensation/evaporation, autoconversion, accretion
+  - WRF PLM sedimentation via `wdm6_nislfv_rain_plm6_column` (not a simplified
+    fall scheme)
+  - Ice/snow/graupel processes ported in full
+- Agrees with the Fortran bridge to ~1e-11 relative over 100 steps on the moist
+  Bubble case; see "Validation" below for the figures and their scope
+
+⚠️ **Validated to a different standard (GPU):**
+- The CUDA build runs, but bridge-vs-native agreement on GPU is NOT
+  epsilon-scale: see "GPU" under Validation. This is a property of hard-gated
+  branches under two independently-rounded execution paths, not a porting defect,
+  but it means GPU results must not be compared against the serial figures.
 
 ✅ **Infrastructure:**
 - State management (9 moisture variables: qv-qg + nn, nc, nr)
@@ -102,6 +107,134 @@ Note: `nn` is NOT ice number (`ni` in Morrison). WDM6 is double-moment for liqui
 
 Tested with:
 - 06 June 2023 mesoscale convective system (MCS) gravity wave case from AWAKEN
+- `Exec/RegTests/Bubble`, `inputs_BF02_moist_bubble` with
+  `erf.moisture_model=WDM6`, as the bridge-vs-native parity case
+
+## Validation
+
+The native C++ path is validated against the Fortran bridge as an oracle, on the
+moist Bubble case at `erf.fixed_dt = 0.5`, comparing full plotfiles over 32
+variables at zero tolerance. Both legs are the same executable, selected with
+`erf.use_wdm6_cpp_answer`.
+
+Serial CPU, un-instrumented source, 100 steps:
+
+| stop step | worst relative error | variable |
+| --- | --- | --- |
+| 1 | 9.2e-18 | qv |
+| 10 | 1.2e-15 | nn |
+| 100 | 6.1e-11 | nn |
+
+The step-100 residual is dominated by the number concentrations (`nn`, `nc`,
+`nr`); density, temperature, pressure and the mixing ratios stay several orders
+tighter. To establish that this is accumulated roundoff rather than a wrong
+answer at some step, the divergence was also measured **per step**: both legs were
+restarted from the same checkpoint at each of the 99 windows from step 1 to 100
+and advanced exactly one step. Median 2.4e-15, maximum 3.1e-13, and no window
+above 1e-12 — so no kernel computes a wrong answer anywhere in the interval given
+identical input. For scale, a real defect found this way earlier (an unsuffixed
+`1.e-3` rain-slope cap) showed up as 1.9e-11 rising to ~7e-08.
+
+**Coverage that the default case does NOT provide.** The base Bubble input is
+uniform-`dz`, `hail_opt=0` and all-land, so three code paths never execute on it.
+Two are covered by the variant inputs alongside this file, and both were confirmed
+to actually engage — each differs from the default on *both* legs, which is the
+check that distinguishes real coverage from a no-op:
+- `inputs_BF02_moist_bubble_wdm6_hail` (`wdm6.hail_opt=1`) — hail coefficients
+- `inputs_BF02_moist_bubble_wdm6_water` (`erf.is_land=0`) — maritime autoconversion
+  threshold
+
+The third, honouring physical cell thickness on a stretched mesh, is **not
+covered**: see "Gotchas".
+
+**MPI.** Serial and MPI agree bitwise at one rank, and `plotfile_parity` output is
+bitwise identical across 1, 2, 4 and 8 ranks — but only for the x-only
+decompositions AMReX chooses on this domain. A z-cut is untestable here; see
+"Gotchas".
+
+**GPU.** The CUDA build compiles and runs. Bridge-vs-native agreement at step 1 is
+roundoff-scale, but by step 10 and 100 the warm-rain group diverges by tens of
+percent while thermodynamics and ice stay under 0.1%. Per-step checks show no
+injected defect at any step, so the cause is the hard, unsmoothed autoconversion
+gate at `ERF_module_mp_wdm6.F90:1931`
+(`if(qci(i,k,1).gt.qcr(i,k).and.ncr(i,k,2).gt.ncmin)`): a cell whose `qc` sits
+within GPU roundoff of the threshold can land on opposite sides of the gate on the
+two legs, firing autoconversion on one and not the other. That is a structural
+property of a hard-gated nonlinear scheme, not a coding error. **Do not compare
+GPU figures against the serial table above.**
+
+## Gotchas
+
+Each of these cost real debugging time. They are listed because none is obvious
+from reading the code.
+
+**1. Unsuffixed Fortran literals are single precision, and the assumption applies
+to the whole expression.** `0.104*9.8` in the WRF source is evaluated in single
+precision and only then widened, so converting each literal separately and
+multiplying in double gives a different — and wrong — value. Every lossy literal in
+the native path is therefore routed through one conversion helper (`wdm6_literal`),
+built with `-DERF_WDM6_F32_LITERALS=ON`. Reading a declaration's `kind` is not
+enough: `real(kind=kind_phys), parameter :: qcrmin = 1.e-9` still evaluates its
+right-hand side in single precision, so named parameters need the same treatment
+as inline literals. The inverse trap also exists — an explicit `_kind_phys` suffix
+makes the literal a genuine double, and routing *that* introduces an error.
+
+**2. A literal in a floor-and-gate pair shifts a threshold, not just a value.**
+`x = max(a+b, 1.e-15)` followed by `if (x .gt. 1.e-15)` is self-consistent within
+one leg. If the two legs round that literal differently, the *comparison boundary*
+differs, and any input in the gap takes opposite branches. That is branch
+divergence, not a rounding difference, and it is invisible to reasoning that
+declares the floor harmless. WDM6 carried this at 12 sites.
+
+**3. A literal inside a clamp is invisible until the clamp binds.** An unrouted
+`1.e-3` rain-slope cap cost nothing for the first fifteen steps because no cell
+reached it, then produced the entire step-100 residual. A clean short run says
+nothing about a clamped or gated literal — audit those by reading the source, not
+by watching a metric.
+
+**4. `erf.init_type = MoistBaseState` cannot be combined with a stretched mesh.**
+`AMREX_ALWAYS_ASSERT(mesh_type == ConstantDz)` at
+`Source/Initialization/ERF_Init1D.cpp:77` fires in Release. Consequence for WDM6:
+the code path that honours physical cell thickness cannot be exercised on Bubble at
+all — uniform `dz` makes it bit-identical to the old `CellSize(2)` shortcut, and
+forcing a stretched mesh aborts before the first step.
+
+**5. z-decomposition aborts on these test cases.** `AMREX_ALWAYS_ASSERT(bx.length()
+[2] == khi+1)` in `ERF_InitCustomPert_Bubble.H` — and identically in
+`ERF_InitCustomPert_SquallLine.H` and `ERF_InitCustomPert_SuperCell.H` — requires
+every box to span the whole column. AMReX's natural decomposition on the Bubble
+domain happens to cut in x only at every rank count, so this is easy to miss;
+forcing `amr.max_grid_size_z < nz` produces the intended z-split and then aborts in
+problem setup. Halo exchange across a z-cut is therefore untested for WDM6.
+
+**6. ERF's land mask and WRF's `xland` use different encodings.** ERF: `0=water,
+1=land, 2=building`. WRF `xland`: `1=land, 2=water`. The bridge passes `xland`
+straight to `wdm62D`'s `slmsk` dummy unconverted, and its only consumer tests
+`slmsk .eq. 2`, so the mask must be *mapped* (`lmask == 0 ? 2.0 : 1.0`), never
+passed through. Testing `== 2` would treat building cells as maritime.
+
+**7. Diagnostic prints are not observationally neutral.** Removing debug prints that
+*read* intermediate expressions (`log(tr)`, `exp(log(tr)*(xa))`) changed this
+scheme's Fortran answer by ~1e-18 at step 1, growing to ~4e-11 by step 100. The
+likely mechanism is that materialising those intermediates for printing inhibits
+gfortran's default `-ffp-contract=fast`, so removing the print lets the compiler
+fuse into an FMA. Prints that consume already-stored variables showed no such
+effect. Do not assume adding or removing instrumentation is free.
+
+**8. A comment line beginning `#else` or `#endif` segfaults the AMReX inputs
+parser.** A three-line inputs file whose first line is `#else` is enough to
+reproduce it. This bites when pasting Fortran or C preprocessor snippets into `#`
+comment blocks in an inputs file; keep a non-alphabetic gutter (`#   |`) between
+the `#` and any such keyword.
+
+**9. WDM6 has no ice number — `nn` is not `ni`.** `RhoQ8` is CCN/total aerosol.
+`ERF_DataStruct.H` sets `ni = -1` for WDM6, so asking for `ni` in `plot_vars`
+silently drops it. Use `nc nn nr`. `nn` has no paired mass species and is bounded
+to 1e8–2e10 m^-3; magnitudes differ from `ni` by three to five orders.
+
+**10. `fcompare` refuses to compare plotfiles with different BoxArrays** — it
+reports `grids do not match at level 0`. Pass `-a` when comparing across
+decompositions or rank counts.
 
 ## Build Instructions
 
@@ -136,6 +269,14 @@ wdm6.hail_opt = 0     # 0=graupel, 1=hail
 - Lim & Hong (2010): Development of an effective double-moment cloud microphysics scheme
 - Abdul-Razzak & Ghan (2000): A parameterization of aerosol activation
 - WSM6 ERF implementation: `/Source/Microphysics/WSM6/`
+
+The full validation record — per-run ledgers, the per-step divergence tables, and
+the group-by-group closure history — is kept out of this tree deliberately, since
+it is development provenance rather than shipping code. It lives on the
+`wdm6-campaign-archive-lean` branch, together with the instrumented source the
+measurements were taken with. The `! WDM6-F90 TAG:` comments in
+`ERF_module_mp_wdm6.F90` mark the group boundaries that record refers to, so a
+future investigation can re-add prints at exactly the sites the history discusses.
 
 ## Contact
 
