@@ -774,7 +774,7 @@ struct SolverChoice {
         // Optionally use the dry-air density reconstructed from wrfbdy.
         pp.query("use_wrf_bdy_density", use_wrf_bdy_density);
 
-        if (!solverChoice.use_real_bcs || solverChoice.init_type != InitType::WRFInput) {
+        if (!use_real_bcs || init_type != InitType::WRFInput) {
             use_wrf_bdy_density = false;
         }
 
