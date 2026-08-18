@@ -124,6 +124,18 @@ ERF::WriteCheckpointFile () const
            HeaderFile << '\n';
        }
 
+       // write out array of t_avg_cnt, the normalizer for the time-averaged velocity
+       //
+       // NOTE: this is written *after* the BoxArrays, i.e. last, on purpose.  Nothing
+       //       else is parsed out of the header past that point, so a reader that does
+       //       not know about this line simply ignores it, and a reader that does can
+       //       treat its absence (a checkpoint from before issue 3654 was fixed) as
+       //       "restart the average", which is the behavior those files already had.
+       for (int i = 0; i < t_avg_cnt.size(); ++i) {
+           HeaderFile << t_avg_cnt[i] << " ";
+       }
+       HeaderFile << "\n";
+
        // Write separate file that tells how many components we have of the base state
        std::string BaseStateFileName(checkpointname + "/num_base_state_comps");
        std::ofstream BaseStateFile;
@@ -194,6 +206,15 @@ ERF::WriteCheckpointFile () const
             MultiFab gpz(convert(grids[lev],IntVect(0,0,1)),dmap[lev],1,0);
             MultiFab::Copy(gpz,gradp[lev][GpVars::gpz],0,0,1,0);
             VisMF::Write(gpz, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "Gpz"));
+        }
+
+        // The running sum of the time-averaged velocity.  Its normalizer, t_avg_cnt,
+        // goes in the header above; both are needed or the average silently restarts
+        // from zero across a checkpoint/restart (issue 3654).
+        // NOTE: no ghost cells to strip here, so this is written in place.
+        if (solverChoice.time_avg_vel) {
+            AMREX_ALWAYS_ASSERT(vel_t_avg[lev] != nullptr);
+            VisMF::Write(*vel_t_avg[lev], MultiFabFileFullPrefix(lev, checkpointname, "Level_", "VelTimeAvg"));
         }
 
         // Note that we write the ghost cells of the base state (unlike above)
@@ -317,49 +338,23 @@ ERF::WriteCheckpointFile () const
 
         if (m_SurfaceLayer)  {
             amrex::Print() << "Writing SurfaceLayer variables at level " << lev << std::endl;
-            ng = IntVect(1,1,0);
-            MultiFab m_var(ba2d[lev],dmap[lev],1,ng);
-            MultiFab* src = nullptr;
 
-            // U*
-            src = m_SurfaceLayer->get_u_star(lev);
-            MultiFab::Copy(m_var,*src,0,0,1,ng);
-            VisMF::Write(m_var, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "Ustar"));
+            // These MultiFabs live on a 2D BoxArray for planar terrain but on the full 3D
+            // BoxArray (with a z ghost cell) for EB terrain, so we write each one on its own
+            // BoxArray -- copying into a hard-wired 2D MultiFab would silently drop everything
+            // above k=0 for EB (issue #3560)
+            auto write_sl_var = [&] (MultiFab* src, const std::string& name) {
+                VisMF::Write(*src, MultiFabFileFullPrefix(lev, checkpointname, "Level_", name));
+            };
 
-            // W*
-            src = m_SurfaceLayer->get_w_star(lev);
-            MultiFab::Copy(m_var,*src,0,0,1,ng);
-            VisMF::Write(m_var, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "Wstar"));
-
-            // T*
-            src = m_SurfaceLayer->get_t_star(lev);
-            MultiFab::Copy(m_var,*src,0,0,1,ng);
-            VisMF::Write(m_var, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "Tstar"));
-
-            // Q*
-            src = m_SurfaceLayer->get_q_star(lev);
-            MultiFab::Copy(m_var,*src,0,0,1,ng);
-            VisMF::Write(m_var, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "Qstar"));
-
-            // Olen
-            src = m_SurfaceLayer->get_olen(lev);
-            MultiFab::Copy(m_var,*src,0,0,1,ng);
-            VisMF::Write(m_var, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "Olen"));
-
-            // Qsurf
-            src = m_SurfaceLayer->get_q_surf(lev);
-            MultiFab::Copy(m_var,*src,0,0,1,ng);
-            VisMF::Write(m_var, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "Qsurf"));
-
-            // PBLH
-            src = m_SurfaceLayer->get_pblh(lev);
-            MultiFab::Copy(m_var,*src,0,0,1,ng);
-            VisMF::Write(m_var, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "PBLH"));
-
-            // Z0
-            src = m_SurfaceLayer->get_z0(lev);
-            MultiFab::Copy(m_var,*src,0,0,1,ng);
-            VisMF::Write(m_var, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "Z0"));
+            write_sl_var(m_SurfaceLayer->get_u_star(lev), "Ustar");
+            write_sl_var(m_SurfaceLayer->get_w_star(lev), "Wstar");
+            write_sl_var(m_SurfaceLayer->get_t_star(lev), "Tstar");
+            write_sl_var(m_SurfaceLayer->get_q_star(lev), "Qstar");
+            write_sl_var(m_SurfaceLayer->get_olen(lev)  , "Olen");
+            write_sl_var(m_SurfaceLayer->get_q_surf(lev), "Qsurf");
+            write_sl_var(m_SurfaceLayer->get_pblh(lev)  , "PBLH");
+            write_sl_var(m_SurfaceLayer->get_z0(lev)    , "Z0");
         }
 
         if (sst_lev[lev][0]) {
@@ -637,6 +632,26 @@ ERF::ReadCheckpointFile ()
         MakeNewLevelFromScratch (lev, static_cast<Real>(t_new[lev]), ba, dm);
     }
 
+    // read in array of t_avg_cnt
+    //
+    // NOTE: this must come after the loop above, because MakeNewLevelFromScratch ->
+    //       init_stuff zeroes the time-averaging state for each level it builds.
+    //       An older checkpoint has nothing here, in which case we leave those zeros
+    //       in place and the average simply starts over.
+    if (solverChoice.time_avg_vel) {
+        std::getline(is, line);
+        std::istringstream lis(line);
+        int i = 0;
+        while ((i < t_avg_cnt.size()) && (lis >> word)) {
+            t_avg_cnt[i++] = std::stod(word);
+        }
+        if (i == 0) {
+            amrex::Print() << "NOTE: this checkpoint predates time-averaged velocity being "
+                              "checkpointed; the running average of velocity will start over"
+                           << std::endl;
+        }
+    }
+
     // ncomp is only valid after we MakeNewLevelFromScratch (asks micro how many vars)
     // NOTE: Data is written over ncomp, so check that we match the header file
     int ncomp_cons = vars_new[0][Vars::cons].nComp();
@@ -732,6 +747,21 @@ ERF::ReadCheckpointFile ()
             VisMF::Read(gpz, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "Gpz"));
             MultiFab::Copy(gradp[lev][GpVars::gpz],gpz,0,0,1,0);
             gradp[lev][GpVars::gpz].FillBoundary(geom[lev].periodicity());
+        }
+
+        // Restore the running sum of the time-averaged velocity (issue 3654).  Older
+        // checkpoints do not carry it; in that case keep the zeros that init_stuff set
+        // and drop this level's counter to match, so the average restarts consistently.
+        if (solverChoice.time_avg_vel) {
+            AMREX_ALWAYS_ASSERT(vel_t_avg[lev] != nullptr);
+            const std::string vta_name =
+                MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "VelTimeAvg");
+            if (amrex::FileExists(vta_name + "_H")) {
+                VisMF::Read(*vel_t_avg[lev], vta_name);
+            } else {
+                vel_t_avg[lev]->setVal(0.0);
+                t_avg_cnt[lev] = 0.0;
+            }
         }
 
         // Note that we read the ghost cells of the base state (unlike above)
@@ -1278,13 +1308,16 @@ ERF::ReadCheckpointFileSurfaceLayer ()
     {
         amrex::Print() << "Reading MOST variables" << std::endl;
 
-        IntVect ng(1,1,0);
-
         auto read_most_var = [&] (const std::string& name, MultiFab* dst) {
             const std::string mf_name = MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", name);
             if (amrex::FileExists(mf_name + "_H")) {
                 MultiFab m_var;
                 VisMF::Read(m_var, mf_name);
+                // The number of ghost cells depends on whether these live on a 2D or a 3D
+                // BoxArray (see WriteCheckpointFile), and a checkpoint written before the
+                // fix for issue #3560 may have fewer than the destination holds, so only
+                // fill as many ghost cells as both sides have
+                IntVect ng = amrex::min(m_var.nGrowVect(), dst->nGrowVect());
                 dst->ParallelCopy(m_var, 0, 0, 1, ng, ng, geom[lev].periodicity());
             }
         };

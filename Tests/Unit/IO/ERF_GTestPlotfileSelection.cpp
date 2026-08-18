@@ -228,8 +228,8 @@ TEST(Plotfile3DSelection, MoistureCapabilityTruthTable)
          true, true, true, true, true, true, true, true},
         {MoistureType::WSM6, true, true, true, true, true, true,
          false, false, false, false, false, true, true, true},
-        {MoistureType::SuperDroplets, true, true, false, true, false, false,
-         false, false, false, false, false, true, false, false}
+        {MoistureType::SuperDroplets, true, true, true, true, true, true,
+         false, false, false, false, false, true, true, false}
     }};
 
     for (const auto& item : expected) {
@@ -315,7 +315,10 @@ TEST(Plotfile3DSelection, SemanticAndStorageChecksAreIndependent)
     EXPECT_TRUE(erf_plotfile::plot3d_fixed_variable_available("qp", superdroplets));
     EXPECT_TRUE(erf_plotfile::plot3d_fixed_variable_available("rel_humidity", superdroplets));
     EXPECT_TRUE(erf_plotfile::plot3d_fixed_variable_available("condensation_rate", superdroplets));
-    EXPECT_FALSE(erf_plotfile::plot3d_fixed_variable_available("snow_accum", superdroplets));
+    EXPECT_TRUE(erf_plotfile::plot3d_fixed_variable_available("snow_accum", superdroplets));
+    // graupel accumulation is rejected on semantic grounds alone; the storage
+    // is wide enough for it
+    EXPECT_FALSE(erf_plotfile::plot3d_fixed_variable_available("graup_accum", superdroplets));
 }
 
 // Motivation: Optional diagnostics must be rejected before the writer can

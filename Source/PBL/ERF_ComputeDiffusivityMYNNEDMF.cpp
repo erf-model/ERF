@@ -4173,6 +4173,23 @@ void mym_initialize_cc(const int &kts,const int &kte,const Real &xland, Real *dz
 
 #endif
 
+/**
+ * @brief Compute eddy viscosity and diffusivity coefficients using the MYNN-EDMF closure.
+ * @param[in] xvel Horizontal x-velocity field.
+ * @param[in] yvel Horizontal y-velocity field.
+ * @param[in] cons_in Field of conservative variables.
+ * @param[out] eddyViscosity MultiFab to be filled with computed eddy diffusivities.
+ * @param[in] geom Grid geometry.
+ * @param[in] turbChoice Turbulence closure options and parameters.
+ * @param[in] SurfLayer Surface layer data for MOST parameters.
+ * @param[in] use_terrain_fitted_coords Flag to use terrain-fitted vertical coordinates.
+ * @param[in] use_moisture Flag to include moisture in buoyancy calculations.
+ * @param[in] level Current level index.
+ * @param[in] bc_ptr Pointer to boundary condition records.
+ * @param[in] z_phys_nd Physical height field at nodes.
+ * @param[in] z_phys_cc Physical height field at cell centers.
+ * @param[in] moisture_indices Indices for mapping moisture variables in the conservative field.
+ */
 void
 ComputeDiffusivityMYNNEDMF (const MultiFab& xvel,
                             const MultiFab& yvel,
@@ -4223,7 +4240,10 @@ ComputeDiffusivityMYNNEDMF (const MultiFab& xvel,
 #ifdef _OPENMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())
 #endif
-    for ( MFIter mfi(eddyViscosity,TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+    // NOTE: we must not tile in z here because the body of this loop assumes that each
+    //       iterate spans the entire column: it grows the box by one in z and accumulates
+    //       vertical integrals into a per-iterate qintegral fab (as in MYNN25)
+    for ( MFIter mfi(eddyViscosity,TileNoZ()); mfi.isValid(); ++mfi) {
 
         const Box &bx = mfi.growntilebox(1);
         const Array4<Real const>& cell_data = cons_in.array(mfi);
@@ -4404,9 +4424,13 @@ ComputeDiffusivityMYNNEDMF (const MultiFab& xvel,
             Real SM, SH, SQ;
             mynn.calc_stability_funcs(SM,SH,SQ,GM,GH,alphac);
 
-            // Clip SM, SH following WRF
+            // Clip SM, SH, SQ following WRF.  SQ is proportional to the *unclipped*
+            // SM (NN09 Eqn. 67 is evaluated before SM is limited), so it needs its own
+            // bounds; without them the TKE diffusivity below can go negative and turn
+            // the vertical TKE diffusion anti-diffusive.
             SM = amrex::min(amrex::max(SM,mynn.SMmin), mynn.SMmax);
             SH = amrex::min(amrex::max(SH,mynn.SHmin), mynn.SHmax);
+            SQ = amrex::min(amrex::max(SQ,mynn.SQmin), mynn.SQmax);
 
             // Finally, compute the eddy viscosity/diffusivities
             const Real rho = cell_data(i,j,k,Rho_comp);

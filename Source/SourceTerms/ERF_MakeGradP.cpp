@@ -109,6 +109,17 @@ void make_gradp_pert (int level,
     } // not anelastic
 }
 
+/**
+ * @brief Compute the full pressure gradient.
+ * @param[in] p Pressure field.
+ * @param[in] geom Geometry container.
+ * @param[in] z_phys_nd Physical height on nodes.
+ * @param[in] z_phys_cc Physical height on cell centers.
+ * @param[in] mapfac Map factors.
+ * @param[in] ebfact EB factory.
+ * @param[out] gradp Pressure gradient components.
+ * @param[in] solverChoice Solver options.
+ */
 void
 compute_gradp (const MultiFab& p,
                const Geometry& geom,
@@ -123,6 +134,16 @@ compute_gradp (const MultiFab& p,
     compute_gradp_z(p,geom,z_phys_nd,ebfact,gradp,solverChoice);
 }
 
+/**
+ * @brief Compute the horizontal components of the pressure gradient.
+ * @param[in] p Pressure field.
+ * @param[in] geom Geometry container.
+ * @param[in] z_phys_cc Physical height on cell centers.
+ * @param[in] mapfac Map factors.
+ * @param[in] ebfact EB factory.
+ * @param[out] gradp Pressure gradient components.
+ * @param[in] solverChoice Solver options.
+ */
 void
 compute_gradp_xy (const MultiFab& p,
                   const Geometry& geom,
@@ -343,6 +364,15 @@ compute_gradp_xy (const MultiFab& p,
     } // mfi
 }
 
+/**
+ * @brief Compute the vertical component of the pressure gradient.
+ * @param[in] p Pressure field.
+ * @param[in] geom Geometry container.
+ * @param[in] z_phys_nd Physical height on nodes.
+ * @param[in] ebfact EB factory.
+ * @param[out] gradp Pressure gradient components.
+ * @param[in] solverChoice Solver options.
+ */
 void
 compute_gradp_z (const MultiFab& p,
                  const Geometry& geom,
@@ -458,6 +488,16 @@ compute_gradp_z (const MultiFab& p,
     } // mfi
 }
 
+/**
+ * @brief Compute the pressure gradient using vertical interpolation.
+ * @param[in] p Pressure field.
+ * @param[in] geom Geometry container.
+ * @param[in] z_phys_nd Physical height on nodes.
+ * @param[in] z_phys_cc Physical height on cell centers.
+ * @param[in] mapfac Map factors.
+ * @param[out] gradp Pressure gradient components.
+ * @param[in] solverChoice Solver options.
+ */
 void
 compute_gradp_interpz (const MultiFab& p,
                        const Geometry& geom,

@@ -42,6 +42,7 @@
 #include <ERF_DataStruct.H>
 #include <ERF_TurbPertStruct.H>
 #include <ERF_InputSoundingData.H>
+#include <ERF_LargeScaleForcingData.H>
 #include <ERF_InputSpongeData.H>
 #include <ERF_SurfaceLayer.H>
 #include <ERF_Derive.H>
@@ -153,8 +154,53 @@ public:
     // explicitly or return the underlying MultiFab pointer/reference instead.
     void GetOceanToAtmosSurfaceLayout (amrex::BoxArray& ba,
                                        amrex::DistributionMapping& dm);
+    // Returns pointers to level-0 lon_m/lat_m coordinate MultiFabs (populated
+    // by the WRF-grid init paths, e.g. ERF_InitFromWRFInput.cpp/ERF_InitFromMetgrid.cpp)
+    // used to build ocean->atmos remap weights. Sets both to nullptr if
+    // unavailable (e.g. idealized/non-WRF configurations).
+    void GetOceanToAtmosCornerCoordinates (const amrex::MultiFab*& x_corner,
+                                           const amrex::MultiFab*& y_corner) const;
 
-    void PackAtmosphericStates (amrex::Vector<amrex::MultiFab*>& states, double time);
+    // Returns the level-0, current-time land mask (1 = land, 0 = water) used
+    // by the driver to exclude land cells from atmos->ocean remap stencils.
+    // Sets lmask to nullptr if unavailable.
+    void GetLandMask (const amrex::iMultiFab*& lmask) const;
+
+    // True when a radiation model is *configured* at level 0. A coupling driver
+    // needs this to know whether the SWrad/LWrad lanes it would hand an ocean
+    // model carry real values or just zeros: passing zeros is worse than passing
+    // nothing, because the ocean model then suppresses its own radiative forcing
+    // in favour of them.
+    //
+    // Note this is a configuration predicate, not a data-validity one. rad_fluxes
+    // is allocated and zero-filled as soon as solverChoice.rad_type != None, so
+    // this returns true from level-0 allocation onward - including before the
+    // first AdvanceRadiation, when the fluxes are still exactly zero. A caller
+    // that needs "the lanes hold real radiation" must additionally know that a
+    // radiation step has run.
+    [[nodiscard]] bool HasRadiation () const {
+        return (!rad_fluxes.empty() && rad_fluxes[0] != nullptr);
+    }
+
+    // weight_mf/index_mf are keyed by WeightFamily slot order
+    // {SCALAR_CENTERED, TAUX_FACE, TAUY_FACE, WIND_FACE_TO_CENTER} as built by
+    // the driver's ERFRemoraMultiBlockContainer::BuildRemapWeights(); each
+    // lane below picks the pair matching its own destination stagger.
+    // dst_mskr/dst_msku/dst_mskv are REMORA wet/dry masks (1 = wet, 0 = land)
+    // on the rho/u-face/v-face destination layouts. dst_msku/dst_mskv are applied
+    // to the TauX/TauY lanes; dst_mskr is applied to the rho-centred *scalar* lanes
+    // (Patm, Tair, cloud, and the scalar flux lanes) but deliberately NOT to
+    // Uwind/Vwind, which are also rho-centred - so the wind lanes carry live
+    // atmospheric values over REMORA land while Patm/Tair carry fallbacks there.
+    // REMORA re-masks on its own side, so this asymmetry is currently harmless.
+    // Pass nullptr to skip masking.
+    void PackAtmosphericStates (amrex::Vector<amrex::MultiFab*>& states, double time,
+                                const amrex::Vector<const amrex::MultiFab*>& weight_mf,
+                                const amrex::Vector<const amrex::iMultiFab*>& index_mf,
+                                int max_stencil_size,
+                                const amrex::MultiFab* dst_mskr = nullptr,
+                                const amrex::MultiFab* dst_msku = nullptr,
+                                const amrex::MultiFab* dst_mskv = nullptr);
     void ApplyOceanSurfaceState (const amrex::Vector<amrex::MultiFab*>& state, double time);
 
     // Tag cells for refinement
@@ -256,7 +302,12 @@ public:
     void WriteMyEBSurface ();
 
     // Compute the divergence -- whether EB, no-terrain, flat terrain or general terrain
-    void compute_divergence (int lev, amrex::MultiFab& rhs, amrex::Array<amrex::MultiFab const*,AMREX_SPACEDIM> rho0_u_const,
+    void compute_divergence (int lev, amrex::MultiFab& rhs,
+                             amrex::Array<amrex::MultiFab const*,AMREX_SPACEDIM> rho0_u_const,
+                             amrex::MultiFab const& mf_mx, amrex::MultiFab const& mf_my,
+                             amrex::MultiFab const& mf_vx, amrex::MultiFab const& mf_uy,
+                             amrex::MultiFab const& ax_in, amrex::MultiFab const& ay_in,
+                             amrex::MultiFab const& dJ_in,
                              amrex::Geometry const& geom_at_lev);
 
     // Project the velocities to be divergence-free -- this is only relevant if anelastic == 1
@@ -299,6 +350,10 @@ public:
     void check_for_low_temp       (amrex::MultiFab& S);
 
     void compute_max_pressure_gradient_diagnostic(int lev);
+
+    // Max of (buoyancy - vertical gradient of perturbational pressure);
+    //    this is identically zero if the state is in HSE and buoyancy_type = 1
+    void compute_max_buoyancy_gradp_diagnostic(int lev);
 
     void check_mesh_type(int lev);
 
@@ -387,6 +442,13 @@ public:
                                       amrex::Gpu::HostVector<amrex::Real>& h_avg_tau23, amrex::Gpu::HostVector<amrex::Real>& h_avg_tau33,
                                       amrex::Gpu::HostVector<amrex::Real>& h_avg_hfx3,  amrex::Gpu::HostVector<amrex::Real>& h_avg_q1fx3,
                                       amrex::Gpu::HostVector<amrex::Real>& h_avg_q2fx3, amrex::Gpu::HostVector<amrex::Real>& h_avg_diss);
+
+    void derive_forcing_profiles_stag(amrex::Gpu::HostVector<amrex::Real>& h_avg_ttend,  amrex::Gpu::HostVector<amrex::Real>& h_avg_qtend,
+                                      amrex::Gpu::HostVector<amrex::Real>& h_avg_wsub,   amrex::Gpu::HostVector<amrex::Real>& h_avg_thtend,
+                                      amrex::Gpu::HostVector<amrex::Real>& h_avg_qhtend, amrex::Gpu::HostVector<amrex::Real>& h_avg_tvtend,
+                                      amrex::Gpu::HostVector<amrex::Real>& h_avg_qvtend, amrex::Gpu::HostVector<amrex::Real>& h_avg_qcvtend,
+                                      amrex::Gpu::HostVector<amrex::Real>& h_avg_tnudge, amrex::Gpu::HostVector<amrex::Real>& h_avg_qnudge,
+                                      amrex::Gpu::HostVector<amrex::Real>& h_avg_unudge, amrex::Gpu::HostVector<amrex::Real>& h_avg_vnudge);
 
     // Perform the volume-weighted sum
     amrex::Real
@@ -1001,6 +1063,10 @@ private:
     amrex::Vector<std::string> lsm_flux_name;                // (ncomp) -- e.g., hfx3, q1fx3, tau13, tau23
     amrex::Vector<amrex::Vector<amrex::MultiFab*>> lsm_flux; // (lev,ncomp) Fluxes from LSM needed by DYCORE
 
+    LargeScaleForcingData lsf;
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> nudge_data; // holds nudging inputs: tnudge, qnudge, unudge, vnudge
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> lsf_data; //  holds large scale forcing tendencies: ttend, qtend, wsub
+
     amrex::Vector<std::unique_ptr<IRadiation>> rad; // Radiation model at each level
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> qheating_rates;  // radiation heating rate source terms (SW, LW) (DYCORE)
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> rad_fluxes;      // radiation fluxes (SW up/dn, LW up/dn) (OUTPUT ONLY)
@@ -1095,6 +1161,9 @@ private:
 
     // Data structures for terrain immersed forcing
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> terrain_blanking;
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> terrain_blanking_xface;
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> terrain_blanking_yface;
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> terrain_blanking_zface;
 
     // Wall distance function
     amrex::Vector<std::unique_ptr<amrex::MultiFab>>  walldist;
@@ -1243,6 +1312,7 @@ private:
     double m_plot2d_per_1 = -1.0;
     double m_plot2d_per_2 = -1.0;
     bool m_plot_face_vels = false;
+    bool m_plot_face_terrain_blanking = false;
 
     bool plot_lsm = false;
 
@@ -1506,6 +1576,14 @@ private:
     // Holds info for dynamically generated tagging criteria
     //
     static amrex::Vector<amrex::AMRErrorTag> ref_tags;
+
+    //
+    // Name of the refinement indicator that generated each entry of ref_tags.
+    // Not every indicator generates a ref_tag (e.g. "storm_tracker" does not),
+    // so this must be carried alongside ref_tags rather than re-deriving it
+    // from the positional index into erf.refinement_indicators.
+    //
+    static amrex::Vector<std::string> ref_tag_indicator_names;
 
     amrex::Vector<amrex::Vector<amrex::BoxArray>> subdomains;
 

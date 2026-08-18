@@ -173,6 +173,20 @@ where :math:`dA` is the area of the actuator disk in the mesh cell (see Fig. :nu
 
     \frac{\partial v}{\partial t} = -2(\mathbf{U}_\infty \cdot \mathbf{n})^2 a (1 - a)\frac{\Delta A}{\Delta x\Delta y\Delta z} \sin{\phi}.
 
+The cells that the actuator disk passes through are marked as the staircase of cells cut by the
+plane of the disk, so that the disk crosses each marked cell once. The area :math:`\Delta A`
+assigned to a marked cell is therefore :math:`\Delta z` times the mean chord of a line with
+in-plane normal :math:`\mathbf{n} = (n_x, n_y)` across a :math:`\Delta x` by :math:`\Delta y`
+cell,
+
+.. math::
+
+    \Delta A = \frac{\Delta x \Delta y \Delta z}{|n_x| \Delta x + |n_y| \Delta y}.
+
+This reduces to :math:`\Delta y \Delta z` for a disk facing the `x` direction and to
+:math:`\Delta x \Delta z` for a disk facing the `y` direction, and summing it over the marked
+cells recovers the swept area :math:`\pi R^2` of the disk at any angle in between.
+
 .. _fig:ActuatorDisk_Schematic:
 
 .. figure:: ../figures/ActuatorDisk_Schematic.png

@@ -23,12 +23,15 @@
 
 #include "ERF_NCInterface.H"
 
-// Do not re-declare writeNCPlotFile here -- pull in the real declaration so the
+// Do not redeclare writeNCPlotFile here -- pull in the real declaration so the
 // tool cannot drift out of sync with the definition in Source/IO/ERF_NCPlotFile.cpp
 #include "ERF_NCPlotFile.H"
 
 using namespace amrex;
 
+/**
+ * Print the usage message and exit.
+ */
 static
 void
 PrintUsage ()
@@ -45,6 +48,11 @@ PrintUsage ()
   exit(1);
 }
 
+/**
+ * Convert a multilevel AMReX plotfile into NetCDF format.
+ *
+ * @return 0 on success, otherwise an error code.
+ */
 int
 main_main()
 {
@@ -136,6 +144,13 @@ main_main()
     return 0;
 }
 
+/**
+ * Application entry point.
+ *
+ * @param[in] argc Argument count.
+ * @param[in] argv Argument vector.
+ * @return Execution status.
+ */
 int
 main (int   argc,
       char* argv[])

@@ -135,7 +135,7 @@ public:
     void
     SetOceanState (const amrex::Vector<amrex::MultiFab*>* ocean_state)
     {
-        // This pointer is currently packed and filled by ERF_Coupling.cpp.
+        // This pointer is currently packed and filled by ERF_to_REMORA.cpp.
         m_ocean_state = ocean_state;
     }
 

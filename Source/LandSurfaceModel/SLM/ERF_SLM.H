@@ -171,7 +171,7 @@ private:
     amrex::Real m_k_soil = amrex::Real(0.2); // dry soil [W/m K]
 
     // Theta Dirichlet value at lowest point below surface
-    amrex::Real m_theta_dir = amrex::Real(400.0); // [K]
+    amrex::Real m_theta_dir = amrex::Real(300.0); // [K]
 
     // Thermal diffusivity
     amrex::Real m_d_soil = m_k_soil / m_cp_soil; // [m^2/s]

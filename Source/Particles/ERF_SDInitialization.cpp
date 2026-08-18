@@ -87,6 +87,7 @@ void SDInitProperties::readInputs ( const std::string& a_prefix,
     pp.query(std::string(a_key+"distribution_type").c_str(), m_type);
     pp.query("maximum_multiplicity", m_max_multiplicity);
     pp.query("multiplicity_type", m_mult_type);
+    pp.query("ice_apparent_density", m_ice_app_density);
 
     pp.query(std::string(a_key+"particles_per_cell").c_str(), m_ppc);
 
@@ -231,18 +232,45 @@ void SDInjection::readInputs ( const std::string& a_prefix,
 
     SDInitProperties::readInputs( a_prefix, "", a_geom, a_species_mat, a_aerosol_mat);
 
-    amrex::ignore_unused(a_geom);
+    amrex::ignore_unused(a_dt);
     using namespace amrex;
 
     amrex::ParmParse pp(a_prefix);
+    m_prefix = a_prefix;
     pp.query("rate", m_inj_rate);
-    pp.query("sd_rate", m_sd_inj_rate);
+    if (pp.query("sd_rate", m_sd_inj_rate))                { m_sd_specified  = true; }
+    if (pp.query("min_multiplicity", m_min_multiplicity))  { m_mm_specified  = true; }
     pp.query("t_start", m_tstart);
     pp.query("t_stop", m_tstop);
     pp.queryarr("domain_velocity", m_domain_vel);
+    pp.query("fractional_tol", m_frac_tol);
 
-    this->m_numdens = m_inj_rate * a_dt;
-    m_numdens_sd = (m_sd_inj_rate > 0 ? std::max(m_sd_inj_rate*a_dt, 1.) : -1);
+    // Cell volume of the injection level, used to accumulate the per-cell count.
+    const auto dx = a_geom.CellSize();
+    m_cell_volume = dx[0]*dx[1]*dx[2];
+    m_box_volume  = this->volume();
+
+    // Injection mode: an explicit particles_per_cell selects the legacy per-cell
+    // path; otherwise inject in per-box high-multiplicity mode. The effective SD
+    // injection rate is taken from sd_rate or rate/min_multiplicity; if both are
+    // specified, the one giving fewer super-droplets (lower SD rate) is used. The
+    // injection is read twice (non-indexed defaults then indexed overrides), so
+    // "specified" is tracked stickily across both calls.
+    int ppc_tmp = m_ppc;
+    if (pp.query("particles_per_cell", ppc_tmp)) { m_ppc_specified = true; }
+    m_perbox = !m_ppc_specified;
+    if (m_perbox) {
+        if (m_sd_specified && m_mm_specified) {
+            m_eff_sd_rate    = std::min(m_sd_inj_rate, m_inj_rate / m_min_multiplicity);
+            m_both_specified = true;
+        } else if (m_sd_specified) {
+            m_eff_sd_rate    = m_sd_inj_rate;
+            m_both_specified = false;
+        } else {
+            m_eff_sd_rate    = m_inj_rate / m_min_multiplicity;
+            m_both_specified = false;
+        }
+    }
 }
 
 void SDInitProperties::printParameters ( const MatVec& a_species_mat,
@@ -297,7 +325,7 @@ void SDInitProperties::printParameters ( const MatVec& a_species_mat,
                     << " (distribution: " << getEnumNameString(m_aerosol_init_type[i]);
             if (m_aerosol_init_type[i] == SDDistributionType::mass_constant) {
                 Print() << ", value=" << m_mass_aerosol_mean[i];
-                AMREX_ALWAYS_ASSERT(m_mass_aerosol_mean[i] > zero);
+                AMREX_ALWAYS_ASSERT(m_mass_aerosol_mean[i] >= zero);
             } else if (m_aerosol_init_type[i] == SDDistributionType::mass_exponential) {
                 Print() << ", min=" << m_mass_aerosol_min[i]
                         << ", mean=" << m_mass_aerosol_mean[i]
@@ -322,6 +350,18 @@ void SDInitProperties::printParameters ( const MatVec& a_species_mat,
             }
             Print() << ")" << "\n";
         }
+
+        // At least one aerosol must carry non-zero dry mass; individual aerosols
+        // may be empty (e.g. a pure-CCN mode with no dust core).
+        bool any_aerosol_nonzero = false;
+        for (unsigned long i=0; i < a_aerosol_mat.size(); i++) {
+            if (m_aerosol_init_type[i] == SDDistributionType::mass_constant) {
+                if (m_mass_aerosol_mean[i] > zero) { any_aerosol_nonzero = true; }
+            } else {
+                any_aerosol_nonzero = true;
+            }
+        }
+        AMREX_ALWAYS_ASSERT(any_aerosol_nonzero);
     }
 }
 
@@ -343,8 +383,23 @@ void SDInjection::printParameters ( const MatVec& a_species_mat,
             << m_domain_vel[0] << ","
             << m_domain_vel[1] << ","
             << m_domain_vel[2] << "\n"
-            << "    Time (start, stop) [s]: " << m_tstart << ", " << m_tstop << "\n"
-            << "    SD injection rate: " << m_sd_inj_rate << "\n";
+            << "    Time (start, stop) [s]: " << m_tstart << ", " << m_tstop << "\n";
+    if (m_perbox) {
+        if (m_both_specified) {
+            Print() << "    Warning: sd_rate and min_multiplicity both specified for "
+                    << m_prefix << "\n";
+        }
+        Print() << "    Injection mode: per-box high-multiplicity\n"
+                << "    SD injection rate (specified): " << m_sd_inj_rate << "\n"
+                << "    Minimum multiplicity: " << m_min_multiplicity << "\n"
+                << "    Effective SD injection rate (# m^{-3} s^{-1}): " << m_eff_sd_rate << "\n"
+                << "    Implied multiplicity: "
+                << (m_eff_sd_rate > zero ? m_inj_rate / m_eff_sd_rate : zero) << "\n";
+    } else {
+        Print() << "    Injection mode: per-cell (particles_per_cell)\n"
+                << "    SD injection rate: " << m_sd_inj_rate << "\n";
+    }
+    Print() << "    Fractional-accumulation tolerance: " << m_frac_tol << "\n";
     SDInitProperties::printParameters(a_species_mat, a_aerosol_mat);
 }
 
@@ -491,7 +546,8 @@ void SDInitProperties::getDistribution ( amrex::Vector<amrex::Real>& a_mass,
         amrex::Print() << "Initializing tail: " << a_np_tail << " particles\n";
         auto tail_mult = std::exp(-std::log(rmax/mu)*std::log(rmax/mu)/(two*sigma*sigma)) / (sigma*std::sqrt(amrex::Real(2)*PI));
         for (int n = 0; n < a_np_tail; n++) {
-            int sd_id = static_cast<int>(std::round(urd(a_rng) * a_np));
+            int sd_id = amrex::min(static_cast<int>(std::round(urd(a_rng) * a_np)), a_np-1);
+            AMREX_ASSERT(sd_id >= 0 && sd_id < a_np);
             auto tmp = P_max + (one - P_max) * urd(a_rng);
             auto tmp2 = SD_erfinv(amrex::Real(2) * tmp - amrex::Real(1));
             auto dry_r = mu * std::exp(sigma * std::sqrt(amrex::Real(2)) * tmp2);

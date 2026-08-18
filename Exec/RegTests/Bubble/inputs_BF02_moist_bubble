@@ -63,7 +63,6 @@ erf.pbl_type        = "None"
 #erf.moisture_model  = Kessler_NoRain
 erf.moisture_model  = Kessler
 
-erf.buoyancy_type   = 1
 
 erf.molec_diff_type   = "ConstantAlpha"
 erf.dynamic_viscosity = 0.0 # [kg/(m-s)]

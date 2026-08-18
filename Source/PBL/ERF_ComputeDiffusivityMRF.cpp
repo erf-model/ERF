@@ -10,6 +10,24 @@
 
 using namespace amrex;
 
+/**
+ * Compute vertical diffusivity using the Medium-Range Forecast (MRF) boundary layer scheme.
+ *
+ * @param[in] xvel x-velocity field.
+ * @param[in] yvel y-velocity field.
+ * @param[in] cons_in Input conserved variables.
+ * @param[out] eddyViscosity Eddy viscosity and diffusivity coefficients.
+ * @param[in] geom Grid geometry.
+ * @param[in] turbChoice Turbulence model options.
+ * @param[in] SurfLayer Surface layer data.
+ * @param[in] use_terrain_fitted_coords Use terrain-fitted coordinates.
+ * @param[in] use_moisture Enable moisture components.
+ * @param[in] level Current AMR level.
+ * @param[in] bc_ptr Boundary condition records.
+ * @param[in] z_phys_nd Nodal physical heights.
+ * @param[in] z_phys_cc Cell-centered physical heights.
+ * @param[in] moisture_indices Indices for moisture variables.
+ */
 void
 ComputeDiffusivityMRF (const MultiFab& xvel,
                        const MultiFab& yvel,
@@ -767,7 +785,16 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
 
                     Pr_rich = std::max(amrex::Real(0.25), std::min(Pr_rich, Real(4.0)));
 
-                    K_turb(i, j, k, EddyDiff::Mom_v)   = rl2wsp * fm;
+                    // In the stable regime fm and ft are the same function, so the
+                    // Prandtl number has to be applied explicitly or momentum and heat
+                    // mix identically.  WRF (module_bl_mrf.F) takes heat as primary and
+                    // scales momentum up by it:
+                    //     XKZH = DK/(1+5*RI)**2 ; XKZM = XKZH*PRNUM
+                    // In the unstable regime fm and ft already differ (1.746 vs 1.286)
+                    // and WRF applies no Prandtl factor there.
+                    const Real Pr_mom = (grad_Ri_safe > 0) ? Pr_rich : Real(1);
+
+                    K_turb(i, j, k, EddyDiff::Mom_v)   = rl2wsp * fm * Pr_mom;
                     K_turb(i, j, k, EddyDiff::Theta_v) = rl2wsp * ft;
                     if (use_moisture && turbChoice.mrf_moistvars) {
                         K_turb(i, j, k, EddyDiff::Q_v) = rl2wsp * ft;
@@ -808,7 +835,16 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
 
                 Pr = std::max(amrex::Real(0.25), std::min(Pr, Real(4.0)));
 
-                K_turb(i, j, k, EddyDiff::Mom_v)   = rl2wsp * fm;
+                // In the stable regime fm and ft are the same function, so the Prandtl
+                // number has to be applied explicitly or momentum and heat mix
+                // identically.  WRF (module_bl_mrf.F) takes heat as primary and scales
+                // momentum up by it:
+                //     XKZH = DK/(1+5*RI)**2 ; XKZM = XKZH*PRNUM
+                // In the unstable regime fm and ft already differ (1.746 vs 1.286) and
+                // WRF applies no Prandtl factor there.
+                const Real Pr_mom = (grad_Ri_safe > 0) ? Pr : Real(1);
+
+                K_turb(i, j, k, EddyDiff::Mom_v)   = rl2wsp * fm * Pr_mom;
                 K_turb(i, j, k, EddyDiff::Theta_v) = rl2wsp * ft;
                 if (use_moisture && turbChoice.mrf_moistvars) {
                     K_turb(i, j, k, EddyDiff::Q_v) = rl2wsp * ft;
@@ -820,15 +856,23 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
             // Scale-aware blending for grey-zone resolution (Boutle et al. 2014).
             // ERF_PBLScaleAwareBlending.H. Gated by pbl_blend_length > 0.
             // Applied to Theta_v and Q_v. Mom_v is not modified.
+            //
+            // K_turb holds rho*K [kg/m/s], but the ceiling applied inside
+            // pbl_kh_blend_and_cap is a bare diffusivity [m^2/s].  Hand the helper the
+            // kinematic value and restore the density weighting on the way out; passing
+            // rho*K straight through would make the effective cap scale like 1/rho and
+            // hence increase with height (issue #3580).
             if (l_blend_length > 0.0) {
+                const Real rho_inv = Real(1.0) / rho;
+
                 // For MRF, use power-law ceiling (SmnSmn not available)
-                K_turb(i, j, k, EddyDiff::Theta_v) = pbl_kh_blend_and_cap(
-                    K_turb(i, j, k, EddyDiff::Theta_v),
+                K_turb(i, j, k, EddyDiff::Theta_v) = rho * pbl_kh_blend_and_cap(
+                    K_turb(i, j, k, EddyDiff::Theta_v) * rho_inv,
                     l_dx, l_blend_length, l_blend_cs, l_blend_cmax,
                     amrex::Real(-1.0), false);
 
-                K_turb(i, j, k, EddyDiff::Q_v) = pbl_kh_blend_and_cap(
-                    K_turb(i, j, k, EddyDiff::Q_v),
+                K_turb(i, j, k, EddyDiff::Q_v) = rho * pbl_kh_blend_and_cap(
+                    K_turb(i, j, k, EddyDiff::Q_v) * rho_inv,
                     l_dx, l_blend_length, l_blend_cs, l_blend_cmax,
                     amrex::Real(-1.0), false);
             }

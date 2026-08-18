@@ -310,6 +310,23 @@ ERF::Advance (int lev, double time, double dt_lev, int iteration, int /*ncycle*/
     // **************************************************************************************
     if (!solverChoice.moisture_tight_coupling)
     {
+        // S_new ghost cells are stale after the dycore RK stages; refresh
+        // them before microphysics (Lagrangian particle interpolation reads
+        // the ghost region for cells along level boundaries).
+        if (Microphysics::modelType(solverChoice.moisture_type) == MoistureModelType::Lagrangian) {
+            if (lev == 0) {
+                FillPatchCrseLevel(lev, t_new[lev],
+                                   {&S_new, &U_new, &V_new, &W_new},
+                                   /*cons_only=*/true);
+            } else {
+                FillPatchFineLevel(lev, t_new[lev],
+                                   {&S_new, &U_new, &V_new, &W_new},
+                                   {&S_new, &rU_new[lev], &rV_new[lev], &rW_new[lev]},
+                                   base_state[lev], base_state[lev],
+                                   /*fillset=*/true, /*cons_only=*/true);
+            }
+        }
+
         advance_microphysics(lev, S_new, dt_lev, iteration, time);
 
         // Test for NaNs after microphysics

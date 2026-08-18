@@ -31,6 +31,15 @@ WindFarm::read_tables (std::string windfarm_loc_table,
     read_windfarm_spec_table(windfarm_spec_table);
 }
 
+/**
+ * Read turbine locations from a table and convert them to Cartesian coordinates.
+ *
+ * @param[in] windfarm_loc_table Path to the turbine locations table.
+ * @param[in] x_y Boolean indicating if locations are provided as x and y coordinates.
+ * @param[in] lat_lon Boolean indicating if locations are provided as latitude and longitude.
+ * @param[in] windfarm_x_shift Shift applied to the resulting x coordinates.
+ * @param[in] windfarm_y_shift Shift applied to the resulting y coordinates.
+ */
 void
 WindFarm::read_windfarm_locations_table (const std::string windfarm_loc_table,
                                          bool x_y, bool lat_lon,
@@ -51,11 +60,21 @@ WindFarm::read_windfarm_locations_table (const std::string windfarm_loc_table,
     set_turb_loc(xloc, yloc);
 }
 
+/**
+ * Initialize turbine locations from latitude and longitude coordinates.
+ *
+ * @param[in] windfarm_loc_table Path to the turbine locations table.
+ * @param[in] windfarm_x_shift Shift applied to the resulting x coordinates.
+ * @param[in] windfarm_y_shift Shift applied to the resulting y coordinates.
+ */
 void
 WindFarm::init_windfarm_lat_lon (const std::string windfarm_loc_table,
                                  const Real windfarm_x_shift,
                                  const Real windfarm_y_shift)
 {
+    // Re-reading the file must not append to a previous level's list.
+    xloc.clear();
+    yloc.clear();
 
     // Read turbine locations from windturbines.txt
     std::ifstream file(windfarm_loc_table);
@@ -150,6 +169,11 @@ WindFarm::init_windfarm_lat_lon (const std::string windfarm_loc_table,
     }
 }
 
+/**
+ * Initialize turbine locations from Cartesian x and y coordinates.
+ *
+ * @param[in] windfarm_loc_table Path to the turbine locations table.
+ */
 void
 WindFarm::init_windfarm_x_y (const std::string windfarm_loc_table)
 {
@@ -162,6 +186,10 @@ WindFarm::init_windfarm_x_y (const std::string windfarm_loc_table)
     // Vector of vectors to store the matrix
     Real value1, value2;
 
+    // Re-reading the file must not append to a previous level's list.
+    xloc.clear();
+    yloc.clear();
+
     while (file >> value1 >> value2) {
         value1 = value1 + 1e-3;
         value2 = value2 + 1e-3;
@@ -172,6 +200,11 @@ WindFarm::init_windfarm_x_y (const std::string windfarm_loc_table)
 }
 
 
+/**
+ * Read turbine performance specifications from a table.
+ *
+ * @param[in] windfarm_spec_table Path to the turbine specifications table.
+ */
 void
 WindFarm::read_windfarm_spec_table (const std::string windfarm_spec_table)
 {
@@ -220,6 +253,11 @@ WindFarm::read_windfarm_spec_table (const std::string windfarm_spec_table)
 
 }
 
+/**
+ * Read turbine blade geometry and properties from a table.
+ *
+ * @param[in] windfarm_blade_table Path to the turbine blade properties table.
+ */
 void
 WindFarm::read_windfarm_blade_table (const std::string windfarm_blade_table)
 {
@@ -253,6 +291,11 @@ WindFarm::read_windfarm_blade_table (const std::string windfarm_blade_table)
     }
 }
 
+/**
+ * Read extended turbine performance specifications from a table.
+ *
+ * @param[in] windfarm_spec_table_extra Path to the extended turbine specifications table.
+ */
 void
 WindFarm::read_windfarm_spec_table_extra (const std::string windfarm_spec_table_extra)
 {
@@ -292,6 +335,12 @@ WindFarm::read_windfarm_spec_table_extra (const std::string windfarm_spec_table_
 }
 
 
+/**
+ * Read airfoil data from a directory of tables.
+ *
+ * @param[in] windfarm_airfoil_tables Path to the directory containing airfoil tables.
+ * @param[in] windfarm_blade_table Path to the turbine blade properties table.
+ */
 void
 WindFarm::read_windfarm_airfoil_tables (const std::string windfarm_airfoil_tables,
                                         const std::string windfarm_blade_table)
@@ -372,6 +421,13 @@ WindFarm::read_windfarm_airfoil_tables (const std::string windfarm_airfoil_table
     set_blade_airfoil_spec(bld_airfoil_aoa, bld_airfoil_Cl, bld_airfoil_Cd);
 }
 
+/**
+ * Fill a MultiFab with the number of turbines per cell and determine base heights.
+ *
+ * @param[in] geom Geometry defining the domain.
+ * @param[in,out] mf_Nturb MultiFab to be filled with turbine counts per cell.
+ * @param[in] z_phys_nd Node-centered physical height FAB.
+ */
 void
 WindFarm::fill_Nturb_multifab (const Geometry& geom,
                                MultiFab& mf_Nturb,
@@ -411,12 +467,16 @@ WindFarm::fill_Nturb_multifab (const Geometry& geom,
 
     bool is_terrain = z_phys_nd ? true: false;
 
+    // The ground is at the bottom of the domain, not at the bottom of each box --
+    //    these differ for every box that doesn't touch the ground, which happens
+    //    whenever the grids are decomposed in the vertical direction
+    const int k0 = geom.Domain().smallEnd(2);
+
      // Initialize wind farm
     for ( MFIter mfi(mf_Nturb,TilingIfNotGPU()); mfi.isValid(); ++mfi) {
         const Box& bx     = mfi.tilebox();
         auto  Nturb_array = mf_Nturb.array(mfi);
         const Array4<const Real>& z_nd_arr = z_phys_nd->const_array(mfi);
-        int k0 = bx.smallEnd()[2];
         ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
             int li = amrex::min(amrex::max(i, i_lo), i_hi);
             int lj = amrex::min(amrex::max(j, j_lo), j_hi);
@@ -430,8 +490,14 @@ WindFarm::fill_Nturb_multifab (const Geometry& geom,
                 if( d_xloc_ptr[it]+1e-3 > x1 and d_xloc_ptr[it]+1e-3 < x2 and
                     d_yloc_ptr[it]+1e-3 > y1 and d_yloc_ptr[it]+1e-3 < y2){
                     Nturb_array(i,j,k,0) = Nturb_array(i,j,k,0) + 1;
-                    // Perform atomic operations to ensure "increment only once"
-                    if (is_terrain) {
+                    //
+                    // Only the cell at the bottom of the domain counts this turbine and
+                    //    stores its surface elevation.  d_is_counted is a per-rank array
+                    //    which is summed over all ranks below, so if we counted at every k
+                    //    then a column spread over more than one rank (which happens when
+                    //    the grids are decomposed in z) would be counted more than once.
+                    //
+                    if (is_terrain and k == k0) {
                         int expected = 0;
                         int desired = 1;
                         // Atomic Compare-And-Swap: Increment only if d_is_counted_ptr[it] was 0
@@ -444,6 +510,8 @@ WindFarm::fill_Nturb_multifab (const Geometry& geom,
             }
         });
     }
+
+    mf_Nturb.FillBoundary(geom.periodicity());
 
     Gpu::copy(Gpu::deviceToHost, d_zloc.begin(), d_zloc.end(), zloc.begin());
     Gpu::copy(Gpu::deviceToHost, d_is_counted.begin(), d_is_counted.end(), is_counted.begin());
@@ -477,6 +545,14 @@ WindFarm::fill_Nturb_multifab (const Geometry& geom,
     }*/
 }
 
+/**
+ * Fill the SMark MultiFab for mesoscale model parametrization.
+ *
+ * @param[in] geom Geometry defining the domain.
+ * @param[in,out] mf_SMark MultiFab to be filled with turbine markers.
+ * @param[in] mf_Nturb MultiFab containing turbine counts per cell.
+ * @param[in] z_phys_nd Node-centered physical height FAB.
+ */
 void
 WindFarm::fill_SMark_multifab_mesoscale_models (const Geometry& geom,
                                                 MultiFab& mf_SMark,
@@ -529,6 +605,15 @@ WindFarm::fill_SMark_multifab_mesoscale_models (const Geometry& geom,
 }
 
 
+/**
+ * Fill the SMark MultiFab identifying turbine disks and sampling points.
+ *
+ * @param[in] geom Geometry defining the domain.
+ * @param[in,out] mf_SMark MultiFab to be filled with turbine markers.
+ * @param[in] sampling_distance_by_D Normalized sampling distance.
+ * @param[in] turb_disk_angle Angle of the turbine disk in degrees.
+ * @param[in] z_phys_cc Cell-centered physical height FAB.
+ */
 void
 WindFarm::fill_SMark_multifab (const Geometry& geom,
                                MultiFab& mf_SMark,
@@ -726,6 +811,9 @@ WindFarm::fill_SMark_multifab (const Geometry& geom,
     }
 }
 
+/**
+ * Write the turbine hub locations to a VTK file.
+ */
 void
 WindFarm::write_turbine_locations_vtk ()
 {
@@ -745,6 +833,12 @@ WindFarm::write_turbine_locations_vtk ()
 }
 
 
+/**
+ * Write the actuator disks and sampling disks to VTK files.
+ *
+ * @param[in] geom Geometry defining the domain.
+ * @param[in] sampling_distance_by_D Normalized sampling distance.
+ */
 void
 WindFarm::write_actuator_disks_vtk (const Geometry& geom,
                                     const Real& sampling_distance_by_D)
