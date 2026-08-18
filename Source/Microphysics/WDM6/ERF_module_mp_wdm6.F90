@@ -905,24 +905,7 @@
       ! WDM6-F90 TAG: POST_G5B
 
 
-      if (debug_local .gt. 0 .and. loop .eq. 1 .and. &
-          i_dbg_local .ge. its .and. i_dbg_local .le. ite) then
-        do k_dbg = kts, kte
-        qsum(i_dbg_local,k_dbg) = max((qrs(i_dbg_local,k_dbg,2)+qrs(i_dbg_local,k_dbg,3)), 1.E-15)
-        if (qsum(i_dbg_local,k_dbg) .gt. 1.e-15) then
-          worka(i_dbg_local,k_dbg) = (work1(i_dbg_local,k_dbg,2)*qrs(i_dbg_local,k_dbg,2) + &
-               work1(i_dbg_local,k_dbg,3)*qrs(i_dbg_local,k_dbg,3)) / qsum(i_dbg_local,k_dbg)
-        else
-          worka(i_dbg_local,k_dbg) = 0.
-        endif
-        write(*,'(A,1X,I3,9(1X,ES24.16E3))') &
-          'WDM6-FORT_PRE_G5C', k_dbg, &
-          qrs(i_dbg_local,k_dbg,2), qrs(i_dbg_local,k_dbg,3), worka(i_dbg_local,k_dbg), &
-          den(i_dbg_local,k_dbg)*qrs(i_dbg_local,k_dbg,2), den(i_dbg_local,k_dbg)*qrs(i_dbg_local,k_dbg,3), &
-          delz(i_dbg_local,k_dbg), dtcld, &
-          denfac(i_dbg_local,k_dbg), t(i_dbg_local,k_dbg)
-        enddo
-      endif
+      ! WDM6-F90 TAG: PRE_G5C
 
       do k = kte, kts, -1
         do i = its, ite
@@ -952,23 +935,7 @@
         fall(i,1,3) = delqrs3(i)/delz(i,1)/dtcld
       enddo
 
-      if (debug_local .gt. 0 .and. loop .eq. 1 .and. &
-          i_dbg_local .ge. its .and. i_dbg_local .le. ite) then
-        do k_dbg = kts, kte
-        qsum(i_dbg_local,k_dbg) = max((qrs(i_dbg_local,k_dbg,2)+qrs(i_dbg_local,k_dbg,3)), 1.E-15)
-        if (qsum(i_dbg_local,k_dbg) .gt. 1.e-15) then
-          worka(i_dbg_local,k_dbg) = (work1(i_dbg_local,k_dbg,2)*qrs(i_dbg_local,k_dbg,2) + &
-               work1(i_dbg_local,k_dbg,3)*qrs(i_dbg_local,k_dbg,3)) / qsum(i_dbg_local,k_dbg)
-        else
-          worka(i_dbg_local,k_dbg) = 0.
-        endif
-        write(*,'(A,1X,I3,7(1X,ES24.16E3))') &
-          'WDM6-FORT_POST_G5C', k_dbg, &
-          qrs(i_dbg_local,k_dbg,2), qrs(i_dbg_local,k_dbg,3), worka(i_dbg_local,k_dbg), &
-          den(i_dbg_local,k_dbg)*qrs(i_dbg_local,k_dbg,2), den(i_dbg_local,k_dbg)*qrs(i_dbg_local,k_dbg,3), &
-          fall(i_dbg_local,1,2), fall(i_dbg_local,1,3)
-        enddo
-      endif
+      ! WDM6-F90 TAG: POST_G5C
 
       ! WDM6-F90 TAG: PRE_G6
 
@@ -1063,29 +1030,7 @@
           ! narrowing cannot reach it and the Diagnostic Contract calls for
           ! escalation. Narrow-and-deep per the same rule: one column, one
           ! variable per line, k window around the k=90 divergence.
-          if (debug_local .ge. 2 .and. loop .eq. 1 .and. &
-              i == i_dbg_local .and. lat == j_dbg_local .and. &
-              k >= 85 .and. k <= 100) then
-            call wdm6_emit_t2('G8','vice','INCORE_FORTRAN','fort', &
-                 loop, i_dbg_local, lat, k-kts+1, k, debug_local, 'qi', qci(i,k,2))
-            call wdm6_emit_t2('G8','vice','INCORE_FORTRAN','fort', &
-                 loop, i_dbg_local, lat, k-kts+1, k, debug_local, 'xni', xni(i,k))
-            call wdm6_emit_t2('G8','vice','INCORE_FORTRAN','fort', &
-                 loop, i_dbg_local, lat, k-kts+1, k, debug_local, 'den', den(i,k))
-            call wdm6_emit_t2('G8','vice','INCORE_FORTRAN','fort', &
-                 loop, i_dbg_local, lat, k-kts+1, k, debug_local, 'xmi', &
-                 den(i,k)*qci(i,k,2)/xni(i,k))
-            call wdm6_emit_t2('G8','vice','INCORE_FORTRAN','fort', &
-                 loop, i_dbg_local, lat, k-kts+1, k, debug_local, 'sqrt_xmi', &
-                 sqrt(den(i,k)*qci(i,k,2)/xni(i,k)))
-            call wdm6_emit_t2('G8','vice','INCORE_FORTRAN','fort', &
-                 loop, i_dbg_local, lat, k-kts+1, k, debug_local, 'dicon', dicon)
-            call wdm6_emit_t2('G8','vice','INCORE_FORTRAN','fort', &
-                 loop, i_dbg_local, lat, k-kts+1, k, debug_local, 'diameter', &
-                 max(min(dicon*sqrt(den(i,k)*qci(i,k,2)/xni(i,k)),dimax), 1.e-25))
-            call wdm6_emit_t2('G8','vice','INCORE_FORTRAN','fort', &
-                 loop, i_dbg_local, lat, k-kts+1, k, debug_local, 'work1c', work1c(i,k))
-          endif
+          ! WDM6-F90 TAG: T2_G8_vice
         enddo
       enddo
 
@@ -1234,36 +1179,7 @@
             ! high -- matching neither and larger than both. Declaration reading
             ! found no shadow in wdm62D, so the constants themselves are printed
             ! here to settle which factor carries it.
-            if (debug_local .ge. 2 .and. loop .eq. 1 .and.                     &
-                i == i_dbg_local .and. lat == j_dbg_local .and.                &
-                k >= 40 .and. k <= 50) then
-              call wdm6_emit_t2('G10D','pgfrz','INCORE_FORTRAN','fort',        &
-                   loop, i_dbg_local, lat, k-kts+1, k, debug_local, 'pi', pi)
-              call wdm6_emit_t2('G10D','pgfrz','INCORE_FORTRAN','fort',        &
-                   loop, i_dbg_local, lat, k-kts+1, k, debug_local, 'pisq', pi*pi)
-              call wdm6_emit_t2('G10D','pgfrz','INCORE_FORTRAN','fort',        &
-                   loop, i_dbg_local, lat, k-kts+1, k, debug_local, 'pfrz1', pfrz1)
-              call wdm6_emit_t2('G10D','pgfrz','INCORE_FORTRAN','fort',        &
-                   loop, i_dbg_local, lat, k-kts+1, k, debug_local, 'pfrz2', pfrz2)
-              call wdm6_emit_t2('G10D','pgfrz','INCORE_FORTRAN','fort',        &
-                   loop, i_dbg_local, lat, k-kts+1, k, debug_local, 'denr', denr)
-              call wdm6_emit_t2('G10D','pgfrz','INCORE_FORTRAN','fort',        &
-                   loop, i_dbg_local, lat, k-kts+1, k, debug_local, 'dtcld', dtcld)
-              call wdm6_emit_t2('G10D','pgfrz','INCORE_FORTRAN','fort',        &
-                   loop, i_dbg_local, lat, k-kts+1, k, debug_local, 'supcolt', supcolt)
-              call wdm6_emit_t2('G10D','pgfrz','INCORE_FORTRAN','fort',        &
-                   loop, i_dbg_local, lat, k-kts+1, k, debug_local, 'expterm', &
-                   exp(pfrz2*supcolt)-1.)
-              call wdm6_emit_t2('G10D','pgfrz','INCORE_FORTRAN','fort',        &
-                   loop, i_dbg_local, lat, k-kts+1, k, debug_local, 'rslope3r',&
-                   rslope3(i,k,1))
-              call wdm6_emit_t2('G10D','pgfrz','INCORE_FORTRAN','fort',        &
-                   loop, i_dbg_local, lat, k-kts+1, k, debug_local, 'nr', ncr(i,k,3))
-              call wdm6_emit_t2('G10D','pgfrz','INCORE_FORTRAN','fort',        &
-                   loop, i_dbg_local, lat, k-kts+1, k, debug_local, 'den', den(i,k))
-              call wdm6_emit_t2('G10D','pgfrz','INCORE_FORTRAN','fort',        &
-                   loop, i_dbg_local, lat, k-kts+1, k, debug_local, 'pfrzdtr', pfrzdtr)
-            endif
+            ! WDM6-F90 TAG: T2_G10D_pgfrz
 
 
 
@@ -1334,106 +1250,7 @@
 
       do k = kts, kte
         do i = its, ite
-          if (debug_local .gt. 0 .and. i_dbg_local .ge. its .and. i_dbg_local .le. ite .and. &
-              i .eq. i_dbg_local .and. k .eq. kts) then
-            write(*,'(A,1X,I3,6(1X,ES24.16E3))') &
-              'WDM6-FORT_G11V_DIFFAC_PRE1', kts, &
-              xl(i,k), p(i,k), t(i,k), den(i,k), qs(i,k,1)
-            write(*,'(A,1X,I3,1(1X,ES24.16E3))') &
-              'WDM6-FORT_G11V_DIFFAC_INT5', kts, &
-              t(i,k)*sqrt(t(i,k))
-            write(*,'(A,1X,I3,1(1X,ES24.16E3))') &
-              'WDM6-FORT_G11V_DIFFAC_INT6', kts, &
-              t(i,k)+120.
-            write(*,'(A,1X,I3,1(1X,ES24.16E3))') &
-              'WDM6-FORT_G11V_DIFFAC_INT7', kts, &
-              (t(i,k)*sqrt(t(i,k)))/(t(i,k)+120.)
-            write(*,'(A,1X,I3,1(1X,ES24.16E3))') &
-              'WDM6-FORT_G11V_DIFFAC_INT8', kts, &
-              1.496e-6*(t(i,k)*sqrt(t(i,k)))/(t(i,k)+120.)/den(i,k)
-            write(*,'(A,1X,I3,1(1X,ES24.16E3))') &
-              'WDM6-FORT_G11V_DIFFAC_INT21', kts, &
-              1.496e-6
-            write(*,'(A,1X,I3,1(1X,ES24.16E3))') &
-              'WDM6-FORT_G11V_DIFFAC_INT22', kts, &
-              1.496e-6*(t(i,k)*sqrt(t(i,k)))
-            write(*,'(A,1X,I3,1(1X,ES24.16E3))') &
-              'WDM6-FORT_G11V_DIFFAC_INT23', kts, &
-              1.496e-6*(t(i,k)*sqrt(t(i,k)))/(t(i,k)+120.)
-            write(*,'(A,1X,I3,1(1X,ES24.16E3))') &
-              'WDM6-FORT_G11V_DIFFAC_INT24', kts, &
-              log(t(i,k))
-            write(*,'(A,1X,I3,1(1X,ES24.16E3))') &
-              'WDM6-FORT_G11V_DIFFAC_INT25', kts, &
-              log(t(i,k))*(1.81)
-            write(*,'(A,1X,I3,1(1X,ES24.16E3))') &
-              'WDM6-FORT_G11V_DIFFAC_INT26', kts, &
-              exp(log(t(i,k))*(1.81))
-            write(*,'(A,1X,I3,1(1X,ES24.16E3))') &
-              'WDM6-FORT_G11V_DIFFAC_INT27', kts, &
-              8.794e-5*exp(log(t(i,k))*(1.81))/p(i,k)
-            write(*,'(A,1X,I3,1(1X,ES24.16E3))') &
-              'WDM6-FORT_G11V_DIFFAC_INT0', kts, &
-              viscos(t(i,k),den(i,k))
-            write(*,'(A,1X,I3,1(1X,ES24.16E3))') &
-              'WDM6-FORT_G11V_DIFFAC_INT1', kts, &
-              1.414e3*viscos(t(i,k),den(i,k))*den(i,k)
-            write(*,'(A,1X,I3,1(1X,ES24.16E3))') &
-              'WDM6-FORT_G11V_DIFFAC_INT13', kts, &
-              1.414e3*viscos(t(i,k),den(i,k))
-            write(*,'(A,1X,I3,1(1X,ES24.16E3))') &
-              'WDM6-FORT_G11V_DIFFAC_INT14', kts, &
-              1.414e3*viscos(t(i,k),den(i,k))*den(i,k)
-            write(*,'(A,1X,I3,1(1X,ES24.16E3))') &
-              'WDM6-FORT_G11V_DIFFAC_INT15', kts, &
-              1.414e3*viscos(t(i,k),den(i,k))*den(i,k)*rv
-            write(*,'(A,1X,I3,1(1X,ES24.16E3))') &
-              'WDM6-FORT_G11V_DIFFAC_INT16', kts, &
-              1.414e3*viscos(t(i,k),den(i,k))*den(i,k)*rv*t(i,k)*t(i,k)
-            write(*,'(A,1X,I3,1(1X,ES24.16E3))') &
-              'WDM6-FORT_G11V_DIFFAC_INT29', kts, &
-              xl(i,k)*xl(i,k)
-            write(*,'(A,1X,I3,1(1X,ES24.16E3))') &
-              'WDM6-FORT_G11V_DIFFAC_INT30', kts, &
-              den(i,k)*xl(i,k)*xl(i,k)
-            write(*,'(A,1X,I3,1(1X,ES24.16E3))') &
-              'WDM6-FORT_G11V_DIFFAC_INT31', kts, &
-              1.414e3*viscos(t(i,k),den(i,k))*den(i,k)
-            write(*,'(A,1X,I3,1(1X,ES24.16E3))') &
-              'WDM6-FORT_G11V_DIFFAC_INT32', kts, &
-              1.414e3*viscos(t(i,k),den(i,k))*den(i,k)*rv
-            write(*,'(A,1X,I3,1(1X,ES24.16E3))') &
-              'WDM6-FORT_G11V_DIFFAC_INT33', kts, &
-              1.414e3*viscos(t(i,k),den(i,k))*den(i,k)*rv*t(i,k)
-            write(*,'(A,1X,I3,1(1X,ES24.16E3))') &
-              'WDM6-FORT_G11V_DIFFAC_INT34', kts, &
-              1.414e3*viscos(t(i,k),den(i,k))*den(i,k)*rv*t(i,k)*t(i,k)
-            write(*,'(A,1X,I3,1(1X,ES24.16E3))') &
-              'WDM6-FORT_G11V_DIFFAC_INT35', kts, &
-              den(i,k)*xl(i,k)*xl(i,k)/(1.414e3*viscos(t(i,k),den(i,k))*den(i,k)*rv*t(i,k)*t(i,k))
-            write(*,'(A,1X,I3,1(1X,ES24.16E3))') &
-              'WDM6-FORT_G11V_DIFFAC_INT36', kts, &
-              1.0/(qs(i,k,1)*(8.794e-5*exp(log(t(i,k))*(1.81))/p(i,k)))
-            write(*,'(A,1X,I3,1(1X,ES24.16E3))') &
-              'WDM6-FORT_G11V_DIFFAC_INT38', kts, &
-              1.0/qs(i,k,1)
-            write(*,'(A,1X,I3,1(1X,ES24.16E3))') &
-              'WDM6-FORT_G11V_DIFFAC_INT39', kts, &
-              1.0/(8.794e-5*exp(log(t(i,k))*(1.81))/p(i,k))
-            write(*,'(A,1X,I3,1(1X,ES24.16E3))') &
-              'WDM6-FORT_G11V_DIFFAC_INT40', kts, &
-              (1.0/qs(i,k,1))*(1.0/(8.794e-5*exp(log(t(i,k))*(1.81))/p(i,k)))
-            write(*,'(A,1X,I3,1(1X,ES24.16E3))') &
-              'WDM6-FORT_G11V_DIFFAC_INT41', kts, &
-              qs(i,k,1)*(8.794e-5*exp(log(t(i,k))*(1.81))/p(i,k))
-            write(*,'(A,1X,I3,1(1X,ES24.16E3))') &
-              'WDM6-FORT_G11V_DIFFAC_INT37', kts, &
-              den(i,k)*xl(i,k)*xl(i,k)/(1.414e3*viscos(t(i,k),den(i,k))*den(i,k)*rv*t(i,k)*t(i,k)) + &
-              1.0/(qs(i,k,1)*(8.794e-5*exp(log(t(i,k))*(1.81))/p(i,k)))
-            write(*,'(A,1X,I3,1(1X,ES24.16E3))') &
-              'WDM6-FORT_G11V_DIFFAC_INT2', kts, &
-              8.794e-5*exp(log(t(i,k))*(1.81))/p(i,k)
-          endif
+          ! WDM6-F90 TAG: G11V_DIFFAC_PRE1
           work1(i,k,1) = diffac(xl(i,k),p(i,k),t(i,k),den(i,k),qs(i,k,1))
           ! WDM6-F90 TAG: G11V_DIFFAC_POST1
           ! WDM6-F90 TAG: G11V_DIFFAC_PRE2
@@ -1647,28 +1464,7 @@
             ! value token are contractual. Scoped to the failing column and a k
             ! window around the divergence, per the rule that Tier 2 is
             ! narrow-and-deep rather than broad.
-            if (debug_local .ge. 2 .and. loop .eq. 1 .and.                     &
-                i == i_dbg_local .and. lat == j_dbg_local .and.                &
-                k >= 85 .and. k <= 95) then
-              call wdm6_emit_t2('G13B','psaci','INCORE_FORTRAN','fort',        &
-                   loop, i_dbg_local, lat, k-kts+1, k, debug_local, 'eacrs', eacrs)
-              call wdm6_emit_t2('G13B','psaci','INCORE_FORTRAN','fort',        &
-                   loop, i_dbg_local, lat, k-kts+1, k, debug_local, 'diameter', diameter)
-              call wdm6_emit_t2('G13B','psaci','INCORE_FORTRAN','fort',        &
-                   loop, i_dbg_local, lat, k-kts+1, k, debug_local, 'vt2i', vt2i)
-              call wdm6_emit_t2('G13B','psaci','INCORE_FORTRAN','fort',        &
-                   loop, i_dbg_local, lat, k-kts+1, k, debug_local, 'vt2ave', vt2ave)
-              call wdm6_emit_t2('G13B','psaci','INCORE_FORTRAN','fort',        &
-                   loop, i_dbg_local, lat, k-kts+1, k, debug_local, 'vt2diff', &
-                   abs(vt2ave-vt2i))
-              call wdm6_emit_t2('G13B','psaci','INCORE_FORTRAN','fort',        &
-                   loop, i_dbg_local, lat, k-kts+1, k, debug_local, 'acrfac', acrfac)
-              call wdm6_emit_t2('G13B','psaci','INCORE_FORTRAN','fort',        &
-                   loop, i_dbg_local, lat, k-kts+1, k, debug_local, 'n0sfac', &
-                   n0sfac(i,k))
-              call wdm6_emit_t2('G13B','psaci','INCORE_FORTRAN','fort',        &
-                   loop, i_dbg_local, lat, k-kts+1, k, debug_local, 'psaci', psaci(i,k))
-            endif
+            ! WDM6-F90 TAG: T2_G13B_psaci
             endif
 
 
@@ -1874,42 +1670,7 @@
             ! column and a k window around the divergence, per the rule that
             ! Tier 2 is narrow-and-deep rather than broad. pidep_raw and supice
             ! are recomputed inline so the surrounding physics is untouched.
-            if (debug_local .ge. 2 .and. loop .eq. 1 .and. &
-                i == i_dbg_local .and. lat == j_dbg_local .and. &
-                k >= 88 .and. k <= 100) then
-              call wdm6_emit_t2('G13E','pidep','INCORE_FORTRAN','fort', &
-                   loop, i_dbg_local, lat, k-kts+1, k, debug_local, 'supcol', supcol)
-              call wdm6_emit_t2('G13E','pidep','INCORE_FORTRAN','fort', &
-                   loop, i_dbg_local, lat, k-kts+1, k, debug_local, 'qi', qci(i,k,2))
-              call wdm6_emit_t2('G13E','pidep','INCORE_FORTRAN','fort', &
-                   loop, i_dbg_local, lat, k-kts+1, k, debug_local, 'xni', xni(i,k))
-              call wdm6_emit_t2('G13E','pidep','INCORE_FORTRAN','fort', &
-                   loop, i_dbg_local, lat, k-kts+1, k, debug_local, 'xmi', &
-                   den(i,k)*qci(i,k,2)/xni(i,k))
-              call wdm6_emit_t2('G13E','pidep','INCORE_FORTRAN','fort', &
-                   loop, i_dbg_local, lat, k-kts+1, k, debug_local, 'diameter', diameter)
-              call wdm6_emit_t2('G13E','pidep','INCORE_FORTRAN','fort', &
-                   loop, i_dbg_local, lat, k-kts+1, k, debug_local, 'rhi', rh(i,k,2))
-              call wdm6_emit_t2('G13E','pidep','INCORE_FORTRAN','fort', &
-                   loop, i_dbg_local, lat, k-kts+1, k, debug_local, 'work1i', work1(i,k,2))
-              call wdm6_emit_t2('G13E','pidep','INCORE_FORTRAN','fort', &
-                   loop, i_dbg_local, lat, k-kts+1, k, debug_local, 'supsat', supsat)
-              call wdm6_emit_t2('G13E','pidep','INCORE_FORTRAN','fort', &
-                   loop, i_dbg_local, lat, k-kts+1, k, debug_local, 'satdt', satdt)
-              call wdm6_emit_t2('G13E','pidep','INCORE_FORTRAN','fort', &
-                   loop, i_dbg_local, lat, k-kts+1, k, debug_local, 'prevp', prevp(i,k))
-              call wdm6_emit_t2('G13E','pidep','INCORE_FORTRAN','fort', &
-                   loop, i_dbg_local, lat, k-kts+1, k, debug_local, 'pidep_raw', &
-                   4.*diameter*xni(i,k)*(rh(i,k,2)-1.)/work1(i,k,2))
-              call wdm6_emit_t2('G13E','pidep','INCORE_FORTRAN','fort', &
-                   loop, i_dbg_local, lat, k-kts+1, k, debug_local, 'supice', &
-                   satdt-prevp(i,k))
-              call wdm6_emit_t2('G13E','pidep','INCORE_FORTRAN','fort', &
-                   loop, i_dbg_local, lat, k-kts+1, k, debug_local, 'pidep', pidep(i,k))
-              call wdm6_emit_t2('G13E','pidep','INCORE_FORTRAN','fort', &
-                   loop, i_dbg_local, lat, k-kts+1, k, debug_local, 'ifsat', &
-                   real(ifsat,kind=kind_phys))
-            endif
+            ! WDM6-F90 TAG: T2_G13E_pidep
 
 
 
@@ -1932,30 +1693,7 @@
             ! terms are separated because the hypothesis under test is that
             ! precs1 and precs2 carry DIFFERENT relative errors, so psdep's
             ! error should be their term-weighted mix rather than a constant.
-              if (debug_local .ge. 2 .and. loop .eq. 1 .and.                   &
-                  i == i_dbg_local .and. lat == j_dbg_local .and.              &
-                  k >= 85 .and. k <= 98) then
-                call wdm6_emit_t2('G13E','psdep','INCORE_FORTRAN','fort',      &
-                     loop, i_dbg_local, lat, k-kts+1, k, debug_local, 'precs1', precs1)
-                call wdm6_emit_t2('G13E','psdep','INCORE_FORTRAN','fort',      &
-                     loop, i_dbg_local, lat, k-kts+1, k, debug_local, 'precs2', precs2)
-                call wdm6_emit_t2('G13E','psdep','INCORE_FORTRAN','fort',      &
-                     loop, i_dbg_local, lat, k-kts+1, k, debug_local, 'coeres', coeres)
-                call wdm6_emit_t2('G13E','psdep','INCORE_FORTRAN','fort',      &
-                     loop, i_dbg_local, lat, k-kts+1, k, debug_local, 'term1', &
-                     precs1*rslope2(i,k,2))
-                call wdm6_emit_t2('G13E','psdep','INCORE_FORTRAN','fort',      &
-                     loop, i_dbg_local, lat, k-kts+1, k, debug_local, 'term2', &
-                     precs2*work2(i,k)*coeres)
-                call wdm6_emit_t2('G13E','psdep','INCORE_FORTRAN','fort',      &
-                     loop, i_dbg_local, lat, k-kts+1, k, debug_local, 'rhm1',  &
-                     rh(i,k,2)-1.)
-                call wdm6_emit_t2('G13E','psdep','INCORE_FORTRAN','fort',      &
-                     loop, i_dbg_local, lat, k-kts+1, k, debug_local, 'work1s',&
-                     work1(i,k,2))
-                call wdm6_emit_t2('G13E','psdep','INCORE_FORTRAN','fort',      &
-                     loop, i_dbg_local, lat, k-kts+1, k, debug_local, 'psdep', psdep(i,k))
-              endif
+              ! WDM6-F90 TAG: T2_G13E_psdep
             endif
 
 
@@ -1983,30 +1721,9 @@
               supice = satdt-prevp(i,k)-pidep(i,k)-psdep(i,k)-pgdep(i,k)
               xni0 = 1.e3*exp(0.1*supcol)
               roqi0 = 4.92e-11*xni0**1.33
-              if (debug_local .ge. 1 .and. i == i_dbg_local .and. lat == j_dbg_local) then
-                if (k >= 40 .and. k <= 42) then
-                  write(*,'(A,I3,8(A,ES24.16E3))') &
-                    'WDM6-FORT_T2_G13E_PIGEN_EXACT k=',k, &
-                    ' supsat=',supsat, &
-                    ' satdt=',satdt, &
-                    ' supice=',supice, &
-                    ' supcol=',supcol, &
-                    ' xni0=',xni0, &
-                    ' roqi0=',roqi0, &
-                    ' den=',den(i,k), &
-                    ' qi=',max(qci(i,k,2),0.)
-                endif
-              endif
+              ! WDM6-F90 TAG: T2_G13E_PIGEN_EXACT
               pigen(i,k) = max(0.,(roqi0/den(i,k)-max(qci(i,k,2),0.))/dtcld)
-              if (debug_local .ge. 1 .and. i == i_dbg_local .and. lat == j_dbg_local) then
-                if (k >= 40 .and. k <= 42) then
-                  write(*,'(A,I3,3(A,ES24.16E3))') &
-                    'WDM6-FORT_T2_G13E_PIGEN_POST k=',k, &
-                    ' pigen_raw=',max(0.,(roqi0/den(i,k)-max(qci(i,k,2),0.))/dtcld), &
-                    ' satdt=',satdt, &
-                    ' supice=',supice
-                endif
-              endif
+              ! WDM6-F90 TAG: T2_G13E_PIGEN_POST
               pigen(i,k) = min(min(pigen(i,k),satdt),supice)
             endif
       ! WDM6-F90 TAG: POST_G13E
@@ -2186,19 +1903,7 @@
             endif
 
             work2(i,k)=-(prevp(i,k)+psdep(i,k)+pgdep(i,k)+pigen(i,k)+pidep(i,k))
-            if (debug_local .ge. 1 .and. i == i_dbg_local .and. lat == j_dbg_local) then
-              if (k >= 40 .and. k <= 42) then
-                write(*,'(A,I3,7(A,ES24.16E3))') &
-                  'WDM6-FORT_T2_G14_COLD_VAPOR k=',k, &
-                  ' work2=',work2(i,k), &
-                  ' prevp=',prevp(i,k), &
-                  ' psdep=',psdep(i,k), &
-                  ' pgdep=',pgdep(i,k), &
-                  ' pigen=',pigen(i,k), &
-                  ' pidep=',pidep(i,k), &
-                  ' dtcld=',dtcld
-              endif
-            endif
+            ! WDM6-F90 TAG: T2_G14_COLD_VAPOR
 
             q(i,k) = q(i,k)+work2(i,k)*dtcld
             qci(i,k,1) = max(qci(i,k,1)-(praut(i,k)+pracw(i,k)                 &
@@ -2227,21 +1932,7 @@
             xlwork2 = -xls*(psdep(i,k)+pgdep(i,k)+pidep(i,k)+pigen(i,k))       &
                       -xl(i,k)*prevp(i,k)-xlf*(piacr(i,k)+paacw(i,k)           &
                       +paacw(i,k)+pgacr(i,k)+psacr(i,k))
-            if (debug_local .ge. 1 .and. i == i_dbg_local .and. lat == j_dbg_local) then
-              if (k >= 40 .and. k <= 42) then
-                write(*,'(A,I3,9(A,ES24.16E3))') &
-                  'WDM6-FORT_T2_G14_COLD_THERMO k=',k, &
-                  ' xlwork2=',xlwork2, &
-                  ' prevp=',prevp(i,k), &
-                  ' psdep=',psdep(i,k), &
-                  ' pgdep=',pgdep(i,k), &
-                  ' pigen=',pigen(i,k), &
-                  ' pidep=',pidep(i,k), &
-                  ' piacr=',piacr(i,k), &
-                  ' paacw=',paacw(i,k), &
-                  ' pgacr=',pgacr(i,k)
-              endif
-            endif
+            ! WDM6-F90 TAG: T2_G14_COLD_THERMO
             t(i,k) = t(i,k)-xlwork2/cpm(i,k)*dtcld
           else
 
@@ -2344,17 +2035,7 @@
         enddo
       enddo
       ! WDM6-F90 TAG: POST_G14
-      if (debug_local .ge. 1 .and. i_dbg_local .ge. its .and. i_dbg_local .le. ite) then
-        do k = max(kts,40), min(kte,42)
-          write(*,'(A,I3,5(A,ES24.16E3))') &
-            'WDM6-FORT_T2_G14_POST k=',k, &
-            ' qv=',q(i_dbg_local,k), &
-            ' qc=',qci(i_dbg_local,k,1), &
-            ' nn=',ncr(i_dbg_local,k,1), &
-            ' nc=',ncr(i_dbg_local,k,2), &
-            ' t=',t(i_dbg_local,k)
-        enddo
-      endif
+      ! WDM6-F90 TAG: T2_G14_POST
 
 
 
@@ -2390,16 +2071,7 @@
         enddo
       enddo
       ! WDM6-F90 TAG: POST_G15
-      if (debug_local .ge. 1 .and. i_dbg_local .ge. its .and. i_dbg_local .le. ite) then
-        do k = max(kts,40), min(kte,42)
-          write(*,'(A,I3,4(A,ES24.16E3))') &
-            'WDM6-FORT_T2_G15_POST k=',k, &
-            ' qv=',q(i_dbg_local,k), &
-            ' qsatw=',qs(i_dbg_local,k,1), &
-            ' rhw=',rh(i_dbg_local,k,1), &
-            ' t=',t(i_dbg_local,k)
-        enddo
-      endif
+      ! WDM6-F90 TAG: T2_G15_POST
 
       ! WDM6-F90 TAG: PRE_G16A
 
@@ -2445,31 +2117,10 @@
       do k = kts, kte
         do i = its, ite
           ! Diagnostic: Print activation details at storm cell
-          if (debug_local >= 1 .and. i == i_dbg_local .and. lat == j_dbg_local) then
-            if (k >= 40 .and. k <= 42) then
-              write(*,'(A,I3,A,ES12.4,A,ES12.4,A,2ES12.4)') &
-                'WDM6-FORT_T2_G16B_ACT_PRE k=',k,' RH=',rh(i,k,1),' qc=',qci(i,k,1),' nn,nc=',ncr(i,k,1),ncr(i,k,2)
-              write(*,'(A,I3,4(A,ES24.16E3))') &
-                'WDM6-FORT_T2_G16B_ACT_PRE_EXACT k=',k, &
-                ' rh=',rh(i,k,1), &
-                ' qc=',qci(i,k,1), &
-                ' nn=',ncr(i,k,1), &
-                ' nc=',ncr(i,k,2)
-            endif
-          endif
+          ! WDM6-F90 TAG: T2_G16B_ACT_PRE
 
           if(rh(i,k,1).gt.1.) then
-            if (debug_local >= 1 .and. i == i_dbg_local .and. lat == j_dbg_local) then
-              if (k >= 40 .and. k <= 42) then
-                write(*,'(A,I3,4(A,ES24.16E3))') &
-                  'WDM6-FORT_T2_G16B_ACT_EXACT k=',k, &
-                  ' ratio=',rh(i,k,1)/satmax, &
-                  ' frac=',min(1.,(rh(i,k,1)/satmax)**actk), &
-                  ' raw=',((ncr(i,k,1)+ncr(i,k,2))                       &
-                       *min(1.,(rh(i,k,1)/satmax)**actk) - ncr(i,k,2)), &
-                  ' cap=',max(ncr(i,k,1),0.)/dtcld
-              endif
-            endif
+            ! WDM6-F90 TAG: T2_G16B_ACT_EXACT
             ncact(i,k) = max(0.,((ncr(i,k,1)+ncr(i,k,2))                       &
                        *min(1.,(rh(i,k,1)/satmax)**actk) - ncr(i,k,2)))/dtcld
             ncact(i,k) =min(ncact(i,k),max(ncr(i,k,1),0.)/dtcld)
@@ -2481,13 +2132,7 @@
             ncr(i,k,2) = max(ncr(i,k,2)+ncact(i,k)*dtcld,0.)
             t(i,k) = t(i,k)+pcact(i,k)*xl(i,k)/cpm(i,k)*dtcld
             ! Diagnostic: Print activation result
-            if (debug_local >= 1 .and. i == i_dbg_local .and. lat == j_dbg_local) then
-              if (k >= 40 .and. k <= 42) then
-                write(*,'(A,I3,A,2ES12.4,A,ES12.4,A,2ES24.16E3)') &
-                  'WDM6-FORT_T2_G16B_ACT_POST k=',k,' ncact,pcact=',ncact(i,k),pcact(i,k),' nc_after=',ncr(i,k,2), &
-                  ' nn_after,nc_after_exact=',ncr(i,k,1),ncr(i,k,2)
-              endif
-            endif
+            ! WDM6-F90 TAG: T2_G16B_ACT_POST
           endif
 
 
@@ -2507,21 +2152,10 @@
             pcond(i,k) = max(work1(i,k,1),-qci(i,k,1))/dtcld
 
           ! Diagnostic: Print condensation details
-          if (debug_local >= 1 .and. i == i_dbg_local .and. lat == j_dbg_local) then
-            if (k >= 40 .and. k <= 42 .and. abs(pcond(i,k)) > 1.e-20) then
-              write(*,'(A,I3,A,3ES12.4,A,ES12.4)') &
-                'WDM6-FORT_T2_G16B_COND_POST k=',k,' work1,pcond,qc=',work1(i,k,1),pcond(i,k),qci(i,k,1),' nc=',ncr(i,k,2)
-            endif
-          endif
+          ! WDM6-F90 TAG: T2_G16B_COND_POST
 
           if(pcond(i,k).eq.-qci(i,k,1)/dtcld) then
             ! Diagnostic: Cloud evaporation - all droplets returned to CCN
-            if (debug_local >= 1 .and. i == i_dbg_local .and. lat == j_dbg_local) then
-              if (k >= 40 .and. k <= 42) then
-                write(*,'(A,I3,A,ES12.4,A)') &
-                  '  [EVAP] k=',k,' ALL CLOUD EVAP: nc_before=',ncr(i,k,2),' -> nc=0'
-              endif
-            endif
             ncr(i,k,1) = ncr(i,k,1)+ncr(i,k,2)
 
             ncr(i,k,2) = 0.
@@ -3927,46 +3561,5 @@
   ! this: a one-ULP difference on a value near unity would print identically
   ! on both legs, which is exactly what a Tier 2 retreat must not do.
   !------------------------------------------------------------------
-  subroutine wdm6_diag_value_string(val, sout)
-    real(kind=kind_phys), intent(in) :: val
-    character(len=*), intent(out) :: sout
-    character(len=64) :: tmp
-    write(tmp,'(SP,ES30.20E3)') val
-    sout = trim(adjustl(tmp))
-  end subroutine wdm6_diag_value_string
-
-  subroutine wdm6_emit_t2(tag, phase, source_layer, path_id, &
-                          loop_out, i_dbg, j_dbg, k_dbg, k_raw, debug_level, var, value)
-    character(len=*), intent(in) :: tag, phase, source_layer, path_id, var
-    integer, intent(in) :: loop_out, i_dbg, j_dbg, k_dbg, k_raw, debug_level
-    real(kind=kind_phys), intent(in) :: value
-
-    character(len=32) :: s_loop, s_i, s_j, s_kdbg, s_kraw, s_dbg
-    character(len=64) :: s_value
-
-    write(s_loop,'(I0)') loop_out
-    write(s_i   ,'(I0)') i_dbg
-    write(s_j   ,'(I0)') j_dbg
-    write(s_kdbg,'(I0)') k_dbg
-    write(s_kraw,'(I0)') k_raw
-    write(s_dbg ,'(I0)') debug_level
-    call wdm6_diag_value_string(value, s_value)
-
-    write(*,'(A)') 'WDM6-DIAG-T2 diag_schema=1'// &
-                   ' tag='//trim(tag)// &
-                   ' phase='//trim(phase)// &
-                   ' source_layer='//trim(source_layer)// &
-                   ' path_id='//trim(path_id)// &
-                   ' expr_id='//trim(phase)// &
-                   ' store_id='//trim(var)// &
-                   ' loop='//trim(s_loop)// &
-                   ' i_dbg='//trim(s_i)// &
-                   ' j_dbg='//trim(s_j)// &
-                   ' k_dbg='//trim(s_kdbg)// &
-                   ' k_raw='//trim(s_kraw)// &
-                   ' debug_level='//trim(s_dbg)// &
-                   ' var='//trim(var)// &
-                   ' value='//trim(s_value)
-  end subroutine wdm6_emit_t2
 
        END MODULE mp_wdm6
