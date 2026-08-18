@@ -74,16 +74,8 @@ build_*.log
 # Python cache
 __pycache__
 
-# WDM6/WSM6 plotfile-parity campaign roots (run artifacts + logs)
-plotfile_parity_*/
-# superseded naming, retained so existing campaign_wdm6_bubble_v1/v2 stay ignored
-campaign_*/
-
-# Session handoff notes. Working documents, not validation infrastructure:
-# they are rewritten wholesale each session and supersede one another, so
-# tracking them puts churn in the history for no provenance gain. The TSV
-# ledgers under references/applications/ remain tracked and are the source
-# of truth. milestone_a_handoff.md and step2_handoff.md were tracked before
-# this rule and are untracked from here on; their earlier revisions stay in
-# history because they were already pushed.
-Exec/.DevTests/**/*_handoff.md
+# Development scratch and run artifacts
+Exec/.DevTests/
+*.log
+diffs_*/
+Backtrace.*
