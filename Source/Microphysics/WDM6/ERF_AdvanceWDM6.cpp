@@ -162,7 +162,7 @@ void wdm6_slope_rain_cell (Real qr, Real nr, Real den, Real denfac,
         //
         // This is a min(), so it binds only where 1./lamdar exceeds the cap --
         // rare, and identically zero for the first fifteen steps of the Bubble
-        // case, which is why a bitwise-clean Milestone B did not expose it.
+        // case, which is why a bitwise-clean 10-step run did not expose it.
         rslope  = amrex::min(Real(1.0) / wdm6_lamdar(qr, den, nr, pidnr_arg),
                              wdm6_literal(1.e-3));
         rslopeb = std::pow(rslope, bvtr_arg);
@@ -778,7 +778,7 @@ void WDM6::Advance(const Real& dt_advance,
         // Contractual schema, one emitter for both legs:
         //     WDM6-<FORT|CPP>_<PRE|POST>_W1_THETAWB k theta t p exner t_over_exner
         // Full column kts..kte per the WSM6 all-k print contract; the failing
-        // Milestone A zone is k=90, which a kts-only tag cannot observe.
+        // step-1 divergence sits at k=90, which a kts-only tag cannot observe.
         // ------------------------------------------------------------------
         auto const& w1_theta = mic_fab_vars[MicVar_WDM6::theta]->array(mfi);
         const bool w1_diag = (microphysics_debug > 0 &&
@@ -1781,8 +1781,9 @@ void WDM6::Advance(const Real& dt_advance,
                 // that G8 is supposed to skip, recomputing the ICE fall speed
                 // from the snow and graupel slope routines. Contrast G5c, which
                 // genuinely passes iter=1 (Fortran :1122 ends dtcld,1,1).
-                // Confirmed by Tier 2: every input to this call -- qi, xni, den,
-                // xmi, dicon, diameter, work1c -- is bitwise equal at every k in
+                // This was verified against the Fortran bridge by tracing every
+                // input with prints archived on a branch: qi, xni, den, xmi,
+                // dicon, diameter and work1c are all bitwise equal at every k in
                 // the 85..100 window, so the kernel invocation was the only
                 // remaining candidate.
                 wdm6_nislfv_rain_plm6_column(
@@ -2257,9 +2258,9 @@ void WDM6::Advance(const Real& dt_advance,
                 xni_arr(i,j,k) = amrex::min(amrex::max(Real(5.38e7) * temp, Real(1.e3)), Real(1.e6));
 
                 // Fortran :2021 eacrs = exp(0.07*(-supcol)); 0.07 is unsuffixed
-                // so it carries the float assumption. Proven at Tier 2 on the
-                // G13B psaci decomposition: eacrs diverged 1.03e-08 to 1.14e-08
-                // relative across k=89..95, matching delta(0.07)*(-supcol).
+                // so it carries the float assumption. Verified by tracing psaci's
+                // inputs: eacrs diverged 1.03e-08 to 1.14e-08 relative across
+                // k=89..95, matching delta(0.07)*(-supcol).
                 const Real eacrs = std::exp(wdm6_literal(0.07) * (-supcol));
                 const Real xni_safe = amrex::max(xni_arr(i,j,k), Real(1.0e-30));
                 const Real xmi = den_arr(i,j,k) * qi_val / xni_safe;
@@ -2269,7 +2270,7 @@ void WDM6::Advance(const Real& dt_advance,
                 // EXPONENT does, and exponents amplify: the error enters as
                 // ln(diameter)*delta, and with diameter at the dimax cap of
                 // 5e-4 that is ln(5e-4) = -7.60 times -5.722e-08, i.e. 4.349e-07.
-                // Tier 2 measured exactly 4.349270e-07 on vt2i across k=91..95.
+                // Measured: exactly 4.349270e-07 on vt2i across k=91..95.
                 // It then amplifies again through the |vt2ave - vt2i|
                 // cancellation in psaci: at k=89 vt2diff is 0.139 against vt2i
                 // 0.681, a 4.90x factor giving the observed 2.14e-06.
@@ -2390,10 +2391,10 @@ void WDM6::Advance(const Real& dt_advance,
                 // Same treatment as ratio_s above, and for the same reason. This
                 // was MISSED when ratio_s was fixed: that edit replaced only the
                 // ratio_s else-branch while its comment claimed both, so ngacw
-                // kept returning 0 where the Fortran returns 1.0. Surfaced by the
-                // step-8 retreat as POST_G13C field 4 at relative error exactly
-                // 1.0, bridge 8.85033631487811001e-02 against native 0, which was
-                // the whole remaining Milestone B nn residual.
+                // kept returning 0 where the Fortran returns 1.0. Surfaced at
+                // step 8 on ngacw, at relative error exactly 1.0: bridge
+                // 8.85033631487811001e-02 against native 0, which was the whole
+                // remaining nn residual at 10 steps.
                 const Real ratio_g = (qc_val > Real(0.0))
                     ? amrex::min(amrex::max(Real(0.0), qg_val / qc_val), Real(1.0))
                     : (qg_val > Real(0.0) ? Real(1.0) : Real(0.0));
@@ -3267,10 +3268,10 @@ void WDM6::Advance(const Real& dt_advance,
         // mic_fab_vars[theta] at its pre-microphysics value while the bridge
         // leg advanced it, and Copy_Micro_to_State then formed
         // RhoTheta = rho * theta from the stale field, dropping microphysical
-        // latent heating from the thermodynamic state. Confirmed by the
-        // W1_THETAWB retreat: native PRE theta equalled POST theta at 100/100
-        // levels, and the resulting divergence 6.625510053 at k=90 matched the
-        // Milestone A theta error exactly.
+        // latent heating from the thermodynamic state. Confirmed by comparing
+        // theta before and after the bridge call: native PRE theta equalled
+        // POST theta at 100/100 levels, and the resulting
+        // divergence 6.625510053 at k=90 matched the step-1 theta error exactly.
         {
             constexpr Real p0_nat = 1.e5;           // Reference pressure (Pa)
             constexpr Real rdOcp_nat = R_d / Cp_d;  // R/cp = 0.286
