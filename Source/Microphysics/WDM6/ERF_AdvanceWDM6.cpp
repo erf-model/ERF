@@ -786,24 +786,7 @@ void WDM6::Advance(const Real& dt_advance,
                               diag_j >= jlo && diag_j <= jhi);
         auto emit_w1 = [&] (const char* stage)
         {
-#if !defined(AMREX_USE_GPU)
-            if (!w1_diag) return;
-            constexpr Real p0_w1 = 1.e5;
-            constexpr Real rdOcp_w1 = R_d / Cp_d;
-            for (int k = klo; k <= khi; ++k) {
-                const Real ex = std::pow(p_arr(diag_i,diag_j,k) / p0_w1, rdOcp_w1);
-                std::printf("WDM6-%s_%s_W1_THETAWB %3d %24.16E %24.16E %24.16E %24.16E %24.16E\n",
-                            w1_leg, stage, k + 1,
-                            static_cast<double>(w1_theta(diag_i,diag_j,k)),
-                            static_cast<double>(t_arr(diag_i,diag_j,k)),
-                            static_cast<double>(p_arr(diag_i,diag_j,k)),
-                            static_cast<double>(ex),
-                            static_cast<double>(t_arr(diag_i,diag_j,k) / ex));
-            }
-            std::fflush(stdout);
-#else
             amrex::ignore_unused(stage);
-#endif
         };
 
 #if defined(ERF_USE_WDM6_FORT) && defined(AMREX_USE_GPU)
@@ -1270,19 +1253,6 @@ void WDM6::Advance(const Real& dt_advance,
                     rhw_arr(i,j,k) = amrex::max(qv_arr(i,j,k) / qsw, Real(qmin));
 
                     // Saturation over ice
-#if !defined(AMREX_USE_GPU)
-                    if (i == diag_i && j == diag_j && k == diag_k) {
-                        std::printf("WDM6-CPP_G1CV_SAT_INT20 %3d %24.16E\n",
-                                    diag_k + 1,
-                                    static_cast<double>(tr));
-                        std::printf("WDM6-CPP_G1CV_SAT_INT21 %3d %24.16E %24.16E\n",
-                                    diag_k + 1,
-                                    static_cast<double>((t_arr(i,j,k) < ttp) ? Real(1.0) : Real(0.0)),
-                                    static_cast<double>((t_arr(i,j,k) < ttp)
-                                        ? Real(psat) * std::exp(std::log(tr) * xai) * std::exp(xbi * (Real(1.0) - tr))
-                                        : Real(psat) * std::exp(std::log(tr) * xa) * std::exp(xb * (Real(1.0) - tr))));
-                    }
-#endif
                     Real qsi = (t_arr(i,j,k) < ttp)
                         ? Real(psat) * std::exp(std::log(tr) * xai) * std::exp(xbi * (Real(1.0) - tr))
                         : Real(psat) * std::exp(std::log(tr) * xa) * std::exp(xb * (Real(1.0) - tr));
@@ -1448,24 +1418,7 @@ void WDM6::Advance(const Real& dt_advance,
                 return {mstep_arr(i,j,k)};
             });
             int mstepmax = amrex::get<0>(reduce_data.value());
-#if !defined(AMREX_USE_GPU)
-            if (microphysics_debug > 0 && loop == 0 && diag_col_in_tile) {
-                for (int kdbg = klo; kdbg <= khi; ++kdbg) {
-                std::printf("WDM6-CPP_POST_G5A %3d %24.16E %24.16E %24.16E %24.16E %24.16E %24.16E %24.16E\n",
-                            kdbg + 1,
-                            static_cast<double>(work1_arr(diag_i,diag_j,kdbg,0)),
-                            static_cast<double>(workn_arr(diag_i,diag_j,kdbg)),
-                            static_cast<double>(mstep_arr(diag_i,diag_j,0)),
-                            static_cast<double>(mstepmax),
-                            static_cast<double>(numdt_arr(diag_i,diag_j,0)),
-                            static_cast<double>(delz_arr(diag_i,diag_j,kdbg)),
-                            static_cast<double>(dtcld));
-                std::fflush(stdout);
-                }
-            }
-#else
             amrex::ignore_unused(mstepmax);
-#endif
 
             // ============================================================
             // Step 3e: Rain sedimentation substeps (G5b)
@@ -1553,29 +1506,6 @@ void WDM6::Advance(const Real& dt_advance,
             // Step 3f: Snow/graupel sedimentation (G5c)
             // Exact bounded NISLFV_SG slice plus lower-boundary slab fall.
             // ============================================================
-#if !defined(AMREX_USE_GPU)
-            if (microphysics_debug > 0 && loop == 0 && diag_col_in_tile) {
-                for (int kdbg = klo; kdbg <= khi; ++kdbg) {
-                const Real qsum = amrex::max(qs_arr(diag_i,diag_j,kdbg) + qg_arr(diag_i,diag_j,kdbg), wdm6_literal(1.0e-15));
-                const Real worka = (qsum > wdm6_literal(1.0e-15))
-                    ? (work1_arr(diag_i,diag_j,kdbg,1) * qs_arr(diag_i,diag_j,kdbg)
-                     + work1_arr(diag_i,diag_j,kdbg,2) * qg_arr(diag_i,diag_j,kdbg)) / qsum
-                    : Real(0.0);
-                std::printf("WDM6-CPP_PRE_G5C %3d %24.16E %24.16E %24.16E %24.16E %24.16E %24.16E %24.16E %24.16E %24.16E\n",
-                            kdbg + 1,
-                            static_cast<double>(qs_arr(diag_i,diag_j,kdbg)),
-                            static_cast<double>(qg_arr(diag_i,diag_j,kdbg)),
-                            static_cast<double>(worka),
-                            static_cast<double>(den_arr(diag_i,diag_j,kdbg) * qs_arr(diag_i,diag_j,kdbg)),
-                            static_cast<double>(den_arr(diag_i,diag_j,kdbg) * qg_arr(diag_i,diag_j,kdbg)),
-                            static_cast<double>(delz_arr(diag_i,diag_j,kdbg)),
-                            static_cast<double>(dtcld),
-                            static_cast<double>(denfac_arr(diag_i,diag_j,kdbg)),
-                            static_cast<double>(t_arr(diag_i,diag_j,kdbg)));
-                std::fflush(stdout);
-                }
-            }
-#endif
 
             ParallelFor(box2d, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
                 amrex::ignore_unused(k);
@@ -1634,27 +1564,6 @@ void WDM6::Advance(const Real& dt_advance,
                 work1_arr(i,j,klo,2) = delqrs3 / dz_col(0) / dtcld;
             });
 
-#if !defined(AMREX_USE_GPU)
-            if (microphysics_debug > 0 && loop == 0 && diag_col_in_tile) {
-                for (int kdbg = klo; kdbg <= khi; ++kdbg) {
-                const Real qsum = amrex::max(qs_arr(diag_i,diag_j,kdbg) + qg_arr(diag_i,diag_j,kdbg), wdm6_literal(1.0e-15));
-                const Real worka = (qsum > wdm6_literal(1.0e-15))
-                    ? (work1_arr(diag_i,diag_j,kdbg,1) * qs_arr(diag_i,diag_j,kdbg)
-                     + work1_arr(diag_i,diag_j,kdbg,2) * qg_arr(diag_i,diag_j,kdbg)) / qsum
-                    : Real(0.0);
-                std::printf("WDM6-CPP_POST_G5C %3d %24.16E %24.16E %24.16E %24.16E %24.16E %24.16E %24.16E\n",
-                            kdbg + 1,
-                            static_cast<double>(qs_arr(diag_i,diag_j,kdbg)),
-                            static_cast<double>(qg_arr(diag_i,diag_j,kdbg)),
-                            static_cast<double>(worka),
-                            static_cast<double>(den_arr(diag_i,diag_j,kdbg) * qs_arr(diag_i,diag_j,kdbg)),
-                            static_cast<double>(den_arr(diag_i,diag_j,kdbg) * qg_arr(diag_i,diag_j,kdbg)),
-                            static_cast<double>(work1_arr(diag_i,diag_j,klo,1)),
-                            static_cast<double>(work1_arr(diag_i,diag_j,klo,2)));
-                std::fflush(stdout);
-                }
-            }
-#endif
 
             // ============================================================
             // Step 3g: Second slope_wdm6 call after sedimentation (G6)
@@ -1820,35 +1729,6 @@ void WDM6::Advance(const Real& dt_advance,
                     work1c = wdm6_literal(1.49e4) * std::exp(std::log(diameter) * wdm6_literal(1.31));
                 }
                 work1c_arr(i,j,k) = work1c;
-#if !defined(AMREX_USE_GPU)
-                // Tier 2 forensic decomposition of the G8 ice fall speed, native
-                // leg. Field order and the 20-fractional-digit value token are
-                // contractual and must match wdm6_emit_t2 in
-                // ERF_module_mp_wdm6.F90 exactly.
-                if (microphysics_debug >= 2 && loop == 0 &&
-                    i == diag_i && j == diag_j && (k + 1) >= 85 && (k + 1) <= 100) {
-                    auto emit_t2 = [&] (const char* var, Real value) {
-                        std::printf("WDM6-DIAG-T2 diag_schema=1 tag=G8 phase=vice"
-                                    " source_layer=NATIVE_CPP path_id=cpp expr_id=vice"
-                                    " store_id=%s loop=%d i_dbg=%d j_dbg=%d"
-                                    " k_dbg=%d k_raw=%d debug_level=%d var=%s value=%+.20E\n",
-                                    var, loop, diag_i, diag_j,
-                                    k - klo + 1, k, microphysics_debug,
-                                    var, static_cast<double>(value));
-                    };
-                    const Real xni_s = amrex::max(xni_arr(i,j,k), Real(1.0e-30));
-                    const Real xmi_t = den_arr(i,j,k) * qi_arr(i,j,k) / xni_s;
-                    emit_t2("qi",       qi_arr(i,j,k));
-                    emit_t2("xni",      xni_arr(i,j,k));
-                    emit_t2("den",      den_arr(i,j,k));
-                    emit_t2("xmi",      xmi_t);
-                    emit_t2("sqrt_xmi", std::sqrt(xmi_t));
-                    emit_t2("dicon",    dicon_loc);
-                    emit_t2("diameter", amrex::max(amrex::min(dicon_loc * std::sqrt(xmi_t), dimax_loc),
-                                                  wdm6_literal(1.0e-25)));
-                    emit_t2("work1c",   work1c);
-                }
-#endif
             });
 
             // Ice sedimentation via simplified PLM6 scheme
@@ -2012,37 +1892,12 @@ void WDM6::Advance(const Real& dt_advance,
                     qi_arr(i,j,k)    = Real(0.0);                     // zero out ice
                 }
 
-#if !defined(AMREX_USE_GPU)
-                if (diag_cell) {
-                    std::printf("WDM6-CPP_POST_G10A %3d %24.16E %24.16E %24.16E %24.16E %24.16E\n",
-                                k + 1,
-                                static_cast<double>(qc_arr(i,j,k)),
-                                static_cast<double>(qi_arr(i,j,k)),
-                                static_cast<double>(nc_arr(i,j,k)),
-                                static_cast<double>(xni_arr(i,j,k)),
-                                static_cast<double>(t_arr(i,j,k)));
-                std::fflush(stdout);
-                }
-#endif
 
 
             // ============================================================
             // Step 3k: G10b Cloud-Water Homogeneous Freezing
             // Exact port of bounded Fortran block (lines 1215-1224)
             // ============================================================
-#if !defined(AMREX_USE_GPU)
-                if (diag_cell) {
-                    std::printf("WDM6-CPP_PRE_G10B %3d %24.16E %24.16E %24.16E %24.16E %24.16E %24.16E\n",
-                                k + 1,
-                                static_cast<double>(qc_arr(i,j,k)),
-                                static_cast<double>(qi_arr(i,j,k)),
-                                static_cast<double>(nc_arr(i,j,k)),
-                                static_cast<double>(t_arr(i,j,k)),
-                                static_cast<double>(t0c - t_arr(i,j,k)),
-                                static_cast<double>(cpm_arr(i,j,k)));
-                std::fflush(stdout);
-                }
-#endif
 
 
                 // Homogeneous freezing of cloud water when supcol > 40K (T < -40C)
@@ -2059,39 +1914,11 @@ void WDM6::Advance(const Real& dt_advance,
                     qc_arr(i,j,k) = Real(0.0);
                 }
 
-#if !defined(AMREX_USE_GPU)
-                if (diag_cell) {
-                    std::printf("WDM6-CPP_POST_G10B %3d %24.16E %24.16E %24.16E %24.16E %24.16E\n",
-                                k + 1,
-                                static_cast<double>(qc_arr(i,j,k)),
-                                static_cast<double>(qi_arr(i,j,k)),
-                                static_cast<double>(nc_arr(i,j,k)),
-                                static_cast<double>(t_arr(i,j,k)),
-                                static_cast<double>(t0c - t_arr(i,j,k)));
-                std::fflush(stdout);
-                }
-#endif
 
             // ============================================================
             // Step 3l: G10c Cloud-Water Heterogeneous Freezing
             // Exact port of bounded Fortran block (pihtf, lines 1241-1258)
             // ============================================================
-#if !defined(AMREX_USE_GPU)
-                if (diag_cell) {
-                    std::printf("WDM6-CPP_PRE_G10C %3d %24.16E %24.16E %24.16E %24.16E %24.16E %24.16E %24.16E %24.16E %24.16E\n",
-                                k + 1,
-                                static_cast<double>(qc_arr(i,j,k)),
-                                static_cast<double>(qi_arr(i,j,k)),
-                                static_cast<double>(nc_arr(i,j,k)),
-                                static_cast<double>(t_arr(i,j,k)),
-                                static_cast<double>(t0c - t_arr(i,j,k)),
-                                static_cast<double>(den_arr(i,j,k)),
-                                static_cast<double>(rslopec_arr(i,j,k)),
-                                static_cast<double>(cpm_arr(i,j,k)),
-                                static_cast<double>(xl_arr(i,j,k)));
-                std::fflush(stdout);
-                }
-#endif
 
                 // Latent heat of FUSION, per the Fortran's per-k prologue:
                 //     xlf = xls-xl(i,k) ;  if(supcol.lt.0.) xlf = xlf0
@@ -2139,41 +1966,11 @@ void WDM6::Advance(const Real& dt_advance,
                     qc_arr(i,j,k) -= pfrzdtc;
                 }
 
-#if !defined(AMREX_USE_GPU)
-                if (diag_cell) {
-                    const Real rslopec_g10c = rslopec_arr(i,j,k);
-                    std::printf("WDM6-CPP_POST_G10C %3d %24.16E %24.16E %24.16E %24.16E %24.16E %24.16E\n",
-                                k + 1,
-                                static_cast<double>(qc_arr(i,j,k)),
-                                static_cast<double>(qi_arr(i,j,k)),
-                                static_cast<double>(nc_arr(i,j,k)),
-                                static_cast<double>(t_arr(i,j,k)),
-                                static_cast<double>(t0c - t_arr(i,j,k)),
-                                static_cast<double>(rslopec_g10c * rslopec_g10c * rslopec_g10c));
-                std::fflush(stdout);
-                }
-#endif
 
             // ============================================================
             // Step 3m: G10d Rain-to-Graupel Freezing
             // Exact port of bounded Fortran block (pgfrz, rain freezing)
             // ============================================================
-#if !defined(AMREX_USE_GPU)
-                if (diag_cell) {
-                    std::printf("WDM6-CPP_PRE_G10D %3d %24.16E %24.16E %24.16E %24.16E %24.16E %24.16E %24.16E %24.16E %24.16E\n",
-                                k + 1,
-                                static_cast<double>(qr_arr(i,j,k)),
-                                static_cast<double>(qg_arr(i,j,k)),
-                                static_cast<double>(nr_arr(i,j,k)),
-                                static_cast<double>(t_arr(i,j,k)),
-                                static_cast<double>(t0c - t_arr(i,j,k)),
-                                static_cast<double>(den_arr(i,j,k)),
-                                static_cast<double>(rslope3_arr(i,j,k,0)),
-                                static_cast<double>(cpm_arr(i,j,k)),
-                                static_cast<double>(xl_arr(i,j,k)));
-                std::fflush(stdout);
-                }
-#endif
 
                 // Latent heat of fusion, as in G10a-G10c above.
 
@@ -2194,38 +1991,6 @@ void WDM6::Advance(const Real& dt_advance,
                                  * expterm * rs3 * rs3 * dtcld;
                     pfrzdtr = amrex::min(pfrzdtr, qr_arr(i,j,k));
 
-#if !defined(AMREX_USE_GPU)
-                    // Tier 2 forensic decomposition of pgfrz, native leg. One
-                    // var per line in the WSM6-DIAG-T2 schema; field order and
-                    // the 20-fractional-digit value token are contractual and
-                    // must match wdm6_emit_t2 in ERF_module_mp_wdm6.F90.
-                    // Emitted before the nr update below so the printed nr is
-                    // the value pfrzdtr consumed.
-                    if (microphysics_debug >= 2 && loop == 0 &&
-                        i == diag_i && j == diag_j && (k + 1) >= 40 && (k + 1) <= 50) {
-                        auto emit_t2 = [&] (const char* var, Real value) {
-                            std::printf("WDM6-DIAG-T2 diag_schema=1 tag=G10D phase=pgfrz"
-                                        " source_layer=NATIVE_CPP path_id=cpp expr_id=pgfrz"
-                                        " store_id=%s loop=%d i_dbg=%d j_dbg=%d"
-                                        " k_dbg=%d k_raw=%d debug_level=%d var=%s value=%+.20E\n",
-                                        var, loop, diag_i, diag_j,
-                                        k - klo + 1, k, microphysics_debug,
-                                        var, static_cast<double>(value));
-                        };
-                        emit_t2("pi",       pi_wdm6_loc);
-                        emit_t2("pisq",     pi_wdm6_loc * pi_wdm6_loc);
-                        emit_t2("pfrz1",    pfrz1_loc);
-                        emit_t2("pfrz2",    pfrz2_loc);
-                        emit_t2("denr",     denr);
-                        emit_t2("dtcld",    dtcld);
-                        emit_t2("supcolt",  supcolt);
-                        emit_t2("expterm",  expterm);
-                        emit_t2("rslope3r", rs3);
-                        emit_t2("nr",       nr_arr(i,j,k));
-                        emit_t2("den",      den_arr(i,j,k));
-                        emit_t2("pfrzdtr",  pfrzdtr);
-                    }
-#endif
 
                     // Number freezing rate (conditional on nr > nrmin)
                     if (nr_arr(i,j,k) > Real(nrmin)) {
@@ -2351,220 +2116,12 @@ void WDM6::Advance(const Real& dt_advance,
             ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
                 // Recompute work1 diffusion coefficients using current state
                 if (i == diag_i && j == diag_j && k == diag_k) {
-#if !defined(AMREX_USE_GPU)
-                    std::printf("WDM6-CPP_G11V_DIFFAC_PRE1 %3d %24.16E %24.16E %24.16E %24.16E %24.16E %24.16E\n",
-                                diag_k + 1,
-                                static_cast<double>(xl_arr(i,j,k)),
-                                static_cast<double>(p_arr(i,j,k)),
-                                static_cast<double>(t_arr(i,j,k)),
-                                static_cast<double>(den_arr(i,j,k)),
-                                static_cast<double>(qsatw_arr(i,j,k)),
-                                static_cast<double>(rv));
-                    std::printf("WDM6-CPP_G11V_DIFFAC_INT5 %3d %24.16E\n",
-                                diag_k + 1,
-                                static_cast<double>(t_arr(i,j,k) * std::sqrt(t_arr(i,j,k))));
-                    std::printf("WDM6-CPP_G11V_DIFFAC_INT6 %3d %24.16E\n",
-                                diag_k + 1,
-                                static_cast<double>(t_arr(i,j,k) + Real(120.0)));
-                    std::printf("WDM6-CPP_G11V_DIFFAC_INT7 %3d %24.16E\n",
-                                diag_k + 1,
-                                static_cast<double>((t_arr(i,j,k) * std::sqrt(t_arr(i,j,k)))
-                                                   /(t_arr(i,j,k) + Real(120.0))));
-                    std::printf("WDM6-CPP_G11V_DIFFAC_INT8 %3d %24.16E\n",
-                                diag_k + 1,
-                                static_cast<double>(wdm6_literal(1.496e-6)
-                                                   * (t_arr(i,j,k) * std::sqrt(t_arr(i,j,k)))
-                                                   /(t_arr(i,j,k) + Real(120.0))
-                                                   / den_arr(i,j,k)));
-                    std::printf("WDM6-CPP_G11V_DIFFAC_INT21 %3d %24.16E\n",
-                                diag_k + 1,
-                                static_cast<double>(wdm6_literal(1.496e-6)));
-                    std::printf("WDM6-CPP_G11V_DIFFAC_INT22 %3d %24.16E\n",
-                                diag_k + 1,
-                                static_cast<double>(wdm6_literal(1.496e-6)
-                                                   * (t_arr(i,j,k) * std::sqrt(t_arr(i,j,k)))));
-                    std::printf("WDM6-CPP_G11V_DIFFAC_INT23 %3d %24.16E\n",
-                                diag_k + 1,
-                                static_cast<double>(wdm6_literal(1.496e-6)
-                                                   * (t_arr(i,j,k) * std::sqrt(t_arr(i,j,k)))
-                                                   /(t_arr(i,j,k) + Real(120.0))));
-                    std::printf("WDM6-CPP_G11V_DIFFAC_INT24 %3d %24.16E\n",
-                                diag_k + 1,
-                                static_cast<double>(wdm6_literal(1.496e-6)
-                                                   * (t_arr(i,j,k) * std::sqrt(t_arr(i,j,k)))
-                                                   /(t_arr(i,j,k) + Real(120.0))
-                                                   / den_arr(i,j,k)));
-                    std::printf("WDM6-CPP_G11V_DIFFAC_INT0 %3d %24.16E\n",
-                                diag_k + 1,
-                                static_cast<double>(wdm6_viscos(t_arr(i,j,k), den_arr(i,j,k))));
-                    std::fflush(stdout);
-                    std::printf("WDM6-CPP_G11V_DIFFAC_INT1 %3d %24.16E\n",
-                                diag_k + 1,
-                                static_cast<double>(Real(1.414e3) * wdm6_viscos(t_arr(i,j,k), den_arr(i,j,k)) * den_arr(i,j,k)));
-                    std::printf("WDM6-CPP_G11V_DIFFAC_INT13 %3d %24.16E\n",
-                                diag_k + 1,
-                                static_cast<double>(Real(1.414e3) * wdm6_viscos(t_arr(i,j,k), den_arr(i,j,k))));
-                    std::printf("WDM6-CPP_G11V_DIFFAC_INT14 %3d %24.16E\n",
-                                diag_k + 1,
-                                static_cast<double>(Real(1.414e3) * wdm6_viscos(t_arr(i,j,k), den_arr(i,j,k))
-                                                   * den_arr(i,j,k)));
-                    std::printf("WDM6-CPP_G11V_DIFFAC_INT15 %3d %24.16E\n",
-                                diag_k + 1,
-                                static_cast<double>(Real(1.414e3) * wdm6_viscos(t_arr(i,j,k), den_arr(i,j,k))
-                                                   * den_arr(i,j,k) * Real(rv)));
-                    std::printf("WDM6-CPP_G11V_DIFFAC_INT16 %3d %24.16E\n",
-                                diag_k + 1,
-                                static_cast<double>(Real(1.414e3) * wdm6_viscos(t_arr(i,j,k), den_arr(i,j,k))
-                                                   * den_arr(i,j,k) * Real(rv)
-                                                   * t_arr(i,j,k) * t_arr(i,j,k)));
-                    std::printf("WDM6-CPP_G11V_DIFFAC_INT29 %3d %24.16E\n",
-                                diag_k + 1,
-                                static_cast<double>(xl_arr(i,j,k) * xl_arr(i,j,k)));
-                    std::printf("WDM6-CPP_G11V_DIFFAC_INT30 %3d %24.16E\n",
-                                diag_k + 1,
-                                static_cast<double>(den_arr(i,j,k) * xl_arr(i,j,k) * xl_arr(i,j,k)));
-                    std::printf("WDM6-CPP_G11V_DIFFAC_INT31 %3d %24.16E\n",
-                                diag_k + 1,
-                                static_cast<double>(Real(1.414e3) * wdm6_viscos(t_arr(i,j,k), den_arr(i,j,k))
-                                                   * den_arr(i,j,k)));
-                    std::printf("WDM6-CPP_G11V_DIFFAC_INT32 %3d %24.16E\n",
-                                diag_k + 1,
-                                static_cast<double>(Real(1.414e3) * wdm6_viscos(t_arr(i,j,k), den_arr(i,j,k))
-                                                   * den_arr(i,j,k) * Real(rv)));
-                    std::printf("WDM6-CPP_G11V_DIFFAC_INT33 %3d %24.16E\n",
-                                diag_k + 1,
-                                static_cast<double>(Real(1.414e3) * wdm6_viscos(t_arr(i,j,k), den_arr(i,j,k))
-                                                   * den_arr(i,j,k) * Real(rv)
-                                                   * t_arr(i,j,k)));
-                    std::printf("WDM6-CPP_G11V_DIFFAC_INT34 %3d %24.16E\n",
-                                diag_k + 1,
-                                static_cast<double>(Real(1.414e3) * wdm6_viscos(t_arr(i,j,k), den_arr(i,j,k))
-                                                   * den_arr(i,j,k) * Real(rv)
-                                                   * t_arr(i,j,k) * t_arr(i,j,k)));
-                    std::printf("WDM6-CPP_G11V_DIFFAC_INT35 %3d %24.16E\n",
-                                diag_k + 1,
-                                static_cast<double>(den_arr(i,j,k) * xl_arr(i,j,k) * xl_arr(i,j,k)
-                                                   /(Real(1.414e3) * wdm6_viscos(t_arr(i,j,k), den_arr(i,j,k))
-                                                     * den_arr(i,j,k) * Real(rv)
-                                                     * t_arr(i,j,k) * t_arr(i,j,k))));
-                    std::printf("WDM6-CPP_G11V_DIFFAC_INT36 %3d %24.16E\n",
-                                diag_k + 1,
-                                static_cast<double>(Real(1.0)
-                                                   /(qsatw_arr(i,j,k)
-                                                     * (wdm6_literal(8.794e-5)
-                                                        * std::exp(std::log(t_arr(i,j,k)) * wdm6_literal(1.81))
-                                                        / p_arr(i,j,k)))));
-                    std::printf("WDM6-CPP_G11V_DIFFAC_INT38 %3d %24.16E\n",
-                                diag_k + 1,
-                                static_cast<double>(Real(1.0)/qsatw_arr(i,j,k)));
-                    std::printf("WDM6-CPP_G11V_DIFFAC_INT39 %3d %24.16E\n",
-                                diag_k + 1,
-                                static_cast<double>(Real(1.0)/(wdm6_literal(8.794e-5)
-                                                       * std::exp(std::log(t_arr(i,j,k)) * wdm6_literal(1.81))
-                                                       / p_arr(i,j,k))));
-                    std::printf("WDM6-CPP_G11V_DIFFAC_INT40 %3d %24.16E\n",
-                                diag_k + 1,
-                                static_cast<double>((Real(1.0)/qsatw_arr(i,j,k))
-                                                   *(Real(1.0)/(wdm6_literal(8.794e-5)
-                                                      * std::exp(std::log(t_arr(i,j,k)) * wdm6_literal(1.81))
-                                                      / p_arr(i,j,k)))));
-                    std::printf("WDM6-CPP_G11V_DIFFAC_INT41 %3d %24.16E\n",
-                                diag_k + 1,
-                                static_cast<double>(qsatw_arr(i,j,k)
-                                                   * (wdm6_literal(8.794e-5)
-                                                      * std::exp(std::log(t_arr(i,j,k)) * wdm6_literal(1.81))
-                                                      / p_arr(i,j,k))));
-                    std::printf("WDM6-CPP_G11V_DIFFAC_INT37 %3d %24.16E\n",
-                                diag_k + 1,
-                                static_cast<double>(den_arr(i,j,k) * xl_arr(i,j,k) * xl_arr(i,j,k)
-                                                   /(Real(1.414e3) * wdm6_viscos(t_arr(i,j,k), den_arr(i,j,k))
-                                                     * den_arr(i,j,k) * Real(rv)
-                                                     * t_arr(i,j,k) * t_arr(i,j,k))
-                                                   + Real(1.0)
-                                                   /(qsatw_arr(i,j,k)
-                                                     * (wdm6_literal(8.794e-5)
-                                                        * std::exp(std::log(t_arr(i,j,k)) * wdm6_literal(1.81))
-                                                        / p_arr(i,j,k)))));
-                    std::printf("WDM6-CPP_G11V_DIFFAC_INT2 %3d %24.16E\n",
-                                diag_k + 1,
-                                static_cast<double>(wdm6_literal(8.794e-5) * std::exp(std::log(t_arr(i,j,k)) * wdm6_literal(1.81)) / p_arr(i,j,k)));
-                    std::printf("WDM6-CPP_G11V_DIFFAC_INT24 %3d %24.16E\n",
-                                diag_k + 1,
-                                static_cast<double>(std::log(t_arr(i,j,k))));
-                    std::printf("WDM6-CPP_G11V_DIFFAC_INT25 %3d %24.16E\n",
-                                diag_k + 1,
-                                static_cast<double>(std::log(t_arr(i,j,k)) * wdm6_literal(1.81)));
-                    std::printf("WDM6-CPP_G11V_DIFFAC_INT26 %3d %24.16E\n",
-                                diag_k + 1,
-                                static_cast<double>(std::exp(std::log(t_arr(i,j,k)) * wdm6_literal(1.81))));
-                    std::printf("WDM6-CPP_G11V_DIFFAC_INT27 %3d %24.16E\n",
-                                diag_k + 1,
-                                static_cast<double>(wdm6_literal(8.794e-5) * std::exp(std::log(t_arr(i,j,k)) * wdm6_literal(1.81))
-                                                   / p_arr(i,j,k)));
-                    std::printf("WDM6-CPP_G11V_DIFFAC_INT28 %3d %24.16E\n",
-                                diag_k + 1,
-                                static_cast<double>(wdm6_literal(8.794e-5) * std::exp(std::log(t_arr(i,j,k)) * wdm6_literal(1.81))
-                                                   / p_arr(i,j,k)));
-                    std::fflush(stdout);
-#endif
                 }
                 work1_arr(i,j,k,0) = wdm6_diffac(xl_arr(i,j,k),  p_arr(i,j,k), t_arr(i,j,k),
                                                   den_arr(i,j,k), qsatw_arr(i,j,k), Real(rv));  // qs(:,:,1)
                 if (i == diag_i && j == diag_j && k == diag_k) {
                 }
                 if (i == diag_i && j == diag_j && k == diag_k) {
-#if !defined(AMREX_USE_GPU)
-                    std::printf("WDM6-CPP_G11V_DIFFAC_PRE2 %3d %24.16E %24.16E %24.16E %24.16E %24.16E %24.16E\n",
-                                diag_k + 1,
-                                static_cast<double>(Real(xls)),
-                                static_cast<double>(p_arr(i,j,k)),
-                                static_cast<double>(t_arr(i,j,k)),
-                                static_cast<double>(den_arr(i,j,k)),
-                                static_cast<double>(qsati_arr(i,j,k)),
-                                static_cast<double>(rv));
-                    std::printf("WDM6-CPP_G11V_DIFFAC_INT9 %3d %24.16E\n",
-                                diag_k + 1,
-                                static_cast<double>(t_arr(i,j,k) * std::sqrt(t_arr(i,j,k))));
-                    std::printf("WDM6-CPP_G11V_DIFFAC_INT10 %3d %24.16E\n",
-                                diag_k + 1,
-                                static_cast<double>(t_arr(i,j,k) + Real(120.0)));
-                    std::printf("WDM6-CPP_G11V_DIFFAC_INT11 %3d %24.16E\n",
-                                diag_k + 1,
-                                static_cast<double>((t_arr(i,j,k) * std::sqrt(t_arr(i,j,k)))
-                                                   /(t_arr(i,j,k) + Real(120.0))));
-                    std::printf("WDM6-CPP_G11V_DIFFAC_INT12 %3d %24.16E\n",
-                                diag_k + 1,
-                                static_cast<double>(wdm6_literal(1.496e-6)
-                                                   * (t_arr(i,j,k) * std::sqrt(t_arr(i,j,k)))
-                                                   /(t_arr(i,j,k) + Real(120.0))
-                                                   / den_arr(i,j,k)));
-                    std::printf("WDM6-CPP_G11V_DIFFAC_INT3 %3d %24.16E\n",
-                                diag_k + 1,
-                                static_cast<double>(den_arr(i,j,k) * Real(xls) * Real(xls)
-                                                   /(Real(1.414e3) * wdm6_viscos(t_arr(i,j,k), den_arr(i,j,k))
-                                                     * den_arr(i,j,k) * Real(rv)
-                                                     * t_arr(i,j,k) * t_arr(i,j,k))));
-                    std::printf("WDM6-CPP_G11V_DIFFAC_INT17 %3d %24.16E\n",
-                                diag_k + 1,
-                                static_cast<double>(den_arr(i,j,k) * Real(xls) * Real(xls)));
-                    std::printf("WDM6-CPP_G11V_DIFFAC_INT18 %3d %24.16E\n",
-                                diag_k + 1,
-                                static_cast<double>(Real(1.414e3) * wdm6_viscos(t_arr(i,j,k), den_arr(i,j,k))));
-                    std::printf("WDM6-CPP_G11V_DIFFAC_INT19 %3d %24.16E\n",
-                                diag_k + 1,
-                                static_cast<double>(Real(1.414e3) * wdm6_viscos(t_arr(i,j,k), den_arr(i,j,k))
-                                                   * den_arr(i,j,k)));
-                    std::printf("WDM6-CPP_G11V_DIFFAC_INT20 %3d %24.16E\n",
-                                diag_k + 1,
-                                static_cast<double>(Real(1.414e3) * wdm6_viscos(t_arr(i,j,k), den_arr(i,j,k))
-                                                   * den_arr(i,j,k) * Real(rv)));
-                    std::printf("WDM6-CPP_G11V_DIFFAC_INT4 %3d %24.16E\n",
-                                diag_k + 1,
-                                static_cast<double>(Real(1.0) / (qsati_arr(i,j,k)
-                                                   * (wdm6_literal(8.794e-5) * std::exp(std::log(t_arr(i,j,k)) * wdm6_literal(1.81))
-                                                      / p_arr(i,j,k)))));
-                    std::fflush(stdout);
-#endif
                 }
                 work1_arr(i,j,k,1) = wdm6_diffac(Real(xls),       p_arr(i,j,k), t_arr(i,j,k),
                                                   den_arr(i,j,k), qsati_arr(i,j,k), Real(rv));  // qs(:,:,2)
@@ -2776,33 +2333,6 @@ void WDM6::Advance(const Real& dt_advance,
                         * std::abs(vt2ave - vt2i) * acrfac / Real(4.0);
                     psaci_arr(i,j,k) = amrex::min(psaci_arr(i,j,k), qi_val / dtcld);
 
-#if !defined(AMREX_USE_GPU)
-                    // Tier 2 forensic decomposition of psaci, native leg. One
-                    // var per line in the WSM6-DIAG-T2 schema; field order and
-                    // the 20-fractional-digit value token are contractual and
-                    // must match wdm6_emit_t2 in ERF_module_mp_wdm6.F90
-                    // exactly. Same shape as the G13E pidep decomposition.
-                    if (microphysics_debug >= 2 && loop == 0 &&
-                        i == diag_i && j == diag_j && (k + 1) >= 85 && (k + 1) <= 95) {
-                        auto emit_t2 = [&] (const char* var, Real value) {
-                            std::printf("WDM6-DIAG-T2 diag_schema=1 tag=G13B phase=psaci"
-                                        " source_layer=NATIVE_CPP path_id=cpp expr_id=psaci"
-                                        " store_id=%s loop=%d i_dbg=%d j_dbg=%d"
-                                        " k_dbg=%d k_raw=%d debug_level=%d var=%s value=%+.20E\n",
-                                        var, loop, diag_i, diag_j,
-                                        k - klo + 1, k, microphysics_debug,
-                                        var, static_cast<double>(value));
-                        };
-                        emit_t2("eacrs",    eacrs);
-                        emit_t2("diameter", diameter);
-                        emit_t2("vt2i",     vt2i);
-                        emit_t2("vt2ave",   vt2ave);
-                        emit_t2("vt2diff",  std::abs(vt2ave - vt2i));
-                        emit_t2("acrfac",   acrfac);
-                        emit_t2("n0sfac",   n0sfac);
-                        emit_t2("psaci",    psaci_arr(i,j,k));
-                    }
-#endif
                 }
 
                 if (qg_arr(i,j,k) > Real(qcrmin)) {
@@ -3076,40 +2606,6 @@ void WDM6::Advance(const Real& dt_advance,
                         ifsat = 1;
                     }
                 }
-#if !defined(AMREX_USE_GPU)
-                // Tier 2 forensic decomposition of pidep, native leg. One var
-                // per line in the WSM6-DIAG-T2 schema; field order and the
-                // 20-fractional-digit value token are contractual and must
-                // match wdm6_emit_t2 in ERF_module_mp_wdm6.F90 exactly.
-                if (microphysics_debug >= 2 && loop == 0 &&
-                    i == diag_i && j == diag_j && (k + 1) >= 88 && (k + 1) <= 100) {
-                    auto emit_t2 = [&] (const char* var, Real value) {
-                        std::printf("WDM6-DIAG-T2 diag_schema=1 tag=G13E phase=pidep"
-                                    " source_layer=NATIVE_CPP path_id=cpp expr_id=pidep"
-                                    " store_id=%s loop=%d i_dbg=%d j_dbg=%d"
-                                    " k_dbg=%d k_raw=%d debug_level=%d var=%s value=%+.20E\n",
-                                    var, loop, diag_i, diag_j,
-                                    k - klo + 1, k, microphysics_debug,
-                                    var, static_cast<double>(value));
-                    };
-                    emit_t2("supcol",    supcol);
-                    emit_t2("qi",        qi_val);
-                    emit_t2("xni",       xni);
-                    emit_t2("xmi",       xmi);
-                    emit_t2("diameter",  diameter);
-                    emit_t2("rhi",       rhi);
-                    emit_t2("work1i",    work1i);
-                    emit_t2("supsat",    supsat);
-                    emit_t2("satdt",     satdt);
-                    emit_t2("prevp",     prevp_arr(i,j,k));
-                    emit_t2("pidep_raw", Real(4.0) * diameter * xni
-                                         * (rhi - Real(1.0)) / work1i);
-                    emit_t2("supice",    satdt - prevp_arr(i,j,k));
-                    emit_t2("pidep",     pidep_arr(i,j,k));
-                    emit_t2("ifsat",     Real(ifsat));
-                    std::fflush(stdout);
-                }
-#endif
 
                 if (qs_val > Real(0.0) && ifsat != 1) {
                     const Real coeres_s = rslope2_arr(i,j,k,1)
@@ -3134,31 +2630,6 @@ void WDM6::Advance(const Real& dt_advance,
                                  + psdep_arr(i,j,k)) >= std::abs(satdt)) {
                         ifsat = 1;
                     }
-#if !defined(AMREX_USE_GPU)
-                    // Tier 2 forensic decomposition of psdep, native leg. Must
-                    // match wdm6_emit_t2 in ERF_module_mp_wdm6.F90 exactly in
-                    // field order and value token.
-                    if (microphysics_debug >= 2 && loop == 0 &&
-                        i == diag_i && j == diag_j && (k + 1) >= 85 && (k + 1) <= 98) {
-                        auto emit_t2 = [&] (const char* var, Real value) {
-                            std::printf("WDM6-DIAG-T2 diag_schema=1 tag=G13E phase=psdep"
-                                        " source_layer=NATIVE_CPP path_id=cpp expr_id=psdep"
-                                        " store_id=%s loop=%d i_dbg=%d j_dbg=%d"
-                                        " k_dbg=%d k_raw=%d debug_level=%d var=%s value=%+.20E\n",
-                                        var, loop, diag_i, diag_j,
-                                        k - klo + 1, k, microphysics_debug,
-                                        var, static_cast<double>(value));
-                        };
-                        emit_t2("precs1", precs1_loc);
-                        emit_t2("precs2", precs2_loc);
-                        emit_t2("coeres", coeres_s);
-                        emit_t2("term1",  precs1_loc * rslope2_arr(i,j,k,1));
-                        emit_t2("term2",  precs2_loc * work2_arr(i,j,k) * coeres_s);
-                        emit_t2("rhm1",   rhi - Real(1.0));
-                        emit_t2("work1s", work1i);
-                        emit_t2("psdep",  psdep_arr(i,j,k));
-                    }
-#endif
                 }
 
                 if (qg_val > Real(0.0) && ifsat != 1) {
@@ -3198,27 +2669,6 @@ void WDM6::Advance(const Real& dt_advance,
                         (roqi0 / den_arr(i,j,k) - amrex::max(qi_val, Real(0.0))) / dtcld);
                     pigen_arr(i,j,k) = amrex::min(
                         amrex::min(pigen_raw, satdt), supice);
-#if !defined(AMREX_USE_GPU)
-                    if (microphysics_debug >= 1 &&
-                        i == diag_i && j == diag_j && k >= 39 && k <= 41) {
-                        std::printf("WDM6-CPP_T2_G13E_PIGEN_EXACT k=%3d supsat=%24.16E satdt=%24.16E supice=%24.16E supcol=%24.16E xni0=%24.16E roqi0=%24.16E den=%24.16E qi=%24.16E\n",
-                                    k + 1,
-                                    static_cast<double>(supsat),
-                                    static_cast<double>(satdt),
-                                    static_cast<double>(supice),
-                                    static_cast<double>(supcol),
-                                    static_cast<double>(xni0),
-                                    static_cast<double>(roqi0),
-                                    static_cast<double>(den_arr(i,j,k)),
-                                    static_cast<double>(amrex::max(qi_val, Real(0.0))));
-                        std::printf("WDM6-CPP_T2_G13E_PIGEN_POST k=%3d pigen_raw=%24.16E satdt=%24.16E supice=%24.16E pigen=%24.16E\n",
-                                    k + 1,
-                                    static_cast<double>(pigen_raw),
-                                    static_cast<double>(satdt),
-                                    static_cast<double>(supice),
-                                    static_cast<double>(pigen_arr(i,j,k)));
-                    }
-#endif
                 }
             });
 
@@ -3593,74 +3043,6 @@ void WDM6::Advance(const Real& dt_advance,
                 }
             });
 
-#if !defined(AMREX_USE_GPU)
-            if (microphysics_debug > 0 && loop == 0 && diag_col_in_tile) {
-                for (int kdbg = klo; kdbg <= khi; ++kdbg) {
-                std::printf("WDM6-CPP_POST_G14 %3d %24.16E %24.16E %24.16E %24.16E %24.16E %24.16E %24.16E %24.16E %24.16E\n",
-                            kdbg + 1,
-                            static_cast<double>(qv_arr(diag_i,diag_j,kdbg)),
-                            static_cast<double>(qc_arr(diag_i,diag_j,kdbg)),
-                            static_cast<double>(qi_arr(diag_i,diag_j,kdbg)),
-                            static_cast<double>(qr_arr(diag_i,diag_j,kdbg)),
-                            static_cast<double>(qs_arr(diag_i,diag_j,kdbg)),
-                            static_cast<double>(qg_arr(diag_i,diag_j,kdbg)),
-                            static_cast<double>(nc_arr(diag_i,diag_j,kdbg)),
-                            static_cast<double>(nr_arr(diag_i,diag_j,kdbg)),
-                            static_cast<double>(t_arr(diag_i,diag_j,kdbg)));
-                std::fflush(stdout);
-                }
-            }
-            if (microphysics_debug >= 1 && diag_col_in_tile) {
-                const int k_lo = amrex::max(klo, 39);
-                const int k_hi = amrex::min(khi, 41);
-                for (int kk = k_lo; kk <= k_hi; ++kk) {
-                    const Real work2_cold = -(prevp_arr(diag_i,diag_j,kk)
-                                            + psdep_arr(diag_i,diag_j,kk)
-                                            + pgdep_arr(diag_i,diag_j,kk)
-                                            + pigen_arr(diag_i,diag_j,kk)
-                                            + pidep_arr(diag_i,diag_j,kk));
-                    const Real xlf = Real(xls) - xl_arr(diag_i,diag_j,kk);
-                    const Real xlwork2_cold = -Real(xls) * (psdep_arr(diag_i,diag_j,kk)
-                                                          + pgdep_arr(diag_i,diag_j,kk)
-                                                          + pidep_arr(diag_i,diag_j,kk)
-                                                          + pigen_arr(diag_i,diag_j,kk))
-                                             - xl_arr(diag_i,diag_j,kk) * prevp_arr(diag_i,diag_j,kk)
-                                             - xlf * (piacr_arr(diag_i,diag_j,kk)
-                                                    + paacw_arr(diag_i,diag_j,kk)
-                                                    + paacw_arr(diag_i,diag_j,kk)
-                                                    + pgacr_arr(diag_i,diag_j,kk)
-                                                    + psacr_arr(diag_i,diag_j,kk));
-                    std::printf("WDM6-CPP_T2_G14_POST k=%3d qv=%24.16E qc=%24.16E nn=%24.16E nc=%24.16E t=%24.16E\n",
-                                kk + 1,
-                                static_cast<double>(qv_arr(diag_i,diag_j,kk)),
-                                static_cast<double>(qc_arr(diag_i,diag_j,kk)),
-                                static_cast<double>(nn_arr(diag_i,diag_j,kk)),
-                                static_cast<double>(nc_arr(diag_i,diag_j,kk)),
-                                static_cast<double>(t_arr(diag_i,diag_j,kk)));
-                    std::printf("WDM6-CPP_T2_G14_COLD_VAPOR k=%3d work2=%24.16E prevp=%24.16E psdep=%24.16E pgdep=%24.16E pigen=%24.16E pidep=%24.16E dtcld=%24.16E\n",
-                                kk + 1,
-                                static_cast<double>(work2_cold),
-                                static_cast<double>(prevp_arr(diag_i,diag_j,kk)),
-                                static_cast<double>(psdep_arr(diag_i,diag_j,kk)),
-                                static_cast<double>(pgdep_arr(diag_i,diag_j,kk)),
-                                static_cast<double>(pigen_arr(diag_i,diag_j,kk)),
-                                static_cast<double>(pidep_arr(diag_i,diag_j,kk)),
-                                static_cast<double>(dtcld));
-                    std::printf("WDM6-CPP_T2_G14_COLD_THERMO k=%3d xlwork2=%24.16E prevp=%24.16E psdep=%24.16E pgdep=%24.16E pigen=%24.16E pidep=%24.16E piacr=%24.16E paacw=%24.16E pgacr=%24.16E\n",
-                                kk + 1,
-                                static_cast<double>(xlwork2_cold),
-                                static_cast<double>(prevp_arr(diag_i,diag_j,kk)),
-                                static_cast<double>(psdep_arr(diag_i,diag_j,kk)),
-                                static_cast<double>(pgdep_arr(diag_i,diag_j,kk)),
-                                static_cast<double>(pigen_arr(diag_i,diag_j,kk)),
-                                static_cast<double>(pidep_arr(diag_i,diag_j,kk)),
-                                static_cast<double>(piacr_arr(diag_i,diag_j,kk)),
-                                static_cast<double>(paacw_arr(diag_i,diag_j,kk)),
-                                static_cast<double>(pgacr_arr(diag_i,diag_j,kk)));
-                }
-                std::fflush(stdout);
-            }
-#endif
 
 
             const Real hsub = Real(xls);
@@ -3699,34 +3081,6 @@ void WDM6::Advance(const Real& dt_advance,
                 rhw_arr(i,j,k) = amrex::max(qv_arr(i,j,k) / qsw, Real(qmin));
             });
 
-#if !defined(AMREX_USE_GPU)
-            if (microphysics_debug > 0 && loop == 0 && diag_col_in_tile) {
-                for (int kdbg = klo; kdbg <= khi; ++kdbg) {
-                std::printf("WDM6-CPP_POST_G15 %3d %24.16E %24.16E %24.16E %24.16E %24.16E %24.16E\n",
-                            kdbg + 1,
-                            static_cast<double>(qv_arr(diag_i,diag_j,kdbg)),
-                            static_cast<double>(p_arr(diag_i,diag_j,kdbg)),
-                            static_cast<double>(t_arr(diag_i,diag_j,kdbg)),
-                            static_cast<double>(qsatw_arr(diag_i,diag_j,kdbg)),
-                            static_cast<double>(qsati_arr(diag_i,diag_j,kdbg)),
-                            static_cast<double>(rhw_arr(diag_i,diag_j,kdbg)));
-                std::fflush(stdout);
-                }
-            }
-            if (microphysics_debug >= 1 && diag_col_in_tile) {
-                const int k_lo = amrex::max(klo, 39);
-                const int k_hi = amrex::min(khi, 41);
-                for (int kk = k_lo; kk <= k_hi; ++kk) {
-                    std::printf("WDM6-CPP_T2_G15_POST k=%3d qv=%24.16E qsatw=%24.16E rhw=%24.16E t=%24.16E\n",
-                                kk + 1,
-                                static_cast<double>(qv_arr(diag_i,diag_j,kk)),
-                                static_cast<double>(qsatw_arr(diag_i,diag_j,kk)),
-                                static_cast<double>(rhw_arr(diag_i,diag_j,kk)),
-                                static_cast<double>(t_arr(diag_i,diag_j,kk)));
-                }
-                std::fflush(stdout);
-            }
-#endif
 
             const Real g16a_cbrt24 = wdm6_default_real_pow(24.0, 0.3333333);
 
@@ -3794,38 +3148,6 @@ void WDM6::Advance(const Real& dt_advance,
             });
 
 
-#if !defined(AMREX_USE_GPU)
-            if (microphysics_debug > 0 && loop == 0 && diag_col_in_tile) {
-                for (int kdbg = klo; kdbg <= khi; ++kdbg) {
-                std::printf("WDM6-CPP_PRE_G16B %3d %24.16E %24.16E %24.16E %24.16E\n",
-                            kdbg + 1,
-                            static_cast<double>(rhw_arr(diag_i,diag_j,kdbg)),
-                            static_cast<double>(qc_arr(diag_i,diag_j,kdbg)),
-                            static_cast<double>(nn_arr(diag_i,diag_j,kdbg)),
-                            static_cast<double>(nc_arr(diag_i,diag_j,kdbg)));
-                std::fflush(stdout);
-                }
-            }
-            if (microphysics_debug >= 1 && diag_col_in_tile) {
-                const int k_lo = amrex::max(klo, 39);
-                const int k_hi = amrex::min(khi, 41);
-                for (int kk = k_lo; kk <= k_hi; ++kk) {
-                    std::printf("WDM6-CPP_T2_G16B_ACT_PRE k=%3d RH=%12.4E qc=%12.4E nn,nc=%12.4E %12.4E\n",
-                                kk + 1,
-                                static_cast<double>(rhw_arr(diag_i,diag_j,kk)),
-                                static_cast<double>(qc_arr(diag_i,diag_j,kk)),
-                                static_cast<double>(nn_arr(diag_i,diag_j,kk)),
-                                static_cast<double>(nc_arr(diag_i,diag_j,kk)));
-                    std::printf("WDM6-CPP_T2_G16B_ACT_PRE_EXACT k=%3d rh=%24.16E qc=%24.16E nn=%24.16E nc=%24.16E\n",
-                                kk + 1,
-                                static_cast<double>(rhw_arr(diag_i,diag_j,kk)),
-                                static_cast<double>(qc_arr(diag_i,diag_j,kk)),
-                                static_cast<double>(nn_arr(diag_i,diag_j,kk)),
-                                static_cast<double>(nc_arr(diag_i,diag_j,kk)));
-                }
-                std::fflush(stdout);
-            }
-#endif
 
             ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
                 if (rhw_arr(i,j,k) > Real(1.0)) {
@@ -3888,45 +3210,6 @@ void WDM6::Advance(const Real& dt_advance,
                 t_arr(i,j,k) += pcond * xl_arr(i,j,k) / cpm_arr(i,j,k) * dtcld;
             });
 
-#if !defined(AMREX_USE_GPU)
-            if (microphysics_debug > 0 && loop == 0 && diag_col_in_tile) {
-                for (int kdbg = klo; kdbg <= khi; ++kdbg) {
-                std::printf("WDM6-CPP_POST_G16B %3d %24.16E %24.16E %24.16E %24.16E %24.16E\n",
-                            kdbg + 1,
-                            static_cast<double>(qv_arr(diag_i,diag_j,kdbg)),
-                            static_cast<double>(qc_arr(diag_i,diag_j,kdbg)),
-                            static_cast<double>(nn_arr(diag_i,diag_j,kdbg)),
-                            static_cast<double>(nc_arr(diag_i,diag_j,kdbg)),
-                            static_cast<double>(pcond_arr(diag_i,diag_j,kdbg)));
-                std::fflush(stdout);
-                }
-            }
-            if (microphysics_debug >= 1 && diag_col_in_tile) {
-                const int k_lo = amrex::max(klo, 39);
-                const int k_hi = amrex::min(khi, 41);
-                for (int kk = k_lo; kk <= k_hi; ++kk) {
-                    std::printf("WDM6-CPP_T2_G16B_ACT_EXACT k=%3d ratio=%24.16E frac=%24.16E raw=%24.16E cap=%24.16E\n",
-                                kk + 1,
-                                static_cast<double>(act_ratio_arr(diag_i,diag_j,kk)),
-                                static_cast<double>(act_fraction_arr(diag_i,diag_j,kk)),
-                                static_cast<double>(act_raw_arr(diag_i,diag_j,kk)),
-                                static_cast<double>(act_cap_arr(diag_i,diag_j,kk)));
-                    std::printf("WDM6-CPP_T2_G16B_ACT_POST k=%3d ncact,pcact=%12.4E %12.4E nn_after,nc_after=%12.4E %12.4E\n",
-                                kk + 1,
-                                static_cast<double>(ncact_arr(diag_i,diag_j,kk)),
-                                static_cast<double>(pcact_arr(diag_i,diag_j,kk)),
-                                static_cast<double>(nn_arr(diag_i,diag_j,kk)),
-                                static_cast<double>(nc_arr(diag_i,diag_j,kk)));
-                    if (std::abs(static_cast<double>(pcond_arr(diag_i,diag_j,kk))) > wdm6_literal(1.e-20)) {
-                        std::printf("WDM6-CPP_T2_G16B_COND_POST k=%3d pcond=%12.4E qc=%12.4E\n",
-                                    kk + 1,
-                                    static_cast<double>(pcond_arr(diag_i,diag_j,kk)),
-                                    static_cast<double>(qc_arr(diag_i,diag_j,kk)));
-                    }
-                }
-                std::fflush(stdout);
-            }
-#endif
 
             const Real g17_pidnc = pi_wdm6_loc * Real(denr) / Real(6.0);
             const Real g17_pidnr = Real(4.0) * pi_wdm6_loc * Real(denr);
