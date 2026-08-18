@@ -774,6 +774,9 @@ struct SolverChoice {
         // Optionally use the dry-air density reconstructed from wrfbdy.
         pp.query("use_wrf_bdy_density", use_wrf_bdy_density);
 
+        // Optionally ingest cloud water and cloud ice from wrfinput/wrfbdy.
+        pp.query("use_wrf_bdy_qc_qi", use_wrf_bdy_qc_qi);
+
         if (!use_real_bcs || init_type != InitType::WRFInput) {
             use_wrf_bdy_density = false;
         }
@@ -782,6 +785,26 @@ struct SolverChoice {
 
         // Which approach to nudging the moist variables in the boundary region?
         pp.query("bdy_moist_nudge_type",bdy_moist_nudge_type);
+        if (bdy_moist_nudge_type < 0 || bdy_moist_nudge_type > 3) {
+            amrex::Error("erf.bdy_moist_nudge_type must be one of 0, 1, 2, or 3");
+        }
+        if (bdy_moist_nudge_type == 3 && !use_wrf_bdy_qc_qi) {
+            amrex::Error("erf.bdy_moist_nudge_type = 3 requires erf.use_wrf_bdy_qc_qi = true");
+        }
+        if (use_wrf_bdy_qc_qi) {
+            if (moisture_type == MoistureType::None) {
+                amrex::Error("erf.use_wrf_bdy_qc_qi requires an active moisture model");
+            }
+            if (!use_real_bcs || init_type != InitType::WRFInput) {
+                amrex::Error("erf.use_wrf_bdy_qc_qi requires WRFInput real boundary conditions");
+            }
+            if (moisture_indices.qv < RhoQ1_comp || moisture_indices.qv > RhoQ11_comp ||
+                moisture_indices.qc < RhoQ1_comp || moisture_indices.qc > RhoQ11_comp ||
+                (moisture_indices.qi != -1 &&
+                 (moisture_indices.qi < RhoQ1_comp || moisture_indices.qi > RhoQ11_comp))) {
+                amrex::Error("erf.use_wrf_bdy_qc_qi found an invalid active moisture component index");
+            }
+        }
 
         // Are me transporting the scalar component?
         pp.query("transport_scalar",transport_scalar);
@@ -1647,6 +1670,9 @@ struct SolverChoice {
     // Use density reconstructed from standard WRF lateral boundary data.
     bool use_wrf_bdy_density = true;
 
+    // Ingest WRF cloud water and active cloud ice at initialization and lateral boundaries.
+    bool use_wrf_bdy_qc_qi = false;
+
     // Density-specific Davies factor; non-positive means use bdy_nudge_factor.
     amrex::Real bdy_rho_nudge_factor = amrex::Real(-1.0);
 
@@ -1895,6 +1921,8 @@ struct SolverChoice {
  * @brief Wind-farm y-coordinate shift.
  * @var SolverChoice::bdy_nudge_factor
  * @brief Boundary sponge nudging factor.
+ * @var SolverChoice::use_wrf_bdy_qc_qi
+ * @brief Whether WRF cloud water and active cloud ice are ingested at real boundaries.
  * @var SolverChoice::bdy_moist_nudge_type
  * @brief Moist-variable nudging strategy in boundary regions.
  * @var SolverChoice::do_forest_drag

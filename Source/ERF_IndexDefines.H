@@ -128,6 +128,8 @@ namespace RealBdyVars {
         T  = 2,
         QV = 3,
         R  = 4,
+        QC = 5,
+        QI = 6,
         NumTypes
     };
 }
@@ -142,9 +144,19 @@ namespace WRFBdyVars {
         PH    , // Perturbational geopotential
         MU    , // bdy perturbation dry air mass in column (we will get mub from the initial data)
         PC    , // p_s - p_top = dry hydrostatic pressure difference between the surface and the model top
+        QC    , // cloud water
+        QI    , // cloud ice
         NumTypes
     };
+
+    constexpr int LegacyNumTypes = PC + 1;
 }
+
+static_assert(WRFBdyVars::U  == 0 && WRFBdyVars::V  == 1 &&
+              WRFBdyVars::T  == 2 && WRFBdyVars::QV == 3 &&
+              WRFBdyVars::R  == 4 && WRFBdyVars::PH == 5 &&
+              WRFBdyVars::MU == 6 && WRFBdyVars::PC == 7,
+              "The serialized legacy WRF boundary layout must not change");
 
 namespace MetGridBdyVars {
     enum {

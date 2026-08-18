@@ -1521,13 +1521,24 @@ List of Parameters
 |                                     | dry-air density for    |                   |                     |
 |                                     | real WRF boundaries    |                   |                     |
 +-------------------------------------+------------------------+-------------------+---------------------+
+| **erf.use_wrf_bdy_qc_qi**           | Ingest WRF ``QCLOUD``  | Boolean           | false               |
+|                                     | and active ``QICE`` at |                   |                     |
+|                                     | real boundaries        |                   |                     |
++-------------------------------------+------------------------+-------------------+---------------------+
 | **erf.bdy_rho_nudge_factor**        | Density Davies factor; | Real              | -1.0                |
 |                                     | non-positive uses      |                   |                     |
 |                                     | ``bdy_nudge_factor``   |                   |                     |
 +-------------------------------------+------------------------+-------------------+---------------------+
-| **erf.bdy_moist_nudge_type**        | Which strategy for     | int 0,1 or 2      | 0                   |
+| **erf.bdy_moist_nudge_type**        | Which strategy for     | int 0,1,2 or 3    | 1                   |
 |                                     | nudging of moist vars  |                   |                     |
 +-------------------------------------+------------------------+-------------------+---------------------+
+
+For WRF real boundaries, moisture nudging type 0 relaxes only ``qv`` toward
+``QVAPOR``. Type 1 applies a ``qv`` tendency based on ERF ``qv+qc+qi`` versus
+WRF ``QVAPOR``. Type 2 relaxes ``qv`` toward ``QVAPOR`` and active ``qc``/``qi``
+toward zero with the existing latent-heat terms. Type 3 directly relaxes active
+``qv``, ``qc``, and ``qi`` toward ``QVAPOR``, ``QCLOUD``, and ``QICE`` without
+an added latent-heat term. Type 3 requires ``erf.use_wrf_bdy_qc_qi = true``.
 
 If ``erf.nudging_from_input_sounding`` is true, it is expected that at least one input sounding
 file is available.  If there is only one, and no specification of time is made, it is assumed that

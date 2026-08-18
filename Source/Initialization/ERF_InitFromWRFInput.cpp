@@ -320,9 +320,12 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev)
     NC_names.push_back("XLAT_V");    // 22
     NC_names.push_back("XLONG_U");   // 23
     if (use_moist) {
-        NC_names.push_back("QVAPOR"); // 24
-        NC_names.push_back("QCLOUD"); // 25
-        NC_names.push_back("QRAIN");  // 26
+        NC_names.push_back("QVAPOR");
+        NC_names.push_back("QCLOUD");
+        if (solverChoice.use_wrf_bdy_qc_qi && solverChoice.moisture_indices.qi >= 0) {
+            NC_names.push_back("QICE");
+        }
+        NC_names.push_back("QRAIN");
     }
     NC_names.push_back("IVGTYP");     // 27
     NC_names.push_back("ISLTYP");     // 28
@@ -433,6 +436,9 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev)
                 (var_name == "THM")    || (var_name == "QVAPOR") || (var_name == "QCLOUD") ||
                 (var_name == "QRAIN")  || (var_name == "PH")     || (var_name == "PHB");
             if (!success && !has_fallback_behavior) {
+                if (var_name == "QICE") {
+                    amrex::Abort("erf.use_wrf_bdy_qc_qi requires QICE in wrfinput for the active cloud-ice component");
+                }
                 amrex::Abort(std::string("ERF::init_from_wrfinput: failed to read required variable " + var_name).c_str());
             }
 
@@ -591,6 +597,7 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev)
             if ( var_name == "THM"    ||
                  var_name == "QVAPOR" ||
                  var_name == "QCLOUD" ||
+                 var_name == "QICE"   ||
                  var_name == "QRAIN" )
             {
                 int n_qstate_moist = micro->Get_Qstate_Moist_Size();
@@ -600,13 +607,14 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev)
                 if (var_name == "THM") {
                     icomp    = RhoTheta_comp;
                 } else if (var_name == "QVAPOR") {
-                    icomp    = RhoQ1_comp;
+                    icomp    = solverChoice.moisture_indices.qv;
                 } else if (var_name == "QCLOUD") {
-                    icomp    = RhoQ2_comp;
+                    icomp    = solverChoice.moisture_indices.qc;
+                } else if (var_name == "QICE") {
+                    icomp    = solverChoice.moisture_indices.qi;
                 } else if (var_name == "QRAIN") {
-                    icomp    = RhoQ3_comp;
-                    if (n_qstate_moist > 3) { icomp = RhoQ4_comp; }
-                    if (n_qstate_moist < 3) { success = 0; }
+                    icomp    = solverChoice.moisture_indices.qr;
+                    if (icomp < 0 || n_qstate_moist < 3) { success = 0; }
                 }
 
                 // INITIAL DATA common for "ideal" as well as "real" simulation
@@ -636,7 +644,7 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev)
                     } // use_theta_m
 
                 } else {
-                    if (icomp < lev_new[Vars::cons].nComp()) {
+                    if (icomp >= 0 && icomp < lev_new[Vars::cons].nComp()) {
                         amrex::Print() << "Setting " << var_name << " to 0 since we couldn't read it in ... DONE" << std::endl;
                         lev_new[Vars::cons].setVal(0,icomp,1);
                     } else {
@@ -1447,7 +1455,16 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev)
         // Check for erfbdy file.
         std::string erfbdy_header = erfbdy_file + "/Header";
         use_erfbdy = FileSystem::Exists(erfbdy_header);
-        if (use_erfbdy || write_erfbdy) nvars_erfbdy = WRFBdyVars::NumTypes;
+        if (write_erfbdy) {
+            nvars_erfbdy = solverChoice.use_wrf_bdy_qc_qi
+                         ? WRFBdyVars::NumTypes : WRFBdyVars::LegacyNumTypes;
+        }
+        auto repack_runtime_bdy = [&] (const int itime) {
+            repack_wrfbdy_to_realbdy(bdy_data_xlo[itime], solverChoice.use_wrf_bdy_qc_qi);
+            repack_wrfbdy_to_realbdy(bdy_data_xhi[itime], solverChoice.use_wrf_bdy_qc_qi);
+            repack_wrfbdy_to_realbdy(bdy_data_ylo[itime], solverChoice.use_wrf_bdy_qc_qi);
+            repack_wrfbdy_to_realbdy(bdy_data_yhi[itime], solverChoice.use_wrf_bdy_qc_qi);
+        };
 
         // Path 1: Load from existing erfbdy file.
         if (use_erfbdy) {
@@ -1459,6 +1476,14 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev)
             bdy_time_interval = read_times_from_erfbdy(erfbdy_file,
                                                        ntimes_erfbdy, nvars_erfbdy, real_width,
                                                        bdy_times, start_bdy_time, final_bdy_time);
+
+            if (nvars_erfbdy != WRFBdyVars::LegacyNumTypes &&
+                nvars_erfbdy != WRFBdyVars::NumTypes) {
+                amrex::Error("ERFBdy cache has an unsupported boundary-variable layout");
+            }
+            if (solverChoice.use_wrf_bdy_qc_qi && nvars_erfbdy != WRFBdyVars::NumTypes) {
+                amrex::Error("erf.use_wrf_bdy_qc_qi requires an extended ERFBdy cache with QC/QI; regenerate it from wrfbdy");
+            }
 
             Print() << "erfbdy file contains " << ntimes_erfbdy << " time slices" << std::endl;
             Print() << "start_bdy_time = " << start_bdy_time << std::endl;
@@ -1476,6 +1501,7 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev)
                                  bdy_data_xlo, bdy_data_xhi,
                                  bdy_data_ylo, bdy_data_yhi,
                                  nvars_erfbdy, real_width);
+                repack_runtime_bdy(itime);
                 Print() << "Loaded erfbdy time slice " << itime << std::endl;
             }
 
@@ -1519,7 +1545,10 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev)
                                              bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi,
                                              wrf_MUB, wrf_C1H, wrf_C2H, wrf_RDNW, wrf_PHB, z_phys_cc[lev], z_phys_nd[lev],
                                              lev_new[Vars::xvel], lev_new[Vars::yvel], lev_new[Vars::cons],
-                                             r_hse, area_vec, geom[lev], use_moist, solverChoice.rebalance_wrf_input, domain_bcs_type,
+                                             r_hse, area_vec, geom[lev], use_moist,
+                                             solverChoice.use_wrf_bdy_qc_qi,
+                                             solverChoice.moisture_indices.qi >= 0,
+                                             solverChoice.rebalance_wrf_input, domain_bcs_type,
                                              real_width, bdy_time_interval, is_anelastic);
 
                 // Write this time to erfbdy.
@@ -1527,9 +1556,13 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev)
                     WriteERFBdyTimeSlice(erfbdy_file, itime,
                                          bdy_data_xlo[itime], bdy_data_xhi[itime],
                                          bdy_data_ylo[itime], bdy_data_yhi[itime],
-                                         WRFBdyVars::NumTypes);
+                                         nvars_erfbdy);
                     Print() << "Wrote erfbdy time index " << itime << " of " << ntimes_total-1 << std::endl;
                 }
+                if (itime == ntimes_total-1 && itime > 0) {
+                    repack_runtime_bdy(itime-1);
+                }
+                repack_runtime_bdy(itime);
             } // itime
 
             // If writing erfbdy and we have more than 3 times, then process the remaining times.
@@ -1540,14 +1573,22 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev)
                                                  bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi,
                                                  wrf_MUB, wrf_C1H, wrf_C2H, wrf_RDNW, wrf_PHB, z_phys_cc[lev], z_phys_nd[lev],
                                                  lev_new[Vars::xvel], lev_new[Vars::yvel], lev_new[Vars::cons],
-                                                 r_hse, area_vec, geom[lev], use_moist, solverChoice.rebalance_wrf_input, domain_bcs_type,
+                                                 r_hse, area_vec, geom[lev], use_moist,
+                                                 solverChoice.use_wrf_bdy_qc_qi,
+                                                 solverChoice.moisture_indices.qi >= 0,
+                                                 solverChoice.rebalance_wrf_input, domain_bcs_type,
                                                  real_width, bdy_time_interval, is_anelastic);
 
                     WriteERFBdyTimeSlice(erfbdy_file, itime,
                                          bdy_data_xlo[itime], bdy_data_xhi[itime],
                                          bdy_data_ylo[itime], bdy_data_yhi[itime],
-                                         WRFBdyVars::NumTypes);
+                                         nvars_erfbdy);
                     Print() << "Wrote erfbdy time index " << itime << " of " << ntimes_total-1 << std::endl;
+
+                    if (itime == ntimes_total-1 && itime > 0) {
+                        repack_runtime_bdy(itime-1);
+                    }
+                    repack_runtime_bdy(itime);
 
                     bdy_data_xlo[itime].clear();
                     bdy_data_xhi[itime].clear();
