@@ -60,6 +60,15 @@
         MultiFab* terrain_blank = (solverChoice.terrain_type == TerrainType::ImmersedForcing ||
                                    solverChoice.buildings_type == BuildingsType::ImmersedForcing) ?
             terrain_blanking[level].get() : nullptr;
+        MultiFab* terrain_blank_xface = (solverChoice.terrain_type == TerrainType::ImmersedForcing ||
+                                         solverChoice.buildings_type == BuildingsType::ImmersedForcing) ?
+            terrain_blanking_xface[level].get() : nullptr;
+        MultiFab* terrain_blank_yface = (solverChoice.terrain_type == TerrainType::ImmersedForcing ||
+                                         solverChoice.buildings_type == BuildingsType::ImmersedForcing) ?
+            terrain_blanking_yface[level].get() : nullptr;
+        MultiFab* terrain_blank_zface = (solverChoice.terrain_type == TerrainType::ImmersedForcing ||
+                                         solverChoice.buildings_type == BuildingsType::ImmersedForcing) ?
+            terrain_blanking_zface[level].get() : nullptr;
 
         // Update the total moisture variable *before* computing sources since this is used in
         //    the buoyancy calculation
@@ -109,7 +118,7 @@
                      mapfac[level],
                      rhotheta_src[level].get(), rhoqt_src[level].get(),
                      dptr_wbar_sub, d_rayleigh_ptrs_at_lev, d_sinesq_at_lev,
-                     input_sounding_data, turbPert, true);
+                     turbPert, true);
 
         // *****************************************************************************
         // Add nudging terms on moist variables if we have a non-zero relaxation region
@@ -159,6 +168,7 @@
                          xvel_new, yvel_new, zvel_new,
                          xmom_src, ymom_src, zmom_src,
                          base_to_use, forest_drag, terrain_blank,
+                         terrain_blank_xface, terrain_blank_yface, terrain_blank_zface,
                          cosPhi_m[level].get(), sinPhi_m[level].get(), fine_geom, solverChoice,
                          mapfac[level],
                          (solverChoice.have_geo_wind_profile) ? d_u_geos[level].data(): nullptr,
@@ -166,7 +176,7 @@
                          dptr_wbar_sub, d_rayleigh_ptrs_at_lev, d_sinesq_at_lev, d_sinesq_stag_at_lev,
                          d_sponge_ptrs_at_lev,
                          (solverChoice.hindcast_lateral_forcing? &forecast_state_interp[level] : nullptr),
-                         input_sounding_data, get_eb(level), true);
+                         input_sounding_data, lsf, lsf_data[level], get_eb(level), true);
 
         // *****************************************************************************
         // Add body sources if doing flow around a body

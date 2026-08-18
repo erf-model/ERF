@@ -89,6 +89,11 @@ int main (int argc, char* argv[])
     // ------------------------------------------------------------
     // Ensemble control
     // ------------------------------------------------------------
+
+    ParmParse pp_erf("erf");
+    bool is_init_for_ensemble = false;
+    pp_erf.query("is_init_for_ensemble", is_init_for_ensemble);
+
     ParmParse pp_ens("ensemble");
 
     int n_ens = 1;
@@ -120,7 +125,7 @@ int main (int argc, char* argv[])
     // --------------------------------------------------------
     ParallelDescriptor::Barrier();
 
-    if (ParallelDescriptor::IOProcessor())
+    if (is_init_for_ensemble && ParallelDescriptor::IOProcessor())
     {
         // Create zero-padded member directory
         std::stringstream ss;

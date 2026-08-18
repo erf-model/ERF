@@ -46,6 +46,16 @@ void
 cons_to_prim(const amrex::MultiFab& cons_state, amrex::MultiFab& S_prim, int ng);
 
 /**
+ * Fill the ghost cells of the wall distance field, which is only computed on
+ * the valid region, so that operators reading from grown boxes do not see the
+ * sentinel value used to initialize it.
+ * @param[inout] wdist MultiFab holding the wall distance.
+ * @param[in] geom Geometry at this level.
+ */
+void
+fill_wall_dist_ghost_cells (amrex::MultiFab& wdist, const amrex::Geometry& geom);
+
+/**
  * Compute total water mixing ratio from conservative state.
  * @param[in] cons_state Conservative state MultiFab.
  * @param[out] qt MultiFab to store total water.

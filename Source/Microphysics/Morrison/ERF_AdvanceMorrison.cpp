@@ -159,6 +159,19 @@ namespace MORRInd {
     };
 }
 
+namespace {
+
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+Real ndcnst_to_number_mixing_ratio (const Real ndcnst, const Real rho_erf) noexcept
+{
+    // NDCNST: #/cm^3 -> #/m^3
+    // rho_erf: kg_dry/m^3
+    // nc: #/kg_dry
+    return ndcnst * Real(1.0e6) / rho_erf;
+}
+
+} // namespace
+
     // wrapper to do all the updating
     void
     Morrison::Advance (const Real& dt_advance,
@@ -218,9 +231,7 @@ namespace MORRInd {
           auto const& ns_arr = mic_fab_vars[MicVar_Morr::ns]->array(mfi);
           auto const& ng_arr = mic_fab_vars[MicVar_Morr::ng]->array(mfi);
 
-#ifdef ERF_USE_MORR_FORT
           auto const& rho_arr         = mic_fab_vars[MicVar_Morr::rho]->array(mfi);
-#endif
           auto const& pres_arr        = mic_fab_vars[MicVar_Morr::pres]->array(mfi);
           auto const& rain_accum_arr  = mic_fab_vars[MicVar_Morr::rain_accum]->array(mfi);
           auto const& snow_accum_arr  = mic_fab_vars[MicVar_Morr::snow_accum]->array(mfi);
@@ -431,7 +442,10 @@ namespace MORRInd {
 
           // Set microphysics control parameters
           m_inum = 1;           // Use constant droplet number concentration
-          m_ndcnst = Real(250.0);     // Droplet number concentration (cm^-3)
+          // NOTE: m_ndcnst is NOT reset here. It carries the value queried from
+          //       erf.morrison_ndcnst above (default 250 cm^-3); overwriting it
+          //       here silently discarded the user's setting on every box, in
+          //       both the C++ and the Fortran path.
           // Mathematical constants
           m_pi = Real(3.1415926535897932384626434);
 
@@ -1025,8 +1039,8 @@ namespace MORRInd {
 
               if (m_inum == 1) {
                 // CONVERT NDCNST FROM CM-3 TO KG-1
-                // Note: NDCNST constant would need to be defined elsewhere
-                morr_arr(i,j,k,MORRInd::nc3d) = m_ndcnst * Real(1.0e6) / morr_arr(i,j,k,MORRInd::rho); // Set cloud droplet number concentration
+                morr_arr(i,j,k,MORRInd::nc3d) =
+                    ndcnst_to_number_mixing_ratio(m_ndcnst, rho_arr(i,j,k));
               }
 
               // GET SIZE DISTRIBUTION PARAMETERS
@@ -1514,8 +1528,8 @@ namespace MORRInd {
 
               if (m_inum == 1) {
                 // CONVERT NDCNST FROM CM-3 TO KG-1
-                // Note: NDCNST constant would need to be defined elsewhere
-                morr_arr(i,j,k,MORRInd::nc3d) = m_ndcnst * Real(1.0e6) / morr_arr(i,j,k,MORRInd::rho); // Set cloud droplet number concentration
+                morr_arr(i,j,k,MORRInd::nc3d) =
+                    ndcnst_to_number_mixing_ratio(m_ndcnst, rho_arr(i,j,k));
               }
 
               morr_arr(i,j,k,MORRInd::ni3d) = amrex::max(Real(0),morr_arr(i,j,k,MORRInd::ni3d));
@@ -3169,7 +3183,8 @@ namespace MORRInd {
               // SWITCH FOR CONSTANT DROPLET NUMBER
               if (iinum == 1) {
                 // CHANGE NDCNST FROM CM-3 TO KG-1
-                morr_arr(i,j,k,MORRInd::nc3d) = m_ndcnst * Real(1.0e6) / morr_arr(i,j,k,MORRInd::rho);
+                morr_arr(i,j,k,MORRInd::nc3d) =
+                    ndcnst_to_number_mixing_ratio(m_ndcnst, rho_arr(i,j,k));
               }
             }
 
@@ -3186,6 +3201,7 @@ namespace MORRInd {
                   qci_arr(i,j,k) = morr_arr(i,j,k,MORRInd::qi3d);
                   qps_arr(i,j,k) = morr_arr(i,j,k,MORRInd::qni3d);
                   qpr_arr(i,j,k) = morr_arr(i,j,k,MORRInd::qr3d);
+                  nc_arr(i,j,k) = morr_arr(i,j,k,MORRInd::nc3d);
                   ni_arr(i,j,k) = morr_arr(i,j,k,MORRInd::ni3d);
                   ns_arr(i,j,k) = morr_arr(i,j,k,MORRInd::ns3d);
                   nr_arr(i,j,k) = morr_arr(i,j,k,MORRInd::nr3d);

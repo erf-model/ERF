@@ -5,6 +5,7 @@ CEXE_sources += ERF_MakeMomSources.cpp
 CEXE_sources += ERF_MakeSources.cpp
 CEXE_sources += ERF_ApplySpongeZoneBCs.cpp
 CEXE_sources += ERF_ApplySpongeZoneBCs_ReadFromFile.cpp
+CEXE_sources += ERF_ImmersedForcing.cpp
 CEXE_sources += ERF_NumericalDiffusion.cpp
 CEXE_sources += ERF_ForestDrag.cpp
 CEXE_sources += ERF_ApplyBndryForcing_Forecast.cpp

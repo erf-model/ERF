@@ -821,7 +821,7 @@ void ERF::init_Dirichlet_bc_data (const std::string input_file)
         const int Ninp = z_inp_tmp.size();
         for (int k(0); k<Nz; ++k) {
             zcc_inp[k] = myhalf * (zlevels_stag[lev][k] + zlevels_stag[lev][k+1]);
-            znd_inp[k] = zlevels_stag[lev][k+1];
+            znd_inp[k] = zlevels_stag[lev][k];
             u_inp[k]   = interpolate_1d(z_inp_tmp.dataPtr(), u_inp_tmp.dataPtr(), zcc_inp[k], Ninp);
             v_inp[k]   = interpolate_1d(z_inp_tmp.dataPtr(), v_inp_tmp.dataPtr(), zcc_inp[k], Ninp);
             w_inp[k]   = interpolate_1d(z_inp_tmp.dataPtr(), w_inp_tmp.dataPtr(), znd_inp[k], Ninp);

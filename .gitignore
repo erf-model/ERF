@@ -71,6 +71,9 @@ build_*.log
 \#*\#
 .#*
 
+# Python cache
+__pycache__
+
 # WDM6/WSM6 plotfile-parity campaign roots (run artifacts + logs)
 plotfile_parity_*/
 # superseded naming, retained so existing campaign_wdm6_bubble_v1/v2 stay ignored
