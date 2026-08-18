@@ -49,8 +49,13 @@ WDM6 (WRF Double-Moment 6-class) microphysics scheme for ERF. This implementatio
 - The divergence is confined to the warm-rain group. `qc`, `qr`, `nc`, `nr` and
   `nn` move together, while `density`, `temp`, `pressure`, `theta`, `qv` and all
   ice fields stay under 0.1% relative at both step 10 and step 100.
+- The divergence appears in a single step (a ~1e-16 seed becomes 40-75% between
+  step 1 and step 2) and is bounded rather than growing — 1.06 at step 10 falls to
+  0.43 at step 100. That is a threshold being crossed differently in a few cells,
+  not a kernel computing wrong answers.
 - Cause is a hard gate, not a porting defect: see "GPU" under Validation for the
-  per-step evidence. GPU figures must not be compared against the serial table.
+  per-step evidence, and for the one comparison still owed (GPU-native against
+  CPU-native). GPU figures must not be compared against the serial table.
 
 ✅ **Infrastructure:**
 - State management (9 moisture variables: qv-qg + nn, nc, nr)
@@ -207,6 +212,20 @@ at step 100 the largest are `nr` 0.428, `qrain`/`qp` 0.300, `nn` 0.298 and `rhoQ
 does not match between the two legs, so there is a ~1e-16 seed from the first step
 rather than the exact zero the CPU gets.
 
+**Two facts bound how bad this is, and both matter more than the peak numbers.**
+
+*The jump is single-step, not accumulation.* Measured on the legs' own natural
+trajectories, a ~1e-16 seed becomes 40–75% relative divergence between **step 1 and
+step 2**. Gradual roundoff growth cannot produce that in one step; a branch taken
+differently on the two legs can, and that is what pointed at the gate below.
+
+*The divergence is bounded and decays.* The worst value is 1.06 at step 10 and 0.43
+at step 100 — it goes down, not up. `nn` peaks around step 72 and decays through
+step 100. An unstable or systematically wrong port grows without limit; this
+offsets once and then stops amplifying. That is the signature of a small number of
+cells flipping a threshold early and staying offset, not of a kernel producing
+wrong answers.
+
 **Why this is a gate effect, not a wrong kernel.** The same per-step check used for
 the serial lane was run at all 99 windows: min 1.8e-14, max 1.2e-13, median
 ~5.4e-14, with nothing near the 1.9e-11-and-up signature of a real injected defect.
@@ -224,8 +243,28 @@ The threshold itself was checked and is not the problem: `qc0`/`qc1` derive from
 `r0`, `xncr0`, `xncr1` and a bridge-passed `den0`, all identically computed on both
 legs. **Do not compare GPU figures against the serial table above** — once a hard
 gate is crossed under different roundoff floors, the two lanes are not measuring the
-same quantity. Figures were taken on an sm_61 card at an earlier commit; the CUDA
-build has not been re-verified at the current tip, and ERF targets sm_70+.
+same quantity.
+
+**What is still owed on GPU.** Stated plainly so nobody reads the above as closure:
+
+- The comparison that would isolate the port has not been run. Every GPU
+  measurement above is GPU-bridge against GPU-native, and the Fortran bridge cannot
+  execute on device — it copies to host, runs on the CPU, and copies back. So that
+  comparison mixes the GPU port's effect with the CPU-Fortran-vs-GPU-native roundoff
+  floor. **GPU-native against CPU-native** separates them: agreement to roundoff
+  would show the port is clean and the gap is entirely the gate interacting with
+  different rounding; disagreement would indicate a real GPU porting defect that the
+  gate explanation would otherwise mask. One run and one `fcompare`.
+- The four-leg restart matrix was run at only one of the 99 windows. That is
+  consistent with the rule (escalate only after a two-leg check mismatches, and none
+  did), but it is not on record for the rest.
+- No cell-level confirmation that the cells flipping the gate are the same cells
+  carrying the divergence.
+- Figures were taken on an sm_61 card at an earlier commit. The CUDA build has not
+  been re-verified at the current tip — note that the GNU Make/CMake changes merged
+  here touch `CMake/BuildERFExe.cmake`, which no CUDA configure has yet seen — and
+  ERF targets sm_70+, so a Pascal-only limit must never be recorded as a WDM6
+  finding.
 
 ## Gotchas
 
