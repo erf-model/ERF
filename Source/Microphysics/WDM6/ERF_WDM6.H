@@ -160,6 +160,11 @@ public:
 
     void Set_dzmin(const amrex::Real dz_min) override { m_dzmin = dz_min; }
 
+    // Held by pointer so a retag of the mask after this call is visible. See
+    // the xland fill and the qcr selection in ERF_AdvanceWDM6.cpp for the
+    // ERF-lmask-to-WRF-xland encoding difference.
+    void Set_Lmask(amrex::iMultiFab* lmask) override { m_lmask = lmask; }
+
     void Copy_State_to_Micro(const amrex::MultiFab& cons_in) override;
     void Copy_Micro_to_State(amrex::MultiFab& cons_in) override;
 

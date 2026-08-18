@@ -1,0 +1,79 @@
+# ------------------  INPUTS TO MAIN PROGRAM  -------------------
+#
+# WDM6 stretched-z VARIANT of inputs_BF02_moist_bubble.
+#
+# Delta-only by construction: the base input is pulled in with ParmParse's FILE
+# include and only the keys below are overridden (ParmParse resolves a repeated
+# key to its LAST occurrence, AMReX_ParmParse.H:353). Nothing here can drift out
+# of step with the base input, and the diff against it is exactly the variant.
+# The base input is also shared with the nightly Bubble_WSM6 test and must not be
+# edited, which is the other reason for the include.
+#
+# WHY THIS FILE EXISTS
+# --------------------
+# The WDM6 Fortran-bridge / native-C++ parity campaign runs on
+# inputs_BF02_moist_bubble, which has uniform dz (prob_extent 10000 / n_cell 100
+# = exactly 100 m). On that grid the physical-dz path in WDM6 is
+# INDISTINGUISHABLE from the old m_geom.CellSize(2) shortcut, and provably so:
+# ERF always allocates z_phys_nd (ERF_MakeNewArrays.cpp:54, unconditional) and
+# fills it by BTF over a flat surface, which for a uniform grid reduces to
+# z(k) = k*100.0 exactly, so the four-corner nodal average returns exactly
+# 100.0. The A/B/C ladder therefore CANNOT discriminate whether WDM6 honours the
+# physical cell thickness -- a green re-gate on the uniform Bubble is a null
+# result for that finding, not a validation of it.
+#
+# This variant makes dz genuinely non-uniform, 58.657431 m at the surface to
+# 157.086566 m at the top (a 2.678x spread), so the two legs are compared on a
+# grid where using the wrong thickness produces a visible difference.
+#
+# Pattern follows RegTests/StokesSecondProblem/inputs_stretched_z_levels: an
+# explicit erf.terrain_z_levels list, one value per nodal k, first exactly 0 and
+# last exactly the domain top. 101 values for n_cell(z) = 100 (init_zlevels
+# aborts if the count is not nz+1, ERF_InitZLevels.cpp:73-77, and asserts
+# z[0] == 0 at :88). Levels are geometric with ratio 1.01 per cell, renormalised
+# so the top lands exactly on 10000.0 -- the physical extent is unchanged from
+# the base input, only its subdivision differs.
+#
+# erf.terrain_type is deliberately NOT set. Supplying terrain_z_levels alone
+# promotes terrain_type to StaticFittedMesh and mesh_type to StretchedDz
+# (ERF_DataStruct.H:421-430), which is the honest description of this case:
+# stretched levels over flat ground. Setting terrain_type explicitly, as the
+# Stokes input does, would instead select VariableDz and pull in general terrain
+# metrics this variant does not need.
+#
+# KNOWN LIMITATION -- READ BEFORE INTERPRETING RESULTS
+# ----------------------------------------------------
+# This is a CODE-PATH DISCRIMINATOR, not a physically consistent stretched-mesh
+# bubble. Two initialisation routines ignore the stretched levels:
+#   * erf_init_dens_hse_moist (Source/Prob/ERF_InitDensityHSE.H:119-123) discards
+#     its z_phys_nd argument and builds the moist hydrostatic base state on
+#     geom.CellSize()[2].
+#   * The bubble perturbation (Source/Prob/ERF_InitCustomPert_Bubble.H:88,152)
+#     computes z as prob_lo[2] + (k+0.5)*dx[2].
+# So the base state and the initial bubble sit at uniform-grid heights while the
+# microphysics sees stretched thicknesses. That inconsistency is IDENTICAL on
+# both legs, so the Fortran-vs-C++ comparison stays valid and discriminating; it
+# does mean this run is not a physically meaningful stretched-mesh bubble, and
+# its fields must not be compared against the uniform Bubble's.
+#
+# UNEXECUTED as of 2026-08-17: written under a no-build/no-run hold, so it has
+# never been parsed by ERF. First use must confirm it initialises at all before
+# any parity claim is read off it.
+
+FILE = inputs_BF02_moist_bubble
+
+# ---- variant overrides only, below this line ----
+
+erf.moisture_model = WDM6
+
+# VERTICAL GRID STRETCHING
+# 101 staggered levels for n_cell(z) = 100. Geometric, ratio 1.01 per cell,
+# normalised so z[0] = 0 and z[100] = 10000.0 exactly.
+# Resulting dz: 58.657431 m (k=0) ... 157.086566 m (k=99), strictly increasing.
+erf.terrain_smoothing = 0
+erf.terrain_z_levels = 0 58.657431 117.901437 177.737882 238.172693 299.211851 360.861400 423.127446 486.016151 549.533744 613.686513 678.480809 743.923049 810.019710 876.777339 944.202543 1012.302000 1081.082451 1150.550707 1220.713645 1291.578213 1363.151426 1435.440372 1508.452207 1582.194160 1656.673533 1731.897700 1807.874108 1884.610280 1962.113814 2040.392384 2119.453739 2199.305708 2279.956196 2361.413189 2443.684752 2526.779031 2610.704253 2695.468726 2781.080845 2867.549085 2954.882007 3043.088258 3132.176572 3222.155769 3313.034758 3404.822537 3497.528193 3591.160906 3685.729947 3781.244677 3877.714555 3975.149132 4073.558055 4172.951067 4273.338009 4374.728820 4477.133539 4580.562306 4685.025360 4790.533045 4897.095807 5004.724196 5113.428869 5223.220589 5334.110226 5446.108760 5559.227279 5673.476983 5788.869184 5905.415307 6023.126891 6142.015592 6262.093179 6383.371542 6505.862688 6629.578747 6754.531965 6880.734716 7008.199495 7136.938921 7266.965741 7398.292830 7530.933189 7664.899953 7800.206383 7936.865879 8074.891969 8214.298319 8355.098734 8497.307153 8640.937655 8786.004463 8932.521939 9080.504590 9229.967067 9380.924169 9533.390842 9687.382181 9842.913434 10000.0
+
+# z_phys and detJ added so a reader can confirm from the plotfile alone that the
+# mesh really was stretched. NOTE: the campaign runner overrides plot_vars_1, so
+# this line only takes effect for standalone invocations.
+erf.plot_vars_1 = density rhotheta rhoQ1 rhoQ2 rhoQ3 rhoQ4 rhoQ5 rhoQ6 rhoadv_0 x_velocity y_velocity z_velocity pressure theta scalar temp pres_hse dens_hse pert_pres pert_dens eq_pot_temp qt qv qc qi qp qrain qsnow qgraup nc nn nr z_phys detJ
