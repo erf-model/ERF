@@ -471,9 +471,7 @@
    real(kind=kind_phys), dimension(ims:ime), optional     , intent(inout) :: graupelncv
 
    ! Local variables for debug parameters with defaults
-   ! k_dbg is the Tier 1 all-k print index. It is deliberately separate from the
-   ! kernel's k so that a diagnostic loop can never clobber a live loop variable.
-   integer :: debug_local, i_dbg_local, j_dbg_local, k_dbg
+   integer :: debug_local, i_dbg_local, j_dbg_local
 
    real(kind=kind_phys), dimension(its:ite,kts:kte)   :: dend
    real(kind=kind_phys), dimension(its:ite,kts:kte)   :: qcr
@@ -1025,11 +1023,6 @@
             work1c(i,k) = 1.49e4*exp(log(diameter)*(1.31))
           endif
 
-          ! Tier 2 forensic decomposition of the G8 ice fall speed. work1c is
-          ! absent from both the PRE_G8 and POST_G8 field sets, so block-level
-          ! narrowing cannot reach it and the Diagnostic Contract calls for
-          ! escalation. Narrow-and-deep per the same rule: one column, one
-          ! variable per line, k window around the k=90 divergence.
           ! WDM6-F90 TAG: T2_G8_vice
         enddo
       enddo
@@ -1054,14 +1047,9 @@
 
       ! WDM6-F90 TAG: POST_G8
 
-      ! G9 (PRECIP) is surface-scoped and is deliberately NOT converted to the
-      ! all-k contract. The native path stores this group's inputs as box2d
-      ! surface slabs, so its counterpart tag can only read klo; emitting a
-      ! kts..kte profile here while the C++ side repeats one value would
-      ! manufacture ~100 false differences per step. The Fortran fall/fallc
-      ! column profile having no native equivalent is a real structural
-      ! difference, but it needs its own investigation rather than a phantom
-      ! frontier signal. Kept single-cell, loop-guarded to cut repetition.
+      ! G9 (PRECIP) is surface-scoped and is deliberately NOT on the all-k
+      ! contract: the native path stores this group's inputs as box2d surface
+      ! slabs, so a counterpart tag can only read klo.
       ! WDM6-F90 TAG: PRE_G9
 
       do i = its, ite
@@ -1167,18 +1155,6 @@
                   *(exp(pfrz2*supcolt)-1.)*rslope3(i,k,1)*rslope3(i,k,1)       &
                   *dtcld,qrs(i,k,1))
 
-            ! Tier 2 forensic decomposition of pgfrz, the first materially
-            ! failing expression for the rhoQ6 step-6 event. Same wdm6_emit_t2
-            ! helper and WSM6-DIAG-T2 schema as the pidep, psaci and psdep
-            ! decompositions. Emitted BEFORE the ncr(:,:,3) update below so the
-            ! printed nr is the value pfrzdtr actually consumed.
-            !
-            ! Reconstruction from the printed PRE_G10D inputs reproduces the
-            ! NATIVE leg exactly under float32 pi and pfrz2, but reproduces the
-            ! bridge under NO combination of those two, sitting 4.908593e-06
-            ! high -- matching neither and larger than both. Declaration reading
-            ! found no shadow in wdm62D, so the constants themselves are printed
-            ! here to settle which factor carries it.
             ! WDM6-F90 TAG: T2_G10D_pgfrz
 
 
@@ -1457,13 +1433,6 @@
                           *abs(vt2ave-vt2i)*acrfac/4.
               psaci(i,k) = min(psaci(i,k),qci(i,k,2)/dtcld)
 
-            ! Tier 2 forensic decomposition of psaci, the first materially
-            ! failing expression after G13a closed. Same one-var-per-line
-            ! WSM6-DIAG-T2 schema and the same wdm6_emit_t2 helper as the G13E
-            ! pidep decomposition above; field order and the 20-fractional-digit
-            ! value token are contractual. Scoped to the failing column and a k
-            ! window around the divergence, per the rule that Tier 2 is
-            ! narrow-and-deep rather than broad.
             ! WDM6-F90 TAG: T2_G13B_psaci
             endif
 
@@ -1662,14 +1631,6 @@
               endif
               if(abs(prevp(i,k)+pidep(i,k)).ge.abs(satdt)) ifsat = 1
             endif
-            ! Tier 2 forensic decomposition of pidep, the first materially
-            ! failing expression per the tag-frontier retreat. One var per line
-            ! in the WSM6-DIAG-T2 schema, which the corpus makes contractual for
-            ! new Tier 2 records; the multi-var WDM6-FORT_T2_* tags elsewhere in
-            ! this file predate that and do not conform. Scoped to the failing
-            ! column and a k window around the divergence, per the rule that
-            ! Tier 2 is narrow-and-deep rather than broad. pidep_raw and supice
-            ! are recomputed inline so the surrounding physics is untouched.
             ! WDM6-F90 TAG: T2_G13E_pidep
 
 
@@ -1687,12 +1648,6 @@
                 psdep(i,k) = min(min(psdep(i,k),satdt/2),supice)
               endif
               if(abs(prevp(i,k)+pidep(i,k)+psdep(i,k)).ge.abs(satdt)) ifsat = 1
-            ! Tier 2 forensic decomposition of psdep, the first materially
-            ! failing expression after G13b closed. Same wdm6_emit_t2 helper and
-            ! WSM6-DIAG-T2 schema as the pidep and psaci decompositions. The two
-            ! terms are separated because the hypothesis under test is that
-            ! precs1 and precs2 carry DIFFERENT relative errors, so psdep's
-            ! error should be their term-weighted mix rather than a constant.
               ! WDM6-F90 TAG: T2_G13E_psdep
             endif
 
@@ -3550,16 +3505,5 @@
        errflg = 0
      end subroutine mp_wdm6_run
 
-  !------------------------------------------------------------------
-  ! Tier 2 forensic record emitter.
-  !
-  ! Mirrors the WSM6 contract in ERF_module_mp_wsm6_isohelper.F90: one
-  ! variable per line, contractual field order, and a value token carrying
-  ! 20 fractional digits with an explicit sign and fixed exponent width so
-  ! that ULP-level differences in a double remain distinguishable. The
-  ! 16-digit ES24.16E3 used by the Tier 1 group tags is NOT sufficient for
-  ! this: a one-ULP difference on a value near unity would print identically
-  ! on both legs, which is exactly what a Tier 2 retreat must not do.
-  !------------------------------------------------------------------
 
        END MODULE mp_wdm6
