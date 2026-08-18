@@ -134,7 +134,7 @@ AMREX_ENUM(LandSurfaceType,
  * @brief Radiation model.
  */
 AMREX_ENUM(RadiationType,
-    None, RRTMGP
+    None, RRTMGP, Simple
 );
 
 /**
@@ -329,33 +329,20 @@ struct SolverChoice {
             moisture_indices = MoistureComponentIndices(
                 RhoQ1_comp,  // water vapor
                 RhoQ2_comp,  // cloud water
-                -1,          // cloud ice
-                RhoQ3_comp   // rain
+                RhoQ3_comp,  // cloud ice
+                RhoQ4_comp,  // rain
+                RhoQ5_comp,  // snow
+                RhoQ6_comp   // graupel
             );
         }
 
-        // Set a default for dry
+        // Set a default for both dry and moist
         buoyancy_type.resize(max_level+1);
         for (int i = 0; i <= max_level; ++i) {
             buoyancy_type[i] = 1; // uses Rhoprime
         }
 
-        // Set a default for moist
         if (moisture_type != MoistureType::None) {
-            if ( !(moisture_type == MoistureType::Kessler_NoRain     ||
-                   moisture_type == MoistureType::SAM                ||
-                   moisture_type == MoistureType::SAM_NoIce          ||
-                   moisture_type == MoistureType::SAM_NoPrecip_NoIce ||
-                   moisture_type == MoistureType::Morrison ||
-                   moisture_type == MoistureType::Morrison_NoIce ||
-                   moisture_type == MoistureType::WSM6 ||
-                   moisture_type == MoistureType::SatAdj) )
-            {
-                for (int i = 0; i <= max_level; ++i) {
-                    buoyancy_type[i] = 2; // uses Tprime
-                }
-            }
-
             pp.query("moisture_tight_coupling",moisture_tight_coupling);
         }
 
@@ -711,6 +698,13 @@ struct SolverChoice {
 
         pp.query("nudging_from_input_sounding", nudging_from_input_sounding);
 
+        pp.query("nudging_q_z1", nudging_q_z1);
+        pp.query("nudging_q_z2", nudging_q_z2);
+        pp.query("nudging_t_z1", nudging_t_z1);
+        pp.query("nudging_t_z2", nudging_t_z2);
+
+        pp.query("large_scale_forcing", large_scale_forcing);
+
         have_geo_wind_profile = (!abl_geo_wind_table.empty() || custom_geostrophic_profile);
         AMREX_ALWAYS_ASSERT_WITH_MESSAGE(!(!abl_geo_wind_table.empty() && custom_geostrophic_profile),
             "Should not have both abl_geo_wind_table and custom_geostrophic_profile set.");
@@ -779,6 +773,11 @@ struct SolverChoice {
 
         // Optionally use the dry-air density reconstructed from wrfbdy.
         pp.query("use_wrf_bdy_density", use_wrf_bdy_density);
+
+        if (!use_real_bcs || init_type != InitType::WRFInput) {
+            use_wrf_bdy_density = false;
+        }
+
         pp.query("bdy_rho_nudge_factor", bdy_rho_nudge_factor);
 
         // Which approach to nudging the moist variables in the boundary region?
@@ -1203,6 +1202,8 @@ struct SolverChoice {
             amrex::Print() << "Moisture Model: Kessler No Rain" << std::endl;
         } else if (moisture_type == MoistureType::SatAdj) {
             amrex::Print() << "Moisture Model: Saturation Adjustment" << std::endl;
+        } else if (moisture_type == MoistureType::SuperDroplets) {
+            amrex::Print() << "Moisture Model: SuperDroplets" << std::endl;
         } else if (moisture_type == MoistureType::MoistNoCondensation) {
             amrex::Print() << "Moisture Model: MoistNoCondensation" << std::endl;
         } else {
@@ -1262,6 +1263,8 @@ struct SolverChoice {
 
         if (rad_type == RadiationType::RRTMGP) {
             amrex::Print() << "Radiation Model: RRTMGP" << std::endl;
+        } else if (rad_type == RadiationType::Simple) {
+            amrex::Print() << "Radiation Model: Simple" << std::endl;
         } else {
             amrex::Print() << "Radiation Model: None" << std::endl;
         }
@@ -1501,6 +1504,15 @@ struct SolverChoice {
     //    the time-varying data provided in input sounding files?
     bool nudging_from_input_sounding = false;
 
+    amrex::Real nudging_q_z1 = zero;
+    amrex::Real nudging_q_z2 = amrex::Real(10000.0); // TODO: reasonable defaults here?
+    amrex::Real nudging_t_z1 = zero;
+    amrex::Real nudging_t_z2 = amrex::Real(10000.0);
+
+    bool large_scale_forcing = false;
+    std::string lsf_file = "";
+    amrex::Real lsf_timescale = zero;
+
     // MOST stress rotations
     bool use_rotate_surface_flux = false;
 
@@ -1633,15 +1645,16 @@ struct SolverChoice {
     amrex::Real bdy_nudge_factor = amrex::Real(10.0);
 
     // Use density reconstructed from standard WRF lateral boundary data.
-    bool use_wrf_bdy_density = false;
+    bool use_wrf_bdy_density = true;
+
     // Density-specific Davies factor; non-positive means use bdy_nudge_factor.
     amrex::Real bdy_rho_nudge_factor = amrex::Real(-1.0);
 
     // Which approach to nudging the moist variables in the boundary region?
-    int bdy_moist_nudge_type = 0;
+    int bdy_moist_nudge_type = 1;
 
     // Keep the WRF grid or remake our own?
-    bool use_wrf_height_grid {true};
+    bool use_wrf_height_grid {false};
 
     // Use forest canopy model?
     bool do_forest_drag {false};

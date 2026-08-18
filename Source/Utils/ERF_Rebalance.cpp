@@ -3,6 +3,18 @@
 
 using namespace amrex;
 
+/**
+ * Rebalance density and potential temperature columns to satisfy hydrostatic equilibrium.
+ *
+ * @param[in,out] rho Density field
+ * @param[in,out] theta Potential temperature field
+ * @param[in] qv Water vapor mixing ratio
+ * @param[in] qt Total water mixing ratio
+ * @param[in] z_phys Physical height field
+ * @param[in] geom Grid geometry
+ * @param[in] maintain_Th Whether to maintain the existing potential temperature profile
+ * @param[in] use_sfc Whether to use a surface boundary condition for initialization
+ */
 void
 rebalance_columns (MultiFab& rho,
                    MultiFab& theta,

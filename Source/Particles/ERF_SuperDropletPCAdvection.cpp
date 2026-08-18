@@ -58,11 +58,16 @@ void SuperDropletPC::AdvectParticles ( int                   a_lev,
     const bool advect_w_flow = m_advect_w_flow;
     const bool advect_w_gravity = m_advect_w_gravity;
     const bool prescribed_advection = m_prescribed_advection;
+    const Real prescribed_w = m_prescribed_w;
 
     const auto vterm_type_w = m_term_vel_type_w;
+    const auto vterm_type_i = m_term_vel_type_i;
+
+    Real rho_i = std::numeric_limits<Real>::max();
+    if (proc_ctx.idx_ice >= 0) { rho_i = m_species_mat[m_idx_i]->m_density; }
 
     // Terminal velocity calculator (shared across tiles)
-    TerminalVelocity<ParticleReal> term_vel { proc_ctx.rho_water };
+    TerminalVelocity<ParticleReal> term_vel { ParticleReal(proc_ctx.rho_water), ParticleReal(rho_i) };
 
     forEachParticleTile(a_lev, proc_ctx,
         [&](ParIterType& /*pti*/, int grid, ParticleType* p_pbox,
@@ -111,7 +116,9 @@ void SuperDropletPC::AdvectParticles ( int                   a_lev,
             const auto temperature = fv[static_cast<int>(InterpFieldsAdv::temperature)];
 
             if (prescribed_advection) {
-               if (a_time < 600) {
+               if (prescribed_w != Real(0.0)) {
+                   v[2] = static_cast<ParticleReal>(prescribed_w);   // steady prescribed updraft
+               } else if (a_time < 600) {
                    v[2] = two*sin(PI*a_time/600)/density;
                } else {
                    v[2] = zero;
@@ -127,17 +134,52 @@ void SuperDropletPC::AdvectParticles ( int                   a_lev,
                                               ptrs.sp_rho_arr, ptrs.ae_rho_arr );
 
             ParticleReal terminal_vel = zero;
-            if (vterm_type_w == SDTerminalVelocityType::AtlasUlbrich) {
-                terminal_vel = term_vel.AtlasUlbrich( r_eff );
-            } else if (vterm_type_w == SDTerminalVelocityType::RogersYau) {
-                terminal_vel = term_vel.RogersYau( r_eff );
-            } else if (vterm_type_w == SDTerminalVelocityType::CloudRainShima) {
-                terminal_vel = term_vel.CloudRainShima( r_eff,
-                                                        density,
-                                                        pressure,
-                                                        temperature );
+            auto par_phase = SD_phase(i, ctx.idx_water, ctx.idx_ice, ptrs.sp_mass_ptrs);
+            if (par_phase == SDPhase::water) {
+                if (vterm_type_w == SDTerminalVelocityType::AtlasUlbrich) {
+                    terminal_vel = term_vel.AtlasUlbrich( r_eff );
+                } else if (vterm_type_w == SDTerminalVelocityType::RogersYau) {
+                    terminal_vel = term_vel.RogersYau( r_eff );
+                } else if (vterm_type_w == SDTerminalVelocityType::CloudRainShima) {
+                    terminal_vel = term_vel.CloudRainShima( r_eff,
+                                                            density,
+                                                            pressure,
+                                                            temperature );
+                } else {
+                    amrex::Abort("Invalid option for water droplet terminal velocity model");
+                }
+            } else if ((par_phase == SDPhase::ice) || (par_phase == SDPhase::mixed)) {
+                AMREX_ALWAYS_ASSERT(ctx.idx_ice >= 0);
+                if (vterm_type_i == SDTerminalVelocityType::AtlasUlbrich) {
+                    terminal_vel = term_vel.AtlasUlbrich( r_eff );
+                } else if (vterm_type_i == SDTerminalVelocityType::RogersYau) {
+                    terminal_vel = term_vel.RogersYau( r_eff );
+                } else if (vterm_type_i == SDTerminalVelocityType::IceBohm) {
+                    // Melting (mixed) ice: blend the dry-ice speed (Bohm on the ice-core
+                    // mass) toward the equivalent raindrop speed by liquid water fraction
+                    // (Frick, Seifert & Wernli 2013, GMD, Eq. 14-15).
+                    auto m_ice   = ptrs.sp_mass_ptrs[ctx.idx_ice][i];
+                    auto m_water = ptrs.sp_mass_ptrs[ctx.idx_water][i];
+                    auto m_total = SD_total_mass( i, ctx.num_species, ctx.num_aerosols,
+                                                  ptrs.sp_mass_ptrs, ptrs.ae_mass_ptrs);
+                    auto v_ice = term_vel.IceBohm( m_total - m_water,
+                                                   ptrs.a_ptr[i], ptrs.c_ptr[i],
+                                                   ice_rho(ptrs.a_ptr[i], ptrs.c_ptr[i], m_ice),
+                                                   density, temperature );
+                    if (m_water > zero) {
+                        auto m_w    = m_ice + m_water;
+                        auto r_eq   = std::cbrt( m_w / (four_thirds_pi * ctx.rho_water) );
+                        auto v_rain = term_vel.CloudRainShima( r_eq, density, pressure, temperature );
+                        auto ell    = m_water / m_w;
+                        terminal_vel = term_vel.MixedPhaseVterm( v_ice, v_rain, ell );
+                    } else {
+                        terminal_vel = v_ice;
+                    }
+                } else {
+                    amrex::Abort("Invalid option for ice particle terminal velocity model");
+                }
             } else {
-                amrex::Abort("Invalid option for terminal velocity model");
+                amrex::Abort("Unknown value for particle phase (must be ice or water)");
             }
 
             for (int dim=0; dim < AMREX_SPACEDIM; dim++) {

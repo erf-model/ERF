@@ -63,9 +63,12 @@ Radiation::Radiation (const int& lev,
     pp.query("rad_do_subcol_sampling", m_do_subcol_sampling);
 
     // Determine orbital year. If orbital_year is negative, use current year
-    // from timestamp for orbital year; if positive, use provided orbital year
-    // for duration of simulation.
-    m_fixed_orbital_year = pp.query("rad_orbital_year", m_orbital_year);
+    // from timestamp for orbital year; if non-negative, use provided orbital year
+    // for duration of simulation.  Note that this is keyed off the value itself,
+    // not off whether the input was present, so that a negative value defers to
+    // the timestamp as documented.
+    pp.query("rad_orbital_year", m_orbital_year);
+    m_fixed_orbital_year = (m_orbital_year >= 0);
 
     // Get orbital parameters from inputs file
     pp.query("rad_orbital_eccentricity", m_orbital_eccen);
@@ -1090,14 +1093,12 @@ Radiation::run_impl ()
     // the solar zenith angle and also for computing total solar
     // irradiance scaling (tsi_scaling).
     double obliqr, lambm0, mvelpp;
+    // Any of eccen/obliq/mvelp that the user set (i.e. is non-negative) is used
+    // as is by orbital_params; the rest are computed from the orbital year.
     int  orbital_year = m_orbital_year;
     double eccen      = m_orbital_eccen;
     double obliq      = m_orbital_obliq;
     double mvelp      = m_orbital_mvelp;
-    if (eccen >= 0 && obliq >= 0 && mvelp >= 0) {
-      // fixed orbital parameters forced with orbital_year == ORB_UNDEF_INT
-      orbital_year = ORB_UNDEF_INT;
-    }
     orbital_params(orbital_year, eccen, obliq,
                    mvelp, obliqr, lambm0, mvelpp);
 

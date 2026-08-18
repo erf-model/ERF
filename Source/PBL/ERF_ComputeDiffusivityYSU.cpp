@@ -7,6 +7,23 @@
 
 using namespace amrex;
 
+/**
+ * Compute eddy diffusivity using the YSU PBL scheme.
+ *
+ * @param[in] xvel x-velocity field
+ * @param[in] yvel y-velocity field
+ * @param[in] cons_in Conservative state
+ * @param[out] eddyViscosity Computed eddy viscosity coefficients
+ * @param[in] geom Geometry used for spacing and domain info
+ * @param[in] turbChoice Turbulence model options
+ * @param[in] SurfLayer Surface layer model data
+ * @param[in] use_terrain_fitted_coords Flag to use terrain-fitted coordinates
+ * @param[in] level AMR level
+ * @param[in] bc_ptr Boundary condition records
+ * @param[in] z_phys_nd Nodal physical heights
+ * @param[in] z_phys_cc Cell-centered physical heights
+ * @param[in] moisture_indices Indices for moisture components
+ */
 void
 ComputeDiffusivityYSU (const MultiFab& xvel,
                        const MultiFab& yvel,

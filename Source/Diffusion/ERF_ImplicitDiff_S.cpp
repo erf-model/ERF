@@ -128,7 +128,9 @@ ImplicitDiffForStateLU_S (const Box& bx,
                 if (use_mrf_countergradient && (n == RhoTheta_comp || n == RhoQ1_comp)) {
                     const int gam_comp = (n == RhoTheta_comp) ? EddyDiff::HGAMT_v : EddyDiff::HGAMQ_v;
                     const Real gam_hi = myhalf * (mu_turb(i, j, klo, gam_comp) + mu_turb(i, j, klo+1, gam_comp));
-                    RHS_a(i,j,klo) -= Fact * rhoAlpha_hi * gam_hi * dz_inv_hi;
+                    // rhoAlpha*gam is already a flux, so its divergence over cell klo
+                    // is scaled by the *cell* spacing, not the face spacing
+                    RHS_a(i,j,klo) -= Fact * dz_inv * rhoAlpha_hi * gam_hi;
                 }
 
                 RHS_a(i,j,klo)    /= b_tmp;         // NOTE: this is now "rho"
@@ -162,8 +164,13 @@ ImplicitDiffForStateLU_S (const Box& bx,
                     const Real gam_hi  = myhalf * (gam_k + gam_kp1); // at k+½
                     const Real gam_lo  = myhalf * (gam_k + gam_km1); // at k-½
                     // Countergradient flux divergence (implicit contribution to RHS):
-                    //   -Fact * [ρα_{k+½}·γ_{k+½}·dz_inv_hi - ρα_{k-½}·γ_{k-½}·dz_inv_lo]
-                    RHS_a(i,j,k) -= Fact * (rhoAlpha_hi * gam_hi * dz_inv_hi - rhoAlpha_lo * gam_lo * dz_inv_lo);
+                    //   -Fact * dz_inv * [ρα_{k+½}·γ_{k+½} - ρα_{k-½}·γ_{k-½}]
+                    // ρα·γ is already a flux, so differencing it across the cell is
+                    // scaled by the *cell* spacing dz_inv.  The face spacings
+                    // dz_inv_hi/dz_inv_lo belong to the gradient in the diffusion
+                    // coefficients above, not here; using them would leave a spurious
+                    // tendency for a constant countergradient flux on a stretched grid.
+                    RHS_a(i,j,k) -= Fact * dz_inv * (rhoAlpha_hi * gam_hi - rhoAlpha_lo * gam_lo);
                 }
 
                 RHS_a(i,j,k)    = (RHS_a(i,j,k) - a_tmp * RHS_a(i,j,k-1)) * inv_b2_tmp; // NOTE: This is now "rho"
