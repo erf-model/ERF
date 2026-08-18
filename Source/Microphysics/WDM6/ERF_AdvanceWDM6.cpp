@@ -265,18 +265,20 @@ void wdm6_slope_graup_cell (Real qg, Real den, Real denfac,
     if (qg <= Real(0.0)) vt = Real(0.0);
 }
 
-#if !defined(AMREX_USE_GPU)
+namespace WDM6SedCellScratch {
+    enum { wd, wa, wa2, was, qn, qn2, qq, qq2, qr, qr2,
+           dz, den, denfac, tk, work_col, rq_col, rq2_col, NumComps };
+}
+
+namespace WDM6SedNodeScratch {
+    enum { wi, zi, za, dza, qa, qa2, qmi, qpi, NumComps };
+}
+
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 void wdm6_nislfv_rain_plm6_column (
     int km,
-    const Real* dz,
-    const Real* den,
-    const Real* denfac,
-    const Real* tk,
-    Real* ww,
-    Real* rql,
-    Real* rql2,
-    Real& precip1,
-    Real& precip2,
+    Real* precip1,
+    Real* precip2,
     Real dt,
     int iter,
     Real pidn0s,
@@ -297,68 +299,145 @@ void wdm6_nislfv_rain_plm6_column (
     Real rslopeg2max,
     Real rslopeg3max,
     Real bvtg,
-    Real pvtg)
+    Real pvtg,
+    Array4<Real> const& sed_cell,
+    Array4<Real> const& sed_node,
+    int i_s,
+    int j_s,
+    int klo_s)
 {
-    std::vector<Real> qq(km), qq2(km), wd(km), wa(km), wa2(km), was(km);
-    std::vector<Real> wi(km + 1), zi(km + 1), za(km + 1), dza(km + 1);
-    std::vector<Real> qa(km + 1), qa2(km + 1), qn(km), qn2(km);
-    std::vector<Real> qr(km), qr2(km), qmi(km + 1), qpi(km + 1);
+    auto WD = [&](int k) -> amrex::Real& {
+        return sed_cell(i_s, j_s, klo_s + k, WDM6SedCellScratch::wd);
+    };
+    auto WA = [&](int k) -> amrex::Real& {
+        return sed_cell(i_s, j_s, klo_s + k, WDM6SedCellScratch::wa);
+    };
+    auto WA2 = [&](int k) -> amrex::Real& {
+        return sed_cell(i_s, j_s, klo_s + k, WDM6SedCellScratch::wa2);
+    };
+    auto WAS = [&](int k) -> amrex::Real& {
+        return sed_cell(i_s, j_s, klo_s + k, WDM6SedCellScratch::was);
+    };
+    auto QN = [&](int k) -> amrex::Real& {
+        return sed_cell(i_s, j_s, klo_s + k, WDM6SedCellScratch::qn);
+    };
+    auto QN2 = [&](int k) -> amrex::Real& {
+        return sed_cell(i_s, j_s, klo_s + k, WDM6SedCellScratch::qn2);
+    };
+    auto QQ = [&](int k) -> amrex::Real& {
+        return sed_cell(i_s, j_s, klo_s + k, WDM6SedCellScratch::qq);
+    };
+    auto QQ2 = [&](int k) -> amrex::Real& {
+        return sed_cell(i_s, j_s, klo_s + k, WDM6SedCellScratch::qq2);
+    };
+    auto QR = [&](int k) -> amrex::Real& {
+        return sed_cell(i_s, j_s, klo_s + k, WDM6SedCellScratch::qr);
+    };
+    auto QR2 = [&](int k) -> amrex::Real& {
+        return sed_cell(i_s, j_s, klo_s + k, WDM6SedCellScratch::qr2);
+    };
+    auto DZ = [&](int k) -> amrex::Real& {
+        return sed_cell(i_s, j_s, klo_s + k, WDM6SedCellScratch::dz);
+    };
+    auto DEN = [&](int k) -> amrex::Real& {
+        return sed_cell(i_s, j_s, klo_s + k, WDM6SedCellScratch::den);
+    };
+    auto DENFAC = [&](int k) -> amrex::Real& {
+        return sed_cell(i_s, j_s, klo_s + k, WDM6SedCellScratch::denfac);
+    };
+    auto TK = [&](int k) -> amrex::Real& {
+        return sed_cell(i_s, j_s, klo_s + k, WDM6SedCellScratch::tk);
+    };
+    auto WW = [&](int k) -> amrex::Real& {
+        return sed_cell(i_s, j_s, klo_s + k, WDM6SedCellScratch::work_col);
+    };
+    auto RQL = [&](int k) -> amrex::Real& {
+        return sed_cell(i_s, j_s, klo_s + k, WDM6SedCellScratch::rq_col);
+    };
+    auto RQL2 = [&](int k) -> amrex::Real& {
+        return sed_cell(i_s, j_s, klo_s + k, WDM6SedCellScratch::rq2_col);
+    };
+
+    auto WI = [&](int k) -> amrex::Real& {
+        return sed_node(i_s, j_s, klo_s + k, WDM6SedNodeScratch::wi);
+    };
+    auto ZI = [&](int k) -> amrex::Real& {
+        return sed_node(i_s, j_s, klo_s + k, WDM6SedNodeScratch::zi);
+    };
+    auto ZA = [&](int k) -> amrex::Real& {
+        return sed_node(i_s, j_s, klo_s + k, WDM6SedNodeScratch::za);
+    };
+    auto DZA = [&](int k) -> amrex::Real& {
+        return sed_node(i_s, j_s, klo_s + k, WDM6SedNodeScratch::dza);
+    };
+    auto QA = [&](int k) -> amrex::Real& {
+        return sed_node(i_s, j_s, klo_s + k, WDM6SedNodeScratch::qa);
+    };
+    auto QA2 = [&](int k) -> amrex::Real& {
+        return sed_node(i_s, j_s, klo_s + k, WDM6SedNodeScratch::qa2);
+    };
+    auto QMI = [&](int k) -> amrex::Real& {
+        return sed_node(i_s, j_s, klo_s + k, WDM6SedNodeScratch::qmi);
+    };
+    auto QPI = [&](int k) -> amrex::Real& {
+        return sed_node(i_s, j_s, klo_s + k, WDM6SedNodeScratch::qpi);
+    };
 
     Real allold = Real(0.0);
     for (int k = 0; k < km; ++k) {
-        qq[k] = rql[k];
-        qq2[k] = rql2[k];
-        wd[k] = ww[k];
-        allold += qq[k] + qq2[k];
+        QQ(k) = RQL(k);
+        QQ2(k) = RQL2(k);
+        WD(k) = WW(k);
+        allold += QQ(k) + QQ2(k);
     }
 
-    precip1 = Real(0.0);
-    precip2 = Real(0.0);
+    precip1[0] = Real(0.0);
+    precip2[0] = Real(0.0);
     if (allold <= Real(0.0)) {
         return;
     }
 
-    zi[0] = Real(0.0);
+    ZI(0) = Real(0.0);
     for (int k = 0; k < km; ++k) {
-        zi[k + 1] = zi[k] + dz[k];
+        ZI(k + 1) = ZI(k) + DZ(k);
     }
 
     auto rebuild = [&]() {
-        wi[0] = ww[0];
+        WI(0) = WW(0);
         if (km > 1) {
-            wi[1] = Real(0.5) * (ww[1] + ww[0]);
+            WI(1) = Real(0.5) * (WW(1) + WW(0));
             for (int k = 2; k < km - 1; ++k) {
-                wi[k] = Real(9.0) / Real(16.0) * (ww[k] + ww[k - 1])
-                      - Real(1.0) / Real(16.0) * (ww[k + 1] + ww[k - 2]);
+                WI(k) = Real(9.0) / Real(16.0) * (WW(k) + WW(k - 1))
+                      - Real(1.0) / Real(16.0) * (WW(k + 1) + WW(k - 2));
             }
-            wi[km - 1] = Real(0.5) * (ww[km - 1] + ww[km - 2]);
+            WI(km - 1) = Real(0.5) * (WW(km - 1) + WW(km - 2));
         }
-        wi[km] = ww[km - 1];
+        WI(km) = WW(km - 1);
         for (int k = 1; k < km; ++k) {
-            if (ww[k] == Real(0.0)) wi[k] = ww[k - 1];
+            if (WW(k) == Real(0.0)) WI(k) = WW(k - 1);
         }
 
         constexpr Real con1 = wdm6_literal(0.05);
         for (int k = km - 1; k >= 0; --k) {
-            const Real decfl = (wi[k + 1] - wi[k]) * dt / dz[k];
+            const Real decfl = (WI(k + 1) - WI(k)) * dt / DZ(k);
             if (decfl > con1) {
-                wi[k] = wi[k + 1] - con1 * dz[k] / dt;
+                WI(k) = WI(k + 1) - con1 * DZ(k) / dt;
             }
         }
 
         for (int k = 0; k <= km; ++k) {
-            za[k] = zi[k] - wi[k] * dt;
+            ZA(k) = ZI(k) - WI(k) * dt;
         }
         for (int k = 0; k < km; ++k) {
-            dza[k] = za[k + 1] - za[k];
-            qa[k] = qq[k] * dz[k] / dza[k];
-            qa2[k] = qq2[k] * dz[k] / dza[k];
-            qr[k] = qa[k] / den[k];
-            qr2[k] = qa2[k] / den[k];
+            DZA(k) = ZA(k + 1) - ZA(k);
+            QA(k) = QQ(k) * DZ(k) / DZA(k);
+            QA2(k) = QQ2(k) * DZ(k) / DZA(k);
+            QR(k) = QA(k) / DEN(k);
+            QR2(k) = QA2(k) / DEN(k);
         }
-        dza[km] = zi[km] - za[km];
-        qa[km] = Real(0.0);
-        qa2[km] = Real(0.0);
+        DZA(km) = ZI(km) - ZA(km);
+        QA(km) = Real(0.0);
+        QA2(km) = Real(0.0);
     };
 
     rebuild();
@@ -366,51 +445,67 @@ void wdm6_nislfv_rain_plm6_column (
     if (iter > 0) {
         for (int k = 0; k < km; ++k) {
             Real rslope, rslopeb, rslope2, rslope3, vt, n0sfac_dummy;
-            wdm6_slope_snow_cell(qr[k], den[k], denfac[k], tk[k],
+            wdm6_slope_snow_cell(QR(k), DEN(k), DENFAC(k), TK(k),
                                  pidn0s, alpha, n0smax, n0s, t0c, qcrmin,
                                  rslopesmax, rslopesbmax, rslopes2max, rslopes3max,
                                  bvts, pvts, rslope, rslopeb, rslope2, rslope3, vt,
                                  n0sfac_dummy);
-            wa[k] = vt;
-            wdm6_slope_graup_cell(qr2[k], den[k], denfac[k],
+            WA(k) = vt;
+            wdm6_slope_graup_cell(QR2(k), DEN(k), DENFAC(k),
                                   pidn0g, qcrmin, rslopegmax, rslopegbmax,
                                   rslopeg2max, rslopeg3max, bvtg, pvtg,
                                   rslope, rslopeb, rslope2, rslope3, vt);
-            wa2[k] = vt;
+            WA2(k) = vt;
         }
         for (int k = 0; k < km; ++k) {
-            const Real tmpq = amrex::max(qr[k] + qr2[k], wdm6_literal(1.0e-15));
-            wa[k] = (tmpq > wdm6_literal(1.0e-15))
-                ? (wa[k] * qr[k] + wa2[k] * qr2[k]) / tmpq
+            const Real tmpq = amrex::max(QR(k) + QR2(k), wdm6_literal(1.0e-15));
+            WA(k) = (tmpq > wdm6_literal(1.0e-15))
+                ? (WA(k) * QR(k) + WA2(k) * QR2(k)) / tmpq
                 : Real(0.0);
-            ww[k] = Real(0.5) * (wd[k] + wa[k]);
-            was[k] = wa[k];
+            WW(k) = Real(0.5) * (WD(k) + WA(k));
+            WAS(k) = WA(k);
         }
         rebuild();
     }
 
-    auto advect_one = [&](std::vector<Real>& qa_src, std::vector<Real>& qn_dst, Real& precip_dst) {
-        qpi[0] = qa_src[0];
-        qmi[0] = qa_src[0];
-        qmi[km] = qa_src[km];
-        qpi[km] = qa_src[km];
+    for (int ist = 0; ist < 2; ++ist) {
+        const int qn_comp = (ist == 0)
+            ? WDM6SedCellScratch::qn
+            : WDM6SedCellScratch::qn2;
+        const int qa_comp = (ist == 0)
+            ? WDM6SedNodeScratch::qa
+            : WDM6SedNodeScratch::qa2;
+        auto qn_dst = [&](int k) -> amrex::Real& {
+            return sed_cell(i_s, j_s, klo_s + k, qn_comp);
+        };
+        auto qa_src = [&](int k) -> amrex::Real& {
+            return sed_node(i_s, j_s, klo_s + k, qa_comp);
+        };
+        Real* precip_dst = (ist == 0) ? precip1 : precip2;
+
+        QPI(0) = qa_src(0);
+        QMI(0) = qa_src(0);
+        QMI(km) = qa_src(km);
+        QPI(km) = qa_src(km);
         for (int k = 1; k < km; ++k) {
-            const Real dip = (qa_src[k + 1] - qa_src[k]) / (dza[k + 1] + dza[k]);
-            const Real dim = (qa_src[k] - qa_src[k - 1]) / (dza[k - 1] + dza[k]);
+            const Real dip = (qa_src(k + 1) - qa_src(k)) / (DZA(k + 1) + DZA(k));
+            const Real dim = (qa_src(k) - qa_src(k - 1)) / (DZA(k - 1) + DZA(k));
             if (dip * dim <= Real(0.0)) {
-                qmi[k] = qa_src[k];
-                qpi[k] = qa_src[k];
+                QMI(k) = qa_src(k);
+                QPI(k) = qa_src(k);
             } else {
-                qpi[k] = qa_src[k] + Real(0.5) * (dip + dim) * dza[k];
-                qmi[k] = Real(2.0) * qa_src[k] - qpi[k];
-                if (qpi[k] < Real(0.0) || qmi[k] < Real(0.0)) {
-                    qpi[k] = qa_src[k];
-                    qmi[k] = qa_src[k];
+                QPI(k) = qa_src(k) + Real(0.5) * (dip + dim) * DZA(k);
+                QMI(k) = Real(2.0) * qa_src(k) - QPI(k);
+                if (QPI(k) < Real(0.0) || QMI(k) < Real(0.0)) {
+                    QPI(k) = qa_src(k);
+                    QMI(k) = qa_src(k);
                 }
             }
         }
 
-        std::fill(qn_dst.begin(), qn_dst.end(), Real(0.0));
+        for (int k = 0; k < km; ++k) {
+            qn_dst(k) = Real(0.0);
+        }
         int kb = 0;
         int kt = 0;
         for (int k = 0; k < km; ++k) {
@@ -423,16 +518,16 @@ void wdm6_nislfv_rain_plm6_column (
             kb = amrex::max(kb - 1, 0);
             kt = amrex::max(kt - 1, 0);
 
-            if (zi[k] >= za[km]) break;
+            if (ZI(k) >= ZA(km)) break;
 
             for (int kk = kb; kk < km; ++kk) {
-                if (zi[k] <= za[kk + 1]) {
+                if (ZI(k) <= ZA(kk + 1)) {
                     kb = kk;
                     break;
                 }
             }
             for (int kk = kt; kk < km; ++kk) {
-                if (zi[k + 1] <= za[kk]) {
+                if (ZI(k + 1) <= ZA(kk)) {
                     kt = kk;
                     break;
                 }
@@ -447,52 +542,48 @@ void wdm6_nislfv_rain_plm6_column (
             kt = kt - 1;
 
             if (kt == kb) {
-                const Real tl = (zi[k] - za[kb]) / dza[kb];
-                const Real th = (zi[k + 1] - za[kb]) / dza[kb];
-                const Real qqd = Real(0.5) * (qpi[kb] - qmi[kb]);
-                qn_dst[k] = (qqd * th * th + qmi[kb] * th
-                           - qqd * tl * tl - qmi[kb] * tl) / (th - tl);
+                const Real tl = (ZI(k) - ZA(kb)) / DZA(kb);
+                const Real th = (ZI(k + 1) - ZA(kb)) / DZA(kb);
+                const Real qqd = Real(0.5) * (QPI(kb) - QMI(kb));
+                qn_dst(k) = (qqd * th * th + QMI(kb) * th
+                           - qqd * tl * tl - QMI(kb) * tl) / (th - tl);
             } else if (kt > kb) {
-                const Real tl = (zi[k] - za[kb]) / dza[kb];
-                const Real qqd = Real(0.5) * (qpi[kb] - qmi[kb]);
-                const Real qql = qqd * tl * tl + qmi[kb] * tl;
-                const Real dql = qa_src[kb] - qql;
-                Real zsum = (Real(1.0) - tl) * dza[kb];
-                Real qsum = dql * dza[kb];
+                const Real tl = (ZI(k) - ZA(kb)) / DZA(kb);
+                const Real qqd = Real(0.5) * (QPI(kb) - QMI(kb));
+                const Real qql = qqd * tl * tl + QMI(kb) * tl;
+                const Real dql = qa_src(kb) - qql;
+                Real zsum = (Real(1.0) - tl) * DZA(kb);
+                Real qsum = dql * DZA(kb);
                 for (int m = kb + 1; m < kt; ++m) {
-                    zsum += dza[m];
-                    qsum += qa_src[m] * dza[m];
+                    zsum += DZA(m);
+                    qsum += qa_src(m) * DZA(m);
                 }
-                const Real th = (zi[k + 1] - za[kt]) / dza[kt];
-                const Real dqh = Real(0.5) * (qpi[kt] - qmi[kt]) * th * th + qmi[kt] * th;
-                zsum += th * dza[kt];
-                qsum += dqh * dza[kt];
-                qn_dst[k] = qsum / zsum;
+                const Real th = (ZI(k + 1) - ZA(kt)) / DZA(kt);
+                const Real dqh = Real(0.5) * (QPI(kt) - QMI(kt)) * th * th + QMI(kt) * th;
+                zsum += th * DZA(kt);
+                qsum += dqh * DZA(kt);
+                qn_dst(k) = qsum / zsum;
             }
         }
 
-        precip_dst = Real(0.0);
+        precip_dst[0] = Real(0.0);
         for (int k = 0; k < km; ++k) {
-            if (za[k] < Real(0.0) && za[k + 1] < Real(0.0)) {
-                precip_dst += qa_src[k] * dza[k];
-            } else if (za[k] < Real(0.0) && za[k + 1] >= Real(0.0)) {
-                precip_dst += qa_src[k] * (Real(0.0) - za[k]);
+            if (ZA(k) < Real(0.0) && ZA(k + 1) < Real(0.0)) {
+                precip_dst[0] += qa_src(k) * DZA(k);
+            } else if (ZA(k) < Real(0.0) && ZA(k + 1) >= Real(0.0)) {
+                precip_dst[0] += qa_src(k) * (Real(0.0) - ZA(k));
                 break;
             } else {
                 break;
             }
         }
-    };
-
-    advect_one(qa, qn, precip1);
-    advect_one(qa2, qn2, precip2);
+    }
 
     for (int k = 0; k < km; ++k) {
-        rql[k] = qn[k];
-        rql2[k] = qn2[k];
+        RQL(k) = QN(k);
+        RQL2(k) = QN2(k);
     }
 }
-#endif
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 Real wdm6_mean_droplet_diameter (Real qc, Real nc, Real den, Real pidnc_arg) {
@@ -893,6 +984,9 @@ void WDM6::Advance(const Real& dt_advance,
         FArrayBox rhw_fab(fab_box,1, Arena_Used);
         FArrayBox rhi_fab(fab_box,1, Arena_Used);
         FArrayBox qcr_fab(fab_box,1, Arena_Used);
+        FArrayBox sed_cell_scratch_fab(fab_box, WDM6SedCellScratch::NumComps, Arena_Used);
+        Box sed_node_box = amrex::surroundingNodes(fab_box, 2);
+        FArrayBox sed_node_scratch_fab(sed_node_box, WDM6SedNodeScratch::NumComps, Arena_Used);
 
         // Process rate arrays
         FArrayBox praut_fab(fab_box,1, Arena_Used);
@@ -979,6 +1073,8 @@ void WDM6::Advance(const Real& dt_advance,
         auto const& rhw_arr = rhw_fab.array();
         auto const& rhi_arr = rhi_fab.array();
         auto const& qcr_arr = qcr_fab.array();
+        auto const& sed_cell_scratch_arr = sed_cell_scratch_fab.array();
+        auto const& sed_node_scratch_arr = sed_node_scratch_fab.array();
         auto const& praut_arr = praut_fab.array();
         auto const& pracw_arr = pracw_fab.array();
         auto const& prevp_arr = prevp_fab.array();
@@ -1775,21 +1871,42 @@ void WDM6::Advance(const Real& dt_advance,
                 std::fflush(stdout);
                 }
             }
+#endif
 
-            ParallelFor(box2d, [=] (int i, int j, int k) {
+            ParallelFor(box2d, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
                 amrex::ignore_unused(k);
                 const int km = khi - klo + 1;
-                std::vector<Real> dz(km), den(km), denfac(km), tk(km), worka(km), qs_col(km), qg_col(km);
+                auto dz_col = [&](int kk) -> amrex::Real& {
+                    return sed_cell_scratch_arr(i, j, klo + kk, WDM6SedCellScratch::dz);
+                };
+                auto den_col = [&](int kk) -> amrex::Real& {
+                    return sed_cell_scratch_arr(i, j, klo + kk, WDM6SedCellScratch::den);
+                };
+                auto denfac_col = [&](int kk) -> amrex::Real& {
+                    return sed_cell_scratch_arr(i, j, klo + kk, WDM6SedCellScratch::denfac);
+                };
+                auto tk_col = [&](int kk) -> amrex::Real& {
+                    return sed_cell_scratch_arr(i, j, klo + kk, WDM6SedCellScratch::tk);
+                };
+                auto work_col = [&](int kk) -> amrex::Real& {
+                    return sed_cell_scratch_arr(i, j, klo + kk, WDM6SedCellScratch::work_col);
+                };
+                auto rq_col = [&](int kk) -> amrex::Real& {
+                    return sed_cell_scratch_arr(i, j, klo + kk, WDM6SedCellScratch::rq_col);
+                };
+                auto rq2_col = [&](int kk) -> amrex::Real& {
+                    return sed_cell_scratch_arr(i, j, klo + kk, WDM6SedCellScratch::rq2_col);
+                };
                 for (int kk = 0; kk < km; ++kk) {
                     const int k3 = klo + kk;
-                    dz[kk] = delz_arr(i,j,k3);
-                    den[kk] = den_arr(i,j,k3);
-                    denfac[kk] = denfac_arr(i,j,k3);
-                    tk[kk] = t_arr(i,j,k3);
-                    qs_col[kk] = den[kk] * qs_arr(i,j,k3);
-                    qg_col[kk] = den[kk] * qg_arr(i,j,k3);
+                    dz_col(kk) = delz_arr(i,j,k3);
+                    den_col(kk) = den_arr(i,j,k3);
+                    denfac_col(kk) = denfac_arr(i,j,k3);
+                    tk_col(kk) = t_arr(i,j,k3);
+                    rq_col(kk) = den_col(kk) * qs_arr(i,j,k3);
+                    rq2_col(kk) = den_col(kk) * qg_arr(i,j,k3);
                     const Real qsum = amrex::max(qs_arr(i,j,k3) + qg_arr(i,j,k3), wdm6_literal(1.0e-15));
-                    worka[kk] = (qsum > wdm6_literal(1.0e-15))
+                    work_col(kk) = (qsum > wdm6_literal(1.0e-15))
                         ? (work1_arr(i,j,k3,1) * qs_arr(i,j,k3) + work1_arr(i,j,k3,2) * qg_arr(i,j,k3)) / qsum
                         : Real(0.0);
                 }
@@ -1797,22 +1914,23 @@ void WDM6::Advance(const Real& dt_advance,
                 Real delqrs2 = Real(0.0);
                 Real delqrs3 = Real(0.0);
                 wdm6_nislfv_rain_plm6_column(
-                    km, dz.data(), den.data(), denfac.data(), tk.data(),
-                    worka.data(), qs_col.data(), qg_col.data(), delqrs2, delqrs3, dtcld, 1,
+                    km, &delqrs2, &delqrs3, dtcld, 1,
                     pidn0s_loc, pidn0g_loc, Real(qcrmin), Real(alpha_wdm6), Real(n0smax), Real(n0s), wdm6_slope_t0c,
                     rslopesmax_loc, rslopesbmax_loc, rslopes2max_loc, rslopes3max_loc, Real(bvts), pvts_loc,
-                    rslopegmax_loc, rslopegbmax_loc, rslopeg2max_loc, rslopeg3max_loc, slope_bvtg_loc, pvtg_loc);
+                    rslopegmax_loc, rslopegbmax_loc, rslopeg2max_loc, rslopeg3max_loc, slope_bvtg_loc, pvtg_loc,
+                    sed_cell_scratch_arr, sed_node_scratch_arr, i, j, klo);
 
                 for (int kk = 0; kk < km; ++kk) {
                     const int k3 = klo + kk;
-                    qs_arr(i,j,k3) = amrex::max(qs_col[kk] / den[kk], Real(0.0));
-                    qg_arr(i,j,k3) = amrex::max(qg_col[kk] / den[kk], Real(0.0));
+                    qs_arr(i,j,k3) = amrex::max(rq_col(kk) / den_col(kk), Real(0.0));
+                    qg_arr(i,j,k3) = amrex::max(rq2_col(kk) / den_col(kk), Real(0.0));
                 }
 
-                work1_arr(i,j,klo,1) = delqrs2 / dz[0] / dtcld;
-                work1_arr(i,j,klo,2) = delqrs3 / dz[0] / dtcld;
+                work1_arr(i,j,klo,1) = delqrs2 / dz_col(0) / dtcld;
+                work1_arr(i,j,klo,2) = delqrs3 / dz_col(0) / dtcld;
             });
 
+#if !defined(AMREX_USE_GPU)
             if (microphysics_debug > 0 && loop == 0 && diag_col_in_tile) {
                 for (int kdbg = klo; kdbg <= khi; ++kdbg) {
                 const Real qsum = amrex::max(qs_arr(diag_i,diag_j,kdbg) + qg_arr(diag_i,diag_j,kdbg), wdm6_literal(1.0e-15));
@@ -2123,24 +2241,45 @@ void WDM6::Advance(const Real& dt_advance,
             });
 
             // Ice sedimentation via simplified PLM6 scheme
-            ParallelFor(box2d, [=] (int i, int j, int k) {
+            ParallelFor(box2d, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
                 amrex::ignore_unused(k);
                 const int km = khi - klo + 1;
-                std::vector<Real> dz(km), den(km), denfac(km), tk(km), work_ice(km);
-                std::vector<Real> qi_col(km);
+                auto dz_col = [&](int kk) -> amrex::Real& {
+                    return sed_cell_scratch_arr(i, j, klo + kk, WDM6SedCellScratch::dz);
+                };
+                auto den_col = [&](int kk) -> amrex::Real& {
+                    return sed_cell_scratch_arr(i, j, klo + kk, WDM6SedCellScratch::den);
+                };
+                auto denfac_col = [&](int kk) -> amrex::Real& {
+                    return sed_cell_scratch_arr(i, j, klo + kk, WDM6SedCellScratch::denfac);
+                };
+                auto tk_col = [&](int kk) -> amrex::Real& {
+                    return sed_cell_scratch_arr(i, j, klo + kk, WDM6SedCellScratch::tk);
+                };
+                auto work_col = [&](int kk) -> amrex::Real& {
+                    return sed_cell_scratch_arr(i, j, klo + kk, WDM6SedCellScratch::work_col);
+                };
+                auto rq_col = [&](int kk) -> amrex::Real& {
+                    return sed_cell_scratch_arr(i, j, klo + kk, WDM6SedCellScratch::rq_col);
+                };
+                auto rq2_col = [&](int kk) -> amrex::Real& {
+                    return sed_cell_scratch_arr(i, j, klo + kk, WDM6SedCellScratch::rq2_col);
+                };
 
                 // Fill column arrays
                 for (int kk = 0; kk < km; ++kk) {
                     const int k3 = klo + kk;
-                    dz[kk] = delz_arr(i,j,k3);
-                    den[kk] = den_arr(i,j,k3);
-                    denfac[kk] = denfac_arr(i,j,k3);
-                    tk[kk] = t_arr(i,j,k3);
-                    work_ice[kk] = work1c_arr(i,j,k3);
-                    qi_col[kk] = den[kk] * qi_arr(i,j,k3);
+                    dz_col(kk) = delz_arr(i,j,k3);
+                    den_col(kk) = den_arr(i,j,k3);
+                    denfac_col(kk) = denfac_arr(i,j,k3);
+                    tk_col(kk) = t_arr(i,j,k3);
+                    work_col(kk) = work1c_arr(i,j,k3);
+                    rq_col(kk) = den_col(kk) * qi_arr(i,j,k3);
+                    rq2_col(kk) = den_col(kk) * qi_arr(i,j,k3);
                 }
 
                 Real delqi_col = Real(0.0);
+                Real delqi2_col = Real(0.0);
 
                 // Ice sedimentation. ITER MUST BE 0 HERE. The Fortran calls
                 //     nislfv_rain_plmr(...,work1c,denqci,denqci,delqi,dtcld,1,0,0)
@@ -2156,20 +2295,20 @@ void WDM6::Advance(const Real& dt_advance,
                 // the 85..100 window, so the kernel invocation was the only
                 // remaining candidate.
                 wdm6_nislfv_rain_plm6_column(
-                    km, dz.data(), den.data(), denfac.data(), tk.data(),
-                    work_ice.data(), qi_col.data(), qi_col.data(), delqi_col, delqi_col, dtcld, 0,
+                    km, &delqi_col, &delqi2_col, dtcld, 0,
                     pidn0s_loc, pidn0g_loc, Real(qcrmin), Real(alpha_wdm6), Real(n0smax), Real(n0s), wdm6_slope_t0c,
                     rslopesmax_loc, rslopesbmax_loc, rslopes2max_loc, rslopes3max_loc, Real(bvts), pvts_loc,
-                    rslopegmax_loc, rslopegbmax_loc, rslopeg2max_loc, rslopeg3max_loc, slope_bvtg_loc, pvtg_loc);
+                    rslopegmax_loc, rslopegbmax_loc, rslopeg2max_loc, rslopeg3max_loc, slope_bvtg_loc, pvtg_loc,
+                    sed_cell_scratch_arr, sed_node_scratch_arr, i, j, klo);
 
                 // Update ice concentrations from sedimented state
                 for (int kk = 0; kk < km; ++kk) {
                     const int k3 = klo + kk;
-                    qi_arr(i,j,k3) = amrex::max(qi_col[kk] / den[kk], Real(0.0));
+                    qi_arr(i,j,k3) = amrex::max(rq_col(kk) / den_col(kk), Real(0.0));
                 }
 
                 // Ice fallout at surface
-                fallc_arr(i,j,k) = delqi_col / dz[0] / dtcld;
+                fallc_arr(i,j,k) = delqi_col / dz_col(0) / dtcld;
                 delqi_arr(i,j,k) = delqi_col;
             });
 
@@ -3848,7 +3987,8 @@ void WDM6::Advance(const Real& dt_advance,
                         (roqi0 / den_arr(i,j,k) - amrex::max(qi_val, Real(0.0))) / dtcld);
                     pigen_arr(i,j,k) = amrex::min(
                         amrex::min(pigen_raw, satdt), supice);
-                    if (!amrex::Gpu::inLaunchRegion() && microphysics_debug >= 1 &&
+#if !defined(AMREX_USE_GPU)
+                    if (microphysics_debug >= 1 &&
                         i == diag_i && j == diag_j && k >= 39 && k <= 41) {
                         std::printf("WDM6-CPP_T2_G13E_PIGEN_EXACT k=%3d supsat=%24.16E satdt=%24.16E supice=%24.16E supcol=%24.16E xni0=%24.16E roqi0=%24.16E den=%24.16E qi=%24.16E\n",
                                     k + 1,
@@ -3867,6 +4007,7 @@ void WDM6::Advance(const Real& dt_advance,
                                     static_cast<double>(supice),
                                     static_cast<double>(pigen_arr(i,j,k)));
                     }
+#endif
                 }
             });
 
@@ -3894,11 +4035,12 @@ void WDM6::Advance(const Real& dt_advance,
             }
 #endif
 
+            const Real roqimax_loc = m_roqimax;
             ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
                 const Real supcol = Real(t0c) - t_arr(i,j,k);
 
                 if (qi_arr(i,j,k) > Real(0.0)) {
-                    const Real qimax = Real(m_roqimax) / den_arr(i,j,k);
+                    const Real qimax = roqimax_loc / den_arr(i,j,k);
                     psaut_arr(i,j,k) = amrex::max(
                         Real(0.0), (qi_arr(i,j,k) - qimax) / dtcld);
                 }
@@ -3949,7 +4091,7 @@ void WDM6::Advance(const Real& dt_advance,
             }
 #endif
 
-            ParallelFor(box, [=, this] AMREX_GPU_DEVICE (int i, int j, int k) {
+            ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
                 const Real supcol = Real(t0c) - t_arr(i,j,k);
                 if (supcol < Real(0.0)) {
                     const Real n0sfac = amrex::max(
@@ -3964,8 +4106,8 @@ void WDM6::Advance(const Real& dt_advance,
                                                       * rslopeb_arr(i,j,k,1));
                         psevp_arr(i,j,k) = (rhw_arr(i,j,k) - Real(1.0))
                             * n0sfac
-                            * (Real(m_precs1) * rslope2_arr(i,j,k,1)
-                               + Real(m_precs2) * work2_arr(i,j,k) * coeres)
+                            * (precs1_loc * rslope2_arr(i,j,k,1)
+                               + precs2_loc * work2_arr(i,j,k) * coeres)
                             / work1_arr(i,j,k,0);
                         psevp_arr(i,j,k) = amrex::min(
                             amrex::max(psevp_arr(i,j,k),
@@ -3979,8 +4121,8 @@ void WDM6::Advance(const Real& dt_advance,
                                           * std::sqrt(rslope_arr(i,j,k,2)
                                                       * rslopeb_arr(i,j,k,2));
                         pgevp_arr(i,j,k) = (rhw_arr(i,j,k) - Real(1.0))
-                            * (Real(m_precg1) * rslope2_arr(i,j,k,2)
-                               + Real(m_precg2) * work2_arr(i,j,k) * coeres)
+                            * (precg1_loc * rslope2_arr(i,j,k,2)
+                               + precg2_loc * work2_arr(i,j,k) * coeres)
                             / work1_arr(i,j,k,0);
                         pgevp_arr(i,j,k) = amrex::min(
                             amrex::max(pgevp_arr(i,j,k),
