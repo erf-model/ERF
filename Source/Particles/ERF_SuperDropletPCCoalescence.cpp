@@ -441,6 +441,9 @@ void SuperDropletPC::Coalescence( int   a_lev,
     const auto sp_idx_w = m_idx_w;
     const auto sp_idx_i = m_idx_i;
     const auto mat_prop(*(m_species_mat[(sp_idx_i>=0?sp_idx_i:sp_idx_w)]));
+    // MaterialProperties is not trivially copyable (user-defined copy ctor, host
+    // function pointers), so device lambdas must capture only the POD core
+    const MaterialPropertiesCore& mat_prop_core = mat_prop;
 
     const int num_ae = m_num_aerosols;
     const int num_sp  = m_num_species;
@@ -903,10 +906,10 @@ void SuperDropletPC::Coalescence( int   a_lev,
         Gpu::synchronize();
         num_collisions = static_cast<Real>(*(particle_collisions.copyToHost()));
 
-        dMdt<ParticleReal> dmdt{ static_cast<ParticleReal>(mat_prop.m_lat_vap),
+        dMdt<ParticleReal> dmdt{ static_cast<ParticleReal>(mat_prop_core.m_lat_vap),
                                  static_cast<ParticleReal>(therco), /* ERF_Constants.H */
-                                 static_cast<ParticleReal>(mat_prop.m_Rv),
-                                 static_cast<ParticleReal>(mat_prop.m_density) };
+                                 static_cast<ParticleReal>(mat_prop_core.m_Rv),
+                                 static_cast<ParticleReal>(mat_prop_core.m_density) };
 
         ParallelFor( np, [=] AMREX_GPU_DEVICE (int i)
         {
@@ -977,7 +980,7 @@ void SuperDropletPC::Coalescence( int   a_lev,
                 const auto pressure      = fv[static_cast<int>(InterpFieldsFull::pressure)];
                 const auto moist_density = fv[static_cast<int>(InterpFieldsFull::moist_density)];
                 const auto qv            = fv[static_cast<int>(InterpFieldsFull::qv)];
-                auto coeff_moldiff = mat_prop.coeffMolecularDiffusion(temperature, pressure);
+                auto coeff_moldiff = mat_prop_core.coeffMolecularDiffusion(temperature, pressure);
 
                 rime_update_attribs( i, j,
                                      sp_idx_w, sp_idx_i,

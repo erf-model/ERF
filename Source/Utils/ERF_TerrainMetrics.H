@@ -80,6 +80,26 @@ init_which_terrain_grid (int lev, const amrex::Geometry& geom,
 amrex::Real
 get_dzmin_terrain (amrex::MultiFab& z_phys_nd);
 
+/**
+ * Re-derive the stretched vertical spacing at one level from the nominal z-levels.
+ *
+ * init_zlevels() fills both zlevels_stag and stretched_dz_* together, but
+ * zlevels_stag can be replaced after construction (init_from_wrfinput() does this
+ * when erf.use_wrf_height_grid = false, and restart reads it back from the
+ * checkpoint).  Call this whenever zlevels_stag[lev] changes so that the cell
+ * heights never drift out of sync with the levels they are supposed to describe.
+ *
+ * @param[in] lev Level index.
+ * @param[in] zlevels_stag Staggered z-levels (the source of truth).
+ * @param[out] stretched_dz_h Host stretched vertical spacing.
+ * @param[out] stretched_dz_d Device stretched vertical spacing.
+ */
+void
+update_stretched_dz (int lev,
+                     amrex::Vector<amrex::Vector<amrex::Real>> const& zlevels_stag,
+                     amrex::Vector<amrex::Vector<amrex::Real>>& stretched_dz_h,
+                     amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real>>& stretched_dz_d);
+
 //*****************************************************************************************
 // Compute terrain metric terms at cell-center
 //*****************************************************************************************
