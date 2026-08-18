@@ -42,10 +42,15 @@ WDM6 (WRF Double-Moment 6-class) microphysics scheme for ERF. This implementatio
   Bubble case; see "Validation" below for the figures and their scope
 
 ⚠️ **Validated to a different standard (GPU):**
-- The CUDA build runs, but bridge-vs-native agreement on GPU is NOT
-  epsilon-scale: see "GPU" under Validation. This is a property of hard-gated
-  branches under two independently-rounded execution paths, not a porting defect,
-  but it means GPU results must not be compared against the serial figures.
+- The CUDA build runs. Bridge-vs-native agreement is roundoff-scale at step 1
+  (worst 3.4e-14 relative on `pert_pres`, 17 of 32 variables bitwise) but is NOT
+  epsilon-scale after that: worst 1.06 relative on `rhoQ4` at step 10 and 0.43 on
+  `nr` at step 100 — i.e. order-unity, not small.
+- The divergence is confined to the warm-rain group. `qc`, `qr`, `nc`, `nr` and
+  `nn` move together, while `density`, `temp`, `pressure`, `theta`, `qv` and all
+  ice fields stay under 0.1% relative at both step 10 and step 100.
+- Cause is a hard gate, not a porting defect: see "GPU" under Validation for the
+  per-step evidence. GPU figures must not be compared against the serial table.
 
 ✅ **Infrastructure:**
 - State management (9 moisture variables: qv-qg + nn, nc, nr)
@@ -187,16 +192,40 @@ bitwise identical across 1, 2, 4 and 8 ranks — but only for the x-only
 decompositions AMReX chooses on this domain. A z-cut is untestable here; see
 "Gotchas".
 
-**GPU.** The CUDA build compiles and runs. Bridge-vs-native agreement at step 1 is
-roundoff-scale, but by step 10 and 100 the warm-rain group diverges by tens of
-percent while thermodynamics and ice stay under 0.1%. Per-step checks show no
-injected defect at any step, so the cause is the hard, unsmoothed autoconversion
-gate at `ERF_module_mp_wdm6.F90:1931`
+**GPU.** The CUDA build compiles and runs. Bridge-vs-native agreement, GPU legs
+compared against each other:
+
+| stop step | worst relative error | variable | bitwise |
+| --- | --- | --- | --- |
+| 1 | 3.357937346e-14 | pert_pres | 17/32 |
+| 10 | 1.058982901 | rhoQ4 | 5/32 |
+| 100 | 0.428419406 | nr | 5/32 |
+
+At step 10 three variables exceed 90% (`qrain` 0.959, `rhoQ4` 1.059, `nn` 0.941);
+at step 100 the largest are `nr` 0.428, `qrain`/`qp` 0.300, `nn` 0.298 and `rhoQ4`
+0.282. Note step 1 already differs where the CPU is bitwise — GPU reduction order
+does not match between the two legs, so there is a ~1e-16 seed from the first step
+rather than the exact zero the CPU gets.
+
+**Why this is a gate effect, not a wrong kernel.** The same per-step check used for
+the serial lane was run at all 99 windows: min 1.8e-14, max 1.2e-13, median
+~5.4e-14, with nothing near the 1.9e-11-and-up signature of a real injected defect.
+So no kernel computes a wrong answer at any step given identical input; the whole
+measured seed is a GPU roundoff floor about 7–8x the serial CPU ceiling, consistent
+with parallel-reduction non-associativity. The amplification comes from the hard,
+unsmoothed autoconversion gate at `ERF_module_mp_wdm6.F90:1931`
 (`if(qci(i,k,1).gt.qcr(i,k).and.ncr(i,k,2).gt.ncmin)`): a cell whose `qc` sits
-within GPU roundoff of the threshold can land on opposite sides of the gate on the
-two legs, firing autoconversion on one and not the other. That is a structural
-property of a hard-gated nonlinear scheme, not a coding error. **Do not compare
-GPU figures against the serial table above.**
+within GPU roundoff of the threshold lands on opposite sides of the gate on the two
+legs, firing `praut`/`nraut` on one and not the other, and everything downstream
+(`qc`, `qr`, `nc`, `nr`) moves with it. That is a structural property of a
+hard-gated nonlinear scheme under two independently-rounded execution paths.
+
+The threshold itself was checked and is not the problem: `qc0`/`qc1` derive from
+`r0`, `xncr0`, `xncr1` and a bridge-passed `den0`, all identically computed on both
+legs. **Do not compare GPU figures against the serial table above** — once a hard
+gate is crossed under different roundoff floors, the two lanes are not measuring the
+same quantity. Figures were taken on an sm_61 card at an earlier commit; the CUDA
+build has not been re-verified at the current tip, and ERF targets sm_70+.
 
 ## Gotchas
 
