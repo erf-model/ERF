@@ -147,6 +147,41 @@ check that distinguishes real coverage from a no-op:
 The third, honouring physical cell thickness on a stretched mesh, is **not
 covered**: see "Gotchas".
 
+**Both literal-precision configurations are viable.** The default reproduces the
+Fortran's single-precision literal rounding in the native path
+(`ERF_WDM6_F32_LITERALS=ON`, matched against the Fortran as normally compiled). The
+alternative builds *both* sides in double and also agrees, at the same order:
+
+| stop step | default (F32 literals) | double literals |
+| --- | --- | --- |
+| 1 | bitwise, 32/32 | 3.4e-14 (pert_pres), 26/32 bitwise |
+| 10 | 2.8e-16 (qt) | 7.8e-12 (nc) |
+| 100 | 1.3e-11 (nn) | 2.1e-11 (nn) |
+
+(Those default-column figures are from the instrumented build, which is why step 1
+is bitwise there and 9.2e-18 in the table above; see gotcha 7.)
+
+Two things to understand before using it:
+
+- **The two flags are a matched pair.** `ERF_WDM6_F32_LITERALS=OFF` must be
+  combined with `ERF_WDM6_FORTRAN_REAL8=ON`, which compiles
+  `ERF_module_mp_wdm6.F90` and its isohelper with `-fdefault-real-8
+  -fdefault-double-8`. Turning off the C++ side alone leaves native literals as
+  true doubles against a Fortran leg still evaluating its unsuffixed literals in
+  single precision — that *breaks* parity rather than preserving it.
+- **Agreement here is weaker evidence than it looks.** An unrouted literal is
+  already a true double on the C++ side, so under the double configuration it
+  agrees with the Fortran *by accident* and disagrees only under the default. A
+  clean double-literal result can therefore indicate uniform routing rather than
+  genuine correspondence. Disagreement is the informative direction.
+
+The double configuration is consistently looser than the default (1.6x at step 100,
+~20x at step 10, and it loses bitwise agreement at step 1), and the residual it
+leaves at step 1 is confined to thermodynamics — `rhotheta`, `temp`, `theta`,
+`pressure`, `pert_pres`, `eq_pot_temp` — while every moisture species stays exactly
+equal. That points at the temperature/potential-temperature conversion around the
+bridge call rather than at any microphysics kernel, and is not yet resolved.
+
 **MPI.** Serial and MPI agree bitwise at one rank, and `plotfile_parity` output is
 bitwise identical across 1, 2, 4 and 8 ranks — but only for the x-only
 decompositions AMReX chooses on this domain. A z-cut is untestable here; see
@@ -253,6 +288,17 @@ cmake --build . -j8
 When built with `-DERF_ENABLE_WDM6_FORT=ON`, runtime selection matches WSM6:
 - `erf.use_wdm6_cpp_answer = 0` runs the Fortran bridge
 - `erf.use_wdm6_cpp_answer = 1` runs the native C++ path
+
+**Double-literal mode (the alternative validated configuration).** Both flags are
+required together; see "Both literal-precision configurations are viable" above for
+why setting only the first breaks parity:
+```bash
+cmake -DERF_ENABLE_WDM6_FORT=ON -DERF_PRECISION=DOUBLE \
+      -DERF_WDM6_F32_LITERALS=OFF -DERF_WDM6_FORTRAN_REAL8=ON ...
+cmake --build . -j8
+```
+Neither literal configuration is recorded in the plotfile `job_info`, so a run's
+figures are only interpretable if the build flags are recorded alongside them.
 
 ## Usage
 
