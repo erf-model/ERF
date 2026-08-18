@@ -1140,23 +1140,31 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev)
 #else
             const Real tol = Real(1.e-8);
 #endif
-            int max_iter = 50;
+            Real SFact = Real(1.03);
+            Real Nz = static_cast<Real>(zlevels_stag[lev].size() - 1);
 
-            int iter   = 0;
-            Real Nz    = static_cast<Real>(zlevels_stag[lev].size() - 1);
-            Real SFact = Real(1.1);
-            Real F     = dz0_max * ( (std::pow(SFact,Nz) - one) / (SFact - one) ) - z_top;
-            while (std::fabs(F)>tol && iter<max_iter) {
-                Real dFdSF = dz0_max * ( Nz * std::pow(SFact,Nz-one) * (SFact - one) - std::pow(SFact,Nz) + one )
-                           / std::pow(SFact-one,two);
-                SFact     -= F/dFdSF;
-                SFact      = std::max(one+tol,SFact);
-                F          = dz0_max * ( (std::pow(SFact,Nz) - one) / (SFact - one) ) - z_top;
-                ++iter;
+            // Default to uniform grid or solve for a stretched grid
+            if (dz0_max >= z_top/Nz) {
+                SFact   = one;
+                dz0_max = z_top/Nz;
+            } else {
+                int max_iter = 50;
+                int iter     = 0;
+                Real F       = dz0_max * ( (std::pow(SFact,Nz) - one) / (SFact - one) ) - z_top;
+                while (std::fabs(F)>tol && iter<max_iter) {
+                    Real dFdSF = dz0_max * ( Nz * std::pow(SFact,Nz-one) * (SFact - one)
+                                           - std::pow(SFact,Nz) + one ) /
+                                           std::pow(SFact-one,two);
+                    SFact     -= F/dFdSF;
+                    SFact      = std::max(one+tol,SFact);
+                    F          = dz0_max * ( (std::pow(SFact,Nz) - one) / (SFact - one) ) - z_top;
+                    ++iter;
+                }
+                AMREX_ALWAYS_ASSERT_WITH_MESSAGE(std::fabs(F) <= tol,
+                                                 "Newton iterations to determine the grid stretching factor failed!\n");
             }
-            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(std::fabs(F) <= tol,
-                "Newton iterations to determine the grid stretching factor failed!\n");
 
+            // Build the zlevels
             Print() << "Building an ERF grid with dz0: " << dz0_max <<
                 " and stretching factor: " << SFact << "\n";
             Real dz = dz0_max;
@@ -1167,6 +1175,9 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev)
             }
             AMREX_ALWAYS_ASSERT_WITH_MESSAGE(std::fabs(zlevels_stag[lev].back() - z_top) <= tol,
                 "Top of zlevels_stag does not match z_top!\n");
+
+            // Update stretched dz and build terrain fitted coords
+            update_stretched_dz(lev, zlevels_stag, stretched_dz_h, stretched_dz_d);
             make_terrain_fitted_coords(lev, geom[lev], *z_phys_nd[lev], zlevels_stag[lev], phys_bc_type);
         }
 
