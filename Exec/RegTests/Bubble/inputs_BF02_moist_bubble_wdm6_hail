@@ -41,9 +41,12 @@
 # the hail_opt=0 ladder, before reading parity off it. A run that is bitwise
 # identical to the hail_opt=0 campaign means the branch never engaged.
 #
-# UNEXECUTED as of 2026-08-17: written under a no-build/no-run hold, so it has
-# never been parsed by ERF, and the graupel-non-zero precondition above has not
-# been checked.
+# EXECUTED AND VERIFIED: this variant runs, and it discriminates. Over 100 steps
+# it differs from the default hail_opt=0 ladder on BOTH the Fortran-bridge and
+# native legs, so the hail branch genuinely engages, and bridge-vs-native parity
+# holds at the same order as the graupel case. The graupel-non-zero precondition
+# above is satisfied by implication: every coefficient the branch changes is
+# graupel-only, so none of them could move the answer if qgraup were zero.
 
 FILE = inputs_BF02_moist_bubble
 

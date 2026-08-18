@@ -701,17 +701,6 @@ void WDM6::Advance(const Real& dt_advance,
     const bool run_wdm6_fort = !use_wdm6_cpp_answer;
 #endif
 
-    // Leg label for bridge-wrapper site tags. These sites live in the bridge
-    // caller and have no Fortran counterpart, so both legs are emitted from C++;
-    // the label follows erf.use_wdm6_cpp_answer, i.e. which answer path ran, not
-    // which file did the printing. A single emission path serves both legs so the
-    // two records cannot drift in format.
-#ifdef ERF_USE_WDM6_FORT
-    const char* const w1_leg = run_wdm6_fort ? "FORT" : "CPP";
-#else
-    const char* const w1_leg = "CPP";
-#endif
-
     // Physical constants
     constexpr double g = static_cast<double>(CONST_GRAV);
     constexpr double cpd = static_cast<double>(Cp_d);
@@ -771,23 +760,7 @@ void WDM6::Advance(const Real& dt_advance,
         const int diag_i = has_target_override ? micro_diag_target_column[0] : ilo;
         const int diag_j = has_target_override ? micro_diag_target_column[1] : jlo;
 
-        // ------------------------------------------------------------------
-        // Bridge-wrapper site W1_THETAWB (see group_map.md, "Bridge-wrapper
-        // sites"). NOT a file-order group: no counterpart exists in
-        // ERF_module_mp_wdm6.F90, so it can never join the P0..G17 sequence.
-        // Contractual schema, one emitter for both legs:
-        //     WDM6-<FORT|CPP>_<PRE|POST>_W1_THETAWB k theta t p exner t_over_exner
-        // Full column kts..kte per the WSM6 all-k print contract; the failing
-        // step-1 divergence sits at k=90, which a kts-only tag cannot observe.
-        // ------------------------------------------------------------------
         auto const& w1_theta = mic_fab_vars[MicVar_WDM6::theta]->array(mfi);
-        const bool w1_diag = (microphysics_debug > 0 &&
-                              diag_i >= ilo && diag_i <= ihi &&
-                              diag_j >= jlo && diag_j <= jhi);
-        auto emit_w1 = [&] (const char* stage)
-        {
-            amrex::ignore_unused(stage);
-        };
 
 #if defined(ERF_USE_WDM6_FORT) && defined(AMREX_USE_GPU)
         Arena* Arena_Used = run_wdm6_fort ? The_Pinned_Arena() : The_Async_Arena();
@@ -909,9 +882,6 @@ void WDM6::Advance(const Real& dt_advance,
         constexpr Real p0 = 1.e5;       // Reference pressure (Pa)
         constexpr Real rdOcp = R_d / Cp_d;  // R/cp = 0.286
 
-        // Bridge-wrapper site W1_THETAWB brackets the writeback below.
-        emit_w1("PRE");
-
         ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
             // Recompute theta from updated temperature
             // exner = (p/p0)^(R/cp)
@@ -919,8 +889,6 @@ void WDM6::Advance(const Real& dt_advance,
             Real exner = std::pow(p_arr(i,j,k) / p0, rdOcp);
             theta_arr(i,j,k) = t_arr(i,j,k) / exner;
         });
-
-        emit_w1("POST");
 
         // (Tile-based precipitation diagnostics removed - using global diagnostics instead)
 
@@ -1195,8 +1163,6 @@ void WDM6::Advance(const Real& dt_advance,
         const Real g7pbr_loc = m_g7pbr;
         constexpr Real pfrz1_loc = pfrz1;
         constexpr Real pfrz2_loc = pfrz2;
-        const bool diag_col_in_tile = (diag_i >= ilo && diag_i <= ihi &&
-                                       diag_j >= jlo && diag_j <= jhi);
         const int diag_k = klo;
 
         // Maritime/continental autoconversion threshold. The Fortran selects on
@@ -1877,11 +1843,6 @@ void WDM6::Advance(const Real& dt_advance,
                 const Real supcol = t0c - t_arr(i,j,k);
                 Real xlf = xls - xl_arr(i,j,k);
                 if (supcol < Real(0.0)) xlf = xlf0;
-
-#if !defined(AMREX_USE_GPU)
-                const bool diag_cell = (microphysics_debug > 0 && loop == 0 &&
-                                        i == diag_i && j == diag_j);
-#endif
 
                 // Cloud-ice melt to cloud water (T > t0c)
                 if (supcol < Real(0.0) && qi_arr(i,j,k) > Real(0.0)) {
@@ -3257,12 +3218,6 @@ void WDM6::Advance(const Real& dt_advance,
         } // End minor timestep loop
 
 
-        // Bridge-wrapper site W1_THETAWB, native leg. Same emitter, same schema,
-        // same kts..kte column, at the equivalent point: end of the kernel,
-        // immediately before Copy_Micro_to_State forms RhoTheta = rho * theta
-        // from mic_fab_vars[theta].
-        emit_w1("PRE");
-
         // Convert updated temperature back to potential temperature, mirroring
         // the bridge leg above. Without this the native path left
         // mic_fab_vars[theta] at its pre-microphysics value while the bridge
@@ -3280,8 +3235,6 @@ void WDM6::Advance(const Real& dt_advance,
                 w1_theta(i,j,k) = t_arr(i,j,k) / exner;
             });
         }
-
-        emit_w1("POST");
 
 #ifdef ERF_USE_WDM6_FORT
         }

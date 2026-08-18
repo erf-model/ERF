@@ -62,9 +62,10 @@
 # bitwise identical to the default campaign means the threshold never bound, and
 # that should be recorded as LATENT rather than as coverage.
 #
-# UNEXECUTED at the time of writing: created 2026-08-17 during the Phase 0b-2
-# coverage sweep. First use must confirm it initialises and that the
-# discrimination precondition above holds.
+# EXECUTED AND VERIFIED: this variant runs, and it discriminates. Over 100 steps
+# it differs from the default is_land=1 ladder on BOTH the Fortran-bridge and
+# native legs, so the maritime qcr=qc0 branch genuinely engages, and
+# bridge-vs-native parity holds at the same order as the land case.
 
 FILE = inputs_BF02_moist_bubble
 
