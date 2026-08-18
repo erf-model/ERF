@@ -1648,7 +1648,8 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
         }
 #endif
 
-        if (solverChoice.rad_type != RadiationType::None) {
+        if (solverChoice.rad_type != RadiationType::None ||
+            solverChoice.radChoice.rad_type == RadType::TwoStream) {
             if (containerHasElement(plot_var_names, "qsrc_sw") ||
                 containerHasElement(plot_var_names, "qsrc_lw")) {
                 AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
