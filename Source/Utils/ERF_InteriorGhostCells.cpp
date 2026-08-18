@@ -288,7 +288,7 @@ realbdy_compute_interior_ghost_rhs (const double& time,
         Box domain = geom.Domain();
         Box gdom(domain); gdom.grow(ng_vect);
         Box bx_xlo, bx_xhi, bx_ylo, bx_yhi;
-        realbdy_interior_bxs_xy(domain, gdom, width,
+        realbdy_interior_bxs_xy(gdom, domain, width,
                                 bx_xlo, bx_xhi, bx_ylo, bx_yhi,
                                 ng_vect, true);
 
