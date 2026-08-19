@@ -140,7 +140,7 @@ int main (int argc, char* argv[])
         // Move plotfiles (plt*) from current directory into member_dir/plotfiles
         for (auto &p : fs::directory_iterator(".")) {
             std::string fname = p.path().filename().string();
-            if (fname.find("plt") == 0) {  // starts with "plt"
+            if (fname.find("plt0") == 0) {  // starts with "plt"
                 fs::rename(p.path(), fs::path(member_dir) / "plotfiles" / fname);
             }
         }
@@ -159,7 +159,7 @@ int main (int argc, char* argv[])
 
    ERF tmp_erf;
    // This is only a post-processing step for visualization
-   tmp_erf.ComputeAndWriteEnsemblePerturbations();
+   //tmp_erf.ComputeAndWriteEnsemblePerturbations();
 
    // Perform data assimilation
    int da_iter = 0;

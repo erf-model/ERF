@@ -196,6 +196,8 @@ ERF::PerformDataAssimilation(int da_iter)
         amrex::Abort("No plotfiles found.");
     }
 
+    Print() << "Reaching here. Beginning data assimilation" << std::endl;
+
     // Step 2: loop over all plotfiles (timestamps at which the plotfiles are written)
     // ie.find the ensemble mean at iteration 100, loop over the plt00100 file in each of the
     // member*-plotfiles-plt00100
@@ -204,6 +206,8 @@ ERF::PerformDataAssimilation(int da_iter)
 
     // Compute the ensemble mean
     MultiFab xf_bar = compute_ensemble_mean(Nens, last_pf_name, varnames);
+
+    Print() << "Computing ensemble mean complete" << std::endl;
 
     // Construct perturbation plotfile name
     std::string pltname = "plt_ens_mean";
@@ -218,7 +222,9 @@ ERF::PerformDataAssimilation(int da_iter)
     MultiFab mean_H_xf;
     compute_mean_H_xf(mean_H_xf, Nens, last_pf_name, varnames);
 
-    Vector<std::string> varnames1 = {"x_velocity", "y_velocity"};
+    Print() << "compute_mean_H_xf complete" << std::endl;
+
+    Vector<std::string> varnames1 = {"density","theta", "x_velocity","y_velocity","z_velocity", "qv", "qc", "qrain"};
     // Construct perturbation plotfile name
     std::string pltname1 = "plt_mean_H_xf";
     WriteSingleLevelPlotfile(pltname1,
@@ -232,75 +238,95 @@ ERF::PerformDataAssimilation(int da_iter)
     MultiFab y_obs;
     read_in_observations(da_iter, varnames, y_obs);
 
-    std::string pltname2 = "plt_y_obs";
+    Print() << "Observation reading complete" << std::endl;
+
+    /*std::string pltname2 = "plt_y_obs";
     Vector<std::string> varnames2 = {"x_velocity", "y_velocity"};
     WriteSingleLevelPlotfile(pltname2,
                             y_obs,
                             varnames2,
                             geom[0],
                             0.0,   // time
-                            0);    // level
+                            0);    // level*/
 
     // Compute y_obs - yf_bar
     MultiFab d_vec;
     compute_d_vec(y_obs, mean_H_xf, d_vec);
 
-    std::string pltname_diff = "plt_rhs_diff";
+    Print() << "Computing dvec complete" << std::endl;
+
+    /*std::string pltname_diff = "plt_rhs_diff";
     Vector<std::string> varnames_diff = {"x_velocity", "y_velocity"};
     WriteSingleLevelPlotfile(pltname_diff,
                             d_vec,
                             varnames_diff,
                             geom[0],
                             0.0,   // time
-                            0);    // level
+                            0);    // level*/
 
 
     // Assign values for the observation error covarinace matrix
     Vector<Real> R_diag;
     compute_R_diag_vals(R_diag);
 
+    Print() << "compute_R_diag_vals complete" << std::endl;
+
     // Compute d'=R_inv*d
     MultiFab d_prime_vec;
     compute_d_prime_vec(d_prime_vec, d_vec, R_diag);
+
+    Print() << "compute_d_prime_vec complete" << std::endl;
 
     // Compute r = Y'^Td'
     Vector<Real> r_vec;
     compute_r_vec(Nens, last_pf_name, varnames, mean_H_xf, d_prime_vec, r_vec);
 
+    Print() << "compute_r_vec complete" << std::endl;
+
     // Compute the S matrix
     Matrix S_mat(Nens);
     compute_S_matrix(S_mat, Nens, mean_H_xf, R_diag, last_pf_name, varnames);
 
+    Print() << "compute_S_matrix complete" << std::endl;
+
     Vector<Real> alpha_vec;
     compute_alpha_vec(Nens, S_mat, r_vec, alpha_vec);
+
+    Print() << "compute_alpha_vec complete" << std::endl;
 
     MultiFab Xf_prime_alpha;
     compute_Xf_prime_times_vector(Nens, last_pf_name, varnames, xf_bar, alpha_vec, Xf_prime_alpha);
 
-    std::string pltname3 = "plt_Xf_prime_alpha";
+    Print() << "compute_Xf_prime_times_vector complete" << std::endl;
+
+    /*std::string pltname3 = "plt_Xf_prime_alpha";
     Vector<std::string> varnames3 = {"density", "theta", "x_velocity", "y_velocity", "z_velocity"};
     WriteSingleLevelPlotfile(pltname3,
                             Xf_prime_alpha,
                             varnames3,
                             geom[0],
                             0.0,   // time
-                            0);    // level
+                            0);    // level*/
 
     // Update the ensemble mean
     MultiFab xf_bar_updated;
     add_multifabs(xf_bar, Xf_prime_alpha, xf_bar_updated);
 
-    std::string pltname4 = "plt_xf_bar_updated";
+    Print() << "add_multifabs(xf_bar, Xf_prime_alpha, xf_bar_updated) complete" << std::endl;
+
+    /*std::string pltname4 = "plt_xf_bar_updated";
     Vector<std::string> varnames4 = {"density", "theta", "x_velocity", "y_velocity", "z_velocity"};
     WriteSingleLevelPlotfile(pltname4,
                             xf_bar_updated,
                             varnames4,
                             geom[0],
                             0.0,   // time
-                            0);    // level
+                            0);    // level*/
 
     Matrix T_mat(Nens);
     compute_T_matrix(S_mat, T_mat);
+
+    Print() << "compute_T_matrix complete" << std::endl;
 
     // Update all the ensembles and write checkpoint file
     for(int n=0; n< Nens; n++) {
@@ -320,6 +346,9 @@ ERF::PerformDataAssimilation(int da_iter)
             n_qstate_moist = micro->Get_Qstate_Moist_Size();
         }
 
+        m_plot3d_int_1 = -1;
+        m_check_int = -1;
+        InitData();
         auto& lev_new = vars_new[0];
 
         // Copy the cell centered ensemble multifab to the ERF class data structures
@@ -330,7 +359,6 @@ ERF::PerformDataAssimilation(int da_iter)
                                            lev_new[Vars::zvel],
                                            n_qstate_moist);
         check_file = "chk";
-        InitData();
         check_file = MakeEnsembleCheckpointName(da_iter, n);
         WriteCheckpointFile();
     }
