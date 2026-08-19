@@ -36,9 +36,9 @@ repack_wrfbdy_to_realbdy (Vector<FArrayBox>& bdy_data,
         amrex::Error("Cannot repack WRF boundary data: expected the extended 10-variable serialized layout");
     }
 
-    // The raw/cache layout preserves PH/MU/PC at 5/6/7 and appends QC/QI at
-    // 8/9. Runtime real-boundary consumers use the compact layout with QC/QI
-    // at 5/6.
+    // The raw/cache layout preserves PH/MU/PC at 5/6/7 and appends the
+    // combined QC/QI targets at 8/9. Runtime real-boundary consumers use the
+    // compact layout with QC/QI at 5/6.
     std::swap(bdy_data[RealBdyVars::QC], bdy_data[WRFBdyVars::QC]);
     std::swap(bdy_data[RealBdyVars::QI], bdy_data[WRFBdyVars::QI]);
     bdy_data.resize(RealBdyVars::NumTypes);
@@ -51,6 +51,31 @@ namespace WRFBdyTypes {
         y_lo,
         y_hi
     };
+}
+
+// These are transient slots used while reading the raw WRF hydrometeor
+// boundary fields.  They are deliberately not part of WRFBdyVars: the ERF
+// boundary/cache layout stores the already-combined QC and QI targets, so
+// adding these fields must not invalidate existing 10-variable ERFBdy files.
+namespace WRFBdyHydrometeorVars {
+    enum {
+        QR = WRFBdyVars::NumTypes,
+        QS,
+        QG,
+        NumTypes
+    };
+}
+
+AMREX_FORCE_INLINE
+bool
+is_wrf_cell_centered_bdy_var (const int bdy_var)
+{
+    return bdy_var == WRFBdyVars::T || bdy_var == WRFBdyVars::QV ||
+           bdy_var == WRFBdyVars::R || bdy_var == WRFBdyVars::QC ||
+           bdy_var == WRFBdyVars::QI ||
+           bdy_var == WRFBdyHydrometeorVars::QR ||
+           bdy_var == WRFBdyHydrometeorVars::QS ||
+           bdy_var == WRFBdyHydrometeorVars::QG;
 }
 
 double
@@ -148,7 +173,9 @@ convert_wrfbdy_data (const int itime,
 {
     // PH, MU, and PC are inputs to conversion, not vertically interpolated
     // output fields.  Keep the serialized indices explicit now that QC/QI are
-    // appended after those legacy fields.
+    // appended after those legacy fields.  The transient QRAIN/QSNOW/QGRAUP
+    // fields are combined into the QC/QI targets below before interpolation;
+    // they do not need converted output slots of their own.
     const Vector<int> converted_vars = use_wrf_bdy_qc_qi
         ? Vector<int>{WRFBdyVars::U, WRFBdyVars::V, WRFBdyVars::T,
                       WRFBdyVars::QV, WRFBdyVars::R, WRFBdyVars::QC,
@@ -193,9 +220,13 @@ convert_wrfbdy_data (const int itime,
     Array4<Real> bdy_th_arr = bdy_data[itime][WRFBdyVars::T].array();  // This is cell-centered
     Array4<Real> bdy_qv_arr = bdy_data[itime][WRFBdyVars::QV].array(); // This is cell-centered
     Array4<Real> bdy_qc_arr, bdy_qi_arr;
+    Array4<Real> bdy_qr_arr, bdy_qs_arr, bdy_qg_arr;
     if (use_wrf_bdy_qc_qi) {
         bdy_qc_arr = bdy_data[itime][WRFBdyVars::QC].array();
         bdy_qi_arr = bdy_data[itime][WRFBdyVars::QI].array();
+        bdy_qr_arr = bdy_data[itime][WRFBdyHydrometeorVars::QR].array();
+        bdy_qs_arr = bdy_data[itime][WRFBdyHydrometeorVars::QS].array();
+        bdy_qg_arr = bdy_data[itime][WRFBdyHydrometeorVars::QG].array();
     }
     Array4<Real> mu_arr     = bdy_data[itime][WRFBdyVars::MU].array(); // This is cell-centered
     Array4<Real> bdy_ph_arr = bdy_data[itime][WRFBdyVars::PH].array(); // This is z-face-centered
@@ -386,7 +417,8 @@ convert_wrfbdy_data (const int itime,
         });
 
         // Define primitive moisture. WRF boundary mixing ratios are mass
-        // coupled, so QCLOUD and QICE use the same conversion as QVAPOR.
+        // coupled, so the combined QCLOUD+QRAIN and
+        // QICE+QSNOW+QGRAUP targets use the same conversion as QVAPOR.
         ParallelFor(bx_qv, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
             if (mask_c_arr(i,j,k)) {
@@ -395,8 +427,10 @@ convert_wrfbdy_data (const int itime,
                 Real new_bdy_QV   = bdy_qv_arr(i,j,k) / xmu_mult;
                 bdy_qv_tmp(i,j,k) = (use_moist) ? new_bdy_QV : zero;
                 if (use_wrf_bdy_qc_qi) {
-                    bdy_qc_tmp(i,j,k) = bdy_qc_arr(i,j,k) / xmu_mult;
-                    bdy_qi_tmp(i,j,k) = has_cloud_ice ? bdy_qi_arr(i,j,k) / xmu_mult : Real(0.0);
+                    bdy_qc_tmp(i,j,k) = (bdy_qc_arr(i,j,k) + bdy_qr_arr(i,j,k)) / xmu_mult;
+                    bdy_qi_tmp(i,j,k) = has_cloud_ice
+                        ? (bdy_qi_arr(i,j,k) + bdy_qs_arr(i,j,k) + bdy_qg_arr(i,j,k)) / xmu_mult
+                        : Real(0.0);
                 }
             }
         });
@@ -663,9 +697,11 @@ read_and_convert_from_wrfbdy (const int itime, const std::string& nc_bdy_file,
 
     // ******************************************************************
     // Read the netcdf file and fill these FABs
-    // The order of these descriptors matches the serialized WRFBdyVars layout.
-    // QICE is omitted from NetCDF reads for no-ice models, then an explicit
-    // zero placeholder is appended to preserve the extended cache layout.
+    // The first descriptors match the serialized WRFBdyVars layout.  When the
+    // opt-in hydrometeor path is enabled, three additional raw fields are
+    // read into transient slots and combined into the serialized QC/QI fields
+    // during conversion.  The extra slots are removed before the cache is
+    // written, preserving the existing 10-variable ERFBdy layout.
     //
     // These fields are at myhalf levels (unstaggered)
     // ******************************************************************
@@ -677,11 +713,31 @@ read_and_convert_from_wrfbdy (const int itime, const std::string& nc_bdy_file,
     if (use_wrf_bdy_qc_qi) {
         nc_var_prefix.push_back("QCLOUD");
         nc_var_types.push_back(WRFBdyVars::QC);
+        nc_var_prefix.push_back("QRAIN");
+        nc_var_types.push_back(WRFBdyHydrometeorVars::QR);
         if (has_cloud_ice) {
             nc_var_prefix.push_back("QICE");
             nc_var_types.push_back(WRFBdyVars::QI);
+            nc_var_prefix.push_back("QSNOW");
+            nc_var_types.push_back(WRFBdyHydrometeorVars::QS);
+            nc_var_prefix.push_back("QGRAUP");
+            nc_var_types.push_back(WRFBdyHydrometeorVars::QG);
         }
     }
+
+    const int serialized_nvars = use_wrf_bdy_qc_qi
+        ? WRFBdyHydrometeorVars::NumTypes : WRFBdyVars::LegacyNumTypes;
+    bdy_data_xlo[itime].resize(serialized_nvars);
+    bdy_data_xhi[itime].resize(serialized_nvars);
+    bdy_data_ylo[itime].resize(serialized_nvars);
+    bdy_data_yhi[itime].resize(serialized_nvars);
+
+    Vector<FArrayBox>* bdy_sides[WRFBdyTypes::y_hi+1] = {
+        &bdy_data_xlo[itime], &bdy_data_xhi[itime],
+        &bdy_data_ylo[itime], &bdy_data_yhi[itime]};
+    auto read_fab = [&] (const int bdy_type, const int bdy_var) -> FArrayBox& {
+        return (*bdy_sides[bdy_type])[bdy_var];
+    };
 
     for (int ip = 0; ip < nc_var_prefix.size(); ++ip)
     {
@@ -715,9 +771,12 @@ read_and_convert_from_wrfbdy (const int itime, const std::string& nc_bdy_file,
         for (int iv = 0; iv < static_cast<int>(success.size()); ++iv) {
             if (success[iv] != 1) {
                 const int bdy_var_type = nc_var_types[iv / 4];
-                if (bdy_var_type == WRFBdyVars::QC || bdy_var_type == WRFBdyVars::QI) {
+                if (bdy_var_type == WRFBdyVars::QC || bdy_var_type == WRFBdyVars::QI ||
+                    bdy_var_type == WRFBdyHydrometeorVars::QR ||
+                    bdy_var_type == WRFBdyHydrometeorVars::QS ||
+                    bdy_var_type == WRFBdyHydrometeorVars::QG) {
                     amrex::Error("Required WRF boundary variable " + nc_var_names[iv] +
-                                 " is missing; disable erf.use_wrf_bdy_qc_qi or regenerate wrfbdy with hydrometeor fields");
+                                 " is missing; disable erf.use_wrf_bdy_qc_qi or regenerate wrfbdy with QCLOUD/QRAIN/QICE/QSNOW/QGRAUP fields");
                 } else {
                     amrex::Error("Required WRF boundary variable " + nc_var_names[iv] + " is missing");
                 }
@@ -765,18 +824,17 @@ read_and_convert_from_wrfbdy (const int itime, const std::string& nc_bdy_file,
             Box xlo_line(IntVect(lo[0], lo[1], 0), IntVect(lo[0]+real_width-1, hi[1], 0));
 
             if        (bdyVarType == WRFBdyVars::U) {
-                bdy_data_xlo[itime].push_back(FArrayBox(xlo_plane_x_stag, 1, Arena_Used));  // U
+                read_fab(bdyType,bdyVarType).resize(xlo_plane_x_stag, 1, Arena_Used);  // U
             } else if (bdyVarType == WRFBdyVars::V) {
-                bdy_data_xlo[itime].push_back(FArrayBox(xlo_plane_y_stag, 1, Arena_Used));  // V
+                read_fab(bdyType,bdyVarType).resize(xlo_plane_y_stag, 1, Arena_Used);  // V
             } else if (bdyVarType == WRFBdyVars::T) {
-                bdy_data_xlo[itime].push_back(FArrayBox(xlo_plane_no_stag, 1, Arena_Used)); // T
-            } else if (bdyVarType == WRFBdyVars::QV || bdyVarType == WRFBdyVars::R ||
-                       bdyVarType == WRFBdyVars::QC || bdyVarType == WRFBdyVars::QI) {
-                bdy_data_xlo[itime].push_back(FArrayBox(xlo_plane_no_stag, 1, Arena_Used));
+                read_fab(bdyType,bdyVarType).resize(xlo_plane_no_stag, 1, Arena_Used); // T
+            } else if (is_wrf_cell_centered_bdy_var(bdyVarType)) {
+                read_fab(bdyType,bdyVarType).resize(xlo_plane_no_stag, 1, Arena_Used);
             } else if (bdyVarType == WRFBdyVars::PH) {
-                bdy_data_xlo[itime].push_back(FArrayBox(xlo_plane_z_stag, 1, Arena_Used));  // PH
+                read_fab(bdyType,bdyVarType).resize(xlo_plane_z_stag, 1, Arena_Used);  // PH
             } else if (bdyVarType == WRFBdyVars::MU || bdyVarType == WRFBdyVars::PC) {
-                bdy_data_xlo[itime].push_back(FArrayBox(xlo_line, 1, Arena_Used));          // MU/PC
+                read_fab(bdyType,bdyVarType).resize(xlo_line, 1, Arena_Used);          // MU/PC
             }
 
         } else if (bdyType == WRFBdyTypes::x_hi) {
@@ -796,18 +854,17 @@ read_and_convert_from_wrfbdy (const int itime, const std::string& nc_bdy_file,
             Box xhi_line(IntVect(hi[0]-real_width+1, lo[1], 0), IntVect(hi[0], hi[1], 0));
 
             if        (bdyVarType == WRFBdyVars::U) {
-                bdy_data_xhi[itime].push_back(FArrayBox(xhi_plane_x_stag, 1, Arena_Used));  // U
+                read_fab(bdyType,bdyVarType).resize(xhi_plane_x_stag, 1, Arena_Used);  // U
             } else if (bdyVarType == WRFBdyVars::V) {
-                bdy_data_xhi[itime].push_back(FArrayBox(xhi_plane_y_stag, 1, Arena_Used));  // V
+                read_fab(bdyType,bdyVarType).resize(xhi_plane_y_stag, 1, Arena_Used);  // V
             } else if (bdyVarType == WRFBdyVars::T) {
-                bdy_data_xhi[itime].push_back(FArrayBox(xhi_plane_no_stag, 1, Arena_Used)); // T
-            } else if (bdyVarType == WRFBdyVars::QV || bdyVarType == WRFBdyVars::R ||
-                       bdyVarType == WRFBdyVars::QC || bdyVarType == WRFBdyVars::QI) {
-                bdy_data_xhi[itime].push_back(FArrayBox(xhi_plane_no_stag, 1, Arena_Used));
+                read_fab(bdyType,bdyVarType).resize(xhi_plane_no_stag, 1, Arena_Used); // T
+            } else if (is_wrf_cell_centered_bdy_var(bdyVarType)) {
+                read_fab(bdyType,bdyVarType).resize(xhi_plane_no_stag, 1, Arena_Used);
             } else if (bdyVarType == WRFBdyVars::PH) {
-                bdy_data_xhi[itime].push_back(FArrayBox(xhi_plane_z_stag, 1, Arena_Used));  // PH
+                read_fab(bdyType,bdyVarType).resize(xhi_plane_z_stag, 1, Arena_Used);  // PH
             } else if (bdyVarType == WRFBdyVars::MU || bdyVarType == WRFBdyVars::PC) {
-                bdy_data_xhi[itime].push_back(FArrayBox(xhi_line, 1, Arena_Used));          // MU/PC
+                read_fab(bdyType,bdyVarType).resize(xhi_line, 1, Arena_Used);          // MU/PC
             }
 
         } else if (bdyType == WRFBdyTypes::y_lo) {
@@ -827,18 +884,17 @@ read_and_convert_from_wrfbdy (const int itime, const std::string& nc_bdy_file,
             Box ylo_line(IntVect(lo[0], lo[1], 0), IntVect(hi[0], lo[1]+real_width-1, 0));
 
             if        (bdyVarType == WRFBdyVars::U) {
-                bdy_data_ylo[itime].push_back(FArrayBox(ylo_plane_x_stag, 1, Arena_Used));  // U
+                read_fab(bdyType,bdyVarType).resize(ylo_plane_x_stag, 1, Arena_Used);  // U
             } else if (bdyVarType == WRFBdyVars::V) {
-                bdy_data_ylo[itime].push_back(FArrayBox(ylo_plane_y_stag, 1, Arena_Used));  // V
+                read_fab(bdyType,bdyVarType).resize(ylo_plane_y_stag, 1, Arena_Used);  // V
             } else if (bdyVarType == WRFBdyVars::T) {
-                bdy_data_ylo[itime].push_back(FArrayBox(ylo_plane_no_stag, 1, Arena_Used)); // T
-            } else if (bdyVarType == WRFBdyVars::QV || bdyVarType == WRFBdyVars::R ||
-                       bdyVarType == WRFBdyVars::QC || bdyVarType == WRFBdyVars::QI) {
-                bdy_data_ylo[itime].push_back(FArrayBox(ylo_plane_no_stag, 1, Arena_Used));
+                read_fab(bdyType,bdyVarType).resize(ylo_plane_no_stag, 1, Arena_Used); // T
+            } else if (is_wrf_cell_centered_bdy_var(bdyVarType)) {
+                read_fab(bdyType,bdyVarType).resize(ylo_plane_no_stag, 1, Arena_Used);
             } else if (bdyVarType == WRFBdyVars::PH) {
-                bdy_data_ylo[itime].push_back(FArrayBox(ylo_plane_z_stag, 1, Arena_Used));  // PH
+                read_fab(bdyType,bdyVarType).resize(ylo_plane_z_stag, 1, Arena_Used);  // PH
             } else if (bdyVarType == WRFBdyVars::MU || bdyVarType == WRFBdyVars::PC) {
-                bdy_data_ylo[itime].push_back(FArrayBox(ylo_line, 1, Arena_Used));          // MU/PC
+                read_fab(bdyType,bdyVarType).resize(ylo_line, 1, Arena_Used);          // MU/PC
             }
 
         } else if (bdyType == WRFBdyTypes::y_hi) {
@@ -858,18 +914,17 @@ read_and_convert_from_wrfbdy (const int itime, const std::string& nc_bdy_file,
             Box yhi_line(IntVect(lo[0], hi[1]-real_width+1, 0), IntVect(hi[0], hi[1], 0));
 
             if        (bdyVarType == WRFBdyVars::U) {
-                bdy_data_yhi[itime].push_back(FArrayBox(yhi_plane_x_stag, 1, Arena_Used));  // U
+                read_fab(bdyType,bdyVarType).resize(yhi_plane_x_stag, 1, Arena_Used);  // U
             } else if (bdyVarType == WRFBdyVars::V) {
-                bdy_data_yhi[itime].push_back(FArrayBox(yhi_plane_y_stag, 1, Arena_Used));  // V
+                read_fab(bdyType,bdyVarType).resize(yhi_plane_y_stag, 1, Arena_Used);  // V
             } else if (bdyVarType == WRFBdyVars::T) {
-                bdy_data_yhi[itime].push_back(FArrayBox(yhi_plane_no_stag, 1, Arena_Used)); // T
-            } else if (bdyVarType == WRFBdyVars::QV || bdyVarType == WRFBdyVars::R ||
-                       bdyVarType == WRFBdyVars::QC || bdyVarType == WRFBdyVars::QI) {
-                bdy_data_yhi[itime].push_back(FArrayBox(yhi_plane_no_stag, 1, Arena_Used));
+                read_fab(bdyType,bdyVarType).resize(yhi_plane_no_stag, 1, Arena_Used); // T
+            } else if (is_wrf_cell_centered_bdy_var(bdyVarType)) {
+                read_fab(bdyType,bdyVarType).resize(yhi_plane_no_stag, 1, Arena_Used);
             } else if (bdyVarType == WRFBdyVars::PH) {
-                bdy_data_yhi[itime].push_back(FArrayBox(yhi_plane_z_stag, 1, Arena_Used));  // PH
+                read_fab(bdyType,bdyVarType).resize(yhi_plane_z_stag, 1, Arena_Used);  // PH
             } else if (bdyVarType == WRFBdyVars::MU || bdyVarType == WRFBdyVars::PC) {
-                bdy_data_yhi[itime].push_back(FArrayBox(yhi_line, 1, Arena_Used));          // MU/PC
+                read_fab(bdyType,bdyVarType).resize(yhi_line, 1, Arena_Used);          // MU/PC
             }
         }
 
@@ -885,10 +940,9 @@ read_and_convert_from_wrfbdy (const int itime, const std::string& nc_bdy_file,
 
             Array4<Real> fab_arr;
 
-            if (bdyVarType == WRFBdyVars::U || bdyVarType == WRFBdyVars::V  ||
-                bdyVarType == WRFBdyVars::T || bdyVarType == WRFBdyVars::QV ||
-                bdyVarType == WRFBdyVars::R || bdyVarType == WRFBdyVars::PH ||
-                bdyVarType == WRFBdyVars::QC || bdyVarType == WRFBdyVars::QI)
+            if (is_wrf_cell_centered_bdy_var(bdyVarType) ||
+                bdyVarType == WRFBdyVars::U || bdyVarType == WRFBdyVars::V ||
+                bdyVarType == WRFBdyVars::PH)
             {
                 // xlo,xhi dims: (Time, bdy_width, bottom_top, south_north)
                 // ylo,yhi dims: (Time, bdy_width, bottom_top, west_east)
@@ -900,8 +954,8 @@ read_and_convert_from_wrfbdy (const int itime, const std::string& nc_bdy_file,
 
                 if (bdyType == WRFBdyTypes::x_lo) {
                     num_pts  = tslice[iv].ndim();
-                    int ioff = bdy_data_xlo[itime][bdyVarType].smallEnd()[0];
-                    fab_arr  = bdy_data_xlo[itime][bdyVarType].array();
+                    int ioff = read_fab(bdyType,bdyVarType).smallEnd()[0];
+                    fab_arr  = read_fab(bdyType,bdyVarType).array();
                     for (int n(0); n < num_pts; ++n) {
                         int i = n / (ns2 * ns3);
                         if (i >= real_width) continue;
@@ -912,8 +966,8 @@ read_and_convert_from_wrfbdy (const int itime, const std::string& nc_bdy_file,
                     }
                 } else if (bdyType == WRFBdyTypes::x_hi) {
                     num_pts  = tslice[iv].ndim();
-                    int ioff = bdy_data_xhi[itime][bdyVarType].bigEnd()[0];
-                    fab_arr  = bdy_data_xhi[itime][bdyVarType].array();
+                    int ioff = read_fab(bdyType,bdyVarType).bigEnd()[0];
+                    fab_arr  = read_fab(bdyType,bdyVarType).array();
                     for (int n(0); n < num_pts; ++n) {
                         int i = n / (ns2 * ns3);
                         if (i >= real_width) continue;
@@ -924,8 +978,8 @@ read_and_convert_from_wrfbdy (const int itime, const std::string& nc_bdy_file,
                     }
                 } else if (bdyType == WRFBdyTypes::y_lo) {
                     num_pts  = tslice[iv].ndim();
-                    int joff = bdy_data_ylo[itime][bdyVarType].smallEnd()[1];
-                    fab_arr  = bdy_data_ylo[itime][bdyVarType].array();
+                    int joff = read_fab(bdyType,bdyVarType).smallEnd()[1];
+                    fab_arr  = read_fab(bdyType,bdyVarType).array();
                     for (int n(0); n < num_pts; ++n) {
                         int j = n / (ns2 * ns3);
                         if (j >= real_width) continue;
@@ -936,8 +990,8 @@ read_and_convert_from_wrfbdy (const int itime, const std::string& nc_bdy_file,
                     }
                 } else if (bdyType == WRFBdyTypes::y_hi) {
                     num_pts  = tslice[iv].ndim();
-                    int joff = bdy_data_yhi[itime][bdyVarType].bigEnd()[1];
-                    fab_arr  = bdy_data_yhi[itime][bdyVarType].array();
+                    int joff = read_fab(bdyType,bdyVarType).bigEnd()[1];
+                    fab_arr  = read_fab(bdyType,bdyVarType).array();
                     for (int n(0); n < num_pts; ++n) {
                         int j = n / (ns2 * ns3);
                         if (j >= real_width) continue;
@@ -1001,10 +1055,10 @@ read_and_convert_from_wrfbdy (const int itime, const std::string& nc_bdy_file,
 
                 // Make sure that qv in the bdyfiles is >= 0
                 if (bdyVarType == WRFBdyVars::QV) {
-                    Real min_qv_xlo = bdy_data_xlo[itime][bdyVarType].min<amrex::RunOn::Device>(0);
-                    Real min_qv_xhi = bdy_data_xhi[itime][bdyVarType].min<amrex::RunOn::Device>(0);
-                    Real min_qv_ylo = bdy_data_ylo[itime][bdyVarType].min<amrex::RunOn::Device>(0);
-                    Real min_qv_yhi = bdy_data_yhi[itime][bdyVarType].min<amrex::RunOn::Device>(0);
+                    Real min_qv_xlo = read_fab(WRFBdyTypes::x_lo,bdyVarType).min<amrex::RunOn::Device>(0);
+                    Real min_qv_xhi = read_fab(WRFBdyTypes::x_hi,bdyVarType).min<amrex::RunOn::Device>(0);
+                    Real min_qv_ylo = read_fab(WRFBdyTypes::y_lo,bdyVarType).min<amrex::RunOn::Device>(0);
+                    Real min_qv_yhi = read_fab(WRFBdyTypes::y_hi,bdyVarType).min<amrex::RunOn::Device>(0);
                     if (min_qv_xlo < zero) amrex::Warning("qv in bdy_data_xlo < 0");
                     if (min_qv_xhi < zero) amrex::Warning("qv in bdy_data_xhi < 0");
                     if (min_qv_ylo < zero) amrex::Warning("qv in bdy_data_ylo < 0");
@@ -1020,13 +1074,12 @@ read_and_convert_from_wrfbdy (const int itime, const std::string& nc_bdy_file,
     // When an FArrayBox is built, space is allocated on every rank.  However, we only
     //    filled the data in these FABs on the IOProcessor.  So here we broadcast
     //    the data to every rank.
-    int n_per_time = nc_var_prefix.size();
-    for (int i = 0; i < n_per_time; i++)
+    for (const int bdy_var : nc_var_types)
     {
-        ParallelDescriptor::Bcast(bdy_data_xlo[itime][i].dataPtr(),bdy_data_xlo[itime][i].box().numPts(),ioproc);
-        ParallelDescriptor::Bcast(bdy_data_xhi[itime][i].dataPtr(),bdy_data_xhi[itime][i].box().numPts(),ioproc);
-        ParallelDescriptor::Bcast(bdy_data_ylo[itime][i].dataPtr(),bdy_data_ylo[itime][i].box().numPts(),ioproc);
-        ParallelDescriptor::Bcast(bdy_data_yhi[itime][i].dataPtr(),bdy_data_yhi[itime][i].box().numPts(),ioproc);
+        for (int bdy_type = WRFBdyTypes::x_lo; bdy_type <= WRFBdyTypes::y_hi; ++bdy_type) {
+            FArrayBox& fab = read_fab(bdy_type,bdy_var);
+            ParallelDescriptor::Bcast(fab.dataPtr(),fab.box().numPts(),ioproc);
+        }
     }
 
     if (use_wrf_bdy_qc_qi && !has_cloud_ice) {
@@ -1034,32 +1087,40 @@ read_and_convert_from_wrfbdy (const int itime, const std::string& nc_bdy_file,
 #ifdef AMREX_USE_GPU
         arena_used = The_Pinned_Arena();
 #endif
-        auto append_zero_qi = [=] (Vector<Vector<FArrayBox>>& data) {
-            AMREX_ALWAYS_ASSERT(static_cast<int>(data[itime].size()) == WRFBdyVars::QI);
-            data[itime].push_back(FArrayBox(data[itime][WRFBdyVars::QC].box(), 1, arena_used));
-            data[itime][WRFBdyVars::QI].template setVal<RunOn::Device>(zero);
+        auto zero_unused_ice = [&] (Vector<FArrayBox>& data) {
+            const int unused_ice_vars[] = {
+                WRFBdyVars::QI, WRFBdyHydrometeorVars::QS,
+                WRFBdyHydrometeorVars::QG};
+            for (const int bdy_var : unused_ice_vars) {
+                data[bdy_var].resize(data[WRFBdyVars::QC].box(), 1, arena_used);
+                data[bdy_var].template setVal<RunOn::Device>(zero);
+            }
         };
-        append_zero_qi(bdy_data_xlo);
-        append_zero_qi(bdy_data_xhi);
-        append_zero_qi(bdy_data_ylo);
-        append_zero_qi(bdy_data_yhi);
+        zero_unused_ice(bdy_data_xlo[itime]);
+        zero_unused_ice(bdy_data_xhi[itime]);
+        zero_unused_ice(bdy_data_ylo[itime]);
+        zero_unused_ice(bdy_data_yhi[itime]);
     }
 
     if (do_tendency) {
-        for (int i = 0; i < n_per_time; i++)
+        for (const int bdy_var : nc_var_types)
         {
             // Multiply the tendency bdy_tend_prev (stored in bdy_data at itime) by dt to get difference between old and new
             Real dT = static_cast<Real>(bdy_time_interval);
-            bdy_data_xlo[itime][i].template mult<RunOn::Device>(dT,0,1);
-            bdy_data_xhi[itime][i].template mult<RunOn::Device>(dT,0,1);
-            bdy_data_ylo[itime][i].template mult<RunOn::Device>(dT,0,1);
-            bdy_data_yhi[itime][i].template mult<RunOn::Device>(dT,0,1);
+            read_fab(WRFBdyTypes::x_lo,bdy_var).template mult<RunOn::Device>(dT,0,1);
+            read_fab(WRFBdyTypes::x_hi,bdy_var).template mult<RunOn::Device>(dT,0,1);
+            read_fab(WRFBdyTypes::y_lo,bdy_var).template mult<RunOn::Device>(dT,0,1);
+            read_fab(WRFBdyTypes::y_hi,bdy_var).template mult<RunOn::Device>(dT,0,1);
 
             // Add bdy_prev to dt*bdy_tend_prev to get bdy_current
-            bdy_data_xlo[itime][i].template plus<RunOn::Device>(bdy_data_xlo[itime-1][i], 0, 0, 1);
-            bdy_data_xhi[itime][i].template plus<RunOn::Device>(bdy_data_xhi[itime-1][i], 0, 0, 1);
-            bdy_data_ylo[itime][i].template plus<RunOn::Device>(bdy_data_ylo[itime-1][i], 0, 0, 1);
-            bdy_data_yhi[itime][i].template plus<RunOn::Device>(bdy_data_yhi[itime-1][i], 0, 0, 1);
+            read_fab(WRFBdyTypes::x_lo,bdy_var).template plus<RunOn::Device>(
+                bdy_data_xlo[itime-1][bdy_var], 0, 0, 1);
+            read_fab(WRFBdyTypes::x_hi,bdy_var).template plus<RunOn::Device>(
+                bdy_data_xhi[itime-1][bdy_var], 0, 0, 1);
+            read_fab(WRFBdyTypes::y_lo,bdy_var).template plus<RunOn::Device>(
+                bdy_data_ylo[itime-1][bdy_var], 0, 0, 1);
+            read_fab(WRFBdyTypes::y_hi,bdy_var).template plus<RunOn::Device>(
+                bdy_data_yhi[itime-1][bdy_var], 0, 0, 1);
         }
     }
 
@@ -1136,5 +1197,21 @@ read_and_convert_from_wrfbdy (const int itime, const std::string& nc_bdy_file,
                                         area_vec, geom, domain_bcs_type_h);
         } // anelastic
     } // do_conversion
+
+    // The raw QRAIN/QSNOW/QGRAUP slots are only needed through conversion and
+    // tendency reconstruction.  Drop them before the caller repacks the
+    // serialized WRF layout into the runtime/cache layout.
+    if (use_wrf_bdy_qc_qi && do_conversion) {
+        bdy_data_xlo[itime].resize(WRFBdyVars::NumTypes);
+        bdy_data_xhi[itime].resize(WRFBdyVars::NumTypes);
+        bdy_data_ylo[itime].resize(WRFBdyVars::NumTypes);
+        bdy_data_yhi[itime].resize(WRFBdyVars::NumTypes);
+        if (do_tendency) {
+            bdy_data_xlo[itime-1].resize(WRFBdyVars::NumTypes);
+            bdy_data_xhi[itime-1].resize(WRFBdyVars::NumTypes);
+            bdy_data_ylo[itime-1].resize(WRFBdyVars::NumTypes);
+            bdy_data_yhi[itime-1].resize(WRFBdyVars::NumTypes);
+        }
+    }
 }
 #endif // ERF_USE_NETCDF
