@@ -1,0 +1,83 @@
+#
+# WDM6 is_land = 0 (WATER) VARIANT of inputs_BF02_moist_bubble.
+#
+# Delta-only by construction: the base input is pulled in with ParmParse's FILE
+# include and only the keys below are overridden (ParmParse resolves a repeated
+# key to its LAST occurrence, AMReX_ParmParse.H:353). The base input is also
+# shared with the nightly Bubble_WSM6 regression test and must not be edited.
+#
+# WHY THIS FILE EXISTS
+# --------------------
+# Phase 0b-2 wired ERF's real land/water mask into WDM6, replacing a hardwired
+# `xland_arr(i,j,k) = Real(1.0)  // Default to land`. The A/B/C re-gate at
+# 23443226acbc could not validate that change and was recorded as a NULL RESULT
+# for it: erf.is_land defaults to 1 (ERF_DataStruct.H:288), so lmask_lev is filled
+# with 1 everywhere (ERF_MakeNewArrays.cpp:488), so the new code computes
+# xland = 1.0 -- bit-for-bit the value the old hardcode wrote. The land-mask
+# finding was therefore left deliberately uncovered.
+#
+# This file is that coverage. It is the ONLY one of the three Phase 0b-2 findings
+# whose discriminating configuration is a legal ERF input rather than something
+# ERF forbids: the stretched-z variant aborts on
+# AMREX_ALWAYS_ASSERT(mesh_type == ConstantDz) at ERF_Init1D.cpp:77, and a
+# z-decomposition aborts on AMREX_ALWAYS_ASSERT(bx.length()[2] == khi+1) at
+# ERF_InitCustomPert_Bubble.H:23. is_land is validated to be exactly 0 or 1 and
+# 0 is accepted, so this one simply runs.
+#
+# WHAT is_land = 0 CHANGES
+# ------------------------
+# ERF fills lmask_lev[lev][0] with solverChoice.is_land[lev], so 0 means water
+# everywhere. WDM6's bridge and native legs both map ERF's encoding
+# (0 = water, 1 = land, 2 = building) onto the WRF xland encoding
+# (1 = land, 2 = water) with `(lmask == 0) ? 2.0 : 1.0`.
+#
+# xland reaches exactly one consumer, the maritime/continental autoconversion
+# threshold at ERF_module_mp_wdm6.F90:628-633:
+#
+#   |  do i = its,ite
+#   |    if(slmsk(i).eq.2) then
+#   |      qcr(i,:) = qc0        ! maritime  <- THIS variant
+#   |    else
+#   |      qcr(i,:) = qc1        ! continental <- the default ladder
+#   |    endif
+#   |  enddo
+#
+# NOTE ON THE GUTTER ABOVE: the "#   |" prefix is not decoration. A comment line
+# whose first token after '#' is `else` or `endif` SEGFAULTS AMReX's inputs
+# parser -- verified 2026-08-17 with a three-line reproducer needing no FILE
+# include. AMReX_ParmParse.cpp:275 treats '#' as a plain comment start, so this is
+# a parser defect, not a documented directive. Keep a non-alphabetic character
+# between '#' and any pasted Fortran/C preprocessor keyword in these inputs files.
+#
+# So this variant is the only way either leg has ever evaluated the qc0 branch.
+#
+# DISCRIMINATION PRECONDITION -- CHECK THIS BEFORE TRUSTING A RESULT
+# ------------------------------------------------------------------
+# qcr is a THRESHOLD on cloud water, so this variant discriminates only if the
+# run's qc actually interacts with it. If every cell sits far above both qc0 and
+# qc1, or far below both, the branch is taken but the answer may not move, and a
+# matching result is another null result rather than a validation -- the same trap
+# as G5B, the uniform-dz ladder and hail_opt. Confirm this run DIFFERS from the
+# is_land=1 ladder on both legs before reading parity off it. A run that is
+# bitwise identical to the default campaign means the threshold never bound, and
+# that should be recorded as LATENT rather than as coverage.
+#
+# EXECUTED AND VERIFIED: this variant runs, and it discriminates. Over 100 steps
+# it differs from the default is_land=1 ladder on BOTH the Fortran-bridge and
+# native legs, so the maritime qcr=qc0 branch genuinely engages, and
+# bridge-vs-native parity holds at the same order as the land case.
+
+FILE = inputs_BF02_moist_bubble
+
+# ---- variant overrides only, below this line ----
+
+erf.moisture_model = WDM6
+
+# Water everywhere rather than the default land. Validated to 0 or 1 by
+# ERF_DataStruct.H:290-296; the run banner prints "Level 0 is water".
+erf.is_land = 0
+
+# plot_vars_1 is deliberately NOT overridden: the campaign runner supplies the
+# 32-entry list including nc/nn/nr. A standalone invocation inherits the base
+# input's list, which omits the number concentrations -- pass them explicitly if
+# you need them outside the runner.
