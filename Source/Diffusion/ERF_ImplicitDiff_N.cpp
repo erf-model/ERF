@@ -120,8 +120,11 @@ ImplicitDiffForStateLU_N (const Box& bx,
                     RHS_a(i,j,klo) += -Fact * rhoAlpha_lo * bc_neumann_vals[2]; // NOTE: N_val = d_z(\phi)
                 }
 
-                // Add countergradient correction to RHS at bottom boundary
-                // Only upper face contributes (no flux below surface)
+                // Add countergradient correction to RHS at bottom boundary.
+                // NOTE: The lower face at klo carries no countergradient flux -- the
+                //       total surface flux is supplied by the surface layer model or the
+                //       Neumann BC, while gamma represents nonlocal transport interior to
+                //       the PBL.  Only the upper face contributes here.
                 if (use_mrf_countergradient && (n == RhoTheta_comp || n == RhoQ1_comp)) {
                     const int gam_comp = (n == RhoTheta_comp) ? EddyDiff::HGAMT_v : EddyDiff::HGAMQ_v;
                     const Real gam_hi = myhalf * (mu_turb(i, j, klo, gam_comp) + mu_turb(i, j, klo+1, gam_comp));
@@ -384,11 +387,21 @@ ImplicitDiffForMomLU_N (const Box& bx,
                   RHS_a(i,j,klo) += Fact * gfac * (tau_corr(i,j,klo+1) - tau_corr(i,j,klo));
               }
 
-              // Add YSU momentum countergradient correction at bottom boundary
+              // Add YSU momentum countergradient correction at bottom boundary.
+              // NOTE: As for the scalars, the lower face at klo carries no
+              //       countergradient flux -- the surface stress is supplied by the
+              //       surface layer model or the wall BC above.  Only the upper face
+              //       contributes here.
+              // NOTE: The sign matches the scalar path: tau_i3 = -rho*K*(du_i/dz - gamma_i),
+              //       so the countergradient piece of the flux is +rho*K*gamma_i and its
+              //       divergence enters the RHS with a minus sign.
               if (use_ysu_mom_countergradient && stagdir < 2) {
                   const int hgam_comp = (stagdir == 0) ? EddyDiff::HGAMU_v : EddyDiff::HGAMV_v;
-                  const Real gam_hi = myhalf * (mu_turb(i,j,klo,hgam_comp) + mu_turb(i,j,klo+1,hgam_comp));
-                  RHS_a(i,j,klo) += Fact * gfac * dz_inv * rhoAlpha_hi * gam_hi;
+                  // Average HGAM* to the staggered face
+                  const Real gam_klo = myhalf * (mu_turb(i,j,klo  ,hgam_comp) + mu_turb(i-ioff,j-joff,klo  ,hgam_comp));
+                  const Real gam_kp1 = myhalf * (mu_turb(i,j,klo+1,hgam_comp) + mu_turb(i-ioff,j-joff,klo+1,hgam_comp));
+                  const Real gam_hi  = myhalf * (gam_klo + gam_kp1);
+                  RHS_a(i,j,klo) -= Fact * rhoAlpha_hi * gam_hi;
               }
 
               b_tmp      = rhoface - a_tmp - c_tmp;
@@ -417,12 +430,13 @@ ImplicitDiffForMomLU_N (const Box& bx,
               // Add YSU momentum countergradient correction
               if (use_ysu_mom_countergradient && stagdir < 2) {
                   const int hgam_comp = (stagdir == 0) ? EddyDiff::HGAMU_v : EddyDiff::HGAMV_v;
-                  const Real gam_k   = mu_turb(i, j, k,   hgam_comp);
-                  const Real gam_km1 = mu_turb(i, j, k-1, hgam_comp);
-                  const Real gam_kp1 = mu_turb(i, j, k+1, hgam_comp);
-                  const Real gam_hi  = myhalf * (gam_k + gam_kp1);
-                  const Real gam_lo  = myhalf * (gam_k + gam_km1);
-                  RHS_a(i,j,k) += Fact * gfac * dz_inv * (rhoAlpha_hi * gam_hi - rhoAlpha_lo * gam_lo);
+                  // Average HGAM* to the staggered face
+                  const Real gam_k   = myhalf * (mu_turb(i,j,k  ,hgam_comp) + mu_turb(i-ioff,j-joff,k  ,hgam_comp));
+                  const Real gam_km1 = myhalf * (mu_turb(i,j,k-1,hgam_comp) + mu_turb(i-ioff,j-joff,k-1,hgam_comp));
+                  const Real gam_kp1 = myhalf * (mu_turb(i,j,k+1,hgam_comp) + mu_turb(i-ioff,j-joff,k+1,hgam_comp));
+                  const Real gam_hi  = myhalf * (gam_k + gam_kp1); // at k+1/2
+                  const Real gam_lo  = myhalf * (gam_k + gam_km1); // at k-1/2
+                  RHS_a(i,j,k) -= Fact * (rhoAlpha_hi * gam_hi - rhoAlpha_lo * gam_lo);
               }
 
               RHS_a(i,j,k)    = (RHS_a(i,j,k) - a_tmp * RHS_a(i,j,k-1)) * inv_b2_tmp; // NOTE: This is now "rho"
