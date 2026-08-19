@@ -114,8 +114,8 @@ update_stretched_dz (int lev,
  * @param[in] z_nd Nodal physical height field.
  * @return Zeta metric term.
  */
+AMREX_GPU_HOST_DEVICE
 AMREX_FORCE_INLINE
-AMREX_GPU_DEVICE
 amrex::Real
 Compute_h_zeta_AtCellCenter (const int &i, const int &j, const int &k,
                              const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
@@ -139,7 +139,7 @@ Compute_h_zeta_AtCellCenter (const int &i, const int &j, const int &k,
  * @param[in] z_nd Nodal physical height field.
  * @return Xi metric term.
  */
-AMREX_GPU_DEVICE
+AMREX_GPU_HOST_DEVICE
 AMREX_FORCE_INLINE
 amrex::Real
 Compute_h_xi_AtCellCenter (const int &i, const int &j, const int &k,
@@ -164,7 +164,7 @@ Compute_h_xi_AtCellCenter (const int &i, const int &j, const int &k,
  * @param[in] z_nd Nodal physical height field.
  * @return Eta metric term.
  */
-AMREX_GPU_DEVICE
+AMREX_GPU_HOST_DEVICE
 AMREX_FORCE_INLINE
 amrex::Real
 Compute_h_eta_AtCellCenter (const int &i, const int &j, const int &k,

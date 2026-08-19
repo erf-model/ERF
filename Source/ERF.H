@@ -1348,7 +1348,8 @@ private:
                                                     "num_turb", "SMark0", "SMark1",
 #endif
                                                     "dpdx", "dpdy", "dpdz", "pres_hse_x", "pres_hse_y",
-                                                    "z_phys", "detJ", "mapfac", "lat_m", "lon_m",
+                                                    "z_phys", "detJ", "h_xi", "h_eta", "h_zeta",
+                                                    "mapfac", "lat_m", "lon_m",
                                                     // Time averaged velocity
                                                     "u_t_avg", "v_t_avg", "w_t_avg", "umag_t_avg",
                                                     // eddy viscosity
