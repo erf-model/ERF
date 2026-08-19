@@ -116,6 +116,10 @@ ERF::setPlotVariables (const std::string& pp_plot_var_names, Vector<std::string>
             ok_to_add     &= ( (SolverChoice::terrain_type == TerrainType::StaticFittedMesh) ||
                                (SolverChoice::terrain_type == TerrainType::MovingFittedMesh) ||
                                (derived_names[i] != "z_phys") );
+            ok_to_add     &= ( (SolverChoice::terrain_type == TerrainType::StaticFittedMesh) ||
+                               (SolverChoice::terrain_type == TerrainType::MovingFittedMesh) ||
+                               (derived_names[i] != "h_xi" && derived_names[i] != "h_eta" &&
+                                derived_names[i] != "h_zeta") );
 #ifdef ERF_USE_WINDFARM
             // NOTE: the windfarm names must be added here, in derived_names order, since
             //       that is where Write3DPlotFile fills them (see ERF.H "MUST MATCH THE ORDER").
@@ -901,6 +905,42 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
                 MultiFab::Copy(mf[lev],*detJ_cc[lev],0,mf_comp,1,0);
                 mf_comp ++;
             }
+
+            //
+            // Cell-centered averages of the terrain metric terms h_xi, h_eta and h_zeta
+            //
+            for (int imet(0); imet < 3; ++imet)
+            {
+                const std::string met_name = (imet == 0) ? "h_xi" : ((imet == 1) ? "h_eta" : "h_zeta");
+
+                if (containerHasElement(plot_var_names, met_name))
+                {
+                    const GpuArray<Real, AMREX_SPACEDIM> dxInv = geom[lev].InvCellSizeArray();
+#ifdef _OPENMP
+#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#endif
+                    for ( MFIter mfi(mf[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi)
+                    {
+                        const Box& bx = mfi.tilebox();
+                        const Array4<Real      >& derdat = mf[lev].array(mfi);
+                        const Array4<Real const>& z_nd   = z_phys_nd[lev]->const_array(mfi);
+                        if (imet == 0) {
+                            ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                                derdat(i,j,k,mf_comp) = Compute_h_xi_AtCellCenter  (i,j,k,dxInv,z_nd);
+                            });
+                        } else if (imet == 1) {
+                            ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                                derdat(i,j,k,mf_comp) = Compute_h_eta_AtCellCenter (i,j,k,dxInv,z_nd);
+                            });
+                        } else {
+                            ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                                derdat(i,j,k,mf_comp) = Compute_h_zeta_AtCellCenter(i,j,k,dxInv,z_nd);
+                            });
+                        }
+                    }
+                    mf_comp ++;
+                }
+            } // h_xi, h_eta, h_zeta
         } // use_terrain
 
         if (containerHasElement(plot_var_names, "mapfac")) {
