@@ -639,11 +639,11 @@ MakeFinalMultiFabs (const MultiFab& mf_cc_fine,
     {
         const Box& bx = mfi.tilebox();
         auto const& wface = zvel_pert.array(mfi);
-        //auto const& cc    = mf_cc_fine.const_array(mfi);
+        auto const& cc    = mf_cc_fine.const_array(mfi);
 
         amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
-            wface(i,j,k) = zero; //myhalf * (cc(i,j,k-1,4) + cc(i,j,k,4));
+            wface(i,j,k) = myhalf * (cc(i,j,k-1,4) + cc(i,j,k,4));
         });
     }
 }

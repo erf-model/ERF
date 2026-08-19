@@ -660,9 +660,11 @@ public:
     void apply_gaussian_smoothing_to_perturbations (const int lev,
                                                     amrex::MultiFab& mf_cc_pert);
 
-    void ComputeAndWriteEnsemblePerturbations();
+    void ComputeAndWriteEnsemblePerturbations ();
 
-    void PerformDataAssimilation(int da_iter);
+    void PerformDataAssimilation (int da_iter);
+
+    void SetDirsForPlotfilesAndCheckpointsForDA (const int ens_no);
 
     void init_custom (int lev);
 
