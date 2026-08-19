@@ -129,6 +129,34 @@ function(build_erf_lib erf_lib_name)
 
   target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_MOISTURE)
 
+  # WDM6 literal precision. The Fortran parameters in ERF_module_mp_wdm6.F90
+  # are written without kind suffixes, so as compiled today they carry float32
+  # rounding. ON reproduces that in the native path; OFF uses true doubles and
+  # is the correct pairing when the Fortran is built -fdefault-real-8.
+  # See the LITERAL PRECISION CONTRACT comment in Source/Microphysics/WDM6/ERF_WDM6.H.
+  #
+  # Defaults ON because the Fortran is the oracle and is unmodified: matching it
+  # is the parity-preserving choice. Turning this OFF without also setting
+  # ERF_WDM6_FORTRAN_REAL8 puts the two paths back out of agreement. Verified to
+  # close the G13e pidep divergence bit-for-bit, 14/14 quantities equal.
+  option(ERF_WDM6_F32_LITERALS
+         "Reproduce the Fortran unsuffixed-literal float32 rounding in native WDM6 constants" ON)
+  if(ERF_WDM6_F32_LITERALS)
+    target_compile_definitions(${erf_lib_name} PUBLIC ERF_WDM6_F32_LITERALS)
+  endif()
+
+  # Build the WDM6 Fortran with promoted default reals so its unsuffixed
+  # literals evaluate in double. Scoped to the WDM6 sources only, so WSM6,
+  # Morrison and SAM are untouched. The module declares every variable
+  # real(kind=kind_phys) and the isohelper uses explicit real(c_double), so
+  # this affects literals and nothing else.
+  if(ERF_WDM6_FORTRAN_REAL8)
+    set_source_files_properties(
+      ${PROJECT_SOURCE_DIR}/Source/Microphysics/WDM6/ERF_module_mp_wdm6.F90
+      ${PROJECT_SOURCE_DIR}/Source/Microphysics/WDM6/ERF_module_mp_wdm6_isohelper.F90
+      PROPERTIES COMPILE_OPTIONS "-fdefault-real-8;-fdefault-double-8")
+  endif()
+
   # NOTE: EKAT provides KOKKOS
   if(ERF_ENABLE_EKAT)
     target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_KOKKOS)
@@ -259,12 +287,43 @@ function(build_erf_lib erf_lib_name)
     target_compile_definitions(${erf_lib_name} PUBLIC SCREAM_SHOC_SMALL_KERNELS)
   endif()
 
+  # Shared Fortran support modules. module_libmassv and mp_radar exist as
+  # byte-identical copies under WSM6 and WDM6, and module_model_constants under
+  # Morrison and WDM6. Adding two copies to one target compiles the same module
+  # twice, which races on the .mod output and duplicates the link symbols, so
+  # each module is added exactly once here and left out of the per-scheme blocks
+  # below. Which copy is picked is arbitrary; they are the same bytes.
+  set(ERF_SHARED_FORT_SOURCES)
+  if(ERF_ENABLE_WSM6_FORT OR ERF_ENABLE_WDM6_FORT)
+    if(ERF_ENABLE_WSM6_FORT)
+      set(_erf_massv_dir WSM6)
+    else()
+      set(_erf_massv_dir WDM6)
+    endif()
+    list(APPEND ERF_SHARED_FORT_SOURCES
+         ${SRC_DIR}/Microphysics/${_erf_massv_dir}/ERF_module_libmassv.F90
+         ${SRC_DIR}/Microphysics/${_erf_massv_dir}/ERF_mp_radar.F90
+         )
+  endif()
+  if(ERF_ENABLE_MORR_FORT OR ERF_ENABLE_WDM6_FORT)
+    if(ERF_ENABLE_MORR_FORT)
+      set(_erf_const_dir Morrison)
+    else()
+      set(_erf_const_dir WDM6)
+    endif()
+    list(APPEND ERF_SHARED_FORT_SOURCES
+         ${SRC_DIR}/Microphysics/${_erf_const_dir}/ERF_module_model_constants.F90
+         )
+  endif()
+  if(ERF_SHARED_FORT_SOURCES)
+    target_sources(${erf_lib_name} PRIVATE ${ERF_SHARED_FORT_SOURCES})
+  endif()
+
   if(ERF_ENABLE_MORR_FORT)
   target_sources(${erf_lib_name}
      PRIVATE
        ${SRC_DIR}/Microphysics/Morrison/ERF_module_mp_morr_two_moment.F90
        ${SRC_DIR}/Microphysics/Morrison/ERF_module_mp_morr_two_moment_isohelper.F90
-       ${SRC_DIR}/Microphysics/Morrison/ERF_module_model_constants.F90
        )
   target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_MORR_FORT)
   endif()
@@ -272,12 +331,19 @@ function(build_erf_lib erf_lib_name)
   if(ERF_ENABLE_WSM6_FORT)
     target_sources(${erf_lib_name}
        PRIVATE
-         ${SRC_DIR}/Microphysics/WSM6/ERF_module_libmassv.F90
-         ${SRC_DIR}/Microphysics/WSM6/ERF_mp_radar.F90
          ${SRC_DIR}/Microphysics/WSM6/ERF_module_mp_wsm6.F90
          ${SRC_DIR}/Microphysics/WSM6/ERF_module_mp_wsm6_isohelper.F90
          )
     target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_WSM6_FORT)
+  endif()
+
+  if(ERF_ENABLE_WDM6_FORT)
+    target_sources(${erf_lib_name}
+       PRIVATE
+         ${SRC_DIR}/Microphysics/WDM6/ERF_module_mp_wdm6.F90
+         ${SRC_DIR}/Microphysics/WDM6/ERF_module_mp_wdm6_isohelper.F90
+         )
+    target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_WDM6_FORT)
   endif()
 
   if(ERF_ENABLE_WINDFARM)
@@ -425,6 +491,9 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/Microphysics/WSM6/ERF_InitWSM6.cpp
        ${SRC_DIR}/Microphysics/WSM6/ERF_AdvanceWSM6.cpp
        ${SRC_DIR}/Microphysics/WSM6/ERF_UpdateWSM6.cpp
+       ${SRC_DIR}/Microphysics/WDM6/ERF_InitWDM6.cpp
+       ${SRC_DIR}/Microphysics/WDM6/ERF_AdvanceWDM6.cpp
+       ${SRC_DIR}/Microphysics/WDM6/ERF_UpdateWDM6.cpp
        ${SRC_DIR}/Microphysics/SAM/ERF_InitSAM.cpp
        ${SRC_DIR}/Microphysics/SAM/ERF_CloudSAM.cpp
        ${SRC_DIR}/Microphysics/SAM/ERF_IceFall.cpp
@@ -538,7 +607,7 @@ function(build_erf_lib erf_lib_name)
 
   if(ERF_ENABLE_MPI)
     target_link_libraries(${erf_lib_name} PUBLIC $<$<BOOL:${MPI_CXX_FOUND}>:MPI::MPI_CXX>)
-    if(ERF_ENABLE_MORR_FORT OR ERF_ENABLE_WSM6_FORT OR ERF_ENABLE_NOAHMP)
+    if(ERF_ENABLE_MORR_FORT OR ERF_ENABLE_WSM6_FORT OR ERF_ENABLE_WDM6_FORT OR ERF_ENABLE_NOAHMP)
       target_link_libraries(${erf_lib_name} PUBLIC $<$<BOOL:${MPI_CXX_FOUND}>:MPI::MPI_Fortran>)
     endif()
   endif()
@@ -570,6 +639,7 @@ function(build_erf_lib erf_lib_name)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/Source/Microphysics/Kessler>)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/Source/Microphysics/Morrison>)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/Source/Microphysics/WSM6>)
+  target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/Source/Microphysics/WDM6>)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/Source/Microphysics/SatAdj>)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/Source/Microphysics/SuperDropletsMoist>)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/Source/Microphysics/MoistNoCondensation>)  

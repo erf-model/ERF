@@ -546,6 +546,7 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
         {
             if (solverChoice.moisture_type == MoistureType::Morrison ||
                 solverChoice.moisture_type == MoistureType::WSM6 ||
+                solverChoice.moisture_type == MoistureType::WDM6 ||
                 solverChoice.moisture_type == MoistureType::SAM) {
                 calculate_derived("reflectivity",      vars_new[lev][Vars::cons], derived::erf_derreflectivity);
             } else {
@@ -558,6 +559,7 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
         {
             if (solverChoice.moisture_type == MoistureType::Morrison ||
                 solverChoice.moisture_type == MoistureType::WSM6 ||
+                solverChoice.moisture_type == MoistureType::WDM6 ||
                 solverChoice.moisture_type == MoistureType::SAM) {
                 calculate_derived("max_reflectivity",  vars_new[lev][Vars::cons], derived::erf_dermaxreflectivity);
             } else {
@@ -1359,6 +1361,9 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
 
             // Number concentrations
             //--------------------------------------------------------------------------
+            // These must be written after qt/qn/qp/qsat to match the order declared by
+            // derived_names in ERF.H, which is what supplies the plotfile header names.
+            // When the two disagree every name is paired with another field's data.
             if(containerHasElement(plot_var_names, "nc") && (n_qstate_moist >= 7))
             {
                 MultiFab::Copy(  mf[lev], vars_new[lev][Vars::cons], RhoQ7_comp, mf_comp, 1, 0);
@@ -1391,6 +1396,18 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
             {
                 MultiFab::Copy(  mf[lev], vars_new[lev][Vars::cons], RhoQ11_comp, mf_comp, 1, 0);
                 MultiFab::Divide(mf[lev], vars_new[lev][Vars::cons],    Rho_comp, mf_comp, 1, 0);
+                mf_comp += 1;
+            }
+
+            // CCN / total aerosol number. The slot is taken from the per-scheme
+            // registry rather than hardcoded, because it overlaps the slot that
+            // Morrison uses for cloud ice number; the two are mutually exclusive.
+            if(containerHasElement(plot_var_names, "nn") &&
+               (solverChoice.moisture_indices.nn >= 0))
+            {
+                MultiFab::Copy(  mf[lev], vars_new[lev][Vars::cons],
+                                 solverChoice.moisture_indices.nn, mf_comp, 1, 0);
+                MultiFab::Divide(mf[lev], vars_new[lev][Vars::cons], Rho_comp, mf_comp, 1, 0);
                 mf_comp += 1;
             }
 
@@ -1438,7 +1455,8 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
             }
             else if ( (solverChoice.moisture_type == MoistureType::SAM) ||
                       (solverChoice.moisture_type == MoistureType::Morrison) ||
-                      (solverChoice.moisture_type == MoistureType::WSM6) )
+                      (solverChoice.moisture_type == MoistureType::WSM6) ||
+                      (solverChoice.moisture_type == MoistureType::WDM6) )
             {
                 if (containerHasElement(plot_var_names, "rain_accum"))
                 {
