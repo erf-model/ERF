@@ -245,7 +245,11 @@ realbdy_compute_interior_ghost_rhs (const double& time,
     int  ivarU = RealBdyVars::U;
     int  ivarV = RealBdyVars::V;
     int  ivarT = RealBdyVars::T;
-    int BdyEnd = RealBdyVars::NumTypes-2; // No loop over rho
+    // This helper applies the legacy velocity/theta boundary relaxation only.
+    // Density (R) and moisture (QV/QC/QI) are handled by fill_from_realbdy;
+    // do not derive this bound from RealBdyVars::NumTypes because QC/QI are
+    // appended to that serialized layout.
+    int BdyEnd = RealBdyVars::T + 1;
 
     // NOTE: The sizing of the temporary BDY FABS is
     //       GLOBAL and occurs over the entire BDY region.
