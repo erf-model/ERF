@@ -925,7 +925,6 @@ void ImmersedForcingTerrain_Scalar (const Box& bx,
             const Real rho_avg = r_avg(k);
             const Real theta_avg = t_avg(k) / rho_avg;  // Convert from RhoTheta to Theta
             const Real rho_cell = cell_data(i,j,k,Rho_comp);
-            //const Real theta_cell = cell_data(i,j,k,RhoTheta_comp) / rho_cell;
             const Real bc_forcing_r = -(rho_avg - rho_cell);
             const Real bc_forcing_rt = -(rho_avg * theta_avg - cell_data(i,j,k,RhoTheta_comp));
 
@@ -1168,7 +1167,6 @@ void ImmersedForcingBuildings_Scalar (const Box& bx,
             const Real rho_avg = r_avg(k);
             const Real theta_avg = t_avg(k) / rho_avg;  // Convert from RhoTheta to Theta
             const Real rho_cell = cell_data(i,j,k,Rho_comp);
-            //const Real theta_cell = cell_data(i,j,k,RhoTheta_comp) / rho_cell;
             const Real bc_forcing_r = -(rho_avg - rho_cell);
             const Real bc_forcing_rt = -(rho_avg * theta_avg - cell_data(i,j,k,RhoTheta_comp));
 

@@ -306,19 +306,19 @@ ERF::compute_max_buoyancy_gradp_diagnostic (int lev)
     // Compute the gradient of the perturbational pressure exactly as the dycore does
     // *******************************************************************************
 
-    Vector<MultiFab> gradp;  gradp.resize(AMREX_SPACEDIM);
-    gradp[GpVars::gpx].define(lev_new[Vars::xvel].boxArray(), lev_new[Vars::xvel].DistributionMap(), 1, 0);
-    gradp[GpVars::gpx].setVal(0.);
-    gradp[GpVars::gpy].define(lev_new[Vars::yvel].boxArray(), lev_new[Vars::yvel].DistributionMap(), 1, 0);
-    gradp[GpVars::gpy].setVal(0.);
-    gradp[GpVars::gpz].define(lev_new[Vars::zvel].boxArray(), lev_new[Vars::zvel].DistributionMap(), 1, 0);
-    gradp[GpVars::gpz].setVal(0.);
+    Vector<MultiFab> lgradp;  lgradp.resize(AMREX_SPACEDIM);
+    lgradp[GpVars::gpx].define(lev_new[Vars::xvel].boxArray(), lev_new[Vars::xvel].DistributionMap(), 1, 0);
+    lgradp[GpVars::gpx].setVal(0.);
+    lgradp[GpVars::gpy].define(lev_new[Vars::yvel].boxArray(), lev_new[Vars::yvel].DistributionMap(), 1, 0);
+    lgradp[GpVars::gpy].setVal(0.);
+    lgradp[GpVars::gpz].define(lev_new[Vars::zvel].boxArray(), lev_new[Vars::zvel].DistributionMap(), 1, 0);
+    lgradp[GpVars::gpz].setVal(0.);
 
     MultiFab p0(base_state[lev], make_alias, BaseState::p0_comp, 1);
 
     make_gradp_pert(lev, solverChoice, geom[lev], lev_new, p0,
                     *z_phys_nd[lev].get(), *z_phys_cc[lev].get(), mapfac[lev],
-                    get_eb(lev), gradp);
+                    get_eb(lev), lgradp);
 
     // *******************************************************************************
     // Compute the buoyancy term exactly as the dycore does
@@ -339,7 +339,7 @@ ERF::compute_max_buoyancy_gradp_diagnostic (int lev)
     cons_to_prim(lev_new[Vars::cons], S_prim, 1);
 
     // Initialize to zero because buoyancy is not defined on the faces at the top and bottom of the domain
-    MultiFab buoyancy(gradp[GpVars::gpz].boxArray(), gradp[GpVars::gpz].DistributionMap(), 1, 0);
+    MultiFab buoyancy(lgradp[GpVars::gpz].boxArray(), lgradp[GpVars::gpz].DistributionMap(), 1, 0);
     buoyancy.setVal(0.);
 
     make_buoyancy(lev, lev_new, S_prim, qt, buoyancy, geom[lev], solverChoice, base_state[lev],
@@ -352,11 +352,11 @@ ERF::compute_max_buoyancy_gradp_diagnostic (int lev)
     //      (i.e. buoyancy_type = 1) then this is identically zero
     // *******************************************************************************
 
-    MultiFab combined(gradp[GpVars::gpz].boxArray(), gradp[GpVars::gpz].DistributionMap(), 1, 0);
+    MultiFab combined(lgradp[GpVars::gpz].boxArray(), lgradp[GpVars::gpz].DistributionMap(), 1, 0);
     combined.setVal(0.);
 
     MultiFab::Copy    (combined, buoyancy          , 0, 0, 1, 0);
-    MultiFab::Subtract(combined, gradp[GpVars::gpz], 0, 0, 1, 0);
+    MultiFab::Subtract(combined, lgradp[GpVars::gpz], 0, 0, 1, 0);
 
     // Don't include the top and bottom faces of the domain, where neither term is defined
     Box zface_domain = surroundingNodes(geom[lev].Domain(), 2);
