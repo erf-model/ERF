@@ -106,9 +106,9 @@ void ImmersedForcingTerrain_Xmom (const Box& tbx,
     {
         const Real ux = u(i, j, k);
         const Real uy = fourth * ( v(i, j  , k  ) + v(i-1, j  , k  )
-                               + v(i, j  , k+1) + v(i-1, j+1, k  ) );
+                                 + v(i, j+1, k  ) + v(i-1, j+1, k  ) );
         const Real uz = fourth * ( w(i, j  , k  ) + w(i-1, j  , k  )
-                               + w(i, j  , k+1) + w(i-1, j  , k+1) );
+                                 + w(i, j  , k+1) + w(i-1, j  , k+1) );
         const Real windspeed = std::sqrt(ux * ux + uy * uy + uz * uz);
         // Use face-centered terrain_blanking if available, otherwise average from cell centers
         Real t_blank_raw = (t_blank_xface_arr) ? t_blank_xface_arr(i, j, k) :
