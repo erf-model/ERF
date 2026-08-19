@@ -182,6 +182,21 @@ public:
         return (!rad_fluxes.empty() && rad_fluxes[0] != nullptr);
     }
 
+    // Whether ERF can pack cloud fraction on the atmos->ocean Cloud lane. The
+    // pack fills that lane only when moisture is active AND the moisture model
+    // carries cloud liquid or ice, so this mirrors that condition exactly; a
+    // driver that handed the lane over regardless would be passing its own
+    // prefill as though it were an ERF value.
+    //
+    // Like HasRadiation, this is a configuration predicate rather than a
+    // data-validity one: it says the lane will be filled, not that any moisture
+    // step has run yet.
+    [[nodiscard]] bool HasCloudWater () const {
+        return (solverChoice.moisture_type != MoistureType::None) &&
+               (solverChoice.moisture_indices.qc != -1 ||
+                solverChoice.moisture_indices.qi != -1);
+    }
+
     // weight_mf/index_mf are keyed by WeightFamily slot order
     // {SCALAR_CENTERED, TAUX_FACE, TAUY_FACE, WIND_FACE_TO_CENTER} as built by
     // the driver's ERFRemoraMultiBlockContainer::BuildRemapWeights(); each
@@ -1355,7 +1370,7 @@ private:
                                                     "diss",
                                                     // moisture vars
                                                     "moist_density", "qv", "qc", "qi", "qrain", "qsnow", "qgraup",
-                                                    "qt", "qn", "qp", "qsat", "nc", "ni", "nr", "ns", "ng",
+                                                    "qt", "qn", "qp", "qsat", "nc", "ni", "nr", "ns", "ng", "nn",
                                                     "rain_accum", "snow_accum", "graup_accum",
                                                     "rel_humidity", "condensation_rate",
                                                     // Terrain IB mask
