@@ -158,6 +158,19 @@ public:
     // by the WRF-grid init paths, e.g. ERF_InitFromWRFInput.cpp/ERF_InitFromMetgrid.cpp)
     // used to build ocean->atmos remap weights. Sets both to nullptr if
     // unavailable (e.g. idealized/non-WRF configurations).
+    //
+    // Staggering contract: both MultiFabs always carry CELL index type, but what
+    // they actually hold depends on the init path, and a caller building a corner
+    // mesh must account for the difference:
+    //   * init_from_wrfinput reads WRF's XLONG_U / XLAT_V, which are edge
+    //     staggered. lon_m(i,j) is the longitude of the west face of cell (i,j)
+    //     -- nodal in i, cell-centred in j -- and lat_m(i,j) is the latitude of
+    //     the south face -- nodal in j, cell-centred in i. The extra staggered
+    //     edge (lon_m at i = nx, lat_m at j = ny) lives in the first ghost cell,
+    //     so a corner mesh must read one ghost beyond the valid box in the nodal
+    //     direction; ghosts further out are duplicates of that edge.
+    //   * init_from_metgrid reads XLONG_M / XLAT_M, which are mass-point values,
+    //     so both are genuinely cell-centred and there is no staggered edge.
     void GetOceanToAtmosCornerCoordinates (const amrex::MultiFab*& x_corner,
                                            const amrex::MultiFab*& y_corner) const;
 
