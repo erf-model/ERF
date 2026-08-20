@@ -81,7 +81,11 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
             eb[lev]->make_all_factories(lev, geom[lev], grids[lev], dmap[lev], eb_level);
         } else if (solverChoice.terrain_type == TerrainType::ImmersedForcing ||
                    solverChoice.buildings_type == BuildingsType::ImmersedForcing) {
+#if USE_FC_FACTORY
+            eb[lev]->make_all_factories(lev, geom[lev], grids[lev], dmap[lev], eb_level);
+#else
             eb[lev]->make_cc_factory(lev, geom[lev], grids[lev], dmap[lev], eb_level);
+#endif
         }
     }
 
@@ -104,9 +108,10 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
     lsm_flux[lev].resize(lsm_flux_size);
     lsm_flux_name.resize(lsm_flux_size);
     lsm.Define(lev, solverChoice);
-    if (solverChoice.lsm_type != LandSurfaceType::None)
-    {
-        lsm.Init(lev, vars_new[lev][Vars::cons], Geom(lev), zero); // dummy dt value
+    if (solverChoice.lsm_type != LandSurfaceType::None) {
+        IntVect RefRatio = (lev>0) ? refRatio(lev-1) : IntVect(1);
+        lsm.Init(lev, vars_new[lev][Vars::cons], Geom(lev), Geom(0),
+                 domain_bcs_type, RefRatio, zero, nc_init_file); // dummy dt value
     }
     for (int mvar(0); mvar<lsm_data[lev].size(); ++mvar) {
         lsm_data[lev][mvar] = lsm.Get_Data_Ptr(lev,mvar);
@@ -116,8 +121,10 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
         lsm_flux[lev][mvar] = lsm.Get_Flux_Ptr(lev,mvar);
         lsm_flux_name[mvar] = lsm.Get_FluxName(mvar);
     }
-
-
+    if (lev>0) {
+        lsm.Set_Lev0_Data_Ptr(lev);
+        lsm.Set_Lev0_Flux_Ptr(lev);
+    }
 
     // ********************************************************************************************
     // Build the data structures for calculating diffusive/turbulent terms
@@ -181,9 +188,12 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
 
             // this will interpolate the input profiles to the nominal height levels
             // (ranging from 0 to the domain top)
+            bool is_moist = (solverChoice.moisture_type != MoistureType::None);
             for (int n = 0; n < input_sounding_data.n_sounding_files; n++) {
-                input_sounding_data.read_from_file(geom[lev], zlevels_stag[lev], n);
+                input_sounding_data.read_from_file(geom[lev], zlevels_stag[lev], n, is_moist);
             }
+
+            input_sounding_data.set_start_time(start_time);
 
             // this will calculate the hydrostatically balanced density and pressure
             // profiles following WRF ideal.exe
@@ -234,6 +244,10 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
         micro->Init(lev, vars_new[lev][Vars::cons],
                     grids[lev], Geom(lev), zero,
                     z_phys_nd[lev], detJ_cc[lev]); // dummy dt value
+        // Refresh the land/water mask pointer. Must be re-issued at every
+        // micro->Init site: init_stuff rebuilds lmask_lev[lev][0], so a stale
+        // pointer would dangle. No-op for every scheme except WDM6.
+        micro->Set_Lmask(lev, (lmask_lev[lev].empty()) ? nullptr : lmask_lev[lev][0].get());
     }
     for (int mvar(0); mvar<qmoist[lev].size(); ++mvar) {
         qmoist[lev][mvar] = micro->Get_Qmoist_Ptr(lev,mvar);
@@ -321,7 +335,11 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
             eb[lev]->make_all_factories(lev, geom[lev], ba, dm, eb_level);
         } else if (solverChoice.terrain_type == TerrainType::ImmersedForcing ||
                    solverChoice.buildings_type == BuildingsType::ImmersedForcing) {
+#if USE_FC_FACTORY
+            eb[lev]->make_all_factories(lev, geom[lev], ba, dm, eb_level);
+#else
             eb[lev]->make_cc_factory(lev, geom[lev], ba, dm, eb_level);
+#endif
         }
     }
     init_zphys(lev, time);
@@ -383,6 +401,10 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
         micro->Init(lev, vars_new[lev][Vars::cons],
                     grids[lev], Geom(lev), zero,
                     z_phys_nd[lev], detJ_cc[lev]); // dummy dt value
+        // Refresh the land/water mask pointer. Must be re-issued at every
+        // micro->Init site: init_stuff rebuilds lmask_lev[lev][0], so a stale
+        // pointer would dangle. No-op for every scheme except WDM6.
+        micro->Set_Lmask(lev, (lmask_lev[lev].empty()) ? nullptr : lmask_lev[lev][0].get());
     }
     for (int mvar(0); mvar<qmoist[lev].size(); ++mvar) {
         qmoist[lev][mvar] = micro->Get_Qmoist_Ptr(lev,mvar);
@@ -473,7 +495,26 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
     // FillPatchers must be constructed above before this call. pp_inc is scratch; zero afterward.
     // ********************************************************************************************
     if (solverChoice.anelastic[lev]) {
-        Real dummy_dt = one;
+        double dummy_dt = 1.0;
+
+        // ****************************************************************************************
+        // Define grids[lev]/dmap[lev] to be the passed-in ba/dm *before* projecting.
+        //
+        // AmrCore::regrid does not call SetBoxArray/SetDistributionMap for this new level
+        // until MakeNewLevelFromCoarse returns, so grids[lev]/dmap[lev] are still empty here.
+        // project_momenta builds its per-subdomain RHS from grids[lev]/dmap[lev]; with those
+        // empty the subdomain box array is empty and the singular-solvability mean-subtraction
+        // divides by a zero-cell volume (0/0 -> NaN). That NaN traps with fpe_trap_invalid=1;
+        // with it off the projection is silently a no-op on the new level (empty RHS, early
+        // return) so the divergence-free constraint is never enforced. Setting them now
+        // (mirroring MakeNewLevelFromScratch) makes grids[lev] match the momentum MultiFabs
+        // built in init_stuff on the same ba/dm. This is idempotent with the
+        // SetBoxArray/SetDistributionMap that AmrCore performs with the identical ba/dm after
+        // this function returns.
+        // ****************************************************************************************
+        SetBoxArray(lev, ba);
+        SetDistributionMap(lev, dm);
+
         project_initial_velocity(lev, time, dummy_dt);
         pp_inc[lev].setVal(0.0);
     }
@@ -488,9 +529,10 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
     lsm_flux[lev].resize(lsm_flux_size);
     lsm_flux_name.resize(lsm_flux_size);
     lsm.Define(lev, solverChoice);
-    if (solverChoice.lsm_type != LandSurfaceType::None)
-    {
-        lsm.Init(lev, vars_new[lev][Vars::cons], Geom(lev), zero); // dummy dt value
+    if (solverChoice.lsm_type != LandSurfaceType::None) {
+        IntVect RefRatio = (lev>0) ? refRatio(lev-1) : IntVect(1);
+        lsm.Init(lev, vars_new[lev][Vars::cons], Geom(lev), Geom(0),
+                 domain_bcs_type, RefRatio, zero, nc_init_file); // dummy dt value
     }
     for (int mvar(0); mvar<lsm_data[lev].size(); ++mvar) {
         lsm_data[lev][mvar] = lsm.Get_Data_Ptr(lev,mvar);
@@ -499,6 +541,10 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
     for (int mvar(0); mvar<lsm_flux[lev].size(); ++mvar) {
         lsm_flux[lev][mvar] = lsm.Get_Flux_Ptr(lev,mvar);
         lsm_flux_name[mvar] = lsm.Get_FluxName(mvar);
+    }
+    if (lev>0) {
+        lsm.Set_Lev0_Data_Ptr(lev);
+        lsm.Set_Lev0_Flux_Ptr(lev);
     }
 
     // ********************************************************************************************
@@ -587,7 +633,11 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
             eb[lev]->make_all_factories(lev, geom[lev], ba, dm, eb_level);
         } else if (solverChoice.terrain_type == TerrainType::ImmersedForcing ||
                    solverChoice.buildings_type == BuildingsType::ImmersedForcing) {
+#if USE_FC_FACTORY
+            eb[lev]->make_all_factories(lev, geom[lev], ba, dm, eb_level);
+#else
             eb[lev]->make_cc_factory(lev, geom[lev], ba, dm, eb_level);
+#endif
         }
     }
     remake_zphys(lev, temp_zphys_nd);
@@ -691,6 +741,12 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
     // ********************************************************************************************
     update_diffusive_arrays(lev, ba, dm);
 
+    // ********************************************************************************************
+    // Thin immersed body -- thin_[xyz]force and [xyz]flux_imask must be re-defined on the new
+    //                       (ba,dm), otherwise they still live on the pre-regrid grids
+    // ********************************************************************************************
+    init_thin_body(lev, ba, dm);
+
     //********************************************************************************************
     // Microphysics
     // *******************************************************************************************
@@ -702,6 +758,10 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
         micro->Init(lev, vars_new[lev][Vars::cons],
                     grids[lev], Geom(lev), zero,
                     z_phys_nd[lev], detJ_cc[lev]); // dummy dt value
+        // Refresh the land/water mask pointer. Must be re-issued at every
+        // micro->Init site: init_stuff rebuilds lmask_lev[lev][0], so a stale
+        // pointer would dangle. No-op for every scheme except WDM6.
+        micro->Set_Lmask(lev, (lmask_lev[lev].empty()) ? nullptr : lmask_lev[lev][0].get());
     }
     for (int mvar(0); mvar<qmoist[lev].size(); ++mvar) {
         qmoist[lev][mvar] = micro->Get_Qmoist_Ptr(lev,mvar);

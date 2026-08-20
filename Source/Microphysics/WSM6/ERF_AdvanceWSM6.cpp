@@ -1004,6 +1004,9 @@ WSM6::Advance(const Real& dt_advance,
 
 #ifdef ERF_USE_WSM6_FORT
         if (run_wsm6_fort) {
+            // Host-only Fortran reads mic_fab_vars via dataPtr(), so GPU writes
+            // must complete before crossing the language boundary.
+            Gpu::streamSynchronize();
             mp_wsm6_run_c(
                 t_arr.dataPtr(),
                 qv_arr.dataPtr(), qc_arr.dataPtr(), qi_arr.dataPtr(),
@@ -1857,7 +1860,10 @@ WSM6::Advance(const Real& dt_advance,
                 const Real vt2g = Real(pvtg) * rslopeb_g_arr(i,j,k)
                                 * denfac_arr(i,j,k);
 
-                const Real qsum = amrex::max(qsum_arr(i,j,k), Real(1.0e-15));
+                // Recompute qsum from the current qs/qg (they have changed since
+                // qsum_arr was set in G5a) -- mirrors ERF_module_mp_wsm6.F90 l.1008
+                const Real qsum = amrex::max(qs_arr(i,j,k) + qg_arr(i,j,k), Real(1.0e-15));
+                qsum_arr(i,j,k) = qsum;
                 const Real vt2ave = (qsum > Real(1.0e-15))
                     ? (vt2s * qs_arr(i,j,k) + vt2g * qg_arr(i,j,k)) / qsum
                     : Real(0.0);
@@ -2004,26 +2010,31 @@ WSM6::Advance(const Real& dt_advance,
                         psacr_arr(i,j,k) = amrex::min(
                             psacr_arr(i,j,k), qr_arr(i,j,k) / dtcld);
                     }
+                }
 
-                    if (qg_arr(i,j,k) > Real(qcrmin)) {
-                        const Real acrfac =
-                            Real(5.0) * rslope3_r_arr(i,j,k) * rslope3_r_arr(i,j,k)
-                                * rslope_g_arr(i,j,k)
-                          + Real(2.0) * rslope3_r_arr(i,j,k) * rslope2_r_arr(i,j,k)
-                                * rslope2_g_arr(i,j,k)
-                          + Real(0.5) * rslope2_r_arr(i,j,k) * rslope2_r_arr(i,j,k)
-                                * rslope3_g_arr(i,j,k);
-                        pgacr_arr(i,j,k) = Real(pi) * Real(pi) * Real(n0r)
-                            * n0g_loc * std::abs(vt2ave - vt2r)
-                            * (Real(denr) / den_arr(i,j,k)) * acrfac;
-                        pgacr_arr(i,j,k) *= std::pow(
-                            amrex::min(
-                                amrex::max(Real(0.0), qg_arr(i,j,k) / qr_arr(i,j,k)),
-                                Real(1.0)),
-                            Real(2.0));
-                        pgacr_arr(i,j,k) = amrex::min(
-                            pgacr_arr(i,j,k), qr_arr(i,j,k) / dtcld);
-                    }
+                // pgacr: accretion of rain by graupel [HL A12] [LFO 42]
+                //        (T<T0: R->G) (T>=T0: enhance melting of graupel)
+                // This depends only on graupel and rain, so it must not be nested inside
+                //     the (qs,qr) test above -- otherwise a rain/graupel column with
+                //     negligible snow would never accrete rain onto graupel
+                if (qg_arr(i,j,k) > Real(qcrmin) && qr_arr(i,j,k) > Real(qcrmin)) {
+                    const Real acrfac =
+                        Real(5.0) * rslope3_r_arr(i,j,k) * rslope3_r_arr(i,j,k)
+                            * rslope_g_arr(i,j,k)
+                      + Real(2.0) * rslope3_r_arr(i,j,k) * rslope2_r_arr(i,j,k)
+                            * rslope2_g_arr(i,j,k)
+                      + Real(0.5) * rslope2_r_arr(i,j,k) * rslope2_r_arr(i,j,k)
+                            * rslope3_g_arr(i,j,k);
+                    pgacr_arr(i,j,k) = Real(pi) * Real(pi) * Real(n0r)
+                        * n0g_loc * std::abs(vt2ave - vt2r)
+                        * (Real(denr) / den_arr(i,j,k)) * acrfac;
+                    pgacr_arr(i,j,k) *= std::pow(
+                        amrex::min(
+                            amrex::max(Real(0.0), qg_arr(i,j,k) / qr_arr(i,j,k)),
+                            Real(1.0)),
+                        Real(2.0));
+                    pgacr_arr(i,j,k) = amrex::min(
+                        pgacr_arr(i,j,k), qr_arr(i,j,k) / dtcld);
                 }
 
                 if (qg_arr(i,j,k) > Real(qcrmin) && qs_arr(i,j,k) > Real(qcrmin)) {

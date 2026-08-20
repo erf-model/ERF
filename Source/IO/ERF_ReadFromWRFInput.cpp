@@ -1,3 +1,6 @@
+/**
+ * \file ERF_ReadFromWRFInput.cpp
+ */
 #include "ERF_NCWpsFile.H"
 #include "AMReX_FArrayBox.H"
 #include "ERF_DataStruct.H"
@@ -116,7 +119,8 @@ read_from_wrfinput (int lev,
     if (NC_name == "ALB" || NC_name == "AL" || NC_name == "ALT" ||
         NC_name == "U" ||  NC_name == "V" ||  NC_name == "W" ||
         NC_name == "THM" || NC_name == "PH" || NC_name == "PHB" || NC_name == "PB" || NC_name == "P" ||
-        NC_name == "QVAPOR"   || NC_name == "QCLOUD" || NC_name == "QRAIN")
+        NC_name == "QVAPOR"   || NC_name == "QCLOUD"  || NC_name == "QICE" ||
+        NC_name == "QRAIN"    || NC_name == "QSNOW"   || NC_name == "QGRAUP")
     {
         // Note: staggering is handled in `fill_fab_from_arrays`
         NC_dim_types.push_back(NC_Data_Dims_Type::Time_BT_SN_WE);
@@ -131,7 +135,7 @@ read_from_wrfinput (int lev,
         // Note: staggering is handled in `fill_fab_from_arrays`
         NC_dim_types.push_back(NC_Data_Dims_Type::Time_SN_WE);
     }
-    else if (NC_name == "C1H" || NC_name == "C2H")
+    else if (NC_name == "C1H" || NC_name == "C2H" || NC_name == "RDNW")
     {
         NC_dim_types.push_back(NC_Data_Dims_Type::Time_BT);
     }

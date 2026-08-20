@@ -1,6 +1,9 @@
 name: Linux GCC
 
-on: [push, pull_request]
+on:
+  push:
+  pull_request:
+    types: [opened, synchronize, reopened, closed]
 
 concurrency:
   group: ${{ github.ref }}-${{ github.head_ref }}-linux-gcc
@@ -8,6 +11,8 @@ concurrency:
 
 jobs:
   library:
+    # The closed event exists only to cancel in-progress runs via concurrency.
+    if: github.event.action != 'closed'
     name: GNU@9.3 C++17 Release - Mesh ${{matrix.mesh_precision}} Particles ${{matrix.particles}} ${{matrix.particles_precision}}
     runs-on: ubuntu-22.04
     # env: {CXXFLAGS: "-fno-operator-names -Werror -Wall -Wextra -Wpedantic -Wnull-dereference -Wfloat-conversion -Wshadow -Woverloaded-virtual"}
@@ -59,6 +64,7 @@ jobs:
           -DERF_ENABLE_TESTS:BOOL=ON \
           -DERF_ENABLE_ALL_WARNINGS:BOOL=ON \
           -DERF_ENABLE_FCOMPARE:BOOL=ON \
+          -DERF_TEST_SDM_SMOKE_GATED:BOOL=ON \
           ${{github.workspace}};
 
     - name: Compile and Link
@@ -106,4 +112,13 @@ jobs:
       if: matrix.particles_precision == 'DOUBLE' && matrix.mesh_precision == 'DOUBLE'
       run: |
         ctest -L regression -VV
+      working-directory: ${{runner.workspace}}/ERF/build
+
+    # The SDM cases whose gold files live in the machine-specific repository are
+    # run to completion here instead. This build enables assertions, so an out of
+    # bounds access or a failed invariant is caught even without a gold file.
+    - name: SDM Smoke Tests
+      if: matrix.particles_precision == 'DOUBLE' && matrix.mesh_precision == 'DOUBLE'
+      run: |
+        ctest -L smoke --output-on-failure --no-tests=error
       working-directory: ${{runner.workspace}}/ERF/build

@@ -5,10 +5,19 @@ using namespace amrex;
 
 #ifdef ERF_USE_NETCDF
 Box read_subdomain_from_wrfinput (int lev, const std::string& fname, int& ratio);
-Real read_start_time_from_wrfinput (int lev, const std::string& fname);
+double read_start_time_from_wrfinput (int lev, const std::string& fname);
 Box read_subdomain_from_metgrid (int lev, const std::string& fname, int& ratio, int& klo, int& khi);
 #endif
 
+/**
+ * @brief Tag cells based on 2D distance from the storm eye.
+ *
+ * @param[in] cgeom Geometry defining the domain.
+ * @param[out] tags Array of tagged cells for refinement.
+ * @param[in] eye_x X-coordinate of the eye center.
+ * @param[in] eye_y Y-coordinate of the eye center.
+ * @param[in] rad_tag Radius within which cells are tagged.
+ */
 void
 tag_on_distance_from_eye(const Geometry& cgeom, TagBoxArray* tags,
                          const Real eye_x, const Real eye_y, const Real rad_tag);
@@ -40,7 +49,7 @@ ERF::ErrorEst (int levc, TagBoxArray& tags, Real time, int /*ngrow*/)
 
         if (!nc_init_file[levc+1].empty())
         {
-            Real levc_start_time = read_start_time_from_wrfinput(levc  , nc_init_file[levc  ][0]);
+            double levc_start_time = read_start_time_from_wrfinput(levc  , nc_init_file[levc  ][0]);
             if (solverChoice.init_type == InitType::WRFInput) {
                 amrex::Print() << " WRFInput       time at level " << levc << " is " << levc_start_time << std::endl;
             } else if (solverChoice.init_type == InitType::Metgrid) {
@@ -50,7 +59,7 @@ ERF::ErrorEst (int levc, TagBoxArray& tags, Real time, int /*ngrow*/)
             for (int isub = 0; isub < nc_init_file[levc+1].size(); isub++) {
                 if (!have_read_nc_init_file[levc+1][isub])
                 {
-                    Real levf_start_time = read_start_time_from_wrfinput(levc+1, nc_init_file[levc+1][isub]);
+                    double levf_start_time = read_start_time_from_wrfinput(levc+1, nc_init_file[levc+1][isub]);
                     if (solverChoice.init_type == InitType::WRFInput) {
                         amrex::Print() << " WRFInput start_time at level " << levc+1 << " is " << levf_start_time << std::endl;
                     } else if (solverChoice.init_type == InitType::Metgrid) {
@@ -181,9 +190,10 @@ ERF::ErrorEst (int levc, TagBoxArray& tags, Real time, int /*ngrow*/)
 
         RealBox real_box = ref_tags[t].GetInfo().m_realbox;
         if (real_box.ok()) {
-            ParmParse pp(pp_prefix); int lev_for_box; Vector<std::string> refinement_indicators;
-            pp.queryarr("refinement_indicators",refinement_indicators,0,pp.countval("refinement_indicators"));
-            std::string ref_prefix = pp_prefix + "." + refinement_indicators[t];
+            // Use the indicator name stored when this tag was created; the tags do not
+            // correspond one-to-one with the entries of erf.refinement_indicators.
+            int lev_for_box;
+            std::string ref_prefix = pp_prefix + "." + ref_tag_indicator_names[t];
             update_box_for_refinement(ref_prefix, lev_for_box, real_box, time);
             ref_tags[t].GetInfo().SetRealBox(real_box);
         }
@@ -277,7 +287,8 @@ ERF::ErrorEst (int levc, TagBoxArray& tags, Real time, int /*ngrow*/)
             MultiFab mf_cc_vel(grids[levc], dmap[levc], AMREX_SPACEDIM, IntVect(1,1,1));
             average_face_to_cellcenter(mf_cc_vel,0,Array<const MultiFab*,3>{&U_new, &V_new, &W_new}, 1);
 
-            for (MFIter mfi(*mf, TilingIfNotGPU()); mfi.isValid(); ++mfi)
+            // NOTE: helicity is a vertical integral so we must not tile in z
+            for (MFIter mfi(*mf, TileNoZ()); mfi.isValid(); ++mfi)
             {
                 const Box& bx = mfi.tilebox();
                 auto& dfab = (*mf)[mfi];
@@ -290,7 +301,8 @@ ERF::ErrorEst (int levc, TagBoxArray& tags, Real time, int /*ngrow*/)
         {
             if (solverChoice.moisture_type == MoistureType::Morrison ||
                 solverChoice.moisture_type == MoistureType::SAM) {
-                for (MFIter mfi(*mf, TilingIfNotGPU()); mfi.isValid(); ++mfi)
+                // NOTE: this takes a max over the column so we must not tile in z
+                for (MFIter mfi(*mf, TileNoZ()); mfi.isValid(); ++mfi)
                 {
                     const Box& bx = mfi.tilebox();
                     auto& dfab = (*mf)[mfi];
@@ -435,7 +447,7 @@ ERF::ErrorEst (int levc, TagBoxArray& tags, Real time, int /*ngrow*/)
             std::string ref_prefix = pp_prefix + "." + refinement_indicators[i];
             ParmParse ppr(ref_prefix);
 
-            Real ref_start_time = -one;
+            double ref_start_time = -1.0;
             ppr.query("start_time",ref_start_time);
 
             if (time >= ref_start_time) {
@@ -494,13 +506,13 @@ ERF::refinement_criteria_setup ()
             }
 
             if (ppr.countval("start_time") > 0) {
-                Real ref_min_time; ppr.get("start_time",ref_min_time);
-                info.SetMinTime(ref_min_time);
+                double ref_min_time; ppr.get("start_time",ref_min_time);
+                info.SetMinTime(static_cast<Real>(ref_min_time));
             }
 
             if (ppr.countval("end_time") > 0) {
-                Real ref_max_time; ppr.get("end_time",ref_max_time);
-                info.SetMaxTime(ref_max_time);
+                double ref_max_time; ppr.get("end_time",ref_max_time);
+                info.SetMaxTime(static_cast<Real>(ref_max_time));
             }
 
             if (ppr.countval("max_level") > 0) {
@@ -538,11 +550,17 @@ ERF::refinement_criteria_setup ()
                 }
             }
 
+            // Every push_back into ref_tags must be matched by a push_back into
+            // ref_tag_indicator_names so that ErrorEst can recover the ParmParse
+            // prefix of the indicator that created each tag.  Indicators such as
+            // "storm_tracker" create no ref_tag at all, so the index into ref_tags
+            // is not in general the index into refinement_indicators.
             if (ppr.countval("value_greater")) {
                 int num_val = ppr.countval("value_greater");
                 Vector<Real> value(num_val);
                 ppr.getarr("value_greater",value,0,num_val);
                 ref_tags.push_back(AMRErrorTag(value,AMRErrorTag::GREATER,field,info));
+                ref_tag_indicator_names.push_back(refinement_indicators[i]);
             }
             else if (ppr.countval("value_less"))
             {
@@ -550,6 +568,7 @@ ERF::refinement_criteria_setup ()
                 Vector<Real> value(num_val);
                 ppr.getarr("value_less",value,0,num_val);
                 ref_tags.push_back(AMRErrorTag(value,AMRErrorTag::LESS,field,info));
+                ref_tag_indicator_names.push_back(refinement_indicators[i]);
             }
             else if (ppr.countval("adjacent_difference_greater"))
             {
@@ -557,15 +576,18 @@ ERF::refinement_criteria_setup ()
                 Vector<Real> value(num_val);
                 ppr.getarr("adjacent_difference_greater",value,0,num_val);
                 ref_tags.push_back(AMRErrorTag(value,AMRErrorTag::GRAD,field,info));
+                ref_tag_indicator_names.push_back(refinement_indicators[i]);
             }
             else if (real_box.ok())
             {
                 ref_tags.push_back(AMRErrorTag(info));
+                ref_tag_indicator_names.push_back(refinement_indicators[i]);
             }
             else if ( (lev_for_box > 0) && (refinement_indicators[i] != "storm_tracker") )
             {
                 Abort(std::string("Unrecognized refinement indicator for " + refinement_indicators[i]).c_str());
             }
+            AMREX_ALWAYS_ASSERT(ref_tags.size() == ref_tag_indicator_names.size());
         } // loop over criteria
     } // if max_level > 0
 }

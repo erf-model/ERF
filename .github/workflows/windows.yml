@@ -1,6 +1,9 @@
 name: Windows
 
-on: [push, pull_request]
+on:
+  push:
+  pull_request:
+    types: [opened, synchronize, reopened, closed]
 
 concurrency:
   group: ${{ github.ref }}-${{ github.head_ref }}-windows
@@ -8,6 +11,8 @@ concurrency:
 
 jobs:
   WIN32-MSVC10:
+    # The closed event exists only to cancel in-progress runs via concurrency.
+    if: github.event.action != 'closed'
     name: WIN32 MSVC@19.29 - Mesh ${{matrix.mesh_precision}} Particles ${{matrix.particles}} ${{matrix.particles_precision}}
     runs-on: windows-latest
     strategy:
@@ -62,6 +67,12 @@ jobs:
       if: matrix.particles_precision == 'DOUBLE' && matrix.mesh_precision == 'DOUBLE'
       run: |
         ctest -C Debug -L unit -VV
+      working-directory: ${{runner.workspace}}/ERF/build
+
+    - name: CMake Shuffle Stress Test
+      if: matrix.particles == 'OFF' && matrix.particles_precision == 'DOUBLE' && matrix.mesh_precision == 'DOUBLE'
+      shell: pwsh
+      run: ctest -C Debug -L stress --output-on-failure --no-tests=error
       working-directory: ${{runner.workspace}}/ERF/build
 
     - name: CMake Regression Tests # see file ERF/Tests/CTestList.cmake

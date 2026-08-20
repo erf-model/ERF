@@ -7,7 +7,7 @@ using namespace amrex;
 
 void
 EWP::advance (const Geometry& geom,
-              const Real& dt_advance,
+              const double& dt_advance,
               MultiFab& cons_in,
               MultiFab& mf_vars_ewp,
               MultiFab& U_old,
@@ -15,7 +15,7 @@ EWP::advance (const Geometry& geom,
               MultiFab& W_old,
               const MultiFab& mf_Nturb,
               const MultiFab& mf_SMark,
-              const Real& time)
+              const double& time)
  {
     AMREX_ALWAYS_ASSERT(mf_SMark.nComp() > 0);
     AMREX_ALWAYS_ASSERT(time > -one);
@@ -32,7 +32,7 @@ EWP::compute_power_output (const MultiFab& cons_in,
                            const MultiFab& W_old,
                            const MultiFab& mf_SMark,
                            const MultiFab& mf_Nturb,
-                           const Real& time)
+                           const double& time)
 {
      get_turb_loc(xloc, yloc);
      get_turb_spec(rotor_rad, hub_height, thrust_coeff_standing,
@@ -58,7 +58,12 @@ EWP::compute_power_output (const MultiFab& cons_in,
         auto u_vel          = U_old.array(mfi);
         auto v_vel          = V_old.array(mfi);
         auto w_vel          = W_old.array(mfi);
-        Box tbx = mfi.nodaltilebox(0);
+        // NOTE: this reduction is driven by the cell-centered SMark/Nturb, so it
+        //       must run over the cell-centered tilebox. Using nodaltilebox(0)
+        //       here would include the plane at bigEnd(0)+1, which is a ghost
+        //       cell of this box and a valid cell of its x-neighbor, and so
+        //       would count that plane twice in the power sum below.
+        Box tbx = mfi.tilebox();
 
         ParallelFor(tbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
 
@@ -91,7 +96,7 @@ EWP::compute_power_output (const MultiFab& cons_in,
 }
 
 void
-EWP::update (const Real& dt_advance,
+EWP::update (const double& dt_advance,
              MultiFab& cons_in,
              MultiFab& U_old, MultiFab& V_old,
              const MultiFab& mf_vars_ewp)

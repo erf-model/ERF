@@ -31,9 +31,12 @@ USE_NETCDF = TRUE
 USE_FFT = FALSE
 
 # Enable NOAH LSM
-USE_NOAHMP = FALSE
+#USE_NOAHMP = TRUE
 
-# Enable particles (required for ParticleTests or MultiSpeciesBubble) 
+# Enable RRTMGP
+#USE_RRTMGP = TRUE
+
+# Enable particles (required for ParticleTests, MultiSpeciesBubble or inputs_SDM in RICO)  
 USE_PARTICLES = FALSE
 
 # GNU Make
@@ -42,4 +45,8 @@ Blocs := .
 
 ERF_HOME := ../
 ERF_PROBLEM_DIR = $(ERF_HOME)/Exec
+ifeq ($(USE_RRTMGP), TRUE)
+include $(ERF_HOME)/Exec/Make.ERF.general
+else
 include $(ERF_HOME)/Exec/Make.ERF
+endif

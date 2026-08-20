@@ -24,7 +24,7 @@ void ERF::readTracersParams ()
 /*! Initialize tracer particles */
 void ERF::initializeTracers ( ParGDBBase* a_gdb,
                               const Vector<std::unique_ptr<MultiFab>>& a_z_phys_nd,
-                              const Real time)
+                              const double time)
 {
     auto& namelist_unalloc( particleData.getNamesUnalloc() );
 
@@ -39,8 +39,8 @@ void ERF::initializeTracers ( ParGDBBase* a_gdb,
             pc->InitializeParticles(time,a_z_phys_nd[0]);
             if (pc->TotalNumberOfParticles() > 0) {
                 amrex::Print() << "Initialized " << pc->TotalNumberOfParticles() << " tracer particles.\n";
-                particleData.pushBack(ERFParticleNames::tracers, pc);
             }
+            particleData.pushBack(ERFParticleNames::tracers, pc);
         }
     }
 
@@ -84,7 +84,7 @@ void ERF::restartTracers ( ParGDBBase* a_gdb,
 
 /*! Evolve tracers particles for one time step*/
 void ERF::evolveTracers ( int                                        a_lev,
-                          Real                                       a_dt_lev,
+                          double                                      a_dt_lev,
                           Vector<Vector<MultiFab>>&                  a_vars_new,
                           const Vector<std::unique_ptr<MultiFab>>&   a_z_phys_nd )
 {

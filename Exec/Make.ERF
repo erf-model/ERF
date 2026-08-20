@@ -2,8 +2,23 @@ AMREX_HOME ?= $(ERF_HOME)/Submodules/AMReX
 EKAT_HOME  ?= $(ERF_HOME)/Submodules/ekat/build/install
 EAMXX_HOME ?= $(ERF_HOME)/external/E3SM/components/eamxx/src
 
+USE_EAMXX_SHOC  ?= $(USE_SHOC)
+
+ifeq ($(USE_SHOC), TRUE)
+$(warning USE_SHOC=TRUE is deprecated; use USE_EAMXX_SHOC=TRUE)
+endif
+
+# The checked-in Source/PhysicsInterfaces/eamxx_config.h defines SCREAM_DOUBLE_PRECISION, so the
+# EAMxx ETI files instantiate the SHOC templates for double only, while ERF instantiates them
+# with amrex::Real.  Refuse a single-precision build here rather than failing at link time.
+ifeq ($(USE_EAMXX_SHOC), TRUE)
+  ifeq ($(PRECISION), FLOAT)
+    $(error USE_EAMXX_SHOC=TRUE requires PRECISION=DOUBLE because the vendored eamxx_config.h builds EAMxx in double precision)
+  endif
+endif
+
 # Default is no Fortran build unless an explicit Fortran bridge/model is enabled.
-# Keep this TRUE when USE_MORR_FORT and USE_WSM6_FORT are both unset.
+# Keep this TRUE when USE_MORR_FORT, USE_WSM6_FORT and USE_WDM6_FORT are unset.
 BL_NO_FORT = TRUE
 ifeq ($(USE_MORR_FORT), TRUE)
 DEFINES += -DERF_USE_MORR_FORT
@@ -12,6 +27,20 @@ endif
 ifeq ($(USE_WSM6_FORT), TRUE)
 DEFINES += -DERF_USE_WSM6_FORT
 BL_NO_FORT = FALSE
+endif
+ifeq ($(USE_WDM6_FORT), TRUE)
+DEFINES += -DERF_USE_WDM6_FORT
+BL_NO_FORT = FALSE
+endif
+
+# Mirrors the ERF_WDM6_F32_LITERALS CMake option, which defaults ON. The WDM6
+# Fortran parameters carry no kind suffix, so as compiled they hold float32
+# values, and reproducing that in the native path is what keeps the two paths in
+# agreement. Read the LITERAL PRECISION CONTRACT comment in
+# Source/Microphysics/WDM6/ERF_WDM6.H before changing this.
+USE_WDM6_F32_LITERALS ?= TRUE
+ifeq ($(USE_WDM6_F32_LITERALS), TRUE)
+DEFINES += -DERF_WDM6_F32_LITERALS
 endif
 
 ifeq ($(USE_CUDA), TRUE)
@@ -27,6 +56,14 @@ endif
 USE_EB = TRUE
 
 include $(AMREX_HOME)/Tools/GNUMake/Make.defs
+
+# Mirrors the CMake guard: the WDM6 Fortran bridge is double-precision only.
+# PRECISION is normalized by Make.defs, so this has to come after the include.
+ifeq ($(USE_WDM6_FORT), TRUE)
+  ifneq ($(PRECISION), DOUBLE)
+    $(error USE_WDM6_FORT requires PRECISION=DOUBLE because the WDM6 Fortran bridge is double-precision only)
+  endif
+endif
 
 EBASE = ERF
 ifeq ($(USE_NETCDF), TRUE)
@@ -128,6 +165,11 @@ include $(ERF_IO_DIR)/Make.package
 VPATH_LOCATIONS   += $(ERF_IO_DIR)
 INCLUDE_LOCATIONS += $(ERF_IO_DIR)
 
+ERF_DIAGNOSTICS_DIR = $(ERF_SOURCE_DIR)/Diagnostics
+include $(ERF_DIAGNOSTICS_DIR)/Make.package
+VPATH_LOCATIONS   += $(ERF_DIAGNOSTICS_DIR)
+INCLUDE_LOCATIONS += $(ERF_DIAGNOSTICS_DIR)
+
 ERF_MOISTURE_DIR = $(ERF_SOURCE_DIR)/Microphysics
 include $(ERF_MOISTURE_DIR)/Make.package
 VPATH_LOCATIONS   += $(ERF_MOISTURE_DIR)
@@ -157,6 +199,25 @@ ERF_MOISTURE_WSM6_DIR = $(ERF_SOURCE_DIR)/Microphysics/WSM6
 include $(ERF_MOISTURE_WSM6_DIR)/Make.package
 VPATH_LOCATIONS   += $(ERF_MOISTURE_WSM6_DIR)
 INCLUDE_LOCATIONS += $(ERF_MOISTURE_WSM6_DIR)
+
+ERF_MOISTURE_WDM6_DIR = $(ERF_SOURCE_DIR)/Microphysics/WDM6
+include $(ERF_MOISTURE_WDM6_DIR)/Make.package
+VPATH_LOCATIONS   += $(ERF_MOISTURE_WDM6_DIR)
+INCLUDE_LOCATIONS += $(ERF_MOISTURE_WDM6_DIR)
+
+# Shared Fortran support modules. module_libmassv, mp_radar and
+# module_model_constants exist as byte-identical copies under WSM6, WDM6 and
+# Morrison, so each basename is listed exactly once here and left out of the
+# per-scheme Make.package files. Listing one twice would compile the module
+# twice into a single target. VPATH resolves each name against the microphysics
+# directories above, so the copy that gets built is whichever comes first.
+ifneq ($(filter TRUE,$(USE_WSM6_FORT) $(USE_WDM6_FORT)),)
+  F90EXE_sources += ERF_module_libmassv.F90
+  F90EXE_sources += ERF_mp_radar.F90
+endif
+ifneq ($(filter TRUE,$(USE_MORR_FORT) $(USE_WDM6_FORT)),)
+  F90EXE_sources += ERF_module_model_constants.F90
+endif
 
 ERF_MOISTURE_SATADJ_DIR = $(ERF_SOURCE_DIR)/Microphysics/SatAdj
 include $(ERF_MOISTURE_SATADJ_DIR)/Make.package
@@ -238,11 +299,6 @@ include $(ERF_LSM_OCEANSURF_DIR)/Make.package
 VPATH_LOCATIONS   += $(ERF_LSM_OCEANSURF_DIR)
 INCLUDE_LOCATIONS += $(ERF_LSM_OCEANSURF_DIR)
 
-ERF_LSM_MM5_DIR = $(ERF_SOURCE_DIR)/LandSurfaceModel/MM5
-include $(ERF_LSM_MM5_DIR)/Make.package
-VPATH_LOCATIONS   += $(ERF_LSM_MM5_DIR)
-INCLUDE_LOCATIONS += $(ERF_LSM_MM5_DIR)
-
 ERF_MATPROP_DIR = $(ERF_SOURCE_DIR)/MaterialProperties
 include $(ERF_MATPROP_DIR)/Make.package
 VPATH_LOCATIONS   += $(ERF_MATPROP_DIR)
@@ -273,7 +329,7 @@ ifeq ($(USE_NOAHMP), TRUE)
         includes  += $(shell if [ -n "$$MPICH_DIR" ]; then export PKG_CONFIG_PATH="$$MPICH_DIR/lib/pkgconfig:$$PKG_CONFIG_PATH"; fi; pkg-config --cflags netcdf-fortran_parallel)
         LIBRARIES += $(shell if [ -n "$$MPICH_DIR" ]; then export PKG_CONFIG_PATH="$$MPICH_DIR/lib/pkgconfig:$$PKG_CONFIG_PATH"; fi; pkg-config --libs netcdf-fortran_parallel)
       else
-        $(error NetCDF Fortran not found. Tried netcdf-fortran and netcdf-fortran_parallel)
+        $(warning NetCDF Fortran not found. Tried netcdf-fortran and netcdf-fortran_parallel)
       endif
     endif
 
@@ -289,7 +345,7 @@ ifeq ($(USE_NOAHMP), TRUE)
     INCLUDE_LOCATIONS += $(ERF_LSM_NOAHMP_DIR)
 
     LIBRARY_LOCATIONS += $(NOAHMP_HOME)/drivers/erf/lib
-    LIBRARIES += -lnoahmp
+    LIBRARIES += -lnoahmp -lgfortran -lquadmath -lnetcdff
   endif
 endif
 
@@ -334,13 +390,15 @@ ifeq ($(USE_RRTMGP), TRUE)
   endif
 endif
 
-# If using SHOC, compile relevant source and headers
-ifeq ($(USE_SHOC), TRUE)
+DEFINES += -DERF_HAS_SHOC_FAMILY
+
+# If using EAMxx SHOC, compile relevant source and headers
+ifeq ($(USE_EAMXX_SHOC), TRUE)
 
     USE_KOKKOS = TRUE
 
     DEFINES += -DERF_USE_KOKKOS
-    DEFINES += -DERF_USE_SHOC
+    DEFINES += -DERF_USE_EAMXX_SHOC
     DEFINES += -DSHOC_ENABLE_KOKKOS
     DEFINES += -DEKAT_ENABLE_MPI
     DEFINES += -DSCREAM_SHOC_SMALL_KERNELS
@@ -365,6 +423,7 @@ ifeq ($(USE_SHOC), TRUE)
     VPATH_LOCATIONS   += $(SHOC_HOME)/disp
     VPATH_LOCATIONS   += $(SHOC_HOME)/eti
     INCLUDE_LOCATIONS += $(SHOC_HOME)
+    INCLUDE_LOCATIONS += $(SHOC_HOME)/eti
     INCLUDE_LOCATIONS += $(SHOC_HOME)/impl
 
     # Other things we get from eamxx
@@ -414,11 +473,16 @@ ifeq ($(USE_P3), TRUE)
     INCLUDE_LOCATIONS += $(EAMXX_HOME)/physics/share
 endif
 
+ERF_RAD_SIMPLE_DIR = $(ERF_SOURCE_DIR)/PhysicsInterfaces/Radiation/Simple
+include $(ERF_RAD_SIMPLE_DIR)/Make.package
+VPATH_LOCATIONS   += $(ERF_RAD_SIMPLE_DIR)
+INCLUDE_LOCATIONS += $(ERF_RAD_SIMPLE_DIR)
+
 # ---- LAPACK support ----
 USE_LAPACK ?= FALSE
 
 ifeq ($(USE_LAPACK), TRUE)
-  DEFINES += -DUSE_LAPACK  
+  DEFINES += -DUSE_LAPACK
   # Try pkg-config first (works on many systems)
   has_lapack := $(shell pkg-config --exists lapack 2>/dev/null; echo $$?)
   ifeq ($(has_lapack),0)
@@ -432,6 +496,7 @@ ifeq ($(USE_LAPACK), TRUE)
 
 endif
 # ------------------------
+
 
 
 include $(AMREX_HOME)/Src/Base/Make.package
@@ -482,17 +547,18 @@ endif
 ifeq ($(USE_NETCDF), TRUE)
   DEFINES += -DERF_USE_NETCDF
 
-  # Try netcdf => netcdf-cxx4_parallel => netcdf_parallel
-  has_netcdf := $(shell if [ -n "$$MPICH_DIR" ]; then export PKG_CONFIG_PATH="$$MPICH_DIR/lib/pkgconfig:$$PKG_CONFIG_PATH"; fi; pkg-config --exists netcdf 2>/dev/null; echo $$?)
-  ifeq ($(has_netcdf),0)
-    includes  += $(shell if [ -n "$$MPICH_DIR" ]; then export PKG_CONFIG_PATH="$$MPICH_DIR/lib/pkgconfig:$$PKG_CONFIG_PATH"; fi; pkg-config --cflags netcdf)
-    LIBRARIES += $(shell if [ -n "$$MPICH_DIR" ]; then export PKG_CONFIG_PATH="$$MPICH_DIR/lib/pkgconfig:$$PKG_CONFIG_PATH"; fi; pkg-config --libs netcdf)
-
-  else
-    has_netcdf_mpi := $(shell pkg-config --cflags netcdf-mpi > /dev/null 2>&1; echo $$?)
-    ifeq ($(has_netcdf_mpi),0)
+  # Try netcdf-mpi => netcdf => netcdf-cxx4_parallel => netcdf_parallel
+  # We need to add MPICH_DIR to pkg's config path because of a Cray bug.
+  has_netcdf_mpi := $(shell pkg-config --cflags netcdf-mpi > /dev/null 2>&1; echo $$?)
+  ifeq ($(has_netcdf_mpi),0)
       includes  += $(shell pkg-config --cflags netcdf-mpi)
       LIBRARIES += $(shell pkg-config --libs netcdf-mpi)
+
+  else
+    has_netcdf := $(shell if [ -n "$$MPICH_DIR" ]; then export PKG_CONFIG_PATH="$$MPICH_DIR/lib/pkgconfig:$$PKG_CONFIG_PATH"; fi; pkg-config --exists netcdf 2>/dev/null; echo $$?)
+    ifeq ($(has_netcdf),0)
+      includes  += $(shell if [ -n "$$MPICH_DIR" ]; then export PKG_CONFIG_PATH="$$MPICH_DIR/lib/pkgconfig:$$PKG_CONFIG_PATH"; fi; pkg-config --cflags netcdf)
+      LIBRARIES += $(shell if [ -n "$$MPICH_DIR" ]; then export PKG_CONFIG_PATH="$$MPICH_DIR/lib/pkgconfig:$$PKG_CONFIG_PATH"; fi; pkg-config --libs netcdf)
     else
       has_netcdf_cxx4_parallel := $(shell if [ -n "$$MPICH_DIR" ]; then export PKG_CONFIG_PATH="$$MPICH_DIR/lib/pkgconfig:$$PKG_CONFIG_PATH"; fi; pkg-config --exists netcdf-cxx4_parallel 2>/dev/null; echo $$?)
       ifeq ($(has_netcdf_cxx4_parallel),0)
@@ -504,7 +570,7 @@ ifeq ($(USE_NETCDF), TRUE)
           includes  += $(shell if [ -n "$$MPICH_DIR" ]; then export PKG_CONFIG_PATH="$$MPICH_DIR/lib/pkgconfig:$$PKG_CONFIG_PATH"; fi; pkg-config --cflags netcdf_parallel)
           LIBRARIES += $(shell if [ -n "$$MPICH_DIR" ]; then export PKG_CONFIG_PATH="$$MPICH_DIR/lib/pkgconfig:$$PKG_CONFIG_PATH"; fi; pkg-config --libs netcdf_parallel)
         else
-          $(error NetCDF not found. Tried netcdf, netcdf-mpi, netcdf-cxx4_parallel, and netcdf_parallel)
+          $(warning NetCDF not found. Tried netcdf-mpi, netcdf, netcdf-cxx4_parallel, and netcdf_parallel)
         endif
       endif
     endif
@@ -528,6 +594,11 @@ include $(AMREX_HOME)/Tools/GNUMake/Make.rules
 build_noahmp:
 ifeq ($(USE_NOAHMP), TRUE)
 	$(MAKE) -C $(NOAHMP_HOME)/drivers/erf -f Makefile all_noahmp NOAHMP_PRECISION_FLAG="$(NOAHMP_PRECISION_FLAG)"
+
+# Build Noah-MP (codegen + libnoahmp.a) before any ERF object; -j ignores the
+# `all` prereq order, so an order-only (|) dep is needed to enforce it.
+
+$(objForExecs): | build_noahmp
 endif
 
 all: build_noahmp $(executable)

@@ -1,3 +1,6 @@
+/**
+ * \file ERF_ReadBndryPlanes.cpp
+ */
 #include "AMReX_Gpu.H"
 #include "AMReX_ParmParse.H"
 #include <AMReX_PlotFileUtil.H>
@@ -12,7 +15,7 @@ using namespace amrex;
  * Return closest index (from lower) of value in vector
  */
 AMREX_FORCE_INLINE
-int closest_index (const Vector<Real>& vec, const Real value)
+int closest_index (const Vector<double>& vec, const double value)
 {
     auto const it = std::upper_bound(vec.begin(), vec.end(), value);
     AMREX_ALWAYS_ASSERT(it != vec.end());
@@ -80,12 +83,17 @@ void ReadBndryPlanes::define_level_data (int /*lev*/)
  * Function in ReadBndryPlanes class for interpolating boundary
  * data in time.
  *
- * @param time Constant specifying the time for interpolation
+ * @param time_in Constant specifying the time for interpolation
  */
 Vector<std::unique_ptr<PlaneVector>>&
-ReadBndryPlanes::interp_in_time (const Real& time)
+ReadBndryPlanes::interp_in_time (const double& time_in)
 {
-    AMREX_ALWAYS_ASSERT(m_tn <= time && time <= m_tnp2);
+    // A restart that lands exactly on a boundary-plane time can request a time a few
+    // ULP outside [m_tn, m_tnp2] because per-level t_new drifts under subcycling.
+    // Tolerate that drift, then clamp into the valid window before interpolating.
+    const double eps  = 1.0e-8 * (m_tnp2 - m_tn);
+    AMREX_ALWAYS_ASSERT(m_tn - eps <= time_in && time_in <= m_tnp2 + eps);
+    const double time = std::min(std::max(time_in, m_tn), m_tnp2);
 
     //Print() << "interp_in_time at time " << time << " given " << m_tn << " " << m_tnp1 << " " << m_tnp2 << std::endl;
     //Print() << "m_tinterp " << m_tinterp << std::endl;
@@ -109,7 +117,8 @@ ReadBndryPlanes::interp_in_time (const Real& time)
                         const auto& datnp1 = (*m_data_np1[ori])[lev];
                         auto& dati = (*m_data_interp[ori])[lev];
                         dati.linInterp<RunOn::Device>(datn, 0, datnp1, 0,
-                                                      m_tn, m_tnp1, m_tinterp,
+                                                      static_cast<Real>(m_tn), static_cast<Real>(m_tnp1),
+                                                      static_cast<Real>(m_tinterp),
                                                       datn.box(), 0, dati.nComp());
                     }
                 }
@@ -124,7 +133,8 @@ ReadBndryPlanes::interp_in_time (const Real& time)
                         const auto& datnp2 = (*m_data_np2[ori])[lev];
                         auto& dati = (*m_data_interp[ori])[lev];
                         dati.linInterp<RunOn::Device>(datnp1, 0, datnp2, 0,
-                                                      m_tnp1, m_tnp2, m_tinterp,
+                                                      static_cast<Real>(m_tnp1), static_cast<Real>(m_tnp2),
+                                                      static_cast<Real>(m_tinterp),
                                                       datnp1.box(), 0, dati.nComp());
                     }
                 }
@@ -138,15 +148,20 @@ ReadBndryPlanes::interp_in_time (const Real& time)
  * Function in ReadBndryPlanes class for interpolating boundary
  * data in time.
  *
- * @param time Constant specifying the time for interpolation
+ * @param time_in Constant specifying the time for interpolation
  */
 Vector<std::unique_ptr<PlaneVector>>&
-ReadBndryPlanes::get_tendency (const Real& time)
+ReadBndryPlanes::get_tendency (const double& time_in)
 {
-    AMREX_ALWAYS_ASSERT(m_tn <= time && time <= m_tnp2);
+    // A restart that lands exactly on a boundary-plane time can request a time a few
+    // ULP outside [m_tn, m_tnp2] because per-level t_new drifts under subcycling.
+    // Tolerate that drift, then clamp into the valid window before interpolating.
+    const double eps  = 1.0e-8 * (m_tnp2 - m_tn);
+    AMREX_ALWAYS_ASSERT(m_tn - eps <= time_in && time_in <= m_tnp2 + eps);
+    const double time = std::min(std::max(time_in, m_tn), m_tnp2);
 
     if (time < m_tnp1) {
-        Real idt = Real(1.0) / (m_tnp1 - m_tn);
+        Real idt = static_cast<Real>(1.0 / (m_tnp1 - m_tn));
         for (OrientationIter oit; oit != nullptr; ++oit) {
             auto ori = oit();
             if (ori.coordDir() < 2) {
@@ -167,7 +182,7 @@ ReadBndryPlanes::get_tendency (const Real& time)
             }
         }
     } else {
-        Real idt = Real(1.0) / (m_tnp2 - m_tnp1);
+        Real idt = static_cast<Real>(1.0 / (m_tnp2 - m_tnp1));
         for (OrientationIter oit; oit != nullptr; ++oit) {
             auto ori = oit();
             if (ori.coordDir() < 2) {
@@ -213,7 +228,7 @@ ReadBndryPlanes::ReadBndryPlanes (const Geometry& geom, const Real& rdOcp_in)
 
     last_file_read = -1;
 
-    m_tinterp = -one;
+    m_tinterp = -1.0;
 
     // What folder will the time series of planes be read from
     pp.get("bndry_file", m_filename);
@@ -331,8 +346,8 @@ void ReadBndryPlanes::read_time_file ()
  * @param dt Current timestep
  * @param m_bc_extdir_vals Container storing the external dirichlet boundary conditions we are reading from the input files
  */
-void ReadBndryPlanes::read_input_files (Real time,
-                                        Real dt,
+void ReadBndryPlanes::read_input_files (double time,
+                                        double dt,
                                         Array<Array<Real, AMREX_SPACEDIM*2>,AMREX_SPACEDIM+NBCVAR_max> m_bc_extdir_vals)
 {
     BL_PROFILE("ERF::ReadBndryPlanes::read_input_files");
@@ -354,7 +369,7 @@ void ReadBndryPlanes::read_input_files (Real time,
     if (last_file_read == -1)
     {
         int idx_init = 0;
-        read_file(idx_init,m_data_n,m_bc_extdir_vals);
+        read_file(idx_init,m_data_n     ,m_bc_extdir_vals);
         read_file(idx_init,m_data_interp,m_bc_extdir_vals); // We want to start with this filled
         m_tn = m_in_times[idx_init];
 
@@ -409,6 +424,10 @@ void ReadBndryPlanes::read_file (const int idx,
                                  Vector<std::unique_ptr<PlaneVector>>& data_to_fill,
                                  Array<Array<Real, AMREX_SPACEDIM*2>,AMREX_SPACEDIM+NBCVAR_max> m_bc_extdir_vals)
 {
+    if (idx >= m_in_timesteps.size()) {
+        Print() << "Asking for index " << idx << " but m_in_timesteps only has size " << m_in_timesteps.size() << std::endl;
+        Abort();
+    }
     const int t_step = m_in_timesteps[idx];
     const std::string chkname1 = m_filename + Concatenate("/bndry_output", t_step);
 

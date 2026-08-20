@@ -1,6 +1,9 @@
 name: Style
 
-on: [push, pull_request]
+on:
+  push:
+  pull_request:
+    types: [opened, synchronize, reopened, closed]
 
 concurrency:
   group: ${{ github.ref }}-${{ github.head_ref }}-style
@@ -8,6 +11,8 @@ concurrency:
 
 jobs:
   tabs:
+    # The closed event exists only to cancel in-progress runs via concurrency.
+    if: github.event.action != 'closed'
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v7
@@ -15,6 +20,8 @@ jobs:
         run: .github/workflows/style/check_tabs.sh
 
   trailing_whitespaces:
+    # The closed event exists only to cancel in-progress runs via concurrency.
+    if: github.event.action != 'closed'
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v7

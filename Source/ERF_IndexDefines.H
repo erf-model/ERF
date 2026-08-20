@@ -21,12 +21,15 @@
 // This is the number of components if using moisture
 // We use this to allocate the 1d arrays of boundary condition types,
 //    but not to allocate actual solution data
-#define NVAR_max (NDRY + NSCALARS + NMOIST_max)
+// Full moist state with no additional non-moist species
+#define NVAR_MOIST_max (NDRY + NSCALARS + NMOIST_max)
+
+#define NVAR_max ((NDRY + NSCALARS + NMOIST_max) + 2*5) // allow up to 5 non-moist species
 
 // This is the number of components if we assume there is only one passive scalar
 // We can use this when we assume all passive scalars have the same bc's
 // We also assume (the final "+1" that the base state components have the same bcs)
-#define NBCVAR_max (NDRY + 1 + NMOIST_max + 1)
+#define NBCVAR_max ((NDRY + 1 + NMOIST_max + 1) + 2*5) // allow up to 5 non-moist species
 
 // This is the number of components if we assume there is only one passive scalar
 // We can use this when we assume all passive scalars have the same diffusion coefficients
@@ -124,6 +127,7 @@ namespace RealBdyVars {
         V  = 1,
         T  = 2,
         QV = 3,
+        R  = 4,
         NumTypes
     };
 }
@@ -134,6 +138,7 @@ namespace WRFBdyVars {
         V  = 1,
         T  = 2,
         QV = 3, // water vapor
+        R  = 4, // density
         PH    , // Perturbational geopotential
         MU    , // bdy perturbation dry air mass in column (we will get mub from the initial data)
         PC    , // p_s - p_top = dry hydrostatic pressure difference between the surface and the model top
@@ -212,6 +217,15 @@ namespace EddyDiff {
         Scalar_v,
         Q_v,
         Turb_lengthscale,
+        // Nonlocal (countergradient) terms.  All four are stored *normalized by the
+        // PBL height*, i.e. as a gradient of the transported quantity, so that the
+        // implicit vertical diffusion solvers form the countergradient flux as
+        //     F_cg = +rho*alpha*gamma
+        // with no further metric or grid-spacing factors.
+        HGAMT_v,  // MRF/YSU countergradient for heat (HGAMT/h, units K/m), zero outside PBL
+        HGAMQ_v,  // MRF/YSU countergradient for moisture (HGAMQ/h, units kg/kg/m), zero outside PBL
+        HGAMU_v,  // YSU countergradient for x-momentum (HGAMU/h, units 1/s), zero outside PBL
+        HGAMV_v,  // YSU countergradient for y-momentum (HGAMV/h, units 1/s), zero outside PBL
         NumDiffs
     };
 }

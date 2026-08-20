@@ -19,6 +19,106 @@ function(target_link_libraries_includes_only target visibility lib)
   endif()
 endfunction()
 
+function(erf_add_native_shoc_sources target)
+  set(SRC_DIR ${PROJECT_SOURCE_DIR}/Source)
+
+  target_sources(${target} PRIVATE
+    ${SRC_DIR}/PBL/Shoc/ERF_ShocStructure.cpp
+    ${SRC_DIR}/PBL/Shoc/ERF_ShocTKE.cpp
+    ${SRC_DIR}/PBL/Shoc/ERF_ShocMoments.cpp
+    ${SRC_DIR}/PBL/Shoc/ERF_ShocPDF.cpp
+    ${SRC_DIR}/PBL/Shoc/ERF_ShocEnergyFixer.cpp
+    ${SRC_DIR}/PBL/Shoc/ERF_ShocImplicit.cpp
+    ${SRC_DIR}/PBL/Shoc/ERF_ShocDriver.cpp
+    ${SRC_DIR}/PBL/Shoc/ERF_ShocPreprocess.cpp
+    ${SRC_DIR}/PBL/Shoc/ERF_ShocDiagnostics.cpp
+    ${SRC_DIR}/PBL/Shoc/ERF_ShocCoupling.cpp
+  )
+
+  target_include_directories(${target} PUBLIC
+    $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/Source/PBL/Shoc>)
+endfunction()
+
+function(erf_add_eamxx_shoc_sources target)
+  set(EAMXX_SRC ${PROJECT_SOURCE_DIR}/external/E3SM/components/eamxx/src)
+  set(ERF_EAMXX_IFACE ${PROJECT_SOURCE_DIR}/Source/PhysicsInterfaces/Shoc)
+
+  target_include_directories(${target} PUBLIC
+    $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/Source/PhysicsInterfaces>
+    $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/Source/PhysicsInterfaces/Shoc>
+    $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/Submodules/ekat/src/pack>
+    $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/Submodules/ekat/src/algorithm>
+    $<BUILD_INTERFACE:${EAMXX_SRC}>
+    $<BUILD_INTERFACE:${EAMXX_SRC}/physics>
+    $<BUILD_INTERFACE:${EAMXX_SRC}/physics/share>
+    $<BUILD_INTERFACE:${EAMXX_SRC}/physics/shoc>
+    $<BUILD_INTERFACE:${EAMXX_SRC}/physics/shoc/eti>
+    $<BUILD_INTERFACE:${EAMXX_SRC}/physics/shoc/impl>
+  )
+
+  target_sources(${target} PRIVATE
+    ${ERF_EAMXX_IFACE}/ERF_ShocInterface.cpp
+    ${EAMXX_SRC}/physics/share/physics_saturation.cpp
+    ${EAMXX_SRC}/physics/shoc/disp/shoc_assumed_pdf_disp.cpp
+    ${EAMXX_SRC}/physics/shoc/disp/shoc_check_tke_disp.cpp
+    ${EAMXX_SRC}/physics/shoc/disp/shoc_compute_shoc_temperature_disp.cpp
+    ${EAMXX_SRC}/physics/shoc/disp/shoc_compute_shoc_vapor_disp.cpp
+    ${EAMXX_SRC}/physics/shoc/disp/shoc_diag_obklen_disp.cpp
+    ${EAMXX_SRC}/physics/shoc/disp/shoc_diag_second_shoc_moments_disp.cpp
+    ${EAMXX_SRC}/physics/shoc/disp/shoc_diag_third_shoc_moments_disp.cpp
+    ${EAMXX_SRC}/physics/shoc/disp/shoc_energy_fixer_disp.cpp
+    ${EAMXX_SRC}/physics/shoc/disp/shoc_energy_integrals_disp.cpp
+    ${EAMXX_SRC}/physics/shoc/disp/shoc_grid_disp.cpp
+    ${EAMXX_SRC}/physics/shoc/disp/shoc_length_disp.cpp
+    ${EAMXX_SRC}/physics/shoc/disp/shoc_pblintd_disp.cpp
+    ${EAMXX_SRC}/physics/shoc/disp/shoc_tke_disp.cpp
+    ${EAMXX_SRC}/physics/shoc/disp/shoc_update_host_dse_disp.cpp
+    ${EAMXX_SRC}/physics/shoc/disp/shoc_update_prognostics_implicit_disp.cpp
+    ${EAMXX_SRC}/physics/shoc/eti/shoc_adv_sgs_tke.cpp
+    ${EAMXX_SRC}/physics/shoc/eti/shoc_assumed_pdf.cpp
+    ${EAMXX_SRC}/physics/shoc/eti/shoc_calc_shoc_varorcovar.cpp
+    ${EAMXX_SRC}/physics/shoc/eti/shoc_calc_shoc_vertflux.cpp
+    ${EAMXX_SRC}/physics/shoc/eti/shoc_check_length_scale_shoc_length.cpp
+    ${EAMXX_SRC}/physics/shoc/eti/shoc_check_tke.cpp
+    ${EAMXX_SRC}/physics/shoc/eti/shoc_clipping_diag_third_shoc_moments.cpp
+    ${EAMXX_SRC}/physics/shoc/eti/shoc_compute_brunt_shoc_length.cpp
+    ${EAMXX_SRC}/physics/shoc/eti/shoc_compute_diag_third_shoc_moment.cpp
+    ${EAMXX_SRC}/physics/shoc/eti/shoc_compute_l_inf_shoc_length.cpp
+    ${EAMXX_SRC}/physics/shoc/eti/shoc_compute_shoc_mix_shoc_length.cpp
+    ${EAMXX_SRC}/physics/shoc/eti/shoc_compute_shoc_temperature.cpp
+    ${EAMXX_SRC}/physics/shoc/eti/shoc_compute_shoc_vapor.cpp
+    ${EAMXX_SRC}/physics/shoc/eti/shoc_compute_shr_prod.cpp
+    ${EAMXX_SRC}/physics/shoc/eti/shoc_compute_tmpi.cpp
+    ${EAMXX_SRC}/physics/shoc/eti/shoc_diag_obklen.cpp
+    ${EAMXX_SRC}/physics/shoc/eti/shoc_diag_second_moments.cpp
+    ${EAMXX_SRC}/physics/shoc/eti/shoc_diag_second_moments_lbycond.cpp
+    ${EAMXX_SRC}/physics/shoc/eti/shoc_diag_second_moments_srf.cpp
+    ${EAMXX_SRC}/physics/shoc/eti/shoc_diag_second_moments_ubycond.cpp
+    ${EAMXX_SRC}/physics/shoc/eti/shoc_diag_second_shoc_moments.cpp
+    ${EAMXX_SRC}/physics/shoc/eti/shoc_diag_third_shoc_moments.cpp
+    ${EAMXX_SRC}/physics/shoc/eti/shoc_dp_inverse.cpp
+    ${EAMXX_SRC}/physics/shoc/eti/shoc_eddy_diffusivities.cpp
+    ${EAMXX_SRC}/physics/shoc/eti/shoc_energy_fixer.cpp
+    ${EAMXX_SRC}/physics/shoc/eti/shoc_energy_integrals.cpp
+    ${EAMXX_SRC}/physics/shoc/eti/shoc_grid.cpp
+    ${EAMXX_SRC}/physics/shoc/eti/shoc_integ_column_stability.cpp
+    ${EAMXX_SRC}/physics/shoc/eti/shoc_isotropic_ts.cpp
+    ${EAMXX_SRC}/physics/shoc/eti/shoc_linear_interp.cpp
+    ${EAMXX_SRC}/physics/shoc/eti/shoc_length.cpp
+    ${EAMXX_SRC}/physics/shoc/eti/shoc_main.cpp
+    ${EAMXX_SRC}/physics/shoc/eti/shoc_pblintd.cpp
+    ${EAMXX_SRC}/physics/shoc/eti/shoc_pblintd_check_pblh.cpp
+    ${EAMXX_SRC}/physics/shoc/eti/shoc_pblintd_cldcheck.cpp
+    ${EAMXX_SRC}/physics/shoc/eti/shoc_pblintd_height.cpp
+    ${EAMXX_SRC}/physics/shoc/eti/shoc_pblintd_init_pot.cpp
+    ${EAMXX_SRC}/physics/shoc/eti/shoc_pblintd_surf_temp.cpp
+    ${EAMXX_SRC}/physics/shoc/eti/shoc_tridiag_solver.cpp
+    ${EAMXX_SRC}/physics/shoc/eti/shoc_tke.cpp
+    ${EAMXX_SRC}/physics/shoc/eti/shoc_update_host_dse.cpp
+    ${EAMXX_SRC}/physics/shoc/eti/shoc_update_prognostics_implicit.cpp
+  )
+endfunction()
+
 function(build_erf_lib erf_lib_name)
 
   set(SRC_DIR ${PROJECT_SOURCE_DIR}/Source)
@@ -28,6 +128,34 @@ function(build_erf_lib erf_lib_name)
   set_erf_compile_flags(${erf_lib_name})
 
   target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_MOISTURE)
+
+  # WDM6 literal precision. The Fortran parameters in ERF_module_mp_wdm6.F90
+  # are written without kind suffixes, so as compiled today they carry float32
+  # rounding. ON reproduces that in the native path; OFF uses true doubles and
+  # is the correct pairing when the Fortran is built -fdefault-real-8.
+  # See the LITERAL PRECISION CONTRACT comment in Source/Microphysics/WDM6/ERF_WDM6.H.
+  #
+  # Defaults ON because the Fortran is the oracle and is unmodified: matching it
+  # is the parity-preserving choice. Turning this OFF without also setting
+  # ERF_WDM6_FORTRAN_REAL8 puts the two paths back out of agreement. Verified to
+  # close the G13e pidep divergence bit-for-bit, 14/14 quantities equal.
+  option(ERF_WDM6_F32_LITERALS
+         "Reproduce the Fortran unsuffixed-literal float32 rounding in native WDM6 constants" ON)
+  if(ERF_WDM6_F32_LITERALS)
+    target_compile_definitions(${erf_lib_name} PUBLIC ERF_WDM6_F32_LITERALS)
+  endif()
+
+  # Build the WDM6 Fortran with promoted default reals so its unsuffixed
+  # literals evaluate in double. Scoped to the WDM6 sources only, so WSM6,
+  # Morrison and SAM are untouched. The module declares every variable
+  # real(kind=kind_phys) and the isohelper uses explicit real(c_double), so
+  # this affects literals and nothing else.
+  if(ERF_WDM6_FORTRAN_REAL8)
+    set_source_files_properties(
+      ${PROJECT_SOURCE_DIR}/Source/Microphysics/WDM6/ERF_module_mp_wdm6.F90
+      ${PROJECT_SOURCE_DIR}/Source/Microphysics/WDM6/ERF_module_mp_wdm6_isohelper.F90
+      PROPERTIES COMPILE_OPTIONS "-fdefault-real-8;-fdefault-double-8")
+  endif()
 
   # NOTE: EKAT provides KOKKOS
   if(ERF_ENABLE_EKAT)
@@ -99,7 +227,10 @@ function(build_erf_lib erf_lib_name)
                                $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/Source/LandSurfaceModel/Noah-MP>
                                $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/Submodules/Noah-MP/drivers/erf>)
     target_sources(${erf_lib_name} PRIVATE
-                   ${SRC_DIR}/LandSurfaceModel/Noah-MP/ERF_NOAHMP.cpp)
+                   ${SRC_DIR}/LandSurfaceModel/Noah-MP/ERF_NOAHMP_Init.cpp
+                   ${SRC_DIR}/LandSurfaceModel/Noah-MP/ERF_NOAHMP_Advance.cpp
+                   ${SRC_DIR}/LandSurfaceModel/Noah-MP/ERF_NOAHMP_Precip.cpp
+                   ${SRC_DIR}/LandSurfaceModel/Noah-MP/ERF_NOAHMP_IO.cpp)
     target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_NOAHMP)
     target_link_libraries_system(${erf_lib_name} PUBLIC NoahMP::noahmp)
   endif()
@@ -147,80 +278,45 @@ function(build_erf_lib erf_lib_name)
     target_compile_definitions(${erf_lib_name} PUBLIC RRTMGP_ENABLE_KOKKOS)
   endif()
 
-  ########################### SHOC #################################
-  if(ERF_ENABLE_SHOC)
-    target_include_directories(${erf_lib_name} PUBLIC
-                               $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/Source/PhysicsInterfaces/Shoc>
-                               $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/external/E3SM/components/eamxx/src>
-                               $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/external/E3SM/components/eamxx/src/physics>
-                               $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/external/E3SM/components/eamxx/src/physics/share>
-                               $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/external/E3SM/components/eamxx/src/physics/shoc>
-                               $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/external/E3SM/components/eamxx/src/physics/shoc/eti>
-                               $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/external/E3SM/components/eamxx/src/physics/shoc/impl>
-                              )
-    target_sources(${erf_lib_name} PRIVATE
-                   ${SRC_DIR}/PhysicsInterfaces/Shoc/ERF_ShocInterface.cpp
-                   $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/external/E3SM/components/eamxx/src/physics/share/physics_saturation.cpp>
-                   $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/external/E3SM/components/eamxx/src/physics/shoc/disp/shoc_assumed_pdf_disp.cpp>
-                   $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/external/E3SM/components/eamxx/src/physics/shoc/disp/shoc_check_tke_disp.cpp>
-                   $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/external/E3SM/components/eamxx/src/physics/shoc/disp/shoc_compute_shoc_temperature_disp.cpp>
-                   $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/external/E3SM/components/eamxx/src/physics/shoc/disp/shoc_compute_shoc_vapor_disp.cpp>
-                   $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/external/E3SM/components/eamxx/src/physics/shoc/disp/shoc_diag_obklen_disp.cpp>
-                   $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/external/E3SM/components/eamxx/src/physics/shoc/disp/shoc_diag_second_shoc_moments_disp.cpp>
-                   $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/external/E3SM/components/eamxx/src/physics/shoc/disp/shoc_diag_third_shoc_moments_disp.cpp>
-                   $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/external/E3SM/components/eamxx/src/physics/shoc/disp/shoc_energy_fixer_disp.cpp>
-                   $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/external/E3SM/components/eamxx/src/physics/shoc/disp/shoc_energy_integrals_disp.cpp>
-                   $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/external/E3SM/components/eamxx/src/physics/shoc/disp/shoc_grid_disp.cpp>
-                   $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/external/E3SM/components/eamxx/src/physics/shoc/disp/shoc_length_disp.cpp>
-                   $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/external/E3SM/components/eamxx/src/physics/shoc/disp/shoc_pblintd_disp.cpp>
-                   $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/external/E3SM/components/eamxx/src/physics/shoc/disp/shoc_tke_disp.cpp>
-                   $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/external/E3SM/components/eamxx/src/physics/shoc/disp/shoc_update_host_dse_disp.cpp>
-                   $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/external/E3SM/components/eamxx/src/physics/shoc/disp/shoc_update_prognostics_implicit_disp.cpp>
-                   $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/external/E3SM/components/eamxx/src/physics/shoc/eti/shoc_adv_sgs_tke.cpp>
-                   $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/external/E3SM/components/eamxx/src/physics/shoc/eti/shoc_assumed_pdf.cpp>
-                   $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/external/E3SM/components/eamxx/src/physics/shoc/eti/shoc_calc_shoc_varorcovar.cpp>
-                   $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/external/E3SM/components/eamxx/src/physics/shoc/eti/shoc_calc_shoc_vertflux.cpp>
-                   $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/external/E3SM/components/eamxx/src/physics/shoc/eti/shoc_check_length_scale_shoc_length.cpp>
-                   $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/external/E3SM/components/eamxx/src/physics/shoc/eti/shoc_check_tke.cpp>
-                   $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/external/E3SM/components/eamxx/src/physics/shoc/eti/shoc_clipping_diag_third_shoc_moments.cpp>
-                   $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/external/E3SM/components/eamxx/src/physics/shoc/eti/shoc_compute_brunt_shoc_length.cpp>
-                   $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/external/E3SM/components/eamxx/src/physics/shoc/eti/shoc_compute_diag_third_shoc_moment.cpp>
-                   $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/external/E3SM/components/eamxx/src/physics/shoc/eti/shoc_compute_l_inf_shoc_length.cpp>
-                   $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/external/E3SM/components/eamxx/src/physics/shoc/eti/shoc_compute_shoc_mix_shoc_length.cpp>
-                   $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/external/E3SM/components/eamxx/src/physics/shoc/eti/shoc_compute_shoc_temperature.cpp>
-                   $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/external/E3SM/components/eamxx/src/physics/shoc/eti/shoc_compute_shoc_vapor.cpp>
-                   $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/external/E3SM/components/eamxx/src/physics/shoc/eti/shoc_compute_shr_prod.cpp>
-                   $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/external/E3SM/components/eamxx/src/physics/shoc/eti/shoc_compute_tmpi.cpp>
-                   $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/external/E3SM/components/eamxx/src/physics/shoc/eti/shoc_diag_obklen.cpp>
-                   $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/external/E3SM/components/eamxx/src/physics/shoc/eti/shoc_diag_second_moments.cpp>
-                   $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/external/E3SM/components/eamxx/src/physics/shoc/eti/shoc_diag_second_moments_lbycond.cpp>
-                   $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/external/E3SM/components/eamxx/src/physics/shoc/eti/shoc_diag_second_moments_srf.cpp>
-                   $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/external/E3SM/components/eamxx/src/physics/shoc/eti/shoc_diag_second_moments_ubycond.cpp>
-                   $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/external/E3SM/components/eamxx/src/physics/shoc/eti/shoc_diag_second_shoc_moments.cpp>
-                   $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/external/E3SM/components/eamxx/src/physics/shoc/eti/shoc_diag_third_shoc_moments.cpp>
-                   $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/external/E3SM/components/eamxx/src/physics/shoc/eti/shoc_dp_inverse.cpp>
-                   $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/external/E3SM/components/eamxx/src/physics/shoc/eti/shoc_eddy_diffusivities.cpp>
-                   $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/external/E3SM/components/eamxx/src/physics/shoc/eti/shoc_energy_fixer.cpp>
-                   $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/external/E3SM/components/eamxx/src/physics/shoc/eti/shoc_energy_integrals.cpp>
-                   $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/external/E3SM/components/eamxx/src/physics/shoc/eti/shoc_grid.cpp>
-                   $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/external/E3SM/components/eamxx/src/physics/shoc/eti/shoc_integ_column_stability.cpp>
-                   $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/external/E3SM/components/eamxx/src/physics/shoc/eti/shoc_isotropic_ts.cpp>
-                   $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/external/E3SM/components/eamxx/src/physics/shoc/eti/shoc_linear_interp.cpp>
-                   $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/external/E3SM/components/eamxx/src/physics/shoc/eti/shoc_length.cpp>
-                   $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/external/E3SM/components/eamxx/src/physics/shoc/eti/shoc_main.cpp>
-                   $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/external/E3SM/components/eamxx/src/physics/shoc/eti/shoc_pblintd.cpp>
-                   $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/external/E3SM/components/eamxx/src/physics/shoc/eti/shoc_pblintd_check_pblh.cpp>
-                   $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/external/E3SM/components/eamxx/src/physics/shoc/eti/shoc_pblintd_cldcheck.cpp>
-                   $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/external/E3SM/components/eamxx/src/physics/shoc/eti/shoc_pblintd_height.cpp>
-                   $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/external/E3SM/components/eamxx/src/physics/shoc/eti/shoc_pblintd_init_pot.cpp>
-                   $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/external/E3SM/components/eamxx/src/physics/shoc/eti/shoc_pblintd_surf_temp.cpp>
-                   $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/external/E3SM/components/eamxx/src/physics/shoc/eti/shoc_tridiag_solver.cpp>
-                   $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/external/E3SM/components/eamxx/src/physics/shoc/eti/shoc_tke.cpp>
-                   $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/external/E3SM/components/eamxx/src/physics/shoc/eti/shoc_update_host_dse.cpp>
-                   $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/external/E3SM/components/eamxx/src/physics/shoc/eti/shoc_update_prognostics_implicit.cpp>
-                  )
-    target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_SHOC)
+  erf_add_native_shoc_sources(${erf_lib_name})
+  target_compile_definitions(${erf_lib_name} PUBLIC ERF_HAS_SHOC_FAMILY)
+
+  if(ERF_ENABLE_EAMXX_SHOC)
+    erf_add_eamxx_shoc_sources(${erf_lib_name})
+    target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_EAMXX_SHOC)
     target_compile_definitions(${erf_lib_name} PUBLIC SCREAM_SHOC_SMALL_KERNELS)
+  endif()
+
+  # Shared Fortran support modules. module_libmassv and mp_radar exist as
+  # byte-identical copies under WSM6 and WDM6, and module_model_constants under
+  # Morrison and WDM6. Adding two copies to one target compiles the same module
+  # twice, which races on the .mod output and duplicates the link symbols, so
+  # each module is added exactly once here and left out of the per-scheme blocks
+  # below. Which copy is picked is arbitrary; they are the same bytes.
+  set(ERF_SHARED_FORT_SOURCES)
+  if(ERF_ENABLE_WSM6_FORT OR ERF_ENABLE_WDM6_FORT)
+    if(ERF_ENABLE_WSM6_FORT)
+      set(_erf_massv_dir WSM6)
+    else()
+      set(_erf_massv_dir WDM6)
+    endif()
+    list(APPEND ERF_SHARED_FORT_SOURCES
+         ${SRC_DIR}/Microphysics/${_erf_massv_dir}/ERF_module_libmassv.F90
+         ${SRC_DIR}/Microphysics/${_erf_massv_dir}/ERF_mp_radar.F90
+         )
+  endif()
+  if(ERF_ENABLE_MORR_FORT OR ERF_ENABLE_WDM6_FORT)
+    if(ERF_ENABLE_MORR_FORT)
+      set(_erf_const_dir Morrison)
+    else()
+      set(_erf_const_dir WDM6)
+    endif()
+    list(APPEND ERF_SHARED_FORT_SOURCES
+         ${SRC_DIR}/Microphysics/${_erf_const_dir}/ERF_module_model_constants.F90
+         )
+  endif()
+  if(ERF_SHARED_FORT_SOURCES)
+    target_sources(${erf_lib_name} PRIVATE ${ERF_SHARED_FORT_SOURCES})
   endif()
 
   if(ERF_ENABLE_MORR_FORT)
@@ -228,7 +324,6 @@ function(build_erf_lib erf_lib_name)
      PRIVATE
        ${SRC_DIR}/Microphysics/Morrison/ERF_module_mp_morr_two_moment.F90
        ${SRC_DIR}/Microphysics/Morrison/ERF_module_mp_morr_two_moment_isohelper.F90
-       ${SRC_DIR}/Microphysics/Morrison/ERF_module_model_constants.F90
        )
   target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_MORR_FORT)
   endif()
@@ -236,12 +331,19 @@ function(build_erf_lib erf_lib_name)
   if(ERF_ENABLE_WSM6_FORT)
     target_sources(${erf_lib_name}
        PRIVATE
-         ${SRC_DIR}/Microphysics/WSM6/ERF_module_libmassv.F90
-         ${SRC_DIR}/Microphysics/WSM6/ERF_mp_radar.F90
          ${SRC_DIR}/Microphysics/WSM6/ERF_module_mp_wsm6.F90
          ${SRC_DIR}/Microphysics/WSM6/ERF_module_mp_wsm6_isohelper.F90
          )
     target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_WSM6_FORT)
+  endif()
+
+  if(ERF_ENABLE_WDM6_FORT)
+    target_sources(${erf_lib_name}
+       PRIVATE
+         ${SRC_DIR}/Microphysics/WDM6/ERF_module_mp_wdm6.F90
+         ${SRC_DIR}/Microphysics/WDM6/ERF_module_mp_wdm6_isohelper.F90
+         )
+    target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_WDM6_FORT)
   endif()
 
   if(ERF_ENABLE_WINDFARM)
@@ -259,9 +361,12 @@ function(build_erf_lib erf_lib_name)
   if(ERF_BUILD_LIBRARY_ONLY)
     # In library-only superbuild mode, archive extraction + weak amrex_probinit
     # requires a forced reference path (see ERF.cpp/ERF_Prob.cpp link anchor).
+    # Avoid cross-library symbol collisions when ERF and REMORA both enable
+    # their NetCDF helper layers inside one parent executable.
     target_compile_definitions(${erf_lib_name} PRIVATE
                    ERF_REMORA_FORCE_PROBINIT_LINK=1
-                   amrex_probinit=erf_probinit)
+                   amrex_probinit=erf_probinit
+                   ncutils=erf_ncutils)
     target_compile_definitions(${erf_lib_name} PRIVATE
                    Problem=ERFProblem
                    ProblemBase=ERFProblemBase
@@ -272,19 +377,19 @@ function(build_erf_lib erf_lib_name)
 
   # Coupling source is present only on coupling branches.
   # Build/link branches should compile without requiring this file.
-  if(EXISTS "${SRC_DIR}/ERF_Coupling.cpp")
+  if(EXISTS "${SRC_DIR}/Coupling/ERF_to_REMORA.cpp")
     target_sources(${erf_lib_name} PRIVATE
-                   ${SRC_DIR}/ERF_Coupling.cpp)
+                   ${SRC_DIR}/Coupling/ERF_to_REMORA.cpp)
   endif()
 
   target_sources(${erf_lib_name}
      PRIVATE
        ${SRC_DIR}/ERF_Derive.cpp
        ${SRC_DIR}/ERF.cpp
+       ${SRC_DIR}/ERF_Constructors.cpp
        ${SRC_DIR}/ERF_Diagnostics.cpp
        ${SRC_DIR}/ERF_MakeNewArrays.cpp
        ${SRC_DIR}/ERF_MakeNewLevel.cpp
-       ${SRC_DIR}/ERF_ReadWaves.cpp
        ${SRC_DIR}/Advection/ERF_AdvectionSrcForMom.cpp
        ${SRC_DIR}/Advection/ERF_AdvectionSrcForMom_ConstantDz.cpp
        ${SRC_DIR}/Advection/ERF_AdvectionSrcForMom_StretchedDz.cpp
@@ -307,6 +412,7 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/BoundaryConditions/ERF_FillBdyCCVels.cpp
        ${SRC_DIR}/BoundaryConditions/ERF_FillPatcher.cpp
        ${SRC_DIR}/BoundaryConditions/ERF_PhysBCFunct.cpp
+       ${SRC_DIR}/Coupling/ERF_ReadWaves.cpp
        ${SRC_DIR}/Diffusion/ERF_DiffusionSrcForMom.cpp
        ${SRC_DIR}/Diffusion/ERF_DiffusionSrcForMom_EB.cpp
        ${SRC_DIR}/Diffusion/ERF_DiffusionSrcForState_N.cpp
@@ -343,6 +449,7 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/Initialization/ERF_InitImmersedForcing.cpp
        ${SRC_DIR}/Initialization/ERF_InitForEnsemble.cpp
        ${SRC_DIR}/IO/ERF_Checkpoint.cpp
+       ${SRC_DIR}/IO/ERF_Provenance.cpp
        ${SRC_DIR}/IO/ERF_ReadBndryPlanes.cpp
        ${SRC_DIR}/IO/ERF_WriteBndryPlanes.cpp
        ${SRC_DIR}/IO/ERF_TrackerOutput.cpp
@@ -350,9 +457,23 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/IO/ERF_Write1DProfiles_stag.cpp
        ${SRC_DIR}/IO/ERF_WriteScalarProfiles.cpp
        ${SRC_DIR}/IO/ERF_Plotfile.cpp
+       ${SRC_DIR}/IO/ERF_Plotfile2DCatalog.cpp
+       ${SRC_DIR}/IO/ERF_Plotfile2D.cpp
+       ${SRC_DIR}/IO/ERF_Plotfile2DFill.cpp
+       ${SRC_DIR}/IO/ERF_Plotfile2DMetadata.cpp
+       ${SRC_DIR}/IO/ERF_Plotfile2DWaterPath.cpp
+       ${SRC_DIR}/IO/ERF_Plotfile2DPrecip.cpp
+       ${SRC_DIR}/IO/ERF_Plotfile2DSampledField.cpp
+       ${SRC_DIR}/IO/ERF_Plotfile2DSampledLevel.cpp
+       ${SRC_DIR}/IO/ERF_Plotfile2DInterpolator.cpp
+       ${SRC_DIR}/IO/ERF_Plotfile2DUtils.cpp
+       ${SRC_DIR}/Diagnostics/ERF_NearSurfaceDiagnostics.cpp
+       ${SRC_DIR}/Diagnostics/ERF_SeaLevelPressure.cpp
        ${SRC_DIR}/IO/ERF_WriteSubvolume.cpp
        ${SRC_DIR}/IO/ERF_WriteJobInfo.cpp
        ${SRC_DIR}/IO/ERF_ConsoleIO.cpp
+       ${SRC_DIR}/IO/ERF_ReadFromERFBdy.cpp
+       ${SRC_DIR}/IO/ERF_WriteERFBdy.cpp
        ${SRC_DIR}/LinearSolvers/ERF_PoissonSolve.cpp
        ${SRC_DIR}/LinearSolvers/ERF_PoissonSolve_tb.cpp
        ${SRC_DIR}/LinearSolvers/ERF_PoissonWallDist.cpp
@@ -370,6 +491,9 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/Microphysics/WSM6/ERF_InitWSM6.cpp
        ${SRC_DIR}/Microphysics/WSM6/ERF_AdvanceWSM6.cpp
        ${SRC_DIR}/Microphysics/WSM6/ERF_UpdateWSM6.cpp
+       ${SRC_DIR}/Microphysics/WDM6/ERF_InitWDM6.cpp
+       ${SRC_DIR}/Microphysics/WDM6/ERF_AdvanceWDM6.cpp
+       ${SRC_DIR}/Microphysics/WDM6/ERF_UpdateWDM6.cpp
        ${SRC_DIR}/Microphysics/SAM/ERF_InitSAM.cpp
        ${SRC_DIR}/Microphysics/SAM/ERF_CloudSAM.cpp
        ${SRC_DIR}/Microphysics/SAM/ERF_IceFall.cpp
@@ -392,6 +516,7 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/PBL/ERF_ComputeDiffusivityMYNNEDMF.cpp
        ${SRC_DIR}/PBL/ERF_ComputeDiffusivityYSU.cpp
        ${SRC_DIR}/PBL/ERF_ComputeDiffusivityMRF.cpp
+       ${SRC_DIR}/PBL/ERF_ComputeDiffusivityYSUNew.cpp
        ${SRC_DIR}/Refinement/ERF_Tagging.cpp
        ${SRC_DIR}/Refinement/ERF_RefineBox.cpp
        ${SRC_DIR}/Refinement/ERF_RefineHurricane.cpp
@@ -405,8 +530,8 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/SourceTerms/ERF_MakeMomSources.cpp
        ${SRC_DIR}/SourceTerms/ERF_MakeSources.cpp
        ${SRC_DIR}/SourceTerms/ERF_NumericalDiffusion.cpp
+       ${SRC_DIR}/SourceTerms/ERF_ImmersedForcing.cpp
        ${SRC_DIR}/SourceTerms/ERF_ForestDrag.cpp
-       ${SRC_DIR}/SourceTerms/ERF_ApplySurfaceTreatment_BulkCoeff.cpp 
        ${SRC_DIR}/TimeIntegration/ERF_ComputeTimestep.cpp
        ${SRC_DIR}/TimeIntegration/ERF_Advance.cpp
        ${SRC_DIR}/TimeIntegration/ERF_TimeStep.cpp
@@ -425,9 +550,11 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/Utils/ERF_ChopGrids.cpp
        ${SRC_DIR}/Utils/ERF_ConvertForProjection.cpp
        ${SRC_DIR}/Utils/ERF_EnforceConstraintOnBdy.cpp
+       ${SRC_DIR}/Utils/ERF_HurricaneDiagnostics.cpp
        ${SRC_DIR}/Utils/ERF_InitZLevels.cpp
        ${SRC_DIR}/Utils/ERF_MakeSubdomains.cpp
        ${SRC_DIR}/Utils/ERF_MomentumToVelocity.cpp
+       ${SRC_DIR}/Utils/ERF_Rebalance.cpp
        ${SRC_DIR}/Utils/ERF_TerrainMetrics.cpp
        ${SRC_DIR}/Utils/ERF_VelocityToMomentum.cpp
        ${SRC_DIR}/Utils/ERF_InteriorGhostCells.cpp
@@ -442,7 +569,7 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/WindFarmParametrization/SimpleActuatorDisk/ERF_AdvanceSimpleAD.cpp
        ${SRC_DIR}/WindFarmParametrization/GeneralActuatorDisk/ERF_AdvanceGeneralAD.cpp
        ${SRC_DIR}/LandSurfaceModel/SLM/ERF_SLM.cpp
-       ${SRC_DIR}/LandSurfaceModel/MM5/ERF_MM5.cpp
+       ${SRC_DIR}/PhysicsInterfaces/Radiation/Simple/ERF_RadiationSimple.cpp
   )
 
   include(AMReXBuildInfo)
@@ -480,7 +607,7 @@ function(build_erf_lib erf_lib_name)
 
   if(ERF_ENABLE_MPI)
     target_link_libraries(${erf_lib_name} PUBLIC $<$<BOOL:${MPI_CXX_FOUND}>:MPI::MPI_CXX>)
-    if(ERF_ENABLE_MORR_FORT OR ERF_ENABLE_WSM6_FORT OR ERF_ENABLE_NOAHMP)
+    if(ERF_ENABLE_MORR_FORT OR ERF_ENABLE_WSM6_FORT OR ERF_ENABLE_WDM6_FORT OR ERF_ENABLE_NOAHMP)
       target_link_libraries(${erf_lib_name} PUBLIC $<$<BOOL:${MPI_CXX_FOUND}>:MPI::MPI_Fortran>)
     endif()
   endif()
@@ -512,6 +639,7 @@ function(build_erf_lib erf_lib_name)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/Source/Microphysics/Kessler>)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/Source/Microphysics/Morrison>)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/Source/Microphysics/WSM6>)
+  target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/Source/Microphysics/WDM6>)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/Source/Microphysics/SatAdj>)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/Source/Microphysics/SuperDropletsMoist>)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/Source/Microphysics/MoistNoCondensation>)  
@@ -525,8 +653,8 @@ function(build_erf_lib erf_lib_name)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/Source/LandSurfaceModel/Null>)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/Source/LandSurfaceModel/SLM>)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/Source/LandSurfaceModel/OceanSurf>)
-  target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/Source/LandSurfaceModel/MM5>)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/Source/PhysicsInterfaces/Radiation/>)
+  target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/Source/PhysicsInterfaces/Radiation/Simple>)
 
   #Link to amrex library
   target_link_libraries_system(${erf_lib_name} PUBLIC AMReX::amrex)

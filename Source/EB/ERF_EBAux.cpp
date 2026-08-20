@@ -1,3 +1,7 @@
+/**
+ * \file ERF_EBAux.cpp
+ * \brief Implements auxiliary face-centered EB geometry reconstruction.
+ */
 #include <AMReX_BoxList.H>
 #include <AMReX_ParmParse.H>
 #include <ERF_EBAux.H>
@@ -8,11 +12,6 @@
 #endif
 
 using namespace amrex;
-
-eb_aux_::
-~eb_aux_ ()
-{
-}
 
 eb_aux_::
 eb_aux_ ()
@@ -42,8 +41,9 @@ define( [[maybe_unused]] int const& a_level,
 
   const BoxArray& my_grids = amrex::convert(a_grids, vdim);
 
-  m_cellflags = new FabArray<EBCellFlagFab>(my_grids, a_dmap, 1, a_ngrow[0], MFInfo(),
-                                            DefaultFabFactory<EBCellFlagFab>());
+  // NOTE: assigning here frees whatever a previous call to define() allocated
+  m_cellflags = std::make_unique<FabArray<EBCellFlagFab>>(my_grids, a_dmap, 1, a_ngrow[0], MFInfo(),
+                                                          DefaultFabFactory<EBCellFlagFab>());
 
   // Set m_cellflags type to singlevalued
   m_cellflags->setVal(EBCellFlag::TheDefaultCell());
@@ -52,17 +52,17 @@ define( [[maybe_unused]] int const& a_level,
     fab.setType(FabType::singlevalued);
   }
 
-  m_volfrac = new MultiFab(my_grids, a_dmap, 1, a_ngrow[1], MFInfo(), FArrayBoxFactory());
-  m_volcent = new MultiFab(my_grids, a_dmap, AMREX_SPACEDIM, a_ngrow[2], MFInfo(), FArrayBoxFactory());
+  m_volfrac = std::make_unique<MultiFab>(my_grids, a_dmap, 1, a_ngrow[1], MFInfo(), FArrayBoxFactory());
+  m_volcent = std::make_unique<MultiFab>(my_grids, a_dmap, AMREX_SPACEDIM, a_ngrow[2], MFInfo(), FArrayBoxFactory());
 
   for (int idim = 0; idim < AMREX_SPACEDIM; ++idim) {
-    m_areafrac[idim] = new MultiFab(a_grids, a_dmap,                1, a_ngrow[1]+1, MFInfo(), FArrayBoxFactory());
-    m_facecent[idim] = new MultiFab(a_grids, a_dmap, AMREX_SPACEDIM-1, a_ngrow[2], MFInfo(), FArrayBoxFactory());
+    m_areafrac[idim] = std::make_unique<MultiFab>(a_grids, a_dmap,                1, a_ngrow[1]+1, MFInfo(), FArrayBoxFactory());
+    m_facecent[idim] = std::make_unique<MultiFab>(a_grids, a_dmap, AMREX_SPACEDIM-1, a_ngrow[2], MFInfo(), FArrayBoxFactory());
   }
 
-  m_bndryarea = new MultiFab(my_grids, a_dmap, 1, a_ngrow[2], MFInfo(), FArrayBoxFactory());
-  m_bndrycent = new MultiFab(my_grids, a_dmap, AMREX_SPACEDIM, a_ngrow[2], MFInfo(), FArrayBoxFactory());
-  m_bndrynorm = new MultiFab(my_grids, a_dmap, AMREX_SPACEDIM, a_ngrow[2], MFInfo(), FArrayBoxFactory());
+  m_bndryarea = std::make_unique<MultiFab>(my_grids, a_dmap, 1, a_ngrow[2], MFInfo(), FArrayBoxFactory());
+  m_bndrycent = std::make_unique<MultiFab>(my_grids, a_dmap, AMREX_SPACEDIM, a_ngrow[2], MFInfo(), FArrayBoxFactory());
+  m_bndrynorm = std::make_unique<MultiFab>(my_grids, a_dmap, AMREX_SPACEDIM, a_ngrow[2], MFInfo(), FArrayBoxFactory());
 
   // Initialize with zeros
   m_volfrac->setVal(0.0);
@@ -569,14 +569,14 @@ define( [[maybe_unused]] int const& a_level,
 
             aux_flag(i,j,k).setSingleValued();
 
-            // one Volume Fraction
+            // 1. Volume Fraction
 
             Real lo_vol {lo_eb_cc.volume()}; AMREX_ASSERT(lo_vol >= zero && lo_vol <= myhalf);
             Real hi_vol {hi_eb_cc.volume()}; AMREX_ASSERT(hi_vol >= zero && hi_vol <= myhalf);
 
             aux_vfrac(i,j,k) = lo_vol + hi_vol;
 
-            // two Volume Centroid
+            // 2. Volume Centroid
 
             /* centVol() returns the coordinates based on m_rbx.
               The coordinates in the a_idim direction are in [zero,myhalf] for the low cell and in [-myhalf,zero] for the hi cell.
@@ -596,7 +596,7 @@ define( [[maybe_unused]] int const& a_level,
             aux_vcent(i,j,k,1) = ( lo_vol * lo_vcent[1] + hi_vol * hi_vcent[1] ) / aux_vfrac(i,j,k);
             aux_vcent(i,j,k,2) = ( lo_vol * lo_vcent[2] + hi_vol * hi_vcent[2] ) / aux_vfrac(i,j,k);
 
-            // three Area Fraction
+            // 3. Area Fraction
 
             Real lo_areaLo_x {lo_eb_cc.areaLo(0)};
             Real lo_areaLo_y {lo_eb_cc.areaLo(1)};
@@ -626,7 +626,7 @@ define( [[maybe_unused]] int const& a_level,
               aux_afrac_z(i,j,k+1) = (a_idim == 2) ? hi_areaHi_z : lo_areaHi_z + hi_areaHi_z;
             }
 
-            // Real(4.) Face Centroid
+            // 4. Face Centroid
 
             /* fcentLo returns the coordinates based on m_rbx.
               The coordinates in the a_idim direction are in [zero,myhalf] for the low cell and in [-myhalf,zero] for the hi cell.
@@ -788,14 +788,14 @@ define( [[maybe_unused]] int const& a_level,
               }
             }
 
-            // Real(5.) Boundary Area
+            // 5. Boundary Area
 
             Real lo_areaBoun {lo_eb_cc.areaBoun()};
             Real hi_areaBoun {hi_eb_cc.areaBoun()};
 
             aux_barea(i,j,k) = lo_areaBoun + hi_areaBoun;
 
-            // Real(6.) Boundary Centroid
+            // 6. Boundary Centroid
 
             RealVect lo_centBoun {lo_eb_cc.centBoun()};
             RealVect hi_centBoun {hi_eb_cc.centBoun()};
@@ -814,7 +814,7 @@ define( [[maybe_unused]] int const& a_level,
               aux_bcent(i,j,k,2) = ( lo_areaBoun * (lo_centBoun[2]-myhalf) + hi_areaBoun * (hi_centBoun[2]+myhalf) ) / aux_barea(i,j,k);  // z (mapped)
             }
 
-            // Real(7.) Boundary Normal
+            // 7. Boundary Normal
 
             RealVect eb_normal = ( lo_areaBoun * lo_normal + hi_areaBoun * hi_normal )/ aux_barea(i,j,k);
 
@@ -853,6 +853,7 @@ define( [[maybe_unused]] int const& a_level,
     Array4<Real>       const& aux_afrac_x = m_areafrac[0]->array(mfi);
     Array4<Real>       const& aux_afrac_y = m_areafrac[1]->array(mfi);
     Array4<Real>       const& aux_afrac_z = m_areafrac[2]->array(mfi);
+    Array4<Real>       const& aux_afrac_idim = m_areafrac[a_idim]->array(mfi);
 
     Array4<Real>       const& aux_vcent = m_volcent->array(mfi);
     Array4<Real>       const& aux_fcent_x = m_facecent[0]->array(mfi);
@@ -966,7 +967,7 @@ define( [[maybe_unused]] int const& a_level,
           for (int d=0; d<AMREX_SPACEDIM; ++d) {
               iv_nearest[d] = Clamp(iv[d], bx_grown_1.smallEnd(d), bx_grown_1.bigEnd(d));
           }
-          aux_afrac_x(iv) = aux_afrac_x(iv_nearest);
+          aux_afrac_idim(iv) = aux_afrac_idim(iv_nearest);
         });
       }
 
@@ -1176,7 +1177,7 @@ eb_aux_::getBndryCent () const
 }
 
 const MultiFab&
-eb_aux_::getBndryNorm () const
+eb_aux_::getBndryNormal () const
 {
     AMREX_ASSERT(m_bndrynorm != nullptr);
     return *m_bndrynorm;
@@ -1186,12 +1187,12 @@ Array<const MultiFab*, AMREX_SPACEDIM>
 eb_aux_::getAreaFrac () const
 {
     AMREX_ASSERT(m_areafrac[0] != nullptr);
-    return {AMREX_D_DECL(m_areafrac[0], m_areafrac[1], m_areafrac[2])};
+    return {AMREX_D_DECL(m_areafrac[0].get(), m_areafrac[1].get(), m_areafrac[2].get())};
 }
 
 Array<const MultiFab*, AMREX_SPACEDIM>
 eb_aux_::getFaceCent () const
 {
     AMREX_ASSERT(m_facecent[0] != nullptr);
-    return {AMREX_D_DECL(m_facecent[0], m_facecent[1], m_facecent[2])};
+    return {AMREX_D_DECL(m_facecent[0].get(), m_facecent[1].get(), m_facecent[2].get())};
 }

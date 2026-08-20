@@ -34,7 +34,7 @@ void make_fast_coeffs (int /*level*/,
                        Real gravity, Real c_p,
                        std::unique_ptr<MultiFab>& detJ_cc,
                        const MultiFab* r0, const MultiFab* pi0,
-                       Real dtau, Real beta_s,
+                       const double dtau, Real beta_s,
                        amrex::GpuArray<ERF_BC, AMREX_SPACEDIM*2> &phys_bc_type)
 {
     BL_PROFILE_VAR("make_fast_coeffs()",make_fast_coeffs);
@@ -149,7 +149,7 @@ void make_fast_coeffs (int /*level*/,
                 Real theta_t_hi  = myhalf * ( prim(i,j,k  ,PrimTheta_comp) + prim(i,j,k+1,PrimTheta_comp) );
 
                 // LHS for tri-diagonal system
-                Real D = dtau * dtau * beta_2 * beta_2 * dzi;
+                Real D = beta_2 * beta_2 * dzi * static_cast<Real>(dtau * dtau);
                 coeffA_a(i,j,k) = D * (one/detJ(i,j,k-1)) * ( halfg - coeff_Q * theta_t_lo );
                 coeffC_a(i,j,k) = D * (one/detJ(i,j,k  )) * (-halfg + coeff_P * theta_t_hi );
 
@@ -195,7 +195,7 @@ void make_fast_coeffs (int /*level*/,
                 Real theta_t_hi  = myhalf * ( prim(i,j,k  ,PrimTheta_comp) + prim(i,j,k+1,PrimTheta_comp) );
 
                 // LHS for tri-diagonal system
-                Real D = dtau * dtau * beta_2 * beta_2 * dzi;
+                Real D = beta_2 * beta_2 * dzi * static_cast<Real>(dtau * dtau);
                 coeffA_a(i,j,k) = D * ( halfg - coeff_Q * theta_t_lo );
                 coeffC_a(i,j,k) = D * (-halfg + coeff_P * theta_t_hi );
 

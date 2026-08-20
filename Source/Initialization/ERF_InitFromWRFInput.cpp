@@ -11,6 +11,10 @@
 
 #include <ERF_ReadFromWRFInput.H>
 #include <ERF_ReadFromWRFBdy.H>
+#include <ERF_WriteERFBdy.H>
+#include <ERF_ReadFromERFBdy.H>
+
+#include "ERF_NodalReconstruction.H"
 
 using namespace amrex;
 
@@ -18,6 +22,12 @@ using namespace amrex;
 
 #include "ERF_NCWpsFile.H"
 
+/**
+ * Determine which WRF density variables are available in a NetCDF file.
+ *
+ * @param fname Path to the WRF input file
+ * @return 1 when ALT density should be used, 0 when ALB plus AL should be used
+ */
 bool CheckForDensity (const std::string& fname)
 {
     int failed = false;
@@ -53,24 +63,76 @@ bool CheckForDensity (const std::string& fname)
     return use_alt_density;
 }
 
+/**
+ * Read the subdomain index space from a WRF input file.
+ *
+ * @param lev Current level (unused).
+ * @param fname Path to the WRF input file.
+ * @param[out] ratio Grid ratio read from the file.
+ * @return Box specifying the subdomain index space.
+ */
 Box
 read_subdomain_from_wrfinput(int /*lev*/,
                              const std::string& fname,
                              int& ratio);
 
+/**
+ * Compute the top height of the domain from WRF geopotential data.
+ *
+ * @param[in] mf_PH MultiFab storing WRF perturbation geopotential data.
+ * @param[in] mf_PHB MultiFab storing WRF base-state geopotential data.
+ * @param[in] domain Box holding the index space of the computational domain.
+ * @return Height assigned to the top of the ERF domain.
+ */
 Real
 compute_terrain_top_and_bottom (const MultiFab& mf_PH,
                                 const MultiFab& mf_PHB,
                                 const Box& domain);
 
+/**
+ * Initialize nodal terrain coordinates from WRF input data.
+ *
+ * @param lev Current level.
+ * @param[in,out] geom Geometry object defining the domain.
+ * @param[in] z_top Height assigned to the top of the ERF domain.
+ * @param[in] subdomain Box specifying the index space to initialize.
+ * @param[out] z_phys MultiFab specifying the node-centered z coordinates.
+ * @param[in] NC_PH_fab MultiFab storing WRF perturbation geopotential data.
+ * @param[in] NC_PHB_fab MultiFab storing WRF base-state geopotential data.
+ * @param[out] dz0_max Maximum first-layer thickness.
+ * @param[in] use_wrf_height_grid Whether to use the WRF height grid directly.
+ */
 void
 init_terrain_from_wrfinput (int lev,
+                            Geometry& geom,
                             const Real& z_top,
                             const Box& subdomain,
                             MultiFab* z_phys,
                             const MultiFab& NC_PH_fab,
-                            const MultiFab& NC_PHB_fab);
+                            const MultiFab& NC_PHB_fab,
+                            Real& dz0_max,
+                            const bool& use_wrf_height_grid);
 
+/**
+ * Initialize hydrostatic base state data from a WRF dataset.
+ *
+ * @param[in] subdomain Box specifying the index space to initialize.
+ * @param[in] l_rdOcp Constant $R_d/c_p$.
+ * @param[out] p_hse MultiFab holding the hydrostatic base state pressure.
+ * @param[out] pi_hse MultiFab holding the hydrostatic base state Exner pressure.
+ * @param[out] th_hse MultiFab holding the hydrostatic base state potential temperature.
+ * @param[out] qv_hse MultiFab holding the hydrostatic base state qv.
+ * @param[out] r_hse MultiFab holding the hydrostatic base state density.
+ * @param[in] mf_PB MultiFab holding WRF data specifying base state pressure.
+ * @param[in] mf_ALB Optional MultiFab holding inverse density perturbation data.
+ * @param[in] z_phys Optional terrain nodal z-coordinate MultiFab.
+ * @param[in] T00 Sea-level base-state temperature.
+ * @param[in] P00 Sea-level base-state pressure.
+ * @param[in] TLP Base-state lapse rate.
+ * @param[in] TISO Isothermal stratosphere temperature.
+ * @param[in] TLP_STRAT Stratospheric lapse rate.
+ * @param[in] P_STRAT Pressure at the stratosphere transition.
+ */
 void
 init_base_state_from_wrfinput (const Box& subdomain,
                                const Real& l_rdOcp,
@@ -89,10 +151,17 @@ init_base_state_from_wrfinput (const Box& subdomain,
                                const Real& TLP_STRAT,
                                const Real& P_STRAT);
 
-Real
+/**
+ * Read start_time from the first WRF input file.
+ *
+ * @param lev Integer specifying the current level
+ * @param fname Path to the WRF input file
+ * @return Epoch time read from the file
+ */
+double
 read_start_time_from_wrfinput (int lev, const std::string& fname)
 {
-    Real NC_epochTime;
+    double NC_epochTime = 0.0;
     const std::string dateTimeFormat = "%Y-%m-%d_%H:%M:%S";
 
     if (ParallelDescriptor::IOProcessor()) {
@@ -109,7 +178,7 @@ read_start_time_from_wrfinput (int lev, const std::string& fname)
 
         auto epochTime = getEpochTime(date, dateTimeFormat);
         Print() << "  wrfinput datetime 0 : " << date << " " << epochTime << std::endl;
-        NC_epochTime = static_cast<Real>(epochTime);
+        NC_epochTime = static_cast<double>(epochTime);
 
         Print() << "Have read start_time string at level "<< lev << " is " << date << std::endl;
         Print() << "Have read start_time number at level "<< lev << " is " << NC_epochTime << std::endl;
@@ -120,6 +189,17 @@ read_start_time_from_wrfinput (int lev, const std::string& fname)
     return NC_epochTime;
 }
 
+/**
+ * Read WRF base-state thermodynamic parameters from a NetCDF file.
+ *
+ * @param fname Path to the WRF input file
+ * @param T00 Sea-level base-state temperature
+ * @param P00 Sea-level base-state pressure
+ * @param TLP Base-state lapse rate
+ * @param TISO Isothermal stratosphere temperature
+ * @param TLP_STRAT Stratospheric lapse rate
+ * @param P_STRAT Pressure at the stratosphere transition
+ */
 void
 read_base_state_params_from_wrfinput (const std::string& fname,
                                       Real& T00,
@@ -132,57 +212,57 @@ read_base_state_params_from_wrfinput (const std::string& fname,
     if (ParallelDescriptor::IOProcessor()) {
         auto ncf = ncutils::NCFile::open(fname, NC_CLOBBER | NC_NETCDF4);
 
+        // Remember what was passed in so we can fall back to it below
+        const Real T00_def = T00;
+        const Real P00_def = P00;
+        const Real TLP_def = TLP;
+        const Real TISO_def = TISO;
+        const Real TLP_STRAT_def = TLP_STRAT;
+        const Real P_STRAT_def   = P_STRAT;
+
         std::vector<size_t> shape;
         std::vector<size_t> start;
-        int success = ncf.has_var("T00");
-        if (success) {
-            Print() << "Reading T00 from wrfinput\n";
-            shape = ncf.var("T00").shape();
+        auto read_scalar = [&] (const std::string& name, Real& val)
+        {
+            if (!ncf.has_var(name)) return;
+            Print() << "Reading " << name << " from wrfinput\n";
+            shape = ncf.var(name).shape();
+            start.clear();
             start.resize(shape.size(), 0);
-            ncf.var("T00").get(&T00 ,start, shape);
-        }
+            ncf.var(name).get(&val, start, shape);
+        };
 
-        success = ncf.has_var("P00");
-        if (success) {
-            Print() << "Reading P00 from wrfinput\n";
-            shape = ncf.var("P00").shape();
-            start.resize(shape.size(), 0);
-            ncf.var("P00").get(&P00 ,start, shape);
-        }
-
-        success = ncf.has_var("TLP");
-        if (success) {
-            Print() << "Reading TLP from wrfinput\n";
-            shape = ncf.var("TLP").shape();
-            start.resize(shape.size(), 0);
-            ncf.var("TLP").get(&TLP ,start, shape);
-        }
-
-        success = ncf.has_var("TISO");
-        if (success) {
-            Print() << "Reading TISO from wrfinput\n";
-            shape = ncf.var("TISO").shape();
-            start.resize(shape.size(), 0);
-            ncf.var("TISO").get(&TISO ,start, shape);
-        }
-
-        success = ncf.has_var("TLP_STRAT");
-        if (success) {
-            Print() << "Reading TLP_STRAT from wrfinput\n";
-            shape = ncf.var("TLP_STRAT").shape();
-            start.resize(shape.size(), 0);
-            ncf.var("TLP_STRAT").get(&TLP_STRAT ,start, shape);
-        }
-
-        success = ncf.has_var("P_STRAT");
-        if (success) {
-            Print() << "Reading P_STRAT from wrfinput\n";
-            shape = ncf.var("P_STRAT").shape();
-            start.resize(shape.size(), 0);
-            ncf.var("P_STRAT").get(&P_STRAT ,start, shape);
-        }
+        read_scalar("T00"      , T00);
+        read_scalar("P00"      , P00);
+        read_scalar("TLP"      , TLP);
+        read_scalar("TISO"     , TISO);
+        read_scalar("TLP_STRAT", TLP_STRAT);
+        read_scalar("P_STRAT"  , P_STRAT);
 
         ncf.close();
+
+        // Idealized WRF cases (and some hand-built wrfinput files) declare these
+        // variables but leave them zero-filled.  T00, P00 and TISO are absolute
+        // temperatures/pressures, so a non-positive value is never meaningful; if
+        // any of them is bad we discard the whole group and keep the defaults.
+        // (TLP, TLP_STRAT and P_STRAT may legitimately be zero, so they are only
+        // reset alongside a bad T00/P00/TISO.)
+        const bool params_ok = std::isfinite(T00)  && (T00  > Real(0)) &&
+                               std::isfinite(P00)  && (P00  > Real(0)) &&
+                               std::isfinite(TISO) && (TISO > Real(0)) &&
+                               std::isfinite(TLP)  && std::isfinite(TLP_STRAT) &&
+                               std::isfinite(P_STRAT);
+
+        if (!params_ok) {
+            Print() << "WARNING: WRF base state parameters read from " << fname
+                    << " are invalid: (T00, P00, TLP, TISO, TLP_STRAT, P_STRAT) = ("
+                    << T00 << ", " << P00 << ", " << TLP << ", " << TISO << ", "
+                    << TLP_STRAT << ", " << P_STRAT << ")\n";
+            Print() << "         T00, P00 and TISO must all be positive and finite; "
+                       "reverting to ERF defaults.\n";
+            T00 = T00_def;   P00 = P00_def;   TLP = TLP_def;
+            TISO = TISO_def; TLP_STRAT = TLP_STRAT_def; P_STRAT = P_STRAT_def;
+        }
 
         Print() << "WRF base state parameters (T00, P00, TLP, TISO, TLP_STRAT, P_STRAT) are: ("
                 << T00 << ", " << P00 << ", " << TLP << ", " << TISO << ", " << TLP_STRAT << ", "
@@ -201,6 +281,7 @@ read_base_state_params_from_wrfinput (const std::string& fname,
  * ERF function that initializes data from a WRF dataset
  *
  * @param lev Integer specifying the current level
+ * @param mf_PSFC MultiFab storing surface pressure for this level
  */
 void
 ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev)
@@ -235,26 +316,43 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev)
     NC_names.push_back("LANDMASK");  // 18
     NC_names.push_back("C1H");       // 19
     NC_names.push_back("C2H");       // 20
-    NC_names.push_back("XLAT_V");    // 21
-    NC_names.push_back("XLONG_U");   // 22
+    NC_names.push_back("RDNW");      // 21
+    NC_names.push_back("XLAT_V");    // 22
+    NC_names.push_back("XLONG_U");   // 23
     if (use_moist) {
-        NC_names.push_back("QVAPOR"); // 23
-        NC_names.push_back("QCLOUD"); // 24
-        NC_names.push_back("QRAIN");  // 25
+        NC_names.push_back("QVAPOR");  // 24
+        NC_names.push_back("QCLOUD");  // 25
+
+        // Read ice species for schemes that need them from wrfinput
+        int n_qstate_moist = micro->Get_Qstate_Moist_Size();
+        if (n_qstate_moist >= 6) {
+            // 6+ class schemes (WSM6, WDM6, Morrison): read all ice species
+            NC_names.push_back("QICE");    // 26
+            NC_names.push_back("QRAIN");   // 27
+            NC_names.push_back("QSNOW");   // 28
+            NC_names.push_back("QGRAUP");  // 29
+        } else {
+            // Warm rain only: Kessler, SAM, etc. (only qv, qc, qr)
+            NC_names.push_back("QRAIN");   // 26
+        }
+
+        // Number concentrations for double-moment schemes
+        // NOTE: Skipping QNCLOUD, QNCCN, QNRAIN because they're typically zero in wrfinput
+        // Double-moment schemes diagnose nc/nr from qc/qr during initialization instead
     }
-    NC_names.push_back("IVGTYP");     // 26
-    NC_names.push_back("ISLTYP");     // 27
+    NC_names.push_back("IVGTYP");
+    NC_names.push_back("ISLTYP");     // 28
     if (use_lsm) {
-        NC_names.push_back("TSLB");   // 28
-        NC_names.push_back("SMOIS");  // 29
-        NC_names.push_back("SH2O");   // 30
-        NC_names.push_back("LAI");    // 31
-        NC_names.push_back("ZS");     // 32
-        NC_names.push_back("DZS");    // 33
-        NC_names.push_back("VEGFRA"); // 34
-        NC_names.push_back("TMN");    // 35
-        NC_names.push_back("SHDMIN"); // 36
-        NC_names.push_back("SHDMAX"); // 37
+        NC_names.push_back("TSLB");   // 29
+        NC_names.push_back("SMOIS");  // 30
+        NC_names.push_back("SH2O");   // 31
+        NC_names.push_back("LAI");    // 32
+        NC_names.push_back("ZS");     // 33
+        NC_names.push_back("DZS");    // 34
+        NC_names.push_back("VEGFRA"); // 35
+        NC_names.push_back("TMN");    // 36
+        NC_names.push_back("SHDMIN"); // 37
+        NC_names.push_back("SHDMAX"); // 38
 
         // --- debugging ---
         // print LSM varname->WRF input name map
@@ -275,14 +373,21 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev)
 
     auto& lev_new = vars_new[lev];
 
-    // NOTE: Following MFs must have an underlying BA that follows
-    //       the shapes in ERF_ReadFromWRFInput.cpp
-    //       Most are 3D but MU/MUB are 2D and C1/2H are 1D
+    // NOTE: These temporaries keep us from overwriting the lev==0 wrf data that is
+    //       stored for the BDY operations.
+    MultiFab* mf_C1H;
+    MultiFab* mf_C2H;
+    MultiFab* mf_RDNW;
+    MultiFab* mf_MUB;
     MultiFab* mf_PHB;
-    MultiFab PHB_tmp;
-    MultiFab mf_PH ;                  // For geopotential height
-    MultiFab mf_PB , mf_P  ;          // For base state
-    std::unique_ptr<MultiFab> mf_ALB; // For base state
+    MultiFab  C1H_tmp;
+    MultiFab  C2H_tmp;
+    MultiFab  RDNW_tmp;
+    MultiFab  MUB_tmp;
+    MultiFab  PHB_tmp;
+
+    MultiFab mf_PH, mf_PB, mf_P;      // For geopotential and base state
+    std::unique_ptr<MultiFab> mf_ALB; // For density
 
     // Read base state params (used if ALB is not read)
     Real T00 = Real(290.0);
@@ -340,9 +445,10 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev)
 
             auto& var_fab_from_file = NC_fab_var[idx][ivar];
             bool has_fallback_behavior =
-                (var_name == "U")      || (var_name == "V")      || (var_name == "W")      ||
-                (var_name == "THM")    || (var_name == "QVAPOR") || (var_name == "QCLOUD") ||
-                (var_name == "QRAIN")  || (var_name == "PH")     || (var_name == "PHB");
+                (var_name == "U")       || (var_name == "V")       || (var_name == "W")      ||
+                (var_name == "THM")     || (var_name == "QVAPOR")  || (var_name == "QCLOUD") ||
+                (var_name == "QICE")    || (var_name == "QRAIN")   || (var_name == "QSNOW")  ||
+                (var_name == "QGRAUP")  || (var_name == "PH")      || (var_name == "PHB");
             if (!success && !has_fallback_behavior) {
                 amrex::Abort(std::string("ERF::init_from_wrfinput: failed to read required variable " + var_name).c_str());
             }
@@ -499,10 +605,13 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev)
             }
 
             // Initialize cell-centered variables that need to be density-weighted
-            if ( var_name == "THM"    ||
-                 var_name == "QVAPOR" ||
-                 var_name == "QCLOUD" ||
-                 var_name == "QRAIN" )
+            if ( var_name == "THM"     ||
+                 var_name == "QVAPOR"  ||
+                 var_name == "QCLOUD"  ||
+                 var_name == "QICE"    ||
+                 var_name == "QRAIN"   ||
+                 var_name == "QSNOW"   ||
+                 var_name == "QGRAUP" )
             {
                 int n_qstate_moist = micro->Get_Qstate_Moist_Size();
                 AMREX_ALWAYS_ASSERT(micro->Get_Qstate_NonMoist_Size() == 0);
@@ -514,11 +623,24 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev)
                     icomp    = RhoQ1_comp;
                 } else if (var_name == "QCLOUD") {
                     icomp    = RhoQ2_comp;
-                } else if (var_name == "QRAIN") {
+                } else if (var_name == "QICE") {
                     icomp    = RhoQ3_comp;
-                    if (n_qstate_moist > 3) { icomp = RhoQ4_comp; }
-                    if (n_qstate_moist < 3) { success = 0; }
+                } else if (var_name == "QRAIN") {
+                    // For schemes with 6+ species (WDM6, WSM6, Morrison), QRAIN → RhoQ4
+                    // For smaller schemes (Kessler 3-class), QRAIN → RhoQ3
+                    if (n_qstate_moist >= 6) {
+                        icomp = RhoQ4_comp;
+                    } else {
+                        icomp = RhoQ3_comp;
+                        if (n_qstate_moist < 3) { success = 0; }  // Safety check
+                    }
+                } else if (var_name == "QSNOW") {
+                    icomp    = RhoQ5_comp;
+                } else if (var_name == "QGRAUP") {
+                    icomp    = RhoQ6_comp;
                 }
+                // Note: RhoQ7-RhoQ9 (nc, nn, nr for WDM6) or RhoQ7-RhoQ11 (nc, ni, nr, ns, ng for Morrison)
+                // start at zero and are diagnosed/initialized by the microphysics scheme
 
                 // INITIAL DATA common for "ideal" as well as "real" simulation
                 // Don't tile this since we are operating on full FABs in this routine
@@ -534,7 +656,7 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev)
 
                     if (use_theta_m && (var_name == "QVAPOR")) {
                         // Now, we can calculate theta = thm / (1 + R_v/R_d * Qv)
-                        var_fab.template mult<RunOn::Device>(R_v/R_d);
+                        var_fab.template mult<RunOn::Device>(RvoRd);
                         var_fab.template plus<RunOn::Device>(one);
                         var_fab.template invert<RunOn::Device>(one);
 #ifdef _OPENMP
@@ -592,13 +714,11 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev)
                   // NOTE: We call FillBoundary on PHB below
                   auto& ba_w = lev_new[Vars::zvel].boxArray();
                   if (lev == 0) {
-                      wrf_PHB = std::make_unique<MultiFab>(ba_w, dm, 1, IntVect(ngz[0],ngz[1],0));
                       mf_PHB = wrf_PHB.get();
                   } else {
                       PHB_tmp.define(ba_w, dm, 1, IntVect(ngz[0],ngz[1],0));
                       mf_PHB = &PHB_tmp;
                   }
-
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
@@ -650,34 +770,73 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev)
                 FArrayBox &cur_fab = mf_PSFC_lev[mfi];
                 cur_fab.template copy<RunOn::Device>(var_fab, 0, 0, 1);
               }
+              Real pmax = mf_PSFC_lev.max(0);
+              if (pmax == zero) {
+                  amrex::Print() << " PSFC read in had max of 0; replacing it by 1e5 everywhere" << std::endl;
+                  mf_PSFC_lev.setVal(p_0);
+              }
               var_fab.clear();
           } else if ( var_name == "MUB" ) {
+              if (lev == 0) {
+                  mf_MUB = wrf_MUB.get();
+              } else {
+                  MUB_tmp.define(ba2d[lev], dm, 1, IntVect(ngz[0],ngz[1],0));
+                  mf_MUB = &MUB_tmp;
+              }
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
-              for ( MFIter mfi(*wrf_MUB, false); mfi.isValid(); ++mfi )
+              for ( MFIter mfi(*mf_MUB, false); mfi.isValid(); ++mfi )
               {
-                FArrayBox &cur_fab = (*wrf_MUB)[mfi];
+                FArrayBox &cur_fab = (*mf_MUB)[mfi];
                 cur_fab.template copy<RunOn::Device>(var_fab, 0, 0, 1);
               }
               var_fab.clear();
           } else if ( var_name == "C1H" ) {
+              if (lev == 0) {
+                  mf_C1H = wrf_C1H.get();
+              } else {
+                  C1H_tmp.define(ba1d[lev], dm, 1, IntVect(ngz[0],ngz[1],0));
+                  mf_C1H = &C1H_tmp;
+              }
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
-              for ( MFIter mfi(*wrf_C1H, false); mfi.isValid(); ++mfi )
+              for ( MFIter mfi(*mf_C1H, false); mfi.isValid(); ++mfi )
               {
-                FArrayBox &cur_fab = (*wrf_C1H)[mfi];
+                FArrayBox &cur_fab = (*mf_C1H)[mfi];
                 cur_fab.template copy<RunOn::Device>(var_fab, 0, 0, 1);
               }
               var_fab.clear();
           } else if ( var_name == "C2H" ) {
+              if (lev == 0) {
+                  mf_C2H = wrf_C2H.get();
+              } else {
+                  C2H_tmp.define(ba1d[lev], dm, 1, IntVect(ngz[0],ngz[1],0));
+                  mf_C2H = &C2H_tmp;
+              }
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
-              for ( MFIter mfi(*wrf_C2H, false); mfi.isValid(); ++mfi )
+              for ( MFIter mfi(*mf_C2H, false); mfi.isValid(); ++mfi )
               {
-                FArrayBox &cur_fab = (*wrf_C2H)[mfi];
+                FArrayBox &cur_fab = (*mf_C2H)[mfi];
+                cur_fab.template copy<RunOn::Device>(var_fab, 0, 0, 1);
+              }
+              var_fab.clear();
+          } else if ( var_name == "RDNW" ) {
+              if (lev == 0) {
+                  mf_RDNW = wrf_RDNW.get();
+              } else {
+                  RDNW_tmp.define(ba1d[lev], dm, 1, IntVect(ngz[0],ngz[1],0));
+                  mf_RDNW = &RDNW_tmp;
+              }
+#ifdef _OPENMP
+#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#endif
+              for ( MFIter mfi(*mf_RDNW, false); mfi.isValid(); ++mfi )
+              {
+                  FArrayBox &cur_fab = (*mf_RDNW)[mfi];
                 cur_fab.template copy<RunOn::Device>(var_fab, 0, 0, 1);
               }
               var_fab.clear();
@@ -1002,23 +1161,265 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev)
         }
 
         // **************************************************************************
-        // FillBoundary to populate the internal ghost cells (for averaging)
-        // **************************************************************************
-        // mf_PH.FillBoundary(geom[lev].periodicity());
-        // mf_PHB->FillBoundary(geom[lev].periodicity());
-
-        // **************************************************************************
         // Initialize the terrain itself
         // **************************************************************************
-        init_terrain_from_wrfinput(lev, z_top, boxes_at_level[lev][0], z_phys_nd[lev].get(), mf_PH, *mf_PHB);
+        Real dz0_max;
+        init_terrain_from_wrfinput(lev, geom[lev], z_top, boxes_at_level[lev][0], z_phys_nd[lev].get(),
+                                   mf_PH, *mf_PHB, dz0_max, solverChoice.use_wrf_height_grid);
         z_phys_nd[lev]->FillBoundary(geom[lev].periodicity());
+        if (!solverChoice.use_wrf_height_grid) {
+#ifdef AMREX_USE_FLOAT
+            const Real tol = Real(1.e-4);
+#else
+            const Real tol = Real(1.e-8);
+#endif
+            Real SFact = Real(1.03);
+            Real Nz = static_cast<Real>(zlevels_stag[lev].size() - 1);
+
+            // Default to uniform grid or solve for a stretched grid
+            if (dz0_max >= z_top/Nz) {
+                SFact   = one;
+                dz0_max = z_top/Nz;
+            } else {
+                int max_iter = 50;
+                int iter     = 0;
+                Real F       = dz0_max * ( (std::pow(SFact,Nz) - one) / (SFact - one) ) - z_top;
+                while (std::fabs(F)>tol && iter<max_iter) {
+                    Real dFdSF = dz0_max * ( Nz * std::pow(SFact,Nz-one) * (SFact - one)
+                                           - std::pow(SFact,Nz) + one ) /
+                                           std::pow(SFact-one,two);
+                    SFact     -= F/dFdSF;
+                    SFact      = std::max(one+tol,SFact);
+                    F          = dz0_max * ( (std::pow(SFact,Nz) - one) / (SFact - one) ) - z_top;
+                    ++iter;
+                }
+                AMREX_ALWAYS_ASSERT_WITH_MESSAGE(std::fabs(F) <= tol,
+                                                 "Newton iterations to determine the grid stretching factor failed!\n");
+            }
+
+            // Build the zlevels
+            Print() << "Building an ERF grid with dz0: " << dz0_max <<
+                " and stretching factor: " << SFact << "\n";
+            Real dz = dz0_max;
+            zlevels_stag[lev][0] = zero;
+            for (int k(1); k<zlevels_stag[lev].size(); ++k) {
+                zlevels_stag[lev][k] = zlevels_stag[lev][k-1] + dz;
+                dz *= SFact;
+            }
+            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(std::fabs(zlevels_stag[lev].back() - z_top) <= tol,
+                "Top of zlevels_stag does not match z_top!\n");
+
+            // Update stretched dz and build terrain fitted coords
+            update_stretched_dz(lev, zlevels_stag, stretched_dz_h, stretched_dz_d);
+            make_terrain_fitted_coords(lev, geom[lev], *z_phys_nd[lev], zlevels_stag[lev], phys_bc_type);
+        }
 
         // **************************************************************************
         // Initialize the metric quantities
         // **************************************************************************
-        make_J  (geom[lev],*z_phys_nd[lev],*detJ_cc[lev]);
+        make_J    (geom[lev],*z_phys_nd[lev],*detJ_cc[lev]);
         make_areas(geom[lev],*z_phys_nd[lev],*ax[lev],*ay[lev],*az[lev]);
-        make_zcc(geom[lev],*z_phys_nd[lev],*z_phys_cc[lev]);
+        make_zcc  (geom[lev],*z_phys_nd[lev],*z_phys_cc[lev]);
+
+        // **************************************************************************
+        // Interpolate the data to the grid
+        //
+        // NOTE: When keeping the WRF grid, we really only need to interpolate
+        //       the highest level values, due to enforcing z_top. When using
+        //       the ERF grid, interpolation is required everywhere.
+        //
+        // NOTE: z_cc must be averaged to the destination location when interpolating.
+        //        This is due to the fact that z_cc is conserved WRT WRF heights.
+        //
+        // NOTE: W is intentionally *not* remapped below, unlike the cell-centered state
+        //       and the horizontal velocities.  ERF initializes from wrfinput files
+        //       produced by real.exe / ideal.exe (see Docs/sphinx_doc/Initialization.rst),
+        //       and those preprocessors leave W identically zero -- they carry no vertical
+        //       velocity from the driving analysis.  If a file
+        //       carrying a non-zero W were ever fed in here (a WRF history or restart file
+        //       rather than a preprocessor wrfinput), W would need a zvel_tmp remap onto
+        //       the z-faces exactly as xvel and yvel get below, or it would be left at
+        //       WRF's z-face heights while everything else moved to ERF's.
+        // **************************************************************************
+#ifdef AMREX_DEBUG
+        // Hold the assumption stated in the note above to account.  A non-zero W here
+        // means the input is not a real.exe/ideal.exe wrfinput, and silently skipping
+        // its remap would leave the velocity field inconsistent at initialization.
+        // W is copied verbatim from the file and only ever divided by the map factor,
+        // so a genuinely zero W stays exactly zero and the exact test is safe.
+        {
+            const Real w_norm = lev_new[Vars::zvel].norm0();
+            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(w_norm == Real(0),
+                "init_from_wrfinput: the input file carries a non-zero W, which is not "
+                "remapped onto the ERF grid (see issue 3655).  A zvel_tmp remap onto the "
+                "z-faces must be added before such a file can be used here.");
+        }
+#endif
+
+        int ncons = lev_new[Vars::cons].nComp();
+        int imin  = mf_PH.boxArray().minimalBox().smallEnd(0);
+        int imax  = mf_PH.boxArray().minimalBox().bigEnd(0);
+        int jmin  = mf_PH.boxArray().minimalBox().smallEnd(1);
+        int jmax  = mf_PH.boxArray().minimalBox().bigEnd(1);
+
+        int klo   = geom[lev].Domain().smallEnd(2);
+        int khi   = geom[lev].Domain().bigEnd(2);
+
+        MultiFab cons_tmp(lev_new[Vars::cons].boxArray(), lev_new[Vars::cons].DistributionMap(), ncons, 0);
+        MultiFab xvel_tmp(lev_new[Vars::xvel].boxArray(), lev_new[Vars::xvel].DistributionMap(), 1    , 0);
+        MultiFab yvel_tmp(lev_new[Vars::yvel].boxArray(), lev_new[Vars::yvel].DistributionMap(), 1    , 0);
+
+        MultiFab::Copy(cons_tmp, lev_new[Vars::cons], 0, 0, ncons, 0);
+        MultiFab::Copy(xvel_tmp, lev_new[Vars::xvel], 0, 0, 1    , 0);
+        MultiFab::Copy(yvel_tmp, lev_new[Vars::yvel], 0, 0, 1    , 0);
+
+        for (MFIter mfi(lev_new[Vars::cons], TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+            const Box& bx  = mfi.tilebox();
+            const Box& bxx = mfi.tilebox(IntVect(1,0,0));
+            const Box& bxy = mfi.tilebox(IntVect(0,1,0));
+
+            const Array4<      Real>& cons_arr = lev_new[Vars::cons].array(mfi);
+            const Array4<      Real>& xvel_arr = lev_new[Vars::xvel].array(mfi);
+            const Array4<      Real>& yvel_arr = lev_new[Vars::yvel].array(mfi);
+
+            const Array4<const Real>& cons_tmp_arr = cons_tmp.array(mfi);
+            const Array4<const Real>& xvel_tmp_arr = xvel_tmp.array(mfi);
+            const Array4<const Real>& yvel_tmp_arr = yvel_tmp.array(mfi);
+
+            const Array4<const Real>&   ph_arr = mf_PH.const_array(mfi);
+            const Array4<const Real>&  phb_arr = mf_PHB->const_array(mfi);
+
+            const Array4<const Real>& z_cc_arr = z_phys_cc[lev]->const_array(mfi);
+            const Array4<const Real>& z_nd_arr = z_phys_nd[lev]->const_array(mfi);
+
+            ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            {
+                int kstart = klo;
+                Real z_dst = z_cc_arr(i,j,k);
+                Real z_lo_src = Real(0.5) *
+                    ( ph_arr(i,j,kstart  ) + phb_arr(i,j,kstart  ) +
+                      ph_arr(i,j,kstart+1) + phb_arr(i,j,kstart+1)) / CONST_GRAV;
+
+                bool found = false;
+                int kend   = kstart;
+                for (int lk(kstart+1); lk<=khi; ++lk) {
+                    Real z_hi_src = Real(0.5) *
+                        ( ph_arr(i,j,lk  ) + phb_arr(i,j,lk  ) +
+                          ph_arr(i,j,lk+1) + phb_arr(i,j,lk+1)) / CONST_GRAV;
+                    if (z_dst >= z_lo_src && z_dst < z_hi_src) {
+                        found = true;
+                        kend  = lk;
+                        break;
+                    }
+                    z_lo_src = z_hi_src;
+                    kstart   = lk;
+                }
+
+                if (found) {
+                    Real z_hi_src = Real(0.5) *
+                        (ph_arr(i,j,kend  ) + phb_arr(i,j,kend  ) +
+                         ph_arr(i,j,kend+1) + phb_arr(i,j,kend+1)) / CONST_GRAV;
+                    Real dz_rat = (z_dst - z_lo_src) / (z_hi_src - z_lo_src);
+                    for (int icons(Rho_comp); icons<ncons; ++icons) {
+                        Real cons_hi = cons_tmp_arr(i,j,kend  ,icons);
+                        Real cons_lo = cons_tmp_arr(i,j,kstart,icons);
+                        cons_arr(i,j,k,icons) = ( cons_hi - cons_lo ) * dz_rat + cons_lo;
+                    }
+                }
+            });
+
+
+            ParallelFor(bxx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            {
+                // Prevent averaging outside domain
+                int ii  = std::max(std::min(i  ,imax),imin);
+                int iim = std::max(std::min(i-1,imax),imin);
+
+                int kstart = klo;
+                Real z_dst = Real(0.25) * ( z_nd_arr(i,j,k  ) + z_nd_arr(i,j+1,k  )
+                                          + z_nd_arr(i,j,k+1) + z_nd_arr(i,j+1,k+1) );
+                Real z_lo_src = Real(0.25) *
+                    ( ph_arr(ii ,j,kstart  ) + phb_arr(ii ,j,kstart  ) +
+                      ph_arr(ii ,j,kstart+1) + phb_arr(ii ,j,kstart+1) +
+                      ph_arr(iim,j,kstart  ) + phb_arr(iim,j,kstart  ) +
+                      ph_arr(iim,j,kstart+1) + phb_arr(iim,j,kstart+1) ) / CONST_GRAV;
+
+                bool found = false;
+                int kend   = kstart;
+                for (int lk(kstart+1); lk<=khi; ++lk) {
+                    Real z_hi_src = Real(0.25) *
+                    ( ph_arr(ii ,j,lk  ) + phb_arr(ii ,j,lk  ) +
+                      ph_arr(ii ,j,lk+1) + phb_arr(ii ,j,lk+1) +
+                      ph_arr(iim,j,lk  ) + phb_arr(iim,j,lk  ) +
+                      ph_arr(iim,j,lk+1) + phb_arr(iim,j,lk+1) ) / CONST_GRAV;
+                    if (z_dst >= z_lo_src && z_dst < z_hi_src) {
+                        found = true;
+                        kend  = lk;
+                        break;
+                    }
+                    z_lo_src = z_hi_src;
+                    kstart   = lk;
+                }
+
+                if (found) {
+                    Real z_hi_src = Real(0.25) *
+                    ( ph_arr(ii ,j,kend  ) + phb_arr(ii ,j,kend  ) +
+                      ph_arr(ii ,j,kend+1) + phb_arr(ii ,j,kend+1) +
+                      ph_arr(iim,j,kend  ) + phb_arr(iim,j,kend  ) +
+                      ph_arr(iim,j,kend+1) + phb_arr(iim,j,kend+1) ) / CONST_GRAV;
+                    Real dz_rat = (z_dst - z_lo_src) / (z_hi_src - z_lo_src);
+                    Real xvel_hi = xvel_tmp_arr(i,j,kend  );
+                    Real xvel_lo = xvel_tmp_arr(i,j,kstart);
+                    xvel_arr(i,j,k) = ( xvel_hi - xvel_lo ) * dz_rat + xvel_lo;
+                }
+            });
+
+            ParallelFor(bxy, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            {
+                // Prevent averaging outside domain
+                int jj  = std::max(std::min(j  ,jmax),jmin);
+                int jjm = std::max(std::min(j-1,jmax),jmin);
+
+                int kstart = klo;
+                Real z_dst = Real(0.25) * ( z_nd_arr(i,j,k  ) + z_nd_arr(i+1,j,k  )
+                                          + z_nd_arr(i,j,k+1) + z_nd_arr(i+1,j,k+1) );
+                Real z_lo_src = Real(0.25) *
+                    ( ph_arr(i,jj ,kstart  ) + phb_arr(i,jj ,kstart  ) +
+                      ph_arr(i,jj ,kstart+1) + phb_arr(i,jj ,kstart+1) +
+                      ph_arr(i,jjm,kstart  ) + phb_arr(i,jjm,kstart  ) +
+                      ph_arr(i,jjm,kstart+1) + phb_arr(i,jjm,kstart+1) ) / CONST_GRAV;
+
+                bool found = false;
+                int kend   = kstart;
+                for (int lk(kstart+1); lk<=khi; ++lk) {
+                    Real z_hi_src = Real(0.25) *
+                    ( ph_arr(i,jj ,lk  ) + phb_arr(i,jj ,lk  ) +
+                      ph_arr(i,jj ,lk+1) + phb_arr(i,jj ,lk+1) +
+                      ph_arr(i,jjm,lk  ) + phb_arr(i,jjm,lk  ) +
+                      ph_arr(i,jjm,lk+1) + phb_arr(i,jjm,lk+1) ) / CONST_GRAV;
+                    if (z_dst >= z_lo_src && z_dst < z_hi_src) {
+                        found = true;
+                        kend  = lk;
+                        break;
+                    }
+                    z_lo_src = z_hi_src;
+                    kstart   = lk;
+                }
+
+                if (found) {
+                    Real z_hi_src = Real(0.25) *
+                    ( ph_arr(i,jj ,kend  ) + phb_arr(i,jj ,kend  ) +
+                      ph_arr(i,jj ,kend+1) + phb_arr(i,jj ,kend+1) +
+                      ph_arr(i,jjm,kend  ) + phb_arr(i,jjm,kend  ) +
+                      ph_arr(i,jjm,kend+1) + phb_arr(i,jjm,kend+1) ) / CONST_GRAV;
+                    Real dz_rat = (z_dst - z_lo_src) / (z_hi_src - z_lo_src);
+                    Real yvel_hi = yvel_tmp_arr(i,j,kend  );
+                    Real yvel_lo = yvel_tmp_arr(i,j,kstart);
+                    yvel_arr(i,j,k) = ( yvel_hi - yvel_lo ) * dz_rat + yvel_lo;
+                }
+            });
+
+        } // mfi
     }
 
     // **************************************************************************
@@ -1026,122 +1427,32 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev)
     // **************************************************************************
     if (solverChoice.rebalance_wrf_input) {
         Print() << "The state read from WRF is being rebalanced!\n";
-        int ncomp    = lev_new[Vars::cons].nComp();
-        int k_dom_lo = geom[lev].Domain().smallEnd(2);
-        int k_dom_hi = geom[lev].Domain().bigEnd(2);
-#ifdef AMREX_USE_FLOAT
-        Real tol  = Real(1.0e-6);
-#else
-        Real tol  = Real(1.0e-10);
-#endif
-        Real grav = CONST_GRAV;
+
+        MultiFab rho (lev_new[Vars::cons], make_alias, Rho_comp, 1);
+
+        MultiFab theta(rho.boxArray(), rho.DistributionMap(), 1, 1);
+        MultiFab::Copy(theta, lev_new[Vars::cons], RhoTheta_comp, 0, 1, 1);
+        MultiFab::Divide(theta, vars_new[lev][Vars::cons], Rho_comp , 0, 1, 1);
+
+        MultiFab qv(rho.boxArray(), rho.DistributionMap(), 1, 1);
+        MultiFab::Copy(qv, lev_new[Vars::cons], RhoQ1_comp, 0, 1, 1);
+        MultiFab::Divide(qv, vars_new[lev][Vars::cons], Rho_comp , 0, 1, 1);
 
         MultiFab qt(lev_new[Vars::cons].boxArray(), lev_new[Vars::cons].DistributionMap(), 1, 0);
         int n_qstate_into_total = micro->Get_Qstate_Moist_Size() - micro->Get_Qstate_Moist_NumConc_Size();
         make_qt(lev_new[Vars::cons], qt, n_qstate_into_total);
 
-        for ( MFIter mfi(lev_new[Vars::cons],TileNoZ()); mfi.isValid(); ++mfi ) {
-            Box bx  = mfi.tilebox();
-            int klo = bx.smallEnd(2);
-            int khi = bx.bigEnd(2);
-            AMREX_ALWAYS_ASSERT((klo == k_dom_lo) && (khi == k_dom_hi));
-            bx.makeSlab(2,klo);
+        bool maintain_Th = true;
+        rebalance_columns(rho, theta, qv, qt, z_phys_nd[lev].get(), geom[lev], maintain_Th);
 
-            const Array4<      Real>& con_arr = lev_new[Vars::cons].array(mfi);
-            const Array4<const Real>&  qt_arr = qt.const_array(mfi);
-            const Array4<const Real>& z_arr = z_phys_nd[lev]->const_array(mfi);
+        // Update (rho qv) in the state
+        MultiFab::Multiply(qv, rho, 0, 0, 1, 1);
+        MultiFab::Copy(lev_new[Vars::cons], qv, 0, RhoQ1_comp, 1, 1);
 
-            ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int /*k*/) noexcept
-            {
-                // integrate from surface to domain top
-                Real Factor;
-                Real dz, F, C;
-                Real rho_tot_hi, rho_tot_lo;
-                Real z_lo, z_hi;
-                Real R_lo, R_hi;
-                Real qv_lo, qv_hi;
-                Real qt_lo, qt_hi;
-                Real Th_lo, Th_hi;
-                Real P_lo, P_hi;
-
-                // First integrate from sea level to the height at klo
-                {
-                    // Vertical grid spacing
-                    z_lo = zero; // corresponding to p_0
-                    z_hi = Real(0.125) * (z_arr(i,j,klo  ) + z_arr(i+1,j,klo  ) + z_arr(i,j+1,klo  ) + z_arr(i+1,j+1,klo  )
-                                         +z_arr(i,j,klo+1) + z_arr(i+1,j,klo+1) + z_arr(i,j+1,klo+1) + z_arr(i+1,j+1,klo+1));
-                    dz = z_hi - z_lo;
-
-                    // Establish known constant
-                    qt_lo =  qt_arr(i,j,klo);
-                    qv_lo = con_arr(i,j,klo,RhoQ1_comp)    / con_arr(i,j,klo,Rho_comp);
-                    Th_lo = con_arr(i,j,klo,RhoTheta_comp) / con_arr(i,j,klo,Rho_comp);
-                    P_lo  = p_0;
-                    R_lo  = getRhogivenThetaPress(Th_lo, P_lo, R_d/Cp_d, qv_lo);
-                    rho_tot_lo = R_lo * (one + qt_lo);
-                    C  = -P_lo + myhalf*rho_tot_lo*grav*dz;
-
-                    // Initial guess and residual
-                    qt_hi = qt_arr(i,j,klo);
-                    qv_hi = con_arr(i,j,klo,RhoQ1_comp)    / con_arr(i,j,klo,Rho_comp);
-                    Th_hi = con_arr(i,j,klo,RhoTheta_comp) / con_arr(i,j,klo,Rho_comp);
-                    P_hi  = p_0;
-                    R_hi  = getRhogivenThetaPress(Th_hi, P_hi, R_d/Cp_d, qv_hi);
-                    rho_tot_hi = R_hi * (one + qt_hi);
-                    F = P_hi + myhalf*rho_tot_hi*grav*dz + C;
-
-                    // Do iterations
-                    HSEutils::Newton_Raphson_hse(tol, R_d/Cp_d, dz,
-                                                 grav, C, Th_hi,
-                                                 qt_hi, qv_hi,
-                                                 P_hi, R_hi, F);
-
-                    // Assign data
-                    Factor = R_hi / con_arr(i,j,klo,Rho_comp);
-                    con_arr(i,j,klo,Rho_comp) = R_hi;
-                    for (int n(1); n<ncomp; ++n) { con_arr(i,j,klo,n) *= Factor; }
-                    P_lo = P_hi;
-                    z_lo = z_hi;
-                }
-
-                for (int k(klo+1); k<=khi; ++k) {
-                    // Vertical grid spacing
-                  z_hi = Real(0.125) * (z_arr(i,j,k  ) + z_arr(i+1,j,k  ) + z_arr(i,j+1,k  ) + z_arr(i+1,j+1,k  )
-                                       +z_arr(i,j,k+1) + z_arr(i+1,j,k+1) + z_arr(i,j+1,k+1) + z_arr(i+1,j+1,k+1));
-                  dz   = z_hi - z_lo;
-
-                  // Establish known constant
-                  qt_lo = qt_arr(i,j,k-1);
-                  qv_lo = con_arr(i,j,k-1,RhoQ1_comp)    / con_arr(i,j,k-1,Rho_comp);
-                  Th_lo = con_arr(i,j,k-1,RhoTheta_comp) / con_arr(i,j,k-1,Rho_comp);
-                  R_lo  = getRhogivenThetaPress(Th_lo, P_lo, R_d/Cp_d, qv_lo);
-                  rho_tot_lo = R_lo * (one + qt_lo);
-                  C  = -P_lo + myhalf*rho_tot_lo*grav*dz;
-
-                  // Initial guess and residual
-                  qt_hi = qt_arr(i,j,k);
-                  qv_hi = con_arr(i,j,k,RhoQ1_comp)    / con_arr(i,j,k,Rho_comp);
-                  Th_hi = con_arr(i,j,k,RhoTheta_comp) / con_arr(i,j,k,Rho_comp);
-                  R_hi  = getRhogivenThetaPress(Th_hi, P_hi, R_d/Cp_d, qv_hi);
-                  rho_tot_hi = R_hi * (one + qt_hi);
-                  F = P_hi + myhalf*rho_tot_hi*grav*dz + C;
-
-                  // Do iterations
-                  HSEutils::Newton_Raphson_hse(tol, R_d/Cp_d, dz,
-                                               grav, C, Th_hi,
-                                               qt_hi, qv_hi,
-                                               P_hi, R_hi, F);
-
-                  // Assign data
-                  Factor = R_hi / con_arr(i,j,k,Rho_comp);
-                  con_arr(i,j,k,Rho_comp) = R_hi;
-                  for (int n(1); n<ncomp; ++n) { con_arr(i,j,k,n) *= Factor; }
-                  P_lo = P_hi;
-                  z_lo = z_hi;
-                }
-            });
-        } // mfi
-    } // rebalance_wrfinput
+        // Update (rho theta) in the state
+        MultiFab::Multiply(theta, rho, 0, 0, 1, 1);
+        MultiFab::Copy(lev_new[Vars::cons], theta, 0, RhoTheta_comp, 1, 1);
+    }
 
     // **************************************************************************
     // Initialize the base state
@@ -1153,7 +1464,8 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev)
     MultiFab qv_hse(base_state[lev], make_alias, BaseState::qv0_comp, 1);
 
     init_base_state_from_wrfinput(boxes_at_level[lev][0], l_rdOcp,
-                                  p_hse, pi_hse, th_hse, qv_hse, r_hse, mf_PB, mf_ALB.get(), z_phys_nd[lev].get(),
+                                  p_hse, pi_hse, th_hse, qv_hse, r_hse,
+                                  mf_PB, mf_ALB.get(), z_phys_nd[lev].get(),
                                   T00, P00, TLP, TISO, TLP_STRAT, P_STRAT);
 
     // FillBoundary to populate the internal ghost cells (no averaging in above call)
@@ -1176,29 +1488,119 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev)
             amrex::Error("NetCDF boundary file name must be provided via input");
         }
 
-        bdy_time_interval = read_times_from_wrfbdy(nc_bdy_file,
-                                                   bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi,
-                                                   start_bdy_time, final_bdy_time);
+        // Check for erfbdy file.
+        std::string erfbdy_header = erfbdy_file + "/Header";
+        use_erfbdy = FileSystem::Exists(erfbdy_header);
+        if (use_erfbdy || write_erfbdy) nvars_erfbdy = WRFBdyVars::NumTypes;
 
-        Print() << "Reading in boundary data with width " << real_width << std::endl;
-        Print() << "Running with relaxation width       " << real_width << std::endl;
+        // Path 1: Load from existing erfbdy file.
+        if (use_erfbdy) {
+            Print() << "Loading boundary data from erfbdy file: " << erfbdy_file << std::endl;
 
-        // *******************************************************************************************
-        // We intentionally only read in the first three slices here ... we will read the rest in
-        // as needed during the time stepping procedure
-        // *******************************************************************************************
-        int ntimes = bdy_data_xlo.size(); ntimes = amrex::min(ntimes, 3);
-        Array<MultiFab*, AMREX_SPACEDIM> area_vec = {ax[lev].get(), ay[lev].get(), az[lev].get()};
-        bool is_anelastic = (solverChoice.anelastic[0] == 1);
-        for (int itime = 0; itime < ntimes; itime++)
-        {
-            read_and_convert_from_wrfbdy(itime, nc_bdy_file,
-                                         bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi,
-                                         wrf_MUB, wrf_C1H, wrf_C2H, wrf_PHB,
-                                         lev_new[Vars::xvel], lev_new[Vars::yvel], lev_new[Vars::cons],
-                                         r_hse, area_vec, geom[0], use_moist, domain_bcs_type,
-                                         real_width, bdy_time_interval, is_anelastic);
-        } // itime
+            // Read metadata and times from erfbdy.
+            int ntimes_erfbdy;
+            Vector<double> bdy_times;
+            bdy_time_interval = read_times_from_erfbdy(erfbdy_file,
+                                                       ntimes_erfbdy, nvars_erfbdy, real_width,
+                                                       bdy_times, start_bdy_time, final_bdy_time);
+
+            Print() << "erfbdy file contains " << ntimes_erfbdy << " time slices" << std::endl;
+            Print() << "start_bdy_time = " << start_bdy_time << std::endl;
+            Print() << "final_bdy_time = " << final_bdy_time << std::endl;
+            Print() << "bdy_time_interval = " << bdy_time_interval << std::endl;
+
+            bdy_data_xlo.resize(ntimes_erfbdy);
+            bdy_data_xhi.resize(ntimes_erfbdy);
+            bdy_data_ylo.resize(ntimes_erfbdy);
+            bdy_data_yhi.resize(ntimes_erfbdy);
+
+            // Load the first 2 times for simulation initialization.
+            for (int itime = 0; itime < std::min(2, ntimes_erfbdy); ++itime) {
+                read_from_erfbdy(itime, erfbdy_file,
+                                 bdy_data_xlo, bdy_data_xhi,
+                                 bdy_data_ylo, bdy_data_yhi,
+                                 nvars_erfbdy, real_width);
+                Print() << "Loaded erfbdy time slice " << itime << std::endl;
+            }
+
+            Print() << "Read in boundary data with width "  << real_width << std::endl;
+            Print() << "Running with relaxation width: " << real_width << std::endl;
+        }
+        // Path 2: Load from wrfbdy and optionally write to erfbdy.
+        else {
+            if (nc_bdy_file.empty()) {
+                amrex::Error("NetCDF boundary file name must be provided via input");
+            }
+
+            bdy_time_interval = read_times_from_wrfbdy(nc_bdy_file,
+                                                       bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi,
+                                                       start_bdy_time, final_bdy_time);
+
+            int ntimes_total = bdy_data_xlo.size();
+            Vector<double> bdy_times(ntimes_total);
+
+            // Initialize erfbdy file.
+            if (write_erfbdy) {
+                for (int itime = 0; itime < ntimes_total; ++itime) {
+                    bdy_times[itime] = start_bdy_time + itime * bdy_time_interval;
+                }
+
+                InitERFBdyFile(erfbdy_file, ntimes_total, bdy_times,
+                               geom[lev].Domain(), nvars_erfbdy, real_width);
+                Print() << "Initialized erfbdy file: " << erfbdy_file << std::endl;
+            }
+
+            // *******************************************************************************************
+            // We intentionally only read in the first three slices here ... we will read the rest in
+            // as needed during the time stepping procedure
+            // *******************************************************************************************
+            int ntimes = bdy_data_xlo.size(); ntimes = amrex::min(ntimes, 3);
+            Array<MultiFab*, AMREX_SPACEDIM> area_vec = {ax[lev].get(), ay[lev].get(), az[lev].get()};
+            bool is_anelastic = (solverChoice.anelastic[0] == 1);
+            for (int itime = 0; itime < ntimes; itime++)
+            {
+                read_and_convert_from_wrfbdy(itime, nc_bdy_file,
+                                             bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi,
+                                             wrf_MUB, wrf_C1H, wrf_C2H, wrf_RDNW, wrf_PHB, z_phys_cc[lev], z_phys_nd[lev],
+                                             lev_new[Vars::xvel], lev_new[Vars::yvel], lev_new[Vars::cons],
+                                             r_hse, area_vec, geom[lev], use_moist, solverChoice.rebalance_wrf_input, domain_bcs_type,
+                                             real_width, bdy_time_interval, is_anelastic);
+
+                // Write this time to erfbdy.
+                if (write_erfbdy) {
+                    WriteERFBdyTimeSlice(erfbdy_file, itime,
+                                         bdy_data_xlo[itime], bdy_data_xhi[itime],
+                                         bdy_data_ylo[itime], bdy_data_yhi[itime],
+                                         WRFBdyVars::NumTypes);
+                    Print() << "Wrote erfbdy time index " << itime << " of " << ntimes_total-1 << std::endl;
+                }
+            } // itime
+
+            // If writing erfbdy and we have more than 3 times, then process the remaining times.
+            if (write_erfbdy && ntimes_total > 3) {
+                Print() << "Processing remaining " << ntimes_total - 3 << " boundary times..." << std::endl;
+                for (int itime = 3; itime < ntimes_total; ++itime) {
+                    read_and_convert_from_wrfbdy(itime, nc_bdy_file,
+                                                 bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi,
+                                                 wrf_MUB, wrf_C1H, wrf_C2H, wrf_RDNW, wrf_PHB, z_phys_cc[lev], z_phys_nd[lev],
+                                                 lev_new[Vars::xvel], lev_new[Vars::yvel], lev_new[Vars::cons],
+                                                 r_hse, area_vec, geom[lev], use_moist, solverChoice.rebalance_wrf_input, domain_bcs_type,
+                                                 real_width, bdy_time_interval, is_anelastic);
+
+                    WriteERFBdyTimeSlice(erfbdy_file, itime,
+                                         bdy_data_xlo[itime], bdy_data_xhi[itime],
+                                         bdy_data_ylo[itime], bdy_data_yhi[itime],
+                                         WRFBdyVars::NumTypes);
+                    Print() << "Wrote erfbdy time index " << itime << " of " << ntimes_total-1 << std::endl;
+
+                    bdy_data_xlo[itime].clear();
+                    bdy_data_xhi[itime].clear();
+                    bdy_data_ylo[itime].clear();
+                    bdy_data_yhi[itime].clear();
+                }
+                Print() << "Completed writing erfbdy times" << std::endl;
+            } // itime
+        } // use_erfbdy
 
         //
         // Start at the earliest time (read_from_wrfbdy)
@@ -1248,19 +1650,22 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev)
 /**
  * Helper function to initialize hydrostatic base state data from WRF dataset
  *
- * @param subomdain        Box specifying the index space we are to initialize
+ * @param subdomain        Box specifying the index space we are to initialize
  * @param l_rdOcp          Real constant specifying Rhydberg constant ($R_d$) divided by specific heat at constant pressure ($c_p$)
- * @param moisture_type    Number of moist quantities
- * @param n_qstate_moist   Number of moist quantities
- * @param cons             MultiFab of cell-centered variables
  * @param p_hse            MultiFab holding the hydrostatic base state pressure to be initialized
  * @param pi_hse           MultiFab holding the hydrostatic base state Exner pressure to be initialized
  * @param th_hse           MultiFab holding the hydrostatic base state potential temperature to be initialized
  * @param qv_hse           MultiFab holding the hydrostatic base state qv to be initialized
  * @param r_hse            MultiFab holding the hydrostatic base state density to be initialized
  * @param mf_PB            MultiFab holding WRF data specifying base state pressure
- * @param mf_P             MultiFab holding WRF data specifying pressure perturbation -- also used in base state
- * @param use_P_eos        Should we overwrite the pressure we read by the pressure computed from the EOS?
+ * @param mf_ALB           Optional MultiFab holding inverse density perturbation data
+ * @param z_phys_nd        Optional terrain nodal z-coordinate MultiFab
+ * @param T00              Sea-level base-state temperature
+ * @param P00              Sea-level base-state pressure
+ * @param TLP              Base-state lapse rate
+ * @param TISO             Isothermal stratosphere temperature
+ * @param TLP_STRAT        Stratospheric lapse rate
+ * @param P_STRAT          Pressure at the stratosphere transition
  */
 void
 init_base_state_from_wrfinput (const Box& subdomain,
@@ -1342,6 +1747,12 @@ init_base_state_from_wrfinput (const Box& subdomain,
     int k_dom_lo = dom_lo.z;
     int k_dom_hi = dom_hi.z;
 
+    // The vertical integration below is seeded with the surface values (P00,T00),
+    // so these must be valid regardless of whether ALB was present in the file
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(std::isfinite(P00) && (P00 > Real(0)) &&
+                                     std::isfinite(T00) && (T00 > Real(0)),
+                                     "Cannot rebalance the WRF base state: P00 and T00 must be positive");
+
 #ifdef AMREX_USE_FLOAT
     Real tol  = Real(1.0e-6);
 #else
@@ -1366,7 +1777,8 @@ init_base_state_from_wrfinput (const Box& subdomain,
 
             const Array4<const Real>& z_arr = z_phys_nd->const_array(mfi);
 
-            ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int /*k*/) noexcept
+            ParallelFor(bx, [=,RdoCp_d=RdoCp]
+                        AMREX_GPU_DEVICE(int i, int j, int /*k*/) noexcept
             {
                 // integrate from surface to domain top
                 Real dz, F, C;
@@ -1374,40 +1786,43 @@ init_base_state_from_wrfinput (const Box& subdomain,
                 Real z_lo, z_hi;
                 Real R_lo, R_hi;
                 Real Th_lo, Th_hi;
+                Real T_hi;
                 Real P_lo, P_hi;
 
                 Real qv_lo = zero;
                 Real qv_hi = zero;
 
-                // First integrate from sea level to the height at klo
+                // First integrate from surface to first CC at klo
                 {
                     // Vertical grid spacing
                     z_lo = zero; // corresponding to p_0
-                    z_hi = Real(0.125) * (z_arr(i,j,klo  ) + z_arr(i+1,j,klo  ) + z_arr(i,j+1,klo  ) + z_arr(i+1,j+1,klo  )
-                                         +z_arr(i,j,klo+1) + z_arr(i+1,j,klo+1) + z_arr(i,j+1,klo+1) + z_arr(i+1,j+1,klo+1));
+                    z_hi = Real(0.125) * ( z_arr(i,j,klo  ) + z_arr(i+1,j,klo  ) + z_arr(i,j+1,klo  ) + z_arr(i+1,j+1,klo  )
+                                         + z_arr(i,j,klo+1) + z_arr(i+1,j,klo+1) + z_arr(i,j+1,klo+1) + z_arr(i+1,j+1,klo+1) );
 
                     // dz == height of first cell center
                     dz = z_hi - z_lo;
 
                     // Known surface values
-                    Th_lo = getThgivenTandP(T00, P00, R_d/Cp_d);
                     P_lo  = P00;
-                    R_lo  = getRhogivenThetaPress(Th_lo, P_lo, R_d/Cp_d);
+                    Th_lo = getThgivenTandP(T00, P00, RdoCp_d);
+                    R_lo  = getRhogivenThetaPress(Th_lo, P_lo, RdoCp_d);
                     rho_tot_lo = R_lo;
                     C  = -P_lo + myhalf*rho_tot_lo*grav*dz;
 
                     // Initial guess and residual
-                    Th_hi = th_hse_arr(i,j,klo);
                     P_hi  = P_lo;
-                    R_hi  = getRhogivenThetaPress(Th_hi, P_hi, R_d/Cp_d);
+                    Th_hi = th_hse_arr(i,j,klo);
+                    T_hi  = getTgivenPandTh(P_hi, Th_hi, RdoCp_d);
+                    R_hi  = getRhogivenThetaPress(Th_hi, P_hi, RdoCp_d);
                     rho_tot_hi = R_hi;
                     F = P_hi + myhalf*rho_tot_hi*grav*dz + C;
 
                     // Do iterations
-                    HSEutils::Newton_Raphson_hse(tol, R_d/Cp_d, dz,
-                                                 grav, C, Th_hi,
+                    bool maintain_Th = true;
+                    HSEutils::Newton_Raphson_hse(tol, RdoCp_d, dz,
+                                                 grav, C, Th_hi, T_hi,
                                                  qv_hi, qv_hi,
-                                                 P_hi, R_hi, F);
+                                                 P_hi, R_hi, F, maintain_Th);
 
                     // At first cell center
                      r_hse_arr(i,j,klo) = R_hi;
@@ -1426,21 +1841,23 @@ init_base_state_from_wrfinput (const Box& subdomain,
 
                   // Establish known constant
                   Th_lo = th_hse_arr(i,j,k-1);
-                  R_lo  = getRhogivenThetaPress(Th_lo, P_lo, R_d/Cp_d, qv_lo);
+                  R_lo  = getRhogivenThetaPress(Th_lo, P_lo, RdoCp_d, qv_lo);
                   rho_tot_lo = R_lo;
                   C  = -P_lo + myhalf*rho_tot_lo*grav*dz;
 
                   // Initial guess and residual
                   Th_hi = th_hse_arr(i,j,k);
-                  R_hi  = getRhogivenThetaPress(Th_hi, P_hi, R_d/Cp_d, qv_hi);
+                  T_hi  = getTgivenPandTh(P_hi, Th_hi, RdoCp_d);
+                  R_hi  = getRhogivenThetaPress(Th_hi, P_hi, RdoCp_d, qv_hi);
                   rho_tot_hi = R_hi;
                   F = P_hi + myhalf*rho_tot_hi*grav*dz + C;
 
                   // Do iterations
-                  HSEutils::Newton_Raphson_hse(tol, R_d/Cp_d, dz,
-                                               grav, C, Th_hi,
+                  bool maintain_Th = true;
+                  HSEutils::Newton_Raphson_hse(tol, RdoCp_d, dz,
+                                               grav, C, Th_hi, T_hi,
                                                qv_hi, qv_hi,
-                                               P_hi, R_hi, F);
+                                               P_hi, R_hi, F, maintain_Th);
 
                   // Assign data
                    r_hse_arr(i,j,k) = R_hi;
@@ -1460,6 +1877,7 @@ init_base_state_from_wrfinput (const Box& subdomain,
  * @param mf_PH  MultiFab storing WRF terrain coordinate data (PH)
  * @param mf_PHB MultiFab storing WRF terrain coordinate data (PHB)
  * @param domain Box holding index space of computational domain
+ * @return Height assigned to the top of the ERF domain
  */
 Real
 compute_terrain_top_and_bottom (const MultiFab& mf_PH,
@@ -1469,18 +1887,25 @@ compute_terrain_top_and_bottom (const MultiFab& mf_PH,
     Real z_top;
 
     //
-    // For the bottom/top boundary (in that order)
+    // Reductions for the bottom/top boundary (in that order)
     //
-    Gpu::HostVector  <Real> Max_h(3,-bogus_large_value);
-    Gpu::DeviceVector<Real> Max_d(3);
-    Gpu::copy(Gpu::hostToDevice, Max_h.begin(), Max_h.end(), Max_d.begin());
+    // NOTE: These must use the ReduceOps machinery rather than hand-rolled
+    //       Gpu::Atomic::Min/Max calls.  The Gpu::Atomic operations are *not*
+    //       atomic when running on the host, so they lose updates as soon as
+    //       this loop is threaded with OpenMP.  ReduceData holds one
+    //       accumulator per thread as long as it is constructed (and read)
+    //       outside of the OpenMP parallel region, as it is here.
+    //
+    ReduceOps<ReduceOpMin, ReduceOpMax> reduce_op_bot;
+    ReduceOps<ReduceOpMin, ReduceOpMax> reduce_op_top;
+    ReduceOps<ReduceOpMax>              reduce_op_km1;
 
-    Gpu::HostVector  <Real> Min_h(2, bogus_large_value);
-    Gpu::DeviceVector<Real> Min_d(2);
-    Gpu::copy(Gpu::hostToDevice, Min_h.begin(), Min_h.end(), Min_d.begin());
+    ReduceData<Real, Real> reduce_data_bot(reduce_op_bot);
+    ReduceData<Real, Real> reduce_data_top(reduce_op_top);
+    ReduceData<Real>       reduce_data_km1(reduce_op_km1);
 
-    Real* min_d = Min_d.data();
-    Real* max_d = Max_d.data();
+    using ReduceTupleMinMax = typename decltype(reduce_data_bot)::Type;
+    using ReduceTupleMax    = typename decltype(reduce_data_km1)::Type;
 
     //
     // ********************************************************************************
@@ -1494,7 +1919,16 @@ compute_terrain_top_and_bottom (const MultiFab& mf_PH,
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
     for ( MFIter mfi(mf_PH, TilingIfNotGPU()); mfi.isValid(); ++mfi ) {
+        //
+        // NOTE: The slabs below must be built from the *tilebox* so that each
+        //       (i,j) is visited exactly once.  Using the validbox here made
+        //       every tile of a box revisit the entire slab.
+        //
+        // NOTE: The clamping bounds must still come from the validbox since
+        //       they exist to keep the stencil inside this box's data.
+        //
         Box vbx = mfi.validbox();
+        Box tbx = mfi.tilebox();
 
         Box nodal_box = amrex::surroundingNodes(vbx);
         int ilo = nodal_box.smallEnd()[0];
@@ -1504,15 +1938,15 @@ compute_terrain_top_and_bottom (const MultiFab& mf_PH,
 
         // For the top boundary
         Box Fab2dBox_hi, Fab2dBox_hi_m1;
-        if (vbx.bigEnd(2) == khi) {
-            Fab2dBox_hi    = makeSlab(vbx,2,khi  );
-            Fab2dBox_hi_m1 = makeSlab(vbx,2,khi-1);
+        if (tbx.bigEnd(2) == khi) {
+            Fab2dBox_hi    = makeSlab(tbx,2,khi  );
+            Fab2dBox_hi_m1 = makeSlab(tbx,2,khi-1);
         }
 
         // For the bottom boundary
         Box Fab2dBox_lo;
-        if (vbx.smallEnd(2) == klo) {
-            Fab2dBox_lo = makeSlab(vbx,2,klo);
+        if (tbx.smallEnd(2) == klo) {
+            Fab2dBox_lo = makeSlab(tbx,2,klo);
         }
 
         auto const& phb = mf_PHB.const_array(mfi);
@@ -1521,63 +1955,71 @@ compute_terrain_top_and_bottom (const MultiFab& mf_PH,
         //
         // This loop computes the min and max values of the bottom surface
         //
-        ParallelFor(Fab2dBox_lo, [=] AMREX_GPU_DEVICE(int i, int j, int /*k*/) noexcept
-        {
-            int ii = std::max(std::min(i,ihi-1),ilo+1);
-            int jj = std::max(std::min(j,jhi-1),jlo+1);
-            Real z_calc_lo = Real(0.25) * ( ph (ii,jj  ,klo) + ph (ii-1,jj  ,klo) +
-                                            ph (ii,jj-1,klo) + ph (ii-1,jj-1,klo) +
-                                            phb(ii,jj  ,klo) + phb(ii-1,jj  ,klo) +
-                                            phb(ii,jj-1,klo) + phb(ii-1,jj-1,klo) ) / CONST_GRAV;
-            amrex::Gpu::Atomic::Min(&(min_d[0]),z_calc_lo);
-            amrex::Gpu::Atomic::Max(&(max_d[0]),z_calc_lo);
-        });
+        if (Fab2dBox_lo.ok()) {
+            reduce_op_bot.eval(Fab2dBox_lo, reduce_data_bot,
+            [=] AMREX_GPU_DEVICE(int i, int j, int /*k*/) noexcept -> ReduceTupleMinMax
+            {
+                int ii = std::max(std::min(i,ihi-1),ilo+1);
+                int jj = std::max(std::min(j,jhi-1),jlo+1);
+                Real z_calc_lo = Real(0.25) * ( ph (ii,jj  ,klo) + ph (ii-1,jj  ,klo) +
+                                                ph (ii,jj-1,klo) + ph (ii-1,jj-1,klo) +
+                                                phb(ii,jj  ,klo) + phb(ii-1,jj  ,klo) +
+                                                phb(ii,jj-1,klo) + phb(ii-1,jj-1,klo) ) / CONST_GRAV;
+                return {z_calc_lo, z_calc_lo};
+            });
+        }
 
         //
         // This loop computes the max value of the top surface
         //
-        ParallelFor(Fab2dBox_hi, [=] AMREX_GPU_DEVICE(int i, int j, int /*k*/) noexcept
-        {
-            int ii = std::max(std::min(i,ihi-1),ilo+1);
-            int jj = std::max(std::min(j,jhi-1),jlo+1);
-            Real z_calc_hi = Real(0.25) * ( ph (ii,jj  ,khi) + ph (ii-1,jj  ,khi) +
-                                            ph (ii,jj-1,khi) + ph (ii-1,jj-1,khi) +
-                                            phb(ii,jj  ,khi) + phb(ii-1,jj  ,khi) +
-                                            phb(ii,jj-1,khi) + phb(ii-1,jj-1,khi) ) / CONST_GRAV;
-            amrex::Gpu::Atomic::Max(&(max_d[1]),z_calc_hi);
-            amrex::Gpu::Atomic::Min(&(min_d[1]),z_calc_hi);
-        });
+        if (Fab2dBox_hi.ok()) {
+            reduce_op_top.eval(Fab2dBox_hi, reduce_data_top,
+            [=] AMREX_GPU_DEVICE(int i, int j, int /*k*/) noexcept -> ReduceTupleMinMax
+            {
+                int ii = std::max(std::min(i,ihi-1),ilo+1);
+                int jj = std::max(std::min(j,jhi-1),jlo+1);
+                Real z_calc_hi = Real(0.25) * ( ph (ii,jj  ,khi) + ph (ii-1,jj  ,khi) +
+                                                ph (ii,jj-1,khi) + ph (ii-1,jj-1,khi) +
+                                                phb(ii,jj  ,khi) + phb(ii-1,jj  ,khi) +
+                                                phb(ii,jj-1,khi) + phb(ii-1,jj-1,khi) ) / CONST_GRAV;
+                return {z_calc_hi, z_calc_hi};
+            });
+        }
 
         //
         // This loop computes the max value of the layer just below the top surface
         //
-        ParallelFor(Fab2dBox_hi_m1, [=] AMREX_GPU_DEVICE(int i, int j, int /*k*/) noexcept
-        {
-            int ii = std::max(std::min(i,ihi-1),ilo+1);
-            int jj = std::max(std::min(j,jhi-1),jlo+1);
-            Real z_calc_hi = Real(0.25) * ( ph (ii,jj  ,khi-1) + ph (ii-1,jj  ,khi-1) +
-                                            ph (ii,jj-1,khi-1) + ph (ii-1,jj-1,khi-1) +
-                                            phb(ii,jj  ,khi-1) + phb(ii-1,jj  ,khi-1) +
-                                            phb(ii,jj-1,khi-1) + phb(ii-1,jj-1,khi-1) ) / CONST_GRAV;
-            amrex::Gpu::Atomic::Max(&(max_d[2]),z_calc_hi);
-        });
+        if (Fab2dBox_hi_m1.ok()) {
+            reduce_op_km1.eval(Fab2dBox_hi_m1, reduce_data_km1,
+            [=] AMREX_GPU_DEVICE(int i, int j, int /*k*/) noexcept -> ReduceTupleMax
+            {
+                int ii = std::max(std::min(i,ihi-1),ilo+1);
+                int jj = std::max(std::min(j,jhi-1),jlo+1);
+                Real z_calc_hi = Real(0.25) * ( ph (ii,jj  ,khi-1) + ph (ii-1,jj  ,khi-1) +
+                                                ph (ii,jj-1,khi-1) + ph (ii-1,jj-1,khi-1) +
+                                                phb(ii,jj  ,khi-1) + phb(ii-1,jj  ,khi-1) +
+                                                phb(ii,jj-1,khi-1) + phb(ii-1,jj-1,khi-1) ) / CONST_GRAV;
+                return {z_calc_hi};
+            });
+        }
     } // mfi
 
-    Gpu::copy(Gpu::deviceToHost, Min_d.begin(), Min_d.end(), Min_h.begin());
-    Gpu::copy(Gpu::deviceToHost, Max_d.begin(), Max_d.end(), Max_h.begin());
+    ReduceTupleMinMax hv_bot = reduce_data_bot.value(reduce_op_bot);
+    ReduceTupleMinMax hv_top = reduce_data_top.value(reduce_op_top);
+    ReduceTupleMax    hv_km1 = reduce_data_km1.value(reduce_op_km1);
 
-    ParallelDescriptor::ReduceRealMin(Min_h[0]);
-    ParallelDescriptor::ReduceRealMin(Min_h[1]);
+    Real terrain_bottom_min = amrex::get<0>(hv_bot);
+    Real terrain_bottom_max = amrex::get<1>(hv_bot);
+    Real terrain_top_min    = amrex::get<0>(hv_top);
+    Real terrain_top_max    = amrex::get<1>(hv_top);
+    Real terrain_km1_max    = amrex::get<0>(hv_km1);
 
-    ParallelDescriptor::ReduceRealMax(Max_h[0]);
-    ParallelDescriptor::ReduceRealMax(Max_h[1]);
-    ParallelDescriptor::ReduceRealMax(Max_h[2]);
+    ParallelDescriptor::ReduceRealMin(terrain_bottom_min);
+    ParallelDescriptor::ReduceRealMin(terrain_top_min);
 
-    Real terrain_bottom_max = Max_h[0];
-    Real terrain_bottom_min = Min_h[0];
-    Real terrain_top_max    = Max_h[1];
-    Real terrain_top_min    = Min_h[1];
-    Real terrain_km1_max    = Max_h[2];
+    ParallelDescriptor::ReduceRealMax(terrain_bottom_max);
+    ParallelDescriptor::ReduceRealMax(terrain_top_max);
+    ParallelDescriptor::ReduceRealMax(terrain_km1_max);
 
     Print() << "Terrain     has min value    = " << terrain_bottom_min << " and max value = " << terrain_bottom_max << std::endl;
     Print() << "Top of mesh has min value    = " << terrain_top_min    << " and max value = " << terrain_top_max << std::endl;
@@ -1600,100 +2042,320 @@ compute_terrain_top_and_bottom (const MultiFab& mf_PH,
 /**
  * Helper function for initializing terrain coordinates from a WRF dataset.
  *
- * @param lev Integer specifying the current level
- * @param z_phys FArrayBox specifying the node-centered z coordinates of the terrain
- * @param NC_PH_fab Vector of FArrayBox objects storing WRF terrain coordinate data (PH)
- * @param NC_PHB_fab Vector of FArrayBox objects storing WRF terrain coordinate data (PHB)
+ * The unused level argument is retained for interface compatibility.
+ *
+ * @param z_top Height assigned to the top of the ERF domain
+ * @param subdomain Box specifying the index space we are initializing
+ * @param z_phys MultiFab specifying the node-centered z coordinates of the terrain
+ * @param mf_PH MultiFab storing WRF perturbation geopotential data
+ * @param mf_PHB MultiFab storing WRF base-state geopotential data
  */
 void
 init_terrain_from_wrfinput (int /*lev*/,
+                            Geometry& geom,
                             const Real& z_top,
                             const Box& subdomain,
                             MultiFab* z_phys,
                             const MultiFab& mf_PH,
-                            const MultiFab& mf_PHB)
+                            const MultiFab& mf_PHB,
+                            Real& dz0_max,
+                            const bool& use_wrf_height_grid)
 {
-    for ( MFIter mfi(*z_phys, false); mfi.isValid(); ++mfi )
-    {
-        Box gnbx = mfi.growntilebox();
+    Print() << "Constructing nodal heights (z_phys_nd)" << std::endl;
 
-        // This copies from NC_zphys on z-faces to z_phys_nd on nodes
-        const Array4<Real      >&      z_arr = z_phys->array(mfi);
-        const Array4<Real const>& nc_phb_arr = mf_PHB.const_array(mfi);
-        const Array4<Real const>& nc_ph_arr  = mf_PH.const_array(mfi);
-
-        // PHB and PH are on z-faces (half dx / half dy ahead of zphys)
-        Box z_face_box = convert(subdomain,IntVect(0,0,1));
-
-        // Prevent averaging from going into ghost cells
-        int ilo = z_face_box.smallEnd()[0];
-        int ihi = z_face_box.bigEnd()[0];
-        int jlo = z_face_box.smallEnd()[1];
-        int jhi = z_face_box.bigEnd()[1];
-        int klo = z_face_box.smallEnd()[2];
-        int khi = z_face_box.bigEnd()[2];
-
-        ParallelFor(gnbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+    if (use_wrf_height_grid) {
+        for ( MFIter mfi(*z_phys, false); mfi.isValid(); ++mfi )
         {
-            int ii = std::max(std::min(i,ihi),ilo);
-            int jj = std::max(std::min(j,jhi),jlo);
+            Box gnbx = mfi.growntilebox();
 
-            int im = std::max(std::min(i-1,ihi),ilo);
-            int jm = std::max(std::min(j-1,jhi),jlo);
+            // This copies from NC_zphys on z-faces to z_phys_nd on nodes
+            const Array4<Real      >&      z_arr = z_phys->array(mfi);
+            const Array4<Real const>& nc_phb_arr = mf_PHB.const_array(mfi);
+            const Array4<Real const>& nc_ph_arr  = mf_PH.const_array(mfi);
 
-            if (k < klo) {
-                Real z_klo   = Real(0.25) * ( nc_ph_arr (ii,jj,klo  ) + nc_ph_arr (im,jj,klo  ) +
-                                              nc_ph_arr (ii,jm,klo  ) + nc_ph_arr (im,jm,klo) +
-                                              nc_phb_arr(ii,jj,klo  ) + nc_phb_arr(im,jj,klo  ) +
-                                              nc_phb_arr(ii,jm,klo  ) + nc_phb_arr(im,jm,klo) ) / CONST_GRAV;
-                Real z_klop1 = Real(0.25) * ( nc_ph_arr (ii,jj,klo+1) + nc_ph_arr (im,jj,klo+1) +
-                                              nc_ph_arr (ii,jm,klo+1) + nc_ph_arr (im,jm,klo+1) +
-                                              nc_phb_arr(ii,jj,klo+1) + nc_phb_arr(im,jj,klo+1) +
-                                              nc_phb_arr(ii,jm,klo+1) + nc_phb_arr(im,jm,klo+1) ) / CONST_GRAV;
-                z_arr(i, j, k) = two * z_klo - z_klop1;
-            } else if (k > khi) {
-                Real z_khim1 = Real(0.25) * ( nc_ph_arr (ii,jj,khi-1) + nc_ph_arr (im,jj,khi-1) +
-                                              nc_ph_arr (ii,jm,khi-1) + nc_ph_arr (im,jm,khi-1) +
-                                              nc_phb_arr(ii,jj,khi-1) + nc_phb_arr(im,jj,khi-1) +
-                                              nc_phb_arr(ii,jm,khi-1) + nc_phb_arr(im,jm,khi-1) ) / CONST_GRAV;
-                z_arr(i, j, k) = two * z_top - z_khim1;
-            } else if (k == khi) {
-                z_arr(i, j, k) = Real(0.25) * ( nc_ph_arr (ii,jj,k) + nc_ph_arr (im,jj,k) +
-                                                nc_ph_arr (ii,jm,k) + nc_ph_arr (im,jm,k) +
-                                                nc_phb_arr(ii,jj,k) + nc_phb_arr(im,jj,k) +
-                                                nc_phb_arr(ii,jm,k) + nc_phb_arr(im,jm,k) ) / CONST_GRAV;
-                z_arr(i, j, k) = z_top;
-            } else {
-                // Note: wrfinput geopotentials ph, phb are only staggered in the vertical, i.e.,
-                //       they have dims (bottom_top_stag, south_north, west_east). On k==klo, we
-                //       will end up smoothing the terrain as we average from surface face centers
-                //       to nodes.
-                z_arr(i, j, k) = Real(0.25) * ( nc_ph_arr (ii,jj,k) + nc_ph_arr (im,jj,k) +
-                                                nc_ph_arr (ii,jm,k) + nc_ph_arr (im,jm,k) +
-                                                nc_phb_arr(ii,jj,k) + nc_phb_arr(im,jj,k) +
-                                                nc_phb_arr(ii,jm,k) + nc_phb_arr(im,jm,k) ) / CONST_GRAV;
-            }
-        });
+            // PHB and PH are on z-faces (half dx / half dy ahead of zphys)
+            Box z_face_box = convert(subdomain,IntVect(0,0,1));
 
-        // Sanity check
-        Print() << "Verifying grid integrity" << std::endl;
-        const Box& vbox = mfi.validbox();
-        if (vbox.smallEnd(2) == klo) {
-            Box z_surf_faces = makeSlab(vbox, 2, klo);
-            ParallelFor(z_surf_faces, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+            // Prevent averaging from going into ghost cells
+            int ilo = z_face_box.smallEnd()[0];
+            int ihi = z_face_box.bigEnd()[0];
+            int jlo = z_face_box.smallEnd()[1];
+            int jhi = z_face_box.bigEnd()[1];
+            int klo = z_face_box.smallEnd()[2];
+            int khi = z_face_box.bigEnd()[2];
+
+            ParallelFor(gnbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
             {
-                if (z_arr(i,j,k+1) < z_arr(i,j,k)) {
-#ifdef AMREX_USE_GPU
-                    AMREX_DEVICE_PRINTF("z values at (%d,%d,%d) and k+1 are %f, %f\n",
-                           i,j,k, z_arr(i,j,k), z_arr(i,j,k+1));
-#else
-                    printf("z values at (%d,%d,%d) and k+1 are %f, %f\n",
-                           i,j,k, z_arr(i,j,k), z_arr(i,j,k+1));
-#endif
-                    Error("Grid integrity issue detected");
+                int ii = std::max(std::min(i,ihi),ilo);
+                int jj = std::max(std::min(j,jhi),jlo);
+
+                int im = std::max(std::min(i-1,ihi),ilo);
+                int jm = std::max(std::min(j-1,jhi),jlo);
+
+                if (k < klo) {
+                    Real z_klo   = Real(0.25) * ( nc_ph_arr (ii,jj,klo  ) + nc_ph_arr (im,jj,klo  ) +
+                                                  nc_ph_arr (ii,jm,klo  ) + nc_ph_arr (im,jm,klo) +
+                                                  nc_phb_arr(ii,jj,klo  ) + nc_phb_arr(im,jj,klo  ) +
+                                                  nc_phb_arr(ii,jm,klo  ) + nc_phb_arr(im,jm,klo) ) / CONST_GRAV;
+                    Real z_klop1 = Real(0.25) * ( nc_ph_arr (ii,jj,klo+1) + nc_ph_arr (im,jj,klo+1) +
+                                                  nc_ph_arr (ii,jm,klo+1) + nc_ph_arr (im,jm,klo+1) +
+                                                  nc_phb_arr(ii,jj,klo+1) + nc_phb_arr(im,jj,klo+1) +
+                                                  nc_phb_arr(ii,jm,klo+1) + nc_phb_arr(im,jm,klo+1) ) / CONST_GRAV;
+                    // Extrapolate linearly below the surface -- note that z_phys_nd
+                    // has more than one ghost node in the vertical, so this must
+                    // depend on k rather than filling every ghost node with one value
+                    z_arr(i, j, k) = z_klo - static_cast<Real>(klo-k) * (z_klop1 - z_klo);
+                } else if (k > khi) {
+                    Real z_khim1 = Real(0.25) * ( nc_ph_arr (ii,jj,khi-1) + nc_ph_arr (im,jj,khi-1) +
+                                                  nc_ph_arr (ii,jm,khi-1) + nc_ph_arr (im,jm,khi-1) +
+                                                  nc_phb_arr(ii,jj,khi-1) + nc_phb_arr(im,jj,khi-1) +
+                                                  nc_phb_arr(ii,jm,khi-1) + nc_phb_arr(im,jm,khi-1) ) / CONST_GRAV;
+                    // Extrapolate linearly above the top of the domain -- note that
+                    // z_phys_nd has more than one ghost node in the vertical, so this
+                    // must depend on k rather than filling every ghost node with one value
+                    z_arr(i, j, k) = z_top + static_cast<Real>(k-khi) * (z_top - z_khim1);
+                } else if (k == khi) {
+                    z_arr(i, j, k) = Real(0.25) * ( nc_ph_arr (ii,jj,k) + nc_ph_arr (im,jj,k) +
+                                                    nc_ph_arr (ii,jm,k) + nc_ph_arr (im,jm,k) +
+                                                    nc_phb_arr(ii,jj,k) + nc_phb_arr(im,jj,k) +
+                                                    nc_phb_arr(ii,jm,k) + nc_phb_arr(im,jm,k) ) / CONST_GRAV;
+                    z_arr(i, j, k) = z_top;
+                } else {
+                    // Note: wrfinput geopotentials ph, phb are only staggered in the vertical, i.e.,
+                    //       they have dims (bottom_top_stag, south_north, west_east). On k==klo, we
+                    //       will end up smoothing the terrain as we average from surface face centers
+                    //       to nodes.
+                    z_arr(i, j, k) = Real(0.25) * ( nc_ph_arr (ii,jj,k) + nc_ph_arr (im,jj,k) +
+                                                    nc_ph_arr (ii,jm,k) + nc_ph_arr (im,jm,k) +
+                                                    nc_phb_arr(ii,jj,k) + nc_phb_arr(im,jj,k) +
+                                                    nc_phb_arr(ii,jm,k) + nc_phb_arr(im,jm,k) ) / CONST_GRAV;
                 }
             });
-        } // tile includes zlo
-    } // mfi
+
+            // Sanity check
+            Print() << "Verifying grid integrity" << std::endl;
+            const Box& vbox = mfi.validbox();
+            if (vbox.smallEnd(2) == klo) {
+                Box z_surf_faces = makeSlab(vbox, 2, klo);
+                ParallelFor(z_surf_faces, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+                {
+                    if (z_arr(i,j,k+1) < z_arr(i,j,k)) {
+#ifdef AMREX_USE_GPU
+                        AMREX_DEVICE_PRINTF("z values at (%d,%d,%d) and k+1 are %f, %f\n",
+                                            i,j,k, z_arr(i,j,k), z_arr(i,j,k+1));
+#else
+                        printf("z values at (%d,%d,%d) and k+1 are %f, %f\n",
+                               i,j,k, z_arr(i,j,k), z_arr(i,j,k+1));
+#endif
+                        Error("Grid integrity issue detected");
+                    }
+                });
+            } // tile includes zlo
+        } // mfi
+    } else {
+
+        // Lateral ghost cells
+        IntVect ngz = z_phys->nGrowVect(); int kghost = ngz[2]; ngz[2] = 0;
+
+        // PHB and PH are on z-faces
+        Box z_face_dom = convert(subdomain,IntVect(0,0,1));
+
+        // Z-face FAB for each z_wrf slice
+        Box z_face_dom_slice = makeSlab(z_face_dom, 2, 0);
+        FArrayBox z_slice_wrf(z_face_dom_slice, 1, The_Managed_Arena());
+        FArrayBox z_slice_wrf_sfc(z_face_dom_slice, 1, The_Managed_Arena());
+
+        // Z_phys is nodal
+        Box node_dom = convert(subdomain, IntVect(1,1,1));
+        int ilo = node_dom.smallEnd(0);
+        int jlo = node_dom.smallEnd(1);
+        int ihi = node_dom.bigEnd(0);
+        int jhi = node_dom.bigEnd(1);
+        int klo = node_dom.smallEnd(2);
+        int khi = node_dom.bigEnd(2);
+
+        // Process each slice
+        int kstart = klo;
+        int kend   = klo + 2;
+        for (int k(kstart); k<kend; ++k) {
+            z_slice_wrf.setVal<RunOn::Device>(zero);
+
+            const Array4<Real>& z_slice_wrf_arr     = z_slice_wrf.array();
+            const Array4<Real>& z_slice_wrf_sfc_arr = z_slice_wrf_sfc.array();
+
+            // Fill the z-face fab with wrf heights
+            for ( MFIter mfi(mf_PH); mfi.isValid(); ++mfi ) {
+
+                Box vbx = mfi.validbox(); vbx.makeSlab(2,0);
+
+                const Array4<const Real>& nc_phb_arr = mf_PHB.const_array(mfi);
+                const Array4<const Real>& nc_ph_arr  = mf_PH.const_array(mfi);
+
+                ParallelFor(vbx, [=] AMREX_GPU_DEVICE(int i, int j, int /*k*/) noexcept
+                {
+                    z_slice_wrf_arr(i,j,0) = ( nc_ph_arr(i,j,k) + nc_phb_arr(i,j,k) ) / CONST_GRAV;
+                });
+            }
+
+            // Get global slice of WRF heights
+            ParallelAllReduce::Sum(z_slice_wrf.dataPtr(),
+                                   z_slice_wrf.size(),
+                                   ParallelContext::CommunicatorAll());
+
+            // Solve for node values that reproduce the WRF z-face values as
+            // closely as a bounded, smooth nodal field can.  We deliberately do
+            // *not* invert the four-node averaging operator exactly: its symbol
+            // vanishes at the grid Nyquist mode, so exact de-averaging amplifies
+            // grid-scale content of the WRF terrain without bound and returns
+            // nodal heights that are kilometers away from the WRF terrain.
+            // See ERF_NodalReconstruction.H for the regularized least-squares
+            // formulation used instead.
+            const Real tol = Real(1.e-10);
+            NodalReconstruction NR_solver(z_face_dom_slice, geom);
+            FArrayBox z_slice_ref = NR_solver.makeReference(z_slice_wrf);
+            std::pair<amrex::FArrayBox,SolveInfo> result = NR_solver.solve(z_slice_wrf, z_slice_ref,
+                                                                           VariationOperator::FirstDeriv, tol);
+            const Array4<Real>& z_slice_erf_arr = result.first.array();
+            const SolveInfo& info = result.second;
+            if (!info.converged) {
+                Print() << "WARNING: Nodal reconstruction did not converge at k = " << k
+                        << "; residual is: " << info.final_residual
+                        << " and requested tolerance was: " << tol << "\n";
+            }
+
+            // Range check on the reconstructed heights.  This is the check that
+            // has teeth: comparing the four-node average against WRF (done at
+            // the end of this routine) is close to satisfied by construction and
+            // cannot detect a blown-up reconstruction.
+            {
+                Real wrf_min =  std::numeric_limits<Real>::max();
+                Real wrf_max = -std::numeric_limits<Real>::max();
+                LoopOnCpu(z_face_dom_slice, [=,&wrf_min,&wrf_max] (int i, int j, int /*k*/) noexcept
+                {
+                    wrf_min = amrex::min(wrf_min, z_slice_wrf_arr(i,j,0));
+                    wrf_max = amrex::max(wrf_max, z_slice_wrf_arr(i,j,0));
+                });
+
+                Print() << "Nodal reconstruction at k = " << k << ": "
+                        << info.iterations << " CG iterations, " << info.refinements
+                        << " refinements, regularization " << info.regularization
+                        << "\n    nodal heights in [" << info.min_value << ", " << info.max_value
+                        << "] m vs WRF z-faces in [" << wrf_min << ", " << wrf_max << "] m"
+                        << "\n    max |avg4(nodal) - WRF| = " << info.max_average_error
+                        << " m (direct interpolation gives " << info.interp_average_error << " m)"
+                        << "\n    max deviation from direct interpolation = " << info.deviation
+                        << " m (cap " << info.deviation_cap << " m)" << std::endl;
+
+                // Nodes may legitimately over/undershoot the cell values where
+                // the terrain is under-resolved, but only by a fraction of the
+                // relief of the layer itself.
+                const Real relief = amrex::max(wrf_max - wrf_min, Real(1.0));
+                const Real slack  = amrex::max(Real(0.5) * relief, Real(10.0));
+
+                if ( !std::isfinite(info.min_value) || !std::isfinite(info.max_value) ||
+                     (info.min_value < wrf_min - slack) || (info.max_value > wrf_max + slack) )
+                {
+                    Error("Nodal reconstruction produced heights far outside the range of the "
+                          "WRF z-face heights; the reconstruction is not usable as terrain.");
+                }
+            }
+
+            // Store the surface
+            if (k==kstart) {
+                LoopOnCpu(z_face_dom_slice, [=] (int i, int j, int /*k*/) noexcept
+                {
+                    z_slice_wrf_sfc_arr(i,j,0) = z_slice_wrf_arr(i,j,0);
+                });
+            }
+
+            // Compute dz0_max from current layer and surface layer
+            if (k==kstart+1) {
+                dz0_max = std::numeric_limits<Real>::min();
+                LoopOnCpu(z_face_dom_slice, [=,&dz0_max] (int i, int j, int /*k*/) noexcept
+                {
+                    Real dz0 = z_slice_wrf_arr(i,j,0) - z_slice_wrf_sfc_arr(i,j,0);
+                    dz0_max = amrex::max(dz0, dz0_max);
+                });
+            }
+
+            // Copy back to z_phys and handle all ghost cells
+            for ( MFIter mfi(*z_phys); mfi.isValid(); ++mfi ) {
+                Box gbx = mfi.growntilebox();
+                Box sbx = makeSlab(gbx, 2, 0);
+                const Array4<Real>& z_arr = z_phys->array(mfi);
+                ParallelFor(sbx, [=] AMREX_GPU_DEVICE(int i, int j, int /*k*/) noexcept
+                {
+                    int ii  = std::max(std::min(i,ihi),ilo);
+                    int jj  = std::max(std::min(j,jhi),jlo);
+                    z_arr(i,j,k) = z_slice_erf_arr(ii,jj,0);
+                    if (k == klo + 1) {
+                        Real dz = z_arr(i,j,k) - z_arr(i,j,k-1);
+                        for (int lk(1); lk<(kghost+1); ++lk) {
+                            z_arr(i,j,klo-lk) = z_arr(i,j,klo) - dz * static_cast<Real>(lk);
+                        }
+                    }
+                });
+            }
+        } // k
+
+        // Sanity check.
+        //
+        // The nodal heights are a regularized least-squares fit to the WRF
+        // z-face heights, not an exact de-averaging of them.  The four-node average
+        // therefore no longer reproduces WRF to round-off, and the size of the
+        // mismatch is a genuine diagnostic of how much grid-scale terrain the
+        // WRF field carries.  We report it, and we abort only on failures that
+        // make the mesh unusable: non-finite heights, or a layer that is not
+        // strictly increasing in z.
+        Print() << "Verifying reconstructed nodal heights" << std::endl;
+        {
+            ReduceOps<ReduceOpMax, ReduceOpMin> reduce_op;
+            ReduceData<Real, Real> reduce_data(reduce_op);
+            using ReduceTuple = typename decltype(reduce_data)::Type;
+
+            for ( MFIter mfi(mf_PHB); mfi.isValid(); ++mfi ) {
+                Box vbx = mfi.validbox();
+                if (vbx.smallEnd(2) > klo+1) { continue; }
+                vbx.setBig(2,klo+1);
+
+                const Array4<const Real>& nc_phb_arr = mf_PHB.const_array(mfi);
+                const Array4<const Real>& nc_ph_arr  = mf_PH.const_array(mfi);
+                const Array4<const Real>& z_arr      = z_phys->const_array(mfi);
+
+                reduce_op.eval(vbx, reduce_data,
+                [=] AMREX_GPU_DEVICE (int i, int j, int k) -> ReduceTuple
+                {
+                    Real z_face_wrf = ( nc_ph_arr(i,j,k) + nc_phb_arr(i,j,k) ) / CONST_GRAV;
+                    Real z_face_erf = fourth * ( z_arr(i, j  , k) + z_arr(i+1, j  , k)
+                                               + z_arr(i, j+1, k) + z_arr(i+1, j+1, k) );
+                    Real avg_err = (k < khi) ? std::fabs(z_face_erf-z_face_wrf) : zero;
+
+                    // Nodal layer thickness; only defined once we are at klo
+                    Real dz = (k == klo) ? (z_arr(i,j,klo+1) - z_arr(i,j,klo))
+                                         : std::numeric_limits<Real>::max();
+                    return {avg_err, dz};
+                });
+            } // mfi
+
+            ReduceTuple hv = reduce_data.value(reduce_op);
+            Real max_avg_err = amrex::max(amrex::get<0>(hv), zero);
+            Real min_dz      = amrex::get<1>(hv);
+            ParallelAllReduce::Max(max_avg_err, ParallelContext::CommunicatorAll());
+            ParallelAllReduce::Min(min_dz     , ParallelContext::CommunicatorAll());
+
+            Print() << "Max |avg4(nodal z) - WRF z-face| over the reconstructed levels: "
+                    << max_avg_err << " m" << std::endl;
+            Print() << "Min nodal thickness of the first layer: " << min_dz << " m" << std::endl;
+
+            if (!std::isfinite(max_avg_err) || !std::isfinite(min_dz)) {
+                Error("Non-finite nodal heights produced by the terrain reconstruction");
+            }
+            if (min_dz <= zero) {
+                Error("Reconstructed nodal terrain gives a non-positive first layer thickness; "
+                      "the WRF terrain is too rough to represent on the ERF nodal mesh. "
+                      "Consider running with erf.use_wrf_height_grid = true.");
+            }
+        }
+    } // use wrf grid
 }
 #endif // ERF_USE_NETCDF

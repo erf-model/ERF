@@ -5,8 +5,32 @@
 
 #include <string>
 #include <AMReX_Particles.H>
+#include <AMReX_ParticleUtil.H>
 #include <ERF_Constants.H>
 
+/** Particle cell-binning functor for DenseBins.  Maps a particle to its
+ *  cell-tile index via amrex::getParticleCell + amrex::getTileIndex. */
+struct GetParticleBinERF
+{
+    amrex::GpuArray<amrex::Real,AMREX_SPACEDIM> plo;
+    amrex::GpuArray<amrex::Real,AMREX_SPACEDIM> dxi;
+    amrex::Box                                   domain;
+    amrex::IntVect                               bin_size;
+    amrex::Box                                   box;
+    template <typename P>
+    AMREX_GPU_HOST_DEVICE
+    unsigned int operator() (const P& p) const noexcept
+    {
+        amrex::Box tbx;
+        auto iv  = amrex::getParticleCell(p, plo, dxi, domain);
+        auto tid = amrex::getTileIndex(iv, box, true, bin_size, tbx);
+        return static_cast<unsigned int>(tid);
+    }
+};
+
+/**
+ * @brief Index mapping for integer particle attributes.
+ */
 struct ERFParticlesIntIdx
 {
     enum {
@@ -14,6 +38,9 @@ struct ERFParticlesIntIdx
     };
 };
 
+/**
+ * @brief Index mapping for real-valued particle attributes.
+ */
 struct ERFParticlesRealIdx
 {
     enum {
@@ -37,6 +64,9 @@ namespace ERFParticleNames
     const std::string tracers = "tracer_particles";
 }
 
+/**
+ * @brief Particle container for ERF particles.
+ */
 class ERFPC : public amrex::ParticleContainer<  0,                              // AoS real attributes
                                                 0,                              // AoS integer attributes
                                                 ERFParticlesRealIdx::ncomps,    // SoA real attributes
@@ -76,13 +106,13 @@ class ERFPC : public amrex::ParticleContainer<  0,                              
         }
 
         /*! Initialize particles in domain */
-        virtual void InitializeParticles (const amrex::Real time, const std::unique_ptr<amrex::MultiFab>& a_ptr = nullptr);
+        virtual void InitializeParticles (const double time, const std::unique_ptr<amrex::MultiFab>& a_ptr = nullptr);
 
         /*! Evolve particles for one time step */
-        virtual void EvolveParticles (   int,
-                                         amrex::Real,
-                                         amrex::Vector<amrex::Vector<amrex::MultiFab>>&,
-                                         const amrex::Vector<std::unique_ptr<amrex::MultiFab>>& );
+        virtual void EvolveParticles (int                                                    a_lev,
+                                      double                                                 a_dt_lev,
+                                      amrex::Vector<amrex::Vector<amrex::MultiFab>>&         a_flow_vars,
+                                      const amrex::Vector<std::unique_ptr<amrex::MultiFab>>& a_z_phys_nd );
 
         /*! Get real-type particle attribute names */
         virtual amrex::Vector<std::string> varNames () const
@@ -99,21 +129,21 @@ class ERFPC : public amrex::ParticleContainer<  0,                              
         }
 
         /*! Uses midpoint method to advance particles using flow velocity. */
-        virtual void AdvectWithFlow (  amrex::MultiFab*,
-                                       int,
-                                       amrex::Real,
-                                       const std::unique_ptr<amrex::MultiFab>& );
+        virtual void AdvectWithFlow (amrex::MultiFab*                        a_umac,
+                                     int                                     a_lev,
+                                     double                                  a_dt,
+                                     const std::unique_ptr<amrex::MultiFab>& a_z_height);
 
         /*! Uses midpoint method to advance particles falling under gravity. */
-        virtual void AdvectWithGravity ( int,
-                                         amrex::Real,
-                                         const std::unique_ptr<amrex::MultiFab>& );
+        virtual void AdvectWithGravity (int                                     a_lev,
+                                        double                                  a_dt,
+                                        const std::unique_ptr<amrex::MultiFab>& a_z_height);
 
         /*! Interpolates flow temperature to particles */
-        virtual void ComputeTemperature ( const amrex::MultiFab&,
-                                          int,
-                                          amrex::Real,
-                                          const std::unique_ptr<amrex::MultiFab>& );
+        virtual void ComputeTemperature (const amrex::MultiFab&                  a_ucons,
+                                         int                                     a_lev,
+                                         double                                /*a_dt*/,
+                                         const std::unique_ptr<amrex::MultiFab>& a_z_height);
 
         /*! Compute mass density */
         virtual void massDensity ( amrex::MultiFab&,
@@ -181,6 +211,25 @@ class ERFPC : public amrex::ParticleContainer<  0,                              
         /*! Diagnostic: count particles per level and halo (for AMR) */
         void CountParticlesPerLevelAndHalo ( int a_finest_level );
 
+        /*! Split coarse-level particles in newly-refined cells after AMR regrid
+         *  to restore the per-cell super-droplet count.  Handles cascading
+         *  refinement across multiple new levels in a single call (see the
+         *  SuperDropletPC override for details).  Default no-op. */
+        virtual void SplitParticlesForRefinement ( int /*a_finest_level*/ ) {}
+
+        /*! Split new entrants and merge departees at AMR level boundaries.
+         *  Called every Redistribute(z_phys_nd) to maintain uniform per-cell
+         *  super-droplet density across levels.  Default no-op. */
+        virtual void SplitMergeAtLevelBoundary () {}
+
+        /*! Regrid-time de-refinement merge.  For cells that were in the old
+         *  fine BoxArray at level `a_lev` but are no longer in the current
+         *  one, reduces the coarse-level super-droplet count from `np_bin`
+         *  to `np_bin / merge_factor`.  Default no-op. */
+        virtual void MergeParticlesAtDerefinement ( int /*a_lev*/,
+                                                    const amrex::BoxArray& /*a_old_fine_ba*/,
+                                                    const amrex::IntVect& /*a_ref_ratio*/ ) {}
+
     protected:
 
         bool m_advect_w_flow;               /*!< advect with flow velocity */
@@ -193,7 +242,7 @@ class ERFPC : public amrex::ParticleContainer<  0,                              
         std::string m_initialization_type;  /*!< initial particle distribution type */
         int m_ppc_init;                     /*!< initial number of particles per cell */
 
-        amrex::Real m_inject_start_time;    /*!< particles will only be initialized/injected if time >= m_inject_start_time */
+        double m_inject_start_time;    /*!< particles will only be initialized/injected if time >= m_inject_start_time */
 
         bool m_initialized = false;         /*!< have the particles been initialized */
 

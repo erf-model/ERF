@@ -1,3 +1,6 @@
+/**
+ * \file ERF_WriteSubvolume.cpp
+ */
 #include <ERF_EOS.H>
 #include <ERF.H>
 #include <ERF_EpochTime.H>
@@ -283,16 +286,22 @@ ERF::WriteSubvolume (int isub,Vector<std::string> subvol_var_names)
     {
         if (containerHasElement(subvol_var_names, der_name)) {
             MultiFab dmf(src_mf.boxArray(), src_mf.DistributionMap(), 1, 0);
+            //
+            // NOTE: we must not tile in z here because some of the derived quantities
+            //       ("precipitable", "mucape") are whole-column operations and require
+            //       the full column in each box
+            //
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
-            for (MFIter mfi(dmf, TilingIfNotGPU()); mfi.isValid(); ++mfi)
+            for (MFIter mfi(dmf, TileNoZ()); mfi.isValid(); ++mfi)
             {
                 const Box& tbx = mfi.tilebox();
                 auto& dfab = dmf[mfi];
                 auto& sfab = src_mf[mfi];
                 auto& zfab = (*z_phys_cc[lev_for_sub])[mfi];
-                der_function(tbx, dfab, 0, 1, sfab, zfab, Geom(lev_for_sub), t_new[0], nullptr, lev_for_sub);
+                der_function(tbx, dfab, 0, 1, sfab, zfab, Geom(lev_for_sub),
+                             static_cast<Real>(t_new[0]), nullptr, lev_for_sub);
             }
             mf.ParallelCopy(dmf,0,mf_comp,1,0,0);
             mf_comp++;
@@ -320,7 +329,7 @@ ERF::WriteSubvolume (int isub,Vector<std::string> subvol_var_names)
 
     // *****************************************************************************************
 
-    Real time = t_new[lev_for_sub];
+    double time = t_new[lev_for_sub];
 
     std::string sf = subvol_file + "_" + std::to_string(isub);
     std::string subvol_filename;
@@ -333,6 +342,6 @@ ERF::WriteSubvolume (int isub,Vector<std::string> subvol_var_names)
     }
 
     amrex::Print() <<"Writing subvolume into " << subvol_filename << std::endl;
-    WriteSingleLevelPlotfile(subvol_filename,mf,varnames,geom[lev_for_sub],time,istep[0]);
+    WriteSingleLevelPlotfile(subvol_filename,mf,varnames,geom[lev_for_sub],static_cast<amrex::Real>(time),istep[0]);
 
 }

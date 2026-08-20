@@ -11,7 +11,7 @@
     Real zc_frac = myhalf; pp.query("zc_frac", zc_frac);
 
     int prob_type = -1; pp.query("prob_type", prob_type);
-    ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+    ParallelFor(bx, [=,zero_d=zero,one_d=one] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
     {
         // Geometry
         const Real* prob_lo = geomdata.ProbLo();
@@ -40,14 +40,21 @@
             state_pert(i, j, k, RhoScalar_comp) = A_0 * std::exp(-amrex::Real(10.)*r3d*r3d) + B_0*std::sin(x);
 
         } else if (prob_type == 11) {
-            state_pert(i, j, k, RhoScalar_comp) = A_0 * fourth * (one + std::cos(PI * std::min(r2d_xy, r0) / r0));
+            state_pert(i, j, k, RhoScalar_comp) = A_0 * fourth * (one_d + std::cos(PI * std::min(r2d_xy, r0) / r0));
         } else if (prob_type == 12) {
-            state_pert(i, j, k, RhoScalar_comp) = A_0 * fourth * (one + std::cos(PI * std::min(r2d_xz, r0) / r0));
+            state_pert(i, j, k, RhoScalar_comp) = A_0 * fourth * (one_d + std::cos(PI * std::min(r2d_xz, r0) / r0));
         } else if (prob_type == 13) {
             const Real r0_z = rad_0 * (prob_hi[2] - prob_lo[2]);
             //ellipse for mapfac shear validation
+            //
+            // NOTE: unlike r2d_xy and r2d_xz above, this radius is already normalized by the
+            //       semi-axes, so it is dimensionless and equals one *on* the ellipse.  We
+            //       therefore clip it at one rather than at a length -- dividing it by r0_z
+            //       would scale the blob as 1/r0_z instead of giving the intended ellipse.
+            //       With r0_z = r0 this reduces exactly to prob_type 12.
+            //
             const Real r2d_xz_ell = std::sqrt((x-xc)*(x-xc)/(r0*r0) + (z-zc)*(z-zc)/(r0_z*r0_z));
-            state_pert(i, j, k, RhoScalar_comp) = A_0 * fourth * (one + std::cos(PI * std::min(r2d_xz_ell, r0_z) / r0_z));
+            state_pert(i, j, k, RhoScalar_comp) = A_0 * fourth * (one_d + std::cos(PI * std::min(r2d_xz_ell, one_d)));
         } else if (prob_type == 14) {
             state_pert(i, j, k, RhoScalar_comp) = std::cos(PI*x);
         } else {

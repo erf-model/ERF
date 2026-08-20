@@ -24,11 +24,19 @@ calc_wstar (const amrex::Real& ust,
     }
     if (qv > 0) {
         // have moisture -- estimate buoyancy flux, <thetav'w'> (Stull 4.4.5d)
-        hfx = hfx*(1 + amrex::Real(0.61)*qv) + amrex::Real(0.61)*th*(-ust*qst);
+        hfx = hfx*(one + epsv*qv) + epsv*th*(-ust*qst);
     }
     return std::cbrt(CONST_GRAV / thv * pblh * hfx);
 }
 
+/**
+ * Calculate the convective velocity scale from buoyancy flux.
+ *
+ * @param[in] hfx Buoyancy flux.
+ * @param[in] pblh PBL height.
+ * @param[in] thv Virtual potential temperature.
+ * @return Convective velocity scale.
+ */
 AMREX_GPU_DEVICE
 AMREX_FORCE_INLINE
 amrex::Real
