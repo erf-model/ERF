@@ -1341,7 +1341,7 @@ private:
                                                     "vorticity_x","vorticity_y","vorticity_z",
                                                     "helicity", "local_helicity",
                                                     "magvel", "divU",
-                                                    "pres_hse", "dens_hse", "theta_hse", "qv_hse",
+                                                    "pres_hse", "dens_hse", "theta_hse", "pi_hse", "qv_hse",
                                                     "pressure", "pert_pres", "pert_dens",
                                                     "buoyancy", "eq_pot_temp", "VPD",
 #ifdef ERF_USE_WINDFARM
