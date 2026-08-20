@@ -20,7 +20,8 @@
         //
         if (nrk > 0) {
             int ng_cons = S_data[IntVars::cons].nGrow();
-            cons_to_prim(S_data[IntVars::cons], ng_cons);
+            cons_to_prim(S_data[IntVars::cons], S_prim, ng_cons);
+            make_pi_stage(S_data[IntVars::cons]);
         }
 
         if (verbose) Print() << std::setprecision(timeprecision)
@@ -63,7 +64,8 @@
         // Update the total moisture variable *before* computing sources since this is used in
         //    the buoyancy calculation
         if (solverChoice.moisture_type != MoistureType::None) {
-            make_qt(S_data[IntVars::cons], qt);
+            int n_qstate_into_total = micro->Get_Qstate_Moist_Size() - micro->Get_Qstate_Moist_NumConc_Size();
+            make_qt(S_data[IntVars::cons], qt, n_qstate_into_total);
         }
 
         MultiFab p0_to_use, base_to_use;
@@ -109,6 +111,30 @@
                      dptr_wbar_sub, d_rayleigh_ptrs_at_lev, d_sinesq_at_lev,
                       (solverChoice.hindcast_surface_bcs? &surface_state_interp[level] : nullptr),
                      input_sounding_data, turbPert, true);
+
+        // *****************************************************************************
+        // Add nudging terms on moist variables if we have a non-zero relaxation region
+        // *****************************************************************************
+#if defined(ERF_USE_NETCDF)
+        if ( solverChoice.use_real_bcs && (level==0) &&
+             (solverChoice.moisture_type != MoistureType::None) )
+        {
+            Real bdy_factor = solverChoice.bdy_nudge_factor;
+            Real l_rdOcp    = solverChoice.rdOcp;
+            Real l_c_p      = solverChoice.c_p;
+            int moist_nudge_type = solverChoice.bdy_moist_nudge_type;
+            int num_q = micro->Get_Qstate_Moist_Size() - micro->Get_Qstate_Moist_NumConc_Size();
+            AMREX_ALWAYS_ASSERT( (solverChoice.bdy_moist_nudge_type != 2) ||
+                                 (solverChoice.moisture_type != MoistureType::Morrison_NoIce &&
+                                  solverChoice.moisture_type != MoistureType::SAM_NoIce) );
+            add_moist_nudging_terms(S_data[IntVars::cons], cc_src, num_q, slow_dt,
+                                    start_time+old_stage_time,
+                                    start_bdy_time, final_bdy_time, bdy_time_interval,
+                                    bdy_factor, real_width, geom[level],
+                                    bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi,
+                                    m_r2d, l_c_p, l_rdOcp, moist_nudge_type);
+        }
+#endif
 
         // *****************************************************************************
         // Define the pressure gradient
@@ -169,7 +195,7 @@
 #endif
                          fr_as_crse, fr_as_fine);
 
-        if ((solverChoice.vert_implicit_fac[nrk] > zero) && solverChoice.implicit_before_substep) {
+        if ((solverChoice.vert_implicit_fac[level][nrk] > zero) && solverChoice.implicit_before_substep) {
             MultiFab scratch(S_data[IntVars::cons].boxArray(),S_data[IntVars::cons].DistributionMap(), 2,
                              S_data[IntVars::cons].nGrowVect());
             MultiFab::Copy(scratch, S_old[IntVars::cons], 0, 0, 2, S_data[IntVars::cons].nGrowVect()); // scratch := S_old               (for rho, rhotheta)
@@ -326,20 +352,21 @@
         // Populate RHS for relaxation zones if using real bcs
         if (solverChoice.use_real_bcs && (level == 0)) {
             const Real bdy_factor = solverChoice.bdy_nudge_factor;
-            const bool do_upwind  = solverChoice.upwind_real_bcs;
             if (real_width>0) {
                 //
                 // Note that old_stage_time is elapsed time, but (start_time+old_stage_time) is total time
                 //           start_bdy_time and final_bdy_time are total time
                 //
                 Real total_time = start_time + old_stage_time;
+                Real l_rdOcp    = solverChoice.rdOcp;
+                Real l_c_p      = solverChoice.c_p;
                 realbdy_compute_interior_ghost_rhs(total_time, slow_dt,
                                                    start_bdy_time, final_bdy_time, bdy_time_interval,
-                                                   bdy_factor, real_width, do_upwind, fine_geom,
+                                                   bdy_factor, real_width, fine_geom,
                                                    S_rhs, S_data,
                                                    bdy_data_xlo, bdy_data_xhi,
                                                    bdy_data_ylo, bdy_data_yhi,
-                                                   m_r2d);
+                                                   m_r2d, l_c_p, l_rdOcp);
             }
         }
 #endif

@@ -4,6 +4,7 @@
 #include "AMReX.H"
 #include "AMReX_MultiFab.H"
 #include "AMReX_BCRec.H"
+#include "ERF_Constants.H"
 #include "ERF_DataStruct.H"
 #include "ERF_IndexDefines.H"
 #include "ERF_SurfaceLayer.H"
@@ -21,6 +22,12 @@ void ChopGrids2D (amrex::BoxArray& ba, const amrex::Box& domain, int target_size
  */
 amrex::BoxArray
 ERFPostProcessBaseGrids (const amrex::Box& domain, bool decompose_in_z);
+
+void
+cons_to_prim(const amrex::MultiFab& cons_state, amrex::MultiFab& S_prim, int ng);
+
+void
+make_qt(const amrex::MultiFab& cons_state, amrex::MultiFab& qt, int n_qstate_into_total);
 
 /*
  * Create the Jacobian for the metric transformation when use_terrain is true
@@ -84,6 +91,31 @@ ConvertForProjection (const amrex::MultiFab& den_div, const amrex::MultiFab& den
                       const amrex::Box& domain, const amrex::Vector<amrex::BCRec>& domain_bcs_type_h);
 
 /*
+ * Compute lateral boundary mass influx/outflux from base-state-density-weighted
+ * boundary normal velocities.
+ */
+void
+compute_influx_outflux_bdy (amrex::FArrayBox& bdy_data_xlo, amrex::FArrayBox& bdy_data_xhi,
+                            amrex::FArrayBox& bdy_data_ylo, amrex::FArrayBox& bdy_data_yhi,
+                            amrex::Array<amrex::MultiFab*, AMREX_SPACEDIM>& area_vec,
+                            const amrex::Geometry& geom,
+                            amrex::Real& influx, amrex::Real& outflux,
+                            const int n);
+
+/*
+ * \brief Enforces solvability on lateral boundary data by scaling outflow to
+ * match with inflow.
+ */
+void enforceInOutSolvability_bdy (const amrex::MultiFab& rho0,
+                                  amrex::FArrayBox& bdy_data_xlo,
+                                  amrex::FArrayBox& bdy_data_xhi,
+                                  amrex::FArrayBox& bdy_data_ylo,
+                                  amrex::FArrayBox& bdy_data_yhi,
+                                  amrex::Array<amrex::MultiFab*, AMREX_SPACEDIM>& area_vec,
+                                  const amrex::Geometry& geom,
+                                  const amrex::Vector<amrex::BCRec>& domain_bcs_type_h);
+
+/*
  * \brief Enforces solvability by scaling outflow to match with inflow.
  *
  */
@@ -129,7 +161,6 @@ void realbdy_compute_interior_ghost_rhs (const amrex::Real& total_time,
                                          const amrex::Real& bdy_time_interval,
                                          const amrex::Real& nudge_factor,
                                          int width,
-                                         bool do_upwind,
                                          const amrex::Geometry& geom,
                                          amrex::Vector<amrex::MultiFab>& S_rhs,
                                          amrex::Vector<amrex::MultiFab>& S_cur_data,
@@ -137,7 +168,9 @@ void realbdy_compute_interior_ghost_rhs (const amrex::Real& total_time,
                                          amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_xhi,
                                          amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_ylo,
                                          amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_yhi,
-                                         std::unique_ptr<ReadBndryPlanes>& m_r2d);
+                                         std::unique_ptr<ReadBndryPlanes>& m_r2d,
+                                         const amrex::Real& c_p,
+                                         const amrex::Real& rdOcp);
 
 /*
  * Compute relaxation region RHS at fine-crse interface
@@ -177,7 +210,6 @@ Time_Avg_Vel_atCC (const amrex::Real& dt,
  * @param[in] dom_lo low bound of domain
  * @param[in] dom_hi high bound of domain
  * @param[in] F1 drift relaxation parameter
- * @param[in] F2 Laplacian relaxation parameter
  * @param[in] bx_xlo box for low x relaxation
  * @param[in] bx_xhi box for high x relaxation
  * @param[in] bx_ylo box for low y relaxation
@@ -199,7 +231,6 @@ realbdy_compute_relaxation (const int& icomp,
                             const amrex::GpuArray<amrex::Real,AMREX_SPACEDIM>& ProbLo,
                             const amrex::GpuArray<amrex::Real,AMREX_SPACEDIM>& ProbHi,
                             const amrex::Real& F1,
-                            const amrex::Box& domain_cc,
                             const amrex::Box& bx_xlo,
                             const amrex::Box& bx_xhi,
                             const amrex::Box& bx_ylo,
@@ -208,22 +239,25 @@ realbdy_compute_relaxation (const int& icomp,
                             const amrex::Array4<const amrex::Real>& arr_xhi,
                             const amrex::Array4<const amrex::Real>& arr_ylo,
                             const amrex::Array4<const amrex::Real>& arr_yhi,
-                            const amrex::Array4<const amrex::Real>& u_xlo,
-                            const amrex::Array4<const amrex::Real>& u_xhi,
-                            const amrex::Array4<const amrex::Real>& v_xlo,
-                            const amrex::Array4<const amrex::Real>& v_xhi,
-                            const amrex::Array4<const amrex::Real>& v_ylo,
-                            const amrex::Array4<const amrex::Real>& v_yhi,
                             const amrex::Array4<const amrex::Real>& data_arr,
                             const amrex::Array4<amrex::Real>& rhs_arr,
-                            const bool& do_upwind)
+                            const amrex::Real& c_p,
+                            const amrex::Real& rdOcp,
+                            const int bdy_moist_nudge_type=0)
 {
     amrex::IntVect iv = bx_xlo.type();
     amrex::Real ioff  = (iv[0]==1) ? zero : myhalf;
     amrex::Real joff  = (iv[1]==1) ? zero : myhalf;
-    const auto& dom_cc_lo = lbound(domain_cc);
-    const auto& dom_cc_hi = ubound(domain_cc);
-    amrex::ParallelFor(bx_xlo, num_var, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+
+    // These are defined in ERF_Constants.H
+    amrex::Real l_rdOcp  = rdOcp;
+    amrex::Real cond_fac = lcond / c_p; // condensation
+    amrex::Real  sub_fac = lsub  / c_p;  // sublimation
+
+    int nq = num_var;
+
+    amrex::ParallelFor( bx_xlo, bx_xhi,
+    [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
         // Corners with x boxes
         amrex::Real x = ProbLo[0] + (i + ioff) * dx[0];
@@ -235,23 +269,39 @@ realbdy_compute_relaxation (const int& icomp,
         amrex::Real eta_lo = (y < y_end ) ? (y_end  - y) / (y_end  - ProbLo[1]) : zero;
         amrex::Real eta_hi = (y > y_strt) ? (y - y_strt) / (ProbHi[1] - y_strt) : zero;
         amrex::Real eta    = std::max(eta_lo,eta_hi);
-        amrex::Real Factor = std::max(xi*xi,eta*eta);
+        amrex::Real Factor = std::max(xi*xi,eta*eta) * F1;
 
-        amrex::Real delta = arr_xlo(i  ,j  ,k,n) - data_arr(i  ,j  ,k  ,n+icomp);
-        amrex::Real Temp  = Factor*F1*delta;
-        if (!do_upwind) {
-            rhs_arr(i,j,k,n+icomp) += Temp;
+        if (icomp == RhoQ1_comp)
+        {
+            amrex::Real exner_pi = getExnergivenRTh(data_arr(i,j,k,RhoTheta_comp),l_rdOcp,
+                                                    data_arr(i,j,k,RhoQ1_comp)/data_arr(i,j,k,Rho_comp));
+
+            // qv
+            amrex::Real delta = arr_xlo(i,j,k,0) - data_arr(i,j,k,icomp);
+            rhs_arr(i,j,k,icomp) += Factor*delta;
+
+            if (bdy_moist_nudge_type==2) {
+                // qc and heat source term due to evaporation
+                delta = -data_arr(i,j,k,icomp+1); // This effectively nudges to 0
+                rhs_arr(i,j,k,icomp+1      ) += Factor*delta;
+                rhs_arr(i,j,k,RhoTheta_comp) += Factor * delta * cond_fac / exner_pi;
+
+                for (int n = 2; n < nq; n++) {
+                    delta = -data_arr(i,j,k,icomp+n); // This effectively nudges to 0
+                    rhs_arr(i,j,k,icomp+n) += Factor*delta;
+                    if (nq > 3 && n == 2) { // nq > 3 guarantees that component 2 is ice
+                        rhs_arr(i,j,k,RhoTheta_comp) += Factor * delta * sub_fac / exner_pi;
+                    }
+                } // n
+            } // moist_nudge_type
         } else {
-            int jju = std::min(std::max(j,dom_cc_lo.y),dom_cc_hi.y);
-            int iiv = std::min(std::max(i,dom_cc_lo.x),dom_cc_hi.x);
-            if ( (u_xlo(dom_cc_lo.x,jju,k) >= zero) ||
-                 ((j == dom_cc_lo.y      ) && (v_xlo(iiv,dom_cc_lo.y  ,k) >= zero)) ||
-                 ((j == dom_cc_hi.y+iv[1]) && (v_xlo(iiv,dom_cc_hi.y+1,k) <= zero)) ) {
-                rhs_arr(i,j,k,n+icomp) += Temp;
+            for (int n = 0; n < nq; n++) {
+                amrex::Real delta = arr_xlo(i,j,k,n) - data_arr(i,j,k,n+icomp);
+                rhs_arr(i,j,k,n+icomp) += Factor*delta;
             }
         }
     },
-    bx_xhi, num_var, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+    [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
         // Corners with x boxes
         amrex::Real x = ProbLo[0] + (i + ioff) * dx[0];
@@ -263,58 +313,111 @@ realbdy_compute_relaxation (const int& icomp,
         amrex::Real eta_lo = (y < y_end ) ? (y_end  - y) / (y_end  - ProbLo[1]) : zero;
         amrex::Real eta_hi = (y > y_strt) ? (y - y_strt) / (ProbHi[1] - y_strt) : zero;
         amrex::Real eta    = std::max(eta_lo,eta_hi);
-        amrex::Real Factor = std::max(xi*xi,eta*eta);
+        amrex::Real Factor = std::max(xi*xi,eta*eta) * F1;
 
-        amrex::Real delta = arr_xhi(i  ,j  ,k,n) - data_arr(i  ,j  ,k  ,n+icomp);
-        amrex::Real Temp  = Factor*F1*delta;
-        if (!do_upwind) {
-            rhs_arr(i,j,k,n+icomp) += Temp;
+        if (icomp == RhoQ1_comp)
+        {
+            amrex::Real exner_pi = getExnergivenRTh(data_arr(i,j,k,RhoTheta_comp),l_rdOcp,
+                                                    data_arr(i,j,k,RhoQ1_comp)/data_arr(i,j,k,Rho_comp));
+
+            // qv
+            amrex::Real delta = arr_xhi(i,j,k,0) - data_arr(i,j,k,icomp);
+            rhs_arr(i,j,k,icomp) += Factor*delta;
+
+            if (bdy_moist_nudge_type==2) {
+                // qc and heat source term due to evaporation
+                delta = -data_arr(i,j,k,icomp+1); // This effectively nudges to 0
+                rhs_arr(i,j,k,icomp+1      ) += Factor*delta;
+                rhs_arr(i,j,k,RhoTheta_comp) += Factor * delta * cond_fac / exner_pi;
+
+                for (int n = 2; n < nq; n++) {
+                    delta = -data_arr(i,j,k,icomp+n); // This effectively nudges to 0
+                    rhs_arr(i,j,k,icomp+n) += Factor*delta;
+                    if (nq > 3 && n == 2) { // nq > 3 guarantees that component 2 is ice
+                        rhs_arr(i,j,k,RhoTheta_comp) += Factor * delta * sub_fac / exner_pi;
+                    }
+                } // n
+            } // moist_nudge_type
         } else {
-            int jju = std::min(std::max(j,dom_cc_lo.y),dom_cc_hi.y);
-            int iiv = std::min(std::max(i,dom_cc_lo.x),dom_cc_hi.x);
-            if ( (u_xhi(dom_cc_hi.x+1,jju,k) <= zero) ||
-                 ((j == dom_cc_lo.y      ) && (v_xhi(iiv,dom_cc_lo.y  ,k) >= zero)) ||
-                 ((j == dom_cc_hi.y+iv[1]) && (v_xhi(iiv,dom_cc_hi.y+1,k) <= zero)) ) {
-                rhs_arr(i,j,k,n+icomp) += Temp;
+            for (int n = 0; n < nq; n++) {
+                amrex::Real delta = arr_xhi(i,j,k,n) - data_arr(i,j,k,n+icomp);
+                rhs_arr(i,j,k,n+icomp) += Factor*delta;
             }
         }
     });
 
-    amrex::ParallelFor(bx_ylo, num_var, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+    amrex::ParallelFor( bx_ylo, bx_yhi,
+    [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
         // No corners for y boxes
         amrex::Real y      = ProbLo[1] + (j + joff) * dx[1];
         amrex::Real y_end  = ProbLo[1] + width * dx[1];
         amrex::Real eta    = (y_end - y) / (y_end - ProbLo[1]);
-        amrex::Real Factor = eta*eta;
+        amrex::Real Factor = eta*eta * F1;
 
-        amrex::Real delta = arr_ylo(i  ,j  ,k,n) - data_arr(i  ,j  ,k  ,n+icomp);
-        amrex::Real Temp  = Factor*F1*delta;
-        if (!do_upwind) {
-            rhs_arr(i,j,k,n+icomp) += Temp;
+        if (icomp == RhoQ1_comp)
+        {
+            amrex::Real exner_pi = getExnergivenRTh(data_arr(i,j,k,RhoTheta_comp),l_rdOcp,
+                                                    data_arr(i,j,k,RhoQ1_comp)/data_arr(i,j,k,Rho_comp));
+            // qv
+            amrex::Real delta = arr_ylo(i,j,k,0) - data_arr(i,j,k,icomp);
+            rhs_arr(i,j,k,icomp) += Factor*delta;
+
+            if (bdy_moist_nudge_type==2) {
+                // qc and heat source term due to evaporation
+                delta = -data_arr(i,j,k,icomp+1); // This effectively nudges to 0
+                rhs_arr(i,j,k,icomp+1      ) += Factor*delta;
+                rhs_arr(i,j,k,RhoTheta_comp) += Factor * delta * cond_fac / exner_pi;
+
+                for (int n = 2; n < nq; n++) {
+                    delta = -data_arr(i,j,k,icomp+n); // This effectively nudges to 0
+                    rhs_arr(i,j,k,icomp+n) += Factor*delta;
+                    if (nq > 3 && n == 2) { // nq > 3 guarantees that component 2 is ice
+                        rhs_arr(i,j,k,RhoTheta_comp) += Factor * delta * sub_fac / exner_pi;
+                    }
+                } // n
+            } // moist_nudge_type
         } else {
-            int iiv = std::min(std::max(i,dom_cc_lo.x+width),dom_cc_hi.x-width);
-            if (v_ylo(iiv,dom_cc_lo.y,k) >= zero) {
-                rhs_arr(i,j,k,n+icomp) += Temp;
+            for (int n = 0; n < nq; n++) {
+                amrex::Real delta = arr_ylo(i,j,k,n) - data_arr(i,j,k,n+icomp);
+                rhs_arr(i,j,k,n+icomp) += Factor*delta;
             }
         }
     },
-    bx_yhi, num_var, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+    [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
         // No corners for y boxes
         amrex::Real y      = ProbLo[1] + (j + joff) * dx[1];
         amrex::Real y_strt = ProbHi[1] - width * dx[1];
         amrex::Real eta    = (y - y_strt) / (ProbHi[1] - y_strt);
-        amrex::Real Factor = eta*eta;
+        amrex::Real Factor = eta*eta * F1;
 
-        amrex::Real delta = arr_yhi(i  ,j  ,k,n) - data_arr(i  ,j  ,k  ,n+icomp);
-        amrex::Real Temp  = Factor*F1*delta;
-        if (!do_upwind) {
-            rhs_arr(i,j,k,n+icomp) += Temp;
+        if (icomp == RhoQ1_comp)
+        {
+            amrex::Real exner_pi = getExnergivenRTh(data_arr(i,j,k,RhoTheta_comp),l_rdOcp,
+                                                    data_arr(i,j,k,RhoQ1_comp)/data_arr(i,j,k,Rho_comp));
+            // qv
+            amrex::Real delta = arr_yhi(i,j,k,0) - data_arr(i,j,k,icomp);
+            rhs_arr(i,j,k,icomp) += Factor*delta;
+
+            if (bdy_moist_nudge_type==2) {
+                // qc and heat source term due to evaporation
+                delta = -data_arr(i,j,k,icomp+1); // This effectively nudges to 0
+                rhs_arr(i,j,k,icomp+1      ) += Factor*delta;
+                rhs_arr(i,j,k,RhoTheta_comp) += Factor * delta * cond_fac / exner_pi;
+
+                for (int n = 2; n < nq; n++) {
+                    delta = -data_arr(i,j,k,icomp+n); // This effectively nudges to 0
+                    rhs_arr(i,j,k,icomp+n) += Factor*delta;
+                    if (nq > 3 && n == 2) { // nq > 3 guarantees that component 2 is ice
+                        rhs_arr(i,j,k,RhoTheta_comp) += Factor * delta * sub_fac / exner_pi;
+                    }
+                } // n
+            } // moist_nudge_type
         } else {
-            int iiv = std::min(std::max(i,dom_cc_lo.x+width),dom_cc_hi.x-width);
-            if (v_yhi(iiv,dom_cc_hi.y+1,k) >= zero) {
-                rhs_arr(i,j,k,n+icomp) += Temp;
+            for (int n = 0; n < nq; n++) {
+                amrex::Real delta = arr_yhi(i,j,k,n) - data_arr(i,j,k,n+icomp);
+                rhs_arr(i,j,k,n+icomp) += Factor*delta;
             }
         }
     });

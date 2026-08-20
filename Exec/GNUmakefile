@@ -18,17 +18,23 @@ USE_CUDA = FALSE
 USE_HIP  = FALSE
 USE_SYCL = FALSE
 
-# Debugging
+# Enable debug flags (rich backtrace)
 DEBUG = FALSE
 
 TEST = TRUE
 USE_ASSERTION = TRUE
 
-# If running tests in ParticleTests or MultiSpeciesBubble, you must build with USE_PARTICLES = TRUE 
-#USE_PARTICLES = TRUE
-
-# If running tests in MetGrid or WPS_Test, you must build with USE_NETCDF = TRUE 
+# Enable NETCDF support (required for WRFInput or MetGrid initialization)
 USE_NETCDF = TRUE
+
+# Enable FFT Poisson solver
+USE_FFT = FALSE
+
+# Enable NOAH LSM
+USE_NOAHMP = FALSE
+
+# Enable particles (required for ParticleTests or MultiSpeciesBubble) 
+USE_PARTICLES = FALSE
 
 # GNU Make
 Bpack := ./Make.package

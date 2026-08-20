@@ -34,9 +34,6 @@ erf.sum_interval   = -1        # timesteps between computing mass
 erf.v              =  0        # verbosity in ERF.cpp
 amr.v              =  1        # verbosity in Amr.cpp
 
-# REFINEMENT / REGRIDDING
-amr.max_level       = 0       # maximum level number allowed
-
 # CHECKPOINT FILES
 erf.check_file      = chk     # root name of checkpoint file
 erf.check_int       = -1      # number of timesteps between checkpoints

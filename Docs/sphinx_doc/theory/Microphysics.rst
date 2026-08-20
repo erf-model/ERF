@@ -13,37 +13,40 @@ Microphysics model
 Model overview and transported quantities in ERF
 (note: ``Q1`` and ``Q2`` are always the mixing ratios of water vapor and cloud water)
 
-+--------------------+------------------------+-------------+-------------+-----------------+-------------+
-| Model              | Name in ERF            | ``Q3``      | ``Q4``      | ``Q5``          | ``Q6``      |
-+====================+========================+=============+=============+=================+=============+
-| Simple saturation  | ``SatAdj``             | --          | --          | --              | --          |
-| adjustment         |                        |             |             |                 |             |
-+--------------------+------------------------+-------------+-------------+-----------------+-------------+
-| Kessler, no rain   | ``Kessler_NoRain``     | --          | --          | --              | --          |
-+--------------------+------------------------+-------------+-------------+-----------------+-------------+
-| Kessler            | ``Kessler``            | :math:`q_r` | --          | --              | --          |
-+--------------------+------------------------+-------------+-------------+-----------------+-------------+
-| Single moment,     | ``SAM_NoPrecip_NoIce`` | --          | --          | --              | --          |
-| no precip or ice   |                        |             |             |                 |             |
-+--------------------+------------------------+-------------+-------------+-----------------+-------------+
-| Single moment,     | ``SAM_NoIce``          | --          | :math:`q_r` | --              | --          |
-| no ice             |                        |             |             |                 |             |
-+--------------------+------------------------+-------------+-------------+-----------------+-------------+
-| Single moment      | ``SAM``                | :math:`q_i` | :math:`q_r` | :math:`q_s`     | :math:`q_g` |
-|                    |                        |             |             |                 |             |
-+--------------------+------------------------+-------------+-------------+-----------------+-------------+
-| Double moment,     | ``Morrison_NoIce``     | --          | :math:`q_r` | --              | --          |
-| no ice             |                        |             |             |                 |             |
-+--------------------+------------------------+-------------+-------------+-----------------+-------------+
-| Double moment      | ``Morrison``           | :math:`q_i` | :math:`q_r` | :math:`q_s`     | :math:`q_g` |
-|                    |                        |             |             |                 |             |
-+--------------------+------------------------+-------------+-------------+-----------------+-------------+
-| Predicted Particle | ``P3``                 | :math:`q_i` | :math:`q_r` | :math:`q_{rim}` | --          |
-| Properties         |                        |             |             |                 |             |
-+--------------------+------------------------+-------------+-------------+-----------------+-------------+
-| Super-Droplet      | ``SuperDroplets``      | --          | --          | --              | --          |
-| Method (SDM)       |                        |             |             |                 |             |
-+--------------------+------------------------+-------------+-------------+-----------------+-------------+
++--------------------+-------------------------+-------------+-------------+-----------------+-------------+
+| Model              | Name in ERF             | ``Q3``      | ``Q4``      | ``Q5``          | ``Q6``      |
++====================+=========================+=============+=============+=================+=============+
+| Virtual temp       | ``MoistNoCondensation`` | --          | --          | --              | --          |
+| effects            |                         |             |             |                 |             |
++--------------------+-------------------------+-------------+-------------+-----------------+-------------+
+| Simple saturation  | ``SatAdj``              | --          | --          | --              | --          |
+| adjustment         |                         |             |             |                 |             |
++--------------------+-------------------------+-------------+-------------+-----------------+-------------+
+| Kessler, no rain   | ``Kessler_NoRain``      | --          | --          | --              | --          |
++--------------------+-------------------------+-------------+-------------+-----------------+-------------+
+| Kessler            | ``Kessler``             | :math:`q_r` | --          | --              | --          |
++--------------------+-------------------------+-------------+-------------+-----------------+-------------+
+| Single moment,     | ``SAM_NoPrecip_NoIce``  | --          | --          | --              | --          |
+| no precip or ice   |                         |             |             |                 |             |
++--------------------+-------------------------+-------------+-------------+-----------------+-------------+
+| Single moment,     | ``SAM_NoIce``           | --          | :math:`q_r` | --              | --          |
+| no ice             |                         |             |             |                 |             |
++--------------------+-------------------------+-------------+-------------+-----------------+-------------+
+| Single moment      | ``SAM``                 | :math:`q_i` | :math:`q_r` | :math:`q_s`     | :math:`q_g` |
+|                    |                         |             |             |                 |             |
++--------------------+-------------------------+-------------+-------------+-----------------+-------------+
+| Double moment,     | ``Morrison_NoIce``      | --          | :math:`q_r` | --              | --          |
+| no ice             |                         |             |             |                 |             |
++--------------------+-------------------------+-------------+-------------+-----------------+-------------+
+| Double moment      | ``Morrison``            | :math:`q_i` | :math:`q_r` | :math:`q_s`     | :math:`q_g` |
+|                    |                         |             |             |                 |             |
++--------------------+-------------------------+-------------+-------------+-----------------+-------------+
+| Predicted Particle | ``P3``                  | :math:`q_i` | :math:`q_r` | :math:`q_{rim}` | --          |
+| Properties         |                         |             |             |                 |             |
++--------------------+-------------------------+-------------+-------------+-----------------+-------------+
+| Super-Droplet      | ``SuperDroplets``       | --          | --          | --              | --          |
+| Method (SDM)       |                         |             |             |                 |             |
++--------------------+-------------------------+-------------+-------------+-----------------+-------------+
 
 
 Kessler Microphysics model
@@ -293,6 +296,15 @@ calls, and pressure is converted back to Pa when recomputing :math:`\theta` from
 
 When SHOC is enabled, SatAdj condensation is disabled so that SHOC owns the phase-change adjustment and ERF
 does not double-apply condensation tendencies.
+
+Virtual Temperature Effects (MoistNoCondensation) Microphysics Model
+--------------------------------------------------------------------
+The virtual temperature effects moisture model is a simplification of the
+saturation adjustment model above. It removes the condensation operation so
+that water vapor, :math:`q_{v}`, will impact pressure, through the EOS, and
+buoyancy but will not introduce thermal sources due to conversion to and from
+cloud water. Consequently, this moisture model only transports :math:`q_{v}`.
+
 
 Predicted Particle Properties (P3) Microphysics Model
 ------------------------------------------------------
@@ -1270,7 +1282,7 @@ two moving box regions with opposing velocities and one time-limited bubble inje
 configuration and moving source regions.
 
 **RICO DevTest**: ``Exec/CanonicalTests/RICO/`` contains multiple input files for the RICO case with different microphysics models,
-including SDM configurations with various aerosol species (``input_sdm``).
+including SDM configurations with various aerosol species (``inputs_SDM``).
 
 **Temperature Source Tests**: ``Exec/RegTests/SDM_Congestus3D`` and ``Exec/RegTests/SineMassFlux``
 include SDM configurations for testing particle behavior with prescribed temperature and mass flux forcing.

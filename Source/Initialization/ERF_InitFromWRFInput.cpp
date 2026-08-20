@@ -81,6 +81,7 @@ init_base_state_from_wrfinput (const Box& subdomain,
                                MultiFab& r_hse,
                                MultiFab& mf_PB,
                                MultiFab* mf_ALB,
+                               MultiFab* z_phys,
                                const Real& T00,
                                const Real& P00,
                                const Real& TLP,
@@ -209,7 +210,7 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev)
     }
 
     bool use_moist = (solverChoice.moisture_type != MoistureType::None);
-    bool use_lsm = (solverChoice.lsm_type != LandSurfaceType::None);
+    bool use_lsm   = (solverChoice.lsm_type != LandSurfaceType::None);
 
     // *** FArrayBox's at this level for holding the INITIAL data
     Vector<std::string> NC_names;
@@ -277,6 +278,8 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev)
     // NOTE: Following MFs must have an underlying BA that follows
     //       the shapes in ERF_ReadFromWRFInput.cpp
     //       Most are 3D but MU/MUB are 2D and C1/2H are 1D
+    MultiFab* mf_PHB;
+    MultiFab PHB_tmp;
     MultiFab mf_PH ;                  // For geopotential height
     MultiFab mf_PB , mf_P  ;          // For base state
     std::unique_ptr<MultiFab> mf_ALB; // For base state
@@ -555,17 +558,29 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev)
                 var_fab.clear();
             } // valid var (not rho)
 
+          bool lat_periodic = (geom[lev].isPeriodic(0) && geom[lev].isPeriodic(1));
+          int i_lo = boxes_at_level[lev][0].smallEnd(0); int i_hi = boxes_at_level[lev][0].bigEnd(0);
+          int j_lo = boxes_at_level[lev][0].smallEnd(1); int j_hi = boxes_at_level[lev][0].bigEnd(1);
+
           if ( var_name == "PH" ) {
               if (success) {
+                  // NOTE: We call FillBoundary on mf_PH below
                   auto& ba_w = lev_new[Vars::zvel].boxArray();
-                  mf_PH.define(ba_w, dm, 1, ngz);
+                  mf_PH.define(ba_w, dm, 1, IntVect(ngz[0],ngz[1],0));
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
                   for ( MFIter mfi(mf_PH, false); mfi.isValid(); ++mfi )
                   {
-                    FArrayBox &cur_fab = mf_PH[mfi];
-                    cur_fab.template copy<RunOn::Device>(var_fab, 0, 0, 1);
+                      Box gtbx = mfi.growntilebox();
+                      const Array4<      Real>& dst_arr = mf_PH.array(mfi);
+                      const Array4<const Real>& src_arr = var_fab.const_array();
+                      ParallelFor(gtbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                      {
+                          int li = amrex::min(amrex::max(i, i_lo), i_hi);
+                          int lj = amrex::min(amrex::max(j, j_lo), j_hi);
+                          dst_arr(i,j,k) = src_arr(li,lj,k);
+                      });
                   }
                   var_fab.clear();
               } else {
@@ -574,15 +589,30 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev)
               }
           } else if ( var_name == "PHB" ) {
               if (success) {
+                  // NOTE: We call FillBoundary on PHB below
                   auto& ba_w = lev_new[Vars::zvel].boxArray();
-                  wrf_PHB = std::make_unique<MultiFab>(ba_w, dm, 1, ngz);
+                  if (lev == 0) {
+                      wrf_PHB = std::make_unique<MultiFab>(ba_w, dm, 1, IntVect(ngz[0],ngz[1],0));
+                      mf_PHB = wrf_PHB.get();
+                  } else {
+                      PHB_tmp.define(ba_w, dm, 1, IntVect(ngz[0],ngz[1],0));
+                      mf_PHB = &PHB_tmp;
+                  }
+
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
-                  for ( MFIter mfi(*wrf_PHB, false); mfi.isValid(); ++mfi )
+                  for ( MFIter mfi(*mf_PHB, false); mfi.isValid(); ++mfi )
                   {
-                      FArrayBox &cur_fab = (*wrf_PHB)[mfi];
-                      cur_fab.template copy<RunOn::Device>(var_fab, 0, 0, 1);
+                      Box gtbx = mfi.growntilebox();
+                      const Array4<      Real>& dst_arr = mf_PHB->array(mfi);
+                      const Array4<const Real>& src_arr = var_fab.const_array();
+                      ParallelFor(gtbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                      {
+                          int li = amrex::min(amrex::max(i, i_lo), i_hi);
+                          int lj = amrex::min(amrex::max(j, j_lo), j_hi);
+                          dst_arr(i,j,k) = src_arr(li,lj,k);
+                      });
                   }
                   var_fab.clear();
               } else {
@@ -652,10 +682,6 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev)
               }
               var_fab.clear();
           }
-
-          bool lat_periodic = (geom[lev].isPeriodic(0) && geom[lev].isPeriodic(1));
-          int i_lo = boxes_at_level[lev][0].smallEnd(0); int i_hi = boxes_at_level[lev][0].bigEnd(0);
-          int j_lo = boxes_at_level[lev][0].smallEnd(1); int j_hi = boxes_at_level[lev][0].bigEnd(1);
 
           // Initialize Latitude & Coriolis factors
           if ( var_name == "XLAT_V" ) {
@@ -970,7 +996,7 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev)
     if (compute_terrain_here) {
         if (lev == 0) {
             AMREX_ALWAYS_ASSERT(solverChoice.terrain_type == TerrainType::StaticFittedMesh);
-            z_top = compute_terrain_top_and_bottom(mf_PH, *wrf_PHB, geom[lev].Domain());
+            z_top = compute_terrain_top_and_bottom(mf_PH, *mf_PHB, geom[lev].Domain());
         } else {
             amrex::Print() << "Warning: using top of domain set at level 0 which is " << z_top << std::endl;
         }
@@ -978,13 +1004,14 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev)
         // **************************************************************************
         // FillBoundary to populate the internal ghost cells (for averaging)
         // **************************************************************************
-        mf_PH.FillBoundary(geom[lev].periodicity());
-        wrf_PHB->FillBoundary(geom[lev].periodicity());
+        // mf_PH.FillBoundary(geom[lev].periodicity());
+        // mf_PHB->FillBoundary(geom[lev].periodicity());
 
         // **************************************************************************
         // Initialize the terrain itself
         // **************************************************************************
-        init_terrain_from_wrfinput(lev, z_top, boxes_at_level[lev][0], z_phys_nd[lev].get(), mf_PH, *wrf_PHB);
+        init_terrain_from_wrfinput(lev, z_top, boxes_at_level[lev][0], z_phys_nd[lev].get(), mf_PH, *mf_PHB);
+        z_phys_nd[lev]->FillBoundary(geom[lev].periodicity());
 
         // **************************************************************************
         // Initialize the metric quantities
@@ -993,6 +1020,128 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev)
         make_areas(geom[lev],*z_phys_nd[lev],*ax[lev],*ay[lev],*az[lev]);
         make_zcc(geom[lev],*z_phys_nd[lev],*z_phys_cc[lev]);
     }
+
+    // **************************************************************************
+    // Rebalance the WRF state if needed
+    // **************************************************************************
+    if (solverChoice.rebalance_wrf_input) {
+        Print() << "The state read from WRF is being rebalanced!\n";
+        int ncomp    = lev_new[Vars::cons].nComp();
+        int k_dom_lo = geom[lev].Domain().smallEnd(2);
+        int k_dom_hi = geom[lev].Domain().bigEnd(2);
+#ifdef AMREX_USE_FLOAT
+        Real tol  = Real(1.0e-6);
+#else
+        Real tol  = Real(1.0e-10);
+#endif
+        Real grav = CONST_GRAV;
+
+        MultiFab qt(lev_new[Vars::cons].boxArray(), lev_new[Vars::cons].DistributionMap(), 1, 0);
+        int n_qstate_into_total = micro->Get_Qstate_Moist_Size() - micro->Get_Qstate_Moist_NumConc_Size();
+        make_qt(lev_new[Vars::cons], qt, n_qstate_into_total);
+
+        for ( MFIter mfi(lev_new[Vars::cons],TileNoZ()); mfi.isValid(); ++mfi ) {
+            Box bx  = mfi.tilebox();
+            int klo = bx.smallEnd(2);
+            int khi = bx.bigEnd(2);
+            AMREX_ALWAYS_ASSERT((klo == k_dom_lo) && (khi == k_dom_hi));
+            bx.makeSlab(2,klo);
+
+            const Array4<      Real>& con_arr = lev_new[Vars::cons].array(mfi);
+            const Array4<const Real>&  qt_arr = qt.const_array(mfi);
+            const Array4<const Real>& z_arr = z_phys_nd[lev]->const_array(mfi);
+
+            ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int /*k*/) noexcept
+            {
+                // integrate from surface to domain top
+                Real Factor;
+                Real dz, F, C;
+                Real rho_tot_hi, rho_tot_lo;
+                Real z_lo, z_hi;
+                Real R_lo, R_hi;
+                Real qv_lo, qv_hi;
+                Real qt_lo, qt_hi;
+                Real Th_lo, Th_hi;
+                Real P_lo, P_hi;
+
+                // First integrate from sea level to the height at klo
+                {
+                    // Vertical grid spacing
+                    z_lo = zero; // corresponding to p_0
+                    z_hi = Real(0.125) * (z_arr(i,j,klo  ) + z_arr(i+1,j,klo  ) + z_arr(i,j+1,klo  ) + z_arr(i+1,j+1,klo  )
+                                         +z_arr(i,j,klo+1) + z_arr(i+1,j,klo+1) + z_arr(i,j+1,klo+1) + z_arr(i+1,j+1,klo+1));
+                    dz = z_hi - z_lo;
+
+                    // Establish known constant
+                    qt_lo =  qt_arr(i,j,klo);
+                    qv_lo = con_arr(i,j,klo,RhoQ1_comp)    / con_arr(i,j,klo,Rho_comp);
+                    Th_lo = con_arr(i,j,klo,RhoTheta_comp) / con_arr(i,j,klo,Rho_comp);
+                    P_lo  = p_0;
+                    R_lo  = getRhogivenThetaPress(Th_lo, P_lo, R_d/Cp_d, qv_lo);
+                    rho_tot_lo = R_lo * (one + qt_lo);
+                    C  = -P_lo + myhalf*rho_tot_lo*grav*dz;
+
+                    // Initial guess and residual
+                    qt_hi = qt_arr(i,j,klo);
+                    qv_hi = con_arr(i,j,klo,RhoQ1_comp)    / con_arr(i,j,klo,Rho_comp);
+                    Th_hi = con_arr(i,j,klo,RhoTheta_comp) / con_arr(i,j,klo,Rho_comp);
+                    P_hi  = p_0;
+                    R_hi  = getRhogivenThetaPress(Th_hi, P_hi, R_d/Cp_d, qv_hi);
+                    rho_tot_hi = R_hi * (one + qt_hi);
+                    F = P_hi + myhalf*rho_tot_hi*grav*dz + C;
+
+                    // Do iterations
+                    HSEutils::Newton_Raphson_hse(tol, R_d/Cp_d, dz,
+                                                 grav, C, Th_hi,
+                                                 qt_hi, qv_hi,
+                                                 P_hi, R_hi, F);
+
+                    // Assign data
+                    Factor = R_hi / con_arr(i,j,klo,Rho_comp);
+                    con_arr(i,j,klo,Rho_comp) = R_hi;
+                    for (int n(1); n<ncomp; ++n) { con_arr(i,j,klo,n) *= Factor; }
+                    P_lo = P_hi;
+                    z_lo = z_hi;
+                }
+
+                for (int k(klo+1); k<=khi; ++k) {
+                    // Vertical grid spacing
+                  z_hi = Real(0.125) * (z_arr(i,j,k  ) + z_arr(i+1,j,k  ) + z_arr(i,j+1,k  ) + z_arr(i+1,j+1,k  )
+                                       +z_arr(i,j,k+1) + z_arr(i+1,j,k+1) + z_arr(i,j+1,k+1) + z_arr(i+1,j+1,k+1));
+                  dz   = z_hi - z_lo;
+
+                  // Establish known constant
+                  qt_lo = qt_arr(i,j,k-1);
+                  qv_lo = con_arr(i,j,k-1,RhoQ1_comp)    / con_arr(i,j,k-1,Rho_comp);
+                  Th_lo = con_arr(i,j,k-1,RhoTheta_comp) / con_arr(i,j,k-1,Rho_comp);
+                  R_lo  = getRhogivenThetaPress(Th_lo, P_lo, R_d/Cp_d, qv_lo);
+                  rho_tot_lo = R_lo * (one + qt_lo);
+                  C  = -P_lo + myhalf*rho_tot_lo*grav*dz;
+
+                  // Initial guess and residual
+                  qt_hi = qt_arr(i,j,k);
+                  qv_hi = con_arr(i,j,k,RhoQ1_comp)    / con_arr(i,j,k,Rho_comp);
+                  Th_hi = con_arr(i,j,k,RhoTheta_comp) / con_arr(i,j,k,Rho_comp);
+                  R_hi  = getRhogivenThetaPress(Th_hi, P_hi, R_d/Cp_d, qv_hi);
+                  rho_tot_hi = R_hi * (one + qt_hi);
+                  F = P_hi + myhalf*rho_tot_hi*grav*dz + C;
+
+                  // Do iterations
+                  HSEutils::Newton_Raphson_hse(tol, R_d/Cp_d, dz,
+                                               grav, C, Th_hi,
+                                               qt_hi, qv_hi,
+                                               P_hi, R_hi, F);
+
+                  // Assign data
+                  Factor = R_hi / con_arr(i,j,k,Rho_comp);
+                  con_arr(i,j,k,Rho_comp) = R_hi;
+                  for (int n(1); n<ncomp; ++n) { con_arr(i,j,k,n) *= Factor; }
+                  P_lo = P_hi;
+                  z_lo = z_hi;
+                }
+            });
+        } // mfi
+    } // rebalance_wrfinput
 
     // **************************************************************************
     // Initialize the base state
@@ -1004,7 +1153,7 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev)
     MultiFab qv_hse(base_state[lev], make_alias, BaseState::qv0_comp, 1);
 
     init_base_state_from_wrfinput(boxes_at_level[lev][0], l_rdOcp,
-                                  p_hse, pi_hse, th_hse, qv_hse, r_hse, mf_PB, mf_ALB.get(),
+                                  p_hse, pi_hse, th_hse, qv_hse, r_hse, mf_PB, mf_ALB.get(), z_phys_nd[lev].get(),
                                   T00, P00, TLP, TISO, TLP_STRAT, P_STRAT);
 
     // FillBoundary to populate the internal ghost cells (no averaging in above call)
@@ -1039,13 +1188,16 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev)
         // as needed during the time stepping procedure
         // *******************************************************************************************
         int ntimes = bdy_data_xlo.size(); ntimes = amrex::min(ntimes, 3);
+        Array<MultiFab*, AMREX_SPACEDIM> area_vec = {ax[lev].get(), ay[lev].get(), az[lev].get()};
+        bool is_anelastic = (solverChoice.anelastic[0] == 1);
         for (int itime = 0; itime < ntimes; itime++)
         {
             read_and_convert_from_wrfbdy(itime, nc_bdy_file,
                                          bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi,
                                          wrf_MUB, wrf_C1H, wrf_C2H, wrf_PHB,
                                          lev_new[Vars::xvel], lev_new[Vars::yvel], lev_new[Vars::cons],
-                                         geom[0], use_moist, real_width, bdy_time_interval);
+                                         r_hse, area_vec, geom[0], use_moist, domain_bcs_type,
+                                         real_width, bdy_time_interval, is_anelastic);
         } // itime
 
         //
@@ -1058,7 +1210,7 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev)
             Print() << "start_bdy_time is " << std::setprecision(timeprecision) << start_bdy_time
                     << " from wrfbdy but note that time variable in simulation is elapsed time" << std::endl;
             t_new[lev] = zero;
-            t_old[lev] = -Real(1.e200);
+            t_old[lev] = -bogus_large_value;
         } else {
             t_new[lev] = t_new[0];
             t_old[lev] = t_old[0];
@@ -1120,6 +1272,7 @@ init_base_state_from_wrfinput (const Box& subdomain,
                                MultiFab& r_hse,
                                MultiFab& mf_PB,
                                MultiFab* mf_ALB,
+                               MultiFab* z_phys_nd,
                                const Real& T00,
                                const Real& P00,
                                const Real& TLP,
@@ -1166,7 +1319,9 @@ init_base_state_from_wrfinput (const Box& subdomain,
                 Thd = getThgivenTandP(Td, Pd, l_rdOcp);
             } else {
                 Td  = std::max(TISO, T00 + TLP * std::log(Pd/P00));
-                if (P_STRAT > Real(0.) && Pd <= P_STRAT) { Td = TISO + TLP_STRAT * std::log(Pd/P_STRAT); }
+                if (P_STRAT > Real(0.) && Pd <= P_STRAT) {
+                    Td = TISO + TLP_STRAT * std::log(Pd/P_STRAT);
+                }
                 Thd = getThgivenTandP(Td, Pd, l_rdOcp);
                 Rd  = getRhogivenThetaPress (Thd, Pd, l_rdOcp);
             }
@@ -1179,6 +1334,124 @@ init_base_state_from_wrfinput (const Box& subdomain,
             pi_hse_arr(i,j,k) = getExnergivenP(p_hse_arr(i,j,k), l_rdOcp);
         });
     }
+
+    // **************************************************************************
+    // Rebalance the base state since state from WRFInput does not discretely
+    // satisfy dp0/dz = -rho0 g
+    // **************************************************************************
+    int k_dom_lo = dom_lo.z;
+    int k_dom_hi = dom_hi.z;
+
+#ifdef AMREX_USE_FLOAT
+    Real tol  = Real(1.0e-6);
+#else
+    Real tol  = Real(1.0e-10);
+#endif
+
+    Real grav = CONST_GRAV;
+
+    for (MFIter mfi(th_hse,TileNoZ()); mfi.isValid(); ++mfi)
+    {
+            Box bx  = mfi.tilebox();
+            int klo = bx.smallEnd(2);
+            int khi = bx.bigEnd(2);
+
+            AMREX_ALWAYS_ASSERT((klo == k_dom_lo) && (khi == k_dom_hi));
+            bx.makeSlab(2,klo);
+
+            const Array4<Real>&  p_hse_arr = p_hse.array(mfi);
+            const Array4<Real>& pi_hse_arr = pi_hse.array(mfi);
+            const Array4<Real>& th_hse_arr = th_hse.array(mfi);
+            const Array4<Real>&  r_hse_arr = r_hse.array(mfi);
+
+            const Array4<const Real>& z_arr = z_phys_nd->const_array(mfi);
+
+            ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int /*k*/) noexcept
+            {
+                // integrate from surface to domain top
+                Real dz, F, C;
+                Real rho_tot_hi, rho_tot_lo;
+                Real z_lo, z_hi;
+                Real R_lo, R_hi;
+                Real Th_lo, Th_hi;
+                Real P_lo, P_hi;
+
+                Real qv_lo = zero;
+                Real qv_hi = zero;
+
+                // First integrate from sea level to the height at klo
+                {
+                    // Vertical grid spacing
+                    z_lo = zero; // corresponding to p_0
+                    z_hi = Real(0.125) * (z_arr(i,j,klo  ) + z_arr(i+1,j,klo  ) + z_arr(i,j+1,klo  ) + z_arr(i+1,j+1,klo  )
+                                         +z_arr(i,j,klo+1) + z_arr(i+1,j,klo+1) + z_arr(i,j+1,klo+1) + z_arr(i+1,j+1,klo+1));
+
+                    // dz == height of first cell center
+                    dz = z_hi - z_lo;
+
+                    // Known surface values
+                    Th_lo = getThgivenTandP(T00, P00, R_d/Cp_d);
+                    P_lo  = P00;
+                    R_lo  = getRhogivenThetaPress(Th_lo, P_lo, R_d/Cp_d);
+                    rho_tot_lo = R_lo;
+                    C  = -P_lo + myhalf*rho_tot_lo*grav*dz;
+
+                    // Initial guess and residual
+                    Th_hi = th_hse_arr(i,j,klo);
+                    P_hi  = P_lo;
+                    R_hi  = getRhogivenThetaPress(Th_hi, P_hi, R_d/Cp_d);
+                    rho_tot_hi = R_hi;
+                    F = P_hi + myhalf*rho_tot_hi*grav*dz + C;
+
+                    // Do iterations
+                    HSEutils::Newton_Raphson_hse(tol, R_d/Cp_d, dz,
+                                                 grav, C, Th_hi,
+                                                 qv_hi, qv_hi,
+                                                 P_hi, R_hi, F);
+
+                    // At first cell center
+                     r_hse_arr(i,j,klo) = R_hi;
+                     p_hse_arr(i,j,klo) = P_hi;
+                    pi_hse_arr(i,j,klo) = getExnergivenP(p_hse_arr(i,j,klo), l_rdOcp);
+
+                    P_lo = P_hi;
+                    z_lo = z_hi;
+                }
+
+                for (int k(klo+1); k<=khi; ++k) {
+
+                  z_hi = Real(0.125) * (z_arr(i,j,k  ) + z_arr(i+1,j,k  ) + z_arr(i,j+1,k  ) + z_arr(i+1,j+1,k  )
+                                       +z_arr(i,j,k+1) + z_arr(i+1,j,k+1) + z_arr(i,j+1,k+1) + z_arr(i+1,j+1,k+1));
+                  dz   = z_hi - z_lo;
+
+                  // Establish known constant
+                  Th_lo = th_hse_arr(i,j,k-1);
+                  R_lo  = getRhogivenThetaPress(Th_lo, P_lo, R_d/Cp_d, qv_lo);
+                  rho_tot_lo = R_lo;
+                  C  = -P_lo + myhalf*rho_tot_lo*grav*dz;
+
+                  // Initial guess and residual
+                  Th_hi = th_hse_arr(i,j,k);
+                  R_hi  = getRhogivenThetaPress(Th_hi, P_hi, R_d/Cp_d, qv_hi);
+                  rho_tot_hi = R_hi;
+                  F = P_hi + myhalf*rho_tot_hi*grav*dz + C;
+
+                  // Do iterations
+                  HSEutils::Newton_Raphson_hse(tol, R_d/Cp_d, dz,
+                                               grav, C, Th_hi,
+                                               qv_hi, qv_hi,
+                                               P_hi, R_hi, F);
+
+                  // Assign data
+                   r_hse_arr(i,j,k) = R_hi;
+                   p_hse_arr(i,j,k) = P_hi;
+                  pi_hse_arr(i,j,k) = getExnergivenP(p_hse_arr(i,j,k), l_rdOcp);
+
+                  P_lo = P_hi;
+                  z_lo = z_hi;
+                }
+            });
+    } // mfi
 }
 
 /**
@@ -1198,11 +1471,11 @@ compute_terrain_top_and_bottom (const MultiFab& mf_PH,
     //
     // For the bottom/top boundary (in that order)
     //
-    Gpu::HostVector  <Real> Max_h(3,-Real(1.0e16));
+    Gpu::HostVector  <Real> Max_h(3,-bogus_large_value);
     Gpu::DeviceVector<Real> Max_d(3);
     Gpu::copy(Gpu::hostToDevice, Max_h.begin(), Max_h.end(), Max_d.begin());
 
-    Gpu::HostVector  <Real> Min_h(2, Real(1.0e16));
+    Gpu::HostVector  <Real> Min_h(2, bogus_large_value);
     Gpu::DeviceVector<Real> Min_d(2);
     Gpu::copy(Gpu::hostToDevice, Min_h.begin(), Min_h.end(), Min_d.begin());
 
@@ -1349,7 +1622,7 @@ init_terrain_from_wrfinput (int /*lev*/,
         const Array4<Real const>& nc_phb_arr = mf_PHB.const_array(mfi);
         const Array4<Real const>& nc_ph_arr  = mf_PH.const_array(mfi);
 
-        // PHB and PH are on z-faces (myhalf dx/y ahead of zphys)
+        // PHB and PH are on z-faces (half dx / half dy ahead of zphys)
         Box z_face_box = convert(subdomain,IntVect(0,0,1));
 
         // Prevent averaging from going into ghost cells

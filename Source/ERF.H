@@ -144,6 +144,10 @@ public:
     // Tag cells for refinement
     void ErrorEst (int lev, amrex::TagBoxArray& tags, amrex::Real time, int ngrow) override;
 
+    // Tag cells in a given box
+    void read_box_for_refinement   (std::string& ref_prefix, int& lev_for_box, amrex::RealBox& real_box);
+    void update_box_for_refinement (std::string& ref_prefix, int& lev_for_box, amrex::RealBox& real_box, const amrex::Real time);
+
     // Refinement criteria for hurricanes
     void HurricaneTracker (int lev,
                            amrex::Real time,
@@ -242,6 +246,8 @@ public:
     void check_for_negative_theta (amrex::MultiFab& S);
     void check_for_low_temp       (amrex::MultiFab& S);
 
+    void compute_max_pressure_gradient_diagnostic(int lev);
+
     // Is it time to write a plotfile or checkpoint?
     // Note that "cur_time" is always in double precision
     bool writeNow (double cur_time, const int nstep, const int plot_int,
@@ -249,6 +255,12 @@ public:
 
     // Called after every level 0 timestep
     void post_timestep (int nstep, double time, amrex::Real dt_lev);
+
+    // Do whatever writing needs to be done at intermediate times
+    void WriteAtIntermediateTime(int nstep, double time);
+
+    // Do whatever writing needs to be done after time-stepping is complete
+    void WriteAtFinalTime();
 
     // Diagnostics
     void sum_integrated_quantities (double time);
@@ -393,6 +405,7 @@ public:
                       amrex::MultiFab& cons_in,
                       amrex::MultiFab& xvel_in,
                       amrex::MultiFab& yvel_in,
+                      const amrex::Real& time,
                       const amrex::Real& dt_advance);
 
     void advance_radiation (int lev,
@@ -570,15 +583,6 @@ public:
                             int ncomp_cons,
                             amrex::IntVect ngvect_cons,
                             amrex::IntVect ngvect_vels);
-
-    // Version in which we only set the boundary value if inflowing, includes theta
-    void fill_from_realbdy_upwind (const amrex::Vector<amrex::MultiFab*>& mfs,
-                                   amrex::Real time,
-                                   bool cons_only,
-                                   int icomp_cons,
-                                   int ncomp_cons,
-                                   amrex::IntVect ngvect_cons,
-                                   amrex::IntVect ngvect_vels);
 #endif
 
 #ifdef ERF_USE_NETCDF
@@ -764,14 +768,14 @@ private:
                            amrex::Vector<amrex::FArrayBox*> z_vel_lateral,
                            amrex::Vector<amrex::FArrayBox*> T_lateral);
 
-    static amrex::Real start_bdy_time;
-    static amrex::Real final_bdy_time;
+    static double start_bdy_time;
+    static double final_bdy_time;
 
-    static amrex::Real start_low_time;
-    static amrex::Real final_low_time;
+    static double start_low_time;
+    static double final_low_time;
 
-    static amrex::Real bdy_time_interval;
-    static amrex::Real low_time_interval;
+    static double bdy_time_interval;
+    static double low_time_interval;
 
     // *** *** FArrayBox's for holding the SURFACE data
     // amrex::IArrayBox NC_IVGTYP_fab; // Vegetation type (IVGTYP); Discrete numbers;
@@ -962,7 +966,8 @@ private:
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> SFS_q2fx3_lev;
 
     // Diffusive fluxes for EB
-    amrex::Vector<amrex::Vector<std::unique_ptr<amrex::MultiFab>>> Tau_EB;
+    // Tau_EB[level][component][grid_type]
+    amrex::Vector<amrex::Vector<amrex::Vector<std::unique_ptr<amrex::MultiFab>>>> Tau_EB;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> hfx3_EB;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> qfx3_EB;
 
@@ -1163,7 +1168,7 @@ private:
                                                     "helicity", "local_helicity",
                                                     "magvel", "divU",
                                                     "pres_hse", "dens_hse", "theta_hse", "pressure", "pert_pres", "pert_dens",
-                                                    "eq_pot_temp", "VPD",
+                                                    "buoyancy", "eq_pot_temp", "VPD",
 #ifdef ERF_USE_WINDFARM
                                                     "num_turb", "SMark0", "SMark1",
 #endif

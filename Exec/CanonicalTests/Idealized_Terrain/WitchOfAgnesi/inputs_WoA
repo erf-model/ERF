@@ -8,9 +8,9 @@ amrex.fpe_trap_invalid = 0
 fabarray.mfiter_tile_size = 1024 1024 1024
 
 # PROBLEM SIZE & GEOMETRY
-geometry.prob_lo     = -72000. 0.     0. 
-geometry.prob_hi     =  72000. 1. 30000. # zhi not used with grid stretching
-amr.n_cell           =   576  1   362
+#geometry.prob_lo     = -72000. 0.     0. 
+#geometry.prob_hi     =  72000. 1. 30000. # zhi not used with grid stretching
+#amr.n_cell           =   576  1   362
 
 geometry.prob_lo     = -72000. 0.     0. 
 geometry.prob_hi     =  72000. 1. 30000. # zhi not used with grid stretching

@@ -1,6 +1,7 @@
 
 #include<iostream>
 #include<string>
+#include<limits>
 
 #include <AMReX_ParmParse.H>
 #include <AMReX_Print.H>
@@ -9,6 +10,7 @@
 #include <ERF_NOAHMP.H>
 #include <ERF_Constants.H>
 #include <ERF_EOS.H>
+#include <NoahmpFatal.H>
 
 using namespace amrex;
 
@@ -19,6 +21,20 @@ NOAHMP::Init (const int& lev,
               const Geometry& geom,
               const Real& dt)
 {
+
+    // Install Noah-MP's fatal-error handler once (thread-safe, runs on the first
+    // Init across all levels). Noah-MP carries no MPI/AMReX dependency of its own
+    // and instead calls NoahmpIO_fatal(); routing that through amrex::Abort makes a
+    // fatal error on any rank -- from either the C++ or the Fortran coupling side
+    // -- propagate to all ranks via MPI_Abort, rather than deadlocking peers in
+    // the next collective. See NoahmpFatal.H.
+    static const bool noahmp_fatal_installed = []() {
+        NoahmpIO_set_fatal_handler([](const char* msg){
+            amrex::Abort(msg ? msg : "Noah-MP fatal error");
+        });
+        return true;
+    }();
+    amrex::ignore_unused(noahmp_fatal_installed);
 
     m_dt   = dt;
     m_geom = geom;
@@ -106,8 +122,11 @@ NOAHMP::Init (const int& lev,
 
     Print() << "Noah-MP initialization started" << std::endl;
 
-    // Set noahmpio_vect to the size of local blocks (boxes)
-    noahmpio_vect.resize(cons_in.local_size(), lev);
+    // Size noahmpio_vect to the local blocks (boxes). A rank owning no boxes
+    // leaves it empty and relies on the class-level m_itimestep/m_dtbl instead.
+    if (cons_in.local_size() > 0) {
+        noahmpio_vect.resize(cons_in.local_size(), lev);
+    }
 
     // Allocate pinned buffer space for all the boxes
     noahmp_input_tmp.resize(cons_in.local_size());
@@ -213,9 +232,23 @@ NOAHMP::Init (const int& lev,
         // Write initial plotfile for land with the tag 0
         Print() << "Noah-MP writing lnd.nc file at lev: " << lev << std::endl;
         noahmpio->WriteLand(0);
-  }
+    }
 
-  Print() << "Noah-MP initialization completed" << std::endl;
+    // Broadcast DTBL and the initial substep counter to every rank so the firing
+    // decision in Advance_With_State is identical everywhere. Land-free ranks use
+    // sentinels that lose the max-reduction to any real value.
+    m_dtbl      = noahmpio_vect.empty() ? std::numeric_limits<Real>::lowest()
+                                        : static_cast<Real>(noahmpio_vect[0].DTBL);
+    m_itimestep = noahmpio_vect.empty() ? std::numeric_limits<int>::lowest()
+                                        : noahmpio_vect[0].itimestep;
+    ParallelDescriptor::ReduceRealMax(m_dtbl);
+    ParallelDescriptor::ReduceIntMax(m_itimestep);
+
+    // Guard against a degenerate decomposition in which no rank owns a land box.
+    AMREX_ALWAYS_ASSERT(m_dtbl > Real(0.0));
+    AMREX_ALWAYS_ASSERT(m_dt <= m_dtbl);
+
+    Print() << "Noah-MP initialization completed" << std::endl;
 
 };
 
@@ -234,9 +267,18 @@ NOAHMP::Advance_With_State (const int& lev,
                             MultiFab& yvel_in,
                             MultiFab* /*hfx3_out*/,
                             MultiFab* /*qfx3_out*/,
+                            const Real& elapsed_time,
                             const Real& dt,
                             const int& nstep)
 {
+    // Verify we need to take another LSM step. Use the class-level counter/dtbl
+    // (valid on land-free ranks) so every rank decides identically -- the
+    // FillBoundary at the end of this routine is collective.
+    Real NOAH_time = static_cast<Real>(m_itimestep-1) * m_dtbl;
+    if (elapsed_time < NOAH_time) { return; }
+
+    // Advance the counter once per firing, in lockstep on every rank.
+    m_itimestep += 1;
 
     Box domain = m_geom.Domain();
 
@@ -325,7 +367,8 @@ NOAHMP::Advance_With_State (const int& lev,
 
         // Call the noahmpio driver code. This runs the land model forcing for
         // each object in noahmpio_vect that represent a block in the domain.
-        noahmpio->itimestep = nstep+1;
+        // Mirror the authoritative counter into each block.
+        noahmpio->itimestep = m_itimestep;
         noahmpio->DriverMain();
 
         // Copy results from NoahmpIO back to temporary arrays
@@ -350,15 +393,27 @@ NOAHMP::Advance_With_State (const int& lev,
             int ii = std::min(std::max(i,i_lo),i_hi);
             int jj = std::min(std::max(j,j_lo),j_hi);
 
-            // SurfaceLayer fluxes at CC
-            t_flux_arr(i,j,k)    = noah_output_arr(ii,jj,0,NoahmpOutputComp::hfx)/(CONS(ii,jj,k,Rho_comp)*Cp_d);
-            q_flux_arr(i,j,k)    = noah_output_arr(ii,jj,0,NoahmpOutputComp::lh)/(CONS(ii,jj,k,Rho_comp)*L_v);
-
-            // NOTE: The following fluxes are nodal in xz/yz.
-            //       The 2D MFs have 1 ghost cell so we can average these
-            //       when using them in the surface layer class.
-            tau13_arr(i,j,k)  = noah_output_arr(ii,jj,0,NoahmpOutputComp::tau_ew)/CONS(ii,jj,k,Rho_comp);
-            tau23_arr(i,j,k)  = noah_output_arr(ii,jj,0,NoahmpOutputComp::tau_ns)/CONS(ii,jj,k,Rho_comp);
+            // SurfaceLayer fluxes at CC.
+            // Noah-MP returns the -9999 fill value for cells it does NOT process
+            // (sea-ice / open-water points, which still have LANDMASK=1). Applying
+            // that as a flux gives -9999/(rho*Cp) ~ -7.6 K*m/s and crashes the
+            // lowest cell to ~200 K. Detect the fill and instead write the
+            // lsm_flux_undefined sentinel; the surface layer then falls back to
+            // the MOST flux for those cells (see ERF_SurfaceLayer.cpp).
+            // NOTE: tau13/tau23 are nodal in xz/yz; the 2D MFs have 1 ghost cell
+            //       so the surface layer can average them.
+            Real hfx_lsm = noah_output_arr(ii,jj,0,NoahmpOutputComp::hfx);
+            if (hfx_lsm > Real(-9990.0)) {
+                t_flux_arr(i,j,k) = hfx_lsm/(CONS(ii,jj,k,Rho_comp)*Cp_d);
+                q_flux_arr(i,j,k) = noah_output_arr(ii,jj,0,NoahmpOutputComp::lh)/(CONS(ii,jj,k,Rho_comp)*L_v);
+                tau13_arr(i,j,k)  = noah_output_arr(ii,jj,0,NoahmpOutputComp::tau_ew)/CONS(ii,jj,k,Rho_comp);
+                tau23_arr(i,j,k)  = noah_output_arr(ii,jj,0,NoahmpOutputComp::tau_ns)/CONS(ii,jj,k,Rho_comp);
+            } else {
+                t_flux_arr(i,j,k) = lsm_flux_undefined;
+                q_flux_arr(i,j,k) = lsm_flux_undefined;
+                tau13_arr(i,j,k)  = lsm_flux_undefined;
+                tau23_arr(i,j,k)  = lsm_flux_undefined;
+            }
 
             // RRTMGP variables
             TSK(i,j,0)           = noah_output_arr(ii,jj,0,NoahmpOutputComp::tsk);

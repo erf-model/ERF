@@ -1,7 +1,7 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
 erf.prob_name = Hurricane
 
-erf.init_type = MoistBaseState
+#erf.init_type = MoistBaseState
 
 max_step = 115200
 stop_time = 1000000.0

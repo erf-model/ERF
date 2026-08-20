@@ -1,39 +1,21 @@
 /**
- *  Define the primitive variables by dividing the conserved variables by density
+ *  Define the Exner pressure at this RK stage
  */
-    auto cons_to_prim = [&](const MultiFab& cons_state, int ng)
+    auto make_pi_stage = [&](const MultiFab& cons_state)
     {
-        BL_PROFILE("cons_to_prim()");
-
-        int ncomp_prim = S_prim.nComp();
+        BL_PROFILE("make_pi_stage()");
 
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
       for (MFIter mfi(cons_state,TilingIfNotGPU()); mfi.isValid(); ++mfi)
       {
-          const Box& gbx = mfi.growntilebox(ng);
-          const Array4<const Real>& cons_arr     = cons_state.array(mfi);
-          const Array4<      Real>& prim_arr     = S_prim.array(mfi);
-
-          //
-          // We may need > one ghost cells of prim in order to compute higher order advective terms
-          //
-          amrex::ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-          {
-              Real rho       = cons_arr(i,j,k,Rho_comp);
-              Real rho_theta = cons_arr(i,j,k,RhoTheta_comp);
-              prim_arr(i,j,k,PrimTheta_comp) = rho_theta / rho;
-              for (int n = 1; n < ncomp_prim; ++n) {
-                  prim_arr(i,j,k,PrimTheta_comp + n) = cons_arr(i,j,k,RhoTheta_comp + n) / rho;
-              }
-          });
-
           //
           // We only use one ghost cell of pi_stage so we only fill one here
           //
           const Box& gbx1 = mfi.growntilebox(1);
 
+          const Array4<const Real>& cons_arr = cons_state.const_array(mfi);
           const Array4<      Real>& pi_stage_arr = pi_stage.array(mfi);
           const Real rdOcp = solverChoice.rdOcp;
           const bool l_use_moisture  = (solverChoice.moisture_type != MoistureType::None);
@@ -44,27 +26,6 @@
               pi_stage_arr(i,j,k) = getExnergivenRTh(cons_arr(i,j,k,RhoTheta_comp), rdOcp, qv_for_p);
           });
       } // mfi
-    };
-
-/**
- *  Define the total water content in each cell
- */
-    auto make_qt = [&](const MultiFab& cons_state, MultiFab& qt)
-    {
-        BL_PROFILE("make_qt()");
-
-        int n_qstate_into_total = micro->Get_Qstate_Moist_Size() - micro->Get_Qstate_Moist_NumConc_Size();
-
-        // All moisture models are guaranteed to have RhoQ1_comp
-        MultiFab::Copy(qt, cons_state, RhoQ1_comp, 0, 1, qt.nGrowVect());
-
-        // Sum up each component
-        for (int n(1); n<n_qstate_into_total; ++n) {
-            MultiFab::Add(qt, cons_state, RhoQ1_comp+n, 0, 1, qt.nGrowVect());
-        }
-
-        // Divide out the dry density
-        MultiFab::Divide(qt, cons_state, Rho_comp, 0, 1, qt.nGrowVect());
     };
 
 /**

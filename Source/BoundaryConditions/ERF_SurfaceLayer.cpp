@@ -10,6 +10,7 @@ using namespace amrex;
  */
 void
 SurfaceLayer::update_fluxes (const int& lev,
+                             const Real& elapsed_time,
                              const Real& elapsed_time_since_start_low,
                              MultiFab& cons_in,
                              const std::unique_ptr<MultiFab>& z_phys_nd,
@@ -17,12 +18,18 @@ SurfaceLayer::update_fluxes (const int& lev,
                              int max_iters)
 {
     // Update with SST/TSK data if we have a valid pointer
-    if (!m_sst_lev[lev].empty() && m_sst_lev[lev][0]) {
+    if (!m_has_ocean_lsm_tsurf &&
+        !m_sst_lev[lev].empty() && m_sst_lev[lev][0]) {
         fill_tsurf_with_sst_and_tsk(lev, elapsed_time_since_start_low);
+    }
+    if (m_use_sfc_sst) {
+        // Set tsurf to time varying SST from sfc file
+        fill_tsurf_with_sfc_sst(lev, elapsed_time);
     }
 
     // Apply heating rate if needed
-    if (theta_type == ThetaCalcType::SURFACE_TEMPERATURE) {
+    if (theta_type == ThetaCalcType::SURFACE_TEMPERATURE &&
+        !m_has_ocean_lsm_tsurf) {
         update_surf_temp(elapsed_time_since_start_low);
     }
 
@@ -40,121 +47,157 @@ SurfaceLayer::update_fluxes (const int& lev,
     // Compute plane averages for all vars (regardless of flux type)
     m_ma.compute_averages(lev);
 
-
-    // ***************************************************************
-    // Iterate the fluxes if moeng type
-    // First iterate over land -- the only model for surface roughness
-    // over land is RoughCalcType::CONSTANT
-    // ***************************************************************
-    if (flux_type == FluxCalcType::MOENG ||
-        flux_type == FluxCalcType::ROTATE) {
-        bool is_land = true;
-        // Do we have a constant flux for moisture over land?
-        bool cons_qflux = ( (moist_type == MoistCalcType::MOISTURE_FLUX) ||
-                            (moist_type == MoistCalcType::ADIABATIC) );
-        if (theta_type == ThetaCalcType::HEAT_FLUX) {
-            if (rough_type_land == RoughCalcType::CONSTANT) {
-                surface_flux most_flux(surf_temp_flux, surf_moist_flux, cons_qflux);
-                compute_fluxes(lev, max_iters, cons_in, most_flux, is_land);
-            } else {
-                amrex::Abort("Unknown value for rough_type_land");
-            }
-        } else if (theta_type == ThetaCalcType::SURFACE_TEMPERATURE) {
-            if (rough_type_land == RoughCalcType::CONSTANT) {
-                surface_temp most_flux(surf_temp_flux, surf_moist_flux, cons_qflux);
-                compute_fluxes(lev, max_iters, cons_in, most_flux, is_land);
-            } else {
-                amrex::Abort("Unknown value for rough_type_land");
-            }
-        } else if ((theta_type == ThetaCalcType::ADIABATIC) &&
-                   (moist_type == MoistCalcType::ADIABATIC)) {
-            if (rough_type_land == RoughCalcType::CONSTANT) {
-                adiabatic most_flux(surf_temp_flux, surf_moist_flux);
-                compute_fluxes(lev, max_iters, cons_in, most_flux, is_land);
-            } else {
-                amrex::Abort("Unknown value for rough_type_land");
-            }
+    // NOTE: Do iterations to seed variables on the first step (LSM called post step)
+    //*******************************************************************************
+    // Update u*/T*/q*/L over land (iterations or from LSM fluxes)
+    if (m_has_lsm_fluxes && elapsed_time > zero) {
+        compute_sfc_params_from_lsm_fluxes(lev, cons_in);
+    } else {
+        // ***************************************************************
+        // Iterate the fluxes if moeng type
+        // First iterate over land -- the only model for surface roughness
+        // over land is RoughCalcType::CONSTANT
+        // ***************************************************************
+        if (flux_type == FluxCalcType::MOENG ||
+            flux_type == FluxCalcType::ROTATE) {
+            bool is_land = true;
+            // Do we have a constant flux for moisture over land?
+            bool cons_qflux = ( (moist_type == MoistCalcType::MOISTURE_FLUX) ||
+                                (moist_type == MoistCalcType::ADIABATIC) );
+            if (m_terrain_type != TerrainType::EB) {
+            if (theta_type == ThetaCalcType::HEAT_FLUX) {
+                    if (rough_type_land == RoughCalcType::CONSTANT) {
+                        surface_flux most_flux(surf_temp_flux, surf_moist_flux, cons_qflux);
+                        compute_fluxes(lev, max_iters, cons_in, most_flux, is_land);
+                    } else {
+                        amrex::Abort("Unknown value for rough_type_land");
+                    }
+                } else if (theta_type == ThetaCalcType::SURFACE_TEMPERATURE) {
+                    if (rough_type_land == RoughCalcType::CONSTANT) {
+                        surface_temp most_flux(surf_temp_flux, surf_moist_flux, cons_qflux);
+                        compute_fluxes(lev, max_iters, cons_in, most_flux, is_land);
+                    } else {
+                        amrex::Abort("Unknown value for rough_type_land");
+                    }
+                } else if ((theta_type == ThetaCalcType::ADIABATIC) &&
+                        (moist_type == MoistCalcType::ADIABATIC)) {
+                    if (rough_type_land == RoughCalcType::CONSTANT) {
+                        adiabatic most_flux(surf_temp_flux, surf_moist_flux);
+                        compute_fluxes(lev, max_iters, cons_in, most_flux, is_land);
+                    } else {
+                        amrex::Abort("Unknown value for rough_type_land");
+                    }
+                } else {
+                    amrex::Abort("Unknown value for theta_type");
+                }
+        // EB
         } else {
-            amrex::Abort("Unknown value for theta_type");
+            if (theta_type == ThetaCalcType::HEAT_FLUX) {
+                if (rough_type_land == RoughCalcType::CONSTANT) {
+                    surface_flux_eb most_flux(surf_temp_flux, surf_moist_flux, cons_qflux);
+                    compute_fluxes(lev, max_iters, cons_in, most_flux, is_land);
+                } else {
+                    amrex::Abort("Unknown value for rough_type_land");
+                }
+            } else if (theta_type == ThetaCalcType::SURFACE_TEMPERATURE) {
+                if (rough_type_land == RoughCalcType::CONSTANT) {
+                    surface_temp_eb most_flux(surf_temp_flux, surf_moist_flux, cons_qflux);
+                    compute_fluxes(lev, max_iters, cons_in, most_flux, is_land);
+                } else {
+                    amrex::Abort("Unknown value for rough_type_land");
+                }
+            } else if ((theta_type == ThetaCalcType::ADIABATIC) &&
+                    (moist_type == MoistCalcType::ADIABATIC)) {
+                if (rough_type_land == RoughCalcType::CONSTANT) {
+                    adiabatic_eb most_flux(surf_temp_flux, surf_moist_flux);
+                    compute_fluxes(lev, max_iters, cons_in, most_flux, is_land);
+                } else {
+                    amrex::Abort("Unknown value for rough_type_land");
+                }
+            } else {
+                amrex::Abort("Unknown value for theta_type");
+            }
         }
-    } // MOENG -- LAND
+        } // MOENG -- LAND
+    } // has_lsm_fluxes
 
     // ***************************************************************
     // Iterate the fluxes if moeng type
     // Next iterate over sea -- the models for surface roughness
     // over sea are CHARNOCK, DONELAN, MODIFIED_CHARNOCK or WAVE_COUPLED
+    // NOTE: Sea surface fluxes are not supported for EB terrain
     // ***************************************************************
-    if (flux_type == FluxCalcType::MOENG ||
-        flux_type == FluxCalcType::ROTATE) {
+    if ((flux_type == FluxCalcType::MOENG ||
+         flux_type == FluxCalcType::ROTATE) &&
+        m_terrain_type != TerrainType::EB) {
         bool is_land = false;
         // NOTE: Do not allow default to adiabatic over sea (we have Qvs at surface)
         // Do we have a constant flux for moisture over sea?
         bool cons_qflux = (moist_type == MoistCalcType::MOISTURE_FLUX);
-        if (theta_type == ThetaCalcType::HEAT_FLUX) {
-            if (rough_type_sea == RoughCalcType::CHARNOCK) {
-                surface_flux_charnock most_flux(surf_temp_flux, surf_moist_flux,
-                                                cnk_a, cnk_visc, cons_qflux);
-                compute_fluxes(lev, max_iters, cons_in, most_flux, is_land);
-            } else if (rough_type_sea == RoughCalcType::MODIFIED_CHARNOCK) {
-                surface_flux_mod_charnock most_flux(surf_temp_flux, surf_moist_flux,
-                                                    depth, cons_qflux);
-                compute_fluxes(lev, max_iters, cons_in, most_flux, is_land);
-            } else if (rough_type_sea == RoughCalcType::DONELAN) {
-                surface_flux_donelan most_flux(surf_temp_flux, surf_moist_flux,
-                                               cons_qflux);
-                compute_fluxes(lev, max_iters, cons_in, most_flux, is_land);
-            } else if (rough_type_sea == RoughCalcType::WAVE_COUPLED) {
-                surface_flux_wave_coupled most_flux(surf_temp_flux, surf_moist_flux,
-                                                    cons_qflux);
-                compute_fluxes(lev, max_iters, cons_in, most_flux, is_land);
-            } else {
-                amrex::Abort("Unknown value for rough_type_sea");
-            }
+            if (theta_type == ThetaCalcType::HEAT_FLUX) {
+                if (rough_type_sea == RoughCalcType::CHARNOCK) {
+                    surface_flux_charnock most_flux(surf_temp_flux, surf_moist_flux,
+                                                    cnk_a, cnk_visc, cons_qflux);
+                    compute_fluxes(lev, max_iters, cons_in, most_flux, is_land);
+                } else if (rough_type_sea == RoughCalcType::MODIFIED_CHARNOCK) {
+                    surface_flux_mod_charnock most_flux(surf_temp_flux, surf_moist_flux,
+                                                        depth, cons_qflux);
+                    compute_fluxes(lev, max_iters, cons_in, most_flux, is_land);
+                } else if (rough_type_sea == RoughCalcType::DONELAN) {
+                    surface_flux_donelan most_flux(surf_temp_flux, surf_moist_flux,
+                                                cons_qflux);
+                    compute_fluxes(lev, max_iters, cons_in, most_flux, is_land);
+                } else if (rough_type_sea == RoughCalcType::WAVE_COUPLED) {
+                    surface_flux_wave_coupled most_flux(surf_temp_flux, surf_moist_flux,
+                                                        cons_qflux);
+                    compute_fluxes(lev, max_iters, cons_in, most_flux, is_land);
+                } else {
+                    amrex::Abort("Unknown value for rough_type_sea");
+                }
 
-        } else if (theta_type == ThetaCalcType::SURFACE_TEMPERATURE) {
-            if (rough_type_sea == RoughCalcType::CHARNOCK) {
-                surface_temp_charnock most_flux(surf_temp_flux, surf_moist_flux,
-                                                cnk_a, cnk_visc, cons_qflux);
-                compute_fluxes(lev, max_iters, cons_in, most_flux, is_land);
-            } else if (rough_type_sea == RoughCalcType::MODIFIED_CHARNOCK) {
-                surface_temp_mod_charnock most_flux(surf_temp_flux, surf_moist_flux,
-                                                    depth, cons_qflux);
-                compute_fluxes(lev, max_iters, cons_in, most_flux, is_land);
-            } else if (rough_type_sea == RoughCalcType::DONELAN) {
-                surface_temp_donelan most_flux(surf_temp_flux, surf_moist_flux,
-                                               cons_qflux);
-                compute_fluxes(lev, max_iters, cons_in, most_flux, is_land);
-            } else if (rough_type_sea == RoughCalcType::WAVE_COUPLED) {
-                surface_temp_wave_coupled most_flux(surf_temp_flux, surf_moist_flux,
-                                                    cons_qflux);
-                compute_fluxes(lev, max_iters, cons_in, most_flux, is_land);
-            } else {
-                amrex::Abort("Unknown value for rough_type_sea");
-            }
+            } else if (theta_type == ThetaCalcType::SURFACE_TEMPERATURE) {
+                if (rough_type_sea == RoughCalcType::CHARNOCK) {
+                    surface_temp_charnock most_flux(surf_temp_flux, surf_moist_flux,
+                                                    cnk_a, cnk_visc, cons_qflux);
+                    compute_fluxes(lev, max_iters, cons_in, most_flux, is_land);
+                } else if (rough_type_sea == RoughCalcType::MODIFIED_CHARNOCK) {
+                    surface_temp_mod_charnock most_flux(surf_temp_flux, surf_moist_flux,
+                                                        depth, cons_qflux);
+                    compute_fluxes(lev, max_iters, cons_in, most_flux, is_land);
+                } else if (rough_type_sea == RoughCalcType::DONELAN) {
+                    surface_temp_donelan most_flux(surf_temp_flux, surf_moist_flux,
+                                                cons_qflux);
+                    compute_fluxes(lev, max_iters, cons_in, most_flux, is_land);
+                } else if (rough_type_sea == RoughCalcType::WAVE_COUPLED) {
+                    surface_temp_wave_coupled most_flux(surf_temp_flux, surf_moist_flux,
+                                                        cons_qflux);
+                    compute_fluxes(lev, max_iters, cons_in, most_flux, is_land);
+                } else {
+                    amrex::Abort("Unknown value for rough_type_sea");
+                }
 
-        } else if ((theta_type == ThetaCalcType::ADIABATIC) &&
-                   (moist_type == MoistCalcType::ADIABATIC)) {
-            if (rough_type_sea == RoughCalcType::CHARNOCK) {
-                adiabatic_charnock most_flux(surf_temp_flux, surf_moist_flux,
-                                             cnk_a, cnk_visc);
-                compute_fluxes(lev, max_iters, cons_in, most_flux, is_land);
-            } else if (rough_type_sea == RoughCalcType::MODIFIED_CHARNOCK) {
-                adiabatic_mod_charnock most_flux(surf_temp_flux, surf_moist_flux,
-                                                 depth);
-                compute_fluxes(lev, max_iters, cons_in, most_flux, is_land);
-            } else if (rough_type_sea == RoughCalcType::DONELAN) {
-                adiabatic_donelan most_flux(surf_temp_flux, surf_moist_flux);
-                compute_fluxes(lev, max_iters, cons_in, most_flux, is_land);
-            } else if (rough_type_sea == RoughCalcType::WAVE_COUPLED) {
-                adiabatic_wave_coupled most_flux(surf_temp_flux, surf_moist_flux);
-                compute_fluxes(lev, max_iters, cons_in, most_flux, is_land);
+            } else if ((theta_type == ThetaCalcType::ADIABATIC) &&
+                    (moist_type == MoistCalcType::ADIABATIC)) {
+                if (rough_type_sea == RoughCalcType::CHARNOCK) {
+                    adiabatic_charnock most_flux(surf_temp_flux, surf_moist_flux,
+                                                cnk_a, cnk_visc);
+                    compute_fluxes(lev, max_iters, cons_in, most_flux, is_land);
+                } else if (rough_type_sea == RoughCalcType::MODIFIED_CHARNOCK) {
+                    adiabatic_mod_charnock most_flux(surf_temp_flux, surf_moist_flux,
+                                                    depth);
+                    compute_fluxes(lev, max_iters, cons_in, most_flux, is_land);
+                } else if (rough_type_sea == RoughCalcType::DONELAN) {
+                    adiabatic_donelan most_flux(surf_temp_flux, surf_moist_flux);
+                    compute_fluxes(lev, max_iters, cons_in, most_flux, is_land);
+                } else if (rough_type_sea == RoughCalcType::WAVE_COUPLED) {
+                    adiabatic_wave_coupled most_flux(surf_temp_flux, surf_moist_flux);
+                    compute_fluxes(lev, max_iters, cons_in, most_flux, is_land);
+                } else {
+                    amrex::Abort("Unknown value for rough_type_sea");
+                }
             } else {
-                amrex::Abort("Unknown value for rough_type_sea");
+                amrex::Abort("Unknown value for theta_type");
             }
-        } else {
-            amrex::Abort("Unknown value for theta_type");
-        }
-
     } // MOENG -- SEA
 
     if (flux_type == FluxCalcType::CUSTOM || flux_type == FluxCalcType::RICO) {
@@ -168,50 +211,6 @@ SurfaceLayer::update_fluxes (const int& lev,
             t_star[lev]->setVal(custom_tstar);
             q_star[lev]->setVal(custom_qstar);
         }
-    }
-
-    if (m_use_sfc_fluxes)
-    {
-        amrex::Real t0 = sfc[0][sfc_time_ind];
-        amrex::Real t1 = sfc[0][sfc_time_ind+1];
-        while (elapsed_time_since_start_low >= t1)
-        {
-            int prev_index = sfc_time_ind;
-            // shift time index to next window
-            sfc_time_ind = std::min(sfc_time_ind + 1, int(sfc[0].size() - 2));
-            t0 = sfc[0][sfc_time_ind];
-            t1 = sfc[0][sfc_time_ind+1];
-            if (prev_index == sfc_time_ind) {
-                break;
-            }
-        }
-
-        auto linear_interp = [](const amrex::Real t0, const amrex::Real t1, const amrex::Real t,
-                                const amrex::Real x, const amrex::Real y) -> amrex::Real {
-            // returns a value that is linearly interpolated between x and y at time t. x
-            // is at t=t0, y is at t=t1.
-            if (t0 == t1 || t > t1) {
-                return y;
-            }
-            const amrex::Real dt = (t - t0) / (t1 - t0);
-            return x + (y - x) * dt;
-        };
-
-        sfc_sst = linear_interp(t0, t1, elapsed_time_since_start_low, sfc[1][sfc_time_ind], sfc[1][sfc_time_ind + 1]);
-        sfc_qflux = linear_interp(t0, t1, elapsed_time_since_start_low, sfc[3][sfc_time_ind], sfc[3][sfc_time_ind + 1]);
-        sfc_tflux = linear_interp(t0, t1, elapsed_time_since_start_low, sfc[2][sfc_time_ind], sfc[2][sfc_time_ind + 1]);
-        sfc_ustar = linear_interp(t0, t1, elapsed_time_since_start_low, sfc[4][sfc_time_ind], sfc[4][sfc_time_ind + 1]);
-
-        amrex::Print() << " ABLMOST: Interpolating SHF and LHF at time " << time << ": SST = " << sfc_sst << " SHF = " << sfc_tflux << " LHF = " << sfc_qflux << " USTAR = " << sfc_ustar << std::endl;
-
-        // since no rho factors, these can be set here
-        //t_star[lev]->setVal(sfc_tflux / Cp_d);
-        //q_star[lev]->setVal(sfc_qflux / L_v);
-
-        t_surf[lev]->setVal(sfc_sst);
-        t_star[lev]->setVal(sfc_tflux / 1004.0);
-        q_star[lev]->setVal(sfc_qflux / 2.5104e6);
-        u_star[lev]->setVal(sfc_ustar);
     }
 
     if (m_update_k_rans) {
@@ -258,6 +257,66 @@ SurfaceLayer::update_fluxes (const int& lev,
             });
         }
     }
+
+    if (m_use_sfc_fluxes)
+    {
+        update_sfc_time_index(elapsed_time);
+        sfc_qflux = interpolate_sfc_column(elapsed_time, 3);
+        sfc_tflux = interpolate_sfc_column(elapsed_time, 2);
+        sfc_ustar = interpolate_sfc_column(elapsed_time, 4);
+
+        amrex::Print() << " ABLMOST: Interpolating SHF and LHF at time "
+                       << elapsed_time
+                       << ": SHF = " << sfc_tflux
+                       << " LHF = " << sfc_qflux
+                       << " USTAR = " << sfc_ustar << std::endl;
+
+        u_star[lev]->setVal(sfc_ustar);
+        t_star[lev]->setVal(sfc_tflux / 1004.0);
+        q_star[lev]->setVal(sfc_qflux / 2.5104e6);
+    }
+
+    u_star[lev]->FillBoundary(m_geom[lev].periodicity());
+    t_star[lev]->FillBoundary(m_geom[lev].periodicity());
+    q_star[lev]->FillBoundary(m_geom[lev].periodicity());
+    olen[lev]->FillBoundary(m_geom[lev].periodicity());
+}
+
+void
+SurfaceLayer::update_sfc_time_index (const Real& elapsed_time)
+{
+    if (sfc.empty() || sfc[0].size() < 2) { return; }
+
+    Real t1 = sfc[0][sfc_time_ind+1];
+    while (elapsed_time >= t1)
+    {
+        int prev_index = sfc_time_ind;
+        sfc_time_ind = std::min(sfc_time_ind + 1, int(sfc[0].size() - 2));
+        t1 = sfc[0][sfc_time_ind+1];
+        if (prev_index == sfc_time_ind) {
+            break;
+        }
+    }
+}
+
+Real
+SurfaceLayer::interpolate_sfc_column (const Real& elapsed_time,
+                                      int col) const
+{
+    if (sfc.empty() || sfc[0].empty()) { return zero; }
+    if (sfc[0].size() == 1) { return sfc[col][0]; }
+
+    const Real t0 = sfc[0][sfc_time_ind];
+    const Real t1 = sfc[0][sfc_time_ind+1];
+    const Real x0 = sfc[col][sfc_time_ind];
+    const Real x1 = sfc[col][sfc_time_ind+1];
+
+    if (t0 == t1 || elapsed_time > t1) {
+        return x1;
+    }
+
+    const Real dt = (elapsed_time - t0) / (t1 - t0);
+    return x0 + (x1 - x0) * dt;
 }
 
 /**
@@ -281,6 +340,7 @@ SurfaceLayer::compute_fluxes (const int& lev,
     const auto *const tvm_ptr  = m_ma.get_average(lev,4); // virtual potential temperature
     const auto *const umm_ptr  = m_ma.get_average(lev,5); // horizontal velocity magnitude
     const auto *const zref_ptr = m_ma.get_zref(lev);     // reference height
+    const bool l_use_eb = (m_terrain_type == TerrainType::EB);
 
     const int klo = m_geom[lev].Domain().smallEnd(2);
     IntVect ng = u_star[lev]->nGrowVect(); ng[2] = 0;
@@ -289,9 +349,9 @@ SurfaceLayer::compute_fluxes (const int& lev,
     {
         Box gtbx = mfi.tilebox(IntVect(0),ng);
 
-        if (gtbx.smallEnd(2) != klo) { continue; }
+        if (!l_use_eb && gtbx.smallEnd(2) != klo) { continue; }
 
-        gtbx.makeSlab(2,klo);
+        if (!l_use_eb) { gtbx.makeSlab(2,klo); }
 
         auto u_star_arr = u_star[lev]->array(mfi);
         auto t_star_arr = t_star[lev]->array(mfi);
@@ -321,24 +381,56 @@ SurfaceLayer::compute_fluxes (const int& lev,
         auto lmask_arr    = (m_lmask_lev[lev][0])    ? m_lmask_lev[lev][0]->array(mfi) :
                                                        Array4<int> {};
 
-        ParallelFor(gtbx, [=] AMREX_GPU_DEVICE(int i, int j, int ) noexcept
-        {
-            if (( is_land && lmask_arr(i,j,0) == 1) ||
-                (!is_land && lmask_arr(i,j,0) == 0))
+        // Get EB flags if needed
+        const auto flag_arr = (l_use_eb) ? m_eb_vec[lev]->get_const_factory()->getMultiEBCellFlagFab()[mfi].const_array() : Array4<const EBCellFlag>{};
+
+        if (!l_use_eb) {
+            ParallelFor(gtbx, [=] AMREX_GPU_DEVICE(int i, int j, int ) noexcept
             {
-                // NOTE: All 2D MFs so k index is always 0 from ba2d definition
-                most_flux.iterate_flux(i, j, 0, max_iters,
-                                       zref_arr,                            // set in most average
-                                       z0_arr,                              // updated if(!is_land)
-                                       umm_arr, tm_arr, tvm_arr, qvm_arr,
-                                       u_star_arr,                          // updated
-                                       w_star_arr,                          // updated if(m_include_wstar)
-                                       t_star_arr, q_star_arr,              // updated
-                                       t_surf_arr, q_surf_arr, olen_arr,    // updated
-                                       pblh_arr,                            // updated if(m_include_wstar)
-                                       Hwave_arr, Lwave_arr, eta_arr);
+                if (( is_land && lmask_arr(i,j,0) == 1) ||
+                    (!is_land && lmask_arr(i,j,0) == 0))
+                {
+                    // NOTE: All 2D MFs so k index is always 0 from ba2d definition
+                    most_flux.iterate_flux(i, j, 0, max_iters,
+                                        zref_arr,                            // set in most average
+                                        z0_arr,                              // updated if(!is_land)
+                                        umm_arr, tm_arr, tvm_arr, qvm_arr,
+                                        u_star_arr,                          // updated
+                                        w_star_arr,                          // updated if(m_include_wstar)
+                                        t_star_arr, q_star_arr,              // updated
+                                        t_surf_arr, q_surf_arr, olen_arr,    // updated
+                                        pblh_arr,                            // updated if(m_include_wstar)
+                                        Hwave_arr, Lwave_arr, eta_arr);
+                }
+            });
+        // EB
+        } else {
+            if (std::is_same<FluxIter, adiabatic_eb>::value ||
+                std::is_same<FluxIter, surface_temp_eb>::value ||
+                std::is_same<FluxIter, surface_flux_eb>::value) {
+                ParallelFor(gtbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+                {
+                    if (( is_land && lmask_arr(i,j,0) == 1) ||
+                        (!is_land && lmask_arr(i,j,0) == 0))
+                    {
+                        if (flag_arr(i,j,k).isSingleValued()) {
+                            most_flux.iterate_flux(i, j, k, max_iters,
+                                                zref_arr,                            // set in most average
+                                                z0_arr,                              // updated if(!is_land)
+                                                umm_arr, tm_arr, tvm_arr, qvm_arr,
+                                                u_star_arr,                          // updated
+                                                w_star_arr,                          // updated if(m_include_wstar)
+                                                t_star_arr, q_star_arr,              // updated
+                                                t_surf_arr, q_surf_arr, olen_arr,    // updated
+                                                pblh_arr,                            // updated if(m_include_wstar)
+                                                Hwave_arr, Lwave_arr, eta_arr);
+                        }
+                    }
+                });
+            } else {
+                amrex::Abort("FluxIter type not supported for EB");
             }
-        });
+        }
     }
 }
 
@@ -413,21 +505,20 @@ SurfaceLayer::impose_SurfaceLayer_bcs (const int& lev,
 void
 SurfaceLayer::impose_SurfaceLayer_bcs_EB (const int& lev,
                                        Vector<const MultiFab*> mfs,
-                                       Vector<std::unique_ptr<MultiFab>>& Tau_EB,
+                                       Vector<Vector<std::unique_ptr<MultiFab>>>& Tau_EB,
                                        MultiFab* xheat_flux,
                                        MultiFab* yheat_flux,
                                        MultiFab* Hfx3_EB,
                                        MultiFab* xqv_flux,
                                        MultiFab* yqv_flux,
-                                       MultiFab* zqv_flux,
-                                       const eb_& ebfact)
+                                       MultiFab* zqv_flux)
 {
     if (flux_type == FluxCalcType::MOENG) {
-        moeng_flux flux_comp;
+        moeng_flux_eb flux_comp;
         compute_SurfaceLayer_bcs_EB(lev, mfs, Tau_EB,
                                  xheat_flux, yheat_flux, Hfx3_EB,
                                  xqv_flux, yqv_flux, zqv_flux,
-                                 ebfact, flux_comp);
+                                 flux_comp);
     } else {
         amrex::Abort("Not implemented surface layer flux calculation type for EB");
     }
@@ -533,10 +624,12 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
         bx.makeSlab(2,klo);
         ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
-            // Valid theta flux from LSM and over land
+            // Valid theta flux from LSM and over land. The LSM writes the
+            // lsm_flux_undefined sentinel for cells it did not process (sea-ice /
+            // open water); fall back to MOST there instead of applying garbage.
             Real Tflux;
             int is_land = (lmask_arr) ? lmask_arr(i,j,0) : 1;
-            if (lsm_t_flux_arr && is_land) {
+            if (lsm_t_flux_arr && is_land && lsm_t_flux_arr(i,j,0) < lsm_flux_undefined) {
                 Tflux = lsm_t_flux_arr(i,j,0);
             } else {
                 Tflux = flux_comp.compute_t_flux(i, j, k,
@@ -560,10 +653,10 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
         if (use_moisture) {
             ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
             {
-                // Valid qv flux from LSM and over land
+                // Valid qv flux from LSM and over land (sentinel -> fall back to MOST)
                 Real Qflux;
                 int is_land = (lmask_arr) ? lmask_arr(i,j,0) : 1;
-                if (lsm_q_flux_arr && is_land) {
+                if (lsm_q_flux_arr && is_land && lsm_q_flux_arr(i,j,0) < lsm_flux_undefined) {
                     Qflux = lsm_q_flux_arr(i,j,0);
                 } else {
                     Qflux = flux_comp.compute_q_flux(i, j, k,
@@ -588,10 +681,14 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
             Box bxx = surroundingNodes(bx,0);
             ParallelFor(bxx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
             {
-                // Valid tau13 from LSM and over land
+                // Valid tau13 from LSM and over land. A side that is land but
+                // whose LSM flux is the sentinel (sea-ice / open water) is treated
+                // as non-LSM so that side uses the MOST stress instead.
                 Real stressx;
-                int is_land_hi = (lmask_arr) ? lmask_arr(i  ,j,0) : 1;
-                int is_land_lo = (lmask_arr) ? lmask_arr(i-1,j,0) : 1;
+                int is_land_hi = ((lmask_arr) ? lmask_arr(i  ,j,0) : 1)
+                               && (!lsm_tau13_arr || lsm_tau13_arr(i  ,j,0) < lsm_flux_undefined);
+                int is_land_lo = ((lmask_arr) ? lmask_arr(i-1,j,0) : 1)
+                               && (!lsm_tau13_arr || lsm_tau13_arr(i-1,j,0) < lsm_flux_undefined);
                 if (lsm_tau13_arr && (is_land_hi || is_land_lo)) {
                     stressx = zero;
                     if (!is_land_hi || !is_land_lo) {
@@ -620,10 +717,12 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
             Box bxy = surroundingNodes(bx,1);
             ParallelFor(bxy, [=] AMREX_GPU_DEVICE (int i, int j, int k)
             {
-                // Valid tau13 from LSM and over land
+                // Valid tau23 from LSM and over land (sentinel side -> MOST stress)
                 Real stressy;
-                int is_land_hi = (lmask_arr) ? lmask_arr(i,j  ,0) : 1;
-                int is_land_lo = (lmask_arr) ? lmask_arr(i,j-1,0) : 1;
+                int is_land_hi = ((lmask_arr) ? lmask_arr(i,j  ,0) : 1)
+                               && (!lsm_tau23_arr || lsm_tau23_arr(i,j  ,0) < lsm_flux_undefined);
+                int is_land_lo = ((lmask_arr) ? lmask_arr(i,j-1,0) : 1)
+                               && (!lsm_tau23_arr || lsm_tau23_arr(i,j-1,0) < lsm_flux_undefined);
                 if (lsm_tau23_arr && (is_land_hi || is_land_lo)) {
                     stressy = zero;
                     if (!is_land_hi || !is_land_lo) {
@@ -667,7 +766,7 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
 }
 
 /**
- * Function to calculate MOST fluxes for populating ghost cells.
+ * Function to calculate MOST fluxes for EB.
  *
  * @param[in] lev Current level
  * @param[in,out] mfs MultiFabs to populate
@@ -678,28 +777,74 @@ template <typename FluxCalc>
 void
 SurfaceLayer::compute_SurfaceLayer_bcs_EB (const int& lev,
                                         Vector<const MultiFab*> mfs,
-                                        Vector<std::unique_ptr<MultiFab>>& Tau_EB,
+                                        Vector<Vector<std::unique_ptr<MultiFab>>>& Tau_EB,
                                         [[maybe_unused]] MultiFab* xheat_flux,
                                         [[maybe_unused]] MultiFab* yheat_flux,
                                         MultiFab* Hfx3_EB,
                                         [[maybe_unused]] MultiFab* xqv_flux,
                                         [[maybe_unused]] MultiFab* yqv_flux,
                                         [[maybe_unused]] MultiFab* zqv_flux,
-                                        [[maybe_unused]] const eb_& ebfact,
                                         const FluxCalc& flux_comp)
 {
-    const int klo = m_geom[lev].Domain().smallEnd(2);
-    // const auto& dxInv = m_geom[lev].InvCellSizeArray();
+    // Get EB flags for all centerings
+    const auto& cc_flags = m_eb_vec[lev]->get_const_factory()->getMultiEBCellFlagFab();
+    const auto& u_flags = m_eb_vec[lev]->get_u_const_factory()->getMultiEBCellFlagFab();
+    const auto& v_flags = m_eb_vec[lev]->get_v_const_factory()->getMultiEBCellFlagFab();
+    const auto& w_flags = m_eb_vec[lev]->get_w_const_factory()->getMultiEBCellFlagFab();
+
+    const auto& cc_vfrac = m_eb_vec[lev]->get_const_factory()->getVolFrac();
+    const auto& u_vfrac = m_eb_vec[lev]->get_u_const_factory()->getVolFrac();
+    const auto& v_vfrac = m_eb_vec[lev]->get_v_const_factory()->getVolFrac();
+    const auto& w_vfrac = m_eb_vec[lev]->get_w_const_factory()->getVolFrac();
+    const auto& cc_bnorm = m_eb_vec[lev]->get_const_factory()->getBndryNormal();
+    const auto& u_bnorm = m_eb_vec[lev]->get_u_const_factory()->getBndryNorm();
+    const auto& v_bnorm = m_eb_vec[lev]->get_v_const_factory()->getBndryNorm();
+    const auto& w_bnorm = m_eb_vec[lev]->get_w_const_factory()->getBndryNorm();
+
     for (MFIter mfi(*mfs[0]); mfi.isValid(); ++mfi)
     {
+        // Get flags for this box (all centerings)
+        const auto& cc_flag = cc_flags[mfi];
+        const auto& u_flag = u_flags[mfi];
+        const auto& v_flag = v_flags[mfi];
+        const auto& w_flag = w_flags[mfi];
+
+        // Skip boxes that have no cut cells at any centering
+        if (cc_flag.getType() != FabType::singlevalued &&
+            u_flag.getType() != FabType::singlevalued &&
+            v_flag.getType() != FabType::singlevalued &&
+            w_flag.getType() != FabType::singlevalued
+        ) continue;
+
+        // Get EB flag and volfrac arrays
+        auto const cc_flag_arr = cc_flag.const_array();
+        auto const u_flag_arr = u_flag.const_array();
+        auto const v_flag_arr = v_flag.const_array();
+        auto const w_flag_arr = w_flag.const_array();
+
+        auto const cc_vfrac_arr = cc_vfrac.const_array(mfi);
+        auto const u_vfrac_arr = u_vfrac.const_array(mfi);
+        auto const v_vfrac_arr = v_vfrac.const_array(mfi);
+        auto const w_vfrac_arr = w_vfrac.const_array(mfi);
+        auto const bnorm_arr = cc_bnorm.const_array(mfi);
+        auto const u_bnorm_arr = u_bnorm.const_array(mfi);
+        auto const v_bnorm_arr = v_bnorm.const_array(mfi);
+        auto const w_bnorm_arr = w_bnorm.const_array(mfi);
+
         // Get field arrays
         const auto cons_arr  = mfs[Vars::cons]->array(mfi);
         const auto velx_arr  = mfs[Vars::xvel]->array(mfi);
         const auto vely_arr  = mfs[Vars::yvel]->array(mfi);
+        const auto velz_arr  = mfs[Vars::zvel]->array(mfi);
 
-        // Diffusive stress vars
-        auto t13_arr =  Tau_EB[EBTauType::tau_eb13]->array(mfi);
-        auto t23_arr =  Tau_EB[EBTauType::tau_eb23]->array(mfi);
+        // Diffusive stress vars - t13 and t23 components for all grid types
+        auto u_t13_arr = Tau_EB[EBTauType::tau_eb13][EBGridType::xface]->array(mfi);
+        auto v_t13_arr = Tau_EB[EBTauType::tau_eb13][EBGridType::yface]->array(mfi);
+        auto w_t13_arr = Tau_EB[EBTauType::tau_eb13][EBGridType::zface]->array(mfi);
+
+        auto u_t23_arr = Tau_EB[EBTauType::tau_eb23][EBGridType::xface]->array(mfi);
+        auto v_t23_arr = Tau_EB[EBTauType::tau_eb23][EBGridType::yface]->array(mfi);
+        auto w_t23_arr = Tau_EB[EBTauType::tau_eb23][EBGridType::zface]->array(mfi);
 
         auto hfx3_arr = Hfx3_EB->array(mfi);
 
@@ -709,14 +854,12 @@ SurfaceLayer::compute_SurfaceLayer_bcs_EB (const int& lev,
         const auto *const t_mean     = m_ma.get_average(lev,2);
         // const auto *const q_mean     = m_ma.get_average(lev,3);
         const auto *const u_mag_mean = m_ma.get_average(lev,5);
-        const auto *const k_indx = m_ma.get_k_indices(lev);
 
         const auto um_arr  = u_mean->array(mfi);
         const auto vm_arr  = v_mean->array(mfi);
         const auto tm_arr  = t_mean->array(mfi);
         // const auto qm_arr  = q_mean->array(mfi);
         const auto umm_arr = u_mag_mean->array(mfi);
-        const auto k_arr = k_indx->const_array(mfi);
 
         // Get derived arrays
         const auto u_star_arr = u_star[lev]->array(mfi);
@@ -726,46 +869,166 @@ SurfaceLayer::compute_SurfaceLayer_bcs_EB (const int& lev,
         // Rho*Theta flux
         //============================================================================
         Box bx = mfi.tilebox();
-
-        if (bx.smallEnd(2) != klo) { continue; }
-        bx.makeSlab(2,klo);
-        ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int /*k*/)
+        ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
-            int mk = k_arr(i,j,0);
-
-            Real Tflux = flux_comp.compute_t_flux(i, j, mk,
-                                                 cons_arr, velx_arr, vely_arr,
-                                                 umm_arr, tm_arr, u_star_arr,
-                                                 t_star_arr, t_surf_arr);
-            hfx3_arr(i,j,mk) = Tflux;
+            if (cc_flag_arr(i,j,k).isSingleValued()) {
+                Real Tflux = flux_comp.compute_t_flux(i, j, k,
+                                                    cons_arr, velx_arr, vely_arr, velz_arr,
+                                                    umm_arr, tm_arr, u_star_arr,
+                                                    t_star_arr, t_surf_arr,
+                                                    u_vfrac_arr, v_vfrac_arr, w_vfrac_arr,
+                                                    bnorm_arr);
+                hfx3_arr(i,j,k) = Tflux;
+            }
         });
 
         // Rho*u flux
         //============================================================================
         Box bxx = surroundingNodes(bx,0);
-        ParallelFor(bxx, [=] AMREX_GPU_DEVICE (int i, int j, int /*k*/)
+        Box bxy = surroundingNodes(bx,1);
+        Box bxz = surroundingNodes(bx,2);
+        ParallelFor(bxx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
-            int mk = k_arr(i,j,0);
-
-            Real stressx = flux_comp.compute_u_flux(i, j, mk,
-                                                    cons_arr, velx_arr, vely_arr,
-                                                    umm_arr, um_arr, u_star_arr);
-            t13_arr(i,j,mk) = stressx;
+            if (u_flag_arr(i,j,k).isSingleValued()) {
+                Real stressx = flux_comp.compute_u_flux(i, j, k,
+                                                        cons_arr, velx_arr, vely_arr, velz_arr,
+                                                        umm_arr, um_arr, u_star_arr,
+                                                        u_vfrac_arr, v_vfrac_arr, w_vfrac_arr,
+                                                        cc_vfrac_arr, cc_flag_arr,
+                                                        u_bnorm_arr, 0);
+                u_t13_arr(i,j,k) = stressx;
+            }
+        });
+        ParallelFor(bxy, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+        {
+            if (v_flag_arr(i,j,k).isSingleValued()) {
+                Real stressx = flux_comp.compute_u_flux(i, j, k,
+                                                        cons_arr, velx_arr, vely_arr, velz_arr,
+                                                        umm_arr, um_arr, u_star_arr,
+                                                        u_vfrac_arr, v_vfrac_arr, w_vfrac_arr,
+                                                        cc_vfrac_arr, cc_flag_arr,
+                                                        v_bnorm_arr, 1);
+                v_t13_arr(i,j,k) = stressx;
+            }
+        });
+        ParallelFor(bxz, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+        {
+            if (u_flag_arr(i,j,k).isSingleValued()) {
+                Real stressx = flux_comp.compute_u_flux(i, j, k,
+                                                        cons_arr, velx_arr, vely_arr, velz_arr,
+                                                        umm_arr, um_arr, u_star_arr,
+                                                        u_vfrac_arr, v_vfrac_arr, w_vfrac_arr,
+                                                        cc_vfrac_arr, cc_flag_arr,
+                                                        w_bnorm_arr, 2);
+                w_t13_arr(i,j,k) = stressx;
+            }
         });
 
         // Rho*v flux
         //============================================================================
-        Box bxy = surroundingNodes(bx,1);
-        ParallelFor(bxy, [=] AMREX_GPU_DEVICE (int i, int j, int /*k*/)
+        ParallelFor(bxx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
-            int mk = k_arr(i,j,0);
-
-            Real stressy = flux_comp.compute_v_flux(i, j, mk,
-                                                    cons_arr, velx_arr, vely_arr,
-                                                    umm_arr, vm_arr, u_star_arr);
-            t23_arr(i,j,mk) = stressy;
+            if (u_flag_arr(i,j,k).isSingleValued()) {
+                Real stressy = flux_comp.compute_v_flux(i, j, k,
+                                                        cons_arr, velx_arr, vely_arr, velz_arr,
+                                                        umm_arr, vm_arr, u_star_arr,
+                                                        u_vfrac_arr, v_vfrac_arr, w_vfrac_arr,
+                                                        cc_vfrac_arr, cc_flag_arr, u_bnorm_arr, 0);
+                u_t23_arr(i,j,k) = stressy;
+            }
+        });
+        ParallelFor(bxy, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+        {
+            if (v_flag_arr(i,j,k).isSingleValued()) {
+                Real stressy = flux_comp.compute_v_flux(i, j, k,
+                                                        cons_arr, velx_arr, vely_arr, velz_arr,
+                                                        umm_arr, vm_arr, u_star_arr,
+                                                        u_vfrac_arr, v_vfrac_arr, w_vfrac_arr,
+                                                        cc_vfrac_arr, cc_flag_arr, v_bnorm_arr, 1);
+                v_t23_arr(i,j,k) = stressy;
+            }
+        });
+        ParallelFor(bxz, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+        {
+            if (w_flag_arr(i,j,k).isSingleValued()) {
+                Real stressy = flux_comp.compute_v_flux(i, j, k,
+                                                        cons_arr, velx_arr, vely_arr, velz_arr,
+                                                        umm_arr, vm_arr, u_star_arr,
+                                                        u_vfrac_arr, v_vfrac_arr, w_vfrac_arr,
+                                                        cc_vfrac_arr, cc_flag_arr, w_bnorm_arr, 2);
+                w_t23_arr(i,j,k) = stressy;
+            }
         });
     } // mfiter
+}
+
+void
+SurfaceLayer::compute_sfc_params_from_lsm_fluxes (const int& lev,
+                                                  MultiFab& cons_in)
+{
+    Real eps = std::numeric_limits<amrex::Real>::epsilon();
+    bool has_moisture = use_moisture;
+    const int klo = m_geom[lev].Domain().smallEnd(2);
+    for (MFIter mfi(cons_in); mfi.isValid(); ++mfi) {
+
+        Box vbx = mfi.validbox();
+        if (vbx.smallEnd(2) != klo) { continue; }
+        vbx.makeSlab(2,0);
+
+        // Get CC state
+        const Array4<const Real> cons_arr = cons_in.const_array(mfi);
+
+        // Get SL params
+        const auto u_star_arr = u_star[lev]->array(mfi);
+        const auto t_star_arr = t_star[lev]->array(mfi);
+        const auto q_star_arr = q_star[lev]->array(mfi);
+        const auto olen_arr   = olen[lev]->array(mfi);
+
+        // Get LSM fluxes
+        auto lmask_arr      = (m_lmask_lev[lev][0]) ? m_lmask_lev[lev][0]->array(mfi) :
+                                                      Array4<int> {};
+        auto lsm_t_flux_arr = Array4<Real> {};
+        auto lsm_q_flux_arr = Array4<Real> {};
+        auto lsm_tau13_arr  = Array4<Real> {};
+        auto lsm_tau23_arr  = Array4<Real> {};
+        for (int n(0); n<m_lsm_flux_lev[lev].size(); ++n) {
+            if (toLower(m_lsm_flux_name[n]) == "t_flux") { lsm_t_flux_arr = m_lsm_flux_lev[lev][n]->array(mfi); }
+            if (toLower(m_lsm_flux_name[n]) == "q_flux") { lsm_q_flux_arr = m_lsm_flux_lev[lev][n]->array(mfi); }
+            if (toLower(m_lsm_flux_name[n]) == "tau13")  { lsm_tau13_arr  = m_lsm_flux_lev[lev][n]->array(mfi); }
+            if (toLower(m_lsm_flux_name[n]) == "tau23")  { lsm_tau23_arr  = m_lsm_flux_lev[lev][n]->array(mfi); }
+        }
+
+        ParallelFor(vbx, [=] AMREX_GPU_DEVICE(int i, int j, int /*k*/) noexcept
+        {
+            int is_land = (lmask_arr) ? lmask_arr(i,j,0) : 1;
+            // Skip cells the LSM did not flux (sea-ice / open water -> the LSM
+            // wrote the lsm_flux_undefined sentinel). They keep the u*/T*/q*/L
+            // from the MOST iteration (computed from the surface temperature).
+            // Using the sentinel here would give u_star ~ sqrt(bogus_large_value) and blow up
+            // the PBL on the next step.
+            if (is_land && lsm_t_flux_arr && lsm_t_flux_arr(i,j,0) < lsm_flux_undefined) {
+                Real rho = cons_arr(i,j,klo,Rho_comp);
+                Real Thd = cons_arr(i,j,klo,RhoTheta_comp) / rho;
+                Real qv  = (has_moisture) ? cons_arr(i,j,klo,RhoQ1_comp) / rho : zero;
+                Real Thv = Thd * (one + (R_v/R_d - one)*qv);
+                Real tau = std::sqrt( lsm_tau13_arr(i,j,0)*lsm_tau13_arr(i,j,0)
+                                    + lsm_tau23_arr(i,j,0)*lsm_tau23_arr(i,j,0) );
+                u_star_arr(i,j,0) = amrex::max(std::sqrt(tau),eps);
+                if (lsm_t_flux_arr(i,j,0)>=zero) {
+                    t_star_arr(i,j,0) = amrex::min(-lsm_t_flux_arr(i,j,0) / u_star_arr(i,j,0),-eps);
+                } else {
+                    t_star_arr(i,j,0) = amrex::max(-lsm_t_flux_arr(i,j,0) / u_star_arr(i,j,0),eps);
+                }
+                if (lsm_q_flux_arr(i,j,0)>=zero) {
+                    q_star_arr(i,j,0) = amrex::min(-lsm_q_flux_arr(i,j,0) / u_star_arr(i,j,0),-eps);
+                } else {
+                    q_star_arr(i,j,0) = amrex::max(-lsm_q_flux_arr(i,j,0) / u_star_arr(i,j,0),eps);
+                }
+                olen_arr(i,j,0)   = ( u_star_arr(i,j,0) * u_star_arr(i,j,0) * Thv ) /
+                                    ( KAPPA * CONST_GRAV * t_star_arr(i,j,0) );
+            }
+        });
+    } // mfi
 }
 
 void
@@ -856,6 +1119,36 @@ SurfaceLayer::fill_tsurf_with_sst_and_tsk (const int& lev,
 }
 
 void
+SurfaceLayer::fill_tsurf_with_sfc_sst (const int& lev,
+                                       const Real& elapsed_time)
+{
+    update_sfc_time_index(elapsed_time);
+    const Real sfc_sst = interpolate_sfc_column(elapsed_time, 1);
+    const int klo = m_geom[lev].Domain().smallEnd(2);
+
+    for (MFIter mfi(*t_surf[lev]); mfi.isValid(); ++mfi)
+    {
+        Box gtbx = mfi.growntilebox();
+
+        if (gtbx.smallEnd(2) != klo) { continue; }
+
+        auto t_surf_arr = t_surf[lev]->array(mfi);
+        auto lmask_arr  = (m_lmask_lev[lev][0]) ? m_lmask_lev[lev][0]->array(mfi) :
+                                                  Array4<int> {};
+
+        ParallelFor(gtbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+        {
+            int is_land = (lmask_arr) ? lmask_arr(i,j,k) : 0;
+            if (!is_land) {
+                t_surf_arr(i,j,k) = sfc_sst;
+            }
+        });
+    }
+
+    t_surf[lev]->FillBoundary(m_geom[lev].periodicity());
+}
+
+void
 SurfaceLayer::fill_qsurf_with_qsat (const int& lev,
                                     const MultiFab& cons_in,
                                     const std::unique_ptr<MultiFab>& z_phys_nd)
@@ -902,6 +1195,8 @@ void
 SurfaceLayer::get_lsm_tsurf (const int& lev)
 {
     const int klo = m_geom[lev].Domain().smallEnd(2);
+    const bool has_sea_tsurf = (m_has_ocean_lsm_tsurf &&
+                                amrex::toLower(m_lsm_data_name[m_lsm_tsurf_indx]) == "t_surf");
     for (MFIter mfi(*t_surf[lev]); mfi.isValid(); ++mfi)
     {
         Box gtbx = mfi.growntilebox();
@@ -924,7 +1219,8 @@ SurfaceLayer::get_lsm_tsurf (const int& lev)
         ParallelFor(gtbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {
             int is_land = (lmask_arr) ? lmask_arr(i,j,k) : 1;
-            if (is_land) {
+            if ((!has_sea_tsurf && is_land) ||
+                (has_sea_tsurf && !is_land)) {
                 int li = amrex::min(amrex::max(i, i_lo), i_hi);
                 int lj = amrex::min(amrex::max(j, j_lo), j_hi);
                 t_surf_arr(i,j,k) = lsm_arr(li,lj,k);
@@ -1153,7 +1449,8 @@ SurfaceLayer::read_custom_roughness (const int& lev,
 /**
  * Read columns of data from a file, returning each column in a vector.
  */
-std::vector<std::vector<amrex::Real>> SurfaceLayer::read_cols(const std::string &fname, const int skip_nlines)
+amrex::Vector<amrex::Vector<amrex::Real>>
+SurfaceLayer::read_cols(const std::string &fname, const int skip_nlines)
 {
     std::ifstream ifs(fname);
     if (!ifs.is_open())
@@ -1161,7 +1458,7 @@ std::vector<std::vector<amrex::Real>> SurfaceLayer::read_cols(const std::string 
         amrex::Error("Error opening input file " + fname);
     }
 
-    std::vector<std::vector<amrex::Real>> datasets;
+    amrex::Vector<amrex::Vector<amrex::Real>> col_data;
     std::string line;
     int i = 0;
     int ncols = -1;
@@ -1178,14 +1475,12 @@ std::vector<std::vector<amrex::Real>> SurfaceLayer::read_cols(const std::string 
         if (ncols == -1) {
             int j = 0;
             while (iss >> tmp) {
-                datasets.push_back(std::vector<amrex::Real>());
+                col_data.push_back(amrex::Vector<amrex::Real>());
                 j+= 1;
             }
 
             ncols = j;
             iss = std::istringstream(line);
-
-            amrex::Print() << "-> got " << std::to_string(j) << " columns\n";
         }
 
         int j = 0;
@@ -1197,12 +1492,12 @@ std::vector<std::vector<amrex::Real>> SurfaceLayer::read_cols(const std::string 
                 std::to_string(i) + " to have " + std::to_string(ncols) +
                 " columns, but got " + std::to_string(j));
             }
-            datasets[j].push_back(tmp);
+            col_data[j].push_back(tmp);
             j+= 1;
         }
     }
 
     ifs.close();
 
-    return datasets;
+    return col_data;
 }
