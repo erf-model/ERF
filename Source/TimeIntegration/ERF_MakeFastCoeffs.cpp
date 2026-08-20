@@ -126,13 +126,16 @@ void make_fast_coeffs (int /*level*/,
                  Real qv_p = (l_use_moisture) ? prim(i,j,k  ,PrimQ1_comp) : zero;
                  Real qv_q = (l_use_moisture) ? prim(i,j,k-1,PrimQ1_comp) : zero;
 
-                 Real coeff_P = -Gamma * R_d * dzi * inv_detJ_on_kface * pi_c * (one + RvOverRd*qv_p)
-                              +  halfg * R_d * rhobar_hi * pi_stage_ca(i,j,k) /
-                               (  c_v * pibar_hi * stage_cons(i,j,k,RhoTheta_comp) );
+         Real Thd_grad_k = dzi * inv_detJ_on_kface *
+           ( stage_cons(i,j,k,RhoTheta_comp) - stage_cons(i,j,k-1,RhoTheta_comp) );
 
-                 Real coeff_Q =  Gamma * R_d * dzi * inv_detJ_on_kface * pi_c * (one + RvOverRd*qv_q)
-                              + halfg * R_d * rhobar_lo * pi_stage_ca(i,j,k-1) /
-                               ( c_v  * pibar_lo * stage_cons(i,j,k-1,RhoTheta_comp) );
+         Real coeff_P = -Gamma * R_d * dzi * inv_detJ_on_kface * pi_c * (one + RvOverRd*qv_p)
+                      +  Gamma * R_d * R_d * Thd_grad_k * myhalf * pi_stage_ca(i,j,k  ) /
+                      (  c_v * stage_cons(i,j,k  ,RhoTheta_comp) );
+
+         Real coeff_Q =  Gamma * R_d * dzi * inv_detJ_on_kface * pi_c * (one + RvOverRd*qv_q)
+                      +  Gamma * R_d * R_d * Thd_grad_k * myhalf * pi_stage_ca(i,j,k-1) /
+                      (  c_v * stage_cons(i,j,k-1,RhoTheta_comp) );
 
                  coeffP_a(i,j,k) = coeff_P;
                  coeffQ_a(i,j,k) = coeff_Q;
@@ -172,13 +175,15 @@ void make_fast_coeffs (int /*level*/,
                  Real qv_p = (l_use_moisture) ? prim(i,j,k  ,PrimQ1_comp) : zero;
                  Real qv_q = (l_use_moisture) ? prim(i,j,k-1,PrimQ1_comp) : zero;
 
-                 Real coeff_P = -Gamma * R_d * dzi * pi_c * (one + RvOverRd*qv_p)
-                              +  halfg * R_d * rhobar_hi * pi_stage_ca(i,j,k) /
-                              (  c_v * pibar_hi * stage_cons(i,j,k,RhoTheta_comp) );
+         Real Thd_grad_k = dzi * ( stage_cons(i,j,k,RhoTheta_comp) - stage_cons(i,j,k-1,RhoTheta_comp) );
 
-                 Real coeff_Q = Gamma * R_d * dzi * pi_c * (one + RvOverRd*qv_q)
-                              + halfg * R_d * rhobar_lo * pi_stage_ca(i,j,k-1) /
-                              ( c_v  * pibar_lo * stage_cons(i,j,k-1,RhoTheta_comp) );
+         Real coeff_P = -Gamma * R_d * dzi * pi_c * (one + RvOverRd*qv_p)
+                      +  Gamma * R_d * R_d * Thd_grad_k * myhalf * pi_stage_ca(i,j,k  ) /
+                      (  c_v * stage_cons(i,j,k  ,RhoTheta_comp) );
+
+         Real coeff_Q =  Gamma * R_d * dzi * pi_c * (one + RvOverRd*qv_q)
+                      +  Gamma * R_d * R_d * Thd_grad_k * myhalf * pi_stage_ca(i,j,k-1) /
+                      (  c_v * stage_cons(i,j,k-1,RhoTheta_comp) );
 
                  coeffP_a(i,j,k) = coeff_P;
                  coeffQ_a(i,j,k) = coeff_Q;
