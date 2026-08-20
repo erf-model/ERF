@@ -106,7 +106,7 @@ AMREX_ENUM(MoistureModelType,
  * @brief Moisture and microphysics model.
  */
 AMREX_ENUM(MoistureType,
-    SAM, SAM_NoIce, SAM_NoPrecip_NoIce, Kessler, Kessler_NoRain, SatAdj, Morrison, Morrison_NoIce, WSM6, SuperDroplets, MoistNoCondensation, None
+    SAM, SAM_NoIce, SAM_NoPrecip_NoIce, Kessler, Kessler_NoRain, SatAdj, Morrison, Morrison_NoIce, WSM6, WDM6, SuperDroplets, MoistNoCondensation, None
 );
 
 /**
@@ -175,6 +175,11 @@ struct MoistureComponentIndices {
     int nr = -1;  // number concentration for rain
     int ns = -1;  // number concentration for snow
     int ng = -1;  // number concentration for graupel
+    // CCN / total aerosol number. Unlike every other number concentration above,
+    // this has no companion mass species: it is an aerosol reservoir that
+    // exchanges number with nc and nr through activation and evaporation rather
+    // than a hydrometeor count. Kept distinct from ni, which is cloud ice number.
+    int nn = -1;  // number concentration for CCN / total aerosol
 
     /**
      * @brief Construct moisture component indices from conserved-state component numbers.
@@ -199,9 +204,11 @@ struct MoistureComponentIndices {
                               int ni_comp=-1,
                               int nr_comp=-1,
                               int ns_comp=-1,
-                              int ng_comp=-1)
+                              int ng_comp=-1,
+                              int nn_comp=-1)
         : qv(qv_comp), qc(qc_comp), qi(qi_comp), qr(qr_comp), qs(qs_comp), qg(qg_comp),
-                       nc(nc_comp), ni(ni_comp), nr(nr_comp), ns(ns_comp), ng(ng_comp) {}
+                       nc(nc_comp), ni(ni_comp), nr(nr_comp), ns(ns_comp), ng(ng_comp),
+                       nn(nn_comp) {}
 
     /**
      * @brief Construct an empty set of moisture component indices.
@@ -301,6 +308,21 @@ struct SolverChoice {
                 RhoQ4_comp,  // rain
                 RhoQ5_comp,  // snow
                 RhoQ6_comp   // graupel
+            );
+        } else if (moisture_type == MoistureType::WDM6) {
+            moisture_indices = MoistureComponentIndices(
+                RhoQ1_comp,  // water vapor (qv)
+                RhoQ2_comp,  // cloud water (qc)
+                RhoQ3_comp,  // cloud ice (qi)
+                RhoQ4_comp,  // rain (qr)
+                RhoQ5_comp,  // snow (qs)
+                RhoQ6_comp,  // graupel (qg)
+                RhoQ7_comp,  // cloud droplet number concentration (nc)
+                -1,          // ice number (ni) not used - WDM6 uses nn for total aerosol
+                RhoQ9_comp,  // rain number concentration (nr)
+                -1,          // snow number (ns) not used
+                -1,          // graupel number (ng) not used
+                RhoQ8_comp   // CCN / total aerosol number (nn)
             );
         } else if ( (moisture_type == MoistureType::Morrison_NoIce) ||
                     (moisture_type == MoistureType::SAM_NoIce) ) {
@@ -1196,6 +1218,8 @@ struct SolverChoice {
             amrex::Print() << "Moisture Model: Morrison_NoIce" << std::endl;
         } else if (moisture_type == MoistureType::WSM6) {
             amrex::Print() << "Moisture Model: WSM6" << std::endl;
+        } else if (moisture_type == MoistureType::WDM6) {
+            amrex::Print() << "Moisture Model: WDM6" << std::endl;
         } else if (moisture_type == MoistureType::Kessler) {
             amrex::Print() << "Moisture Model: Kessler" << std::endl;
         } else if (moisture_type == MoistureType::Kessler_NoRain) {

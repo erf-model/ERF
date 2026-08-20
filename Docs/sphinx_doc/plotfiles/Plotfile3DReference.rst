@@ -68,6 +68,10 @@ The default subvolume inventory is documented on :ref:`sec:Plotfiles`.
 |                             | potential        |
 |                             | temperature [K]  |
 +-----------------------------+------------------+
+| **pi_hse**                  | Hydrostatic      |
+|                             | Exner function   |
+|                             | [-]              |
++-----------------------------+------------------+
 | **qv_hse**                  | Base-state water |
 |                             | vapor mixing     |
 |                             | ratio [kg/kg]    |
@@ -217,6 +221,21 @@ The default subvolume inventory is documented on :ref:`sec:Plotfiles`.
 | **detJ**                    | Jacobian         |
 |                             | determinant [1]  |
 |                             |                  |
++-----------------------------+------------------+
+| **h_xi**                    | Cell-centered    |
+|                             | average of the   |
+|                             | metric term      |
+|                             | dz/dxi [1]       |
++-----------------------------+------------------+
+| **h_eta**                   | Cell-centered    |
+|                             | average of the   |
+|                             | metric term      |
+|                             | dz/deta [1]      |
++-----------------------------+------------------+
+| **h_zeta**                  | Cell-centered    |
+|                             | average of the   |
+|                             | metric term      |
+|                             | dz/dzeta [1]     |
 +-----------------------------+------------------+
 | **mapfac**                  | Map scale factor |
 |                             | [1]              |
@@ -476,6 +495,33 @@ For the fixed mixed-phase layouts, ``qi`` is read from ``RhoQ3`` and
 ``qrain`` from ``RhoQ4``. Warm-rain layouts have no ice component and place
 ``qrain`` in ``RhoQ3``. Selection checks the exact source component used by
 the writer.
+
+Terrain metric restrictions
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The mesh geometry diagnostics ``z_phys``, ``detJ``, ``h_xi``, ``h_eta``, and
+``h_zeta`` are selected only when the mesh is terrain-fitted, that is when
+``erf.terrain_type = StaticFittedMesh`` or
+``erf.terrain_type = MovingFittedMesh``. A request for one of these names under
+any other terrain type is ignored rather than treated as an error, and the name
+does not reserve a plotfile component.
+
+``h_xi``, ``h_eta``, and ``h_zeta`` are the cell-centered averages of the
+terrain metric terms
+
+.. math::
+
+   h_\xi = \frac{\partial z}{\partial \xi}, \qquad
+   h_\eta = \frac{\partial z}{\partial \eta}, \qquad
+   h_\zeta = \frac{\partial z}{\partial \zeta},
+
+where :math:`z` is the physical height stored at mesh nodes and
+:math:`(\xi, \eta, \zeta)` are the computational coordinates. Each value is
+formed by averaging the four nodal differences that bracket the cell, so
+``h_xi`` and ``h_eta`` vanish on a mesh with no horizontal terrain variation and
+``h_zeta`` reduces to the ratio of the physical to the computational cell height.
+Because ``detJ`` equals ``h_zeta`` for the terrain-fitted mapping used by ERF,
+these three fields together give the full metric Jacobian of the mapping.
 
 Optional storage restrictions
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

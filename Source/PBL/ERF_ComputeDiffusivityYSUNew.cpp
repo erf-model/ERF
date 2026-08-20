@@ -775,6 +775,14 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
                 // WRF bl_ysu.F90 lines 694-696:
                 // brint = -15.9*ust^2/wspd * wstar3/wscale^4
                 // hgamu = brint * ux(1), hgamv = brint * vx(1)
+                //
+                // NOTE: WRF stores the raw (m/s) values here and divides by hpbl at
+                //       the point of use (module_bl_ysu.F: -hgamu(i)/hpbl(i)).  ERF
+                //       instead normalizes at the source, exactly as HGAMT/HGAMQ are
+                //       normalized above, so that all four HGAM* components share one
+                //       contract: a countergradient *gradient* (units of phi per m)
+                //       that the implicit solvers multiply by rho*alpha to form a flux.
+                //       See EddyDiff::HGAMU_v in ERF_IndexDefines.H.
                 hgamu_arr(i, j, 0) = zero;
                 hgamv_arr(i, j, 0) = zero;
                 if (SFCFLG && enable_ysu_countergradient) {
@@ -792,8 +800,8 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
                     // ux(i,1) and vx(i,1) in WRF = cell-center velocity at lowest level (klo in ERF)
                     const Real u_klo = myhalf * (uvel(i, j, klo) + uvel(i+1, j, klo));
                     const Real v_klo = myhalf * (vvel(i, j, klo) + vvel(i, j+1, klo));
-                    hgamu_arr(i, j, 0) = brint * u_klo;
-                    hgamv_arr(i, j, 0) = brint * v_klo;
+                    hgamu_arr(i, j, 0) = brint * u_klo / pblh;   // 1/s
+                    hgamv_arr(i, j, 0) = brint * v_klo / pblh;   // 1/s
                 }
 
                 // VPERT for Pass 3 diagnostic: unnormalized (not divided by pblh)
