@@ -268,8 +268,8 @@ SurfaceLayer::update_fluxes (const int& lev,
     if (m_use_sfc_fluxes)
     {
         update_sfc_time_index(elapsed_time);
-        sfc_qflux = interpolate_sfc_column(elapsed_time, 3);
         sfc_tflux = interpolate_sfc_column(elapsed_time, 2);
+        sfc_qflux = interpolate_sfc_column(elapsed_time, 3);
         sfc_ustar = interpolate_sfc_column(elapsed_time, 4);
 
         amrex::Print() << " ABLMOST: Interpolating SHF and LHF at time "
@@ -279,8 +279,8 @@ SurfaceLayer::update_fluxes (const int& lev,
                        << " USTAR = " << sfc_ustar << std::endl;
 
         u_star[lev]->setVal(sfc_ustar);
-        t_star[lev]->setVal(sfc_tflux / 1004.0);
-        q_star[lev]->setVal(sfc_qflux / 2.5104e6);
+        t_star[lev]->setVal(sfc_tflux / Cp_d);
+        q_star[lev]->setVal(sfc_qflux / L_v);
     }
 
     u_star[lev]->FillBoundary(m_geom[lev].periodicity());
@@ -1652,7 +1652,11 @@ SurfaceLayer::read_custom_roughness (const int& lev,
 }
 
 /**
- * Read columns of data from a file, returning each column in a vector.
+ * Reads columns of data from a text file, returning each column in a vector.
+ *
+ * @param[in] fname       path to text file
+ * @param[in] skip_nlines number of lines to skip before reading data (e.g, header lines)
+ * @return Vector containing each column in the file as a vector
  */
 amrex::Vector<amrex::Vector<amrex::Real>>
 SurfaceLayer::read_cols(const std::string &fname, const int skip_nlines)

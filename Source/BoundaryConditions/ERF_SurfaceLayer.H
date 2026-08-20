@@ -4,7 +4,6 @@
 #include <fstream>
 #include <sstream>
 #include <string>
-#include <vector>
 
 #include "AMReX_Geometry.H"
 #include "AMReX_ParmParse.H"
@@ -780,6 +779,12 @@ public:
   void fill_tsurf_with_sst_and_tsk (const int& lev,
                                     const double& time);
 
+  /**
+   * Fill surface temperature interpolated from time varying SST file
+   *
+   * @param[in] lev  level index
+   * @param[in] time interpolation time
+   */
   void fill_tsurf_with_sfc_sst (const int& lev,
                                 const double& time);
 
@@ -794,8 +799,19 @@ public:
                              const amrex::MultiFab& cons_in,
                              const std::unique_ptr<amrex::MultiFab>& z_phys_nd);
 
+  /**
+   * Updates current time index for interpolating data from SFC/SST file.
+   *
+   * @param[in] time elapsed time
+   */
   void update_sfc_time_index (const amrex::Real& time);
 
+  /**
+   * Interpolates the SFC/SST data at the given column and time
+   *
+   * @param[in] time elapsed time
+   * @param[in] col  column index of file data
+   */
   amrex::Real interpolate_sfc_column (const amrex::Real& time,
                                       int col) const;
 
@@ -1058,10 +1074,23 @@ public:
       m_tsk_lev[lev][itime] = tsk_ptr;
   }
 
+  /**
+   * Returns whether surface fluxes are being set from time-varying sfc file
+   */
   bool use_sfc_fluxes() { return m_use_sfc_fluxes; }
 
+  /**
+   * Returns whether surface temperature is being set from time-varying sst file
+   */
   bool use_sfc_sst() { return m_use_sfc_sst; }
 
+  /**
+   * Reads columns of data from a text file, returning each column in a vector.
+   *
+   * @param[in] fname       path to text file
+   * @param[in] skip_nlines number of lines to skip before reading data (e.g, header lines)
+   * @return Vector containing each column in the file as a vector
+   */
   static amrex::Vector<amrex::Vector<amrex::Real>>
   read_cols(const std::string& fname, const int skip_nlines = 1);
 
