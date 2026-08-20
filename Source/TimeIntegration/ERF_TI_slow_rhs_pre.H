@@ -123,7 +123,7 @@
                      mapfac[level],
                      rhotheta_src[level].get(), rhoqt_src[level].get(),
                      dptr_wbar_sub, d_rayleigh_ptrs_at_lev, d_sinesq_at_lev,
-                     input_sounding_data, turbPert, true);
+                     turbPert, true);
         // ******************************************************************************
         // Phase 10/11/12: Add dust emission flux, settling tendency, and deposition to cc_src
         // This must happen AFTER make_sources so it is not overwritten.
