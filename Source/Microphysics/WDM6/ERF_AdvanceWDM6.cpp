@@ -102,7 +102,7 @@ Real wdm6_lamdar (Real qr, Real den, Real nr, Real pidnr_arg) {
     //
     // The old qr/nr guard is dropped: every caller already gates on
     // qr <= qcrmin || nr <= nrmin with the same values, and the branch returned
-    // 1/5.0e4, a slope, where the caller expects a lamda and inverts it again.
+    // 1/5.0e4, a slope, where the caller expects a lambda and inverts it again.
     return std::exp(std::log((pidnr_arg * nr) / (qr * den)) * wdm6_literal(0.33333333));
 }
 
