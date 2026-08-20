@@ -2527,9 +2527,6 @@ ERF::ReadParameters ()
         lsm.SetModel<NOAHMP>();
         Print() << "Noah-MP land surface model!\n";
 #endif
-    // NOTE: LandSurfaceType::OceanSurf is not dispatched here. It is a deprecated
-    //       spelling of erf.use_coupled_sst and init_params rewrites it to None,
-    //       so coupled SST no longer consumes the land surface model slot.
     } else if (solverChoice.lsm_type == LandSurfaceType::None) {
         lsm.SetModel<NullSurf>();
         Print() << "Null land surface model!\n";

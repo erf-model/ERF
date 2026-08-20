@@ -127,7 +127,7 @@ AMREX_ENUM(WindFarmLocType,
  * @brief Land-surface model.
  */
 AMREX_ENUM(LandSurfaceType,
-    SLM, NOAHMP, OceanSurf, None
+    SLM, NOAHMP, None
 );
 
 /**
@@ -372,6 +372,22 @@ struct SolverChoice {
         int default_buoyancy_type = buoyancy_type[0];
         read_int_string(max_level, "buoyancy_type", buoyancy_type, default_buoyancy_type);
 
+        // OceanSurf was removed from LandSurfaceType. Catch the stale spelling
+        // before query_enum_case_insensitive does, so the error says what to do
+        // rather than just listing the enum values.
+        {
+            std::string lsm_string;
+            if (pp.query("land_surface_model", lsm_string) &&
+                amrex::toLower(lsm_string) == "oceansurf") {
+                amrex::Abort("erf.land_surface_model = OceanSurf has been removed. "
+                             "Coupled ocean SST is now applied through the "
+                             "lower-boundary path: set erf.use_coupled_sst = 1 "
+                             "instead, and use erf.land_surface_model for the land "
+                             "surface you actually want (the two are no longer "
+                             "the same setting).");
+            }
+        }
+
         // What type of land surface model to use
         lsm_type = LandSurfaceType::None; // Default
         pp.query_enum_case_insensitive("land_surface_model",lsm_type);
@@ -383,19 +399,6 @@ struct SolverChoice {
         // ThetaCalcType::SURFACE_TEMPERATURE, which is long before the first
         // ApplyOceanSurfaceState call.
         pp.query("use_coupled_sst", use_coupled_sst);
-
-        // Deprecated spelling. Coupled SST used to be delivered as a land surface
-        // model, which meant it occupied the one LSM slot and could not coexist
-        // with a real land surface. It is now applied through the lower-boundary
-        // path alongside wrflowinp SST/TSK, so the LSM slot is free. Accept the
-        // old key as a request for coupled SST and select no land surface model.
-        if (lsm_type == LandSurfaceType::OceanSurf) {
-            use_coupled_sst = true;
-            lsm_type = LandSurfaceType::None;
-            amrex::Print() << "erf.land_surface_model = OceanSurf is deprecated; "
-                           << "treating it as erf.use_coupled_sst = 1 with no land "
-                           << "surface model. Update your inputs file." << std::endl;
-        }
 
         read_int_string(max_level, "is_land", is_land, 1);
         for (int lev = 0; lev <= max_level; ++lev) {
