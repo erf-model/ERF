@@ -322,12 +322,20 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev)
     if (use_moist) {
         NC_names.push_back("QVAPOR");
         NC_names.push_back("QCLOUD");
-        if (solverChoice.use_wrf_bdy_qc_qi && solverChoice.moisture_indices.qi >= 0) {
+        if (solverChoice.moisture_indices.qi >= 0) {
             NC_names.push_back("QICE");
         }
-        NC_names.push_back("QRAIN");
+        if (solverChoice.moisture_indices.qr >= 0) {
+            NC_names.push_back("QRAIN");   // 26
+        }
+        if (solverChoice.moisture_indices.qs >= 0) {
+            NC_names.push_back("QSNOW");
+        }
+        if (solverChoice.moisture_indices.qg >= 0) {
+            NC_names.push_back("QGRAUP");
+        }
     }
-    NC_names.push_back("IVGTYP");     // 27
+    NC_names.push_back("IVGTYP");
     NC_names.push_back("ISLTYP");     // 28
     if (use_lsm) {
         NC_names.push_back("TSLB");   // 29
@@ -432,9 +440,10 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev)
 
             auto& var_fab_from_file = NC_fab_var[idx][ivar];
             bool has_fallback_behavior =
-                (var_name == "U")      || (var_name == "V")      || (var_name == "W")      ||
-                (var_name == "THM")    || (var_name == "QVAPOR") || (var_name == "QCLOUD") ||
-                (var_name == "QRAIN")  || (var_name == "PH")     || (var_name == "PHB");
+                (var_name == "U")       || (var_name == "V")       || (var_name == "W")      ||
+                (var_name == "THM")     || (var_name == "QVAPOR")  || (var_name == "QCLOUD") ||
+                (var_name == "QICE")    || (var_name == "QRAIN")   || (var_name == "QSNOW")  ||
+                (var_name == "QGRAUP")  || (var_name == "PH")      || (var_name == "PHB");
             if (!success && !has_fallback_behavior) {
                 if (var_name == "QICE") {
                     amrex::Abort("erf.use_wrf_bdy_qc_qi requires QICE in wrfinput for the active cloud-ice component");
@@ -594,11 +603,13 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev)
             }
 
             // Initialize cell-centered variables that need to be density-weighted
-            if ( var_name == "THM"    ||
-                 var_name == "QVAPOR" ||
-                 var_name == "QCLOUD" ||
-                 var_name == "QICE"   ||
-                 var_name == "QRAIN" )
+            if ( var_name == "THM"     ||
+                 var_name == "QVAPOR"  ||
+                 var_name == "QCLOUD"  ||
+                 var_name == "QICE"    ||
+                 var_name == "QRAIN"   ||
+                 var_name == "QSNOW"   ||
+                 var_name == "QGRAUP" )
             {
                 int n_qstate_moist = micro->Get_Qstate_Moist_Size();
                 AMREX_ALWAYS_ASSERT(micro->Get_Qstate_NonMoist_Size() == 0);
@@ -614,8 +625,13 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev)
                     icomp    = solverChoice.moisture_indices.qi;
                 } else if (var_name == "QRAIN") {
                     icomp    = solverChoice.moisture_indices.qr;
-                    if (icomp < 0 || n_qstate_moist < 3) { success = 0; }
+                } else if (var_name == "QSNOW") {
+                    icomp    = solverChoice.moisture_indices.qs;
+                } else if (var_name == "QGRAUP") {
+                    icomp    = solverChoice.moisture_indices.qg;
                 }
+                // Note: RhoQ7-RhoQ9 (nc, nn, nr for WDM6) or RhoQ7-RhoQ11 (nc, ni, nr, ns, ng for Morrison)
+                // start at zero and are diagnosed/initialized by the microphysics scheme
 
                 // INITIAL DATA common for "ideal" as well as "real" simulation
                 // Don't tile this since we are operating on full FABs in this routine

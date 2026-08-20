@@ -18,7 +18,7 @@ ifeq ($(USE_EAMXX_SHOC), TRUE)
 endif
 
 # Default is no Fortran build unless an explicit Fortran bridge/model is enabled.
-# Keep this TRUE when USE_MORR_FORT and USE_WSM6_FORT are both unset.
+# Keep this TRUE when USE_MORR_FORT, USE_WSM6_FORT and USE_WDM6_FORT are unset.
 BL_NO_FORT = TRUE
 ifeq ($(USE_MORR_FORT), TRUE)
 DEFINES += -DERF_USE_MORR_FORT
@@ -27,6 +27,20 @@ endif
 ifeq ($(USE_WSM6_FORT), TRUE)
 DEFINES += -DERF_USE_WSM6_FORT
 BL_NO_FORT = FALSE
+endif
+ifeq ($(USE_WDM6_FORT), TRUE)
+DEFINES += -DERF_USE_WDM6_FORT
+BL_NO_FORT = FALSE
+endif
+
+# Mirrors the ERF_WDM6_F32_LITERALS CMake option, which defaults ON. The WDM6
+# Fortran parameters carry no kind suffix, so as compiled they hold float32
+# values, and reproducing that in the native path is what keeps the two paths in
+# agreement. Read the LITERAL PRECISION CONTRACT comment in
+# Source/Microphysics/WDM6/ERF_WDM6.H before changing this.
+USE_WDM6_F32_LITERALS ?= TRUE
+ifeq ($(USE_WDM6_F32_LITERALS), TRUE)
+DEFINES += -DERF_WDM6_F32_LITERALS
 endif
 
 ifeq ($(USE_CUDA), TRUE)
@@ -42,6 +56,14 @@ endif
 USE_EB = TRUE
 
 include $(AMREX_HOME)/Tools/GNUMake/Make.defs
+
+# Mirrors the CMake guard: the WDM6 Fortran bridge is double-precision only.
+# PRECISION is normalized by Make.defs, so this has to come after the include.
+ifeq ($(USE_WDM6_FORT), TRUE)
+  ifneq ($(PRECISION), DOUBLE)
+    $(error USE_WDM6_FORT requires PRECISION=DOUBLE because the WDM6 Fortran bridge is double-precision only)
+  endif
+endif
 
 EBASE = ERF
 ifeq ($(USE_NETCDF), TRUE)
@@ -177,6 +199,25 @@ ERF_MOISTURE_WSM6_DIR = $(ERF_SOURCE_DIR)/Microphysics/WSM6
 include $(ERF_MOISTURE_WSM6_DIR)/Make.package
 VPATH_LOCATIONS   += $(ERF_MOISTURE_WSM6_DIR)
 INCLUDE_LOCATIONS += $(ERF_MOISTURE_WSM6_DIR)
+
+ERF_MOISTURE_WDM6_DIR = $(ERF_SOURCE_DIR)/Microphysics/WDM6
+include $(ERF_MOISTURE_WDM6_DIR)/Make.package
+VPATH_LOCATIONS   += $(ERF_MOISTURE_WDM6_DIR)
+INCLUDE_LOCATIONS += $(ERF_MOISTURE_WDM6_DIR)
+
+# Shared Fortran support modules. module_libmassv, mp_radar and
+# module_model_constants exist as byte-identical copies under WSM6, WDM6 and
+# Morrison, so each basename is listed exactly once here and left out of the
+# per-scheme Make.package files. Listing one twice would compile the module
+# twice into a single target. VPATH resolves each name against the microphysics
+# directories above, so the copy that gets built is whichever comes first.
+ifneq ($(filter TRUE,$(USE_WSM6_FORT) $(USE_WDM6_FORT)),)
+  F90EXE_sources += ERF_module_libmassv.F90
+  F90EXE_sources += ERF_mp_radar.F90
+endif
+ifneq ($(filter TRUE,$(USE_MORR_FORT) $(USE_WDM6_FORT)),)
+  F90EXE_sources += ERF_module_model_constants.F90
+endif
 
 ERF_MOISTURE_SATADJ_DIR = $(ERF_SOURCE_DIR)/Microphysics/SatAdj
 include $(ERF_MOISTURE_SATADJ_DIR)/Make.package
