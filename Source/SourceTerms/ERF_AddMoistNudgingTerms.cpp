@@ -56,6 +56,13 @@ void add_moist_nudging_terms (const MultiFab& S_data,
     AMREX_ALWAYS_ASSERT(bdy_moist_nudge_type >= 0 && bdy_moist_nudge_type <= 3);
     AMREX_ALWAYS_ASSERT(RhoQ1_comp + n_qstate <= S_data.nComp());
     AMREX_ALWAYS_ASSERT(bdy_moist_nudge_type != 3 || !m_r2d);
+    const bool separate_hydrometeors =
+        wrf_bdy_has_separate_hydrometeors(moisture_indices);
+    const GpuArray<int,6> moisture_comps = {
+        moisture_indices.qv, moisture_indices.qc, moisture_indices.qi,
+        moisture_indices.qr, moisture_indices.qs, moisture_indices.qg};
+    const int n_moisture_targets = separate_hydrometeors
+        ? 6 : (moisture_indices.qi >= 0 ? 3 : 2);
 
     // Temporary MF so we can nudge qv + qc to the bdy data
     //
@@ -103,9 +110,8 @@ void add_moist_nudging_terms (const MultiFab& S_data,
 
     } else if (bdy_moist_nudge_type == 3) {
 
-        const int comps[3] = {moisture_indices.qv, moisture_indices.qc,
-                              moisture_indices.qi};
-        for (const int comp : comps) {
+        for (int n = 0; n < n_moisture_targets; ++n) {
+            const int comp = moisture_comps[n];
             if (comp >= 0) {
                 AMREX_ALWAYS_ASSERT(comp < S_data.nComp());
                 MultiFab::Copy(S_tmp, S_data, comp, comp, 1, ng);
@@ -199,7 +205,7 @@ void add_moist_nudging_terms (const MultiFab& S_data,
                                 ng_vect, true);
 
         // Temporary FABs for storage (owned/filled on all ranks)
-        const int ntargets = (bdy_moist_nudge_type == 3) ? 3 : 1;
+        const int ntargets = (bdy_moist_nudge_type == 3) ? n_moisture_targets : 1;
         FArrayBox QV_xlo, QV_xhi, QV_ylo, QV_yhi;
         QV_xlo.resize(bx_xlo,ntargets,The_Async_Arena()); QV_xhi.resize(bx_xhi,ntargets,The_Async_Arena());
         QV_ylo.resize(bx_ylo,ntargets,The_Async_Arena()); QV_yhi.resize(bx_yhi,ntargets,The_Async_Arena());
@@ -218,6 +224,12 @@ void add_moist_nudging_terms (const MultiFab& S_data,
         Array4<const Real> qcdatylo_n, qcdatylo_np1, qcdatyhi_n, qcdatyhi_np1;
         Array4<const Real> qidatxlo_n, qidatxlo_np1, qidatxhi_n, qidatxhi_np1;
         Array4<const Real> qidatylo_n, qidatylo_np1, qidatyhi_n, qidatyhi_np1;
+        Array4<const Real> qrdatxlo_n, qrdatxlo_np1, qrdatxhi_n, qrdatxhi_np1;
+        Array4<const Real> qrdatylo_n, qrdatylo_np1, qrdatyhi_n, qrdatyhi_np1;
+        Array4<const Real> qsdatxlo_n, qsdatxlo_np1, qsdatxhi_n, qsdatxhi_np1;
+        Array4<const Real> qsdatylo_n, qsdatylo_np1, qsdatyhi_n, qsdatyhi_np1;
+        Array4<const Real> qgdatxlo_n, qgdatxlo_np1, qgdatxhi_n, qgdatxhi_np1;
+        Array4<const Real> qgdatylo_n, qgdatylo_np1, qgdatyhi_n, qgdatyhi_np1;
         if (bdy_moist_nudge_type == 3) {
             qcdatxlo_n   = bdy_data_xlo[n_time   ][RealBdyVars::QC].const_array();
             qcdatxlo_np1 = bdy_data_xlo[n_time_p1][RealBdyVars::QC].const_array();
@@ -235,6 +247,32 @@ void add_moist_nudging_terms (const MultiFab& S_data,
             qidatylo_np1 = bdy_data_ylo[n_time_p1][RealBdyVars::QI].const_array();
             qidatyhi_n   = bdy_data_yhi[n_time   ][RealBdyVars::QI].const_array();
             qidatyhi_np1 = bdy_data_yhi[n_time_p1][RealBdyVars::QI].const_array();
+            if (separate_hydrometeors) {
+                qrdatxlo_n   = bdy_data_xlo[n_time   ][RealBdyHydrometeorVars::QR].const_array();
+                qrdatxlo_np1 = bdy_data_xlo[n_time_p1][RealBdyHydrometeorVars::QR].const_array();
+                qrdatxhi_n   = bdy_data_xhi[n_time   ][RealBdyHydrometeorVars::QR].const_array();
+                qrdatxhi_np1 = bdy_data_xhi[n_time_p1][RealBdyHydrometeorVars::QR].const_array();
+                qrdatylo_n   = bdy_data_ylo[n_time   ][RealBdyHydrometeorVars::QR].const_array();
+                qrdatylo_np1 = bdy_data_ylo[n_time_p1][RealBdyHydrometeorVars::QR].const_array();
+                qrdatyhi_n   = bdy_data_yhi[n_time   ][RealBdyHydrometeorVars::QR].const_array();
+                qrdatyhi_np1 = bdy_data_yhi[n_time_p1][RealBdyHydrometeorVars::QR].const_array();
+                qsdatxlo_n   = bdy_data_xlo[n_time   ][RealBdyHydrometeorVars::QS].const_array();
+                qsdatxlo_np1 = bdy_data_xlo[n_time_p1][RealBdyHydrometeorVars::QS].const_array();
+                qsdatxhi_n   = bdy_data_xhi[n_time   ][RealBdyHydrometeorVars::QS].const_array();
+                qsdatxhi_np1 = bdy_data_xhi[n_time_p1][RealBdyHydrometeorVars::QS].const_array();
+                qsdatylo_n   = bdy_data_ylo[n_time   ][RealBdyHydrometeorVars::QS].const_array();
+                qsdatylo_np1 = bdy_data_ylo[n_time_p1][RealBdyHydrometeorVars::QS].const_array();
+                qsdatyhi_n   = bdy_data_yhi[n_time   ][RealBdyHydrometeorVars::QS].const_array();
+                qsdatyhi_np1 = bdy_data_yhi[n_time_p1][RealBdyHydrometeorVars::QS].const_array();
+                qgdatxlo_n   = bdy_data_xlo[n_time   ][RealBdyHydrometeorVars::QG].const_array();
+                qgdatxlo_np1 = bdy_data_xlo[n_time_p1][RealBdyHydrometeorVars::QG].const_array();
+                qgdatxhi_n   = bdy_data_xhi[n_time   ][RealBdyHydrometeorVars::QG].const_array();
+                qgdatxhi_np1 = bdy_data_xhi[n_time_p1][RealBdyHydrometeorVars::QG].const_array();
+                qgdatylo_n   = bdy_data_ylo[n_time   ][RealBdyHydrometeorVars::QG].const_array();
+                qgdatylo_np1 = bdy_data_ylo[n_time_p1][RealBdyHydrometeorVars::QG].const_array();
+                qgdatyhi_n   = bdy_data_yhi[n_time   ][RealBdyHydrometeorVars::QG].const_array();
+                qgdatyhi_np1 = bdy_data_yhi[n_time_p1][RealBdyHydrometeorVars::QG].const_array();
+            }
         }
         Array4<const Real> rdatxlo_n, rdatxlo_np1, rdatxhi_n, rdatxhi_np1;
         Array4<const Real> rdatylo_n, rdatylo_np1, rdatyhi_n, rdatyhi_np1;
@@ -276,9 +314,15 @@ void add_moist_nudging_terms (const MultiFab& S_data,
                                                        bdatxlo_np1(ii,jj,k), alpha);
                 arr_xlo(i,j,k,1) = wrf_moisture_target(rho, qcdatxlo_n(ii,jj,k),
                                                        qcdatxlo_np1(ii,jj,k), alpha);
-                arr_xlo(i,j,k,2) = has_cloud_ice
-                    ? wrf_moisture_target(rho, qidatxlo_n(ii,jj,k),
-                                          qidatxlo_np1(ii,jj,k), alpha) : Real(0.0);
+                if (has_cloud_ice) {
+                    arr_xlo(i,j,k,2) = wrf_moisture_target(rho, qidatxlo_n(ii,jj,k),
+                                                          qidatxlo_np1(ii,jj,k), alpha);
+                }
+                if (separate_hydrometeors) {
+                    arr_xlo(i,j,k,3) = wrf_moisture_target(rho, qrdatxlo_n(ii,jj,k), qrdatxlo_np1(ii,jj,k), alpha);
+                    arr_xlo(i,j,k,4) = wrf_moisture_target(rho, qsdatxlo_n(ii,jj,k), qsdatxlo_np1(ii,jj,k), alpha);
+                    arr_xlo(i,j,k,5) = wrf_moisture_target(rho, qgdatxlo_n(ii,jj,k), qgdatxlo_np1(ii,jj,k), alpha);
+                }
             } else {
                 arr_xlo(i,j,k) = (bdatxlo) ? rho * bdatxlo(ii,jj,k,bdy_comp) :
                     rho * ( oma   * bdatxlo_n  (ii,jj,k)
@@ -298,9 +342,15 @@ void add_moist_nudging_terms (const MultiFab& S_data,
                                                        bdatxhi_np1(ii,jj,k), alpha);
                 arr_xhi(i,j,k,1) = wrf_moisture_target(rho, qcdatxhi_n(ii,jj,k),
                                                        qcdatxhi_np1(ii,jj,k), alpha);
-                arr_xhi(i,j,k,2) = has_cloud_ice
-                    ? wrf_moisture_target(rho, qidatxhi_n(ii,jj,k),
-                                          qidatxhi_np1(ii,jj,k), alpha) : Real(0.0);
+                if (has_cloud_ice) {
+                    arr_xhi(i,j,k,2) = wrf_moisture_target(rho, qidatxhi_n(ii,jj,k),
+                                                          qidatxhi_np1(ii,jj,k), alpha);
+                }
+                if (separate_hydrometeors) {
+                    arr_xhi(i,j,k,3) = wrf_moisture_target(rho, qrdatxhi_n(ii,jj,k), qrdatxhi_np1(ii,jj,k), alpha);
+                    arr_xhi(i,j,k,4) = wrf_moisture_target(rho, qsdatxhi_n(ii,jj,k), qsdatxhi_np1(ii,jj,k), alpha);
+                    arr_xhi(i,j,k,5) = wrf_moisture_target(rho, qgdatxhi_n(ii,jj,k), qgdatxhi_np1(ii,jj,k), alpha);
+                }
             } else {
                 arr_xhi(i,j,k) = (bdatxhi) ? rho * bdatxhi(ii,jj,k,bdy_comp) :
                     rho * ( oma   * bdatxhi_n  (ii,jj,k)
@@ -322,9 +372,15 @@ void add_moist_nudging_terms (const MultiFab& S_data,
                                                        bdatylo_np1(ii,jj,k), alpha);
                 arr_ylo(i,j,k,1) = wrf_moisture_target(rho, qcdatylo_n(ii,jj,k),
                                                        qcdatylo_np1(ii,jj,k), alpha);
-                arr_ylo(i,j,k,2) = has_cloud_ice
-                    ? wrf_moisture_target(rho, qidatylo_n(ii,jj,k),
-                                          qidatylo_np1(ii,jj,k), alpha) : Real(0.0);
+                if (has_cloud_ice) {
+                    arr_ylo(i,j,k,2) = wrf_moisture_target(rho, qidatylo_n(ii,jj,k),
+                                                          qidatylo_np1(ii,jj,k), alpha);
+                }
+                if (separate_hydrometeors) {
+                    arr_ylo(i,j,k,3) = wrf_moisture_target(rho, qrdatylo_n(ii,jj,k), qrdatylo_np1(ii,jj,k), alpha);
+                    arr_ylo(i,j,k,4) = wrf_moisture_target(rho, qsdatylo_n(ii,jj,k), qsdatylo_np1(ii,jj,k), alpha);
+                    arr_ylo(i,j,k,5) = wrf_moisture_target(rho, qgdatylo_n(ii,jj,k), qgdatylo_np1(ii,jj,k), alpha);
+                }
             } else {
                 arr_ylo(i,j,k) = (bdatylo) ? rho * bdatylo(ii,jj,k,bdy_comp) :
                     rho * ( oma   * bdatylo_n  (ii,jj,k)
@@ -345,9 +401,15 @@ void add_moist_nudging_terms (const MultiFab& S_data,
                                                       bdatyhi_np1(ii,jj,k), alpha);
                arr_yhi(i,j,k,1) = wrf_moisture_target(rho, qcdatyhi_n(ii,jj,k),
                                                       qcdatyhi_np1(ii,jj,k), alpha);
-               arr_yhi(i,j,k,2) = has_cloud_ice
-                   ? wrf_moisture_target(rho, qidatyhi_n(ii,jj,k),
-                                         qidatyhi_np1(ii,jj,k), alpha) : Real(0.0);
+               if (has_cloud_ice) {
+                   arr_yhi(i,j,k,2) = wrf_moisture_target(rho, qidatyhi_n(ii,jj,k),
+                                                         qidatyhi_np1(ii,jj,k), alpha);
+               }
+               if (separate_hydrometeors) {
+                   arr_yhi(i,j,k,3) = wrf_moisture_target(rho, qrdatyhi_n(ii,jj,k), qrdatyhi_np1(ii,jj,k), alpha);
+                   arr_yhi(i,j,k,4) = wrf_moisture_target(rho, qsdatyhi_n(ii,jj,k), qsdatyhi_np1(ii,jj,k), alpha);
+                   arr_yhi(i,j,k,5) = wrf_moisture_target(rho, qgdatyhi_n(ii,jj,k), qgdatyhi_np1(ii,jj,k), alpha);
+               }
            } else {
                arr_yhi(i,j,k) = (bdatyhi) ? rho * bdatyhi(ii,jj,k,bdy_comp) :
                    rho * ( oma   * bdatyhi_n  (ii,jj,k)
@@ -364,10 +426,8 @@ void add_moist_nudging_terms (const MultiFab& S_data,
        // Add relaxation terms for moist variables and (rho theta) to existing source terms
        //
        if (bdy_moist_nudge_type == 3) {
-           const GpuArray<int,3> moisture_comps = {
-               moisture_indices.qv, moisture_indices.qc, moisture_indices.qi};
            realbdy_compute_moisture_relaxation(
-               moisture_comps, width, dx, ProbLo, ProbHi, F1,
+               moisture_comps, n_moisture_targets, width, dx, ProbLo, ProbHi, F1,
                tbx_xlo, tbx_xhi, tbx_ylo, tbx_yhi,
                arr_xlo, arr_xhi, arr_ylo, arr_yhi, cons_arr, src_arr);
        } else {

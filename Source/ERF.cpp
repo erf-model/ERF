@@ -689,10 +689,12 @@ ERF::InitData_post ()
             MultiFab r_hse(base_state[0], make_alias, BaseState::r0_comp, 1);
             Array<MultiFab*, AMREX_SPACEDIM> area_vec = {ax[0].get(), ay[0].get(), az[0].get()};
             auto repack_runtime_bdy = [&] (const int itime) {
-                repack_wrfbdy_to_realbdy(bdy_data_xlo[itime], solverChoice.use_wrf_bdy_qc_qi);
-                repack_wrfbdy_to_realbdy(bdy_data_xhi[itime], solverChoice.use_wrf_bdy_qc_qi);
-                repack_wrfbdy_to_realbdy(bdy_data_ylo[itime], solverChoice.use_wrf_bdy_qc_qi);
-                repack_wrfbdy_to_realbdy(bdy_data_yhi[itime], solverChoice.use_wrf_bdy_qc_qi);
+                const bool separate_hydrometeors = solverChoice.use_wrf_bdy_qc_qi &&
+                    wrf_bdy_has_separate_hydrometeors(solverChoice.moisture_indices);
+                repack_wrfbdy_to_realbdy(bdy_data_xlo[itime], solverChoice.use_wrf_bdy_qc_qi, separate_hydrometeors);
+                repack_wrfbdy_to_realbdy(bdy_data_xhi[itime], solverChoice.use_wrf_bdy_qc_qi, separate_hydrometeors);
+                repack_wrfbdy_to_realbdy(bdy_data_ylo[itime], solverChoice.use_wrf_bdy_qc_qi, separate_hydrometeors);
+                repack_wrfbdy_to_realbdy(bdy_data_yhi[itime], solverChoice.use_wrf_bdy_qc_qi, separate_hydrometeors);
             };
 
             // Need itime=0 for vertical interpolation
@@ -706,6 +708,8 @@ ERF::InitData_post ()
                                              r_hse, area_vec, geom[0], use_moist,
                                              solverChoice.use_wrf_bdy_qc_qi,
                                              solverChoice.moisture_indices.qi >= 0,
+                                             solverChoice.use_wrf_bdy_qc_qi &&
+                                             wrf_bdy_has_separate_hydrometeors(solverChoice.moisture_indices),
                                              solverChoice.rebalance_wrf_input, domain_bcs_type,
                                              real_width, bdy_time_interval, is_anelastic);
                 repack_runtime_bdy(itime);
@@ -723,6 +727,8 @@ ERF::InitData_post ()
                                              r_hse, area_vec, geom[0], use_moist,
                                              solverChoice.use_wrf_bdy_qc_qi,
                                              solverChoice.moisture_indices.qi >= 0,
+                                             solverChoice.use_wrf_bdy_qc_qi &&
+                                             wrf_bdy_has_separate_hydrometeors(solverChoice.moisture_indices),
                                              solverChoice.rebalance_wrf_input, domain_bcs_type,
                                              real_width, bdy_time_interval, is_anelastic);
                 if (itime == static_cast<int>(bdy_data_xlo.size())-1 && itime > 0) {

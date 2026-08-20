@@ -24,16 +24,35 @@ wrf_moisture_target (const amrex::Real rho,
     return rho * amrex::max(q, amrex::Real(0.0));
 }
 
+/** True when ERF carries all five hydrometeor mass species separately. */
+AMREX_GPU_HOST_DEVICE
+AMREX_FORCE_INLINE
+bool
+wrf_bdy_has_separate_hydrometeors (const MoistureComponentIndices& moisture_indices) noexcept
+{
+    return moisture_indices.qc >= 0 && moisture_indices.qi >= 0 &&
+           moisture_indices.qr >= 0 && moisture_indices.qs >= 0 &&
+           moisture_indices.qg >= 0;
+}
+
 /** Map an active conserved moisture component to its real-boundary field. */
 inline int
 wrf_bdy_var_for_moisture_component (const int comp,
                                     const MoistureComponentIndices& moisture_indices,
-                                    const bool use_wrf_bdy_qc_qi)
+                                    const bool use_wrf_bdy_qc_qi,
+                                    const bool separate_hydrometeors = false)
 {
     if (comp == moisture_indices.qv) { return RealBdyVars::QV; }
-    if (use_wrf_bdy_qc_qi && comp == moisture_indices.qc) { return RealBdyVars::QC; }
-    if (use_wrf_bdy_qc_qi && moisture_indices.qi >= 0 && comp == moisture_indices.qi) {
-        return RealBdyVars::QI;
+    if (use_wrf_bdy_qc_qi) {
+        if (comp == moisture_indices.qc) { return RealBdyVars::QC; }
+        if (moisture_indices.qi >= 0 && comp == moisture_indices.qi) {
+            return RealBdyVars::QI;
+        }
+        if (separate_hydrometeors) {
+            if (comp == moisture_indices.qr) { return RealBdyHydrometeorVars::QR; }
+            if (comp == moisture_indices.qs) { return RealBdyHydrometeorVars::QS; }
+            if (comp == moisture_indices.qg) { return RealBdyHydrometeorVars::QG; }
+        }
     }
     return -1;
 }
@@ -503,7 +522,8 @@ AMREX_GPU_HOST
 AMREX_FORCE_INLINE
 void
 realbdy_compute_moisture_relaxation (
-                            const amrex::GpuArray<int,3>& moisture_comps,
+                            const amrex::GpuArray<int,6>& moisture_comps,
+                            const int n_targets,
                             const int& width,
                             const amrex::GpuArray<amrex::Real,AMREX_SPACEDIM>& dx,
                             const amrex::GpuArray<amrex::Real,AMREX_SPACEDIM>& ProbLo,
@@ -536,7 +556,7 @@ realbdy_compute_moisture_relaxation (
         const amrex::Real eta_lo = (y < y_end) ? (y_end - y) / (y_end - ProbLo[1]) : amrex::Real(0.0);
         const amrex::Real eta_hi = (y > y_strt) ? (y - y_strt) / (ProbHi[1] - y_strt) : amrex::Real(0.0);
         const amrex::Real factor = amrex::max(xi*xi, amrex::max(eta_lo,eta_hi)*amrex::max(eta_lo,eta_hi)) * F1;
-        for (int n = 0; n < 3; ++n) {
+        for (int n = 0; n < n_targets; ++n) {
             const int comp = moisture_comps[n];
             if (comp >= 0) {
                 rhs_arr(i,j,k,comp) += factor * (arr_xlo(i,j,k,n) - data_arr(i,j,k,comp));
@@ -555,7 +575,7 @@ realbdy_compute_moisture_relaxation (
         const amrex::Real eta_hi = (y > y_strt) ? (y - y_strt) / (ProbHi[1] - y_strt) : amrex::Real(0.0);
         const amrex::Real eta = amrex::max(eta_lo,eta_hi);
         const amrex::Real factor = amrex::max(xi*xi, eta*eta) * F1;
-        for (int n = 0; n < 3; ++n) {
+        for (int n = 0; n < n_targets; ++n) {
             const int comp = moisture_comps[n];
             if (comp >= 0) {
                 rhs_arr(i,j,k,comp) += factor * (arr_xhi(i,j,k,n) - data_arr(i,j,k,comp));
@@ -570,7 +590,7 @@ realbdy_compute_moisture_relaxation (
         const amrex::Real y_end = ProbLo[1] + width * dx[1];
         const amrex::Real eta = (y_end - y) / (y_end - ProbLo[1]);
         const amrex::Real factor = eta*eta * F1;
-        for (int n = 0; n < 3; ++n) {
+        for (int n = 0; n < n_targets; ++n) {
             const int comp = moisture_comps[n];
             if (comp >= 0) {
                 rhs_arr(i,j,k,comp) += factor * (arr_ylo(i,j,k,n) - data_arr(i,j,k,comp));
@@ -583,13 +603,44 @@ realbdy_compute_moisture_relaxation (
         const amrex::Real y_strt = ProbHi[1] - width * dx[1];
         const amrex::Real eta = (y - y_strt) / (ProbHi[1] - y_strt);
         const amrex::Real factor = eta*eta * F1;
-        for (int n = 0; n < 3; ++n) {
+        for (int n = 0; n < n_targets; ++n) {
             const int comp = moisture_comps[n];
             if (comp >= 0) {
                 rhs_arr(i,j,k,comp) += factor * (arr_yhi(i,j,k,n) - data_arr(i,j,k,comp));
             }
         }
     });
+}
+
+// Backward-compatible three-species overload used by existing unit tests and
+// callers that only target qv/qc/qi.
+AMREX_GPU_HOST
+AMREX_FORCE_INLINE
+void
+realbdy_compute_moisture_relaxation (
+                            const amrex::GpuArray<int,3>& moisture_comps,
+                            const int& width,
+                            const amrex::GpuArray<amrex::Real,AMREX_SPACEDIM>& dx,
+                            const amrex::GpuArray<amrex::Real,AMREX_SPACEDIM>& ProbLo,
+                            const amrex::GpuArray<amrex::Real,AMREX_SPACEDIM>& ProbHi,
+                            const amrex::Real& F1,
+                            const amrex::Box& bx_xlo,
+                            const amrex::Box& bx_xhi,
+                            const amrex::Box& bx_ylo,
+                            const amrex::Box& bx_yhi,
+                            const amrex::Array4<const amrex::Real>& arr_xlo,
+                            const amrex::Array4<const amrex::Real>& arr_xhi,
+                            const amrex::Array4<const amrex::Real>& arr_ylo,
+                            const amrex::Array4<const amrex::Real>& arr_yhi,
+                            const amrex::Array4<const amrex::Real>& data_arr,
+                            const amrex::Array4<amrex::Real>& rhs_arr)
+{
+    const amrex::GpuArray<int,6> extended_comps = {
+        moisture_comps[0], moisture_comps[1], moisture_comps[2], -1, -1, -1};
+    realbdy_compute_moisture_relaxation(
+        extended_comps, 3, width, dx, ProbLo, ProbHi, F1,
+        bx_xlo, bx_xhi, bx_ylo, bx_yhi,
+        arr_xlo, arr_xhi, arr_ylo, arr_yhi, data_arr, rhs_arr);
 }
 
 /*

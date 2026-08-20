@@ -134,6 +134,18 @@ namespace RealBdyVars {
     };
 }
 
+// Additional runtime boundary slots used when all precipitating
+// hydrometeors are represented as separate ERF state components.  Keep the
+// compact QC/QI indices above unchanged for aggregate-boundary compatibility.
+namespace RealBdyHydrometeorVars {
+    enum {
+        QR = RealBdyVars::NumTypes,
+        QS,
+        QG,
+        NumTypes
+    };
+}
+
 namespace WRFBdyVars {
     enum {
         U  = 0,
@@ -150,6 +162,17 @@ namespace WRFBdyVars {
     };
 
     constexpr int LegacyNumTypes = PC + 1;
+}
+
+// Additional serialized/cache slots used when all precipitating hydrometeors
+// are retained separately.  The legacy and aggregate layouts remain unchanged.
+namespace WRFBdyHydrometeorVars {
+    enum {
+        QR = WRFBdyVars::NumTypes,
+        QS,
+        QG,
+        NumTypes
+    };
 }
 
 static_assert(WRFBdyVars::U  == 0 && WRFBdyVars::V  == 1 &&

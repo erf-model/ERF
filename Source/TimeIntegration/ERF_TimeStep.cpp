@@ -43,10 +43,12 @@ ERF::timeStep (int lev, double time, int /*iteration*/)
         int n_time_old = std::min(static_cast<int>( (time_since_start_bdy        ) /  bdy_time_interval), ntimes-1);
         int n_time_new = std::min(static_cast<int>( (time_since_start_bdy+dt[lev]) /  bdy_time_interval), ntimes-1);
         auto repack_runtime_bdy = [&] (const int itime) {
-            repack_wrfbdy_to_realbdy(bdy_data_xlo[itime], solverChoice.use_wrf_bdy_qc_qi);
-            repack_wrfbdy_to_realbdy(bdy_data_xhi[itime], solverChoice.use_wrf_bdy_qc_qi);
-            repack_wrfbdy_to_realbdy(bdy_data_ylo[itime], solverChoice.use_wrf_bdy_qc_qi);
-            repack_wrfbdy_to_realbdy(bdy_data_yhi[itime], solverChoice.use_wrf_bdy_qc_qi);
+            const bool separate_hydrometeors = solverChoice.use_wrf_bdy_qc_qi &&
+                wrf_bdy_has_separate_hydrometeors(solverChoice.moisture_indices);
+            repack_wrfbdy_to_realbdy(bdy_data_xlo[itime], solverChoice.use_wrf_bdy_qc_qi, separate_hydrometeors);
+            repack_wrfbdy_to_realbdy(bdy_data_xhi[itime], solverChoice.use_wrf_bdy_qc_qi, separate_hydrometeors);
+            repack_wrfbdy_to_realbdy(bdy_data_ylo[itime], solverChoice.use_wrf_bdy_qc_qi, separate_hydrometeors);
+            repack_wrfbdy_to_realbdy(bdy_data_yhi[itime], solverChoice.use_wrf_bdy_qc_qi, separate_hydrometeors);
         };
 
         for (int itime = 0; itime < ntimes; itime++)
@@ -92,6 +94,8 @@ ERF::timeStep (int lev, double time, int /*iteration*/)
                                                  r_hse, area_vec, geom[lev], use_moist,
                                                  solverChoice.use_wrf_bdy_qc_qi,
                                                  solverChoice.moisture_indices.qi >= 0,
+                                                 solverChoice.use_wrf_bdy_qc_qi &&
+                                                 wrf_bdy_has_separate_hydrometeors(solverChoice.moisture_indices),
                                                  solverChoice.rebalance_wrf_input, domain_bcs_type,
                                                  real_width, bdy_time_interval, is_anelastic);
                     if (itime == ntimes-1 && itime > 0) {

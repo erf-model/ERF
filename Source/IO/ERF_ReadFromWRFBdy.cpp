@@ -25,23 +25,37 @@ using namespace amrex;
 
 void
 repack_wrfbdy_to_realbdy (Vector<FArrayBox>& bdy_data,
-                          const bool use_wrf_bdy_qc_qi)
+                          const bool use_wrf_bdy_qc_qi,
+                          const bool separate_hydrometeors)
 {
     if (!use_wrf_bdy_qc_qi ||
-        static_cast<int>(bdy_data.size()) == RealBdyVars::NumTypes) {
+        static_cast<int>(bdy_data.size()) == (separate_hydrometeors
+                                               ? static_cast<int>(RealBdyHydrometeorVars::NumTypes)
+                                               : static_cast<int>(RealBdyVars::NumTypes))) {
         return;
     }
 
-    if (static_cast<int>(bdy_data.size()) != WRFBdyVars::NumTypes) {
-        amrex::Error("Cannot repack WRF boundary data: expected the extended 10-variable serialized layout");
+    const int expected_serialized_nvars = separate_hydrometeors
+        ? static_cast<int>(WRFBdyHydrometeorVars::NumTypes)
+        : static_cast<int>(WRFBdyVars::NumTypes);
+    if (static_cast<int>(bdy_data.size()) != expected_serialized_nvars) {
+        amrex::Error("Cannot repack WRF boundary data: unsupported serialized hydrometeor layout");
     }
 
-    // The raw/cache layout preserves PH/MU/PC at 5/6/7 and appends the
-    // combined QC/QI targets at 8/9. Runtime real-boundary consumers use the
-    // compact layout with QC/QI at 5/6.
+    // The raw/cache layout preserves PH/MU/PC at 5/6/7 and appends QC/QI at
+    // 8/9. Separate-species caches append QR/QS/QG at 10/11/12. Runtime
+    // consumers use QC/QI at 5/6 and, for separate-species caches, QR/QS/QG
+    // at 7/8/9.
     std::swap(bdy_data[RealBdyVars::QC], bdy_data[WRFBdyVars::QC]);
     std::swap(bdy_data[RealBdyVars::QI], bdy_data[WRFBdyVars::QI]);
-    bdy_data.resize(RealBdyVars::NumTypes);
+    if (separate_hydrometeors) {
+        std::swap(bdy_data[RealBdyHydrometeorVars::QR], bdy_data[WRFBdyHydrometeorVars::QR]);
+        std::swap(bdy_data[RealBdyHydrometeorVars::QS], bdy_data[WRFBdyHydrometeorVars::QS]);
+        std::swap(bdy_data[RealBdyHydrometeorVars::QG], bdy_data[WRFBdyHydrometeorVars::QG]);
+        bdy_data.resize(RealBdyHydrometeorVars::NumTypes);
+    } else {
+        bdy_data.resize(RealBdyVars::NumTypes);
+    }
 }
 
 namespace WRFBdyTypes {
@@ -50,19 +64,6 @@ namespace WRFBdyTypes {
         x_hi,
         y_lo,
         y_hi
-    };
-}
-
-// These are transient slots used while reading the raw WRF hydrometeor
-// boundary fields.  They are deliberately not part of WRFBdyVars: the ERF
-// boundary/cache layout stores the already-combined QC and QI targets, so
-// adding these fields must not invalidate existing 10-variable ERFBdy files.
-namespace WRFBdyHydrometeorVars {
-    enum {
-        QR = WRFBdyVars::NumTypes,
-        QS,
-        QG,
-        NumTypes
     };
 }
 
@@ -169,19 +170,25 @@ convert_wrfbdy_data (const int itime,
                      const bool& use_moist,
                      const bool use_wrf_bdy_qc_qi,
                      const bool has_cloud_ice,
+                     const bool separate_hydrometeors,
                      const bool rebalance_wrf_state)
 {
     // PH, MU, and PC are inputs to conversion, not vertically interpolated
     // output fields.  Keep the serialized indices explicit now that QC/QI are
-    // appended after those legacy fields.  The transient QRAIN/QSNOW/QGRAUP
-    // fields are combined into the QC/QI targets below before interpolation;
-    // they do not need converted output slots of their own.
-    const Vector<int> converted_vars = use_wrf_bdy_qc_qi
+    // appended after those legacy fields.  In aggregate mode the raw
+    // QRAIN/QSNOW/QGRAUP fields are combined into QC/QI before interpolation;
+    // in separate mode each hydrometeor receives its own converted target.
+    Vector<int> converted_vars = use_wrf_bdy_qc_qi
         ? Vector<int>{WRFBdyVars::U, WRFBdyVars::V, WRFBdyVars::T,
                       WRFBdyVars::QV, WRFBdyVars::R, WRFBdyVars::QC,
                       WRFBdyVars::QI}
         : Vector<int>{WRFBdyVars::U, WRFBdyVars::V, WRFBdyVars::T,
                       WRFBdyVars::QV, WRFBdyVars::R};
+    if (use_wrf_bdy_qc_qi && separate_hydrometeors) {
+        converted_vars.push_back(WRFBdyHydrometeorVars::QR);
+        converted_vars.push_back(WRFBdyHydrometeorVars::QS);
+        converted_vars.push_back(WRFBdyHydrometeorVars::QG);
+    }
 
     amrex::Vector<amrex::FArrayBox> bdy_data_tmp(bdy_data[itime].size());
     for (const int ivar : converted_vars) {
@@ -267,9 +274,15 @@ convert_wrfbdy_data (const int itime,
         Array4<Real> bdy_qv_tmp = bdy_data_tmp[WRFBdyVars::QV].array(); // This is cell-centered
         Array4<Real> bdy_r_tmp  = bdy_data_tmp[WRFBdyVars::R].array();  // This is cell-centered
         Array4<Real> bdy_qc_tmp, bdy_qi_tmp;
+        Array4<Real> bdy_qr_tmp, bdy_qs_tmp, bdy_qg_tmp;
         if (use_wrf_bdy_qc_qi) {
             bdy_qc_tmp = bdy_data_tmp[WRFBdyVars::QC].array();
             bdy_qi_tmp = bdy_data_tmp[WRFBdyVars::QI].array();
+            if (separate_hydrometeors) {
+                bdy_qr_tmp = bdy_data_tmp[WRFBdyHydrometeorVars::QR].array();
+                bdy_qs_tmp = bdy_data_tmp[WRFBdyHydrometeorVars::QS].array();
+                bdy_qg_tmp = bdy_data_tmp[WRFBdyHydrometeorVars::QG].array();
+            }
         }
 
         // TMP INTERP BDY data
@@ -279,9 +292,15 @@ convert_wrfbdy_data (const int itime,
         Array4<Real> bdy_qv_int = bdy_data_int[WRFBdyVars::QV].array(); // This is cell-centered
         Array4<Real> bdy_r_int  = bdy_data_int[WRFBdyVars::R].array();  // This is cell-centered
         Array4<Real> bdy_qc_int, bdy_qi_int;
+        Array4<Real> bdy_qr_int, bdy_qs_int, bdy_qg_int;
         if (use_wrf_bdy_qc_qi) {
             bdy_qc_int = bdy_data_int[WRFBdyVars::QC].array();
             bdy_qi_int = bdy_data_int[WRFBdyVars::QI].array();
+            if (separate_hydrometeors) {
+                bdy_qr_int = bdy_data_int[WRFBdyHydrometeorVars::QR].array();
+                bdy_qs_int = bdy_data_int[WRFBdyHydrometeorVars::QS].array();
+                bdy_qg_int = bdy_data_int[WRFBdyHydrometeorVars::QG].array();
+            }
         }
 
         // Mask data
@@ -427,10 +446,18 @@ convert_wrfbdy_data (const int itime,
                 Real new_bdy_QV   = bdy_qv_arr(i,j,k) / xmu_mult;
                 bdy_qv_tmp(i,j,k) = (use_moist) ? new_bdy_QV : zero;
                 if (use_wrf_bdy_qc_qi) {
-                    bdy_qc_tmp(i,j,k) = (bdy_qc_arr(i,j,k) + bdy_qr_arr(i,j,k)) / xmu_mult;
-                    bdy_qi_tmp(i,j,k) = has_cloud_ice
-                        ? (bdy_qi_arr(i,j,k) + bdy_qs_arr(i,j,k) + bdy_qg_arr(i,j,k)) / xmu_mult
-                        : Real(0.0);
+                    if (separate_hydrometeors) {
+                        bdy_qc_tmp(i,j,k) = bdy_qc_arr(i,j,k) / xmu_mult;
+                        bdy_qi_tmp(i,j,k) = bdy_qi_arr(i,j,k) / xmu_mult;
+                        bdy_qr_tmp(i,j,k) = bdy_qr_arr(i,j,k) / xmu_mult;
+                        bdy_qs_tmp(i,j,k) = bdy_qs_arr(i,j,k) / xmu_mult;
+                        bdy_qg_tmp(i,j,k) = bdy_qg_arr(i,j,k) / xmu_mult;
+                    } else {
+                        bdy_qc_tmp(i,j,k) = (bdy_qc_arr(i,j,k) + bdy_qr_arr(i,j,k)) / xmu_mult;
+                        bdy_qi_tmp(i,j,k) = has_cloud_ice
+                            ? (bdy_qi_arr(i,j,k) + bdy_qs_arr(i,j,k) + bdy_qg_arr(i,j,k)) / xmu_mult
+                            : Real(0.0);
+                    }
                 }
             }
         });
@@ -478,6 +505,14 @@ convert_wrfbdy_data (const int itime,
                             (bdy_qc_tmp(i,j,kend) - bdy_qc_tmp(i,j,kstart)) * dz_rat + bdy_qc_tmp(i,j,kstart), Real(0.0));
                         bdy_qi_int(i,j,k) = amrex::max(
                             (bdy_qi_tmp(i,j,kend) - bdy_qi_tmp(i,j,kstart)) * dz_rat + bdy_qi_tmp(i,j,kstart), Real(0.0));
+                        if (separate_hydrometeors) {
+                            bdy_qr_int(i,j,k) = amrex::max(
+                                (bdy_qr_tmp(i,j,kend) - bdy_qr_tmp(i,j,kstart)) * dz_rat + bdy_qr_tmp(i,j,kstart), Real(0.0));
+                            bdy_qs_int(i,j,k) = amrex::max(
+                                (bdy_qs_tmp(i,j,kend) - bdy_qs_tmp(i,j,kstart)) * dz_rat + bdy_qs_tmp(i,j,kstart), Real(0.0));
+                            bdy_qg_int(i,j,k) = amrex::max(
+                                (bdy_qg_tmp(i,j,kend) - bdy_qg_tmp(i,j,kstart)) * dz_rat + bdy_qg_tmp(i,j,kstart), Real(0.0));
+                        }
                     }
                     bdy_r_int(i,j,k)  = (  bdy_r_tmp(i,j,kend) -  bdy_r_tmp(i,j,kstart) ) * dz_rat +  bdy_r_tmp(i,j,kstart);
                 } else {
@@ -486,6 +521,11 @@ convert_wrfbdy_data (const int itime,
                     if (use_wrf_bdy_qc_qi) {
                         bdy_qc_int(i,j,k) = amrex::max(bdy_qc_tmp(i,j,k), Real(0.0));
                         bdy_qi_int(i,j,k) = amrex::max(bdy_qi_tmp(i,j,k), Real(0.0));
+                        if (separate_hydrometeors) {
+                            bdy_qr_int(i,j,k) = amrex::max(bdy_qr_tmp(i,j,k), Real(0.0));
+                            bdy_qs_int(i,j,k) = amrex::max(bdy_qs_tmp(i,j,k), Real(0.0));
+                            bdy_qg_int(i,j,k) = amrex::max(bdy_qg_tmp(i,j,k), Real(0.0));
+                        }
                     }
                     bdy_r_int(i,j,k)  =  bdy_r_tmp(i,j,k);
                 }
@@ -649,6 +689,7 @@ read_and_convert_from_wrfbdy (const int itime, const std::string& nc_bdy_file,
                               const bool& use_moist,
                               const bool use_wrf_bdy_qc_qi,
                               const bool has_cloud_ice,
+                              const bool separate_hydrometeors,
                               const bool rebalance_wrf_state,
                               const Vector<BCRec>& domain_bcs_type_h,
                               int real_width, double bdy_time_interval,
@@ -682,6 +723,7 @@ read_and_convert_from_wrfbdy (const int itime, const std::string& nc_bdy_file,
                                      z_phys_cc, z_phys_nd,
                                      xvel, yvel, cons, rho0, area_vec, geom,
                                      use_moist, use_wrf_bdy_qc_qi, has_cloud_ice,
+                                     separate_hydrometeors,
                                      rebalance_wrf_state, domain_bcs_type_h,
                                      real_width, bdy_time_interval,
                                      is_anelastic, false);
@@ -699,9 +741,9 @@ read_and_convert_from_wrfbdy (const int itime, const std::string& nc_bdy_file,
     // Read the netcdf file and fill these FABs
     // The first descriptors match the serialized WRFBdyVars layout.  When the
     // opt-in hydrometeor path is enabled, three additional raw fields are
-    // read into transient slots and combined into the serialized QC/QI fields
-    // during conversion.  The extra slots are removed before the cache is
-    // written, preserving the existing 10-variable ERFBdy layout.
+    // read into slots 10-12.  They are combined into QC/QI for aggregate
+    // schemes, or retained as separate converted targets for fully explicit
+    // hydrometeor schemes.
     //
     // These fields are at myhalf levels (unstaggered)
     // ******************************************************************
@@ -725,6 +767,9 @@ read_and_convert_from_wrfbdy (const int itime, const std::string& nc_bdy_file,
         }
     }
 
+    // Reading a wrfbdy file always retains the three raw precipitating fields
+    // through conversion.  Aggregate mode drops those transient slots after
+    // QC/QI have been formed; separate mode keeps them in the converted cache.
     const int serialized_nvars = use_wrf_bdy_qc_qi
         ? WRFBdyHydrometeorVars::NumTypes : WRFBdyVars::LegacyNumTypes;
     bdy_data_xlo[itime].resize(serialized_nvars);
@@ -1136,25 +1181,25 @@ read_and_convert_from_wrfbdy (const int itime, const std::string& nc_bdy_file,
                                 wrf_MUB, wrf_C1H, wrf_C2H, wrf_RDNW, wrf_PHB,
                                 z_phys_cc, z_phys_nd,
                                 mask_u.get(), mask_v.get(), mask_c.get(),
-                                use_moist, use_wrf_bdy_qc_qi, has_cloud_ice,
+                                use_moist, use_wrf_bdy_qc_qi, has_cloud_ice, separate_hydrometeors,
                                 rebalance_wrf_state);
             convert_wrfbdy_data(itime-1, domain, bdy_data_xhi,
                                 wrf_MUB, wrf_C1H, wrf_C2H, wrf_RDNW, wrf_PHB,
                                 z_phys_cc, z_phys_nd,
                                 mask_u.get(), mask_v.get(), mask_c.get(),
-                                use_moist, use_wrf_bdy_qc_qi, has_cloud_ice,
+                                use_moist, use_wrf_bdy_qc_qi, has_cloud_ice, separate_hydrometeors,
                                 rebalance_wrf_state);
             convert_wrfbdy_data(itime-1, domain, bdy_data_ylo,
                                 wrf_MUB, wrf_C1H, wrf_C2H, wrf_RDNW, wrf_PHB,
                                 z_phys_cc, z_phys_nd,
                                 mask_u.get(), mask_v.get(), mask_c.get(),
-                                use_moist, use_wrf_bdy_qc_qi, has_cloud_ice,
+                                use_moist, use_wrf_bdy_qc_qi, has_cloud_ice, separate_hydrometeors,
                                 rebalance_wrf_state);
             convert_wrfbdy_data(itime-1, domain, bdy_data_yhi,
                                 wrf_MUB, wrf_C1H, wrf_C2H, wrf_RDNW, wrf_PHB,
                                 z_phys_cc, z_phys_nd,
                                 mask_u.get(), mask_v.get(), mask_c.get(),
-                                use_moist, use_wrf_bdy_qc_qi, has_cloud_ice,
+                                use_moist, use_wrf_bdy_qc_qi, has_cloud_ice, separate_hydrometeors,
                                 rebalance_wrf_state);
         }
 
@@ -1162,25 +1207,25 @@ read_and_convert_from_wrfbdy (const int itime, const std::string& nc_bdy_file,
                             wrf_MUB, wrf_C1H, wrf_C2H, wrf_RDNW, wrf_PHB,
                             z_phys_cc, z_phys_nd,
                             mask_u.get(), mask_v.get(), mask_c.get(),
-                            use_moist, use_wrf_bdy_qc_qi, has_cloud_ice,
+                            use_moist, use_wrf_bdy_qc_qi, has_cloud_ice, separate_hydrometeors,
                             rebalance_wrf_state);
         convert_wrfbdy_data(itime, domain, bdy_data_xhi,
                             wrf_MUB, wrf_C1H, wrf_C2H, wrf_RDNW, wrf_PHB,
                             z_phys_cc, z_phys_nd,
                             mask_u.get(), mask_v.get(), mask_c.get(),
-                            use_moist, use_wrf_bdy_qc_qi, has_cloud_ice,
+                            use_moist, use_wrf_bdy_qc_qi, has_cloud_ice, separate_hydrometeors,
                             rebalance_wrf_state);
         convert_wrfbdy_data(itime, domain, bdy_data_ylo,
                             wrf_MUB, wrf_C1H, wrf_C2H, wrf_RDNW, wrf_PHB,
                             z_phys_cc, z_phys_nd,
                             mask_u.get(), mask_v.get(), mask_c.get(),
-                            use_moist, use_wrf_bdy_qc_qi, has_cloud_ice,
+                            use_moist, use_wrf_bdy_qc_qi, has_cloud_ice, separate_hydrometeors,
                             rebalance_wrf_state);
         convert_wrfbdy_data(itime, domain, bdy_data_yhi,
                             wrf_MUB, wrf_C1H, wrf_C2H, wrf_RDNW, wrf_PHB,
                             z_phys_cc, z_phys_nd,
                             mask_u.get(), mask_v.get(), mask_c.get(),
-                            use_moist, use_wrf_bdy_qc_qi, has_cloud_ice,
+                            use_moist, use_wrf_bdy_qc_qi, has_cloud_ice, separate_hydrometeors,
                             rebalance_wrf_state);
 
         if (is_anelastic) {
@@ -1198,19 +1243,22 @@ read_and_convert_from_wrfbdy (const int itime, const std::string& nc_bdy_file,
         } // anelastic
     } // do_conversion
 
-    // The raw QRAIN/QSNOW/QGRAUP slots are only needed through conversion and
-    // tendency reconstruction.  Drop them before the caller repacks the
-    // serialized WRF layout into the runtime/cache layout.
+    // Aggregate targets drop the raw QRAIN/QSNOW/QGRAUP slots before the
+    // caller writes/repackages the cache. Separate targets retain the slots
+    // as converted hydrometeor fields for advection and independent nudging.
     if (use_wrf_bdy_qc_qi && do_conversion) {
-        bdy_data_xlo[itime].resize(WRFBdyVars::NumTypes);
-        bdy_data_xhi[itime].resize(WRFBdyVars::NumTypes);
-        bdy_data_ylo[itime].resize(WRFBdyVars::NumTypes);
-        bdy_data_yhi[itime].resize(WRFBdyVars::NumTypes);
+        const int output_nvars = separate_hydrometeors
+            ? static_cast<int>(WRFBdyHydrometeorVars::NumTypes)
+            : static_cast<int>(WRFBdyVars::NumTypes);
+        bdy_data_xlo[itime].resize(output_nvars);
+        bdy_data_xhi[itime].resize(output_nvars);
+        bdy_data_ylo[itime].resize(output_nvars);
+        bdy_data_yhi[itime].resize(output_nvars);
         if (do_tendency) {
-            bdy_data_xlo[itime-1].resize(WRFBdyVars::NumTypes);
-            bdy_data_xhi[itime-1].resize(WRFBdyVars::NumTypes);
-            bdy_data_ylo[itime-1].resize(WRFBdyVars::NumTypes);
-            bdy_data_yhi[itime-1].resize(WRFBdyVars::NumTypes);
+            bdy_data_xlo[itime-1].resize(output_nvars);
+            bdy_data_xhi[itime-1].resize(output_nvars);
+            bdy_data_ylo[itime-1].resize(output_nvars);
+            bdy_data_yhi[itime-1].resize(output_nvars);
         }
     }
 }

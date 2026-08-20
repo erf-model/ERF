@@ -66,6 +66,8 @@ ERF::fill_from_realbdy (const Vector<MultiFab*>& mfs,
 
     // Real BC mapping (WRF/MetGrid)
     int rho_index = (read_wrf_density) ? RealBdyVars::R : Rho_comp;
+    const bool separate_hydrometeors = solverChoice.use_wrf_bdy_qc_qi &&
+        wrf_bdy_has_separate_hydrometeors(solverChoice.moisture_indices);
     Vector<int> cons_map = {rho_index, RealBdyVars::T, RhoKE_comp, RhoScalar_comp,
                             RealBdyVars::QV, RhoQ2_comp, RhoQ3_comp,
                             RhoQ4_comp, RhoQ5_comp, RhoQ6_comp,
@@ -78,7 +80,8 @@ ERF::fill_from_realbdy (const Vector<MultiFab*>& mfs,
     }
     for (int comp = 0; comp < static_cast<int>(cons_read.size()); ++comp) {
         const int bdy_var = wrf_bdy_var_for_moisture_component(
-            comp, solverChoice.moisture_indices, solverChoice.use_wrf_bdy_qc_qi);
+            comp, solverChoice.moisture_indices, solverChoice.use_wrf_bdy_qc_qi,
+            separate_hydrometeors);
         if (bdy_var >= 0) {
             cons_read[comp] = 1;
             cons_map[comp] = bdy_var;
@@ -154,9 +157,7 @@ ERF::fill_from_realbdy (const Vector<MultiFab*>& mfs,
                 int ivar    = ind_map[var_idx][comp_idx];
                 int bnd_var = bnd_ind_map[var_idx][comp_idx];
                 const bool clamp_wrf_moisture = solverChoice.use_wrf_bdy_qc_qi &&
-                    (comp_idx == solverChoice.moisture_indices.qv ||
-                     comp_idx == solverChoice.moisture_indices.qc ||
-                     comp_idx == solverChoice.moisture_indices.qi);
+                    (comp_idx == solverChoice.moisture_indices.qv || ivar >= RealBdyVars::QC);
 
                 // We have data at fixed time intervals we will call dT
                 // Then to interpolate, given time, we can define n = (time/dT)

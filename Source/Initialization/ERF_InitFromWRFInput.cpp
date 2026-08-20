@@ -444,10 +444,17 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev)
                 (var_name == "THM")     || (var_name == "QVAPOR")  || (var_name == "QCLOUD") ||
                 (var_name == "QICE")    || (var_name == "QRAIN")   || (var_name == "QSNOW")  ||
                 (var_name == "QGRAUP")  || (var_name == "PH")      || (var_name == "PHB");
+            const bool required_hydrometeor = solverChoice.use_wrf_bdy_qc_qi &&
+                ((var_name == "QCLOUD" && solverChoice.moisture_indices.qc >= 0) ||
+                 (var_name == "QICE"   && solverChoice.moisture_indices.qi >= 0) ||
+                 (var_name == "QRAIN"  && solverChoice.moisture_indices.qr >= 0) ||
+                 (var_name == "QSNOW"  && solverChoice.moisture_indices.qs >= 0) ||
+                 (var_name == "QGRAUP" && solverChoice.moisture_indices.qg >= 0));
+            if (!success && required_hydrometeor) {
+                amrex::Abort(std::string("erf.use_wrf_bdy_qc_qi requires " + var_name +
+                                         " in wrfinput for the active moisture component").c_str());
+            }
             if (!success && !has_fallback_behavior) {
-                if (var_name == "QICE") {
-                    amrex::Abort("erf.use_wrf_bdy_qc_qi requires QICE in wrfinput for the active cloud-ice component");
-                }
                 amrex::Abort(std::string("ERF::init_from_wrfinput: failed to read required variable " + var_name).c_str());
             }
 
@@ -1482,15 +1489,21 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev)
         // Check for erfbdy file.
         std::string erfbdy_header = erfbdy_file + "/Header";
         use_erfbdy = FileSystem::Exists(erfbdy_header);
+        const bool separate_hydrometeors = solverChoice.use_wrf_bdy_qc_qi &&
+            wrf_bdy_has_separate_hydrometeors(solverChoice.moisture_indices);
         if (write_erfbdy) {
-            nvars_erfbdy = solverChoice.use_wrf_bdy_qc_qi
-                         ? WRFBdyVars::NumTypes : WRFBdyVars::LegacyNumTypes;
+            nvars_erfbdy = separate_hydrometeors
+                         ? WRFBdyHydrometeorVars::NumTypes
+                         : (solverChoice.use_wrf_bdy_qc_qi
+                            ? WRFBdyVars::NumTypes : WRFBdyVars::LegacyNumTypes);
         }
         auto repack_runtime_bdy = [&] (const int itime) {
-            repack_wrfbdy_to_realbdy(bdy_data_xlo[itime], solverChoice.use_wrf_bdy_qc_qi);
-            repack_wrfbdy_to_realbdy(bdy_data_xhi[itime], solverChoice.use_wrf_bdy_qc_qi);
-            repack_wrfbdy_to_realbdy(bdy_data_ylo[itime], solverChoice.use_wrf_bdy_qc_qi);
-            repack_wrfbdy_to_realbdy(bdy_data_yhi[itime], solverChoice.use_wrf_bdy_qc_qi);
+            const bool separate_hydrometeors = solverChoice.use_wrf_bdy_qc_qi &&
+                wrf_bdy_has_separate_hydrometeors(solverChoice.moisture_indices);
+            repack_wrfbdy_to_realbdy(bdy_data_xlo[itime], solverChoice.use_wrf_bdy_qc_qi, separate_hydrometeors);
+            repack_wrfbdy_to_realbdy(bdy_data_xhi[itime], solverChoice.use_wrf_bdy_qc_qi, separate_hydrometeors);
+            repack_wrfbdy_to_realbdy(bdy_data_ylo[itime], solverChoice.use_wrf_bdy_qc_qi, separate_hydrometeors);
+            repack_wrfbdy_to_realbdy(bdy_data_yhi[itime], solverChoice.use_wrf_bdy_qc_qi, separate_hydrometeors);
         };
 
         // Path 1: Load from existing erfbdy file.
@@ -1505,11 +1518,16 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev)
                                                        bdy_times, start_bdy_time, final_bdy_time);
 
             if (nvars_erfbdy != WRFBdyVars::LegacyNumTypes &&
-                nvars_erfbdy != WRFBdyVars::NumTypes) {
+                nvars_erfbdy != WRFBdyVars::NumTypes &&
+                nvars_erfbdy != WRFBdyHydrometeorVars::NumTypes) {
                 amrex::Error("ERFBdy cache has an unsupported boundary-variable layout");
             }
-            if (solverChoice.use_wrf_bdy_qc_qi && nvars_erfbdy != WRFBdyVars::NumTypes) {
-                amrex::Error("erf.use_wrf_bdy_qc_qi requires an extended ERFBdy cache with QC/QI; regenerate it from wrfbdy");
+            const int expected_bdy_nvars = separate_hydrometeors
+                ? WRFBdyHydrometeorVars::NumTypes
+                : (solverChoice.use_wrf_bdy_qc_qi ? WRFBdyVars::NumTypes
+                                                  : WRFBdyVars::LegacyNumTypes);
+            if (nvars_erfbdy != expected_bdy_nvars) {
+                amrex::Error("ERFBdy cache layout does not match the active WRF hydrometeor boundary mode; regenerate it from wrfbdy");
             }
 
             Print() << "erfbdy file contains " << ntimes_erfbdy << " time slices" << std::endl;
@@ -1575,6 +1593,7 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev)
                                              r_hse, area_vec, geom[lev], use_moist,
                                              solverChoice.use_wrf_bdy_qc_qi,
                                              solverChoice.moisture_indices.qi >= 0,
+                                             separate_hydrometeors,
                                              solverChoice.rebalance_wrf_input, domain_bcs_type,
                                              real_width, bdy_time_interval, is_anelastic);
 
@@ -1603,6 +1622,7 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev)
                                                  r_hse, area_vec, geom[lev], use_moist,
                                                  solverChoice.use_wrf_bdy_qc_qi,
                                                  solverChoice.moisture_indices.qi >= 0,
+                                                 separate_hydrometeors,
                                                  solverChoice.rebalance_wrf_input, domain_bcs_type,
                                                  real_width, bdy_time_interval, is_anelastic);
 

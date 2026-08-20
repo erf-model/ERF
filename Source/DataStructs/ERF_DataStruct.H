@@ -821,10 +821,17 @@ struct SolverChoice {
                 amrex::Error("erf.use_wrf_bdy_qc_qi requires WRFInput real boundary conditions");
             }
             if (moisture_indices.qv < RhoQ1_comp || moisture_indices.qv > RhoQ11_comp ||
-                moisture_indices.qc < RhoQ1_comp || moisture_indices.qc > RhoQ11_comp ||
-                (moisture_indices.qi != -1 &&
-                 (moisture_indices.qi < RhoQ1_comp || moisture_indices.qi > RhoQ11_comp))) {
-                amrex::Error("erf.use_wrf_bdy_qc_qi found an invalid active moisture component index");
+                moisture_indices.qc < RhoQ1_comp || moisture_indices.qc > RhoQ11_comp) {
+                amrex::Error("erf.use_wrf_bdy_qc_qi requires active qv and qc component indices");
+            }
+            const int optional_moisture_comps[] = {moisture_indices.qi,
+                                                   moisture_indices.qr,
+                                                   moisture_indices.qs,
+                                                   moisture_indices.qg};
+            for (const int comp : optional_moisture_comps) {
+                if (comp != -1 && (comp < RhoQ1_comp || comp > RhoQ11_comp)) {
+                    amrex::Error("erf.use_wrf_bdy_qc_qi found an invalid active moisture component index");
+                }
             }
         }
 
