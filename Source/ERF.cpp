@@ -1167,6 +1167,11 @@ ERF::InitData_post ()
                                                         zero, zero, zero,
 #endif
                                                         eb_ptrs);
+
+        // Must precede make_SurfaceLayer_at_level: coupled SST is one of the
+        // conditions that selects ThetaCalcType::SURFACE_TEMPERATURE there.
+        m_SurfaceLayer->set_coupled_sst_active(solverChoice.use_coupled_sst);
+
         // This call will allocate the arrays at each level. If we regrid later, either changing
         // the number of levels or just the grids at each existing level, we will call an update routine
         // to redefine the internal arrays in m_SurfaceLayer.
@@ -2522,9 +2527,9 @@ ERF::ReadParameters ()
         lsm.SetModel<NOAHMP>();
         Print() << "Noah-MP land surface model!\n";
 #endif
-    } else if (solverChoice.lsm_type == LandSurfaceType::OceanSurf) {
-        lsm.SetModel<OceanSurf>();
-        Print() << "OceanSurf land surface model!\n";
+    // NOTE: LandSurfaceType::OceanSurf is not dispatched here. It is a deprecated
+    //       spelling of erf.use_coupled_sst and init_params rewrites it to None,
+    //       so coupled SST no longer consumes the land surface model slot.
     } else if (solverChoice.lsm_type == LandSurfaceType::None) {
         lsm.SetModel<NullSurf>();
         Print() << "Null land surface model!\n";

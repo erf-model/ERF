@@ -376,6 +376,27 @@ struct SolverChoice {
         lsm_type = LandSurfaceType::None; // Default
         pp.query_enum_case_insensitive("land_surface_model",lsm_type);
 
+        // Will an external ocean coupler supply SST for part or all of the water
+        // cells this run? This is a configuration predicate, not a data-validity
+        // one: it says the coupled lane will be filled, not that any coupled step
+        // has run yet. The surface layer needs it at Define time to select
+        // ThetaCalcType::SURFACE_TEMPERATURE, which is long before the first
+        // ApplyOceanSurfaceState call.
+        pp.query("use_coupled_sst", use_coupled_sst);
+
+        // Deprecated spelling. Coupled SST used to be delivered as a land surface
+        // model, which meant it occupied the one LSM slot and could not coexist
+        // with a real land surface. It is now applied through the lower-boundary
+        // path alongside wrflowinp SST/TSK, so the LSM slot is free. Accept the
+        // old key as a request for coupled SST and select no land surface model.
+        if (lsm_type == LandSurfaceType::OceanSurf) {
+            use_coupled_sst = true;
+            lsm_type = LandSurfaceType::None;
+            amrex::Print() << "erf.land_surface_model = OceanSurf is deprecated; "
+                           << "treating it as erf.use_coupled_sst = 1 with no land "
+                           << "surface model. Update your inputs file." << std::endl;
+        }
+
         read_int_string(max_level, "is_land", is_land, 1);
         for (int lev = 0; lev <= max_level; ++lev) {
             if (is_land[lev] == 1) {
@@ -1642,6 +1663,9 @@ struct SolverChoice {
     WindFarmLocType windfarm_loc_type;
     LandSurfaceType lsm_type;
     RadiationType rad_type;
+
+    // Does an external ocean coupler supply SST? See the query in init_params.
+    bool use_coupled_sst = false;
 
     ABLDriverType abl_driver_type;
     amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> abl_pressure_grad;
