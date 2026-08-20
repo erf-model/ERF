@@ -9,7 +9,7 @@ list(APPEND CMAKE_MESSAGE_CONTEXT "ERF")
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/CMake")
 include(CrayCompilerDetection)
 
-if(ERF_ENABLE_MORR_FORT OR ERF_ENABLE_WSM6_FORT OR ERF_ENABLE_NOAHMP)
+if(ERF_ENABLE_MORR_FORT OR ERF_ENABLE_WSM6_FORT OR ERF_ENABLE_WDM6_FORT OR ERF_ENABLE_NOAHMP)
   project(ERF CXX C Fortran)
 else()
   project(ERF CXX C)
@@ -173,9 +173,14 @@ option(ERF_ENABLE_NOAHMP "Enable Noah-MP" OFF)
 #Other parameterizations
 option(ERF_ENABLE_WINDFARM "Enable wind farm parameterizations" OFF)
 option(ERF_ENABLE_WSM6_FORT "Enable WSM6 Fortran bridge calls" OFF)
+option(ERF_ENABLE_WDM6_FORT "Enable WDM6 Fortran bridge calls" OFF)
 
 if(ERF_ENABLE_WSM6_FORT AND NOT ERF_PRECISION STREQUAL "DOUBLE")
   message(FATAL_ERROR "ERF_ENABLE_WSM6_FORT requires ERF_PRECISION=DOUBLE because the WSM6 Fortran bridge is double-precision only")
+endif()
+
+if(ERF_ENABLE_WDM6_FORT AND NOT ERF_PRECISION STREQUAL "DOUBLE")
+  message(FATAL_ERROR "ERF_ENABLE_WDM6_FORT requires ERF_PRECISION=DOUBLE because the WDM6 Fortran bridge is double-precision only")
 endif()
 
 #Option to build tools
@@ -504,7 +509,7 @@ if(ERF_ENABLE_MPI)
     # Normal path: Use find_package with QUIET
     message(VERBOSE "Using find_package(MPI) for detection")
     set(_mpi_comps C CXX)
-    if(ERF_ENABLE_MORR_FORT OR ERF_ENABLE_WSM6_FORT OR ERF_ENABLE_NOAHMP)
+    if(ERF_ENABLE_MORR_FORT OR ERF_ENABLE_WSM6_FORT OR ERF_ENABLE_WDM6_FORT OR ERF_ENABLE_NOAHMP)
       list(APPEND _mpi_comps Fortran)
     endif()
     message(DEBUG "MPI components: ${_mpi_comps}")

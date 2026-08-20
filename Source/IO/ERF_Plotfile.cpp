@@ -116,6 +116,10 @@ ERF::setPlotVariables (const std::string& pp_plot_var_names, Vector<std::string>
             ok_to_add     &= ( (SolverChoice::terrain_type == TerrainType::StaticFittedMesh) ||
                                (SolverChoice::terrain_type == TerrainType::MovingFittedMesh) ||
                                (derived_names[i] != "z_phys") );
+            ok_to_add     &= ( (SolverChoice::terrain_type == TerrainType::StaticFittedMesh) ||
+                               (SolverChoice::terrain_type == TerrainType::MovingFittedMesh) ||
+                               (derived_names[i] != "h_xi" && derived_names[i] != "h_eta" &&
+                                derived_names[i] != "h_zeta") );
 #ifdef ERF_USE_WINDFARM
             // NOTE: the windfarm names must be added here, in derived_names order, since
             //       that is where Write3DPlotFile fills them (see ERF.H "MUST MATCH THE ORDER").
@@ -429,6 +433,7 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
         MultiFab  r_hse(base_state[lev], make_alias, BaseState::r0_comp , 1);
         MultiFab  p_hse(base_state[lev], make_alias, BaseState::p0_comp , 1);
         MultiFab th_hse(base_state[lev], make_alias, BaseState::th0_comp, 1);
+        MultiFab pi_hse(base_state[lev], make_alias, BaseState::pi0_comp, 1);
         MultiFab qv_hse(base_state[lev], make_alias, BaseState::qv0_comp, 1);
 
         MultiFab pressure;
@@ -546,6 +551,7 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
         {
             if (solverChoice.moisture_type == MoistureType::Morrison ||
                 solverChoice.moisture_type == MoistureType::WSM6 ||
+                solverChoice.moisture_type == MoistureType::WDM6 ||
                 solverChoice.moisture_type == MoistureType::SAM) {
                 calculate_derived("reflectivity",      vars_new[lev][Vars::cons], derived::erf_derreflectivity);
             } else {
@@ -558,6 +564,7 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
         {
             if (solverChoice.moisture_type == MoistureType::Morrison ||
                 solverChoice.moisture_type == MoistureType::WSM6 ||
+                solverChoice.moisture_type == MoistureType::WDM6 ||
                 solverChoice.moisture_type == MoistureType::SAM) {
                 calculate_derived("max_reflectivity",  vars_new[lev][Vars::cons], derived::erf_dermaxreflectivity);
             } else {
@@ -605,6 +612,11 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
         if (containerHasElement(plot_var_names, "theta_hse"))
         {
             MultiFab::Copy(mf[lev],th_hse,0,mf_comp,1,0);
+            mf_comp += 1;
+        }
+        if (containerHasElement(plot_var_names, "pi_hse"))
+        {
+            MultiFab::Copy(mf[lev],pi_hse,0,mf_comp,1,0);
             mf_comp += 1;
         }
         if (containerHasElement(plot_var_names, "qv_hse"))
@@ -899,6 +911,42 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
                 MultiFab::Copy(mf[lev],*detJ_cc[lev],0,mf_comp,1,0);
                 mf_comp ++;
             }
+
+            //
+            // Cell-centered averages of the terrain metric terms h_xi, h_eta and h_zeta
+            //
+            for (int imet(0); imet < 3; ++imet)
+            {
+                const std::string met_name = (imet == 0) ? "h_xi" : ((imet == 1) ? "h_eta" : "h_zeta");
+
+                if (containerHasElement(plot_var_names, met_name))
+                {
+                    const GpuArray<Real, AMREX_SPACEDIM> dxInv = geom[lev].InvCellSizeArray();
+#ifdef _OPENMP
+#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#endif
+                    for ( MFIter mfi(mf[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi)
+                    {
+                        const Box& bx = mfi.tilebox();
+                        const Array4<Real      >& derdat = mf[lev].array(mfi);
+                        const Array4<Real const>& z_nd   = z_phys_nd[lev]->const_array(mfi);
+                        if (imet == 0) {
+                            ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                                derdat(i,j,k,mf_comp) = Compute_h_xi_AtCellCenter  (i,j,k,dxInv,z_nd);
+                            });
+                        } else if (imet == 1) {
+                            ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                                derdat(i,j,k,mf_comp) = Compute_h_eta_AtCellCenter (i,j,k,dxInv,z_nd);
+                            });
+                        } else {
+                            ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                                derdat(i,j,k,mf_comp) = Compute_h_zeta_AtCellCenter(i,j,k,dxInv,z_nd);
+                            });
+                        }
+                    }
+                    mf_comp ++;
+                }
+            } // h_xi, h_eta, h_zeta
         } // use_terrain
 
         if (containerHasElement(plot_var_names, "mapfac")) {
@@ -1359,6 +1407,9 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
 
             // Number concentrations
             //--------------------------------------------------------------------------
+            // These must be written after qt/qn/qp/qsat to match the order declared by
+            // derived_names in ERF.H, which is what supplies the plotfile header names.
+            // When the two disagree every name is paired with another field's data.
             if(containerHasElement(plot_var_names, "nc") && (n_qstate_moist >= 7))
             {
                 MultiFab::Copy(  mf[lev], vars_new[lev][Vars::cons], RhoQ7_comp, mf_comp, 1, 0);
@@ -1391,6 +1442,18 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
             {
                 MultiFab::Copy(  mf[lev], vars_new[lev][Vars::cons], RhoQ11_comp, mf_comp, 1, 0);
                 MultiFab::Divide(mf[lev], vars_new[lev][Vars::cons],    Rho_comp, mf_comp, 1, 0);
+                mf_comp += 1;
+            }
+
+            // CCN / total aerosol number. The slot is taken from the per-scheme
+            // registry rather than hardcoded, because it overlaps the slot that
+            // Morrison uses for cloud ice number; the two are mutually exclusive.
+            if(containerHasElement(plot_var_names, "nn") &&
+               (solverChoice.moisture_indices.nn >= 0))
+            {
+                MultiFab::Copy(  mf[lev], vars_new[lev][Vars::cons],
+                                 solverChoice.moisture_indices.nn, mf_comp, 1, 0);
+                MultiFab::Divide(mf[lev], vars_new[lev][Vars::cons], Rho_comp, mf_comp, 1, 0);
                 mf_comp += 1;
             }
 
@@ -1438,7 +1501,8 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
             }
             else if ( (solverChoice.moisture_type == MoistureType::SAM) ||
                       (solverChoice.moisture_type == MoistureType::Morrison) ||
-                      (solverChoice.moisture_type == MoistureType::WSM6) )
+                      (solverChoice.moisture_type == MoistureType::WSM6) ||
+                      (solverChoice.moisture_type == MoistureType::WDM6) )
             {
                 if (containerHasElement(plot_var_names, "rain_accum"))
                 {

@@ -141,7 +141,7 @@
             }
         });
     } else {
-        ParallelFor(bx, [=,zero_d=zero,one_d=one] AMREX_GPU_DEVICE(int i, int j, int k)
+        ParallelFor(bx, [=,zero_d=zero] AMREX_GPU_DEVICE(int i, int j, int k)
         {
             // Geometry (note we must include these here to get the data on device)
             const auto prob_lo         = geomdata.ProbLo();

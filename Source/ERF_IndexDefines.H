@@ -217,10 +217,15 @@ namespace EddyDiff {
         Scalar_v,
         Q_v,
         Turb_lengthscale,
-        HGAMT_v,  // MRF countergradient for heat (HGAMT/h, units K/m), zero outside PBL
-        HGAMQ_v,  // MRF countergradient for moisture (HGAMQ/h, units kg/kg/m), zero outside PBL
-        HGAMU_v,  // YSU countergradient for x-momentum (units m/s/m), zero outside PBL
-        HGAMV_v,  // YSU countergradient for y-momentum (units m/s/m), zero outside PBL
+        // Nonlocal (countergradient) terms.  All four are stored *normalized by the
+        // PBL height*, i.e. as a gradient of the transported quantity, so that the
+        // implicit vertical diffusion solvers form the countergradient flux as
+        //     F_cg = +rho*alpha*gamma
+        // with no further metric or grid-spacing factors.
+        HGAMT_v,  // MRF/YSU countergradient for heat (HGAMT/h, units K/m), zero outside PBL
+        HGAMQ_v,  // MRF/YSU countergradient for moisture (HGAMQ/h, units kg/kg/m), zero outside PBL
+        HGAMU_v,  // YSU countergradient for x-momentum (HGAMU/h, units 1/s), zero outside PBL
+        HGAMV_v,  // YSU countergradient for y-momentum (HGAMV/h, units 1/s), zero outside PBL
         NumDiffs
     };
 }

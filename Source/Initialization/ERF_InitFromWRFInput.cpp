@@ -320,11 +320,27 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev)
     NC_names.push_back("XLAT_V");    // 22
     NC_names.push_back("XLONG_U");   // 23
     if (use_moist) {
-        NC_names.push_back("QVAPOR"); // 24
-        NC_names.push_back("QCLOUD"); // 25
-        NC_names.push_back("QRAIN");  // 26
+        NC_names.push_back("QVAPOR");  // 24
+        NC_names.push_back("QCLOUD");  // 25
+
+        // Read ice species for schemes that need them from wrfinput
+        int n_qstate_moist = micro->Get_Qstate_Moist_Size();
+        if (n_qstate_moist >= 6) {
+            // 6+ class schemes (WSM6, WDM6, Morrison): read all ice species
+            NC_names.push_back("QICE");    // 26
+            NC_names.push_back("QRAIN");   // 27
+            NC_names.push_back("QSNOW");   // 28
+            NC_names.push_back("QGRAUP");  // 29
+        } else {
+            // Warm rain only: Kessler, SAM, etc. (only qv, qc, qr)
+            NC_names.push_back("QRAIN");   // 26
+        }
+
+        // Number concentrations for double-moment schemes
+        // NOTE: Skipping QNCLOUD, QNCCN, QNRAIN because they're typically zero in wrfinput
+        // Double-moment schemes diagnose nc/nr from qc/qr during initialization instead
     }
-    NC_names.push_back("IVGTYP");     // 27
+    NC_names.push_back("IVGTYP");
     NC_names.push_back("ISLTYP");     // 28
     if (use_lsm) {
         NC_names.push_back("TSLB");   // 29
@@ -429,9 +445,10 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev)
 
             auto& var_fab_from_file = NC_fab_var[idx][ivar];
             bool has_fallback_behavior =
-                (var_name == "U")      || (var_name == "V")      || (var_name == "W")      ||
-                (var_name == "THM")    || (var_name == "QVAPOR") || (var_name == "QCLOUD") ||
-                (var_name == "QRAIN")  || (var_name == "PH")     || (var_name == "PHB");
+                (var_name == "U")       || (var_name == "V")       || (var_name == "W")      ||
+                (var_name == "THM")     || (var_name == "QVAPOR")  || (var_name == "QCLOUD") ||
+                (var_name == "QICE")    || (var_name == "QRAIN")   || (var_name == "QSNOW")  ||
+                (var_name == "QGRAUP")  || (var_name == "PH")      || (var_name == "PHB");
             if (!success && !has_fallback_behavior) {
                 amrex::Abort(std::string("ERF::init_from_wrfinput: failed to read required variable " + var_name).c_str());
             }
@@ -588,10 +605,13 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev)
             }
 
             // Initialize cell-centered variables that need to be density-weighted
-            if ( var_name == "THM"    ||
-                 var_name == "QVAPOR" ||
-                 var_name == "QCLOUD" ||
-                 var_name == "QRAIN" )
+            if ( var_name == "THM"     ||
+                 var_name == "QVAPOR"  ||
+                 var_name == "QCLOUD"  ||
+                 var_name == "QICE"    ||
+                 var_name == "QRAIN"   ||
+                 var_name == "QSNOW"   ||
+                 var_name == "QGRAUP" )
             {
                 int n_qstate_moist = micro->Get_Qstate_Moist_Size();
                 AMREX_ALWAYS_ASSERT(micro->Get_Qstate_NonMoist_Size() == 0);
@@ -603,11 +623,24 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev)
                     icomp    = RhoQ1_comp;
                 } else if (var_name == "QCLOUD") {
                     icomp    = RhoQ2_comp;
-                } else if (var_name == "QRAIN") {
+                } else if (var_name == "QICE") {
                     icomp    = RhoQ3_comp;
-                    if (n_qstate_moist > 3) { icomp = RhoQ4_comp; }
-                    if (n_qstate_moist < 3) { success = 0; }
+                } else if (var_name == "QRAIN") {
+                    // For schemes with 6+ species (WDM6, WSM6, Morrison), QRAIN → RhoQ4
+                    // For smaller schemes (Kessler 3-class), QRAIN → RhoQ3
+                    if (n_qstate_moist >= 6) {
+                        icomp = RhoQ4_comp;
+                    } else {
+                        icomp = RhoQ3_comp;
+                        if (n_qstate_moist < 3) { success = 0; }  // Safety check
+                    }
+                } else if (var_name == "QSNOW") {
+                    icomp    = RhoQ5_comp;
+                } else if (var_name == "QGRAUP") {
+                    icomp    = RhoQ6_comp;
                 }
+                // Note: RhoQ7-RhoQ9 (nc, nn, nr for WDM6) or RhoQ7-RhoQ11 (nc, ni, nr, ns, ng for Morrison)
+                // start at zero and are diagnosed/initialized by the microphysics scheme
 
                 // INITIAL DATA common for "ideal" as well as "real" simulation
                 // Don't tile this since we are operating on full FABs in this routine
@@ -1140,23 +1173,31 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev)
 #else
             const Real tol = Real(1.e-8);
 #endif
-            int max_iter = 50;
+            Real SFact = Real(1.03);
+            Real Nz = static_cast<Real>(zlevels_stag[lev].size() - 1);
 
-            int iter   = 0;
-            Real Nz    = static_cast<Real>(zlevels_stag[lev].size() - 1);
-            Real SFact = Real(1.1);
-            Real F     = dz0_max * ( (std::pow(SFact,Nz) - one) / (SFact - one) ) - z_top;
-            while (std::fabs(F)>tol && iter<max_iter) {
-                Real dFdSF = dz0_max * ( Nz * std::pow(SFact,Nz-one) * (SFact - one) - std::pow(SFact,Nz) + one )
-                           / std::pow(SFact-one,two);
-                SFact     -= F/dFdSF;
-                SFact      = std::max(one+tol,SFact);
-                F          = dz0_max * ( (std::pow(SFact,Nz) - one) / (SFact - one) ) - z_top;
-                ++iter;
+            // Default to uniform grid or solve for a stretched grid
+            if (dz0_max >= z_top/Nz) {
+                SFact   = one;
+                dz0_max = z_top/Nz;
+            } else {
+                int max_iter = 50;
+                int iter     = 0;
+                Real F       = dz0_max * ( (std::pow(SFact,Nz) - one) / (SFact - one) ) - z_top;
+                while (std::fabs(F)>tol && iter<max_iter) {
+                    Real dFdSF = dz0_max * ( Nz * std::pow(SFact,Nz-one) * (SFact - one)
+                                           - std::pow(SFact,Nz) + one ) /
+                                           std::pow(SFact-one,two);
+                    SFact     -= F/dFdSF;
+                    SFact      = std::max(one+tol,SFact);
+                    F          = dz0_max * ( (std::pow(SFact,Nz) - one) / (SFact - one) ) - z_top;
+                    ++iter;
+                }
+                AMREX_ALWAYS_ASSERT_WITH_MESSAGE(std::fabs(F) <= tol,
+                                                 "Newton iterations to determine the grid stretching factor failed!\n");
             }
-            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(std::fabs(F) <= tol,
-                "Newton iterations to determine the grid stretching factor failed!\n");
 
+            // Build the zlevels
             Print() << "Building an ERF grid with dz0: " << dz0_max <<
                 " and stretching factor: " << SFact << "\n";
             Real dz = dz0_max;
@@ -1167,6 +1208,9 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev)
             }
             AMREX_ALWAYS_ASSERT_WITH_MESSAGE(std::fabs(zlevels_stag[lev].back() - z_top) <= tol,
                 "Top of zlevels_stag does not match z_top!\n");
+
+            // Update stretched dz and build terrain fitted coords
+            update_stretched_dz(lev, zlevels_stag, stretched_dz_h, stretched_dz_d);
             make_terrain_fitted_coords(lev, geom[lev], *z_phys_nd[lev], zlevels_stag[lev], phys_bc_type);
         }
 

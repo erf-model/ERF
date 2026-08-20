@@ -975,10 +975,10 @@ ERF::remake_zphys (int lev, std::unique_ptr<MultiFab>& temp_zphys_nd)
             }
         }
 
-        // Face-centered terrain blanking from face-centered EB volume fractions
+#if USE_FC_FACTORY
+    // Face-centered terrain blanking from face-centered EB volume fractions
         const int ng_sub = std::min(ComputeGhostCells(solverChoice) + 2, EBFactory(lev).getVolFrac().nGrow());
 
-#if USE_FC_FACTORY
         terrain_blanking_xface[lev]->setVal(one);
         terrain_blanking_yface[lev]->setVal(one);
         terrain_blanking_zface[lev]->setVal(one);

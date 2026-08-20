@@ -100,13 +100,16 @@ int main (int argc, char* argv[])
     pp_ens.query("n_members", n_ens);
 
     // Ensemble run loop
-    for (int ie = 0; ie < n_ens; ++ie)
+    for (int ens_no = 0; ens_no < n_ens; ++ens_no)
     {
         // --------------------------------------------------------
         // Fresh ERF instance per ensemble
         // --------------------------------------------------------
         ERF erf;
 
+        if(is_init_for_ensemble) {
+            erf.SetDirsForPlotfilesAndCheckpointsForDA(ens_no);
+        }
         erf.InitData();
         erf.Evolve();
 
@@ -115,51 +118,21 @@ int main (int argc, char* argv[])
             end_total, ParallelDescriptor::IOProcessorNumber());
 
         if (erf.Verbose()) {
-            amrex::Print() << "Ensemble " << ie
+            amrex::Print() << "Ensemble " << ens_no
                            << " wallclock time: "
                            << end_total << '\n';
         }
 
         // --------------------------------------------------------
-    // MPI barrier to ensure all ranks finish Evolve
-    // --------------------------------------------------------
-    ParallelDescriptor::Barrier();
+        // MPI barrier to ensure all ranks finish Evolve
+        // --------------------------------------------------------
+        ParallelDescriptor::Barrier();
 
-    if (is_init_for_ensemble && ParallelDescriptor::IOProcessor())
-    {
-        // Create zero-padded member directory
-        std::stringstream ss;
-        ss << "member_" << std::setw(2) << std::setfill('0') << (ie);
-        std::string member_dir = ss.str();
-
-        fs::create_directory(member_dir);
-        fs::create_directory(member_dir + "/plotfiles");
-        fs::create_directory(member_dir + "/chkfiles");
-        fs::create_directory(member_dir + "/pertfiles");
-
-        // Move plotfiles (plt*) from current directory into member_dir/plotfiles
-        for (auto &p : fs::directory_iterator(".")) {
-            std::string fname = p.path().filename().string();
-            if (fname.find("plt") == 0) {  // starts with "plt"
-                fs::rename(p.path(), fs::path(member_dir) / "plotfiles" / fname);
-            }
-        }
-
-        // Move checkpoint files (chk*) from current directory into member_dir/chkfiles
-        for (auto &c : fs::directory_iterator(".")) {
-            std::string fname = c.path().filename().string();
-            if (fname.find("chk") == 0) {  // starts with "chk"
-                fs::rename(c.path(), fs::path(member_dir) / "chkfiles" / fname);
-            }
-        }
-    }
-    // Optional: barrier after move to ensure rank 0 is done
-    ParallelDescriptor::Barrier();
    } // Ensemble run loop complete
 
    ERF tmp_erf;
    // This is only a post-processing step for visualization
-   tmp_erf.ComputeAndWriteEnsemblePerturbations();
+   //tmp_erf.ComputeAndWriteEnsemblePerturbations();
 
    // Perform data assimilation
    int da_iter = 0;
