@@ -726,6 +726,25 @@ ShocDriver::advance (MultiFab& cons,
                     tke_tend(i,j,k) = col_tke_tend(ic,kk,0);
                     u_tend_cc(i,j,k) = col_u_tend(ic,kk,0);
                     v_tend_cc(i,j,k) = col_v_tend(ic,kk,0);
+                }
+                // Motivation: Native SHOC state_update consumes SurfaceLayer
+                // fluxes before the host diffusion path clears the overlapping
+                // SFS arrays. Preserve the consumed conservative fluxes here
+                // so 2D diagnostics report the surface forcing SHOC actually
+                // used, not the cleared host arrays.
+                consumed_sens_flux_arr(i,j,k0) = rho_sfc * surf_sens_flux(ic,0,0);
+                consumed_laten_flux_arr(i,j,k0) = rho_sfc * surf_lat_flux(ic,0,0);
+                shoc_ustar_arr(i,j,k0) = ustar(ic,0,0);
+                shoc_olen_arr(i,j,k0) = obklen(ic,0,0);
+            });
+
+            // Keep diagnostic writeback in a separate launch so the kernel
+            // argument block fits CUDA's 4 KiB limit on pre-Volta devices.
+            ParallelFor(xy_box, [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept
+            {
+                const int ic = shoc_column_index(layout, i, j);
+                for (int kk = 0; kk < layout.nlev; ++kk) {
+                    const int k = layout.kmin + kk;
                     // Native SHOC pblh is diagnosed as meters AGL and is
                     // copied directly into the plotfile diagnostic field.
                     pblh_arr(i,j,k) = pblh(ic,0,0);
@@ -760,16 +779,7 @@ ShocDriver::advance (MultiFab& cons,
                     buoy_prod_arr(i,j,k) = buoy_prod(ic,kk,0);
                     diss_tke_arr(i,j,k) = diss_tke(ic,kk,0);
                 }
-                // Motivation: Native SHOC state_update consumes SurfaceLayer
-                // fluxes before the host diffusion path clears the overlapping
-                // SFS arrays. Preserve the consumed conservative fluxes here
-                // so 2D diagnostics report the surface forcing SHOC actually
-                // used, not the cleared host arrays.
-                consumed_sens_flux_arr(i,j,k0) = rho_sfc * surf_sens_flux(ic,0,0);
-                consumed_laten_flux_arr(i,j,k0) = rho_sfc * surf_lat_flux(ic,0,0);
-                shoc_ustar_arr(i,j,k0) = ustar(ic,0,0);
-                shoc_olen_arr(i,j,k0) = obklen(ic,0,0);
-                });
+            });
         }
 
     }

@@ -190,6 +190,7 @@ compute_ensemble_mean(int Nens,
 
     for (int n = 0; n < Nens; ++n)
     {
+        std::cout << "Reading ensembles for compute_ensemble_mean = " << n << std::endl;
         MultiFab mf_tmp = read_member_multifab(n, pf_name, varnames);
 
         if (!initialized) {
@@ -281,7 +282,7 @@ compute_mean_H_xf(MultiFab& mean_H_xf,
         if (n==0) {
             mean_H_xf.define(xf_i.boxArray(),
                              xf_i.DistributionMap(),
-                             2,
+                             8,
                              xf_i.nGrow());
             mean_H_xf.setVal(0.0);
         }
@@ -533,8 +534,7 @@ compute_Xf_prime_times_vector (const int Nens,
 
     for (int n = 0; n < Nens; ++n)
     {
-        MultiFab xf_n =
-            read_member_multifab(n, last_pf_name, varnames);
+        MultiFab xf_n = read_member_multifab(n, last_pf_name, varnames);
 
         AMREX_ALWAYS_ASSERT(xf_n.boxArray() == result.boxArray());
         AMREX_ALWAYS_ASSERT(xf_n.DistributionMap() == result.DistributionMap());

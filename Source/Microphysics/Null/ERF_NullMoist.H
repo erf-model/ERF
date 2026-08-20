@@ -2,6 +2,7 @@
 #define ERF_NULLMOIST_H
 
 #include <AMReX_MultiFabUtil.H>
+#include <AMReX_iMultiFab.H>
 #include <AMReX_Geometry.H>
 #include <ERF_DataStruct.H>
 #include "ERF_SurfacePrecipitation.H"
@@ -123,6 +124,12 @@ public:
     virtual
     void
     Set_dzmin (const amrex::Real /*dz_min*/) { }
+
+    /*! \brief Import ERF's land/water mask. Only schemes whose physics branches
+     *         on land vs water need to override this. */
+    virtual
+    void
+    Set_Lmask (amrex::iMultiFab* /*lmask*/) { }
 
     virtual
     SurfacePrecipAccumulationSources
