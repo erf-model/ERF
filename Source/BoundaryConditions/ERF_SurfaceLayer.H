@@ -126,6 +126,15 @@ public:
           amrex::Abort("Undefined PBLH calc type!");
       }
 
+      // The w* correction is computed from the PBL height, so it needs a scheme that
+      // actually diagnoses one.  With pblh_calc = "none" the pblh MultiFab keeps the
+      // bogus_large_value it was initialized with and calc_wstar turns that into a
+      // convective velocity scale of ~1e50, which destroys the surface fluxes.
+      if (m_include_wstar && (pblh_type == PBLHeightCalcType::None)) {
+          amrex::Abort("erf.most.include_wstar requires a PBL height: set "
+                       "erf.most.pblh_calc (MYNN25 is the only scheme implemented)");
+      }
+
       // Get surface temperature
       auto erf_st = pp.query("most.surf_temp", surf_temp);
       if (erf_st) { default_land_surf_temp  = surf_temp; }

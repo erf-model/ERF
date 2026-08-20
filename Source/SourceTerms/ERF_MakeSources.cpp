@@ -193,16 +193,17 @@ void make_sources (int level,
     }
 
     // *****************************************************************************
-    // Radiation flux vector for four stream approximation
+    // Vertical extent used by the four stream radiation approximation
     // *****************************************************************************
     // NOTE: The fluxes live on w-faces
-    int klo = domain.smallEnd(0);
+    //
+    // NOTE: There is deliberately no scratch storage for the Q integral or the
+    //       radiative flux here.  Those used to be two nk-length device vectors
+    //       shared by every (i,j) thread of the 2-D ParallelFor below, so all the
+    //       columns raced on the same buffers (issue 3714).  The kernel now keeps
+    //       the running integral and the lower-face flux in thread-private scalars.
+    int klo = domain.smallEnd(2);
     int khi = domain.bigEnd(2);
-    int nk  = khi - klo + 2;
-    Gpu::DeviceVector<Real> radiation_flux(nk,zero);
-    Gpu::DeviceVector<Real> q_integral(nk,zero);
-    Real* rad_flux = radiation_flux.data();
-    Real* q_int    = q_integral.data();
 
     // *****************************************************************************
     // Define source term for cell-centered conserved variables, from
@@ -501,15 +502,18 @@ void make_sources (int level,
             ParallelFor(xybx, [=]
                         AMREX_GPU_DEVICE(int i, int j, int /*k*/) noexcept
             {
-                // Inclusive scan at w-faces for the Q integral (also find "i" values)
-                q_int[0] = zero;
+                // Pass 1: total Q integral through the column (also find "i" values).
+                // NOTE: the running integral is kept in a thread-private scalar rather
+                //       than a shared nk-length buffer, and is simply re-formed in the
+                //       second pass below.  The accumulation order is unchanged, so the
+                //       values are identical to the old per-level array.
+                Real q_int_inf = zero;
                 Real zi   = myhalf * (z_cc_arr(i,j,khi) + z_cc_arr(i,j,khi-1));
                 Real rhoi = myhalf * (cell_data(i,j,khi,Rho_comp) + cell_data(i,j,khi-1,Rho_comp));
                 for (int k(klo+1); k<=khi+1; ++k) {
-                    int lk    = k - klo;
                     // Average to w-faces when looping w-faces
                     Real dz    = (z_cc_arr) ? myhalf * (z_cc_arr(i,j,k) - z_cc_arr(i,j,k-2)) : dx[2];
-                    q_int[lk]  = q_int[lk-1] + krad * cell_data(i,j,k-1,Rho_comp) * cell_data(i,j,k-1,RhoQ2_comp) * dz;
+                    q_int_inf += krad * cell_data(i,j,k-1,Rho_comp) * cell_data(i,j,k-1,RhoQ2_comp) * dz;
                     Real qt_hi = cell_data(i,j,k  ,RhoQ1_comp) + cell_data(i,j,k  ,RhoQ2_comp);
                     Real qt_lo = cell_data(i,j,k-1,RhoQ1_comp) + cell_data(i,j,k-1,RhoQ2_comp);
                     if ( (qt_lo > qt_i) && (qt_hi < qt_i) ) {
@@ -518,29 +522,39 @@ void make_sources (int level,
                     }
                 }
 
-                // Decompose the integral to get the fluxes at w-faces
-                Real q_int_inf = q_int[khi+1];
-                for (int k(klo); k<=khi+1; ++k) {
-                    int lk       = k - klo;
-                    Real z       = myhalf * (z_cc_arr(i,j,k) + z_cc_arr(i,j,k-1));
-                    rad_flux[lk] = F1*std::exp(-q_int[lk]) + F0*std::exp(-(q_int_inf - q_int[lk]));
-                    if (z > zi) {
-                      rad_flux[lk] += rhoi * Cp_d * D * ( std::pow(z-zi,Real(4.)/three)/Real(4.) + zi*std::pow(z-zi,one/three) ) ;
-                    }
+                // Pass 2: re-form the integral level by level, decompose it into the
+                // w-face flux, and difference the flux to get the heating.  The flux on
+                // the lower face is carried across iterations so each face is evaluated
+                // once, exactly as when both faces were read from the shared array.
+                Real q_int   = zero;                                             // face klo
+                Real z_lo    = myhalf * (z_cc_arr(i,j,klo) + z_cc_arr(i,j,klo-1));
+                Real flux_lo = F1*std::exp(-q_int) + F0*std::exp(-(q_int_inf - q_int));
+                if (z_lo > zi) {
+                    flux_lo += rhoi * Cp_d * D * ( std::pow(z_lo-zi,Real(4.)/three)/Real(4.) + zi*std::pow(z_lo-zi,one/three) ) ;
                 }
 
-                // Compute the radiative heating source
                 for (int k(klo); k<=khi; ++k) {
-                    int lk       = k - klo;
+                    // Advance the integral from face k to face k+1
+                    Real dz      = (z_cc_arr) ? myhalf * (z_cc_arr(i,j,k+1) - z_cc_arr(i,j,k-1)) : dx[2];
+                    q_int       += krad * cell_data(i,j,k,Rho_comp) * cell_data(i,j,k,RhoQ2_comp) * dz;
+
+                    Real z_hi    = myhalf * (z_cc_arr(i,j,k+1) + z_cc_arr(i,j,k));
+                    Real flux_hi = F1*std::exp(-q_int) + F0*std::exp(-(q_int_inf - q_int));
+                    if (z_hi > zi) {
+                        flux_hi += rhoi * Cp_d * D * ( std::pow(z_hi-zi,Real(4.)/three)/Real(4.) + zi*std::pow(z_hi-zi,one/three) ) ;
+                    }
+
                     // Average to w-faces when looping CC
                     Real dzInv   = (z_cc_arr) ? one/ (myhalf * (z_cc_arr(i,j,k+1) - z_cc_arr(i,j,k-1))) : dxInv[2];
                     // NOTE: Fnet  = Up - Dn (all fluxes are up here)
                     //       dT/dt = dF/dz * (1/(-rho*Cp))
-                    Real dTdt    = (rad_flux[lk+1] - rad_flux[lk]) * dzInv / (-cell_data(i,j,k,Rho_comp)*Cp_d);
+                    Real dTdt    = (flux_hi - flux_lo) * dzInv / (-cell_data(i,j,k,Rho_comp)*Cp_d);
                     Real qv      = cell_data(i,j,k,RhoQ1_comp)/cell_data(i,j,k,Rho_comp);
                     Real iexner  = one/getExnergivenRTh(cell_data(i,j,k,RhoTheta_comp), RdoCp, qv);
                     // Convert dT/dt to dTheta/dt and multiply rho
                     cell_src(i,j,k,RhoTheta_comp) += cell_data(i,j,k,Rho_comp) * dTdt * iexner;
+
+                    flux_lo = flux_hi;
                 }
             });
         }

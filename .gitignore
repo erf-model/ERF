@@ -73,3 +73,9 @@ build_*.log
 
 # Python cache
 __pycache__
+
+# Development scratch and run artifacts
+Exec/.DevTests/
+*.log
+diffs_*/
+Backtrace.*
