@@ -163,7 +163,7 @@ void wdm6_slope_rain_cell (Real qr, Real nr, Real den, Real denfac,
         // This is a min(), so it binds only where 1./lamdar exceeds the cap --
         // rare, and identically zero for the first fifteen steps of the Bubble
         // case, which is why a bitwise-clean 10-step run did not expose it.
-        rslope  = amrex::min(one / wdm6_lamdar(qr, den, nr, pidnr_arg),
+        rslope  = amrex::min(Real(1.0) / wdm6_lamdar(qr, den, nr, pidnr_arg),
                              wdm6_literal(1.e-3));
         rslopeb = std::pow(rslope, bvtr_arg);
         rslope2 = rslope  * rslope;
@@ -256,7 +256,7 @@ void wdm6_slope_graup_cell (Real qg, Real den, Real denfac,
         rslope2 = rslopeg2max_arg;
         rslope3 = rslopeg3max_arg;
     } else {
-        rslope  = one/wdm6_lamdag(qg,den,pidn0g_arg);
+        rslope  = Real(1.0)/wdm6_lamdag(qg,den,pidn0g_arg);
         rslopeb = std::pow(rslope,bvtg_arg);
         rslope2 = rslope*rslope;
         rslope3 = rslope2*rslope;
