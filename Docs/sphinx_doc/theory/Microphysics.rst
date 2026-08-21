@@ -41,6 +41,9 @@ Model overview and transported quantities in ERF
 | Double moment      | ``Morrison``            | :math:`q_i` | :math:`q_r` | :math:`q_s`     | :math:`q_g` |
 |                    |                         |             |             |                 |             |
 +--------------------+-------------------------+-------------+-------------+-----------------+-------------+
+| WRF Single Moment  | ``WSM6``                | :math:`q_i` | :math:`q_r` | :math:`q_s`     | :math:`q_g` |
+| 6-class            |                         |             |             |                 |             |
++--------------------+-------------------------+-------------+-------------+-----------------+-------------+
 | WRF Double Moment  | ``WDM6``                | :math:`q_i` | :math:`q_r` | :math:`q_s`     | :math:`q_g` |
 | 6-class            |                         |             |             |                 |             |
 +--------------------+-------------------------+-------------+-------------+-----------------+-------------+
@@ -208,17 +211,106 @@ The specific Fortran file which was ported was `module_mp_morr_two_moment.F`_
 .. _`module_mp_morr_two_moment.F`: https://github.com/wrf-model/WRF/blob/master/phys/module_mp_morr_two_moment.F
 
 
+WRF Single-Moment 6-Class (WSM6) Microphysics Model
+----------------------------------------------------
+
+Overview
+~~~~~~~~
+
+The WRF Single-Moment 6-class (WSM6) microphysics scheme is a bulk microphysics parameterization
+that predicts mass mixing ratios for water vapor and five hydrometeor species (cloud water, cloud
+ice, rain, snow, and graupel) but diagnoses number concentrations from assumed size distributions.
+WSM6 is suitable for simulating deep convection and winter precipitation.
+
+ERF's WSM6 implementation is derived from WRF's `module_mp_wsm6.F`_ and provides both CPU
+(via Fortran-C++ bridge) and GPU (native C++ implementation) execution paths.
+
+.. _`module_mp_wsm6.F`: https://github.com/wrf-model/WRF/blob/master/phys/module_mp_wsm6.F
+
+Prognostic Variables
+~~~~~~~~~~~~~~~~~~~~
+
+WSM6 transports the following mass mixing ratios (in addition to :math:`q_v` and :math:`q_c`):
+
+- :math:`q_i`: cloud ice mixing ratio
+- :math:`q_r`: rain water mixing ratio
+- :math:`q_s`: snow mixing ratio
+- :math:`q_g`: graupel mixing ratio
+
+Number concentrations are diagnosed from the predicted mass mixing ratios using assumed particle 
+size distributions and prescribed particle properties. The distributions and associated parameters 
+vary among hydrometeor species; for example, rain uses a Marshall–Palmer-type exponential distribution, 
+while the snow intercept parameter has a temperature dependence.
+
+Implementation
+~~~~~~~~~~~~~~
+
+ERF provides two execution paths for WSM6:
+
+**CPU execution (Fortran bridge):** The original WRF Fortran code is called from C++ via a
+Fortran-C interface for validation and comparison with WRF results.
+
+**GPU execution (native C++):** A native C++ implementation enables efficient execution on
+GPU accelerators with the C++ version reproducing Fortran physics.
+
+Configuration
+~~~~~~~~~~~~~
+
+WSM6 is enabled by setting the moisture model in the input file:
+
+.. code-block:: bash
+
+   erf.moisture_model = WSM6
+
+For validation or comparison, the Fortran bridge can be enabled at build time:
+
+.. code-block:: bash
+
+   # Enable Fortran bridge for validation
+   cmake -DERF_ENABLE_WSM6_FORT=ON -DERF_PRECISION=DOUBLE ...
+
+When built with the Fortran bridge enabled, runtime selection is controlled by
+``erf.use_wsm6_cpp_answer`` (0 = Fortran bridge, 1 = native C++).
+
+Output Variables
+~~~~~~~~~~~~~~~~
+
+WSM6 provides the following diagnostic outputs:
+
+- Surface precipitation accumulations: total (rain), snow, and graupel
+- All mass mixing ratios: :math:`q_v`, :math:`q_c`, :math:`q_i`, :math:`q_r`, :math:`q_s`, :math:`q_g`
+
+The surface precipitation fields are normalized to liquid-water-equivalent units of kg/m\ :sup:`2`.
+
+References
+~~~~~~~~~~
+
+The WSM6 scheme is documented in:
+
+- Hong, S.-Y., and J.-O. J. Lim, 2006: The WRF single-moment 6-class microphysics scheme (WSM6). J. Korean Meteor. Soc., 42, 129-151.
+
+The ERF implementation is derived from WRF's `module_mp_wsm6.F`_.
+
+Example Cases
+~~~~~~~~~~~~~
+
+WSM6 is used in several test cases:
+
+- ``Exec/RegTests/Bubble/inputs_BF02_moist_bubble``: Moist bubble with default WSM6 physics
+- ``Exec/CanonicalTests/Hurricanes/InputFiles/Katrina/``: Hurricane simulations with WSM6
+
+
 WRF Double-Moment 6-Class (WDM6) Microphysics Model
 ----------------------------------------------------
 
 Overview
 ~~~~~~~~
 
-The WRF Double-Moment 6-class (WDM6) microphysics scheme is a bulk microphysics parameterization
-that uses double-moment (mass and number) prediction for warm-rain species and single-moment
-(mass only) prediction for ice-phase species. WDM6 extends the WRF Single-Moment 6-class (WSM6)
-scheme by adding prognostic equations for cloud droplet number concentration (:math:`n_c`) and
-rain drop number concentration (:math:`n_r`), enabling improved representation of cloud-aerosol
+The WRF Double-Moment 6-class (WDM6) microphysics scheme extends WSM6 by adding double-moment
+(mass and number) prediction for warm-rain species while retaining single-moment (mass only)
+prediction for ice-phase species. WDM6 adds prognostic equations for cloud droplet number
+concentration (:math:`n_c`), rain drop number concentration (:math:`n_r`), and CCN
+number concentration (:math:`n_n`), enabling improved representation of cloud-aerosol
 interactions and warm-rain precipitation processes. Ice-phase species (cloud ice, snow, and
 graupel/hail) retain the single-moment treatment from WSM6.
 
@@ -248,42 +340,6 @@ WDM6 transports the following state variables (in addition to :math:`q_v` and :m
 
 The aerosol concentration :math:`n_n` serves as the source for cloud droplet activation, allowing
 the scheme to represent aerosol indirect effects on cloud and precipitation development.
-
-Physical Processes
-~~~~~~~~~~~~~~~~~~
-
-WDM6 includes comprehensive microphysical process rates describing conversions among hydrometeor
-species. The key processes implemented are:
-
-**Warm-rain processes:**
-
-- Autoconversion of cloud water to rain (size-dependent with droplet number)
-- Accretion of cloud water by rain
-- Self-collection and breakup of rain drops
-- Evaporation of rain
-- Droplet activation from aerosols
-- Condensation and evaporation of cloud water
-
-**Cold-cloud processes:**
-
-- Homogeneous and heterogeneous freezing of cloud droplets and rain
-- Deposition and sublimation of ice, snow, and graupel
-- Bergeron process (vapor transfer from liquid to ice)
-- Aggregation of ice crystals to form snow
-- Riming of cloud water and rain onto ice and snow to form graupel
-- Conversion of ice to snow via aggregation
-- Melting of ice, snow, and graupel
-
-**Sedimentation:**
-
-- Size-dependent terminal velocities for all precipitating species
-- Mass-weighted fall speeds
-- Surface precipitation accumulation for rain, snow, and graupel
-
-The warm-rain autoconversion and accretion rates depend on both :math:`q_c` and :math:`n_c`,
-allowing sensitivity to aerosol loading through the droplet number concentration. High aerosol
-concentrations produce more numerous, smaller droplets that are less efficient at forming
-precipitation.
 
 Implementation
 ~~~~~~~~~~~~~~
@@ -318,7 +374,7 @@ can be enabled:
 
 When built with the Fortran bridge enabled, runtime selection is controlled by
 ``erf.use_wdm6_cpp_answer`` (0 = Fortran bridge, 1 = native C++). If the Fortran bridge
-is not enabled, then WDM6 will default to the native C++ implementation.
+is not enabled, then WDM6 will default to the C++ implementation.
 
 **Runtime Configuration**
 
@@ -384,12 +440,10 @@ The ERF implementation is derived from WRF's `module_mp_wdm6.F`_ (version 4.x).
 Example Cases
 ~~~~~~~~~~~~~
 
-Several test cases demonstrate WDM6 capabilities:
+Two test cases demonstrate WDM6 capabilities:
 
 - ``Exec/RegTests/Bubble/inputs_BF02_moist_bubble_wdm6_water``: Moist bubble rising in a stratified atmosphere with graupel physics
 - ``Exec/RegTests/Bubble/inputs_BF02_moist_bubble_wdm6_hail``: Same configuration with hail regime (``hail_opt = 1``)
-
-These cases test warm-rain processes, ice nucleation, riming, aggregation, and surface precipitation accumulation.
 
 Single Moment (SAM) Microphysics Model
 ---------------------------------------
