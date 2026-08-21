@@ -107,6 +107,12 @@
               dJ_to_use =   detJ_cc[level].get();
         }
 
+        // Get planar averages from persistent storage for immersed forcing
+        bool use_immersed_forcing = (solverChoice.terrain_type == TerrainType::ImmersedForcing ||
+                                      solverChoice.buildings_type == BuildingsType::ImmersedForcing);
+        Table1D<Real> r_avg_to_pass = use_immersed_forcing ? r_plane_avg[level].table() : Table1D<Real>();
+        Table1D<Real> t_avg_to_pass = use_immersed_forcing ? t_plane_avg[level].table() : Table1D<Real>();
+
         // *****************************************************************************
         // Construct the source terms for the cell-centered (conserved) variables
         // *****************************************************************************
@@ -118,7 +124,9 @@
                      mapfac[level],
                      rhotheta_src[level].get(), rhoqt_src[level].get(),
                      dptr_wbar_sub, d_rayleigh_ptrs_at_lev, d_sinesq_at_lev,
-                     turbPert, true);
+                     turbPert,
+                     r_avg_to_pass, t_avg_to_pass,
+                     true);
 
         // *****************************************************************************
         // Add nudging terms on moist variables if we have a non-zero relaxation region
@@ -176,7 +184,8 @@
                          dptr_wbar_sub, d_rayleigh_ptrs_at_lev, d_sinesq_at_lev, d_sinesq_stag_at_lev,
                          d_sponge_ptrs_at_lev,
                          (solverChoice.hindcast_lateral_forcing? &forecast_state_interp[level] : nullptr),
-                         input_sounding_data, lsf, lsf_data[level], get_eb(level), true);
+                         input_sounding_data, lsf, lsf_data[level],
+                         get_eb(level), true);
 
         // *****************************************************************************
         // Add body sources if doing flow around a body

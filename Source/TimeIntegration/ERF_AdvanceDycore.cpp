@@ -121,14 +121,17 @@ void ERF::advance_dycore (int level,
     MultiFab* SmnSmn    = SmnSmn_lev[level].get();
 
     // *****************************************************************************
-    // Planar averages for subsidence terms
+    // Planar averages for subsidence terms, nudging, and immersed forcing
     // *****************************************************************************
+    bool use_immersed_forcing = (solverChoice.terrain_type == TerrainType::ImmersedForcing ||
+                                  solverChoice.buildings_type == BuildingsType::ImmersedForcing);
+
     Table1D<Real> dptr_r_plane, dptr_t_plane, dptr_qv_plane;
     TableData<Real, 1> r_plane_tab, t_plane_tab,  qv_plane_tab;
 
     Table1D<Real> dptr_u_plane, dptr_v_plane;
     TableData<Real, 1> u_plane_tab, v_plane_tab;
-    if (use_nudging)
+    if (use_nudging || use_immersed_forcing)
     {
         // Rho
         IntVect ng_c(state_old[IntVars::cons].nGrowVect()); ng_c[2] = 1;
@@ -229,6 +232,20 @@ void ERF::advance_dycore (int level,
         {
             dptr_v_plane(k-v_offset) = dptr_v[k];
         });
+
+        // Store planar averages in persistent ERF member variables for immersed forcing
+        if (use_immersed_forcing) {
+            Table1D<Real> r_avg_persistent = r_plane_avg[level].table();
+            Table1D<Real> t_avg_persistent = t_plane_avg[level].table();
+
+            // Copy from local computation to persistent storage
+            // Both use the same Table1D indexing with offset, so direct copy
+            ParallelFor(ncell, [=] AMREX_GPU_DEVICE (int k) noexcept
+            {
+                r_avg_persistent(k-offset) = dptr_r_plane(k-offset);
+                t_avg_persistent(k-offset) = dptr_t_plane(k-offset);
+            });
+        }
     }
 
     if (use_lsf) {
@@ -597,34 +614,25 @@ void ERF::advance_dycore (int level,
             terrain_blanking[level].get() : nullptr;
 
         if (terrain_blank) {
-            for (MFIter mfi(*eddyDiffs, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+            for (MFIter mfi(*eddyDiffs, TileNoZ()); mfi.isValid(); ++mfi) {
                 const Box& bx = mfi.tilebox();
                 auto const& t_blank_arr = terrain_blank->const_array(mfi);
                 auto const& eddy_arr = eddyDiffs->array(mfi);
+                auto const& smn_arr = SmnSmn ? SmnSmn->array(mfi) : Array4<Real>{};
 
                 ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-                    if (t_blank_arr(i,j,k) == Real(1.0)) {
-                        for (int n = 0; n < EddyDiff::NumDiffs; ++n) {
-                            eddy_arr(i,j,k,n) = Real(0.0);
-                        }
+                    // Compute mask: 0 if fully immersed (t_blank == 1), 1 if fluid (t_blank != 1)
+                    Real mask = (t_blank_arr(i,j,k) == one) ? zero : one;
+                    for (int n = 0; n < EddyDiff::NumDiffs; ++n) {
+                        eddy_arr(i,j,k,n) *= mask;
                     }
+                    if (smn_arr) { smn_arr(i,j,k) *= mask; }
                 });
             }
 
-            // Also zero SmnSmn if it exists
-            if (SmnSmn) {
-                for (MFIter mfi(*SmnSmn, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
-                    const Box& bx = mfi.tilebox();
-                    auto const& t_blank_arr = terrain_blank->const_array(mfi);
-                    auto const& smn_arr = SmnSmn->array(mfi);
-
-                    ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-                        if (t_blank_arr(i,j,k) == Real(1.0)) {
-                            smn_arr(i,j,k) = Real(0.0);
-                        }
-                    });
-                }
-            }
+            // Synchronize ghost cells after modifying interior cells
+            eddyDiffs->FillBoundary(fine_geom.periodicity());
+            if (SmnSmn) { SmnSmn->FillBoundary(fine_geom.periodicity()); }
         }
     }
 

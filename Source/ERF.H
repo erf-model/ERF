@@ -967,6 +967,10 @@ private:
     amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real>> zvel_bc_data;
     amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real>> th_bc_data;
 
+    // Planar averages for immersed forcing (computed on slow step, used in slow and fast steps)
+    amrex::Vector<amrex::TableData<amrex::Real, 1>> r_plane_avg;   // density planar average per level
+    amrex::Vector<amrex::TableData<amrex::Real, 1>> t_plane_avg;   // RhoTheta planar average per level
+
     // Function to read and populate above vectors (if input file exists)
     void init_Dirichlet_bc_data (const std::string input_file);
 
