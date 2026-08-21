@@ -9,7 +9,7 @@ void
 WDM6::Copy_Micro_to_State(MultiFab& cons)
 {
     // DEBUG: Track calls to Copy_Micro_to_State
-    static int copy_to_state_count = 0;
+    [[maybe_unused]] static int copy_to_state_count = 0;
     copy_to_state_count++;
 
     // Conservative update of all fields
