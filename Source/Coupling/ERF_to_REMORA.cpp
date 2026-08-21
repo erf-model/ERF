@@ -253,12 +253,16 @@ void
 ERF::GetOceanToAtmosSurfaceLayout (amrex::BoxArray& ba,
                                    amrex::DistributionMapping& dm)
 {
-    auto* sst_ptr = lsm.Get_Data_Ptr(0, 0);
+    // The level-0 flattened cell layout. Coupled SST used to live in the
+    // OceanSurf LSM slot, whose BoxArray was grids[0] with setRange(2,0) on
+    // dmap[0] -- exactly ba2d[0]/dmap[0]. Nothing asserted that equality then;
+    // now that the LSM slot is gone we take ba2d[0] directly and assert the
+    // shape the driver depends on.
     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
-        sst_ptr != nullptr,
-        "ERF::GetOceanToAtmosSurfaceLayout requires OceanSurf level-0 surface storage after InitData.");
-    ba = sst_ptr->boxArray();
-    dm = sst_ptr->DistributionMap();
+        !ba2d.empty() && ba2d[0].size() == grids[0].size(),
+        "ERF::GetOceanToAtmosSurfaceLayout requires the level-0 2D layout after InitData.");
+    ba = ba2d[0];
+    dm = dmap[0];
 }
 
 void
@@ -778,41 +782,97 @@ ERF::PackAtmosphericStates (amrex::Vector<amrex::MultiFab*>& states,
 
 void
 ERF::ApplyOceanSurfaceState (const amrex::Vector<amrex::MultiFab*>& state,
-                             double time)
+                             double time,
+                             const amrex::iMultiFab* erf_coverage)
 {
-    if (solverChoice.lsm_type != LandSurfaceType::OceanSurf) {
+    // The gate is now "is coupled SST configured", not "which LSM was selected".
+    // The old gate compared against LandSurfaceType::OceanSurf, so a deck that
+    // misspelled the key got its ocean data dropped with no diagnostic.
+    if (!solverChoice.use_coupled_sst) {
+        if (!m_warned_coupled_sst_declined) {
+            m_warned_coupled_sst_declined = true;
+            amrex::Print() << "ERF::ApplyOceanSurfaceState was called but "
+                           << "erf.use_coupled_sst is not set; the ocean SST is "
+                           << "being discarded. Set erf.use_coupled_sst = 1."
+                           << std::endl;
+        }
         return;
     }
 
-    if (!state.empty() && state[0] != nullptr && lsm.Get_Data_Ptr(0, 0) != nullptr) {
-        auto* dst = lsm.Get_Data_Ptr(0, 0);
-        amrex::MultiFab src_remapped(dst->boxArray(), dst->DistributionMap(), 1, 0);
-        src_remapped.ParallelCopy(*state[0], 0, 0, 1);
-        const auto lsm_geom = lsm.Get_Lsm_Geom(0);
-        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
-            lsm_geom.isPeriodic(0) == Geom(0).isPeriodic(0) &&
-            lsm_geom.isPeriodic(1) == Geom(0).isPeriodic(1) &&
-            lsm_geom.isPeriodic(2) == Geom(0).isPeriodic(2),
-            "OceanSurf t_surf geometry lost ERF periodic flags.");
-        dst->ParallelCopy(src_remapped, 0, 0, 1);
-        dst->FillBoundary(lsm_geom.periodicity());
+    if (state.empty() || state[0] == nullptr) { return; }
 
-        const amrex::Real src_min = state[0]->min(0);
-        const amrex::Real src_max = state[0]->max(0);
-        const amrex::Real dst_min = dst->min(0);
-        const amrex::Real dst_max = dst->max(0);
+    if (m_coupled_sst == nullptr) {
+        amrex::BoxArray ba;
+        amrex::DistributionMapping dm;
+        GetOceanToAtmosSurfaceLayout(ba, dm);
+        // No ghost cells: SurfaceLayer::fill_tsurf_with_coupled_sst clamps its sample
+        // index into the valid box, exactly as get_lsm_tsurf does for the LSM
+        // arrays, so ghosts here would never be read. t_surf's own ghosts are
+        // filled by the FillBoundary at the end of update_fluxes.
+        m_coupled_sst       = std::make_unique<amrex::MultiFab> (ba, dm, 1, 0);
+        m_coupled_sst_valid = std::make_unique<amrex::iMultiFab>(ba, dm, 1, 0);
+    }
 
-        if (amrex::ParallelDescriptor::IOProcessor()) {
-            amrex::Print() << "OceanSurf apply at t=" << time
-                           << " s from SST slab: source min/max = "
-                           << src_min << " / " << src_max
-                           << " K, cache min/max = "
-                           << dst_min << " / " << dst_max
-                           << " K" << std::endl;
-        }
+    // Zero coverage first: a cell the driver does not write this call must not
+    // inherit the previous call's coverage flag.
+    m_coupled_sst_valid->setVal(0);
+    m_coupled_sst->ParallelCopy(*state[0], 0, 0, 1);
+    if (erf_coverage != nullptr) {
+        m_coupled_sst_valid->ParallelCopy(*erf_coverage, 0, 0, 1);
+    }
 
-        if (dst_min < amrex::Real(260.0) || dst_max > amrex::Real(320.0)) {
-            amrex::Warning("OceanSurf t_surf is outside the expected [260, 320] K range");
-        }
+    if (m_SurfaceLayer) {
+        m_SurfaceLayer->update_coupled_sst_ptr(0, m_coupled_sst.get(), m_coupled_sst_valid.get());
+    }
+
+    // Report over the covered cells only. The old whole-array min/max was
+    // dominated by the remap's zero fill wherever the ocean grid did not reach,
+    // so the range check could not distinguish "cold ocean" from "no ocean".
+    constexpr amrex::Real cov_min_sentinel = amrex::Real( 1.e30);
+    constexpr amrex::Real cov_max_sentinel = amrex::Real(-1.e30);
+
+    amrex::ReduceOps<amrex::ReduceOpSum, amrex::ReduceOpMin, amrex::ReduceOpMax> reduce_ops;
+    amrex::ReduceData<amrex::Long, amrex::Real, amrex::Real> reduce_data(reduce_ops);
+    using ReduceTuple = typename decltype(reduce_data)::Type;
+
+    for (amrex::MFIter mfi(*m_coupled_sst); mfi.isValid(); ++mfi) {
+        const amrex::Box& bx = mfi.validbox();
+        const auto sst_arr   = m_coupled_sst->const_array(mfi);
+        const auto valid_arr = m_coupled_sst_valid->const_array(mfi);
+        reduce_ops.eval(bx, reduce_data,
+            [=] AMREX_GPU_DEVICE (int i, int j, int k) -> ReduceTuple
+            {
+                const bool covered = (valid_arr(i,j,k) != 0);
+                return { covered ? amrex::Long(1) : amrex::Long(0),
+                         covered ? sst_arr(i,j,k) : cov_min_sentinel,
+                         covered ? sst_arr(i,j,k) : cov_max_sentinel };
+            });
+    }
+
+    auto reduced = reduce_data.value(reduce_ops);
+    amrex::Long n_valid = amrex::get<0>(reduced);
+    amrex::Real cov_min = amrex::get<1>(reduced);
+    amrex::Real cov_max = amrex::get<2>(reduced);
+
+    amrex::ParallelDescriptor::ReduceLongSum(n_valid);
+    amrex::ParallelDescriptor::ReduceRealMin(cov_min);
+    amrex::ParallelDescriptor::ReduceRealMax(cov_max);
+
+    const amrex::Long n_total = m_coupled_sst->boxArray().numPts();
+
+    if (n_valid == 0) {
+        amrex::Print() << "Coupled SST apply at t=" << time
+                       << " s: no ERF cell has an ocean donor; the lower-boundary "
+                       << "SST/TSK data stands everywhere." << std::endl;
+        return;
+    }
+
+    amrex::Print() << "Coupled SST apply at t=" << time
+                   << " s: covered " << n_valid << " of " << n_total
+                   << " surface cells, min/max over covered = "
+                   << cov_min << " / " << cov_max << " K" << std::endl;
+
+    if (cov_min < amrex::Real(260.0) || cov_max > amrex::Real(320.0)) {
+        amrex::Warning("Coupled SST is outside the expected [260, 320] K range");
     }
 }

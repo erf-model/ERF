@@ -68,6 +68,10 @@ The default subvolume inventory is documented on :ref:`sec:Plotfiles`.
 |                             | potential        |
 |                             | temperature [K]  |
 +-----------------------------+------------------+
+| **pi_hse**                  | Hydrostatic      |
+|                             | Exner function   |
+|                             | [-]              |
++-----------------------------+------------------+
 | **qv_hse**                  | Base-state water |
 |                             | vapor mixing     |
 |                             | ratio [kg/kg]    |
