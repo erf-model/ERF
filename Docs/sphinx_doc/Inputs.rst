@@ -1976,13 +1976,28 @@ List of Parameters
 +================================+============================+====================+=============+
 | **erf.land_surface_model**     | Enables land surface       | "None",            | "None"      |
 |                                | energy and moisture        | "NOAHMP",          |             |
-|                                | fluxes                     | "OceanSurf",       |             |
-|                                |                            | "SLM"              |             |
+|                                | fluxes                     | "SLM"              |             |
++--------------------------------+----------------------------+--------------------+-------------+
+| **erf.use_coupled_sst**        | Expect sea-surface         | true / false       | false       |
+|                                | temperature from an        |                    |             |
+|                                | external ocean coupler     |                    |             |
 +--------------------------------+----------------------------+--------------------+-------------+
 
 .. note::
 
    Noah-MP requires ``USE_NOAHMP=TRUE`` at build time. See :ref:`CouplingToNoahMP` for details.
+
+.. note::
+
+   ``erf.use_coupled_sst`` is independent of ``erf.land_surface_model``. Coupled SST
+   is applied through the lower-boundary path alongside ``wrflowinp`` SST/TSK, and
+   only on the water cells the coupler actually covers: land keeps its land surface
+   model, and water the ocean grid does not reach keeps the ``wrflowinp`` value. A
+   coupled run can therefore also run Noah-MP.
+
+   This replaces ``erf.land_surface_model = OceanSurf``, which delivered coupled SST
+   as a land surface model and so occupied the one land surface model slot. That
+   value has been removed and now aborts with a message pointing here.
 
 Coupling Type (Data Exchange)
 ==============================
