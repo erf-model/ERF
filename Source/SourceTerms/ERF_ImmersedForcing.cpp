@@ -1193,7 +1193,7 @@ void ImmersedForcingBuildings_Scalar (const Box& bx,
                 cell_src(i, j, k, RhoTheta_comp) -= drag_coefficient * U_s * bc_forcing_rt;
             }
         }
-        
+
         // Force fully immersed cells to planar average rho and theta
         if (t_blank == 1.0) {
             const Real rho_avg = r_avg(k);
