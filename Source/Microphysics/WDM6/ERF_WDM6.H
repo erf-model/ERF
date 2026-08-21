@@ -59,7 +59,7 @@ class WDM6 : public NullMoist {
 
 public:
     WDM6 () {}
-    virtual ~WDM6() = default;
+    virtual ~WDM6 () = default;
 
     void Define (SolverChoice& sc) override
     {
