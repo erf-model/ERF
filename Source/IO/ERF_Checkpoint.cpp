@@ -208,6 +208,41 @@ ERF::WriteCheckpointFile () const
             VisMF::Write(gpz, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "Gpz"));
         }
 
+        // Surface momentum and scalar fluxes handed to an ocean model in
+        // flux-passing mode. These are computed inside a timestep's RHS rather
+        // than carried as state, so after a restart they hold zero until the
+        // first advance -- but the coupler packs them for the ocean *before*
+        // that advance, which delivers zero wind stress and zero heat flux for a
+        // whole ocean step with no diagnostic. They are part of the coupled
+        // interface and have to survive the checkpoint.
+        //
+        // Written only when a coupling driver is attached, so standalone
+        // checkpoints are byte-for-byte unchanged. Each field is written
+        // separately because diffusion and moisture settings decide which exist;
+        // the read side probes for each rather than assuming.
+        if (m_driver_has_atm2ocn_coupling) {
+            if (!Tau.empty() && Tau[lev][TauType::tau13]) {
+                MultiFab tau13(convert(grids[lev],IntVect(1,0,1)),dmap[lev],1,0);
+                MultiFab::Copy(tau13,*Tau[lev][TauType::tau13],0,0,1,0);
+                VisMF::Write(tau13, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "Tau13"));
+            }
+            if (!Tau.empty() && Tau[lev][TauType::tau23]) {
+                MultiFab tau23(convert(grids[lev],IntVect(0,1,1)),dmap[lev],1,0);
+                MultiFab::Copy(tau23,*Tau[lev][TauType::tau23],0,0,1,0);
+                VisMF::Write(tau23, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "Tau23"));
+            }
+            if (!SFS_hfx3_lev.empty() && SFS_hfx3_lev[lev]) {
+                MultiFab hfx3(convert(grids[lev],IntVect(0,0,1)),dmap[lev],1,0);
+                MultiFab::Copy(hfx3,*SFS_hfx3_lev[lev],0,0,1,0);
+                VisMF::Write(hfx3, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "SFS_hfx3"));
+            }
+            if (!SFS_q1fx3_lev.empty() && SFS_q1fx3_lev[lev]) {
+                MultiFab q1fx3(convert(grids[lev],IntVect(0,0,1)),dmap[lev],1,0);
+                MultiFab::Copy(q1fx3,*SFS_q1fx3_lev[lev],0,0,1,0);
+                VisMF::Write(q1fx3, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "SFS_q1fx3"));
+            }
+        }
+
         // The running sum of the time-averaged velocity.  Its normalizer, t_avg_cnt,
         // goes in the header above; both are needed or the average silently restarts
         // from zero across a checkpoint/restart (issue 3654).
@@ -813,6 +848,54 @@ ERF::ReadCheckpointFile ()
             VisMF::Read(gpz, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "Gpz"));
             MultiFab::Copy(gradp[lev][GpVars::gpz],gpz,0,0,1,0);
             gradp[lev][GpVars::gpz].FillBoundary(geom[lev].periodicity());
+        }
+
+        // Restore the surface fluxes an ocean model is driven by in flux-passing
+        // mode. Without this they are zero until the first advance, and the
+        // coupler packs them before that happens. See the matching write above.
+        //
+        // Absent from checkpoints written before this landed, and from any
+        // written by an uncoupled run, so each is probed rather than assumed.
+        // Missing means the ocean gets zero forcing for its first step, which is
+        // silent and wrong, so say so rather than leaving it to be discovered in
+        // the results.
+        if (m_driver_has_atm2ocn_coupling) {
+            bool restored_any = false;
+            bool missing_any  = false;
+
+            auto read_if_present = [&] (MultiFab* dst, const char* tag, const IntVect& ixtype)
+            {
+                if (dst == nullptr) { return; }
+                const std::string name =
+                    MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", tag);
+                if (amrex::FileExists(name + "_H")) {
+                    MultiFab tmp(convert(grids[lev],ixtype),dmap[lev],1,0);
+                    VisMF::Read(tmp, name);
+                    MultiFab::Copy(*dst,tmp,0,0,1,0);
+                    dst->FillBoundary(geom[lev].periodicity());
+                    restored_any = true;
+                } else {
+                    missing_any = true;
+                }
+            };
+
+            read_if_present(Tau.empty() ? nullptr : Tau[lev][TauType::tau13].get(),
+                            "Tau13", IntVect(1,0,1));
+            read_if_present(Tau.empty() ? nullptr : Tau[lev][TauType::tau23].get(),
+                            "Tau23", IntVect(0,1,1));
+            read_if_present(SFS_hfx3_lev.empty() ? nullptr : SFS_hfx3_lev[lev].get(),
+                            "SFS_hfx3", IntVect(0,0,1));
+            read_if_present(SFS_q1fx3_lev.empty() ? nullptr : SFS_q1fx3_lev[lev].get(),
+                            "SFS_q1fx3", IntVect(0,0,1));
+
+            if (missing_any && !restored_any) {
+                amrex::Print() << "WARNING: restart checkpoint carries no surface fluxes "
+                               << "for level " << lev << ". In flux-passing coupled mode "
+                               << "the ocean will be driven by zero wind stress and zero "
+                               << "heat flux until the first atmosphere advance. Re-run "
+                               << "from a checkpoint written with flux output, or expect "
+                               << "the first ocean step to be unforced." << std::endl;
+            }
         }
 
         // Restore the running sum of the time-averaged velocity (issue 3654).  Older
