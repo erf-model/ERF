@@ -237,9 +237,9 @@ WSM6 transports the following mass mixing ratios (in addition to :math:`q_v` and
 - :math:`q_s`: snow mixing ratio
 - :math:`q_g`: graupel mixing ratio
 
-Number concentrations are diagnosed from the predicted mass mixing ratios using assumed particle 
-size distributions and prescribed particle properties. The distributions and associated parameters 
-vary among hydrometeor species; for example, rain uses a Marshall–Palmer-type exponential distribution, 
+Number concentrations are diagnosed from the predicted mass mixing ratios using assumed particle
+size distributions and prescribed particle properties. The distributions and associated parameters
+vary among hydrometeor species; for example, rain uses a Marshall–Palmer-type exponential distribution,
 while the snow intercept parameter has a temperature dependence.
 
 Implementation
