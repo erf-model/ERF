@@ -229,7 +229,22 @@ public:
                                 const amrex::MultiFab* dst_mskr = nullptr,
                                 const amrex::MultiFab* dst_msku = nullptr,
                                 const amrex::MultiFab* dst_mskv = nullptr);
-    void ApplyOceanSurfaceState (const amrex::Vector<amrex::MultiFab*>& state, double time);
+    // Apply ocean-model sea-surface temperature to the ERF lower boundary.
+    //
+    // state[0] carries SST in Kelvin on the layout reported by
+    // GetOceanToAtmosSurfaceLayout. erf_coverage is the per-cell coverage flag on
+    // that same layout: nonzero where the driver's remap found at least one
+    // ocean donor for that ERF cell.
+    //
+    // Coverage is a contract, not a hint. Where erf_coverage is zero the ocean
+    // supplied nothing and state[0] holds the remap's zero fill, which is
+    // indistinguishable from a computed zero; ERF keeps its own wrflowinp SST
+    // there instead. Passing erf_coverage = nullptr therefore means "no cell is
+    // covered", not "every cell is covered" -- a driver that has coverage
+    // information must pass it.
+    void ApplyOceanSurfaceState (const amrex::Vector<amrex::MultiFab*>& state,
+                                 double time,
+                                 const amrex::iMultiFab* erf_coverage = nullptr);
 
     // Tag cells for refinement
     void ErrorEst (int lev, amrex::TagBoxArray& tags, amrex::Real time, int ngrow) override;
@@ -799,6 +814,17 @@ public:
     bool m_driver_has_atm2ocn_coupling = false;
     bool m_driver_uses_two_way_coupling = false;
     bool m_driver_atm2ocn_uses_state_contract = true;
+
+    // Coupled sea-surface temperature and its per-cell coverage flag, on the
+    // layout reported by GetOceanToAtmosSurfaceLayout. Allocated on the first
+    // ApplyOceanSurfaceState call and handed to the SurfaceLayer as borrowed
+    // pointers, so ERF must outlive the SurfaceLayer's use of them. Level 0
+    // only: the coupler exchanges on the base grid.
+    std::unique_ptr<amrex::MultiFab>  m_coupled_sst;
+    std::unique_ptr<amrex::iMultiFab> m_coupled_sst_valid;
+
+    // One-shot latch so a misconfigured deck says so once rather than every step.
+    bool m_warned_coupled_sst_declined = false;
 
 private:
 

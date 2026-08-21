@@ -127,7 +127,7 @@ AMREX_ENUM(WindFarmLocType,
  * @brief Land-surface model.
  */
 AMREX_ENUM(LandSurfaceType,
-    SLM, NOAHMP, OceanSurf, None
+    SLM, NOAHMP, None
 );
 
 /**
@@ -372,9 +372,33 @@ struct SolverChoice {
         int default_buoyancy_type = buoyancy_type[0];
         read_int_string(max_level, "buoyancy_type", buoyancy_type, default_buoyancy_type);
 
+        // OceanSurf was removed from LandSurfaceType. Catch the stale spelling
+        // before query_enum_case_insensitive does, so the error says what to do
+        // rather than just listing the enum values.
+        {
+            std::string lsm_string;
+            if (pp.query("land_surface_model", lsm_string) &&
+                amrex::toLower(lsm_string) == "oceansurf") {
+                amrex::Abort("erf.land_surface_model = OceanSurf has been removed. "
+                             "Coupled ocean SST is now applied through the "
+                             "lower-boundary path: set erf.use_coupled_sst = 1 "
+                             "instead, and use erf.land_surface_model for the land "
+                             "surface you actually want (the two are no longer "
+                             "the same setting).");
+            }
+        }
+
         // What type of land surface model to use
         lsm_type = LandSurfaceType::None; // Default
         pp.query_enum_case_insensitive("land_surface_model",lsm_type);
+
+        // Will an external ocean coupler supply SST for part or all of the water
+        // cells this run? This is a configuration predicate, not a data-validity
+        // one: it says the coupled lane will be filled, not that any coupled step
+        // has run yet. The surface layer needs it at Define time to select
+        // ThetaCalcType::SURFACE_TEMPERATURE, which is long before the first
+        // ApplyOceanSurfaceState call.
+        pp.query("use_coupled_sst", use_coupled_sst);
 
         read_int_string(max_level, "is_land", is_land, 1);
         for (int lev = 0; lev <= max_level; ++lev) {
@@ -1642,6 +1666,9 @@ struct SolverChoice {
     WindFarmLocType windfarm_loc_type;
     LandSurfaceType lsm_type;
     RadiationType rad_type;
+
+    // Does an external ocean coupler supply SST? See the query in init_params.
+    bool use_coupled_sst = false;
 
     ABLDriverType abl_driver_type;
     amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> abl_pressure_grad;
