@@ -291,7 +291,7 @@ Implementation
 ERF provides two execution paths for WDM6:
 
 **CPU execution (Fortran bridge):** The original WRF Fortran code is called from C++ via a
-Fortran-C interface. This path ensures bit-for-bit reproducibility with WRF results and serves
+Fortran-C interface. This path ensures reproducibility with WRF results and serves
 as a reference implementation.
 
 **GPU execution (native C++):** A native C++ implementation of all WDM6 microphysical processes
@@ -304,6 +304,23 @@ modifies fall speed coefficients and size distribution parameters for the graupe
 
 Configuration
 ~~~~~~~~~~~~~
+
+**Build Configuration**
+
+The default build uses native C++ code that can run on both CPU and GPU.
+For validation against WRF or reproducibility testing, the Fortran bridge
+can be enabled:
+
+.. code-block:: bash
+
+   # Enable Fortran bridge for validation
+   cmake -DERF_ENABLE_WDM6_FORT=ON -DERF_PRECISION=DOUBLE ...
+
+When built with the Fortran bridge enabled, runtime selection is controlled by
+``erf.use_wdm6_cpp_answer`` (0 = Fortran bridge, 1 = native C++). If the Fortran bridge
+is not enabled, then WDM6 will default to the native C++ implementation.
+
+**Runtime Configuration**
 
 WDM6 is enabled by setting the moisture model in the input file:
 
@@ -340,24 +357,6 @@ properties:
 +---------------+------------------+---------------+
 | :math:`\lambda_{g,max}`| 6.0×10\ :sup:`4` | 2.0×10\ :sup:`4` |
 +---------------+------------------+---------------+
-
-Assumptions and Limitations
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-WDM6 makes several simplifying assumptions:
-
-- **Double-moment only for warm rain**: Cloud droplet (:math:`n_c`) and rain drop (:math:`n_r`) number concentrations are predicted, but ice-phase species use single-moment treatment with diagnosed number concentrations
-- Marshall-Palmer (exponential) size distributions for rain and ice-phase species
-- Gamma distribution for cloud droplets with fixed dispersion parameter
-- Immediate adjustment to terminal velocity (no particle acceleration)
-- Saturation adjustment for supersaturation with respect to liquid water
-
-The double-moment warm-rain treatment enables representation of aerosol indirect effects on
-cloud droplet activation and warm-rain processes, while the single-moment ice physics reduces
-computational cost. The scheme is appropriate for simulations where warm-rain microphysics and
-cloud-aerosol interactions are important, such as shallow convection, orographic precipitation,
-and aerosol sensitivity studies. For applications requiring full double-moment treatment of
-ice-phase species, consider the Morrison scheme.
 
 Output Variables
 ~~~~~~~~~~~~~~~~
