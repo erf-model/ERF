@@ -372,6 +372,9 @@ public:
           m_tsk_lev.resize(nlevs);
           m_lmask_lev.resize(nlevs);
 
+          m_coupled_sst_lev.resize(nlevs, nullptr);
+          m_coupled_sst_valid_lev.resize(nlevs, nullptr);
+
           // Size the MOST params for all levels
           z_0.resize(nlevs);
           u_star.resize(nlevs);
@@ -421,7 +424,6 @@ public:
           if (lc_name == "theta" || lc_name == "t_surf") {
               m_has_lsm_tsurf  = true;
               m_lsm_tsurf_indx = n;
-              m_has_ocean_lsm_tsurf = (lc_name == "t_surf");
           }
       }
       int n_valid_lsm_flux = 0;
@@ -523,18 +525,18 @@ public:
 
       bool use_sst = (!m_sst_lev[lev].empty() && m_sst_lev[lev][0]);
       bool use_tsk = (!m_tsk_lev[lev].empty() && m_tsk_lev[lev][0]);
-      if (use_sst || use_tsk || m_has_lsm_tsurf) {
-          // Valid SST, TSK or LSM data; t_surf set before computing fluxes (avoids
-          // extended lambda capture) Note that land temp will be set from m_tsk_lev
-          //      while sea temp will be set from m_sst_lev
+      if (use_sst || use_tsk || m_has_lsm_tsurf || m_use_coupled_sst) {
+          // Valid SST, TSK, LSM or coupled-ocean data; t_surf set before computing
+          // fluxes (avoids extended lambda capture) Note that land temp will be set
+          // from m_tsk_lev while sea temp will be set from m_sst_lev
           theta_type = ThetaCalcType::SURFACE_TEMPERATURE;
 
           // Pathways in fill_tsurf_with_sst_and_tsk
           amrex::Print() << "Using MOST with specified surface temperature ";
-          if (m_has_ocean_lsm_tsurf) {
-              amrex::Print() << "(OceanSurf: t_surf)" << std::endl;
-          } else if (m_has_lsm_tsurf && !use_sst && !use_tsk) {
-              amrex::Print() << "(SLM: theta)" << std::endl;
+          if (m_has_lsm_tsurf && !use_sst && !use_tsk) {
+              amrex::Print() << "(LSM: " << m_lsm_data_name[m_lsm_tsurf_indx] << ")";
+          } else if (!use_sst && !use_tsk) {
+              amrex::Print() << "(land: T0, sea: none)";
           } else {
               // NOTE: SST from the LOW file populates TSK in update_sst_tsk.
               //       So if we have TSK, it contains everything and has been
@@ -546,12 +548,19 @@ public:
                   amrex::Print() << "(land: T0, ";
               }
               if (use_tsk && !use_sst) {
-                  amrex::Print() << "sea: TSK)" << std::endl;
+                  amrex::Print() << "sea: TSK)";
               } else {
-                  amrex::Print() << "sea: SST)" << std::endl;
+                  amrex::Print() << "sea: SST)";
                   AMREX_ALWAYS_ASSERT(m_sst_lev[lev][0]);
               }
           }
+          // The coupler is layered on top of whatever the above selected: it
+          // overwrites only the water cells it actually covers, so the pathway
+          // named above remains the value for land and for uncovered water.
+          if (m_use_coupled_sst) {
+              amrex::Print() << " + coupled ocean SST where covered";
+          }
+          amrex::Print() << std::endl;
       }
   }
 
@@ -727,6 +736,18 @@ public:
                                     const double& time);
 
   /**
+   * Overwrite surface temperature with coupled ocean SST where the coupler
+   * covers the cell.
+   *
+   * Runs after fill_tsurf_with_sst_and_tsk so that the lower-boundary data is
+   * the base layer: land cells, and water cells with no ocean donor, keep the
+   * value written there.
+   *
+   * @param[in] lev level index
+   */
+  void fill_tsurf_with_coupled_sst (const int& lev);
+
+  /**
    * Fill surface moisture from saturation specific humidity.
    *
    * @param[in] lev       level index
@@ -789,9 +810,9 @@ public:
    */
   void update_surf_temp (const double& time)
   {
-      if (m_has_ocean_lsm_tsurf) {
-          return;
-      }
+      // NOTE: this is a whole-domain setVal, so it overwrites the SST/TSK fill
+      //       done earlier in update_fluxes. Coupled SST is applied after this
+      //       call and therefore still wins on the water cells it covers.
       if (surf_heating_rate != 0) {
           int nlevs = static_cast<int>(m_geom.size());
           for (int lev = 0; lev < nlevs; lev++) {
@@ -996,6 +1017,35 @@ public:
       m_tsk_lev[lev][itime] = tsk_ptr;
   }
 
+  /**
+   * Hand over the coupled sea-surface temperature and its per-cell coverage flag.
+   *
+   * Both pointers stay owned by the caller and must remain valid, and on the same
+   * layout, until replaced. Passing a null sst_ptr retracts the coupled lane, so
+   * the lower-boundary SST/TSK value stands everywhere again.
+   *
+   * @param[in] lev       level index
+   * @param[in] sst_ptr   coupled sea-surface temperature [K]
+   * @param[in] valid_ptr per-cell coverage flag; nonzero where the coupler
+   *                      supplied a value. Null means no cell is covered.
+   */
+  void update_coupled_sst_ptr (const int lev,
+                               amrex::MultiFab* sst_ptr,
+                               amrex::iMultiFab* valid_ptr) {
+      m_coupled_sst_lev[lev]   = sst_ptr;
+      m_coupled_sst_valid_lev[lev] = valid_ptr;
+  }
+
+  /**
+   * Declare that an ocean coupler will supply SST for this run.
+   *
+   * Must be called before make_SurfaceLayer_at_level, which uses it to select
+   * ThetaCalcType::SURFACE_TEMPERATURE.
+   *
+   * @param[in] active whether coupled SST is configured
+   */
+  void set_coupled_sst_active (const bool active) { m_use_coupled_sst = active; }
+
   enum struct FluxCalcType {
     MOENG = 0, ///< Moeng functional form
     DONELAN,   ///< Donelan functional form
@@ -1068,8 +1118,12 @@ private:
   bool use_moisture;
   bool m_has_lsm_fluxes = false;
   bool m_has_lsm_tsurf  = false;
-  bool m_has_ocean_lsm_tsurf = false;
   int  m_lsm_tsurf_indx = -1;
+
+  // Set from solverChoice.use_coupled_sst before the per-level Define runs.
+  // Configuration only: true means an ocean coupler will supply SST on some
+  // subset of the water cells, not that it has supplied any yet.
+  bool m_use_coupled_sst = false;
 
   amrex::Real m_Cd = zero;
   amrex::Real m_Ch = zero;
@@ -1096,6 +1150,15 @@ private:
   amrex::Vector<amrex::Vector<amrex::MultiFab*>>  m_sst_lev;
   amrex::Vector<amrex::Vector<amrex::MultiFab*>>  m_tsk_lev;
   amrex::Vector<amrex::Vector<amrex::iMultiFab*>> m_lmask_lev;
+
+  // Coupled SST from an external ocean model, plus the per-cell coverage flag
+  // that says whether the coupler actually supplied a value for that cell.
+  // Both are owned by ERF and borrowed here, exactly like m_sst_lev. A null
+  // m_coupled_sst_lev[lev] means "no coupled SST has arrived yet"; a zero entry in
+  // m_coupled_sst_valid_lev means "this cell has no ocean donor", and in both cases the
+  // lower-boundary SST/TSK value filled earlier in update_fluxes stands.
+  amrex::Vector<amrex::MultiFab*>  m_coupled_sst_lev;
+  amrex::Vector<amrex::iMultiFab*> m_coupled_sst_valid_lev;
   amrex::Vector<amrex::Vector<amrex::MultiFab*>>  m_lsm_data_lev;
   amrex::Vector<amrex::Vector<amrex::MultiFab*>>  m_lsm_flux_lev;
   amrex::Vector<std::string> m_lsm_data_name;

@@ -386,11 +386,17 @@ wdm6.hail_opt = 0     # 0=graupel, 1=hail
 
 The full validation record — per-run ledgers, the per-step divergence tables, and
 the group-by-group closure history — is kept out of this tree deliberately, since
-it is development provenance rather than shipping code. It lives on the
-`wdm6-campaign-archive-lean` branch, together with the instrumented source the
-measurements were taken with. The `! WDM6-F90 TAG:` comments in
-`ERF_module_mp_wdm6.F90` mark the group boundaries that record refers to, so a
-future investigation can re-add prints at exactly the sites the history discusses.
+it is development provenance rather than shipping code. Two places hold it:
+
+- `wdm6-campaign-archive-lean` — the ledgers and the validation playbook, as a
+  single-commit branch with no repository history attached.
+- `wdm6-mpi-cpu` — the campaign branch, which retains the **instrumented** source:
+  roughly 160 C++ and 155 Fortran diagnostic print sites, plus the Tier-2 record
+  emitter, all of which were removed from the shipping code here.
+
+The `! WDM6-F90 TAG:` comments in `ERF_module_mp_wdm6.F90` mark the group boundaries
+that record refers to, so a future investigation can re-add prints at exactly the
+sites the history discusses, or lift them wholesale from the campaign branch.
 
 ## Contact
 

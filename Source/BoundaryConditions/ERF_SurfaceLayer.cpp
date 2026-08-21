@@ -23,17 +23,26 @@ SurfaceLayer::update_fluxes (const int& lev,
                              const std::unique_ptr<MultiFab>& walldist,
                              int max_iters)
 {
-    // Update with SST/TSK data if we have a valid pointer
-    if (!m_has_ocean_lsm_tsurf &&
-        !m_sst_lev[lev].empty() && m_sst_lev[lev][0]) {
+    // Update with SST/TSK data if we have a valid pointer.
+    //
+    // This runs even when an ocean coupler is active: it is the only writer of
+    // t_surf over land, and it is the fallback for the water cells the coupler
+    // does not cover. Coupled SST is applied below and only where the coupler
+    // actually supplied a value, so the lower-boundary data is the base layer
+    // rather than an alternative to it.
+    if (!m_sst_lev[lev].empty() && m_sst_lev[lev][0]) {
         fill_tsurf_with_sst_and_tsk(lev, elapsed_time_since_start_low);
     }
 
     // Apply heating rate if needed
-    if (theta_type == ThetaCalcType::SURFACE_TEMPERATURE &&
-        !m_has_ocean_lsm_tsurf) {
+    if (theta_type == ThetaCalcType::SURFACE_TEMPERATURE) {
         update_surf_temp(elapsed_time_since_start_low);
     }
+
+    // Overwrite the covered water cells with coupled ocean SST. This must come
+    // after update_surf_temp, which is a whole-domain setVal, and before
+    // fill_qsurf_with_qsat, which derives sea-surface humidity from t_surf.
+    fill_tsurf_with_coupled_sst(lev);
 
     // Update qsurf with qsat over sea
     if (use_moisture) {
@@ -1279,8 +1288,6 @@ void
 SurfaceLayer::get_lsm_tsurf (const int& lev)
 {
     const int klo = m_geom[lev].Domain().smallEnd(2);
-    const bool has_sea_tsurf = (m_has_ocean_lsm_tsurf &&
-                                amrex::toLower(m_lsm_data_name[m_lsm_tsurf_indx]) == "t_surf");
     for (MFIter mfi(*t_surf[lev]); mfi.isValid(); ++mfi)
     {
         Box gtbx = mfi.growntilebox();
@@ -1303,12 +1310,76 @@ SurfaceLayer::get_lsm_tsurf (const int& lev)
         ParallelFor(gtbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {
             int is_land = (lmask_arr) ? lmask_arr(i,j,k) : 1;
-            if ((!has_sea_tsurf && is_land) ||
-                (has_sea_tsurf && !is_land)) {
+            if (is_land) {
                 int li = amrex::min(amrex::max(i, i_lo), i_hi);
                 int lj = amrex::min(amrex::max(j, j_lo), j_hi);
                 t_surf_arr(i,j,k) = lsm_arr(li,lj,k);
             }
+        });
+    }
+}
+
+/**
+ * Overwrite surface temperature with coupled ocean SST where covered.
+ *
+ * @param[in] lev Current level
+ */
+void
+SurfaceLayer::fill_tsurf_with_coupled_sst (const int& lev)
+{
+    // No coupler has handed us anything yet. Whatever fill_tsurf_with_sst_and_tsk
+    // wrote stands, which is the correct answer for one-way and uncoupled runs.
+    if (m_coupled_sst_lev.empty() || !m_coupled_sst_lev[lev]) { return; }
+
+    // The loop below iterates t_surf and indexes the coupled arrays with the
+    // same MFIter, so the layouts must agree. They do for planar terrain, where
+    // t_surf is grids[lev] flattened with setRange(2,0) -- the same construction
+    // GetOceanToAtmosSurfaceLayout reports. Under EB terrain t_surf keeps the
+    // full 3D BoxArray and they would not, so fail loudly rather than read the
+    // wrong fab.
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+        m_coupled_sst_lev[lev]->boxArray()       == t_surf[lev]->boxArray() &&
+        m_coupled_sst_lev[lev]->DistributionMap() == t_surf[lev]->DistributionMap(),
+        "Coupled SST layout does not match the surface-layer layout.");
+
+    const int klo = m_geom[lev].Domain().smallEnd(2);
+
+    // Absent coverage information we must assume nothing is covered: silently
+    // treating the whole field as valid is how an uncovered cell ends up holding
+    // the remap's zero fill.
+    const bool has_valid = (m_coupled_sst_valid_lev[lev] != nullptr);
+
+    for (MFIter mfi(*t_surf[lev]); mfi.isValid(); ++mfi)
+    {
+        Box gtbx = mfi.growntilebox();
+
+        if (gtbx.smallEnd(2) != klo) { continue; }
+
+        // NOTE: the coupled lane does not carry lateral ghost cells, so clamp
+        //       into the valid box exactly as get_lsm_tsurf does. FillBoundary
+        //       in update_fluxes picks up the interior and periodic directions.
+        Box vbx  = mfi.validbox();
+        int i_lo = vbx.smallEnd(0); int i_hi = vbx.bigEnd(0);
+        int j_lo = vbx.smallEnd(1); int j_hi = vbx.bigEnd(1);
+
+        auto t_surf_arr = t_surf[lev]->array(mfi);
+        auto lmask_arr  = (m_lmask_lev[lev][0]) ? m_lmask_lev[lev][0]->array(mfi) :
+                                                  Array4<int> {};
+        const auto coupled_sst_arr = m_coupled_sst_lev[lev]->const_array(mfi);
+        auto const& valid_arr = has_valid ? m_coupled_sst_valid_lev[lev]->const_array(mfi)
+                                          : Array4<const int>{};
+
+        ParallelFor(gtbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+        {
+            int is_land = (lmask_arr) ? lmask_arr(i,j,k) : 1;
+            if (is_land) { return; }
+
+            int li = amrex::min(amrex::max(i, i_lo), i_hi);
+            int lj = amrex::min(amrex::max(j, j_lo), j_hi);
+
+            if (has_valid && valid_arr(li,lj,k) == 0) { return; }
+
+            t_surf_arr(i,j,k) = coupled_sst_arr(li,lj,k);
         });
     }
 }

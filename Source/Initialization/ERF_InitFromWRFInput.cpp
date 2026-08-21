@@ -320,25 +320,20 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev)
     NC_names.push_back("XLAT_V");    // 22
     NC_names.push_back("XLONG_U");   // 23
     if (use_moist) {
-        NC_names.push_back("QVAPOR");  // 24
-        NC_names.push_back("QCLOUD");  // 25
-
-        // Read ice species for schemes that need them from wrfinput
-        int n_qstate_moist = micro->Get_Qstate_Moist_Size();
-        if (n_qstate_moist >= 6) {
-            // 6+ class schemes (WSM6, WDM6, Morrison): read all ice species
-            NC_names.push_back("QICE");    // 26
-            NC_names.push_back("QRAIN");   // 27
-            NC_names.push_back("QSNOW");   // 28
-            NC_names.push_back("QGRAUP");  // 29
-        } else {
-            // Warm rain only: Kessler, SAM, etc. (only qv, qc, qr)
+        NC_names.push_back("QVAPOR");
+        NC_names.push_back("QCLOUD");
+        if (solverChoice.moisture_indices.qi >= 0) {
+            NC_names.push_back("QICE");
+        }
+        if (solverChoice.moisture_indices.qr >= 0) {
             NC_names.push_back("QRAIN");   // 26
         }
-
-        // Number concentrations for double-moment schemes
-        // NOTE: Skipping QNCLOUD, QNCCN, QNRAIN because they're typically zero in wrfinput
-        // Double-moment schemes diagnose nc/nr from qc/qr during initialization instead
+        if (solverChoice.moisture_indices.qs >= 0) {
+            NC_names.push_back("QSNOW");
+        }
+        if (solverChoice.moisture_indices.qg >= 0) {
+            NC_names.push_back("QGRAUP");
+        }
     }
     NC_names.push_back("IVGTYP");
     NC_names.push_back("ISLTYP");     // 28
@@ -449,6 +444,16 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev)
                 (var_name == "THM")     || (var_name == "QVAPOR")  || (var_name == "QCLOUD") ||
                 (var_name == "QICE")    || (var_name == "QRAIN")   || (var_name == "QSNOW")  ||
                 (var_name == "QGRAUP")  || (var_name == "PH")      || (var_name == "PHB");
+            const bool required_hydrometeor = solverChoice.use_wrf_bdy_qc_qi &&
+                ((var_name == "QCLOUD" && solverChoice.moisture_indices.qc >= 0) ||
+                 (var_name == "QICE"   && solverChoice.moisture_indices.qi >= 0) ||
+                 (var_name == "QRAIN"  && solverChoice.moisture_indices.qr >= 0) ||
+                 (var_name == "QSNOW"  && solverChoice.moisture_indices.qs >= 0) ||
+                 (var_name == "QGRAUP" && solverChoice.moisture_indices.qg >= 0));
+            if (!success && required_hydrometeor) {
+                amrex::Abort(std::string("erf.use_wrf_bdy_qc_qi requires " + var_name +
+                                         " in wrfinput for the active moisture component").c_str());
+            }
             if (!success && !has_fallback_behavior) {
                 amrex::Abort(std::string("ERF::init_from_wrfinput: failed to read required variable " + var_name).c_str());
             }
@@ -486,6 +491,25 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev)
                 }
 
                 Box subdomain_to_fill_typed(convert(subdomain_tmp,var_fab_from_file.box().ixType()));
+
+                // XLONG_U and XLAT_V are edge-staggered in the file (west_east_stag /
+                // south_north_stag, so nx+1 / ny+1 entries) but their fabs carry CELL
+                // index type, so the typed subdomain -- and hence the intersection copy
+                // below -- would drop the last staggered column/row. Keep it here so the
+                // ghost fill further down can pick up the true east/north edge: a coupled
+                // ocean model consumes lon_m/lat_m as a corner mesh through
+                // ERF::GetOceanToAtmosCornerCoordinates, and duplicating the neighbour
+                // instead collapses the outermost corner quads to zero area.
+                // NOTE: var_fab keeps CELL index type; only its extent is widened.
+                if (var_name == "XLONG_U" &&
+                    var_fab_from_file.box().bigEnd(0) > subdomain_to_fill_typed.bigEnd(0)) {
+                    subdomain_to_fill_typed.growHi(0,1);
+                }
+                if (var_name == "XLAT_V" &&
+                    var_fab_from_file.box().bigEnd(1) > subdomain_to_fill_typed.bigEnd(1)) {
+                    subdomain_to_fill_typed.growHi(1,1);
+                }
+
                 Box subdomain_crse(subdomain_to_fill_typed);
                 if (lev > 0) {
                     subdomain_crse.coarsen(IntVect(1,1,ref_ratio[lev-1][2]));
@@ -620,24 +644,17 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev)
                 if (var_name == "THM") {
                     icomp    = RhoTheta_comp;
                 } else if (var_name == "QVAPOR") {
-                    icomp    = RhoQ1_comp;
+                    icomp    = solverChoice.moisture_indices.qv;
                 } else if (var_name == "QCLOUD") {
-                    icomp    = RhoQ2_comp;
+                    icomp    = solverChoice.moisture_indices.qc;
                 } else if (var_name == "QICE") {
-                    icomp    = RhoQ3_comp;
+                    icomp    = solverChoice.moisture_indices.qi;
                 } else if (var_name == "QRAIN") {
-                    // For schemes with 6+ species (WDM6, WSM6, Morrison), QRAIN → RhoQ4
-                    // For smaller schemes (Kessler 3-class), QRAIN → RhoQ3
-                    if (n_qstate_moist >= 6) {
-                        icomp = RhoQ4_comp;
-                    } else {
-                        icomp = RhoQ3_comp;
-                        if (n_qstate_moist < 3) { success = 0; }  // Safety check
-                    }
+                    icomp    = solverChoice.moisture_indices.qr;
                 } else if (var_name == "QSNOW") {
-                    icomp    = RhoQ5_comp;
+                    icomp    = solverChoice.moisture_indices.qs;
                 } else if (var_name == "QGRAUP") {
-                    icomp    = RhoQ6_comp;
+                    icomp    = solverChoice.moisture_indices.qg;
                 }
                 // Note: RhoQ7-RhoQ9 (nc, nn, nr for WDM6) or RhoQ7-RhoQ11 (nc, ni, nr, ns, ng for Morrison)
                 // start at zero and are diagnosed/initialized by the microphysics scheme
@@ -669,7 +686,7 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev)
                     } // use_theta_m
 
                 } else {
-                    if (icomp < lev_new[Vars::cons].nComp()) {
+                    if (icomp >= 0 && icomp < lev_new[Vars::cons].nComp()) {
                         amrex::Print() << "Setting " << var_name << " to 0 since we couldn't read it in ... DONE" << std::endl;
                         lev_new[Vars::cons].setVal(0,icomp,1);
                     } else {
@@ -844,6 +861,14 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev)
 
           // Initialize Latitude & Coriolis factors
           if ( var_name == "XLAT_V" ) {
+              // var_fab retains XLAT_V's staggered row at j = ny (see the growHi above),
+              // so clamp lat_m against var_fab's own extent to give the j = ny ghost the
+              // true north edge instead of a copy of row ny-1.
+              // sinPhi_m/cosPhi_m deliberately stay on the cell-domain clamp: they are
+              // cell-centred Coriolis factors whose ghosts are read at the hi domain
+              // faces by ERF_MakeMomSources.cpp, and this fix is not meant to move the
+              // Coriolis source. So sin_arr/cos_arr do not track lat_m in that one row.
+              int vf_j_hi = var_fab.box().bigEnd(1);
               lat_m[lev]    = std::make_unique<MultiFab>(ba2d[lev],dm,1,ngv);
               sinPhi_m[lev] = std::make_unique<MultiFab>(ba2d[lev],dm,1,ngv);
               cosPhi_m[lev] = std::make_unique<MultiFab>(ba2d[lev],dm,1,ngv);
@@ -857,9 +882,10 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev)
                   {
                       int li = amrex::min(amrex::max(i, i_lo), i_hi);
                       int lj = amrex::min(amrex::max(j, j_lo), j_hi);
-                      dst_arr(i,j,0) = src_arr(li,lj,0);
+                      int sj = amrex::min(amrex::max(j, j_lo), vf_j_hi);
+                      dst_arr(i,j,0) = src_arr(li,sj,0);
 
-                      Real lat_rad = dst_arr(i,j,0) * (PI/Real(180.));
+                      Real lat_rad = src_arr(li,lj,0) * (PI/Real(180.));
                       sin_arr(i,j,0) = std::sin(lat_rad);
                       cos_arr(i,j,0) = std::cos(lat_rad);
                   });
@@ -868,6 +894,10 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev)
 
           // Initialize Longitude
           if ( var_name == "XLONG_U" ) {
+              // var_fab retains XLONG_U's staggered column at i = nx (see the growHi
+              // above), so clamp lon_m against var_fab's own extent to give the i = nx
+              // ghost the true east edge instead of a copy of column nx-1.
+              int vf_i_hi = var_fab.box().bigEnd(0);
               lon_m[lev] = std::make_unique<MultiFab>(ba2d[lev],dm,1,ngv);
               for ( MFIter mfi(*(lon_m[lev]), TilingIfNotGPU()); mfi.isValid(); ++mfi ) {
                   Box gtbx = mfi.growntilebox();
@@ -875,7 +905,7 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev)
                   const Array4<const Real>& src_arr = var_fab.const_array();
                   ParallelFor(gtbx, [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept
                   {
-                      int li = amrex::min(amrex::max(i, i_lo), i_hi);
+                      int li = amrex::min(amrex::max(i, i_lo), vf_i_hi);
                       int lj = amrex::min(amrex::max(j, j_lo), j_hi);
                       dst_arr(i,j,0) = src_arr(li,lj,0);
                   });
@@ -1491,7 +1521,22 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev)
         // Check for erfbdy file.
         std::string erfbdy_header = erfbdy_file + "/Header";
         use_erfbdy = FileSystem::Exists(erfbdy_header);
-        if (use_erfbdy || write_erfbdy) nvars_erfbdy = WRFBdyVars::NumTypes;
+        const bool separate_hydrometeors = solverChoice.use_wrf_bdy_qc_qi &&
+            wrf_bdy_has_separate_hydrometeors(solverChoice.moisture_indices);
+        if (write_erfbdy) {
+            nvars_erfbdy = separate_hydrometeors
+                         ? WRFBdyHydrometeorVars::NumTypes
+                         : (solverChoice.use_wrf_bdy_qc_qi
+                            ? WRFBdyVars::NumTypes : WRFBdyVars::LegacyNumTypes);
+        }
+        auto repack_runtime_bdy = [&] (const int itime) {
+            const bool separate_hydrometeors = solverChoice.use_wrf_bdy_qc_qi &&
+                wrf_bdy_has_separate_hydrometeors(solverChoice.moisture_indices);
+            repack_wrfbdy_to_realbdy(bdy_data_xlo[itime], solverChoice.use_wrf_bdy_qc_qi, separate_hydrometeors);
+            repack_wrfbdy_to_realbdy(bdy_data_xhi[itime], solverChoice.use_wrf_bdy_qc_qi, separate_hydrometeors);
+            repack_wrfbdy_to_realbdy(bdy_data_ylo[itime], solverChoice.use_wrf_bdy_qc_qi, separate_hydrometeors);
+            repack_wrfbdy_to_realbdy(bdy_data_yhi[itime], solverChoice.use_wrf_bdy_qc_qi, separate_hydrometeors);
+        };
 
         // Path 1: Load from existing erfbdy file.
         if (use_erfbdy) {
@@ -1503,6 +1548,19 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev)
             bdy_time_interval = read_times_from_erfbdy(erfbdy_file,
                                                        ntimes_erfbdy, nvars_erfbdy, real_width,
                                                        bdy_times, start_bdy_time, final_bdy_time);
+
+            if (nvars_erfbdy != WRFBdyVars::LegacyNumTypes &&
+                nvars_erfbdy != WRFBdyVars::NumTypes &&
+                nvars_erfbdy != WRFBdyHydrometeorVars::NumTypes) {
+                amrex::Error("ERFBdy cache has an unsupported boundary-variable layout");
+            }
+            const int expected_bdy_nvars = separate_hydrometeors
+                ? WRFBdyHydrometeorVars::NumTypes
+                : (solverChoice.use_wrf_bdy_qc_qi ? WRFBdyVars::NumTypes
+                                                  : WRFBdyVars::LegacyNumTypes);
+            if (nvars_erfbdy != expected_bdy_nvars) {
+                amrex::Error("ERFBdy cache layout does not match the active WRF hydrometeor boundary mode; regenerate it from wrfbdy");
+            }
 
             Print() << "erfbdy file contains " << ntimes_erfbdy << " time slices" << std::endl;
             Print() << "start_bdy_time = " << start_bdy_time << std::endl;
@@ -1520,6 +1578,7 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev)
                                  bdy_data_xlo, bdy_data_xhi,
                                  bdy_data_ylo, bdy_data_yhi,
                                  nvars_erfbdy, real_width);
+                repack_runtime_bdy(itime);
                 Print() << "Loaded erfbdy time slice " << itime << std::endl;
             }
 
@@ -1563,7 +1622,11 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev)
                                              bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi,
                                              wrf_MUB, wrf_C1H, wrf_C2H, wrf_RDNW, wrf_PHB, z_phys_cc[lev], z_phys_nd[lev],
                                              lev_new[Vars::xvel], lev_new[Vars::yvel], lev_new[Vars::cons],
-                                             r_hse, area_vec, geom[lev], use_moist, solverChoice.rebalance_wrf_input, domain_bcs_type,
+                                             r_hse, area_vec, geom[lev], use_moist,
+                                             solverChoice.use_wrf_bdy_qc_qi,
+                                             solverChoice.moisture_indices.qi >= 0,
+                                             separate_hydrometeors,
+                                             solverChoice.rebalance_wrf_input, domain_bcs_type,
                                              real_width, bdy_time_interval, is_anelastic);
 
                 // Write this time to erfbdy.
@@ -1571,9 +1634,13 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev)
                     WriteERFBdyTimeSlice(erfbdy_file, itime,
                                          bdy_data_xlo[itime], bdy_data_xhi[itime],
                                          bdy_data_ylo[itime], bdy_data_yhi[itime],
-                                         WRFBdyVars::NumTypes);
+                                         nvars_erfbdy);
                     Print() << "Wrote erfbdy time index " << itime << " of " << ntimes_total-1 << std::endl;
                 }
+                if (itime == ntimes_total-1 && itime > 0) {
+                    repack_runtime_bdy(itime-1);
+                }
+                repack_runtime_bdy(itime);
             } // itime
 
             // If writing erfbdy and we have more than 3 times, then process the remaining times.
@@ -1584,14 +1651,23 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev)
                                                  bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi,
                                                  wrf_MUB, wrf_C1H, wrf_C2H, wrf_RDNW, wrf_PHB, z_phys_cc[lev], z_phys_nd[lev],
                                                  lev_new[Vars::xvel], lev_new[Vars::yvel], lev_new[Vars::cons],
-                                                 r_hse, area_vec, geom[lev], use_moist, solverChoice.rebalance_wrf_input, domain_bcs_type,
+                                                 r_hse, area_vec, geom[lev], use_moist,
+                                                 solverChoice.use_wrf_bdy_qc_qi,
+                                                 solverChoice.moisture_indices.qi >= 0,
+                                                 separate_hydrometeors,
+                                                 solverChoice.rebalance_wrf_input, domain_bcs_type,
                                                  real_width, bdy_time_interval, is_anelastic);
 
                     WriteERFBdyTimeSlice(erfbdy_file, itime,
                                          bdy_data_xlo[itime], bdy_data_xhi[itime],
                                          bdy_data_ylo[itime], bdy_data_yhi[itime],
-                                         WRFBdyVars::NumTypes);
+                                         nvars_erfbdy);
                     Print() << "Wrote erfbdy time index " << itime << " of " << ntimes_total-1 << std::endl;
+
+                    if (itime == ntimes_total-1 && itime > 0) {
+                        repack_runtime_bdy(itime-1);
+                    }
+                    repack_runtime_bdy(itime);
 
                     bdy_data_xlo[itime].clear();
                     bdy_data_xhi[itime].clear();

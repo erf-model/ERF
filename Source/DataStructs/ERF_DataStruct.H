@@ -127,7 +127,7 @@ AMREX_ENUM(WindFarmLocType,
  * @brief Land-surface model.
  */
 AMREX_ENUM(LandSurfaceType,
-    SLM, NOAHMP, OceanSurf, None
+    SLM, NOAHMP, None
 );
 
 /**
@@ -372,9 +372,33 @@ struct SolverChoice {
         int default_buoyancy_type = buoyancy_type[0];
         read_int_string(max_level, "buoyancy_type", buoyancy_type, default_buoyancy_type);
 
+        // OceanSurf was removed from LandSurfaceType. Catch the stale spelling
+        // before query_enum_case_insensitive does, so the error says what to do
+        // rather than just listing the enum values.
+        {
+            std::string lsm_string;
+            if (pp.query("land_surface_model", lsm_string) &&
+                amrex::toLower(lsm_string) == "oceansurf") {
+                amrex::Abort("erf.land_surface_model = OceanSurf has been removed. "
+                             "Coupled ocean SST is now applied through the "
+                             "lower-boundary path: set erf.use_coupled_sst = 1 "
+                             "instead, and use erf.land_surface_model for the land "
+                             "surface you actually want (the two are no longer "
+                             "the same setting).");
+            }
+        }
+
         // What type of land surface model to use
         lsm_type = LandSurfaceType::None; // Default
         pp.query_enum_case_insensitive("land_surface_model",lsm_type);
+
+        // Will an external ocean coupler supply SST for part or all of the water
+        // cells this run? This is a configuration predicate, not a data-validity
+        // one: it says the coupled lane will be filled, not that any coupled step
+        // has run yet. The surface layer needs it at Define time to select
+        // ThetaCalcType::SURFACE_TEMPERATURE, which is long before the first
+        // ApplyOceanSurfaceState call.
+        pp.query("use_coupled_sst", use_coupled_sst);
 
         read_int_string(max_level, "is_land", is_land, 1);
         for (int lev = 0; lev <= max_level; ++lev) {
@@ -796,6 +820,9 @@ struct SolverChoice {
         // Optionally use the dry-air density reconstructed from wrfbdy.
         pp.query("use_wrf_bdy_density", use_wrf_bdy_density);
 
+        // Optionally ingest cloud water and cloud ice from wrfinput/wrfbdy.
+        pp.query("use_wrf_bdy_qc_qi", use_wrf_bdy_qc_qi);
+
         if (!use_real_bcs || init_type != InitType::WRFInput) {
             use_wrf_bdy_density = false;
         }
@@ -804,6 +831,33 @@ struct SolverChoice {
 
         // Which approach to nudging the moist variables in the boundary region?
         pp.query("bdy_moist_nudge_type",bdy_moist_nudge_type);
+        if (bdy_moist_nudge_type < 0 || bdy_moist_nudge_type > 3) {
+            amrex::Error("erf.bdy_moist_nudge_type must be one of 0, 1, 2, or 3");
+        }
+        if (bdy_moist_nudge_type == 3 && !use_wrf_bdy_qc_qi) {
+            amrex::Error("erf.bdy_moist_nudge_type = 3 requires erf.use_wrf_bdy_qc_qi = true");
+        }
+        if (use_wrf_bdy_qc_qi) {
+            if (moisture_type == MoistureType::None) {
+                amrex::Error("erf.use_wrf_bdy_qc_qi requires an active moisture model");
+            }
+            if (!use_real_bcs || init_type != InitType::WRFInput) {
+                amrex::Error("erf.use_wrf_bdy_qc_qi requires WRFInput real boundary conditions");
+            }
+            if (moisture_indices.qv < RhoQ1_comp || moisture_indices.qv > RhoQ11_comp ||
+                moisture_indices.qc < RhoQ1_comp || moisture_indices.qc > RhoQ11_comp) {
+                amrex::Error("erf.use_wrf_bdy_qc_qi requires active qv and qc component indices");
+            }
+            const int optional_moisture_comps[] = {moisture_indices.qi,
+                                                   moisture_indices.qr,
+                                                   moisture_indices.qs,
+                                                   moisture_indices.qg};
+            for (const int comp : optional_moisture_comps) {
+                if (comp != -1 && (comp < RhoQ1_comp || comp > RhoQ11_comp)) {
+                    amrex::Error("erf.use_wrf_bdy_qc_qi found an invalid active moisture component index");
+                }
+            }
+        }
 
         // Are me transporting the scalar component?
         pp.query("transport_scalar",transport_scalar);
@@ -1643,6 +1697,9 @@ struct SolverChoice {
     LandSurfaceType lsm_type;
     RadiationType rad_type;
 
+    // Does an external ocean coupler supply SST? See the query in init_params.
+    bool use_coupled_sst = false;
+
     ABLDriverType abl_driver_type;
     amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> abl_pressure_grad;
     amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> abl_geo_forcing;
@@ -1670,6 +1727,9 @@ struct SolverChoice {
 
     // Use density reconstructed from standard WRF lateral boundary data.
     bool use_wrf_bdy_density = true;
+
+    // Ingest WRF cloud water and active cloud ice at initialization and lateral boundaries.
+    bool use_wrf_bdy_qc_qi = false;
 
     // Density-specific Davies factor; non-positive means use bdy_nudge_factor.
     amrex::Real bdy_rho_nudge_factor = amrex::Real(-1.0);
@@ -1919,6 +1979,8 @@ struct SolverChoice {
  * @brief Wind-farm y-coordinate shift.
  * @var SolverChoice::bdy_nudge_factor
  * @brief Boundary sponge nudging factor.
+ * @var SolverChoice::use_wrf_bdy_qc_qi
+ * @brief Whether WRF cloud water and active cloud ice are ingested at real boundaries.
  * @var SolverChoice::bdy_moist_nudge_type
  * @brief Moist-variable nudging strategy in boundary regions.
  * @var SolverChoice::do_forest_drag
