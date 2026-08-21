@@ -612,11 +612,11 @@ void wdm6_ccn_activation (
     const Real qv,      // water vapor mixing ratio (kg/kg)
     const Real qc,      // cloud water mixing ratio (kg/kg)
     const Real qvs,     // saturation mixing ratio (kg/kg)
-    const Real /*temp*/,    // temperature (K)
+    const Real /*temp*/,  // temperature (K)
     const Real w,       // vertical velocity (m/s)
-    const Real /*dt*/,      // timestep (s)
-    const Real /*ccn0*/,    // background CCN (#/m^3)
-    const Real /*den*/      // air density (kg/m^3)
+    const Real /*dt*/,    // timestep (s)
+    const Real /*ccn0*/,  // background CCN (#/m^3)
+    const Real /*den*/    // air density (kg/m^3)
 ) {
     // Only activate if supersaturated and cloud exists
     if (qv <= qvs || qc < Real(1.e-8)) return;
@@ -656,11 +656,11 @@ void WDM6::Advance(const Real& dt_advance,
     // - Without: Use C++ GPU kernels (not yet implemented)
     // ---------------------------------------------------------------
 
+#ifdef ERF_USE_WDM6_FORT
     static int call_count = 0;
     call_count++;
     [[maybe_unused]] const bool first_call = (call_count == 1);
 
-#ifdef ERF_USE_WDM6_FORT
     // Fortran bridge mode - initialize once
     static bool wdm6_inited = false;
     if (!wdm6_inited) {
@@ -720,6 +720,9 @@ void WDM6::Advance(const Real& dt_advance,
     constexpr double cliq = static_cast<double>(Cp_l);
     constexpr double cice = 2106.0;
     constexpr double psat = 610.78;
+    // Only the Fortran bridge consumes these; the native C++ path below derives
+    // its own. Mirrors ERF_AdvanceWSM6.cpp.
+    amrex::ignore_unused(g, rd, ep1);
     [[maybe_unused]] const double ccn0 = static_cast<double>(m_ccn0);
 
     for (MFIter mfi(*mic_fab_vars[MicVar_WDM6::qv], TileNoZ()); mfi.isValid(); ++mfi) {

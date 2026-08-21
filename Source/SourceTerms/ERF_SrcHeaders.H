@@ -138,6 +138,7 @@ add_moist_nudging_terms (const amrex::MultiFab& S_data,
                          std::unique_ptr<ReadBndryPlanes>& m_r2d,
                          const amrex::Real& c_p,
                          const amrex::Real& rdOcp,
+                         const MoistureComponentIndices& moisture_indices,
                          const bool use_wrf_bdy_density,
                          const int bdy_moist_nudge_type);
 #endif

@@ -128,6 +128,20 @@ namespace RealBdyVars {
         T  = 2,
         QV = 3,
         R  = 4,
+        QC = 5,
+        QI = 6,
+        NumTypes
+    };
+}
+
+// Additional runtime boundary slots used when all precipitating
+// hydrometeors are represented as separate ERF state components.  Keep the
+// compact QC/QI indices above unchanged for aggregate-boundary compatibility.
+namespace RealBdyHydrometeorVars {
+    enum {
+        QR = RealBdyVars::NumTypes,
+        QS,
+        QG,
         NumTypes
     };
 }
@@ -142,9 +156,30 @@ namespace WRFBdyVars {
         PH    , // Perturbational geopotential
         MU    , // bdy perturbation dry air mass in column (we will get mub from the initial data)
         PC    , // p_s - p_top = dry hydrostatic pressure difference between the surface and the model top
+        QC    , // cloud water
+        QI    , // cloud ice
+        NumTypes
+    };
+
+    constexpr int LegacyNumTypes = PC + 1;
+}
+
+// Additional serialized/cache slots used when all precipitating hydrometeors
+// are retained separately.  The legacy and aggregate layouts remain unchanged.
+namespace WRFBdyHydrometeorVars {
+    enum {
+        QR = WRFBdyVars::NumTypes,
+        QS,
+        QG,
         NumTypes
     };
 }
+
+static_assert(WRFBdyVars::U  == 0 && WRFBdyVars::V  == 1 &&
+              WRFBdyVars::T  == 2 && WRFBdyVars::QV == 3 &&
+              WRFBdyVars::R  == 4 && WRFBdyVars::PH == 5 &&
+              WRFBdyVars::MU == 6 && WRFBdyVars::PC == 7,
+              "The serialized legacy WRF boundary layout must not change");
 
 namespace MetGridBdyVars {
     enum {
