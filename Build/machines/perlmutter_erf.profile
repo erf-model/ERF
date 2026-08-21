@@ -1,6 +1,9 @@
 #!/bin/bash
 
-module load gcc-native/13.2 cmake cudatoolkit cray-hdf5-parallel cray-netcdf-hdf5parallel cray-libsci
+#Pin cudatoolkit version so headers match the kokkos that ekat uses
+module load gcc-native/13.2 cmake cudatoolkit/12.9 cray-hdf5-parallel cray-netcdf-hdf5parallel cray-libsci
+
+module swap cray-mpich cray-mpich/9.0.1
 
 #module load gcc-native/13.2
 #module load cray-mpich/8.1.30
