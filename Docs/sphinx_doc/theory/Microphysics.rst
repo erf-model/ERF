@@ -215,15 +215,16 @@ Overview
 ~~~~~~~~
 
 The WRF Double-Moment 6-class (WDM6) microphysics scheme is a bulk microphysics parameterization
-that predicts both mass mixing ratios and number concentrations for warm-rain and ice-phase
-hydrometeors. WDM6 extends the WRF Single-Moment 6-class (WSM6) scheme by adding prognostic
-equations for cloud droplet number concentration (:math:`n_c`) and rain drop number concentration
-(:math:`n_r`), enabling improved representation of cloud-aerosol interactions and precipitation
-processes.
+that uses double-moment (mass and number) prediction for warm-rain species and single-moment
+(mass only) prediction for ice-phase species. WDM6 extends the WRF Single-Moment 6-class (WSM6)
+scheme by adding prognostic equations for cloud droplet number concentration (:math:`n_c`) and
+rain drop number concentration (:math:`n_r`), enabling improved representation of cloud-aerosol
+interactions and warm-rain precipitation processes. Ice-phase species (cloud ice, snow, and
+graupel/hail) retain the single-moment treatment from WSM6.
 
 ERF's WDM6 implementation is derived from WRF's `module_mp_wdm6.F`_ and supports both CPU
 (via Fortran-C++ bridge) and GPU (native C++ implementation) execution. The scheme transports
-six hydrometeor species and three number concentration fields.
+six water species (including water vapor) and three number concentration fields.
 
 .. _`module_mp_wdm6.F`: https://github.com/wrf-model/WRF/blob/master/phys/module_mp_wdm6.F
 
@@ -241,7 +242,7 @@ WDM6 transports the following state variables (in addition to :math:`q_v` and :m
 
 **Number concentrations:**
 
-- :math:`n_n`: total aerosol (CCN) number concentration
+- :math:`n_n`: CCN number concentration
 - :math:`n_c`: cloud droplet number concentration
 - :math:`n_r`: rain drop number concentration
 
@@ -345,16 +346,18 @@ Assumptions and Limitations
 
 WDM6 makes several simplifying assumptions:
 
-- Cloud ice number concentration is diagnosed rather than predicted
-- Single-moment treatment for ice, snow, and graupel (only mass is predicted)
-- Marshall-Palmer size distributions for rain and ice-phase species
+- **Double-moment only for warm rain**: Cloud droplet (:math:`n_c`) and rain drop (:math:`n_r`) number concentrations are predicted, but ice-phase species use single-moment treatment with diagnosed number concentrations
+- Marshall-Palmer (exponential) size distributions for rain and ice-phase species
 - Gamma distribution for cloud droplets with fixed dispersion parameter
 - Immediate adjustment to terminal velocity (no particle acceleration)
 - Saturation adjustment for supersaturation with respect to liquid water
 
-The scheme is most appropriate for deep convective clouds and winter storms where ice processes
-are important. For aerosol-cloud interaction studies, the double-moment warm-rain physics provides
-sensitivity to CCN perturbations through droplet number concentration.
+The double-moment warm-rain treatment enables representation of aerosol indirect effects on
+cloud droplet activation and warm-rain processes, while the single-moment ice physics reduces
+computational cost. The scheme is appropriate for simulations where warm-rain microphysics and
+cloud-aerosol interactions are important, such as shallow convection, orographic precipitation,
+and aerosol sensitivity studies. For applications requiring full double-moment treatment of
+ice-phase species, consider the Morrison scheme.
 
 Output Variables
 ~~~~~~~~~~~~~~~~
