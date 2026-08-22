@@ -296,8 +296,9 @@ Example Cases
 
 WSM6 is used in several test cases:
 
-- ``Exec/RegTests/Bubble/inputs_BF02_moist_bubble``: Moist bubble with default WSM6 physics
-- ``Exec/CanonicalTests/Hurricanes/InputFiles/Katrina/``: Hurricane simulations with WSM6
+- ``Exec/RegTests/Bubble/inputs_BF02_moist_bubble``: Moist bubble test case (requires setting ``erf.moisture_model = WSM6`` to enable WSM6 physics; the default configuration uses Kessler)
+- ``Exec/CanonicalTests/Hurricanes/InputFiles/Katrina/inputs_Katrina_adv_most_bulk_WSM6_MRF_smag2d``: Hurricane Katrina simulation with WSM6 and MRF PBL scheme
+- ``Exec/CanonicalTests/Hurricanes/InputFiles/Katrina/inputs_Katrina_adv_most_bulk_WSM6_MYJ_smag2d``: Hurricane Katrina simulation with WSM6 and MYJ PBL scheme
 
 
 WRF Double-Moment 6-Class (WDM6) Microphysics Model
