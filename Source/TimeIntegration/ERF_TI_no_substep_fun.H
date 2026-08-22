@@ -1,15 +1,17 @@
 /**
  *  Wrapper for advancing the solution with the slow RHS in the absence of acoustic substepping
  */
-    auto no_substep_fun = [&](Vector<MultiFab>& S_sum,
+    auto no_substep_fun = [&,bogus_large_value_d=bogus_large_value](Vector<MultiFab>& S_sum,
                               Vector<MultiFab>& S_old,
                               Vector<MultiFab>& F_slow,
-                              const Real time_for_fp, const Real slow_dt,
+                              const double time_for_fp, const double slow_dt_d,
                               const int nrk)
     {
         BL_PROFILE("no_substep_fun");
         amrex::ignore_unused(nrk);
         int n_data = IntVars::NumTypes;
+
+        amrex::Real slow_dt = static_cast<Real>(slow_dt_d);
 
         const auto& dxInv = fine_geom.InvCellSizeArray();
 
@@ -26,7 +28,20 @@
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
         {
-            for ( MFIter mfi(S_sum[IntVars::cons],TilingIfNotGPU()); mfi.isValid(); ++mfi)
+            //
+            // NOTE: we must not tile if the terrain is moving because the update of zmom at
+            //       k = 0 below calls WFromOmega, which reads the x- and y-momenta at
+            //       (i+1,j) and (i,j+1).  Those faces are written on nodaltilebox(0) and
+            //       nodaltilebox(1), which exclude a tile's upper faces, so with tiling
+            //       they would still hold the values from the previous stage -- and, under
+            //       OpenMP, would be written by another thread at the same time.
+            //       (The substepping version in ERF_Substep_MT.cpp leaves tiling off for
+            //        this same reason.)
+            //
+            const bool do_tiling = (solverChoice.terrain_type == TerrainType::MovingFittedMesh)
+                                 ? false : TilingIfNotGPU();
+
+            for ( MFIter mfi(S_sum[IntVars::cons],do_tiling); mfi.isValid(); ++mfi)
             {
                 const Box bx = mfi.tilebox();
                 Box tbx = mfi.nodaltilebox(0);
@@ -190,7 +205,7 @@
                 for (int i = 0; i <= AMREX_SPACEDIM; ++i) {
                     dUdt[i].setVal(0, 0, ncomp_fast[i], dUdt[i].nGrow());
                     MultiFab::Copy(dUdt[i], F_slow[i], 0, 0, F_slow[i].nComp(), 0);
-                    dUdt[i].setDomainBndry(amrex::Real(1.234e10), 0, ncomp_fast[i], fine_geom);
+                    dUdt[i].setDomainBndry(bogus_large_value_d, 0, ncomp_fast[i], fine_geom);
                     dUdt[i].FillBoundary(fine_geom.periodicity());
                 }
 

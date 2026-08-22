@@ -16,6 +16,9 @@ ERF::init_immersed_forcing (int lev)
 {
     auto& lev_new = vars_new[lev];
     MultiFab* terrain_blank = terrain_blanking[lev].get();
+    MultiFab* terrain_blank_xface = terrain_blanking_xface[lev].get();
+    MultiFab* terrain_blank_yface = terrain_blanking_yface[lev].get();
+    MultiFab* terrain_blank_zface = terrain_blanking_zface[lev].get();
 
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
@@ -28,6 +31,12 @@ ERF::init_immersed_forcing (int lev)
         const Real epsilon = Real(1e-2);
 
         const Array4<const Real>& t_blank_arr = terrain_blank->const_array(mfi);
+        const Array4<const Real>& t_blank_xface_arr = (terrain_blank_xface) ? terrain_blank_xface->const_array(mfi) :
+                                                                               Array4<const Real>{};
+        const Array4<const Real>& t_blank_yface_arr = (terrain_blank_yface) ? terrain_blank_yface->const_array(mfi) :
+                                                                               Array4<const Real>{};
+        const Array4<const Real>& t_blank_zface_arr = (terrain_blank_zface) ? terrain_blank_zface->const_array(mfi) :
+                                                                               Array4<const Real>{};
 
         const auto &xvel_arr = lev_new[Vars::xvel].array(mfi);
         const auto &yvel_arr = lev_new[Vars::yvel].array(mfi);
@@ -36,15 +45,18 @@ ERF::init_immersed_forcing (int lev)
         // Set the x,y,z-velocities
         ParallelFor(xbx, ybx, zbx,
         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-            const Real t_blank = myhalf * (t_blank_arr(i, j, k) + t_blank_arr(i-1, j, k));
+            const Real t_blank = (t_blank_xface_arr) ? t_blank_xface_arr(i, j, k) :
+                                 myhalf * (t_blank_arr(i, j, k) + t_blank_arr(i-1, j, k));
             if (t_blank == one) { xvel_arr(i, j, k) = epsilon; }
         },
         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-            const Real t_blank = myhalf * (t_blank_arr(i, j, k) + t_blank_arr(i, j-1, k));
+            const Real t_blank = (t_blank_yface_arr) ? t_blank_yface_arr(i, j, k) :
+                                 myhalf * (t_blank_arr(i, j, k) + t_blank_arr(i, j-1, k));
             if (t_blank == one) { yvel_arr(i, j, k) = epsilon; }
         },
         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-            const Real t_blank = myhalf * (t_blank_arr(i, j, k) + t_blank_arr(i, j, k-1));
+            const Real t_blank = (t_blank_zface_arr) ? t_blank_zface_arr(i, j, k) :
+                                 myhalf * (t_blank_arr(i, j, k) + t_blank_arr(i, j, k-1));
             if (t_blank == one) { zvel_arr(i, j, k) = epsilon; }
         });
     } //mfi

@@ -7,7 +7,11 @@ void
 SLM::Init (const int& /*lev*/,
            const MultiFab& cons_in,
            const Geometry& geom,
-           const Real& dt)
+           const Geometry& /*geom0*/,
+           Vector<BCRec>& /*domain_bcs_type*/,
+           IntVect& /*refRatio*/,
+           const Real& dt,
+           Vector<Vector<std::string>>& /*nc_init_file*/)
 {
     m_dt = dt;
     m_geom = geom;
@@ -90,7 +94,7 @@ SLM::ComputeFluxes ()
     for ( MFIter mfi(*(lsm_fab_flux[LsmVar_SLM::theta])); mfi.isValid(); ++mfi) {
         auto box3d = mfi.tilebox();
 
-        // Do not overwrite the flux at the top (comes from MOST BC)
+        // The surface layer supplies the top-face flux through soil_t_flux.
         if (box3d.bigEnd(2) == khi+1) box3d.setBig(2,khi);
 
         auto theta_array = lsm_fab_vars[LsmVar_SLM::theta]->array(mfi);
@@ -108,7 +112,7 @@ void
 SLM::AdvanceSLM ()
 {
     // Expose for GPU copy
-    Real dt = m_dt;
+    Real dt = static_cast<Real>(m_dt);
     Real dzInv = m_lsm_geom.InvCellSize(2);
 
     for ( MFIter mfi(*(lsm_fab_vars[LsmVar_SLM::theta])); mfi.isValid(); ++mfi) {

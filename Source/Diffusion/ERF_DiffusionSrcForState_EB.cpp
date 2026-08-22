@@ -19,14 +19,22 @@ using namespace amrex;
  * @param[in]  xflux flux in x-dir
  * @param[in]  yflux flux in y-dir
  * @param[in]  zflux flux in z-dir
+ * @param[in]  cfg_arr EB cell flags
+ * @param[in]  ax_arr area fractions on x-faces
+ * @param[in]  ay_arr area fractions on y-faces
+ * @param[in]  az_arr area fractions on z-faces
+ * @param[in]  detJ Jacobian determinant
+ * @param[in]  barea_arr EB boundary area
+ * @param[in]  bcent_arr EB boundary centroid
+ * @param[in]  dx_arr cell size array
  * @param[in]  cellSizeInv inverse cell size array
  * @param[inout]  hfx_z heat flux in z-dir
  * @param[inout]  qfx1_z heat flux in z-dir
  * @param[out]    qfx2_z heat flux in z-dir
+ * @param[inout]  hfx_EB heat flux through EB faces
  * @param[in]  mu_turb turbulent viscosity
- * @param[in]  diffChoice container of diffusion parameters
- * @param[in]  turbChoice container of turbulence parameters
- * @param[in]  grav_gpu gravity vector
+ * @param[in]  solverChoice container of solver and diffusion parameters
+ * @param[in]  level AMR level
  * @param[in]  bc_ptr container with boundary conditions
  * @param[in]  use_SurfLayer whether we have turned on subgrid diffusion
  */
@@ -46,7 +54,7 @@ DiffusionSrcForState_EB (const Box& bx, const Box& domain,
                         const Array4<const Real>& ay_arr,
                         const Array4<const Real>& az_arr,
                         const Array4<const Real>& detJ,
-                        const Array4<const Real>& barea_arr,
+                        [[maybe_unused]] const Array4<const Real>& barea_arr,
                         [[maybe_unused]] const Array4<const Real>& bcent_arr,
                         const Real* dx_arr,
                         const GpuArray<Real, AMREX_SPACEDIM>& cellSizeInv,
@@ -68,7 +76,9 @@ DiffusionSrcForState_EB (const Box& bx, const Box& domain,
     const bool l_surface_layer = (ebChoice.eb_boundary_type == EBBoundaryType::SurfaceLayer);
 
     const Real dz_inv = cellSizeInv[2];
-    const Real dx = dx_arr[0], dy = dx_arr[1], dz = dx_arr[2];
+    const Real dx = dx_arr[0];
+    const Real dy = dx_arr[1];
+    const Real dz = dx_arr[2];
     const Real vol = dx * dy * dz;
 
     for (int n(0); n<num_comp; ++n) {
@@ -244,7 +254,20 @@ DiffusionSrcForState_EB (const Box& bx, const Box& domain,
             {
                 if (cfg_arr(i,j,k).isSingleValued()) {
 
-                    cell_rhs(i,j,k,qty_index) += dx * dy * barea_arr(i,j,k) * hfx_EB(i,j,k) / (vol * detJ(i,j,k));
+                    Real axm = ax_arr(i  ,j  ,k  );
+                    Real axp = ax_arr(i+1,j  ,k  );
+                    Real aym = ay_arr(i  ,j  ,k  );
+                    Real ayp = ay_arr(i  ,j+1,k  );
+                    Real azm = az_arr(i  ,j  ,k  );
+                    Real azp = az_arr(i  ,j  ,k+1);
+
+                    Real adx = (axm-axp) * dy * dz;
+                    Real ady = (aym-ayp) * dx * dz;
+                    Real adz = (azm-azp) * dx * dy;
+
+                    Real barea = std::sqrt(adx*adx + ady*ady + adz*adz);
+
+                    cell_rhs(i,j,k,qty_index) += barea * hfx_EB(i,j,k) / (vol * detJ(i,j,k));
                 }
             });
         }

@@ -16,15 +16,27 @@
 */
 
 AMREX_ENUM(PerturbationType,
-    Source, Direct, CPM, None
+    Source, Direct, CPM, CPM_W, None
 );
 
+/**
+ * @brief Runtime state and operations for turbulent perturbation forcing.
+ */
 struct TurbulentPerturbation {
 
   public:
 
+    /**
+     * @brief Destroy turbulent perturbation state.
+     */
     ~TurbulentPerturbation () {}
 
+    /**
+     * @brief Store the integer perturbation-type selector for one AMR level.
+     * @param lev AMR level index.
+     * @param pert_type Perturbation type selected for this level.
+     * @param max_level Maximum AMR level configured for the run.
+     */
     void init_tpi_type (const int lev,
                         const PerturbationType& pert_type,
                         const int max_level)
@@ -39,16 +51,25 @@ struct TurbulentPerturbation {
             pt_type[lev] = 1;
         } else if (pert_type == PerturbationType::CPM) {
             pt_type[lev] = 2;
+        } else if (pert_type == PerturbationType::CPM_W) {
+            pt_type[lev] = 3;
         } else {
             pt_type[lev] = -1;
         }
     }
 
-    // Initializing Perturbation Region
-    // Currently only support perturbation in the x and y direction
-    // This portion of the code is only called once for initialization,
-    // therefore efficiency is not required. Dont spend too much time
-    // here other than to correctly setup the perturbation box region
+    /**
+     * @brief Initialize turbulent perturbation regions and per-box storage.
+     * @param lev AMR level index.
+     * @param subdomains_lev Rectangular level subdomains used to define perturbation regions.
+     * @param dx Cell spacing for this level.
+     * @param ba State BoxArray used for perturbation-cell storage.
+     * @param dm DistributionMapping for perturbation-cell storage.
+     * @param ngrow_state Number of ghost cells for perturbation-cell storage.
+     * @param pp_prefix ParmParse prefix for the ERF input namespace.
+     * @param refRatio Refinement ratios between AMR levels.
+     * @param max_level Maximum AMR level configured for the run.
+     */
     void init_tpi (const int lev,
                    const amrex::Vector<amrex::BoxArray>& subdomains_lev,
                    const amrex::GpuArray<amrex::Real,3> dx,
@@ -70,7 +91,8 @@ struct TurbulentPerturbation {
         pp.get("perturbation_layers",tpi_layers);
         pp.get("perturbation_offset",tpi_offset);
 
-        pp.get("perturbation_nondimensional",tpi_nonDim);
+        tpi_nonDim = zero;
+        pp.query("perturbation_nondimensional",tpi_nonDim);
 
         tpi_Tinf = amrex::Real(300.);
         pp.query("perturbation_T_infinity",tpi_Tinf);
@@ -80,6 +102,15 @@ struct TurbulentPerturbation {
 
         input_Ug = zero;
         pp.query("perturbation_Ug",input_Ug);
+
+        input_w_amp = zero;
+        pp.query("perturbation_w_amp",input_w_amp);
+
+        perturbation_klo = 0;
+        bool have_klo = pp.query("perturbation_klo", perturbation_klo);
+
+        perturbation_khi = 0;
+        bool have_khi = pp.query("perturbation_khi", perturbation_khi);
 
         // Check variables message
         if (tpi_offset < 0) { amrex::Abort("Please provide a valid inflow cell offset value for perturbation region (ie. 0-5)"); }
@@ -114,6 +145,10 @@ struct TurbulentPerturbation {
             const amrex::IntVect& valid_box_lo = subdomain_box.smallEnd();
             const amrex::IntVect& valid_box_hi = subdomain_box.bigEnd();
 
+            // default perturbation region to be the entire z extent if the user does not specify bounds
+            if (!have_klo) { perturbation_klo = valid_box_lo[2]; }
+            if (!have_khi) { perturbation_khi = valid_box_hi[2]; }
+
             // Creating perturbation regions and initializing with generic size.
             amrex::Box lo_x_bx(amrex::IntVect(0), amrex::IntVect(1), amrex::IntVect(0));
             amrex::Box hi_x_bx(amrex::IntVect(0), amrex::IntVect(1), amrex::IntVect(0));
@@ -124,27 +159,27 @@ struct TurbulentPerturbation {
             //amrex::PrintToFile("BoxPerturbationOutput") << "Setting perturbation region in:";
             // ***** X-direction perturbation *****
             if (tpi_direction[0]) { // West
-                lo_x_bx.setSmall(amrex::IntVect(valid_box_lo[0]+tpi_offset, valid_box_lo[1]+tpi_direction[1]*tpi_offset, valid_box_lo[2]));
-                lo_x_bx.setBig  (amrex::IntVect(valid_box_lo[0]+(tpi_layers*tpi_boxDim[0]-1)+tpi_offset, valid_box_hi[1]-(tpi_direction[4]*tpi_offset), valid_box_hi[2]));
+                lo_x_bx.setSmall(amrex::IntVect(valid_box_lo[0]+tpi_offset, valid_box_lo[1]+tpi_direction[1]*tpi_offset, perturbation_klo));
+                lo_x_bx.setBig  (amrex::IntVect(valid_box_lo[0]+(tpi_layers*tpi_boxDim[0]-1)+tpi_offset, valid_box_hi[1]-(tpi_direction[4]*tpi_offset), perturbation_khi));
                 amrex::PrintToFile("BoxPerturbationOutput") << " West face";
             }
 
             if (tpi_direction[3]) { // East
-                hi_x_bx.setSmall(amrex::IntVect(valid_box_hi[0]-((tpi_layers*tpi_boxDim[0]-1)+tpi_offset), valid_box_lo[1]+tpi_direction[1]*tpi_offset, valid_box_lo[2]));
-                hi_x_bx.setBig(amrex::IntVect(valid_box_hi[0]-tpi_offset, valid_box_hi[1]-(tpi_direction[4]*tpi_offset), valid_box_hi[2]));
+                hi_x_bx.setSmall(amrex::IntVect(valid_box_hi[0]-((tpi_layers*tpi_boxDim[0]-1)+tpi_offset), valid_box_lo[1]+tpi_direction[1]*tpi_offset, perturbation_klo));
+                hi_x_bx.setBig(amrex::IntVect(valid_box_hi[0]-tpi_offset, valid_box_hi[1]-(tpi_direction[4]*tpi_offset), perturbation_khi));
                 amrex::PrintToFile("BoxPerturbationOutput") << " East face";
             }
 
             // ***** Y-direction Perturbation *****
             if (tpi_direction[1]) { // North
-                lo_y_bx.setSmall(amrex::IntVect(valid_box_lo[0]+tpi_direction[0]*tpi_offset, valid_box_lo[1]+tpi_offset, valid_box_lo[2]));
-                lo_y_bx.setBig(amrex::IntVect(valid_box_hi[0]-tpi_direction[3]*tpi_offset, valid_box_lo[1]+((tpi_layers*tpi_boxDim[1])-1)+tpi_offset, valid_box_hi[2]));
+                lo_y_bx.setSmall(amrex::IntVect(valid_box_lo[0]+tpi_direction[0]*tpi_offset, valid_box_lo[1]+tpi_offset, perturbation_klo));
+                lo_y_bx.setBig(amrex::IntVect(valid_box_hi[0]-tpi_direction[3]*tpi_offset, valid_box_lo[1]+((tpi_layers*tpi_boxDim[1])-1)+tpi_offset, perturbation_khi));
                 amrex::PrintToFile("BoxPerturbationOutput") << " North face";
             }
 
             if (tpi_direction[4]) { // South
-                hi_y_bx.setSmall(amrex::IntVect(valid_box_lo[0]+tpi_direction[0]*tpi_offset, valid_box_hi[1]-((tpi_layers*tpi_boxDim[1]-1)+tpi_offset), valid_box_lo[2]));
-                hi_y_bx.setBig(amrex::IntVect(valid_box_hi[0]-tpi_direction[3]*tpi_offset, valid_box_hi[1]-tpi_offset, valid_box_hi[2]));
+                hi_y_bx.setSmall(amrex::IntVect(valid_box_lo[0]+tpi_direction[0]*tpi_offset, valid_box_hi[1]-((tpi_layers*tpi_boxDim[1]-1)+tpi_offset), perturbation_klo));
+                hi_y_bx.setBig(amrex::IntVect(valid_box_hi[0]-tpi_direction[3]*tpi_offset, valid_box_hi[1]-tpi_offset, perturbation_khi));
                 amrex::PrintToFile("BoxPerturbationOutput") << " South face";
             }
 
@@ -209,7 +244,11 @@ struct TurbulentPerturbation {
         pb_amp[lev].resize(pb_ba[lev].size(), zero);
 
         // Creating data array for perturbation amplitude storage
-        pb_cell[lev].define(ba, dm, 1, ngrow_state); // this is the only place ba is used. Maybe we can print here to determine what's valid...
+        if (pt_type[lev] == 3) { // CPM_W converts to the k-face ba.
+            pb_cell[lev].define(convert(ba, amrex::IntVect(0,0,1)), dm, 1, ngrow_state);
+        } else {
+            pb_cell[lev].define(ba, dm, 1, ngrow_state); // this is the only place ba is used. Maybe we can print here to determine what's valid...
+        }
         pb_cell[lev].setVal(0.);
 
         // Computing perturbation reference length
@@ -242,13 +281,16 @@ struct TurbulentPerturbation {
     }
 
 
-    // Perturbation update frequency check.
-    // This function will trigger calc_tpi_meanMag() and calc_tpi_amp(), when
-    // the local elapsed time is greater than the perturbation frequency.
-    // At each timestep a total buoyant force sanity check is made to ensure
-    // that the sum of the buoyant force introduced into the system is net-zero
+    /**
+     * @brief Update perturbation amplitudes and intervals when each box is ready.
+     * @param lev AMR level index.
+     * @param dt Time step for elapsed-time accumulation.
+     * @param mf_xvel X-velocity field used to compute box mean velocities.
+     * @param mf_yvel Y-velocity field used to compute box mean velocities.
+     * @param mf_cons Conserved state used for iteration layout.
+     */
     void calc_tpi_update (const int lev,
-                          const amrex::Real dt,
+                          const double dt,
                           amrex::MultiFab& mf_xvel,
                           amrex::MultiFab& mf_yvel,
                           amrex::MultiFab& mf_cons)
@@ -260,6 +302,7 @@ struct TurbulentPerturbation {
         srand( (unsigned) time(NULL) );
 
         auto m_ixtype = mf_cons.boxArray().ixType(); // safety step
+        if (pt_type[lev] == 3) { m_ixtype = amrex::IndexType(amrex::IntVect(0,0,1)); }
 
         // Seed the random generator at 1024UL for regression testing
         int fix_random_seed = 0;
@@ -277,7 +320,7 @@ struct TurbulentPerturbation {
 
             bool update_box = true; // initialize flag
             // Check if the local elapsed time is greater than the update interval and don't go into boxes the rank doesn't own
-            if (pt_type[lev] == 2) {
+            if (pt_type[lev] == 2 || pt_type[lev] == 3) {
                 // for CPM, perturbation boxes/cells refresh after boxes have advected box width/length * num_layers (advective time scale)
                 update_box = ((pb_local_etime[lev][boxIdx] >= pb_interval[lev][boxIdx]*tpi_layers) && pb_local_etime[lev][boxIdx] != -one);
             } else {
@@ -291,8 +334,8 @@ struct TurbulentPerturbation {
                 // Only the rank owning the box will be able to access the storage location
                 // Done for parallelism to avoid Inf being stored in array
                 if (pb_mag[lev][boxIdx] !=zero) {
-                    amrex::Real interval = zero;
-                    if (pt_type[lev] == 2) {
+                    double interval = 0.0;
+                    if (pt_type[lev] == 2 || pt_type[lev] == 3) {
                         //  Wind direction correction for angled wind
                         amrex::Real wind_direction = pb_dir[lev][boxIdx];
                         if (wind_direction > PI / 4) { wind_direction = PI / 2 - wind_direction; }
@@ -301,7 +344,8 @@ struct TurbulentPerturbation {
                     } else {
                         interval = tpi_lref[lev] / pb_mag[lev][boxIdx];
                     }
-                    pb_interval[lev][boxIdx] = RandomReal(amrex::Real(0.9)*interval,amrex::Real(1.1)*interval); // 10% variation
+                    pb_interval[lev][boxIdx] = RandomReal(static_cast<amrex::Real>(0.9*interval),
+                                                          static_cast<amrex::Real>(1.1*interval)); // 10% variation
 
                     // Reset local elapsed time
                     pb_local_etime[lev][boxIdx] = zero;
@@ -319,7 +363,7 @@ struct TurbulentPerturbation {
 
             } else {
                 // set perturbation amplitudes to 0 for CPM. A little inefficient but leverages as much as existing code as possible.
-                if (pt_type[lev] == 2) { zero_amp(boxIdx, lev, m_ixtype); }
+                if (pt_type[lev] == 2 || pt_type[lev] == 3) { zero_amp(boxIdx, lev, m_ixtype); }
 
                 // Increase by timestep of level 0 (but only if the box is owned by this rank)
                 if (pb_local_etime[lev][boxIdx] != -one) { pb_local_etime[lev][boxIdx] += dt; }
@@ -345,9 +389,15 @@ struct TurbulentPerturbation {
         }
     }
 
-    // Applying perturbation amplitude onto source term (Umphrey and Senocak 2016)
-    // This function does per cell application within the box union. Random perturbation
-    // is assigned in calc_tpi_update.
+    /**
+     * @brief Apply stored turbulent perturbations to a source or state array.
+     * @param lev AMR level index.
+     * @param vbx Valid box over which perturbations may be applied.
+     * @param comp Component to modify, or -1 for vertical velocity perturbations.
+     * @param m_ixtype Index type of the destination array.
+     * @param src_arr Destination array receiving perturbation increments.
+     * @param pert_cell Stored perturbation amplitudes.
+     */
     void apply_tpi (const int& lev,
                     const amrex::Box& vbx,                      // box union from upper level
                     const int& comp,                            // Component to modify
@@ -357,30 +407,44 @@ struct TurbulentPerturbation {
     {
         for (int boxIdx = 0; boxIdx < pb_ba[lev].size(); boxIdx++) {
             amrex::Box pbx = amrex::convert(pb_ba[lev][boxIdx], m_ixtype);
+            if (pt_type[lev] == 3) { pbx.setBig(2, pbx.bigEnd(2) - 1); } // prevent double counting after converting to k-faces
             amrex::Box ubx = pbx & vbx;
             if (ubx.ok()) {
-                ParallelFor(ubx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-                    src_arr(i,j,k,comp) += pert_cell(i,j,k);
+                if (comp == -1) { // vertical velocity perturbations
+                    ParallelFor(ubx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                        src_arr(i,j,k) += pert_cell(i,j,k);
+                    });
+                } else {
+                    ParallelFor(ubx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                        src_arr(i,j,k,comp) += pert_cell(i,j,k);
 
-                    // For box region debug only
-                    #ifdef INDEX_PERTURB
-                    src_arr(i,j,k,comp) = (amrex::Real) (boxIdx + amrex::Real(5.));
-                    #endif
-                });
+                        // For box region debug only
+                        #ifdef INDEX_PERTURB
+                        src_arr(i,j,k,comp) = (amrex::Real) (boxIdx + 5.);
+                        #endif
+                    });
+                }
             }
         }
     }
 
-    // Perturbation amplitude calculation
+    /**
+     * @brief Compute the perturbation amplitude for one perturbation box.
+     * @param lev AMR level index.
+     * @param boxIdx Perturbation-box index on the level.
+     * @param interval Current perturbation update interval [s].
+     */
     void calc_tpi_amp (const int& lev,
                        const int& boxIdx,
-                       const amrex::Real& interval)
+                       const double& interval)
     {
         pb_amp[lev][boxIdx] = zero; // Safety step
         if (pt_type[lev] == 2) { // CPM
             amrex::Real cp = 1004; // specific heat of air [J/(kg K)]
             amrex::Real Ec = amrex::Real(0.2); // Eckert number
             pb_amp[lev][boxIdx] = (input_Ug * input_Ug) / (Ec * cp);
+        } else if (pt_type[lev] == 3) {
+            pb_amp[lev][boxIdx] = input_w_amp;
         } else { // box perturbation
             amrex::Real Um = pb_mag[lev][boxIdx];
             amrex::Real beta = one/tpi_Tinf; // Thermal expansion coefficient
@@ -402,14 +466,17 @@ struct TurbulentPerturbation {
                 // Performing this step converts the perturbation proportionality into
                 // the forcing term
                 // Ma & Senocak (2023) Eq. 7
-                pb_amp[lev][boxIdx] /= interval;
+                pb_amp[lev][boxIdx] /= static_cast<amrex::Real>(interval);
             }
         }
     }
 
-    // Assigns pseudo-random (ie. white noise) perturbation to a storage cell, this
-    // value is then held constant for the duration of the update interval and assigned onto
-    // the source term
+    /**
+     * @brief Assign pseudo-random perturbations to cells in one perturbation box.
+     * @param boxIdx Perturbation-box index on the level.
+     * @param lev AMR level index.
+     * @param m_ixtype Index type used to align perturbation storage.
+     */
     void pseudoRandomPert (const int& boxIdx,
                            const int& lev,
                            const amrex::IndexType& m_ixtype)
@@ -417,12 +484,13 @@ struct TurbulentPerturbation {
         for (amrex::MFIter mfi(pb_cell[lev],TileNoZ()); mfi.isValid(); ++mfi) {
             amrex::Box vbx = mfi.validbox();
             amrex::Box pbx = amrex::convert(pb_ba[lev][boxIdx], m_ixtype);
+            if (pt_type[lev] == 3) { pbx.setBig(2, pbx.bigEnd(2) - 1); } // prevent double counting after converting to k-faces
             amrex::Box ubx = pbx & vbx;
             if (ubx.ok()) {
                 amrex::Real amp_copy = pb_amp[lev][boxIdx];
                 const amrex::Array4<amrex::Real>& pert_cell = pb_cell[lev].array(mfi);
 
-                if (pt_type[lev] == 2) { // CPM
+                if (pt_type[lev] == 2  || pt_type[lev] == 3) { // CPM
                     amrex::Real rand_number_const = RandomReal(-one, one);
                     ParallelFor(ubx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
                         pert_cell(i,j,k) = rand_number_const * amp_copy;
@@ -433,12 +501,16 @@ struct TurbulentPerturbation {
                         pert_cell(i,j,k) = (rand_double*two - one) * amp_copy;
                     });
                 }
-
             }
         }
     }
 
-    // convert pert_cell value to be 0 so that perturbation amplitudes do not compound for CPM
+    /**
+     * @brief Reset CPM perturbation amplitudes in one perturbation box to zero.
+     * @param boxIdx Perturbation-box index on the level.
+     * @param lev AMR level index.
+     * @param m_ixtype Index type used to align perturbation storage.
+     */
     void zero_amp (const int& boxIdx,
                    const int& lev,
                    const amrex::IndexType& m_ixtype)
@@ -447,6 +519,7 @@ struct TurbulentPerturbation {
         for (amrex::MFIter mfi(pb_cell[lev],TileNoZ()); mfi.isValid(); ++mfi) {
             amrex::Box vbx = mfi.validbox();
             amrex::Box pbx = amrex::convert(pb_ba[lev][boxIdx], m_ixtype);
+            if (pt_type[lev] == 3) { pbx.setBig(2, pbx.bigEnd(2) - 1); } // prevent double counting after converting to k-faces
             amrex::Box ubx = pbx & vbx;
             if (ubx.ok()) {
                 const amrex::Array4<amrex::Real>& pert_cell = pb_cell[lev].array(mfi);
@@ -457,7 +530,11 @@ struct TurbulentPerturbation {
         }
     }
 
-    // Checks for net-zero buoyant force introduction into the system
+    /**
+     * @brief Accumulate the mean perturbation contribution for net-zero buoyancy enforcement.
+     * @param boxIdx Perturbation-box index on the level.
+     * @param lev AMR level index.
+     */
     void netZeroBuoyantAdd (const int& boxIdx,
                             const int& lev)
     {
@@ -490,8 +567,11 @@ struct TurbulentPerturbation {
         }
     }
 
-    // If it's not a net-zero buoyant force, then adjust all cell by a normalized value
-    // to achieve this logic
+    /**
+     * @brief Adjust perturbation cells so the net buoyant forcing is zero.
+     * @param boxIdx Perturbation-box index on the level.
+     * @param lev AMR level index.
+     */
     void netZeroBuoyantAdjust (const int& boxIdx,
                                const int& lev)
     {
@@ -513,8 +593,14 @@ struct TurbulentPerturbation {
 
 // TODO: Test the difference between these two for Source term perturbation
 #define USE_VOLUME_AVERAGE
-    // Perturbation box mean velocity magnitude calculation
-    // This is pulled into the structure to also utilize during runtime
+    /**
+     * @brief Compute mean horizontal velocity magnitude and direction for one perturbation box.
+     * @param boxIdx Perturbation-box index on the level.
+     * @param lev AMR level index.
+     * @param mf_cons Conserved state used for iteration layout.
+     * @param mf_xvel X-velocity field.
+     * @param mf_yvel Y-velocity field.
+     */
     void calc_tpi_meanMag_perBox (const int& boxIdx,
                                   const int& lev,
                                   amrex::MultiFab& mf_cons,
@@ -636,8 +722,10 @@ struct TurbulentPerturbation {
         #endif
     }
 
-    // Output debug message into a file
-    void debug (amrex::Real /*time*/)
+    /**
+     * @brief Write perturbation debug information when debug output is enabled.
+     */
+    void debug (double /*time*/)
     {
         /*
         amrex::PrintToFile("BoxPerturbationOutput") << "#################### PB output at time = "
@@ -691,14 +779,22 @@ struct TurbulentPerturbation {
 
     amrex::Vector<amrex::IntVect> ref_ratio;  // ref_ratio for multilevel run
     amrex::Real input_Ug;                     // input geostrophic wind speed to scale perturbations when using CPM
+    amrex::Real input_w_amp;                  // input vertical velocity amplitude for w
+    int         perturbation_klo;             // upper bound in Nz for perturbations
+    int         perturbation_khi;             // lower bound in Nz for perturbations
 
     // Perturbation data arrays
-    amrex::Vector<amrex::Vector<amrex::Real>> pb_interval;    // PB update time [s]
-    amrex::Vector<amrex::Vector<amrex::Real>> pb_local_etime; // PB local elapsed time [s]
+    amrex::Vector<amrex::Vector<double>> pb_interval;         // PB update time [s]
+    amrex::Vector<amrex::Vector<double>> pb_local_etime;      // PB local elapsed time [s]
     amrex::Vector<amrex::Vector<amrex::Real>> pb_amp;         // PB perturbation amplitude Ri:[K]
     amrex::Vector<amrex::Vector<amrex::Real>> pb_netZero;     // PB array used for net zero sum calculation
 
-    // Random number generation between range (used for interval calculation)
+    /**
+     * @brief Return a pseudo-random real value in a closed interval.
+     * @param min Lower bound of the interval.
+     * @param max Upper bound of the interval.
+     * @return Pseudo-random value between min and max.
+     */
     amrex::Real RandomReal (const amrex::Real min, const amrex::Real max)
     {
         amrex::Real r = (amrex::Real) rand() / (amrex::Real) RAND_MAX;
@@ -706,4 +802,61 @@ struct TurbulentPerturbation {
     }
 
 };
+
+/**
+ * @var TurbulentPerturbation::pt_type
+ * @brief Integer perturbation type for each AMR level.
+ * @var TurbulentPerturbation::pb_ba
+ * @brief Perturbation-box BoxArray for each AMR level.
+ * @var TurbulentPerturbation::pb_mag
+ * @brief Mean velocity magnitude for each perturbation box [m/s].
+ * @var TurbulentPerturbation::pb_dir
+ * @brief Mean velocity direction for each perturbation box.
+ * @var TurbulentPerturbation::pb_cell
+ * @brief Per-cell perturbation amplitude storage.
+ * @var TurbulentPerturbation::tpi_layers
+ * @brief Number of layers of perturbation boxes.
+ * @var TurbulentPerturbation::tpi_offset
+ * @brief Cell offset for the start of the perturbation region.
+ * @var TurbulentPerturbation::tpi_boxDim
+ * @brief Dimensions of each perturbation box.
+ * @var TurbulentPerturbation::tpi_direction
+ * @brief Boundary directions where perturbations are applied.
+ * @var TurbulentPerturbation::tpi_nonDim
+ * @brief Nondimensional number used by the perturbation formulation.
+ * @var TurbulentPerturbation::tpi_Ti
+ * @brief Temperature intensity used by the perturbation formulation.
+ * @var TurbulentPerturbation::tpi_Tinf
+ * @brief Reference temperature used by the perturbation formulation [K].
+ * @var TurbulentPerturbation::tpi_Hpb
+ * @brief Perturbation-box height for each AMR level [m].
+ * @var TurbulentPerturbation::tpi_Lpb
+ * @brief Perturbation-box length for each AMR level [m].
+ * @var TurbulentPerturbation::tpi_Wpb
+ * @brief Perturbation-box width for each AMR level [m].
+ * @var TurbulentPerturbation::tpi_lref
+ * @brief Perturbation-box reference length for each AMR level [m].
+ * @var TurbulentPerturbation::tpi_net_buoyant
+ * @brief Accumulated net buoyant perturbation used for correction.
+ * @var TurbulentPerturbation::tpi_pert_adjust
+ * @brief Per-cell perturbation adjustment used for net-zero buoyancy.
+ * @var TurbulentPerturbation::ref_ratio
+ * @brief Refinement ratios used by multilevel perturbation scaling.
+ * @var TurbulentPerturbation::input_Ug
+ * @brief Input geostrophic wind speed used to scale CPM perturbations.
+ * @var TurbulentPerturbation::input_w_amp
+ * @brief Input vertical velocity perturbation amplitude.
+ * @var TurbulentPerturbation::perturbation_klo
+ * @brief Lower vertical index bound for perturbations.
+ * @var TurbulentPerturbation::perturbation_khi
+ * @brief Upper vertical index bound for perturbations.
+ * @var TurbulentPerturbation::pb_interval
+ * @brief Perturbation update interval for each box [s].
+ * @var TurbulentPerturbation::pb_local_etime
+ * @brief Local elapsed time for each perturbation box [s].
+ * @var TurbulentPerturbation::pb_amp
+ * @brief Perturbation amplitude for each perturbation box.
+ * @var TurbulentPerturbation::pb_netZero
+ * @brief Per-box storage used for net-zero buoyancy calculation.
+ */
 #endif

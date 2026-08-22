@@ -16,9 +16,9 @@ void SuperDropletPC::applyBoundaryTreatment ( int                   a_lev,
                                               const bool            a_recycle )
 {
     BL_PROFILE("SuperDropletPC::applyBoundaryTreatment()");
-    const MFPtr& z_height = a_z_phys_nd[a_lev];
+    amrex::ignore_unused(a_z_phys_nd);
 
-    const auto ctx = buildProcessContext(a_lev);
+    const auto proc_ctx = buildProcessContext(a_lev);
     const auto save_inac = m_save_inactive;
 
     // number of super-droplets per cell
@@ -26,20 +26,17 @@ void SuperDropletPC::applyBoundaryTreatment ( int                   a_lev,
     // number of physical particles per cell
     Real num_par_per_cell = zero;
     for (int i = 0; i < m_num_initializations; i++) {
-        num_par_per_cell += m_initializations[i]->numParticlesPerCell(ctx.cell_volume);
+        num_par_per_cell += m_initializations[i]->numParticlesPerCell(proc_ctx.cell_volume);
     }
     auto multiplicity = (num_sd_per_cell > 0 ? num_par_per_cell / num_sd_per_cell : zero);
 
     Long num_deactivated_particles = 0;
 
-    forEachParticleTile(a_lev, ctx,
-        [&](ParIterType& /*pti*/, int grid, ParticleType* p_pbox,
+    forEachParticleTile(a_lev, proc_ctx,
+        [&](ParIterType& /*pti*/, int /*grid*/, ParticleType* p_pbox,
             const SDProcess::ParticlePointers& ptrs,
             const SDProcess::ProcessContext& ctx)
     {
-        auto zheight = (*z_height)[grid].array();
-        const auto zheight_box = (*z_height)[grid].box();
-
         Gpu::Buffer<Long> deactivated_particles({0});
         auto* deactivated_particles_ptr = deactivated_particles.data();
 
@@ -49,16 +46,10 @@ void SuperDropletPC::applyBoundaryTreatment ( int                   a_lev,
             if (p.id() <= 0) { return; }
             if (ptrs.active_ptr[i] == 0) { return; }
 
-            // check for ground impact
+            // check for ground impact; in computational zeta the ground is the
+            // bottom of the domain for both flat and terrain-fitted meshes
             {
-                auto z_ground = ctx.plo[2];
-                {
-                    auto iv = getParticleCell(p, ctx.plo, ctx.dxi, ctx.domain);
-                    auto k_ground = ctx.domain.smallEnd(2);
-                    if (zheight_box.contains(IntVect(iv[0],iv[1],k_ground))) {
-                        z_ground = zheight(iv[0],iv[1],k_ground);
-                    }
-                }
+                const auto z_ground = ctx.plo[2];
                 if (p.pos(2) < z_ground) {
                     p.pos(2) = z_ground + Real(0.01)*ctx.dx[2];
                     ptrs.v_ptr[0][i] = ptrs.v_ptr[1][i] = ptrs.v_ptr[2][i] = ptrs.vterm_ptr[i] = zero;
@@ -68,16 +59,10 @@ void SuperDropletPC::applyBoundaryTreatment ( int                   a_lev,
                 }
             }
 
-            // check for top boundary exits
+            // check for top boundary exits; in computational zeta the roof is the
+            // top of the domain for both flat and terrain-fitted meshes
             {
-                auto z_roof = ctx.phi[2];
-                {
-                    auto iv = getParticleCell(p, ctx.plo, ctx.dxi, ctx.domain);
-                    auto k_roof = ctx.domain.bigEnd(2)+1;
-                    if (zheight_box.contains(IntVect(iv[0],iv[1],k_roof))) {
-                        z_roof = zheight(iv[0],iv[1],k_roof);
-                    }
-                }
+                const auto z_roof = ctx.phi[2];
                 if (p.pos(2) > z_roof) {
                     p.pos(2) = z_roof - ctx.dx[2];
                     ptrs.v_ptr[0][i] = ptrs.v_ptr[1][i] = ptrs.v_ptr[2][i] = ptrs.vterm_ptr[i] = zero;
@@ -118,7 +103,11 @@ void SuperDropletPC::applyBoundaryTreatment ( int                   a_lev,
                                 ptrs.sp_mass_ptrs[ctr][i] = zero;
                             }
 
-                            ptrs.mult_ptr[i] = multiplicity;
+                            ptrs.mult_ptr[i]  = multiplicity;
+                            ptrs.a_ptr[i]     = zero;
+                            ptrs.c_ptr[i]     = zero;
+                            ptrs.mrime_ptr[i] = zero;
+                            ptrs.nmono_ptr[i] = zero;
 
                             SuperDropletPC::updateParticleAttributes(
                                 i, ptrs.radius_ptr, ptrs.mass_ptr, ctx.idx_water, ctx.rho_water,
@@ -149,7 +138,11 @@ void SuperDropletPC::applyBoundaryTreatment ( int                   a_lev,
                                 ptrs.sp_mass_ptrs[ctr][i] = zero;
                             }
 
-                            ptrs.mult_ptr[i] = multiplicity;
+                            ptrs.mult_ptr[i]  = multiplicity;
+                            ptrs.a_ptr[i]     = zero;
+                            ptrs.c_ptr[i]     = zero;
+                            ptrs.mrime_ptr[i] = zero;
+                            ptrs.nmono_ptr[i] = zero;
 
                             SuperDropletPC::updateParticleAttributes(
                                 i, ptrs.radius_ptr, ptrs.mass_ptr, ctx.idx_water, ctx.rho_water,
@@ -164,6 +157,9 @@ void SuperDropletPC::applyBoundaryTreatment ( int                   a_lev,
             }
         });
         Gpu::synchronize();
+#ifdef AMREX_USE_OMP
+#pragma omp atomic
+#endif
         num_deactivated_particles += *(deactivated_particles.copyToHost());
     }); // end forEachParticleTile
 

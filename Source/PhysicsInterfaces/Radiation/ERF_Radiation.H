@@ -88,15 +88,24 @@ public:
             m_ncol += nx * ny;
         }
 
-        m_ncol_chunk = amrex::min(m_ncol, m_ncol_chunk);
+        // Recompute the effective chunk size from the user's request rather than
+        // clamping the stored value in place. Init() is called again for every
+        // MakeNewLevelFromScratch / MakeNewLevelFromCoarse / RemakeLevel on the same
+        // Radiation object, so an in-place clamp could only ever shrink: a rank that
+        // owned no boxes at some Init (m_ncol == 0) would pin the chunk size at zero
+        // and then spin forever in the run_impl chunk loop once a regrid handed it
+        // real boxes. Deriving from the immutable request instead lets the chunk size
+        // grow back. It is zero only when m_ncol is zero, and a rank with no columns
+        // does no radiation work.
+        m_ncol_chunk = amrex::min(m_ncol, m_ncol_chunk_requested);
     };
 
     virtual
     void
     Run (int& level,
          int& step,
-         amrex::Real& time,
-         const amrex::Real& dt,
+         double& time,
+         const double& dt,
          const amrex::BoxArray& ba,
          amrex::Geometry& geom,
          amrex::MultiFab* cons_in,
@@ -108,12 +117,14 @@ public:
          amrex::MultiFab* rad_fluxes,
          amrex::MultiFab* z_phys,
          amrex::MultiFab* lat_ptr,
-         amrex::MultiFab* lon_ptr) override
+         amrex::MultiFab* lon_ptr,
+         const bool updated_lsm) override
     {
         set_grids(level, step, time, dt, ba, geom,
                   cons_in, lmask, t_surf,
                   lsm_input_ptrs, qheating_rates,
-                  rad_fluxes, z_phys, lat_ptr, lon_ptr);
+                  rad_fluxes, z_phys, lat_ptr, lon_ptr,
+                  updated_lsm);
         rad_run_impl(lsm_output_ptrs);
     }
 
@@ -121,8 +132,8 @@ public:
     void
     set_grids (int& level,
                int& step,
-               amrex::Real& time,
-               const amrex::Real& dt,
+               double& time,
+               const double& dt,
                const amrex::BoxArray& ba,
                amrex::Geometry& geom,
                amrex::MultiFab* cons_in,
@@ -133,7 +144,8 @@ public:
                amrex::MultiFab* rad_fluxes,
                amrex::MultiFab* z_phys,
                amrex::MultiFab* lat,
-               amrex::MultiFab* lon);
+               amrex::MultiFab* lon,
+               const bool updated_lsm);
 
     // Initialize the temporary variables
     void
@@ -206,7 +218,7 @@ public:
     // Write datalog
     virtual
     void
-    WriteDataLog (const amrex::Real &time) override;
+    WriteDataLog (const double &time) override;
 
 private:
 
@@ -220,10 +232,10 @@ private:
     int m_step;
 
     // Current time
-    amrex::Real m_time;
+    double m_time;
 
     // Timestep at given level
-    amrex::Real m_dt;
+    double m_dt;
 
     // Geometry at given level
     amrex::Geometry m_geom;
@@ -237,11 +249,10 @@ private:
     // Are we writing out the fluxes?
     bool m_rad_write_fluxes = false;
 
-    bool m_first_step = true;
-
     // Do we have moisture and cold comps?
     bool m_moist = false;
     bool m_ice   = false;
+    int  m_qi_comp = -1;
 
     // Do we have a land surface model?
     bool m_lsm   = false;
@@ -339,15 +350,16 @@ private:
     bool m_extra_clnclrsky_diag = false;
 
     // The orbital year, used for zenith angle calculations:
-    // If > 0, use constant orbital year for duration of simulation
-    // If < 0, use year from timestamp for orbital parameters
+    // If >= 0, use constant orbital year for duration of simulation
+    // If <  0, use year from timestamp for orbital parameters
     int m_orbital_year = -9999;
     int m_orbital_mon  = -9999;
     int m_orbital_day  = -9999;
     int m_orbital_sec  = -9999;
 
-    // Orbital parameters, used for zenith angle calculations.
-    // If >= 0, bypass computation based on orbital year and use fixed parameters
+    // Orbital parameters, used for zenith angle calculations.  Each is honored
+    // independently of the others:
+    // If >= 0, bypass computation based on orbital year and use the given value
     // If <  0, compute based on orbital year, specified above
     bool m_fixed_orbital_year   = false;
     amrex::Real m_orbital_eccen = -amrex::Real(9999.);  // Eccentricity
@@ -372,8 +384,17 @@ private:
     // Rad frequency in number of steps
     int m_rad_freq_in_steps = 1;
 
-    // Number of columns to process per RRTMGP chunk (controls peak memory)
-    int m_ncol_chunk = 1024;
+    // Number of columns to process per RRTMGP chunk (controls peak memory).
+    // m_ncol_chunk_requested is the user's erf.rad_ncol_chunk; it is set once in the
+    // constructor and never modified thereafter, so it is a valid upper bound on the
+    // chunk size for every level and every regrid. m_ncol_chunk is the effective chunk
+    // size for the current grids and is recomputed from the request in each Init();
+    // it is zero exactly when this rank owns no columns.
+    int m_ncol_chunk_requested = 1024;
+    int m_ncol_chunk           = 1024;
+
+    // Number of vars for s_mem allocation
+    int m_rad_nvar = 12;
 
     // Whether or not to do subcolumn sampling of cloud state for MCICA
     bool m_do_subcol_sampling = true;

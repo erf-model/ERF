@@ -3,12 +3,12 @@
 /**
  *  Wrapper for calling the routine that creates the slow RHS
  */
-    auto slow_rhs_fun_pre = [&](Vector<MultiFab>& S_rhs,
+    auto slow_rhs_fun_pre = [&,zero_d=zero,one_d=one](Vector<MultiFab>& S_rhs,
                                 Vector<MultiFab>& S_old,
                                 Vector<MultiFab>& S_data,
-                                const Real old_step_time,
-                                const Real old_stage_time,
-                                const Real new_stage_time,
+                                const double old_step_time,
+                                const double old_stage_time,
+                                const double new_stage_time,
                                 const int nrk)
     {
         BL_PROFILE("slow_rhs_fun_pre");
@@ -20,7 +20,8 @@
         //
         if (nrk > 0) {
             int ng_cons = S_data[IntVars::cons].nGrow();
-            cons_to_prim(S_data[IntVars::cons], ng_cons);
+            cons_to_prim(S_data[IntVars::cons], S_prim, ng_cons);
+            make_pi_stage(S_data[IntVars::cons]);
         }
 
         if (verbose) Print() << std::setprecision(timeprecision)
@@ -28,7 +29,7 @@
                              << " for fast variables advancing from " << old_step_time
                              << " to " << new_stage_time << std::endl;
 
-        Real slow_dt = new_stage_time - old_step_time;
+        double slow_dt = new_stage_time - old_step_time;
 
         const GpuArray<Real, AMREX_SPACEDIM> dxInv = fine_geom.InvCellSizeArray();
 
@@ -59,11 +60,21 @@
         MultiFab* terrain_blank = (solverChoice.terrain_type == TerrainType::ImmersedForcing ||
                                    solverChoice.buildings_type == BuildingsType::ImmersedForcing) ?
             terrain_blanking[level].get() : nullptr;
+        MultiFab* terrain_blank_xface = (solverChoice.terrain_type == TerrainType::ImmersedForcing ||
+                                         solverChoice.buildings_type == BuildingsType::ImmersedForcing) ?
+            terrain_blanking_xface[level].get() : nullptr;
+        MultiFab* terrain_blank_yface = (solverChoice.terrain_type == TerrainType::ImmersedForcing ||
+                                         solverChoice.buildings_type == BuildingsType::ImmersedForcing) ?
+            terrain_blanking_yface[level].get() : nullptr;
+        MultiFab* terrain_blank_zface = (solverChoice.terrain_type == TerrainType::ImmersedForcing ||
+                                         solverChoice.buildings_type == BuildingsType::ImmersedForcing) ?
+            terrain_blanking_zface[level].get() : nullptr;
 
         // Update the total moisture variable *before* computing sources since this is used in
         //    the buoyancy calculation
         if (solverChoice.moisture_type != MoistureType::None) {
-            make_qt(S_data[IntVars::cons], qt);
+            int n_qstate_into_total = micro->Get_Qstate_Moist_Size() - micro->Get_Qstate_Moist_NumConc_Size();
+            make_qt(S_data[IntVars::cons], qt, n_qstate_into_total);
         }
 
         MultiFab p0_to_use, base_to_use;
@@ -101,14 +112,39 @@
         // *****************************************************************************
         make_sources(level, nrk, slow_dt, old_stage_time,
                      S_data, S_prim, cc_src, base_state[level], zpc_to_use,
-                     xvel_new, yvel_new,
+                     xvel_new, yvel_new, zvel_new,
                      qheating_rates[level].get(),
                      terrain_blank, fine_geom, solverChoice,
                      mapfac[level],
                      rhotheta_src[level].get(), rhoqt_src[level].get(),
                      dptr_wbar_sub, d_rayleigh_ptrs_at_lev, d_sinesq_at_lev,
-                      (solverChoice.hindcast_surface_bcs? &surface_state_interp[level] : nullptr),
-                     input_sounding_data, turbPert, true);
+                     turbPert, true);
+
+        // *****************************************************************************
+        // Add nudging terms on moist variables if we have a non-zero relaxation region
+        // *****************************************************************************
+#if defined(ERF_USE_NETCDF)
+        if ( solverChoice.use_real_bcs && (level==0) &&
+             (solverChoice.moisture_type != MoistureType::None) )
+        {
+            Real bdy_factor = solverChoice.bdy_nudge_factor;
+            Real l_rdOcp    = solverChoice.rdOcp;
+            Real l_c_p      = solverChoice.c_p;
+            int moist_nudge_type = solverChoice.bdy_moist_nudge_type;
+            int num_q = micro->Get_Qstate_Moist_Size() - micro->Get_Qstate_Moist_NumConc_Size();
+            AMREX_ALWAYS_ASSERT( (solverChoice.bdy_moist_nudge_type != 2) ||
+                                 (solverChoice.moisture_type != MoistureType::Morrison_NoIce &&
+                                  solverChoice.moisture_type != MoistureType::SAM_NoIce) );
+            add_moist_nudging_terms(S_data[IntVars::cons], cc_src, num_q, slow_dt,
+                                    start_time+old_stage_time,
+                                    start_bdy_time, final_bdy_time, bdy_time_interval,
+                                    bdy_factor, real_width, geom[level],
+                                    bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi,
+                                    m_r2d, l_c_p, l_rdOcp,
+                                    solverChoice.moisture_indices,
+                                    solverChoice.use_wrf_bdy_density, moist_nudge_type);
+        }
+#endif
 
         // *****************************************************************************
         // Define the pressure gradient
@@ -133,6 +169,7 @@
                          xvel_new, yvel_new, zvel_new,
                          xmom_src, ymom_src, zmom_src,
                          base_to_use, forest_drag, terrain_blank,
+                         terrain_blank_xface, terrain_blank_yface, terrain_blank_zface,
                          cosPhi_m[level].get(), sinPhi_m[level].get(), fine_geom, solverChoice,
                          mapfac[level],
                          (solverChoice.have_geo_wind_profile) ? d_u_geos[level].data(): nullptr,
@@ -140,8 +177,7 @@
                          dptr_wbar_sub, d_rayleigh_ptrs_at_lev, d_sinesq_at_lev, d_sinesq_stag_at_lev,
                          d_sponge_ptrs_at_lev,
                          (solverChoice.hindcast_lateral_forcing? &forecast_state_interp[level] : nullptr),
-                         (solverChoice.hindcast_surface_bcs? &surface_state_interp[level] : nullptr),
-                         input_sounding_data, get_eb(level), true);
+                         input_sounding_data, lsf, lsf_data[level], get_eb(level), true);
 
         // *****************************************************************************
         // Add body sources if doing flow around a body
@@ -164,71 +200,91 @@
                          *zpn_to_use, *zpc_to_use, *ax_to_use, *ay_to_use, *az_to_use, *dJ_to_use,
                          stretched_dz_d[level], gradp[level],
                          mapfac[level], get_eb(level),
-#ifdef ERF_USE_SHOC
-                         shoc_interface[level],
+#ifdef ERF_USE_EAMXX_SHOC
+                         eamxx_shoc_interface[level].get(),
 #endif
-                         fr_as_crse, fr_as_fine);
+                         native_shoc_driver[level].get(),
+                         fr_as_crse, fr_as_fine, &base_to_use,
+                         cloud_chamber_config.active ? &cloud_chamber_config : nullptr,
+                         cloud_chamber_budget.get());
 
-        if ((solverChoice.vert_implicit_fac[nrk] > zero) && solverChoice.implicit_before_substep) {
+        if ((solverChoice.vert_implicit_fac[level][nrk] > zero_d) && solverChoice.implicit_before_substep) {
+            const Real stage_dt = static_cast<Real>(slow_dt);
+            /**
+             * @brief Temporary MultiFab for conserved variable updates.
+             */
             MultiFab scratch(S_data[IntVars::cons].boxArray(),S_data[IntVars::cons].DistributionMap(), 2,
                              S_data[IntVars::cons].nGrowVect());
             MultiFab::Copy(scratch, S_old[IntVars::cons], 0, 0, 2, S_data[IntVars::cons].nGrowVect()); // scratch := S_old               (for rho, rhotheta)
-            MultiFab::Saxpy(scratch, slow_dt, S_rhs[IntVars::cons], 0, 0, 2, 0);                       // scratch := S_old + slow_dt*Src (for rho, rhotheta)
+            MultiFab::Saxpy(scratch, stage_dt, S_rhs[IntVars::cons], 0, 0, 2, 0);                  // scratch := S_old + stage_dt*Src (for rho, rhotheta)
             scratch.FillBoundary(geom[level].periodicity());
 
+            /**
+             * @brief Temporary MultiFab for x-momentum updates.
+             */
             MultiFab scratch_xmom(S_data[IntVars::xmom].boxArray(),
                                   S_data[IntVars::xmom].DistributionMap(), 1,
                                   S_data[IntVars::xmom].nGrowVect());
+            /**
+             * @brief Temporary MultiFab for y-momentum updates.
+             */
             MultiFab scratch_ymom(S_data[IntVars::ymom].boxArray(),
                                   S_data[IntVars::ymom].DistributionMap(), 1,
                                   S_data[IntVars::ymom].nGrowVect());
 #ifdef ERF_IMPLICIT_W
+            /**
+             * @brief Temporary MultiFab for z-momentum updates.
+             */
             MultiFab scratch_zmom(S_data[IntVars::zmom].boxArray(),
                                   S_data[IntVars::zmom].DistributionMap(), 1,
                                   S_data[IntVars::zmom].nGrowVect());
 #endif
             if (solverChoice.implicit_momentum_diffusion) {
                 MultiFab::Copy(scratch_xmom, S_old[IntVars::xmom], 0, 0, 1,  S_data[IntVars::xmom].nGrowVect()); // scratch := S_old
-                MultiFab::Saxpy(scratch_xmom, slow_dt, S_rhs[IntVars::xmom], 0, 0, 1, 0);                        // scratch := S_old + slow_dt*Src
+                MultiFab::Saxpy(scratch_xmom, stage_dt, S_rhs[IntVars::xmom], 0, 0, 1, 0);                   // scratch := S_old + stage_dt*Src
                 scratch_xmom.FillBoundary(geom[level].periodicity());
 
                 MultiFab::Copy(scratch_ymom, S_old[IntVars::ymom], 0, 0, 1,  S_data[IntVars::ymom].nGrowVect()); // scratch := S_old
-                MultiFab::Saxpy(scratch_ymom, slow_dt, S_rhs[IntVars::ymom], 0, 0, 1, 0);                        // scratch := S_old + slow_dt*Src
+                MultiFab::Saxpy(scratch_ymom, stage_dt, S_rhs[IntVars::ymom], 0, 0, 1, 0);                   // scratch := S_old + stage_dt*Src
                 scratch_ymom.FillBoundary(geom[level].periodicity());
 #ifdef ERF_IMPLICIT_W
                 MultiFab::Copy(scratch_zmom, S_old[IntVars::zmom], 0, 0, 1,  S_data[IntVars::zmom].nGrowVect()); // scratch := S_old
-                MultiFab::Saxpy(scratch_zmom, slow_dt, S_rhs[IntVars::zmom], 0, 0, 1, 0);                        // scratch := S_old + slow_dt*Src
+                MultiFab::Saxpy(scratch_zmom, stage_dt, S_rhs[IntVars::zmom], 0, 0, 1, 0);                   // scratch := S_old + stage_dt*Src
                 scratch_zmom.FillBoundary(geom[level].periodicity());
 #endif
             }
 
 #include "ERF_ImplicitPre.H"
 
-            MultiFab::Saxpy(scratch, -one, S_old[IntVars::cons], 1, 1, 1, 0); // scratch  := (S_new - S_old)           (for rhotheta only)
-            scratch.mult(one / slow_dt);                                      // scratch  := (S_new - S_old) / slow_dt
-            MultiFab::Copy(S_rhs[IntVars::cons], scratch, 1, 1, 1, 0);        // slow_rhs := (S_new - S_old) / slow_dt (for rhotheta only)
+            MultiFab::Saxpy(scratch, -one_d, S_old[IntVars::cons], 1, 1, 1, 0); // scratch  := (S_new - S_old)           (for rhotheta only)
+            scratch.mult(one_d / stage_dt);                                 // scratch  := (S_new - S_old) / stage_dt
+            MultiFab::Copy(S_rhs[IntVars::cons], scratch, 1, 1, 1, 0);        // slow_rhs := (S_new - S_old) / stage_dt (for rhotheta only)
 
             if (solverChoice.implicit_momentum_diffusion) {
-                MultiFab::Saxpy(scratch_xmom, -one, S_old[IntVars::xmom], 0, 0, 1, 0); // scratch  := (S_new - S_old)
-                scratch_xmom.mult(one / slow_dt);                                      // scratch  := (S_new - S_old) / slow_dt
-                MultiFab::Copy(S_rhs[IntVars::xmom], scratch_xmom, 0, 0, 1, 0);        // slow_rhs := (S_new - S_old) / slow_dt
+                MultiFab::Saxpy(scratch_xmom, -one_d, S_old[IntVars::xmom], 0, 0, 1, 0); // scratch  := (S_new - S_old)
+                scratch_xmom.mult(one_d / stage_dt);                                 // scratch  := (S_new - S_old) / stage_dt
+                MultiFab::Copy(S_rhs[IntVars::xmom], scratch_xmom, 0, 0, 1, 0);        // slow_rhs := (S_new - S_old) / stage_dt
 
-                MultiFab::Saxpy(scratch_ymom, -one, S_old[IntVars::ymom], 0, 0, 1, 0); // scratch  := (S_new - S_old)
-                scratch_ymom.mult(one / slow_dt);                                      // scratch  := (S_new - S_old) / slow_dt
-                MultiFab::Copy(S_rhs[IntVars::ymom], scratch_ymom, 0, 0, 1, 0);        // slow_rhs := (S_new - S_old) / slow_dt
+                MultiFab::Saxpy(scratch_ymom, -one_d, S_old[IntVars::ymom], 0, 0, 1, 0); // scratch  := (S_new - S_old)
+                scratch_ymom.mult(one_d / stage_dt);                                 // scratch  := (S_new - S_old) / stage_dt
+                MultiFab::Copy(S_rhs[IntVars::ymom], scratch_ymom, 0, 0, 1, 0);        // slow_rhs := (S_new - S_old) / stage_dt
 #ifdef ERF_IMPLICIT_W
-                MultiFab::Saxpy(scratch_zmom, -one, S_old[IntVars::zmom], 0, 0, 1, 0); // scratch  := (S_new - S_old)
-                scratch_zmom.mult(one / slow_dt);                                      // scratch  := (S_new - S_old) / slow_dt
-                MultiFab::Copy(S_rhs[IntVars::zmom], scratch_zmom, 0, 0, 1, 0);        // slow_rhs := (S_new - S_old) / slow_dt
+                MultiFab::Saxpy(scratch_zmom, -one_d, S_old[IntVars::zmom], 0, 0, 1, 0); // scratch  := (S_new - S_old)
+                scratch_zmom.mult(one_d / stage_dt);                                 // scratch  := (S_new - S_old) / stage_dt
+                MultiFab::Copy(S_rhs[IntVars::zmom], scratch_zmom, 0, 0, 1, 0);        // slow_rhs := (S_new - S_old) / stage_dt
 #endif
             }
         }
 
-#ifdef ERF_USE_SHOC
-        if (solverChoice.use_shoc) {
-            shoc_interface[level]->add_fast_tend(S_rhs);
+#ifdef ERF_USE_EAMXX_SHOC
+        if (solverChoice.turbChoice[level].uses_eamxx_shoc() && eamxx_shoc_interface[level]) {
+            eamxx_shoc_interface[level]->add_fast_tend(S_rhs);
         }
 #endif
+        if (solverChoice.turbChoice[level].uses_native_shoc() && native_shoc_driver[level]) {
+            // Native SHOC applies its increment directly to state; ERF no
+            // longer adds a separate fast RHS contribution.
+        }
 
         // *****************************************************************************
         // Update for moving terrain
@@ -257,7 +313,7 @@
             AMREX_ALWAYS_ASSERT(solverChoice.advChoice.dycore_horiz_adv_type == AdvType::Centered_2nd);
             AMREX_ALWAYS_ASSERT(solverChoice.advChoice.dycore_vert_adv_type  == AdvType::Centered_2nd);
 
-            Real dt_base  = (new_stage_time - old_step_time);
+            double dt_base = new_stage_time - old_step_time;
 
             const Real l_rdOcp   = solverChoice.rdOcp;
 
@@ -306,8 +362,9 @@
                    Real src_r  = - invdetJ * ( zflux_r_hi  - zflux_r_lo  ) * dxInv[2];
                    Real src_rt = - invdetJ * ( zflux_rt_hi - zflux_rt_lo ) * dxInv[2];
 
-                   Real rho0_new     = dJ_old_arr(i,j,k) *  r0_arr(i,j,k) + dt_base * dJ_src_arr(i,j,k) * src_r;
-                   Real rt0_tmp_new  = dJ_old_arr(i,j,k) * rt0_arr(i,j,k) + dt_base * dJ_src_arr(i,j,k) * src_rt;
+                   Real dt_b = static_cast<Real>(dt_base);
+                   Real rho0_new     = dJ_old_arr(i,j,k) *  r0_arr(i,j,k) + dt_b * dJ_src_arr(i,j,k) * src_r;
+                   Real rt0_tmp_new  = dJ_old_arr(i,j,k) * rt0_arr(i,j,k) + dt_b * dJ_src_arr(i,j,k) * src_rt;
 
                    r0_new_arr(i,j,k) = rho0_new / dJ_new_arr(i,j,k);
                    rt0_tmp_new      /=            dJ_new_arr(i,j,k);
@@ -326,20 +383,23 @@
         // Populate RHS for relaxation zones if using real bcs
         if (solverChoice.use_real_bcs && (level == 0)) {
             const Real bdy_factor = solverChoice.bdy_nudge_factor;
-            const bool do_upwind  = solverChoice.upwind_real_bcs;
             if (real_width>0) {
                 //
                 // Note that old_stage_time is elapsed time, but (start_time+old_stage_time) is total time
                 //           start_bdy_time and final_bdy_time are total time
                 //
-                Real total_time = start_time + old_stage_time;
+                double total_time = start_time + old_stage_time;
+                Real l_rdOcp    = solverChoice.rdOcp;
+                Real l_c_p      = solverChoice.c_p;
                 realbdy_compute_interior_ghost_rhs(total_time, slow_dt,
                                                    start_bdy_time, final_bdy_time, bdy_time_interval,
-                                                   bdy_factor, real_width, do_upwind, fine_geom,
+                                                   bdy_factor, real_width, fine_geom,
                                                    S_rhs, S_data,
                                                    bdy_data_xlo, bdy_data_xhi,
                                                    bdy_data_ylo, bdy_data_yhi,
-                                                   m_r2d);
+                                                   m_r2d, l_c_p, l_rdOcp,
+                                                   solverChoice.use_wrf_bdy_density,
+                                                   solverChoice.bdy_rho_nudge_factor);
             }
         }
 #endif

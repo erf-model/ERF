@@ -1,3 +1,6 @@
+/**
+ * \file ERF_ReadFromWRFLow.cpp
+ */
 #include "AMReX_FArrayBox.H"
 #include "ERF_NCWpsFile.H"
 #include "ERF_NCInterface.H"
@@ -17,10 +20,10 @@ using namespace amrex;
 
 #ifdef ERF_USE_NETCDF
 
-Real
+double
 read_times_from_wrflow (const std::string& nc_low_file,
                         Vector<Vector<FArrayBox>>& low_data_zlo,
-                        Real& start_low_time, Real& final_low_time)
+                        double& start_low_time, double& final_low_time)
 {
     Print() << "Loading lower boundary data from NetCDF file " << std::endl;
 
@@ -29,7 +32,7 @@ read_times_from_wrflow (const std::string& nc_low_file,
     // *******************************************************************************
 
     int ntimes;
-    Real timeInterval;
+    double timeInterval;
     const std::string dateTimeFormat = "%Y-%m-%d_%H:%M:%S";
 
     if (ParallelDescriptor::IOProcessor())
@@ -42,33 +45,33 @@ read_times_from_wrflow (const std::string& nc_low_file,
 
         ntimes = array_ts[0].get_vshape()[0];
 
-        auto dateStrLen = array_ts[0].get_vshape()[1];
-        char timeStamps[ntimes][dateStrLen];
+        Vector<std::string> timeStamps;
+        timeStamps.reserve(ntimes);
 
-        // Fill up the characters read
-        int str_len = static_cast<int>(dateStrLen);
-        for (int nt(0); nt < ntimes; nt++) {
-            for (int dateStrCt(0); dateStrCt < str_len; dateStrCt++) {
-                auto n = nt*dateStrLen + dateStrCt;
-                timeStamps[nt][dateStrCt] = *(array_ts[0].get_data() + n);
-            }
+        const char* data = array_ts[0].get_data();
+        auto dateStrLen  = array_ts[0].get_vshape()[1];
+
+        for (int nt = 0; nt < ntimes; ++nt) {
+            const char* begin = data + nt * dateStrLen;
+            timeStamps.emplace_back(begin, begin + dateStrLen);
         }
+
 
         Vector<std::time_t> epochTimes;
         for (int nt(0); nt < ntimes; nt++) {
-            std::string date(&timeStamps[nt][0], &timeStamps[nt][dateStrLen-1]+1);
+            std::string date = timeStamps[nt];
             auto epochTime = getEpochTime(date, dateTimeFormat);
             Print() << "  wrflow datetime " << nt << " : " << date << " " << epochTime << std::endl;
             epochTimes.push_back(epochTime);
 
             if (nt == 1) {
-                timeInterval = static_cast<Real>(epochTimes[1] - epochTimes[0]);
+                timeInterval = static_cast<double>(epochTimes[1] - epochTimes[0]);
             } else if (nt >= 1) {
-              AMREX_ALWAYS_ASSERT(static_cast<Real>(epochTimes[nt] - epochTimes[nt-1]) == timeInterval);
+                AMREX_ALWAYS_ASSERT(static_cast<double>(epochTimes[nt] - epochTimes[nt-1]) == timeInterval);
             }
         }
-        start_low_time = static_cast<Real>(epochTimes[0]);
-        final_low_time = static_cast<Real>(epochTimes[ntimes-1]);
+        start_low_time = static_cast<double>(epochTimes[0]);
+        final_low_time = static_cast<double>(epochTimes[ntimes-1]);
     }
 
     ParallelDescriptor::Bcast(&start_low_time,1,ioproc);

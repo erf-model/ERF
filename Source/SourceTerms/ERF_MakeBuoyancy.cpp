@@ -16,17 +16,17 @@ using namespace amrex;
  * equation for the z-component of momentum in the slow integrator.  There
  * are three options for how buoyancy is computed (two are the same in the absence of moisture).
  *
+ * @param[in]  lev           level
  * @param[in]  S_data        current solution
  * @param[in]  S_prim        primitive variables (i.e. conserved variables divided by density)
+ * @param[in]  qt            total water in the state
  * @param[out] buoyancy      buoyancy term computed here
- * @param[in]  qmoist        moisture variables (in order: qv, qc, qi, ...)
- * @param[in]  qv_d          lateral average of cloud vapor
- * @param[in]  qc_d          lateral average of cloud vapor
- * @param[in]  qd_d          lateral average of cloud vapor
  * @param[in]  geom          Container for geometric information
  * @param[in]  solverChoice  Container for solver parameters
- * @param[in]  r0            Reference (hydrostatically stratified) density
+ * @param[in]  base_state    base state
  * @param[in]  n_qstate      Number of moist variables used by the current model
+ * @param[in]  ebfact        Container of EB information
+ * @param[in]  anelastic     Are we solving the anelastic equations (1 if yes, 0 if no)
  */
 
 void make_buoyancy (int lev,
@@ -48,9 +48,6 @@ void make_buoyancy (int lev,
 
     const int klo = geom.Domain().smallEnd()[2];
     const int khi = geom.Domain().bigEnd()[2] + 1;
-
-    Real rd_over_cp = solverChoice.rdOcp;
-    //Real rv_over_rd = R_v/R_d;
 
     MultiFab r0 (base_state, make_alias, BaseState::r0_comp , 1);
     MultiFab p0 (base_state, make_alias, BaseState::p0_comp , 1);
@@ -105,7 +102,7 @@ void make_buoyancy (int lev,
                     //
                     // Return -rho0 g (thetaprime / theta0)
                     //
-                    //buoyancy_fab(i, j, k) = buoyancy_moist_anelastic(i,j,k,grav_gpu[2],rv_over_rd,
+                    //buoyancy_fab(i, j, k) = buoyancy_moist_anelastic(i,j,k,grav_gpu[2],RvoRd_d,
                     //                                                 r0_arr,th0_arr,qv0_arr,cell_data,qt_arr);
 
                     // NOTE: Using the type 4, which we formally derived.
@@ -127,17 +124,17 @@ void make_buoyancy (int lev,
                         // Return -rho0 g (thetaprime / theta0)
                         //
                         buoyancy_fab(i, j, k) = buoyancy_rhopert(i,j,k,grav_gpu[2],
-                                                                 r0_arr,cell_data,qt_arr);
+                                                                 r0_arr,qv0_arr,cell_data,qt_arr);
                     });
                 }
                 else if (solverChoice.buoyancy_type[lev] == 2 || solverChoice.buoyancy_type[lev] == 3)
                 {
-                    ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+                    ParallelFor(tbz, [=,rdOcp_d=solverChoice.rdOcp] AMREX_GPU_DEVICE (int i, int j, int k)
                     {
                         //
                         // Return -rho0 g (Tprime / T0)
                         //
-                        buoyancy_fab(i, j, k) = buoyancy_dry_Tpert(i,j,k,grav_gpu[2],rd_over_cp,
+                        buoyancy_fab(i, j, k) = buoyancy_dry_Tpert(i,j,k,grav_gpu[2],rdOcp_d,
                                                                    r0_arr,p0_arr,th0_arr,cell_data);
                     });
                 }
@@ -160,8 +157,8 @@ void make_buoyancy (int lev,
                 // ******************************************************************************************
 
                 if ( (solverChoice.moisture_type == MoistureType::Kessler_NoRain) ||
-                    (solverChoice.moisture_type == MoistureType::SAM)            ||
-                    (solverChoice.moisture_type == MoistureType::SAM_NoPrecip_NoIce) )
+                     (solverChoice.moisture_type == MoistureType::SAM)            ||
+                     (solverChoice.moisture_type == MoistureType::SAM_NoPrecip_NoIce) )
                 {
                     AMREX_ALWAYS_ASSERT(solverChoice.buoyancy_type[lev] == 1);
                 }
@@ -171,15 +168,15 @@ void make_buoyancy (int lev,
                     ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k)
                     {
                         buoyancy_fab(i, j, k) = buoyancy_rhopert(i,j,k,grav_gpu[2],
-                                                                 r0_arr,cell_data,qt_arr);
+                                                                 r0_arr,qv0_arr,cell_data,qt_arr);
                     });
                 }
                 else if (solverChoice.buoyancy_type[lev] == 2 || solverChoice.buoyancy_type[lev] == 3)
                 {
 
-                    ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+                    ParallelFor(tbz, [=,RdoCp_d=RdoCp] AMREX_GPU_DEVICE (int i, int j, int k)
                     {
-                        buoyancy_fab(i, j, k) = buoyancy_moist_Tpert(i,j,k,n_qstate,grav_gpu[2],rd_over_cp,
+                        buoyancy_fab(i, j, k) = buoyancy_moist_Tpert(i,j,k,n_qstate,grav_gpu[2],RdoCp_d,
                                                                      r0_arr,th0_arr,qv0_arr,p0_arr,
                                                                      cell_prim,cell_data,qt_arr);
                     });
@@ -230,7 +227,7 @@ void make_buoyancy (int lev,
                     ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k)
                     {
                         buoyancy_fab(i, j, k) = buoyancy_rhopert_eb(i,j,k,grav_gpu[2],
-                                                                    r0_arr,cell_data,qt_arr,cellflg);
+                                                                    r0_arr,qv0_arr,cell_data,qt_arr,cellflg);
                     });
                 }
             }

@@ -19,18 +19,22 @@ using namespace amrex;
  * @param[in]  xflux flux in x-dir
  * @param[in]  yflux flux in y-dir
  * @param[in]  zflux flux in z-dir
+ * @param[in]  stretched_dz_d array of vertical grid spacings
  * @param[in]  cellSizeInv inverse cell size array
  * @param[in]  SmnSmn_a strain rate magnitude
- * @param[in]  mf_m map factor at cell center
- * @param[in]  mf_u map factor at x-face
- * @param[in]  mf_v map factor at y-face
+ * @param[in]  mf_mx x map factor at cell centers
+ * @param[in]  mf_ux x map factor at x-faces
+ * @param[in]  mf_vx x map factor at y-faces
+ * @param[in]  mf_my y map factor at cell centers
+ * @param[in]  mf_uy y map factor at x-faces
+ * @param[in]  mf_vy y map factor at y-faces
  * @param[inout]  hfx_z heat flux in z-dir
  * @param[inout]  qfx1_z heat flux in z-dir
  * @param[out]    qfx2_z heat flux in z-dir
  * @param[in]  diss dissipation of TKE
  * @param[in]  mu_turb turbulent viscosity
- * @param[in]  diffChoice container of diffusion parameters
- * @param[in]  turbChoice container of turbulence parameters
+ * @param[in]  solverChoice container of solver and diffusion parameters
+ * @param[in]  level AMR level
  * @param[in]  tm_arr theta mean array
  * @param[in]  grav_gpu gravity vector
  * @param[in]  bc_ptr container with boundary conditions
@@ -182,10 +186,14 @@ DiffusionSrcForState_S (const Box& bx, const Box& domain,
                 GradCz = dzk_inv * ( cell_prim(i, j, k, prim_index) - cell_prim(i, j, k-1, prim_index) );
             }
 
-            if (SurfLayer_on_zlo && (qty_index == RhoTheta_comp)) {
-                zflux(i,j,k) = hfx_z(i,j,0);
-            } else if (SurfLayer_on_zlo && (qty_index == RhoQ1_comp)) {
-                zflux(i,j,k) = qfx1_z(i,j,0);
+            if (SurfLayer_on_zlo) {
+                if (qty_index == RhoTheta_comp) {
+                    zflux(i,j,k) = hfx_z(i,j,0);
+                } else if (qty_index == RhoQ1_comp) {
+                    zflux(i,j,k) = qfx1_z(i,j,0);
+                } else {
+                    zflux(i,j,k) = zero;
+                }
             } else {
                 zflux(i,j,k) = -rhoAlpha * GradCz;
             }
@@ -295,10 +303,14 @@ DiffusionSrcForState_S (const Box& bx, const Box& domain,
 
             bool SurfLayer_on_zlo = ( use_SurfLayer && k == dom_lo.z);
 
-            if (SurfLayer_on_zlo && (qty_index == RhoTheta_comp)) {
-                zflux(i,j,k) = hfx_z(i,j,0);
-            } else if (SurfLayer_on_zlo && (qty_index == RhoQ1_comp)) {
-                zflux(i,j,k) = qfx1_z(i,j,0);
+            if (SurfLayer_on_zlo) {
+                if (qty_index == RhoTheta_comp) {
+                    zflux(i,j,k) = hfx_z(i,j,0);
+                } else if (qty_index == RhoQ1_comp) {
+                    zflux(i,j,k) = qfx1_z(i,j,0);
+                } else {
+                    zflux(i,j,k) = zero;
+                }
             } else {
                 zflux(i,j,k) = -rhoAlpha * GradCz;
             }
@@ -405,10 +417,14 @@ DiffusionSrcForState_S (const Box& bx, const Box& domain,
 
             bool SurfLayer_on_zlo = ( use_SurfLayer && k == dom_lo.z);
 
-            if (SurfLayer_on_zlo && (qty_index == RhoTheta_comp)) {
-                zflux(i,j,k) = hfx_z(i,j,0);
-            } else if (SurfLayer_on_zlo && (qty_index == RhoQ1_comp)) {
-                zflux(i,j,k) = qfx1_z(i,j,0);
+            if (SurfLayer_on_zlo) {
+                if (qty_index == RhoTheta_comp) {
+                    zflux(i,j,k) = hfx_z(i,j,0);
+                } else if (qty_index == RhoQ1_comp) {
+                    zflux(i,j,k) = qfx1_z(i,j,0);
+                } else {
+                    zflux(i,j,k) = zero;
+                }
             } else {
                 zflux(i,j,k) = -rhoAlpha * GradCz;
             }
@@ -512,10 +528,14 @@ DiffusionSrcForState_S (const Box& bx, const Box& domain,
 
             bool SurfLayer_on_zlo = ( use_SurfLayer && k == dom_lo.z);
 
-            if (SurfLayer_on_zlo && (qty_index == RhoTheta_comp)) {
-                zflux(i,j,k) = hfx_z(i,j,0);
-            } else if (SurfLayer_on_zlo && (qty_index == RhoQ1_comp)) {
-                zflux(i,j,k) = qfx1_z(i,j,0);
+            if (SurfLayer_on_zlo) {
+                if (qty_index == RhoTheta_comp) {
+                    zflux(i,j,k) = hfx_z(i,j,0);
+                } else if (qty_index == RhoQ1_comp) {
+                    zflux(i,j,k) = qfx1_z(i,j,0);
+                } else {
+                    zflux(i,j,k) = zero;
+                }
             } else {
                 zflux(i,j,k) = -rhoAlpha * GradCz;
             }
@@ -546,6 +566,7 @@ DiffusionSrcForState_S (const Box& bx, const Box& domain,
 
     // This allows us to do semi-implicit discretization of the vertical diffusive terms
     if (qty_index == RhoTheta_comp ||
+        qty_index == RhoKE_comp    ||
         qty_index == RhoQ1_comp) {
         ParallelFor(zbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
@@ -568,6 +589,7 @@ DiffusionSrcForState_S (const Box& bx, const Box& domain,
 
     } // n
 
+    const PBLDerivativeDzInv_S pbl_derivative_dz_inv{dz_ptr, klo, khi};
 #include "ERF_AddTKESources.H"
 #include "ERF_AddQKESources.H"
 }

@@ -60,7 +60,7 @@ void erf_substep_NS (int step, int nrk,
                      const Geometry geom,
                      const Real gravity,
                      amrex::Gpu::DeviceVector<amrex::Real>& stretched_dz_d,
-                     const Real dtau, const Real beta_s,
+                     const double dtau_d, const Real beta_s,
                      const Real facinv,
                      Vector<std::unique_ptr<MultiFab>>& mapfac,
                      YAFluxRegister* fr_as_crse,
@@ -75,11 +75,13 @@ void erf_substep_NS (int step, int nrk,
     // NOTE: for step > 0, S_data and S_prev point to the same MultiFab data!!
     //
 
-    BL_PROFILE_REGION("erf_substep_S()");
+    BL_PROFILE_REGION("erf_substep_NS()");
+
+    Real dtau = static_cast<Real>(dtau_d);
 
     const Box& domain = geom.Domain();
-    auto const domlo = lbound(domain);
-    auto const domhi = ubound(domain);
+    auto const domlo  = lbound(domain);
+    auto const domhi  = ubound(domain);
 
     int ilo = domlo.x;
     int ihi = domhi.x + 1;
@@ -92,8 +94,6 @@ void erf_substep_NS (int step, int nrk,
     // How much do we project forward the (rho theta) that is used in the horizontal momentum equations
     Real beta_d = Real(0.1);
 
-    Real RvOverRd = R_v / R_d;
-
     bool l_rayleigh_impl_for_w = (sinesq_stag_d != nullptr);
 
     const Real* dx = geom.CellSize();
@@ -101,6 +101,7 @@ void erf_substep_NS (int step, int nrk,
 
     Real dxi = dxInv[0];
     Real dyi = dxInv[1];
+    Real dzi = dxInv[2];
 
     auto dz_ptr = stretched_dz_d.data();
 
@@ -169,7 +170,7 @@ void erf_substep_NS (int step, int nrk,
 
             // NOTE: qv is not changing over the fast steps so we use the stage data
             Real qv = (l_use_moisture) ? prim(i,j,k,PrimQ1_comp) : zero;
-            theta_extrap(i,j,k) *= (one + RvOverRd*qv);
+            theta_extrap(i,j,k) *= (one + RvoRd*qv);
 
             // We define lagged_delta_rt for our next step as the current delta_rt
             // (after using it above to extrapolate theta for this step)
@@ -223,23 +224,42 @@ void erf_substep_NS (int step, int nrk,
 
         // Map factors
         const Array4<const Real>& mf_ux = mapfac[MapFacType::u_x]->const_array(mfi);
+        const Array4<const Real>& mf_uy = mapfac[MapFacType::u_y]->const_array(mfi);
+        const Array4<const Real>& mf_vx = mapfac[MapFacType::v_x]->const_array(mfi);
         const Array4<const Real>& mf_vy = mapfac[MapFacType::v_y]->const_array(mfi);
 
         // *********************************************************************
         // Define updates in the RHS of {x, y, z}-momentum equations
+        //
+        // NOTE: avg_{x,y}mom is a *flux* that is later handed to the scalar
+        //       advection in erf_slow_rhs_post, which applies (mfsq/detJ) to its
+        //       divergence.  So what we accumulate here must be in the same
+        //       convention as the base value set in AdvectionSrcForRho, namely
+        //       ax*rho_u/mf_uy (and ay*rho_v/mf_vx).  Two weightings are needed:
+        //
+        //       (1) the map factor, matching the density fluxes formed below;
+        //
+        //       (2) h_zeta = ax = detJ, which for this (laterally homogeneous)
+        //           mesh is just dz_ptr[k]/dz.  Note this factor cancels out of
+        //           the rho update we do here -- temp_rhs uses a bare dxi and no
+        //           1/detJ -- but it does NOT cancel for avg_{x,y}mom, because
+        //           the consumer downstream re-applies the 1/detJ that we never
+        //           applied.  It is identically 1 for MeshType::ConstantDz.
         // *********************************************************************
         if (nrk == 0 and step == 0) { // prev == stage
             ParallelFor(tbx, tby,
             [=] AMREX_GPU_DEVICE (int i, int j, int k)
             {
+                Real h_zeta = dz_ptr[k] * dzi;
                 Real new_drho_u = dtau * slow_rhs_rho_u(i,j,k) + dtau * xmom_src_arr(i,j,k);;
-                avg_xmom_arr(i,j,k) += facinv*new_drho_u;
+                avg_xmom_arr(i,j,k) += facinv * new_drho_u * h_zeta / mf_uy(i,j,0);
                 temp_cur_xmom_arr(i,j,k) = stage_xmom(i,j,k) + new_drho_u;
             },
             [=] AMREX_GPU_DEVICE (int i, int j, int k)
             {
+                Real h_zeta = dz_ptr[k] * dzi;
                 Real new_drho_v = dtau * slow_rhs_rho_v(i,j,k) + dtau * ymom_src_arr(i,j,k);
-                avg_ymom_arr(i,j,k) += facinv*new_drho_v;
+                avg_ymom_arr(i,j,k) += facinv * new_drho_v * h_zeta / mf_vx(i,j,0);
                 temp_cur_ymom_arr(i,j,k) = stage_ymom(i,j,k) + new_drho_v;
             });
         } else {
@@ -260,7 +280,8 @@ void erf_substep_NS (int step, int nrk,
                                 + dtau * fast_rhs_rho_u + dtau * slow_rhs_rho_u(i,j,k)
                                 + dtau * xmom_src_arr(i,j,k);
 
-                avg_xmom_arr(i,j,k) += facinv*new_drho_u;
+                Real h_zeta = dz_ptr[k] * dzi;
+                avg_xmom_arr(i,j,k) += facinv * new_drho_u * h_zeta / mf_uy(i,j,0);
 
                 temp_cur_xmom_arr(i,j,k) = stage_xmom(i,j,k) + new_drho_u;
             },
@@ -280,7 +301,8 @@ void erf_substep_NS (int step, int nrk,
                                 + dtau * fast_rhs_rho_v + dtau * slow_rhs_rho_v(i,j,k)
                                 + dtau * ymom_src_arr(i,j,k);
 
-                avg_ymom_arr(i,j,k) += facinv*new_drho_v;
+                Real h_zeta = dz_ptr[k] * dzi;
+                avg_ymom_arr(i,j,k) += facinv * new_drho_v * h_zeta / mf_vx(i,j,0);
 
                 temp_cur_ymom_arr(i,j,k) = stage_ymom(i,j,k) + new_drho_v;
             });
@@ -432,10 +454,9 @@ void erf_substep_NS (int step, int nrk,
                     coeff_Q * (slow_rhs_cons(i,j,k-1,RhoTheta_comp) - temp_rhs_arr(i,j,k-1,RhoTheta_comp)) );
 
             // lines 6&7 consolidated (reuse Omega & metrics) (order dtau^2)
-            Real dz_inv = one / dz_ptr[k];
-            R1_tmp +=  beta_1 * dz_inv * ( (Omega_kp1 - Omega_km1)                         * halfg
-                                          -(Omega_kp1*theta_t_hi  - Omega_k  *theta_t_mid) * coeff_P
-                                          -(Omega_k  *theta_t_mid - Omega_km1*theta_t_lo ) * coeff_Q );
+            R1_tmp +=  beta_1 * ( ( (Omega_kp1 - Omega_k) / dz_ptr[k] + (Omega_k - Omega_km1) / dz_ptr[k-1] ) * halfg
+                                 +(-(Omega_kp1*theta_t_hi  - Omega_k  *theta_t_mid) * coeff_P / dz_ptr[k]
+                                   -(Omega_k  *theta_t_mid - Omega_km1*theta_t_lo ) * coeff_Q / dz_ptr[k-1]) );
 
             // line 1
             RHS_a(i,j,k) = Omega_k + dtau * (slow_rhs_rho_w(i,j,k) + R0_tmp + dtau * beta_2 * R1_tmp + zmom_src_arr(i,j,k));

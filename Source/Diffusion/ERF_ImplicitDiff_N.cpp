@@ -14,34 +14,39 @@ using namespace amrex;
  * @param[in   ] bx     cell-centered box to loop over
  * @param[in   ] level  AMR level
  * @param[in   ] domain box of the whole domain
- * @param[in   ] dt     time step
+ * @param[in   ] n      conserved component index
+ * @param[in   ] dt_d   time step
  * @param[in   ] bc_neumann_vals values of derivatives if bc_type == Neumann
  * @param[inout] cell_data conserved cell-centered rho, rho theta
  * @param[in   ] cellSizeInv inverse cell size array
- * @param[inout] hfx_z heat flux in z-dir
+ * @param[in   ] scalar_zflux scalar vertical flux in z-dir
  * @param[in   ] mu_turb turbulent viscosity
  * @param[in   ] solverChoice container of parameters
  * @param[in   ] bc_ptr container with boundary conditions
  * @param[in   ] use_SurfLayer whether we have turned on subgrid diffusion
  * @param[in   ] implicit_fac if 1 then fully implicit; if 0 then fully explicit
+ * @param[in   ] use_mrf_countergradient whether to include MRF countergradient correction
  */
 void
 ImplicitDiffForStateLU_N (const Box& bx,
                           const Box& domain,
                           const int level,
                           const int n,
-                          const Real dt,
+                          const double dt_d,
                           const GpuArray<Real, AMREX_SPACEDIM*2>& bc_neumann_vals,
                           const Array4<      Real>& cell_data,
                           const GpuArray<Real, AMREX_SPACEDIM>& cellSizeInv,
                           const Array4<const Real>& scalar_zflux,
                           const Array4<const Real>& mu_turb,
-                          const SolverChoice &solverChoice,
+                          const SolverChoice& solverChoice,
                           const BCRec* bc_ptr,
                           const bool use_SurfLayer,
-                          const Real implicit_fac)
+                          const Real implicit_fac,
+                          const bool use_mrf_countergradient)
 {
     BL_PROFILE_VAR("ImplicitDiffForState_N()",ImplicitDiffForState_N);
+
+    Real dt = static_cast<Real>(dt_d);
 
     // setup quantities for getRhoAlpha()
 #include "ERF_SetupVertDiff.H"
@@ -81,9 +86,9 @@ ImplicitDiffForStateLU_N (const Box& bx,
     amrex::ignore_unused(foextrap_on_zlo, foextrap_on_zhi);
 
     AMREX_ASSERT_WITH_MESSAGE(foextrap_on_zlo || neumann_on_zlo || use_SurfLayer,
-                              "Unexpected lower BC used with implicit vertical diffusion");
+                              "Unexpected lower BC for scalars used with implicit vertical diffusion");
     AMREX_ASSERT_WITH_MESSAGE(foextrap_on_zhi || neumann_on_zhi,
-                              "Unexpected upper BC used with implicit vertical diffusion");
+                              "Unexpected upper BC for scalars used with implicit vertical diffusion");
 
     Real Fact = implicit_fac * dt * dz_inv;
 
@@ -115,6 +120,17 @@ ImplicitDiffForStateLU_N (const Box& bx,
                     RHS_a(i,j,klo) += -Fact * rhoAlpha_lo * bc_neumann_vals[2]; // NOTE: N_val = d_z(\phi)
                 }
 
+                // Add countergradient correction to RHS at bottom boundary.
+                // NOTE: The lower face at klo carries no countergradient flux -- the
+                //       total surface flux is supplied by the surface layer model or the
+                //       Neumann BC, while gamma represents nonlocal transport interior to
+                //       the PBL.  Only the upper face contributes here.
+                if (use_mrf_countergradient && (n == RhoTheta_comp || n == RhoQ1_comp)) {
+                    const int gam_comp = (n == RhoTheta_comp) ? EddyDiff::HGAMT_v : EddyDiff::HGAMQ_v;
+                    const Real gam_hi = myhalf * (mu_turb(i, j, klo, gam_comp) + mu_turb(i, j, klo+1, gam_comp));
+                    RHS_a(i,j,klo) -= Fact * rhoAlpha_hi * gam_hi;
+                }
+
                 RHS_a(i,j,klo)    /= b_tmp;         // NOTE: this is now "rho"
                 coeffG_a(i,j,klo)  = c_tmp / b_tmp; // NOTE: this is now "gamma"
             }
@@ -129,9 +145,22 @@ ImplicitDiffForStateLU_N (const Box& bx,
                 a_tmp      = -Fact * rhoAlpha_lo * dz_inv;
                 c_tmp      = -Fact * rhoAlpha_hi * dz_inv;
                 b_tmp      = cell_data(i,j,k,Rho_comp) - a_tmp - c_tmp;
-                inv_b2_tmp = one/ (b_tmp - a_tmp * coeffG_a(i,j,k-1));
+                inv_b2_tmp = one / (b_tmp - a_tmp * coeffG_a(i,j,k-1));
 
                 RHS_a(i,j,k)    = cell_data(i,j,k,n); // NOTE: this is rho*phi; solution is phi
+
+                // Add countergradient correction to RHS in interior
+                if (use_mrf_countergradient && (n == RhoTheta_comp || n == RhoQ1_comp)) {
+                    const int gam_comp = (n == RhoTheta_comp) ? EddyDiff::HGAMT_v : EddyDiff::HGAMQ_v;
+                    const Real gam_k   = mu_turb(i, j, k,   gam_comp);
+                    const Real gam_km1 = mu_turb(i, j, k-1, gam_comp);
+                    const Real gam_kp1 = mu_turb(i, j, k+1, gam_comp);
+                    const Real gam_hi  = myhalf * (gam_k + gam_kp1); // at k+½
+                    const Real gam_lo  = myhalf * (gam_k + gam_km1); // at k-½
+                    // Countergradient flux divergence (implicit contribution to RHS):
+                    //   -Fact * [ρα_{k+½}·γ_{k+½} - ρα_{k-½}·γ_{k-½}]
+                    RHS_a(i,j,k) -= Fact * (rhoAlpha_hi * gam_hi - rhoAlpha_lo * gam_lo);
+                }
 
                 RHS_a(i,j,k)    = (RHS_a(i,j,k) - a_tmp * RHS_a(i,j,k-1)) * inv_b2_tmp; // NOTE: This is now "rho"
                 coeffG_a(i,j,k) = c_tmp * inv_b2_tmp; // NOTE: this is now "gamma"
@@ -147,7 +176,7 @@ ImplicitDiffForStateLU_N (const Box& bx,
                 a_tmp      = -Fact * rhoAlpha_lo * dz_inv;
                 c_tmp      = zero;
                 b_tmp      = cell_data(i,j,khi,Rho_comp) - a_tmp - c_tmp;
-                inv_b2_tmp = one/ (b_tmp - a_tmp * coeffG_a(i,j,khi-1));
+                inv_b2_tmp = one / (b_tmp - a_tmp * coeffG_a(i,j,khi-1));
 
                 RHS_a(i,j,khi) = cell_data(i,j,khi,n); // NOTE: this is rho*phi; solution is phi
                 if (neumann_on_zhi) {
@@ -187,10 +216,10 @@ ImplicitDiffForStateLU_N (const Box& bx,
  *
  * @param[in   ] bx     cell-centered box to loop over
  * @param[in   ] level  AMR level
- * @param[in   ] domain box of the whole domain
- * @param[in   ] dt     time step
+ * @param[in   ] dt_d   time step
  * @param[in   ] cell_data conserved cell-centered rho
  * @param[inout] face_data conserved momentum
+ * @param[in   ] tau stress contribution to momentum
  * @param[in   ] tau_corr stress contribution to momentum that will be corrected by the implicit solve
  * @param[in   ] cellSizeInv inverse cell size array
  * @param[in   ] mu_turb turbulent viscosity
@@ -198,13 +227,14 @@ ImplicitDiffForStateLU_N (const Box& bx,
  * @param[in   ] bc_ptr container with boundary conditions
  * @param[in   ] use_SurfLayer whether we have turned on subgrid diffusion
  * @param[in   ] implicit_fac if 1 then fully implicit; if 0 then fully explicit
+ * @param[in   ] use_ysu_mom_countergradient whether to include YSU momentum countergradient correction
  */
 template <int stagdir>
 void
 ImplicitDiffForMomLU_N (const Box& bx,
                         const Box& /*domain*/,
                         const int level,
-                        const Real dt,
+                        const double dt_d,
                         const Array4<const Real>& cell_data,
                         const Array4<      Real>& face_data,
                         const Array4<const Real>& tau,
@@ -214,17 +244,23 @@ ImplicitDiffForMomLU_N (const Box& bx,
                         const SolverChoice &solverChoice,
                         const BCRec* bc_ptr,
                         const bool use_SurfLayer,
-                        const Real implicit_fac)
+                        const Real implicit_fac,
+                        const bool use_ysu_mom_countergradient)
 {
     BL_PROFILE_VAR("ImplicitDiffForMom_N()",ImplicitDiffForMom_N);
+
+    Real dt = static_cast<Real>(dt_d);
 
     // setup quantities for getRhoAlphaAtFaces()
     DiffChoice dc = solverChoice.diffChoice;
     TurbChoice tc = solverChoice.turbChoice[level];
     bool l_consA  = (dc.molec_diff_type == MolecDiffType::ConstantAlpha);
     bool l_turb   = tc.use_kturb;
-    Real mu_eff = (l_consA) ? two * dc.dynamic_viscosity / dc.rho0_trans
-                            : two * dc.dynamic_viscosity;
+    // The off-diagonal correction strains for u/v contain a factor of 1/2,
+    // while the diagonal correction strain for w does not.
+    constexpr Real molec_fac = (stagdir == 2) ? two : one;
+    Real mu_eff = (l_consA) ? molec_fac * dc.dynamic_viscosity / dc.rho0_trans
+                            : molec_fac * dc.dynamic_viscosity;
 
     // g(S*) coefficient
     // stagdir==0: tau_corr = myhalf * du/dz * mu_tot
@@ -262,16 +298,14 @@ ImplicitDiffForMomLU_N (const Box& bx,
                             bc_ptr[bc_comp].lo(2) == ERFBCType::ext_dir_prim);
     bool ext_dir_on_zhi  = (bc_ptr[bc_comp].hi(2) == ERFBCType::ext_dir ||
                             bc_ptr[bc_comp].hi(2) == ERFBCType::ext_dir_prim);
+    bool foextrap_on_zlo = (bc_ptr[bc_comp].lo(2) == ERFBCType::foextrap);
     bool foextrap_on_zhi = (bc_ptr[bc_comp].hi(2) == ERFBCType::foextrap);
-    amrex::ignore_unused(foextrap_on_zhi);
+    amrex::ignore_unused(foextrap_on_zlo,foextrap_on_zhi);
 
-    AMREX_ASSERT_WITH_MESSAGE(ext_dir_on_zlo || use_SurfLayer,
-                              "Unexpected lower BC used with implicit vertical diffusion");
+    AMREX_ASSERT_WITH_MESSAGE(foextrap_on_zlo || ext_dir_on_zlo || use_SurfLayer,
+                              "Unexpected lower BC for momentum used with implicit vertical diffusion");
     AMREX_ASSERT_WITH_MESSAGE(foextrap_on_zhi || ext_dir_on_zhi,
-                              "Unexpected upper BC used with implicit vertical diffusion");
-    if (stagdir < 2 && (ext_dir_on_zlo || ext_dir_on_zhi)) {
-        amrex::Warning("No-slip walls have not been fully tested");
-    }
+                              "Unexpected upper BC for momentum used with implicit vertical diffusion");
 
     Real Fact = implicit_fac * dt * dz_inv;
 
@@ -337,13 +371,37 @@ ImplicitDiffForMomLU_N (const Box& bx,
                       c_tmp = zero;
                       RHS_a(i,j,klo) = zero;
                   } else {
+                      // NOTE: wall is 1/2 dz away (2 dz_inv)
                       a_tmp = -two * Fact * rhoAlpha_lo * dz_inv;
-                      RHS_a(i,j,klo) += two * rhoAlpha_lo * face_data(i,j,klo-1) * dz_inv * dz_inv;
+                      const Real rho_wall = myhalf * ( cell_data(i     ,j     ,klo-1,Rho_comp)
+                                                     + cell_data(i-ioff,j-joff,klo-1,Rho_comp) );
+                      const Real wall_velocity = face_data(i,j,klo-1) / rho_wall;
+                      RHS_a(i,j,klo) -= a_tmp * wall_velocity;
                   }
               } else if (use_SurfLayer) {
                   // NOTE: tau = -mu*d_z(u_i) w/ SL
                   RHS_a(i,j,klo) += Fact * gfac * (tau_corr(i,j,klo+1) - tau(i,j,klo));
                   RHS_a(i,j,klo) += Fact * tau(i,j,klo);
+              } else {
+                  // NOTE: FOEXTRAP has zero lower flux (nothing to add to RHS)
+                  RHS_a(i,j,klo) += Fact * gfac * (tau_corr(i,j,klo+1) - tau_corr(i,j,klo));
+              }
+
+              // Add YSU momentum countergradient correction at bottom boundary.
+              // NOTE: As for the scalars, the lower face at klo carries no
+              //       countergradient flux -- the surface stress is supplied by the
+              //       surface layer model or the wall BC above.  Only the upper face
+              //       contributes here.
+              // NOTE: The sign matches the scalar path: tau_i3 = -rho*K*(du_i/dz - gamma_i),
+              //       so the countergradient piece of the flux is +rho*K*gamma_i and its
+              //       divergence enters the RHS with a minus sign.
+              if (use_ysu_mom_countergradient && stagdir < 2) {
+                  const int hgam_comp = (stagdir == 0) ? EddyDiff::HGAMU_v : EddyDiff::HGAMV_v;
+                  // Average HGAM* to the staggered face
+                  const Real gam_klo = myhalf * (mu_turb(i,j,klo  ,hgam_comp) + mu_turb(i-ioff,j-joff,klo  ,hgam_comp));
+                  const Real gam_kp1 = myhalf * (mu_turb(i,j,klo+1,hgam_comp) + mu_turb(i-ioff,j-joff,klo+1,hgam_comp));
+                  const Real gam_hi  = myhalf * (gam_klo + gam_kp1);
+                  RHS_a(i,j,klo) -= Fact * rhoAlpha_hi * gam_hi;
               }
 
               b_tmp      = rhoface - a_tmp - c_tmp;
@@ -369,6 +427,18 @@ ImplicitDiffForMomLU_N (const Box& bx,
               RHS_a(i,j,k)    = face_data(i,j,k); // NOTE: this is momenta; solution is velocity
               RHS_a(i,j,k)   += Fact * gfac * (tau_corr(i,j,k+1) - tau_corr(i,j,k));
 
+              // Add YSU momentum countergradient correction
+              if (use_ysu_mom_countergradient && stagdir < 2) {
+                  const int hgam_comp = (stagdir == 0) ? EddyDiff::HGAMU_v : EddyDiff::HGAMV_v;
+                  // Average HGAM* to the staggered face
+                  const Real gam_k   = myhalf * (mu_turb(i,j,k  ,hgam_comp) + mu_turb(i-ioff,j-joff,k  ,hgam_comp));
+                  const Real gam_km1 = myhalf * (mu_turb(i,j,k-1,hgam_comp) + mu_turb(i-ioff,j-joff,k-1,hgam_comp));
+                  const Real gam_kp1 = myhalf * (mu_turb(i,j,k+1,hgam_comp) + mu_turb(i-ioff,j-joff,k+1,hgam_comp));
+                  const Real gam_hi  = myhalf * (gam_k + gam_kp1); // at k+1/2
+                  const Real gam_lo  = myhalf * (gam_k + gam_km1); // at k-1/2
+                  RHS_a(i,j,k) -= Fact * (rhoAlpha_hi * gam_hi - rhoAlpha_lo * gam_lo);
+              }
+
               RHS_a(i,j,k)    = (RHS_a(i,j,k) - a_tmp * RHS_a(i,j,k-1)) * inv_b2_tmp; // NOTE: This is now "rho"
               coeffG_a(i,j,k) = c_tmp * inv_b2_tmp; // NOTE: this is now "gamma"
           } // k
@@ -393,8 +463,12 @@ ImplicitDiffForMomLU_N (const Box& bx,
                       a_tmp = zero;
                       RHS_a(i,j,khi) = zero;
                   } else {
+                      // NOTE: wall is 1/2 dz away (2 dz_inv)
                       c_tmp = -two * Fact * rhoAlpha_hi * dz_inv;
-                      RHS_a(i,j,khi) += two * rhoAlpha_hi * face_data(i,j,khi+1) * dz_inv * dz_inv;
+                      const Real rho_wall = myhalf * ( cell_data(i     ,j     ,khi+1,Rho_comp)
+                                                     + cell_data(i-ioff,j-joff,khi+1,Rho_comp) );
+                      const Real wall_velocity = face_data(i,j,khi+1) / rho_wall;
+                      RHS_a(i,j,khi) -= c_tmp * wall_velocity;
                   }
               }
 
@@ -431,7 +505,7 @@ ImplicitDiffForMomLU_N (const Box& bx,
         const Box&, \
         const Box&, \
         const int, \
-        const Real, \
+        const double, \
         const Array4<const Real>&, \
         const Array4<      Real>&, \
         const Array4<const Real>&, \
@@ -441,8 +515,9 @@ ImplicitDiffForMomLU_N (const Box& bx,
         const SolverChoice&, \
         const BCRec*, \
         const bool, \
-        const Real);
+        const Real, \
+        const bool);
 INSTANTIATE_IMPLICIT_DIFF_FOR_MOM_LU(0)
 INSTANTIATE_IMPLICIT_DIFF_FOR_MOM_LU(1)
 INSTANTIATE_IMPLICIT_DIFF_FOR_MOM_LU(2)
-#undef INSTANTIATE_IMPLICIT_DIFF_FOR_MOM
+#undef INSTANTIATE_IMPLICIT_DIFF_FOR_MOM_LU

@@ -1,6 +1,6 @@
 ############################ BASE ######################################
 
-cmake_minimum_required (VERSION 3.14 FATAL_ERROR)
+cmake_minimum_required (VERSION 3.20 FATAL_ERROR)
 
 # Set main ERF context
 list(APPEND CMAKE_MESSAGE_CONTEXT "ERF")
@@ -9,7 +9,7 @@ list(APPEND CMAKE_MESSAGE_CONTEXT "ERF")
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/CMake")
 include(CrayCompilerDetection)
 
-if(ERF_ENABLE_MORR_FORT OR ERF_ENABLE_WSM6_FORT OR ERF_ENABLE_NOAHMP)
+if(ERF_ENABLE_MORR_FORT OR ERF_ENABLE_WSM6_FORT OR ERF_ENABLE_WDM6_FORT OR ERF_ENABLE_NOAHMP)
   project(ERF CXX C Fortran)
 else()
   project(ERF CXX C)
@@ -143,7 +143,21 @@ option(ERF_ENABLE_ML_UPHYS_DIAGNOSTICS "Enable ML UPHYS diagnostics in SDM" OFF)
 if(ERF_ENABLE_ML_UPHYS_DIAGNOSTICS AND NOT ERF_ENABLE_PARTICLES)
   message(FATAL_ERROR "ERF_ENABLE_ML_UPHYS_DIAGNOSTICS requires particles be enabled")
 endif()
-option(ERF_ENABLE_SHOC "Enable SHOC" OFF)
+option(ERF_ENABLE_EAMXX_SHOC "Build EAMxx SHOC parameterization" OFF)
+option(ERF_ENABLE_SHOC "Deprecated alias for ERF_ENABLE_EAMXX_SHOC" OFF)
+if(ERF_ENABLE_SHOC AND NOT ERF_ENABLE_EAMXX_SHOC)
+  message(WARNING "ERF_ENABLE_SHOC is deprecated; use ERF_ENABLE_EAMXX_SHOC=ON")
+  set(ERF_ENABLE_EAMXX_SHOC ON CACHE BOOL "Build EAMxx SHOC parameterization" FORCE)
+endif()
+
+# The checked-in Source/PhysicsInterfaces/eamxx_config.h defines SCREAM_DOUBLE_PRECISION, so
+# scream::Real is double and the EAMxx ETI files we compile only instantiate the SHOC templates
+# for double.  ERF instantiates them with amrex::Real, so a SINGLE precision build would ask for
+# Functions<float,...> and fail to link.  Refuse the combination here rather than at link time.
+if(ERF_ENABLE_EAMXX_SHOC AND NOT ERF_PRECISION STREQUAL "DOUBLE")
+  message(FATAL_ERROR "ERF_ENABLE_EAMXX_SHOC requires ERF_PRECISION=DOUBLE because the vendored "
+                      "eamxx_config.h builds EAMxx in double precision")
+endif()
 
 #Options for performance
 option(ERF_ENABLE_MPI "Enable MPI" OFF)
@@ -159,6 +173,15 @@ option(ERF_ENABLE_NOAHMP "Enable Noah-MP" OFF)
 #Other parameterizations
 option(ERF_ENABLE_WINDFARM "Enable wind farm parameterizations" OFF)
 option(ERF_ENABLE_WSM6_FORT "Enable WSM6 Fortran bridge calls" OFF)
+option(ERF_ENABLE_WDM6_FORT "Enable WDM6 Fortran bridge calls" OFF)
+
+if(ERF_ENABLE_WSM6_FORT AND NOT ERF_PRECISION STREQUAL "DOUBLE")
+  message(FATAL_ERROR "ERF_ENABLE_WSM6_FORT requires ERF_PRECISION=DOUBLE because the WSM6 Fortran bridge is double-precision only")
+endif()
+
+if(ERF_ENABLE_WDM6_FORT AND NOT ERF_PRECISION STREQUAL "DOUBLE")
+  message(FATAL_ERROR "ERF_ENABLE_WDM6_FORT requires ERF_PRECISION=DOUBLE because the WDM6 Fortran bridge is double-precision only")
+endif()
 
 #Option to build tools
 option(ERF_ENABLE_TOOLS "Enable building of additional tools" OFF)
@@ -322,7 +345,7 @@ list(POP_BACK CMAKE_MESSAGE_CONTEXT)
 
 ########################## EKAT ##################################
 
-if(ERF_ENABLE_RRTMGP OR ERF_ENABLE_SHOC OR ERF_ENABLE_P3)
+if(ERF_ENABLE_RRTMGP OR ERF_ENABLE_EAMXX_SHOC OR ERF_ENABLE_P3)
   set(ERF_ENABLE_EKAT ON)
 else()
   set(ERF_ENABLE_EKAT OFF)
@@ -486,7 +509,7 @@ if(ERF_ENABLE_MPI)
     # Normal path: Use find_package with QUIET
     message(VERBOSE "Using find_package(MPI) for detection")
     set(_mpi_comps C CXX)
-    if(ERF_ENABLE_MORR_FORT OR ERF_ENABLE_WSM6_FORT OR ERF_ENABLE_NOAHMP)
+    if(ERF_ENABLE_MORR_FORT OR ERF_ENABLE_WSM6_FORT OR ERF_ENABLE_WDM6_FORT OR ERF_ENABLE_NOAHMP)
       list(APPEND _mpi_comps Fortran)
     endif()
     message(DEBUG "MPI components: ${_mpi_comps}")
@@ -559,6 +582,10 @@ if(ERF_ENABLE_NOAHMP)
      message(VERBOSE "Noah-MP source: ${NOAHMP_HOME}")
      message(VERBOSE "Noah-MP binary: ${NOAHMP_BIN}")
      add_subdirectory(${NOAHMP_HOME} ${NOAHMP_BIN})
+
+     if(ERF_PRECISION STREQUAL "DOUBLE")
+        target_compile_definitions(noahmp PUBLIC DOUBLE_PREC)
+     endif()
   else()
      message(FATAL_ERROR "Noah-MP requires NetCDF be enabled")
   endif()
@@ -606,7 +633,7 @@ endif()
 
 ########################### SHOC #################################
 
-if(ERF_ENABLE_SHOC)
+if(ERF_ENABLE_EAMXX_SHOC)
   list(APPEND CMAKE_MESSAGE_CONTEXT "SHOC")
 
   message(STATUS "Configuring SHOC")
@@ -619,7 +646,7 @@ if(ERF_ENABLE_SHOC)
   message(VERBOSE "SHOC source files will be compiled directly")
 
   # E3SM Cloned Check
-  if(ERF_ENABLE_SHOC OR ERF_ENABLE_P3)
+  if(ERF_ENABLE_EAMXX_SHOC OR ERF_ENABLE_P3)
     message(VERBOSE "Checking EAMxx files from E3SM")
 
     set(E3SM_EXPECTED_PATH "${PROJECT_SOURCE_DIR}/external/E3SM")
@@ -637,7 +664,7 @@ if(ERF_ENABLE_SHOC)
             "  ln -s /path/to/your/E3SM ${PROJECT_SOURCE_DIR}/external/E3SM\n"
             "\n"
             "Or disable features:\n"
-            "  cmake -DERF_ENABLE_SHOC=OFF -DERF_ENABLE_P3=OFF ..\n")
+            "  cmake -DERF_ENABLE_EAMXX_SHOC=OFF -DERF_ENABLE_P3=OFF ..\n")
     endif()
   else()
     message(DEBUG "EKAT physics not enabled, skipping E3SM check")

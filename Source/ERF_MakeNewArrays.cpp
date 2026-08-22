@@ -31,7 +31,7 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
     //
     // Here is where we set the number of ghost cells for the base state!
     // ********************************************************************************************
-    int ngb = (solverChoice.terrain_type == TerrainType::EB) ? ComputeGhostCells(solverChoice)+1 : 3;
+    int ngb = ComputeGhostCells(solverChoice) + 1;
     tmp_base_state.define(ba,dm,BaseState::num_comps,ngb);
     tmp_base_state.setVal(zero);
 
@@ -101,6 +101,16 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
     {
         terrain_blanking[lev] = std::make_unique<MultiFab>(ba,dm,1,ngrow);
         terrain_blanking[lev]->setVal(one);
+
+#if USE_FC_FACTORY
+        // Face-centered terrain blanking for momentum forcing
+        terrain_blanking_xface[lev] = std::make_unique<MultiFab>(convert(ba,IntVect(1,0,0)),dm,1,ngrow);
+        terrain_blanking_yface[lev] = std::make_unique<MultiFab>(convert(ba,IntVect(0,1,0)),dm,1,ngrow);
+        terrain_blanking_zface[lev] = std::make_unique<MultiFab>(convert(ba,IntVect(0,0,1)),dm,1,ngrow);
+        terrain_blanking_xface[lev]->setVal(one);
+        terrain_blanking_yface[lev]->setVal(one);
+        terrain_blanking_zface[lev]->setVal(one);
+#endif
     }
 
     // We use these area arrays regardless of terrain, EB or none of the above
@@ -119,7 +129,7 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
     // ********************************************************************************************
     if (solverChoice.turbChoice[lev].rans_type != RANSType::None) {
         walldist[lev] = std::make_unique<MultiFab>(ba,dm,1,1);
-        walldist[lev]->setVal(Real(1.234e10));
+        walldist[lev]->setVal(bogus_large_value);
     } else {
         walldist[lev] = nullptr;
     }
@@ -166,10 +176,10 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
     lev_old[Vars::yvel].define(convert(ba, IntVect(0,1,0)), dm, 1, ngrow_vels);
 
     // Set these to avoid operations on uninitialized data
-    lev_new[Vars::xvel].setVal(Real(1.234e10));
-    lev_old[Vars::xvel].setVal(Real(1.234e10));
-    lev_new[Vars::yvel].setVal(Real(1.234e10));
-    lev_old[Vars::yvel].setVal(Real(1.234e10));
+    lev_new[Vars::xvel].setVal(bogus_large_value);
+    lev_old[Vars::xvel].setVal(bogus_large_value);
+    lev_new[Vars::yvel].setVal(bogus_large_value);
+    lev_old[Vars::yvel].setVal(bogus_large_value);
 
     // Note that we need the ghost cells in the z-direction if we are doing any
     // kind of domain decomposition in the vertical (at level 0 or above)
@@ -228,12 +238,12 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
     }
 
     // We do this here just so they won't be undefined in the initial FillPatch
-    rU_old[lev].setVal(Real(1.234e10));
-    rV_old[lev].setVal(Real(1.234e10));
-    rW_old[lev].setVal(Real(1.234e10));
-    rU_new[lev].setVal(Real(1.234e10));
-    rV_new[lev].setVal(Real(1.234e10));
-    rW_new[lev].setVal(Real(1.234e10));
+    rU_old[lev].setVal(bogus_large_value);
+    rV_old[lev].setVal(bogus_large_value);
+    rW_old[lev].setVal(bogus_large_value);
+    rU_new[lev].setVal(bogus_large_value);
+    rV_new[lev].setVal(bogus_large_value);
+    rW_new[lev].setVal(bogus_large_value);
 
     // ********************************************************************************************
     // These are just time averaged fields for diagnostics
@@ -340,15 +350,28 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
         }
     }
 
+    if (solverChoice.nudging_from_input_sounding) {
+        nudge_data[lev] = std::make_unique<MultiFab>(ba, dm, 4, ngrow_state);
+        nudge_data[lev]->setVal(0.0);
+    }
+
+    if (solverChoice.large_scale_forcing) {
+        lsf_data[lev] = std::make_unique<MultiFab>(ba, dm, 8, ngrow_state);
+        lsf_data[lev]->setVal(0.0);
+    }
+
+
     // ********************************************************************************************
     // Build WRF data structures
     // ********************************************************************************************
     IntVect ng  = vars_new[lev][Vars::cons].nGrowVect();
 
     if (lev == 0) {
-        mf_C1H = std::make_unique<MultiFab>(ba1d[lev],dm,1,IntVect(ng[0],ng[1],ng[2]));
-        mf_C2H = std::make_unique<MultiFab>(ba1d[lev],dm,1,IntVect(ng[0],ng[1],ng[2]));
-        mf_MUB = std::make_unique<MultiFab>(ba2d[lev],dm,1,IntVect(ng[0],ng[1],ng[2]));
+        wrf_C1H  = std::make_unique<MultiFab>(ba1d[lev],dm,1,IntVect(ng[0],ng[1],ng[2]));
+        wrf_C2H  = std::make_unique<MultiFab>(ba1d[lev],dm,1,IntVect(ng[0],ng[1],ng[2]));
+        wrf_RDNW = std::make_unique<MultiFab>(ba1d[lev],dm,1,IntVect(ng[0],ng[1],ng[2]));
+        wrf_MUB  = std::make_unique<MultiFab>(ba2d[lev],dm,1,IntVect(ng[0],ng[1],ng[2]));
+        wrf_PHB  = std::make_unique<MultiFab>(convert(ba,IntVect(0,0,1)),dm,1,IntVect(ngrow+1,ngrow+1,0));
     }
 
     mf_PSFC[lev] = std::make_unique<MultiFab>(ba2d[lev],dm,1,ng);
@@ -483,7 +506,7 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
     lmask_lev[lev].resize(1);
     auto ngv = lev_new[Vars::cons].nGrowVect(); ngv[2] = 0;
     lmask_lev[lev][0] = std::make_unique<iMultiFab>(ba2d[lev],dm,1,ngv);
-    lmask_lev[lev][0]->setVal(1);
+    lmask_lev[lev][0]->setVal(solverChoice.is_land[lev]);
     lmask_lev[lev][0]->FillBoundary(geom[lev].periodicity());
 
     land_type_lev[lev].resize(1);
@@ -538,9 +561,11 @@ ERF::update_diffusive_arrays (int lev, const BoxArray& ba, const DistributionMap
     bool l_use_moist   = (  solverChoice.moisture_type != MoistureType::None  );
     bool l_rotate      = (  solverChoice.use_rotate_surface_flux  );
 
-    bool l_implicit_diff = (solverChoice.vert_implicit_fac[0] > 0 ||
-                            solverChoice.vert_implicit_fac[1] > 0 ||
-                            solverChoice.vert_implicit_fac[2] > 0);
+    bool l_implicit_diff = (solverChoice.vert_implicit_fac[lev][0] > 0 ||
+                            solverChoice.vert_implicit_fac[lev][1] > 0 ||
+                            solverChoice.vert_implicit_fac[lev][2] > 0);
+
+    bool l_eb_surface_layer = (l_use_eb && solverChoice.ebChoice.eb_boundary_type == EBBoundaryType::SurfaceLayer);
 
     BoxArray ba12 = convert(ba, IntVect(1,1,0));
     BoxArray ba13 = convert(ba, IntVect(1,0,1));
@@ -548,49 +573,59 @@ ERF::update_diffusive_arrays (int lev, const BoxArray& ba, const DistributionMap
 
     Tau[lev].resize(9);
     Tau_corr[lev].resize(3);
-    Tau_EB[lev].resize(2);
+
+    // Always resize Tau_EB structure, even if not used, because other code checks nullptr
+    Tau_EB[lev].resize(2);  // tau_eb13 and tau_eb23
+    for (int comp = 0; comp < 2; ++comp) {
+        Tau_EB[lev][comp].resize(3);  // xface, yface, zface
+    }
 
     if (l_use_diff) {
         //
         // NOTE: We require ghost cells in the vertical when allowing grids that don't
         //       cover the entire vertical extent of the domain at this level
         //
-        for (int i = 0; i < 3; i++) {
-            Tau[lev][i] = std::make_unique<MultiFab>( ba  , dm, 1, IntVect(1,1,1) );
-        }
-        Tau[lev][TauType::tau12] = std::make_unique<MultiFab>( ba12, dm, 1, IntVect(1,1,1) );
-        Tau[lev][TauType::tau13] = std::make_unique<MultiFab>( ba13, dm, 1, IntVect(1,1,1) );
-        Tau[lev][TauType::tau23] = std::make_unique<MultiFab>( ba23, dm, 1, IntVect(1,1,1) );
-        Tau[lev][TauType::tau12]->setVal(zero);
-        Tau[lev][TauType::tau13]->setVal(zero);
-        Tau[lev][TauType::tau23]->setVal(zero);
+        Tau[lev][TauType::tau11] = std::make_unique<MultiFab>( ba  , dm, 1, IntVect(1,1,1) ); Tau[lev][TauType::tau11]->setVal(zero);
+        Tau[lev][TauType::tau22] = std::make_unique<MultiFab>( ba  , dm, 1, IntVect(1,1,1) ); Tau[lev][TauType::tau22]->setVal(zero);
+        Tau[lev][TauType::tau33] = std::make_unique<MultiFab>( ba  , dm, 1, IntVect(1,1,1) ); Tau[lev][TauType::tau33]->setVal(zero);
+
+        Tau[lev][TauType::tau12] = std::make_unique<MultiFab>( ba12, dm, 1, IntVect(1,1,1) ); Tau[lev][TauType::tau12]->setVal(zero);
+        Tau[lev][TauType::tau13] = std::make_unique<MultiFab>( ba13, dm, 1, IntVect(1,1,1) ); Tau[lev][TauType::tau13]->setVal(zero);
+        Tau[lev][TauType::tau23] = std::make_unique<MultiFab>( ba23, dm, 1, IntVect(1,1,1) ); Tau[lev][TauType::tau23]->setVal(zero);
         if (l_use_terrain) {
-            Tau[lev][TauType::tau21] = std::make_unique<MultiFab>( ba12, dm, 1, IntVect(1,1,1) );
-            Tau[lev][TauType::tau31] = std::make_unique<MultiFab>( ba13, dm, 1, IntVect(1,1,1) );
-            Tau[lev][TauType::tau32] = std::make_unique<MultiFab>( ba23, dm, 1, IntVect(1,1,1) );
-            Tau[lev][TauType::tau21]->setVal(zero);
-            Tau[lev][TauType::tau31]->setVal(zero);
-            Tau[lev][TauType::tau32]->setVal(zero);
+            Tau[lev][TauType::tau21] = std::make_unique<MultiFab>( ba12, dm, 1, IntVect(1,1,1) ); Tau[lev][TauType::tau21]->setVal(zero);
+            Tau[lev][TauType::tau31] = std::make_unique<MultiFab>( ba13, dm, 1, IntVect(1,1,1) ); Tau[lev][TauType::tau31]->setVal(zero);
+            Tau[lev][TauType::tau32] = std::make_unique<MultiFab>( ba23, dm, 1, IntVect(1,1,1) ); Tau[lev][TauType::tau32]->setVal(zero);
         } else if (l_implicit_diff) {
-            Tau[lev][TauType::tau31] = std::make_unique<MultiFab>( ba13, dm, 1, IntVect(1,1,1) );
-            Tau[lev][TauType::tau32] = std::make_unique<MultiFab>( ba23, dm, 1, IntVect(1,1,1) );
-            Tau[lev][TauType::tau31]->setVal(zero);
-            Tau[lev][TauType::tau32]->setVal(zero);
+            Tau[lev][TauType::tau31] = std::make_unique<MultiFab>( ba13, dm, 1, IntVect(1,1,1) ); Tau[lev][TauType::tau31]->setVal(zero);
+            Tau[lev][TauType::tau32] = std::make_unique<MultiFab>( ba23, dm, 1, IntVect(1,1,1) ); Tau[lev][TauType::tau32]->setVal(zero);
         } else {
             Tau[lev][TauType::tau21] = nullptr;
             Tau[lev][TauType::tau31] = nullptr;
             Tau[lev][TauType::tau32] = nullptr;
         }
 
-        // EB diffusive stresses
-        if (l_use_eb) {
-            Tau_EB[lev][EBTauType::tau_eb13] = std::make_unique<MultiFab>( convert(ba,IntVect(1,0,0)), dm, 1, IntVect(1,1,1) );
-            Tau_EB[lev][EBTauType::tau_eb23] = std::make_unique<MultiFab>( convert(ba,IntVect(0,1,0)), dm, 1, IntVect(1,1,1) );
-            Tau_EB[lev][EBTauType::tau_eb13]->setVal(zero);
-            Tau_EB[lev][EBTauType::tau_eb23]->setVal(zero);
+        // EB diffusive stresses - allocate for all three staggered grids
+        if (l_eb_surface_layer) {
+            Tau_EB[lev][EBTauType::tau_eb13][EBGridType::xface] = std::make_unique<MultiFab>( convert(ba,IntVect(1,0,0)), dm, 1, IntVect(1,1,1) );
+            Tau_EB[lev][EBTauType::tau_eb13][EBGridType::yface] = std::make_unique<MultiFab>( convert(ba,IntVect(0,1,0)), dm, 1, IntVect(1,1,1) );
+            Tau_EB[lev][EBTauType::tau_eb13][EBGridType::zface] = std::make_unique<MultiFab>( convert(ba,IntVect(0,0,1)), dm, 1, IntVect(1,1,1) );
+            Tau_EB[lev][EBTauType::tau_eb13][EBGridType::xface]->setVal(0.);
+            Tau_EB[lev][EBTauType::tau_eb13][EBGridType::yface]->setVal(0.);
+            Tau_EB[lev][EBTauType::tau_eb13][EBGridType::zface]->setVal(0.);
+
+            Tau_EB[lev][EBTauType::tau_eb23][EBGridType::xface] = std::make_unique<MultiFab>( convert(ba,IntVect(1,0,0)), dm, 1, IntVect(1,1,1) );
+            Tau_EB[lev][EBTauType::tau_eb23][EBGridType::yface] = std::make_unique<MultiFab>( convert(ba,IntVect(0,1,0)), dm, 1, IntVect(1,1,1) );
+            Tau_EB[lev][EBTauType::tau_eb23][EBGridType::zface] = std::make_unique<MultiFab>( convert(ba,IntVect(0,0,1)), dm, 1, IntVect(1,1,1) );
+            Tau_EB[lev][EBTauType::tau_eb23][EBGridType::xface]->setVal(0.);
+            Tau_EB[lev][EBTauType::tau_eb23][EBGridType::yface]->setVal(0.);
+            Tau_EB[lev][EBTauType::tau_eb23][EBGridType::zface]->setVal(0.);
         } else {
-            Tau_EB[lev][EBTauType::tau_eb13] = nullptr;
-            Tau_EB[lev][EBTauType::tau_eb23] = nullptr;
+            for (int comp = 0; comp < 2; ++comp) {
+                for (int grid = 0; grid < 3; ++grid) {
+                    Tau_EB[lev][comp][grid] = nullptr;
+                }
+            }
         }
 
         if (l_implicit_diff && solverChoice.implicit_momentum_diffusion)
@@ -671,7 +706,7 @@ ERF::update_diffusive_arrays (int lev, const BoxArray& ba, const DistributionMap
 }
 
 void
-ERF::init_zphys (int lev, Real elapsed_time)
+ERF::init_zphys (int lev, double elapsed_time)
 {
     // For EB, z_phys_nd was already initialized with the correct z_offset by init_default_zphys.
     // The terrain-fitting (BTF) done below is irrelevant for a flat EB mesh and would clobber
@@ -734,11 +769,19 @@ ERF::init_zphys (int lev, Real elapsed_time)
         if (lev == 0) {
             Real zmax = z_phys_nd[0]->max(0,0,false);
             Real rel_diff = (zmax - zlevels_stag[0][zlevels_stag[0].size()-1]) / zmax;
-            if (rel_diff < Real(1.e-8)) {
+            if (rel_diff > Real(1.e-8)) {
                 amrex::Print() << "max of zphys_nd " << zmax << std::endl;
                 amrex::Print() << "max of zlevels  " << zlevels_stag[0][zlevels_stag[0].size()-1] << std::endl;
-                AMREX_ALWAYS_ASSERT_WITH_MESSAGE(rel_diff < Real(1.e-8), "Terrain is taller than domain top!");
+                amrex::Abort("Terrain is taller than domain top!");
             }
+#if 0
+            // This remains commented out until we verify that the stretched and variable dz pathways
+            //   in fact give the same answer when appropriate
+            if (SolverChoice::mesh_type == MeshType::VariableDz)
+            {
+                check_mesh_type(lev);
+            }
+#endif
         } // lev == 0
 
     } else {
@@ -764,10 +807,90 @@ ERF::init_zphys (int lev, Real elapsed_time)
 
     if (solverChoice.terrain_type == TerrainType::ImmersedForcing ||
         solverChoice.buildings_type == BuildingsType::ImmersedForcing) {
+        // Read the small_volfrac threshold from eb2 namespace
+        Real small_volfrac = 0.005;
+        ParmParse pp_eb2("eb2");
+        pp_eb2.query("small_volfrac", small_volfrac);
+
+        // Cell-centered terrain blanking
         terrain_blanking[lev]->setVal(one);
-        MultiFab::Subtract(*terrain_blanking[lev], EBFactory(lev).getVolFrac(), 0, 0, 1, ComputeGhostCells(solverChoice) + 2);
+        const int ng_sub = std::min(ComputeGhostCells(solverChoice) + 2, EBFactory(lev).getVolFrac().nGrow());
+        MultiFab::Subtract(*terrain_blanking[lev], EBFactory(lev).getVolFrac(), 0, 0, 1, ng_sub);
+
+        // Clip small terrain_blanking values (almost fluid cells) using same threshold as eb2.small_volfrac
+        if (small_volfrac > zero) {
+            for (MFIter mfi(*terrain_blanking[lev], TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+                const Box& bx = mfi.tilebox();
+                auto const& tblank = terrain_blanking[lev]->array(mfi);
+                ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+                    if (tblank(i,j,k) < small_volfrac) { tblank(i,j,k) = zero; }
+                });
+            }
+        }
         terrain_blanking[lev]->FillBoundary(geom[lev].periodicity());
+
+#if USE_FC_FACTORY
+        // Face-centered terrain blanking from face-centered EB volume fractions
+        terrain_blanking_xface[lev]->setVal(one);
+        terrain_blanking_yface[lev]->setVal(one);
+        terrain_blanking_zface[lev]->setVal(one);
+
+        // Check if face factories are available before using them
+        auto const* u_factory = eb[lev]->get_u_const_factory();
+        auto const* v_factory = eb[lev]->get_v_const_factory();
+        auto const* w_factory = eb[lev]->get_w_const_factory();
+
+        if (u_factory && v_factory && w_factory) {
+            MultiFab::Subtract(*terrain_blanking_xface[lev], u_factory->getVolFrac(), 0, 0, 1, ng_sub);
+            MultiFab::Subtract(*terrain_blanking_yface[lev], v_factory->getVolFrac(), 0, 0, 1, ng_sub);
+            MultiFab::Subtract(*terrain_blanking_zface[lev], w_factory->getVolFrac(), 0, 0, 1, ng_sub);
+
+            // Clip small terrain_blanking values on faces (almost fluid cells) using same threshold
+            if (small_volfrac > zero) {
+                for (MFIter mfi(*terrain_blanking_xface[lev], TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+                    const Box& xbx = mfi.tilebox();
+                    auto const& tblank_x = terrain_blanking_xface[lev]->array(mfi);
+                    ParallelFor(xbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+                        if (tblank_x(i,j,k) < small_volfrac) { tblank_x(i,j,k) = zero; }
+                    });
+                }
+                for (MFIter mfi(*terrain_blanking_yface[lev], TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+                    const Box& ybx = mfi.tilebox();
+                    auto const& tblank_y = terrain_blanking_yface[lev]->array(mfi);
+                    ParallelFor(ybx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+                        if (tblank_y(i,j,k) < small_volfrac) { tblank_y(i,j,k) = zero; }
+                    });
+                }
+                for (MFIter mfi(*terrain_blanking_zface[lev], TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+                    const Box& zbx = mfi.tilebox();
+                    auto const& tblank_z = terrain_blanking_zface[lev]->array(mfi);
+                    ParallelFor(zbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+                        if (tblank_z(i,j,k) < small_volfrac) { tblank_z(i,j,k) = zero; }
+                    });
+                }
+            }
+        }
+
+        terrain_blanking_xface[lev]->FillBoundary(geom[lev].periodicity());
+        terrain_blanking_yface[lev]->FillBoundary(geom[lev].periodicity());
+        terrain_blanking_zface[lev]->FillBoundary(geom[lev].periodicity());
+#endif
+
         init_immersed_forcing(lev); // needed for real cases
+
+        // buildings are landmask = 2
+        for (MFIter mfi(*lmask_lev[lev][0]); mfi.isValid(); ++mfi) {
+            const Box& bx2d = mfi.growntilebox();
+            auto lmask_arr = lmask_lev[lev][0]->array(mfi);
+            const auto& t_blank_arr = terrain_blanking[lev]->array(mfi);
+
+            amrex::ParallelFor(bx2d, [=] AMREX_GPU_DEVICE(int i, int j, int k) {
+                // Use k=0 for the terrain_blanking field
+                if (t_blank_arr(i, j, 0) > 0.0) {
+                    lmask_arr(i, j, k) = 2;
+                }
+            });
+        }
     }
 
     // Compute the min dz and pass to the micro model
@@ -780,8 +903,9 @@ ERF::remake_zphys (int lev, std::unique_ptr<MultiFab>& temp_zphys_nd)
 {
     if (solverChoice.init_type != InitType::WRFInput && solverChoice.init_type != InitType::Metgrid)
     {
-        if (lev > 0)
-        {
+        if (lev == 0) {
+            temp_zphys_nd->ParallelCopy(*z_phys_nd[lev], 0, 0, 1, z_phys_nd[lev]->nGrowVect(), z_phys_nd[lev]->nGrowVect());
+        } else {
             //
             // First interpolate from coarser level
             // NOTE: this interpolater assumes that ALL ghost cells of the coarse MultiFab
@@ -799,11 +923,14 @@ ERF::remake_zphys (int lev, std::unique_ptr<MultiFab>& temp_zphys_nd)
             //    and also fills values of z_phys_nd outside the domain
             make_terrain_fitted_coords(lev,geom[lev],*temp_zphys_nd,zlevels_stag[lev],phys_bc_type);
 
-            std::swap(temp_zphys_nd, z_phys_nd[lev]);
         } // lev > 0
+
+        std::swap(temp_zphys_nd, z_phys_nd[lev]);
+
     } else {
-        if (lev > 0)
-        {
+        if (lev == 0) {
+            temp_zphys_nd->ParallelCopy(*z_phys_nd[lev], 0, 0, 1, z_phys_nd[lev]->nGrowVect(), z_phys_nd[lev]->nGrowVect());
+        } else {
             //
             // First interpolate from coarser level
             // NOTE: this interpolater assumes that ALL ghost cells of the coarse MultiFab
@@ -817,8 +944,9 @@ ERF::remake_zphys (int lev, std::unique_ptr<MultiFab>& temp_zphys_nd)
                                   refRatio(lev-1), &node_bilinear_interp,
                                   domain_bcs_type, BCVars::cons_bc);
 
-            std::swap(temp_zphys_nd, z_phys_nd[lev]);
         } // lev > 0
+
+        std::swap(temp_zphys_nd, z_phys_nd[lev]);
     }
 
     if (solverChoice.terrain_type == TerrainType::ImmersedForcing ||
@@ -826,8 +954,79 @@ ERF::remake_zphys (int lev, std::unique_ptr<MultiFab>& temp_zphys_nd)
         //
         // This assumes we have already remade the EBGeometry
         //
+        // Read the small_volfrac threshold from eb2 namespace
+        Real small_volfrac = 0.005;
+        ParmParse pp_eb2("eb2");
+        pp_eb2.query("small_volfrac", small_volfrac);
+
         terrain_blanking[lev]->setVal(one);
         MultiFab::Subtract(*terrain_blanking[lev], EBFactory(lev).getVolFrac(), 0, 0, 1, z_phys_nd[lev]->nGrowVect());
+
+        // Clip small terrain_blanking values (almost fluid cells) using same threshold as eb2.small_volfrac
+        if (small_volfrac > zero) {
+            for (MFIter mfi(*terrain_blanking[lev], TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+                const Box& bx = mfi.tilebox();
+                auto const& tblank = terrain_blanking[lev]->array(mfi);
+                ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+                    if (tblank(i,j,k) < small_volfrac) {
+                        tblank(i,j,k) = zero;
+                    }
+                });
+            }
+        }
+
+#if USE_FC_FACTORY
+    // Face-centered terrain blanking from face-centered EB volume fractions
+        const int ng_sub = std::min(ComputeGhostCells(solverChoice) + 2, EBFactory(lev).getVolFrac().nGrow());
+
+        terrain_blanking_xface[lev]->setVal(one);
+        terrain_blanking_yface[lev]->setVal(one);
+        terrain_blanking_zface[lev]->setVal(one);
+        // Check if face factories are available before using them
+        auto const* u_factory = eb[lev]->get_u_const_factory();
+        auto const* v_factory = eb[lev]->get_v_const_factory();
+        auto const* w_factory = eb[lev]->get_w_const_factory();
+
+        if (u_factory && v_factory && w_factory) {
+            MultiFab::Subtract(*terrain_blanking_xface[lev],
+                               u_factory->getVolFrac(), 0, 0, 1, ng_sub);
+            MultiFab::Subtract(*terrain_blanking_yface[lev],
+                               v_factory->getVolFrac(), 0, 0, 1, ng_sub);
+            MultiFab::Subtract(*terrain_blanking_zface[lev],
+                               w_factory->getVolFrac(), 0, 0, 1, ng_sub);
+
+            // Clip small terrain_blanking values on faces (almost fluid cells) using same threshold
+            if (small_volfrac > zero) {
+                for (MFIter mfi(*terrain_blanking_xface[lev], TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+                    const Box& xbx = mfi.tilebox();
+                    auto const& tblank_x = terrain_blanking_xface[lev]->array(mfi);
+                    ParallelFor(xbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+                        if (tblank_x(i,j,k) < small_volfrac) {
+                            tblank_x(i,j,k) = zero;
+                        }
+                    });
+                }
+                for (MFIter mfi(*terrain_blanking_yface[lev], TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+                    const Box& ybx = mfi.tilebox();
+                    auto const& tblank_y = terrain_blanking_yface[lev]->array(mfi);
+                    ParallelFor(ybx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+                        if (tblank_y(i,j,k) < small_volfrac) {
+                            tblank_y(i,j,k) = zero;
+                        }
+                    });
+                }
+                for (MFIter mfi(*terrain_blanking_zface[lev], TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+                    const Box& zbx = mfi.tilebox();
+                    auto const& tblank_z = terrain_blanking_zface[lev]->array(mfi);
+                    ParallelFor(zbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+                        if (tblank_z(i,j,k) < small_volfrac) {
+                            tblank_z(i,j,k) = zero;
+                        }
+                    });
+                }
+            }
+        }
+#endif
     }
 
     // Compute the min dz and pass to the micro model

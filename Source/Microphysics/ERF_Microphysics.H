@@ -8,8 +8,10 @@
 #include <vector>
 #include <string>
 #include <AMReX_MultiFab.H>
+#include <AMReX_iMultiFab.H>
 #include "ERF_DataStruct.H"
 #include "ERF_IndexDefines.H"
+#include "ERF_SurfacePrecipitation.H"
 
 /*! \brief Base class for microphysics interface */
 class Microphysics {
@@ -50,13 +52,21 @@ public:
                           const amrex::GpuArray<ERF_BC, AMREX_SPACEDIM*2>& ) = 0;
 
     /*! \brief update microphysics variables from ERF state variables */
-    virtual void Update_Micro_Vars_Lev (const int&, amrex::MultiFab&) = 0;
+    virtual void Update_Micro_Vars_Lev (const int&, amrex::MultiFab&,
+                                        const amrex::MultiFab* base_state = nullptr) = 0;
 
     /*! \brief update ERF state variables from microphysics variables */
     virtual void Update_State_Vars_Lev (const int&, amrex::MultiFab&, const amrex::MultiFab&) = 0;
 
     /*! \brief average down moisture multifabs from finest_level to 0 (AMR coverage); no-op for non-Lagrangian models */
     virtual void AverageDownMicroVars (const int /*finest_level*/) { }
+
+    /*! \brief get scheme-native surface precipitation accumulators and their kg/m^2 conversion factors */
+    virtual SurfacePrecipAccumulationSources
+    Get_Surface_Precip_Accumulation_Ptrs (const int&) const
+    {
+        return {};
+    }
 
     /*! \brief get pointer to a moisture variable */
     virtual amrex::MultiFab* Get_Qmoist_Ptr (const int&, const int&) = 0;
@@ -98,6 +108,15 @@ public:
     virtual void Set_dzmin (const int lev,
                             const amrex::Real dz_min) const = 0;
 
+    /*! \brief Import ERF's land/water mask at this level.
+     *
+     *  The mask is held by pointer, not copied, so a mask that is retagged after
+     *  this call (e.g. buildings set to 2 in init_zphys) is picked up. Callers
+     *  must re-issue this after any rebuild of lmask_lev, since init_stuff
+     *  replaces the unique_ptr. */
+    virtual void Set_Lmask (const int lev,
+                            amrex::iMultiFab* lmask) const = 0;
+
     /*! \brief query if a specified moisture model is Eulerian or Lagrangian */
     static MoistureModelType modelType (const MoistureType a_moisture_type)
     {
@@ -107,9 +126,11 @@ public:
              || (a_moisture_type == MoistureType::Morrison)
              || (a_moisture_type == MoistureType::Morrison_NoIce)
              || (a_moisture_type == MoistureType::WSM6)
+             || (a_moisture_type == MoistureType::WDM6)
              || (a_moisture_type == MoistureType::Kessler)
              || (a_moisture_type == MoistureType::Kessler_NoRain)
              || (a_moisture_type == MoistureType::SatAdj)
+             || (a_moisture_type == MoistureType::MoistNoCondensation)
              || (a_moisture_type == MoistureType::None) ) {
             return MoistureModelType::Eulerian;
         } else if ( (a_moisture_type == MoistureType::SuperDroplets) ) {

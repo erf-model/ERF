@@ -12,45 +12,51 @@
 
 #ifdef ERF_USE_NETCDF
 
-amrex::Real
+/** Repack one converted WRF boundary side from serialized to runtime layout. */
+void
+repack_wrfbdy_to_realbdy (amrex::Vector<amrex::FArrayBox>& bdy_data,
+                          bool use_wrf_bdy_qc_qi,
+                          bool separate_hydrometeors = false);
+
+double
 read_times_from_wrfbdy (const std::string& nc_bdy_file,
                         amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_xlo,
                         amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_xhi,
                         amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_ylo,
                         amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_yhi,
-                        amrex::Real& start_bdy_time,
-                        amrex::Real& final_bdy_time);
+                        double& start_bdy_time, double& final_bdy_time);
 
 void
-read_from_wrfbdy (const int itime,
-                  const std::string& nc_bdy_file,
-                  const amrex::Box& domain,
-                  amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_xlo,
-                  amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_xhi,
-                  amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_ylo,
-                  amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_yhi,
-                  int real_width);
+read_and_convert_from_wrfbdy (const int itime, const std::string& nc_bdy_file,
+                              amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_xlo,
+                              amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_xhi,
+                              amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_ylo,
+                              amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_yhi,
+                              std::unique_ptr<amrex::MultiFab>& wrf_MUB,
+                              std::unique_ptr<amrex::MultiFab>& wrf_C1H,
+                              std::unique_ptr<amrex::MultiFab>& wrf_C2H,
+                              std::unique_ptr<amrex::MultiFab>& wrf_RDNW,
+                              std::unique_ptr<amrex::MultiFab>& wrf_PHB,
+                              std::unique_ptr<amrex::MultiFab>& z_phys_cc,
+                              std::unique_ptr<amrex::MultiFab>& z_phys_nd,
+                              const amrex::MultiFab& xvel,
+                              const amrex::MultiFab& yvel,
+                              const amrex::MultiFab& cons,
+                              const amrex::MultiFab& rho0,
+                              amrex::Array<amrex::MultiFab*, AMREX_SPACEDIM>& area_vec,
+                              const amrex::Geometry& geom, const bool& use_moist,
+                              const bool use_wrf_bdy_qc_qi,
+                              const bool has_cloud_ice,
+                              const bool separate_hydrometeors,
+                              const bool rebalance_wrf_state,
+                              const amrex::Vector<amrex::BCRec>& domain_bcs_type_h,
+                              int real_width, double bdy_time_interval,
+                              bool is_anelastic, bool do_conversion = true);
 
-void
-convert_all_wrfbdy_data (const int itime,
-                         const amrex::Box& domain,
-                         amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_xlo,
-                         amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_xhi,
-                         amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_ylo,
-                         amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_yhi,
-                         const amrex::MultiFab& mf_MUB,
-                         const amrex::MultiFab& mf_C1H,
-                         const amrex::MultiFab& mf_C2H,
-                         const amrex::MultiFab& xvel,
-                         const amrex::MultiFab& yvel,
-                         const amrex::MultiFab& cons,
-                         const amrex::Geometry& geom,
-                         const bool& use_moist);
-
-amrex::Real
+double
 read_times_from_wrflow (const std::string& nc_low_file,
                         amrex::Vector<amrex::Vector<amrex::FArrayBox>>& low_data_zlo,
-                        amrex::Real& start_low_time, amrex::Real& final_low_time);
+                        double& start_low_time, double& final_low_time);
 
 void
 read_from_wrflow (const int itime,

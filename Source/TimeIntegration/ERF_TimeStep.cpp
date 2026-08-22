@@ -1,6 +1,8 @@
 #include <ERF.H>
 #include <ERF_Utils.H>
 #include <ERF_ReadFromWRFBdy.H>
+#include <ERF_ReadFromERFBdy.H>
+#include <ERF_LagrangianMicrophysics.H>
 
 using namespace amrex;
 
@@ -14,7 +16,7 @@ using namespace amrex;
  */
 
 void
-ERF::timeStep (int lev, Real time, int /*iteration*/)
+ERF::timeStep (int lev, double time, int /*iteration*/)
 {
     //
     // We need to FillPatch the coarse level before assessing whether to regrid
@@ -33,10 +35,21 @@ ERF::timeStep (int lev, Real time, int /*iteration*/)
     bool use_moist = (solverChoice.moisture_type != MoistureType::None);
     if (solverChoice.use_real_bcs && (lev==0))
     {
+        MultiFab r_hse(base_state[lev], make_alias, BaseState::r0_comp, 1);
+        Array<MultiFab*, AMREX_SPACEDIM> area_vec = {ax[lev].get(), ay[lev].get(), az[lev].get()};
+
         int ntimes = bdy_data_xlo.size();
-        Real time_since_start_bdy = time + start_time - start_bdy_time;
+        double time_since_start_bdy = time + start_time - start_bdy_time;
         int n_time_old = std::min(static_cast<int>( (time_since_start_bdy        ) /  bdy_time_interval), ntimes-1);
         int n_time_new = std::min(static_cast<int>( (time_since_start_bdy+dt[lev]) /  bdy_time_interval), ntimes-1);
+        auto repack_runtime_bdy = [&] (const int itime) {
+            const bool separate_hydrometeors = solverChoice.use_wrf_bdy_qc_qi &&
+                wrf_bdy_has_separate_hydrometeors(solverChoice.moisture_indices);
+            repack_wrfbdy_to_realbdy(bdy_data_xlo[itime], solverChoice.use_wrf_bdy_qc_qi, separate_hydrometeors);
+            repack_wrfbdy_to_realbdy(bdy_data_xhi[itime], solverChoice.use_wrf_bdy_qc_qi, separate_hydrometeors);
+            repack_wrfbdy_to_realbdy(bdy_data_ylo[itime], solverChoice.use_wrf_bdy_qc_qi, separate_hydrometeors);
+            repack_wrfbdy_to_realbdy(bdy_data_yhi[itime], solverChoice.use_wrf_bdy_qc_qi, separate_hydrometeors);
+        };
 
         for (int itime = 0; itime < ntimes; itime++)
         {
@@ -48,7 +61,8 @@ ERF::timeStep (int lev, Real time, int /*iteration*/)
             }
             */
 
-            bool clear_itime = (itime < n_time_old);
+            // Note that we never release itime == 0 because it is used for the spatial interpolation at later times
+            bool clear_itime = (itime > 0 && itime < n_time_old);
 
             if (clear_itime && bdy_data_xlo[itime].size() > 0) {
                 bdy_data_xlo[itime].clear();
@@ -61,23 +75,42 @@ ERF::timeStep (int lev, Real time, int /*iteration*/)
             bool need_itime = (itime >= n_time_old && itime <= n_time_new+1);
             //if (need_itime) { amrex::Print()  << "NEED  BDY DATA AT TIME " << itime << std::endl; }
 
-            if (bdy_data_xlo[itime].size() == 0 && need_itime) {
-                read_from_wrfbdy(itime,nc_bdy_file,geom[0].Domain(),
-                                 bdy_data_xlo,bdy_data_xhi,bdy_data_ylo,bdy_data_yhi,
-                                 real_width);
-
-                convert_all_wrfbdy_data(itime, geom[0].Domain(), bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi,
-                                        *mf_MUB, *mf_C1H, *mf_C2H,
-                                        vars_new[lev][Vars::xvel], vars_new[lev][Vars::yvel], vars_new[lev][Vars::cons],
-                                        geom[lev], use_moist);
-           }
+            // Handle erfbdy files (AMReX native format).
+            if (use_erfbdy) {
+                if (bdy_data_xlo[itime].size() == 0 && need_itime) {
+                    read_from_erfbdy(itime, erfbdy_file,
+                                     bdy_data_xlo, bdy_data_xhi,
+                                     bdy_data_ylo, bdy_data_yhi,
+                                     nvars_erfbdy, real_width);
+                    repack_runtime_bdy(itime);
+                }
+            // Handle wrfbdy files (NetCDF format).
+            } else {
+                if (bdy_data_xlo[itime].size() == 0 && need_itime) {
+                    bool is_anelastic = (solverChoice.anelastic[0] == 1);
+                    read_and_convert_from_wrfbdy(itime,nc_bdy_file,bdy_data_xlo,bdy_data_xhi,bdy_data_ylo,bdy_data_yhi,
+                                                 wrf_MUB, wrf_C1H, wrf_C2H, wrf_RDNW, wrf_PHB, z_phys_cc[lev], z_phys_nd[lev],
+                                                 vars_new[lev][Vars::xvel], vars_new[lev][Vars::yvel], vars_new[lev][Vars::cons],
+                                                 r_hse, area_vec, geom[lev], use_moist,
+                                                 solverChoice.use_wrf_bdy_qc_qi,
+                                                 solverChoice.moisture_indices.qi >= 0,
+                                                 solverChoice.use_wrf_bdy_qc_qi &&
+                                                 wrf_bdy_has_separate_hydrometeors(solverChoice.moisture_indices),
+                                                 solverChoice.rebalance_wrf_input, domain_bcs_type,
+                                                 real_width, bdy_time_interval, is_anelastic);
+                    if (itime == ntimes-1 && itime > 0) {
+                        repack_runtime_bdy(itime-1);
+                    }
+                    repack_runtime_bdy(itime);
+                }
+            } // use_erfbdy
         } // itime
     } // use_real_bcs && lev == 0
 
     if (!nc_low_file.empty() && (lev==0))
     {
         int ntimes = low_data_zlo.size();
-        Real time_since_start_low = time + start_time - start_low_time;
+        double time_since_start_low = time + start_time - start_low_time;
         int n_time_old = std::min(static_cast<int>( (time_since_start_low        ) /  low_time_interval), ntimes-1);
         int n_time_new = std::min(static_cast<int>( (time_since_start_low+dt[lev]) /  low_time_interval), ntimes-1);
 
@@ -152,10 +185,55 @@ ERF::timeStep (int lev, Real time, int /*iteration*/)
                     }
                 }
 
-                regrid(lev, time);
+#ifdef ERF_USE_PARTICLES
+                // Snapshot the per-level particle BoxArrays before regrid so
+                // we can identify cells that lost fine coverage and merge
+                // them down to the coarse-level SD density.
+                Vector<BoxArray> old_pc_ba;
+                if (Microphysics::modelType(solverChoice.moisture_type) == MoistureModelType::Lagrangian) {
+                    auto* pc = dynamic_cast<LagrangianMicrophysics&>(*micro).getParticleContainer();
+                    AMREX_ALWAYS_ASSERT(pc != nullptr);
+                    old_pc_ba.resize(old_finest + 1);
+                    for (int k = 0; k <= old_finest; k++) {
+                        old_pc_ba[k] = pc->ParticleBoxArray(k);
+                    }
+                }
+#endif
+
+                regrid(lev, static_cast<Real>(time));
 
 #ifdef ERF_USE_PARTICLES
+                if (Microphysics::modelType(solverChoice.moisture_type) == MoistureModelType::Lagrangian) {
+                    auto* pc = dynamic_cast<LagrangianMicrophysics&>(*micro).getParticleContainer();
+                    AMREX_ALWAYS_ASSERT(pc != nullptr);
+                    // Sync the particle container's per-level storage with
+                    // the post-regrid BoxArrays/DistributionMaps before any
+                    // iMultiFab-based work touches it.  Note: this is the
+                    // bare ParticleContainer::Redistribute (no SplitMerge);
+                    // tag-based splitting and merging still run below.
+                    pc->Redistribute();
+                    // Split super-droplets that ended up on a level deeper
+                    // than their tag indicates (cumulative cascading split
+                    // for L0-natives that landed directly on L1 or L2 after
+                    // the regrid created multiple new levels in one shot).
+                    pc->SplitParticlesForRefinement(finest_level);
+                }
+                // Redistribute moves split daughters to their destination
+                // sub-cells and runs each species' SplitMergeAtLevelBoundary,
+                // whose per-level tag-normalizing merge sweep cleans up any
+                // leftover super-droplets from levels that have just vanished.
                 particleData.Redistribute(z_phys_nd);
+
+                if (Microphysics::modelType(solverChoice.moisture_type) == MoistureModelType::Lagrangian) {
+                    auto* pc = dynamic_cast<LagrangianMicrophysics&>(*micro).getParticleContainer();
+                    AMREX_ALWAYS_ASSERT(pc != nullptr);
+                    // Reduce SD count in cells that lost fine-level coverage.
+                    // Walks old_finest..1 so each level's masked merge runs
+                    // while clev = k-1 still holds the just-moved fines.
+                    for (int k = old_finest; k >= 1; k--) {
+                        pc->MergeParticlesAtDerefinement(k, old_pc_ba[k], refRatio(k-1));
+                    }
+                }
 #endif
 
                 // mark that we have regridded this level already
@@ -165,7 +243,7 @@ ERF::timeStep (int lev, Real time, int /*iteration*/)
 
                 // if there are newly created levels, set the time step
                 for (int k = old_finest+1; k <= finest_level; ++k) {
-                    dt[k] = dt[k-1] / static_cast<Real>(nsubsteps[k]);
+                    dt[k] = dt[k-1] / static_cast<double>(nsubsteps[k]);
                 }
             } // if
         } // lev
@@ -207,12 +285,12 @@ ERF::timeStep (int lev, Real time, int /*iteration*/)
         // recursive call for next-finer level
         for (int i = 1; i <= nsubsteps[lev+1]; ++i)
         {
-            Real strt_time_for_fine = time + (i-1)*dt[lev+1];
+            double strt_time_for_fine = time + (i-1)*dt[lev+1];
             timeStep(lev+1, strt_time_for_fine, i);
         }
     }
 
-    if (verbose && lev == 0 && solverChoice.moisture_type != MoistureType::None) {
+    if ( verbose && lev == 0 && solverChoice.moisture_type != MoistureType::None) {
         amrex::Print() << "Cloud fraction " << time << "  " << cloud_fraction(time) << std::endl;
     }
 }

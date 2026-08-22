@@ -7,17 +7,21 @@
 
 using namespace amrex;
 
-/*
+/**
  * Fill valid and ghost data with the "state data" at the given time
  * NOTE: THIS OPERATES ON VELOCITY (MOMENTA ARE JUST TEMPORARIES)
  *
- * @param[in] lev  level of refinement at which to fill the data
- * @param[in] time time at which the data should be filled
- * @param[out] mfs_vel Vector of MultiFabs to be filled containing, in order: cons, xvel, yvel, and zvel
- * @param[out] mfs_mom Vector of MultiFabs to be filled containing, in order: cons, xmom, ymom, and zmom
+ * @param[in]     lev            level of refinement at which to fill the data
+ * @param[in]     time_d         time at which the data should be filled
+ * @param[in,out] mfs_vel        Vector of MultiFabs to be filled containing, in order: cons, xvel, yvel, and zvel
+ * @param[in,out] mfs_mom        Vector of MultiFabs to be filled containing, in order: cons, xmom, ymom, and zmom
+ * @param[in]     old_base_state base-state data at the old time
+ * @param[in]     new_base_state base-state data at the new time
+ * @param[in]     fillset        whether to fill the coarse-fine set region before standard fillpatch
+ * @param[in]     cons_only      whether to fill only conserved variables
  */
 void
-ERF::FillPatchFineLevel (int lev, Real time,
+ERF::FillPatchFineLevel (int lev, double time_d,
                          const Vector<MultiFab*>& mfs_vel,     // This includes cc quantities and VELOCITIES
                          const Vector<MultiFab*>& mfs_mom,     // This includes cc quantities and MOMENTA
                          const MultiFab& old_base_state,
@@ -27,6 +31,8 @@ ERF::FillPatchFineLevel (int lev, Real time,
     BL_PROFILE_VAR("ERF::FillPatchFineLevel()",ERF_FillPatchFineLevel);
 
     AMREX_ALWAYS_ASSERT(lev > 0);
+
+    Real time = static_cast<Real>(time_d);
 
     Interpolater* mapper = nullptr;
 
@@ -81,8 +87,8 @@ ERF::FillPatchFineLevel (int lev, Real time,
     IntVect ngvect_cons = mfs_vel[Vars::cons]->nGrowVect();
     IntVect ngvect_vels = mfs_vel[Vars::xvel]->nGrowVect();
 
-    Vector<Real> ftime    = {t_old[lev  ], t_new[lev  ]};
-    Vector<Real> ctime    = {t_old[lev-1], t_new[lev-1]};
+    Vector<Real> ftime    = {static_cast<Real>(t_old[lev  ]), static_cast<Real>(t_new[lev  ])};
+    Vector<Real> ctime    = {static_cast<Real>(t_old[lev-1]), static_cast<Real>(t_new[lev-1])};
 
     amrex::Real small_dt = Real(1.e-8) * (ftime[1] - ftime[0]);
 
@@ -168,22 +174,22 @@ ERF::FillPatchFineLevel (int lev, Real time,
         }
 
         if (!amrex::almostEqual(time,ftime[1])) {
-            MultiFab::Add(vars_old[lev][Vars::cons],base_state[lev  ],BaseState::r0_comp,Rho_comp,1,ngvect_cons);
-            MultiFab::Add(vars_old[lev][Vars::cons],base_state[lev  ],BaseState::th0_comp,RhoTheta_comp,1,ngvect_cons);
+            MultiFab::Add(vars_old[lev][Vars::cons],base_state[lev  ],BaseState::r0_comp,Rho_comp,1,IntVect{0});
+            MultiFab::Add(vars_old[lev][Vars::cons],base_state[lev  ],BaseState::th0_comp,RhoTheta_comp,1,IntVect{0});
             MultiFab::Multiply(vars_old[lev][Vars::cons], vars_old[lev][Vars::cons],
-                                   Rho_comp,RhoTheta_comp,1,ngvect_cons);
+                               Rho_comp,RhoTheta_comp,1,IntVect{0});
         }
         if (!amrex::almostEqual(time,ftime[0])) {
-            MultiFab::Add(vars_new[lev][Vars::cons], base_state[lev],BaseState::r0_comp,Rho_comp,1,ngvect_cons);
-            MultiFab::Add(vars_new[lev][Vars::cons], base_state[lev],BaseState::th0_comp,RhoTheta_comp,1,ngvect_cons);
+            MultiFab::Add(vars_new[lev][Vars::cons], base_state[lev],BaseState::r0_comp,Rho_comp,1,IntVect{0});
+            MultiFab::Add(vars_new[lev][Vars::cons], base_state[lev],BaseState::th0_comp,RhoTheta_comp,1,IntVect{0});
             MultiFab::Multiply(vars_new[lev][Vars::cons], vars_new[lev][Vars::cons],
-                               Rho_comp,RhoTheta_comp,1,ngvect_cons);
+                               Rho_comp,RhoTheta_comp,1,IntVect{0});
         }
 
         // Set values in the cells outside the domain boundary so that we can do the Add
         //     without worrying about uninitialized values outside the domain -- these
         //     will be filled in the physbcs call
-        mf_c.setDomainBndry(Real(1.234e20),0,2,geom[lev]); // Do both rho and (rho theta) together
+        mf_c.setDomainBndry(bogus_large_value,0,2,geom[lev]); // Do both rho and (rho theta) together
 
         // Add rho_0 back to rho and theta_0 back to theta
         MultiFab::Add(mf_c, new_base_state,BaseState::r0_comp,Rho_comp,1,ngvect_cons);
@@ -284,8 +290,16 @@ ERF::FillPatchFineLevel (int lev, Real time,
     }
 }
 
+/**
+ * Fill valid and ghost data on the coarse level with state data at the given time.
+ *
+ * @param[in]     lev       coarse level to fill
+ * @param[in]     time_d    time at which the data should be filled
+ * @param[in,out] mfs_vel   Vector of MultiFabs to be filled containing cons, xvel, yvel, and zvel
+ * @param[in]     cons_only whether to fill only conserved variables
+ */
 void
-ERF::FillPatchCrseLevel (int lev, Real time,
+ERF::FillPatchCrseLevel (int lev, double time_d,
                          const Vector<MultiFab*>& mfs_vel,     // This includes cc quantities and VELOCITIES
                          bool cons_only)
 {
@@ -293,10 +307,12 @@ ERF::FillPatchCrseLevel (int lev, Real time,
 
     AMREX_ALWAYS_ASSERT(lev == 0);
 
+    Real time = static_cast<Real>(time_d);
+
     IntVect ngvect_cons = mfs_vel[Vars::cons]->nGrowVect();
     IntVect ngvect_vels = mfs_vel[Vars::xvel]->nGrowVect();
 
-    Vector<Real> ftime    = {t_old[lev], t_new[lev]};
+    Vector<Real> ftime    = {static_cast<Real>(t_old[lev]), static_cast<Real>(t_new[lev])};
 
     //
     // Below we call FillPatchSingleLevel which does NOT fill ghost cells outside the domain
@@ -354,11 +370,7 @@ ERF::FillPatchCrseLevel (int lev, Real time,
 
 #ifdef ERF_USE_NETCDF
     if(solverChoice.use_real_bcs && (lev==0)) {
-        if (solverChoice.upwind_real_bcs) {
-            fill_from_realbdy_upwind(mfs_vel,time,cons_only,icomp_cons,ncomp_cons,ngvect_cons,ngvect_vels);
-        } else {
-            fill_from_realbdy(mfs_vel,time,cons_only,icomp_cons,ncomp_cons,ngvect_cons,ngvect_vels);
-        }
+        fill_from_realbdy(mfs_vel,time,cons_only,icomp_cons,ncomp_cons,ngvect_cons,ngvect_vels);
         do_fb = false;
     }
 #endif

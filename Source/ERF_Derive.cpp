@@ -8,6 +8,20 @@ using namespace amrex;
 
 namespace {
 
+//
+// Does this box span the entire column?  The column-integral derived quantities
+//    (helicity, precipitable water, max reflectivity, mucape) can only be computed
+//    if it does, which requires both that the MFIter at the call site does not tile
+//    in z (see TileNoZ()) and that the grids themselves are not decomposed in z.
+//
+AMREX_FORCE_INLINE
+bool
+spans_full_column (const Box& bx, const Geometry& geomdata)
+{
+    const Box& domain = geomdata.Domain();
+    return ( (bx.smallEnd(2) == domain.smallEnd(2)) && (bx.bigEnd(2) == domain.bigEnd(2)) );
+}
+
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 constexpr Real
 mucape_search_depth_pa ()
@@ -47,7 +61,7 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 Real
 mucape_virtual_temperature (Real T, Real qv)
 {
-    return T * (Real(1) + Real(0.61) * amrex::max(qv, Real(0)));
+    return T * (one + epsv * amrex::max(qv, Real(0)));
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
@@ -55,7 +69,7 @@ Real
 mucape_vapor_pressure_pa (Real p, Real qv)
 {
     Real qv_clamped = amrex::max(qv, Real(0));
-    return p * qv_clamped / amrex::max(Rd_on_Rv + qv_clamped, mucape_min_qv());
+    return p * qv_clamped / amrex::max(RdoRv + qv_clamped, mucape_min_qv());
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
@@ -94,9 +108,9 @@ mucape_saturated_dTdp (Real T, Real p_pa)
     Real p_safe = amrex::max(p_pa, mucape_min_pressure_pa());
     Real T_safe = amrex::max(T, mucape_min_temperature());
     Real qsat = mucape_qsat(T_safe, p_safe);
-    Real num = R_d * T_safe * (Real(1) + Real(0.61) * qsat) *
+    Real num = R_d * T_safe * (one + epsv * qsat) *
                (Real(1) + L_v * qsat / (R_d * T_safe));
-    Real denom = p_safe * (Cp_d + (L_v * L_v * qsat * Rd_on_Rv) / (R_d * T_safe * T_safe));
+    Real denom = p_safe * (Cp_d + (L_v * L_v * qsat * RdoRv) / (R_d * T_safe * T_safe));
     return num / amrex::max(denom, Real(1.0e-12));
 }
 
@@ -430,7 +444,7 @@ erf_dervortz ( const Box& bx,
     auto tfab      = derfab.array(); // cell-centered vorticity z-component
 
     const Real dx = geomdata.CellSize(0);
-    const Real dy = geomdata.CellSize(2);
+    const Real dy = geomdata.CellSize(1);
 
     ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
     {
@@ -569,24 +583,28 @@ erf_dermaxreflectivity ( const Box& bx,
                          int /*ncomp*/,
                          const FArrayBox& datfab,
                          const FArrayBox& /*zcc_fab*/,
-                         const Geometry& /*geomdata*/,
+                         const Geometry& geomdata,
                          Real /*time*/,
                          const int* /*bcrec*/,
                          const int /*level*/)
 {
     AMREX_ALWAYS_ASSERT(dcomp == 0);
 
+    // This takes the max over the whole column, so the incoming box must span the column
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(spans_full_column(bx,geomdata),
+        "max_reflectivity requires boxes spanning the full column: use TileNoZ() at the call site and do not decompose the grid in z");
+
     auto const dat = datfab.array(); // cell-centered state vector
     auto rfab      = derfab.array(); // cell-centered max reflectivity
 
     // Collapse to i,j box (ignore vertical for now)
-    Box b2d = bx;
-    b2d.setSmall(2,0);
-    b2d.setBig(2,0);
+    Box b2d = makeSlab(bx,2,0);
 
-    ParallelFor(b2d, [=] AMREX_GPU_DEVICE(int i, int j, int) noexcept {
+    Real l_bogus_large_value = bogus_large_value;
 
-        Real max_dbz = Real(-1.0e30);
+    ParallelFor(b2d, [=] AMREX_GPU_DEVICE(int i, int j, int) noexcept
+    {
+        Real max_dbz = -l_bogus_large_value;
 
         // find max reflectivity over k
         for (int k = bx.smallEnd(2); k <= bx.bigEnd(2); ++k) {
@@ -656,6 +674,10 @@ erf_derhelicity ( const Box& bx,
 {
     AMREX_ALWAYS_ASSERT(dcomp == 0);
 
+    // This is a vertical integral, so the incoming box must span the column
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(spans_full_column(bx,geomdata),
+        "helicity requires boxes spanning the full column: use TileNoZ() at the call site and do not decompose the grid in z");
+
     auto const dat = datfab.array();  // cell-centered velocity
     auto dfab      = derfab.array();  // integral of local helicity
     auto z_arr     = zcc_fab.array(); // cell-centered height z
@@ -664,9 +686,7 @@ erf_derhelicity ( const Box& bx,
     const Real dy = geomdata.CellSize(1);
 
     // Collapse to i,j box (ignore vertical for now)
-    Box b2d = bx;
-    b2d.setSmall(2,0);
-    b2d.setBig(2,0);
+    Box b2d = makeSlab(bx,2,0);
 
     ParallelFor(b2d, [=] AMREX_GPU_DEVICE(int i, int j, int ) noexcept
     {
@@ -704,42 +724,43 @@ erf_derprecipitable ( const Box& bx,
                       int /*ncomp*/,
                       const FArrayBox& datfab,
                       const FArrayBox& zcc_fab,
-                      const Geometry& /*geomdata*/,
+                      const Geometry& geomdata,
                       Real /*time*/,
                       const int* /*bcrec*/,
                       const int /*level*/)
 {
     AMREX_ALWAYS_ASSERT(dcomp == 0);
 
+    // This is a vertical integral, so the incoming box must span the column
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(spans_full_column(bx,geomdata),
+        "precipitable requires boxes spanning the full column: use TileNoZ() at the call site and do not decompose the grid in z");
+
     auto const dat = datfab.array(); // cell-centered state vector
     auto dfab      = derfab.array(); // integral of qv to define precipitable water
 
     // Collapse to i,j box (ignore vertical for now)
-    Box b2d = bx;
-    b2d.setSmall(2,0);
-    b2d.setBig(2,0);
+    Box b2d = makeSlab(bx,2,0);
 
     auto z_arr     = zcc_fab.array(); // cell-centered height z
 
     ParallelFor(b2d, [=] AMREX_GPU_DEVICE(int i, int j, int) noexcept
     {
+        Real integral_qv = Real(0.0);
 
-        Real int_qv = Real(0.0);
-
-        for (int k = bx.smallEnd(2); k <= bx.bigEnd(2); ++k)
+        for (int k = 0; k <= bx.bigEnd(2); ++k)
         {
-            Real z_hi = myhalf * (z_arr(i,j,k) + z_arr(i,j,k+1));
-            Real z_lo = myhalf * (z_arr(i,j,k) + z_arr(i,j,k-1));
+            Real z_hi = myhalf * (z_arr(i,j,k+1) + z_arr(i,j,k));
+            Real z_lo = myhalf * (z_arr(i,j,k-1) + z_arr(i,j,k));
             Real dz = z_hi - z_lo;
 
             Real rhoQ1 = dat(i, j, k, RhoQ1_comp);
 
-            int_qv += rhoQ1 * dz;
+            integral_qv += rhoQ1 * dz;
         }
 
         // Store vertical integral into *all* levels for this (i,j)
         for (int k = bx.smallEnd(2); k <= bx.bigEnd(2); ++k) {
-            dfab(i, j, k, dcomp) = int_qv;
+            dfab(i, j, k, dcomp) = integral_qv;
         }
     });
 }
@@ -751,13 +772,23 @@ erf_dermucape ( const Box& bx,
                 int ncomp,
                 const FArrayBox& datfab,
                 const FArrayBox& zcc_fab,
-                const Geometry& /*geomdata*/,
+                const Geometry& geomdata,
                 Real /*time*/,
                 const int* /*bcrec*/,
                 const int /*level*/)
 {
     AMREX_ALWAYS_ASSERT(dcomp == 0);
     AMREX_ALWAYS_ASSERT(ncomp == 1);
+
+    // The parcel search and the buoyancy integration must run over the entire column,
+    //    so the incoming box must span the column
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(spans_full_column(bx,geomdata),
+        "mucape requires boxes spanning the full column: use TileNoZ() at the call site and do not decompose the grid in z");
+
+    // Take the vertical extent from the domain rather than from the incoming box so that
+    //    this is a whole-column calculation even if the box is ever tiled in z again
+    const int klo_col = geomdata.Domain().smallEnd(2);
+    const int khi_col = geomdata.Domain().bigEnd(2);
 
     auto const dat = datfab.array();
     auto dfab      = derfab.array();
@@ -768,11 +799,12 @@ erf_dermucape ( const Box& bx,
     b2d.setSmall(2,0);
     b2d.setBig(2,0);
 
-    ParallelFor(b2d, [=] AMREX_GPU_DEVICE(int i, int j, int) noexcept
+    ParallelFor(b2d, [=]
+                AMREX_GPU_DEVICE(int i, int j, int) noexcept
     {
         Real mucape = Real(0);
-        int klo = bx.smallEnd(2);
-        int khi = bx.bigEnd(2);
+        int klo = klo_col;
+        int khi = khi_col;
 
         if (ncons > RhoQ1_comp) {
             Real p_sfc = Real(0);
@@ -801,10 +833,10 @@ erf_dermucape ( const Box& bx,
 
                     Real Td_src = mucape_dewpoint_temperature(p_src, qv_src, T_src);
                     Real Tlcl   = mucape_lcl_temperature(T_src, Td_src);
-                    Real plcl   = p_src * std::pow(Tlcl / T_src, Cp_d / R_d);
+                    Real plcl   = p_src * std::pow(Tlcl / T_src, CpoRd);
                     plcl = amrex::min(p_src, amrex::max(plcl, mucape_min_pressure_pa()));
 
-                    Real theta_src = getThgivenTandP(T_src, p_src, R_d / Cp_d);
+                    Real theta_src = getThgivenTandP(T_src, p_src, RdoCp);
 
                     Real candidate_cape = Real(0);
                     Real z_prev = z_arr(i,j,ks);
@@ -829,7 +861,7 @@ erf_dermucape ( const Box& bx,
                         Real qv_parcel;
 
                         if (p_env >= plcl) {
-                            T_parcel  = getTgivenPandTh(p_env, theta_src, R_d / Cp_d);
+                            T_parcel  = getTgivenPandTh(p_env, theta_src, RdoCp);
                             qv_parcel = qv_src;
                         } else {
                             if (!saturated) {

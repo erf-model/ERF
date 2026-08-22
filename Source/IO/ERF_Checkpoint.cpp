@@ -1,3 +1,6 @@
+/**
+ * \file ERF_Checkpoint.cpp
+ */
 
 #include <iostream>
 #include <fstream>
@@ -6,8 +9,17 @@
 
 #include "ERF.H"
 #include "AMReX_PlotFileUtil.H"
+#include "ERF_ReadFromERFBdy.H"
+#include "ERF_Provenance.H"
 
 using namespace amrex;
+
+namespace
+{
+
+bool provenance_warning_emitted = false;
+
+} // namespace
 
 /**
  * Utility to skip to next line in Header file input stream.
@@ -112,6 +124,18 @@ ERF::WriteCheckpointFile () const
            HeaderFile << '\n';
        }
 
+       // write out array of t_avg_cnt, the normalizer for the time-averaged velocity
+       //
+       // NOTE: this is written *after* the BoxArrays, i.e. last, on purpose.  Nothing
+       //       else is parsed out of the header past that point, so a reader that does
+       //       not know about this line simply ignores it, and a reader that does can
+       //       treat its absence (a checkpoint from before issue 3654 was fixed) as
+       //       "restart the average", which is the behavior those files already had.
+       for (int i = 0; i < t_avg_cnt.size(); ++i) {
+           HeaderFile << t_avg_cnt[i] << " ";
+       }
+       HeaderFile << "\n";
+
        // Write separate file that tells how many components we have of the base state
        std::string BaseStateFileName(checkpointname + "/num_base_state_comps");
        std::ofstream BaseStateFile;
@@ -124,6 +148,25 @@ ERF::WriteCheckpointFile () const
            // write out number of components in base state
            BaseStateFile << BaseState::num_comps      << "\n";
            BaseStateFile << base_state[0].nGrowVect() << "\n";
+       }
+
+       // Persist the LSM scalar step counter (e.g. NoahMP itimestep). Without
+       // this, restart resets the substep schedule, which changes the LSM->MOST
+       // flux firing times and produces a non-bitwise trajectory vs. cold start.
+       if (solverChoice.lsm_type != LandSurfaceType::None) {
+           std::string LsmStepFileName(checkpointname + "/lsm_step");
+           std::ofstream LsmStepFile;
+           LsmStepFile.open(LsmStepFileName.c_str(), std::ofstream::out   |
+                                                     std::ofstream::trunc |
+                                                     std::ofstream::binary);
+           if(! LsmStepFile.good()) {
+               FileOpenFailed(LsmStepFileName);
+           } else {
+               for (int lev = 0; lev <= finest_level; ++lev) {
+                   LsmStepFile << lsm.Get_LSM_Step(lev) << " ";
+               }
+               LsmStepFile << "\n";
+           }
        }
    }
 
@@ -163,6 +206,50 @@ ERF::WriteCheckpointFile () const
             MultiFab gpz(convert(grids[lev],IntVect(0,0,1)),dmap[lev],1,0);
             MultiFab::Copy(gpz,gradp[lev][GpVars::gpz],0,0,1,0);
             VisMF::Write(gpz, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "Gpz"));
+        }
+
+        // Surface momentum and scalar fluxes handed to an ocean model in
+        // flux-passing mode. These are computed inside a timestep's RHS rather
+        // than carried as state, so after a restart they hold zero until the
+        // first advance -- but the coupler packs them for the ocean *before*
+        // that advance, which delivers zero wind stress and zero heat flux for a
+        // whole ocean step with no diagnostic. They are part of the coupled
+        // interface and have to survive the checkpoint.
+        //
+        // Written only when a coupling driver is attached, so standalone
+        // checkpoints are byte-for-byte unchanged. Each field is written
+        // separately because diffusion and moisture settings decide which exist;
+        // the read side probes for each rather than assuming.
+        if (m_driver_has_atm2ocn_coupling) {
+            if (!Tau.empty() && Tau[lev][TauType::tau13]) {
+                MultiFab tau13(convert(grids[lev],IntVect(1,0,1)),dmap[lev],1,0);
+                MultiFab::Copy(tau13,*Tau[lev][TauType::tau13],0,0,1,0);
+                VisMF::Write(tau13, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "Tau13"));
+            }
+            if (!Tau.empty() && Tau[lev][TauType::tau23]) {
+                MultiFab tau23(convert(grids[lev],IntVect(0,1,1)),dmap[lev],1,0);
+                MultiFab::Copy(tau23,*Tau[lev][TauType::tau23],0,0,1,0);
+                VisMF::Write(tau23, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "Tau23"));
+            }
+            if (!SFS_hfx3_lev.empty() && SFS_hfx3_lev[lev]) {
+                MultiFab hfx3(convert(grids[lev],IntVect(0,0,1)),dmap[lev],1,0);
+                MultiFab::Copy(hfx3,*SFS_hfx3_lev[lev],0,0,1,0);
+                VisMF::Write(hfx3, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "SFS_hfx3"));
+            }
+            if (!SFS_q1fx3_lev.empty() && SFS_q1fx3_lev[lev]) {
+                MultiFab q1fx3(convert(grids[lev],IntVect(0,0,1)),dmap[lev],1,0);
+                MultiFab::Copy(q1fx3,*SFS_q1fx3_lev[lev],0,0,1,0);
+                VisMF::Write(q1fx3, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "SFS_q1fx3"));
+            }
+        }
+
+        // The running sum of the time-averaged velocity.  Its normalizer, t_avg_cnt,
+        // goes in the header above; both are needed or the average silently restarts
+        // from zero across a checkpoint/restart (issue 3654).
+        // NOTE: no ghost cells to strip here, so this is written in place.
+        if (solverChoice.time_avg_vel) {
+            AMREX_ALWAYS_ASSERT(vel_t_avg[lev] != nullptr);
+            VisMF::Write(*vel_t_avg[lev], MultiFabFileFullPrefix(lev, checkpointname, "Level_", "VelTimeAvg"));
         }
 
         // Note that we write the ghost cells of the base state (unlike above)
@@ -225,6 +312,19 @@ ERF::WriteCheckpointFile () const
                 MultiFab::Copy(lsm_vars,*(lsm_flux[lev][iflux]),0,0,nvar,ng);
                 VisMF::Write(lsm_vars, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "LsmFlux" + std::to_string(iflux)));
             }
+
+            // Write the full LSM prognostic state (e.g. NoahMP soil/snow/canopy)
+            // to chk*/noahmp_restart/Level_<lev>.nc so a restart reproduces a
+            // cold-start trajectory bitwise (issue #3255). The LSM model writes
+            // its blocks collectively; no-op for models without such state.
+            // Create the subdir on rank 0 and barrier before the collective open
+            // so no rank races ahead of the directory existing.
+            std::string LsmRestartDir(checkpointname + "/noahmp_restart");
+            if (ParallelDescriptor::IOProcessor()) {
+                amrex::UtilCreateDirectory(LsmRestartDir, 0755);
+            }
+            ParallelDescriptor::Barrier();
+            lsm.Write_Lsm_Restart(lev, LsmRestartDir);
         }
 
         // Write the radiation heating rates
@@ -273,49 +373,23 @@ ERF::WriteCheckpointFile () const
 
         if (m_SurfaceLayer)  {
             amrex::Print() << "Writing SurfaceLayer variables at level " << lev << std::endl;
-            ng = IntVect(1,1,0);
-            MultiFab m_var(ba2d[lev],dmap[lev],1,ng);
-            MultiFab* src = nullptr;
 
-            // U*
-            src = m_SurfaceLayer->get_u_star(lev);
-            MultiFab::Copy(m_var,*src,0,0,1,ng);
-            VisMF::Write(m_var, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "Ustar"));
+            // These MultiFabs live on a 2D BoxArray for planar terrain but on the full 3D
+            // BoxArray (with a z ghost cell) for EB terrain, so we write each one on its own
+            // BoxArray -- copying into a hard-wired 2D MultiFab would silently drop everything
+            // above k=0 for EB (issue #3560)
+            auto write_sl_var = [&] (MultiFab* src, const std::string& name) {
+                VisMF::Write(*src, MultiFabFileFullPrefix(lev, checkpointname, "Level_", name));
+            };
 
-            // W*
-            src = m_SurfaceLayer->get_w_star(lev);
-            MultiFab::Copy(m_var,*src,0,0,1,ng);
-            VisMF::Write(m_var, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "Wstar"));
-
-            // T*
-            src = m_SurfaceLayer->get_t_star(lev);
-            MultiFab::Copy(m_var,*src,0,0,1,ng);
-            VisMF::Write(m_var, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "Tstar"));
-
-            // Q*
-            src = m_SurfaceLayer->get_q_star(lev);
-            MultiFab::Copy(m_var,*src,0,0,1,ng);
-            VisMF::Write(m_var, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "Qstar"));
-
-            // Olen
-            src = m_SurfaceLayer->get_olen(lev);
-            MultiFab::Copy(m_var,*src,0,0,1,ng);
-            VisMF::Write(m_var, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "Olen"));
-
-            // Qsurf
-            src = m_SurfaceLayer->get_q_surf(lev);
-            MultiFab::Copy(m_var,*src,0,0,1,ng);
-            VisMF::Write(m_var, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "Qsurf"));
-
-            // PBLH
-            src = m_SurfaceLayer->get_pblh(lev);
-            MultiFab::Copy(m_var,*src,0,0,1,ng);
-            VisMF::Write(m_var, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "PBLH"));
-
-            // Z0
-            src = m_SurfaceLayer->get_z0(lev);
-            MultiFab::Copy(m_var,*src,0,0,1,ng);
-            VisMF::Write(m_var, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "Z0"));
+            write_sl_var(m_SurfaceLayer->get_u_star(lev), "Ustar");
+            write_sl_var(m_SurfaceLayer->get_w_star(lev), "Wstar");
+            write_sl_var(m_SurfaceLayer->get_t_star(lev), "Tstar");
+            write_sl_var(m_SurfaceLayer->get_q_star(lev), "Qstar");
+            write_sl_var(m_SurfaceLayer->get_olen(lev)  , "Olen");
+            write_sl_var(m_SurfaceLayer->get_q_surf(lev), "Qsurf");
+            write_sl_var(m_SurfaceLayer->get_pblh(lev)  , "PBLH");
+            write_sl_var(m_SurfaceLayer->get_z0(lev)    , "Z0");
         }
 
         if (sst_lev[lev][0]) {
@@ -387,23 +461,57 @@ ERF::WriteCheckpointFile () const
 
         if (solverChoice.use_real_bcs && solverChoice.init_type == InitType::WRFInput) {
             if (lev == 0) {
-                amrex::Print() << "Writing C1H/C2H/MUB variables at level " << lev << std::endl;
+                amrex::Print() << "Writing C1H/C2H/RDNW/MUB/PHB variables at level " << lev << std::endl;
                 MultiFab tmp1d(ba1d[0],dmap[0],1,0);
 
-                MultiFab::Copy(tmp1d,*mf_C1H,0,0,1,0);
+                MultiFab::Copy(tmp1d,*wrf_C1H,0,0,1,0);
                 VisMF::Write(tmp1d, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "C1H"));
 
-                MultiFab::Copy(tmp1d,*mf_C2H,0,0,1,0);
+                MultiFab::Copy(tmp1d,*wrf_C2H,0,0,1,0);
                 VisMF::Write(tmp1d, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "C2H"));
 
-                MultiFab tmp2d(ba2d[0],dmap[0],1,mf_MUB->nGrowVect());
+                MultiFab::Copy(tmp1d,*wrf_RDNW,0,0,1,0);
+                VisMF::Write(tmp1d, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "RDNW"));
 
-                MultiFab::Copy(tmp2d,*mf_MUB,0,0,1,mf_MUB->nGrowVect());
+                MultiFab tmp2d(ba2d[0],dmap[0],1,wrf_MUB->nGrowVect());
+
+                MultiFab::Copy(tmp2d,*wrf_MUB,0,0,1,wrf_MUB->nGrowVect());
                 VisMF::Write(tmp2d, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "MUB"));
+
+                MultiFab tmp3d(convert(grids[0],IntVect(0,0,1)),dmap[0],1,wrf_PHB->nGrowVect());
+
+                MultiFab::Copy(tmp3d,*wrf_PHB,0,0,1,wrf_PHB->nGrowVect());
+                VisMF::Write(tmp3d, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "PHB"));
             }
         }
 #endif
     } // for lev
+
+    // Write zlevels to its own directory and read it as well, similar to bdy data
+    if (ParallelDescriptor::IOProcessor()) {
+        std::string ZLevelsFileName(checkpointname + "/zlevels");
+        std::ofstream ZLevelsFile;
+        ZLevelsFile.open(ZLevelsFileName.c_str(), std::ofstream::out   |
+                                                  std::ofstream::trunc |
+                                                  std::ofstream::binary);
+        if(! ZLevelsFile.good()) {
+            FileOpenFailed(ZLevelsFileName);
+        } else {
+            ZLevelsFile.precision(17);
+
+            // Write every level we hold (max_level+1) rather than finest_level+1, so
+            // that levels which are not currently active are still restored.
+            ZLevelsFile << zlevels_stag.size() << "\n";
+
+            for (int lev = 0; lev < static_cast<int>(zlevels_stag.size()); ++lev) {
+                ZLevelsFile << zlevels_stag[lev].size();
+                for (int k = 0; k < static_cast<int>(zlevels_stag[lev].size()); ++k) {
+                    ZLevelsFile << " " << zlevels_stag[lev][k];
+                }
+                ZLevelsFile << "\n";
+            }
+        }
+    }
 
 #ifdef ERF_USE_PARTICLES
    particleData.Checkpoint(checkpointname);
@@ -451,6 +559,11 @@ ERF::WriteCheckpointFile () const
 #endif
 #endif
 
+    // Write job_info after checkpoint state so the provenance record describes
+    // the completed output attempt and can seed a later restart lineage.
+    writeJobInfo(checkpointname, erf_provenance::ArtifactType::Checkpoint,
+                 istep[0], t_new[0]);
+
     if (verbose > 0)
     {
         auto dCheckTime = amrex::second() - dCheckTime0;
@@ -466,6 +579,34 @@ void
 ERF::ReadCheckpointFile ()
 {
     Print() << "Restart from native checkpoint " << restart_chkfile << "\n";
+
+    const auto provenance_result =
+        erf_provenance::read_job_info_file(restart_chkfile + "/job_info");
+    if (provenance_result.valid() &&
+        provenance_result.record.artifact.artifact_type == erf_provenance::ArtifactType::Checkpoint) {
+        execution_provenance = erf_provenance::make_restart_provenance(
+            execution_provenance, provenance_result.record, restart_chkfile);
+    } else {
+        // Provenance is auxiliary metadata. A missing or invalid record must not make
+        // a valid physical checkpoint unreadable.
+        if (ParallelDescriptor::IOProcessor() && !provenance_warning_emitted) {
+            provenance_warning_emitted = true;
+            const std::string reason = provenance_result.valid()
+                ? "the provenance record has artifact_type=" +
+                  std::string(erf_provenance::artifact_type_token(
+                      provenance_result.record.artifact.artifact_type)) +
+                  ", not checkpoint"
+                : provenance_result.diagnostic;
+            Warning("Cannot recover provenance from native checkpoint '" +
+                    restart_chkfile + "': " + reason +
+                    ". ERF will continue with incomplete provenance.");
+        }
+        const auto failure_status = provenance_result.valid()
+            ? erf_provenance::ProvenanceReadStatus::ArtifactTypeMismatch
+            : provenance_result.status;
+        execution_provenance = erf_provenance::make_incomplete_restart_provenance(
+            execution_provenance, failure_status, restart_chkfile);
+    }
 
     // Header
     std::string File(restart_chkfile + "/Header");
@@ -526,7 +667,7 @@ ERF::ReadCheckpointFile ()
         std::istringstream lis(line);
         int i = 0;
         while (lis >> word) {
-            dt[i++] = static_cast<Real>(std::stod(word));
+            dt[i++] = std::stod(word);
         }
     }
 
@@ -536,8 +677,48 @@ ERF::ReadCheckpointFile ()
         std::istringstream lis(line);
         int i = 0;
         while (lis >> word) {
-            t_new[i++] = static_cast<Real>(std::stod(word));
+            t_new[i++] = std::stod(word);
         }
+    }
+
+    // Read zlevels from its own directory
+    // NOTE: This read should occur before MakeNewLevelFromScratch
+    {
+        std::string ZLevelsFile(restart_chkfile + "/zlevels");
+        if (amrex::FileExists(ZLevelsFile)) {
+            Vector<char> ZLevelsfileCharPtr;
+            ParallelDescriptor::ReadAndBcastFile(ZLevelsFile, ZLevelsfileCharPtr);
+            std::string ZLevelsfileCharPtrString(ZLevelsfileCharPtr.dataPtr());
+            std::istringstream isz(ZLevelsfileCharPtrString, std::istringstream::in);
+
+            int nlevs_in_chk = 0;
+            isz >> nlevs_in_chk;
+
+            for (int lev = 0; lev < nlevs_in_chk; ++lev) {
+                int nz_stag = 0;
+                isz >> nz_stag;
+
+                Vector<Real> zlevels_from_chk(nz_stag);
+                for (int k = 0; k < nz_stag; ++k) {
+                    isz >> zlevels_from_chk[k];
+                }
+
+                // A checkpoint from a run with more levels than we hold: read past it
+                if (lev >= static_cast<int>(zlevels_stag.size())) { continue; }
+
+                if (static_cast<int>(zlevels_stag[lev].size()) != nz_stag) {
+                    Print() << "Checkpoint holds " << nz_stag << " staggered z levels at level "
+                            << lev << " but this run expects "
+                            << zlevels_stag[lev].size() << std::endl;
+                    Abort("Cannot restart with a different number of cells in z");
+                }
+
+                zlevels_stag[lev] = zlevels_from_chk;
+
+                // Keep the cell heights consistent with the levels we just read in
+                update_stretched_dz(lev, zlevels_stag, stretched_dz_h, stretched_dz_d);
+            }
+        } // zlevels file exists
     }
 
     for (int lev = 0; lev <= finest_level; ++lev) {
@@ -549,7 +730,27 @@ ERF::ReadCheckpointFile ()
         // create a distribution mapping
         DistributionMapping dm { ba, ParallelDescriptor::NProcs() };
 
-        MakeNewLevelFromScratch (lev, t_new[lev], ba, dm);
+        MakeNewLevelFromScratch (lev, static_cast<Real>(t_new[lev]), ba, dm);
+    }
+
+    // read in array of t_avg_cnt
+    //
+    // NOTE: this must come after the loop above, because MakeNewLevelFromScratch ->
+    //       init_stuff zeroes the time-averaging state for each level it builds.
+    //       An older checkpoint has nothing here, in which case we leave those zeros
+    //       in place and the average simply starts over.
+    if (solverChoice.time_avg_vel) {
+        std::getline(is, line);
+        std::istringstream lis(line);
+        int i = 0;
+        while ((i < t_avg_cnt.size()) && (lis >> word)) {
+            t_avg_cnt[i++] = std::stod(word);
+        }
+        if (i == 0) {
+            amrex::Print() << "NOTE: this checkpoint predates time-averaged velocity being "
+                              "checkpointed; the running average of velocity will start over"
+                           << std::endl;
+        }
     }
 
     // ncomp is only valid after we MakeNewLevelFromScratch (asks micro how many vars)
@@ -604,28 +805,28 @@ ERF::ReadCheckpointFile ()
             int ncomp_remainder = ncomp_cons - (RhoKE_comp + 1);
             MultiFab::Copy(vars_new[lev][Vars::cons],cons,(RhoKE_comp+2),(RhoKE_comp+1),ncomp_remainder,0);
 
-            vars_new[lev][Vars::cons].setBndry(Real(1.0e34));
+            vars_new[lev][Vars::cons].setBndry(bogus_large_value);
         } else {
             MultiFab cons(grids[lev],dmap[lev],ncomp_cons,0);
             VisMF::Read(cons, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "Cell"));
             MultiFab::Copy(vars_new[lev][Vars::cons],cons,0,0,ncomp_cons,0);
-            vars_new[lev][Vars::cons].setBndry(Real(1.0e34));
+            vars_new[lev][Vars::cons].setBndry(bogus_large_value);
         }
 
         MultiFab xvel(convert(grids[lev],IntVect(1,0,0)),dmap[lev],1,0);
         VisMF::Read(xvel, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "XFace"));
         MultiFab::Copy(vars_new[lev][Vars::xvel],xvel,0,0,1,0);
-        vars_new[lev][Vars::xvel].setBndry(Real(1.0e34));
+        vars_new[lev][Vars::xvel].setBndry(bogus_large_value);
 
         MultiFab yvel(convert(grids[lev],IntVect(0,1,0)),dmap[lev],1,0);
         VisMF::Read(yvel, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "YFace"));
         MultiFab::Copy(vars_new[lev][Vars::yvel],yvel,0,0,1,0);
-        vars_new[lev][Vars::yvel].setBndry(Real(1.0e34));
+        vars_new[lev][Vars::yvel].setBndry(bogus_large_value);
 
         MultiFab zvel(convert(grids[lev],IntVect(0,0,1)),dmap[lev],1,0);
         VisMF::Read(zvel, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "ZFace"));
         MultiFab::Copy(vars_new[lev][Vars::zvel],zvel,0,0,1,0);
-        vars_new[lev][Vars::zvel].setBndry(Real(1.0e34));
+        vars_new[lev][Vars::zvel].setBndry(bogus_large_value);
 
         if (solverChoice.anelastic[lev] == 1) {
             MultiFab ppinc(grids[lev],dmap[lev],1,0);
@@ -647,6 +848,69 @@ ERF::ReadCheckpointFile ()
             VisMF::Read(gpz, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "Gpz"));
             MultiFab::Copy(gradp[lev][GpVars::gpz],gpz,0,0,1,0);
             gradp[lev][GpVars::gpz].FillBoundary(geom[lev].periodicity());
+        }
+
+        // Restore the surface fluxes an ocean model is driven by in flux-passing
+        // mode. Without this they are zero until the first advance, and the
+        // coupler packs them before that happens. See the matching write above.
+        //
+        // Absent from checkpoints written before this landed, and from any
+        // written by an uncoupled run, so each is probed rather than assumed.
+        // Missing means the ocean gets zero forcing for its first step, which is
+        // silent and wrong, so say so rather than leaving it to be discovered in
+        // the results.
+        if (m_driver_has_atm2ocn_coupling) {
+            bool restored_any = false;
+            bool missing_any  = false;
+
+            auto read_if_present = [&] (MultiFab* dst, const char* tag, const IntVect& ixtype)
+            {
+                if (dst == nullptr) { return; }
+                const std::string name =
+                    MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", tag);
+                if (amrex::FileExists(name + "_H")) {
+                    MultiFab tmp(convert(grids[lev],ixtype),dmap[lev],1,0);
+                    VisMF::Read(tmp, name);
+                    MultiFab::Copy(*dst,tmp,0,0,1,0);
+                    dst->FillBoundary(geom[lev].periodicity());
+                    restored_any = true;
+                } else {
+                    missing_any = true;
+                }
+            };
+
+            read_if_present(Tau.empty() ? nullptr : Tau[lev][TauType::tau13].get(),
+                            "Tau13", IntVect(1,0,1));
+            read_if_present(Tau.empty() ? nullptr : Tau[lev][TauType::tau23].get(),
+                            "Tau23", IntVect(0,1,1));
+            read_if_present(SFS_hfx3_lev.empty() ? nullptr : SFS_hfx3_lev[lev].get(),
+                            "SFS_hfx3", IntVect(0,0,1));
+            read_if_present(SFS_q1fx3_lev.empty() ? nullptr : SFS_q1fx3_lev[lev].get(),
+                            "SFS_q1fx3", IntVect(0,0,1));
+
+            if (missing_any && !restored_any) {
+                amrex::Print() << "WARNING: restart checkpoint carries no surface fluxes "
+                               << "for level " << lev << ". In flux-passing coupled mode "
+                               << "the ocean will be driven by zero wind stress and zero "
+                               << "heat flux until the first atmosphere advance. Re-run "
+                               << "from a checkpoint written with flux output, or expect "
+                               << "the first ocean step to be unforced." << std::endl;
+            }
+        }
+
+        // Restore the running sum of the time-averaged velocity (issue 3654).  Older
+        // checkpoints do not carry it; in that case keep the zeros that init_stuff set
+        // and drop this level's counter to match, so the average restarts consistently.
+        if (solverChoice.time_avg_vel) {
+            AMREX_ALWAYS_ASSERT(vel_t_avg[lev] != nullptr);
+            const std::string vta_name =
+                MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "VelTimeAvg");
+            if (amrex::FileExists(vta_name + "_H")) {
+                VisMF::Read(*vel_t_avg[lev], vta_name);
+            } else {
+                vel_t_avg[lev]->setVal(0.0);
+                t_avg_cnt[lev] = 0.0;
+            }
         }
 
         // Note that we read the ghost cells of the base state (unlike above)
@@ -688,40 +952,22 @@ ERF::ReadCheckpointFile ()
         base_state[lev].FillBoundary(geom[lev].periodicity());
 
         if (SolverChoice::mesh_type != MeshType::ConstantDz)  {
-           // Note that we also read the ghost cells of z_phys_nd
-           IntVect ng = z_phys_nd[lev]->nGrowVect();
-           MultiFab z_height(convert(grids[lev],IntVect(1,1,1)),dmap[lev],1,ng);
-           VisMF::Read(z_height, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "Z_Phys_nd"));
-           MultiFab::Copy(*z_phys_nd[lev],z_height,0,0,1,ng);
-           update_terrain_arrays(lev);
+            // Note that we also read the ghost cells of z_phys_nd
+            IntVect ng = z_phys_nd[lev]->nGrowVect();
+            MultiFab z_height(convert(grids[lev],IntVect(1,1,1)),dmap[lev],1,ng);
+            VisMF::Read(z_height, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "Z_Phys_nd"));
+            MultiFab::Copy(*z_phys_nd[lev],z_height,0,0,1,ng);
+            update_terrain_arrays(lev);
 
-           // Compute the min dz and pass to the micro model
-           Real dzmin = get_dzmin_terrain(*z_phys_nd[lev]);
-           micro->Set_dzmin(lev, dzmin);
+            // Compute the min dz and pass to the micro model
+            Real dzmin = get_dzmin_terrain(*z_phys_nd[lev]);
+            micro->Set_dzmin(lev, dzmin);
 
-           if (SolverChoice::mesh_type == MeshType::VariableDz) {
-               MultiFab z_slab(convert(ba2d[lev],IntVect(1,1,1)),dmap[lev],1,0);
-               int klo = geom[lev].Domain().smallEnd(2);
-               for (MFIter mfi(z_slab); mfi.isValid(); ++mfi) {
-                   Box nbx = mfi.tilebox();
-                   Array4<Real const> const& z_arr      = z_phys_nd[lev]->const_array(mfi);
-                   Array4<Real      > const& z_slab_arr = z_slab.array(mfi);
-                   ParallelFor(nbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-                   {
-                       z_slab_arr(i,j,k) = z_arr(i,j,klo);
-                   });
-               }
-               Real z_min = z_slab.min(0);
-               Real z_max = z_slab.max(0);
-
-               auto dz = geom[lev].CellSize()[2];
-               if (z_max - z_min < Real(1.e-8) * dz) {
-                   SolverChoice::set_mesh_type(MeshType::StretchedDz);
-                   if (verbose > 0) {
-                       amrex::Print() << "Resetting mesh type to StretchedDz since terrain is flat" << std::endl;
-                   }
-               }
-           }
+#if 0
+            if ( (solverChoice.init_type != InitType::WRFInput) && (solverChoice.init_type != InitType::Metgrid) ) {
+                check_mesh_type(lev);
+            }
+#endif
         }
 
         // Read in the moisture model restart variables
@@ -891,22 +1137,7 @@ ERF::ReadCheckpointFile ()
                 }
             }
         } else {
-            // Allow idealized cases over water, used to set lmask
-            ParmParse pp("erf");
-            int is_land;
-            if (pp.query("is_land", is_land, lev)) {
-                if (is_land == 1) {
-                    amrex::Print() << "Level " << lev << " is land" << std::endl;
-                } else if (is_land == 0) {
-                    amrex::Print() << "Level " << lev << " is water" << std::endl;
-                } else {
-                    Error("is_land should be 0 or 1");
-                }
-                lmask_lev[lev][0]->setVal(is_land);
-            } else {
-                // Default to land everywhere if not specified
-                lmask_lev[lev][0]->setVal(1);
-            }
+            lmask_lev[lev][0]->setVal(solverChoice.is_land[lev]);
             lmask_lev[lev][0]->FillBoundary(geom[lev].periodicity());
         }
 
@@ -943,22 +1174,80 @@ ERF::ReadCheckpointFile ()
 
         if (solverChoice.use_real_bcs && solverChoice.init_type == InitType::WRFInput) {
             if (lev == 0) {
+                amrex::Print() << "Reading C1H/C2H/RDNW/MUB/PHB variables at level " << lev << std::endl;
                 MultiFab tmp1d(ba1d[0],dmap[0],1,0);
 
                 VisMF::Read(tmp1d, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "C1H"));
-                MultiFab::Copy(*mf_C1H,tmp1d,0,0,1,0);
+                MultiFab::Copy(*wrf_C1H,tmp1d,0,0,1,0);
 
                 VisMF::Read(tmp1d, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "C2H"));
-                MultiFab::Copy(*mf_C2H,tmp1d,0,0,1,0);
+                MultiFab::Copy(*wrf_C2H,tmp1d,0,0,1,0);
 
-                MultiFab tmp2d(ba2d[0],dmap[0],1,mf_MUB->nGrowVect());
+                VisMF::Read(tmp1d, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "RDNW"));
+                MultiFab::Copy(*wrf_RDNW,tmp1d,0,0,1,0);
+
+                MultiFab tmp2d(ba2d[0],dmap[0],1,wrf_MUB->nGrowVect());
 
                 VisMF::Read(tmp2d, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "MUB"));
-                MultiFab::Copy(*mf_MUB,tmp2d,0,0,1,mf_MUB->nGrowVect());
+                MultiFab::Copy(*wrf_MUB,tmp2d,0,0,1,wrf_MUB->nGrowVect());
+
+                MultiFab tmp3d(convert(grids[0],IntVect(0,0,1)),dmap[0],1,wrf_PHB->nGrowVect());
+
+                VisMF::Read(tmp3d, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "PHB"));
+                MultiFab::Copy(*wrf_PHB,tmp3d,0,0,1,wrf_PHB->nGrowVect());
             }
         }
 #endif
     } // for lev
+
+    // Restore the LSM scalar step counter (e.g. NoahMP itimestep) so the
+    // substepping schedule survives restart. lsm.Init() during
+    // MakeNewLevelFromScratch has already reset itimestep to 0 (NoahmpIOVarInit);
+    // override it here from the checkpoint. Older checkpoints without this file
+    // restart with the legacy reset-to-zero behavior.
+    if (solverChoice.lsm_type != LandSurfaceType::None) {
+        std::string LsmStepFileName(restart_chkfile + "/lsm_step");
+        if (amrex::FileExists(LsmStepFileName)) {
+            Vector<char> LsmStepCharPtr;
+            ParallelDescriptor::ReadAndBcastFile(LsmStepFileName, LsmStepCharPtr);
+            std::string LsmStepStr(LsmStepCharPtr.dataPtr());
+            std::istringstream lsm_is(LsmStepStr, std::istringstream::in);
+            int step_val = 0;
+            for (int lev = 0; lev <= finest_level; ++lev) {
+                if (lsm_is >> step_val) {
+                    lsm.Set_LSM_Step(lev, step_val);
+                    amrex::Print() << "Restored LSM step counter at level " << lev
+                                   << " to " << step_val << std::endl;
+                }
+            }
+        } else {
+            amrex::Print() << "Warning: legacy checkpoint without lsm_step file; "
+                           << "LSM substep schedule will reset (may break bitwise reproducibility)."
+                           << std::endl;
+        }
+
+        // Restore the full LSM prognostic state (e.g. NoahMP soil/snow/canopy)
+        // from chk*/noahmp_restart. lsm.Init() during MakeNewLevelFromScratch
+        // has already cold-initialized this state from wrfinput/tables; this
+        // overwrites it with the checkpoint, and NoahMP's per-step In-transfer
+        // pulls it into the physics state on the first Advance (issue #3255).
+        // Legacy checkpoints without this directory fall back to cold-init.
+        std::string LsmRestartDir(restart_chkfile + "/noahmp_restart");
+        if (amrex::FileExists(LsmRestartDir + "/Level_0.nc")) {
+            for (int lev = 0; lev <= finest_level; ++lev) {
+                lsm.Read_Lsm_Restart(lev, LsmRestartDir);
+            }
+            amrex::Print() << "Restored full NoahMP prognostic state from "
+                           << LsmRestartDir << std::endl;
+        } else {
+            amrex::Print() << "Warning: legacy checkpoint without noahmp_restart; "
+                           << "NoahMP prognostic state cold-initialized from wrfinput "
+                           << "(land trajectory will differ from cold start)."
+                           << std::endl;
+        }
+    }
+
+
 
 #ifdef ERF_USE_PARTICLES
     restartTracers((ParGDBBase*)GetParGDB(),restart_chkfile);
@@ -1067,6 +1356,57 @@ ERF::ReadCheckpointFile ()
     } // init_type == WRFInput or Metgrid
 #endif
 #endif
+
+#ifdef ERF_USE_NETCDF
+    // Load boundary data from erfbdy during restart for metgrid or wrfinput.
+    if (((solverChoice.init_type == InitType::WRFInput) || (solverChoice.init_type == InitType::Metgrid)) &&
+        solverChoice.use_real_bcs) {
+
+        // Check for erfbdy file.
+        std::string erfbdy_header = erfbdy_file + "/Header";
+
+        // For now we disable this for InitType::WRFInput because it failed the WPS_Test_restart regression test
+        use_erfbdy = ( (solverChoice.init_type == InitType::Metgrid) && FileSystem::Exists(erfbdy_header) );
+
+        if (solverChoice.init_type == InitType::Metgrid) {
+            if (!use_erfbdy) {
+                Abort("Restart with init_type=metgrid requires erfbdy file: " + erfbdy_file);
+            }
+        }
+
+        // Load from erfbdy if it exists.
+        if (use_erfbdy) {
+            Print() << "Restart: Loading boundary data from erfbdy file: " << erfbdy_file << std::endl;
+
+            int ntimes_erfbdy;
+            Vector<double> bdy_times;
+            bdy_time_interval = read_times_from_erfbdy(erfbdy_file,
+                                                       ntimes_erfbdy, nvars_erfbdy, real_width,
+                                                       bdy_times, start_bdy_time, final_bdy_time);
+
+            Print() << "Restart: erfbdy file contains " << ntimes_erfbdy << " times" << std::endl;
+
+            bdy_data_xlo.resize(ntimes_erfbdy);
+            bdy_data_xhi.resize(ntimes_erfbdy);
+            bdy_data_ylo.resize(ntimes_erfbdy);
+            bdy_data_yhi.resize(ntimes_erfbdy);
+
+            // Determine which times we need based on current simulation time.
+            double time_since_start_bdy = t_new[0] + start_time - start_bdy_time;
+            int n_time_old = std::min(static_cast<int>(time_since_start_bdy / bdy_time_interval), ntimes_erfbdy-1);
+            int n_time_new = n_time_old + 1;
+
+            // Read the necessary times into memory.
+            for (int itime = n_time_old; itime <= std::min(n_time_new + 1, ntimes_erfbdy - 1); ++itime) {
+                read_from_erfbdy(itime, erfbdy_file,
+                                 bdy_data_xlo, bdy_data_xhi,
+                                 bdy_data_ylo, bdy_data_yhi,
+                                 nvars_erfbdy, real_width);
+                Print() << "Restart: Loaded erfbdy time index " << itime << std::endl;
+            }
+        }
+    }
+#endif
 }
 
 /**
@@ -1094,17 +1434,17 @@ ERF::ReadVelsOnlyFromCheckpointFile (int lev_to_fill, std::string& chkfile_for_v
     MultiFab xvel(convert(grids[lev],IntVect(1,0,0)),dmap[lev],1,0);
     VisMF::Read(xvel, MultiFabFileFullPrefix(lev, chkfile_for_vels, "Level_", "XFace"));
     MultiFab::Copy(vars_new[lev][Vars::xvel],xvel,0,0,1,0);
-    vars_new[lev][Vars::xvel].setBndry(Real(1.0e34));
+    vars_new[lev][Vars::xvel].setBndry(bogus_large_value);
 
     MultiFab yvel(convert(grids[lev],IntVect(0,1,0)),dmap[lev],1,0);
     VisMF::Read(yvel, MultiFabFileFullPrefix(lev, chkfile_for_vels, "Level_", "YFace"));
     MultiFab::Copy(vars_new[lev][Vars::yvel],yvel,0,0,1,0);
-    vars_new[lev][Vars::yvel].setBndry(Real(1.0e34));
+    vars_new[lev][Vars::yvel].setBndry(bogus_large_value);
 
     MultiFab zvel(convert(grids[lev],IntVect(0,0,1)),dmap[lev],1,0);
     VisMF::Read(zvel, MultiFabFileFullPrefix(lev, chkfile_for_vels, "Level_", "ZFace"));
     MultiFab::Copy(vars_new[lev][Vars::zvel],zvel,0,0,1,0);
-    vars_new[lev][Vars::zvel].setBndry(Real(1.0e34));
+    vars_new[lev][Vars::zvel].setBndry(bogus_large_value);
 }
 
 /**
@@ -1119,72 +1459,42 @@ ERF::ReadCheckpointFileSurfaceLayer ()
     {
         amrex::Print() << "Reading MOST variables" << std::endl;
 
-        IntVect ng(1,1,0);
-        MultiFab  m_var(ba2d[lev],dmap[lev],1,ng);
-        MultiFab* dst = nullptr;
+        auto read_most_var = [&] (const std::string& name, MultiFab* dst) {
+            const std::string mf_name = MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", name);
+            if (amrex::FileExists(mf_name + "_H")) {
+                MultiFab m_var;
+                VisMF::Read(m_var, mf_name);
+                // The number of ghost cells depends on whether these live on a 2D or a 3D
+                // BoxArray (see WriteCheckpointFile), and a checkpoint written before the
+                // fix for issue #3560 may have fewer than the destination holds, so only
+                // fill as many ghost cells as both sides have
+                IntVect ng = amrex::min(m_var.nGrowVect(), dst->nGrowVect());
+                dst->ParallelCopy(m_var, 0, 0, 1, ng, ng, geom[lev].periodicity());
+            }
+        };
 
         // U*
-        std::string UstarFileName(restart_chkfile + "/Level_0/Ustar_H");
-        if (amrex::FileExists(UstarFileName)) {
-            dst = m_SurfaceLayer->get_u_star(lev);
-            VisMF::Read(m_var, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "Ustar"));
-            MultiFab::Copy(*dst,m_var,0,0,1,ng);
-        }
+        read_most_var("Ustar", m_SurfaceLayer->get_u_star(lev));
 
         // W*
-        std::string WstarFileName(restart_chkfile + "/Level_0/Wstar_H");
-        if (amrex::FileExists(WstarFileName)) {
-            dst = m_SurfaceLayer->get_w_star(lev);
-            VisMF::Read(m_var, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "Wstar"));
-            MultiFab::Copy(*dst,m_var,0,0,1,ng);
-        }
+        read_most_var("Wstar", m_SurfaceLayer->get_w_star(lev));
 
         // T*
-        std::string TstarFileName(restart_chkfile + "/Level_0/Tstar_H");
-        if (amrex::FileExists(TstarFileName)) {
-            dst = m_SurfaceLayer->get_t_star(lev);
-            VisMF::Read(m_var, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "Tstar"));
-            MultiFab::Copy(*dst,m_var,0,0,1,ng);
-        }
+        read_most_var("Tstar", m_SurfaceLayer->get_t_star(lev));
 
         // Q*
-        std::string QstarFileName(restart_chkfile + "/Level_0/Qstar_H");
-        if (amrex::FileExists(QstarFileName)) {
-            dst = m_SurfaceLayer->get_q_star(lev);
-            VisMF::Read(m_var, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "Qstar"));
-            MultiFab::Copy(*dst,m_var,0,0,1,ng);
-        }
+        read_most_var("Qstar", m_SurfaceLayer->get_q_star(lev));
 
         // Olen
-        std::string OlenFileName(restart_chkfile + "/Level_0/Olen_H");
-        if (amrex::FileExists(OlenFileName)) {
-            dst = m_SurfaceLayer->get_olen(lev);
-            VisMF::Read(m_var, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "Olen"));
-            MultiFab::Copy(*dst,m_var,0,0,1,ng);
-        }
+        read_most_var("Olen", m_SurfaceLayer->get_olen(lev));
 
         // Qsurf
-        std::string QsurfFileName(restart_chkfile + "/Level_0/Qsurf_H");
-        if (amrex::FileExists(QsurfFileName)) {
-            dst = m_SurfaceLayer->get_q_surf(lev);
-            VisMF::Read(m_var, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "Qsurf"));
-            MultiFab::Copy(*dst,m_var,0,0,1,ng);
-        }
+        read_most_var("Qsurf", m_SurfaceLayer->get_q_surf(lev));
 
         // PBLH
-        std::string PBLHFileName(restart_chkfile + "/Level_0/PBLH_H");
-        if (amrex::FileExists(PBLHFileName)) {
-            dst = m_SurfaceLayer->get_pblh(lev);
-            VisMF::Read(m_var, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "PBLH"));
-            MultiFab::Copy(*dst,m_var,0,0,1,ng);
-        }
+        read_most_var("PBLH", m_SurfaceLayer->get_pblh(lev));
 
         // Z0
-        std::string Z0FileName(restart_chkfile + "/Level_0/Z0_H");
-        if (amrex::FileExists(Z0FileName)) {
-            dst = m_SurfaceLayer->get_z0(lev);
-            VisMF::Read(m_var, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "Z0"));
-            MultiFab::Copy(*dst,m_var,0,0,1,ng);
-        }
+        read_most_var("Z0", m_SurfaceLayer->get_z0(lev));
     }
 }

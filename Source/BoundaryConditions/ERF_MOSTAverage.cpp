@@ -10,19 +10,23 @@ using namespace amrex;
  * Constructor for MOSTAverage class.
  *
  * @param[in] geom Container for geometric information at each level
- * @param[in] vars_old Conserved variables at each level
- * @param[in] Theta_prim Primitive theta component at each level
- * @param[in] z_phys_nd Physical heights at each level
+ * @param[in] has_zphys Whether physical height data is available
+ * @param[in] a_pp_prefix ParmParse prefix for MOST inputs
+ * @param[in] mesh_type Mesh type for the simulation
+ * @param[in] terrain_type Terrain type for the simulation
+ * @param[in] eb_vec Embedded-boundary data at each level
  */
 MOSTAverage::MOSTAverage (Vector<Geometry>  geom,
                           const bool& has_zphys,
                           std::string a_pp_prefix,
                           const MeshType& mesh_type,
-                          const TerrainType& terrain_type)
+                          const TerrainType& terrain_type,
+                          const Vector<const eb_*>& eb_vec)
   : m_geom(std::move(geom)),
     m_pp_prefix(a_pp_prefix),
     m_mesh_type(mesh_type),
-    m_terrain_type(terrain_type)
+    m_terrain_type(terrain_type),
+    m_eb_vec(eb_vec)
 {
     // Get basic info
     //--------------------------------------------------------
@@ -52,6 +56,9 @@ MOSTAverage::MOSTAverage (Vector<Geometry>  geom,
         }
     }
 
+    if ((m_terrain_type == TerrainType::EB) && (m_policy == 0)) {
+        m_policy = 2;
+    }
     // For SYCL
     amrex::ignore_unused(has_zphys);
 
@@ -79,8 +86,20 @@ MOSTAverage::MOSTAverage (Vector<Geometry>  geom,
     m_i_indx.resize(m_maxlev);
     m_j_indx.resize(m_maxlev);
     m_k_indx.resize(m_maxlev);
+
+    m_Vsg.resize(m_maxlev, zero);
 }
 
+/**
+ * Make MOSTAverage data structures at one level.
+ *
+ * @param[in] lev Current level
+ * @param[in] vars_old State data used by the average calculator
+ * @param[in] Theta_prim Primitive theta component at this level
+ * @param[in] Qv_prim Primitive water-vapor component at this level
+ * @param[in] Qr_prim Primitive rain-water component at this level
+ * @param[in] z_phys_nd Nodal physical height at this level
+ */
 void
 MOSTAverage::make_MOSTAverage_at_level (const int& lev,
                                         const Vector<MultiFab*>& vars_old,
@@ -112,7 +131,7 @@ MOSTAverage::make_MOSTAverage_at_level (const int& lev,
 
         m_fields[lev][0] = vars_old[Vars::xvel];
         m_averages[lev][0] = std::make_unique<MultiFab>(ba2d,dm,ncomp,ng);
-        m_averages[lev][0]->setVal(Real(1e34));
+        m_averages[lev][0]->setVal(bogus_large_value);
         if (m_rotate) {
             m_rot_fields[lev][0] = std::make_unique<MultiFab>(ba,dm,ncomp,ng);
             MultiFab::Copy(*m_rot_fields[lev][0],mf,0,0,1,ng);
@@ -133,7 +152,7 @@ MOSTAverage::make_MOSTAverage_at_level (const int& lev,
 
         m_fields[lev][1] = vars_old[Vars::yvel];
         m_averages[lev][1] = std::make_unique<MultiFab>(ba2d,dm,ncomp,ng);
-        m_averages[lev][1]->setVal(Real(1e34));
+        m_averages[lev][1]->setVal(bogus_large_value);
         if (m_rotate) {
             m_rot_fields[lev][1] = std::make_unique<MultiFab>(ba,dm,ncomp,ng);
             MultiFab::Copy(*m_rot_fields[lev][1],mf,0,0,1,ng);
@@ -161,7 +180,7 @@ MOSTAverage::make_MOSTAverage_at_level (const int& lev,
         // Initialize remaining multifabs
         for (int iavg(2); iavg < m_navg; ++iavg) {
             m_averages[lev][iavg] = std::make_unique<MultiFab>(ba2d,dm,ncomp,ng);
-            m_averages[lev][iavg]->setVal(Real(1e34));
+            m_averages[lev][iavg]->setVal(bogus_large_value);
         }
 
         // Default to dry
@@ -194,7 +213,9 @@ MOSTAverage::make_MOSTAverage_at_level (const int& lev,
             m_j_indx[lev] = std::make_unique<iMultiFab>(ba2d,dm,incomp,ng);
             m_k_indx[lev] = std::make_unique<iMultiFab>(ba2d,dm,incomp,ng);
         } else {
-            m_k_indx[lev] = std::make_unique<iMultiFab>(ba2d,dm,incomp,ng);
+            if (!use_eb) {
+                m_k_indx[lev] = std::make_unique<iMultiFab>(ba2d,dm,incomp,ng);
+            }
         }
     }
     // Nodal in z (only used with terrain stress rotations)
@@ -211,7 +232,7 @@ MOSTAverage::make_MOSTAverage_at_level (const int& lev,
     } else if (use_terrain_fitted_coords) {                    // Terrain
         set_k_indices_T(lev);
     } else if (use_eb) {                                       // EB
-        set_k_indices_EB(lev);
+        set_z_positions_EB(lev);
     } else {                                                   // No Terrain
         set_k_indices_N(lev);
     }
@@ -225,6 +246,9 @@ MOSTAverage::make_MOSTAverage_at_level (const int& lev,
     case 1: // Local region/point
         set_region_normalization(lev);
         break;
+    case 2: // EB
+        set_eb_normalization(lev);
+        break;
     default:
         AMREX_ALWAYS_ASSERT_WITH_MESSAGE(false, "Unknown policy for MOSTAverage!");
     }
@@ -233,7 +257,7 @@ MOSTAverage::make_MOSTAverage_at_level (const int& lev,
     //--------------------------------------------------------
     if (m_t_avg) {
         // Exponential filter function
-        m_fact_old = std::exp(-one / m_time_window);
+        m_fact_old = static_cast<amrex::Real>(std::exp(-1.0 / m_time_window));
 
         // Enforce discrete normalization: (mfn*val_new + mfo*val_old)
         m_fact_new = one - m_fact_old;
@@ -242,18 +266,16 @@ MOSTAverage::make_MOSTAverage_at_level (const int& lev,
         m_t_init.resize(m_maxlev,0);
     }
 
-    // Corrections to the mean surface velocity
-    m_Vsg = Vector<Real>(m_maxlev, zero);
+    // Correction to the mean surface velocity at this level
+    m_Vsg[lev] = zero;
     if (include_subgrid_vel) {
-        if (include_subgrid_vel) {
-            Print() << "Subgrid velocity scale correction at level : " << lev << ' ';
-            const auto dxArr = m_geom[lev].CellSizeArray();
-            Real dx = std::sqrt(dxArr[0]*dxArr[1]);
-            if (dx > Real(5000.)) {
-                m_Vsg[lev] = Real(0.32) * std::pow(dx/Real(5000.)-1, Real(0.33));
-            }
-            Print() << m_Vsg[lev] << std::endl;
+        Print() << "Subgrid velocity scale correction at level : " << lev << ' ';
+        const auto dxArr = m_geom[lev].CellSizeArray();
+        Real dx = std::sqrt(dxArr[0]*dxArr[1]);
+        if (dx > Real(5000.)) {
+            m_Vsg[lev] = Real(0.32) * std::pow(dx/Real(5000.)-1, Real(0.33));
         }
+        Print() << m_Vsg[lev] << std::endl;
     }
 }
 
@@ -264,6 +286,8 @@ MOSTAverage::make_MOSTAverage_at_level (const int& lev,
  * @param[in] lev Current level
  * @param[in] vars_old Conserved variables at each level
  * @param[in] Theta_prim Primitive theta component at each level
+ * @param[in] Qv_prim Primitive water-vapor component at each level
+ * @param[in] Qr_prim Primitive rain-water component at each level
  */
 void
 MOSTAverage::update_field_ptrs (const int& lev,
@@ -283,6 +307,7 @@ MOSTAverage::update_field_ptrs (const int& lev,
 /**
  * Function to set the rotated velocities.
  *
+ * @param[in] lev Current level
  */
 void
 MOSTAverage::set_rotated_fields (const int& lev)
@@ -342,6 +367,7 @@ MOSTAverage::set_rotated_fields (const int& lev)
 /**
  * Function to compute normalization for plane average.
  *
+ * @param[in] lev Current level
  */
 void
 MOSTAverage::set_plane_normalization (const int& lev)
@@ -396,10 +422,99 @@ MOSTAverage::set_plane_normalization (const int& lev)
     } // iavg
 }
 
+/**
+ * Function to compute normalization for average over EB.
+ *
+ * @param[in] lev Current level
+ */
+void
+MOSTAverage::set_eb_normalization (const int& lev)
+{
+    AMREX_ALWAYS_ASSERT(m_eb_vec[lev] != nullptr);
+
+    // Get EB data - need both cell-centered and face-centered flags
+    const auto& cc_flags = m_eb_vec[lev]->get_const_factory()->getMultiEBCellFlagFab();
+
+    // Get area fractions for different centerings
+    auto cc_afrac = m_eb_vec[lev]->get_const_factory()->getAreaFrac();  // Cell-centered area fractions (Array of 3 MultiCutFab*)
+
+    // Initialize storage
+    m_total_bndry_area.resize(m_maxlev);
+    m_total_bndry_area[lev].resize(m_navg, zero);
+    m_plane_average.resize(m_maxlev);
+    m_plane_average[lev].resize(m_navg, zero);
+
+    // Compute total area for each field type based on its centering
+    // iavg: 0=U(xface), 1=V(yface), 2=T(cc), 3=Qv(cc), 4=Tv(cc), 5=Umag(cc)
+
+    // Get geometry for cell sizes
+    auto const& dx_arr = m_geom[lev].CellSizeArray();
+    Real dx = dx_arr[0];
+    Real dy = dx_arr[1];
+    Real dz = dx_arr[2];
+
+    // GPU array to accumulate areas
+    Gpu::DeviceVector<Real> area_vec(m_navg, zero);
+    Real* area_device = area_vec.data();
+
+    // All fields are now averaged on cell-centered grid
+    // Compute total area once on cell-centered grid and use for all iavg
+    Real total_area = zero;
+#ifdef _OPENMP
+#pragma omp parallel if (Gpu::notInLaunchRegion())
+#endif
+    for (MFIter mfi(cc_flags, TileNoZ()); mfi.isValid(); ++mfi) {
+        const auto& flag = cc_flags[mfi];
+
+        // Skip boxes that are not singlevalued (MultiCutFab only has data for singlevalued boxes)
+        if (flag.getType() != FabType::singlevalued) continue;
+
+        Box bx = mfi.tilebox();
+        auto const flag_arr = flag.const_array();
+        auto const afrac_x = cc_afrac[0]->const_array(mfi);
+        auto const afrac_y = cc_afrac[1]->const_array(mfi);
+        auto const afrac_z = cc_afrac[2]->const_array(mfi);
+
+        // Sum area only for cut cells using atomic reduction
+        ParallelFor(Gpu::KernelInfo().setReduction(true), bx, [=]
+        AMREX_GPU_DEVICE(int i, int j, int k, Gpu::Handler const& handler) noexcept
+        {
+            if (flag_arr(i,j,k).isSingleValued()) {
+                // Compute area from face-centered area fractions
+                Real axm = afrac_x(i  ,j  ,k  );
+                Real axp = afrac_x(i+1,j  ,k  );
+                Real aym = afrac_y(i  ,j  ,k  );
+                Real ayp = afrac_y(i  ,j+1,k  );
+                Real azm = afrac_z(i  ,j  ,k  );
+                Real azp = afrac_z(i  ,j  ,k+1);
+
+                Real adx = (axm - axp) * dy * dz;
+                Real ady = (aym - ayp) * dx * dz;
+                Real adz = (azm - azp) * dx * dy;
+
+                Real area = std::sqrt(adx*adx + ady*ady + adz*adz);
+
+                Gpu::deviceReduceSum(&area_device[0], area, handler);
+            }
+        });
+    }
+
+    // Copy to host and sum across MPI ranks
+    Gpu::copy(Gpu::deviceToHost, area_vec.begin(), area_vec.begin() + 1, &total_area);
+    ParallelDescriptor::ReduceRealSum(&total_area, 1);
+
+    // Set the same total area for all iavg
+    for (int iavg = 0; iavg < m_navg; ++iavg) {
+        m_total_bndry_area[lev][iavg] = total_area;
+    }
+
+    Print() << "EB surface area on cell-centerd grid at level " << lev << ": " << total_area << std::endl;
+}
 
 /**
  * Function to set K indices without terrain.
  *
+ * @param[in] lev Current level
  */
 void
 MOSTAverage::set_k_indices_N (const int& lev)
@@ -456,61 +571,30 @@ MOSTAverage::set_k_indices_N (const int& lev)
 /**
  * Function to set K indices for EB.
  *
+ * @param[in] lev Current level
  */
 void
-MOSTAverage::set_k_indices_EB (const int& lev)
+MOSTAverage::set_z_positions_EB (const int& lev)
 {
-    ParmParse pp(m_pp_prefix);
     Real zref_tmp = zref_default;
+    ParmParse pp(m_pp_prefix);
     auto read_z = pp.query("most.zref",zref_tmp);
-    auto read_k = pp.queryarr("most.k_arr_in",m_k_in);
 
-    ParmParse pp_eb2("eb2");
-    std::string geometry;
-    pp_eb2.query("geometry", geometry);
-    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(geometry == "plane", "Only plane geometry supported for EB MOST");
-
-    RealArray plane_point{zero, zero, zero};
-    pp_eb2.query("plane_point", plane_point);
-    Real z_eb = plane_point[2];
-
+    if (read_z) {
+        m_zref[lev]->setVal( zref_tmp );
     // Default behavior is to use the first cell center
-    if (!read_z && !read_k) {
+    } else {
         Real m_dz  = m_geom[0].CellSize(2);
         zref_tmp = myhalf * m_dz;
         m_zref[lev]->setVal( zref_tmp );
         Print() << "Reference height for MOST set to " << zref_tmp << std::endl;
-        read_z = true;
-    }
-
-    // Specify z_ref & compute k_indx (z_ref takes precedence)
-    if (read_z) {
-        Real m_zlo = m_geom[lev].ProbLo(2);
-        Real m_zhi = m_geom[lev].ProbHi(2);
-        Real m_dz  = m_geom[lev].CellSize(2);
-
-        amrex::ignore_unused(m_zhi);
-
-        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(zref_tmp >= m_zlo + myhalf * m_dz,
-                                         "Query point must be past first z-cell!");
-
-        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(zref_tmp <= m_zhi - myhalf * m_dz,
-                                         "Query point must be below the last z-cell!");
-
-        int lk = static_cast<int>(floor((zref_tmp + z_eb - m_zlo) / m_dz - myhalf));
-        int lk_phys = static_cast<int>(floor((zref_tmp - m_zlo) / m_dz - myhalf));
-
-        m_zref[lev]->setVal( (lk_phys + myhalf) * m_dz + m_zlo );
-
-        AMREX_ALWAYS_ASSERT(lk >= m_radius);
-
-        m_k_indx[lev]->setVal(lk);
     }
 }
 
 /**
  * Function to set K indices with terrain (w/o terrain normals or interpolation).
  *
+ * @param[in] lev Current level
  */
 void
 MOSTAverage::set_k_indices_T (const int& lev)
@@ -591,6 +675,7 @@ MOSTAverage::set_k_indices_T (const int& lev)
 /**
  * Function to set I,J,K indices with terrain normals (w/o interpolation).
  *
+ * @param[in] lev Current level
  */
 void
 MOSTAverage::set_norm_indices_T (const int& lev)
@@ -651,17 +736,17 @@ MOSTAverage::set_norm_indices_T (const int& lev)
 
             // Search for k (grid is stretched in z)
             Real z_bot_face  = fourth * ( z_phys_arr(i  ,j  ,k) + z_phys_arr(i+1,j  ,k)
-                                      + z_phys_arr(i  ,j+1,k) + z_phys_arr(i+1,j+1,k) );
+                                          + z_phys_arr(i  ,j+1,k) + z_phys_arr(i+1,j+1,k) );
             Real z_target    = z_bot_face + delta_z;
             k_arr(i,j,0)     = klo;
             zref_arr(i,j,0)  = myhalf * z_bot_face +
                                Real(0.125) * ( z_phys_arr(i  ,j  ,k+1) + z_phys_arr(i+1,j  ,k+1)
-                                       + z_phys_arr(i  ,j+1,k+1) + z_phys_arr(i+1,j+1,k+1) );
+                                             + z_phys_arr(i  ,j+1,k+1) + z_phys_arr(i+1,j+1,k+1) );
             for (int lk(klo); lk<=kmax; ++lk) {
                 Real z_lo = fourth * ( z_phys_arr(i_new,j_new  ,lk  ) + z_phys_arr(i_new+1,j_new  ,lk  )
-                                   + z_phys_arr(i_new,j_new+1,lk  ) + z_phys_arr(i_new+1,j_new+1,lk  ) );
+                                       + z_phys_arr(i_new,j_new+1,lk  ) + z_phys_arr(i_new+1,j_new+1,lk  ) );
                 Real z_hi = fourth * ( z_phys_arr(i_new,j_new  ,lk+1) + z_phys_arr(i_new+1,j_new  ,lk+1)
-                                   + z_phys_arr(i_new,j_new+1,lk+1) + z_phys_arr(i_new+1,j_new+1,lk+1) );
+                                       + z_phys_arr(i_new,j_new+1,lk+1) + z_phys_arr(i_new+1,j_new+1,lk+1) );
                 if (z_target > z_lo && z_target < z_hi){
                     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(lk >= d_radius,
                                                      "K index must be larger than averaging radius!");
@@ -679,6 +764,7 @@ MOSTAverage::set_norm_indices_T (const int& lev)
 /**
  * Function to set positions with terrain and e_z vector (with interpolation but no terrain normals)
  *
+ * @param[in] lev Current level
  */
 void
 MOSTAverage::set_z_positions_T (const int& lev)
@@ -706,8 +792,9 @@ MOSTAverage::set_z_positions_T (const int& lev)
     RealVect base;
     const auto dx = m_geom[lev].CellSizeArray();
     IntVect ng = m_x_pos[lev]->nGrowVect(); ng[2]=0;
+    const int position_ng = (m_radius > 1) ? m_radius : 1;
     for (MFIter mfi(*fields[imf_cc], TileNoZ()); mfi.isValid(); ++mfi) {
-        Box npbx  = mfi.tilebox(IntVect(1,1,0),IntVect(1,1,0));
+        Box npbx  = mfi.tilebox(IntVect(1,1,0),IntVect(position_ng,position_ng,0));
         Box gtbx  = mfi.growntilebox(ng);
 
         if (npbx.smallEnd(2) != klo) { continue; }
@@ -726,7 +813,7 @@ MOSTAverage::set_z_positions_T (const int& lev)
             x_pos_arr(i,j,0) = plo[0] + ((Real) i + myhalf) * dx[0];
             y_pos_arr(i,j,0) = plo[1] + ((Real) j + myhalf) * dx[1];
             Real z_bot_face  = fourth * ( z_phys_arr(i  ,j  ,k) + z_phys_arr(i+1,j  ,k)
-                                      + z_phys_arr(i  ,j+1,k) + z_phys_arr(i+1,j+1,k) );
+                                          + z_phys_arr(i  ,j+1,k) + z_phys_arr(i+1,j+1,k) );
             z_pos_arr(i,j,0) = z_bot_face + d_zref;
 
             // Destination position must be contained on the current process!
@@ -742,6 +829,7 @@ MOSTAverage::set_z_positions_T (const int& lev)
 /**
  * Function to set positions with terrain and normal vector (with interpolation).
  *
+ * @param[in] lev Current level
  */
 void
 MOSTAverage::set_norm_positions_T (const int& lev)
@@ -768,8 +856,9 @@ MOSTAverage::set_norm_positions_T (const int& lev)
     const auto dx = m_geom[lev].CellSizeArray();
     const auto dxInv  = m_geom[lev].InvCellSizeArray();
     IntVect ng = m_x_pos[lev]->nGrowVect(); ng[2]=0;
+    const int position_ng = (m_radius > 1) ? m_radius : 1;
     for (MFIter mfi(*fields[imf_cc], TileNoZ()); mfi.isValid(); ++mfi) {
-        Box npbx  = mfi.tilebox(IntVect(1,1,0),IntVect(1,1,0));
+        Box npbx  = mfi.tilebox(IntVect(1,1,0),IntVect(position_ng,position_ng,0));
         Box gtbx  = mfi.growntilebox(ng);
         RealBox grb{gtbx,dx.data(),base.dataPtr()};
 
@@ -802,7 +891,7 @@ MOSTAverage::set_norm_positions_T (const int& lev)
             x_pos_arr(i,j,0) = x0 + delta_x;
             y_pos_arr(i,j,0) = y0 + delta_y;
             Real z_bot_face  = fourth * ( z_phys_arr(i  ,j  ,k) + z_phys_arr(i+1,j  ,k)
-                                      + z_phys_arr(i  ,j+1,k) + z_phys_arr(i+1,j+1,k) );
+                                          + z_phys_arr(i  ,j+1,k) + z_phys_arr(i+1,j+1,k) );
             z_pos_arr(i,j,0) = z_bot_face + delta_z;
 
             // NOTE: Normal vector end point can be below the surface for concave regions.
@@ -810,7 +899,7 @@ MOSTAverage::set_norm_positions_T (const int& lev)
             int i_new = (int) ((x_pos_arr(i,j,0) - plo[0]) / dx[0] - myhalf);
             int j_new = (int) ((y_pos_arr(i,j,0) - plo[1]) / dx[1] - myhalf);
             Real z_new_bot_face = fourth * ( z_phys_arr(i_new,j_new  ,k) + z_phys_arr(i_new+1,j_new  ,k)
-                                         + z_phys_arr(i_new,j_new+1,k) + z_phys_arr(i_new+1,j_new+1,k) );
+                                             + z_phys_arr(i_new,j_new+1,k) + z_phys_arr(i_new+1,j_new+1,k) );
             if (z_pos_arr(i,j,0) < z_new_bot_face) {
                 z_pos_arr(i,j,0) = z_new_bot_face + delta_z;
             }
@@ -843,6 +932,9 @@ MOSTAverage::compute_averages (const int& lev)
         break;
     case 1: // Local region/point
         compute_region_averages(lev);
+        break;
+    case 2: // EB Terrain average
+        compute_eb_averages(lev);
         break;
     default:
         AMREX_ALWAYS_ASSERT_WITH_MESSAGE(false, "Unknown policy for MOSTAverage!");
@@ -1030,9 +1122,9 @@ MOSTAverage::compute_plane_averages (const int& lev)
                         Real qr_interp{0};
                         trilinear_interp_T(x_pos_arr(i,j,0), y_pos_arr(i,j,0), z_pos_arr(i,j,0),
                                            &qr_interp, qr_mf_arr, z_phys_arr, plo, dxInv, 1);
-                        vfac = one + Real(0.61)*qv_interp - qr_interp;
+                        vfac = one + epsv*qv_interp - qr_interp;
                     } else {
-                        vfac = one + Real(0.61)*qv_interp;
+                        vfac = one + epsv*qv_interp;
                     }
                     const Real val = T_interp * vfac;
                     Gpu::deviceReduceSum(&plane_avg[iavg], val, handler);
@@ -1050,9 +1142,9 @@ MOSTAverage::compute_plane_averages (const int& lev)
                     Real vfac;
                     if (qr_mf_arr) {
                         // We also have liquid water
-                        vfac = one + Real(0.61)*qv_mf_arr(mi,mj,mk) - qr_mf_arr(mi,mj,mk);
+                        vfac = one + epsv*qv_mf_arr(mi,mj,mk) - qr_mf_arr(mi,mj,mk);
                     } else {
-                        vfac = one + Real(0.61)*qv_mf_arr(mi,mj,mk);
+                        vfac = one + epsv*qv_mf_arr(mi,mj,mk);
                     }
                     const Real val = T_mf_arr(mi,mj,mk) * vfac;
                     Gpu::deviceReduceSum(&plane_avg[iavg], val, handler);
@@ -1114,9 +1206,9 @@ MOSTAverage::compute_plane_averages (const int& lev)
                     Real u_interp{0};
                     Real v_interp{0};
                     trilinear_interp_T(x_pos_arr(i,j,0), y_pos_arr(i,j,0), z_pos_arr(i,j,0),
-                                            &u_interp, u_mf_arr, z_phys_arr, plo, dxInv, 1);
+                                       &u_interp, u_mf_arr, z_phys_arr, plo, dxInv, 1);
                     trilinear_interp_T(x_pos_arr(i,j,0), y_pos_arr(i,j,0), z_pos_arr(i,j,0),
-                                            &v_interp, v_mf_arr, z_phys_arr, plo, dxInv, 1);
+                                       &v_interp, v_mf_arr, z_phys_arr, plo, dxInv, 1);
                     const Real val = std::sqrt(u_interp*u_interp + v_interp*v_interp + Vsg*Vsg);
                     Gpu::deviceReduceSum(&plane_avg[iavg], val, handler);
                 });
@@ -1328,9 +1420,9 @@ MOSTAverage::compute_region_averages (const int& lev)
                                 Real qr_interp{0};
                                 trilinear_interp_T(x_pos_arr(i,j,0), y_pos_arr(i,j,0), z_pos_arr(i,j,0),
                                                    &qr_interp, qr_mf_arr, z_phys_arr, plo, dxInv, 1);
-                                vfac = one + Real(0.61)*qv_interp - qr_interp;
+                                vfac = one + epsv*qv_interp - qr_interp;
                             } else {
-                                vfac = one + Real(0.61)*qv_interp;
+                                vfac = one + epsv*qv_interp;
                             }
                             const Real mag = T_interp * vfac;
                             const Real val = denom * mag * d_fact_new;
@@ -1356,9 +1448,9 @@ MOSTAverage::compute_region_averages (const int& lev)
                             Real vfac;
                             if (qr_mf_arr) {
                                 // We also have liquid water
-                                vfac = one + Real(0.61)*qv_mf_arr(li,lj,lk) - qr_mf_arr(li,lj,lk);
+                                vfac = one + epsv*qv_mf_arr(li,lj,lk) - qr_mf_arr(li,lj,lk);
                             } else {
-                                vfac = one + Real(0.61)*qv_mf_arr(li,lj,lk);
+                                vfac = one + epsv*qv_mf_arr(li,lj,lk);
                             }
                             const Real mag = T_mf_arr(li,lj,lk) * vfac;
                             const Real val = denom * mag * d_fact_new;
@@ -1529,6 +1621,293 @@ MOSTAverage::compute_region_averages (const int& lev)
     } // Not periodic
 }
 
+/**
+ * Function to compute average over an EB surface.
+ *
+ * @param[in] lev Current level
+ */
+void
+MOSTAverage::compute_eb_averages (const int& lev)
+{
+    AMREX_ALWAYS_ASSERT(m_eb_vec[lev] != nullptr);
+
+    // Peel back the level
+    auto& fields      = m_fields[lev];
+    auto& averages    = m_averages[lev];
+    auto& plane_average = m_plane_average[lev];
+
+    // Get EB data
+    const auto& cc_flags = m_eb_vec[lev]->get_const_factory()->getMultiEBCellFlagFab();
+    auto cc_afrac = m_eb_vec[lev]->get_const_factory()->getAreaFrac();
+    const auto& cc_bnorm = m_eb_vec[lev]->get_const_factory()->getBndryNormal();
+    const auto& u_vfrac = m_eb_vec[lev]->get_u_const_factory()->getVolFrac();
+    const auto& v_vfrac = m_eb_vec[lev]->get_v_const_factory()->getVolFrac();
+    const auto& w_vfrac = m_eb_vec[lev]->get_w_const_factory()->getVolFrac();
+
+    // Get geometry for cell sizes
+    auto const& dx_arr = m_geom[lev].CellSizeArray();
+    Real dx = dx_arr[0];
+    Real dy = dx_arr[1];
+    Real dz = dx_arr[2];
+
+    // Set factors for time averaging
+    Real d_fact_new, d_fact_old;
+    if (m_t_avg && m_t_init[lev]) {
+        d_fact_new = m_fact_new;
+        d_fact_old = m_fact_old;
+    } else {
+        d_fact_new = one;
+        d_fact_old = zero;
+    }
+
+    // GPU array to accumulate averages into
+    Gpu::DeviceVector<Real> pavg(plane_average.size(), zero);
+    Real* plane_avg = pavg.data();
+
+    // Vectors for normalization and buffer storage
+    Vector<Real> denom(plane_average.size(),zero);
+    Vector<Real> val_old(plane_average.size(),zero);
+
+    //
+    //----------------------------------------------------------
+    // Averages for U, V, and tangential velocity (in local coordinate)
+    //----------------------------------------------------------
+    //
+    {
+        denom[0]   = one / m_total_bndry_area[lev][0];
+        val_old[0] = plane_average[0]*d_fact_old;
+        denom[1]   = one / m_total_bndry_area[lev][1];
+        val_old[1] = plane_average[1]*d_fact_old;
+
+        int iavg = m_navg - 1;  // Tangential velocity magnitude
+        denom[iavg]   = one / m_total_bndry_area[lev][iavg];
+        val_old[iavg] = plane_average[iavg]*d_fact_old;
+
+        const Real Vsg = m_Vsg[lev]; // Subgrid scale velocity
+
+#ifdef _OPENMP
+#pragma omp parallel if (Gpu::notInLaunchRegion())
+#endif
+        for (MFIter mfi(*fields[2], TileNoZ()); mfi.isValid(); ++mfi) {
+            const auto& flag = cc_flags[mfi];
+
+            // Skip boxes that are not singlevalued (MultiCutFab only has data for singlevalued boxes)
+            if (flag.getType() != FabType::singlevalued) continue;
+
+            Box bx = mfi.tilebox();  // Full 3D box
+
+            // Get EB arrays
+            auto const flag_arr = flag.const_array();
+            auto const afrac_x = cc_afrac[0]->const_array(mfi);
+            auto const afrac_y = cc_afrac[1]->const_array(mfi);
+            auto const afrac_z = cc_afrac[2]->const_array(mfi);
+            auto const bnorm_arr = cc_bnorm.const_array(mfi);
+            auto const u_vf_arr = u_vfrac.const_array(mfi);
+            auto const v_vf_arr = v_vfrac.const_array(mfi);
+            auto const w_vf_arr = w_vfrac.const_array(mfi);
+
+            // Get velocity arrays
+            auto const u_arr = fields[0]->const_array(mfi);
+            auto const v_arr = fields[1]->const_array(mfi);
+            auto const w_arr = fields[5]->const_array(mfi);
+
+            ParallelFor(Gpu::KernelInfo().setReduction(true), bx, [=]
+            AMREX_GPU_DEVICE(int i, int j, int k, Gpu::Handler const& handler) noexcept
+            {
+                // Area-weighted averaging over cut cells at any k
+                if (flag_arr(i,j,k).isSingleValued()) {
+                    // Compute area from face-centered area fractions
+                    Real axm = afrac_x(i  ,j  ,k  );
+                    Real axp = afrac_x(i+1,j  ,k  );
+                    Real aym = afrac_y(i  ,j  ,k  );
+                    Real ayp = afrac_y(i  ,j+1,k  );
+                    Real azm = afrac_z(i  ,j  ,k  );
+                    Real azp = afrac_z(i  ,j  ,k+1);
+
+                    Real adx = (axm - axp) * dy * dz;
+                    Real ady = (aym - ayp) * dx * dz;
+                    Real adz = (azm - azp) * dx * dy;
+
+                    Real area = std::sqrt(adx*adx + ady*ady + adz*adz);
+
+                    // Volume-weighted interpolation of velocities to cell center
+                    Real vf_u_lo = u_vf_arr(i,j,k);
+                    Real vf_u_hi = u_vf_arr(i+1,j,k);
+                    Real sum_vf_u = vf_u_lo + vf_u_hi;
+                    Real u_cc = (sum_vf_u > zero) ? (u_arr(i,j,k)*vf_u_lo + u_arr(i+1,j,k)*vf_u_hi) / sum_vf_u : zero;
+
+                    Real vf_v_lo = v_vf_arr(i,j,k);
+                    Real vf_v_hi = v_vf_arr(i,j+1,k);
+                    Real sum_vf_v = vf_v_lo + vf_v_hi;
+                    Real v_cc = (sum_vf_v > zero) ? (v_arr(i,j,k)*vf_v_lo + v_arr(i,j+1,k)*vf_v_hi) / sum_vf_v : zero;
+
+                    Real vf_w_lo = w_vf_arr(i,j,k);
+                    Real vf_w_hi = w_vf_arr(i,j,k+1);
+                    Real sum_vf_w = vf_w_lo + vf_w_hi;
+                    Real w_cc = (sum_vf_w > zero) ? (w_arr(i,j,k)*vf_w_lo + w_arr(i,j,k+1)*vf_w_hi) / sum_vf_w : zero;
+
+                    // Get normal vector components
+                    Real nx = bnorm_arr(i,j,k,0);
+                    Real ny = bnorm_arr(i,j,k,1);
+                    Real nz = bnorm_arr(i,j,k,2);
+
+                    // Compute tangential velocity components
+                    Real v_dot_n = u_cc*nx + v_cc*ny + w_cc*nz;
+                    Real u_tangent = u_cc - v_dot_n * nx;
+                    Real v_tangent = v_cc - v_dot_n * ny;
+                    Real mag = std::sqrt(u_tangent*u_tangent + v_tangent*v_tangent + Vsg*Vsg);
+
+                    // Area-weighted sum
+                    Real val_u = u_tangent * area;
+                    Real val_v = v_tangent * area;
+                    Real val_mag = mag * area;
+
+                    Gpu::deviceReduceSum(&plane_avg[0], val_u, handler);
+                    Gpu::deviceReduceSum(&plane_avg[1], val_v, handler);
+                    Gpu::deviceReduceSum(&plane_avg[iavg], val_mag, handler);
+                }
+            });
+        }
+    }
+
+    //
+    //----------------------------------------------------------
+    // Averages for T,Qv (cell-centered scalars)
+    //----------------------------------------------------------
+    //
+    for (int imf(2); imf < 4; ++imf) {
+
+        // Continue if no valid Qv pointer
+        if (!fields[imf]) continue;
+
+        denom[imf]   = one / m_total_bndry_area[lev][imf];
+        val_old[imf] = plane_average[imf]*d_fact_old;
+
+#ifdef _OPENMP
+#pragma omp parallel if (Gpu::notInLaunchRegion())
+#endif
+        for (MFIter mfi(*fields[imf], TileNoZ()); mfi.isValid(); ++mfi) {
+            const auto& flag = cc_flags[mfi];
+
+            // Skip boxes that are not singlevalued (MultiCutFab only has data for singlevalued boxes)
+            if (flag.getType() != FabType::singlevalued) continue;
+
+            Box bx = mfi.tilebox();  // Full 3D box
+            auto const flag_arr = flag.const_array();
+            auto const afrac_x = cc_afrac[0]->const_array(mfi);
+            auto const afrac_y = cc_afrac[1]->const_array(mfi);
+            auto const afrac_z = cc_afrac[2]->const_array(mfi);
+            auto const mf_arr = fields[imf]->const_array(mfi);
+
+            ParallelFor(Gpu::KernelInfo().setReduction(true), bx, [=]
+            AMREX_GPU_DEVICE(int i, int j, int k, Gpu::Handler const& handler) noexcept
+            {
+                // Area-weighted averaging over cut cells at any k
+                if (flag_arr(i,j,k).isSingleValued()) {
+                    // Compute area from face-centered area fractions
+                    Real axm = afrac_x(i  ,j  ,k  );
+                    Real axp = afrac_x(i+1,j  ,k  );
+                    Real aym = afrac_y(i  ,j  ,k  );
+                    Real ayp = afrac_y(i  ,j+1,k  );
+                    Real azm = afrac_z(i  ,j  ,k  );
+                    Real azp = afrac_z(i  ,j  ,k+1);
+
+                    Real adx = (axm - axp) * dy * dz;
+                    Real ady = (aym - ayp) * dx * dz;
+                    Real adz = (azm - azp) * dx * dy;
+
+                    Real area = std::sqrt(adx*adx + ady*ady + adz*adz);
+
+                    Real val = mf_arr(i,j,k) * area;
+                    Gpu::deviceReduceSum(&plane_avg[imf], val, handler);
+                }
+            });
+        }
+    }
+
+    //
+    //------------------------------------------------------------------------
+    // Averages for virtual potential temperature
+    //------------------------------------------------------------------------
+    //
+    if (fields[3]) // We have water vapor
+    {
+        int iavg = 4;
+        denom[iavg]   = one / m_total_bndry_area[lev][iavg];
+        val_old[iavg] = plane_average[iavg]*d_fact_old;
+
+#ifdef _OPENMP
+#pragma omp parallel if (Gpu::notInLaunchRegion())
+#endif
+        for (MFIter mfi(*fields[3], TileNoZ()); mfi.isValid(); ++mfi)
+        {
+            const auto& flag = cc_flags[mfi];
+
+            // Skip boxes that are not singlevalued (MultiCutFab only has data for singlevalued boxes)
+            if (flag.getType() != FabType::singlevalued) continue;
+
+            Box bx = mfi.tilebox();  // Full 3D box
+            auto const flag_arr = flag.const_array();
+            auto const afrac_x = cc_afrac[0]->const_array(mfi);
+            auto const afrac_y = cc_afrac[1]->const_array(mfi);
+            auto const afrac_z = cc_afrac[2]->const_array(mfi);
+
+            const Array4<Real const> T_mf_arr  = fields[2]->const_array(mfi);
+            const Array4<Real const> qv_mf_arr = fields[3]->const_array(mfi);
+            const Array4<Real const> qr_mf_arr = (fields[4]) ? fields[4]->const_array(mfi) :
+                                                                Array4<const Real> {};
+
+            ParallelFor(Gpu::KernelInfo().setReduction(true), bx, [=]
+            AMREX_GPU_DEVICE(int i, int j, int k, Gpu::Handler const& handler) noexcept
+            {
+                if (flag_arr(i,j,k).isSingleValued()) {
+                    // Compute area from face-centered area fractions
+                    Real axm = afrac_x(i  ,j  ,k  );
+                    Real axp = afrac_x(i+1,j  ,k  );
+                    Real aym = afrac_y(i  ,j  ,k  );
+                    Real ayp = afrac_y(i  ,j+1,k  );
+                    Real azm = afrac_z(i  ,j  ,k  );
+                    Real azp = afrac_z(i  ,j  ,k+1);
+
+                    Real adx = (axm - axp) * dy * dz;
+                    Real ady = (aym - ayp) * dx * dz;
+                    Real adz = (azm - azp) * dx * dy;
+
+                    Real area = std::sqrt(adx*adx + ady*ady + adz*adz);
+
+                    Real vfac;
+                    if (qr_mf_arr) {
+                        // We also have liquid water
+                        vfac = one + epsv*qv_mf_arr(i,j,k) - qr_mf_arr(i,j,k);
+                    } else {
+                        vfac = one + epsv*qv_mf_arr(i,j,k);
+                    }
+                    const Real val = T_mf_arr(i,j,k) * vfac * area;
+                    Gpu::deviceReduceSum(&plane_avg[iavg], val, handler);
+                }
+            });
+        }
+    }
+    else // copy temperature
+    {
+        int iavg    = m_navg - 2;
+        denom[iavg] = one / m_total_bndry_area[lev][iavg];
+        // plane_avg[iavg] = plane_avg[2]
+        Gpu::copy(Gpu::deviceToDevice, pavg.begin() + 2, pavg.begin() + 3,
+                  pavg.begin() + iavg);
+    }
+
+    // Copy to host and sum across procs
+    Gpu::copy(Gpu::deviceToHost, pavg.begin(), pavg.end(), plane_average.begin());
+    ParallelDescriptor::ReduceRealSum(plane_average.data(), plane_average.size());
+
+    // Normalize by total area and apply time averaging
+    for (int iavg(0); iavg < m_navg; ++iavg){
+        plane_average[iavg] *= denom[iavg]*d_fact_new;
+        plane_average[iavg] += val_old[iavg];
+        averages[iavg]->setVal(plane_average[iavg]);
+    }
+}
 
 /**
  * Function to write the K indices to text file.

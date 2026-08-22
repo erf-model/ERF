@@ -29,7 +29,8 @@ SolverChoice make_sam_solver_choice (const MoistureType moisture_type = Moisture
     sc.rdOcp = kRdOcp;
     sc.ave_plane = 2;
     sc.moisture_type = moisture_type;
-    sc.use_shoc = false;
+    sc.use_eamxx_shoc = false;
+    sc.use_native_shoc = false;
     return sc;
 }
 
@@ -554,14 +555,14 @@ void compute_icefall_reference_global_substep (const amrex::Geometry& geom,
 
             const auto& tbx = mfi.tilebox();
 
-            amrex::ParallelFor(tbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            amrex::ParallelFor(tbx, [=,one_d=one] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
                 const amrex::Real rho = const_cons_array(i,j,k,Rho_comp);
                 const amrex::Real qci_mass = const_cons_array(i,j,k,RhoQ3_comp);
                 const amrex::Real qci = icefall_mixing_ratio_from_conserved(qci_mass, rho);
 
                 amrex::Real dqi = sam_sedimentation_tendency(fz_array(i,j,k+1), fz_array(i,j,k),
-                                                             rho, one, coef);
+                                                             rho, one_d, coef);
                 dqi = std::max(-qci, dqi);
 
                 cons_array(i,j,k,RhoQ3_comp) = qci_mass + rho * dqi;
@@ -784,10 +785,12 @@ PrecipFallComponentBudgetResult run_precipfall_component_budget_case (const amre
     ba.maxSize(max_size);
     amrex::DistributionMapping dm(ba);
 
-    amrex::MultiFab cons(ba, dm, RhoQ6_comp + 1, 0);
+    amrex::MultiFab cons(amrex::The_Pinned_Arena());
+    cons.define(ba, dm, RhoQ6_comp + 1, 0);
     fill_precipfall_component_budget_conserved_state(cons, pres_mbar);
 
-    amrex::MultiFab detJ_cc(ba, dm, 1, 0);
+    amrex::MultiFab detJ_cc(amrex::The_Pinned_Arena());
+    detJ_cc.define(ba, dm, 1, 0);
     fill_nonuniform_detj(detJ_cc);
 
     const amrex::Real initial_rain_mass = sum_component_mass(geom, cons, RhoQ4_comp, &detJ_cc);
@@ -795,7 +798,9 @@ PrecipFallComponentBudgetResult run_precipfall_component_budget_case (const amre
     const amrex::Real initial_graupel_mass = sum_component_mass(geom, cons, RhoQ6_comp, &detJ_cc);
 
     std::unique_ptr<amrex::MultiFab> z_phys_nd;
-    std::unique_ptr<amrex::MultiFab> detj_owned = std::make_unique<amrex::MultiFab>(detJ_cc.boxArray(), detJ_cc.DistributionMap(), 1, 0);
+    std::unique_ptr<amrex::MultiFab> detj_owned =
+        std::make_unique<amrex::MultiFab>(amrex::The_Pinned_Arena());
+    detj_owned->define(detJ_cc.boxArray(), detJ_cc.DistributionMap(), 1, 0);
     amrex::MultiFab::Copy(*detj_owned, detJ_cc, 0, 0, 1, 0);
 
     SolverChoice sc = make_sam_solver_choice(MoistureType::SAM);
@@ -938,7 +943,8 @@ TEST(SAMParallel, CopyMicroToStateFillBoundaryParallel)
     ba.maxSize(amrex::IntVect(4, 2, nz));
     amrex::DistributionMapping dm(ba);
 
-    amrex::MultiFab cons(ba, dm, RhoQ6_comp + 1, ng);
+    amrex::MultiFab cons(amrex::The_Pinned_Arena());
+    cons.define(ba, dm, RhoQ6_comp + 1, ng);
     fill_patterned_conserved_state(cons);
 
     std::unique_ptr<amrex::MultiFab> z_phys_nd;
@@ -1019,13 +1025,16 @@ TEST(SAMParallel, IceFallSubstepCountUsesGlobalMaximum)
     ba.maxSize(max_size);
     amrex::DistributionMapping dm(ba);
 
-    amrex::MultiFab initial_cons(ba, dm, RhoQ6_comp + 1, 0);
+    amrex::MultiFab initial_cons(amrex::The_Pinned_Arena());
+    initial_cons.define(ba, dm, RhoQ6_comp + 1, 0);
     fill_icefall_reduction_conserved_state(initial_cons, geom);
 
-    amrex::MultiFab public_cons(ba, dm, RhoQ6_comp + 1, 0);
+    amrex::MultiFab public_cons(amrex::The_Pinned_Arena());
+    public_cons.define(ba, dm, RhoQ6_comp + 1, 0);
     amrex::MultiFab::Copy(public_cons, initial_cons, 0, 0, RhoQ6_comp + 1, 0);
 
-    amrex::MultiFab reference_cons(ba, dm, RhoQ6_comp + 1, 0);
+    amrex::MultiFab reference_cons(amrex::The_Pinned_Arena());
+    reference_cons.define(ba, dm, RhoQ6_comp + 1, 0);
     amrex::MultiFab::Copy(reference_cons, initial_cons, 0, 0, RhoQ6_comp + 1, 0);
 
     const IceFallFluxReductionDiagnostics diagnostics =
@@ -1393,7 +1402,8 @@ TEST(SAMParallel, PrecipGlobalWaterBudgetDecompositionInvariant)
     ba.maxSize(amrex::IntVect(4, 2, 2));
     amrex::DistributionMapping dm(ba);
 
-    amrex::MultiFab cons(ba, dm, RhoQ6_comp + 1, 0);
+    amrex::MultiFab cons(amrex::The_Pinned_Arena());
+    cons.define(ba, dm, RhoQ6_comp + 1, 0);
     fill_precip_budget_conserved_state(cons, MoistureType::SAM, pres_mbar);
 
     std::unique_ptr<amrex::MultiFab> z_phys_nd;
@@ -1456,11 +1466,14 @@ TEST(SAMParallel, PrecipDetJWeightedWaterBudgetDecompositionInvariant)
     ba.maxSize(amrex::IntVect(4, 2, 2));
     amrex::DistributionMapping dm(ba);
 
-    amrex::MultiFab cons(ba, dm, RhoQ6_comp + 1, 0);
+    amrex::MultiFab cons(amrex::The_Pinned_Arena());
+    cons.define(ba, dm, RhoQ6_comp + 1, 0);
     fill_precip_budget_conserved_state(cons, MoistureType::SAM, pres_mbar);
 
     std::unique_ptr<amrex::MultiFab> z_phys_nd;
-    std::unique_ptr<amrex::MultiFab> detJ_cc = std::make_unique<amrex::MultiFab>(ba, dm, 1, 0);
+    std::unique_ptr<amrex::MultiFab> detJ_cc =
+        std::make_unique<amrex::MultiFab>(amrex::The_Pinned_Arena());
+    detJ_cc->define(ba, dm, 1, 0);
     fill_nonuniform_detj(*detJ_cc);
 
     SolverChoice sc = make_sam_solver_choice(MoistureType::SAM);

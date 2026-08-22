@@ -22,7 +22,7 @@ namespace LsmVar_SLM {
   };
 }
 
-/* See Chen & Dudhia (2001) https://doi.org/amrex::Real(10.1175)/1520-0493(2001)129<0569:CAALSH>two.CO;2 */
+/* See Chen & Dudhia (2001) https://doi.org/10.1175/1520-0493(2001)129<0569:CAALSH>2.0.CO;2 */
 class SLM : public NullSurf {
 
     using FabPtr = std::shared_ptr<amrex::MultiFab>;
@@ -48,11 +48,15 @@ public:
     Init (const int& /*lev*/,
           const amrex::MultiFab& cons_in,
           const amrex::Geometry& geom,
-          const amrex::Real& dt) override;
+          const amrex::Geometry& /*geom0*/,
+          amrex::Vector<amrex::BCRec>& /*domain_bcs_type*/,
+          amrex::IntVect& /*refRatio*/,
+          const amrex::Real& dt,
+          amrex::Vector<amrex::Vector<std::string>>& /*nc_init_file*/) override;
 
     // Wrapper to do all the updating
     void
-    Advance (const amrex::Real& dt) override
+    Advance (const double& dt) override
     {
         m_dt = dt;
         this->ComputeFluxes();
@@ -98,6 +102,10 @@ public:
     int
     Lsm_Data_Size () override { return SLM::m_lsm_size; }
 
+    // Get number of fluxes exchanged with the surface layer
+    int
+    Lsm_Flux_Size () override { return SLM::m_lsm_size; }
+
     // Get variable names
     std::string
     Lsm_DataName (const int& varIdx) override
@@ -105,6 +113,14 @@ public:
         int lsmIdx = LsmVarMap[varIdx];
         AMREX_ALWAYS_ASSERT(lsmIdx < SLM::m_lsm_size && lsmIdx>=0);
         return LsmVarName[lsmIdx];
+    }
+
+    // Get flux variable names
+    std::string
+    Lsm_FluxName (const int& varIdx) override
+    {
+        AMREX_ALWAYS_ASSERT(varIdx == LsmVar_SLM::theta);
+        return "soil_t_flux";
     }
 
 private:
@@ -124,7 +140,7 @@ private:
     amrex::Geometry m_lsm_geom;
 
     // timestep
-    amrex::Real m_dt;
+    double m_dt;
 
     // domain klo-1 or lsm khi
     int khi_lsm;
@@ -155,7 +171,7 @@ private:
     amrex::Real m_k_soil = amrex::Real(0.2); // dry soil [W/m K]
 
     // Theta Dirichlet value at lowest point below surface
-    amrex::Real m_theta_dir = amrex::Real(400.0); // [K]
+    amrex::Real m_theta_dir = amrex::Real(300.0); // [K]
 
     // Thermal diffusivity
     amrex::Real m_d_soil = m_k_soil / m_cp_soil; // [m^2/s]

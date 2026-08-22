@@ -1,33 +1,24 @@
 #include "ERF_SrcHeaders.H"
 
-    auto slow_rhs_fun_post = [&](Vector<MultiFab>& S_rhs,
+    auto slow_rhs_fun_post = [&,bogus_large_value_d=bogus_large_value](Vector<MultiFab>& S_rhs,
                                  Vector<MultiFab>& S_old,
                                  Vector<MultiFab>& S_new,
                                  Vector<MultiFab>& S_data,
-                                 const Real old_step_time,
-                                 const Real old_stage_time,
-                                 const Real new_stage_time,
+                                 const double old_step_time,
+                                 const double old_stage_time,
+                                 const double new_stage_time,
                                  const int nrk)
     {
         // Note that the "old" and "new" metric terms correspond to
         // t^n and the RK stage (either t^*, t^** or t^{n+1} that this source
         // will be used to advance to
-        Real slow_dt = new_stage_time - old_step_time;
+        double slow_dt = new_stage_time - old_step_time;
 
         if (verbose) amrex::Print() << "Time integration of scalars at level " << level
                                     << std::setprecision(timeprecision)
                                     << " from " << old_step_time << " to " << new_stage_time
                                     << " with dt = " << slow_dt
                                     << " using RHS created at " << old_stage_time << std::endl;
-
-#if defined(ERF_USE_NETCDF)
-        bool moist_set_rhs = false;
-        if ( solverChoice.use_real_bcs && (level==0) &&
-             (solverChoice.moisture_type != MoistureType::None) )
-        {
-            moist_set_rhs = true;
-        }
-#endif
 
         const GpuArray<Real, AMREX_SPACEDIM> dxInv = fine_geom.InvCellSizeArray();
 
@@ -49,25 +40,37 @@
         MultiFab* new_detJ =
            (solverChoice.terrain_type == TerrainType::MovingFittedMesh) ? (detJ_cc_new[level].get()) : (detJ_cc[level].get());
 
+        // Immersed Forcing
+        MultiFab* terrain_blank = (solverChoice.terrain_type == TerrainType::ImmersedForcing ||
+                                   solverChoice.buildings_type == BuildingsType::ImmersedForcing) ?
+            terrain_blanking[level].get() : nullptr;
+        MultiFab* terrain_blank_xface = (solverChoice.terrain_type == TerrainType::ImmersedForcing ||
+                                         solverChoice.buildings_type == BuildingsType::ImmersedForcing) ?
+            terrain_blanking_xface[level].get() : nullptr;
+        MultiFab* terrain_blank_yface = (solverChoice.terrain_type == TerrainType::ImmersedForcing ||
+                                         solverChoice.buildings_type == BuildingsType::ImmersedForcing) ?
+            terrain_blanking_yface[level].get() : nullptr;
+        MultiFab* terrain_blank_zface = (solverChoice.terrain_type == TerrainType::ImmersedForcing ||
+                                         solverChoice.buildings_type == BuildingsType::ImmersedForcing) ?
+            terrain_blanking_zface[level].get() : nullptr;
+
         erf_slow_rhs_post(level, finest_level, nrk, slow_dt, micro->Get_Qstate_Moist_Size(),
                           S_rhs, S_old, S_new, S_data, S_prim, avg_xmom[level], avg_ymom[level], avg_zmom[level],
-                          xvel_new, yvel_new, zvel_new, cc_src, SmnSmn, eddyDiffs,
+                          xvel_new, yvel_new, zvel_new, cc_src, terrain_blank,
+                          terrain_blank_xface, terrain_blank_yface, terrain_blank_zface,
+                          SmnSmn, eddyDiffs,
                           Hfx1, Hfx2, Hfx3, Q1fx1, Q1fx2, Q1fx3, Q2fx3, Diss,
                           fine_geom, solverChoice, m_SurfaceLayer, domain_bcs_type_d, domain_bcs_type,
                           z_phys_nd[level], z_phys_cc[level], ax[level], ay[level], az[level],
                           detJ_cc[level], new_detJ, stretched_dz_d[level], mapfac[level], EBFactory(level),
-#if defined(ERF_USE_NETCDF)
-                          moist_set_rhs,
-                          start_time+old_stage_time,
-                          start_bdy_time, final_bdy_time, bdy_time_interval,
-                          real_width,
-                          bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi,
+#ifdef ERF_USE_EAMXX_SHOC
+                          eamxx_shoc_interface[level].get(),
 #endif
-#ifdef ERF_USE_SHOC
-                          shoc_interface[level],
-#endif
+                          native_shoc_driver[level].get(),
                           fr_as_crse, fr_as_fine,
-                          m_r2d);
+                          m_r2d, &base_state[level],
+                          cloud_chamber_config.active ? &cloud_chamber_config : nullptr,
+                          cloud_chamber_budget.get());
 
         // Implicit diffusion of moisture
         #include "ERF_ImplicitPost.H"
@@ -107,7 +110,7 @@
                 }
             }
             dUdt_tmp.FillBoundary(fine_geom.periodicity());
-            dUdt_tmp.setDomainBndry(amrex::Real(1.234e10), 0, num_comp_total, fine_geom);
+            dUdt_tmp.setDomainBndry(bogus_large_value_d, 0, num_comp_total, fine_geom);
 
             const BCRec* bc_ptr_d = domain_bcs_type_d.data();
 
@@ -137,11 +140,12 @@
                         } else if (ivar == RhoScalar_comp) {
                             num_comp = NSCALARS;
                         }
+                        Real sdt = static_cast<Real>(slow_dt);
                         ParallelFor(tbx, num_comp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int nn)
                         {
                             if (detJ_arr(i,j,k) > zero) {
                                 const int n = start_comp + nn;
-                                snew(i,j,k,n) = sold(i,j,k,n) + slow_dt * srhs(i,j,k,n);
+                                snew(i,j,k,n) = sold(i,j,k,n) + sdt * srhs(i,j,k,n);
                             }
                         });
                     }

@@ -8,10 +8,17 @@
 
 using namespace amrex;
 
+/**
+ * Initialize a problem-specific terrain profile on the nodal terrain FAB.
+ *
+ * @param geom Geometry defining the domain and physical extents
+ * @param terrain_fab Terrain FAB to fill with surface height data
+ * @param time_d Current simulation time used by time-dependent terrain options
+ */
 void
 init_my_custom_terrain ( const Geometry& geom,
                          FArrayBox& terrain_fab,
-                         const Real& time )
+                         const double& time_d)
 {
     //
     // We put this here as a convenience for testing the map factor implementation
@@ -197,6 +204,8 @@ init_my_custom_terrain ( const Geometry& geom,
             Real g           = CONST_GRAV;
             Real omega       = std::sqrt(g * kp);
 
+            Real time = static_cast<Real>(time_d);
+
             ParallelFor(zbx, [=] AMREX_GPU_DEVICE (int i, int j, int)
             {
                 // Clip indices for ghost-cells
@@ -235,6 +244,32 @@ init_my_custom_terrain ( const Geometry& geom,
             ParallelFor(zbx, [=] AMREX_GPU_DEVICE (int i, int j, int)
             {
                 z_arr(i,j,k0) = z_offset;
+            });
+        } else if (custom_terrain_type == "Cos4Hill") {
+
+            // Get prob parameters (must be outside GPU kernel)
+            Real hm = zero; pp_prob.query("hmax", hm);
+            Real L  = Real(100.0); pp_prob.query("L", L);
+            Real z_offset = zero; pp_prob.query("z_offset", z_offset);
+            Real fourL = four * L;
+
+            ParallelFor(zbx, [=] AMREX_GPU_DEVICE (int i, int j, int)
+            {
+
+                // Clip indices for ghost-cells
+                int ii = amrex::min(amrex::max(i,domlo_x),domhi_x);
+                int jj = amrex::min(amrex::max(j,domlo_y),domhi_y);
+
+                // Location of nodes
+                Real x = (ProbLoArr[0] + ii * dx[0] - xcen);
+                Real y = (ProbLoArr[1] + jj * dx[1] - ycen);
+                Real r = std::sqrt(x*x + y*y);
+
+                if (r < fourL) {
+                    z_arr(i,j,k0) = z_offset + hm * Real(0.0625) * std::pow(one + std::cos(PI*r/fourL), four);
+                } else {
+                    z_arr(i,j,k0) = z_offset;
+                }
             });
 
         } else if (custom_terrain_type == "None") {

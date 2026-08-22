@@ -62,7 +62,7 @@ void erf_substep_T (int step, int /*nrk*/,
                     const Real gravity,
                     std::unique_ptr<MultiFab>& z_phys_nd,
                     std::unique_ptr<MultiFab>& detJ_cc,
-                    const Real dtau, const Real beta_s,
+                    const double dtau_d, const Real beta_s,
                     const Real facinv,
                     Vector<std::unique_ptr<MultiFab>>& mapfac,
                     YAFluxRegister* fr_as_crse,
@@ -74,6 +74,8 @@ void erf_substep_T (int step, int /*nrk*/,
                     const Real l_damp_coef)
 {
     BL_PROFILE_REGION("erf_substep_T()");
+
+    Real dtau = static_cast<Real>(dtau_d);
 
     const Box& domain = geom.Domain();
     auto const domlo = lbound(domain);
@@ -268,6 +270,8 @@ void erf_substep_T (int step, int /*nrk*/,
 
         // Map factors
         const Array4<const Real>& mf_ux = mapfac[MapFacType::u_x]->const_array(mfi);
+        const Array4<const Real>& mf_uy = mapfac[MapFacType::u_y]->const_array(mfi);
+        const Array4<const Real>& mf_vx = mapfac[MapFacType::v_x]->const_array(mfi);
         const Array4<const Real>& mf_vy = mapfac[MapFacType::v_y]->const_array(mfi);
 
         // Create old_drho_u/v/w/theta  = U'', V'', W'', Theta'' in the docs
@@ -316,7 +320,11 @@ void erf_substep_T (int step, int /*nrk*/,
                     new_drho_u(i,j,k+1) = new_drho_u(i,j,k);
                 }
 
-                avg_xmom_arr(i,j,k) += facinv*new_drho_u(i,j,k);
+                // NOTE: met_h_zeta here is identically the x-face area ax computed by
+                //       make_areas, so this matches the base value of avg_xmom defined in
+                //       AdvectionSrcForRho (ax*rho_u/mf_uy) as well as the density flux
+                //       (new_drho_u*h_zeta_cc_xface/mf_uy) formed below.
+                avg_xmom_arr(i,j,k) += facinv * new_drho_u(i,j,k) * met_h_zeta / mf_uy(i,j,0);
 
                 cur_xmom(i,j,k) = stage_xmom(i,j,k) + new_drho_u(i,j,k);
             },
@@ -351,7 +359,11 @@ void erf_substep_T (int step, int /*nrk*/,
                     new_drho_v(i,j,k+1) = new_drho_v(i,j,k);
                 }
 
-                avg_ymom_arr(i,j,k) += facinv*new_drho_v(i,j,k);
+                // NOTE: met_h_zeta here is identically the y-face area ay computed by
+                //       make_areas, so this matches the base value of avg_ymom defined in
+                //       AdvectionSrcForRho (ay*rho_v/mf_vx) as well as the density flux
+                //       (new_drho_v*h_zeta_cc_yface/mf_vx) formed below.
+                avg_ymom_arr(i,j,k) += facinv * new_drho_v(i,j,k) * met_h_zeta / mf_vx(i,j,0);
 
                 cur_ymom(i,j,k) = stage_ymom(i,j,k) + new_drho_v(i,j,k);
             });
@@ -594,12 +606,13 @@ void erf_substep_T (int step, int /*nrk*/,
         ParallelFor(b2d, [=] AMREX_GPU_DEVICE (int i, int j, int)
         {
             // w_klo, w_khi given by specified Dirichlet values
-            RHS_a(i,j,lo.z  ) = dtau * (slow_rhs_rho_w(i,j,lo.z) + zmom_src_arr(i,j,lo.z));
+            RHS_a(i,j,lo.z  ) = dtau * (slow_rhs_rho_w(i,j,lo.z  ) + zmom_src_arr(i,j,lo.z  ));
             RHS_a(i,j,hi.z+1) = dtau * (slow_rhs_rho_w(i,j,hi.z+1) + zmom_src_arr(i,j,hi.z+1));
 
             // w = specified Dirichlet value at k = lo.z
             soln_a(i,j,lo.z) = RHS_a(i,j,lo.z) * inv_coeffB_a(i,j,lo.z);
 
+            // Transform the RHS from r_i -> rho_i
             for (int k = lo.z+1; k <= hi.z+1; k++) {
                 soln_a(i,j,k) = (RHS_a(i,j,k)-coeffA_a(i,j,k)*soln_a(i,j,k-1)) * inv_coeffB_a(i,j,k);
             }
@@ -607,28 +620,29 @@ void erf_substep_T (int step, int /*nrk*/,
             cur_zmom(i,j,lo.z  ) = stage_zmom(i,j,lo.z  ) + soln_a(i,j,lo.z  );
             cur_zmom(i,j,hi.z+1) = stage_zmom(i,j,hi.z+1) + soln_a(i,j,hi.z+1);
 
+            // Back sweep to obtain the solution
             for (int k = hi.z; k >= lo.z; k--) {
                 soln_a(i,j,k) -= ( coeffC_a(i,j,k) * inv_coeffB_a(i,j,k) ) *soln_a(i,j,k+1);
             }
         });
 #else
+        // w_klo, w_khi given by specified Dirichlet values
         for (int j = lo.y; j <= hi.y; ++j) {
             AMREX_PRAGMA_SIMD
             for (int i = lo.x; i <= hi.x; ++i)
             {
-                RHS_a(i,j,lo.z) = dtau * (slow_rhs_rho_w(i,j,lo.z) + zmom_src_arr(i,j,lo.z));
-               soln_a(i,j,lo.z) = RHS_a(i,j,lo.z) * inv_coeffB_a(i,j,lo.z);
-            }
-
-            AMREX_PRAGMA_SIMD
-            for (int i = lo.x; i <= hi.x; ++i)
-            {
+                RHS_a(i,j,lo.z  ) = dtau * (slow_rhs_rho_w(i,j,lo.z  ) + zmom_src_arr(i,j,lo.z  ));
                 RHS_a(i,j,hi.z+1) = dtau * (slow_rhs_rho_w(i,j,hi.z+1) + zmom_src_arr(i,j,hi.z+1));
-               soln_a(i,j,hi.z+1) = RHS_a(i,j,hi.z+1) * inv_coeffB_a(i,j,hi.z+1);
+
+                // w = specified Dirichlet value at k = lo.z
+                soln_a(i,j,lo.z) = RHS_a(i,j,lo.z) * inv_coeffB_a(i,j,lo.z);
             }
         }
 
-        for (int k = lo.z+1; k <= hi.z; ++k) {
+        // Transform the RHS from r_i -> rho_i
+        // NOTE: this must include k = hi.z+1 so that the top row picks up the sub-diagonal
+        //       term, which is non-zero when the top of the domain is an outflow boundary
+        for (int k = lo.z+1; k <= hi.z+1; ++k) {
              for (int j = lo.y; j <= hi.y; ++j) {
                  AMREX_PRAGMA_SIMD
                  for (int i = lo.x; i <= hi.x; ++i) {
@@ -636,21 +650,23 @@ void erf_substep_T (int step, int /*nrk*/,
                  }
            }
         }
-        for (int k = hi.z; k > lo.z; --k) {
+
+        for (int j = lo.y; j <= hi.y; ++j) {
+             AMREX_PRAGMA_SIMD
+             for (int i = lo.x; i <= hi.x; ++i) {
+                 cur_zmom(i,j,lo.z  ) = stage_zmom(i,j,lo.z  ) + soln_a(i,j,lo.z  );
+                 cur_zmom(i,j,hi.z+1) = stage_zmom(i,j,hi.z+1) + soln_a(i,j,hi.z+1);
+             }
+        }
+
+        // Back sweep to obtain the solution
+        for (int k = hi.z; k >= lo.z; --k) {
              for (int j = lo.y; j <= hi.y; ++j) {
                  AMREX_PRAGMA_SIMD
                  for (int i = lo.x; i <= hi.x; ++i) {
-                     soln_a(i,j,k) -= (coeffC_a(i,j,k) * inv_coeffB_a(i,j,k)) * soln_a(i,j,k+1);
+                     soln_a(i,j,k) -= ( coeffC_a(i,j,k) * inv_coeffB_a(i,j,k) ) * soln_a(i,j,k+1);
                  }
              }
-        }
-        if (hi.z == domhi.z) {
-            for (int j = lo.y; j <= hi.y; ++j) {
-                 AMREX_PRAGMA_SIMD
-                 for (int i = lo.x; i <= hi.x; ++i) {
-                    cur_zmom(i,j,hi.z+1) = stage_zmom(i,j,hi.z+1) + soln_a(i,j,hi.z+1);
-                }
-            }
         }
 #endif
         } // end profile

@@ -4,18 +4,24 @@
 
 using namespace amrex;
 
-/*
+/**
  * Impose physical boundary conditions at domain boundaries
  *
- * @param[inout] mf  MultiFab of cell-centered quantities to be filled
- * @param[in] icomps starting component
- * @param[in] ncomps number of components
- * @param[in] nghost number of ghost cells to be filled
+ * @param[in,out] mf                    MultiFab of cell-centered quantities to be filled
+ * @param[in]     xvel                  x-velocity MultiFab used by upwind boundary conditions
+ * @param[in]     yvel                  y-velocity MultiFab used by upwind boundary conditions
+ * @param[in]     icomp                 starting component
+ * @param[in]     ncomp                 number of components
+ * @param[in]     nghost                number of ghost cells to be filled
+ * @param[in]     time                  time at which data should be filled
+ * @param[in]     bccomp                index into m_domain_bcs_type, unused here
+ * @param[in]     do_fb                 whether to fill periodic/interior ghost cells first
+ * @param[in]     do_terrain_adjustment whether to apply terrain-aware Neumann adjustments
  */
 
 void ERFPhysBCFunct_cons::operator() (MultiFab& mf, MultiFab& xvel, MultiFab& yvel,
                                       int icomp, int ncomp,
-                                      IntVect const& nghost, const Real time, int /*bccomp*/,
+                                      IntVect const& nghost, const double time, int /*bccomp*/,
                                       bool do_fb, bool do_terrain_adjustment)
 {
     BL_PROFILE("ERFPhysBCFunct_cons::()");
@@ -84,8 +90,19 @@ void ERFPhysBCFunct_cons::operator() (MultiFab& mf, MultiFab& xvel, MultiFab& yv
     } // OpenMP
 } // operator()
 
+/**
+ * Impose physical boundary conditions on x velocity.
+ *
+ * @param[in,out] mf      x-velocity MultiFab to be filled
+ * @param[in]     xvel    x-velocity MultiFab used by upwind boundary conditions
+ * @param[in]     yvel    y-velocity MultiFab used by upwind boundary conditions
+ * @param[in]     nghost  number of ghost cells to be filled
+ * @param[in]     time    time at which data should be filled
+ * @param[in]     bccomp  index into m_domain_bcs_type
+ * @param[in]     do_fb   whether to fill periodic/interior ghost cells first
+ */
 void ERFPhysBCFunct_u::operator() (MultiFab& mf, MultiFab& xvel, MultiFab& yvel,
-                                   IntVect const& nghost, const Real time, int bccomp,
+                                   IntVect const& nghost, const double time, int bccomp,
                                    bool do_fb)
 {
     BL_PROFILE("ERFPhysBCFunct_u::()");
@@ -153,8 +170,19 @@ void ERFPhysBCFunct_u::operator() (MultiFab& mf, MultiFab& xvel, MultiFab& yvel,
     } // OpenMP
 } // operator()
 
+/**
+ * Impose physical boundary conditions on y velocity.
+ *
+ * @param[in,out] mf      y-velocity MultiFab to be filled
+ * @param[in]     xvel    x-velocity MultiFab used by upwind boundary conditions
+ * @param[in]     yvel    y-velocity MultiFab used by upwind boundary conditions
+ * @param[in]     nghost  number of ghost cells to be filled
+ * @param[in]     time    time at which data should be filled
+ * @param[in]     bccomp  index into m_domain_bcs_type
+ * @param[in]     do_fb   whether to fill periodic/interior ghost cells first
+ */
 void ERFPhysBCFunct_v::operator() (MultiFab& mf, MultiFab& xvel, MultiFab& yvel,
-                                   IntVect const& nghost, const Real time, int bccomp,
+                                   IntVect const& nghost, const double time, int bccomp,
                                    bool do_fb)
 {
     BL_PROFILE("ERFPhysBCFunct_v::()");
@@ -223,8 +251,19 @@ void ERFPhysBCFunct_v::operator() (MultiFab& mf, MultiFab& xvel, MultiFab& yvel,
     } // OpenMP
 } // operator()
 
+/**
+ * Impose physical boundary conditions on z velocity.
+ *
+ * @param[in,out] mf       z-velocity MultiFab to be filled
+ * @param[in]     xvel     x-velocity MultiFab used by upwind boundary conditions
+ * @param[in]     yvel     y-velocity MultiFab used by upwind boundary conditions
+ * @param[in]     nghost   number of ghost cells to be filled
+ * @param[in]     time     time at which data should be filled
+ * @param[in]     bccomp_w index into m_domain_bcs_type for z velocity
+ * @param[in]     do_fb    whether to fill periodic/interior ghost cells first
+ */
 void ERFPhysBCFunct_w::operator() (MultiFab& mf, MultiFab& xvel, MultiFab& yvel,
-                                   IntVect const& nghost, const Real time,
+                                   IntVect const& nghost, const double time,
                                    const int bccomp_w, bool do_fb)
 {
     BL_PROFILE("ERFPhysBCFunct_w::()");
@@ -310,6 +349,14 @@ void ERFPhysBCFunct_w::operator() (MultiFab& mf, MultiFab& xvel, MultiFab& yvel,
     } // OpenMP
 } // operator()
 
+/**
+ * Impose physical boundary conditions on the base state.
+ *
+ * @param[in,out] mf     base-state MultiFab to be filled
+ * @param[in]     icomp  starting component, unused here
+ * @param[in]     ncomp  number of components
+ * @param[in]     nghost number of ghost cells to be filled
+ */
 void ERFPhysBCFunct_base::operator() (MultiFab& mf, int /*icomp*/, int ncomp, IntVect const& nghost)
 {
     BL_PROFILE("ERFPhysBCFunct_base::()");

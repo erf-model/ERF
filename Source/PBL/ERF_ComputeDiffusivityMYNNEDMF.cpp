@@ -4173,6 +4173,23 @@ void mym_initialize_cc(const int &kts,const int &kte,const Real &xland, Real *dz
 
 #endif
 
+/**
+ * @brief Compute eddy viscosity and diffusivity coefficients using the MYNN-EDMF closure.
+ * @param[in] xvel Horizontal x-velocity field.
+ * @param[in] yvel Horizontal y-velocity field.
+ * @param[in] cons_in Field of conservative variables.
+ * @param[out] eddyViscosity MultiFab to be filled with computed eddy diffusivities.
+ * @param[in] geom Grid geometry.
+ * @param[in] turbChoice Turbulence closure options and parameters.
+ * @param[in] SurfLayer Surface layer data for MOST parameters.
+ * @param[in] use_terrain_fitted_coords Flag to use terrain-fitted vertical coordinates.
+ * @param[in] use_moisture Flag to include moisture in buoyancy calculations.
+ * @param[in] level Current level index.
+ * @param[in] bc_ptr Pointer to boundary condition records.
+ * @param[in] z_phys_nd Physical height field at nodes.
+ * @param[in] z_phys_cc Physical height field at cell centers.
+ * @param[in] moisture_indices Indices for mapping moisture variables in the conservative field.
+ */
 void
 ComputeDiffusivityMYNNEDMF (const MultiFab& xvel,
                             const MultiFab& yvel,
@@ -4187,6 +4204,7 @@ ComputeDiffusivityMYNNEDMF (const MultiFab& xvel,
                             const BCRec* bc_ptr,
                             bool /*vert_only*/,
                             const std::unique_ptr<MultiFab>& z_phys_nd,
+                            const std::unique_ptr<MultiFab>& z_phys_cc,
                             const MoistureComponentIndices& moisture_indices)
 {
     Print()<<"reached mynnedmf"<<std::endl;
@@ -4222,7 +4240,10 @@ ComputeDiffusivityMYNNEDMF (const MultiFab& xvel,
 #ifdef _OPENMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())
 #endif
-    for ( MFIter mfi(eddyViscosity,TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+    // NOTE: we must not tile in z here because the body of this loop assumes that each
+    //       iterate spans the entire column: it grows the box by one in z and accumulates
+    //       vertical integrals into a per-iterate qintegral fab (as in MYNN25)
+    for ( MFIter mfi(eddyViscosity,TileNoZ()); mfi.isValid(); ++mfi) {
 
         const Box &bx = mfi.growntilebox(1);
         const Array4<Real const>& cell_data = cons_in.array(mfi);
@@ -4241,9 +4262,13 @@ ComputeDiffusivityMYNNEDMF (const MultiFab& xvel,
         const GeometryData gdata = geom.data();
 
         const Box xybx = PerpendicularBox<ZDir>(bx, IntVect{0,0,0});
-        FArrayBox qintegral(xybx,2);
+
+        FArrayBox qintegral(xybx,2,The_Async_Arena());
+        FArrayBox qturb(bx,1,The_Async_Arena());
+        FArrayBox qturb_old(bx,1,The_Async_Arena());
+
         qintegral.setVal<RunOn::Device>(0);
-        FArrayBox qturb(bx,1); FArrayBox qturb_old(bx,1);
+
         const Array4<Real> qint = qintegral.array();
         const Array4<Real> qvel = qturb.array();
 
@@ -4277,8 +4302,6 @@ ComputeDiffusivityMYNNEDMF (const MultiFab& xvel,
             });
         }
 
-        Real dz_inv = geom.InvCellSize(2);
-        const auto& dxInv = geom.InvCellSizeArray();
         int izmin = geom.Domain().smallEnd(2);
         int izmax = geom.Domain().bigEnd(2);
 
@@ -4299,15 +4322,15 @@ ComputeDiffusivityMYNNEDMF (const MultiFab& xvel,
         const auto& q_star_arr = (use_moisture) ? q_star_mf->const_array(mfi) : Array4<Real>{};
 
         const Array4<Real const> z_nd_arr = z_phys_nd->const_array(mfi);
+        const PBLDerivativeDzInv_T pbl_derivative_dz_inv{z_phys_cc->const_array(mfi)};
 
         ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
             // Compute some partial derivatives that we will need (second order)
             // U and V derivatives are interpolated to account for staggered grid
-            const Real met_h_zeta = use_terrain_fitted_coords ? Compute_h_zeta_AtCellCenter(i,j,k,dxInv,z_nd_arr) : one;
             Real dthetadz, dudz, dvdz;
             ComputeVerticalDerivativesPBL(i, j, k,
-                                          uvel, vvel, cell_data, izmin, izmax, dz_inv/met_h_zeta,
+                                          uvel, vvel, cell_data, izmin, izmax, pbl_derivative_dz_inv(i,j,k),
                                           c_ext_dir_on_zlo, c_ext_dir_on_zhi,
                                           u_ext_dir_on_zlo, u_ext_dir_on_zhi,
                                           v_ext_dir_on_zlo, v_ext_dir_on_zhi,
@@ -4401,9 +4424,13 @@ ComputeDiffusivityMYNNEDMF (const MultiFab& xvel,
             Real SM, SH, SQ;
             mynn.calc_stability_funcs(SM,SH,SQ,GM,GH,alphac);
 
-            // Clip SM, SH following WRF
+            // Clip SM, SH, SQ following WRF.  SQ is proportional to the *unclipped*
+            // SM (NN09 Eqn. 67 is evaluated before SM is limited), so it needs its own
+            // bounds; without them the TKE diffusivity below can go negative and turn
+            // the vertical TKE diffusion anti-diffusive.
             SM = amrex::min(amrex::max(SM,mynn.SMmin), mynn.SMmax);
             SH = amrex::min(amrex::max(SH,mynn.SHmin), mynn.SHmax);
+            SQ = amrex::min(amrex::max(SQ,mynn.SQmin), mynn.SQmax);
 
             // Finally, compute the eddy viscosity/diffusivities
             const Real rho = cell_data(i,j,k,Rho_comp);

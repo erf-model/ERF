@@ -13,6 +13,13 @@
 
 class PlaneAverage {
 public:
+    /**
+     * Construct a plane averaging object.
+     * @param[in] field_in MultiFab to be averaged.
+     * @param[in] geom_in Geometry of the domain.
+     * @param[in] axis_in Axis along which to average.
+     * @param[in] n_ghost_to_inc Ghost cells to include in the average.
+     */
     AMREX_FORCE_INLINE
     explicit PlaneAverage (const amrex::MultiFab* field_in,
                            amrex::Geometry geom_in,
@@ -45,6 +52,11 @@ public:
         return m_line_average;
     }
 
+    /**
+     * Copy the line average of a specific component to a host vector.
+     * @param[in] comp Component index.
+     * @param[out] l_vec Host vector to store the line average.
+     */
     AMREX_FORCE_INLINE
     void line_average (int comp, amrex::Gpu::HostVector<amrex::Real>& l_vec);
 
@@ -63,7 +75,7 @@ protected:
 
     amrex::Vector<amrex::Real> m_line_xcentroid; /** line storage for centroids of each cell along a line*/
 
-    amrex::Real m_dx;  /** mesh spacing in axis direction*/
+    amrex::Real m_dx;  /** grid spacing in axis direction*/
     amrex::Real m_xlo; /** bottom of domain in axis direction */
 
     int m_ncell_plane; /** number of cells in plane */
@@ -86,6 +98,13 @@ public:
 };
 
 
+/**
+ * Construct a plane averaging object.
+ * @param[in] field_in MultiFab to be averaged.
+ * @param[in] geom_in Geometry of the domain.
+ * @param[in] axis_in Axis along which to average.
+ * @param[in] n_ghost_to_inc Ghost cells to include in the average.
+ */
 PlaneAverage::PlaneAverage (const amrex::MultiFab* field_in,
                             amrex::Geometry geom_in,
                             int axis_in,
@@ -125,6 +144,12 @@ PlaneAverage::PlaneAverage (const amrex::MultiFab* field_in,
     }
 }
 
+/**
+ * Evaluate line average at specific location for any average component.
+ * @param[in] x Physical coordinate along the averaging axis.
+ * @param[in] comp Component index.
+ * @return Interpolated value of the line average.
+ */
 amrex::Real
 PlaneAverage::line_average_interpolated (amrex::Real x, int comp) const
 {
@@ -150,6 +175,11 @@ PlaneAverage::line_average_interpolated (amrex::Real x, int comp) const
            m_line_average[m_ncomp * (ind + 1) + comp] * c;
 }
 
+/**
+ * Copy the line average of a specific component to a host vector.
+ * @param[in] comp Component index.
+ * @param[out] l_vec Host vector to store the line average.
+ */
 void
 PlaneAverage::line_average (int comp, amrex::Gpu::HostVector<amrex::Real>& l_vec)
 {
@@ -160,6 +190,9 @@ PlaneAverage::line_average (int comp, amrex::Gpu::HostVector<amrex::Real>& l_vec
     }
 }
 
+/**
+ * Compute the plane averages for the stored field.
+ */
 void
 PlaneAverage::operator()()
 {
@@ -180,6 +213,12 @@ PlaneAverage::operator()()
     }
 }
 
+/**
+ * Compute averages across a plane.
+ * @tparam IndexSelector Type of index selector functor.
+ * @param[in] idxOp Index selector to map cell indices to the line index.
+ * @param[in] mfab MultiFab containing the data to average.
+ */
 template <typename IndexSelector>
 void
 PlaneAverage::compute_averages (const IndexSelector& idxOp, const amrex::MultiFab& mfab)

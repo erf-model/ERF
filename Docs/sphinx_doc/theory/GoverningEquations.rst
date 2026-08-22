@@ -136,15 +136,17 @@ Vector rotation of the fluid velocity yields :math:`J  \bar{\mathbf{T}} \mathbf{
 Background (reference) state
 -----------------------------
 
-Pressure and density perturbations are defined with respect to a hydrostatically stratified background state, i.e.
+Pressure and dry-density perturbations are defined with respect to a hydrostatically stratified background state, i.e.
 
 .. math::
-  p = p_{0}(z) + p^\prime  \hspace{24pt} \rho = \rho_{0}(z) + \rho^\prime
+  p = p_{0}(z) + p^\prime  \hspace{24pt} \rho_d = \rho_{0}(z) + \rho_d^\prime
 
-with
+where :math:`\rho_0` is the dry base-state density. For moist simulations,
+the base state carries only the water vapor mixing ratio :math:`q_{v,0}`, so
+the hydrostatic balance uses the total moist base-state density:
 
 .. math::
-  \frac{d p_{0}}{d z} = - \rho_{0} g
+  \frac{d p_{0}}{d z} = - \rho_{0}(1 + q_{v,0}) g.
 
 Equation of state (compressible only)
 --------------------------------------
@@ -283,4 +285,3 @@ The assumptions involved in deriving these equations from first principles are:
   :math:`\rho\alpha_{\theta}` may correspond to the molecular transport coefficients, turbulent transport
   coefficients computed from an LES or PBL model, or a combination. See the sections on :ref:`DNS vs. LES modes <DNSvsLES>`
   and :ref:`PBL schemes <PBLschemes>` for more details.
-

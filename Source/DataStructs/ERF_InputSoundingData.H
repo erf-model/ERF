@@ -21,6 +21,9 @@
  */
 struct InputSoundingData {
 public:
+    /**
+     * @brief Construct input sounding metadata from the ERF input namespace.
+     */
     InputSoundingData ()
     {
         amrex::ParmParse pp("erf");
@@ -57,6 +60,9 @@ public:
         input_sounding_time.resize(n);
     }
 
+    /**
+     * @brief Resize host and device sounding arrays for the configured sounding times.
+     */
     void resize_arrays ()
     {
         ntimes = n_sounding_files;
@@ -74,9 +80,16 @@ public:
         V_inp_sound_d.resize(ntimes);
     }
 
+    /**
+     * @brief Read and interpolate one input sounding profile onto level-0 heights.
+     * @param geom Geometry defining the level-0 vertical domain.
+     * @param zlevels_stag Staggered vertical coordinates used for interpolation.
+     * @param itime Sounding time/file index to read.
+     * @param is_moist Whether the selected physics permits nonzero water vapor.
+     */
     void read_from_file (const amrex::Geometry &geom,
                          const amrex::Vector<amrex::Real>& zlevels_stag,
-                         int itime)
+                         int itime, bool is_moist)
     {
         const int klo = 0;
         const int khi = geom.Domain().bigEnd()[AMREX_SPACEDIM-1];
@@ -121,11 +134,42 @@ public:
             U_inp_sound_tmp.push_back(0);
             V_inp_sound_tmp.push_back(0);
 
+            // *************************************************************************************************
+            // Make sure that if we specify surface values for temp in the inputs file and in the input sounding file,
+            //      those values must match
+            // *************************************************************************************************
+            amrex::ParmParse pp_erf("erf");
+
+            amrex::Real surf_temp;
+            bool surf_temp_specified = pp_erf.query("most.surf_temp", surf_temp);
+            if ( surf_temp_specified && (surf_temp != theta_inp_sound_tmp[0]) ) {
+                amrex::Print() << "Input sounding temp does not match most.surf_temp" << std::endl;
+                amrex::Print() << "Modify one or both to match." << std::endl;
+                amrex::Abort();
+            }
+
+            // *************************************************************************************************
+            // Make sure that if we specify surface values for qv in the inputs file and in the input sounding file,
+            //      those values must match
+            // *************************************************************************************************
+            amrex::Real surf_moist;
+            bool surf_moist_specified = pp_erf.query("most.surf_moist", surf_moist);
+            if ( surf_moist_specified && (surf_moist != qv_inp_sound_tmp[0]) ) {
+                amrex::Print() << "Input sounding qv does not match most.surf_moist" << std::endl;
+                amrex::Print() << "Modify one or both to match." << std::endl;
+                amrex::Abort();
+            }
+
             // Read the vertical profile at each given height
             amrex::Real z, theta, qv, U, V;
+
             while(std::getline(input_sounding_reader, line)) {
                 std::istringstream iss_z(line);
                 iss_z >> z >> theta >> qv >> U >> V;
+
+                // Dont read in non-zero qv if not using a moisture model
+                AMREX_ALWAYS_ASSERT(qv == zero || is_moist);
+
                 if (z == zbot) {
                     AMREX_ALWAYS_ASSERT(theta == theta_inp_sound_tmp[0]);
                     AMREX_ALWAYS_ASSERT(qv*amrex::Real(0.001) == qv_inp_sound_tmp[0]); // convert from g/kg to kg/kg
@@ -134,6 +178,7 @@ public:
                 } else {
                     AMREX_ALWAYS_ASSERT(z > z_inp_sound_tmp[z_inp_sound_tmp.size()-1]); // sounding is increasing in height
                     z_inp_sound_tmp.push_back(z);
+
                     theta_inp_sound_tmp.push_back(theta);
                     qv_inp_sound_tmp.push_back(qv*amrex::Real(0.001)); // convert from g/kg to kg/kg
                     U_inp_sound_tmp.push_back(U);
@@ -170,6 +215,10 @@ public:
         host_to_device(itime);
     }
 
+    /**
+     * @brief Hydrostatically integrate density and pressure for one sounding.
+     * @param itime Sounding time/file index to integrate.
+     */
     void calc_rho_p (int itime)
     {
         /* Calculate density and pressure, roughly following the procedure in
@@ -186,7 +235,7 @@ public:
           pm_integ[0] = press_ref_inp_sound;
         rhod_integ[0] = getRhogivenThetaPress(theta_ref_inp_sound,
                                               press_ref_inp_sound,
-                                              R_d/Cp_d,
+                                              RdoCp,
                                               qv_ref_inp_sound);
 
         amrex::Print() << "ideal sounding init: surface dry air density = "
@@ -214,6 +263,7 @@ public:
 
          // integrate from surface to domain top
         amrex::Real dz, F, C;
+        amrex::Real T_hi;
         amrex::Real rho_tot_hi, rho_tot_lo;
         for (int k=1; k < size(itime); ++k)
         {
@@ -226,18 +276,23 @@ public:
 
             // Initial guess and residual
             pm_integ[k]   = pm_integ[k-1];
+            T_hi          = getTgivenPandTh(pm_integ[k], theta_inp_sound[itime][k], RdoCp);
             rhod_integ[k] = getRhogivenThetaPress(theta_inp_sound[itime][k],
                                                   pm_integ[k],
-                                                  R_d/Cp_d,
+                                                  RdoCp,
                                                   qv_inp_sound[itime][k]);
             rho_tot_hi = rhod_integ[k] * (one + qv_inp_sound[itime][k]);
             F = pm_integ[k] + myhalf*rho_tot_hi*CONST_GRAV*dz + C;
 
             // Do iterations
-            if (std::abs(F)>tol) HSEutils::Newton_Raphson_hse(tol, R_d/Cp_d, dz,
-                                                              CONST_GRAV, C, theta_inp_sound[itime][k],
-                                                              qv_inp_sound[itime][k], qv_inp_sound[itime][k],
-                                                              pm_integ[k], rhod_integ[k], F);
+            if (std::abs(F)>tol) {
+                bool maintain_Th = true;
+                HSEutils::Newton_Raphson_hse(tol, RdoCp, dz,
+                                             CONST_GRAV, C, theta_inp_sound[itime][k], T_hi,
+                                             qv_inp_sound[itime][k], qv_inp_sound[itime][k],
+                                             pm_integ[k], rhod_integ[k], F, maintain_Th);
+            }
+
 #if 0       // Printing
             amrex::Print() << z_inp_sound[itime][k]
                            << " " << pm_integ[k]
@@ -256,6 +311,10 @@ public:
         host_to_device(itime);
     }
 
+    /**
+     * @brief Compute density and pressure for an isentropic sounding profile.
+     * @param itime Sounding time/file index to integrate.
+     */
     void calc_rho_p_isentropic (int itime)
     {
         /* Calculate density and pressure assuming isentropic (constant theta)
@@ -267,10 +326,10 @@ public:
         rhod_integ.resize(Ninp);
 
         // evaluate surface quantities (k=0): total pressure and dry air
-        pm_integ[0] = press_ref_inp_sound;
+        pm_integ[0]   = press_ref_inp_sound;
         rhod_integ[0] = getRhogivenThetaPress(theta_ref_inp_sound,
                                               press_ref_inp_sound,
-                                              R_d/Cp_d,
+                                              RdoCp,
                                               qv_ref_inp_sound);
 
         const amrex::Real th0 = theta_ref_inp_sound;
@@ -303,7 +362,7 @@ public:
 
             // Isentropic pressure at next level
             amrex::Real qvmean = (assume_dry) ? zero : myhalf*(qv_inp_sound[itime][k-1] + qv_inp_sound[itime][k]);
-            amrex::Real thm0 = th0 * (1 + R_v/R_d * qvmean);
+            amrex::Real thm0 = th0 * (one + RvoRd * qvmean);
             amrex::Real plo_pow = std::pow(pm_integ[k-1], (Gamma-1)/Gamma);
             pm_integ[k] = (Gamma-1)/Gamma *
                 (-CONST_GRAV * p0_pow / (R_d * thm0) * (1 + qvmean) * dz
@@ -316,7 +375,7 @@ public:
             // Get corresponding dry air density
             rhod_integ[k] = getRhogivenThetaPress(theta_inp_sound[itime][k],
                                                   pm_integ[k],
-                                                  R_d/Cp_d,
+                                                  RdoCp,
                                                   qv_inp_sound[itime][k]);
 
 #if 0       // Printing
@@ -337,6 +396,10 @@ public:
         host_to_device(itime);
     }
 
+    /**
+     * @brief Copy host sounding arrays for one time index to device storage.
+     * @param itime Sounding time/file index to copy.
+     */
     void host_to_device (int itime)
     {
         const int Ninp = size(itime);
@@ -376,6 +439,11 @@ public:
         }
     }
 
+    /**
+     * @brief Return the number of interpolated samples for one sounding time.
+     * @param itime Sounding time/file index to query.
+     * @return Number of stored sounding profile levels.
+     */
     int size (int itime) const
     {
         AMREX_ALWAYS_ASSERT(z_inp_sound[itime].size() == theta_inp_sound[itime].size());
@@ -383,6 +451,14 @@ public:
         AMREX_ALWAYS_ASSERT(z_inp_sound[itime].size() == U_inp_sound[itime].size());
         AMREX_ALWAYS_ASSERT(z_inp_sound[itime].size() == V_inp_sound[itime].size());
         return z_inp_sound[itime].size();
+    }
+
+    void set_start_time(amrex::Real start_time)
+    {
+        for (int i = 0; i < n_sounding_times; i++)
+        {
+            input_sounding_time[i] += start_time;
+        }
     }
 
     // Members
@@ -413,4 +489,55 @@ public:
     // - to set solution fields
     amrex::Gpu::DeviceVector<amrex::Real> p_inp_sound_d, rho_inp_sound_d;
 };
+
+/**
+ * @var InputSoundingData::ntimes
+ * @brief Number of sounding times represented in the arrays.
+ * @var InputSoundingData::tau_nudging
+ * @brief Nudging time scale for relaxing toward input sounding data.
+ * @var InputSoundingData::input_sounding_file
+ * @brief Sounding file path for each configured sounding time.
+ * @var InputSoundingData::input_sounding_time
+ * @brief Physical time associated with each input sounding file.
+ * @var InputSoundingData::n_sounding_files
+ * @brief Number of input sounding files.
+ * @var InputSoundingData::n_sounding_times
+ * @brief Number of input sounding times.
+ * @var InputSoundingData::assume_dry
+ * @brief Whether to ignore moisture in isentropic pressure integration.
+ * @var InputSoundingData::press_ref_inp_sound
+ * @brief Surface reference pressure read from the input sounding [Pa].
+ * @var InputSoundingData::theta_ref_inp_sound
+ * @brief Surface reference potential temperature read from the input sounding [K].
+ * @var InputSoundingData::qv_ref_inp_sound
+ * @brief Surface reference water vapor mixing ratio read from the input sounding [kg/kg].
+ * @var InputSoundingData::z_inp_sound
+ * @brief Interpolated host sounding heights for each sounding time [m].
+ * @var InputSoundingData::theta_inp_sound
+ * @brief Interpolated host potential temperature profiles [K].
+ * @var InputSoundingData::qv_inp_sound
+ * @brief Interpolated host water vapor mixing ratio profiles [kg/kg].
+ * @var InputSoundingData::U_inp_sound
+ * @brief Interpolated host x velocity profiles.
+ * @var InputSoundingData::V_inp_sound
+ * @brief Interpolated host y velocity profiles.
+ * @var InputSoundingData::z_inp_sound_d
+ * @brief Device sounding heights for each sounding time [m].
+ * @var InputSoundingData::theta_inp_sound_d
+ * @brief Device potential temperature profiles [K].
+ * @var InputSoundingData::qv_inp_sound_d
+ * @brief Device water vapor mixing ratio profiles [kg/kg].
+ * @var InputSoundingData::U_inp_sound_d
+ * @brief Device x velocity profiles.
+ * @var InputSoundingData::V_inp_sound_d
+ * @brief Device y velocity profiles.
+ * @var InputSoundingData::pm_integ
+ * @brief Hydrostatically integrated moist pressure profile.
+ * @var InputSoundingData::rhod_integ
+ * @brief Hydrostatically integrated dry density profile.
+ * @var InputSoundingData::p_inp_sound_d
+ * @brief Device pressure profile used to initialize solution fields.
+ * @var InputSoundingData::rho_inp_sound_d
+ * @brief Device density profile used to initialize solution fields.
+ */
 #endif
