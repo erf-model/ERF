@@ -847,6 +847,14 @@ ERF::InitData_post ()
             int n_time_old = static_cast<int>(time_since_start_bdy /  bdy_time_interval);
             MultiFab r_hse(base_state[0], make_alias, BaseState::r0_comp, 1);
             Array<MultiFab*, AMREX_SPACEDIM> area_vec = {ax[0].get(), ay[0].get(), az[0].get()};
+            auto repack_runtime_bdy = [&] (const int itime) {
+                const bool separate_hydrometeors = solverChoice.use_wrf_bdy_qc_qi &&
+                    wrf_bdy_has_separate_hydrometeors(solverChoice.moisture_indices);
+                repack_wrfbdy_to_realbdy(bdy_data_xlo[itime], solverChoice.use_wrf_bdy_qc_qi, separate_hydrometeors);
+                repack_wrfbdy_to_realbdy(bdy_data_xhi[itime], solverChoice.use_wrf_bdy_qc_qi, separate_hydrometeors);
+                repack_wrfbdy_to_realbdy(bdy_data_ylo[itime], solverChoice.use_wrf_bdy_qc_qi, separate_hydrometeors);
+                repack_wrfbdy_to_realbdy(bdy_data_yhi[itime], solverChoice.use_wrf_bdy_qc_qi, separate_hydrometeors);
+            };
 
             // Need itime=0 for vertical interpolation
             if (n_time_old > 0) {
@@ -856,8 +864,14 @@ ERF::InitData_post ()
                                              bdy_data_xlo,bdy_data_xhi,bdy_data_ylo,bdy_data_yhi,
                                              wrf_MUB, wrf_C1H, wrf_C2H, wrf_RDNW, wrf_PHB, z_phys_cc[0], z_phys_nd[0],
                                              vars_new[0][Vars::xvel], vars_new[0][Vars::yvel], vars_new[0][Vars::cons],
-                                             r_hse, area_vec, geom[0], use_moist, solverChoice.rebalance_wrf_input, domain_bcs_type,
+                                             r_hse, area_vec, geom[0], use_moist,
+                                             solverChoice.use_wrf_bdy_qc_qi,
+                                             solverChoice.moisture_indices.qi >= 0,
+                                             solverChoice.use_wrf_bdy_qc_qi &&
+                                             wrf_bdy_has_separate_hydrometeors(solverChoice.moisture_indices),
+                                             solverChoice.rebalance_wrf_input, domain_bcs_type,
                                              real_width, bdy_time_interval, is_anelastic);
+                repack_runtime_bdy(itime);
             }
 
             int ntimes = std::min(n_time_old+3, static_cast<int>(bdy_data_xlo.size()));
@@ -869,8 +883,17 @@ ERF::InitData_post ()
                                              bdy_data_xlo,bdy_data_xhi,bdy_data_ylo,bdy_data_yhi,
                                              wrf_MUB, wrf_C1H, wrf_C2H, wrf_RDNW, wrf_PHB, z_phys_cc[0], z_phys_nd[0],
                                              vars_new[0][Vars::xvel], vars_new[0][Vars::yvel], vars_new[0][Vars::cons],
-                                             r_hse, area_vec, geom[0], use_moist, solverChoice.rebalance_wrf_input, domain_bcs_type,
+                                             r_hse, area_vec, geom[0], use_moist,
+                                             solverChoice.use_wrf_bdy_qc_qi,
+                                             solverChoice.moisture_indices.qi >= 0,
+                                             solverChoice.use_wrf_bdy_qc_qi &&
+                                             wrf_bdy_has_separate_hydrometeors(solverChoice.moisture_indices),
+                                             solverChoice.rebalance_wrf_input, domain_bcs_type,
                                              real_width, bdy_time_interval, is_anelastic);
+                if (itime == static_cast<int>(bdy_data_xlo.size())-1 && itime > 0) {
+                    repack_runtime_bdy(itime-1);
+                }
+                repack_runtime_bdy(itime);
             } // itime
         } // use_real_bcs
 
@@ -1326,6 +1349,11 @@ ERF::InitData_post ()
                                                         zero, zero, zero,
 #endif
                                                         eb_ptrs);
+
+        // Must precede make_SurfaceLayer_at_level: coupled SST is one of the
+        // conditions that selects ThetaCalcType::SURFACE_TEMPERATURE there.
+        m_SurfaceLayer->set_coupled_sst_active(solverChoice.use_coupled_sst);
+
         // This call will allocate the arrays at each level. If we regrid later, either changing
         // the number of levels or just the grids at each existing level, we will call an update routine
         // to redefine the internal arrays in m_SurfaceLayer.
@@ -2834,9 +2862,6 @@ ERF::ReadParameters ()
         lsm.SetModel<NOAHMP>();
         Print() << "Noah-MP land surface model!\n";
 #endif
-    } else if (solverChoice.lsm_type == LandSurfaceType::OceanSurf) {
-        lsm.SetModel<OceanSurf>();
-        Print() << "OceanSurf land surface model!\n";
     } else if (solverChoice.lsm_type == LandSurfaceType::None) {
         lsm.SetModel<NullSurf>();
         Print() << "Null land surface model!\n";
@@ -2884,6 +2909,21 @@ ERF::ParameterSanityChecks ()
                 << "WRF boundary density nudge factor: " << rho_factor << std::endl;
     } else {
         Print() << "WRF lateral boundary density forcing: disabled" << std::endl;
+    }
+
+    if (solverChoice.use_wrf_bdy_qc_qi) {
+        if (!solverChoice.use_real_bcs || solverChoice.init_type != InitType::WRFInput) {
+            Abort("erf.use_wrf_bdy_qc_qi requires standard WRFInput real boundary conditions");
+        }
+        if (nc_bdy_file.empty()) {
+            Abort("erf.use_wrf_bdy_qc_qi requires erf.nc_bdy_file");
+        }
+        if (input_bndry_planes) {
+            Abort("erf.use_wrf_bdy_qc_qi is not supported with generic boundary-plane input");
+        }
+        Print() << "WRF lateral boundary cloud-water/cloud-ice forcing: enabled" << std::endl;
+    } else {
+        Print() << "WRF lateral boundary cloud-water/cloud-ice forcing: disabled" << std::endl;
     }
 
     AMREX_ALWAYS_ASSERT(real_width >= 0);

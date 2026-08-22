@@ -1521,13 +1521,24 @@ List of Parameters
 |                                     | dry-air density for    |                   |                     |
 |                                     | real WRF boundaries    |                   |                     |
 +-------------------------------------+------------------------+-------------------+---------------------+
+| **erf.use_wrf_bdy_qc_qi**           | Ingest WRF ``QCLOUD``  | Boolean           | false               |
+|                                     | and active ``QICE`` at |                   |                     |
+|                                     | real boundaries        |                   |                     |
++-------------------------------------+------------------------+-------------------+---------------------+
 | **erf.bdy_rho_nudge_factor**        | Density Davies factor; | Real              | -1.0                |
 |                                     | non-positive uses      |                   |                     |
 |                                     | ``bdy_nudge_factor``   |                   |                     |
 +-------------------------------------+------------------------+-------------------+---------------------+
-| **erf.bdy_moist_nudge_type**        | Which strategy for     | int 0,1 or 2      | 0                   |
+| **erf.bdy_moist_nudge_type**        | Which strategy for     | int 0,1,2 or 3    | 1                   |
 |                                     | nudging of moist vars  |                   |                     |
 +-------------------------------------+------------------------+-------------------+---------------------+
+
+For WRF real boundaries, moisture nudging type 0 relaxes only ``qv`` toward
+``QVAPOR``. Type 1 applies a ``qv`` tendency based on ERF ``qv+qc+qi`` versus
+WRF ``QVAPOR``. Type 2 relaxes ``qv`` toward ``QVAPOR`` and active ``qc``/``qi``
+toward zero with the existing latent-heat terms. Type 3 directly relaxes active
+``qv``, ``qc``, and ``qi`` toward ``QVAPOR``, ``QCLOUD``, and ``QICE`` without
+an added latent-heat term. Type 3 requires ``erf.use_wrf_bdy_qc_qi = true``.
 
 If ``erf.nudging_from_input_sounding`` is true, it is expected that at least one input sounding
 file is available.  If there is only one, and no specification of time is made, it is assumed that
@@ -1976,13 +1987,28 @@ List of Parameters
 +================================+============================+====================+=============+
 | **erf.land_surface_model**     | Enables land surface       | "None",            | "None"      |
 |                                | energy and moisture        | "NOAHMP",          |             |
-|                                | fluxes                     | "OceanSurf",       |             |
-|                                |                            | "SLM"              |             |
+|                                | fluxes                     | "SLM"              |             |
++--------------------------------+----------------------------+--------------------+-------------+
+| **erf.use_coupled_sst**        | Expect sea-surface         | true / false       | false       |
+|                                | temperature from an        |                    |             |
+|                                | external ocean coupler     |                    |             |
 +--------------------------------+----------------------------+--------------------+-------------+
 
 .. note::
 
    Noah-MP requires ``USE_NOAHMP=TRUE`` at build time. See :ref:`CouplingToNoahMP` for details.
+
+.. note::
+
+   ``erf.use_coupled_sst`` is independent of ``erf.land_surface_model``. Coupled SST
+   is applied through the lower-boundary path alongside ``wrflowinp`` SST/TSK, and
+   only on the water cells the coupler actually covers: land keeps its land surface
+   model, and water the ocean grid does not reach keeps the ``wrflowinp`` value. A
+   coupled run can therefore also run Noah-MP.
+
+   This replaces ``erf.land_surface_model = OceanSurf``, which delivered coupled SST
+   as a land surface model and so occupied the one land surface model slot. That
+   value has been removed and now aborts with a message pointing here.
 
 Coupling Type (Data Exchange)
 ==============================

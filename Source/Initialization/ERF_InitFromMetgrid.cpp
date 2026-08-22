@@ -626,10 +626,10 @@ ERF::init_from_metgrid (int lev)
             Print() << "Loading boundary data from erfbdy file: " << erfbdy_file << std::endl;
 
             int ntimes_erfbdy;
-            Vector<double> bdy_times;
+            Vector<double> bdy_times_erfbdy;
             bdy_time_interval = read_times_from_erfbdy(erfbdy_file,
                                                        ntimes_erfbdy, nvars_erfbdy, real_width,
-                                                       bdy_times, start_bdy_time, final_bdy_time);
+                                                       bdy_times_erfbdy, start_bdy_time, final_bdy_time);
 
             AMREX_ALWAYS_ASSERT(ntimes_erfbdy >= 2);
 

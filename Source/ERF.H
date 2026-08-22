@@ -170,6 +170,19 @@ public:
     // by the WRF-grid init paths, e.g. ERF_InitFromWRFInput.cpp/ERF_InitFromMetgrid.cpp)
     // used to build ocean->atmos remap weights. Sets both to nullptr if
     // unavailable (e.g. idealized/non-WRF configurations).
+    //
+    // Staggering contract: both MultiFabs always carry CELL index type, but what
+    // they actually hold depends on the init path, and a caller building a corner
+    // mesh must account for the difference:
+    //   * init_from_wrfinput reads WRF's XLONG_U / XLAT_V, which are edge
+    //     staggered. lon_m(i,j) is the longitude of the west face of cell (i,j)
+    //     -- nodal in i, cell-centred in j -- and lat_m(i,j) is the latitude of
+    //     the south face -- nodal in j, cell-centred in i. The extra staggered
+    //     edge (lon_m at i = nx, lat_m at j = ny) lives in the first ghost cell,
+    //     so a corner mesh must read one ghost beyond the valid box in the nodal
+    //     direction; ghosts further out are duplicates of that edge.
+    //   * init_from_metgrid reads XLONG_M / XLAT_M, which are mass-point values,
+    //     so both are genuinely cell-centred and there is no staggered edge.
     void GetOceanToAtmosCornerCoordinates (const amrex::MultiFab*& x_corner,
                                            const amrex::MultiFab*& y_corner) const;
 
@@ -228,7 +241,22 @@ public:
                                 const amrex::MultiFab* dst_mskr = nullptr,
                                 const amrex::MultiFab* dst_msku = nullptr,
                                 const amrex::MultiFab* dst_mskv = nullptr);
-    void ApplyOceanSurfaceState (const amrex::Vector<amrex::MultiFab*>& state, double time);
+    // Apply ocean-model sea-surface temperature to the ERF lower boundary.
+    //
+    // state[0] carries SST in Kelvin on the layout reported by
+    // GetOceanToAtmosSurfaceLayout. erf_coverage is the per-cell coverage flag on
+    // that same layout: nonzero where the driver's remap found at least one
+    // ocean donor for that ERF cell.
+    //
+    // Coverage is a contract, not a hint. Where erf_coverage is zero the ocean
+    // supplied nothing and state[0] holds the remap's zero fill, which is
+    // indistinguishable from a computed zero; ERF keeps its own wrflowinp SST
+    // there instead. Passing erf_coverage = nullptr therefore means "no cell is
+    // covered", not "every cell is covered" -- a driver that has coverage
+    // information must pass it.
+    void ApplyOceanSurfaceState (const amrex::Vector<amrex::MultiFab*>& state,
+                                 double time,
+                                 const amrex::iMultiFab* erf_coverage = nullptr);
 
     // Tag cells for refinement
     void ErrorEst (int lev, amrex::TagBoxArray& tags, amrex::Real time, int ngrow) override;
@@ -798,6 +826,17 @@ public:
     bool m_driver_has_atm2ocn_coupling = false;
     bool m_driver_uses_two_way_coupling = false;
     bool m_driver_atm2ocn_uses_state_contract = true;
+
+    // Coupled sea-surface temperature and its per-cell coverage flag, on the
+    // layout reported by GetOceanToAtmosSurfaceLayout. Allocated on the first
+    // ApplyOceanSurfaceState call and handed to the SurfaceLayer as borrowed
+    // pointers, so ERF must outlive the SurfaceLayer's use of them. Level 0
+    // only: the coupler exchanges on the base grid.
+    std::unique_ptr<amrex::MultiFab>  m_coupled_sst;
+    std::unique_ptr<amrex::iMultiFab> m_coupled_sst_valid;
+
+    // One-shot latch so a misconfigured deck says so once rather than every step.
+    bool m_warned_coupled_sst_declined = false;
 
 private:
 
