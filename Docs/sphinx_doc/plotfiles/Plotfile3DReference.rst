@@ -470,6 +470,10 @@ concentration and ``A`` the corresponding accumulation field.
      - qv, qc, qi, qr, qs, qg
      - none
      - rain, snow, graupel
+   * - ``WDM6``
+     - qv, qc, qi, qr, qs, qg
+     - nn, nc, nr
+     - rain, snow, graupel
    * - ``SuperDroplets``
      - qv, qc, qr
      - none
@@ -838,6 +842,9 @@ additional plot names. There is no universal static list for these fields.
 The current providers expose the following families:
 
 * Morrison exposes the 19 ``micro_*`` names listed in the section above.
+* WDM6 exposes number concentration fields: ``nn`` (CCN number concentration),
+  ``nc`` (cloud droplet number concentration), and ``nr`` (rain drop number concentration).
+  To output these, add them to your plot variables list (e.g., ``erf.plot_vars_1 = nn nc nr``).
 * SuperDroplets generates ``qv_<species>``, ``qc_<species>``,
   ``qt_<species>``, ``sat_ratio_<species>``, and ``accum_<species>`` names for
   configured species, plus ``accum_<aerosol>`` names for configured aerosols.

@@ -54,6 +54,11 @@ Model overview and transported quantities in ERF
 | Method (SDM)       |                         |             |             |                 |             |
 +--------------------+-------------------------+-------------+-------------+-----------------+-------------+
 
+.. note::
+
+   **WDM6 additional outputs:** In addition to the mass mixing ratios listed above, WDM6 also outputs
+   number concentration fields: :math:`n_n` (CCN number concentration), :math:`n_c` (cloud droplet number
+   concentration), and :math:`n_r` (rain drop number concentration).
 
 Surface precipitation accumulations
 -----------------------------------
