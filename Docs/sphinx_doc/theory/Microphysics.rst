@@ -248,10 +248,11 @@ Implementation
 ERF provides two execution paths for WSM6:
 
 **CPU execution (Fortran bridge):** The original WRF Fortran code is called from C++ via a
-Fortran-C interface for validation and comparison with WRF results.
+Fortran-C interface. This path ensures reproducibility with WRF results and serves
+as a reference implementation.
 
-**GPU execution (native C++):** A native C++ implementation enables efficient execution on
-GPU accelerators with the C++ version reproducing Fortran physics.
+**GPU execution (native C++):** A native C++ implementation of all WSM6 microphysical processes
+enables efficient execution on GPUs.
 
 Configuration
 ~~~~~~~~~~~~~
@@ -262,7 +263,9 @@ WSM6 is enabled by setting the moisture model in the input file:
 
    erf.moisture_model = WSM6
 
-For validation or comparison, the Fortran bridge can be enabled at build time:
+The default build uses native C++ code that can run on both CPU and GPU.
+For validation against WRF or reproducibility testing, the Fortran bridge 
+can be enabled at build time:
 
 .. code-block:: bash
 
