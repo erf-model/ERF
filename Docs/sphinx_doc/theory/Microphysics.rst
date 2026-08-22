@@ -352,9 +352,7 @@ Fortran-C interface. This path ensures reproducibility with WRF results and serv
 as a reference implementation.
 
 **GPU execution (native C++):** A native C++ implementation of all WDM6 microphysical processes
-enables efficient execution on GPU accelerators. The C++ version reproduces the Fortran physics
-to machine precision on CPU and maintains equivalent results on GPU within expected numerical
-tolerances.
+enables efficient execution on GPUs.
 
 The implementation handles both graupel and hail regimes via the ``hail_opt`` parameter, which
 modifies fall speed coefficients and size distribution parameters for the graupel/hail category.
