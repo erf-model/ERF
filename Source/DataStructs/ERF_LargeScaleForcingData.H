@@ -276,16 +276,19 @@ public:
                             amrex::Real& coeff_next)
     {
         // helper function to get the current time indices of forcing data to use and
-        // coefficients based on the current simulation time
+        // coefficients based on the current simulation time. Historical callers
+        // pass elapsed time, while datetime-aware paths may pass total/epoch
+        // time, so normalize to elapsed time relative to the simulation start.
         curr = 0;
         next = 0;
         coeff_curr = one;
         coeff_next = zero;
+        const amrex::Real rel_time = (time >= start_time) ? (time - start_time) : time;
 
         // find the time index of forcing data to use
         for (int nt = 1; nt < num_times; nt++)
         {
-            if (time - start_time > times_lsf[nt])
+            if (rel_time > times_lsf[nt])
             {
                 curr = nt;
             }
@@ -299,7 +302,7 @@ public:
             coeff_next = zero;
         } else {
             next = curr + 1;
-            coeff_next = ((time - start_time) - times_lsf[curr]) / (times_lsf[next] - times_lsf[curr]);
+            coeff_next = (rel_time - times_lsf[curr]) / (times_lsf[next] - times_lsf[curr]);
             coeff_curr = (one - coeff_next);
         }
     }
