@@ -283,6 +283,18 @@ Time_Avg_Vel_atCC (double dt,
                    amrex::MultiFab& yvel,
                    amrex::MultiFab& zvel);
 
+/*
+ * Accumulate time-weighted cell-centered first and second moments.
+ */
+void
+Accumulate_Interval_Means (double dt,
+                           double& t_mean_cnt,
+                           amrex::MultiFab* interval_means,
+                           amrex::MultiFab& xvel,
+                           amrex::MultiFab& yvel,
+                           amrex::MultiFab& zvel,
+                           amrex::MultiFab& cons);
+
 /**
  * Compute the nudging relaxation
  *

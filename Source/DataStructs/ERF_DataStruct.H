@@ -1024,6 +1024,21 @@ struct SolverChoice {
         // Test if time averaged data is to be output
         pp.query("time_avg_vel",time_avg_vel);
 
+        // Interval means and resolved turbulent moments for plotfile output
+        pp.query("compute_mean_vars", compute_mean_vars);
+        pp.query("mean_vars_reset_mode", mean_vars_reset_mode);
+        pp.query("mean_vars_reset_time", mean_vars_reset_time);
+
+        if (compute_mean_vars &&
+            mean_vars_reset_mode != "plotfile" && mean_vars_reset_mode != "time") {
+            amrex::Error("erf.mean_vars_reset_mode must be either 'plotfile' or 'time'");
+        }
+        if (compute_mean_vars && mean_vars_reset_mode == "time" &&
+            mean_vars_reset_time < zero) {
+            amrex::Error("erf.mean_vars_reset_time must be non-negative when "
+                         "erf.mean_vars_reset_mode = 'time'");
+        }
+
         pp.query("hindcast_lateral_forcing", hindcast_lateral_forcing);
 
         if (hindcast_lateral_forcing) {
@@ -1616,6 +1631,13 @@ struct SolverChoice {
 
     // User wishes to output time averaged velocity fields
     bool time_avg_vel = false;
+
+    // User wishes to output interval means and resolved turbulent moments
+    bool compute_mean_vars = false;
+
+    // Reset interval means after each plotfile or once at a requested time
+    std::string mean_vars_reset_mode = "plotfile";
+    amrex::Real mean_vars_reset_time = -one;
 
     /**
      * @brief Query whether any turbulent perturbation mode is enabled on a level.

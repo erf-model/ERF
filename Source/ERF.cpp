@@ -400,7 +400,7 @@ ERF::post_timestep (int nstep, double time, double dt_lev0)
         }
     }
 
-    if (profile_int > 0 && (nstep+1) % profile_int == 0) {
+    if (profiles_xy && profile_int > 0 && (nstep+1) % profile_int == 0) {
         if (destag_profiles) {
             // all variables cell-centered
             write_1D_profiles(time);
@@ -461,7 +461,24 @@ ERF::post_timestep (int nstep, double time, double dt_lev0)
 
     // Write plane/line sampler data
     if (line_sampler && is_it_time_for_action(nstep+1, time, dt_lev0, line_sampling_interval, line_sampling_per)) {
-        line_sampler->get_sample_data(geom, vars_new);
+        const int nlev = static_cast<int>(vars_new.size());
+        Vector<MultiFab*> tau13_lev(nlev, nullptr);
+        Vector<MultiFab*> tau23_lev(nlev, nullptr);
+        Vector<MultiFab*> hfx3_lev(nlev, nullptr);
+        for (int lev = 0; lev < nlev; ++lev) {
+            if (lev < static_cast<int>(Tau.size())) {
+                if (Tau[lev].size() > TauType::tau13) {
+                    tau13_lev[lev] = Tau[lev][TauType::tau13].get();
+                }
+                if (Tau[lev].size() > TauType::tau23) {
+                    tau23_lev[lev] = Tau[lev][TauType::tau23].get();
+                }
+            }
+            if (lev < static_cast<int>(SFS_hfx3_lev.size())) {
+                hfx3_lev[lev] = SFS_hfx3_lev[lev].get();
+            }
+        }
+        line_sampler->get_sample_data(geom, vars_new, tau13_lev, tau23_lev, hfx3_lev);
         line_sampler->write_sample_data(t_new, istep, ref_ratio, geom);
     }
     if (plane_sampler && is_it_time_for_action(nstep+1, time, dt_lev0, plane_sampling_interval, plane_sampling_per)) {
@@ -1412,7 +1429,7 @@ ERF::InitData_post ()
     }
 
 
-    if (restart_chkfile.empty() && profile_int > 0) {
+    if (restart_chkfile.empty() && profiles_xy && profile_int > 0) {
         if (destag_profiles) {
             // all variables cell-centered
             write_1D_profiles(t_new[0]);
@@ -2344,6 +2361,7 @@ ERF::ReadParameters ()
         }
 
         pp.query("profile_int", profile_int);
+        pp.query("profiles_xy", profiles_xy);
         pp.query("destag_profiles", destag_profiles);
 
         pp.query("plot_lsm", plot_lsm);
@@ -2524,6 +2542,9 @@ ERF::ReadParameters ()
         std::string forestfile;
         std::string forest_lai_file, forest_height_file, forest_cd_file, forest_vegtype_file;
 
+        bool requested_forest_drag = false;
+        bool has_forest_drag_switch = pp.query("do_forest_drag", requested_forest_drag);
+
         bool has_forest_file   = pp.query("forest_file",        forestfile);
         bool has_forest_lai    = pp.query("forest_lai_file",    forest_lai_file);
         bool has_forest_height = pp.query("forest_height_file", forest_height_file);
@@ -2588,6 +2609,11 @@ ERF::ReadParameters ()
         } else if (has_forest_lai || has_forest_height || has_any_cd) {
             Abort("Gridded forest mode requires forest_lai_file, forest_height_file, "
                   "and either forest_cd_file or forest_cd.");
+        }
+
+        if (has_forest_drag_switch && requested_forest_drag != solverChoice.do_forest_drag) {
+            Abort("'do_forest_drag' must be true when a complete forest configuration is "
+                  "provided, and false when no forest configuration is provided.");
         }
         // else: no forest drag
     }

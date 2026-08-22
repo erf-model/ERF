@@ -437,4 +437,25 @@ ERF::Advance (int lev, double time, double dt_lev, int iteration, int /*ncycle*/
         Time_Avg_Vel_atCC(dt[lev], t_avg_cnt[lev], vel_t_avg[lev].get(), U_new, V_new, W_new);
     }
 
+    if (solverChoice.compute_mean_vars) {
+        AMREX_ALWAYS_ASSERT(interval_means[lev] != nullptr);
+
+        // Start the requested averaging window with the first step whose
+        // start time is at or beyond mean_vars_reset_time.
+        if (solverChoice.mean_vars_reset_mode == "time" &&
+            mean_vars_time_reset_done[lev] == 0 &&
+            time >= static_cast<double>(solverChoice.mean_vars_reset_time)) {
+            interval_means[lev]->setVal(zero);
+            t_mean_cnt[lev] = 0.0;
+            mean_vars_time_reset_done[lev] = 1;
+            if (verbose > 0) {
+                Print() << "Resetting interval mean variables at time = " << time
+                        << " on level " << lev << '\n';
+            }
+        }
+
+        Accumulate_Interval_Means(dt[lev], t_mean_cnt[lev], interval_means[lev].get(),
+                                  U_new, V_new, W_new, S_new);
+    }
+
 }

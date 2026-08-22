@@ -742,6 +742,11 @@ public:
     // Velocity time averaged field
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> vel_t_avg;
     amrex::Vector<double> t_avg_cnt;
+
+    // Interval first and second moments used by mean/fluctuation plot fields
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> interval_means;
+    amrex::Vector<double> t_mean_cnt;
+    amrex::Vector<int> mean_vars_time_reset_done;
 #endif
 
     std::string pp_prefix {"erf"};
@@ -1054,6 +1059,11 @@ private:
     // Velocity time averaged field
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> vel_t_avg;
     amrex::Vector<double> t_avg_cnt;
+
+    // Interval first and second moments used by mean/fluctuation plot fields
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> interval_means;
+    amrex::Vector<double> t_mean_cnt;
+    amrex::Vector<int> mean_vars_time_reset_done;
 #endif
     amrex::Vector<std::unique_ptr<MRISplitIntegrator<amrex::Vector<amrex::MultiFab> > > > mri_integrator_mem;
 
@@ -1353,6 +1363,7 @@ private:
 
     // other sampling output control
     int profile_int = -1;
+    bool profiles_xy = true;
     bool destag_profiles = true;
 
     // Checkpoint type, prefix and frequency
@@ -1391,6 +1402,10 @@ private:
                                                     "mapfac", "lat_m", "lon_m",
                                                     // Time averaged velocity
                                                     "u_t_avg", "v_t_avg", "w_t_avg", "umag_t_avg",
+                                                    // Interval means and resolved turbulence moments
+                                                    "u_mean", "v_mean", "w_mean", "theta_mean",
+                                                    "uu_mean", "vv_mean", "ww_mean", "uw_mean", "vw_mean", "wtheta_mean",
+                                                    "uu_fluct", "vv_fluct", "ww_fluct", "uw_fluct", "vw_fluct", "wtheta_fluct", "tke",
                                                     // eddy viscosity
                                                     "nut",
                                                     // eddy diffusivity of momentum
