@@ -219,6 +219,14 @@ Set build variables in the ``GNUmakefile``:
         - Enables Fortran-based Morrison microphysics scheme
         - FALSE
         - TRUE/FALSE
+      * - ``USE_WSM6_FORT``
+        - Enables Fortran bridge for WSM6 microphysics (requires ``PRECISION=DOUBLE``)
+        - FALSE
+        - TRUE/FALSE
+      * - ``USE_WDM6_FORT``
+        - Enables Fortran bridge for WDM6 microphysics (requires ``PRECISION=DOUBLE``)
+        - FALSE
+        - TRUE/FALSE
       * - ``USE_FFT``
         - Enables Fast Fourier Transform capabilities
         - FALSE
@@ -584,6 +592,14 @@ CMake can also generate makefiles for the Ninja build system for faster compilat
      - ON/OFF
    * - ``ERF_ENABLE_P3``
      - Enables P3 microphysics model (requires ``ERF_ENABLE_MPI=ON``)
+     - OFF
+     - ON/OFF
+   * - ``ERF_ENABLE_WSM6_FORT``
+     - Enables Fortran bridge for WSM6 microphysics (requires ``ERF_PRECISION=DOUBLE``)
+     - OFF
+     - ON/OFF
+   * - ``ERF_ENABLE_WDM6_FORT``
+     - Enables Fortran bridge for WDM6 microphysics (requires ``ERF_PRECISION=DOUBLE``)
      - OFF
      - ON/OFF
    * - ``ERF_ENABLE_TESTS``
