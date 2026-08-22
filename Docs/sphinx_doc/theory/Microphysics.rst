@@ -441,10 +441,11 @@ The ERF implementation is derived from WRF's `module_mp_wdm6.F`_ (version 4.x).
 Example Cases
 ~~~~~~~~~~~~~
 
-Two test cases demonstrate WDM6 capabilities:
+Three test cases demonstrate WDM6 capabilities:
 
-- ``Exec/RegTests/Bubble/inputs_BF02_moist_bubble_wdm6_water``: Moist bubble rising in a stratified atmosphere with graupel physics
-- ``Exec/RegTests/Bubble/inputs_BF02_moist_bubble_wdm6_hail``: Same configuration with hail regime (``hail_opt = 1``)
+- ``Exec/RegTests/Bubble/inputs_BF02_moist_bubble_wdm6``: Moist bubble with default WDM6 settings (graupel regime, continental autoconversion)
+- ``Exec/RegTests/Bubble/inputs_BF02_moist_bubble_wdm6_water``: Moist bubble with maritime (water) autoconversion (``erf.is_land = 0``)
+- ``Exec/RegTests/Bubble/inputs_BF02_moist_bubble_wdm6_hail``: Moist bubble with hail regime (``wdm6.hail_opt = 1``)
 
 Single Moment (SAM) Microphysics Model
 ---------------------------------------
