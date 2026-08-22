@@ -264,13 +264,16 @@ WSM6 is enabled by setting the moisture model in the input file:
    erf.moisture_model = WSM6
 
 The default build uses native C++ code that can run on both CPU and GPU.
-For validation against WRF or reproducibility testing, the Fortran bridge 
+For validation against WRF or reproducibility testing, the Fortran bridge
 can be enabled at build time:
 
 .. code-block:: bash
 
-   # Enable Fortran bridge for validation
+   # CMake
    cmake -DERF_ENABLE_WSM6_FORT=ON -DERF_PRECISION=DOUBLE ...
+
+   # GNU Make
+   make USE_WSM6_FORT=TRUE PRECISION=DOUBLE ...
 
 When built with the Fortran bridge enabled, runtime selection is controlled by
 ``erf.use_wsm6_cpp_answer`` (0 = Fortran bridge, 1 = native C++).
@@ -371,8 +374,11 @@ can be enabled:
 
 .. code-block:: bash
 
-   # Enable Fortran bridge for validation
+   # CMake
    cmake -DERF_ENABLE_WDM6_FORT=ON -DERF_PRECISION=DOUBLE ...
+
+   # GNU Make
+   make USE_WDM6_FORT=TRUE PRECISION=DOUBLE ...
 
 When built with the Fortran bridge enabled, runtime selection is controlled by
 ``erf.use_wdm6_cpp_answer`` (0 = Fortran bridge, 1 = native C++). If the Fortran bridge
