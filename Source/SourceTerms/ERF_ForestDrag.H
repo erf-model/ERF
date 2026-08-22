@@ -4,19 +4,30 @@
 #include <memory>
 #include <AMReX_MultiFab.H>
 
-/*
-  ForestDrag flow physics adapted from:
-  Lalic & Mihailovic (2004)
-  https://doi.org/amrex::Real(10.1175)/1520-0450(2004)043<0641:AERDLD>two.CO;2
+/**
+ * Build canopy leaf-area-density and momentum-drag fields.
+ *
+ * The vertical leaf-area-density profiles follow Lalic and Mihailovic (2004),
+ * https://doi.org/10.1175/1520-0450(2004)043%3C0641:AERDLD%3E2.0.CO;2.
+ * Canopies may be supplied as discrete patches in a text file or as gridded
+ * LAI, height, and drag-coefficient NetCDF fields.
  */
 class ForestDrag
 {
 public:
 
-    // Constructor for discrete patch mode (text file)
+    /** Construct a discrete-patch canopy from a text file. */
     explicit ForestDrag (std::string forestfile);
 
-    // Constructor for gridded NetCDF mode with Cd from file
+    /**
+     * Construct a gridded canopy with drag coefficient read from NetCDF.
+     * @param lai_file NetCDF file containing the horizontal ``LAI`` field.
+     * @param height_file NetCDF file containing canopy ``height``.
+     * @param cd_file NetCDF file containing the ``cd`` field.
+     * @param vegtype_file Reserved vegetation-type file; currently not read.
+     * @param tree_type LAD profile selector (1 uniform, 2 Lalic--Mihailovic).
+     * @param laimax Fractional height of maximum LAD for profile type 2.
+     */
     ForestDrag (std::string lai_file,
                 std::string height_file,
                 std::string cd_file,
@@ -24,7 +35,15 @@ public:
                 int tree_type = 1,
                 amrex::Real laimax = 0.8);
 
-    // Constructor for gridded NetCDF mode with constant Cd
+    /**
+     * Construct a gridded canopy with a spatially constant drag coefficient.
+     * @param lai_file NetCDF file containing the horizontal ``LAI`` field.
+     * @param height_file NetCDF file containing canopy ``height``.
+     * @param cd_const Spatially constant drag coefficient.
+     * @param vegtype_file Reserved vegetation-type file; currently not read.
+     * @param tree_type LAD profile selector (1 uniform, 2 Lalic--Mihailovic).
+     * @param laimax Fractional height of maximum LAD for profile type 2.
+     */
     ForestDrag (std::string lai_file,
                 std::string height_file,
                 amrex::Real cd_const,
@@ -34,6 +53,7 @@ public:
 
     ~ForestDrag () = default;
 
+    /** Allocate and fill drag, frontal-area-density, and cumulative-LAI fields. */
     void
     define_drag_field (const amrex::BoxArray& ba,
                        const amrex::DistributionMapping& dm,
@@ -41,12 +61,15 @@ public:
                        amrex::MultiFab* z_phys_cc,
                        amrex::MultiFab* z_phys_nd);
 
+    /** Return the cell-centered product of drag coefficient and LAD. */
     amrex::MultiFab*
     get_drag_field () { return m_forest_drag.get(); }
 
+    /** Return cell-centered leaf/frontal area density without drag coefficient. */
     amrex::MultiFab*
     get_frontal_area () { return m_frontal_area.get(); }
 
+    /** Return cumulative LAI integrated downward from the canopy top. */
     amrex::MultiFab*
     get_cumLAI () { return m_cumLAI.get(); }
 

@@ -14,6 +14,14 @@
  * area density produced by ForestDrag and adds sensible heat to rho-theta.
  * When moisture is active, it also adds the corresponding transpiration flux
  * using the reference model's default minimum stomatal conductance.
+ * @param[in,out] S_rhs conserved-state right-hand side
+ * @param[in] S_data conserved atmospheric state
+ * @param[in] xvel x-face velocity
+ * @param[in] yvel y-face velocity
+ * @param[in] zvel z-face velocity
+ * @param[in] frontal_area cell-centered leaf/frontal area density
+ * @param[in] base_state hydrostatic pressure and Exner state
+ * @param[in] solver_choice active physics and canopy configuration
  */
 AMREX_INLINE void
 AddCanopyBiophysicsHeatSources (amrex::MultiFab&       S_rhs,
