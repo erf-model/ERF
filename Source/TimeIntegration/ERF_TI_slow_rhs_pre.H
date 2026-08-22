@@ -55,6 +55,8 @@
         // Canopy data for mom sources
         MultiFab* forest_drag = (solverChoice.do_forest_drag) ?
             m_forest_drag[level]->get_drag_field() : nullptr;
+        MultiFab* frontal_area = (solverChoice.do_forest_drag) ?
+            m_forest_drag[level]->get_frontal_area() : nullptr;
 
         // Immersed Forcing
         MultiFab* terrain_blank = (solverChoice.terrain_type == TerrainType::ImmersedForcing ||
@@ -207,6 +209,16 @@
                          fr_as_crse, fr_as_fine, &base_to_use,
                          cloud_chamber_config.active ? &cloud_chamber_config : nullptr,
                          cloud_chamber_budget.get());
+
+        // Fixed-leaf-temperature canopy sensible/latent heat exchange.
+        if (solverChoice.do_forest_drag && solverChoice.forest_biophysics &&
+            solverChoice.forest_biophysics_heat && frontal_area) {
+            AddCanopyBiophysicsHeatSources(S_rhs[IntVars::cons],
+                                           S_data[IntVars::cons],
+                                           xvel_new, yvel_new, zvel_new,
+                                           frontal_area, base_to_use,
+                                           solverChoice);
+        }
 
         if ((solverChoice.vert_implicit_fac[level][nrk] > zero_d) && solverChoice.implicit_before_substep) {
             const Real stage_dt = static_cast<Real>(slow_dt);

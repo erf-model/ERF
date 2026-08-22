@@ -664,6 +664,19 @@ struct SolverChoice {
         pp.query("immersed_forcing_substep", immersed_forcing_substep); // apply immersed forcing source terms in substep only
         pp.query("forest_substep", forest_substep);                     // apply canopy-related source terms in substep only
 
+        // Fixed-leaf-temperature canopy heat exchange
+        pp.query("forest_biophysics",       forest_biophysics);
+        pp.query("forest_biophysics_heat",  forest_biophysics_heat);
+        pp.query("forest_leaf_theta_fixed", forest_leaf_theta_fixed);
+
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+            !forest_biophysics_heat || forest_biophysics,
+            "forest_biophysics_heat requires forest_biophysics = true");
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+            !(forest_biophysics && forest_biophysics_heat) ||
+                forest_leaf_theta_fixed > zero,
+            "forest_biophysics_heat requires a positive forest_leaf_theta_fixed");
+
         // immersed forcing parameters
         pp.query("if_Cd_momentum", if_Cd_momentum);
         pp.query("if_Cd_scalar", if_Cd_scalar);
@@ -1742,6 +1755,11 @@ struct SolverChoice {
 
     // Use forest canopy model?
     bool do_forest_drag {false};
+
+    // Fixed-leaf-temperature canopy heat exchange (disabled by default)
+    bool        forest_biophysics       {false};
+    bool        forest_biophysics_heat  {false};
+    amrex::Real forest_leaf_theta_fixed {-one};
 
     // Enforce constant mass flux?
     amrex::Real const_massflux_u = zero;
