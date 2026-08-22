@@ -11,7 +11,7 @@
     Real zc_frac = myhalf; pp.query("zc_frac", zc_frac);
 
     int prob_type = -1; pp.query("prob_type", prob_type);
-    ParallelFor(bx, [=,zero_d=zero,one_d=one] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+    ParallelFor(bx, [=,one_d=one] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
     {
         // Geometry
         const Real* prob_lo = geomdata.ProbLo();

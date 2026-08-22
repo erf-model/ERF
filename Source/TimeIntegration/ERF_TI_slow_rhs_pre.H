@@ -141,6 +141,7 @@
                                     bdy_factor, real_width, geom[level],
                                     bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi,
                                     m_r2d, l_c_p, l_rdOcp,
+                                    solverChoice.moisture_indices,
                                     solverChoice.use_wrf_bdy_density, moist_nudge_type);
         }
 #endif
