@@ -2206,7 +2206,8 @@ List of Parameters
 |                                 |                          |  "Morrison",          |            |
 |                                 |                          |  "Morrison_NoIce",    |            |
 |                                 |                          |  "SAM_NoPrecip_NoIce",|            |
-|                                 |                          |  "SAM_NoIce", "P3",   |            |
+|                                 |                          |  "SAM_NoIce", "WSM6", |            |
+|                                 |                          |  "WDM6", "P3",        |            |
 |                                 |                          |  "MoistNoCondensation"|            |
 +---------------------------------+--------------------------+-----------------------+------------+
 | **erf.moisture_tight_coupling** | If true, advance         |  Boolean              | false      |
@@ -2220,6 +2221,14 @@ List of Parameters
 |                                 | number concentration for | (cm^-3)               | (cm^-3)    |
 |                                 | Morrison when constant   |                       |            |
 |                                 | droplet number is active |                       |            |
++---------------------------------+--------------------------+-----------------------+------------+
+| **wdm6.hail_opt**               | Graupel/hail regime      | 0, 1                  | 0          |
+|                                 | selector for WDM6:       |                       |            |
+|                                 | 0 = graupel regime,      |                       |            |
+|                                 | 1 = hail regime          |                       |            |
++---------------------------------+--------------------------+-----------------------+------------+
+| **wdm6.ccn0**                   | Background CCN number    | Positive real         | 100.0e6    |
+|                                 | concentration for WDM6   | (m^-3)                | (m^-3)     |
 +---------------------------------+--------------------------+-----------------------+------------+
 
 Radiation
