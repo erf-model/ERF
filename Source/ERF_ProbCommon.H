@@ -9,6 +9,7 @@
 #include "ERF_DataStruct.H"
 #include "ERF_EOS.H"
 #include "ERF_HSEUtils.H"
+#include "ERF_GridUtils.H"
 #include "ERF_TileNoZ.H"
 
 #ifdef ERF_USE_NETCDF
@@ -417,14 +418,44 @@ public:
             ny = dims[0];
             nx = dims[1];
 
+            if (nx < 2 || ny < 2) {
+                amrex::Abort("NetCDF terrain field '" + height_varname + "' in '" +
+                             fname + "' requires at least two x and y coordinates "
+                             "for bilinear interpolation");
+            }
+
             if (!ncf.has_var("x") || !ncf.has_var("y")) {
                 amrex::Abort("NetCDF terrain file must have 'x' and 'y' coordinate variables");
+            }
+
+            const auto x_shape = ncf.var("x").shape();
+            const auto y_shape = ncf.var("y").shape();
+            if (x_shape.size() != 1 || x_shape[0] != static_cast<std::size_t>(nx)) {
+                amrex::Abort("NetCDF terrain x coordinate in '" + fname +
+                             "' must be one-dimensional with length " + std::to_string(nx));
+            }
+            if (y_shape.size() != 1 || y_shape[0] != static_cast<std::size_t>(ny)) {
+                amrex::Abort("NetCDF terrain y coordinate in '" + fname +
+                             "' must be one-dimensional with length " + std::to_string(ny));
             }
 
             m_xterrain.resize(nx);
             m_yterrain.resize(ny);
             ncf.var("x").get(m_xterrain.data());
             ncf.var("y").get(m_yterrain.data());
+
+            amrex::Real x_origin, x_spacing, y_origin, y_spacing;
+            const std::string terrain_description =
+                "NetCDF terrain field '" + height_varname + "' in '" + fname + "'";
+            std::string coordinate_error = erf_grid_utils::validate_uniform_axis(
+                m_xterrain, nx, "x", terrain_description, x_origin, x_spacing);
+            if (coordinate_error.empty()) {
+                coordinate_error = erf_grid_utils::validate_uniform_axis(
+                    m_yterrain, ny, "y", terrain_description, y_origin, y_spacing);
+            }
+            if (!coordinate_error.empty()) {
+                amrex::Abort(coordinate_error);
+            }
 
             m_zterrain.resize(nx * ny);
             var.get(m_zterrain.data());
@@ -482,18 +513,18 @@ public:
             amrex::Real x = prob_lo[0] + ii * dx_arr[0];
             amrex::Real y = prob_lo[1] + jj * dx_arr[1];
 
-            amrex::Real dx_t = (nx > 1) ? (d_xt[1] - d_xt[0]) : 1.0;
-            amrex::Real dy_t = (ny > 1) ? (d_yt[1] - d_yt[0]) : 1.0;
+            const amrex::Real dx_t = d_xt[1] - d_xt[0];
+            const amrex::Real dy_t = d_yt[1] - d_yt[0];
+            const auto x_stencil = erf_grid_utils::uniform_interpolation_stencil(
+                x, d_xt[0], dx_t, nx);
+            const auto y_stencil = erf_grid_utils::uniform_interpolation_stencil(
+                y, d_yt[0], dy_t, ny);
 
-            amrex::Real fx = (x - d_xt[0]) / dx_t;
-            amrex::Real fy = (y - d_yt[0]) / dy_t;
-
-            int i_t = static_cast<int>(amrex::Math::floor(fx));
-            int j_t = static_cast<int>(amrex::Math::floor(fy));
-
-            if (i_t >= 0 && i_t < nx - 1 && j_t >= 0 && j_t < ny - 1) {
-                amrex::Real wx = fx - i_t;
-                amrex::Real wy = fy - j_t;
+            if (x_stencil.inside && y_stencil.inside) {
+                const int i_t = x_stencil.lower;
+                const int j_t = y_stencil.lower;
+                const amrex::Real wx = x_stencil.weight;
+                const amrex::Real wy = y_stencil.weight;
 
                 // Data is stored [y, x] in NetCDF
                 amrex::Real z00 = d_zt[ j_t      * nx +  i_t     ];

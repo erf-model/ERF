@@ -378,3 +378,21 @@ TEST(Plotfile3DSelection, ParticleCountsHandleUnknownAndDuplicateNames)
     ASSERT_EQ(selected.size(), 1);
     EXPECT_EQ(selected[0], "aerosols");
 }
+
+// Motivation: interval moments are shared by both 3-D streams. A batch with
+// two writes must therefore reset once after both writers have consumed the
+// same completed window, while an event with no 3-D output must preserve it.
+TEST(Plotfile3DSelection, IntervalMeansResetOncePerCompleted3DBatch)
+{
+    EXPECT_TRUE(erf_plotfile::plot3d_batch_resets_interval_means(
+        2, true, "plotfile"));
+    EXPECT_TRUE(erf_plotfile::plot3d_batch_resets_interval_means(
+        1, true, "plotfile"));
+    EXPECT_FALSE(erf_plotfile::plot3d_batch_resets_interval_means(
+        0, true, "plotfile"));
+
+    EXPECT_FALSE(erf_plotfile::plot3d_batch_resets_interval_means(
+        2, false, "plotfile"));
+    EXPECT_FALSE(erf_plotfile::plot3d_batch_resets_interval_means(
+        2, true, "time"));
+}

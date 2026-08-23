@@ -2202,15 +2202,6 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
         amrex::Print() << "3DPlotfile write time = " << dPlotTime << " seconds." << '\n';
     }
 
-    if (solverChoice.compute_mean_vars &&
-        solverChoice.mean_vars_reset_mode == "plotfile") {
-        for (int lev = 0; lev <= finest_level; ++lev) {
-            if (interval_means[lev] != nullptr) {
-                interval_means[lev]->setVal(zero);
-                t_mean_cnt[lev] = 0.0;
-            }
-        }
-    }
 }
 
 void

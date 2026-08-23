@@ -14,7 +14,7 @@
  * area density produced by ForestDrag and adds sensible heat to rho-theta.
  * When moisture is active, it also adds the corresponding transpiration flux
  * using the reference model's default minimum stomatal conductance.
- * @param[in,out] S_rhs conserved-state right-hand side
+ * @param[in,out] cell_source staged source terms for the conserved state
  * @param[in] S_data conserved atmospheric state
  * @param[in] xvel x-face velocity
  * @param[in] yvel y-face velocity
@@ -24,7 +24,7 @@
  * @param[in] solver_choice active physics and canopy configuration
  */
 AMREX_INLINE void
-AddCanopyBiophysicsHeatSources (amrex::MultiFab&       S_rhs,
+AddCanopyBiophysicsHeatSources (amrex::MultiFab&       cell_source,
                                 const amrex::MultiFab& S_data,
                                 const amrex::MultiFab& xvel,
                                 const amrex::MultiFab& yvel,
@@ -56,10 +56,10 @@ AddCanopyBiophysicsHeatSources (amrex::MultiFab&       S_rhs,
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
-    for (amrex::MFIter mfi(S_rhs, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+    for (amrex::MFIter mfi(cell_source, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
         const amrex::Box& box = mfi.tilebox();
 
-        const auto& rhs = S_rhs.array(mfi);
+        const auto& source = cell_source.array(mfi);
         const auto& state = S_data.const_array(mfi);
         const auto& u = xvel.const_array(mfi);
         const auto& v = yvel.const_array(mfi);
@@ -90,7 +90,7 @@ AddCanopyBiophysicsHeatSources (amrex::MultiFab&       S_rhs,
 
             const amrex::Real sensible_heat =
                 2.0 * rho * cp_dry * (temp_leaf - temp_air) / resistance_boundary;
-            rhs(i, j, k, RhoTheta_comp) +=
+            source(i, j, k, RhoTheta_comp) +=
                 sensible_heat * lad / (cp_dry * exner);
 
             if (has_moisture) {
@@ -110,7 +110,7 @@ AddCanopyBiophysicsHeatSources (amrex::MultiFab&       S_rhs,
                     rho * latent_heat * amrex::max(qv_saturation - qv, 0.0) /
                     (1.075 * resistance_boundary + resistance_stomatal);
 
-                rhs(i, j, k, RhoQ1_comp) += latent_flux * lad / latent_heat;
+                source(i, j, k, RhoQ1_comp) += latent_flux * lad / latent_heat;
             }
         });
     }

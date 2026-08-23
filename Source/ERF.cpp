@@ -15,6 +15,7 @@
 #include "AMReX_WriteEBSurface.H"
 
 #include "ERF_EpochTime.H"
+#include "ERF_PlotfileSelection.H"
 #include "ERF_Utils.H"
 #include "ERF_TerrainMetrics.H"
 #include "ERF_SrcHeaders.H"
@@ -233,18 +234,22 @@ ERF::Evolve ()
 void
 ERF::WriteAtIntermediateTime(int step, double cur_time)
 {
+    int plotfiles_3d_written = 0;
     if (writeNow(cur_time, step+1, m_plot3d_int_1, m_plot3d_per_1, dt[0], last_plot3d_file_time_1)) {
         last_plot3d_file_step_1 = step+1;
         Write3DPlotFile(1,plotfile3d_type_1,plot3d_var_names_1);
+        ++plotfiles_3d_written;
         for (int lev = 0; lev <= finest_level; ++lev) {lsm.Plot(lev, step+1);}
         if (m_plot3d_per_1 > zero) {last_plot3d_file_time_1 += m_plot3d_per_1;}
     }
     if (writeNow(cur_time, step+1, m_plot3d_int_2, m_plot3d_per_2, dt[0], last_plot3d_file_time_2)) {
         last_plot3d_file_step_2 = step+1;
         Write3DPlotFile(2,plotfile3d_type_2,plot3d_var_names_2);
+        ++plotfiles_3d_written;
         for (int lev = 0; lev <= finest_level; ++lev) {lsm.Plot(lev, step+1);}
         if (m_plot3d_per_2 > zero) {last_plot3d_file_time_2 += m_plot3d_per_2;}
     }
+    ResetIntervalMeansAfter3DPlotfileBatch(plotfiles_3d_written);
 
     if (writeNow(cur_time, step+1, m_plot2d_int_1, m_plot2d_per_1, dt[0], last_plot2d_file_time_1)) {
         last_plot2d_file_step_1 = step+1;
@@ -277,14 +282,18 @@ void
 ERF::WriteAtFinalTime()
 {
     // Write plotfiles at final time
+    int plotfiles_3d_written = 0;
     if ( (m_plot3d_int_1 > 0 || m_plot3d_per_1 > zero) && istep[0] > last_plot3d_file_step_1 ) {
         Write3DPlotFile(1,plotfile3d_type_1,plot3d_var_names_1);
+        ++plotfiles_3d_written;
         if (m_plot3d_per_1 > zero) {last_plot3d_file_time_1 += m_plot3d_per_1;}
     }
     if ( (m_plot3d_int_2 > 0 || m_plot3d_per_2 > zero) && istep[0] > last_plot3d_file_step_2) {
         Write3DPlotFile(2,plotfile3d_type_2,plot3d_var_names_2);
+        ++plotfiles_3d_written;
         if (m_plot3d_per_2 > zero) {last_plot3d_file_time_2 += m_plot3d_per_2;}
     }
+    ResetIntervalMeansAfter3DPlotfileBatch(plotfiles_3d_written);
     if ( (m_plot2d_int_1 > 0 || m_plot2d_per_1 > zero) && istep[0] > last_plot2d_file_step_1 ) {
         Write2DPlotFile(1,plotfile2d_type_1,plot2d_var_names_1);
         if (m_plot2d_per_1 > zero) {last_plot2d_file_time_1 += m_plot2d_per_1;}
@@ -304,6 +313,23 @@ ERF::WriteAtFinalTime()
     if ( (m_check_int > 0 || m_check_per > zero) && istep[0] > last_check_file_step) {
         WriteCheckpointFile();
         if (m_check_per > zero) {last_check_file_time += m_check_per;}
+    }
+}
+
+void
+ERF::ResetIntervalMeansAfter3DPlotfileBatch (int plotfiles_written)
+{
+    if (!erf_plotfile::plot3d_batch_resets_interval_means(
+            plotfiles_written, solverChoice.compute_mean_vars,
+            solverChoice.mean_vars_reset_mode)) {
+        return;
+    }
+
+    for (int lev = 0; lev <= finest_level; ++lev) {
+        if (interval_means[lev] != nullptr) {
+            interval_means[lev]->setVal(zero);
+            t_mean_cnt[lev] = 0.0;
+        }
     }
 }
 
@@ -1354,18 +1380,22 @@ ERF::InitData_post ()
     if ( (restart_chkfile.empty()) ||
          (!restart_chkfile.empty() && plot_file_on_restart) )
     {
+        int plotfiles_3d_written = 0;
         if (m_plot3d_int_1 > 0 || m_plot3d_per_1 > zero)
         {
             Write3DPlotFile(1,plotfile3d_type_1,plot3d_var_names_1);
+            ++plotfiles_3d_written;
             if (m_plot3d_per_1 > zero) {last_plot3d_file_time_1 += m_plot3d_per_1;}
             last_plot3d_file_step_1 = istep[0];
         }
         if (m_plot3d_int_2 > 0 || m_plot3d_per_2 > zero)
         {
             Write3DPlotFile(2,plotfile3d_type_2,plot3d_var_names_2);
+            ++plotfiles_3d_written;
             if (m_plot3d_per_2 > zero) {last_plot3d_file_time_2 += m_plot3d_per_2;}
             last_plot3d_file_step_2 = istep[0];
         }
+        ResetIntervalMeansAfter3DPlotfileBatch(plotfiles_3d_written);
         if (m_plot2d_int_1 > 0 || m_plot2d_per_1 > zero)
         {
             Write2DPlotFile(1,plotfile2d_type_1,plot2d_var_names_1);
@@ -2549,7 +2579,7 @@ ERF::ReadParameters ()
         bool has_forest_lai    = pp.query("forest_lai_file",    forest_lai_file);
         bool has_forest_height = pp.query("forest_height_file", forest_height_file);
         bool has_forest_cd     = pp.query("forest_cd_file",     forest_cd_file);
-        bool has_forest_vegtype = pp.query("forest_vegtype_file", forest_vegtype_file);
+        pp.query("forest_vegtype_file", forest_vegtype_file);
 
         // Optional constant drag coefficient (alternative to forest_cd_file)
         Real forest_cd_const = -1.0;

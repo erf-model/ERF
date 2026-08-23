@@ -68,6 +68,14 @@ struct Plot3DQRange
     }
 };
 
+inline bool
+plot3d_batch_resets_interval_means (int plotfiles_written,
+                                    bool compute_mean_vars,
+                                    const std::string& reset_mode)
+{
+    return plotfiles_written > 0 && compute_mean_vars && reset_mode == "plotfile";
+}
+
 inline Plot3DMoistureCapabilities
 plot3d_moisture_capabilities (const MoistureType moisture_type)
 {

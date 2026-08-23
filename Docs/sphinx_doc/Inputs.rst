@@ -671,7 +671,7 @@ List of Parameters
      - Boolean
      - false
    * - **erf.mean_vars_reset_mode**
-     - Reset moments after plotfile output or once at a specified time
+     - Reset moments after a complete 3-D plotfile batch or once at a specified time
      - ``plotfile`` or ``time``
      - ``plotfile``
    * - **erf.mean_vars_reset_time**
@@ -1396,7 +1396,11 @@ constant ``forest_cd``. The LAI, height, and optional drag-coefficient files
 must share the same horizontal grid. ERF reads variables named ``LAI``,
 ``height``, and ``cd``; each may be two-dimensional or have a leading time
 dimension, in which case the first time record is used. Coordinates may be
-named ``x``/``y`` or ``lon``/``lat``.
+named ``x``/``y`` or ``lon``/``lat``. Each horizontal direction must contain
+at least two finite, strictly increasing, uniformly spaced coordinates. All
+forest fields must match the LAI dimensions, spacing, and horizontal origin;
+ERF rejects misregistered fields before interpolation. If no coordinate pair
+is present, ERF retains the legacy unit-spacing grid rooted at ``(0, 0)``.
 
 .. list-table:: Forest canopy parameters
    :header-rows: 1
@@ -2058,7 +2062,11 @@ specified by ``erf.terrain_file_name``, or read from a NetCDF file specified by
 ``erf.terrain_file_name_nc``. The NetCDF option requires NetCDF support and takes
 precedence when both inputs are present. It requires one-dimensional ``x`` and
 ``y`` coordinate variables and a two-dimensional height variable named ``height``,
-``z``, ``terrain``, ``HGT_M``, or ``AGL``.
+``z``, ``terrain``, ``HGT_M``, or ``AGL``. Both coordinate arrays must contain
+at least two finite, strictly increasing, uniformly spaced values and must
+match the corresponding height dimensions. Bilinear interpolation includes
+the final coordinate in each direction. Terrain nodes genuinely outside the
+file grid are assigned zero; ERF does not extrapolate them.
 
 For the text format, the ordering of data in the file is first
 nx, ny (where nx is the number of values specified in the x-direction and

@@ -3,6 +3,7 @@
 #include <ERF_NCInterface.H>
 #endif
 #include <ERF_Constants.H>
+#include <ERF_GridUtils.H>
 
 using namespace amrex;
 
@@ -64,11 +65,16 @@ ForestDrag::ForestDrag (std::string lai_file,
                      nx_check, ny_check, dx_check, dy_check,
                      xmin_check, ymin_check);
 
-    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
-        nx_check == m_grid_nx && ny_check == m_grid_ny &&
-        std::abs(dx_check - m_grid_dx) < 1e-6 &&
-        std::abs(dy_check - m_grid_dy) < 1e-6,
-        "Grid dimensions must match across LAI and height files");
+    const erf_grid_utils::UniformGridMetadata lai_grid{
+        m_grid_nx, m_grid_ny, m_grid_dx, m_grid_dy, m_grid_xmin, m_grid_ymin};
+    const erf_grid_utils::UniformGridMetadata height_grid{
+        nx_check, ny_check, dx_check, dy_check, xmin_check, ymin_check};
+    const std::string height_grid_error = erf_grid_utils::validate_matching_grid(
+        lai_grid, height_grid, "forest field 'LAI' in '" + lai_file + "'",
+        "forest field 'height' in '" + height_file + "'");
+    if (!height_grid_error.empty()) {
+        Abort(height_grid_error);
+    }
 
     if (!vegtype_file.empty()) {
         m_gridded_vegtype.resize(m_grid_nx * m_grid_ny);
@@ -83,6 +89,7 @@ ForestDrag::ForestDrag (std::string lai_file,
             << "  Tree type: " << m_tree_type << "  LAImax: " << m_laimax << "\n";
 
 #else
+    amrex::ignore_unused(lai_file, height_file, vegtype_file);
     Abort("ERF must be compiled with NetCDF support to use gridded forest data");
 #endif
 }
@@ -117,19 +124,29 @@ ForestDrag::ForestDrag (std::string lai_file,
                      nx_check, ny_check, dx_check, dy_check,
                      xmin_check, ymin_check);
 
-    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
-        nx_check == m_grid_nx && ny_check == m_grid_ny &&
-        std::abs(dx_check - m_grid_dx) < 1e-6 &&
-        std::abs(dy_check - m_grid_dy) < 1e-6,
-        "Grid dimensions must match across all forest input files");
+    const erf_grid_utils::UniformGridMetadata lai_grid{
+        m_grid_nx, m_grid_ny, m_grid_dx, m_grid_dy, m_grid_xmin, m_grid_ymin};
+    const erf_grid_utils::UniformGridMetadata height_grid{
+        nx_check, ny_check, dx_check, dy_check, xmin_check, ymin_check};
+    std::string grid_error = erf_grid_utils::validate_matching_grid(
+        lai_grid, height_grid, "forest field 'LAI' in '" + lai_file + "'",
+        "forest field 'height' in '" + height_file + "'");
+    if (!grid_error.empty()) {
+        Abort(grid_error);
+    }
 
     read_netcdf_file(cd_file, "cd", m_gridded_cd,
                      nx_check, ny_check, dx_check, dy_check,
                      xmin_check, ymin_check);
 
-    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
-        nx_check == m_grid_nx && ny_check == m_grid_ny,
-        "Grid dimensions must match across all forest input files");
+    const erf_grid_utils::UniformGridMetadata cd_grid{
+        nx_check, ny_check, dx_check, dy_check, xmin_check, ymin_check};
+    grid_error = erf_grid_utils::validate_matching_grid(
+        lai_grid, cd_grid, "forest field 'LAI' in '" + lai_file + "'",
+        "forest field 'cd' in '" + cd_file + "'");
+    if (!grid_error.empty()) {
+        Abort(grid_error);
+    }
 
     if (!vegtype_file.empty()) {
         m_gridded_vegtype.resize(m_grid_nx * m_grid_ny);
@@ -147,6 +164,7 @@ ForestDrag::ForestDrag (std::string lai_file,
             << "  LAImax: " << m_laimax << "\n";
 
 #else
+    amrex::ignore_unused(lai_file, height_file, cd_file, vegtype_file);
     Abort("ERF must be compiled with NetCDF support to use gridded forest data");
 #endif
 }
@@ -231,18 +249,16 @@ ForestDrag::define_drag_field (const BoxArray& ba,
                                            z_nd(i, j + 1, 0) + z_nd(i + 1, j + 1, 0));
                 const Real z = amrex::max((z_cc(i, j, k) - z_sfc), 0.0);
 
-                Real fx = (x - grid_xmin) / grid_dx;
-                Real fy = (y - grid_ymin) / grid_dy;
+                const auto x_stencil = erf_grid_utils::uniform_interpolation_stencil(
+                    x, grid_xmin, grid_dx, grid_nx);
+                const auto y_stencil = erf_grid_utils::uniform_interpolation_stencil(
+                    y, grid_ymin, grid_dy, grid_ny);
 
-                int ii = static_cast<int>(amrex::Math::floor(fx));
-                int jj = static_cast<int>(amrex::Math::floor(fy));
-
-                if (ii >= 0 && ii <= grid_nx - 1 && jj >= 0 && jj <= grid_ny - 1) {
-                    int ii_c = amrex::min(ii, grid_nx - 2);
-                    int jj_c = amrex::min(jj, grid_ny - 2);
-
-                    Real wx = fx - ii_c;
-                    Real wy = fy - jj_c;
+                if (x_stencil.inside && y_stencil.inside) {
+                    const int ii_c = x_stencil.lower;
+                    const int jj_c = y_stencil.lower;
+                    const Real wx = x_stencil.weight;
+                    const Real wy = y_stencil.weight;
 
                     // Bilinear interpolation of LAI
                     Real lai00 = lai_data[jj_c * grid_nx + ii_c];
@@ -461,41 +477,72 @@ ForestDrag::read_netcdf_file (const std::string& filename,
             ny = dims[0];
             nx = dims[1];
         } else if (dims.size() == 3) {
+            if (dims[0] < 1) {
+                Abort("Forest field '" + varname + "' in '" + filename +
+                      "' has no time records");
+            }
             ny = dims[1];
             nx = dims[2];
         } else {
-            Abort("Expected 2D or 3D (with time) data in NetCDF file");
+            Abort("Forest field '" + varname + "' in '" + filename +
+                  "' must be 2D or 3D with a leading time dimension");
         }
 
-        if (ncf.has_var("x") && ncf.has_var("y")) {
-            auto x_var = ncf.var("x");
-            auto y_var = ncf.var("y");
+        if (nx < 2 || ny < 2) {
+            Abort("Forest field '" + varname + "' in '" + filename +
+                  "' requires at least two x and y coordinates for bilinear interpolation");
+        }
+
+        const bool has_x = ncf.has_var("x");
+        const bool has_y = ncf.has_var("y");
+        const bool has_lon = ncf.has_var("lon");
+        const bool has_lat = ncf.has_var("lat");
+        if (has_x != has_y) {
+            Abort("Forest field '" + varname + "' in '" + filename +
+                  "' must provide both x and y coordinate variables");
+        }
+        if (!has_x && has_lon != has_lat) {
+            Abort("Forest field '" + varname + "' in '" + filename +
+                  "' must provide both lon and lat coordinate variables");
+        }
+
+        if ((has_x && has_y) || (has_lon && has_lat)) {
+            const std::string x_name = has_x ? "x" : "lon";
+            const std::string y_name = has_y ? "y" : "lat";
+            auto x_var = ncf.var(x_name);
+            auto y_var = ncf.var(y_name);
+
+            const auto x_shape = x_var.shape();
+            const auto y_shape = y_var.shape();
+            if (x_shape.size() != 1 || x_shape[0] != static_cast<std::size_t>(nx)) {
+                Abort("Forest field '" + varname + "' in '" + filename + "' has " +
+                      x_name + " coordinate shape inconsistent with its x dimension");
+            }
+            if (y_shape.size() != 1 || y_shape[0] != static_cast<std::size_t>(ny)) {
+                Abort("Forest field '" + varname + "' in '" + filename + "' has " +
+                      y_name + " coordinate shape inconsistent with its y dimension");
+            }
 
             Vector<Real> x_coords(nx);
             Vector<Real> y_coords(ny);
             x_var.get(x_coords.data());
             y_var.get(y_coords.data());
 
-            xmin = x_coords[0];
-            ymin = y_coords[0];
-            dx = (nx > 1) ? (x_coords[1] - x_coords[0]) : 1.0;
-            dy = (ny > 1) ? (y_coords[1] - y_coords[0]) : 1.0;
+            const std::string field_description =
+                "Forest field '" + varname + "' in '" + filename + "'";
+            std::string coordinate_error = erf_grid_utils::validate_uniform_axis(
+                x_coords, nx, x_name, field_description, xmin, dx);
+            if (coordinate_error.empty()) {
+                coordinate_error = erf_grid_utils::validate_uniform_axis(
+                    y_coords, ny, y_name, field_description, ymin, dy);
+            }
+            if (!coordinate_error.empty()) {
+                Abort(coordinate_error);
+            }
 
-        } else if (ncf.has_var("lon") && ncf.has_var("lat")) {
-            auto lon_var = ncf.var("lon");
-            auto lat_var = ncf.var("lat");
-
-            Vector<Real> lon_coords(nx);
-            Vector<Real> lat_coords(ny);
-            lon_var.get(lon_coords.data());
-            lat_var.get(lat_coords.data());
-
-            xmin = lon_coords[0];
-            ymin = lat_coords[0];
-            dx = (nx > 1) ? (lon_coords[1] - lon_coords[0]) : 1.0;
-            dy = (ny > 1) ? (lat_coords[1] - lat_coords[0]) : 1.0;
-
-            Print() << "Warning: Using lon/lat coordinates as domain coordinates.\n";
+            if (!has_x) {
+                Print() << "Warning: Using lon/lat coordinates as domain coordinates.\n";
+            }
         } else {
             Print() << "Warning: No coordinate variables found. Assuming unit spacing at (0,0).\n";
             xmin = 0.0;
@@ -542,18 +589,18 @@ Real
 ForestDrag::interpolate_gridded_data (const Vector<Real>& data,
                                       Real x, Real y) const
 {
-    Real fx = (x - m_grid_xmin) / m_grid_dx;
-    Real fy = (y - m_grid_ymin) / m_grid_dy;
-
-    int i = static_cast<int>(std::floor(fx));
-    int j = static_cast<int>(std::floor(fy));
-
-    if (i < 0 || i >= m_grid_nx - 1 || j < 0 || j >= m_grid_ny - 1) {
+    const auto x_stencil = erf_grid_utils::uniform_interpolation_stencil(
+        x, m_grid_xmin, m_grid_dx, m_grid_nx);
+    const auto y_stencil = erf_grid_utils::uniform_interpolation_stencil(
+        y, m_grid_ymin, m_grid_dy, m_grid_ny);
+    if (!x_stencil.inside || !y_stencil.inside) {
         return 0.0;
     }
 
-    Real wx = fx - i;
-    Real wy = fy - j;
+    const int i = x_stencil.lower;
+    const int j = y_stencil.lower;
+    const Real wx = x_stencil.weight;
+    const Real wy = y_stencil.weight;
 
     Real val00 = data[j * m_grid_nx + i];
     Real val10 = data[j * m_grid_nx + (i + 1)];

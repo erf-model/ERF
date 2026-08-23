@@ -617,6 +617,7 @@ public:
     // Write plotfile to disk
     void Write3DPlotFile  (int which, PlotFileType plotfile_type, amrex::Vector<std::string> plot_var_names);
     void Write2DPlotFile  (int which, PlotFileType plotfile_type, amrex::Vector<std::string> plot_var_names);
+    void ResetIntervalMeansAfter3DPlotfileBatch (int plotfiles_written);
 
     // Write subvolume of data into a different "plotfile"
     void WriteSubvolume (int isub, amrex::Vector<std::string> subvol_var_names);

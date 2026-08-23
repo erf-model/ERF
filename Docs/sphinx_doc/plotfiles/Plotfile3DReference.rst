@@ -14,6 +14,9 @@ in separate face-centered outputs associated with the configured 3D stream.
 Interval mean, covariance, and resolved TKE fields require
 ``erf.compute_mean_vars = true``; their averaging window is controlled by
 ``erf.mean_vars_reset_mode`` and ``erf.mean_vars_reset_time``.
+In ``plotfile`` reset mode the window is global to both 3-D streams: every
+stream due at the same simulation time receives the same accumulated values,
+then ERF resets the accumulator once after the complete output batch.
 
 3D output variables
 -------------------
