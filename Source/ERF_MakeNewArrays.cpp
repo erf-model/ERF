@@ -260,6 +260,16 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
         t_avg_cnt[lev] = zero;
     }
 
+    // Components: u, v, w, theta, uu, vv, ww, uw, vw, wtheta.
+    // Like vel_t_avg, these diagnostics restart when a level's grids change.
+    interval_means[lev] = nullptr;
+    if (solverChoice.compute_mean_vars) {
+        interval_means[lev] = std::make_unique<MultiFab>(ba, dm, 10, 0);
+        interval_means[lev]->setVal(zero);
+        t_mean_cnt[lev] = 0.0;
+        mean_vars_time_reset_done[lev] = 0;
+    }
+
     // ********************************************************************************************
     // Initialize flux registers whenever we create/re-create a level
     // ********************************************************************************************

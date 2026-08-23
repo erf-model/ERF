@@ -15,6 +15,7 @@
 #include "AMReX_WriteEBSurface.H"
 
 #include "ERF_EpochTime.H"
+#include "ERF_PlotfileSelection.H"
 #include "ERF_Utils.H"
 #include "ERF_TerrainMetrics.H"
 #include "ERF_SrcHeaders.H"
@@ -233,18 +234,32 @@ ERF::Evolve ()
 void
 ERF::WriteAtIntermediateTime(int step, double cur_time)
 {
+    int plotfiles_3d_written = 0;
+    bool interval_diagnostic_consumed = false;
     if (writeNow(cur_time, step+1, m_plot3d_int_1, m_plot3d_per_1, dt[0], last_plot3d_file_time_1)) {
         last_plot3d_file_step_1 = step+1;
-        Write3DPlotFile(1,plotfile3d_type_1,plot3d_var_names_1);
+        const bool wrote_plotfile = Write3DPlotFile(1,plotfile3d_type_1,plot3d_var_names_1);
+        if (wrote_plotfile) {
+            ++plotfiles_3d_written;
+            interval_diagnostic_consumed = interval_diagnostic_consumed ||
+                erf_plotfile::plot3d_selection_has_interval_mean_diagnostic(plot3d_var_names_1);
+        }
         for (int lev = 0; lev <= finest_level; ++lev) {lsm.Plot(lev, step+1);}
         if (m_plot3d_per_1 > zero) {last_plot3d_file_time_1 += m_plot3d_per_1;}
     }
     if (writeNow(cur_time, step+1, m_plot3d_int_2, m_plot3d_per_2, dt[0], last_plot3d_file_time_2)) {
         last_plot3d_file_step_2 = step+1;
-        Write3DPlotFile(2,plotfile3d_type_2,plot3d_var_names_2);
+        const bool wrote_plotfile = Write3DPlotFile(2,plotfile3d_type_2,plot3d_var_names_2);
+        if (wrote_plotfile) {
+            ++plotfiles_3d_written;
+            interval_diagnostic_consumed = interval_diagnostic_consumed ||
+                erf_plotfile::plot3d_selection_has_interval_mean_diagnostic(plot3d_var_names_2);
+        }
         for (int lev = 0; lev <= finest_level; ++lev) {lsm.Plot(lev, step+1);}
         if (m_plot3d_per_2 > zero) {last_plot3d_file_time_2 += m_plot3d_per_2;}
     }
+    ResetIntervalMeansAfter3DPlotfileBatch(plotfiles_3d_written,
+                                           interval_diagnostic_consumed);
 
     if (writeNow(cur_time, step+1, m_plot2d_int_1, m_plot2d_per_1, dt[0], last_plot2d_file_time_1)) {
         last_plot2d_file_step_1 = step+1;
@@ -277,14 +292,28 @@ void
 ERF::WriteAtFinalTime()
 {
     // Write plotfiles at final time
+    int plotfiles_3d_written = 0;
+    bool interval_diagnostic_consumed = false;
     if ( (m_plot3d_int_1 > 0 || m_plot3d_per_1 > zero) && istep[0] > last_plot3d_file_step_1 ) {
-        Write3DPlotFile(1,plotfile3d_type_1,plot3d_var_names_1);
+        const bool wrote_plotfile = Write3DPlotFile(1,plotfile3d_type_1,plot3d_var_names_1);
+        if (wrote_plotfile) {
+            ++plotfiles_3d_written;
+            interval_diagnostic_consumed = interval_diagnostic_consumed ||
+                erf_plotfile::plot3d_selection_has_interval_mean_diagnostic(plot3d_var_names_1);
+        }
         if (m_plot3d_per_1 > zero) {last_plot3d_file_time_1 += m_plot3d_per_1;}
     }
     if ( (m_plot3d_int_2 > 0 || m_plot3d_per_2 > zero) && istep[0] > last_plot3d_file_step_2) {
-        Write3DPlotFile(2,plotfile3d_type_2,plot3d_var_names_2);
+        const bool wrote_plotfile = Write3DPlotFile(2,plotfile3d_type_2,plot3d_var_names_2);
+        if (wrote_plotfile) {
+            ++plotfiles_3d_written;
+            interval_diagnostic_consumed = interval_diagnostic_consumed ||
+                erf_plotfile::plot3d_selection_has_interval_mean_diagnostic(plot3d_var_names_2);
+        }
         if (m_plot3d_per_2 > zero) {last_plot3d_file_time_2 += m_plot3d_per_2;}
     }
+    ResetIntervalMeansAfter3DPlotfileBatch(plotfiles_3d_written,
+                                           interval_diagnostic_consumed);
     if ( (m_plot2d_int_1 > 0 || m_plot2d_per_1 > zero) && istep[0] > last_plot2d_file_step_1 ) {
         Write2DPlotFile(1,plotfile2d_type_1,plot2d_var_names_1);
         if (m_plot2d_per_1 > zero) {last_plot2d_file_time_1 += m_plot2d_per_1;}
@@ -304,6 +333,31 @@ ERF::WriteAtFinalTime()
     if ( (m_check_int > 0 || m_check_per > zero) && istep[0] > last_check_file_step) {
         WriteCheckpointFile();
         if (m_check_per > zero) {last_check_file_time += m_check_per;}
+    }
+}
+
+void
+ERF::ResetIntervalMeansAfter3DPlotfileBatch (int plotfiles_written,
+                                             bool interval_diagnostic_consumed)
+{
+    if (!erf_plotfile::plot3d_batch_resets_interval_means(
+            plotfiles_written, interval_diagnostic_consumed,
+            solverChoice.compute_mean_vars,
+            solverChoice.mean_vars_reset_mode)) {
+        return;
+    }
+
+    ResetIntervalMeans();
+}
+
+void
+ERF::ResetIntervalMeans ()
+{
+    for (int lev = 0; lev <= finest_level; ++lev) {
+        if (interval_means[lev] != nullptr) {
+            interval_means[lev]->setVal(zero);
+            t_mean_cnt[lev] = 0.0;
+        }
     }
 }
 
@@ -461,7 +515,27 @@ ERF::post_timestep (int nstep, double time, double dt_lev0)
 
     // Write plane/line sampler data
     if (line_sampler && is_it_time_for_action(nstep+1, time, dt_lev0, line_sampling_interval, line_sampling_per)) {
-        line_sampler->get_sample_data(geom, vars_new);
+        const int nlev = static_cast<int>(vars_new.size());
+        Vector<MultiFab*> tau13_lev(nlev, nullptr);
+        Vector<MultiFab*> tau23_lev(nlev, nullptr);
+        Vector<MultiFab*> hfx3_lev(nlev, nullptr);
+        Vector<int> prognostic_tke_available(nlev, 0);
+        for (int lev = 0; lev < nlev; ++lev) {
+            prognostic_tke_available[lev] = solverChoice.turbChoice[lev].use_tke ? 1 : 0;
+            if (lev < static_cast<int>(Tau.size())) {
+                if (Tau[lev].size() > TauType::tau13) {
+                    tau13_lev[lev] = Tau[lev][TauType::tau13].get();
+                }
+                if (Tau[lev].size() > TauType::tau23) {
+                    tau23_lev[lev] = Tau[lev][TauType::tau23].get();
+                }
+            }
+            if (lev < static_cast<int>(SFS_hfx3_lev.size())) {
+                hfx3_lev[lev] = SFS_hfx3_lev[lev].get();
+            }
+        }
+        line_sampler->get_sample_data(geom, vars_new, tau13_lev, tau23_lev, hfx3_lev,
+                                      prognostic_tke_available);
         line_sampler->write_sample_data(t_new, istep, ref_ratio, geom);
     }
     if (plane_sampler && is_it_time_for_action(nstep+1, time, dt_lev0, plane_sampling_interval, plane_sampling_per)) {
@@ -1302,6 +1376,30 @@ ERF::InitData_post ()
         }
     }
 
+    if (solverChoice.compute_mean_vars) {
+        if (solverChoice.mean_vars_reset_mode == "time" &&
+            static_cast<double>(t_new[0]) >=
+            static_cast<double>(solverChoice.mean_vars_reset_time)) {
+            bool reset_needed = false;
+            for (int lev = 0; lev <= finest_level; ++lev) {
+                reset_needed = reset_needed || (mean_vars_time_reset_done[lev] == 0);
+            }
+            if (reset_needed) {
+                ResetIntervalMeans();
+                for (int lev = 0; lev <= finest_level; ++lev) {
+                    mean_vars_time_reset_done[lev] = 1;
+                }
+            }
+        }
+        for (int lev = 0; lev <= finest_level; ++lev) {
+            Accumulate_Interval_Means(dt[lev], t_mean_cnt[lev], interval_means[lev].get(),
+                                      vars_new[lev][Vars::xvel],
+                                      vars_new[lev][Vars::yvel],
+                                      vars_new[lev][Vars::zvel],
+                                      vars_new[lev][Vars::cons]);
+        }
+    }
+
 #ifdef ERF_USE_PARTICLES
     // Redistribute particles so the container has valid data at all AMR levels
     // before the initial plotfile write
@@ -1337,18 +1435,32 @@ ERF::InitData_post ()
     if ( (restart_chkfile.empty()) ||
          (!restart_chkfile.empty() && plot_file_on_restart) )
     {
+        int plotfiles_3d_written = 0;
+        bool interval_diagnostic_consumed = false;
         if (m_plot3d_int_1 > 0 || m_plot3d_per_1 > zero)
         {
-            Write3DPlotFile(1,plotfile3d_type_1,plot3d_var_names_1);
+            const bool wrote_plotfile = Write3DPlotFile(1,plotfile3d_type_1,plot3d_var_names_1);
+            if (wrote_plotfile) {
+                ++plotfiles_3d_written;
+                interval_diagnostic_consumed = interval_diagnostic_consumed ||
+                    erf_plotfile::plot3d_selection_has_interval_mean_diagnostic(plot3d_var_names_1);
+            }
             if (m_plot3d_per_1 > zero) {last_plot3d_file_time_1 += m_plot3d_per_1;}
             last_plot3d_file_step_1 = istep[0];
         }
         if (m_plot3d_int_2 > 0 || m_plot3d_per_2 > zero)
         {
-            Write3DPlotFile(2,plotfile3d_type_2,plot3d_var_names_2);
+            const bool wrote_plotfile = Write3DPlotFile(2,plotfile3d_type_2,plot3d_var_names_2);
+            if (wrote_plotfile) {
+                ++plotfiles_3d_written;
+                interval_diagnostic_consumed = interval_diagnostic_consumed ||
+                    erf_plotfile::plot3d_selection_has_interval_mean_diagnostic(plot3d_var_names_2);
+            }
             if (m_plot3d_per_2 > zero) {last_plot3d_file_time_2 += m_plot3d_per_2;}
             last_plot3d_file_step_2 = istep[0];
         }
+        ResetIntervalMeansAfter3DPlotfileBatch(plotfiles_3d_written,
+                                               interval_diagnostic_consumed);
         if (m_plot2d_int_1 > 0 || m_plot2d_per_1 > zero)
         {
             Write2DPlotFile(1,plotfile2d_type_1,plot2d_var_names_1);
@@ -2519,12 +2631,92 @@ ERF::ReadParameters ()
                                      "init_type cannot be 'WRFInput', 'Metgrid' or 'NCFile' if we don't build with netcdf!");
 #endif
 
-    // Query the canopy model file name
-    std::string forestfile;
-    solverChoice.do_forest_drag = pp.query("forest_file", forestfile);
-    if (solverChoice.do_forest_drag) {
-        for (int lev = 0; lev <= max_level; ++lev) {
-            m_forest_drag[lev] = std::make_unique<ForestDrag>(forestfile);
+    // Query the canopy model parameters
+    {
+        std::string forestfile;
+        std::string forest_lai_file, forest_height_file, forest_cd_file;
+
+        bool requested_forest_drag = false;
+        bool has_forest_drag_switch = pp.query("do_forest_drag", requested_forest_drag);
+
+        bool has_forest_file   = pp.query("forest_file",        forestfile);
+        bool has_forest_lai    = pp.query("forest_lai_file",    forest_lai_file);
+        bool has_forest_height = pp.query("forest_height_file", forest_height_file);
+        bool has_forest_cd     = pp.query("forest_cd_file",     forest_cd_file);
+
+        // Optional constant drag coefficient (alternative to forest_cd_file)
+        Real forest_cd_const = -1.0;
+        bool has_forest_cd_const = pp.query("forest_cd", forest_cd_const);
+
+        if (has_forest_cd && has_forest_cd_const) {
+            Abort("Cannot specify both 'forest_cd_file' and 'forest_cd'. Choose one.");
+        }
+
+        int  forest_tree_type = 1;
+        Real forest_laimax    = 0.8;
+        pp.query("forest_tree_type", forest_tree_type);
+        pp.query("forest_laimax",    forest_laimax);
+
+        bool has_any_cd = has_forest_cd || has_forest_cd_const;
+
+        if (has_forest_file && (has_forest_lai || has_forest_height || has_any_cd)) {
+            Abort("Cannot specify both 'forest_file' and gridded forest options. Choose one mode.");
+        }
+
+        if (has_forest_file) {
+            solverChoice.do_forest_drag = true;
+            for (int lev = 0; lev <= max_level; ++lev) {
+                m_forest_drag[lev] = std::make_unique<ForestDrag>(forestfile);
+            }
+            Print() << "ForestDrag: Using discrete patch mode with file: " << forestfile << "\n";
+
+        } else if (has_forest_lai && has_forest_height && has_forest_cd) {
+            // Gridded NC mode with Cd from file
+            solverChoice.do_forest_drag = true;
+            for (int lev = 0; lev <= max_level; ++lev) {
+                m_forest_drag[lev] = std::make_unique<ForestDrag>(
+                    forest_lai_file, forest_height_file, forest_cd_file,
+                    forest_tree_type, forest_laimax);
+            }
+            Print() << "ForestDrag: Using gridded NetCDF mode\n"
+                    << "  LAI file: " << forest_lai_file << "\n"
+                    << "  Height file: " << forest_height_file << "\n"
+                    << "  Cd file: " << forest_cd_file << "\n"
+                    << "  Tree type: " << forest_tree_type << "\n"
+                    << "  LAImax: " << forest_laimax << "\n";
+
+        } else if (has_forest_lai && has_forest_height && has_forest_cd_const) {
+            // Gridded NC mode with constant Cd
+            solverChoice.do_forest_drag = true;
+            for (int lev = 0; lev <= max_level; ++lev) {
+                m_forest_drag[lev] = std::make_unique<ForestDrag>(
+                    forest_lai_file, forest_height_file, forest_cd_const,
+                    forest_tree_type, forest_laimax);
+            }
+            Print() << "ForestDrag: Using gridded NetCDF mode with constant Cd=" << forest_cd_const << "\n"
+                    << "  LAI file: " << forest_lai_file << "\n"
+                    << "  Height file: " << forest_height_file << "\n"
+                    << "  Tree type: " << forest_tree_type << "\n"
+                    << "  LAImax: " << forest_laimax << "\n";
+
+        } else if (has_forest_lai || has_forest_height || has_any_cd) {
+            Abort("Gridded forest mode requires forest_lai_file, forest_height_file, "
+                  "and either forest_cd_file or forest_cd.");
+        }
+
+        if (has_forest_drag_switch && requested_forest_drag != solverChoice.do_forest_drag) {
+            Abort("'do_forest_drag' must be true when a complete forest configuration is "
+                  "provided, and false when no forest configuration is provided.");
+        }
+
+        if ((solverChoice.forest_biophysics || solverChoice.forest_biophysics_heat) &&
+            !solverChoice.do_forest_drag) {
+            Abort("Forest biophysics was requested (forest_biophysics=" +
+                  std::string(solverChoice.forest_biophysics ? "true" : "false") +
+                  ", forest_biophysics_heat=" +
+                  std::string(solverChoice.forest_biophysics_heat ? "true" : "false") +
+                  ") but no complete forest configuration was supplied. Provide "
+                  "forest_lai_file, forest_height_file, and forest_cd or forest_cd_file.");
         }
     }
 
