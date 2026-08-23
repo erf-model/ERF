@@ -146,6 +146,14 @@ void ERFPC::ERFPCParticleToMesh(amrex::MultiFab& a_mf,
 
             auto deposit = [=] AMREX_GPU_DEVICE (int ic, int jc, int kc, Real w_horiz, Real w_z)
             {
+                // A corner with zero CIC weight deposits nothing.  Skip it before
+                // touching dz_cell: when a particle sits exactly on a cell-center
+                // plane the outermost corner lands in the ghost region, where the
+                // node-averaged thickness can come out exactly zero (z_phys_nd
+                // ghost nodes outside the domain are not filled), and 0/0 raises
+                // an invalid-operation FPE.
+                if (w_horiz == Real(0.0) || w_z == Real(0.0)) { return; }
+
                 // Clamp kc only for dz lookup; still write to ghost rho cell.
                 const int kc_dz = amrex::max(0, amrex::min(k_max, kc));
                 const Real dz = dz_cell(ic, jc, kc_dz);
