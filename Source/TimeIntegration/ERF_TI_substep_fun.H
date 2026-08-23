@@ -130,7 +130,7 @@ auto acoustic_substepping_fun = [&,one_d=one,zero_d=zero](int fast_step, int n_s
         {
             make_fast_coeffs(level, fast_coeffs, S_stage, S_prim, pi_stage, fine_geom,
                              l_use_moisture, SolverChoice::mesh_type, solverChoice.gravity, solverChoice.c_p,
-                             detJ_cc[level], r0, pi0, dtau, beta_s, phys_bc_type);
+                             detJ_cc[level], dtau, beta_s, phys_bc_type);
         }
 
         bool l_rayleigh_implicit = (solverChoice.dampingChoice.rayleigh_damping_type == RayleighDampingType::FastImplicit);
