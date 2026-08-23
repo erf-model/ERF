@@ -1366,7 +1366,6 @@ private:
 
     // other sampling output control
     int profile_int = -1;
-    bool profiles_xy = true;
     bool destag_profiles = true;
 
     // Checkpoint type, prefix and frequency
