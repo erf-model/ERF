@@ -14,13 +14,14 @@ using namespace amrex;
  * @param[in]  S_stage_prim primitive variables (i.e. conserved variables divided by density) at the last stage
  * @param[in]  pi_stage Exner function at the last stage
  * @param[in]  geom   Container for geometric information
+ * @param[in]  l_use_moisture Are we evolving moisture?
  * @param[in]  mesh_type     Do we have constant dz?
  * @param[in]  gravity       Magnitude of gravity
  * @param[in]  c_p           Coefficient at constant pressure
- * @param[in]  r0            Reference (hydrostatically stratified) density
- * @param[in]  pi0           Reference (hydrostatically stratified) Exner function
+ * @param[in]  detJ_cc       Jacobian of the metric transformation at cell centers
  * @param[in]  dtau          Fast time step
  * @param[in]  beta_s        Coefficient which determines how implicit vs explicit the solve is
+ * @param[in]  phys_bc_type  Physical boundary condition types
  */
 
 void make_fast_coeffs (int /*level*/,
@@ -33,8 +34,8 @@ void make_fast_coeffs (int /*level*/,
                        MeshType mesh_type,
                        Real gravity, Real c_p,
                        std::unique_ptr<MultiFab>& detJ_cc,
-                       const MultiFab* r0, const MultiFab* pi0,
-                       const double dtau, Real beta_s,
+                       const double dtau,
+                       Real beta_s,
                        amrex::GpuArray<ERF_BC, AMREX_SPACEDIM*2> &phys_bc_type)
 {
     BL_PROFILE_VAR("make_fast_coeffs()",make_fast_coeffs);
@@ -42,7 +43,6 @@ void make_fast_coeffs (int /*level*/,
     Real beta_2 = myhalf * (one + beta_s);  // multiplies implicit terms
 
     Real c_v = c_p - R_d;
-    Real RvOverRd = R_v / R_d;
 
     const GpuArray<Real, AMREX_SPACEDIM> dxInv = geom.InvCellSizeArray();
     Real dzi = dxInv[2];
@@ -77,10 +77,9 @@ void make_fast_coeffs (int /*level*/,
         const Array4<const Real> & stage_cons = S_stage_data[IntVars::cons].const_array(mfi);
         const Array4<const Real> & prim       = S_stage_prim.const_array(mfi);
 
-        const Array4<const Real>& detJ        = (mesh_type != MeshType::ConstantDz) ? detJ_cc->const_array(mfi) : Array4<const Real>{};
+        const Array4<const Real>& detJ        = (mesh_type != MeshType::ConstantDz) ?
+                                                detJ_cc->const_array(mfi) : Array4<const Real>{};
 
-        const Array4<const Real>& r0_ca       = r0->const_array(mfi);
-        const Array4<const Real>& pi0_ca      = pi0->const_array(mfi);
         const Array4<const Real>& pi_stage_ca = pi_stage.const_array(mfi);
 
         FArrayBox gam_fab; gam_fab.resize(surroundingNodes(bx,2),1,The_Async_Arena());
@@ -112,30 +111,25 @@ void make_fast_coeffs (int /*level*/,
         {
             ParallelFor(bx_shrunk_in_k, [=] AMREX_GPU_DEVICE (int i, int j, int k)
             {
-                Real rhobar_lo, rhobar_hi, pibar_lo, pibar_hi;
-                rhobar_lo =  r0_ca(i,j,k-1);
-                rhobar_hi =  r0_ca(i,j,k  );
-                 pibar_lo = pi0_ca(i,j,k-1);
-                 pibar_hi = pi0_ca(i,j,k  );
+                Real pi_c =  myhalf * (pi_stage_ca(i,j,k-1) + pi_stage_ca(i,j,k));
 
-                 Real pi_c =  myhalf * (pi_stage_ca(i,j,k-1) + pi_stage_ca(i,j,k));
+                Real     detJ_on_kface = myhalf * (detJ(i,j,k) + detJ(i,j,k-1));
+                Real inv_detJ_on_kface = one / detJ_on_kface;
 
-                 Real     detJ_on_kface = myhalf * (detJ(i,j,k) + detJ(i,j,k-1));
-                 Real inv_detJ_on_kface = one / detJ_on_kface;
+                Real qv_p = (l_use_moisture) ? prim(i,j,k  ,PrimQ1_comp) : zero;
+                Real qv_q = (l_use_moisture) ? prim(i,j,k-1,PrimQ1_comp) : zero;
 
-                 Real qv_p = (l_use_moisture) ? prim(i,j,k  ,PrimQ1_comp) : zero;
-                 Real qv_q = (l_use_moisture) ? prim(i,j,k-1,PrimQ1_comp) : zero;
+                Real Thm_hi = stage_cons(i,j,k  ,RhoTheta_comp) * (one + RvoRd*qv_p);
+                Real Thm_lo = stage_cons(i,j,k-1,RhoTheta_comp) * (one + RvoRd*qv_q);
+                Real Thm_grad = dzi * inv_detJ_on_kface * ( Thm_hi - Thm_lo );
 
-                 Real coeff_P = -Gamma * R_d * dzi * inv_detJ_on_kface * pi_c * (one + RvOverRd*qv_p)
-                              +  halfg * R_d * rhobar_hi * pi_stage_ca(i,j,k) /
-                               (  c_v * pibar_hi * stage_cons(i,j,k,RhoTheta_comp) );
+                Real coeff_P = -Gamma * R_d * dzi * inv_detJ_on_kface * pi_c * (one + RvoRd*qv_p)
+                             -  Gamma * R_d * R_d * Thm_grad * myhalf * pi_stage_ca(i,j,k  ) /
+                             (  c_v * stage_cons(i,j,k  ,RhoTheta_comp) );
 
-                 Real coeff_Q =  Gamma * R_d * dzi * inv_detJ_on_kface * pi_c * (one + RvOverRd*qv_q)
-                              + halfg * R_d * rhobar_lo * pi_stage_ca(i,j,k-1) /
-                               ( c_v  * pibar_lo * stage_cons(i,j,k-1,RhoTheta_comp) );
-
-                 coeffP_a(i,j,k) = coeff_P;
-                 coeffQ_a(i,j,k) = coeff_Q;
+                Real coeff_Q =  Gamma * R_d * dzi * inv_detJ_on_kface * pi_c * (one + RvoRd*qv_q)
+                             -  Gamma * R_d * R_d * Thm_grad * myhalf * pi_stage_ca(i,j,k-1) /
+                             (  c_v * stage_cons(i,j,k-1,RhoTheta_comp) );
 
                 if (l_use_moisture) {
                     Real q = myhalf * ( prim(i,j,k,PrimQ1_comp) + prim(i,j,k-1,PrimQ1_comp)
@@ -143,6 +137,12 @@ void make_fast_coeffs (int /*level*/,
                     coeff_P /= (one + q);
                     coeff_Q /= (one + q);
                 }
+
+                // NOTE: we store the moisture-normalized coefficients so that the explicit
+                //       RHS assembled in erf_substep_* uses exactly the same vertical fast
+                //       pressure gradient as the implicit tridiagonal system built below
+                coeffP_a(i,j,k) = coeff_P;
+                coeffQ_a(i,j,k) = coeff_Q;
 
                 Real theta_t_lo  = myhalf * ( prim(i,j,k-2,PrimTheta_comp) + prim(i,j,k-1,PrimTheta_comp) );
                 Real theta_t_mid = myhalf * ( prim(i,j,k-1,PrimTheta_comp) + prim(i,j,k  ,PrimTheta_comp) );
@@ -154,34 +154,29 @@ void make_fast_coeffs (int /*level*/,
                 coeffC_a(i,j,k) = D * (one/detJ(i,j,k  )) * (-halfg + coeff_P * theta_t_hi );
 
                 coeffB_a(i,j,k) = one + D * ( (coeff_Q/detJ(i,j,k-1) - coeff_P/detJ(i,j,k)) * theta_t_mid
-                                            + halfg * (Real(1.0)/detJ(i,j,k) - Real(1.0)/detJ(i,j,k-1)) );
+                                            + halfg * (one/detJ(i,j,k) - one/detJ(i,j,k-1)) );
             });
 
         } else {
 
             ParallelFor(bx_shrunk_in_k, [=] AMREX_GPU_DEVICE (int i, int j, int k)
             {
-                Real rhobar_lo, rhobar_hi, pibar_lo, pibar_hi;
-                rhobar_lo =  r0_ca(i,j,k-1);
-                rhobar_hi =  r0_ca(i,j,k  );
-                 pibar_lo = pi0_ca(i,j,k-1);
-                 pibar_hi = pi0_ca(i,j,k  );
+                Real pi_c =  myhalf * (pi_stage_ca(i,j,k-1) + pi_stage_ca(i,j,k));
 
-                 Real pi_c =  myhalf * (pi_stage_ca(i,j,k-1) + pi_stage_ca(i,j,k));
+                Real qv_p = (l_use_moisture) ? prim(i,j,k  ,PrimQ1_comp) : zero;
+                Real qv_q = (l_use_moisture) ? prim(i,j,k-1,PrimQ1_comp) : zero;
 
-                 Real qv_p = (l_use_moisture) ? prim(i,j,k  ,PrimQ1_comp) : zero;
-                 Real qv_q = (l_use_moisture) ? prim(i,j,k-1,PrimQ1_comp) : zero;
+                Real Thm_hi = stage_cons(i,j,k  ,RhoTheta_comp) * (one + RvoRd*qv_p);
+                Real Thm_lo = stage_cons(i,j,k-1,RhoTheta_comp) * (one + RvoRd*qv_q);
+                Real Thm_grad = dzi * ( Thm_hi - Thm_lo );
 
-                 Real coeff_P = -Gamma * R_d * dzi * pi_c * (one + RvOverRd*qv_p)
-                              +  halfg * R_d * rhobar_hi * pi_stage_ca(i,j,k) /
-                              (  c_v * pibar_hi * stage_cons(i,j,k,RhoTheta_comp) );
+                Real coeff_P = -Gamma * R_d * dzi * pi_c * (one + RvoRd*qv_p)
+                             -  Gamma * R_d * R_d * Thm_grad * myhalf * pi_stage_ca(i,j,k  ) /
+                             (  c_v * stage_cons(i,j,k  ,RhoTheta_comp) );
 
-                 Real coeff_Q = Gamma * R_d * dzi * pi_c * (one + RvOverRd*qv_q)
-                              + halfg * R_d * rhobar_lo * pi_stage_ca(i,j,k-1) /
-                              ( c_v  * pibar_lo * stage_cons(i,j,k-1,RhoTheta_comp) );
-
-                 coeffP_a(i,j,k) = coeff_P;
-                 coeffQ_a(i,j,k) = coeff_Q;
+                Real coeff_Q =  Gamma * R_d * dzi * pi_c * (one + RvoRd*qv_q)
+                             -  Gamma * R_d * R_d * Thm_grad * myhalf * pi_stage_ca(i,j,k-1) /
+                             (  c_v * stage_cons(i,j,k-1,RhoTheta_comp) );
 
                 if (l_use_moisture) {
                     Real q = myhalf * ( prim(i,j,k,PrimQ1_comp) + prim(i,j,k-1,PrimQ1_comp)
@@ -189,6 +184,12 @@ void make_fast_coeffs (int /*level*/,
                     coeff_P /= (one + q);
                     coeff_Q /= (one + q);
                 }
+
+                // NOTE: we store the moisture-normalized coefficients so that the explicit
+                //       RHS assembled in erf_substep_* uses exactly the same vertical fast
+                //       pressure gradient as the implicit tridiagonal system built below
+                coeffP_a(i,j,k) = coeff_P;
+                coeffQ_a(i,j,k) = coeff_Q;
 
                 Real theta_t_lo  = myhalf * ( prim(i,j,k-2,PrimTheta_comp) + prim(i,j,k-1,PrimTheta_comp) );
                 Real theta_t_mid = myhalf * ( prim(i,j,k-1,PrimTheta_comp) + prim(i,j,k  ,PrimTheta_comp) );
