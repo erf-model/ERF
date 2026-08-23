@@ -782,7 +782,8 @@ List of Parameters
 |                               | heights          |                |                |
 +-------------------------------+------------------+----------------+----------------+
 
-By default, all profiles are planar-averaged quantities :math:`\langle\cdot\rangle`
+When ``erf.profiles_xy = false``, the profile files are not written. By default,
+all profiles are planar-averaged quantities :math:`\langle\cdot\rangle`
 that are destaggered by interpolating to cell centers where appropriate.
 Setting ``erf.destag_profiles = false`` will
 keep vertically staggered quantities on z faces -- quantities already at cell

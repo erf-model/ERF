@@ -454,7 +454,7 @@ ERF::post_timestep (int nstep, double time, double dt_lev0)
         }
     }
 
-    if (profile_int > 0 && (nstep+1) % profile_int == 0) {
+    if (profiles_xy && profile_int > 0 && (nstep+1) % profile_int == 0) {
         if (destag_profiles) {
             // all variables cell-centered
             write_1D_profiles(time);
@@ -1524,7 +1524,7 @@ ERF::InitData_post ()
     }
 
 
-    if (restart_chkfile.empty() && profile_int > 0) {
+    if (restart_chkfile.empty() && profiles_xy && profile_int > 0) {
         if (destag_profiles) {
             // all variables cell-centered
             write_1D_profiles(t_new[0]);
@@ -2456,6 +2456,7 @@ ERF::ReadParameters ()
         }
 
         pp.query("profile_int", profile_int);
+        pp.query("profiles_xy", profiles_xy);
         pp.query("destag_profiles", destag_profiles);
 
         pp.query("plot_lsm", plot_lsm);
@@ -2718,6 +2719,64 @@ ERF::ReadParameters ()
                   ") but no complete forest configuration was supplied. Provide "
                   "forest_lai_file, forest_height_file, and forest_cd or forest_cd_file.");
         }
+
+        int  forest_tree_type = 1;
+        Real forest_laimax    = 0.8;
+        pp.query("forest_tree_type", forest_tree_type);
+        pp.query("forest_laimax",    forest_laimax);
+
+        bool has_any_cd = has_forest_cd || has_forest_cd_const;
+
+        if (has_forest_file && (has_forest_lai || has_forest_height || has_any_cd)) {
+            Abort("Cannot specify both 'forest_file' and gridded forest options. Choose one mode.");
+        }
+
+        if (has_forest_file) {
+            solverChoice.do_forest_drag = true;
+            for (int lev = 0; lev <= max_level; ++lev) {
+                m_forest_drag[lev] = std::make_unique<ForestDrag>(forestfile);
+            }
+            Print() << "ForestDrag: Using discrete patch mode with file: " << forestfile << "\n";
+
+        } else if (has_forest_lai && has_forest_height && has_forest_cd) {
+            // Gridded NC mode with Cd from file
+            solverChoice.do_forest_drag = true;
+            for (int lev = 0; lev <= max_level; ++lev) {
+                m_forest_drag[lev] = std::make_unique<ForestDrag>(
+                    forest_lai_file, forest_height_file, forest_cd_file,
+                    forest_vegtype_file, forest_tree_type, forest_laimax);
+            }
+            Print() << "ForestDrag: Using gridded NetCDF mode\n"
+                    << "  LAI file: " << forest_lai_file << "\n"
+                    << "  Height file: " << forest_height_file << "\n"
+                    << "  Cd file: " << forest_cd_file << "\n"
+                    << "  Tree type: " << forest_tree_type << "\n"
+                    << "  LAImax: " << forest_laimax << "\n";
+
+        } else if (has_forest_lai && has_forest_height && has_forest_cd_const) {
+            // Gridded NC mode with constant Cd
+            solverChoice.do_forest_drag = true;
+            for (int lev = 0; lev <= max_level; ++lev) {
+                m_forest_drag[lev] = std::make_unique<ForestDrag>(
+                    forest_lai_file, forest_height_file, forest_cd_const,
+                    forest_vegtype_file, forest_tree_type, forest_laimax);
+            }
+            Print() << "ForestDrag: Using gridded NetCDF mode with constant Cd=" << forest_cd_const << "\n"
+                    << "  LAI file: " << forest_lai_file << "\n"
+                    << "  Height file: " << forest_height_file << "\n"
+                    << "  Tree type: " << forest_tree_type << "\n"
+                    << "  LAImax: " << forest_laimax << "\n";
+
+        } else if (has_forest_lai || has_forest_height || has_any_cd) {
+            Abort("Gridded forest mode requires forest_lai_file, forest_height_file, "
+                  "and either forest_cd_file or forest_cd.");
+        }
+
+        if (has_forest_drag_switch && requested_forest_drag != solverChoice.do_forest_drag) {
+            Abort("'do_forest_drag' must be true when a complete forest configuration is "
+                  "provided, and false when no forest configuration is provided.");
+        }
+        // else: no forest drag
     }
 
     // If init from WRFInput or Metgrid make sure a valid file name is present at level zero
