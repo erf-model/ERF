@@ -58,20 +58,40 @@ List of Parameters
 | Parameter                | Definition      | Acceptable      | Default     |
 |                          |                 | Values          |             |
 +==========================+=================+=================+=============+
-| **geometry.prob_lo**     | physical        | Real            | must be set |
+| **geometry.prob_lo**     | physical        | Real            | 0 0 0       |
 |                          | location of low |                 |             |
 |                          | corner of the   |                 |             |
 |                          | domain          |                 |             |
 +--------------------------+-----------------+-----------------+-------------+
 | **geometry.prob_hi**     | physical        | Real            | must be set |
-|                          | location of     |                 |             |
-|                          | high corner of  |                 |             |
-|                          | the domain      |                 |             |
+|                          | location of     |                 | unless      |
+|                          | high corner of  |                 | prob_extent |
+|                          | the domain      |                 | is set      |
++--------------------------+-----------------+-----------------+-------------+
+| **geometry.prob_extent** | physical size   | Real            | must be set |
+|                          | of the domain   |                 | unless      |
+|                          | in each         |                 | prob_hi     |
+|                          | direction       |                 | is set      |
 +--------------------------+-----------------+-----------------+-------------+
 | **geometry.is_periodic** | is the domain   | 0 if false, 1   | 0 0 0       |
 |                          | periodic in     | if true         |             |
 |                          | this direction  |                 |             |
 +--------------------------+-----------------+-----------------+-------------+
+
+.. note::
+
+   The extent of the domain may be specified either by **geometry.prob_hi** or by
+   **geometry.prob_extent**, where ``prob_hi = prob_lo + prob_extent``.  Exactly one
+   of the two must be given; specifying both is an error.  Since **geometry.prob_lo**
+   defaults to 0 in every direction, a domain whose low corner is at the origin can be
+   defined by setting **geometry.prob_extent** alone, i.e. without setting either
+   **geometry.prob_lo** or **geometry.prob_hi**.
+
+   These parameters may also be given with the ``erf`` prefix, i.e. as **erf.prob_lo**,
+   **erf.prob_hi**, **erf.prob_extent** and **erf.is_periodic**, but the ``erf``- and
+   ``geometry``-prefixed forms may not be mixed.  Note that if the ``erf`` prefix is used,
+   then **erf.prob_lo** must be set explicitly along with **erf.prob_hi** or
+   **erf.prob_extent**.
 
 Examples of Usage
 -----------------
@@ -82,6 +102,11 @@ Examples of Usage
 -  **geometry.prob_hi** = 1.e8 2.e8 2.e8
    defines the high corner of the domain at (1.e8,2.e8,2.e8) in
    physical space.
+
+-  **geometry.prob_extent** = 1.e8 2.e8 2.e8
+   defines a domain of size (1.e8,2.e8,2.e8) in physical space; combined with
+   the default **geometry.prob_lo** = 0 0 0, this is equivalent to the two
+   examples above.
 
 -  **geometry.is_periodic** = 0 1 0
    says the domain is periodic in the y-direction only.
