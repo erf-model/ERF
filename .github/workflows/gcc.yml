@@ -118,7 +118,9 @@ jobs:
     # run to completion here instead. This build enables assertions, so an out of
     # bounds access or a failed invariant is caught even without a gold file.
     - name: SDM Smoke Tests
-      if: matrix.particles_precision == 'DOUBLE' && matrix.mesh_precision == 'DOUBLE'
+      # The smoke cases are only registered when particles are built in, so this
+      # step has nothing to run (and --no-tests=error would fail) without them.
+      if: matrix.particles == 'ON' && matrix.particles_precision == 'DOUBLE' && matrix.mesh_precision == 'DOUBLE'
       run: |
         ctest -L smoke --output-on-failure --no-tests=error
       working-directory: ${{runner.workspace}}/ERF/build
