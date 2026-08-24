@@ -17,6 +17,7 @@ Quick Diagnostic
    **Common causes:**
 
    * Missing ``craype-accel-*`` module on Cray GPU builds → See :ref:`troubleshoot-cray-accel`
+   * CUDA toolkit and ``cray-mpich`` versions incompatible → See :ref:`troubleshoot-cuda-version`
    * NetCDF/HDF5 not found → See :ref:`sec:build:library`
    * Wrong compiler detected → Check ``module list``
 
@@ -39,6 +40,19 @@ Quick Diagnostic
       CC --cray-print-opts=libs | grep -E 'cuda|mpi_gtl|mpich|libsci'
 
    If CUDA ``-L`` paths are missing (or stale), reload your machine profile/module stack and reconfigure from a clean build directory.
+
+.. dropdown:: Cray GPU link error: ``undefined reference to cudaMalloc@libcudart.so.NN``
+   :icon: info
+   :color: warning
+
+   A versioned ``@libcudart.so.NN`` suffix, or a ``libcudart.so.NN ... not found`` warning naming ``libmpi_gtl_cuda.so``, means the loaded CUDA toolkit and ``cray-mpich`` disagree on the CUDA runtime major version. CMake reports this as a broken C++ compiler.
+
+   .. code-block:: bash
+
+      readelf -d $CRAY_MPICH_ROOTDIR/gtl/lib/libmpi_gtl_cuda.so | grep -o 'libcudart\.so\.[0-9]*'
+      ls $CUDA_HOME/lib64/libcudart.so.*.*
+
+   A major-version disagreement between those two is the fault → See :ref:`troubleshoot-cuda-version`
 
 .. dropdown:: Compilation fails
    :icon: alert
@@ -134,6 +148,91 @@ Load the module for your hardware:
 
    source Build/machines/perlmutter_erf.profile
    cmake -DERF_ENABLE_CUDA=ON ..
+
+.. _troubleshoot-cuda-version:
+
+CUDA Toolkit / Cray MPICH Version Mismatch
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**Symptom:** On a Cray GPU build, CMake reports that the C++ compiler itself is broken, or Kokkos fails to compile. Neither message mentions modules, so both are easy to misread as a broken toolchain or an upstream bug.
+
+**Error:** the mismatch surfaces in one of two places, depending on which direction it goes.
+
+If the CUDA toolkit is *older* than the Cray MPICH GTL library expects, configure dies at ``project()``:
+
+.. code-block:: text
+
+   ld: warning: libcudart.so.13, needed by .../libmpi_gtl_cuda.so, not found
+   ld: .../libmpi_gtl_cuda.so: undefined reference to `cudaMalloc@libcudart.so.13'
+   CMake Error: The C++ compiler ".../CC" is not able to compile a simple test program.
+
+If the CUDA toolkit is *newer* than the vendored Kokkos supports, configure succeeds and the compile fails instead:
+
+.. code-block:: text
+
+   Kokkos_Cuda_Instance.hpp: error: argument of type "size_t" is incompatible
+       with parameter of type "const cudaGraphEdgeData *"
+   Kokkos_Cuda_Instance.hpp: error: no suitable constructor exists to convert
+       from "int" to "cudaMemLocation"
+
+**Cause:** two independent version constraints must hold at once.
+
+* Cray MPICH's GPU Transport Layer (``libmpi_gtl_cuda.so``) records a specific CUDA runtime soname as a hard ``DT_NEEDED`` dependency. The wrapper links it unconditionally (not ``--as-needed``), so that soname must resolve even for a trivial test program. ``cray-mpich/9.1.0`` and later need ``libcudart.so.13``; ``8.1.28`` through ``9.0.1`` need ``libcudart.so.12``. A soname major-version mismatch cannot be papered over with ``-L``, ``-rpath``, or any other link flag.
+* The Kokkos vendored under ``Submodules/ekat/extern/kokkos`` (4.5.1) calls ``cudaGraphAddDependencies``, ``cudaMemAdvise``, and ``cudaMemPrefetchAsync`` with their pre-CUDA-13 signatures and no ``CUDA_VERSION`` guards. CUDA 13 changed all three, adopting the ``_v2`` forms that were introduced alongside them during 12.x.
+
+Together these mean an EKAT-enabled build needs CUDA 12, which in turn restricts Cray MPICH to a ``libcudart.so.12`` build.
+
+**Diagnosis:** three commands establish whether this is the problem.
+
+.. code-block:: bash
+
+   # 1. Which CUDA runtime does the loaded MPI's GTL library demand?
+   readelf -d $CRAY_MPICH_ROOTDIR/gtl/lib/libmpi_gtl_cuda.so | grep -o 'libcudart\.so\.[0-9]*'
+
+   # 2. Which CUDA runtime is actually loaded?
+   ls $CUDA_HOME/lib64/libcudart.so.*.*
+
+   # 3. Confirm the dependency is genuinely unresolvable
+   ldd -r $CRAY_MPICH_ROOTDIR/gtl/lib/libmpi_gtl_cuda.so | grep 'not found'
+
+If (1) and (2) disagree in major version, that is the fault. These two loops then print the full compatibility matrix for the system, so a working pair can be read off directly:
+
+.. code-block:: bash
+
+   # CUDA runtimes installed on the system
+   for d in /opt/nvidia/hpc_sdk/Linux_x86_64/*/cuda/*/lib64; do
+     printf '%s: ' "$d"
+     ls $d/libcudart.so.*.* 2>/dev/null | xargs -r -n1 basename | tr '\n' ' '; echo
+   done
+
+   # CUDA runtime each installed cray-mpich demands
+   for g in /opt/cray/pe/mpich/*/gtl/lib/libmpi_gtl_cuda.so; do
+     printf '%s -> ' "$g"; readelf -d "$g" | grep -o 'libcudart\.so\.[0-9]*'
+   done
+
+**Solution:** source the machine profile, which pins a known-good pair:
+
+.. code-block:: bash
+
+   source Build/machines/perlmutter_erf.profile
+
+Or set the pair by hand and verify it before configuring:
+
+.. code-block:: bash
+
+   module load cudatoolkit/12.9
+   module swap cray-mpich cray-mpich/9.0.1
+
+   # expect libcudart.so.12, matching cudatoolkit/12.9
+   readelf -d $CRAY_MPICH_ROOTDIR/gtl/lib/libmpi_gtl_cuda.so | grep -o 'libcudart\.so\.[0-9]*'
+
+Then reconfigure in a **fresh** build directory, not the one that failed — ERF's Cray detection writes ``CMAKE_*_STANDARD_LIBRARIES`` into the cache with ``FORCE``, so those values do not re-derive on a reconfigure. See :ref:`troubleshoot-cache`.
+
+.. note::
+   The default ``cray-mpich`` advances with the CPE release, so a system default that worked before an upgrade can start requiring a newer CUDA runtime than the pinned toolkit provides. This is why the machine profiles pin both halves explicitly; scripts that load ``cray-mpich`` without a version are exposed to the default moving underneath them.
+
+.. tip::
+   If a build does not need EKAT/SHOC, ``-DERF_ENABLE_EKAT=OFF`` removes the Kokkos constraint entirely and allows the newer CUDA plus newer Cray MPICH pairing. AMReX guards these same three CUDA APIs on ``CUDART_VERSION >= 13000``, so the AMReX-only path builds against either toolkit.
 
 .. _troubleshoot-memory:
 

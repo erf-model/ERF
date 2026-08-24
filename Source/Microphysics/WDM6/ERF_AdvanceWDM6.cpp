@@ -102,7 +102,7 @@ Real wdm6_lamdar (Real qr, Real den, Real nr, Real pidnr_arg) {
     //
     // The old qr/nr guard is dropped: every caller already gates on
     // qr <= qcrmin || nr <= nrmin with the same values, and the branch returned
-    // 1/5.0e4, a slope, where the caller expects a lamda and inverts it again.
+    // 1/5.0e4, a slope, where the caller expects a lambda and inverts it again.
     return std::exp(std::log((pidnr_arg * nr) / (qr * den)) * wdm6_literal(0.33333333));
 }
 
@@ -166,13 +166,13 @@ void wdm6_slope_rain_cell (Real qr, Real nr, Real den, Real denfac,
         rslope  = amrex::min(Real(1.0) / wdm6_lamdar(qr, den, nr, pidnr_arg),
                              wdm6_literal(1.e-3));
         rslopeb = std::pow(rslope, bvtr_arg);
-        rslope2 = rslope * rslope;
+        rslope2 = rslope  * rslope;
         rslope3 = rslope2 * rslope;
     }
     vt = pvtr_arg * rslopeb * denfac;
     vtn = pvtrn_arg * rslopeb * denfac;
-    if (qr <= Real(0.0)) vt = Real(0.0);
-    if (nr <= Real(0.0)) vtn = Real(0.0);
+    if (qr <= Real(0.0)) { vt  = Real(0.0); }
+    if (nr <= Real(0.0)) { vtn = Real(0.0); }
 }
 
 // ---------------------------------------------------------------
@@ -213,15 +213,15 @@ Real wdm6_lamdag (Real x, Real y, Real pidn0g_arg) {
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 void wdm6_slope_snow_cell (Real qs, Real den, Real denfac, Real t,
-                            Real pidn0s_arg, Real alpha_arg,
-                            Real n0smax_arg, Real n0s_arg,
-                            Real t0c_arg, Real qcrmin_arg,
-                            Real rslopesmax_arg, Real rslopesbmax_arg,
-                            Real rslopes2max_arg, Real rslopes3max_arg,
-                            Real bvts_arg, Real pvts_arg,
-                            Real& rslope, Real& rslopeb,
-                            Real& rslope2, Real& rslope3, Real& vt,
-                            Real& n0sfac)
+                           Real pidn0s_arg, Real alpha_arg,
+                           Real n0smax_arg, Real n0s_arg,
+                           Real t0c_arg, Real qcrmin_arg,
+                           Real rslopesmax_arg, Real rslopesbmax_arg,
+                           Real rslopes2max_arg, Real rslopes3max_arg,
+                           Real bvts_arg, Real pvts_arg,
+                           Real& rslope, Real& rslopeb,
+                           Real& rslope2, Real& rslope3, Real& vt,
+                           Real& n0sfac)
 {
     Real supcol = t0c_arg - t;
     n0sfac = amrex::max(amrex::min(std::exp(alpha_arg*supcol),
@@ -238,17 +238,17 @@ void wdm6_slope_snow_cell (Real qs, Real den, Real denfac, Real t,
         rslope3 = rslope2*rslope;
     }
     vt = pvts_arg*rslopeb*denfac;
-    if (qs <= Real(0.0)) vt = Real(0.0);
+    if (qs <= Real(0.0)) { vt = Real(0.0); }
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 void wdm6_slope_graup_cell (Real qg, Real den, Real denfac,
-                             Real pidn0g_arg, Real qcrmin_arg,
-                             Real rslopegmax_arg, Real rslopegbmax_arg,
-                             Real rslopeg2max_arg, Real rslopeg3max_arg,
-                             Real bvtg_arg, Real pvtg_arg,
-                             Real& rslope, Real& rslopeb,
-                             Real& rslope2, Real& rslope3, Real& vt)
+                            Real pidn0g_arg, Real qcrmin_arg,
+                            Real rslopegmax_arg, Real rslopegbmax_arg,
+                            Real rslopeg2max_arg, Real rslopeg3max_arg,
+                            Real bvtg_arg, Real pvtg_arg,
+                            Real& rslope, Real& rslopeb,
+                            Real& rslope2, Real& rslope3, Real& vt)
 {
     if (qg <= qcrmin_arg) {
         rslope  = rslopegmax_arg;
@@ -262,7 +262,7 @@ void wdm6_slope_graup_cell (Real qg, Real den, Real denfac,
         rslope3 = rslope2*rslope;
     }
     vt = pvtg_arg*rslopeb*denfac;
-    if (qg <= Real(0.0)) vt = Real(0.0);
+    if (qg <= Real(0.0)) { vt = Real(0.0); }
 }
 
 namespace WDM6SedCellScratch {
@@ -586,7 +586,7 @@ void wdm6_nislfv_rain_plm6_column (
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-Real wdm6_mean_droplet_diameter (Real qc, Real nc, Real den, Real pidnc_arg) {
+Real wdm6_mean_droplet_diameter (Real qc, Real nc, Real den, Real /*pidnc_arg*/) {
     // Volume-weighted mean diameter of cloud droplets
     // Returns diameter in meters
     if (nc < Real(1.e1) || qc < Real(1.e-9)) return Real(0.0);
@@ -612,11 +612,11 @@ void wdm6_ccn_activation (
     const Real qv,      // water vapor mixing ratio (kg/kg)
     const Real qc,      // cloud water mixing ratio (kg/kg)
     const Real qvs,     // saturation mixing ratio (kg/kg)
-    const Real temp,    // temperature (K)
+    const Real /*temp*/,  // temperature (K)
     const Real w,       // vertical velocity (m/s)
-    const Real dt,      // timestep (s)
-    const Real ccn0,    // background CCN (#/m^3)
-    const Real den      // air density (kg/m^3)
+    const Real /*dt*/,    // timestep (s)
+    const Real /*ccn0*/,  // background CCN (#/m^3)
+    const Real /*den*/    // air density (kg/m^3)
 ) {
     // Only activate if supersaturated and cloud exists
     if (qv <= qvs || qc < Real(1.e-8)) return;
@@ -648,7 +648,7 @@ void wdm6_ccn_activation (
 // ---------------------------------------------------------------
 
 void WDM6::Advance(const Real& dt_advance,
-                   const SolverChoice& solverChoice)
+                   const SolverChoice& /*solverChoice*/)
 {
     // ---------------------------------------------------------------
     // Dual-mode implementation following WSM6 pattern:
@@ -656,11 +656,11 @@ void WDM6::Advance(const Real& dt_advance,
     // - Without: Use C++ GPU kernels (not yet implemented)
     // ---------------------------------------------------------------
 
+#ifdef ERF_USE_WDM6_FORT
     static int call_count = 0;
     call_count++;
-    const bool first_call = (call_count == 1);
+    [[maybe_unused]] const bool first_call = (call_count == 1);
 
-#ifdef ERF_USE_WDM6_FORT
     // Fortran bridge mode - initialize once
     static bool wdm6_inited = false;
     if (!wdm6_inited) {
@@ -702,13 +702,13 @@ void WDM6::Advance(const Real& dt_advance,
 #endif
 
     // Physical constants
-    constexpr double g = static_cast<double>(CONST_GRAV);
+    [[maybe_unused]] constexpr double g = static_cast<double>(CONST_GRAV);
     constexpr double cpd = static_cast<double>(Cp_d);
     constexpr double cpv = static_cast<double>(Cp_v);
-    constexpr double rd = static_cast<double>(R_d);
+    [[maybe_unused]] constexpr double rd = static_cast<double>(R_d);
     constexpr double rv = static_cast<double>(R_v);
     constexpr double t0c = 273.15;
-    constexpr double ep1 = static_cast<double>(R_v / R_d - one);
+    [[maybe_unused]] constexpr double ep1 = static_cast<double>(R_v / R_d - one);
     constexpr double ep2 = static_cast<double>(R_d / R_v);
     constexpr double qmin = 1.0e-12;
     constexpr double xls = static_cast<double>(lsub);
@@ -720,7 +720,10 @@ void WDM6::Advance(const Real& dt_advance,
     constexpr double cliq = static_cast<double>(Cp_l);
     constexpr double cice = 2106.0;
     constexpr double psat = 610.78;
-    const double ccn0 = static_cast<double>(m_ccn0);
+    // Only the Fortran bridge consumes these; the native C++ path below derives
+    // its own. Mirrors ERF_AdvanceWSM6.cpp.
+    amrex::ignore_unused(g, rd, ep1);
+    [[maybe_unused]] const double ccn0 = static_cast<double>(m_ccn0);
 
     for (MFIter mfi(*mic_fab_vars[MicVar_WDM6::qv], TileNoZ()); mfi.isValid(); ++mfi) {
         const Box box = mfi.tilebox();
@@ -750,12 +753,12 @@ void WDM6::Advance(const Real& dt_advance,
         const int klo = box.smallEnd(2);
         const int khi = box.bigEnd(2);
 
-        const int imlo = fab_box.smallEnd(0);
-        const int imhi = fab_box.bigEnd(0);
-        const int jmlo = fab_box.smallEnd(1);
-        const int jmhi = fab_box.bigEnd(1);
-        const int kmlo = fab_box.smallEnd(2);
-        const int kmhi = fab_box.bigEnd(2);
+        [[maybe_unused]] const int imlo = fab_box.smallEnd(0);
+        [[maybe_unused]] const int imhi = fab_box.bigEnd(0);
+        [[maybe_unused]] const int jmlo = fab_box.smallEnd(1);
+        [[maybe_unused]] const int jmhi = fab_box.bigEnd(1);
+        [[maybe_unused]] const int kmlo = fab_box.smallEnd(2);
+        [[maybe_unused]] const int kmhi = fab_box.bigEnd(2);
         const bool has_target_override = (micro_diag_target_column.size() == 2);
         const int diag_i = has_target_override ? micro_diag_target_column[0] : ilo;
         const int diag_j = has_target_override ? micro_diag_target_column[1] : jlo;
@@ -793,10 +796,18 @@ void WDM6::Advance(const Real& dt_advance,
                                                      + (z_arr(i+1,j+1,k+1) - z_arr(i+1,j+1,k)) ) : dz_val;
         });
 
+        // Surface slabs are anchored at klo, NOT at k = 0. The 2D buffers below
+        // are addressed with the ParallelFor's own k, while the 3D accumulation
+        // fields (rain_arr and friends, allocated on cons_in.boxArray()) are
+        // addressed at klo. Collapsing the slab to 0 makes those two agree only
+        // when klo happens to be 0, which is every case ERF can currently run
+        // because ERF_InitCustomPert_Bubble.H asserts each box spans the whole
+        // column. Anchoring at klo makes the correspondence hold by
+        // construction, and is bit-identical wherever klo == 0.
         Box box2d(box);
-        box2d.makeSlab(2, 0);
+        box2d.makeSlab(2, klo);
         Box fab_box2d(fab_box);
-        fab_box2d.makeSlab(2, 0);
+        fab_box2d.makeSlab(2, klo);
 
         // Create landmask array in the WRF xland encoding: 1 = land, 2 = water.
         // xland is handed to wdm62D's slmsk dummy unconverted (see the comment
@@ -855,6 +866,13 @@ void WDM6::Advance(const Real& dt_advance,
         });
 
         // (Tile-based diagnostics removed - using global diagnostics instead)
+
+        // Host-only Fortran reads mic_fab_vars and the buffers filled above via
+        // dataPtr(), so the GPU writes must complete before crossing the
+        // language boundary. Without this the Fortran can read delz, xland and
+        // the zeroed accumulators while their kernels are still in flight.
+        // Mirrors ERF_AdvanceWSM6.cpp.
+        Gpu::streamSynchronize();
 
         // Call Fortran WDM6
         mp_wdm6_run_c(
@@ -924,7 +942,13 @@ void WDM6::Advance(const Real& dt_advance,
         FArrayBox work1_fab(fab_box,3, Arena_Used);
         FArrayBox workn_fab(fab_box,1, Arena_Used);
         FArrayBox work2_fab(fab_box,1, Arena_Used);  // Ventilation factor for diffusion (G11+)
-        Box box2d(IntVect(ilo,jlo,0), IntVect(ihi,jhi,0));
+        // Anchored at klo, not 0. mstep/numdt/sr/fallc/delqi all live on this
+        // slab and are written with the ParallelFor's own k, while the G9
+        // accumulation block reads them back at klo alongside the 3D surface
+        // fields (rain_arr, delz_arr, work1_arr). With the slab at 0 those two
+        // conventions only coincide when klo == 0; sr_arr(i,j,klo) and
+        // fallc_arr(i,j,klo) were otherwise out of bounds on this FAB.
+        Box box2d(IntVect(ilo,jlo,klo), IntVect(ihi,jhi,klo));
         IArrayBox mstep_fab(box2d,1, Arena_Used);
         IArrayBox numdt_fab(box2d,1, Arena_Used);
         FArrayBox sr_fab(box2d, 1, Arena_Used);  // Snow ratio for G9 output
@@ -1393,7 +1417,7 @@ void WDM6::Advance(const Real& dt_advance,
             // ============================================================
             ParallelFor(box2d, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
                 amrex::ignore_unused(k);
-                const int col_mstep = mstep_arr(i,j,0);
+                const int col_mstep = mstep_arr(i,j,klo);
                 for (int n = 1; n <= mstepmax; ++n) {
                     if (n > col_mstep) {
                         continue;
@@ -1765,9 +1789,12 @@ void WDM6::Advance(const Real& dt_advance,
                     qi_arr(i,j,k3) = amrex::max(rq_col(kk) / den_col(kk), Real(0.0));
                 }
 
-                // Ice fallout at surface
-                fallc_arr(i,j,k) = delqi_col / dz_col(0) / dtcld;
-                delqi_arr(i,j,k) = delqi_col;
+                // Ice fallout at surface. Indexed at klo to match the G9 block
+                // below, which reads fallc_arr(i,j,klo); this lambda discards
+                // its own k (see ignore_unused above), so spelling the index
+                // out keeps the two sites textually identical.
+                fallc_arr(i,j,klo) = delqi_col / dz_col(0) / dtcld;
+                delqi_arr(i,j,klo) = delqi_col;
             });
 
 
@@ -2712,18 +2739,18 @@ void WDM6::Advance(const Real& dt_advance,
 
 
             ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-                const Real qmin_l = Real(qmin);
+                const Real qmin_l   = Real(qmin);
                 const Real qcrmin_l = Real(qcrmin);
-                const Real ncmin_l = Real(ncmin);
-                const Real nrmin_l = Real(nrmin);
-                const Real t0c_l = Real(t0c);
-                const Real one = Real(1.0);
-                const Real zero = Real(0.0);
-                const Real delta2 =
+                const Real ncmin_l  = Real(ncmin);
+                const Real nrmin_l  = Real(nrmin);
+                const Real t0c_l    = Real(t0c);
+                const Real one_l    = Real(1.0);
+                const Real zero_l   = Real(0.0);
+                const Real delta2   =
                     (qr_arr(i,j,k) < wdm6_literal(1.0e-4) && qs_arr(i,j,k) < wdm6_literal(1.0e-4))
-                    ? one : zero;
+                    ? one_l : zero_l;
                 const Real delta3 =
-                    (qr_arr(i,j,k) < wdm6_literal(1.0e-4)) ? one : zero;
+                    (qr_arr(i,j,k) < wdm6_literal(1.0e-4)) ? one_l : zero_l;
 
                 if (t_arr(i,j,k) <= t0c_l) {
                     Real value, source, factor, xlf, xlwork2;
@@ -2771,7 +2798,7 @@ void WDM6::Advance(const Real& dt_advance,
                              - pgaut_arr(i,j,k) + paacw_arr(i,j,k)
                              + piacr_arr(i,j,k) * delta3
                              + praci_arr(i,j,k) * delta3
-                             - pracs_arr(i,j,k) * (one - delta2)
+                             - pracs_arr(i,j,k) * (one_l - delta2)
                              + psacr_arr(i,j,k) * delta2
                              + psaci_arr(i,j,k) - pgacs_arr(i,j,k)) * dtcld;
                     if (source > value) {
@@ -2790,10 +2817,10 @@ void WDM6::Advance(const Real& dt_advance,
 
                     value = amrex::max(qmin_l, qg_arr(i,j,k));
                     source = -(pgdep_arr(i,j,k) + pgaut_arr(i,j,k)
-                             + piacr_arr(i,j,k) * (one - delta3)
-                             + praci_arr(i,j,k) * (one - delta3)
-                             + psacr_arr(i,j,k) * (one - delta2)
-                             + pracs_arr(i,j,k) * (one - delta2)
+                             + piacr_arr(i,j,k) * (one_l - delta3)
+                             + praci_arr(i,j,k) * (one_l - delta3)
+                             + psacr_arr(i,j,k) * (one_l - delta2)
+                             + pracs_arr(i,j,k) * (one_l - delta2)
                              + pgaci_arr(i,j,k) + paacw_arr(i,j,k)
                              + pgacr_arr(i,j,k) + pgacs_arr(i,j,k)) * dtcld;
                     if (source > value) {
@@ -2843,48 +2870,48 @@ void WDM6::Advance(const Real& dt_advance,
                         qc_arr(i,j,k) - (praut_arr(i,j,k) + pracw_arr(i,j,k)
                                        + paacw_arr(i,j,k) + paacw_arr(i,j,k))
                                        * dtcld,
-                        zero);
+                        zero_l);
                     qr_arr(i,j,k) = amrex::max(
                         qr_arr(i,j,k) + (praut_arr(i,j,k) + pracw_arr(i,j,k)
                                        + prevp_arr(i,j,k) - piacr_arr(i,j,k)
                                        - pgacr_arr(i,j,k) - psacr_arr(i,j,k))
                                        * dtcld,
-                        zero);
+                        zero_l);
                     qi_arr(i,j,k) = amrex::max(
                         qi_arr(i,j,k) - (psaut_arr(i,j,k) + praci_arr(i,j,k)
                                        + psaci_arr(i,j,k) + pgaci_arr(i,j,k)
                                        - pigen_arr(i,j,k) - pidep_arr(i,j,k))
                                        * dtcld,
-                        zero);
+                        zero_l);
                     qs_arr(i,j,k) = amrex::max(
                         qs_arr(i,j,k) + (psdep_arr(i,j,k) + psaut_arr(i,j,k)
                                        + paacw_arr(i,j,k) - pgaut_arr(i,j,k)
                                        + piacr_arr(i,j,k) * delta3
                                        + praci_arr(i,j,k) * delta3
                                        + psaci_arr(i,j,k) - pgacs_arr(i,j,k)
-                                       - pracs_arr(i,j,k) * (one - delta2)
+                                       - pracs_arr(i,j,k) * (one_l - delta2)
                                        + psacr_arr(i,j,k) * delta2) * dtcld,
-                        zero);
+                        zero_l);
                     qg_arr(i,j,k) = amrex::max(
                         qg_arr(i,j,k) + (pgdep_arr(i,j,k) + pgaut_arr(i,j,k)
-                                       + piacr_arr(i,j,k) * (one - delta3)
-                                       + praci_arr(i,j,k) * (one - delta3)
-                                       + psacr_arr(i,j,k) * (one - delta2)
-                                       + pracs_arr(i,j,k) * (one - delta2)
+                                       + piacr_arr(i,j,k) * (one_l - delta3)
+                                       + praci_arr(i,j,k) * (one_l - delta3)
+                                       + psacr_arr(i,j,k) * (one_l - delta2)
+                                       + pracs_arr(i,j,k) * (one_l - delta2)
                                        + pgaci_arr(i,j,k) + paacw_arr(i,j,k)
                                        + pgacr_arr(i,j,k) + pgacs_arr(i,j,k))
                                        * dtcld,
-                        zero);
+                        zero_l);
                     nc_arr(i,j,k) = amrex::max(
                         nc_arr(i,j,k) + (-nrauto_arr(i,j,k) - nccol_arr(i,j,k)
                                        - nraccr_arr(i,j,k) - naacw_arr(i,j,k)
                                        - naacw_arr(i,j,k)) * dtcld,
-                        zero);
+                        zero_l);
                     nr_arr(i,j,k) = amrex::max(
                         nr_arr(i,j,k) + (nrauto_arr(i,j,k) - nrcol_arr(i,j,k)
                                        - niacr_arr(i,j,k) - nsacr_arr(i,j,k)
                                        - ngacr_arr(i,j,k)) * dtcld,
-                        zero);
+                        zero_l);
                     xlf = Real(xls) - xl_arr(i,j,k);
                     xlwork2 = -Real(xls) * (psdep_arr(i,j,k) + pgdep_arr(i,j,k)
                                           + pidep_arr(i,j,k) + pigen_arr(i,j,k))
@@ -2971,31 +2998,31 @@ void WDM6::Advance(const Real& dt_advance,
                         qc_arr(i,j,k) - (praut_arr(i,j,k) + pracw_arr(i,j,k)
                                        + paacw_arr(i,j,k) + paacw_arr(i,j,k))
                                        * dtcld,
-                        zero);
+                        zero_l);
                     qr_arr(i,j,k) = amrex::max(
                         qr_arr(i,j,k) + (praut_arr(i,j,k) + pracw_arr(i,j,k)
                                        + prevp_arr(i,j,k) + paacw_arr(i,j,k)
                                        + paacw_arr(i,j,k) - pseml_arr(i,j,k)
                                        - pgeml_arr(i,j,k)) * dtcld,
-                        zero);
+                        zero_l);
                     qs_arr(i,j,k) = amrex::max(
                         qs_arr(i,j,k) + (psevp_arr(i,j,k) - pgacs_arr(i,j,k)
                                        + pseml_arr(i,j,k)) * dtcld,
-                        zero);
+                        zero_l);
                     qg_arr(i,j,k) = amrex::max(
                         qg_arr(i,j,k) + (pgacs_arr(i,j,k) + pgevp_arr(i,j,k)
                                        + pgeml_arr(i,j,k)) * dtcld,
-                        zero);
+                        zero_l);
                     nc_arr(i,j,k) = amrex::max(
                         nc_arr(i,j,k) + (-nrauto_arr(i,j,k) - nccol_arr(i,j,k)
                                        - nraccr_arr(i,j,k) - naacw_arr(i,j,k)
                                        - naacw_arr(i,j,k)) * dtcld,
-                        zero);
+                        zero_l);
                     nr_arr(i,j,k) = amrex::max(
                         nr_arr(i,j,k) + (nrauto_arr(i,j,k) - nrcol_arr(i,j,k)
                                        + nseml_arr(i,j,k) + ngeml_arr(i,j,k))
                                        * dtcld,
-                        zero);
+                        zero_l);
                     xlf = Real(xls) - xl_arr(i,j,k);
                     xlwork2 = -xl_arr(i,j,k) * (prevp_arr(i,j,k)
                                               + psevp_arr(i,j,k)

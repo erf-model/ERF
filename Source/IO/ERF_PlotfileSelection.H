@@ -285,7 +285,7 @@ plot3d_fixed_unconditional_diagnostic (const std::string& name)
         "temp", "theta", "KE", "scalar", "soundspeed", "reflectivity",
         "max_reflectivity", "mucape", "vorticity_x", "vorticity_y", "vorticity_z",
         "helicity", "local_helicity", "magvel", "divU", "pres_hse", "dens_hse",
-        "theta_hse", "qv_hse", "pressure", "pert_pres", "pert_dens", "buoyancy",
+        "theta_hse", "pi_hse", "qv_hse", "pressure", "pert_pres", "pert_dens", "buoyancy",
         "eq_pot_temp", "VPD", "dpdx", "dpdy", "dpdz", "pres_hse_x", "pres_hse_y",
         "pres_hse_z", "z_phys", "detJ", "h_xi", "h_eta", "h_zeta",
         "mapfac", "lat_m", "lon_m", "pblh",

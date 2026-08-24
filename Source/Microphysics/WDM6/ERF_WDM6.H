@@ -58,10 +58,10 @@ class WDM6 : public NullMoist {
     using FabPtr = std::shared_ptr<amrex::MultiFab>;
 
 public:
-    WDM6() {}
-    virtual ~WDM6() = default;
+    WDM6 () {}
+    virtual ~WDM6 () = default;
 
-    void Define(SolverChoice& sc) override
+    void Define (SolverChoice& sc) override
     {
         m_moisture_type = sc.moisture_type;
         m_axis = sc.ave_plane;
@@ -151,50 +151,52 @@ public:
     static constexpr amrex::Real di82       = wdm6_literal(82.0e-6);
     static constexpr amrex::Real di15       = wdm6_literal(15.0e-6);
 
-    void Init(const amrex::MultiFab& cons_in,
-              const amrex::BoxArray& grids,
-              const amrex::Geometry& geom,
-              const amrex::Real& dt_advance,
-              std::unique_ptr<amrex::MultiFab>& z_phys_nd,
-              std::unique_ptr<amrex::MultiFab>& detJ_cc) override;
+    void Init (const amrex::MultiFab& cons_in,
+               const amrex::BoxArray& grids,
+               const amrex::Geometry& geom,
+               const amrex::Real& dt_advance,
+               std::unique_ptr<amrex::MultiFab>& z_phys_nd,
+               std::unique_ptr<amrex::MultiFab>& detJ_cc) override;
 
-    void Set_dzmin(const amrex::Real dz_min) override { m_dzmin = dz_min; }
+    void Set_dzmin (const amrex::Real dz_min) override { m_dzmin = dz_min; }
 
     // Held by pointer so a retag of the mask after this call is visible. See
     // the xland fill and the qcr selection in ERF_AdvanceWDM6.cpp for the
     // ERF-lmask-to-WRF-xland encoding difference.
-    void Set_Lmask(amrex::iMultiFab* lmask) override { m_lmask = lmask; }
+    void Set_Lmask (amrex::iMultiFab* lmask) override { m_lmask = lmask; }
 
-    void Copy_State_to_Micro(const amrex::MultiFab& cons_in) override;
-    void Copy_Micro_to_State(amrex::MultiFab& cons_in) override;
+    void Copy_State_to_Micro (const amrex::MultiFab& cons_in) override;
+    void Copy_Micro_to_State (amrex::MultiFab& cons_in) override;
 
-    void Update_Micro_Vars(amrex::MultiFab& cons_in) override
+    using NullMoist::Update_Micro_Vars;
+
+    void Update_Micro_Vars (amrex::MultiFab& cons_in) override
     {
         Copy_State_to_Micro(cons_in);
     }
 
-    void Update_State_Vars(amrex::MultiFab& cons_in,
-                           const amrex::MultiFab& /*z_phys_nd*/) override
+    void Update_State_Vars (amrex::MultiFab& cons_in,
+                            const amrex::MultiFab& /*z_phys_nd*/) override
     {
         Copy_Micro_to_State(cons_in);
     }
 
-    void Advance(const amrex::Real& dt_advance,
-                 const SolverChoice& solverChoice) override;
+    void Advance (const amrex::Real& dt_advance,
+                  const SolverChoice& solverChoice) override;
 
-    amrex::MultiFab* Qmoist_Ptr(const int& varIdx) override
+    amrex::MultiFab* Qmoist_Ptr (const int& varIdx) override
     {
         AMREX_ALWAYS_ASSERT(varIdx < m_qmoist_size);
         return mic_fab_vars[MicVarMap[varIdx]].get();
     }
 
-    int Qmoist_Size() override { return m_qmoist_size; }
-    int Qstate_Moist_Size() override { return n_qstate_moist_size; }
+    int Qmoist_Size () override { return m_qmoist_size; }
+    int Qstate_Moist_Size () override { return n_qstate_moist_size; }
     int Qstate_Moist_NumConc_Size () override { return n_qstate_moist_numconc_size; }
 
-    void Qmoist_Restart_Vars(const SolverChoice&,
-                             std::vector<int>& a_idx,
-                             std::vector<std::string>& a_names) const override
+    void Qmoist_Restart_Vars (const SolverChoice&,
+                              std::vector<int>& a_idx,
+                              std::vector<std::string>& a_names) const override
     {
         a_idx = {0, 1, 2};
         a_names = {"RainAccum", "SnowAccum", "GraupAccum"};
@@ -239,7 +241,7 @@ private:
     bool m_hail_opt{false};
     amrex::Real m_n0g{0}, m_deng{0}, m_avtg{0}, m_bvtg{0}, m_lamdagmax{0};
 
-    void initialize_coeffs();
+    void initialize_coeffs ();
 
     // Derived coefficients (computed in initialize_coeffs())
     amrex::Real m_pi_wdm6{0}, m_xlv1{0};

@@ -60,12 +60,10 @@ void ERF::advance_dycore (int level,
 
     MultiFab r_hse (base_state[level], make_alias, BaseState::r0_comp , 1);
     MultiFab p_hse (base_state[level], make_alias, BaseState::p0_comp , 1);
-    MultiFab pi_hse(base_state[level], make_alias, BaseState::pi0_comp, 1);
 
     // These pointers are used in the MRI utility functions
     MultiFab* r0  = &r_hse;
     MultiFab* p0  = &p_hse;
-    MultiFab* pi0 = &pi_hse;
 
     MultiFab* rhotheta_src_ptr = solverChoice.custom_rhotheta_forcing ? rhotheta_src[level].get() : nullptr;
     MultiFab* rhoqt_src_ptr    = solverChoice.custom_moisture_forcing ? rhoqt_src[level].get()   : nullptr;
