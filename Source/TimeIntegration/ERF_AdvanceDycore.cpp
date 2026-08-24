@@ -618,10 +618,11 @@ void ERF::advance_dycore (int level,
                 auto const& eddy_arr = eddyDiffs->array(mfi);
 
                 ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-                    // Compute mask: 0 if fully immersed (t_blank == 1), 1 if fluid (t_blank != 1)
-                    Real mask = (t_blank_arr(i,j,k) == one) ? zero : one;
-                    for (int n = 0; n < EddyDiff::NumDiffs; ++n) {
-                        eddy_arr(i,j,k,n) *= mask;
+                    // Zero eddy diffusivities in fully immersed cells (sanitizes NaN/Inf)
+                    if (t_blank_arr(i,j,k) == one) {
+                        for (int n = 0; n < EddyDiff::NumDiffs; ++n) {
+                            eddy_arr(i,j,k,n) = zero;
+                        }
                     }
                 });
             }
