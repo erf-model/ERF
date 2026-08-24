@@ -57,6 +57,7 @@ void RadiationSimple::Run(int& /*level*/,
 
     auto moist = m_moist;
     auto ice = m_ice;
+    const int qi_comp = m_qi_comp;
 
     for (MFIter mfi(*cons_in, TileNoZ()); mfi.isValid(); ++mfi)
     {
@@ -84,7 +85,7 @@ void RadiationSimple::Run(int& /*level*/,
                 Real rho = cons_arr(i, j, k, Rho_comp);
                 Real qv = (moist) ? cons_arr(i, j, k, RhoQ1_comp) / rho : Real(0);
                 Real qc = (moist) ? cons_arr(i, j, k, RhoQ2_comp) / rho : Real(0);
-                Real qi = (ice)   ? cons_arr(i, j, k, RhoQ3_comp) / rho : Real(0);
+                Real qi = (ice)   ? cons_arr(i, j, k, qi_comp) / rho : Real(0);
 
                 Real dz = (z_nd_arr) ? Real(0.25) * ( (z_nd_arr(i  ,j  ,k+1) - z_nd_arr(i  ,j  ,k))
                                             + (z_nd_arr(i+1,j  ,k+1) - z_nd_arr(i+1,j  ,k))

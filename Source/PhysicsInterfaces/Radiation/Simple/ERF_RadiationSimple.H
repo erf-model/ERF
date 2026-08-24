@@ -19,10 +19,11 @@ public:
         // Check if we have a valid moisture model
         if (sc.moisture_type != MoistureType::None) { m_moist = true; }
 
-        // Check if we have a moisture model with ice
-        if (sc.moisture_type == MoistureType::SAM ||
-            sc.moisture_type == MoistureType::Kessler ||
-            sc.moisture_type == MoistureType::Morrison) { m_ice = true; }
+        // Cloud-ice support follows the configured moisture-component mapping,
+        // so every scheme that carries a cloud-ice species (SAM, Morrison, WSM6,
+        // WDM6, ...) is picked up, and the warm-rain schemes are not.
+        m_qi_comp = sc.moisture_indices.qi;
+        m_ice = (m_qi_comp >= 0);
     }
 
     ~RadiationSimple() = default;
@@ -57,6 +58,7 @@ public:
 private:
     bool m_moist = false;
     bool m_ice = false;
+    int  m_qi_comp = -1;
 
     amrex::Geometry m_geom;
     amrex::BoxArray m_ba;
