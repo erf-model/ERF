@@ -188,48 +188,50 @@ void ERF::advance_dycore (int level,
             });
         }
 
-        // U and V velocity
-        IntVect ng_u = xvel_old.nGrowVect(); ng_u[2] = 1;
-        IntVect ng_v = yvel_old.nGrowVect(); ng_v[2] = 1;
+        // U and V velocity (only needed for nudging, not for immersed forcing)
+        if (use_nudging) {
+            IntVect ng_u = xvel_old.nGrowVect(); ng_u[2] = 1;
+            IntVect ng_v = yvel_old.nGrowVect(); ng_v[2] = 1;
 
-        PlaneAverage u_ave(&(xvel_old), fine_geom, solverChoice.ave_plane, ng_u);
-        PlaneAverage v_ave(&(yvel_old), fine_geom, solverChoice.ave_plane, ng_v);
+            PlaneAverage u_ave(&(xvel_old), fine_geom, solverChoice.ave_plane, ng_u);
+            PlaneAverage v_ave(&(yvel_old), fine_geom, solverChoice.ave_plane, ng_v);
 
-        u_ave.compute_averages(ZDir(), u_ave.field());
-        v_ave.compute_averages(ZDir(), v_ave.field());
+            u_ave.compute_averages(ZDir(), u_ave.field());
+            v_ave.compute_averages(ZDir(), v_ave.field());
 
-        int u_ncell = u_ave.ncell_line();
-        int v_ncell = v_ave.ncell_line();
-        Gpu::HostVector<    Real> u_plane_h(u_ncell), v_plane_h(v_ncell);
-        Gpu::DeviceVector<  Real> u_plane_d(u_ncell), v_plane_d(v_ncell);
+            int u_ncell = u_ave.ncell_line();
+            int v_ncell = v_ave.ncell_line();
+            Gpu::HostVector<    Real> u_plane_h(u_ncell), v_plane_h(v_ncell);
+            Gpu::DeviceVector<  Real> u_plane_d(u_ncell), v_plane_d(v_ncell);
 
-        u_ave.line_average(0, u_plane_h);
-        v_ave.line_average(0, v_plane_h);
+            u_ave.line_average(0, u_plane_h);
+            v_ave.line_average(0, v_plane_h);
 
-        Gpu::copy(Gpu::hostToDevice, u_plane_h.begin(), u_plane_h.end(), u_plane_d.begin());
-        Gpu::copy(Gpu::hostToDevice, v_plane_h.begin(), v_plane_h.end(), v_plane_d.begin());
+            Gpu::copy(Gpu::hostToDevice, u_plane_h.begin(), u_plane_h.end(), u_plane_d.begin());
+            Gpu::copy(Gpu::hostToDevice, v_plane_h.begin(), v_plane_h.end(), v_plane_d.begin());
 
-        Real* dptr_u = u_plane_d.data();
-        Real* dptr_v = v_plane_d.data();
+            Real* dptr_u = u_plane_d.data();
+            Real* dptr_v = v_plane_d.data();
 
-        Box udomain = domain; udomain.grow(2,ng_u[2]);
-        Box vdomain = domain; vdomain.grow(2,ng_v[2]);
-        u_plane_tab.resize({udomain.smallEnd(2)}, {udomain.bigEnd(2)});
-        v_plane_tab.resize({vdomain.smallEnd(2)}, {vdomain.bigEnd(2)});
+            Box udomain = domain; udomain.grow(2,ng_u[2]);
+            Box vdomain = domain; vdomain.grow(2,ng_v[2]);
+            u_plane_tab.resize({udomain.smallEnd(2)}, {udomain.bigEnd(2)});
+            v_plane_tab.resize({vdomain.smallEnd(2)}, {vdomain.bigEnd(2)});
 
-        int u_offset = ng_u[2];
-        dptr_u_plane = u_plane_tab.table();
-        ParallelFor(u_ncell, [=] AMREX_GPU_DEVICE (int k) noexcept
-        {
-            dptr_u_plane(k-u_offset) = dptr_u[k];
-        });
+            int u_offset = ng_u[2];
+            dptr_u_plane = u_plane_tab.table();
+            ParallelFor(u_ncell, [=] AMREX_GPU_DEVICE (int k) noexcept
+            {
+                dptr_u_plane(k-u_offset) = dptr_u[k];
+            });
 
-        int v_offset = ng_v[2];
-        dptr_v_plane = v_plane_tab.table();
-        ParallelFor(v_ncell, [=] AMREX_GPU_DEVICE (int k) noexcept
-        {
-            dptr_v_plane(k-v_offset) = dptr_v[k];
-        });
+            int v_offset = ng_v[2];
+            dptr_v_plane = v_plane_tab.table();
+            ParallelFor(v_ncell, [=] AMREX_GPU_DEVICE (int k) noexcept
+            {
+                dptr_v_plane(k-v_offset) = dptr_v[k];
+            });
+        }
 
         // Store planar averages in persistent ERF member variables for immersed forcing
         if (use_immersed_forcing) {
