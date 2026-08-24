@@ -63,10 +63,18 @@ TEST(ForestGridMetadata, CoordinateValidationRejectsUnsupportedAxes)
         {0.0, 1.0}, 3, "x", "field", origin, spacing).empty());
 }
 
-// Motivation: the endpoint branch executes in terrain and canopy device
-// kernels. Verify both upper-endpoint clamping and the no-extrapolation policy
-// on the active AMReX backend.
-TEST(UniformGridInterpolation, DeviceEndpointIsInsideAndOutsidePointIsRejected)
+struct EndpointSamples
+{
+    int lower_endpoint;
+    amrex::Real endpoint_weight;
+    int endpoint_inside;
+    int outside_inside;
+};
+
+// Keep the extended device lambda outside GoogleTest's private TestBody so
+// nvcc can compile this test with CUDA extended-lambda checks enabled.
+EndpointSamples
+sample_device_endpoints ()
 {
     amrex::Gpu::DeviceVector<int> device_lower(2, -1);
     amrex::Gpu::DeviceVector<amrex::Real> device_weight(2, -1.0);
@@ -95,8 +103,17 @@ TEST(UniformGridInterpolation, DeviceEndpointIsInsideAndOutsidePointIsRejected)
                      device_inside.begin(), device_inside.end(), host_inside.begin());
     amrex::Gpu::streamSynchronize();
 
-    EXPECT_EQ(host_inside[0], 1);
-    EXPECT_EQ(host_lower[0], 1);
-    EXPECT_EQ(host_weight[0], amrex::Real(1.0));
-    EXPECT_EQ(host_inside[1], 0);
+    return EndpointSamples{host_lower[0], host_weight[0], host_inside[0], host_inside[1]};
+}
+
+// Motivation: the endpoint branch executes in terrain and canopy device
+// kernels. Verify both upper-endpoint clamping and the no-extrapolation policy
+// on the active AMReX backend.
+TEST(UniformGridInterpolation, DeviceEndpointIsInsideAndOutsidePointIsRejected)
+{
+    const auto samples = sample_device_endpoints();
+    EXPECT_EQ(samples.endpoint_inside, 1);
+    EXPECT_EQ(samples.lower_endpoint, 1);
+    EXPECT_EQ(samples.endpoint_weight, amrex::Real(1.0));
+    EXPECT_EQ(samples.outside_inside, 0);
 }

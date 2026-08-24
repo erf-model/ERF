@@ -843,20 +843,22 @@ ERF::ReadCheckpointFile ()
                           std::to_string(lev));
                 }
 
-                std::size_t stored_pmap_size = 0;
-                if (!(metadata >> stored_pmap_size)) {
-                    Abort("Missing interval-mean distribution metadata for level " +
+                // v1 recorded the processor map used when the checkpoint was
+                // written.  It is useful for diagnosing a file, but it is not
+                // part of the physical state: VisMF::Read redistributes the
+                // data from the file's layout to the current DistributionMap.
+                // Read the record for v1 compatibility without making a
+                // restart depend on the original MPI decomposition.
+                long long stored_pmap_size = -1;
+                if (!(metadata >> stored_pmap_size) || stored_pmap_size < 0 ||
+                    stored_pmap_size != static_cast<long long>(stored_ba.size())) {
+                    Abort("Invalid interval-mean processor-map metadata for level " +
                           std::to_string(lev));
                 }
-                const auto& current_pmap = dmap[lev].ProcessorMap();
-                if (stored_pmap_size != static_cast<std::size_t>(current_pmap.size())) {
-                    Abort("Interval-mean checkpoint distribution size does not match level " +
-                          std::to_string(lev));
-                }
-                for (std::size_t ibox = 0; ibox < stored_pmap_size; ++ibox) {
+                for (long long ibox = 0; ibox < stored_pmap_size; ++ibox) {
                     int stored_proc = -1;
-                    if (!(metadata >> stored_proc) || stored_proc != current_pmap[ibox]) {
-                        Abort("Interval-mean checkpoint distribution does not match level " +
+                    if (!(metadata >> stored_proc)) {
+                        Abort("Invalid interval-mean distribution metadata for level " +
                               std::to_string(lev));
                     }
                 }

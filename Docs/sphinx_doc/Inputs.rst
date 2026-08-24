@@ -2058,16 +2058,34 @@ with an embedded boundary / cut cell representation.
 The height at the surface nodes can be defined analytically, read from a text file
 specified by ``erf.terrain_file_name``, or read from a NetCDF file specified by
 ``erf.terrain_file_name_nc``. The NetCDF option requires NetCDF support and takes
-precedence when both inputs are present. It requires one-dimensional ``x`` and
-``y`` coordinate variables and a height variable named ``height``,
-``z``, ``terrain``, ``HGT_M``, or ``AGL``. The height field may be either
-``(y,x)`` or WPS-style ``(time,y,x)`` (including ``HGT_M(Time,south_north,
-west_east)``); ERF explicitly reads the first time record. Other rank or
-dimension permutations are rejected. Both coordinate arrays must contain at
-least two finite, strictly increasing, uniformly spaced values and must match
-the corresponding height dimensions. Bilinear interpolation includes the
-final coordinate in each direction. Terrain nodes genuinely outside the file
-grid are assigned zero; ERF does not extrapolate them.
+precedence when both inputs are present. The explicit Cartesian format uses a
+height variable named ``height``, ``z``, ``terrain``, ``HGT_M``, or ``AGL`` with
+dimensions ``(y,x)`` or ``(time,y,x)`` (time must be the leading dimension).
+It must also provide one-dimensional, finite, strictly increasing, uniformly
+spaced ``x`` and ``y`` coordinate variables matching the height dimensions;
+ERF reads the first time record when one is present.
+
+A genuine WPS ``geo_em`` file may instead provide
+``HGT_M(Time,south_north,west_east)`` without Cartesian ``x``/``y`` variables.
+It must provide matching first-time-record ``XLAT_M`` and ``XLONG_M`` fields and
+the WPS global attributes ``MAP_PROJ``, ``CEN_LAT``, ``CEN_LON``, ``STAND_LON``,
+``DX``, ``DY``, ``WEST-EAST_GRID_DIMENSION``, and
+``SOUTH-NORTH_GRID_DIMENSION``. ERF supports Lambert (1), polar (2), Mercator
+(3), and latitude/longitude (6) WPS projections; Lambert additionally requires
+``TRUELAT1`` and ``TRUELAT2``, while the other projected cases require
+``TRUELAT1``. ``HGT_M``, ``XLAT_M``, and ``XLONG_M`` must have the exact
+``(Time,south_north,west_east)`` order, and the first time record is selected.
+The WPS grid dimensions, ``DX``/``DY``, and domain extent must match the ERF
+level-0 Cartesian geometry.
+
+WPS fields are mass-point fields. ERF maps their logical mass-point locations
+to terrain nodes using ``x_mass = x_lo + (i+1/2) DX`` and
+``y_mass = y_lo + (j+1/2) DY``. At the four outer node edges, where no WPS mass
+point exists, ERF holds the nearest mass-point value (an explicit one-sided
+mass-to-node conversion); this is not general extrapolation. For both formats,
+bilinear interpolation includes the final coordinate. Explicit Cartesian
+terrain nodes genuinely outside the file grid are assigned zero, and malformed
+or nonfinite WPS metadata, coordinates, or heights are rejected.
 
 For the text format, the ordering of data in the file is first
 nx, ny (where nx is the number of values specified in the x-direction and

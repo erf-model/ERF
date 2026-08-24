@@ -159,6 +159,9 @@ if(ERF_ENABLE_NETCDF)
     ${CMAKE_CURRENT_SOURCE_DIR}/IO/ERF_GTestTerrainNetCDF.cpp
   )
 endif()
+target_sources(${erf_exe_name} PRIVATE
+  ${CMAKE_CURRENT_SOURCE_DIR}/IO/ERF_GTestIntervalMeansRestart.cpp
+)
 # These exercise the super-droplet phase-change kernels, whose headers are
 # only available when particles are enabled.
 if(ERF_ENABLE_PARTICLES)

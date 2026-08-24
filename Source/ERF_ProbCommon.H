@@ -1,6 +1,9 @@
 #ifndef ERF_PROBCOMMON_H_
 #define ERF_PROBCOMMON_H_
 
+#include <algorithm>
+#include <cmath>
+
 #include <AMReX_ParmParse.H>
 #include <AMReX_Geometry.H>
 #include <AMReX_FArrayBox.H>
@@ -392,6 +395,7 @@ public:
 
         amrex::Vector<amrex::Real> m_xterrain, m_yterrain, m_zterrain;
         int nx = 0, ny = 0;
+        bool mass_point_terrain = false;
 
         if (amrex::ParallelDescriptor::IOProcessor()) {
             auto ncf = ncutils::NCFile::open(fname, NC_NOWRITE);
@@ -458,47 +462,194 @@ public:
                              "for bilinear interpolation");
             }
 
-            if (!ncf.has_var("x") || !ncf.has_var("y")) {
-                amrex::Abort("NetCDF terrain file must have 'x' and 'y' coordinate variables");
+            const bool has_x = ncf.has_var("x");
+            const bool has_y = ncf.has_var("y");
+            if (has_x != has_y) {
+                amrex::Abort("NetCDF terrain file '" + fname +
+                             "' must provide both one-dimensional 'x' and 'y' coordinates");
             }
 
-            const auto x_shape = ncf.var("x").shape();
-            const auto y_shape = ncf.var("y").shape();
-            if (x_shape.size() != 1 || x_shape[0] != static_cast<std::size_t>(nx)) {
-                amrex::Abort("NetCDF terrain x coordinate in '" + fname +
-                             "' must be one-dimensional with length " + std::to_string(nx));
-            }
-            if (y_shape.size() != 1 || y_shape[0] != static_cast<std::size_t>(ny)) {
-                amrex::Abort("NetCDF terrain y coordinate in '" + fname +
-                             "' must be one-dimensional with length " + std::to_string(ny));
-            }
-
-            m_xterrain.resize(nx);
-            m_yterrain.resize(ny);
-            ncf.var("x").get(m_xterrain.data());
-            ncf.var("y").get(m_yterrain.data());
-
-            amrex::Real x_origin, x_spacing, y_origin, y_spacing;
             const std::string terrain_description =
                 "NetCDF terrain field '" + height_varname + "' in '" + fname + "'";
-            std::string coordinate_error = erf_grid_utils::validate_uniform_axis(
-                m_xterrain, nx, "x", terrain_description, x_origin, x_spacing);
-            if (coordinate_error.empty()) {
-                coordinate_error = erf_grid_utils::validate_uniform_axis(
-                    m_yterrain, ny, "y", terrain_description, y_origin, y_spacing);
-            }
-            if (!coordinate_error.empty()) {
-                amrex::Abort(coordinate_error);
-            }
-
             m_zterrain.resize(nx * ny);
-            if (has_time_dimension) {
+            if (!has_x) {
+                if (height_varname != "HGT_M" || !has_time_dimension ||
+                    dim_names != std::vector<std::string>{"Time", "south_north", "west_east"}) {
+                    amrex::Abort("NetCDF terrain field '" + height_varname + "' in '" + fname +
+                                 "' requires one-dimensional 'x' and 'y' coordinates; a genuine "
+                                 "WPS file must provide HGT_M(Time,south_north,west_east)");
+                }
+
+                const auto require_real_attribute = [&] (const std::string& name) {
+                    if (!ncf.has_attr(name)) {
+                        amrex::Abort("WPS terrain file '" + fname +
+                                     "' is missing required global attribute '" + name + "'");
+                    }
+                    std::vector<double> values;
+                    ncf.get_attr(name, values);
+                    if (values.size() != 1 || !std::isfinite(values[0])) {
+                        amrex::Abort("WPS terrain file '" + fname +
+                                     "' must have one finite global attribute '" + name + "'");
+                    }
+                    return values[0];
+                };
+                const auto require_int_attribute = [&] (const std::string& name) {
+                    if (!ncf.has_attr(name)) {
+                        amrex::Abort("WPS terrain file '" + fname +
+                                     "' is missing required global attribute '" + name + "'");
+                    }
+                    std::vector<int> values;
+                    ncf.get_attr(name, values);
+                    if (values.size() != 1) {
+                        amrex::Abort("WPS terrain file '" + fname +
+                                     "' must have one global attribute '" + name + "'");
+                    }
+                    return values[0];
+                };
+
+                const int map_proj = require_int_attribute("MAP_PROJ");
+                if (map_proj != 1 && map_proj != 2 && map_proj != 3 && map_proj != 6) {
+                    amrex::Abort("WPS terrain file '" + fname + "' uses unsupported MAP_PROJ=" +
+                                 std::to_string(map_proj) +
+                                 "; supported projections are 1 (Lambert), 2 (polar), "
+                                 "3 (Mercator), and 6 (latitude/longitude)");
+                }
+                const double cen_lat = require_real_attribute("CEN_LAT");
+                const double cen_lon = require_real_attribute("CEN_LON");
+                const double stand_lon = require_real_attribute("STAND_LON");
+                const double wps_dx = require_real_attribute("DX");
+                const double wps_dy = require_real_attribute("DY");
+                if (wps_dx <= 0.0 || wps_dy <= 0.0 || std::abs(cen_lat) > 90.0 ||
+                    std::abs(cen_lon) > 360.0 || std::abs(stand_lon) > 360.0) {
+                    amrex::Abort("WPS terrain file '" + fname +
+                                 "' has invalid projection or grid metadata");
+                }
+                if ((map_proj == 1 || map_proj == 2 || map_proj == 3)) {
+                    const double truelat1 = require_real_attribute("TRUELAT1");
+                    if (std::abs(truelat1) > 90.0) {
+                        amrex::Abort("WPS terrain file '" + fname +
+                                     "' has invalid TRUELAT1");
+                    }
+                }
+                if (map_proj == 1) {
+                    const double truelat2 = require_real_attribute("TRUELAT2");
+                    if (std::abs(truelat2) > 90.0) {
+                        amrex::Abort("WPS terrain file '" + fname +
+                                     "' has invalid TRUELAT2");
+                    }
+                }
+
+                const int wps_nx = require_int_attribute("WEST-EAST_GRID_DIMENSION");
+                const int wps_ny = require_int_attribute("SOUTH-NORTH_GRID_DIMENSION");
+                if (wps_nx != nx + 1 || wps_ny != ny + 1) {
+                    amrex::Abort("WPS terrain file '" + fname +
+                                 "' has grid dimensions inconsistent with HGT_M: expected " +
+                                 std::to_string(nx + 1) + " x " + std::to_string(ny + 1));
+                }
+
+                const auto validate_wps_coordinate = [&] (const std::string& name) {
+                    if (!ncf.has_var(name)) {
+                        amrex::Abort("WPS terrain file '" + fname +
+                                     "' is missing required coordinate variable '" + name + "'");
+                    }
+                    const auto coordinate = ncf.var(name);
+                    if (coordinate.shape() != dims ||
+                        coordinate.dimnames() != dim_names) {
+                        amrex::Abort("WPS terrain coordinate '" + name + "' in '" + fname +
+                                     "' must have dimensions (Time,south_north,west_east) "
+                                     "matching HGT_M");
+                    }
+                    amrex::Vector<amrex::Real> values(nx * ny);
+                    const std::vector<size_t> start{0, 0, 0};
+                    const std::vector<size_t> count{
+                        1, static_cast<size_t>(ny), static_cast<size_t>(nx)};
+                    coordinate.get(values.data(), start, count);
+                    if (!std::all_of(values.begin(), values.end(),
+                                     [] (amrex::Real value) { return std::isfinite(value); })) {
+                        amrex::Abort("WPS terrain coordinate '" + name + "' in '" + fname +
+                                     "' contains nonfinite values");
+                    }
+                };
+                validate_wps_coordinate("XLAT_M");
+                validate_wps_coordinate("XLONG_M");
+
+                const auto dx = geom.CellSizeArray();
+                const auto close_enough = [] (amrex::Real lhs, double rhs) {
+                    const amrex::Real scale = std::max(amrex::Real(1.0),
+                                                        std::abs(static_cast<amrex::Real>(rhs)));
+                    return std::abs(lhs - static_cast<amrex::Real>(rhs)) <=
+                           amrex::Real(1.0e-6) * scale;
+                };
+                if (geom.Domain().length(0) != nx || geom.Domain().length(1) != ny ||
+                    !close_enough(dx[0], wps_dx) || !close_enough(dx[1], wps_dy) ||
+                    !close_enough(geom.ProbHi(0) - geom.ProbLo(0), wps_dx * nx) ||
+                    !close_enough(geom.ProbHi(1) - geom.ProbLo(1), wps_dy * ny)) {
+                    amrex::Abort("WPS terrain grid does not match the ERF Geometry; "
+                                 "HGT_M dimensions, DX/DY, and the ERF domain extent must agree");
+                }
+
+                // WPS HGT_M/XLAT_M/XLONG_M are mass-point fields.  Their
+                // logical grid is anchored at the ERF lower corner, with the
+                // first mass point half a cell from that corner.  The
+                // explicit clamp below is the documented one-sided boundary
+                // conversion from mass points to ERF terrain nodes.
+                m_xterrain.resize(nx);
+                m_yterrain.resize(ny);
+                for (int i = 0; i < nx; ++i) {
+                    m_xterrain[i] = geom.ProbLo(0) +
+                                    (static_cast<amrex::Real>(i) + amrex::Real(0.5)) *
+                                    static_cast<amrex::Real>(wps_dx);
+                }
+                for (int j = 0; j < ny; ++j) {
+                    m_yterrain[j] = geom.ProbLo(1) +
+                                    (static_cast<amrex::Real>(j) + amrex::Real(0.5)) *
+                                    static_cast<amrex::Real>(wps_dy);
+                }
                 const std::vector<size_t> start{0, 0, 0};
                 const std::vector<size_t> count{
                     1, static_cast<size_t>(ny), static_cast<size_t>(nx)};
                 var.get(m_zterrain.data(), start, count);
+                mass_point_terrain = true;
             } else {
-                var.get(m_zterrain.data());
+                const auto x_shape = ncf.var("x").shape();
+                const auto y_shape = ncf.var("y").shape();
+                if (x_shape.size() != 1 || x_shape[0] != static_cast<std::size_t>(nx)) {
+                    amrex::Abort("NetCDF terrain x coordinate in '" + fname +
+                                 "' must be one-dimensional with length " + std::to_string(nx));
+                }
+                if (y_shape.size() != 1 || y_shape[0] != static_cast<std::size_t>(ny)) {
+                    amrex::Abort("NetCDF terrain y coordinate in '" + fname +
+                                 "' must be one-dimensional with length " + std::to_string(ny));
+                }
+
+                m_xterrain.resize(nx);
+                m_yterrain.resize(ny);
+                ncf.var("x").get(m_xterrain.data());
+                ncf.var("y").get(m_yterrain.data());
+
+                amrex::Real x_origin, x_spacing, y_origin, y_spacing;
+                std::string coordinate_error = erf_grid_utils::validate_uniform_axis(
+                    m_xterrain, nx, "x", terrain_description, x_origin, x_spacing);
+                if (coordinate_error.empty()) {
+                    coordinate_error = erf_grid_utils::validate_uniform_axis(
+                        m_yterrain, ny, "y", terrain_description, y_origin, y_spacing);
+                }
+                if (!coordinate_error.empty()) {
+                    amrex::Abort(coordinate_error);
+                }
+
+                if (has_time_dimension) {
+                    const std::vector<size_t> start{0, 0, 0};
+                    const std::vector<size_t> count{
+                        1, static_cast<size_t>(ny), static_cast<size_t>(nx)};
+                    var.get(m_zterrain.data(), start, count);
+                } else {
+                    var.get(m_zterrain.data());
+                }
+            }
+            if (!std::all_of(m_zterrain.begin(), m_zterrain.end(),
+                             [] (amrex::Real value) { return std::isfinite(value); })) {
+                amrex::Abort(terrain_description + " contains nonfinite height values");
             }
             ncf.close();
 
@@ -556,6 +707,14 @@ public:
 
             const amrex::Real dx_t = d_xt[1] - d_xt[0];
             const amrex::Real dy_t = d_yt[1] - d_yt[0];
+            if (mass_point_terrain) {
+                // A WPS mass grid does not contain the ERF terrain nodes at
+                // the four outer edges.  Hold the nearest mass value there;
+                // this is intentional, finite one-sided staggering rather
+                // than accidental extrapolation.
+                x = amrex::min(amrex::max(x, d_xt[0]), d_xt[nx-1]);
+                y = amrex::min(amrex::max(y, d_yt[0]), d_yt[ny-1]);
+            }
             const auto x_stencil = erf_grid_utils::uniform_interpolation_stencil(
                 x, d_xt[0], dx_t, nx);
             const auto y_stencil = erf_grid_utils::uniform_interpolation_stencil(
