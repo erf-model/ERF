@@ -119,7 +119,8 @@ void make_sources (int level,
 
     if (compute_averages)
     {
-        // The plane averaging operates at fixed z not fixed height so is not correct for variable dz
+        // The plane averaging operates at fixed k-index (not fixed height), which is
+        // acceptable for immersed forcing but not correct for subsidence with variable dz
         AMREX_ALWAYS_ASSERT(solverChoice.mesh_type != MeshType::VariableDz);
 
         //
