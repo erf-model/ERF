@@ -703,6 +703,7 @@ ERF::update_diffusive_arrays (int lev, const BoxArray& ba, const DistributionMap
         eddyDiffs_lev[lev]->setVal(zero);
         if(l_need_SmnSmn) {
             SmnSmn_lev[lev] = std::make_unique<MultiFab>( ba, dm, 1, 0 );
+            SmnSmn_lev[lev]->setVal(zero);
         } else {
             SmnSmn_lev[lev] = nullptr;
         }
