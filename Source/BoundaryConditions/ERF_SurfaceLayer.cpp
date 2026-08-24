@@ -332,6 +332,10 @@ SurfaceLayer::interpolate_sfc_column (const Real& elapsed_time,
     const Real x0 = sfc[col][sfc_time_ind];
     const Real x1 = sfc[col][sfc_time_ind+1];
 
+    if (elapsed_time < t0) {
+        return x0;
+    }
+
     if (t0 == t1 || elapsed_time > t1) {
         return x1;
     }
