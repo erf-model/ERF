@@ -444,15 +444,9 @@ ERF::Advance (int lev, double time, double dt_lev, int iteration, int /*ncycle*/
         // that time has already passed, so this is a one-shot transition.
         if (solverChoice.mean_vars_reset_mode == "time" &&
             time >= static_cast<double>(solverChoice.mean_vars_reset_time)) {
-            bool reset_needed = false;
-            for (int ilev = 0; ilev <= finest_level; ++ilev) {
-                reset_needed = reset_needed || (mean_vars_time_reset_done[ilev] == 0);
-            }
-            if (reset_needed) {
+            if (mean_vars_time_reset_done == 0) {
                 ResetIntervalMeans();
-                for (int ilev = 0; ilev <= finest_level; ++ilev) {
-                    mean_vars_time_reset_done[ilev] = 1;
-                }
+                mean_vars_time_reset_done = 1;
             }
         }
 

@@ -50,7 +50,8 @@ ERF supports two mutually exclusive canopy descriptions:
 
 ``erf.forest_tree_type = 1`` selects the uniform LAD profile, while type 2
 selects the Lalic--Mihailovic profile. In gridded mode,
-``erf.forest_laimax`` gives :math:`z_m/h`. Gridded input requires ERF to be
+``erf.forest_laimax`` gives :math:`z_m/h` and must satisfy
+:math:`0 \leq z_m/h < 1`. Gridded input requires ERF to be
 built with NetCDF support. See :ref:`sec:Inputs` for the complete parameter
 contract.
 

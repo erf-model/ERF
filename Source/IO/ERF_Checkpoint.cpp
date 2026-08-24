@@ -173,7 +173,8 @@ ERF::WriteCheckpointFile () const
 
     // Interval means are stored separately from the legacy Header so older
     // readers continue to parse that file unchanged.  The metadata records
-    // the exact level/component layout and distribution used for the fields.
+    // the level/component layout; the v1 processor map is retained only for
+    // format compatibility and is not a restart constraint.
     if (solverChoice.compute_mean_vars && ParallelDescriptor::IOProcessor()) {
         const std::string metadata_name(checkpointname + "/IntervalMeansHeader");
         std::ofstream metadata(metadata_name, std::ofstream::out |
@@ -187,7 +188,7 @@ ERF::WriteCheckpointFile () const
         metadata << finest_level + 1 << " " << 10 << "\n";
         for (int lev = 0; lev <= finest_level; ++lev) {
             metadata << lev << " " << t_mean_cnt[lev] << " "
-                     << mean_vars_time_reset_done[lev] << "\n";
+                     << mean_vars_time_reset_done << "\n";
             boxArray(lev).writeOn(metadata);
             metadata << '\n';
             const auto& pmap = dmap[lev].ProcessorMap();
@@ -795,10 +796,13 @@ ERF::ReadCheckpointFile ()
                 AMREX_ALWAYS_ASSERT(interval_means[lev] != nullptr);
                 interval_means[lev]->setVal(zero);
                 t_mean_cnt[lev] = 0.0;
-                mean_vars_time_reset_done[lev] =
-                    (solverChoice.mean_vars_reset_mode == "time" &&
-                     t_new[lev] >= static_cast<double>(solverChoice.mean_vars_reset_time)) ? 1 : 0;
             }
+            // A legacy checkpoint has no interval-mean metadata.  Keep the
+            // safe empty-window fallback, but do not schedule a time reset a
+            // second time when the checkpoint was written after its threshold.
+            mean_vars_time_reset_done =
+                (solverChoice.mean_vars_reset_mode == "time" &&
+                 t_new[0] >= static_cast<double>(solverChoice.mean_vars_reset_time)) ? 1 : 0;
             if (ParallelDescriptor::IOProcessor()) {
                 amrex::Print() << "WARNING: legacy checkpoint without interval-mean state; "
                                   "the averaging window starts empty.\n";
@@ -872,7 +876,13 @@ ERF::ReadCheckpointFile ()
                 AMREX_ALWAYS_ASSERT(interval_means[lev] != nullptr);
                 VisMF::Read(*interval_means[lev], mf_name);
                 t_mean_cnt[lev] = restored_count;
-                mean_vars_time_reset_done[lev] = restored_reset_done;
+                // v1 stored the flag once per level.  Correct v1 checkpoints
+                // contain the same global state in every row; taking the
+                // logical OR also preserves the important no-repeat property
+                // for an older checkpoint produced while a level was being
+                // rebuilt.
+                mean_vars_time_reset_done =
+                    (mean_vars_time_reset_done != 0 || restored_reset_done != 0) ? 1 : 0;
             }
         }
     }

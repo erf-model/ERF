@@ -7,6 +7,46 @@
 
 using namespace amrex;
 
+namespace {
+
+constexpr int lad_quadrature_points = 100;
+
+void
+validate_laimax (const Real laimax, const std::string& description)
+{
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+        laimax >= Real(0.0) && laimax < Real(1.0),
+        (description + " must satisfy 0 <= erf.forest_laimax < 1").c_str());
+}
+
+Real
+compute_lad_normalization (const Real laimax)
+{
+    validate_laimax(laimax, "erf.forest_laimax");
+
+    const Real inv_n = Real(1.0) / Real(lad_quadrature_points);
+    Real profile_sum = Real(0.0);
+    for (int kk = 0; kk < lad_quadrature_points; ++kk) {
+        const Real eta = Real(kk) * inv_n;
+        const Real ratio = (Real(1.0) - laimax) / (Real(1.0) - eta);
+        if (eta < laimax) {
+            profile_sum += amrex::Math::powi<6>(ratio) *
+                           std::exp(Real(6.0) * (Real(1.0) - ratio));
+        } else {
+            profile_sum += std::sqrt(ratio) *
+                           std::exp(Real(0.5) * (Real(1.0) - ratio));
+        }
+    }
+
+    const Real normalization = profile_sum * inv_n;
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+        std::isfinite(normalization) && normalization > Real(0.0),
+        "Lalic--Mihailovic LAD normalization must be finite and positive");
+    return normalization;
+}
+
+} // namespace
+
 /*
   Constructor to get the forest parameters:
   TreeType xc, yc, height, diameter, cd, lai, laimax
@@ -21,6 +61,11 @@ ForestDrag::ForestDrag (std::string forestfile)
     Real value1, value2, value3, value4, value5, value6, value7, value8;
     while (file >> value1 >> value2 >> value3 >> value4 >> value5 >> value6 >>
            value7 >> value8) {
+        if (value1 == Real(2.0) &&
+            (value8 < Real(0.0) || value8 >= Real(1.0))) {
+            Abort("Forest patch in '" + forestfile +
+                  "' has invalid erf.forest_laimax; expected 0 <= erf.forest_laimax < 1");
+        }
         m_type_forest.push_back(value1);
         m_x_forest.push_back(value2);
         m_y_forest.push_back(value3);
@@ -51,6 +96,10 @@ ForestDrag::ForestDrag (std::string lai_file,
     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
         tree_type == 1 || tree_type == 2,
         "forest_tree_type must be 1 or 2");
+    if (tree_type == 2) {
+        validate_laimax(laimax, "erf.forest_laimax");
+        m_lad_normalization = compute_lad_normalization(laimax);
+    }
 
 #ifdef ERF_USE_NETCDF
     read_netcdf_file(lai_file, "LAI", m_gridded_lai,
@@ -104,6 +153,10 @@ ForestDrag::ForestDrag (std::string lai_file,
     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
         tree_type == 1 || tree_type == 2,
         "forest_tree_type must be 1 or 2");
+    if (tree_type == 2) {
+        validate_laimax(laimax, "erf.forest_laimax");
+        m_lad_normalization = compute_lad_normalization(laimax);
+    }
 
 #ifdef ERF_USE_NETCDF
     read_netcdf_file(lai_file, "LAI", m_gridded_lai,
@@ -228,6 +281,7 @@ ForestDrag::define_drag_field (const BoxArray& ba,
 
         const int tree_type = m_tree_type;
         const Real laimax   = m_laimax;
+        const Real lad_normalization = m_lad_normalization;
 
         for (MFIter mfi(*m_forest_drag); mfi.isValid(); ++mfi) {
             Box gtbx = mfi.growntilebox();
@@ -288,25 +342,8 @@ ForestDrag::define_drag_field (const BoxArray& ba,
                         if (tree_type == 1) {
                             af = lai_interp / height_interp;
                         } else {
-                            Real treeZm = laimax * height_interp;
-
-                            const int nk = 100;
-                            const Real dz = height_interp / Real(nk);
-                            Real expFun = zero_d;
-                            Real ztree  = zero_d;
-
-                            for (int kk = 0; kk < nk; ++kk) {
-                                Real ratio = (height_interp - treeZm) / (height_interp - ztree);
-                                if (ztree < treeZm) {
-                                    expFun += amrex::Math::powi<6>(ratio) *
-                                              std::exp(Real(6.0) * (one_d - ratio));
-                                } else {
-                                    expFun += std::sqrt(ratio) *
-                                              std::exp(myhalf_d * (one_d - ratio));
-                                }
-                                ztree += dz;
-                            }
-                            af = lai_interp / (expFun * dz);
+                            const Real treeZm = laimax * height_interp;
+                            af = lai_interp / (height_interp * lad_normalization);
 
                             Real ratio = (height_interp - treeZm) / (height_interp - z);
                             if (z < treeZm) {
@@ -348,23 +385,8 @@ ForestDrag::define_drag_field (const BoxArray& ba,
             if (tf == 1) {
                 af = laif / hf;
             } else {
-                int nk      = 100;
-                Real ztree  = 0;
-                Real expFun = zero_d;
-                const Real dz = hf / Real(nk);
                 treeZm = laimaxf * hf;
-                for (int k(0); k<nk; ++k) {
-                    Real ratio = (hf - treeZm) / (hf - ztree);
-                    if (ztree < treeZm) {
-                        expFun += amrex::Math::powi<6>(ratio) *
-                    std::exp(Real(6.0) * (one_d - ratio));
-                    } else {
-                        expFun += std::sqrt(ratio) *
-                                  std::exp(myhalf_d * (one_d - ratio));
-                    }
-                    ztree += dz;
-                }
-                af = laif / (expFun * dz);
+                af = laif / (hf * compute_lad_normalization(laimaxf));
             }
 
             for (MFIter mfi(*m_forest_drag); mfi.isValid(); ++mfi) {

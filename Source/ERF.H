@@ -749,7 +749,10 @@ public:
     // Interval first and second moments used by mean/fluctuation plot fields
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> interval_means;
     amrex::Vector<double> t_mean_cnt;
-    amrex::Vector<int> mean_vars_time_reset_done;
+    // The configured time reset is one global, one-shot event.  Keep this
+    // separate from the per-level accumulation storage so regridding a level
+    // cannot re-arm an event that has already happened.
+    int mean_vars_time_reset_done{0};
 #endif
 
     std::string pp_prefix {"erf"};
@@ -1066,7 +1069,8 @@ private:
     // Interval first and second moments used by mean/fluctuation plot fields
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> interval_means;
     amrex::Vector<double> t_mean_cnt;
-    amrex::Vector<int> mean_vars_time_reset_done;
+    // Global one-shot time-reset state; interval_means remains per level.
+    int mean_vars_time_reset_done{0};
 #endif
     amrex::Vector<std::unique_ptr<MRISplitIntegrator<amrex::Vector<amrex::MultiFab> > > > mri_integrator_mem;
 

@@ -86,11 +86,13 @@ endfunction(add_test_plotfile_header)
 # Standard regression test
 function(add_test_r TEST_NAME TEST_DIR TEST_EXE PLTFILE)
     set(options )
-    set(oneValueArgs "INPUT_SOUNDING" "RUNTIME_OPTIONS" "FCOMPARE_RTOL" "FCOMPARE_ATOL")
+    set(oneValueArgs "INPUT_SOUNDING" "RUNTIME_OPTIONS" "FCOMPARE_RTOL" "FCOMPARE_ATOL"
+        "TEST_FILES_DIR")
     set(multiValueArgs )
     cmake_parse_arguments(ADD_TEST_R "${options}" "${oneValueArgs}"
         "${multiValueArgs}" ${ARGN})
 
+    set(TEST_FILES_DIR "${ADD_TEST_R_TEST_FILES_DIR}")
     setup_test()
 
     set(RUNTIME_OPTIONS "${ADD_TEST_R_RUNTIME_OPTIONS}")
@@ -673,6 +675,14 @@ add_test_r(ABL_InflowFile                    ""  "erf_exec" "plt00010" RUNTIME_O
 add_test_r(MoistBubble                       ""  "erf_exec" "plt00010" RUNTIME_OPTIONS "erf.vert_implicit=false ")
 add_test_r(SquallLine_2D                     ""  "erf_exec" "plt00010" RUNTIME_OPTIONS "erf.vert_implicit=false ")
 add_test_r(SuperCell_3D                      ""  "erf_exec" "plt00010" RUNTIME_OPTIONS "erf.vert_implicit=false ")
+if(ERF_ENABLE_NETCDF)
+  # Distributed terrain ownership and gridded forest interpolation are both
+  # exercised by this one-step, two-rank regression.  The NetCDF files are
+  # static fixtures so CI does not require ncgen.
+  add_test_r(BellForest                       ""  "erf_exec" "plt00001"
+      TEST_FILES_DIR "BellForest"
+      FCOMPARE_RTOL "2.0e-9" FCOMPARE_ATOL "2.0e-9")
+endif()
 if(ERF_ENABLE_PARTICLES)
   # Production regression: protect the fixed SuperDroplets water-field
   # contract against confusing the constructor sentinel with state width.

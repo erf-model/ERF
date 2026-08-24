@@ -809,6 +809,7 @@ List of Parameters
 | **erf.profile_int**           | Interval (number)| Integer        | -1             |
 |                               | of steps between |                |                |
 |                               | outputs          |                |                |
+-------------------------------+------------------+----------------+----------------+
 | **erf.destag_profiles**       | Interpolate all  | Boolean        | true           |
 |                               | outputs to       |                |                |
 |                               | cell-center      |                |                |
@@ -1474,7 +1475,7 @@ required; ERF does not assume a unit-spacing grid when metadata is absent.
      - 1 or 2
      - 1
    * - **erf.forest_laimax**
-     - Fraction of canopy height at maximum LAD for tree type 2
+     - Fraction of canopy height at maximum LAD for tree type 2; must satisfy ``0 <= laimax < 1``
      - Real
      - 0.8
    * - **erf.forest_substep**

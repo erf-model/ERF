@@ -261,13 +261,13 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
     }
 
     // Components: u, v, w, theta, uu, vv, ww, uw, vw, wtheta.
-    // Like vel_t_avg, these diagnostics restart when a level's grids change.
+    // The field storage is rebuilt for this level, but the time-reset state is
+    // global and must survive regridding of any level.
     interval_means[lev] = nullptr;
     if (solverChoice.compute_mean_vars) {
         interval_means[lev] = std::make_unique<MultiFab>(ba, dm, 10, 0);
         interval_means[lev]->setVal(zero);
         t_mean_cnt[lev] = 0.0;
-        mean_vars_time_reset_done[lev] = 0;
     }
 
     // ********************************************************************************************

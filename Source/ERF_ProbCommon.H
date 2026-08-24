@@ -395,7 +395,9 @@ public:
 
         amrex::Vector<amrex::Real> m_xterrain, m_yterrain, m_zterrain;
         int nx = 0, ny = 0;
-        bool mass_point_terrain = false;
+        // Broadcast this as a trivially broadcastable integer before the
+        // interpolation kernel is launched.
+        int mass_point_terrain = 0;
 
         if (amrex::ParallelDescriptor::IOProcessor()) {
             auto ncf = ncutils::NCFile::open(fname, NC_NOWRITE);
@@ -609,7 +611,7 @@ public:
                 const std::vector<size_t> count{
                     1, static_cast<size_t>(ny), static_cast<size_t>(nx)};
                 var.get(m_zterrain.data(), start, count);
-                mass_point_terrain = true;
+                mass_point_terrain = 1;
             } else {
                 const auto x_shape = ncf.var("x").shape();
                 const auto y_shape = ncf.var("y").shape();
@@ -664,6 +666,8 @@ public:
         // Broadcast to all MPI ranks
         amrex::ParallelDescriptor::Bcast(&nx, 1, amrex::ParallelDescriptor::IOProcessorNumber());
         amrex::ParallelDescriptor::Bcast(&ny, 1, amrex::ParallelDescriptor::IOProcessorNumber());
+        amrex::ParallelDescriptor::Bcast(&mass_point_terrain, 1,
+                                         amrex::ParallelDescriptor::IOProcessorNumber());
 
         if (!amrex::ParallelDescriptor::IOProcessor()) {
             m_xterrain.resize(nx);
@@ -740,6 +744,10 @@ public:
                 z_arr(i, j, klo) = amrex::Real(0.0);
             }
         });
+
+        // The interpolation kernel dereferences the device vectors above;
+        // synchronize before their scope ends and their storage is released.
+        amrex::Gpu::synchronize();
     }
 #endif
 

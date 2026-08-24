@@ -161,7 +161,7 @@ read_terrain_samples (const char* filename, int horizontal_cells)
     const amrex::Box node_box = amrex::convert(domain, amrex::IntVect(1, 1, 0));
 
     amrex::FArrayBox terrain(node_box, 1);
-    terrain.template setVal<amrex::RunOn::Host>(amrex::Real(-999.0));
+    terrain.template setVal<amrex::RunOn::Device>(amrex::Real(-999.0));
     ProblemBase problem;
     problem.read_terrain_netcdf(filename, geometry, terrain, 0.0);
     amrex::Gpu::streamSynchronize();

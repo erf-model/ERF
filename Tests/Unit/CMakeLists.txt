@@ -283,6 +283,14 @@ if(ERF_ENABLE_MPI)
       ${CMAKE_CURRENT_SOURCE_DIR}/Microphysics/SAM/ERF_GTestSAMParallel.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/IO/ERF_GTestProvenanceParallel.cpp
   )
+  if(ERF_ENABLE_NETCDF)
+    # The terrain reader opens the fixture only on the I/O rank and then
+    # broadcasts the result.  Keep this source in the MPI executable so the
+    # WPS edge/corner regression exercises every rank.
+    target_sources(${erf_parallel_exe_name} PRIVATE
+      ${CMAKE_CURRENT_SOURCE_DIR}/IO/ERF_GTestTerrainNetCDF.cpp
+    )
+  endif()
   build_erf_exe(${erf_parallel_exe_name} NO_ERF_MAIN)
   target_link_libraries(${erf_parallel_exe_name}
     PRIVATE

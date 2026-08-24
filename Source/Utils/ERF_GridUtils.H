@@ -28,7 +28,17 @@ inline amrex::Real
 comparison_tolerance (amrex::Real lhs, amrex::Real rhs)
 {
     const amrex::Real scale = std::max({amrex::Real(1.0), std::abs(lhs), std::abs(rhs)});
-    return amrex::Real(64.0) * std::numeric_limits<amrex::Real>::epsilon() * scale;
+    // NetCDF coordinate variables are commonly stored as float32 even when
+    // ERF is built with double precision.  A few float32 ulps at the
+    // coordinate magnitude are therefore source-file quantization, not grid
+    // nonuniformity.  The Real tolerance is retained for native Real data;
+    // the float tolerance is deliberately a small ulp-based allowance rather
+    // than an arbitrary absolute threshold.
+    const amrex::Real real_ulp =
+        amrex::Real(64.0) * std::numeric_limits<amrex::Real>::epsilon() * scale;
+    const amrex::Real float_ulp =
+        amrex::Real(8.0) * static_cast<amrex::Real>(std::numeric_limits<float>::epsilon()) * scale;
+    return std::max(real_ulp, float_ulp);
 }
 
 inline bool
@@ -64,13 +74,25 @@ validate_uniform_axis (const amrex::Vector<amrex::Real>& coordinates,
 
     for (int index = 1; index < expected_size; ++index) {
         const amrex::Real coordinate = coordinates[index];
-        const amrex::Real expected = origin + static_cast<amrex::Real>(index) * spacing;
-        if (!std::isfinite(coordinate) ||
-            (index > 0 && coordinate <= coordinates[index-1])) {
+        if (!std::isfinite(coordinate) || coordinate <= coordinates[index-1]) {
             return field_description + " must have finite, strictly increasing " +
                    axis_name + " coordinates";
         }
-        if (!nearly_equal(coordinate, expected)) {
+        // Compare adjacent spacings instead of accumulating the first spacing
+        // over the whole axis.  This avoids rejecting a valid float32 axis
+        // because each stored coordinate was rounded independently, while the
+        // ulp-based tolerance above still rejects materially nonuniform grids.
+        const amrex::Real local_spacing = coordinate - coordinates[index-1];
+        const amrex::Real coordinate_scale =
+            std::max({amrex::Real(1.0), std::abs(coordinate),
+                      std::abs(coordinates[index-1])});
+        const amrex::Real spacing_tolerance = std::min(
+            amrex::Real(0.05) * std::abs(spacing),
+            std::max(amrex::Real(64.0) * std::numeric_limits<amrex::Real>::epsilon() *
+                         coordinate_scale,
+                     amrex::Real(8.0) * static_cast<amrex::Real>(std::numeric_limits<float>::epsilon()) *
+                         coordinate_scale));
+        if (std::abs(local_spacing - spacing) > spacing_tolerance) {
             return field_description + " has nonuniform " + axis_name +
                    " coordinates, which are not supported";
         }

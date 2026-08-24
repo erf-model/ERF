@@ -63,6 +63,51 @@ TEST(ForestGridMetadata, CoordinateValidationRejectsUnsupportedAxes)
         {0.0, 1.0}, 3, "x", "field", origin, spacing).empty());
 }
 
+TEST(ForestGridMetadata, AcceptsFloatStoredLongitudeCoordinates)
+{
+    amrex::Vector<amrex::Real> longitude;
+    for (int index = 0; index < 128; ++index) {
+        // Simulate a NetCDF float variable before it is converted to Real.
+        longitude.push_back(static_cast<amrex::Real>(
+            static_cast<float>(-105.0f + static_cast<float>(index) * 0.01f)));
+    }
+
+    amrex::Real origin = 0.0;
+    amrex::Real spacing = 0.0;
+    EXPECT_TRUE(erf_grid_utils::validate_uniform_axis(
+        longitude, static_cast<int>(longitude.size()), "longitude", "float-backed field",
+        origin, spacing).empty());
+}
+
+TEST(ForestGridMetadata, RejectsMateriallyNonuniformFloatBackedCoordinates)
+{
+    amrex::Vector<amrex::Real> longitude;
+    for (int index = 0; index < 32; ++index) {
+        longitude.push_back(static_cast<amrex::Real>(
+            static_cast<float>(-105.0f + static_cast<float>(index) * 0.01f)));
+    }
+    longitude[16] += amrex::Real(0.002);
+
+    amrex::Real origin = 0.0;
+    amrex::Real spacing = 0.0;
+    EXPECT_FALSE(erf_grid_utils::validate_uniform_axis(
+        longitude, static_cast<int>(longitude.size()), "longitude", "float-backed field",
+        origin, spacing).empty());
+}
+
+TEST(ForestGridMetadata, FloatAndDoubleGridMetadataMatchWithinStorageQuantization)
+{
+    const UniformGridMetadata double_grid{8, 8, 0.01, 0.01, -105.0, 40.0};
+    const UniformGridMetadata float_grid{8, 8, 0.010000001, 0.01, -104.999996, 40.000003};
+
+    EXPECT_TRUE(erf_grid_utils::validate_matching_grid(
+        double_grid, float_grid, "double grid", "float grid").empty());
+
+    const UniformGridMetadata shifted_grid{8, 8, 0.01, 0.01, -104.99, 40.0};
+    EXPECT_FALSE(erf_grid_utils::validate_matching_grid(
+        double_grid, shifted_grid, "double grid", "shifted grid").empty());
+}
+
 struct EndpointSamples
 {
     int lower_endpoint;

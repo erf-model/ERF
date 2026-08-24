@@ -426,7 +426,7 @@ ERF::ERF_shared ()
     // Interval mean variables
     interval_means.resize(nlevs_max);
     t_mean_cnt.resize(nlevs_max);
-    mean_vars_time_reset_done.resize(nlevs_max);
+    mean_vars_time_reset_done = 0;
 
     // Size lat long arrays and default to null pointers
     lat_m.resize(nlevs_max);

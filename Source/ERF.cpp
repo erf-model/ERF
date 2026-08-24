@@ -1380,15 +1380,9 @@ ERF::InitData_post ()
         if (solverChoice.mean_vars_reset_mode == "time" &&
             static_cast<double>(t_new[0]) >=
             static_cast<double>(solverChoice.mean_vars_reset_time)) {
-            bool reset_needed = false;
-            for (int lev = 0; lev <= finest_level; ++lev) {
-                reset_needed = reset_needed || (mean_vars_time_reset_done[lev] == 0);
-            }
-            if (reset_needed) {
+            if (mean_vars_time_reset_done == 0) {
                 ResetIntervalMeans();
-                for (int lev = 0; lev <= finest_level; ++lev) {
-                    mean_vars_time_reset_done[lev] = 1;
-                }
+                mean_vars_time_reset_done = 1;
             }
         }
         for (int lev = 0; lev <= finest_level; ++lev) {

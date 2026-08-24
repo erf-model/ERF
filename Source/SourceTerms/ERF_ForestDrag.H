@@ -98,6 +98,10 @@ private:
     // Tree type and LAImax for gridded data (applies to entire domain)
     int m_tree_type{1};
     amrex::Real m_laimax{0.8};
+    // Dimensionless integral of the type-2 Lalic--Mihailovic profile.  It is
+    // independent of horizontal position and canopy height, so compute it
+    // once on the host rather than once per canopy cell.
+    amrex::Real m_lad_normalization{1.0};
 
     // Output drag field: Cd * a(z)
     std::unique_ptr<amrex::MultiFab> m_forest_drag;
