@@ -108,10 +108,10 @@
         }
 
         // Get planar averages from persistent storage for immersed forcing
-        bool use_immersed_forcing = (solverChoice.terrain_type == TerrainType::ImmersedForcing ||
-                                      solverChoice.buildings_type == BuildingsType::ImmersedForcing);
-        Table1D<Real> r_avg_to_pass = use_immersed_forcing ? r_plane_avg[level].table() : Table1D<Real>();
-        Table1D<Real> t_avg_to_pass = use_immersed_forcing ? t_plane_avg[level].table() : Table1D<Real>();
+        bool l_use_IF = (solverChoice.terrain_type == TerrainType::ImmersedForcing ||
+                         solverChoice.buildings_type == BuildingsType::ImmersedForcing);
+        Table1D<Real> r_avg_to_pass = l_use_IF ? r_plane_avg[level].table() : Table1D<Real>();
+        Table1D<Real> t_avg_to_pass = l_use_IF ? t_plane_avg[level].table() : Table1D<Real>();
 
         // *****************************************************************************
         // Construct the source terms for the cell-centered (conserved) variables

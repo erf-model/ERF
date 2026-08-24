@@ -68,10 +68,10 @@ auto acoustic_substepping_fun = [&,one_d=one,zero_d=zero](int fast_step, int n_s
         }
 
         // Get planar averages from persistent storage for immersed forcing in fast substeps
-        bool use_immersed_forcing = (solverChoice.terrain_type == TerrainType::ImmersedForcing ||
-                                      solverChoice.buildings_type == BuildingsType::ImmersedForcing);
-        Table1D<Real> r_avg_to_pass = use_immersed_forcing ? r_plane_avg[level].table() : Table1D<Real>();
-        Table1D<Real> t_avg_to_pass = use_immersed_forcing ? t_plane_avg[level].table() : Table1D<Real>();
+        bool l_use_IF = (solverChoice.terrain_type == TerrainType::ImmersedForcing ||
+                         solverChoice.buildings_type == BuildingsType::ImmersedForcing);
+        Table1D<Real> r_avg_to_pass = l_use_IF ? r_plane_avg[level].table() : Table1D<Real>();
+        Table1D<Real> t_avg_to_pass = l_use_IF ? t_plane_avg[level].table() : Table1D<Real>();
 
         make_sources(level, nrk, dtau, old_substep_time,
                      Svec_to_use, S_prim, cc_src, base_state[level], z_phys_cc[level].get(),
