@@ -18,7 +18,6 @@ using namespace amrex;
  * @param[in]  geom      geometry container at this level
  * @param[in]  S_data    current solution
  * @param[in]  p0        base ststa pressure
- * @param[in]  z_phys_nd z on nodes
  * @param[in]  z_phys_cc z on cell centers
  * @param[in]  d_bcrec_ptr Boundary Condition Record
  * @param[in]  ebfact    EB factory container at this level
@@ -30,7 +29,6 @@ void make_gradp_pert (int level,
                       const Geometry& geom,
                       Vector<MultiFab>& S_data,
                       const MultiFab& p0,
-                      const MultiFab& z_phys_nd,
                       const MultiFab& z_phys_cc,
                       Vector<std::unique_ptr<MultiFab>>& mapfac,
                       const eb_& ebfact,
@@ -101,9 +99,9 @@ void make_gradp_pert (int level,
         }
 
         if (solverChoice.gradp_type == 0) {
-            compute_gradp_z(p,geom,z_phys_nd,ebfact,gradp,solverChoice);
+            compute_gradp_z(p,geom,z_phys_cc,ebfact,gradp,solverChoice);
         } else {
-            compute_gradp_interpz(p,geom,z_phys_nd,z_phys_cc,mapfac,gradp,solverChoice);
+            compute_gradp_interpz(p,geom,z_phys_cc,mapfac,gradp,solverChoice);
         }
 
     } // not anelastic
@@ -113,7 +111,6 @@ void make_gradp_pert (int level,
  * @brief Compute the full pressure gradient.
  * @param[in] p Pressure field.
  * @param[in] geom Geometry container.
- * @param[in] z_phys_nd Physical height on nodes.
  * @param[in] z_phys_cc Physical height on cell centers.
  * @param[in] mapfac Map factors.
  * @param[in] ebfact EB factory.
@@ -123,7 +120,6 @@ void make_gradp_pert (int level,
 void
 compute_gradp (const MultiFab& p,
                const Geometry& geom,
-               const MultiFab& z_phys_nd,
                const MultiFab& z_phys_cc,
                Vector<std::unique_ptr<MultiFab>>& mapfac,
                const eb_& ebfact,
@@ -131,7 +127,7 @@ compute_gradp (const MultiFab& p,
                const SolverChoice& solverChoice)
 {
     compute_gradp_xy(p,geom,z_phys_cc,mapfac,ebfact,gradp,solverChoice);
-    compute_gradp_z(p,geom,z_phys_nd,ebfact,gradp,solverChoice);
+    compute_gradp_z(p,geom,z_phys_cc,ebfact,gradp,solverChoice);
 }
 
 /**
@@ -368,7 +364,7 @@ compute_gradp_xy (const MultiFab& p,
  * @brief Compute the vertical component of the pressure gradient.
  * @param[in] p Pressure field.
  * @param[in] geom Geometry container.
- * @param[in] z_phys_nd Physical height on nodes.
+ * @param[in] z_phys_cc Physical height on cell centers.
  * @param[in] ebfact EB factory.
  * @param[out] gradp Pressure gradient components.
  * @param[in] solverChoice Solver options.
@@ -376,7 +372,7 @@ compute_gradp_xy (const MultiFab& p,
 void
 compute_gradp_z (const MultiFab& p,
                  const Geometry& geom,
-                 const MultiFab& z_phys_nd,
+                 const MultiFab& z_phys_cc,
                  const eb_& ebfact,
                  Vector<MultiFab>& gradp,
                  const SolverChoice& solverChoice)
@@ -405,7 +401,7 @@ compute_gradp_z (const MultiFab& p,
         }
 
         // Terrain metrics
-        const Array4<const Real>& z_nd_arr = z_phys_nd.const_array(mfi);
+        const Array4<const Real>& z_cc_arr = z_phys_cc.const_array(mfi);
 
         const Array4<const Real>& p_arr = p.const_array(mfi);
 
@@ -415,7 +411,7 @@ compute_gradp_z (const MultiFab& p,
 
             ParallelFor(tbz, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
             {
-                Real met_h_zeta = (l_use_terrain_fitted_coords) ? Compute_h_zeta_AtKface(i, j, k, dxInv, z_nd_arr) : 1;
+                Real met_h_zeta = (l_use_terrain_fitted_coords) ? dxInv[2] * (z_cc_arr(i,j,k) - z_cc_arr(i,j,k-1)) : one;
                 gpz_arr(i,j,k) = dxInv[2] * ( p_arr(i,j,k)-p_arr(i,j,k-1) )  / met_h_zeta;
             });
 
@@ -492,7 +488,6 @@ compute_gradp_z (const MultiFab& p,
  * @brief Compute the pressure gradient using vertical interpolation.
  * @param[in] p Pressure field.
  * @param[in] geom Geometry container.
- * @param[in] z_phys_nd Physical height on nodes.
  * @param[in] z_phys_cc Physical height on cell centers.
  * @param[in] mapfac Map factors.
  * @param[out] gradp Pressure gradient components.
@@ -501,7 +496,6 @@ compute_gradp_z (const MultiFab& p,
 void
 compute_gradp_interpz (const MultiFab& p,
                        const Geometry& geom,
-                       const MultiFab& z_phys_nd,
                        const MultiFab& z_phys_cc,
                        Vector<std::unique_ptr<MultiFab>>& mapfac,
                        Vector<MultiFab>& gradp,
@@ -533,7 +527,6 @@ compute_gradp_interpz (const MultiFab& p,
         }
 
         // Terrain metrics
-        const Array4<const Real>& z_nd_arr = z_phys_nd.const_array(mfi);
         const Array4<const Real>& z_cc_arr = z_phys_cc.const_array(mfi);
 
         const Array4<const Real>& p_arr = p.const_array(mfi);
@@ -659,7 +652,7 @@ compute_gradp_interpz (const MultiFab& p,
         [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {
             // Note: identical to gradp_type == 0
-            Real met_h_zeta = (l_use_terrain_fitted_coords) ? Compute_h_zeta_AtKface(i, j, k, dxInv, z_nd_arr) : 1;
+            Real met_h_zeta = (l_use_terrain_fitted_coords) ? dxInv[2] * (z_cc_arr(i,j,k) - z_cc_arr(i,j,k-1)) : one;
             gpz_arr(i,j,k) = dxInv[2] * ( p_arr(i,j,k)-p_arr(i,j,k-1) )  / met_h_zeta;
         });
     } // mfi
