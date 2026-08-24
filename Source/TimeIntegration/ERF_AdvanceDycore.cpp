@@ -616,7 +616,6 @@ void ERF::advance_dycore (int level,
                 const Box& bx = mfi.tilebox();
                 auto const& t_blank_arr = terrain_blank->const_array(mfi);
                 auto const& eddy_arr = eddyDiffs->array(mfi);
-                auto const& smn_arr = SmnSmn ? SmnSmn->array(mfi) : Array4<Real>{};
 
                 ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
                     // Compute mask: 0 if fully immersed (t_blank == 1), 1 if fluid (t_blank != 1)
@@ -624,13 +623,11 @@ void ERF::advance_dycore (int level,
                     for (int n = 0; n < EddyDiff::NumDiffs; ++n) {
                         eddy_arr(i,j,k,n) *= mask;
                     }
-                    if (smn_arr) { smn_arr(i,j,k) *= mask; }
                 });
             }
 
             // Synchronize ghost cells after modifying interior cells
             eddyDiffs->FillBoundary(fine_geom.periodicity());
-            if (SmnSmn) { SmnSmn->FillBoundary(fine_geom.periodicity()); }
         }
     }
 
