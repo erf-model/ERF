@@ -447,6 +447,10 @@ ERF::ERF_shared ()
     h_sinesq_stag_ptrs.resize(nlevs_max);
     d_sinesq_stag_ptrs.resize(nlevs_max);
 
+    // Planar averages for immersed forcing
+    r_plane_avg.resize(nlevs_max);
+    t_plane_avg.resize(nlevs_max);
+
     // Initialize tagging criteria for mesh refinement
     refinement_criteria_setup();
 

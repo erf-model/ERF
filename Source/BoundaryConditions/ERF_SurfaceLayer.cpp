@@ -33,6 +33,10 @@ SurfaceLayer::update_fluxes (const int& lev,
     if (!m_sst_lev[lev].empty() && m_sst_lev[lev][0]) {
         fill_tsurf_with_sst_and_tsk(lev, elapsed_time_since_start_low);
     }
+    if (m_use_sfc_sst) {
+        // Set tsurf to time varying SST from sfc file
+        fill_tsurf_with_sfc_sst(lev, elapsed_time);
+    }
 
     // Apply heating rate if needed
     if (theta_type == ThetaCalcType::SURFACE_TEMPERATURE) {
@@ -213,6 +217,29 @@ SurfaceLayer::update_fluxes (const int& lev,
     } // MOENG -- SEA
 
     if (flux_type == FluxCalcType::CUSTOM || flux_type == FluxCalcType::RICO) {
+        if (m_use_sfc_fluxes) {
+            // update custom surface fluxes interpolated from file
+            update_sfc_time_index(elapsed_time);
+            sfc_tflux = interpolate_sfc_column(elapsed_time, 2);
+            sfc_qflux = interpolate_sfc_column(elapsed_time, 3);
+            sfc_ustar = interpolate_sfc_column(elapsed_time, 4);
+
+            amrex::Print() << " ABLMOST: Interpolating SHF and LHF at time "
+                        << elapsed_time
+                        << ": SHF = " << sfc_tflux
+                        << " (W/m^2) LHF = " << sfc_qflux
+                        << " (W/m^2) TAU = " << sfc_ustar
+                        << " (m^2/s^2)" << std::endl;
+
+            // overwrite the custom_ustar/tstar/qstar values with the new values and
+            // use the existing pathway to set u*,t*,q* with or without a custom_rhosurf
+            // note - when m_use_sfc_fluxes=true, custom_flux has specified_rho_surf=true,
+            // so there is no rho factor here
+            custom_ustar = std::sqrt(sfc_ustar); // convert tau from file to u*
+            custom_tstar = sfc_tflux / Cp_d;
+            custom_qstar = sfc_qflux / L_v;
+        }
+
         if (custom_rhosurf > 0) {
             specified_rho_surf = true;
             u_star[lev]->setVal(std::sqrt(custom_rhosurf) * custom_ustar);
@@ -274,6 +301,47 @@ SurfaceLayer::update_fluxes (const int& lev,
     t_star[lev]->FillBoundary(m_geom[lev].periodicity());
     q_star[lev]->FillBoundary(m_geom[lev].periodicity());
       olen[lev]->FillBoundary(m_geom[lev].periodicity());
+}
+
+void
+SurfaceLayer::update_sfc_time_index (const Real& elapsed_time)
+{
+    if (sfc.empty() || sfc[0].size() < 2) { return; }
+
+    Real t1 = sfc[0][sfc_time_ind+1];
+    while (elapsed_time >= t1)
+    {
+        int prev_index = sfc_time_ind;
+        sfc_time_ind = std::min(sfc_time_ind + 1, int(sfc[0].size() - 2));
+        t1 = sfc[0][sfc_time_ind+1];
+        if (prev_index == sfc_time_ind) {
+            break;
+        }
+    }
+}
+
+Real
+SurfaceLayer::interpolate_sfc_column (const Real& elapsed_time,
+                                      int col) const
+{
+    if (sfc.empty() || sfc[0].empty()) { return zero; }
+    if (sfc[0].size() == 1) { return sfc[col][0]; }
+
+    const Real t0 = sfc[0][sfc_time_ind];
+    const Real t1 = sfc[0][sfc_time_ind+1];
+    const Real x0 = sfc[col][sfc_time_ind];
+    const Real x1 = sfc[col][sfc_time_ind+1];
+
+    if (elapsed_time < t0) {
+        return x0;
+    }
+
+    if (t0 == t1 || elapsed_time > t1) {
+        return x1;
+    }
+
+    const Real dt = (elapsed_time - t0) / (t1 - t0);
+    return x0 + (x1 - x0) * dt;
 }
 
 /**
@@ -451,7 +519,8 @@ SurfaceLayer::impose_SurfaceLayer_bcs (const int& lev,
                                  xqv_flux, yqv_flux, zqv_flux,
                                  z_phys, flux_comp);
     } else if (flux_type == FluxCalcType::CUSTOM) {
-        custom_flux flux_comp(specified_rho_surf);
+        const bool fluxes_include_rho = specified_rho_surf || m_use_sfc_fluxes;
+        custom_flux flux_comp(fluxes_include_rho);
         compute_SurfaceLayer_bcs(lev, mfs, Tau_lev,
                                  xheat_flux, yheat_flux, zheat_flux,
                                  xqv_flux, yqv_flux, zqv_flux,
@@ -1229,6 +1298,36 @@ SurfaceLayer::fill_tsurf_with_sst_and_tsk (const int& lev,
     t_surf[lev]->FillBoundary(m_geom[lev].periodicity());
 }
 
+void
+SurfaceLayer::fill_tsurf_with_sfc_sst (const int& lev,
+                                       const double& elapsed_time)
+{
+    update_sfc_time_index(elapsed_time);
+    const Real sfc_sst = interpolate_sfc_column(elapsed_time, 1);
+    const int klo = m_geom[lev].Domain().smallEnd(2);
+
+    for (MFIter mfi(*t_surf[lev]); mfi.isValid(); ++mfi)
+    {
+        Box gtbx = mfi.growntilebox();
+
+        if (gtbx.smallEnd(2) != klo) { continue; }
+
+        auto t_surf_arr = t_surf[lev]->array(mfi);
+        auto lmask_arr  = (m_lmask_lev[lev][0]) ? m_lmask_lev[lev][0]->array(mfi) :
+                                                  Array4<int> {};
+
+        ParallelFor(gtbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+        {
+            int is_land = (lmask_arr) ? lmask_arr(i,j,k) : 0;
+            if (!is_land) {
+                t_surf_arr(i,j,k) = sfc_sst;
+            }
+        });
+    }
+
+    t_surf[lev]->FillBoundary(m_geom[lev].periodicity());
+}
+
 /**
  * Fill sea-surface moisture with saturation specific humidity.
  *
@@ -1631,4 +1730,73 @@ SurfaceLayer::read_custom_roughness (const int& lev,
                        m_geom[lev].Domain(),ratio,
                        bcr, 0);
     }
+}
+
+/**
+ * Reads columns of data from a text file, returning each column in a vector.
+ *
+ * @param[in] fname       path to text file
+ * @param[in] skip_nlines number of lines to skip before reading data (e.g, header lines)
+ * @return Vector containing each column in the file as a vector
+ */
+amrex::Vector<amrex::Vector<amrex::Real>>
+SurfaceLayer::read_cols(const std::string &fname, const int skip_nlines)
+{
+    std::ifstream ifs(fname);
+    if (!ifs.is_open())
+    {
+        amrex::Error("Error opening input file " + fname);
+    }
+
+    amrex::Vector<amrex::Vector<amrex::Real>> col_data;
+    std::string line;
+    int nlines = 0;
+    int ncols = -1;
+
+    const auto print_err = [](const std::string &fname, int line, int cols, int expected_cols) {
+        amrex::Error("Error reading file '" + fname + "': expected line " +
+                     std::to_string(line) + " to have " + std::to_string(expected_cols) +
+                     " columns, but got " + std::to_string(cols));
+    };
+
+    while (std::getline(ifs, line))
+    {
+        nlines++;
+        if (nlines <= skip_nlines) continue;
+        if (line.empty()) continue;
+
+        std::istringstream iss(line);
+
+        amrex::Real tmp;
+        // Get the number of columns in the file
+        if (ncols == -1) {
+            int j = 0;
+            while (iss >> tmp) {
+                col_data.push_back(amrex::Vector<amrex::Real>());
+                j+= 1;
+            }
+
+            ncols = j;
+            iss = std::istringstream(line);
+        }
+
+        int j = 0;
+        while (iss >> tmp) {
+            // verify each line has the same number of columns
+            if (j >= ncols) {
+                print_err(fname, nlines, j+1, ncols);
+            }
+            col_data[j].push_back(tmp);
+            j+= 1;
+        }
+
+        // throw error if there are fewer columns in the line than expected
+        if (j != ncols) {
+            print_err(fname, nlines, j, ncols);
+        }
+    }
+
+    ifs.close();
+
+    return col_data;
 }

@@ -1,6 +1,10 @@
 #ifndef ERF_SURFACELAYER_H
 #define ERF_SURFACELAYER_H
 
+#include <fstream>
+#include <sstream>
+#include <string>
+
 #include "AMReX_Geometry.H"
 #include "AMReX_ParmParse.H"
 #include "AMReX_FArrayBox.H"
@@ -18,6 +22,7 @@
 #include "ERF_PBLHeight.H"
 #include "ERF_MicrophysicsUtils.H"
 #include "ERF_EB.H"
+
 
 /** Abstraction layer for different surface layer schemes (e.g. MOST, Cd)
  *
@@ -410,6 +415,56 @@ public:
       m_Lwave_lev[lev] = Lwave;
       m_eddyDiffs_lev[lev] = eddyDiffs;
 
+      // Text-file driven surface forcing modes. The file always contains at
+      // least time(day) and sst(K); prescribed-flux mode also uses H, LE, USTAR.
+      pp.query("most.use_sfc_fluxes", m_use_sfc_fluxes);
+      pp.query("most.use_sfc_sst", m_use_sfc_sst);
+      if (m_use_sfc_fluxes && m_use_sfc_sst) {
+          amrex::Abort("Only one of most.use_sfc_fluxes and most.use_sfc_sst may be enabled");
+      }
+      if (m_use_sfc_fluxes || m_use_sfc_sst) {
+          if (m_terrain_type == TerrainType::EB) {
+              amrex::Abort("Text-file surface forcing is not supported with EB terrain");
+          }
+
+          // load sensible and latent heat fluxes from sfc to prescribe
+          std::string sfc_file = "";
+          pp.query("most.sfc_file", sfc_file);
+          if (sfc_file.empty()) {
+              amrex::Abort("most.sfc_file must be set when using text-file surface forcing");
+          }
+
+          // sfc contains: time(day) sst(K) H(W/m2) LE(W/m2) TAU(m2/s2)
+          sfc = read_cols(sfc_file, 1);
+
+          const int min_cols = m_use_sfc_fluxes ? 5 : 2;
+          if (static_cast<int>(sfc.size()) < min_cols) {
+              amrex::Abort("Surface forcing file does not contain the required number of columns");
+          }
+
+          // shift time column in days to be relative to current elapsed time
+          const amrex::Real start_day = sfc[0][0];
+          for (int i = 0; i < static_cast<int>(sfc[0].size()); ++i) {
+              sfc[0][i] = 86400.0 * (sfc[0][i] - start_day);
+          }
+
+          if (m_use_sfc_sst) {
+              if (theta_type == ThetaCalcType::HEAT_FLUX || surf_heating_rate != zero) {
+                  amrex::Abort("most.use_sfc_sst cannot be combined with prescribed heat flux or surf_heating_rate");
+              }
+              if (moist_type == MoistCalcType::MOISTURE_FLUX) {
+                  amrex::Abort("most.use_sfc_sst cannot be combined with prescribed moisture flux");
+              }
+              theta_type = ThetaCalcType::SURFACE_TEMPERATURE;
+              amrex::Print() << "Using MOST with prescribed SST from most.sfc_file '" << sfc_file << "' over sea" << std::endl;
+          }
+
+          if (m_use_sfc_fluxes) {
+              flux_type = FluxCalcType::CUSTOM;
+              amrex::Print() << "Using MOST with prescribed time-varying surface fluxes from '" << sfc_file << "'" << std::endl;
+          }
+      }
+
       // Get pointers to LSM data and Fluxes
       int ndata = static_cast<int>(lsm_data.size());
       int nflux = static_cast<int>(lsm_flux.size());
@@ -425,6 +480,9 @@ public:
               m_has_lsm_tsurf  = true;
               m_lsm_tsurf_indx = n;
           }
+      }
+      if (m_use_sfc_sst && m_use_coupled_sst) {
+          amrex::Abort("most.use_sfc_sst cannot be combined with an ocean LSM t_surf input");
       }
       int n_valid_lsm_flux = 0;
       bool has_soil_t_flux = false;
@@ -736,6 +794,15 @@ public:
                                     const double& time);
 
   /**
+   * Fill surface temperature interpolated from time varying SST file
+   *
+   * @param[in] lev  level index
+   * @param[in] time interpolation time
+   */
+  void fill_tsurf_with_sfc_sst (const int& lev,
+                                const double& time);
+
+  /**
    * Overwrite surface temperature with coupled ocean SST where the coupler
    * covers the cell.
    *
@@ -757,6 +824,22 @@ public:
   void fill_qsurf_with_qsat (const int& lev,
                              const amrex::MultiFab& cons_in,
                              const std::unique_ptr<amrex::MultiFab>& z_phys_nd);
+
+  /**
+   * Updates current time index for interpolating data from SFC/SST file.
+   *
+   * @param[in] time elapsed time
+   */
+  void update_sfc_time_index (const amrex::Real& time);
+
+  /**
+   * Interpolates the SFC/SST data at the given column and time
+   *
+   * @param[in] time elapsed time
+   * @param[in] col  column index of file data
+   */
+  amrex::Real interpolate_sfc_column (const amrex::Real& time,
+                                      int col) const;
 
   /**
    * Fill surface temperature from the LSM surface-temperature field.
@@ -1046,6 +1129,16 @@ public:
    */
   void set_coupled_sst_active (const bool active) { m_use_coupled_sst = active; }
 
+  /**
+   * Reads columns of data from a text file, returning each column in a vector.
+   *
+   * @param[in] fname       path to text file
+   * @param[in] skip_nlines number of lines to skip before reading data (e.g, header lines)
+   * @return Vector containing each column in the file as a vector
+   */
+  static amrex::Vector<amrex::Vector<amrex::Real>>
+  read_cols(const std::string& fname, const int skip_nlines = 1);
+
   enum struct FluxCalcType {
     MOENG = 0, ///< Moeng functional form
     DONELAN,   ///< Donelan functional form
@@ -1119,6 +1212,15 @@ private:
   bool m_has_lsm_fluxes = false;
   bool m_has_lsm_tsurf  = false;
   int  m_lsm_tsurf_indx = -1;
+
+  // variables for sfc/sst forcing from file
+  bool m_use_sfc_fluxes = false;
+  bool m_use_sfc_sst = false;
+  int sfc_time_ind = 0;
+  amrex::Vector<amrex::Vector<amrex::Real>> sfc;
+  amrex::Real sfc_qflux = zero;
+  amrex::Real sfc_tflux = zero;
+  amrex::Real sfc_ustar = zero;
 
   // Set from solverChoice.use_coupled_sst before the per-level Define runs.
   // Configuration only: true means an ocean coupler will supply SST on some
