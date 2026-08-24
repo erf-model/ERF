@@ -108,6 +108,7 @@ void make_sources (int level,
                                   solverChoice.buildings_type == BuildingsType::ImmersedForcing);
 
     // Use passed-in planar averages for immersed forcing (computed once in ERF_AdvanceDycore.cpp)
+    AMREX_ALWAYS_ASSERT(!use_immersed_forcing || (r_plane_avg && t_plane_avg));
     if (use_immersed_forcing && r_plane_avg && t_plane_avg) {
         // Use pre-computed values from persistent storage (already in Table1D format)
         dptr_r_plane_if = r_plane_avg;
