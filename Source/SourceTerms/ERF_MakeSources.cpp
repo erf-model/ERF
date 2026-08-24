@@ -471,6 +471,7 @@ void make_sources (int level,
             const Array4<const Real>& u = xvel.array(mfi);
             const Array4<const Real>& v = yvel.array(mfi);
 
+            AMREX_ALWAYS_ASSERT(dptr_r_plane_if && dptr_t_plane_if);  // Tables must be filled before immersed forcing
             ImmersedForcingTerrain_Scalar(bx, u, v, cell_data, t_blank_arr, z_cc_arr,
                                          cell_src, geom, solverChoice, dptr_r_plane_if, dptr_t_plane_if, time);
         }
@@ -490,6 +491,7 @@ void make_sources (int level,
             const Array4<const Real>& v = yvel.array(mfi);
             const Array4<const Real>& w = zvel.array(mfi);
 
+            AMREX_ALWAYS_ASSERT(dptr_r_plane_if && dptr_t_plane_if);  // Tables must be filled before immersed forcing
             ImmersedForcingBuildings_Scalar(bx, u, v, w, cell_data, t_blank_arr, z_cc_arr,
                                            cell_src, geom, solverChoice, dptr_r_plane_if, dptr_t_plane_if, time);
         }

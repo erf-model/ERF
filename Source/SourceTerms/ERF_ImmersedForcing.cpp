@@ -953,8 +953,7 @@ void ImmersedForcingTerrain_Scalar (const Box& bx,
         }
 
         // Force fully immersed cells to planar average rho and theta
-        if (t_blank == one) {
-            AMREX_ALWAYS_ASSERT(r_avg && t_avg);  // Tables must be filled before calling this function
+        if (t_blank == one && r_avg && t_avg) {
             const Real rho_avg = r_avg(k);
             const Real theta_avg = t_avg(k) / rho_avg;  // Convert from RhoTheta to Theta
             const Real rho_cell = cell_data(i,j,k,Rho_comp);
@@ -1196,8 +1195,7 @@ void ImmersedForcingBuildings_Scalar (const Box& bx,
         }
 
         // Force fully immersed cells to planar average rho and theta
-        if (t_blank == 1.0) {
-            AMREX_ALWAYS_ASSERT(r_avg && t_avg);  // Tables must be filled before calling this function
+        if (t_blank == 1.0 && r_avg && t_avg) {
             const Real rho_avg = r_avg(k);
             const Real theta_avg = t_avg(k) / rho_avg;  // Convert from RhoTheta to Theta
             const Real rho_cell = cell_data(i,j,k,Rho_comp);
