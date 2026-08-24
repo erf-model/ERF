@@ -1130,16 +1130,6 @@ public:
   void set_coupled_sst_active (const bool active) { m_use_coupled_sst = active; }
 
   /**
-   * Returns whether surface fluxes are being set from time-varying sfc file
-   */
-  bool use_sfc_fluxes() { return m_use_sfc_fluxes; }
-
-  /**
-   * Returns whether surface temperature is being set from time-varying sst file
-   */
-  bool use_sfc_sst() { return m_use_sfc_sst; }
-
-  /**
    * Reads columns of data from a text file, returning each column in a vector.
    *
    * @param[in] fname       path to text file
