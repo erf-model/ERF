@@ -101,6 +101,7 @@ void make_sources (int level,
     // Planar averages for subsidence terms and immersed forcing
     // *****************************************************************************
     Table1D<Real>      dptr_r_plane, dptr_t_plane, dptr_qv_plane, dptr_qc_plane;
+    Table1D<Real>      dptr_r_plane_if, dptr_t_plane_if;  // Separate tables for immersed forcing
     TableData<Real, 1>  r_plane_tab,  t_plane_tab,  qv_plane_tab,  qc_plane_tab;
 
     bool use_immersed_forcing = (solverChoice.terrain_type == TerrainType::ImmersedForcing ||
@@ -109,8 +110,8 @@ void make_sources (int level,
     // Use passed-in planar averages for immersed forcing (computed once in ERF_AdvanceDycore.cpp)
     if (use_immersed_forcing && r_plane_avg && t_plane_avg) {
         // Use pre-computed values from persistent storage (already in Table1D format)
-        dptr_r_plane = r_plane_avg;
-        dptr_t_plane = t_plane_avg;
+        dptr_r_plane_if = r_plane_avg;
+        dptr_t_plane_if = t_plane_avg;
     }
 
     // Compute planar averages if needed for subsidence
@@ -470,7 +471,7 @@ void make_sources (int level,
             const Array4<const Real>& v = yvel.array(mfi);
 
             ImmersedForcingTerrain_Scalar(bx, u, v, cell_data, t_blank_arr, z_cc_arr,
-                                         cell_src, geom, solverChoice, dptr_r_plane, dptr_t_plane, time);
+                                         cell_src, geom, solverChoice, dptr_r_plane_if, dptr_t_plane_if, time);
         }
 
         // *************************************************************************************
@@ -489,7 +490,7 @@ void make_sources (int level,
             const Array4<const Real>& w = zvel.array(mfi);
 
             ImmersedForcingBuildings_Scalar(bx, u, v, w, cell_data, t_blank_arr, z_cc_arr,
-                                           cell_src, geom, solverChoice, dptr_r_plane, dptr_t_plane, time);
+                                           cell_src, geom, solverChoice, dptr_r_plane_if, dptr_t_plane_if, time);
         }
 
         // *************************************************************************************
