@@ -1740,13 +1740,20 @@ SurfaceLayer::read_cols(const std::string &fname, const int skip_nlines)
 
     amrex::Vector<amrex::Vector<amrex::Real>> col_data;
     std::string line;
-    int i = 0;
+    int nlines = 0;
     int ncols = -1;
+
+    const auto print_err = [](const std::string &fname, int line, int cols, int expected_cols) {
+        amrex::Error("Error reading file '" + fname + "': expected line " +
+                     std::to_string(line) + " to have " + std::to_string(expected_cols) +
+                     " columns, but got " + std::to_string(cols));
+    };
 
     while (std::getline(ifs, line))
     {
-        i++;
-        if (i <= skip_nlines) continue;
+        nlines++;
+        if (nlines <= skip_nlines) continue;
+        if (line.empty()) continue;
 
         std::istringstream iss(line);
 
@@ -1766,14 +1773,16 @@ SurfaceLayer::read_cols(const std::string &fname, const int skip_nlines)
         int j = 0;
         while (iss >> tmp) {
             // verify each line has the same number of columns
-            if (j > ncols) {
-              amrex::Error(
-                "Error reading file '" + fname + "': expected line " +
-                std::to_string(i) + " to have " + std::to_string(ncols) +
-                " columns, but got " + std::to_string(j));
+            if (j >= ncols) {
+                print_err(fname, nlines, j+1, ncols);
             }
             col_data[j].push_back(tmp);
             j+= 1;
+        }
+
+        // throw error if there are fewer columns in the line than expected
+        if (j != ncols) {
+            print_err(fname, nlines, j, ncols);
         }
     }
 
