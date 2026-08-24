@@ -434,7 +434,7 @@ public:
               amrex::Abort("most.sfc_file must be set when using text-file surface forcing");
           }
 
-          // sfc contains: time(day) sst(K) H(W/m2) LE(W/m2) USTAR(m/s)
+          // sfc contains: time(day) sst(K) H(W/m2) LE(W/m2) TAU(m2/s2)
           sfc = read_cols(sfc_file, 1);
 
           const int min_cols = m_use_sfc_fluxes ? 5 : 2;
@@ -456,7 +456,12 @@ public:
                   amrex::Abort("most.use_sfc_sst cannot be combined with prescribed moisture flux");
               }
               theta_type = ThetaCalcType::SURFACE_TEMPERATURE;
-              amrex::Print() << "Using MOST with prescribed SST from most.sfc_file over sea" << std::endl;
+              amrex::Print() << "Using MOST with prescribed SST from most.sfc_file '" << sfc_file << "' over sea" << std::endl;
+          }
+
+          if (m_use_sfc_fluxes) {
+              flux_type = FluxCalcType::CUSTOM;
+              amrex::Print() << "Using MOST with prescribed time-varying surface fluxes from '" << sfc_file << "'" << std::endl;
           }
       }
 

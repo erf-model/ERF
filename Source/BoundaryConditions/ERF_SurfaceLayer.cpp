@@ -217,6 +217,29 @@ SurfaceLayer::update_fluxes (const int& lev,
     } // MOENG -- SEA
 
     if (flux_type == FluxCalcType::CUSTOM || flux_type == FluxCalcType::RICO) {
+        if (m_use_sfc_fluxes) {
+            // update custom surface fluxes interpolated from file
+            update_sfc_time_index(elapsed_time);
+            sfc_tflux = interpolate_sfc_column(elapsed_time, 2);
+            sfc_qflux = interpolate_sfc_column(elapsed_time, 3);
+            sfc_ustar = interpolate_sfc_column(elapsed_time, 4);
+
+            amrex::Print() << " ABLMOST: Interpolating SHF and LHF at time "
+                        << elapsed_time
+                        << ": SHF = " << sfc_tflux
+                        << " (W/m^2) LHF = " << sfc_qflux
+                        << " (W/m^2) TAU = " << sfc_ustar
+                        << " (m^2/s^2)" << std::endl;
+
+            // overwrite the custom_ustar/tstar/qstar values with the new values and
+            // use the existing pathway to set u*,t*,q* with or without a custom_rhosurf
+            // note - when m_use_sfc_fluxes=true, custom_flux has specified_rho_surf=true,
+            // so there is no rho factor here
+            custom_ustar = std::sqrt(sfc_ustar); // convert tau from file to u*
+            custom_tstar = sfc_tflux / Cp_d;
+            custom_qstar = sfc_qflux / L_v;
+        }
+
         if (custom_rhosurf > 0) {
             specified_rho_surf = true;
             u_star[lev]->setVal(std::sqrt(custom_rhosurf) * custom_ustar);
@@ -272,24 +295,6 @@ SurfaceLayer::update_fluxes (const int& lev,
                 }
             });
         }
-    }
-
-    if (m_use_sfc_fluxes)
-    {
-        update_sfc_time_index(elapsed_time);
-        sfc_tflux = interpolate_sfc_column(elapsed_time, 2);
-        sfc_qflux = interpolate_sfc_column(elapsed_time, 3);
-        sfc_ustar = interpolate_sfc_column(elapsed_time, 4);
-
-        amrex::Print() << " ABLMOST: Interpolating SHF and LHF at time "
-                       << elapsed_time
-                       << ": SHF = " << sfc_tflux
-                       << " LHF = " << sfc_qflux
-                       << " USTAR = " << sfc_ustar << std::endl;
-
-        u_star[lev]->setVal(sfc_ustar);
-        t_star[lev]->setVal(sfc_tflux / Cp_d);
-        q_star[lev]->setVal(sfc_qflux / L_v);
     }
 
     u_star[lev]->FillBoundary(m_geom[lev].periodicity());
@@ -510,7 +515,8 @@ SurfaceLayer::impose_SurfaceLayer_bcs (const int& lev,
                                  xqv_flux, yqv_flux, zqv_flux,
                                  z_phys, flux_comp);
     } else if (flux_type == FluxCalcType::CUSTOM) {
-        custom_flux flux_comp(specified_rho_surf);
+        const bool fluxes_include_rho = specified_rho_surf || m_use_sfc_fluxes;
+        custom_flux flux_comp(fluxes_include_rho);
         compute_SurfaceLayer_bcs(lev, mfs, Tau_lev,
                                  xheat_flux, yheat_flux, zheat_flux,
                                  xqv_flux, yqv_flux, zqv_flux,
@@ -1290,7 +1296,7 @@ SurfaceLayer::fill_tsurf_with_sst_and_tsk (const int& lev,
 
 void
 SurfaceLayer::fill_tsurf_with_sfc_sst (const int& lev,
-                                       const Real& elapsed_time)
+                                       const double& elapsed_time)
 {
     update_sfc_time_index(elapsed_time);
     const Real sfc_sst = interpolate_sfc_column(elapsed_time, 1);
