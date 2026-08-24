@@ -119,19 +119,27 @@ void ERF::advance_dycore (int level,
     MultiFab* SmnSmn    = SmnSmn_lev[level].get();
 
     // *****************************************************************************
-    // Planar averages for subsidence terms
+    // Planar averages for subsidence terms, nudging, and immersed forcing
     // *****************************************************************************
+    bool use_immersed_forcing = (solverChoice.terrain_type == TerrainType::ImmersedForcing ||
+                                  solverChoice.buildings_type == BuildingsType::ImmersedForcing);
+
     Table1D<Real> dptr_r_plane, dptr_t_plane, dptr_qv_plane;
     TableData<Real, 1> r_plane_tab, t_plane_tab,  qv_plane_tab;
 
     Table1D<Real> dptr_u_plane, dptr_v_plane;
     TableData<Real, 1> u_plane_tab, v_plane_tab;
-    if (use_nudging)
+    if (use_nudging || use_immersed_forcing)
     {
         // Rho
         IntVect ng_c(state_old[IntVars::cons].nGrowVect()); ng_c[2] = 1;
         int ncomp = (solverChoice.moisture_type == MoistureType::None) ? 2 : RhoQ2_comp;
         MultiFab cons(state_old[IntVars::cons], make_alias, 0, ncomp);
+
+        // Immersed forcing requires z-direction (ave_plane=2) averages to match persistent table sizing
+        if (use_immersed_forcing) {
+            AMREX_ALWAYS_ASSERT(solverChoice.ave_plane == 2);
+        }
 
         PlaneAverage cons_ave(&cons, fine_geom, solverChoice.ave_plane, ng_c);
         cons_ave.compute_averages(ZDir(), cons_ave.field());
@@ -153,13 +161,19 @@ void ERF::advance_dycore (int level,
         Real* dptr_t = t_plane_d.data();
 
         Box tdomain  = domain; tdomain.grow(2,ng_c[2]);
-        r_plane_tab.resize({tdomain.smallEnd(2)}, {tdomain.bigEnd(2)});
-        t_plane_tab.resize({tdomain.smallEnd(2)}, {tdomain.bigEnd(2)});
-
         int offset = ng_c[2];
 
-        dptr_r_plane = r_plane_tab.table();
-        dptr_t_plane = t_plane_tab.table();
+        // For immersed forcing without nudging, write directly to persistent storage
+        // to avoid redundant allocation and kernel launch
+        if (use_immersed_forcing && !use_nudging) {
+            dptr_r_plane = r_plane_avg[level].table();
+            dptr_t_plane = t_plane_avg[level].table();
+        } else {
+            r_plane_tab.resize({tdomain.smallEnd(2)}, {tdomain.bigEnd(2)});
+            t_plane_tab.resize({tdomain.smallEnd(2)}, {tdomain.bigEnd(2)});
+            dptr_r_plane = r_plane_tab.table();
+            dptr_t_plane = t_plane_tab.table();
+        }
 
         ParallelFor(ncell, [=] AMREX_GPU_DEVICE (int k) noexcept
         {
@@ -167,66 +181,82 @@ void ERF::advance_dycore (int level,
             dptr_t_plane(k-offset) = dptr_t[k];
         });
 
-        if (solverChoice.moisture_type != MoistureType::None)
-        {
-            Gpu::HostVector<  Real> qv_plane_h(ncell), qc_plane_h(ncell);
-            Gpu::DeviceVector<Real> qv_plane_d(ncell), qc_plane_d(ncell);
-
-            // Water vapor
-            cons_ave.line_average(RhoQ1_comp, qv_plane_h);
-            Gpu::copy(Gpu::hostToDevice, qv_plane_h.begin(), qv_plane_h.end(), qv_plane_d.begin());
-
-            Real* dptr_qv = qv_plane_d.data();
-            qv_plane_tab.resize({tdomain.smallEnd(2)}, {tdomain.bigEnd(2)});
-            dptr_qv_plane = qv_plane_tab.table();
-            ParallelFor(ncell, [=] AMREX_GPU_DEVICE (int k) noexcept
+        // U, V, and Qv velocity (only needed for nudging, not for immersed forcing)
+        if (use_nudging) {
+            if (solverChoice.moisture_type != MoistureType::None)
             {
-                dptr_qv_plane(k-offset) = dptr_qv[k];
+                Gpu::HostVector<  Real> qv_plane_h(ncell), qc_plane_h(ncell);
+                Gpu::DeviceVector<Real> qv_plane_d(ncell), qc_plane_d(ncell);
+
+                // Water vapor
+                cons_ave.line_average(RhoQ1_comp, qv_plane_h);
+                Gpu::copy(Gpu::hostToDevice, qv_plane_h.begin(), qv_plane_h.end(), qv_plane_d.begin());
+
+                Real* dptr_qv = qv_plane_d.data();
+                qv_plane_tab.resize({tdomain.smallEnd(2)}, {tdomain.bigEnd(2)});
+                dptr_qv_plane = qv_plane_tab.table();
+                ParallelFor(ncell, [=] AMREX_GPU_DEVICE (int k) noexcept
+                {
+                    dptr_qv_plane(k-offset) = dptr_qv[k];
+                });
+            }
+            IntVect ng_u = xvel_old.nGrowVect(); ng_u[2] = 1;
+            IntVect ng_v = yvel_old.nGrowVect(); ng_v[2] = 1;
+
+            PlaneAverage u_ave(&(xvel_old), fine_geom, solverChoice.ave_plane, ng_u);
+            PlaneAverage v_ave(&(yvel_old), fine_geom, solverChoice.ave_plane, ng_v);
+
+            u_ave.compute_averages(ZDir(), u_ave.field());
+            v_ave.compute_averages(ZDir(), v_ave.field());
+
+            int u_ncell = u_ave.ncell_line();
+            int v_ncell = v_ave.ncell_line();
+            Gpu::HostVector<    Real> u_plane_h(u_ncell), v_plane_h(v_ncell);
+            Gpu::DeviceVector<  Real> u_plane_d(u_ncell), v_plane_d(v_ncell);
+
+            u_ave.line_average(0, u_plane_h);
+            v_ave.line_average(0, v_plane_h);
+
+            Gpu::copy(Gpu::hostToDevice, u_plane_h.begin(), u_plane_h.end(), u_plane_d.begin());
+            Gpu::copy(Gpu::hostToDevice, v_plane_h.begin(), v_plane_h.end(), v_plane_d.begin());
+
+            Real* dptr_u = u_plane_d.data();
+            Real* dptr_v = v_plane_d.data();
+
+            Box udomain = domain; udomain.grow(2,ng_u[2]);
+            Box vdomain = domain; vdomain.grow(2,ng_v[2]);
+            u_plane_tab.resize({udomain.smallEnd(2)}, {udomain.bigEnd(2)});
+            v_plane_tab.resize({vdomain.smallEnd(2)}, {vdomain.bigEnd(2)});
+
+            int u_offset = ng_u[2];
+            dptr_u_plane = u_plane_tab.table();
+            ParallelFor(u_ncell, [=] AMREX_GPU_DEVICE (int k) noexcept
+            {
+                dptr_u_plane(k-u_offset) = dptr_u[k];
+            });
+
+            int v_offset = ng_v[2];
+            dptr_v_plane = v_plane_tab.table();
+            ParallelFor(v_ncell, [=] AMREX_GPU_DEVICE (int k) noexcept
+            {
+                dptr_v_plane(k-v_offset) = dptr_v[k];
             });
         }
 
-        // U and V velocity
-        IntVect ng_u = xvel_old.nGrowVect(); ng_u[2] = 1;
-        IntVect ng_v = yvel_old.nGrowVect(); ng_v[2] = 1;
+        // Store planar averages in persistent ERF member variables for immersed forcing
+        // (only needed when nudging is also enabled; otherwise we wrote directly above)
+        if (use_immersed_forcing && use_nudging) {
+            Table1D<Real> r_avg_persistent = r_plane_avg[level].table();
+            Table1D<Real> t_avg_persistent = t_plane_avg[level].table();
 
-        PlaneAverage u_ave(&(xvel_old), fine_geom, solverChoice.ave_plane, ng_u);
-        PlaneAverage v_ave(&(yvel_old), fine_geom, solverChoice.ave_plane, ng_v);
-
-        u_ave.compute_averages(ZDir(), u_ave.field());
-        v_ave.compute_averages(ZDir(), v_ave.field());
-
-        int u_ncell = u_ave.ncell_line();
-        int v_ncell = v_ave.ncell_line();
-        Gpu::HostVector<    Real> u_plane_h(u_ncell), v_plane_h(v_ncell);
-        Gpu::DeviceVector<  Real> u_plane_d(u_ncell), v_plane_d(v_ncell);
-
-        u_ave.line_average(0, u_plane_h);
-        v_ave.line_average(0, v_plane_h);
-
-        Gpu::copy(Gpu::hostToDevice, u_plane_h.begin(), u_plane_h.end(), u_plane_d.begin());
-        Gpu::copy(Gpu::hostToDevice, v_plane_h.begin(), v_plane_h.end(), v_plane_d.begin());
-
-        Real* dptr_u = u_plane_d.data();
-        Real* dptr_v = v_plane_d.data();
-
-        Box udomain = domain; udomain.grow(2,ng_u[2]);
-        Box vdomain = domain; vdomain.grow(2,ng_v[2]);
-        u_plane_tab.resize({udomain.smallEnd(2)}, {udomain.bigEnd(2)});
-        v_plane_tab.resize({vdomain.smallEnd(2)}, {vdomain.bigEnd(2)});
-
-        int u_offset = ng_u[2];
-        dptr_u_plane = u_plane_tab.table();
-        ParallelFor(u_ncell, [=] AMREX_GPU_DEVICE (int k) noexcept
-        {
-            dptr_u_plane(k-u_offset) = dptr_u[k];
-        });
-
-        int v_offset = ng_v[2];
-        dptr_v_plane = v_plane_tab.table();
-        ParallelFor(v_ncell, [=] AMREX_GPU_DEVICE (int k) noexcept
-        {
-            dptr_v_plane(k-v_offset) = dptr_v[k];
-        });
+            // Copy from local computation to persistent storage
+            // Both use the same Table1D indexing with offset, so direct copy
+            ParallelFor(ncell, [=] AMREX_GPU_DEVICE (int k) noexcept
+            {
+                r_avg_persistent(k-offset) = dptr_r_plane(k-offset);
+                t_avg_persistent(k-offset) = dptr_t_plane(k-offset);
+            });
+        }
     }
 
     if (use_lsf) {
@@ -595,33 +625,19 @@ void ERF::advance_dycore (int level,
             terrain_blanking[level].get() : nullptr;
 
         if (terrain_blank) {
-            for (MFIter mfi(*eddyDiffs, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
-                const Box& bx = mfi.tilebox();
+            for (MFIter mfi(*eddyDiffs); mfi.isValid(); ++mfi) {
+                const Box& bx = mfi.growntilebox(eddyDiffs->nGrowVect());
                 auto const& t_blank_arr = terrain_blank->const_array(mfi);
                 auto const& eddy_arr = eddyDiffs->array(mfi);
 
                 ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-                    if (t_blank_arr(i,j,k) == Real(1.0)) {
+                    // Zero eddy diffusivities in fully immersed cells (sanitizes NaN/Inf)
+                    if (t_blank_arr(i,j,k) == one) {
                         for (int n = 0; n < EddyDiff::NumDiffs; ++n) {
-                            eddy_arr(i,j,k,n) = Real(0.0);
+                            eddy_arr(i,j,k,n) = zero;
                         }
                     }
                 });
-            }
-
-            // Also zero SmnSmn if it exists
-            if (SmnSmn) {
-                for (MFIter mfi(*SmnSmn, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
-                    const Box& bx = mfi.tilebox();
-                    auto const& t_blank_arr = terrain_blank->const_array(mfi);
-                    auto const& smn_arr = SmnSmn->array(mfi);
-
-                    ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-                        if (t_blank_arr(i,j,k) == Real(1.0)) {
-                            smn_arr(i,j,k) = Real(0.0);
-                        }
-                    });
-                }
             }
         }
     }

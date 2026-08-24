@@ -111,6 +111,13 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
         terrain_blanking_yface[lev]->setVal(one);
         terrain_blanking_zface[lev]->setVal(one);
 #endif
+
+        // Initialize planar average storage for immersed forcing
+        // Sized to match PlaneAverage output with ghost cells, using same indexing as subsidence
+        Box domain = geom[lev].Domain();
+        Box tdomain = domain; tdomain.grow(2, 1);  // Grow by 1 ghost cell in z-direction
+        r_plane_avg[lev].resize({tdomain.smallEnd(2)}, {tdomain.bigEnd(2)});
+        t_plane_avg[lev].resize({tdomain.smallEnd(2)}, {tdomain.bigEnd(2)});
     }
 
     // We use these area arrays regardless of terrain, EB or none of the above
@@ -696,6 +703,7 @@ ERF::update_diffusive_arrays (int lev, const BoxArray& ba, const DistributionMap
         eddyDiffs_lev[lev]->setVal(zero);
         if(l_need_SmnSmn) {
             SmnSmn_lev[lev] = std::make_unique<MultiFab>( ba, dm, 1, 0 );
+            SmnSmn_lev[lev]->setVal(zero);
         } else {
             SmnSmn_lev[lev] = nullptr;
         }
