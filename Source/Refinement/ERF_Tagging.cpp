@@ -299,10 +299,10 @@ ERF::ErrorEst (int levc, TagBoxArray& tags, Real time, int /*ngrow*/)
             }
         } else if (ref_tags[t].Field() == "max_reflectivity")
         {
-            if (solverChoice.moisture_type == MoistureType::Morrison ||
-                solverChoice.moisture_type == MoistureType::WSM6 ||
-                solverChoice.moisture_type == MoistureType::WDM6 ||
-                solverChoice.moisture_type == MoistureType::SAM) {
+            // NOTE: this tests the data layout the reflectivity kernel assumes rather
+            //       than enumerating moisture models, so it picks up any scheme that
+            //       carries rain/snow/graupel in RhoQ4/RhoQ5/RhoQ6
+            if (solverChoice.moisture_indices.has_reflectivity_species()) {
                 // NOTE: this takes a max over the column so we must not tile in z
                 for (MFIter mfi(*mf, TileNoZ()); mfi.isValid(); ++mfi)
                 {
@@ -314,7 +314,7 @@ ERF::ErrorEst (int levc, TagBoxArray& tags, Real time, int /*ngrow*/)
                     derived::erf_dermaxreflectivity(bx, dfab, 0, 1, sfab, zfab, Geom(levc), time, nullptr, levc);
                 }
             } else {
-                Abort("Max reflectivity is only available with SAM, Morrison, WSM6 and WDM6 microphysics.");
+                Abort("Max reflectivity requires a microphysics model carrying rain, snow and graupel.");
             }
         // This allows dynamic refinement based on the terrain blanking
         } else if ( (SolverChoice::terrain_type == TerrainType::ImmersedForcing) &&

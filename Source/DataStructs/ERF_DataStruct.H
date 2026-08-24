@@ -214,6 +214,82 @@ struct MoistureComponentIndices {
      * @brief Construct an empty set of moisture component indices.
      */
     MoistureComponentIndices() = default;
+
+    /**
+     * @brief Test whether a conserved-state component holds one of the moisture variables.
+     *
+     * Use this rather than enumerating moisture models when deciding if a "rhoQn"
+     * state component is allocated by the active scheme.
+     *
+     * @param comp Absolute component index into the conserved state array.
+     */
+    bool has_comp (int comp) const {
+        return ( (comp >= 0) &&
+                 ( (comp == qv) || (comp == qc) || (comp == qi) ||
+                   (comp == qr) || (comp == qs) || (comp == qg) ||
+                   (comp == nc) || (comp == ni) || (comp == nr) ||
+                   (comp == ns) || (comp == ng) || (comp == nn) ) );
+    }
+
+    /**
+     * @brief Test whether the active scheme carries rain, snow and graupel in the
+     *        RhoQ4/RhoQ5/RhoQ6 slots assumed by erf_derreflectivity and
+     *        erf_dermaxreflectivity.
+     *
+     * Those kernels read the precipitating species by hardcoded component, so this
+     * checks the layout and not just the presence of the species.
+     */
+    bool has_reflectivity_species () const {
+        return ( (qr == RhoQ4_comp) && (qs == RhoQ5_comp) && (qg == RhoQ6_comp) );
+    }
+
+    /**
+     * @brief Test whether the active scheme carries any moisture at all.
+     *
+     * Every moist scheme allocates water vapor, so this is equivalent to testing
+     * moisture_type != MoistureType::None without needing the enum.
+     */
+    bool has_moisture () const { return (qv >= 0); }
+
+    /**
+     * @brief Test whether the moist species behind a derived/plot variable name is
+     *        carried by the active scheme.
+     *
+     * This is driven off the scheme's component map rather than an enumerated list
+     * of moisture models, so it stays correct as schemes are added.  Names with no
+     * moisture dependence -- and moist diagnostics that come from the qmoist arrays
+     * rather than the conserved state (e.g. "rel_humidity", "condensation_rate") --
+     * return true, so this can be used directly as a filter over a mixed list of
+     * variable names.
+     *
+     * @param name Derived or plot variable name.
+     */
+    bool has_derived_var (const std::string& name) const {
+        if (name == "qv")                             { return (qv >= 0); }
+        if (name == "qc")                             { return (qc >= 0); }
+        if (name == "qi")                             { return (qi >= 0); }
+        if (name == "qrain"  || name == "rain_accum") { return (qr >= 0); }
+        if (name == "qsnow"  || name == "snow_accum") { return (qs >= 0); }
+        if (name == "qgraup" || name == "graup_accum"){ return (qg >= 0); }
+
+        if (name == "nc") { return (nc >= 0); }
+        if (name == "ni") { return (ni >= 0); }
+        if (name == "nr") { return (nr >= 0); }
+        if (name == "ns") { return (ns >= 0); }
+        if (name == "ng") { return (ng >= 0); }
+        if (name == "nn") { return (nn >= 0); }
+
+        // Precipitating water is the sum of the falling species
+        if (name == "qp") { return ( (qr >= 0) || (qs >= 0) || (qg >= 0) ); }
+
+        // Non-precipitating water is vapor plus the suspended condensate
+        if (name == "qn" || name == "moist_density") { return ( (qv >= 0) && (qc >= 0) ); }
+
+        // These need any moisture at all
+        if (name == "qt" || name == "qsat" || name == "precipitable") { return has_moisture(); }
+
+        return true;
+    }
 };
 
 /**

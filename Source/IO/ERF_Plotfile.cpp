@@ -549,10 +549,9 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
 
         if (containerHasElement(plot_var_names, "reflectivity"))
         {
-            if (solverChoice.moisture_type == MoistureType::Morrison ||
-                solverChoice.moisture_type == MoistureType::WSM6 ||
-                solverChoice.moisture_type == MoistureType::WDM6 ||
-                solverChoice.moisture_type == MoistureType::SAM) {
+            // NOTE: this tests the data layout the reflectivity kernel assumes rather
+            //       than enumerating moisture models (see ERF_Tagging.cpp)
+            if (solverChoice.moisture_indices.has_reflectivity_species()) {
                 calculate_derived("reflectivity",      vars_new[lev][Vars::cons], derived::erf_derreflectivity);
             } else {
                 mf[lev].setVal(zero, mf_comp, 1, 0);
@@ -562,10 +561,9 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
 
         if (containerHasElement(plot_var_names, "max_reflectivity"))
         {
-            if (solverChoice.moisture_type == MoistureType::Morrison ||
-                solverChoice.moisture_type == MoistureType::WSM6 ||
-                solverChoice.moisture_type == MoistureType::WDM6 ||
-                solverChoice.moisture_type == MoistureType::SAM) {
+            // NOTE: this tests the data layout the reflectivity kernel assumes rather
+            //       than enumerating moisture models (see ERF_Tagging.cpp)
+            if (solverChoice.moisture_indices.has_reflectivity_species()) {
                 calculate_derived("max_reflectivity",  vars_new[lev][Vars::cons], derived::erf_dermaxreflectivity);
             } else {
                 mf[lev].setVal(zero, mf_comp, 1, 0);
