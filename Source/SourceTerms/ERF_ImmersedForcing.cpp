@@ -1195,7 +1195,7 @@ void ImmersedForcingBuildings_Scalar (const Box& bx,
         }
 
         // Force fully immersed cells to planar average rho and theta
-        if (t_blank == 1.0) {
+        if (t_blank == 1.0 && r_avg && t_avg) {
             const Real rho_avg = r_avg(k);
             const Real theta_avg = t_avg(k) / rho_avg;  // Convert from RhoTheta to Theta
             const Real rho_cell = cell_data(i,j,k,Rho_comp);
