@@ -136,6 +136,11 @@ void ERF::advance_dycore (int level,
         int ncomp = (solverChoice.moisture_type == MoistureType::None) ? 2 : RhoQ2_comp;
         MultiFab cons(state_old[IntVars::cons], make_alias, 0, ncomp);
 
+        // Immersed forcing requires z-direction (ave_plane=2) averages to match persistent table sizing
+        if (use_immersed_forcing) {
+            AMREX_ALWAYS_ASSERT(solverChoice.ave_plane == 2);
+        }
+
         PlaneAverage cons_ave(&cons, fine_geom, solverChoice.ave_plane, ng_c);
         cons_ave.compute_averages(ZDir(), cons_ave.field());
 
