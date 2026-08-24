@@ -614,8 +614,8 @@ void ERF::advance_dycore (int level,
             terrain_blanking[level].get() : nullptr;
 
         if (terrain_blank) {
-            for (MFIter mfi(*eddyDiffs, TileNoZ()); mfi.isValid(); ++mfi) {
-                const Box& bx = mfi.tilebox();
+            for (MFIter mfi(*eddyDiffs); mfi.isValid(); ++mfi) {
+                const Box& bx = mfi.growntilebox(eddyDiffs->nGrowVect());
                 auto const& t_blank_arr = terrain_blank->const_array(mfi);
                 auto const& eddy_arr = eddyDiffs->array(mfi);
 
@@ -628,9 +628,6 @@ void ERF::advance_dycore (int level,
                     }
                 });
             }
-
-            // Synchronize ghost cells after modifying interior cells
-            eddyDiffs->FillBoundary(fine_geom.periodicity());
         }
     }
 
