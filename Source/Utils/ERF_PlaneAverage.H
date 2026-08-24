@@ -282,8 +282,12 @@ PlaneAverage::compute_averages (const IndexSelector& idxOp, const amrex::MultiFa
     amrex::ParallelDescriptor::ReduceRealSum(cnt_h.data(), cnt_h.size());
     amrex::ParallelDescriptor::ReduceRealSum(m_line_average.data(), m_line_average.size());
     for (int ind(0); ind<m_ncell_line; ++ind) {
-        for (int n(0); n<ncomp; ++n) {
-            m_line_average[ncomp*ind + n] /= cnt_h[ind];
+        // With AMR, some vertical levels may have no cells (e.g., above refined regions)
+        // Skip averaging for levels with zero cell count to avoid division by zero
+        if (cnt_h[ind] > zero) {
+            for (int n(0); n<ncomp; ++n) {
+                m_line_average[ncomp*ind + n] /= cnt_h[ind];
+            }
         }
     }
     m_ncell_plane = static_cast<int>(cnt_h[0]);
