@@ -170,26 +170,25 @@ void ERF::advance_dycore (int level,
             dptr_t_plane(k-offset) = dptr_t[k];
         });
 
-        if (solverChoice.moisture_type != MoistureType::None)
-        {
-            Gpu::HostVector<  Real> qv_plane_h(ncell), qc_plane_h(ncell);
-            Gpu::DeviceVector<Real> qv_plane_d(ncell), qc_plane_d(ncell);
-
-            // Water vapor
-            cons_ave.line_average(RhoQ1_comp, qv_plane_h);
-            Gpu::copy(Gpu::hostToDevice, qv_plane_h.begin(), qv_plane_h.end(), qv_plane_d.begin());
-
-            Real* dptr_qv = qv_plane_d.data();
-            qv_plane_tab.resize({tdomain.smallEnd(2)}, {tdomain.bigEnd(2)});
-            dptr_qv_plane = qv_plane_tab.table();
-            ParallelFor(ncell, [=] AMREX_GPU_DEVICE (int k) noexcept
-            {
-                dptr_qv_plane(k-offset) = dptr_qv[k];
-            });
-        }
-
-        // U and V velocity (only needed for nudging, not for immersed forcing)
+        // U, V, and Qv velocity (only needed for nudging, not for immersed forcing)
         if (use_nudging) {
+            if (solverChoice.moisture_type != MoistureType::None)
+            {
+                Gpu::HostVector<  Real> qv_plane_h(ncell), qc_plane_h(ncell);
+                Gpu::DeviceVector<Real> qv_plane_d(ncell), qc_plane_d(ncell);
+
+                // Water vapor
+                cons_ave.line_average(RhoQ1_comp, qv_plane_h);
+                Gpu::copy(Gpu::hostToDevice, qv_plane_h.begin(), qv_plane_h.end(), qv_plane_d.begin());
+
+                Real* dptr_qv = qv_plane_d.data();
+                qv_plane_tab.resize({tdomain.smallEnd(2)}, {tdomain.bigEnd(2)});
+                dptr_qv_plane = qv_plane_tab.table();
+                ParallelFor(ncell, [=] AMREX_GPU_DEVICE (int k) noexcept
+                {
+                    dptr_qv_plane(k-offset) = dptr_qv[k];
+                });
+            }
             IntVect ng_u = xvel_old.nGrowVect(); ng_u[2] = 1;
             IntVect ng_v = yvel_old.nGrowVect(); ng_v[2] = 1;
 
