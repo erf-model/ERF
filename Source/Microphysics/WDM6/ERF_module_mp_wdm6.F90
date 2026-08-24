@@ -1102,7 +1102,9 @@
 
 
 
-            ncr(i,k,2) = ncr(i,k,2) + xni(i,k)
+            if(qci(i,k,2).gt.qmin) then
+              ncr(i,k,2) = ncr(i,k,2) + xni(i,k)
+            endif
             t(i,k) = t(i,k) - xlf/cpm(i,k)*qci(i,k,2)
             qci(i,k,2) = 0.
           endif
@@ -1342,6 +1344,11 @@
                 ncr(i,k,1) = ncr(i,k,1)+ncr(i,k,3)
                 ncr(i,k,3) = 0.
               endif
+            else if(prevp(i,k).eq.0.) then
+
+              ! A zero kinetic rate must not become evaporation
+              ! through a negative saturation-rate limiter.
+              prevp(i,k) = 0.
             else
 
               prevp(i,k) = min(prevp(i,k),satdt/2)
