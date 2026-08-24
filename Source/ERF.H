@@ -23,6 +23,7 @@
 #include <AMReX_ErrorList.H>
 #include <AMReX_EBFabFactory.H>
 #include <AMReX_EBMultiFabUtil.H>
+#include <AMReX_TableData.H>
 
 #include <ERF_EB.H>
 #include "Prob/ERF_CloudChamberBudget.H"
