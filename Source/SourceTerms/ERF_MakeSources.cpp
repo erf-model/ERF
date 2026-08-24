@@ -113,8 +113,8 @@ void make_sources (int level,
         dptr_t_plane = t_plane_avg;
     }
 
-    // Compute planar averages only if needed for subsidence and not already provided
-    bool compute_averages = (is_slow_step && dptr_wbar_sub && !use_immersed_forcing);
+    // Compute planar averages if needed for subsidence
+    bool compute_averages = (is_slow_step && dptr_wbar_sub);
 
     if (compute_averages)
     {
