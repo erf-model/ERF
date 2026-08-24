@@ -156,13 +156,19 @@ void ERF::advance_dycore (int level,
         Real* dptr_t = t_plane_d.data();
 
         Box tdomain  = domain; tdomain.grow(2,ng_c[2]);
-        r_plane_tab.resize({tdomain.smallEnd(2)}, {tdomain.bigEnd(2)});
-        t_plane_tab.resize({tdomain.smallEnd(2)}, {tdomain.bigEnd(2)});
-
         int offset = ng_c[2];
 
-        dptr_r_plane = r_plane_tab.table();
-        dptr_t_plane = t_plane_tab.table();
+        // For immersed forcing without nudging, write directly to persistent storage
+        // to avoid redundant allocation and kernel launch
+        if (use_immersed_forcing && !use_nudging) {
+            dptr_r_plane = r_plane_avg[level].table();
+            dptr_t_plane = t_plane_avg[level].table();
+        } else {
+            r_plane_tab.resize({tdomain.smallEnd(2)}, {tdomain.bigEnd(2)});
+            t_plane_tab.resize({tdomain.smallEnd(2)}, {tdomain.bigEnd(2)});
+            dptr_r_plane = r_plane_tab.table();
+            dptr_t_plane = t_plane_tab.table();
+        }
 
         ParallelFor(ncell, [=] AMREX_GPU_DEVICE (int k) noexcept
         {
@@ -233,7 +239,8 @@ void ERF::advance_dycore (int level,
         }
 
         // Store planar averages in persistent ERF member variables for immersed forcing
-        if (use_immersed_forcing) {
+        // (only needed when nudging is also enabled; otherwise we wrote directly above)
+        if (use_immersed_forcing && use_nudging) {
             Table1D<Real> r_avg_persistent = r_plane_avg[level].table();
             Table1D<Real> t_avg_persistent = t_plane_avg[level].table();
 
