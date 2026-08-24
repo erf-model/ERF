@@ -1411,7 +1411,7 @@ private:
                                                     // Interval means and resolved turbulence moments
                                                     "u_mean", "v_mean", "w_mean", "theta_mean",
                                                     "uu_mean", "vv_mean", "ww_mean", "uw_mean", "vw_mean", "wtheta_mean",
-                                                    "uu_fluct", "vv_fluct", "ww_fluct", "uw_fluct", "vw_fluct", "wtheta_fluct", "tke",
+                                                    "uu_fluct", "vv_fluct", "ww_fluct", "uw_fluct", "vw_fluct", "wtheta_fluct", "tke_resolved",
                                                     // eddy viscosity
                                                     "nut",
                                                     // eddy diffusivity of momentum

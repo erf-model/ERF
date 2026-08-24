@@ -24,10 +24,15 @@ struct UniformGridMetadata
     amrex::Real ymin{amrex::Real(0.0)};
 };
 
-inline amrex::Real
-comparison_tolerance (amrex::Real lhs, amrex::Real rhs)
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+amrex::Real
+comparison_tolerance (amrex::Real lhs, amrex::Real rhs) noexcept
 {
-    const amrex::Real scale = std::max({amrex::Real(1.0), std::abs(lhs), std::abs(rhs)});
+    amrex::Real scale = amrex::Real(1.0);
+    const amrex::Real lhs_abs = amrex::Math::abs(lhs);
+    const amrex::Real rhs_abs = amrex::Math::abs(rhs);
+    if (lhs_abs > scale) scale = lhs_abs;
+    if (rhs_abs > scale) scale = rhs_abs;
     // NetCDF coordinate variables are commonly stored as float32 even when
     // ERF is built with double precision.  A few float32 ulps at the
     // coordinate magnitude are therefore source-file quantization, not grid
@@ -38,7 +43,7 @@ comparison_tolerance (amrex::Real lhs, amrex::Real rhs)
         amrex::Real(64.0) * std::numeric_limits<amrex::Real>::epsilon() * scale;
     const amrex::Real float_ulp =
         amrex::Real(8.0) * static_cast<amrex::Real>(std::numeric_limits<float>::epsilon()) * scale;
-    return std::max(real_ulp, float_ulp);
+    return (real_ulp > float_ulp) ? real_ulp : float_ulp;
 }
 
 inline bool
@@ -83,15 +88,9 @@ validate_uniform_axis (const amrex::Vector<amrex::Real>& coordinates,
         // because each stored coordinate was rounded independently, while the
         // ulp-based tolerance above still rejects materially nonuniform grids.
         const amrex::Real local_spacing = coordinate - coordinates[index-1];
-        const amrex::Real coordinate_scale =
-            std::max({amrex::Real(1.0), std::abs(coordinate),
-                      std::abs(coordinates[index-1])});
         const amrex::Real spacing_tolerance = std::min(
             amrex::Real(0.05) * std::abs(spacing),
-            std::max(amrex::Real(64.0) * std::numeric_limits<amrex::Real>::epsilon() *
-                         coordinate_scale,
-                     amrex::Real(8.0) * static_cast<amrex::Real>(std::numeric_limits<float>::epsilon()) *
-                         coordinate_scale));
+            comparison_tolerance(coordinate, coordinates[index-1]));
         if (std::abs(local_spacing - spacing) > spacing_tolerance) {
             return field_description + " has nonuniform " + axis_name +
                    " coordinates, which are not supported";
@@ -158,18 +157,16 @@ uniform_interpolation_stencil (amrex::Real coordinate,
     }
 
     const amrex::Real upper = origin + static_cast<amrex::Real>(point_count - 1) * spacing;
-    const amrex::Real magnitude =
-        ((amrex::Real(1.0) > std::abs(origin)) ? amrex::Real(1.0) : std::abs(origin));
-    const amrex::Real scale = (magnitude > std::abs(upper)) ? magnitude : std::abs(upper);
-    const amrex::Real tolerance =
-        amrex::Real(64.0) * std::numeric_limits<amrex::Real>::epsilon() * scale;
+    const amrex::Real lower_tolerance = comparison_tolerance(coordinate, origin);
+    const amrex::Real upper_tolerance = comparison_tolerance(coordinate, upper);
 
-    if (coordinate < origin - tolerance || coordinate > upper + tolerance) {
+    if (coordinate < origin - lower_tolerance || coordinate > upper + upper_tolerance) {
         return stencil;
     }
 
     const amrex::Real bounded_coordinate =
-        (coordinate < origin) ? origin : ((coordinate > upper) ? upper : coordinate);
+        (coordinate <= origin + lower_tolerance) ? origin :
+        ((coordinate >= upper - upper_tolerance) ? upper : coordinate);
     const amrex::Real fractional_index = (bounded_coordinate - origin) / spacing;
     int lower = static_cast<int>(amrex::Math::floor(fractional_index));
     lower = (lower < point_count - 1) ? lower : point_count - 2;

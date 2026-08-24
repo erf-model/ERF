@@ -78,18 +78,6 @@ plot3d_batch_resets_interval_means (int plotfiles_written,
            compute_mean_vars && reset_mode == "plotfile";
 }
 
-// Compatibility overload for callers that only know that a plot batch was
-// emitted. Production callers should pass whether a selected stream actually
-// consumed an interval diagnostic.
-inline bool
-plot3d_batch_resets_interval_means (int plotfiles_written,
-                                    bool compute_mean_vars,
-                                    const std::string& reset_mode)
-{
-    return plot3d_batch_resets_interval_means(
-        plotfiles_written, plotfiles_written > 0, compute_mean_vars, reset_mode);
-}
-
 inline Plot3DMoistureCapabilities
 plot3d_moisture_capabilities (const MoistureType moisture_type)
 {
@@ -336,7 +324,7 @@ plot3d_interval_mean_diagnostic (const std::string& name)
     static constexpr const char* names[] = {
         "u_mean", "v_mean", "w_mean", "theta_mean",
         "uu_mean", "vv_mean", "ww_mean", "uw_mean", "vw_mean", "wtheta_mean",
-        "uu_fluct", "vv_fluct", "ww_fluct", "uw_fluct", "vw_fluct", "wtheta_fluct", "tke"
+        "uu_fluct", "vv_fluct", "ww_fluct", "uw_fluct", "vw_fluct", "wtheta_fluct", "tke_resolved"
     };
 
     for (const char* candidate : names) {

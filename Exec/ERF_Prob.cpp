@@ -245,10 +245,8 @@ Problem::init_custom_pert_vels (
 #include "Prob/ERF_InitCustomPertVels_TurbulentInflow.H"
     }
     else if ( (my_prob_name_ci == "flow over witch of agnesi hill") ||
-              (my_prob_name_ci == "flow over schar mountain") ) {
-#include "Prob/ERF_InitCustomPertVels_WitchOfAgnesi.H"
-    }
-    else if (my_prob_name_ci == "bellforest") {
+              (my_prob_name_ci == "flow over schar mountain") ||
+              (my_prob_name_ci == "bellforest") ) {
 #include "Prob/ERF_InitCustomPertVels_WitchOfAgnesi.H"
     }
     else if (my_prob_name_ci == "moving terrain") {

@@ -3,7 +3,9 @@
 #include <ERF_NCInterface.H>
 #endif
 #include <ERF_Constants.H>
+#include <ERF_ForestUtils.H>
 #include <ERF_GridUtils.H>
+#include <AMReX_Reduce.H>
 
 using namespace amrex;
 
@@ -11,18 +13,12 @@ namespace {
 
 constexpr int lad_quadrature_points = 100;
 
-void
-validate_laimax (const Real laimax, const std::string& description)
-{
-    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
-        laimax >= Real(0.0) && laimax < Real(1.0),
-        (description + " must satisfy 0 <= erf.forest_laimax < 1").c_str());
-}
-
 Real
 compute_lad_normalization (const Real laimax)
 {
-    validate_laimax(laimax, "erf.forest_laimax");
+    const std::string error = erf_forest_utils::validate_laimax(
+        laimax, "erf.forest_laimax");
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(error.empty(), error.c_str());
 
     const Real inv_n = Real(1.0) / Real(lad_quadrature_points);
     Real profile_sum = Real(0.0);
@@ -45,6 +41,60 @@ compute_lad_normalization (const Real laimax)
     return normalization;
 }
 
+void
+warn_if_forest_grid_does_not_cover_targets (const MultiFab& target_field,
+                                            const Geometry& geom,
+                                            Real grid_xmin, Real grid_ymin,
+                                            Real grid_dx, Real grid_dy,
+                                            int grid_nx, int grid_ny,
+                                            int level)
+{
+    ReduceOps<ReduceOpSum, ReduceOpSum> reduce_op;
+    ReduceData<Long, Long> reduce_data(reduce_op);
+    const auto dx = geom.CellSizeArray();
+    const auto prob_lo = geom.ProbLoArray();
+    const int source_xmax = grid_nx - 1;
+    const int source_ymax = grid_ny - 1;
+
+    for (MFIter mfi(target_field, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+        const Box box = mfi.validbox();
+        reduce_op.eval(box, reduce_data,
+            [=] AMREX_GPU_DEVICE (int i, int j, int /*k*/) -> GpuTuple<Long, Long> {
+                const Real x = prob_lo[0] + (static_cast<Real>(i) + Real(0.5)) * dx[0];
+                const Real y = prob_lo[1] + (static_cast<Real>(j) + Real(0.5)) * dx[1];
+                const auto x_stencil = erf_grid_utils::uniform_interpolation_stencil(
+                    x, grid_xmin, grid_dx, grid_nx);
+                const auto y_stencil = erf_grid_utils::uniform_interpolation_stencil(
+                    y, grid_ymin, grid_dy, grid_ny);
+                const Long outside = (x_stencil.inside && y_stencil.inside) ? Long(0) : Long(1);
+                return {Long(1), outside};
+            });
+    }
+
+    const auto local = reduce_data.value();
+    Long total_targets = amrex::get<0>(local);
+    Long outside_targets = amrex::get<1>(local);
+    ParallelDescriptor::ReduceLongSum(total_targets);
+    ParallelDescriptor::ReduceLongSum(outside_targets);
+    if (ParallelDescriptor::IOProcessor() && outside_targets > 0) {
+        const Real source_xhi = grid_xmin + static_cast<Real>(source_xmax) * grid_dx;
+        const Real source_yhi = grid_ymin + static_cast<Real>(source_ymax) * grid_dy;
+        const Real target_xlo = geom.ProbLo(0) + Real(0.5) * geom.CellSize(0);
+        const Real target_ylo = geom.ProbLo(1) + Real(0.5) * geom.CellSize(1);
+        const Real target_xhi = geom.ProbHi(0) - Real(0.5) * geom.CellSize(0);
+        const Real target_yhi = geom.ProbHi(1) - Real(0.5) * geom.CellSize(1);
+        const Real percentage = total_targets > 0
+            ? Real(100.0) * static_cast<Real>(outside_targets) /
+              static_cast<Real>(total_targets) : Real(0.0);
+        Print() << "WARNING: Forest source grid does not cover ERF target cell centers"
+                << " at level " << level << ": outside " << outside_targets << " of "
+                << total_targets << " (" << percentage << "%). Source extent x=["
+                << grid_xmin << ", " << source_xhi << "] y=[" << grid_ymin << ", "
+                << source_yhi << "]; target extent x=[" << target_xlo << ", "
+                << target_xhi << "] y=[" << target_ylo << ", " << target_yhi << "].\n";
+    }
+}
+
 } // namespace
 
 /*
@@ -59,12 +109,17 @@ ForestDrag::ForestDrag (std::string forestfile)
     }
     // TreeType xc yc height diameter cd lai laimax
     Real value1, value2, value3, value4, value5, value6, value7, value8;
+    int row_number = 0;
     while (file >> value1 >> value2 >> value3 >> value4 >> value5 >> value6 >>
            value7 >> value8) {
-        if (value1 == Real(2.0) &&
-            (value8 < Real(0.0) || value8 >= Real(1.0))) {
-            Abort("Forest patch in '" + forestfile +
-                  "' has invalid erf.forest_laimax; expected 0 <= erf.forest_laimax < 1");
+        ++row_number;
+        if (value1 == Real(2.0)) {
+            const std::string error = erf_forest_utils::validate_laimax(
+                value8, "Forest file '" + forestfile + "' row " +
+                std::to_string(row_number) + " column 8 (laimax)");
+            if (!error.empty()) {
+                Abort(error);
+            }
         }
         m_type_forest.push_back(value1);
         m_x_forest.push_back(value2);
@@ -97,7 +152,9 @@ ForestDrag::ForestDrag (std::string lai_file,
         tree_type == 1 || tree_type == 2,
         "forest_tree_type must be 1 or 2");
     if (tree_type == 2) {
-        validate_laimax(laimax, "erf.forest_laimax");
+        const std::string error = erf_forest_utils::validate_laimax(
+            laimax, "erf.forest_laimax");
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(error.empty(), error.c_str());
         m_lad_normalization = compute_lad_normalization(laimax);
     }
 
@@ -123,8 +180,6 @@ ForestDrag::ForestDrag (std::string lai_file,
     if (!height_grid_error.empty()) {
         Abort(height_grid_error);
     }
-
-    m_gridded_cd.assign(m_grid_nx * m_grid_ny, m_cd_const);
 
     Print() << "ForestDrag: Gridded LAI/height + constant Cd=" << m_cd_const << "\n"
             << "  Grid size: " << m_grid_nx << " x " << m_grid_ny << "\n"
@@ -154,7 +209,9 @@ ForestDrag::ForestDrag (std::string lai_file,
         tree_type == 1 || tree_type == 2,
         "forest_tree_type must be 1 or 2");
     if (tree_type == 2) {
-        validate_laimax(laimax, "erf.forest_laimax");
+        const std::string error = erf_forest_utils::validate_laimax(
+            laimax, "erf.forest_laimax");
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(error.empty(), error.c_str());
         m_lad_normalization = compute_lad_normalization(laimax);
     }
 
@@ -215,8 +272,11 @@ ForestDrag::define_drag_field (const BoxArray& ba,
                                const DistributionMapping& dm,
                                Geometry& geom,
                                MultiFab* z_phys_cc,
-                               MultiFab* z_phys_nd)
+                               MultiFab* z_phys_nd,
+                               bool need_frontal_area,
+                               int level)
 {
+    m_need_frontal_area = need_frontal_area;
     // Geometry params
     const auto& dx = geom.CellSizeArray();
     const auto& prob_lo = geom.ProbLoArray();
@@ -236,8 +296,10 @@ ForestDrag::define_drag_field (const BoxArray& ba,
     m_forest_drag->setVal(zero);
 
     m_frontal_area.reset();
-    m_frontal_area = std::make_unique<MultiFab>(ba,dm,1,1);
-    m_frontal_area->setVal(zero);
+    if (m_need_frontal_area) {
+        m_frontal_area = std::make_unique<MultiFab>(ba,dm,1,1);
+        m_frontal_area->setVal(zero);
+    }
 
     // Copy namespace-scope constants into automatic-storage values before
     // entering GPU lambdas.  NVCC does not make these host-side constexpr
@@ -246,6 +308,7 @@ ForestDrag::define_drag_field (const BoxArray& ba,
     const Real one_d    = one;
     const Real myhalf_d = myhalf;
     const Real fourth_d = fourth;
+    const bool store_frontal_area = m_need_frontal_area;
 
     if (m_use_gridded_data) {
         // =====================================================================
@@ -254,7 +317,7 @@ ForestDrag::define_drag_field (const BoxArray& ba,
 
         const Real* lai_data_h    = m_gridded_lai.data();
         const Real* height_data_h = m_gridded_height.data();
-        const Real* cd_data_h     = m_gridded_cd.data();
+        const Real* cd_data_h     = m_use_const_cd ? nullptr : m_gridded_cd.data();
 
         const int grid_nx   = m_grid_nx;
         const int grid_ny   = m_grid_ny;
@@ -263,21 +326,32 @@ ForestDrag::define_drag_field (const BoxArray& ba,
         const Real grid_xmin = m_grid_xmin;
         const Real grid_ymin = m_grid_ymin;
 
+        warn_if_forest_grid_does_not_cover_targets(
+            *m_forest_drag, geom, grid_xmin, grid_ymin, grid_dx, grid_dy,
+            grid_nx, grid_ny, level);
+
         const int grid_size = m_grid_nx * m_grid_ny;
         Gpu::DeviceVector<Real> lai_data_d(grid_size);
         Gpu::DeviceVector<Real> height_data_d(grid_size);
-        Gpu::DeviceVector<Real> cd_data_d(grid_size);
+        Gpu::DeviceVector<Real> cd_data_d;
+        if (!m_use_const_cd) {
+            cd_data_d.resize(grid_size);
+        }
 
         Gpu::copy(Gpu::hostToDevice, lai_data_h, lai_data_h + grid_size,
                   lai_data_d.begin());
         Gpu::copy(Gpu::hostToDevice, height_data_h, height_data_h + grid_size,
                   height_data_d.begin());
-        Gpu::copy(Gpu::hostToDevice, cd_data_h, cd_data_h + grid_size,
-                  cd_data_d.begin());
+        if (!m_use_const_cd) {
+            Gpu::copy(Gpu::hostToDevice, cd_data_h, cd_data_h + grid_size,
+                      cd_data_d.begin());
+        }
 
         const Real* lai_data    = lai_data_d.data();
         const Real* height_data = height_data_d.data();
-        const Real* cd_data     = cd_data_d.data();
+        const Real* cd_data     = m_use_const_cd ? nullptr : cd_data_d.data();
+        const Real cd_const     = m_cd_const;
+        const bool use_const_cd = m_use_const_cd;
 
         const int tree_type = m_tree_type;
         const Real laimax   = m_laimax;
@@ -286,7 +360,8 @@ ForestDrag::define_drag_field (const BoxArray& ba,
         for (MFIter mfi(*m_forest_drag); mfi.isValid(); ++mfi) {
             Box gtbx = mfi.growntilebox();
             const Array4<Real>& levelDrag   = m_forest_drag->array(mfi);
-            const Array4<Real>& frontalArea = m_frontal_area->array(mfi);
+            const Array4<Real> frontalArea = store_frontal_area
+                ? m_frontal_area->array(mfi) : Array4<Real>{};
             const Array4<const Real>& z_cc  = z_phys_cc->const_array(mfi);
             const Array4<const Real>& z_nd  = z_phys_nd->const_array(mfi);
 
@@ -326,13 +401,16 @@ ForestDrag::define_drag_field (const BoxArray& ba,
                     Real height_interp = (h00 * (one_d - wx) + h10 * wx) * (one_d - wy) +
                                          (h01 * (one_d - wx) + h11 * wx) * wy;
 
-                    // Bilinear interpolation of Cd
-                    Real cd00 = cd_data[jj_c * grid_nx + ii_c];
-                    Real cd10 = cd_data[jj_c * grid_nx + (ii_c + 1)];
-                    Real cd01 = cd_data[(jj_c + 1) * grid_nx + ii_c];
-                    Real cd11 = cd_data[(jj_c + 1) * grid_nx + (ii_c + 1)];
-                    Real cd_interp = (cd00 * (one_d - wx) + cd10 * wx) * (one_d - wy) +
-                                     (cd01 * (one_d - wx) + cd11 * wx) * wy;
+                    Real cd_interp = cd_const;
+                    if (!use_const_cd) {
+                        // Bilinear interpolation of Cd from file.
+                        Real cd00 = cd_data[jj_c * grid_nx + ii_c];
+                        Real cd10 = cd_data[jj_c * grid_nx + (ii_c + 1)];
+                        Real cd01 = cd_data[(jj_c + 1) * grid_nx + ii_c];
+                        Real cd11 = cd_data[(jj_c + 1) * grid_nx + (ii_c + 1)];
+                        cd_interp = (cd00 * (one_d - wx) + cd10 * wx) * (one_d - wy) +
+                                    (cd01 * (one_d - wx) + cd11 * wx) * wy;
+                    }
 
                     // Compute drag if within canopy
                     if (z < height_interp && height_interp > zero_d && lai_interp > zero_d) {
@@ -356,7 +434,9 @@ ForestDrag::define_drag_field (const BoxArray& ba,
                         }
 
                         levelDrag(i, j, k)   = cd_interp * af * factor;
-                        frontalArea(i, j, k) = af * factor;
+                        if (store_frontal_area) {
+                            frontalArea(i, j, k) = af * factor;
+                        }
                     }
                 }
             });
@@ -392,7 +472,8 @@ ForestDrag::define_drag_field (const BoxArray& ba,
             for (MFIter mfi(*m_forest_drag); mfi.isValid(); ++mfi) {
                 Box gtbx = mfi.growntilebox();
                 const Array4<Real>& levelDrag   = m_forest_drag->array(mfi);
-                const Array4<Real>& frontalArea = m_frontal_area->array(mfi);
+                const Array4<Real> frontalArea = store_frontal_area
+                    ? m_frontal_area->array(mfi) : Array4<Real>{};
                 const Array4<const Real>& z_cc  = z_phys_cc->const_array(mfi);
                 const Array4<const Real>& z_nd  = z_phys_nd->const_array(mfi);
 
@@ -421,7 +502,9 @@ ForestDrag::define_drag_field (const BoxArray& ba,
                             }
                         }
                         levelDrag(i, j, k)   = cdf * af * factor;
-                        frontalArea(i, j, k) = af * factor;
+                        if (store_frontal_area) {
+                            frontalArea(i, j, k) = af * factor;
+                        }
                     }
                 });
             } // mfi
@@ -431,7 +514,9 @@ ForestDrag::define_drag_field (const BoxArray& ba,
 
     // Fillboundary for periodic ghost cell copy
     m_forest_drag->FillBoundary(geom.periodicity());
-    m_frontal_area->FillBoundary(geom.periodicity());
+    if (m_frontal_area != nullptr) {
+        m_frontal_area->FillBoundary(geom.periodicity());
+    }
 
 } // define_drag_field
 
@@ -503,18 +588,17 @@ ForestDrag::read_netcdf_file (const std::string& filename,
         const bool has_y = ncf.has_var("y");
         const bool has_lon = ncf.has_var("lon");
         const bool has_lat = ncf.has_var("lat");
-        if (has_x != has_y) {
-            Abort("Forest field '" + varname + "' in '" + filename +
-                  "' must provide both x and y coordinate variables");
+        const std::string coordinate_source =
+            "Forest field '" + varname + "' in '" + filename + "'";
+        const std::string coordinate_kind_error =
+            erf_forest_utils::validate_cartesian_coordinates(
+                has_x, has_y, has_lon, has_lat, coordinate_source);
+        if (!coordinate_kind_error.empty()) {
+            Abort(coordinate_kind_error);
         }
-        if (!has_x && has_lon != has_lat) {
-            Abort("Forest field '" + varname + "' in '" + filename +
-                  "' must provide both lon and lat coordinate variables");
-        }
-
-        if ((has_x && has_y) || (has_lon && has_lat)) {
-            const std::string x_name = has_x ? "x" : "lon";
-            const std::string y_name = has_y ? "y" : "lat";
+        if (has_x && has_y) {
+            const std::string x_name = "x";
+            const std::string y_name = "y";
             auto x_var = ncf.var(x_name);
             auto y_var = ncf.var(y_name);
 
@@ -546,13 +630,8 @@ ForestDrag::read_netcdf_file (const std::string& filename,
                 Abort(coordinate_error);
             }
 
-            if (!has_x) {
-                Print() << "Warning: Using lon/lat coordinates as domain coordinates.\n";
-            }
         } else {
-            Abort("Forest field '" + varname + "' in '" + filename +
-                  "' must provide x/y (or lon/lat) coordinate variables; "
-                  "unit-spacing fallback is not supported");
+            Abort(coordinate_source + " must provide projected Cartesian x and y coordinate variables");
         }
 
         data.resize(nx * ny);

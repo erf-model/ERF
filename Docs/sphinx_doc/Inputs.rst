@@ -714,7 +714,7 @@ List of Parameters
 
 When ``erf.compute_mean_vars = true``, ERF makes the interval fields
 ``u_mean``, ``v_mean``, ``w_mean``, ``theta_mean``, the corresponding second
-moments, resolved variances/covariances, and resolved ``tke`` available to
+moments, resolved variances/covariances, and resolved ``tke_resolved`` available to
 ``erf.plot_vars_1`` and ``erf.plot_vars_2``. See
 :ref:`sec:Plotfile3DReference` for definitions. In ``time`` reset mode, the
 accumulator is reset once, at the first step whose start time is at or beyond
@@ -809,7 +809,7 @@ List of Parameters
 | **erf.profile_int**           | Interval (number)| Integer        | -1             |
 |                               | of steps between |                |                |
 |                               | outputs          |                |                |
--------------------------------+------------------+----------------+----------------+
++-------------------------------+------------------+----------------+----------------+
 | **erf.destag_profiles**       | Interpolate all  | Boolean        | true           |
 |                               | outputs to       |                |                |
 |                               | cell-center      |                |                |
@@ -1431,8 +1431,9 @@ The gridded mode requires NetCDF support and both ``forest_lai_file`` and
 constant ``forest_cd``. The LAI, height, and optional drag-coefficient files
 must share the same horizontal grid. ERF reads variables named ``LAI``,
 ``height``, and ``cd``; each may be two-dimensional or have a leading time
-dimension, in which case the first time record is used. Coordinates may be
-named ``x``/``y`` or ``lon``/``lat``. Each horizontal direction must contain
+dimension, in which case the first time record is used. Coordinates must be
+projected Cartesian ``x``/``y``; raw ``lon``/``lat`` coordinates are rejected
+because ERF does not silently reinterpret degrees as meters. Each horizontal direction must contain
 at least two finite, strictly increasing, uniformly spaced coordinates. All
 forest fields must match the LAI dimensions, spacing, and horizontal origin;
 ERF rejects misregistered fields before interpolation. A coordinate pair is

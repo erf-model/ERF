@@ -86,13 +86,11 @@ endfunction(add_test_plotfile_header)
 # Standard regression test
 function(add_test_r TEST_NAME TEST_DIR TEST_EXE PLTFILE)
     set(options )
-    set(oneValueArgs "INPUT_SOUNDING" "RUNTIME_OPTIONS" "FCOMPARE_RTOL" "FCOMPARE_ATOL"
-        "TEST_FILES_DIR")
+    set(oneValueArgs "INPUT_SOUNDING" "RUNTIME_OPTIONS" "FCOMPARE_RTOL" "FCOMPARE_ATOL")
     set(multiValueArgs )
     cmake_parse_arguments(ADD_TEST_R "${options}" "${oneValueArgs}"
         "${multiValueArgs}" ${ARGN})
 
-    set(TEST_FILES_DIR "${ADD_TEST_R_TEST_FILES_DIR}")
     setup_test()
 
     set(RUNTIME_OPTIONS "${ADD_TEST_R_RUNTIME_OPTIONS}")
@@ -680,7 +678,6 @@ if(ERF_ENABLE_NETCDF)
   # exercised by this one-step, two-rank regression.  The NetCDF files are
   # static fixtures so CI does not require ncgen.
   add_test_r(BellForest                       ""  "erf_exec" "plt00001"
-      TEST_FILES_DIR "BellForest"
       FCOMPARE_RTOL "2.0e-9" FCOMPARE_ATOL "2.0e-9")
 endif()
 if(ERF_ENABLE_PARTICLES)

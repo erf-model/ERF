@@ -275,7 +275,7 @@ The default subvolume inventory is documented on :ref:`sec:Plotfiles`.
 |                             | covariance       |
 |                             | [K m/s]          |
 +-----------------------------+------------------+
-| **tke**                     | resolved TKE     |
+| **tke_resolved**            | resolved TKE     |
 |                             | [m^2/s^2]        |
 +-----------------------------+------------------+
 | **rhoadv_0**                | Conserved scalar |
@@ -609,10 +609,10 @@ every AMR level in the plotfile:
   ``erf.time_avg_vel = true``. If no samples have been accumulated yet, the
   output value is defined as zero rather than dividing by zero.
 * ``u_mean``, ``v_mean``, ``w_mean``, ``theta_mean``, all ``*_mean`` second
-  moments, all ``*_fluct`` resolved variances/covariances, and ``tke`` require
+  moments, all ``*_fluct`` resolved variances/covariances, and ``tke_resolved`` require
   ``erf.compute_mean_vars = true``. For example,
   ``uw_fluct = uw_mean - u_mean*w_mean`` and
-  ``tke = 0.5*(uu_fluct + vv_fluct + ww_fluct)``. These fields are also zero
+  ``tke_resolved = 0.5*(uu_fluct + vv_fluct + ww_fluct)``. These fields are also zero
   before the first sample is accumulated.
 * ``qsrc_sw`` and ``qsrc_lw`` require a non-``None`` radiation choice.
 * ``nut``, ``Kmv``, ``Kmh``, ``Khv``, ``Khh``, and ``Lturb`` require

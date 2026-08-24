@@ -15,6 +15,7 @@
 #include "AMReX_WriteEBSurface.H"
 
 #include "ERF_EpochTime.H"
+#include "ERF_IntervalMeansCheckpoint.H"
 #include "ERF_PlotfileSelection.H"
 #include "ERF_Utils.H"
 #include "ERF_TerrainMetrics.H"
@@ -714,7 +715,8 @@ ERF::InitData_post ()
         AMREX_ALWAYS_ASSERT(pc_ptr != nullptr);
         pc_ptr->Define(static_cast<amrex::ParGDBBase*>(GetParGDB()));
 
-        if (restart_chkfile.empty()) {
+        if (erf_interval_means::initialization_accumulates_state(
+                !restart_chkfile.empty())) {
             if (solverChoice.moisture_tight_coupling) {
                 Warning("Tight coupling has not been tested with Lagrangian microphysics");
             }
@@ -738,7 +740,9 @@ ERF::InitData_post ()
         if (solverChoice.do_forest_drag) {
             for (int lev(0); lev <= finest_level; ++lev) {
                 m_forest_drag[lev]->define_drag_field(grids[lev], dmap[lev], geom[lev],
-                                                      z_phys_cc[lev].get(), z_phys_nd[lev].get());
+                                                      z_phys_cc[lev].get(), z_phys_nd[lev].get(),
+                                                      solverChoice.forest_biophysics &&
+                                                      solverChoice.forest_biophysics_heat, lev);
             }
         }
 
@@ -1385,12 +1389,18 @@ ERF::InitData_post ()
                 mean_vars_time_reset_done = 1;
             }
         }
-        for (int lev = 0; lev <= finest_level; ++lev) {
-            Accumulate_Interval_Means(dt[lev], t_mean_cnt[lev], interval_means[lev].get(),
-                                      vars_new[lev][Vars::xvel],
-                                      vars_new[lev][Vars::yvel],
-                                      vars_new[lev][Vars::zvel],
-                                      vars_new[lev][Vars::cons]);
+        // A restart restores the already accumulated window from the
+        // checkpoint.  Sampling the restart state here would count that
+        // instant twice; a fresh run still needs its initial sample for the
+        // historical t=0 behavior.
+        if (restart_chkfile.empty()) {
+            for (int lev = 0; lev <= finest_level; ++lev) {
+                Accumulate_Interval_Means(dt[lev], t_mean_cnt[lev], interval_means[lev].get(),
+                                          vars_new[lev][Vars::xvel],
+                                          vars_new[lev][Vars::yvel],
+                                          vars_new[lev][Vars::zvel],
+                                          vars_new[lev][Vars::cons]);
+            }
         }
     }
 
@@ -1453,8 +1463,12 @@ ERF::InitData_post ()
             if (m_plot3d_per_2 > zero) {last_plot3d_file_time_2 += m_plot3d_per_2;}
             last_plot3d_file_step_2 = istep[0];
         }
-        ResetIntervalMeansAfter3DPlotfileBatch(plotfiles_3d_written,
-                                               interval_diagnostic_consumed);
+        // A restart-only plot is observational: it must not consume the
+        // restored interval window before the first post-restart advance.
+        ResetIntervalMeansAfter3DPlotfileBatch(
+            plotfiles_3d_written,
+            erf_interval_means::initialization_plot_consumes_interval(
+                !restart_chkfile.empty(), interval_diagnostic_consumed));
         if (m_plot2d_int_1 > 0 || m_plot2d_per_1 > zero)
         {
             Write2DPlotFile(1,plotfile2d_type_1,plot2d_var_names_1);

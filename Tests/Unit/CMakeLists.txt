@@ -127,6 +127,7 @@ target_sources(${erf_exe_name}
     ${CMAKE_CURRENT_SOURCE_DIR}/Diagnostics/ERF_GTestSurfaceFluxDiagnostics.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/Diagnostics/ERF_GTestSeaLevelPressure.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/SourceTerms/ERF_GTestCanopyBiophysics.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/SourceTerms/ERF_GTestForestDrag.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/IO/ERF_GTestPlotfile2D.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/IO/ERF_GTestPlotfileSelection.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/IO/ERF_GTestProvenance.cpp
@@ -157,7 +158,17 @@ target_sources(${erf_exe_name}
 if(ERF_ENABLE_NETCDF)
   target_sources(${erf_exe_name} PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/IO/ERF_GTestTerrainNetCDF.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/SourceTerms/ERF_GTestForestDragNetCDF.cpp
   )
+  set(ERF_FOREST_TEST_FIXTURE_DIR
+      "${CMAKE_CURRENT_BINARY_DIR}/forest_fixtures/BellForest")
+  file(MAKE_DIRECTORY "${ERF_FOREST_TEST_FIXTURE_DIR}")
+  file(COPY
+    ${PROJECT_SOURCE_DIR}/Tests/test_files/BellForest/forest_lai_bell.nc
+    ${PROJECT_SOURCE_DIR}/Tests/test_files/BellForest/forest_height_bell.nc
+    DESTINATION "${ERF_FOREST_TEST_FIXTURE_DIR}")
+  target_compile_definitions(${erf_exe_name} PRIVATE
+    ERF_FOREST_TEST_FIXTURE_DIR="${ERF_FOREST_TEST_FIXTURE_DIR}")
 endif()
 target_sources(${erf_exe_name} PRIVATE
   ${CMAKE_CURRENT_SOURCE_DIR}/IO/ERF_GTestIntervalMeansRestart.cpp

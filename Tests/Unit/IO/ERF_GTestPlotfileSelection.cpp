@@ -329,7 +329,7 @@ TEST(Plotfile3DSelection, OptionalStorageGroupsAreExplicit)
     EXPECT_FALSE(erf_plotfile::plot3d_fixed_variable_available("u_t_avg", caps));
     EXPECT_FALSE(erf_plotfile::plot3d_fixed_variable_available("u_mean", caps));
     EXPECT_FALSE(erf_plotfile::plot3d_fixed_variable_available("wtheta_fluct", caps));
-    EXPECT_FALSE(erf_plotfile::plot3d_fixed_variable_available("tke", caps));
+    EXPECT_FALSE(erf_plotfile::plot3d_fixed_variable_available("tke_resolved", caps));
     EXPECT_FALSE(erf_plotfile::plot3d_fixed_variable_available("qsrc_sw", caps));
     EXPECT_FALSE(erf_plotfile::plot3d_fixed_variable_available("Kmv", caps));
     EXPECT_FALSE(erf_plotfile::plot3d_fixed_variable_available("diss", caps));
@@ -344,7 +344,7 @@ TEST(Plotfile3DSelection, OptionalStorageGroupsAreExplicit)
     EXPECT_TRUE(erf_plotfile::plot3d_fixed_variable_available("u_t_avg", caps));
     EXPECT_TRUE(erf_plotfile::plot3d_fixed_variable_available("u_mean", caps));
     EXPECT_TRUE(erf_plotfile::plot3d_fixed_variable_available("wtheta_fluct", caps));
-    EXPECT_TRUE(erf_plotfile::plot3d_fixed_variable_available("tke", caps));
+    EXPECT_TRUE(erf_plotfile::plot3d_fixed_variable_available("tke_resolved", caps));
     EXPECT_TRUE(erf_plotfile::plot3d_fixed_variable_available("qsrc_lw", caps));
     EXPECT_TRUE(erf_plotfile::plot3d_fixed_variable_available("Lturb", caps));
     EXPECT_TRUE(erf_plotfile::plot3d_fixed_variable_available("diss", caps));

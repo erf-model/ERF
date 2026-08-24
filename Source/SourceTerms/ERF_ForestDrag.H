@@ -49,13 +49,15 @@ public:
 
     ~ForestDrag () = default;
 
-    /** Allocate and fill drag and frontal-area-density fields. */
+    /** Allocate and fill drag and, optionally, frontal-area-density fields. */
     void
     define_drag_field (const amrex::BoxArray& ba,
                        const amrex::DistributionMapping& dm,
                        amrex::Geometry& geom,
                        amrex::MultiFab* z_phys_cc,
-                       amrex::MultiFab* z_phys_nd);
+                       amrex::MultiFab* z_phys_nd,
+                       bool need_frontal_area = true,
+                       int level = -1);
 
     /** Return the cell-centered product of drag coefficient and LAD. */
     amrex::MultiFab*
@@ -68,6 +70,9 @@ public:
 private:
     // Mode flag: true for gridded NetCDF, false for discrete patches
     bool m_use_gridded_data{false};
+
+    // Frontal-area storage is only needed by the fixed-leaf-temperature path.
+    bool m_need_frontal_area{true};
 
     // Constant Cd mode (skips Cd file; used when forest_cd = value is specified)
     bool m_use_const_cd{false};

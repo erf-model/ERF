@@ -12,6 +12,7 @@
 #include "AMReX_PlotFileUtil.H"
 #include "ERF_ReadFromERFBdy.H"
 #include "ERF_Provenance.H"
+#include "ERF_IntervalMeansCheckpoint.H"
 
 using namespace amrex;
 
@@ -800,9 +801,9 @@ ERF::ReadCheckpointFile ()
             // A legacy checkpoint has no interval-mean metadata.  Keep the
             // safe empty-window fallback, but do not schedule a time reset a
             // second time when the checkpoint was written after its threshold.
-            mean_vars_time_reset_done =
-                (solverChoice.mean_vars_reset_mode == "time" &&
-                 t_new[0] >= static_cast<double>(solverChoice.mean_vars_reset_time)) ? 1 : 0;
+            mean_vars_time_reset_done = erf_interval_means::legacy_reset_done(
+                solverChoice.mean_vars_reset_mode == "time", t_new[0],
+                static_cast<double>(solverChoice.mean_vars_reset_time));
             if (ParallelDescriptor::IOProcessor()) {
                 amrex::Print() << "WARNING: legacy checkpoint without interval-mean state; "
                                   "the averaging window starts empty.\n";
@@ -812,60 +813,22 @@ ERF::ReadCheckpointFile ()
             ParallelDescriptor::ReadAndBcastFile(metadata_name, metadata_chars);
             std::istringstream metadata(std::string(metadata_chars.dataPtr()),
                                         std::istringstream::in);
-            std::string metadata_title;
-            std::getline(metadata, metadata_title);
-            if (metadata_title != "ERF interval means checkpoint v1") {
-                Abort("Invalid interval-mean checkpoint metadata in '" + metadata_name + "'");
-            }
-
-            int metadata_levels = 0;
-            int metadata_components = 0;
-            if (!(metadata >> metadata_levels >> metadata_components) ||
-                metadata_levels != finest_level + 1 || metadata_components != 10) {
+            erf_interval_means::Metadata parsed_metadata;
+            std::string metadata_error;
+            if (!erf_interval_means::parse_metadata(
+                    metadata, parsed_metadata, metadata_error)) {
                 Abort("Invalid interval-mean checkpoint metadata in '" + metadata_name +
-                      "': expected " + std::to_string(finest_level + 1) +
-                      " levels and 10 components");
+                      "': " + metadata_error);
+            }
+            const std::string validation_error = erf_interval_means::validate_metadata(
+                parsed_metadata, finest_level + 1, 10, grids);
+            if (!validation_error.empty()) {
+                Abort(validation_error + " in '" + metadata_name + "'");
             }
 
+            mean_vars_time_reset_done = erf_interval_means::global_reset_done(parsed_metadata);
             for (int lev = 0; lev <= finest_level; ++lev) {
-                int metadata_level = -1;
-                double restored_count = 0.0;
-                int restored_reset_done = -1;
-                if (!(metadata >> metadata_level >> restored_count >> restored_reset_done) ||
-                    metadata_level != lev || !std::isfinite(restored_count) ||
-                    restored_count < 0.0 ||
-                    (restored_reset_done != 0 && restored_reset_done != 1)) {
-                    Abort("Invalid interval-mean metadata for level " + std::to_string(lev) +
-                          " in '" + metadata_name + "'");
-                }
-
-                BoxArray stored_ba;
-                stored_ba.readFrom(metadata);
-                GotoNextLine(metadata);
-                if (!(stored_ba == grids[lev])) {
-                    Abort("Interval-mean checkpoint BoxArray does not match level " +
-                          std::to_string(lev));
-                }
-
-                // v1 recorded the processor map used when the checkpoint was
-                // written.  It is useful for diagnosing a file, but it is not
-                // part of the physical state: VisMF::Read redistributes the
-                // data from the file's layout to the current DistributionMap.
-                // Read the record for v1 compatibility without making a
-                // restart depend on the original MPI decomposition.
-                long long stored_pmap_size = -1;
-                if (!(metadata >> stored_pmap_size) || stored_pmap_size < 0 ||
-                    stored_pmap_size != static_cast<long long>(stored_ba.size())) {
-                    Abort("Invalid interval-mean processor-map metadata for level " +
-                          std::to_string(lev));
-                }
-                for (long long ibox = 0; ibox < stored_pmap_size; ++ibox) {
-                    int stored_proc = -1;
-                    if (!(metadata >> stored_proc)) {
-                        Abort("Invalid interval-mean distribution metadata for level " +
-                              std::to_string(lev));
-                    }
-                }
+                const auto& level_metadata = parsed_metadata.level[lev];
 
                 const std::string mf_name =
                     MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "IntervalMeans");
@@ -875,14 +838,7 @@ ERF::ReadCheckpointFile ()
                 }
                 AMREX_ALWAYS_ASSERT(interval_means[lev] != nullptr);
                 VisMF::Read(*interval_means[lev], mf_name);
-                t_mean_cnt[lev] = restored_count;
-                // v1 stored the flag once per level.  Correct v1 checkpoints
-                // contain the same global state in every row; taking the
-                // logical OR also preserves the important no-repeat property
-                // for an older checkpoint produced while a level was being
-                // rebuilt.
-                mean_vars_time_reset_done =
-                    (mean_vars_time_reset_done != 0 || restored_reset_done != 0) ? 1 : 0;
+                t_mean_cnt[lev] = level_metadata.accumulation_count;
             }
         }
     }

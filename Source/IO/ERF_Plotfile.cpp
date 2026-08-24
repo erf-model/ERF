@@ -1110,7 +1110,7 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
             if (containerHasElement(plot_var_names, "vw_fluct")) copy_fluctuation(8, 1, 2);
             if (containerHasElement(plot_var_names, "wtheta_fluct")) copy_fluctuation(9, 2, 3);
 
-            if (containerHasElement(plot_var_names, "tke")) {
+            if (containerHasElement(plot_var_names, "tke_resolved")) {
                 const int dest_comp = mf_comp++;
                 if (norm <= Real(0.0)) {
                     mf[lev].setVal(Real(0.0), dest_comp, 1, 0);

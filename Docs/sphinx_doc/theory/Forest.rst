@@ -44,9 +44,12 @@ ERF supports two mutually exclusive canopy descriptions:
   constant ``erf.forest_cd``. The corresponding NetCDF variables are ``LAI``,
   ``height``, and ``cd``. The horizontal fields are bilinearly interpolated to
   ERF cell centers. Their horizontal dimensions, spacing, and origins must
-  match. Coordinate arrays must have at least two finite, strictly increasing,
-  uniformly spaced points in each direction; inconsistent fields are rejected
-  before interpolation.
+  match. Coordinate arrays must be projected Cartesian ``x`` and ``y`` arrays
+  with at least two finite, strictly increasing, uniformly spaced points in
+  each direction; raw ``lon``/``lat`` arrays are rejected because no projection
+  is applied. Inconsistent fields are rejected before interpolation. ERF emits
+  one aggregated warning per level when the target domain extends beyond the
+  source-grid footprint.
 
 ``erf.forest_tree_type = 1`` selects the uniform LAD profile, while type 2
 selects the Lalic--Mihailovic profile. In gridded mode,

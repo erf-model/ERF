@@ -162,3 +162,29 @@ TEST(UniformGridInterpolation, DeviceEndpointIsInsideAndOutsidePointIsRejected)
     EXPECT_EQ(samples.endpoint_weight, amrex::Real(1.0));
     EXPECT_EQ(samples.outside_inside, 0);
 }
+
+TEST(UniformGridInterpolation, FloatQuantizedNonExactEndpointsAreClamped)
+{
+    const amrex::Real origin = amrex::Real(1234.5678);
+    const amrex::Real spacing = amrex::Real(0.125);
+    const int point_count = 4;
+    const amrex::Real upper = origin + amrex::Real(point_count - 1) * spacing;
+
+    const amrex::Real float_lower = static_cast<amrex::Real>(static_cast<float>(origin));
+    const amrex::Real float_upper = static_cast<amrex::Real>(static_cast<float>(upper));
+    const auto lower = erf_grid_utils::uniform_interpolation_stencil(
+        float_lower, origin, spacing, point_count);
+    const auto upper_stencil = erf_grid_utils::uniform_interpolation_stencil(
+        float_upper, origin, spacing, point_count);
+    EXPECT_TRUE(lower.inside);
+    EXPECT_EQ(lower.lower, 0);
+    EXPECT_EQ(lower.weight, amrex::Real(0.0));
+    EXPECT_TRUE(upper_stencil.inside);
+    EXPECT_EQ(upper_stencil.lower, point_count - 2);
+    EXPECT_EQ(upper_stencil.weight, amrex::Real(1.0));
+
+    const amrex::Real outside = upper +
+        amrex::Real(2.0) * erf_grid_utils::comparison_tolerance(upper, upper);
+    EXPECT_FALSE(erf_grid_utils::uniform_interpolation_stencil(
+        outside, origin, spacing, point_count).inside);
+}

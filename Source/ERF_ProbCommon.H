@@ -8,6 +8,7 @@
 #include <AMReX_Geometry.H>
 #include <AMReX_FArrayBox.H>
 #include <AMReX_MultiFab.H>
+#include <AMReX_Reduce.H>
 
 #include "ERF_DataStruct.H"
 #include "ERF_Constants.H"
@@ -700,6 +701,53 @@ public:
 
         amrex::Box zbx = terrain_fab.box();
         amrex::Array4<amrex::Real> const& z_arr = terrain_fab.array();
+        const amrex::Real terrain_dx = m_xterrain[1] - m_xterrain[0];
+        const amrex::Real terrain_dy = m_yterrain[1] - m_yterrain[0];
+
+        if (!mass_point_terrain && !zbx.isEmpty()) {
+            amrex::Box target_box = zbx & amrex::convert(geom.Domain(), amrex::IntVect(1, 1, 0));
+            if (!target_box.isEmpty()) {
+                target_box.setSmall(2, zbx.smallEnd(2));
+                target_box.setBig(2, zbx.smallEnd(2));
+                amrex::ReduceOps<amrex::ReduceOpSum, amrex::ReduceOpSum> reduce_op;
+                amrex::ReduceData<amrex::Long, amrex::Long> reduce_data(reduce_op);
+                reduce_op.eval(target_box, reduce_data,
+                    [=] AMREX_GPU_DEVICE (int i, int j, int /*k*/) -> amrex::GpuTuple<amrex::Long, amrex::Long> {
+                        const amrex::Real x = prob_lo[0] + static_cast<amrex::Real>(i) * dx_arr[0];
+                        const amrex::Real y = prob_lo[1] + static_cast<amrex::Real>(j) * dx_arr[1];
+                        const auto x_stencil = erf_grid_utils::uniform_interpolation_stencil(
+                            x, d_xt[0], terrain_dx, nx);
+                        const auto y_stencil = erf_grid_utils::uniform_interpolation_stencil(
+                            y, d_yt[0], terrain_dy, ny);
+                        const amrex::Long outside =
+                            (x_stencil.inside && y_stencil.inside) ? amrex::Long(0) : amrex::Long(1);
+                        return {amrex::Long(1), outside};
+                    });
+                auto local = reduce_data.value();
+                amrex::Long total_targets = amrex::get<0>(local);
+                amrex::Long outside_targets = amrex::get<1>(local);
+                amrex::ParallelDescriptor::ReduceLongSum(total_targets);
+                amrex::ParallelDescriptor::ReduceLongSum(outside_targets);
+                if (amrex::ParallelDescriptor::IOProcessor() && outside_targets > 0) {
+                    const amrex::Real source_xhi = m_xterrain[nx-1];
+                    const amrex::Real source_yhi = m_yterrain[ny-1];
+                    const amrex::Real target_xlo = geom.ProbLo(0);
+                    const amrex::Real target_ylo = geom.ProbLo(1);
+                    const amrex::Real target_xhi = geom.ProbHi(0);
+                    const amrex::Real target_yhi = geom.ProbHi(1);
+                    const amrex::Real percentage = total_targets > 0
+                        ? amrex::Real(100.0) * static_cast<amrex::Real>(outside_targets) /
+                          static_cast<amrex::Real>(total_targets) : amrex::Real(0.0);
+                    amrex::Print() << "WARNING: Terrain source grid does not cover ERF terrain nodes: outside "
+                                   << outside_targets << " of " << total_targets << " ("
+                                   << percentage << "%). Source extent x=[" << m_xterrain[0]
+                                   << ", " << source_xhi << "] y=[" << m_yterrain[0] << ", "
+                                   << source_yhi << "]; target extent x=[" << target_xlo << ", "
+                                   << target_xhi << "] y=[" << target_ylo << ", " << target_yhi
+                                   << "]. Outside nodes are set to zero.\n";
+                }
+            }
+        }
 
         amrex::ParallelFor(zbx, [=] AMREX_GPU_DEVICE (int i, int j, int /*k*/) noexcept
         {
