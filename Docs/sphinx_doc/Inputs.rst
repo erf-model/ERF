@@ -2220,6 +2220,15 @@ Notes
   is honored independently, so specifying one does not change how the others are obtained.
 
 The lookup data may be downloaded as a package from `here <https://doi.org/10.22002/ppv8a-4q131>`_.
+The k-distribution files are also shipped with the RRTMGP submodule in
+``Submodules/RRTMGP/rrtmgp/data``, and the cloud optics files in
+``Submodules/RRTMGP/extensions/cloud_optics``.
+
+All four files are expected in the single directory named by ``erf.rrtmgp_file_path``, which
+is resolved relative to the run directory (not to the location of the inputs file). ERF checks
+for them while constructing the radiation interface and aborts with a message listing the
+directory and any missing file, so a mis-set path is reported at startup rather than as a
+netCDF "No such file or directory" error.
 
 .. note::
 
