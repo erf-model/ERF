@@ -173,6 +173,21 @@ public:
         AMREX_ALWAYS_ASSERT_WITH_MESSAGE(z_lsf.size() == num_times,
                                          "repeated timestamp in the large-scale forcing file");
         amrex::Print() << "  Read " << nz_lsf << " levels at " << num_times << " times" << std::endl;
+
+        // debugging print
+        if (verbose_print) {
+            for (int i = 0; i < times_lsf.size(); i++)
+            {
+                amrex::Print() << " LSF at time = " << times_lsf[i] << std::endl;
+                for (int lev = 0; lev < nz_lsf + 1; lev++)
+                {
+                    amrex::Print() << "   level " << lev << ": z = " << z_lsf[i][lev] << " p = " << p_lsf[i][lev] << " tls = "
+                                   << t_lsf[i][lev] << " qls = " << q_lsf[i][lev] << " uls = " << u_lsf[i][lev] << " vls = "
+                                   << v_lsf[i][lev] << " wls = " << w_lsf[i][lev] << std::endl;
+                }
+                break; // print only the first time block
+            }
+        }
     }
 
 
@@ -266,6 +281,21 @@ public:
 
             host_to_device(itime);
         }
+
+        // debugging print
+        if (verbose_print) {
+            for (int i = 0; i < times_lsf.size(); i++)
+            {
+                amrex::Print() << " INTERPOLATED LSF at time = " << times_lsf[i] << std::endl;
+                for (int k = 0; k <= Nz; k++)
+                {
+                    amrex::Print() << "   level " << k << ": z = " << z_int_lsf[i][k] << " tls = " << t_int_lsf[i][k]
+                                   << " qls = " << q_int_lsf[i][k] << " uls = " << u_int_lsf[i][k] << " vls = "
+                                   << v_int_lsf[i][k] << " wls = " << w_int_lsf[i][k] << std::endl;
+                }
+                break; // print only the first time block
+            }
+        }
     }
 
     void
@@ -342,6 +372,8 @@ public:
     std::string lsf_file = "";
 
     bool use_z_grid = true;
+
+    bool verbose_print = false; // whether to display the lsf at initialization (before and after interpolation)
 
     // inputs from large scale forcing file
     int nz_lsf = -1;    // number of z levels in the LSF file
